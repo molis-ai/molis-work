@@ -38,10 +38,11 @@ function renderFocusSectionCard(options: FocusSectionCardOptions): string {
   const cardId = options.cardId ? ` id="${escapeHtml(options.cardId)}"` : "";
   const cardClass = options.cardClass ? ` ${options.cardClass}` : "";
   const count = options.count == null ? "" : `<small class="focus-section-card-count">${options.count}</small>`;
+  const description = options.description ? `<small>${escapeHtml(options.description)}</small>` : "";
   return `<article${cardId} class="focus-section-card${cardClass}${active ? " is-active" : ""}" data-focus-section-card="${escapeHtml(options.key)}" ${options.cardAttributes ?? ""}>
     <button class="focus-section-card-trigger" type="button" aria-expanded="${active ? "true" : "false"}" data-focus-section-trigger="${escapeHtml(options.key)}" ${options.triggerAttributes ?? ""}>
       <span class="focus-section-card-icon">${icon(options.iconName)}</span>
-      <span class="focus-section-card-copy"><strong>${escapeHtml(options.title)}</strong><small>${escapeHtml(options.description)}</small></span>
+      <span class="focus-section-card-copy"><strong>${escapeHtml(options.title)}</strong>${description}</span>
       ${count}<span class="focus-section-card-caret">${icon("chevron-right")}</span>
     </button>
   </article>`;

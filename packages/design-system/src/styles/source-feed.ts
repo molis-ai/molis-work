@@ -3,7 +3,7 @@ export const SOURCE_FEED_STYLES = `  /* Source → Feed → Inbox high-fidelity 
      directory ledger as Goals and Items; configuration stays in the workface. */
   body[data-desktop-shell="true"] .source-directory {
     min-height: 0;
-    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    grid-template-rows: auto auto minmax(0, 1fr);
     background: transparent;
   }
   body[data-desktop-shell="true"] .source-directory:not([hidden]) { display: grid; }
@@ -46,54 +46,6 @@ export const SOURCE_FEED_STYLES = `  /* Source → Feed → Inbox high-fidelity 
   body[data-desktop-shell="true"] .source-filter-row button.is-active { color: var(--blue-dark); background: color-mix(in srgb, var(--blue) 10%, transparent); }
   body[data-desktop-shell="true"] .source-filter-row button:focus-visible { outline: 2px solid color-mix(in srgb, var(--blue) 58%, transparent); outline-offset: -1px; }
   body[data-desktop-shell="true"] .source-list { min-height: 0; padding: 1px 3px 8px; overflow-y: auto; }
-  body[data-desktop-shell="true"] .source-list-item {
-    width: 100%;
-    min-width: 0;
-    min-height: 78px;
-    padding: 8px 7px;
-    border: 0;
-    border-radius: 10px;
-    color: var(--ink-soft);
-    background: transparent;
-    display: grid;
-    grid-template-columns: 22px minmax(0, 1fr) auto;
-    align-items: start;
-    gap: 7px;
-    text-align: left;
-    cursor: pointer;
-  }
-  body[data-desktop-shell="true"] .source-list-item:hover { background: color-mix(in srgb, var(--ink) 4%, transparent); }
-  body[data-desktop-shell="true"] .source-list-item.is-selected {
-    color: var(--ink);
-    background: color-mix(in srgb, var(--blue) 10%, transparent);
-    box-shadow: none;
-  }
-  body[data-desktop-shell="true"] .source-list-item:focus-visible { outline: 0; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--blue) 58%, transparent); }
-  body[data-desktop-shell="true"] .source-list-icon {
-    width: 22px;
-    height: 22px;
-    border-radius: 7px;
-    color: var(--muted);
-    background: color-mix(in srgb, var(--paper) 66%, transparent);
-    display: grid;
-    place-items: center;
-  }
-  body[data-desktop-shell="true"] .source-list-icon svg { width: 11px; height: 11px; }
-  body[data-desktop-shell="true"] .source-list-copy { min-width: 0; display: grid; gap: 2px; }
-  body[data-desktop-shell="true"] .source-list-copy > span { min-width: 0; display: flex; align-items: center; gap: 5px; }
-  body[data-desktop-shell="true"] .source-list-copy em { color: var(--blue-dark); font-size: 7.5px; font-style: normal; font-weight: 720; }
-  body[data-desktop-shell="true"] .source-list-copy > span small { padding: 2px 4px; border-radius: 5px; color: var(--faint); background: color-mix(in srgb, var(--ink) 5%, transparent); }
-  body[data-desktop-shell="true"] .source-list-copy strong,
-  body[data-desktop-shell="true"] .source-list-copy p,
-  body[data-desktop-shell="true"] .source-list-copy > small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  body[data-desktop-shell="true"] .source-list-copy strong { color: inherit; font-size: 11.5px; font-weight: 640; line-height: 1.35; }
-  body[data-desktop-shell="true"] .source-list-copy p { margin: 0; color: var(--muted); font-size: 9px; }
-  body[data-desktop-shell="true"] .source-list-copy small { color: var(--faint); font-size: 8px; line-height: 1.35; }
-  body[data-desktop-shell="true"] .source-list-state { max-width: 68px; align-self: start; }
-  body[data-desktop-shell="true"] .source-list-state[data-source-status="active"] { color: var(--green); }
-  body[data-desktop-shell="true"] .source-list-state[data-source-status="attention"] { color: var(--red); }
-  body[data-desktop-shell="true"] .source-list-state[data-source-status="syncing"] { color: var(--blue-dark); }
-  body[data-desktop-shell="true"] .source-list-state[data-source-status="paused"] { color: var(--faint); }
   body[data-desktop-shell="true"] .feed-directory-footer small { display: inline-flex; align-items: center; gap: 6px; }
   body[data-desktop-shell="true"] .feed-directory-footer small button {
     min-height: 24px;
@@ -287,7 +239,7 @@ export const SOURCE_FEED_STYLES = `  /* Source → Feed → Inbox high-fidelity 
   body[data-desktop-shell="true"] .prototype-honesty-note svg { width: 12px; height: 12px; margin-top: 1px; flex: 0 0 auto; }
   body[data-desktop-shell="true"] .source-honesty-note { max-width: 720px; }
 
-  body[data-desktop-shell="true"] .feed-list-item.is-selected {
+  body[data-desktop-shell="true"] :is(.feed-list-item, .source-list-item).is-selected {
     color: var(--ink);
     background: color-mix(in srgb, var(--blue) 10%, transparent);
     box-shadow: none;

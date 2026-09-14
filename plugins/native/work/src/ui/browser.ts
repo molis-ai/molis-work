@@ -39,6 +39,36 @@ export const PROJECT_OPERATIONS_CLIENT_SCRIPT = `
   (${WORK_SESSION_ADD_CLIENT})(shared);
   (${WORK_ASSOCIATIONS_CLIENT})(shared);
   (${WORK_HANDOFF_CLIENT})(shared);
+  const activateSessionDetailTab = (detail, tabName) => {
+    if (!detail || !tabName) return;
+    detail.querySelectorAll("[data-session-detail-tab]").forEach((tab) => {
+      const active = tab.dataset.sessionDetailTab === tabName;
+      tab.classList.toggle("is-active", active);
+      tab.setAttribute("aria-selected", String(active));
+      tab.tabIndex = active ? 0 : -1;
+    });
+    detail.querySelectorAll("[data-session-detail-panel]").forEach((panel) => {
+      panel.hidden = panel.dataset.sessionDetailPanel !== tabName;
+    });
+  };
+  document.addEventListener("click", (event) => {
+    const tab = event.target.closest("[data-session-detail-tab]");
+    if (!tab) return;
+    activateSessionDetailTab(tab.closest("[data-operation-detail]"), tab.dataset.sessionDetailTab);
+  });
+  document.addEventListener("keydown", (event) => {
+    const tab = event.target.closest("[data-session-detail-tab]");
+    if (!tab || (event.key !== "ArrowLeft" && event.key !== "ArrowRight" && event.key !== "Home" && event.key !== "End")) return;
+    const tabs = [...(tab.closest("[role=tablist]")?.querySelectorAll("[data-session-detail-tab]") || [])];
+    const index = tabs.indexOf(tab);
+    if (index < 0) return;
+    event.preventDefault();
+    const next = event.key === "Home" ? tabs[0]
+      : event.key === "End" ? tabs[tabs.length - 1]
+      : tabs[(index + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length];
+    activateSessionDetailTab(tab.closest("[data-operation-detail]"), next.dataset.sessionDetailTab);
+    next.focus();
+  });
   document.querySelectorAll("[data-dialog-close]").forEach((button) => button.addEventListener("click", () => button.closest("dialog")?.close()));
   document.querySelectorAll('[data-work-surface-open="sessions"]').forEach((button) => button.addEventListener("click", () => {
     queueMicrotask(() => loadSessionContent(document.querySelector('[data-work-surface="sessions"] [data-operation-detail]:not([hidden])')));

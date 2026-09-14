@@ -37,6 +37,12 @@ export const FOUNDATION_STYLES = `  :root {
     --radius-control: 8px;
     --radius-surface: 10px;
     --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    --ease-standard: cubic-bezier(.2, 0, 0, 1);
+    --ease-emphasized: cubic-bezier(.16, 1, .3, 1);
+    --dur-instant: .12s;
+    --dur-fast: .16s;
+    --dur-base: .24s;
+    --dur-slow: .36s;
   }
 
   html[data-resolved-theme="dark"] {

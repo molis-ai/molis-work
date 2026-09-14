@@ -512,8 +512,8 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
     color: var(--amber);
   }
   .tui-chrome button { border-color: var(--line-strong); border-radius: 8px; background: var(--paper); }
-  .tui-terminal { border-color: #2e3440; border-radius: 11px; box-shadow: inset 0 1px 0 rgba(255,255,255,.025); }
-  .tui-empty { color: #89919f; }
+  .tui-terminal { border-color: var(--terminal-border); border-radius: 11px; box-shadow: inset 0 1px 0 rgba(255,255,255,.025); }
+  .tui-empty { color: var(--terminal-muted); }
   body[data-desktop-shell="true"] .tui-pane { grid-template-rows: 58px 42px minmax(0, 1fr); }
   body[data-desktop-shell="true"] .tui-owner { padding-inline: 18px; }
   body[data-desktop-shell="true"] .tui-owner-copy > strong { font-size: 14px; }
@@ -634,11 +634,18 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
   html[data-resolved-theme="dark"] .relation-editor,
   html[data-resolved-theme="dark"] .relation-inactive-history,
   html[data-resolved-theme="dark"] .factor-advanced { border-color: var(--line-strong); background: var(--rail); }
-  html[data-resolved-theme="dark"] .goal-factor-nav button { border-color: var(--line); background: transparent; color: var(--muted); }
-  html[data-resolved-theme="dark"] .goal-factor-nav button:hover,
-  html[data-resolved-theme="dark"] .goal-factor-nav button[aria-selected="true"] { background: var(--paper); color: var(--blue-dark); box-shadow: none; }
-  html[data-resolved-theme="dark"] .goal-factor-nav button small { background: var(--line); color: var(--muted); }
-  html[data-resolved-theme="dark"] .goal-factor-nav button[aria-selected="true"] small { background: var(--blue-soft); color: var(--blue-dark); }
+  html[data-resolved-theme="dark"] .focus-section-deck.goal-factor-nav {
+    border: 0;
+    background: transparent;
+  }
+  html[data-resolved-theme="dark"] .focus-section-deck.goal-factor-nav button,
+  html[data-resolved-theme="dark"] .focus-section-deck.goal-factor-nav button:hover,
+  html[data-resolved-theme="dark"] .focus-section-deck.goal-factor-nav button[aria-selected="true"] {
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  html[data-resolved-theme="dark"] .focus-section-deck.goal-factor-nav button[aria-selected="true"] { color: var(--ink); }
   html[data-resolved-theme="dark"] .relation-group > header,
   html[data-resolved-theme="dark"] .relation-actions,
   html[data-resolved-theme="dark"] .risk-actions,

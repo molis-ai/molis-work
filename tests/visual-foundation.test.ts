@@ -34,6 +34,12 @@ test("dependency proposal records use semantic colors in both themes", () => {
   assert.match(stylesheet, /\.dependency-rationale div \{[^}]*border-top: 1px solid var\(--line\);/);
   assert.match(stylesheet, /\.dependency-evidence \{[^}]*border-top: 1px solid var\(--line\);/);
   assert.doesNotMatch(stylesheet, /\.dependency-proposal \{[^}]*background: #fff;/);
+  assert.match(stylesheet, /\.contract-coverage-group > article \{[\s\S]*background: color-mix\(in srgb, var\(--ink\) 5%, var\(--paper\)\)/);
+  assert.doesNotMatch(stylesheet, /\.contract-coverage-group > article \{[^}]*#fbfcfd/);
+  assert.match(stylesheet, /\.goal-description-kicker \{[\s\S]*grid-template-columns: auto minmax\(0, 1fr\) auto/);
+  assert.match(stylesheet, /\.relation-editor > summary:hover, \.relation-inactive-history > summary:hover \{ background: color-mix\(in srgb, var\(--ink\) 5%, transparent\)/);
+  assert.match(stylesheet, /\.factor-advanced > summary:hover \{ background: color-mix\(in srgb, var\(--ink\) 5%, transparent\)/);
+  assert.doesNotMatch(stylesheet, /\.relation-editor > summary:hover[^}]*#f4f7fa/);
 });
 
 test("primary and danger buttons keep semantic foregrounds across Light and Dark", () => {
@@ -168,7 +174,7 @@ test("collapsed desktop directory becomes a titlebar overlay above a full-width 
 
 test("Light desktop navigation and directory selections stay flat", () => {
   assert.match(VISUAL_FOUNDATION_STYLES, /Light location states stay embedded in their rail/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /html\[data-resolved-theme="light"\] body\[data-desktop-shell="true"\] \.desktop-goal-directory \.tree-entry\.is-selected,[\s\S]*\.feed-list-item\.is-selected \{[\s\S]*background: color-mix\(in srgb, var\(--blue\) 8%, transparent\) !important;[\s\S]*box-shadow: none;/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /html\[data-resolved-theme="light"\] body\[data-desktop-shell="true"\] \.desktop-goal-directory \.tree-entry\.is-selected,[\s\S]*\.feed-list-item\.is-selected,[\s\S]*\.source-list-item\.is-selected \{[\s\S]*background: color-mix\(in srgb, var\(--blue\) 8%, transparent\) !important;[\s\S]*box-shadow: none;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /html\[data-resolved-theme="light"\] body\[data-desktop-shell="true"\] \.goal-mode-switch button\.is-active \{[\s\S]*background: color-mix\(in srgb, var\(--blue\) 10%, transparent\);[\s\S]*box-shadow: none;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /html\[data-resolved-theme="light"\] body\.settings-page\[data-desktop-shell="true"\] \.settings-navigation \.settings-nav-group > a\[aria-current="page"\] \{[\s\S]*background: color-mix\(in srgb, var\(--ink\) 8%, transparent\);[\s\S]*box-shadow: none;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.navigator-project-settings\[aria-current="page"\],[\s\S]*\.navigator-directory-toggle \{[\s\S]*background: color-mix\(in srgb, var\(--ink\) 7%, transparent\);[\s\S]*box-shadow: none;/);
@@ -367,11 +373,13 @@ test("visual foundation gives every Focus detail one responsive section deck", (
   assert.match(VISUAL_FOUNDATION_STYLES, /\.goal-hero,[\s\S]*\.goal-workspace-panels \{[\s\S]*border-radius: 14px;[\s\S]*background: var\(--paper\)/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.focus-section-card-row \{[\s\S]*display: grid;[\s\S]*repeat\(auto-fit, minmax\(136px, 1fr\)\)/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.focus-section-card-copy > small \{[\s\S]*max-height: none;[\s\S]*overflow: visible;/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.focus-section-card-trigger,[\s\S]*height: 100%;[\s\S]*align-items: start;/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /\.focus-section-card-trigger \{[\s\S]*height: 100%;[\s\S]*align-items: start;/);
   assert.doesNotMatch(VISUAL_FOUNDATION_STYLES.slice(VISUAL_FOUNDATION_STYLES.lastIndexOf("/* Focus is an inset reading surface")), /\.focus-section-card\.is-active \{[^}]*flex:/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.focus-section-stage \{[\s\S]*margin-top: 12px;[\s\S]*display: grid;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.focus-section-card-reveal \{[\s\S]*clip-path: inset\(0 0 10% 0 round 12px\);/);
   assert.match(VISUAL_FOUNDATION_STYLES, /@container \(max-width: 700px\)[\s\S]*\.focus-section-card-row \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /\.focus-section-deck\.goal-factor-nav \.focus-section-card-row \{[\s\S]*display: flex;/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /\.focus-section-deck\.goal-factor-nav \.focus-section-card-trigger \{[\s\S]*min-height: 36px;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.focus-section-card[\s\S]*transition: none;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /Relations read as records, not a pile of pills/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.focus-section-card-reveal \.relation-row \{[\s\S]*grid-template-columns: 54px minmax\(0, 1fr\) auto 16px;[\s\S]*justify-content: stretch;/);

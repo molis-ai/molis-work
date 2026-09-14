@@ -163,7 +163,7 @@
       {
         "name": "section-reveal",
         "value": "480ms cubic-bezier(.16, 1, .3, 1)",
-        "purpose": "Reveal the selected body in the 关联与约束 stage while selector cards remain stationary; removed under reduced motion."
+        "purpose": "Reveal the selected 目标与要求 tab body while the compact tab strip stays in place; removed under reduced motion."
       },
       {
         "name": "home-quotation",
@@ -253,9 +253,9 @@
     {
       "name": "Factor Section Deck",
       "kind": "disclosure",
-      "description": "Nested 关联与约束 deck inside 目标与要求: equal-width summary cards and one full-width stage. Not the Goal document’s primary navigation.",
-      "html": "<section class=\"ds-section-deck\"><div class=\"ds-section-row\"><article class=\"ds-section-card is-active\"><button aria-expanded=\"true\">Goal 关系</button></article><article class=\"ds-section-card\"><button aria-expanded=\"false\">风险</button></article></div><div class=\"ds-section-stage\">说明这条 Goal 属于什么、依赖什么，以及会影响哪些其他 Goal。</div></section>",
-      "css": ".ds-section-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(136px, 1fr)); align-items: stretch; gap: 10px; } .ds-section-card { min-width: 0; border: 1px solid var(--line, #e7e7ea); border-radius: 10px; background: var(--rail, #f1f1f3); overflow: hidden; } .ds-section-card.is-active { border-color: #91a3da; background: var(--paper, #fff); box-shadow: inset 0 -2px 0 var(--blue, #5068b7); } .ds-section-card button { width: 100%; height: 100%; min-height: 84px; padding: 13px; border: 0; background: transparent; text-align: left; } .ds-section-stage { margin-top: 12px; min-height: 120px; padding: 22px; border-radius: 12px; background: var(--rail, #f1f1f3); box-shadow: inset 0 0 0 1px var(--line, #e7e7ea); } @media (max-width: 700px) { .ds-section-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } } @media (max-width: 430px) { .ds-section-row { grid-template-columns: 1fr; } } @media (prefers-reduced-motion: reduce) { .ds-section-card, .ds-section-stage { transition: none; } }"
+      "description": "Six compact peer tabs inside 目标与要求. 基础信息 section titles use icon wells and short tags; historical Contract coverage is its own tab. 工作规则 uses grouped preference rows.",
+      "html": "<section class=\"ds-section-deck\"><div class=\"ds-section-row\" role=\"tablist\"><button class=\"is-active\" role=\"tab\" aria-selected=\"true\">基础信息</button><button role=\"tab\" aria-selected=\"false\">历史覆盖</button><button role=\"tab\" aria-selected=\"false\">Goal 关系</button><button role=\"tab\" aria-selected=\"false\">风险</button></div><div class=\"ds-section-stage\">要得到什么、为什么、范围，以及绑定资料。</div></section>",
+      "css": ".ds-section-row { display: flex; align-items: stretch; gap: 2px; overflow-x: auto; } .ds-section-row button { min-height: 36px; padding: 8px 10px; border: 0; background: transparent; color: var(--ink-soft, #424247); font: 630 12px/1.35 -apple-system, BlinkMacSystemFont, sans-serif; white-space: nowrap; } .ds-section-row button.is-active { color: var(--ink, #19191b); box-shadow: inset 0 -2px 0 var(--blue, #5068b7); } .ds-section-stage { margin-top: 12px; min-height: 120px; padding: 16px 0; } @media (max-width: 700px) { .ds-section-row button { min-height: 44px; } } @media (prefers-reduced-motion: reduce) { .ds-section-row button, .ds-section-stage { transition: none; } }"
     },
     {
       "name": "Relationship Record",
@@ -414,7 +414,7 @@
       "Do keep Promotion and Visual Workspace visibly labeled “规划中” and limited to honest reserved views until their real entities and flows exist.",
       "Do test Light, Dark, Standard, Compact, Runtime-open, narrow states, and both terminal palettes together.",
       "Do keep every mobile workspace surface full width and free of horizontal viewport escapes.",
-      "Do let users scan 关联与约束 summaries before expanding one body, and reveal the correct card before honoring a deep link.",
+      "Do let users switch 目标与要求 tabs without scrolling past unrelated content, and reveal the correct tab before honoring a deep link.",
       "Do keep the existing Goal search usable inside the Goals drill-down. GW5 restored the search field above its compact toolbar after real browser tests found it hidden by desktop CSS; this does not add search to the root directory or change the visual direction. Desktop and 390px captures were inspected; details and evidence are in `specs/goalboard-architecture-reorganization/gw5-progress.md`.",
       "Do treat an explicit “加入组合” click as the project-adoption confirmation and send it to the existing guarded API. GW5 repaired the missing client field; it did not weaken the server check or auto-adopt methods. Real failed/retried saves, independent personal/project versions and desktop/390px captures were verified; no visual redesign was made (impeccable harden)."
     ],

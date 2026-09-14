@@ -29,6 +29,12 @@ export function renderWorkSessionSurface(surface: WorkUiSurface, model: WorkUiMo
     return { native: L("原生内容"), fallback: L("GoalBoard 记录"), unavailable: L("不可读取") }[mode];
   }
 
+  function renderSessionStatus(item: ProjectSessionRecord): string {
+    const label = sessionStateLabel(item.state);
+    const status = item.state === "archived" ? "archived" : "continue";
+    return `<span class="goal-status goal-status--${status}" title="${escapeHtml(label)}">${icon(item.state === "archived" ? "archive" : "ready")}<span>${escapeHtml(label)}</span></span>`;
+  }
+
   function renderSessionRow(item: ProjectSessionRecord, selected: boolean): string {
     const search = [
       item.title,
@@ -42,13 +48,17 @@ export function renderWorkSessionSurface(surface: WorkUiSurface, model: WorkUiMo
       item.updated,
     ].filter(Boolean).join(" ").toLocaleLowerCase();
     const updatedAt = Number.isFinite(Date.parse(item.updatedAt || "")) ? Date.parse(item.updatedAt!) : 0;
-    return `<button class="project-record-row directory-list-row${selected ? " is-selected" : ""}" type="button" role="option" aria-selected="${selected}" tabindex="${selected ? "0" : "-1"}" data-operation-row="session" data-operation-select="${escapeHtml(item.id)}" data-record-id="${escapeHtml(item.id)}" data-record-runtime="${escapeHtml(item.runtimeId || item.runtime)}" data-record-status="${escapeHtml(item.state)}" data-record-content="${escapeHtml(item.contentMode)}" data-record-updated="${updatedAt}" data-record-search="${escapeHtml(search)}">
-    <span class="project-record-select">
-      <span><strong title="${escapeHtml(item.title)}">${escapeHtml(item.title)}</strong><small title="${escapeHtml(item.id)}">${escapeHtml([item.runtime, item.currentGoal].filter(Boolean).join(" · "))}</small></span>
-    </span>
-    <span class="directory-row-state project-record-state--${escapeHtml(item.state)}">${escapeHtml(sessionStateLabel(item.state))}</span>
-    <span class="project-record-meta"><span>${escapeHtml(item.currentGoal || L("未选择当前 Goal"))}</span><time>${escapeHtml(item.updated)}</time></span>
-  </button>`;
+    return `<li class="tree-item" role="option" aria-selected="${selected}" data-operation-row="session" data-operation-select="${escapeHtml(item.id)}" data-record-id="${escapeHtml(item.id)}" data-record-title="${escapeHtml(item.title)}" data-record-runtime="${escapeHtml(item.runtimeId || item.runtime)}" data-record-runtime-label="${escapeHtml(item.runtime)}" data-record-status="${escapeHtml(item.state)}" data-record-content="${escapeHtml(item.contentMode)}" data-record-updated="${updatedAt}" data-record-search="${escapeHtml(search)}">
+      <div class="tree-row">
+        <span class="tree-guide" aria-hidden="true"></span>
+        <div class="tree-entry directory-list-row${selected ? " is-selected" : ""}">
+          <button class="tree-node${selected ? " is-selected" : ""}" type="button" tabindex="${selected ? "0" : "-1"}">
+            <span class="tree-copy"><span class="tree-title-line"><strong title="${escapeHtml(item.title)}">${escapeHtml(item.title)}</strong></span></span>
+          </button>
+          <span class="directory-row-state">${renderSessionStatus(item)}</span>
+        </div>
+      </div>
+    </li>`;
   }
 
   function renderDirectory(
@@ -64,9 +74,8 @@ export function renderWorkSessionSurface(surface: WorkUiSurface, model: WorkUiMo
       <label class="tree-search">${icon("search")}<input type="search" data-operation-search="sessions" placeholder="${L("搜索标题、ID、Goal")}" aria-label="${L("搜索 Sessions")}"><kbd>⌘F</kbd></label>
       <details class="project-record-filter-menu"><summary aria-label="${L("筛选与排序")}">${icon("filter")}<span>${L("筛选")}</span></summary><div><label>Runtime<select data-session-runtime-filter><option value="all">${L("全部 Runtime")}</option></select></label><label>${L("状态")}<select data-session-status-filter><option value="all">${L("全部状态")}</option><option value="idle">${L("可查看")}</option><option value="archived">${L("已归档")}</option></select></label><label>${L("内容")}<select data-operation-filter="sessions"><option value="all">${L("全部内容")}</option><option value="native">${L("原生内容")}</option><option value="fallback">${L("GoalBoard 记录")}</option><option value="unavailable">${L("不可读取")}</option></select></label><label>${L("排序")}<select data-session-sort><option value="updated-desc">${L("最近更新")}</option><option value="updated-asc">${L("最早更新")}</option><option value="title-asc">${L("标题 A–Z")}</option></select></label></div></details><button class="project-record-add-compact" type="button" data-open-session-add aria-label="${L("新建 Session")}">${icon("plus")}</button>
     </header>
-    <div class="project-record-scroll" role="listbox" aria-label="${L("Sessions 列表")}" data-operation-list="sessions">${rows}</div>
+    <div class="project-record-scroll"><ul class="goal-tree" role="listbox" aria-label="${L("Sessions 列表")}" data-operation-list="sessions">${rows}</ul></div>
     <div class="project-record-empty" data-operation-empty="sessions"${hasData ? " hidden" : ""}>${icon("terminal")}<strong>${hasData ? L("没有匹配结果") : L("这个项目还没有 Session")}</strong><p>${hasData ? L("清除搜索或更改筛选条件。") : L("从这里启动新工作，或关联已有 Runtime Session。")}</p><button type="button" data-operation-clear="sessions"${hasData ? "" : " hidden"}>${L("清除筛选")}</button></div>
-    <footer class="tree-footer"><span>${L("共")} <strong data-operation-count="sessions">${hasData ? records.length : 0}</strong> ${L("条")}</span><small>${L("执行与内容")}</small></footer>
   </section>`;
   }
 
@@ -88,6 +97,9 @@ export function renderWorkSessionSurface(surface: WorkUiSurface, model: WorkUiMo
   function renderSessionDetail(item: ProjectSessionRecord, selected: boolean, projectName: string): string {
     const canLoad = item.resumeMode === "native";
     const canHandoff = Boolean(item.currentGoalId);
+    const tabId = (name: string) => `session-${escapeHtml(item.id)}-tab-${name}`;
+    const panelId = (name: string) => `session-${escapeHtml(item.id)}-panel-${name}`;
+    const historyCount = item.goalHistory.length + (item.currentGoal ? 1 : 0);
     return `<article class="goal-document project-operation-document project-session-document" data-operation-detail="session" data-detail-id="${escapeHtml(item.id)}" data-session-runtime-id="${escapeHtml(item.runtimeId)}" data-session-resume-mode="${escapeHtml(item.resumeMode)}" data-session-current-goal-id="${escapeHtml(item.currentGoalId || "")}" data-session-workspace-path="${escapeHtml(item.workspacePath || "")}" data-session-archived="${item.state === "archived"}"${selected ? "" : " hidden"}>
     <section class="goal-hero project-operation-hero" aria-labelledby="session-title-${escapeHtml(item.id)}">
       <header class="goal-header">
@@ -97,18 +109,24 @@ export function renderWorkSessionSurface(surface: WorkUiSurface, model: WorkUiMo
       </header>
     </section>
     <div class="goal-focus-layout project-operation-layout">
-      <div class="goal-focus-main">
-        <section class="goal-focus-criteria session-execution" aria-labelledby="session-content-${escapeHtml(item.id)}">
-          <header><div><h2 id="session-content-${escapeHtml(item.id)}">${item.contentMode === "fallback" ? L("GoalBoard 执行记录") : L("执行内容")}</h2><p>${item.contentMode === "unavailable" ? L("当前适配器没有内容读取能力。") : L("按时间查看最近的用户、Runtime 与工具记录。")}</p></div><div class="operation-content-controls"><label class="operation-content-search">${icon("search")}<input type="search" data-session-content-search placeholder="${L("搜索本次执行")}" aria-label="${L("搜索当前 Session 内容")}"${item.contentMode === "unavailable" ? " disabled" : ""}></label><label class="operation-content-filter"><span>${L("事件")}</span><select data-session-content-filter aria-label="${L("筛选执行事件")}"${item.contentMode === "unavailable" ? " disabled" : ""}><option value="all">${L("全部事件")}</option><option value="conversation">${L("对话")}</option><option value="tool">${L("工具与审批")}</option><option value="status">${L("状态")}</option><option value="artifact">${L("产物")}</option><option value="terminal">${L("终端")}</option></select></label></div></header>
-          <div class="session-content-body">${renderSessionContent(item)}<p class="operation-search-empty" data-session-content-empty hidden>${L("当前内容中没有匹配结果。")}</p></div>
-        </section>
-      </div>
-      <aside class="goal-focus-aside" aria-label="${L("Session 上下文")}">
-        <section class="goal-focus-context operation-current-context"><header><div><h2>${L("当前关系")}</h2><p>${L("续跑使用这些已确认事实。")}</p></div><button type="button" data-open-session-relations>${L("管理关系")}</button></header><dl><div><dt>${L("项目")}</dt><dd>${escapeHtml(projectName)}</dd></div><div><dt>${L("当前 Goal")}</dt><dd><span data-current-goal-value>${escapeHtml(item.currentGoal || L("未选择"))}</span><button type="button" data-work-surface-open="goal" data-directory-open="goals">${L("去 Goals")}</button></dd></div><div><dt>${L("工作目录")}</dt><dd><code>${escapeHtml(item.workspace)}</code></dd></div><div><dt>${L("内容来源")}</dt><dd>${escapeHtml(contentModeLabel(item.contentMode))}</dd></div></dl></section>
-        <section class="companion-runtime operation-goal-history"><header><div><small>Goal</small><h2>${L("关联历史")}</h2></div><span data-goal-history-count>${L("{count} 次", { count: item.goalHistory.length + (item.currentGoal ? 1 : 0) })}</span></header>${renderGoalHistory(item)}</section>
+      <nav class="session-detail-tabs" role="tablist" aria-label="${L("Session 详情")}">
+        <button class="is-active" type="button" role="tab" id="${tabId("content")}" aria-controls="${panelId("content")}" aria-selected="true" tabindex="0" data-session-detail-tab="content">${L("执行内容")}</button>
+        <button type="button" role="tab" id="${tabId("relations")}" aria-controls="${panelId("relations")}" aria-selected="false" tabindex="-1" data-session-detail-tab="relations">${L("当前关系")}</button>
+        <button type="button" role="tab" id="${tabId("history")}" aria-controls="${panelId("history")}" aria-selected="false" tabindex="-1" data-session-detail-tab="history">${L("关联历史")}</button>
+      </nav>
+      <section class="goal-focus-criteria session-execution" id="${panelId("content")}" role="tabpanel" aria-labelledby="${tabId("content")}" data-session-detail-panel="content">
+        <header><div><h2 id="session-content-${escapeHtml(item.id)}">${item.contentMode === "fallback" ? L("GoalBoard 执行记录") : L("执行内容")}</h2><p>${item.contentMode === "unavailable" ? L("当前适配器没有内容读取能力。") : L("按时间查看最近的用户、Runtime 与工具记录。")}</p></div><div class="operation-content-controls"><label class="operation-content-search">${icon("search")}<input type="search" data-session-content-search placeholder="${L("搜索本次执行")}" aria-label="${L("搜索当前 Session 内容")}"${item.contentMode === "unavailable" ? " disabled" : ""}></label><label class="operation-content-filter"><span>${L("事件")}</span><select data-session-content-filter aria-label="${L("筛选执行事件")}"${item.contentMode === "unavailable" ? " disabled" : ""}><option value="all">${L("全部事件")}</option><option value="conversation">${L("对话")}</option><option value="tool">${L("工具与审批")}</option><option value="status">${L("状态")}</option><option value="artifact">${L("产物")}</option><option value="terminal">${L("终端")}</option></select></label></div></header>
+        <div class="session-content-body">${renderSessionContent(item)}<p class="operation-search-empty" data-session-content-empty hidden>${L("当前内容中没有匹配结果。")}</p></div>
+      </section>
+      <section class="goal-focus-context operation-current-context" id="${panelId("relations")}" role="tabpanel" aria-labelledby="${tabId("relations")}" data-session-detail-panel="relations" hidden>
+        <header><div><h2>${L("当前关系")}</h2><p>${L("续跑使用这些已确认事实。")}</p></div><button type="button" data-open-session-relations>${L("管理关系")}</button></header>
+        <dl><div><dt>${L("项目")}</dt><dd>${escapeHtml(projectName)}</dd></div><div><dt>${L("当前 Goal")}</dt><dd><span data-current-goal-value>${escapeHtml(item.currentGoal || L("未选择"))}</span><button type="button" data-work-surface-open="goal" data-directory-open="goals">${L("去 Goals")}</button></dd></div><div><dt>${L("工作目录")}</dt><dd><code>${escapeHtml(item.workspace)}</code></dd></div><div><dt>${L("内容来源")}</dt><dd>${escapeHtml(contentModeLabel(item.contentMode))}</dd></div></dl>
         <details class="operation-identity"><summary>${icon("info")}${L("身份与能力边界")}</summary><dl><div><dt>Session ID</dt><dd>${escapeHtml(item.id)}</dd></div><div><dt>Runtime</dt><dd>${escapeHtml(item.runtime)}</dd></div><div><dt>${L("原生内容")}</dt><dd>${escapeHtml(contentModeLabel(item.contentMode))}</dd></div><div><dt>Panel ID</dt><dd>${L("只负责 PTY 所有权")}</dd></div><div><dt>Work Context ID</dt><dd>${L("只用于弱能力兼容")}</dd></div></dl></details>
         <button class="document-action operation-archive" type="button" data-session-archive="${item.state !== "archived"}">${icon(item.state === "archived" ? "refresh" : "archive")}<span>${item.state === "archived" ? L("恢复记录") : L("归档记录")}</span></button>
-      </aside>
+      </section>
+      <section class="operation-goal-history" id="${panelId("history")}" role="tabpanel" aria-labelledby="${tabId("history")}" data-session-detail-panel="history" hidden>
+        <header><div><small>Goal</small><h2>${L("关联历史")}</h2></div><span data-goal-history-count>${L("{count} 次", { count: historyCount })}</span></header>${renderGoalHistory(item)}
+      </section>
     </div>
   </article>`;
   }

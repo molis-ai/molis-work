@@ -333,14 +333,20 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
         prototypeSourceSync.setAttribute("aria-busy", "true");
         prototypeSourceSync.innerHTML = L("模拟拉取中…");
         if (health) health.textContent = L("正在拉取");
-        if (rowState) rowState.textContent = L("正在拉取");
+        if (rowState) {
+          rowState.textContent = L("正在拉取");
+          rowState.dataset.sourceStatus = "syncing";
+        }
         if (row) row.dataset.sourceStatus = "syncing";
         globalThis.setTimeout(() => {
           prototypeSourceSync.disabled = false;
           prototypeSourceSync.removeAttribute("aria-busy");
           prototypeSourceSync.innerHTML = original;
           if (health) health.textContent = L("运行正常");
-          if (rowState) rowState.textContent = L("运行正常");
+          if (rowState) {
+            rowState.textContent = L("运行正常");
+            rowState.dataset.sourceStatus = "active";
+          }
           if (row) row.dataset.sourceStatus = "active";
           showPrototypeStatus(prototypeSourceSync, L("模拟拉取完成：新增 3，去重 8；没有访问真实外部服务。"));
         }, 850);
@@ -418,7 +424,6 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
           if (clear) clear.hidden = true;
           if (sources) sources.hidden = true;
         }
-        if (feedResultCount) feedResultCount.textContent = L("0 个 Item");
         setFeedDetailPlaceholder(activeFeedPreset === "inbox_message" ? L("Inbox 已处理完") : L("Feed 暂无新消息"), L("这是页面内空状态预览，不会修改真实 Item。"));
         return;
       }

@@ -31,14 +31,12 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     const feedTimeFilter = document.querySelector("[data-feed-time-filter]");
     const feedStatusFilter = document.querySelector("[data-feed-status-filter]");
     const feedSort = document.querySelector("[data-feed-sort]");
-    const feedResultCount = document.querySelector("[data-feed-result-count]");
     const feedEmpty = document.querySelector("[data-feed-empty]");
     const feedDetailEmpty = document.querySelector("[data-feed-detail-empty]");
     const sourceDirectory = document.querySelector("[data-source-directory]");
     const sourceWorkbench = document.querySelector("[data-source-workbench]");
     const sourceList = document.querySelector("[data-source-list]");
     const sourceSearch = document.querySelector("[data-source-search]");
-    const sourceResultCount = document.querySelector("[data-source-result-count]");
     const sourceEmpty = document.querySelector("[data-source-empty]");
     const feedSourcesDialog = document.querySelector("[data-feed-sources-dialog]");
     const feedSourceError = feedSourcesDialog?.querySelector("[data-feed-source-error]");

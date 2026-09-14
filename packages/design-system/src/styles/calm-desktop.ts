@@ -1012,8 +1012,33 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     background: var(--paper);
     box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--blue) 72%, transparent);
   }
-  .focus-section-card-trigger,
-  .focus-section-deck.goal-factor-nav .focus-section-card-trigger {
+  .focus-section-deck.goal-factor-nav .focus-section-card-row {
+    display: flex;
+    align-items: stretch;
+    gap: 2px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+  .focus-section-deck.goal-factor-nav .focus-section-card-row::-webkit-scrollbar { display: none; }
+  .focus-section-deck.goal-factor-nav .focus-section-card {
+    flex: 0 0 auto;
+    min-width: max-content;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    overflow: visible;
+  }
+  .focus-section-deck.goal-factor-nav .focus-section-card.is-active {
+    border: 0;
+    background: transparent;
+    box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--blue) 72%, transparent);
+  }
+  .focus-section-deck.goal-factor-nav .focus-section-card-icon,
+  .focus-section-deck.goal-factor-nav .focus-section-card-caret,
+  .focus-section-deck.goal-factor-nav .focus-section-card-copy > small { display: none; }
+  .focus-section-card-trigger {
     width: 100%;
     height: 100%;
     min-width: 0;
@@ -1032,6 +1057,22 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     gap: 9px;
     text-align: left;
     cursor: pointer;
+  }
+  .focus-section-deck.goal-factor-nav .focus-section-card-trigger {
+    min-height: 36px;
+    padding: 8px 10px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    text-align: left;
+    gap: 6px;
+  }
+  .focus-section-deck.goal-factor-nav .focus-section-card-copy {
+    justify-items: start;
+  }
+  .focus-section-deck.goal-factor-nav .focus-section-card-copy strong {
+    font-size: 12px;
+    font-weight: 630;
+    white-space: nowrap;
   }
   .focus-section-card-trigger:hover,
   .focus-section-deck.goal-factor-nav .focus-section-card-trigger:hover {
@@ -1072,15 +1113,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     text-wrap: pretty;
   }
   .focus-section-deck.goal-factor-nav .focus-section-card-trigger .focus-section-card-copy > small {
-    min-width: 0;
-    width: auto;
-    height: auto;
-    padding: 0;
-    border-radius: 0;
-    background: transparent !important;
-    color: var(--muted) !important;
-    display: block;
-    font-size: 10px;
+    display: none;
   }
   .focus-section-card-count {
     min-width: 20px;
@@ -1412,7 +1445,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     background: color-mix(in srgb, var(--blue-soft) 72%, var(--paper));
     color: var(--ink-soft);
   }
-  html[data-resolved-theme="dark"] .focus-section-card-reveal :is(.risk-actions, .impact-actions, .risk-create, .impact-create, .impact-history) summary:hover {
+  html[data-resolved-theme="dark"] .focus-section-card-reveal :is(.risk-actions, .impact-actions, .risk-create, .impact-create, .impact-history, .relation-editor, .relation-inactive-history, .factor-advanced) summary:hover {
     background: color-mix(in srgb, var(--ink) 5%, transparent);
   }
   .focus-section-card-reveal .full-records > summary {
@@ -1429,11 +1462,16 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
 
   @container (max-width: 700px) {
     .focus-section-card-row { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-    .focus-section-card-trigger,
-    .focus-section-deck.goal-factor-nav .focus-section-card-trigger {
+    .focus-section-card-trigger {
       min-height: 72px;
       grid-template-columns: 18px minmax(0, 1fr) auto auto;
       align-items: start;
+    }
+    .focus-section-deck.goal-factor-nav .focus-section-card-row { display: flex; gap: 2px; }
+    .focus-section-deck.goal-factor-nav .focus-section-card-trigger {
+      min-height: 44px;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
     }
     .focus-section-card-reveal .progress-facts,
     .technical-meta { grid-template-columns: 1fr; }
@@ -1447,6 +1485,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
 
   @container (max-width: 430px) {
     .focus-section-card-row { grid-template-columns: minmax(0, 1fr); }
+    .focus-section-deck.goal-factor-nav .focus-section-card-row { display: flex; }
     .focus-section-card-reveal .relation-record { grid-template-columns: minmax(0, 1fr); }
     .focus-section-card-reveal .relation-row {
       padding-right: 2px;

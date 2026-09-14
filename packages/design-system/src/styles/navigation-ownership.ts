@@ -120,7 +120,9 @@ export const NAVIGATION_OWNERSHIP_STYLES = `  /* Navigation ownership correction
     /* Light location states stay embedded in their rail. Paper and elevation
        remain reserved for content surfaces and overlays. */
     html[data-resolved-theme="light"] body[data-desktop-shell="true"] .desktop-goal-directory .tree-entry.is-selected,
-    html[data-resolved-theme="light"] body[data-desktop-shell="true"] .feed-list-item.is-selected {
+    html[data-resolved-theme="light"] body[data-desktop-shell="true"] .project-record-directory .tree-entry.is-selected,
+    html[data-resolved-theme="light"] body[data-desktop-shell="true"] .feed-list-item.is-selected,
+    html[data-resolved-theme="light"] body[data-desktop-shell="true"] .source-list-item.is-selected {
       background: color-mix(in srgb, var(--blue) 8%, transparent) !important;
       box-shadow: none;
     }

@@ -22,7 +22,7 @@ export interface GoalsPolicyUiPrimitives {
   translate(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;
   formatDate(value: string | null | undefined): string;
-  icon(name: "chevron-down" | "target" | "database" | "shield" | "history" | "arrow" | "folder"): string;
+  icon(name: "chevron-down" | "chevron-right" | "target" | "database" | "shield" | "history" | "arrow" | "folder"): string;
   currentLocale(): "zh" | "en";
   defaultPolicy: GoalPolicy;
 }

@@ -202,7 +202,6 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
         row.hidden = !(matchesKind && matchesQuery);
         return !row.hidden;
       });
-      if (sourceResultCount) sourceResultCount.textContent = L("{count} 个来源", { count: visible.length });
       if (sourceEmpty) sourceEmpty.hidden = visible.length > 0;
       const selectedStillVisible = visible.some((row) => row.dataset.sourceEntryId === selectedSource);
       if (!preserveSelection || !selectedStillVisible) {
@@ -406,7 +405,6 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
         return String(right.dataset.feedEntryTime || "").localeCompare(String(left.dataset.feedEntryTime || ""));
       };
       rows.sort(compare).forEach((row) => feedList.insertBefore(row, feedEmpty));
-      if (feedResultCount) feedResultCount.textContent = L("{count} 个 Item", { count: visible.length });
       const filteredEmpty = visible.length === 0 && presetRows.length > 0;
       if (feedEmpty) {
         const emptyTitle = feedEmpty.querySelector("[data-feed-empty-title]");

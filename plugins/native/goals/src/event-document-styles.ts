@@ -65,6 +65,84 @@ export const GOALS_EVENT_DOCUMENT_STYLES = `
   .goal-event-document .reader-content { flex: 1 1 0; }
   .goal-event-document .reader-header { padding: 12px 28px 10px; border-bottom: 1px solid var(--line); flex-shrink: 0; }
   .goal-event-document .reader-header h2 { font-size: 18px; margin: 0; }
+  .goal-event-document .reader-content:has(> [data-event-panel="description"]:not([hidden])) { padding-top: 0; }
+  .goal-event-document [data-event-panel="description"] .goal-factors { padding: 0; }
+  .goal-event-document [data-event-panel="description"] .focus-section-deck.goal-factor-nav { display: flex; flex-direction: column; min-height: 0; }
+  .goal-event-document [data-event-panel="description"] .focus-section-deck.goal-factor-nav > .focus-section-card-row {
+    position: sticky; top: 0; z-index: 2; margin: 0 -28px; padding: 10px 28px 8px; background: var(--paper);
+    border-bottom: 1px solid var(--line);
+    flex-wrap: wrap;
+    overflow-x: hidden;
+  }
+  .goal-event-document [data-event-panel="description"] .focus-section-deck.goal-factor-nav .focus-section-card-trigger {
+    padding: 8px 6px;
+  }
+  .goal-event-document [data-event-panel="description"] .goal-factor-panel[data-goal-factor-panel="basics"].is-active,
+  .goal-event-document [data-event-panel="description"] .goal-factor-panel[data-goal-factor-panel="coverage"].is-active,
+  .goal-event-document [data-event-panel="description"] .goal-factor-panel[data-goal-factor-panel="rules"].is-active {
+    background: transparent; box-shadow: none; border-radius: 0;
+  }
+  .goal-event-document [data-event-panel="description"] .goal-factor-panel[data-goal-factor-panel="basics"].is-active .focus-section-card-content,
+  .goal-event-document [data-event-panel="description"] .goal-factor-panel[data-goal-factor-panel="coverage"].is-active .focus-section-card-content,
+  .goal-event-document [data-event-panel="description"] .goal-factor-panel[data-goal-factor-panel="rules"].is-active .focus-section-card-content {
+    padding: 18px 0 28px;
+  }
+  .goal-event-document [data-event-panel="description"] .goal-description-basics {
+    display: grid; gap: 26px; max-width: 72ch;
+  }
+  .goal-event-document [data-event-panel="description"] .goal-description-kicker {
+    display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; margin: 0 0 8px;
+  }
+  .goal-event-document [data-event-panel="description"] .goal-description-kicker-icon {
+    flex: none; width: 22px; height: 22px; display: grid; place-items: center; border-radius: 6px;
+    background: color-mix(in srgb, var(--ink) 6%, var(--paper)); color: var(--muted);
+  }
+  .goal-event-document [data-event-panel="description"] .goal-description-kicker-icon svg { width: 13px; height: 13px; }
+  .goal-event-document [data-event-panel="description"] .goal-description-kicker h3 {
+    margin: 0; color: var(--ink); font-size: 12px; font-weight: 650; letter-spacing: -.01em;
+  }
+  .goal-event-document [data-event-panel="description"] .goal-description-kicker-tag {
+    flex: none; display: inline-flex; align-items: center; min-height: 18px; padding: 1px 7px;
+    border: 1px solid var(--line-strong); border-radius: 8px;
+    background: color-mix(in srgb, var(--rail) 74%, var(--paper)); color: var(--muted);
+    font-size: 9px; font-weight: 650; letter-spacing: .04em; line-height: 1.2; white-space: nowrap;
+  }
+  .goal-event-document [data-event-panel="description"] .goal-description-kicker--lead { margin-bottom: 10px; }
+  .goal-event-document [data-event-panel="description"] .goal-description-kicker--lead .goal-description-kicker-icon {
+    width: 26px; height: 26px; color: var(--ink-soft);
+  }
+  .goal-event-document [data-event-panel="description"] .goal-description-kicker--lead .goal-description-kicker-icon svg { width: 15px; height: 15px; }
+  .goal-event-document [data-event-panel="description"] .goal-description-kicker--lead h3 { font-size: 13px; font-weight: 680; }
+  .goal-event-document [data-event-panel="description"] .goal-description-lead p {
+    margin: 0; color: var(--ink); font-size: 16px; line-height: 1.6; letter-spacing: -.015em;
+  }
+  .goal-event-document [data-event-panel="description"] .goal-description-story {
+    display: grid; gap: 18px; padding-top: 20px; border-top: 1px solid var(--line);
+  }
+  .goal-event-document [data-event-panel="description"] .goal-description-story p,
+  .goal-event-document [data-event-panel="description"] .goal-description-facts p,
+  .goal-event-document [data-event-panel="description"] .goal-description-facts li {
+    margin: 0; color: var(--ink-soft); font-size: 13.5px; line-height: 1.75;
+  }
+  .goal-event-document [data-event-panel="description"] .goal-description-basics .is-empty { color: var(--faint); }
+  .goal-event-document [data-event-panel="description"] .goal-description-facts {
+    display: grid; gap: 18px; padding-top: 20px; border-top: 1px solid var(--line);
+  }
+  .goal-event-document [data-event-panel="description"] .goal-description-facts dl { margin: 0; display: grid; }
+  .goal-event-document [data-event-panel="description"] .goal-description-fact {
+    min-height: 34px; padding: 8px 0; border-top: 1px solid var(--line);
+    display: grid; grid-template-columns: minmax(84px, 28%) minmax(0, 1fr); gap: 12px; align-items: start;
+  }
+  .goal-event-document [data-event-panel="description"] .goal-description-fact:first-child { border-top: 0; padding-top: 2px; }
+  .goal-event-document [data-event-panel="description"] .goal-description-fact dt { color: var(--muted); font-size: 11px; line-height: 1.5; }
+  .goal-event-document [data-event-panel="description"] .goal-description-fact dd {
+    margin: 0; color: var(--ink-soft); font-size: 12.5px; line-height: 1.55;
+  }
+  .goal-event-document [data-event-panel="description"] .goal-description-basics .document-subsection,
+  .goal-event-document [data-event-panel="description"] .goal-description-basics .child-progress {
+    margin: 0; padding-top: 20px; border-top: 1px solid var(--line);
+  }
+  .goal-event-document [data-event-panel="description"] .goal-description-basics .subsection-heading > span { color: var(--muted); }
   .goal-event-document .event-form { gap: 12px; }
   .goal-event-document .event-form h2, .goal-event-document .event-form h3 { margin: 0; }
   .goal-event-document .event-form label, .goal-event-document .event-form fieldset { display: grid; gap: 5px; margin: 0; padding: 0; border: 0; min-width: 0; }

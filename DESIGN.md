@@ -223,7 +223,7 @@ A Session detail reuses the compact metadata → title → actions → main work
 
 Project is the global scope selector, not one side of a Project / Sessions switch. Inside a selected project, Goals and Sessions are sibling entries in the same root directory. 工作目录 is a Session launch and relationship attribute, not a standalone workbench module: users choose it while creating, linking, handing off, or editing a Session. Entering Sessions keeps the project selector and project workbench chrome, replaces the left root with a returnable Session directory, and opens the selected work record on the right. The Session detail uses a chronological execution timeline for dialogue, tools, status, artifacts, and terminal evidence, while keeping current relations and Goal history visible. Global compatibility `/sessions` and `/workspaces` routes return to the project index; both project-prefixed compatibility routes open the Sessions directory.
 
-Sessions inherits the existing Goal list / Goal Detail layout contract instead of defining a parallel management system. Its subdirectory uses the same compact heading, tool rhythm, row hierarchy, flat selected location, focus behavior, and pinned count footer as the Goal Tree; its detail uses the same page background, title scale, metadata/action hierarchy, related-paper work surface, and contextual rail. Working-directory selection appears only inside Session creation, linking, handoff, and relationship controls. Root entries never expose browser link underlines, and every return affordance uses a left arrow because it moves back to the project root.
+Sessions inherits the existing Goal list / Goal Detail layout contract instead of defining a parallel management system. Its subdirectory uses the same compact heading, tool rhythm, row hierarchy, flat selected location, and focus behavior as the Goal Tree; its detail uses the same page background, title scale, metadata/action hierarchy, related-paper work surface, and contextual rail. Working-directory selection appears only inside Session creation, linking, handoff, and relationship controls. Root entries never expose browser link underlines, and every return affordance uses a left arrow because it moves back to the project root.
 
 Entering Goals replaces the root directory in the same column with the original Goal Tree. Parent-child expansion, status filtering, creation, list/canvas navigation, archive, and trash remain available through a compact heading and on-demand tools. Entering Inbox or Feed replaces it with the same Item directory: Inbox preselects `Inbox Message`, Feed preselects `Feed`, and either view may change source, disposition, search, or sort. Search and one filter trigger share a single compact row; source, status, and sorting progressively disclose in a Goal Tree-style anchored panel instead of standing native selects. Every subdirectory has a visible back action that returns to the root.
 
@@ -239,7 +239,7 @@ At 760px and below, the frame is 10px and the work area stacks foldable Goal inf
 
 记录模板, 目标与要求, 完成要求, and event forms share one temporary reader over the left Runtime area. 返回工作区 closes it. The desktop timeline stays visible and interactive; covered Runtime controls are inert; visible Goal info remains operable. At 760px and below the overlay also covers Goal info and the timeline, both inert until return. Focus enters the active reader/form and returns to a visible trigger. Reader/form states remain exclusive, including the untransferred 使用事件记录继续 form; long content scrolls within the reader.
 
-目标与要求 holds purpose, outcome, operating logic, effective decisions, scope, bound materials, and the existing 关联与约束 deck (Goal 关系 / 风险 / 影响范围 / 工作规则). Untransferred drafts retain their editor; event-owned Goals change agreement through 记录模板 → 修改当前约定. 完成要求 shows current event requirements as the live authority, then read-only 原 Goal 标准 and exact Artifact versions. Original criteria never become another completion algorithm.
+目标与要求 opens a temporary reader with six peer tabs: 基础信息, 历史覆盖, Goal 关系, 风险, 影响范围, and 工作规则. 基础信息 reads as a lead outcome, supporting explanation, then compact scope facts. Section titles use the existing Lucide icon well and a short tag, not a stack of plain labels. 历史覆盖 holds retained parent/child Contract coverage. Coverage cards use theme tokens instead of a light paper inset. The other four tabs reuse the existing factor workbenches. Untransferred drafts retain their editor; event-owned Goals change agreement through 记录模板 → 修改当前约定. 完成要求 shows current event requirements as the live authority, then read-only 原 Goal 标准 and exact Artifact versions. Original criteria never become another completion algorithm.
 
 Project Settings and Global Settings reuse the same single-directory / work-surface language. Project Settings contains the current project's Work Rules and Work Planning; Global Settings contains device-level Appearance & Language, AI & Execution Tools, and Diagnostics. Headers, directory labels, close/return behavior, and explanatory copy state the active scope.
 
@@ -334,7 +334,7 @@ Shortcuts begin empty with an Add shortcut action. Each user-created link has a 
 
 ### Feed Workbench
 
-The Feed Item directory keeps its tools above the list: one search field, then type, source, disposition, and sort controls. Inbox and Feed change the initial type and handling language, not the underlying workspace: Inbox offers Archive / Restore to Inbox, while Feed offers Ignore / Restore to Feed. Filters and status labels always follow the active type. Each row keeps type, source, title, summary, time, and readable state compact enough to scan; an empty result reports the filtered count and offers a direct reset.
+The Feed Item directory keeps its tools above the list: one search field, then type, source, disposition, and sort controls. Inbox and Feed change the initial type and handling language, not the underlying workspace: Inbox offers Archive / Restore to Inbox, while Feed offers Ignore / Restore to Feed. Filters and status labels always follow the active type. Each row keeps type, source, title, summary, time, and readable state compact enough to scan; an empty result offers a direct reset.
 
 The right surface is dedicated to the selected Item. It shows type and disposition labels, source and author, timestamp, summary or body, tags, original link, and attached materials. Actions remain beside the Item: save as material, promote to Goal, start processing, ignore, restore, or open the already linked Goal. Missing body, link, or materials use honest empty states.
 
@@ -369,7 +369,7 @@ Goal info shows the outcome, live progress, requirement support, and pending dec
 
 The timeline is latest-first and grouped by day. Entries show time, title, Chinese type, author, and relevant state. Results, concerns/blockers, pending decisions, decision outcomes, and ordinary records stay in one chronology. Selecting an entry expands its original body immediately below it; selecting it again can collapse the body. Arrow keys move between entries. 查看更早记录 loads earlier history with failure/retry feedback. There are no result/decision filters or separate event-body column. Historical Run / Evidence / Review / Decision keep original IDs and sources.
 
-关联与约束 remains a nested deck inside 目标与要求: equal-width summary selectors and one full-width body. It is not primary workspace navigation. Risk/relation deep links reveal the corresponding content.
+目标与要求 uses six compact peer tabs inside the reader: 基础信息 / 历史覆盖 / Goal 关系 / 风险 / 影响范围 / 工作规则. This is not primary workspace navigation. The default tab is 基础信息, with a lead / explanation / facts reading order. Historical Contract coverage has its own tab. 工作规则 uses grouped settings rows like Cursor / Codex preference pages: current effective values, then Goal extras with a dropdown, switches, and compact numbers on the right. Risk/relation deep links reveal the corresponding tab.
 
 ### Runtime
 
@@ -402,7 +402,7 @@ Desktop settings reuse the same single directory, local-identity footer, flat Li
 - **Do** keep Promotion and Visual Workspace visibly labeled “规划中” and limited to honest reserved views until their real entities and flows exist.
 - **Do** test Light, Dark, Standard, Compact, Runtime-open, narrow states, and both terminal palettes together.
 - **Do** keep every mobile workspace surface full width and free of horizontal viewport escapes.
-- **Do** let users scan 关联与约束 summaries before expanding one body, and reveal the correct card before honoring a deep link.
+- **Do** let users switch 目标与要求 tabs without scrolling past unrelated content, and reveal the correct tab before honoring a deep link.
 
 ### Don't:
 

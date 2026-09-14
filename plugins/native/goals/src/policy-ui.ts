@@ -46,7 +46,8 @@ function renderGoalModeChoices(
     .map(
       ([value, copy]) => {
         const locked = minimum != null && GOAL_MODE_STRENGTH[value] < GOAL_MODE_STRENGTH[minimum];
-        return `<label><input type="radio" name="goal_mode" value="${value}"${selected === value ? " checked" : ""}${locked ? " disabled" : ""}><span><strong>${L(copy.label)}</strong><small>${locked ? L("低于项目共同规则，不能选择") : L(copy.description)}</small></span></label>`;
+        const hint = locked ? L("低于项目共同规则，不能选择") : L(copy.description);
+        return `<label><input type="radio" name="goal_mode" value="${value}"${selected === value ? " checked" : ""}${locked ? " disabled" : ""}><span><strong>${L(copy.label)}</strong><small>${hint}</small></span></label>`;
       },
     )
     .join("")}</div>`;
@@ -71,6 +72,52 @@ function renderPolicyCounter(
 ): string {
   const minimumCopy = minimum > 0 ? L("项目共同规则至少要求 {count} 人", { count: minimum }) : L(description);
   return `<label class="policy-counter"><span><strong>${L(title)}</strong><small>${minimumCopy}</small></span><span class="policy-counter-input"><input name="${name}" type="number" min="${minimum}" step="1" value="${value}"${minimum > 0 ? ` data-policy-min="${minimum}"` : ""} aria-label="${L(title + "人数")}"><span>${L("人")}</span></span></label>`;
+}
+
+function renderSettingsCopy(title: string, description: string): string {
+  return `<span class="policy-settings-copy"><strong>${L(title)}</strong>${description ? `<small>${description}</small>` : ""}</span>`;
+}
+
+function renderSettingsModeSelect(
+  selected: GoalPolicy["goal_mode"],
+  minimum?: GoalPolicy["goal_mode"],
+): string {
+  const options = (
+    Object.entries(GOAL_MODE_COPY) as Array<
+      [GoalPolicy["goal_mode"], { label: string; description: string }]
+    >
+  )
+    .map(([value, copy]) => {
+      const locked = minimum != null && GOAL_MODE_STRENGTH[value] < GOAL_MODE_STRENGTH[minimum];
+      return `<option value="${value}"${selected === value ? " selected" : ""}${locked ? " disabled" : ""}>${L(copy.label)}</option>`;
+    })
+    .join("");
+  return `<select class="policy-settings-select" name="goal_mode" aria-label="${L("执行工具是否必须按 Goal 工作")}">${options}</select>`;
+}
+
+function renderSettingsToggle(
+  name: "self_verification" | "human_approval",
+  checked: boolean,
+  title: string,
+  description: string,
+  locked = false,
+): string {
+  return `<label class="policy-settings-row"><input type="checkbox" name="${name}"${checked ? " checked" : ""}${locked ? " disabled" : ""}>${renderSettingsCopy(title, locked ? L("项目共同规则已要求，当前 Goal 不能关闭") : L(description))}<span class="policy-switch" aria-hidden="true"></span></label>`;
+}
+
+function renderSettingsCounter(
+  name: "cross_reviewers" | "adversarial_reviewers",
+  value: number,
+  title: string,
+  description: string,
+  minimum = 0,
+): string {
+  const minimumCopy = minimum > 0 ? L("项目共同规则至少要求 {count} 人", { count: minimum }) : L(description);
+  return `<label class="policy-settings-row">${renderSettingsCopy(title, minimumCopy)}<span class="policy-counter-input"><input name="${name}" type="number" min="${minimum}" step="1" value="${value}"${minimum > 0 ? ` data-policy-min="${minimum}"` : ""} aria-label="${L(title + "人数")}"><span>${L("人")}</span></span></label>`;
+}
+
+function renderSettingsValueRow(title: string, value: string, detail = ""): string {
+  return `<div class="policy-settings-row">${renderSettingsCopy(title, "")}<span class="policy-settings-value"><strong>${value}</strong>${detail ? `<small>${detail}</small>` : ""}</span></div>`;
 }
 
 function policyLeaseDescription(seconds: number): string {
@@ -145,6 +192,54 @@ function renderPolicyForm(
   </details>`;
 }
 
+function renderGoalPolicySettingsForm(
+  item: GoalsPolicyItem,
+  policy: GoalPolicy,
+  binding: GoalsPolicyBinding | undefined,
+  minimumPolicy: GoalPolicy,
+): string {
+  const additionalCapabilities = (binding?.policy.required_capabilities ?? []).filter(
+    (capability) => !minimumPolicy.required_capabilities.includes(capability),
+  );
+  const capabilityHelp = minimumPolicy.required_capabilities.length
+    ? L("项目已要求：{list}。这里只填写当前 Goal 额外需要的能力。", { list: minimumPolicy.required_capabilities.join("、") })
+    : L("这里只填写当前 Goal 额外需要的能力；没有可以留空。");
+  const leaseHelp = L("项目最长允许 {seconds} 秒；当前 Goal 只能缩短", { seconds: minimumPolicy.max_lease_seconds });
+  const saved = binding
+    ? `${L("已保存 · ")}${formatDate(binding.created_at)} · ${binding.created_by}`
+    : L("尚未单独设置，当前沿用项目默认");
+  return `<form class="policy-form policy-form--settings" data-policy-form data-live-form="policy-goal-${escapeHtml(item.goal.goal_id)}" novalidate>
+      <input type="hidden" name="scope" value="goal">
+      <input type="hidden" name="goal_id" value="${escapeHtml(item.goal.goal_id)}">
+      <section class="policy-settings-group">
+        <header><h3>${binding ? L("当前 Goal 额外规则") : L("为当前 Goal 增加要求")}</h3><p>${escapeHtml(saved)}</p></header>
+        <div class="policy-settings-list">
+          <div class="policy-settings-row">${renderSettingsCopy("执行工具是否必须按 Goal 工作", L("按 Goal 工作时，执行工具会遵守当前目标、边界和完成标准。"))}${renderSettingsModeSelect(policy.goal_mode, minimumPolicy.goal_mode)}</div>
+          ${renderSettingsToggle("self_verification", policy.self_verification, "执行者自我验证", "执行者提交结果前先验证自己的完成依据", Boolean(minimumPolicy.self_verification))}
+          ${renderSettingsToggle("human_approval", policy.human_approval, "用户最终确认", "完成前必须由用户确认工作结果", Boolean(minimumPolicy.human_approval))}
+        </div>
+      </section>
+      <section class="policy-settings-group">
+        <header><h3>${L("检查与领取")}</h3><p>${L("只有需要指定能力、领取时长或额外检查人数时才修改")}</p></header>
+        <div class="policy-settings-list">
+          <label class="policy-settings-row policy-settings-row--stack">${renderSettingsCopy("执行工具需要的能力", capabilityHelp)}<input name="required_capabilities" value="${escapeHtml(additionalCapabilities.join(", "))}" placeholder="${L("例如：浏览器操作、图像处理、数据分析")}"></label>
+          <label class="policy-settings-row">${renderSettingsCopy("一次领取最长多久", leaseHelp)}<span class="policy-counter-input"><input name="max_lease_seconds" type="number" min="1" max="${minimumPolicy.max_lease_seconds}" data-policy-max="${minimumPolicy.max_lease_seconds}" step="1" value="${policy.max_lease_seconds}" aria-label="${L("一次领取最长多久")}"><span>${L("秒")}</span></span></label>
+          ${renderSettingsCounter("cross_reviewers", policy.cross_reviewers, "独立复核", "由其他执行者检查结果与依据", minimumPolicy.cross_reviewers)}
+          ${renderSettingsCounter("adversarial_reviewers", policy.adversarial_reviewers, "反例检查", "主动寻找遗漏、反例和错误假设", minimumPolicy.adversarial_reviewers)}
+        </div>
+      </section>
+      <section class="policy-settings-group">
+        <header><h3>${L("变更说明")}</h3><p>${L("工作规则会进入完整记录，请说明为什么现在需要调整。")}</p></header>
+        <div class="policy-settings-list">
+          ${binding ? `<div class="policy-settings-row policy-settings-row--stack">${renderSettingsCopy("上次修改原因", escapeHtml(binding.reason))}</div>` : ""}
+          <label class="policy-settings-row policy-settings-row--stack">${renderSettingsCopy("修改原因", L("例如：这个 Goal 涉及用户数据，需要独立检查和最终确认"))}<textarea name="reason" rows="2" required placeholder="${L("例如：这个 Goal 涉及用户数据，需要独立检查和最终确认")}"></textarea></label>
+        </div>
+        <p class="form-error" data-policy-error role="alert" hidden></p>
+        <footer><span>${L("保存后会与项目默认合并，并立即成为这条 Goal 的领取门槛。")}</span><button class="button-primary" type="submit">${L("保存")}</button></footer>
+      </section>
+    </form>`;
+}
+
 function renderPolicyEditor(
   item: GoalsPolicyItem,
   options: { editGoal?: boolean; editProject?: boolean } = { editGoal: true, editProject: false },
@@ -155,11 +250,26 @@ function renderPolicyEditor(
   const goalPolicy = mergeGoalPolicyFormValues(projectPolicy, goalBinding);
   const policy = item.resolved_policy;
   const mode = GOAL_MODE_COPY[policy.goal_mode];
-  return `<div class="policy-workbench">
-    <section class="policy-effective"><header><span class="policy-effective-icon">${icon("shield")}</span><div><h3>${L("当前最终生效规则")}</h3><p>${L("项目默认和当前 Goal 的额外要求已经合并，实际会按下面的结果执行。")}</p></div></header><dl><div><dt>${L("按 Goal 工作")}</dt><dd><strong>${escapeHtml(L(mode.label))}</strong><small>${escapeHtml(L(mode.description))}</small></dd></div><div><dt>${L("执行者自检")}</dt><dd><strong>${policy.self_verification ? L("需要") : L("不需要")}</strong><small>${policy.self_verification ? L("提交前必须验证") : L("不设自检门槛")}</small></dd></div><div><dt>${L("独立检查")}</dt><dd><strong>${policy.cross_reviewers + policy.adversarial_reviewers} ${L("人")}</strong><small>${L("独立复核")} ${policy.cross_reviewers} · ${L("反例检查")} ${policy.adversarial_reviewers}</small></dd></div><div><dt>${L("用户确认")}</dt><dd><strong>${policy.human_approval ? L("需要") : L("不需要")}</strong><small>${policy.human_approval ? L("用户拥有最终确认权") : L("无需用户最终确认")}</small></dd></div><div><dt>${L("一次领取最长")}</dt><dd><strong>${policy.max_lease_seconds} ${L("秒")}</strong><small>${escapeHtml(policyLeaseDescription(policy.max_lease_seconds))}</small></dd></div><div><dt>${L("需要的能力")}</dt><dd><strong>${escapeHtml(policy.required_capabilities.join(currentLocale() === "en" ? ", " : "、") || L("无"))}</strong><small>${policy.required_capabilities.length ? L("执行工具必须全部声明") : L("不限制能力标签")}</small></dd></div></dl></section>
-    <div class="policy-inheritance" aria-label="${L("工作规则继承关系")}"><span><small>${L("01 · 项目默认")}</small><strong>${projectBinding ? L("项目基线已设置") : L("使用系统默认")}</strong></span>${icon("arrow")}<span><small>${L("02 · 当前 Goal")}</small><strong>${goalBinding ? L("已增加单独规则") : L("完全继承项目")}</strong></span>${icon("arrow")}<span><small>${L("结果")}</small><strong>${L("最终生效门槛")}</strong></span></div>
-    ${options.editProject ? renderPolicyForm(item, "project_default", projectPolicy, projectBinding) : `<p class="policy-scope-note">${icon("folder")}<span><strong>${L("项目默认规则在项目设置中维护")}</strong><small>${L("这里显示合并后的结果；当前 Goal 只能增加自己的要求。")}</small></span><a href="__PROJECT_SETTINGS__">${L("打开项目设置")}</a></p>`}
-    ${options.editGoal ? renderPolicyForm(item, "goal", goalPolicy, goalBinding, item.goal.goal_id, Boolean(goalBinding), projectPolicy) : ""}
+  const independentReviews = policy.cross_reviewers + policy.adversarial_reviewers;
+  const capabilities = policy.required_capabilities.join(currentLocale() === "en" ? ", " : "、") || L("无");
+  return `<div class="policy-workbench policy-workbench--settings">
+    <header class="policy-settings-intro">
+      <p>${L("说明执行和完成前需要哪些检查；项目默认与当前 Goal 的额外要求会合并生效。")}</p>
+    </header>
+    <section class="policy-settings-group" aria-labelledby="policy-effective-title">
+      <header><h3 id="policy-effective-title">${L("当前最终生效规则")}</h3></header>
+      <div class="policy-settings-list">
+        ${renderSettingsValueRow("按 Goal 工作", escapeHtml(L(mode.label)))}
+        ${renderSettingsValueRow("执行者自检", escapeHtml(L(policy.self_verification ? "需要" : "不需要")))}
+        ${renderSettingsValueRow("独立检查", `${independentReviews} ${L("人")}`, `${L("独立复核")} ${policy.cross_reviewers} · ${L("反例检查")} ${policy.adversarial_reviewers}`)}
+        ${renderSettingsValueRow("用户确认", escapeHtml(L(policy.human_approval ? "需要" : "不需要")))}
+        ${renderSettingsValueRow("一次领取最长", `${policy.max_lease_seconds} ${L("秒")}`, policyLeaseDescription(policy.max_lease_seconds))}
+        ${renderSettingsValueRow("需要的能力", escapeHtml(capabilities))}
+        ${options.editProject ? "" : `<a class="policy-settings-row policy-settings-row--link" href="__PROJECT_SETTINGS__">${renderSettingsCopy("项目默认规则", L("在项目设置中维护所有 Goal 的共同底线。"))}<span class="policy-settings-chevron">${L("打开")}${icon("chevron-right")}</span></a>`}
+      </div>
+    </section>
+    ${options.editProject ? renderPolicyForm(item, "project_default", projectPolicy, projectBinding) : ""}
+    ${options.editGoal ? renderGoalPolicySettingsForm(item, goalPolicy, goalBinding, projectPolicy) : ""}
   </div>`;
 }
 

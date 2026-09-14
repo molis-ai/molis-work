@@ -14,7 +14,7 @@ export const GOALS_REFRESH_CLIENT_FACTORY_SCRIPT = `(host) => {
       const nextFilter = parsed.querySelector("[data-tree-filter]");
       const nextCount = parsed.querySelector("[data-tree-count]");
       const nextDialog = parsed.querySelector("[data-create-dialog]");
-      if (!nextTree || !nextDocument || !nextFooter) throw new Error("页面数据不完整");
+      if (!nextTree || !nextDocument) throw new Error("页面数据不完整");
 
       let move = null;
       if (goalId && !goalStillExists) {
@@ -51,8 +51,10 @@ export const GOALS_REFRESH_CLIENT_FACTORY_SCRIPT = `(host) => {
           documentPane.replaceChildren(...nextDocument.childNodes);
         }
         if (nextFilter && treeFilter) treeFilter.innerHTML = nextFilter.innerHTML;
-        document.querySelector("[data-tree-footer]").innerHTML = nextFooter.innerHTML;
-        if (nextCount) document.querySelector("[data-tree-count]").textContent = nextCount.textContent;
+        const currentFooter = document.querySelector("[data-tree-footer]");
+        if (nextFooter && currentFooter) currentFooter.innerHTML = nextFooter.innerHTML;
+        const currentCount = document.querySelector("[data-tree-count]");
+        if (nextCount && currentCount) currentCount.textContent = nextCount.textContent;
         refreshShellLinks();
         if (nextDialog) refreshCreateChoices(nextDialog, createDraft);
       };

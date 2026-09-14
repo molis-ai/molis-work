@@ -91,10 +91,23 @@ test("accepted Goal description keeps original constraints, inputs and outputs w
   };
   const html = render(value);
   const description = html.slice(html.indexOf('data-event-panel="description"'), html.indexOf('data-event-panel="requirements"'));
-  assert.match(description, /原约束：只修改已确认的文案/);
+  assert.match(description, /class="goal-description-kicker goal-description-kicker--lead"/);
+  assert.match(description, /class="goal-description-kicker-icon"/);
+  assert.match(description, /class="goal-description-kicker-tag">结果</);
+  assert.match(description, /class="goal-description-story"/);
+  assert.match(description, /class="goal-description-facts"/);
+  assert.match(description, /<dt>必须遵守<\/dt>/);
+  assert.match(description, /<dd>原约束：只修改已确认的文案<\/dd>/);
   assert.match(description, /原输入：用户已确认的发布说明/);
   assert.match(description, /原输出：可读的最终说明文档/);
   assert.doesNotMatch(html, /data-draft-form|data-open-goal-edit/);
+});
+
+test("description related work replaces the fallback basics body", () => {
+  const html = render(item(), { relatedWorkHtml: '<nav data-goal-factor-tab="basics">基础信息</nav>' });
+  const description = html.slice(html.indexOf('data-event-panel="description"'), html.indexOf('data-event-panel="requirements"'));
+  assert.match(description, /data-goal-factor-tab="basics"/);
+  assert.doesNotMatch(description, /<h3>要得到什么<\/h3>/);
 });
 
 test("accepted Goal requirements keep original criterion details expandable without becoming current completion", () => {

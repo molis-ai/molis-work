@@ -209,7 +209,7 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
       sourceQuery: sourceSearch?.value || "",
       sourceFilter: activeSourceFilter,
       sourceDetailTab: sourceWorkbench?.querySelector('[data-source-detail="' + CSS.escape(selectedSource) + '"] [data-source-detail-tab][aria-selected="true"]')?.dataset.sourceDetailTab || "overview",
-      goalFactor: documentPane.querySelector('[data-goal-factor-tab][aria-selected="true"]')?.dataset.goalFactorTab || "relations",
+      goalFactor: documentPane.querySelector('[data-goal-factor-tab][aria-selected="true"]')?.dataset.goalFactorTab || "basics",
       });
     };
 
@@ -301,7 +301,7 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
       restoreGoalGraphViewport();
       bindGoalEventDocument();
       openEventReaderFromHash();
-      setGoalFactor(goalFactorFromHash() || (ui?.selected === selected ? ui?.goalFactor : "relations"), false);
+      setGoalFactor(goalFactorFromHash() || (ui?.selected === selected ? ui?.goalFactor : "basics"), false);
       const hashTargetId = decodeURIComponent(location.hash.slice(1));
       const hashTarget = hashTargetId ? document.getElementById(hashTargetId) : null;
       treeScroll.scrollTop = Number(ui?.treeTop || 0);

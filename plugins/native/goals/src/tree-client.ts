@@ -46,15 +46,7 @@ const GOALS_TREE_FILTER_SCRIPT = `    function setSelectedStatuses(values) {
           }
         });
       }
-      const count = document.querySelector("[data-tree-filter-count]");
       const empty = treeScroll.querySelector("[data-tree-filter-empty]");
-      const suffix = count?.dataset.treeSuffix || "";
-      if (count) {
-        const suffixText = suffix ? suffix + " " : "";
-        count.textContent = !query && selectedStatuses.size === 0
-          ? L("共 {count} 个{suffix}目标", { count: items.length, suffix: suffixText })
-          : L("显示 {shown} / {total} 个{suffix}目标", { shown: matched.length, total: items.length, suffix: suffixText });
-      }
       if (empty) empty.hidden = matched.length > 0 || items.length === 0;
       updateGraphVisibility();
     }

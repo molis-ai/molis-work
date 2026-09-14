@@ -244,18 +244,6 @@ export const STYLES = `
   .goal-more > div { position: absolute; z-index: 8; top: calc(100% + 6px); right: 0; min-width: 168px; padding: 6px; border: 1px solid var(--line-strong); border-radius: 6px; background: #fff; box-shadow: 0 8px 28px rgba(26, 38, 52, .12); display: grid; }
   .goal-more .document-action { width: 100%; justify-content: flex-start; border: 0; height: 32px; }
   .goal-factors { padding: 20px 0 26px; }
-  .goal-factors-heading { padding: 0 0 16px; border-bottom: 1px solid var(--line-strong); display: grid; grid-template-columns: 22px minmax(0, 1fr); align-items: start; gap: 9px; }
-  .goal-factors-heading > span { padding-top: 2px; color: var(--blue); }
-  .goal-factors-heading h2 { margin: 0; font-size: 17px; letter-spacing: -.015em; }
-  .goal-factors-heading p { max-width: 72ch; margin: 2px 0 0; color: var(--muted); font-size: 12px; }
-  .goal-factor-nav { margin: 14px 0 0 31px; border: 1px solid var(--line-strong); border-radius: 6px; background: #f3f5f7; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); overflow: hidden; }
-  .goal-factor-nav button { min-width: 0; min-height: 43px; padding: 7px 9px; border: 0; border-right: 1px solid var(--line); background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; }
-  .goal-factor-nav button:last-child { border-right: 0; }
-  .goal-factor-nav button:hover { color: var(--ink); background: #fff; }
-  .goal-factor-nav button[aria-selected="true"] { color: var(--blue-dark); background: #fff; box-shadow: 0 2px 8px rgba(28, 53, 81, .08); }
-  .goal-factor-nav button svg { width: 14px; height: 14px; }
-  .goal-factor-nav button small { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: #e9edf2; color: var(--muted); display: inline-grid; place-items: center; font-size: 10px; font-variant-numeric: tabular-nums; }
-  .goal-factor-nav button[aria-selected="true"] small { color: var(--blue-dark); background: var(--blue-soft); }
   .goal-factor-panels { margin: 18px 0 0 31px; }
   .goal-factor-panel > header { margin-bottom: 12px; }
   .goal-factor-panel > header h3 { margin: 0; font-size: 15px; }
@@ -397,8 +385,8 @@ export const STYLES = `
   .contract-scope-status strong { font-size: 12px; }
   .contract-scope-status span { color: var(--muted); font-size: 11px; }
   .contract-coverage-group { margin-top: 12px; }
-  .contract-coverage-group > h4 { margin: 0 0 7px; font-size: 12px; }
-  .contract-coverage-group > article { padding: 9px 10px; border: 1px solid var(--line); border-radius: 5px; background: #fbfcfd; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; }
+  .contract-coverage-group > h4 { margin: 0 0 7px; color: var(--ink-soft); font-size: 12px; }
+  .contract-coverage-group > article { padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: color-mix(in srgb, var(--ink) 5%, var(--paper)); color: var(--ink); display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; }
   .contract-coverage-group > article + article { margin-top: 7px; }
   .contract-coverage-group article > small { color: var(--muted); }
   .contract-coverage-group article > p, .contract-coverage-group article > ul { grid-column: 1 / -1; }

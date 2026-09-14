@@ -112,10 +112,9 @@ test("project operation renderer uses real records or an honest empty state with
   assert.doesNotMatch(html, /option value="running"|option value="failed"/);
   assert.doesNotMatch(html, /codex-0193f6c2|\/Users\/demo|可交互原型|data-live-session|data-operation-archive/);
   assert.doesNotMatch(PROJECT_OPERATIONS_CLIENT_SCRIPT, /dataset\.liveSession|data-operation-archive/);
-  assert.match(PROJECT_OPERATIONS_STYLES, /\.project-session-document \.goal-focus-aside \{ display: contents; \}/);
-  assert.match(PROJECT_OPERATIONS_STYLES, /\.project-session-document \.goal-focus-main \{ order: 1; \}/);
-  assert.match(PROJECT_OPERATIONS_STYLES, /\.project-session-document \.operation-current-context \{ order: 2; \}/);
-  assert.match(PROJECT_OPERATIONS_STYLES, /\.project-session-document \.operation-goal-history \{ order: 3; \}/);
+  assert.match(PROJECT_OPERATIONS_STYLES, /\.session-detail-tabs \{/);
+  assert.match(PROJECT_OPERATIONS_STYLES, /\.project-operation-layout \{ padding-inline: 0; display: grid; grid-template-columns: minmax\(0, 1fr\)/);
+  assert.doesNotMatch(PROJECT_OPERATIONS_STYLES, /grid-template-columns: minmax\(0, 1fr\) minmax\(270px, 303px\)/);
   assert.match(PROJECT_OPERATIONS_STYLES, /\.session-content-state > div:only-child \{ grid-column: 1 \/ -1;/);
   assert.match(PROJECT_OPERATIONS_STYLES, /\.session-timeline-event \{[^}]*grid-template-columns:/);
   assert.match(PROJECT_OPERATIONS_STYLES, /data-desktop-surface="sessions"[^}]*--desktop-project-header-height: var\(--desktop-titlebar-height\)/);
@@ -128,6 +127,7 @@ test("project operation renderer uses real records or an honest empty state with
   assert.match(PROJECT_OPERATIONS_CLIENT_SCRIPT, /查看变更/);
   assert.match(PROJECT_OPERATIONS_CLIENT_SCRIPT, /展开输出/);
   assert.match(PROJECT_OPERATIONS_CLIENT_SCRIPT, /#icon-chevron-down/);
+  assert.match(PROJECT_OPERATIONS_CLIENT_SCRIPT, /activateSessionDetailTab/);
   assert.match(PROJECT_OPERATIONS_CLIENT_SCRIPT, /data-session-content-filter/);
   assert.match(PROJECT_OPERATIONS_CLIENT_SCRIPT, /workspace_id: sessionAddWorkspaceId/);
 });

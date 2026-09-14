@@ -162,7 +162,15 @@ test("Feed demo data keeps page-local actions and never calls real Source APIs",
   const detail = host.render({ contribution_id: FEED_UI_CONTRIBUTION_ID, surface: "workbench", model: demoModel });
   const source = host.render({ contribution_id: FEED_UI_CONTRIBUTION_ID, surface: "source-workbench", model: demoModel });
   assert.match(directory, /data-feed-entry-prototype="true"/);
+  assert.match(directory, /class="feed-list-copy"><strong title="Demo review request">Demo review request<\/strong>/);
+  assert.match(directory, /class="feed-list-state" data-feed-disposition="inbox">未安排/);
+  assert.doesNotMatch(directory, /feed-list-icon|feed-list-meta|Demo only/);
   assert.match(directory, /data-prototype-feed-empty-state/);
+  assert.doesNotMatch(directory, /feed-directory-footer|data-feed-result-count/);
+  const sources = host.render({ contribution_id: FEED_UI_CONTRIBUTION_ID, surface: "source-directory", model: demoModel });
+  assert.match(sources, /class="source-list-copy"><strong title="GitHub · demo">GitHub · demo<\/strong>/);
+  assert.match(sources, /class="source-list-state" data-source-status="active">运行正常/);
+  assert.doesNotMatch(sources, /source-list-icon|演示记录|演示计划|feed-directory-footer|data-source-result-count/);
   assert.match(detail, /data-prototype-feed-action="inbox"/);
   assert.match(source, /data-prototype-source-sync="prototype-source-github"/);
   assert.match(source, /data-prototype-config-save/);

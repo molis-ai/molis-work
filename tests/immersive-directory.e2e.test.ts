@@ -93,7 +93,32 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
   feed.ingestItem({ source, externalId: "second", title: "终端与目标信息应当如何配合", summary: "切换工作时保留上下文，让记录留在正确的目标里。", body: "第二条目录内容。", occurredAt: now, attention: false });
   await reloadPage();
   await waitFor("document.querySelectorAll('[data-feed-entry-id]').length===2");
+  const feedMetrics = await evaluate<{ height: number; line: string; icons: number }[]>(`[...document.querySelectorAll('.feed-list-item')].map(row => ({
+    height: row.getBoundingClientRect().height,
+    line: getComputedStyle(row.querySelector('strong')).whiteSpace,
+    icons: row.querySelectorAll('.feed-list-icon, .source-list-icon').length,
+  }))`);
+  assert.equal(feedMetrics.length, 2);
+  for (const row of feedMetrics) {
+    assert.equal(row.height, 32, "Feed rows share Goal's single-line height");
+    assert.equal(row.line, "nowrap");
+    assert.equal(row.icons, 0);
+  }
   await capture("directory-feed-list");
+  await click('[data-feed-views] [data-work-surface-open="sources"]');
+  await waitFor("document.querySelectorAll('.source-list-item').length>=1");
+  const sourceMetrics = await evaluate<{ height: number; line: string; titleRight: number; stateLeft: number }[]>(`[...document.querySelectorAll('.source-list-item')].map(row => {
+    const title = row.querySelector('strong'), state = row.querySelector('.directory-row-state');
+    return { height: row.getBoundingClientRect().height, line: getComputedStyle(title).whiteSpace, titleRight: title.getBoundingClientRect().right, stateLeft: state.getBoundingClientRect().left };
+  })`);
+  assert.ok(sourceMetrics.length >= 1);
+  for (const row of sourceMetrics) {
+    assert.equal(row.height, 32, "Source rows share Goal's single-line height");
+    assert.equal(row.line, "nowrap");
+    assert.ok(row.titleRight <= row.stateLeft, "Source titles must not cover the status");
+  }
+  await click('[data-feed-views] [data-work-surface-open="feed"][data-feed-preset="feed"]');
+  await waitFor("document.querySelectorAll('[data-feed-entry-id]').length===2");
   await evaluate("(()=>{let q=document.querySelector('[data-feed-search]');q.value='不存在的消息';q.dispatchEvent(new Event('input',{bubbles:true}));})()");
   await waitFor("!document.querySelector('[data-feed-empty]').hidden");
   assert.ok(await evaluate("document.querySelector('[data-feed-clear-filters]').getClientRects().length>0"));
@@ -107,6 +132,16 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
   assert.ok(feed.getItem(DEMO_BOARD_ID, item.item.item_id).read_at);
   await click('[data-plugin-strip] [data-plugin-id="sessions"]');
   await waitFor("document.querySelectorAll('[data-operation-row=session]').length===2");
+  const sessionRows = await evaluate<{ height: number; line: string; titleRight: number; stateLeft: number }[]>(`[...document.querySelectorAll('[data-operation-row=session] .tree-entry')].map(row => {
+    const title = row.querySelector('strong'), state = row.querySelector('.directory-row-state');
+    return { height: row.getBoundingClientRect().height, line: getComputedStyle(title).whiteSpace, titleRight: title.getBoundingClientRect().right, stateLeft: state.getBoundingClientRect().left };
+  })`);
+  assert.equal(sessionRows.length, 2);
+  for (const row of sessionRows) {
+    assert.equal(row.height, 32, "Session rows share the Goal single-line height");
+    assert.equal(row.line, "nowrap");
+    assert.ok(row.titleRight <= row.stateLeft, "Session titles must not cover the status");
+  }
   assert.ok(await evaluate("(()=>{let a=document.querySelector('[data-operation-search=sessions]').getBoundingClientRect(),b=document.querySelector('.project-record-filter-menu > summary').getBoundingClientRect();return Math.abs(a.y-b.y)<3;})()"));
   await capture("directory-sessions-list");
   await click('.project-record-filter-menu > summary');
@@ -120,7 +155,7 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
   assert.match(await evaluate<string>("document.querySelector('[data-operation-detail=session]:not([hidden])').textContent"), /完成 GoalBoard 架构/);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "dark" }, { name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await evaluate("document.documentElement.dataset.resolvedTheme='dark'");
-  assert.equal(await evaluate("getComputedStyle(document.querySelector('.project-record-select strong')).color"), "rgb(232, 233, 238)");
+  assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-operation-row=session] .tree-title-line strong')).color"), "rgb(232, 233, 238)");
   await capture("directory-sessions-dark");
   await viewport(1024, 800);
   assert.ok(await evaluate("document.documentElement.scrollWidth<=innerWidth"));

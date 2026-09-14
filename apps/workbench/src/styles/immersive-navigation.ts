@@ -77,15 +77,29 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench .immersive-strip-scroll { display: flex; gap: 2px; }
   body.immersive-workbench .immersive-strip-scroll button { width: 24px; height: 28px; padding: 0; display: grid; place-items: center; border: 0; background: transparent; border-radius: 5px; color: var(--muted); cursor: pointer; }
   body.immersive-workbench .immersive-strip-scroll svg { width: 12px; height: 12px; }
-  body.immersive-workbench .immersive-feed-views { display: flex; gap: 3px; padding: 0 12px 8px; }
+  body.immersive-workbench .immersive-feed-views { display: flex; align-items: center; gap: 3px; padding: 0 8px 8px 12px; }
   body.immersive-workbench .immersive-feed-views button { border: 0; border-radius: 5px; padding: 5px 8px; background: transparent; color: var(--muted); font: inherit; font-size: 10px; cursor: pointer; }
   body.immersive-workbench .immersive-feed-views button.is-current { color: var(--ink); background: var(--nav-active); }
+  body.immersive-workbench .immersive-feed-views .source-add-trigger {
+    display: none;
+    margin-left: auto;
+    width: 24px;
+    height: 24px;
+    min-height: 24px;
+    padding: 0;
+    border-radius: 7px;
+    color: var(--muted);
+  }
+  body.immersive-workbench .tree-pane[data-desktop-directory="sources"] .immersive-feed-views .source-add-trigger { display: grid; place-items: center; }
+  body.immersive-workbench .immersive-feed-views .source-add-trigger:hover { color: var(--ink); background: var(--nav-active); }
+  body.immersive-workbench .immersive-feed-views .source-add-trigger svg { width: 13px; height: 13px; }
   body.immersive-workbench .immersive-workspace .desktop-directory-panel:not([hidden]) { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; padding: 6px 8px 0; overflow: auto; overscroll-behavior: contain; background: transparent; }
   body.immersive-workbench .immersive-workspace .desktop-directory-panel:not([hidden]):not(.desktop-directory-root) { overflow: hidden; }
   body.immersive-workbench .tree-pane .goal-list-view { display: block; }
   body.immersive-workbench .immersive-workspace .desktop-directory-heading { display: none; flex: none; }
-  body.immersive-workbench .immersive-workspace .desktop-directory-heading:has(.directory-heading-action, .source-add-trigger) { display: flex !important; justify-content: flex-end; min-height: 30px; padding: 0 2px 6px; border: 0; background: transparent; }
-  body.immersive-workbench .desktop-directory-heading:has(.directory-heading-action, .source-add-trigger) > :not(.directory-heading-action, .source-add-trigger) { display: none; }
+  body.immersive-workbench .immersive-workspace .desktop-directory-heading:has(.directory-heading-action) { display: flex !important; justify-content: flex-end; min-height: 30px; padding: 0 2px 6px; border: 0; background: transparent; }
+  body.immersive-workbench .desktop-directory-heading:has(.directory-heading-action) > :not(.directory-heading-action) { display: none; }
+  body.immersive-workbench .tree-pane .source-directory > .desktop-directory-heading { display: none !important; }
   body.immersive-workbench .source-mobile-add { display: none; }
   body.immersive-workbench .immersive-workspace .desktop-directory-root { padding-bottom: 14px; }
   body.immersive-workbench .desktop-module-list { display: grid; gap: 3px; }
@@ -112,9 +126,9 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench .goal-tree { padding: 0; margin: 0; }
   body.immersive-workbench .tree-item { margin: 0; padding: 0; border: 0; }
   body.immersive-workbench .tree-row { display: flex; align-items: flex-start; gap: 2px; padding: 2px 0; margin: 0; }
-  body.immersive-workbench .immersive-workspace .desktop-goal-directory .tree-entry { min-width: 0; flex: 1; display: flex; align-items: center; padding: 0; border: 0; border-radius: 5px; background: transparent; }
-  body.immersive-workbench .immersive-workspace .desktop-goal-directory .tree-entry.is-selected { background: var(--nav-active); }
-  body.immersive-workbench .immersive-workspace .desktop-goal-directory .tree-entry .tree-title-line strong { color: var(--ink); }
+  body.immersive-workbench .immersive-workspace :is(.desktop-goal-directory, .project-record-directory) .tree-entry { min-width: 0; flex: 1; display: flex; align-items: center; padding: 0; border: 0; border-radius: 5px; background: transparent; }
+  body.immersive-workbench .immersive-workspace :is(.desktop-goal-directory, .project-record-directory) .tree-entry.is-selected { background: var(--nav-active); }
+  body.immersive-workbench .immersive-workspace :is(.desktop-goal-directory, .project-record-directory) .tree-entry .tree-title-line strong { color: var(--ink); }
   body.immersive-workbench .tree-node { flex: 1; min-width: 0; min-height: 31px; padding: 6px 7px; border: 0; border-radius: 5px; background: transparent; color: var(--ink); }
   body.immersive-workbench .tree-node.is-selected { background: transparent; }
   body.immersive-workbench .tree-title-line strong { font-size: 11px; font-weight: 450; line-height: 1.7; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -125,10 +139,6 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench .tree-footer { padding: 12px 9px; min-height: 0; font-size: 10px; color: var(--muted); background: transparent; border: 0; flex: none; }
   body.immersive-workbench .tree-footer small { display: none; }
   body.immersive-workbench .project-record-tools { padding: 0 2px 8px; border: 0; gap: 6px; }
-  body.immersive-workbench .project-record-row { padding: 9px 8px; border: 0; border-radius: 6px; background: transparent; }
-  body.immersive-workbench .project-record-row.is-selected { background: var(--nav-active); }
-  body.immersive-workbench .project-record-select strong { font-size: 11px; font-weight: 500; }
-  body.immersive-workbench .project-record-select small, body.immersive-workbench .project-record-meta { font-size: 10px; color: var(--muted); }
   body.immersive-workbench .immersive-workspace .personal-sidebar-footer { flex: none; height: auto; min-height: 0; margin: 0; padding: 8px 10px; border: 0; background: transparent; display: block; }
   body.immersive-workbench .immersive-market-entry { min-height: 35px; width: 100%; padding: 7px 8px; display: flex; align-items: center; gap: 9px; font: inherit; font-size: 12px; border: 0; border-radius: 6px; color: var(--ink); background: transparent; cursor: pointer; }
   body.immersive-workbench .immersive-market-entry svg { height: 15px; width: 15px; color: var(--muted); }
@@ -190,12 +200,43 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench :is(input, textarea) { caret-color: var(--blue); }
   body.immersive-workbench * { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
   body.immersive-workbench button:disabled { cursor: default; opacity: .45; }
+
+  /* Sidebar collapse eases; mid-drag resizes stay immediate. */
+  body.immersive-workbench .immersive-workspace { transition: grid-template-columns var(--dur-base) var(--ease-emphasized); }
+  body.immersive-workbench .immersive-workspace:has(.is-dragging) { transition: none; }
+
+  /* Chrome and directory rows settle instead of snapping; icon buttons press softly. */
+  body.immersive-workbench :is(.navigator-project-selector, .navigator-project-settings, .navigator-project-notifications, .navigator-directory-toggle, .desktop-module-item, .tree-entry, .project-record-row, .project-record-select, .immersive-plugin-link, .immersive-market-entry, .immersive-icon-button, .immersive-directory-back, .immersive-feed-views button, .personal-account, .home-month-actions button) {
+    transition-property: color, background-color, border-color, box-shadow, opacity;
+    transition-duration: var(--dur-fast);
+    transition-timing-function: var(--ease-standard);
+  }
+  body.immersive-workbench :is(.navigator-directory-toggle, .immersive-icon-button, .tree-tool) {
+    transition-property: color, background-color, border-color, box-shadow, opacity, transform;
+    transition-duration: var(--dur-fast), var(--dur-fast), var(--dur-fast), var(--dur-fast), var(--dur-fast), var(--dur-instant);
+    transition-timing-function: var(--ease-standard);
+  }
+  body.immersive-workbench :is(.navigator-directory-toggle, .immersive-icon-button, .tree-tool):active {
+    transform: scale(.94);
+  }
+  body.immersive-workbench .navigator-project-menu-popover,
+  body.immersive-workbench .tree-pane :is(.project-record-filter-menu > div, .feed-filter-panel) {
+    animation: goalboard-menu-in var(--dur-fast) var(--ease-emphasized);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    body.immersive-workbench .immersive-workspace { transition: none; }
+    body.immersive-workbench .navigator-project-menu-popover,
+    body.immersive-workbench .tree-pane :is(.project-record-filter-menu > div, .feed-filter-panel) { animation: none; }
+  }
   @media (max-width: 1050px) { body.immersive-workbench { --immersive-sidebar-width: 236px; } body.immersive-workbench .immersive-titlebar { padding: 0 16px; gap: 8px; } }
+  @keyframes immersive-drawer-in {
+    from { opacity: 0; transform: translateX(-14px); }
+  }
   @media (max-width: 600px) {
     body.immersive-workbench .immersive-workspace { grid-template-columns: 0 minmax(0, 1fr); }
     body.immersive-workbench .immersive-workspace > .tree-pane { display: none; position: fixed; inset: 0 auto 0 0; width: 264px; z-index: 40; box-shadow: 12px 0 40px #00000035; }
-    body.immersive-workbench .immersive-workspace.is-directory-drawer-open > .tree-pane { display: flex; }
-    body.immersive-workbench .immersive-sidebar-scrim:not([hidden]) { display: block; position: fixed; inset: 0; z-index: 35; border: 0; padding: 0; background: #08091080; }
+    body.immersive-workbench .immersive-workspace.is-directory-drawer-open > .tree-pane { display: flex; animation: immersive-drawer-in var(--dur-base) var(--ease-emphasized); }
+    body.immersive-workbench .immersive-sidebar-scrim:not([hidden]) { display: block; position: fixed; inset: 0; z-index: 35; border: 0; padding: 0; background: #08091080; animation: goalboard-backdrop-in var(--dur-base) ease-out; }
     body.immersive-workbench .immersive-titlebar { padding: 0 12px; gap: 8px; }
     body.immersive-workbench .immersive-show-directory { display: inline-grid; }
     body.immersive-workbench .immersive-goal-tools > span { display: none; }

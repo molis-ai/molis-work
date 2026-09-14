@@ -271,7 +271,7 @@ export const QUIET_PAPER_STYLES = `  /* Quiet Paper visual replacement. Persiste
     box-shadow: none;
   }
   .tui-mode-label { border-bottom-color: var(--ink-soft); }
-  .tui-terminal { border-color: #30322f; border-radius: 12px; }
+  .tui-terminal { border-color: var(--terminal-border); border-radius: 12px; }
 
   .settings-content { background: var(--page); }
   .settings-navigation {

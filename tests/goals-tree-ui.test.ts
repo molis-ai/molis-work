@@ -49,9 +49,9 @@ test("collection selection preserves requested/active/first precedence and archi
   const compact = renderer.renderGoalRefreshDirectory(model, current);
   assert.match(full, /data-directory-panel="goals">/);
   assert.match(full, /data-goal-list-view/);
-  assert.match(full, /共 3 个目标/);
+  assert.doesNotMatch(full, /data-tree-footer|tree-footer|共 3 个目标/);
   assert.match(compact, /data-refresh-tree-chrome hidden/);
-  assert.doesNotMatch(compact, /data-directory-panel|data-goal-list-view/);
+  assert.doesNotMatch(compact, /data-directory-panel|data-goal-list-view|data-tree-footer|共 3 个目标/);
   assert.match(full, /data-select-goal="active" aria-pressed="true"/);
   const archive = runWithLocale("en", () => {
     const collection = select(undefined, true);
@@ -64,7 +64,8 @@ test("collection selection preserves requested/active/first precedence and archi
   assert.equal(empty.selected, undefined);
   assert.equal(empty.selectedId, "");
   assert.equal(empty.title, "GoalBoard");
-  assert.match(renderer.renderGoalRefreshDirectory(model, empty), /共 0 个目标/);
+  assert.match(renderer.renderGoalRefreshDirectory(model, empty), /data-tree-scroll/);
+  assert.doesNotMatch(renderer.renderGoalRefreshDirectory(model, empty), /data-tree-footer|共 0 个目标/);
   assert.deepEqual(model, before);
 });
 

@@ -77,7 +77,7 @@ export function renderGoalEventDocument(
           <header class="reader-header"><button type="button" class="text-button" data-event-back>${L("返回所选事件")}</button><h2 data-reader-title></h2></header>
           <div class="reader-content" data-reader-content>
             ${doc ? forms.renderPlanning(doc, owned) : ""}
-            ${renderDescription(doc, item, context, L, escapeHtml)}
+            ${renderDescription(doc, item, context, L, escapeHtml, icon)}
             ${renderRequirements(doc, item, context, L, escapeHtml, owned)}
           </div>
         </section>
@@ -207,7 +207,91 @@ function originalDefinitionLine(
   L: GoalsDocumentUiPrimitives["translate"],
   escapeHtml: GoalsDocumentUiPrimitives["escapeHtml"],
 ): string {
-  return `<p>${L(label)}：${escapeHtml((values ?? []).join("、") || L("未填写"))}</p>`;
+  const items = (values ?? []).map((value) => value.trim()).filter(Boolean);
+  const empty = items.length === 0;
+  return `<div class="goal-description-fact${empty ? " is-empty" : ""}"><dt>${L(label)}</dt><dd>${escapeHtml(empty ? L("未填写") : items.join("、"))}</dd></div>`;
+}
+
+function descriptionProse(
+  value: string | null | undefined,
+  L: GoalsDocumentUiPrimitives["translate"],
+  escapeHtml: GoalsDocumentUiPrimitives["escapeHtml"],
+): { html: string; empty: boolean } {
+  const text = (value ?? "").trim();
+  return text
+    ? { html: escapeHtml(text), empty: false }
+    : { html: escapeHtml(L("未填写")), empty: true };
+}
+
+type DescriptionKickerIcon = "target" | "question" | "workflow" | "check" | "impact";
+
+function descriptionKicker(
+  iconName: DescriptionKickerIcon,
+  title: string,
+  tag: string,
+  icon: GoalsDocumentUiPrimitives["icon"],
+  variant = "",
+): string {
+  return `<header class="goal-description-kicker${variant ? ` goal-description-kicker--${variant}` : ""}"><span class="goal-description-kicker-icon" aria-hidden="true">${icon(iconName)}</span><h3>${title}</h3><span class="goal-description-kicker-tag">${tag}</span></header>`;
+}
+
+export function renderGoalDescriptionBasics(
+  doc: GoalEventDocumentView | null | undefined,
+  item: {
+    goal: {
+      outcome?: string | null;
+      why?: string | null;
+      business_logic?: string | null;
+      in_scope?: readonly string[] | null;
+      out_of_scope?: readonly string[] | null;
+      constraints?: readonly string[] | null;
+      required_inputs?: readonly string[] | null;
+      promised_outputs?: readonly string[] | null;
+    };
+  },
+  L: GoalsDocumentUiPrimitives["translate"],
+  escapeHtml: GoalsDocumentUiPrimitives["escapeHtml"],
+  icon: GoalsDocumentUiPrimitives["icon"],
+): string {
+  const d = doc?.description;
+  const outcome = descriptionProse(d?.outcome || item.goal.outcome, L, escapeHtml);
+  const why = descriptionProse(d?.why || item.goal.why, L, escapeHtml);
+  const logic = descriptionProse(d?.business_logic || item.goal.business_logic, L, escapeHtml);
+  const decisions = doc?.state.current_decisions ?? [];
+  return `<div class="goal-description-basics">
+    <section class="goal-description-lead">
+      ${descriptionKicker("target", L("要得到什么"), L("结果"), icon, "lead")}
+      <p${outcome.empty ? ' class="is-empty"' : ""}>${outcome.html}</p>
+    </section>
+    <section class="goal-description-story">
+      <article>
+        ${descriptionKicker("question", L("为什么"), L("动机"), icon)}
+        <p${why.empty ? ' class="is-empty"' : ""}>${why.html}</p>
+      </article>
+      <article>
+        ${descriptionKicker("workflow", L("它会怎样运转"), L("运转"), icon)}
+        <p${logic.empty ? ' class="is-empty"' : ""}>${logic.html}</p>
+      </article>
+    </section>
+    <section class="goal-description-facts">
+      <article>
+        ${descriptionKicker("check", L("有效决定"), decisions.length ? String(decisions.length) : L("暂无"), icon)}
+        ${decisions.length
+          ? `<ul>${decisions.map((decision) => `<li>${escapeHtml(decision.conclusion)} · ${escapeHtml(decision.actor_id)}</li>`).join("")}</ul>`
+          : `<p class="is-empty">${L("还没有当前有效的用户决定。")}</p>`}
+      </article>
+      <article>
+        ${descriptionKicker("impact", L("范围"), L("边界"), icon)}
+        <dl>
+          ${originalDefinitionLine("范围内", d?.in_scope ?? item.goal.in_scope ?? [], L, escapeHtml)}
+          ${originalDefinitionLine("范围外", d?.out_of_scope ?? item.goal.out_of_scope ?? [], L, escapeHtml)}
+          ${originalDefinitionLine("必须遵守", d?.constraints ?? item.goal.constraints ?? [], L, escapeHtml)}
+          ${originalDefinitionLine("需要的输入", d?.required_inputs ?? item.goal.required_inputs ?? [], L, escapeHtml)}
+          ${originalDefinitionLine("承诺的输出", d?.promised_outputs ?? item.goal.promised_outputs ?? [], L, escapeHtml)}
+        </dl>
+      </article>
+    </section>
+  </div>`;
 }
 
 function renderDescription(
@@ -216,23 +300,10 @@ function renderDescription(
   context: GoalsDocumentContext,
   L: GoalsDocumentUiPrimitives["translate"],
   escapeHtml: GoalsDocumentUiPrimitives["escapeHtml"],
+  icon: GoalsDocumentUiPrimitives["icon"],
 ): string {
-  const d = doc?.description;
   return `<div class="event-reader-panel" id="goal-description-${escapeHtml(item.goal.goal_id)}" data-event-panel="description" hidden>
-    <h3>${L("要得到什么")}</h3><p>${escapeHtml(d?.outcome || item.goal.outcome || L("未填写"))}</p>
-    <h3>${L("为什么")}</h3><p>${escapeHtml(d?.why || item.goal.why || L("未填写"))}</p>
-    <h3>${L("它会怎样运转")}</h3><p>${escapeHtml(d?.business_logic || item.goal.business_logic || L("未填写"))}</p>
-    <h3>${L("有效决定")}</h3>${doc?.state.current_decisions.length
-      ? `<ul>${doc.state.current_decisions.map((decision) => `<li>${escapeHtml(decision.conclusion)} · ${escapeHtml(decision.actor_id)}</li>`).join("")}</ul>`
-      : `<p>${L("还没有当前有效的用户决定。")}</p>`}
-    <h3>${L("范围")}</h3>
-    ${originalDefinitionLine("范围内", d?.in_scope ?? item.goal.in_scope, L, escapeHtml)}
-    ${originalDefinitionLine("范围外", d?.out_of_scope ?? item.goal.out_of_scope, L, escapeHtml)}
-    ${originalDefinitionLine("必须遵守", d?.constraints ?? item.goal.constraints, L, escapeHtml)}
-    ${originalDefinitionLine("需要的输入", d?.required_inputs ?? item.goal.required_inputs, L, escapeHtml)}
-    ${originalDefinitionLine("承诺的输出", d?.promised_outputs ?? item.goal.promised_outputs, L, escapeHtml)}
-    ${context.coverageHtml}
-    ${context.relatedWorkHtml}
+    ${context.relatedWorkHtml || `${renderGoalDescriptionBasics(doc, item, L, escapeHtml, icon)}${context.coverageHtml}`}
   </div>`;
 }
 

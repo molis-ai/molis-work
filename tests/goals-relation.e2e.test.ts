@@ -46,11 +46,14 @@ test("Goals relation UI preserves incoming direction, historical reading and rel
   const record = "#relation-" + relationId;
   async function openRelations() {
     await waitFor("document.readyState === 'complete' && document.querySelector('[data-goal-event-document]')");
-    await click('[data-event-reader="description"]');
-    await waitFor("document.querySelector('[data-event-panel=\"description\"]') && document.querySelector('[data-event-panel=\"description\"]').hidden === false");
+    const descriptionVisible = await evaluate<boolean>("document.querySelector('[data-event-panel=\"description\"]')?.hidden === false");
+    if (!descriptionVisible) {
+      await click('[data-event-reader="description"]');
+      await waitFor("document.querySelector('[data-event-panel=\"description\"]') && document.querySelector('[data-event-panel=\"description\"]').hidden === false");
+    }
     await waitFor("document.querySelector('#goal-factor-tab-relations-V1')");
     await click("#goal-factor-tab-relations-V1");
-    await waitFor("document.querySelector('#goal-factor-panel-relations-V1') && document.querySelector('#goal-factor-panel-relations-V1').hidden === false");
+    await waitFor("document.querySelector('#goal-factor-tab-relations-V1')?.getAttribute('aria-selected') === 'true'");
   }
   await openRelations();
   const panelText = await evaluate<string>("document.querySelector('#goal-factor-panel-relations-V1')?.textContent || ''");

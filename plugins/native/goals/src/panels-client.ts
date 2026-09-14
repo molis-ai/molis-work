@@ -23,8 +23,9 @@ const GOALS_READER_HASH_SCRIPT = `    const eventReaderFromTargetId = (targetId)
       const target = document.getElementById(targetId);
       const renderedFactor = target?.closest?.("[data-goal-factor-panel]")?.dataset.goalFactorPanel;
       if (renderedFactor) return renderedFactor;
-      const factorTarget = targetId.match(/^goal-factor-panel-(relations|risks|impacts|rules)-/);
-      if (factorTarget) return factorTarget[1];
+      const factorTarget = targetId.match(/^goal-factor-panel-([a-z]+)-/);
+      if (factorTarget && goalFactorKeys.includes(factorTarget[1])) return factorTarget[1];
+      if (targetId.startsWith("goal-description-")) return "basics";
       if (targetId.startsWith("relation-")) return "relations";
       if (targetId.startsWith("risk-")) return "risks";
       if (targetId.startsWith("impact-")) return "impacts";
@@ -71,7 +72,7 @@ const GOALS_FACTOR_KEYBOARD_SCRIPT = `    const handleGoalFactorKeyboard = (even
 const GOALS_FACTOR_SELECT_SCRIPT = `    const setGoalFactor = (factorName, persist = true, updateHash = false) => {
       const article = documentPane.querySelector("[data-goal-view]");
       if (!article) return false;
-      const factor = goalFactorKeys.includes(factorName) ? factorName : "relations";
+      const factor = goalFactorKeys.includes(factorName) ? factorName : "basics";
       const activePanel = article.querySelector('[data-goal-factor-panel="' + factor + '"]');
       if (!activePanel) {
         article.dataset.activeFactor = factor;
@@ -95,7 +96,7 @@ const GOALS_FACTOR_SELECT_SCRIPT = `    const setGoalFactor = (factorName, persi
 /** Factor deep-links and in-document workbench. */
 export const GOALS_PANELS_CLIENT_FACTORY_SCRIPT = `(host) => {
     const { documentPane, activateFocusSection, queueSave, openEventReader } = host;
-    const goalFactorKeys = ["relations", "risks", "impacts", "rules"];
+    const goalFactorKeys = ["basics", "coverage", "relations", "risks", "impacts", "rules"];
 ${GOALS_READER_HASH_SCRIPT}${GOALS_FACTOR_SELECT_SCRIPT}${GOALS_FACTOR_CLICK_SCRIPT}${GOALS_FACTOR_KEYBOARD_SCRIPT}
     return { openEventReaderFromHash, eventReaderFromTargetId, eventReaderFromHash,
       setGoalFactor, goalFactorFromTargetId, goalFactorFromHash,

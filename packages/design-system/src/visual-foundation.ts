@@ -14,6 +14,7 @@ import { DESKTOP_TITLEBAR_STYLES } from "./styles/desktop-titlebar.js";
 import { DIRECTORY_LEDGER_STYLES } from "./styles/directory-ledger.js";
 import { FOUNDATION_STYLES } from "./styles/foundation.js";
 import { MOMENTUM_STYLES } from "./styles/momentum.js";
+import { MOTION_POLISH_STYLES } from "./styles/motion-polish.js";
 import { NAVIGATION_OWNERSHIP_STYLES } from "./styles/navigation-ownership.js";
 import { PERSONAL_SHELL_STYLES } from "./styles/personal-shell.js";
 import { PERSONAL_WORKBENCH_V2_STYLES } from "./styles/personal-workbench-v2.js";
@@ -35,4 +36,5 @@ export const VISUAL_FOUNDATION_STYLES = [
   NAVIGATION_OWNERSHIP_STYLES,
   SOURCE_FEED_STYLES,
   DESKTOP_TITLEBAR_STYLES,
+  MOTION_POLISH_STYLES,
 ].join("");

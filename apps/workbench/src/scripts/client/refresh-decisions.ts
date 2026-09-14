@@ -54,7 +54,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
         bindGoalEventDocument(pendingEventRestore);
         pendingEventRestore = null;
         openEventReaderFromHash();
-        setGoalFactor(goalFactorFromHash() || "relations", false);
+        setGoalFactor(goalFactorFromHash() || "basics", false);
       },
     });
     reloadGoalEventDocument = async (goalId, restore) => {

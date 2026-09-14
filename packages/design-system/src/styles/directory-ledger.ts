@@ -252,111 +252,84 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Unified directory ledger: Goals est
     padding: 3px 0 2px 7px;
   }
 
-  body[data-desktop-shell="true"] .feed-item-scroll {
+  body[data-desktop-shell="true"] .feed-item-scroll,
+  body[data-desktop-shell="true"] .source-list {
     padding: 4px 7px 12px;
   }
-  body[data-desktop-shell="true"] .feed-list-item {
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) :is(.feed-list-item, .source-list-item) {
     width: 100%;
-    min-height: 66px;
-    padding: 8px;
+    min-height: 32px;
+    padding: 5px 7px;
     border: 0;
     border-radius: 8px;
     color: var(--ink-soft);
     background: transparent !important;
     display: grid;
-    grid-template-columns: 22px minmax(0, 1fr) auto;
-    align-items: start;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
     gap: 8px;
     text-align: left;
   }
-  body[data-desktop-shell="true"] .feed-list-item:hover {
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) :is(.feed-list-item, .source-list-item):hover {
     color: var(--ink);
     background: color-mix(in srgb, var(--ink) 5%, transparent) !important;
   }
-  body[data-desktop-shell="true"] .feed-list-item.is-selected {
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) :is(.feed-list-item, .source-list-item).is-selected {
     color: var(--ink);
     background: var(--paper) !important;
     box-shadow: 0 1px 2px color-mix(in srgb, var(--shadow-color) 28%, transparent);
   }
-  body[data-desktop-shell="true"] .feed-list-item:focus-visible {
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) :is(.feed-list-item, .source-list-item):focus-visible {
     outline: 2px solid color-mix(in srgb, var(--blue) 72%, transparent);
     outline-offset: -2px;
     box-shadow: none;
   }
-  body[data-desktop-shell="true"] .feed-list-icon {
-    width: 22px;
-    height: 22px;
-    border-radius: 6px;
-    color: var(--muted);
-    background: color-mix(in srgb, var(--ink) 5%, transparent);
-  }
-  body[data-desktop-shell="true"] .feed-list-copy {
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) :is(.feed-list-copy, .source-list-copy) {
     min-width: 0;
-    display: grid;
-    gap: 2px;
-  }
-  body[data-desktop-shell="true"] .feed-list-copy > .feed-list-meta {
-    min-width: 0;
-    display: flex;
-    align-items: center;
-    gap: 5px;
-  }
-  body[data-desktop-shell="true"] .feed-list-copy em,
-  body[data-desktop-shell="true"] .feed-list-copy small,
-  body[data-desktop-shell="true"] .feed-list-copy time {
+    display: block;
     overflow: hidden;
-    color: var(--faint);
-    font-size: 9px;
-    line-height: 1.25;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
-  body[data-desktop-shell="true"] .feed-list-copy em {
-    flex: 0 1 auto;
-    color: var(--muted);
-    font-style: normal;
-    font-weight: 660;
-  }
-  body[data-desktop-shell="true"] .feed-list-copy small { min-width: 0; flex: 1 1 auto; }
-  body[data-desktop-shell="true"] .feed-list-copy small.feed-list-read {
-    flex: 0 0 auto;
-    color: var(--blue-dark);
-    font-weight: 680;
-  }
-  body[data-desktop-shell="true"] .feed-list-item[data-feed-entry-read="read"] .feed-list-read {
-    color: var(--faint);
-    font-weight: 540;
-  }
-  body[data-desktop-shell="true"] .feed-list-copy strong {
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) :is(.feed-list-copy, .source-list-copy) strong {
     min-width: 0;
+    display: block;
     overflow: hidden;
     color: inherit;
-    font-size: 11.5px;
-    font-weight: 630;
+    font-size: 12px;
+    font-weight: 620;
     line-height: 1.35;
+    letter-spacing: -.008em;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  body[data-desktop-shell="true"] .feed-list-copy p {
-    margin: 0;
-    overflow: hidden;
-    color: var(--muted);
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) :is(.feed-list-item, .source-list-item).is-selected :is(.feed-list-copy, .source-list-copy) strong {
+    font-weight: 690;
+  }
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) :is(.feed-list-item, .source-list-item) > .directory-row-state {
+    margin-right: 0;
+    justify-self: end;
+  }
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) :is(.feed-list-item, .source-list-item) > .directory-row-state > :is(.feed-list-state, .source-list-state) {
+    min-width: 0;
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
     font-size: 9px;
-    line-height: 1.4;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    font-weight: 660;
+    line-height: 1.2;
   }
-  body[data-desktop-shell="true"] .feed-list-copy time { color: var(--faint); font-variant-numeric: tabular-nums; }
-  body[data-desktop-shell="true"] .feed-list-state {
-    max-width: 62px;
-    align-self: start;
-  }
+  body[data-desktop-shell="true"] .feed-list-item[data-feed-entry-status="feed"] > .directory-row-state { display: none; }
   body[data-desktop-shell="true"] .feed-list-state[data-feed-disposition="inbox"] { color: var(--amber); }
   body[data-desktop-shell="true"] .feed-list-state[data-feed-disposition="feed"] { color: var(--faint); }
   body[data-desktop-shell="true"] .feed-list-state[data-feed-disposition="saved"] { color: var(--green); }
   body[data-desktop-shell="true"] .feed-list-state[data-feed-disposition="promoted"],
   body[data-desktop-shell="true"] .feed-list-state[data-feed-disposition="processing"] { color: var(--blue-dark); }
   body[data-desktop-shell="true"] .feed-list-state[data-feed-disposition="archived"] { color: var(--faint); }
+  body[data-desktop-shell="true"] .source-list-state[data-source-status="active"] { color: var(--green); }
+  body[data-desktop-shell="true"] .source-list-state[data-source-status="attention"] { color: var(--red); }
+  body[data-desktop-shell="true"] .source-list-state[data-source-status="syncing"] { color: var(--blue-dark); }
+  body[data-desktop-shell="true"] .source-list-state[data-source-status="paused"] { color: var(--faint); }
 
   body[data-desktop-shell="true"] .feed-directory-search { height: 32px; }
   body[data-desktop-shell="true"] .feed-directory-search input { font-size: 10.5px; }

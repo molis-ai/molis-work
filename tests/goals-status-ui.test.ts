@@ -34,16 +34,25 @@ test("factors contribution keeps owner content, live counts and accessible tab r
   const html = renderer({ goal: { goal_id: 'goal"<x>' },
     risks: ["open", "triggered", "resolved", "accepted", "expired"].map(state => ({ state })),
     impacts: [{ state: "active" }, { state: "inactive" }], relations: [{ state: "active" }, { state: "inactive" }],
-  }, { relationsHtml: "<article>Relations + Decision history</article>", risksHtml: "<article>Risk owner</article>", impactsHtml: "<article>Impact owner</article>", policyHtml: "<article>Policy owner</article>" });
-  assert.deepEqual(captured.map(card => [card.key, card.count]), [["relations", 1], ["risks", 2], ["impacts", 1], ["rules", undefined]]);
+  }, { basicsHtml: "<article>Basics owner</article>", coverageHtml: "<article>Coverage owner</article>", relationsHtml: "<article>Relations + Decision history</article>", risksHtml: "<article>Risk owner</article>", impactsHtml: "<article>Impact owner</article>", policyHtml: "<article>Policy owner</article>" });
+  assert.deepEqual(captured.map(card => [card.key, card.count]), [["basics", undefined], ["coverage", undefined], ["relations", 1], ["risks", 2], ["impacts", 1], ["rules", undefined]]);
   for (const card of captured) {
     assert.ok(card.triggerAttributes?.includes('aria-controls="goal-factor-panel-' + card.key + '-goal&quot;&lt;x&gt;"'));
     assert.ok(card.bodyAttributes?.includes('aria-labelledby="goal-factor-tab-' + card.key + '-goal&quot;&lt;x&gt;"'));
-    assert.ok(card.triggerAttributes?.includes('aria-selected="' + (card.key === "relations" ? "true" : "false") + '"'));
+    assert.ok(card.triggerAttributes?.includes('aria-selected="' + (card.key === "basics" ? "true" : "false") + '"'));
   }
-  assert.match(captured[0]!.body, /Relations \+ Decision history/);
-  assert.match(captured[1]!.body, /Risk owner/);
-  assert.match(captured[2]!.body, /Impact owner/);
-  assert.match(captured[3]!.body, /Policy owner/);
-  assert.match(html, /关联与约束/);
+  assert.deepEqual(captured.map(card => card.title), ["基础信息", "历史覆盖", "Goal 关系", "风险", "影响范围", "工作规则"]);
+  assert.deepEqual(captured.map(card => card.description), ["", "", "", "", "", ""]);
+  assert.match(captured[0]!.body, /Basics owner/);
+  assert.doesNotMatch(captured[0]!.body, /Coverage owner|历史 Contract 覆盖/);
+  assert.match(captured[1]!.body, /历史 Contract 覆盖/);
+  assert.match(captured[1]!.body, /Coverage owner/);
+  assert.match(captured[2]!.body, /Relations \+ Decision history/);
+  assert.match(captured[3]!.body, /Risk owner/);
+  assert.match(captured[4]!.body, /Impact owner/);
+  assert.match(captured[5]!.body, /Policy owner/);
+  assert.doesNotMatch(html, /关联与约束/);
+  renderer({ goal: { goal_id: "empty" }, risks: [], impacts: [], relations: [] },
+    { basicsHtml: "", coverageHtml: "", relationsHtml: "", risksHtml: "", impactsHtml: "", policyHtml: "" });
+  assert.match(captured[1]!.body, /没有保留的历史覆盖事实/);
 });

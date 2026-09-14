@@ -2,9 +2,6 @@ import { GOALS_PROPOSAL_MOBILE_STYLES, GOALS_LEGACY_PROPOSAL_MOBILE_STYLES } fro
 export const RESPONSIVE_STYLES = `
   @container (max-width: 660px) {
     .goal-factor-nav, .goal-factor-panels { margin-left: 0; }
-    .goal-factor-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .goal-factor-nav button:nth-child(2) { border-right: 0; }
-    .goal-factor-nav button:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
     .policy-scope-note { grid-template-columns: auto minmax(0, 1fr); }
     .policy-scope-note a { grid-column: 2; }
     .document-subsection, .draft-editor-section { margin-left: 0; }

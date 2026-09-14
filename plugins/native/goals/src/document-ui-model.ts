@@ -22,7 +22,7 @@ export interface GoalsDocumentUiPrimitives {
   translate(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;
   formatDate(value: string | null | undefined): string;
-  icon(name: "archive" | "user" | "waiting" | "blocked" | "clipboard" | "terminal" | "check" | "arrow" | "target" | "refresh" | "more" | "plus" | "activity" | "link" | "history" | "x" | "tune" | "chevron-down" | "chevron-right"): string;
+  icon(name: "archive" | "user" | "waiting" | "blocked" | "clipboard" | "terminal" | "check" | "arrow" | "target" | "refresh" | "more" | "plus" | "activity" | "link" | "history" | "x" | "tune" | "chevron-down" | "chevron-right" | "question" | "workflow" | "impact"): string;
   renderVisibleGoalStatus(item: Pick<GoalsDocumentItem, "status" | "display_status">): string;
   renderStatus(status: "trashed"): string;
   sectionHeading(iconName: "archive" | "book" | "refresh", title: string, description?: string): string;

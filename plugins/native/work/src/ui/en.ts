@@ -99,6 +99,7 @@ export const WORK_EN: Record<string, string> = {
   "全部事件": "All events",
   "工具与审批": "Tools and approvals",
   "当前内容中没有匹配结果。": "No matching results in the current content.",
+  "Session 详情": "Session details",
   "Session 上下文": "Session context",
   "续跑使用这些已确认事实。": "Resume uses these confirmed facts.",
   "管理关系": "Manage relationships",

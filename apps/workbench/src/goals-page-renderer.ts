@@ -149,7 +149,7 @@ function renderGoalBoardWeb(
       </div>
     </section>
   </div>` : goalDocument;
-  const feedViews = `<nav class="immersive-feed-views" data-feed-views hidden aria-label="${L("Feed 视图")}"><button type="button" data-directory-open="feed" data-work-surface-open="feed" data-feed-preset="inbox_message">Inbox</button><button type="button" data-directory-open="feed" data-work-surface-open="feed" data-feed-preset="feed">Feed</button><button type="button" data-directory-open="sources" data-work-surface-open="sources">${L("来源")}</button></nav>`;
+  const feedViews = `<nav class="immersive-feed-views" data-feed-views hidden aria-label="${L("Feed 视图")}"><button type="button" data-directory-open="feed" data-work-surface-open="feed" data-feed-preset="inbox_message">Inbox</button><button type="button" data-directory-open="feed" data-work-surface-open="feed" data-feed-preset="feed">Feed</button><button type="button" data-directory-open="sources" data-work-surface-open="sources">${L("来源")}</button><button class="source-add-trigger" type="button" data-feed-sources-open aria-label="${L("添加来源")}">${icon("plus")}</button></nav>`;
   const html = renderWorkbenchDocument({
     preamble_html: `<!--
 THESIS: 从项目首页进入工作，在同一 Goal 框内操作终端和检查结果。

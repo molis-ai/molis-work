@@ -191,21 +191,19 @@ function renderTreeChrome(
 
 
 function renderGoalDirectory(view: GoalsTreeView, collection: GoalCollectionModel<GoalsTreeItem>, initiallyOpen: boolean): string {
-  const { visibleGoals, selectedId, collectionTitle, collectionSuffix, collectionView, collectionNote, archiveView, trashView, searchPlaceholder, searchLabel } = collection;
+  const { visibleGoals, selectedId, collectionTitle, collectionView, collectionNote, archiveView, trashView, searchPlaceholder, searchLabel } = collection;
   return `<section class="desktop-directory-panel desktop-goal-directory" data-directory-panel="goals"${initiallyOpen ? "" : " hidden"}>
           <header class="desktop-directory-heading"><button type="button" data-directory-back aria-label="${L("返回上一级")}">${icon("back")}</button><span><strong>${collectionTitle === L("Goal Tree") ? "Goals" : collectionTitle}</strong><small>${collectionView ? collectionNote : L("Goal Tree")}</small></span></header>
           ${renderTreeChrome(view, visibleGoals, archiveView, trashView, searchPlaceholder, searchLabel)}
           <div class="tree-scroll" data-tree-scroll tabindex="0" aria-label="${collectionTitle} ${L("目标列表")}"><div class="goal-list-view" data-goal-list-view>${renderGoalTree(view, selectedId, visibleGoals)}<div class="tree-filter-empty" data-tree-filter-empty hidden><p>${L("没有符合当前筛选条件的 Goal。")}</p><button type="button" data-clear-tree-filter>${L("清除所有筛选")}</button></div></div></div>
-          <footer class="tree-footer" data-tree-footer><span data-tree-filter-count data-tree-suffix="${escapeHtml(collectionSuffix)}">${L("共 {count} 个{suffix}目标", { count: visibleGoals.length, suffix: collectionSuffix ? `${collectionSuffix} ` : "" })}</span><small>${collectionNote}</small></footer>
         </section>`;
 }
 
 function renderGoalRefreshDirectory(view: GoalsTreeView, collection: GoalCollectionModel<GoalsTreeItem>): string {
-  const { visibleGoals, selectedId, collectionSuffix, collectionNote, archiveView, trashView, searchPlaceholder, searchLabel } = collection;
+  const { visibleGoals, selectedId, archiveView, trashView, searchPlaceholder, searchLabel } = collection;
   const tree = `${renderGoalTree(view, selectedId, visibleGoals)}<div class="tree-filter-empty" data-tree-filter-empty hidden><p>${L("没有符合当前筛选条件的 Goal。")}</p><button type="button" data-clear-tree-filter>${L("清除所有筛选")}</button></div>`;
   return `<div data-refresh-tree-chrome hidden>${renderTreeChrome(view, visibleGoals, archiveView, trashView, searchPlaceholder, searchLabel)}</div>
-    <div data-tree-scroll>${tree}</div>
-    <footer data-tree-footer><span data-tree-filter-count data-tree-suffix="${escapeHtml(collectionSuffix)}">${L("共 {count} 个{suffix}目标", { count: visibleGoals.length, suffix: collectionSuffix ? `${collectionSuffix} ` : "" })}</span><small>${collectionNote}</small></footer>`;
+    <div data-tree-scroll>${tree}</div>`;
 }
 
   return { renderGoalTree, renderTreeChrome, renderGoalDirectory, renderGoalRefreshDirectory, renderGoalRootEntry };

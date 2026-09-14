@@ -21,15 +21,18 @@ test("Workbench mounts Goals policy UI with inherited locked controls and the au
   const host = createWorkbenchUiHost();
   assert.ok(host.list().some(entry => entry.contribution_id === GOALS_POLICY_UI_CONTRIBUTION_ID));
   const html = renderer.renderPolicyEditor(item);
+  assert.match(html, /policy-workbench--settings/);
   assert.match(html, /name="goal_id" value="goal-&quot;&lt;unsafe&gt;"/);
-  assert.match(html, /name="goal_mode" value="disabled" disabled/);
+  assert.match(html, /<select class="policy-settings-select" name="goal_mode"/);
+  assert.match(html, /<option value="disabled" disabled>/);
+  assert.doesNotMatch(html, /policy-settings-segment/);
   assert.match(html, /name="self_verification" checked disabled/);
   assert.match(html, /name="human_approval" checked disabled/);
   assert.match(html, /name="cross_reviewers" type="number" min="2"/);
   assert.match(html, /name="max_lease_seconds" type="number" min="1" max="600" data-policy-max="600"/);
   assert.match(html, /<strong>300 秒<\/strong>/);
   assert.match(html, /browser、image/);
-  assert.doesNotMatch(html, /data-live-form="policy-project_default-/);
+  assert.doesNotMatch(html, /data-live-form="policy-project_default-|GOAL OVERRIDE|policy-inheritance|policy-source--goal/);
   assert.deepEqual(base.required_capabilities, ["browser"]);
 });
 

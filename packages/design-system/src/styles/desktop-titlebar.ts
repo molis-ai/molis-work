@@ -182,7 +182,7 @@ export const DESKTOP_TITLEBAR_STYLES = `  /* One Codex-style desktop titlebar co
     body[data-desktop-shell="true"] .tree-pane[data-desktop-directory="sources"] .source-directory {
       min-height: 0;
       display: grid !important;
-      grid-template-rows: auto minmax(0, 1fr) 42px;
+      grid-template-rows: auto minmax(0, 1fr);
     }
     body[data-desktop-shell="true"] .source-directory-tools { grid-row: 1; padding: 8px 10px; }
     body[data-desktop-shell="true"] .source-mobile-add {
@@ -203,15 +203,9 @@ export const DESKTOP_TITLEBAR_STYLES = `  /* One Codex-style desktop titlebar co
     body[data-desktop-shell="true"] .source-mobile-add svg { width: 13px; height: 13px; }
     body[data-desktop-shell="true"] .source-mobile-add:focus-visible { outline: 2px solid color-mix(in srgb, var(--blue) 58%, transparent); outline-offset: 2px; }
     body[data-desktop-shell="true"] .source-list { grid-row: 2; padding: 2px 6px 10px; }
-    body[data-desktop-shell="true"] .source-directory .feed-directory-footer { grid-row: 3; }
     body[data-desktop-shell="true"] .source-filter-row { gap: 4px; }
     body[data-desktop-shell="true"] .source-filter-row button { min-height: 40px; border-radius: 9px; font-size: 10px; }
-    body[data-desktop-shell="true"] .source-list-item { min-height: 82px; padding: 10px 8px; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 9px; }
-    body[data-desktop-shell="true"] .source-list-icon { width: 26px; height: 26px; border-radius: 8px; }
-    body[data-desktop-shell="true"] .source-list-icon svg { width: 13px; height: 13px; }
-    body[data-desktop-shell="true"] .source-list-copy strong { font-size: 12px; }
-    body[data-desktop-shell="true"] .source-list-copy p,
-    body[data-desktop-shell="true"] .source-list-copy small { font-size: 9px; }
+    body[data-desktop-shell="true"] .source-list-item { min-height: 40px; padding: 8px 8px; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
     body[data-desktop-shell="true"] .source-detail { width: 100%; margin: 0; padding: 16px 12px 56px; }
     body[data-desktop-shell="true"] .source-detail-header { padding: 8px 6px 18px; align-items: stretch; flex-direction: column; gap: 14px; }
     body[data-desktop-shell="true"] .source-detail-identity { grid-template-columns: 38px minmax(0, 1fr); gap: 11px; }

@@ -1,4 +1,4 @@
-import { countGoalDecisions } from "@adeptify/goalboard-plugin-goals";
+import { countGoalDecisions, renderGoalDescriptionBasics } from "@adeptify/goalboard-plugin-goals";
 import { createWorkbenchProjectSettingsPages } from "./project-settings-pages.js";
 import { createWorkbenchFocusSections } from "./focus-sections.js";
 import type { GoalBoardWebView } from "./page-view.js";
@@ -307,8 +307,10 @@ function feedNativePluginSupplementalEntries(view: GoalBoardWebView): FeedSupple
 
 const goalsFactorsRenderer = createWorkbenchGoalsFactorsRenderer({ translate: L, escapeHtml, icon, renderFocusSectionDeck });
 
-function renderGoalFactors(item: WebGoalView, view: GoalBoardWebView): string {
+function renderGoalFactors(item: WebGoalView, view: GoalBoardWebView, extras: { basicsExtrasHtml: string; contractCoverageHtml: string }): string {
   return goalsFactorsRenderer(item, {
+    basicsHtml: `${renderGoalDescriptionBasics(item.event_document ?? null, item, L, escapeHtml, icon)}${extras.basicsExtrasHtml}`,
+    coverageHtml: extras.contractCoverageHtml,
     relationsHtml: renderRelations(item, view, Boolean(item.event_document?.state.owner)),
     risksHtml: renderRiskWorkbench(item, view, true, false),
     impactsHtml: renderImpactWorkbench(item, true, false),
@@ -337,14 +339,16 @@ function renderInputBindingsHtml(item: WebGoalView): string {
 }
 
 function renderGoalDocument(item: WebGoalView, view: GoalBoardWebView, selected: boolean): string {
+  const contractCoverageHtml = renderContractCoverage(item, view);
+  const basicsExtrasHtml = `${renderCoverageHtml(item)}${renderInputBindingsHtml(item)}${renderChildProgress(item, view)}`;
   return goalsDocumentRenderer.renderGoalDocument(item, {
     activeGoalId: view.snapshot.board.active_goal_id,
     decisionCount: countGoalDecisions(view, item.goal.goal_id),
-    relatedWorkHtml: renderGoalFactors(item, view),
+    relatedWorkHtml: renderGoalFactors(item, view, { basicsExtrasHtml, contractCoverageHtml }),
     artifactHtml: item.artifact_embed_html
       ? `<h3>${L("关联结果")}</h3>${item.artifact_embed_html}`
       : "",
-    coverageHtml: `${renderCoverageHtml(item)}${renderInputBindingsHtml(item)}${renderContractCoverage(item, view)}${renderChildProgress(item, view)}`,
+    coverageHtml: `${basicsExtrasHtml}${contractCoverageHtml}`,
     eventDocument: item.event_document ?? null,
   }, selected);
 }

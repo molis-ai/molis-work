@@ -1,6 +1,7 @@
 import type { UiContribution } from "@adeptify/goalboard-contracts/platform/ui";
 import type { GoalsDocumentItem, GoalsDocumentContext, GoalsDocumentUiPrimitives } from "./document-ui-model.js";
-import { renderGoalEventDocument } from "./event-document-ui.js";
+import { renderGoalEventDocument, renderGoalDescriptionBasics } from "./event-document-ui.js";
+export { renderGoalDescriptionBasics };
 
 function createDocumentRenderer(primitives: GoalsDocumentUiPrimitives) {
   const { translate: L, escapeHtml, icon, formatDate, renderStatus, sectionHeading } = primitives;

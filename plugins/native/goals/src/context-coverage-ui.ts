@@ -3,7 +3,7 @@ import { findGoalTreeItem as findGoalView, goalWorkSatisfied, partOfChildViews }
 import { sortGoalTreeItems as sortGoals } from "./tree-order.js";
 
 export function createGoalContextCoverageRenderer(primitives: GoalsContextUiPrimitives) {
-  const { translate: L, escapeHtml, icon, subsectionHeading, explainWorkState, explainParentCompletion } = primitives;
+  const { translate: L, escapeHtml, icon, explainWorkState, explainParentCompletion } = primitives;
 function renderChildProgress(item: GoalsContextItem, view: GoalsContextView): string {
   const children = sortGoals(partOfChildViews(item.goal.goal_id, view));
   if (!children.length) return "";
@@ -55,7 +55,7 @@ function renderContractCoverage(item: GoalsContextItem, view: GoalsContextView):
         ].join("")}</ul></article>`;
       }).join("")}</div>`;
   if (!satisfaction && !ownCoverage && !parentContributions) return "";
-  return `<div class="document-subsection contract-coverage-summary">${subsectionHeading("link", "历史 Contract 覆盖", "这些是保留的历史覆盖事实；每条 Goal 仍按自己的当前约定收尾。")}${satisfaction}${ownCoverage}${parentContributions}</div>`;
+  return `<div class="contract-coverage-summary">${satisfaction}${ownCoverage}${parentContributions}</div>`;
 }
 
 

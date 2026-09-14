@@ -54,8 +54,8 @@ export const PROJECT_HOME_STYLES = `
   .immersive-home .home-agent-note { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 12px 0 0; color: var(--muted); font-size: 11px; }
   .immersive-home .home-agent-note svg { width: 12px; height: 12px; }
   .immersive-home .home-shortcut-error { font-size: 11px; color: var(--red); text-align: center; line-height: 1.6; margin: 12px 0 0; }
-  .immersive-home .home-shortcut-dialog { width: min(360px, calc(100vw - 40px)); max-height: calc(100dvh - 40px); padding: 25px; border: 0; border-radius: 15px; background: var(--paper); color: var(--ink); box-shadow: 0 15px 50px #00000035; }
-  .immersive-home .home-shortcut-dialog::backdrop { background: #11121655; }
+  .immersive-home .home-shortcut-dialog { width: min(360px, calc(100vw - 40px)); max-height: calc(100dvh - 40px); padding: 25px; border: 0; border-radius: 15px; background: var(--paper); color: var(--ink); box-shadow: 0 15px 50px #00000035; animation: goalboard-dialog-in var(--dur-base) var(--ease-emphasized); }
+  .immersive-home .home-shortcut-dialog::backdrop { background: #11121655; animation: goalboard-backdrop-in var(--dur-base) ease-out; }
   .immersive-home .home-shortcut-dialog header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 22px; }
   .immersive-home .home-shortcut-dialog h2 { margin: 0; font-size: 16px; font-weight: 500; }
   .immersive-home .home-shortcut-dialog header button { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 5px; color: var(--muted); background: transparent; cursor: pointer; }

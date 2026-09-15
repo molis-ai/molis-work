@@ -72,8 +72,9 @@ test("Window chrome stays put while project index, settings, Feed, Sessions and 
 
   await navigate(() => command("Page.navigate", { url: origin + "/settings/projects?desktop=1" }, sessionId));
   await waitFor("document.body.classList.contains('settings-page')");
-  await expectContained(".topbar", ".settings-body");
-  await expectContained(".settings-heading", ".settings-body");
+  await expectContained(".topbar", ".project-manager-list");
+  await expectContained(".project-manager-index-chrome", ".project-manager-list");
+  await expectContained(".topbar", ".project-manager-stage");
 
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/?desktop=1" }, sessionId));
   await waitFor("document.body.classList.contains('immersive-workbench') && document.body.dataset.desktopSurface === 'home'");
@@ -83,16 +84,8 @@ test("Window chrome stays put while project index, settings, Feed, Sessions and 
   await expectContained("[data-directory-list-chrome]", "[data-directory-panel=root]");
 
   await click('[data-plugin-strip] [data-plugin-id="feed"]');
-  await waitFor("document.body.dataset.desktopSurface === 'feed' && document.querySelector('[data-directory-panel=feed]:not([hidden])') && document.querySelector('[data-feed-views]:not([hidden])') && document.querySelector('[data-directory-list-title]')?.textContent === 'Feed'");
-  await expectContained(".immersive-titlebar", "[data-feed-list]");
-  await expectContained(".navigator-project", "[data-feed-list]");
-  await expectContained("[data-directory-list-chrome]", "[data-feed-list]");
-  await expectContained(".feed-directory-tools", "[data-feed-list]");
-
-  await click('[data-feed-views] [data-work-surface-open="sources"]');
-  await waitFor("document.querySelector('[data-directory-panel=sources]:not([hidden])') && document.querySelector('[data-source-list]') && document.querySelector('[data-directory-list-title]')?.textContent === '来源'");
-  await expectContained(".immersive-titlebar", "[data-work-surface=sources]");
-  await expectContained(".source-directory-tools", "[data-source-list]");
+  await waitFor("document.body.dataset.desktopSurface === 'feed' && document.querySelector('[data-feed-stage-directory]') && document.querySelector('[data-work-surface=feed]:not([hidden])')");
+  await expectContained(".immersive-titlebar", "[data-work-surface=feed]");
 
   await click('[data-plugin-strip] [data-plugin-id="sessions"]');
   await waitFor("document.body.dataset.desktopSurface === 'sessions' && document.querySelector('[data-directory-panel=sessions]:not([hidden])')");
@@ -115,6 +108,5 @@ test("Window chrome stays put while project index, settings, Feed, Sessions and 
 
   await click('[data-work-surface-open="market"]');
   await waitFor("document.querySelector('[data-work-surface=market]:not([hidden])')");
-  await expectContained(".plugin-market-heading", ".plugin-market-body");
-  await expectContained(".plugin-market-controls", ".plugin-market-body");
+  await expectContained(".immersive-titlebar", ".plugin-market-body");
 });

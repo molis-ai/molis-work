@@ -60,8 +60,19 @@ test("Workbench registers the Feed UI Contribution through the generic UI Host",
     model: model(),
   });
   assert.match(directory, /data-directory-panel="feed"/);
-  assert.match(directory, /data-feed-empty-title>这里还没有 Item/);
-  assert.match(directory, /data-feed-source-filter hidden/);
+  assert.doesNotMatch(directory, /data-feed-list|data-feed-entry-id|data-feed-empty-title/);
+
+  const workbench = host.render({
+    contribution_id: FEED_UI_CONTRIBUTION_ID,
+    surface: "workbench",
+    model: model(),
+  });
+  assert.match(workbench, /data-feed-stage-directory="true"/);
+  assert.match(workbench, /data-feed-task="all"/);
+  assert.match(workbench, /data-feed-empty-title>这里还没有 Item/);
+  assert.match(workbench, /data-feed-add-toggle/);
+  assert.match(workbench, /data-feed-source-filter hidden/);
+  assert.doesNotMatch(workbench, /接入来源后，消息和 Feed 会出现在这里|选择一项查看详情/);
 
   const failed = host.render({
     contribution_id: FEED_UI_CONTRIBUTION_ID,
@@ -171,9 +182,13 @@ test("Feed demo data keeps page-local actions and never calls real Source APIs",
   const directory = host.render({ contribution_id: FEED_UI_CONTRIBUTION_ID, surface: "directory", model: demoModel });
   const detail = host.render({ contribution_id: FEED_UI_CONTRIBUTION_ID, surface: "workbench", model: demoModel });
   const source = host.render({ contribution_id: FEED_UI_CONTRIBUTION_ID, surface: "source-workbench", model: demoModel });
-  assert.match(directory, /data-feed-entry-prototype="true"/);
-  assert.match(directory, /data-prototype-feed-empty-state/);
+  assert.doesNotMatch(directory, /data-feed-entry-prototype="true"|data-prototype-feed-empty-state/);
+  assert.match(detail, /data-feed-entry-prototype="true"/);
+  assert.match(detail, /class="feed-stage-entry directory-list-row"/);
+  assert.doesNotMatch(detail, /class="feed-list-item/);
+  assert.match(detail, /data-prototype-feed-empty-state/);
   assert.match(detail, /data-prototype-feed-action="inbox"/);
+  assert.match(detail, /data-feed-task="prototype-source-github"/);
   assert.match(source, /data-prototype-source-sync="prototype-source-github"/);
   assert.match(source, /data-prototype-config-save/);
   assert.match(source, /data-prototype-schedule-save/);

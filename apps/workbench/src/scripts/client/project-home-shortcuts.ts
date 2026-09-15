@@ -1,14 +1,15 @@
 /** Project-scoped UI preferences. Domain data and Runtime state are never written. */
-export const HOME_SHORTCUTS_FACTORY_SCRIPT = `({ home, translate: L, projectKey }) => {
+export const HOME_SHORTCUTS_FACTORY_SCRIPT = `({ root, translate: L, projectKey }) => {
+  if (!root) return;
   const key = "molis-work:home-shortcuts:" + projectKey;
-  const list = home.querySelector("[data-home-shortcuts]");
-  const add = home.querySelector("[data-home-shortcut-add]");
-  const template = home.querySelector("[data-home-shortcut-template]");
-  const dialog = home.querySelector("[data-home-shortcut-dialog]");
-  const form = home.querySelector("[data-home-shortcut-form]");
-  const error = home.querySelector("[data-home-shortcut-form-error]");
-  const status = home.querySelector("[data-home-shortcut-error]");
-  const remove = home.querySelector("[data-home-shortcut-remove]");
+  const list = root.querySelector("[data-home-shortcuts]");
+  const add = root.querySelector("[data-home-shortcut-add]");
+  const template = root.querySelector("[data-home-shortcut-template]");
+  const dialog = root.querySelector("[data-home-shortcut-dialog]");
+  const form = root.querySelector("[data-home-shortcut-form]");
+  const error = root.querySelector("[data-home-shortcut-form-error]");
+  const status = root.querySelector("[data-home-shortcut-error]");
+  const remove = root.querySelector("[data-home-shortcut-remove]");
   let items = [], editingId = null, returnFocus = null;
   const validUrl = value => {
     if (typeof value !== "string" || !value.trim() || value.length > 4096) return null;
@@ -50,7 +51,7 @@ export const HOME_SHORTCUTS_FACTORY_SCRIPT = `({ home, translate: L, projectKey 
     if (id && !current) return;
     editingId = id; returnFocus = document.activeElement;
     form.reset(); error.textContent = "";
-    home.querySelector("#home-shortcut-title").textContent = L(id ? "编辑快捷方式" : "添加快捷方式");
+    root.querySelector("#home-shortcut-title").textContent = L(id ? "编辑快捷方式" : "添加快捷方式");
     form.elements.shortcut_name.value = current?.name || "";
     form.elements.shortcut_url.value = current?.url || "";
     remove.hidden = !id;
@@ -72,17 +73,17 @@ export const HOME_SHORTCUTS_FACTORY_SCRIPT = `({ home, translate: L, projectKey 
   });
   remove.addEventListener("click", () => persist(items.filter(item => item.id !== editingId)));
   add.addEventListener("click", () => openEditor(null));
-  home.querySelectorAll("[data-home-shortcut-cancel]").forEach(button => button.addEventListener("click", closeEditor));
+  root.querySelectorAll("[data-home-shortcut-cancel]").forEach(button => button.addEventListener("click", closeEditor));
   dialog.addEventListener("click", event => { if (event.target === dialog) {
     const rect = dialog.getBoundingClientRect();
     if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) closeEditor();
   } });
   dialog.addEventListener("close", () => {
     const trigger = returnFocus?.isConnected ? returnFocus : add;
-    if (!home.hidden) trigger.focus();
+    trigger?.focus();
   });
   window.addEventListener("storage", event => { if (event.key === key || event.key === "goalboard:home-shortcuts:" + projectKey || event.key === null) { load(); render(); } });
-  home.addEventListener("click", async event => {
+  document.addEventListener("click", async event => {
     const link = event.target.closest("a[data-home-external]");
     if (!link || !globalThis.molisWorkOpenExternalUrl) return;
     event.preventDefault();

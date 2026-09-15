@@ -380,7 +380,8 @@ export const PROJECT_INDEX_CLIENT_SCRIPT = `
   (() => {
     const projectSearch = document.querySelector("[data-project-search]");
     const projectSearchEmpty = document.querySelector("[data-project-search-empty]");
-    projectSearch?.addEventListener("input", () => {
+    const applyProjectSearch = () => {
+      if (!projectSearch) return;
       const query = projectSearch.value.trim().toLocaleLowerCase();
       const rows = [...document.querySelectorAll("[data-project-search-row]")];
       let visible = 0;
@@ -389,14 +390,29 @@ export const PROJECT_INDEX_CLIENT_SCRIPT = `
         if (!row.hidden) visible += 1;
       });
       if (projectSearchEmpty) projectSearchEmpty.hidden = visible > 0;
+    };
+    projectSearch?.addEventListener("input", applyProjectSearch);
+    projectSearch?.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape" || !projectSearch.value) return;
+      projectSearch.value = "";
+      applyProjectSearch();
+      event.preventDefault();
     });
     const dialog = document.querySelector("[data-project-migration-dialog]");
     const form = document.querySelector("[data-project-migration-form]");
     const errorBox = document.querySelector("[data-project-migration-error]");
+    const resetMigrationDialog = () => {
+      form?.reset();
+      if (errorBox) {
+        errorBox.hidden = true;
+        errorBox.textContent = "";
+      }
+      const submit = form?.querySelector("[data-project-migration-submit]");
+      if (submit) submit.disabled = false;
+    };
     const open = () => {
       if (!dialog) return;
-      errorBox.hidden = true;
-      errorBox.textContent = "";
+      resetMigrationDialog();
       dialog.showModal();
       requestAnimationFrame(() => form?.elements.legacy_database_path?.focus());
     };
@@ -406,6 +422,10 @@ export const PROJECT_INDEX_CLIENT_SCRIPT = `
     document.querySelectorAll("[data-close-project-migration]").forEach((button) => {
       button.addEventListener("click", () => dialog?.close());
     });
+    dialog?.addEventListener("click", (event) => {
+      if (event.target === dialog) dialog.close();
+    });
+    dialog?.addEventListener("close", resetMigrationDialog);
     form?.addEventListener("submit", async (event) => {
       event.preventDefault();
       const values = new FormData(form);

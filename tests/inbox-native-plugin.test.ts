@@ -79,7 +79,15 @@ test("Workbench registers the Inbox UI Contribution through the generic UI Host"
   assert.match(directory, /data-inbox-directory/);
   assert.match(directory, /data-inbox-list/);
   assert.match(directory, /现在没有需要你介入的事项/);
+  assert.doesNotMatch(directory, /Goal 待判断、来源故障|会出现在这里/);
   assert.doesNotMatch(directory, /data-feed-directory|data-feed-list|data-feed-entry-id/);
+  const workbench = host.render({
+    contribution_id: INBOX_UI_CONTRIBUTION_ID,
+    surface: "workbench",
+    model: model(),
+  });
+  assert.match(workbench, /现在没有需要你介入的事项/);
+  assert.doesNotMatch(workbench, /选择一条需要处理的事项/);
 });
 
 test("Inbox directory lists Attention reason, related object, and next step without copying a body", () => {
@@ -146,6 +154,7 @@ test("Inbox directory lists Attention reason, related object, and next step with
   assert.match(rendered.workbench, /到 Goals 完成判断，Inbox 不内嵌决定表单。/);
   assert.match(rendered.workbench, /data-inbox-action="done"/);
   assert.match(rendered.workbench, /data-inbox-action="dismissed"/);
+  assert.doesNotMatch(rendered.workbench, /Inbox 只保存这条引用和进入原因/);
   assert.doesNotMatch(rendered.workbench, /data-feed-workbench|data-feed-detail=/);
 });
 

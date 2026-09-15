@@ -3,6 +3,8 @@ import { HOME_SHORTCUTS_FACTORY_SCRIPT } from "./project-home-shortcuts.js";
 /** Daily context and presentation only; the disabled Agent never receives input. */
 export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
   const { getState, translate: L } = host;
+  (${HOME_SHORTCUTS_FACTORY_SCRIPT})({ root: document.querySelector("[data-directory-shortcuts]"), translate: L,
+    projectKey: getState().project?.project_id || getState().snapshot.board.board_id });
   const home = document.querySelector('[data-work-surface="home"]');
   if (!home) return null;
   const locale = document.documentElement.lang || "zh-CN";
@@ -64,7 +66,7 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
   const pages = home.querySelector(".home-quote-pages");
   const motion = matchMedia("(prefers-reduced-motion: reduce)");
   let index = 0, fading = false;
-  const canRotate = () => !document.hidden && !home.hidden && !reflection.matches(":hover") && !reflection.contains(document.activeElement);
+  const canRotate = () => !document.hidden && document.body.dataset.desktopSurface === "home" && !home.hidden && !reflection.matches(":hover") && !reflection.contains(document.activeElement);
   const rotate = () => {
     if (fading || !canRotate()) return;
     const change = () => {
@@ -78,11 +80,9 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
     if (motion.matches) { change(); return; }
     fading = true; pages.classList.add("is-changing"); setTimeout(change, 500);
   };
-  (${HOME_SHORTCUTS_FACTORY_SCRIPT})({ home, translate: L,
-    projectKey: getState().project?.project_id || getState().snapshot.board.board_id });
   sync();
   setInterval(rotate, 5000);
-  setInterval(() => { if (!document.hidden && !home.hidden) sync(); }, 30000);
+  setInterval(() => { if (!document.hidden && document.body.dataset.desktopSurface === "home" && !home.hidden) sync(); }, 30000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) sync(); });
   return { sync };
 }`;

@@ -20,6 +20,7 @@ import { PERSONAL_WORKBENCH_V2_STYLES } from "./styles/personal-workbench-v2.js"
 import { PERSONAL_WORKBENCH_V3_STYLES } from "./styles/personal-workbench-v3.js";
 import { QUIET_PAPER_STYLES } from "./styles/quiet-paper.js";
 import { SOURCE_FEED_STYLES } from "./styles/source-feed.js";
+import { COSS_CONTROL_STYLES } from "./styles/coss-controls.js";
 
 /** Stable concatenation order preserves the existing cascade and rendered CSS. */
 export const VISUAL_FOUNDATION_STYLES = [
@@ -35,4 +36,7 @@ export const VISUAL_FOUNDATION_STYLES = [
   NAVIGATION_OWNERSHIP_STYLES,
   SOURCE_FEED_STYLES,
   DESKTOP_TITLEBAR_STYLES,
+  COSS_CONTROL_STYLES,
 ].join("");
+
+export { COSS_CONTROL_STYLES } from "./styles/coss-controls.js";

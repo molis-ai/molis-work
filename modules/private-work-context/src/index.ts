@@ -15,6 +15,10 @@ export {
   MolisWorkSessionRegistry,
   type MolisWorkSessionRegistryOptions,
 } from "./session-registry.js";
+export {
+  SESSION_REGISTRY_OWNER,
+  LEGACY_SESSION_REGISTRY_OWNER,
+} from "./session-schema.js";
 
 export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-module-private-work-context",

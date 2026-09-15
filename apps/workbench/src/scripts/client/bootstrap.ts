@@ -10,7 +10,7 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     const tuiPane = document.querySelector("[data-tui-pane]");
     const treeScroll = document.querySelector("[data-tree-scroll]");
     const globalSearch = document.querySelector("[data-global-search]");
-    const treeSearch = globalSearch;
+    const treeSearch = document.querySelector("[data-tree-search]");
     const treeFilter = document.querySelector("[data-tree-filter]");
     const treeFilterTrigger = document.querySelector("[data-tree-filter-trigger]");
     const desktopDirectoryPanels = [...document.querySelectorAll("[data-directory-panel]")];
@@ -135,16 +135,21 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     const desktopNavigationStateVersion = 4;
     let immersiveNavigation = null;
     let frameContainer = null;
+    let tabWorkspace = null;
+    let projectSettingsStage = null;
     let projectHome = null;
     let pluginWorkbench = null;
+    let globalSearchPalette = null;
     let desktopDirectoryOrigin = null;
     let activeDesktopSurface = document.body.dataset.desktopSurface || (decisionView ? "inbox" : "goal");
     let activeFeedPreset = feedDirectory?.dataset.feedPreset || "feed";
     let selectedFeedItem = feedList?.querySelector("[data-feed-entry-id].is-selected")?.dataset.feedEntryId || "";
     let selectedSource = sourceList?.querySelector("[data-source-entry-id].is-selected")?.dataset.sourceEntryId || "";
     let activeSourceFilter = "all";
+    let selectedFeedTask = "all";
     const defaultFeedPresetState = () => ({
       selected: "",
+      task: "all",
       query: "",
       source: "all",
       type: "all",
@@ -165,6 +170,11 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     let toastTimer;
     let syncing = false;
     let saveTimer;
+    let saveUiState = () => {};
+    const queueSave = () => {
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(() => saveUiState(), 120);
+    };
     let resizeStartX = 0;
     let resizeStartWidth = 0;
     let quickRecordRequest = null;

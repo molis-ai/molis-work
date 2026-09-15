@@ -385,10 +385,10 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
   .planning-primary-action,
   .project-migration-submit,
   .runtime-plan-apply {
-    min-height: 38px;
-    padding-inline: 14px;
+    min-height: var(--control-h);
+    padding-inline: var(--control-pad-x);
     border: 1px solid var(--action) !important;
-    border-radius: 8px !important;
+    border-radius: var(--radius-control) !important;
     background: var(--action) !important;
     color: var(--action-ink) !important;
     box-shadow: none !important;
@@ -400,7 +400,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     background: color-mix(in srgb, var(--action) 90%, var(--action-ink)) !important;
     color: var(--action-ink) !important;
     opacity: 1;
-    transform: translateY(-1px);
+    transform: none;
   }
   .goal-now-blockers { grid-column: 2; margin-top: 20px; border-top-color: var(--line); }
 

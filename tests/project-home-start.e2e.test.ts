@@ -37,7 +37,7 @@ test("Account footer keeps its two text rows and theme below the old desktop bre
       await evaluate(`document.documentElement.dataset.resolvedTheme=${JSON.stringify(theme)}`);
       await waitFor("getComputedStyle(document.querySelector('.personal-account')).color===getComputedStyle(document.querySelector('[data-plugin-id=home]')).color");
       await evaluate("new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))");
-      const metrics=await evaluate<any>(`(()=>{const account=document.querySelector('.personal-account'),name=account.querySelector('strong'),detail=account.querySelector('small'),avatar=account.querySelector('.personal-account-avatar'),icon=avatar.querySelector('svg'),settings=account.querySelector('.personal-account-settings');const rect=e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height}};return {name:rect(name),detail:rect(detail),avatar:rect(avatar),icon:rect(icon),settings:rect(settings),account:rect(account),decoration:getComputedStyle(account).textDecorationLine,color:getComputedStyle(account).color,nameColor:getComputedStyle(name).color,expectedColor:getComputedStyle(document.querySelector('[data-plugin-id=home]')).color}})()`);
+      const metrics=await evaluate<any>(`(()=>{const account=document.querySelector('.personal-account'),name=account.querySelector('strong'),detail=account.querySelector('small'),avatar=account.querySelector('.personal-account-avatar'),icon=avatar.querySelector('svg'),settings=account.querySelector('.personal-account-settings'),footer=document.querySelector('.personal-sidebar-footer'),shortcuts=document.querySelector('.directory-shortcuts');const rect=e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height}};return {name:rect(name),detail:rect(detail),avatar:rect(avatar),icon:rect(icon),settings:rect(settings),account:rect(account),footerBorder:getComputedStyle(footer).borderTopWidth,shortcutsBorder:getComputedStyle(shortcuts).borderTopWidth,decoration:getComputedStyle(account).textDecorationLine,color:getComputedStyle(account).color,nameColor:getComputedStyle(name).color,expectedColor:getComputedStyle(document.querySelector('[data-plugin-id=home]')).color}})()`);
       assert.ok(metrics.name.bottom<=metrics.detail.y+1, width+theme+": name and space must remain separate rows "+JSON.stringify(metrics));
       assert.equal(metrics.decoration,"none",width+theme);
       assert.equal(metrics.color,metrics.nameColor,width+theme);
@@ -46,6 +46,10 @@ test("Account footer keeps its two text rows and theme below the old desktop bre
       assert.ok(Math.abs(metrics.avatar.x+metrics.avatar.width/2-metrics.icon.x-metrics.icon.width/2)<1,width+theme+": avatar centered horizontally");
       assert.ok(Math.abs(metrics.avatar.y+metrics.avatar.height/2-metrics.icon.y-metrics.icon.height/2)<1,width+theme+": avatar centered vertically");
       assert.ok(metrics.account.bottom<=844 && metrics.account.right<=width,width+theme);
+      if (width > 600) assert.ok(metrics.account.height <= 38, width+theme+": compact desktop account "+metrics.account.height);
+      else assert.ok(metrics.account.height >= 40 && metrics.account.height <= 48, width+theme+": drawer account "+metrics.account.height);
+      assert.equal(metrics.footerBorder, "0px", width+theme+": no hairline above the account footer");
+      assert.equal(metrics.shortcutsBorder, "0px", width+theme+": no hairline above shortcuts");
       const shot=await command<{data:string}>("Page.captureScreenshot",{format:"png",captureBeyondViewport:false},sessionId);
       await writeFile(new URL("footer-"+width+"-"+theme+".png",directory),Buffer.from(shot.data,"base64"));
     }
@@ -152,6 +156,8 @@ test("Home keeps local calendar and quotes current without enabling Agent input 
     const shot=await command<{data:string}>("Page.captureScreenshot",{format:"png",captureBeyondViewport:false},sessionId);
     await writeFile(new URL(name+".png",captures),Buffer.from(shot.data,"base64"));
   }
+  if(!await evaluate("document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')")) await click('[data-directory-show]');
+  await waitFor("document.querySelector('[data-home-shortcut-add]').getBoundingClientRect().height>0");
   await click('[data-home-shortcut-add]');
   await click('.home-shortcut-save');
   const dialog=await command<{data:string}>("Page.captureScreenshot",{format:"png",captureBeyondViewport:false},sessionId);
@@ -172,6 +178,8 @@ test("Home shortcuts persist per project, open a new browser page, and preserve 
   const fill=async(name:string,target:string)=>evaluate(`document.querySelector('[name=shortcut_name]').value=${JSON.stringify(name)};document.querySelector('[name=shortcut_url]').value=${JSON.stringify(target)}`);
   await navigate(()=>command("Page.navigate",{url},sessionId));
   await waitFor("document.body.dataset.desktopSurface === 'home'");
+  assert.equal(await evaluate("document.querySelector('.immersive-home [data-home-shortcut-add]')"),null);
+  assert.equal(await evaluate("document.querySelector('[data-directory-shortcuts] .directory-shortcuts-title').textContent"),"快捷方式");
   assert.equal(await evaluate("document.querySelectorAll('[data-shortcut-id]').length"),0);
   await click('[data-home-shortcut-add]');
   await fill("取消的内容","https://example.com/");
@@ -190,6 +198,11 @@ test("Home shortcuts persist per project, open a new browser page, and preserve 
   const first=await saved();assert.equal(first[0].name,"项目文档");assert.equal(first[0].url,target);
   await reloadPage();await waitFor("document.querySelector('[data-home-shortcut-link]')");
   assert.equal(await evaluate("document.querySelector('[data-home-shortcut-name]').textContent"),"项目文档");
+  await click('[data-plugin-strip] [data-plugin-id="goals"]');
+  await waitFor("document.body.dataset.desktopSurface === 'goal'");
+  assert.ok(await evaluate("document.querySelector('[data-directory-shortcuts] [data-home-shortcut-link]')"));
+  await click('[data-plugin-strip] [data-plugin-id="home"]');
+  await waitFor("document.body.dataset.desktopSurface === 'home'");
   await click('[data-home-shortcut-link]');
   const targets=await command<{targetInfos:{targetId:string;url:string;openerId?:string}[]}>("Target.getTargets");
   const opened=targets.targetInfos.find(x=>x.url===target);assert.ok(opened?.openerId,"real new tab opened the stored destination");

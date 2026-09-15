@@ -7,7 +7,13 @@ import type {
 import { MolisWorkSessionError } from "./errors.js";
 
 export const SESSION_REGISTRY_OWNER = "molis-work-session-registry-v1";
+export const LEGACY_SESSION_REGISTRY_OWNER = "goalboard-session-registry-v1";
 export const SESSION_REGISTRY_SCHEMA_VERSION = 5;
+
+function isOwnedSessionRegistry(owner: unknown): boolean {
+  return owner === SESSION_REGISTRY_OWNER || owner === LEGACY_SESSION_REGISTRY_OWNER;
+}
+
 export const DEFAULT_CORRELATION_TTL_SECONDS = 15 * 60;
 
 export function initializeOrValidateSessionSchema(db: Database.Database): void {
@@ -78,8 +84,11 @@ export function initializeOrValidateSessionSchema(db: Database.Database): void {
   const owner = (db.prepare("SELECT value FROM session_meta WHERE key = 'owner'").get() as
     | { value?: unknown }
     | undefined)?.value;
-  if (owner !== SESSION_REGISTRY_OWNER) {
+  if (!isOwnedSessionRegistry(owner)) {
     throw new MolisWorkSessionError("session.registry_unknown", "不会复用未知 Session Registry 数据库");
+  }
+  if (owner === LEGACY_SESSION_REGISTRY_OWNER) {
+    db.prepare("UPDATE session_meta SET value = ? WHERE key = 'owner'").run(SESSION_REGISTRY_OWNER);
   }
   const version = Number((db.prepare("SELECT value FROM session_meta WHERE key = 'schema_version'").get() as
     | { value?: unknown }

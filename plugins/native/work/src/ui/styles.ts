@@ -165,7 +165,7 @@ export const PROJECT_OPERATIONS_STYLES = `
   .operation-identity dd { margin: 0; overflow-wrap: anywhere; }
   .operation-archive { width: 100%; min-height: 34px; justify-content: center; }
 
-  .project-operation-dialog { width: min(520px, calc(100vw - 28px)); max-height: calc(100dvh - 28px); padding: 0; border: 1px solid var(--line-strong); border-radius: 12px; color: var(--ink); background: var(--paper); box-shadow: 0 22px 72px rgba(10, 15, 22, .3); }
+  .project-operation-dialog { width: min(520px, calc(100vw - 28px)); max-height: calc(100dvh - 28px); padding: 0; border: 1px solid var(--control-border); border-radius: var(--radius-surface); color: var(--ink); background: var(--paper); box-shadow: var(--control-shadow); }
   .project-operation-dialog::backdrop { background: rgba(12, 16, 22, .52); }
   .project-operation-dialog form > header { padding: 16px 18px 13px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 12px; }
   .project-operation-dialog h2 { margin: 0; font-size: 16px; }
@@ -173,7 +173,7 @@ export const PROJECT_OPERATIONS_STYLES = `
   .project-operation-dialog header button { width: 32px; height: 32px; padding: 0; border: 0; border-radius: 7px; background: transparent; }
   .project-operation-dialog form > section { padding: 16px 18px; display: grid; gap: 12px; }
   .project-operation-dialog label:not(.operation-confirm-check) { color: var(--muted); display: grid; gap: 5px; font-size: 10px; }
-  .project-operation-dialog input:not([type="checkbox"]), .project-operation-dialog select { width: 100%; height: 36px; padding: 0 9px; border: 1px solid var(--line); border-radius: 7px; color: var(--ink); background: var(--page); }
+  .project-operation-dialog input:not([type="checkbox"]), .project-operation-dialog select { width: 100%; height: var(--control-h); padding: 0 9px; border: 1px solid var(--control-input); border-radius: var(--radius-control); color: var(--ink); background: var(--paper); }
   .operation-confirm-facts { margin: 0; }
   .operation-confirm-facts > div { padding: 7px 0; display: grid; grid-template-columns: 108px minmax(0, 1fr); gap: 10px; }
   .operation-confirm-facts > div + div { border-top: 1px solid var(--line); }
@@ -182,8 +182,8 @@ export const PROJECT_OPERATIONS_STYLES = `
   .operation-confirm-check { display: grid; grid-template-columns: 17px minmax(0, 1fr); gap: 8px; font-size: 10px; }
   .operation-confirm-check input { margin: 2px 0 0; accent-color: var(--blue); }
   .project-operation-dialog footer { padding: 11px 18px; border-top: 1px solid var(--line); display: flex; justify-content: flex-end; gap: 7px; }
-  .project-operation-dialog footer button { min-height: 34px; padding: 0 11px; border: 1px solid var(--line); border-radius: 7px; background: var(--paper); font-weight: 680; }
-  .project-operation-dialog footer .button-primary { color: var(--paper); background: var(--ink); }
+  .project-operation-dialog footer button { min-height: var(--control-h); padding: 0 11px; border: 1px solid var(--control-border); border-radius: var(--radius-control); background: var(--control-fill); font-weight: 550; }
+  .project-operation-dialog footer .button-primary { color: var(--action-ink); background: var(--action); border-color: var(--action); }
   .project-operation-dialog footer .button-primary:disabled { opacity: .42; }
   .session-handoff-dialog { width: min(980px, calc(100vw - 32px)); }
   .session-handoff-dialog form { height: min(760px, calc(100dvh - 32px)); display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }

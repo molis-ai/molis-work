@@ -1271,7 +1271,7 @@ export const PERSONAL_WORKBENCH_V3_STYLES = `  /* Personal workbench v3: one dir
     body.settings-page[data-desktop-shell="true"] .settings-navigation .settings-nav-group > a strong { font-size: 11.5px; }
     body.settings-page[data-desktop-shell="true"] .settings-navigation .settings-nav-group > a small { color: var(--faint); font-size: 9px; }
     body.settings-page[data-desktop-shell="true"] .settings-navigation > .personal-sidebar-footer { grid-row: 4; }
-    body.settings-page[data-desktop-shell="true"] .settings-content {
+    body.settings-page[data-desktop-shell="true"]:has(.settings-navigation) .settings-content {
       min-width: 0;
       min-height: 0;
       padding: 0 14px 24px 10px;

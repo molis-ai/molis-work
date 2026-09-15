@@ -35,10 +35,11 @@ export const ARTIFACT_WORKBENCH_STYLES = `
   .artifact-page a { color:var(--blue-dark); text-underline-offset:3px; }
   .artifact-back { display:inline-flex; align-items:center; gap:8px; min-height:38px; text-decoration:none; }
   .artifact-back svg { width:16px; height:16px; transform:rotate(180deg); }
-  .artifact-version-list { display:grid; gap:4px; }
-  .artifact-version-list a { display:grid; gap:4px; padding:10px 8px; border-radius:6px; text-decoration:none; color:var(--ink); overflow-wrap:anywhere; }
-  .artifact-version-list a[aria-current], .artifact-version-list a:hover { background:var(--blue-soft); }
-  .artifact-version-list span, .artifact-version-list small { color:var(--muted); font-size:12px; }
+  .artifact-version-list { display:grid; gap:2px; }
+  .artifact-version-list a { display:grid; gap:2px; min-height:44px; padding:6px 8px; border-radius:6px; text-decoration:none; color:var(--ink); overflow-wrap:anywhere; }
+  .artifact-version-list a[aria-current], .artifact-version-list a:hover { background:var(--nav-active); }
+  .artifact-version-list span { color:var(--ink); font-size:13px; font-weight:450; }
+  .artifact-version-list small { color:var(--muted); font-size:11px; }
   .artifact-stage { min-width:0; padding:24px clamp(20px,4vw,56px); background:var(--paper); }
   .artifact-detail, .artifact-empty { max-width:72ch; overflow-wrap:anywhere; }
   .artifact-detail header { display:flex; gap:16px; align-items:baseline; margin:20px 0; }

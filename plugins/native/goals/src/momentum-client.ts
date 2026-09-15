@@ -8,12 +8,30 @@ export const GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT = `(host) => {
     const workbench = workspace.querySelector("[data-goal-node-workbench]");
     const divider = workspace.querySelector("[data-goal-workspace-divider]");
     const graphElement = () => workspace.querySelector("[data-goal-momentum]");
+    const kanbanElement = () => workspace.querySelector("[data-goal-kanban]");
     let expanded = false;
     let goalGraphRequest = null;
     let graphLoadedOnce = false;
     let pendingView = null;
     let graphSelected = "";
-    const selectGraphNode = (id) => { graphSelected = id; view.drawGoalGraph(); queueSave(); };
+    const syncKanbanSelection = () => {
+      const selected = expanded ? getSelected() : graphSelected;
+      kanbanElement()?.querySelectorAll("[data-kanban-card]").forEach((card) => {
+        card.classList.toggle("is-selected", card.dataset.goalId === selected);
+      });
+    };
+    const applyBoardVisibility = () => {
+      const kanbanActive = host.isKanbanTabActive?.() === true;
+      if (shell && host.isFrameTabActive?.() !== true) shell.dataset.boardView = kanbanActive ? "kanban" : "canvas";
+      const graph = graphElement();
+      const kanban = kanbanElement();
+      if (graph) {
+        graph.hidden = false;
+        graph.toggleAttribute("inert", expanded || kanbanActive);
+      }
+      if (kanban) kanban.toggleAttribute("inert", expanded || !kanbanActive);
+    };
+    const selectGraphNode = (id) => { graphSelected = id; view.drawGoalGraph(); syncKanbanSelection(); queueSave(); };
     const splitScope = host.projectId || route("/");
     const splitKey = "molis-work-goal-workspace-split:" + splitScope;
     let shares = {};
@@ -38,12 +56,11 @@ export const GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT = `(host) => {
     const syncGoalWorkspace = (mode, active) => {
       if (!shell || !frame) return;
       const graph = graphElement();
-      const showCanvas = active && !host.isFrameTabActive?.();
+      const showBoard = active && !host.isFrameTabActive?.();
       shell.dataset.goalActive = String(active);
-      shell.hidden = !showCanvas;
-      if (!showCanvas) {
+      shell.hidden = !showBoard;
+      if (!showBoard) {
         frame.hidden = true;
-        graph?.setAttribute("hidden", "");
         if (active && graph?.dataset.loaded !== "true") void loadGoalGraph();
         else if (active) view.layout();
         return;
@@ -54,7 +71,8 @@ export const GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT = `(host) => {
       frame.hidden = !expanded;
       frame.dataset.expandedGoal = expanded ? getSelected() : "";
       shell.dataset.expanded = String(expanded);
-      if (graph) { graph.hidden = false; graph.toggleAttribute("inert", expanded); }
+      applyBoardVisibility();
+      syncKanbanSelection();
       setShare(shares[getSelected()] ?? .7);
       if (graph?.dataset.loaded !== "true") void loadGoalGraph();
       else view.layout();
@@ -81,11 +99,29 @@ export const GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT = `(host) => {
           graph.className = next.className;
           graph.dataset.loaded = "true";
           graph.dataset.defaultGoal = next.dataset.defaultGoal || "";
+          const nextKanban = template.content.querySelector("[data-goal-kanban]");
+          const kanban = kanbanElement();
+          if (nextKanban && kanban) {
+            const nextBoard = nextKanban.querySelector(".goal-kanban-board");
+            const board = kanban.querySelector(".goal-kanban-board");
+            if (nextBoard && board) {
+              const left = kanban.scrollLeft;
+              board.replaceChildren(...nextBoard.childNodes);
+              kanban.scrollLeft = left;
+            } else {
+              const inert = kanban.hasAttribute("inert");
+              kanban.replaceWith(nextKanban);
+              const replaced = kanbanElement();
+              if (replaced) replaced.toggleAttribute("inert", inert);
+            }
+          }
           if (!graphSelected || !graph.querySelector('[data-goal-id="' + CSS.escape(graphSelected) + '"]')) graphSelected = graph.dataset.defaultGoal;
           view.bindGoalGraphViewport();
           if (!graphLoadedOnce && !pendingView) view.centerGoal();
           if (pendingView) { view.restoreView(pendingView); pendingView = null; }
           graphLoadedOnce = true;
+          applyBoardVisibility();
+          syncKanbanSelection();
           view.layout();
           return true;
         } catch (error) {
@@ -101,6 +137,12 @@ export const GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT = `(host) => {
       setWorkspaceMode("graph");
       // Let removal of inert and the expanded-node visibility reach a paint before focus.
       requestAnimationFrame(() => requestAnimationFrame(() => {
+        const kanban = kanbanElement();
+        const card = kanban?.querySelector('[data-goal-id="' + CSS.escape(getSelected()) + '"]');
+        if (kanban && shell.dataset.boardView === "kanban" && card) {
+          card.focus({ preventScroll: true });
+          return;
+        }
         const node = graphElement()?.querySelector('[data-goal-id="' + CSS.escape(getSelected()) + '"]');
         node?.focus({ preventScroll: true });
       }));
@@ -125,18 +167,35 @@ export const GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT = `(host) => {
       const current = Number(workbench.style.getPropertyValue("--goal-work-share")) || .7;
       setShare(event.key === "Home" ? .7 : current + (event.key === "ArrowRight" ? .02 : -.02), true);
     });
+    shell?.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      const card = event.target.closest("[data-kanban-card]");
+      if (!card || event.target !== card) return;
+      event.preventDefault();
+      void selectGoal(card.dataset.goalId);
+    });
     if (shell) new ResizeObserver(() => { setShare(shares[getSelected()] ?? .7); if (shell.dataset.goalActive === "true") view.layout(); }).observe(shell);
     return {
       graphElement, loadGoalGraph, syncGoalWorkspace,
-      updateGraphVisibility: () => view.drawGoalGraph(),
+      updateGraphVisibility: () => { view.drawGoalGraph(); syncKanbanSelection(); },
       readMomentumState: () => ({ canvasView: graphLoadedOnce ? { ...view.readView(), selectedGoal: graphSelected } : pendingView }),
       restoreMomentumState: (ui) => { if (ui?.canvasView) { pendingView = ui.canvasView; graphSelected = pendingView.selectedGoal || graphSelected; view.restoreView(pendingView); } },
       rememberMomentumGoal: () => { if (expanded) { view.focusGoal(); setShare(shares[getSelected()] ?? .7); } },
       scheduleGoalGraphLayout: () => requestAnimationFrame(() => view.layout()),
       restoreGoalGraphViewport: () => view.layout(),
-      locateGraphNode: (id) => { selectGraphNode(id); view.centerGoal(); },
+      locateGraphNode: (id) => {
+        selectGraphNode(id);
+        const kanban = kanbanElement();
+        if (host.isKanbanTabActive?.() && kanban) {
+          kanban.querySelector('[data-goal-id="' + CSS.escape(id) + '"]')?.scrollIntoView({ block: "nearest", inline: "nearest" });
+          return;
+        }
+        view.centerGoal();
+      },
       handleMomentumNavigationClick: (target) => { if (!target.closest("[data-retry-goal-momentum]")) return false; void loadGoalGraph(true); return true; },
       handleMomentumSelectionClick: (target) => {
+        const card = target.closest("[data-kanban-card]");
+        if (card) { void selectGoal(card.dataset.goalId); return true; }
         const node = target.closest("[data-momentum-node]");
         if (!node) return false;
         if (target.closest("[data-graph-frame]")) { host.openFrame?.(node.dataset.goalId); return true; }

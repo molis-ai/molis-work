@@ -8,7 +8,11 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import Database from "better-sqlite3";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { CATALOG_OWNER, LEGACY_CATALOG_OWNER } from "@molis-ai/molis-work-app-local-host";
+import { CATALOG_OWNER, LEGACY_CATALOG_OWNER, openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
+import {
+  LEGACY_SESSION_REGISTRY_OWNER,
+  SESSION_REGISTRY_OWNER,
+} from "@molis-ai/molis-work-module-private-work-context";
 import { canonicalMcpToolName, isRuntimeMcpTool } from "@molis-ai/molis-work-app-mcp";
 import { parsePluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import {
@@ -88,6 +92,60 @@ test("project database files named goalboard.db are renamed to molis-work.db", a
     writeFileSync(legacy, "fixture");
     assert.equal(resolveProjectDatabaseFile(directory), join(directory, PROJECT_DATABASE_FILENAME));
     assert.equal(await readFile(join(directory, PROJECT_DATABASE_FILENAME), "utf8"), "fixture");
+  });
+});
+
+test("Session Registry rewrites GoalBoard owner and keeps existing sessions", async () => {
+  await withTemporaryDirectory(async (directory) => {
+    const home = join(directory, "home");
+    const registry = await openWorkSessionRegistry({ homeDirectory: home });
+    let sessionId = "";
+    try {
+      sessionId = registry.createSession({
+        runtime_id: "codex",
+        actor_id: "user",
+        user_confirmed: true,
+        project_id: "project-keep",
+      }).session_id;
+    } finally {
+      registry.close();
+    }
+
+    const db = new Database(join(home, "sessions", "sessions.db"));
+    try {
+      db.prepare("UPDATE session_meta SET value = ? WHERE key = 'owner'").run(LEGACY_SESSION_REGISTRY_OWNER);
+    } finally {
+      db.close();
+    }
+
+    const reopened = await openWorkSessionRegistry({ homeDirectory: home });
+    try {
+      assert.deepEqual(reopened.list({ project_id: "project-keep" }).map((item) => item.session_id), [sessionId]);
+    } finally {
+      reopened.close();
+    }
+
+    const ownerDb = new Database(join(home, "sessions", "sessions.db"));
+    try {
+      const owner = ownerDb.prepare("SELECT value FROM session_meta WHERE key = 'owner'").get() as { value: string };
+      assert.equal(owner.value, SESSION_REGISTRY_OWNER);
+    } finally {
+      ownerDb.close();
+    }
+
+    const unknownHome = join(directory, "unknown-home");
+    const unknownRegistry = await openWorkSessionRegistry({ homeDirectory: unknownHome });
+    unknownRegistry.close();
+    const unknownDb = new Database(join(unknownHome, "sessions", "sessions.db"));
+    try {
+      unknownDb.prepare("UPDATE session_meta SET value = ? WHERE key = 'owner'").run("not-a-molis-work-registry");
+    } finally {
+      unknownDb.close();
+    }
+    await assert.rejects(
+      () => openWorkSessionRegistry({ homeDirectory: unknownHome }),
+      (error: unknown) => error instanceof Error && error.message.includes("不会复用未知 Session Registry 数据库"),
+    );
   });
 });
 

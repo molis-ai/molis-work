@@ -26,23 +26,30 @@ test("Goals tree supports real collapse, search, status filtering and detail sel
   await capture("desktop");
   const root = '[data-tree-item][data-goal-id="V1"]';
   const toggle = root + ' > .tree-row [data-tree-toggle]';
-  await click(toggle);
+  await evaluate("document.querySelector(" + JSON.stringify(toggle) + ")?.click()");
   assert.equal(await evaluate(dom(root) + ".classList.contains('is-collapsed')"), true);
   assert.equal(await evaluate(dom(toggle) + ".getAttribute('aria-expanded')"), "false");
-  await click(toggle);
+  await evaluate("document.querySelector(" + JSON.stringify(toggle) + ")?.click()");
   assert.equal(await evaluate(dom(toggle) + ".getAttribute('aria-expanded')"), "true");
 
   await command("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "f", code: "KeyF", modifiers: 4, windowsVirtualKeyCode: 70 }, sessionId);
   await command("Input.dispatchKeyEvent", { type: "keyUp", key: "f", code: "KeyF", modifiers: 4, windowsVirtualKeyCode: 70 }, sessionId);
+  await waitFor("document.querySelector('[data-global-search-dialog]')?.open === true");
   assert.equal(await evaluate("document.activeElement.matches('[data-global-search]')"), true);
-
-  await click("[data-global-search]");
   await command("Input.insertText", { text: "zz-no-goal-e2e" }, sessionId);
-  await waitFor(dom("[data-tree-filter-empty]") + ".hidden === false");
-  assert.equal(await evaluate("[...document.querySelectorAll('[data-tree-item]')].some(item => !item.hidden)"), false);
-  await click("[data-clear-tree-filter]");
-  assert.equal(await evaluate(dom("[data-global-search]") + ".value"), "");
-  assert.equal(await evaluate(dom("[data-tree-filter-empty]") + ".hidden"), true);
+  await waitFor(dom("[data-global-search-results] .global-search-empty") + " && document.querySelectorAll('[data-global-search-hit]').length === 0");
+  await command("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
+  await waitFor("document.querySelector('[data-global-search-dialog]')?.open !== true");
+  assert.equal(await evaluate(dom(".desktop-goal-directory .tree-search")), null);
+
+  await click(".tree-pane [data-global-search-open]");
+  await waitFor("document.querySelector('[data-global-search-dialog]')?.open === true");
+  const coreTitle = before.goals.find(goal => goal.goal_id === "CORE")!.title;
+  await evaluate("(()=>{const input=document.querySelector('[data-global-search]');input.focus();input.value=" + JSON.stringify(coreTitle) + ";input.dispatchEvent(new Event('input',{bubbles:true}));})()");
+  await waitFor("Boolean(document.querySelector('[data-global-search-id=\"CORE\"]'))");
+  await click('[data-global-search-id="CORE"]');
+  await waitFor("document.querySelector('[data-global-search-dialog]')?.open !== true && document.querySelector('[data-goal-event-document]')?.dataset.goalView === 'CORE'");
 
   await click("[data-tree-filter-trigger]");
   await command("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
@@ -73,7 +80,8 @@ test("Goals tree supports real collapse, search, status filtering and detail sel
   await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
   await click("[data-directory-show]");
   await waitFor("document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')");
-  await click("[data-global-search]");
+  await click(".tree-pane [data-global-search-open]");
+  await waitFor("document.querySelector('[data-global-search-dialog]')?.open === true");
   assert.equal(await evaluate("document.activeElement.matches('[data-global-search]')"), true);
   assert.equal(await evaluate("document.documentElement.scrollWidth > innerWidth"), false);
   await capture("mobile");

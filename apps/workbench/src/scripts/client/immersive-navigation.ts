@@ -1,14 +1,14 @@
 /** Coordinates application chrome; content and Runtime behavior stay with their Plugin owners. */
 export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
   const { workspace, treePane, documentPane, getSelected, getState, getSurface, translate: L,
-    setDirectoryCollapsed, setWorkspaceMode, setMobileView } = host;
+    setDirectoryCollapsed, setWorkspaceMode, setMobileView, saveUiState } = host;
   if (!document.body.classList.contains("immersive-workbench")) return null;
   const strip = document.querySelector("[data-plugin-strip]");
   const heading = document.querySelector("[data-plugin-heading]");
   const stage = document.querySelector("[data-plugin-stage]");
   const header = document.querySelector(".immersive-titlebar");
   const scrim = document.querySelector("[data-directory-dismiss]");
-  const sessionFilters = treePane.querySelector(".project-record-filter-menu");
+  const directoryFilterMenus = () => [...treePane.querySelectorAll(".project-record-filter-menu, .source-filter-menu")];
   const frame = document.querySelector("[data-goal-node-workspace]");
   const workMain = document.querySelector("[data-goal-work-main]");
   const modesScope = getState().project?.project_id || getState().snapshot.board.board_id;
@@ -23,6 +23,7 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
     if (surface === "feed" || surface === "sources") return "feed";
     if (surface === "home") return "home";
     if (surface === "market") return "market";
+    if (surface === "project-settings") return "";
     if (surface === "sessions" || surface === "inbox" || surface === "artifacts") return surface;
     return "";
   };
@@ -79,19 +80,21 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
       else button.removeAttribute("aria-current");
     });
     const surface = getSurface();
-    const labels = { home: L("项目首页"), goal: "Goals", sessions: "Sessions", inbox: "Inbox", feed: "Feed", sources: "Feed", artifacts: "Artifacts", market: L("插件市场") };
-    const onContainer = surface === "goal" && Boolean(document.querySelector("[data-goal-canvas-shell]"));
-    const containerTabs = document.querySelector("[data-container-tabs]");
-    if (containerTabs) containerTabs.hidden = !onContainer;
-    document.querySelector("[data-immersive-plugin-title]").hidden = onContainer;
-    document.querySelector("[data-immersive-plugin-title]").textContent = labels[surface] || surface;
-    document.querySelector("[data-immersive-goal-tools]").hidden = onContainer || surface !== "goal";
-    document.querySelector("[data-feed-views]").hidden = !["feed", "sources"].includes(treePane.dataset.desktopDirectory);
+    const labels = { home: L("项目首页"), goal: "Goals", sessions: "Sessions", inbox: "Inbox", feed: "Feed", sources: "Feed", artifacts: "Artifacts", market: L("插件市场"), "project-settings": L("项目设置") };
+    const pluginTitle = document.querySelector("[data-immersive-plugin-title]");
+    if (pluginTitle) {
+      pluginTitle.hidden = true;
+      pluginTitle.textContent = labels[surface] || surface;
+    }
+    const goalTools = document.querySelector("[data-immersive-goal-tools]");
+    if (goalTools) goalTools.hidden = true;
+    const feedViews = document.querySelector("[data-feed-views]");
+    if (feedViews) feedViews.hidden = true;
     const listTitle = document.querySelector("[data-directory-list-title]");
     if (listTitle) {
       const directory = treePane.dataset.desktopDirectory || "root";
       const heading = document.querySelector('[data-directory-panel="' + CSS.escape(directory) + '"] .desktop-directory-heading strong');
-      const labels = { root: L("项目首页"), goals: "Goals", sessions: "Sessions", inbox: "Inbox", feed: "Feed", sources: L("来源"), artifacts: "Artifacts" };
+      const labels = { root: L("项目首页"), goals: "Goals", sessions: "Sessions", inbox: "Inbox", feed: "Feed", sources: L("来源"), artifacts: "Artifacts", settings: L("项目设置") };
       const nextTitle = heading?.textContent?.trim() || labels[directory] || L("项目首页");
       if (listTitle.textContent !== nextTitle) {
         listTitle.textContent = nextTitle;
@@ -110,6 +113,7 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
     setDirectoryCollapsed(false);
     if (narrow()) setMobileView("tree");
     sync();
+    saveUiState?.();
     requestAnimationFrame(() => treePane.querySelector("[data-directory-toggle]")?.focus());
   };
   const hideDirectory = () => {
@@ -121,7 +125,9 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
   document.querySelector("[data-directory-show]")?.addEventListener("click", showDirectory);
   scrim?.addEventListener("click", hideDirectory);
   document.addEventListener("click", (event) => {
-    if (sessionFilters?.open && !sessionFilters.contains(event.target)) sessionFilters.open = false;
+    directoryFilterMenus().forEach((menu) => {
+      if (menu.open && !menu.contains(event.target)) menu.open = false;
+    });
   });
   document.addEventListener("click", event => {
     const button = event.target.closest("[data-goal-work-mode]");
@@ -150,7 +156,8 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
       next.click(); next.focus();
     }
     if (event.key === "Escape" && !document.querySelector("dialog[open]")) {
-      if (sessionFilters?.open) { event.preventDefault(); sessionFilters.open = false; sessionFilters.querySelector("summary").focus(); return; }
+      const openMenu = directoryFilterMenus().find((menu) => menu.open);
+      if (openMenu) { event.preventDefault(); openMenu.open = false; openMenu.querySelector("summary")?.focus(); return; }
       if (workspace.classList.contains("is-directory-drawer-open")) { event.preventDefault(); hideDirectory(); }
     }
     if (event.key === "Tab" && workspace.classList.contains("is-directory-drawer-open")) {

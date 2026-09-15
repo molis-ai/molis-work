@@ -174,7 +174,7 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
       tuiWidth: workspace.classList.contains("is-tui-collapsed")
         ? parseFloat(workspace.style.getPropertyValue("--tui-width")) || undefined
         : tuiPane?.getBoundingClientRect().width,
-      query: treeSearch.value,
+      query: treeSearch?.value || "",
       statuses: getSelectedStatuses(),
       mobileView: workspace.dataset.mobileView || "tree",
       navigatorView,
@@ -185,6 +185,7 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
       directoryCollapsed: workspace.classList.contains("is-directory-collapsed"),
       feedPreset: activeFeedPreset,
       feedSelected: selectedFeedItem,
+      feedTask: selectedFeedTask || "all",
       feedQuery: feedSearch?.value || "",
       feedSource: feedSourceFilter?.value || "all",
       feedType: feedTypeFilter?.value || "all",
@@ -204,7 +205,7 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
       desktopSurfaceScroll = ui?.surfaceScroll && typeof ui.surfaceScroll === "object" ? { ...ui.surfaceScroll } : {};
       if (ui?.documentTop != null && desktopSurfaceScroll.goal == null) desktopSurfaceScroll.goal = Number(ui.documentTop || 0);
       goalWorkspaceMode = ui?.workspaceMode || "focus";
-      const requestedDesktopSurface = ui?.workSurface || (decisionView ? "inbox" : "goal");
+      const requestedDesktopSurface = ui?.workSurface === "sources" ? "feed" : (ui?.workSurface || (decisionView ? "inbox" : "goal"));
       let nextDesktopSurface = desktopWorkSurfaces.some((candidate) => candidate.dataset.workSurface === requestedDesktopSurface)
         ? requestedDesktopSurface
         : decisionView ? "inbox" : "goal";
@@ -212,9 +213,10 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
       if (ui?.tuiWidth) setTuiWidth(ui.tuiWidth, false);
       setDirectoryCollapsed(ui?.directoryCollapsed === true, false);
       if (desktopDirectoryPanels.length) {
-        const restoredDirectory = ui?.navigationVersion === desktopNavigationStateVersion
+        const restoredDirectoryRaw = ui?.navigationVersion === desktopNavigationStateVersion
           ? ui?.directory || (decisionView ? "inbox" : "root")
           : decisionView ? "inbox" : "root";
+        const restoredDirectory = restoredDirectoryRaw === "sources" ? "feed" : restoredDirectoryRaw;
         setDesktopDirectory(restoredDirectory, false, false);
       }
       restoreTreeCollapsed(ui?.collapsed);
@@ -222,12 +224,12 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
       document.querySelectorAll("[data-persist-open]").forEach((item) => {
         item.open = disclosures.has(item.dataset.persistOpen);
       });
-      treeSearch.value = ui?.query || "";
+      if (treeSearch) treeSearch.value = "";
       setSelectedStatuses(ui?.statuses || []);
       restoreMomentumState({
         canvasView: ui?.canvasView,
       });
-      filterTree(ui?.query || "");
+      filterTree("");
       if (feedDirectory) {
         const deepLinkedDecisionEntry = decisionFeedEntryFromHash();
         activeFeedPreset = "feed";
@@ -240,12 +242,19 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
         if (!ui?.feedPresets) {
           feedPresetState[activeFeedPreset] = {
             selected: String(ui?.feedSelected || selectedFeedItem || ""),
+            task: String(ui?.feedTask || ui?.sourceSelected || "all"),
             query: String(ui?.feedQuery || ""),
             source: ui?.feedSource || "all",
             type: ui?.feedType || "all",
             time: ui?.feedTime || "all",
             status: ui?.feedStatus || "active",
             sort: ui?.feedSort || "newest",
+          };
+        }
+        if (ui?.directory === "sources" || ui?.workSurface === "sources") {
+          feedPresetState.feed = {
+            ...feedPresetState.feed,
+            task: String(ui?.sourceSelected || feedPresetState.feed.task || "all"),
           };
         }
         if (deepLinkedDecisionEntry) {
@@ -261,7 +270,6 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
         }
         setFeedPreset(activeFeedPreset, true);
       }
-      const restoredSourceDetailTab = String(ui?.sourceDetailTab || "overview");
       if (sourceDirectory) {
         const availableSourceFilters = new Set(["all", "account", "public", "attention"]);
         activeSourceFilter = availableSourceFilters.has(ui?.sourceFilter) ? ui.sourceFilter : "all";
@@ -275,14 +283,10 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
         filterSources(true);
         if (selectedSource) selectSource(selectedSource, false);
       }
-      setWorkspaceMode(ui?.workspaceMode || (ui?.navigatorView === "graph" ? "graph" : "focus"), false);
+      setWorkspaceMode(ui?.workspaceMode || (ui?.navigatorView === "graph" ? "graph" : "focus"), false, true);
       if (desktopWorkSurfaces.length) setDesktopWorkSurface(nextDesktopSurface, false, false);
       if (nextDesktopSurface === "feed" && selectedFeedItem) {
-        selectFeedItem(selectedFeedItem, false, true);
-      }
-      if (nextDesktopSurface === "sources" && selectedSource) {
-        const selectedDetail = sourceWorkbench?.querySelector('[data-source-detail="' + CSS.escape(selectedSource) + '"]');
-        setSourceDetailTab(selectedDetail, restoredSourceDetailTab);
+        selectFeedItem(selectedFeedItem, false, true, false);
       }
       restoreGoalGraphViewport();
       bindGoalEventDocument();
@@ -300,6 +304,6 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
         ? ui.mobileView
         : "tree";
       if (matchMedia("(max-width: 760px)").matches) {
-        if (restoredMobileView === "tui") setWorkspaceMode("runtime", false);
-        else if (restoredMobileView === "document" && workspace.dataset.workspaceMode !== "graph") setWorkspaceMode("focus", false);
+        if (restoredMobileView === "tui") setWorkspaceMode("runtime", false, true);
+        else if (restoredMobileView === "document" && workspace.dataset.workspaceMode !== "graph") setWorkspaceMode("focus", false, true);
 `;

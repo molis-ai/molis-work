@@ -34,8 +34,16 @@ export const FOUNDATION_STYLES = `  :root {
     --shadow: 0 12px 32px rgba(25, 25, 31, .095);
     --shadow-color: #19202c;
     --radius-item: 6px;
-    --radius-control: 8px;
-    --radius-surface: 10px;
+    --radius-control: 10px;
+    --radius-surface: 12px;
+    --control-h: 32px;
+    --control-pad-x: 12px;
+    --control-border: color-mix(in srgb, var(--ink) 8%, transparent);
+    --control-input: color-mix(in srgb, var(--ink) 10%, transparent);
+    --control-fill: color-mix(in srgb, var(--ink) 4.5%, transparent);
+    --control-fill-hover: color-mix(in srgb, var(--ink) 7.5%, transparent);
+    --control-shadow: 0 1px 2px color-mix(in srgb, var(--ink) 6%, transparent), 0 12px 32px color-mix(in srgb, var(--ink) 12%, transparent);
+    --control-ring: color-mix(in srgb, var(--ink) 28%, transparent);
     --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
   }
 

@@ -101,6 +101,7 @@ test("project operation renderer uses real records or an honest empty state with
   assert.doesNotMatch(rendered.rootItems, /工作目录|data-directory-open="workspaces"/);
   assert.doesNotMatch(rendered.rootItems, /<em>\d+<\/em>/);
   assert.match(html, /这个项目还没有 Session/);
+  assert.doesNotMatch(html, /从这里启动新工作|创建或显式关联后/);
   assert.doesNotMatch(html, /data-directory-panel="workspaces"|data-work-surface="workspaces"/);
   assert.match(html, /data-session-add-dialog[\s\S]*新建 Session/);
   assert.match(html, /session-add-heading-row[\s\S]*data-session-add-dialog-title[\s\S]*data-session-add-toggle/);

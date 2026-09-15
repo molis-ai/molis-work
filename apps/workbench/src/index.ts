@@ -109,6 +109,7 @@ export { TRASH_GOAL_STYLES } from "@molis-ai/molis-work-plugin-goals";
 
 
 export { createWorkbenchSettingsNavigation, type WebProjectNavigation, type WebSettingsSection, type SettingsNavigationPrimitives } from "./settings-navigation.js";
+export { isProjectSettingsWorkbenchPath, projectSettingsPageFromPath, projectSettingsPath } from "./project-settings-stage.js";
 
 export { createWorkbenchProjectDirectoryRenderer, type ProjectDirectoryPrimitives } from "./project-directory-renderer.js";
 
@@ -138,6 +139,7 @@ export { createWorkbenchFocusSections, type FocusSectionCardOptions } from "./fo
 
 
 export { createWorkbenchProjectSettingsPages, type ProjectSettingsPagePorts } from "./project-settings-pages.js";
+export type { ProjectSettingsFoldId } from "./project-settings-folds.js";
 
 export { createWorkbenchRenderer, type WorkbenchRendererPorts, type WorkbenchRenderer } from "./renderer.js";
 

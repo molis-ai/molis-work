@@ -100,7 +100,7 @@ const GOALS_TREE_STATUS_CHANGE_SCRIPT = `      const statusFilter = changed.clos
         if (statusFilter.checked) selectedStatuses.add(statusFilter.value);
         else selectedStatuses.delete(statusFilter.value);
         setSelectedStatuses([...selectedStatuses]);
-        filterTree(treeSearch.value);
+        filterTree(treeSearch?.value || "");
         queueSave();
         return true;
       }
@@ -125,12 +125,12 @@ const GOALS_TREE_SEARCH_FOCUS_SCRIPT = `      if (target.closest("[data-personal
 const GOALS_TREE_DISCLOSURE_SCRIPT = `      if (!treeFilter?.hidden && !target.closest("[data-tree-filter], [data-tree-filter-trigger]")) setTreeFilterOpen(false);
       if (target.closest("[data-clear-status-filter]")) {
         setSelectedStatuses([]);
-        filterTree(treeSearch.value);
+        filterTree(treeSearch?.value || "");
         queueSave();
         return true;
       }
       if (target.closest("[data-clear-tree-filter]")) {
-        treeSearch.value = "";
+        if (treeSearch) treeSearch.value = "";
         setSelectedStatuses([]);
         filterTree("");
         queueSave();
@@ -160,11 +160,7 @@ const GOALS_TREE_COLLAPSE_ALL_SCRIPT = `      if (target.closest("[data-collapse
       return false;
 `;
 
-const GOALS_TREE_KEYBOARD_SCRIPT = `      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f") {
-        event.preventDefault();
-        globalSearch?.focus();
-      }
-      if (event.key === "Escape" && !treeFilter?.hidden) {
+const GOALS_TREE_KEYBOARD_SCRIPT = `      if (event.key === "Escape" && !treeFilter?.hidden) {
         event.preventDefault();
         setTreeFilterOpen(false);
         treeFilterTrigger?.focus();

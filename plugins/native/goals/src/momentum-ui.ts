@@ -1,5 +1,6 @@
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { GoalsMomentumItem, GoalsMomentumBoardView, GoalsMomentumUiPrimitives } from "./momentum-ui-model.js";
+import { createKanbanRenderer } from "./kanban-ui.js";
 import { sortGoalTreeItems } from "./tree-order.js";
 import { buildGoalMomentumView } from "./momentum-view.js";
 
@@ -58,33 +59,37 @@ function createMomentumRenderer(primitives: GoalsMomentumUiPrimitives) {
     }).join("");
     const integrityCount = Object.values(momentum.integrity).reduce((count, values) => count + values.length, 0);
     return `<section class="goal-momentum goal-canvas-map" id="goal-momentum-pane" data-goal-momentum data-loaded="true" data-default-goal="${escapeHtml(preferred?.goal.goal_id || "")}" aria-label="${L("Goal 关系画布")}">
-      <header class="goal-canvas-map-heading"><h1>${L("目标关系")}</h1><p>${L("{count} 个目标 · 箭头从前置成果指向后续工作", { count: nodes ? momentum.nodes.length : 0 })}</p>${integrityCount ? `<p role="status">${L("部分关系不完整，已保留可读取的目标。")}</p>` : ""}</header>
+      ${integrityCount ? `<p class="goal-canvas-integrity" role="status">${L("部分关系不完整，已保留可读取的目标。")}</p>` : ""}
       <div class="goal-canvas-viewport" data-graph-viewport tabindex="0" aria-label="${L("拖动空白处移动画布，方向键平移，加减键缩放")}">
         <div class="goal-canvas-world" data-graph-stage data-graph-scale="1"><svg class="goal-canvas-edges" data-graph-edges aria-hidden="true"><defs><marker id="momentum-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z"></path></marker></defs>${edges}</svg>${nodes}</div>
       </div>
-      ${nodes ? "" : `<div class="goal-canvas-empty"><h2>${L("还没有目标")}</h2><p>${L("创建第一条 Goal，从想要的结果开始。")}</p><button type="button" data-open-create>${L("创建 Goal")}</button></div>`}
-      <footer class="goal-canvas-tools"><span>${L("单击看血缘 · 双击或右上角打开")}</span><div role="group" aria-label="${L("画布缩放")}"><button type="button" data-graph-zoom="out" aria-label="${L("缩小")}">−</button><output data-graph-zoom-value>100%</output><button type="button" data-graph-zoom="in" aria-label="${L("放大")}">+</button><button type="button" data-graph-zoom="fit" aria-label="${L("适应全部目标")}">${icon("maximize")}</button></div></footer>
+      ${nodes ? "" : `<div class="goal-canvas-empty"><h2>${L("还没有目标")}</h2><button type="button" data-open-create>${L("创建 Goal")}</button></div>`}
+      <footer class="goal-canvas-tools"><div role="group" aria-label="${L("画布缩放")}"><button type="button" data-graph-zoom="out" aria-label="${L("缩小")}">−</button><output data-graph-zoom-value>100%</output><button type="button" data-graph-zoom="in" aria-label="${L("放大")}">+</button><button type="button" data-graph-zoom="fit" aria-label="${L("适应全部目标")}">${icon("maximize")}</button></div></footer>
       <p data-goal-momentum-status role="status" hidden></p><button type="button" data-retry-goal-momentum hidden>${L("重试")}</button>
     </section>`;
   }
   function renderMomentumPlaceholder(): string {
     return `<section class="goal-momentum goal-canvas-map" id="goal-momentum-pane" data-goal-momentum data-loaded="false" aria-label="${L("Goal 关系画布")}"><p class="goal-canvas-loading" data-goal-momentum-status role="status">${L("正在读取目标关系…")}</p><button type="button" data-retry-goal-momentum hidden>${L("重试")}</button></section>`;
   }
-  return { renderGoalMomentum, renderMomentumPlaceholder };
+  const { renderGoalKanban } = createKanbanRenderer(primitives);
+  return { renderGoalMomentum, renderMomentumPlaceholder, renderGoalKanban };
 }
 export type GoalsMomentumRenderer = ReturnType<typeof createMomentumRenderer>;
 export type GoalsMomentumUiModel = { primitives: GoalsMomentumUiPrimitives } & (
   | { kind: "momentum"; args: Parameters<GoalsMomentumRenderer["renderGoalMomentum"]> }
   | { kind: "placeholder"; args: [] }
+  | { kind: "kanban"; args: Parameters<GoalsMomentumRenderer["renderGoalKanban"]> }
 );
 export const goalsMomentumUiContribution: UiContribution<GoalsMomentumUiModel> = {
   descriptor: {
     contribution_id: GOALS_MOMENTUM_UI_CONTRIBUTION_ID, plugin_id: "io.molis.work.native.goals", kind: "embedded", label: "Goal momentum",
-    surfaces: ["momentum", "placeholder"].map(surface_id => ({ surface_id, target_slot_id: "workbench.main", format: "declarative-html" })), slots: [],
+    surfaces: ["momentum", "placeholder", "kanban"].map(surface_id => ({ surface_id, target_slot_id: "workbench.main", format: "declarative-html" })), slots: [],
   },
   render({ surface, model }) {
     if (surface !== model.kind) throw new Error("Goals momentum surface does not match its model");
     const renderer = createMomentumRenderer(model.primitives);
-    return model.kind === "momentum" ? renderer.renderGoalMomentum(...model.args) : renderer.renderMomentumPlaceholder();
+    if (model.kind === "momentum") return renderer.renderGoalMomentum(...model.args);
+    if (model.kind === "kanban") return renderer.renderGoalKanban(...model.args);
+    return renderer.renderMomentumPlaceholder();
   },
 };

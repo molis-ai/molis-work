@@ -143,6 +143,7 @@ test("Artifact HTTP keeps unknown and cross-project versions missing and rejects
 test("Artifact empty, unavailable, archived and embedded views reflect Module state without inventing consumers", async (t) => {
   const { coordinator, get } = await fixture(t);
   assert.match(await (await get("/artifacts")).text(), /还没有 Artifact/);
+  assert.doesNotMatch(await (await get("/artifacts")).text(), /插件明确发布的结果会出现在这里|查看插件发布的结果、来源和原始内容/);
   coordinator.artifacts.commands.registerVersion(registration());
   const query = coordinator.artifacts.query;
   const reference = { artifact_id: artifactId, version: 1 };

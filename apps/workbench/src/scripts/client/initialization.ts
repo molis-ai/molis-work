@@ -1,6 +1,7 @@
 import { PROJECT_HOME_FACTORY_SCRIPT } from "./project-home.js";
 import { PLUGIN_WORKBENCH_FACTORY_SCRIPT } from "./plugin-workbench.js";
 import { IMMERSIVE_NAVIGATION_FACTORY_SCRIPT } from "./immersive-navigation.js";
+import { GLOBAL_SEARCH_FACTORY_SCRIPT } from "./global-search.js";
 /** AP3 Workbench client segment: initialization. */
 export const CLIENT_INITIALIZATION_SCRIPT = `    });
 
@@ -12,23 +13,36 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       setDirectoryCollapsed: (...args) => setDirectoryCollapsed(...args),
       setWorkspaceMode: (...args) => setWorkspaceMode(...args),
       setMobileView: (...args) => setMobileView(...args), queueSave: () => queueSave(),
+      saveUiState: () => saveUiState(),
     });
     pluginWorkbench = (${PLUGIN_WORKBENCH_FACTORY_SCRIPT})({
       route, translate: L, projectId: state.project?.project_id,
       setSurface: surface => { setDesktopDirectory("artifacts", false, false); setDesktopWorkSurface(surface); },
+      openTabItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title),
       saveUiState, setMobileView,
+    });
+    globalSearchPalette = (${GLOBAL_SEARCH_FACTORY_SCRIPT})({
+      translate: L,
+      setDirectory: (...args) => setDesktopDirectory(...args),
+      setWorkSurface: (...args) => setDesktopWorkSurface(...args),
+      selectGoal: (...args) => selectGoal(...args),
+      setMobileView: (...args) => setMobileView(...args),
+      noteSearchActivity: (...args) => noteSearchActivity(...args),
+      openTabItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title),
     });
     projectHome = (${PROJECT_HOME_FACTORY_SCRIPT})({ getState: () => state, translate: L });
     bindGoalCreateEvents();
     addEventListener("popstate", (event) => {
+      if (projectSettingsStage?.parse(localPathname())) return;
       if (localPathname() === "/" && !decisionView && !collectionView) {
         setDesktopDirectory("root", false, false);
-        setDesktopWorkSurface("home");
+        if (!openWorkbenchSurface("home")) setDesktopWorkSurface("home");
       } else handleGoalPopState(event);
     });
     addEventListener("hashchange", handleGoalHashChange);
     addEventListener("pagehide", saveUiState);
     addEventListener("keydown", (event) => {
+      if (globalSearchPalette?.handleKeyboard(event)) return;
       if (handleGoalWorkTabKeyboard(event)) return;
       const currentFocusSection = event.target?.closest?.("[data-focus-section-trigger]:not([data-goal-factor-tab])");
       if (currentFocusSection && ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) {
@@ -81,6 +95,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     setTreeWidth(treePane.getBoundingClientRect().width, false);
     if (tuiPane) setTuiWidth(tuiPane.getBoundingClientRect().width, false);
     let restoredUi = false;
+    let restoredMobileView = "";
     try {
       const stored = JSON.parse(
         sessionStorage.getItem(storageKey) ||
@@ -90,6 +105,9 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       if (stored) {
         applyUiState(stored);
         restoredUi = true;
+        restoredMobileView = stored.mobileView === "tui" || stored.mobileView === "document" || stored.mobileView === "tree"
+          ? stored.mobileView
+          : "";
         sessionStorage.setItem(storageKey, JSON.stringify(stored));
       }
     } catch {}
@@ -110,16 +128,26 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     const restoredNavigation = restoredUi && ["reload", "back_forward"].includes(
       performance.getEntriesByType("navigation")[0]?.type,
     );
-    if (!directGoalRequested && !restoredNavigation && !decisionView && !collectionView) {
+    if (tabWorkspace) {
+      if (directGoalRequested && selected && !restoredNavigation) {
+        tabWorkspace.openItem("goals", selected);
+      }
+    } else if (!directGoalRequested && !restoredNavigation && !decisionView && !collectionView) {
       goalWorkspaceMode = "graph";
       setDesktopDirectory("root", false, false);
       setDesktopWorkSurface("home", false, false);
       saveUiState();
     }
-    if (directGoalRequested && selected && !restoredNavigation) {
+    if (!tabWorkspace && directGoalRequested && selected && !restoredNavigation) {
       goalWorkspaceMode = "focus";
       setDesktopDirectory("goals", false, false);
       if (desktopWorkSurfaces.length) setDesktopWorkSurface("goal", false, false);
+      setWorkspaceMode("focus", false);
+      if (matchMedia("(max-width: 760px)").matches) setMobileView("document");
+      saveUiState();
+    }
+    if (directGoalRequested && selected && !restoredNavigation && tabWorkspace) {
+      setDesktopDirectory("goals", false, false);
       setWorkspaceMode("focus", false);
       if (matchMedia("(max-width: 760px)").matches) setMobileView("document");
       saveUiState();
@@ -177,6 +205,11 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     if (selected) ensureWorkTab(selected);
     else renderWorkTabs();
     frameContainer?.restore();
+    tabWorkspace?.apply();
+    projectSettingsStage?.syncFromLocation();
+    if (matchMedia("(max-width: 760px)").matches && (restoredMobileView === "tree" || restoredMobileView === "document" || restoredMobileView === "tui")) {
+      setMobileView(restoredMobileView);
+    }
     updateRelationPreviews();
     updateAllRelationFormPreviews();
     setInterval(refreshBoard, 4000);

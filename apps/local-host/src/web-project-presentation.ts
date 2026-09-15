@@ -10,6 +10,8 @@ export function projectNavigation(project: MolisWorkProjectRecord): WebProjectNa
     project_id: project.project_id,
     display_name: project.display_name,
     data_class: project.data_class,
+    database_path: project.database_path,
+    source: project.source,
   };
 }
 

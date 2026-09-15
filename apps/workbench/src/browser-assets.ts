@@ -11,6 +11,7 @@ export {
 export {
   PROJECT_GUIDANCE_SETTINGS_STYLES,
   SETTINGS_STYLES,
+  SETTINGS_IA_NAV_STYLES,
 } from "./styles/settings.js";
 export {
   PROJECT_GUIDANCE_CLIENT_SCRIPT,

@@ -35,22 +35,10 @@ export function renderProjectHome(name: string, { L, escapeHtml: e, icon }: Imme
           <table><thead><tr data-home-weekdays></tr></thead><tbody data-home-calendar></tbody></table>
         </section>
       </section>
-      <section class="home-launch" aria-label="${L("快捷方式与 Agent 输入")}">
-        <ul class="home-shortcuts" data-home-shortcuts aria-label="${L("快捷方式")}"><li class="home-shortcut home-shortcut-add"><button type="button" class="home-shortcut-main" data-home-shortcut-add><span class="home-shortcut-icon">${icon("plus")}</span><span>${L("添加快捷方式")}</span></button></li></ul>
+      <section class="home-launch" aria-label="${L("你想推进什么？")}">
         <div class="home-composer"><span class="home-agent-icon" aria-hidden="true">${icon("sparkles")}</span><input type="text" data-home-agent-input placeholder="${L("你想推进什么？")}" aria-label="${L("Agent 尚未开放，暂不可输入")}" aria-describedby="home-agent-status" disabled><button type="button" class="home-send" disabled aria-label="${L("Agent 即将接入，暂不可发送")}">${icon("arrow")}</button></div>
         <p class="home-agent-note" id="home-agent-status">${icon("lock")}<span>${L("Agent 尚未开放")}</span></p>
-        <p class="home-shortcut-error" data-home-shortcut-error role="alert" hidden></p>
       </section>
     </div>
-    <template data-home-shortcut-template><li class="home-shortcut"><a class="home-shortcut-main" target="_blank" rel="noopener noreferrer" data-home-shortcut-link data-home-external><span class="home-shortcut-icon">${icon("link")}</span><span data-home-shortcut-name></span></a><button type="button" class="home-shortcut-edit" data-home-shortcut-edit>${icon("more")}</button></li></template>
-    <dialog class="home-shortcut-dialog" data-home-shortcut-dialog aria-labelledby="home-shortcut-title">
-      <form data-home-shortcut-form novalidate>
-        <header><h2 id="home-shortcut-title">${L("添加快捷方式")}</h2><button type="button" data-home-shortcut-cancel aria-label="${L("关闭")}">${icon("x")}</button></header>
-        <label>${L("名称")}<input name="shortcut_name" maxlength="32" autocomplete="off" required placeholder="${L("例如：项目文档")}"></label>
-        <label>${L("网址")}<input name="shortcut_url" type="url" maxlength="4096" autocomplete="off" required placeholder="https://"></label>
-        <p class="home-shortcut-form-error" data-home-shortcut-form-error role="alert"></p>
-        <footer><button type="button" class="home-shortcut-remove" data-home-shortcut-remove hidden>${L("移除")}</button><button type="button" data-home-shortcut-cancel>${L("取消")}</button><button type="submit" class="home-shortcut-save">${L("保存")}</button></footer>
-      </form>
-    </dialog>
   </section>`;
 }

@@ -51,6 +51,16 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `        return;
         }
         return;
       }
+      const feedTaskToggle = target.closest("[data-feed-task-toggle]");
+      if (feedTaskToggle) {
+        setFeedTask(feedTaskToggle.dataset.feedTaskToggle || "all");
+        return;
+      }
+      if (target.closest("[data-feed-add-toggle]")) {
+        const add = document.querySelector("[data-feed-add]");
+        setFeedAddOpen(!add?.classList.contains("is-open"));
+        return;
+      }
       if (target.closest("[data-feed-clear-filters]")) {
         if (feedSearch) feedSearch.value = "";
         if (feedSourceFilter) feedSourceFilter.value = "all";
@@ -80,30 +90,41 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `        return;
       }
       if (openSourceRecord) {
         const sourceId = openSourceRecord.dataset.openSourceRecord;
-        if (!sourceId || !sourceList?.querySelector('[data-source-entry-id="' + CSS.escape(sourceId) + '"]')) {
+        if (!sourceId || !document.querySelector('[data-feed-task="' + CSS.escape(sourceId) + '"]')) {
           showToast(L("这个来源已删除或暂时不可用"));
           return;
         }
-        setDesktopDirectory("sources", true, false, openSourceRecord);
-        setDesktopWorkSurface("sources", true, false);
-        selectSource(sourceId, true);
+        setDesktopDirectory("feed", true, false, openSourceRecord);
+        if (!openWorkbenchSurface("feed")) setDesktopWorkSurface("feed", true, false);
+        setFeedTask(sourceId);
         return;
       }
       const feedEntry = target.closest("[data-feed-entry-id]");
-      if (feedEntry) {
-        selectFeedItem(feedEntry.dataset.feedEntryId, true, true);
-        if (!frameContainer?.isFrameTabActive()) setDesktopWorkSurface("feed", true, true);
+      if (feedEntry && !target.closest("[data-feed-action], [data-prototype-feed-action]")) {
+        const stageDirectory = Boolean(document.querySelector("[data-feed-stage-directory]"));
+        selectFeedItem(feedEntry.dataset.feedEntryId, !stageDirectory, true, true);
+        if (!stageDirectory && !frameContainer?.isFrameTabActive()) {
+          if (!openWorkbenchSurface("feed", feedEntry.dataset.feedEntryId, feedEntry.querySelector("strong")?.textContent?.trim())) {
+            setDesktopWorkSurface("feed", true, true);
+          }
+        }
         return;
       }
       const inboxRow = target.closest("[data-inbox-row]");
       if (inboxRow) {
         selectInboxEntry(inboxRow.dataset.inboxEntryId, true);
-        if (!frameContainer?.isFrameTabActive()) setDesktopWorkSurface("inbox", true, true);
+        if (!frameContainer?.isFrameTabActive()) {
+          if (!openWorkbenchSurface("inbox", inboxRow.dataset.inboxEntryId)) {
+            setDesktopWorkSurface("inbox", true, true);
+          }
+        }
         return;
       }
       const sessionSelect = target.closest("[data-operation-select]");
       if (sessionSelect && !frameContainer?.isFrameTabActive()) {
-        setDesktopWorkSurface("sessions", true, true);
+        if (!openWorkbenchSurface("sessions", sessionSelect.dataset.operationSelect, sessionSelect.getAttribute("data-frame-asset-title"))) {
+          setDesktopWorkSurface("sessions", true, true);
+        }
         return;
       }
       const inboxFilter = target.closest("[data-inbox-filter]");
@@ -117,8 +138,8 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `        return;
         if (!itemId) return;
         setFeedPreset("feed", true);
         setDesktopDirectory("feed", true, false, inboxOpenFeed);
-        setDesktopWorkSurface("feed", true, false);
-        selectFeedItem(itemId, true, true);
+        if (!openWorkbenchSurface("feed", itemId)) setDesktopWorkSurface("feed", true, false);
+        selectFeedItem(itemId, true, true, false);
         return;
       }
       const inboxAction = target.closest("[data-inbox-action]");
@@ -211,8 +232,8 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `        return;
         if (desktopWorkSurfaces.some((candidate) => candidate.dataset.workSurface === surface)) {
           event.preventDefault();
           setDesktopDirectory("root", true, false, surfaceLink);
-          setDesktopWorkSurface(surface, true, true);
-          if (surface === "feed" && selectedFeedItem) selectFeedItem(selectedFeedItem, false, true);
+          if (!openWorkbenchSurface(surface)) setDesktopWorkSurface(surface, true, true);
+          if (surface === "feed" && selectedFeedItem) selectFeedItem(selectedFeedItem, false, true, false);
         }
         return;
       }
@@ -247,11 +268,11 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `        return;
           : surface === "feed" || surface === "sources" || surface === "sessions" || surface === "artifacts" || surface === "inbox"
             ? surface
             : "root", true, true, surfaceOpen);
-        setDesktopWorkSurface(surface, true, true);
+        if (!openWorkbenchSurface(surface)) setDesktopWorkSurface(surface, true, true);
         if (surface === "home" && !decisionView && !collectionView && localPathname() !== "/") {
           history.pushState({ workSurface: "home" }, "", route("/"));
         }
-        if (surface === "feed" && selectedFeedItem) selectFeedItem(selectedFeedItem, false, true);
+        if (surface === "feed" && selectedFeedItem) selectFeedItem(selectedFeedItem, false, true, false);
         if (matchMedia("(max-width: 760px)").matches) setMobileView(surface === "home" || surface === "market" ? "document" : "tree");
         return;
       }
@@ -264,7 +285,7 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `        return;
       }
       if (target.closest("[data-directory-back]") && desktopDirectoryPanels.length) {
         setDesktopDirectory("root");
-        setDesktopWorkSurface("home");
+        if (!openWorkbenchSurface("home")) setDesktopWorkSurface("home");
         return;
       }
       const goalWorkTabClick = handleGoalWorkTabClick(target);
@@ -288,7 +309,16 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `        return;
       }
       if (handleMomentumSelectionClick(target)) return;
       if (handleMomentumZoomClick(target)) return;
-      if (handleGoalSelectClick(target)) return;
+      const goalLink = target.closest("[data-select-goal]");
+      if (goalLink) {
+        if (frameContainer?.isFrameTabActive()) {
+          frameContainer.locateGoal(goalLink.dataset.selectGoal);
+          return;
+        }
+        openWorkbenchSurface("goal", goalLink.dataset.selectGoal, goalLink.textContent?.trim());
+        handleGoalSelectClick(target);
+        return;
+      }
       if (handleGoalDialogClick(target)) return;
       if (handleTreeCollapseAllClick(target)) return;
       const mobileTarget = target.closest("[data-mobile-target]");

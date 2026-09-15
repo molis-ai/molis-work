@@ -60,13 +60,12 @@ export function renderWorkSessionSurface(surface: WorkUiSurface, model: WorkUiMo
       : "";
     return `<section class="desktop-directory-panel project-record-directory" data-directory-panel="sessions" data-operation-directory="sessions" hidden>
     <header class="desktop-directory-heading"><button type="button" data-directory-back aria-label="${L("返回上一级")}">${icon("back")}</button><span><strong>Sessions</strong><small>${L("执行与内容")}</small></span><button class="directory-heading-action" type="button" data-open-session-add aria-label="${L("新建 Session")}" title="${L("新建 Session")}">${icon("plus")}</button></header>
-    <header class="project-record-tools">
-      <label class="tree-search">${icon("search")}<input type="search" data-operation-search="sessions" placeholder="${L("搜索标题、ID、Goal")}" aria-label="${L("搜索 Sessions")}"><kbd>⌘F</kbd></label>
+    <header class="project-record-tools" data-directory-list-actions>
       <details class="project-record-filter-menu"><summary aria-label="${L("筛选与排序")}">${icon("filter")}<span>${L("筛选")}</span></summary><div><label>Runtime<select data-session-runtime-filter><option value="all">${L("全部 Runtime")}</option></select></label><label>${L("状态")}<select data-session-status-filter><option value="all">${L("全部状态")}</option><option value="idle">${L("可查看")}</option><option value="archived">${L("已归档")}</option></select></label><label>${L("内容")}<select data-operation-filter="sessions"><option value="all">${L("全部内容")}</option><option value="native">${L("原生内容")}</option><option value="fallback">${L("Molis Work 记录")}</option><option value="unavailable">${L("不可读取")}</option></select></label><label>${L("排序")}<select data-session-sort><option value="updated-desc">${L("最近更新")}</option><option value="updated-asc">${L("最早更新")}</option><option value="title-asc">${L("标题 A–Z")}</option></select></label></div></details><button class="project-record-add-compact" type="button" data-open-session-add aria-label="${L("新建 Session")}">${icon("plus")}</button>
     </header>
     <div class="project-record-scroll" role="listbox" aria-label="${L("Sessions 列表")}" data-operation-list="sessions">${rows}</div>
-    <div class="project-record-empty" data-operation-empty="sessions"${hasData ? " hidden" : ""}>${icon("terminal")}<strong>${hasData ? L("没有匹配结果") : L("这个项目还没有 Session")}</strong><p>${hasData ? L("清除搜索或更改筛选条件。") : L("从这里启动新工作，或关联已有 Runtime Session。")}</p><button type="button" data-operation-clear="sessions"${hasData ? "" : " hidden"}>${L("清除筛选")}</button></div>
-    <footer class="tree-footer"><span>${L("共")} <strong data-operation-count="sessions">${hasData ? records.length : 0}</strong> ${L("条")}</span><small>${L("执行与内容")}</small></footer>
+    <div class="project-record-empty" data-operation-empty="sessions"${hasData ? " hidden" : ""}>${icon("terminal")}<strong>${hasData ? L("没有匹配结果") : L("这个项目还没有 Session")}</strong><button type="button" data-operation-clear="sessions"${hasData ? "" : " hidden"}>${L("清除筛选")}</button></div>
+    <footer class="tree-footer"><span>${L("共")} <strong data-operation-count="sessions">${hasData ? records.length : 0}</strong> ${L("条")}</span></footer>
   </section>`;
   }
 
@@ -116,7 +115,7 @@ export function renderWorkSessionSurface(surface: WorkUiSurface, model: WorkUiMo
   function renderSessionSurface(records: readonly ProjectSessionRecord[], hasData: boolean, projectName: string): string {
     return `<section class="desktop-work-surface project-operation-surface" data-work-surface="sessions" data-work-surface-label="Sessions" hidden>${hasData
     ? records.map((item, index) => renderSessionDetail(item, index === 0, projectName)).join("")
-    : `<div class="archive-empty project-operation-surface-empty">${icon("terminal")}<h1>${L("这个项目还没有 Session")}</h1><p>${L("创建或显式关联后，执行内容和 Goal 历史会出现在这里。")}</p></div>`}</section>`;
+    : `<div class="archive-empty project-operation-surface-empty">${icon("terminal")}<h1>${L("这个项目还没有 Session")}</h1></div>`}</section>`;
   }
 
   function renderOverlays(data: ProjectOperationsData | undefined, project: ProjectOperationsProject | null): string {

@@ -100,6 +100,35 @@ export const SETTINGS_CLIENT_SCRIPT = WEB_SERVICE_SETTINGS_SCRIPT + PROJECT_SETT
         applyButton.textContent = L("重新确认");
       }
     });
+    const projectManager = document.querySelector("[data-project-manager]");
+    if (projectManager) {
+      const radios = [...projectManager.querySelectorAll('input[name="project-focus"]')];
+      const panes = projectManager.querySelectorAll("[data-project-pane]");
+      const showPane = (value) => {
+        panes.forEach((pane) => {
+          const hide = pane.dataset.projectPane !== value;
+          if (hide && !pane.hidden) globalThis.molisWorkResetProjectSettingsEmbeds?.(pane);
+          pane.hidden = hide;
+        });
+      };
+      const applyHash = () => {
+        const raw = decodeURIComponent(location.hash.replace(/^#/, ""));
+        const match = raw && radios.find((radio) => radio.value === raw);
+        if (!match) return;
+        match.checked = true;
+        showPane(match.value);
+      };
+      radios.forEach((radio) => {
+        radio.addEventListener("change", () => {
+          if (!radio.checked) return;
+          showPane(radio.value);
+          const next = "#" + encodeURIComponent(radio.value);
+          if (location.hash !== next) history.replaceState(null, "", next);
+        });
+      });
+      window.addEventListener("hashchange", applyHash);
+      applyHash();
+    }
     const createForm = document.querySelector("[data-project-create]");
     createForm?.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -124,30 +153,7 @@ export const SETTINGS_CLIENT_SCRIPT = WEB_SERVICE_SETTINGS_SCRIPT + PROJECT_SETT
         submit.disabled = false;
       }
     });
-    document.querySelectorAll("[data-demo-action]").forEach((button) => {
-      button.addEventListener("click", async () => {
-        const action = button.dataset.demoAction;
-        const error = button.closest("section, details")?.querySelector("[data-demo-error]") || document.querySelector("[data-demo-error]");
-        const message = action === "create"
-          ? L("创建一份明确标记为可重建数据的示例项目？")
-          : action === "reset"
-            ? L("重建 demo 会清除其中的所有改动，但不会影响用户项目。确认继续？")
-            : L("删除这个可重建 demo？用户项目不会被删除。");
-        if (!window.confirm(message)) return;
-        button.disabled = true;
-        if (error) error.hidden = true;
-        try {
-          const response = await fetch("/api/settings/demo", { method: "POST", headers: molisWorkControlHeaders(), body: JSON.stringify({ action, user_confirmed: true }) });
-          const result = await response.json();
-          if (!response.ok) throw new Error(result.error || L("demo 操作失败"));
-          showToast(result.message || L("demo 已更新"));
-          setTimeout(() => location.reload(), 450);
-        } catch (caught) {
-          if (error) { error.textContent = caught.message || L("demo 操作失败"); error.hidden = false; }
-          button.disabled = false;
-        }
-      });
-    });
+    globalThis.molisWorkBindProjectIdentity?.(document);
     function escapeText(value) {
       return String(value == null ? "" : value).replace(/[&<>"']/g, (character) => {
         if (character === "&") return "&amp;";
@@ -163,11 +169,16 @@ export const SETTINGS_CLIENT_SCRIPT = WEB_SERVICE_SETTINGS_SCRIPT + PROJECT_SETT
 
 export const PROJECT_GUIDANCE_CLIENT_SCRIPT = `
   (() => {
-    const editor = document.querySelector("[data-guidance-editor]");
-    const form = document.querySelector("[data-guidance-form]");
-    const dataNode = document.querySelector("#project-guidance-data");
-    if (!editor || !form || !dataNode) return;
-    const routePrefix = document.body.dataset.routePrefix || "";
+    const bind = (root = document) => {
+    const scope = root && root.querySelector ? root : document;
+    const editor = scope.querySelector("[data-guidance-editor]");
+    const form = scope.querySelector("[data-guidance-form]");
+    const dataNode = scope.querySelector("[data-project-guidance-json], #project-guidance-data");
+    if (!editor || !form || !dataNode || editor.dataset.bound === "1") return;
+    editor.dataset.bound = "1";
+    const routePrefix = (scope.closest && scope.closest("[data-route-prefix]"))?.dataset.routePrefix
+      || scope.dataset?.routePrefix
+      || document.body.dataset.routePrefix || "";
     const state = JSON.parse(dataNode.textContent || "{}");
     const entries = [...(state.entries || []), ...(state.inactive_entries || [])];
     const fields = form.querySelector("[data-guidance-editor-fields]");
@@ -240,13 +251,13 @@ export const PROJECT_GUIDANCE_CLIENT_SCRIPT = `
         open();
       });
     };
-    document.querySelectorAll("[data-guidance-new]").forEach((button) => {
+    scope.querySelectorAll("[data-guidance-new]").forEach((button) => {
       bindEditorTrigger(button, "add");
     });
-    document.querySelectorAll("[data-guidance-edit]").forEach((button) => {
+    scope.querySelectorAll("[data-guidance-edit]").forEach((button) => {
       bindEditorTrigger(button, "edit", button.dataset.guidanceEdit);
     });
-    document.querySelectorAll("[data-guidance-action]").forEach((button) => {
+    scope.querySelectorAll("[data-guidance-action]").forEach((button) => {
       bindEditorTrigger(button, button.dataset.guidanceAction, button.dataset.guidanceId);
     });
     editor.querySelectorAll("[data-guidance-editor-close]").forEach((button) => {
@@ -306,7 +317,7 @@ export const PROJECT_GUIDANCE_CLIENT_SCRIPT = `
         submit.textContent = submitLabel;
       }
     });
-    const receipt = document.querySelector("[data-guidance-receipt]");
+    const receipt = scope.querySelector("[data-guidance-receipt]");
     try {
       const saved = sessionStorage.getItem("molis-work-guidance-receipt:" + routePrefix);
       sessionStorage.removeItem("molis-work-guidance-receipt:" + routePrefix);
@@ -321,5 +332,8 @@ export const PROJECT_GUIDANCE_CLIENT_SCRIPT = `
       if (mode === "restore") return L("项目说明已恢复，并重新进入 Runtime Prompt。");
       return L("项目说明已新增，并会用于后续 Goal。");
     }
+    };
+    globalThis.molisWorkBindProjectGuidance = bind;
+    bind(document);
   })();
 `;

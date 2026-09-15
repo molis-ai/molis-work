@@ -103,14 +103,5 @@ export const WORK_DIRECTORY_CLIENT = `
         sessionRuntimeFilter.append(option);
       });
   }
-  document.addEventListener("keydown", (event) => {
-    if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "f") return;
-    const activeDirectory = document.querySelector('[data-operation-directory]:not([hidden])');
-    const search = activeDirectory?.querySelector("[data-operation-search]");
-    if (!search) return;
-    event.preventDefault();
-    search.focus();
-  });
-  
 }
 `;

@@ -22,6 +22,7 @@ export {
   THEME_BOOTSTRAP_SCRIPT,
   VISUAL_FOUNDATION_CLIENT_SCRIPT,
   VISUAL_FOUNDATION_STYLES,
+  COSS_CONTROL_STYLES,
   type MolisWorkDensity,
   type MolisWorkTerminalTheme,
   type MolisWorkTheme,

@@ -1,6 +1,8 @@
 import { GOALS_DIALOGS_CLIENT_FACTORY_SCRIPT, GOALS_LIFECYCLE_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-goals";
 import { GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-goals";
 import { FRAME_CONTAINER_FACTORY_SCRIPT } from "./frame-container.js";
+import { TAB_WORKSPACE_FACTORY_SCRIPT } from "./tab-workspace.js";
+import { PROJECT_SETTINGS_STAGE_FACTORY_SCRIPT } from "./project-settings-stage.js";
 import { GOALS_RELATION_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-goals";
 import { GOALS_POLICY_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-goals";
 /** AP3 Workbench client segment: editing-graph. */
@@ -141,11 +143,12 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
         selectGoal: (...args) => selectGoal(...args),
         openFrame: (id) => frameContainer?.openFrame(id),
         isFrameTabActive: () => frameContainer?.isFrameTabActive() === true,
+        isKanbanTabActive: () => frameContainer?.isKanbanTabActive() === true,
         getSelected: () => selected, getSelectedStatuses: () => getSelectedStatuses(),
         queueSave: () => queueSave(), setWorkspaceMode: (...args) => setWorkspaceMode(...args),
         setNavigatorView: (...args) => setNavigatorView(...args),
       });
-    const setWorkspaceMode = (view, persist = true) => {
+    const setWorkspaceMode = (view, persist = true, preserveMobile = false) => {
       const graph = graphElement();
       const nextMode = view === "graph" && graph
         ? "graph"
@@ -162,14 +165,16 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
         documentPane.hidden = false;
         if (tuiPane) tuiPane.hidden = false;
         syncGoalWorkspace(nextMode, true);
+        graphElement()?.removeAttribute("hidden");
         immersiveNavigation?.syncGoalMode(nextMode);
         document.querySelectorAll("button[data-navigator-view]").forEach((button) => {
           const active = button.dataset.navigatorView === navigatorView;
           button.classList.toggle("is-active", active);
           button.setAttribute("aria-selected", String(active));
         });
-        if (matchMedia("(max-width: 760px)").matches) setMobileView("document");
-        else applyMobilePanePresence();
+        if (matchMedia("(max-width: 760px)").matches) {
+          if (!preserveMobile) setMobileView("document");
+        } else applyMobilePanePresence();
         if (persist) queueSave();
         return;
       }
@@ -187,13 +192,14 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
         button.setAttribute("aria-selected", String(active));
         button.setAttribute("tabindex", active ? "0" : "-1");
       });
-      if (graph) graph.hidden = nextMode !== "graph";
+      if (graph && !workspace.querySelector("[data-goal-canvas-shell]")) graph.hidden = nextMode !== "graph";
       if (nextMode === "graph" && !workspace.querySelector("[data-goal-canvas-shell]")) {
         if (graph?.dataset.loaded === "true") updateGraphVisibility();
         else void loadGoalGraph();
       }
-      if (matchMedia("(max-width: 760px)").matches) setMobileView(nextMode === "runtime" ? "tui" : "document");
-      else applyMobilePanePresence();
+      if (matchMedia("(max-width: 760px)").matches) {
+        if (!preserveMobile) setMobileView(nextMode === "runtime" ? "tui" : "document");
+      } else applyMobilePanePresence();
       if (persist) queueSave();
     };
 
@@ -213,6 +219,37 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
       locateGraphNode: (id) => locateGraphNode(id),
       getProjectId: () => state.project?.project_id || state.snapshot.board.board_id,
       route,
+      activateGoalsMother: () => {
+        const current = tabWorkspace?.state?.();
+        const pane = current?.panes?.find((item) => item.id === current.focusedPaneId);
+        const tab = pane?.tabs?.find((item) => item.id === pane.activeTabId);
+        if (tab?.plugin === "goals" && tab.kind === "mother") return;
+        tabWorkspace?.openPlugin("goals");
+      },
+    });
+    tabWorkspace = (${TAB_WORKSPACE_FACTORY_SCRIPT})({
+      translate: L,
+      getSurface: () => activeDesktopSurface,
+      setWorkSurface: (...args) => setDesktopWorkSurface(...args),
+      setDirectory: (...args) => setDesktopDirectory(...args),
+      setWorkspaceMode: (...args) => setWorkspaceMode(...args),
+      setMobileView: (...args) => setMobileView(...args),
+      applySelection: (goalId) => applySelection(goalId, false),
+      locateGraphNode: (id) => locateGraphNode(id),
+      selectFeedItem: (...args) => selectFeedItem(...args),
+      selectInboxEntry: (...args) => selectInboxEntry(...args),
+      getProjectId: () => state.project?.project_id || state.snapshot.board.board_id,
+      visibleGoals: () => visibleGoals(),
+      showCanvas: () => frameContainer?.showCanvas(),
+      restoreBoard: () => frameContainer?.restoreBoard(),
+      releaseFrame: () => frameContainer?.releaseFrame(),
+      isFrameTabActive: () => frameContainer?.isFrameTabActive() === true,
+    });
+    projectSettingsStage = (${PROJECT_SETTINGS_STAGE_FACTORY_SCRIPT})({
+      translate: L, route, localPathname,
+      setDirectory: (...args) => setDesktopDirectory(...args),
+      tabWorkspace: () => tabWorkspace,
+      workspace,
     });
 
 `;

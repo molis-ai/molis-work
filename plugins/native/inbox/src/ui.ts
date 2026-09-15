@@ -61,8 +61,8 @@ export function renderInboxDirectory(model: InboxUiModel): string {
   }).join("");
   return `<section class="desktop-directory-panel" data-directory-panel="inbox" hidden data-inbox-directory data-inbox-current-filter="${filter}">
     <header class="desktop-directory-heading"><button type="button" data-directory-back aria-label="${p.text("返回上一级")}">${p.icon("back")}</button><span><strong>Inbox</strong><small>${p.text("只保留需要你介入的事情")}</small></span></header>
-    <div class="inbox-filter-row" role="group" aria-label="${p.text("Inbox 筛选")}"><button class="${filter === "active" ? "is-active" : ""}" type="button" data-inbox-filter="active">${p.text("待处理")}</button><button class="${filter === "history" ? "is-active" : ""}" type="button" data-inbox-filter="history">${p.text("历史")}</button></div>
-    <div class="feed-item-scroll" data-inbox-list role="listbox" aria-label="${p.text("Inbox 列表")}">${rows}<div class="feed-list-empty" data-inbox-empty${visible.length ? " hidden" : ""}>${p.icon("input")}<strong data-inbox-empty-title>${p.escape(emptyTitle(filter, p))}</strong><p data-inbox-empty-copy>${p.escape(emptyCopy(filter, p))}</p></div></div>
+    <div class="inbox-filter-row" data-directory-list-actions role="group" aria-label="${p.text("Inbox 筛选")}"><button class="${filter === "active" ? "is-active" : ""}" type="button" data-inbox-filter="active">${p.text("待处理")}</button><button class="${filter === "history" ? "is-active" : ""}" type="button" data-inbox-filter="history">${p.text("历史")}</button></div>
+    <div class="feed-item-scroll" data-inbox-list role="listbox" aria-label="${p.text("Inbox 列表")}">${rows}<div class="feed-list-empty" data-inbox-empty${visible.length ? " hidden" : ""}>${p.icon("input")}<strong data-inbox-empty-title>${p.escape(emptyTitle(filter, p))}</strong></div></div>
   </section>`;
 }
 
@@ -71,9 +71,10 @@ export function renderInboxWorkbench(model: InboxUiModel): string {
   const visible = model.entries.filter((entry) => matchesFilter(entry, filter));
   const initial = visible[0] ?? null;
   const details = model.entries.map((entry) => renderInboxDetail(entry, entry.entry_id === initial?.entry_id, p)).join("");
+  const emptyHeading = visible.length ? p.text("选择一条需要处理的事项") : emptyTitle(filter, p);
   return `<section class="desktop-work-surface" data-work-surface="inbox" data-work-surface-label="Inbox" hidden data-inbox-workbench>
     ${details}
-    <div class="feed-detail-empty" data-inbox-detail-empty${initial ? " hidden" : ""}>${p.icon("input")}<h1>${p.text("选择一条需要处理的事项")}</h1><p>${p.text("Inbox 只保留需要介入的引用，不复制原消息。")}</p></div>
+    <div class="feed-detail-empty" data-inbox-detail-empty${initial ? " hidden" : ""}>${p.icon("input")}<h1>${emptyHeading}</h1></div>
   </section>`;
 }
 
@@ -86,7 +87,6 @@ function renderInboxDetail(entry: InboxUiEntry, selected: boolean, p: InboxUiPri
   return `<article class="feed-detail feed-detail--attention inbox-reference-detail" data-inbox-detail="${p.escape(entry.entry_id)}" data-inbox-subject-type="${entry.subject_type}"${selected ? "" : " hidden"}>
     <header class="feed-detail-header"><div class="feed-detail-kicker"><span>${p.escape(entry.kind_label)}</span><span>${p.escape(entry.source_label)}</span><span>${p.escape(entry.status_label)}</span></div><h1>${p.escape(entry.title)}</h1><div class="feed-detail-actions">${openAction}${resultActions}</div><p class="feed-action-status" data-inbox-action-status role="status" hidden></p></header>
     <section class="inbox-attention-context" aria-label="${p.text("处理上下文")}"><dl><div><dt>${p.text("为什么进入 Inbox")}</dt><dd>${p.escape(entry.reason_label)}</dd></div><div><dt>${p.text("关联对象")}</dt><dd>${p.escape(entry.relation_label)}</dd></div><div class="inbox-attention-next"><dt>${p.text("下一步")}</dt><dd>${p.escape(entry.next_action)}</dd></div><div><dt>${p.text("当前状态")}</dt><dd>${p.escape(entry.status_label)}</dd></div></dl></section>
-    <p class="prototype-honesty-note">${p.icon("link")}${p.text("Inbox 只保存这条引用和进入原因；原对象内容没有复制到这里。")}</p>
   </article>`;
 }
 
@@ -109,10 +109,4 @@ function matchesFilter(entry: InboxUiEntry, filter: InboxUiFilter): boolean {
 
 function emptyTitle(filter: InboxUiFilter, p: InboxUiPrimitives): string {
   return filter === "history" ? p.text("没有已完成或已忽略的事项") : p.text("现在没有需要你介入的事项");
-}
-
-function emptyCopy(filter: InboxUiFilter, p: InboxUiPrimitives): string {
-  return filter === "history"
-    ? p.text("完成或忽略的事项会留在这里，原对象不会被删除。")
-    : p.text("Goal 待判断、来源故障和你从 Feed 加入的消息会出现在这里。");
 }

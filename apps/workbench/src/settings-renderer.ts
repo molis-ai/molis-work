@@ -1,11 +1,12 @@
 import { CONTROL_CLIENT_SCRIPT, PROJECT_INDEX_CLIENT_SCRIPT, SETTINGS_CLIENT_SCRIPT } from "./browser-assets.js";
 import type { RuntimeIntegrationDetection } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { MolisWorkSettingsView } from "./settings-view.js";
+import type { MolisWorkSettingsView, WebSettingsProject } from "./settings-view.js";
 import type { createWorkbenchSettingsNavigation } from "./settings-navigation.js";
+import { createProjectSettingsFolds } from "./project-settings-folds.js";
 export interface SettingsRenderPrimitives {
   L(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;
-  icon(name: "check" | "sun" | "moon" | "system" | "workflow" | "folder" | "settings" | "chevron-down" | "database" | "refresh" | "x" | "brand" | "blocked" | "tree", className?: string): string;
+  icon(name: "check" | "sun" | "moon" | "system" | "workflow" | "folder" | "settings" | "chevron-down" | "chevron-right" | "database" | "refresh" | "x" | "brand" | "blocked" | "tree" | "plus" | "book" | "shield", className?: string): string;
   currentLocale(): string;
   localeSwitchHref(locale: "zh" | "en", nextPath: string): string;
   htmlLang(): string;
@@ -23,6 +24,7 @@ export function createWorkbenchSettingsRenderer(primitives: SettingsRenderPrimit
   const { L, escapeHtml, icon, currentLocale, localeSwitchHref, htmlLang, controlTokenMeta, clientI18nScript, renderIconSprite,
     withDesktopQuery, settingsContextHref, renderSettingsNavigation, renderProjectMigrationDialog,
     themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT, visualFoundationClientScript: VISUAL_FOUNDATION_CLIENT_SCRIPT } = primitives;
+  const folds = createProjectSettingsFolds({ L, escapeHtml, icon, withDesktopQuery });
 function runtimeStatePresentation(state: RuntimeIntegrationDetection["connection_state"]): {
   label: string;
   tone: "neutral" | "success" | "warning" | "danger";
@@ -101,26 +103,77 @@ function renderRuntimeSettings(view: MolisWorkSettingsView): string {
   </section>`;
 }
 
-function renderProjectSettings(view: MolisWorkSettingsView): string {
+function projectKindShort(project: WebSettingsProject): string {
+  if (project.data_class === "regenerable_demo") return L("演示数据");
+  if (project.data_class === "migrated_user") return L("已迁移");
+  return L("本地项目");
+}
+
+function renderProjectDetail(project: WebSettingsProject, selected: boolean, desktopShell: boolean): string {
+  const id = project.project_id;
+  const safe = escapeHtml(id);
+  const href = `/projects/${encodeURIComponent(id)}`;
+  return `<article class="project-manager-detail" data-project-pane="${safe}" data-route-prefix="${href}"${selected ? "" : " hidden"} aria-labelledby="project-pane-title-${safe}">
+    ${folds.renderProjectSettingsHero(project, { headingTag: "h2", showOpenTree: true })}
+    <p class="settings-footnote">${L("项目说明、工作规则和工作规划请在项目工作台的齿轮里打开。")}</p>
+    ${folds.renderGeneralBody(project)}
+    ${folds.renderDanger(project)}
+    ${folds.renderProjectDeleteDialog(project, desktopShell)}
+  </article>`;
+}
+
+function renderProjectSettings(view: MolisWorkSettingsView, desktopShell: boolean): string {
   const demo = view.projects.find((project) => project.data_class === "regenerable_demo");
-  const rows = view.projects.map((project) => `<article class="settings-record project-record" data-project-row="${escapeHtml(project.project_id)}">
-    <header>
-      <div class="settings-record-title"><span class="record-icon">${icon("folder")}</span><div><h2>${escapeHtml(project.display_name)}</h2><p>${project.data_class === "regenerable_demo" ? L("演示数据 · 可随时重建，不属于用户项目") : project.source === "migrated" ? L("用户数据 · 由已有 Molis Work 数据迁入") : L("用户数据 · 在 Molis Work 中创建")}</p></div></div>
-      <div class="settings-record-action">${project.data_class === "regenerable_demo" ? `<span class="settings-state settings-state--warning">${L("可重建 demo")}</span>` : `<span class="settings-state settings-state--success">${L("用户数据")}</span>`}<a class="settings-button" href="/projects/${encodeURIComponent(project.project_id)}/settings/general">${L("基本信息")}</a><a class="settings-button" href="/projects/${encodeURIComponent(project.project_id)}/settings/guidance">${L("项目说明")}</a><a class="settings-button" href="/projects/${encodeURIComponent(project.project_id)}/settings/rules">${L("工作规则")}</a><a class="settings-button" href="/projects/${encodeURIComponent(project.project_id)}/settings/planning">${L("工作规划")}</a><a class="settings-button" href="/projects/${encodeURIComponent(project.project_id)}/">${L("打开 Goal Tree")}</a></div>
-    </header>
-    <div class="project-record-tools">
-      <details><summary>${icon("settings")}<span>${L("改名")}</span>${icon("chevron-down")}</summary><form data-project-rename="${escapeHtml(project.project_id)}"><label>${L("项目名称")}<input name="display_name" value="${escapeHtml(project.display_name)}" required maxlength="160"></label><p class="settings-form-error" role="alert" hidden></p><button type="submit">${L("保存名称")}</button></form></details>
-      <details><summary>${icon("database")}<span>${L("存储信息")}</span>${icon("chevron-down")}</summary><dl class="project-db-details"><div><dt>${L("项目 ID")}</dt><dd>${escapeHtml(project.project_id)}</dd></div><div><dt>${L("数据文件")}</dt><dd>${escapeHtml(project.database_path)}</dd></div></dl></details>
-      ${project.data_class === "regenerable_demo" ? `<details><summary>${icon("refresh")}<span>${L("重建或删除 demo")}</span>${icon("chevron-down")}</summary><div class="connection-action-form connection-action-form--danger"><p class="settings-footnote">${L("重建会清除你在 demo 中做的改动；删除只移除这个可重建项目，不影响用户项目。")}</p><p class="settings-form-error" data-demo-error role="alert" hidden></p><div class="service-action-row"><button type="button" data-demo-action="reset">${L("重建 demo")}</button><button type="button" data-demo-action="remove">${L("删除 demo")}</button></div></div></details>` : ""}
+  const selectedId = view.projects[0]?.project_id ?? "create";
+  const rows = view.projects.map((project) => {
+    const safe = escapeHtml(project.project_id);
+    const checked = project.project_id === selectedId ? " checked" : "";
+    return `<label class="project-manager-row" data-project-row="${safe}"><input type="radio" name="project-focus" value="${safe}"${checked}><span><strong>${escapeHtml(project.display_name)}</strong><small>${projectKindShort(project)}</small></span></label>`;
+  }).join("");
+  const createChecked = selectedId === "create" ? " checked" : "";
+  const details = view.projects.map((project) => renderProjectDetail(project, project.project_id === selectedId, desktopShell)).join("");
+  return `<section class="project-manager" data-project-manager aria-labelledby="settings-title">
+    <aside class="project-manager-index">
+      <header class="project-manager-index-chrome">
+        <h1 id="settings-title">${L("项目")}</h1>
+        <p>${L("本机 {count} 个项目", { count: view.projects.length })}</p>
+      </header>
+      <div class="project-manager-list">
+        <div class="project-manager-rows" role="radiogroup" aria-label="${L("选择要配置的项目")}">
+          ${rows}
+          <input id="project-focus-create" class="project-manager-create-input" type="radio" name="project-focus" value="create"${createChecked}>
+        </div>
+        ${view.projects.length ? "" : `<p class="project-manager-empty">${L("还没有项目")}</p>`}
+      </div>
+      <footer class="project-manager-index-actions">
+        <label class="project-manager-ghost" for="project-focus-create">${icon("plus")}<span>${L("新建项目")}</span></label>
+        <button type="button" data-open-project-migration>${icon("folder")}<span>${L("导入")}</span></button>
+      </footer>
+    </aside>
+    <div class="project-manager-stage">
+      ${details}
+      <article class="project-manager-detail" data-project-pane="create"${selectedId === "create" ? "" : " hidden"} aria-labelledby="create-project-title">
+        <header class="project-manager-hero">
+          <div>
+            <h2 id="create-project-title">${L("创建项目")}</h2>
+            <p>${L("创建一个空的 Molis Work 项目，然后直接打开它的 Goal Tree。")}</p>
+          </div>
+        </header>
+        <form class="inline-settings-form project-manager-create-form" data-project-create>
+          <label>${L("项目名称")}<input name="display_name" required maxlength="160" placeholder="${L("例如：新产品发布")}"></label>
+          <label class="inline-confirm"><input type="checkbox" name="user_confirmed"><span>${L("确认创建这个项目")}</span></label>
+          <p class="settings-form-error" role="alert" hidden></p>
+          <button type="submit">${L("创建并打开")}</button>
+        </form>
+        <section class="project-manager-section" aria-labelledby="import-project-title">
+          <h3 id="import-project-title">${L("导入已有 Molis Work 数据")}</h3>
+          <p>${L("选择并确认数据文件后，Molis Work 会把它作为一个独立项目保存。")}</p>
+          <button type="button" data-open-project-migration>${L("选择数据文件并预览")}</button>
+        </section>
+        ${demo ? "" : `<section class="project-manager-section" aria-labelledby="demo-project-title"><h3 id="demo-project-title">${L("产品示例")}</h3><p>${L("创建一份明确标记为可重建的示例数据；普通卸载会清理它，但保留用户项目。")}</p><button type="button" data-demo-action="create">${L("创建示例项目")}</button><p class="settings-form-error" data-demo-error role="alert" hidden></p></section>`}
+        <p class="settings-footnote">${view.projects.length ? L("普通用户项目不会被示例操作或普通卸载删除；永久清除用户数据需要单独确认精确数据目录和项目数量。") : L("创建第一个项目，或导入已有 Molis Work 数据。")}</p>
+      </article>
     </div>
-  </article>`).join("");
-  return `<section class="settings-document" aria-labelledby="settings-title">
-    <header class="settings-heading"><h1 id="settings-title">${L("项目设置")}</h1><p>${L("先选择要配置的项目，再进入它的工作规则或工作规划。每个项目单独保存自己的 Goal、记录和项目专用设置。")}</p></header>
-    <div class="settings-body"><section class="settings-action-section" aria-labelledby="create-project-title"><div><h2 id="create-project-title">${L("创建项目")}</h2><p>${L("创建一个空的 Molis Work 项目，然后直接打开它的 Goal Tree。")}</p></div><form class="inline-settings-form" data-project-create><label>${L("项目名称")}<input name="display_name" required maxlength="160" placeholder="${L("例如：新产品发布")}"></label><label class="inline-confirm"><input type="checkbox" name="user_confirmed"><span>${L("确认创建这个项目")}</span></label><p class="settings-form-error" role="alert" hidden></p><button type="submit">${L("创建并打开")}</button></form></section>
-    <section class="settings-action-section" aria-labelledby="demo-project-title"><div><h2 id="demo-project-title">${L("产品示例")}</h2><p>${demo ? L("示例项目已单独标记为可重建数据，可以放心重置或删除。") : L("创建一份明确标记为可重建的示例数据；普通卸载会清理它，但保留用户项目。")}</p></div>${demo ? `<a class="settings-button" href="/projects/${encodeURIComponent(demo.project_id)}/">${L("打开示例")}</a>` : `<button type="button" data-demo-action="create">${L("创建示例项目")}</button>`}<p class="settings-form-error" data-demo-error role="alert" hidden></p></section>
-    <div class="settings-record-list project-settings-list">${rows || `<div class="settings-empty"><h2>${L("还没有项目")}</h2><p>${L("在上方创建第一个项目，或从下方导入一份已有 Molis Work 数据。")}</p></div>`}</div>
-    <section class="settings-import-row"><div><h2>${L("导入已有 Molis Work 数据")}</h2><p>${L("选择并确认数据文件后，Molis Work 会把它作为一个独立项目保存。")}</p></div><button type="button" data-open-project-migration>${L("选择数据文件并预览")}</button></section>
-    <p class="settings-footnote">${L("普通用户项目不会被示例操作或普通卸载删除；永久清除用户数据需要单独确认精确数据目录和项目数量。")}</p></div>
   </section>`;
 }
 
@@ -184,7 +237,7 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
     : view.section === "runtimes"
       ? renderRuntimeSettings(view)
       : view.section === "projects"
-        ? renderProjectSettings(view)
+        ? renderProjectSettings(view, desktopShell)
         : renderDiagnosticsSettings(view);
   return `<!doctype html>
 <html lang="${htmlLang()}">

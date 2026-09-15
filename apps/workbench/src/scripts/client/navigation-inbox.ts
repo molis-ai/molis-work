@@ -39,12 +39,8 @@ export const CLIENT_NAVIGATION_INBOX_SCRIPT = `
       const visible = rows.find((row) => !row.hidden);
       const empty = inboxList?.querySelector("[data-inbox-empty]");
       const emptyTitle = empty?.querySelector("[data-inbox-empty-title]");
-      const emptyCopy = empty?.querySelector("[data-inbox-empty-copy]");
       if (empty) empty.hidden = Boolean(visible);
       if (emptyTitle) emptyTitle.textContent = next === "history" ? L("没有已完成或已忽略的事项") : L("现在没有需要你介入的事项");
-      if (emptyCopy) emptyCopy.textContent = next === "history"
-        ? L("完成或忽略的事项会留在这里，原对象不会被删除。")
-        : L("Goal 待判断、来源故障和你从 Feed 加入的消息会出现在这里。");
       selectInboxEntry(visible?.dataset.inboxEntryId || "", persist);
     };
 `;

@@ -12,55 +12,45 @@ import { sendLocalWebJson as sendJson } from "./web-http.js";
 
 export function createLocalGoalsReadHttp(ports: {
   withCatalog: LocalWebCatalogRunner;
-  renderer: Pick<ReturnType<typeof createLocalHostWorkbenchRenderer>, "renderMolisWorkProjectGeneralSettings" | "renderMolisWorkMomentumFragment" | "renderMolisWorkProjectGuidanceSettings" | "renderMolisWorkProjectSettings" | "renderMolisWorkRefreshFragment" | "renderMolisWorkWeb" | "renderGoalDocumentFragment">;
+  renderer: Pick<ReturnType<typeof createLocalHostWorkbenchRenderer>, "renderMolisWorkProjectSettingsHub" | "renderMolisWorkMomentumFragment" | "renderMolisWorkRefreshFragment" | "renderMolisWorkWeb" | "renderGoalDocumentFragment">;
   isDesktopShellRequest(request: IncomingMessage, url: URL): boolean;
   pageCsp: string;
   sessionProjectOperationsData: ReturnType<typeof createSessionProjectOperations>;
 }) {
   const { withCatalog: withMolisWorkProjectCatalog, isDesktopShellRequest, pageCsp: PAGE_CSP, sessionProjectOperationsData } = ports;
-  const { renderMolisWorkProjectGeneralSettings, renderMolisWorkMomentumFragment, renderMolisWorkProjectGuidanceSettings, renderMolisWorkProjectSettings, renderMolisWorkRefreshFragment, renderMolisWorkWeb, renderGoalDocumentFragment } = ports.renderer;
+  const { renderMolisWorkProjectSettingsHub, renderMolisWorkMomentumFragment, renderMolisWorkRefreshFragment, renderMolisWorkWeb, renderGoalDocumentFragment } = ports.renderer;
   function settings(request: IncomingMessage, response: ServerResponse, url: URL, boardId: string,
     readWebView: () => MolisWorkWebView, coordinator: GoalProjectApplication, controlToken: string,
   ): boolean {
-    if (request.method === "GET" && url.pathname === "/settings/general") {
+    const open = url.pathname === "/settings/guidance" ? "guidance"
+      : url.pathname === "/settings/rules" ? "rules"
+      : url.pathname === "/settings/planning" ? "planning"
+      : url.pathname === "/settings/general" || url.pathname === "/settings" ? "general"
+      : null;
+    if (request.method === "GET" && open) {
       const view = readWebView();
       if (!view.project) {
         sendJson(response, 404, { error: "找不到这个 Molis Work 项目" });
         return true;
       }
-      response.writeHead(200, {
-        "content-type": "text/html; charset=utf-8",
-        "cache-control": "no-store",
-        "content-security-policy": PAGE_CSP,
-      });
-      response.end(renderMolisWorkProjectGeneralSettings(view.project, view.projects, controlToken, isDesktopShellRequest(request, url)));
-      return true;
-    }
-    if (request.method === "GET" && url.pathname === "/settings/guidance") {
-      response.writeHead(200, {
-        "content-type": "text/html; charset=utf-8",
-        "cache-control": "no-store",
-        "content-security-policy": PAGE_CSP,
-      });
-      response.end(renderMolisWorkProjectGuidanceSettings(
-        readWebView(),
+      const embed = url.searchParams.get("embed") === "1";
+      if (!embed) return false;
+      const html = renderMolisWorkProjectSettingsHub(
+        view,
         coordinator.goalQueries.readProjectGuidance(boardId),
+        coordinator.goals.planning.effectiveMethods(boardId),
         controlToken,
         isDesktopShellRequest(request, url),
-      ));
-      return true;
-    }
-    if (request.method === "GET" && url.pathname === "/settings/rules") {
+        open,
+        open,
+      );
       response.writeHead(200, {
         "content-type": "text/html; charset=utf-8",
         "cache-control": "no-store",
         "content-security-policy": PAGE_CSP,
+        "x-content-type-options": "nosniff",
       });
-      response.end(renderMolisWorkProjectSettings(
-        readWebView(),
-        controlToken,
-        isDesktopShellRequest(request, url),
-      ));
+      response.end(html);
       return true;
     }
     return false;

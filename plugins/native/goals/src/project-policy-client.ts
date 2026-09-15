@@ -1,10 +1,15 @@
 export const PROJECT_RULES_CLIENT_SCRIPT = `
   (() => {
-    const form = document.querySelector("[data-policy-form]");
-    if (!form) return;
-    const routePrefix = document.body.dataset.routePrefix || "";
+    const bind = (root = document) => {
+    const scope = root && root.querySelector ? root : document;
+    const form = scope.querySelector("[data-policy-form]");
+    if (!form || form.dataset.bound === "1") return;
+    form.dataset.bound = "1";
+    const routePrefix = (scope.closest && scope.closest("[data-route-prefix]"))?.dataset.routePrefix
+      || scope.dataset?.routePrefix
+      || document.body.dataset.routePrefix || "";
     const receiptKey = "molis-work-project-rules-receipt:" + routePrefix;
-    const receipt = document.querySelector("[data-project-rules-receipt]");
+    const receipt = scope.querySelector("[data-project-rules-receipt]");
     const errorBox = form.querySelector("[data-policy-error]");
     const submit = form.querySelector('button[type="submit"]');
     try {
@@ -103,5 +108,8 @@ export const PROJECT_RULES_CLIENT_SCRIPT = `
         submit.textContent = submitLabel;
       }
     });
+    };
+    globalThis.molisWorkBindProjectRules = bind;
+    bind(document);
   })();
 `;

@@ -50,6 +50,7 @@ export * from "./momentum-model.js";
 export { buildGoalMomentumView } from "./momentum-view.js";
 export * from "./momentum-ui-model.js";
 export * from "./momentum-ui.js";
+export * from "./kanban-ui.js";
 export { GOALS_WORKSPACE_EN } from "./workspace-en.js";
 export { GOALS_MOMENTUM_EN } from "./momentum-en.js";
 export * from "./momentum-client.js";

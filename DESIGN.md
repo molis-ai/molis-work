@@ -61,9 +61,9 @@ typography:
 rounded:
   home-composer: "23px"
   item: "6px"
-  control: "8px"
+  control: "10px"
   transient: "10px"
-  surface: "14px"
+  surface: "12px"
   canvas-node: "12px"
 spacing:
   xs: "4px"
@@ -78,8 +78,8 @@ components:
     backgroundColor: "{colors.action}"
     textColor: "{colors.action-ink}"
     rounded: "{rounded.control}"
-    padding: "10px 14px"
-    height: "38px"
+    padding: "0 12px"
+    height: "32px"
   button-event-primary:
     backgroundColor: "{colors.accent}"
     textColor: "{colors.action-ink}"
@@ -140,6 +140,17 @@ The immersive project workbench supersedes the older shell and Goal-layout descr
 - Goals, Sessions, Inbox, Feed and Artifacts are bundled project plugins. Existing projects retain their previous entries on catalog migration; projects that already have Feed also receive Inbox. New projects start with Goals. Market activation is project-local and persistent. Enabling Feed also enables Inbox. Inbox owns attention; Feed owns the source stream and Sources. Artifacts uses the owner-rendered exact-version directory/detail within the stage; downloads preserve their exact version.
 - Native drag regions remain in the shell. Packaged macOS titlebar/traffic-light alignment has not been reverified; the 32px web implementation is not proof of a rebuilt native window.
 - Evidence: `.impeccable/review/production-*.png`, the implementation progress record, production HTTP/SQLite tests and browser paths. Functional level 3; no release or installation claim.
+
+## Current workbench — 2026-09-15
+
+Project home and the list under each plugin share one Calm Desktop family. Authority: `specs/home-directory-visual-unify/spec.md`.
+
+- Destinations stay Codex-quiet: icon plus name, current item by weight and ink, no raised chip. Plugin market sits last, with a small gap before the list; there is no hairline between destinations and the list. Authority for removing that line: `specs/directory-list-divider/spec.md`.
+- The directory account row is 36px on desktop (44px in the phone drawer), two-line name and space, same graphite field, with no hairline above the footer or the shortcut section. Authority: `specs/directory-account-compact/spec.md`.
+- List chrome titles use the same 12px / 500 muted caption as the home year and month.
+- Control language (buttons, fields, dialogs, menus) follows Coss UI on the existing HTML stack: 10px control corners, 12px dialog corners, near-black primary, ink-tint secondary, translucent borders. Directory rows, poetic home, and the Goal canvas keep Calm Desktop geometry. Authority: `specs/coss-control-language/spec.md`.
+- Goals remain 32px single-line rows with 13px / 450 titles and text status. Sessions, Inbox, Feed, Sources and Artifacts use 44px two-line rows: the same title, one 11px muted fact, flat `nav-active` selection. Directory lists do not show summaries, type chips or count footers.
+- The home list region is blank. The poetic stage still holds date, quotation, calendar, shortcuts and the disabled composer.
 
 ## Overview
 
@@ -217,7 +228,7 @@ In macOS Overlay mode, `--desktop-titlebar-height` reserves a 48px native-chrome
 
 Project and Global Settings use the same titlebar rhythm: a 48px native band aligned with the right-side title, the existing project-controls row, then one 50px scope heading in the directory. Settings and project-index topbars do not make their outer containers draggable; only plain-text context or otherwise empty spacer regions may drag the window. The directory resizer starts at grid row 2, below the titlebar band, and utility tabs stay on one line. These Overlay rules do not change ordinary Web or the Companion at 760px and below.
 
-The titlebar contains the current project selector, its real project dropdown, and a separate project-settings control. The directory root begins immediately below it with 项目首页, Goals, Sessions, Inbox, Feed, and Artifacts, without permanent group headings or a resident search field. Goals and Sessions stay adjacent because they are sibling project work types. Sessions owns Runtime execution identity, readable execution history, Goal history, and the working-directory choice used to create, link, or hand off work. Connector remains the available capability behind a Source instance. Feed is the complete source-message fact stream, with Sources inside that plugin; Inbox only keeps references and internal matters that need intervention, with a visible reason and next step. Switching back to Goals restores its selected Goal, reading state, open Goal tabs, and canvas view; Terminal ownership remains with Work.
+The titlebar contains the current project selector, its real project dropdown, a search control beside the selector, and a separate project-settings control. Clicking search opens a centered command palette grouped by plugin; it is not a resident field in the root directory. The directory root begins immediately below it with 项目首页, Goals, Sessions, Inbox, Feed, and Artifacts, without permanent group headings. Goals and Sessions stay adjacent because they are sibling project work types. Sessions owns Runtime execution identity, readable execution history, Goal history, and the working-directory choice used to create, link, or hand off work. Connector remains the available capability behind a Source instance. Feed is the complete source-message fact stream, with Sources inside that plugin; Inbox only keeps references and internal matters that need intervention, with a visible reason and next step. Switching back to Goals restores its selected Goal, reading state, open Goal tabs, and canvas view; Terminal ownership remains with Work.
 
 A Session detail reuses the compact metadata → title → actions → main work surface order. Runtime, Session ID, state, the two primary actions, and the visible Level 2 demo boundary stay above the work surface without becoming a separate marketing Hero. Project, current Goal, workspace, Goal history, archive, and compatibility facts live in the contextual rail. Execution content owns the flexible majority of the desktop stage while Goal history remains visible beside it; at 760px and below, the detail stacks execution before Goal context and identity. Handoff requires a current Goal and always creates a new destination Session. Narrow-screen actions provide at least 44px touch targets.
 
@@ -225,11 +236,11 @@ Project is the global scope selector, not one side of a Project / Sessions switc
 
 Sessions inherits the existing Goal list / Goal Detail layout contract instead of defining a parallel management system. Its subdirectory uses the same compact heading, tool rhythm, row hierarchy, flat selected location, focus behavior, and pinned count footer as the Goal Tree; its detail uses the same page background, title scale, metadata/action hierarchy, related-paper work surface, and contextual rail. Working-directory selection appears only inside Session creation, linking, handoff, and relationship controls. Root entries never expose browser link underlines, and every return affordance uses a left arrow because it moves back to the project root.
 
-Entering Goals replaces the root directory in the same column with the original Goal Tree. Parent-child expansion, status filtering, creation, list/canvas navigation, archive, and trash remain available through a compact heading and on-demand tools. Entering Inbox opens the attention directory. Entering Feed opens the source-message directory; Sources remain a Feed-internal surface. Search and one filter trigger share a single compact row; source, status, and sorting progressively disclose in a Goal Tree-style anchored panel instead of standing native selects. Every subdirectory has a visible back action that returns to the root.
+Entering Goals replaces the root directory in the same column with the original Goal Tree. Parent-child expansion, status filtering, creation, archive, and trash sit on the same row as the plugin title. Entering Inbox opens the attention directory with 待处理 / 历史 on that same title row. Entering Feed leaves only destinations on the left. The stage is the Feed directory: 全部, each source task, inline items, and inline item detail. Sources are tasks inside that directory, not a second destination or Feed / 来源 tabs. Keyword search lives beside the project selector, not inside each plugin list. Source, status, and sorting still disclose in an anchored panel instead of standing native selects.
 
 The project Goal canvas shows the real dependency graph. Arrows run from provider to consumer; parent membership is a separate 属于 label. Completed nodes remain visible with a quieter fill. Users pan empty space, drag compact nodes, zoom, or fit the whole graph; these are local view changes. Clicking a node or list entry opens the same Goal. The canvas does not edit dependencies or dispatch work.
 
-**The Account Footer Rule.** The directory footer stays pinned to the bottom and shows the local identity and local-space state. In the immersive workbench, its own styles apply at every width, including the mobile drawer: name and space stay on separate lines, the link uses the current theme's ink without an underline, and the centered avatar and Settings icon keep their dimensions while long text shrinks and truncates within its own column. Its Settings control always enters global settings. Project settings remain beside the project selector at the top, so project scope and device scope cannot be mistaken for one another.
+**The Account Footer Rule.** The directory footer stays pinned to the bottom and shows the local identity and local-space state. In the immersive workbench, its own styles apply at every width, including the mobile drawer: name and space stay on separate lines, the link uses the current theme's ink without an underline, and the centered avatar and Settings icon keep their dimensions while long text shrinks and truncates within its own column. There is no hairline above the footer. Its Settings control always enters global settings. Project settings remain beside the project selector at the top, so project scope and device scope cannot be mistaken for one another.
 
 The right workbench begins with project-scoped work tabs. Opening a Goal creates or reuses its tab; the current project may retain at most eight Goal tabs in local device storage. Closing an inactive tab only removes it, while closing the active tab selects an adjacent Goal and preserves at least one displayable Goal. Switching projects restores that project's own tab set. Goal selection continues to use the existing asynchronous document loading, history, write actions, and Goal-bound Runtime.
 
@@ -243,17 +254,17 @@ At 760px and below, the frame is 10px and the work area stacks foldable Goal inf
 
 Project Settings and Global Settings reuse the same single-directory / work-surface language. Project Settings contains the current project's Work Rules and Work Planning; Global Settings contains device-level Appearance & Language, AI & Execution Tools, and Diagnostics. Headers, directory labels, close/return behavior, and explanatory copy state the active scope.
 
-At 760px and below, the shell still moves between the root, current list, and its work surface. Goals preserves a path back to its list; the expanded work area contains foldable Goal info, Runtime, and timeline together. Feed keeps its Item / Detail navigation. Browser Web and Desktop share the adaptive DOM; native traffic-light spacing, drag regions, and Tauri abilities remain platform-specific.
+At 760px and below, the shell still moves between the root, current list, and its work surface. Goals preserves a path back to its list; the expanded work area contains foldable Goal info, Runtime, and timeline together. Feed keeps the expandable stage directory on the document surface. Browser Web and Desktop share the adaptive DOM; native traffic-light spacing, drag regions, and Tauri abilities remain platform-specific.
 
-**The One Directory Rule.** The root modules, Goal Tree, Feed Item list, Sessions, and settings navigation all use one left directory; project context belongs to the titlebar. Goals, the Feed Workbench, and Sessions replace the root only while active, and their back action restores it. Working-directory choice stays inside Session actions rather than becoming another root module. Never add a second persistent navigation column.
+**The One Directory Rule.** The root modules, Goal Tree, Sessions, Inbox, Artifacts, and settings navigation all use one left directory; project context belongs to the titlebar. Feed is the exception: destinations stay on the left, and the Feed directory lives on the stage. Never add a second persistent navigation column.
 
-**The Project Tabs Rule.** Work tabs belong to one project, reuse existing Goals, persist locally, and never become a second source of Goal truth.
+**The Project Tabs Rule.** Work tabs live in the 32px titlebar, using the Goal container-tab language: flat text, a 2px current marker, always-visible close. Plugin groups are a colored left bar plus the plugin name; they are not a second row of tabs. Each plugin has a mother page tab (Goals = 画布, other plugins = 全部) and an item tab for each opened object. Canvas and board are views of the Goals mother page, switched from a corner control on that page. Titlebar Frame tabs appear only while a Goal Frame is open. Split panes keep a strip on unfocused panes. The same item may appear in more than one pane. Tabs, groups, and pane layout persist per project on this device. They never become a second source of Goal truth. Authority: `specs/workbench-tab-workspace/spec.md`.
 
 **The Native Chrome Safe-Zone Rule.** In macOS Overlay mode, reserve the 48px titlebar band and calibrate native traffic-light inset against the visible center of the left project controls in a real packaged window. Collapsing the directory preserves that same inset before the reveal control and expands the collapsed rail just enough to contain it; work tabs begin after the rail. Only empty or plain-text titlebar regions may drag; tabs, buttons, interactive containers, and the resizer never overlap the traffic lights or inherit drag behavior. The directory and work surface separate through a quiet tonal shift, never a full-height border or standing shadow; the resize gutter only appears on interaction.
 
 **The Compact State Tag Rule.** A Goal state is one visual tag. Directory layout wrappers may place the tag but never draw a second border or background around it, including under compact-density overrides.
 
-**The First-Viewport Rule.** Project home is the daily arrival surface. Entering Goals shows the dependency canvas; opening a Goal keeps current facts, the explicit Terminal entry and timeline together according to the current workbench frame. The disabled home composer never replaces the Goal's working Runtime.
+**The First-Viewport Rule.** Project home is the daily arrival surface and the default work tab. Opening a plugin adds that plugin's mother tab; Goals' mother tab is the dependency canvas. Opening a Goal, Session, Feed item, or Inbox row adds an item tab in the focused pane. The disabled home composer never replaces the Goal's working Runtime.
 
 **The Current-Summary Rule.** Goal info reads live `readState`, including requirement support, concerns, and pending decisions; it does not recompute completion. Selecting history only changes its inline event body. Neither absent activity nor missing requirements proves work has started.
 
@@ -277,7 +288,7 @@ The system uses shallow, persistent layering. The directory and workbench separa
 
 The home composer uses the softly rounded home-composer token and a single-line input within a 76px-high surface, reduced to 70px on narrow stages. Shortcut icons sit in 43px circles; the editor uses a 15px corner and stays inside the viewport. These home shapes do not change Goal state tags or ordinary form controls.
 
-Compact controls use 6–8px corners. Existing project selection and settings retain their rounded controls. Compact canvas nodes use 12px corners; the expanded Goal uses 14px on desktop and 10px on mobile. Goal info is a compact 12px rounded popover inspired by the approved Codex environment-info reference. Timeline rows and event buttons use 6px corners, event-form fields 5px, and timeline markers remain small circles on a thin rail.
+Compact directory rows keep 6px corners. Buttons, inputs and menus use 10px; dialogs and popovers use 12px. Compact canvas nodes use 12px corners; the expanded Goal uses 14px on desktop and 10px on mobile. The home composer keeps its 23px token. Goal info is a compact 12px rounded popover inspired by the approved Codex environment-info reference. Timeline rows and event buttons use 6px corners, event-form fields 5px, and timeline markers remain small circles on a thin rail.
 
 Goal state is always a compact bounded tag: 5–6px corners, a one-pixel semantic border, a quiet semantic tint, a Lucide icon, and readable text. Tags are labels rather than pills; they never use a full-radius capsule and never rely on color alone.
 
@@ -291,63 +302,64 @@ The date, quotation and month calendar provide quiet local context. The calendar
 
 Quotations rotate every five seconds with a half-second fade in each direction. All pages share one grid cell, reserving the natural height of the longest content at the current width with a 112px minimum, so complete wrapping does not move the date, calendar or launch area during rotation. Inactive pages stay in layout with hidden visibility, `aria-hidden` and `inert`; they never use `hidden` or `display: none`. Only the outer quotation group fades. Descendants have no transitions, preventing inherited reduced-motion rules from animating visibility. There are no quote buttons. Hover or focus pauses rotation; hidden pages and inactive home surfaces do not advance it; reduced motion changes the text directly.
 
-Shortcuts begin empty with an Add shortcut action. Each user-created link has a plain-text name, a shared Lucide link icon and a separate edit action. The modal supports add, edit, remove and cancel; validation and storage failures keep the entered form visible. These are project-local device preferences, restored from localStorage, never Goal records or synced project content. Web opens validated http(s) links in a new page; macOS uses the system browser through the native external-link channel.
+Shortcuts begin empty with an Add shortcut action in the left directory, below the current list and above the account footer, under a small 「快捷方式」 heading. They are not part of the home canvas. Each user-created link has a plain-text name, a shared Lucide link icon and a separate edit action. The modal supports add, edit, remove and cancel; validation and storage failures keep the entered form visible. These are project-local device preferences, restored from localStorage, never Goal records or synced project content. Web opens validated http(s) links in a new page; macOS uses the system browser through the native external-link channel. Authority: `specs/directory-shortcuts/spec.md`.
 
 **The Home Agent Availability Rule.** Both the home input and send button are natively disabled and accompanied by “Agent 尚未开放”. They do not capture drafts, accept input, send messages or imply a working Agent Harness. Goal work keeps its existing explicit terminal entry and ownership rules; Conversation stays disabled until that feature is implemented.
 
 ### Buttons
 
-- **Workbench primary:** near-black fill in Light, near-white fill in Dark, 8px corners, 34-38px height, short stable one-line label. Session “加载原 Session” and untransferred 保存草稿修改 keep this Action fill.
-- **Goal event primary:** cobalt fill, white label, 6px corners, 31px height. Used for 登记到当前 Goal, 记录到进展, 保存约定, 提交收尾, and other event-document saves.
-- **Goal event secondary:** cobalt-soft fill and deep-cobalt text for secondary form actions. Goal info uses quiet text links; the timeline has one Add entry disclosure with explanatory choices.
-- **Ghost / text:** transparent at rest; event text buttons (完成要求 and 返回工作区) use deep cobalt without a chrome fill.
-- **Hover:** a small opacity change and one-pixel upward translation on Action primaries; event buttons keep the same compact geometry.
-- **Focus:** a two-pixel cobalt outline with a two-pixel offset.
+- **Workbench primary:** near-black fill in Light, near-white fill in Dark, 10px corners, 32px height, short stable one-line label. Session “加载原 Session” and untransferred 保存草稿修改 keep this Action fill. Feed/Inbox primary actions use the same Action fill, not cobalt.
+- **Secondary:** ink 4.5% fill, 8% translucent border, ink label, same 10px corner and 32px height. Settings and dialog footers use this instead of a blue outline.
+- **Goal event primary:** same Action primary as the workbench. Event-document saves no longer introduce a second cobalt filled button.
+- **Ghost / text:** transparent at rest; event text buttons (完成要求 and 返回工作区) remain text. Icon-only chrome (directory toggle, titlebar tools) stays square and borderless.
+- **Hover:** secondary darkens the tint; primary mixes 10% of its ink. No lift.
+- **Focus:** a two-pixel ink ring with a two-pixel offset on controls. Links may keep cobalt.
 - Dynamic Goal titles belong in surrounding copy, `title`, and accessible names, never in the visible button.
 
 ### Inputs / Fields
 
-- **Style:** white or dark-canvas fill, one-pixel structural border, 5-8px corners, no inset shadow. Event-form fields use 5px corners and 8px 9px padding.
-- **Focus:** cobalt outline independent of the border so keyboard focus remains obvious.
+- **Style:** paper fill, one-pixel translucent input border (ink 10%), 10px corners, 32px height, no inset shadow. Settings, dialogs and project forms share this. Event-document fields still pending a follow-up slice may keep tighter padding until collected.
+- **Focus:** ink ring independent of the border so keyboard focus remains obvious.
 - **Placeholder:** visibly secondary but still readable.
 - **Mobile event forms:** 16px input text; helper copy stacks above a full-width primary. Type editors show 字段名, then 内容形式 / 必填 / 移除; IDs are hidden tokens. Empty-field submit is blocked in the client.
 - **Error / conflict:** field errors sit on the control; version conflict uses a quiet red-soft panel and keeps the user’s input for an explicit retry against the current versions.
 
 ### Navigation
 
-- The Desktop titlebar begins with project selection and project settings; the directory below changes in place between root, Goals, Inbox, and the Feed Item list, and ends with the pinned local identity / global-settings entry.
-- The root order is 项目首页, Goals, Sessions, Inbox, Feed, and Artifacts. It has no permanent group labels or search bar; Goals and Sessions stay adjacent as sibling project work types. Working-directory choice lives inside Session actions. Sources stay inside Feed.
-- Inbox and Feed are sibling plugins. Inbox opens the attention surface. Feed opens the source-message stream; Sources stay inside Feed.
+- The Desktop titlebar begins with project selection and project settings; the directory below changes in place between root, Goals, Inbox, Sessions, and Artifacts, and ends with the pinned local identity / global-settings entry. Feed does not replace that column with an Item list.
+- The root order is 项目首页, Goals, Sessions, Inbox, Feed, and Artifacts. It has no permanent group labels or search bar; Goals and Sessions stay adjacent as sibling project work types. Working-directory choice lives inside Session actions. Sources stay inside Feed as tasks on the stage.
+- Inbox and Feed are sibling plugins. Inbox opens the attention surface. Feed opens the stage directory of 全部 and source tasks.
 - Goal decisions appear in Inbox as attention rows and are completed on the Goal document. They are not Feed directory rows and do not use an Inbox Message preset.
 - Promotion and Visual Workspace remain reserved locations. Their empty states explain that entities and workflows must be defined before real content appears.
 - Goals opens the existing Goal Tree in the same directory. Its heading owns the back action and compact tools; the tree retains its real hierarchy and state.
 - In Light, selected directory items use a quiet flat tone and stronger text; hover uses a lighter transient tone. Neither state lifts above the directory. Dark may use its theme-appropriate paper tone without changing dimensions.
-- In ordinary Web, the same compact project selector, single directory, project tabs, and work surfaces remain in place; responsive CSS folds Goals into Companion navigation and Feed into Item / Detail switching below 760px.
+- In ordinary Web, the same compact project selector, single directory, project tabs, and work surfaces remain in place; responsive CSS folds Goals into Companion navigation. Feed stays an expandable stage directory below 760px instead of switching between Item and Detail pages.
 - Goal titles, child progress, dependency health, and status tags form four distinct reading levels; no metadata uses an inaccessible faint tone.
 - Compact parent progress uses a short accessible line instead of another text badge.
 
 **The Directory Ledger Rule.** Goals, Inbox, Feed, and 来源 share one row grammar: one leading hierarchy/type position, one flexible content column, and one stable trailing state column. The title owns the first line; identifiers, progress, source, time, and dependency health share a compact secondary line. Resting rows keep stable heights and column lines; selected, hovered, and focused rows keep identical dimensions. In Light, the selected row is a flat cobalt-neutral tint without exterior shadow. Goal rows use a 40px resting rhythm, and dependency detail adds height only after explicit expansion.
 
-**The Source-in-Context Rule.** Inbox and Feed rows always retain a visible source fact, even when the Item comes from Molis Work itself. The 来源 workbench uses the same title, secondary-fact, and trailing-state hierarchy; its detail owns overview, configuration, pull schedule, source messages, and run state. Adding a source, binding an account, or migrating Relay may use a focused dialog, but browsing and managing an existing Source never depends on that dialog. Connector remains the capability and Source remains the configured instance.
+**The Source-in-Context Rule.** Inbox and Feed rows always retain a visible source fact, even when the Item comes from Molis Work itself. Expanding a source task in the Feed directory is how an existing Source is browsed; adding a source, binding an account, or migrating Relay may use a focused dialog. Connector remains the capability and Source remains the configured instance.
 
 **The Attention Boundary Rule.** Feed is complete and append-oriented; Inbox is selective and action-oriented. An Inbox row must say why it needs intervention, which Feed Item, Source, or Goal it references, and what the next real step is. Completing it removes it from the default Inbox without deleting or copying the referenced object.
 
 ### Feed Workbench
 
-The Feed Item directory keeps its tools above the list: one search field, then type, source, disposition, and sort controls. Feed offers Ignore / Restore to Feed. Filters and status labels follow the Feed stream. Each row keeps type, source, title, summary, time, and readable state compact enough to scan; an empty result reports the filtered count and offers a direct reset.
+Selecting Feed keeps destinations on the left and puts the directory on the stage. The first task is 全部; each configured source is a task beneath it. Expanding a task shows 44px two-line item rows (13px / 450 title, 11px muted source and time) with Ignore on the row. Expanding an item opens detail in the same tree: body, Inbox, promote, and 查看来源, which expands that source task instead of leaving the directory. Add task expands an inline name and URL form and starts a pull; GitHub / Gmail still use the existing overlay. Type, source, disposition, and sort stay in an anchored filter panel on the stage. Keyword search uses the project-level palette. Returning to Feed restores the last task and open item.
 
-The right surface is dedicated to the selected Item. It shows type and disposition labels, source and author, timestamp, summary or body, tags, original link, and attached materials. Actions remain beside the Item: save as material, promote to Goal, start processing, ignore, restore, or open the already linked Goal. Missing body, link, or materials use honest empty states.
+The item detail is a continuation of the directory, not a second page or a large empty paper. It still shows type and disposition, source and author, timestamp, summary or body, tags, original link, and attached materials, with honest empty states when those are missing.
 
-来源与 Feed 的详情共享 Goal Detail 的工作面层级，但不共享同一内容顺序：来源使用身份页头 → 紧凑分段导航 → 单一配置工作面；Feed 使用单一 paper 阅读面并让标题、摘要和正文优先。Inbox 是独立插件工作面：进入原因、关联对象和下一步在前，不复制原消息正文。详情容器使用相关 paper 色、14px 圆角和低阴影，内部以分隔行组织，不为去向、事实或资料再套卡片。目录选择仍遵守 Flat Location Rule，只用平面色调，不使用外部阴影。
+来源属于 Feed 任务，不再占用独立 work surface。添加来源、绑定账号和迁移 Relay 仍可用 overlay；浏览一个已有来源则展开对应任务。Inbox 是独立插件工作面：进入原因、关联对象和下一步在前，不复制原消息正文。目录选择仍遵守 Flat Location Rule，只用平面色调，不使用外部阴影。
 
-Relay ownership migration is a user-confirmed local operation. Its dialog previews Source, Item, and Material counts, keeps Relay read-only, and explains that Molis Work takes over every usable Feed asset: source definitions, Items, Materials, cursors, run history, decryptable GitHub/Gmail credentials, and retained encrypted bodies. Secrets and bodies are re-sealed into Molis Work-owned stores; the interface must never expose token values or imply that ongoing synchronization still depends on Relay. Source and Relay dialogs belong to the workspace overlay layer, so the active work surface or narrow Item-list mode cannot hide them; below 760px they remain contained inside the viewport. The source manager is the durable control surface for adding public feeds, connecting GitHub/Gmail accounts, reading status and failures, and manually synchronizing, pausing, or resuming each source.
+Relay ownership migration is a user-confirmed local operation. Its dialog previews Source, Item, and Material counts, keeps Relay read-only, and explains that Molis Work takes over every usable Feed asset: source definitions, Items, Materials, cursors, run history, decryptable GitHub/Gmail credentials, and retained encrypted bodies. Secrets and bodies are re-sealed into Molis Work-owned stores; the interface must never expose token values or imply that ongoing synchronization still depends on Relay. Source and Relay dialogs belong to the workspace overlay layer, so the active work surface or narrow Item-list mode cannot hide them; below 760px they remain contained inside the viewport. The source manager overlay remains the control surface for adding public feeds, connecting GitHub/Gmail accounts, reading status and failures, and manually synchronizing, pausing, or resuming each source. Everyday browsing of a source happens by expanding that task in the Feed directory.
 
 Promote and Start create or reuse one Draft Goal and bind the Item as its input. Start moves into that Goal's Runtime. If no TUI is open, the Runtime picker stays visible; after the user chooses one, source, body, and material context is filled into the terminal without being sent. All source-derived content stays inside a visible untrusted-data boundary and terminal control characters cannot become input actions. This preserves Goal ownership and gives the user a final review point.
 
 ### Project Goal Tabs
 
-- Tabs are isolated by project, restored from local device storage, and capped at eight.
-- Opening the same Goal focuses its existing tab. Opening a ninth Goal retires an older inactive tab rather than overflowing indefinitely.
+- Tabs are grouped by plugin, restored from local device storage, and split into at most three panes.
+- Opening the same item in one pane focuses its existing tab. The same item may also be copied into another pane.
+- Closing the last tab in the workspace restores the project-home tab. Empty panes may remain until the user closes them.
 - In Light, work tabs stay flat inside the workbench bar: the selected tab uses stronger text and a two-pixel bottom marker rather than a white fill or exterior shadow, while inactive hover uses only a faint transient tone. Dark keeps its theme-appropriate paper surface; status remains readable through its dot and the Goal content itself.
 - The close action is separate from the tab button. Closing the active tab selects a neighbor and never removes the last displayable Goal.
 - The tab strip uses complete tab semantics and disappears in the narrow Companion.
@@ -358,6 +370,7 @@ Promote and Start create or reuse one Draft Goal and bind the Item as its input.
 - macOS Overlay uses a fixed 48px titlebar band, with the directory toggle and right-side tabs/titles centered at approximately `y=22px`. Project controls retain their existing second row. The shared native inset follows actual fullscreen state (88px window / 2px fullscreen), including full-page navigation; never infer it from viewport width.
 - The workbench bar contains tabs, one dedicated empty 48px drag slot, and actions. Utility tabs stay on one line.
 - Whole workbench, project-index, and Settings topbars are never drag regions. Only empty spacers or plain-text context may carry window drag behavior.
+- **The Project Index Arrival Rule.** Choosing a project is a full-page arrival, not the workbench. Its topbar is one full-width brand + device-settings row. Workbench directory chrome must not leak onto it: do not hide `.topbar`, do not place it at `grid-column: 2`, and do not hide or center the brand. Native Overlay still uses the 48px band and traffic-light inset. The heading and search stay pinned; only the project cards scroll.
 - The directory resizer begins below the native titlebar at grid row 2 so resizing and macOS traffic-light interaction never compete.
 - Ordinary Web and the Companion at 760px and below retain their existing chrome and structure.
 
@@ -408,8 +421,8 @@ Desktop settings reuse the same single directory, local-identity footer, flat Li
 
 - **Don't** add a second persistent navigation column or repeat project context across the shell.
 - **Don't** restore permanent search, group headings, and tool blocks at the root directory.
-- **Do** keep the existing Goal search usable inside the Goals drill-down. GW5 restored the search field above its compact toolbar after real browser tests found it hidden by desktop CSS; this does not add search to the root directory or change the visual direction. Desktop and 390px captures were inspected; details and evidence are in `specs/molis-work-architecture-reorganization/gw5-progress.md`.
-- **Don't** let open Goal tabs grow without limit or leak across projects.
+- **Do** put a magnifying-glass control beside the project selector. It opens a centered palette whose results are grouped by plugin (Goals, Sessions, Inbox, Feed, Sources, Artifacts) and jumps to the chosen object. Goals drill-down no longer has an inline search field; status filters remain. Authority: `specs/global-plugin-search/spec.md`.
+- **Don't** let pane splits grow past three, or leak tab workspace state across projects.
 - **Don't** place tabs, buttons, or the directory resizer in the traffic-light safe zone, or mark an interactive topbar container as draggable.
 - **Don't** replace an opened Goal's current facts, timeline or real Runtime with project-home whitespace or its disabled composer.
 - **Don't** present reserved placeholder views as working modules or fill them with fake content, counts, or activity.
@@ -422,7 +435,7 @@ Desktop settings reuse the same single directory, local-identity footer, flat Li
 - **Don't** use protocol identifiers (`report`, `goal.created`, English verdicts) as the primary timeline or event explanation.
 - **Don't** blur project-setting and global-setting scope.
 - **Do** treat an explicit “加入组合” click as the project-adoption confirmation and send it to the existing guarded API. GW5 repaired the missing client field; it did not weaken the server check or auto-adopt methods. Real failed/retried saves, independent personal/project versions and desktop/390px captures were verified; no visual redesign was made (impeccable harden).
-- **Don't** force the Desktop two-pane arrangement into the narrow Companion; Feed must switch between Item and Detail.
+- **Don't** force the Desktop two-pane arrangement into the narrow Companion; Feed keeps the expandable stage directory on the document surface.
 - **Don't** turn unrelated filters and navigation into segmented pills; keep grouped controls limited to choices that belong together.
 - **Don't** stack unrelated detail sections into one unbroken page or give every nested content block another decorative border.
 - **Don't** make status colors decorative or rely on color without text.

@@ -9,15 +9,10 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
       if (hashTargetId && (activeDesktopSurface === "goal" || decisionView)) void revealDeepLinkFromId(hashTargetId);
     };
 
-    const saveUiState = () => {
+    saveUiState = () => {
       try {
         sessionStorage.setItem(storageKey, JSON.stringify(readUiState()));
       } catch {}
-    };
-
-    const queueSave = () => {
-      clearTimeout(saveTimer);
-      saveTimer = setTimeout(saveUiState, 120);
     };
 
     const applySelection = (goalId, resetScroll) => {
@@ -82,7 +77,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
     const { prepareGoalRefresh } = (${GOALS_REFRESH_CLIENT_FACTORY_SCRIPT})({
       treeScroll, treeFilter, documentPane, dialog, readCreateDraft, refreshCreateChoices, translate: L,
     });
-    const searchInteractionActive = () => isTreeSearchComposing() || Date.now() < searchBusyUntil;
+    const searchInteractionActive = () => isTreeSearchComposing() || globalSearchPalette?.isBusy?.() || Date.now() < searchBusyUntil;
 
     const liveUiInteractionActive = () => {
       const active = document.activeElement;

@@ -1,8 +1,30 @@
 /** The canvas composition belongs to Workbench; Goal and Work keep their own content. */
 export const GOAL_CANVAS_STYLES = `
-  .immersive-plugin-stage > .goal-canvas-shell { position: absolute; inset: 0; min-width: 0; min-height: 0; overflow: hidden; overscroll-behavior: contain; background: var(--canvas); }
+  .immersive-plugin-stage > .goal-canvas-shell, .tab-pane-body > .goal-canvas-shell { position: absolute; inset: 0; min-width: 0; min-height: 0; overflow: hidden; overscroll-behavior: contain; background: var(--canvas); }
   .goal-canvas-shell [hidden] { display: none !important; }
   .goal-canvas-shell .goal-canvas-map { position: absolute; inset: 0; width: 100%; height: 100%; display: block; padding: 0; margin: 0; overflow: hidden; background: transparent; }
+  .goal-canvas-shell .goal-kanban { position: absolute; inset: 0; display: none; overflow-x: auto; overflow-y: hidden; overscroll-behavior: contain; background: var(--canvas); }
+  .goal-canvas-shell[data-board-view="kanban"] > [data-goal-kanban] { display: flex; position: absolute; inset: 0; width: 100%; height: 100%; }
+  .goal-canvas-shell[data-board-view="kanban"] > [data-goal-momentum] { display: none !important; }
+  .goal-kanban-board { display: flex; align-items: stretch; gap: 12px; box-sizing: border-box; min-width: min-content; flex: 1; min-height: 0; height: 100%; padding: 48px 18px 18px; }
+  .goal-kanban-column { flex: 0 0 252px; width: 252px; min-width: 252px; height: 100%; display: flex; flex-direction: column; min-height: 0; background: color-mix(in srgb, var(--rail) 58%, var(--paper)); border: 1px solid var(--line); border-radius: 12px; }
+  .goal-kanban-column h2 { margin: 0; padding: 12px 14px 8px; font-size: 12px; font-weight: 650; letter-spacing: .01em; color: var(--muted); }
+  .goal-kanban-column [data-kanban-cards] { flex: 1; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 8px; padding: 0 10px 12px; }
+  .goal-kanban-card { flex: none; display: grid; gap: 6px; padding: 12px; background: var(--paper); color: var(--ink); border: 1px solid color-mix(in srgb, var(--ink) 10%, var(--line)); border-radius: 10px; text-align: left; cursor: pointer; }
+  .goal-kanban-card:hover { border-color: color-mix(in srgb, var(--ink) 22%, var(--line)); }
+  .goal-kanban-card.is-selected { border-color: var(--blue); }
+  .goal-kanban-card.is-complete strong { color: color-mix(in srgb, var(--ink) 82%, var(--muted)); }
+  .goal-kanban-card strong { font-size: 14px; line-height: 1.35; font-weight: 620; letter-spacing: -.014em; overflow-wrap: anywhere; }
+  .goal-kanban-card-outcome { color: color-mix(in srgb, var(--ink) 78%, var(--muted)); font-size: 12px; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .goal-kanban-card small { color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .goal-kanban-card > .goal-status { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 550; }
+  .goal-kanban-card > .goal-status svg { display: none; }
+  .goal-kanban-card > .goal-status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
+  .goal-kanban-card:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+  @media (max-width: 760px) {
+    .goal-kanban-board { padding: 44px 14px 14px; gap: 10px; }
+    .goal-kanban-column { flex: 0 0 228px; width: 228px; min-width: 228px; }
+  }
   .goal-canvas-viewport { position: absolute; inset: 0; overflow: hidden; touch-action: none; cursor: grab; background-image: radial-gradient(circle, color-mix(in srgb, var(--muted) 36%, transparent) .9px, transparent 1px); background-size: 22px 22px; }
   .goal-canvas-viewport.is-panning { cursor: grabbing; user-select: none; }
   .goal-canvas-world { position: absolute; left: 0; top: 0; width: 0; height: 0; transform-origin: 0 0; }
@@ -33,20 +55,21 @@ export const GOAL_CANVAS_STYLES = `
   .goal-canvas-node strong { grid-column: 1 / -1; grid-row: 1; padding-right: 56px; font-size: 16px; line-height: 1.35; font-weight: 630; letter-spacing: -.018em; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
   .goal-canvas-node-outcome { grid-column: 1 / -1; grid-row: 2; color: color-mix(in srgb, var(--ink) 78%, var(--muted)); font-size: 13px; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
   .goal-canvas-node small { grid-row: 3; grid-column: 2; align-self: end; padding: 0; border: 0; max-width: 16ch; text-align: right; color: var(--muted); font-size: 11px; line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .goal-canvas-map-heading { position: absolute; top: 22px; left: 26px; z-index: 1; pointer-events: none; max-width: calc(100% - 52px); }
-  .goal-canvas-map-heading h1 { font-size: 12px; font-weight: 550; color: var(--muted); margin: 0 0 4px; }
-  .goal-canvas-map-heading p { margin: 0; font-size: 11px; color: var(--muted); }
-  .goal-canvas-tools { position: absolute; inset: auto 22px 18px; display: flex; justify-content: space-between; align-items: center; gap: 12px; pointer-events: none; }
-  .goal-canvas-tools > span { font-size: 11px; color: var(--muted); }
+  .goal-canvas-integrity { position: absolute; top: 22px; left: 26px; z-index: 1; pointer-events: none; max-width: calc(100% - 140px); margin: 0; font-size: 12px; color: var(--muted); }
+  .goal-canvas-tools { position: absolute; inset: auto 22px 18px; display: flex; justify-content: flex-end; align-items: center; gap: 12px; pointer-events: none; }
   .goal-canvas-tools > div { pointer-events: auto; display: flex; align-items: center; gap: 4px; padding: 4px; background: var(--paper); border: 1px solid var(--line); border-radius: 9px; }
   .goal-canvas-tools button { width: 32px; height: 32px; display: grid; place-items: center; border: 0; background: transparent; color: var(--ink); cursor: pointer; border-radius: 6px; font-size: 17px; }
   .goal-canvas-tools button:hover { background: var(--rail); }
   .goal-canvas-tools output { min-width: 48px; text-align: center; font-size: 12px; font-variant-numeric: tabular-nums; }
   .goal-canvas-tools svg { width: 16px; height: 16px; }
-  .goal-canvas-shell[data-expanded="true"] .goal-canvas-map-heading, .goal-canvas-shell[data-expanded="true"] .goal-canvas-tools { visibility: hidden; }
+  .goal-board-switch { position: absolute; top: 12px; right: 14px; z-index: 2; display: flex; gap: 2px; padding: 3px; background: var(--paper); border: 1px solid var(--line); border-radius: 8px; }
+  .goal-board-switch button { height: 24px; padding: 0 9px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: 11px; font-weight: 550; cursor: pointer; }
+  .goal-board-switch button:hover { color: var(--ink); }
+  .goal-board-switch button[aria-current] { background: var(--rail); color: var(--ink); font-weight: 650; }
+  .goal-board-switch button:focus-visible { outline-offset: 1px; }
+  .goal-canvas-shell[data-expanded="true"] .goal-canvas-integrity, .goal-canvas-shell[data-expanded="true"] .goal-canvas-tools, .goal-canvas-shell[data-expanded="true"] .goal-board-switch { visibility: hidden; }
   .goal-canvas-empty { position: absolute; top: 22px; left: 26px; right: auto; max-width: 36ch; text-align: left; }
-  .goal-canvas-empty h2 { font-size: 16px; font-weight: 600; margin: 0 0 8px; }
-  .goal-canvas-empty p { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
+  .goal-canvas-empty h2 { font-size: 16px; font-weight: 600; margin: 0 0 12px; }
   .goal-canvas-empty button, .goal-canvas-map [data-retry-goal-momentum] { background: var(--paper); color: var(--blue); border: 1px solid var(--line-strong); border-radius: 7px; padding: 9px 14px; cursor: pointer; }
   .goal-canvas-map [data-goal-momentum-status] { position: absolute; bottom: 74px; left: 26px; right: 26px; padding: 12px; background: var(--paper); color: var(--ink); font-size: 13px; }
   .goal-canvas-map [data-retry-goal-momentum] { position: absolute; bottom: 25px; left: 26px; }
@@ -152,7 +175,6 @@ export const GOAL_CANVAS_STYLES = `
   @media (max-width: 600px) {
     .goal-node-workspace { inset: 10px; border-radius: 10px; }
     .goal-work-main .tui-pane { padding: 0 10px 10px; }
-    .goal-canvas-tools > span { display: none; }
     .goal-canvas-tools { justify-content: flex-end; }
     .goal-canvas-node { width: 240px; }
     .goal-node-toolbar button, .goal-work-modebar button { min-height: 36px; }
@@ -164,10 +186,6 @@ export const GOAL_CANVAS_STYLES = `
   .goal-frame-canvas.is-drop { background-color: color-mix(in srgb, var(--blue-soft) 42%, var(--canvas)); }
   .goal-frame-canvas.is-reject { background-color: color-mix(in srgb, var(--amber) 8%, var(--canvas)); }
   .goal-frame-world { position: absolute; left: 0; top: 0; width: 0; height: 0; transform-origin: 0 0; }
-  .goal-frame-empty { position: absolute; left: 26px; top: 22px; width: min(36ch, calc(100% - 52px)); padding: 0; border: 0; text-align: left; pointer-events: none; color: var(--ink); }
-  .goal-frame-empty p { margin: 0; font-size: 13px; font-weight: 550; line-height: 1.55; }
-  .goal-frame-empty small { display: block; margin-top: 6px; font-size: 12px; font-weight: 450; color: var(--muted); line-height: 1.6; }
-  .goal-frame-canvas.is-drop .goal-frame-empty { color: var(--blue); background: transparent; }
   .frame-block { position: absolute; width: 232px; min-height: 0; padding: 16px 16px 12px; display: flex; flex-direction: column; gap: 10px; background: var(--paper); border: 1px solid color-mix(in srgb, var(--ink) 10%, var(--line)); border-radius: 12px; text-align: left; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
   .frame-block:hover { border-color: color-mix(in srgb, var(--ink) 20%, var(--line)); }
   .frame-block-handle { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 8px; cursor: grab; }

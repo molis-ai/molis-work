@@ -74,7 +74,7 @@ test("Planning browser copies a template, recovers failed saves and adopts an in
   await reloadPage();
   assert.equal(await evaluate(dom(".planning-detail h1") + ".textContent"), values.name);
   await navigate(() => command("Page.navigate", { url: origin + prefix + "/settings/planning" }, sessionId));
-  await waitFor("document.readyState === 'complete' && " + dom('[data-adopt-planning-method="' + id + '"]'));
+  await waitFor(dom('[data-adopt-planning-method="' + id + '"]'));
   const projectBefore = await read(projectApi);
   const unconfirmed = await evaluate<{ status: number; error: string }>("(async()=>{const response=await fetch(" + JSON.stringify(projectApi + "/apply") +
     ",{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({method_id:" + JSON.stringify(id) +
@@ -108,7 +108,7 @@ test("Planning browser copies a template, recovers failed saves and adopts an in
   assert.equal(disabled.version, 2);
   assert.deepEqual((await read(globalApi)).methods.find(x => x.method_id === id), saved);
   await navigate(() => click(".planning-back"));
-  await waitFor("document.readyState === 'complete' && " + dom(".planning-inactive-section"));
+  await waitFor(dom(".planning-inactive-section"));
   assert.equal((await read(projectApi)).composition!.method_pack_ids.includes(id), false);
   await reloadPage();
   assert.ok(await evaluate(dom(".planning-inactive-section") + "?.textContent.includes(" + JSON.stringify(values.name) + ")"));

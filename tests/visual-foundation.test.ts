@@ -57,7 +57,7 @@ test("visual foundation ships one restrained Calm Desktop world across workbench
   assert.match(VISUAL_FOUNDATION_STYLES, /--muted: #62626b;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /--faint: #66666f;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /--action: #202023;/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /--radius-surface: 10px;/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /--radius-surface: 12px;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /body\[data-board-view\] \.document-pane,[\s\S]*border-radius: 0;[\s\S]*box-shadow: none;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.tree-node\.is-selected,[\s\S]*background: var\(--paper\);[\s\S]*inset 0 0 0 1px var\(--line\)/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.settings-navigation a\[aria-current="page"\][\s\S]*background: var\(--paper\);/);
@@ -263,6 +263,8 @@ test("desktop shell uses one project directory, project tabs, and soft work surf
   assert.doesNotMatch(VISUAL_FOUNDATION_STYLES, /\[data-goal-panel\]/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.tui-pane\[data-tui-read-only\] \.tui-tabs,[\s\S]*\.tui-menu \{[\s\S]*display: none !important;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /body\.settings-page\[data-desktop-shell="true"\]:has\(\.settings-navigation\)/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /body\.settings-page\[data-desktop-shell="true"\]:has\(\.settings-navigation\) \.settings-content \{[\s\S]*grid-column: 2;/);
+  assert.doesNotMatch(VISUAL_FOUNDATION_STYLES, /body\.settings-page\[data-desktop-shell="true"\] \.settings-content \{[\s\S]*grid-column: 2;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /> \.topbar \{[\s\S]*height: var\(--desktop-titlebar-height\);[\s\S]*min-height: var\(--desktop-titlebar-height\);/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.settings-navigation \{[\s\S]*grid-template-rows: var\(--desktop-project-header-height\) 50px minmax\(0, 1fr\) auto;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.settings-desktop-project \{[\s\S]*height: var\(--desktop-project-header-height\);[\s\S]*grid-template-rows: var\(--desktop-titlebar-height\) var\(--desktop-titlebar-height\);/);

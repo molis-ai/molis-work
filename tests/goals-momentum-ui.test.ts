@@ -56,15 +56,16 @@ test("canvas retains completed Goals and incomplete relationship diagnostics wit
 test("canvas has an honest empty state and localizes controls without translating user titles", () => {
   const empty = view([]);
   assert.match(renderer.renderGoalMomentum(empty, "", []), /还没有目标/);
+  assert.doesNotMatch(renderer.renderGoalMomentum(empty, "", []), /从想要的结果开始|创建第一条 Goal/);
   assert.match(renderer.renderGoalMomentum(empty, "", []), /data-open-create/);
   const user = item("USER", "目标关系");
   const model = view([user]);
   const html = runWithLocale("en", () => renderer.renderGoalMomentum(model, "USER", model.goals));
   assert.match(html, /<strong>目标关系<\/strong>/);
-  assert.match(html, /<h1>Goal relationships<\/h1>/);
+  assert.doesNotMatch(html, /<h1>|Goal relationships|Arrows lead from prerequisites|Click to trace relations/);
   assert.match(html, /Open Frame/);
   assert.match(html, /Open Goal/);
-  assert.match(renderer.renderGoalMomentum(model, "USER", model.goals), /<h1>目标关系<\/h1>/);
+  assert.doesNotMatch(renderer.renderGoalMomentum(model, "USER", model.goals), /<h1>|目标关系<\/h1>|箭头从前置成果指向后续工作|单击看血缘/);
 });
 
 

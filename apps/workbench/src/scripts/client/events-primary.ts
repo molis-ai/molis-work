@@ -106,7 +106,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
     feedList?.addEventListener("keydown", (event) => {
       const current = event.target.closest?.("[data-feed-entry-id]");
       if (!current || !["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
-      const visible = [...feedList.querySelectorAll("[data-feed-entry-id]:not([hidden])")];
+      const visible = [...feedList.querySelectorAll("[data-feed-entry-id]")].filter((row) => feedEntryVisible(row));
       const currentIndex = visible.indexOf(current);
       const next = event.key === "Home" ? visible[0]
         : event.key === "End" ? visible.at(-1)
@@ -133,6 +133,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
     document.addEventListener("click", async (event) => {
       const target = event.target instanceof Element ? event.target : null;
       if (!target) return;
+      if (projectSettingsStage?.handleClick(event, target)) return;
       const humanReviewJump = target.closest("[data-human-review-jump]");
       if (humanReviewJump) {
         const reviewForm = humanReviewJump.closest(".human-review-list")?.querySelector("[data-human-review-form]");
@@ -348,11 +349,13 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
       }
       const openPrototypeSource = target.closest("[data-open-prototype-source]");
       if (openPrototypeSource) {
-        setDesktopDirectory("sources", true, false, openPrototypeSource);
-        setDesktopWorkSurface("sources", true, false);
         const requestedSource = openPrototypeSource.dataset.openPrototypeSource;
-        const fallbackSource = sourceList?.querySelector('[data-source-kind="' + CSS.escape(openPrototypeSource.dataset.openSourceKind || "") + '"]')?.dataset.sourceEntryId;
-        selectSource(sourceList?.querySelector('[data-source-entry-id="' + CSS.escape(requestedSource) + '"]') ? requestedSource : fallbackSource, true);
+        const fallbackSource = document.querySelector('[data-feed-task="' + CSS.escape(requestedSource) + '"]')
+          ? requestedSource
+          : document.querySelector('[data-source-kind="' + CSS.escape(openPrototypeSource.dataset.openSourceKind || "") + '"]')?.dataset.feedTask || document.querySelector('[data-source-kind="' + CSS.escape(openPrototypeSource.dataset.openSourceKind || "") + '"]')?.dataset.sourceEntryId;
+        setDesktopDirectory("feed", true, false, openPrototypeSource);
+        if (!openWorkbenchSurface("feed")) setDesktopWorkSurface("feed", true, false);
+        setFeedTask(fallbackSource || requestedSource || "all");
         return;
       }
       const prototypeFeedAction = target.closest("[data-prototype-feed-action]");
@@ -374,6 +377,12 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
           destination.dataset.destinationState = action;
         }
         showPrototypeStatus(prototypeFeedAction, labels[0] + "。" + labels[1] + "。");
+        if (action === "ignore") {
+          const wrap = prototypeFeedAction.closest("[data-feed-item-wrap]");
+          const row = wrap?.querySelector("[data-feed-entry-id]") || prototypeFeedAction.closest("[data-feed-entry-id]");
+          if (row) row.dataset.feedEntryStatus = "archived";
+          filterFeedItems(false);
+        }
         if (action === "inbox") {
           prototypeFeedAction.disabled = true;
           prototypeFeedAction.textContent = L("已加入 Inbox");
@@ -399,25 +408,26 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
       }
       if (target.closest("[data-prototype-feed-empty-state]")) {
         feedList?.querySelectorAll("[data-feed-entry-id]").forEach((row) => {
-          if (row.dataset.feedEntryType === activeFeedPreset) row.hidden = true;
+          if (row.dataset.feedEntryType === activeFeedPreset) {
+            const wrap = row.closest("[data-feed-item-wrap]") || row;
+            wrap.hidden = true;
+          }
         });
         feedWorkbench?.querySelectorAll("[data-feed-detail]").forEach((detail) => { detail.hidden = true; });
         if (feedEmpty) {
           feedEmpty.dataset.prototypeEmptyPreview = "true";
           feedEmpty.hidden = false;
           const title = feedEmpty.querySelector("[data-feed-empty-title]");
-          const copy = feedEmpty.querySelector("[data-feed-empty-copy]");
           const restore = feedEmpty.querySelector("[data-prototype-feed-restore]");
           const clear = feedEmpty.querySelector("[data-feed-clear-filters]");
           const sources = feedEmpty.querySelector("[data-feed-empty-sources]");
           if (title) title.textContent = L("暂时没有新消息");
-          if (copy) copy.textContent = L("来源仍按计划拉取；新消息到达后会先进入 Feed。");
           if (restore) restore.hidden = false;
           if (clear) clear.hidden = true;
           if (sources) sources.hidden = true;
         }
         if (feedResultCount) feedResultCount.textContent = L("0 个 Item");
-        setFeedDetailPlaceholder(L("Feed 暂无新消息"), L("这是页面内空状态预览，不会修改真实 Item。"));
+        setFeedDetailPlaceholder(L("Feed 暂无新消息"), "");
         return;
       }
       if (target.closest("[data-prototype-feed-restore]")) {
@@ -440,22 +450,36 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
       }
       const sourceRegister = target.closest("[data-feed-source-register]");
       if (sourceRegister) {
+        const form = sourceRegister.closest("[data-feed-add-form]");
+        const scope = form || feedSourcesDialog;
         const kind = sourceRegister.dataset.feedSourceRegister;
         const value = kind === "rss"
-          ? feedSourcesDialog?.querySelector("[data-feed-rss-definition]")?.value
-          : feedSourcesDialog?.querySelector('[data-feed-source-value="' + kind + '"]')?.value;
+          ? scope?.querySelector("[data-feed-rss-definition]")?.value
+          : scope?.querySelector('[data-feed-source-value="' + kind + '"]')?.value;
+        const name = form?.querySelector("[data-feed-add-name]")?.value?.trim();
         const body = kind === "rss" ? { kind, definition_id: value }
           : kind === "web_query" ? { kind, query: value }
           : kind === "youtube_channel" ? { kind, channel_id: value }
           : { kind, feed_url: value };
+        if (name) body.name = name;
         sourceRegister.disabled = true;
+        const inlineError = form?.querySelector("[data-feed-add-error]");
+        if (inlineError) {
+          inlineError.hidden = true;
+          inlineError.textContent = "";
+        }
         setFeedSourceFeedback(L("正在添加来源…"));
         try {
           await feedApi("/api/feed/sources", "POST", body);
           saveUiState();
           location.reload();
         } catch (error) {
-          setFeedSourceFeedback(error.message || L("添加来源失败"), true);
+          const message = error.message || L("添加来源失败");
+          if (inlineError) {
+            inlineError.textContent = message;
+            inlineError.hidden = false;
+          }
+          setFeedSourceFeedback(message, true);
           sourceRegister.disabled = false;
         }
         return;

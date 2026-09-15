@@ -105,8 +105,10 @@ test("Bundled market adds to the selected project and Artifact versions stay in 
   assert.match(await evaluate<string>("document.querySelector('[data-inbox-empty]')?.textContent || ''"), /现在没有需要你介入的事项/);
   assert.equal(await evaluate("document.querySelector('[data-feed-views]').hidden"), true);
   await click('[data-plugin-strip] [data-plugin-id="feed"]');
-  await waitFor("document.body.dataset.desktopSurface === 'feed' && !document.querySelector('[data-feed-views]').hidden");
-  assert.deepEqual(await evaluate<string[]>("[...document.querySelectorAll('[data-feed-views] button')].map(button => button.textContent.trim())"), ["Feed", "来源"]);
+  await waitFor("document.body.dataset.desktopSurface === 'feed' && Boolean(document.querySelector('[data-feed-stage-directory]'))");
+  assert.equal(await evaluate("document.querySelector('[data-feed-views]').hidden"), true);
+  assert.ok(await evaluate("Boolean(document.querySelector('[data-feed-task=all]'))"));
+  assert.equal(await evaluate("document.querySelector('[data-feed-list]')?.closest('#goal-tree-pane')"), null);
 });
 
 test("Project entry lands at home, while refresh preserves work and Goal links remain direct", { timeout: 60_000 }, async (t) => {

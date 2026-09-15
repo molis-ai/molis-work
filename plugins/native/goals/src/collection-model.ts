@@ -39,10 +39,8 @@ export function buildGoalCollectionModel<T extends GoalCollectionItem>(
   const footerStatus = [phaseSummary, blockedCount > 0 ? L("受阻 {count}", { count: blockedCount }) : ""]
     .filter(Boolean).join(" · ") || L("当前没有进行中的 Goal");
   const collectionNote = trashView ? L("可恢复；历史与关联处理记录会保留") : archiveView ? L("可随时恢复") : footerStatus;
-  const searchPlaceholder = trashView ? L("在回收站内搜索") : archiveView ? L("在已归档 Goal 中搜索") : L("在当前 Goal Tree 内搜索");
-  const searchLabel = trashView ? L("搜索回收站") : archiveView ? L("搜索已归档 Goal") : L("搜索 Goal");
   return { visibleGoals, selected, selectedId, title, collectionView, collectionTitle, collectionSuffix,
-    collectionNote, searchPlaceholder, searchLabel, archiveView, trashView };
+    collectionNote, archiveView, trashView };
 }
 
 export type GoalCollectionModel<T extends GoalCollectionItem = GoalCollectionItem> = ReturnType<typeof buildGoalCollectionModel<T>>;

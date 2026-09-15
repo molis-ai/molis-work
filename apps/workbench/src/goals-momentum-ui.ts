@@ -5,5 +5,6 @@ export function createGoalsMomentumWorkbenchRenderer(host: UiHostApi, slot: UiSl
   return (primitives: GoalsMomentumUiPrimitives): GoalsMomentumRenderer => ({
     renderGoalMomentum: (...args) => host.mount({ slot, contribution: { contribution_id: GOALS_MOMENTUM_UI_CONTRIBUTION_ID, surface: "momentum", model: { kind: "momentum", args, primitives } } }).html,
     renderMomentumPlaceholder: () => host.mount({ slot, contribution: { contribution_id: GOALS_MOMENTUM_UI_CONTRIBUTION_ID, surface: "placeholder", model: { kind: "placeholder", args: [], primitives } } }).html,
+    renderGoalKanban: (...args) => host.mount({ slot, contribution: { contribution_id: GOALS_MOMENTUM_UI_CONTRIBUTION_ID, surface: "kanban", model: { kind: "kanban", args, primitives } } }).html,
   });
 }

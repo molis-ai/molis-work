@@ -15,7 +15,7 @@ export interface ArtifactBrowserUiModel {
 }
 
 function directory({ view, routePrefix, primitives: p }: ArtifactBrowserUiModel): string {
-  if (!view.versions.length) return `<p class="artifact-empty">${p.text("还没有 Artifact。插件明确发布的结果会出现在这里；普通文件引用和私人会话不会自动加入。")}</p>`;
+  if (!view.versions.length) return `<p class="artifact-empty">${p.text("还没有 Artifact")}</p>`;
   return `<nav aria-label="${p.text("Artifact 版本")}" class="artifact-version-list">${view.versions.map((artifact) => {
     const selected = view.selected?.artifact_id === artifact.artifact_id && view.selected.version === artifact.version;
     const title = artifactDisplayTitle(artifact);
@@ -34,8 +34,7 @@ function detail(model: ArtifactBrowserUiModel, embedded: boolean): string {
     <p>${p.text("关联的版本不可用或不存在。引用仍然保留，不会替换成最新版本。")}</p></article>`;
   if (!artifact) return `<section class="artifact-empty"${view.requested ? ' role="status"' : ""}>
     <h1>${p.text(view.requested ? "找不到这个 Artifact 版本" : "选择一个结果版本")}</h1>
-    <p>${p.text(view.requested ? "它可能属于其他项目，或这个版本尚未发布。请返回列表选择；不会自动替换成最新版本。" : "查看插件发布的结果、来源和原始内容，不改变 Goal 或 Evidence。")}</p>
-    ${view.requested ? `<a href="${p.escape(routePrefix + "/artifacts")}">${p.text("返回 Artifact 列表")}</a>` : ""}</section>`;
+    ${view.requested ? `<p>${p.text("它可能属于其他项目，或这个版本尚未发布。请返回列表选择；不会自动替换成最新版本。")}</p><a href="${p.escape(routePrefix + "/artifacts")}">${p.text("返回 Artifact 列表")}</a>` : ""}</section>`;
   const href = routePrefix + artifactVersionPath(artifact);
   const title = artifactDisplayTitle(artifact);
   const notice = view.compatibility?.reason === "artifact_unavailable"

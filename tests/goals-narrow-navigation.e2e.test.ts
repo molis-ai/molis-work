@@ -26,7 +26,7 @@ const SNAPSHOT = `(() => {
     if (node.closest(".document-pane")) return "document";
     if (node.closest(".tui-pane")) return "tui";
     if (node.closest(".goal-momentum")) return "graph";
-    if (node.closest("[data-container-tabs]")) return "tabs";
+    if (node.closest("[data-container-tabs], [data-titlebar-tabs]")) return "tabs";
     return node.tagName.toLowerCase();
   };
   const workspaceRect = workspace?.getBoundingClientRect();
@@ -41,7 +41,7 @@ const SNAPSHOT = `(() => {
     workspaceMode: workspace?.dataset.workspaceMode || "",
     directory: document.querySelector(".tree-pane")?.dataset.desktopDirectory || "",
     drawer: Boolean(workspace?.classList.contains("is-directory-drawer-open")),
-    containerTab: document.querySelector("[data-container-tab][aria-current]")?.dataset.containerTab || "",
+    containerTab: document.querySelector(".tab-item.is-active")?.dataset.tabKind || document.querySelector("[data-container-tab][aria-current]")?.dataset.containerTab || "",
     hasMobileSwitch: Boolean(document.querySelector(".mobile-switch")),
     tree: measure(document.querySelector(".tree-pane")),
     list: measure(document.querySelector(".goal-list-view")),
@@ -50,7 +50,7 @@ const SNAPSHOT = `(() => {
     graph: measure(document.querySelector(".goal-momentum")),
     hit: hit(center.x, center.y),
     searchVisible: (() => {
-      const search = document.querySelector("[data-global-search]");
+      const search = document.querySelector(".tree-pane [data-global-search-open]");
       if (!search) return false;
       const rect = search.getBoundingClientRect();
       return getComputedStyle(search).display !== "none" && rect.width > 0 && rect.height > 0;
@@ -85,7 +85,7 @@ function isHiddenFromUse(pane: PaneSnapshot["tree"]): boolean {
   return !pane || pane.display === "none" || pane.h < 8 || pane.w < 8;
 }
 
-test("narrow Goal drawer shows the list, restores the stored view, and keeps Container tabs", { timeout: 60_000 }, async (t) => {
+test("narrow Goal drawer shows the list, restores the stored view, and keeps work tabs", { timeout: 60_000 }, async (t) => {
   const browser = await openGoalBrowser(t);
   if (!browser) return;
   const { store, before, origin, sessionId, command, evaluate, waitFor, click, navigate, reloadPage } = browser;
@@ -100,7 +100,7 @@ test("narrow Goal drawer shows the list, restores the stored view, and keeps Con
 
   let state = await snap();
   assert.equal(state.hasMobileSwitch, false);
-  assert.equal(state.containerTab, "canvas");
+  assert.equal(state.containerTab, "item");
   assert.equal(state.drawer, false);
   assert.equal(await evaluate("document.querySelector('[data-goal-node-workspace]')?.hidden"), false);
   assert.equal(await evaluate("document.querySelector('[data-goal-event-document]')?.dataset.goalView"), "INTERFACES");
@@ -193,7 +193,7 @@ test("narrow list, graph return and desktop side-by-side keep usable geometry", 
   assert.equal(state.overflowX, false);
   assert.equal(isShown(state.tree), true);
   assert.equal(state.hasMobileSwitch, false);
-  assert.equal(state.containerTab, "canvas");
+  assert.equal(state.containerTab, "item");
   await evaluate("document.querySelector('[data-directory-dismiss]')?.click(); true");
   await waitFor(`!document.querySelector("[data-workspace]").classList.contains("is-directory-drawer-open")`);
 
@@ -204,7 +204,7 @@ test("narrow list, graph return and desktop side-by-side keep usable geometry", 
   assert.equal(isShown(state.graph), true);
   assert.equal(isHiddenFromUse(state.tree), true);
   assert.equal(state.hit, "graph");
-  assert.equal(state.containerTab, "canvas");
+  assert.equal(state.containerTab, "mother");
 
   await click("[data-directory-show]");
   await waitDrawer();

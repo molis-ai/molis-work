@@ -626,7 +626,7 @@ ${GOALS_EVENT_DOCUMENT_STYLES}
   .decision-empty p { margin: 0; }
   .decision-empty a { margin-top: 12px; color: var(--blue-dark); font-weight: 650; text-decoration: none; }
   .mobile-switch { display: none; }
-  .create-dialog { width: min(680px, calc(100vw - 32px)); max-height: calc(100vh - 40px); padding: 0; border: 0; border-radius: 8px; box-shadow: var(--shadow); }
+  .create-dialog { width: min(680px, calc(100vw - 32px)); max-height: calc(100vh - 40px); padding: 0; border: 1px solid var(--control-border); border-radius: var(--radius-surface); box-shadow: var(--control-shadow); }
   .create-dialog::backdrop { background: rgba(25, 34, 45, .36); backdrop-filter: blur(2px); }
   .dialog-shell { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; max-height: calc(100vh - 40px); }
   .create-dialog header { padding: 18px 20px; border-bottom: 1px solid var(--line); display: flex; align-items: flex-start; justify-content: space-between; }
@@ -643,7 +643,7 @@ ${GOALS_EVENT_DOCUMENT_STYLES}
   .dialog-body label { display: grid; gap: 5px; }
   .dialog-body label > span, .dialog-body legend { font-weight: 650; }
   .dialog-body small { color: var(--muted); font-weight: 400; }
-  .dialog-body input:not([type=checkbox]), .dialog-body textarea, .dialog-body select { width: 100%; border: 1px solid var(--line-strong); border-radius: 5px; padding: 8px 10px; background: #fff; resize: vertical; }
+  .dialog-body input:not([type=checkbox]), .dialog-body textarea, .dialog-body select { width: 100%; border: 1px solid var(--control-input); border-radius: var(--radius-control); padding: 8px 10px; background: var(--paper); resize: vertical; }
   .goal-trash-dialog { width: min(560px, calc(100vw - 32px)); }
   .goal-trash-dialog .dialog-body { align-content: start; grid-auto-rows: max-content; }
   .goal-trash-target { margin: 0; padding-bottom: 12px; border-bottom: 1px solid var(--line); display: grid; gap: 2px; }

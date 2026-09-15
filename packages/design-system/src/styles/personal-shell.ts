@@ -256,7 +256,7 @@ export const PERSONAL_SHELL_STYLES = `  /* Personal workspace shell. The applica
     .personal-local-state strong { color: var(--ink-soft); font-size: 10px; font-weight: 630; }
     .personal-local-state small { overflow: hidden; color: var(--faint); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
 
-    body[data-desktop-shell="true"] .topbar {
+    body[data-desktop-shell="true"]:not(.settings-page) .topbar {
       min-width: 0;
       min-height: 56px;
       grid-column: 2;
@@ -268,9 +268,9 @@ export const PERSONAL_SHELL_STYLES = `  /* Personal workspace shell. The applica
       display: flex;
       background: var(--paper);
     }
-    body[data-desktop-shell="true"] .topbar > .brand,
-    body[data-desktop-shell="true"] .topbar > .top-action { display: none; }
-    body[data-desktop-shell="true"] .topbar > .top-spacer { display: block; }
+    body[data-desktop-shell="true"]:not(.settings-page) .topbar > .brand,
+    body[data-desktop-shell="true"]:not(.settings-page) .topbar > .top-action { display: none; }
+    body[data-desktop-shell="true"]:not(.settings-page) .topbar > .top-spacer { display: block; }
     body[data-desktop-shell="true"] .desktop-project-context {
       min-width: 0;
       min-height: 55px;

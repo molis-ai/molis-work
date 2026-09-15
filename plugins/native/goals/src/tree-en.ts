@@ -21,7 +21,7 @@ export const GOALS_TREE_EN: Record<string, string> = {
   "筛选目标，已选择 {count} 种状态": "Filter Goals, {count} statuses selected",
   "打开依赖": "Open the dependency",
   "按状态筛选": "Filter by status",
-  "可同时选择多个状态；会与关键词搜索一起生效。": "Select more than one status. Filters work together with search.",
+  "可同时选择多个状态。": "Select more than one status.",
   "Goal 状态": "Goal status",
   "当前没有可筛选的 Goal。": "There is no Goal to filter.",
   "显示全部状态": "Showing every status",

@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="zh-CN" class="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Molis Work · 目录</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <!--
+    THESIS: Directory is Codex-quiet: destinations stay on top, the list below is only the selected plugin. Refuses module cards, chevrons, and drill-in “返回项目目录”.
+    OWN-WORLD: Calm Desktop graphite — nav #15161b / #f8f9fb, ink #e8e9ee / #272932, violet #a7a6f5 / #6262d6, 264px rail, 32px titlebars, flat selected rows, no raised chips.
+    STORY: Pick a plugin, scan its list, open a Frame in that plugin’s tab set. Goal Frame still holds paper clippings you can drag, expand and read. Layout lives on the container: split adds an empty + tab, the user chooses which plugin tab set occupies that cell.
+    FIRST VIEWPORT: Left: project, destinations, Goal tree. Right: dotted field — Goal places named by title, Frame clippings showing excerpt first.
+    FORM: Incumbent Calm Desktop; Codex sidebar grammar. Specified Operate slice. No concept-seed.
+    FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
+  -->
+  <svg class="icon-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="i-panel" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M15 4v16"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 7h16M4 17h16M8 4v6M16 14v6"/></symbol>
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M4 10.5 12 4l8 6.5V20H4Z"/><path d="M10 20v-7h4v7"/></symbol>
+    <symbol id="i-goals" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/></symbol>
+    <symbol id="i-sessions" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="m7 9 3 3-3 3M13 15h4"/></symbol>
+    <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M4 5h16v10H4Z"/><path d="M4 15h4l2 3h4l2-3h4"/></symbol>
+    <symbol id="i-feed" viewBox="0 0 24 24"><path d="M5 5h14v14H5Z"/><path d="M8 9h8M8 13h8M8 17h5"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z"/><path d="M14 3v6h6"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3-3"/></symbol>
+    <symbol id="i-filter" viewBox="0 0 24 24"><path d="M4 5h16l-6 8v5l-4 2v-7Z"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1 1M18 18l1 1M5 19l1-1M18 6l1-1"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+    <symbol id="i-tree" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+    <symbol id="i-layout" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M12 5v14"/></symbol>
+    <symbol id="i-layout-single" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="2.5"/></symbol>
+    <symbol id="i-layout-cols" viewBox="0 0 24 24"><rect x="3.5" y="5" width="7.5" height="14" rx="2"/><rect x="13" y="5" width="7.5" height="14" rx="2"/></symbol>
+    <symbol id="i-layout-rows" viewBox="0 0 24 24"><rect x="4" y="4.5" width="16" height="6.5" rx="2"/><rect x="4" y="13" width="16" height="6.5" rx="2"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.2"/><path d="M5 19c1.5-3.2 3.8-4.8 7-4.8s5.5 1.6 7 4.8"/></symbol>
+    <symbol id="i-left" viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></symbol>
+    <symbol id="i-maximize" viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="m21 3-7 7"/><path d="m3 21 7-7"/><path d="M9 21H3v-6"/></symbol>
+    <symbol id="i-frame" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M10 9v11"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></symbol>
+    <symbol id="i-ready" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m10 8 6 4-6 4Z"/></symbol>
+    <symbol id="i-message" viewBox="0 0 24 24"><path d="M5 5h14v11H8l-3 3Z"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M18 6l-2.5 2.5M8.5 15.5 6 18"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></symbol>
+    <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+  </svg>
+
+  <button class="scrim" id="scrim" type="button" hidden aria-label="收起目录"></button>
+
+  <aside class="sidebar" id="sidebar" aria-label="应用目录">
+    <div class="native-row">
+      <button class="icon-btn" id="toggle-sidebar" type="button" aria-label="收起目录"><svg><use href="#i-panel"/></svg></button>
+    </div>
+    <div class="project-head">
+      <button class="project-trigger" type="button" aria-haspopup="listbox" aria-label="切换项目">
+        <span class="emblem">示</span>
+        <strong>Molis Work 示例项目</strong>
+        <svg><use href="#i-down"/></svg>
+      </button>
+      <button class="icon-btn" type="button" disabled aria-label="通知，暂不可用"><svg><use href="#i-bell"/></svg></button>
+      <button class="icon-btn" type="button" disabled aria-label="项目设置"><svg><use href="#i-settings"/></svg></button>
+    </div>
+
+    <nav class="destinations" id="destinations" aria-label="项目入口">
+      <button type="button" data-plugin="home"><svg><use href="#i-home"/></svg>项目首页</button>
+      <button type="button" data-plugin="goals" aria-current="page"><svg><use href="#i-goals"/></svg>Goals</button>
+      <button type="button" data-plugin="sessions"><svg><use href="#i-sessions"/></svg>Sessions</button>
+      <button type="button" data-plugin="inbox"><svg><use href="#i-inbox"/></svg>Inbox</button>
+      <button type="button" data-plugin="feed"><svg><use href="#i-feed"/></svg>Feed</button>
+      <button type="button" data-plugin="artifacts"><svg><use href="#i-file"/></svg>Artifacts</button>
+      <button type="button" data-plugin="market"><svg><use href="#i-plus"/></svg>插件市场</button>
+    </nav>
+
+    <div class="list-pane" id="list-pane">
+      <header class="list-chrome">
+        <h2 class="list-title" id="list-title">Goals</h2>
+      </header>
+      <div class="list-tools" id="list-tools"></div>
+      <div class="list-body" id="list-body"></div>
+    </div>
+
+    <footer class="account">
+      <a class="identity" href="#settings" aria-label="打开全局设置">
+        <span class="avatar" aria-hidden="true"><svg><use href="#i-user"/></svg></span>
+        <span class="copy"><strong>一骏</strong><small>本地空间</small></span>
+        <svg><use href="#i-settings"/></svg>
+      </a>
+    </footer>
+  </aside>
+
+  <div class="stage" id="stage">
+    <div class="panes" id="panes" data-layout="single">
+      <section class="group is-focus" data-group="a" aria-label="第一格">
+        <header class="group-bar">
+          <button class="icon-btn show-dir" id="show-dir" type="button" aria-label="展开目录"><svg><use href="#i-panel"/></svg></button>
+          <nav class="tabs" data-tabs="a" aria-label="这一格的标签"></nav>
+          <div class="title-spacer" aria-hidden="true"></div>
+        </header>
+        <div class="pane" data-pane="a"></div>
+      </section>
+      <section class="group" data-group="b" hidden aria-label="第二格">
+        <header class="group-bar">
+          <nav class="tabs" data-tabs="b" aria-label="这一格的标签"></nav>
+        </header>
+        <div class="pane" data-pane="b"></div>
+      </section>
+    </div>
+    <div class="stage-actions">
+      <div class="layout-wrap">
+        <button class="icon-btn" id="layout-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="切换布局"><svg><use href="#i-layout"/></svg></button>
+        <div class="layout-menu" id="layout-menu" hidden role="menu" aria-label="容器布局">
+          <button type="button" data-layout="single" role="menuitem"><svg><use href="#i-layout-single"/></svg>单栏</button>
+          <button type="button" data-layout="cols" role="menuitem"><svg><use href="#i-layout-cols"/></svg>左右</button>
+          <button type="button" data-layout="rows" role="menuitem"><svg><use href="#i-layout-rows"/></svg>上下</button>
+        </div>
+      </div>
+      <button class="icon-btn" id="theme" type="button" aria-label="切换外观"><svg><use href="#i-sun"/></svg></button>
+    </div>
+    <div class="plugin-picker" id="plugin-picker" hidden role="menu" aria-label="选择插件"></div>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>

@@ -4,7 +4,7 @@ import type { ContractDescriptor } from "./package.js";
 import type { UiContribution } from "./ui.js";
 import type { PluginArtifactClient } from "./plugin-artifacts.js";
 
-export { parsePluginManifest, PluginManifestError } from "./plugin-manifest.js";
+export { parsePluginManifest, PluginManifestError, canonicalPluginId } from "./plugin-manifest.js";
 export type { PluginArtifactClient, PluginArtifactPublishInput } from "./plugin-artifacts.js";
 export type { PluginPackageFile, PluginPackagePayload, PluginPackageBundle, PluginPackageSigner } from "./plugin-package.js";
 
@@ -28,7 +28,7 @@ export interface PluginHostServices {
 }
 
 export const platformPluginContract = {
-  contractId: "io.goalboard.platform.plugin.v1",
+  contractId: "io.molis.work.platform.plugin.v1",
   kind: "platform",
   schemaVersion: 1,
   maturity: "partial",

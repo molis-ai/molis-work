@@ -39,6 +39,7 @@ export const GOALS_RELATION_EN: Record<string, string> = {
   "{name} → {type} → 当前 Goal": "{name} → {type} → Current Goal",
   "你正在直接修改 Goal 关系": "You are directly editing Goal relationships",
   "保存后立即生效并进入历史。执行工具提出的关系变化仍会先进入": "Changes made here take effect immediately and are recorded. Relationship changes proposed by execution tools still go to ",
+  "Inbox": "Inbox",
   "，由你确认后才生效。": " and take effect only after you confirm them.",
   "这条关系表示什么": "What does this relationship mean?",
   "当前 Goal 开始前需要它完成": "The current Goal needs it to finish first",

@@ -2,13 +2,13 @@
 
 ## Installer ownership during development
 
-`pnpm build` cleans generated workspace outputs, then builds all 48 packages in declared dependency order before the root entrypoints and PTY bundle. `build:migrated-packages` reuses `workspace:build`: deleted or moved sources must not leave stale JavaScript in npm/DMG artifacts. This removes generated dist only, not node_modules or user data. The Plugin CLI launcher exists in source, so a clean frozen-lockfile install followed by build makes `pnpm exec goalboard-plugin --help` available. Boundary checks cover JavaScript/TypeScript under src, tooling and bin.
+`pnpm build` cleans generated workspace outputs, then builds all 48 packages in declared dependency order before the root entrypoints and PTY bundle. `build:migrated-packages` reuses `workspace:build`: deleted or moved sources must not leave stale JavaScript in npm/DMG artifacts. This removes generated dist only, not node_modules or user data. The Plugin CLI launcher exists in source, so a clean frozen-lockfile install followed by build makes `pnpm exec molis-work-plugin --help` available. Boundary checks cover JavaScript/TypeScript under src, tooling and bin.
 
-Desktop release scripts belong to `apps/desktop/tooling/`; root `pnpm desktop:*` commands are unchanged. They call Local Host's `createGoalBoardRuntimePayload` instead of running npm install against an isolated workspace:* manifest. Failed preparation preserves old resources; vendor provenance, SBOM and license assets survive both payload generation and Home installation.
+Desktop release scripts belong to `apps/desktop/tooling/`; root `pnpm desktop:*` commands are unchanged. They call Local Host's `createMolisWorkRuntimePayload` instead of running npm install against an isolated workspace:* manifest. Failed preparation preserves old resources; vendor provenance, SBOM and license assets survive both payload generation and Home installation.
 
-Home installation, Runtime integration, managed Web service and uninstall implementations live under `apps/local-host/src/installer/`, exposed through `@adeptify/goalboard-app-local-host`. The old `src/install/` implementations are removed. CLI/Web callers must not duplicate preview, confirmation, ownership, rollback or cleanup policy.
+Home installation, Runtime integration, managed Web service and uninstall implementations live under `apps/local-host/src/installer/`, exposed through `@molis-ai/molis-work-app-local-host`. The old `src/install/` implementations are removed. CLI/Web callers must not duplicate preview, confirmation, ownership, rollback or cleanup policy.
 
-`installGoalBoardHome` requires an explicit `sourceDirectory`; only the product-root CLI derives its default from its own entry location. Calling that CLI from another working directory without `--source` still installs the same product. Uninstall requires injected `UninstallProjectAccess`; `src/local-host/uninstall.ts` composes the read-only connection and existing Demo deletion lifecycle. Projects owns catalog interpretation, and preview never runs database migrations.
+`installMolisWorkHome` requires an explicit `sourceDirectory`; only the product-root CLI derives its default from its own entry location. Calling that CLI from another working directory without `--source` still installs the same product. Uninstall requires injected `UninstallProjectAccess`; `src/local-host/uninstall.ts` composes the read-only connection and existing Demo deletion lifecycle. Projects owns catalog interpretation, and preview never runs database migrations.
 
 Rebuild after changing workspace sources. At the end of `pnpm build`, `apps/local-host/tooling/write-build-manifest.mjs` invokes the Local Host build-record API over root and workspace source/configuration plus build scripts. Never stamp an old build as fresh. Update fingerprint package discovery and build lists when introducing a workspace level. Targeted tests are `tests/install.test.ts`, `tests/service.test.ts`, `tests/uninstall.test.ts`, and `tests/uninstall-catalog.test.ts`, supplemented by Web/Desktop integration tests. Full DV4 release acceptance remains pending; these checks are not release certification.
 
@@ -23,8 +23,8 @@ Goals Module owns graph integrity and structural impact. Reusable candidates com
 Legacy JSON is not a parallel running mode; it can only be written into a brand-new V1 Board through an explicit import:
 
 ```bash
-goalboard v1 import-v3 \
-  --db .goalboard/imported.db \
+molis-work v1 import-v3 \
+  --db .molis-work/imported.db \
   --board-id imported \
   --actor user \
   --key import-1 \
@@ -33,11 +33,11 @@ goalboard v1 import-v3 \
 
 Import preserves Goal titles and original outcomes, parent/child structure, scope, inputs/outputs, root constraints, coverage dispositions, and original sources. The same transaction establishes current event ownership, with `goal_state.intent.source_kind=migration`. Imported Goals immediately support ordinary notes through Runtime or Web and remain usable after reopening. Import invents no acceptance requirements, completion, user approval, or dependencies absent from V3. Clarify further deliverables through current agreements and requirements. An existing target Board is never overwritten.
 
-The management MCP exposes `goalboard_v1_import_v3` on the same Coordinator; the Runtime MCP does not expose import.
+The management MCP exposes `molis_work_v1_import_v3` on the same Coordinator; the Runtime MCP does not expose import.
 
 ## CLI
 
-The public CLI top level provides program install, the persistent service, demo, safe uninstall, and the `goalboard v1 <operation>` management surface:
+The public CLI top level provides program install, the persistent service, demo, safe uninstall, and the `molis-work v1 <operation>` management surface:
 
 ```text
 init | snapshot | import-v3 | active-goal
@@ -48,7 +48,7 @@ Complex inputs can be passed with `--json` or `--file payload.json`. Old create-
 
 ## Project structure
 
-> The repository is now a monorepo: 18 target packages remain `contract-only`, while 30 packages have a real migrated slice and are marked `partial`. The root `@adeptify/goalboard` package continues to carry the working product and release compatibility surface. A package directory does not mean every responsibility has migrated; see the [Architecture SSOT](SSOT-MATRIX.md) for truthful status and migration ownership.
+> The repository is now a monorepo: 18 target packages remain `contract-only`, while 30 packages have a real migrated slice and are marked `partial`. The root `@molis-ai/molis-work` package continues to carry the working product and release compatibility surface. A package directory does not mean every responsibility has migrated; see the [Architecture SSOT](SSOT-MATRIX.md) for truthful status and migration ownership.
 
 ```text
 apps/                        Six product-entry and composition-root boundaries
@@ -108,7 +108,7 @@ docs/system/                 Layers, dependencies, migration, and huge-class exi
 docs/modules/                Fact ownership and API boundaries for all 16 Modules
 docs/horizontal/             Technical boundaries for the four horizontal services
 docs/platform/               Plugin, Storage, Exchange, and UI platform mechanisms
-specs/goalboard-architecture-reorganization/spec.md
+specs/molis-work-architecture-reorganization/spec.md
                              Accepted full contract for this reorganization
 ```
 
@@ -144,10 +144,10 @@ pnpm package:npm
 Use the published-style package name to verify one package independently, for example:
 
 ```bash
-pnpm --filter @adeptify/goalboard-module-goals typecheck
-pnpm --filter @adeptify/goalboard-module-goals build
-pnpm --filter @adeptify/goalboard-plugin-runtime typecheck
-pnpm --filter @adeptify/goalboard-integration-github typecheck
+pnpm --filter @molis-ai/molis-work-module-goals typecheck
+pnpm --filter @molis-ai/molis-work-module-goals build
+pnpm --filter @molis-ai/molis-work-plugin-runtime typecheck
+pnpm --filter @molis-ai/molis-work-integration-github typecheck
 ```
 
 `workspace:check` validates only the F2 package inventory. `boundary:check` scans real imports, dependency direction, Contract entrypoints, cycles, and the legacy Huge Class allowlist. `workspace:verify` is the complete package gate shared by local development and CI.

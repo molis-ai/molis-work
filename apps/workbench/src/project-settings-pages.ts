@@ -1,7 +1,7 @@
-import type { ProjectGuidanceView } from "@adeptify/goalboard-contracts/modules/goals";
-import type { PlanningMethodPack, PlanningMethodComposition } from "@adeptify/goalboard-contracts/modules/goals";
-import type { GoalBoardIcon } from "@adeptify/goalboard-design-system";
-import type { GoalBoardWebView } from "./page-view.js";
+import type { ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { PlanningMethodPack, PlanningMethodComposition } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { MolisWorkIcon } from "@molis-ai/molis-work-design-system";
+import type { MolisWorkWebView } from "./page-view.js";
 import { type WebProjectNavigation, type createWorkbenchSettingsNavigation } from "./settings-navigation.js";
 import { createWorkbenchGoalsPlanningRenderer } from "./ui-composition.js";
 import { CONTROL_CLIENT_SCRIPT, PROJECT_RULES_CLIENT_SCRIPT, PROJECT_GUIDANCE_CLIENT_SCRIPT } from "./browser-assets.js";
@@ -11,7 +11,7 @@ export interface ProjectSettingsPagePorts {
   L(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;
   formatDate(value: string | null | undefined): string;
-  icon(name: GoalBoardIcon): string;
+  icon(name: MolisWorkIcon): string;
   htmlLang(): string;
   listJoin(values: readonly string[]): string;
   controlTokenMeta(token: string): string;
@@ -22,7 +22,7 @@ export interface ProjectSettingsPagePorts {
   visualFoundationClientScript: string;
   navigation: Pick<ReturnType<typeof createWorkbenchSettingsNavigation>, "settingsContextHref" | "renderProjectSettingsNavigation" | "renderSettingsNavigation">;
   composePlanningMethodPacks(methods: readonly PlanningMethodPack[]): PlanningMethodComposition;
-  renderProjectPolicyDocument(view: GoalBoardWebView): string;
+  renderProjectPolicyDocument(view: MolisWorkWebView): string;
 }
 
 /** Settings page composition consumes canonical Goals facts and platform presentation ports. */
@@ -31,7 +31,7 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
   const { settingsContextHref, renderProjectSettingsNavigation, renderSettingsNavigation } = ports.navigation;
   const THEME_BOOTSTRAP_SCRIPT = ports.themeBootstrapScript;
   const VISUAL_FOUNDATION_CLIENT_SCRIPT = ports.visualFoundationClientScript;
-function renderGoalBoardProjectGeneralSettings(
+function renderMolisWorkProjectGeneralSettings(
   project: WebProjectNavigation,
   projects: readonly WebProjectNavigation[],
   controlToken = "",
@@ -41,10 +41,10 @@ function renderGoalBoardProjectGeneralSettings(
   const projectReturnHref = desktopShell ? withDesktopQuery(`${routePrefix}/`) : `${routePrefix}/`;
   return `<!doctype html>
 <html lang="${htmlLang()}">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${controlTokenMeta(controlToken)}<title>${L("基本信息")} · ${escapeHtml(project.display_name)} · GoalBoard</title><script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/goalboard-settings.css"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${controlTokenMeta(controlToken)}<title>${L("基本信息")} · ${escapeHtml(project.display_name)} · Molis Work</title><script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-settings.css"></head>
 <body class="settings-page project-general-page" data-route-prefix="${escapeHtml(routePrefix)}" data-desktop-shell="true"${desktopShell ? ' data-native-desktop="true"' : ""}>
   ${renderIconSprite()}
-  <header class="topbar"><a class="brand" href="${projectReturnHref}" aria-label="${L("返回 Goal Tree")}">${icon("brand")}<strong>GoalBoard</strong></a><div class="project-context"${desktopShell ? " data-tauri-drag-region" : ""}><strong>${escapeHtml(project.display_name)}</strong><small>${L("项目设置")}</small></div><div class="top-spacer"${desktopShell ? " data-tauri-drag-region" : ""}></div><a class="top-action" href="${projectReturnHref}" aria-label="${L("关闭项目设置")}">${icon(desktopShell ? "x" : "tree")}<span>${L("Goal Tree")}</span></a></header>
+  <header class="topbar"><a class="brand" href="${projectReturnHref}" aria-label="${L("返回 Goal Tree")}">${icon("brand")}<strong>Molis Work</strong></a><div class="project-context"${desktopShell ? " data-tauri-drag-region" : ""}><strong>${escapeHtml(project.display_name)}</strong><small>${L("项目设置")}</small></div><div class="top-spacer"${desktopShell ? " data-tauri-drag-region" : ""}></div><a class="top-action" href="${projectReturnHref}" aria-label="${L("关闭项目设置")}">${icon(desktopShell ? "x" : "tree")}<span>${L("Goal Tree")}</span></a></header>
   <main class="settings-shell">
     ${renderProjectSettingsNavigation("general", project, desktopShell, projects)}
     <div class="settings-content"><section class="settings-document" aria-labelledby="settings-title">
@@ -54,7 +54,7 @@ function renderGoalBoardProjectGeneralSettings(
         <form class="inline-settings-form" data-project-rename="${escapeHtml(project.project_id)}"><label>${L("项目名称")}<input type="text" name="display_name" value="${escapeHtml(project.display_name)}" required maxlength="160"></label><button type="submit">${L("保存名称")}</button><p class="settings-form-error" role="alert" hidden></p></form>
       </section>
       <section class="settings-action-section project-delete-section" aria-labelledby="project-delete-title">
-        <div><h2 id="project-delete-title">${L("删除项目")}</h2><p>${L("永久删除这个项目在 GoalBoard 中的目标、记录和关联。关联工作目录中的代码和文件会保留。")}</p></div>
+        <div><h2 id="project-delete-title">${L("删除项目")}</h2><p>${L("永久删除这个项目在 Molis Work 中的目标、记录和关联。关联工作目录中的代码和文件会保留。")}</p></div>
         <button class="project-delete-button" type="button" data-project-delete-open>${L("删除项目")}</button>
       </section></div>
     </section></div>
@@ -62,7 +62,7 @@ function renderGoalBoardProjectGeneralSettings(
   <dialog class="runtime-plan-dialog project-delete-dialog" data-project-delete-dialog aria-labelledby="project-delete-dialog-title" aria-describedby="project-delete-description">
     <form class="runtime-plan-shell" data-project-delete="${escapeHtml(project.project_id)}" data-project-directory-href="${desktopShell ? withDesktopQuery("/") : "/"}">
       <header><div><h2 id="project-delete-dialog-title">${L("删除项目")}</h2><p>${escapeHtml(project.display_name)}</p></div></header>
-      <div class="runtime-plan-body"><p id="project-delete-description">${L("永久删除这个项目在 GoalBoard 中的目标、记录和关联。关联工作目录中的代码和文件会保留。")}</p><label class="runtime-plan-confirm"><input type="checkbox" name="delete_confirmed"><span>${L("我确认删除这个项目，且理解此操作无法撤销。")}</span></label><p class="settings-form-error" data-project-delete-error role="alert" hidden></p></div>
+      <div class="runtime-plan-body"><p id="project-delete-description">${L("永久删除这个项目在 Molis Work 中的目标、记录和关联。关联工作目录中的代码和文件会保留。")}</p><label class="runtime-plan-confirm"><input type="checkbox" name="delete_confirmed"><span>${L("我确认删除这个项目，且理解此操作无法撤销。")}</span></label><p class="settings-form-error" data-project-delete-error role="alert" hidden></p></div>
       <footer><button type="button" data-project-delete-cancel autofocus>${L("取消")}</button><button class="project-delete-button" type="submit" disabled>${L("确认删除项目")}</button></footer>
     </form>
   </dialog>
@@ -70,8 +70,8 @@ function renderGoalBoardProjectGeneralSettings(
 </body></html>`;
 }
 
-function renderGoalBoardProjectSettings(
-  view: GoalBoardWebView,
+function renderMolisWorkProjectSettings(
+  view: MolisWorkWebView,
   controlToken = "",
   desktopShell = false,
 ): string {
@@ -81,10 +81,10 @@ function renderGoalBoardProjectSettings(
   const projectReturnHref = desktopShell ? withDesktopQuery(routePrefix || "/") : routePrefix || "/";
   return `<!doctype html>
 <html lang="${htmlLang()}">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${controlTokenMeta(controlToken)}<title>${L("工作规则")} · ${escapeHtml(projectName)} · GoalBoard</title><script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/goalboard-settings.css"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${controlTokenMeta(controlToken)}<title>${L("工作规则")} · ${escapeHtml(projectName)} · Molis Work</title><script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-settings.css"></head>
 <body class="settings-page project-rules-page" data-route-prefix="${escapeHtml(routePrefix)}" data-desktop-shell="true"${desktopShell ? ' data-native-desktop="true"' : ""}>
   ${renderIconSprite()}
-  <header class="topbar"><a class="brand" href="${projectReturnHref}" aria-label="${L("返回 Goal Tree")}">${icon("brand")}<strong>GoalBoard</strong></a><div class="project-context"${desktopShell ? " data-tauri-drag-region" : ""}><strong${desktopShell ? " data-tauri-drag-region" : ""}>${escapeHtml(projectName)}</strong><small${desktopShell ? " data-tauri-drag-region" : ""}>${L("项目设置 · 工作规则")}</small></div><div class="top-spacer"${desktopShell ? " data-tauri-drag-region" : ""}></div><a class="top-action" href="${projectReturnHref}" aria-label="${L("关闭项目设置")}">${icon(desktopShell ? "x" : "tree")}<span>${L("Goal Tree")}</span></a></header>
+  <header class="topbar"><a class="brand" href="${projectReturnHref}" aria-label="${L("返回 Goal Tree")}">${icon("brand")}<strong>Molis Work</strong></a><div class="project-context"${desktopShell ? " data-tauri-drag-region" : ""}><strong${desktopShell ? " data-tauri-drag-region" : ""}>${escapeHtml(projectName)}</strong><small${desktopShell ? " data-tauri-drag-region" : ""}>${L("项目设置 · 工作规则")}</small></div><div class="top-spacer"${desktopShell ? " data-tauri-drag-region" : ""}></div><a class="top-action" href="${projectReturnHref}" aria-label="${L("关闭项目设置")}">${icon(desktopShell ? "x" : "tree")}<span>${L("Goal Tree")}</span></a></header>
   <main class="settings-shell">
     ${settingsProject ? renderProjectSettingsNavigation("rules", settingsProject, desktopShell, view.projects) : renderSettingsNavigation("projects", null, desktopShell, view.projects)}
     <div class="settings-content">${renderProjectPolicyDocument(view)}</div>
@@ -94,8 +94,8 @@ function renderGoalBoardProjectSettings(
 </body></html>`;
 }
 
-function renderGoalBoardProjectGuidanceSettings(
-  view: GoalBoardWebView,
+function renderMolisWorkProjectGuidanceSettings(
+  view: MolisWorkWebView,
   guidance: ProjectGuidanceView,
   controlToken = "",
   desktopShell = false,
@@ -139,10 +139,10 @@ function renderGoalBoardProjectGuidanceSettings(
   const guidanceData = JSON.stringify(guidance).replaceAll("<", "\\u003c");
   return `<!doctype html>
 <html lang="${htmlLang()}">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${controlTokenMeta(controlToken)}<title>${L("项目说明")} · ${escapeHtml(projectName)} · GoalBoard</title><script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/goalboard-settings.css"></head>
-<body class="settings-page project-guidance-page" data-route-prefix="${escapeHtml(routePrefix)}" data-desktop-shell="true"${desktopShell ? ' data-native-desktop="true"' : ""}><!-- THESIS: The project reads as one maintained document, not a settings grid or suggestion inbox. OWN-WORLD: GoalBoard graphite paper, mineral-blue focus, hairline dividers, and the existing project-settings rail. STORY: read canonical guidance, edit it in place, then verify the immutable history. FIRST VIEWPORT: navigation rail, document title and add action, active guidance leading the page, with Runtime behavior in a right rail only when width preserves readable prose. FORM: established Read/Operate extension, code-led, project-guidance-document-v1. FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance. -->
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${controlTokenMeta(controlToken)}<title>${L("项目说明")} · ${escapeHtml(projectName)} · Molis Work</title><script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-settings.css"></head>
+<body class="settings-page project-guidance-page" data-route-prefix="${escapeHtml(routePrefix)}" data-desktop-shell="true"${desktopShell ? ' data-native-desktop="true"' : ""}><!-- THESIS: The project reads as one maintained document, not a settings grid or suggestion inbox. OWN-WORLD: Molis Work graphite paper, mineral-blue focus, hairline dividers, and the existing project-settings rail. STORY: read canonical guidance, edit it in place, then verify the immutable history. FIRST VIEWPORT: navigation rail, document title and add action, active guidance leading the page, with Runtime behavior in a right rail only when width preserves readable prose. FORM: established Read/Operate extension, code-led, project-guidance-document-v1. FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance. -->
   ${renderIconSprite()}
-  <header class="topbar"><a class="brand" href="${projectReturnHref}" aria-label="${L("返回 Goal Tree")}">${icon("brand")}<strong>GoalBoard</strong></a><div class="project-context"${desktopShell ? " data-tauri-drag-region" : ""}><strong${desktopShell ? " data-tauri-drag-region" : ""}>${escapeHtml(projectName)}</strong><small${desktopShell ? " data-tauri-drag-region" : ""}>${L("项目设置 · 项目说明")}</small></div><div class="top-spacer"${desktopShell ? " data-tauri-drag-region" : ""}></div><a class="top-action" href="${projectReturnHref}" aria-label="${L("关闭项目设置")}">${icon(desktopShell ? "x" : "tree")}<span>${L("Goal Tree")}</span></a></header>
+  <header class="topbar"><a class="brand" href="${projectReturnHref}" aria-label="${L("返回 Goal Tree")}">${icon("brand")}<strong>Molis Work</strong></a><div class="project-context"${desktopShell ? " data-tauri-drag-region" : ""}><strong${desktopShell ? " data-tauri-drag-region" : ""}>${escapeHtml(projectName)}</strong><small${desktopShell ? " data-tauri-drag-region" : ""}>${L("项目设置 · 项目说明")}</small></div><div class="top-spacer"${desktopShell ? " data-tauri-drag-region" : ""}></div><a class="top-action" href="${projectReturnHref}" aria-label="${L("关闭项目设置")}">${icon(desktopShell ? "x" : "tree")}<span>${L("Goal Tree")}</span></a></header>
   <main class="settings-shell">
     ${project ? renderProjectSettingsNavigation("guidance", project, desktopShell, view.projects) : renderSettingsNavigation("projects", null, desktopShell, view.projects)}
     <div class="settings-content"><section class="guidance-document" aria-labelledby="guidance-title">
@@ -157,28 +157,28 @@ function renderGoalBoardProjectGuidanceSettings(
 </body></html>`;
 }
 
-function planningTopbar(title:string,subtitle:string,returnHref:string,_pagePath:string,desktop:boolean):string{return `<header class="topbar"><a class="brand" href="${returnHref}">${icon("brand")}<strong>GoalBoard</strong></a><div class="project-context"${desktop?" data-tauri-drag-region":""}><strong${desktop?" data-tauri-drag-region":""}>${escapeHtml(title)}</strong><small${desktop?" data-tauri-drag-region":""}>${escapeHtml(subtitle)}</small></div><div class="top-spacer"${desktop?" data-tauri-drag-region":""}></div><a class="top-action" href="${returnHref}" aria-label="${L("关闭设置")}">${icon(desktop?"x":returnHref.includes("/projects/")?"tree":"folder")}<span>${returnHref.includes("/projects/")?L("Goal Tree"):L("项目列表")}</span></a></header>`}
+function planningTopbar(title:string,subtitle:string,returnHref:string,_pagePath:string,desktop:boolean):string{return `<header class="topbar"><a class="brand" href="${returnHref}">${icon("brand")}<strong>Molis Work</strong></a><div class="project-context"${desktop?" data-tauri-drag-region":""}><strong${desktop?" data-tauri-drag-region":""}>${escapeHtml(title)}</strong><small${desktop?" data-tauri-drag-region":""}>${escapeHtml(subtitle)}</small></div><div class="top-spacer"${desktop?" data-tauri-drag-region":""}></div><a class="top-action" href="${returnHref}" aria-label="${L("关闭设置")}">${icon(desktop?"x":returnHref.includes("/projects/")?"tree":"folder")}<span>${returnHref.includes("/projects/")?L("Goal Tree"):L("项目列表")}</span></a></header>`}
 
 function planningRenderer(controlToken: string, desktopShell: boolean, navigation: string) {
   return createWorkbenchGoalsPlanningRenderer({
     translate: L, escapeHtml, icon, listJoin, withDesktopQuery,
     settingsContextHref,
-    renderPage: (page) => `<!doctype html>${page.documentComment ?? ""}<html lang="${htmlLang()}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${controlTokenMeta(controlToken)}<title>${escapeHtml(page.title)} · GoalBoard</title><script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/goalboard-settings.css"></head><body class="settings-page planning-page" data-desktop-shell="true"${desktopShell?' data-native-desktop="true"':""}>${renderIconSprite()}${planningTopbar(page.heading,page.subtitle,page.returnHref,page.pagePath,desktopShell)}<main class="settings-shell">${navigation}<div class="settings-content">${page.body}</div></main><script>${clientI18nScript()}${page.requiresControl ? CONTROL_CLIENT_SCRIPT : ""}${page.clientScript}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script></body></html>`,
+    renderPage: (page) => `<!doctype html>${page.documentComment ?? ""}<html lang="${htmlLang()}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${controlTokenMeta(controlToken)}<title>${escapeHtml(page.title)} · Molis Work</title><script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-settings.css"></head><body class="settings-page planning-page" data-desktop-shell="true"${desktopShell?' data-native-desktop="true"':""}>${renderIconSprite()}${planningTopbar(page.heading,page.subtitle,page.returnHref,page.pagePath,desktopShell)}<main class="settings-shell">${navigation}<div class="settings-content">${page.body}</div></main><script>${clientI18nScript()}${page.requiresControl ? CONTROL_CLIENT_SCRIPT : ""}${page.clientScript}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script></body></html>`,
   });
 }
-function renderGoalBoardPlanningLibrary(methods: readonly PlanningMethodPack[], contextProject: WebProjectNavigation | null = null, controlToken = "", desktopShell = false, projects: readonly WebProjectNavigation[] = []): string {
+function renderMolisWorkPlanningLibrary(methods: readonly PlanningMethodPack[], contextProject: WebProjectNavigation | null = null, controlToken = "", desktopShell = false, projects: readonly WebProjectNavigation[] = []): string {
   const navigation = contextProject ? renderProjectSettingsNavigation("planning", contextProject, desktopShell, projects) : renderSettingsNavigation("planning", null, desktopShell, projects);
   return planningRenderer(controlToken, desktopShell, navigation).renderLibrary(methods, contextProject, desktopShell);
 }
-function renderGoalBoardPlanningMethodPage(method: PlanningMethodPack | null, mode: "detail" | "edit" | "new", saveScope: "personal" | "project", project: WebProjectNavigation | null, controlToken = "", desktopShell = false, projects: readonly WebProjectNavigation[] = []): string {
+function renderMolisWorkPlanningMethodPage(method: PlanningMethodPack | null, mode: "detail" | "edit" | "new", saveScope: "personal" | "project", project: WebProjectNavigation | null, controlToken = "", desktopShell = false, projects: readonly WebProjectNavigation[] = []): string {
   const navigation = project ? renderProjectSettingsNavigation("planning", project, desktopShell, projects) : renderSettingsNavigation("planning", null, desktopShell, projects);
   return planningRenderer(controlToken, desktopShell, navigation).renderMethod(method, mode, saveScope, project, desktopShell);
 }
-function renderGoalBoardPlanningSettings(view: GoalBoardWebView, methods: readonly PlanningMethodPack[], controlToken = "", desktopShell = false): string {
+function renderMolisWorkPlanningSettings(view: MolisWorkWebView, methods: readonly PlanningMethodPack[], controlToken = "", desktopShell = false): string {
   const navigation = view.project ? renderProjectSettingsNavigation("planning", view.project, desktopShell, view.projects) : renderSettingsNavigation("projects", null, desktopShell, view.projects);
   const composition = composePlanningMethodPacks(methods.filter(method => method.scope === "project" && method.enabled));
   return planningRenderer(controlToken, desktopShell, navigation).renderProject(view, methods, composition, desktopShell);
 }
 
-  return { renderGoalBoardProjectGeneralSettings, renderGoalBoardProjectSettings, renderGoalBoardProjectGuidanceSettings, renderGoalBoardPlanningLibrary, renderGoalBoardPlanningMethodPage, renderGoalBoardPlanningSettings };
+  return { renderMolisWorkProjectGeneralSettings, renderMolisWorkProjectSettings, renderMolisWorkProjectGuidanceSettings, renderMolisWorkPlanningLibrary, renderMolisWorkPlanningMethodPage, renderMolisWorkPlanningSettings };
 }

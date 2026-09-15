@@ -9,7 +9,7 @@ import type {
 
 import type { SecretStore } from "./file-secret-store.js";
 
-const AEAD_PREFIX = "goalboard-feed-aead-v1";
+const AEAD_PREFIX = "molis-work-feed-aead-v1";
 const AEAD_ALG = "aes-256-gcm" as const;
 const AEAD_IV_BYTES = 12;
 const AEAD_KEY_BYTES = 32;
@@ -17,7 +17,7 @@ const SQLITE_NOW_MS = "CAST(unixepoch('now', 'subsec') * 1000 AS INTEGER)";
 
 type SqliteChanges = { changes?: number | bigint };
 
-const CURSOR_PREFIX = "goalboard-feed-blob-cursor-v1";
+const CURSOR_PREFIX = "molis-work-feed-blob-cursor-v1";
 const utf8Fatal = new TextDecoder("utf-8", { fatal: true });
 
 type SecretBackend = Pick<SecretStore, "get" | "createIfAbsent" | "deleteIfPresent">;
@@ -245,7 +245,7 @@ export function createFeedSearchSecretStore(
 }
 
 function newCasToken(): string {
-  return `goalboard-feed-cas-v1.${randomBytes(18).toString("base64url")}`;
+  return `molis-work-feed-cas-v1.${randomBytes(18).toString("base64url")}`;
 }
 
 function encodeScanCursor(namespace: string, lastKey: string): string {

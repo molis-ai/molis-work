@@ -6,7 +6,7 @@ export async function handleGoalLifecycleHttp(context: GoalsHttpContext): Promis
   if (context.method === "POST" && activeGoalMatch) {
     const body = await context.readBody();
     const goalId = decodeURIComponent(activeGoalMatch[1]);
-    const reason = String(body.reason ?? "用户从 GoalBoard 设为当前 Goal").trim();
+    const reason = String(body.reason ?? "用户从 Molis Work 设为当前 Goal").trim();
     if (!reason) {
       context.respond( 400, { error: "设为当前 Goal 时必须说明原因" });
       return true;
@@ -44,7 +44,7 @@ export async function handleGoalLifecycleHttp(context: GoalsHttpContext): Promis
           archived: body.archived,
           reason: String(
             body.reason ??
-              (body.archived ? "用户从 GoalBoard 归档已完成 Goal" : "用户从 GoalBoard 恢复归档 Goal"),
+              (body.archived ? "用户从 Molis Work 归档已完成 Goal" : "用户从 Molis Work 恢复归档 Goal"),
           ),
         },
         {
@@ -68,7 +68,7 @@ export async function handleGoalLifecycleHttp(context: GoalsHttpContext): Promis
       return true;
     }
     if (body.user_confirmed !== true) {
-      context.respond( 400, { error: "请先在 GoalBoard 中确认此操作" });
+      context.respond( 400, { error: "请先在 Molis Work 中确认此操作" });
       return true;
     }
     const goalId = decodeURIComponent(goalTrashMatch[1]);

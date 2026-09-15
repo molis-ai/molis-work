@@ -1,4 +1,4 @@
-import type { PluginInstanceRecord, PluginRuntimeRepository } from "@adeptify/goalboard-contracts/platform/plugin";
+import type { PluginInstanceRecord, PluginRuntimeRepository } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 export interface PluginRuntimeDatabase {
   exec(sql: string): unknown;

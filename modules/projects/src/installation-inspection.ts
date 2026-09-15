@@ -1,10 +1,10 @@
-import type { ProjectRecord } from "@adeptify/goalboard-contracts/modules/projects";
+import type { ProjectRecord } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { ProjectsSqliteDatabase } from "./repository.js";
 
 /** Reads existing catalog facts without initializing or migrating an installation being removed. */
 export function inspectProjectCatalogForUninstall(db: ProjectsSqliteDatabase): { owned: boolean; projects: ProjectRecord[] } {
     const owner = (db.prepare("SELECT value FROM catalog_meta WHERE key = 'owner'").get() as { value?: unknown } | undefined)?.value;
-    if (owner !== "goalboard-project-catalog-v1") return { owned: false, projects: [] };
+    if (owner !== "molis-work-project-catalog-v1" && owner !== "goalboard-project-catalog-v1") return { owned: false, projects: [] };
     const hasDataClass = (db.pragma("table_info(projects)") as Array<{ name?: unknown }>).some((column) => column.name === "data_class");
     const rows = db.prepare(`
       SELECT project_id, display_name, board_id, database_path, source,

@@ -1,5 +1,5 @@
-import type { SqliteDatabase } from "@adeptify/goalboard-storage";
-import type { DesktopPanelRecord, DesktopPanelRepository } from "@adeptify/goalboard-contracts/platform/app-host";
+import type { SqliteDatabase } from "@molis-ai/molis-work-storage";
+import type { DesktopPanelRecord, DesktopPanelRepository } from "@molis-ai/molis-work-contracts/platform/app-host";
 
 export function createDesktopPanelTables(db: SqliteDatabase): void {
   db.exec(`

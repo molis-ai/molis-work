@@ -2,7 +2,7 @@
 
 ## 背景与目标
 
-`GOALBOARD-UI-EVIDENCE-HISTORY` 要让用户不离开 GoalBoard Web，就能提交一条人工验收证据、在 Review 中引用它，并查看某条 Goal 的完整可追溯事实。当前页面只展示 Runtime 已提交的 Evidence 摘要；用户没有提交入口，事件历史只显示最近 12 条摘要，完整记录也遗漏 Evidence、Risk、Relation、Candidate 与 Rewire 的关联细节。
+`MOLIS_WORK-UI-EVIDENCE-HISTORY` 要让用户不离开 Molis Work Web，就能提交一条人工验收证据、在 Review 中引用它，并查看某条 Goal 的完整可追溯事实。当前页面只展示 Runtime 已提交的 Evidence 摘要；用户没有提交入口，事件历史只显示最近 12 条摘要，完整记录也遗漏 Evidence、Risk、Relation、Candidate 与 Rewire 的关联细节。
 
 ## 当前行为与问题证据
 
@@ -14,7 +14,7 @@
 ## 范围
 
 1. 在未归档、未回收的 Goal 页面提供“提交人工 Evidence”入口：选择一个或多个本 Goal 的验收条件、Evidence 类型、结果、定位引用和可选摘要。
-2. Web 后端只适配 `GoalBoardCoordinator.submitEvidence`，使用 `web-user` 作为提交者且不伪造 Runtime Run。
+2. Web 后端只适配 `MolisWorkCoordinator.submitEvidence`，使用 `web-user` 作为提交者且不伪造 Runtime Run。
 3. Evidence 列表显示 Evidence ID、提交者、时间、验收条件、摘要和定位引用；Human Review 继续可从同一列表选择/引用 Evidence。
 4. HTTP(S) 引用直接打开；受控项目内相对路径可通过只读 Web 路由打开。路由只允许指定项目根目录内的普通文本文件，拒绝绝对路径、上级跳转、符号链接逃逸、目录和超大/非文本文件。其余协议或不受控引用仍只复制。
 5. 为每条 Goal 呈现完整事件历史而非 12 条截断：包含 Claim、Run、Evidence、Review、Policy、Risk、Relation、Candidate、Rewire、Contract/Goal Tree Proposal 与澄清记录所关联的事件，并能展开查看 ID、时间、操作人、理由和结构化 payload。

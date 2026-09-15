@@ -2,7 +2,7 @@
 
 ## 背景与目标
 
-GoalBoard 的 canonical Goal 已经能从 `draft` 进入 `accepted`，Claim 释放、撤销和租约过期也已经会结束关联的非终态 Run；但历史数据库仍存在一条 Claim 已过期而 Run 仍为 `started` 的记录，并有三条 Goal 已 `accepted` 而澄清会话仍为 `proposal_ready` 的记录。
+Molis Work 的 canonical Goal 已经能从 `draft` 进入 `accepted`，Claim 释放、撤销和租约过期也已经会结束关联的非终态 Run；但历史数据库仍存在一条 Claim 已过期而 Run 仍为 `started` 的记录，并有三条 Goal 已 `accepted` 而澄清会话仍为 `proposal_ready` 的记录。
 
 目标是让这些生命周期事实重新一致：一次性迁移历史遗留数据，并保证以后 Draft 经用户确认成为正式 Goal 时，同一事务自动关闭它的澄清会话。
 

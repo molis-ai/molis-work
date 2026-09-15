@@ -170,6 +170,6 @@ function rebuildExecutionTables(
   }
   const violations = db.pragma("foreign_key_check") as unknown[];
   if (violations.length > 0) {
-    throw new Error(`GoalBoard migration ${migrationId} foreign key check failed: ${JSON.stringify(violations)}`);
+    throw new Error(`Molis Work migration ${migrationId} foreign key check failed: ${JSON.stringify(violations)}`);
   }
 }

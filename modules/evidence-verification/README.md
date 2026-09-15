@@ -2,7 +2,7 @@
 
 读取历史 Evidence、原始更正及 Review 关联，并提供项目文件引用的读取与路径边界校验。
 
-包名：`@adeptify/goalboard-module-evidence-verification`。工作区内部包，通过仓库构建和 Host 装配使用。
+包名：`@molis-ai/molis-work-module-evidence-verification`。工作区内部包，通过仓库构建和 Host 装配使用。
 
 ## 一次典型调用
 
@@ -33,8 +33,8 @@ Host 通过 `EvidenceVerificationModule.query` 查询原始依据及更正，历
 以下命令在**仓库根目录**执行，使用 Node.js 24+ 与仓库配置的 pnpm。首次准备运行 `pnpm install --frozen-lockfile` 和 `pnpm build`；之后可单独检查此包。
 
 ```bash
-pnpm --filter @adeptify/goalboard-module-evidence-verification typecheck
-pnpm --filter @adeptify/goalboard-module-evidence-verification build
+pnpm --filter @molis-ai/molis-work-module-evidence-verification typecheck
+pnpm --filter @molis-ai/molis-work-module-evidence-verification build
 ```
 
 历史正文、原提交事件与文件引用行为可参考 [evidence-verification-module.test.ts](../../tests/evidence-verification-module.test.ts)、[goal-event-document-history.test.ts](../../tests/goal-event-document-history.test.ts)、[artifact-clipboard.e2e.test.ts](../../tests/artifact-clipboard.e2e.test.ts)。完成仓库构建后运行；浏览器用例需要测试环境中的浏览器：
@@ -51,7 +51,7 @@ node --import tsx --test --test-concurrency=1 tests/evidence-verification-module
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
 - Status: `partial`
-- Contract entrypoint: `@adeptify/goalboard-contracts/modules/evidence-verification`
+- Contract entrypoint: `@molis-ai/molis-work-contracts/modules/evidence-verification`
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-ex2`, `goal-reorg-ex4`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。

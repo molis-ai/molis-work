@@ -1,23 +1,23 @@
-import { resolveGoalBoardHome, runWithGoalBoardHome } from "@adeptify/goalboard-storage";
+import { resolveMolisWorkHome, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
-import type { GoalBoardPtyHost } from "@adeptify/goalboard-service-runtime-host";
-import { createGoalBoardLocalHost } from "./project-host.js";
+import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host";
+import { createMolisWorkLocalHost } from "./project-host.js";
 import { RuntimeIntegrationService } from "./installer/runtime-integration.js";
-import { GoalBoardWebServiceManager } from "./installer/web-service.js";
+import { MolisWorkWebServiceManager } from "./installer/web-service.js";
 import { readPersonalPlanningMethodPacks } from "./personal-planning-methods.js";
 import { resolveWebControlToken } from "./web-control-token.js";
 import { sendLocalWebJson as sendJson, authorizeLocalWebRequest, type LocalMutationState } from "./web-http.js";
-import type { GoalBoardWebViewCache } from "./web-view.js";
+import type { MolisWorkWebViewCache } from "./web-view.js";
 import { openSessionRuntimeResources } from "./web-session.js";
 import { seedDemoBoard } from "./demo-seed.js";
-import { attachGoalBoardPtySocket } from "./pty-socket.js";
+import { attachMolisWorkPtySocket } from "./pty-socket.js";
 import { isWebLocale, localeSetCookie, resolveWebLocale, runWithLocale, safeNextPath } from "./web-locale.js";
 import { fixtureWebBoardOptions } from "./web-routing.js";
 import { createLocalWebComposition, type LocalWebPlatform } from "./web-composition.js";
 import type { WebServerOptions, FeedSchedulerRuntime } from "./web-types.js";
-import { handleGoalBoardWebRequest } from "./web-request.js";
+import { handleMolisWorkWebRequest } from "./web-request.js";
 
 function loopbackWebOrigin(server: http.Server): string {
   const address = server.address();
@@ -28,29 +28,29 @@ function loopbackWebOrigin(server: http.Server): string {
 export function createLocalWebServerFactory(platform: LocalWebPlatform) {
   const composition = createLocalWebComposition(platform);
   const { serveWorkbenchAsset } = composition;
-  return function createGoalBoardWebServer(options: WebServerOptions = {}): http.Server {
-    const storageHome = path.resolve(options.homeDirectory ?? resolveGoalBoardHome());
+  return function createMolisWorkWebServer(options: WebServerOptions = {}): http.Server {
+    const storageHome = path.resolve(options.homeDirectory ?? resolveMolisWorkHome());
     const serverOptions: WebServerOptions = { ...options, homeDirectory: storageHome };
     const fixture = fixtureWebBoardOptions(serverOptions);
     const runtimeIntegrations = serverOptions.runtimeIntegrationService ?? new RuntimeIntegrationService({
       homeDirectory: serverOptions.homeDirectory,
     });
-    const webService = serverOptions.webServiceManager ?? new GoalBoardWebServiceManager({
+    const webService = serverOptions.webServiceManager ?? new MolisWorkWebServiceManager({
       homeDirectory: serverOptions.homeDirectory,
     });
-    const localHost = serverOptions.localHost ?? createGoalBoardLocalHost({
+    const localHost = serverOptions.localHost ?? createMolisWorkLocalHost({
       planningMethods: () => readPersonalPlanningMethodPacks(serverOptions.homeDirectory),
     });
     const ownsLocalHost = !serverOptions.localHost;
     const controlToken = resolveWebControlToken(serverOptions);
     const mutationKeys = new Map<string, LocalMutationState>();
-    const webViewCache: GoalBoardWebViewCache = new Map();
+    const webViewCache: MolisWorkWebViewCache = new Map();
     const feedSchedulers = new Map<string, FeedSchedulerRuntime>();
     const sessionResources = openSessionRuntimeResources(serverOptions);
     void sessionResources.catch(() => undefined);
     if (fixture?.demo && !fs.existsSync(fixture.databasePath)) seedDemoBoard(fixture.databasePath);
-    const pty = { host: null as GoalBoardPtyHost | null };
-    const server = http.createServer((request, response) => runWithGoalBoardHome(storageHome, async () => {
+    const pty = { host: null as MolisWorkPtyHost | null };
+    const server = http.createServer((request, response) => runWithMolisWorkHome(storageHome, async () => {
       const url = new URL(request.url ?? "/", "http://localhost");
       try {
         if (request.method === "GET" && url.pathname === "/locale") {
@@ -79,7 +79,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
           if (!authorizeLocalWebRequest(request, response, url, controlToken, mutationKeys)) return;
           if (serveWorkbenchAsset(request, response, url.pathname)) return;
           if (!pty.host) throw new Error("终端宿主尚未就绪");
-          await handleGoalBoardWebRequest(
+          await handleMolisWorkWebRequest(
             request,
             response,
             url,
@@ -100,7 +100,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
         sendJson(response, 500, { error: error instanceof Error ? error.message : String(error) });
       }
     }));
-    pty.host = attachGoalBoardPtySocket(server, controlToken, {
+    pty.host = attachMolisWorkPtySocket(server, controlToken, {
       onData(panelId, sessionId, data) {
         void sessionResources
           .then((resources) => resources.recorder.recordOutput(panelId, sessionId, data))
@@ -112,7 +112,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
           .catch(() => undefined);
       },
     });
-    const schedulerTimer = setInterval(() => runWithGoalBoardHome(storageHome, () => {
+    const schedulerTimer = setInterval(() => runWithMolisWorkHome(storageHome, () => {
       for (const [databasePath, runtime] of feedSchedulers) {
         void runtime.scheduler.tick()
           .then((result) => {

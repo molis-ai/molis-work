@@ -3,23 +3,23 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { createGoalEntryCompositionClient, createGoalIntentCapability } from "@adeptify/goalboard-plugin-goals";
-import { LocalHost, createGoalBoardLocalHost, goalBoardHostProjectReference, initializeBoardCapability, snapshotBoardCapability } from "@adeptify/goalboard-app-local-host";
-import { GoalBoardServer } from "../apps/desktop/launchers/mcp/server.js";
+import { createGoalEntryCompositionClient, createGoalIntentCapability } from "@molis-ai/molis-work-plugin-goals";
+import { LocalHost, createMolisWorkLocalHost, molisWorkHostProjectReference, initializeBoardCapability, snapshotBoardCapability } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 
 test("MCP event directory and trash composition cannot be split by a queued competing Goal write", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-entry-consistency-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-entry-consistency-"));
   const databasePath = join(directory, "project.db");
   const boardId = "combined-entry";
-  const host = createGoalBoardLocalHost();
-  const reference = goalBoardHostProjectReference({ databasePath, boardId });
+  const host = createMolisWorkLocalHost();
+  const reference = molisWorkHostProjectReference({ databasePath, boardId });
   const client = host.client(reference);
   const composition = createGoalEntryCompositionClient(client);
   const runtimeHost = {
     homeDirectory: directory,
     runtimeContext: { runtime_id: "entry", stable_work_context_id: "session", host_declares_stable: true },
   };
-  const mcp = new GoalBoardServer("runtime", { databasePath, boardId, webBaseUrl: "http://127.0.0.1:4173" }, runtimeHost, host);
+  const mcp = new MolisWorkServer("runtime", { databasePath, boardId, webBaseUrl: "http://127.0.0.1:4173" }, runtimeHost, host);
   const makeIntent = (goalId: string) => ({
     board_id: boardId, actor_id: "user", actor_kind: "user" as const, idempotency_key: `create-${goalId}`,
     goal_id: goalId, title: goalId, outcome: "一致的入口结果",
@@ -40,12 +40,12 @@ test("MCP event directory and trash composition cannot be split by a queued comp
         return result;
       };
     });
-    const listed = JSON.parse(await mcp.callTool("goalboard_v1_goal_list", { limit: 100 }));
+    const listed = JSON.parse(await mcp.callTool("molis_work_v1_goal_list", { limit: 100 }));
     await competingWrite;
     assert.deepEqual(listed.goals.map((item: { goal_id: string }) => item.goal_id), ["first"]);
     const later = await client.invoke(createGoalIntentCapability, makeIntent("later"));
     assert.equal(later.replayed, true);
-    const after = JSON.parse(await mcp.callTool("goalboard_v1_goal_list", { limit: 100 }));
+    const after = JSON.parse(await mcp.callTool("molis_work_v1_goal_list", { limit: 100 }));
     assert.deepEqual(after.goals.map((item: { goal_id: string }) => item.goal_id).sort(), ["first", "later"]);
 
     await host.withProject(reference, ({ coordinator }) => {
@@ -60,7 +60,7 @@ test("MCP event directory and trash composition cannot be split by a queued comp
         return result;
       };
     });
-    const trashed = JSON.parse(await mcp.callTool("goalboard_v1_goal_trash", {
+    const trashed = JSON.parse(await mcp.callTool("molis_work_v1_goal_trash", {
       goal_id: "first", user_confirmed: true,
       reason: "用户明确移入回收站", idempotency_key: "trash-before-restore",
     }));

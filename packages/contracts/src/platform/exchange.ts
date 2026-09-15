@@ -2,7 +2,7 @@
 import type { ContractDescriptor } from "./package.js";
 
 export const platformExchangeContract = {
-  contractId: "io.goalboard.platform.exchange.v1",
+  contractId: "io.molis.work.platform.exchange.v1",
   kind: "platform",
   schemaVersion: 1,
   maturity: "contract-only",

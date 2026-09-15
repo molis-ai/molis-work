@@ -14,9 +14,9 @@ Goal：`goal-reorg-ap2`
 - `packages/contracts/src/platform/app-host.ts`：公开带版本的 Capability、Project reference、Host Client 与状态类型。
 - `packages/kernel/src/index.ts`：只负责 Capability 注册、查找和调用，不保存业务事实，也不复制 Module 规则。
 - `apps/local-host/src/index.ts`：按 Project storage key 复用一份 Runtime，串行执行该 Project 的 Capability，并统一处理身份冲突、关闭等待和重启。
-- `src/local-host/composition.ts`：迁移期兼容装配点；旧 `SqliteGoalBoardStore` 与 `GoalBoardCoordinator` 只在这里组合成 Host Runtime。
+- `src/local-host/composition.ts`：迁移期兼容装配点；旧 `SqliteMolisWorkStore` 与 `MolisWorkCoordinator` 只在这里组合成 Host Runtime。
 
-正式调用通过 `LocalHostProjectClient.invoke(capability, input)`。尚未迁入独立 Module 的旧功能临时通过 `GoalBoardLocalHost.withProject` 使用同一 Runtime；这是有退出方向的兼容端口，不是第二套公共业务 API。
+正式调用通过 `LocalHostProjectClient.invoke(capability, input)`。尚未迁入独立 Module 的旧功能临时通过 `MolisWorkLocalHost.withProject` 使用同一 Runtime；这是有退出方向的兼容端口，不是第二套公共业务 API。
 
 ### 依赖检查
 
@@ -37,7 +37,7 @@ AP2 已从这些产品入口移除重复的 Store / Coordinator 初始化：
 - `src/mcp/server.ts`：协议和上下文适配保留在 MCP，业务运行对象由 Host 提供，并随 stdio 生命周期统一关闭。
 - Desktop：当前通过它启动的 Web / Workbench 路径使用同一 Host，没有再创建一套业务 Store。
 
-源码边界测试禁止 Web、CLI、MCP 重新出现 `new SqliteGoalBoardStore` 或 `new GoalBoardCoordinator`。`rg` 审计确认，这两个构造在本切片涉及的入口中只存在于 `src/local-host/composition.ts`。`src/projects/catalog.ts` 的文件迁移/创建 staging 和 `src/v1/demo.ts` 的独立 Demo 数据生成不属于这些运行入口，分别由后续 AP/WK 切片和 Demo 清理处理；它们没有被错误吸收到 Local Host。
+源码边界测试禁止 Web、CLI、MCP 重新出现 `new SqliteMolisWorkStore` 或 `new MolisWorkCoordinator`。`rg` 审计确认，这两个构造在本切片涉及的入口中只存在于 `src/local-host/composition.ts`。`src/projects/catalog.ts` 的文件迁移/创建 staging 和 `src/v1/demo.ts` 的独立 Demo 数据生成不属于这些运行入口，分别由后续 AP/WK 切片和 Demo 清理处理；它们没有被错误吸收到 Local Host。
 
 AP2 没有新建一个掌管所有业务的全局 Coordinator。Host 只负责组合、复用、排队和释放，各 Module 仍通过自己的 Contract 管理规则和事实。
 

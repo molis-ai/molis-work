@@ -2,7 +2,7 @@
 
 保存 Goal 意图、当前约定、要求和工作记录，判断正式收尾是否生效；同时提供关系图、项目指导、可选规划及历史事实读取。
 
-包名：`@adeptify/goalboard-module-goals`。工作区内部包，通过仓库构建和 Host 装配使用。
+包名：`@molis-ai/molis-work-module-goals`。工作区内部包，通过仓库构建和 Host 装配使用。
 
 ## 一次典型调用
 
@@ -37,8 +37,8 @@ Native Goals 通过 `GoalsModule.events` 创建意图、保存普通笔记、配
 以下命令在**仓库根目录**执行，使用 Node.js 24+ 与仓库配置的 pnpm。首次准备运行 `pnpm install --frozen-lockfile` 和 `pnpm build`；之后可单独检查此包。
 
 ```bash
-pnpm --filter @adeptify/goalboard-module-goals typecheck
-pnpm --filter @adeptify/goalboard-module-goals build
+pnpm --filter @molis-ai/molis-work-module-goals typecheck
+pnpm --filter @molis-ai/molis-work-module-goals build
 ```
 
 已有行为示例与回归：[goals-command-module.test.ts](../../tests/goals-command-module.test.ts)、[goals-query-module.test.ts](../../tests/goals-query-module.test.ts)、[goal-events.test.ts](../../tests/goal-events.test.ts)、[goal-events-state.test.ts](../../tests/goal-events-state.test.ts)。完成上述构建后运行：
@@ -55,7 +55,7 @@ node --import tsx --test --test-concurrency=1 tests/goals-command-module.test.ts
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
 - Status: `partial`
-- Contract entrypoint: `@adeptify/goalboard-contracts/modules/goals`
+- Contract entrypoint: `@molis-ai/molis-work-contracts/modules/goals`
 - Migration Goals: `goal-reorg-f2`, `goal-f826dfb8-bf63-4e98-b6b7-57f6b4b7c3b8`, `goal-reorg-gw1`, `goal-reorg-gw2`, `goal-reorg-gw3`, `goal-reorg-gw4`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。

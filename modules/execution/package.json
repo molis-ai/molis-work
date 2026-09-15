@@ -1,5 +1,5 @@
 {
-  "name": "@adeptify/goalboard-module-execution",
+  "name": "@molis-ai/molis-work-module-execution",
   "version": "0.0.0",
   "private": true,
   "description": "Claim, Run, attempt, lease, and execution lifecycle facts.",
@@ -25,13 +25,13 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@adeptify/goalboard-contracts": "workspace:*"
+    "@molis-ai/molis-work-contracts": "workspace:*"
   },
-  "goalboard": {
+  "molis-work": {
     "path": "modules/execution",
     "kind": "module",
     "maturity": "partial",
-    "contract": "@adeptify/goalboard-contracts/modules/execution",
+    "contract": "@molis-ai/molis-work-contracts/modules/execution",
     "migrationGoals": [
       "goal-reorg-f2",
       "goal-reorg-ex1",

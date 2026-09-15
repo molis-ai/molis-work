@@ -2,11 +2,11 @@
 
 让 Module、Host、Plugin 和 App 通过一致的输入输出协作。这里提供真实的公共类型、schema 和解析规则，而不是功能实现。
 
-包名：`@adeptify/goalboard-contracts`。工作区内部包，通过仓库构建和 Host 装配使用。
+包名：`@molis-ai/molis-work-contracts`。工作区内部包，通过仓库构建和 Host 装配使用。
 
 ## 一次典型调用
 
-调用方按领域子路径导入，例如 @adeptify/goalboard-contracts/modules/goals 或 /platform/plugin。Plugin Manifest 的 parsePluginManifest 在此定义，SDK 和工具共享解析规则；具体命令执行交给对应 owner。
+调用方按领域子路径导入，例如 @molis-ai/molis-work-contracts/modules/goals 或 /platform/plugin。Plugin Manifest 的 parsePluginManifest 在此定义，SDK 和工具共享解析规则；具体命令执行交给对应 owner。
 
 ## 从哪里读代码
 
@@ -32,8 +32,8 @@
 以下命令在**仓库根目录**执行，使用 Node.js 24+ 与仓库配置的 pnpm。首次准备运行 `pnpm install --frozen-lockfile` 和 `pnpm build`；之后可单独检查此包。
 
 ```bash
-pnpm --filter @adeptify/goalboard-contracts typecheck
-pnpm --filter @adeptify/goalboard-contracts build
+pnpm --filter @molis-ai/molis-work-contracts typecheck
+pnpm --filter @molis-ai/molis-work-contracts build
 ```
 
 已有行为示例与回归：[plugin-authoring.test.ts](../../tests/plugin-authoring.test.ts)。完成上述构建后运行：
@@ -50,7 +50,7 @@ node --import tsx --test --test-concurrency=1 tests/plugin-authoring.test.ts
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
 - Status: `contract-only`
-- Contract entrypoint: `@adeptify/goalboard-contracts/platform/package`
+- Contract entrypoint: `@molis-ai/molis-work-contracts/platform/package`
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-f3`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。

@@ -1,4 +1,4 @@
-import { openGoalBoardProjectCatalog } from "@adeptify/goalboard-app-desktop";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -6,21 +6,21 @@ import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import test from "node:test";
-import { installGoalBoardHome } from "@adeptify/goalboard-app-local-host";
-import { RuntimeIntegrationService } from "@adeptify/goalboard-app-local-host";
-import { GoalBoardUninstallError } from "@adeptify/goalboard-app-local-host";
-import { createDesktopUninstallService as createLocalUninstallService } from "@adeptify/goalboard-app-desktop";
-import { GoalBoardWebServiceManager } from "@adeptify/goalboard-app-local-host";
+import { installMolisWorkHome } from "@molis-ai/molis-work-app-local-host";
+import { RuntimeIntegrationService } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkUninstallError } from "@molis-ai/molis-work-app-local-host";
+import { createDesktopUninstallService as createLocalUninstallService } from "@molis-ai/molis-work-app-desktop";
+import { MolisWorkWebServiceManager } from "@molis-ai/molis-work-app-local-host";
 
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 async function fixture() {
-  const directory = await mkdtemp(join(tmpdir(), "goalboard-uninstall-"));
+  const directory = await mkdtemp(join(tmpdir(), "molis-work-uninstall-"));
   const userHome = join(directory, "user");
-  const home = join(userHome, ".goalboard");
-  await installGoalBoardHome({ homeDirectory: home, sourceDirectory: ROOT, version: "0.1.0-uninstall-test" });
-  const catalog = await openGoalBoardProjectCatalog({ homeDirectory: home });
+  const home = join(userHome, ".molis-work");
+  await installMolisWorkHome({ homeDirectory: home, sourceDirectory: ROOT, version: "0.1.0-uninstall-test" });
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const userProject = await catalog.createProject({ display_name: "用户项目", actor_id: "user" });
   const demo = await catalog.ensureDemoProject({ actor_id: "user", user_confirmed: true });
   catalog.close();
@@ -29,7 +29,7 @@ async function fixture() {
     userHomeDirectory: userHome,
     runtimeExecutables: { codex: null, "claude-code": null, opencode: null, "pi-agent": null, "grok-build": null },
   });
-  const webServiceManager = new GoalBoardWebServiceManager({
+  const webServiceManager = new MolisWorkWebServiceManager({
     homeDirectory: home,
     userHomeDirectory: userHome,
     platform: "linux",
@@ -58,12 +58,12 @@ test("safe uninstall preview is read-only and confirmation preserves every user 
     assert.ok(result.receipt_path);
     assert.equal((await stat(result.receipt_path!)).isFile(), true);
 
-    await installGoalBoardHome({
+    await installMolisWorkHome({
       homeDirectory: item.home,
       sourceDirectory: ROOT,
       version: "0.1.0-uninstall-test-reinstalled",
     });
-    const catalog = await openGoalBoardProjectCatalog({ homeDirectory: item.home });
+    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: item.home });
     try {
       assert.deepEqual(catalog.listProjects().map((project) => [project.display_name, project.data_class]), [
         ["用户项目", "user"],
@@ -109,7 +109,7 @@ test("public CLI exposes read-only demo and uninstall previews", async () => {
 test("purge needs a second exact home and user-project-count confirmation", async () => {
   const item = await fixture();
   try {
-    const runtimeBackup = join(item.home, "runtime-config-backups", "codex", "before-goalboard.bak");
+    const runtimeBackup = join(item.home, "runtime-config-backups", "codex", "before-molis-work.bak");
     await mkdir(dirname(runtimeBackup), { recursive: true });
     await writeFile(runtimeBackup, "runtime config backup\n");
     const plan = await item.service.prepare({ purge_user_data: true });
@@ -120,7 +120,7 @@ test("purge needs a second exact home and user-project-count confirmation", asyn
         decision: "confirmed",
         purge_confirmation: { home_directory: item.home, user_project_count: 0 },
       }),
-      (error: unknown) => error instanceof GoalBoardUninstallError
+      (error: unknown) => error instanceof MolisWorkUninstallError
         && error.code === "uninstall.purge_confirmation_required",
     );
     assert.equal((await stat(item.userProject.database_path)).isFile(), true);
@@ -145,13 +145,13 @@ test("purge needs a second exact home and user-project-count confirmation", asyn
 test("changed owned files block uninstall and a failed service step leaves a recovery receipt", async () => {
   const conflict = await fixture();
   try {
-    const launcher = join(conflict.home, "bin", "goalboard-web");
+    const launcher = join(conflict.home, "bin", "molis-work-web");
     await writeFile(launcher, "user replacement\n");
     const plan = await conflict.service.prepare();
     assert.equal(plan.status, "conflict");
     await assert.rejects(
       () => conflict.service.confirm({ plan_id: plan.plan_id, decision: "confirmed" }),
-      (error: unknown) => error instanceof GoalBoardUninstallError && error.code === "uninstall.conflict",
+      (error: unknown) => error instanceof MolisWorkUninstallError && error.code === "uninstall.conflict",
     );
     assert.equal(await readFile(launcher, "utf8"), "user replacement\n");
     assert.equal((await stat(conflict.userProject.database_path)).isFile(), true);
@@ -163,7 +163,7 @@ test("changed owned files block uninstall and a failed service step leaves a rec
   try {
     let loaded = false;
     let failStop = false;
-    const webServiceManager = new GoalBoardWebServiceManager({
+    const webServiceManager = new MolisWorkWebServiceManager({
       homeDirectory: failed.home,
       userHomeDirectory: failed.userHome,
       platform: "darwin",
@@ -198,7 +198,7 @@ test("changed owned files block uninstall and a failed service step leaves a rec
     const plan = await service.prepare();
     await assert.rejects(
       () => service.confirm({ plan_id: plan.plan_id, decision: "confirmed" }),
-      (error: unknown) => error instanceof GoalBoardUninstallError && error.code === "uninstall.step_failed",
+      (error: unknown) => error instanceof MolisWorkUninstallError && error.code === "uninstall.step_failed",
     );
     const receipt = JSON.parse(await readFile(service.receiptPath, "utf8")) as { state: string; error: string };
     assert.equal(receipt.state, "failed");

@@ -6,7 +6,7 @@ name: "支付与资产"
 summary: "为任何涉及收费、余额、权益或可转移资产的产品叠加账实一致和异常恢复约束。"
 applies_to: ["应用内支付","订阅权益","余额或数字资产"]
 domain_tags: ["payments","assets","entitlements"]
-source_refs: ["PCI Security Standards Council","GoalBoard ledger dependency rules"]
+source_refs: ["PCI Security Standards Council","Molis Work ledger dependency rules"]
 confidence: 0.92
 ---
 

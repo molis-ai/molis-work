@@ -46,7 +46,7 @@ export const WORK_ASSOCIATIONS_CLIENT = `
     try {
       await parseActionResponse(await fetch(route("/api/sessions/" + encodeURIComponent(relationsDetail.dataset.detailId) + "/associations"), {
         method: "PATCH",
-        headers: window.goalboardControlHeaders?.() || {},
+        headers: window.molisWorkControlHeaders?.() || {},
         body: JSON.stringify({
           project_id: relationsProject.value || null,
           current_goal_id: relationsGoal?.disabled ? null : relationsGoal?.value || null,
@@ -80,7 +80,7 @@ export const WORK_ASSOCIATIONS_CLIENT = `
     if (title) title.textContent = archiveNext ? L("归档 Session 记录") : L("恢复 Session 记录");
     if (name) name.textContent = archiveDetail?.querySelector("h1")?.textContent || archiveDetail?.dataset.detailId || "";
     if (impact) impact.textContent = archiveNext ? L("从默认活跃记录中整理为已归档；仍可筛选和恢复。") : L("恢复为可查看记录；所有关系和历史保持不变。");
-    if (copy) copy.textContent = archiveNext ? L("确认只归档 GoalBoard 记录，不删除 Runtime 内容。") : L("确认恢复这条 GoalBoard Session 记录。");
+    if (copy) copy.textContent = archiveNext ? L("确认只归档 Molis Work 记录，不删除 Runtime 内容。") : L("确认恢复这条 Molis Work Session 记录。");
     if (archiveStatus) archiveStatus.hidden = true;
     if (archiveSubmit) archiveSubmit.disabled = true;
     archiveDialog?.showModal();
@@ -94,7 +94,7 @@ export const WORK_ASSOCIATIONS_CLIENT = `
     try {
       await parseActionResponse(await fetch(route("/api/sessions/" + encodeURIComponent(archiveDetail.dataset.detailId) + "/archive"), {
         method: "POST",
-        headers: window.goalboardControlHeaders?.() || {},
+        headers: window.molisWorkControlHeaders?.() || {},
         body: JSON.stringify({ archived: archiveNext, user_confirmed: true }),
       }));
       archiveDialog.close();

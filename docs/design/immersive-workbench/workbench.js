@@ -5,7 +5,7 @@ const escapeHtml = (value) => String(value).replaceAll('&','&amp;').replaceAll('
 let goals = [
   { id:'experience', title:'让首次使用顺利开始', outcome:'从安装到第一次有效推进，让用户知道自己在哪、接下来做什么。', caption:'一个清楚的入口，一次真实的推进。', x:638,y:138, state:'active',status:'3 条路径',kind:'root',symbol:'target', parent:'项目目标',requirements:['用户能看懂第一步','能够接上正在使用的 Runtime','能查看第一次工作的结果'] },
   { id:'connect',title:'连接正在用的 Runtime',outcome:'用户能把当前使用的 Codex 或 Claude 连接到项目，并理解新会话会读取哪些信息。',caption:'让工具带着正确的项目上下文开始。',x:162,y:433,state:'done',status:'已完成',symbol:'terminal',parent:'首次使用体验',requirements:['连接步骤可照着操作','新会话能读到项目','出错时知道如何重试'] },
-  { id:'guide',title:'让用户知道下一步',outcome:'用户第一次打开 GoalBoard，就能找到值得开始的 Goal，并在同一处看过程、给反馈、检查结果。',caption:'进入画布之后，自然走向第一件事。',x:634,y:405,state:'waiting',status:'等你确认',kind:'focus',symbol:'chat',parent:'首次使用体验',requirements:['看得懂项目正在做什么','可以直接展开一个 Goal 开始工作','确认首次打开时的引导方式'] },
+  { id:'guide',title:'让用户知道下一步',outcome:'用户第一次打开 Molis Work，就能找到值得开始的 Goal，并在同一处看过程、给反馈、检查结果。',caption:'进入画布之后，自然走向第一件事。',x:634,y:405,state:'waiting',status:'等你确认',kind:'focus',symbol:'chat',parent:'首次使用体验',requirements:['看得懂项目正在做什么','可以直接展开一个 Goal 开始工作','确认首次打开时的引导方式'] },
   { id:'result',title:'让工作结果可以检查',outcome:'每次工作都有可读的成果和证据，用户能在 Goal 中直接检查，而不是到处寻找。',caption:'把成果、检查和决定放在一起。',x:1126,y:440,state:'active',status:'准备开始',symbol:'file',parent:'首次使用体验',requirements:['成果能在对话中直接打开','版本和来源清楚','决定保留在时间线'] },
   { id:'trial',title:'完成一轮内部试用',outcome:'从创建 Goal 到得到成果，完整走过一次流程，并记录实际遇到的问题。',caption:'沿着完整路径走一次，看看哪里还会停住。',x:658,y:802,state:'waiting',status:'等待前置',symbol:'play',parent:'首次使用体验',requirements:['完成真实首次使用','记录过程中的疑问','逐项确认修复结果'] },
   { id:'research',title:'找出第一次使用的断点',outcome:'整理安装、连接、首次打开三个阶段最容易让用户困惑的地方。',caption:'已找到 4 个需要说明的时刻。',x:143,y:745,state:'done',status:'已完成',symbol:'note',parent:'首次使用体验',requirements:['回看现有安装说明','记录首次打开的疑问','把观察关联到对应 Goal'] },
@@ -15,7 +15,7 @@ let work = new Map();
 function stateFor(goal) {
   if (!work.has(goal.id)) work.set(goal.id,{
     draft:'',terminalDraft:'',requirementsEditing:false,requirementsDraft:goal.requirements.join('\n'),mode:'conversation',noteMode:false,attachment:'',paused:false,artifactOpen:false,decision:'',messages:[],scroll:0,requirementsOpen:false,
-    outcome:goal.outcome,terminal:goal.fresh?`GoalBoard · 模拟终端\n\n  Goal    ${goal.title}\n  状态    尚未连接 Runtime\n\n  输入 help 查看演示命令，不执行真实命令。\n`:`GoalBoard · Runtime preview\n\n  Goal    ${goal.title}\n  Session codex / design-preview\n  Scope   仅为界面演示，不执行真实命令\n\n› 读取当前 Goal 与关联资料\n  ✓ 目标、完成要求已载入\n  ✓ 已关联首次使用观察\n  ✓ 已整理工作结果\n\n  当前状态：等待用户反馈\n  输入 help 查看演示命令。\n`,
+    outcome:goal.outcome,terminal:goal.fresh?`Molis Work · 模拟终端\n\n  Goal    ${goal.title}\n  状态    尚未连接 Runtime\n\n  输入 help 查看演示命令，不执行真实命令。\n`:`Molis Work · Runtime preview\n\n  Goal    ${goal.title}\n  Session codex / design-preview\n  Scope   仅为界面演示，不执行真实命令\n\n› 读取当前 Goal 与关联资料\n  ✓ 目标、完成要求已载入\n  ✓ 已关联首次使用观察\n  ✓ 已整理工作结果\n\n  当前状态：等待用户反馈\n  输入 help 查看演示命令。\n`,
     events:goal.fresh?[{kind:'note',title:'创建 Goal',meta:'刚刚 · 你',body:goal.outcome}]:[
       {kind:'decision',title:goal.id==='guide'?'引导方式需要你确认':'等待下一步反馈',meta:'刚刚 · Codex',body:'工作过程和成果已经保留。你可以在当前对话中继续，也可以先检查相关资料。'},
       {kind:'result',title:goal.id==='guide'?'首次使用说明已整理':'阶段成果已整理',meta:'10:42 · Codex',body:'这一份演示成果保留在当前 Goal。点击对话中的文件可展开阅读。',file:goal.id==='guide'?'首次使用说明.md':'阶段工作说明.md'},
@@ -29,7 +29,7 @@ function stateFor(goal) {
 const canvas = $('#canvas'), world = $('#world'), workspace = $('#goal-workspace');
 let activeGoal = null, returnTarget = null, handMode = false;
 const projects=[
-  {id:'goalboard',name:'GoalBoard',plugins:['goals','sessions','feed','artifacts'],lastPlugin:'goals',suspendedGoal:null,goals,edges,work,camera:null,folded:new Set()},
+  {id:'molis-work',name:'Molis Work',plugins:['goals','sessions','feed','artifacts'],lastPlugin:'goals',suspendedGoal:null,goals,edges,work,camera:null,folded:new Set()},
   {id:'ideas',name:'灵感收集',plugins:['feed','artifacts'],lastPlugin:'feed',suspendedGoal:null,goals:[],edges:[],work:new Map(),camera:null,folded:new Set()},
 ];
 let currentProject=projects[0], currentPlugin='goals';
@@ -44,7 +44,7 @@ const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 function renderNodes() {
   $('#canvas-empty').hidden=goals.length>0;
-  document.querySelectorAll('.canvas-annotation,.canvas-group-label').forEach(label=>label.hidden=currentProject.id!=='goalboard');
+  document.querySelectorAll('.canvas-annotation,.canvas-group-label').forEach(label=>label.hidden=currentProject.id!=='molis-work');
   $('#nodes').innerHTML = goals.map(g => `<button class="goal-node ${g.kind ? g.kind+'-node' : ''}" data-goal="${g.id}" style="left:${g.x}px;top:${g.y}px" aria-label="展开 Goal：${escapeHtml(g.title)}">
     <span class="node-top"><span class="node-symbol">${icon(g.symbol)}</span><span class="node-state ${g.state}"><i></i>${escapeHtml(g.status)}</span></span>
     <strong>${escapeHtml(g.title)}</strong><span class="node-caption">${escapeHtml(g.caption)}</span>
@@ -124,7 +124,7 @@ function renderConversation(){
         <ul class="work-steps"><li>${icon('check')}梳理现有入口</li><li>${icon('check')}整理工作结果</li><li class="pending-step"><i></i>${s.decision?'按你的选择继续':'等你确认方向'}</li></ul>
         <div class="artifact"><button class="artifact-button" id="artifact-toggle" aria-expanded="${s.artifactOpen}"><span class="artifact-icon">${icon('file')}</span><span><strong>${guide?'首次使用说明.md':'阶段工作说明.md'}</strong><small>文档 · ${s.decision?'v2 · 已按你的选择更新':'v1 · 本次工作产出'}</small></span>${icon(s.artifactOpen?'down':'chevron')}</button>
           <div class="artifact-preview" ${s.artifactOpen?'hidden':''}>${guide?'看见项目全貌 → 展开一个 Goal → 在原地开始协作。<br>只在需要的时候，再带出资料、记录和终端。':'围绕当前目标整理工作路径、检查依据与后续事项。'}</div>
-          <div class="artifact-body" ${s.artifactOpen?'':'hidden'}><h3>${guide?'第一次打开 GoalBoard':'这件事接下来怎么做'}</h3><p>${guide?'先看看画布：每个 Goal 都是一件想做成的事，连线告诉你它们如何配合。':escapeHtml(s.outcome)}</p><h4>找到一件值得开始的事</h4><p>${s.decision==='direct'?'首次进入时，直接展开推荐的 Goal；用户可以随时收起回到画布。':'首次进入时，保留完整项目画布，轻轻提示一个适合开始的 Goal。'}</p><h4>展开，在原地继续</h4><p>查看当前进展和成果，补充你的想法。需要核对技术过程时切到终端；想看为什么这么做，就打开右边的时间线。</p><h4>收起，回到全貌</h4><p>对话、输入和工作结果都留在 Goal 里。再次打开时，从刚才的位置接着做。</p><button type="button" id="revise-artifact">把这份文档带入下一条反馈</button></div>
+          <div class="artifact-body" ${s.artifactOpen?'':'hidden'}><h3>${guide?'第一次打开 Molis Work':'这件事接下来怎么做'}</h3><p>${guide?'先看看画布：每个 Goal 都是一件想做成的事，连线告诉你它们如何配合。':escapeHtml(s.outcome)}</p><h4>找到一件值得开始的事</h4><p>${s.decision==='direct'?'首次进入时，直接展开推荐的 Goal；用户可以随时收起回到画布。':'首次进入时，保留完整项目画布，轻轻提示一个适合开始的 Goal。'}</p><h4>展开，在原地继续</h4><p>查看当前进展和成果，补充你的想法。需要核对技术过程时切到终端；想看为什么这么做，就打开右边的时间线。</p><h4>收起，回到全貌</h4><p>对话、输入和工作结果都留在 Goal 里。再次打开时，从刚才的位置接着做。</p><button type="button" id="revise-artifact">把这份文档带入下一条反馈</button></div>
         </div>
         ${s.decision?`<div class="accepted-decision">${icon('check')}已选择：${s.decision==='canvas'?'先看项目画布':'直接打开一个 Goal'}。文档和时间线已同步。</div>`:guide?`<div class="decision-prompt"><div class="decision-label"><i></i>有一处想听听你的判断</div><p>新用户第一次进入，先看到完整画布，还是直接展开推荐 Goal？</p><div class="decision-options"><button class="recommended" data-decision="canvas">先看项目画布</button><button data-decision="direct">直接打开一个 Goal</button></div></div>`:'<p>你可以直接补充要求，或打开右侧资料核对现有约定。</p>'}
       </div></section>
@@ -198,7 +198,7 @@ $('#composer').onsubmit=e=>{
 };
 $('#message-input').addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)){e.preventDefault();$('#composer').requestSubmit();}});
 $('#terminal-command').oninput=()=>{if(activeGoal)stateFor(activeGoal).terminalDraft=$('#terminal-command').value;};
-$('#terminal-form').onsubmit=e=>{e.preventDefault();const input=$('#terminal-command'),text=input.value.trim();if(!text)return;const s=stateFor(activeGoal);s.terminal+='\n› '+text+'\n'+(text==='help'?'  help    查看演示命令\n  status  查看当前 Goal 的演示状态\n  clear   清空这段模拟输出\n':text==='status'?`  Goal: ${activeGoal.title}\n  状态: ${s.paused?'暂停':s.decision?'已确认方向':'等待反馈'}\n  输入与成果均保留在当前 Goal。\n`:text==='clear'?'': '  这是终端外观演示，不执行真实命令。\n');if(text==='clear')s.terminal='GoalBoard · 模拟终端\n';input.value='';s.terminalDraft='';$('#terminal-output').textContent=s.terminal;$('#terminal-output').scrollTop=$('#terminal-output').scrollHeight;};
+$('#terminal-form').onsubmit=e=>{e.preventDefault();const input=$('#terminal-command'),text=input.value.trim();if(!text)return;const s=stateFor(activeGoal);s.terminal+='\n› '+text+'\n'+(text==='help'?'  help    查看演示命令\n  status  查看当前 Goal 的演示状态\n  clear   清空这段模拟输出\n':text==='status'?`  Goal: ${activeGoal.title}\n  状态: ${s.paused?'暂停':s.decision?'已确认方向':'等待反馈'}\n  输入与成果均保留在当前 Goal。\n`:text==='clear'?'': '  这是终端外观演示，不执行真实命令。\n');if(text==='clear')s.terminal='Molis Work · 模拟终端\n';input.value='';s.terminalDraft='';$('#terminal-output').textContent=s.terminal;$('#terminal-output').scrollTop=$('#terminal-output').scrollHeight;};
 $('#edit-goal').onclick=()=>{$('#goal-edit-form').hidden=false;$('#goal-outcome').hidden=true;$('#outcome-edit').focus();};
 $('#cancel-goal-edit').onclick=()=>{$('#goal-edit-form').hidden=true;$('#goal-outcome').hidden=false;$('#outcome-edit').value=stateFor(activeGoal).outcome;$('#edit-goal').focus();};
 $('#goal-edit-form').onsubmit=e=>{e.preventDefault();const text=$('#outcome-edit').value.trim();if(!text)return;stateFor(activeGoal).outcome=text;$('#goal-outcome').textContent=text;$('#goal-edit-form').hidden=true;$('#goal-outcome').hidden=false;addEvent('note','调整了预期结果',text);$('#edit-goal').focus();notify('预期结果已更新（仅演示）');};

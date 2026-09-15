@@ -36,30 +36,30 @@ Writer 完成「分页锚点变化与明确恢复焦点」。未宣称 WI02 或�
 
 ```
 pnpm_config_verify_deps_before_run=warn pnpm build
-  → /private/tmp/goalboard-flow-cleanup/02-e-build.log  EXIT 0
+  → /private/tmp/molis-work-flow-cleanup/02-e-build.log  EXIT 0
 
-node --import tsx --input-type=module < /private/tmp/goalboard-flow-cleanup/02-e-pagination-acceptance.mjs
-  → /private/tmp/goalboard-flow-cleanup/02-e-pagination-after.log  EXIT 0
+node --import tsx --input-type=module < /private/tmp/molis-work-flow-cleanup/02-e-pagination-acceptance.mjs
+  → /private/tmp/molis-work-flow-cleanup/02-e-pagination-after.log  EXIT 0
     PASS real MCP pagination follows original sort values with tied timestamps, updated anchor and trashed anchor; no first-page restart or missing later Goals
     PASS invalid pagination and status inputs reject without writes
 
-node --import tsx --input-type=module < /private/tmp/goalboard-flow-cleanup/02-e-focus-acceptance.mjs
-  → /private/tmp/goalboard-flow-cleanup/02-e-focus-after.log  EXIT 0
+node --import tsx --input-type=module < /private/tmp/molis-work-flow-cleanup/02-e-focus-acceptance.mjs
+  → /private/tmp/molis-work-flow-cleanup/02-e-focus-after.log  EXIT 0
     PASS explicit Host focus outranks the real Session focus beyond 100 goals
     PASS real Session focus remains usable beyond 100 goals
     PASS invalid Host focus falls back to the valid saved Session target
     PASS Host restart retains saved Session focus and priority
 
 pnpm_config_verify_deps_before_run=warn pnpm boundary:check
-  → /private/tmp/goalboard-flow-cleanup/02-e-boundary.log  EXIT 0  errors: []
+  → /private/tmp/molis-work-flow-cleanup/02-e-boundary.log  EXIT 0  errors: []
 
 env -u FORCE_COLOR NODE_NO_WARNINGS=1 node --import tsx --test --test-concurrency=1 \
   tests/goal-event-create-flow.test.ts tests/mcp-resume-view.test.ts \
   tests/runtime-context-entry.test.ts
-  → /private/tmp/goalboard-flow-cleanup/02-e-tests.log  7 pass / 0 fail / 0 skip
+  → /private/tmp/molis-work-flow-cleanup/02-e-tests.log  7 pass / 0 fail / 0 skip
 ```
 
-仓库回归覆盖：`listGoals` 同时间戳、更新/回收锚点后继续、非法 cursor/status 无写入；`goalboard_v1_context_resolve` 经 `openWorkSessionRegistry.explicitlyLinkSession` 保存 `current_goal_id`，Host/Session 均在 100 外时 Host 优先、无效 Host 回退 Session、Host 重启一致，且 Session 关联与消息事件不变。原 `buildMcpResumeView` 数组排序语义保留。
+仓库回归覆盖：`listGoals` 同时间戳、更新/回收锚点后继续、非法 cursor/status 无写入；`molis_work_v1_context_resolve` 经 `openWorkSessionRegistry.explicitlyLinkSession` 保存 `current_goal_id`，Host/Session 均在 100 外时 Host 优先、无效 Host 回退 Session、Host 重启一致，且 Session 关联与消息事件不变。原 `buildMcpResumeView` 数组排序语义保留。
 
 未跑 `02-tree-acceptance.mjs` 全文件（含 F）。未跑全仓。未 commit/push。未改主 spec/progress/acceptance。
 

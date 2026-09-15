@@ -23,7 +23,7 @@ Workbench：styles/immersive-navigation.ts、project-home.ts 名言集合与 ren
 1. 用生产页面复现 760px 英文深色底部账号断行/颜色问题，修复后验证 761px/760px/600px、390px 抽屉浅深色、中英文以及较窄目录；文字无重叠、无链接下划线、图标居中，设置仍能打开。
 2. 实际轮播访问全部 13 条再回到首条；迁入的 10 条内容与 Adeptify 原集合逐条一致。最长英文在 1440/1024/760/390px 均完整显示；轮播高度稳定，不把非活动名言暴露给焦点与读屏。
 3. 现有首页日期、月历、快捷方式和禁用输入测试保留通过。
-4. `pnpm --filter @adeptify/goalboard-app-workbench build`；相关 `node --import tsx --test` 浏览器测试。只涉及 Web 展示，不改 native 二进制或重跑 Rust。按既有授权安装 Core/Web 并重启本机服务、隔离预览。
+4. `pnpm --filter @molis-ai/molis-work-app-workbench build`；相关 `node --import tsx --test` 浏览器测试。只涉及 Web 展示，不改 native 二进制或重跑 Rust。按既有授权安装 Core/Web 并重启本机服务、隔离预览。
 
 用户截图优先于此前 ship；独立 reviewer 对本次证据给出修正项并在修复后复核。无其他开放需求。
 
@@ -33,6 +33,6 @@ Workbench：styles/immersive-navigation.ts、project-home.ts 名言集合与 ren
 | --- | --- |
 | 窄屏账号区 | 通过。先在生产页面复现 760px 缺失基础布局；修复后浏览器验证 761/760/600/390px 浅深色、文字分行与主题色、图标位置、设置链接项目上下文。8 张截图位于 `.impeccable/review/home-footer-quotes/`。 |
 | 完整迁移与稳定轮播 | 通过。实际 DOM 逐条匹配 Adeptify 全部 10 条原文及署名，完整轮播 13 条并回到首条；字体与布局稳定后验证各宽度轮播高度不变，仅活动页可见且可聚焦。10 张首页长文及移动弹窗截图位于 `.impeccable/review/home-start/`。 |
-| 原有首页与导航行为 | 通过。相关四项浏览器测试覆盖首页日期/月历、快捷方式持久化与禁用输入、账号区、目录回归。最终日志：`/private/tmp/goalboard-footer-quotes-tests.log`（目录）、`/private/tmp/goalboard-footer-quotes-final.log`（账号与快捷方式）、`/private/tmp/goalboard-quotes-settled.log`（完整首页轮播）。 |
-| 构建与本机交付 | 通过。Workbench build 成功；更新构建清单后完成 Core/Web 本机安装，常驻服务重启成功；原隔离预览地址已重启并刷新。构建、安装、服务日志分别为 `/private/tmp/goalboard-footer-quotes-build-final.log`、`/private/tmp/goalboard-footer-quotes-install.log`、`/private/tmp/goalboard-footer-quotes-service.log`。 |
+| 原有首页与导航行为 | 通过。相关四项浏览器测试覆盖首页日期/月历、快捷方式持久化与禁用输入、账号区、目录回归。最终日志：`/private/tmp/molis-work-footer-quotes-tests.log`（目录）、`/private/tmp/molis-work-footer-quotes-final.log`（账号与快捷方式）、`/private/tmp/molis-work-quotes-settled.log`（完整首页轮播）。 |
+| 构建与本机交付 | 通过。Workbench build 成功；更新构建清单后完成 Core/Web 本机安装，常驻服务重启成功；原隔离预览地址已重启并刷新。构建、安装、服务日志分别为 `/private/tmp/molis-work-footer-quotes-build-final.log`、`/private/tmp/molis-work-footer-quotes-install.log`、`/private/tmp/molis-work-footer-quotes-service.log`。 |
 | 独立复核与边界 | 通过。独立 reviewer 确认账号区、13 条迁移、长文稳定布局三项全部 resolved，disposition: ship。未运行完整 JS/Rust 套件；本次仅改 Web 展示，无 native 变更。无剩余验收项，未提交或推送。 |

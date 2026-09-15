@@ -1,5 +1,5 @@
-import type { AsyncApplicationMethods } from "@adeptify/goalboard-contracts/platform/app-host";
-import type { GoalTreeApplicationApi } from "@adeptify/goalboard-plugin-goals";
+import type { AsyncApplicationMethods } from "@molis-ai/molis-work-contracts/platform/app-host";
+import type { GoalTreeApplicationApi } from "@molis-ai/molis-work-plugin-goals";
 
 /** Wire conversion only; the application retains validation and transaction ownership. */
 export function createCliGoalTreeHandlers(application: GoalTreeApplicationApi | AsyncApplicationMethods<GoalTreeApplicationApi>) {

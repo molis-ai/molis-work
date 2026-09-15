@@ -4,11 +4,12 @@ import test from "node:test";
 import {
   FEED_UI_CONTRIBUTION_ID,
   FeedPluginRouteTable,
+  createFeedRouteHandlers,
   feedUiContribution,
   type FeedPluginRouteHandler,
   type FeedUiModel,
-} from "@adeptify/goalboard-plugin-feed";
-import { UiContributionError, UiHost } from "@adeptify/goalboard-ui-host";
+} from "@molis-ai/molis-work-plugin-feed";
+import { UiContributionError, UiHost } from "@molis-ai/molis-work-ui-host";
 
 const primitives: FeedUiModel["primitives"] = {
   escape: (value) => String(value ?? "")
@@ -33,6 +34,7 @@ function model(overrides: Partial<FeedUiModel> = {}): FeedUiModel {
     preset: "feed",
     entries: [],
     sources: [],
+    out_rules: [],
     relay_import: { available: false, source_count: 0, item_count: 0, material_count: 0 },
     source_catalog: [],
     connector_auth: { github: { bound: false }, gmail: { bound: false } },
@@ -69,6 +71,14 @@ test("Workbench registers the Feed UI Contribution through the generic UI Host",
   assert.match(failed, /role="alert"/);
   assert.match(failed, /temporary failure/);
   assert.match(failed, /data-retry-feed-detail/);
+
+  const overlays = host.render({
+    contribution_id: FEED_UI_CONTRIBUTION_ID,
+    surface: "overlays",
+    model: model(),
+  });
+  assert.match(overlays, /data-feed-out-rules/);
+  assert.match(overlays, /data-feed-out-rule-create/);
 });
 
 test("Feed demo data keeps page-local actions and never calls real Source APIs", () => {
@@ -177,6 +187,10 @@ test("Feed Plugin route table owns matching while the Host supplies handlers", a
   const handlers = Object.fromEntries([
     "feed.snapshot",
     "feed.workbench",
+    "feed.out-rules.list",
+    "feed.out-rules.create",
+    "feed.out-rules.update",
+    "feed.out-rules.delete",
     "feed.sources.create",
     "feed.sources.update",
     "feed.sources.delete",
@@ -192,7 +206,6 @@ test("Feed Plugin route table owns matching while the Host supplies handlers", a
     "feed.connector.gmail.oauth.callback",
     "feed.relay.import",
     "feed.item.detail",
-    "feed.attention.status",
     "feed.item.action",
   ].map((routeId) => [routeId, routeId === "feed.item.action"
     ? (({ params }) => {
@@ -215,4 +228,47 @@ test("Feed Plugin route table owns matching while the Host supplies handlers", a
     query: new URLSearchParams(),
     body: {},
   }), null);
+  assert.equal((await routes.handle({
+    method: "GET",
+    pathname: "/api/feed/out-rules",
+    query: new URLSearchParams(),
+    body: {},
+  }))?.status, 204);
+});
+
+test("Feed workbench HTTP rejects inbox_message and serves the Feed surface", async () => {
+  const unused = () => {
+    throw new Error("unused Feed workbench port");
+  };
+  const routes = new FeedPluginRouteTable(createFeedRouteHandlers({
+    boardId: "board",
+    routePrefix: "",
+    feed: unused,
+    sources: unused,
+    connectors: unused,
+    changed: unused,
+    hydrateItem: unused,
+    hydrateSnapshot: unused,
+    sourceCatalog: () => [],
+    detectRelayImport: unused,
+    importRelay: unused,
+    renderWorkbench: () => "<div data-feed-workbench></div>",
+    renderDetail: unused,
+    promote: unused,
+  }));
+  const rejected = await routes.handle({
+    method: "GET",
+    pathname: "/api/feed/workbench",
+    query: new URLSearchParams("preset=inbox_message"),
+    body: {},
+  });
+  assert.equal(rejected?.status, 400);
+  const served = await routes.handle({
+    method: "GET",
+    pathname: "/api/feed/workbench",
+    query: new URLSearchParams(),
+    body: {},
+  });
+  assert.equal(served?.status, 200);
+  assert.equal(served?.html, "<div data-feed-workbench></div>");
 });

@@ -65,7 +65,7 @@
 - 清理后 build、boundary、相应定向回归和最终全仓测试通过。移除已退役测试需说明行为去向，不能用跳过、放宽断言或只测测试工具凑绿。
 - 交付可打开的实际预览、最终 MCP 名单与旧工具删除结果、调用链和保留理由、完成等级与真正缺口。
 
-标准命令：`pnpm_config_verify_deps_before_run=warn pnpm build`、`pnpm_config_verify_deps_before_run=warn pnpm boundary:check`；build 完成后可直接 `env -u FORCE_COLOR NODE_NO_WARNINGS=1 node --import tsx --test --test-concurrency=1 tests/*.test.ts`。不改依赖配置或 lockfile。临时诊断 `/private/tmp/goalboard-flow-cleanup/`。
+标准命令：`pnpm_config_verify_deps_before_run=warn pnpm build`、`pnpm_config_verify_deps_before_run=warn pnpm boundary:check`；build 完成后可直接 `env -u FORCE_COLOR NODE_NO_WARNINGS=1 node --import tsx --test --test-concurrency=1 tests/*.test.ts`。不改依赖配置或 lockfile。临时诊断 `/private/tmp/molis-work-flow-cleanup/`。
 
 ## 当前假设与未决实现细节
 

@@ -1,8 +1,8 @@
-import type { GoalTreeProposalDecisionResult as StoredGoalTreeDecisionResult } from "@adeptify/goalboard-contracts/modules/governance-collaboration";
-export type { GoalTreeSemanticReview } from "@adeptify/goalboard-contracts/modules/governance-collaboration";
-import type { GoalTreeProposalCheckResult } from "@adeptify/goalboard-contracts/modules/governance-collaboration";
-export type { GoalTreeProposalCheckResult } from "@adeptify/goalboard-contracts/modules/governance-collaboration";
-import type { GoalTreeProposalRecord, GoalTreeProposalSubmitInput, GoalTreeProposalCheckInput, GoalTreeProposalDecideInput } from "@adeptify/goalboard-contracts/modules/governance-collaboration";
+import type { GoalTreeProposalDecisionResult as StoredGoalTreeDecisionResult } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+export type { GoalTreeSemanticReview } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+import type { GoalTreeProposalCheckResult } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+export type { GoalTreeProposalCheckResult } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+import type { GoalTreeProposalRecord, GoalTreeProposalSubmitInput, GoalTreeProposalCheckInput, GoalTreeProposalDecideInput } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 
 export interface GoalTreeProposalListQuery {
   board_id: string;

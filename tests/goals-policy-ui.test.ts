@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createWorkbenchGoalsPolicyRenderer, createWorkbenchUiHost, type GoalsPolicyItem } from "@adeptify/goalboard-app-workbench";
-import { GOALS_POLICY_UI_CONTRIBUTION_ID } from "@adeptify/goalboard-plugin-goals";
-import { icon } from "@adeptify/goalboard-design-system";
-import { L, currentLocale, runWithLocale } from "@adeptify/goalboard-app-local-host";
+import { createWorkbenchGoalsPolicyRenderer, createWorkbenchUiHost, type GoalsPolicyItem } from "@molis-ai/molis-work-app-workbench";
+import { GOALS_POLICY_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-goals";
+import { icon } from "@molis-ai/molis-work-design-system";
+import { L, currentLocale, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 
 const base = { goal_mode: "required" as const, required_capabilities: ["browser"], self_verification: true,
   cross_reviewers: 2, adversarial_reviewers: 1, human_approval: true, max_lease_seconds: 600 };

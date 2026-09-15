@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "plugin_id": "io.goalboard.integration.rss",
+  "plugin_id": "io.molis.work.integration.rss",
   "version": "1.0.0",
   "name": "RSS",
   "kind": "integration",

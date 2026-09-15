@@ -2,7 +2,7 @@
 
 把来源配置、同步、Signal、Feed 处置和注意事项接成完整的信息处理流程，并提供页面与路由。
 
-包名：`@adeptify/goalboard-plugin-feed`。工作区内部包，通过仓库构建和 Host 装配使用。
+包名：`@molis-ai/molis-work-plugin-feed`。工作区内部包，通过仓库构建和 Host 装配使用。
 
 ## 一次典型调用
 
@@ -26,15 +26,15 @@ FeedApplication 组合注入的 Module API；FeedSourceService、FeedConnectorSy
 
 本包不拥有 Source/Signal/Feed 数据表，也不直接实现 GitHub/Gmail 协议。正文渲染在 rich-content 中处理；Provider 失败、部分接收与重试不能混成同一个成功状态。
 
-工作区依赖：`@adeptify/goalboard-contracts`。其他运行依赖见 [package.json](package.json)。
+工作区依赖：`@molis-ai/molis-work-contracts`。其他运行依赖见 [package.json](package.json)。
 
 ## 本地开发
 
 以下命令在**仓库根目录**执行，使用 Node.js 24+ 与仓库配置的 pnpm。首次准备运行 `pnpm install --frozen-lockfile` 和 `pnpm build`；之后可单独检查此包。
 
 ```bash
-pnpm --filter @adeptify/goalboard-plugin-feed typecheck
-pnpm --filter @adeptify/goalboard-plugin-feed build
+pnpm --filter @molis-ai/molis-work-plugin-feed typecheck
+pnpm --filter @molis-ai/molis-work-plugin-feed build
 ```
 
 已有行为示例与回归：[feed-native-plugin.test.ts](../../../tests/feed-native-plugin.test.ts)、[feed-goal-promotion.test.ts](../../../tests/feed-goal-promotion.test.ts)。完成上述构建后运行：
@@ -51,7 +51,7 @@ node --import tsx --test --test-concurrency=1 tests/feed-native-plugin.test.ts t
 - [架构与当前实现索引](../../../docs/SSOT-MATRIX.md)
 
 - Status: `partial`
-- Contract entrypoint: `@adeptify/goalboard-contracts/platform/plugin`
+- Contract entrypoint: `@molis-ai/molis-work-contracts/platform/plugin`
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-fd4`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。

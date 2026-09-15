@@ -1,10 +1,10 @@
 # 恢复验收范围修订
 
-2026-09-06。此文件是范围与检查依据；GoalBoard 是提案、决定及生命周期的唯一事实源。
+2026-09-06。此文件是范围与检查依据；Molis Work 是提案、决定及生命周期的唯一事实源。
 
 ## 本次结果
 
-新任务已经用户确认关联「GoalBoard 架构与包重组」。正式 MCP Explain 和 select 对根 coverage 澄清均成功；Claim `claim-34a3fa81-96ed-45cc-ae91-3c4dc06480c6`、Run `run-d694634d-67fd-4731-b6dd-ff189634d423` 属于 actor `codex-runtime-01a07630-be49-7791-bb05-de4db2d1377b`。旧澄清入口冲突已解除。
+新任务已经用户确认关联「Molis Work 架构与包重组」。正式 MCP Explain 和 select 对根 coverage 澄清均成功；Claim `claim-34a3fa81-96ed-45cc-ae91-3c4dc06480c6`、Run `run-d694634d-67fd-4731-b6dd-ff189634d423` 属于 actor `codex-runtime-01a07630-be49-7791-bb05-de4db2d1377b`。旧澄清入口冲突已解除。
 
 提案 `goal-tree-proposal-0500bb62-7509-4934-abf0-0bb3d36e8249` 只有 `item-assurance-existing-recovery-20260906`，状态 pending。10:14:27 UTC 的 read/check 已通过，cursor1256；conflict_item_ids=[]、planning_issues=[]。未批准 DD 提案或声称总重组完成。
 

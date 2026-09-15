@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import test from "node:test";
-import { createGmailOAuth, type GmailTokenRefs, type OAuthFetch } from "@adeptify/goalboard-integration-gmail";
+import { createGmailOAuth, type GmailTokenRefs, type OAuthFetch } from "@molis-ai/molis-work-integration-gmail";
 
 const callback = "http://127.0.0.1:3000/projects/project-a/api/feed/connectors/gmail/oauth/callback";
 const legacy = "connector:gmail:token";
 function fixture() {
   const values = new Map<string, string>();
   const writes: string[] = [];
-  const environment = { GOALBOARD_GMAIL_CLIENT_ID: "client-a" };
+  const environment = { MOLIS_WORK_GMAIL_CLIENT_ID: "client-a" };
   const store = {
     get: (ref: string) => values.get(ref) ?? null,
     put(ref: string, value: string) { writes.push(ref); values.set(ref, value); },
@@ -34,7 +34,7 @@ test("Gmail rejects invalid callback state, session time, redirect and client dr
     const { flow, values, writes, environment } = fixture();
     const createdAt = new Date(nowMs + (scenario === "expired" ? -600001 : scenario === "future" ? 1 : 0)).toISOString();
     const started = await flow.startGmailOAuthFlow({ redirectUri: callback, createdAt });
-    if (scenario === "client-drift") environment.GOALBOARD_GMAIL_CLIENT_ID = "other-client";
+    if (scenario === "client-drift") environment.MOLIS_WORK_GMAIL_CLIENT_ID = "other-client";
     if (scenario === "redirect") {
       const ref = `connector:gmail:oauth:pending:${started.state}`;
       const pending = JSON.parse(values.get(ref)!);

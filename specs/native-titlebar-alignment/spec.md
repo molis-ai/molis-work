@@ -35,7 +35,7 @@
 
 - 通过：`pnpm build` 和完整 `pnpm desktop:build:macos`，生成 App、DMG、zip；ad-hoc 签名校验成功，无 Apple 公证/公开发布声明。日志 `/private/tmp/native-titlebar-build.log`、`/private/tmp/native-titlebar-macos-build.log`。
 - 通过：生产 bootstrap 的窗口→全屏→窗口、全屏内重新加载、普通 Web 导航行为测试；含既有 Native、折叠目录、两行标题栏定向检查共 6/0/0，日志 `/private/tmp/native-titlebar-targeted.log`。
-- 通过：真实 DMG 经正式安装脚本装到 `/private/tmp/goalboard-native-chrome.Z0IHWN/installed-apps/GoalBoard.app`，App PID 96219、隔离服务 PID 96278。普通窗口展开/收起目录，左侧图标、右侧 Goal 标签及红黄绿中心均约 y=22 CSS px；全屏红黄绿消失、按钮靠左，标签与按钮同高。退出全屏后安全区恢复，无重叠。项目设置标题同高；全屏内跳转全局设置再返回项目，按钮仍靠左。通过实际系统全屏按钮和 View → Toggle Full Screen 操作，不用 CSS 或浏览器模拟 Native。
+- 通过：真实 DMG 经正式安装脚本装到 `/private/tmp/molis-work-native-chrome.Z0IHWN/installed-apps/Molis Work.app`，App PID 96219、隔离服务 PID 96278。普通窗口展开/收起目录，左侧图标、右侧 Goal 标签及红黄绿中心均约 y=22 CSS px；全屏红黄绿消失、按钮靠左，标签与按钮同高。退出全屏后安全区恢复，无重叠。项目设置标题同高；全屏内跳转全局设置再返回项目，按钮仍靠左。通过实际系统全屏按钮和 View → Toggle Full Screen 操作，不用 CSS 或浏览器模拟 Native。
 - 通过：同一隔离新服务的普通浏览器页面，Native 标记缺省，安全区为 2px、目录按钮和标签均 y=7 / height=34（中心 24px），无 Native 上移。窄屏截图导航/内容可用，实际 CSS viewport 312px、scrollWidth 312px，无横向溢出；工具请求 390px 但浏览器缩放后的实测为 312px，不将其记为 390 CSS px。测试 tab 已关闭、viewport override 已重置。
 - 通过：48 包 / 518 sources / 1599 imports / 71 edges 的边界检查 0 errors；布局检测无 findings；diff check 通过。
 - 既有失败：完整 `visual-foundation` 加 bootstrap 共 29 pass / 1 fail。失败断言仍要求 Goal 搜索框 `display:none`，而 HEAD 生产代码已是 `display:flex`；用 `git show HEAD:...` 核对后确认非本次修改引入。保持产品行为，留给整体测试清理，不宣称全套通过。日志 `/private/tmp/native-titlebar-tests.log`。

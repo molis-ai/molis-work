@@ -1,4 +1,4 @@
-import type { GoalTreeProposalRecord } from "@adeptify/goalboard-contracts/modules/governance-collaboration";
+import type { GoalTreeProposalRecord } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import { findGoalView } from "./proposal-ui-model.js";
 import type { GoalsSafetyItem } from "./safety-ui-model.js";
 import type { GoalsDecisionView, GoalsDecisionGroup } from "./decision-view.js";
@@ -8,22 +8,33 @@ export function goalTreeProposalNeedsDecision(proposal: GoalTreeProposalRecord):
     proposal.items.some((item) => item.state === "pending" || item.state === "conflict");
 }
 
-export function goalTreeProposalOwnerGoalId<T extends GoalsSafetyItem>(proposal: GoalTreeProposalRecord, view: GoalsDecisionView<T>): string | null {
-  if (findGoalView(view, proposal.root_goal_id)) return proposal.root_goal_id;
-  if (proposal.discovered_in_run_id) {
-    const run = view.snapshot.runs.find((item) => item.run_id === proposal.discovered_in_run_id);
-    if (run && findGoalView(view, run.goal_id)) return run.goal_id;
+export function goalTreeProposalAttentionGoalId(
+  proposal: GoalTreeProposalRecord,
+  goalExists: (goalId: string) => boolean,
+  runGoalId?: (runId: string) => string | null,
+): string | null {
+  if (proposal.root_goal_id && goalExists(proposal.root_goal_id)) return proposal.root_goal_id;
+  if (proposal.discovered_in_run_id && runGoalId) {
+    const goalId = runGoalId(proposal.discovered_in_run_id);
+    if (goalId && goalExists(goalId)) return goalId;
   }
   for (const proposalItem of proposal.items) {
-    const payloadGoalIds = [
+    const owner = [
       proposalItem.payload.goal_id,
       proposalItem.payload.from_goal_id,
       proposalItem.payload.to_goal_id,
-    ];
-    const owner = payloadGoalIds.find((goalId) => findGoalView(view, String(goalId ?? "")));
+    ].find((goalId) => goalExists(String(goalId ?? "")));
     if (owner) return String(owner);
   }
   return null;
+}
+
+export function goalTreeProposalOwnerGoalId<T extends GoalsSafetyItem>(proposal: GoalTreeProposalRecord, view: GoalsDecisionView<T>): string | null {
+  return goalTreeProposalAttentionGoalId(
+    proposal,
+    (goalId) => Boolean(findGoalView(view, goalId)),
+    (runId) => view.snapshot.runs.find((item) => item.run_id === runId)?.goal_id ?? null,
+  );
 }
 
 export function buildDecisionGroups<T extends GoalsSafetyItem>(view: GoalsDecisionView<T>): GoalsDecisionGroup<T>[] {

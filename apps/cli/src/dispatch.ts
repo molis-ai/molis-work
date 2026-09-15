@@ -13,7 +13,7 @@ export async function dispatchCli(args: string[], ports: CliCommandPorts): Promi
   try {
     if (args[0] === "plugin") return ports.plugin(args.slice(1));
     if (args.length === 0 || args[0] === "--help" || args[0] === "-h") {
-      console.log("GoalBoard commands: goalboard install | goalboard service <operation> | goalboard demo <operation> | goalboard uninstall | goalboard plugin <operation> | goalboard v1 <operation>\n");
+      console.log("Molis Work commands: molis-work install | molis-work service <operation> | molis-work demo <operation> | molis-work uninstall | molis-work plugin <operation> | molis-work v1 <operation>\n");
       printV1Help();
       return 0;
     }
@@ -22,7 +22,7 @@ export async function dispatchCli(args: string[], ports: CliCommandPorts): Promi
     if (args[0] === "demo") return await ports.demo(args);
     if (args[0] === "uninstall") return await ports.uninstall(args);
     if (args[0] !== "v1") {
-      throw new Error(`未知命令: ${args[0]}。GoalBoard 提供 install、service、demo、uninstall 和 v1 <operation>。`);
+      throw new Error(`未知命令: ${args[0]}。Molis Work 提供 install、service、demo、uninstall 和 v1 <operation>。`);
     }
     return await ports.v1(args.slice(1));
   } catch (error) {

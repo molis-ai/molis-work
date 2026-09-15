@@ -6,14 +6,14 @@ import type {
   SignalRecord,
   SignalReceipt,
   SignalsApi,
-} from "@adeptify/goalboard-contracts/modules/signals";
+} from "@molis-ai/molis-work-contracts/modules/signals";
 
 export const packageDescriptor = {
-  packageName: "@adeptify/goalboard-module-signals",
+  packageName: "@molis-ai/molis-work-module-signals",
   packagePath: "modules/signals",
   kind: "module",
   maturity: "partial",
-  contract: "@adeptify/goalboard-contracts/modules/signals",
+  contract: "@molis-ai/molis-work-contracts/modules/signals",
   migrationGoals: ["goal-reorg-f2", "goal-reorg-fd1"],
   ssot: "docs/SSOT-MATRIX.md",
   capabilities: ["signals.query.v1", "signals.command.v1"],
@@ -376,4 +376,4 @@ function json<T>(value: unknown, fallback: T): T {
   }
 }
 
-export type GoalBoardPackageDescriptor = typeof packageDescriptor;
+export type MolisWorkPackageDescriptor = typeof packageDescriptor;

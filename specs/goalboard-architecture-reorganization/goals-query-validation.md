@@ -6,7 +6,7 @@ Completion level: functional migration with repository-wide compatibility verifi
 
 ## goals-query-callers
 
-- `@adeptify/goalboard-contracts/modules/goals` defines the stable Query records and `GoalsQueryApi` for Board, Goal, Relation, Risk link, Policy, Guidance, trash, and Goal-owned snapshot reads.
+- `@molis-ai/molis-work-contracts/modules/goals` defines the stable Query records and `GoalsQueryApi` for Board, Goal, Relation, Risk link, Policy, Guidance, trash, and Goal-owned snapshot reads.
 - `GoalsModule.query` implements that Contract through `GoalsQueryService`; Goal fact SQL and row mapping stay in `GoalsRepository` rather than in Web, MCP, CLI, or the legacy Coordinator.
 - Web, MCP, and CLI Goal detail, Policy, Guidance, and trash callers use `coordinator.goalQueries`, which is a separate 108-line application read boundary. The old Coordinator methods are compatibility delegates rather than query implementations.
 - `GoalReadApplication` composes Goal-owned facts from `GoalsQueryApi` with narrow read-only ports for Execution, Evidence, and Governance. It neither imports `GoalsRepository` nor accesses a database or the legacy Store directly. Cross-owner work/action projection remains owned by EX4 instead of being absorbed into Goals.

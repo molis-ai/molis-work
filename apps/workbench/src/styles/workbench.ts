@@ -1,4 +1,4 @@
-import { GOALS_DEPENDENCY_PROPOSAL_STYLES, GOALS_DECISION_COMMON_STYLES, GOALS_LEGACY_CONTRACT_STYLES, GOALS_PROPOSAL_STYLES, GOALS_CANDIDATE_STYLES, GOALS_EVENT_DOCUMENT_STYLES } from "@adeptify/goalboard-plugin-goals";
+import { GOALS_DEPENDENCY_PROPOSAL_STYLES, GOALS_DECISION_COMMON_STYLES, GOALS_LEGACY_CONTRACT_STYLES, GOALS_PROPOSAL_STYLES, GOALS_CANDIDATE_STYLES, GOALS_EVENT_DOCUMENT_STYLES } from "@molis-ai/molis-work-plugin-goals";
 export const MORE_STYLES = `
   .runtime-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid var(--line-strong); border-radius: 5px; overflow: hidden; }
   .runtime-grid > section { min-width: 0; min-height: 174px; padding: 13px 15px; border-right: 1px solid var(--line-strong); }

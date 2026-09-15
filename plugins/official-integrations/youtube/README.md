@@ -2,7 +2,7 @@
 
 为 YouTube Channel 来源提供地址/频道处理与轮询 Integration 接线，把频道更新交给统一信息流。
 
-包名：`@adeptify/goalboard-integration-youtube`。工作区内部包，通过仓库构建和 Host 装配使用。
+包名：`@molis-ai/molis-work-integration-youtube`。工作区内部包，通过仓库构建和 Host 装配使用。
 
 ## 一次典型调用
 
@@ -25,15 +25,15 @@ createYoutubeIntegrationPlugin 注册注入的 Provider；channel 中的辅助�
 
 这是频道信息接入，不是视频下载、播放或媒体处理服务。网络授权和实际 Provider 生命周期由 Host 管理。
 
-工作区依赖：`@adeptify/goalboard-contracts`、`@adeptify/goalboard-plugin-sdk`。其他运行依赖见 [package.json](package.json)。
+工作区依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`。其他运行依赖见 [package.json](package.json)。
 
 ## 本地开发
 
 以下命令在**仓库根目录**执行，使用 Node.js 24+ 与仓库配置的 pnpm。首次准备运行 `pnpm install --frozen-lockfile` 和 `pnpm build`；之后可单独检查此包。
 
 ```bash
-pnpm --filter @adeptify/goalboard-integration-youtube typecheck
-pnpm --filter @adeptify/goalboard-integration-youtube build
+pnpm --filter @molis-ai/molis-work-integration-youtube typecheck
+pnpm --filter @molis-ai/molis-work-integration-youtube build
 ```
 
 来源同步公共链路回归（不覆盖本包工厂或真实频道端到端接入）：[feed-sources.test.ts](../../../tests/feed-sources.test.ts)。完成上述构建后运行：
@@ -50,7 +50,7 @@ node --import tsx --test --test-concurrency=1 tests/feed-sources.test.ts
 - [架构与当前实现索引](../../../docs/SSOT-MATRIX.md)
 
 - Status: `partial`
-- Contract entrypoint: `@adeptify/goalboard-contracts/platform/plugin`
+- Contract entrypoint: `@molis-ai/molis-work-contracts/platform/plugin`
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-fd3`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。

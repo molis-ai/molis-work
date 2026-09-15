@@ -1,4 +1,6 @@
 /target
 /gen
+/resources/molis-work-runtime/*
+!/resources/molis-work-runtime/.gitkeep
 /resources/goalboard-runtime/*
 !/resources/goalboard-runtime/.gitkeep

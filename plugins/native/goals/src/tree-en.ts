@@ -1,7 +1,7 @@
 /** Existing Goal Tree copy; shared short labels remain in the host catalog. */
 export const GOALS_TREE_EN: Record<string, string> = {
-  "回收站 · GoalBoard": "Trash · GoalBoard",
-  "已归档 Goal · GoalBoard": "Archived Goals · GoalBoard",
+  "回收站 · Molis Work": "Trash · Molis Work",
+  "已归档 Goal · Molis Work": "Archived Goals · Molis Work",
   "受阻 {count}": "{count} blocked",
   "当前没有进行中的 Goal": "No Goal is in progress",
   "可恢复；历史与关联处理记录会保留": "Recoverable; history and relation handling stay",

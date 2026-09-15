@@ -11,28 +11,20 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
   const sessionFilters = treePane.querySelector(".project-record-filter-menu");
   const frame = document.querySelector("[data-goal-node-workspace]");
   const workMain = document.querySelector("[data-goal-work-main]");
-  const modesKey = "goalboard-goal-work-modes:" + (getState().project?.project_id || getState().snapshot.board.board_id);
+  const modesScope = getState().project?.project_id || getState().snapshot.board.board_id;
+  const modesKey = "molis-work-goal-work-modes:" + modesScope;
   let modes = {};
-  try { modes = JSON.parse(localStorage.getItem(modesKey) || "{}"); } catch {}
+  try { modes = JSON.parse(localStorage.getItem(modesKey) || localStorage.getItem("goalboard-goal-work-modes:" + modesScope) || "{}"); } catch {}
   const narrow = () => matchMedia("(max-width: 600px)").matches;
   const persistModes = () => { try { localStorage.setItem(modesKey, JSON.stringify(modes)); } catch {} };
-  const directoryPlugin = (directory) => directory === "sources" ? "feed" : directory;
-  const currentPlugin = () => directoryPlugin(treePane.dataset.desktopDirectory);
-  const scrollControls = () => {
-    if (!strip) return;
-    const overflow = strip.scrollWidth > strip.clientWidth + 1;
-    document.querySelector("[data-plugin-scroll-controls]").hidden = !overflow;
-    document.querySelector('[data-plugin-scroll="left"]').disabled = strip.scrollLeft <= 1;
-    document.querySelector('[data-plugin-scroll="right"]').disabled = strip.scrollLeft + strip.clientWidth >= strip.scrollWidth - 1;
-  };
-  const revealPlugin = () => {
-    scrollControls();
-    const active = strip?.querySelector('[aria-current="page"]');
-    if (!active || !strip.clientWidth) return;
-    const rect = active.getBoundingClientRect(), viewport = strip.getBoundingClientRect();
-    if (rect.left < viewport.left) strip.scrollLeft -= viewport.left - rect.left;
-    else if (rect.right > viewport.right) strip.scrollLeft += rect.right - viewport.right;
-    scrollControls();
+  const currentPlugin = () => {
+    const surface = getSurface();
+    if (surface === "goal") return "goals";
+    if (surface === "feed" || surface === "sources") return "feed";
+    if (surface === "home") return "home";
+    if (surface === "market") return "market";
+    if (surface === "sessions" || surface === "inbox" || surface === "artifacts") return surface;
+    return "";
   };
   const syncPresence = () => {
     const drawerOpen = narrow() && workspace.dataset.mobileView === "tree";
@@ -76,24 +68,43 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
     const terminal = frame.querySelector("[data-tui-pane]");
     if (terminal) { terminal.hidden = workMode !== "terminal"; terminal.setAttribute("role", "tabpanel"); terminal.setAttribute("aria-labelledby", "goal-terminal-tab"); }
     setDetails(saved.details ?? frame.clientWidth >= 840);
-    document.dispatchEvent(new CustomEvent("goalboard:work-mode-changed", { detail: { goalId, mode: workMode } }));
+    document.dispatchEvent(new CustomEvent("molis-work:work-mode-changed", { detail: { goalId, mode: workMode } }));
   };
   const sync = () => {
     const plugin = currentPlugin();
-    heading.hidden = treePane.dataset.desktopDirectory === "root";
+    if (heading) heading.hidden = false;
     strip?.querySelectorAll("[data-plugin-id]").forEach(button => {
       const active = button.dataset.pluginId === plugin;
-      button.toggleAttribute("aria-current", active);
       if (active) button.setAttribute("aria-current", "page");
+      else button.removeAttribute("aria-current");
     });
     const surface = getSurface();
-    const labels = { home: L("项目首页"), goal: "Goals", sessions: "Sessions", feed: "Feed", sources: "Feed", artifacts: "Artifacts", market: L("插件市场") };
+    const labels = { home: L("项目首页"), goal: "Goals", sessions: "Sessions", inbox: "Inbox", feed: "Feed", sources: "Feed", artifacts: "Artifacts", market: L("插件市场") };
+    const onContainer = surface === "goal" && Boolean(document.querySelector("[data-goal-canvas-shell]"));
+    const containerTabs = document.querySelector("[data-container-tabs]");
+    if (containerTabs) containerTabs.hidden = !onContainer;
+    document.querySelector("[data-immersive-plugin-title]").hidden = onContainer;
     document.querySelector("[data-immersive-plugin-title]").textContent = labels[surface] || surface;
-    document.querySelector("[data-immersive-goal-tools]").hidden = surface !== "goal";
+    document.querySelector("[data-immersive-goal-tools]").hidden = onContainer || surface !== "goal";
     document.querySelector("[data-feed-views]").hidden = !["feed", "sources"].includes(treePane.dataset.desktopDirectory);
+    const listTitle = document.querySelector("[data-directory-list-title]");
+    if (listTitle) {
+      const directory = treePane.dataset.desktopDirectory || "root";
+      const heading = document.querySelector('[data-directory-panel="' + CSS.escape(directory) + '"] .desktop-directory-heading strong');
+      const labels = { root: L("项目首页"), goals: "Goals", sessions: "Sessions", inbox: "Inbox", feed: "Feed", sources: L("来源"), artifacts: "Artifacts" };
+      const nextTitle = heading?.textContent?.trim() || labels[directory] || L("项目首页");
+      if (listTitle.textContent !== nextTitle) {
+        listTitle.textContent = nextTitle;
+        listTitle.classList.remove("is-title-enter");
+        if (!matchMedia("(prefers-reduced-motion: reduce)").matches) {
+          void listTitle.offsetWidth;
+          listTitle.classList.add("is-title-enter");
+          listTitle.addEventListener("animationend", () => listTitle.classList.remove("is-title-enter"), { once: true });
+        }
+      }
+    }
     document.querySelector("[data-directory-show]").setAttribute("aria-expanded", String(!narrow() && !workspace.classList.contains("is-directory-collapsed")));
     syncPresence();
-    requestAnimationFrame(revealPlugin);
   };
   const showDirectory = () => {
     setDirectoryCollapsed(false);
@@ -112,11 +123,6 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
   document.addEventListener("click", (event) => {
     if (sessionFilters?.open && !sessionFilters.contains(event.target)) sessionFilters.open = false;
   });
-  strip?.addEventListener("scroll", scrollControls, { passive: true });
-  if (strip) new ResizeObserver(revealPlugin).observe(strip);
-  document.querySelectorAll("[data-plugin-scroll]").forEach(button => button.addEventListener("click", () => {
-    strip.scrollBy({ left: (button.dataset.pluginScroll === "left" ? -1 : 1) * strip.clientWidth * .7, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
-  }));
   document.addEventListener("click", event => {
     const button = event.target.closest("[data-goal-work-mode]");
     if (button) {
@@ -131,9 +137,9 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
     }
     if (event.target.closest("[data-immersive-theme]")) {
       const theme = document.documentElement.dataset.resolvedTheme === "dark" ? "light" : "dark";
-      localStorage.setItem("goalboard:theme", theme);
+      localStorage.setItem("molis-work:theme", theme);
       // The existing theme owner reacts to storage changes across surfaces.
-      window.dispatchEvent(new StorageEvent("storage", { key: "goalboard:theme", newValue: theme }));
+      window.dispatchEvent(new StorageEvent("storage", { key: "molis-work:theme", newValue: theme }));
     }
   });
   document.addEventListener("keydown", event => {
@@ -158,8 +164,8 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
     if (saved.details == null) setDetails(frame.clientWidth >= 840);
     else syncPresence();
   }).observe(frame);
-  document.addEventListener("goalboard:goal-document-loaded", () => syncGoalMode(workspace.dataset.workspaceMode));
-  document.addEventListener("goalboard:goal-panel-presence", syncPresence);
+  document.addEventListener("molis-work:goal-document-loaded", () => syncGoalMode(workspace.dataset.workspaceMode));
+  document.addEventListener("molis-work:goal-panel-presence", syncPresence);
   window.addEventListener("resize", sync);
   return { sync, syncPresence, syncGoalMode, hideDirectory, showDirectory };
 }`;

@@ -50,7 +50,27 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
       } catch {}
       const available = new Set(visibleGoals().map((item) => item.goal.goal_id));
       if (!available.has(goalId)) goalId = state.active_goal_id || visibleGoals()[0]?.goal.goal_id || "";
-      location.assign(globalThis.goalboardNavigationUrl(goalId ? route("/goals/" + encodeURIComponent(goalId)) : route("/")));
+      location.assign(globalThis.molisWorkNavigationUrl(goalId ? route("/goals/" + encodeURIComponent(goalId)) : route("/")));
+    };
+
+    const syncMobilePluginLabels = (surface, directory) => {
+      const plugin = directory === "sources" || directory === "feed" || directory === "inbox" || directory === "sessions" || directory === "artifacts"
+        ? directory
+        : surface;
+      if (mobileTreeTab) mobileTreeTab.textContent = plugin === "feed"
+        ? "Feed"
+        : plugin === "inbox"
+          ? "Inbox"
+          : plugin === "sources"
+          ? L("来源")
+          : plugin === "sessions"
+            ? "Sessions"
+            : plugin === "artifacts"
+              ? "Artifacts"
+              : defaultMobileTreeLabel;
+      if (mobileDocumentTab) mobileDocumentTab.textContent = plugin === "feed" || plugin === "sources" || plugin === "sessions" || plugin === "inbox" || plugin === "artifacts"
+        ? L("详情")
+        : defaultMobileDocumentLabel;
     };
 
     const setDesktopWorkSurface = (surface, persist = true, restoreScroll = true) => {
@@ -60,22 +80,14 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
         if (surface === "goal") restoreLastGoal(true);
         return false;
       }
-      if (activeDesktopSurface && activeDesktopSurface !== surface) {
+      const surfaceChanged = activeDesktopSurface !== surface;
+      if (activeDesktopSurface && surfaceChanged) {
         desktopSurfaceScroll[activeDesktopSurface] = (activeDesktopSurface === "goal" ? documentPane : desktopWorkSurfaces.find(item => item.dataset.workSurface === activeDesktopSurface))?.scrollTop || 0;
         if (activeDesktopSurface === "goal") goalWorkspaceMode = workspace.dataset.workspaceMode || "focus";
       }
       activeDesktopSurface = surface;
       document.body.dataset.desktopSurface = surface;
-      if (mobileTreeTab) mobileTreeTab.textContent = surface === "feed"
-        ? (activeFeedPreset === "feed" ? "Feed" : "Inbox")
-        : surface === "sources"
-          ? L("来源")
-          : surface === "sessions"
-            ? "Sessions"
-            : defaultMobileTreeLabel;
-      if (mobileDocumentTab) mobileDocumentTab.textContent = surface === "feed" || surface === "sources" || surface === "sessions"
-        ? L("详情")
-        : defaultMobileDocumentLabel;
+      syncMobilePluginLabels(surface, treePane?.dataset.desktopDirectory);
       desktopWorkSurfaces.forEach((candidate) => {
         candidate.hidden = candidate !== nextSurface;
       });
@@ -86,7 +98,7 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
         if (active) item.setAttribute("aria-current", "page");
         else item.removeAttribute("aria-current");
       });
-      setWorkspaceMode(surface === "goal" ? goalWorkspaceMode : "focus", false);
+      if (surfaceChanged) setWorkspaceMode(surface === "goal" ? goalWorkspaceMode : "focus", false);
       renderWorkTabs();
       const label = nextSurface.dataset.workSurfaceLabel || surface;
       documentPane.setAttribute("aria-label", label);
@@ -97,11 +109,12 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
       pluginWorkbench?.open(surface);
       if (surface === "feed") void ensureFeedWorkbenchLoaded();
       if (surface === "sources" && selectedSource) selectSource(selectedSource, false);
+      frameContainer?.sync();
       if (persist) queueSave();
       return true;
     };
 
-    const currentModuleDirectory = () => activeDesktopSurface === "feed" || activeDesktopSurface === "sources" || activeDesktopSurface === "sessions" || activeDesktopSurface === "artifacts"
+    const currentModuleDirectory = () => activeDesktopSurface === "feed" || activeDesktopSurface === "sources" || activeDesktopSurface === "sessions" || activeDesktopSurface === "artifacts" || activeDesktopSurface === "inbox"
       ? activeDesktopSurface
       : "goals";
 
@@ -135,7 +148,19 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
         desktopDirectoryOrigin = origin;
       }
       treePane.dataset.desktopDirectory = next;
-      desktopDirectoryPanels.forEach((panel) => { panel.hidden = panel.dataset.directoryPanel !== next; });
+      desktopDirectoryPanels.forEach((panel) => {
+        panel.classList.remove("is-directory-enter");
+        panel.hidden = panel.dataset.directoryPanel !== next;
+      });
+      if (persist && current !== next && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        const incoming = desktopDirectoryPanels.find((panel) => panel.dataset.directoryPanel === next);
+        if (incoming) {
+          void incoming.offsetWidth;
+          incoming.classList.add("is-directory-enter");
+          incoming.addEventListener("animationend", () => incoming.classList.remove("is-directory-enter"), { once: true });
+        }
+      }
+      syncMobilePluginLabels(activeDesktopSurface, next);
       syncMobileNavigationChrome();
       immersiveNavigation?.sync();
       if (focusTarget) {
@@ -387,19 +412,13 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
         const matchesStatus = status === "all"
           ? true
           : status === "active"
-            ? type === "inbox_message"
-              ? row.dataset.feedEntryStatus === "inbox" || row.dataset.feedEntryStatus === "processing"
-              : row.dataset.feedEntryStatus !== "archived"
+            ? row.dataset.feedEntryStatus !== "archived"
             : row.dataset.feedEntryStatus === status;
         const matchesQuery = !query || String(row.dataset.feedEntrySearch || "").includes(query);
         row.hidden = !(matchesType && matchesSource && matchesProvider && matchesTime && matchesStatus && matchesQuery);
         return !row.hidden;
       });
       const compare = (left, right) => {
-        const attentionDifference = activeFeedPreset === "inbox_message"
-          ? Number(right.dataset.feedEntryAttentionRank || 0) - Number(left.dataset.feedEntryAttentionRank || 0)
-          : 0;
-        if (attentionDifference) return attentionDifference;
         if (sort === "oldest") return String(left.dataset.feedEntryTime || "").localeCompare(String(right.dataset.feedEntryTime || ""));
         if (sort === "source") return String(left.dataset.feedEntrySource || "").localeCompare(String(right.dataset.feedEntrySource || ""));
         if (sort === "title") return String(left.dataset.feedEntryTitle || "").localeCompare(String(right.dataset.feedEntryTitle || ""));
@@ -541,26 +560,23 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
     };
 
     const setFeedPreset = (preset, restoreSavedState = true) => {
-      const nextPreset = preset === "feed" ? "feed" : "inbox_message";
+      const nextPreset = "feed";
       if (nextPreset !== activeFeedPreset) rememberFeedPresetState();
       activeFeedPreset = nextPreset;
       if (restoreSavedState) restoreFeedPresetState(activeFeedPreset);
       if (feedDirectory) feedDirectory.dataset.feedPreset = activeFeedPreset;
       if (feedWorkbench) {
         feedWorkbench.dataset.feedPreset = activeFeedPreset;
-        feedWorkbench.dataset.workSurfaceLabel = activeFeedPreset === "feed" ? "Feed" : "Inbox";
+        feedWorkbench.dataset.workSurfaceLabel = "Feed";
       }
       const heading = feedDirectory?.querySelector("[data-feed-directory-title]");
-      if (heading) heading.textContent = activeFeedPreset === "feed" ? "Feed" : "Inbox";
-      const semanticType = activeFeedPreset;
-      if (activeDesktopSurface === "feed" && mobileTreeTab) mobileTreeTab.textContent = semanticType === "feed" ? "Feed" : "Inbox";
+      if (heading) heading.textContent = "Feed";
+      if (activeDesktopSurface === "feed" && mobileTreeTab) mobileTreeTab.textContent = "Feed";
       const feedDirectoryCopy = feedDirectory?.querySelector("[data-feed-directory-copy]");
-      if (feedDirectoryCopy) feedDirectoryCopy.textContent = semanticType === "feed"
-        ? L("所有来源消息，完整保留")
-        : L("只保留需要你介入的事情");
-      setFeedStatusOptionLabel("active", semanticType === "inbox_message" ? L("待处理") : L("未忽略"));
-      setFeedStatusOptionLabel("inbox", semanticType === "inbox_message" ? L("未开始") : L("待处理"));
-      setFeedStatusOptionLabel("saved", semanticType === "inbox_message" ? L("已完成") : L("已保存"));
+      if (feedDirectoryCopy) feedDirectoryCopy.textContent = L("所有来源消息，完整保留");
+      setFeedStatusOptionLabel("active", L("未忽略"));
+      setFeedStatusOptionLabel("inbox", L("待处理"));
+      setFeedStatusOptionLabel("saved", L("已保存"));
       setFeedStatusOptionLabel("archived", L("已忽略"));
       syncFeedFilterUi();
       filterFeedItems(true);

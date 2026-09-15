@@ -75,15 +75,15 @@ export function desktopPanelEnv(input: {
 }): Record<string, string> {
   const webUrl = input.webUrl?.trim() || "http://127.0.0.1:4173";
   return {
-    GOALBOARD_HOME: input.homeDirectory,
-    GOALBOARD_MCP_AUDIENCE: "runtime",
-    GOALBOARD_RUNTIME_ID: input.runtimeId,
-    ...(input.sessionId?.trim() ? { GOALBOARD_SESSION_ID: input.sessionId.trim() } : {}),
-    GOALBOARD_WORK_CONTEXT_ID: input.workContextId,
-    GOALBOARD_WORK_CONTEXT_STABLE: "true",
-    GOALBOARD_PANEL_ID: input.panelId,
-    GOALBOARD_GOAL_ID: input.goalId,
-    GOALBOARD_WEB_URL: webUrl,
+    MOLIS_WORK_HOME: input.homeDirectory,
+    MOLIS_WORK_MCP_AUDIENCE: "runtime",
+    MOLIS_WORK_RUNTIME_ID: input.runtimeId,
+    ...(input.sessionId?.trim() ? { MOLIS_WORK_SESSION_ID: input.sessionId.trim() } : {}),
+    MOLIS_WORK_WORK_CONTEXT_ID: input.workContextId,
+    MOLIS_WORK_WORK_CONTEXT_STABLE: "true",
+    MOLIS_WORK_PANEL_ID: input.panelId,
+    MOLIS_WORK_GOAL_ID: input.goalId,
+    MOLIS_WORK_WEB_URL: webUrl,
     TERM: "xterm-256color",
     COLORTERM: "truecolor",
   };

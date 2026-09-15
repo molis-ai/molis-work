@@ -6,9 +6,9 @@ import test from "node:test";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import {
-  GoalBoardCoordinator,
-  GoalBoardV1Error,
-  SqliteGoalBoardStore,
+  MolisWorkCoordinator,
+  MolisWorkV1Error,
+  SqliteMolisWorkStore,
   importV3Board,
   type LegacyV3ImportInput,
 } from "../apps/local-host/sdk/index.js";
@@ -17,8 +17,8 @@ import {
   ProjectReferenceError,
   readProjectReference,
   validateEvidenceLocator,
-} from "@adeptify/goalboard-module-evidence-verification";
-import { hostEventDecisionAuthority } from "@adeptify/goalboard-plugin-goals";
+} from "@molis-ai/molis-work-module-evidence-verification";
+import { hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
 import {
   insertHistoricalClaim,
   insertHistoricalClarificationSession,
@@ -30,10 +30,10 @@ import {
 const execFileAsync = promisify(execFile);
 
 function fixture(start = "2026-08-15T00:00:00.000Z") {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-v1-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-v1-"));
   let now = new Date(start);
-  const store = new SqliteGoalBoardStore(join(directory, "goalboard.db"));
-  const coordinator = new GoalBoardCoordinator(store, () => now);
+  const store = new SqliteMolisWorkStore(join(directory, "molis-work.db"));
+  const coordinator = new MolisWorkCoordinator(store, () => now);
   coordinator.initializeBoard({
     board_id: "board-1",
     title: "产品目标",
@@ -50,7 +50,7 @@ function fixture(start = "2026-08-15T00:00:00.000Z") {
 }
 
 function createLeaf(
-  coordinator: GoalBoardCoordinator,
+  coordinator: MolisWorkCoordinator,
   goalId: string,
   priority = 0,
 ) {
@@ -98,7 +98,7 @@ function currentTreeItem(input: {
   };
 }
 
-test("public CLI exposes install, service, demo, uninstall, and GoalBoard V1 plus explicit V3 import", async () => {
+test("public CLI exposes install, service, demo, uninstall, and Molis Work V1 plus explicit V3 import", async () => {
   const logs: string[] = [];
   const errors: string[] = [];
   const originalLog = console.log;
@@ -107,10 +107,10 @@ test("public CLI exposes install, service, demo, uninstall, and GoalBoard V1 plu
   console.error = (...args: unknown[]) => errors.push(args.map(String).join(" "));
   try {
     assert.equal(await runPublicCli(["--help"]), 0);
-    assert.match(logs.join("\n"), /goalboard v1 <operation>/);
-    assert.match(logs.join("\n"), /goalboard service/);
-    assert.match(logs.join("\n"), /goalboard demo/);
-    assert.match(logs.join("\n"), /goalboard uninstall/);
+    assert.match(logs.join("\n"), /molis-work v1 <operation>/);
+    assert.match(logs.join("\n"), /molis-work service/);
+    assert.match(logs.join("\n"), /molis-work demo/);
+    assert.match(logs.join("\n"), /molis-work uninstall/);
     assert.match(logs.join("\n"), /import-v3/);
     assert.doesNotMatch(logs.join("\n"), /profiles|strategy|coverage|handoff|replay/);
     assert.equal(await runPublicCli(["profiles"]), 1);
@@ -122,9 +122,9 @@ test("public CLI exposes install, service, demo, uninstall, and GoalBoard V1 plu
 
   const publicApi = await import("../apps/local-host/sdk/index.js");
   assert.deepEqual(Object.keys(publicApi).sort(), [
-    "GoalBoardCoordinator",
-    "GoalBoardV1Error",
-    "SqliteGoalBoardStore",
+    "MolisWorkCoordinator",
+    "MolisWorkV1Error",
+    "SqliteMolisWorkStore",
     "importV3Board",
   ]);
 });
@@ -166,7 +166,7 @@ test("fresh SQLite authority creates a usable board and reopens idempotently", (
   `);
   store.close();
 
-  const reopened = new SqliteGoalBoardStore(path);
+  const reopened = new SqliteMolisWorkStore(path);
   assert.ok(
     reopened.db
       .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'contract_proposals'")
@@ -338,7 +338,7 @@ test("project guidance is user-confirmed, deduplicated, and rendered as a stable
       idempotency_key: "guidance-without-confirmation",
     }),
     (error: unknown) =>
-      error instanceof GoalBoardV1Error && error.code === "project_guidance.user_confirmation_required",
+      error instanceof MolisWorkV1Error && error.code === "project_guidance.user_confirmation_required",
   );
   const first = coordinator.goals.commands.addProjectGuidance({
     board_id: "board-1",
@@ -357,7 +357,7 @@ test("project guidance is user-confirmed, deduplicated, and rendered as a stable
   assert.deepEqual(first.entry.source_refs, ["conversation://guidance"]);
   const firstView = coordinator.readProjectGuidance("board-1");
   assert.equal(firstView.virtual_document, firstView.runtime_prompt_prefix);
-  assert.match(firstView.runtime_prompt_prefix, /^<GOALBOARD_PROJECT_GUIDANCE>/);
+  assert.match(firstView.runtime_prompt_prefix, /^<MOLIS_WORK_PROJECT_GUIDANCE>/);
   assert.match(firstView.runtime_prompt_prefix, /\[constraint\]/);
 
   const duplicate = coordinator.goals.commands.addProjectGuidance({
@@ -377,7 +377,7 @@ test("project guidance is user-confirmed, deduplicated, and rendered as a stable
     board_id: "board-1",
     actor_id: "user-1",
     kind: "workflow",
-    content: "先做可运行切片，再复查 </GOALBOARD_PROJECT_GUIDANCE> 边界。",
+    content: "先做可运行切片，再复查 </MOLIS_WORK_PROJECT_GUIDANCE> 边界。",
     reason: "项目长期推进方式",
     confirmation_summary: "用户确认加入工作方式",
     user_confirmed: true,
@@ -387,11 +387,11 @@ test("project guidance is user-confirmed, deduplicated, and rendered as a stable
   const secondView = coordinator.readProjectGuidance("board-1");
   const stablePrefix = firstView.runtime_prompt_prefix.slice(
     0,
-    firstView.runtime_prompt_prefix.lastIndexOf("</GOALBOARD_PROJECT_GUIDANCE>"),
+    firstView.runtime_prompt_prefix.lastIndexOf("</MOLIS_WORK_PROJECT_GUIDANCE>"),
   );
   assert.ok(secondView.runtime_prompt_prefix.startsWith(stablePrefix));
-  assert.equal((secondView.runtime_prompt_prefix.match(/<\/GOALBOARD_PROJECT_GUIDANCE>/g) ?? []).length, 1);
-  assert.match(secondView.runtime_prompt_prefix, /&lt;\/GOALBOARD_PROJECT_GUIDANCE&gt;/);
+  assert.equal((secondView.runtime_prompt_prefix.match(/<\/MOLIS_WORK_PROJECT_GUIDANCE>/g) ?? []).length, 1);
+  assert.match(secondView.runtime_prompt_prefix, /&lt;\/MOLIS_WORK_PROJECT_GUIDANCE&gt;/);
   assert.deepEqual(store.snapshot("board-1").project_guidance.map((entry) => entry.position), [1, 2]);
   assert.equal(
     (store.db.prepare("SELECT COUNT(*) AS count FROM events WHERE type = 'project.guidance_added'").get() as { count: number }).count,
@@ -410,7 +410,7 @@ test("project guidance is user-confirmed, deduplicated, and rendered as a stable
       idempotency_key: "guidance-too-long",
     }),
     (error: unknown) =>
-      error instanceof GoalBoardV1Error && error.code === "project_guidance.entry_too_large",
+      error instanceof MolisWorkV1Error && error.code === "project_guidance.entry_too_large",
   );
   store.close();
 });
@@ -445,7 +445,7 @@ test("project guidance edits, deactivation, and restoration preserve immutable r
       idempotency_key: "guidance-version-unconfirmed",
     }),
     (error: unknown) =>
-      error instanceof GoalBoardV1Error && error.code === "project_guidance.user_confirmation_required",
+      error instanceof MolisWorkV1Error && error.code === "project_guidance.user_confirmation_required",
   );
 
   const edited = coordinator.goals.commands.updateProjectGuidance({
@@ -545,7 +545,7 @@ test("migration 26 backfills revision history for existing project guidance", ()
   `);
   store.close();
 
-  const migrated = new SqliteGoalBoardStore(databasePath);
+  const migrated = new SqliteMolisWorkStore(databasePath);
   const entry = migrated.listProjectGuidanceEntries("board-1", true)[0];
   assert.equal(entry?.guidance_id, created.entry.guidance_id);
   assert.equal(entry?.revision, 1);
@@ -572,7 +572,7 @@ test("project guidance rejects invalid, empty, and project-total overflow conten
       content: "不支持的分类",
       idempotency_key: "guidance-invalid-kind",
     }),
-    (error: unknown) => error instanceof GoalBoardV1Error && error.code === "project_guidance.kind_invalid",
+    (error: unknown) => error instanceof MolisWorkV1Error && error.code === "project_guidance.kind_invalid",
   );
   assert.throws(
     () => coordinator.goals.commands.addProjectGuidance({
@@ -580,7 +580,7 @@ test("project guidance rejects invalid, empty, and project-total overflow conten
       content: "  \n  ",
       idempotency_key: "guidance-empty",
     }),
-    (error: unknown) => error instanceof GoalBoardV1Error && error.code === "project_guidance.invalid",
+    (error: unknown) => error instanceof MolisWorkV1Error && error.code === "project_guidance.invalid",
   );
   for (let index = 0; index < 8; index += 1) {
     coordinator.goals.commands.addProjectGuidance({
@@ -595,7 +595,7 @@ test("project guidance rejects invalid, empty, and project-total overflow conten
       content: "超过项目总长度",
       idempotency_key: "guidance-total-overflow",
     }),
-    (error: unknown) => error instanceof GoalBoardV1Error && error.code === "project_guidance.total_too_large",
+    (error: unknown) => error instanceof MolisWorkV1Error && error.code === "project_guidance.total_too_large",
   );
   assert.equal(store.snapshot("board-1").project_guidance.length, 8);
   store.close();
@@ -608,7 +608,7 @@ test("migration 17 repairs a missing evidence corrections table even when its le
   store.db.exec("DROP TABLE evidence_corrections");
   store.close();
 
-  const repaired = new SqliteGoalBoardStore(databasePath);
+  const repaired = new SqliteMolisWorkStore(databasePath);
   assert.ok(
     repaired.db
       .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'evidence_corrections'")
@@ -684,7 +684,7 @@ test("migration 30 backfills Contract revisions and action targets without rewri
   `);
   store.close();
 
-  const migrated = new SqliteGoalBoardStore(databasePath);
+  const migrated = new SqliteMolisWorkStore(databasePath);
   const after = migrated.snapshot("board-1");
   assert.deepEqual({
     goals: after.goals.length,
@@ -711,7 +711,7 @@ test("migration 30 backfills Contract revisions and action targets without rewri
   );
   migrated.close();
 
-  const reopened = new SqliteGoalBoardStore(databasePath);
+  const reopened = new SqliteMolisWorkStore(databasePath);
   assert.equal(
     (reopened.db.prepare("SELECT COUNT(*) AS count FROM schema_migrations WHERE migration_id = 30").get() as { count: number }).count,
     1,
@@ -766,7 +766,7 @@ test("migration 12 reconciles historical Runs and clarification sessions exactly
   const databasePath = store.path;
   store.close();
 
-  const migrated = new SqliteGoalBoardStore(databasePath);
+  const migrated = new SqliteMolisWorkStore(databasePath);
   const migratedSnapshot = migrated.snapshot("board-1");
   const repairedRun = migratedSnapshot.runs.find((run) => run.run_id === "run-migration-12");
   assert.equal(repairedRun?.state, "abandoned");
@@ -779,7 +779,7 @@ test("migration 12 reconciles historical Runs and clarification sessions exactly
   assert.equal(repairedSession?.closed_at, acceptedAt);
   const repairEvents = migrated.db
     .prepare("SELECT type, object_id FROM events WHERE actor_id = ? ORDER BY seq")
-    .all("goalboard:migration-12") as Array<{ type: string; object_id: string }>;
+    .all("molis-work:migration-12") as Array<{ type: string; object_id: string }>;
   assert.deepEqual(
     repairEvents.map((event) => event.type).sort(),
     ["clarification.closed", "run.abandoned"],
@@ -787,10 +787,10 @@ test("migration 12 reconciles historical Runs and clarification sessions exactly
   assert.ok(migrated.db.prepare("SELECT 1 FROM schema_migrations WHERE migration_id = 12").get());
   migrated.close();
 
-  const reopened = new SqliteGoalBoardStore(databasePath);
+  const reopened = new SqliteMolisWorkStore(databasePath);
   const repairEventCount = reopened.db
     .prepare("SELECT COUNT(*) AS count FROM events WHERE actor_id = ?")
-    .get("goalboard:migration-12") as { count: number };
+    .get("molis-work:migration-12") as { count: number };
   assert.equal(repairEventCount.count, 2);
   reopened.close();
 });
@@ -810,21 +810,21 @@ test("migration 13 clears a historical completed Active Goal exactly once", () =
   const databasePath = store.path;
   store.close();
 
-  const migrated = new SqliteGoalBoardStore(databasePath);
+  const migrated = new SqliteMolisWorkStore(databasePath);
   assert.equal(migrated.snapshot("board-1").board.active_goal_id, null);
   const repairEvents = migrated.db
     .prepare("SELECT type, object_id FROM events WHERE actor_id = ? ORDER BY seq")
-    .all("goalboard:migration-13") as Array<{ type: string; object_id: string }>;
+    .all("molis-work:migration-13") as Array<{ type: string; object_id: string }>;
   assert.deepEqual(repairEvents, [
     { type: "board.active_goal_cleared", object_id: "migration-active-completed" },
   ]);
   assert.ok(migrated.db.prepare("SELECT 1 FROM schema_migrations WHERE migration_id = 13").get());
   migrated.close();
 
-  const reopened = new SqliteGoalBoardStore(databasePath);
+  const reopened = new SqliteMolisWorkStore(databasePath);
   const repairEventCount = reopened.db
     .prepare("SELECT COUNT(*) AS count FROM events WHERE actor_id = ?")
-    .get("goalboard:migration-13") as { count: number };
+    .get("molis-work:migration-13") as { count: number };
   assert.equal(repairEventCount.count, 1);
   reopened.close();
 });
@@ -859,7 +859,7 @@ test("migration 14 converts the removed trusted-host authority to Runtime dialog
   const databasePath = store.path;
   store.close();
 
-  const migrated = new SqliteGoalBoardStore(databasePath);
+  const migrated = new SqliteMolisWorkStore(databasePath);
   const decision = migrated.db
     .prepare("SELECT authority_source FROM goal_tree_proposal_decisions")
     .get() as { authority_source: string };
@@ -883,7 +883,7 @@ test("only satisfied Goals can be archived and restoration preserves completion 
         { goal_id: "archive-target", archived: true, reason: "整理已完成目标" },
         { actor_id: "user-1", idempotency_key: "archive-unmet" },
       ),
-    (error: unknown) => error instanceof GoalBoardV1Error && error.code === "goal.not_satisfied",
+    (error: unknown) => error instanceof MolisWorkV1Error && error.code === "goal.not_satisfied",
   );
 
   coordinator.setActiveGoal(
@@ -1038,7 +1038,7 @@ test("Goal trash preserves history, deactivates only active relations, and resto
         },
         { actor_id: "user-1", idempotency_key: "trash-new-relation-denied" },
       ),
-    (error) => error instanceof GoalBoardV1Error && error.code === "goal.trashed",
+    (error) => error instanceof MolisWorkV1Error && error.code === "goal.trashed",
   );
 
   const repeatedTrash = coordinator.goals.lifecycle.setTrashed(
@@ -1232,7 +1232,7 @@ test("user relation maintenance keeps direction, reason, history, and idempotenc
         { actor_id: "user-1", idempotency_key: "relation-maintenance-duplicate" },
       ),
     (error: unknown) =>
-      error instanceof GoalBoardV1Error && error.code === "relation.already_exists",
+      error instanceof MolisWorkV1Error && error.code === "relation.already_exists",
   );
 
   const deactivated = coordinator.goals.commands.deactivateRelation(
@@ -1266,7 +1266,7 @@ test("user relation maintenance keeps direction, reason, history, and idempotenc
         { actor_id: "user-1", idempotency_key: "relation-maintenance-deactivate-again" },
       ),
     (error: unknown) =>
-      error instanceof GoalBoardV1Error && error.code === "relation.not_active",
+      error instanceof MolisWorkV1Error && error.code === "relation.not_active",
   );
   const event = store.db
     .prepare("SELECT reason FROM events WHERE type = 'relation.deactivated' AND object_id = ?")
@@ -1277,7 +1277,7 @@ test("user relation maintenance keeps direction, reason, history, and idempotenc
 
 test("Evidence locator preflight verifies project Markdown anchors and marks opaque locators unverified", () => {
   const { store } = fixture();
-  const projectRoot = mkdtempSync(join(tmpdir(), "goalboard-evidence-project-"));
+  const projectRoot = mkdtempSync(join(tmpdir(), "molis-work-evidence-project-"));
   writeFileSync(
     join(projectRoot, "contract.md"),
     "# Content Growth Studio\n\n## 平台差异化观察窗口\n\n已确认。\n\n## 重复章节\n\n## 重复章节-1\n\n## 重复章节\n",
@@ -1303,10 +1303,10 @@ test("Evidence locator preflight verifies project Markdown anchors and marks opa
 
 test("a file URI outside the current workspace is registered without reading the local file", () => {
   const { store } = fixture();
-  const submitted = validateEvidenceLocator("file:///private/goalboard-casebook/not-present-in-test.md", {
+  const submitted = validateEvidenceLocator("file:///private/molis-work-casebook/not-present-in-test.md", {
     projectRoot: "/current/runtime/workspace",
   });
-  assert.equal(submitted.normalized_locator, "file:///private/goalboard-casebook/not-present-in-test.md");
+  assert.equal(submitted.normalized_locator, "file:///private/molis-work-casebook/not-present-in-test.md");
   assert.equal(submitted.status, "unverified");
   assert.match(submitted.reason, /机器本地 locator/);
   assert.match(submitted.reason, /不会读取或确认文件存在/);
@@ -1317,16 +1317,16 @@ test("a file URI outside the current workspace is registered without reading the
 test("Evidence verifies an uncommitted file in a registered worktree of the canonical Git repository", async () => {
   const { store, coordinator } = fixture();
   createLeaf(coordinator, "same-repository-worktree-evidence");
-  const repositoryRoot = mkdtempSync(join(tmpdir(), "goalboard-evidence-repository-"));
+  const repositoryRoot = mkdtempSync(join(tmpdir(), "molis-work-evidence-repository-"));
   writeFileSync(join(repositoryRoot, "README.md"), "# Evidence repository\n");
   await execFileAsync("git", ["-C", repositoryRoot, "init"]);
-  await execFileAsync("git", ["-C", repositoryRoot, "config", "user.name", "GoalBoard Test"]);
-  await execFileAsync("git", ["-C", repositoryRoot, "config", "user.email", "goalboard-test@example.invalid"]);
+  await execFileAsync("git", ["-C", repositoryRoot, "config", "user.name", "Molis Work Test"]);
+  await execFileAsync("git", ["-C", repositoryRoot, "config", "user.email", "molis-work-test@example.invalid"]);
   await execFileAsync("git", ["-C", repositoryRoot, "add", "README.md"]);
   await execFileAsync("git", ["-C", repositoryRoot, "commit", "-m", "test: initialize evidence repository"]);
-  const worktreeParent = mkdtempSync(join(tmpdir(), "goalboard-evidence-worktree-parent-"));
+  const worktreeParent = mkdtempSync(join(tmpdir(), "molis-work-evidence-worktree-parent-"));
   const worktreeRoot = join(worktreeParent, "isolated-worktree");
-  await execFileAsync("git", ["-C", repositoryRoot, "worktree", "add", "-b", "goalboard-evidence-worktree", worktreeRoot]);
+  await execFileAsync("git", ["-C", repositoryRoot, "worktree", "add", "-b", "molis-work-evidence-worktree", worktreeRoot]);
   const worktreeFile = join(worktreeRoot, "uncommitted-evidence.txt");
   writeFileSync(worktreeFile, "fresh evidence from an isolated worktree\n");
   const submitted = validateEvidenceLocator(worktreeFile, { projectRoot: repositoryRoot });
@@ -1355,7 +1355,7 @@ test("Evidence verifies an uncommitted file in a registered worktree of the cano
     readProjectReference(recordedRoot, submitted.normalized_locator).content.toString("utf8"),
     /fresh evidence from an isolated worktree/,
   );
-  const otherRepository = mkdtempSync(join(tmpdir(), "goalboard-evidence-other-repository-"));
+  const otherRepository = mkdtempSync(join(tmpdir(), "molis-work-evidence-other-repository-"));
   await execFileAsync("git", ["-C", otherRepository, "init"]);
   const otherFile = join(otherRepository, "other.txt");
   writeFileSync(otherFile, "not the canonical repository\n");
@@ -1363,7 +1363,7 @@ test("Evidence verifies an uncommitted file in a registered worktree of the cano
     () => validateEvidenceLocator(otherFile, { projectRoot: repositoryRoot }),
     (error: unknown) => error instanceof ProjectReferenceError,
   );
-  const forgedDirectory = mkdtempSync(join(tmpdir(), "goalboard-evidence-forged-worktree-"));
+  const forgedDirectory = mkdtempSync(join(tmpdir(), "molis-work-evidence-forged-worktree-"));
   writeFileSync(join(forgedDirectory, ".git"), `gitdir: ${join(repositoryRoot, ".git")}\n`);
   const forgedFile = join(forgedDirectory, "forged.txt");
   writeFileSync(forgedFile, "not registered by git worktree\n");
@@ -1418,7 +1418,7 @@ test("Goal Tree create payload rejects retired acceptance_criteria fields before
       })],
       idempotency_key: "criterion-conflict-proposal",
     }),
-    (error: unknown) => error instanceof GoalBoardV1Error && error.code === "goal_tree_proposal.payload_unknown",
+    (error: unknown) => error instanceof MolisWorkV1Error && error.code === "goal_tree_proposal.payload_unknown",
   );
   assert.equal(store.getGoal("criterion-conflicting-goal"), null);
   store.close();
@@ -1451,7 +1451,7 @@ test("Goal Tree proposal rejects cross-proposal item ID reuse with a structured 
       })],
       idempotency_key: "item-id-second",
     }),
-    (error: unknown) => error instanceof GoalBoardV1Error && /item.?id|item_id/i.test(String((error as { code?: string }).code ?? error)),
+    (error: unknown) => error instanceof MolisWorkV1Error && /item.?id|item_id/i.test(String((error as { code?: string }).code ?? error)),
   );
   assert.equal(first.items[0]!.item_id, "globally-reused-item-id");
   store.close();
@@ -1498,7 +1498,7 @@ test("migrations 28 and 29 recover the pre-0.1.12 marker collision without losin
   const databasePath = store.path;
   store.close();
 
-  const migrated = new SqliteGoalBoardStore(databasePath);
+  const migrated = new SqliteMolisWorkStore(databasePath);
   const columns = migrated.db.pragma("table_info(goal_tree_proposals)") as Array<{ name: string }>;
   assert.ok(columns.some((column) => column.name === "supersedes_legacy_proposal_id"));
   assert.ok(migrated.db.prepare("SELECT 1 FROM schema_migrations WHERE migration_id = 28").get());
@@ -1510,9 +1510,9 @@ test("migrations 28 and 29 recover the pre-0.1.12 marker collision without losin
 });
 
 test("V3 import preserves safe structure and explicitly refuses to invent completion semantics", () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-v3-import-"));
-  const store = new SqliteGoalBoardStore(join(directory, "import.db"));
-  const coordinator = new GoalBoardCoordinator(store);
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-v3-import-"));
+  const store = new SqliteMolisWorkStore(join(directory, "import.db"));
+  const coordinator = new MolisWorkCoordinator(store);
   const legacy = {
     schema_version: "3.0",
     goal_id: "legacy-board",

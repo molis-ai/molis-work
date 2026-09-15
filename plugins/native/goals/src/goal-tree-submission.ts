@@ -1,9 +1,10 @@
 import { createHash, randomUUID } from "node:crypto";
-import type { GoalsQueryApi, GoalsApplicationApi, GoalRecord } from "@adeptify/goalboard-contracts/modules/goals";
-import type { GovernanceApplicationApi, GoalTreeProposalSubmitInput, GoalTreeProposalRecord } from "@adeptify/goalboard-contracts/modules/governance-collaboration";
+import type { GoalsQueryApi, GoalsApplicationApi, GoalRecord } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GovernanceApplicationApi, GoalTreeProposalSubmitInput, GoalTreeProposalRecord } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import type { GoalTreeApplicationApi } from "./goal-tree-contract.js";
 import { GoalTreeQueryApplication } from "./goal-tree-query.js";
 import { GoalTreeProposalNormalizer } from "./proposal-normalizer.js";
+import type { GoalDecisionAttentionSync } from "./goal-decision-attention.js";
 
 export interface GoalTreeSubmissionPorts {
   goals: Pick<GoalsApplicationApi, "commands" | "planning"> & { query: GoalsQueryApi };
@@ -11,6 +12,7 @@ export interface GoalTreeSubmissionPorts {
   query: GoalTreeQueryApplication;
   clock: () => Date;
   errorFactory: (code: string, message: string, details?: Record<string, unknown>) => Error;
+  attention?: Pick<GoalDecisionAttentionSync, "settleProposal">;
 }
 
 /** Submit a proposal, never materialize its suggested Goal/Relation/Risk changes. */
@@ -48,7 +50,7 @@ export class GoalTreeSubmissionApplication implements Pick<GoalTreeApplicationAp
       base_event_cursor: input.base_event_cursor ?? null,
       supersedes_proposal_id: supersedesProposalId,
     });
-    return this.ports.governance.records.executeGoalTreeSubmission({
+    const result = this.ports.governance.records.executeGoalTreeSubmission({
       board_id: input.board_id, actor_id: actorId, idempotency_key: input.idempotency_key, request_hash: hash,
     }, () => {
       this.requireBoard(input.board_id);
@@ -204,6 +206,8 @@ export class GoalTreeSubmissionApplication implements Pick<GoalTreeApplicationAp
       const outcome = { proposal, observed_event_cursor: cursor };
       return outcome;
     });
+    this.ports.attention?.settleProposal(input.board_id, result.proposal);
+    return result;
   }
 
   private requiredText(value: string, code: string, message: string): string {

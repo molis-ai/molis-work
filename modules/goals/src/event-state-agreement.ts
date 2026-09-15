@@ -3,7 +3,7 @@ import type {
   GoalEventRequirementStatus,
   GoalRecord,
   SetGoalEventAgreementInput,
-} from "@adeptify/goalboard-contracts/modules/goals";
+} from "@molis-ai/molis-work-contracts/modules/goals";
 import { requestHash, type GoalsCommandContext } from "./command-support.js";
 import {
   agreementChangeEquals,

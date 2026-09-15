@@ -3,16 +3,16 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { migrateClarificationDialogue } from "@adeptify/goalboard-module-governance-collaboration";
-import { LocalProjectDatabase } from "@adeptify/goalboard-app-local-host";
-import { GoalProjectApplication } from "@adeptify/goalboard-app-local-host";
+import { migrateClarificationDialogue } from "@molis-ai/molis-work-module-governance-collaboration";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import {
   insertHistoricalClarificationSession,
   insertHistoricalClarificationTurn,
 } from "./historical-sql-fixture.js";
 
 test("Governance migration 8 rolls back schema and marker together, then persists a usable dialogue after retry", () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-dialogue-schema-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-dialogue-schema-"));
   const databasePath = join(directory, "project.db");
   const store = new LocalProjectDatabase(databasePath);
   const sessionId = "dialogue-recovered";

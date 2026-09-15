@@ -30,9 +30,9 @@ caller 清零后删除：
 
 ## Checks
 
-- `pnpm workspace:verify`：通过，包括工作区 typecheck/build 和依赖边界。日志 `/private/tmp/goalboard-wk3-final-workspace.log`。
-- `CI=true pnpm test`：535 tests，535 pass，0 fail/cancelled/skipped，70.5 秒。日志 `/private/tmp/goalboard-wk3-final-tests.log`。
-- 随后仅把已有工作目录补偿恢复实现转入 Work 并调整类型/import，再跑包构建、根 typecheck、`pnpm boundary:check` 和全部 Session/Work/工作目录/终端定向回归：90 tests，90 pass。日志 `/private/tmp/goalboard-wk3-post-cleanup.log`。
+- `pnpm workspace:verify`：通过，包括工作区 typecheck/build 和依赖边界。日志 `/private/tmp/molis-work-wk3-final-workspace.log`。
+- `CI=true pnpm test`：535 tests，535 pass，0 fail/cancelled/skipped，70.5 秒。日志 `/private/tmp/molis-work-wk3-final-tests.log`。
+- 随后仅把已有工作目录补偿恢复实现转入 Work 并调整类型/import，再跑包构建、根 typecheck、`pnpm boundary:check` 和全部 Session/Work/工作目录/终端定向回归：90 tests，90 pass。日志 `/private/tmp/molis-work-wk3-post-cleanup.log`。
 - `git diff --check`：通过。
 - 既有 Session HTTP/E2E 覆盖创建/发现、native/fallback 内容和恢复、项目隔离、归档、handoff 草稿/投递/失败/重启恢复、隐私和 TUI 记录。工作目录测试核对持久化关系、失败回滚、身份保留及不触碰真实工作文件。
 - 既有 Desktop HTTP 覆盖 Goal-bound panel 创建/列表/退出/重开、父 Goal 只读、目录限制、跨项目拒绝、Feed/Onboarding prompt 和控制通道鉴权。

@@ -1,12 +1,12 @@
 export {
-  GOALBOARD_DENSITY_STORAGE_KEY,
-  GOALBOARD_TERMINAL_THEME_STORAGE_KEY,
-  GOALBOARD_THEME_STORAGE_KEY,
+  MOLIS_WORK_DENSITY_STORAGE_KEY,
+  MOLIS_WORK_TERMINAL_THEME_STORAGE_KEY,
+  MOLIS_WORK_THEME_STORAGE_KEY,
   THEME_BOOTSTRAP_SCRIPT,
   VISUAL_FOUNDATION_CLIENT_SCRIPT,
-  type GoalBoardDensity,
-  type GoalBoardTerminalTheme,
-  type GoalBoardTheme,
+  type MolisWorkDensity,
+  type MolisWorkTerminalTheme,
+  type MolisWorkTheme,
 } from "./preferences.js";
 
 import { CALM_DESKTOP_STYLES } from "./styles/calm-desktop.js";

@@ -1,6 +1,6 @@
 # 真实 Feed 工作台 QA（2026-08-30）
 
-GoalBoard Goal：`goal-infoflow-real-feed`
+Molis Work Goal：`goal-infoflow-real-feed`
 
 ## 浏览器环境
 

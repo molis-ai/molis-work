@@ -8,7 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 const ALG = "aes-256-gcm" as const;
-const CONTENT_REF = /^goalboard-session\/sha256\/([0-9a-f]{64})$/u;
+const CONTENT_REF = /^molis-work-session\/sha256\/([0-9a-f]{64})$/u;
 const MAX_CONTENT_BYTES = 512 * 1024;
 
 interface SealedSessionContent {
@@ -80,7 +80,7 @@ export function createSessionContentStore(rootDirectory: string): SessionContent
         throw new Error("session content exceeds local retention limit");
       }
       const digest = createHash("sha256").update(content).digest("hex");
-      const contentRef = `goalboard-session/sha256/${digest}`;
+      const contentRef = `molis-work-session/sha256/${digest}`;
       const destination = blobPath(blobsRoot, contentRef);
       if (fs.existsSync(destination)) {
         if (read(contentRef) !== content) throw new Error("session content hash collision");

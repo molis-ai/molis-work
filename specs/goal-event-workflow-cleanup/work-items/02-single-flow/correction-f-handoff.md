@@ -44,30 +44,30 @@ Writer 完成第 6 组：真正有限的结构提交类型、无消费者 schema
 
 ```
 pnpm_config_verify_deps_before_run=warn pnpm build
-  → /private/tmp/goalboard-flow-cleanup/02-f-build.log  EXIT 0
+  → /private/tmp/molis-work-flow-cleanup/02-f-build.log  EXIT 0
 
 npx tsc --noEmit --strict --skipLibCheck --target ES2022 --module NodeNext --moduleResolution NodeNext \
-  /private/tmp/goalboard-flow-cleanup/02-f-types-acceptance.mts
-  → /private/tmp/goalboard-flow-cleanup/02-f-types.log  EXIT 0
+  /private/tmp/molis-work-flow-cleanup/02-f-types-acceptance.mts
+  → /private/tmp/molis-work-flow-cleanup/02-f-types.log  EXIT 0
 
-node --import tsx --input-type=module < /private/tmp/goalboard-flow-cleanup/02-f-wire-acceptance.mjs
-  → /private/tmp/goalboard-flow-cleanup/02-f-wire.log  EXIT 0
+node --import tsx --input-type=module < /private/tmp/molis-work-flow-cleanup/02-f-wire-acceptance.mjs
+  → /private/tmp/molis-work-flow-cleanup/02-f-wire.log  EXIT 0
     PASS invalid human-flag / object-title rejected
     PASS valid true/false human flags survive propose+read without materializing
 
-node --import tsx --input-type=module < /private/tmp/goalboard-flow-cleanup/02-tree-acceptance.mjs
-  → /private/tmp/goalboard-flow-cleanup/02-f-tree.log  EXIT 0
+node --import tsx --input-type=module < /private/tmp/molis-work-flow-cleanup/02-tree-acceptance.mjs
+  → /private/tmp/molis-work-flow-cleanup/02-f-tree.log  EXIT 0
     含 ID-only relation/deactivate、竞争关系、陈旧拒绝、循环/跨项目、Host 焦点
 
 pnpm_config_verify_deps_before_run=warn pnpm boundary:check
-  → /private/tmp/goalboard-flow-cleanup/02-f-boundary.log  EXIT 0  errors: []
+  → /private/tmp/molis-work-flow-cleanup/02-f-boundary.log  EXIT 0  errors: []
 
 env -u FORCE_COLOR 未使用；node --import tsx --test --test-concurrency=1 原 02 定向 11 文件
-  → /private/tmp/goalboard-flow-cleanup/02-f-tests.log  77 pass / 0 fail / 0 skip
-  → 副本 /private/tmp/goalboard-flow-cleanup/02-final-tests.log
+  → /private/tmp/molis-work-flow-cleanup/02-f-tests.log  77 pass / 0 fail / 0 skip
+  → 副本 /private/tmp/molis-work-flow-cleanup/02-final-tests.log
 
 named Web：atomic whole confirmation 显示 in_progress/进行中；退役 contract 拆分断言 kind_retired
-  → /private/tmp/goalboard-flow-cleanup/02-f-web-d.log  2 pass / 0 fail
+  → /private/tmp/molis-work-flow-cleanup/02-f-web-d.log  2 pass / 0 fail
 ```
 
 Writer 本地跑过上述主探针，**不代替主独立复跑，不宣称主验收通过**。
@@ -87,7 +87,7 @@ Writer 本地跑过上述主探针，**不代替主独立复跑，不宣称主�
 
 ```
 node --import tsx --test --test-concurrency=1 tests/goal-events.test.ts
-  → /private/tmp/goalboard-flow-cleanup/02-f-goal-events-review.log  13 pass / 0 fail / 0 skip
+  → /private/tmp/molis-work-flow-cleanup/02-f-goal-events-review.log  13 pass / 0 fail / 0 skip
 git diff --check -- tests/goal-events.test.ts specs/.../correction-f-handoff.md
   → 无空白错误
 ```

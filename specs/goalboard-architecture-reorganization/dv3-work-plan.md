@@ -6,7 +6,7 @@
 
 SDK 已有 definePlugin/polling helper；Runtime 已有签名身份、grant、安装/启动/崩溃恢复/卸载；UI Host 与 Artifact owner 已实现。Plugin CLI 仍仅 package descriptor，examples/plugin-sample 不存在。SDK 内嵌 Manifest 校验，Runtime 另有有限的安装身份检查；尚无可安全接收外部 JSON 的公开 Contract parser。PluginStartContext 目前只有身份和 requireGrant，不能据此声称插件私有存储或 Artifact/UI 接线已提供。
 
-保留原官方 Integration 行为、身份/grant/版本规则与现有公开入口；补齐作者侧调用和开发工具。不建立第三方市场，不发布到外部 registry，不处理用户密钥，不安装到真实用户 home，不改变本地私有/主动共享原则。Sample 是 GoalBoard Plugin，不是 Codex Plugin，不使用 Codex plugin scaffolder。
+保留原官方 Integration 行为、身份/grant/版本规则与现有公开入口；补齐作者侧调用和开发工具。不建立第三方市场，不发布到外部 registry，不处理用户密钥，不安装到真实用户 home，不改变本地私有/主动共享原则。Sample 是 Molis Work Plugin，不是 Codex Plugin，不使用 Codex plugin scaffolder。
 
 ## 顺序与模块职责
 
@@ -46,7 +46,7 @@ CLI 提供 pack、identity（读取公钥）、sign（显式私钥文件）、ve
 
 ## 开发调试与公共 fixture 接线
 
-开发运行入口采用 `goalboard plugin dev <source-directory> <isolated-state-directory> <comma-separated-grants> --allow-unsigned-development`。明确标记执行本地、未签名开发代码，不是 sandbox 或已审核发行物安装。状态目录必须新建/空目录或已有 GoalBoard 开发标记，不能误用用户项目。主 CLI 仅委托 Plugin CLI，后者调用注入的具名 development runner；项目数据库初始化仍由唯一 root Local Host composition 装配，禁止在 CLI 重新构造 Store/Coordinator。
+开发运行入口采用 `molis-work plugin dev <source-directory> <isolated-state-directory> <comma-separated-grants> --allow-unsigned-development`。明确标记执行本地、未签名开发代码，不是 sandbox 或已审核发行物安装。状态目录必须新建/空目录或已有 Molis Work 开发标记，不能误用用户项目。主 CLI 仅委托 Plugin CLI，后者调用注入的具名 development runner；项目数据库初始化仍由唯一 root Local Host composition 装配，禁止在 CLI 重新构造 Store/Coordinator。
 
 Local Host 的 public development fixture 执行 install/start/health/poll/render/uninstall，使用真实 Runtime、Artifacts 和 UI owner；安装记录及私有数据由 Runtime 自己的 SQLite repository 持久化。调用结束撤销代码/UI，保留 Artifact 与个人数据，下一次调试恢复计数。加载前检查 Manifest 与 local entrypoint containment，加载后检查 definition.manifest 一致。源码模式明确授权执行任意本地 JS，不把 grant 当成 OS 隔离；签名 bundle 的验证不会静默授权执行源码目录。
 

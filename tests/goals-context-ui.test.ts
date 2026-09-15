@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createWorkbenchGoalsContextRenderer, createWorkbenchUiHost } from "@adeptify/goalboard-app-workbench";
-import { GOALS_CONTEXT_UI_CONTRIBUTION_ID, type GoalsContextItem, type GoalsContextView } from "@adeptify/goalboard-plugin-goals";
-import type { GoalRelationRecord } from "@adeptify/goalboard-contracts/modules/goals";
-import { L, currentLocale } from "@adeptify/goalboard-app-local-host";
-import { createGoalStateExplainer } from "@adeptify/goalboard-plugin-goals";
-import { icon } from "@adeptify/goalboard-design-system";
+import { createWorkbenchGoalsContextRenderer, createWorkbenchUiHost } from "@molis-ai/molis-work-app-workbench";
+import { GOALS_CONTEXT_UI_CONTRIBUTION_ID, type GoalsContextItem, type GoalsContextView } from "@molis-ai/molis-work-plugin-goals";
+import type { GoalRelationRecord } from "@molis-ai/molis-work-contracts/modules/goals";
+import { L, currentLocale } from "@molis-ai/molis-work-app-local-host";
+import { createGoalStateExplainer } from "@molis-ai/molis-work-plugin-goals";
+import { icon } from "@molis-ai/molis-work-design-system";
 const { explainWorkState, explainParentCompletion } = createGoalStateExplainer(L);
 
 const escapeHtml = (v: unknown) => String(v ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");

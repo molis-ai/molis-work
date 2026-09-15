@@ -5,10 +5,10 @@ import { join } from "node:path";
 import test from "node:test";
 import Database from "better-sqlite3";
 
-import { importRelayData } from "@adeptify/goalboard-app-local-host";
-import { createLocalFeedApplication } from "@adeptify/goalboard-app-local-host";
-import { DEMO_BOARD_ID, seedDemoBoard } from "@adeptify/goalboard-app-local-host";
-import { LocalProjectDatabase } from "@adeptify/goalboard-app-local-host";
+import { importRelayData } from "@molis-ai/molis-work-app-local-host";
+import { createLocalFeedApplication } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_BOARD_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 
 function relayFixture(databasePath: string): Database.Database {
   const db = new Database(databasePath);
@@ -53,8 +53,8 @@ function relayFixture(databasePath: string): Database.Database {
 }
 
 test("migration 29 creates separated Feed and Inbox contracts with persisted read state", () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-feed-schema-"));
-  const databasePath = join(directory, "goalboard.sqlite");
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-feed-schema-"));
+  const databasePath = join(directory, "molis-work.sqlite");
   try {
     seedDemoBoard(databasePath);
     const store = new LocalProjectDatabase(databasePath);
@@ -87,13 +87,13 @@ test("migration 29 creates separated Feed and Inbox contracts with persisted rea
 });
 
 test("opening a Feed item persists read state without invalidating its action revision", () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-feed-read-state-"));
-  const goalboardPath = join(directory, "goalboard.sqlite");
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-feed-read-state-"));
+  const molisWorkPath = join(directory, "molis-work.sqlite");
   const relayPath = join(directory, "relay.sqlite");
   const relay = relayFixture(relayPath);
   try {
-    seedDemoBoard(goalboardPath);
-    const store = new LocalProjectDatabase(goalboardPath);
+    seedDemoBoard(molisWorkPath);
+    const store = new LocalProjectDatabase(molisWorkPath);
     try {
       const feed = createLocalFeedApplication(store.db);
       importRelayData(feed, DEMO_BOARD_ID, relayPath);
@@ -106,7 +106,7 @@ test("opening a Feed item persists read state without invalidating its action re
 
       const reopened = feed.markRead(DEMO_BOARD_ID, item.item_id);
       assert.equal(reopened.read_at, opened.read_at);
-      assert.equal(feed.snapshot(DEMO_BOARD_ID).items[0]?.read_at, opened.read_at);
+      assert.equal(feed.snapshot(DEMO_BOARD_ID).feed_items[0]?.read_at, opened.read_at);
       const readEvents = store.db.prepare(`
         SELECT COUNT(*) AS count FROM events
         WHERE board_id = ? AND object_id = ? AND type = 'feed_item.read'
@@ -121,12 +121,12 @@ test("opening a Feed item persists read state without invalidating its action re
   }
 });
 
-test("Inbox compatibility view is derived from InboxEntry instead of stored message type", () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-inbox-state-"));
-  const goalboardPath = join(directory, "goalboard.sqlite");
+test("Attention overlay no longer changes Feed Item type or blocks markRead", () => {
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-inbox-state-"));
+  const molisWorkPath = join(directory, "molis-work.sqlite");
   try {
-    seedDemoBoard(goalboardPath);
-    const store = new LocalProjectDatabase(goalboardPath);
+    seedDemoBoard(molisWorkPath);
+    const store = new LocalProjectDatabase(molisWorkPath);
     try {
       const now = "2026-08-30T02:00:00.000Z";
       store.db.prepare(`
@@ -142,13 +142,12 @@ test("Inbox compatibility view is derived from InboxEntry instead of stored mess
       const feed = createLocalFeedApplication(store.db);
       feed.ensureInboxEntryForFeedItem(DEMO_BOARD_ID, "inbox-message-1", "source_rule", { source_id: "github" });
       assert.equal(feed.getFeedItem(DEMO_BOARD_ID, "inbox-message-1").item_type, "feed");
-      assert.equal(feed.getItem(DEMO_BOARD_ID, "inbox-message-1").item_type, "inbox_message");
-      assert.throws(
-        () => feed.markRead(DEMO_BOARD_ID, "inbox-message-1"),
-        /Inbox Message 使用处理状态，不记录已读状态/,
-      );
+      assert.equal(feed.getItem(DEMO_BOARD_ID, "inbox-message-1").item_type, "feed");
+      const read = feed.markRead(DEMO_BOARD_ID, "inbox-message-1");
+      assert.ok(read.read_at);
       const archived = feed.setDisposition(DEMO_BOARD_ID, "inbox-message-1", "archived", 1);
-      assert.equal(archived.read_at, null);
+      assert.equal(archived.disposition, "archived");
+      assert.ok(archived.read_at);
       assert.throws(
         () => feed.setDisposition(DEMO_BOARD_ID, "inbox-message-1", "saved", archived.revision),
         /已忽略的 Feed Item/,
@@ -165,14 +164,14 @@ test("Inbox compatibility view is derived from InboxEntry instead of stored mess
   }
 });
 
-test("Relay import is idempotent and preserves GoalBoard disposition", () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-relay-import-"));
-  const goalboardPath = join(directory, "goalboard.sqlite");
+test("Relay import is idempotent and preserves Molis Work disposition", () => {
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-relay-import-"));
+  const molisWorkPath = join(directory, "molis-work.sqlite");
   const relayPath = join(directory, "relay.sqlite");
   const relay = relayFixture(relayPath);
   try {
-    seedDemoBoard(goalboardPath);
-    const store = new LocalProjectDatabase(goalboardPath);
+    seedDemoBoard(molisWorkPath);
+    const store = new LocalProjectDatabase(molisWorkPath);
     try {
       const feed = createLocalFeedApplication(store.db);
       const beforeImport = feed.snapshot(DEMO_BOARD_ID);
@@ -201,7 +200,7 @@ test("Relay import is idempotent and preserves GoalBoard disposition", () => {
         ...importedSource,
         status: "paused",
         enabled: false,
-        cursor: { local_cursor: "goalboard-cursor" },
+        cursor: { local_cursor: "molis-work-cursor" },
         last_sync_at: "2026-08-30T01:00:00.000Z",
         last_outcome: "completed",
         last_error_code: null,
@@ -229,11 +228,11 @@ test("Relay import is idempotent and preserves GoalBoard disposition", () => {
       const refreshedSource = feed.getSource(DEMO_BOARD_ID, "relay-source-1");
       assert.equal(refreshedSource.status, "paused", "repeat import must preserve local source state");
       assert.equal(refreshedSource.enabled, false);
-      assert.deepEqual(refreshedSource.cursor, { local_cursor: "goalboard-cursor" });
+      assert.deepEqual(refreshedSource.cursor, { local_cursor: "molis-work-cursor" });
       assert.equal(refreshedSource.last_sync_at, "2026-08-30T01:00:00.000Z");
-      assert.equal(refreshedSource.item_count, 1, "item count must reconcile from GoalBoard items");
-      assert.equal(feed.snapshot(DEMO_BOARD_ID).items.length, 1);
-      assert.equal(feed.snapshot(DEMO_BOARD_ID).items[0]?.materials.length, 1);
+      assert.equal(refreshedSource.item_count, 1, "item count must reconcile from Molis Work items");
+      assert.equal(feed.snapshot(DEMO_BOARD_ID).feed_items.length, 1);
+      assert.equal(feed.snapshot(DEMO_BOARD_ID).feed_items[0]?.materials.length, 1);
     } finally {
       store.close();
     }
@@ -244,13 +243,13 @@ test("Relay import is idempotent and preserves GoalBoard disposition", () => {
 });
 
 test("Relay schema drift fails before it can overwrite imported Feed facts", () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-relay-schema-drift-"));
-  const goalboardPath = join(directory, "goalboard.sqlite");
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-relay-schema-drift-"));
+  const molisWorkPath = join(directory, "molis-work.sqlite");
   const relayPath = join(directory, "relay.sqlite");
   const relay = relayFixture(relayPath);
   try {
-    seedDemoBoard(goalboardPath);
-    const store = new LocalProjectDatabase(goalboardPath);
+    seedDemoBoard(molisWorkPath);
+    const store = new LocalProjectDatabase(molisWorkPath);
     try {
       const feed = createLocalFeedApplication(store.db);
       importRelayData(feed, DEMO_BOARD_ID, relayPath);
@@ -271,13 +270,13 @@ test("Relay schema drift fails before it can overwrite imported Feed facts", () 
 });
 
 test("Feed disposition updates reject stale revisions and archived shortcuts", () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-feed-transition-"));
-  const goalboardPath = join(directory, "goalboard.sqlite");
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-feed-transition-"));
+  const molisWorkPath = join(directory, "molis-work.sqlite");
   const relayPath = join(directory, "relay.sqlite");
   const relay = relayFixture(relayPath);
   try {
-    seedDemoBoard(goalboardPath);
-    const store = new LocalProjectDatabase(goalboardPath);
+    seedDemoBoard(molisWorkPath);
+    const store = new LocalProjectDatabase(molisWorkPath);
     try {
       const feed = createLocalFeedApplication(store.db);
       importRelayData(feed, DEMO_BOARD_ID, relayPath);
@@ -301,7 +300,8 @@ test("Feed disposition updates reject stale revisions and archived shortcuts", (
       );
       const addedToInbox = feed.setDisposition(DEMO_BOARD_ID, item.item_id, "inbox", restored.revision);
       assert.equal(addedToInbox.revision, restored.revision, "creating the reference does not rewrite the Feed fact");
-      assert.equal(feed.getItem(DEMO_BOARD_ID, item.item_id).item_type, "inbox_message");
+      assert.equal(feed.getItem(DEMO_BOARD_ID, item.item_id).item_type, "feed");
+      assert.equal(addedToInbox.disposition, "inbox");
       feed.setDisposition(DEMO_BOARD_ID, item.item_id, "inbox", addedToInbox.revision);
       const inboxEntries = feed.listInboxEntries(DEMO_BOARD_ID)
         .filter((entry) => entry.subject_id === item.item_id);

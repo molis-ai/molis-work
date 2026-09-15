@@ -33,7 +33,7 @@ export const GOALS_PLANNING_EN: Record<string, string> = {
     "一句话说明这套方法": "Describe this method in one sentence",
     "把 Runtime 应该依次想清楚的阶段列出来。它们是规划顺序，不是强制串行的任务。": "List the stages the Runtime should reason through. They are a planning order, not mandatory serial tasks.",
     "例如：确认用户结果和边界": "For example: confirm the user outcome and boundaries",
-    "每一项由“检查主题”和一个清晰问题组成；系统会自动处理内部标识。": "Each item has a check topic and a clear question. GoalBoard handles internal identifiers automatically.",
+    "每一项由“检查主题”和一个清晰问题组成；系统会自动处理内部标识。": "Each item has a check topic and a clear question. Molis Work handles internal identifiers automatically.",
     "例如：最终结果": "For example: final outcome",
     "Runtime 必须回答的问题": "Question the Runtime must answer",
     "例如：最终交付什么、由谁使用？": "For example: what is delivered, and who will use it?",

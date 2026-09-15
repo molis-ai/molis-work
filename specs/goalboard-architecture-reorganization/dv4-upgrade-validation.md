@@ -4,7 +4,7 @@
 
 ## 实际发现的问题与修复
 
-首轮目录 `/private/tmp/goalboard-dv4-upgrade.0qG1fU`，分别用正式脚本安装仓库保留的 0.1.13 DMG 和当前 0.1.14 DMG，没有伪改版本号。旧 App 通过项目设置创建普通项目，并通过 Goal 表单写入名称、结果、原因。新版自动升级成功，受管 Web PID 63873 → 66542，但打开旧项目返回 HTTP 错误 `no such table: listener_instances`。
+首轮目录 `/private/tmp/molis-work-dv4-upgrade.0qG1fU`，分别用正式脚本安装仓库保留的 0.1.13 DMG 和当前 0.1.14 DMG，没有伪改版本号。旧 App 通过项目设置创建普通项目，并通过 Goal 表单写入名称、结果、原因。新版自动升级成功，受管 Web PID 63873 → 66542，但打开旧项目返回 HTTP 错误 `no such table: listener_instances`。
 
 根因：旧版已记录 Feed 迁移 22/23/24/29；新增 Listener 表只在这些历史迁移入口间接创建。旧项目不会再走这些入口。Web 打开项目时 FeedStore 调用 Listener 的恢复函数，但其构造只初始化 Sources、Attention 和 Feed，没有初始化 Listener。
 
@@ -18,7 +18,7 @@
 
 ## 修复后的真实用户旅程
 
-重新建立全新目录 `/private/tmp/goalboard-dv4-upgrade-pass.hwJBE3`，没有复用首轮已打开过的新 schema。旧/新 App 均来自真实 DMG，Home 在本目录 `user/.goalboard`。
+重新建立全新目录 `/private/tmp/molis-work-dv4-upgrade-pass.hwJBE3`，没有复用首轮已打开过的新 schema。旧/新 App 均来自真实 DMG，Home 在本目录 `user/.molis-work`。
 
 1. 旧 App 通过项目设置创建普通项目 `DV4 upgrade retention`，ID `project-bbb79e84-383b-409f-b0b3-5394f51bb44f`。通过 Goal 表单创建 `upgrade-retained-goal`。本次自动输入曾因焦点未切入屏幕外 textarea 而拼进标题；用键盘进入草稿编辑器修正，再保存。后端只读 API 核对保存字段，而不是把输入意图当作事实。
 2. 升级前基线：标题 `Preserve team handoff history`；结果 `Keep the original goal text after upgrade and reinstall.`；原因 `Do not lose user work during package migration.`；draft/abstract、revision 1。事件 #2 为创建，#3 为上述修改，修改理由 `Correct keyboard focus in the upgrade test fixture.`。

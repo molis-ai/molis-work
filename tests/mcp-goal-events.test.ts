@@ -1,14 +1,14 @@
-import { openGoalBoardProjectCatalog } from "@adeptify/goalboard-app-desktop";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { openWorkSessionRegistry } from "@adeptify/goalboard-app-local-host";
-import { snapshotBoardCapability, goalBoardHostProjectReference, createGoalBoardLocalHost, LocalProjectDatabase, GoalProjectApplication } from "@adeptify/goalboard-app-local-host";
-import { GoalBoardV1Error } from "@adeptify/goalboard-plugin-goals";
-import { GoalBoardServer } from "../apps/desktop/launchers/mcp/server.js";
-import type { GoalEventStateView, ReportGoalEventsResult } from "@adeptify/goalboard-contracts/modules/goals";
+import { openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
+import { snapshotBoardCapability, molisWorkHostProjectReference, createMolisWorkLocalHost, LocalProjectDatabase, GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkV1Error } from "@molis-ai/molis-work-plugin-goals";
+import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
+import type { GoalEventStateView, ReportGoalEventsResult } from "@molis-ai/molis-work-contracts/modules/goals";
 
 function localType() {
   return {
@@ -26,11 +26,11 @@ function localType() {
 }
 
 test("Runtime event tools create, configure, report and reopen without Claim or Run", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-mcp-goal-events-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-mcp-goal-events-"));
   const homeDirectory = join(directory, "home");
-  const catalog = await openGoalBoardProjectCatalog({ homeDirectory });
-  const host = createGoalBoardLocalHost();
-  let mcp: GoalBoardServer | undefined;
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
+  const host = createMolisWorkLocalHost();
+  let mcp: MolisWorkServer | undefined;
   try {
     const project = await catalog.createProject({ display_name: "事件闭环", actor_id: "user" });
     const runtimeHost = {
@@ -41,14 +41,14 @@ test("Runtime event tools create, configure, report and reopen without Claim or 
         host_declares_stable: true,
       },
     };
-    mcp = new GoalBoardServer("runtime", {
+    mcp = new MolisWorkServer("runtime", {
       databasePath: project.database_path,
       boardId: project.board_id,
       projectId: project.project_id,
       webBaseUrl: "http://127.0.0.1:4173",
     }, runtimeHost, host);
     const board_id = project.board_id;
-    const created = JSON.parse(await mcp.callTool("goalboard_v1_goal_intent_create", {
+    const created = JSON.parse(await mcp.callTool("molis_work_v1_goal_intent_create", {
       title: "互动故事开场", outcome: "玩家能走进洞穴并做一次选择", idempotency_key: "intent-1",
     }));
     assert.equal(created.completion_effect, false);
@@ -58,16 +58,16 @@ test("Runtime event tools create, configure, report and reopen without Claim or 
     assert.equal(created.goal.title, "互动故事开场");
     assert.equal(created.goal.why, undefined);
     const goal_id = created.goal.goal_id as string;
-    const createdState = JSON.parse(await mcp.callTool("goalboard_v1_goal_state", { goal_id })) as GoalEventStateView;
+    const createdState = JSON.parse(await mcp.callTool("molis_work_v1_goal_state", { goal_id })) as GoalEventStateView;
     assert.equal(createdState.intent.source_kind, "runtime");
-    const replayed = JSON.parse(await mcp.callTool("goalboard_v1_goal_intent_create", {
+    const replayed = JSON.parse(await mcp.callTool("molis_work_v1_goal_intent_create", {
       title: "互动故事开场", outcome: "玩家能走进洞穴并做一次选择", idempotency_key: "intent-1",
     }));
     assert.equal(replayed.replayed, true);
     assert.equal(replayed.goal.goal_id, goal_id);
     assert.equal(replayed.observed_event_cursor, created.observed_event_cursor);
 
-    const configured = JSON.parse(await mcp.callTool("goalboard_v1_event_configure", {
+    const configured = JSON.parse(await mcp.callTool("molis_work_v1_event_configure", {
       goal_id, expected_version: 0, idempotency_key: "cfg-1", types: [localType()],
     }));
     assert.equal(configured.replayed, false);
@@ -75,7 +75,7 @@ test("Runtime event tools create, configure, report and reopen without Claim or 
     assert.equal(configured.config.types[0]?.type_id, "story-delivery");
     assert.deepEqual(configured.config.adopted_planning, []);
 
-    const reported = JSON.parse(await mcp.callTool("goalboard_v1_event_report", {
+    const reported = JSON.parse(await mcp.callTool("molis_work_v1_event_report", {
       goal_id, idempotency_key: "report-1",
       events: [{
         type_id: "story-delivery", type_version: 1, title: "做出了开场片段",
@@ -93,7 +93,7 @@ test("Runtime event tools create, configure, report and reopen without Claim or 
     assert.equal(reported.completion_effect, false);
     assert.ok(reported.goal_event_cursor >= reported.events[0]!.journal_seq);
 
-    const retry = JSON.parse(await mcp.callTool("goalboard_v1_event_report", {
+    const retry = JSON.parse(await mcp.callTool("molis_work_v1_event_report", {
       goal_id, idempotency_key: "report-1",
       events: [{
         type_id: "story-delivery", type_version: 1, title: "做出了开场片段",
@@ -104,7 +104,7 @@ test("Runtime event tools create, configure, report and reopen without Claim or 
     assert.equal(retry.events[0]?.event_id, reported.events[0]?.event_id);
     assert.equal(retry.work_status, "open");
 
-    const state = JSON.parse(await mcp.callTool("goalboard_v1_goal_state", { goal_id })) as GoalEventStateView;
+    const state = JSON.parse(await mcp.callTool("molis_work_v1_goal_state", { goal_id })) as GoalEventStateView;
     assert.equal(state.owner?.kind, "event_work");
     assert.equal("protocol" in state, false);
     assert.equal(state.completion_effect, false);
@@ -112,7 +112,7 @@ test("Runtime event tools create, configure, report and reopen without Claim or 
     assert.equal(state.latest_reports[0]?.event_id, reported.events[0]?.event_id);
     assert.equal(state.config.types.length, 1);
 
-    const listed = JSON.parse(await mcp.callTool("goalboard_v1_event_list", { goal_id }));
+    const listed = JSON.parse(await mcp.callTool("molis_work_v1_event_list", { goal_id }));
     assert.deepEqual(listed.events.map((item: { kind: string }) => item.kind), ["system", "configuration", "report"]);
     assert.equal(listed.events[0]?.kind, "system");
     assert.equal(listed.events[0]?.payload.operation, "intent_created");
@@ -120,29 +120,29 @@ test("Runtime event tools create, configure, report and reopen without Claim or 
     assert.equal(listed.events[1]?.kind, "configuration");
     assert.equal(listed.events[1]?.payload.config_version, 1);
     assert.ok(Array.isArray(listed.events[1]?.payload.types));
-    const read = JSON.parse(await mcp.callTool("goalboard_v1_event_read", {
+    const read = JSON.parse(await mcp.callTool("molis_work_v1_event_read", {
       goal_id, event_id: reported.events[0]!.event_id,
     }));
     assert.equal(read.kind, "report");
     assert.equal(read.payload.piece, "开场洞穴");
 
-    const snapshot = await host.client(goalBoardHostProjectReference({
+    const snapshot = await host.client(molisWorkHostProjectReference({
       databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id,
     })).invoke(snapshotBoardCapability, { board_id });
     assert.equal(snapshot.claims.length, 0);
     assert.equal(snapshot.runs.length, 0);
 
     await mcp.close();
-    mcp = new GoalBoardServer("runtime", {
+    mcp = new MolisWorkServer("runtime", {
       databasePath: project.database_path,
       boardId: project.board_id,
       projectId: project.project_id,
       webBaseUrl: "http://127.0.0.1:4173",
     }, runtimeHost, host);
-    const reopened = JSON.parse(await mcp.callTool("goalboard_v1_goal_state", { goal_id })) as GoalEventStateView;
+    const reopened = JSON.parse(await mcp.callTool("molis_work_v1_goal_state", { goal_id })) as GoalEventStateView;
     assert.equal(reopened.config.version, 1);
     assert.equal(reopened.latest_reports[0]?.title, "做出了开场片段");
-    const oldBody = JSON.parse(await mcp.callTool("goalboard_v1_event_read", {
+    const oldBody = JSON.parse(await mcp.callTool("molis_work_v1_event_read", {
       goal_id, event_id: reported.events[0]!.event_id,
     }));
     assert.equal(oldBody.payload.piece, "开场洞穴");
@@ -153,73 +153,73 @@ test("Runtime event tools create, configure, report and reopen without Claim or 
     v2.fields.push({
       field_id: "entry", name: "怎样体验", purpose: "从哪里开始", format: "text", required: false,
     });
-    await mcp.callTool("goalboard_v1_event_configure", {
+    await mcp.callTool("molis_work_v1_event_configure", {
       goal_id, expected_version: 1, idempotency_key: "cfg-2", types: [v2],
     });
-    const stillOld = JSON.parse(await mcp.callTool("goalboard_v1_event_read", {
+    const stillOld = JSON.parse(await mcp.callTool("molis_work_v1_event_read", {
       goal_id, event_id: reported.events[0]!.event_id,
     }));
     assert.equal(stillOld.type.version, 1);
     assert.equal(stillOld.payload.entry, undefined);
 
-    const beforeInvalid = JSON.parse(await mcp.callTool("goalboard_v1_event_list", { goal_id }));
+    const beforeInvalid = JSON.parse(await mcp.callTool("molis_work_v1_event_list", { goal_id }));
     await assert.rejects(
-      () => mcp!.callTool("goalboard_v1_event_report", {
+      () => mcp!.callTool("molis_work_v1_event_report", {
         goal_id, idempotency_key: "bad-batch",
         events: [
           { type_id: "story-delivery", type_version: 1, title: "合法", fields: { piece: "仍应回滚" } },
           { type_id: "story-delivery", type_version: 1, title: "缺字段", fields: {} },
         ],
       }),
-      (error: unknown) => error instanceof GoalBoardV1Error && error.code === "event_report.missing_required_field",
+      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "event_report.missing_required_field",
     );
-    const afterInvalid = JSON.parse(await mcp.callTool("goalboard_v1_event_list", { goal_id }));
+    const afterInvalid = JSON.parse(await mcp.callTool("molis_work_v1_event_list", { goal_id }));
     assert.equal(afterInvalid.events.length, beforeInvalid.events.length);
 
     const beforeReject = afterInvalid.events.length;
     await assert.rejects(
-      () => mcp!.callTool("goalboard_v1_event_report", {
+      () => mcp!.callTool("molis_work_v1_event_report", {
         board_id: "other-board", goal_id, idempotency_key: "cross-board",
         events: [{ type_id: "story-delivery", type_version: 1, title: "跨 board", fields: { piece: "不应写入" } }],
       }),
-      (error: unknown) => error instanceof GoalBoardV1Error && error.code === "mcp.connection_override_denied",
+      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "mcp.connection_override_denied",
     );
     await assert.rejects(
-      () => mcp!.callTool("goalboard_v1_event_report", {
+      () => mcp!.callTool("molis_work_v1_event_report", {
         goal_id, idempotency_key: "override-db", database_path: "/tmp/not-this.db",
         events: [{ type_id: "story-delivery", type_version: 1, title: "覆盖路径", fields: { piece: "不应写入" } }],
       }),
-      (error: unknown) => error instanceof GoalBoardV1Error && error.code === "mcp.connection_override_denied",
+      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "mcp.connection_override_denied",
     );
     await assert.rejects(
-      () => mcp!.callTool("goalboard_v1_event_report", {
+      () => mcp!.callTool("molis_work_v1_event_report", {
         goal_id, idempotency_key: "fake-user", actor_kind: "user",
         events: [{ type_id: "story-delivery", type_version: 1, title: "伪造用户", fields: { piece: "不应写入" } }],
       }),
-      (error: unknown) => error instanceof GoalBoardV1Error && error.code === "mcp.user_impersonation_denied",
+      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "mcp.user_impersonation_denied",
     );
     await assert.rejects(
-      () => mcp!.callTool("goalboard_v1_goal_intent_create", {
+      () => mcp!.callTool("molis_work_v1_goal_intent_create", {
         title: "伪造身份", idempotency_key: "fake-actor", actor_id: "user-admin",
       }),
-      (error: unknown) => error instanceof GoalBoardV1Error && error.code === "mcp.user_impersonation_denied",
+      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "mcp.user_impersonation_denied",
     );
     await assert.rejects(
-      () => mcp!.callTool("goalboard_v1_goal_state", { goal_id, board_id }),
-      (error: unknown) => error instanceof GoalBoardV1Error && error.code === "mcp.connection_override_denied",
+      () => mcp!.callTool("molis_work_v1_goal_state", { goal_id, board_id }),
+      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "mcp.connection_override_denied",
     );
     await assert.rejects(
-      () => mcp!.callTool("goalboard_v1_goal_state", { goal_id, board_id: null }),
-      (error: unknown) => error instanceof GoalBoardV1Error && error.code === "mcp.connection_override_denied",
+      () => mcp!.callTool("molis_work_v1_goal_state", { goal_id, board_id: null }),
+      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "mcp.connection_override_denied",
     );
     await assert.rejects(
-      () => mcp!.callTool("goalboard_v1_event_note", { goal_id, body: "覆盖身份", idempotency_key: "note-undef", actor_id: undefined }),
-      (error: unknown) => error instanceof GoalBoardV1Error && error.code === "mcp.user_impersonation_denied",
+      () => mcp!.callTool("molis_work_v1_event_note", { goal_id, body: "覆盖身份", idempotency_key: "note-undef", actor_id: undefined }),
+      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "mcp.user_impersonation_denied",
     );
-    const afterReject = JSON.parse(await mcp.callTool("goalboard_v1_event_list", { goal_id }));
+    const afterReject = JSON.parse(await mcp.callTool("molis_work_v1_event_list", { goal_id }));
     assert.equal(afterReject.events.length, beforeReject);
 
-    const persisted = await host.client(goalBoardHostProjectReference({
+    const persisted = await host.client(molisWorkHostProjectReference({
       databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id,
     })).invoke(snapshotBoardCapability, { board_id });
     assert.equal(persisted.claims.length, 0);
@@ -233,11 +233,11 @@ test("Runtime event tools create, configure, report and reopen without Claim or 
 });
 
 test("event report stays persisted when secondary Session indexing fails", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-mcp-event-activity-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-mcp-event-activity-"));
   const homeDirectory = join(directory, "home");
-  const catalog = await openGoalBoardProjectCatalog({ homeDirectory });
-  const host = createGoalBoardLocalHost();
-  let mcp: GoalBoardServer | undefined;
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
+  const host = createMolisWorkLocalHost();
+  let mcp: MolisWorkServer | undefined;
   try {
     const project = await catalog.createProject({ display_name: "事件活动", actor_id: "user" });
     const registry = await openWorkSessionRegistry({ homeDirectory });
@@ -248,7 +248,7 @@ test("event report stays persisted when secondary Session indexing fails", async
         actor_id: "user", user_confirmed: true, project_id: project.project_id,
       }).session_id;
     } finally { registry.close(); }
-    mcp = new GoalBoardServer("runtime", {
+    mcp = new MolisWorkServer("runtime", {
       databasePath: project.database_path, boardId: project.board_id,
       projectId: project.project_id, webBaseUrl: "http://127.0.0.1:4173",
     }, {
@@ -256,27 +256,27 @@ test("event report stays persisted when secondary Session indexing fails", async
       runtimeContext: { runtime_id: "codex", stable_work_context_id: "thread-events-activity", host_declares_stable: true },
     }, host);
     const board_id = project.board_id;
-    const created = JSON.parse(await mcp.callTool("goalboard_v1_goal_intent_create", {
+    const created = JSON.parse(await mcp.callTool("molis_work_v1_goal_intent_create", {
       title: "记录事件活动", idempotency_key: "intent-activity",
     }));
     const goal_id = created.goal.goal_id as string;
-    await mcp.callTool("goalboard_v1_event_configure", {
+    await mcp.callTool("molis_work_v1_event_configure", {
       goal_id, expected_version: 0, idempotency_key: "cfg-activity", types: [localType()],
     });
     const obstructedHome = join(directory, "not-a-directory");
     writeFileSync(obstructedHome, "secondary registry failure");
     mcp.runtimeContextHost!.homeDirectory = obstructedHome;
-    const reported = JSON.parse(await mcp.callTool("goalboard_v1_event_report", {
+    const reported = JSON.parse(await mcp.callTool("molis_work_v1_event_report", {
       goal_id, idempotency_key: "report-activity",
       events: [{ type_id: "story-delivery", type_version: 1, title: "已记录", fields: { piece: "洞穴" } }],
     })) as ReportGoalEventsResult;
     assert.equal(reported.events[0]?.payload.piece, "洞穴");
-    const listed = JSON.parse(await mcp.callTool("goalboard_v1_event_list", { goal_id }));
+    const listed = JSON.parse(await mcp.callTool("molis_work_v1_event_list", { goal_id }));
     assert.equal(listed.events.filter((item: { kind: string }) => item.kind === "report").length, 1);
     mcp.runtimeContextHost!.homeDirectory = homeDirectory;
     const inspect = await openWorkSessionRegistry({ homeDirectory });
     try {
-      assert.equal(inspect.events(sessionId).filter((event) => event.source_id === "goalboard_v1_event_report:report-activity").length, 0);
+      assert.equal(inspect.events(sessionId).filter((event) => event.source_id === "molis_work_v1_event_report:report-activity").length, 0);
     } finally { inspect.close(); }
   } finally {
     await mcp?.close();
@@ -287,18 +287,18 @@ test("event report stays persisted when secondary Session indexing fails", async
 });
 
 test("missing stable Session identity rejects event writes with no Goal or event side effects", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-mcp-event-identity-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-mcp-event-identity-"));
   const homeDirectory = join(directory, "home");
-  const catalog = await openGoalBoardProjectCatalog({ homeDirectory });
-  const host = createGoalBoardLocalHost();
-  let mcp: GoalBoardServer | undefined;
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
+  const host = createMolisWorkLocalHost();
+  let mcp: MolisWorkServer | undefined;
   try {
     const project = await catalog.createProject({ display_name: "身份拒绝", actor_id: "user" });
-    const reference = goalBoardHostProjectReference({
+    const reference = molisWorkHostProjectReference({
       databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id,
     });
     const before = await host.client(reference).invoke(snapshotBoardCapability, { board_id: project.board_id });
-    mcp = new GoalBoardServer("runtime", {
+    mcp = new MolisWorkServer("runtime", {
       databasePath: project.database_path, boardId: project.board_id,
       projectId: project.project_id, webBaseUrl: "http://127.0.0.1:4173",
     }, {
@@ -306,10 +306,10 @@ test("missing stable Session identity rejects event writes with no Goal or event
       runtimeContext: { runtime_id: "codex", stable_work_context_id: null, host_declares_stable: false },
     }, host);
     await assert.rejects(
-      () => mcp!.callTool("goalboard_v1_goal_intent_create", {
+      () => mcp!.callTool("molis_work_v1_goal_intent_create", {
         title: "不应写入", idempotency_key: "missing-session",
       }),
-      (error: unknown) => error instanceof GoalBoardV1Error
+      (error: unknown) => error instanceof MolisWorkV1Error
         && error.code === "mcp.runtime_identity_missing"
         && /稳定 Session/.test(error.message),
     );
@@ -318,7 +318,7 @@ test("missing stable Session identity rejects event writes with no Goal or event
     assert.deepEqual(after.goals.map((goal) => goal.goal_id), before.goals.map((goal) => goal.goal_id));
 
     await mcp.close();
-    mcp = new GoalBoardServer("runtime", {
+    mcp = new MolisWorkServer("runtime", {
       databasePath: project.database_path, boardId: project.board_id,
       projectId: project.project_id, webBaseUrl: "http://127.0.0.1:4173",
     }, {
@@ -326,11 +326,11 @@ test("missing stable Session identity rejects event writes with no Goal or event
       nativeRuntimeSessionId: "native-session",
       runtimeContext: { runtime_id: "codex", stable_work_context_id: null, host_declares_stable: false },
     }, host);
-    const created = JSON.parse(await mcp.callTool("goalboard_v1_goal_intent_create", {
+    const created = JSON.parse(await mcp.callTool("molis_work_v1_goal_intent_create", {
       title: "稳定 native Session", idempotency_key: "native-session-intent",
     }));
     assert.equal(created.goal.title, "稳定 native Session");
-    assert.match(JSON.parse(await mcp.callTool("goalboard_v1_event_configure", {
+    assert.match(JSON.parse(await mcp.callTool("molis_work_v1_event_configure", {
       goal_id: created.goal.goal_id, expected_version: 0, idempotency_key: "native-cfg",
       types: [localType()],
     })).config.updated_by, /^runtime:codex:native-session$/);
@@ -343,11 +343,11 @@ test("missing stable Session identity rejects event writes with no Goal or event
 });
 
 test("Runtime MCP create persists runtime source, complete cursor and rejects caller channels", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-mcp-create-source-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-mcp-create-source-"));
   const homeDirectory = join(directory, "home");
-  const catalog = await openGoalBoardProjectCatalog({ homeDirectory });
-  let host = createGoalBoardLocalHost();
-  let mcp: GoalBoardServer | undefined;
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
+  let host = createMolisWorkLocalHost();
+  let mcp: MolisWorkServer | undefined;
   let store: LocalProjectDatabase | undefined;
   try {
     const project = await catalog.createProject({ display_name: "创建来源", actor_id: "user" });
@@ -359,7 +359,7 @@ test("Runtime MCP create persists runtime source, complete cursor and rejects ca
         host_declares_stable: true,
       },
     };
-    mcp = new GoalBoardServer("runtime", {
+    mcp = new MolisWorkServer("runtime", {
       databasePath: project.database_path,
       boardId: project.board_id,
       projectId: project.project_id,
@@ -368,7 +368,7 @@ test("Runtime MCP create persists runtime source, complete cursor and rejects ca
     store = new LocalProjectDatabase(project.database_path);
     const board_id = project.board_id;
     const call = async (name: string, input: Record<string, unknown>) =>
-      JSON.parse(await mcp!.callTool(`goalboard_v1_${name}`, { ...input }));
+      JSON.parse(await mcp!.callTool(`molis_work_v1_${name}`, { ...input }));
     const parent = await call("goal_intent_create", { title: "用户购买结果", goal_id: "SOURCE-PARENT", idempotency_key: "source-parent" });
     const dependency = await call("goal_intent_create", { title: "实际付款", goal_id: "SOURCE-DEPENDENCY", idempotency_key: "source-dependency" });
     const input = {
@@ -400,7 +400,7 @@ test("Runtime MCP create persists runtime source, complete cursor and rejects ca
         () => call("goal_intent_create", {
           title: "伪造入口来源", goal_id: `FORGED-${source_kind}`, source_kind, idempotency_key: `forged-${source_kind}`,
         }),
-        (error: unknown) => error instanceof GoalBoardV1Error
+        (error: unknown) => error instanceof MolisWorkV1Error
           && /source_kind|来源|字段|unknown|拒绝|权限/i.test(error.message),
       );
     }
@@ -420,8 +420,8 @@ test("Runtime MCP create persists runtime source, complete cursor and rejects ca
     await mcp.close();
     await host.close();
     store.close();
-    host = createGoalBoardLocalHost();
-    mcp = new GoalBoardServer("runtime", {
+    host = createMolisWorkLocalHost();
+    mcp = new MolisWorkServer("runtime", {
       databasePath: project.database_path,
       boardId: project.board_id,
       projectId: project.project_id,
@@ -444,45 +444,45 @@ test("Runtime MCP create persists runtime source, complete cursor and rejects ca
 });
 
 test("no-config note and combined report progress persist; implicit focus, illegal progress and missing resume reason do not write; completed resume needs a first agreed outcome", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-mcp-note-resume-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-mcp-note-resume-"));
   const homeDirectory = join(directory, "home");
-  const catalog = await openGoalBoardProjectCatalog({ homeDirectory });
-  const host = createGoalBoardLocalHost();
-  let mcp: GoalBoardServer | undefined;
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
+  const host = createMolisWorkLocalHost();
+  let mcp: MolisWorkServer | undefined;
   try {
     const project = await catalog.createProject({ display_name: "笔记继续", actor_id: "user" });
-    mcp = new GoalBoardServer("runtime", {
+    mcp = new MolisWorkServer("runtime", {
       databasePath: project.database_path, boardId: project.board_id,
       projectId: project.project_id, webBaseUrl: "http://127.0.0.1:4173",
     }, {
       homeDirectory,
       runtimeContext: { runtime_id: "codex", stable_work_context_id: "thread-note", host_declares_stable: true },
     }, host);
-    const created = JSON.parse(await mcp.callTool("goalboard_v1_goal_intent_create", {
+    const created = JSON.parse(await mcp.callTool("molis_work_v1_goal_intent_create", {
       title: "无类型笔记", outcome: "玩家能走完开场", idempotency_key: "note-intent",
     }));
     const goal_id = created.goal.goal_id as string;
-    assert.equal((JSON.parse(await mcp.callTool("goalboard_v1_goal_state", { goal_id })) as GoalEventStateView).config.types.length, 0);
-    const note = JSON.parse(await mcp.callTool("goalboard_v1_event_note", {
+    assert.equal((JSON.parse(await mcp.callTool("molis_work_v1_goal_state", { goal_id })) as GoalEventStateView).config.types.length, 0);
+    const note = JSON.parse(await mcp.callTool("molis_work_v1_event_note", {
       goal_id, body: "先记下已核对的流程", idempotency_key: "note-1",
     }));
     assert.equal(note.recorded, true);
-    const replayNote = JSON.parse(await mcp.callTool("goalboard_v1_event_note", {
+    const replayNote = JSON.parse(await mcp.callTool("molis_work_v1_event_note", {
       goal_id, body: "先记下已核对的流程", idempotency_key: "note-1",
     }));
     assert.equal(replayNote.replayed, true);
     assert.equal(replayNote.event_id, note.event_id);
-    assert.equal((JSON.parse(await mcp.callTool("goalboard_v1_goal_state", { goal_id })) as GoalEventStateView).config.types.length, 0);
+    assert.equal((JSON.parse(await mcp.callTool("molis_work_v1_goal_state", { goal_id })) as GoalEventStateView).config.types.length, 0);
     await assert.rejects(
-      () => mcp!.callTool("goalboard_v1_event_note", { body: "不能靠焦点", idempotency_key: "implicit-focus" }),
-      (error: unknown) => error instanceof GoalBoardV1Error,
+      () => mcp!.callTool("molis_work_v1_event_note", { body: "不能靠焦点", idempotency_key: "implicit-focus" }),
+      (error: unknown) => error instanceof MolisWorkV1Error,
     );
 
-    await mcp.callTool("goalboard_v1_event_configure", {
+    await mcp.callTool("molis_work_v1_event_configure", {
       goal_id, expected_version: 0, idempotency_key: "note-cfg", types: [localType()],
     });
-    const state = JSON.parse(await mcp.callTool("goalboard_v1_goal_state", { goal_id })) as GoalEventStateView;
-    await mcp.callTool("goalboard_v1_event_agree", {
+    const state = JSON.parse(await mcp.callTool("molis_work_v1_goal_state", { goal_id })) as GoalEventStateView;
+    await mcp.callTool("molis_work_v1_event_agree", {
       goal_id, idempotency_key: "note-agree",
       expected_config_version: state.config.version,
       expected_agreement_version: state.agreement.version,
@@ -496,51 +496,51 @@ test("no-config note and combined report progress persist; implicit focus, illeg
       }],
       progress: { summary: "开场可玩", next_step: "等确认" },
     };
-    const reported = JSON.parse(await mcp.callTool("goalboard_v1_event_report", batch)) as ReportGoalEventsResult;
+    const reported = JSON.parse(await mcp.callTool("molis_work_v1_event_report", batch)) as ReportGoalEventsResult;
     assert.equal(reported.progress_summary?.summary, "开场可玩");
     assert.equal(reported.progress_summary?.stale, false);
     assert.ok(reported.goal_event_cursor > reported.events[0]!.journal_seq);
     await assert.rejects(
-      () => mcp!.callTool("goalboard_v1_event_report", { ...batch, progress: { summary: "不同进展" } }),
-      (error: unknown) => error instanceof GoalBoardV1Error && /幂等|重复|idempot|conflict|冲突/i.test(error.message),
+      () => mcp!.callTool("molis_work_v1_event_report", { ...batch, progress: { summary: "不同进展" } }),
+      (error: unknown) => error instanceof MolisWorkV1Error && /幂等|重复|idempot|conflict|冲突/i.test(error.message),
     );
-    const prior = JSON.parse(await mcp.callTool("goalboard_v1_event_list", { goal_id, limit: 100 }));
+    const prior = JSON.parse(await mcp.callTool("molis_work_v1_event_list", { goal_id, limit: 100 }));
     await assert.rejects(
-      () => mcp!.callTool("goalboard_v1_event_report", {
+      () => mcp!.callTool("molis_work_v1_event_report", {
         goal_id, idempotency_key: "bad-progress",
         events: [{ type_id: "story-delivery", type_version: 1, title: "应回滚", fields: { piece: "x" } }],
         progress: { summary: "非法", extra: true },
       }),
-      (error: unknown) => error instanceof GoalBoardV1Error,
+      (error: unknown) => error instanceof MolisWorkV1Error,
     );
-    assert.equal(JSON.parse(await mcp.callTool("goalboard_v1_event_list", { goal_id, limit: 100 })).events.length, prior.events.length);
+    assert.equal(JSON.parse(await mcp.callTool("molis_work_v1_event_list", { goal_id, limit: 100 })).events.length, prior.events.length);
 
-    const ready = JSON.parse(await mcp.callTool("goalboard_v1_goal_state", { goal_id })) as GoalEventStateView;
-    const closed = JSON.parse(await mcp.callTool("goalboard_v1_event_close", {
+    const ready = JSON.parse(await mcp.callTool("molis_work_v1_goal_state", { goal_id })) as GoalEventStateView;
+    const closed = JSON.parse(await mcp.callTool("molis_work_v1_event_close", {
       goal_id, idempotency_key: "note-close", kind: "complete",
       reason: "开场可用", result: "可玩",
       expected_config_version: ready.config.version,
       expected_agreement_version: ready.agreement.version,
     }));
     assert.equal(closed.completion_applied, true);
-    await mcp.callTool("goalboard_v1_event_note", { goal_id, body: "完成后的历史补充", idempotency_key: "history-note" });
-    assert.equal((JSON.parse(await mcp.callTool("goalboard_v1_goal_state", { goal_id })) as GoalEventStateView).work_status, "completed");
+    await mcp.callTool("molis_work_v1_event_note", { goal_id, body: "完成后的历史补充", idempotency_key: "history-note" });
+    assert.equal((JSON.parse(await mcp.callTool("molis_work_v1_goal_state", { goal_id })) as GoalEventStateView).work_status, "completed");
     await assert.rejects(
-      () => mcp!.callTool("goalboard_v1_event_resume", { goal_id, idempotency_key: "missing-reason" }),
-      (error: unknown) => error instanceof GoalBoardV1Error && /原因|理由|reason/i.test(error.message),
+      () => mcp!.callTool("molis_work_v1_event_resume", { goal_id, idempotency_key: "missing-reason" }),
+      (error: unknown) => error instanceof MolisWorkV1Error && /原因|理由|reason/i.test(error.message),
     );
     const resume = { goal_id, reason: "明确开始新一轮", idempotency_key: "resume-done" };
-    const resumed = JSON.parse(await mcp.callTool("goalboard_v1_event_resume", resume));
+    const resumed = JSON.parse(await mcp.callTool("molis_work_v1_event_resume", resume));
     assert.equal(resumed.work_status, "open");
-    const replayResume = JSON.parse(await mcp.callTool("goalboard_v1_event_resume", resume));
+    const replayResume = JSON.parse(await mcp.callTool("molis_work_v1_event_resume", resume));
     assert.equal(replayResume.replayed, true);
     assert.equal(replayResume.event_id, resumed.event_id);
-    const openBefore = JSON.parse(await mcp.callTool("goalboard_v1_goal_state", { goal_id })) as GoalEventStateView;
+    const openBefore = JSON.parse(await mcp.callTool("molis_work_v1_goal_state", { goal_id })) as GoalEventStateView;
     await assert.rejects(
-      () => mcp!.callTool("goalboard_v1_event_resume", { goal_id, reason: "已在进行", idempotency_key: "resume-open" }),
-      (error: unknown) => error instanceof GoalBoardV1Error && error.code === "event_resume.already_open",
+      () => mcp!.callTool("molis_work_v1_event_resume", { goal_id, reason: "已在进行", idempotency_key: "resume-open" }),
+      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "event_resume.already_open",
     );
-    assert.equal((JSON.parse(await mcp.callTool("goalboard_v1_goal_state", { goal_id })) as GoalEventStateView).goal_event_cursor, openBefore.goal_event_cursor);
+    assert.equal((JSON.parse(await mcp.callTool("molis_work_v1_goal_state", { goal_id })) as GoalEventStateView).goal_event_cursor, openBefore.goal_event_cursor);
   } finally {
     await mcp?.close();
     await host.close();

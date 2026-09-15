@@ -6,7 +6,7 @@ name: "运营与流程"
 summary: "围绕角色、触发、交接、例外和度量建立可运行流程。"
 applies_to: ["运营机制","组织流程","重复性工作"]
 domain_tags: ["operations","process"]
-source_refs: ["GoalBoard planning-engine spec"]
+source_refs: ["Molis Work planning-engine spec"]
 confidence: 0.93
 ---
 

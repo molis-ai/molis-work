@@ -1,7 +1,7 @@
-# GoalBoard 系统架构
+# Molis Work 系统架构
 
 状态：已确认（F1）  
-详细 Contract：[`specs/goalboard-architecture-reorganization/spec.md`](../../specs/goalboard-architecture-reorganization/spec.md)
+详细 Contract：[`specs/molis-work-architecture-reorganization/spec.md`](../../specs/molis-work-architecture-reorganization/spec.md)
 
 ## 1. 一句话结构
 

@@ -16,4 +16,4 @@
 | 冲突重新审阅期间，真实已编辑的理由不被自动刷新清空 | 通过 | 04-conflict-draft.log：真实刷新交错后理由保留、版本更新、没有额外工作事实 |
 | 桌面、522px 阅读容器、390px 窄屏、真实暗色、旧历史可读 | 原六项视觉修正全部 resolved | finish-verdict.md；其中完整表单使用明确标注的390×1100视口，另有390×844滚动视口证据 |
 
-脚本与日志位于 `/private/tmp/goalboard-grok/`，使用临时 SQLite、真实 HTTP 与 Chrome pointer 操作。没有访问真实用户项目数据库。最终两个事件e2e文件的3条完整路径通过；四个原根因脚本通过；主 Session 独立运行的40项正文/导航/刷新/历史/接续回归全部通过，无跳过。最终完整build、boundary errors=[]及git diff --check通过。日志04-conflict-{e2e,draft,refresh-and-guard,goal-switch,save-tree-sync,build,boundary}.log、04-accepted-regression.log。全仓测试与必需失效代码清理属于05，04通过不等于整个项目已达到内部完整。
+脚本与日志位于 `/private/tmp/molis-work-grok/`，使用临时 SQLite、真实 HTTP 与 Chrome pointer 操作。没有访问真实用户项目数据库。最终两个事件e2e文件的3条完整路径通过；四个原根因脚本通过；主 Session 独立运行的40项正文/导航/刷新/历史/接续回归全部通过，无跳过。最终完整build、boundary errors=[]及git diff --check通过。日志04-conflict-{e2e,draft,refresh-and-guard,goal-switch,save-tree-sync,build,boundary}.log、04-accepted-regression.log。全仓测试与必需失效代码清理属于05，04通过不等于整个项目已达到内部完整。

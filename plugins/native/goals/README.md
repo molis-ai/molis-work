@@ -2,7 +2,7 @@
 
 把 Goal 的当前约定、要求、工作记录和可信决定组合成可操作的工作流，提供目标目录、时间线、树结构和历史正文界面。
 
-包名：`@adeptify/goalboard-plugin-goals`。工作区内部包，通过仓库构建和 Host 装配使用。
+包名：`@molis-ai/molis-work-plugin-goals`。工作区内部包，通过仓库构建和 Host 装配使用。
 
 ## 一次典型调用
 
@@ -26,15 +26,15 @@ Host 注入各 Module 的公开端口。`GoalEventApplication` 连接创建、�
 
 这里拥有跨 Module 用例及呈现，当前 Goal 状态由 Goals 的事件事实决定。结构变更检查图合法性、基线与具体用户授权；正式收尾检查当前约定和要求。普通记录无需旧执行角色或 Run。历史 Claim/Run、Evidence、Review 和提案通过各自查询读取，保留原始正文、ID 与来源；当前入口不再执行旧协议。
 
-工作区依赖：`@adeptify/goalboard-contracts`、`@adeptify/goalboard-module-evidence-verification`、`@adeptify/goalboard-module-execution`、`@adeptify/goalboard-module-goals`。其他运行依赖见 [package.json](package.json)。
+工作区依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-module-evidence-verification`、`@molis-ai/molis-work-module-execution`、`@molis-ai/molis-work-module-goals`。其他运行依赖见 [package.json](package.json)。
 
 ## 本地开发
 
 以下命令在**仓库根目录**执行，使用 Node.js 24+ 与仓库配置的 pnpm。首次准备运行 `pnpm install --frozen-lockfile` 和 `pnpm build`；之后可单独检查此包。
 
 ```bash
-pnpm --filter @adeptify/goalboard-plugin-goals typecheck
-pnpm --filter @adeptify/goalboard-plugin-goals build
+pnpm --filter @molis-ai/molis-work-plugin-goals typecheck
+pnpm --filter @molis-ai/molis-work-plugin-goals build
 ```
 
 当前事件入口、结构变更和界面可参考 [goal-event-http.test.ts](../../../tests/goal-event-http.test.ts)、[goal-tree-event-flow.test.ts](../../../tests/goal-tree-event-flow.test.ts)、[goals-document-ui.test.ts](../../../tests/goals-document-ui.test.ts)。完成仓库构建后运行：
@@ -51,7 +51,7 @@ node --import tsx --test --test-concurrency=1 tests/goal-event-http.test.ts test
 - [架构与当前实现索引](../../../docs/SSOT-MATRIX.md)
 
 - Status: `partial`
-- Contract entrypoint: `@adeptify/goalboard-contracts/platform/plugin`
+- Contract entrypoint: `@molis-ai/molis-work-contracts/platform/plugin`
 - Migration Goals: `goal-reorg-f2`, `goal-f826dfb8-bf63-4e98-b6b7-57f6b4b7c3b8`, `goal-reorg-gw4`, `goal-reorg-gw5`, `goal-reorg-ex4`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。

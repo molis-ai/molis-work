@@ -5,7 +5,7 @@ import type {
   GoalRecord,
   GoalTrashResult,
   GoalsActorWrite,
-} from "@adeptify/goalboard-contracts/modules/goals";
+} from "@molis-ai/molis-work-contracts/modules/goals";
 
 import { GoalsCommandContext, requestHash } from "./command-support.js";
 import type { GoalArchiveHooks } from "./lifecycle-ports.js";

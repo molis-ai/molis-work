@@ -1,16 +1,16 @@
-import { openGoalBoardProjectCatalog } from "@adeptify/goalboard-app-desktop";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { reconcileLegacySessionCatalog } from "@adeptify/goalboard-app-local-host";
-import { GoalBoardSessionRegistry } from "@adeptify/goalboard-module-private-work-context";
+import { reconcileLegacySessionCatalog } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkSessionRegistry } from "@molis-ai/molis-work-module-private-work-context";
 
 async function fixture(): Promise<{ directory: string; home: string; workspace: string }> {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "goalboard-session-migration-"));
-  const home = path.join(directory, ".goalboard");
+  const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-session-migration-"));
+  const home = path.join(directory, ".molis-work");
   const workspace = path.join(directory, "repo");
   await mkdir(workspace, { recursive: true });
   return { directory, home, workspace };
@@ -18,7 +18,7 @@ async function fixture(): Promise<{ directory: string; home: string; workspace: 
 
 test("legacy bindings and panels reconcile idempotently without deleting compatibility facts", async () => {
   const data = await fixture();
-  const catalog = await openGoalBoardProjectCatalog({ homeDirectory: data.home });
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: data.home });
   const registry = await openWorkSessionRegistry({ homeDirectory: data.home });
   try {
     const project = await catalog.createProject({ display_name: "迁移项目", actor_id: "user" });
@@ -79,7 +79,7 @@ test("legacy bindings and panels reconcile idempotently without deleting compati
 
 test("legacy reconciliation rolls back the whole Registry batch on failure", async () => {
   const data = await fixture();
-  const catalog = await openGoalBoardProjectCatalog({ homeDirectory: data.home });
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: data.home });
   const registry = await openWorkSessionRegistry({ homeDirectory: data.home });
   try {
     const project = await catalog.createProject({ display_name: "回滚项目", actor_id: "user" });
@@ -107,4 +107,4 @@ test("legacy reconciliation rolls back the whole Registry batch on failure", asy
     await rm(data.directory, { recursive: true, force: true });
   }
 });
-import { openWorkSessionRegistry } from "@adeptify/goalboard-app-local-host";
+import { openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";

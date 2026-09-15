@@ -1,5 +1,5 @@
-import type { UiHostApi, UiSlotDescriptor } from "@adeptify/goalboard-contracts/platform/ui";
-import { GOALS_TREE_UI_CONTRIBUTION_ID, type GoalsTreeRenderer, type GoalsTreeUiPrimitives } from "@adeptify/goalboard-plugin-goals";
+import type { UiHostApi, UiSlotDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
+import { GOALS_TREE_UI_CONTRIBUTION_ID, type GoalsTreeRenderer, type GoalsTreeUiPrimitives } from "@molis-ai/molis-work-plugin-goals";
 
 /** Mount the public directory contribution; no Goal traversal or status rules live here. */
 export function createGoalsTreeWorkbenchRenderer(host: UiHostApi, slot: UiSlotDescriptor) {

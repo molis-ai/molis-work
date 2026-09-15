@@ -18,13 +18,13 @@
 
 ## 真实 App 第一轮
 
-临时根 `/private/tmp/goalboard-dv4-restart.qh3fLD`。当前源码完整 build/App/DMG/zip/codesign 通过，正式安装脚本复制已签名 App 至新临时目录。07:55:02 UTC 暂停原服务，App 34981 / managed Web 35006 首启，项目数 0。实际诊断显示临时 Home/Release。重启预览显示；Escape 取消后 PID 35006 不变。07:56:52 确认后观察到 stopped/health=null，页面 `Load failed`，这是第二项根因的实测证据。
+临时根 `/private/tmp/molis-work-dv4-restart.qh3fLD`。当前源码完整 build/App/DMG/zip/codesign 通过，正式安装脚本复制已签名 App 至新临时目录。07:55:02 UTC 暂停原服务，App 34981 / managed Web 35006 首启，项目数 0。实际诊断显示临时 Home/Release。重启预览显示；Escape 取消后 PID 35006 不变。07:56:52 确认后观察到 stopped/health=null，页面 `Load failed`，这是第二项根因的实测证据。
 
 恢复时，CUA 在 Cmd+Q 后读取 App 会重新打开该应用且不保留隔离环境，导致测试 App 意外以默认 Home 启动原 Web 子进程（35563/35564）；没有安装升级/项目写入。恢复脚本正确拒绝覆盖未知监听。只读确认该监听来自本次临时 App 后，再次退出 App且不追加 App 观察；原正式 CLI start 恢复 running/owned，原 plist、服务收据、安装配置与备份逐字节一致。第二轮必须退出后只从测试管理进程检查退出，不调用 App 观察造成重新启动。
 
 ## 最终 App 验收
 
-测试根 `/private/tmp/goalboard-dv4-restart-final.u1Gqg1`。最终完整 macOS 构建和正式 DMG 安装通过，Node 下载校验、App/DMG/zip、codesign 均通过（ad-hoc，非公证）。日志 `/private/tmp/dv4-restart-final-build.log`。
+测试根 `/private/tmp/molis-work-dv4-restart-final.u1Gqg1`。最终完整 macOS 构建和正式 DMG 安装通过，Node 下载校验、App/DMG/zip、codesign 均通过（ad-hoc，非公证）。日志 `/private/tmp/dv4-restart-final-build.log`。
 
 - 08:07:17 UTC 暂停原服务；08:07:31 隔离 App 首启完成，App PID 48274、受管 Web PID 48298、project_count=0。
 - 实际点击“取消”，回到诊断页，08:08:21 核对 PID 仍为 48298、owned/running=true。
@@ -34,4 +34,4 @@
 
 CUA 实际页面与截图保留在本对话，进程/服务记录在测试根 `session.jsonl`。本条修复达到真实桌面功能可用，验收通过。用户在测试期间另行补充首次引导标题栏重叠/对齐问题，作为独立修复继续处理，不改变本条已验证行为。
 
-本报告只证明该修复。未更新 `/Users/yijunwang/.goalboard` 安装、未发布、未公证；不替代 DV4 其余安装更新收尾或总重组的全产品 E2E/清理/架构总审。
+本报告只证明该修复。未更新 `/Users/yijunwang/.molis-work` 安装、未发布、未公证；不替代 DV4 其余安装更新收尾或总重组的全产品 E2E/清理/架构总审。

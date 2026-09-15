@@ -26,7 +26,7 @@ Private Work Context 不吸收 Project identity / workspace membership、Executi
 
 ## 无损迁移
 
-- 继续使用 `~/.goalboard/sessions/sessions.db`、schema v3、`sessions/content` 和原 AES-256-GCM 内容格式；没有新建第二份 Session Store，也没有破坏性数据搬迁。
+- 继续使用 `~/.molis-work/sessions/sessions.db`、schema v3、`sessions/content` 和原 AES-256-GCM 内容格式；没有新建第二份 Session Store，也没有破坏性数据搬迁。
 - Registry 的 create / discover / link / association / archive、事件幂等、Handoff 重试、legacy migration 和重启恢复方法保持原签名和行为。
 - Project Catalog 原 v1–v9 migration 仍调用同一套 binding schema helper；既有 Catalog 升级测试通过，Project facts 没有被 Private Work Context 吸收。
 - Web、MCP 和 workspace project actions 已直接使用 package public entrypoint；`src/sessions/` 内剩余 Runtime adapter、resume 和 Handoff delivery caller 由 WK2 / WK3 继续迁移。

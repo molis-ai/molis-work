@@ -10,7 +10,7 @@ F3 已把 F1 的关键依赖规则变成同一套可复用检查：
 
 - `packages/test-kit/src/boundaries.ts` 是纯规则层，只接收 package/import 信息并返回明确违规，不读文件、不连数据库、不包含业务判断。
 - `scripts/check-package-boundaries.mjs` 扫描 48 个目标 package 的源码 import、manifest dependency、public export、Contract 清单、README 状态和依赖环。
-- 新 package 回头 import 旧根 `@adeptify/goalboard`，或用相对路径逃出自己的 package，也会失败，防止“目录搬了、实现还偷用旧内部代码”的伪迁移。
+- 新 package 回头 import 旧根 `@molis-ai/molis-work`，或用相对路径逃出自己的 package，也会失败，防止“目录搬了、实现还偷用旧内部代码”的伪迁移。
 - 根命令 `boundary:test`、`boundary:check` 和 `workspace:verify` 分别验证规则、扫描真实仓库、执行完整 package 门禁。
 - `.github/workflows/ci.yml` 在 pull request 与 `main` push 上运行 `pnpm workspace:verify`；legacy 产品全量 CI 仍保持原有暂停边界。
 
@@ -46,7 +46,7 @@ F3 没有把旧业务实现复制进新 package，也没有提前拆分其他 Go
 5. 新 package import 旧根实现或用相对路径逃出 package；
 6. 生产 package 依赖内部 `test-kit`、未声明 workspace dependency、Contract 反向依赖实现与 package 依赖环。
 
-公开的 `@adeptify/goalboard-contracts/<owner>` subpath 有正向样例，证明门禁不是简单禁止 package 之间协作，而是要求从明确的公开边界协作。
+公开的 `@molis-ai/molis-work-contracts/<owner>` subpath 有正向样例，证明门禁不是简单禁止 package 之间协作，而是要求从明确的公开边界协作。
 
 ## 验证记录
 

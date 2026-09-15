@@ -11,7 +11,7 @@
 | `dv1-legacy-exit` / dv1 caller inventory | V1 CLI 所有 Goal 命令和 MCP 所有 Goal 工具改用 Host Client，无 `withProject`、Coordinator 或 Store 直访。Project context 工具通过有界 catalog provider；Session/Panel 通过 Local Host。下节列出保留的 executable 与其他 Goal 所有的职责。 | 通过 |
 | `dv1-legacy-exit` / dv1 legacy responsibility diff | root MCP 从原 3,443 行到 533 行，V1 CLI 190 行；行数仅作定位。协议、工具目录、转换/展示、Session 活动描述、宿主组合各有实际 caller。旧 Runtime application 字段已删除；6 个旧 Host capability 声明改为 public re-export。V3 migration `safeId` 及之后算法正文与本切片前逐字一致；未改导入规则、数据库或幂等。 | 通过 |
 | `dv1-result` / dv1 targeted test or inspection | 44 项 CLI/MCP/Host/跨入口定向测试通过、0 跳过。真实 CLI→MCP→CLI 链检查最终 Goal/Claim/Run/Evidence/Review；重复/并发提交检查相同记录与持久化快照；拒绝操作后状态不变；Host 重启后恢复。另有 scope/排队写入、Session 身份隔离与次级索引失败恢复测试，均在全量套件中通过。 | 通过 |
-| `dv1-result` / dv1 primary deliverable | `pnpm test` 包含正式 migrated packages 构建、根编译、PTY bundle 和 `tests/*.test.ts`：601 通过、0 失败、0 跳过，进程 exit 0。日志：`/private/tmp/goalboard-dv1-full-regression-20260905.log`。`git diff --check` 通过。 | 通过 |
+| `dv1-result` / dv1 primary deliverable | `pnpm test` 包含正式 migrated packages 构建、根编译、PTY bundle 和 `tests/*.test.ts`：601 通过、0 失败、0 跳过，进程 exit 0。日志：`/private/tmp/molis-work-dv1-full-regression-20260905.log`。`git diff --check` 通过。 | 通过 |
 
 ## 生产 caller 与保留边界
 

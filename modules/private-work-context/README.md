@@ -2,11 +2,11 @@
 
 保存 Session 身份、私人内容引用、恢复/handoff 状态及 Runtime 项目绑定语义，使会话能在正确项目中继续。
 
-包名：`@adeptify/goalboard-module-private-work-context`。工作区内部包，通过仓库构建和 Host 装配使用。
+包名：`@molis-ai/molis-work-module-private-work-context`。工作区内部包，通过仓库构建和 Host 装配使用。
 
 ## 一次典型调用
 
-应用通常通过 Local Host 的 openWorkSessionRegistry 打开 Registry。直接装配 GoalBoardSessionRegistry.open 时必须提供 createLedger，并复用事务连接；跨模块关联交给 Ledger，私人内容仍由本模块维护。
+应用通常通过 Local Host 的 openWorkSessionRegistry 打开 Registry。直接装配 MolisWorkSessionRegistry.open 时必须提供 createLedger，并复用事务连接；跨模块关联交给 Ledger，私人内容仍由本模块维护。
 
 ## 从哪里读代码
 
@@ -32,8 +32,8 @@ Session 不是 Execution Run；私人的恢复包不会自动发布为 Artifact 
 以下命令在**仓库根目录**执行，使用 Node.js 24+ 与仓库配置的 pnpm。首次准备运行 `pnpm install --frozen-lockfile` 和 `pnpm build`；之后可单独检查此包。
 
 ```bash
-pnpm --filter @adeptify/goalboard-module-private-work-context typecheck
-pnpm --filter @adeptify/goalboard-module-private-work-context build
+pnpm --filter @molis-ai/molis-work-module-private-work-context typecheck
+pnpm --filter @molis-ai/molis-work-module-private-work-context build
 ```
 
 已有行为示例与回归：[private-work-context-module.test.ts](../../tests/private-work-context-module.test.ts)、[session-ledger-migration.test.ts](../../tests/session-ledger-migration.test.ts)。完成上述构建后运行：
@@ -50,7 +50,7 @@ node --import tsx --test --test-concurrency=1 tests/private-work-context-module.
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
 - Status: `partial`
-- Contract entrypoint: `@adeptify/goalboard-contracts/modules/private-work-context`
+- Contract entrypoint: `@molis-ai/molis-work-contracts/modules/private-work-context`
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-wk1`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。

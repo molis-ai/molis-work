@@ -29,7 +29,7 @@ python3 -m http.server 4196 --bind 127.0.0.1 --directory specs/goal-timeline-red
 | 键盘与详情返回 | 通过（定向） | 手机详情首尾 Tab/Shift+Tab 保持在可见内容；嵌套打开说明→成果后 Escape 返回“目标说明”；代码在全宽覆盖时将背景设 inert。 |
 | 响应式 | 通过（定向） | 检查过实际 CSS 宽度 1440、1152、1024、819、576、390、312，未发现横向溢出；最终截图保存 1440、1024、390 三档。 |
 | 基础脚本/运行 | 通过 | `node --check prototype/app.js`（路径相对于本目录）；浏览器未记录控制台 error；`git diff --check` 无报错。 |
-| 修改边界 | 通过 | 新文件仅在本 spec 目录；原型无 API 调用与 Runtime 启动。真实 GoalBoard 仅只读查看示例项目。 |
+| 修改边界 | 通过 | 新文件仅在本 spec 目录；原型无 API 调用与 Runtime 启动。真实 Molis Work 仅只读查看示例项目。 |
 
 ## 独立审阅与纠正
 

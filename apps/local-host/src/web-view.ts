@@ -1,7 +1,7 @@
-import { attachEventDocument, buildGoalsDocumentCollection } from "@adeptify/goalboard-plugin-goals";
-import type { PlanningMethodPack } from "@adeptify/goalboard-contracts/modules/goals";
-import type { FeedApplication, FeedSnapshot } from "@adeptify/goalboard-plugin-feed";
-import type { GoalBoardWebView, WebProjectNavigation } from "@adeptify/goalboard-app-workbench";
+import { attachEventDocument, buildGoalsDocumentCollection } from "@molis-ai/molis-work-plugin-goals";
+import type { PlanningMethodPack } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { FeedApplication, FeedSnapshot } from "@molis-ai/molis-work-plugin-feed";
+import type { MolisWorkWebView, WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
 import type { LocalProjectDatabase } from "./project-database.js";
 import type { GoalProjectApplication } from "./goal-project-application.js";
 import { currentLocale, L } from "./web-locale.js";
@@ -15,19 +15,19 @@ export interface WebViewOptions {
   project?: WebProjectNavigation | null; projects?: WebProjectNavigation[]; routePrefix?: string;
 }
 
-interface GoalBoardWebViewCacheEntry {
+interface MolisWorkWebViewCacheEntry {
   cursor: number;
   optionsFingerprint: string;
-  view: GoalBoardWebView;
+  view: MolisWorkWebView;
 }
 
-export type GoalBoardWebViewCache = Map<string, GoalBoardWebViewCacheEntry>;
+export type MolisWorkWebViewCache = Map<string, MolisWorkWebViewCacheEntry>;
 
 function feedDirectorySnapshot(feed: FeedApplication, boardId: string): FeedSnapshot {
   const snapshot = feed.snapshot(boardId);
   return {
     ...snapshot,
-    items: snapshot.items.map((item) => ({
+    feed_items: snapshot.feed_items.map((item) => ({
       ...item,
       body: null,
       materials: item.materials.map((material) => ({ ...material, content: undefined })),
@@ -35,7 +35,8 @@ function feedDirectorySnapshot(feed: FeedApplication, boardId: string): FeedSnap
   };
 }
 
-export function buildGoalBoardWebView(store: LocalProjectDatabase, coordinator: GoalProjectApplication, options: WebViewOptions): GoalBoardWebView {
+export function buildMolisWorkWebView(store: LocalProjectDatabase, coordinator: GoalProjectApplication, options: WebViewOptions): MolisWorkWebView {
+  coordinator.goalDecisionAttention.reconcile(options.boardId);
   const collection = buildGoalsDocumentCollection({
     snapshot: boardId => store.snapshot(boardId), events: boardId => store.readEventsDescending(boardId),
     goals: coordinator.goalQueries, inputs: coordinator.goalInputs,
@@ -58,12 +59,12 @@ export function buildGoalBoardWebView(store: LocalProjectDatabase, coordinator: 
   };
 }
 
-export function cachedGoalBoardWebView(
-  cache: GoalBoardWebViewCache,
+export function cachedMolisWorkWebView(
+  cache: MolisWorkWebViewCache,
   store: LocalProjectDatabase,
   coordinator: GoalProjectApplication,
   options: WebViewOptions,
-): GoalBoardWebView {
+): MolisWorkWebView {
   const cursor = store.eventCursor(options.boardId);
   const optionsFingerprint = JSON.stringify({
     board_id: options.boardId,
@@ -79,21 +80,25 @@ export function cachedGoalBoardWebView(
     cached?.cursor === cursor &&
     cached.optionsFingerprint === optionsFingerprint
   ) return cached.view;
-  const view = buildGoalBoardWebView(store, coordinator, options);
-  cache.set(options.databasePath, { cursor, optionsFingerprint, view });
+  const view = buildMolisWorkWebView(store, coordinator, options);
+  cache.set(options.databasePath, {
+    cursor: store.eventCursor(options.boardId),
+    optionsFingerprint,
+    view,
+  });
   return view;
 }
 
 export function withSelectedEventDocument(
-  view: GoalBoardWebView,
+  view: MolisWorkWebView,
   boardId: string,
   goalId: string | undefined,
   goalEvents: Parameters<typeof attachEventDocument>[2],
   planningMethods: readonly PlanningMethodPack[] = [],
-): GoalBoardWebView {
+): MolisWorkWebView {
   if (!goalId) return view;
   const methods = planningMethods.length ? planningMethods : view.snapshot.planning_method_packs ?? [];
-  const decorate = (item: GoalBoardWebView["goals"][number]) =>
+  const decorate = (item: MolisWorkWebView["goals"][number]) =>
     item.goal.goal_id === goalId
       ? attachEventDocument(item, boardId, goalEvents, view.snapshot, methods, view.events ?? [])
       : item;

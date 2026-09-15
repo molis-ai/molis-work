@@ -1,14 +1,14 @@
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createContextLedger } from "@adeptify/goalboard-module-context-ledger";
-import { seedDemoBoard, DEMO_BOARD_ID } from "@adeptify/goalboard-app-local-host";
-import { LocalProjectDatabase } from "@adeptify/goalboard-app-local-host";
-import { GoalProjectApplication } from "@adeptify/goalboard-app-local-host";
-import { createGoalBoardWebServer } from "../../apps/desktop/launchers/web/server.js";
+import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
+import { seedDemoBoard, DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
+import { createMolisWorkWebServer } from "../../apps/desktop/launchers/web/server.js";
 import { insertHistoricalEvidence } from "../historical-sql-fixture.js";
 
-const directory = mkdtempSync(join(tmpdir(), "goalboard-ar3-browser-"));
+const directory = mkdtempSync(join(tmpdir(), "molis-work-ar3-browser-"));
 const databasePath = join(directory, "fixture.db");
 writeFileSync(join(directory, "result.txt"), "AR3 browser fixture: 原始结果内容，打开不会改变 Goal 或 Evidence。\n");
 seedDemoBoard(databasePath);
@@ -54,7 +54,7 @@ for (const [key, type, version] of [['input', 'goal.input', 1], ['output', 'goal
     target: { module: 'artifacts', id: '架构迁移核对报告（测试数据）', version, scope } });
 }
 store.close();
-const server = createGoalBoardWebServer({ databasePath, boardId: DEMO_BOARD_ID, projectRoot: directory,
+const server = createMolisWorkWebServer({ databasePath, boardId: DEMO_BOARD_ID, projectRoot: directory,
   homeDirectory: join(directory, "home"), controlToken: "ar3-fixture-control-token-local-only-0123456789" });
 server.listen(0, "127.0.0.1", () => {
   const address = server.address();

@@ -33,7 +33,7 @@
 - agreement_change 请求必须保存请求时的原结果和受影响要求承诺。批准时核对这份原文，不能临时快照成后来改过的要求；相关承诺变过则拒绝该旧请求的批准（无部分可信决定写入）。无关类型发布仍不使其失效。不可用「当前还存在同 ID」代替原承诺核对。
 - 批准表单不得预选授权。约定变更使用清楚、互斥、必须主动选择的批准/拒绝动作，避免任意业务选项和实际授权效果相矛盾；不从 option_id 或自然语言猜测效果。展示请求时原结果→拟改结果、原要求→拟改要求及具体要求的人工验收变化，退休用可读原文而非仅 ID。旧请求过期时明确提示刷新或重新请求。
 
-独立证据：`/private/tmp/goalboard-flow-cleanup/01-acceptance.mjs` 是严格验收；`01-diagnostic.mjs` 只将各场景隔离以继续收集失败，日志 `01-diagnostic.log` 已证明场景 1 旧支持仍 true、场景 5 过期批准仍可退休新要求。不得放宽严格验收断言。主不编辑生产代码。
+独立证据：`/private/tmp/molis-work-flow-cleanup/01-acceptance.mjs` 是严格验收；`01-diagnostic.mjs` 只将各场景隔离以继续收集失败，日志 `01-diagnostic.log` 已证明场景 1 旧支持仍 true、场景 5 过期批准仍可退休新要求。不得放宽严格验收断言。主不编辑生产代码。
 
 主审阅技术方案后的执行裁决（以下优先于 technical-plan.md 中冲突的表述）：
 
@@ -45,7 +45,7 @@
 
 build 与 boundary；定向至少包含 tests/goal-events.test.ts、goal-events-state.test.ts、mcp-goal-events-state.test.ts、goal-event-http.test.ts 及实际新增场景。新增/修改测试必须触发生产公共路径，断言状态与副作用，不能只验证 schema/对象存在。全仓留最终04，不在本项重复。
 
-交回：实际接口/数据迁移变化、删除/替换理由、实际测试结果、日志与未完成项。主另用独立临时 SQLite/MCP/HTTP 复现，不以 writer 自报代表通过。临时日志目录 /private/tmp/goalboard-flow-cleanup/，前缀01-。
+交回：实际接口/数据迁移变化、删除/替换理由、实际测试结果、日志与未完成项。主另用独立临时 SQLite/MCP/HTTP 复现，不以 writer 自报代表通过。临时日志目录 /private/tmp/molis-work-flow-cleanup/，前缀01-。
 
 ## 主验收记录
 

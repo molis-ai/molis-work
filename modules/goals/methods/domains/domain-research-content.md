@@ -6,7 +6,7 @@ name: "研究与内容"
 summary: "确保来源、方法、审核和发布链路可信。"
 applies_to: ["研究报告","知识内容","深度文章"]
 domain_tags: ["research","content"]
-source_refs: ["GoalBoard planning-engine spec"]
+source_refs: ["Molis Work planning-engine spec"]
 confidence: 0.94
 ---
 

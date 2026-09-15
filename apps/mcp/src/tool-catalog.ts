@@ -3,49 +3,51 @@ import { V1_TOOLS } from "./goal-tools.js";
 import { EVENT_TOOLS } from "./goal-event-tools.js";
 import { CONTEXT_TOOLS } from "./context-tools.js";
 
-const SERVER_INFO = { name: "goalboard-mcp", version: "1.0.0" };
+const SERVER_INFO = { name: "molis-work-mcp", version: "1.0.0" };
+const LEGACY_MCP_PREFIX = "goalboard_v1_";
+const MCP_PREFIX = "molis_work_v1_";
 
 const TOOLS: McpToolDefinition[] = [...V1_TOOLS, ...EVENT_TOOLS, ...CONTEXT_TOOLS];
 
 const RUNTIME_V1_TOOL_NAMES = new Set([
-  "goalboard_v1_project_guidance_get",
-  "goalboard_v1_project_guidance_add",
-  "goalboard_v1_project_guidance_update",
-  "goalboard_v1_planning_methods",
-  "goalboard_v1_planning_method_save",
-  "goalboard_v1_planning_analyze_change",
-  "goalboard_v1_planning_graph_check",
-  "goalboard_v1_goal_intent_create",
-  "goalboard_v1_goal_state",
-  "goalboard_v1_event_configure",
-  "goalboard_v1_event_note",
-  "goalboard_v1_event_report",
-  "goalboard_v1_event_list",
-  "goalboard_v1_event_read",
-  "goalboard_v1_event_progress",
-  "goalboard_v1_event_concern",
-  "goalboard_v1_event_decision_request",
-  "goalboard_v1_event_cite_decision",
-  "goalboard_v1_event_agree",
-  "goalboard_v1_event_close",
-  "goalboard_v1_event_resume",
-  "goalboard_v1_goal_list",
-  "goalboard_v1_goal_tree_propose",
-  "goalboard_v1_goal_tree_read",
-  "goalboard_v1_goal_tree_check",
-  "goalboard_v1_goal_trash",
-  "goalboard_v1_goal_trash_list",
-  "goalboard_v1_goal_restore",
+  "molis_work_v1_project_guidance_get",
+  "molis_work_v1_project_guidance_add",
+  "molis_work_v1_project_guidance_update",
+  "molis_work_v1_planning_methods",
+  "molis_work_v1_planning_method_save",
+  "molis_work_v1_planning_analyze_change",
+  "molis_work_v1_planning_graph_check",
+  "molis_work_v1_goal_intent_create",
+  "molis_work_v1_goal_state",
+  "molis_work_v1_event_configure",
+  "molis_work_v1_event_note",
+  "molis_work_v1_event_report",
+  "molis_work_v1_event_list",
+  "molis_work_v1_event_read",
+  "molis_work_v1_event_progress",
+  "molis_work_v1_event_concern",
+  "molis_work_v1_event_decision_request",
+  "molis_work_v1_event_cite_decision",
+  "molis_work_v1_event_agree",
+  "molis_work_v1_event_close",
+  "molis_work_v1_event_resume",
+  "molis_work_v1_goal_list",
+  "molis_work_v1_goal_tree_propose",
+  "molis_work_v1_goal_tree_read",
+  "molis_work_v1_goal_tree_check",
+  "molis_work_v1_goal_trash",
+  "molis_work_v1_goal_trash_list",
+  "molis_work_v1_goal_restore",
 ]);
 
 const RUNTIME_CONTEXT_TOOL_NAMES = new Set([
-  "goalboard_v1_context_resolve",
-  "goalboard_v1_context_list_projects",
-  "goalboard_v1_context_reject_suggestion",
-  "goalboard_v1_context_bind",
-  "goalboard_v1_context_unbind",
-  "goalboard_v1_context_create_and_bind",
-  "goalboard_v1_project_delete",
+  "molis_work_v1_context_resolve",
+  "molis_work_v1_context_list_projects",
+  "molis_work_v1_context_reject_suggestion",
+  "molis_work_v1_context_bind",
+  "molis_work_v1_context_unbind",
+  "molis_work_v1_context_create_and_bind",
+  "molis_work_v1_project_delete",
 ]);
 
 const RUNTIME_TOOL_NAMES = new Set([...RUNTIME_V1_TOOL_NAMES, ...RUNTIME_CONTEXT_TOOL_NAMES]);
@@ -79,15 +81,19 @@ const RUNTIME_TOOLS = TOOLS
   .filter((tool) => RUNTIME_TOOL_NAMES.has(tool.name))
   .map(runtimeToolDefinition);
 
+/** Map a GoalBoard-era tool name onto the current Molis Work tool name. */
+export function canonicalMcpToolName(name: string): string {
+  return name.startsWith(LEGACY_MCP_PREFIX) ? MCP_PREFIX + name.slice(LEGACY_MCP_PREFIX.length) : name;
+}
 
 /** Classify the same tool audience used by discovery before host execution. */
 export function isRuntimeMcpTool(name: string): boolean {
-  return RUNTIME_TOOL_NAMES.has(name);
+  return RUNTIME_TOOL_NAMES.has(canonicalMcpToolName(name));
 }
 
 /** Connection tools run before a project has been resolved. */
 export function isRuntimeContextMcpTool(name: string): boolean {
-  return RUNTIME_CONTEXT_TOOL_NAMES.has(name);
+  return RUNTIME_CONTEXT_TOOL_NAMES.has(canonicalMcpToolName(name));
 }
 
 export { TOOLS as MCP_TOOLS, RUNTIME_TOOLS as RUNTIME_MCP_TOOLS, SERVER_INFO as MCP_SERVER_INFO };

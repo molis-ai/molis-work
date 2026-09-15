@@ -12,7 +12,7 @@ Module 是正式业务事实的唯一 owner。每个 Module 自己保存状态�
 | 旧执行事实与历史升级 | [Execution](execution.md)、[Evidence & Verification](evidence-verification.md) |
 | 协作与自动化 | [Governance & Collaboration](governance-collaboration.md)、[Automation](automation.md) |
 
-共同边界、部署与调用规则见 [`docs/system/ARCHITECTURE.md`](../system/ARCHITECTURE.md)。逐包完整 Contract 见 [`specs/goalboard-architecture-reorganization/spec.md`](../../specs/goalboard-architecture-reorganization/spec.md) 第 20 节。
+共同边界、部署与调用规则见 [`docs/system/ARCHITECTURE.md`](../system/ARCHITECTURE.md)。逐包完整 Contract 见 [`specs/molis-work-architecture-reorganization/spec.md`](../../specs/molis-work-architecture-reorganization/spec.md) 第 20 节。
 
 当前 Goal 工作统一使用事件、约定、要求、决定、收尾和继续。旧 Claim/Run/Evidence/Review 写协议已经退役；历史读取、数据库升级和真实 Session／终端能力保留。当前行为以[事件工作流需求书](../../specs/goal-event-workflow-cleanup/spec.md)和各模块文档为准，早期架构 Contract 中的旧命令不再是可调用接口。
 

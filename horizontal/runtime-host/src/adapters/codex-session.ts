@@ -4,7 +4,7 @@ import type {
   RuntimeSessionCapabilities,
   RuntimeSessionCapability,
   RuntimeSessionTransport,
-} from "@adeptify/goalboard-contracts/services/runtime-host";
+} from "@molis-ai/molis-work-contracts/services/runtime-host";
 
 const CODEX_CAPABILITIES: RuntimeSessionCapabilities = {
   create: "native",
@@ -79,7 +79,7 @@ export class CodexRuntimeSessionAdapter implements RuntimeSessionAdapter {
     return {
       ...metadata,
       thread: { ...thread, turns },
-      goalboard_history_page: {
+      molis_work_history_page: {
         mode: "summary",
         turn_count: turns.length,
         has_earlier: typeof page.nextCursor === "string" && page.nextCursor.length > 0,
@@ -115,7 +115,7 @@ export class CodexRuntimeSessionAdapter implements RuntimeSessionAdapter {
       const turn = await this.transport.request("turn/start", {
         threadId: nativeSessionId,
         input: [{ type: "text", text: prompt, text_elements: [] }],
-        turnTrigger: "goalboard_handoff",
+        turnTrigger: "molis_work_handoff",
       });
       return ok("handoff", { thread, threadId: nativeSessionId, turn });
     } catch (error) {

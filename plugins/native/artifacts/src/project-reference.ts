@@ -1,4 +1,4 @@
-import type { EvidenceQueryApi } from "@adeptify/goalboard-contracts/modules/evidence-verification";
+import type { EvidenceQueryApi } from "@molis-ai/molis-work-contracts/modules/evidence-verification";
 
 export interface ArtifactProjectReferencePorts {
   readonly evidence: Pick<EvidenceQueryApi, "getProjectReferenceSource">;

@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import { GoalProjectApplication, LocalProjectDatabase } from "@adeptify/goalboard-app-local-host";
-import { GoalBoardV1Error } from "@adeptify/goalboard-plugin-goals";
+import { GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkV1Error } from "@molis-ai/molis-work-plugin-goals";
 import { materializeGoalEventV35Fixture, type GoalEventV35Kind } from "./goal-event-v35-fixture.js";
 
 const BOARD = "goalboard-v1-demo";
@@ -113,7 +113,7 @@ test("migration 36 keeps mixed owner supports and per-goal policy/risk ids", () 
 });
 
 test("fresh project records migration 36 and createIntent is immediately writable", () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-02-fresh-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-02-fresh-"));
   const store = new LocalProjectDatabase(join(directory, "project.db"));
   try {
     const applied = store.db.prepare("SELECT 1 FROM schema_migrations WHERE migration_id = 36").get();
@@ -160,7 +160,7 @@ test("imported criterion and policy requirements follow the same user revise and
         idempotency_key: "runtime-revise-imported-criterion", ...humanVersions,
         revise_requirements: [{ requirement_id: "OLD-HUMAN-C1", human_decision_required: false }],
       }),
-      (error: unknown) => error instanceof GoalBoardV1Error && error.code === "event_agreement.unauthorized_change",
+      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "event_agreement.unauthorized_change",
     );
     const blockedHuman = app.goalEvents.readState(BOARD, "OLD-HUMAN");
     assert.equal(blockedHuman.requirements.find((item) => item.requirement_id === "OLD-HUMAN-C1")?.statement, originalStatement);
@@ -190,7 +190,7 @@ test("imported criterion and policy requirements follow the same user revise and
         idempotency_key: "runtime-retire-imported-policy", ...policyVersions,
         retire_requirement_ids: ["imported-policy:OLD-POLICY"],
       }),
-      (error: unknown) => error instanceof GoalBoardV1Error && error.code === "event_agreement.unauthorized_change",
+      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "event_agreement.unauthorized_change",
     );
     assert.ok(app.goalEvents.readState(BOARD, "OLD-POLICY").requirements.some((item) => item.requirement_id === "imported-policy:OLD-POLICY"));
     app.goalEvents.setAgreement({

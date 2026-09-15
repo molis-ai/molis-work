@@ -4,28 +4,28 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { createLocalFeedConnectorService } from "@adeptify/goalboard-app-local-host";
-import { createGithubConnector } from "@adeptify/goalboard-app-local-host";
-import { createGmailConnector } from "@adeptify/goalboard-app-local-host";
-import type { IntegrationProviderItem as ConnectorIngestItem, IntegrationProviderPort as ConnectorPort, IntegrationProviderSyncResult } from "@adeptify/goalboard-contracts/platform/plugin";
+import { createLocalFeedConnectorService } from "@molis-ai/molis-work-app-local-host";
+import { createGithubConnector } from "@molis-ai/molis-work-app-local-host";
+import { createGmailConnector } from "@molis-ai/molis-work-app-local-host";
+import type { IntegrationProviderItem as ConnectorIngestItem, IntegrationProviderPort as ConnectorPort, IntegrationProviderSyncResult } from "@molis-ai/molis-work-contracts/platform/plugin";
 type ConnectorSyncFailure = Extract<IntegrationProviderSyncResult, { ok: false }>;
 type ConnectorSyncSuccess = Extract<IntegrationProviderSyncResult, { ok: true }>;
 
-import { FeedDomainError } from "@adeptify/goalboard-contracts/modules/feed";
-import { createFileSecretStore, resetSecretStoreCache } from "@adeptify/goalboard-storage";
-import type { FeedSourceRecord } from "@adeptify/goalboard-plugin-feed";
-import { DEMO_BOARD_ID, seedDemoBoard } from "@adeptify/goalboard-app-local-host";
-import { LocalProjectDatabase } from "@adeptify/goalboard-app-local-host";
+import { FeedDomainError } from "@molis-ai/molis-work-contracts/modules/feed";
+import { createFileSecretStore, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
+import type { FeedSourceRecord } from "@molis-ai/molis-work-plugin-feed";
+import { DEMO_BOARD_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 
 async function withBoard<T>(run: (store: LocalProjectDatabase) => Promise<T>): Promise<T> {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-feed-connectors-"));
-  const databasePath = join(directory, "goalboard.sqlite");
-  const oldHome = process.env.GOALBOARD_HOME;
-  const oldBackend = process.env.GOALBOARD_SECRET_BACKEND;
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-feed-connectors-"));
+  const databasePath = join(directory, "molis-work.sqlite");
+  const oldHome = process.env.MOLIS_WORK_HOME;
+  const oldBackend = process.env.MOLIS_WORK_SECRET_BACKEND;
   const oldNodeEnv = process.env.NODE_ENV;
   try {
-    process.env.GOALBOARD_HOME = join(directory, "home");
-    process.env.GOALBOARD_SECRET_BACKEND = "file";
+    process.env.MOLIS_WORK_HOME = join(directory, "home");
+    process.env.MOLIS_WORK_SECRET_BACKEND = "file";
     process.env.NODE_ENV = "test";
     resetSecretStoreCache();
     seedDemoBoard(databasePath);
@@ -37,10 +37,10 @@ async function withBoard<T>(run: (store: LocalProjectDatabase) => Promise<T>): P
     }
   } finally {
     resetSecretStoreCache();
-    if (oldHome == null) delete process.env.GOALBOARD_HOME;
-    else process.env.GOALBOARD_HOME = oldHome;
-    if (oldBackend == null) delete process.env.GOALBOARD_SECRET_BACKEND;
-    else process.env.GOALBOARD_SECRET_BACKEND = oldBackend;
+    if (oldHome == null) delete process.env.MOLIS_WORK_HOME;
+    else process.env.MOLIS_WORK_HOME = oldHome;
+    if (oldBackend == null) delete process.env.MOLIS_WORK_SECRET_BACKEND;
+    else process.env.MOLIS_WORK_SECRET_BACKEND = oldBackend;
     if (oldNodeEnv == null) delete process.env.NODE_ENV;
     else process.env.NODE_ENV = oldNodeEnv;
     rmSync(directory, { recursive: true, force: true });
@@ -78,7 +78,7 @@ test("GitHub live adapter reads notifications, records provider cursor, and sepa
       assert.equal(headers.Authorization, `Bearer ${token}`);
       assert.equal(init?.method, undefined, "GitHub connector must use GET only");
       if (url.endsWith("/user")) {
-        return new Response(JSON.stringify({ login: "goalboard-user" }), {
+        return new Response(JSON.stringify({ login: "molis-work-user" }), {
           status: 200,
           headers: { "x-oauth-scopes": "notifications, read:user" },
         });
@@ -87,13 +87,13 @@ test("GitHub live adapter reads notifications, records provider cursor, and sepa
         {
           id: "thread-review-9",
           repository: {
-            full_name: "adeptify/goalboard",
-            html_url: "https://github.com/adeptify/goalboard",
+            full_name: "adeptify/molis-work",
+            html_url: "https://github.com/molis-ai/molis-work",
           },
           subject: {
             title: "Review the notification connector",
             type: "PullRequest",
-            url: "https://api.github.com/repos/adeptify/goalboard/pulls/99",
+            url: "https://api.github.com/repos/adeptify/molis-work/pulls/99",
           },
           reason: "review_requested",
           unread: true,
@@ -102,13 +102,13 @@ test("GitHub live adapter reads notifications, records provider cursor, and sepa
         {
           id: "thread-subscribed-10",
           repository: {
-            full_name: "adeptify/goalboard",
-            html_url: "https://github.com/adeptify/goalboard",
+            full_name: "adeptify/molis-work",
+            html_url: "https://github.com/molis-ai/molis-work",
           },
           subject: {
             title: "Release v1.2.0",
             type: "Release",
-            url: "https://api.github.com/repos/adeptify/goalboard/releases/120",
+            url: "https://api.github.com/repos/adeptify/molis-work/releases/120",
           },
           reason: "subscribed",
           unread: true,
@@ -133,20 +133,20 @@ test("GitHub live adapter reads notifications, records provider cursor, and sepa
     assert.equal(synced.items.length, 2);
     assert.deepEqual(synced.items[0], {
       externalId: "github-notification-thread-review-9",
-      title: "adeptify/goalboard · Review the notification connector",
-      summary: "PullRequest · review_requested · adeptify/goalboard",
-      body: "Repository: adeptify/goalboard\nReason: review_requested\nSubject type: PullRequest\nUnread: yes",
-      url: "https://github.com/adeptify/goalboard/pull/99",
+      title: "adeptify/molis-work · Review the notification connector",
+      summary: "PullRequest · review_requested · adeptify/molis-work",
+      body: "Repository: adeptify/molis-work\nReason: review_requested\nSubject type: PullRequest\nUnread: yes",
+      url: "https://github.com/adeptify/molis-work/pull/99",
       occurredAt: "2026-08-30T09:58:00.000Z",
       kind: "pr",
       priority: "high",
-      tags: ["github", "repository:adeptify/goalboard", "reason:review_requested", "subject:pullrequest"],
+      tags: ["github", "repository:adeptify/molis-work", "reason:review_requested", "subject:pullrequest"],
       author: "adeptify",
       attention: {
         reason: "source_rule",
         detail: {
           provider_reason: "review_requested",
-          repository: "adeptify/goalboard",
+          repository: "adeptify/molis-work",
           rule: "github_direct_attention_v1",
         },
       },
@@ -163,7 +163,7 @@ test("GitHub live adapter reads notifications, records provider cursor, and sepa
       synced_at: "2026-08-30T10:00:00.000Z",
       last_modified: "Sun, 30 Aug 2026 09:58:00 GMT",
       last_provider_updated_at: "2026-08-30T09:58:00.000Z",
-      account_login: "goalboard-user",
+      account_login: "molis-work-user",
     });
     const callsBeforeEarlyPoll = requests.length;
     const early = await connector.sync({ cursor: synced.cursor });
@@ -186,7 +186,7 @@ test("GitHub notification adapter revalidates with Last-Modified and accepts 304
     fetchImpl: async (url, init) => {
       const headers = init?.headers as Record<string, string>;
       if (url.endsWith("/user")) {
-        return new Response(JSON.stringify({ login: "goalboard-user" }), {
+        return new Response(JSON.stringify({ login: "molis-work-user" }), {
           status: 200,
           headers: { "x-oauth-scopes": "notifications, read:user" },
         });
@@ -200,7 +200,7 @@ test("GitHub notification adapter revalidates with Last-Modified and accepts 304
       v: 1,
       provider: "github",
       mode: "live",
-      account_login: "goalboard-user",
+      account_login: "molis-work-user",
       granted_scopes: ["notifications", "read:user"],
       authorization_kind: "classic_pat_or_oauth_notifications",
       last_modified: "Sun, 30 Aug 2026 09:58:00 GMT",
@@ -222,7 +222,7 @@ test("GitHub notification adapter revalidates with Last-Modified and accepts 304
 test("GitHub notification adapter distinguishes auth, scope, network, and rate limit safely", async () => {
   const missingScope = await createGithubConnector({
     token: "github-missing-scope-token",
-    fetchImpl: async () => new Response(JSON.stringify({ login: "goalboard-user" }), {
+    fetchImpl: async () => new Response(JSON.stringify({ login: "molis-work-user" }), {
       status: 200,
       headers: { "x-oauth-scopes": "read:user" },
     }),
@@ -254,7 +254,7 @@ test("GitHub notification adapter distinguishes auth, scope, network, and rate l
     token: "github-rate-token",
     now: () => new Date("2026-08-30T10:00:00.000Z"),
     fetchImpl: async (url) => url.endsWith("/user")
-      ? new Response(JSON.stringify({ login: "goalboard-user" }), {
+      ? new Response(JSON.stringify({ login: "molis-work-user" }), {
           status: 200,
           headers: { "x-oauth-scopes": "notifications, read:user" },
         })
@@ -297,7 +297,7 @@ test("Gmail live adapter advances only a provider-backed cursor and redacts fail
           payload: { headers: [
             { name: "Subject", value: "Live Gmail message" },
             { name: "From", value: "Sender <sender@example.com>" },
-            { name: "To", value: "GoalBoard User <user@example.com>" },
+            { name: "To", value: "Molis Work User <user@example.com>" },
           ] },
         }), { status: 200 });
       }
@@ -551,7 +551,7 @@ test("Connector service persists cursor only after success and safely replays or
       v: 1,
       provider: "github",
       mode: "live",
-      account_login: "goalboard-user",
+      account_login: "molis-work-user",
       granted_scopes: ["notifications", "read:user"],
       authorization_kind: "classic_pat_or_oauth_notifications",
       next_poll_at: "2026-08-30T10:02:00.000Z",
@@ -592,10 +592,14 @@ test("Connector service persists cursor only after success and safely replays or
     const first = await service.sync(source.source_id, { idempotencyKey: "connector-sync-0001" });
     assert.equal(first.created, 2);
     assert.deepEqual(first.source.cursor, cursor1);
-    assert.equal(first.source.account_label, "@goalboard-user");
-    assert.equal(first.source.config.scope, "GitHub 通知 · GoalBoard 只调用 GET · notifications scope");
-    const firstItems = service.feed.snapshot(DEMO_BOARD_ID).items.filter((item) => item.source_id === source.source_id);
-    assert.equal(firstItems.find((item) => item.external_id.endsWith(":issue-1"))?.item_type, "inbox_message");
+    assert.equal(first.source.account_label, "@molis-work-user");
+    assert.equal(first.source.config.scope, "GitHub 通知 · Molis Work 只调用 GET · notifications scope");
+    const firstItems = service.feed.snapshot(DEMO_BOARD_ID).feed_items.filter((item) => item.source_id === source.source_id);
+    const issue = firstItems.find((item) => item.external_id.endsWith(":issue-1"));
+    assert.equal(issue?.item_type, "feed");
+    assert.ok(service.feed.listInboxEntries(DEMO_BOARD_ID).some(
+      (entry) => entry.subject_id === issue?.item_id && entry.reason === "source_rule",
+    ));
     assert.equal(firstItems.find((item) => item.external_id.endsWith(":release-1"))?.item_type, "feed");
 
     const replay = await service.sync(source.source_id, { idempotencyKey: "connector-sync-0001" });
@@ -802,7 +806,7 @@ test("Connector Item dedupe is scoped by Source so Gmail accounts never collide"
 
     await service.sync(legacy.source_id, { idempotencyKey: "gmail-account-one-0001" });
     await service.sync(second.source_id, { idempotencyKey: "gmail-account-two-0001" });
-    const items = service.feed.snapshot(DEMO_BOARD_ID).items;
+    const items = service.feed.snapshot(DEMO_BOARD_ID).feed_items;
     assert.equal(items.length, 2);
     assert.equal(new Set(items.map((entry) => entry.source_id)).size, 2);
   });
@@ -864,11 +868,11 @@ test("Connector service writes Gmail identity and keeps only explicit Gmail atte
         "openid",
         "email",
       ],
-      goalboard_http_methods: ["GET"],
+      molis_work_http_methods: ["GET"],
     });
-    const items = service.feed.snapshot(DEMO_BOARD_ID).items
+    const items = service.feed.snapshot(DEMO_BOARD_ID).feed_items
       .filter((item) => item.source_id === source.source_id);
-    assert.equal(items.find((item) => item.external_id.endsWith(":gmail-attention-1"))?.item_type, "inbox_message");
+    assert.equal(items.find((item) => item.external_id.endsWith(":gmail-attention-1"))?.item_type, "feed");
     assert.equal(items.find((item) => item.external_id.endsWith(":gmail-feed-only-2"))?.item_type, "feed");
     const inbox = service.feed.listInboxEntries(DEMO_BOARD_ID)
       .find((entry) => entry.subject_id === items.find((item) => item.external_id.endsWith(":gmail-attention-1"))?.item_id);

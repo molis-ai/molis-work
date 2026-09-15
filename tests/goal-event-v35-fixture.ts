@@ -8,7 +8,7 @@ export type GoalEventV35Kind = (typeof goalEventV35Kinds)[number];
 
 /** Load an unaltered v35 dump into a temp SQLite file. Callers then open it with LocalProjectDatabase. */
 export function materializeGoalEventV35Fixture(kind: GoalEventV35Kind): { directory: string; path: string } {
-  const directory = mkdtempSync(join(tmpdir(), `goalboard-02-v35-${kind}-`));
+  const directory = mkdtempSync(join(tmpdir(), `molis-work-02-v35-${kind}-`));
   const path = join(directory, "copy.sqlite");
   const sql = readFileSync(new URL(`./fixtures/goal-event-v35/${kind}.sql`, import.meta.url), "utf8");
   const raw = new DatabaseSync(path);

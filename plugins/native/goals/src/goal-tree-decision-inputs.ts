@@ -1,4 +1,4 @@
-import type { GoalTreeProposalDecisionAuthority, GoalTreeProposalItemDecisionInput, GovernanceProvenanceApi } from "@adeptify/goalboard-contracts/modules/governance-collaboration";
+import type { GoalTreeProposalDecisionAuthority, GoalTreeProposalItemDecisionInput, GovernanceProvenanceApi } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import { GoalTreeProposalNormalizer, type NormalizedGoalTreeProposalItem } from "./proposal-normalizer.js";
 
 export interface NormalizedGoalTreeProposalDecision {

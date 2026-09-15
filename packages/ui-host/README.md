@@ -2,7 +2,7 @@
 
 让 Workbench 按 contribution 和 slot 组合 Plugin 界面，并在注册与挂载时检查身份和格式。
 
-包名：`@adeptify/goalboard-ui-host`。工作区内部包，通过仓库构建和 Host 装配使用。
+包名：`@molis-ai/molis-work-ui-host`。工作区内部包，通过仓库构建和 Host 装配使用。
 
 ## 一次典型调用
 
@@ -23,15 +23,15 @@ UiHost.register 保存 contribution，render 调用对应渲染器；mount 检�
 
 UI Host 不解释 Goal、Feed 或 Artifact 状态。Plugin 客户端的注册释放由 Host 生命周期负责；注册/渲染协议不等于任意 HTML 或脚本都获得隔离执行。
 
-工作区依赖：`@adeptify/goalboard-contracts`。其他运行依赖见 [package.json](package.json)。
+工作区依赖：`@molis-ai/molis-work-contracts`。其他运行依赖见 [package.json](package.json)。
 
 ## 本地开发
 
 以下命令在**仓库根目录**执行，使用 Node.js 24+ 与仓库配置的 pnpm。首次准备运行 `pnpm install --frozen-lockfile` 和 `pnpm build`；之后可单独检查此包。
 
 ```bash
-pnpm --filter @adeptify/goalboard-ui-host typecheck
-pnpm --filter @adeptify/goalboard-ui-host build
+pnpm --filter @molis-ai/molis-work-ui-host typecheck
+pnpm --filter @molis-ai/molis-work-ui-host build
 ```
 
 已有行为示例与回归：[workbench-ui-platform.test.ts](../../tests/workbench-ui-platform.test.ts)、[plugin-host-executor.test.ts](../../tests/plugin-host-executor.test.ts)。完成上述构建后运行：
@@ -48,7 +48,7 @@ node --import tsx --test --test-concurrency=1 tests/workbench-ui-platform.test.t
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
 - Status: `partial`
-- Contract entrypoint: `@adeptify/goalboard-contracts/platform/ui`
+- Contract entrypoint: `@molis-ai/molis-work-contracts/platform/ui`
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-fd4`, `goal-reorg-ap3`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。

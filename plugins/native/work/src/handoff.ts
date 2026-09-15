@@ -1,11 +1,11 @@
-import type { WorkSessionApi } from "@adeptify/goalboard-contracts/modules/private-work-context";
-import type { RuntimeHostApi } from "@adeptify/goalboard-contracts/services/runtime-host";
+import type { WorkSessionApi } from "@molis-ai/molis-work-contracts/modules/private-work-context";
+import type { RuntimeHostApi } from "@molis-ai/molis-work-contracts/services/runtime-host";
 import type { SessionContentService } from "./content.js";
 import type { SessionDirectoryService } from "./directory.js";
 import {
-  GoalBoardSessionError,
-  type GoalBoardSessionHandoffRecord,
-  type GoalBoardSessionRecord,
+  MolisWorkSessionError,
+  type MolisWorkSessionHandoffRecord,
+  type MolisWorkSessionRecord,
   type SessionHandoffGoalContext,
   type PrepareSessionHandoffInput,
   type SendSessionHandoffInput,
@@ -26,7 +26,7 @@ export class SessionHandoffService {
     this.delivery = new SessionHandoffDelivery(registry, router, directory);
   }
 
-  async prepare(input: PrepareSessionHandoffInput): Promise<{ handoff: GoalBoardSessionHandoffRecord; reused: boolean }> {
+  async prepare(input: PrepareSessionHandoffInput): Promise<{ handoff: MolisWorkSessionHandoffRecord; reused: boolean }> {
     const source = this.validateSource(input.source_session_id, input.project_id, input.goal_contract);
     const existing = this.registry.latestPendingHandoff(source.session_id);
     if (
@@ -61,7 +61,7 @@ export class SessionHandoffService {
     };
   }
 
-  update(input: SendSessionHandoffInput): GoalBoardSessionHandoffRecord {
+  update(input: SendSessionHandoffInput): MolisWorkSessionHandoffRecord {
     const current = this.registry.getHandoff(input.package_id);
     this.validatePersistedSource(current);
     const targetWorkspacePath = input.target_workspace_path === undefined
@@ -85,7 +85,7 @@ export class SessionHandoffService {
 
   async send(input: SendSessionHandoffInput): Promise<SessionHandoffResult> {
     if (!input.user_confirmed) {
-      throw new GoalBoardSessionError("session.confirmation_required", "创建目标 Session 并发送 Handoff 前必须明确确认");
+      throw new MolisWorkSessionError("session.confirmation_required", "创建目标 Session 并发送 Handoff 前必须明确确认");
     }
     const persisted = this.registry.getHandoff(input.package_id);
     if (persisted.state === "sent") {
@@ -97,7 +97,7 @@ export class SessionHandoffService {
       };
     }
     if (persisted.state === "failed" && !persisted.retryable) {
-      throw new GoalBoardSessionError(
+      throw new MolisWorkSessionError(
         "session.handoff_invalid_state",
         "这次失败不能安全重试；请取消后重新创建 Handoff",
       );
@@ -105,7 +105,7 @@ export class SessionHandoffService {
     this.validatePersistedSource(persisted);
     const draft = this.update(input);
     if (!draft.content_available || !draft.content) {
-      throw new GoalBoardSessionError("session.invalid_input", "Handoff 加密正文当前不可读取，不能发送");
+      throw new MolisWorkSessionError("session.invalid_input", "Handoff 加密正文当前不可读取，不能发送");
     }
     const sending = this.registry.markHandoffSending(draft.package_id);
     if (sending.state === "sent") {
@@ -119,7 +119,7 @@ export class SessionHandoffService {
     return this.delivery.send(sending, input.actor_id);
   }
 
-  cancel(packageId: string): GoalBoardSessionHandoffRecord {
+  cancel(packageId: string): MolisWorkSessionHandoffRecord {
     return this.registry.cancelHandoff(packageId);
   }
 
@@ -127,27 +127,27 @@ export class SessionHandoffService {
     sessionId: string,
     projectId: string,
     contract: SessionHandoffGoalContext,
-  ): GoalBoardSessionRecord {
+  ): MolisWorkSessionRecord {
     const source = this.registry.get(sessionId);
     if (source.project_id !== projectId) {
-      throw new GoalBoardSessionError("session.not_found", "找不到当前 Project 的这条来源 Session");
+      throw new MolisWorkSessionError("session.not_found", "找不到当前 Project 的这条来源 Session");
     }
     if (!source.current_goal_id) {
-      throw new GoalBoardSessionError("session.invalid_input", "请先为来源 Session 选择当前 Goal");
+      throw new MolisWorkSessionError("session.invalid_input", "请先为来源 Session 选择当前 Goal");
     }
     if (source.current_goal_id !== contract.goal.goal_id || contract.goal.board_id !== contract.board.board_id) {
-      throw new GoalBoardSessionError("session.invalid_input", "来源 Session 的当前 Goal 已变化，请重新打开 Handoff");
+      throw new MolisWorkSessionError("session.invalid_input", "来源 Session 的当前 Goal 已变化，请重新打开 Handoff");
     }
     return source;
   }
 
-  private validatePersistedSource(handoff: GoalBoardSessionHandoffRecord): GoalBoardSessionRecord {
+  private validatePersistedSource(handoff: MolisWorkSessionHandoffRecord): MolisWorkSessionRecord {
     const source = this.registry.get(handoff.source_session_id);
     if (source.project_id !== handoff.source_project_id || source.current_goal_id !== handoff.source_goal_id) {
-      throw new GoalBoardSessionError("session.invalid_input", "来源 Session 的当前 Project 或 Goal 已变化，请重新生成 Handoff");
+      throw new MolisWorkSessionError("session.invalid_input", "来源 Session 的当前 Project 或 Goal 已变化，请重新生成 Handoff");
     }
     if (handoff.target_project_id !== handoff.source_project_id) {
-      throw new GoalBoardSessionError("session.invalid_input", "当前版本只允许在来源 Project 内创建 Handoff");
+      throw new MolisWorkSessionError("session.invalid_input", "当前版本只允许在来源 Project 内创建 Handoff");
     }
     return source;
   }

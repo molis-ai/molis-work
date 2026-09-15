@@ -45,7 +45,7 @@
 
 本轮重新读取现用调用，仍存在：
 
-- `src/web/server.ts:379`：buildGoalBoardWebView 直接查询 policy_bindings 并映射 WebPolicyBinding，没有经过 Goals public Query。
+- `src/web/server.ts:379`：buildMolisWorkWebView 直接查询 policy_bindings 并映射 WebPolicyBinding，没有经过 Goals public Query。
 - `src/v1/coordinator.ts:1441`：替代 Goal 查询跨 goal_relations / goals；2080 的 completionRiskReasons 直接读 risks / goal_risks；2456 / 2493 的后代关系与风险、2688 / 2703 的标题与风险描述同样直接读取。它们不是 DD2 已退出的提案物化，也不能当成双写证据。
 
 下一有限结果应是把父验收涉及的现用 Goals / Policy / Relation / Risk 读取统一接回 owner 的公共查询，保持原排序、关联范围、错误原因和 Web 返回结构，并验证真实 caller；先核对既有公共 API，不建重复 Repository 或通用 SQL 通道。完成后按原三条父标准复核。如何纳入原 Goal Tree 尚待明确提案，不把它默认为已执行或已接受的新子 Goal。

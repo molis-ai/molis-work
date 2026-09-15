@@ -1,5 +1,5 @@
 {
-  "name": "@adeptify/goalboard-plugin-cli",
+  "name": "@molis-ai/molis-work-plugin-cli",
   "version": "0.0.0",
   "private": true,
   "description": "Plugin creation, Manifest/Contract validation, local debugging, packaging, and signing workflow boundary.",
@@ -10,7 +10,7 @@
   },
   "sideEffects": false,
   "bin": {
-    "goalboard-plugin": "./bin/goalboard-plugin.mjs"
+    "molis-work-plugin": "./bin/molis-work-plugin.mjs"
   },
   "exports": {
     ".": {
@@ -29,14 +29,14 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@adeptify/goalboard-plugin-runtime": "workspace:*",
-    "@adeptify/goalboard-contracts": "workspace:*"
+    "@molis-ai/molis-work-plugin-runtime": "workspace:*",
+    "@molis-ai/molis-work-contracts": "workspace:*"
   },
-  "goalboard": {
+  "molis-work": {
     "path": "tooling/plugin-cli",
     "kind": "tooling",
     "maturity": "partial",
-    "contract": "@adeptify/goalboard-contracts/platform/tooling",
+    "contract": "@molis-ai/molis-work-contracts/platform/tooling",
     "migrationGoals": [
       "goal-reorg-f2",
       "goal-reorg-dv3"

@@ -5,7 +5,7 @@ export type SupportedRuntimeId = (typeof SUPPORTED_RUNTIME_IDS)[number];
 
 export type RuntimeConnectionState =
   | "not_detected"
-  | "goalboard_unavailable"
+  | "molis_work_unavailable"
   | "not_connected"
   | "needs_repair"
   | "connected"
@@ -21,7 +21,7 @@ export interface RuntimeIntegrationDetection {
   message: string;
 }
 
-export type GoalBoardWebServiceState =
+export type MolisWorkWebServiceState =
   | "unsupported"
   | "unavailable"
   | "absent"
@@ -31,9 +31,9 @@ export type GoalBoardWebServiceState =
   | "needs_repair"
   | "conflict";
 
-export interface GoalBoardWebServiceDetection {
+export interface MolisWorkWebServiceDetection {
   provider: "macos-launchagent" | "unsupported";
-  state: GoalBoardWebServiceState;
+  state: MolisWorkWebServiceState;
   supported: boolean;
   owned: boolean;
   running: boolean;

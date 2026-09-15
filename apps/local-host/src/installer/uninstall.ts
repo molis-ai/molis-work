@@ -1,29 +1,29 @@
 import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
-import os from "node:os";
 import path from "node:path";
+import { resolveConfiguredHome } from "../product-home.js";
 import { RuntimeIntegrationService } from "./runtime-integration.js";
 import { SUPPORTED_RUNTIME_IDS } from "./runtime-integration-contract.js";
-import { GoalBoardWebServiceManager } from "./web-service.js";
-import { UNINSTALL_OWNER, GoalBoardUninstallError, type GoalBoardUninstallServiceOptions, type GoalBoardUninstallPlan, type GoalBoardUninstallResult, type GoalBoardUninstallChange, type PreparedUninstallPlan, type UninstallReceipt } from "./uninstall-contract.js";
+import { MolisWorkWebServiceManager } from "./web-service.js";
+import { UNINSTALL_OWNER, MolisWorkUninstallError, type MolisWorkUninstallServiceOptions, type MolisWorkUninstallPlan, type MolisWorkUninstallResult, type MolisWorkUninstallChange, type PreparedUninstallPlan, type UninstallReceipt } from "./uninstall-contract.js";
 import { inspectOwnedHomeAssets, existingPaths, assetKind, assetKindLabel, pathFingerprint, digest, removeEmptyDirectory } from "./uninstall-files.js";
-export class GoalBoardUninstallService {
+export class MolisWorkUninstallService {
   readonly homeDirectory: string;
   readonly receiptPath: string;
   private readonly runtimeIntegrations: RuntimeIntegrationService;
-  private readonly webService: GoalBoardWebServiceManager;
+  private readonly webService: MolisWorkWebServiceManager;
   private readonly plans = new Map<string, PreparedUninstallPlan>();
 
-  constructor(private readonly options: GoalBoardUninstallServiceOptions) {
-    this.homeDirectory = path.resolve(options.homeDirectory ?? path.join(os.homedir(), ".goalboard"));
+  constructor(private readonly options: MolisWorkUninstallServiceOptions) {
+    this.homeDirectory = path.resolve(options.homeDirectory ?? resolveConfiguredHome());
     this.receiptPath = path.join(this.homeDirectory, "config", "uninstall.json");
     this.runtimeIntegrations = options.runtimeIntegrationService
       ?? new RuntimeIntegrationService({ homeDirectory: this.homeDirectory });
     this.webService = options.webServiceManager
-      ?? new GoalBoardWebServiceManager({ homeDirectory: this.homeDirectory });
+      ?? new MolisWorkWebServiceManager({ homeDirectory: this.homeDirectory });
   }
 
-  async prepare(options: { purge_user_data?: boolean } = {}): Promise<GoalBoardUninstallPlan> {
+  async prepare(options: { purge_user_data?: boolean } = {}): Promise<MolisWorkUninstallPlan> {
     const purgeUserData = options.purge_user_data === true;
     const catalog = await this.options.projects.inspect();
     const runtimePlans = await Promise.all(
@@ -49,32 +49,32 @@ export class GoalBoardUninstallService {
         path.join(this.homeDirectory, "runtime-integrations"),
       ])
       : [];
-    const changes: GoalBoardUninstallChange[] = [
+    const changes: MolisWorkUninstallChange[] = [
       ...runtimePlans.flatMap((plan) => plan.status === "ready"
-        ? [{ kind: "runtime" as const, target: plan.display_name, description: `移除 GoalBoard 创建的 ${plan.display_name} 接入` }]
+        ? [{ kind: "runtime" as const, target: plan.display_name, description: `移除 Molis Work 创建的 ${plan.display_name} 接入` }]
         : []),
       ...(webPlan.status === "ready"
-        ? [{ kind: "web_service" as const, target: webPlan.detection.plist_path, description: "停止并移除 GoalBoard 常驻 Web 服务" }]
+        ? [{ kind: "web_service" as const, target: webPlan.detection.plist_path, description: "停止并移除 Molis Work 常驻 Web 服务" }]
         : []),
       ...demos.map((project) => ({ kind: "demo" as const, target: project.project_id, description: `删除可重建演示项目：${project.display_name}` })),
       ...assets.ownedPaths.map((ownedPath) => ({
         kind: assetKind(ownedPath),
         target: ownedPath,
-        description: `移除 GoalBoard 自有${assetKindLabel(assetKind(ownedPath))}`,
+        description: `移除 Molis Work 自有${assetKindLabel(assetKind(ownedPath))}`,
       })),
       ...purgeDataPaths.map((dataPath) => ({
         kind: "user_data" as const,
         target: dataPath,
         description: dataPath === path.join(this.homeDirectory, "projects")
           ? `永久删除 ${userProjects.length} 个用户项目及 catalog`
-          : `永久删除 GoalBoard 生成的 ${path.basename(dataPath)}`,
+          : `永久删除 Molis Work 生成的 ${path.basename(dataPath)}`,
       })),
     ];
     const preservedPaths = purgeUserData
       ? []
       : [path.join(this.homeDirectory, "projects"), path.join(this.homeDirectory, "backups"), path.join(this.homeDirectory, "logs")];
     const status = conflicts.length > 0 ? "conflict" : changes.length > 0 ? "ready" : "no_change";
-    const plan: GoalBoardUninstallPlan = {
+    const plan: MolisWorkUninstallPlan = {
       plan_id: `uninstall-plan-${randomUUID()}`,
       status,
       home_directory: this.homeDirectory,
@@ -86,11 +86,11 @@ export class GoalBoardUninstallService {
       conflicts,
       confirmation: purgeUserData
         ? `永久清除 ${this.homeDirectory} 中的 ${userProjects.length} 个用户项目；必须再次提供完全相同的目录和项目数量`
-        : "卸载 GoalBoard 程序和自有接入；保留用户项目、catalog、备份与日志",
+        : "卸载 Molis Work 程序和自有接入；保留用户项目、catalog、备份与日志",
       message: status === "conflict"
-        ? "发现不再符合 GoalBoard 所有权收据的配置；没有执行卸载"
+        ? "发现不再符合 Molis Work 所有权收据的配置；没有执行卸载"
         : status === "no_change"
-          ? "没有需要卸载的 GoalBoard 程序或接入"
+          ? "没有需要卸载的 Molis Work 程序或接入"
           : purgeUserData
             ? "已生成永久清除预览；这与普通卸载是两次不同的确认"
             : "已生成安全卸载预览；用户数据会保留",
@@ -113,17 +113,17 @@ export class GoalBoardUninstallService {
     plan_id: string;
     decision: "confirmed" | "declined";
     purge_confirmation?: { home_directory: string; user_project_count: number };
-  }): Promise<GoalBoardUninstallResult> {
+  }): Promise<MolisWorkUninstallResult> {
     const prepared = this.plans.get(input.plan_id);
-    if (!prepared) throw new GoalBoardUninstallError("uninstall.plan_missing", "卸载预览不存在或已失效，请重新预览");
+    if (!prepared) throw new MolisWorkUninstallError("uninstall.plan_missing", "卸载预览不存在或已失效，请重新预览");
     this.plans.delete(input.plan_id);
     const plan = prepared.publicPlan;
     if (input.decision === "declined") {
-      return { status: "declined", home_directory: this.homeDirectory, removed_paths: [], preserved_paths: plan.preserved_paths, receipt_path: null, message: "已取消，没有修改 GoalBoard 安装或数据" };
+      return { status: "declined", home_directory: this.homeDirectory, removed_paths: [], preserved_paths: plan.preserved_paths, receipt_path: null, message: "已取消，没有修改 Molis Work 安装或数据" };
     }
-    if (plan.status === "conflict") throw new GoalBoardUninstallError("uninstall.conflict", plan.message);
+    if (plan.status === "conflict") throw new MolisWorkUninstallError("uninstall.conflict", plan.message);
     if (await this.snapshotHash(prepared.snapshotPaths) !== prepared.snapshotHash) {
-      throw new GoalBoardUninstallError("uninstall.plan_stale", "GoalBoard 安装内容在预览后发生变化，请重新预览");
+      throw new MolisWorkUninstallError("uninstall.plan_stale", "Molis Work 安装内容在预览后发生变化，请重新预览");
     }
     if (plan.purge_user_data) this.requirePurgeConfirmation(plan, input.purge_confirmation);
     if (plan.status === "no_change") {
@@ -198,20 +198,20 @@ export class GoalBoardUninstallService {
         preserved_paths: plan.preserved_paths,
         receipt_path: plan.purge_user_data ? null : this.receiptPath,
         message: plan.purge_user_data
-          ? "GoalBoard 程序、接入和用户数据已按强确认永久清除"
-          : "GoalBoard 程序和自有接入已卸载；用户项目、catalog、备份与日志仍保留",
+          ? "Molis Work 程序、接入和用户数据已按强确认永久清除"
+          : "Molis Work 程序和自有接入已卸载；用户项目、catalog、备份与日志仍保留",
       };
     } catch (error) {
       receipt.state = "failed";
       receipt.error = error instanceof Error ? error.message : String(error);
       receipt.updated_at = new Date().toISOString();
       await this.writeReceipt(receipt).catch(() => undefined);
-      throw new GoalBoardUninstallError("uninstall.step_failed", `卸载未完成，进度收据已保留：${receipt.error}`);
+      throw new MolisWorkUninstallError("uninstall.step_failed", `卸载未完成，进度收据已保留：${receipt.error}`);
     }
   }
 
   private requirePurgeConfirmation(
-    plan: GoalBoardUninstallPlan,
+    plan: MolisWorkUninstallPlan,
     confirmation: { home_directory: string; user_project_count: number } | undefined,
   ): void {
     if (
@@ -219,7 +219,7 @@ export class GoalBoardUninstallService {
       && path.resolve(confirmation.home_directory) === this.homeDirectory
       && confirmation.user_project_count === plan.user_project_count
     ) return;
-    throw new GoalBoardUninstallError(
+    throw new MolisWorkUninstallError(
       "uninstall.purge_confirmation_required",
       `永久清除还需要再次确认精确目录 ${this.homeDirectory} 和用户项目数量 ${plan.user_project_count}`,
     );

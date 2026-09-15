@@ -6,36 +6,36 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import test from "node:test";
 import Database from "better-sqlite3";
-import { PluginHostExecutor } from "@adeptify/goalboard-app-local-host";
-import { PluginRuntime, PluginRuntimeError, SqlitePluginPrivateStorage } from "@adeptify/goalboard-plugin-runtime";
-import { UiHost } from "@adeptify/goalboard-ui-host";
-import { ArtifactsModule } from "@adeptify/goalboard-module-artifacts";
-import type { PluginDefinition } from "@adeptify/goalboard-contracts/platform/plugin";
-import { seedDemoBoard, DEMO_BOARD_ID } from "@adeptify/goalboard-app-local-host";
-import { LocalProjectDatabase } from "@adeptify/goalboard-app-local-host";
+import { PluginHostExecutor } from "@molis-ai/molis-work-app-local-host";
+import { PluginRuntime, PluginRuntimeError, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
+import { UiHost } from "@molis-ai/molis-work-ui-host";
+import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
+import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { seedDemoBoard, DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 
 test("clean developer project uses packed public SDK from CLI scaffold through installation and a real private Artifact/UI result", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-plugin-sample-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-plugin-sample-"));
   const root = dirname(dirname(fileURLToPath(import.meta.url)));
   const project = join(directory, "sample");
-  const cli = join(root, "tooling/plugin-cli/bin/goalboard-plugin.mjs");
+  const cli = join(root, "tooling/plugin-cli/bin/molis-work-plugin.mjs");
   let store: LocalProjectDatabase | undefined;
   let privateDb: Database.Database | undefined;
   try {
     const invalid = spawnSync(process.execPath, [cli, "create", project, "invalid", "developer", "local-binding"], { encoding: "utf8" });
     assert.equal(invalid.status, 1);
-    execFileSync(process.execPath, [cli, "create", project, "io.goalboard.example.notes", "developer", "local-binding"]);
+    execFileSync(process.execPath, [cli, "create", project, "io.molis.work.example.notes", "developer", "local-binding"]);
     const original = readFileSync(join(project, "index.mjs"), "utf8");
-    const repeat = spawnSync(process.execPath, [cli, "create", project, "io.goalboard.example.other", "developer", "local-binding"], { encoding: "utf8" });
+    const repeat = spawnSync(process.execPath, [cli, "create", project, "io.molis.work.example.other", "developer", "local-binding"], { encoding: "utf8" });
     assert.equal(repeat.status, 1);
     assert.equal(readFileSync(join(project, "index.mjs"), "utf8"), original);
     const validated = JSON.parse(execFileSync(process.execPath, [cli, "validate", join(project, "manifest.json")], { encoding: "utf8" }));
-    assert.equal(validated.plugin_id, "io.goalboard.example.notes");
+    assert.equal(validated.plugin_id, "io.molis.work.example.notes");
     for (const name of ["contracts", "plugin-sdk"]) {
       execFileSync("pnpm", ["--dir", join(root, "packages", name), "pack", "--pack-destination", directory, "--json"], { encoding: "utf8" });
     }
     execFileSync("npm", ["install", "--offline", "--ignore-scripts", "--no-audit", "--no-fund", "--cache", join(directory, "npm-cache"),
-      join(directory, "adeptify-goalboard-contracts-0.0.0.tgz"), join(directory, "adeptify-goalboard-plugin-sdk-0.0.0.tgz")],
+      join(directory, "adeptify-molis-work-contracts-0.0.0.tgz"), join(directory, "adeptify-molis-work-plugin-sdk-0.0.0.tgz")],
     { cwd: project, encoding: "utf8" });
     const definition = (await import(pathToFileURL(join(project, "index.mjs")).href)).default as PluginDefinition;
     assert.equal(definition.manifest.plugin_id, validated.plugin_id);
@@ -90,7 +90,7 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
       writeFileSync(join(repositorySample, file), readFileSync(join(root, "examples/plugin-sample", file)));
     }
     execFileSync("npm", ["install", "--offline", "--ignore-scripts", "--no-audit", "--no-fund", "--cache", join(directory, "npm-cache"),
-      join(directory, "adeptify-goalboard-contracts-0.0.0.tgz"), join(directory, "adeptify-goalboard-plugin-sdk-0.0.0.tgz")],
+      join(directory, "adeptify-molis-work-contracts-0.0.0.tgz"), join(directory, "adeptify-molis-work-plugin-sdk-0.0.0.tgz")],
     { cwd: repositorySample, encoding: "utf8" });
     const repositoryRun = dev(join(directory, "repository-state"), grants, "--allow-unsigned-development", repositorySample);
     assert.equal(repositoryRun.status, 0, repositoryRun.stderr);

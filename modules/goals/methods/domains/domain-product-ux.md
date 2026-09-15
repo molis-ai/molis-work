@@ -6,7 +6,7 @@ name: "产品与 UX"
 summary: "从用户目标和关键动线验证产品行为，再扩展完整体验。"
 applies_to: ["产品设计","交互设计","体验优化"]
 domain_tags: ["product","ux"]
-source_refs: ["GoalBoard product protocol"]
+source_refs: ["Molis Work product protocol"]
 confidence: 0.95
 ---
 

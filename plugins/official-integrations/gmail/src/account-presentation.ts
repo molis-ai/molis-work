@@ -18,7 +18,7 @@ export function gmailAccountPresentation(cursor: unknown, accountLabel: string |
         "openid",
         "email",
       ],
-      goalboard_http_methods: ["GET"],
+      molis_work_http_methods: ["GET"],
     },
   };
 }

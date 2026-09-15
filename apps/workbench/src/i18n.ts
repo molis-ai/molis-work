@@ -8,7 +8,7 @@ export { EN } from "./i18n/en.js";
 export type WebLocale = "zh" | "en";
 
 
-export const LOCALE_COOKIE = "goalboard_locale";
+export const LOCALE_COOKIE = "molis_work_locale";
 
 export const WEB_LOCALES = ["zh", "en"] as const;
 
@@ -119,10 +119,10 @@ function englishCatalogJson(): string {
 
 function clientI18nScript(): string {
   const catalog = currentLocale() === "en" ? englishCatalogJson() : "{}";
-  return `globalThis.GOALBOARD_EN = ${catalog};
+  return `globalThis.MOLIS_WORK_EN = ${catalog};
   globalThis.L = function L(zh, vars) {
     const useEn = !String(document.documentElement.lang || "zh").toLowerCase().startsWith("zh");
-    let text = useEn && globalThis.GOALBOARD_EN && globalThis.GOALBOARD_EN[zh] ? globalThis.GOALBOARD_EN[zh] : zh;
+    let text = useEn && globalThis.MOLIS_WORK_EN && globalThis.MOLIS_WORK_EN[zh] ? globalThis.MOLIS_WORK_EN[zh] : zh;
     if (vars) {
       for (const key of Object.keys(vars)) text = text.split("{" + key + "}").join(String(vars[key]));
     }

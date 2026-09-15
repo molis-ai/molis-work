@@ -1,4 +1,4 @@
-import type { LegacyGovernanceSnapshot, GoalTreeProposalRecord, GoalTreeProposalItemRecord } from "@adeptify/goalboard-contracts/modules/governance-collaboration";
+import type { LegacyGovernanceSnapshot, GoalTreeProposalRecord, GoalTreeProposalItemRecord } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 
 /** Read-only compatibility projection; never rewrites historical receipts or confirms a new proposal. */
 export function legacyProposalView(snapshot: LegacyGovernanceSnapshot): GoalTreeProposalRecord[] {

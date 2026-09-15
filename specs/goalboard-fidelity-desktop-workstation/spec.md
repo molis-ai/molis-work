@@ -1,8 +1,8 @@
-# GoalBoard 桌面三栏工作台高保真实现
+# Molis Work 桌面三栏工作台高保真实现
 
 ## 完成等级
 
-本 Goal 达到 **内部可用的桌面 UI 切片（Level 4）**：真实 GoalBoard Desktop 使用原生窗口与 TitleBar，呈现 Navigator、Goal Focus、Goal-bound Runtime 三栏工作台；所有内容来自真实项目，现有 Goal 与终端行为保持不变。
+本 Goal 达到 **内部可用的桌面 UI 切片（Level 4）**：真实 Molis Work Desktop 使用原生窗口与 TitleBar，呈现 Navigator、Goal Focus、Goal-bound Runtime 三栏工作台；所有内容来自真实项目，现有 Goal 与终端行为保持不变。
 
 ## 背景与目标
 

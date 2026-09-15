@@ -8,7 +8,7 @@ import {
   RuntimeIntegrationService,
   type RuntimeIntegrationServiceOptions,
   type SupportedRuntimeId,
-} from "@adeptify/goalboard-app-local-host";
+} from "@molis-ai/molis-work-app-local-host";
 import { runtimeContextHostFromEnvironment } from "../apps/desktop/launchers/mcp/server.js";
 
 interface Fixture {
@@ -22,13 +22,13 @@ interface Fixture {
 }
 
 async function withFixture<T>(run: (fixture: Fixture) => Promise<T>): Promise<T> {
-  const directory = await mkdtemp(join(tmpdir(), "goalboard-runtime-integration-"));
+  const directory = await mkdtemp(join(tmpdir(), "molis-work-runtime-integration-"));
   try {
-    const home = join(directory, "goalboard-home");
+    const home = join(directory, "molis-work-home");
     const userHome = join(directory, "user-home");
-    const release = join(home, "releases", "goalboard-test");
+    const release = join(home, "releases", "molis-work-test");
     const skillSource = join(release, "skills", "goal-advance");
-    const launcher = join(home, "bin", "goalboard-mcp");
+    const launcher = join(home, "bin", "molis-work-mcp");
     const codex = join(directory, "bin", "codex");
     const claude = join(directory, "bin", "claude");
     const opencode = join(directory, "bin", "opencode");
@@ -44,9 +44,9 @@ async function withFixture<T>(run: (fixture: Fixture) => Promise<T>): Promise<T>
     await Promise.all([
       writeFile(join(home, "config", "installation.json"), `${JSON.stringify({
         schema_version: 2,
-        installer: "goalboard-home-install-v1",
+        installer: "molis-work-home-install-v1",
         version: "test",
-        release_path: "releases/goalboard-test",
+        release_path: "releases/molis-work-test",
       }, null, 2)}\n`),
       writeFile(join(skillSource, "SKILL.md"), "---\nname: goal-advance\n---\n"),
       writeFile(launcher, "#!/bin/sh\nexit 0\n", { mode: 0o755 }),
@@ -102,7 +102,7 @@ test("default integration validation uses the real MCP launcher and rolls back a
     const result = await integration.confirm({ runtime_id: "codex", plan_id: plan.plan_id, decision: "confirmed" });
     assert.equal(result.status, "connected", result.message);
     const codexConfig = await readFile(join(fixture.userHome, ".codex", "config.toml"), "utf8");
-    assert.match(codexConfig, /\[mcp_servers.goalboard\]/);
+    assert.match(codexConfig, /\[mcp_servers.molis-work\]/);
     assert.equal(await readlink(join(fixture.userHome, ".codex", "skills", "goal-advance")), fixture.skillSource);
 
     await writeFile(fixture.launcher, "#!/bin/sh\nexit 1\n", { mode: 0o755 });
@@ -139,8 +139,8 @@ test("detect and prepare are read-only and public plans never expose the user's 
     const claudePlan = await integration.prepare("claude-code", "connect");
     assert.equal(codexPlan.status, "ready");
     assert.equal(claudePlan.status, "ready");
-    assert.match(codexPlan.changes[0].after, /GOALBOARD_RUNTIME_ID/);
-    assert.match(claudePlan.changes[0].after, /goalboard-mcp/);
+    assert.match(codexPlan.changes[0].after, /MOLIS_WORK_RUNTIME_ID/);
+    assert.match(claudePlan.changes[0].after, /molis-work-mcp/);
     assert.match(codexPlan.restart_instructions.join("\n"), /每个 Session 都要由你确认关联哪个项目/);
     assert.doesNotMatch(codexPlan.restart_instructions.join("\n"), /设为这个目录的默认项目/);
     const publicPlans = JSON.stringify([codexPlan, claudePlan]);
@@ -208,12 +208,12 @@ test("Codex first and repeated connection preserve unrelated TOML and create a b
     const after = await readFile(config, "utf8");
     assert.match(after, /private_note = "KEEP-ME"/);
     assert.match(after, /\[mcp_servers\.other\][\s\S]*command = "other-mcp"/);
-    assert.match(after, /\[mcp_servers\.goalboard\]/);
+    assert.match(after, /\[mcp_servers\.molis-work\]/);
     assert.match(after, new RegExp(fixture.launcher.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
-    assert.doesNotMatch(after, /env_vars\s*=|CODEX_THREAD_ID|GOALBOARD_WORK_CONTEXT_ID/);
+    assert.doesNotMatch(after, /env_vars\s*=|CODEX_THREAD_ID|MOLIS_WORK_WORK_CONTEXT_ID/);
     assert.equal(await readlink(join(fixture.userHome, ".codex", "skills", "goal-advance")), fixture.skillSource);
     const receipt = await readFile(join(fixture.home, "runtime-integrations", "codex.json"), "utf8");
-    assert.match(receipt, /goalboard-runtime-integration-v1/);
+    assert.match(receipt, /molis-work-runtime-integration-v1/);
     assert.doesNotMatch(receipt, /KEEP-ME/);
 
     const replay = await integration.confirm({ runtime_id: "codex", plan_id: plan.plan_id, decision: "confirmed" });
@@ -232,13 +232,13 @@ test("Codex connection replaces the old static project DB integration instead of
     await writeFile(config, [
       'model = "gpt-test"',
       "",
-      "[mcp_servers.goalboard]",
+      "[mcp_servers.molis-work]",
       'command = "node"',
       'args = ["/old/source/dist/mcp/server.js"]',
       "",
-      "[mcp_servers.goalboard.env]",
-      'GOALBOARD_DATABASE = "/old/project.db"',
-      'GOALBOARD_BOARD_ID = "old-board"',
+      "[mcp_servers.molis-work.env]",
+      'MOLIS_WORK_DATABASE = "/old/project.db"',
+      'MOLIS_WORK_BOARD_ID = "old-board"',
       "",
     ].join("\n"));
     const integration = service(fixture);
@@ -248,8 +248,8 @@ test("Codex connection replaces the old static project DB integration instead of
     const result = await integration.confirm({ runtime_id: "codex", plan_id: plan.plan_id, decision: "confirmed" });
     assert.equal(result.status, "connected");
     const after = await readFile(config, "utf8");
-    assert.doesNotMatch(after, /GOALBOARD_DATABASE|GOALBOARD_BOARD_ID|\/old\/source|\/old\/project/);
-    assert.match(after, /GOALBOARD_RUNTIME_ID = "codex"/);
+    assert.doesNotMatch(after, /MOLIS_WORK_DATABASE|MOLIS_WORK_BOARD_ID|\/old\/source|\/old\/project/);
+    assert.match(after, /MOLIS_WORK_RUNTIME_ID = "codex"/);
     assert.match(after, /model = "gpt-test"/);
   });
 });
@@ -278,7 +278,7 @@ test("declined, mismatched, stale, and conflicting plans never overwrite Runtime
     assert.equal(stale.status, "stale");
     assert.equal(await readFile(config, "utf8"), 'model = "changed-after-preview"\n');
 
-    await writeFile(config, '[mcp_servers.goalboard]\ncommand = "not-goalboard"\n');
+    await writeFile(config, '[mcp_servers.molis-work]\ncommand = "not-molis-work"\n');
     await writeFile(skill, "user-owned skill\n");
     const conflictPlan = await integration.prepare("codex", "connect");
     assert.equal(conflictPlan.status, "conflict");
@@ -344,8 +344,8 @@ test("Claude Code connection and removal preserve unrelated JSON and other MCP s
     assert.equal(afterConnect.privateNote, "KEEP-CLAUDE");
     assert.deepEqual(afterConnect.projects, { example: { allowed: true } });
     assert.equal(afterConnect.mcpServers.other.command, "other-mcp");
-    assert.equal(afterConnect.mcpServers.goalboard.command, fixture.launcher);
-    assert.equal(afterConnect.mcpServers.goalboard.env.GOALBOARD_RUNTIME_ID, "claude-code");
+    assert.equal(afterConnect.mcpServers["molis-work"].command, fixture.launcher);
+    assert.equal(afterConnect.mcpServers["molis-work"].env.MOLIS_WORK_RUNTIME_ID, "claude-code");
 
     const removePlan = await integration.prepare("claude-code", "remove");
     assert.equal(removePlan.status, "ready");
@@ -358,7 +358,7 @@ test("Claude Code connection and removal preserve unrelated JSON and other MCP s
     const afterRemove = JSON.parse(await readFile(config, "utf8")) as Record<string, any>;
     assert.equal(afterRemove.privateNote, "KEEP-CLAUDE");
     assert.equal(afterRemove.mcpServers.other.command, "other-mcp");
-    assert.equal(afterRemove.mcpServers.goalboard, undefined);
+    assert.equal(afterRemove.mcpServers["molis-work"], undefined);
     assert.equal(await pathMissing(join(fixture.userHome, ".claude", "skills", "goal-advance")), true);
     assert.equal(await pathMissing(join(fixture.home, "runtime-integrations", "claude-code.json")), true);
     const replay = await integration.confirm({
@@ -370,7 +370,7 @@ test("Claude Code connection and removal preserve unrelated JSON and other MCP s
   });
 });
 
-test("removal refuses to delete GoalBoard entries or Skill links changed after connection", async () => {
+test("removal refuses to delete Molis Work entries or Skill links changed after connection", async () => {
   await withFixture(async (fixture) => {
     const config = join(fixture.userHome, ".claude.json");
     await writeFile(config, '{"mcpServers":{}}\n');
@@ -383,7 +383,7 @@ test("removal refuses to delete GoalBoard entries or Skill links changed after c
     })).status, "connected");
 
     const changed = JSON.parse(await readFile(config, "utf8")) as Record<string, any>;
-    changed.mcpServers.goalboard.args = ["--user-change"];
+    changed.mcpServers["molis-work"].args = ["--user-change"];
     await writeFile(config, `${JSON.stringify(changed)}\n`);
     const skill = join(fixture.userHome, ".claude", "skills", "goal-advance");
     await rm(skill);
@@ -439,9 +439,9 @@ test("OpenCode, Pi Agent, and Grok Build write official MCP and Skill locations"
     };
     assert.equal(opencode.model, "keep-opencode");
     assert.deepEqual(opencode.mcp.other.command, ["keep-me"]);
-    assert.equal(opencode.mcp.goalboard.type, "local");
-    assert.deepEqual(opencode.mcp.goalboard.command, [fixture.launcher]);
-    assert.equal(opencode.mcp.goalboard.environment?.GOALBOARD_RUNTIME_ID, "opencode");
+    assert.equal(opencode.mcp["molis-work"].type, "local");
+    assert.deepEqual(opencode.mcp["molis-work"].command, [fixture.launcher]);
+    assert.equal(opencode.mcp["molis-work"].environment?.MOLIS_WORK_RUNTIME_ID, "opencode");
     assert.equal(await readlink(join(fixture.userHome, ".config", "opencode", "skills", "goal-advance")), fixture.skillSource);
 
     const pi = JSON.parse(await readFile(piConfig, "utf8")) as {
@@ -450,23 +450,23 @@ test("OpenCode, Pi Agent, and Grok Build write official MCP and Skill locations"
     };
     assert.equal(pi.settings.toolPrefix, "mcp");
     assert.equal(pi.mcpServers.other.command, "keep-pi");
-    assert.equal(pi.mcpServers.goalboard.command, fixture.launcher);
-    assert.equal(pi.mcpServers.goalboard.env?.GOALBOARD_RUNTIME_ID, "pi-agent");
-    assert.equal(pi.mcpServers.goalboard.lifecycle, "eager");
+    assert.equal(pi.mcpServers["molis-work"].command, fixture.launcher);
+    assert.equal(pi.mcpServers["molis-work"].env?.MOLIS_WORK_RUNTIME_ID, "pi-agent");
+    assert.equal(pi.mcpServers["molis-work"].lifecycle, "eager");
     assert.equal(await readlink(join(fixture.userHome, ".pi", "agent", "skills", "goal-advance")), fixture.skillSource);
 
     const grok = await readFile(grokConfig, "utf8");
     assert.match(grok, /model = "keep-grok"/);
     assert.match(grok, /\[mcp_servers\.other\][\s\S]*command = "keep-grok"/);
-    assert.match(grok, /\[mcp_servers\.goalboard\]/);
-    assert.match(grok, /GOALBOARD_RUNTIME_ID = "grok-build"/);
+    assert.match(grok, /\[mcp_servers\.molis-work\]/);
+    assert.match(grok, /MOLIS_WORK_RUNTIME_ID = "grok-build"/);
     assert.equal(await readlink(join(fixture.userHome, ".grok", "skills", "goal-advance")), fixture.skillSource);
   });
 });
 
 test("Runtime host keeps Session identity independent from the canonical workspace", () => {
   const codex = runtimeContextHostFromEnvironment({
-    GOALBOARD_RUNTIME_ID: "codex",
+    MOLIS_WORK_RUNTIME_ID: "codex",
     CODEX_THREAD_ID: "codex-thread-123",
     PWD: "/workspace/alpha",
   }, "/fallback");
@@ -479,7 +479,7 @@ test("Runtime host keeps Session identity independent from the canonical workspa
   assert.deepEqual(codex?.projectSuggestionClues, [{ kind: "workspace", value: "/workspace/alpha" }]);
 
   const claude = runtimeContextHostFromEnvironment({
-    GOALBOARD_RUNTIME_ID: "claude-code",
+    MOLIS_WORK_RUNTIME_ID: "claude-code",
     CLAUDE_CODE_SESSION_ID: "claude-session-456",
     CLAUDE_CODE_SESSION_NAME: "Alpha launch",
   }, "/workspace/beta");
@@ -490,23 +490,40 @@ test("Runtime host keeps Session identity independent from the canonical workspa
   ]);
 
   const explicit = runtimeContextHostFromEnvironment({
-    GOALBOARD_RUNTIME_ID: "codex",
-    GOALBOARD_WORK_CONTEXT_ID: "explicit-id",
-    GOALBOARD_WORK_CONTEXT_STABLE: "true",
+    MOLIS_WORK_RUNTIME_ID: "codex",
+    MOLIS_WORK_WORK_CONTEXT_ID: "explicit-id",
+    MOLIS_WORK_WORK_CONTEXT_STABLE: "true",
     CODEX_THREAD_ID: "ignored-thread",
   }, "/workspace/gamma");
   assert.equal(explicit?.runtimeContext.stable_work_context_id, "explicit-id");
 
   // Hosts that do not inject a Session ID still provide a separate workspace;
-  // GoalBoard must not turn that directory into a fake machine-wide Session.
-  const unknown = runtimeContextHostFromEnvironment({ GOALBOARD_RUNTIME_ID: "some-runtime" }, "/workspace/delta");
+  // Molis Work must not turn that directory into a fake machine-wide Session.
+  const unknown = runtimeContextHostFromEnvironment({ MOLIS_WORK_RUNTIME_ID: "some-runtime" }, "/workspace/delta");
   assert.equal(unknown?.runtimeContext.stable_work_context_id, null);
   assert.equal(unknown?.runtimeContext.host_declares_stable, false);
   assert.equal(unknown?.runtimeContext.workspace?.canonical_path, "/workspace/delta");
   assert.deepEqual(unknown?.projectSuggestionClues, [{ kind: "workspace", value: "/workspace/delta" }]);
 
-  const codexFallback = runtimeContextHostFromEnvironment({
+  const legacyEnv = runtimeContextHostFromEnvironment({
     GOALBOARD_RUNTIME_ID: "codex",
+    GOALBOARD_HOME: "/tmp/legacy-home",
+    GOALBOARD_WEB_URL: "http://127.0.0.1:4173",
+    CODEX_THREAD_ID: "legacy-thread",
+  }, "/workspace/legacy");
+  assert.equal(legacyEnv?.homeDirectory, "/tmp/legacy-home");
+  assert.equal(legacyEnv?.webBaseUrl, "http://127.0.0.1:4173");
+  assert.equal(legacyEnv?.runtimeContext.runtime_id, "codex");
+  assert.equal(legacyEnv?.runtimeContext.stable_work_context_id, "legacy-thread");
+
+  const nextEnvWins = runtimeContextHostFromEnvironment({
+    MOLIS_WORK_RUNTIME_ID: "claude-code",
+    GOALBOARD_RUNTIME_ID: "codex",
+  }, "/workspace/next");
+  assert.equal(nextEnvWins?.runtimeContext.runtime_id, "claude-code");
+
+  const codexFallback = runtimeContextHostFromEnvironment({
+    MOLIS_WORK_RUNTIME_ID: "codex",
     PWD: "/workspace/epsilon",
   }, "/fallback");
   assert.equal(codexFallback?.runtimeContext.stable_work_context_id, null);
@@ -516,7 +533,7 @@ test("Runtime host keeps Session identity independent from the canonical workspa
 
   // No runtime ID and no usable workspace still means no identity at all.
   assert.equal(runtimeContextHostFromEnvironment({}, "/workspace/epsilon"), null);
-  const noWorkspace = runtimeContextHostFromEnvironment({ GOALBOARD_RUNTIME_ID: "codex" }, "");
+  const noWorkspace = runtimeContextHostFromEnvironment({ MOLIS_WORK_RUNTIME_ID: "codex" }, "");
   assert.equal(noWorkspace?.runtimeContext.stable_work_context_id, null);
   assert.equal(noWorkspace?.runtimeContext.host_declares_stable, false);
   assert.equal(noWorkspace?.runtimeContext.workspace, null);

@@ -2,7 +2,7 @@ import type {
   GoalEventTimelineItem,
   GoalReportWorkEventRecord,
   GoalWorkEventRecord,
-} from "@adeptify/goalboard-contracts/modules/goals";
+} from "@molis-ai/molis-work-contracts/modules/goals";
 import type { GoalEventFactsRepository, StoredWorkEvent } from "./event-facts-repository.js";
 import { configurationPayload } from "./event-facts-config.js";
 import { ownStringRecord } from "./event-facts-validation.js";

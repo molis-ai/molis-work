@@ -6,7 +6,7 @@ name: "软件开发"
 summary: "先用项目与模块 SSOT 固定边界，再按横纵模块、实现、集成和交付组织软件工作。"
 applies_to: ["应用开发","服务开发","工程改造"]
 domain_tags: ["software","engineering","app"]
-source_refs: ["GoalBoard engineering protocol","User-confirmed SSOT decomposition requirement (2026-08-28)"]
+source_refs: ["Molis Work engineering protocol","User-confirmed SSOT decomposition requirement (2026-08-28)"]
 confidence: 0.96
 ---
 

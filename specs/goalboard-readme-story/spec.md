@@ -1,4 +1,4 @@
-# GoalBoard README 叙事与截图编排
+# Molis Work README 叙事与截图编排
 
 ## 完成等级
 
@@ -8,7 +8,7 @@
 
 当前 README 已覆盖功能，但以能力清单为主，篇幅偏长，读者需要自行拼出产品解决的问题、与 Agent Orchestration 的边界及完整工作闭环。
 
-新版 README 要在较短篇幅内回答：长程任务为什么会跑偏、GoalBoard 的核心机制是什么、如何与 Runtime/Harness 配合、用户如何从 Goal 走到有依据的完成。
+新版 README 要在较短篇幅内回答：长程任务为什么会跑偏、Molis Work 的核心机制是什么、如何与 Runtime/Harness 配合、用户如何从 Goal 走到有依据的完成。
 
 ## 范围
 
@@ -19,7 +19,7 @@
 ## 非目标
 
 - 不改变任何功能、领域模型、状态机、权限或 Runtime/TUI 契约。
-- 不把 GoalBoard 描述成 Agent Orchestration、模型或 Harness。
+- 不把 Molis Work 描述成 Agent Orchestration、模型或 Harness。
 - 不承诺尚未提供的正式安装包、云服务或协作能力。
 
 ## 内容结构

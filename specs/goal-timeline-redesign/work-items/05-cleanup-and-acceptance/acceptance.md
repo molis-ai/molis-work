@@ -21,6 +21,6 @@
 
 本项无阻塞验收项。独立视觉审查的三项 P2 保留为后续细节：390px 风险标签换行、草稿辅助入口与因素阅读区相邻、阅读器滚动条主题；不影响本次读写与阅读路径。未运行安装/发布、真实用户项目迁移、真人长期试用与代表任务性能对比，因此不宣称可发布或调用/token 收益。
 
-诊断日志和隔离浏览器脚本位于 `/private/tmp/goalboard-grok/`。全仓命令为 `env -u FORCE_COLOR NODE_NO_WARNINGS=1 node --import tsx --test --test-concurrency=1 tests/*.test.ts`；这里只隔离测试进程的 Node 警告与颜色环境，没有放宽业务断言。
+诊断日志和隔离浏览器脚本位于 `/private/tmp/molis-work-grok/`。全仓命令为 `env -u FORCE_COLOR NODE_NO_WARNINGS=1 node --import tsx --test --test-concurrency=1 tests/*.test.ts`；这里只隔离测试进程的 Node 警告与颜色环境，没有放宽业务断言。
 
 本次本地试用：[配置好的目标](http://127.0.0.1:49797/goals/goal-4facb41b-7ac0-41d4-bbd6-588f4a5fec2a)、[空白目标](http://127.0.0.1:49797/goals/goal-09869bf1-26fa-4ca7-8a99-e7f8677f5d95)。这是开发会话的临时服务，不是已安装或已发布的应用。

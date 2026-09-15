@@ -4,12 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import Database from "better-sqlite3";
-import { PluginRuntime, PluginRuntimeError, SqlitePluginPrivateStorage } from "@adeptify/goalboard-plugin-runtime";
-import { createGithubIntegrationPlugin } from "@adeptify/goalboard-integration-github";
-import type { PluginPrivateStorage, PluginDefinition } from "@adeptify/goalboard-contracts/platform/plugin";
+import { PluginRuntime, PluginRuntimeError, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
+import { createGithubIntegrationPlugin } from "@molis-ai/molis-work-integration-github";
+import type { PluginPrivateStorage, PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 test("Plugin private storage persists opaque values, isolates signatures and rejects revoked or missing grants", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-plugin-private-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-plugin-private-"));
   const file = join(directory, "private.db");
   let db = new Database(file);
   let owner = new SqlitePluginPrivateStorage(db);

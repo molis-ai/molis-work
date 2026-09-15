@@ -11,7 +11,7 @@ import type {
   ArtifactVersionResult,
   MarkArtifactUnavailableInput,
   RegisterArtifactVersionInput,
-} from "@adeptify/goalboard-contracts/modules/artifacts";
+} from "@molis-ai/molis-work-contracts/modules/artifacts";
 
 import {
   artifactContentDigest,

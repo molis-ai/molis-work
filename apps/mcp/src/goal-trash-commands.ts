@@ -1,6 +1,6 @@
-import type { AsyncApplicationMethods } from "@adeptify/goalboard-contracts/platform/app-host";
-import type { GoalTrashResult } from "@adeptify/goalboard-contracts/modules/goals";
-import type { GoalEntryCompositionApi, GoalTrashPlacementView } from "@adeptify/goalboard-plugin-goals";
+import type { AsyncApplicationMethods } from "@molis-ai/molis-work-contracts/platform/app-host";
+import type { GoalTrashResult } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalEntryCompositionApi, GoalTrashPlacementView } from "@molis-ai/molis-work-plugin-goals";
 import type { McpPresentationErrorFactory } from "./query-presentation.js";
 
 /** Only adapts the user's request and the owner's result; the lifecycle owns all transitions. */
@@ -41,8 +41,8 @@ export function createMcpGoalTrashHandlers(
     return presentGoalTrashResult(result, work_state);
   }
   return {
-    goalboard_v1_goal_trash: (args: Record<string, unknown>) => setTrashed(args, true),
-    goalboard_v1_goal_restore: (args: Record<string, unknown>) => setTrashed(args, false),
+    molis_work_v1_goal_trash: (args: Record<string, unknown>) => setTrashed(args, true),
+    molis_work_v1_goal_restore: (args: Record<string, unknown>) => setTrashed(args, false),
   };
 }
 

@@ -1,4 +1,4 @@
-import type { PlanningMethodPack } from "@adeptify/goalboard-contracts/modules/goals";
+import type { PlanningMethodPack } from "@molis-ai/molis-work-contracts/modules/goals";
 
 export type GoalsPlanningRoute =
   | { kind: "library" }

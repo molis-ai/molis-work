@@ -1,12 +1,12 @@
 [package]
-name = "goalboard-desktop"
+name = "molis-work-desktop"
 version = "0.2.0"
-description = "GoalBoard macOS App: WebView plus local TUI PTY"
+description = "Molis Work macOS App: WebView plus local TUI PTY"
 edition = "2021"
 rust-version = "1.77"
 
 [[bin]]
-name = "goalboard-desktop"
+name = "molis-work-desktop"
 path = "../adapters/tauri/src/main.rs"
 
 [build-dependencies]

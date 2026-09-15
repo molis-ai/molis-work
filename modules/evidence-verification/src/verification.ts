@@ -4,7 +4,7 @@ import type {
   EvidenceProjectReferenceSource,
   EvidenceReviewReference,
   EvidenceCorrectionRecord,
-} from "@adeptify/goalboard-contracts/modules/evidence-verification";
+} from "@molis-ai/molis-work-contracts/modules/evidence-verification";
 
 import { EvidenceRepository } from "./repository.js";
 

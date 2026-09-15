@@ -8,16 +8,16 @@ import { importV3Capability, projectResumeFactsCapability, trashedGoalsCapabilit
   recordGoalProgressCapability, applyGoalConcernCapability, requestGoalDecisionCapability,
   citeGoalDecisionCapability, recordGoalUserDecisionCapability, setGoalEventAgreementCapability,
   submitGoalEventClosureCapability, resumeGoalEventWorkCapability,
-  recordGoalNoteCapability } from "@adeptify/goalboard-plugin-goals";
-import { pluginDevelopmentCapability } from "@adeptify/goalboard-contracts/platform/tooling";
-import { SqlitePluginRuntimeRepository, SqlitePluginPrivateStorage } from "@adeptify/goalboard-plugin-runtime";
-import { UiHost } from "@adeptify/goalboard-ui-host";
+  recordGoalNoteCapability } from "@molis-ai/molis-work-plugin-goals";
+import { pluginDevelopmentCapability } from "@molis-ai/molis-work-contracts/platform/tooling";
+import { SqlitePluginRuntimeRepository, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
+import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { runPluginDevelopment } from "./plugin-development.js";
 import { importV3Board } from "./board-v3-import.js";
 import type { LocalHost } from "./local-host.js";
-import type { GoalBoardProjectRuntime } from "./project-host.js";
+import type { MolisWorkProjectRuntime } from "./project-host.js";
 
-export function registerProjectCapabilities(host: LocalHost<GoalBoardProjectRuntime>): void {
+export function registerProjectCapabilities(host: LocalHost<MolisWorkProjectRuntime>): void {
   host.register(pluginDevelopmentCapability, async (runtime, input) => {
     runtime.coordinator.initializeBoard({ board_id: input.board_id, title: "Plugin Development",
       actor_id: input.actor_id, idempotency_key: "plugin-development-board" });

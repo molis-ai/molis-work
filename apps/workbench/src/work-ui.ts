@@ -1,6 +1,6 @@
-import type { UiHostApi, UiSlotDescriptor } from "@adeptify/goalboard-contracts/platform/ui";
-import type { WorkUiModel } from "@adeptify/goalboard-plugin-work";
-import { WORK_UI_CONTRIBUTION_ID, type WorkUiSurface, type ProjectOperationsProject, type ProjectOperationsData, type ProjectOperationsSlice } from "@adeptify/goalboard-plugin-work";
+import type { UiHostApi, UiSlotDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { WorkUiModel } from "@molis-ai/molis-work-plugin-work";
+import { WORK_UI_CONTRIBUTION_ID, type WorkUiSurface, type ProjectOperationsProject, type ProjectOperationsData, type ProjectOperationsSlice } from "@molis-ai/molis-work-plugin-work";
 
 /** Keep placement in the Workbench while all Session presentation belongs to Work. */
 export function createWorkSessionRenderer(

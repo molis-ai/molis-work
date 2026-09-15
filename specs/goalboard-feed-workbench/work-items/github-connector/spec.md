@@ -1,6 +1,6 @@
 # GitHub 通知来源
 
-GoalBoard Goal：`goal-infoflow-github-connector`
+Molis Work Goal：`goal-infoflow-github-connector`
 
 完成等级：4（真实 GitHub 通知来源达到内部完整；不包含 GitHub 写操作或 Gmail/RSS）
 
@@ -8,14 +8,14 @@ GoalBoard Goal：`goal-infoflow-github-connector`
 
 现有 `src/feed/connectors/github.ts` 使用 `/issues?filter=all`，它返回 Issue/PR 搜索结果，不是账号通知；adapter 忽略传入 cursor，也没有保存仓库、通知原因、Provider 更新时间、`Last-Modified` 或 `X-Poll-Interval`。账号来源虽然能保存 Token，但首次真实同步前只显示“已连接账号”，无法证明具体身份和实际授权范围。
 
-2026-08-30 对 GitHub 官方文档重新核对后确认：账号通知端点 `GET /notifications` 只支持 classic PAT，要求 `notifications` 或 `repo` scope，不支持 fine-grained PAT、GitHub App user token 或 installation token。`notifications` 是该端点的最小 scope，但 GitHub 同时赋予标记已读和订阅管理能力；GoalBoard 必须在界面明确这个 Provider 权限事实，并在代码层只调用 GET。官方文档：
+2026-08-30 对 GitHub 官方文档重新核对后确认：账号通知端点 `GET /notifications` 只支持 classic PAT，要求 `notifications` 或 `repo` scope，不支持 fine-grained PAT、GitHub App user token 或 installation token。`notifications` 是该端点的最小 scope，但 GitHub 同时赋予标记已读和订阅管理能力；Molis Work 必须在界面明确这个 Provider 权限事实，并在代码层只调用 GET。官方文档：
 
 - <https://docs.github.com/en/rest/activity/notifications>
 - <https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/scopes-for-oauth-apps>
 
 ## 目标与用户场景
 
-用户可以连接 classic PAT，或通过 OAuth App Device Flow 授权 `notifications read:user`；完成一次真实同步后，来源详情显示 GitHub 登录名、实际 scope 和“GoalBoard 只读调用”的边界。未读通知增量进入统一 Feed，直接需要用户响应的通知才形成 InboxEntry。
+用户可以连接 classic PAT，或通过 OAuth App Device Flow 授权 `notifications read:user`；完成一次真实同步后，来源详情显示 GitHub 登录名、实际 scope 和“Molis Work 只读调用”的边界。未读通知增量进入统一 Feed，直接需要用户响应的通知才形成 InboxEntry。
 
 ## 范围
 
@@ -49,7 +49,7 @@ GoalBoard Goal：`goal-infoflow-github-connector`
   - 原子写入 FeedItem、可选 InboxEntry、可信 cursor、账号/授权非秘密元数据和 SyncRun。
   - 失败不推进 cursor；限流只调整下一次计划，不生成需人工处理的 source_fault。
 - `src/feed/connectors/github-oauth.ts`、`src/feed/contract.ts`
-  - Device Flow 默认 `notifications read:user`；契约说明 classic PAT 限制和 GoalBoard 只读调用边界。
+  - Device Flow 默认 `notifications read:user`；契约说明 classic PAT 限制和 Molis Work 只读调用边界。
 - `src/web/render.ts`
   - 连接 UI 与来源详情如实展示权限限制、账号身份、scope 和恢复状态。
 

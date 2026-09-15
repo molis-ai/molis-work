@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import type { GoalsQueryApi } from "@adeptify/goalboard-contracts/modules/goals";
-import type { GovernanceQueryApi, GoalTreeProposalItemRecord, ProposalAffectedObject, ProposalObjectVersion } from "@adeptify/goalboard-contracts/modules/governance-collaboration";
+import type { GoalsQueryApi } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GovernanceQueryApi, GoalTreeProposalItemRecord, ProposalAffectedObject, ProposalObjectVersion } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 
 type ItemChange = Pick<GoalTreeProposalItemRecord, "kind" | "operation">;
 

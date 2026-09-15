@@ -1,6 +1,6 @@
-import type { UiHostApi, UiSlotDescriptor } from "@adeptify/goalboard-contracts/platform/ui";
-import type { GoalsProjectPolicyArguments } from "@adeptify/goalboard-plugin-goals";
-import { GOALS_POLICY_UI_CONTRIBUTION_ID, type GoalsPolicyUiPrimitives, type GoalsPolicyFormArguments, type GoalsPolicyEditorArguments, type GoalsPolicyCheckSummaryArguments } from "@adeptify/goalboard-plugin-goals";
+import type { UiHostApi, UiSlotDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { GoalsProjectPolicyArguments } from "@molis-ai/molis-work-plugin-goals";
+import { GOALS_POLICY_UI_CONTRIBUTION_ID, type GoalsPolicyUiPrimitives, type GoalsPolicyFormArguments, type GoalsPolicyEditorArguments, type GoalsPolicyCheckSummaryArguments } from "@molis-ai/molis-work-plugin-goals";
 
 /** Workbench mounts the official Plugin; it owns no form markup or policy rules. */
 export function createGoalsPolicyWorkbenchRenderer(host: UiHostApi, slot: UiSlotDescriptor) {

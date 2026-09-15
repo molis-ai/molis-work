@@ -20,13 +20,13 @@ export interface PluginDevelopmentResult {
   rendered_ui: Array<{ contribution_id: string; surface: string; html: string }>;
 }
 export const pluginDevelopmentCapability = {
-  capability_id: "io.goalboard.local-host.plugin.development",
+  capability_id: "io.molis.work.local-host.plugin.development",
   version: 1,
   operation: "command",
 } as HostCapabilityDefinition<PluginDevelopmentInput, PluginDevelopmentResult>;
 
 export const platformToolingContract = {
-  contractId: "io.goalboard.platform.tooling.v1",
+  contractId: "io.molis.work.platform.tooling.v1",
   kind: "platform",
   schemaVersion: 1,
   maturity: "contract-only",

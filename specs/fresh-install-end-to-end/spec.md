@@ -4,19 +4,19 @@
 
 前六个 Work Item 已完成安装核心、Runtime 接入、Web 设置、Session 管理、安全门禁和统一 Skill。现有测试大多从仓库源码或 fixture source 运行，尚未证明用户拿到 npm tarball 后，在没有仓库源码路径的环境里能完成首次使用、重启恢复、升级和移除。
 
-本 Work Item 从真实 pack 产物构造隔离的 npm 安装布局，安装到全新 GoalBoard home，删除安装包及其外部依赖后，分别走 Web 与 Runtime MCP 首次使用路径，并验证 README、诊断、升级和 Runtime 接入移除。
+本 Work Item 从真实 pack 产物构造隔离的 npm 安装布局，安装到全新 Molis Work home，删除安装包及其外部依赖后，分别走 Web 与 Runtime MCP 首次使用路径，并验证 README、诊断、升级和 Runtime 接入移除。
 
 ## 当前行为与问题证据
 
 - `pnpm pack --dry-run` 的 tarball 不包含 `node_modules`，这是 npm 包的正常行为。
-- `installGoalBoardHome` 当前硬要求 `sourceDirectory/node_modules` 并整体复制；从仓库运行可用，但从标准 npm 安装布局运行时，依赖通常在包目录的祖先 `node_modules`，会报 `source.asset_missing`。
+- `installMolisWorkHome` 当前硬要求 `sourceDirectory/node_modules` 并整体复制；从仓库运行可用，但从标准 npm 安装布局运行时，依赖通常在包目录的祖先 `node_modules`，会报 `source.asset_missing`。
 - 安装单测使用自建 source fixture 且显式创建 `source/node_modules`，没有覆盖发行包布局。
 - 各领域流程已有独立测试，但没有一条测试在安装包目录被删除后同时启动 CLI、MCP 和 Web，并走首次项目/Session/Draft 流程。
 
 ## 范围
 
 - 安装器从 package.json 的 production `dependencies` / 可用 `optionalDependencies` 解析递归运行时依赖闭包，不依赖包目录下固定存在 `node_modules`。
-- 将依赖包内容平铺复制进 GoalBoard release 的私有 `node_modules`，不复制宿主项目的无关依赖，不保留指向安装源的符号链接。
+- 将依赖包内容平铺复制进 Molis Work release 的私有 `node_modules`，不复制宿主项目的无关依赖，不保留指向安装源的符号链接。
 - 保持 fixture 与 pnpm workspace 安装可用；缺少声明的必需依赖时明确失败。
 - 新增真实 tarball E2E：打包、隔离 npm 布局、全新 home 安装、删除安装源、CLI/MCP/Web 启动。
 - Web 路径：诊断、Runtime plan/confirm、项目创建或旧 DB 迁移；确认前零配置写入。
@@ -33,18 +33,18 @@
 
 ## 用户场景
 
-1. 用户安装 npm 包并运行 `goalboard install`：只写临时 `~/.goalboard`，不创建项目、不改 Runtime 配置。
+1. 用户安装 npm 包并运行 `molis-work install`：只写临时 `~/.molis-work`，不创建项目、不改 Runtime 配置。
 2. 用户打开 Web：诊断显示完整；Runtime 接入先预览，确认后才写 fake Codex 配置和 Skill，之后可安全移除。
 3. 用户在 Web 创建/迁入项目，或在当前 Runtime Skill 中选择项目；两条入口写入同一 catalog。
 4. 新 Runtime Session 未确认前不绑定；确认后可创建 Draft 并持久化澄清，MCP 重启后仍解析同一项目。
-5. 安装包目录被删除或版本升级后，三个 launchers 仍从 GoalBoard 私有 release 运行。
+5. 安装包目录被删除或版本升级后，三个 launchers 仍从 Molis Work 私有 release 运行。
 
 ## 方案与关键决策
 
 - `inspectSource` 读取生产依赖声明，并通过 Node resolution 从标准 npm/pnpm 布局找到每个 package root。
 - 递归收集 dependency/optionalDependency 闭包；必需 dependency 解析失败即中止，optional 缺失可跳过。peer dependency 不自动纳入，除非同时由生产依赖闭包实际声明/安装。
 - 每个 package 复制到 release `node_modules/<name>`，使用 `dereference=true` 消除 pnpm/source symlink；同名 package 版本冲突若出现则明确失败，不静默覆盖。当前生产闭包应能平铺。
-- E2E 使用真实 tarball 的 GoalBoard package 内容，并把当前 workspace 已安装的直接生产依赖放在祖先 `node_modules`，模拟标准 npm hoist；安装完成后删除整棵安装源。
+- E2E 使用真实 tarball 的 Molis Work package 内容，并把当前 workspace 已安装的直接生产依赖放在祖先 `node_modules`，模拟标准 npm hoist；安装完成后删除整棵安装源。
 - Web 测试读取同源页面 token 并按正式 header 门禁调用，不使用测试专用绕过。
 
 ## 输入、输出与依赖

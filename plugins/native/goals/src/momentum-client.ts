@@ -14,9 +14,10 @@ export const GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT = `(host) => {
     let pendingView = null;
     let graphSelected = "";
     const selectGraphNode = (id) => { graphSelected = id; view.drawGoalGraph(); queueSave(); };
-    const splitKey = "goalboard-goal-workspace-split:" + (host.projectId || route("/"));
+    const splitScope = host.projectId || route("/");
+    const splitKey = "molis-work-goal-workspace-split:" + splitScope;
     let shares = {};
-    try { shares = JSON.parse(localStorage.getItem(splitKey) || "{}"); } catch {}
+    try { shares = JSON.parse(localStorage.getItem(splitKey) || localStorage.getItem("goalboard-goal-workspace-split:" + splitScope) || "{}"); } catch {}
     const setShare = (value, persist = false) => {
       if (!workbench || !divider) return;
       const width = workbench.clientWidth;
@@ -36,11 +37,15 @@ export const GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT = `(host) => {
     const view = (${GOALS_MOMENTUM_VIEWPORT_FACTORY_SCRIPT})({ graphElement, getSelected: () => expanded ? getSelected() : graphSelected, isExpanded: () => expanded, queueSave, openGoal: (id) => selectGoal(id), selectNode: selectGraphNode });
     const syncGoalWorkspace = (mode, active) => {
       if (!shell || !frame) return;
+      const graph = graphElement();
+      const showCanvas = active && !host.isFrameTabActive?.();
       shell.dataset.goalActive = String(active);
-      shell.hidden = !active;
-      if (!active) {
+      shell.hidden = !showCanvas;
+      if (!showCanvas) {
         frame.hidden = true;
-        graphElement()?.setAttribute("hidden", "");
+        graph?.setAttribute("hidden", "");
+        if (active && graph?.dataset.loaded !== "true") void loadGoalGraph();
+        else if (active) view.layout();
         return;
       }
       const nextExpanded = mode !== "graph" && Boolean(getSelected());
@@ -49,7 +54,6 @@ export const GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT = `(host) => {
       frame.hidden = !expanded;
       frame.dataset.expandedGoal = expanded ? getSelected() : "";
       shell.dataset.expanded = String(expanded);
-      const graph = graphElement();
       if (graph) { graph.hidden = false; graph.toggleAttribute("inert", expanded); }
       setShare(shares[getSelected()] ?? .7);
       if (graph?.dataset.loaded !== "true") void loadGoalGraph();
@@ -130,8 +134,16 @@ export const GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT = `(host) => {
       rememberMomentumGoal: () => { if (expanded) { view.focusGoal(); setShare(shares[getSelected()] ?? .7); } },
       scheduleGoalGraphLayout: () => requestAnimationFrame(() => view.layout()),
       restoreGoalGraphViewport: () => view.layout(),
+      locateGraphNode: (id) => { selectGraphNode(id); view.centerGoal(); },
       handleMomentumNavigationClick: (target) => { if (!target.closest("[data-retry-goal-momentum]")) return false; void loadGoalGraph(true); return true; },
-      handleMomentumSelectionClick: (target) => { const node = target.closest("[data-momentum-node]"); if (!node) return false; if (target.closest("[data-graph-open]")) void selectGoal(node.dataset.goalId); else selectGraphNode(node.dataset.goalId); return true; },
+      handleMomentumSelectionClick: (target) => {
+        const node = target.closest("[data-momentum-node]");
+        if (!node) return false;
+        if (target.closest("[data-graph-frame]")) { host.openFrame?.(node.dataset.goalId); return true; }
+        if (target.closest("[data-graph-open]")) void selectGoal(node.dataset.goalId);
+        else selectGraphNode(node.dataset.goalId);
+        return true;
+      },
       handleMomentumZoomClick: (target) => {
         const button = target.closest("[data-graph-zoom]");
         if (!button) return false;

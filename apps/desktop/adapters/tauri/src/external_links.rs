@@ -15,7 +15,7 @@ fn validated_external_url(value: &str) -> Result<Url, String> {
     Ok(url)
 }
 
-/// The main-window capability permits this command only from GoalBoard's local host.
+/// The main-window capability permits this command only from Molis Work's local host.
 #[tauri::command]
 pub fn open_external_url(url: String) -> Result<(), String> {
     let url = validated_external_url(&url)?;

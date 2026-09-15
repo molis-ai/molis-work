@@ -1,11 +1,11 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import type { ProjectsModule } from "@adeptify/goalboard-module-projects";
-import type { RuntimeProjectBindingValidation } from "@adeptify/goalboard-module-private-work-context";
-import { GoalBoardProjectCatalogError } from "./project-catalog-contract.js";
+import type { ProjectsModule } from "@molis-ai/molis-work-module-projects";
+import type { RuntimeProjectBindingValidation } from "@molis-ai/molis-work-module-private-work-context";
+import { MolisWorkProjectCatalogError } from "./project-catalog-contract.js";
 import { randomUUID } from "node:crypto";
-import type { StoredProjectDeletion } from "@adeptify/goalboard-module-projects";
-import type { DeleteProjectInput as DeleteGoalBoardProjectInput, ProjectDeletionResult as GoalBoardProjectDeletionResult, ProjectDeletionRecord as GoalBoardProjectDeletionRecord } from "@adeptify/goalboard-contracts/modules/projects";
+import type { StoredProjectDeletion } from "@molis-ai/molis-work-module-projects";
+import type { DeleteProjectInput as DeleteMolisWorkProjectInput, ProjectDeletionResult as MolisWorkProjectDeletionResult, ProjectDeletionRecord as MolisWorkProjectDeletionRecord } from "@molis-ai/molis-work-contracts/modules/projects";
 import { managedProjectDirectory } from "./project-file-paths.js";
 import { assertProjectHasNoActiveWork } from "./managed-project-database.js";
 export interface ProjectDeletionCleanupPorts {
@@ -17,20 +17,20 @@ export class ManagedProjectDeletion {
   constructor(private readonly projects: Pick<ProjectsModule, "query" | "lifecycle">,
     private readonly projectsDirectory: string, private readonly cleanup: ProjectDeletionCleanupPorts,
     private readonly validation: Pick<RuntimeProjectBindingValidation, "requiredActorId" | "requiredProjectId">) {}
-async deleteProject(input: DeleteGoalBoardProjectInput): Promise<GoalBoardProjectDeletionResult> {
+async deleteProject(input: DeleteMolisWorkProjectInput): Promise<MolisWorkProjectDeletionResult> {
     return this.deleteProjectInternal(input, false);
   }
 
 async deleteProjectInternal(
-    input: DeleteGoalBoardProjectInput,
+    input: DeleteMolisWorkProjectInput,
     allowActiveDemoWork: boolean,
-  ): Promise<GoalBoardProjectDeletionResult> {
+  ): Promise<MolisWorkProjectDeletionResult> {
     const projectId = this.validation.requiredProjectId(input.project_id);
     const actorId = this.validation.requiredActorId(input.actor_id);
     if (input.delete_confirmed !== true) {
-      throw new GoalBoardProjectCatalogError(
+      throw new MolisWorkProjectCatalogError(
         "catalog.delete_confirmation_required",
-        "删除 GoalBoard 项目及其数据库需要当前对话中的单独明确确认",
+        "删除 Molis Work 项目及其数据库需要当前对话中的单独明确确认",
       );
     }
     const idempotencyKey = requiredDeletionIdempotencyKey(input.idempotency_key);
@@ -38,7 +38,7 @@ async deleteProjectInternal(
     const replay = this.projects.lifecycle.findDeletion(actorId, idempotencyKey);
     if (replay) {
       if (replay.request_fingerprint !== requestFingerprint) {
-        throw new GoalBoardProjectCatalogError(
+        throw new MolisWorkProjectCatalogError(
           "catalog.deletion_idempotency_conflict",
           "同一个项目删除请求键不能用于不同的项目或删除确认",
         );
@@ -57,7 +57,7 @@ async deleteProjectInternal(
       const deletion = this.projects.lifecycle.transaction(() => {
         const racedReplay = this.projects.lifecycle.findDeletion(actorId, idempotencyKey);
         if (racedReplay) {
-          throw new GoalBoardProjectCatalogError(
+          throw new MolisWorkProjectCatalogError(
             "catalog.deletion_idempotency_conflict",
             "同一个项目删除请求正在或已经由另一个调用处理，请重新读取项目列表",
           );
@@ -96,7 +96,7 @@ async deleteProjectInternal(
     }
   }
 
-async finishProjectDeletionCleanup(record: StoredProjectDeletion): Promise<GoalBoardProjectDeletionRecord> {
+async finishProjectDeletionCleanup(record: StoredProjectDeletion): Promise<MolisWorkProjectDeletionRecord> {
     if (record.cleanup_state === "complete") return this.projects.lifecycle.deletionRecord(record);
     try {
       await fs.rm(record.staged_directory, { recursive: true, force: true });
@@ -120,7 +120,7 @@ async finishProjectDeletionCleanup(record: StoredProjectDeletion): Promise<GoalB
 function requiredDeletionIdempotencyKey(value: string): string {
   const key = value.trim();
   if (!key) {
-    throw new GoalBoardProjectCatalogError(
+    throw new MolisWorkProjectCatalogError(
       "catalog.deletion_idempotency_conflict",
       "删除项目需要幂等请求键",
     );

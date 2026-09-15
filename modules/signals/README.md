@@ -2,7 +2,7 @@
 
 接收 Provider Adapter 生成的 SignalDraft，保存去重身份、内容修订和来源信息，供 Feed 等下游消费。
 
-包名：`@adeptify/goalboard-module-signals`。工作区内部包，通过仓库构建和 Host 装配使用。
+包名：`@molis-ai/molis-work-module-signals`。工作区内部包，通过仓库构建和 Host 装配使用。
 
 ## 一次典型调用
 
@@ -29,8 +29,8 @@ Signals 不请求 Provider、不持有凭据，也不决定消息是否已读或
 以下命令在**仓库根目录**执行，使用 Node.js 24+ 与仓库配置的 pnpm。首次准备运行 `pnpm install --frozen-lockfile` 和 `pnpm build`；之后可单独检查此包。
 
 ```bash
-pnpm --filter @adeptify/goalboard-module-signals typecheck
-pnpm --filter @adeptify/goalboard-module-signals build
+pnpm --filter @molis-ai/molis-work-module-signals typecheck
+pnpm --filter @molis-ai/molis-work-module-signals build
 ```
 
 已有行为示例与回归：[feed-module-repositories.test.ts](../../tests/feed-module-repositories.test.ts)、[feed-receive-chain.test.ts](../../tests/feed-receive-chain.test.ts)。完成上述构建后运行：
@@ -47,7 +47,7 @@ node --import tsx --test --test-concurrency=1 tests/feed-module-repositories.tes
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
 - Status: `partial`
-- Contract entrypoint: `@adeptify/goalboard-contracts/modules/signals`
+- Contract entrypoint: `@molis-ai/molis-work-contracts/modules/signals`
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-fd1`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。

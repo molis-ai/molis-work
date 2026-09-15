@@ -2,7 +2,7 @@
 
 提供 Gmail OAuth、账户安装配置、历史游标与邮件 Provider，使授权邮件更新进入 Signal/Feed。
 
-包名：`@adeptify/goalboard-integration-gmail`。工作区内部包，通过仓库构建和 Host 装配使用。
+包名：`@molis-ai/molis-work-integration-gmail`。工作区内部包，通过仓库构建和 Host 装配使用。
 
 ## 一次典型调用
 
@@ -26,15 +26,15 @@ createGmailIntegrationPlugin 注册 Provider/Adapter；OAuth 处理配置、pend
 
 默认 scope、授权回调和 refresh token 规则见 oauth-types/scope 的实际定义。凭据不能写进 Source 或 Signal 正文；游标失效与授权过期是不同恢复路径。
 
-工作区依赖：`@adeptify/goalboard-contracts`、`@adeptify/goalboard-plugin-sdk`。其他运行依赖见 [package.json](package.json)。
+工作区依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`。其他运行依赖见 [package.json](package.json)。
 
 ## 本地开发
 
 以下命令在**仓库根目录**执行，使用 Node.js 24+ 与仓库配置的 pnpm。首次准备运行 `pnpm install --frozen-lockfile` 和 `pnpm build`；之后可单独检查此包。
 
 ```bash
-pnpm --filter @adeptify/goalboard-integration-gmail typecheck
-pnpm --filter @adeptify/goalboard-integration-gmail build
+pnpm --filter @molis-ai/molis-work-integration-gmail typecheck
+pnpm --filter @molis-ai/molis-work-integration-gmail build
 ```
 
 已有行为示例与回归：[gmail-oauth.test.ts](../../../tests/gmail-oauth.test.ts)、[feed-connectors.test.ts](../../../tests/feed-connectors.test.ts)。完成上述构建后运行：
@@ -51,7 +51,7 @@ node --import tsx --test --test-concurrency=1 tests/gmail-oauth.test.ts tests/fe
 - [架构与当前实现索引](../../../docs/SSOT-MATRIX.md)
 
 - Status: `partial`
-- Contract entrypoint: `@adeptify/goalboard-contracts/platform/plugin`
+- Contract entrypoint: `@molis-ai/molis-work-contracts/platform/plugin`
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-fd3`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "host_api_version": 1,
-  "plugin_id": "io.goalboard.example.notes",
+  "plugin_id": "io.molis.work.example.notes",
   "version": "1.0.0",
   "name": "Local Plugin Sample",
   "kind": "integration",
@@ -46,20 +46,20 @@
   "artifacts": {
     "produces": [
       {
-        "artifact_type_id": "io.goalboard.example.note",
+        "artifact_type_id": "io.molis.work.example.note",
         "schema_version": 1
       }
     ],
     "consumes": [
       {
-        "artifact_type_id": "io.goalboard.example.note",
+        "artifact_type_id": "io.molis.work.example.note",
         "schema_version": 1
       }
     ]
   },
   "ui": {
     "contributions": [
-      "io.goalboard.example.notes.main"
+      "io.molis.work.example.notes.main"
     ]
   }
 }

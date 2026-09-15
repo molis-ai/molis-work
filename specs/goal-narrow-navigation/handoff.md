@@ -38,20 +38,20 @@ Mobile selected underline `::after` bottom is `0` to match the 44px no-padding c
 First batch (already verified earlier; plugin code unchanged since then):
 
 ```
-pnpm --filter @adeptify/goalboard-plugin-goals build
-pnpm --filter @adeptify/goalboard-design-system build
-pnpm --filter @adeptify/goalboard-app-workbench build
+pnpm --filter @molis-ai/molis-work-plugin-goals build
+pnpm --filter @molis-ai/molis-work-design-system build
+pnpm --filter @molis-ai/molis-work-app-workbench build
 ```
 
 Final batch (this writer):
 
 ```
-pnpm --filter @adeptify/goalboard-design-system build
-pnpm --filter @adeptify/goalboard-app-workbench build
+pnpm --filter @molis-ai/molis-work-design-system build
+pnpm --filter @molis-ai/molis-work-app-workbench build
 node --import tsx --test --test-concurrency=1 tests/goals-narrow-navigation.e2e.test.ts tests/goals-navigation.e2e.test.ts tests/goals-momentum.e2e.test.ts
 ```
 
-Results (logs in `/private/tmp/goalboard-narrow-nav/`):
+Results (logs in `/private/tmp/molis-work-narrow-nav/`):
 
 - first batch: goals / design-system / workbench `tsc` exit 0; focused tests 10 pass, 0 fail, 0 skipped (~25s) in `focused-tests.log`
 - final design-system `tsc` exit 0 (`final-design-system-build.log`)
@@ -61,7 +61,7 @@ Results (logs in `/private/tmp/goalboard-narrow-nav/`):
   - narrow list, graph return, keyboard switch, desktop side-by-side, and 1440 graph → 390 keep usable geometry
   - existing Goal navigation and momentum tests
 
-Host serves `/assets/goalboard-workbench.css` and `.js` from `renderGoalBoardWorkbenchStylesheet` / `renderGoalBoardWorkbenchClientScript` on the rebuilt workbench package. Isolated e2e hits that renderer through the existing temp-database Chrome fixture.
+Host serves `/assets/molis-work-workbench.css` and `.js` from `renderMolisWorkWorkbenchStylesheet` / `renderMolisWorkWorkbenchClientScript` on the rebuilt workbench package. Isolated e2e hits that renderer through the existing temp-database Chrome fixture.
 
 ## Spec acceptance (this writer)
 

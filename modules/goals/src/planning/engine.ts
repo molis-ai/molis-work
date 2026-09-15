@@ -1,4 +1,4 @@
-import type { AddGoalRelationInput } from "@adeptify/goalboard-contracts/modules/goals";
+import type { AddGoalRelationInput } from "@molis-ai/molis-work-contracts/modules/goals";
 import { randomUUID } from "node:crypto";
 
 import type {
@@ -14,7 +14,7 @@ import type {
   PlanningRelationChange,
   ResolvedPlanningEventAdoption,
   SaveProjectPlanningMethodInput,
-} from "@adeptify/goalboard-contracts/modules/goals";
+} from "@molis-ai/molis-work-contracts/modules/goals";
 
 import { GoalsCommandContext } from "../command-support.js";
 import {

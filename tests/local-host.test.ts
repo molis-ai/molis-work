@@ -4,18 +4,18 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { LocalHost, LocalHostError } from "@adeptify/goalboard-app-local-host";
-import type { HostCapabilityDefinition } from "@adeptify/goalboard-contracts/platform/app-host";
-import { CapabilityRegistryError } from "@adeptify/goalboard-kernel";
+import { LocalHost, LocalHostError } from "@molis-ai/molis-work-app-local-host";
+import type { HostCapabilityDefinition } from "@molis-ai/molis-work-contracts/platform/app-host";
+import { CapabilityRegistryError } from "@molis-ai/molis-work-kernel";
 
 import {
-  createGoalBoardLocalHost,
+  createMolisWorkLocalHost,
   createGoalIntentCapability,
-  goalBoardHostProjectReference,
+  molisWorkHostProjectReference,
   snapshotBoardCapability,
-} from "@adeptify/goalboard-app-local-host";
-import { GoalBoardServer } from "../apps/desktop/launchers/mcp/server.js";
-import { runV1Cli } from "@adeptify/goalboard-app-local-host";
+} from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
+import { runV1Cli } from "@molis-ai/molis-work-app-local-host";
 
 test("Local Host discovers one runtime and serializes typed capabilities", async () => {
   const increment = {
@@ -80,10 +80,10 @@ async function captureCli(operation: () => Promise<number>): Promise<Record<stri
 }
 
 test("CLI snapshot, MCP intent, and Workbench-style client share one writer and recover after restart", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-local-host-"));
-  const databasePath = join(directory, "goalboard.db");
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-local-host-"));
+  const databasePath = join(directory, "molis-work.db");
   let openCount = 0;
-  const host = createGoalBoardLocalHost({
+  const host = createMolisWorkLocalHost({
     instanceId: "shared-entry-host",
     onRuntimeOpen: () => { openCount += 1; },
   });
@@ -97,7 +97,7 @@ test("CLI snapshot, MCP intent, and Workbench-style client share one writer and 
     actor_kind: "user" as const,
     idempotency_key: "shared-goal-command",
   };
-  const mcp = new GoalBoardServer("management", null, null, host);
+  const mcp = new MolisWorkServer("management", null, null, host);
   try {
     await captureCli(() => runV1Cli([
       "init",
@@ -114,12 +114,12 @@ test("CLI snapshot, MCP intent, and Workbench-style client share one writer and 
       /未知 V1 operation: create-goal/,
     );
 
-    const mcpCreated = JSON.parse(await mcp.callTool("goalboard_v1_goal_intent_create", {
+    const mcpCreated = JSON.parse(await mcp.callTool("molis_work_v1_goal_intent_create", {
       database_path: databasePath,
       ...intent,
     })) as { goal: { goal_id: string }; observed_event_cursor: number; replayed: boolean };
 
-    const reference = goalBoardHostProjectReference({ databasePath, boardId });
+    const reference = molisWorkHostProjectReference({ databasePath, boardId });
     const workbenchCreated = await host.client(reference).invoke(createGoalIntentCapability, intent);
     assert.equal(mcpCreated.goal.goal_id, "shared-entry-goal");
     assert.equal(workbenchCreated.replayed, true);
@@ -132,7 +132,7 @@ test("CLI snapshot, MCP intent, and Workbench-style client share one writer and 
     assert.deepEqual((snapshot.goals as { goal_id: string }[]).map((goal) => goal.goal_id), ["shared-entry-goal"]);
 
     await host.close();
-    const restarted = createGoalBoardLocalHost({ instanceId: "restarted-entry-host" });
+    const restarted = createMolisWorkLocalHost({ instanceId: "restarted-entry-host" });
     try {
       const restored = await restarted.client(reference).invoke(snapshotBoardCapability, { board_id: boardId });
       assert.deepEqual(restored.goals.map((goal) => goal.goal_id), ["shared-entry-goal"]);
@@ -150,12 +150,12 @@ test("legacy entrypoints no longer construct independent business stores", async
   const { readFile } = await import("node:fs/promises");
   for (const relativePath of ["../apps/local-host/src/web-request.ts", "../apps/local-host/src/mcp-server.ts", "../apps/local-host/src/cli-project.ts"]) {
     const source = await readFile(new URL(relativePath, import.meta.url), "utf8");
-    assert.doesNotMatch(source, /new\s+(?:SqliteGoalBoardStore|LocalProjectDatabase|GoalBoardCoordinator|GoalProjectApplication)\s*\(/u, relativePath);
-    assert.match(source, /GoalBoardLocalHost|localHost/u, relativePath);
+    assert.doesNotMatch(source, /new\s+(?:SqliteMolisWorkStore|LocalProjectDatabase|MolisWorkCoordinator|GoalProjectApplication)\s*\(/u, relativePath);
+    assert.match(source, /MolisWorkLocalHost|localHost/u, relativePath);
   }
   const mcpEntrypoint = await readFile(new URL("../apps/desktop/launchers/mcp/server.ts", import.meta.url), "utf8");
   assert.doesNotMatch(mcpEntrypoint, /new\s+(?:LocalProjectDatabase|GoalProjectApplication)|prepareLocalProjectStorage|callV1Tool|assertToolAllowed/u);
-  assert.match(mcpEntrypoint, /GoalBoardServer.*from "@adeptify\/goalboard-app-desktop"/u);
+  assert.match(mcpEntrypoint, /MolisWorkServer.*from "@molis-ai\/molis-work-app-desktop"/u);
   const composition = await readFile(new URL("../apps/local-host/src/project-host.ts", import.meta.url), "utf8");
   assert.match(composition, /new LocalProjectDatabase\(/u);
   assert.match(composition, /new GoalProjectApplication\(/u);

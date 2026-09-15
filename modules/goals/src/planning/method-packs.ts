@@ -11,7 +11,7 @@ import type {
   PlanningMethodPackInput,
   PlanningMethodScope,
   ResolvedPlanningMethodPack,
-} from "@adeptify/goalboard-contracts/modules/goals";
+} from "@molis-ai/molis-work-contracts/modules/goals";
 
 export type {
   PlanningCoverageRule,
@@ -23,7 +23,7 @@ export type {
   PlanningMethodPath,
   PlanningMethodScope,
   ResolvedPlanningMethodPack,
-} from "@adeptify/goalboard-contracts/modules/goals";
+} from "@molis-ai/molis-work-contracts/modules/goals";
 
 const BUILTIN_AT = "2026-08-22T00:00:00.000Z";
 

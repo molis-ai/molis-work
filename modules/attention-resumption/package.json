@@ -1,5 +1,5 @@
 {
-  "name": "@adeptify/goalboard-module-attention-resumption",
+  "name": "@molis-ai/molis-work-module-attention-resumption",
   "version": "0.0.0",
   "private": true,
   "description": "Attention items, reasons, snooze state, and resume cues.",
@@ -25,13 +25,13 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@adeptify/goalboard-contracts": "workspace:*"
+    "@molis-ai/molis-work-contracts": "workspace:*"
   },
-  "goalboard": {
+  "molis-work": {
     "path": "modules/attention-resumption",
     "kind": "module",
     "maturity": "partial",
-    "contract": "@adeptify/goalboard-contracts/modules/attention-resumption",
+    "contract": "@molis-ai/molis-work-contracts/modules/attention-resumption",
     "migrationGoals": [
       "goal-reorg-f2",
       "goal-reorg-fd2"

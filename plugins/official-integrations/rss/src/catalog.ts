@@ -1,5 +1,5 @@
 /**
- * GoalBoard-owned public RSS catalog, migrated from Relay.
+ * Molis Work-owned public RSS catalog, migrated from Relay.
  *
  * Base list comes from `@adeptify/search-evidence-layer` MEDIA_FEED_SOURCES.
  * We append additional working public feeds, attach categories, and honest
@@ -59,7 +59,7 @@ export interface FeedSourceCatalogEntry {
 const KR36_LIMITATIONS = Object.freeze([
   "许多网络环境下 https://36kr.com/feed 会返回 HTML 风控页（火山引擎等），不是 RSS 空流",
   "若同步失败并提示 feed_blocked_html / feed_not_rss，请改用其他可公开订阅的源",
-  "GoalBoard 不会绕过验证码或把 HTML 伪造成文章列表",
+  "Molis Work 不会绕过验证码或把 HTML 伪造成文章列表",
 ]);
 
 /** SDK sourceId → category when merging base registry. */
@@ -78,7 +78,7 @@ const SDK_CATEGORY: Record<string, FeedCategory> = {
 };
 
 /** Extra allowlisted feeds (smoke-verified XML where possible). */
-const GOALBOARD_EXTRA_FEEDS: readonly FeedSourceCatalogEntry[] = Object.freeze([
+const MOLIS_WORK_EXTRA_FEEDS: readonly FeedSourceCatalogEntry[] = Object.freeze([
   // —— 中文科技 ——
   feed({
     sourceId: "solidot",
@@ -481,7 +481,7 @@ function feed(input: {
 }
 
 /**
- * Full registerable feed list: SDK enabled sources + GoalBoard additions,
+ * Full registerable feed list: SDK enabled sources + Molis Work additions,
  * each with a stable category.
  */
 export function listRegisterableFeeds(): readonly FeedSourceCatalogEntry[] {
@@ -512,7 +512,7 @@ export function listRegisterableFeeds(): readonly FeedSourceCatalogEntry[] {
 
   const seen = new Set(sdk.map((s) => s.sourceId));
   // Avoid duplicate CNBC top (SDK cnbc) vs cnbc-finance
-  const extras = GOALBOARD_EXTRA_FEEDS.filter(
+  const extras = MOLIS_WORK_EXTRA_FEEDS.filter(
     (s) => s.enabled && !seen.has(s.sourceId),
   );
   return Object.freeze([...sdk, ...extras]);

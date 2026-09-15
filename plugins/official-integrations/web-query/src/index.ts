@@ -2,15 +2,15 @@ import type {
   IntegrationProviderPort,
   PluginDefinition,
   PluginManifest,
-} from "@adeptify/goalboard-contracts/platform/plugin";
-import { definePollingIntegrationPlugin } from "@adeptify/goalboard-plugin-sdk";
+} from "@molis-ai/molis-work-contracts/platform/plugin";
+import { definePollingIntegrationPlugin } from "@molis-ai/molis-work-plugin-sdk";
 
 export const packageDescriptor = {
-  packageName: "@adeptify/goalboard-integration-web-query",
+  packageName: "@molis-ai/molis-work-integration-web-query",
   packagePath: "plugins/official-integrations/web-query",
   kind: "integration-plugin",
   maturity: "partial",
-  contract: "@adeptify/goalboard-contracts/platform/plugin",
+  contract: "@molis-ai/molis-work-contracts/platform/plugin",
   migrationGoals: ["goal-reorg-f2", "goal-reorg-fd3"],
   ssot: "docs/SSOT-MATRIX.md",
   capabilities: ["connector.web-query.v1", "signal-adapter.web-query.v1"],
@@ -18,7 +18,7 @@ export const packageDescriptor = {
 
 export const webQueryIntegrationManifest = {
   schema_version: 1,
-  plugin_id: "io.goalboard.integration.web-query",
+  plugin_id: "io.molis.work.integration.web-query",
   version: "1.0.0",
   name: "Web Query",
   kind: "integration",
@@ -51,4 +51,4 @@ export function createWebQueryIntegrationPlugin(input: {
   });
 }
 
-export type GoalBoardPackageDescriptor = typeof packageDescriptor;
+export type MolisWorkPackageDescriptor = typeof packageDescriptor;

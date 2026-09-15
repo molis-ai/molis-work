@@ -1,4 +1,4 @@
-export * from "@adeptify/goalboard-contracts/modules/private-work-context";
+export * from "@molis-ai/molis-work-contracts/modules/private-work-context";
 export { findSessionForHostSignals } from "./session-host-signals.js";
 export { createSessionContentStore, type SessionContentStore } from "./content-store.js";
 export { migrateRuntimeContextProjectReferences } from "./context-binding-references.js";
@@ -10,18 +10,18 @@ export {
   migrateRuntimeContextBindingEventsForUnbind,
   type RuntimeContextSetupRequestRecord,
 } from "./context-bindings.js";
-export { GoalBoardSessionError, PrivateWorkContextError } from "./errors.js";
+export { MolisWorkSessionError, PrivateWorkContextError } from "./errors.js";
 export {
-  GoalBoardSessionRegistry,
-  type GoalBoardSessionRegistryOptions,
+  MolisWorkSessionRegistry,
+  type MolisWorkSessionRegistryOptions,
 } from "./session-registry.js";
 
 export const packageDescriptor = {
-  packageName: "@adeptify/goalboard-module-private-work-context",
+  packageName: "@molis-ai/molis-work-module-private-work-context",
   packagePath: "modules/private-work-context",
   kind: "module",
   maturity: "partial",
-  contract: "@adeptify/goalboard-contracts/modules/private-work-context",
+  contract: "@molis-ai/molis-work-contracts/modules/private-work-context",
   migrationGoals: ["goal-reorg-f2","goal-reorg-wk1"],
   ssot: "docs/SSOT-MATRIX.md",
   capabilities: [
@@ -34,7 +34,7 @@ export const packageDescriptor = {
   ],
 } as const;
 
-export type GoalBoardPackageDescriptor = typeof packageDescriptor;
+export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export { RuntimeProjectResolution, boundResolution } from "./project-resolution.js";
 

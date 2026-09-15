@@ -1,7 +1,7 @@
 import type {
   GoalTreeProposalItemRecord,
   GoalTreeProposalRecord,
-} from "@adeptify/goalboard-contracts/modules/governance-collaboration";
+} from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 
 import { GovernanceError } from "./errors.js";
 

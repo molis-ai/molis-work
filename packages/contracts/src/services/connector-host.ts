@@ -1,7 +1,7 @@
 import type { ContractDescriptor } from "../platform/package.js";
 
 export const servicesConnectorHostContract = {
-  contractId: "io.goalboard.service.connector-host.v1",
+  contractId: "io.molis.work.service.connector-host.v1",
   kind: "service",
   schemaVersion: 1,
   maturity: "partial",

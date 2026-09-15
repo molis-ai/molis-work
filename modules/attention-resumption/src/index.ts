@@ -1,4 +1,4 @@
-import { AttentionError } from "@adeptify/goalboard-contracts/modules/attention-resumption";
+import { AttentionError } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import { randomUUID } from "node:crypto";
 
 import type {
@@ -11,14 +11,14 @@ import type {
   AttentionSubjectType,
   CreateAttentionEntryInput,
   LegacyAttentionEntryInput,
-} from "@adeptify/goalboard-contracts/modules/attention-resumption";
+} from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 
 export const packageDescriptor = {
-  packageName: "@adeptify/goalboard-module-attention-resumption",
+  packageName: "@molis-ai/molis-work-module-attention-resumption",
   packagePath: "modules/attention-resumption",
   kind: "module",
   maturity: "partial",
-  contract: "@adeptify/goalboard-contracts/modules/attention-resumption",
+  contract: "@molis-ai/molis-work-contracts/modules/attention-resumption",
   migrationGoals: ["goal-reorg-f2", "goal-reorg-fd2"],
   ssot: "docs/SSOT-MATRIX.md",
   capabilities: ["attention.query.v1", "attention.command.v1"],
@@ -59,16 +59,14 @@ export const ATTENTION_STATUS_TRANSITIONS: Readonly<
   dismissed: ["open"],
 };
 
-export { AttentionError } from "@adeptify/goalboard-contracts/modules/attention-resumption";
+export { AttentionError } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 
-export function migrateAttention(db: AttentionSqliteDatabase): void {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS inbox_entries (
+const INBOX_ENTRIES_COLUMNS = `
       board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
       entry_id TEXT NOT NULL,
       subject_type TEXT NOT NULL CHECK (subject_type IN ('feed_item', 'goal_decision', 'source_fault')),
       subject_id TEXT NOT NULL,
-      reason TEXT NOT NULL CHECK (reason IN ('manual', 'source_rule', 'goal_decision', 'source_fault')),
+      reason TEXT NOT NULL CHECK (reason IN ('manual', 'source_rule', 'goal_decision', 'source_fault', 'artifact_out_failed')),
       status TEXT NOT NULL CHECK (status IN ('open', 'in_progress', 'done', 'dismissed')),
       detail_json TEXT NOT NULL DEFAULT '{}',
       revision INTEGER NOT NULL DEFAULT 1,
@@ -77,11 +75,25 @@ export function migrateAttention(db: AttentionSqliteDatabase): void {
       completed_at TEXT,
       PRIMARY KEY (board_id, entry_id),
       UNIQUE (board_id, subject_type, subject_id, reason)
-    );
+`;
+
+function inboxEntriesTableSql(tableName: string, ifNotExists: boolean): string {
+  return `CREATE TABLE ${ifNotExists ? "IF NOT EXISTS " : ""}${tableName} (${INBOX_ENTRIES_COLUMNS});`;
+}
+
+function inboxEntriesIndexesSql(): string {
+  return `
     CREATE INDEX IF NOT EXISTS inbox_entries_board_status_idx
       ON inbox_entries(board_id, status, updated_at DESC, entry_id);
     CREATE INDEX IF NOT EXISTS inbox_entries_board_subject_idx
       ON inbox_entries(board_id, subject_type, subject_id);
+  `;
+}
+
+export function migrateAttention(db: AttentionSqliteDatabase): void {
+  db.exec(`
+    ${inboxEntriesTableSql("inbox_entries", true)}
+    ${inboxEntriesIndexesSql()}
 
     CREATE TABLE IF NOT EXISTS attention_events (
       event_id TEXT PRIMARY KEY,
@@ -94,6 +106,28 @@ export function migrateAttention(db: AttentionSqliteDatabase): void {
     );
     CREATE INDEX IF NOT EXISTS attention_events_project_entry_idx
       ON attention_events(project_id, entry_id, at, event_id);
+  `);
+  rebuildInboxEntriesReasonCheck(db);
+}
+
+function rebuildInboxEntriesReasonCheck(db: AttentionSqliteDatabase): void {
+  const row = db.prepare(
+    "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'inbox_entries'",
+  ).get() as { sql?: string } | undefined;
+  if (!row?.sql || row.sql.includes("artifact_out_failed")) return;
+  db.exec(`
+    ${inboxEntriesTableSql("inbox_entries__reason_v2", false)}
+    INSERT INTO inbox_entries__reason_v2 (
+      board_id, entry_id, subject_type, subject_id, reason, status,
+      detail_json, revision, created_at, updated_at, completed_at
+    )
+    SELECT
+      board_id, entry_id, subject_type, subject_id, reason, status,
+      detail_json, revision, created_at, updated_at, completed_at
+    FROM inbox_entries;
+    DROP TABLE inbox_entries;
+    ALTER TABLE inbox_entries__reason_v2 RENAME TO inbox_entries;
+    ${inboxEntriesIndexesSql()}
   `);
 }
 
@@ -387,7 +421,7 @@ function assertReference(subjectType: AttentionSubjectType, subjectId: string): 
 
 function assertReason(subjectType: AttentionSubjectType, reason: AttentionReason): void {
   const valid = subjectType === "feed_item"
-    ? reason === "manual" || reason === "source_rule"
+    ? reason === "manual" || reason === "source_rule" || reason === "artifact_out_failed"
     : subjectType === "source_fault"
       ? reason === "source_fault"
       : reason === "goal_decision";
@@ -474,4 +508,4 @@ function json<T>(value: unknown, fallback: T): T {
   }
 }
 
-export type GoalBoardPackageDescriptor = typeof packageDescriptor;
+export type MolisWorkPackageDescriptor = typeof packageDescriptor;

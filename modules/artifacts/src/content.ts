@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import type {
   ArtifactJsonValue,
   ArtifactMetadata,
-} from "@adeptify/goalboard-contracts/modules/artifacts";
+} from "@molis-ai/molis-work-contracts/modules/artifacts";
 
 function normalizedValue(value: unknown, path: string): ArtifactJsonValue {
   if (value === null || typeof value === "string" || typeof value === "boolean") return value;

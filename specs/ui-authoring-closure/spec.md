@@ -2,14 +2,14 @@
 
 ## 背景与目标
 
-`GOALBOARD-UI-AUTHORING-CLOSURE` 汇总了 Policy、Draft、关系、Risk、Impact、Evidence、决定中心、历史与归档等 UI 子 Goal。其十个子 Goal 已全部满足，但父 Goal 仍未完成，因为用户只能在页面中看到 `active_goal_id`，不能从 UI 把一条已接受的 Goal 设为当前 Goal。
+`MOLIS_WORK-UI-AUTHORING-CLOSURE` 汇总了 Policy、Draft、关系、Risk、Impact、Evidence、决定中心、历史与归档等 UI 子 Goal。其十个子 Goal 已全部满足，但父 Goal 仍未完成，因为用户只能在页面中看到 `active_goal_id`，不能从 UI 把一条已接受的 Goal 设为当前 Goal。
 
 本 Work Item 只补齐这一缺口，并用现有 Web 回归覆盖父 Goal 的 C8 验收项。
 
 ## 当前行为与问题证据
 
-- `buildGoalBoardWebView` 将 Board 的 `active_goal_id` 提供给页面；页面据此默认选中一个 Goal。
-- `GoalBoardCoordinator.setActiveGoal` 已是唯一的业务写入入口，会拒绝 Draft、回收站和已归档 Goal，并写入事件历史。
+- `buildMolisWorkWebView` 将 Board 的 `active_goal_id` 提供给页面；页面据此默认选中一个 Goal。
+- `MolisWorkCoordinator.setActiveGoal` 已是唯一的业务写入入口，会拒绝 Draft、回收站和已归档 Goal，并写入事件历史。
 - `src/web/server.ts` 没有设置当前 Goal 的 API；`src/web/render.ts` 也没有对应的用户操作或客户端请求。
 - `tests/web.test.ts` 仅断言了当前 Goal 的显示，没有覆盖从 UI 修改它。
 
@@ -37,7 +37,7 @@
 
 ## 方案与关键决策
 
-- 复用 `GoalBoardCoordinator.setActiveGoal(boardId, { goal_id, reason }, write)` 作为唯一状态变更边界。
+- 复用 `MolisWorkCoordinator.setActiveGoal(boardId, { goal_id, reason }, write)` 作为唯一状态变更边界。
 - Web API 路径为 `POST /api/goals/:goalId/active`，由点击行为提供固定、可读的用户操作原因；请求使用唯一幂等键。
 - UI 仅在 Goal 是 accepted、未归档且未在回收站时显示动作；当前 Goal 显示非交互标签。
 - 前端成功后调用既有 `refreshBoard(true)`，避免局部维护 `active_goal_id` 导致 Tree 和正文不同步。

@@ -4,19 +4,19 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { SignalsModule } from "@adeptify/goalboard-module-signals";
-import { SourcesModule } from "@adeptify/goalboard-module-sources";
-import { ConnectorHost } from "@adeptify/goalboard-service-connector-host";
-import { ListenerHost, ListenerHostError } from "@adeptify/goalboard-service-listener-host";
+import { SignalsModule } from "@molis-ai/molis-work-module-signals";
+import { SourcesModule } from "@molis-ai/molis-work-module-sources";
+import { ConnectorHost } from "@molis-ai/molis-work-service-connector-host";
+import { ListenerHost, ListenerHostError } from "@molis-ai/molis-work-service-listener-host";
 import type {
   ConnectorDriver,
   ConnectorPollResult,
   ConnectorRawEvent,
-} from "@adeptify/goalboard-contracts/services/connector-host";
-import type { RawEventAdapter } from "@adeptify/goalboard-contracts/services/listener-host";
+} from "@molis-ai/molis-work-contracts/services/connector-host";
+import type { RawEventAdapter } from "@molis-ai/molis-work-contracts/services/listener-host";
 
-import { DEMO_BOARD_ID, seedDemoBoard } from "@adeptify/goalboard-app-local-host";
-import { LocalProjectDatabase } from "@adeptify/goalboard-app-local-host";
+import { DEMO_BOARD_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 
 function rawEvent(id: string, cursorAfter?: unknown): ConnectorRawEvent {
   return {
@@ -32,7 +32,7 @@ function rawEvent(id: string, cursorAfter?: unknown): ConnectorRawEvent {
 function adapter(failOnceFor?: string): RawEventAdapter {
   let failed = false;
   return {
-    adapter: { plugin_id: "io.goalboard.integration.fixture", version: "1.0.0" },
+    adapter: { plugin_id: "io.molis.work.integration.fixture", version: "1.0.0" },
     toSignalDraft(event) {
       if (!failed && event.provider_dedupe_id === failOnceFor) {
         failed = true;
@@ -85,9 +85,9 @@ function connectorWith(driver: ConnectorDriver): ConnectorHost {
 }
 
 test("Raw Event becomes one durable Signal and resumes after adapter failure without advancing cursor", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-fd1-recovery-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-fd1-recovery-"));
   try {
-    const databasePath = join(directory, "goalboard.sqlite");
+    const databasePath = join(directory, "molis-work.sqlite");
     seedDemoBoard(databasePath);
     const store = new LocalProjectDatabase(databasePath);
     try {
@@ -203,9 +203,9 @@ test("Raw Event becomes one durable Signal and resumes after adapter failure wit
 });
 
 test("Listener lease prevents two callers from consuming one Source concurrently", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-fd1-lease-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-fd1-lease-"));
   try {
-    const databasePath = join(directory, "goalboard.sqlite");
+    const databasePath = join(directory, "molis-work.sqlite");
     seedDemoBoard(databasePath);
     const store = new LocalProjectDatabase(databasePath);
     let releasePoll: (() => void) | undefined;
@@ -258,9 +258,9 @@ test("Listener lease prevents two callers from consuming one Source concurrently
 });
 
 test("repeated Adapter failure quarantines the Raw Event without polling past it", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-fd1-quarantine-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-fd1-quarantine-"));
   try {
-    const databasePath = join(directory, "goalboard.sqlite");
+    const databasePath = join(directory, "molis-work.sqlite");
     seedDemoBoard(databasePath);
     const store = new LocalProjectDatabase(databasePath);
     try {
@@ -286,7 +286,7 @@ test("repeated Adapter failure quarantines the Raw Event without polling past it
         { maxDeliveryAttempts: 2 },
       );
       const failingAdapter: RawEventAdapter = {
-        adapter: { plugin_id: "io.goalboard.integration.broken", version: "1.0.0" },
+        adapter: { plugin_id: "io.molis.work.integration.broken", version: "1.0.0" },
         toSignalDraft() { throw new Error("poison event"); },
       };
       const run = () => listener.run({

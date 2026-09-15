@@ -2,7 +2,7 @@
 
 ## 背景与目标
 
-上一项已提供 `GoalBoardCoordinator.setGoalTrashed`：它在一个事务中保护活动工作、移入/恢复 Goal、维护 Relation，并保留历史。本 Work Item 让用户正在对话的 Runtime 能通过 GoalBoard Skill 和 MCP 完成同一流程，不必打开 Web，也不让 MCP 或 Runtime 复制删除规则。
+上一项已提供 `MolisWorkCoordinator.setGoalTrashed`：它在一个事务中保护活动工作、移入/恢复 Goal、维护 Relation，并保留历史。本 Work Item 让用户正在对话的 Runtime 能通过 Molis Work Skill 和 MCP 完成同一流程，不必打开 Web，也不让 MCP 或 Runtime 复制删除规则。
 
 ## 当前行为与问题证据
 
@@ -13,9 +13,9 @@
 ## 范围
 
 - 新增 Runtime 可见的 MCP 工具：
-  - `goalboard_v1_goal_trash`：将当前项目的一条 Goal 移入回收站；
-  - `goalboard_v1_goal_trash_list`：读取当前项目的回收站；
-  - `goalboard_v1_goal_restore`：恢复一条回收站 Goal。
+  - `molis_work_v1_goal_trash`：将当前项目的一条 Goal 移入回收站；
+  - `molis_work_v1_goal_trash_list`：读取当前项目的回收站；
+  - `molis_work_v1_goal_restore`：恢复一条回收站 Goal。
 - 写工具必须带 `goal_id`、当前 Runtime `actor_id`、非空 `reason`、稳定 `idempotency_key` 和 `user_confirmed=true`。
 - MCP 只校验当前对话的明确用户意图、项目连接和参数，再调用 `setGoalTrashed`；返回领域结果、派生工作状态和面向 Skill 的下一步提示。
 - 更新 `goal-advance` Skill/协议：清楚说明“删除”是可恢复的、何时需要询问、何时可以调用、怎样解释 `blocked` 和待恢复 Relation。
@@ -24,7 +24,7 @@
 ## 非目标
 
 - 新增或重写删除、Relation、Claim、Run 或 SQLite 事务规则。
-- Web 删除/恢复按钮或回收站页面（属于 `GOALBOARD-GOAL-TRASH-UI`）。
+- Web 删除/恢复按钮或回收站页面（属于 `MOLIS_WORK-GOAL-TRASH-UI`）。
 - 永久删除 Goal、历史、项目数据库或 Runtime 配置。
 - 用 MCP 代替当前项目连接、任意指定数据库路径或任意 Board。
 
@@ -34,8 +34,8 @@
 用户在当前 Runtime 明确说“删除/恢复某个 Goal”
   → Skill 确认目标和可恢复含义（含糊时先追问）
   → Runtime MCP（固定当前项目连接；user_confirmed=true）
-  → GoalBoardServer 参数/意图适配
-  → GoalBoardCoordinator.setGoalTrashed（唯一业务规则）
+  → MolisWorkServer 参数/意图适配
+  → MolisWorkCoordinator.setGoalTrashed（唯一业务规则）
   → SQLite 回收记录、Relation、Board active Goal、事件（同一事务）
   → MCP 返回状态、Relation 摘要、阻塞 IDs、派生 work_state / next_action
   → Skill 在当前对话用人话说明成功、阻塞或待恢复关系
@@ -46,7 +46,7 @@
 ## 关键决策
 
 - 写操作分成显式 trash/restore 工具，而不是一个隐含动词的通用更新接口；这样 Skill 与 MCP 记录都清楚显示用户想做的是哪种可恢复操作。
-- `goalboard_v1_goal_trash_list` 只读，因此不要求用户确认；它用于用户主动问“回收站里有什么”。
+- `molis_work_v1_goal_trash_list` 只读，因此不要求用户确认；它用于用户主动问“回收站里有什么”。
 - 只有服务层决定 `blocked`、停用/恢复哪些 Relation、是否清除 Active Goal，以及重复请求是否重放。MCP 不检查或写这些事实。
 - Runtime 工具保留现有项目连接护栏：服务端拒绝数据库/Web 覆盖和不同 `board_id`，因此模型不能跨项目操作。
 - MCP 的 `next_action` 只是结果呈现：活动工作阻塞时提示先结束工作；另一端仍在回收站时提示恢复关联 Goal；不会修改任何业务状态。

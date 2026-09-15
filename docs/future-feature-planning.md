@@ -2,19 +2,19 @@
 
 状态：工作草案
 更新日期：2026-09-01
-用途：作为 GoalBoard 后续功能规划、研发分工和阶段验收的共同输入。
+用途：作为 Molis Work 后续功能规划、研发分工和阶段验收的共同输入。
 
 配套会议分工盘：[future-feature-planning.html](future-feature-planning.html)
 
 ## 1. 方向
 
-后续不再按 GoalBoard、Relay、Loreport 三个产品划边界。所有有效能力统一进入 GoalBoard，可以直接复制、迁移和改造现有代码。
+后续不再按 Molis Work、Relay、Loreport 三个产品划边界。所有有效能力统一进入 Molis Work，可以直接复制、迁移和改造现有代码。
 
-2026-09-01 对 Loreport 的逐项审计结论是：**产品方向已经并入 GoalBoard，但关键能力尚未被完整规划，因此 Loreport 仓库当前不能删除。** Goal、Feed、Relay、账号权限、Artifact 和 Web Team Space 已有明确归属；个人私有工作上下文、选择性披露、共享上下文账本，以及“决定已接受”和“变更已落地”的分离仍需补齐。本文将这些缺口纳入 GoalBoard P0；详细吸收范围和仓库删除门槛见第 12 节。
+2026-09-01 对 Loreport 的逐项审计结论是：**产品方向已经并入 Molis Work，但关键能力尚未被完整规划，因此 Loreport 仓库当前不能删除。** Goal、Feed、Relay、账号权限、Artifact 和 Web Team Space 已有明确归属；个人私有工作上下文、选择性披露、共享上下文账本，以及“决定已接受”和“变更已落地”的分离仍需补齐。本文将这些缺口纳入 Molis Work P0；详细吸收范围和仓库删除门槛见第 12 节。
 
 本规划只回答四件事：
 
-1. GoalBoard 最终还需要哪些功能；
+1. Molis Work 最终还需要哪些功能；
 2. 哪些功能可以由不同研发独立负责；
 3. 先打通哪些真实闭环，再逐步补齐完整体验；
 4. Loreport 的哪些能力被吸收、哪些被明确舍弃，以及何时才允许处理原仓库。
@@ -24,7 +24,7 @@
 - 每个一级功能域有一个主负责人，负责结果、范围、接口和验收。
 - 协作人可以跨域贡献，但不能出现无人对最终结果负责的公共区域。
 - 前后端可以由不同人实现，但必须共同交付一条可使用的功能闭环。
-- 能复制的现有代码直接复制，再按 GoalBoard 的模型和体验统一，不为保持历史仓库纯净增加迁移成本。
+- 能复制的现有代码直接复制，再按 Molis Work 的模型和体验统一，不为保持历史仓库纯净增加迁移成本。
 - 云端、Web、Desktop、消息和 Agent 看到的是同一套业务状态，不重复建立相似状态。
 - 第一阶段采用模块化单体和少量 Worker，不因未来扩展提前拆成大量微服务。
 
@@ -40,7 +40,7 @@
 
 | 功能域 | 要解决的问题 | 主要交付 | 建议优先级 |
 | --- | --- | --- | --- |
-| 云平台与部署 | GoalBoard 如何稳定运行在云端 | 环境、数据库、后台任务、部署、监控、备份恢复 | P0 |
+| 云平台与部署 | Molis Work 如何稳定运行在云端 | 环境、数据库、后台任务、部署、监控、备份恢复 | P0 |
 | 账号、团队与权限 | 谁能进入、看到和操作哪些内容 | 登录、空间、成员、角色、权限、设备与审计 | P0 |
 | Goal 核心与协作 | 团队究竟在推进什么，如何执行和确认完成 | Goal、依赖、Claim、Run、Evidence、Review、Decision、Handoff | P0 |
 | 私有工作上下文与选择性发布 | 个人和 Agent 如何保留完整工作过程，只把有用部分带入团队 | 工作上下文公共投影、私有 Task Context、执行快照、三档披露、Disclosure Bundle | P0 |
@@ -49,7 +49,7 @@
 | 消息面接入 | 如何从 Slack、飞书等消息场景发起和继续工作 | 入站、身份绑定、线程关联、交互卡片和结果回写 | P1 |
 | Desktop 与云同步 | 本地工作、云端状态和多设备如何保持一致 | 设备、增量同步、离线、冲突、迁移和本地 Runtime | P0 |
 | 共享上下文账本与落地恢复 | 一次团队决定如何跨多个领域可靠成为共享真相 | 对象索引、关系、事件账本、Revision、幂等、Materialization Operation、恢复与核对 | P0 |
-| Web 产品体验 | 用户如何理解和操作整套 GoalBoard | Personal、Team、Goal、Feed、Review、Settings 和管理面 | P0 |
+| Web 产品体验 | 用户如何理解和操作整套 Molis Work | Personal、Team、Goal、Feed、Review、Settings 和管理面 | P0 |
 | AI 规划与智能整理 | AI 如何真正参与规划和判断，而不是只提供 Chat | Draft、拆解建议、Context Pack、Review Suggestion、Resume Snapshot | P1 |
 | Attention 与工作接续 | 用户现在应关注什么，如何从中断处继续 | Focus、队列、阻塞、等待决定、Resume 和快速记录 | P1 |
 | Artifact、知识与搜索 | 产出和决定如何成为可追溯、可复用的项目记忆 | Canonical Artifact、版本、完整 lineage、权限、全文搜索、导出和过期提示 | P0 |
@@ -216,7 +216,7 @@ AI 只产生 Draft、Proposal、Context Pack 和建议，不静默修改正式 G
 ### 首次使用、迁移与导入
 
 - 创建个人空间或加入团队；
-- 本地 GoalBoard 数据迁移到云端；
+- 本地 Molis Work 数据迁移到云端；
 - 选择本地保留或云端同步范围；
 - Desktop、Runtime 和 Connector 接入；
 - 邀请团队成员；
@@ -390,15 +390,15 @@ Slack / 飞书消息
 
 ### 12.1 覆盖矩阵
 
-| Loreport 规划内容 | GoalBoard 归属 | 审计前状态 | 本次处理 |
+| Loreport 规划内容 | Molis Work 归属 | 审计前状态 | 本次处理 |
 | --- | --- | --- | --- |
 | 产品楔子与 PMF 验证 | 团队协作闭环与产品埋点 | 未完整覆盖 | 保留“私人工作通过显式发布成为团队真相”的验证机制和重复行为指标，不以对象数或 Run 数证明 PMF |
 | Project Host | 云平台与部署、Identity & Space、Server composition | 部分覆盖 | 保留 Project/Space 与统一路由需求；动态 ModuleManifest、公共插件 Host 不进入首个闭环 |
 | Identity & Access | 账号、团队与权限 | 已覆盖 | 继续按 Actor、Membership、Role、Grant、Session 和服务端强制授权展开 |
 | Context Kernel | 共享上下文账本与落地恢复 | 未完整覆盖 | 新增中立对象索引、Relation、Project Event Journal、幂等与 Materialization Operation |
 | Proposals & Reviews | Goal 核心、私有工作上下文与选择性发布、共享上下文账本 | 部分覆盖 | 补足精确 Disclosure Bundle、三档披露、Decision / effect 分离和失败恢复 |
-| Signals / Herald | Source & Connector、Feed / Signal | 已覆盖且 GoalBoard 更宽 | 沿用 Signal 与 Feed 分离，不自动变成 Goal 或 Evidence |
-| Goals | Goal 核心与协作 | 已覆盖且 GoalBoard 更成熟 | GoalBoard 继续保持 Goal Contract、生命周期、Evidence 和 Review 的权威语义 |
+| Signals / Herald | Source & Connector、Feed / Signal | 已覆盖且 Molis Work 更宽 | 沿用 Signal 与 Feed 分离，不自动变成 Goal 或 Evidence |
+| Goals | Goal 核心与协作 | 已覆盖且 Molis Work 更成熟 | Molis Work 继续保持 Goal Contract、生命周期、Evidence 和 Review 的权威语义 |
 | Task Rooms | 私有工作上下文与选择性发布 | 未覆盖 | 转译为 Goal/Action/Handoff 锚定的工作上下文公共投影、负责人私有 Task Context、执行快照与披露候选，不建立第二套 Task 真相 |
 | Execution / Relay | Relay 与 Agent 执行 | 已覆盖 | 保留 Run、审批、观察、Receipt、未知结果核对；执行完成不等于业务接受 |
 | Artifacts | Artifact、知识与搜索 | 部分覆盖 | 将最小 Canonical Artifact、不可变版本和完整 lineage 提升为 P0 |
@@ -408,18 +408,18 @@ Slack / 飞书消息
 
 - Loreport 独立品牌和独立产品外壳；
 - 为首个闭环建立通用插件市场、任意第三方模块执行或分布式微服务系统；
-- 把 GoalBoard、Relay 和 Loreport 三套相似状态继续并行维护；
+- 把 Molis Work、Relay 和 Loreport 三套相似状态继续并行维护；
 - 把 Goal 重新变成所有对象的通用父节点；
 - 为迁移文档而原样复制 Loreport 的十模块命名和文件结构。
 
 ### 12.3 删除门槛
 
-Loreport 当前仍保存 GoalBoard 尚未拥有的详细 accepted foundation，不能因为本文件出现了功能名就删除。只有同时满足以下条件，才可以提出归档或删除：
+Loreport 当前仍保存 Molis Work 尚未拥有的详细 accepted foundation，不能因为本文件出现了功能名就删除。只有同时满足以下条件，才可以提出归档或删除：
 
-1. GoalBoard 的 accepted 产品与模块 Contract 已为上表每项能力指定唯一 owner，并明确保留、替换或拒绝的语义；
+1. Molis Work 的 accepted 产品与模块 Contract 已为上表每项能力指定唯一 owner，并明确保留、替换或拒绝的语义；
 2. 私有 Task Context → Disclosure Bundle → Proposal / Review → Decision → Materialization → Canonical Project Context 的可执行 spec 已被接受；
 3. Loreport 中仍然独有的权限、Revision、幂等、失败、重启、未知结果和 lineage 验收条件已经迁移或被显式 supersede，并有可追踪链接；
 4. Loreport 文档全部标记 superseded 或迁入后的历史来源，不再被任何当前计划作为唯一事实源；
 5. 本地目录、GitHub 仓库及是否保留只读归档分别确认，不能由一次模糊的“删除项目”同时推断。
 
-在这些门槛完成前，Loreport 保留为 GoalBoard Server / Team Context 的设计来源和候选实现仓库，不再作为独立产品并行扩张。
+在这些门槛完成前，Loreport 保留为 Molis Work Server / Team Context 的设计来源和候选实现仓库，不再作为独立产品并行扩张。

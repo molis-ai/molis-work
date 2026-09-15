@@ -1,4 +1,4 @@
-import type { FeedSourceSchedule, InboxEntryReason } from "@adeptify/goalboard-plugin-feed";
+import type { FeedSourceSchedule, InboxEntryReason } from "@molis-ai/molis-work-plugin-feed";
 
 export interface ProviderContractFixture {
   provider: "github" | "gmail" | "rss";

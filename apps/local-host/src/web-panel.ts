@@ -1,10 +1,10 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { handleWorkPanelHttp, type WorkPanelHttpContext } from "@adeptify/goalboard-plugin-work";
-import type { GoalBoardPtyHost } from "@adeptify/goalboard-service-runtime-host";
-import { FeedStoreError, feedItemContext, readLinkedFeedContext } from "@adeptify/goalboard-plugin-feed";
-import { createContextLedger, createContextMaterializer } from "@adeptify/goalboard-module-context-ledger";
-import { type GoalBoardProjectCatalog, GoalBoardProjectCatalogError } from "./project-catalog.js";
-import { GoalBoardV1Error, type GoalProjectApplication } from "./goal-project-application.js";
+import { handleWorkPanelHttp, type WorkPanelHttpContext } from "@molis-ai/molis-work-plugin-work";
+import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host";
+import { FeedStoreError, feedItemContext, readLinkedFeedContext } from "@molis-ai/molis-work-plugin-feed";
+import { createContextLedger, createContextMaterializer } from "@molis-ai/molis-work-module-context-ledger";
+import { type MolisWorkProjectCatalog, MolisWorkProjectCatalogError } from "./project-catalog.js";
+import { MolisWorkV1Error, type GoalProjectApplication } from "./goal-project-application.js";
 import { createLocalFeedApplication } from "./feed-application.js";
 import { hydrateFeedItemContent } from "./feed-content.js";
 import { desktopPanelSessionIds } from "./web-session.js";
@@ -22,7 +22,7 @@ interface PanelHttpPorts extends Pick<WorkPanelHttpContext, "isRuntimeKind" | "l
 
 export function createLocalPanelHttp(ports: PanelHttpPorts) {
   function desktopPanelSpawn(
-    catalog: GoalBoardProjectCatalog,
+    catalog: MolisWorkProjectCatalog,
     panel: { panel_id: string; runtime_kind: string; launch_command: string; launch_args: string[]; cwd: string | null; work_context_id: string; goal_id: string },
     webUrl: string,
     sessionId: string | null,
@@ -58,7 +58,7 @@ export function createLocalPanelHttp(ports: PanelHttpPorts) {
     projectId: string,
     coordinator: GoalProjectApplication,
     boardId: string,
-    ptyHost: GoalBoardPtyHost,
+    ptyHost: MolisWorkPtyHost,
     webUrl: string,
   ): Promise<boolean> {
     return handleWorkPanelHttp({
@@ -110,8 +110,8 @@ export function createLocalPanelHttp(ports: PanelHttpPorts) {
       launchSpec: ports.launchSpec,
       advancePrompt: ports.advancePrompt,
       kill: (panelId) => ptyHost.kill(panelId),
-      classifyError: (error) => error instanceof GoalBoardV1Error ? 404
-        : error instanceof GoalBoardProjectCatalogError ? error.code === "catalog.panel_not_found" ? 404 : 400
+      classifyError: (error) => error instanceof MolisWorkV1Error ? 404
+        : error instanceof MolisWorkProjectCatalogError ? error.code === "catalog.panel_not_found" ? 404 : 400
         : null,
     });
   }

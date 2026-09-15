@@ -36,11 +36,11 @@
 
 ## 旧实现退出与 SDK 兼容的精确边界
 
-`src/index.ts:2` **仍导出旧名称 `GoalBoardCoordinator`**，具体代码是 `export { GoalProjectApplication as GoalBoardCoordinator, importV3Board } from "@adeptify/goalboard-app-local-host"`。因此“这个符号已经删除”不成立，本报告不作此声明。另有 `sdk-store.ts` 的 51 行旧读取适配及 `sdk-types.ts` 类型别名。
+`src/index.ts:2` **仍导出旧名称 `MolisWorkCoordinator`**，具体代码是 `export { GoalProjectApplication as MolisWorkCoordinator, importV3Board } from "@molis-ai/molis-work-app-local-host"`。因此“这个符号已经删除”不成立，本报告不作此声明。另有 `sdk-store.ts` 的 51 行旧读取适配及 `sdk-types.ts` 类型别名。
 
 保留依据是 [Cutover 工作计划](cutover-work-plan.md) 的“根SDK与零caller兼容文件收尾”（453–457 行）：本次重组保持已发布 0.1.x SDK 行为，保留公开别名与只读方法，不能静默破坏该版本消费者。删除这些名称需另行破坏性版本决策。
 
-实际删除的是 `src/v1/coordinator.ts` 的跨领域实现、旧 Store 的 SQL/业务职责以及内部 caller 对这些旧路径的引用。源码搜索没有 `class GoalBoardCoordinator` 或旧 coordinator import；新 `GoalProjectApplication` 装配公开 owner 并具名转发。139 项 SDK/迁移回归覆盖通过根 index 使用旧 API 仍落到新 owner 的同一事实。故 cutover-clean 的结论只表示旧职责/重复事实退出，**不表示所有兼容符号清零**。0 compatibility allowlist 是依赖门禁豁免数量，也不表示没有 SDK 兼容面。
+实际删除的是 `src/v1/coordinator.ts` 的跨领域实现、旧 Store 的 SQL/业务职责以及内部 caller 对这些旧路径的引用。源码搜索没有 `class MolisWorkCoordinator` 或旧 coordinator import；新 `GoalProjectApplication` 装配公开 owner 并具名转发。139 项 SDK/迁移回归覆盖通过根 index 使用旧 API 仍落到新 owner 的同一事实。故 cutover-clean 的结论只表示旧职责/重复事实退出，**不表示所有兼容符号清零**。0 compatibility allowlist 是依赖门禁豁免数量，也不表示没有 SDK 兼容面。
 
 ## 自动检查与可复现入口
 
@@ -54,7 +54,7 @@
 
 真实用户 Home 没有升级；临时 Native 验收结束已恢复原 4173 服务。最终 4197 测试服务停止，整个隔离测试 Home 删除，包括误读取账号后落入测试库的 50 条通知副本及测试凭据。详细事实和收据见统一报告。
 
-当前没有未解决的本次迁移缺陷。未来功能、Apple 公证/公开发布及现用安装升级不在本轮完成声明内。GoalBoard 的父子 coverage 历史版本提示应单独按正式协议核对，不通过修改数据库或降低验收规则来消除。
+当前没有未解决的本次迁移缺陷。未来功能、Apple 公证/公开发布及现用安装升级不在本轮完成声明内。Molis Work 的父子 coverage 历史版本提示应单独按正式协议核对，不通过修改数据库或降低验收规则来消除。
 
 
 ## 正式验收状态

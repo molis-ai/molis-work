@@ -2,7 +2,7 @@
 
 保存 Goal、Feed、Artifact、Session 等对象之间的引用边，让上下文关系有统一历史而不复制对象正文。
 
-包名：`@adeptify/goalboard-module-context-ledger`。工作区内部包，通过仓库构建和 Host 装配使用。
+包名：`@molis-ai/molis-work-module-context-ledger`。工作区内部包，通过仓库构建和 Host 装配使用。
 
 ## 一次典型调用
 
@@ -32,8 +32,8 @@ createContextLedger(db, { authorize }) 提供边的查询、写入和删除；cr
 以下命令在**仓库根目录**执行，使用 Node.js 24+ 与仓库配置的 pnpm。首次准备运行 `pnpm install --frozen-lockfile` 和 `pnpm build`；之后可单独检查此包。
 
 ```bash
-pnpm --filter @adeptify/goalboard-module-context-ledger typecheck
-pnpm --filter @adeptify/goalboard-module-context-ledger build
+pnpm --filter @molis-ai/molis-work-module-context-ledger typecheck
+pnpm --filter @molis-ai/molis-work-module-context-ledger build
 ```
 
 已有行为示例与回归：[context-ledger.test.ts](../../tests/context-ledger.test.ts)、[handoff-ledger-migration.test.ts](../../tests/handoff-ledger-migration.test.ts)。完成上述构建后运行：
@@ -50,7 +50,7 @@ node --import tsx --test --test-concurrency=1 tests/context-ledger.test.ts tests
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
 - Status: `partial`
-- Contract entrypoint: `@adeptify/goalboard-contracts/modules/context-ledger`
+- Contract entrypoint: `@molis-ai/molis-work-contracts/modules/context-ledger`
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-ar2`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。

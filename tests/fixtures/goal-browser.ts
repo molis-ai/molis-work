@@ -1,4 +1,4 @@
-import { openGoalBoardProjectCatalog } from "@adeptify/goalboard-app-desktop";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import { once } from "node:events";
@@ -8,22 +8,22 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { TestContext } from "node:test";
 import { WebSocket } from "ws";
-import { DEMO_BOARD_ID, seedDemoBoard } from "@adeptify/goalboard-app-local-host";
-import { LocalProjectDatabase } from "@adeptify/goalboard-app-local-host";
-import { createGoalBoardWebServer } from "../../apps/desktop/launchers/web/server.js";
+import { DEMO_BOARD_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { createMolisWorkWebServer } from "../../apps/desktop/launchers/web/server.js";
 
 
 /** One isolated project and Chrome profile; no user services or Runtime bindings. */
 export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "empty" | "migrated" = false, seed = seedDemoBoard) {
-  const chrome = [process.env.GOALBOARD_TEST_CHROME, "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  const chrome = [process.env.MOLIS_WORK_TEST_CHROME, "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
     "/usr/bin/google-chrome", "/usr/bin/chromium", "/usr/bin/chromium-browser"]
     .find((path): path is string => Boolean(path && existsSync(path)));
   if (!chrome) { t.skip("Chrome is required for Goals UI E2E"); return null; }
-  const directory = await mkdtemp(join(tmpdir(), "goalboard-goals-browser-"));
+  const directory = await mkdtemp(join(tmpdir(), "molis-work-goals-browser-"));
   let databasePath = join(directory, "fixture.db");
   let projectId: string | null = null;
   if (catalogMode === true || catalogMode === "migrated") {
-    const catalog = await openGoalBoardProjectCatalog({ homeDirectory: directory });
+    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: directory });
     try {
       if (catalogMode === "migrated") seed(databasePath);
       const project = catalogMode === "migrated"
@@ -36,7 +36,7 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   const store = new LocalProjectDatabase(databasePath);
   let child: ChildProcess | undefined;
   let socket: WebSocket | undefined;
-  let server: ReturnType<typeof createGoalBoardWebServer> | undefined;
+  let server: ReturnType<typeof createMolisWorkWebServer> | undefined;
   t.after(async () => {
     socket?.close();
     if (child && child.exitCode === null && child.signalCode === null) {
@@ -48,7 +48,7 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     store.close();
     await rm(directory, { recursive: true, force: true });
   });
-  server = createGoalBoardWebServer({ ...(catalogMode ? {} : { databasePath, boardId: DEMO_BOARD_ID }), homeDirectory: directory,
+  server = createMolisWorkWebServer({ ...(catalogMode ? {} : { databasePath, boardId: DEMO_BOARD_ID }), homeDirectory: directory,
     controlToken: "goals-risk-test-control-token-0123456789" });
   child = spawn(chrome, ["--headless=new", "--disable-gpu", "--disable-background-networking",
     "--disable-component-update", "--disable-extensions", "--no-first-run", "--no-default-browser-check",

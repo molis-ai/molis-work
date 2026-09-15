@@ -42,7 +42,7 @@
 - `artifact-browser.test.ts` 仍请求 `/panels/completion`，并断言完整 Goal 页面不含 Artifact embed；已与迁入完成要求的实际契约冲突。改读真实 Goal document/整页，继续验证精确版本、缺失/归档/不可用、跨Goal/namespace不混入及无事实写入。
 - `artifact-clipboard.e2e.test.ts` 仍点击 `#goal-tab-records-V1` / 旧 records 载入。改走实际时间线 Evidence 正文，保留真实 clipboard 权限拒绝、精确引用值与无业务修改断言。
 - `goals-draft.e2e.test.ts` 仍直接点击藏在目标说明中的 edit 按钮。通过实际阅读器入口打开后操作，保留表单失败输入、真实保存及落库检查。
-- `goal-events-state.test.ts` 新 owner 测试的失败已由主定向复现（`05-owner-test-diagnostic.log`）：Host 注入的 errorFactory 返回 `GoalBoardV1Error`，测试却要求 `GoalsCommandError`。生产行为正确；按真实公共入口断言 Host 领域错误和精确 `goal.event_state_owner`，不要改生产错误工厂。另外将该测试无效的 `observed_event_cursor` 比較改为真实 `goal_event_cursor`，保留事件/字段/约定无变化及 legacy 保存行为。主独立 owner 脚本已验证全部这些约束。
+- `goal-events-state.test.ts` 新 owner 测试的失败已由主定向复现（`05-owner-test-diagnostic.log`）：Host 注入的 errorFactory 返回 `MolisWorkV1Error`，测试却要求 `GoalsCommandError`。生产行为正确；按真实公共入口断言 Host 领域错误和精确 `goal.event_state_owner`，不要改生产错误工厂。另外将该测试无效的 `observed_event_cursor` 比較改为真实 `goal_event_cursor`，保留事件/字段/约定无变化及 legacy 保存行为。主独立 owner 脚本已验证全部这些约束。
 - Web symlink 测试仍把链接指向已不存在的 `src/web/server.ts`（web.test.ts 4354）。应链接实际 `apps/desktop/launchers/web/server.ts`，仍验证生产入口拒绝旧 `--db` 参数；不为测试恢复旧生产目录。
 - Plugin CLI 两个失败的具体报错是 `JSON.parse(stderr)` 遇到 Node 颜色环境警告（同时继承 NO_COLOR/FORCE_COLOR），不是已证明的业务失败。主正在用仅对当前测试进程移除 FORCE_COLOR 的方式定向验证；不要先改生产 CLI JSON/权限行为或吞错误。
 

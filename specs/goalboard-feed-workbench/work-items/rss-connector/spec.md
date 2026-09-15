@@ -2,7 +2,7 @@
 
 ## 背景与目标
 
-GoalBoard 的来源层已经能登记目录 RSS 和自定义 HTTPS RSS/Atom，并通过共享 Intelligence Runtime 解析为 Feed Item；但当前拉取没有持久化 HTTP 条件请求信息，来源详情也看不到订阅自身的标题、站点和最终地址。短暂网络失败还会立刻把来源标成需要人工处理，无法形成内部顺畅使用的恢复体验。
+Molis Work 的来源层已经能登记目录 RSS 和自定义 HTTPS RSS/Atom，并通过共享 Intelligence Runtime 解析为 Feed Item；但当前拉取没有持久化 HTTP 条件请求信息，来源详情也看不到订阅自身的标题、站点和最终地址。短暂网络失败还会立刻把来源标成需要人工处理，无法形成内部顺畅使用的恢复体验。
 
 本 Work Item 达到完成等级 4（内部完整）：用户能添加真实 RSS/Atom，连续增量拉取到 Feed，重复拉取不制造副本；临时故障自动重试，持续或配置故障提供明确的来源恢复入口；桌面和窄屏主路径可顺畅试用。
 
@@ -19,7 +19,7 @@ GoalBoard 的来源层已经能登记目录 RSS 和自定义 HTTPS RSS/Atom，�
 1. 用户从 RSS 目录添加来源，或输入一个自定义 HTTPS RSS/Atom 地址。
 2. 第一次同步验证返回内容确实是 RSS/Atom，保存订阅标题、站点地址、最终 Feed 地址和 HTTP 校验信息，并把最近内容导入 Feed。
 3. 后续同步发送 If-None-Match / If-Modified-Since；304 作为成功且无新内容，不覆盖既有游标或 Item。
-4. Provider 以 GUID 为首选身份，没有 GUID 时使用 canonical link；稳定身份缺失的条目由解析器拒绝，不制造不可追踪内容。GoalBoard 在同一来源范围内以稳定 candidate id 去重。
+4. Provider 以 GUID 为首选身份，没有 GUID 时使用 canonical link；稳定身份缺失的条目由解析器拒绝，不制造不可追踪内容。Molis Work 在同一来源范围内以稳定 candidate id 去重。
 5. 短暂网络或 5xx 失败保留上次成功时间和数据，来源显示可重试；连续三次失败或明确的格式/配置错误才创建可处理的来源故障。恢复成功后故障自动完成。
 6. 用户在来源详情中能看到 Feed URL、订阅标题/站点、上次成功、条件请求状态、当前错误与拉取记录，并能从桌面和窄屏重新同步或修正配置。
 
@@ -43,7 +43,7 @@ GoalBoard 的来源层已经能登记目录 RSS 和自定义 HTTPS RSS/Atom，�
 ### 身份、内容和去重
 
 - RSS Provider 已按 GUID（可解析为 HTTP URL 时）或 link 建立 entry id，并保留 title、summary、published/updated time、author 和 canonical URL。
-- GoalBoard external id 继续使用来源范围 + candidate id；相同 GUID/link 的重复拉取命中现有 Item，不新增副本。
+- Molis Work external id 继续使用来源范围 + candidate id；相同 GUID/link 的重复拉取命中现有 Item，不新增副本。
 - Run receipt 记录拉取模式、条件请求结果和安全的 HTTP 元数据，不保存完整响应正文。
 
 ### 故障与恢复

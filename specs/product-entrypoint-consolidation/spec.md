@@ -35,8 +35,8 @@
 - 通过：入口/安装/MCP/PTY/Home/runtime-payload 共 95 项场景，初轮 94 通过，source CLI 的路径差一层失败后修正并单独复验通过。源码与构建版从无关 cwd 使用同一安装源，保持已安装 release 正确、幂等。
 - 通过：新结构的 launcher/SDK/SDK tsconfig/Module 源码变化均触发 stale-build 拒绝，安装记录、旧 launcher 及其可运行性不受影响；生成输出不作为源码。
 - 通过：额外 Web catalog/PTY 资源 HTTP 回归、根 SDK 出口回归；38 包边界扫描零错误，旧存储/查询边界 2 项与规则测试 9 项通过。
-- 通过：清理旧绝对路径缓存后 Cargo 原生 12 项测试通过；所有版本源一致；从新目录构建 debug GoalBoard.app 并通过 codesign --verify --deep --strict。未运行新 release DMG/公证或真实 App 启动。
+- 通过：清理旧绝对路径缓存后 Cargo 原生 12 项测试通过；所有版本源一致；从新目录构建 debug Molis Work.app 并通过 codesign --verify --deep --strict。未运行新 release DMG/公证或真实 App 启动。
 - 通过：Desktop Runtime 资源通过真实 prepare 工具在新目录生成；资源内自带 Node 成功加载 root SDK，在内存数据库初始化并查询 Board。npm 工具成功生成 0.1.14 tarball；未重新做全新 npm consumer 安装。
 - 通过：改动文档链接与 git diff --check。没有安装/覆盖用户 Home、现用 App 或 4173 服务。
 
-本轮日志：/private/tmp/goalboard-entry-{build,tests,source-cli,web-assets,sdk,cargo-tests,resources,app-build,npm,root-boundaries,boundary-tests}.log。源码 CLI 的失败→修正复验和 Runtime 暂存错误→工具成功为本轮路径修复证据。提交/推送未执行，前一轮 38 份 README 修改仍在工作区。
+本轮日志：/private/tmp/molis-work-entry-{build,tests,source-cli,web-assets,sdk,cargo-tests,resources,app-build,npm,root-boundaries,boundary-tests}.log。源码 CLI 的失败→修正复验和 Runtime 暂存错误→工具成功为本轮路径修复证据。提交/推送未执行，前一轮 38 份 README 修改仍在工作区。

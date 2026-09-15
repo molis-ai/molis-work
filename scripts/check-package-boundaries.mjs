@@ -6,7 +6,7 @@ import {
   evaluateImportBoundary,
   extractImportSpecifiers,
   findDependencyCycles,
-} from "@adeptify/goalboard-test-kit";
+} from "@molis-ai/molis-work-test-kit";
 
 import { checkWorkspacePackages, WORKSPACE_PACKAGES } from "./workspace-packages.mjs";
 
@@ -253,7 +253,7 @@ function checkMigratedIntegrationOwnership(repositoryRoot) {
 
   const listenerPath = "horizontal/listener-host/src/index.ts";
   const listener = fs.readFileSync(path.join(repositoryRoot, listenerPath), "utf8");
-  if (/io\.goalboard\.integration\.|\b(?:github|gmail|youtube)\b/iu.test(listener)) {
+  if (/io\.molis\.work\.integration\.|\b(?:github|gmail|youtube)\b/iu.test(listener)) {
     errors.push(`${listenerPath}: Listener Host must remain Provider-neutral`);
   }
 
@@ -268,7 +268,7 @@ function checkMigratedIntegrationOwnership(repositoryRoot) {
     if (
       manifest.schema_version !== 1
       || manifest.kind !== "integration"
-      || !String(manifest.plugin_id ?? "").startsWith("io.goalboard.integration.")
+      || !String(manifest.plugin_id ?? "").startsWith("io.molis.work.integration.")
       || !String(manifest.version ?? "").match(/^\d+\.\d+\.\d+/u)
       || !String(manifest.publisher?.signature ?? "").trim()
       || !Array.isArray(manifest.entrypoints)
@@ -289,8 +289,8 @@ function checkMigratedIntegrationOwnership(repositoryRoot) {
   }
 
   for (const composition of [
-    { provider: "github", packageName: "@adeptify/goalboard-integration-github", forbidden: "api.github.com" },
-    { provider: "gmail", packageName: "@adeptify/goalboard-integration-gmail", forbidden: "gmail.googleapis.com" },
+    { provider: "github", packageName: "@molis-ai/molis-work-integration-github", forbidden: "api.github.com" },
+    { provider: "gmail", packageName: "@molis-ai/molis-work-integration-gmail", forbidden: "gmail.googleapis.com" },
   ]) {
     const legacyPath = `src/feed/connectors/${composition.provider}.ts`;
     if (fs.existsSync(path.join(repositoryRoot, legacyPath))) {
@@ -318,6 +318,8 @@ function checkMigratedFeedUiOwnership(repositoryRoot) {
   if (!httpAdapter.includes("createFeedRouteHandlers")) {
     errors.push("Feed HTTP adapter must bind the Native Feed request handlers");
   }
+  const inboxHttpAdapter = read("apps/local-host/src/inbox-native-plugin-http.ts");
+  const inboxPluginRoutes = read("plugins/native/inbox/src/routes.ts");
   const pluginUi = read("plugins/native/feed/src/ui.ts");
   const pluginRoutes = read("plugins/native/feed/src/routes.ts");
   const workbench = read("apps/workbench/src/index.ts") + read("apps/workbench/src/ui-composition.ts");
@@ -336,10 +338,19 @@ function checkMigratedFeedUiOwnership(repositoryRoot) {
   if (!renderer.includes("renderFeedNativePluginSurface")) {
     errors.push("apps/workbench/src/renderer.ts: Feed caller must render through the Native Plugin adapter");
   }
-  for (const forbidden of ["/api/feed", "/api/inbox/", "promoteFeedItemToGoal(", "sendFeedError("]) {
+  for (const forbidden of ["/api/feed", "promoteFeedItemToGoal(", "sendFeedError("]) {
     if (server.includes(forbidden)) {
       errors.push(`apps/local-host/src/web-request.ts: ${forbidden} must be owned by the Feed Plugin HTTP adapter`);
     }
+  }
+  if (server.includes("/api/inbox/")) {
+    errors.push("apps/local-host/src/web-request.ts: /api/inbox/ must be owned by the Inbox Plugin HTTP adapter");
+  }
+  if (!server.includes("handleInboxNativePluginHttp") || !inboxHttpAdapter.includes("new InboxPluginRouteTable") || !inboxPluginRoutes.includes("class InboxPluginRouteTable")) {
+    errors.push("apps/local-host/src/web-request.ts: Inbox HTTP caller must delegate through the public Plugin route table");
+  }
+  if (pluginRoutes.includes("/api/inbox/")) {
+    errors.push("plugins/native/feed/src/routes.ts: /api/inbox must be owned by the Inbox Plugin");
   }
   if (!server.includes("handleFeedNativePluginHttp") || !httpAdapter.includes("new FeedPluginRouteTable") || !httpAdapter.includes("routes.handle")) {
     errors.push("apps/local-host/src/web-request.ts: Feed HTTP caller must delegate through the public Plugin route table");
@@ -362,7 +373,7 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   const coordinatorPath = "apps/local-host/src/goal-project-application.ts";
   const coordinator = read(coordinatorPath);
   errors.push(...checkDraftProposalOwnerSql(read("modules/goals/src/goal-commands.ts")));
-  if (!coordinator.includes('from "@adeptify/goalboard-module-goals"')) {
+  if (!coordinator.includes('from "@molis-ai/molis-work-module-goals"')) {
     errors.push(`${coordinatorPath}: Goal application composition must use the Goals Module public entrypoint`);
   }
 
@@ -439,16 +450,16 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
     }
   }
   const moduleManifest = readJson(path.join(repositoryRoot, "modules/goals/package.json"));
-  if (moduleManifest.goalboard?.maturity !== "partial") {
+  if (moduleManifest["molis-work"]?.maturity !== "partial") {
     errors.push("modules/goals/package.json: migrated Goal commands require partial maturity");
   }
-  if (!moduleManifest.goalboard?.capabilities?.includes("goals.lifecycle.v1")) {
+  if (!moduleManifest["molis-work"]?.capabilities?.includes("goals.lifecycle.v1")) {
     errors.push("modules/goals/package.json: GW2 requires goals.lifecycle.v1 capability");
   }
-  if (!moduleManifest.goalboard?.capabilities?.includes("goals.planning.v1")) {
+  if (!moduleManifest["molis-work"]?.capabilities?.includes("goals.planning.v1")) {
     errors.push("modules/goals/package.json: GW3 requires goals.planning.v1 capability");
   }
-  if (!moduleManifest.goalboard?.capabilities?.includes("goals.query.v1")) {
+  if (!moduleManifest["molis-work"]?.capabilities?.includes("goals.query.v1")) {
     errors.push("modules/goals/package.json: Goals Query requires goals.query.v1 capability");
   }
   if (!moduleManifest.files?.includes("methods")) {
@@ -470,11 +481,11 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   }
   const homeInstaller = read("apps/local-host/src/installer/home-release.ts");
   if (
-    !homeInstaller.includes('"goalboard-module-goals"')
+    !homeInstaller.includes('"molis-work-module-goals"')
     || !homeInstaller.includes("skillMethodsDirectory")
     || !homeInstaller.includes("fs.symlink(")
   ) {
-    errors.push("apps/local-host/src/installer/home-release.ts: installed GoalBoard Skill must link to packaged Goals method assets");
+    errors.push("apps/local-host/src/installer/home-release.ts: installed Molis Work Skill must link to packaged Goals method assets");
   }
 
   const factMaterializerPath = "plugins/native/goals/src/goal-tree-fact-materializer.ts";
@@ -553,7 +564,7 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   }
 
   const planningTest = read("tests/planning-engine.test.ts");
-  if (!planningTest.includes('from "@adeptify/goalboard-module-goals"')) {
+  if (!planningTest.includes('from "@molis-ai/molis-work-module-goals"')) {
     errors.push("tests/planning-engine.test.ts: Planning behavior must be tested through the Goals public API");
   }
 
@@ -594,7 +605,7 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
 
   const queryTest = read("tests/goals-query-module.test.ts");
   if (
-    !queryTest.includes('from "@adeptify/goalboard-module-goals"')
+    !queryTest.includes('from "@molis-ai/molis-work-module-goals"')
     || !queryTest.includes("goals.query.readGoal")
     || !queryTest.includes("goals.query.snapshot")
   ) {
@@ -684,9 +695,9 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
       errors.push(`${appPath}: GW4 requires a Contract-typed ${factory} public adapter`);
     }
     if (
-      app.includes("@adeptify/goalboard-module-goals")
+      app.includes("@molis-ai/molis-work-module-goals")
       || /\b(?:SELECT|INSERT INTO|UPDATE|DELETE FROM)\b/iu.test(app)
-      || /\b(?:SqliteGoalBoardStore|GoalsRepository|GoalBoardCoordinator)\b/u.test(app)
+      || /\b(?:SqliteMolisWorkStore|GoalsRepository|MolisWorkCoordinator)\b/u.test(app)
     ) {
       errors.push(`${appPath}: App adapter must not import the Goal implementation, Store, or copied business rules`);
     }
@@ -722,7 +733,7 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
     if (
       !(callerPath === "apps/mcp/src/tool-dispatch.ts"
         ? caller.includes('from "./goal-commands.js"')
-        : caller.includes(`from "@adeptify/goalboard-app-${appPath.split("/")[1]}"`))
+        : caller.includes(`from "@molis-ai/molis-work-app-${appPath.split("/")[1]}"`))
       || !(commandHandler !== null
         ? caller.includes("createGoalsEntryClient(client)")
           && caller.includes("client.withScope(")
@@ -734,9 +745,9 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
       errors.push(`${callerPath}: Goal writes must enter through the public App commands and its Host Client (or unmigrated Workbench adapter)`);
     }
     if (commandHandler !== null && (
-      commandHandler.includes("@adeptify/goalboard-module-goals")
+      commandHandler.includes("@molis-ai/molis-work-module-goals")
       || /\b(?:SELECT|INSERT INTO|UPDATE|DELETE FROM)\b/iu.test(commandHandler)
-      || /\b(?:SqliteGoalBoardStore|GoalsRepository|GoalBoardCoordinator)\b/u.test(commandHandler)
+      || /\b(?:SqliteMolisWorkStore|GoalsRepository|MolisWorkCoordinator)\b/u.test(commandHandler)
     )) {
       errors.push(`${commandHandlerPath}: command handlers must not own Module implementations, Store, or copied business rules`);
     }
@@ -745,7 +756,7 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
     const nativePath = `plugins/native/goals/src/http/${file}.ts`;
     const source = read(nativePath);
     errors.push(...checkGoalStorageOwnership(source).map(error => `${nativePath}: ${error}`));
-    if (/goalboard-app-|goalboard-module-|node:http|\b(?:LocalProjectDatabase|GoalProjectApplication|SqliteGoalBoardStore|GoalsRepository)\b/u.test(source)) {
+    if (/molis-work-app-|molis-work-module-|node:http|\b(?:LocalProjectDatabase|GoalProjectApplication|SqliteMolisWorkStore|GoalsRepository)\b/u.test(source)) {
       errors.push(`${nativePath}: Native Goal requests must consume public operation ports without Host or Module implementations`);
     }
   }
@@ -780,7 +791,7 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
     "plugins/native/feed/src/goal-promotion.ts",
   ]) {
     if (removedFacadeCall.test(read(relativePath))) {
-      errors.push(`${relativePath}: GW4 caller still uses a removed GoalBoardCoordinator Goal facade`);
+      errors.push(`${relativePath}: GW4 caller still uses a removed MolisWorkCoordinator Goal facade`);
     }
   }
 
@@ -830,11 +841,11 @@ function checkMigratedGovernanceOwnership(repositoryRoot) {
     "governance.decisions.v1",
     "governance.event-decisions.v1",
   ];
-  if (manifest.goalboard?.maturity !== "partial") {
+  if (manifest["molis-work"]?.maturity !== "partial") {
     errors.push("modules/governance-collaboration/package.json: EX3 requires partial maturity");
   }
   for (const capability of requiredCapabilities) {
-    if (!manifest.goalboard?.capabilities?.includes(capability)) {
+    if (!manifest["molis-work"]?.capabilities?.includes(capability)) {
       errors.push(`modules/governance-collaboration/package.json: missing ${capability}`);
     }
   }
@@ -856,7 +867,7 @@ function checkMigratedGovernanceOwnership(repositoryRoot) {
   const coordinatorPath = "apps/local-host/src/goal-project-application.ts";
   const coordinator = read(coordinatorPath);
   if (
-    !coordinator.includes('from "@adeptify/goalboard-module-governance-collaboration"')
+    !coordinator.includes('from "@molis-ai/molis-work-module-governance-collaboration"')
     || !coordinator.includes("readonly governance: GovernanceApplicationApi")
     || !coordinator.includes("records: governanceModule.records")
   ) {
@@ -1020,11 +1031,11 @@ function checkExecutionValidationOwnership(repositoryRoot) {
       errors.push(`${appPath}: retired ${factory} public adapter must stay deleted`);
     }
     if (
-      app.includes("@adeptify/goalboard-module-execution")
-      || app.includes("@adeptify/goalboard-module-evidence-verification")
-      || app.includes("@adeptify/goalboard-module-governance-collaboration")
+      app.includes("@molis-ai/molis-work-module-execution")
+      || app.includes("@molis-ai/molis-work-module-evidence-verification")
+      || app.includes("@molis-ai/molis-work-module-governance-collaboration")
       || /\b(?:SELECT|INSERT INTO|UPDATE|DELETE FROM)\b/iu.test(app)
-      || /\b(?:SqliteGoalBoardStore|GoalBoardCoordinator)\b/u.test(app)
+      || /\b(?:SqliteMolisWorkStore|MolisWorkCoordinator)\b/u.test(app)
     ) {
       errors.push(`${appPath}: execution adapter must not import Module implementations, Store, or copied rules`);
     }
@@ -1125,18 +1136,18 @@ function checkArtifactsOwnership(repositoryRoot) {
   if (fs.existsSync(path.join(repositoryRoot, "src/web/onboarding.ts"))) {
     errors.push("src/web/onboarding.ts: local onboarding state must remain owned by Local Host");
   }
-  if (/export function (?:buildGoalBoardWebView|cachedGoalBoardWebView)/u.test(read("apps/local-host/src/web-request.ts"))) {
+  if (/export function (?:buildMolisWorkWebView|cachedMolisWorkWebView)/u.test(read("apps/local-host/src/web-request.ts"))) {
     errors.push("apps/local-host/src/web-request.ts: Goal read projection and cache must remain outside HTTP routing");
   }
   const artifactHttp = read("apps/local-host/src/artifact-native-plugin-http.ts");
-  if (!artifactHttp.includes("createLocalArtifactHttp") || artifactHttp.includes("@adeptify/goalboard-app-desktop")) {
+  if (!artifactHttp.includes("createLocalArtifactHttp") || artifactHttp.includes("@molis-ai/molis-work-app-desktop")) {
     errors.push("Artifact HTTP composition must receive Desktop bootstrap through its Host factory");
   }
 
   const pluginPath = "plugins/native/artifacts/src/index.ts";
   const nativePlugin = read(pluginPath);
   for (const required of [
-    'contract: "@adeptify/goalboard-contracts/platform/plugin"',
+    'contract: "@molis-ai/molis-work-contracts/platform/plugin"',
     '"goal-reorg-ar1"',
     '"goal-reorg-ar3"',
   ]) {
@@ -1233,7 +1244,7 @@ function checkPrivateWorkContextOwnership(repositoryRoot) {
 
   const entry = read("modules/private-work-context/src/index.ts");
   for (const required of [
-    "GoalBoardSessionRegistry",
+    "MolisWorkSessionRegistry",
     "RuntimeContextBindingRepository",
     'maturity: "partial"',
     '"runtime-context-bindings"',
@@ -1308,7 +1319,7 @@ function checkRuntimeHostOwnership(repositoryRoot) {
     "RuntimeHostRouter",
     "CodexAppServerTransport",
     "CodexRuntimeSessionAdapter",
-    "GoalBoardPtyHost",
+    "MolisWorkPtyHost",
     'maturity: "partial"',
     '"runtime.host.v1"',
     '"runtime.codex.v1"',
@@ -1319,11 +1330,11 @@ function checkRuntimeHostOwnership(repositoryRoot) {
 
   const ownerSource = ownerFiles.map(read).join("\n");
   for (const forbidden of [
-    "GoalBoardSessionRegistry",
-    "@adeptify/goalboard-module-private-work-context",
-    "@adeptify/goalboard-module-execution",
+    "MolisWorkSessionRegistry",
+    "@molis-ai/molis-work-module-private-work-context",
+    "@molis-ai/molis-work-module-execution",
     "better-sqlite3",
-    "SqliteGoalBoardStore",
+    "SqliteMolisWorkStore",
     "src/web/server",
   ]) {
     if (ownerSource.includes(forbidden)) {
@@ -1336,10 +1347,10 @@ function checkRuntimeHostOwnership(repositoryRoot) {
       errors.push(`${retired}: retired after WK3 caller cutover; use the public owner entrypoint`);
     }
   }
-  if (!read("apps/local-host/src/web-request.ts").includes('from "@adeptify/goalboard-service-runtime-host"')) {
+  if (!read("apps/local-host/src/web-request.ts").includes('from "@molis-ai/molis-work-service-runtime-host"')) {
     errors.push("apps/local-host/src/web-request.ts: Runtime composition must consume the public Runtime Host entrypoint");
   }
-  if (!read("apps/local-host/src/pty-socket.ts").includes('from "@adeptify/goalboard-service-runtime-host"')) {
+  if (!read("apps/local-host/src/pty-socket.ts").includes('from "@molis-ai/molis-work-service-runtime-host"')) {
     errors.push("apps/local-host/src/pty-socket.ts: PTY socket must consume the public Runtime Host entrypoint");
   }
   if (read("horizontal/runtime-host/src/runtime-router.ts").includes("RegistryFallbackSessionAdapter")) {

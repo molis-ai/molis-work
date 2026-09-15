@@ -4,7 +4,7 @@
 
 现有“关系图”以当前 Goal 为中心做放射状展开，同时绘制 `part_of` 与 `depends_on`。它能证明关系存在，却不能回答内部使用时最重要的三个问题：项目最近是否持续推进、哪个 Goal 正在形成瓶颈、现在优先行动什么。
 
-本任务把该入口替换为“推进态势”，完成等级为 **4：内部完整**。视图只读取 GoalBoard 的权威 Goal、关系、Claim、Run、Risk、Review、Evidence 与事件事实；不创建第二套进度、优先级或状态写入。
+本任务把该入口替换为“推进态势”，完成等级为 **4：内部完整**。视图只读取 Molis Work 的权威 Goal、关系、Claim、Run、Risk、Review、Evidence 与事件事实；不创建第二套进度、优先级或状态写入。
 
 已确认的交互方向以 [`../goal-momentum-hifi-slice/spec.md`](../goal-momentum-hifi-slice/spec.md) 和其高保真原型为视觉与行为基线。
 
@@ -88,7 +88,7 @@
 
 ## 验收标准
 
-1. 页面只从 GoalBoard 权威事实派生节奏、拓扑、瓶颈和队列；fixture 可逐项对账。
+1. 页面只从 Molis Work 权威事实派生节奏、拓扑、瓶颈和队列；fixture 可逐项对账。
 2. 所有 Goal 与 active `depends_on` 在完整模式可见，方向为提供者到消费者，`part_of` 仅作分组。
 3. 7/30 天切换、全部/未完成、节点/队列选择、打开 Goal、缩放与重试可工作，并给出排序理由和数据缺口。
 4. 旧“关系图”文字入口、放射轨道、环形坐标、`part_of` 图边和 `/api/board/graph` endpoint 均移除。
@@ -111,4 +111,4 @@ pnpm test
 
 - 当前数据库事件历史可能晚于部分 Goal 创建，因此“停滞”只对有足够历史的 Goal 计算；其余作为缺口展示。
 - 一项 Goal 若存在多个 active `part_of`，本次按稳定排序选择首个分组并报告完整性提醒，不静默合并层级。
-- 本任务不改变 GoalBoard 对 `depends_on`、Risk、Review 或完成判定的领域语义。
+- 本任务不改变 Molis Work 对 `depends_on`、Risk、Review 或完成判定的领域语义。

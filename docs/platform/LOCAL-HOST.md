@@ -2,7 +2,7 @@
 
 ## 白话说明
 
-DV1 的 CLI/MCP Goal 操作已全部通过 Host Client，不再从 `withProject` 拿 Coordinator 或 availability。`withScope` 只保持打开 Runtime 到响应完成的资源周期，不暴露 Store，也不把整个 callback 放进串行队列；内部具名 invoke 仍按原队列执行。Available+projection、trash+work state、planning methods+composition 分别是一个 Host 组合操作，避免异步迁移拆开原有一致性。Board/import/resume/trash-list 等声明和完整输入输出类型已归官方 Goals Plugin；root composition 仅注册原实现并保留兼容 re-export。DV1 已通过复核；逐项证据见 `specs/goalboard-architecture-reorganization/dv1-validation.md`。
+DV1 的 CLI/MCP Goal 操作已全部通过 Host Client，不再从 `withProject` 拿 Coordinator 或 availability。`withScope` 只保持打开 Runtime 到响应完成的资源周期，不暴露 Store，也不把整个 callback 放进串行队列；内部具名 invoke 仍按原队列执行。Available+projection、trash+work state、planning methods+composition 分别是一个 Host 组合操作，避免异步迁移拆开原有一致性。Board/import/resume/trash-list 等声明和完整输入输出类型已归官方 Goals Plugin；root composition 仅注册原实现并保留兼容 re-export。DV1 已通过复核；逐项证据见 `specs/molis-work-architecture-reorganization/dv1-validation.md`。
 
 DV1 的 Draft、Goal Tree、旧提案组现已通过 `createGoalProposalClients` 使用正式 Host Client；原临时 runtime 的三组字段已删除。公开 capability 逐项注册到原方法，含会保存恢复记录的 Draft resume 和会保存检查记录的 Goal Tree check。App 负责 await 后展示，Host 不复制提案业务规则。
 
@@ -23,7 +23,7 @@ Local Host 是本地产品的“总装配间”。以前 Web、CLI、MCP 各自�
 
 正式入口使用 `LocalHostProjectClient.invoke(capability, input)`。AP2 已接通 Board initialize、snapshot 和 Goal create 作为真实 typed Capability 切片，并验证 CLI、MCP 和 Workbench 风格 Client 对同一命令得到同一事实和幂等结果。
 
-尚未迁到独立 Module 的旧调用暂时通过 `GoalBoardLocalHost.withProject` 兼容 composition 端口访问同一 Runtime。它只解决迁移期资源所有权，不是新公共业务 API；EX、WK、AP3、DV1 等 Goal 会逐步用正式 Capability 替换这些调用。
+尚未迁到独立 Module 的旧调用暂时通过 `MolisWorkLocalHost.withProject` 兼容 composition 端口访问同一 Runtime。它只解决迁移期资源所有权，不是新公共业务 API；EX、WK、AP3、DV1 等 Goal 会逐步用正式 Capability 替换这些调用。
 
 DV1 已将完整 Goal Contract、项目说明和 active-goal 三项入口接到官方 Goals Plugin 的具名 Capability，由 Host 注册并调用原 owner。MCP 的 Runtime 决定参数先在 App 校验，再调用 Local Host 的 `runtimeGoalTreeDecisionAuthority` 组合宿主来源；保持原审计算法，不把模型 args 变成 Session 身份。CLI/MCP 已无 `withProject` caller；Workbench 等剩余消费者另由各自迁移任务负责。
 

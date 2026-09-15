@@ -1,5 +1,5 @@
-import type { UiContribution } from "@adeptify/goalboard-contracts/platform/ui";
-import type { GoalTreeProposalRecord } from "@adeptify/goalboard-contracts/modules/governance-collaboration";
+import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { GoalTreeProposalRecord } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import { goalTreeProposalItemValidationIssues } from "./proposal-item-validation.js";
 import { GOALS_RELATION_LABELS as RELATION_LABELS } from "./relation-presentation.js";
 import { createGoalsDecisionPresentation } from "./decision-common-ui.js";
@@ -7,7 +7,7 @@ import { createGoalsProposalPresentation } from "./proposal-presentation.js";
 import { createGoalsProposalIssueCopy } from "./proposal-issue-copy.js";
 import { findGoalView, type GoalsProposalView, type GoalsProposalUiPrimitives } from "./proposal-ui-model.js";
 
-export const GOALS_PROPOSAL_UI_CONTRIBUTION_ID = "io.goalboard.native.goals.proposal";
+export const GOALS_PROPOSAL_UI_CONTRIBUTION_ID = "io.molis.work.native.goals.proposal";
 function createProposalRenderer(primitives: GoalsProposalUiPrimitives) {
 const { translate: L, escapeHtml, icon, renderList } = primitives;
 const { renderNewDecisionBadge, renderDecisionGuidance, renderDecisionScenario, proposedGoalNextStage } = createGoalsDecisionPresentation(primitives);
@@ -180,7 +180,7 @@ function renderGoalTreeProposalDecision(proposal: GoalTreeProposalRecord, view: 
   const problemRows = problemItems.map(renderItemRow).join("");
   const otherRows = otherItems.map(renderItemRow).join("");
   const conflictMessage = conflictCount
-    ? `<p class="goal-tree-proposal-conflict" role="status">${L("其中 {count} 项已经和当前 GoalBoard 状态不一致。请退回方案，让 Runtime 按最新状态重新整理。", { count: conflictCount })}</p>`
+    ? `<p class="goal-tree-proposal-conflict" role="status">${L("其中 {count} 项已经和当前 Molis Work 状态不一致。请退回方案，让 Runtime 按最新状态重新整理。", { count: conflictCount })}</p>`
     : "";
   const riskOnly = riskInvalidItemCount > 0 && decompositionInvalidItemCount === 0;
   const decompositionOnly = decompositionInvalidItemCount > 0 && riskInvalidItemCount === 0;
@@ -206,16 +206,16 @@ function renderGoalTreeProposalDecision(proposal: GoalTreeProposalRecord, view: 
         })
       : L("请为下面 {count} 条风险选择处理方式。原来的具体措施已经保留，你可以修改后一起保存。", { count: repairableRiskItemCount })
     : riskOnly
-      ? L("其中 {count} 条风险信息需要 Runtime 修正。这些风险还没有写入 GoalBoard。", { count: invalidItemCount })
+      ? L("其中 {count} 条风险信息需要 Runtime 修正。这些风险还没有写入 Molis Work。", { count: invalidItemCount })
       : leafOnly
         ? L("这些 Goal 仍包含多个可独立交付的结果，或没有说明唯一主要结果和完成依据。", { count: leafInvalidItemCount })
         : decompositionOnly
         ? L("其中 {count} 个 Goal 还没有交代通用结果链、当前任务的必要路径，或下面仍有目标没有拆完。", { count: invalidItemCount })
-        : L("当前有内容不满足 GoalBoard 的写入规则，修正前不会写入 Goal Tree。");
+        : L("当前有内容不满足 Molis Work 的写入规则，修正前不会写入 Goal Tree。");
   const invalidWhy = repairableRiskItemCount
-    ? L("风险怎么处理应当由你决定。GoalBoard 会把处理类别和具体措施分开保存，并保留方案的其他内容。")
+    ? L("风险怎么处理应当由你决定。Molis Work 会把处理类别和具体措施分开保存，并保留方案的其他内容。")
     : riskOnly
-      ? L("Runtime 提交的风险信息不符合 GoalBoard 的记录规则，需要修正后才能采用整份方案。")
+      ? L("Runtime 提交的风险信息不符合 Molis Work 的记录规则，需要修正后才能采用整份方案。")
       : leafOnly
         ? L("一条可执行 Goal 只能交付一个主要结果；能单独交付、验收或返工的工作需要拆开。")
         : decompositionOnly
@@ -301,7 +301,7 @@ export interface GoalsProposalUiModel {
   view: GoalsProposalView;
 }
 export const goalsProposalUiContribution: UiContribution<GoalsProposalUiModel> = {
-  descriptor: { contribution_id: GOALS_PROPOSAL_UI_CONTRIBUTION_ID, plugin_id: "io.goalboard.native.goals", kind: "embedded", label: "Goal tree proposal decision",
+  descriptor: { contribution_id: GOALS_PROPOSAL_UI_CONTRIBUTION_ID, plugin_id: "io.molis.work.native.goals", kind: "embedded", label: "Goal tree proposal decision",
     surfaces: [{ surface_id: "decision", target_slot_id: "workbench.main", format: "declarative-html" }], slots: [] },
   render({ surface, model }) {
     if (surface !== "decision") throw new Error("Unknown Goals proposal surface");

@@ -4,7 +4,7 @@ import type {
   ArtifactListQuery,
   ArtifactMetadata,
   ArtifactVersionRecord,
-} from "@adeptify/goalboard-contracts/modules/artifacts";
+} from "@molis-ai/molis-work-contracts/modules/artifacts";
 
 type Row = Record<string, unknown>;
 

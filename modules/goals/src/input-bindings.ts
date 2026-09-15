@@ -1,5 +1,5 @@
-import type { GoalInputBindingRecord, GoalInputBindingsApi } from "@adeptify/goalboard-contracts/modules/goals";
-import type { ContextAccess, ContextLedgerApi } from "@adeptify/goalboard-contracts/modules/context-ledger";
+import type { GoalInputBindingRecord, GoalInputBindingsApi } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { ContextAccess, ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import type { GoalsSqliteDatabase } from "./repository.js";
 import { GoalsCommandError } from "./errors.js";
 

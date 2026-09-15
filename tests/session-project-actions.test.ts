@@ -3,13 +3,13 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { GoalBoardSessionRegistry } from "@adeptify/goalboard-module-private-work-context";
-import { GoalBoardSessionError } from "@adeptify/goalboard-module-private-work-context";
+import { MolisWorkSessionRegistry } from "@molis-ai/molis-work-module-private-work-context";
+import { MolisWorkSessionError } from "@molis-ai/molis-work-module-private-work-context";
 
 test("Session project actions are confirmed, atomic, isolated and keep Goal history", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "goalboard-session-actions-"));
+  const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-session-actions-"));
   const registry = await openWorkSessionRegistry({
-    homeDirectory: path.join(directory, ".goalboard"),
+    homeDirectory: path.join(directory, ".molis-work"),
     now: () => new Date("2026-08-31T08:00:00.000Z"),
   });
   try {
@@ -42,7 +42,7 @@ test("Session project actions are confirmed, atomic, isolated and keep Goal hist
         user_confirmed: false,
         project_id: "project-b",
       }),
-      (error: unknown) => error instanceof GoalBoardSessionError
+      (error: unknown) => error instanceof MolisWorkSessionError
         && error.code === "session.confirmation_required",
     );
 
@@ -103,4 +103,4 @@ test("Session project actions are confirmed, atomic, isolated and keep Goal hist
     await rm(directory, { recursive: true, force: true });
   }
 });
-import { openWorkSessionRegistry } from "@adeptify/goalboard-app-local-host";
+import { openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";

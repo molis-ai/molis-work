@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { rmSync } from "node:fs";
 import test from "node:test";
 
-import { EvidenceVerificationModule } from "@adeptify/goalboard-module-evidence-verification";
-import { DEMO_BOARD_ID, LocalProjectDatabase } from "@adeptify/goalboard-app-local-host";
+import { EvidenceVerificationModule } from "@molis-ai/molis-work-module-evidence-verification";
+import { DEMO_BOARD_ID, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { materializeGoalEventV35Fixture } from "./goal-event-v35-fixture.js";
 import { insertHistoricalEvidence, insertHistoricalEvidenceCorrection } from "./historical-sql-fixture.js";
 

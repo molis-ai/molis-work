@@ -1,31 +1,31 @@
-import type { ProjectRecord } from "@adeptify/goalboard-contracts/modules/projects";
+import type { ProjectRecord } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { RuntimeIntegrationService } from "./runtime-integration.js";
 import type { RuntimeIntegrationPlan } from "./runtime-integration-contract.js";
-import type { GoalBoardWebServiceManager } from "./web-service.js";
-import type { GoalBoardWebServicePlan } from "./web-service-contract.js";
-export const UNINSTALL_OWNER = "goalboard-uninstall-v1";
+import type { MolisWorkWebServiceManager } from "./web-service.js";
+import type { MolisWorkWebServicePlan } from "./web-service-contract.js";
+export const UNINSTALL_OWNER = "molis-work-uninstall-v1";
 
-export interface GoalBoardUninstallChange {
+export interface MolisWorkUninstallChange {
   kind: "runtime" | "web_service" | "demo" | "launcher" | "release" | "install_manifest" | "user_data";
   target: string;
   description: string;
 }
 
-export interface GoalBoardUninstallPlan {
+export interface MolisWorkUninstallPlan {
   plan_id: string;
   status: "ready" | "no_change" | "conflict";
   home_directory: string;
   purge_user_data: boolean;
   user_project_count: number;
   demo_project_count: number;
-  changes: GoalBoardUninstallChange[];
+  changes: MolisWorkUninstallChange[];
   preserved_paths: string[];
   conflicts: string[];
   confirmation: string;
   message: string;
 }
 
-export interface GoalBoardUninstallResult {
+export interface MolisWorkUninstallResult {
   status: "uninstalled" | "purged" | "unchanged" | "declined";
   home_directory: string;
   removed_paths: string[];
@@ -34,18 +34,18 @@ export interface GoalBoardUninstallResult {
   message: string;
 }
 
-export interface GoalBoardUninstallServiceOptions {
+export interface MolisWorkUninstallServiceOptions {
   homeDirectory?: string;
   projects: UninstallProjectAccess;
   runtimeIntegrationService?: RuntimeIntegrationService;
-  webServiceManager?: GoalBoardWebServiceManager;
+  webServiceManager?: MolisWorkWebServiceManager;
 }
 
 export interface PreparedUninstallPlan {
-  publicPlan: GoalBoardUninstallPlan;
+  publicPlan: MolisWorkUninstallPlan;
   snapshotHash: string;
   runtimePlans: RuntimeIntegrationPlan[];
-  webPlan: GoalBoardWebServicePlan;
+  webPlan: MolisWorkWebServicePlan;
   ownedPaths: string[];
   purgeDataPaths: string[];
   snapshotPaths: string[];
@@ -71,7 +71,7 @@ export interface UninstallReceipt {
   updated_at: string;
 }
 
-export class GoalBoardUninstallError extends Error {
+export class MolisWorkUninstallError extends Error {
   constructor(
     readonly code:
       | "uninstall.plan_missing"
@@ -82,7 +82,7 @@ export class GoalBoardUninstallError extends Error {
     message: string,
   ) {
     super(message);
-    this.name = "GoalBoardUninstallError";
+    this.name = "MolisWorkUninstallError";
   }
 }
 

@@ -4,8 +4,8 @@ export const WORK_CONTENT_CLIENT = `
   const sourceLabel = (source) => source === "runtime_native"
     ? L("Runtime 原生")
     : source === "goalboard_tui"
-      ? L("GoalBoard TUI · 部分终端记录")
-      : L("GoalBoard 记录");
+      ? L("Molis Work TUI · 部分终端记录")
+      : L("Molis Work 记录");
   const renderContentState = (detail, title, message, retry = false) => {
     const body = detail.querySelector(".session-content-body");
     body.replaceChildren();
@@ -88,7 +88,7 @@ export const WORK_CONTENT_CLIENT = `
     if (!events.length) {
       const title = payload.content_mode === "failed" ? L("Runtime 内容读取失败") : L("还没有可显示的执行内容");
       const message = payload.native_error?.message || (payload.content_mode === "unavailable"
-        ? L("这个 Runtime 没有内容读取能力，GoalBoard 也还没有持久化的 TUI 记录。")
+        ? L("这个 Runtime 没有内容读取能力，Molis Work 也还没有持久化的 TUI 记录。")
         : L("Session 身份与关系已经保留，产生执行记录后会显示在这里。"));
       renderContentState(detail, title, message, payload.content_mode === "failed");
       return;
@@ -232,11 +232,11 @@ export const WORK_CONTENT_CLIENT = `
     if (!detail?.dataset.detailId) return;
     if (!force && ["loading", "loaded"].includes(detail.dataset.contentState || "")) return;
     detail.dataset.contentState = "loading";
-    renderContentState(detail, L("正在读取执行内容"), L("正在联系原 Runtime，并加载 GoalBoard 已保存的 TUI 记录。"), false);
+    renderContentState(detail, L("正在读取执行内容"), L("正在联系原 Runtime，并加载 Molis Work 已保存的 TUI 记录。"), false);
     try {
       const response = await fetch(route("/api/sessions/" + encodeURIComponent(detail.dataset.detailId) + "/content"), {
         cache: "no-store",
-        headers: window.goalboardControlHeaders?.() || {},
+        headers: window.molisWorkControlHeaders?.() || {},
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || L("Session 内容读取失败"));
@@ -267,7 +267,7 @@ export const WORK_CONTENT_CLIENT = `
     const detail = button.closest("[data-operation-detail]");
     fetch(route("/api/sessions/" + encodeURIComponent(detail.dataset.detailId) + "/resume"), {
       method: "POST",
-      headers: window.goalboardControlHeaders?.() || {},
+      headers: window.molisWorkControlHeaders?.() || {},
       body: "{}",
     }).then(async (response) => {
       const payload = await response.json();

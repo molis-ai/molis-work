@@ -1,31 +1,31 @@
-import { openGoalBoardProjectCatalog } from "@adeptify/goalboard-app-desktop";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { RuntimeProjectConnection } from "@adeptify/goalboard-app-local-host";
-import { createMcpContextPresenter, createMcpRuntimeContextHandlers } from "@adeptify/goalboard-app-mcp";
-import { readProjectGuidanceCapability } from "@adeptify/goalboard-plugin-goals";
-import { createGoalBoardLocalHost, goalBoardHostProjectReference, projectResumeFactsCapability } from "@adeptify/goalboard-app-local-host";
-import { GoalBoardV1Error } from "@adeptify/goalboard-plugin-goals";
-import type { GoalBoardRuntimeContextHost } from "@adeptify/goalboard-contracts/platform/app-host";
-import { type GoalBoardProjectCatalog, GoalBoardProjectCatalogError } from "@adeptify/goalboard-app-local-host";
-import { withGoalBoardProjectCatalog } from "@adeptify/goalboard-app-desktop";
+import { RuntimeProjectConnection } from "@molis-ai/molis-work-app-local-host";
+import { createMcpContextPresenter, createMcpRuntimeContextHandlers } from "@molis-ai/molis-work-app-mcp";
+import { readProjectGuidanceCapability } from "@molis-ai/molis-work-plugin-goals";
+import { createMolisWorkLocalHost, molisWorkHostProjectReference, projectResumeFactsCapability } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkV1Error } from "@molis-ai/molis-work-plugin-goals";
+import type { MolisWorkRuntimeContextHost } from "@molis-ai/molis-work-contracts/platform/app-host";
+import { type MolisWorkProjectCatalog, MolisWorkProjectCatalogError } from "@molis-ai/molis-work-app-local-host";
+import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 
 test("context handlers preserve a denied binding and hold the catalog open through async response failure", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-context-entry-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-context-entry-"));
   const homeDirectory = join(directory, "home");
-  const fixture = await openGoalBoardProjectCatalog({ homeDirectory });
+  const fixture = await openMolisWorkProjectCatalog({ homeDirectory });
   try {
     const project = await fixture.createProject({ display_name: "Scoped connection", actor_id: "user" });
-    const host: GoalBoardRuntimeContextHost = { homeDirectory,
+    const host: MolisWorkRuntimeContextHost = { homeDirectory,
       runtimeContext: { runtime_id: "codex", stable_work_context_id: "host-session", host_declares_stable: true } };
     fixture.bindRuntimeContext({ context: host.runtimeContext, project_id: project.project_id, actor_id: "user", user_confirmed: true });
     const before = fixture.listRuntimeContextBindings();
     const connection = new RuntimeProjectConnection({ projectId: project.project_id, boardId: project.board_id, databasePath: project.database_path, webBaseUrl: "http://127.0.0.1:4173" });
     const originalConnection = connection.connection;
-    let scoped: GoalBoardProjectCatalog | undefined;
+    let scoped: MolisWorkProjectCatalog | undefined;
     let opened!: () => void;
     const didOpen = new Promise<void>(resolve => { opened = resolve; });
     let continueResponse!: () => void;
@@ -34,7 +34,7 @@ test("context handlers preserve a denied binding and hold the catalog open throu
     const handlers = createMcpRuntimeContextHandlers({
       connection,
       requireHost: () => host,
-      catalogs: { withCatalog: (home, operation) => withGoalBoardProjectCatalog({ homeDirectory: home }, catalog => {
+      catalogs: { withCatalog: (home, operation) => withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => {
         scoped = catalog;
         return operation(catalog);
       }) },
@@ -49,12 +49,12 @@ test("context handlers preserve a denied binding and hold the catalog open throu
       },
     });
     const context = { runtimeSessionId: null, runtimeSessionIdSource: null };
-    await assert.rejects(handlers.goalboard_v1_context_bind({ project_id: project.project_id, actor_id: "runtime", user_confirmed: "true" }, context),
-      (error: unknown) => error instanceof GoalBoardProjectCatalogError && error.code === "context.user_confirmation_required");
+    await assert.rejects(handlers.molis_work_v1_context_bind({ project_id: project.project_id, actor_id: "runtime", user_confirmed: "true" }, context),
+      (error: unknown) => error instanceof MolisWorkProjectCatalogError && error.code === "context.user_confirmation_required");
     assert.equal(connection.connection, originalConnection);
     assert.deepEqual(fixture.listRuntimeContextBindings(), before);
     assert.throws(() => scoped!.listProjects(), /closed|not open/);
-    const resolving = handlers.goalboard_v1_context_resolve({ runtime_context: { stable_work_context_id: "model-forged-session" } }, context);
+    const resolving = handlers.molis_work_v1_context_resolve({ runtime_context: { stable_work_context_id: "model-forged-session" } }, context);
     assert.equal(connection.connection, null, "read-only resolve must drop its old cached answer immediately");
     const rejected = assert.rejects(resolving, /presentation failed after await/);
     await didOpen;
@@ -64,21 +64,21 @@ test("context handlers preserve a denied binding and hold the catalog open throu
     assert.throws(() => scoped!.listProjects(), /closed|not open/);
     assert.deepEqual(fixture.listRuntimeContextBindings(), before);
     failResponse = false;
-    const restored = JSON.parse(await handlers.goalboard_v1_context_resolve({}, context));
+    const restored = JSON.parse(await handlers.molis_work_v1_context_resolve({}, context));
     assert.equal(restored.status, "bound");
     assert.equal(restored.project.project_id, project.project_id);
     assert.equal(connection.connection?.boardId, project.board_id);
     assert.deepEqual(fixture.listRuntimeContextBindings(), before, "recovering the response does not create a second binding");
     assert.throws(() => scoped!.listProjects(), /closed|not open/);
-    const localHost = createGoalBoardLocalHost();
-    const client = localHost.client(goalBoardHostProjectReference({
+    const localHost = createMolisWorkLocalHost();
+    const client = localHost.client(molisWorkHostProjectReference({
       databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id,
     }));
     let failGuidance = true;
     const calls: string[] = [];
     const presentResolution = createMcpContextPresenter({
       connection,
-      createError: (code, message, details) => new GoalBoardV1Error(code, message, details),
+      createError: (code, message, details) => new MolisWorkV1Error(code, message, details),
       readGuidance: async () => {
         calls.push("guidance");
         const guidance = await client.invoke(readProjectGuidanceCapability, { board_id: project.board_id });
@@ -97,15 +97,15 @@ test("context handlers preserve a denied binding and hold the catalog open throu
     });
     const actual = createMcpRuntimeContextHandlers({
       connection, requireHost: () => host, presentResolution,
-      catalogs: { withCatalog: (home, operation) => withGoalBoardProjectCatalog({ homeDirectory: home }, operation) },
+      catalogs: { withCatalog: (home, operation) => withMolisWorkProjectCatalog({ homeDirectory: home }, operation) },
     });
     try {
-      await assert.rejects(actual.goalboard_v1_context_resolve({}, context), /guidance unavailable/);
+      await assert.rejects(actual.molis_work_v1_context_resolve({}, context), /guidance unavailable/);
       assert.deepEqual(calls, ["guidance"]);
       assert.equal(connection.connection, null, "failed guidance must not accept a new connection");
       failGuidance = false;
       calls.length = 0;
-      const presented = JSON.parse(await actual.goalboard_v1_context_resolve({}, context));
+      const presented = JSON.parse(await actual.molis_work_v1_context_resolve({}, context));
       assert.deepEqual(calls, ["guidance", "session", "resume"]);
       assert.equal(presented.connection.project_id, project.project_id);
       assert.equal(presented.connection.project_url, `http://127.0.0.1:4173/projects/${project.project_id}`);

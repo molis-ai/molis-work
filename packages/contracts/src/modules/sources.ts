@@ -1,7 +1,7 @@
 import type { ContractDescriptor } from "../platform/package.js";
 
 export const modulesSourcesContract = {
-  contractId: "io.goalboard.module.sources.v1",
+  contractId: "io.molis.work.module.sources.v1",
   kind: "module",
   schemaVersion: 1,
   maturity: "partial",
@@ -95,7 +95,7 @@ export class SourcesError extends Error {
 }
 
 export function sourceDeletedAt(source: Pick<SourceRecord, "config">): string | null {
-  const lifecycle = source.config._goalboard_lifecycle;
+  const lifecycle = source.config._molis_work_lifecycle;
   if (!lifecycle || typeof lifecycle !== "object" || Array.isArray(lifecycle)) return null;
   const value = (lifecycle as Record<string, unknown>).deleted_at;
   return typeof value === "string" && value ? value : null;

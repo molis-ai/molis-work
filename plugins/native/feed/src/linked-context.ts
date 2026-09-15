@@ -1,4 +1,4 @@
-import type { ContextMaterializationApi, ObjectRef } from "@adeptify/goalboard-contracts/modules/context-ledger";
+import type { ContextMaterializationApi, ObjectRef } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 
 interface LinkedFeedItem {
   item_id: string;

@@ -1,5 +1,5 @@
 import { goalsReadRouteNotFound, resolveGoalsReadRoute, resolveGoalsPageRoute, resolveGoalsPageCollection,
-  type GoalsPageCollections, type GoalsRouteError, type GoalsReadRoute, type GoalDocumentCollection } from "@adeptify/goalboard-plugin-goals";
+  type GoalsPageCollections, type GoalsRouteError, type GoalsReadRoute, type GoalDocumentCollection } from "@molis-ai/molis-work-plugin-goals";
 
 type HtmlResult = { status: 200; html: string } | GoalsRouteError;
 

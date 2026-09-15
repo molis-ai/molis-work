@@ -6,7 +6,7 @@ name: "陌生领域方法包生成"
 summary: "先弄清领域中的对象、生命周期、产物、证据和专业依赖，再拆实际 Goal。"
 applies_to: ["未知领域","现有方法包匹配不足"]
 domain_tags: ["meta","discovery"]
-source_refs: ["GoalBoard planning-engine spec"]
+source_refs: ["Molis Work planning-engine spec"]
 confidence: 0.9
 ---
 

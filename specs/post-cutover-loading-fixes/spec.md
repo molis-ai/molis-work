@@ -1,19 +1,19 @@
 # Cutover 后 Home、关系页与加载性能修复
 
 ## 背景与目标
-二次只读复查确认：Web 仅设置 GOALBOARD_HOME、不传 --home 时，Feed 与 Catalog/Session/control token 使用不同目录。关系页 E2E 在重载后偶发点击被顶部工作栏遮挡。用户授权修复并检查数据加载性能。
+二次只读复查确认：Web 仅设置 MOLIS_WORK_HOME、不传 --home 时，Feed 与 Catalog/Session/control token 使用不同目录。关系页 E2E 在重载后偶发点击被顶部工作栏遮挡。用户授权修复并检查数据加载性能。
 
 完成等级：现有本地功能可用、关键链路回归通过，并提供可复现的加载测量与实际优化收益；不升级现用安装或公开发布。
 
 ## 范围、场景与非目标
-- Web Home 优先级：显式 homeDirectory > GOALBOARD_HOME > 用户默认 .goalboard。在 Web 装配入口一次确定，并统一注入全部下游。
+- Web Home 优先级：显式 homeDirectory > MOLIS_WORK_HOME > 用户默认 .molis-work。在 Web 装配入口一次确定，并统一注入全部下游。
 - 保留直接 Module/SDK 调用的既有显式参数契约，不全仓更改默认目录规则。
 - 查明关系页重载/滚动/布局导致的点击遮挡根因；不通过固定等待、强制点击或忽略遮挡放宽验收。
 - 测量隔离测试项目的冷/热页面与数据请求；可只读检查现用服务耗时，但不得向真实项目写测试数据。只优化已测出瓶颈，不新增通用缓存/复杂性能框架。
 - 保留现有 UI、业务门禁、数据和外部权限，不增加产品功能，不修改已验收重组边界。
 
 ## 输入输出与模块边界
-输入：当前代码、二次审查 /private/tmp/goalboard-second-review.md、既有浏览器/Host 回归。
+输入：当前代码、二次审查 /private/tmp/molis-work-second-review.md、既有浏览器/Host 回归。
 输出：Home 统一装配、稳定关系页行为/准确测试同步（以根因为准）、必要性能修复、测量与回归报告。
 允许修改：apps/local-host Web 装配/投影、受影响 Native Goals/Workbench 的导航和渲染/查询、Design System 相关布局、对应测试和本 spec；性能方案在测量后先补本文件。
 
@@ -37,4 +37,4 @@
 - 通过：五个定向工作状态测试，覆盖批量与单目标一致性、返工、needs_changes 后新执行/复核轮、Claim 丢失恢复。临时恢复旧重复读取行为后新增断言稳定失败，随后恢复构建产物。
 - 通过：Local Host 与 Native Goals owner build；包边界检查零错误；git diff --check。此次不重跑此前完成的全部测试，未运行新的打包/安装验收。
 
-复现：先构建相关 owner；`node specs/post-cutover-loading-fixes/evidence/benchmark.mjs /tmp/goalboard-loading-result.json`。脚本创建并清理独立合成数据库，不访问真实项目。定向命令：`node --import tsx --test tests/web-home-isolation.test.ts tests/goals-relation.e2e.test.ts`；`node --import tsx --test --test-name-pattern='batch Goal work states|rework|needs_changes|work states preserve phase' tests/v1.test.ts`。Chrome/HTTP 测试需允许本机端口和浏览器启动。
+复现：先构建相关 owner；`node specs/post-cutover-loading-fixes/evidence/benchmark.mjs /tmp/molis-work-loading-result.json`。脚本创建并清理独立合成数据库，不访问真实项目。定向命令：`node --import tsx --test tests/web-home-isolation.test.ts tests/goals-relation.e2e.test.ts`；`node --import tsx --test --test-name-pattern='batch Goal work states|rework|needs_changes|work states preserve phase' tests/v1.test.ts`。Chrome/HTTP 测试需允许本机端口和浏览器启动。

@@ -1,4 +1,4 @@
-import type { GoalRecord, GoalInputBindingRecord } from "@adeptify/goalboard-contracts/modules/goals";
+import type { GoalRecord, GoalInputBindingRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { GoalsTreeItem, GoalsTreeView } from "./tree-ui-model.js";
 
 export interface GoalsContextItem extends GoalsTreeItem {

@@ -1,4 +1,4 @@
-import type { RuntimeIntegrationDetection, GoalBoardWebServiceDetection } from "@adeptify/goalboard-contracts/platform/app-host";
+import type { RuntimeIntegrationDetection, MolisWorkWebServiceDetection } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { WebProjectNavigation, WebSettingsSection } from "./settings-navigation.js";
 export interface WebSettingsProject extends WebProjectNavigation {
   database_path: string;
@@ -20,11 +20,11 @@ export interface WebInstallationDiagnostics {
   }>;
 }
 
-export interface GoalBoardSettingsView {
+export interface MolisWorkSettingsView {
   section: WebSettingsSection;
   context_project?: WebProjectNavigation | null;
   runtimes: RuntimeIntegrationDetection[];
   projects: WebSettingsProject[];
-  web_service: GoalBoardWebServiceDetection;
+  web_service: MolisWorkWebServiceDetection;
   diagnostics: WebInstallationDiagnostics;
 }

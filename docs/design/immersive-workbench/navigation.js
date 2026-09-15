@@ -81,7 +81,7 @@ function selectProject(id){
   $('#project-trigger').focus({preventScroll:true});
 }
 function recordsFor(name){
-  if(currentProject.id==='goalboard'){
+  if(currentProject.id==='molis-work'){
     if(name==='sessions')return [
       {id:'guide-session',title:'梳理首次使用路径',body:'整理首次使用说明，等待确认引导方式。',meta:'Codex · 今天',goal:'guide',state:'等待反馈'},
       {id:'connect-session',title:'检查 Runtime 连接',body:'连接步骤、目录和启动上下文已核对。',meta:'Claude · 昨天',goal:'connect',state:'已结束'},

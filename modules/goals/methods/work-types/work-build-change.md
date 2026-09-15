@@ -6,7 +6,7 @@ name: "构建与改变"
 summary: "从可观察结果反推能力、基础和交付闭环。"
 applies_to: ["开发产品","建立能力","改变现有系统"]
 domain_tags: ["build","change"]
-source_refs: ["GoalBoard universal result chain"]
+source_refs: ["Molis Work universal result chain"]
 confidence: 0.95
 ---
 

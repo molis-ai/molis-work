@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import Database from "better-sqlite3";
-import { createContextLedger, createContextMaterializer } from "@adeptify/goalboard-module-context-ledger";
-import type { ContextObjectRead, ObjectRef } from "@adeptify/goalboard-contracts/modules/context-ledger";
-import { readLinkedFeedContext } from "@adeptify/goalboard-plugin-feed";
+import { createContextLedger, createContextMaterializer } from "@molis-ai/molis-work-module-context-ledger";
+import type { ContextObjectRead, ObjectRef } from "@molis-ai/molis-work-contracts/modules/context-ledger";
+import { readLinkedFeedContext } from "@molis-ai/molis-work-plugin-feed";
 
 const scope = { kind: "personal" as const, id: "project-a" };
 const access = { actor_id: "test-reader", scope };

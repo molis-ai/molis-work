@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
-import { DEMO_BOARD_ID, GoalProjectApplication } from "@adeptify/goalboard-app-local-host";
+import { DEMO_BOARD_ID, GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 const captures = new URL("../.impeccable/review/", import.meta.url);
@@ -32,12 +32,13 @@ test("Fixed Goal frame preserves camera and draft; details stay beside desktop w
   await navigate(() => command("Page.navigate", { url: origin + "/" }, sessionId));
   await waitFor("document.body.dataset.desktopSurface === 'home'");
   await screenshot("home-light");
-  await click('[data-home-plugin="goals"]');
+  await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor("document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true'");
   const camera = () => evaluate("JSON.stringify(document.querySelector('[data-graph-stage]').dataset)");
   await click('[data-graph-zoom="in"]');
   const beforeOpen = await camera();
-  await click('[data-select-goal="' + goalId + '"]');
+  await waitFor("Boolean(document.querySelector(" + JSON.stringify('[data-graph-node][data-goal-id="' + goalId + '"] [data-graph-open]') + "))");
+  await evaluate("document.querySelector(" + JSON.stringify('[data-graph-node][data-goal-id="' + goalId + '"] [data-graph-open]') + ").click()");
   await waitFor("!document.querySelector('[data-goal-node-workspace]').hidden && document.querySelector('[data-goal-node-workspace]').dataset.expandedGoal === " + JSON.stringify(goalId));
   await waitFor("document.querySelector('[data-event-timeline] [data-event-sheet] .event')");
   const stage = await rect("[data-plugin-stage]"), frame = await rect("[data-goal-node-workspace]"), terminal = await rect("[data-tui-pane]"), info = await rect("[data-document-pane]");
@@ -65,7 +66,7 @@ test("Fixed Goal frame preserves camera and draft; details stay beside desktop w
   await evaluate("(()=>{const input=document.querySelector('[data-event-form=note] textarea');input.value='保留在本地输入框里的备注';input.dispatchEvent(new Event('input',{bubbles:true}));})()");
   await click('[data-goal-collapse]');
   assert.equal(await camera(), beforeOpen);
-  await click('[data-select-goal="' + goalId + '"]');
+  await evaluate("document.querySelector(" + JSON.stringify('[data-graph-node][data-goal-id="' + goalId + '"] [data-graph-open]') + ").click()");
   assert.equal(await evaluate("document.querySelector('[data-event-form=note] textarea').value"), "保留在本地输入框里的备注");
   assert.equal(await evaluate("document.querySelector('[data-goal-work-main]').inert"), true);
   await click('.detail-toolbar [data-event-back]');

@@ -1,4 +1,4 @@
-import type { GoalBoardProjectRecord } from "./project-catalog.js";
+import type { MolisWorkProjectRecord } from "./project-catalog.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { projectNavigation } from "./web-project-presentation.js";
 import type { WebServerOptions, ResolvedWebBoardOptions, ResolvedWebRequest } from "./web-types.js";
@@ -23,12 +23,12 @@ export function fixtureWebBoardOptions(options: WebServerOptions): ResolvedWebBo
 export async function resolveWebRequest(
   serverOptions: WebServerOptions,
   pathname: string,
-  withGoalBoardProjectCatalog: LocalWebCatalogRunner,
+  withMolisWorkProjectCatalog: LocalWebCatalogRunner,
 ): Promise<ResolvedWebRequest> {
   const fixture = fixtureWebBoardOptions(serverOptions);
   if (fixture) return { kind: "board", pathname, options: fixture };
 
-  return withGoalBoardProjectCatalog({ homeDirectory: serverOptions.homeDirectory }, (catalog) => {
+  return withMolisWorkProjectCatalog({ homeDirectory: serverOptions.homeDirectory }, (catalog) => {
     const records = catalog.listProjects();
     const projects = records.map(projectNavigation);
     if (
@@ -54,7 +54,7 @@ export async function resolveWebRequest(
     } catch {
       return { kind: "project_not_found" };
     }
-    let project: GoalBoardProjectRecord;
+    let project: MolisWorkProjectRecord;
     try {
       project = catalog.getProject(projectId);
     } catch {

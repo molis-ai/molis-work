@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { CreateGoalInput, GoalRecord } from "@adeptify/goalboard-contracts/modules/goals";
+import type { CreateGoalInput, GoalRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { GoalsCommandContext } from "./command-support.js";
 import { sqliteJson } from "./repository.js";
 

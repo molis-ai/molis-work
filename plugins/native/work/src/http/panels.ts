@@ -1,5 +1,5 @@
-import type { DesktopPanelApi, DesktopPanelRecord } from "@adeptify/goalboard-contracts/platform/app-host";
-import type { GoalRecord } from "@adeptify/goalboard-contracts/modules/goals";
+import type { DesktopPanelApi, DesktopPanelRecord } from "@molis-ai/molis-work-contracts/platform/app-host";
+import type { GoalRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 
 interface PanelSpawnSpec {
   command: string;

@@ -1,4 +1,4 @@
-import type { PlanningMethodPack, PlanningMethodPackInput } from "@adeptify/goalboard-contracts/modules/goals";
+import type { PlanningMethodPack, PlanningMethodPackInput } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { GoalsSqliteDatabase } from "../repository.js";
 import Database from "better-sqlite3";
 import { normalizePlanningMethodPack } from "./method-packs.js";

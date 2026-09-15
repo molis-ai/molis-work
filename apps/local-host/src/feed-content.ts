@@ -1,5 +1,5 @@
-import { createFeedEvidenceContentStore } from "@adeptify/goalboard-module-feed";
-import type { FeedItemRecord, FeedSnapshot } from "@adeptify/goalboard-plugin-feed";
+import { createFeedEvidenceContentStore } from "@molis-ai/molis-work-module-feed";
+import type { FeedItemRecord, FeedSnapshot } from "@molis-ai/molis-work-plugin-feed";
 
 /**
  * Decrypt retained evidence only at the local presentation boundary. A missing
@@ -22,5 +22,5 @@ export function hydrateFeedItemContent(item: FeedItemRecord): FeedItemRecord {
 }
 
 export function hydrateFeedSnapshotContent(snapshot: FeedSnapshot): FeedSnapshot {
-  return { ...snapshot, items: snapshot.items.map(hydrateFeedItemContent) };
+  return { ...snapshot, feed_items: snapshot.feed_items.map(hydrateFeedItemContent) };
 }

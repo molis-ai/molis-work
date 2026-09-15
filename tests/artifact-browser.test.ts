@@ -1,18 +1,18 @@
-import { openGoalBoardProjectCatalog } from "@adeptify/goalboard-app-desktop";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { artifactWorkbench } from "@adeptify/goalboard-app-workbench";
-import { readArtifactBrowser } from "@adeptify/goalboard-plugin-artifacts";
-import type { RegisterArtifactVersionInput } from "@adeptify/goalboard-contracts/modules/artifacts";
-import { GoalProjectApplication } from "@adeptify/goalboard-app-local-host";
-import { DEMO_BOARD_ID, seedDemoBoard } from "@adeptify/goalboard-app-local-host";
-import { LocalProjectDatabase } from "@adeptify/goalboard-app-local-host";
-import { createGoalBoardWebServer } from "../apps/desktop/launchers/web/server.js";
+import { artifactWorkbench } from "@molis-ai/molis-work-app-workbench";
+import { artifactDisplayTitle, readArtifactBrowser } from "@molis-ai/molis-work-plugin-artifacts";
+import type { RegisterArtifactVersionInput } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_BOARD_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
-import { createContextLedger } from "@adeptify/goalboard-module-context-ledger";
+import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 
 const artifactId = "report/季度 & <draft>";
 const encodedId = encodeURIComponent(artifactId);
@@ -29,12 +29,12 @@ function registration(overrides: Partial<RegisterArtifactVersionInput> = {}): Re
 }
 
 async function fixture(t: test.TestContext) {
-  const directory = await mkdtemp(join(tmpdir(), "goalboard-artifact-browser-"));
+  const directory = await mkdtemp(join(tmpdir(), "molis-work-artifact-browser-"));
   const databasePath = join(directory, "fixture.db");
   seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath);
   const coordinator = new GoalProjectApplication(store);
-  const server = createGoalBoardWebServer({ databasePath, boardId: DEMO_BOARD_ID, homeDirectory: directory,
+  const server = createMolisWorkWebServer({ databasePath, boardId: DEMO_BOARD_ID, homeDirectory: directory,
     controlToken: "artifact-browser-test-control-token-0123456789" });
   t.after(async () => {
     if (server.listening) await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
@@ -51,6 +51,17 @@ async function fixture(t: test.TestContext) {
   return { store, coordinator, get, origin };
 }
 
+test("Artifact display title prefers payload title, then name, then text", () => {
+  assert.equal(artifactDisplayTitle({
+    artifact_id: "feed-capture:item:rule",
+    payload: { title: "Product launch checklist", name: "Ignored name", summary: "Ship the launch notes" },
+  }), "Product launch checklist");
+  assert.equal(artifactDisplayTitle({ artifact_id: "named", payload: { name: "Named result" } }), "Named result");
+  assert.equal(artifactDisplayTitle({ artifact_id: "frame-note", payload: { text: "Frame artifact" } }), "Frame artifact");
+  assert.equal(artifactDisplayTitle({ artifact_id: "raw-id", payload: { count: 1 } }), "raw-id");
+  assert.equal(artifactDisplayTitle({ artifact_id: "raw-id", payload: null }), "raw-id");
+});
+
 test("Artifact HTTP links exact versions, exports opaque records and preserves existing Goal/Evidence state", async (t) => {
   const { store, coordinator, get, origin } = await fixture(t);
   const first = coordinator.artifacts.commands.registerVersion(registration()).artifact;
@@ -65,13 +76,18 @@ test("Artifact HTTP links exact versions, exports opaque records and preserves e
   const directory = await index.text();
   assert.ok(directory.includes(`href="${exactPath(1)}"`));
   assert.ok(directory.includes(`href="${exactPath(2)}"`));
+  assert.match(directory, /<strong>Original report<\/strong>/);
+  assert.match(directory, /<strong>Later report<\/strong>/);
   const detail = await get(exactPath(1));
   assert.equal(detail.status, 200);
   assert.match(detail.headers.get("content-security-policy")!, /default-src 'self'/);
   const html = await detail.text();
+  assert.match(html, /<title>Original report · /);
+  assert.doesNotMatch(html, /<title>[^<]*report\/季度/);
   assert.match(html, /没有兼容插件/);
-  assert.match(html, /Original report/);
-  assert.doesNotMatch(html, /Later report|<script>attack\(\)<\/script>/);
+  assert.match(html, /<h1>Original report<\/h1>/);
+  assert.match(html, /<strong>Later report<\/strong>/);
+  assert.doesNotMatch(html, /<h1>Later report<\/h1>|<script>attack\(\)<\/script>/);
   assert.match(html, /&lt;\/pre&gt;&lt;script&gt;attack/);
   assert.ok(html.includes(`href="/api${exactPath(1)}/export"`));
   for (const record of [first, second]) {
@@ -80,13 +96,14 @@ test("Artifact HTTP links exact versions, exports opaque records and preserves e
     assert.equal(exported.headers.get("content-disposition"), `attachment; filename="artifact-v${record.version}.json"`);
     assert.deepEqual(await exported.json(), record);
   }
-  const fragment = await fetch(origin + exactPath(1), { headers: { "x-goalboard-fragment": "artifact-workbench" } });
+  const fragment = await fetch(origin + exactPath(1), { headers: { "x-molis-work-fragment": "artifact-workbench" } });
   const fragmentHtml = await fragment.text();
   assert.equal(fragment.status, 200);
   assert.match(fragmentHtml, /data-artifact-directory/);
   assert.match(fragmentHtml, /data-artifact-detail/);
-  assert.match(fragmentHtml, /Original report/);
-  assert.doesNotMatch(fragmentHtml, /Later report|<!doctype|<script>attack/);
+  assert.match(fragmentHtml, /<h1>Original report<\/h1>/);
+  assert.match(fragmentHtml, /<strong>Later report<\/strong>/);
+  assert.doesNotMatch(fragmentHtml, /<h1>Later report<\/h1>|<!doctype|<script>attack/);
   const english = await (await get(exactPath(1), "en")).text();
   assert.match(english, /lang="en"/);
   assert.match(english, /No compatible plugin/);
@@ -109,7 +126,7 @@ test("Artifact HTTP keeps unknown and cross-project versions missing and rejects
     assert.equal(page.status, 404);
     const html = await page.text();
     assert.match(html, /不会自动替换成最新版本/);
-    assert.doesNotMatch(html, /Original report/);
+    assert.doesNotMatch(html, /<h1>Original report<\/h1>/);
     const exported = await get(`/api${path}/export`);
     assert.equal(exported.status, 404);
     await exported.text();
@@ -135,22 +152,24 @@ test("Artifact empty, unavailable, archived and embedded views reflect Module st
   assert.ok(embed.includes(`href="/projects/current${exactPath(1)}"`));
   assert.match(embed, /data-artifact-version="1"/);
   assert.match(embed, /没有兼容插件/);
-  assert.doesNotMatch(embed, /Original report|attack\(\)|\/export/);
+  assert.match(embed, /<h3><a href="\/projects\/current\/artifacts\/[^"]+\/versions\/1">Original report<\/a><\/h3>/);
+  assert.doesNotMatch(embed, /attack\(\)|\/export/);
   assert.equal(readArtifactBrowser(query, DEMO_BOARD_ID, reference, [{ artifact_type_id: "io.example.report", schema_version: 1 }]).compatibility?.consumable, true);
   assert.equal(readArtifactBrowser(query, DEMO_BOARD_ID, reference, [{ artifact_type_id: "io.example.report", schema_version: 2 }]).compatibility?.consumable, false);
   coordinator.artifacts.commands.markUnavailable({ board_id: DEMO_BOARD_ID, ...reference, actor_id: "report-owner", reason: "Source disconnected" });
   const unavailable = await (await get(exactPath(1))).text();
   assert.match(unavailable, /这个版本的内容不可用|Source disconnected/);
-  assert.doesNotMatch(unavailable, /Original report/);
+  assert.match(unavailable, /<h1>Original report<\/h1>/);
+  assert.doesNotMatch(unavailable, /&lt;\/pre&gt;&lt;script&gt;attack|<script>attack\(\)<\/script>/);
   coordinator.artifacts.commands.archiveVersion({ board_id: DEMO_BOARD_ID, ...reference, actor_id: "report-owner" });
   assert.match(await (await get("/artifacts")).text(), /已归档/);
   assert.equal(query.getArtifactVersion(DEMO_BOARD_ID, reference)?.lifecycle_state, "archived");
 });
 
 test("Artifact navigation and export retain the selected catalog Project", async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), "goalboard-artifact-projects-"));
+  const directory = await mkdtemp(join(tmpdir(), "molis-work-artifact-projects-"));
   t.after(() => rm(directory, { recursive: true, force: true }));
-  const catalog = await openGoalBoardProjectCatalog({ homeDirectory: directory });
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: directory });
   const alpha = await catalog.createProject({ display_name: "Alpha results", actor_id: "fixture-user" });
   const beta = await catalog.createProject({ display_name: "Beta results", actor_id: "fixture-user" });
   catalog.close();
@@ -158,7 +177,7 @@ test("Artifact navigation and export retain the selected catalog Project", async
   const coordinator = new GoalProjectApplication(store);
   const original = coordinator.artifacts.commands.registerVersion(registration({ board_id: alpha.board_id })).artifact;
   store.close();
-  const server = createGoalBoardWebServer({ homeDirectory: directory, controlToken: "artifact-project-test-control-token-0123456789" });
+  const server = createMolisWorkWebServer({ homeDirectory: directory, controlToken: "artifact-project-test-control-token-0123456789" });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   t.after(() => new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve())));
   const address = server.address();
@@ -213,7 +232,9 @@ test("Goal context embeds explicit exact Artifact relations and refreshes owner 
   assert.ok(page.includes(`href="${exactPath(2)}"`));
   assert.match(page, /v99/);
   assert.match(page, /关联的版本不可用或不存在/);
-  assert.doesNotMatch(page, /not-for-V1|Original report|Later report|attack\(\)|foreign-project/);
+  assert.match(page, /Original report/);
+  assert.match(page, /Later report/);
+  assert.doesNotMatch(page, /not-for-V1|<script>attack\(\)<\/script>|foreign-project/);
   assert.match(await (await get(documentPath, "en")).text(), /Linked results/);
   const opened = await get(exactPath(1));
   assert.match(await opened.text(), /Original report/);

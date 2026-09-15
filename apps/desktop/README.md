@@ -2,11 +2,11 @@
 
 把本地 Web 产品接入桌面窗口、Panel、Capsule 和 Runtime 启动流程，并提供 macOS 发布工具。
 
-包名：`@adeptify/goalboard-app-desktop`。工作区内部包，通过仓库构建和 Host 装配使用。
+包名：`@molis-ai/molis-work-app-desktop`。工作区内部包，通过仓库构建和 Host 装配使用。
 
 ## 一次典型调用
 
-createDesktopWebHost 向 Local Host 注入桌面能力；项目目录装配由 openGoalBoardProjectCatalog 提供。Panel 和 Capsule 通过 native bridge 与 Tauri 外壳交互，业务数据仍经各 Module 的公开接口访问。
+createDesktopWebHost 向 Local Host 注入桌面能力；项目目录装配由 openMolisWorkProjectCatalog 提供。Panel 和 Capsule 通过 native bridge 与 Tauri 外壳交互，业务数据仍经各 Module 的公开接口访问。
 
 ## 从哪里读代码
 
@@ -38,8 +38,8 @@ Tauri 工程、配置和资源已集中在本包的 `src-tauri/`，启动占位�
 以下命令在**仓库根目录**执行，使用 Node.js 24+ 与仓库配置的 pnpm。首次准备运行 `pnpm install --frozen-lockfile` 和 `pnpm build`；之后可单独检查此包。
 
 ```bash
-pnpm --filter @adeptify/goalboard-app-desktop typecheck
-pnpm --filter @adeptify/goalboard-app-desktop build
+pnpm --filter @molis-ai/molis-work-app-desktop typecheck
+pnpm --filter @molis-ai/molis-work-app-desktop build
 ```
 
 已有行为示例与回归：[desktop-tui.test.ts](../../tests/desktop-tui.test.ts)。完成上述构建后运行：
@@ -56,7 +56,7 @@ node --import tsx --test --test-concurrency=1 tests/desktop-tui.test.ts
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
 - Status: `partial`
-- Contract entrypoint: `@adeptify/goalboard-contracts/platform/app-host`
+- Contract entrypoint: `@molis-ai/molis-work-contracts/platform/app-host`
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-ap4`, `goal-reorg-dv4`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。

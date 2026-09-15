@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type Database from "better-sqlite3";
-import type { ContextAccess, ContextLedgerApi, ObjectRef } from "@adeptify/goalboard-contracts/modules/context-ledger";
-import type { GoalBoardSessionGoalLink } from "./contract-aliases.js";
-import { GoalBoardSessionError } from "./errors.js";
+import type { ContextAccess, ContextLedgerApi, ObjectRef } from "@molis-ai/molis-work-contracts/modules/context-ledger";
+import type { MolisWorkSessionGoalLink } from "./contract-aliases.js";
+import { MolisWorkSessionError } from "./errors.js";
 import { mapGoalLink, optionalText } from "./session-schema.js";
 
 const scope = { kind: "personal", id: "private-work-context" } as const;
@@ -30,9 +30,9 @@ export class SessionAssociationRepository {
     };
   }
 
-  history(sessionId: string): GoalBoardSessionGoalLink[] {
+  history(sessionId: string): MolisWorkSessionGoalLink[] {
     return this.ledger.query.list(access(), { type: "work.goal", source: source(sessionId), include_removed: true })
-      .map((latest): GoalBoardSessionGoalLink => {
+      .map((latest): MolisWorkSessionGoalLink => {
         const first = this.ledger.query.history(access(), latest.key)[0]!;
         return { link_id: latest.key, session_id: sessionId, goal_id: latest.target.id,
           relation: latest.state === "active" ? "current" : "history", linked_by: first.actor_id,
@@ -83,7 +83,7 @@ export class SessionAssociationRepository {
         const current = links.filter((link) => link.relation === "current");
         const goalId = optionalText(session.current_goal_id);
         if (current.length > 1 || (current[0]?.goal_id ?? null) !== goalId) {
-          throw new GoalBoardSessionError("session.invalid_input", "旧 Session 当前 Goal 与历史关联不一致，关联迁移已回滚");
+          throw new MolisWorkSessionError("session.invalid_input", "旧 Session 当前 Goal 与历史关联不一致，关联迁移已回滚");
         }
         for (const link of links) {
           this.putGoal(id, link.goal_id, link.relation === "current" ? optionalText(session.project_id) : null,

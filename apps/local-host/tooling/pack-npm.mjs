@@ -3,14 +3,14 @@ import { mkdtemp, mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createGoalBoardNpmPackageDirectory } from "@adeptify/goalboard-app-local-host";
+import { createMolisWorkNpmPackageDirectory } from "@molis-ai/molis-work-app-local-host";
 
 const sourceDirectory = fileURLToPath(new URL("../../../", import.meta.url));
 const outputDirectory = path.resolve(process.argv[2] ?? path.join(sourceDirectory, "release", "npm"));
 await mkdir(outputDirectory, { recursive: true });
-const temporary = await mkdtemp(path.join(tmpdir(), "goalboard-npm-pack-"));
+const temporary = await mkdtemp(path.join(tmpdir(), "molis-work-npm-pack-"));
 try {
-  const { directory } = await createGoalBoardNpmPackageDirectory({
+  const { directory } = await createMolisWorkNpmPackageDirectory({
     sourceDirectory, destinationDirectory: path.join(temporary, "package"),
   });
   const output = execFileSync("npm", ["pack", "--ignore-scripts", "--json", "--cache", path.join(temporary, "cache"),

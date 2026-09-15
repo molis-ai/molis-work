@@ -6,7 +6,7 @@ name: "数据分析"
 summary: "从决策问题、口径和数据质量走到可复现结论。"
 applies_to: ["指标分析","因果探索","预测与分群"]
 domain_tags: ["data","analysis"]
-source_refs: ["GoalBoard planning-engine spec"]
+source_refs: ["Molis Work planning-engine spec"]
 confidence: 0.94
 ---
 

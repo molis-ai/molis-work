@@ -1,12 +1,12 @@
-# GoalBoard Canonical Domain Contract
+# Molis Work Canonical Domain Contract
 
 Status: Draft deliverable of `GB-002-01`. The executable Work Order remains
-`specs/goalboard-mvp/goalboard.md`; this document is a scoped design artifact,
+`specs/molis-work-mvp/molis-work.md`; this document is a scoped design artifact,
 not a second source of development status.
 
 ## 1. Outcome and business meaning
 
-GoalBoard is a Runtime-neutral source of truth for progressively defining Goals,
+Molis Work is a Runtime-neutral source of truth for progressively defining Goals,
 determining what work is safe to claim, and deciding whether results have enough
 evidence to satisfy the accepted business outcome.
 
@@ -26,7 +26,7 @@ process behavior.
 
 ## 2. Three truth layers
 
-GoalBoard separates three kinds of truth so that one mutable `status` or document
+Molis Work separates three kinds of truth so that one mutable `status` or document
 does not mix business meaning with current execution state.
 
 | Layer | Question answered | Change rule |
@@ -46,7 +46,7 @@ Runtime facts evolve without pretending the accepted Goal itself was rewritten.
 | User / authorized product owner | accept Goal semantics, confirm Candidate Goals and rewires, set or weaken policy, provide human verdict | fabricate Runtime Evidence |
 | Runtime executor | query, claim, renew/release, report Run facts, submit Evidence, submit Candidate Goals | dispatch other Runtimes, accept its own Candidate, mutate accepted Goal semantics |
 | Independent reviewer | claim a Review obligation, submit verdict and Evidence | rewrite the executor Run or accepted Goal |
-| GoalBoard Coordinator | validate, derive readiness, enforce policy/conflict, atomically transition allowed state, append events | choose a Runtime or invent business decisions |
+| Molis Work Coordinator | validate, derive readiness, enforce policy/conflict, atomically transition allowed state, append events | choose a Runtime or invent business decisions |
 
 The Coordinator is a deterministic authority boundary, not an orchestrator. Its
 answers depend only on canonical Board state, actor capabilities, declared role,
@@ -211,7 +211,7 @@ revisit_condition: required for deferred
 blocking: whether unresolved coverage blocks a gate
 ```
 
-GoalBoard guarantees disposition of known requirements; it does not claim to know
+Molis Work guarantees disposition of known requirements; it does not claim to know
 every future requirement.
 
 ### 4.6 Goal Relation
@@ -685,12 +685,12 @@ domain.
 
 | Current V3 concept | Reuse | Required evolution |
 | --- | --- | --- |
-| `GoalBoardData` as shared core state | keep one core used by CLI and MCP | split semantic, coordination, and Runtime facts; move authority to SQLite |
+| `MolisWorkData` as shared core state | keep one core used by CLI and MCP | split semantic, coordination, and Runtime facts; move authority to SQLite |
 | `GoalNode.one_liner` | keep as display metadata | add canonical outcome, why, business logic, scope, criteria, and stable identity |
 | single `GoalStatus` | keep only for legacy import/display | replace canonical meaning with independent axes and derived work projection |
 | coverage ledger | keep the known-coverage idea | use covered/deferred/out/unresolved with explicit blocking and provenance |
 | string inputs/outputs | keep the continuity intent | separate semantic needs/promises from typed bindings and immutable snapshots |
-| mutation validation in `GoalBoard` | keep deterministic invariant enforcement | move to use-case/Coordinator boundaries over transactional authority |
+| mutation validation in `Molis Work` | keep deterministic invariant enforcement | move to use-case/Coordinator boundaries over transactional authority |
 | trace with state hashes | keep auditability and deterministic evidence | evolve to append-only domain events and derived projections |
 | `continuityReport` warnings | keep explainability | derive from typed relations, bindings, and Goal closure rules |
 | `audit` | keep explicit gates | evaluate criterion Evidence, policies, risks, coverage, and validity |

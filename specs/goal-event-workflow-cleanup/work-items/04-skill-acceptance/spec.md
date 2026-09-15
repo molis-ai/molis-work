@@ -28,7 +28,7 @@ C2d集中补正构建、27定向、真实Chrome提案测试通过；主英语探
 
 一个新 Runtime 只读必要 Skill 指引，即可连接正确项目、发现/创建 Goal、按已有约定工作、保存普通笔记与结果、观察当前差距、处理真正需要用户的决定、明确收尾与继续。没有 Claim/Run 角色转换、续租、固定拆分阈值、强制非空输入输出数组或旧 projection。
 
-主已读取 `/Users/yijunwang/.codex/skills/.system/skill-creator/SKILL.md` 与 `references/openai_yaml.md`，本项按其“只有会改变决策的信息、逐步读取细节、不扩用户意图、不累加通用规则”原则改写。只修改仓库 `skills/goal-advance`；不安装/同步全局 Skill，不改变用户既有调用策略。描述准确路由到明确要求使用 GoalBoard，保留已有 metadata/依赖/策略；UI 文案与新能力一致。
+主已读取 `/Users/yijunwang/.codex/skills/.system/skill-creator/SKILL.md` 与 `references/openai_yaml.md`，本项按其“只有会改变决策的信息、逐步读取细节、不扩用户意图、不累加通用规则”原则改写。只修改仓库 `skills/goal-advance`；不安装/同步全局 Skill，不改变用户既有调用策略。描述准确路由到明确要求使用 Molis Work，保留已有 metadata/依赖/策略；UI 文案与新能力一致。
 
 - `SKILL.md` 保持足够短的唯一主循环；首次只读 context_resolve，明确 project/Goal 选择与已有授权，普通写入无需重复审批。说明 Host 注入 board/actor，goal_id 仍由调用者明确给出。
 - `references/protocol.md` 放少量真实跨工具约束：事实与完成区别、两个版本分别表示什么、正式冲突后读当前状态、幂等、非法批次整批回滚、此前成功调用保留与错误恢复、可信决定不能由 Runtime 自填。部分工作结果可先记录，不等于一个含非法事实的批次可以部分落地。

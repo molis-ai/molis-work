@@ -1,7 +1,7 @@
-import type { AsyncApplicationMethods } from "@adeptify/goalboard-contracts/platform/app-host";
-import type { GoalTreeApplicationApi } from "@adeptify/goalboard-plugin-goals";
-import type { GoalTreeProposalDecisionAuthority } from "@adeptify/goalboard-contracts/modules/governance-collaboration";
-import type { RuntimeGoalTreeConfirmation } from "@adeptify/goalboard-contracts/platform/app-host";
+import type { AsyncApplicationMethods } from "@molis-ai/molis-work-contracts/platform/app-host";
+import type { GoalTreeApplicationApi } from "@molis-ai/molis-work-plugin-goals";
+import type { GoalTreeProposalDecisionAuthority } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+import type { RuntimeGoalTreeConfirmation } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { McpPresentationErrorFactory } from "./query-presentation.js";
 
 /** Validate wire confirmation before requesting provenance from the trusted host. */
@@ -40,13 +40,13 @@ export function runtimeGoalTreeDecisionInput(
 /** Wire conversion only; authority is supplied by the host before dispatch. */
 export function createMcpGoalTreeHandlers(application: GoalTreeApplicationApi | AsyncApplicationMethods<GoalTreeApplicationApi>) {
   return {
-    goalboard_v1_goal_tree_propose: async (args: Record<string, unknown>) =>
+    molis_work_v1_goal_tree_propose: async (args: Record<string, unknown>) =>
       application.submitGoalTreeProposal(args as unknown as Parameters<GoalTreeApplicationApi["submitGoalTreeProposal"]>[0]),
-    goalboard_v1_goal_tree_read: async (args: Record<string, unknown>) =>
+    molis_work_v1_goal_tree_read: async (args: Record<string, unknown>) =>
       application.listGoalTreeProposals(args as unknown as Parameters<GoalTreeApplicationApi["listGoalTreeProposals"]>[0]),
-    goalboard_v1_goal_tree_check: async (args: Record<string, unknown>) =>
+    molis_work_v1_goal_tree_check: async (args: Record<string, unknown>) =>
       application.checkGoalTreeProposal(args as unknown as Parameters<GoalTreeApplicationApi["checkGoalTreeProposal"]>[0]),
-    goalboard_v1_goal_tree_decide: async (args: Record<string, unknown> | Parameters<GoalTreeApplicationApi["decideGoalTreeProposal"]>[0]) =>
+    molis_work_v1_goal_tree_decide: async (args: Record<string, unknown> | Parameters<GoalTreeApplicationApi["decideGoalTreeProposal"]>[0]) =>
       application.decideGoalTreeProposal(args as unknown as Parameters<GoalTreeApplicationApi["decideGoalTreeProposal"]>[0]),
   };
 }

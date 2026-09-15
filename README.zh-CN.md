@@ -1,4 +1,4 @@
-# GoalBoard
+# Molis Work
 
 [English](README.md) | **简体中文**
 
@@ -15,21 +15,21 @@
 
 人与 AI 协作最贵的部分就出现在这里：人要反复重建上下文，很晚才发现目标已经跑偏，重新核对“完成了”到底是不是真的；执行中有价值的新发现，要么消失在消息里，要么不知不觉扩大了范围。
 
-**GoalBoard 让 Goal 活在聊天之外。** 它把已经确认的结果、拆解逻辑、依赖、决定、当前 Run、Evidence 和 Review 留在同一个本地项目里。Session 和 Runtime 可以换，工作状态不必再靠记忆从聊天记录中还原。
+**Molis Work 让 Goal 活在聊天之外。** 它把已经确认的结果、拆解逻辑、依赖、决定、当前 Run、Evidence 和 Review 留在同一个本地项目里。Session 和 Runtime 可以换，工作状态不必再靠记忆从聊天记录中还原。
 
 ### 一个 Codex 任务，不是两个并排窗口
 
-接好 GoalBoard MCP 与共享 Skill 后，直接在 Codex 的内嵌浏览器中打开本地 GoalBoard Web。任务继续在 Codex 当前窗口推进，同一个窗口里也能持续看到 Goal Tree、下一步、阻塞和完成要求，不需要再单独摆一个 GoalBoard 桌面窗口。
+接好 Molis Work MCP 与共享 Skill 后，直接在 Codex 的内嵌浏览器中打开本地 Molis Work Web。任务继续在 Codex 当前窗口推进，同一个窗口里也能持续看到 Goal Tree、下一步、阻塞和完成要求，不需要再单独摆一个 Molis Work 桌面窗口。
 
-![Codex 内嵌浏览器中的 GoalBoard Web：中文 Goal Tree 与当前 Goal](docs/screenshots/showcase/codex-embedded-zh.jpg)
+![Codex 内嵌浏览器中的 Molis Work Web：中文 Goal Tree 与当前 Goal](docs/screenshots/showcase/codex-embedded-zh.jpg)
 
 页面只是事实视图，不是执行开关：关掉页面不会让已接入的 Runtime 停止；打开页面也不会自动领取工作或改变 Session 绑定。
 
 ## 核心机制：让 Goal 跨过 Session 继续存在
 
-GoalBoard 把长程工作中应该稳定的部分，从人的工作记忆和聊天记录里移出来，形成一个明确闭环：
+Molis Work 把长程工作中应该稳定的部分，从人的工作记忆和聊天记录里移出来，形成一个明确闭环：
 
-| AI 工作通常在哪里断掉 | GoalBoard 把什么保存下来 |
+| AI 工作通常在哪里断掉 | Molis Work 把什么保存下来 |
 | --- | --- |
 | 消息越来越多，原始意图逐渐漂移 | 已确认的 Goal Contract 保存结果、边界、输入、输出、约束和完成标准。 |
 | 一个复杂结果被摊平成任务清单 | 可配置的规划方法约束怎样拆、必须覆盖什么、怎样判断依赖。 |
@@ -38,7 +38,7 @@ GoalBoard 把长程工作中应该稳定的部分，从人的工作记忆和聊�
 | 终端和它正在做的任务失去对应关系 | TUI 始终属于打开它的那条可执行 Goal。 |
 | “做完了”只是一句聊天结论 | Claim → Run → Evidence → Review 把执行记录和完成标准接起来。 |
 
-这套机制不要求 GoalBoard 托管模型，也不要求它派 Agent。接入的 Runtime 从真正可做的工作中选择一条，在原有 Harness 中执行，再把进展和证据写回同一份本地事实。
+这套机制不要求 Molis Work 托管模型，也不要求它派 Agent。接入的 Runtime 从真正可做的工作中选择一条，在原有 Harness 中执行，再把进展和证据写回同一份本地事实。
 
 ## 1. 先配置 Goal 应该怎样拆
 
@@ -70,7 +70,7 @@ Goal Tree 回答“哪些结果属于同一个目标”；Graph 回答“谁在�
 
 ![中文 Goal Graph：父子、依赖、状态与当前焦点](docs/screenshots/showcase/goal-graph-zh.jpg)
 
-需求变化时，这种结构尤其重要：GoalBoard 可以找出直接受影响的 Goal 和下游消费者，保留仍然成立的部分，再把必要变化交给人决定，而不是整棵树重写一遍。
+需求变化时，这种结构尤其重要：Molis Work 可以找出直接受影响的 Goal 和下游消费者，保留仍然成立的部分，再把必要变化交给人决定，而不是整棵树重写一遍。
 
 ## 3. 重要变化始终由人决定
 
@@ -95,7 +95,7 @@ Runtime 可以提出 Goal Contract、新发现工作、关系调整、风险处�
 - 复合父 Goal 会引导人进入具体子 Goal，不会假装父 Goal 可以直接执行；
 - 打开终端不会自动发送 Prompt，也不会自动领取 Goal。
 
-GoalBoard 仍然是 pull-based：Runtime 自己选择可做项并记录 Claim/Run；GoalBoard 不会替人往终端里输入，也不负责编排 Agent team。
+Molis Work 仍然是 pull-based：Runtime 自己选择可做项并记录 Claim/Run；Molis Work 不会替人往终端里输入，也不负责编排 Agent team。
 
 ## 5. 让“完成”可以被核对
 
@@ -120,19 +120,19 @@ GoalBoard 仍然是 pull-based：Runtime 自己选择可做项并记录 Claim/Ru
 - 写配置和 Skill 前先展示完整变更；
 - 一次确认只对应当前 Runtime 与当前预览；
 - 预览后配置发生变化，必须重新生成计划；
-- 移除也是显式、可验证的操作，必要时使用 GoalBoard 自己的收据和备份。
+- 移除也是显式、可验证的操作，必要时使用 Molis Work 自己的收据和备份。
 
 当前内置 Codex、Claude Code、OpenCode、Pi Agent 和 Grok Build adapter。新接入后需要**新开 Session**，因为 Runtime 只会在 Session 启动时读取 MCP 与 Skill 清单。
 
-## GoalBoard 是什么，又不是什么
+## Molis Work 是什么，又不是什么
 
-| GoalBoard | Agent Orchestration |
+| Molis Work | Agent Orchestration |
 | --- | --- |
 | 明确结果、拆解、前置、接受的变化、当前状态和完成所需证据。 | 决定哪些 Agent 参与，以及怎样分工、通信和执行。 |
 | 把项目权威状态保存在本地 SQLite。 | 可以在另一套本地或远程 Harness 中运行。 |
 | Goal、关系、风险、Runtime 接入与 Session 绑定的重要变化都需要明确操作。 | 可以在已经获得的边界内自动执行。 |
 
-两者可以组合：先在 GoalBoard 建立 Goal 结构和完成门禁，再让 Runtime 或 Agent team 执行；所有入口继续把进展和证据写回同一份事实。
+两者可以组合：先在 Molis Work 建立 Goal 结构和完成门禁，再让 Runtime 或 Agent team 执行；所有入口继续把进展和证据写回同一份事实。
 
 ### 当前使用界面
 
@@ -148,12 +148,12 @@ GoalBoard 仍然是 pull-based：Runtime 自己选择可做项并记录 Claim/Ru
 
 ### macOS Desktop Preview
 
-从 [GitHub Releases](https://github.com/adeptify/GoalBoard/releases) 下载当前预览版：
+从 [GitHub Releases](https://github.com/molis-ai/molis-work/releases) 下载当前预览版：
 
-- Apple Silicon：`GoalBoard-0.1.0-macos-arm64.dmg`
-- Intel Mac：`GoalBoard-0.1.0-macos-x64.dmg`
+- Apple Silicon：`Molis Work-0.1.0-macos-arm64.dmg`
+- Intel Mac：`Molis Work-0.1.0-macos-x64.dmg`
 
-打开 DMG，把 GoalBoard 拖入 Applications 后启动。App 已内置 Node.js 与 GoalBoard Core；首次启动会在 `~/.goalboard` 安装或刷新 Core，同时保留已有项目和历史。
+打开 DMG，把 Molis Work 拖入 Applications 后启动。App 已内置 Node.js 与 Molis Work Core；首次启动会在 `~/.molis-work` 安装或刷新 Core，同时保留已有项目和历史。
 
 `0.1.0` 是面向 macOS 13+ 的未签名、未公证 Preview。Gatekeeper 会要求你在**系统设置 → 隐私与安全性**中明确允许；请只从本仓库 Release 页面下载。
 
@@ -162,18 +162,18 @@ GoalBoard 仍然是 pull-based：Runtime 自己选择可做项并记录 Claim/Ru
 需要 Node.js 20+、pnpm；macOS 可以使用 LaunchAgent 常驻服务，其他系统可以前台运行 Web。
 
 ```bash
-git clone https://github.com/adeptify/goalboard.git
-cd goalboard
+git clone https://github.com/molis-ai/molis-work.git
+cd molis-work
 pnpm install --frozen-lockfile
 
-# 构建并把自包含 Core 安装到 ~/.goalboard
+# 构建并把自包含 Core 安装到 ~/.molis-work
 pnpm install:local
 
 # macOS：明确安装并启动本地常驻 Web 服务
-"$HOME/.goalboard/bin/goalboard" service install --home "$HOME/.goalboard" --confirm
+"$HOME/.molis-work/bin/molis-work" service install --home "$HOME/.molis-work" --confirm
 
 # 创建与用户项目分开的可重建演示数据
-"$HOME/.goalboard/bin/goalboard" demo create --confirm
+"$HOME/.molis-work/bin/molis-work" demo create --confirm
 ```
 
 打开 `http://127.0.0.1:4173`，进入演示项目，然后完整走一遍：
@@ -186,7 +186,7 @@ pnpm install:local
 
 接入 Runtime 后，新开一个 Session 并尝试：
 
-> 使用 GoalBoard 连接演示项目。告诉我一条当前可执行的 Goal、它为什么可做、下一步是什么，以及完成前必须提供什么证据。
+> 使用 Molis Work 连接演示项目。告诉我一条当前可执行的 Goal、它为什么可做、下一步是什么，以及完成前必须提供什么证据。
 
 ### 开发 macOS App
 
@@ -199,7 +199,7 @@ pnpm desktop:start:macos     # 以后启动已安装 App
 
 ## 产品边界
 
-- 项目的权威状态保存在本地 SQLite；GoalBoard 不捆绑模型，也不要求把项目存到云端。
+- 项目的权威状态保存在本地 SQLite；Molis Work 不捆绑模型，也不要求把项目存到云端。
 - V1 面向单设备、本地 Workspace，不包含云端多租户、组织 RBAC 或第三方项目管理同步。
 - 每个项目使用独立数据库；演示数据明确标记为可重建，并与用户项目分开。
 - 界面支持中文和英文；用户写入的 Goal 内容保留原语言，不会被静默机器翻译。
@@ -211,7 +211,7 @@ pnpm desktop:start:macos     # 以后启动已安装 App
 - [运行时协议](docs/runtime.md)
 - [MCP 接入](docs/mcp.md)
 - [CLI 与开发](docs/cli-and-development.md)
-- [GoalBoard Runtime Skill](skills/goal-advance/SKILL.md)
+- [Molis Work Runtime Skill](skills/goal-advance/SKILL.md)
 
 ## License
 

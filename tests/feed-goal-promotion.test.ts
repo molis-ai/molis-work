@@ -6,11 +6,11 @@ import test from "node:test";
 import {
   createLocalFeedApplication, createLocalFeedGoalPromotion, createLocalFeedSourceService,
   DEMO_BOARD_ID, seedDemoBoard, LocalProjectDatabase, GoalProjectApplication,
-} from "@adeptify/goalboard-app-local-host";
-import { FeedStoreError } from "@adeptify/goalboard-plugin-feed";
+} from "@molis-ai/molis-work-app-local-host";
+import { FeedStoreError } from "@molis-ai/molis-work-plugin-feed";
 
 test("Feed promotion atomically creates the Goal, confirms its input, links the item and reuses an active Goal", () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-feed-promotion-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-feed-promotion-"));
   const path = join(directory, "project.sqlite");
   seedDemoBoard(path);
   const store = new LocalProjectDatabase(path);
@@ -94,7 +94,7 @@ test("Feed promotion atomically creates the Goal, confirms its input, links the 
 });
 
 test("Feed promotion source survives later notes and SQLite reopen", () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-feed-source-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-feed-source-"));
   const path = join(directory, "project.sqlite");
   seedDemoBoard(path);
   let store = new LocalProjectDatabase(path);

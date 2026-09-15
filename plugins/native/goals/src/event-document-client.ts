@@ -7,7 +7,7 @@ export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
     const escapeText = (value) => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
     const root = () => documentPane.querySelector("[data-goal-event-document]");
     const goalId = () => root()?.dataset.goalView || "";
-    const jsonHeaders = () => ({ accept: "application/json", ...(typeof controlHeaders === "function" ? controlHeaders() : (typeof goalboardControlHeaders === "function" ? goalboardControlHeaders() : { "content-type": "application/json" })) });
+    const jsonHeaders = () => ({ accept: "application/json", ...(typeof controlHeaders === "function" ? controlHeaders() : (typeof molisWorkControlHeaders === "function" ? molisWorkControlHeaders() : { "content-type": "application/json" })) });
     const captureRestore = () => ({
       goal: reading.goal || goalId(),
       item: reading.item,
@@ -37,7 +37,7 @@ export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
       article?.querySelector(".goal-workspace-hero")?.toggleAttribute("inert", editing && matchMedia("(max-width: 760px)").matches);
       const frame = article?.closest("[data-goal-node-workspace]");
       if (frame?.querySelector("[data-goal-work-main]")) {
-        article.dispatchEvent(new CustomEvent("goalboard:goal-panel-presence", { bubbles: true }));
+        article.dispatchEvent(new CustomEvent("molis-work:goal-panel-presence", { bubbles: true }));
       } else frame?.querySelector("[data-tui-pane]")?.toggleAttribute("inert", editing);
       article?.querySelector(".timeline-pane")?.toggleAttribute("inert", editing && matchMedia("(max-width: 760px)").matches);
     };
@@ -316,7 +316,7 @@ export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
       const restore = { ...captureRestore(), form: kind };
       try {
         const response = await fetch(route("/api/goals/" + encodeURIComponent(currentGoal) + formPath(kind)), {
-          method: "POST", headers: { ...jsonHeaders(), "x-goalboard-idempotency-key": key },
+          method: "POST", headers: { ...jsonHeaders(), "x-molis-work-idempotency-key": key },
           body: JSON.stringify({ ...buildPayload(form, kind, article), idempotency_key: key }),
         });
         const body = await response.json().catch(() => ({}));
@@ -365,7 +365,7 @@ export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
           }
           const extraKey = key + ":req";
           const extraRes = await fetch(route("/api/goals/" + encodeURIComponent(currentGoal) + "/event-agree"), {
-            method: "POST", headers: { ...jsonHeaders(), "x-goalboard-idempotency-key": extraKey },
+            method: "POST", headers: { ...jsonHeaders(), "x-molis-work-idempotency-key": extraKey },
             body: JSON.stringify({
               expected_config_version: Number(body.config?.version ?? form.dataset.configVersion ?? 0),
               expected_agreement_version: Number(form.dataset.agreementVersion || article.dataset.agreementVersion || 0),

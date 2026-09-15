@@ -4,14 +4,14 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Database from "better-sqlite3";
-import { openWorkSessionRegistry } from "@adeptify/goalboard-app-local-host";
-import { GoalBoardSessionRegistry } from "@adeptify/goalboard-module-private-work-context";
-import { createContextLedger } from "@adeptify/goalboard-module-context-ledger";
+import { openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkSessionRegistry } from "@molis-ai/molis-work-module-private-work-context";
+import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 
 const access = { actor_id: "test-reader", scope: { kind: "personal", id: "private-work-context" } as const };
 
 async function fixture(legacy = true) {
-  const directory = await mkdtemp(join(tmpdir(), "goalboard-handoff-ledger-"));
+  const directory = await mkdtemp(join(tmpdir(), "molis-work-handoff-ledger-"));
   const homeDirectory = join(directory, "home");
   const registry = await openWorkSessionRegistry({ homeDirectory });
   const source = registry.createSession({ runtime_id: "source", actor_id: "original-user", user_confirmed: true,
@@ -84,7 +84,7 @@ test("v4 Handoff migration preserves every state and encrypted content without g
 test("Handoff migration failure leaves all legacy endpoints and version intact for a successful retry", async () => {
   const data = await fixture();
   try {
-    await assert.rejects(GoalBoardSessionRegistry.open({ homeDirectory: data.homeDirectory, createLedger: (db) => {
+    await assert.rejects(MolisWorkSessionRegistry.open({ homeDirectory: data.homeDirectory, createLedger: (db) => {
       const ledger = createContextLedger(db, { authorize: () => true });
       let writes = 0;
       return { query: ledger.query, commands: { ...ledger.commands, put: (who, input) => {
@@ -110,7 +110,7 @@ test("Handoff migration failure leaves all legacy endpoints and version intact f
 test("new Handoff pins the supplied Goal version; target edits, removals and failures stay atomic", async () => {
   const data = await fixture(false);
   let fail = false;
-  const registry = await GoalBoardSessionRegistry.open({ homeDirectory: data.homeDirectory, createLedger: (db) => {
+  const registry = await MolisWorkSessionRegistry.open({ homeDirectory: data.homeDirectory, createLedger: (db) => {
     const ledger = createContextLedger(db, { authorize: () => true });
     return { query: ledger.query, commands: { ...ledger.commands, put: (who, input) => {
       const result = ledger.commands.put(who, input);

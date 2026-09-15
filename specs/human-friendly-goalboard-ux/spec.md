@@ -1,15 +1,15 @@
-# GoalBoard 人类友好信息与操作体验
+# Molis Work 人类友好信息与操作体验
 
 ## 背景与目标
 
-GoalBoard 已能保存完整的 Goal、关系、风险、执行和复核事实，但默认页面仍要求用户理解
+Molis Work 已能保存完整的 Goal、关系、风险、执行和复核事实，但默认页面仍要求用户理解
 Contract、Claim、Run、Evidence、Review、Candidate、Rewire、Policy 等内部对象。Goal 详情的同级模块过多，
 待决定事项先展示类型而不是用户要回答的问题，终端与所属 Goal 的边界也不够持续、明确。
 
 本任务让用户进入 Goal Tree、Goal 详情、待决定或终端后，先看懂三件事：现在要做什么、具体怎么做、
 这代表什么。所有说明都从既有事实派生，不建立第二套状态，不替用户决定，也不删除完整记录。
 
-GoalBoard 中的父 Goal 是“让 GoalBoard 清楚说明当前要做什么、怎么做和意味着什么”，按已确认依赖依次完成：
+Molis Work 中的父 Goal 是“让 Molis Work 清楚说明当前要做什么、怎么做和意味着什么”，按已确认依赖依次完成：
 
 1. 统一的人话状态与行动说明；
 2. Goal Detail 信息架构；

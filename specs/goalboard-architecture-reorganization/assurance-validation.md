@@ -35,9 +35,9 @@
 
 三组互不重复的执行记录：
 
-- `/private/tmp/goalboard-assurance-baseline.log`：16文件，55 pass / 0 fail / 0 skip。
-- `/private/tmp/goalboard-assurance-recovery-access.log`：7文件，35 pass / 0 fail / 0 skip，含新增2条恢复测试。
-- `/private/tmp/goalboard-assurance-control-gate.log`：按名称选择3条真实Web/PTY控制测试，3 pass / 0 fail / 0 skip。
+- `/private/tmp/molis-work-assurance-baseline.log`：16文件，55 pass / 0 fail / 0 skip。
+- `/private/tmp/molis-work-assurance-recovery-access.log`：7文件，35 pass / 0 fail / 0 skip，含新增2条恢复测试。
+- `/private/tmp/molis-work-assurance-control-gate.log`：按名称选择3条真实Web/PTY控制测试，3 pass / 0 fail / 0 skip。
 
 共93条通过。测试只操作自己新建的临时数据与服务，不读写现用项目；测试进程全部结束。新增测试只验证现有产品API，未修改生产业务语义。中英文安装文档补充完整Home、原绝对路径、外部工作区和Keychain/环境密钥的恢复边界。`git diff --check` 通过。
 

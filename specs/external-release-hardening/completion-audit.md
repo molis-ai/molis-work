@@ -8,12 +8,12 @@ Work Item spec 为准。
 
 | 用户问题或要求 | 当前实现 | 直接证据 | 状态 |
 | --- | --- | --- | --- |
-| 安装不能偷偷修改项目、Runtime 配置或启动项目 | `goalboard install` 只维护 `~/.goalboard`；Runtime、服务、demo 都是独立预览/确认流程 | `tests/install.test.ts`；真实 `pnpm install:local` 输出 | 通过 |
+| 安装不能偷偷修改项目、Runtime 配置或启动项目 | `molis-work install` 只维护 `~/.molis-work`；Runtime、服务、demo 都是独立预览/确认流程 | `tests/install.test.ts`；真实 `pnpm install:local` 输出 | 通过 |
 | 改源码后不能误装旧 `dist` | 本地唯一入口先 build；直接安装仓库会校验源码/构建指纹 | `tests/install.test.ts` 的 stale fingerprint 与 local install 用例 | 通过 |
 | 同版本内容变化不能继续跳过 | release 记录内容摘要；变化时原子刷新，失败回滚 | `tests/install.test.ts` 同版本刷新用例；本机多次返回“同版本内容已刷新” | 通过 |
 | 安装/接入后为什么要重启必须说清楚 | CLI、Web 接入预览、Skill 与 README 都说明 Runtime 只在 Session 启动时读取 MCP/Skill | `tests/runtime-integration.test.ts`、`tests/web.test.ts`、`README.md` | 通过 |
 | 前台 Web 随终端或 Codex 会话退出 | macOS 使用用户级 LaunchAgent，RunAtLoad/KeepAlive，日志可诊断；其他平台不假装常驻 | `tests/service.test.ts`；本机真实 remove 后为 `absent`，重新 install 后跨 shell 仍为 `running`，`launchctl` 有独立 PID，`/health` 为 200 | 通过 |
-| 用户对 Runtime 说“启动 GoalBoard”不能误开前台进程 | Skill 先查 managed service；首次常驻安装/旧配置修复先说明并确认，已停止则启动，已运行只返回地址；只有明确“临时打开”才走前台，非 macOS 不假装后台化 | `skills/goal-advance/references/service-start.md`；`tests/mcp.test.ts`、`tests/e2e.test.ts`；本机已安装 Codex Skill 与源码 SHA-256 一致 | 通过 |
+| 用户对 Runtime 说“启动 Molis Work”不能误开前台进程 | Skill 先查 managed service；首次常驻安装/旧配置修复先说明并确认，已停止则启动，已运行只返回地址；只有明确“临时打开”才走前台，非 macOS 不假装后台化 | `skills/goal-advance/references/service-start.md`；`tests/mcp.test.ts`、`tests/e2e.test.ts`；本机已安装 Codex Skill 与源码 SHA-256 一致 | 通过 |
 | 更新后旧 Web 进程继续跑旧 release，或进程已起但页面还打不开 | 安装不静默杀进程；公开 `service restart --confirm` 等待卸载、LaunchAgent running 和 `/health` 可访问后才返回 | `tests/service.test.ts` 延迟/失败健康检查、`tests/e2e.test.ts`；本机 restart 后立即 curl 成功 | 通过 |
 | Codex stdio MCP 没有稳定 Session ID | 不把目录或 MCP 进程伪装成 Session；目录只给候选，用户确认后当前调用流继续 | `openai/codex#19937` 为 `CLOSED / NOT_PLANNED`；`tests/mcp.test.ts`、`tests/project-catalog.test.ts` | 通过 |
 | 新 Session 与项目关联不能靠猜 | 有 Session ID 时恢复该 Session；没有时同目录历史仍返回 `suggested` 并再次询问 | Runtime Skill、`tests/mcp.test.ts` fresh-session 用例 | 通过 |
@@ -26,8 +26,8 @@ Work Item spec 为准。
 | Clarifier 是当前 Runtime 的工作指引，不是另一个 Session | `role` 只表示当前操作类型；当前对话持续提问并先持久化每次实质回答 | Runtime Skill 与 protocol；`tests/mcp.test.ts` | 通过 |
 | Goal 可以拆成多级 Goal family/tree | 一份 Proposal 可包含父、子、叶子及继续细分的子 Goal；用户决定后才物化 | `tests/v1.test.ts` Goal Tree proposal/decision/compound closure 用例 | 通过 |
 | 状态只有一套；澄清中的 Goal 不能显示进行中 | 从 canonical 事实派生唯一 work state；父 Goal 是“已澄清，等待子 Goal”，叶子是“待执行” | `tests/v1.test.ts` work states；`tests/web.test.ts` 状态映射 | 通过 |
-| Runtime 从 Available 自己选，不由 GoalBoard 派发唯一下一份 | `available → select_goal` 原子创建 Claim+Run；Skill 要求当前 Runtime 自主选择 | `tests/mcp.test.ts`、`tests/v1.test.ts` unified Available 用例 | 通过 |
-| 用户在对话里确认 Proposal 后能生效 | Runtime 只能转交当前对话的明确决定；GoalBoard 记录宿主元数据，不要求不存在的密码学证明 | `tests/mcp.test.ts` dialogue confirmation；`tests/v1.test.ts` Goal Tree decision | 通过 |
+| Runtime 从 Available 自己选，不由 Molis Work 派发唯一下一份 | `available → select_goal` 原子创建 Claim+Run；Skill 要求当前 Runtime 自主选择 | `tests/mcp.test.ts`、`tests/v1.test.ts` unified Available 用例 | 通过 |
+| 用户在对话里确认 Proposal 后能生效 | Runtime 只能转交当前对话的明确决定；Molis Work 记录宿主元数据，不要求不存在的密码学证明 | `tests/mcp.test.ts` dialogue confirmation；`tests/v1.test.ts` Goal Tree decision | 通过 |
 | Goal 删除在 UI 与 MCP 共用同一接口且可恢复 | Web 与 Runtime MCP 都调用 `setGoalTrashed`；保留历史并安全停用/恢复关系 | `tests/v1.test.ts`、`tests/mcp.test.ts`、`tests/web.test.ts` trash/restore 用例 | 通过 |
 | 卸载不能误删用户项目 | 普通卸载只撤销 owned 程序/配置/服务并删除 regenerable demo；purge 另需精确 home+项目数 | `tests/uninstall.test.ts`；真实全新用户清场与复原已完成 | 通过 |
 | MCP 宿主枚举 resource templates 不能报错 | `resources/list` 与 `resources/templates/list` 都返回空列表 | `tests/mcp.test.ts`、`tests/e2e.test.ts` | 通过 |
@@ -42,7 +42,7 @@ Work Item spec 为准。
 1. **增量进入 main。** onboarding、demo/更新文档、Runtime 自然语言启动路由与服务健康就绪修复
    已由 PR #5、#6、#7 合入 `main`；真实视觉验收发现并修复的 1440px 顶栏裁切与当前截图位于
    PR #8，等待 main 规则要求的 reviewer 批准。
-2. **GoalBoard 验收记录回写。** 当前 Session 没有加载 `goalboard_v1_*` 工具。按 Runtime Skill
+2. **Molis Work 验收记录回写。** 当前 Session 没有加载 `molis_work_v1_*` 工具。按 Runtime Skill
    不能用 CLI、SQLite 或 management MCP 代替；需要在工具已加载的新 Session 中连接用户选择的项目后写回。
 
 ## 最近一次验证

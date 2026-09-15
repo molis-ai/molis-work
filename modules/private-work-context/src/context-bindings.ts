@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
 import type Database from "better-sqlite3";
-import type { ContextLedgerApi } from "@adeptify/goalboard-contracts/modules/context-ledger";
+import type { ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { createRuntimeContextBindingMetadata, RuntimeContextProjectReferences } from "./context-binding-references.js";
 import type {
   RuntimeContextBindingEventRecord,
   RuntimeContextBindingRecord,
-} from "@adeptify/goalboard-contracts/modules/private-work-context";
+} from "@molis-ai/molis-work-contracts/modules/private-work-context";
 
 export interface RuntimeContextSetupRequestRecord {
   request_fingerprint: string;

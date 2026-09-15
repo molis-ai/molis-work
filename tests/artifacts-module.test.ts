@@ -11,11 +11,11 @@ import {
   migrateArtifactsSchema,
   type ArtifactEventInput,
   type ArtifactsSqliteDatabase,
-} from "@adeptify/goalboard-module-artifacts";
+} from "@molis-ai/molis-work-module-artifacts";
 import type {
   ArtifactJsonValue,
   RegisterArtifactVersionInput,
-} from "@adeptify/goalboard-contracts/modules/artifacts";
+} from "@molis-ai/molis-work-contracts/modules/artifacts";
 
 function createHarness() {
   const db = new Database(":memory:");

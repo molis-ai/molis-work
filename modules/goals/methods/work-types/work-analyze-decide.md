@@ -6,7 +6,7 @@ name: "分析与决策"
 summary: "从问题、证据和备选方案走到可追溯决定。"
 applies_to: ["数据分析","市场判断","方案选择"]
 domain_tags: ["analysis","decision"]
-source_refs: ["GoalBoard planning-engine spec"]
+source_refs: ["Molis Work planning-engine spec"]
 confidence: 0.94
 ---
 

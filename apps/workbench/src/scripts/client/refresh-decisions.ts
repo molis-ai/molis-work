@@ -1,8 +1,8 @@
-import { GOALS_PROPOSAL_CLIENT_FACTORY_SCRIPT } from "@adeptify/goalboard-plugin-goals";
-import { GOALS_NAVIGATION_CLIENT_FACTORY_SCRIPT } from "@adeptify/goalboard-plugin-goals";
-import { GOALS_DOCUMENT_CLIENT_FACTORY_SCRIPT } from "@adeptify/goalboard-plugin-goals";
-import { GOALS_TREE_CLIENT_FACTORY_SCRIPT } from "@adeptify/goalboard-plugin-goals";
-import { GOALS_REFRESH_CLIENT_FACTORY_SCRIPT } from "@adeptify/goalboard-plugin-goals";
+import { GOALS_PROPOSAL_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-goals";
+import { GOALS_NAVIGATION_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-goals";
+import { GOALS_DOCUMENT_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-goals";
+import { GOALS_TREE_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-goals";
+import { GOALS_REFRESH_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-goals";
 /** AP3 Workbench client segment: refresh-decisions. */
 export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
       setMobileView(restoredMobileView);
@@ -26,7 +26,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
       selected = goalId;
       rememberMomentumGoal(goalId);
       document.querySelector("[data-tui-pane]")?.setAttribute("data-goal-id", goalId);
-      document.dispatchEvent(new CustomEvent("goalboard:goal-changed", { detail: {
+      document.dispatchEvent(new CustomEvent("molis-work:goal-changed", { detail: {
         goalId,
         goalTitle: item.goal.title,
         status: item.status,
@@ -38,7 +38,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
       } }));
       selectTreeGoal(goalId);
       if (navigatorView === "graph") updateGraphVisibility();
-      document.title = item.goal.title + " · GoalBoard";
+      document.title = item.goal.title + " · Molis Work";
       if (resetScroll && activeDesktopSurface === "goal") documentPane.scrollTop = 0;
       renderWorkTabs();
       return true;
@@ -66,7 +66,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
       (${GOALS_NAVIGATION_CLIENT_FACTORY_SCRIPT})({
         decisionView, trashView, archiveView, documentPane,
         getSelected: () => selected, getActiveGoalId: () => state.active_goal_id,
-        navigateToGoal: (goalId) => location.assign(globalThis.goalboardNavigationUrl(route("/goals/" + encodeURIComponent(goalId)))),
+        navigateToGoal: (goalId) => location.assign(globalThis.molisWorkNavigationUrl(route("/goals/" + encodeURIComponent(goalId)))),
         applySelection, loadGoalDocument, ensureWorkTab,
         goalPageUrl, setWorkspaceMode, saveUiState, localPathname, visibleGoals,
         openEventReaderFromHash, goalFactorFromHash, setGoalFactor, revealDeepLinkFromId,
@@ -129,7 +129,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
       syncing = true;
       try {
         const cursorResponse = await fetch(route("/api/board/cursor"), { cache: "no-store" });
-        if (!cursorResponse.ok) throw new Error("无法读取 GoalBoard 游标");
+        if (!cursorResponse.ok) throw new Error("无法读取 Molis Work 游标");
         const cursorState = await cursorResponse.json();
         if (Number(cursorState.observed_event_cursor) === Number(state.snapshot.cursor)) {
           return;
@@ -163,7 +163,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
           location.reload();
           return;
         }
-        const nextStateNode = parsed.querySelector("#goalboard-data");
+        const nextStateNode = parsed.querySelector("#molis-work-data");
         if (!nextStateNode) throw new Error("页面状态不完整");
         const nextState = JSON.parse(nextStateNode.textContent);
         if (!decisionView && refreshGeneration !== documentReplaceGeneration) {
@@ -171,32 +171,34 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
           return;
         }
         if (decisionView) {
-          const nextFeedList = parsed.querySelector("[data-feed-list]");
-          const nextFeedWorkbench = parsed.querySelector("[data-feed-workbench]");
-          const nextFeedDetailEmpty = nextFeedWorkbench?.querySelector("[data-feed-detail-empty]");
-          if (!feedList || !feedWorkbench || !feedEmpty || !feedDetailEmpty || !nextFeedList || !nextFeedWorkbench || !nextFeedDetailEmpty) {
-            throw new Error("待决定页面数据不完整");
+          const nextInboxList = parsed.querySelector("[data-inbox-list]");
+          const nextInboxWorkbench = parsed.querySelector("[data-inbox-workbench]");
+          const nextInboxEmpty = nextInboxList?.querySelector("[data-inbox-empty]");
+          const nextInboxDetailEmpty = nextInboxWorkbench?.querySelector("[data-inbox-detail-empty]");
+          const inboxEmpty = inboxList?.querySelector("[data-inbox-empty]");
+          const inboxDetailEmpty = inboxWorkbench?.querySelector("[data-inbox-detail-empty]");
+          if (!inboxList || !inboxWorkbench || !inboxEmpty || !inboxDetailEmpty || !nextInboxList || !nextInboxWorkbench || !nextInboxEmpty || !nextInboxDetailEmpty) {
+            throw new Error("Inbox 页面数据不完整");
           }
           const scrollTop = window.scrollY;
-          const nextRows = [...nextFeedList.querySelectorAll("[data-feed-entry-id]")];
-          feedList.querySelectorAll("[data-feed-entry-id]").forEach((row) => row.remove());
-          nextRows.forEach((row) => feedList.insertBefore(row, feedEmpty));
-          feedWorkbench.querySelectorAll("[data-feed-detail]").forEach((detail) => detail.remove());
-          [...nextFeedWorkbench.querySelectorAll("[data-feed-detail]")]
-            .forEach((detail) => feedWorkbench.insertBefore(detail, feedDetailEmpty));
-          feedDetailEmpty.innerHTML = nextFeedDetailEmpty.innerHTML;
-          feedDetailEmpty.hidden = nextFeedDetailEmpty.hidden;
-          feedWorkbench.dataset.loaded = nextFeedWorkbench.dataset.loaded || "true";
-          feedWorkbench.dataset.loadedPreset = nextFeedWorkbench.dataset.loadedPreset || "inbox_message";
+          const selectedInboxId = inboxList.querySelector("[data-inbox-row].is-selected")?.dataset.inboxEntryId || "";
+          inboxList.querySelectorAll("[data-inbox-row]").forEach((row) => row.remove());
+          [...nextInboxList.querySelectorAll("[data-inbox-row]")].forEach((row) => inboxList.insertBefore(row, inboxEmpty));
+          inboxEmpty.innerHTML = nextInboxEmpty.innerHTML;
+          inboxEmpty.hidden = nextInboxEmpty.hidden;
+          inboxWorkbench.querySelectorAll("[data-inbox-detail]").forEach((detail) => detail.remove());
+          [...nextInboxWorkbench.querySelectorAll("[data-inbox-detail]")]
+            .forEach((detail) => inboxWorkbench.insertBefore(detail, inboxDetailEmpty));
+          inboxDetailEmpty.innerHTML = nextInboxDetailEmpty.innerHTML;
+          inboxDetailEmpty.hidden = nextInboxDetailEmpty.hidden;
           state = nextState;
           projectHome?.sync();
-          document.querySelector("#goalboard-data").textContent = JSON.stringify(nextState).replaceAll("<", "\\u003c");
-          const deepLinkedEntry = decisionFeedEntryFromHash();
-          if (deepLinkedEntry && !nextRows.some((row) => row.dataset.feedEntryId === deepLinkedEntry)) {
-            history.replaceState(null, "", location.pathname + location.search);
+          document.querySelector("#molis-work-data").textContent = JSON.stringify(nextState).replaceAll("<", "\\u003c");
+          const inboxFilter = inboxDirectory?.dataset.inboxCurrentFilter || "active";
+          setInboxFilter(inboxFilter, false);
+          if (selectedInboxId && inboxList.querySelector('[data-inbox-entry-id="' + CSS.escape(selectedInboxId) + '"]')) {
+            selectInboxEntry(selectedInboxId, false);
           }
-          selectedFeedItem = nextRows.find((row) => row.classList.contains("is-selected"))?.dataset.feedEntryId || "";
-          filterFeedItems(false);
           window.scrollTo({ top: scrollTop, behavior: "instant" });
           return;
         }
@@ -218,7 +220,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
             sessionStorage.setItem(goalMoveReceiptKey, JSON.stringify({ goalId: refreshGoalId, message }));
           } catch {}
           saveUiState();
-          location.replace(globalThis.goalboardNavigationUrl(route(movedPath)));
+          location.replace(globalThis.molisWorkNavigationUrl(route(movedPath)));
           return "reloading";
         }
         if (!force && liveUiInteractionActive()) return;
@@ -240,7 +242,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
         });
         state = nextState;
         projectHome?.sync();
-        document.querySelector("#goalboard-data").textContent = JSON.stringify(nextState).replaceAll("<", "\\u003c");
+        document.querySelector("#molis-work-data").textContent = JSON.stringify(nextState).replaceAll("<", "\\u003c");
         selected = goalRefresh.nextSelected;
         if (selected) ensureWorkTab(selected);
         if (!decisionView && selected) applySelection(selected, false);
@@ -261,16 +263,22 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
 
     const decisionReceiptContext = (decisionForm) => {
       const ownerLink = decisionForm.closest(".decision-goal-group")?.querySelector("a.decision-owner-link");
+      const goalDocument = decisionForm.closest("[data-goal-event-document]");
+      const goalTitle = ownerLink?.querySelector("strong")?.textContent?.trim()
+        || goalDocument?.querySelector("h1")?.textContent?.trim()
+        || "";
+      const goalId = goalDocument?.dataset.goalView || "";
       return {
-        goalTitle: ownerLink?.querySelector("strong")?.textContent?.trim() || "",
-        goalHref: ownerLink?.getAttribute("href") || "",
+        goalTitle,
+        goalHref: ownerLink?.getAttribute("href") || (goalId ? route("/goals/" + encodeURIComponent(goalId)) : ""),
       };
     };
 
     const showDecisionReceipt = (message, context) => {
-      const center = document.querySelector("[data-decision-center]");
-      const activeFeedDetail = feedWorkbench?.querySelector('[data-feed-detail]:not([hidden])');
-      const receiptHost = center || activeFeedDetail;
+      const receiptHost = document.querySelector("[data-goal-decision-panel]")
+        || document.querySelector("[data-goal-event-document]")
+        || document.querySelector("[data-decision-center]")
+        || feedWorkbench?.querySelector('[data-feed-detail]:not([hidden])');
       if (!receiptHost) {
         showToast(message);
         return;
@@ -294,7 +302,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
         link.textContent = context.goalTitle ? L("返回「{title}」", { title: context.goalTitle }) : L("返回 Goal");
         receipt.append(link);
       }
-      const receiptAnchor = receiptHost.querySelector(".decision-center-header, .feed-detail-header");
+      const receiptAnchor = receiptHost.querySelector(".decision-center-header, .feed-detail-header, .goal-workspace-hero");
       if (receiptAnchor) receiptAnchor.after(receipt);
       else receiptHost.prepend(receipt);
       receipt.focus({ preventScroll: true });
@@ -302,12 +310,12 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
 
     const refreshBoardWithDecisionReceipt = async (message, context) => {
       try {
-        sessionStorage.setItem("goalboard-decision-receipt", JSON.stringify({ message, context }));
+        sessionStorage.setItem("molis-work-decision-receipt", JSON.stringify({ message, context }));
       } catch {}
       const refreshResult = await refreshBoard(true);
       if (refreshResult === "reloading") return;
       try {
-        sessionStorage.removeItem("goalboard-decision-receipt");
+        sessionStorage.removeItem("molis-work-decision-receipt");
       } catch {}
       showDecisionReceipt(message, context);
     };
@@ -337,7 +345,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
     };
 
     const { handleGoalProposalSubmit, requireDecisionText, humanDecisionError } = (${GOALS_PROPOSAL_CLIENT_FACTORY_SCRIPT})({
-      translate: L, route, controlHeaders: goalboardControlHeaders, decisionReceiptContext, refreshBoardWithDecisionReceipt,
+      translate: L, route, controlHeaders: molisWorkControlHeaders, decisionReceiptContext, refreshBoardWithDecisionReceipt,
     });
 
     bindTreeSearchEvents();

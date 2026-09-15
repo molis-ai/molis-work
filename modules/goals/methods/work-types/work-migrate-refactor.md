@@ -6,7 +6,7 @@ name: "迁移与重构"
 summary: "先建立兼容和回退边界，再分段替换并验证。"
 applies_to: ["数据迁移","架构重构","系统替换"]
 domain_tags: ["migration","refactor"]
-source_refs: ["GoalBoard planning-engine spec"]
+source_refs: ["Molis Work planning-engine spec"]
 confidence: 0.94
 ---
 

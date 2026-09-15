@@ -1,4 +1,4 @@
-import type { RiskRecord } from "@adeptify/goalboard-contracts/modules/goals";
+import type { RiskRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { GoalsDocumentView as WebGoalView } from "./document-view.js";
 import type { GoalsDecisionView } from "./decision-view.js";
 import type { GoalsSafetyUiPrimitives } from "./safety-ui-model.js";

@@ -1,16 +1,16 @@
 import type {
   ExecutionApplicationApi,
   ExecutionQueryApi,
-} from "@adeptify/goalboard-contracts/modules/execution";
+} from "@molis-ai/molis-work-contracts/modules/execution";
 
 import { ExecutionRepository, type ExecutionSqliteDatabase } from "./repository.js";
 
 export const packageDescriptor = {
-  packageName: "@adeptify/goalboard-module-execution",
+  packageName: "@molis-ai/molis-work-module-execution",
   packagePath: "modules/execution",
   kind: "module",
   maturity: "partial",
-  contract: "@adeptify/goalboard-contracts/modules/execution",
+  contract: "@molis-ai/molis-work-contracts/modules/execution",
   migrationGoals: ["goal-reorg-f2", "goal-reorg-ex1", "goal-reorg-ex4"],
   ssot: "docs/SSOT-MATRIX.md",
   capabilities: [
@@ -19,7 +19,7 @@ export const packageDescriptor = {
   ],
 } as const;
 
-export type GoalBoardPackageDescriptor = typeof packageDescriptor;
+export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export interface ExecutionModuleOptions {
   db: ExecutionSqliteDatabase;

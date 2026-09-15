@@ -32,7 +32,7 @@ import type {
   IntegrationProviderItem,
   IntegrationProviderPort,
   IntegrationProviderSyncResult,
-} from "@adeptify/goalboard-contracts/platform/plugin";
+} from "@molis-ai/molis-work-contracts/platform/plugin";
 import {
   classifyGmailHttpBoundaryFailure,
   invalidCursorFailure,
@@ -338,7 +338,7 @@ export function createGmailProvider(opts?: {
           status: "mock",
           message: "Fixture mode - authorize Gmail in Settings wizard",
           action:
-            "Sources → Gmail OAuth or paste token / GOALBOARD_GMAIL_ACCESS_TOKEN",
+            "Sources → Gmail OAuth or paste token / MOLIS_WORK_GMAIL_ACCESS_TOKEN",
         };
       }
       const token = usable.accessToken;

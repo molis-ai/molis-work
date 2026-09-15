@@ -1,12 +1,12 @@
 import path from "node:path";
 import type Database from "better-sqlite3";
 import type {
-  GoalBoardSessionGoalLink,
-  GoalBoardSessionRecord,
+  MolisWorkSessionGoalLink,
+  MolisWorkSessionRecord,
 } from "./contract-aliases.js";
-import { GoalBoardSessionError } from "./errors.js";
+import { MolisWorkSessionError } from "./errors.js";
 
-export const SESSION_REGISTRY_OWNER = "goalboard-session-registry-v1";
+export const SESSION_REGISTRY_OWNER = "molis-work-session-registry-v1";
 export const SESSION_REGISTRY_SCHEMA_VERSION = 5;
 export const DEFAULT_CORRELATION_TTL_SECONDS = 15 * 60;
 
@@ -30,7 +30,7 @@ export function initializeOrValidateSessionSchema(db: Database.Database): void {
           title TEXT,
           status TEXT NOT NULL CHECK (status IN ('discovered', 'active', 'closed')),
           provenance TEXT NOT NULL CHECK (provenance IN (
-            'goalboard_created', 'runtime_discovered', 'explicitly_linked', 'legacy_migrated'
+            'molis_work_created', 'runtime_discovered', 'explicitly_linked', 'legacy_migrated'
           )),
           metadata_json TEXT NOT NULL,
           created_at TEXT NOT NULL,
@@ -79,7 +79,7 @@ export function initializeOrValidateSessionSchema(db: Database.Database): void {
     | { value?: unknown }
     | undefined)?.value;
   if (owner !== SESSION_REGISTRY_OWNER) {
-    throw new GoalBoardSessionError("session.registry_unknown", "不会复用未知 Session Registry 数据库");
+    throw new MolisWorkSessionError("session.registry_unknown", "不会复用未知 Session Registry 数据库");
   }
   const version = Number((db.prepare("SELECT value FROM session_meta WHERE key = 'schema_version'").get() as
     | { value?: unknown }
@@ -94,7 +94,7 @@ export function initializeOrValidateSessionSchema(db: Database.Database): void {
     return;
   }
   if (version !== 3 && version !== 4 && version !== SESSION_REGISTRY_SCHEMA_VERSION) {
-    throw new GoalBoardSessionError(
+    throw new MolisWorkSessionError(
       "session.registry_reader_too_old",
       `Session Registry schema=${version}，当前 reader 支持 ${SESSION_REGISTRY_SCHEMA_VERSION}`,
     );
@@ -137,7 +137,7 @@ function sessionHandoffsSchema(): string {
       target_workspace_path TEXT,
       destination_session_id TEXT REFERENCES sessions(session_id) ON DELETE SET NULL,
       state TEXT NOT NULL CHECK (state IN ('draft', 'sending', 'failed', 'sent', 'cancelled')),
-      delivery_mode TEXT CHECK (delivery_mode IS NULL OR delivery_mode IN ('native', 'goalboard_fallback')),
+      delivery_mode TEXT CHECK (delivery_mode IS NULL OR delivery_mode IN ('native', 'molis_work_fallback')),
       content_ref TEXT NOT NULL,
       content_digest TEXT NOT NULL,
       attempt_count INTEGER NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
@@ -156,7 +156,7 @@ function sessionHandoffsSchema(): string {
   `;
 }
 
-export function mapSession(row: Record<string, unknown>): GoalBoardSessionRecord {
+export function mapSession(row: Record<string, unknown>): MolisWorkSessionRecord {
   return {
     session_id: String(row.session_id),
     runtime_id: String(row.runtime_id),
@@ -169,20 +169,20 @@ export function mapSession(row: Record<string, unknown>): GoalBoardSessionRecord
     workspace_id: row.workspace_id == null ? null : String(row.workspace_id),
     workspace_path: row.workspace_path == null ? null : String(row.workspace_path),
     title: row.title == null ? null : String(row.title),
-    status: String(row.status) as GoalBoardSessionRecord["status"],
-    provenance: String(row.provenance) as GoalBoardSessionRecord["provenance"],
+    status: String(row.status) as MolisWorkSessionRecord["status"],
+    provenance: String(row.provenance) as MolisWorkSessionRecord["provenance"],
     metadata: parseMetadata(row.metadata_json),
     created_at: String(row.created_at),
     updated_at: String(row.updated_at),
   };
 }
 
-export function mapGoalLink(row: Record<string, unknown>): GoalBoardSessionGoalLink {
+export function mapGoalLink(row: Record<string, unknown>): MolisWorkSessionGoalLink {
   return {
     link_id: String(row.link_id),
     session_id: String(row.session_id),
     goal_id: String(row.goal_id),
-    relation: String(row.relation) as GoalBoardSessionGoalLink["relation"],
+    relation: String(row.relation) as MolisWorkSessionGoalLink["relation"],
     linked_by: String(row.linked_by),
     created_at: String(row.created_at),
     ended_at: row.ended_at == null ? null : String(row.ended_at),
@@ -204,7 +204,7 @@ export function optionalText(value: unknown): string | null {
 
 export function requiredText(value: unknown, message: string): string {
   const text = optionalText(value);
-  if (!text) throw new GoalBoardSessionError("session.invalid_input", message);
+  if (!text) throw new MolisWorkSessionError("session.invalid_input", message);
   return text;
 }
 
@@ -212,14 +212,14 @@ export function optionalAbsolutePath(value: unknown): string | null {
   const text = optionalText(value);
   if (!text) return null;
   if (!path.isAbsolute(text)) {
-    throw new GoalBoardSessionError("session.invalid_input", "Session 工作目录必须是绝对路径");
+    throw new MolisWorkSessionError("session.invalid_input", "Session 工作目录必须是绝对路径");
   }
   return path.resolve(text);
 }
 
 export function requireConfirmation(value: boolean): void {
   if (value !== true) {
-    throw new GoalBoardSessionError(
+    throw new MolisWorkSessionError(
       "session.confirmation_required",
       "创建或改变 Session 关联前必须获得用户明确确认",
     );
@@ -229,7 +229,7 @@ export function requireConfirmation(value: boolean): void {
 export function correlationTtl(value: number | undefined): number {
   if (value == null) return DEFAULT_CORRELATION_TTL_SECONDS;
   if (!Number.isSafeInteger(value) || value <= 0 || value > 24 * 60 * 60) {
-    throw new GoalBoardSessionError("session.invalid_input", "correlation TTL 必须是 1 秒到 24 小时之间的整数");
+    throw new MolisWorkSessionError("session.invalid_input", "correlation TTL 必须是 1 秒到 24 小时之间的整数");
   }
   return value;
 }

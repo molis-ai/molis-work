@@ -33,6 +33,6 @@ Canonical 来源：DD1 Evidence `evidence-4a0cc5ee-ba83-4d4b-a828-b5da26e0368a` 
 
 不完成 DV4 GUI 首启、不暂停 4173、不改用户 Home / 安装 / 模型配置，不代表全产品 E2E、总清理、再 E2E 或最初要求总审查完成。
 
-待确认提案仅一个父 Contract-update，其他 Goal、关系、Policy、Risk、Evidence、Review 均不变。用户确认后才 materialize；再读取返回的 semantic_review 并检查受影响 Contract，父项真实完成状态以 GoalBoard 返回为准，不手动写 satisfied。
+待确认提案仅一个父 Contract-update，其他 Goal、关系、Policy、Risk、Evidence、Review 均不变。用户确认后才 materialize；再读取返回的 semantic_review 并检查受影响 Contract，父项真实完成状态以 Molis Work 返回为准，不手动写 satisfied。
 
 正式提案：`goal-tree-proposal-84bdb63c-4da2-4996-9af5-8a93e2cec4b4`，条目 `item-dd-parent-closure-20260906`。2026-09-05T21:18:46.762Z 预检无冲突、无 planning issues，cursor 1133；仍 pending，尚未确认。当前源代码未因本审查改变，复用已有验收；本轮文档 diff check 通过。

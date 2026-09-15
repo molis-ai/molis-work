@@ -6,11 +6,11 @@ import test from "node:test";
 
 import {
   CodexRuntimeSessionAdapter,
-  GoalBoardPtyHost,
+  MolisWorkPtyHost,
   RuntimeHostRouter,
   type RuntimeSessionAdapter,
   type RuntimeSessionCapabilities,
-} from "@adeptify/goalboard-service-runtime-host";
+} from "@molis-ai/molis-work-service-runtime-host";
 
 const ALL_NATIVE: RuntimeSessionCapabilities = {
   create: "native",
@@ -72,12 +72,12 @@ test("Codex Adapter translates resume and returns a working event unsubscribe", 
 });
 
 test("Terminal PTY supports attach, input, process exit cleanup, and a fresh recovery spawn", async () => {
-  const cwd = mkdtempSync(path.join(os.tmpdir(), "goalboard-runtime-host-"));
+  const cwd = mkdtempSync(path.join(os.tmpdir(), "molis-work-runtime-host-"));
   const output: string[] = [];
   const exits: Array<{ panelId: string; code: number }> = [];
   let wake: () => void = () => undefined;
   const changed = () => new Promise<void>((resolve) => { wake = resolve; });
-  const host = new GoalBoardPtyHost({
+  const host = new MolisWorkPtyHost({
     onData(panelId, data) {
       output.push(`${panelId}:${data}`);
       wake();
@@ -118,7 +118,7 @@ test("Terminal PTY supports attach, input, process exit cleanup, and a fresh rec
 test("Terminal PTY forwards Ctrl-C and killAll terminates every active process", async () => {
   const output = new Map<string, string>();
   const exited = new Set<string>();
-  const host = new GoalBoardPtyHost({
+  const host = new MolisWorkPtyHost({
     onData(id, data) { output.set(id, (output.get(id) ?? "") + data); },
     onExit(id) { exited.add(id); },
   });

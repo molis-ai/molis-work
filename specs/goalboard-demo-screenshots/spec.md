@@ -1,27 +1,27 @@
-# GoalBoard README 产品演示截图集
+# Molis Work README 产品演示截图集
 
 ## 完成等级
 
-本 Goal 达到 **可直接用于 README 的真实演示素材（Level 4）**：截图来自当前 Web 页面、实际 GoalBoard `.app` 与真实 Codex Desktop Mock Session，不用静态高保真稿冒充产品。
+本 Goal 达到 **可直接用于 README 的真实演示素材（Level 4）**：截图来自当前 Web 页面、实际 Molis Work `.app` 与真实 Codex Desktop Mock Session，不用静态高保真稿冒充产品。
 
 ## 背景与目标
 
-README 需要用少量截图证明 GoalBoard 的完整使用方式，而不是重复解释功能。截图应分别回答：独立工作站如何工作、复杂关系如何理解、窄窗如何伴随 Harness、Web 与 Desktop 如何选择。
+README 需要用少量截图证明 Molis Work 的完整使用方式，而不是重复解释功能。截图应分别回答：独立工作站如何工作、复杂关系如何理解、窄窗如何伴随 Harness、Web 与 Desktop 如何选择。
 
 ## 范围
 
 - 桌面宽屏三栏：Goal Navigator、Goal Focus、Goal-bound Runtime 同屏，保留 TitleBar 与窗口边界。
 - 复杂 Goal Graph：列表/Graph 入口、关系方向、分组、状态、当前焦点与 Goal Focus 同屏。
 - 桌面窄屏三状态：Goals、Focus、Runtime；三张图使用相同宽度与主题。
-- Harness 同屏：真实 Codex Mock Session 与 GoalBoard Desktop 并排，展示同一 Goal 事实。
+- Harness 同屏：真实 Codex Mock Session 与 Molis Work Desktop 并排，展示同一 Goal 事实。
 - Web：使用浏览器语境展示 Goal Tree、Goal Detail 与 Runtime，不伪装成桌面端。
 - 最终素材进入 `docs/screenshots/`；内部原始截图与检查证据保留在 `.impeccable/qa/`。
 
 ## 内容与隐私
 
-- 主演示优先使用可重建的 `GoalBoard 示例项目`；复杂 Graph 使用已经验收的 Mock Goal 网络。
+- 主演示优先使用可重建的 `Molis Work 示例项目`；复杂 Graph 使用已经验收的 Mock Goal 网络。
 - 不修改真实业务项目，不伪造 Claim、Run、Evidence、关系或完成状态。
-- Codex 侧栏的无关任务、用户身份和桌面文件名必须打码；当前 Mock Session 与 GoalBoard 内容保持可读。
+- Codex 侧栏的无关任务、用户身份和桌面文件名必须打码；当前 Mock Session 与 Molis Work 内容保持可读。
 - 不在同一张图重复表达同一价值；每张图只承担一个传播任务。
 
 ## 非目标

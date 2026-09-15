@@ -1,14 +1,14 @@
-# GoalBoard 首次使用与版本更新 Onboarding
+# Molis Work 首次使用与版本更新 Onboarding
 
 ## 完成等级
 
 本阶段交付 **Level 3：功能可用的生产垂直切片**。已经确认的高保真原型继续作为视觉和交互参考；生产实现必须把首次安装、新建项目初始化和版本更新 Journey 接到真实 Project、Workspace、Goal 与 Goal-bound TUI，不再用原型状态冒充领域事实。
 
-Level 3 的完成边界是：用户能从空安装进入 Onboarding，明确确认后创建真实 Project 和根 Draft Goal；可选关联一个真实工作目录；若选择本机可用 Runtime，则不离开引导页，而是进入条件式第五步，在引导页内嵌入新项目的真实 Goal-bound TUI，并把初始化提示填入但不发送。用户完成本轮澄清与安排后，才主动进入 GoalBoard。Goal Tree 的澄清、Proposal 与用户确认继续复用现有 Runtime / Coordinator 权威链路，不在 Web Onboarding 中伪造一棵“看起来完成”的树。
+Level 3 的完成边界是：用户能从空安装进入 Onboarding，明确确认后创建真实 Project 和根 Draft Goal；可选关联一个真实工作目录；若选择本机可用 Runtime，则不离开引导页，而是进入条件式第五步，在引导页内嵌入新项目的真实 Goal-bound TUI，并把初始化提示填入但不发送。用户完成本轮澄清与安排后，才主动进入 Molis Work。Goal Tree 的澄清、Proposal 与用户确认继续复用现有 Runtime / Coordinator 权威链路，不在 Web Onboarding 中伪造一棵“看起来完成”的树。
 
 ## 背景与目标
 
-GoalBoard 已有安全的安装、项目、Runtime 接入、工作目录、Session、Draft、Goal Tree Proposal 和用户确认能力，但这些能力目前分布在真实设置页和工作台中。首次用户完成安装后会看到项目入口，却不知道这些动作应按什么顺序发生，也没有一个明确的“第一次成功”。
+Molis Work 已有安全的安装、项目、Runtime 接入、工作目录、Session、Draft、Goal Tree Proposal 和用户确认能力，但这些能力目前分布在真实设置页和工作台中。首次用户完成安装后会看到项目入口，却不知道这些动作应按什么顺序发生，也没有一个明确的“第一次成功”。
 
 本设计把 Onboarding 定义为真实产品旅程，而不是功能轮播：
 
@@ -49,7 +49,7 @@ GoalBoard 已有安全的安装、项目、Runtime 接入、工作目录、Sessi
 3. 用户选择的工作目录已真实关联，或用户明确选择暂不关联；
 4. 若选择 Runtime，页面停留在 Onboarding，并在第五步嵌入该 Goal 的真实 Goal-bound TUI；
 5. 初始化提示只填入终端、不自动发送；
-6. Runtime 成功打开且提示完成填入后，才启用“安排好了，进入 GoalBoard”；用户主动确认完成后进入正常项目工作台；
+6. Runtime 成功打开且提示完成填入后，才启用“安排好了，进入 Molis Work”；用户主动确认完成后进入正常项目工作台；
 7. Journey 完成或跳过状态与当前安装版本持久化在本机，刷新和重启后不重复打扰。
 
 ## 核心旅程
@@ -66,9 +66,9 @@ GoalBoard 已有安全的安装、项目、Runtime 接入、工作目录、Sessi
 2. `给这个项目取个名字吧。`——用自然问题获得一个之后还认得出的项目名；
 3. `接下来，你想在哪里继续？`——选择可选工作目录和已探测且验证过的 Runtime；
 4. `这样开始，可以吗？`——展示即将真实写入的内容与安全边界，等待最终确认。
-5. `我们先把项目安排清楚。`——仅在选择 Runtime 时出现；在当前引导空间内嵌入真实 Goal-bound TUI，用户与 Runtime 完成本轮澄清和 Goal Tree 安排后再进入 GoalBoard。
+5. `我们先把项目安排清楚。`——仅在选择 Runtime 时出现；在当前引导空间内嵌入真实 Goal-bound TUI，用户与 Runtime 完成本轮澄清和 Goal Tree 安排后再进入 Molis Work。
 
-GoalBoard 不扮演一个需要命名、建立人设的虚拟助理。温度来自措辞、节奏、回应和 Artifact 的逐步生成；产品始终清楚表明自己是在收集初始化所需事实。
+Molis Work 不扮演一个需要命名、建立人设的虚拟助理。温度来自措辞、节奏、回应和 Artifact 的逐步生成；产品始终清楚表明自己是在收集初始化所需事实。
 
 入口提供三条路径：
 
@@ -90,7 +90,7 @@ GoalBoard 不扮演一个需要命名、建立人设的虚拟助理。温度来�
 - 工作目录；
 - Runtime；
 - 将创建一个新的初始化 Session；
-- GoalBoard 会填入初始化提示，但不会自动发送；
+- Molis Work 会填入初始化提示，但不会自动发送；
 - 不会自动接受 Goal、改动代码或覆盖 Runtime 配置。
 
 TUI 初始化对话分为四个可恢复阶段：
@@ -102,7 +102,7 @@ TUI 初始化对话分为四个可恢复阶段：
 
 中途关闭后，恢复时先说明已经确认的事实、仍是假设的内容和下一件需要决定的事。
 
-生产实现采用现有 Goal-bound TUI 作为唯一 Runtime 入口。Onboarding 不创建另一种 Session 模型：第 4 步创建真实 Project / 根 Draft / Workspace 后，把一次性恢复收据写入同源 `sessionStorage`，第 5 步通过带 `onboarding-runtime=1&onboarding-embed=1` 的项目深链接嵌入真实工作台。嵌入页只暴露 Runtime 工作面，不重复展示项目目录、Goal 详情、移动标签和工作台标题栏；它消费收据、打开用户选择的 Runtime、等待终端可写，并调用带 `onboarding=1` 的 Goal advance prompt 执行“填入不发送”。若 Runtime 先展示目录信任、Hooks 复核或类似启动确认，引导必须等待用户在真实终端中完成该确认，不能把初始化提示误写进选择界面，也不能提前回报 ready；确认完成后自动继续填入。该提示明确要求 Runtime 先读取根 Draft 与项目规划组合、一次只问一个关键问题，信息足够后按真实产出消费关系提交 Goal Tree Proposal 并等待用户确认。嵌入页通过同源 `postMessage` 回报 waiting / ready / error；父页在成功前禁用最终进入按钮，失败时允许原位重试。用户点击“安排好了，进入 GoalBoard”后，进入不带嵌入参数的正常项目页面。
+生产实现采用现有 Goal-bound TUI 作为唯一 Runtime 入口。Onboarding 不创建另一种 Session 模型：第 4 步创建真实 Project / 根 Draft / Workspace 后，把一次性恢复收据写入同源 `sessionStorage`，第 5 步通过带 `onboarding-runtime=1&onboarding-embed=1` 的项目深链接嵌入真实工作台。嵌入页只暴露 Runtime 工作面，不重复展示项目目录、Goal 详情、移动标签和工作台标题栏；它消费收据、打开用户选择的 Runtime、等待终端可写，并调用带 `onboarding=1` 的 Goal advance prompt 执行“填入不发送”。若 Runtime 先展示目录信任、Hooks 复核或类似启动确认，引导必须等待用户在真实终端中完成该确认，不能把初始化提示误写进选择界面，也不能提前回报 ready；确认完成后自动继续填入。该提示明确要求 Runtime 先读取根 Draft 与项目规划组合、一次只问一个关键问题，信息足够后按真实产出消费关系提交 Goal Tree Proposal 并等待用户确认。嵌入页通过同源 `postMessage` 回报 waiting / ready / error；父页在成功前禁用最终进入按钮，失败时允许原位重试。用户点击“安排好了，进入 Molis Work”后，进入不带嵌入参数的正常项目页面。
 
 ### C. 版本更新
 
@@ -125,7 +125,7 @@ TUI 初始化对话分为四个可恢复阶段：
 
 - 覆盖完整可用视口，隐藏工作台目录、卡片墙和功能清单；
 - 不使用中央卡片或对话框外壳；问题、无边界填空和主操作直接存在于全屏空间中；
-- 首屏只保留极轻的 GoalBoard 标识、`迁移已有数据` 和 `跳过`，不显示功能清单或产品说明；
+- 首屏只保留极轻的 Molis Work 标识、`迁移已有数据` 和 `跳过`，不显示功能清单或产品说明；
 - 第一句固定为 `你希望我们一起做什么？`，下面只有一个 `我想……` 填空位置；
 - 当前步骤根据是否选择 Runtime，以极弱的 `n / 4` 或 `n / 5` 和口语状态表达，不再绘制进度线；
 - 已确认回答收拢为一行低调上下文，下一问在同一基线附近出现；
@@ -183,7 +183,7 @@ TUI 初始化对话分为四个可恢复阶段：
 
 ## 状态与恢复
 
-Journey 展示状态记录在 GoalBoard home 的设备设置文件中：
+Journey 展示状态记录在 Molis Work home 的设备设置文件中：
 
 - `journey_id`；
 - `started_at`；
@@ -192,7 +192,7 @@ Journey 展示状态记录在 GoalBoard home 的设备设置文件中：
 - `last_presented_step`；
 - `last_seen_app_version`。
 
-文件只保存 Journey 展示和恢复信息，使用版本化结构、原子替换写入；不得复制 Project、Workspace、Goal、Session 或 Proposal 数据。安装版本来自 GoalBoard installation manifest；无法确认当前版本时不弹出伪造的更新 Journey。
+文件只保存 Journey 展示和恢复信息，使用版本化结构、原子替换写入；不得复制 Project、Workspace、Goal、Session 或 Proposal 数据。安装版本来自 Molis Work installation manifest；无法确认当前版本时不弹出伪造的更新 Journey。
 
 这些字段只控制展示。以下完成状态必须从真实领域事实推导：
 
@@ -225,7 +225,7 @@ Journey 展示状态记录在 GoalBoard home 的设备设置文件中：
 - 科技感不由背景装饰承担，而由四个真实状态组成：`01 / 04` 步骤标识、字段获得焦点、答案被记录为回执、下一步骤被装载；微型状态文字可以使用等宽字体，标题与正文继续使用平台原生字体；
 - 第一屏没有中央卡片、图标墙或大 Logo。前景不做垂直居中，首屏内容的视觉中心落在视口高度约 `61.8%` 的下黄金分割点；桌面首屏前景宽度从上一版 `600–660px` 收到约 `340–380px`，视觉占比接近上一版的一半，但不机械砍掉可读字号和点击面积；
 - 首屏问题控制在 `18–22px`，正文控制在 `11–12px`，主输入控制在 `13–15px`；输入是边界清楚的工作字段，不使用大型白色悬浮胶囊；
-- 文案使用引导式的自然问题：`你希望我们一起做什么？`、`给这个项目取个名字吧。`、`接下来，你想在哪里继续？`、`这样开始，可以吗？`。温度来自认真回应用户说的话，不把 GoalBoard 包装成有虚构人格的 AI 助理，也不使用“智能生成、开启未来、让 AI 接管”等泛化话术；
+- 文案使用引导式的自然问题：`你希望我们一起做什么？`、`给这个项目取个名字吧。`、`接下来，你想在哪里继续？`、`这样开始，可以吗？`。温度来自认真回应用户说的话，不把 Molis Work 包装成有虚构人格的 AI 助理，也不使用“智能生成、开启未来、让 AI 接管”等泛化话术；
 - 后续步骤继续使用同一左对齐文字基线；第一、第二步控制在约 `380px`，Runtime 与确认步骤可扩展到约 `480px` 以容纳真实信息；Review 使用连续的轻量事实行，不形成卡片墙；
 - 页面不使用装饰性横线、按钮下划线或树连接线；字段边界、焦点轨迹、状态点和键盘焦点是功能反馈，不扩散为背景图形；
 - 窄态 Goal 标题不在标题上方悬挂胶囊状态。状态与标题同一行，使用 5px 状态点和简短文字，不保留描边、圆角底色或独立占行；桌面宽态继续保留完整事实行；
@@ -240,7 +240,7 @@ Journey 展示状态记录在 GoalBoard home 的设备设置文件中：
 - 内容仍沿用下黄金分割点和同一左侧文字基线。较高的 Runtime / Review 步骤在舞台内部使用更紧凑的垂直节奏，只有在低高度视口下才整体上移以守住底部导航，不让短步骤跟着跳动；
 - 工作目录与 Runtime 选择保持一个问题中的两个真实输入，但不形成“工具状态面板”。工作目录使用文字标签与单条输入基线；Runtime 只显示“稍后再选”和当前真正可用的工具，按截图式紧凑单列排列。每行只保留工具名，选中行出现一层浅灰底和右侧小点，不重复显示“本机可用 / 当前选择”等说明，不使用粗体、卡片边界、大行距或整块输入底色；保留原生 `fieldset`、`legend`、radio、checked 和键盘焦点语义，未检测到的工具不占据首次旅程空间；
 - 第一问使用“意图选择器 + 独立文本输入”的句子编辑器：默认选择器为 `我想`，与文本框分开对齐，不把前缀伪装成输入内容；可切换为 `我想做成 / 我想设计 / 我想解决 / 我想想清楚 / 我想改造 / 我想让 / 我想讲清楚`。闭合状态是无盒子的文字触发器、必要的 chevron 和输入基线；只有展开菜单是必要容器，菜单沿用单列轻列表，当前项用浅灰底和状态点表示。选择结果作为用户提供的规划线索映射到对应 work-type method pack，但不直接锁定项目 `method_pack_ids`，也不替代 Runtime 对领域、行业和叠加层的后续判断；
-- 上一步、下一步与创建 / 完成操作放在步骤内容上方，与 `01 / 05` 步骤状态组成一条轻量导航行，不固定在右下角。控件只使用真实细线箭头与简单文字，背景、描边、圆角、阴影和最小宽度全部移除；仍保留 44px 命中区、清楚的 hover / focus 与禁用状态。前三步显示 `上一步 / 下一步`，第 4 步显示 `上一步 / 创建项目`，条件式第 5 步不再允许返回修改已经写入的事实，只显示 `安排好了，进入 GoalBoard`；
+- 上一步、下一步与创建 / 完成操作放在步骤内容上方，与 `01 / 05` 步骤状态组成一条轻量导航行，不固定在右下角。控件只使用真实细线箭头与简单文字，背景、描边、圆角、阴影和最小宽度全部移除；仍保留 44px 命中区、清楚的 hover / focus 与禁用状态。前三步显示 `上一步 / 下一步`，第 4 步显示 `上一步 / 创建项目`，条件式第 5 步不再允许返回修改已经写入的事实，只显示 `安排好了，进入 Molis Work`；
 - 第五步只保留一段短说明、一块必要的真实 Runtime 视口和一行状态 / 重试，不增加说明卡、功能卡或第二套工具容器。Runtime 视口沿用真实终端画布与紧凑工具排版，外部引导继续保持平坦暖灰；二者以空间和一次细边界区分，不用大阴影或发光描边；
 - 前进时当前内容向左收拢、下一步从右侧短距离进入；返回时方向反转。进出在同一个舞台内完成，舞台尺寸、背景和导航位置不变化；动画预算为 240–320ms、指数减速、无弹跳，切换期间避免重复触发；
 - `prefers-reduced-motion: reduce` 下直接切换步骤，不执行位移或裁切，但焦点、步骤文字、按钮显隐和表单状态保持一致。
@@ -269,7 +269,7 @@ Journey 展示状态记录在 GoalBoard home 的设备设置文件中：
 
 ## 生产模块与调用链
 
-- `src/web/onboarding.ts`：唯一拥有 Journey 展示状态、安装版本读取和是否应展示初装 / 更新 Journey 的判定；只读写 GoalBoard home 下的本机设置文件。
+- `src/web/onboarding.ts`：唯一拥有 Journey 展示状态、安装版本读取和是否应展示初装 / 更新 Journey 的判定；只读写 Molis Work home 下的本机设置文件。
 - `src/web/server.ts`：拥有 `/onboarding` 和 `/api/onboarding/*` 的路由编排；在用户最终确认后调用 Catalog 创建 Project、调用 Coordinator 创建根 Draft Goal、可选调用 Catalog 关联 Workspace，再返回真实项目 / Goal 深链接。
 - `src/web/render.ts`：渲染逐步表单、确认摘要、错误与恢复状态；不拥有 Project 或 Goal 事实。
 - `src/web/pty-client.ts`：消费一次性初始化收据，复用现有 Panel、PTY 和 advance prompt 能力打开 TUI并填入提示；接受同源父页对嵌入页的初始化交接，并把 waiting / ready / error 状态回报给父页；收据过期、Goal 不匹配或 Runtime 不可用时安全停止，不自动发送。
@@ -285,7 +285,7 @@ Journey 展示状态记录在 GoalBoard home 的设备设置文件中：
 - 空 Project Catalog 首次打开会进入生产 Onboarding；跳过后回到真实项目目录，且重启服务后不重复强制进入；
 - 主路径可完整走通：项目意图 → 结果 → Runtime / 工作目录 → 交接确认 → 创建真实 Project 与根 Draft Goal → 打开真实项目；
 - API 缺少最终确认、项目名 / 结果无有效文字、目录不是存在的绝对路径、Runtime 不可用时，在任何 Project 写入前拒绝请求；
-- 选择可用 Runtime 时，第 4 步创建成功后页面仍停留在 `/onboarding`，进入条件式第五步并嵌入该 Goal 的新 TUI；嵌入态不显示 GoalBoard 工作台目录、Goal 正文、工作台标题栏或移动标签。TUI 填入首次澄清专用的 Goal advance prompt，但不发送回车；该提示明确引导用户补全根 Draft、使用项目规划组合拆分 Goal Tree、提交 Proposal 并等待用户确认；提示填入成功前最终进入按钮不可用，失败时可原位重试；未选择 Runtime 时不创建 Panel并直接进入项目；
+- 选择可用 Runtime 时，第 4 步创建成功后页面仍停留在 `/onboarding`，进入条件式第五步并嵌入该 Goal 的新 TUI；嵌入态不显示 Molis Work 工作台目录、Goal 正文、工作台标题栏或移动标签。TUI 填入首次澄清专用的 Goal advance prompt，但不发送回车；该提示明确引导用户补全根 Draft、使用项目规划组合拆分 Goal Tree、提交 Proposal 并等待用户确认；提示填入成功前最终进入按钮不可用，失败时可原位重试；未选择 Runtime 时不创建 Panel并直接进入项目；
 - 刷新或恢复不会重复创建 Project、Goal 或 TUI；过期的一次性收据会被丢弃；
 - 安装 manifest 版本变化后显示独立、可关闭的 What's New Journey；确认后持久化 `last_seen_app_version`，相同版本不再重复展示；
 - 页面和 API 的 Project、Workspace、Goal、Runtime 可用性都来自真实 Catalog / Store / 本机探测，不使用演示值；

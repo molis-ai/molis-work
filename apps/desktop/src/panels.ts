@@ -1,13 +1,13 @@
-import type { DesktopPanelErrorCode, DesktopPanelRepository, DesktopPanelContextPort, DesktopPanelServiceOptions } from "@adeptify/goalboard-contracts/platform/app-host";
-export type { DesktopPanelErrorCode, DesktopPanelRepository, DesktopPanelContextPort, DesktopPanelServiceOptions } from "@adeptify/goalboard-contracts/platform/app-host";
+import type { DesktopPanelErrorCode, DesktopPanelRepository, DesktopPanelContextPort, DesktopPanelServiceOptions } from "@molis-ai/molis-work-contracts/platform/app-host";
+export type { DesktopPanelErrorCode, DesktopPanelRepository, DesktopPanelContextPort, DesktopPanelServiceOptions } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 
-import type { DesktopPanelApi, DesktopPanelRecord, OpenDesktopPanelInput } from "@adeptify/goalboard-contracts/platform/app-host";
-export type { DesktopPanelRecord, OpenDesktopPanelInput } from "@adeptify/goalboard-contracts/platform/app-host";
+import type { DesktopPanelApi, DesktopPanelRecord, OpenDesktopPanelInput } from "@molis-ai/molis-work-contracts/platform/app-host";
+export type { DesktopPanelRecord, OpenDesktopPanelInput } from "@molis-ai/molis-work-contracts/platform/app-host";
 
-import type { AliasDesktopPanelSessionInput } from "@adeptify/goalboard-contracts/platform/app-host";
-export type { AliasDesktopPanelSessionInput } from "@adeptify/goalboard-contracts/platform/app-host";
+import type { AliasDesktopPanelSessionInput } from "@molis-ai/molis-work-contracts/platform/app-host";
+export type { AliasDesktopPanelSessionInput } from "@molis-ai/molis-work-contracts/platform/app-host";
 
 /**
  * Owns Desktop Panel lifecycle rules. Persistence and Project context binding

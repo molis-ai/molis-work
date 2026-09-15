@@ -1,20 +1,20 @@
 import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { SCHEMA_VERSION, INSTALLER_ID } from "./home-contract.js";
-import type { GoalBoardHomeInstallOptions, GoalBoardHomeInstallResult, GoalBoardHomeInstallStatus, GoalBoardHomeInstallStep, TextMutation, PromotedRelease, InstallManifest } from "./home-contract.js";
+import type { MolisWorkHomeInstallOptions, MolisWorkHomeInstallResult, MolisWorkHomeInstallStatus, MolisWorkHomeInstallStep, TextMutation, PromotedRelease, InstallManifest } from "./home-contract.js";
 import { inspectSource, safeReleaseName } from "./home-source.js";
 import { inspectRelease, createRelease, promoteRelease, rollbackPromotedRelease } from "./home-release.js";
 import { ensureDirectory, writeOwnedText, readOwnedJson, replaceOwnedJson, pathState, rollbackTextMutations } from "./home-files.js";
 import { launcherSource } from "./home-launcher.js";
+import { resolveConfiguredHome } from "../product-home.js";
 
 /** Installs only App-owned files; Runtime configuration is a separate explicit operation. */
 
-export async function installGoalBoardHome(
-  options: GoalBoardHomeInstallOptions,
-): Promise<GoalBoardHomeInstallResult> {
-  const homeDirectory = path.resolve(options.homeDirectory ?? path.join(os.homedir(), ".goalboard"));
+export async function installMolisWorkHome(
+  options: MolisWorkHomeInstallOptions,
+): Promise<MolisWorkHomeInstallResult> {
+  const homeDirectory = path.resolve(options.homeDirectory ?? resolveConfiguredHome());
   const sourceDirectory = path.resolve(options.sourceDirectory);
   const source = await inspectSource(sourceDirectory, options.version);
   const releaseName = safeReleaseName(source.version);
@@ -61,23 +61,28 @@ export async function installGoalBoardHome(
       }
     }
 
+    const launcherFiles = {
+      cli: ["molis-work", "goalboard"],
+      mcp: ["molis-work-mcp", "goalboard-mcp"],
+      web: ["molis-work-web", "goalboard-web"],
+    } as const;
     const launchers = {
-      cli: path.join(binDirectory, "goalboard"),
-      mcp: path.join(binDirectory, "goalboard-mcp"),
-      web: path.join(binDirectory, "goalboard-web"),
+      cli: path.join(binDirectory, "molis-work"),
+      mcp: path.join(binDirectory, "molis-work-mcp"),
+      web: path.join(binDirectory, "molis-work-web"),
     };
-    for (const [name, launcherPath] of Object.entries(launchers)) {
-      const changed = await writeOwnedText(
-        launcherPath,
-        launcherSource(
-          name as keyof typeof launchers,
-          releaseDirectory,
-          source.bundledNodePath != null,
-        ),
-        mutations,
+    for (const [name, names] of Object.entries(launcherFiles)) {
+      const sourceText = launcherSource(
+        name as keyof typeof launchers,
+        releaseDirectory,
+        source.bundledNodePath != null,
       );
-      if (changed) writtenPaths.push(launcherPath);
-      else preservedPaths.push(launcherPath);
+      for (const fileName of names) {
+        const launcherPath = path.join(binDirectory, fileName);
+        const changed = await writeOwnedText(launcherPath, sourceText, mutations);
+        if (changed) writtenPaths.push(launcherPath);
+        else preservedPaths.push(launcherPath);
+      }
     }
 
     const previousInstall = await readOwnedJson<InstallManifest>(installManifestPath);
@@ -123,7 +128,7 @@ export async function installGoalBoardHome(
       preservedPaths.push(obsoletePostInstallSelections);
     }
 
-    const status: GoalBoardHomeInstallStatus = releaseChanged
+    const status: MolisWorkHomeInstallStatus = releaseChanged
       ? existingRelease === "refreshable"
         ? "refreshed"
         : promoted?.backupDirectory
@@ -148,7 +153,7 @@ export async function installGoalBoardHome(
       launchers,
       next_steps: {
         message:
-          `GoalBoard 只完成了本体安装；没有创建项目，也没有修改 Runtime 配置或用户项目文件。Runtime 接入、项目设置和 Web 常驻服务必须通过后续单独的显式流程完成。接入 Codex / Claude Code 后需要新开 Session，因为 Runtime 只在 Session 启动时读取 MCP 与 Skill 清单，当前对话不会动态出现新工具。重开后说「继续用 GoalBoard」；GoalBoard 会展示当前目录以前用过的项目并请你确认，不会把普通选择偷偷设成目录默认。${status === "unchanged" ? "" : " 如果此前已启用常驻 Web 服务，请先执行 service status；返回 needs_repair 时执行 service_install_command，不要先执行 service_restart_command；返回 running 或 unhealthy 且仅需加载新内容时，才执行 service_restart_command。安装器不会静默终止未知进程。"}`,
+          `Molis Work 只完成了本体安装；没有创建项目，也没有修改 Runtime 配置或用户项目文件。Runtime 接入、项目设置和 Web 常驻服务必须通过后续单独的显式流程完成。接入 Codex / Claude Code 后需要新开 Session，因为 Runtime 只在 Session 启动时读取 MCP 与 Skill 清单，当前对话不会动态出现新工具。重开后说「继续用 Molis Work」；Molis Work 会展示当前目录以前用过的项目并请你确认，不会把普通选择偷偷设成目录默认。${status === "unchanged" ? "" : " 如果此前已启用常驻 Web 服务，请先执行 service status；返回 needs_repair 时执行 service_install_command，不要先执行 service_restart_command；返回 running 或 unhealthy 且仅需加载新内容时，才执行 service_restart_command。安装器不会静默终止未知进程。"}`,
         web_command: [launchers.web, "--home", homeDirectory],
         service_install_command: [launchers.cli, "service", "install", "--home", homeDirectory, "--confirm"],
         service_restart_command: [launchers.cli, "service", "restart", "--home", homeDirectory, "--confirm"],
@@ -164,7 +169,7 @@ export async function installGoalBoardHome(
   }
 }
 
-export async function runStep(options: GoalBoardHomeInstallOptions, step: GoalBoardHomeInstallStep): Promise<void> {
+export async function runStep(options: MolisWorkHomeInstallOptions, step: MolisWorkHomeInstallStep): Promise<void> {
   await options.beforeStep?.(step);
 }
 

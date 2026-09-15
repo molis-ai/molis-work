@@ -23,8 +23,8 @@ Contract revision：1
 
 ```text
 现有 Web / MCP / CLI caller
-  → GoalBoardCoordinator 的兼容方法
-  → @adeptify/goalboard-module-goals 公共入口
+  → MolisWorkCoordinator 的兼容方法
+  → @molis-ai/molis-work-module-goals 公共入口
   → Goals Command
   → GoalsRepository
 ```
@@ -34,7 +34,7 @@ Contract revision：1
 `scripts/check-package-boundaries.mjs` 的 Goals Command 所有权检查会拒绝：
 
 - Coordinator 兼容方法重新出现 SQL、Store 写入或第二套业务规则；
-- caller 绕过 `@adeptify/goalboard-module-goals` 公共入口做 deep import；
+- caller 绕过 `@molis-ai/molis-work-module-goals` 公共入口做 deep import；
 - Goals package 缺少公开 Contract、Command、Repository 或正确的 partial maturity 声明；
 - package 之间出现跨 owner implementation / Store import。
 
@@ -69,7 +69,7 @@ Coordinator 中仍存在的 Goal 生命周期、Goal Tree proposal/materializati
 - Project / Goal Policy 的继承、覆盖、校验、版本和事件保持原语义。
 - Risk 的创建、更新、状态变化、关联 Goal、Action 授权、事务回滚和 lifecycle reconciliation 保持原语义。
 - Project Guidance 的新增、修改、停用、恢复、排序、历史版本、冲突和幂等行为保持原语义。
-- 对外错误继续使用既有 `GoalBoardV1Error` code、message 和 details；公开模块通过注入的 error factory 保持兼容。
+- 对外错误继续使用既有 `MolisWorkV1Error` code、message 和 details；公开模块通过注入的 error factory 保持兼容。
 - 事务仍使用同一个 SQLite 连接和原有 immediate transaction，写入、事件和幂等结果不会被拆成不一致的多段提交。
 - 现有 Web、MCP、CLI、Desktop、安装与迁移入口路径没有变化；本期只是把内部 owner 搬正。
 

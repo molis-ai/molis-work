@@ -1,15 +1,15 @@
 export const packageDescriptor = {
-  packageName: "@adeptify/goalboard-plugin-work",
+  packageName: "@molis-ai/molis-work-plugin-work",
   packagePath: "plugins/native/work",
   kind: "native-plugin",
   maturity: "partial",
-  contract: "@adeptify/goalboard-contracts/platform/plugin",
+  contract: "@molis-ai/molis-work-contracts/platform/plugin",
   migrationGoals: ["goal-reorg-f2","goal-reorg-wk3"],
   ssot: "docs/SSOT-MATRIX.md",
   capabilities: ["work.session-application.v1", "work.ui-contribution.v1"],
 } as const;
 
-export type GoalBoardPackageDescriptor = typeof packageDescriptor;
+export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 export { handleWorkSessionHttp } from "./http/index.js";
 export { handleWorkPanelHttp, type WorkPanelHttpContext } from "./http/panels.js";
 export { publicSessionRecord, publicSessionHandoff } from "./http/public-records.js";
@@ -21,7 +21,7 @@ export { SessionHandoffService } from "./handoff.js";
 export { buildSessionHandoffPackage } from "./handoff-package.js";
 export { RegistryFallbackSessionAdapter } from "./registry-fallback-adapter.js";
 export { SessionTuiRecorder, stripTerminalControl } from "./tui-recorder.js";
-export { repairProjectWorkspace, unlinkProjectWorkspace, GoalBoardWorkspaceActionError, type ProjectWorkspaceActionRecord } from "./workspace-actions.js";
+export { repairProjectWorkspace, unlinkProjectWorkspace, MolisWorkWorkspaceActionError, type ProjectWorkspaceActionRecord } from "./workspace-actions.js";
 export type { SessionTimelineEvent, SessionContentMode, SessionContentResult, SessionResumeResult, SessionHandoffGoalContext, PrepareSessionHandoffInput, SendSessionHandoffInput, SessionHandoffResult } from "./types.js";
 
 export { workUiContribution, WORK_UI_CONTRIBUTION_ID } from "./ui/contribution.js";

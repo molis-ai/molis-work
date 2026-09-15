@@ -1,4 +1,4 @@
-import { createCapsuleWorkbench, type CapsuleRendererPorts } from "@adeptify/goalboard-app-workbench";
+import { createCapsuleWorkbench, type CapsuleRendererPorts } from "@molis-ai/molis-work-app-workbench";
 import { L, htmlLang, clientI18nScript } from "./web-locale.js";
 
 export function createLocalHostCapsule(renderDesktopShell: CapsuleRendererPorts["renderDesktopShell"]) {

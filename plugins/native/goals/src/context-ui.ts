@@ -1,4 +1,4 @@
-import type { UiContribution } from "@adeptify/goalboard-contracts/platform/ui";
+import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { GoalsContextUiPrimitives } from "./context-ui-model.js";
 import { createGoalContextRecordsRenderer } from "./context-records-ui.js";
 import { createGoalContextCoverageRenderer } from "./context-coverage-ui.js";
@@ -9,7 +9,7 @@ function createContextRenderer(primitives: GoalsContextUiPrimitives) {
   return { renderAcceptanceSummary, renderChildProgress, renderContractCoverage };
 }
 export type GoalsContextRenderer = ReturnType<typeof createContextRenderer>;
-export const GOALS_CONTEXT_UI_CONTRIBUTION_ID = "io.goalboard.native.goals.context.v1";
+export const GOALS_CONTEXT_UI_CONTRIBUTION_ID = "io.molis.work.native.goals.context.v1";
 export type GoalsContextUiModel = { primitives: GoalsContextUiPrimitives } & (
   | { kind: "acceptance-summary"; args: Parameters<GoalsContextRenderer["renderAcceptanceSummary"]> }
   | { kind: "child-progress"; args: Parameters<GoalsContextRenderer["renderChildProgress"]> }
@@ -17,7 +17,7 @@ export type GoalsContextUiModel = { primitives: GoalsContextUiPrimitives } & (
 );
 export const goalsContextUiContribution: UiContribution<GoalsContextUiModel> = {
   descriptor: {
-    contribution_id: GOALS_CONTEXT_UI_CONTRIBUTION_ID, plugin_id: "io.goalboard.native.goals", kind: "embedded", label: "Goal context",
+    contribution_id: GOALS_CONTEXT_UI_CONTRIBUTION_ID, plugin_id: "io.molis.work.native.goals", kind: "embedded", label: "Goal context",
     surfaces: ["acceptance-summary", "child-progress", "contract-coverage"].map(surface_id => ({ surface_id, target_slot_id: "workbench.main", format: "declarative-html" })), slots: [],
   },
   render({ surface, model }) {

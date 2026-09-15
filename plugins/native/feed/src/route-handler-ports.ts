@@ -17,7 +17,7 @@ export interface FeedRouteHandlerPorts {
   sourceCatalog(): FeedSourceCatalogView[];
   detectRelayImport(): RelayImportAvailability;
   importRelay(feed: FeedApplication): RelayImportResult;
-  renderWorkbench(preset: "feed" | "inbox_message"): string;
-  renderDetail(item: FeedItemRecord, options: { entryId: string; inboxActive: boolean; inboxEntry?: InboxEntryRecord | null }): string;
+  renderWorkbench(): string;
+  renderDetail(item: FeedItemRecord, options: { entryId: string; inboxActive: boolean; inboxEntry?: InboxEntryRecord | null; surface?: "frame-block" }): string;
   promote(feed: FeedApplication, input: FeedGoalPromotionInput): ReturnType<typeof promoteFeedItemToGoal>;
 }

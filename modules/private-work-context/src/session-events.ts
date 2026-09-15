@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
 import type Database from "better-sqlite3";
 import type { SessionContentStore } from "./content-store.js";
-import { GoalBoardSessionError } from "./errors.js";
+import { MolisWorkSessionError } from "./errors.js";
 import {
   SESSION_EVENT_SOURCES,
   SESSION_TIMELINE_KINDS,
-  type AppendGoalBoardSessionEventInput,
-  type GoalBoardSessionEventRecord,
+  type AppendMolisWorkSessionEventInput,
+  type MolisWorkSessionEventRecord,
 } from "./contract-aliases.js";
 import { parseMetadata, requiredText, safeEventMetadata, validIsoTimestamp } from "./session-schema.js";
 
@@ -22,14 +22,14 @@ export class SessionEventRepository {
     private readonly sessions: WorkSessionLookup,
   ) {}
 
-  append(input: AppendGoalBoardSessionEventInput): GoalBoardSessionEventRecord {
-    const sessionId = requiredText(input.session_id, "GoalBoard Session ID 不能为空");
+  append(input: AppendMolisWorkSessionEventInput): MolisWorkSessionEventRecord {
+    const sessionId = requiredText(input.session_id, "Molis Work Session ID 不能为空");
     this.sessions.get(sessionId);
     if (!SESSION_EVENT_SOURCES.includes(input.source)) {
-      throw new GoalBoardSessionError("session.invalid_input", "Session 事件来源无效");
+      throw new MolisWorkSessionError("session.invalid_input", "Session 事件来源无效");
     }
     if (!SESSION_TIMELINE_KINDS.includes(input.kind)) {
-      throw new GoalBoardSessionError("session.invalid_input", "Session 事件类型无效");
+      throw new MolisWorkSessionError("session.invalid_input", "Session 事件类型无效");
     }
     const sourceId = requiredText(input.source_id, "Session 事件 source_id 不能为空");
     const content = typeof input.content === "string" ? input.content : "";
@@ -73,7 +73,7 @@ export class SessionEventRepository {
     })();
   }
 
-  list(sessionId: string): GoalBoardSessionEventRecord[] {
+  list(sessionId: string): MolisWorkSessionEventRecord[] {
     this.sessions.get(sessionId);
     const rows = this.db.prepare(`
       SELECT * FROM session_events WHERE session_id = ?
@@ -89,15 +89,15 @@ export class SessionEventRepository {
     return Number(row?.count ?? 0);
   }
 
-  private get(eventId: string): GoalBoardSessionEventRecord {
+  private get(eventId: string): MolisWorkSessionEventRecord {
     const row = this.db.prepare("SELECT * FROM session_events WHERE event_id = ?").get(eventId) as
       | Record<string, unknown>
       | undefined;
-    if (!row) throw new GoalBoardSessionError("session.not_found", "找不到这条 Session 事件");
+    if (!row) throw new MolisWorkSessionError("session.not_found", "找不到这条 Session 事件");
     return this.map(row);
   }
 
-  private map(row: Record<string, unknown>): GoalBoardSessionEventRecord {
+  private map(row: Record<string, unknown>): MolisWorkSessionEventRecord {
     let content: string | null = null;
     try {
       content = this.contentStore.read(String(row.content_ref));
@@ -107,8 +107,8 @@ export class SessionEventRepository {
     return {
       event_id: String(row.event_id),
       session_id: String(row.session_id),
-      source: String(row.source) as GoalBoardSessionEventRecord["source"],
-      kind: String(row.kind) as GoalBoardSessionEventRecord["kind"],
+      source: String(row.source) as MolisWorkSessionEventRecord["source"],
+      kind: String(row.kind) as MolisWorkSessionEventRecord["kind"],
       source_id: String(row.source_id),
       source_order: Number(row.source_order),
       occurred_at: String(row.occurred_at),

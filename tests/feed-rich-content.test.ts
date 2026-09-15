@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { FeedItemRecord } from "@adeptify/goalboard-plugin-feed";
-import { feedPlainText, renderFeedRichText } from "@adeptify/goalboard-plugin-feed";
+import type { FeedItemRecord } from "@molis-ai/molis-work-plugin-feed";
+import { feedPlainText, renderFeedRichText } from "@molis-ai/molis-work-plugin-feed";
 import { renderPersistedFeedItemDetail } from "./workbench-renderer-fixture.js";
 
 const MIXED_BODY = `Bumps [eslint](https://github.com/eslint/eslint) from 9.39.5 to 10.8.1.
@@ -28,7 +28,7 @@ function feedItem(overrides: Partial<FeedItemRecord> = {}): FeedItemRecord {
     source_kind: "github",
     source_label: "GitHub",
     external_id: "11",
-    url: "https://github.com/adeptify/goalboard/pull/11",
+    url: "https://github.com/molis-ai/molis-work/pull/11",
     origin_status: "source",
     priority: "normal",
     tags: ["dependency"],

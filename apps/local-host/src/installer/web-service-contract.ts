@@ -1,36 +1,45 @@
-export const SERVICE_OWNER = "goalboard-web-service-v1";
-export const SERVICE_LABEL = "com.adeptify.goalboard.web";
+export const SERVICE_OWNER = "molis-work-web-service-v1";
+export const SERVICE_LABEL = "com.molis.work.web";
+export const LEGACY_SERVICE_OWNER = "goalboard-web-service-v1";
+export const LEGACY_SERVICE_LABEL = "com.adeptify.goalboard.web";
 
-export type GoalBoardWebServiceAction = "install" | "start" | "stop" | "restart" | "remove";
-import type { GoalBoardWebServiceDetection } from "@adeptify/goalboard-contracts/platform/app-host";
-export type { GoalBoardWebServiceState, GoalBoardWebServiceDetection } from "@adeptify/goalboard-contracts/platform/app-host";
+export function isOwnedWebServiceReceipt(receipt: { owner?: string; label?: string } | null | undefined): boolean {
+  if (!receipt) return false;
+  const ownedOwner = receipt.owner === SERVICE_OWNER || receipt.owner === LEGACY_SERVICE_OWNER;
+  const ownedLabel = receipt.label === SERVICE_LABEL || receipt.label === LEGACY_SERVICE_LABEL;
+  return ownedOwner && ownedLabel;
+}
 
-export interface GoalBoardWebServicePlan {
+export type MolisWorkWebServiceAction = "install" | "start" | "stop" | "restart" | "remove";
+import type { MolisWorkWebServiceDetection } from "@molis-ai/molis-work-contracts/platform/app-host";
+export type { MolisWorkWebServiceState, MolisWorkWebServiceDetection } from "@molis-ai/molis-work-contracts/platform/app-host";
+
+export interface MolisWorkWebServicePlan {
   plan_id: string;
-  action: GoalBoardWebServiceAction;
+  action: MolisWorkWebServiceAction;
   status: "ready" | "no_change" | "unsupported" | "conflict";
   next_action: "service_install" | null;
-  detection: GoalBoardWebServiceDetection;
+  detection: MolisWorkWebServiceDetection;
   changes: Array<{ operation: "create" | "start" | "stop" | "restart" | "remove"; target: string }>;
   confirmation: string;
   message: string;
 }
 
-export interface GoalBoardWebServiceResult {
+export interface MolisWorkWebServiceResult {
   status: "installed" | "started" | "stopped" | "restarted" | "removed" | "unchanged" | "declined";
-  action: GoalBoardWebServiceAction;
-  detection: GoalBoardWebServiceDetection;
+  action: MolisWorkWebServiceAction;
+  detection: MolisWorkWebServiceDetection;
   message: string;
 }
 
-export interface GoalBoardWebServiceRestartPending {
+export interface MolisWorkWebServiceRestartPending {
   status: "restarting";
   action: "restart";
   previous_process_id: number;
   message: string;
 }
 
-export interface GoalBoardWebServiceManagerOptions {
+export interface MolisWorkWebServiceManagerOptions {
   homeDirectory?: string;
   userHomeDirectory?: string;
   nodeExecutablePath?: string;
@@ -49,7 +58,7 @@ export interface GoalBoardWebServiceManagerOptions {
 
 export interface WebServiceReceipt {
   schema_version: 1;
-  owner: typeof SERVICE_OWNER;
+  owner: string;
   label: string;
   plist_path: string;
   plist_hash: string;
@@ -57,17 +66,17 @@ export interface WebServiceReceipt {
 }
 
 export interface PreparedServicePlan {
-  publicPlan: GoalBoardWebServicePlan;
+  publicPlan: MolisWorkWebServicePlan;
   snapshotHash: string;
   expectedPlist: string;
 }
 
-export class GoalBoardWebServiceError extends Error {
+export class MolisWorkWebServiceError extends Error {
   constructor(
     readonly code: "service.unsupported" | "service.conflict" | "service.plan_missing" | "service.plan_stale" | "service.command_failed",
     message: string,
   ) {
     super(message);
-    this.name = "GoalBoardWebServiceError";
+    this.name = "MolisWorkWebServiceError";
   }
 }

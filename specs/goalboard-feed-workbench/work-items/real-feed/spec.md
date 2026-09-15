@@ -1,6 +1,6 @@
 # 统一真实 Feed 工作台
 
-GoalBoard Goal：`goal-infoflow-real-feed`
+Molis Work Goal：`goal-infoflow-real-feed`
 
 完成等级：4（Feed 工作台达到内部完整；GitHub、Gmail、RSS 的真实外部账号 smoke test 仍由各 Provider Goal 验收）
 

@@ -1,11 +1,11 @@
-import type { UiContribution } from "@adeptify/goalboard-contracts/platform/ui";
+import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { GoalCollectionModel } from "./collection-model.js";
 import type { GoalsTreeItem, GoalsTreeView, GoalsTreeUiPrimitives, GoalVisibleStatus } from "./tree-ui-model.js";
 import { sortGoalTreeItems as sortGoals } from "./tree-order.js";
 import { treeDependencySearchText } from "./tree-presentation.js";
 import { activeOutgoingDependsOn, findGoalTreeItem as findGoalView, goalWorkSatisfied, isBlockedWorkStatus, unsatisfiedOutgoingDependencies, goalTreeReferenceLabels, visibleGoalStatus } from "./tree-presentation.js";
 
-export const GOALS_TREE_UI_CONTRIBUTION_ID = "io.goalboard.native.goals.tree.v1";
+export const GOALS_TREE_UI_CONTRIBUTION_ID = "io.molis.work.native.goals.tree.v1";
 
 function createTreeRenderer(primitives: GoalsTreeUiPrimitives) {
   const { translate: L, escapeHtml, currentLocale, listJoin, icon, renderStatus, renderActionStatus, renderVisibleGoalStatus, displayStatuses: GOAL_DISPLAY_STATUSES } = primitives;
@@ -117,7 +117,7 @@ function renderGoalTree(
             : `<span class="tree-guide" aria-hidden="true"></span>`
         }
         <div class="tree-entry directory-list-row${selected ? " is-selected" : ""}">
-          <button class="tree-node${selected ? " is-selected" : ""}" type="button" data-select-goal="${escapeHtml(item.goal.goal_id)}" aria-pressed="${selected}">
+          <button class="tree-node${selected ? " is-selected" : ""}" type="button" draggable="true" data-frame-asset="goal" data-frame-asset-id="${escapeHtml(item.goal.goal_id)}" data-select-goal="${escapeHtml(item.goal.goal_id)}" aria-pressed="${selected}">
             <span class="tree-copy"><span class="tree-title-line"><strong title="${escapeHtml(item.goal.title)}">${escapeHtml(item.goal.title)}</strong></span>${reference}</span>
           </button>
           <span class="directory-row-state">${renderVisibleGoalStatus(item)}</span>
@@ -220,7 +220,7 @@ export type GoalsTreeUiModel = { primitives: GoalsTreeUiPrimitives } & (
 );
 export const goalsTreeUiContribution: UiContribution<GoalsTreeUiModel> = {
   descriptor: {
-    contribution_id: GOALS_TREE_UI_CONTRIBUTION_ID, plugin_id: "io.goalboard.native.goals",
+    contribution_id: GOALS_TREE_UI_CONTRIBUTION_ID, plugin_id: "io.molis.work.native.goals",
     kind: "embedded", label: "Goal Tree",
     surfaces: ["root-entry", "tree", "chrome", "directory", "refresh"].map(surface_id => ({ surface_id, target_slot_id: "workbench.directory", format: "declarative-html" })),
     slots: [],

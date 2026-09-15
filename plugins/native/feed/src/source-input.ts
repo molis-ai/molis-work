@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { FeedDomainError } from "@adeptify/goalboard-contracts/modules/feed";
+import { FeedDomainError } from "@molis-ai/molis-work-contracts/modules/feed";
 export function normalizeIdempotencyKey(value: string): string {
   const key = value.trim();
   if (!/^[A-Za-z0-9][A-Za-z0-9:_-]{7,127}$/u.test(key)) {

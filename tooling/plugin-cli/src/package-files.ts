@@ -1,7 +1,7 @@
 import { lstat, readFile, realpath, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { assertPluginPackagePath, parsePluginPackage, PluginPackageError } from "@adeptify/goalboard-plugin-runtime";
-import type { PluginPackageBundle } from "@adeptify/goalboard-contracts/platform/plugin";
+import { assertPluginPackagePath, parsePluginPackage, PluginPackageError } from "@molis-ai/molis-work-plugin-runtime";
+import type { PluginPackageBundle } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 const MAX_BUNDLE_BYTES = 64 * 1024 * 1024;
 

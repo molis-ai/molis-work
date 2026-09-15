@@ -2,13 +2,13 @@
 
 ## 安装代码的开发边界
 
-`pnpm build` 先清理各 workspace 包的生成目录，再根据声明的依赖顺序构建全部 48 个包，最后生成根入口和 PTY bundle。`build:migrated-packages` 复用同一个 `workspace:build`，因此删除/移动源码后不会把旧 JS 带进 npm/DMG。只清生成目录，不清 node_modules 或用户数据。Plugin CLI 的稳定 bin 启动文件随源码存在，干净 `pnpm install --frozen-lockfile` 后构建即可使用 `pnpm exec goalboard-plugin --help`。包边界扫描覆盖 src、tooling 和 bin 中的 JavaScript/TypeScript 调用。
+`pnpm build` 先清理各 workspace 包的生成目录，再根据声明的依赖顺序构建全部 48 个包，最后生成根入口和 PTY bundle。`build:migrated-packages` 复用同一个 `workspace:build`，因此删除/移动源码后不会把旧 JS 带进 npm/DMG。只清生成目录，不清 node_modules 或用户数据。Plugin CLI 的稳定 bin 启动文件随源码存在，干净 `pnpm install --frozen-lockfile` 后构建即可使用 `pnpm exec molis-work-plugin --help`。包边界扫描覆盖 src、tooling 和 bin 中的 JavaScript/TypeScript 调用。
 
-Desktop 发布脚本归 `apps/desktop/tooling/`，根 `pnpm desktop:*` 命令不变。它调用 Local Host 的 `createGoalBoardRuntimePayload` 生成自包含目录，不在孤立资源目录对 workspace:* manifest 再执行 npm install。失败不覆盖已有资源，vendor 来源、SBOM、许可证随 payload 和 Home 安装保留。
+Desktop 发布脚本归 `apps/desktop/tooling/`，根 `pnpm desktop:*` 命令不变。它调用 Local Host 的 `createMolisWorkRuntimePayload` 生成自包含目录，不在孤立资源目录对 workspace:* manifest 再执行 npm install。失败不覆盖已有资源，vendor 来源、SBOM、许可证随 payload 和 Home 安装保留。
 
-Home 安装、Runtime 接入、常驻 Web 服务和卸载的实现统一在 `apps/local-host/src/installer/`，调用者通过 `@adeptify/goalboard-app-local-host` 公开入口使用；旧 `src/install/` 已删除。不要在 CLI/Web 中复制预览、确认、所有权、回滚和清理规则。
+Home 安装、Runtime 接入、常驻 Web 服务和卸载的实现统一在 `apps/local-host/src/installer/`，调用者通过 `@molis-ai/molis-work-app-local-host` 公开入口使用；旧 `src/install/` 已删除。不要在 CLI/Web 中复制预览、确认、所有权、回滚和清理规则。
 
-`installGoalBoardHome` 必须接收明确的 `sourceDirectory`；只有产品根 CLI 根据自己的入口位置补默认值，因此从其他工作目录执行、不传 `--source` 仍安装同一个产品。卸载器必须注入 `UninstallProjectAccess`，根 `src/local-host/uninstall.ts` 负责只读连接与现有 Demo 删除装配；Projects 的公开检查负责 catalog facts，预览不迁移数据库。
+`installMolisWorkHome` 必须接收明确的 `sourceDirectory`；只有产品根 CLI 根据自己的入口位置补默认值，因此从其他工作目录执行、不传 `--source` 仍安装同一个产品。卸载器必须注入 `UninstallProjectAccess`，根 `src/local-host/uninstall.ts` 负责只读连接与现有 Demo 删除装配；Projects 的公开检查负责 catalog facts，预览不迁移数据库。
 
 修改 workspace 源码后必须重新构建。`pnpm build` 最后通过 `apps/local-host/tooling/write-build-manifest.mjs` 调用 Local Host 的构建记录生成函数，覆盖根源码、workspace 包源码/配置和构建脚本；不要单独生成记录掩盖旧构建。新建 workspace 层级时同步 installer fingerprint 的包发现范围与构建列表。定向回归包括 `tests/install.test.ts`、`tests/service.test.ts`、`tests/uninstall.test.ts`、`tests/uninstall-catalog.test.ts`，真实 Web/Desktop 调用由对应集成测试覆盖。DV4 完整发布验收尚未完成，不能把这些回归当成可发布证明。
 
@@ -23,8 +23,8 @@ Home 安装、Runtime 接入、常驻 Web 服务和卸载的实现统一在 `app
 旧 JSON 不是并行运行模式，只能通过显式导入写入一个全新的 V1 Board：
 
 ```bash
-goalboard v1 import-v3 \
-  --db .goalboard/imported.db \
+molis-work v1 import-v3 \
+  --db .molis-work/imported.db \
   --board-id imported \
   --actor user \
   --key import-1 \
@@ -33,11 +33,11 @@ goalboard v1 import-v3 \
 
 导入保留Goal标题与原结果、父子结构、范围、inputs/outputs、root constraints、coverage disposition和原始来源。现有事务同时接通当前事件归属，`goal_state.intent.source_kind` 为 `migration`；导入后可立即从Runtime或Web记录普通笔记，重启后仍可继续。不会合成验收要求、完成或用户批准，也不生成原V3没有的依赖。需要进一步明确交付时使用当前约定与要求。目标Board已存在时拒绝覆盖。
 
-management MCP 提供同一 Coordinator 上的 `goalboard_v1_import_v3`；Runtime MCP 不暴露导入。
+management MCP 提供同一 Coordinator 上的 `molis_work_v1_import_v3`；Runtime MCP 不暴露导入。
 
 ## CLI
 
-公开 CLI 顶层提供本体安装、常驻服务、demo、安全卸载，以及 `goalboard v1 <operation>` 管理接口：
+公开 CLI 顶层提供本体安装、常驻服务、demo、安全卸载，以及 `molis-work v1 <operation>` 管理接口：
 
 ```text
 init | snapshot | import-v3 | active-goal
@@ -48,7 +48,7 @@ goal-tree-propose | goal-tree-read | goal-tree-check | goal-tree-decide
 
 ## 项目结构
 
-> 当前仓库已经是 Monorepo：18 个目标 package 保持 `contract-only`，30 个 package 已有真实迁移切片并标记为 `partial`；根 `@adeptify/goalboard` package 暂时继续承载现有产品与发布兼容面。package 存在不代表全部业务都已迁入；真实状态和迁移 owner 见 [架构 SSOT 索引](SSOT-MATRIX.md)。
+> 当前仓库已经是 Monorepo：18 个目标 package 保持 `contract-only`，30 个 package 已有真实迁移切片并标记为 `partial`；根 `@molis-ai/molis-work` package 暂时继续承载现有产品与发布兼容面。package 存在不代表全部业务都已迁入；真实状态和迁移 owner 见 [架构 SSOT 索引](SSOT-MATRIX.md)。
 
 ```text
 apps/                        6 个产品入口与 composition root 边界
@@ -108,7 +108,7 @@ docs/system/                 分层、依赖、迁移与 Huge Class 退出规则
 docs/modules/                16 个 Module 的事实 owner 与 API 边界
 docs/horizontal/             4 个横向运行服务的技术边界
 docs/platform/               Plugin、Storage、Exchange 与 UI 平台机制
-specs/goalboard-architecture-reorganization/spec.md
+specs/molis-work-architecture-reorganization/spec.md
                              本次重组的完整已确认 Contract
 ```
 
@@ -144,10 +144,10 @@ pnpm package:npm
 单独检查某个 package 时使用其正式名称，例如：
 
 ```bash
-pnpm --filter @adeptify/goalboard-module-goals typecheck
-pnpm --filter @adeptify/goalboard-module-goals build
-pnpm --filter @adeptify/goalboard-plugin-runtime typecheck
-pnpm --filter @adeptify/goalboard-integration-github typecheck
+pnpm --filter @molis-ai/molis-work-module-goals typecheck
+pnpm --filter @molis-ai/molis-work-module-goals build
+pnpm --filter @molis-ai/molis-work-plugin-runtime typecheck
+pnpm --filter @molis-ai/molis-work-integration-github typecheck
 ```
 
 `workspace:check` 只核对 F2 包清单；`boundary:check` 扫描真实 import、依赖方向、Contract 入口、依赖环和 Huge Class 临时名单；`workspace:verify` 是本地与 CI 共用的完整 package 门禁。

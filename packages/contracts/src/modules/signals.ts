@@ -1,7 +1,7 @@
 import type { ContractDescriptor } from "../platform/package.js";
 
 export const modulesSignalsContract = {
-  contractId: "io.goalboard.module.signals.v1",
+  contractId: "io.molis.work.module.signals.v1",
   kind: "module",
   schemaVersion: 1,
   maturity: "partial",

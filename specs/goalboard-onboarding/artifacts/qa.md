@@ -1,4 +1,4 @@
-# GoalBoard Onboarding QA
+# Molis Work Onboarding QA
 
 ## 2026-09-01 当前生产修订：纯净背景、半幅内容与黄金分割
 
@@ -22,7 +22,7 @@
 本轮根据“一屏占比太大、不能照抄参考图风格”的纠偏，撤销上一版浅色雾面 Hero。旧版北欧冬晨原型记录保留在下文，只作为历史证据，不再代表当前生产首屏。
 
 - 保留 Peace、克制科技感与人话文案；移除柔焦布景、低位大标题、大型白色输入框和悬浮按钮；
-- 背景改为平坦暖灰工作面与右侧冷灰 Goal Spine：一个根节点、两个结果分支和未完成端点，直接来自 GoalBoard 的产品结构；
+- 背景改为平坦暖灰工作面与右侧冷灰 Goal Spine：一个根节点、两个结果分支和未完成端点，直接来自 Molis Work 的产品结构；
 - 1440×900 实测首屏内容区 `660×198.7px`，标题 `27.36px`，主输入 `600×54px`；
 - 390×844 实测首屏内容区 `350.4×198.6px`，标题约 `24.99px`，主输入 `350.4×57.6px`；
 - 1440×900 Runtime 步骤高度 `423.3px`，操作区底部约 `720px`，6 个选择项高度 `52–54.4px`；无横向溢出或关键操作遮挡；
@@ -32,7 +32,7 @@
 
 ## 历史 Level 2 原型结论
 
-原型达到本阶段约定的 **Level 2：可交互高保真切片**。首次安装不再像功能介绍或配置向导，而是一段从黑夜到晨光的渐进对话：黑屏停顿后只出现“你好，我们今天做点什么？”和一个无边界填空位置；用户逐步说清项目、结果与工作环境，GoalBoard 才显露 TUI 和第一棵 Goal Tree。版本更新沿用同一套视觉语言，但使用独立的短路径，不会重放初装问题。
+原型达到本阶段约定的 **Level 2：可交互高保真切片**。首次安装不再像功能介绍或配置向导，而是一段从黑夜到晨光的渐进对话：黑屏停顿后只出现“你好，我们今天做点什么？”和一个无边界填空位置；用户逐步说清项目、结果与工作环境，Molis Work 才显露 TUI 和第一棵 Goal Tree。版本更新沿用同一套视觉语言，但使用独立的短路径，不会重放初装问题。
 
 上一轮完整视觉世界通过了 Impeccable finish review。本轮是在其上完成的窄范围 polish：移除所有装饰线、替换 Hover 反馈并重做 Goal Tree；按 polish playbook 完成两轮内的浏览器检查。这个结论只适用于 Level 2 原型，不表示生产 Runtime 与数据链路已可用。
 
@@ -136,11 +136,11 @@ Impeccable detector 在本机因为缺少 `htmlparser2`、`css-select`、`css-tr
 
 ## 2026-09-01 条件式第五步：引导内 Runtime 规划
 
-本轮把“创建后跳进 Runtime 工作台”改为条件式第五步。测试数据全部写入 `/private/tmp/goalboard-onboarding-live-v*`，没有修改用户的真实 GoalBoard Home。
+本轮把“创建后跳进 Runtime 工作台”改为条件式第五步。测试数据全部写入 `/private/tmp/molis-work-onboarding-live-v*`，没有修改用户的真实 Molis Work Home。
 
 - 选择 Runtime 时，第 4 步先创建真实 Project、根 Draft Goal 与 Workspace；顶层 URL 继续保持 `/onboarding`，第五步 iframe 使用真实 Goal 深链接和 `onboarding-runtime=1&onboarding-embed=1`；未选 Runtime 仍直接进入项目；
-- iframe 实测只保留根 Goal 绑定信息、当前 Runtime、真实终端和状态；GoalBoard 目录、Goal 正文、移动标签、状态胶囊、添加终端、关闭终端和重复的推进 / 复制 / 填入工具条均不显示；
-- Codex 在 `/private/tmp` 出现目录信任确认时，父页显示等待状态，`安排好了，进入 GoalBoard` 为 disabled；安全选择拒绝信任后，进程退出，父页保留已创建项目并给出原位“重新打开”；
+- iframe 实测只保留根 Goal 绑定信息、当前 Runtime、真实终端和状态；Molis Work 目录、Goal 正文、移动标签、状态胶囊、添加终端、关闭终端和重复的推进 / 复制 / 填入工具条均不显示；
+- Codex 在 `/private/tmp` 出现目录信任确认时，父页显示等待状态，`安排好了，进入 Molis Work` 为 disabled；安全选择拒绝信任后，进程退出，父页保留已创建项目并给出原位“重新打开”；
 - Codex 在仓库工作目录出现 Hooks 复核时，父页同样保持 disabled。选择 `Continue without trusting` 后，系统等待正常 `Ask Codex to do anything` 输入位出现，再填入带项目说明、根 Draft、项目规划组合、一次一问、Goal Tree Proposal 与用户确认边界的 onboarding prompt；终端没有发送回车，父页此时才启用最终进入操作；
 - 桌面有效视口 819×576 下，页面 `scrollWidth×scrollHeight` 与 viewport 完全相同，Runtime 底部约 514.2px；窄态有效视口 312×675 下同样无页面滚动，Runtime 底部约 619.4px，最终操作、说明、终端和状态均在一页内；
 - 第五步视觉截图确认：外部保持平坦暖灰与小字号线性导航，内部只有一个必要的真实 Runtime 视口；没有背景线条、粒子、发光边界或多余卡片。

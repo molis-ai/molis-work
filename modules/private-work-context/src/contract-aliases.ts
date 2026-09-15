@@ -1,11 +1,11 @@
 export {
   WORK_SESSION_EVENT_KINDS as SESSION_TIMELINE_KINDS,
   WORK_SESSION_EVENT_SOURCES as SESSION_EVENT_SOURCES,
-} from "@adeptify/goalboard-contracts/modules/private-work-context";
+} from "@molis-ai/molis-work-contracts/modules/private-work-context";
 
 export type {
-  AppendWorkSessionEventInput as AppendGoalBoardSessionEventInput,
-  CreateWorkSessionInput as CreateGoalBoardSessionInput,
+  AppendWorkSessionEventInput as AppendMolisWorkSessionEventInput,
+  CreateWorkSessionInput as CreateMolisWorkSessionInput,
   CreateWorkSessionHandoffDraftInput as CreateSessionHandoffDraftInput,
   DiscoverWorkSessionInput as DiscoverRuntimeSessionInput,
   ExplicitlyLinkWorkSessionInput as ExplicitlyLinkRuntimeSessionInput,
@@ -15,18 +15,18 @@ export type {
   LegacyWorkSessionPanelInput as LegacySessionPanelInput,
   LinkNativeWorkSessionInput as LinkNativeRuntimeSessionInput,
   ReassignWorkSessionWorkspaceInput as ReassignWorkspaceSessionsInput,
-  SetWorkSessionStatusInput as SetGoalBoardSessionStatusInput,
+  SetWorkSessionStatusInput as SetMolisWorkSessionStatusInput,
   UpdateWorkSessionAssociationsInput as UpdateSessionAssociationsInput,
   UpdateWorkSessionHandoffDraftInput as UpdateSessionHandoffDraftInput,
   WorkSessionEventKind as SessionTimelineKind,
-  WorkSessionEventRecord as GoalBoardSessionEventRecord,
+  WorkSessionEventRecord as MolisWorkSessionEventRecord,
   WorkSessionEventSource as SessionEventSource,
-  WorkSessionGoalLink as GoalBoardSessionGoalLink,
+  WorkSessionGoalLink as MolisWorkSessionGoalLink,
   WorkSessionHandoffDeliveryMode as SessionHandoffDeliveryMode,
-  WorkSessionHandoffRecord as GoalBoardSessionHandoffRecord,
+  WorkSessionHandoffRecord as MolisWorkSessionHandoffRecord,
   WorkSessionHandoffState as SessionHandoffState,
   WorkSessionListFilter as SessionListFilter,
-  WorkSessionProvenance as GoalBoardSessionProvenance,
-  WorkSessionRecord as GoalBoardSessionRecord,
-  WorkSessionStatus as GoalBoardSessionStatus,
-} from "@adeptify/goalboard-contracts/modules/private-work-context";
+  WorkSessionProvenance as MolisWorkSessionProvenance,
+  WorkSessionRecord as MolisWorkSessionRecord,
+  WorkSessionStatus as MolisWorkSessionStatus,
+} from "@molis-ai/molis-work-contracts/modules/private-work-context";

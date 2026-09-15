@@ -1,8 +1,8 @@
-# GoalBoard v0.1.14 发布收口需求书
+# Molis Work v0.1.14 发布收口需求书
 
 ## 1. 背景与目标
 
-最近多个开发 Session 已经把 Goal 生命周期、Session 工作记录、Feed 富内容、Onboarding、Settings、Momentum 和桌面壳等能力集中写入当前工作区，但这些改动尚未形成一份统一的发布验收结论。当前代码仍有一个会阻断发布的真实故障：读取超大 Codex Session 时，GoalBoard 使用 `thread/read(includeTurns: true)` 一次性接收完整历史；单行 JSON 达到约 1.31GB 后，Node 会在解析前抛出 `RangeError: Invalid string length`，并带崩 Web 服务。
+最近多个开发 Session 已经把 Goal 生命周期、Session 工作记录、Feed 富内容、Onboarding、Settings、Momentum 和桌面壳等能力集中写入当前工作区，但这些改动尚未形成一份统一的发布验收结论。当前代码仍有一个会阻断发布的真实故障：读取超大 Codex Session 时，Molis Work 使用 `thread/read(includeTurns: true)` 一次性接收完整历史；单行 JSON 达到约 1.31GB 后，Node 会在解析前抛出 `RangeError: Invalid string length`，并带崩 Web 服务。
 
 本任务将当前工作区收口为 `v0.1.14`，完成等级为 **5：可发布**。目标不是增加新产品方向，而是确保已经提到和实现的前后端能力在真实安装包中可用、可恢复、视觉一致，并以可复现证据完成 commit、push、tag 和发布。
 
@@ -22,7 +22,7 @@
 
 - Codex Session 内容改为元数据读取 + 最近 Turn 分页摘要，不再请求完整历史。
 - Transport 对单条 app-server 响应设置字节上限；超限时终止并重建子进程，把错误降级为可显示、可重试的内容读取失败，不能带崩 Web 服务。
-- 返回“只展示最近一段历史”的显式事实，并保留 GoalBoard TUI / 本地事件作为可验证 fallback。
+- 返回“只展示最近一段历史”的显式事实，并保留 Molis Work TUI / 本地事件作为可验证 fallback。
 - 修正失效的视觉测试并把当前全部测试文件纳入发布门禁，避免“官方脚本通过但补充测试失败”。
 
 ### 3.2 前端视觉与交互
@@ -68,7 +68,7 @@
 ### 5.2 Session 前端
 
 - API 在 `SessionContentResult` 中公开 `native_history` 分页事实（摘要模式、返回轮数、是否还有更早历史）。
-- Timeline 顶部在历史非完整时显示中性提示；超限/失败时显示可重试状态，同时继续展示 GoalBoard 已能证明的本地事件。
+- Timeline 顶部在历史非完整时显示中性提示；超限/失败时显示可重试状态，同时继续展示 Molis Work 已能证明的本地事件。
 - 空 Feed / Inbox 在载入完成后显示与左侧一致的真实空状态，不继续伪装为加载中；Session 内容工具栏在标准桌面宽度改为上下排列，标题与控件都保持完整。
 
 ### 5.3 视觉与发布
@@ -96,7 +96,7 @@
 
 1. 超大 Session 不再调用 `thread/read(includeTurns: true)`；最近历史通过分页摘要返回，时间顺序正确，并明确标记是否还有更早历史。
 2. 模拟超过 Transport 单行上限时，Web 进程不崩、请求得到安全失败、下一次请求可重建 transport；对应自动化测试通过。
-3. Footballnia 那条真实超大 Session 可以通过 GoalBoard API / UI 打开最近摘要；服务健康检查在前后均成功。
+3. Footballnia 那条真实超大 Session 可以通过 Molis Work API / UI 打开最近摘要；服务健康检查在前后均成功。
 4. `pnpm typecheck`、`pnpm test`、所有 `tests/*.test.ts`、`cargo test` 全绿；发布脚本不会遗漏仓库中的测试文件；PR CI 运行同一组门禁并成为 `main` 必需状态检查。
 5. 上述模块在桌面、窄屏、Light、Dark 的主要状态无横向溢出、裁切、错误层级、不可读对比或阻塞动效；键盘焦点、触控尺寸和 reduced-motion 成立。
 6. 隔离新装可完成 Onboarding → 项目 → Goal → Goals / Sessions / Feed / Settings 主路径；重启后数据仍在。
@@ -133,7 +133,7 @@ pnpm desktop:build:macos
 - 通过：真实 macOS arm64 包构建，输出约 65MB DMG 与 81MB App ZIP；DMG CRC、ZIP 完整性和两份 SHA-256 均通过。
 - 通过：隔离空 Home 的真实 App 新装；完成四步 Onboarding，创建 Project 与根 Draft Goal，并进入原生 Goal 工作台。
 - 通过：`v0.1.13` 数据副本升级到 `v0.1.14`；10 个 Project、Footballnia 的 7 条 Session 及既有关系保留。
-- 通过：真实大型 Codex Session `01a05828-7558-74f0-bda8-f8c47f128a42` 返回 9 轮摘要并与 108 条 GoalBoard 记录合并，Web 服务保持健康，原生 Session Timeline 无崩溃与溢出。
+- 通过：真实大型 Codex Session `01a05828-7558-74f0-bda8-f8c47f128a42` 返回 9 轮摘要并与 108 条 Molis Work 记录合并，Web 服务保持健康，原生 Session Timeline 无崩溃与溢出。
 - 通过：桌面、760px 附近与手机窄屏，Light / Dark / System 下检查项目目录、Onboarding、Goals、Runtime、Momentum、Sessions、Inbox、Feed、Sources、Settings、Diagnostics、Promotion 与 Visual Workspace；修复了 Feed 空态残留和 Session 标题挤压，确认长内容、搜索、筛选和响应式布局正常。
 - 待远端：本机包使用 `Tauri Local Development` 身份，签名元数据存在，但本机信任链与 Gatekeeper 按预期拒绝，且未 notarize；Developer ID 签名、公证、双架构包和公开 GitHub Release 只能由 tag workflow 提供最终证据。
 - 未运行：GitHub / Gmail 等 Connector 的真实账号拉取；无用户凭据，不伪造线上成功，已有本地适配器、加密、游标、重试与错误状态自动化测试覆盖。

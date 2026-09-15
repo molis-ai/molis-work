@@ -6,7 +6,7 @@ name: "内容与传播"
 summary: "从受众和传播时刻出发，建立主张、证据、载体和反馈闭环。"
 applies_to: ["内容生产","品牌传播","推广文案"]
 domain_tags: ["content","communication"]
-source_refs: ["GoalBoard planning-engine spec"]
+source_refs: ["Molis Work planning-engine spec"]
 confidence: 0.92
 ---
 

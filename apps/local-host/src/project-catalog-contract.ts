@@ -1,14 +1,19 @@
-export const CATALOG_SCHEMA_VERSION = 11;
-export const CATALOG_OWNER = "goalboard-project-catalog-v1";
+export const CATALOG_SCHEMA_VERSION = 12;
+export const CATALOG_OWNER = "molis-work-project-catalog-v1";
+export const LEGACY_CATALOG_OWNER = "goalboard-project-catalog-v1";
 
-export interface GoalBoardProjectCatalogErrorDetails {
+export function isOwnedCatalogOwner(owner: string | null | undefined): boolean {
+  return owner === CATALOG_OWNER || owner === LEGACY_CATALOG_OWNER;
+}
+
+export interface MolisWorkProjectCatalogErrorDetails {
   actual_schema_version?: number;
   supported_schema_min?: number;
   supported_schema_max?: number;
   recovery?: "new_or_fork_session_then_context_resolve";
 }
 
-export class GoalBoardProjectCatalogError extends Error {
+export class MolisWorkProjectCatalogError extends Error {
   constructor(
     readonly code:
       | "catalog.unknown_database"
@@ -39,21 +44,21 @@ export class GoalBoardProjectCatalogError extends Error {
       | "catalog.panel_not_found"
       | "catalog.panel_confirmation_required",
     message: string,
-    readonly details: GoalBoardProjectCatalogErrorDetails = {},
+    readonly details: MolisWorkProjectCatalogErrorDetails = {},
   ) {
     super(message);
-    this.name = "GoalBoardProjectCatalogError";
+    this.name = "MolisWorkProjectCatalogError";
   }
 }
 
 export function catalogSchemaCompatibilityError(
   actualSchemaVersion: number,
   supportedSchemaMax: number = CATALOG_SCHEMA_VERSION,
-): GoalBoardProjectCatalogError | null {
+): MolisWorkProjectCatalogError | null {
   if (Number.isInteger(actualSchemaVersion) && actualSchemaVersion > supportedSchemaMax) {
-    return new GoalBoardProjectCatalogError(
+    return new MolisWorkProjectCatalogError(
       "catalog.reader_too_old",
-      `GoalBoard catalog schema=${actualSchemaVersion}，当前 reader 支持 1..${supportedSchemaMax}。`
+      `Molis Work catalog schema=${actualSchemaVersion}，当前 reader 支持 1..${supportedSchemaMax}。`
         + "当前 Session 不会热刷新 MCP；请新建或 Fork 一个 Session，先确认当前任务焦点，再只读调用 context_resolve。"
         + "解析成功后再继续写入；不要回滚 catalog.db，也不要用 SQLite、CLI 或 Web 绕过。",
       {
@@ -65,28 +70,28 @@ export function catalogSchemaCompatibilityError(
     );
   }
   if (!Number.isInteger(actualSchemaVersion) || actualSchemaVersion < 1) {
-    return new GoalBoardProjectCatalogError(
+    return new MolisWorkProjectCatalogError(
       "catalog.unsupported_schema",
-      `GoalBoard 项目目录数据库的 schema 元数据无效；当前 reader 支持 1..${supportedSchemaMax}`,
+      `Molis Work 项目目录数据库的 schema 元数据无效；当前 reader 支持 1..${supportedSchemaMax}`,
       { supported_schema_min: 1, supported_schema_max: supportedSchemaMax },
     );
   }
   return null;
 }
 
-import type { ProjectRecord as GoalBoardProjectRecord } from "@adeptify/goalboard-contracts/modules/projects";
-export interface CreateGoalBoardProjectInput {
+import type { ProjectRecord as MolisWorkProjectRecord } from "@molis-ai/molis-work-contracts/modules/projects";
+export interface CreateMolisWorkProjectInput {
   display_name: string;
   actor_id: string;
 }
 
-export interface ManageGoalBoardDemoProjectInput {
+export interface ManageMolisWorkDemoProjectInput {
   actor_id: string;
   user_confirmed: boolean;
   display_name?: string;
 }
 
-export interface GoalBoardDemoProjectResult {
+export interface MolisWorkDemoProjectResult {
   status: "created" | "existing" | "reset";
-  project: GoalBoardProjectRecord;
+  project: MolisWorkProjectRecord;
 }

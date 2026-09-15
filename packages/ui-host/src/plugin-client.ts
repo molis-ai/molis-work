@@ -1,5 +1,5 @@
-import type { PluginManifest, PluginStartContext, PluginUiClient } from "@adeptify/goalboard-contracts/platform/plugin";
-import type { UiContribution, UiHostApi } from "@adeptify/goalboard-contracts/platform/ui";
+import type { PluginManifest, PluginStartContext, PluginUiClient } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { UiContribution, UiHostApi } from "@molis-ai/molis-work-contracts/platform/ui";
 
 export class PluginUiAccessError extends Error {
   readonly code = "plugin_ui_denied";

@@ -4,11 +4,11 @@
 
 Decision Center 当前会把更新时间更晚的“处理结果”排在仍待用户确认的 Inbox Entry 前面。用户从 Goal 的 `#decision-goal-<goal_id>` 链接进入后，页面也不会把深链恢复到对应的待决定项，因此详情区只显示历史结果，没有可操作按钮。
 
-同时，Web 的人工确认接口只提交 `Review`。对于 `decision_method = human_decision` 的完成标准，GoalBoard 还要求一条关联同一 Review 的 `human_verdict` Evidence；当前用户即使找到表单并选择“通过”，Goal 仍会停在 `waiting_for_human`。
+同时，Web 的人工确认接口只提交 `Review`。对于 `decision_method = human_decision` 的完成标准，Molis Work 还要求一条关联同一 Review 的 `human_verdict` Evidence；当前用户即使找到表单并选择“通过”，Goal 仍会停在 `waiting_for_human`。
 
 本次目标是让用户从 Goal 或 Decision Center 进入后立即看到待自己处理的事项，并通过一次明确提交同时完成用户 Review 和该人工标准要求的 Evidence，使 Goal 能继续进入完成判定。
 
-完成等级：功能可用，并安装到当前本机 GoalBoard 服务供内部真实使用。
+完成等级：功能可用，并安装到当前本机 Molis Work 服务供内部真实使用。
 
 ## 当前行为与问题证据
 
@@ -60,14 +60,14 @@ Decision 页面解析 `#decision-goal-<goal_id>` 为目录项 id `decision:<goal
 ### 4. 文案如实解释完成效果
 
 - 人工标准不要求用户先提供另一条“证明自己判断”的通过 Evidence。
-- 当非人工标准都已通过时，文案说明选择“通过”会记录本次人工结论，再由 GoalBoard 复核其余门槛。
+- 当非人工标准都已通过时，文案说明选择“通过”会记录本次人工结论，再由 Molis Work 复核其余门槛。
 - 仍有非人工标准、其他 Review 或阻塞风险时，明确说明 Goal 不会立刻完成。
 
 ## 模块边界与调用链
 
 - `src/web/render.ts`
   - 生产：目录优先级、深链恢复、人工确认解释文案和表单。
-  - 消费：`GoalBoardWebView` 中的 Goal、criterion、Evidence、Review obligation 与事件。
+  - 消费：`MolisWorkWebView` 中的 Goal、criterion、Evidence、Review obligation 与事件。
 - `src/web/server.ts`
   - 生产：用户 Review 及其关联的 `human_verdict` Evidence。
   - 消费：Review POST 请求、当前 board snapshot、Coordinator 写接口。

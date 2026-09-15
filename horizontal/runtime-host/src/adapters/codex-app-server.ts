@@ -1,6 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 
-import type { RuntimeSessionTransport } from "@adeptify/goalboard-contracts/services/runtime-host";
+import type { RuntimeSessionTransport } from "@molis-ai/molis-work-contracts/services/runtime-host";
 
 const DEFAULT_MAX_RESPONSE_LINE_BYTES = 16 * 1024 * 1024;
 
@@ -72,7 +72,7 @@ export class CodexAppServerTransport implements RuntimeSessionTransport {
 
   private async start(): Promise<void> {
     const spawnProcess = this.options.spawnProcess ?? spawn;
-    const command = this.options.command?.trim() || process.env.GOALBOARD_CODEX_PATH?.trim() || "codex";
+    const command = this.options.command?.trim() || process.env.MOLIS_WORK_CODEX_PATH?.trim() || "codex";
     const args = this.options.args ?? ["app-server", "--stdio"];
     const child = spawnProcess(command, args, {
       stdio: ["pipe", "pipe", "pipe"],
@@ -88,7 +88,7 @@ export class CodexAppServerTransport implements RuntimeSessionTransport {
 
     try {
       await this.requestRaw("initialize", {
-        clientInfo: { name: "goalboard-session-browser", title: "GoalBoard", version: "0.2.0" },
+        clientInfo: { name: "molis-work-session-browser", title: "Molis Work", version: "0.2.0" },
         capabilities: {
           experimentalApi: false,
           requestAttestation: false,
@@ -148,7 +148,7 @@ export class CodexAppServerTransport implements RuntimeSessionTransport {
     if (this.stdoutBytes + segment.length > maxBytes) {
       this.failProtocolLine(child, new CodexAppServerTransportError(
         "runtime.response_too_large",
-        "Codex Session 内容超过安全读取上限；GoalBoard 已停止本次读取。",
+        "Codex Session 内容超过安全读取上限；Molis Work 已停止本次读取。",
       ));
       return false;
     }

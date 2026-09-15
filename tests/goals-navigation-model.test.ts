@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildGoalsNavigationItems, type GoalsNavigationItem } from "@adeptify/goalboard-plugin-goals";
+import { buildGoalsNavigationItems, type GoalsNavigationItem } from "@molis-ai/molis-work-plugin-goals";
 
 test("Goal browser projection keeps supplied child order and display state while omitting unrelated facts", () => {
   const parent = { goal: { goal_id: "parent", title: "Parent </script>", decomposition_state: "closed_compound" as const,

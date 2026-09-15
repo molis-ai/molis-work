@@ -1,4 +1,4 @@
-import type { GoalsApplicationApi, GoalsCommandApi } from "@adeptify/goalboard-contracts/modules/goals";
+import type { GoalsApplicationApi, GoalsCommandApi } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { GoalEventApplication } from "../goal-event-application.js";
 import type { BoardSnapshot } from "../goal-entry-contract.js";
 import type { GoalReadApplication } from "../goal-query-application.js";

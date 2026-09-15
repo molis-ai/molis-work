@@ -6,7 +6,7 @@
 
 ## 可复现证据
 
-均从仓库根目录运行 `node --import tsx --input-type=module < /private/tmp/goalboard-grok/<脚本>`，使用隔离 SQLite / HTTP / Chrome；没有用户数据迁移。日志前缀 `04-recheck-`。
+均从仓库根目录运行 `node --import tsx --input-type=module < /private/tmp/molis-work-grok/<脚本>`，使用隔离 SQLite / HTTP / Chrome；没有用户数据迁移。日志前缀 `04-recheck-`。
 
 - `04-recheck-build.log` / `04-recheck-boundary.log`：主独立通过。
 - `04-recheck-tests.log`：79 个定向用例的完整结果。失败在 `goal-event-document.e2e.test.ts:145`，前一行等待旧 toast 的“已保存”后过早点击历史，目标处于替换/隐藏过程。
@@ -50,7 +50,7 @@
 
 ## 视觉与主题证据
 
-主 Session 已查看当前桌面、规划、类型、报告、522px 阅读区、390px 手机时间线/正文/表单/返回，以及旧 V1 历史。`04-ui/mobile-390-form-top.png` 已含完整表单；`form-bottom` 仍裁切，不用于通过结论。原 `desktop-dark.png` 只临时改属性，不能证明主题；主脚本保存真实 `goalboard:theme=dark` 并刷新后获得有效 `04-recheck-ui/desktop-real-dark.png`（resolvedTheme dark、paper #1b1b1e）。新表面静态 detector 运行一次，结果 `04-design-detector.json = []`，不代表视觉已验收。
+主 Session 已查看当前桌面、规划、类型、报告、522px 阅读区、390px 手机时间线/正文/表单/返回，以及旧 V1 历史。`04-ui/mobile-390-form-top.png` 已含完整表单；`form-bottom` 仍裁切，不用于通过结论。原 `desktop-dark.png` 只临时改属性，不能证明主题；主脚本保存真实 `molis-work:theme=dark` 并刷新后获得有效 `04-recheck-ui/desktop-real-dark.png`（resolvedTheme dark、paper #1b1b1e）。新表面静态 detector 运行一次，结果 `04-design-detector.json = []`，不代表视觉已验收。
 
 独立 finish review 在全新 Grok 4.6/xhigh 只读会话中进行，评审输入与已看截图明确；不得因此宣称 04 已完成。待主 Session 合并评审修正再执行一批，不重新探索视觉方向，不将以上功能缺口移交 05。
 
@@ -64,7 +64,7 @@ P2 当前判断文案不另开审美优化；如果在同一当前状态修正�
 
 第二修正批的原 browser/edges/response-loss/history-cap 复现已通过；主独立补充的 `04-accept-resume-restart.mjs` 与 `04-accept-cross-goal-progress.mjs` 也通过。前者真实 HTTP + SQLite 重启后同一续接请求重放、无重复事件，缺控制 token 仍 403；后者其他 Goal 后更新时页面仍使用当前 Goal 的实际依据并真实保存。
 
-但两项组合 e2e 多次修正等待后仍失败（Hidden click target，以及收尾后页面永久停在“载入中”）。主 Session 已暂停 writer，停止继续给 DOM 等待加条件。独立 `04-accept-refresh-and-guard.mjs` 经真实 Chrome、HTTP、隔离数据库稳定复现以下两项，日志和结果 JSON 位于 `/private/tmp/goalboard-grok/`。这属于原刷新恢复及“不能放宽其他旧 Web 命令”的合同，没有新增产品范围。
+但两项组合 e2e 多次修正等待后仍失败（Hidden click target，以及收尾后页面永久停在“载入中”）。主 Session 已暂停 writer，停止继续给 DOM 等待加条件。独立 `04-accept-refresh-and-guard.mjs` 经真实 Chrome、HTTP、隔离数据库稳定复现以下两项，日志和结果 JSON 位于 `/private/tmp/molis-work-grok/`。这属于原刷新恢复及“不能放宽其他旧 Web 命令”的合同，没有新增产品范围。
 
 1. **[P1] 定时刷新遗漏事件正文装配。** `apps/local-host/src/web-goals-read.ts` 的 `fragments` 中 document 分支调用 `withSelectedEventDocument`，refresh 分支却直接把未装配的 view 传给 renderer。`/api/board/refresh?view=current&goal_id=...` 返回 200，但当前结果是“正在读取当前事实 / 载入中”，索引 0 项。调用页面注册的真实 4000ms 定时刷新回调后，该占位片段覆盖当前页面，原选择和可操作控件消失。根因在服务端刷新片段和客户端替换生命周期，不是单纯 clientWidth=0 或等待时间太短。让普通 document、完整页面和 compact refresh 共享相同事件正文装配；实际替换后恢复已选记录、筛选和仍适用的阅读/表单状态。已有表单编辑保护按真实交互保留，不能通过禁用自动刷新、延迟到测试结束或强制整页跳转逃避。定向覆盖服务端非占位片段、真实定时刷新后当前结果更新且原历史选择保留、保存/收尾与刷新交错，以及原组合 e2e。撤掉仅用于掩盖这个错误的测试重复等待和生产恢复补丁，保留已经有独立证据的修正。
 

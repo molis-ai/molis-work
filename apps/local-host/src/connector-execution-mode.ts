@@ -1,4 +1,4 @@
 /** Feed connectors never expose deterministic fixture data in ordinary builds. */
 export function connectorFixtureAllowed(): boolean {
-  return process.env.NODE_ENV === "test" && process.env.GOALBOARD_FEED_CONNECTOR_FIXTURE === "1";
+  return process.env.NODE_ENV === "test" && process.env.MOLIS_WORK_FEED_CONNECTOR_FIXTURE === "1";
 }

@@ -2,7 +2,7 @@
 
 保存用户选择的来源、监听意图、启停状态和 Provider 绑定引用，给同步流程提供稳定的配置入口。
 
-包名：`@adeptify/goalboard-module-sources`。工作区内部包，通过仓库构建和 Host 装配使用。
+包名：`@molis-ai/molis-work-module-sources`。工作区内部包，通过仓库构建和 Host 装配使用。
 
 ## 一次典型调用
 
@@ -29,8 +29,8 @@ SourcesModule.query 查询项目来源，commands.save/setEnabled/retire 等操�
 以下命令在**仓库根目录**执行，使用 Node.js 24+ 与仓库配置的 pnpm。首次准备运行 `pnpm install --frozen-lockfile` 和 `pnpm build`；之后可单独检查此包。
 
 ```bash
-pnpm --filter @adeptify/goalboard-module-sources typecheck
-pnpm --filter @adeptify/goalboard-module-sources build
+pnpm --filter @molis-ai/molis-work-module-sources typecheck
+pnpm --filter @molis-ai/molis-work-module-sources build
 ```
 
 已有行为示例与回归：[feed-module-repositories.test.ts](../../tests/feed-module-repositories.test.ts)。完成上述构建后运行：
@@ -47,7 +47,7 @@ node --import tsx --test --test-concurrency=1 tests/feed-module-repositories.tes
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
 - Status: `partial`
-- Contract entrypoint: `@adeptify/goalboard-contracts/modules/sources`
+- Contract entrypoint: `@molis-ai/molis-work-contracts/modules/sources`
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-fd1`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。

@@ -1,11 +1,11 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import type { ProjectsModule } from "@adeptify/goalboard-module-projects";
-import type { RuntimeProjectBindingValidation } from "@adeptify/goalboard-module-private-work-context";
-import { GoalBoardProjectCatalogError } from "./project-catalog-contract.js";
+import type { ProjectsModule } from "@molis-ai/molis-work-module-projects";
+import type { RuntimeProjectBindingValidation } from "@molis-ai/molis-work-module-private-work-context";
+import { MolisWorkProjectCatalogError } from "./project-catalog-contract.js";
 import { randomUUID } from "node:crypto";
-import type { DeleteProjectInput as DeleteGoalBoardProjectInput, ProjectDeletionResult as GoalBoardProjectDeletionResult } from "@adeptify/goalboard-contracts/modules/projects";
-import type { ManageGoalBoardDemoProjectInput, GoalBoardDemoProjectResult } from "./project-catalog-contract.js";
+import type { DeleteProjectInput as DeleteMolisWorkProjectInput, ProjectDeletionResult as MolisWorkProjectDeletionResult } from "@molis-ai/molis-work-contracts/modules/projects";
+import type { ManageMolisWorkDemoProjectInput, MolisWorkDemoProjectResult } from "./project-catalog-contract.js";
 import { managedProjectDirectory } from "./project-file-paths.js";
 import { validateManagedBoard } from "./managed-project-database.js";
 import type { ManagedProjectDeletion } from "./managed-project-deletion.js";
@@ -16,13 +16,13 @@ export class DemoProjectLifecycle {
     private readonly projectsDirectory: string, private readonly demo: DemoProjectSeedPort,
     private readonly deletion: ManagedProjectDeletion,
     private readonly validation: Pick<RuntimeProjectBindingValidation, "requiredActorId" | "requiredProjectId">) {}
-async ensureDemoProject(input: ManageGoalBoardDemoProjectInput): Promise<GoalBoardDemoProjectResult> {
+async ensureDemoProject(input: ManageMolisWorkDemoProjectInput): Promise<MolisWorkDemoProjectResult> {
     this.requireDemoConfirmation(input.user_confirmed);
     const existing = this.projects.query.listProjects().find((project) => project.data_class === "regenerable_demo");
     if (existing) return { status: "existing", project: existing };
     const actorId = this.validation.requiredActorId(input.actor_id);
     const record = this.projects.lifecycle.prepareRecord({
-      display_name: input.display_name ?? "GoalBoard 示例项目",
+      display_name: input.display_name ?? "Molis Work 示例项目",
       board_id: this.demo.boardId,
       projects_directory: this.projectsDirectory,
       source: "created",
@@ -34,7 +34,7 @@ async ensureDemoProject(input: ManageGoalBoardDemoProjectInput): Promise<GoalBoa
     let promoted = false;
     try {
       await fs.mkdir(stagingDirectory, { recursive: false });
-      const stagedDatabasePath = path.join(stagingDirectory, "goalboard.db");
+      const stagedDatabasePath = path.join(stagingDirectory, "molis-work.db");
       this.demo.seed(stagedDatabasePath);
       validateManagedBoard(stagedDatabasePath, this.demo.boardId);
       await fs.rename(stagingDirectory, projectDirectory);
@@ -48,11 +48,11 @@ async ensureDemoProject(input: ManageGoalBoardDemoProjectInput): Promise<GoalBoa
     }
   }
 
-async resetDemoProject(input: ManageGoalBoardDemoProjectInput): Promise<GoalBoardDemoProjectResult> {
+async resetDemoProject(input: ManageMolisWorkDemoProjectInput): Promise<MolisWorkDemoProjectResult> {
     this.requireDemoConfirmation(input.user_confirmed);
     const actorId = this.validation.requiredActorId(input.actor_id);
     const project = this.projects.query.listProjects().find((candidate) => candidate.data_class === "regenerable_demo");
-    if (!project) throw new GoalBoardProjectCatalogError("catalog.demo_not_found", "没有可重建的 GoalBoard 示例项目");
+    if (!project) throw new MolisWorkProjectCatalogError("catalog.demo_not_found", "没有可重建的 Molis Work 示例项目");
     const projectDirectory = managedProjectDirectory(this.projectsDirectory, project);
     const stagingDirectory = path.join(this.projectsDirectory, `.resetting-${project.project_id}-${randomUUID()}`);
     const backupDirectory = path.join(this.projectsDirectory, `.reset-backup-${project.project_id}-${randomUUID()}`);
@@ -60,7 +60,7 @@ async resetDemoProject(input: ManageGoalBoardDemoProjectInput): Promise<GoalBoar
     let resetPromoted = false;
     try {
       await fs.mkdir(stagingDirectory, { recursive: false });
-      const stagedDatabasePath = path.join(stagingDirectory, "goalboard.db");
+      const stagedDatabasePath = path.join(stagingDirectory, "molis-work.db");
       this.demo.seed(stagedDatabasePath);
       validateManagedBoard(stagedDatabasePath, this.demo.boardId);
       await fs.rename(projectDirectory, backupDirectory);
@@ -83,17 +83,17 @@ async resetDemoProject(input: ManageGoalBoardDemoProjectInput): Promise<GoalBoar
     }
   }
 
-async removeDemoProject(input: DeleteGoalBoardProjectInput): Promise<GoalBoardProjectDeletionResult> {
+async removeDemoProject(input: DeleteMolisWorkProjectInput): Promise<MolisWorkProjectDeletionResult> {
     const project = this.projects.query.getProject(this.validation.requiredProjectId(input.project_id));
     if (project.data_class !== "regenerable_demo") {
-      throw new GoalBoardProjectCatalogError("catalog.not_demo", "只有明确标记为可重建演示数据的项目能走 demo 删除流程");
+      throw new MolisWorkProjectCatalogError("catalog.not_demo", "只有明确标记为可重建演示数据的项目能走 demo 删除流程");
     }
     return this.deletion.deleteProjectInternal(input, true);
   }
 
 requireDemoConfirmation(userConfirmed: boolean): void {
     if (userConfirmed === true) return;
-    throw new GoalBoardProjectCatalogError(
+    throw new MolisWorkProjectCatalogError(
       "catalog.demo_confirmation_required",
       "创建、重置或删除演示数据前需要用户明确确认",
     );

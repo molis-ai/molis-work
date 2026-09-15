@@ -1,5 +1,5 @@
 {
-  "name": "@adeptify/goalboard-module-signals",
+  "name": "@molis-ai/molis-work-module-signals",
   "version": "0.0.0",
   "private": true,
   "description": "Normalized external-event facts, deduplication identity, revisions, and provenance.",
@@ -25,13 +25,13 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@adeptify/goalboard-contracts": "workspace:*"
+    "@molis-ai/molis-work-contracts": "workspace:*"
   },
-  "goalboard": {
+  "molis-work": {
     "path": "modules/signals",
     "kind": "module",
     "maturity": "partial",
-    "contract": "@adeptify/goalboard-contracts/modules/signals",
+    "contract": "@molis-ai/molis-work-contracts/modules/signals",
     "migrationGoals": [
       "goal-reorg-f2",
       "goal-reorg-fd1"

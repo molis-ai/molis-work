@@ -1,13 +1,13 @@
 import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { GoalBoardHomeInstallError } from "./home-contract.js";
+import { MolisWorkHomeInstallError } from "./home-contract.js";
 import { pathState } from "./home-files.js";
 import { inspectSource } from "./home-source.js";
 import { createRelease } from "./home-release.js";
 import { digestPaths } from "./fingerprint.js";
 
-export interface GoalBoardRuntimePayloadOptions {
+export interface MolisWorkRuntimePayloadOptions {
   sourceDirectory: string;
   /** A new output directory. Existing outputs are never replaced by this API. */
   destinationDirectory: string;
@@ -16,11 +16,11 @@ export interface GoalBoardRuntimePayloadOptions {
 }
 
 /** Packages the same self-contained release used by Home installation, without installing or starting it. */
-export async function createGoalBoardRuntimePayload(options: GoalBoardRuntimePayloadOptions): Promise<{ directory: string; version: string }> {
+export async function createMolisWorkRuntimePayload(options: MolisWorkRuntimePayloadOptions): Promise<{ directory: string; version: string }> {
   const destination = path.resolve(options.destinationDirectory);
-  if (await pathState(destination)) throw new GoalBoardHomeInstallError("source.invalid", `Runtime payload 输出已存在，不会覆盖: ${destination}`);
+  if (await pathState(destination)) throw new MolisWorkHomeInstallError("source.invalid", `Runtime payload 输出已存在，不会覆盖: ${destination}`);
   const nodeExecutable = path.resolve(options.nodeExecutablePath);
-  if (!(await pathState(nodeExecutable))?.isFile()) throw new GoalBoardHomeInstallError("source.invalid", `Runtime Node 不是文件: ${nodeExecutable}`);
+  if (!(await pathState(nodeExecutable))?.isFile()) throw new MolisWorkHomeInstallError("source.invalid", `Runtime Node 不是文件: ${nodeExecutable}`);
   const source = await inspectSource(path.resolve(options.sourceDirectory), undefined);
   source.bundledNodePath = nodeExecutable;
   source.contentDigest = createHash("sha256").update(JSON.stringify({
@@ -28,7 +28,7 @@ export async function createGoalBoardRuntimePayload(options: GoalBoardRuntimePay
     node: await digestPaths(path.dirname(nodeExecutable), [path.basename(nodeExecutable)]),
   })).digest("hex");
   await fs.mkdir(path.dirname(destination), { recursive: true });
-  const temporary = await fs.mkdtemp(path.join(path.dirname(destination), ".goalboard-payload-"));
+  const temporary = await fs.mkdtemp(path.join(path.dirname(destination), ".molis-work-payload-"));
   try {
     const staged = path.join(temporary, "payload");
     await createRelease(staged, source, source.version);

@@ -3,7 +3,7 @@ import type { ContractDescriptor } from "../platform/package.js";
 import type { ConnectorHostApi, ConnectorRawEvent } from "./connector-host.js";
 
 export const servicesListenerHostContract = {
-  contractId: "io.goalboard.service.listener-host.v1",
+  contractId: "io.molis.work.service.listener-host.v1",
   kind: "service",
   schemaVersion: 1,
   maturity: "partial",

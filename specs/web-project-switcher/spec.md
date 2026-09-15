@@ -2,22 +2,22 @@
 
 ## 背景与目标
 
-现有 Web Server 启动时直接接收一个 SQLite 路径和 `board_id`，顶部把数据库文件名显示成“数据源”。这暴露了 GoalBoard 的内部存储概念，也无法让用户从同一个 Web 入口浏览多个已启用项目。
+现有 Web Server 启动时直接接收一个 SQLite 路径和 `board_id`，顶部把数据库文件名显示成“数据源”。这暴露了 Molis Work 的内部存储概念，也无法让用户从同一个 Web 入口浏览多个已启用项目。
 
-目标是让正常 Web 使用 GoalBoard 自己维护的项目目录：用户先看到项目名称并选择项目，之后只在该项目的 Goal Tree 与 API 中工作。数据库和 Board ID 只在服务端内部解析。
+目标是让正常 Web 使用 Molis Work 自己维护的项目目录：用户先看到项目名称并选择项目，之后只在该项目的 Goal Tree 与 API 中工作。数据库和 Board ID 只在服务端内部解析。
 
 ## 当前行为和问题证据
 
 - `src/web/server.ts` 的 `WebServerOptions` 强制接收 `databasePath` 与 `boardId`；每个请求都只能打开这一个数据库。
-- `buildGoalBoardWebView()` 将数据库文件名作为 `source_label`，并把完整 `database_path` 放入 Web View。
-- `GoalBoardProjectCatalog` 已经负责项目名称、项目 ID、内部 DB 路径及 Runtime Session 绑定；Web 还没有复用它。
+- `buildMolisWorkWebView()` 将数据库文件名作为 `source_label`，并把完整 `database_path` 放入 Web View。
+- `MolisWorkProjectCatalog` 已经负责项目名称、项目 ID、内部 DB 路径及 Runtime Session 绑定；Web 还没有复用它。
 - 前端链接与 API 路径都是根路径，不能安全表达“当前浏览的是哪个项目”。
 
 ## 范围与非目标
 
 范围：
 
-- 默认 Web Server 从 GoalBoard 项目目录读取项目列表，显示项目名称、项目选择入口和无项目空状态。
+- 默认 Web Server 从 Molis Work 项目目录读取项目列表，显示项目名称、项目选择入口和无项目空状态。
 - 已选项目使用稳定的项目特定 URL；Goal 页面、归档、回收站、决定中心和 API 都路由到该项目内部 DB。
 - Web View 与正常页面不再把数据库路径、数据库文件名或 `board_id` 当成用户的项目上下文或切换信息。
 - 保留 `--db` 的显式单数据库兼容/调试入口；它不成为默认日常入口。
@@ -25,7 +25,7 @@
 
 非目标：
 
-- 不创建、启用、删除或迁移项目；旧 DB 迁移在 `GOALBOARD-WEB-PROJECT-MIGRATION` 单独处理。
+- 不创建、启用、删除或迁移项目；旧 DB 迁移在 `MOLIS_WORK-WEB-PROJECT-MIGRATION` 单独处理。
 - 不读取、创建、解绑或重绑 Runtime Session/work-entry 绑定。
 - 不在用户项目目录写入配置。
 - 不修改 Goal Board 领域行为或重新设计现有 Goal 工作台。
@@ -41,7 +41,7 @@
 ## 方案与关键决策
 
 1. 将 Web 启动分为两种明确模式：无 `--db` 时是项目目录模式；显式 `--db` 时是兼容单数据库模式。
-2. 每个目录模式请求短暂打开 `GoalBoardProjectCatalog`，只调用 `listProjects()` / `getProject()`，取得项目内部连接后立即关闭目录；不调用任何绑定或生命周期写方法。
+2. 每个目录模式请求短暂打开 `MolisWorkProjectCatalog`，只调用 `listProjects()` / `getProject()`，取得项目内部连接后立即关闭目录；不调用任何绑定或生命周期写方法。
 3. 选中项目后服务器剥离 `/projects/<project_id>` 前缀，再复用现有单 Board 路由和 Coordinator；由一个 `route_prefix` 统一生成页面链接、前端 API 调用和浏览器跳转。
 4. 项目选择页是轻量项目列表而非自动跳转或项目创建向导；空状态明确指向 Runtime Skill。
 5. 保留现有高密度 Goal workbench 的视觉语言，只把顶部“数据源”改为项目名称与“切换项目”入口。
@@ -72,7 +72,7 @@ git diff --check
 
 ## 假设与开放问题
 
-- 项目目录数据库由 GoalBoard 自己拥有；打开目录以读取项目列表不等于创建或启用用户项目。
+- 项目目录数据库由 Molis Work 自己拥有；打开目录以读取项目列表不等于创建或启用用户项目。
 - 旧 DB 的可确认迁移 UI 留给下一条已确认叶子 Goal，不能在本改动中偷偷加入文件移动。
 
 ## 实现结果

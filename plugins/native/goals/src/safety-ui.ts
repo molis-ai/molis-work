@@ -1,10 +1,10 @@
 import { createRiskDecisionRenderer } from "./risk-decision-ui.js";
-import type { ImpactBindingRecord } from "@adeptify/goalboard-contracts/modules/goals";
-import type { UiContribution } from "@adeptify/goalboard-contracts/platform/ui";
+import type { ImpactBindingRecord } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { GoalsSafetyItem, GoalsSafetyView, GoalsSafetyRisk, GoalsSafetyUiPrimitives } from "./safety-ui-model.js";
 import { RISK_STATE_LABELS, RISK_TREATMENT_LABELS, RISK_BLOCKING_LABELS, goalRiskStateEffect } from "./risk-presentation.js";
 
-export const GOALS_SAFETY_UI_CONTRIBUTION_ID = "io.goalboard.native.goals.safety.v1";
+export const GOALS_SAFETY_UI_CONTRIBUTION_ID = "io.molis.work.native.goals.safety.v1";
 
 function createSafetyRenderer(primitives: GoalsSafetyUiPrimitives) {
   const { translate: L, escapeHtml, formatDate, icon, currentLocale, renderReference, renderList } = primitives;
@@ -125,7 +125,7 @@ export type GoalsSafetyUiModel = { primitives: GoalsSafetyUiPrimitives } & (
 );
 
 export const goalsSafetyUiContribution: UiContribution<GoalsSafetyUiModel> = {
-  descriptor: { contribution_id: GOALS_SAFETY_UI_CONTRIBUTION_ID, plugin_id: "io.goalboard.native.goals", kind: "embedded", label: "Goal risks and impact",
+  descriptor: { contribution_id: GOALS_SAFETY_UI_CONTRIBUTION_ID, plugin_id: "io.molis.work.native.goals", kind: "embedded", label: "Goal risks and impact",
     surfaces: ["risk-decision","risk","impact"].map(surface_id => ({ surface_id, target_slot_id: "workbench.main", format: "declarative-html" })), slots: [] },
   render({ surface, model }) {
     if (surface !== model.kind) throw new Error("Goals safety surface does not match its model");

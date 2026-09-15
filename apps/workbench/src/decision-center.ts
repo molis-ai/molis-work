@@ -64,7 +64,7 @@ function renderFeedDecisionGroupDetail(
 ): string {
   const count = group.counts.goalTree;
   return `<article class="feed-detail feed-detail--decision" data-feed-detail="decision:${escapeHtml(goalId)}">
-    <header class="feed-detail-header"><div class="feed-detail-kicker"><span>Inbox Message</span><span>${L("Goal 决定")}</span><span>${L("待处理")}</span></div><h1>${escapeHtml(title)}</h1><p>${escapeHtml(summary)}</p><div class="feed-detail-meta"><span>${icon("workflow")}GoalBoard</span><time datetime="${escapeHtml(updatedAt)}">${formatDate(updatedAt)}</time></div></header>
+    <header class="feed-detail-header"><div class="feed-detail-kicker"><span>Feed</span><span>${L("Goal 决定")}</span><span>${L("待处理")}</span></div><h1>${escapeHtml(title)}</h1><p>${escapeHtml(summary)}</p><div class="feed-detail-meta"><span>${icon("workflow")}Molis Work</span><time datetime="${escapeHtml(updatedAt)}">${formatDate(updatedAt)}</time></div></header>
     <section class="feed-decision-work"><header><div><span>${L("这些决定属于")}</span>${group.ownerLinkHtml}</div><small>${count} ${L("项")}</small></header><div class="decision-stack">
       ${group.content.goalTree}
     </div></section>

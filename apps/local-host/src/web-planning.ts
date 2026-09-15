@@ -1,9 +1,9 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { resolvePlanningMethodPacks } from "@adeptify/goalboard-module-goals";
-import type { GoalsPlanningApi, PlanningMethodPackInput } from "@adeptify/goalboard-contracts/modules/goals";
-import { renderWorkbenchPlanningRequest, type GoalBoardWebView, type WebProjectNavigation } from "@adeptify/goalboard-app-workbench";
+import { resolvePlanningMethodPacks } from "@molis-ai/molis-work-module-goals";
+import type { GoalsPlanningApi, PlanningMethodPackInput } from "@molis-ai/molis-work-contracts/modules/goals";
+import { renderWorkbenchPlanningRequest, type MolisWorkWebView, type WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
 import { readPersonalPlanningMethodPacks } from "./personal-planning-methods.js";
-import type { GoalBoardLocalHost } from "./project-host.js";
+import type { MolisWorkLocalHost } from "./project-host.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import type { createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
 import { sendLocalWebJson as sendJson, readLocalWebBody as readBody } from "./web-http.js";
@@ -11,14 +11,14 @@ import { L } from "./web-locale.js";
 
 export function createLocalPlanningHttp(ports: {
   withCatalog: LocalWebCatalogRunner;
-  renderer: Pick<ReturnType<typeof createLocalHostWorkbenchRenderer>, "renderGoalBoardPlanningLibrary" | "renderGoalBoardPlanningMethodPage" | "renderGoalBoardPlanningSettings">;
+  renderer: Pick<ReturnType<typeof createLocalHostWorkbenchRenderer>, "renderMolisWorkPlanningLibrary" | "renderMolisWorkPlanningMethodPage" | "renderMolisWorkPlanningSettings">;
   isDesktopShellRequest(request: IncomingMessage, url: URL): boolean;
   pageCsp: string;
 }) {
-  const { withCatalog: withGoalBoardProjectCatalog, isDesktopShellRequest, pageCsp: PAGE_CSP } = ports;
-  const { renderGoalBoardPlanningLibrary, renderGoalBoardPlanningMethodPage, renderGoalBoardPlanningSettings } = ports.renderer;
+  const { withCatalog: withMolisWorkProjectCatalog, isDesktopShellRequest, pageCsp: PAGE_CSP } = ports;
+  const { renderMolisWorkPlanningLibrary, renderMolisWorkPlanningMethodPage, renderMolisWorkPlanningSettings } = ports.renderer;
   async function personal(request: IncomingMessage, response: ServerResponse, url: URL, homeDirectory: string | undefined,
-    projects: WebProjectNavigation[], controlToken: string, localHost: GoalBoardLocalHost, clearFeedSchedulers: () => void,
+    projects: WebProjectNavigation[], controlToken: string, localHost: MolisWorkLocalHost, clearFeedSchedulers: () => void,
   ): Promise<boolean> {
     const globalPlanningPage = renderWorkbenchPlanningRequest(request.method, url.pathname, "personal", () => {
       const methods = resolvePlanningMethodPacks(readPersonalPlanningMethodPacks(homeDirectory));
@@ -27,8 +27,8 @@ export function createLocalPlanningHttp(ports: {
         ? projects.find((project) => project.project_id === contextProjectId) ?? null : null;
       return {
         methods,
-        library: () => renderGoalBoardPlanningLibrary(methods, contextProject, controlToken, isDesktopShellRequest(request, url), projects),
-        method: (method, mode) => renderGoalBoardPlanningMethodPage(
+        library: () => renderMolisWorkPlanningLibrary(methods, contextProject, controlToken, isDesktopShellRequest(request, url), projects),
+        method: (method, mode) => renderMolisWorkPlanningMethodPage(
           method, mode, "personal", contextProject, controlToken, isDesktopShellRequest(request, url), projects),
       };
     }, L);
@@ -56,7 +56,7 @@ export function createLocalPlanningHttp(ports: {
         return true;
       }
       try {
-        const saved = await withGoalBoardProjectCatalog({ homeDirectory: homeDirectory }, (catalog) => {
+        const saved = await withMolisWorkProjectCatalog({ homeDirectory: homeDirectory }, (catalog) => {
           const saved = catalog.personalPlanningMethods.save(method, new Date().toISOString());
           return saved;
         });
@@ -75,7 +75,7 @@ export function createLocalPlanningHttp(ports: {
     return false;
   }
   async function project(request: IncomingMessage, response: ServerResponse, url: URL, homeDirectory: string | undefined,
-    boardId: string, controlToken: string, readWebView: () => GoalBoardWebView, planning: GoalsPlanningApi,
+    boardId: string, controlToken: string, readWebView: () => MolisWorkWebView, planning: GoalsPlanningApi,
   ): Promise<boolean> {
     const projectPlanningPage = renderWorkbenchPlanningRequest(request.method, url.pathname, "project", route => {
       const view = readWebView();
@@ -83,8 +83,8 @@ export function createLocalPlanningHttp(ports: {
         ? [] : planning.effectiveMethods(boardId);
       return {
         methods,
-        library: () => renderGoalBoardPlanningSettings(view, methods, controlToken, isDesktopShellRequest(request, url)),
-        method: (method, mode) => renderGoalBoardPlanningMethodPage(
+        library: () => renderMolisWorkPlanningSettings(view, methods, controlToken, isDesktopShellRequest(request, url)),
+        method: (method, mode) => renderMolisWorkPlanningMethodPage(
           method, mode, "project", view.project, controlToken, isDesktopShellRequest(request, url), view.projects),
       };
     }, L);
@@ -167,7 +167,7 @@ export function createLocalPlanningHttp(ports: {
           });
           sendJson(response, 200, saved);
         } else {
-          await withGoalBoardProjectCatalog({ homeDirectory: homeDirectory }, (catalog) => {
+          await withMolisWorkProjectCatalog({ homeDirectory: homeDirectory }, (catalog) => {
             const saved = catalog.personalPlanningMethods.save(method, new Date().toISOString());
             sendJson(response, 200, { method: saved });
           });

@@ -1,5 +1,5 @@
-import type { GoalsQueryApi } from "@adeptify/goalboard-contracts/modules/goals";
-import type { GovernanceApplicationApi } from "@adeptify/goalboard-contracts/modules/governance-collaboration";
+import type { GoalsQueryApi } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GovernanceApplicationApi } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import type { GoalTreeApplicationApi, GoalTreeProposalListQuery, GoalTreeProposalListResult } from "./goal-tree-contract.js";
 import { GoalTreeBaselineQuery } from "./proposal-baselines.js";
 

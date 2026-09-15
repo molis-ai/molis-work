@@ -2,17 +2,17 @@ import type {
   IntegrationProviderPort,
   PluginDefinition,
   PluginManifest,
-} from "@adeptify/goalboard-contracts/platform/plugin";
-import { definePollingIntegrationPlugin } from "@adeptify/goalboard-plugin-sdk";
+} from "@molis-ai/molis-work-contracts/platform/plugin";
+import { definePollingIntegrationPlugin } from "@molis-ai/molis-work-plugin-sdk";
 
 export { createGithubProvider, type GithubFetch } from "./provider.js";
 
 export const packageDescriptor = {
-  packageName: "@adeptify/goalboard-integration-github",
+  packageName: "@molis-ai/molis-work-integration-github",
   packagePath: "plugins/official-integrations/github",
   kind: "integration-plugin",
   maturity: "partial",
-  contract: "@adeptify/goalboard-contracts/platform/plugin",
+  contract: "@molis-ai/molis-work-contracts/platform/plugin",
   migrationGoals: ["goal-reorg-f2", "goal-reorg-fd3"],
   ssot: "docs/SSOT-MATRIX.md",
   capabilities: ["connector.github.v1", "signal-adapter.github.v1"],
@@ -20,7 +20,7 @@ export const packageDescriptor = {
 
 export const githubIntegrationManifest = {
   schema_version: 1,
-  plugin_id: "io.goalboard.integration.github",
+  plugin_id: "io.molis.work.integration.github",
   version: "1.0.0",
   name: "GitHub",
   kind: "integration",
@@ -57,7 +57,7 @@ export function createGithubIntegrationPlugin(input: {
   });
 }
 
-export type GoalBoardPackageDescriptor = typeof packageDescriptor;
+export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export * from "./oauth.js";
 

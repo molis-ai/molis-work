@@ -5,7 +5,7 @@ import {
   evaluateImportBoundary,
   extractImportSpecifiers,
   findDependencyCycles,
-} from "@adeptify/goalboard-test-kit";
+} from "@molis-ai/molis-work-test-kit";
 
 function boundaryPackage(name, packagePath, kind, dependencies = [], exportedSubpaths = ["."]) {
   return {
@@ -22,9 +22,9 @@ function violationCodes(observation) {
 }
 
 test("rejects an unpublished deep import", () => {
-  const target = boundaryPackage("@adeptify/goalboard-kernel", "packages/kernel", "foundation");
+  const target = boundaryPackage("@molis-ai/molis-work-kernel", "packages/kernel", "foundation");
   const importer = boundaryPackage(
-    "@adeptify/goalboard-app-local-host",
+    "@molis-ai/molis-work-app-local-host",
     "apps/local-host",
     "app",
     [target.name],
@@ -41,9 +41,9 @@ test("rejects an unpublished deep import", () => {
 });
 
 test("rejects a Module implementation or Store import from another Module", () => {
-  const target = boundaryPackage("@adeptify/goalboard-module-goals", "modules/goals", "module");
+  const target = boundaryPackage("@molis-ai/molis-work-module-goals", "modules/goals", "module");
   const importer = boundaryPackage(
-    "@adeptify/goalboard-module-feed",
+    "@molis-ai/molis-work-module-feed",
     "modules/feed",
     "module",
     [target.name],
@@ -61,12 +61,12 @@ test("rejects a Module implementation or Store import from another Module", () =
 
 test("rejects imports between Plugin implementations", () => {
   const target = boundaryPackage(
-    "@adeptify/goalboard-plugin-artifacts",
+    "@molis-ai/molis-work-plugin-artifacts",
     "plugins/native/artifacts",
     "native-plugin",
   );
   const importer = boundaryPackage(
-    "@adeptify/goalboard-plugin-goals",
+    "@molis-ai/molis-work-plugin-goals",
     "plugins/native/goals",
     "native-plugin",
     [target.name],
@@ -84,7 +84,7 @@ test("rejects imports between Plugin implementations", () => {
 
 test("rejects direct database drivers in Apps", () => {
   const importer = boundaryPackage(
-    "@adeptify/goalboard-app-workbench",
+    "@molis-ai/molis-work-app-workbench",
     "apps/workbench",
     "app",
   );
@@ -100,7 +100,7 @@ test("rejects direct database drivers in Apps", () => {
 
 test("rejects imports back into the legacy root implementation", () => {
   const importer = boundaryPackage(
-    "@adeptify/goalboard-app-local-host",
+    "@molis-ai/molis-work-app-local-host",
     "apps/local-host",
     "app",
   );
@@ -108,7 +108,7 @@ test("rejects imports back into the legacy root implementation", () => {
   assert.ok(
     violationCodes({
       importer,
-      specifier: "@adeptify/goalboard/v1/store",
+      specifier: "@molis-ai/molis-work/v1/store",
       sourceFile: "apps/local-host/src/index.ts",
     }).has("legacy-root-import"),
   );
@@ -116,7 +116,7 @@ test("rejects imports back into the legacy root implementation", () => {
 
 test("rejects relative imports that escape a package owner", () => {
   const importer = boundaryPackage(
-    "@adeptify/goalboard-module-goals",
+    "@molis-ai/molis-work-module-goals",
     "modules/goals",
     "module",
   );
@@ -133,14 +133,14 @@ test("rejects relative imports that escape a package owner", () => {
 
 test("allows explicit public Contract subpaths", () => {
   const contracts = boundaryPackage(
-    "@adeptify/goalboard-contracts",
+    "@molis-ai/molis-work-contracts",
     "packages/contracts",
     "foundation",
     [],
     [".", "./modules/goals"],
   );
   const importer = boundaryPackage(
-    "@adeptify/goalboard-module-feed",
+    "@molis-ai/molis-work-module-feed",
     "modules/feed",
     "module",
     [contracts.name],
@@ -150,7 +150,7 @@ test("allows explicit public Contract subpaths", () => {
     evaluateImportBoundary({
       importer,
       target: contracts,
-      specifier: "@adeptify/goalboard-contracts/modules/goals",
+      specifier: "@molis-ai/molis-work-contracts/modules/goals",
       sourceFile: "modules/feed/src/index.ts",
     }),
     [],
@@ -159,18 +159,18 @@ test("allows explicit public Contract subpaths", () => {
 
 test("extracts static, dynamic, re-export, and CommonJS imports", () => {
   const source = `
-    import type { Goal } from "@adeptify/goalboard-contracts/modules/goals";
-    export { capability } from "@adeptify/goalboard-kernel";
-    const lazy = import("@adeptify/goalboard-plugin-goals/internal");
+    import type { Goal } from "@molis-ai/molis-work-contracts/modules/goals";
+    export { capability } from "@molis-ai/molis-work-kernel";
+    const lazy = import("@molis-ai/molis-work-plugin-goals/internal");
     const legacy = require("better-sqlite3");
-    // import ignored from "@adeptify/goalboard-module-feed";
-    const example = 'import ignored from "@adeptify/goalboard-module-actions"';
+    // import ignored from "@molis-ai/molis-work-module-feed";
+    const example = 'import ignored from "@molis-ai/molis-work-module-actions"';
   `;
 
   assert.deepEqual(extractImportSpecifiers(source), [
-    "@adeptify/goalboard-contracts/modules/goals",
-    "@adeptify/goalboard-kernel",
-    "@adeptify/goalboard-plugin-goals/internal",
+    "@molis-ai/molis-work-contracts/modules/goals",
+    "@molis-ai/molis-work-kernel",
+    "@molis-ai/molis-work-plugin-goals/internal",
     "better-sqlite3",
   ]);
 });

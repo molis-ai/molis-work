@@ -1,5 +1,5 @@
 {
-  "name": "@adeptify/goalboard-module-private-work-context",
+  "name": "@molis-ai/molis-work-module-private-work-context",
   "version": "0.0.0",
   "private": true,
   "description": "Private Session, content reference, workspace association, resume, and handoff facts.",
@@ -25,17 +25,17 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@adeptify/goalboard-contracts": "workspace:*",
+    "@molis-ai/molis-work-contracts": "workspace:*",
     "better-sqlite3": "12.8.0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^9.6.0"
   },
-  "goalboard": {
+  "molis-work": {
     "path": "modules/private-work-context",
     "kind": "module",
     "maturity": "partial",
-    "contract": "@adeptify/goalboard-contracts/modules/private-work-context",
+    "contract": "@molis-ai/molis-work-contracts/modules/private-work-context",
     "migrationGoals": [
       "goal-reorg-f2",
       "goal-reorg-wk1"

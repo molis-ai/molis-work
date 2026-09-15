@@ -1,17 +1,17 @@
-/** Public GoalBoard theme and visual foundation owned by the Design System package. */
-export type GoalBoardTheme = "light" | "dark" | "system";
-export type GoalBoardDensity = "standard" | "compact";
-export type GoalBoardTerminalTheme = "auto" | "light" | "dark";
+/** Public Molis Work theme and visual foundation owned by the Design System package. */
+export type MolisWorkTheme = "light" | "dark" | "system";
+export type MolisWorkDensity = "standard" | "compact";
+export type MolisWorkTerminalTheme = "auto" | "light" | "dark";
 
-export const GOALBOARD_THEME_STORAGE_KEY = "goalboard:theme";
-export const GOALBOARD_DENSITY_STORAGE_KEY = "goalboard:density";
-export const GOALBOARD_TERMINAL_THEME_STORAGE_KEY = "goalboard:terminal-theme";
+export const MOLIS_WORK_THEME_STORAGE_KEY = "molis-work:theme";
+export const MOLIS_WORK_DENSITY_STORAGE_KEY = "molis-work:density";
+export const MOLIS_WORK_TERMINAL_THEME_STORAGE_KEY = "molis-work:terminal-theme";
 
 export const THEME_BOOTSTRAP_SCRIPT = `
 (() => {
-  const themeKey = "${GOALBOARD_THEME_STORAGE_KEY}";
-  const densityKey = "${GOALBOARD_DENSITY_STORAGE_KEY}";
-  const terminalThemeKey = "${GOALBOARD_TERMINAL_THEME_STORAGE_KEY}";
+  const themeKey = "${MOLIS_WORK_THEME_STORAGE_KEY}";
+  const densityKey = "${MOLIS_WORK_DENSITY_STORAGE_KEY}";
+  const terminalThemeKey = "${MOLIS_WORK_TERMINAL_THEME_STORAGE_KEY}";
   const validThemes = new Set(["light", "dark", "system"]);
   const validDensities = new Set(["standard", "compact"]);
   const validTerminalThemes = new Set(["auto", "light", "dark"]);
@@ -19,9 +19,9 @@ export const THEME_BOOTSTRAP_SCRIPT = `
   let density = "standard";
   let terminalTheme = "auto";
   try {
-    const storedTheme = localStorage.getItem(themeKey);
-    const storedDensity = localStorage.getItem(densityKey);
-    const storedTerminalTheme = localStorage.getItem(terminalThemeKey);
+    const storedTheme = localStorage.getItem(themeKey) || localStorage.getItem("goalboard:theme");
+    const storedDensity = localStorage.getItem(densityKey) || localStorage.getItem("goalboard:density");
+    const storedTerminalTheme = localStorage.getItem(terminalThemeKey) || localStorage.getItem("goalboard:terminal-theme");
     if (storedTheme && validThemes.has(storedTheme)) theme = storedTheme;
     if (storedDensity && validDensities.has(storedDensity)) density = storedDensity;
     if (storedTerminalTheme && validTerminalThemes.has(storedTerminalTheme)) terminalTheme = storedTerminalTheme;
@@ -37,16 +37,16 @@ export const THEME_BOOTSTRAP_SCRIPT = `
 
 export const VISUAL_FOUNDATION_CLIENT_SCRIPT = `
 (() => {
-  const themeKey = "${GOALBOARD_THEME_STORAGE_KEY}";
-  const densityKey = "${GOALBOARD_DENSITY_STORAGE_KEY}";
-  const terminalThemeKey = "${GOALBOARD_TERMINAL_THEME_STORAGE_KEY}";
+  const themeKey = "${MOLIS_WORK_THEME_STORAGE_KEY}";
+  const densityKey = "${MOLIS_WORK_DENSITY_STORAGE_KEY}";
+  const terminalThemeKey = "${MOLIS_WORK_TERMINAL_THEME_STORAGE_KEY}";
   const themeOptions = ["light", "dark", "system"];
   const densityOptions = ["standard", "compact"];
   const terminalThemeOptions = ["auto", "light", "dark"];
   const media = window.matchMedia("(prefers-color-scheme: dark)");
   const readTheme = () => {
     try {
-      const value = localStorage.getItem(themeKey);
+      const value = localStorage.getItem(themeKey) || localStorage.getItem("goalboard:theme");
       return themeOptions.includes(value) ? value : "system";
     } catch {
       return "system";
@@ -54,7 +54,7 @@ export const VISUAL_FOUNDATION_CLIENT_SCRIPT = `
   };
   const readDensity = () => {
     try {
-      const value = localStorage.getItem(densityKey);
+      const value = localStorage.getItem(densityKey) || localStorage.getItem("goalboard:density");
       return densityOptions.includes(value) ? value : "standard";
     } catch {
       return "standard";
@@ -62,7 +62,7 @@ export const VISUAL_FOUNDATION_CLIENT_SCRIPT = `
   };
   const readTerminalTheme = () => {
     try {
-      const value = localStorage.getItem(terminalThemeKey);
+      const value = localStorage.getItem(terminalThemeKey) || localStorage.getItem("goalboard:terminal-theme");
       return terminalThemeOptions.includes(value) ? value : "auto";
     } catch {
       return "auto";
@@ -84,7 +84,7 @@ export const VISUAL_FOUNDATION_CLIENT_SCRIPT = `
       button.setAttribute("aria-pressed", String(selected));
     });
     if (previousResolved !== resolved) {
-      window.dispatchEvent(new CustomEvent("goalboard:terminal-theme-change", { detail: { theme: resolved } }));
+      window.dispatchEvent(new CustomEvent("molis-work:terminal-theme-change", { detail: { theme: resolved } }));
     }
   };
   const applyTheme = (preference, persist = false) => {

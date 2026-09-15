@@ -7,25 +7,25 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { WebSocket } from "ws";
-import { DEMO_BOARD_ID, seedDemoBoard } from "@adeptify/goalboard-app-local-host";
-import { GoalProjectApplication } from "@adeptify/goalboard-app-local-host";
-import { LocalProjectDatabase } from "@adeptify/goalboard-app-local-host";
-import { createGoalBoardWebServer } from "../apps/desktop/launchers/web/server.js";
+import { DEMO_BOARD_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { insertHistoricalEvidence } from "./historical-sql-fixture.js";
 
 // This checks the real browser clipboard, not the automation tool's virtual clipboard.
 test("migrated result reference copies exact text and handles denied clipboard permission without changing facts", { timeout: 30_000 }, async (t) => {
-  const chrome = [process.env.GOALBOARD_TEST_CHROME, "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  const chrome = [process.env.MOLIS_WORK_TEST_CHROME, "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
     "/usr/bin/google-chrome", "/usr/bin/chromium", "/usr/bin/chromium-browser"]
     .find((path): path is string => Boolean(path && existsSync(path)));
   if (!chrome) return t.skip("Chrome is required for actual clipboard E2E");
-  const directory = await mkdtemp(join(tmpdir(), "goalboard-artifact-clipboard-"));
+  const directory = await mkdtemp(join(tmpdir(), "molis-work-artifact-clipboard-"));
   const databasePath = join(directory, "fixture.db");
   seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath);
   let child: ChildProcess | undefined;
   let socket: WebSocket | undefined;
-  let server: ReturnType<typeof createGoalBoardWebServer> | undefined;
+  let server: ReturnType<typeof createMolisWorkWebServer> | undefined;
   t.after(async () => {
     socket?.close();
     if (child && child.exitCode === null && child.signalCode === null) {
@@ -49,7 +49,7 @@ test("migrated result reference copies exact text and handles denied clipboard p
     locator: reference,
     result: "inconclusive",
   });
-  server = createGoalBoardWebServer({ databasePath, boardId: DEMO_BOARD_ID, homeDirectory: directory,
+  server = createMolisWorkWebServer({ databasePath, boardId: DEMO_BOARD_ID, homeDirectory: directory,
     controlToken: "artifact-clipboard-test-control-token-0123456789" });
   child = spawn(chrome, ["--headless=new", "--disable-gpu", "--disable-background-networking",
     "--disable-component-update", "--disable-extensions", "--no-first-run", "--no-default-browser-check",

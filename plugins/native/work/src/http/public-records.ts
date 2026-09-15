@@ -1,4 +1,4 @@
-import type { WorkSessionRecord, WorkSessionHandoffRecord } from "@adeptify/goalboard-contracts/modules/private-work-context";
+import type { WorkSessionRecord, WorkSessionHandoffRecord } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 
 export function publicSessionRecord(session: WorkSessionRecord) {
   return {

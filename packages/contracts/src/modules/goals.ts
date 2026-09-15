@@ -8,7 +8,7 @@ import type {
 } from "./goal-events.js";
 
 export const modulesGoalsContract = {
-  contractId: "io.goalboard.module.goals.v1",
+  contractId: "io.molis.work.module.goals.v1",
   kind: "module",
   schemaVersion: 1,
   maturity: "partial",

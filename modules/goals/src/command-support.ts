@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import type { GoalRecord } from "@adeptify/goalboard-contracts/modules/goals";
+import type { GoalRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 
 import { GoalsCommandError, type GoalsErrorFactory } from "./errors.js";
 import { GoalsRepository } from "./repository.js";

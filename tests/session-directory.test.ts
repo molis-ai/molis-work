@@ -1,22 +1,22 @@
-import { openGoalBoardProjectCatalog } from "@adeptify/goalboard-app-desktop";
-import { RegistryFallbackSessionAdapter } from "@adeptify/goalboard-plugin-work";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { RegistryFallbackSessionAdapter } from "@molis-ai/molis-work-plugin-work";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { CodexRuntimeSessionAdapter, RuntimeHostRouter } from "@adeptify/goalboard-service-runtime-host";
-import { SessionDirectoryService } from "@adeptify/goalboard-plugin-work";
-import { GoalBoardSessionRegistry } from "@adeptify/goalboard-module-private-work-context";
-import type { RuntimeSessionTransport } from "@adeptify/goalboard-contracts/services/runtime-host";
-import { createGoalBoardWebServer } from "../apps/desktop/launchers/web/server.js";
+import { CodexRuntimeSessionAdapter, RuntimeHostRouter } from "@molis-ai/molis-work-service-runtime-host";
+import { SessionDirectoryService } from "@molis-ai/molis-work-plugin-work";
+import { MolisWorkSessionRegistry } from "@molis-ai/molis-work-module-private-work-context";
+import type { RuntimeSessionTransport } from "@molis-ai/molis-work-contracts/services/runtime-host";
+import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
-const TOKEN = "goalboard-session-directory-token-0123456789";
+const TOKEN = "molis-work-session-directory-token-0123456789";
 
 test("Session directory discovers metadata without content or silent associations and persists after restart", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "goalboard-session-directory-"));
-  const home = path.join(directory, ".goalboard");
+  const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-session-directory-"));
+  const home = path.join(directory, ".molis-work");
   const calls: Array<{ method: string; params: Record<string, unknown> }> = [];
   const transport: RuntimeSessionTransport = {
     async request(method, params) {
@@ -95,10 +95,10 @@ test("Session directory discovers metadata without content or silent association
       actor_id: "user",
       user_confirmed: true,
       project_id: "project-a",
-      title: "GoalBoard 托管 Session",
+      title: "Molis Work 托管 Session",
     });
     assert.equal(fallback.native_runtime_session_id, null);
-    assert.equal(fallback.provenance, "goalboard_created");
+    assert.equal(fallback.provenance, "molis_work_created");
   } finally {
     registry.close();
   }
@@ -115,9 +115,9 @@ test("Session directory discovers metadata without content or silent association
 });
 
 test("project Session directory APIs discover, link, create, transfer, archive and restore real records", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "goalboard-session-directory-web-"));
-  const home = path.join(directory, ".goalboard");
-  const catalog = await openGoalBoardProjectCatalog({ homeDirectory: home });
+  const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-session-directory-web-"));
+  const home = path.join(directory, ".molis-work");
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const first = await catalog.createProject({ display_name: "Project A", actor_id: "user" });
   const second = await catalog.createProject({ display_name: "Project B", actor_id: "user" });
   catalog.close();
@@ -136,7 +136,7 @@ test("project Session directory APIs discover, link, create, transfer, archive a
     },
     subscribe() { return () => undefined; },
   };
-  const server = createGoalBoardWebServer({
+  const server = createMolisWorkWebServer({
     homeDirectory: home,
     controlToken: TOKEN,
     runtimeSessionTransport: transport,
@@ -154,8 +154,8 @@ test("project Session directory APIs discover, link, create, transfer, archive a
       headers: {
         origin,
         "content-type": "application/json",
-        "x-goalboard-control-token": TOKEN,
-        "x-goalboard-idempotency-key": `session-directory-web-${++requestNumber}`,
+        "x-molis-work-control-token": TOKEN,
+        "x-molis-work-idempotency-key": `session-directory-web-${++requestNumber}`,
       },
       body: JSON.stringify(body),
     });
@@ -230,4 +230,4 @@ test("project Session directory APIs discover, link, create, transfer, archive a
     await rm(directory, { recursive: true, force: true });
   }
 });
-import { openWorkSessionRegistry } from "@adeptify/goalboard-app-local-host";
+import { openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";

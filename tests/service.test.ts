@@ -6,17 +6,17 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import {
-  GoalBoardWebServiceError,
-  GoalBoardWebServiceManager,
-  type GoalBoardWebServiceManagerOptions,
-} from "@adeptify/goalboard-app-local-host";
+  MolisWorkWebServiceError,
+  MolisWorkWebServiceManager,
+  type MolisWorkWebServiceManagerOptions,
+} from "@molis-ai/molis-work-app-local-host";
 
 async function fixture() {
-  const directory = await mkdtemp(join(tmpdir(), "goalboard-web-service-"));
+  const directory = await mkdtemp(join(tmpdir(), "molis-work-web-service-"));
   const userHome = join(directory, "user");
-  const home = join(userHome, ".goalboard");
+  const home = join(userHome, ".molis-work");
   await mkdir(join(home, "bin"), { recursive: true });
-  await writeFile(join(home, "bin", "goalboard-web"), "#!/usr/bin/env node\n");
+  await writeFile(join(home, "bin", "molis-work-web"), "#!/usr/bin/env node\n");
   let loaded = false;
   let printOutput = "state = running\npid = 4242\n";
   let bootstrapInProgressCount = 0;
@@ -84,8 +84,8 @@ async function fixture() {
       }
       return { code: 1, stdout: "", stderr: "unexpected" };
     },
-  } satisfies GoalBoardWebServiceManagerOptions & { portCheck: () => Promise<boolean> };
-  const manager = new GoalBoardWebServiceManager(managerOptions);
+  } satisfies MolisWorkWebServiceManagerOptions & { portCheck: () => Promise<boolean> };
+  const manager = new MolisWorkWebServiceManager(managerOptions);
   return {
     directory,
     userHome,
@@ -135,7 +135,7 @@ test("Web self-restart keeps the job loaded and defers its single kickstart unti
   await assert.rejects(item.manager.confirmFromWeb(input, 4242), /不存在或已失效/);
   assert.ok(pending.afterResponse);
   await Promise.all([pending.afterResponse(), pending.afterResponse()]);
-  assert.deepEqual(item.commands.filter((c) => c[1] !== "print"), [["/bin/launchctl", "kickstart", "-k", "gui/501/com.adeptify.goalboard.web"]]);
+  assert.deepEqual(item.commands.filter((c) => c[1] !== "print"), [["/bin/launchctl", "kickstart", "-k", "gui/501/com.molis.work.web"]]);
   assert.equal(item.isLoaded(), true);
   assert.deepEqual(await readFile(item.manager.plistPath), originalPlist);
   assert.deepEqual(await readFile(item.manager.receiptPath), originalReceipt);
@@ -236,7 +236,7 @@ test("start waits for the Web health endpoint and never reports a process-only s
     const install = await unavailable.manager.prepare("install");
     await assert.rejects(
       () => unavailable.manager.confirm({ plan_id: install.plan_id, decision: "confirmed" }),
-      (error: unknown) => error instanceof GoalBoardWebServiceError
+      (error: unknown) => error instanceof MolisWorkWebServiceError
         && error.code === "service.command_failed"
         && /健康检查仍未通过/.test(error.message),
     );
@@ -261,7 +261,7 @@ test("an occupied Web port blocks install before persistent files or launchctl m
       assert.match(plan.message, /4173|端口|监听/);
       await assert.rejects(
         () => item.manager.confirm({ plan_id: plan.plan_id, decision: "confirmed" }),
-        (error: unknown) => error instanceof GoalBoardWebServiceError
+        (error: unknown) => error instanceof MolisWorkWebServiceError
           && error.code === "service.conflict",
       );
       assert.equal(await exists(item.manager.plistPath), false);
@@ -276,7 +276,7 @@ test("an occupied Web port blocks install before persistent files or launchctl m
   }
 });
 
-test("an unrelated Web port listener does not block removing an absent GoalBoard service", async () => {
+test("an unrelated Web port listener does not block removing an absent Molis Work service", async () => {
   const item = await fixture();
   try {
     item.setPortInUse(true);
@@ -304,7 +304,7 @@ test("a port occupied after preview still blocks confirm before mutations", asyn
 
     await assert.rejects(
       () => item.manager.confirm({ plan_id: plan.plan_id, decision: "confirmed" }),
-      (error: unknown) => error instanceof GoalBoardWebServiceError
+      (error: unknown) => error instanceof MolisWorkWebServiceError
         && error.code === "service.conflict",
     );
 
@@ -337,7 +337,7 @@ test("owned repair and unhealthy restart detect an external listener before boot
       assert.equal(plan.status, "conflict");
       await assert.rejects(
         () => item.manager.confirm({ plan_id: plan.plan_id, decision: "confirmed" }),
-        (error: unknown) => error instanceof GoalBoardWebServiceError
+        (error: unknown) => error instanceof MolisWorkWebServiceError
           && error.code === "service.conflict",
       );
       assert.equal(
@@ -385,7 +385,7 @@ test("install rejects another process health response and rolls back only its ow
 
     await assert.rejects(
       () => item.manager.confirm({ plan_id: plan.plan_id, decision: "confirmed" }),
-      (error: unknown) => error instanceof GoalBoardWebServiceError
+      (error: unknown) => error instanceof MolisWorkWebServiceError
         && error.code === "service.command_failed"
         && /实例|进程|健康/.test(error.message),
     );
@@ -452,7 +452,7 @@ test("install does not report success when final owned-instance verification is 
 
     await assert.rejects(
       () => item.manager.confirm({ plan_id: plan.plan_id, decision: "confirmed" }),
-      (error: unknown) => error instanceof GoalBoardWebServiceError
+      (error: unknown) => error instanceof MolisWorkWebServiceError
         && error.code === "service.command_failed"
         && /实例|运行状态/.test(error.message),
     );
@@ -484,7 +484,7 @@ test("needs_repair rejects restart and points to the configuration-writing insta
     assert.match(restart.message, /restart/);
     await assert.rejects(
       () => item.manager.confirm({ plan_id: restart.plan_id, decision: "confirmed" }),
-      (error: unknown) => error instanceof GoalBoardWebServiceError
+      (error: unknown) => error instanceof MolisWorkWebServiceError
         && error.code === "service.conflict",
     );
     assert.equal(
@@ -494,7 +494,7 @@ test("needs_repair rejects restart and points to the configuration-writing insta
 
     const repair = await item.manager.prepare("install");
     assert.equal(repair.status, "ready");
-    assert.equal(repair.message, "准备修复旧配置并重新加载 GoalBoard Web 常驻服务");
+    assert.equal(repair.message, "准备修复旧配置并重新加载 Molis Work Web 常驻服务");
     assert.equal(repair.confirmation, "确认更新旧配置并重新加载 macOS 用户级常驻 Web 服务");
     assert.equal(repair.next_action, null);
     assert.equal((await item.manager.confirm({ plan_id: repair.plan_id, decision: "confirmed" })).detection.state, "running");
@@ -527,7 +527,7 @@ test("a failed owned repair restores the prior files and running state", async (
       const repair = await item.manager.prepare("install");
       await assert.rejects(
         () => item.manager.confirm({ plan_id: repair.plan_id, decision: "confirmed" }),
-        (error: unknown) => error instanceof GoalBoardWebServiceError
+        (error: unknown) => error instanceof MolisWorkWebServiceError
           && error.code === "service.command_failed",
       );
 
@@ -559,7 +559,7 @@ test("failed start and restart restore the prior launchctl running state", async
         const action = await item.manager.prepare(previouslyRunning ? "restart" : "start");
         await assert.rejects(
           () => item.manager.confirm({ plan_id: action.plan_id, decision: "confirmed" }),
-          (error: unknown) => error instanceof GoalBoardWebServiceError
+          (error: unknown) => error instanceof MolisWorkWebServiceError
             && error.code === "service.command_failed",
         );
 
@@ -635,7 +635,7 @@ test("an owned service can be removed safely after its launcher disappears", asy
   try {
     const install = await item.manager.prepare("install");
     await item.manager.confirm({ plan_id: install.plan_id, decision: "confirmed" });
-    await rm(join(item.home, "bin", "goalboard-web"));
+    await rm(join(item.home, "bin", "molis-work-web"));
 
     const detection = await item.manager.detect();
     assert.equal(detection.state, "unavailable");
@@ -655,7 +655,7 @@ test("an owned service can be removed safely after its launcher disappears", asy
 test("remove is already complete when neither service files nor launcher remain", async () => {
   const item = await fixture();
   try {
-    await rm(join(item.home, "bin", "goalboard-web"));
+    await rm(join(item.home, "bin", "molis-work-web"));
     const detection = await item.manager.detect();
     assert.equal(detection.state, "unavailable");
     assert.equal(detection.owned, false);
@@ -678,7 +678,7 @@ test("unknown or changed LaunchAgents are never overwritten or removed", async (
     assert.equal(remove.status, "conflict");
     await assert.rejects(
       () => item.manager.confirm({ plan_id: remove.plan_id, decision: "confirmed" }),
-      (error: unknown) => error instanceof GoalBoardWebServiceError && error.code === "service.conflict",
+      (error: unknown) => error instanceof MolisWorkWebServiceError && error.code === "service.conflict",
     );
     assert.equal(await readFile(item.manager.plistPath, "utf8"), "user changed this plist\n");
   } finally {
@@ -694,7 +694,7 @@ test("stale plans and failed launchctl installs leave no owned service files", a
     await writeFile(item.manager.plistPath, "external plist\n");
     await assert.rejects(
       () => item.manager.confirm({ plan_id: stale.plan_id, decision: "confirmed" }),
-      (error: unknown) => error instanceof GoalBoardWebServiceError && error.code === "service.plan_stale",
+      (error: unknown) => error instanceof MolisWorkWebServiceError && error.code === "service.plan_stale",
     );
   } finally {
     await rm(item.directory, { recursive: true, force: true });
@@ -702,7 +702,7 @@ test("stale plans and failed launchctl installs leave no owned service files", a
 
   const failed = await fixture();
   try {
-    const manager = new GoalBoardWebServiceManager({
+    const manager = new MolisWorkWebServiceManager({
       homeDirectory: failed.home,
       userHomeDirectory: failed.userHome,
       platform: "darwin",
@@ -713,7 +713,7 @@ test("stale plans and failed launchctl installs leave no owned service files", a
     const plan = await manager.prepare("install");
     await assert.rejects(
       () => manager.confirm({ plan_id: plan.plan_id, decision: "confirmed" }),
-      (error: unknown) => error instanceof GoalBoardWebServiceError && error.code === "service.command_failed",
+      (error: unknown) => error instanceof MolisWorkWebServiceError && error.code === "service.command_failed",
     );
     await assert.rejects(stat(manager.plistPath));
     await assert.rejects(stat(manager.receiptPath));
@@ -725,7 +725,7 @@ test("stale plans and failed launchctl installs leave no owned service files", a
 test("non-macOS reports unsupported without pretending to install", async () => {
   const item = await fixture();
   try {
-    const manager = new GoalBoardWebServiceManager({
+    const manager = new MolisWorkWebServiceManager({
       homeDirectory: item.home,
       userHomeDirectory: item.userHome,
       platform: "linux",

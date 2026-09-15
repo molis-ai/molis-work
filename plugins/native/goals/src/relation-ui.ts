@@ -1,10 +1,10 @@
-import type { GoalRelationRecord } from "@adeptify/goalboard-contracts/modules/goals";
-import type { UiContribution } from "@adeptify/goalboard-contracts/platform/ui";
+import type { GoalRelationRecord } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import { GOALS_RELATION_LABELS as RELATION_LABELS, GOALS_RELATION_TYPES as RELATION_TYPES } from "./relation-presentation.js";
 import { sortGoalTreeItems as sortGoals } from "./tree-order.js";
 import type { GoalsRelationItem, GoalsRelationView, GoalsRelationUiPrimitives } from "./relation-ui-model.js";
 
-export const GOALS_RELATION_UI_CONTRIBUTION_ID = "io.goalboard.native.goals.relations.v1";
+export const GOALS_RELATION_UI_CONTRIBUTION_ID = "io.molis.work.native.goals.relations.v1";
 function createRelationRenderer(primitives: GoalsRelationUiPrimitives) {
   const { translate: L, escapeHtml, icon } = primitives;
 function relationRow(
@@ -103,7 +103,7 @@ function renderRelationForm(item: GoalsRelationItem, view: GoalsRelationView): s
   }).join("");
   const firstTarget = targets[0]!.goal;
   return `<form class="relation-form" data-relation-form data-live-form="relation-${escapeHtml(item.goal.goal_id)}" data-goal-id="${escapeHtml(item.goal.goal_id)}" data-current-goal-name="${escapeHtml(item.goal.title)}" novalidate>
-      <div class="relation-authority"><span>${icon("shield")}</span><p><strong>${L("你正在直接修改 Goal 关系")}</strong><small>${L("保存后立即生效并进入历史。执行工具提出的关系变化仍会先进入")}<a href="/decisions">${L("待决定")}</a>${L("，由你确认后才生效。")}</small></p></div>
+      <div class="relation-authority"><span>${icon("shield")}</span><p><strong>${L("你正在直接修改 Goal 关系")}</strong><small>${L("保存后立即生效并进入历史。执行工具提出的关系变化仍会先进入")}<a href="/decisions">${L("Inbox")}</a>${L("，由你确认后才生效。")}</small></p></div>
       <div class="relation-builder">
         <label><span>${L("这条关系表示什么")}</span><select name="relation_intent"><option value="needs">${L("当前 Goal 开始前需要它完成")}</option><option value="belongs">${L("当前 Goal 属于它")}</option><option value="enables">${L("它开始前需要当前 Goal 完成")}</option><option value="contains">${L("它属于当前 Goal")}</option><option value="other">${L("其他关系")}</option></select></label>
         <label><span>${L("另一个 Goal")}</span><select name="target_goal_id">${targetOptions}</select></label>
@@ -142,7 +142,7 @@ export type GoalsRelationUiModel = { primitives: GoalsRelationUiPrimitives } & (
 );
 
 export const goalsRelationUiContribution: UiContribution<GoalsRelationUiModel> = {
-  descriptor: { contribution_id: GOALS_RELATION_UI_CONTRIBUTION_ID, plugin_id: "io.goalboard.native.goals", kind: "embedded", label: "Goal relations",
+  descriptor: { contribution_id: GOALS_RELATION_UI_CONTRIBUTION_ID, plugin_id: "io.molis.work.native.goals", kind: "embedded", label: "Goal relations",
     surfaces: ["relations", "form"].map(surface_id => ({ surface_id, target_slot_id: "workbench.main", format: "declarative-html" })), slots: [] },
   render({ surface, model }) {
     if (surface !== model.kind) throw new Error("Goals relation surface does not match its model");

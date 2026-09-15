@@ -285,7 +285,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
         const sourceId = sourceDelete.dataset.sourceId;
         const historyDecision = sourceDelete.dataset.sourceDelete;
         const warning = historyDecision === "delete_local_history"
-          ? L("确认删除这个来源及其本地消息、资料、Inbox 引用和运行记录？此操作无法从 GoalBoard 恢复。")
+          ? L("确认删除这个来源及其本地消息、资料、Inbox 引用和运行记录？此操作无法从 Molis Work 恢复。")
           : L("确认删除这个来源并停止拉取？已有消息和运行历史会保留。 ");
         if (!globalThis.confirm(warning)) return;
         sourceDelete.disabled = true;
@@ -410,16 +410,14 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
           const restore = feedEmpty.querySelector("[data-prototype-feed-restore]");
           const clear = feedEmpty.querySelector("[data-feed-clear-filters]");
           const sources = feedEmpty.querySelector("[data-feed-empty-sources]");
-          if (title) title.textContent = activeFeedPreset === "inbox_message" ? L("Inbox 已经处理完") : L("暂时没有新消息");
-          if (copy) copy.textContent = activeFeedPreset === "inbox_message"
-            ? L("需要你介入的事情都已退出默认列表；原对象和历史仍可追溯。")
-            : L("来源仍按计划拉取；新消息到达后会先进入 Feed。");
+          if (title) title.textContent = L("暂时没有新消息");
+          if (copy) copy.textContent = L("来源仍按计划拉取；新消息到达后会先进入 Feed。");
           if (restore) restore.hidden = false;
           if (clear) clear.hidden = true;
           if (sources) sources.hidden = true;
         }
         if (feedResultCount) feedResultCount.textContent = L("0 个 Item");
-        setFeedDetailPlaceholder(activeFeedPreset === "inbox_message" ? L("Inbox 已处理完") : L("Feed 暂无新消息"), L("这是页面内空状态预览，不会修改真实 Item。"));
+        setFeedDetailPlaceholder(L("Feed 暂无新消息"), L("这是页面内空状态预览，不会修改真实 Item。"));
         return;
       }
       if (target.closest("[data-prototype-feed-restore]")) {
@@ -459,6 +457,53 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
         } catch (error) {
           setFeedSourceFeedback(error.message || L("添加来源失败"), true);
           sourceRegister.disabled = false;
+        }
+        return;
+      }
+      const createOutRule = target.closest("[data-feed-out-rule-create]");
+      if (createOutRule) {
+        const name = feedSourcesDialog?.querySelector("[data-feed-out-rule-name]")?.value;
+        const contains = feedSourcesDialog?.querySelector("[data-feed-out-rule-contains]")?.value;
+        createOutRule.disabled = true;
+        setFeedSourceFeedback(L("正在添加捕捉规则…"));
+        try {
+          await feedApi("/api/feed/out-rules", "POST", { name, contains });
+          saveUiState();
+          location.reload();
+        } catch (error) {
+          setFeedSourceFeedback(error.message || L("添加捕捉规则失败"), true);
+          createOutRule.disabled = false;
+        }
+        return;
+      }
+      const toggleOutRule = target.closest("[data-feed-out-rule-toggle]");
+      if (toggleOutRule) {
+        const ruleId = toggleOutRule.dataset.feedOutRuleToggle;
+        const enabled = toggleOutRule.dataset.enabled !== "true";
+        toggleOutRule.disabled = true;
+        setFeedSourceFeedback(L("正在更新捕捉规则…"));
+        try {
+          await feedApi("/api/feed/out-rules/" + encodeURIComponent(ruleId), "PATCH", { enabled });
+          saveUiState();
+          location.reload();
+        } catch (error) {
+          setFeedSourceFeedback(error.message || L("更新捕捉规则失败"), true);
+          toggleOutRule.disabled = false;
+        }
+        return;
+      }
+      const deleteOutRule = target.closest("[data-feed-out-rule-delete]");
+      if (deleteOutRule) {
+        const ruleId = deleteOutRule.dataset.feedOutRuleDelete;
+        deleteOutRule.disabled = true;
+        setFeedSourceFeedback(L("正在删除捕捉规则…"));
+        try {
+          await feedApi("/api/feed/out-rules/" + encodeURIComponent(ruleId), "DELETE");
+          saveUiState();
+          location.reload();
+        } catch (error) {
+          setFeedSourceFeedback(error.message || L("删除捕捉规则失败"), true);
+          deleteOutRule.disabled = false;
         }
         return;
       }

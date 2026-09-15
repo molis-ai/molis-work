@@ -1,7 +1,7 @@
 import type {
   HostCapabilityDefinition,
   LocalHostProjectClient,
-} from "@adeptify/goalboard-contracts/platform/app-host";
+} from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { GoalEventApplication } from "./goal-event-application.js";
 
 export interface GoalEventEntryApi {
@@ -26,7 +26,7 @@ export interface GoalEventEntryApi {
 }
 
 export const createGoalIntentCapability = {
-  capability_id: "io.goalboard.goals.events.create-intent",
+  capability_id: "io.molis.work.goals.events.create-intent",
   version: 1,
   operation: "command",
 } as HostCapabilityDefinition<
@@ -35,7 +35,7 @@ export const createGoalIntentCapability = {
 >;
 
 export const listGoalDirectoryCapability = {
-  capability_id: "io.goalboard.goals.events.list-goals",
+  capability_id: "io.molis.work.goals.events.list-goals",
   version: 1,
   operation: "query",
 } as HostCapabilityDefinition<
@@ -44,13 +44,13 @@ export const listGoalDirectoryCapability = {
 >;
 
 export const readGoalEventStateCapability = {
-  capability_id: "io.goalboard.goals.events.read-state",
+  capability_id: "io.molis.work.goals.events.read-state",
   version: 1,
   operation: "query",
 } as HostCapabilityDefinition<{ board_id: string; goal_id: string }, ReturnType<GoalEventEntryApi["readState"]>>;
 
 export const configureGoalEventsCapability = {
-  capability_id: "io.goalboard.goals.events.configure",
+  capability_id: "io.molis.work.goals.events.configure",
   version: 1,
   operation: "command",
 } as HostCapabilityDefinition<
@@ -59,7 +59,7 @@ export const configureGoalEventsCapability = {
 >;
 
 export const reportGoalEventsCapability = {
-  capability_id: "io.goalboard.goals.events.report",
+  capability_id: "io.molis.work.goals.events.report",
   version: 1,
   operation: "command",
 } as HostCapabilityDefinition<
@@ -68,7 +68,7 @@ export const reportGoalEventsCapability = {
 >;
 
 export const listGoalEventsCapability = {
-  capability_id: "io.goalboard.goals.events.list",
+  capability_id: "io.molis.work.goals.events.list",
   version: 1,
   operation: "query",
 } as HostCapabilityDefinition<{
@@ -79,7 +79,7 @@ export const listGoalEventsCapability = {
 }, ReturnType<GoalEventEntryApi["listEvents"]>>;
 
 export const listLatestGoalEventsCapability = {
-  capability_id: "io.goalboard.goals.events.list-latest",
+  capability_id: "io.molis.work.goals.events.list-latest",
   version: 1,
   operation: "query",
 } as HostCapabilityDefinition<{
@@ -90,7 +90,7 @@ export const listLatestGoalEventsCapability = {
 }, ReturnType<GoalEventEntryApi["listLatestEvents"]>>;
 
 export const listLatestGoalTimelineCapability = {
-  capability_id: "io.goalboard.goals.events.timeline",
+  capability_id: "io.molis.work.goals.events.timeline",
   version: 1,
   operation: "query",
 } as HostCapabilityDefinition<{
@@ -101,7 +101,7 @@ export const listLatestGoalTimelineCapability = {
 }, ReturnType<GoalEventEntryApi["listLatestTimeline"]>>;
 
 export const readGoalEventCapability = {
-  capability_id: "io.goalboard.goals.events.read",
+  capability_id: "io.molis.work.goals.events.read",
   version: 1,
   operation: "query",
 } as HostCapabilityDefinition<{
@@ -152,7 +152,7 @@ export function createGoalEventEntryClient(client: LocalHostProjectClient) {
 }
 
 export const recordGoalProgressCapability = {
-  capability_id: "io.goalboard.goals.events.progress",
+  capability_id: "io.molis.work.goals.events.progress",
   version: 1,
   operation: "command",
 } as HostCapabilityDefinition<
@@ -161,7 +161,7 @@ export const recordGoalProgressCapability = {
 >;
 
 export const applyGoalConcernCapability = {
-  capability_id: "io.goalboard.goals.events.concern",
+  capability_id: "io.molis.work.goals.events.concern",
   version: 1,
   operation: "command",
 } as HostCapabilityDefinition<
@@ -170,7 +170,7 @@ export const applyGoalConcernCapability = {
 >;
 
 export const requestGoalDecisionCapability = {
-  capability_id: "io.goalboard.goals.events.decision-request",
+  capability_id: "io.molis.work.goals.events.decision-request",
   version: 1,
   operation: "command",
 } as HostCapabilityDefinition<
@@ -179,7 +179,7 @@ export const requestGoalDecisionCapability = {
 >;
 
 export const citeGoalDecisionCapability = {
-  capability_id: "io.goalboard.goals.events.cite-decision",
+  capability_id: "io.molis.work.goals.events.cite-decision",
   version: 1,
   operation: "command",
 } as HostCapabilityDefinition<
@@ -188,7 +188,7 @@ export const citeGoalDecisionCapability = {
 >;
 
 export const recordGoalUserDecisionCapability = {
-  capability_id: "io.goalboard.goals.events.decide",
+  capability_id: "io.molis.work.goals.events.decide",
   version: 1,
   operation: "command",
 } as HostCapabilityDefinition<
@@ -197,7 +197,7 @@ export const recordGoalUserDecisionCapability = {
 >;
 
 export const setGoalEventAgreementCapability = {
-  capability_id: "io.goalboard.goals.events.agree",
+  capability_id: "io.molis.work.goals.events.agree",
   version: 1,
   operation: "command",
 } as HostCapabilityDefinition<
@@ -206,7 +206,7 @@ export const setGoalEventAgreementCapability = {
 >;
 
 export const submitGoalEventClosureCapability = {
-  capability_id: "io.goalboard.goals.events.close",
+  capability_id: "io.molis.work.goals.events.close",
   version: 1,
   operation: "command",
 } as HostCapabilityDefinition<
@@ -215,7 +215,7 @@ export const submitGoalEventClosureCapability = {
 >;
 
 export const resumeGoalEventWorkCapability = {
-  capability_id: "io.goalboard.goals.events.resume",
+  capability_id: "io.molis.work.goals.events.resume",
   version: 1,
   operation: "command",
 } as HostCapabilityDefinition<
@@ -224,7 +224,7 @@ export const resumeGoalEventWorkCapability = {
 >;
 
 export const recordGoalNoteCapability = {
-  capability_id: "io.goalboard.goals.events.note",
+  capability_id: "io.molis.work.goals.events.note",
   version: 1,
   operation: "command",
 } as HostCapabilityDefinition<

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import type { GoalsQueryApi, GoalsApplicationApi } from "@adeptify/goalboard-contracts/modules/goals";
-import type { GovernanceApplicationApi, GoalTreeProposalDecideInput, GoalTreeProposalItemRecord, ProposalAffectedObject } from "@adeptify/goalboard-contracts/modules/governance-collaboration";
+import type { GoalsQueryApi, GoalsApplicationApi } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GovernanceApplicationApi, GoalTreeProposalDecideInput, GoalTreeProposalItemRecord, ProposalAffectedObject } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import type { GoalTreeApplicationApi, GoalTreeProposalDecisionResult } from "./goal-tree-contract.js";
 import type { GoalTreeQueryApplication } from "./goal-tree-query.js";
 import type { GoalTreeInputReader } from "./goal-tree-inputs.js";
@@ -11,6 +11,7 @@ import type { GoalTreeMaterializationApplication } from "./goal-tree-materializa
 import type { GoalTreeDecisionFollowup } from "./goal-tree-decision-followup.js";
 import { GoalTreeDecisionPlan } from "./goal-tree-decision-plan.js";
 import { goalTreeMaterializationGroups } from "./goal-tree-materialization-order.js";
+import type { GoalDecisionAttentionSync } from "./goal-decision-attention.js";
 
 interface DecisionError extends Error { code: string; details?: Record<string, unknown> }
 /** Applies a subset or a pristine whole proposal under the original all-owner transaction. */
@@ -24,6 +25,7 @@ export class GoalTreeDecisionApplication implements Pick<GoalTreeApplicationApi,
     followup: GoalTreeDecisionFollowup; clock: () => Date;
     errorFactory: (code: string, message: string, details?: Record<string, unknown>) => Error;
     isDomainError: (error: unknown) => error is DecisionError;
+    attention?: Pick<GoalDecisionAttentionSync, "settleProposal">;
   }) { this.plan = new GoalTreeDecisionPlan(ports); }
 
   decideGoalTreeProposal(input: GoalTreeProposalDecideInput): GoalTreeProposalDecisionResult {
@@ -50,7 +52,7 @@ export class GoalTreeDecisionApplication implements Pick<GoalTreeApplicationApi,
       reason: input.reason ?? null,
       confirm_all_pending: wholeConfirmation,
     });
-    return this.ports.governance.records.executeGoalTreeDecision({
+    const result = this.ports.governance.records.executeGoalTreeDecision({
       board_id: input.board_id, actor_id: authority.actor_id, idempotency_key: input.idempotency_key, request_hash: hash,
     }, () => {
       this.requireBoard(input.board_id);
@@ -130,7 +132,7 @@ export class GoalTreeDecisionApplication implements Pick<GoalTreeApplicationApi,
           if (wholeConfirmation) {
             this.plan.abortWholeConfirmation(item, {
               code: "goal_tree_proposal.baseline_changed",
-              message: "条目依赖的 GoalBoard 事实已经变化",
+              message: "条目依赖的 Molis Work 事实已经变化",
               objects: conflicts,
             });
           }
@@ -298,6 +300,11 @@ export class GoalTreeDecisionApplication implements Pick<GoalTreeApplicationApi,
       };
       return { value: outcome, at: now };
     });
+    this.ports.attention?.settleProposal(input.board_id, result.proposal);
+    for (const revision of result.revision_proposals) {
+      this.ports.attention?.settleProposal(input.board_id, revision);
+    }
+    return result;
   }
 
   private requireBoard(boardId: string): void {

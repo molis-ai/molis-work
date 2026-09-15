@@ -1,8 +1,8 @@
-# GoalBoard Bug 卡台账
+# Molis Work Bug 卡台账
 
 更新时间：2026-08-31
 
-这份台账记录本轮已经分析过的 GoalBoard 体验问题，无论最终是否确认是真 Bug。它是产品判断与验收记录，不以“代码已经改动”代替“产品已经可用”。
+这份台账记录本轮已经分析过的 Molis Work 体验问题，无论最终是否确认是真 Bug。它是产品判断与验收记录，不以“代码已经改动”代替“产品已经可用”。
 
 ## 维护规则
 
@@ -16,7 +16,7 @@
 - **Bug 确认**：`已确认`、`非 Bug`、`设计债`、`接入问题`、`误用`、`预期行为`、`证据不足`可以组合使用，但必须说明主要归因。
 - **修复决定**：`已批准`、`待审批`、`延后`、`不修`。
 - **修复状态**：`未开始`、`实现中`、`源码已实现`、`工程验证通过`、`已安装`、`产品实操通过`、`最终验收通过`逐层推进，不能跨层升级。
-- **验收边界**：工程验证、最终交付物上的产品实操和 GoalBoard Owner 最终验收分别报告；真人主观体验或用户本人认可另行标记。
+- **验收边界**：工程验证、最终交付物上的产品实操和 Molis Work Owner 最终验收分别报告；真人主观体验或用户本人认可另行标记。
 - **当前授权（2026-08-30）**：Owner 可独立判断 Case；一旦判断成立，无需等待逐卡审批，直接修复并依次完成工程验证、产品实操和 Owner 最终验收，直到清单全部闭环。该授权不把自动化或 Owner 判断冒充为“用户本人验收”，也不授权自行 push；push 仍由用户发起。
 
 ## 2026-08-31 当前交付快照
@@ -29,30 +29,30 @@
 
 **权威最终状态（2026-08-30 23:53）**：本地未发布的 **0.1.10** 已包含远端 `origin/main=db0c34f876469c51225784da3fbc3093764587db` 与本分支全部 GB24、GB40、GB42–GB45 等本地变更；当前分支 HEAD `212567e` 相对远端 main 为 ahead 8 / behind 0，本轮没有 commit、push、merge、tag 或 GitHub Release。完整 `pnpm test` **338/338**、Desktop Rust **12/12**、Rust format、版本一致性和 `git diff --check` 均通过。
 
-**最终资产**：`GoalBoard-0.1.10-macos-arm64.dmg` SHA-256 为 `649a17cb0966db8d1c3300a6d0d238c0d2a1ccb190ff0882ca81fa04a6a6fe25`；App ZIP 为 `d03a5833f6e5c233be79b7908f52c103cc1fd58a9a42d52d4f19efe57c332545`，两个 sidecar 从发布目录复核为 OK。App short/build version 与内嵌 Core 均为 0.1.10，App 和内嵌 Node 均为 arm64，源码与包内 `source_digest` 均为 `ed345ad512ad6c1ffda71584dfab966f6d54a1572ae79c10b986210e41567737`；严格 codesign 通过。签名仍为 ad-hoc、无 TeamIdentifier，不冒充 Apple 公证的公开发布物。
+**最终资产**：`Molis Work-0.1.10-macos-arm64.dmg` SHA-256 为 `649a17cb0966db8d1c3300a6d0d238c0d2a1ccb190ff0882ca81fa04a6a6fe25`；App ZIP 为 `d03a5833f6e5c233be79b7908f52c103cc1fd58a9a42d52d4f19efe57c332545`，两个 sidecar 从发布目录复核为 OK。App short/build version 与内嵌 Core 均为 0.1.10，App 和内嵌 Node 均为 arm64，源码与包内 `source_digest` 均为 `ed345ad512ad6c1ffda71584dfab966f6d54a1572ae79c10b986210e41567737`；严格 codesign 通过。签名仍为 ad-hoc、无 TeamIdentifier，不冒充 Apple 公证的公开发布物。
 
-**最终安装与运行**：`/Applications/GoalBoard.app`、home Core、CLI/Web launcher 与 Codex Skill 均已对齐到 0.1.10；同版本旧 App 可恢复地移到 `~/.Trash/GoalBoard.app.20260830-235004`。因 Desktop 版本比较不会自动刷新同版本不同内容，最终 Core 额外通过 App 内置官方 installer 原子刷新，installation `content_digest=a346f7824e6a9fe9fca0cb0c0a813794df542bebb092b983d56b376b23493ced`，随后按官方指引重启受管服务。service status 为 `running/owned=true`，LaunchAgent `PATH` 指向 `releases/goalboard-0.1.10/runtime`，LaunchAgent/监听/health PID 同为 **72472**；`/api/settings/runtimes` 将 Codex 判为 `connected`，active Skill 与 release Skill SHA-256 一致。
+**最终安装与运行**：`/Applications/Molis Work.app`、home Core、CLI/Web launcher 与 Codex Skill 均已对齐到 0.1.10；同版本旧 App 可恢复地移到 `~/.Trash/Molis Work.app.20260830-235004`。因 Desktop 版本比较不会自动刷新同版本不同内容，最终 Core 额外通过 App 内置官方 installer 原子刷新，installation `content_digest=a346f7824e6a9fe9fca0cb0c0a813794df542bebb092b983d56b376b23493ced`，随后按官方指引重启受管服务。service status 为 `running/owned=true`，LaunchAgent `PATH` 指向 `releases/molis-work-0.1.10/runtime`，LaunchAgent/监听/health PID 同为 **72472**；`/api/settings/runtimes` 将 Codex 判为 `connected`，active Skill 与 release Skill SHA-256 一致。
 
 **最终产品与协议实操**：在最终安装 App 的真实 CGS 上，Goal Tree 分栏从 300 拖到 520，长中文标题与 G2/G2A/G2B/C/G2G/V2 同时可读，旧 G2G/G2B 显示“已被替代”；顶部长工作标签未重叠。G4A 的“处理 1 项决定”深链自动定位并展开表单，预填对话结论、原话、来源、Evidence 和理由，未替用户提交。最终安装 Core 对真实 CGS 的 Available 只读核验确认：旧 G2G 不可领取并返回 replacement；G2E 在 completion Risk 下仍可执行；G2D 返回 `rework_request`；V2 子 Goal 的实际阻塞是 schema 依赖。隔离安装态另通过：外部 `file:` locator 原样登记为 UNVERIFIED 且不读盘；同仓 registered worktree 未提交文件为 verified 并可打开；Run completed → release → self-verifier handoff；legacy Contract raw/synthetic handle → native Proposal supersede，旧提案 superseded、新提案 pending、canonical Draft 不提前修改。
 
-**剩余边界**：GB46 已确认为 GB45 的独立消费复现证据，不是新的源码缺口；当前源码定向回归和 0.1.10 安装 Core 的 raw/synthetic 两条隔离旅程均通过。Arena 旧 Session 需要新 Session 才能重新加载该 MCP 实现。GB47 已确认为 GB24 之上的 Core/Skill 交接缺口，并完成最小源码修复：只对唯一、完整覆盖当前人工 criteria 的 pending obligation 返回精确原话交接；多个待决项失败关闭；`human_verdict` 只预填 Inbox，最终 Human Review 仍由用户提交。该新增修复尚未进入安装包。GB13 是 CGS 领域/编辑台问题，仍不在 GoalBoard 修复；GB15 的 CGS Contract 语义纠偏仍属 CGS；GB41 经最终安装 Core 和真实 CGS reason 复验后确认不是新 Risk Bug。需要真实新 Codex Session 才能观察的自然语言 Skill 行为，以及 G4A 最终真人提交/主观易懂性，继续标为用户侧 `UNVERIFIED`，不冒充产品或用户验收。
+**剩余边界**：GB46 已确认为 GB45 的独立消费复现证据，不是新的源码缺口；当前源码定向回归和 0.1.10 安装 Core 的 raw/synthetic 两条隔离旅程均通过。Arena 旧 Session 需要新 Session 才能重新加载该 MCP 实现。GB47 已确认为 GB24 之上的 Core/Skill 交接缺口，并完成最小源码修复：只对唯一、完整覆盖当前人工 criteria 的 pending obligation 返回精确原话交接；多个待决项失败关闭；`human_verdict` 只预填 Inbox，最终 Human Review 仍由用户提交。该新增修复尚未进入安装包。GB13 是 CGS 领域/编辑台问题，仍不在 Molis Work 修复；GB15 的 CGS Contract 语义纠偏仍属 CGS；GB41 经最终安装 Core 和真实 CGS reason 复验后确认不是新 Risk Bug。需要真实新 Codex Session 才能观察的自然语言 Skill 行为，以及 G4A 最终真人提交/主观易懂性，继续标为用户侧 `UNVERIFIED`，不冒充产品或用户验收。
 
 <details>
 <summary>历史中间快照（已失效，仅保留排障审计）</summary>
 
-**0.1.10 最终交付进行中**：2026-08-30 用户已明确要求闭环全部 GoalBoard 最终交付层。只读 `git fetch origin --prune` 后确认 `origin/main=db0c34f876469c51225784da3fbc3093764587db`，当前修复分支相对远端 main 为 ahead 8 / behind 0，未漏远端 main 更新。现有 0.1.9 已经是旧安装物，因此本轮将版本统一提升为 0.1.10；范围为构建、资产校验、本机 App/Core/service/Codex MCP+Skill 安装及最终实操，不含 push、merge、tag 或 GitHub Release。
+**0.1.10 最终交付进行中**：2026-08-30 用户已明确要求闭环全部 Molis Work 最终交付层。只读 `git fetch origin --prune` 后确认 `origin/main=db0c34f876469c51225784da3fbc3093764587db`，当前修复分支相对远端 main 为 ahead 8 / behind 0，未漏远端 main 更新。现有 0.1.9 已经是旧安装物，因此本轮将版本统一提升为 0.1.10；范围为构建、资产校验、本机 App/Core/service/Codex MCP+Skill 安装及最终实操，不含 push、merge、tag 或 GitHub Release。
 
-**0.1.10 构建进展**：四处版本源已统一为 0.1.10。首次构建被 pnpm 11 的锁文件供应链复验拦住：两个依赖实际来自仓库内固定 `vendor/*.tgz`，但复验按包名访问私有 Registry 并得到 404；`pnpm-lock.yaml` 与远端 main 一致且两个 tarball 已重新计算 SHA-256，因此仅对本次已核对锁文件执行官方 `pnpm install --trust-lockfile --frozen-lockfile`，没有全局关闭安全策略，随后源码 build 通过。第二次 Desktop 构建在内嵌 Runtime 的 npm 安装阶段被本机 `~/.npm` 历史 root-owned cache 拦住；该问题不通过改权限或覆盖用户 cache 解决，后续构建改用隔离临时 npm cache。隔离 cache 生效后，构建门禁又发现版本提升时曾机械改中 `Cargo.lock` 内无关的 `cargo-platform` 依赖版本，而应用自身锁文件版本仍少升一级；现已精确恢复依赖到 0.1.9，并只把 `goalboard-desktop` 改为 0.1.10。该错误没有生成或安装半成品，发布回归必须核对应用包条目与关键依赖锁定，而不能只 grep 首个版本号。
+**0.1.10 构建进展**：四处版本源已统一为 0.1.10。首次构建被 pnpm 11 的锁文件供应链复验拦住：两个依赖实际来自仓库内固定 `vendor/*.tgz`，但复验按包名访问私有 Registry 并得到 404；`pnpm-lock.yaml` 与远端 main 一致且两个 tarball 已重新计算 SHA-256，因此仅对本次已核对锁文件执行官方 `pnpm install --trust-lockfile --frozen-lockfile`，没有全局关闭安全策略，随后源码 build 通过。第二次 Desktop 构建在内嵌 Runtime 的 npm 安装阶段被本机 `~/.npm` 历史 root-owned cache 拦住；该问题不通过改权限或覆盖用户 cache 解决，后续构建改用隔离临时 npm cache。隔离 cache 生效后，构建门禁又发现版本提升时曾机械改中 `Cargo.lock` 内无关的 `cargo-platform` 依赖版本，而应用自身锁文件版本仍少升一级；现已精确恢复依赖到 0.1.9，并只把 `molis-work-desktop` 改为 0.1.10。该错误没有生成或安装半成品，发布回归必须核对应用包条目与关键依赖锁定，而不能只 grep 首个版本号。
 
-**0.1.10 资产已构建并通过发布前校验**：新增发布版本一致性门禁，强制 `package.json`、Tauri config、`Cargo.toml` 与 `Cargo.lock#goalboard-desktop` 四处一致，定向回归通过。最终 arm64 App/DMG 已生成；DMG SHA-256 为 `9443f666c3f329ea3f224eb744d77e78558a729b4e615a43305260d1b6cd7203`，App ZIP 为 `e7b88a07cd66c94adb23d39c0e40e41ecc4ef473a61e959924ff177b065a0965`，两个 sidecar 均复核通过。解包后 App short/build version、内嵌 Core 均为 0.1.10，App 与内嵌 Node 都是 arm64，源码和包内 `.goalboard-build.json.source_digest` 同为 `c69012fb9ba4c6b8567534256897534d3a571835957e93688a331dba2c3ed0e5`；严格 codesign 校验通过。签名仍为 ad-hoc、无 TeamIdentifier，`spctl` 未通过，因此只作为本机安装包，不冒充 Apple 公证的公开发布物。
+**0.1.10 资产已构建并通过发布前校验**：新增发布版本一致性门禁，强制 `package.json`、Tauri config、`Cargo.toml` 与 `Cargo.lock#molis-work-desktop` 四处一致，定向回归通过。最终 arm64 App/DMG 已生成；DMG SHA-256 为 `9443f666c3f329ea3f224eb744d77e78558a729b4e615a43305260d1b6cd7203`，App ZIP 为 `e7b88a07cd66c94adb23d39c0e40e41ecc4ef473a61e959924ff177b065a0965`，两个 sidecar 均复核通过。解包后 App short/build version、内嵌 Core 均为 0.1.10，App 与内嵌 Node 都是 arm64，源码和包内 `.molis-work-build.json.source_digest` 同为 `c69012fb9ba4c6b8567534256897534d3a571835957e93688a331dba2c3ed0e5`；严格 codesign 校验通过。签名仍为 ad-hoc、无 TeamIdentifier，`spctl` 未通过，因此只作为本机安装包，不冒充 Apple 公证的公开发布物。
 
-**0.1.10 本机安装与接入已对齐**：已将 `/Applications/GoalBoard.app` 的 0.1.9 可恢复地移动到 `~/.Trash/GoalBoard.app.20260830-233326`，安装 0.1.10；新 App 首启将 home Core 升到 0.1.10，并通过 GB42 的原子服务交接把 LaunchAgent `PATH` 更新到 `releases/goalboard-0.1.10/runtime`。官方 service status 为 `running/owned=true`，LaunchAgent、监听和 `/health.service_process_id` 均为 PID 67442。Codex 接入先预览后确认，计划只替换旧 Skill 链接和所有权收据，没有改写已正确的 MCP 配置；`/api/settings/runtimes` 现为 `connected`，active Skill 链接到 0.1.10 且文件 SHA-256 与 release 完全一致。旧 Session 不会热加载新 Skill/MCP，本记录只支持安装与接入一致，fresh Session 协议和最终 UI 实操仍需继续完成。
+**0.1.10 本机安装与接入已对齐**：已将 `/Applications/Molis Work.app` 的 0.1.9 可恢复地移动到 `~/.Trash/Molis Work.app.20260830-233326`，安装 0.1.10；新 App 首启将 home Core 升到 0.1.10，并通过 GB42 的原子服务交接把 LaunchAgent `PATH` 更新到 `releases/molis-work-0.1.10/runtime`。官方 service status 为 `running/owned=true`，LaunchAgent、监听和 `/health.service_process_id` 均为 PID 67442。Codex 接入先预览后确认，计划只替换旧 Skill 链接和所有权收据，没有改写已正确的 MCP 配置；`/api/settings/runtimes` 现为 `connected`，active Skill 链接到 0.1.10 且文件 SHA-256 与 release 完全一致。旧 Session 不会热加载新 Skill/MCP，本记录只支持安装与接入一致，fresh Session 协议和最终 UI 实操仍需继续完成。
 
 本节覆盖各卡片中按发生时间记录的历史安装证据，避免把旧段落里的“已安装”误读成当前统一交付。2026-08-30 再次刷新远端后，`origin/main` 与本地 `main` 均为 `db0c34f876469c51225784da3fbc3093764587db`（tag `v0.1.8`）；当前分支 HEAD 为 `212567e`，相对远端 main 为 **ahead 8 / behind 0**，八个提交均未 push。
 
-**当前本地包与安装**：`/Applications/GoalBoard.app`、App 内嵌 Runtime、`~/.goalboard/config/installation.json`、home CLI/Web launcher 均为 **0.1.9**；App 内嵌与 home Core 的构建指纹同为 `3ee421eb97219f3a9ff1e1fc97ddb079582f58ad025747fedd744f9bf24ef7ad`。`GoalBoard-0.1.9-macos-arm64.app.zip` SHA-256 为 `eda561d4ab051fe507359de6efecc8b56fdf9b08df4d9653691913edfecbd895`，DMG 为 `648f8ddaabee7355304bd217ea0c4d030d3eef79890a01f8d9d7f2f62aa66c32`，两个 sidecar 复核通过；安装 App 的严格 codesign 通过，但仍是 ad-hoc 签名、没有 TeamIdentifier，不能称 Apple 公证发布。
+**当前本地包与安装**：`/Applications/Molis Work.app`、App 内嵌 Runtime、`~/.molis-work/config/installation.json`、home CLI/Web launcher 均为 **0.1.9**；App 内嵌与 home Core 的构建指纹同为 `3ee421eb97219f3a9ff1e1fc97ddb079582f58ad025747fedd744f9bf24ef7ad`。`Molis Work-0.1.9-macos-arm64.app.zip` SHA-256 为 `eda561d4ab051fe507359de6efecc8b56fdf9b08df4d9653691913edfecbd895`，DMG 为 `648f8ddaabee7355304bd217ea0c4d030d3eef79890a01f8d9d7f2f62aa66c32`，两个 sidecar 复核通过；安装 App 的严格 codesign 通过，但仍是 ad-hoc 签名、没有 TeamIdentifier，不能称 Apple 公证发布。
 
-**当前不一致**：服务进程与 `/health.service_process_id` 同为 12637，页面健康且 home launcher 执行 0.1.9；但官方 service status 为 `needs_repair`，LaunchAgent `PATH` 仍从 `goalboard-0.1.8/runtime` 开始，这正是 GB42 的修复前现场。active Codex Skill `/Users/oreal/.codex/skills/goal-advance` 仍链接 **0.1.7**；官方只读 `/api/settings/runtimes` 也把 Codex 判为 `needs_repair`，而不是未知 conflict，证明后续可以走受管 repair 事务。0.1.9 release 目录内虽然包含 GB33–GB39 的协议/Skill 资产，当前 Codex 新 Session 也不会自动消费它们。当前状态绝不能表述为 App/Core/service/Skill 已统一。
+**当前不一致**：服务进程与 `/health.service_process_id` 同为 12637，页面健康且 home launcher 执行 0.1.9；但官方 service status 为 `needs_repair`，LaunchAgent `PATH` 仍从 `molis-work-0.1.8/runtime` 开始，这正是 GB42 的修复前现场。active Codex Skill `/Users/oreal/.codex/skills/goal-advance` 仍链接 **0.1.7**；官方只读 `/api/settings/runtimes` 也把 Codex 判为 `needs_repair`，而不是未知 conflict，证明后续可以走受管 repair 事务。0.1.9 release 目录内虽然包含 GB33–GB39 的协议/Skill 资产，当前 Codex 新 Session 也不会自动消费它们。当前状态绝不能表述为 App/Core/service/Skill 已统一。
 
 **工程验证**：GB38–GB41 合并态完整 `pnpm typecheck && pnpm test` 为 **331/331**；GB42 增加 Desktop 升级交接回归后，Desktop Rust 为 **12/12**，Web service 状态机为 **23/23**，TypeScript typecheck、Rust format 与 diff check 通过。`cargo clippy --all-targets -D warnings` 仍被本卡范围外两条既有 warning 阻断，未冒充为绿。
 
@@ -60,7 +60,7 @@
 
 **产品与协议实操**：0.1.9 安装 App 已用真实 Casebook 验证 GB35 的 Web/Desktop 共用标签布局；0.1.9 release asset/隔离项目已验证 GB36–GB39 的 Contract-before-Select、blocked overview、accepted successor 恢复和 proposal 精确整份确认。GB33/GB34 的实现可从 0.1.9 release asset 读回，但 active Codex Skill 仍是 0.1.7，真实新 Session 消费未通过。GB24 先在当前安装 App 的真实 CGS / G4A 复现旧问题，随后在 4175 源码服务的真实 CGS 数据副本中用 Safari 通过普通 Web 与 `?desktop=1` 桌面壳深链实操：目标 Inbox 项、对话验收原话、Evidence、理由和一次提交表单均直接进入视区且获得焦点，没有提交或改写 CGS 数据。GB43 已在安装 App 与 4173 Web 双端复现旧问题，并在同一源码服务的真实 CGS 数据上验证标题完整换行、分栏 334→520 和桌面壳一致性。GB44 已对来源真实 worktree 文件完成只读验证，并用临时真实 Git worktree 跑通 Coordinator → Evidence → Web 打开及删除后 404 的完整源码旅程。GB24、GB40、GB42、GB43、GB44 都是 0.1.9 构建之后的本地修复，当前 App/Core 不包含。
 
-**剩余边界**：2026-08-30 再按总览逐项审计，GB01–GB44 中没有“已经成立、仍缺 GoalBoard 源码实现”的 Case；GB13 正确路由 CGS，GB41 不成立为新 Risk Bug，其余成立项均已达到各卡记录的源码/工程/隔离产品层边界。尚未闭环的是最终交付层：用户已明确暂停新包构建，因此不生成 0.1.10/替代 0.1.9，不修改真实 LaunchAgent，也不擅自改 Runtime 接入。下一份经用户明确发起的包至少需要包含 GB24、GB40、GB42、GB43、GB44 与远端 main；安装后再修复 owned service、经用户确认升级 Codex MCP/Skill、重开 Session，并分别复验 GB24、GB31、GB33、GB34、GB36、GB37、GB38、GB39、GB40、GB41、GB42、GB43、GB44。G4A 的最终真人确认动作和主观易懂性仍由用户验收。
+**剩余边界**：2026-08-30 再按总览逐项审计，GB01–GB44 中没有“已经成立、仍缺 Molis Work 源码实现”的 Case；GB13 正确路由 CGS，GB41 不成立为新 Risk Bug，其余成立项均已达到各卡记录的源码/工程/隔离产品层边界。尚未闭环的是最终交付层：用户已明确暂停新包构建，因此不生成 0.1.10/替代 0.1.9，不修改真实 LaunchAgent，也不擅自改 Runtime 接入。下一份经用户明确发起的包至少需要包含 GB24、GB40、GB42、GB43、GB44 与远端 main；安装后再修复 owned service、经用户确认升级 Codex MCP/Skill、重开 Session，并分别复验 GB24、GB31、GB33、GB34、GB36、GB37、GB38、GB39、GB40、GB41、GB42、GB43、GB44。G4A 的最终真人确认动作和主观易懂性仍由用户验收。
 
 </details>
 
@@ -68,39 +68,39 @@
 
 | ID | 标题 | 主要归因 | Bug 确认 | 修复决定 | 修复状态 | 优先级 |
 | --- | --- | --- | --- | --- | --- | --- |
-| GB-20260828-01 | 当前消息已明确项目仍被重复确认 | GoalBoard Skill 授权识别缺陷 | 已确认 | 已修复 | 0.1.7 Skill/Core 已安装并做 fresh MCP 协议验收；真实新 Codex Session 待用户侧观察 | P1 |
-| GB-20260828-02 | 已完成执行被 Available 误导为再次执行 | GoalBoard 派生状态缺陷 | 已确认 | 已修复 | 293/293 与隔离生命周期实操通过；0.1.7 构建指纹一致，Owner 验收通过 | P1 |
-| GB-20260828-03 | 项目内绝对路径被误报为项目范围外 | GoalBoard locator 设计缺陷 | 已确认 | 已修复 | 项目内路径/anchor、安全越界与 symlink 边界通过；0.1.7 已安装，Owner 验收通过 | P1 |
-| GB-20260828-04 | 同一 LaunchAgent PID 被误报为端口冲突 | GoalBoard 服务归属兼容缺陷 | 已确认 | 已修复 | 最终服务 `running/owned=true`，监听与 LaunchAgent PID 同为 11021；Owner 验收通过 | P1 |
-| GB-20260828-05 | 对话使用 G2A/G2B，Goal Tree 隐藏对应 ID | GoalBoard Desktop CSS 与短引用碰撞缺陷 | 已确认 | 已修复 | 最终安装 App 真实 CGS、286px 窄栏实操通过；唯一短引用与中文标题同时可读 | P1 |
-| GB-20260828-06 | 已绑定 Session 的生命周期调用偶发误报未连接 | GoalBoard 连接缓存与恢复语义缺陷 | 已确认 | 已修复 | 工程与重试契约通过，0.1.7 已安装；真实新 Codex Session 连续推进待用户侧观察 | P1 |
-| GB-20260828-07 | 内嵌 Node 测试把 Homebrew Node 误当成可搬移运行时 | GoalBoard 测试夹具可移植性缺陷 | 非产品 Bug、工程缺陷 | 已修复 | 最终嵌入 Runtime、293/293 与打包门禁通过；Owner 验收通过 | P1（发布门禁） |
-| GB-20260829-08 | 租约过期后 Contract 同时显示失效与 active/started | GoalBoard 租约派生与物化一致性缺陷 | 已确认 | 已修复 | 过期投影、恢复动作与 Web 读取工程/产品实操通过；0.1.7 已安装 | P1 |
-| GB-20260829-09 | `repo:` 项目内 Evidence 被降级且没有可修正格式 | GoalBoard locator 协议可发现性设计债 | 设计债 | 已修复 | `repo:` 文件与 anchor 验证、规范化和错误建议通过；0.1.7 已安装 | P2 |
-| GB-20260829-10 | 升级后的旧服务配置允许 restart 但无法完成修复 | GoalBoard 服务恢复动作缺陷 | 已确认 | 已修复 | 隔离 repair 旅程与最终服务健康通过；未知第三方监听安全分支保留为 `UNVERIFIED` | P1 |
-| GB-20260829-11 | 活跃长任务无续租入口，执行中静默过期 | GoalBoard 租约续期与可见性设计缺陷 | 已确认 | 已修复 | 同 Claim/Run 续租、提示和事件实操通过；0.1.7 已安装 | P1 |
-| GB-20260829-12 | Runtime 反复领取只剩人工判断的复核 | GoalBoard Review 条件路由与人工等待状态缺陷 | 已确认 | 已修复 | 最终安装 App 真实 G4A 显示 waiting-for-human，Runtime 不再重复领取；用户本人验收仍 pending | P1 |
-| GB-20260829-13 | Opportunity 有引用但看不到研究过程与样本漏斗 | CGS 领域模型与编辑台设计债 | 设计债、接入问题 | 不在 GoalBoard 修复 | 真实问题成立；GoalBoard 侧结案并路由 CGS，CGS 修复未开始 | P1（CGS） |
-| GB-20260829-14 | Goal Tree 提案 payload 需要查源码才能构造 | GoalBoard MCP 契约自描述缺陷 | 已确认 | 已修复 | 最终安装 MCP 判别 schema、字段路径与方向说明通过；Owner 协议验收通过 | P1 |
-| GB-20260829-15 | 子 Goal 用样本验收却被理解成父级能力已经具备 | GoalBoard 跨层 Contract 覆盖设计债 + CGS 建模错误 | 设计债、接入问题 | GoalBoard 部分已修复 | 父级不再被样本子 Goal 自动完成并显式显示覆盖缺口；CGS Contract 语义纠偏仍属 CGS | P1 |
+| GB-20260828-01 | 当前消息已明确项目仍被重复确认 | Molis Work Skill 授权识别缺陷 | 已确认 | 已修复 | 0.1.7 Skill/Core 已安装并做 fresh MCP 协议验收；真实新 Codex Session 待用户侧观察 | P1 |
+| GB-20260828-02 | 已完成执行被 Available 误导为再次执行 | Molis Work 派生状态缺陷 | 已确认 | 已修复 | 293/293 与隔离生命周期实操通过；0.1.7 构建指纹一致，Owner 验收通过 | P1 |
+| GB-20260828-03 | 项目内绝对路径被误报为项目范围外 | Molis Work locator 设计缺陷 | 已确认 | 已修复 | 项目内路径/anchor、安全越界与 symlink 边界通过；0.1.7 已安装，Owner 验收通过 | P1 |
+| GB-20260828-04 | 同一 LaunchAgent PID 被误报为端口冲突 | Molis Work 服务归属兼容缺陷 | 已确认 | 已修复 | 最终服务 `running/owned=true`，监听与 LaunchAgent PID 同为 11021；Owner 验收通过 | P1 |
+| GB-20260828-05 | 对话使用 G2A/G2B，Goal Tree 隐藏对应 ID | Molis Work Desktop CSS 与短引用碰撞缺陷 | 已确认 | 已修复 | 最终安装 App 真实 CGS、286px 窄栏实操通过；唯一短引用与中文标题同时可读 | P1 |
+| GB-20260828-06 | 已绑定 Session 的生命周期调用偶发误报未连接 | Molis Work 连接缓存与恢复语义缺陷 | 已确认 | 已修复 | 工程与重试契约通过，0.1.7 已安装；真实新 Codex Session 连续推进待用户侧观察 | P1 |
+| GB-20260828-07 | 内嵌 Node 测试把 Homebrew Node 误当成可搬移运行时 | Molis Work 测试夹具可移植性缺陷 | 非产品 Bug、工程缺陷 | 已修复 | 最终嵌入 Runtime、293/293 与打包门禁通过；Owner 验收通过 | P1（发布门禁） |
+| GB-20260829-08 | 租约过期后 Contract 同时显示失效与 active/started | Molis Work 租约派生与物化一致性缺陷 | 已确认 | 已修复 | 过期投影、恢复动作与 Web 读取工程/产品实操通过；0.1.7 已安装 | P1 |
+| GB-20260829-09 | `repo:` 项目内 Evidence 被降级且没有可修正格式 | Molis Work locator 协议可发现性设计债 | 设计债 | 已修复 | `repo:` 文件与 anchor 验证、规范化和错误建议通过；0.1.7 已安装 | P2 |
+| GB-20260829-10 | 升级后的旧服务配置允许 restart 但无法完成修复 | Molis Work 服务恢复动作缺陷 | 已确认 | 已修复 | 隔离 repair 旅程与最终服务健康通过；未知第三方监听安全分支保留为 `UNVERIFIED` | P1 |
+| GB-20260829-11 | 活跃长任务无续租入口，执行中静默过期 | Molis Work 租约续期与可见性设计缺陷 | 已确认 | 已修复 | 同 Claim/Run 续租、提示和事件实操通过；0.1.7 已安装 | P1 |
+| GB-20260829-12 | Runtime 反复领取只剩人工判断的复核 | Molis Work Review 条件路由与人工等待状态缺陷 | 已确认 | 已修复 | 最终安装 App 真实 G4A 显示 waiting-for-human，Runtime 不再重复领取；用户本人验收仍 pending | P1 |
+| GB-20260829-13 | Opportunity 有引用但看不到研究过程与样本漏斗 | CGS 领域模型与编辑台设计债 | 设计债、接入问题 | 不在 Molis Work 修复 | 真实问题成立；Molis Work 侧结案并路由 CGS，CGS 修复未开始 | P1（CGS） |
+| GB-20260829-14 | Goal Tree 提案 payload 需要查源码才能构造 | Molis Work MCP 契约自描述缺陷 | 已确认 | 已修复 | 最终安装 MCP 判别 schema、字段路径与方向说明通过；Owner 协议验收通过 | P1 |
+| GB-20260829-15 | 子 Goal 用样本验收却被理解成父级能力已经具备 | Molis Work 跨层 Contract 覆盖设计债 + CGS 建模错误 | 设计债、接入问题 | Molis Work 部分已修复 | 父级不再被样本子 Goal 自动完成并显式显示覆盖缺口；CGS Contract 语义纠偏仍属 CGS | P1 |
 | GB-20260829-16 | App、Core 与 Codex Skill 实际版本不一致 | 发布与 Runtime 接入验收缺陷 | 已确认 | 已修复并安装 | App/Core/home launcher/LaunchAgent PATH/Codex Skill 全部对齐 0.1.10；服务 running/owned，Runtime connected | P1 |
-| GB-20260829-17 | 大型 Goal Tree 变更只有技术 diff，缺少问题与效果解释 | GoalBoard Proposal 可理解性设计债 | 设计债 | 已修复 | 结构化语义摘要、逐项影响与代表性 computer-use 实操通过；0.1.7 已安装 | P2 |
-| GB-20260829-18 | 整份 Goal Tree 确认会在决定阶段部分落地 | GoalBoard Proposal 原子性与预检一致性缺陷 | 已确认 | 已修复 | check/decide 同源预检、whole-confirm 零部分写入与恢复契约通过；Owner 验收通过 | P1 |
-| GB-20260830-19 | 桌面健康恢复与 LaunchAgent 修复互相抢占 4173 | GoalBoard Desktop 恢复策略缺陷 | 已确认 | 已修复 | 源码 App 恢复旅程与最终受管服务重启/健康通过；Owner 验收通过 | P1 |
-| GB-20260830-20 | Planning Methods 全量正文返回被截断 | GoalBoard MCP 读取契约与规模设计缺陷 | 已确认 | 已修复 | 轻量目录、按 method_ids 正文读取与分页工程/协议验收通过；0.1.7 已安装 | P1 |
-| GB-20260830-21 | 大型项目内 Evidence 因不可全文打开而无法登记 | GoalBoard Evidence 预检与登记耦合缺陷 | 已确认 | 已修复 | 大文件 locator+digest 登记、preview_unavailable 与修复建议通过；0.1.7 已安装 | P1 |
-| GB-20260830-22 | Legacy Proposal 可统一读取但 read/check/decide handle 不可组合 | GoalBoard 兼容视图与提案 API 不可组合 | 已确认 | 已修复 | Rewire/Contract raw 与 synthetic handle 的 read/check/decide 组合回归通过；0.1.7 已安装 | P0（解除 Arena 阻塞） |
-| GB-20260830-23 | Available 默认展开全部 Contract 导致输出截断 | GoalBoard MCP 默认读取粒度缺陷 | 已确认 | 已修复 | 最终安装 MCP schema 确认 summary 默认，full 显式展开；Owner 协议验收通过 | P1 |
-| GB-20260830-24 | 对话已完成人工验收，Inbox 仍要求重复填写且深链找不到表单 | GoalBoard 人工验收交接与 Decision 深链缺陷 | 已确认 | 已修复并安装 | 0.1.10 真实 CGS/G4A 深链自动展开并预填结论、原话、来源、Evidence 与理由；未替用户提交 | P0 |
-| GB-20260830-25 | 范围纠偏后历史 Run blocker 仍像当前有效阻塞 | GoalBoard 当前阻塞派生与历史展示缺陷 | 已确认 | 已修复 | blocker supersession/历史降级与当前真相展示工程、computer-use 实操通过 | P1 |
-| GB-20260830-26 | 大型 Proposal 预检漏掉不可变与唯一约束，决定后才部分失败 | GoalBoard Proposal 唯一约束与恢复诊断缺陷；原子性部分与 GB18 去重 | 已确认部分成立 | 已修复 | accepted/unique/原始数据库错误转换、replacement 指引和零写入恢复通过 | P1 |
-| GB-20260830-27 | 新反证出现后，完成门禁中的 unmet Goal 无法返回 executor 返工 | GoalBoard 生命周期恢复提示缺陷；原 claim-gate 归因不成立 | 已确认（修正归因） | 已修复 | 最终安装 Core 对真实 G2D 返回 rework_request 恢复；未修改 CGS 数据 | P0 |
-| GB-20260830-28 | Compaction 后续租只有 claim_id，无法从 context 得到正确 actor | GoalBoard 租约恢复错误契约设计债 | 已确认 | 已修复 | context/错误返回 owner 与 remediation，真实 MCP 恢复实操通过；0.1.7 已安装 | P2 |
-| GB-20260830-29 | Draft 每轮写入与恢复都返回完整历史，长对话输出被截断 | GoalBoard clarification 默认响应粒度缺陷 | 已确认 | 已修复 | 默认增量响应、显式 history 分页与 12 轮 MCP 实操通过；0.1.7 已安装 | P1 |
-| GB-20260830-30 | Contract Proposal 缺字段时抛出 undefined.trim 裸异常 | GoalBoard Contract schema 与运行时输入校验缺陷 | 已确认 | 已修复 | 完整 schema、字段路径、失败零写入与 Arena 成功恢复证据通过；0.1.7 已安装 | P0（解除 Arena 阻塞） |
+| GB-20260829-17 | 大型 Goal Tree 变更只有技术 diff，缺少问题与效果解释 | Molis Work Proposal 可理解性设计债 | 设计债 | 已修复 | 结构化语义摘要、逐项影响与代表性 computer-use 实操通过；0.1.7 已安装 | P2 |
+| GB-20260829-18 | 整份 Goal Tree 确认会在决定阶段部分落地 | Molis Work Proposal 原子性与预检一致性缺陷 | 已确认 | 已修复 | check/decide 同源预检、whole-confirm 零部分写入与恢复契约通过；Owner 验收通过 | P1 |
+| GB-20260830-19 | 桌面健康恢复与 LaunchAgent 修复互相抢占 4173 | Molis Work Desktop 恢复策略缺陷 | 已确认 | 已修复 | 源码 App 恢复旅程与最终受管服务重启/健康通过；Owner 验收通过 | P1 |
+| GB-20260830-20 | Planning Methods 全量正文返回被截断 | Molis Work MCP 读取契约与规模设计缺陷 | 已确认 | 已修复 | 轻量目录、按 method_ids 正文读取与分页工程/协议验收通过；0.1.7 已安装 | P1 |
+| GB-20260830-21 | 大型项目内 Evidence 因不可全文打开而无法登记 | Molis Work Evidence 预检与登记耦合缺陷 | 已确认 | 已修复 | 大文件 locator+digest 登记、preview_unavailable 与修复建议通过；0.1.7 已安装 | P1 |
+| GB-20260830-22 | Legacy Proposal 可统一读取但 read/check/decide handle 不可组合 | Molis Work 兼容视图与提案 API 不可组合 | 已确认 | 已修复 | Rewire/Contract raw 与 synthetic handle 的 read/check/decide 组合回归通过；0.1.7 已安装 | P0（解除 Arena 阻塞） |
+| GB-20260830-23 | Available 默认展开全部 Contract 导致输出截断 | Molis Work MCP 默认读取粒度缺陷 | 已确认 | 已修复 | 最终安装 MCP schema 确认 summary 默认，full 显式展开；Owner 协议验收通过 | P1 |
+| GB-20260830-24 | 对话已完成人工验收，Inbox 仍要求重复填写且深链找不到表单 | Molis Work 人工验收交接与 Decision 深链缺陷 | 已确认 | 已修复并安装 | 0.1.10 真实 CGS/G4A 深链自动展开并预填结论、原话、来源、Evidence 与理由；未替用户提交 | P0 |
+| GB-20260830-25 | 范围纠偏后历史 Run blocker 仍像当前有效阻塞 | Molis Work 当前阻塞派生与历史展示缺陷 | 已确认 | 已修复 | blocker supersession/历史降级与当前真相展示工程、computer-use 实操通过 | P1 |
+| GB-20260830-26 | 大型 Proposal 预检漏掉不可变与唯一约束，决定后才部分失败 | Molis Work Proposal 唯一约束与恢复诊断缺陷；原子性部分与 GB18 去重 | 已确认部分成立 | 已修复 | accepted/unique/原始数据库错误转换、replacement 指引和零写入恢复通过 | P1 |
+| GB-20260830-27 | 新反证出现后，完成门禁中的 unmet Goal 无法返回 executor 返工 | Molis Work 生命周期恢复提示缺陷；原 claim-gate 归因不成立 | 已确认（修正归因） | 已修复 | 最终安装 Core 对真实 G2D 返回 rework_request 恢复；未修改 CGS 数据 | P0 |
+| GB-20260830-28 | Compaction 后续租只有 claim_id，无法从 context 得到正确 actor | Molis Work 租约恢复错误契约设计债 | 已确认 | 已修复 | context/错误返回 owner 与 remediation，真实 MCP 恢复实操通过；0.1.7 已安装 | P2 |
+| GB-20260830-29 | Draft 每轮写入与恢复都返回完整历史，长对话输出被截断 | Molis Work clarification 默认响应粒度缺陷 | 已确认 | 已修复 | 默认增量响应、显式 history 分页与 12 轮 MCP 实操通过；0.1.7 已安装 | P1 |
+| GB-20260830-30 | Contract Proposal 缺字段时抛出 undefined.trim 裸异常 | Molis Work Contract schema 与运行时输入校验缺陷 | 已确认 | 已修复 | 完整 schema、字段路径、失败零写入与 Arena 成功恢复证据通过；0.1.7 已安装 | P0（解除 Arena 阻塞） |
 | GB-20260830-31 | replacement Goal 已生效，旧 Goal 仍进入 Ready | Goal replacement 生命周期与 Ready 过滤缺陷 | 已确认 | 已修复并安装 | 0.1.10 对真实 CGS 返回旧 G2G `replaced`、replacement_goal_id=V2，且不在 Available | P0 |
 | GB-20260830-32 | leaf_readiness 非法枚举被误报为“没写判断”，无 clarification Run 也缺恢复动作 | Goal Tree 输入校验与恢复提示缺陷 | 已确认 | 已修复 | 最终安装 MCP schema 显示 `keep | split`，精确错误与 resume hint 回归通过 | P1 |
-| GB-20260830-33 | 单轮 Run 收口后只汇报过去，不交代或继续下一轮 | GoalBoard Skill + MCP handoff 可发现性设计债，消费者遗漏为直接触发 | 已确认（修正归因） | 已修复并安装 | 0.1.10 active Skill 明确 release 后刷新 Available、汇报下一 Goal/动作/why-now 并在授权内继续；新 Session 自然语言表现待用户观察 | P1 |
+| GB-20260830-33 | 单轮 Run 收口后只汇报过去，不交代或继续下一轮 | Molis Work Skill + MCP handoff 可发现性设计债，消费者遗漏为直接触发 | 已确认（修正归因） | 已修复并安装 | 0.1.10 active Skill 明确 release 后刷新 Available、汇报下一 Goal/动作/why-now 并在授权内继续；新 Session 自然语言表现待用户观察 | P1 |
 | GB-20260830-34 | 跨仓库 Goal 的本地 Evidence 无法诚实落档 | Evidence locator 分类与恢复契约缺陷；多 workspace 验证属延后能力 | 已确认 | 已修复并安装 | 0.1.10 安装 Core 实操：外部 `file:`+digest 原样登记 UNVERIFIED、不读盘，并返回 verified 恢复建议 | P2 |
 | GB-20260830-35 | 依赖视图窄窗口顶部工作区标签文字互相重叠 | Web/Desktop 共用布局缺陷 | 已确认 | 已修复并安装 | 0.1.10 真实 CGS 多个长工作标签保持可读并滚动，不再互相覆盖 | P1 |
 | GB-20260830-36 | Available 候选未提示请求产物与 Goal out_of_scope 冲突 | 消费顺序与范围可发现性设计债 | 已确认（修正归因） | 已修复并安装 | 0.1.10 active Skill 要求 Available → 完整 Contract scope check → Select；out_of_scope 不再靠误领发现 | P1 |
@@ -114,7 +114,7 @@
 | GB-20260830-44 | 同仓库隔离 Git worktree 的真实文件无法成为 verified Evidence | Evidence workspace 与 Git worktree 身份连续性缺口 | 已确认 | 已修复并安装 | 0.1.10 安装 Core 实操：registered worktree 未提交文件 verified、记录实际根并可读取；跨仓边界保留 | P1 |
 | GB-20260830-45 | Native Proposal 无法 supersede 可统一读取/决定的 Legacy Contract Proposal | Goal Tree legacy handle 可组合性与恢复契约缺陷 | 已确认 | 已修复并安装 | 338/338；0.1.10 安装 Core raw/synthetic 两条旅程均为旧 superseded、新 pending、canonical Draft 未提前改写 | P1 |
 | GB-20260831-46 | Native Proposal 无法把 Legacy Contract Proposal 作为 `supersedes_proposal_id` | GB45 的独立消费复现；Arena 旧 Session 未消费已安装修复 | 体验现象成立，非新 Bug | 与 GB45 去重，不重复改码 | 当前源码 1/1；0.1.10 安装 Core raw/synthetic 2/2 通过；Arena 需新 Session 加载 | P1 |
-| GB-20260831-47 | 对话中已明确人工确认，仍必须到 Inbox 重复表达 | GoalBoard Core/Skill 未连接明确对话确认与 GB24 安全预填入口 | 已确认（修正方案） | 已修复源码；不授予 Runtime 人类审批权 | 唯一待决 exact-quote handoff、多个待决失败关闭与 Inbox 预填工程/源码产品旅程通过；已进入 0.1.11 发布候选，真实新 Session 待用户观察 | P0 |
+| GB-20260831-47 | 对话中已明确人工确认，仍必须到 Inbox 重复表达 | Molis Work Core/Skill 未连接明确对话确认与 GB24 安全预填入口 | 已确认（修正方案） | 已修复源码；不授予 Runtime 人类审批权 | 唯一待决 exact-quote handoff、多个待决失败关闭与 Inbox 预填工程/源码产品旅程通过；已进入 0.1.11 发布候选，真实新 Session 待用户观察 | P0 |
 | GB-20260831-48 | Goal Tree 变更落地后不主动召回受影响祖先、消费者与相邻依赖 | Goal Tree materialization 后缺少默认语义复核 handoff | 已确认 | 已修复源码；不自动改树 | 结构应用与 semantic review 分离，影响子图和后续动作写入决定/事件；CGS G3 代表性回归通过，已进入 0.1.11 发布候选 | P1 |
 | GB-20260831-49 | 用户确认双轨主线，但 Goal Tree 将九个结果平铺为一级 Goal | 待核实：战略分组语义未进入规划方法与 Proposal preflight | 分析中 | 成立即做最小防遗漏修复；不自动造文件夹 Goal | 已登记；正在核对 decomposition 方法、narrative/review 与 Web 表达边界 | P1 |
 | GB-20260831-50 | Skill 允许跨仓 `file:///` 登记 UNVERIFIED，但当前 Runtime 仍拒绝 | 待核实：GB34 修复未被当前 Session 消费或安装/运行态不一致 | 分析中 | 按用户要求只分析，暂不修复 | 已登记；待核对 Session 加载版本、安装 Core 与 locator 分支 | P1 |
@@ -127,7 +127,7 @@
 
 | Bug | 当前证据 | 回归结论 |
 | --- | --- | --- |
-| GB01 | v0.1.5 包内 Skill 有“当前消息明确选择则不重复确认”，但 Codex 实际 Skill 仍链接 `goalboard-0.1.1`，没有该规则 | 交付未完成，随 GB16 重开 |
+| GB01 | v0.1.5 包内 Skill 有“当前消息明确选择则不重复确认”，但 Codex 实际 Skill 仍链接 `molis-work-0.1.1`，没有该规则 | 交付未完成，随 GB16 重开 |
 | GB02 | v0.1.5 Core 保留 `completion_blocked / completion_pending` 派生与默认回归；Codex 实际执行参考仍是旧版，不认识直接 `complete` 路径 | Core 未回归，消费者交付随 GB16 重开 |
 | GB03 | 直接调用 v0.1.5 安装产物的 locator 校验器，项目内绝对 `package.json` 返回 `verified` 并规范化为 `project://package.json`；旧 Skill 未说明该格式 | Core 未回归，协议发现性随 GB16 重开 |
 | GB04 | 官方 `service status --json` 在最终服务返回 `running / owned=true`；当前进程已是新版 health，无法再次覆盖旧 health 兼容窗口 | 未发现回归；保留异 PID 安全分支 `UNVERIFIED` |
@@ -139,7 +139,7 @@
 | GB10 | 重新复核发现源码页把 `needs_repair` 的正确 install 路径写成“启用常驻服务”，预览又写成“安装并启动”；现已改成“修复旧配置并重新加载”，computer use 完成整条隔离恢复旅程 | 源码工程与产品实操通过；最终统一安装回归待完成，未知监听者场景仍 `UNVERIFIED` |
 | GB11 | 用 90 秒真实 Claim 启动单一 Run；续租前页面显示“还剩 2 分钟”，原 actor 续租后自动刷新为“还剩 30 分钟”，记录页仍只有同一 active Claim/started Run，并新增单一 `claim.renewed` 事件 | 源码闭环通过；最终统一 Skill 与新 Session 消费仍随 GB16 回归 |
 | GB12 | 真实 G2B 仍显示“待复核”；完整记录确认剩余条件是 `human_decision`，但历史 self-verifier verdict 为 `inconclusive`。源码隔离实操已走到 `waiting_for_human`；复验同时发现 Inbox 曾把 Runtime pass 误写成“本次用户确认已通过”，现按 obligation role 显示为“Runtime 复核”，并明确不能代替用户验收 | 源码工程与产品实操通过；最终统一安装、真实 CGS 历史接棒和用户本人验收仍待完成 |
-| GB13 | 归因仍在 CGS；GoalBoard Core 没有对应实现承诺 | 未开始，不属于“已修复”复核集合 |
+| GB13 | 归因仍在 CGS；Molis Work Core 没有对应实现承诺 | 未开始，不属于“已修复”复核集合 |
 | GB14 | v0.1.5 安装产物的 MCP schema 已对 8 种 kind 使用条件化 payload，并明确 `part_of / depends_on` 方向 | 未发现包内回归；Arena 新 Session 实操仍 `UNVERIFIED` |
 | GB15 | 真实 G2A 的“上下文 → 完成要求”显示“本 Goal 按当前 Contract 已满足，不自动等于父 Goal 完整能力”，并明确历史父 Goal 未记录覆盖 | 防误导文案已在最终 App 可见；新拆树阻断与 CGS Contract 纠偏仍 `UNVERIFIED`，Skill 随 GB16 更新 |
 
@@ -148,23 +148,23 @@
 ## GB-20260828-01：当前消息已明确项目仍被重复确认
 
 **来源**：CGS 新 Session 消费者反馈 1
-**Bug 确认**：已确认，属于 GoalBoard Skill 的当前消息授权识别缺陷
+**Bug 确认**：已确认，属于 Molis Work Skill 的当前消息授权识别缺陷
 **修复决定**：用户已批准
 **修复状态**：2026-08-30 最终收口：0.1.7 App/Core/服务/Skill 已统一安装，fresh MCP 协议和 Skill 资产验证通过；Owner 对修复实现与安装交付验收通过。当前 Session 不会热加载，新 Codex Session 的真实自然语言绑定旅程仍标为 `UNVERIFIED`，不冒充产品实操。
 
-**2026-08-30 复验进展**：已用 computer use 在当前 `/Applications/GoalBoard.app` 打开“全局设置 → AI 与执行工具”。Codex 卡片显示“检测到旧版或不完整的 GoalBoard 接入 · 需要修复”，Runtime 为“未找到可执行文件”，Skill 路径为 `/Users/oreal/.codex/skills/goal-advance`；当前 Session 的 MCP 工具说明虽已包含“当前消息明确命名且唯一匹配时直接 bind”的新规则，但这不能证明一个真实新 Session 会加载并执行同版 Skill。截图：`docs/qa/bug-revalidation/2026-08-30/gb01-current-runtime-incomplete.jpeg`。因此本卡当前只能判定源码工程层存在修复，产品验收失败；需统一安装后创建真实新 Session，分别复测明确唯一匹配、多候选、切换项目和未命名请求。
+**2026-08-30 复验进展**：已用 computer use 在当前 `/Applications/Molis Work.app` 打开“全局设置 → AI 与执行工具”。Codex 卡片显示“检测到旧版或不完整的 Molis Work 接入 · 需要修复”，Runtime 为“未找到可执行文件”，Skill 路径为 `/Users/oreal/.codex/skills/goal-advance`；当前 Session 的 MCP 工具说明虽已包含“当前消息明确命名且唯一匹配时直接 bind”的新规则，但这不能证明一个真实新 Session 会加载并执行同版 Skill。截图：`docs/qa/bug-revalidation/2026-08-30/gb01-current-runtime-incomplete.jpeg`。因此本卡当前只能判定源码工程层存在修复，产品验收失败；需统一安装后创建真实新 Session，分别复测明确唯一匹配、多候选、切换项目和未命名请求。
 
 ### 1. 真实场景
 
-用户因为旧 Session 太乱而新开 Session，并在同一句话中明确要求“继续用 GoalBoard 推进 CGS”。`context_resolve` 找到唯一现有项目 `Content Growth Studio`，但仍返回 `suggested`，消费者按协议必须再次询问是否关联，导致用户在读取 Goal 前被打断。
+用户因为旧 Session 太乱而新开 Session，并在同一句话中明确要求“继续用 Molis Work 推进 CGS”。`context_resolve` 找到唯一现有项目 `Content Growth Studio`，但仍返回 `suggested`，消费者按协议必须再次询问是否关联，导致用户在读取 Goal 前被打断。
 
 ### 2. 事实与归因
 
-可通过“新 Session、无 workspace 默认项目、当前消息明确命名一个现有项目、唯一候选匹配”复现。`suggested` 本身符合 Runtime 安全边界；缺陷在于 Skill 没有把当前消息中已经发生的明确选择转成这一次 `context_bind` 的用户确认。主要归因是 GoalBoard Skill 缺陷，不是 CGS 接入问题，也不是用户误用。
+可通过“新 Session、无 workspace 默认项目、当前消息明确命名一个现有项目、唯一候选匹配”复现。`suggested` 本身符合 Runtime 安全边界；缺陷在于 Skill 没有把当前消息中已经发生的明确选择转成这一次 `context_bind` 的用户确认。主要归因是 Molis Work Skill 缺陷，不是 CGS 接入问题，也不是用户误用。
 
 ### 3. 现有流程的问题
 
-用户先明确说“用 GoalBoard 推进 CGS”，随后还要回答“是否关联 Content Growth Studio”。多出一次同义确认，并把“新 Session 不继承旧授权”误呈现成“当前消息也没被理解”。
+用户先明确说“用 Molis Work 推进 CGS”，随后还要回答“是否关联 Content Growth Studio”。多出一次同义确认，并把“新 Session 不继承旧授权”误呈现成“当前消息也没被理解”。
 
 ### 4. 设计根因与初衷
 
@@ -186,7 +186,7 @@
 
 ### 8. 修复前后体验差异
 
-- **修复前**：用户说“继续用 GoalBoard 推进 CGS” → Runtime 找到唯一 `Content Growth Studio` → 再问一次是否关联 → 用户确认后才继续。
+- **修复前**：用户说“继续用 Molis Work 推进 CGS” → Runtime 找到唯一 `Content Growth Studio` → 再问一次是否关联 → 用户确认后才继续。
 - **修复后**：同一句明确指令直接授权本 Session 绑定唯一匹配项目 → Runtime 继续读取 Available/Contract。遇到多候选、切换项目、新建项目、只说“继续”或没有明确名称时仍会询问。
 
 ### 9. 最小修复范围
@@ -204,7 +204,7 @@
 ## GB-20260828-02：已完成执行被 Available 误导为再次执行
 
 **来源**：CGS 新 Session 消费者反馈 2
-**Bug 确认**：已确认，属于 GoalBoard 派生状态和恢复动作表达缺陷
+**Bug 确认**：已确认，属于 Molis Work 派生状态和恢复动作表达缺陷
 **修复决定**：用户已批准
 **修复状态**：2026-08-30 最终收口：293/293、隔离完整生命周期与最终 0.1.7 构建指纹一致性通过；Owner 最终验收通过。
 
@@ -216,7 +216,7 @@ G2A 已有 completed executor Run、通过的 Evidence、满足要求的 Review 
 
 ### 2. 事实与归因
 
-可用“执行、证据、复核全部完成，但 completion Risk 仍 open”稳定复现。完成判定正确地被 Risk 阻止；错误发生在无活跃 Run/Review 后的派生状态回退，它把剩余门禁误归为 `execution_pending`。主要归因是 GoalBoard 的 Available 派生状态 Bug，不是缺少业务实现，也不是 CGS 误用。历史 Risk 提案物化问题可能解释门禁为何未解除，但不改变 Available 对当前 canonical 事实的错误表达。
+可用“执行、证据、复核全部完成，但 completion Risk 仍 open”稳定复现。完成判定正确地被 Risk 阻止；错误发生在无活跃 Run/Review 后的派生状态回退，它把剩余门禁误归为 `execution_pending`。主要归因是 Molis Work 的 Available 派生状态 Bug，不是缺少业务实现，也不是 CGS 误用。历史 Risk 提案物化问题可能解释门禁为何未解除，但不改变 Available 对当前 canonical 事实的错误表达。
 
 ### 3. 现有流程的问题
 
@@ -224,7 +224,7 @@ G2A 已有 completed executor Run、通过的 Evidence、满足要求的 Review 
 
 ### 4. 设计根因与初衷
 
-GoalBoard 原本不持久化第二套工作状态，而是从 canonical Goal、Run、Evidence、Review、Risk 动态派生，这是为了防止状态副本漂移。completion Risk 也有意不阻止初次执行，因为执行结果本身可能消除风险。缺陷是派生器缺少“执行闭环已经结束、只剩完成门禁”和“所有门禁已解除、应直接完成”两个阶段，于是错误落回执行入口。
+Molis Work 原本不持久化第二套工作状态，而是从 canonical Goal、Run、Evidence、Review、Risk 动态派生，这是为了防止状态副本漂移。completion Risk 也有意不阻止初次执行，因为执行结果本身可能消除风险。缺陷是派生器缺少“执行闭环已经结束、只剩完成门禁”和“所有门禁已解除、应直接完成”两个阶段，于是错误落回执行入口。
 
 ### 5. 当前影响
 
@@ -260,7 +260,7 @@ GoalBoard 原本不持久化第二套工作状态，而是从 canonical Goal、R
 ## GB-20260828-03：项目内绝对路径被误报为项目范围外
 
 **来源**：CGS 新 Session 消费者反馈 3
-**Bug 确认**：已确认，属于 GoalBoard Evidence locator 的设计缺陷；不是旧 workspace 关联污染
+**Bug 确认**：已确认，属于 Molis Work Evidence locator 的设计缺陷；不是旧 workspace 关联污染
 **修复决定**：用户已批准
 **修复状态**：2026-08-30 最终收口：项目内绝对路径与 `repo:`/anchor 已验证，项目外和逃逸 symlink 仍拒绝；0.1.7 已安装，Owner 最终验收通过。
 
@@ -272,15 +272,15 @@ GoalBoard 原本不持久化第二套工作状态，而是从 canonical Goal、R
 
 ### 2. 事实与归因
 
-已用安装版 locator 校验器复现。它在检查 `projectRoot` 之前，对所有绝对路径直接抛出同一个“项目范围外”错误；同一文件改成 `project://data/...` 或 `project://docs/...` 后均返回 `verified`。因此当前案例不是项目 workspace 归属不一致，也不是旧关联被选中；主要归因是 GoalBoard 对绝对路径一刀切拒绝，以及错误文案把“绝对路径不被支持”说成“文件在项目外”。消费者没有猜测内部 `project://` 规范，不构成误用。
+已用安装版 locator 校验器复现。它在检查 `projectRoot` 之前，对所有绝对路径直接抛出同一个“项目范围外”错误；同一文件改成 `project://data/...` 或 `project://docs/...` 后均返回 `verified`。因此当前案例不是项目 workspace 归属不一致，也不是旧关联被选中；主要归因是 Molis Work 对绝对路径一刀切拒绝，以及错误文案把“绝对路径不被支持”说成“文件在项目外”。消费者没有猜测内部 `project://` 规范，不构成误用。
 
 ### 3. 现有流程的问题
 
-Runtime 从 shell 和工具结果自然获得绝对路径，但提交时必须先知道 GoalBoard 的私有相对引用格式并手工改写。失败信息还把正确项目内文件说成项目外，诱导消费者排查错误的 workspace 历史，而不是修正 locator 形式。
+Runtime 从 shell 和工具结果自然获得绝对路径，但提交时必须先知道 Molis Work 的私有相对引用格式并手工改写。失败信息还把正确项目内文件说成项目外，诱导消费者排查错误的 workspace 历史，而不是修正 locator 形式。
 
 ### 4. 设计根因与初衷
 
-原设计只允许项目相对引用，并在 realpath 后阻止 `..`、绝对路径和 symlink 越界，目的是避免 GoalBoard 读取或暴露任意本地文件。这项安全边界必要；缺陷是把“输入表示形式”当成了“访问范围”，没有先把绝对路径规范化后再做项目 containment 检查。
+原设计只允许项目相对引用，并在 realpath 后阻止 `..`、绝对路径和 symlink 越界，目的是避免 Molis Work 读取或暴露任意本地文件。这项安全边界必要；缺陷是把“输入表示形式”当成了“访问范围”，没有先把绝对路径规范化后再做项目 containment 检查。
 
 ### 5. 当前影响
 
@@ -294,12 +294,12 @@ Runtime 从 shell 和工具结果自然获得绝对路径，但提交时必须�
 
 ### 7. 修复必要性与优先级
 
-需要修复，P1，已批准。Evidence 是完成闭环的核心事实，项目内真实文件不应因表示形式失去 verified 状态。该修复保持安全边界，并减少 Runtime 对 GoalBoard 私有 locator 语法的依赖。
+需要修复，P1，已批准。Evidence 是完成闭环的核心事实，项目内真实文件不应因表示形式失去 verified 状态。该修复保持安全边界，并减少 Runtime 对 Molis Work 私有 locator 语法的依赖。
 
 ### 8. 修复前后体验差异
 
 - **修复前**：提交项目内绝对路径 → 立即被误报为项目外 → 用户或 Runtime 改查 workspace 关联，或手工猜成 `project://...`。
-- **修复后**：提交项目内绝对路径 → GoalBoard 以当前 Session workspace 做 realpath containment → 在项目内则规范化并验证，在项目外或经 symlink 逃逸仍明确拒绝。用户不需要改写路径。
+- **修复后**：提交项目内绝对路径 → Molis Work 以当前 Session workspace 做 realpath containment → 在项目内则规范化并验证，在项目外或经 symlink 逃逸仍明确拒绝。用户不需要改写路径。
 
 ### 9. 最小修复范围
 
@@ -316,27 +316,27 @@ Runtime 从 shell 和工具结果自然获得绝对路径，但提交时必须�
 ## GB-20260828-04：同一 LaunchAgent PID 被误报为端口冲突
 
 **来源**：CGS 新 Session 消费者反馈 4
-**Bug 确认**：已确认，属于 GoalBoard Web 服务归属协议的升级兼容缺陷
+**Bug 确认**：已确认，属于 Molis Work Web 服务归属协议的升级兼容缺陷
 **修复决定**：用户已批准
 **修复状态**：2026-08-30 最终收口：0.1.7 服务实操为 `running/owned=true`，监听 PID、LaunchAgent PID 与 health PID 同为 11021；Owner 最终验收通过。
 
-**2026-08-30 复验进展**：定向服务回归 `legacy health without identity is owned only when the listener pid matches the LaunchAgent pid` 通过，并在同一用例中覆盖旧 health 缺身份时同 PID 判 `running`、异 PID 判 `conflict`。当前安装现场的 `service status --json` 返回 `running / owned=true`；LaunchAgent PID、4173 监听 PID 和 `/health` 的 `process_id/service_process_id` 均为 26668。随后用 computer use 从当前 `/Applications/GoalBoard.app` 关闭设置页并进入真实 Content Growth Studio 项目，页面直接可见且没有虚假冲突。截图：`docs/qa/bug-revalidation/2026-08-30/gb04-installed-app-opens.jpeg`。这证明当前混合安装的打开主路径有效，但未重新制造真实 OS 级异 PID 占用，也不能替代后续统一最新版安装升级后的最终实操。
+**2026-08-30 复验进展**：定向服务回归 `legacy health without identity is owned only when the listener pid matches the LaunchAgent pid` 通过，并在同一用例中覆盖旧 health 缺身份时同 PID 判 `running`、异 PID 判 `conflict`。当前安装现场的 `service status --json` 返回 `running / owned=true`；LaunchAgent PID、4173 监听 PID 和 `/health` 的 `process_id/service_process_id` 均为 26668。随后用 computer use 从当前 `/Applications/Molis Work.app` 关闭设置页并进入真实 Content Growth Studio 项目，页面直接可见且没有虚假冲突。截图：`docs/qa/bug-revalidation/2026-08-30/gb04-installed-app-opens.jpeg`。这证明当前混合安装的打开主路径有效，但未重新制造真实 OS 级异 PID 占用，也不能替代后续统一最新版安装升级后的最终实操。
 
 ### 1. 真实场景
 
-用户明确要求“打开 GoalBoard”。已安装 launcher 的 `service status --json` 返回 `state=conflict`，声称 4173 监听者无法证明属于当前 LaunchAgent；但 `launchctl` 的受管 PID、`lsof` 的 4173 监听 PID 都是 65405，HTTP 页面也健康。
+用户明确要求“打开 Molis Work”。已安装 launcher 的 `service status --json` 返回 `state=conflict`，声称 4173 监听者无法证明属于当前 LaunchAgent；但 `launchctl` 的受管 PID、`lsof` 的 4173 监听 PID 都是 65405，HTTP 页面也健康。
 
 ### 2. 事实与归因
 
-当前机器可稳定复现。LaunchAgent receipt/plist 归属已通过，PID 一致，根路径 200；但 `/health` 只返回 `status/project_count/desktop_tui`，缺少当前 status 实现要求的 `service_process_id/process_id`，所以 `healthyOwnedInstance` 为 false，随后只要端口在监听就进入 conflict。主要归因是 GoalBoard 新旧健康协议兼容缺陷，不是第三方占用，也不是 CGS 接管进程。
+当前机器可稳定复现。LaunchAgent receipt/plist 归属已通过，PID 一致，根路径 200；但 `/health` 只返回 `status/project_count/desktop_tui`，缺少当前 status 实现要求的 `service_process_id/process_id`，所以 `healthyOwnedInstance` 为 false，随后只要端口在监听就进入 conflict。主要归因是 Molis Work 新旧健康协议兼容缺陷，不是第三方占用，也不是 CGS 接管进程。
 
 ### 3. 现有流程的问题
 
-普通“打开 GoalBoard”被停止在不存在的所有权冲突上。消费者必须额外运行 `lsof`、`launchctl` 和 HTTP 检查才能证明页面可开；按错误字面操作还可能诱发不必要的停止、重启或修复。
+普通“打开 Molis Work”被停止在不存在的所有权冲突上。消费者必须额外运行 `lsof`、`launchctl` 和 HTTP 检查才能证明页面可开；按错误字面操作还可能诱发不必要的停止、重启或修复。
 
 ### 4. 设计根因与初衷
 
-原设计要求 LaunchAgent receipt/plist 归属、受管 PID 和 `/health` 返回的服务 PID 一致，防止 GoalBoard 因端口可访问就接管或终止第三方服务。这一防线正确。缺陷是升级后把新版 health identity 当成唯一证明方式，没有处理“受管旧进程仍健康但 health payload 尚无新字段”的兼容窗口，也没有使用已知的 LaunchAgent PID 与监听 PID 精确相等作为安全回退。
+原设计要求 LaunchAgent receipt/plist 归属、受管 PID 和 `/health` 返回的服务 PID 一致，防止 Molis Work 因端口可访问就接管或终止第三方服务。这一防线正确。缺陷是升级后把新版 health identity 当成唯一证明方式，没有处理“受管旧进程仍健康但 health payload 尚无新字段”的兼容窗口，也没有使用已知的 LaunchAgent PID 与监听 PID 精确相等作为安全回退。
 
 ### 5. 当前影响
 
@@ -350,7 +350,7 @@ Runtime 从 shell 和工具结果自然获得绝对路径，但提交时必须�
 
 ### 7. 修复必要性与优先级
 
-需要修复，P1，已批准。它位于“打开 GoalBoard”的高频入口，并且错误信息可能引导用户做不必要的服务变更。修复保持未知监听者不接管、不停止的原安全边界。
+需要修复，P1，已批准。它位于“打开 Molis Work”的高频入口，并且错误信息可能引导用户做不必要的服务变更。修复保持未知监听者不接管、不停止的原安全边界。
 
 ### 8. 修复前后体验差异
 
@@ -372,13 +372,13 @@ Runtime 从 shell 和工具结果自然获得绝对路径，但提交时必须�
 ## GB-20260828-05：对话使用 G2A/G2B，Goal Tree 隐藏对应 ID
 
 **来源**：用户截图直接反馈
-**Bug 确认**：已确认最初是 GoalBoard 可引用性设计债；v0.1.5 隐藏编号，v0.1.6 又把完整内部 ID 塞进窄栏并挤没中文标题，Goal 内容没有丢失
+**Bug 确认**：已确认最初是 Molis Work 可引用性设计债；v0.1.5 隐藏编号，v0.1.6 又把完整内部 ID 塞进窄栏并挤没中文标题，Goal 内容没有丢失
 **修复决定**：用户已批准
 **修复状态**：2026-08-30 最终收口：最终安装 App 在真实 CGS、286px 窄栏实操通过；G2A/G2B 可见，同组 G2G 子项使用最短唯一稳定引用且保留中文标题；Owner 最终验收通过。证据：`docs/qa/bug-revalidation/2026-08-30/gb05-final-installed-unique-ids.png`。
 
 **2026-08-30 复验与补修**：用 computer use 在当前安装版打开真实 CGS Goal Tree，默认 286px 栏仍显示 `cgs-g2…` 等被截断的内部 slug，中文标题被明显挤压，确认当前产品未修复；截图：`docs/qa/bug-revalidation/2026-08-30/gb05-installed-full-ids-fail.jpeg`。随后从当前源码启动只读复制的真实 CGS 数据，在默认 310px 栏复验，发现既有短编号实现仍会把 `G2A/G2B` 视觉截成 `G…`，因此历史 355px 结论不足以支持通过。本轮把短编号设为不可压缩、不可省略，标题继续在剩余空间内省略，状态保持可见；同一真实数据的 16 条 Goal 现在能显示完整 `G1/G2/G2A-G2H/G3-G6/G4A`，中文标题仍保留可辨识前缀，完整 ID 继续存在于搜索与悬停信息。修后截图：`docs/qa/bug-revalidation/2026-08-30/gb05-source-short-ids-pass.jpeg`。
 
-**2026-08-30 最终安装态再发现**：在 `/Applications/GoalBoard.app` 0.1.7、Core/Service 0.1.7 的真实 CGS Goal Tree 中，`G2A/G2B/G2C` 已完整显示，但 `cgs-g2g-ai-kol-quality-roster-v2` 及其 8 个 `cgs-g2g-*` 子 Goal 都被同一正则截成 `G2G`。元素“可见”并不等于能够与 Runtime 一一对应；本卡最终产品实操因此回退为未通过。最小补修只调整无显式短号时的确定性消歧，不迁移 Goal ID，不改 CGS 数据；补修、重打包和最终复验正在进行。
+**2026-08-30 最终安装态再发现**：在 `/Applications/Molis Work.app` 0.1.7、Core/Service 0.1.7 的真实 CGS Goal Tree 中，`G2A/G2B/G2C` 已完整显示，但 `cgs-g2g-ai-kol-quality-roster-v2` 及其 8 个 `cgs-g2g-*` 子 Goal 都被同一正则截成 `G2G`。元素“可见”并不等于能够与 Runtime 一一对应；本卡最终产品实操因此回退为未通过。最小补修只调整无显式短号时的确定性消歧，不迁移 Goal ID，不改 CGS 数据；补修、重打包和最终复验正在进行。
 
 **2026-08-30 补修工程验证**：新增同号组回归，保留唯一 `G2A`，并把真实 `cgs-g2g-*` 样例稳定区分为 `G2G`、`G2G · V2`、`G2G · SCHEMA`、`G2G · INTEGRATION`、`G2G · DOUYIN`。受限沙箱内单跑 Web 套件时，新增用例通过，20 个既有服务器用例因 SQLite 临时目录不可写返回 `unable to open database file`；在正常本机权限下重跑完整 `pnpm test` 为 293/293 全绿。产品实操仍待重打包、重装后的真实 CGS 复验，不能据此恢复“已通过”。
 
@@ -435,7 +435,7 @@ Goal Tree 最初为降低视觉噪音和提高窄栏密度而隐藏机器 ID；�
 ## GB-20260828-06：已绑定 Session 的生命周期调用偶发误报未连接
 
 **来源**：CGS 新 Session 消费者反馈 5
-**Bug 确认**：已确认 GoalBoard 的连接缓存与恢复语义存在缺陷；现场调用级 Session metadata 的具体断点尚无原始日志
+**Bug 确认**：已确认 Molis Work 的连接缓存与恢复语义存在缺陷；现场调用级 Session metadata 的具体断点尚无原始日志
 **修复决定**：用户已批准
 **修复状态**：2026-08-30 最终收口：连接刷新、同一幂等键安全重试和明确 recovery action 工程验证通过，0.1.7 已安装；真实新 Codex Session 连续推进仍标为 `UNVERIFIED`。
 
@@ -443,11 +443,11 @@ Goal Tree 最初为降低视觉噪音和提高窄栏密度而隐藏机器 ID；�
 
 ### 1. 真实场景
 
-同一个 Codex task、同一个 Content Growth Studio 工作目录中，消费者刚成功完成并 release `cgs-g2b-editorial-decision` 的计划 Claim，随即调用 `goalboard_v1_select_goal` 领取同一 Goal 的实现 Run，却收到“尚未连接项目”。消费者没有 bind，只调用一次 `context_resolve`，马上又得到同一项目 `status=bound / next_action=continue`。
+同一个 Codex task、同一个 Content Growth Studio 工作目录中，消费者刚成功完成并 release `cgs-g2b-editorial-decision` 的计划 Claim，随即调用 `molis_work_v1_select_goal` 领取同一 Goal 的实现 Run，却收到“尚未连接项目”。消费者没有 bind，只调用一次 `context_resolve`，马上又得到同一项目 `status=bound / next_action=continue`。
 
 ### 2. 事实与归因
 
-持久化 Session binding 没有丢失，否则后续只读 resolve 不可能在没有 bind 的情况下返回 bound。源码中，生命周期调用只检查 MCP 进程内单槽 `runtimeConnection`：如果当前调用从 `_meta` 得到的 Session ID 与缓存 key 不同或缺失，就先清空连接并直接报 `mcp.connection_incomplete`；`context_resolve` 则重新读取 catalog 的持久化 binding 并恢复缓存。已用“同一已绑定 Session 的一次调用缺少 threadId，下一次 resolve 恢复 threadId”稳定复现完全相同的 `成功 → 尚未连接 → resolve=bound` 序列。主要归因是 GoalBoard 把“进程连接缓存需要刷新”与“Session 没有项目 binding”混成同一个错误。调用级 metadata 断续可能来自 Codex/MCP transport，现场具体是哪一个 `_meta` 字段缺失或变化仍证据不足，但不影响 GoalBoard 错误结论与恢复表达是缺陷。
+持久化 Session binding 没有丢失，否则后续只读 resolve 不可能在没有 bind 的情况下返回 bound。源码中，生命周期调用只检查 MCP 进程内单槽 `runtimeConnection`：如果当前调用从 `_meta` 得到的 Session ID 与缓存 key 不同或缺失，就先清空连接并直接报 `mcp.connection_incomplete`；`context_resolve` 则重新读取 catalog 的持久化 binding 并恢复缓存。已用“同一已绑定 Session 的一次调用缺少 threadId，下一次 resolve 恢复 threadId”稳定复现完全相同的 `成功 → 尚未连接 → resolve=bound` 序列。主要归因是 Molis Work 把“进程连接缓存需要刷新”与“Session 没有项目 binding”混成同一个错误。调用级 metadata 断续可能来自 Codex/MCP transport，现场具体是哪一个 `_meta` 字段缺失或变化仍证据不足，但不影响 Molis Work 错误结论与恢复表达是缺陷。
 
 ### 3. 现有流程的问题
 
@@ -455,7 +455,7 @@ Goal Tree 最初为降低视觉噪音和提高窄栏密度而隐藏机器 ID；�
 
 ### 4. 设计根因与初衷
 
-GoalBoard 用调用级 Session key 隔离同一 MCP 进程中的不同 Runtime 会话，并在 key 不匹配时清空最后一个项目连接，原本是为了防止 Session B 误用 Session A 最近打开的数据库。新进程第一次做生命周期写入前必须先 resolve 的边界也防止静默恢复旧项目。这些初衷正确。缺陷是实现只有一个“最近连接”缓存槽，且缓存 miss、Session metadata 不连续、其他 Session 切换和真正未绑定全部落到同一 `connection_incomplete`；错误没有报告缓存层与 catalog 层的差异，也没有提供无需用户授权的恢复动作。
+Molis Work 用调用级 Session key 隔离同一 MCP 进程中的不同 Runtime 会话，并在 key 不匹配时清空最后一个项目连接，原本是为了防止 Session B 误用 Session A 最近打开的数据库。新进程第一次做生命周期写入前必须先 resolve 的边界也防止静默恢复旧项目。这些初衷正确。缺陷是实现只有一个“最近连接”缓存槽，且缓存 miss、Session metadata 不连续、其他 Session 切换和真正未绑定全部落到同一 `connection_incomplete`；错误没有报告缓存层与 catalog 层的差异，也没有提供无需用户授权的恢复动作。
 
 ### 5. 当前影响
 
@@ -483,7 +483,7 @@ GoalBoard 用调用级 Session key 隔离同一 MCP 进程中的不同 Runtime �
 ### 10. 验收边界
 
 - **工程验证**：2026-08-30 两条定向 MCP 回归 2/2 通过，覆盖结构化恢复、resolve/retry、不同 Session 隔离和真正未绑定边界。历史整仓门禁 261/261、TypeScript 和 Skill 校验通过；最终整合状态的全量门禁尚未运行。
-- **产品实操**：`UNVERIFIED`。当前 Codex 接入仍不完整；需在统一安装版复现“计划 Claim release → 同 Goal executor select”，确认消费者无需用户介入即可恢复，并检查真实换 Session 仍不能继承连接缓存。该问题属于 MCP/Skill 消费路径，GoalBoard Web 页面本身没有可替代这段 Session 身份时序的点击验收。
+- **产品实操**：`UNVERIFIED`。当前 Codex 接入仍不完整；需在统一安装版复现“计划 Claim release → 同 Goal executor select”，确认消费者无需用户介入即可恢复，并检查真实换 Session 仍不能继承连接缓存。该问题属于 MCP/Skill 消费路径，Molis Work Web 页面本身没有可替代这段 Session 身份时序的点击验收。
 - **Owner 最终验收**：实现与安装交付通过；真实新 Session 的消费者行为仍为 `UNVERIFIED`。
 
 ---
@@ -491,11 +491,11 @@ GoalBoard 用调用级 Session key 隔离同一 MCP 进程中的不同 Runtime �
 ## GB-20260828-07：内嵌 Node 测试把 Homebrew Node 误当成可搬移运行时
 
 **来源**：本次 v0.1.3 发布前整仓门禁
-**Bug 确认**：非产品 Bug；属于 GoalBoard 测试夹具的宿主可移植性缺陷
+**Bug 确认**：非产品 Bug；属于 Molis Work 测试夹具的宿主可移植性缺陷
 **修复决定**：作为本次打包的必要发布门禁修复
 **修复状态**：2026-08-30 最终收口：嵌入 Runtime、293/293、打包 E2E 与最终安装 Core 通过；Owner 最终验收通过。本卡是发布门禁缺陷，不是用户功能 Bug。
 
-**2026-08-30 复验进展**：定向安装测试 `bundled Node launchers use the installed runtime when PATH has no Node` 通过。正式打包脚本仍从 nodejs.org 下载指定架构 Node 22.23.2、按官方 `SHASUMS256.txt` 校验，并在打包前用内嵌 Node 实际导入 `better-sqlite3/node-pty/ws`；没有退回复制任意宿主 `process.execPath`。当前已安装 0.1.6 Runtime 的 `node --version` 为 v22.23.2，`otool -L` 只列系统 Framework/动态库；把 PATH 限制为 `/usr/bin:/bin` 后，已安装 `goalboard --help` 仍能正常运行。由此再次确认本卡主要是测试夹具缺陷，不是 GoalBoard 用户交互 Bug。新的统一发布包尚未生成，仍需在最终包重复同一门禁。
+**2026-08-30 复验进展**：定向安装测试 `bundled Node launchers use the installed runtime when PATH has no Node` 通过。正式打包脚本仍从 nodejs.org 下载指定架构 Node 22.23.2、按官方 `SHASUMS256.txt` 校验，并在打包前用内嵌 Node 实际导入 `better-sqlite3/node-pty/ws`；没有退回复制任意宿主 `process.execPath`。当前已安装 0.1.6 Runtime 的 `node --version` 为 v22.23.2，`otool -L` 只列系统 Framework/动态库；把 PATH 限制为 `/usr/bin:/bin` 后，已安装 `molis-work --help` 仍能正常运行。由此再次确认本卡主要是测试夹具缺陷，不是 Molis Work 用户交互 Bug。新的统一发布包尚未生成，仍需在最终包重复同一门禁。
 
 ### 1. 真实场景
 
@@ -503,7 +503,7 @@ GoalBoard 用调用级 Session key 隔离同一 MCP 进程中的不同 Runtime �
 
 ### 2. 事实与归因
 
-可稳定复现。测试直接复制当前 `process.execPath`；本机该文件来自 Homebrew Node 25.9.0，`otool -L` 证明它依赖 Homebrew 的 `libnode` 及多项动态库，单独复制后本来就不能运行。GoalBoard 发布脚本实际下载 Node 官方 macOS 归档；当前已准备的官方 Node 22.23.2 运行时只依赖系统 Framework/动态库，并能独立执行。因此这是测试夹具把宿主 Node 错当成可分发 Node 的缺陷，不是新包运行时缺文件，也不是六张体验 Bug 的回归。
+可稳定复现。测试直接复制当前 `process.execPath`；本机该文件来自 Homebrew Node 25.9.0，`otool -L` 证明它依赖 Homebrew 的 `libnode` 及多项动态库，单独复制后本来就不能运行。Molis Work 发布脚本实际下载 Node 官方 macOS 归档；当前已准备的官方 Node 22.23.2 运行时只依赖系统 Framework/动态库，并能独立执行。因此这是测试夹具把宿主 Node 错当成可分发 Node 的缺陷，不是新包运行时缺文件，也不是六张体验 Bug 的回归。
 
 ### 3. 现有流程的问题
 
@@ -511,7 +511,7 @@ GoalBoard 用调用级 Session key 隔离同一 MCP 进程中的不同 Runtime �
 
 ### 4. 设计根因与初衷
 
-测试原本想同时证明两件事：GoalBoard launcher 使用安装目录内的 Node，而不是依赖 PATH；被复制的 Node 本身也是可搬移的官方运行时。直接复制 `process.execPath` 在当时宿主上碰巧覆盖二者，但把外部 Node 发行方式纳入了 GoalBoard 安装器单测的责任范围。
+测试原本想同时证明两件事：Molis Work launcher 使用安装目录内的 Node，而不是依赖 PATH；被复制的 Node 本身也是可搬移的官方运行时。直接复制 `process.execPath` 在当时宿主上碰巧覆盖二者，但把外部 Node 发行方式纳入了 Molis Work 安装器单测的责任范围。
 
 ### 5. 当前影响
 
@@ -519,7 +519,7 @@ GoalBoard 用调用级 Session key 隔离同一 MCP 进程中的不同 Runtime �
 
 ### 6. 复杂度审查
 
-- **当前必须**：测试只验证 GoalBoard 自己的责任——launcher 在 PATH 没有 Node 时仍调用已安装的 `runtime/node`；正式构建继续实际执行下载并校验过的官方 Node。
+- **当前必须**：测试只验证 Molis Work 自己的责任——launcher 在 PATH 没有 Node 时仍调用已安装的 `runtime/node`；正式构建继续实际执行下载并校验过的官方 Node。
 - **可以延后**：在 CI 增加 `otool`/签名层面的官方 Node 依赖快照；覆盖更多 Node 发行方式的兼容矩阵。
 - **应当删除**：把任意宿主 `process.execPath` 复制后视为可搬移 Node 的测试假设；把 Homebrew 动态库带入正式包的补偿方案。
 
@@ -529,7 +529,7 @@ GoalBoard 用调用级 Session key 隔离同一 MCP 进程中的不同 Runtime �
 
 ### 8. 修复前后体验差异
 
-- **修复前**：发布者运行门禁 → Homebrew Node 被复制到临时 release → 因缺动态库失败 → 被误导为 GoalBoard 新包不可运行。
+- **修复前**：发布者运行门禁 → Homebrew Node 被复制到临时 release → 因缺动态库失败 → 被误导为 Molis Work 新包不可运行。
 - **修复后**：夹具用绝对路径 Node 代理模拟已安装 runtime → PATH 中无 Node 时三个 launcher 仍从 release 的 `runtime/node` 入口启动；正式包的自包含性由官方 Node 下载、校验和实际执行链路负责。
 
 ### 9. 最小修复范围
@@ -547,7 +547,7 @@ GoalBoard 用调用级 Session key 隔离同一 MCP 进程中的不同 Runtime �
 ## GB-20260829-08：租约过期后 Contract 同时显示失效与 active/started
 
 **来源**：CGS G2B 主线消费者反馈 6
-**Bug 确认**：已确认，属于 GoalBoard 租约派生状态、物化时机与恢复动作不一致
+**Bug 确认**：已确认，属于 Molis Work 租约派生状态、物化时机与恢复动作不一致
 **修复决定**：用户已批准
 **修复状态**：2026-08-30 最终收口：过期 Claim/Run 的规范化投影、明确 next action、旧 Run 收束和 Web 展示工程/产品实操通过；0.1.7 已安装，Owner 最终验收通过。
 
@@ -557,7 +557,7 @@ executor 的 Claim 租约过期后，消费者读取同一 Goal 的 Contract。�
 
 ### 2. 事实与归因
 
-源码可确定性复现。`deriveGoalWorkState` 会按 `expires_at > now` 过滤 Claim，所以顶层已经视租约失效；原始 Contract 明细直接返回数据库记录，而 `expirePastClaims` 只在下一次 `claimGoal` 时把旧 Claim 物化为 `expired` 并把 Run 终结为 `abandoned`。更严重的是，`reportRun` 在新领取发生前没有检查 Claim 是否已经超时，旧执行者仍可能提交 `completed`；如果另一执行者先领取，旧 Run 又会先被自动 abandoned。结果取决于调用顺序。主要归因是 GoalBoard 生命周期一致性 Bug，不是 CGS 误用；保留历史 Claim/Run 本身是预期行为，错误在于失效语义和写权限没有在所有接口上统一。
+源码可确定性复现。`deriveGoalWorkState` 会按 `expires_at > now` 过滤 Claim，所以顶层已经视租约失效；原始 Contract 明细直接返回数据库记录，而 `expirePastClaims` 只在下一次 `claimGoal` 时把旧 Claim 物化为 `expired` 并把 Run 终结为 `abandoned`。更严重的是，`reportRun` 在新领取发生前没有检查 Claim 是否已经超时，旧执行者仍可能提交 `completed`；如果另一执行者先领取，旧 Run 又会先被自动 abandoned。结果取决于调用顺序。主要归因是 Molis Work 生命周期一致性 Bug，不是 CGS 误用；保留历史 Claim/Run 本身是预期行为，错误在于失效语义和写权限没有在所有接口上统一。
 
 ### 3. 现有流程的问题
 
@@ -601,17 +601,17 @@ executor 的 Claim 租约过期后，消费者读取同一 Goal 的 Contract。�
 ## GB-20260829-09：`repo:` 项目内 Evidence 被降级且没有可修正格式
 
 **来源**：CGS G2B 主线消费者反馈 7
-**Bug 确认**：确认是 GoalBoard locator 协议可发现性和恢复提示设计债；不是现有校验器误判
+**Bug 确认**：确认是 Molis Work locator 协议可发现性和恢复提示设计债；不是现有校验器误判
 **修复决定**：用户已批准
 **修复状态**：2026-08-30 最终收口：`repo:` 文件与 Markdown anchor 已验证并规范化，错误返回推荐格式；0.1.7 已安装，Owner 最终验收通过。
 
 ### 1. 真实场景
 
-消费者在 Content Growth Studio 的 executor Run 中提交两条真实存在的 Markdown 证据，locator 分别为 `repo:docs/reviews/2026-08-29-g2b-codex-review.md#engineering-verification` 和 `repo:docs/reviews/2026-08-29-g2b-codex-review.md#browser-assisted-product-checks`。GoalBoard 将二者保存为 `UNVERIFIED`，只返回“不透明或外部 locator”，没有告诉消费者应该改成普通相对路径还是 `project://`。
+消费者在 Content Growth Studio 的 executor Run 中提交两条真实存在的 Markdown 证据，locator 分别为 `repo:docs/reviews/2026-08-29-g2b-codex-review.md#engineering-verification` 和 `repo:docs/reviews/2026-08-29-g2b-codex-review.md#browser-assisted-product-checks`。Molis Work 将二者保存为 `UNVERIFIED`，只返回“不透明或外部 locator”，没有告诉消费者应该改成普通相对路径还是 `project://`。
 
 ### 2. 事实与归因
 
-源码可确定性复现。当前校验器明确只把普通相对路径、`project://` 和位于 canonical workspace 内的绝对路径当作可验证项目文件；除 HTTP 和 `project://` 外，任何带 URI scheme 的值都会作为不透明 locator 保留。`repo:` 从未被声明为支持格式，因此不是校验器违反当前协议；但 MCP 工具说明只说“预检当前项目内文件与 Markdown anchor”，没有在 `locator` 参数旁列出支持格式，失败结果也没有返回可修正示例。消费者使用常见的 `repo:` 表达具有合理性。主要归因是 GoalBoard 的协议可发现性与恢复设计债，不是 CGS 误用，也不是 workspace 归属错误。
+源码可确定性复现。当前校验器明确只把普通相对路径、`project://` 和位于 canonical workspace 内的绝对路径当作可验证项目文件；除 HTTP 和 `project://` 外，任何带 URI scheme 的值都会作为不透明 locator 保留。`repo:` 从未被声明为支持格式，因此不是校验器违反当前协议；但 MCP 工具说明只说“预检当前项目内文件与 Markdown anchor”，没有在 `locator` 参数旁列出支持格式，失败结果也没有返回可修正示例。消费者使用常见的 `repo:` 表达具有合理性。主要归因是 Molis Work 的协议可发现性与恢复设计债，不是 CGS 误用，也不是 workspace 归属错误。
 
 ### 3. 现有流程的问题
 
@@ -619,7 +619,7 @@ Evidence 已经不可变地以 UNVERIFIED 写入后，消费者才知道格式�
 
 ### 4. 设计根因与初衷
 
-GoalBoard 把未知 scheme 当作不透明外部 locator，是为了不调用任意自定义协议、不把 URL 或命令误当成本地文件，也避免路径逃逸。内部使用 `project://` 是为了让存储记录不暴露机器绝对路径并能稳定跟随 workspace。这个安全边界合理；缺口是输入协议没有就近说明，且对可以安全映射到当前项目的 `repo:` 常见别名没有规范化或修正提示。
+Molis Work 把未知 scheme 当作不透明外部 locator，是为了不调用任意自定义协议、不把 URL 或命令误当成本地文件，也避免路径逃逸。内部使用 `project://` 是为了让存储记录不暴露机器绝对路径并能稳定跟随 workspace。这个安全边界合理；缺口是输入协议没有就近说明，且对可以安全映射到当前项目的 `repo:` 常见别名没有规范化或修正提示。
 
 ### 5. 当前影响
 
@@ -647,7 +647,7 @@ GoalBoard 把未知 scheme 当作不透明外部 locator，是为了不调用任
 ### 10. 验收边界
 
 - **工程验证**：2026-08-30 重新验收通过。真实项目内 `repo:` Markdown 文件和 anchor 一次验证成功并统一存成 `project://`；`..` 逃逸被拒绝，其他 scheme 保持 UNVERIFIED；MCP schema 直接列出相对路径、`repo:`、`project://` 和 canonical workspace 绝对路径示例。TypeScript 与定向 V1/MCP 2/2 通过，GB08 后正常本机权限下 Web 全量 44/44 同时通过。
-- **产品实操**：源码构建通过。以 GoalBoard 真实仓库 `repo:README.md#GoalBoard` 提交 inspection Evidence，返回 `verified`、规范 locator=`project://README.md#GoalBoard` 和 workspace=`goalboard-source`；computer use 在“记录 → 执行与检查”看到“当前有效 / 已验证”、规范 locator、anchor 验证理由和 1/1 完成标准。项目引用 API 再以该 Evidence ID 打开真实 README 返回 HTTP 200 与 `# GoalBoard` 正文。截图：`docs/qa/bug-revalidation/2026-08-30/gb09-repo-locator-verified.jpeg`。Chrome 直接打开一次性 temp fixture 时出现过 `unable to open database file`，同端点 curl 与正常权限 Web 全量测试均通过；因此不把该临时服务器现象算成最终 App 打开验收。
+- **产品实操**：源码构建通过。以 Molis Work 真实仓库 `repo:README.md#Molis Work` 提交 inspection Evidence，返回 `verified`、规范 locator=`project://README.md#Molis Work` 和 workspace=`molis-work-source`；computer use 在“记录 → 执行与检查”看到“当前有效 / 已验证”、规范 locator、anchor 验证理由和 1/1 完成标准。项目引用 API 再以该 Evidence ID 打开真实 README 返回 HTTP 200 与 `# Molis Work` 正文。截图：`docs/qa/bug-revalidation/2026-08-30/gb09-repo-locator-verified.jpeg`。Chrome 直接打开一次性 temp fixture 时出现过 `unable to open database file`，同端点 curl 与正常权限 Web 全量测试均通过；因此不把该临时服务器现象算成最终 App 打开验收。
 - **Owner 最终验收**：通过。协议、真实项目 Evidence 读取与边界回归已覆盖；用户本人易用性仍为 `UNVERIFIED`。
 
 ---
@@ -655,17 +655,17 @@ GoalBoard 把未知 scheme 当作不透明外部 locator，是为了不调用任
 ## GB-20260829-10：升级后的旧服务配置允许 restart 但无法完成修复
 
 **来源**：v0.1.3 本机升级与安装实操
-**Bug 确认**：已确认，属于 GoalBoard Web 服务恢复动作和状态机不一致
+**Bug 确认**：已确认，属于 Molis Work Web 服务恢复动作和状态机不一致
 **修复决定**：用户已批准，P1 修复
 **修复状态**：2026-08-30 最终收口：隔离 needs_repair 旅程、修复动作和最终受管服务健康通过；Owner 最终验收通过。未知第三方监听者的保守不接管分支仍为安全边界，不主动制造实机冲突。
 
 ### 1. 真实场景
 
-用户把 GoalBoard App/Core 从 0.1.2 升级到 0.1.3。新版 `service status` 正确识别旧 LaunchAgent 归属，但因为 plist 的 PATH 仍引用旧 release，返回 `state=needs_repair`。随后执行安装结果中提供的 `service restart --confirm`，命令先完成受控停止和启动，却因 plist 没有被重写而再次得到 `needs_repair`，最终以失败退出。
+用户把 Molis Work App/Core 从 0.1.2 升级到 0.1.3。新版 `service status` 正确识别旧 LaunchAgent 归属，但因为 plist 的 PATH 仍引用旧 release，返回 `state=needs_repair`。随后执行安装结果中提供的 `service restart --confirm`，命令先完成受控停止和启动，却因 plist 没有被重写而再次得到 `needs_repair`，最终以失败退出。
 
 ### 2. 事实与归因
 
-当前机器已稳定复现。0.1.3 安装前旧服务为受管且健康；Core 升级后 `status=needs_repair`；`service restart` 返回 `service.command_failed`，并自动保持原运行状态；不改其他文件而执行 `service install --confirm` 后，plist 与 receipt 被安全更新，服务进入 `running`，LaunchAgent、监听端口和 health PID 一致。源码也显示 `restart` 对 owned 的 `needs_repair` 返回 `ready`，但实现只重载现有 plist，不会写入 expected plist。主要归因是 GoalBoard 服务状态机缺陷，不是第三方进程冲突，也不是用户误用。
+当前机器已稳定复现。0.1.3 安装前旧服务为受管且健康；Core 升级后 `status=needs_repair`；`service restart` 返回 `service.command_failed`，并自动保持原运行状态；不改其他文件而执行 `service install --confirm` 后，plist 与 receipt 被安全更新，服务进入 `running`，LaunchAgent、监听端口和 health PID 一致。源码也显示 `restart` 对 owned 的 `needs_repair` 返回 `ready`，但实现只重载现有 plist，不会写入 expected plist。主要归因是 Molis Work 服务状态机缺陷，不是第三方进程冲突，也不是用户误用。
 
 ### 3. 现有流程的问题
 
@@ -701,7 +701,7 @@ GoalBoard 把未知 scheme 当作不透明外部 locator，是为了不调用任
 ### 10. 验收边界
 
 - **工程验证**：2026-08-30 重新验收通过。`needs_repair + restart` 返回 `conflict / next_action=service_install` 且零 launchctl 修改；`install` 计划明确输出“准备修复旧配置并重新加载”与对应确认语，完成后进入 `running`。TypeScript 检查和正常本机权限下 service/Web 全量 67/67 通过；沙箱内曾有 17 项因临时 SQLite `unable to open database file` 失败，换正常权限后全部通过，未把环境假失败隐去。普通 running restart、外部端口冲突、失败回滚和安装升级指引均在本轮全量回归中覆盖。
-- **产品实操**：源码构建通过。computer use 在隔离 GoalBoard Home 中先看到“需要修复 / 修复常驻服务”，未出现 restart；点击后预览明确“修复旧配置并重新加载”，确认后页面刷新为“运行中”，动作恢复为正常的“重启 / 停止 / 移除”。截图：`docs/qa/bug-revalidation/2026-08-30/gb10-repair-preview.jpeg`、`gb10-repair-completed.jpeg`。此前真实 0.1.3 → 0.1.4 服务恢复链仍是有效补充证据；真实未知/异 PID 监听者场景保持 `UNVERIFIED`。
+- **产品实操**：源码构建通过。computer use 在隔离 Molis Work Home 中先看到“需要修复 / 修复常驻服务”，未出现 restart；点击后预览明确“修复旧配置并重新加载”，确认后页面刷新为“运行中”，动作恢复为正常的“重启 / 停止 / 移除”。截图：`docs/qa/bug-revalidation/2026-08-30/gb10-repair-preview.jpeg`、`gb10-repair-completed.jpeg`。此前真实 0.1.3 → 0.1.4 服务恢复链仍是有效补充证据；真实未知/异 PID 监听者场景保持 `UNVERIFIED`。
 - **Owner 最终验收**：主闭环通过并已进入 0.1.7；最终服务健康。未再次破坏当前 LaunchAgent 制造旧配置，异常分支由隔离实操覆盖。
 
 ---
@@ -709,7 +709,7 @@ GoalBoard 把未知 scheme 当作不透明外部 locator，是为了不调用任
 ## GB-20260829-11：活跃长任务无续租入口，执行中静默过期
 
 **来源**：CGS G2B executor + Grok 实现 + Codex 独立 review 消费者反馈
-**Bug 确认**：已确认，属于 GoalBoard 租约续期与剩余时间可见性的设计缺陷；不是 GB08 的过期后展示冲突重复项
+**Bug 确认**：已确认，属于 Molis Work 租约续期与剩余时间可见性的设计缺陷；不是 GB08 的过期后展示冲突重复项
 **修复决定**：用户已于 2026-08-29 批准修复
 **修复状态**：2026-08-30 最终收口：同一 Claim/Run 续租、剩余时间提示和单一 renewal event 已实操；0.1.7 已安装，Owner 最终验收通过。
 
@@ -719,11 +719,11 @@ GoalBoard 把未知 scheme 当作不透明外部 locator，是为了不调用任
 
 ### 2. 事实与归因
 
-真实 CGS 流程已发生。当前实现只在领取时写一次 `expires_at`；Claim schema 虽保留 `renewed_at`，但 Coordinator、MCP Runtime surface、Skill 和 Web 都没有续租操作，也没有任何代码写入该字段。Skill 要求省略 `lease_seconds` 以采用动态策略，显式值只能缩短，不能超过当前 `max_lease_seconds`。到期后 Available 按规范把 Goal 重新开放，GB08 已让旧 Claim/Run 清楚投影为 expired/abandoned；因此“过期后怎么恢复”已经修复，本卡缺陷是“持续有真实进展的工作在过期前没有续期和预警路径”。主要归因是 GoalBoard 生命周期设计缺口，不是 CGS 误用，也不是代理停工。
+真实 CGS 流程已发生。当前实现只在领取时写一次 `expires_at`；Claim schema 虽保留 `renewed_at`，但 Coordinator、MCP Runtime surface、Skill 和 Web 都没有续租操作，也没有任何代码写入该字段。Skill 要求省略 `lease_seconds` 以采用动态策略，显式值只能缩短，不能超过当前 `max_lease_seconds`。到期后 Available 按规范把 Goal 重新开放，GB08 已让旧 Claim/Run 清楚投影为 expired/abandoned；因此“过期后怎么恢复”已经修复，本卡缺陷是“持续有真实进展的工作在过期前没有续期和预警路径”。主要归因是 Molis Work 生命周期设计缺口，不是 CGS 误用，也不是代理停工。
 
 ### 3. 现有流程的问题
 
-消费者只能在领取时获得一个固定截止时间，之后没有续租、心跳或临近到期的明确动作。长任务在用户可见层仍然持续推进，GoalBoard 却会静默撤销原 Run 的写权限。为了继续登记 Evidence 和 Review，消费者必须重新领取并创建新 Run；实现产出属于旧 Run，验收记录属于新 Run，连续性被人为切断。更认真地做独立 review 反而更容易跨过租约，形成“执行越完整，历史越割裂”的反向激励。
+消费者只能在领取时获得一个固定截止时间，之后没有续租、心跳或临近到期的明确动作。长任务在用户可见层仍然持续推进，Molis Work 却会静默撤销原 Run 的写权限。为了继续登记 Evidence 和 Review，消费者必须重新领取并创建新 Run；实现产出属于旧 Run，验收记录属于新 Run，连续性被人为切断。更认真地做独立 review 反而更容易跨过租约，形成“执行越完整，历史越割裂”的反向激励。
 
 ### 4. 设计根因与初衷
 
@@ -764,7 +764,7 @@ GoalBoard 把未知 scheme 当作不透明外部 locator，是为了不调用任
 ## GB-20260829-12：Runtime 反复领取只剩人工判断的复核
 
 **来源**：CGS G2B self_verifier 消费者反馈；Review `review-ad251867-5c49-4fab-8806-f98fcb9a3d93`
-**Bug 确认**：已确认，属于 GoalBoard Review obligation 条件路由与人工等待状态缺陷；不是 CGS 误用，也不是 `inconclusive` verdict 本身的缺陷
+**Bug 确认**：已确认，属于 Molis Work Review obligation 条件路由与人工等待状态缺陷；不是 CGS 误用，也不是 `inconclusive` verdict 本身的缺陷
 **修复决定**：用户已于 2026-08-29 批准修复
 **修复状态**：2026-08-30 最终收口：最终安装 App 的真实 G4A 状态显示 `waiting_for_human`，Runtime 复核明确不能代替用户验收，Runtime 不再重复领取；Owner 对产品交接验收通过，用户本人验收仍 pending。
 
@@ -774,7 +774,7 @@ GoalBoard 把未知 scheme 当作不透明外部 locator，是为了不调用任
 
 ### 2. 事实与归因
 
-源码可以确定性解释并复现这条路径。`ensureReviewObligations` 会把 Goal 的全部 acceptance criterion ID 原样写进每一种 Review obligation，不区分 `decision_method`；只有独立的 `policy.human_approval=true` 才会创建 `human_approver` obligation，存在 `human_decision` criterion 本身不会创建人工门禁。`inconclusive` 按现有状态机不会满足 obligation，Explain 又只检查同角色是否仍有 pending obligation，不读取 criterion 的决策主体，也不解析上一次 reasoning，于是继续返回 ready。主要归因是 GoalBoard 的 obligation 路由与工作状态派生缺陷，不是 CGS 接入问题。保留 `inconclusive` 的可重试语义属于预期行为。
+源码可以确定性解释并复现这条路径。`ensureReviewObligations` 会把 Goal 的全部 acceptance criterion ID 原样写进每一种 Review obligation，不区分 `decision_method`；只有独立的 `policy.human_approval=true` 才会创建 `human_approver` obligation，存在 `human_decision` criterion 本身不会创建人工门禁。`inconclusive` 按现有状态机不会满足 obligation，Explain 又只检查同角色是否仍有 pending obligation，不读取 criterion 的决策主体，也不解析上一次 reasoning，于是继续返回 ready。主要归因是 Molis Work 的 obligation 路由与工作状态派生缺陷，不是 CGS 接入问题。保留 `inconclusive` 的可重试语义属于预期行为。
 
 ### 3. 现有流程的问题
 
@@ -807,13 +807,13 @@ Runtime 已完成所有自己有权完成的复核，却没有一个规范动作
 
 ### 9. 最小修复范围
 
-修改 Review obligation 的 criterion scope 派生、Goal 工作状态与 Available/Explain 的动作路由，并补 Web/MCP/Skill 的人工等待文案和入口说明。复用现有 `human_approver` 权限防线，新增 `waiting_for_human` 工作状态；对外返回机器可读的 `review.user_approval_required`、具体 `criterion_ids`、`obligation_ids` 和 `next_action=open_goalboard`。不解析 reasoning，不自动通过人工条件，不改变普通 `inconclusive` 对 Runtime 可判定条件的重试语义。历史混合 obligation 在下一次安全的 Review 领取点幂等拆分；旧 `inconclusive` 不能从自由文本安全推断为 pass，因此历史数据可能需要一次显式 Runtime 复核后才进入人工等待。不删除既有 Review 记录，回滚不需要还原用户数据。
+修改 Review obligation 的 criterion scope 派生、Goal 工作状态与 Available/Explain 的动作路由，并补 Web/MCP/Skill 的人工等待文案和入口说明。复用现有 `human_approver` 权限防线，新增 `waiting_for_human` 工作状态；对外返回机器可读的 `review.user_approval_required`、具体 `criterion_ids`、`obligation_ids` 和 `next_action=open_molis_work`。不解析 reasoning，不自动通过人工条件，不改变普通 `inconclusive` 对 Runtime 可判定条件的重试语义。历史混合 obligation 在下一次安全的 Review 领取点幂等拆分；旧 `inconclusive` 不能从自由文本安全推断为 pass，因此历史数据可能需要一次显式 Runtime 复核后才进入人工等待。不删除既有 Review 记录，回滚不需要还原用户数据。
 
 本轮补丁只让最近结果根据已持久化的 obligation role 命名主体：`human_approver` 保留“结果确认 / 本次用户确认”，其他复核角色显示“Runtime 复核 / 复核理由”，并明确 Runtime pass 不能代替用户验收。没有新增数据库字段、没有根据 actor 名称或自由文本猜主体，也没有改变 Review verdict、obligation 或完成状态。
 
 ### 10. 验收边界
 
-- **工程验证**：2026-08-30 重新验收通过。混合 inspection + `human_decision` Goal 会生成分离的 Runtime 与 `human_approver` obligation；Runtime 部分通过后派生 `waiting_for_human`，Available 不再提供 Runtime Review action，Blocked/Explain 返回 `review.user_approval_required`、criterion、obligation 和 `open_goalboard`。纯 Runtime criterion 的 `inconclusive` 仍可重试；历史混合 obligation 会在下一次安全选择时拆分。新增 Web 回归确认 self/cross/adversarial Review 只能显示为“Runtime 复核”，不得显示“本次用户确认”；定向生命周期/Web 3/3、TypeScript 和 `git diff --check` 通过。另一个既有 Web 测试在受限沙箱中因临时 SQLite 环境找不到决策组，原命令在正常本机权限下通过，未把环境假失败隐去。全量回归将在统一打包前再次执行。
+- **工程验证**：2026-08-30 重新验收通过。混合 inspection + `human_decision` Goal 会生成分离的 Runtime 与 `human_approver` obligation；Runtime 部分通过后派生 `waiting_for_human`，Available 不再提供 Runtime Review action，Blocked/Explain 返回 `review.user_approval_required`、criterion、obligation 和 `open_molis_work`。纯 Runtime criterion 的 `inconclusive` 仍可重试；历史混合 obligation 会在下一次安全选择时拆分。新增 Web 回归确认 self/cross/adversarial Review 只能显示为“Runtime 复核”，不得显示“本次用户确认”；定向生命周期/Web 3/3、TypeScript 和 `git diff --check` 通过。另一个既有 Web 测试在受限沙箱中因临时 SQLite 环境找不到决策组，原命令在正常本机权限下通过，未把环境假失败隐去。全量回归将在统一打包前再次执行。
 - **安装验证**：v0.1.5 全仓测试在正常文件系统权限下 273/273 通过；GitHub Actions `33256824008` 的双架构产物与 SHA-256 已复核，本机 0.1.5 App、Core 和 owned Web service 已安装并健康。尚未用真实 mixed Review Goal 完成人工接棒旅程。
 - **产品实操**：源码产品实操通过。computer use 使用隔离 mixed Review Goal 完成 executor、inspection Evidence 与 Runtime self-verifier pass 后，Goal 详情显示 `waiting_for_human`、“先完成等待你的决定”、完成进度 1/2 和唯一剩余的真实 SELECT/DEFER/REJECT 与视觉验收；Runtime Available 为 false，Explain 为 `ready=false / review.user_approval_required`。Inbox 同时保留人工结果确认表单，提示缺少对应通过依据；最近结果明确显示“Runtime 复核 / 已通过 / 它不能代替用户验收 / 复核理由”，不再冒充用户已通过。全程未替用户提交 human verdict。截图：`docs/qa/bug-revalidation/2026-08-30/gb12-waiting-for-human.jpeg`、`gb12-runtime-review-role.jpeg`。
 - **Owner 最终验收**：产品交接通过；最终安装真实 G4A 已显示 human-only gate 且不重复 Runtime Review。用户本人按钮操作仍 pending，本轮没有模拟通过。
@@ -823,9 +823,9 @@ Runtime 已完成所有自己有权完成的复核，却没有一个规范动作
 ## GB-20260829-13：Opportunity 有引用但看不到研究过程与样本漏斗
 
 **来源**：CGS 选题编辑台消费者反馈
-**Bug 确认**：确认存在可复现的产品体验问题；主要归因是 CGS 的领域模型与编辑台设计债、GoalBoard 接入层信息缺失，不是 GoalBoard Core 缺陷
-**修复决定**：已批准纳入 bugfix；GoalBoard 侧只记录归因与边界，实际产品修复应在 CGS 完成
-**修复状态**：2026-08-30 最终收口：Case 成立，但归因是 CGS 研究领域模型与编辑台，不是 GoalBoard Core。GoalBoard 侧决定为不修并路由 CGS；CGS 修复未开始，不得算入 0.1.7 已修功能。
+**Bug 确认**：确认存在可复现的产品体验问题；主要归因是 CGS 的领域模型与编辑台设计债、Molis Work 接入层信息缺失，不是 Molis Work Core 缺陷
+**修复决定**：已批准纳入 bugfix；Molis Work 侧只记录归因与边界，实际产品修复应在 CGS 完成
+**修复状态**：2026-08-30 最终收口：Case 成立，但归因是 CGS 研究领域模型与编辑台，不是 Molis Work Core。Molis Work 侧决定为不修并路由 CGS；CGS 修复未开始，不得算入 0.1.7 已修功能。
 
 ### 1. 真实场景
 
@@ -833,7 +833,7 @@ Runtime 已完成所有自己有权完成的复核，却没有一个规范动作
 
 ### 2. 事实与归因
 
-当前实现可以稳定复现。GoalBoard Core 的 `EvidenceRecord` 只保存证据种类、定位符、验证状态、摘要、结果、生产者和关联验收条件等跨领域字段；它没有、也不应内置内容研究专用的查询日志和样本漏斗。CGS 的 `OpportunityV1` 已区分 `OPEN_RESEARCH`、`TEAM_INPUT` 与 `SEMI_DIRECTED`，Open Research 也保存时间窗、检索时间、采样表面和 coverage limits；2026-08-30 的新 `EvidenceResearchRunV1` 还已结构化保存 query、receipt、material、coverage gap 和预算漏斗。但 Opportunity 仍没有稳定关联对应 Research Run，编辑台 `renderOpportunityDetail` 也只渲染概况、事实、判断、风险和角度，没有展示 `sourceContext` 或 Research Run。因此最新研究账本的存在尚未转化为用户可见的来源链。主要归因是 CGS 领域对象关联与 UI 设计债，不是用户误用，也不是 GoalBoard 通用 Evidence 模型缺字段。
+当前实现可以稳定复现。Molis Work Core 的 `EvidenceRecord` 只保存证据种类、定位符、验证状态、摘要、结果、生产者和关联验收条件等跨领域字段；它没有、也不应内置内容研究专用的查询日志和样本漏斗。CGS 的 `OpportunityV1` 已区分 `OPEN_RESEARCH`、`TEAM_INPUT` 与 `SEMI_DIRECTED`，Open Research 也保存时间窗、检索时间、采样表面和 coverage limits；2026-08-30 的新 `EvidenceResearchRunV1` 还已结构化保存 query、receipt、material、coverage gap 和预算漏斗。但 Opportunity 仍没有稳定关联对应 Research Run，编辑台 `renderOpportunityDetail` 也只渲染概况、事实、判断、风险和角度，没有展示 `sourceContext` 或 Research Run。因此最新研究账本的存在尚未转化为用户可见的来源链。主要归因是 CGS 领域对象关联与 UI 设计债，不是用户误用，也不是 Molis Work 通用 Evidence 模型缺字段。
 
 ### 3. 现有流程的问题
 
@@ -841,7 +841,7 @@ Runtime 已完成所有自己有权完成的复核，却没有一个规范动作
 
 ### 4. 设计根因与初衷
 
-GoalBoard 将 Evidence 设计成跨项目的验收与追溯容器，初衷是让不同领域用统一生命周期登记可核验产物，避免 Core 被内容研究、代码测试或运营数据各自的专用字段绑死。CGS 则把 Opportunity 设计成精炼的决策卡，优先展示事实、判断和行动，避免编辑台被研究日志淹没。这两个初衷都合理；缺陷在于 CGS 只收敛了阅读表面，没有保留和渐进展示支撑结论所需的研究过程，导致“简洁”变成“证据强度不可辨认”。
+Molis Work 将 Evidence 设计成跨项目的验收与追溯容器，初衷是让不同领域用统一生命周期登记可核验产物，避免 Core 被内容研究、代码测试或运营数据各自的专用字段绑死。CGS 则把 Opportunity 设计成精炼的决策卡，优先展示事实、判断和行动，避免编辑台被研究日志淹没。这两个初衷都合理；缺陷在于 CGS 只收敛了阅读表面，没有保留和渐进展示支撑结论所需的研究过程，导致“简洁”变成“证据强度不可辨认”。
 
 ### 5. 当前影响
 
@@ -851,11 +851,11 @@ GoalBoard 将 Evidence 设计成跨项目的验收与追溯容器，初衷是让
 
 - **当前必须**：在 CGS 的 Open Research 来源上下文中结构化保存查询词、渠道、搜索时间、可获得的结果浏览/保留/淘汰数量和明确覆盖缺口；编辑台以默认折叠的“研究过程”渐进展示这些信息；候选类型继续显著区分正式研究、团队输入与 Owner 直输；未知数量必须显示为“未记录”，不能伪造精确值。
 - **可以延后**：逐条结果的完整淘汰理由、跨轮次差异比较、研究日志导出、自动覆盖评分、渠道排行榜和查询效果分析。
-- **应当删除**：在 GoalBoard Core 新建通用研究数据库、爬虫或渠道适配层；为了显得严谨而要求所有渠道都有数字；用一个不透明的综合分数替代查询、覆盖和缺口事实。
+- **应当删除**：在 Molis Work Core 新建通用研究数据库、爬虫或渠道适配层；为了显得严谨而要求所有渠道都有数字；用一个不透明的综合分数替代查询、覆盖和缺口事实。
 
 ### 7. 修复必要性与优先级
 
-需要修复，CGS 侧 P1；GoalBoard Core 不改。它直接影响用户是否能对 Opportunity 的来源强度作出正确判断，并影响长期证据链是否可复现。最小修复可以沿用 CGS 现有 `sourceContext` 与编辑台详情页完成，不需要扩大成跨领域基础设施。
+需要修复，CGS 侧 P1；Molis Work Core 不改。它直接影响用户是否能对 Opportunity 的来源强度作出正确判断，并影响长期证据链是否可复现。最小修复可以沿用 CGS 现有 `sourceContext` 与编辑台详情页完成，不需要扩大成跨领域基础设施。
 
 ### 8. 修复前后体验差异
 
@@ -864,36 +864,36 @@ GoalBoard 将 Evidence 设计成跨项目的验收与追溯容器，初衷是让
 
 ### 9. 最小修复范围
 
-只修改 CGS 的 Open Research 数据契约、样本/写入校验和 Opportunity 详情展示：在现有 `sourceContext` 下新增可选且可向后兼容的结构化研究过程，默认折叠展示；旧数据缺字段时明确显示“未记录查询过程”，不补写猜测数据。TEAM_INPUT 与 Owner 直输继续使用各自来源类型，不强行填写搜索漏斗。GoalBoard 的 Evidence schema、Review 状态机和通用 Web 证据卡均不改。回滚时可隐藏新增面板并停止写入可选字段，旧数据仍可读取。
+只修改 CGS 的 Open Research 数据契约、样本/写入校验和 Opportunity 详情展示：在现有 `sourceContext` 下新增可选且可向后兼容的结构化研究过程，默认折叠展示；旧数据缺字段时明确显示“未记录查询过程”，不补写猜测数据。TEAM_INPUT 与 Owner 直输继续使用各自来源类型，不强行填写搜索漏斗。Molis Work 的 Evidence schema、Review 状态机和通用 Web 证据卡均不改。回滚时可隐藏新增面板并停止写入可选字段，旧数据仍可读取。
 
 ### 10. 验收边界
 
 - **工程验证**：2026-08-30 只读复核当前 CGS 源码与数据：`EvidenceResearchRunV1` 和约 1.6 MB 的真实 ledger 已具备 query、receipt、material、coverage gap 与 budget；`OpportunityV1` 与编辑台仍没有将它们关联并呈现。尚无 CGS 代码改动、测试或数据迁移，因此不能报告修复通过。
 - **产品实操**：computer use 打开当前 4174 CGS 编辑台和真实 OPEN_RESEARCH Opportunity，首屏能看到 4 个引用来源、反证、未知项、平台角度和粗粒度“开放研究”标签，但没有查询词、渠道列表、搜索时间窗、浏览/保留/淘汰漏斗，也没有进入 Research Run 的入口。修复前问题再次确认；截图：`docs/qa/bug-revalidation/2026-08-30/gb13-cgs-opportunity-no-provenance.jpeg`。修复后体验仍为 `UNVERIFIED`。
-- **Owner 最终验收**：GoalBoard 侧归因与不修决定通过；CGS 产品验收未开始，不能从本轮 GoalBoard 包推断已修。
+- **Owner 最终验收**：Molis Work 侧归因与不修决定通过；CGS 产品验收未开始，不能从本轮 Molis Work 包推断已修。
 
 ---
 
 ## GB-20260829-14：Goal Tree 提案 payload 需要查源码才能构造
 
 **来源**：Arena Goal Tree 拆分消费者反馈
-**Bug 确认**：已确认，属于 GoalBoard MCP 工具契约自描述缺陷；不是 Arena 接入误用
+**Bug 确认**：已确认，属于 Molis Work MCP 工具契约自描述缺陷；不是 Arena 接入误用
 **修复决定**：已批准修复
 **修复状态**：2026-08-30 最终收口：最终安装 MCP 已暴露 Goal/Relation/Dependency 等判别 schema、关系方向、`payload.leaf_readiness` 与字段级错误；Owner 协议验收通过。
 
 ### 1. 真实场景
 
-Arena 的 clarifier 已把一个 Root Draft 澄清成 7 个一级 Draft Goal，准备通过 `goalboard_v1_goal_tree_propose` 提交整棵待确认树。工具声明只告诉它 item 有 `kind`、`operation` 和任意对象 `payload`，没有说明 goal、relation、dependency 等 kind 的字段、枚举、最小格式和方向。为了不把父子或依赖接反，消费者只能离开 MCP 契约去读 GoalBoard TypeScript 源码。
+Arena 的 clarifier 已把一个 Root Draft 澄清成 7 个一级 Draft Goal，准备通过 `molis_work_v1_goal_tree_propose` 提交整棵待确认树。工具声明只告诉它 item 有 `kind`、`operation` 和任意对象 `payload`，没有说明 goal、relation、dependency 等 kind 的字段、枚举、最小格式和方向。为了不把父子或依赖接反，消费者只能离开 MCP 契约去读 Molis Work TypeScript 源码。
 
 ### 2. 事实与归因
 
-可稳定复现。修复前 `GOAL_TREE_ITEM.payload` 只有 `type=object` 和 Risk 的一段说明，TypeScript 输入也只是 `Record<string, unknown>`；`kind` 枚举虽然完整，却没有与 payload 形成可判别约束。`part_of` 和 `depends_on` 的真实方向只存在于 Coordinator、规划校验和测试里。缺字段的 relation/dependency 还能越过提交入口，被保存为 pending Proposal，直到后续 check/decision/materialization 才可能报“需要起点、终点和类型”。主要归因是 GoalBoard MCP 契约缺陷，而不是 Agent 理解能力、Arena 接入或用户误用。
+可稳定复现。修复前 `GOAL_TREE_ITEM.payload` 只有 `type=object` 和 Risk 的一段说明，TypeScript 输入也只是 `Record<string, unknown>`；`kind` 枚举虽然完整，却没有与 payload 形成可判别约束。`part_of` 和 `depends_on` 的真实方向只存在于 Coordinator、规划校验和测试里。缺字段的 relation/dependency 还能越过提交入口，被保存为 pending Proposal，直到后续 check/decision/materialization 才可能报“需要起点、终点和类型”。主要归因是 Molis Work MCP 契约缺陷，而不是 Agent 理解能力、Arena 接入或用户误用。
 
 2026-08-30 Arena 新增实操证据：消费者按 planning 文档提供了完整 `leaf_readiness`，但放在 contract item 的 `payload.leaf_readiness` 后仍被拒绝；当前工具声明在该消费者侧仍呈现 `Array<unknown...>`，错误只说需要叶子粒度判断，没有指出期望字段路径究竟是 item 顶层、payload 顶层还是 `payload.proposed_goal`。该失败没有创建 Proposal，说明写入原子性正常，但也证明此前“八类 kind 条件化 schema 的源码测试”尚未覆盖叶子 Contract 的真实构造路径，产品验收必须重开。
 
 ### 3. 现有流程的问题
 
-基础拆树需要额外执行“定位 GoalBoard 仓库 → 搜索 materializer/测试 → 推断 canonical payload → 返回 Arena 提交”，把实现源码变成隐藏文档。若消费者不查源码，最危险的结果不是立即失败，而是字段形式合法、领域语义错误：例如把 `part_of` 写成父到子，或把 `depends_on` 写成提供者到消费者。缺字段条目进入用户待确认队列还会把本应由机器提前指出的格式错误转嫁给用户决定阶段。
+基础拆树需要额外执行“定位 Molis Work 仓库 → 搜索 materializer/测试 → 推断 canonical payload → 返回 Arena 提交”，把实现源码变成隐藏文档。若消费者不查源码，最危险的结果不是立即失败，而是字段形式合法、领域语义错误：例如把 `part_of` 写成父到子，或把 `depends_on` 写成提供者到消费者。缺字段条目进入用户待确认队列还会把本应由机器提前指出的格式错误转嫁给用户决定阶段。
 
 ### 4. 设计根因与初衷
 
@@ -912,22 +912,22 @@ Arena 的 clarifier 已把一个 Root Draft 澄清成 7 个一级 Draft Goal，�
 
 ### 7. 修复必要性与优先级
 
-需要修复，P1。该缺陷让 GoalBoard 的主要原生规划入口无法只凭工具契约安全使用，并可能生成方向相反的 canonical 关系。修复直接发生在现有 MCP schema 与 Proposal 入口，不增加数据库、服务或工作流，收益明确且回滚简单。
+需要修复，P1。该缺陷让 Molis Work 的主要原生规划入口无法只凭工具契约安全使用，并可能生成方向相反的 canonical 关系。修复直接发生在现有 MCP schema 与 Proposal 入口，不增加数据库、服务或工作流，收益明确且回滚简单。
 
 ### 8. 修复前后体验差异
 
-- **修复前**：读取工具 → 只看到 `payload: object` / `Array<unknown...>` → 查 GoalBoard 源码或猜字段 → 叶子 Contract 漏一个字段也只收到泛化错误 → 可能反复换 item/payload/proposed_goal 路径。
+- **修复前**：读取工具 → 只看到 `payload: object` / `Array<unknown...>` → 查 Molis Work 源码或猜字段 → 叶子 Contract 漏一个字段也只收到泛化错误 → 可能反复换 item/payload/proposed_goal 路径。
 - **修复后**：读取工具 → 看到 8 个 kind 的判别分支，Contract 的 `items[].payload.leaf_readiness` 展开 8 个必填字段和嵌套枚举 → 直接确认父子与依赖方向并提交；若漏写 `rationale`，提交立即指出 `items[].payload.leaf_readiness.rationale`，且用户待确认队列保持干净。
 
 ### 9. 最小修复范围
 
-只修改 `goalboard_v1_goal_tree_propose` 的 item schema、leaf/relation/dependency 提交前校验和对应回归测试。schema 改为 8 个顶层 `oneOf` 判别分支，并为 `leaf_readiness` 定义必填字段与嵌套结构；保留现有宽松读取和数据库格式。不改 Proposal 原子性、用户确认边界、materializer、planning_methods 或已有记录。旧客户端按原格式提交仍可工作；回滚只需还原工具声明和错误文本，不涉及数据迁移。
+只修改 `molis_work_v1_goal_tree_propose` 的 item schema、leaf/relation/dependency 提交前校验和对应回归测试。schema 改为 8 个顶层 `oneOf` 判别分支，并为 `leaf_readiness` 定义必填字段与嵌套结构；保留现有宽松读取和数据库格式。不改 Proposal 原子性、用户确认边界、materializer、planning_methods 或已有记录。旧客户端按原格式提交仍可工作；回滚只需还原工具声明和错误文本，不涉及数据迁移。
 
 ### 10. 验收边界
 
 - **工程验证**：2026-08-30 再次通过。先以测试复现缺 `rationale` 仍只返回泛化错误，以及工具声明不具备顶层判别分支；修复后完整 MCP 30/30、Goal Tree/leaf V1 18/18、TypeScript 均通过。源码工具列表现在返回 goal、contract、relation、dependency、risk、policy、candidate、rewire 8 个顶层 `oneOf` 分支；Contract 的 `leaf_readiness` 明确要求 `verdict / primary_deliverable / output_coverage / split_candidates / rationale / unresolved_decisions / independent_deliverables / acceptance_criterion_ids`，嵌套枚举与必填字段均可读。
 - **安装验证**：v0.1.5 最终全仓回归为 273/273；GitHub Actions `33256824008` 双架构产物及 SHA-256 已复核，本机 0.1.5 App、Core 与 Web service 已安装并健康。当前 Session 不会热加载新 MCP schema，产品实操仍需新开 Session。
-- **产品实操**：源码 MCP 产品接口已通过：临时 Board 读取工具声明可见 8 个判别分支与上述 8 个 `leaf_readiness` 必填字段；缺 `rationale` 的真实 `goalboard_v1_goal_tree_propose` 返回 `items[].payload.leaf_readiness.rationale`，错误后 pending Proposal 为 0；同一 payload 补齐字段后一次创建 `state=pending` 的待确认 Proposal。该消费面是 MCP tool declaration，不是 Web 页面，computer use 不能替代实际工具契约调用。统一安装后的 Arena 新 Session 仍为 `UNVERIFIED`。
+- **产品实操**：源码 MCP 产品接口已通过：临时 Board 读取工具声明可见 8 个判别分支与上述 8 个 `leaf_readiness` 必填字段；缺 `rationale` 的真实 `molis_work_v1_goal_tree_propose` 返回 `items[].payload.leaf_readiness.rationale`，错误后 pending Proposal 为 0；同一 payload 补齐字段后一次创建 `state=pending` 的待确认 Proposal。该消费面是 MCP tool declaration，不是 Web 页面，computer use 不能替代实际工具契约调用。统一安装后的 Arena 新 Session 仍为 `UNVERIFIED`。
 - **Owner 最终验收**：最终安装 MCP declaration 已验证，字段/枚举/方向可自描述；真实 Arena 新 Session 提交仍为 `UNVERIFIED`。
 
 ---
@@ -935,9 +935,9 @@ Arena 的 clarifier 已把一个 Root Draft 澄清成 7 个一级 Draft Goal，�
 ## GB-20260829-15：子 Goal 用样本验收却被理解成父级能力已经具备
 
 **来源**：CGS G2 / G2A 产品实操反馈
-**Bug 确认**：确认存在严重误导体验；主要归因是 GoalBoard 跨层 Contract 覆盖与 Risk 解决依据的设计债，同时存在 CGS 把能力目标降成样本验收的建模错误；不是 `satisfied` 状态机计算错误
-**修复决定**：Owner 已批准 GoalBoard Core 防误导修复；CGS Contract 纠偏仍需在 CGS 项目中单独推进
-**修复状态**：2026-08-30 最终收口：GoalBoard 不再以样本子 Goal 自动完成父 Goal，并显式显示形式验收与父级覆盖差距；0.1.7 已安装，Owner 验收通过。真实 CGS Contract 的能力纠偏仍属 CGS 接入范围。
+**Bug 确认**：确认存在严重误导体验；主要归因是 Molis Work 跨层 Contract 覆盖与 Risk 解决依据的设计债，同时存在 CGS 把能力目标降成样本验收的建模错误；不是 `satisfied` 状态机计算错误
+**修复决定**：Owner 已批准 Molis Work Core 防误导修复；CGS Contract 纠偏仍需在 CGS 项目中单独推进
+**修复状态**：2026-08-30 最终收口：Molis Work 不再以样本子 Goal 自动完成父 Goal，并显式显示形式验收与父级覆盖差距；0.1.7 已安装，Owner 验收通过。真实 CGS Contract 的能力纠偏仍属 CGS 接入范围。
 
 ### 1. 真实场景
 
@@ -945,17 +945,17 @@ CGS 父 Goal G2 承诺把开放研究等来源变成可解释的内容机会。�
 
 ### 2. 事实与归因
 
-CGS 当前 README、G2A 合同和代表性扫描都确认首轮目标是三类来源各一个代表性样本，并明确没有登录态平台搜索、账号后台、搜索量和完整供给样本；这与“具备开放研究到可解释机会的能力”不是同一层结果。GoalBoard 当前叶子检查只验证该叶子自己的 promised outputs、验收条件和 Evidence 是否自洽；复合父 Goal 收口只要求通用路径有子 Goal 归属、没有开放子树，之后 `satisfyClosedCompoundGoalIfReady` 只看全部 active child 是否 `satisfied`。系统没有保存“父 promised output / criterion 由哪些子 output / criterion 覆盖、是完整还是部分覆盖”的 canonical 映射。`setRiskState(... resolved ...)` 也只校验合法状态和非空理由，不要求解决证据或剩余缺口。因而 G2A 对它被批准的样本 Contract 来说确实完成，状态机没有算错；错误来自 CGS Contract 语义降级，以及 GoalBoard 未防止这种降级被当成父级能力证据。
+CGS 当前 README、G2A 合同和代表性扫描都确认首轮目标是三类来源各一个代表性样本，并明确没有登录态平台搜索、账号后台、搜索量和完整供给样本；这与“具备开放研究到可解释机会的能力”不是同一层结果。Molis Work 当前叶子检查只验证该叶子自己的 promised outputs、验收条件和 Evidence 是否自洽；复合父 Goal 收口只要求通用路径有子 Goal 归属、没有开放子树，之后 `satisfyClosedCompoundGoalIfReady` 只看全部 active child 是否 `satisfied`。系统没有保存“父 promised output / criterion 由哪些子 output / criterion 覆盖、是完整还是部分覆盖”的 canonical 映射。`setRiskState(... resolved ...)` 也只校验合法状态和非空理由，不要求解决证据或剩余缺口。因而 G2A 对它被批准的样本 Contract 来说确实完成，状态机没有算错；错误来自 CGS Contract 语义降级，以及 Molis Work 未防止这种降级被当成父级能力证据。
 
 ### 3. 现有流程的问题
 
-Runtime 可以把父级能力拆成一个名字相近但验收更窄的子 Goal，用户确认时只看到每条 Contract 本身成立，却看不到父承诺被哪些子结果完整覆盖。执行者随后按较窄 Contract 正确交付，GoalBoard 又用绿色 `satisfied` 和 `resolved` 表达局部事实，界面没有明确“只完成样本合同，不代表父能力具备”。错误直到用户操作最终产品才暴露；此时后续编辑台、制作和策略 Goal 已经可能把假机会当成可信输入。
+Runtime 可以把父级能力拆成一个名字相近但验收更窄的子 Goal，用户确认时只看到每条 Contract 本身成立，却看不到父承诺被哪些子结果完整覆盖。执行者随后按较窄 Contract 正确交付，Molis Work 又用绿色 `satisfied` 和 `resolved` 表达局部事实，界面没有明确“只完成样本合同，不代表父能力具备”。错误直到用户操作最终产品才暴露；此时后续编辑台、制作和策略 Goal 已经可能把假机会当成可信输入。
 
 2026-08-30 的源码实操还发现一层展示回归：父 Goal 已被 `goal.contract_coverage_incomplete` 阻断，展开区也显示“部分覆盖 / 仍需父级集成”，但旧的子 Goal 进度组件仍写“还剩 0 个子 Goal；全部完成后，这条父 Goal 会自动完成”。同一屏同时否认和承诺自动完成，足以抵消防误导修复。根因是父级完成说明只读取 `closed_compound + 子 Goal 数量`，没有读取同一 canonical `contract_coverage`。
 
 ### 4. 设计根因与初衷
 
-GoalBoard 把自然语言 Contract 的含义与取舍交给用户确认，而不是让系统用模型相似度代替人的业务判断；accepted Contract 保持不可静默修改，closed compound 依赖用户确认“这棵树已经拆完整”，所有子项完成后再自动汇总。这能避免系统擅自发明验收语义。Risk 同样采用显式状态加理由，避免自动化替用户宣称风险已消失。初衷合理。缺陷是用户确认前缺少一层结构化责任链：父承诺和父验收没有逐项委托到子结果，Risk 的 resolved 也没有结构化解决依据，因此“人确认语义”退化成“人只能凭标题猜语义”。
+Molis Work 把自然语言 Contract 的含义与取舍交给用户确认，而不是让系统用模型相似度代替人的业务判断；accepted Contract 保持不可静默修改，closed compound 依赖用户确认“这棵树已经拆完整”，所有子项完成后再自动汇总。这能避免系统擅自发明验收语义。Risk 同样采用显式状态加理由，避免自动化替用户宣称风险已消失。初衷合理。缺陷是用户确认前缺少一层结构化责任链：父承诺和父验收没有逐项委托到子结果，Risk 的 resolved 也没有结构化解决依据，因此“人确认语义”退化成“人只能凭标题猜语义”。
 
 ### 5. 当前影响
 
@@ -969,7 +969,7 @@ GoalBoard 把自然语言 Contract 的含义与取舍交给用户确认，而不
 
 ### 7. 修复必要性与优先级
 
-需要修复，P1，Owner 已批准最小数据模型。GoalBoard Core 已阻止新的跨层静默降级并诚实展示局部完成，但不会替 CGS 自动补齐研究能力。CGS 仍应把当前 G2A 明确定性为“Opportunity 合同与代表样本验证”，并把真实多源研究与机会分析补成新的可执行 Goal，或经用户确认重开原 Contract；原 source coverage Risk 若描述的是完整能力，也应重新判断，而不是由本次迁移自动改写。
+需要修复，P1，Owner 已批准最小数据模型。Molis Work Core 已阻止新的跨层静默降级并诚实展示局部完成，但不会替 CGS 自动补齐研究能力。CGS 仍应把当前 G2A 明确定性为“Opportunity 合同与代表样本验证”，并把真实多源研究与机会分析补成新的可执行 Goal，或经用户确认重开原 Contract；原 source coverage Risk 若描述的是完整能力，也应重新判断，而不是由本次迁移自动改写。
 
 ### 8. 修复前后体验差异
 
@@ -978,16 +978,16 @@ GoalBoard 把自然语言 Contract 的含义与取舍交给用户确认，而不
 
 ### 9. 最小修复范围
 
-GoalBoard 侧复用现有 decomposition review，新增 `contract_coverage`：父级每个 promised output / acceptance criterion 必须精确引用后代 Contract 字段，并标记 `complete / partial / integration_required / uncovered`。仅 `complete` 可确认 `closed_compound`；canonical 映射写入 `goals.decomposition_review_json`，父级自动完成和 Work State 都读取同一事实。Contract 新增 `parent_contract_coverage`，Web 在父子详情分别展示覆盖与贡献，并把绿色文案收窄为“本 Goal 按当前 Contract 已满足”。Risk 的新 `resolved` 写入必须携带 `resolution_basis.summary / evidence_refs / residual_gaps`，存入 `risks.resolution_basis_json`；历史缺失只显示“未记录”，不追溯改状态。schema migration 21 只增加两个可空 JSON 字段。未修改 accepted Contract 的不可变边界、Evidence / Review 机制、历史完成事实、CGS 源码，也未引入语义模型或第二套规划系统。回滚可停止使用新字段并恢复旧派生逻辑，已有 JSON 事实保留且无需删除。
+Molis Work 侧复用现有 decomposition review，新增 `contract_coverage`：父级每个 promised output / acceptance criterion 必须精确引用后代 Contract 字段，并标记 `complete / partial / integration_required / uncovered`。仅 `complete` 可确认 `closed_compound`；canonical 映射写入 `goals.decomposition_review_json`，父级自动完成和 Work State 都读取同一事实。Contract 新增 `parent_contract_coverage`，Web 在父子详情分别展示覆盖与贡献，并把绿色文案收窄为“本 Goal 按当前 Contract 已满足”。Risk 的新 `resolved` 写入必须携带 `resolution_basis.summary / evidence_refs / residual_gaps`，存入 `risks.resolution_basis_json`；历史缺失只显示“未记录”，不追溯改状态。schema migration 21 只增加两个可空 JSON 字段。未修改 accepted Contract 的不可变边界、Evidence / Review 机制、历史完成事实、CGS 源码，也未引入语义模型或第二套规划系统。回滚可停止使用新字段并恢复旧派生逻辑，已有 JSON 事实保留且无需删除。
 
 本轮补丁只让父级进度说明在存在 `partial / integration_required / uncovered` 覆盖时优先显示“父级 Contract 仍有覆盖缺口”，明确即使子 Goal 数量已完成也不会自动完成。没有新增状态或字段，也没有改变所有覆盖项均 `complete` 时的自动完成说明。
 
 ### 10. 验收边界
 
 - **工程验证**：2026-08-30 重新验收通过。父级缺失映射、部分映射和错误后代引用均不能确认收口；完整映射持久化并反向投影到子 Contract；部分覆盖派生 `clarification_blocked / goal.contract_coverage_incomplete`。Risk resolved 的直接写入、Goal Tree 提案和 Web 路径都要求结构化 resolution basis。新增 Web 回归确认 1/1 子 Goal 已完成但父级覆盖仍有缺口时，不得出现“还剩 0 个子 Goal；会自动完成”。定向父子覆盖 2/2、Risk 3/3、TypeScript 和 `git diff --check` 通过；统一打包前仍会执行全量回归。
-- **安装验证**：GitHub Actions `33256824008` 从 `main@97b971e` 构建 v0.1.5 arm64/x64，四个主产物均通过自带 SHA-256；本机云构建 arm64 App 的 bundle 版本为 0.1.5，Core 安装收据指向 `releases/goalboard-0.1.5`，owned LaunchAgent 与 HTTP 健康检查通过。此层不证明 CGS 的父子 Contract 已经完成真实纠偏。
+- **安装验证**：GitHub Actions `33256824008` 从 `main@97b971e` 构建 v0.1.5 arm64/x64，四个主产物均通过自带 SHA-256；本机云构建 arm64 App 的 bundle 版本为 0.1.5，Core 安装收据指向 `releases/molis-work-0.1.5`，owned LaunchAgent 与 HTTP 健康检查通过。此层不证明 CGS 的父子 Contract 已经完成真实纠偏。
 - **产品实操**：源码产品实操通过。computer use 使用“真实多源研究”父 Goal 与已完成的“三类代表性样本”子 Goal：父 Goal 首页显示 `目标澄清受阻` 和 `goal.contract_coverage_incomplete` 的人类说明；展开完成要求可见 promised output 为“部分覆盖”、criterion 为“仍需父级集成”，父级进度明确写“完成数量不足以证明父级承诺已经实现，不会自动完成”。子 Goal 仍诚实显示“本 Goal 按当前 Contract 已满足”，同时在“对父 Goal 的贡献”标记两项“尚有缺口”。截图：`docs/qa/bug-revalidation/2026-08-30/gb15-parent-coverage-gap.jpeg`、`gb15-child-local-satisfaction.jpeg`。本轮未在 UI 新写 Risk，也未改变真实 CGS Contract。
-- **Owner 最终验收**：GoalBoard 的跨层防误导通过；CGS 对 G2A/G2 的业务 Contract 纠偏未由本仓接管，用户对文案的主观理解仍为 `UNVERIFIED`。
+- **Owner 最终验收**：Molis Work 的跨层防误导通过；CGS 对 G2A/G2 的业务 Contract 纠偏未由本仓接管，用户对文案的主观理解仍为 `UNVERIFIED`。
 
 ---
 
@@ -1000,11 +1000,11 @@ GoalBoard 侧复用现有 decomposition review，新增 `contract_coverage`：�
 
 ### 1. 真实场景
 
-最初复核 v0.1.5 时，GitHub Release、用户级 App、`~/.goalboard` Core 与常驻 Web service 都曾更新，台账因此把多张 Runtime 消费体验卡写成“已安装”。但真实 Codex 使用的 `/Users/oreal/.codex/skills/goal-advance` 仍是一个指向 `goalboard-0.1.1` 的受管符号链接。2026-08-30 再次只读复核还发现：Core launcher、owned LaunchAgent 和 4173 服务已经指向 0.1.6，`/Applications/GoalBoard.app` 的 bundle 却是 0.1.3。当前不是单一 Skill 落后，而是 App、Core/service 与 Skill 三层版本分裂。
+最初复核 v0.1.5 时，GitHub Release、用户级 App、`~/.molis-work` Core 与常驻 Web service 都曾更新，台账因此把多张 Runtime 消费体验卡写成“已安装”。但真实 Codex 使用的 `/Users/oreal/.codex/skills/goal-advance` 仍是一个指向 `molis-work-0.1.1` 的受管符号链接。2026-08-30 再次只读复核还发现：Core launcher、owned LaunchAgent 和 4173 服务已经指向 0.1.6，`/Applications/Molis Work.app` 的 bundle 却是 0.1.3。当前不是单一 Skill 落后，而是 App、Core/service 与 Skill 三层版本分裂。
 
 ### 2. 事实与归因
 
-可稳定复现。历史 0.1.6 阶段曾是 Core/service 0.1.6、App 0.1.3、Codex Skill 0.1.1；随后 0.1.7 一度统一。2026-08-30 当前权威读回再次出现同类漂移：App、内嵌 Runtime、安装收据和两个 home launcher 均为 0.1.9；服务进程健康，但 LaunchAgent PATH 仍指向 0.1.8，`readlink` 明确显示 Codex Skill 仍指向 `goalboard-0.1.7/skills/goal-advance`。GoalBoard 的 service status 能识别旧 plist 为 `needs_repair`，Runtime integration 也有 managed-link repair，所以领域检测没有失效。`goalboard install` 有意只升级本体、不静默改 Runtime 配置或 Skill 的授权边界合理；缺陷仍是 Desktop 选错服务恢复动作，以及交付验收把 release 目录里存在新 Skill 错写成 active Codex 已使用它。
+可稳定复现。历史 0.1.6 阶段曾是 Core/service 0.1.6、App 0.1.3、Codex Skill 0.1.1；随后 0.1.7 一度统一。2026-08-30 当前权威读回再次出现同类漂移：App、内嵌 Runtime、安装收据和两个 home launcher 均为 0.1.9；服务进程健康，但 LaunchAgent PATH 仍指向 0.1.8，`readlink` 明确显示 Codex Skill 仍指向 `molis-work-0.1.7/skills/goal-advance`。Molis Work 的 service status 能识别旧 plist 为 `needs_repair`，Runtime integration 也有 managed-link repair，所以领域检测没有失效。`molis-work install` 有意只升级本体、不静默改 Runtime 配置或 Skill 的授权边界合理；缺陷仍是 Desktop 选错服务恢复动作，以及交付验收把 release 目录里存在新 Skill 错写成 active Codex 已使用它。
 
 ### 3. 现有流程的问题
 
@@ -1020,7 +1020,7 @@ GoalBoard 侧复用现有 decomposition review，新增 `contract_coverage`：�
 
 ### 6. 复杂度审查
 
-- **当前必须**：把 Runtime 集成状态加入发布后验收；只有 GoalBoard 管理的旧链接经用户预览并确认更新、状态回到 `connected`，再用新 Session 读取当前 Skill 后，才可把 Runtime 相关修复写成“已安装”。本机最终发布后执行同一流程。
+- **当前必须**：把 Runtime 集成状态加入发布后验收；只有 Molis Work 管理的旧链接经用户预览并确认更新、状态回到 `connected`，再用新 Session 读取当前 Skill 后，才可把 Runtime 相关修复写成“已安装”。本机最终发布后执行同一流程。
 - **可以延后**：在所有页面常驻展示 Runtime 版本横幅、跨机器集中升级、自动通知每个旧 Session。
 - **应当删除**：仅凭 Core/App/service 版本一致就宣称消费者协议已安装；为了省一步而让本体安装器静默改 Runtime；覆盖未知同名 Skill。
 
@@ -1048,7 +1048,7 @@ GoalBoard 侧复用现有 decomposition review，新增 `contract_coverage`：�
 ## GB-20260829-17：大型 Goal Tree 变更只有技术 diff，缺少问题与效果解释
 
 **来源**：CGS 18 项 Goal Tree 变更审批反馈
-**Bug 确认**：确认是 GoalBoard Proposal 可理解性设计债；不是结构化 change item 本身错误，也不是消费者误用
+**Bug 确认**：确认是 Molis Work Proposal 可理解性设计债；不是结构化 change item 本身错误，也不是消费者误用
 **修复决定**：用户已于 2026-08-29 在本 Session 确认修复
 **修复状态**：2026-08-30 最终收口：Proposal 级原因/主链路/非目标/影响与逐项问题—修改—效果说明已持久化并通过代表性 computer-use 实操；0.1.7 已安装，Owner 最终验收通过。
 
@@ -1056,11 +1056,11 @@ GoalBoard 侧复用现有 decomposition review，新增 `contract_coverage`：�
 
 ### 1. 真实场景
 
-CGS 的 G2 发生较大变化，一份 Proposal 同时包含父 Contract 重写、新建 G2C–G2F、依赖调整、G2B 合同改造和 Risk 重触发，共 18 个 change item。用户能看到操作、内部 ID 和字段内容，却不能直接理解为什么现在要改、原目标哪里不成立、各项分别解决什么问题，以及新链路为什么按 `G2C → G2D → G2E/G2F → G2B → G3` 组织，只能让 Agent 在 GoalBoard 外另写长解释。
+CGS 的 G2 发生较大变化，一份 Proposal 同时包含父 Contract 重写、新建 G2C–G2F、依赖调整、G2B 合同改造和 Risk 重触发，共 18 个 change item。用户能看到操作、内部 ID 和字段内容，却不能直接理解为什么现在要改、原目标哪里不成立、各项分别解决什么问题，以及新链路为什么按 `G2C → G2D → G2E/G2F → G2B → G3` 组织，只能让 Agent 在 Molis Work 外另写长解释。
 
 ### 2. 事实与归因
 
-可由当前模型与 renderer 稳定复现。Proposal 只有一个自由文本 `summary`；每个 item 有 `reason`、`payload` 和 `affected_objects`，但没有正式的“原问题、预期效果、不改变什么、与其他 change 的语义依赖”字段。Web 能把 create/update/relation 转成局部操作说明，也能展示字段与结构方向，但无法可靠恢复整份变更的业务主线。属于 GoalBoard 的审批可理解性设计债；Runtime 若只填抽象 reason 会放大问题，但不是 CGS 接入方单独能修好的展示缺陷。
+可由当前模型与 renderer 稳定复现。Proposal 只有一个自由文本 `summary`；每个 item 有 `reason`、`payload` 和 `affected_objects`，但没有正式的“原问题、预期效果、不改变什么、与其他 change 的语义依赖”字段。Web 能把 create/update/relation 转成局部操作说明，也能展示字段与结构方向，但无法可靠恢复整份变更的业务主线。属于 Molis Work 的审批可理解性设计债；Runtime 若只填抽象 reason 会放大问题，但不是 CGS 接入方单独能修好的展示缺陷。
 
 ### 3. 现有流程的问题
 
@@ -1072,7 +1072,7 @@ CGS 的 G2 发生较大变化，一份 Proposal 同时包含父 Contract 重写�
 
 ### 5. 当前影响
 
-主要影响包含多种 item、需要人类整份确认的中大型 Proposal；条目越完整，阅读负担反而越高。它不直接破坏 canonical 数据，但会提高误批、误拒和重复解释的概率，削弱 GoalBoard 作为人类决策界面的价值。小型单项变更影响较低，因此当前评为 P2；对于涉及 Contract、Risk 和依赖重排的整树变更，实际审批风险接近 P1。
+主要影响包含多种 item、需要人类整份确认的中大型 Proposal；条目越完整，阅读负担反而越高。它不直接破坏 canonical 数据，但会提高误批、误拒和重复解释的概率，削弱 Molis Work 作为人类决策界面的价值。小型单项变更影响较低，因此当前评为 P2；对于涉及 Contract、Risk 和依赖重排的整树变更，实际审批风险接近 P1。
 
 ### 6. 复杂度审查
 
@@ -1087,7 +1087,7 @@ CGS 的 G2 发生较大变化，一份 Proposal 同时包含父 Contract 重写�
 ### 8. 修复前后体验差异
 
 - **修复前**：用户看到 18 个字段/关系操作 → 让 Agent 在对话里重新翻译 → 仍需自己拼出主链路后才能决定。
-- **修复后**：用户先看到“原问题 → 本次主链路 → 预期效果 → 非目标与主要影响” → 再按链路展开到每个 change，看到它解决什么、依赖谁和明确不改变什么 → 在 GoalBoard 内完成知情审批。
+- **修复后**：用户先看到“原问题 → 本次主链路 → 预期效果 → 非目标与主要影响” → 再按链路展开到每个 change，看到它解决什么、依赖谁和明确不改变什么 → 在 Molis Work 内完成知情审批。
 
 ### 9. 最小修复范围
 
@@ -1104,7 +1104,7 @@ CGS 的 G2 发生较大变化，一份 Proposal 同时包含父 Contract 重写�
 ## GB-20260829-18：整份 Goal Tree 确认会在决定阶段部分落地
 
 **来源**：CGS 18 项 Goal Tree 变更与 Arena 7 个一级 Goal 拆分实操；两条反馈属于同一缺陷族，已去重
-**Bug 确认**：已确认，属于 GoalBoard Proposal 原子性、预检一致性和乐观并发基准缺陷；accepted Contract 不可静默改写本身是预期安全边界
+**Bug 确认**：已确认，属于 Molis Work Proposal 原子性、预检一致性和乐观并发基准缺陷；accepted Contract 不可静默改写本身是预期安全边界
 **修复决定**：需要修复，P1
 **修复状态**：2026-08-30 最终收口：check/decide 使用同源 dry-run，whole confirm 遇冲突零写入，恢复路径可读；293/293 与代表性 Web 实操通过，Owner 最终验收通过。
 
@@ -1114,7 +1114,7 @@ CGS Runtime 提交一份包含父 Contract 重写、新 Goal、关系和 Risk �
 
 ### 2. 事实与归因
 
-两条路径均可由当前实现解释并回归复现。`goal_tree_check` 只检查条目格式、Risk 校验和调用方提供的对象 hash，没有运行决定阶段的 materialization invariant，因此 accepted Contract 的 `goal.accepted_compound_closure_invalid` 只能在 decide 暴露。`confirm_all_pending` 随后被展开成普通逐项 confirm；materializer 遇到冲突时记录该 item，继续写入其余条目，最终形成 `partially_applied`。Goal baseline 又对完整 `GoalRecord` 做 hash，把 `updated_at`、`fulfillment_state` 等不属于该 Contract / relation 条目写入面的字段也算作并发变更；关系端点是否进入 affected objects 还依赖消费者手填。主要归因是 GoalBoard Core 缺陷。accepted Goal 只能做已允许的 compound closure、不能借需求变化静默重写已接受业务 Contract，是保护历史 Evidence 与用户承诺的预期行为；缺陷在于系统在确认前不说明、确认后又只落一半。
+两条路径均可由当前实现解释并回归复现。`goal_tree_check` 只检查条目格式、Risk 校验和调用方提供的对象 hash，没有运行决定阶段的 materialization invariant，因此 accepted Contract 的 `goal.accepted_compound_closure_invalid` 只能在 decide 暴露。`confirm_all_pending` 随后被展开成普通逐项 confirm；materializer 遇到冲突时记录该 item，继续写入其余条目，最终形成 `partially_applied`。Goal baseline 又对完整 `GoalRecord` 做 hash，把 `updated_at`、`fulfillment_state` 等不属于该 Contract / relation 条目写入面的字段也算作并发变更；关系端点是否进入 affected objects 还依赖消费者手填。主要归因是 Molis Work Core 缺陷。accepted Goal 只能做已允许的 compound closure、不能借需求变化静默重写已接受业务 Contract，是保护历史 Evidence 与用户承诺的预期行为；缺陷在于系统在确认前不说明、确认后又只落一半。
 
 ### 3. 现有流程的问题
 
@@ -1150,7 +1150,7 @@ Runtime 按规范 propose → read → check → 请求用户确认，仍无法�
 ### 10. 验收边界
 
 - **工程验证**：通过。新增回归证明 check 能在决定前发现 accepted Contract 的 materialization conflict；跳过 check 的整份确认会抛出结构化冲突，安全 Goal、item decision 与 Proposal state 全部保持未写入；新语义 baseline 忽略 `fulfillment_state / updated_at`，但 Contract 标题变化仍只冲突 Contract item；relation 自动记录两端 Goal，且根标题变化不会误伤关系；已部分落地的旧 Proposal 不能再次伪装成整份原子确认。原有显式逐项部分落地测试保持通过，TypeScript 构建、typecheck、`git diff --check` 与全仓 278/278 通过。首次沙箱运行因测试临时 SQLite 与 `~/.npm` 日志无写权限出现 21 个环境失败，已在正常权限下完整重跑归零；没有把环境失败计作通过。
-- **产品实操**：源码构建下通过代表性主路径。用同一真实 Web 决定页同时放入合法 18 项 Proposal 与含 accepted Contract 冲突的 Proposal：合法方案填写理由并点击一次“采用整份方案”后，18/18 item、9 个子 Goal 与 9 条 `part_of` 同时落地。2026-08-30 又以 computer use 独立打开两项代表性冲突方案：展开后可直接看到“这份方案暂时不能采用”、原 invariant、successor / replacement 恢复建议和“当前 Goal Tree 尚未改变”，整份采用按钮为 disabled；全程未点击确认或退回。停止 fixture 后只读数据库，`safe-child` 数为 0、accepted parent 标题未变、两条 item 分别保持 pending/conflict、decision 数为 0。截图见 [预检摘要](/Users/oreal/adeptify-home/repos/goalboard/docs/qa/bug-revalidation/2026-08-30/gb18-preflight-summary.jpeg) 与 [展开后的阻断说明](/Users/oreal/adeptify-home/repos/goalboard/docs/qa/bug-revalidation/2026-08-30/gb18-preflight-blocked.jpeg)。真实 CGS / Arena 历史 `partially_applied` 数据不在本卡自动补偿范围，最终安装 App / 新 Session 仍为 `UNVERIFIED`。
+- **产品实操**：源码构建下通过代表性主路径。用同一真实 Web 决定页同时放入合法 18 项 Proposal 与含 accepted Contract 冲突的 Proposal：合法方案填写理由并点击一次“采用整份方案”后，18/18 item、9 个子 Goal 与 9 条 `part_of` 同时落地。2026-08-30 又以 computer use 独立打开两项代表性冲突方案：展开后可直接看到“这份方案暂时不能采用”、原 invariant、successor / replacement 恢复建议和“当前 Goal Tree 尚未改变”，整份采用按钮为 disabled；全程未点击确认或退回。停止 fixture 后只读数据库，`safe-child` 数为 0、accepted parent 标题未变、两条 item 分别保持 pending/conflict、decision 数为 0。截图见 [预检摘要](/Users/oreal/adeptify-home/repos/molis-work/docs/qa/bug-revalidation/2026-08-30/gb18-preflight-summary.jpeg) 与 [展开后的阻断说明](/Users/oreal/adeptify-home/repos/molis-work/docs/qa/bug-revalidation/2026-08-30/gb18-preflight-blocked.jpeg)。真实 CGS / Arena 历史 `partially_applied` 数据不在本卡自动补偿范围，最终安装 App / 新 Session 仍为 `UNVERIFIED`。
 - **Owner 最终验收**：通过。合法整份落地、预知冲突整份零写入和 recovery proposal 均由同源 dry-run 回归覆盖；未在真实 CGS 再次制造大规模写入。
 
 ---
@@ -1158,17 +1158,17 @@ Runtime 按规范 propose → read → check → 请求用户确认，仍无法�
 ## GB-20260830-19：桌面健康恢复与 LaunchAgent 修复互相抢占 4173
 
 **来源**：v0.1.6 最终 App 安装后的服务修复实操
-**Bug 确认**：已确认，属于 GoalBoard 桌面端恢复策略缺陷；不是第三方进程占用，也不是用户误用
+**Bug 确认**：已确认，属于 Molis Work 桌面端恢复策略缺陷；不是第三方进程占用，也不是用户误用
 **修复决定**：需要修复，P1
 **修复状态**：2026-08-30 最终收口：Desktop 不再与受管 LaunchAgent 抢占端口；源码恢复旅程及 0.1.7 最终服务重启/health 通过，Owner 最终验收通过。
 
 ### 1. 真实场景
 
-用户安装新 GoalBoard App / Core 后，常驻 LaunchAgent 需要原子修复。官方 `service install --confirm` 先卸载旧实例，再启动并核验新实例；与此同时已打开的桌面 App 每两秒检查一次 4173。切换期间端口短暂不可用，App 在约四秒后自行启动一个 Web 子进程，先占住 4173，导致 LaunchAgent 的新进程无法通过身份健康检查。用户最终看到的是“4173 的监听者无法证明属于当前 GoalBoard LaunchAgent”，但监听者实际上仍是 GoalBoard 自己启动的进程。
+用户安装新 Molis Work App / Core 后，常驻 LaunchAgent 需要原子修复。官方 `service install --confirm` 先卸载旧实例，再启动并核验新实例；与此同时已打开的桌面 App 每两秒检查一次 4173。切换期间端口短暂不可用，App 在约四秒后自行启动一个 Web 子进程，先占住 4173，导致 LaunchAgent 的新进程无法通过身份健康检查。用户最终看到的是“4173 的监听者无法证明属于当前 Molis Work LaunchAgent”，但监听者实际上仍是 Molis Work 自己启动的进程。
 
 ### 2. 事实与归因
 
-已在 v0.1.6 最终安装环境真实复现。`lsof`、父子进程和 `/health` 都表明监听者来自 GoalBoard 桌面 App；`launchctl` 的受管 PID 与 HTTP 返回 PID 不一致，且不存在第三方占用。源码确认服务安装最多需要经过旧实例卸载、新实例启动、稳定性核验和失败回滚，而桌面健康监控对所有故障统一使用两次失败阈值。根因是两个 GoalBoard 自有恢复者缺少切换宽限，不是 service ownership 识别规则本身误判。
+已在 v0.1.6 最终安装环境真实复现。`lsof`、父子进程和 `/health` 都表明监听者来自 Molis Work 桌面 App；`launchctl` 的受管 PID 与 HTTP 返回 PID 不一致，且不存在第三方占用。源码确认服务安装最多需要经过旧实例卸载、新实例启动、稳定性核验和失败回滚，而桌面健康监控对所有故障统一使用两次失败阈值。根因是两个 Molis Work 自有恢复者缺少切换宽限，不是 service ownership 识别规则本身误判。
 
 ### 3. 现有流程的问题
 
@@ -1180,17 +1180,17 @@ Runtime 按规范 propose → read → check → 请求用户确认，仍无法�
 
 ### 5. 当前影响
 
-影响在 App 打开期间执行 Core / service 升级、修复或重启的用户，尤其是发布安装后的标准恢复路径。它可以让健康的 GoalBoard 进程被误报为第三方冲突，并使 LaunchAgent 修复和回滚均无法重新占用端口；最终 App 仍可能临时可用，但常驻服务、Runtime 接入与下一次开机恢复无法完成，属于发布闭环阻断，不只是多等一步。
+影响在 App 打开期间执行 Core / service 升级、修复或重启的用户，尤其是发布安装后的标准恢复路径。它可以让健康的 Molis Work 进程被误报为第三方冲突，并使 LaunchAgent 修复和回滚均无法重新占用端口；最终 App 仍可能临时可用，但常驻服务、Runtime 接入与下一次开机恢复无法完成，属于发布闭环阻断，不只是多等一步。
 
 ### 6. 复杂度审查
 
 - **当前必须**：保留桌面自有 Web 子进程约四秒的快速恢复；当桌面端没有自有子进程、4173 原本由受管服务负责时，把 fallback 宽限扩大到约二十秒，让 LaunchAgent 的安装、身份稳定检查与回滚先完成。
 - **可以延后**：桌面 App 与 CLI 之间的跨进程维护锁、显式 maintenance 状态、多个 App 实例的统一 supervisor 协议和可视化服务切换进度。
-- **应当删除**：所有 Web 故障一律两次探测后抢占端口；把 GoalBoard 自有 fallback 进程继续描述成第三方冲突；为本问题新增另一套后台服务。
+- **应当删除**：所有 Web 故障一律两次探测后抢占端口；把 Molis Work 自有 fallback 进程继续描述成第三方冲突；为本问题新增另一套后台服务。
 
 ### 7. 修复必要性与优先级
 
-需要修复，P1。它阻断官方升级 / 修复链路，并会把 GoalBoard 自己制造的竞争呈现成用户需要处理的外部冲突。最小修复只调整已有健康监控的分支阈值，不改变端口、LaunchAgent、安装事务或 ownership 安全边界。
+需要修复，P1。它阻断官方升级 / 修复链路，并会把 Molis Work 自己制造的竞争呈现成用户需要处理的外部冲突。最小修复只调整已有健康监控的分支阈值，不改变端口、LaunchAgent、安装事务或 ownership 安全边界。
 
 ### 8. 修复前后体验差异
 
@@ -1204,29 +1204,29 @@ Runtime 按规范 propose → read → check → 请求用户确认，仍无法�
 ### 10. 验收边界
 
 - **工程验证**：通过。TDD 边界覆盖 App 自有子进程在第 2 次失败恢复，受管服务在第 9 次失败仍不抢占、第 10 次才 fallback；Rust 11/11、TypeScript、全仓 275/275、macOS arm64 App / DMG 构建与 `git diff --check` 通过。受限沙箱中的 16 项首次失败均由临时 SQLite / npm 日志目录不可写导致，相同代码在正常本机权限下全绿。`cargo clippy -D warnings` 仍会被本卡范围外既有的两个桌面代码风格告警拦截，本卡没有把它们伪装成回归通过，也没有混入无关清理。
-- **产品实操**：源码构建 App 已通过原始失败路径。先加载真实旧受管 LaunchAgent，再保持修正版 App 打开执行官方 `service install --confirm`；修复在约 6.6 秒完成，LaunchAgent PID、4173 监听 PID 与 `/health` PID 均为 26281，App 没有生成竞争子进程。随后停止受管服务，App 经过扩大后的宽限才启动自有 fallback；定点终止该子进程 26444 后，新子进程 26623 由同一 App 重新启动并恢复健康。2026-08-30 又保持同一源码 App 窗口打开，执行官方 `service restart --confirm --json`，约 2.6 秒返回 restarted；computer use 读回原设置页面仍完整可见，随后 `lsof`、LaunchAgent 与 `/health` 三方 PID 均为 67795，未出现 competing fallback 或 conflict。截图见 [受管服务重启后 App 页面](/Users/oreal/adeptify-home/repos/goalboard/docs/qa/bug-revalidation/2026-08-30/gb19-managed-restart.jpeg)。验收后已通过 App 自身退出并确认 LaunchAgent 仍健康。以上证明源码构建产物通过，不等于正式 Release 已安装。
+- **产品实操**：源码构建 App 已通过原始失败路径。先加载真实旧受管 LaunchAgent，再保持修正版 App 打开执行官方 `service install --confirm`；修复在约 6.6 秒完成，LaunchAgent PID、4173 监听 PID 与 `/health` PID 均为 26281，App 没有生成竞争子进程。随后停止受管服务，App 经过扩大后的宽限才启动自有 fallback；定点终止该子进程 26444 后，新子进程 26623 由同一 App 重新启动并恢复健康。2026-08-30 又保持同一源码 App 窗口打开，执行官方 `service restart --confirm --json`，约 2.6 秒返回 restarted；computer use 读回原设置页面仍完整可见，随后 `lsof`、LaunchAgent 与 `/health` 三方 PID 均为 67795，未出现 competing fallback 或 conflict。截图见 [受管服务重启后 App 页面](/Users/oreal/adeptify-home/repos/molis-work/docs/qa/bug-revalidation/2026-08-30/gb19-managed-restart.jpeg)。验收后已通过 App 自身退出并确认 LaunchAgent 仍健康。以上证明源码构建产物通过，不等于正式 Release 已安装。
 - **Owner 最终验收**：通过。修复已进入最终 App，受管服务重启及页面健康通过；子进程退出 fallback 由工程回归覆盖。
 
 ---
 
 ## GB-20260830-20：Planning Methods 全量正文返回被截断
 
-**来源**：GoalBoard 内部 Casebook Runtime 消费反馈
-**Bug 确认**：已确认，属于 GoalBoard MCP 读取契约与方法库规模设计缺陷；不是 Runtime 误用
+**来源**：Molis Work 内部 Casebook Runtime 消费反馈
+**Bug 确认**：已确认，属于 Molis Work MCP 读取契约与方法库规模设计缺陷；不是 Runtime 误用
 **修复决定**：已批准；本轮全量复审明确要求修复验收失败项
 **修复状态**：2026-08-30 最终收口：轻量目录、按 `method_ids` 正文读取及分页兼容通过；0.1.7 已安装，Owner 协议验收通过。
 
 ### 1. 真实场景
 
-Runtime 为一项同时涉及规划、数据分析、内容传播、运营和隐私的审查选择方法。调用 `goalboard_v1_planning_methods(board_id)` 后，接口一次返回全部方法、每个方法的完整 `instructions` 和项目 composition，单次输出超过约 12k tokens 并被工具层截断。协议又要求 Runtime 完整阅读每个已选方法的 instructions，于是消费者只能重复请求同一份全量结果，再在客户端分组筛选，仍难证明没有漏读。
+Runtime 为一项同时涉及规划、数据分析、内容传播、运营和隐私的审查选择方法。调用 `molis_work_v1_planning_methods(board_id)` 后，接口一次返回全部方法、每个方法的完整 `instructions` 和项目 composition，单次输出超过约 12k tokens 并被工具层截断。协议又要求 Runtime 完整阅读每个已选方法的 instructions，于是消费者只能重复请求同一份全量结果，再在客户端分组筛选，仍难证明没有漏读。
 
 ### 2. 事实与归因
 
-当前实现可直接确认：工具 schema 只有通用 `board_id` 等字段，没有 `method_ids`、`include_instructions`、cursor 或 limit；handler 固定返回 `effectivePlanningMethods(board_id)` 的全部正文与 `projectPlanningComposition(board_id)`。方法库增长后输出必然线性放大；截断发生在消费通道，但 GoalBoard 没有提供可恢复的分段读取协议。属于 GoalBoard API 缺陷，不是消费者应该自行解析或重试解决的问题。
+当前实现可直接确认：工具 schema 只有通用 `board_id` 等字段，没有 `method_ids`、`include_instructions`、cursor 或 limit；handler 固定返回 `effectivePlanningMethods(board_id)` 的全部正文与 `projectPlanningComposition(board_id)`。方法库增长后输出必然线性放大；截断发生在消费通道，但 Molis Work 没有提供可恢复的分段读取协议。属于 Molis Work API 缺陷，不是消费者应该自行解析或重试解决的问题。
 
 ### 3. 现有流程的问题
 
-目录发现和正文读取被绑成一次全量调用。消费者只需要 3–5 个已选方法，却必须接收所有正文；输出截断又没有 `has_more` 或未返回 ID，Runtime 可能把不完整内容误当完整。重复调用增加延迟和 token 成本，却不能建立可靠的读取完成证明，也违反 GoalBoard 自己要求“完整阅读所选 instructions”的契约。
+目录发现和正文读取被绑成一次全量调用。消费者只需要 3–5 个已选方法，却必须接收所有正文；输出截断又没有 `has_more` 或未返回 ID，Runtime 可能把不完整内容误当完整。重复调用增加延迟和 token 成本，却不能建立可靠的读取完成证明，也违反 Molis Work 自己要求“完整阅读所选 instructions”的契约。
 
 ### 4. 设计根因与初衷
 
@@ -1253,7 +1253,7 @@ Runtime 为一项同时涉及规划、数据分析、内容传播、运营和隐
 
 ### 9. 最小修复范围
 
-已只扩展 `goalboard_v1_planning_methods` 的输入与响应：新增可选 `method_ids`、`include_instructions`，为目录和正文返回同一 `catalog_id`、`returned_method_ids` 与 `include_instructions`；现代轻量/精确读取只返回选择所需目录字段或目录字段加完整 instructions，不重复传输 steps / rules，默认无参数调用仍保留旧版完整 methods 与 composition。Goal Advance Skill 已改为先目录、后正文并核对 catalog。`effectivePlanningMethods`、项目/个人/内置覆盖优先级、composition 和方法保存协议不变，没有新增工具或数据库迁移。回滚可移除可选字段，旧消费者不受影响。
+已只扩展 `molis_work_v1_planning_methods` 的输入与响应：新增可选 `method_ids`、`include_instructions`，为目录和正文返回同一 `catalog_id`、`returned_method_ids` 与 `include_instructions`；现代轻量/精确读取只返回选择所需目录字段或目录字段加完整 instructions，不重复传输 steps / rules，默认无参数调用仍保留旧版完整 methods 与 composition。Goal Advance Skill 已改为先目录、后正文并核对 catalog。`effectivePlanningMethods`、项目/个人/内置覆盖优先级、composition 和方法保存协议不变，没有新增工具或数据库迁移。回滚可移除可选字段，旧消费者不受影响。
 
 ### 10. 验收边界
 
@@ -1266,17 +1266,17 @@ Runtime 为一项同时涉及规划、数据分析、内容传播、运营和隐
 ## GB-20260830-21：大型项目内 Evidence 因不可全文打开而无法登记
 
 **来源**：CGS G2D 真实证据采集反馈；2026-08-30 同一路径、同一约 1.5 MB JSON ledger 再次被独立消费者调用复现
-**Bug 确认**：已确认，属于 GoalBoard Evidence locator 预检与 Evidence 登记耦合缺陷；不是文件无效或 CGS 误用
+**Bug 确认**：已确认，属于 Molis Work Evidence locator 预检与 Evidence 登记耦合缺陷；不是文件无效或 CGS 误用
 **修复决定**：已批准；本轮全量复审明确要求修复验收失败项
 **修复状态**：2026-08-30 最终收口：大文件可登记 locator+digest 并标记 preview unavailable，不再因不可全文打开拒绝 Evidence；真实 CGS ledger 副本与 0.1.7 构建通过，Owner 最终验收通过。
 
 ### 1. 真实场景
 
-CGS G2D 向 criterion `cgs-g2d-real-retrieval` 提交 `project://data/research/g2d-research-runs.json`。文件约 1.5 MB，包含真实搜索的 query、receipt、材料、来源家族、预算和 coverage gap，调用同时提供 SHA-256 digest。`goalboard_v1_evidence_submit` 因“项目内引用文件过大，不能在 GoalBoard 中打开”直接失败，连 Evidence locator、digest 和降级状态都没有留下。
+CGS G2D 向 criterion `cgs-g2d-real-retrieval` 提交 `project://data/research/g2d-research-runs.json`。文件约 1.5 MB，包含真实搜索的 query、receipt、材料、来源家族、预算和 coverage gap，调用同时提供 SHA-256 digest。`molis_work_v1_evidence_submit` 因“项目内引用文件过大，不能在 Molis Work 中打开”直接失败，连 Evidence locator、digest 和降级状态都没有留下。
 
 ### 2. 事实与归因
 
-可由当前源码稳定复现。`MAX_PROJECT_REFERENCE_BYTES` 固定为 512 KiB；`validateEvidenceLocator` 对项目内 locator 直接调用 `readProjectReference`，该函数在读取内容前发现超限就抛出 413；Coordinator 把异常提升为整个 Evidence 提交失败。输入中的 digest 只在验证之后写入记录，不能改变预检路径。2026-08-30 第二次消费者反馈仍以相同 G2D ledger、项目内 locator 和 digest 得到同一拒绝，说明不是一次性参数错误。文件确实位于项目内且格式/内容是否适合作为验收证据是另一层判断，因此主要归因是 GoalBoard 协议缺陷，不是 CGS 提交方式错误。
+可由当前源码稳定复现。`MAX_PROJECT_REFERENCE_BYTES` 固定为 512 KiB；`validateEvidenceLocator` 对项目内 locator 直接调用 `readProjectReference`，该函数在读取内容前发现超限就抛出 413；Coordinator 把异常提升为整个 Evidence 提交失败。输入中的 digest 只在验证之后写入记录，不能改变预检路径。2026-08-30 第二次消费者反馈仍以相同 G2D ledger、项目内 locator 和 digest 得到同一拒绝，说明不是一次性参数错误。文件确实位于项目内且格式/内容是否适合作为验收证据是另一层判断，因此主要归因是 Molis Work 协议缺陷，不是 CGS 提交方式错误。
 
 ### 3. 现有流程的问题
 
@@ -1303,7 +1303,7 @@ CGS G2D 向 criterion `cgs-g2d-real-retrieval` 提交 `project://data/research/g
 ### 8. 修复前后体验差异
 
 - **修复前**：提交 1.5 MB 项目内 ledger + digest → 整次 Evidence 创建失败 → 另写小文档并失去原始产物直接引用。
-- **修复后**：提交同一 locator + digest → GoalBoard 确认路径/边界并创建 Evidence，明确标注“文件超过 512 KiB，内容未全文预检，digest 仅记录” → 用户可补 sidecar summary，Review 同时引用摘要与原始产物。
+- **修复后**：提交同一 locator + digest → Molis Work 确认路径/边界并创建 Evidence，明确标注“文件超过 512 KiB，内容未全文预检，digest 仅记录” → 用户可补 sidecar summary，Review 同时引用摘要与原始产物。
 
 ### 9. 最小修复范围
 
@@ -1312,7 +1312,7 @@ CGS G2D 向 criterion `cgs-g2d-real-retrieval` 提交 `project://data/research/g
 ### 10. 验收边界
 
 - **工程验证**：定向 V1 / Web 2/2 与 TypeScript 通过。红灯证明 512 KiB + 1 字节仍在 coordinator 与 Web 整条失败；绿灯覆盖带 digest 大文件登记、超限 anchor 降级、原 verified / repo / anchor / missing / outside / symlink / opaque 行为不回归、Web 不生成预览链接、Evidence 访问 409 和原始大文件打开 413。二进制文件仍沿用既有文本预览边界，本卡没有扩大到任意二进制内容验证；完整全仓门禁会在统一打包前再运行。
-- **产品实操**：通过源码代表性真实路径。实际读取 CGS `/Users/oreal/adeptify-home/repos/Content Growth Studio/data/research/g2d-research-runs.json`，文件为 1,685,981 字节，SHA-256 为 `b9bea3bfd0beebf0466841d6aa3f8cb48d5023e3d37feeb99ae70c062855eb0e`；只在临时 GoalBoard 库中以原 `project://data/research/g2d-research-runs.json` 和 digest 提交，CGS 文件未修改。computer use 打开记录页后可见“当前有效 / UNVERIFIED”、真实大小、512 KiB 上限、“内容未全文预检”“digest 未核验”和 sidecar 建议；locator 是“复制引用”按钮而非打开链接。带 Evidence 打开返回 409，直接打开返回 413。截图见 [真实 CGS 大文件 Evidence](/Users/oreal/adeptify-home/repos/goalboard/docs/qa/bug-revalidation/2026-08-30/gb21-large-evidence-unverified.jpeg)。最终安装后的真实 Runtime submit 仍为 `UNVERIFIED`。
+- **产品实操**：通过源码代表性真实路径。实际读取 CGS `/Users/oreal/adeptify-home/repos/Content Growth Studio/data/research/g2d-research-runs.json`，文件为 1,685,981 字节，SHA-256 为 `b9bea3bfd0beebf0466841d6aa3f8cb48d5023e3d37feeb99ae70c062855eb0e`；只在临时 Molis Work 库中以原 `project://data/research/g2d-research-runs.json` 和 digest 提交，CGS 文件未修改。computer use 打开记录页后可见“当前有效 / UNVERIFIED”、真实大小、512 KiB 上限、“内容未全文预检”“digest 未核验”和 sidecar 建议；locator 是“复制引用”按钮而非打开链接。带 Evidence 打开返回 409，直接打开返回 413。截图见 [真实 CGS 大文件 Evidence](/Users/oreal/adeptify-home/repos/molis-work/docs/qa/bug-revalidation/2026-08-30/gb21-large-evidence-unverified.jpeg)。最终安装后的真实 Runtime submit 仍为 `UNVERIFIED`。
 - **Owner 最终验收**：通过。存在/路径安全、digest 登记与内容全文验证三层状态已分离；用户对措辞的理解仍为 `UNVERIFIED`。
 
 ---
@@ -1320,19 +1320,19 @@ CGS G2D 向 criterion `cgs-g2d-real-retrieval` 提交 `project://data/research/g
 ## GB-20260830-22：Legacy Rewire 可统一读取但不能用同一 handle 决定
 
 **来源**：CGS legacy Rewire 恢复与确认反馈
-**Bug 确认**：已确认，属于 GoalBoard 兼容视图与决定 API 不可组合缺陷；不是用户确认不足或 Runtime 参数误用
+**Bug 确认**：已确认，属于 Molis Work 兼容视图与决定 API 不可组合缺陷；不是用户确认不足或 Runtime 参数误用
 **修复决定**：用户已批准处理本轮全部已确认缺陷
 **修复状态**：2026-08-30 最终收口：Legacy Rewire/Contract 的 raw 与 synthetic handle 可组合 read/check/decide，native 等价变更会 supersede legacy 双真相；0.1.7 已安装，Owner 协议验收通过。
 
 ### 1. 真实场景
 
-CGS Runtime 用 `goalboard_v1_goal_tree_read(include_legacy=true, proposal_id="legacy-rewire:rewire-e41a…")` 读取到一份 pending Proposal 和 item `legacy-rewire-item:rewire-e41a…`。用户在当前会话明确确认整项变更；Runtime 把 read 返回的 proposal_id/item_id 原样交给 `goalboard_v1_goal_tree_decide`，却得到“找不到 Goal Tree 提案”，无法完成已经授权的决定。
+CGS Runtime 用 `molis_work_v1_goal_tree_read(include_legacy=true, proposal_id="legacy-rewire:rewire-e41a…")` 读取到一份 pending Proposal 和 item `legacy-rewire-item:rewire-e41a…`。用户在当前会话明确确认整项变更；Runtime 把 read 返回的 proposal_id/item_id 原样交给 `molis_work_v1_goal_tree_decide`，却得到“找不到 Goal Tree 提案”，无法完成已经授权的决定。
 
 主线随后只能在正在进行的 clarifier Run 中创建内容相同的 native Proposal `goal-tree-proposal-3147c171-f6cb-476a-94ac-dc1f471abfda`。用户确认后，两条 canonical relation 已成功 deactivated，native items 均为 applied，graph check 无问题；但原 Rewire `rewire-e41a7654-003c-4dbf-8936-1a7d63a68e6a` 仍显示 `state=pending / proposed_changes_applied=false`。同一个逻辑变更因此在 canonical graph 中已经生效，在 legacy 视图中却仍待确认。
 
 ### 2. 事实与归因
 
-当前源码可以直接解释第一段结果。`listGoalTreeProposals` 把 native 表和 `legacyGoalTreeProposalView(snapshot)` 合并；后者为 Contract Proposal、Candidate 和 Rewire 生成 `legacy-*` proposal_id/item_id。`decideGoalTreeProposal` 随后固定调用 `readNativeGoalTreeProposal`，只查询 native proposal 表，因此所有 synthetic legacy handle 都不可能命中。Rewire 另有 `goalboard_v1_rewire_confirm`，但统一 read 结果没有正式返回该 canonical decision route。后续复现又证明 native materialization 与 legacy lifecycle 没有 supersession/reconciliation：canonical relation 已达到 Rewire 所请求的目标状态，legacy 对象仍不会被标记 applied 或 superseded。属于 GoalBoard API 与兼容状态投影缺陷，不是消费者应靠源码猜另一工具，也不是 graph check 失败。
+当前源码可以直接解释第一段结果。`listGoalTreeProposals` 把 native 表和 `legacyGoalTreeProposalView(snapshot)` 合并；后者为 Contract Proposal、Candidate 和 Rewire 生成 `legacy-*` proposal_id/item_id。`decideGoalTreeProposal` 随后固定调用 `readNativeGoalTreeProposal`，只查询 native proposal 表，因此所有 synthetic legacy handle 都不可能命中。Rewire 另有 `molis_work_v1_rewire_confirm`，但统一 read 结果没有正式返回该 canonical decision route。后续复现又证明 native materialization 与 legacy lifecycle 没有 supersession/reconciliation：canonical relation 已达到 Rewire 所请求的目标状态，legacy 对象仍不会被标记 applied 或 superseded。属于 Molis Work API 与兼容状态投影缺陷，不是消费者应靠源码猜另一工具，也不是 graph check 失败。
 
 ### 3. 现有流程的问题
 
@@ -1378,17 +1378,17 @@ CGS Runtime 用 `goalboard_v1_goal_tree_read(include_legacy=true, proposal_id="l
 ## GB-20260830-23：Available 默认展开全部 Contract 导致输出截断
 
 **来源**：CGS 主线消费者反馈
-**Bug 确认**：已确认，属于 GoalBoard MCP 默认读取粒度缺陷；CGS Contract 体量是触发条件，不是错误归因
+**Bug 确认**：已确认，属于 Molis Work MCP 默认读取粒度缺陷；CGS Contract 体量是触发条件，不是错误归因
 **修复决定**：已纳入用户要求的全量修复
 **修复状态**：2026-08-30 最终收口：Available 默认 summary，full 需显式请求；最终安装 MCP schema 与真实 CGS 副本协议实操通过，Owner 最终验收通过。
 
 ### 1. 真实场景
 
-Runtime 在 CGS 项目调用 `goalboard_v1_available` 选择下一项。项目同时存在多个 executor / clarifier Goal；消费者此时只需要 ID、标题、角色、下一动作、优先级和阻塞摘要，却收到每个 Goal 的完整 Contract、验收条件、风险、策略和规划信息，报告输出约 12.6k tokens 且后半段被截断。
+Runtime 在 CGS 项目调用 `molis_work_v1_available` 选择下一项。项目同时存在多个 executor / clarifier Goal；消费者此时只需要 ID、标题、角色、下一动作、优先级和阻塞摘要，却收到每个 Goal 的完整 Contract、验收条件、风险、策略和规划信息，报告输出约 12.6k tokens 且后半段被截断。
 
 ### 2. 事实与归因
 
-已独立复现。Owner 通过 SQLite online backup 把真实 CGS Board 复制到临时目录，再用当前源码只读调用 `queryAvailable`：8 个 available、2 个 blocked，完整 JSON 为 28,595 字符；8 个 available 条目本身占 22,879 字符，单条 2,561–3,317 字符。默认 MCP 没有 compact、limit、cursor 或 detail 参数，handler 原样返回 Coordinator 的完整 `GoalRecord`、验收条件、Policy、Surface 和 planning。消费者报告约 12.6k tokens 且被截断，与该规模一致。归因是 GoalBoard MCP 默认读取粒度缺陷；CGS 只是正常规模的真实触发样本。
+已独立复现。Owner 通过 SQLite online backup 把真实 CGS Board 复制到临时目录，再用当前源码只读调用 `queryAvailable`：8 个 available、2 个 blocked，完整 JSON 为 28,595 字符；8 个 available 条目本身占 22,879 字符，单条 2,561–3,317 字符。默认 MCP 没有 compact、limit、cursor 或 detail 参数，handler 原样返回 Coordinator 的完整 `GoalRecord`、验收条件、Policy、Surface 和 planning。消费者报告约 12.6k tokens 且被截断，与该规模一致。归因是 Molis Work MCP 默认读取粒度缺陷；CGS 只是正常规模的真实触发样本。
 
 ### 3. 现有流程的问题
 
@@ -1419,12 +1419,12 @@ Runtime 在 CGS 项目调用 `goalboard_v1_available` 选择下一项。项目�
 
 ### 9. 最小修复范围
 
-只修改 MCP `goalboard_v1_available` 的 schema、handler 响应投影、Runtime Skill 和测试：默认 `detail_level=summary`，仅返回 Goal ID/title、role、work state、next action、priority、依赖/Risk、required capabilities、planning、blocked reasons 与 parallel suggestion；显式 `detail_level=full` 返回既有完整结构。摘要 JSON 不再为 Agent 输出保留无价值缩进。Coordinator、Web、CLI、Goal 排序、可用性推导、Contract 内容和状态机都不改。回滚只需恢复 MCP handler 原样返回，不涉及数据库迁移。
+只修改 MCP `molis_work_v1_available` 的 schema、handler 响应投影、Runtime Skill 和测试：默认 `detail_level=summary`，仅返回 Goal ID/title、role、work state、next action、priority、依赖/Risk、required capabilities、planning、blocked reasons 与 parallel suggestion；显式 `detail_level=full` 返回既有完整结构。摘要 JSON 不再为 Agent 输出保留无价值缩进。Coordinator、Web、CLI、Goal 排序、可用性推导、Contract 内容和状态机都不改。回滚只需恢复 MCP handler 原样返回，不涉及数据库迁移。
 
 ### 10. 验收边界
 
 - **工程验证**：通过（源码）。TDD 红灯先确认默认响应没有 `detail_level` 且仍展开 Contract；绿灯后 TypeScript 与完整 V1/MCP 126/126。回归覆盖 summary schema、full 兼容、完整候选计数、blocked `goal.replaced` facts、parallel suggestion、非法 detail level 的结构化 allowed values，以及 summary 不含 acceptance criteria/Policy/Impact、full 仍含全部旧字段。
-- **产品实操**：通过（真实 CGS 数据安全副本，源码 MCP）。同一 Board、同一 cursor 读取：`full=45,020` 字符，默认 `summary=7,281` 字符，下降 83.8%；8/8 available 与 3/3 blocked 均完整返回，blocked 分别保留 `risk.blocks_completion`、`goal.replaced`、`review.user_approval_required`，parallel suggestion 明确为 null。摘要 Goal 只有 ID/title，条目仍含动作、priority、依赖/Risk、capabilities 与 planning；随后对首项调用 `goalboard_v1_contract`，读回同一 Goal、2 条验收条件、完整 Policy，证明详情只是后置读取而非丢失。消费面是 MCP 响应，协议实操比 computer use 转录页更直接；最终安装后的新 Session 仍为 `UNVERIFIED`。
+- **产品实操**：通过（真实 CGS 数据安全副本，源码 MCP）。同一 Board、同一 cursor 读取：`full=45,020` 字符，默认 `summary=7,281` 字符，下降 83.8%；8/8 available 与 3/3 blocked 均完整返回，blocked 分别保留 `risk.blocks_completion`、`goal.replaced`、`review.user_approval_required`，parallel suggestion 明确为 null。摘要 Goal 只有 ID/title，条目仍含动作、priority、依赖/Risk、capabilities 与 planning；随后对首项调用 `molis_work_v1_contract`，读回同一 Goal、2 条验收条件、完整 Policy，证明详情只是后置读取而非丢失。消费面是 MCP 响应，协议实操比 computer use 转录页更直接；最终安装后的新 Session 仍为 `UNVERIFIED`。
 - **Owner 最终验收**：通过。最终安装 schema 与真实 CGS 副本证明 summary 默认、full 可回退；用户对上下文成本的感受仍为 `UNVERIFIED`。
 
 ---
@@ -1432,7 +1432,7 @@ Runtime 在 CGS 项目调用 `goalboard_v1_available` 选择下一项。项目�
 ## GB-20260830-24：对话已完成人工验收，Inbox 仍要求重复填写且深链找不到表单
 
 **来源**：CGS `cgs-g4a-platform-metric-semantics` 真人验收反馈
-**Bug 确认**：已确认，包含 GoalBoard Decision 深链可达性缺陷、Runtime Review 与人工验收标签混淆，以及同一对话真人验收交接缺口；不把 `human_verdict` Evidence 本身等同于 canonical human approval
+**Bug 确认**：已确认，包含 Molis Work Decision 深链可达性缺陷、Runtime Review 与人工验收标签混淆，以及同一对话真人验收交接缺口；不把 `human_verdict` Evidence 本身等同于 canonical human approval
 **修复决定**：来源任务已明确要求独立诊断、修复并验证；已授权处理
 **修复状态**：最终交付已闭环。0.1.10 最终安装 App 的真实 CGS/G4A 旅程中，“处理 1 项决定”深链自动选中目标 Inbox 项、滚入并展开人类验收表单，结论、原话、对话来源、Evidence 与理由均已预填；未自动提交或写入人类 Review。工程、产品实操与 Owner 验收通过，用户本人最终提交仍保留为人工动作
 
@@ -1448,7 +1448,7 @@ Runtime 在 CGS 项目调用 `goalboard_v1_available` 选择下一项。项目�
 
 ### 2. 事实与归因
 
-消费者已提供精确 Goal、canonical 状态和深链，且“Runtime 保存原话但没有人类权限”符合安全边界。2026-08-30 Owner 先通过 computer use 在最终安装 App 独立复现，再以测试 fixture 制造一个比目标 Goal 更新的项目级 Risk：旧源码打开目标 hash 后，浏览器实际选中 `decision:board`，而非 `decision:POLICY-WEB`。源码核对证实 legacy hash 和新版 `data-feed-detail="decision:<goal_id>"` 之间没有映射；这是一条确定可复现的 GoalBoard 导航缺陷，不是 CGS 接入、旧 Session 或用户误用。
+消费者已提供精确 Goal、canonical 状态和深链，且“Runtime 保存原话但没有人类权限”符合安全边界。2026-08-30 Owner 先通过 computer use 在最终安装 App 独立复现，再以测试 fixture 制造一个比目标 Goal 更新的项目级 Risk：旧源码打开目标 hash 后，浏览器实际选中 `decision:board`，而非 `decision:POLICY-WEB`。源码核对证实 legacy hash 和新版 `data-feed-detail="decision:<goal_id>"` 之间没有映射；这是一条确定可复现的 Molis Work 导航缺陷，不是 CGS 接入、旧 Session 或用户误用。
 
 ### 3. 现有流程的问题
 
@@ -1498,11 +1498,11 @@ Runtime 在 CGS 项目调用 `goalboard_v1_available` 选择下一项。项目�
 
 ### 1. 真实场景
 
-CGS G2F 曾有一个已结束、Claim 已释放的 Run，`block_reason` 记录当前验收还缺“authorized team evidence（Agent 任务、成本、返工）”。随后用户明确决定：Agent 工时、Token、返工和人工纠正成本属于延后范围，不应继续作为当前选题竞争力门槛。GoalBoard 能用 Evidence correction 更正证据，却没有对应入口说明这条历史 Run blocker 已被后续范围决定取代；用户在 Contract 或历史视图仍会看到旧文本。
+CGS G2F 曾有一个已结束、Claim 已释放的 Run，`block_reason` 记录当前验收还缺“authorized team evidence（Agent 任务、成本、返工）”。随后用户明确决定：Agent 工时、Token、返工和人工纠正成本属于延后范围，不应继续作为当前选题竞争力门槛。Molis Work 能用 Evidence correction 更正证据，却没有对应入口说明这条历史 Run blocker 已被后续范围决定取代；用户在 Contract 或历史视图仍会看到旧文本。
 
 ### 2. 事实与归因
 
-owner 已用独立 fixture 复现：一个 executor Run 以旧范围理由 `failed` 后，Claim 自动释放，canonical `work_state=execution_pending` 且 reasons 为空；因此 Run 原文没有污染 V1 当前状态。但旧版 capsule 的 `primaryBlocker` 会先扫描任意 `started/blocked` Run，而 `failed` 终态在 Goal 进展/记录页仍以“阻塞原因”展示，消费者无法区分当时报告与当前事实。归因是 GoalBoard 当前投影与历史展示缺陷，不是 CGS 误用；“必须新增 Run correction”这一初始假设不成立。
+owner 已用独立 fixture 复现：一个 executor Run 以旧范围理由 `failed` 后，Claim 自动释放，canonical `work_state=execution_pending` 且 reasons 为空；因此 Run 原文没有污染 V1 当前状态。但旧版 capsule 的 `primaryBlocker` 会先扫描任意 `started/blocked` Run，而 `failed` 终态在 Goal 进展/记录页仍以“阻塞原因”展示，消费者无法区分当时报告与当前事实。归因是 Molis Work 当前投影与历史展示缺陷，不是 CGS 误用；“必须新增 Run correction”这一初始假设不成立。
 
 ### 3. 现有流程的问题
 
@@ -1547,7 +1547,7 @@ Run report 采用追加式不可变历史，初衷是保留执行者当时的判
 
 **来源**：CGS 七平台各 50+ AI KOL 的 37 项 Goal Tree Proposal 恢复反馈
 **Bug 确认**：部分成立。accepted Contract 不可变在 decide 才失败、whole confirm 产生 35/37 部分状态与 GB18 同类，当前源码已经由同一 dry-run validator 和 pristine whole-confirm 零写入修复，不能重复算新 Bug；`criterion_id` / 跨 Proposal `item_id` 仍由全局主键约束，但提交与预检没有在写入前领域化检查，仍可能暴露 SQLite 原始错误，属于新增真实缺陷。replacement 指引需要结构化；机械修复自动继承用户授权暂不成立为最小修复，因为服务端还不能证明业务语义完全未变
-**修复决定**：来源任务已授权 GoalBoard owner 独立评估并在确认后修复；不得改动或阻塞 CGS 当前 Goal
+**修复决定**：来源任务已授权 Molis Work owner 独立评估并在确认后修复；不得改动或阻塞 CGS 当前 Goal
 **修复状态**：2026-08-30 最终收口：accepted immutable、criterion/item ID 唯一性在 check 阶段与 decide 同源校验，原始数据库错误被结构化；whole confirm 零部分写入并返回 replacement/migration 恢复动作。293/293 通过，Owner 最终验收通过。
 
 ### 1. 真实场景
@@ -1556,7 +1556,7 @@ Run report 采用追加式不可变历史，初衷是保留执行者当时的判
 
 ### 2. 事实与归因
 
-owner 已核对当前源码和现有 GB18 回归测试：accepted Contract transition、dry-run materialization 与 whole-confirm 原子失败已经共享同一检查，冲突时不会创建安全子 Goal，Proposal 仍为 pending；这一段是历史真实 Bug，但当前修复归 GB18。新增边界仍成立：验收条件 ID 是全局主键，Goal materializer 在删除目标 Goal 自身条件后直接插入，没有提前检查该 ID 是否属于另一个 Goal；Proposal item ID 同样是全局主键，normalize 只检查同一请求内重复，跨 Proposal 重用会在 INSERT 时失败。二者都是 GoalBoard 缺陷，不是消费者应理解的 SQLite 细节。至于“只改技术 ID 自动沿用旧确认”，当前没有稳定语义 hash 证明内容未变，暂按安全约束保留再次确认，不把期望直接判成 Bug。
+owner 已核对当前源码和现有 GB18 回归测试：accepted Contract transition、dry-run materialization 与 whole-confirm 原子失败已经共享同一检查，冲突时不会创建安全子 Goal，Proposal 仍为 pending；这一段是历史真实 Bug，但当前修复归 GB18。新增边界仍成立：验收条件 ID 是全局主键，Goal materializer 在删除目标 Goal 自身条件后直接插入，没有提前检查该 ID 是否属于另一个 Goal；Proposal item ID 同样是全局主键，normalize 只检查同一请求内重复，跨 Proposal 重用会在 INSERT 时失败。二者都是 Molis Work 缺陷，不是消费者应理解的 SQLite 细节。至于“只改技术 ID 自动沿用旧确认”，当前没有稳定语义 hash 证明内容未变，暂按安全约束保留再次确认，不把期望直接判成 Bug。
 
 ### 3. 现有流程的问题
 
@@ -1591,7 +1591,7 @@ accepted Contract 的收口限制用于防止已被执行和审计的承诺被�
 
 ### 10. 验收边界
 
-- **工程验证**：2026-08-30 通过。TDD 先复现三类失败：accepted conflict 缺结构化 replacement 动作、criterion collision 在 check 泄漏 `SQLITE_CONSTRAINT_PRIMARYKEY`、跨 Proposal item ID 重用不是 `GoalBoardV1Error`；修复后定向 V1 3/3、实际 MCP uniqueness/clarification 流程、TypeScript 通过。完整 V1 + MCP 在沙箱内 127/128，唯一失败是测试访问真实目录的 `SQLITE_CANTOPEN`；同一命令在沙箱外 128/128 全绿。MCP 实际返回不含 `UNIQUE constraint failed`，失败 Proposal 数量不增加。
+- **工程验证**：2026-08-30 通过。TDD 先复现三类失败：accepted conflict 缺结构化 replacement 动作、criterion collision 在 check 泄漏 `SQLITE_CONSTRAINT_PRIMARYKEY`、跨 Proposal item ID 重用不是 `MolisWorkV1Error`；修复后定向 V1 3/3、实际 MCP uniqueness/clarification 流程、TypeScript 通过。完整 V1 + MCP 在沙箱内 127/128，唯一失败是测试访问真实目录的 `SQLITE_CANTOPEN`；同一命令在沙箱外 128/128 全绿。MCP 实际返回不含 `UNIQUE constraint failed`，失败 Proposal 数量不增加。
 - **产品实操**：源码产品接口已通过，最终安装版 computer use 仍为 `UNVERIFIED`。实际 `tools/call` 已走通：缺 Run → resume hint；criterion collision → check 中精确字段/owner/action；item ID 重用 → propose 前领域错误且零残留。Web 复用既有冲突卡能力展示 message + recovery，并禁用整份采用；还需统一安装后用 37 项等体量安全 fixture 通过 computer use 观察确认页与结果页，不可在真实 CGS 上制造第二次部分应用。
 - **Owner 最终验收**：通过。与 GB18 的原子性重叠已去重；本卡独有的唯一约束、领域错误转换和 replacement 恢复均独立覆盖，未用 GB24 的交互成功代替协议验收。
 
@@ -1602,11 +1602,11 @@ accepted Contract 的收口限制用于防止已被执行和审计的承诺被�
 **来源**：CGS `cgs-g2d-evidence-acquisition` completion 与 rework 两次反馈
 **Bug 确认**：真实 Bug，但已纠正归因。源码核对证明 `completion` Risk 不进入 executor eligibility，也没有发现无关联 Risk 的 board-wide fallback；G2D 在 Available/explain 不可领取，是因为旧执行、Evidence 与 Review 已把它派生为 `completion_blocked`。真实缺陷是新的独立反证推翻旧验收前提后，没有受审计入口让同一 unmet Goal 返回 executor 返工
 **修复决定**：已授权自主评估与修复；不得改 CGS Risk 或 Goal
-**修复状态**：2026-08-30 最终收口：根因修正为“已有执行结束后恢复动作缺失”，不是 completion Risk 泄漏初次 Claim gate。0.1.7 最终安装 Core 已对真实 G2D 返回 `goal.execution_finished_rework_required`、`completion_gate_only=true` 和 `goalboard_v1_rework_request`；保留 Risk 与历史审计，未修改 CGS 数据。Owner 协议验收通过；CGS 新 Session 才能加载。
+**修复状态**：2026-08-30 最终收口：根因修正为“已有执行结束后恢复动作缺失”，不是 completion Risk 泄漏初次 Claim gate。0.1.7 最终安装 Core 已对真实 G2D 返回 `goal.execution_finished_rework_required`、`completion_gate_only=true` 和 `molis_work_v1_rework_request`；保留 Risk 与历史审计，未修改 CGS 数据。Owner 协议验收通过；CGS 新 Session 才能加载。
 
-**2026-08-30 最终安装态复验补充**：用已安装 0.1.7 Core 对真实 `cgs-g2d-evidence-acquisition` 只读调用 executor explain，确认 Risk facts 已明确 `scope=direct_goal`、`association=goal_risks`、`blocking_mode=completion`；但响应仍只有 `risk.blocks_completion`，没有说明旧 Run/Evidence/Review 已结束，也没有指出新反证应走 `goalboard_v1_rework_request`。这会继续让消费者把“防止重复 Claim”误读为“completion Risk 泄漏到 executor gate”。因此整卡回退为未通过；本轮新增 `goal.execution_finished_rework_required`，在 Explain、Available blocked 和 select 拒绝中同时返回 `completion_gate_only=true`、`recovery_tool=goalboard_v1_rework_request` 及 criterion/Evidence/Available 恢复步骤，不改变 canonical 状态或 Risk。定向红灯/绿灯已完成，完整回归、重打包与真实安装态协议复验仍待执行。
+**2026-08-30 最终安装态复验补充**：用已安装 0.1.7 Core 对真实 `cgs-g2d-evidence-acquisition` 只读调用 executor explain，确认 Risk facts 已明确 `scope=direct_goal`、`association=goal_risks`、`blocking_mode=completion`；但响应仍只有 `risk.blocks_completion`，没有说明旧 Run/Evidence/Review 已结束，也没有指出新反证应走 `molis_work_v1_rework_request`。这会继续让消费者把“防止重复 Claim”误读为“completion Risk 泄漏到 executor gate”。因此整卡回退为未通过；本轮新增 `goal.execution_finished_rework_required`，在 Explain、Available blocked 和 select 拒绝中同时返回 `completion_gate_only=true`、`recovery_tool=molis_work_v1_rework_request` 及 criterion/Evidence/Available 恢复步骤，不改变 canonical 状态或 Risk。定向红灯/绿灯已完成，完整回归、重打包与真实安装态协议复验仍待执行。
 
-**2026-08-30 恢复提示工程验证**：两个精确状态机用例先暴露既有断言只期待 `risk.blocks_completion`，更新为三个入口统一返回按 code 排序的生命周期提示与 Risk 后通过；完整 `pnpm test` 293/293 全绿。工程上已证明：初次执行仍可领取；旧执行闭环完成时不创建重复 Claim；新反证可通过 `goalboard_v1_rework_request` 回到 `execution_pending`；completion Risk 仍只阻止 complete。最终安装态仍需在真实 G2D explain 中看到新增 reason，且不得在本任务中替 CGS 提交 rework。
+**2026-08-30 恢复提示工程验证**：两个精确状态机用例先暴露既有断言只期待 `risk.blocks_completion`，更新为三个入口统一返回按 code 排序的生命周期提示与 Risk 后通过；完整 `pnpm test` 293/293 全绿。工程上已证明：初次执行仍可领取；旧执行闭环完成时不创建重复 Claim；新反证可通过 `molis_work_v1_rework_request` 回到 `execution_pending`；completion Risk 仍只阻止 complete。最终安装态仍需在真实 G2D explain 中看到新增 reason，且不得在本任务中替 CGS 提交 rework。
 
 ### 1. 真实场景
 
@@ -1626,7 +1626,7 @@ Completion Risk 用于防止已知重大风险被局部证据绕过；`completio
 
 ### 5. 当前影响
 
-已明确阻断真实 CGS G2D 的修正实现，迫使消费者在生命周期外继续、复制 Goal 或不诚实地处理 Risk。用户已授权当晚自主推进，仍不能合法创建新 Run，因此优先级为 P0。Risk 是否语义上应该关联 G2D 属于 CGS Contract/建模判断，不由本修复暗改；GoalBoard 负责把直接关联与恢复动作说清楚。
+已明确阻断真实 CGS G2D 的修正实现，迫使消费者在生命周期外继续、复制 Goal 或不诚实地处理 Risk。用户已授权当晚自主推进，仍不能合法创建新 Run，因此优先级为 P0。Risk 是否语义上应该关联 G2D 属于 CGS Contract/建模判断，不由本修复暗改；Molis Work 负责把直接关联与恢复动作说清楚。
 
 ### 6. 复杂度审查
 
@@ -1722,7 +1722,7 @@ Runtime 对同一 Draft 连续澄清十余轮，每次只保存一条短回答�
 
 ### 2. 事实与归因
 
-owner 已核对实现并用 12 轮真实 MCP fixture 复现旧结构的必然增长：Coordinator view 每次从 snapshot 过滤并返回该 session 全部 turns，旧 MCP 原样序列化，没有 compact 参数。修后同一 fixture 共 13 条 turns（含 rough idea），默认第 1 次与第 12 次写响应分别为 5,770 / 5,781 bytes，只增加 11 bytes；默认 resume 为 5,781 bytes，显式 13 条完整历史为 20,453 bytes，默认减少 71.7%。归因是 GoalBoard MCP 默认响应粒度缺陷。
+owner 已核对实现并用 12 轮真实 MCP fixture 复现旧结构的必然增长：Coordinator view 每次从 snapshot 过滤并返回该 session 全部 turns，旧 MCP 原样序列化，没有 compact 参数。修后同一 fixture 共 13 条 turns（含 rough idea），默认第 1 次与第 12 次写响应分别为 5,770 / 5,781 bytes，只增加 11 bytes；默认 resume 为 5,781 bytes，显式 13 条完整历史为 20,453 bytes，默认减少 71.7%。归因是 Molis Work MCP 默认响应粒度缺陷。
 
 ### 3. 现有流程的问题
 
@@ -1772,11 +1772,11 @@ owner 已核对实现并用 12 轮真实 MCP fixture 复现旧结构的必然增
 
 ### 1. 真实场景
 
-Arena 的统一 Goal Tree Proposal 因 leaf readiness 路径不明失败后，Runtime 对同一 Draft 改用 `goalboard_v1_contract_propose`。第一次遗漏 `goal_id` 得到可理解错误；第二次补回原 goal_id/board_id，并提供完整 Contract、8 条 acceptance criteria、field_sources 与 review_policy，却直接收到 JavaScript `undefined.trim` 裸异常，无法知道是哪一字段缺失。
+Arena 的统一 Goal Tree Proposal 因 leaf readiness 路径不明失败后，Runtime 对同一 Draft 改用 `molis_work_v1_contract_propose`。第一次遗漏 `goal_id` 得到可理解错误；第二次补回原 goal_id/board_id，并提供完整 Contract、8 条 acceptance criteria、field_sources 与 review_policy，却直接收到 JavaScript `undefined.trim` 裸异常，无法知道是哪一字段缺失。
 
 ### 2. 事实与归因
 
-已从 Arena 当前任务的原始工具调用中恢复完整 payload：`proposed_goal.acceptance_criteria` 是字符串数组，其他主要 Contract 字段、field_sources、review_policy 均已提供。旧 `goalboard_v1_contract_propose` 的 `proposed_goal` schema 是 `{ [key:string]: unknown }`，没有表达 criterion 对象结构；Coordinator 又在 shape guard 之前直接进入业务 validator，最终对字符串项读取 `criterion.statement.trim()`。独立红测得到同一裸 TypeError并确认失败没有创建 Proposal。归因是 GoalBoard MCP schema 与运行时输入校验共同缺陷，不是 Arena 应读源码或猜嵌套结构。
+已从 Arena 当前任务的原始工具调用中恢复完整 payload：`proposed_goal.acceptance_criteria` 是字符串数组，其他主要 Contract 字段、field_sources、review_policy 均已提供。旧 `molis_work_v1_contract_propose` 的 `proposed_goal` schema 是 `{ [key:string]: unknown }`，没有表达 criterion 对象结构；Coordinator 又在 shape guard 之前直接进入业务 validator，最终对字符串项读取 `criterion.statement.trim()`。独立红测得到同一裸 TypeError并确认失败没有创建 Proposal。归因是 Molis Work MCP schema 与运行时输入校验共同缺陷，不是 Arena 应读源码或猜嵌套结构。
 
 ### 3. 现有流程的问题
 
@@ -1820,17 +1820,17 @@ Contract Proposal 要求完整 Draft Contract、字段来源与 Review Policy，
 ## GB-20260830-31：replacement Goal 已生效，旧 Goal 仍进入 Ready
 
 **来源**：CGS AI KOL 研究消费者反馈
-**Bug 确认**：已确认是 GoalBoard Ready/Available/select 没有消费 canonical active `replaces` 关系的派生生命周期缺陷，不是 CGS 提案漏退役
+**Bug 确认**：已确认是 Molis Work Ready/Available/select 没有消费 canonical active `replaces` 关系的派生生命周期缺陷，不是 CGS 提案漏退役
 **修复决定**：已修复；保留旧 Goal 全部历史，用 active `new → replaces → old` 关系派生 `work_state=replaced`，禁止新领取并提供替代 Goal 与撤销关系的恢复说明
 **修复状态**：最终交付已闭环。0.1.10 安装 Core 对真实 CGS 只读 Available 复验：旧 `cgs-g2g-ai-kol-quality-roster` 不在 Available，投影为 `work_state=replaced`，返回 active relation 与 replacement_goal_id=`cgs-g2g-ai-kol-quality-roster-v2`；UI 同时保留旧 Goal 历史并标为“已被替代”。未创建 Claim/Run 或修改 CGS 数据
 
 ### 1. 真实场景
 
-CGS 已创建并切换到新版 `cgs-g2g-ai-kol-quality-roster-v2`，新范围要求七个平台各 50+，且商业化本身不降权。旧 Goal `cgs-g2g-ai-kol-quality-roster` 理应被替代，但 executor 调用 `goalboard_v1_ready` 时，旧 Goal 仍以可领取项返回；其 Contract 仍写“固定人数 out_of_scope”和“商业污染”，与用户最新确认范围冲突。
+CGS 已创建并切换到新版 `cgs-g2g-ai-kol-quality-roster-v2`，新范围要求七个平台各 50+，且商业化本身不降权。旧 Goal `cgs-g2g-ai-kol-quality-roster` 理应被替代，但 executor 调用 `molis_work_v1_ready` 时，旧 Goal 仍以可领取项返回；其 Contract 仍写“固定人数 out_of_scope”和“商业污染”，与用户最新确认范围冲突。
 
 ### 2. 事实与归因
 
-Owner 已核对真实 canonical：旧 Goal `accepted / closed_leaf / unmet / valid`，新版为 `accepted / closed_compound / unmet / valid`；active Relation 为 `cgs-g2g-ai-kol-quality-roster-v2 → replaces → cgs-g2g-ai-kol-quality-roster`，且旧 Goal 原 part_of、depends_on 和 9 条旧子关系均在同一恢复时间失活，新版父子/下游关系均 active。提案没有漏掉 replacement 或关系迁移。原 `evaluate` / Ready 只检查 Goal 自身状态、依赖、Risk、Policy 和 Claim，没有检查 incoming active `replaces`；Available 的 work-state 派生也同样忽略它。因此归因是 GoalBoard 缺陷。graph check 不报错本身合理：图结构有效；缺的是工作生命周期投影，不是图不变量。
+Owner 已核对真实 canonical：旧 Goal `accepted / closed_leaf / unmet / valid`，新版为 `accepted / closed_compound / unmet / valid`；active Relation 为 `cgs-g2g-ai-kol-quality-roster-v2 → replaces → cgs-g2g-ai-kol-quality-roster`，且旧 Goal 原 part_of、depends_on 和 9 条旧子关系均在同一恢复时间失活，新版父子/下游关系均 active。提案没有漏掉 replacement 或关系迁移。原 `evaluate` / Ready 只检查 Goal 自身状态、依赖、Risk、Policy 和 Claim，没有检查 incoming active `replaces`；Available 的 work-state 派生也同样忽略它。因此归因是 Molis Work 缺陷。graph check 不报错本身合理：图结构有效；缺的是工作生命周期投影，不是图不变量。
 
 ### 3. 现有流程的问题
 
@@ -1838,11 +1838,11 @@ Runtime 无法只靠 Ready 判断哪个 Contract 是当前有效版本，必须�
 
 ### 4. 设计根因与初衷
 
-GoalBoard 将 Relation 与 Goal 生命周期分离，初衷是保留历史、避免一条关系在用户未确认时隐式篡改 Goal 的 canonical 状态；`replaces` 可表达版本谱系，但不一定自动等同于 invalid/archived。该边界保护了审计和可逆性。当前缺口候选是 replacement 决定没有一个明确、原子、可恢复的“新 Goal 生效 + 旧 Goal 不再可领取”语义，Ready 也没有根据生效 replacement 派生过期状态。
+Molis Work 将 Relation 与 Goal 生命周期分离，初衷是保留历史、避免一条关系在用户未确认时隐式篡改 Goal 的 canonical 状态；`replaces` 可表达版本谱系，但不一定自动等同于 invalid/archived。该边界保护了审计和可逆性。当前缺口候选是 replacement 决定没有一个明确、原子、可恢复的“新 Goal 生效 + 旧 Goal 不再可领取”语义，Ready 也没有根据生效 replacement 派生过期状态。
 
 ### 5. 当前影响
 
-已影响 CGS 的真实 executor 选择，错误领取会直接交付与用户当前范围相反的 KOL 名单，属于高代价正确性风险，不只是文案摩擦。触发频率取决于 replacement Goal 数量；一旦发生，每次 Ready 都可能重复暴露旧工作。最新一轮消费者已主动拒绝领取错误旧 Goal，并在生命周期外完成 B 站与知乎观测，说明错误队列已实际迫使工作脱离 GoalBoard；虽未产生错误旧 Goal Evidence，流程和审计链已被破坏，优先级升为 P0。
+已影响 CGS 的真实 executor 选择，错误领取会直接交付与用户当前范围相反的 KOL 名单，属于高代价正确性风险，不只是文案摩擦。触发频率取决于 replacement Goal 数量；一旦发生，每次 Ready 都可能重复暴露旧工作。最新一轮消费者已主动拒绝领取错误旧 Goal，并在生命周期外完成 B 站与知乎观测，说明错误队列已实际迫使工作脱离 Molis Work；虽未产生错误旧 Goal Evidence，流程和审计链已被破坏，优先级升为 P0。
 
 ### 6. 复杂度审查
 
@@ -1874,7 +1874,7 @@ GoalBoard 将 Relation 与 Goal 生命周期分离，初衷是保留历史、避
 ## GB-20260830-32：leaf_readiness 非法枚举被误报为“没写判断”，无 clarification Run 也缺恢复动作
 
 **来源**：CGS Goal Tree closed_leaf 提案消费者反馈；2026-08-30 来自 `01a04df5-64d8-72e3-ae79-455907c85e86` 的再次提报已去重到本卡
-**Bug 确认**：已确认，其中 schema 不可读部分与 GB14 重复且当前源码已修；非法 `decision=defer` 的错误归因和缺少 clarification recovery hint 是仍可复现的 GoalBoard 输入校验/恢复提示缺陷
+**Bug 确认**：已确认，其中 schema 不可读部分与 GB14 重复且当前源码已修；非法 `decision=defer` 的错误归因和缺少 clarification recovery hint 是仍可复现的 Molis Work 输入校验/恢复提示缺陷
 **修复决定**：已授权自主评估与修复，不阻塞 CGS
 **修复状态**：2026-08-30 最终收口：0.1.7 MCP schema 显示 `items[].payload.leaf_readiness.split_candidates[].decision = keep | split`；非法枚举返回字段路径、收到值、允许值和 deferred/out_of_scope 建议，无 active clarification Run 返回 `draft_dialogue_resume` recovery hint。Owner 协议验收通过。
 
@@ -1884,7 +1884,7 @@ GoalBoard 将 Relation 与 Goal 生命周期分离，初衷是保留历史、避
 
 ### 2. 事实与归因
 
-源码复核确认：当前 `goalboard_v1_goal_tree_propose` declaration 已由 GB14 改为 8 个 item kind 的顶层判别分支，`leaf_readiness.split_candidates[].decision` 明确暴露 `keep | split`；消费者看到 `Array<unknown & ...>` 属于旧安装/旧 Session，纳入最终统一安装复验，不重复实现。服务端 `readLeafReadiness` 仍会把任意 decision 强转字符串，随后把非法枚举、缺 work_item 和缺 reason 合并成同一个 `leaf_split_candidate_invalid`，只返回“没有写清”；`requireActiveClarificationProposalRun` 对不存在、非 active 或 Claim 过期也只返回失败文案，没有结构化 next action。前两者均已在当前源码独立确认。
+源码复核确认：当前 `molis_work_v1_goal_tree_propose` declaration 已由 GB14 改为 8 个 item kind 的顶层判别分支，`leaf_readiness.split_candidates[].decision` 明确暴露 `keep | split`；消费者看到 `Array<unknown & ...>` 属于旧安装/旧 Session，纳入最终统一安装复验，不重复实现。服务端 `readLeafReadiness` 仍会把任意 decision 强转字符串，随后把非法枚举、缺 work_item 和缺 reason 合并成同一个 `leaf_split_candidate_invalid`，只返回“没有写清”；`requireActiveClarificationProposalRun` 对不存在、非 active 或 Claim 过期也只返回失败文案，没有结构化 next action。前两者均已在当前源码独立确认。
 
 ### 3. 现有流程的问题
 
@@ -1920,7 +1920,7 @@ GoalBoard 将 Relation 与 Goal 生命周期分离，初衷是保留历史、避
 ### 10. 验收边界
 
 - **工程验证**：通过（源码）。TDD 红灯先复现 `defer` 被泛化为 `leaf_split_candidate_invalid`、缺 Run 只返回“找不到”；绿灯后 TypeScript 通过，完整 V1/MCP 126/126。回归覆盖 schema 的 `keep | split` 与延期说明、非法值的精确 `items[0].payload.leaf_readiness.split_candidates[0].decision` / received / allowed、缺 Run 的结构化 resume/retry、合法 `keep/split` 原行为，以及两类失败均零 Proposal 写入。
-- **产品实操**：通过（源码 MCP 消费面）。实际 `tools/call` 先用不存在 Run 提交，响应直接给出 `goalboard_v1_draft_dialogue_resume` 和 `next_action=draft_dialogue_resume`；随后用真实 `draft_dialogue_start` 返回的 Run 提交 `decision=defer`，消费者收到精确路径、`received_value=defer`、`allowed_values=[keep,split]` 和 `out_of_scope` 修正建议，数据库回读 Proposal 数仍为 0。该问题的最终用户界面是 MCP tool declaration/response，computer use 无法替代协议实操；尝试通过 computer use 打开 Terminal/Codex 可见输出被宿主安全策略禁止，因此没有把一张转录页面冒充产品验收。统一安装后的新 Session 仍为 `UNVERIFIED`。
+- **产品实操**：通过（源码 MCP 消费面）。实际 `tools/call` 先用不存在 Run 提交，响应直接给出 `molis_work_v1_draft_dialogue_resume` 和 `next_action=draft_dialogue_resume`；随后用真实 `draft_dialogue_start` 返回的 Run 提交 `decision=defer`，消费者收到精确路径、`received_value=defer`、`allowed_values=[keep,split]` 和 `out_of_scope` 修正建议，数据库回读 Proposal 数仍为 0。该问题的最终用户界面是 MCP tool declaration/response，computer use 无法替代协议实操；尝试通过 computer use 打开 Terminal/Codex 可见输出被宿主安全策略禁止，因此没有把一张转录页面冒充产品验收。统一安装后的新 Session 仍为 `UNVERIFIED`。
 - **Owner 最终验收**：通过。二分约束未放宽，最终安装 schema、精确错误和 recovery hint 均已核对；用户对提示易懂性的主观判断仍为 `UNVERIFIED`。
 
 ---
@@ -1928,7 +1928,7 @@ GoalBoard 将 Relation 与 Goal 生命周期分离，初衷是保留历史、避
 ## GB-20260830-33：单轮 Run 收口后只汇报过去，不交代或继续下一轮
 
 **来源**：CGS 消费者反馈（会话 `01a04fb1-96a1-74b3-9836-604f28f87521`）
-**Bug 确认**：已确认，但修正为 GoalBoard Skill + MCP handoff 可发现性设计债；消费者遗漏是直接触发，不是 Runtime 状态机错误
+**Bug 确认**：已确认，但修正为 Molis Work Skill + MCP handoff 可发现性设计债；消费者遗漏是直接触发，不是 Runtime 状态机错误
 **修复决定**：已按 Owner 当前授权批准自主修复，P1
 **修复状态**：最终交付已闭环。0.1.10 active Skill 已明确 release 后刷新 Available，并固定汇报下一 Goal、action、why-now 和 continuation boundary；安装 Core 的 Run→release→Available 协议实操通过。当前任务不会热加载新 Skill，真实新 Codex Session 的自然语言汇报表现仍待用户侧观察；未 push
 
@@ -1938,7 +1938,7 @@ CGS Runtime 完成一轮 executor Run，登记 Evidence、提交 `needs_changes`
 
 ### 2. 事实与归因
 
-消费者提供了完整生命周期顺序和用户追问，足以确认存在真实体验摩擦。源码核对发现：`execution.md` 只要求进度报告包含业务结果、当前阶段、下一动作/owner 和 blocker，却没有把“成功 release 后立即重读 Available”写入正常收口顺序；`goalboard_v1_release` 的 tool description 只有“由领取者释放 Claim”，成功响应也只含 Claim、cursor 和 replayed。与此同时，Available 已提供完整标题、`next_action`、`why_now`、阻塞摘要与并行建议，Web Capsule 也已有“短暂显示刚完成，再切到权威下一项”的回归测试。故主要归因是 Skill + MCP handoff 可发现性设计债，消费者没有报告下一动作是直接触发；不是 CGS 接入、Web 或 Goal 生命周期派生错误。
+消费者提供了完整生命周期顺序和用户追问，足以确认存在真实体验摩擦。源码核对发现：`execution.md` 只要求进度报告包含业务结果、当前阶段、下一动作/owner 和 blocker，却没有把“成功 release 后立即重读 Available”写入正常收口顺序；`molis_work_v1_release` 的 tool description 只有“由领取者释放 Claim”，成功响应也只含 Claim、cursor 和 replayed。与此同时，Available 已提供完整标题、`next_action`、`why_now`、阻塞摘要与并行建议，Web Capsule 也已有“短暂显示刚完成，再切到权威下一项”的回归测试。故主要归因是 Skill + MCP handoff 可发现性设计债，消费者没有报告下一动作是直接触发；不是 CGS 接入、Web 或 Goal 生命周期派生错误。
 
 ### 3. 现有流程的问题
 
@@ -1946,11 +1946,11 @@ CGS Runtime 完成一轮 executor Run，登记 Evidence、提交 `needs_changes`
 
 ### 4. 设计根因与初衷
 
-GoalBoard 将 Claim/Run 做成有限租约并要求显式 release，初衷是及时释放写入所有权；Available 刻意不“派发唯一下一任务”，是为了保留 Runtime 基于能力、优先级、风险与用户授权做选择的责任。这两个边界合理。设计缺口是正常完成顺序停在 release，且 release 返回没有要求回到 Available，导致“GoalBoard 不自动派发”被消费者误解成“本轮之后不需要给出去向”。
+Molis Work 将 Claim/Run 做成有限租约并要求显式 release，初衷是及时释放写入所有权；Available 刻意不“派发唯一下一任务”，是为了保留 Runtime 基于能力、优先级、风险与用户授权做选择的责任。这两个边界合理。设计缺口是正常完成顺序停在 release，且 release 返回没有要求回到 Available，导致“Molis Work 不自动派发”被消费者误解成“本轮之后不需要给出去向”。
 
 ### 5. 当前影响
 
-影响使用 GoalBoard 连续推进长期 Goal 的用户和 Runtime。每个局部 Run 都可能多产生一次“然后呢”的追问；不直接破坏 canonical 数据，但会切断自主推进感，并让用户误以为 GoalBoard 机制只负责记账、不负责给出去向。
+影响使用 Molis Work 连续推进长期 Goal 的用户和 Runtime。每个局部 Run 都可能多产生一次“然后呢”的追问；不直接破坏 canonical 数据，但会切断自主推进感，并让用户误以为 Molis Work 机制只负责记账、不负责给出去向。
 
 ### 6. 复杂度审查
 
@@ -1960,7 +1960,7 @@ GoalBoard 将 Claim/Run 做成有限租约并要求显式 release，初衷是及
 
 ### 7. 修复必要性与优先级
 
-需要修，P1。它不破坏 canonical 数据，但每一轮 Run 都可能重复发生，直接损害 GoalBoard“持续推进”的产品承诺。最小修复是增强现有协议与成功响应的可发现性，不改变 Goal/Claim/Run 状态机。
+需要修，P1。它不破坏 canonical 数据，但每一轮 Run 都可能重复发生，直接损害 Molis Work“持续推进”的产品承诺。最小修复是增强现有协议与成功响应的可发现性，不改变 Goal/Claim/Run 状态机。
 
 ### 8. 修复前后体验差异
 
@@ -1969,7 +1969,7 @@ GoalBoard 将 Claim/Run 做成有限租约并要求显式 release，初衷是及
 
 ### 9. 最小修复范围
 
-修改 `goal-advance` 的执行参考：release 后立即用 summary Available 刷新；cycle checkpoint 固定说明本轮结果与边界、下一 Goal 完整标题、具体动作、why-now、能否自主继续、缺少的人类决定/权限/输入和安全替代项；授权范围内继续，不因 Run 结束停下。给 `goalboard_v1_release` 增加向后兼容的结构化 handoff，明确下一步是只读 `goalboard_v1_available`，读取本身无需确认，真正选择仍受当前用户授权约束；同步 tool description。Web 已有正确切换行为，不改；不让 release 自行查询或选择下一 Goal。
+修改 `goal-advance` 的执行参考：release 后立即用 summary Available 刷新；cycle checkpoint 固定说明本轮结果与边界、下一 Goal 完整标题、具体动作、why-now、能否自主继续、缺少的人类决定/权限/输入和安全替代项；授权范围内继续，不因 Run 结束停下。给 `molis_work_v1_release` 增加向后兼容的结构化 handoff，明确下一步是只读 `molis_work_v1_available`，读取本身无需确认，真正选择仍受当前用户授权约束；同步 tool description。Web 已有正确切换行为，不改；不让 release 自行查询或选择下一 Goal。
 
 ### 10. 验收边界
 
@@ -1982,18 +1982,18 @@ GoalBoard 将 Claim/Run 做成有限租约并要求显式 release，初衷是及
 
 ## GB-20260830-34：跨仓库 Goal 的本地 Evidence 无法诚实落档
 
-**来源**：GoalBoard 内部 Casebook 消费者反馈（会话 `01a04e4e-f21d-7950-94de-c4d5d1446d14`）
+**来源**：Molis Work 内部 Casebook 消费者反馈（会话 `01a04e4e-f21d-7950-94de-c4d5d1446d14`）
 **Bug 确认**：已确认；项目外文件不可 verified 是合理限制，但 `file:` 在 opaque UNVERIFIED 分支前被硬拒绝，与工具承诺矛盾
 **修复决定**：已按 Owner 当前授权批准自主修复，P2；先补只登记、不读取的 `file:` locator，不新增多仓验证权限
-**修复状态**：最终交付已闭环。0.1.10 安装 Core 隔离实操确认：外部 `file:` locator 与调用方 digest 原样登记为 UNVERIFIED，GoalBoard 不读盘、不声称文件存在或 digest 已核验，并返回如何获得 verified 的恢复说明；active Skill 已对齐 0.1.10。多 workspace verified 能力仍按本卡明确延后；未 push
+**修复状态**：最终交付已闭环。0.1.10 安装 Core 隔离实操确认：外部 `file:` locator 与调用方 digest 原样登记为 UNVERIFIED，Molis Work 不读盘、不声称文件存在或 digest 已核验，并返回如何获得 verified 的恢复说明；active Skill 已对齐 0.1.10。多 workspace verified 能力仍按本卡明确延后；未 push
 
 ### 1. 真实场景
 
-Runtime 当前 canonical workspace 是 GoalBoard 仓库，但 Goal `casebook-private-foundation` 的已确认跨仓库产物位于私有仓库 `goalboard-casebook`。消费者以五个 `file:///.../goalboard-casebook/...` locator 和 SHA-256 提交 Evidence，均收到“不能指向项目范围外的本地文件”；在尚无 commit/push 授权时，也不能用 GitHub commit URL 冒充已发布证据。
+Runtime 当前 canonical workspace 是 Molis Work 仓库，但 Goal `casebook-private-foundation` 的已确认跨仓库产物位于私有仓库 `molis-work-casebook`。消费者以五个 `file:///.../molis-work-casebook/...` locator 和 SHA-256 提交 Evidence，均收到“不能指向项目范围外的本地文件”；在尚无 commit/push 授权时，也不能用 GitHub commit URL 冒充已发布证据。
 
 ### 2. 事实与归因
 
-已用当前 locator 校验器稳定复现：同一个项目外文件写成 `file:///...` 返回 400“项目范围外”；写成 `artifact://goalboard-casebook/...` 会原样保存为 UNVERIFIED；裸绝对路径也按项目外拒绝。源码显示 `file:` 与 Windows 盘符在 opaque protocol 判定前被特判抛错，而 MCP description 明确承诺“外部或不透明 locator 也会保留”。因此问题成立为 GoalBoard locator 分类和恢复契约缺陷。项目 catalog 的确能让一个 GoalBoard 项目关联多个 workspace，但当前 Evidence 只使用本次 Runtime 的 canonical workspace；把所有历史关联目录都变成当前可读取根会扩大本地文件访问权，不是本轮最小修复。
+已用当前 locator 校验器稳定复现：同一个项目外文件写成 `file:///...` 返回 400“项目范围外”；写成 `artifact://molis-work-casebook/...` 会原样保存为 UNVERIFIED；裸绝对路径也按项目外拒绝。源码显示 `file:` 与 Windows 盘符在 opaque protocol 判定前被特判抛错，而 MCP description 明确承诺“外部或不透明 locator 也会保留”。因此问题成立为 Molis Work locator 分类和恢复契约缺陷。项目 catalog 的确能让一个 Molis Work 项目关联多个 workspace，但当前 Evidence 只使用本次 Runtime 的 canonical workspace；把所有历史关联目录都变成当前可读取根会扩大本地文件访问权，不是本轮最小修复。
 
 ### 3. 现有流程的问题
 
@@ -2005,12 +2005,12 @@ Runtime 当前 canonical workspace 是 GoalBoard 仓库，但 Goal `casebook-pri
 
 ### 5. 当前影响
 
-影响实现跨多个本地仓库、但 GoalBoard 项目只绑定一个 canonical workspace 的 Goal。它不阻止产物生成，但会让真实本地 Evidence 无法以清晰、稳定、可审计的 locator 落档，并把“未由 GoalBoard 预检”误解成“不能登记”。
+影响实现跨多个本地仓库、但 Molis Work 项目只绑定一个 canonical workspace 的 Goal。它不阻止产物生成，但会让真实本地 Evidence 无法以清晰、稳定、可审计的 locator 落档，并把“未由 Molis Work 预检”误解成“不能登记”。
 
 ### 6. 复杂度审查
 
 - **当前必须**：把 `file:` 作为仅登记的机器本地 locator 原样保存为 UNVERIFIED；明确未读取、未确认存在、未核验 digest，并让 Web 只复制不打开。同步 MCP 和 Skill 的恢复说明。
-- **可以延后**：Goal/Project 正式关联多个可验证 workspace，或从项目 membership 中选择第二个验证根；只有用户明确需要 GoalBoard 打开并校验第二仓文件时再评估其授权模型。
+- **可以延后**：Goal/Project 正式关联多个可验证 workspace，或从项目 membership 中选择第二个验证根；只有用户明确需要 Molis Work 打开并校验第二仓文件时再评估其授权模型。
 - **应当删除**：不允许任意 `file://` 绕过范围检查，不因同机路径存在就标为 verified，不把未 push 的本地文件伪装成 GitHub Evidence。
 
 ### 7. 修复必要性与优先级
@@ -2029,7 +2029,7 @@ Runtime 当前 canonical workspace 是 GoalBoard 仓库，但 Goal `casebook-pri
 ### 10. 验收边界
 
 - **工程验证**：TDD RED 已证明旧行为的三个边界：Core 抛 `evidence.locator_outside_project`、Web POST 返回 400、MCP schema 缺少 `file:` 恢复方式。最小实现后同三条 GREEN 3/3：Core 原样保留 locator/digest 且不记录 verified workspace，MCP 明确 `file:///` 仅登记规则，Web 显示 UNVERIFIED 并且不生成 `file:` 链接或项目引用打开端点。最新完整 `pnpm test` 为 328/328、0 fail，`pnpm typecheck` 与 `git diff --check` 通过；原项目内 absolute/`project://`/`repo:`、裸项目外路径拒绝、symlink 逃逸、大文件和项目引用打开回归均保留。
-- **产品实操**：通过源码真实路径。使用实际 `/Users/oreal/adeptify-home/repos/goalboard-casebook/README.md` 和 SHA-256 `4f8194b4e27027ec866fdc65a028b40601f7a5390df3a279251e39c3d1096134`，在临时 GoalBoard 数据库、当前 workspace=`goalboard` 下提交：`file:///.../goalboard-casebook/README.md` 一次创建为 UNVERIFIED，locator 与 digest 原样保留、`locator_workspace_id=null`；同轮 `goalboard/README.md` 规范化成 `project://README.md` 并 verified，跨仓裸绝对路径继续返回 `evidence.locator_outside_project`。随后 computer use 打开“记录 → 执行与检查”，页面可见完整 locator、UNVERIFIED、digest、未读取/未核验和升级说明；该 locator 是“复制引用”按钮，不是链接，也没有项目引用打开入口。临时数据和服务已清理，Casebook 仓库未修改。
+- **产品实操**：通过源码真实路径。使用实际 `/Users/oreal/adeptify-home/repos/molis-work-casebook/README.md` 和 SHA-256 `4f8194b4e27027ec866fdc65a028b40601f7a5390df3a279251e39c3d1096134`，在临时 Molis Work 数据库、当前 workspace=`molis-work` 下提交：`file:///.../molis-work-casebook/README.md` 一次创建为 UNVERIFIED，locator 与 digest 原样保留、`locator_workspace_id=null`；同轮 `molis-work/README.md` 规范化成 `project://README.md` 并 verified，跨仓裸绝对路径继续返回 `evidence.locator_outside_project`。随后 computer use 打开“记录 → 执行与检查”，页面可见完整 locator、UNVERIFIED、digest、未读取/未核验和升级说明；该 locator 是“复制引用”按钮，不是链接，也没有项目引用打开入口。临时数据和服务已清理，Casebook 仓库未修改。
 - **Owner 最终验收**：通过。修复消除了协议矛盾并保留原安全目标：`file:` 不触发 `realpath/stat/read`，不验证存在或 digest，不记录 verified workspace，也不能从 Web 打开；裸项目外路径和 symlink 逃逸仍拒绝。多 workspace verified 能力不在本次范围。
 - **用户验收**：最终 0.1.10 安装 Core 已用等价跨仓 `file:` locator 实操通过，active Skill 也已对齐；真实 Casebook 新 Session 的自然语言使用感受仍由消费者后续观察。
 
@@ -2037,14 +2037,14 @@ Runtime 当前 canonical workspace 是 GoalBoard 仓库，但 Goal `casebook-pri
 
 ## GB-20260830-35：依赖视图顶部工作区标签重叠，标题无法辨认
 
-**来源**：GoalBoard Owner 在「GoalBoard 内部 Casebook」真实 Web 使用中的直接反馈与截图
-**Bug 确认**：已确认，GoalBoard 共享工作区标签栏的响应式布局缺陷；真实 Casebook 的 Web 与桌面 0.1.8 均稳定复现
+**来源**：Molis Work Owner 在「Molis Work 内部 Casebook」真实 Web 使用中的直接反馈与截图
+**Bug 确认**：已确认，Molis Work 共享工作区标签栏的响应式布局缺陷；真实 Casebook 的 Web 与桌面 0.1.8 均稳定复现
 **修复决定**：已按 Owner 当前授权批准自主最小修复，P1；保留共享 UI 和横向滚动设计，只修标签 flex 收缩边界
 **修复状态**：最终交付已闭环。修复已进入 0.1.10；最终安装 App 的真实 CGS 多个长工作标签保持各自可读宽度并横向承载，没有文字互相覆盖。此前真实 Casebook Web/Desktop 复验仍保留；未推送或发布 GitHub Release
 
 ### 1. 真实场景
 
-用户在「GoalBoard 内部 Casebook」项目打开 Goal Tree，从列表视图切换到依赖/关系视图。主区域顶部同时打开多条 Goal 工作区标签后，右上方各标签的名称和状态文字堆叠到相邻标签上，无法辨认当前打开项和各标签边界。
+用户在「Molis Work 内部 Casebook」项目打开 Goal Tree，从列表视图切换到依赖/关系视图。主区域顶部同时打开多条 Goal 工作区标签后，右上方各标签的名称和状态文字堆叠到相邻标签上，无法辨认当前打开项和各标签边界。
 
 ### 2. 事实与归因
 
@@ -2084,7 +2084,7 @@ Runtime 当前 canonical workspace 是 GoalBoard 仓库，但 Goal `casebook-pri
 ### 10. 验收边界
 
 - **工程验证**：通过（本地源码）。TDD RED 先证明工作区样式只有滚动容器、标签仍可默认收缩且缺少可读宽度约束；最小修复为 `.desktop-work-tab` 增加 `flex: 0 0 clamp(132px, 16vw, 190px)`，既有标题省略与关闭列不变。回归已进入默认 `tests/web.test.ts`，相关测试、TypeScript、`git diff --check` 和完整 `pnpm test` 329/329 均通过。`tests/visual-foundation.test.ts` 有两条与本卡无关且在 HEAD 已存在的陈旧断言（颜色 token 与 workbench grid 列数）未被默认测试脚本收录，本卡没有顺手改写或把它们冒充通过。
-- **产品实操**：通过（真实 Casebook 数据）。修复前分别用 Chrome Web 与安装版桌面 0.1.8 打开真实「GoalBoard 内部 Casebook」关系视图并保留 4 个长标题标签，两端都稳定复现相邻标题覆盖。源码修复后以同一项目、同一关系视图和同样 4 个标签复测通过。2026-08-30 又用 computer use 直接打开 `/Applications/GoalBoard.app`，Info.plist 为 0.1.9，服务 launcher 也指向 `goalboard-0.1.9` 且 `/health` 正常；真实 Casebook 保留 5 个长标题标签并切到“可视化工作区”后，各标签仍有独立盒子，长标题只在自身范围内省略，关闭按钮与当前选中态清楚，没有再重叠。
+- **产品实操**：通过（真实 Casebook 数据）。修复前分别用 Chrome Web 与安装版桌面 0.1.8 打开真实「Molis Work 内部 Casebook」关系视图并保留 4 个长标题标签，两端都稳定复现相邻标题覆盖。源码修复后以同一项目、同一关系视图和同样 4 个标签复测通过。2026-08-30 又用 computer use 直接打开 `/Applications/Molis Work.app`，Info.plist 为 0.1.9，服务 launcher 也指向 `molis-work-0.1.9` 且 `/health` 正常；真实 Casebook 保留 5 个长标题标签并切到“可视化工作区”后，各标签仍有独立盒子，长标题只在自身范围内省略，关闭按钮与当前选中态清楚，没有再重叠。
 - **Owner 最终验收**：通过（含安装 App）。根因、最小 diff、Web/桌面真实像素结果和安装产物均已独立检查；不扩展为标签系统重构。
 - **用户验收**：待用户在最终安装包中确认标签可读与切换体验。
 
@@ -2103,7 +2103,7 @@ Runtime 当前 canonical workspace 是 GoalBoard 仓库，但 Goal `casebook-pri
 
 ### 2. 事实与归因
 
-消费者提供了请求、Available 选择、Contract 边界和 abandoned 收口，足以确认一次真实误领与额外 Run 噪声。源码与正式 Skill 核对显示，Available 默认摘要只返回 Goal ID、标题、角色、动作、依赖/Risk 和规划摘要，不携带完整 Contract；这符合既有的输出体积控制。真正缺陷在官方执行顺序：`execution.md` 第 5 步要求对非 complete 项先调用 `goalboard_v1_select_goal`，下一段才要求“选中后调用 Contract before acting”。`select_goal` 会原子创建 Claim 与 Run，因此 Contract 的 `out_of_scope` 只能在审计记录已经产生后才被看到；同一段又要求按 Contract 选择候选，前后语义矛盾。这不是消费者单纯误用，也不是 Available Core 能在没有接收当前自然语言意图时自行判断的内容路由问题。
+消费者提供了请求、Available 选择、Contract 边界和 abandoned 收口，足以确认一次真实误领与额外 Run 噪声。源码与正式 Skill 核对显示，Available 默认摘要只返回 Goal ID、标题、角色、动作、依赖/Risk 和规划摘要，不携带完整 Contract；这符合既有的输出体积控制。真正缺陷在官方执行顺序：`execution.md` 第 5 步要求对非 complete 项先调用 `molis_work_v1_select_goal`，下一段才要求“选中后调用 Contract before acting”。`select_goal` 会原子创建 Claim 与 Run，因此 Contract 的 `out_of_scope` 只能在审计记录已经产生后才被看到；同一段又要求按 Contract 选择候选，前后语义矛盾。这不是消费者单纯误用，也不是 Available Core 能在没有接收当前自然语言意图时自行判断的内容路由问题。
 
 ### 3. 现有流程的问题
 
@@ -2134,7 +2134,7 @@ Available 的初衷是从 canonical 状态、依赖、Risk、角色和优先级�
 
 ### 9. 最小修复范围
 
-复用现有紧凑 Available 与单 Goal Contract：修改 `goal-advance` 执行顺序，要求暂选候选后先只读 Contract，并在当前请求不属于 `in_scope`、命中 `out_of_scope` 或没有 canonical owner 时禁止 `select_goal`；同步 `goalboard_v1_available` 与 `goalboard_v1_select_goal` 的工具说明。暂不向 summary 增加完整 scope 字段，不修改 CGS Goal、不自动迁移 Evidence、不增加服务端自然语言分类器。
+复用现有紧凑 Available 与单 Goal Contract：修改 `goal-advance` 执行顺序，要求暂选候选后先只读 Contract，并在当前请求不属于 `in_scope`、命中 `out_of_scope` 或没有 canonical owner 时禁止 `select_goal`；同步 `molis_work_v1_available` 与 `molis_work_v1_select_goal` 的工具说明。暂不向 summary 增加完整 scope 字段，不修改 CGS Goal、不自动迁移 Evidence、不增加服务端自然语言分类器。
 
 ### 10. 验收边界
 
@@ -2148,13 +2148,13 @@ Available 的初衷是从 canonical 状态、依赖、Risk、角色和优先级�
 ## GB-20260830-37：已有可消费上游产物时，下游已归属修复仍从 Available 完全消失
 
 **来源**：CGS 消费者反馈（会话 `01a04fb1-96a1-74b3-9836-604f28f87521`）
-**Bug 确认**：部分成立。普通 dependency/review blocker 从 Available 完全不可发现是 GoalBoard 可见性缺陷；三条 active 依赖仍未满足时不自动放行 G2B 是正确门禁，不能由仓库里存在 fresh Report 推翻
+**Bug 确认**：部分成立。普通 dependency/review blocker 从 Available 完全不可发现是 Molis Work 可见性缺陷；三条 active 依赖仍未满足时不自动放行 G2B 是正确门禁，不能由仓库里存在 fresh Report 推翻
 **修复决定**：已按 Owner 授权批准最小修复，P1/P2；增加紧凑 `blocked_overview` 并要求明确 owner 缺席时先 Explain，不增加 artifact-level dependency 或自动绕过依赖
 **修复状态**：Core/MCP/Skill 最小实现、完整工程验证、真实 CGS 安全副本协议实操与 Web computer-use 核对通过；实际提交为 `a638d67`。修复已进入此前安装的本机 0.1.9，安装产物隔离实操通过；未推送或发布 GitHub Release
 
 ### 1. 真实场景
 
-用户在真实 G2B 选题编辑台看到：团队已有推荐 angle 与研究理由，Owner 仍被要求从空白 textarea 重填，并直接看到英文 Zod 错误。该最小修复已经由用户批准，且消费者判断它落在 G2B「让账号 Owner 无重复操作地决定内容机会并交给创作」的既有 `in_scope` 与 business logic 内；但 `goalboard_v1_available` 既不返回 G2B，也不将其列入 blocked，只有另行 Explain 才能看到 G2D/G2E/G2F 尚未 fulfillment 的依赖门禁。
+用户在真实 G2B 选题编辑台看到：团队已有推荐 angle 与研究理由，Owner 仍被要求从空白 textarea 重填，并直接看到英文 Zod 错误。该最小修复已经由用户批准，且消费者判断它落在 G2B「让账号 Owner 无重复操作地决定内容机会并交给创作」的既有 `in_scope` 与 business logic 内；但 `molis_work_v1_available` 既不返回 G2B，也不将其列入 blocked，只有另行 Explain 才能看到 G2D/G2E/G2F 尚未 fulfillment 的依赖门禁。
 
 ### 2. 事实与归因
 
@@ -2180,7 +2180,7 @@ Owner 已只读绑定真实 CGS 并复核 canonical 数据。G2B 是 `accepted /
 
 ### 7. 修复必要性与优先级
 
-需要修可发现性，P1/P2；不修自动放行。用户正在真实 G2B 页面且 Contract 明确承接窄 UI/恢复，说明 owner 归属可信；但 GoalBoard 不能据此宣布三条上游依赖满足。最小修复应阻止“owner 消失后误领最近 Goal”，而不是为解决一次 UI 缺陷削弱全局依赖语义。
+需要修可发现性，P1/P2；不修自动放行。用户正在真实 G2B 页面且 Contract 明确承接窄 UI/恢复，说明 owner 归属可信；但 Molis Work 不能据此宣布三条上游依赖满足。最小修复应阻止“owner 消失后误领最近 Goal”，而不是为解决一次 UI 缺陷削弱全局依赖语义。
 
 ### 8. 修复前后体验差异
 
@@ -2217,11 +2217,11 @@ Owner 已只读绑定真实 CGS 并复核 canonical 数据。G2B 是 `accepted /
 
 ### 3. 现有流程的问题
 
-一次已确认的局部语义纠偏无法直接得到可执行恢复方案：消费者只收到抽象动作名称，必须自行枚举 `part_of`、`depends_on`、下游关系和 replacement item ID，容易漏迁移；错误又把 leaf 误称为父 Goal，增加误诊。为避免高成本，Runtime 可能绕过 GoalBoard 在仓库外修复，或提交不完整 successor 图。
+一次已确认的局部语义纠偏无法直接得到可执行恢复方案：消费者只收到抽象动作名称，必须自行枚举 `part_of`、`depends_on`、下游关系和 replacement item ID，容易漏迁移；错误又把 leaf 误称为父 Goal，增加误诊。为避免高成本，Runtime 可能绕过 Molis Work 在仓库外修复，或提交不完整 successor 图。
 
 ### 4. 设计根因与初衷
 
-accepted Contract 不可变的初衷是避免执行和验收所依据的承诺被原地改写，保留“当时同意了什么”的历史真相；replacement + `replaces` + relation migration 让需求变化显式形成新版本。当前待查的是：同一不变量是否使用了过窄错误码/文案，以及 GoalBoard 既然强制 successor，是否缺少把 canonical 图转换成安全迁移草案的恢复能力。
+accepted Contract 不可变的初衷是避免执行和验收所依据的承诺被原地改写，保留“当时同意了什么”的历史真相；replacement + `replaces` + relation migration 让需求变化显式形成新版本。当前待查的是：同一不变量是否使用了过窄错误码/文案，以及 Molis Work 既然强制 successor，是否缺少把 canonical 图转换成安全迁移草案的恢复能力。
 
 ### 5. 当前影响
 
@@ -2249,7 +2249,7 @@ accepted Contract 不可变的初衷是避免执行和验收所依据的承诺�
 ### 10. 验收边界
 
 - **工程验证**：通过。accepted closed leaf 回归确认错误码、当前 Goal、new goal/criterion ID 要求、`replaces` 骨架、`part_of` / `depends_on` 逐关系迁移候选与 check 零写入；whole-confirm 同源预检回归同时通过。2026-08-30 最终整合态 `pnpm typecheck && pnpm test` 在正常本机权限下 331/331、0 fail；受限沙箱曾因 SQLite 临时目录权限出现 `unable to open database file`，同一代码在沙箱外完整归零，未把环境假失败计为代码回归。
-- **产品实操**：通过（已安装 0.1.9 隔离项目）。直接加载本机 `goalboard-0.1.9/dist` 创建 accepted/closed_leaf Goal，并保留一条 `depends_on` 与一条 `part_of` active relation；从正式 clarification Run 提交局部 Contract update，再执行 check，实际返回 `goal.accepted_contract_immutable`、`current_goal.decomposition_state=closed_leaf`、replacement 的 `replaces` 骨架，以及按 `depends_on`、`part_of` 排列的两条 relation migration candidates。check 没有修改 canonical Goal/Relation；未触碰真实 CGS proposal。
+- **产品实操**：通过（已安装 0.1.9 隔离项目）。直接加载本机 `molis-work-0.1.9/dist` 创建 accepted/closed_leaf Goal，并保留一条 `depends_on` 与一条 `part_of` active relation；从正式 clarification Run 提交局部 Contract update，再执行 check，实际返回 `goal.accepted_contract_immutable`、`current_goal.decomposition_state=closed_leaf`、replacement 的 `replaces` 骨架，以及按 `depends_on`、`part_of` 排列的两条 relation migration candidates。check 没有修改 canonical Goal/Relation；未触碰真实 CGS proposal。
 - **Owner 最终验收**：通过（含安装产物）。设计边界、最小 diff、具体 recovery plan 与零写入预检均已复核。
 - **用户验收**：待最终安装版由真实 Runtime 确认无需查源码或手工猜迁移项。
 
@@ -2268,7 +2268,7 @@ successor Proposal 已通过 `goal_tree_check`。Runtime 上一条消息把这�
 
 ### 2. 事实与归因
 
-源码确认 Runtime wrapper 会从宿主 Session 生成 `conversation_ref`、从 `confirmation_summary` 生成 attestation，并把 `whole_confirmation_prompted` 传入 Core；但 Core 又要求整个 Board 的 active Proposal 数量恰为 1。这个条件既不能证明上一问，也会被无关 Proposal 破坏。归因是 GoalBoard 授权绑定缺陷，不是用户确认不足，也不是 CGS 误用。
+源码确认 Runtime wrapper 会从宿主 Session 生成 `conversation_ref`、从 `confirmation_summary` 生成 attestation，并把 `whole_confirmation_prompted` 传入 Core；但 Core 又要求整个 Board 的 active Proposal 数量恰为 1。这个条件既不能证明上一问，也会被无关 Proposal 破坏。归因是 Molis Work 授权绑定缺陷，不是用户确认不足，也不是 CGS 误用。
 
 ### 3. 现有流程的问题
 
@@ -2276,7 +2276,7 @@ successor Proposal 已通过 `goal_tree_check`。Runtime 上一条消息把这�
 
 ### 4. 设计根因与初衷
 
-简短确认门禁的初衷是防止把脱离上下文的“好的”扩大解释成对多项写入的授权；只有上一问明确、唯一且完整时才允许 whole confirmation。当前待查的是 Runtime 能否向 GoalBoard 提供并持久核对这一上一问，还是服务端要求了调用方无法可靠证明的会话事实。
+简短确认门禁的初衷是防止把脱离上下文的“好的”扩大解释成对多项写入的授权；只有上一问明确、唯一且完整时才允许 whole confirmation。当前待查的是 Runtime 能否向 Molis Work 提供并持久核对这一上一问，还是服务端要求了调用方无法可靠证明的会话事实。
 
 ### 5. 当前影响
 
@@ -2315,11 +2315,11 @@ successor Proposal 已通过 `goal_tree_check`。Runtime 上一条消息把这�
 **来源**：CGS 消费者反馈（会话 `01a04fb1-96a1-74b3-9836-604f28f87521`），Goal `cgs-g2b-content-bet-decision-v2`
 **Bug 确认**：部分新增成立。completed Run 保持 active Claim 是必要写权交接边界，不应自动释放；当前源码的 GB37 已让 `review_blocked` 进入 `blocked_overview`，所以“完全消失”是尚未安装该修复的旧运行态，不重复计 Bug。新增真实缺陷是 Run report、Contract、Available 与 Skill 都没有明确唯一剩余动作，Skill 甚至把 Review 排在 executor release 之前
 **修复决定**：P1，保留显式 release，复用 GB33 handoff 与 GB37 blocked overview，统一返回精确工具、Claim、理由和 release 后 Available 动作；不修改 CGS 数据
-**修复状态**：最终交付已闭环。0.1.10 安装 Core 隔离实操：completed Run 返回 `goalboard_v1_release`、claim/actor/建议理由及 release 后 Available；Contract/blocked_overview 给出同一动作；release 后 self_verifier 进入 Available。保留显式 release 的写权边界，不自动释放
+**修复状态**：最终交付已闭环。0.1.10 安装 Core 隔离实操：completed Run 返回 `molis_work_v1_release`、claim/actor/建议理由及 release 后 Available；Contract/blocked_overview 给出同一动作；release 后 self_verifier 进入 Available。保留显式 release 的写权边界，不自动释放
 
 ### 1. 真实场景
 
-executor 已调用 `goalboard_v1_run_report(state=completed)`，随后仍在同一 active Claim 下成功提交工程 Evidence。Contract 此时返回 `work_state=review_blocked`、reason=`work.handoff_pending`，只说“结果已提交，正在进入检查 / 当前执行收尾后即可开始检查”；executor Claim 仍 active，Available 完全不显示 pending self_verifier。消费者靠额外搜索工具列表才发现必须显式调用 `goalboard_v1_release`；release 后同一 Goal 才进入 self_verifier Available。
+executor 已调用 `molis_work_v1_run_report(state=completed)`，随后仍在同一 active Claim 下成功提交工程 Evidence。Contract 此时返回 `work_state=review_blocked`、reason=`work.handoff_pending`，只说“结果已提交，正在进入检查 / 当前执行收尾后即可开始检查”；executor Claim 仍 active，Available 完全不显示 pending self_verifier。消费者靠额外搜索工具列表才发现必须显式调用 `molis_work_v1_release`；release 后同一 Goal 才进入 self_verifier Available。
 
 ### 2. 事实与归因
 
@@ -2335,11 +2335,11 @@ executor 已调用 `goalboard_v1_run_report(state=completed)`，随后仍在同�
 
 ### 5. 当前影响
 
-影响所有 executor 完成后需要独立 Review 的正常闭环；频率等于每轮需复核的 Run。它不会直接丢数据，但会让自主推进静默停止、增加工具搜索和误操作，并让用户误以为 GoalBoard 会自动交接。
+影响所有 executor 完成后需要独立 Review 的正常闭环；频率等于每轮需复核的 Run。它不会直接丢数据，但会让自主推进静默停止、增加工具搜索和误操作，并让用户误以为 Molis Work 会自动交接。
 
 ### 6. 复杂度审查
 
-- **当前必须**：当 completed Run 只差 release 时，`run_report`、Contract 和 Available/blocked handoff 返回同一个 `goalboard_v1_release`、`claim_id`、actor、建议理由和 release 后 Available 动作；Skill 顺序与状态机一致。
+- **当前必须**：当 completed Run 只差 release 时，`run_report`、Contract 和 Available/blocked handoff 返回同一个 `molis_work_v1_release`、`claim_id`、actor、建议理由和 release 后 Available 动作；Skill 顺序与状态机一致。
 - **可以延后**：可配置 auto-release；只有证明不存在 completed 后补 Evidence/报告的合法路径时再评估。
 - **应当删除**：不把“自动释放”直接当默认答案，不新增第二套 handoff 状态，不让 self-verifier 在 executor Claim active 时并发领取。
 
@@ -2354,12 +2354,12 @@ executor 已调用 `goalboard_v1_run_report(state=completed)`，随后仍在同�
 
 ### 9. 最小修复范围
 
-扩展既有 `work.handoff_pending` facts/remediation 和 completed run report：统一返回 `action=release_claim`、`tool=goalboard_v1_release`、goal/run/claim/actor、建议 release reason 和 `after_release=read_available`。GB37 的 `blocked_overview` 对该特定 reason 保留 facts/remediation 并把 next_action 写成 `release`；其他普通 blockers 仍保持紧凑。Skill 改成 executor completed→Evidence→release→Available→独立 reviewer，不改变 Claim/Run 状态、不自动释放、不修改 Review eligibility。
+扩展既有 `work.handoff_pending` facts/remediation 和 completed run report：统一返回 `action=release_claim`、`tool=molis_work_v1_release`、goal/run/claim/actor、建议 release reason 和 `after_release=read_available`。GB37 的 `blocked_overview` 对该特定 reason 保留 facts/remediation 并把 next_action 写成 `release`；其他普通 blockers 仍保持紧凑。Skill 改成 executor completed→Evidence→release→Available→独立 reviewer，不改变 Claim/Run 状态、不自动释放、不修改 Review eligibility。
 
 ### 10. 验收边界
 
 - **工程验证**：通过。红灯先证明 completed 响应没有 handoff；绿灯覆盖 completed 后 Claim 仍 active、Evidence 仍可提交、Run report/Contract/Available 返回同一 release 契约、release 前 self-verifier 不可领取、release 后立即 Available。实际 Runtime MCP 回归还覆盖默认 summary 保留 claim/tool、Skill 顺序，以及中英文 Web 状态“等待交接”。首次整仓运行暴露 1 条旧文案断言，修正为精确 release 契约后重新从头运行。提交前差异审查又发现 Web 会直接显示 MCP 工具名，把人类界面改为“释放当前工作并刷新”；随后再发现通用 handoff 被写成 executor 专属“交给独立检查”，以红灯证明后改为角色无关的“释放当前工作进入下一步”。Web/i18n、Core/MCP 定向回归通过后，2026-08-30 再次从头执行 `pnpm typecheck && pnpm test`，最终整合态 331/331、0 fail。
-- **产品实操**：通过。最终 0.1.10 安装 Core 的隔离旅程读回：completed 后 Claim 保持 active、Evidence 可补；Run/Contract/Available 都明确 `goalboard_v1_release`、claim_id、actor、建议理由和 release 后 Available；release 后 self_verifier 立即进入 `review_pending`。
+- **产品实操**：通过。最终 0.1.10 安装 Core 的隔离旅程读回：completed 后 Claim 保持 active、Evidence 可补；Run/Contract/Available 都明确 `molis_work_v1_release`、claim_id、actor、建议理由和 release 后 Available；release 后 self_verifier 立即进入 `review_pending`。
 - **Owner 最终验收**：通过。最终安装行为与设计一致：保留 completed 后最后写入窗口，同时消除“等待系统自动交接”的歧义。
 - **用户验收**：最终安装版主观是否足够直白仍为 `UNVERIFIED`；当前暂停新包构建。
 
@@ -2368,7 +2368,7 @@ executor 已调用 `goalboard_v1_run_report(state=completed)`，随后仍在同�
 ## GB-20260830-41：V2 KOL 子 Goal 被 completion-only Risk 挡出 executor Available
 
 **来源**：CGS KOL 消费者反馈（会话 `01a04df5-64d8-72e3-ae79-455907c85e86`），Board `project-bc1b9bac-c679-4ac5-ba00-bb51477d0008`
-**Bug 确认**：不是新的 GoalBoard Bug。当前源码与本机已安装的 0.1.9 都确定性允许 open/triggered 的 `completion` Risk 下首次 executor Available/select；消费者当前 Session 仍在使用安装前已启动的 MCP 进程，且同一消费者此前已报告 V2 子树存在 `depends_on` 前置未满足。当前矛盾应归入 GB16 的旧 Session 交付边界与真实 dependency gate，而不是再次归因给 completion Risk
+**Bug 确认**：不是新的 Molis Work Bug。当前源码与本机已安装的 0.1.9 都确定性允许 open/triggered 的 `completion` Risk 下首次 executor Available/select；消费者当前 Session 仍在使用安装前已启动的 MCP 进程，且同一消费者此前已报告 V2 子树存在 `depends_on` 前置未满足。当前矛盾应归入 GB16 的旧 Session 交付边界与真实 dependency gate，而不是再次归因给 completion Risk
 **修复决定**：不新增状态机修复；保留现有 completion/claim 分层，要求新 Session 读取 0.1.9，并以 Contract `reasons[].code` 区分 `dependency.unsatisfied` 与 `risk.blocks_claim`。旧 Goal 仍出现的问题继续归 GB31，不在本卡重复实现
 **修复状态**：最终结案为非新 Bug。0.1.10 安装 Core 对真实 CGS reason 复验：G2E 在同一 completion Risk 下仍为 executor `execution_pending`；G2D 是已结束执行后等待 `rework_request`；V2 即刻子 Goal 的 blocker 为 `dependency.unsatisfied`（schema 未完成），不是 completion Risk。旧 Goal 暴露另由 GB31 修复；未修改 CGS 数据
 
@@ -2424,18 +2424,18 @@ completion Risk 的初衷是允许团队继续实现和补证据，同时阻止�
 
 ## GB-20260830-42：Core/App 升级后受管 LaunchAgent 仍携旧 release PATH，健康服务被标记 needs_repair
 
-**来源**：GoalBoard Owner 在 GB35 安装态复验中发现；本机 `/Applications/GoalBoard.app`、home launcher 和实际 Web 进程均已指向 0.1.9
+**来源**：Molis Work Owner 在 GB35 安装态复验中发现；本机 `/Applications/Molis Work.app`、home launcher 和实际 Web 进程均已指向 0.1.9
 **Bug 确认**：已确认，属于 Desktop 升级后的服务交接缺陷；`needs_repair` 本身不是误报
 **修复决定**：修。只把 App 完成 Core 升级后的受管服务动作从被协议拒绝的 `service restart` 改为能原子同步 owned plist 的 `service install`；不放宽配置一致性检查
 **修复状态**：最终交付已闭环。0.1.10 App/Core/launcher 与 LaunchAgent PATH 已对齐，service `running/owned=true`；LaunchAgent、监听者和 `/health.service_process_id` 均为 PID 72472。最终同版本内容刷新后按官方 restart 事务加载新 Core，没有静默接管未知进程
 
 ### 1. 真实场景
 
-本机已安装 GoalBoard 0.1.9：App Info.plist 为 0.1.9，`~/.goalboard/bin/goalboard-web` 明确执行 `releases/goalboard-0.1.9` 的 bundled Node 与 Web server，HTTP `/health` 返回 `status=ok` 且 process/service PID 一致。与此同时 `goalboard service status --json` 返回 `state=needs_repair`、message“GoalBoard Web 常驻服务使用旧配置”；LaunchAgent plist 的 `EnvironmentVariables.PATH` 仍以 `releases/goalboard-0.1.8/runtime` 开头。
+本机已安装 Molis Work 0.1.9：App Info.plist 为 0.1.9，`~/.molis-work/bin/molis-work-web` 明确执行 `releases/molis-work-0.1.9` 的 bundled Node 与 Web server，HTTP `/health` 返回 `status=ok` 且 process/service PID 一致。与此同时 `molis-work service status --json` 返回 `state=needs_repair`、message“Molis Work Web 常驻服务使用旧配置”；LaunchAgent plist 的 `EnvironmentVariables.PATH` 仍以 `releases/molis-work-0.1.8/runtime` 开头。
 
 ### 2. 事实与归因
 
-可稳定复现，属于 GoalBoard 缺陷。Desktop 的 `ensure_goalboard_web` 在发现内嵌 Runtime 版本高于已安装版本后会先安装新 Core，随后调用 `restart_managed_web_service`；该函数固定执行 `goalboard service restart --confirm` 并吞掉失败。与此同时 service 状态机明确规定 `needs_repair` 时 restart 必须拒绝，唯一恢复动作是 `service install --confirm`。因此 status 正确识别了 release-specific bundled Node `PATH` 已过期，错误在 Desktop 选错恢复动作并静默忽略结果，不是状态比较过严。
+可稳定复现，属于 Molis Work 缺陷。Desktop 的 `ensure_molis_work_web` 在发现内嵌 Runtime 版本高于已安装版本后会先安装新 Core，随后调用 `restart_managed_web_service`；该函数固定执行 `molis-work service restart --confirm` 并吞掉失败。与此同时 service 状态机明确规定 `needs_repair` 时 restart 必须拒绝，唯一恢复动作是 `service install --confirm`。因此 status 正确识别了 release-specific bundled Node `PATH` 已过期，错误在 Desktop 选错恢复动作并静默忽略结果，不是状态比较过严。
 
 ### 3. 现有流程的问题
 
@@ -2443,7 +2443,7 @@ completion Risk 的初衷是允许团队继续实现和补证据，同时阻止�
 
 ### 4. 设计根因与初衷
 
-稳定 `~/.goalboard/bin/goalboard-web` wrapper 的初衷是让 LaunchAgent ProgramArguments 不随版本变化；plist PATH 固定 bundled runtime 则用于在系统 PATH 缺 Node 时仍可运行并隔离宿主环境。service 将旧 plist 判为 `needs_repair`，并要求 `install` 而不是 `restart`，是为了只重写 GoalBoard 拥有的配置、验证端口与实例身份、失败时恢复旧文件和运行态。Desktop 原本也试图在 App 已获启动/升级授权后自动刷新受管服务，但沿用了旧的 restart 动作，没有接上这条新安全协议。
+稳定 `~/.molis-work/bin/molis-work-web` wrapper 的初衷是让 LaunchAgent ProgramArguments 不随版本变化；plist PATH 固定 bundled runtime 则用于在系统 PATH 缺 Node 时仍可运行并隔离宿主环境。service 将旧 plist 判为 `needs_repair`，并要求 `install` 而不是 `restart`，是为了只重写 Molis Work 拥有的配置、验证端口与实例身份、失败时恢复旧文件和运行态。Desktop 原本也试图在 App 已获启动/升级授权后自动刷新受管服务，但沿用了旧的 restart 动作，没有接上这条新安全协议。
 
 ### 5. 当前影响
 
@@ -2462,7 +2462,7 @@ completion Risk 的初衷是允许团队继续实现和补证据，同时阻止�
 ### 8. 修复前后体验差异
 
 - **当前**：安装/App/health 都显示 0.1.9 可用，但 status 仍报旧配置，用户需要猜是否重新 repair。
-- **修后**：App 完成新 Core 安装后，用 `service install --confirm` 同步 GoalBoard 自己拥有的 plist 并重载；成功后 status 为 running、PATH 指向新 release。未知或被改写的 LaunchAgent 仍拒绝接管，失败不伪报成功。
+- **修后**：App 完成新 Core 安装后，用 `service install --confirm` 同步 Molis Work 自己拥有的 plist 并重载；成功后 status 为 running、PATH 指向新 release。未知或被改写的 LaunchAgent 仍拒绝接管，失败不伪报成功。
 
 ### 9. 最小修复范围
 
@@ -2471,7 +2471,7 @@ completion Risk 的初衷是允许团队继续实现和补证据，同时阻止�
 ### 10. 验收边界
 
 - **工程验证**：通过。TDD 红灯实际记录 Desktop helper 调用 `service restart --home … --confirm`，与期望的 `install` 不同；最小修改后定向用例转绿。Desktop Rust 单测 12/12、TypeScript typecheck、Web service 状态机回归 23/23、`cargo fmt --check` 与 `git diff --check` 均通过。`cargo clippy --all-targets -D warnings` 仍被本文件既有的两条无关 warning 阻断（`needless_borrows_for_generic_args`、`collapsible_if`），本卡未改这些位置，不能把 clippy 报成绿。
-- **产品实操**：通过。最终 0.1.10 安装后，LaunchAgent PATH 指向 `releases/goalboard-0.1.10/runtime`，official status=`running/owned=true`，LaunchAgent、监听与 health PID 同为 72472。同版本内容刷新后按官方 restart 事务换到最终 Core，未接管未知进程。
+- **产品实操**：通过。最终 0.1.10 安装后，LaunchAgent PATH 指向 `releases/molis-work-0.1.10/runtime`，official status=`running/owned=true`，LaunchAgent、监听与 health PID 同为 72472。同版本内容刷新后按官方 restart 事务换到最终 Core，未接管未知进程。
 - **Owner 最终验收**：通过。最终 App/Core/service 已收敛，ownership、外部监听拒绝、原子写入与回滚边界由 338/338 与 Desktop 12/12 保留。
 - **用户验收**：安装结果已在本机真实服务确认；用户可继续正常使用既有六个项目，本轮没有迁移或删除项目数据。
 
@@ -2479,7 +2479,7 @@ completion Risk 的初衷是允许团队继续实现和补证据，同时阻止�
 
 ## GB-20260830-43：窄栏 Goal Tree 标题全部省略且分栏无法继续拉宽
 
-**来源**：GoalBoard Owner 在真实 Content Growth Studio Goal Tree 的视觉反馈，截图 `截屏2026-08-30 21.01.35.png`
+**来源**：Molis Work Owner 在真实 Content Growth Studio Goal Tree 的视觉反馈，截图 `截屏2026-08-30 21.01.35.png`
 **Bug 确认**：已确认。真实安装 App 和 4173 Web 均可复现；根因是共用 CSS 把 Runtime 已接受的 520px 分栏值再次 clamp 到 300/334px，同时固定行高和 `white-space: nowrap` 强制长标题单行省略。这不是“CGS 标题写得太长”或单端外壳问题
 **修复决定**：P1，已获本 Session 自主修复授权。保持层级、短引用和状态徽标，最小修复标题完整可读；不把本卡扩成无限画布或整套 Goal Tree 重构
 **修复状态**：最终交付已闭环。修复已进入 0.1.10；最终安装 App 的真实 CGS Goal Tree 中，分栏从 300 拖到 520，长中文标题完整换行，G2/G2A/G2B/C/G2G/V2 与状态同时可读，Web/Desktop 共用实现一致；未 push
@@ -2490,7 +2490,7 @@ completion Risk 的初衷是允许团队继续实现和补证据，同时阻止�
 
 ### 2. 事实与归因
 
-截图可直接复现用户感知结果：同一屏多数标题被省略，短引用和状态仍可见，但业务标题不可完整阅读。Owner 随后通过 computer use 在真实 0.1.9 安装 App 和 4173 Web 的同一 CGS / `cgs-g2g-jike-roster` 上分别复现；在安装态把分隔条值拖到约 519 时，实际目录仍只有约 300px。源码中 `setTreeWidth` 合法范围为 260–520px，ARIA 也回报拖动值，但最终视觉 CSS 又使用 `clamp(274px, var(--tree-width), 300px)` / `clamp(..., 334px)`；标题行同时固定为 `22px`、`nowrap` 和 ellipsis。归因确定为共用 Web 样式与 splitter 状态相互矛盾的 GoalBoard 缺陷，不归咎于 CGS 标题过长。
+截图可直接复现用户感知结果：同一屏多数标题被省略，短引用和状态仍可见，但业务标题不可完整阅读。Owner 随后通过 computer use 在真实 0.1.9 安装 App 和 4173 Web 的同一 CGS / `cgs-g2g-jike-roster` 上分别复现；在安装态把分隔条值拖到约 519 时，实际目录仍只有约 300px。源码中 `setTreeWidth` 合法范围为 260–520px，ARIA 也回报拖动值，但最终视觉 CSS 又使用 `clamp(274px, var(--tree-width), 300px)` / `clamp(..., 334px)`；标题行同时固定为 `22px`、`nowrap` 和 ellipsis。归因确定为共用 Web 样式与 splitter 状态相互矛盾的 Molis Work 缺陷，不归咎于 CGS 标题过长。
 
 ### 3. 现有流程的问题
 
@@ -2533,18 +2533,18 @@ completion Risk 的初衷是允许团队继续实现和补证据，同时阻止�
 
 ## GB-20260830-44：同仓库隔离 Git worktree 的真实文件无法成为 verified Evidence
 
-**来源**：GoalBoard 内部 Casebook / `goalboard-authorized-planning-export` 消费者反馈
+**来源**：Molis Work 内部 Casebook / `molis-work-authorized-planning-export` 消费者反馈
 **Bug 确认**：已确认，属于 Evidence workspace 与 Git worktree 身份连续性缺口，不是消费者误用，也不是任意跨仓读取诉求。只允许 canonical 路径内文件的安全初衷成立；缺陷是把同一仓库身份等同成单一目录，无法消费 Git 自身正式登记的隔离 worktree
 **修复决定**：已批准并完成最小源码实现。按 Owner 既有授权直接修复，不等待逐卡审批；不扩成任意多 workspace 或跨仓验证
 **修复状态**：最终交付已闭环。源码回归已纳入完整 338/338；0.1.10 安装 Core 另用真实临时 Git repository + registered worktree 实操，未提交文件规范化为 `project://`、状态 verified、记录实际 worktree root 且可读取；外部仓库仍不被提升为 verified。未修改来源 Casebook 数据，未 push
 
 ### 1. 真实场景
 
-GoalBoard 当前 Session 绑定项目“GoalBoard 内部 Casebook”，canonical workspace 为 `/Users/oreal/adeptify-home/repos/goalboard`。为保护该目录已有脏工作树，执行者把同一 Git 仓库的实现放在隔离 worktree `/private/tmp/goalboard-casebook-authorized-export`，并尝试把其中真实测试文件 `tests/casebook-planning-export.test.ts` 登记为 Evidence。绝对 locator 被准确拒绝为“当前项目范围外”；执行者只能改用 `artifact://`，记录被降级为 UNVERIFIED。
+Molis Work 当前 Session 绑定项目“Molis Work 内部 Casebook”，canonical workspace 为 `/Users/oreal/adeptify-home/repos/molis-work`。为保护该目录已有脏工作树，执行者把同一 Git 仓库的实现放在隔离 worktree `/private/tmp/molis-work-casebook-authorized-export`，并尝试把其中真实测试文件 `tests/casebook-planning-export.test.ts` 登记为 Evidence。绝对 locator 被准确拒绝为“当前项目范围外”；执行者只能改用 `artifact://`，记录被降级为 UNVERIFIED。
 
 ### 2. 事实与归因
 
-已独立核对：canonical checkout 与 `/private/tmp/goalboard-casebook-authorized-export` 的 `git-common-dir` 完全相同，后者同时出现在 canonical 仓库自己的 `git worktree list --porcelain` 中；目标测试文件真实存在且未提交。当前 locator 实现只做 canonical root 与目标文件的 `realpath` containment，因此必然拒绝。Evidence 表已经能记录提交时实际验证根，Web 也会按该根打开历史项目引用；缺的是安全解析“同仓登记 worktree”的一步，不需要新增数据库或第二套 Evidence 类型。
+已独立核对：canonical checkout 与 `/private/tmp/molis-work-casebook-authorized-export` 的 `git-common-dir` 完全相同，后者同时出现在 canonical 仓库自己的 `git worktree list --porcelain` 中；目标测试文件真实存在且未提交。当前 locator 实现只做 canonical root 与目标文件的 `realpath` containment，因此必然拒绝。Evidence 表已经能记录提交时实际验证根，Web 也会按该根打开历史项目引用；缺的是安全解析“同仓登记 worktree”的一步，不需要新增数据库或第二套 Evidence 类型。
 
 ### 3. 现有流程的问题
 
@@ -2556,7 +2556,7 @@ GoalBoard 当前 Session 绑定项目“GoalBoard 内部 Casebook”，canonical
 
 ### 5. 当前影响
 
-影响使用 Git worktree 隔离实现、且 Evidence 尚未进入远端 commit 的本地开发任务。它不会破坏产物，但会系统性把真实测试、审查文档和日志降级为 UNVERIFIED，迫使执行者在安全隔离与证据质量之间二选一。频率取决于 worktree 工作流；在 GoalBoard 自身的脏主工作树维护中已经真实发生。
+影响使用 Git worktree 隔离实现、且 Evidence 尚未进入远端 commit 的本地开发任务。它不会破坏产物，但会系统性把真实测试、审查文档和日志降级为 UNVERIFIED，迫使执行者在安全隔离与证据质量之间二选一。频率取决于 worktree 工作流；在 Molis Work 自身的脏主工作树维护中已经真实发生。
 
 ### 6. 复杂度审查
 
@@ -2566,12 +2566,12 @@ GoalBoard 当前 Session 绑定项目“GoalBoard 内部 Casebook”，canonical
 
 ### 7. 修复必要性与优先级
 
-需要修，P1。Git 已提供 canonical 仓库主动维护的 worktree allowlist，现有 Evidence 又能记录实际验证根，因此可以在不扩大跨仓权限的前提下恢复标准开发闭环。若不修，GoalBoard owner 自己为保护脏主目录而采用的标准隔离工作流会持续把真实本地证据降级；这已影响验收审计，不只是文案摩擦。
+需要修，P1。Git 已提供 canonical 仓库主动维护的 worktree allowlist，现有 Evidence 又能记录实际验证根，因此可以在不扩大跨仓权限的前提下恢复标准开发闭环。若不修，Molis Work owner 自己为保护脏主目录而采用的标准隔离工作流会持续把真实本地证据降级；这已影响验收审计，不只是文案摩擦。
 
 ### 8. 修复前后体验差异
 
 - **修复前**：在同仓隔离 worktree 完成真实测试 → 绝对 locator 被判项目外 → 改用 opaque locator → Evidence 永久 UNVERIFIED。
-- **目标体验候选**：提交隔离 worktree 文件 → GoalBoard 证明它与 canonical workspace 共用 Git repository identity 且文件未逃出该 worktree → 记录 verified locator、实际验证根和摘要；无法证明时明确说明为什么只能 UNVERIFIED，以及可用的安全替代方式。
+- **目标体验候选**：提交隔离 worktree 文件 → Molis Work 证明它与 canonical workspace 共用 Git repository identity 且文件未逃出该 worktree → 记录 verified locator、实际验证根和摘要；无法证明时明确说明为什么只能 UNVERIFIED，以及可用的安全替代方式。
 
 ### 9. 最小修复范围
 
@@ -2697,7 +2697,7 @@ native supersession 用于关闭被修订的旧待定项，避免双 pending；l
 ## GB-20260831-47：对话中已明确人工确认，仍必须到 Inbox 重复表达
 
 **来源**：CGS / Goal `G3A` 的真实 waiting-for-human 验收旅程
-**Bug 确认**：已确认，但修正了原候选方案。真实缺陷不是“缺一个让 Runtime 直接写 Human Review 的 API”，而是 GoalBoard Core/Skill 没有把唯一明确对话确认接到 GB24 已有的安全预填入口
+**Bug 确认**：已确认，但修正了原候选方案。真实缺陷不是“缺一个让 Runtime 直接写 Human Review 的 API”，而是 Molis Work Core/Skill 没有把唯一明确对话确认接到 GB24 已有的安全预填入口
 **修复决定**：已按本 Session 授权完成最小修复；保留最终用户提交，不新增 Runtime 人类审批权、不做通用自然语言审批器
 **修复状态**：源码已实现，定向工程与源码产品旅程通过；已进入 0.1.11 发布候选，真实新 Codex Session 与用户主观验收待后续
 
@@ -2707,11 +2707,11 @@ Goal 已进入 `waiting_for_human`，只剩一个 `human_approver` obligation。
 
 ### 2. 事实与归因
 
-源码和真实 CGS 数据只读核对共同复现了问题。当前 MCP 调用上下文只有宿主提供的 Session ID，没有不可伪造的用户 actor、turn/message 签名，因此 Runtime 不能安全地把一句转述直接写成 canonical Human Review。GB24 已支持带会话来源的 `human_verdict` Evidence 预填 Inbox，但 Runtime Skill 只要求“报告 criteria 并停止”，没有告诉消费者登记明确原话并进入预填表单。真实 G3A 后续由用户在 Web 手工提交 Human Review；历史中没有对应对话 `human_verdict`，印证 GB24 入口并未被消费。归因是 GoalBoard Core/Skill 交接缺口，不是用户误用，也不是宿主已具备而 GoalBoard 漏接的强认证能力。
+源码和真实 CGS 数据只读核对共同复现了问题。当前 MCP 调用上下文只有宿主提供的 Session ID，没有不可伪造的用户 actor、turn/message 签名，因此 Runtime 不能安全地把一句转述直接写成 canonical Human Review。GB24 已支持带会话来源的 `human_verdict` Evidence 预填 Inbox，但 Runtime Skill 只要求“报告 criteria 并停止”，没有告诉消费者登记明确原话并进入预填表单。真实 G3A 后续由用户在 Web 手工提交 Human Review；历史中没有对应对话 `human_verdict`，印证 GB24 入口并未被消费。归因是 Molis Work Core/Skill 交接缺口，不是用户误用，也不是宿主已具备而 Molis Work 漏接的强认证能力。
 
 ### 3. 现有流程的问题
 
-用户已表达一次明确决定，却必须在另一界面重新选结论、选 Evidence 和改写理由。这不只多一次点击：系统没有解释哪一次才是法定决定，导致用户误以为对话中的明确确认被忽略，或 GoalBoard 只承认特定 UI 而不承认人的真实意思。
+用户已表达一次明确决定，却必须在另一界面重新选结论、选 Evidence 和改写理由。这不只多一次点击：系统没有解释哪一次才是法定决定，导致用户误以为对话中的明确确认被忽略，或 Molis Work 只承认特定 UI 而不承认人的真实意思。
 
 ### 4. 设计根因与初衷
 
@@ -2734,7 +2734,7 @@ Goal 已进入 `waiting_for_human`，只剩一个 `human_approver` obligation。
 ### 8. 修复前后体验差异
 
 - **修复前**：用户在对话中明确说“确认 G3A” → Goal 仍 waiting_for_human → 转 Inbox 重新选择、勾选、填理由、提交。
-- **修复后**：GoalBoard 返回唯一 obligation、criteria 和 exact-quote handoff → 用户明确批准该命名事项时，Runtime 只登记带 `conversation://` 来源的原话 Evidence → Inbox 自动预填结论、原话、来源、Evidence 和理由 → 用户只做一次最终提交。若回复含糊、存在多个待决项、结论不是通过或状态已变化，则不登记并直接回 Inbox。
+- **修复后**：Molis Work 返回唯一 obligation、criteria 和 exact-quote handoff → 用户明确批准该命名事项时，Runtime 只登记带 `conversation://` 来源的原话 Evidence → Inbox 自动预填结论、原话、来源、Evidence 和理由 → 用户只做一次最终提交。若回复含糊、存在多个待决项、结论不是通过或状态已变化，则不登记并直接回 Inbox。
 
 ### 9. 最小修复范围
 
@@ -2742,7 +2742,7 @@ Goal 已进入 `waiting_for_human`，只剩一个 `human_approver` obligation。
 
 ### 10. 验收边界
 
-- **工程验证**：源码定向 Core 1/1 通过：唯一 obligation 返回 criteria、obligation ID、Evidence tool/kind/result、locator/digest 规则和 `runtime_can_submit_human_review=false`；人工插入第二个 pending obligation 后 handoff 消失并退回 `open_goalboard`。TypeScript build 通过。第一次误把过滤参数传给全量脚本导致默认临时目录 `SQLITE_CANTOPEN`，已改用独立可写 TMPDIR 的直接入口重跑，未把环境失败冒充代码回归。
+- **工程验证**：源码定向 Core 1/1 通过：唯一 obligation 返回 criteria、obligation ID、Evidence tool/kind/result、locator/digest 规则和 `runtime_can_submit_human_review=false`；人工插入第二个 pending obligation 后 handoff 消失并退回 `open_molis_work`。TypeScript build 通过。第一次误把过滤参数传给全量脚本导致默认临时目录 `SQLITE_CANTOPEN`，已改用独立可写 TMPDIR 的直接入口重跑，未把环境失败冒充代码回归。
 - **产品实操**：源码侧真实 Headless Chrome 1/1 通过 GB24 完整旅程：目标 Decision 深链自动选中、表单展开/进入视区、原话与 Evidence 预填，最终用户提交边界仍在。真实 CGS 只读核对确认旧流程确实没有保存对话 `human_verdict`，后来由 Web 用户手工 Review 才越过验收；未改写 CGS。新 Skill 的自然语言识别和 handoff 尚未在最终安装包的新 Session 实操，因此当前标为 `UNVERIFIED`。
 - **Owner 最终验收**：方案成立。它消除重复选择/抄写，同时没有把 Runtime Evidence 提升成人类审批；多待决项失败关闭。0.1.11 发布候选已完成包级工程验证，但尚未做最终安装态新 Session 验收。
 - **用户验收**：待包含本卡的新包安装并由用户在真实新 Session 体验；不由工程测试代替。
@@ -2752,17 +2752,17 @@ Goal 已进入 `waiting_for_human`，只剩一个 `human_approver` obligation。
 ## GB-20260831-48：Goal Tree 变更后没有主动召回受影响子图复核
 
 **来源**：CGS / G3 从内容生产 Goal 重规划成 P1/P2/P3 三条生成路径后的真实规划旅程
-**Bug 确认**：已确认。GoalBoard 只有 Runtime 主动调用的只读影响分析，Proposal materialization 成功后没有默认返回或保存语义复核 handoff；结构合法与语义仍需复核被混成一个绿色结果
+**Bug 确认**：已确认。Molis Work 只有 Runtime 主动调用的只读影响分析，Proposal materialization 成功后没有默认返回或保存语义复核 handoff；结构合法与语义仍需复核被混成一个绿色结果
 **修复决定**：已完成最小发现与交接修复；不自动改树、不把影响推断写成 canonical Goal
 **修复状态**：源码已实现；定向工程与代表性 CGS G3 子图回归通过，已进入 0.1.11 发布候选
 
 ### 1. 真实场景
 
-CGS 已确认把 G3 调整为“让团队从不同成熟度输入生成本人愿意发布的多平台内容”，并拆成 P1 已选 Content Bet、P2 粗方向、P3 成熟内容扩写三条路径。提案落地后 GoalBoard 没有提示复核同层与下游；直到用户主动追问，Runtime 才调用 change impact 分析，发现 G2→G3B、G3→G4、G4→G5，以及根 Goal/G6 的视频范围可能需要重新校准。图没有环或缺失引用，但 Contract 语义与消费者假设可能已经漂移。
+CGS 已确认把 G3 调整为“让团队从不同成熟度输入生成本人愿意发布的多平台内容”，并拆成 P1 已选 Content Bet、P2 粗方向、P3 成熟内容扩写三条路径。提案落地后 Molis Work 没有提示复核同层与下游；直到用户主动追问，Runtime 才调用 change impact 分析，发现 G2→G3B、G3→G4、G4→G5，以及根 Goal/G6 的视频范围可能需要重新校准。图没有环或缺失引用，但 Contract 语义与消费者假设可能已经漂移。
 
 ### 2. 事实与归因
 
-源码核对确认：`planning_analyze_change` 只能在 Runtime 主动调用时做只读分析，Goal Tree check 只校验结构与 materialization 不变量；决定成功后此前既不保存受影响对象，也不向 Runtime 返回强制复核动作。归因是 GoalBoard 规划生命周期交接缺口，不是 CGS 图结构错误，也不是用户应主动提醒的合理责任。
+源码核对确认：`planning_analyze_change` 只能在 Runtime 主动调用时做只读分析，Goal Tree check 只校验结构与 materialization 不变量；决定成功后此前既不保存受影响对象，也不向 Runtime 返回强制复核动作。归因是 Molis Work 规划生命周期交接缺口，不是 CGS 图结构错误，也不是用户应主动提醒的合理责任。
 
 ### 3. 现有流程的问题
 
@@ -2825,11 +2825,11 @@ Arena 用户明确提出并确认两个稳定主线：公共 AI 竞技与增长�
 
 ### 4. 设计根因与初衷
 
-GoalBoard 刻意禁止只作文件夹、没有可完成结果的空 Goal，避免为了视觉整齐制造虚假工作；共享能力也只能有一个 canonical owner，不能复制到两条轨。规划器因此偏向把可执行、可验收结果平铺并用 depends_on 连接。遗漏在于没有把“稳定战略分组”作为必须显式判断的语义：它可能是可完成 compound outcome，也可能只是视图维度，但不能静默丢失。
+Molis Work 刻意禁止只作文件夹、没有可完成结果的空 Goal，避免为了视觉整齐制造虚假工作；共享能力也只能有一个 canonical owner，不能复制到两条轨。规划器因此偏向把可执行、可验收结果平铺并用 depends_on 连接。遗漏在于没有把“稳定战略分组”作为必须显式判断的语义：它可能是可完成 compound outcome，也可能只是视图维度，但不能静默丢失。
 
 ### 5. 当前影响
 
-影响具有两条以上长期但有限主线的项目。图仍可执行，因此不会立即报错；但用户审批、分工、范围判断和后续变更影响分析都更难，且容易把一条主线的局部完成误解成根目标接近完成。Arena 已真实出现“用户明确说双重目标，但 GoalBoard 看不出来”的反馈。
+影响具有两条以上长期但有限主线的项目。图仍可执行，因此不会立即报错；但用户审批、分工、范围判断和后续变更影响分析都更难，且容易把一条主线的局部完成误解成根目标接近完成。Arena 已真实出现“用户明确说双重目标，但 Molis Work 看不出来”的反馈。
 
 ### 6. 复杂度审查
 
@@ -2861,14 +2861,14 @@ GoalBoard 刻意禁止只作文件夹、没有可完成结果的空 Goal，避�
 
 ## GB-20260831-50：Skill 承诺跨仓 `file:///` 可登记，Runtime 仍按项目外文件拒绝
 
-**来源**：GoalBoard 内部 Casebook / `casebook-authorized-case-sync` 的真实 rework Evidence 提交
+**来源**：Molis Work 内部 Casebook / `casebook-authorized-case-sync` 的真实 rework Evidence 提交
 **Bug 确认**：分析中；现象与 GB34 修复前行为一致，优先核对当前 Session 是否仍运行旧 MCP，不先重复认定源码缺陷
 **修复决定**：按用户最新指令只分析，暂不修改代码、不构建
 **修复状态**：已登记；消费者已安全退化为 opaque URN/UNVERIFIED，未伪造 verified Evidence
 
 ### 1. 真实场景
 
-Casebook Goal 绑定的 canonical workspace 是 GoalBoard 仓库，实现产物位于另一个本地仓库 `goalboard-casebook`。消费者按当前 Skill 用显式 `file:///.../tests/casebook-app.test.mjs`、SHA-256、run_id 和 criterion_id 提交，Runtime 却返回“Evidence locator 不能指向项目范围外的本地文件”；随后改用 opaque URN 成功登记为 UNVERIFIED。
+Casebook Goal 绑定的 canonical workspace 是 Molis Work 仓库，实现产物位于另一个本地仓库 `molis-work-casebook`。消费者按当前 Skill 用显式 `file:///.../tests/casebook-app.test.mjs`、SHA-256、run_id 和 criterion_id 提交，Runtime 却返回“Evidence locator 不能指向项目范围外的本地文件”；随后改用 opaque URN 成功登记为 UNVERIFIED。
 
 ### 2. 事实与归因
 
@@ -2932,9 +2932,9 @@ Skill 与当前源码对外契约明确允许跨仓 `file:///` 仅登记为 mach
 | GB10 | 成立，restart 和 repair 的动作语义混淆 | 用户按提示操作仍无法恢复旧配置 | 修最小 repair 路径；未知进程 ownership 不放宽 |
 | GB11 | 成立，租约机制缺少运行中续租入口与提醒 | 认真 review 的长任务反而丢失 Run 连续性 | 修同 Claim/Run 续租与可见倒计时；不改无限租约 |
 | GB12 | 成立，human criterion 仍被普通 self-verifier 路由 | Runtime 会反复领取—`inconclusive`—释放，用户看不出只剩本人 | 修 `waiting_for_human` 与主体标签；不让 Runtime 冒充用户 |
-| GB13 | 问题成立，但不是 GoalBoard 缺陷 | CGS 编辑台无法解释搜索覆盖、漏斗和 provenance，确实会高估研究强度 | GoalBoard 不修；路由 CGS。不能因本轮 0.1.7 发布声称该体验已改善 |
+| GB13 | 问题成立，但不是 Molis Work 缺陷 | CGS 编辑台无法解释搜索覆盖、漏斗和 provenance，确实会高估研究强度 | Molis Work 不修；路由 CGS。不能因本轮 0.1.7 发布声称该体验已改善 |
 | GB14 | 成立，MCP payload 契约不自描述 | Agent 必须读源码才能安全构造 Goal Tree，方向错误会写坏语义 | 修判别 schema、最小示例、方向与字段路径；不引入额外 DSL |
-| GB15 | 混合成立：GoalBoard 有跨层覆盖表达缺口，CGS 有 Contract 降级 | 形式样本通过被误解成父级真实能力完成，直接影响用户决策 | 修 GoalBoard 防误导与父级覆盖门禁；CGS 业务合同仍由 CGS 负责 |
+| GB15 | 混合成立：Molis Work 有跨层覆盖表达缺口，CGS 有 Contract 降级 | 形式样本通过被误解成父级真实能力完成，直接影响用户决策 | 修 Molis Work 防误导与父级覆盖门禁；CGS 业务合同仍由 CGS 负责 |
 | GB16 | 成立，发布验收只看版本字符串而没有消费层一致性 | App/Core/service/Skill 混版会让“已修复”在真实 Session 中不存在 | 修统一指纹、安装和 health 验收；旧 Session 不热加载是保留边界 |
 | GB17 | 成立为 Proposal 可理解性设计债 | 大型变更越完整越难审批，用户无法建立问题—修改—效果链 | 修正式语义摘要与逐项说明；不生成冗长外部报告替代结构字段 |
 | GB18 | 成立，check 与 decide 不同源且 whole confirm 非原子 | 用户确认一份语义变化却得到半棵树，canonical 进入不一致状态 | 修同源 dry-run 与 whole-confirm 零部分写入；保留显式拆分能力 |
@@ -2965,8 +2965,8 @@ Skill 与当前源码对外契约明确允许跨仓 `file:///` 仅登记为 mach
 
 ### 复审结论
 
-- 42 张卡中，38 张包含需要 GoalBoard 修复的真实产品/API/工程问题；GB15、GB26、GB38 和 GB40 是部分重叠或原始方案部分不成立，GB41 是旧 Session/真实依赖被误归因为新 Risk Bug，均已按最小独立缺口去重；GB07 与 GB42 是发布/升级工程缺陷而非业务功能 Bug。
-- GB13 的体验问题真实成立，但唯一主要归因在 CGS 领域模型与编辑台；GoalBoard 的正确决定是明确不修并保留路由状态，而不是为了“全部修完”制造跨仓耦合。
+- 42 张卡中，38 张包含需要 Molis Work 修复的真实产品/API/工程问题；GB15、GB26、GB38 和 GB40 是部分重叠或原始方案部分不成立，GB41 是旧 Session/真实依赖被误归因为新 Risk Bug，均已按最小独立缺口去重；GB07 与 GB42 是发布/升级工程缺陷而非业务功能 Bug。
+- GB13 的体验问题真实成立，但唯一主要归因在 CGS 领域模型与编辑台；Molis Work 的正确决定是明确不修并保留路由状态，而不是为了“全部修完”制造跨仓耦合。
 - GB27 是本轮最重要的客观纠偏：原始 claim-gate 解释不符合真实 canonical 历史，最终只修可复现的 rework 恢复缺口，证明台账不是把每条消费者抱怨自动认定为原始描述中的 Bug。
 - GB38 与 GB40 延续同一判断纪律：前者拒绝为了省事放开 accepted Contract 原地覆盖，后者拒绝 completed 后自动释放 Claim；只修两条安全设计周围可复现的错误归类、隐藏动作和恢复信息。
 - 当前最小方案没有删除用户确认、项目绑定、租约 ownership、completion Risk、accepted Contract 不变量或历史审计；修复集中在消除重复操作、错误派生、不可发现协议、非原子写入和双真相。

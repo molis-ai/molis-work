@@ -1,4 +1,4 @@
-import type { GoalTreeProposalDecisionRecord, GoalTreeProposalItemRecord, GoalTreeProposalRecord, GoalTreeItemOwner, GoalTreeSemanticReview, GovernanceRecordsApi, NewNativeGoalTreeProposal, NewNativeGoalTreeProposalItem } from "@adeptify/goalboard-contracts/modules/governance-collaboration";
+import type { GoalTreeProposalDecisionRecord, GoalTreeProposalItemRecord, GoalTreeProposalRecord, GoalTreeItemOwner, GoalTreeSemanticReview, GovernanceRecordsApi, NewNativeGoalTreeProposal, NewNativeGoalTreeProposalItem } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import { randomUUID } from "node:crypto";
 import { json, text, type GovernanceRow } from "./mappers.js";
 import { GovernanceRepository, type GovernanceSqliteDatabase } from "./repository.js";

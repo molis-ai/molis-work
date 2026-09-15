@@ -4,7 +4,7 @@
 
 ## 最终独立验收（2026-09-09）
 
-主 Session 独立构建、指定 41 项测试、boundary 全部通过，0 fail / 0 skipped，boundary errors=[]、legacyHugeFiles=0。日志 `/private/tmp/goalboard-grok/03-accepted-{build,tests,boundary}.log`。四组公开 Host/MCP/Native + 临时 SQLite 复现均通过：`03-review-{repro,gates,upgrade,effects}.mjs`，原脚本及实际 JSON 在同一目录。冻结时钟生产回归确认同毫秒当前读取和本次回执正确，原失败断言未放宽。
+主 Session 独立构建、指定 41 项测试、boundary 全部通过，0 fail / 0 skipped，boundary errors=[]、legacyHugeFiles=0。日志 `/private/tmp/molis-work-grok/03-accepted-{build,tests,boundary}.log`。四组公开 Host/MCP/Native + 临时 SQLite 复现均通过：`03-review-{repro,gates,upgrade,effects}.mjs`，原脚本及实际 JSON 在同一目录。冻结时钟生产回归确认同毫秒当前读取和本次回执正确，原失败断言未放宽。
 
 通过：可信决定效果及范围、当前与历史决定、拒绝/反证重开、约定 CAS、真实收尾门禁、取消恢复、父 Goal 独立结果、旧入口 owner 阻断、原文回读、重启、非空旧库判断保留、错误输入无事件副作用。03 无未完成项；历史 Goal 的显式转交策略、新版 UI/接续与最终清理由 04/05 实施，不以本项后端证据宣称完整产品已完成。
 
@@ -36,7 +36,7 @@ Runtime 能记录进展和下一步、提出具体 Concern、请求一个决定�
 
 02 已验收 API：`GoalEventApplication` 的 createIntent/readState/configure/report/listEvents/readEvent，公开 capability 在 `goal-event-entry-capabilities.ts`；`GoalProjectApplication` 持有 `goalEvents` 并由 `project-capabilities.ts` 注册。Module `events` 的 configureRequested 在事务内按原始请求幂等，再调用 planning.resolveEventAdoption；listLatestReports 有界读取。MCP 六个新入口位于 `goal-event-tools.ts` / `goal-event-commands.ts`，Runtime 身份由 Host `mcp-event-identity.ts` 注入。保留这些已验收普通事实/配置行为，在当前应用上扩展状态操作及读取。
 
-新增状态操作应先在 Contracts 定义有限 typed 输入/输出，再接对应 Module、应用、Host/MCP。工具名称围绕上述真实行为，沿用 goalboard_v1 前缀；不是为每种自定义类型新建工具。交回完整公开 API 与具体调用示例，供 04 消费，不需要临时 UI 或工具占位符。
+新增状态操作应先在 Contracts 定义有限 typed 输入/输出，再接对应 Module、应用、Host/MCP。工具名称围绕上述真实行为，沿用 molis_work_v1 前缀；不是为每种自定义类型新建工具。交回完整公开 API 与具体调用示例，供 04 消费，不需要临时 UI 或工具占位符。
 
 ## 实施约束
 
@@ -69,7 +69,7 @@ Runtime 能记录进展和下一步、提出具体 Concern、请求一个决定�
 
 真实 Host/MCP + SQLite 验证普通支持不自动完成、未知/失败的完成请求被记录但不生效、显式完成成功、取消无伪证据、可信用户确认、重复授权复用、关联 Concern 处理、相关反证重开且不影响其他要求、重启读取、过期正式版本拒绝及批次原子性。另直接调用旧完成/执行入口，证明不能绕过新 owner；父目标不能由子数或旧自动分支完成。UI 尚未替换，不宣称全项目可用。
 
-测试应使实际公共实现被改错时稳定失败，并验证回执、持久化状态、日志和后续读取一致；不能用字段存在或固定事件数量自证。覆盖新意图没有约定时可以记录但不能完成；摘要依据当前 Goal 游标、新事实过时、无关 Goal 更新不污染；可信用户决定与 Runtime 伪造；决定范围与复用；关联 Concern 的未解决/解决/接受；合法部分成果保存；过期正式版本与同键重试；父 Goal 独立收尾和旧入口无副作用拒绝。使用独立临时 home/SQLite，不访问 ~/.goalboard。
+测试应使实际公共实现被改错时稳定失败，并验证回执、持久化状态、日志和后续读取一致；不能用字段存在或固定事件数量自证。覆盖新意图没有约定时可以记录但不能完成；摘要依据当前 Goal 游标、新事实过时、无关 Goal 更新不污染；可信用户决定与 Runtime 伪造；决定范围与复用；关联 Concern 的未解决/解决/接受；合法部分成果保存；过期正式版本与同键重试；父 Goal 独立收尾和旧入口无副作用拒绝。使用独立临时 home/SQLite，不访问 ~/.molis-work。
 
 执行命令：
 
@@ -85,7 +85,7 @@ pnpm_config_verify_deps_before_run=warn pnpm boundary:check
 
 ## 首轮独立验收：需修正的合同缺口
 
-2026-09-09，主 Session 在 Grok 首轮构建及指定 32 项测试通过后，用当前构建的真实 Host/MCP、公开 Native Goals 应用和临时 SQLite 复现以下问题；当时 writer 正在完成文件拆分与边界检查。复现脚本为 `/private/tmp/goalboard-grok/03-review-repro.mjs` 和 `03-review-gates.mjs`，各自结果在同前缀 `-result.json`。这些是原合同要求的具体反例，不扩展产品范围。待首轮交回后按最终实现重验并统一修正。
+2026-09-09，主 Session 在 Grok 首轮构建及指定 32 项测试通过后，用当前构建的真实 Host/MCP、公开 Native Goals 应用和临时 SQLite 复现以下问题；当时 writer 正在完成文件拆分与边界检查。复现脚本为 `/private/tmp/molis-work-grok/03-review-repro.mjs` 和 `03-review-gates.mjs`，各自结果在同前缀 `-result.json`。这些是原合同要求的具体反例，不扩展产品范围。待首轮交回后按最终实现重验并统一修正。
 
 - 决定效果与范围：用户选择拒绝风险，仍能被 `event_concern accept` 引用而改成 accepted。接受风险必须有可信且明确的接受效果，并覆盖该 Concern；决定存在、空范围、自然语言或任意选项 ID 均不是授权。解决/推翻所引用决定也必须适用；不存在/跨 Goal/不满足关联条件的来源不能解除阻塞。首轮不存在的 event ID 能成功推翻 Concern。
 - 正式并发版本：连续两次 outcome-only `event_agree` 使用相同旧 config version，后者仍覆盖前者。初始补充、约定修订、收尾必须检查实际会变化的正式版本；在同一事务中拒绝陈旧写入并保持原回执幂等。不得让 Intent、当前约定与正式收尾依赖互相矛盾的结果说明。
@@ -97,7 +97,7 @@ pnpm_config_verify_deps_before_run=warn pnpm boundary:check
 
 以上修复沿现有 Module/Governance/Native/Host 责任边界。Tests 验证公开调用、返回、持久状态、历史与后续行为；不能改 spec、放宽门禁、删掉反例或把业务语义改成“调用方自己保证”来通过。
 
-补充同批修正：升级保留已复现失败。`03-review-upgrade.mjs` 在临时数据库中通过生产入口写入 report + supports，构造上一版仅允许 configuration/report 的 v32 表形状并保留全部数据，再用生产 Host 重开升级；升级前 event_read.judgments 存在，升级后变成空且 current_report=null，正文仍在。`expandWorkEventKinds` 在事务内部切换 foreign_keys 实际没有关闭外键，DROP 原事件表触发判断表 ON DELETE CASCADE。需要在原子升级中保留事件与关联判断、来源及后续可观察状态，非空旧库升级和再次重开必须真实验证。复现与输出：`/private/tmp/goalboard-grok/03-review-upgrade.mjs` / `03-review-upgrade-result.json`。这属于原有历史保留合同。主 Session 在首轮修正仍读材料时暂停并补入同一批输入，避免遗漏后再追加一轮。
+补充同批修正：升级保留已复现失败。`03-review-upgrade.mjs` 在临时数据库中通过生产入口写入 report + supports，构造上一版仅允许 configuration/report 的 v32 表形状并保留全部数据，再用生产 Host 重开升级；升级前 event_read.judgments 存在，升级后变成空且 current_report=null，正文仍在。`expandWorkEventKinds` 在事务内部切换 foreign_keys 实际没有关闭外键，DROP 原事件表触发判断表 ON DELETE CASCADE。需要在原子升级中保留事件与关联判断、来源及后续可观察状态，非空旧库升级和再次重开必须真实验证。复现与输出：`/private/tmp/molis-work-grok/03-review-upgrade.mjs` / `03-review-upgrade-result.json`。这属于原有历史保留合同。主 Session 在首轮修正仍读材料时暂停并补入同一批输入，避免遗漏后再追加一轮。
 
 ### 显式决定效果的最终对齐（独立复验）
 
@@ -108,4 +108,4 @@ pnpm_config_verify_deps_before_run=warn pnpm boundary:check
 - 同一未改变约定、同一动作及可比作用范围的后续可信决定应更新当前有效决定；保留过去拒绝原文，但不得永久阻断后来明确允许。后来的拒绝仍会撤销当前完成；引用较早授权不能覆盖当前拒绝。不同范围或已变化约定不得自动互相替代。
 - 修复落在已有决定规范化/持久化/当前投影链路，不新建状态机。添加实际公共入口回归，并重复原状态/门禁/升级回归以确认不退化。
 
-主 Session 独立指定测试实际为36 pass/2 fail，日志 /private/tmp/goalboard-grok/03-accepted-tests.log。失败 tests/goal-events-state.test.ts:513（父 Goal 支持后收尾回执仍 false）与 :809（cancel后读到旧complete）。源码 latestClosure 按 recorded_at DESC, 随机 closure_id DESC；同毫秒并列会错误选择旧记录。该根因同样影响按 recorded_at+随机ID 的 summary/decisions 当前选择，直接影响本项“最新决定”。使用已有 goal_work_events.journal_seq 的真实接收顺序决定最新，无需新增排序协议；保存回执必须对应本次事件，当前读取对应最新事件。补可控同毫秒的生产路径回归，不以sleep、重试到绿或放宽断言解决。不要无限扩展审计，完成这条真实已发生状态/决定链路修复。
+主 Session 独立指定测试实际为36 pass/2 fail，日志 /private/tmp/molis-work-grok/03-accepted-tests.log。失败 tests/goal-events-state.test.ts:513（父 Goal 支持后收尾回执仍 false）与 :809（cancel后读到旧complete）。源码 latestClosure 按 recorded_at DESC, 随机 closure_id DESC；同毫秒并列会错误选择旧记录。该根因同样影响按 recorded_at+随机ID 的 summary/decisions 当前选择，直接影响本项“最新决定”。使用已有 goal_work_events.journal_seq 的真实接收顺序决定最新，无需新增排序协议；保存回执必须对应本次事件，当前读取对应最新事件。补可控同毫秒的生产路径回归，不以sleep、重试到绿或放宽断言解决。不要无限扩展审计，完成这条真实已发生状态/决定链路修复。

@@ -1,5 +1,6 @@
 mod capsule_window;
 mod external_links;
+mod legacy_app;
 mod pty;
 mod runtime_env;
 mod web_service;
@@ -18,7 +19,7 @@ use tauri::{
     webview::PageLoadEvent,
     LogicalSize, Manager, PhysicalPosition, PhysicalRect, PhysicalSize, State, Url, WindowEvent,
 };
-use web_service::{ensure_goalboard_web, stop_owned_web_service, web_healthy, WebServiceState};
+use web_service::{ensure_molis_work_web, stop_owned_web_service, web_healthy, WebServiceState};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 enum CapsuleLocale {
@@ -45,8 +46,8 @@ impl CapsuleLocale {
 
     fn default_status(self) -> (&'static str, &'static str) {
         match self {
-            Self::Zh => ("读取中", "GoalBoard 正在读取当前工作"),
-            Self::En => ("Loading", "GoalBoard is reading current work"),
+            Self::Zh => ("读取中", "Molis Work 正在读取当前工作"),
+            Self::En => ("Loading", "Molis Work is reading current work"),
         }
     }
 
@@ -54,36 +55,36 @@ impl CapsuleLocale {
         match self {
             Self::Zh => (
                 "连接中断",
-                "暂时无法确认最新工作状态，GoalBoard 正在自动重新连接",
+                "暂时无法确认最新工作状态，Molis Work 正在自动重新连接",
             ),
             Self::En => (
                 "Disconnected",
-                "GoalBoard is reconnecting to confirm the latest work status",
+                "Molis Work is reconnecting to confirm the latest work status",
             ),
         }
     }
 
     fn synced_status(self) -> (&'static str, &'static str) {
         match self {
-            Self::Zh => ("正在同步", "GoalBoard 已重新连接，正在读取最新工作状态"),
+            Self::Zh => ("正在同步", "Molis Work 已重新连接，正在读取最新工作状态"),
             Self::En => (
                 "Syncing",
-                "GoalBoard reconnected and is reading the latest work status",
+                "Molis Work reconnected and is reading the latest work status",
             ),
         }
     }
 
     fn tray_actions(self) -> (&'static str, &'static str) {
         match self {
-            Self::Zh => ("打开当前目标", "退出 GoalBoard"),
-            Self::En => ("Open current Goal", "Quit GoalBoard"),
+            Self::Zh => ("打开当前目标", "退出 Molis Work"),
+            Self::En => ("Open current Goal", "Quit Molis Work"),
         }
     }
 }
 
 struct CapsuleTrayMenuItems {
-    open_goalboard: MenuItem<tauri::Wry>,
-    quit_goalboard: MenuItem<tauri::Wry>,
+    open_molis_work: MenuItem<tauri::Wry>,
+    quit_molis_work: MenuItem<tauri::Wry>,
 }
 
 #[derive(Default)]
@@ -149,20 +150,20 @@ fn anchored_capsule_position(
     PhysicalPosition::new(x, preferred_y.clamp(min_y, max_y))
 }
 
-fn validated_goalboard_path(path: &str) -> Result<&str, String> {
+fn validated_molis_work_path(path: &str) -> Result<&str, String> {
     if !path.starts_with("/projects/")
         || path.starts_with("//")
         || path.contains("://")
         || path.contains('\\')
         || path.contains(['\r', '\n'])
     {
-        return Err("GoalBoard 页面地址无效".into());
+        return Err("Molis Work 页面地址无效".into());
     }
     Ok(path)
 }
 
-fn desktop_goalboard_url(path: &str) -> Result<Url, String> {
-    let path = validated_goalboard_path(path)?;
+fn desktop_molis_work_url(path: &str) -> Result<Url, String> {
+    let path = validated_molis_work_path(path)?;
     let (base, fragment) = path
         .split_once('#')
         .map_or((path, None), |(base, fragment)| (base, Some(fragment)));
@@ -171,7 +172,7 @@ fn desktop_goalboard_url(path: &str) -> Result<Url, String> {
         Some(fragment) => format!("http://127.0.0.1:4173{base}{separator}desktop=1#{fragment}"),
         None => format!("http://127.0.0.1:4173{base}{separator}desktop=1"),
     };
-    Url::parse(&target).map_err(|error| format!("GoalBoard 页面地址无效：{error}"))
+    Url::parse(&target).map_err(|error| format!("Molis Work 页面地址无效：{error}"))
 }
 
 fn capsule_web_url(locale: CapsuleLocale) -> Result<Url, String> {
@@ -200,11 +201,11 @@ fn update_capsule_tray_menu(
     };
     let (open_current, quit) = locale.tray_actions();
     items
-        .open_goalboard
+        .open_molis_work
         .set_text(open_current)
         .map_err(|error| error.to_string())?;
     items
-        .quit_goalboard
+        .quit_molis_work
         .set_text(quit)
         .map_err(|error| error.to_string())
 }
@@ -246,8 +247,8 @@ fn set_capsule_connection_status(
     tooltip: &str,
 ) -> Result<(), String> {
     let tray = app
-        .tray_by_id("goalboard-status")
-        .ok_or_else(|| "GoalBoard 菜单栏状态不存在".to_string())?;
+        .tray_by_id("molis-work-status")
+        .ok_or_else(|| "Molis Work 菜单栏状态不存在".to_string())?;
     tray.set_title(Some(title))
         .map_err(|error| error.to_string())?;
     tray.set_tooltip(Some(tooltip))
@@ -267,7 +268,7 @@ fn should_attempt_web_recovery(consecutive_failures: u8, owns_web_child: bool) -
     consecutive_failures >= threshold
 }
 
-fn goalboard_reload_url(current: Option<Url>, fallback: &str) -> Option<Url> {
+fn molis_work_reload_url(current: Option<Url>, fallback: &str) -> Option<Url> {
     let mut url = current
         .filter(|url| {
             url.scheme() == "http"
@@ -287,7 +288,7 @@ fn goalboard_reload_url(current: Option<Url>, fallback: &str) -> Option<Url> {
     Some(url)
 }
 
-fn reload_goalboard_webviews(app: &tauri::AppHandle) {
+fn reload_molis_work_webviews(app: &tauri::AppHandle) {
     if let Some(capsule) = app.get_webview_window("capsule") {
         let state = app.state::<CapsuleStatusState>();
         let locale = current_capsule_locale(state.inner()).unwrap_or_default();
@@ -296,7 +297,7 @@ fn reload_goalboard_webviews(app: &tauri::AppHandle) {
         }
     }
     if let Some(main) = app.get_webview_window("main") {
-        let target = goalboard_reload_url(main.url().ok(), "http://127.0.0.1:4173/?desktop=1");
+        let target = molis_work_reload_url(main.url().ok(), "http://127.0.0.1:4173/?desktop=1");
         if let Some(url) = target {
             let _ = main.navigate(url);
         }
@@ -305,7 +306,7 @@ fn reload_goalboard_webviews(app: &tauri::AppHandle) {
 
 fn start_web_health_monitor(app: tauri::AppHandle, resource_dir: Option<PathBuf>) {
     let _ = thread::Builder::new()
-        .name("goalboard-web-health".into())
+        .name("molis-work-web-health".into())
         .spawn(move || {
             let mut consecutive_failures = 0_u8;
             loop {
@@ -331,11 +332,11 @@ fn start_web_health_monitor(app: tauri::AppHandle, resource_dir: Option<PathBuf>
                 let locale = current_capsule_locale(capsule_state.inner()).unwrap_or_default();
                 let (title, tooltip) = locale.recovering_status();
                 let _ = set_capsule_connection_status(&app, title, tooltip);
-                if ensure_goalboard_web(resource_dir.as_deref(), service_state.inner()).is_ok() {
+                if ensure_molis_work_web(resource_dir.as_deref(), service_state.inner()).is_ok() {
                     consecutive_failures = 0;
                     let (title, tooltip) = locale.synced_status();
                     let _ = set_capsule_connection_status(&app, title, tooltip);
-                    reload_goalboard_webviews(&app);
+                    reload_molis_work_webviews(&app);
                 }
             }
         });
@@ -464,10 +465,10 @@ fn toggle_capsule(
 }
 
 fn open_main_window(app: &tauri::AppHandle, path: &str) -> Result<(), String> {
-    let url = desktop_goalboard_url(path)?;
+    let url = desktop_molis_work_url(path)?;
     let window = app
         .get_webview_window("main")
-        .ok_or_else(|| "GoalBoard 主窗口不存在".to_string())?;
+        .ok_or_else(|| "Molis Work 主窗口不存在".to_string())?;
     window.navigate(url).map_err(|error| error.to_string())?;
     window.show().map_err(|error| error.to_string())?;
     window.unminimize().map_err(|error| error.to_string())?;
@@ -511,7 +512,7 @@ fn capsule_update_menu_bar(
     if tooltip.is_empty() || tooltip.chars().count() > 320 {
         return Err("菜单栏说明文字无效".into());
     }
-    validated_goalboard_path(&path)?;
+    validated_molis_work_path(&path)?;
     set_capsule_connection_status(&app, title, tooltip)?;
     *state
         .latest_path
@@ -535,7 +536,7 @@ fn capsule_open_main(
     state: State<CapsuleStatusState>,
     path: String,
 ) -> Result<(), String> {
-    validated_goalboard_path(&path)?;
+    validated_molis_work_path(&path)?;
     *state
         .latest_path
         .lock()
@@ -544,17 +545,17 @@ fn capsule_open_main(
     open_main_window(&app, &path)
 }
 
-fn install_goalboard_tray(app: &tauri::App) -> tauri::Result<()> {
+fn install_molis_work_tray(app: &tauri::App) -> tauri::Result<()> {
     let state = app.state::<CapsuleStatusState>();
     let locale = current_capsule_locale(state.inner()).unwrap_or_default();
     let (open_current, quit) = locale.tray_actions();
-    let open_goalboard_item =
-        MenuItem::with_id(app, "open_goalboard", open_current, true, None::<&str>)?;
+    let open_molis_work_item =
+        MenuItem::with_id(app, "open_molis_work", open_current, true, None::<&str>)?;
     let separator = PredefinedMenuItem::separator(app)?;
-    let quit_item = MenuItem::with_id(app, "quit_goalboard", quit, true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&open_goalboard_item, &separator, &quit_item])?;
+    let quit_item = MenuItem::with_id(app, "quit_molis_work", quit, true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&open_molis_work_item, &separator, &quit_item])?;
     let (title, tooltip) = locale.default_status();
-    TrayIconBuilder::with_id("goalboard-status")
+    TrayIconBuilder::with_id("molis-work-status")
         .icon(capsule_menu_bar_icon())
         .icon_as_template(true)
         .title(title)
@@ -575,7 +576,7 @@ fn install_goalboard_tray(app: &tauri::App) -> tauri::Result<()> {
             }
         })
         .on_menu_event(|app, event| match event.id().as_ref() {
-            "open_goalboard" => {
+            "open_molis_work" => {
                 let path = app
                     .state::<CapsuleStatusState>()
                     .latest_path
@@ -594,14 +595,14 @@ fn install_goalboard_tray(app: &tauri::App) -> tauri::Result<()> {
                     let _ = open_main_window(app, &path);
                 }
             }
-            "quit_goalboard" => app.exit(0),
+            "quit_molis_work" => app.exit(0),
             _ => {}
         })
         .build(app)?;
     if let Ok(mut menu_items) = state.menu_items.lock() {
         *menu_items = Some(CapsuleTrayMenuItems {
-            open_goalboard: open_goalboard_item,
-            quit_goalboard: quit_item,
+            open_molis_work: open_molis_work_item,
+            quit_molis_work: quit_item,
         });
     }
     Ok(())
@@ -625,14 +626,15 @@ fn main() {
       external_links::open_external_url
     ])
     .setup(|app| {
-      install_goalboard_tray(app)?;
+      legacy_app::retire_legacy_desktop_apps();
+      install_molis_work_tray(app)?;
       #[cfg(target_os = "macos")]
       if let Some(capsule) = app.get_webview_window("capsule") {
         let _ = capsule_window::macos::prepare_capsule_native_window(&capsule);
       }
       let resource_dir = app.path().resource_dir().ok();
       let service_state = app.state::<WebServiceState>();
-      let result = ensure_goalboard_web(resource_dir.as_deref(), service_state.inner());
+      let result = ensure_molis_work_web(resource_dir.as_deref(), service_state.inner());
       if let Some(window) = app.get_webview_window("main") {
         match result {
           Ok(()) => {
@@ -650,9 +652,9 @@ fn main() {
           Err(error) => {
             eprintln!("{error}");
             let message = serde_json::to_string(&error)
-              .unwrap_or_else(|_| "\"GoalBoard 启动失败\"".into());
+              .unwrap_or_else(|_| "\"Molis Work 启动失败\"".into());
             let script = format!(
-              r#"document.body.innerHTML='<main style="font:14px -apple-system,sans-serif;max-width:640px;margin:12vh auto;padding:32px;color:#20232a"><h1 style="font-size:24px">GoalBoard 无法启动</h1><p id="goalboard-bootstrap-error" style="line-height:1.7;color:#5f6673"></p></main>';document.getElementById('goalboard-bootstrap-error').textContent={message};"#
+              r#"document.body.innerHTML='<main style="font:14px -apple-system,sans-serif;max-width:640px;margin:12vh auto;padding:32px;color:#20232a"><h1 style="font-size:24px">Molis Work 无法启动</h1><p id="molis-work-bootstrap-error" style="line-height:1.7;color:#5f6673"></p></main>';document.getElementById('molis-work-bootstrap-error').textContent={message};"#
             );
             let _ = window.eval(&script);
           }
@@ -696,7 +698,7 @@ fn main() {
       }
     })
     .build(tauri::generate_context!())
-    .expect("error while building GoalBoard desktop");
+    .expect("error while building Molis Work desktop");
     app.run(|app, event| {
         if matches!(event, tauri::RunEvent::Exit) {
             drop_all_sessions(app.state::<PtyState>().inner());
@@ -710,20 +712,20 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::{
-        anchored_capsule_position, capsule_menu_bar_icon, capsule_web_url, desktop_goalboard_url,
-        goalboard_reload_url, normalized_capsule_height, pty_collect_output,
+        anchored_capsule_position, capsule_menu_bar_icon, capsule_web_url, desktop_molis_work_url,
+        molis_work_reload_url, normalized_capsule_height, pty_collect_output,
         should_attempt_web_recovery, should_keep_window_on_close, stop_owned_web_service,
-        validated_goalboard_path, CapsuleLocale, WebServiceState,
+        validated_molis_work_path, CapsuleLocale, WebServiceState,
     };
     use std::{env, process::Command};
     use tauri::{PhysicalPosition, PhysicalRect, PhysicalSize, Url};
 
     #[test]
     fn echo_through_pty() {
-        let output = pty_collect_output("/bin/echo", &["goalboard-pty"], &env::temp_dir())
+        let output = pty_collect_output("/bin/echo", &["molis-work-pty"], &env::temp_dir())
             .expect("pty echo");
         assert!(
-            output.contains("goalboard-pty"),
+            output.contains("molis-work-pty"),
             "unexpected PTY output: {output:?}"
         );
     }
@@ -795,11 +797,11 @@ mod tests {
 
     #[test]
     fn capsule_only_opens_local_project_paths() {
-        assert!(validated_goalboard_path("/projects/project-a/goals/goal-a").is_ok());
-        assert!(validated_goalboard_path("https://example.com/projects/project-a").is_err());
-        assert!(validated_goalboard_path("//example.com/projects/project-a").is_err());
+        assert!(validated_molis_work_path("/projects/project-a/goals/goal-a").is_ok());
+        assert!(validated_molis_work_path("https://example.com/projects/project-a").is_err());
+        assert!(validated_molis_work_path("//example.com/projects/project-a").is_err());
         let url =
-            desktop_goalboard_url("/projects/project-a/decisions#decision-goal-goal-a").unwrap();
+            desktop_molis_work_url("/projects/project-a/decisions#decision-goal-goal-a").unwrap();
         assert_eq!(
             url.as_str(),
             "http://127.0.0.1:4173/projects/project-a/decisions?desktop=1#decision-goal-goal-a"
@@ -816,25 +818,25 @@ mod tests {
         );
         assert_eq!(
             CapsuleLocale::En.tray_actions(),
-            ("Open current Goal", "Quit GoalBoard")
+            ("Open current Goal", "Quit Molis Work")
         );
         assert_eq!(
             CapsuleLocale::Zh.tray_actions(),
-            ("打开当前目标", "退出 GoalBoard")
+            ("打开当前目标", "退出 Molis Work")
         );
     }
 
     #[test]
-    fn desktop_recovery_preserves_only_local_goalboard_navigation() {
+    fn desktop_recovery_preserves_only_local_molis_work_navigation() {
         let current =
             Url::parse("http://127.0.0.1:4173/projects/project-a/goals/goal-a?desktop=1").unwrap();
         assert_eq!(
-            goalboard_reload_url(Some(current.clone()), "http://127.0.0.1:4173/?desktop=1"),
+            molis_work_reload_url(Some(current.clone()), "http://127.0.0.1:4173/?desktop=1"),
             Some(current)
         );
         assert_eq!(
-            goalboard_reload_url(
-                Url::parse("https://example.com/not-goalboard").ok(),
+            molis_work_reload_url(
+                Url::parse("https://example.com/not-molis-work").ok(),
                 "http://127.0.0.1:4173/?desktop=1"
             )
             .unwrap()
@@ -842,7 +844,7 @@ mod tests {
             "http://127.0.0.1:4173/?desktop=1"
         );
         assert_eq!(
-            goalboard_reload_url(
+            molis_work_reload_url(
                 Url::parse("http://127.0.0.1:4173/projects/project-a/goals/goal-a#records").ok(),
                 "http://127.0.0.1:4173/?desktop=1"
             )

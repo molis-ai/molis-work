@@ -1,5 +1,5 @@
-import type { GoalsApplicationApi } from "@adeptify/goalboard-contracts/modules/goals";
-import type { HostMethodCapability, LocalHostProjectClient, AsyncApplicationMethods } from "@adeptify/goalboard-contracts/platform/app-host";
+import type { GoalsApplicationApi } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { HostMethodCapability, LocalHostProjectClient, AsyncApplicationMethods } from "@molis-ai/molis-work-contracts/platform/app-host";
 
 export interface GoalTrashPlacementView {
   goal_id: string;
@@ -20,10 +20,10 @@ export interface GoalEntryCompositionApi {
 
 export const goalEntryCompositionCapabilities = {
   setTrashedWithWorkState: {
-    capability_id: "io.goalboard.goals.trash-with-work-state", version: 1, operation: "command",
+    capability_id: "io.molis.work.goals.trash-with-work-state", version: 1, operation: "command",
   } as HostMethodCapability<GoalEntryCompositionApi["setTrashedWithWorkState"]>,
   readPlanningComposition: {
-    capability_id: "io.goalboard.goals.planning-composition", version: 1, operation: "query",
+    capability_id: "io.molis.work.goals.planning-composition", version: 1, operation: "query",
   } as HostMethodCapability<GoalEntryCompositionApi["readPlanningComposition"]>,
 };
 

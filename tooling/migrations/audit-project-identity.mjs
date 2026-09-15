@@ -68,7 +68,7 @@ if (!databasePath) {
     };
     console.log(JSON.stringify(report, null, 2));
     if (
-      report.catalog_owner !== "goalboard-project-catalog-v1"
+      report.catalog_owner !== "molis-work-project-catalog-v1"
       || !Number.isInteger(report.catalog_schema_version)
       || report.missing_tables.length > 0
       || report.duplicate_project_ids == null || report.duplicate_project_ids > 0

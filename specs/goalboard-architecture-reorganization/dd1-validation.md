@@ -1,6 +1,6 @@
 # DD1 草稿澄清与恢复验收
 
-2026-09-06。Goal `goal-reorg-dd1`，Contract revision 1。完成等级：本项既有功能可用，受影响前后端与 Runtime 用户流程回归通过；不代表全产品重组、最终 E2E 或发布验收完成。生命周期结论以 GoalBoard 的 Evidence/Review 回执为准。
+2026-09-06。Goal `goal-reorg-dd1`，Contract revision 1。完成等级：本项既有功能可用，受影响前后端与 Runtime 用户流程回归通过；不代表全产品重组、最终 E2E 或发布验收完成。生命周期结论以 Molis Work 的 Evidence/Review 回执为准。
 
 ## boundary
 

@@ -1,6 +1,6 @@
-import type { GoalsQueryApi } from "@adeptify/goalboard-contracts/modules/goals";
-import type { GovernanceDecisionApi, GoalTreeProposalItemRecord, ProposalAffectedObject } from "@adeptify/goalboard-contracts/modules/governance-collaboration";
-import { GoalBoardV1Error } from "./errors.js";
+import type { GoalsQueryApi } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GovernanceDecisionApi, GoalTreeProposalItemRecord, ProposalAffectedObject } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+import { MolisWorkV1Error } from "./errors.js";
 import { GoalTreeFactMaterializer } from "./goal-tree-fact-materializer.js";
 import { GoalTreeMaterializationConflicts } from "./goal-tree-materialization-conflicts.js";
 import { goalTreeMaterializationGroups } from "./goal-tree-materialization-order.js";
@@ -51,6 +51,6 @@ export class GoalTreeMaterializationApplication {
   materialize(boardId: string, item: GoalTreeProposalItemRecord, actorId: string, reason: string, at: string): ProposalAffectedObject[] {
     if (item.kind === "goal") return [this.ports.facts.materializeGoalTreeGoal(boardId, item, actorId, reason, at)];
     if (item.kind === "relation") return this.ports.facts.materializeGoalTreeRelations(boardId, item, actorId, reason, at);
-    throw new GoalBoardV1Error("goal_tree_proposal.kind_retired", "历史结构条目不能从新 check/decide 落地", { kind: item.kind });
+    throw new MolisWorkV1Error("goal_tree_proposal.kind_retired", "历史结构条目不能从新 check/decide 落地", { kind: item.kind });
   }
 }

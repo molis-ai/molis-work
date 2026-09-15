@@ -1,4 +1,4 @@
-import type { PluginManifest, PluginPrivateStorage, PluginStartContext } from "@adeptify/goalboard-contracts/platform/plugin";
+import type { PluginManifest, PluginPrivateStorage, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 export interface PluginPrivateStorageDatabase {
   exec(sql: string): unknown;

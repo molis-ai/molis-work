@@ -1,12 +1,12 @@
 # 引用式 Inbox 处理闭环
 
-GoalBoard Goal：`goal-infoflow-attention-inbox`
+Molis Work Goal：`goal-infoflow-attention-inbox`
 
 完成等级：4（Inbox 工作台达到内部完整；Provider 真实授权与联网恢复分别由 GitHub/Gmail/RSS Goal 验收）
 
 ## 背景与目标
 
-Inbox 不是第二个 Feed。它只保存“为什么现在需要一骏介入”的引用：手工加入的 Feed 消息、来源规则命中的 Feed 消息、GoalBoard 内部待决定事项、需要人工恢复的来源故障。正文和外部事实继续由 FeedItem、Goal 或 Source 拥有。
+Inbox 不是第二个 Feed。它只保存“为什么现在需要一骏介入”的引用：手工加入的 Feed 消息、来源规则命中的 Feed 消息、Molis Work 内部待决定事项、需要人工恢复的来源故障。正文和外部事实继续由 FeedItem、Goal 或 Source 拥有。
 
 本 Work Item 把当前兼容式 Inbox 列表改为 `InboxEntry` 驱动的处理工作台。默认列表只显示 `open / in_progress`；完成和忽略进入可追溯历史；每条详情必须说明进入原因、关联对象和下一步，并能回到原对象处理。
 
@@ -42,7 +42,7 @@ Inbox 不是第二个 Feed。它只保存“为什么现在需要一骏介入”
 
 - `FeedItem`、Goal、Source 继续拥有事实和内容；`InboxEntry` 只拥有 `reason / status / detail / subject reference`。
 - FeedItem 进入 Inbox 后仍保留在 canonical Feed。Inbox 详情可显示原消息摘要，但不新增正文列或正文副本。
-- GoalBoard 的实时待决定卡仍由其 canonical 决定记录渲染；若存在持久化 `goal_decision` InboxEntry，则它作为引用显示，并回到对应 Goal/决定流程。
+- Molis Work 的实时待决定卡仍由其 canonical 决定记录渲染；若存在持久化 `goal_decision` InboxEntry，则它作为引用显示，并回到对应 Goal/决定流程。
 
 ### 2. 状态与动作
 
@@ -55,7 +55,7 @@ Inbox 不是第二个 Feed。它只保存“为什么现在需要一骏介入”
 
 - 手工 Feed：Feed 中“加入 Inbox”创建 `reason=manual`。
 - 来源规则 Feed：Provider/规则显式命中才创建 `reason=source_rule`。
-- Goal 决定：引用对应 Goal，实际决定仍在 GoalBoard 决定流程完成。
+- Goal 决定：引用对应 Goal，实际决定仍在 Molis Work 决定流程完成。
 - 来源故障：仅不可自动恢复且需人工处理的故障创建；只保存稳定错误分类和用户动作，不复制 Provider 错误文本。
 
 ### 4. 删除与异常引用

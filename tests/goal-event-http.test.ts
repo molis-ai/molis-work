@@ -6,13 +6,13 @@ import { join } from "node:path";
 import test from "node:test";
 import type { AddressInfo } from "node:net";
 
-import { openGoalBoardProjectCatalog } from "@adeptify/goalboard-app-desktop";
-import { GoalProjectApplication, LocalProjectDatabase } from "@adeptify/goalboard-app-local-host";
-import { createGoalBoardWebServer } from "../apps/desktop/launchers/web/server.js";
-import { hostEventDecisionAuthority } from "@adeptify/goalboard-plugin-goals";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
 
 const BOARD = "board-http-events";
-const TOKEN = "goalboard-event-http-token-0123456789abcdef";
+const TOKEN = "molis-work-event-http-token-0123456789abcdef";
 
 function listen(server: Server): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -25,7 +25,7 @@ function listen(server: Server): Promise<string> {
 }
 
 test("HTTP event APIs persist intent, blank planning, typed reports, decisions and closure through SQLite restart", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-event-http-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-event-http-"));
   const databasePath = join(directory, "project.db");
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
@@ -98,7 +98,7 @@ test("HTTP event APIs persist intent, blank planning, typed reports, decisions a
   });
   assert.equal(closed.recorded, true);
 
-  const server = createGoalBoardWebServer({ databasePath, boardId: BOARD, homeDirectory: directory, controlToken: TOKEN });
+  const server = createMolisWorkWebServer({ databasePath, boardId: BOARD, homeDirectory: directory, controlToken: TOKEN });
   const origin = await listen(server);
   try {
     const stateRes = await fetch(`${origin}/api/goals/${encodeURIComponent(goalId)}/event-state`);
@@ -119,8 +119,8 @@ test("HTTP event APIs persist intent, blank planning, typed reports, decisions a
       headers: {
         "content-type": "application/json",
         origin,
-        "x-goalboard-idempotency-key": "close-stale",
-        "x-goalboard-control-token": TOKEN,
+        "x-molis-work-idempotency-key": "close-stale",
+        "x-molis-work-control-token": TOKEN,
       },
       body: JSON.stringify({
         kind: "complete", reason: "旧版本", expected_config_version: 0, expected_agreement_version: 0,
@@ -144,7 +144,7 @@ test("HTTP event APIs persist intent, blank planning, typed reports, decisions a
 });
 
 test("HTTP event-close rejects unknown kind without recording an event", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-event-http-kind-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-event-http-kind-"));
   const databasePath = join(directory, "project.db");
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
@@ -153,13 +153,13 @@ test("HTTP event-close rejects unknown kind without recording an event", async (
     board_id: BOARD, title: "无效收尾", outcome: "不能默认为完成",
     actor_id: "web-user", actor_kind: "user", idempotency_key: "intent-kind",
   });
-  const server = createGoalBoardWebServer({ databasePath, boardId: BOARD, homeDirectory: directory, controlToken: TOKEN });
+  const server = createMolisWorkWebServer({ databasePath, boardId: BOARD, homeDirectory: directory, controlToken: TOKEN });
   const origin = await listen(server);
   try {
     const before = app.goalEvents.readState(BOARD, created.goal.goal_id);
     const response = await fetch(`${origin}/api/goals/${encodeURIComponent(created.goal.goal_id)}/event-close`, {
       method: "POST",
-      headers: { "content-type": "application/json", origin, "x-goalboard-control-token": TOKEN, "x-goalboard-idempotency-key": "bogus-kind" },
+      headers: { "content-type": "application/json", origin, "x-molis-work-control-token": TOKEN, "x-molis-work-idempotency-key": "bogus-kind" },
       body: JSON.stringify({
         kind: "bogus", reason: "检查无效动作不能提交完成",
         expected_config_version: before.config.version, expected_agreement_version: before.agreement.version,
@@ -173,7 +173,7 @@ test("HTTP event-close rejects unknown kind without recording an event", async (
     assert.equal(after.observed_event_cursor, before.observed_event_cursor);
     const missing = await fetch(`${origin}/api/goals/${encodeURIComponent(created.goal.goal_id)}/event-close`, {
       method: "POST",
-      headers: { "content-type": "application/json", origin, "x-goalboard-control-token": TOKEN, "x-goalboard-idempotency-key": "missing-kind" },
+      headers: { "content-type": "application/json", origin, "x-molis-work-control-token": TOKEN, "x-molis-work-idempotency-key": "missing-kind" },
       body: JSON.stringify({
         reason: "缺 kind 也不能默认完成",
         expected_config_version: before.config.version, expected_agreement_version: before.agreement.version,
@@ -192,7 +192,7 @@ test("HTTP event-close rejects unknown kind without recording an event", async (
 });
 
 test("HTTP writes persist typed reports, scoped concerns and closure through the public event routes", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-event-http-write-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-event-http-write-"));
   const databasePath = join(directory, "project.db");
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
@@ -202,17 +202,17 @@ test("HTTP writes persist typed reports, scoped concerns and closure through the
     actor_id: "web-user", actor_kind: "user", idempotency_key: "intent-write",
   });
   const goalId = created.goal.goal_id;
-  const server = createGoalBoardWebServer({ databasePath, boardId: BOARD, homeDirectory: directory, controlToken: TOKEN });
+  const server = createMolisWorkWebServer({ databasePath, boardId: BOARD, homeDirectory: directory, controlToken: TOKEN });
   const origin = await listen(server);
   const headers = {
     "content-type": "application/json",
     origin,
-    "x-goalboard-control-token": TOKEN,
+    "x-molis-work-control-token": TOKEN,
   };
   try {
     const configure = await fetch(`${origin}/api/goals/${encodeURIComponent(goalId)}/event-configure`, {
       method: "POST",
-      headers: { ...headers, "x-goalboard-idempotency-key": "http-cfg" },
+      headers: { ...headers, "x-molis-work-idempotency-key": "http-cfg" },
       body: JSON.stringify({
         expected_version: 0,
         types: [{
@@ -225,7 +225,7 @@ test("HTTP writes persist typed reports, scoped concerns and closure through the
     const configuredState = app.goalEvents.readState(BOARD, goalId);
     const agree = await fetch(`${origin}/api/goals/${encodeURIComponent(goalId)}/event-agree`, {
       method: "POST",
-      headers: { ...headers, "x-goalboard-idempotency-key": "http-agree" },
+      headers: { ...headers, "x-molis-work-idempotency-key": "http-agree" },
       body: JSON.stringify({
         expected_config_version: configuredState.config.version,
         expected_agreement_version: configuredState.agreement.version,
@@ -235,7 +235,7 @@ test("HTTP writes persist typed reports, scoped concerns and closure through the
     assert.equal(agree.status, 200, await agree.clone().text());
     const report = await fetch(`${origin}/api/goals/${encodeURIComponent(goalId)}/event-report`, {
       method: "POST",
-      headers: { ...headers, "x-goalboard-idempotency-key": "http-rep" },
+      headers: { ...headers, "x-molis-work-idempotency-key": "http-rep" },
       body: JSON.stringify({
         events: [{ type_id: "note", type_version: 1, title: "HTTP 已经写下报告", fields: { body: "这条经公开路由写入。" } }],
       }),
@@ -243,7 +243,7 @@ test("HTTP writes persist typed reports, scoped concerns and closure through the
     assert.equal(report.status, 200, await report.clone().text());
     const concern = await fetch(`${origin}/api/goals/${encodeURIComponent(goalId)}/event-concern`, {
       method: "POST",
-      headers: { ...headers, "x-goalboard-idempotency-key": "http-concern" },
+      headers: { ...headers, "x-molis-work-idempotency-key": "http-concern" },
       body: JSON.stringify({
         action: "open", title: "还要核对范围", statement: "范围必须明确",
         blocks_closure: true, scope: { requirement_ids: ["need"] },
@@ -253,7 +253,7 @@ test("HTTP writes persist typed reports, scoped concerns and closure through the
     const concernBody = await concern.json() as { concern: { concern_id: string } };
     const decision = await fetch(`${origin}/api/goals/${encodeURIComponent(goalId)}/event-decision`, {
       method: "POST",
-      headers: { ...headers, "x-goalboard-idempotency-key": "http-dec" },
+      headers: { ...headers, "x-molis-work-idempotency-key": "http-dec" },
       body: JSON.stringify({
         conclusion: "接受当前范围",
         effects: [{ kind: "accept_requirements" }, { kind: "accept_concerns" }],
@@ -264,7 +264,7 @@ test("HTTP writes persist typed reports, scoped concerns and closure through the
     const decided = await decision.json() as { decision: { decision_id: string } };
     const accept = await fetch(`${origin}/api/goals/${encodeURIComponent(goalId)}/event-concern`, {
       method: "POST",
-      headers: { ...headers, "x-goalboard-idempotency-key": "http-accept" },
+      headers: { ...headers, "x-molis-work-idempotency-key": "http-accept" },
       body: JSON.stringify({
         action: "accept", concern_id: concernBody.concern.concern_id, reason: "决定已覆盖",
         cited_decision_id: decided.decision.decision_id,
@@ -276,7 +276,7 @@ test("HTTP writes persist typed reports, scoped concerns and closure through the
     };
     const closed = await fetch(`${origin}/api/goals/${encodeURIComponent(goalId)}/event-close`, {
       method: "POST",
-      headers: { ...headers, "x-goalboard-idempotency-key": "http-close" },
+      headers: { ...headers, "x-molis-work-idempotency-key": "http-close" },
       body: JSON.stringify({
         kind: "complete", reason: "HTTP 写入已核对",
         expected_config_version: state.config.version,
@@ -298,7 +298,7 @@ test("HTTP writes persist typed reports, scoped concerns and closure through the
 });
 
 test("HTTP progress uses the Goal cursor and legal field ids stay content", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-event-http-cursor-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-event-http-cursor-"));
   const databasePath = join(directory, "project.db");
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
@@ -308,15 +308,15 @@ test("HTTP progress uses the Goal cursor and legal field ids stay content", asyn
     actor_id: "web-user", actor_kind: "user", idempotency_key: "intent-cursor",
   });
   const goalId = created.goal.goal_id;
-  const server = createGoalBoardWebServer({ databasePath, boardId: BOARD, homeDirectory: directory, controlToken: TOKEN });
+  const server = createMolisWorkWebServer({ databasePath, boardId: BOARD, homeDirectory: directory, controlToken: TOKEN });
   const origin = await listen(server);
-  const headers = { "content-type": "application/json", origin, "x-goalboard-control-token": TOKEN };
+  const headers = { "content-type": "application/json", origin, "x-molis-work-control-token": TOKEN };
   try {
     const state = await (await fetch(`${origin}/api/goals/${encodeURIComponent(goalId)}/event-state`)).json() as { goal_event_cursor: number };
     assert.ok(state.goal_event_cursor >= 1);
     const progress = await fetch(`${origin}/api/goals/${encodeURIComponent(goalId)}/event-progress`, {
       method: "POST",
-      headers: { ...headers, "x-goalboard-idempotency-key": "blank-progress" },
+      headers: { ...headers, "x-molis-work-idempotency-key": "blank-progress" },
       body: JSON.stringify({ summary: "空白目标第一次记录进展", based_on_cursor: state.goal_event_cursor }),
     });
     assert.equal(progress.status, 200, await progress.clone().text());
@@ -333,7 +333,7 @@ test("HTTP progress uses the Goal cursor and legal field ids stay content", asyn
     });
     const report = await fetch(`${origin}/api/goals/${encodeURIComponent(goalId)}/event-report`, {
       method: "POST",
-      headers: { ...headers, "x-goalboard-idempotency-key": "special-report" },
+      headers: { ...headers, "x-molis-work-idempotency-key": "special-report" },
       body: JSON.stringify({
         events: [{
           type_id: "special", type_version: 1, title: "字段内容不能构成判断",
@@ -347,7 +347,7 @@ test("HTTP progress uses the Goal cursor and legal field ids stay content", asyn
     const beforeScalar = app.goalEvents.listEvents(BOARD, goalId, { limit: 100 });
     const scalarProgress = await fetch(`${origin}/api/goals/${encodeURIComponent(goalId)}/event-report`, {
       method: "POST",
-      headers: { ...headers, "x-goalboard-idempotency-key": "scalar-progress" },
+      headers: { ...headers, "x-molis-work-idempotency-key": "scalar-progress" },
       body: JSON.stringify({
         events: [{
           type_id: "special", type_version: 1, title: "非法进展应整批回滚",
@@ -386,14 +386,14 @@ test("HTTP progress uses the Goal cursor and legal field ids stay content", asyn
     assert.equal(closed.completion_applied, true);
     const firstResume = await fetch(`${origin}/api/goals/${encodeURIComponent(goalId)}/event-resume`, {
       method: "POST",
-      headers: { ...headers, "x-goalboard-idempotency-key": "resume-replay" },
+      headers: { ...headers, "x-molis-work-idempotency-key": "resume-replay" },
       body: JSON.stringify({ reason: "明确开启下一轮", idempotency_key: "resume-replay" }),
     });
     assert.equal(firstResume.status, 200, await firstResume.clone().text());
     const firstBody = await firstResume.json() as { event_id: string };
     const secondResume = await fetch(`${origin}/api/goals/${encodeURIComponent(goalId)}/event-resume`, {
       method: "POST",
-      headers: { ...headers, "x-goalboard-idempotency-key": "resume-replay" },
+      headers: { ...headers, "x-molis-work-idempotency-key": "resume-replay" },
       body: JSON.stringify({ reason: "明确开启下一轮", idempotency_key: "resume-replay" }),
     });
     assert.equal(secondResume.status, 200, await secondResume.clone().text());
@@ -404,7 +404,7 @@ test("HTTP progress uses the Goal cursor and legal field ids stay content", asyn
     };
     const postCreate = (body: Record<string, unknown>, key: string) => fetch(`${origin}/api/goals`, {
       method: "POST",
-      headers: { ...headers, "x-goalboard-idempotency-key": key },
+      headers: { ...headers, "x-molis-work-idempotency-key": key },
       body: JSON.stringify(body),
     });
     const firstCreate = await postCreate(createBody, "create-replay-key");
@@ -434,7 +434,7 @@ test("HTTP progress uses the Goal cursor and legal field ids stay content", asyn
 });
 
 test("HTTP draft route is gone; event owners and historical drafts stay unchanged", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-event-http-draft-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-event-http-draft-"));
   const databasePath = join(directory, "project.db");
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
@@ -448,9 +448,9 @@ test("HTTP draft route is gone; event owners and historical drafts stay unchange
     business_logic: "旧编辑", definition_state: "draft", decomposition_state: "abstract",
     acceptance_criteria: [],
   }, { actor_id: "web-user", idempotency_key: "legacy-http-create" });
-  const server = createGoalBoardWebServer({ databasePath, boardId: BOARD, homeDirectory: directory, controlToken: TOKEN });
+  const server = createMolisWorkWebServer({ databasePath, boardId: BOARD, homeDirectory: directory, controlToken: TOKEN });
   const origin = await listen(server);
-  const headers = { "content-type": "application/json", origin, "x-goalboard-control-token": TOKEN };
+  const headers = { "content-type": "application/json", origin, "x-molis-work-control-token": TOKEN };
   try {
     const page = await (await fetch(`${origin}/goals/${encodeURIComponent(created.goal.goal_id)}`)).text();
     assert.match(page, /data-goal-event-document/);
@@ -459,7 +459,7 @@ test("HTTP draft route is gone; event owners and historical drafts stay unchange
     const beforeState = app.goalEvents.readState(BOARD, created.goal.goal_id);
     const rejected = await fetch(`${origin}/api/goals/${encodeURIComponent(created.goal.goal_id)}/draft`, {
       method: "POST",
-      headers: { ...headers, "x-goalboard-idempotency-key": "http-draft-hijack" },
+      headers: { ...headers, "x-molis-work-idempotency-key": "http-draft-hijack" },
       body: JSON.stringify({
         title: "旧草稿表单的新标题", outcome: "旧草稿表单的新结果", why: "不应写入",
         business_logic: "第二份约定", definition_state: "draft", reason: "通过旧草稿入口修改当前约定",
@@ -480,7 +480,7 @@ test("HTTP draft route is gone; event owners and historical drafts stay unchange
     assert.doesNotMatch(legacyPage, /data-draft-editor|data-open-goal-edit|data-event-form-open="note"|data-event-form="note"|data-event-form="type"|data-event-form="agreement"|data-event-form="closure"|data-event-form="continue"/);
     const saved = await fetch(`${origin}/api/goals/legacy-http-draft/draft`, {
       method: "POST",
-      headers: { ...headers, "x-goalboard-idempotency-key": "http-legacy-draft" },
+      headers: { ...headers, "x-molis-work-idempotency-key": "http-legacy-draft" },
       body: JSON.stringify({
         title: "未转交草稿已补全", outcome: "可继续的旧结果", why: "旧原因",
         business_logic: "旧编辑", definition_state: "draft", reason: "补全未转交草稿",
@@ -499,7 +499,7 @@ test("HTTP draft route is gone; event owners and historical drafts stay unchange
 });
 
 test("HTTP Goal page keeps accepted legacy constraints, inputs and outputs readable", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-event-http-definition-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-event-http-definition-"));
   const databasePath = join(directory, "project.db");
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
@@ -528,7 +528,7 @@ test("HTTP Goal page keeps accepted legacy constraints, inputs and outputs reada
   };
   app.goals.commands.createGoal(BOARD, goal, { actor_id: "definition-fixture", idempotency_key: "legacy-definition-http-create", reason: "隔离验收原字段读取" });
   const before = store.snapshot(BOARD);
-  const server = createGoalBoardWebServer({ databasePath, boardId: BOARD, homeDirectory: directory, controlToken: TOKEN });
+  const server = createMolisWorkWebServer({ databasePath, boardId: BOARD, homeDirectory: directory, controlToken: TOKEN });
   const origin = await listen(server);
   try {
     const page = await (await fetch(`${origin}/goals/${encodeURIComponent(goal.goal_id)}`)).text();
@@ -568,7 +568,7 @@ test("HTTP Goal page keeps accepted legacy constraints, inputs and outputs reada
 });
 
 test("HTTP event-agree rejects unknown fields and omitted agreement version with no write", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-event-http-agree-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-event-http-agree-"));
   const databasePath = join(directory, "project.db");
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
@@ -578,14 +578,14 @@ test("HTTP event-agree rejects unknown fields and omitted agreement version with
     actor_id: "web-user", actor_kind: "user", idempotency_key: "intent-agree-http",
   });
   const goalId = created.goal.goal_id;
-  const server = createGoalBoardWebServer({ databasePath, boardId: BOARD, homeDirectory: directory, controlToken: TOKEN });
+  const server = createMolisWorkWebServer({ databasePath, boardId: BOARD, homeDirectory: directory, controlToken: TOKEN });
   const origin = await listen(server);
-  const headers = { "content-type": "application/json", origin, "x-goalboard-control-token": TOKEN };
+  const headers = { "content-type": "application/json", origin, "x-molis-work-control-token": TOKEN };
   try {
     const before = app.goalEvents.readState(BOARD, goalId);
     const unknown = await fetch(`${origin}/api/goals/${encodeURIComponent(goalId)}/event-agree`, {
       method: "POST",
-      headers: { ...headers, "x-goalboard-idempotency-key": "unknown-agree" },
+      headers: { ...headers, "x-molis-work-idempotency-key": "unknown-agree" },
       body: JSON.stringify({
         expected_config_version: before.config.version,
         expected_agreement_version: before.agreement.version,
@@ -598,7 +598,7 @@ test("HTTP event-agree rejects unknown fields and omitted agreement version with
     assert.equal(unknownBody.code, "event_http.unexpected_field");
     const omitted = await fetch(`${origin}/api/goals/${encodeURIComponent(goalId)}/event-close`, {
       method: "POST",
-      headers: { ...headers, "x-goalboard-idempotency-key": "omit-agreement" },
+      headers: { ...headers, "x-molis-work-idempotency-key": "omit-agreement" },
       body: JSON.stringify({
         kind: "complete", reason: "漏掉约定版本", expected_config_version: before.config.version,
       }),
@@ -615,7 +615,7 @@ test("HTTP event-agree rejects unknown fields and omitted agreement version with
 });
 
 test("HTTP outcome replacement expires all current supports; stale agreement_change approval has no write", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-event-http-expire-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-event-http-expire-"));
   const databasePath = join(directory, "project.db");
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
@@ -662,14 +662,14 @@ test("HTTP outcome replacement expires all current supports; stale agreement_cha
     ...versions(),
   });
   assert.equal(closed.completion_applied, true);
-  const server = createGoalBoardWebServer({ databasePath, boardId: BOARD, homeDirectory: directory, controlToken: TOKEN });
+  const server = createMolisWorkWebServer({ databasePath, boardId: BOARD, homeDirectory: directory, controlToken: TOKEN });
   const origin = await listen(server);
-  const headers = { "content-type": "application/json", origin, "x-goalboard-control-token": TOKEN };
+  const headers = { "content-type": "application/json", origin, "x-molis-work-control-token": TOKEN };
   try {
     const beforeChange = app.goalEvents.readState(BOARD, goalId);
     const replace = await fetch(`${origin}/api/goals/${encodeURIComponent(goalId)}/event-agree`, {
       method: "POST",
-      headers: { ...headers, "x-goalboard-idempotency-key": "http-outcome-replace" },
+      headers: { ...headers, "x-molis-work-idempotency-key": "http-outcome-replace" },
       body: JSON.stringify({ ...versions(), outcome: "展示购买按钮即可", idempotency_key: "http-outcome-replace" }),
     });
     assert.equal(replace.status, 200, await replace.clone().text());
@@ -720,7 +720,7 @@ test("HTTP outcome replacement expires all current supports; stale agreement_cha
     const beforeStale = app.goalEvents.readState(BOARD, goalId);
     const staleApproval = await fetch(`${origin}/api/goals/${encodeURIComponent(goalId)}/event-decision`, {
       method: "POST",
-      headers: { ...headers, "x-goalboard-idempotency-key": "http-stale-approve" },
+      headers: { ...headers, "x-molis-work-idempotency-key": "http-stale-approve" },
       body: JSON.stringify({
         request_id: staleRequest.decision_request.request_id,
         selected_option_id: "yes",
@@ -744,7 +744,7 @@ test("HTTP outcome replacement expires all current supports; stale agreement_cha
 });
 
 test("HTTP create receipt has no retired state aliases and covers requirements and relations", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-event-http-create-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-event-http-create-"));
   const databasePath = join(directory, "project.db");
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
@@ -757,7 +757,7 @@ test("HTTP create receipt has no retired state aliases and covers requirements a
     board_id: BOARD, title: "实际付款", outcome: "付款完成",
     actor_id: "web-user", actor_kind: "user", idempotency_key: "http-dependency", source_kind: "web",
   });
-  const server = createGoalBoardWebServer({ databasePath, boardId: BOARD, homeDirectory: directory, controlToken: TOKEN });
+  const server = createMolisWorkWebServer({ databasePath, boardId: BOARD, homeDirectory: directory, controlToken: TOKEN });
   const origin = await listen(server);
   try {
     const createdResponse = await fetch(`${origin}/api/goals`, {
@@ -765,8 +765,8 @@ test("HTTP create receipt has no retired state aliases and covers requirements a
       headers: {
         "content-type": "application/json",
         origin,
-        "x-goalboard-control-token": TOKEN,
-        "x-goalboard-idempotency-key": "http-child",
+        "x-molis-work-control-token": TOKEN,
+        "x-molis-work-idempotency-key": "http-child",
       },
       body: JSON.stringify({
         title: "付款与收据",
@@ -794,8 +794,8 @@ test("HTTP create receipt has no retired state aliases and covers requirements a
       headers: {
         "content-type": "application/json",
         origin,
-        "x-goalboard-control-token": TOKEN,
-        "x-goalboard-idempotency-key": "http-child-new-header",
+        "x-molis-work-control-token": TOKEN,
+        "x-molis-work-idempotency-key": "http-child-new-header",
       },
       body: JSON.stringify({
         title: "付款与收据",
@@ -818,8 +818,8 @@ test("HTTP create receipt has no retired state aliases and covers requirements a
       headers: {
         "content-type": "application/json",
         origin,
-        "x-goalboard-control-token": TOKEN,
-        "x-goalboard-idempotency-key": "http-child-fail-then-retry",
+        "x-molis-work-control-token": TOKEN,
+        "x-molis-work-idempotency-key": "http-child-fail-then-retry",
       },
       body: JSON.stringify({
         title: "失败后改正输入",
@@ -833,8 +833,8 @@ test("HTTP create receipt has no retired state aliases and covers requirements a
       headers: {
         "content-type": "application/json",
         origin,
-        "x-goalboard-control-token": TOKEN,
-        "x-goalboard-idempotency-key": "http-child-fail-then-retry",
+        "x-molis-work-control-token": TOKEN,
+        "x-molis-work-idempotency-key": "http-child-fail-then-retry",
       },
       body: JSON.stringify({
         title: "失败后改正输入",
@@ -858,13 +858,13 @@ test("HTTP create receipt has no retired state aliases and covers requirements a
 });
 
 test("onboarding initialize receipt has no retired aliases and persists onboarding source", async () => {
-  const homeDirectory = mkdtempSync(join(tmpdir(), "goalboard-event-http-onboarding-"));
-  const server = createGoalBoardWebServer({
+  const homeDirectory = mkdtempSync(join(tmpdir(), "molis-work-event-http-onboarding-"));
+  const server = createMolisWorkWebServer({
     homeDirectory,
     controlToken: TOKEN,
   });
   const origin = await listen(server);
-  let catalog: Awaited<ReturnType<typeof openGoalBoardProjectCatalog>> | undefined;
+  let catalog: Awaited<ReturnType<typeof openMolisWorkProjectCatalog>> | undefined;
   let store: LocalProjectDatabase | undefined;
   try {
     const initializedResponse = await fetch(`${origin}/api/onboarding/initialize`, {
@@ -872,8 +872,8 @@ test("onboarding initialize receipt has no retired aliases and persists onboardi
       headers: {
         "content-type": "application/json",
         origin,
-        "x-goalboard-control-token": TOKEN,
-        "x-goalboard-idempotency-key": "http-onboarding",
+        "x-molis-work-control-token": TOKEN,
+        "x-molis-work-idempotency-key": "http-onboarding",
       },
       body: JSON.stringify({
         project_name: "引导创建来源",
@@ -893,7 +893,7 @@ test("onboarding initialize receipt has no retired aliases and persists onboardi
     for (const field of ["definition_state", "decomposition_state", "fulfillment_state"]) {
       assert.equal(Object.hasOwn(initialized.goal, field), false);
     }
-    catalog = await openGoalBoardProjectCatalog({ homeDirectory });
+    catalog = await openMolisWorkProjectCatalog({ homeDirectory });
     const project = catalog.getProject(initialized.project.project_id);
     store = new LocalProjectDatabase(project.database_path);
     const app = new GoalProjectApplication(store);
@@ -907,7 +907,7 @@ test("onboarding initialize receipt has no retired aliases and persists onboardi
 });
 
 test("HTTP goal-tree decisions replay the original result with a stable business key", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-event-http-tree-retry-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-event-http-tree-retry-"));
   const databasePath = join(directory, "project.db");
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
@@ -937,15 +937,15 @@ test("HTTP goal-tree decisions replay the original result with a stable business
     items: [treeItem("HTTP-TREE-PART-A"), treeItem("HTTP-TREE-PART-B")],
     idempotency_key: "http-tree-part-propose",
   });
-  const server = createGoalBoardWebServer({ databasePath, boardId: BOARD, homeDirectory: directory, controlToken: TOKEN });
+  const server = createMolisWorkWebServer({ databasePath, boardId: BOARD, homeDirectory: directory, controlToken: TOKEN });
   const origin = await listen(server);
-  const headers = { "content-type": "application/json", origin, "x-goalboard-control-token": TOKEN };
+  const headers = { "content-type": "application/json", origin, "x-molis-work-control-token": TOKEN };
   try {
     const decide = (proposalId: string, body: Record<string, unknown>, key: string) => fetch(
       `${origin}/api/goal-tree-proposals/${encodeURIComponent(proposalId)}/decision`,
       {
         method: "POST",
-        headers: { ...headers, "x-goalboard-idempotency-key": key },
+        headers: { ...headers, "x-molis-work-idempotency-key": key },
         body: JSON.stringify(body),
       },
     );
@@ -997,7 +997,7 @@ test("HTTP goal-tree decisions replay the original result with a stable business
     assert.equal(store.snapshot(BOARD).goals.filter((goal) => goal.goal_id.startsWith("HTTP-TREE-")).length, 3);
     const blocked = await fetch(`${origin}/api/non-idempotent-management-probe`, {
       method: "POST",
-      headers: { ...headers, "x-goalboard-idempotency-key": "http-tree-whole-decide" },
+      headers: { ...headers, "x-molis-work-idempotency-key": "http-tree-whole-decide" },
       body: JSON.stringify({}),
     });
     assert.equal(blocked.status, 409, await blocked.clone().text());
@@ -1009,7 +1009,7 @@ test("HTTP goal-tree decisions replay the original result with a stable business
 });
 
 test("HTTP goal-tree reject prefills displayed relation conflict and keeps the submitted reason", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-event-http-tree-conflict-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-event-http-tree-conflict-"));
   const databasePath = join(directory, "project.db");
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
@@ -1064,22 +1064,22 @@ test("HTTP goal-tree reject prefills displayed relation conflict and keeps the s
     idempotency_key: "rel-conflict-check",
   });
   assert.deepEqual(checked.conflict_item_ids, ["item-rel-deactivate"]);
-  const server = createGoalBoardWebServer({ databasePath, boardId: BOARD, homeDirectory: directory, controlToken: TOKEN });
+  const server = createMolisWorkWebServer({ databasePath, boardId: BOARD, homeDirectory: directory, controlToken: TOKEN });
   const origin = await listen(server);
-  const headers = { "content-type": "application/json", origin, "x-goalboard-control-token": TOKEN };
+  const headers = { "content-type": "application/json", origin, "x-molis-work-control-token": TOKEN };
   try {
-    const page = await (await fetch(`${origin}/decisions`)).text();
+    const page = await (await fetch(`${origin}/goals/${encodeURIComponent(child.goal.goal_id)}`)).text();
     assert.match(page, /退回理由已按下方问题预填，可以直接提交，也可以改写/);
     assert.match(page, /已按下方问题预填，可以直接采用，也可以改写/);
     assert.match(page, /决定理由或修改意见[\s\S]*必填/);
-    assert.doesNotMatch(page, /GoalBoard 会自动附上上方问题/);
+    assert.doesNotMatch(page, /Molis Work 会自动附上上方问题/);
     assert.doesNotMatch(page, /补充说明[\s\S]*可选/);
     const prefilled = page.match(/<textarea name="reason"[^>]*>([\s\S]*?)<\/textarea>/)?.[1] ?? "";
     assert.match(prefilled, /不能安全写入|不一致/);
     const path = `/api/goal-tree-proposals/${encodeURIComponent(submitted.proposal.proposal_id)}/decision`;
     const emptyReject = await fetch(`${origin}${path}`, {
       method: "POST",
-      headers: { ...headers, "x-goalboard-idempotency-key": "rel-conflict-empty" },
+      headers: { ...headers, "x-molis-work-idempotency-key": "rel-conflict-empty" },
       body: JSON.stringify({
         decisions: [{ item_id: "item-rel-deactivate", decision: "reject", reason: "" }],
         reason: "",
@@ -1100,7 +1100,7 @@ test("HTTP goal-tree reject prefills displayed relation conflict and keeps the s
     };
     const rejected = await fetch(`${origin}${path}`, {
       method: "POST",
-      headers: { ...headers, "x-goalboard-idempotency-key": "rel-conflict-rewrite" },
+      headers: { ...headers, "x-molis-work-idempotency-key": "rel-conflict-rewrite" },
       body: JSON.stringify(rejectBody),
     });
     assert.equal(rejected.status, 200, await rejected.clone().text());
@@ -1113,7 +1113,7 @@ test("HTTP goal-tree reject prefills displayed relation conflict and keeps the s
     assert.equal(stored?.items[0]?.decision?.reason, rewritten);
     const replay = await fetch(`${origin}${path}`, {
       method: "POST",
-      headers: { ...headers, "x-goalboard-idempotency-key": "rel-conflict-rewrite-new-http" },
+      headers: { ...headers, "x-molis-work-idempotency-key": "rel-conflict-rewrite-new-http" },
       body: JSON.stringify(rejectBody),
     });
     assert.equal(replay.status, 200, await replay.clone().text());

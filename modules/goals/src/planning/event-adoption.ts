@@ -7,7 +7,7 @@ import type {
   PlanningMethodPack,
   PlanningMethodScope,
   ResolvedPlanningEventAdoption,
-} from "@adeptify/goalboard-contracts/modules/goals";
+} from "@molis-ai/molis-work-contracts/modules/goals";
 import { BUILTIN_PLANNING_METHOD_PACKS } from "./method-packs.js";
 import { sameTypeShape } from "../event-facts-validation.js";
 

@@ -5,21 +5,21 @@ import { join } from "node:path";
 import test from "node:test";
 import { createCompletedIntentResultFixtureV1 } from "@adeptify/intelligence-client/testing";
 
-import { createLocalFeedSourceService, listFeedSourceCatalog } from "@adeptify/goalboard-app-local-host";
-import { createLocalFeedConnectorService } from "@adeptify/goalboard-app-local-host";
-import { createLocalFeedSourceScheduler } from "@adeptify/goalboard-app-local-host";
-import { createFeedSourceRuntime, type FeedSourceRuntime } from "@adeptify/goalboard-app-local-host";
-import { readRssHttpState } from "@adeptify/goalboard-integration-rss";
-import type { IntelligenceCollectRequest, IntelligenceCollectResult } from "@adeptify/goalboard-app-local-host";
-import { FeedDomainError } from "@adeptify/goalboard-contracts/modules/feed";
-import { DEMO_BOARD_ID, seedDemoBoard } from "@adeptify/goalboard-app-local-host";
-import { LocalProjectDatabase } from "@adeptify/goalboard-app-local-host";
-import { createGoalBoardWebServer } from "../apps/desktop/launchers/web/server.js";
-import { resetSecretStoreCache } from "@adeptify/goalboard-storage";
+import { createLocalFeedSourceService, listFeedSourceCatalog } from "@molis-ai/molis-work-app-local-host";
+import { createLocalFeedConnectorService } from "@molis-ai/molis-work-app-local-host";
+import { createLocalFeedSourceScheduler } from "@molis-ai/molis-work-app-local-host";
+import { createFeedSourceRuntime, type FeedSourceRuntime } from "@molis-ai/molis-work-app-local-host";
+import { readRssHttpState } from "@molis-ai/molis-work-integration-rss";
+import type { IntelligenceCollectRequest, IntelligenceCollectResult } from "@molis-ai/molis-work-app-local-host";
+import { FeedDomainError } from "@molis-ai/molis-work-contracts/modules/feed";
+import { DEMO_BOARD_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 
 test("public Feed sources register offline, replay terminal sync, and roll back failed commits", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-feed-source-"));
-  const databasePath = join(directory, "goalboard.sqlite");
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-feed-source-"));
+  const databasePath = join(directory, "molis-work.sqlite");
   try {
     seedDemoBoard(databasePath);
     const store = new LocalProjectDatabase(databasePath);
@@ -38,13 +38,13 @@ test("public Feed sources register offline, replay terminal sync, and roll back 
               return {
                 ...base,
                 materials: [{
-                  id: "material:goalboard-feed-source-test",
+                  id: "material:molis-work-feed-source-test",
                   candidateId: "candidate:test-1",
                   canonicalUrl: "https://example.com/article",
                   title: "公开材料",
                   sourceName: "Example",
                   preview: "可核对摘要",
-                  contentRef: "goalboard-feed/sha256/" + "a".repeat(64),
+                  contentRef: "molis-work-feed/sha256/" + "a".repeat(64),
                   contentHash: `sha256:${"a".repeat(64)}`,
                   contentHashProfile: "search-markdown-v1",
                   contentType: "text/markdown",
@@ -69,7 +69,7 @@ test("public Feed sources register offline, replay terminal sync, and roll back 
             async shutdown() {},
           },
           content: {
-            write() { return { contentRef: "goalboard-feed/sha256/" + "a".repeat(64) }; },
+            write() { return { contentRef: "molis-work-feed/sha256/" + "a".repeat(64) }; },
             read() { return retained; },
             has() { return true; },
             inspect() { return { referenced: 1, available: 1, missing: 0, keyAvailable: true }; },
@@ -99,7 +99,7 @@ test("public Feed sources register offline, replay terminal sync, and roll back 
       });
       assert.equal(replay.replayed, true);
       assert.equal(executeCount, 1, "terminal replay must not call the provider again");
-      assert.equal(service.feed.snapshot(DEMO_BOARD_ID).items.length, 1);
+      assert.equal(service.feed.snapshot(DEMO_BOARD_ID).feed_items.length, 1);
 
       // Fail the final journal write after material, Source, and Run writes.
       // A real SQLite failure must roll the entire public-result commit back.
@@ -114,7 +114,7 @@ test("public Feed sources register offline, replay terminal sync, and roll back 
       const afterFailure = service.feed.getSource(DEMO_BOARD_ID, rollbackSource.source_id);
       assert.equal(afterFailure.item_count, 0);
       assert.equal(afterFailure.last_sync_at, null);
-      assert.equal(service.feed.snapshot(DEMO_BOARD_ID).items.length, 1, "the new material must roll back");
+      assert.equal(service.feed.snapshot(DEMO_BOARD_ID).feed_items.length, 1, "the new material must roll back");
       const interruptedRun = service.feed.snapshot(DEMO_BOARD_ID).runs.find((run) => run.source_id === rollbackSource.source_id);
       assert.equal(interruptedRun?.phase, "interrupted");
       assert.equal(interruptedRun?.outcome, null);
@@ -126,7 +126,7 @@ test("public Feed sources register offline, replay terminal sync, and roll back 
       assert.equal(retried.source.item_count, 1);
       const retriedReplay = await service.sync(rollbackSource.source_id, { idempotencyKey: "source-rollback-0001" });
       assert.equal(retriedReplay.replayed, true);
-      assert.equal(service.feed.snapshot(DEMO_BOARD_ID).items.length, 2);
+      assert.equal(service.feed.snapshot(DEMO_BOARD_ID).feed_items.length, 2);
 
       service.setEnabled(firstRegistration.source.source_id, false);
       await assert.rejects(
@@ -142,8 +142,8 @@ test("public Feed sources register offline, replay terminal sync, and roll back 
 });
 
 test("custom RSS registration rejects private and catalog-shadowing URLs before network", () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-feed-custom-rss-"));
-  const databasePath = join(directory, "goalboard.sqlite");
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-feed-custom-rss-"));
+  const databasePath = join(directory, "molis-work.sqlite");
   try {
     seedDemoBoard(databasePath);
     const store = new LocalProjectDatabase(databasePath);
@@ -167,7 +167,7 @@ test("custom RSS registration rejects private and catalog-shadowing URLs before 
         ...custom,
         cursor: {
           rss_http: {
-            schema: "goalboard-rss-http-v1",
+            schema: "molis-work-rss-http-v1",
             etag: '"old-feed"',
             consecutive_failures: 0,
           },
@@ -191,12 +191,12 @@ test("custom RSS registration rejects private and catalog-shadowing URLs before 
 });
 
 test("RSS sync persists feed identity and validators, then treats 304 as a successful empty pull", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-feed-rss-http-"));
-  const databasePath = join(directory, "goalboard.sqlite");
-  const oldHome = process.env.GOALBOARD_HOME;
-  const oldBackend = process.env.GOALBOARD_SECRET_BACKEND;
-  process.env.GOALBOARD_HOME = join(directory, "home");
-  process.env.GOALBOARD_SECRET_BACKEND = "file";
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-feed-rss-http-"));
+  const databasePath = join(directory, "molis-work.sqlite");
+  const oldHome = process.env.MOLIS_WORK_HOME;
+  const oldBackend = process.env.MOLIS_WORK_SECRET_BACKEND;
+  process.env.MOLIS_WORK_HOME = join(directory, "home");
+  process.env.MOLIS_WORK_SECRET_BACKEND = "file";
   resetSecretStoreCache();
   try {
     seedDemoBoard(databasePath);
@@ -266,17 +266,17 @@ test("RSS sync persists feed identity and validators, then treats 304 as a succe
     }
   } finally {
     resetSecretStoreCache();
-    if (oldHome == null) delete process.env.GOALBOARD_HOME;
-    else process.env.GOALBOARD_HOME = oldHome;
-    if (oldBackend == null) delete process.env.GOALBOARD_SECRET_BACKEND;
-    else process.env.GOALBOARD_SECRET_BACKEND = oldBackend;
+    if (oldHome == null) delete process.env.MOLIS_WORK_HOME;
+    else process.env.MOLIS_WORK_HOME = oldHome;
+    if (oldBackend == null) delete process.env.MOLIS_WORK_SECRET_BACKEND;
+    else process.env.MOLIS_WORK_SECRET_BACKEND = oldBackend;
     rmSync(directory, { recursive: true, force: true });
   }
 });
 
 test("RSS transient failures preserve history and become actionable only after the third failure", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-feed-rss-recovery-"));
-  const databasePath = join(directory, "goalboard.sqlite");
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-feed-rss-recovery-"));
+  const databasePath = join(directory, "molis-work.sqlite");
   try {
     seedDemoBoard(databasePath);
     const store = new LocalProjectDatabase(databasePath);
@@ -291,7 +291,7 @@ test("RSS transient failures preserve history and become actionable only after t
           async shutdown() {},
         },
         content: {
-          write() { return { contentRef: "goalboard-feed/sha256/" + "a".repeat(64) }; },
+          write() { return { contentRef: "molis-work-feed/sha256/" + "a".repeat(64) }; },
           read() { return ""; },
           has() { return true; },
           inspect() { return { referenced: 0, available: 0, missing: 0, keyAvailable: true }; },
@@ -331,8 +331,8 @@ test("RSS transient failures preserve history and become actionable only after t
 });
 
 test("RSS parse failures immediately create a configuration recovery reference", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-feed-rss-parse-fault-"));
-  const databasePath = join(directory, "goalboard.sqlite");
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-feed-rss-parse-fault-"));
+  const databasePath = join(directory, "molis-work.sqlite");
   try {
     seedDemoBoard(databasePath);
     const store = new LocalProjectDatabase(databasePath);
@@ -360,7 +360,7 @@ test("RSS parse failures immediately create a configuration recovery reference",
           async shutdown() {},
         },
         content: {
-          write() { return { contentRef: "goalboard-feed/sha256/" + "a".repeat(64) }; },
+          write() { return { contentRef: "molis-work-feed/sha256/" + "a".repeat(64) }; },
           read() { return ""; },
           has() { return true; },
           inspect() { return { referenced: 0, available: 0, missing: 0, keyAvailable: true }; },
@@ -390,8 +390,8 @@ test("RSS parse failures immediately create a configuration recovery reference",
 });
 
 test("source scheduler persists the next run, collapses missed slots, and prevents overlapping pulls", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-feed-scheduler-"));
-  const databasePath = join(directory, "goalboard.sqlite");
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-feed-scheduler-"));
+  const databasePath = join(directory, "molis-work.sqlite");
   try {
     seedDemoBoard(databasePath);
     const store = new LocalProjectDatabase(databasePath);
@@ -448,8 +448,8 @@ test("source scheduler persists the next run, collapses missed slots, and preven
 });
 
 test("non-retryable scheduled source failures create one actionable Inbox reference", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-feed-scheduler-fault-"));
-  const databasePath = join(directory, "goalboard.sqlite");
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-feed-scheduler-fault-"));
+  const databasePath = join(directory, "molis-work.sqlite");
   try {
     seedDemoBoard(databasePath);
     const store = new LocalProjectDatabase(databasePath);
@@ -486,8 +486,8 @@ test("non-retryable scheduled source failures create one actionable Inbox refere
 });
 
 test("source lifecycle keeps secrets out of configuration and honors explicit history deletion", () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-feed-source-lifecycle-"));
-  const databasePath = join(directory, "goalboard.sqlite");
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-feed-source-lifecycle-"));
+  const databasePath = join(directory, "molis-work.sqlite");
   try {
     seedDemoBoard(databasePath);
     const store = new LocalProjectDatabase(databasePath);
@@ -537,8 +537,8 @@ test("source lifecycle keeps secrets out of configuration and honors explicit hi
 });
 
 test("Gmail source configuration accepts only incrementally enforceable range presets", () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-gmail-scope-"));
-  const databasePath = join(directory, "goalboard.sqlite");
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-gmail-scope-"));
+  const databasePath = join(directory, "molis-work.sqlite");
   try {
     seedDemoBoard(databasePath);
     const store = new LocalProjectDatabase(databasePath);
@@ -564,18 +564,18 @@ test("Gmail source configuration accepts only incrementally enforceable range pr
 });
 
 test("Feed source Web API manages local sources and encrypted connector bindings", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-feed-source-api-"));
-  const databasePath = join(directory, "goalboard.sqlite");
-  const controlToken = "goalboard-feed-source-api-control-token";
-  const oldHome = process.env.GOALBOARD_HOME;
-  const oldBackend = process.env.GOALBOARD_SECRET_BACKEND;
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-feed-source-api-"));
+  const databasePath = join(directory, "molis-work.sqlite");
+  const controlToken = "molis-work-feed-source-api-control-token";
+  const oldHome = process.env.MOLIS_WORK_HOME;
+  const oldBackend = process.env.MOLIS_WORK_SECRET_BACKEND;
   const oldNodeEnv = process.env.NODE_ENV;
-  process.env.GOALBOARD_HOME = join(directory, "home");
-  process.env.GOALBOARD_SECRET_BACKEND = "file";
+  process.env.MOLIS_WORK_HOME = join(directory, "home");
+  process.env.MOLIS_WORK_SECRET_BACKEND = "file";
   process.env.NODE_ENV = "test";
   resetSecretStoreCache();
   seedDemoBoard(databasePath);
-  const server = createGoalBoardWebServer({
+  const server = createMolisWorkWebServer({
     databasePath,
     boardId: DEMO_BOARD_ID,
     homeDirectory: join(directory, "home"),
@@ -594,18 +594,18 @@ test("Feed source Web API manages local sources and encrypted connector bindings
         headers: {
           origin,
           "content-type": "application/json",
-          "x-goalboard-control-token": controlToken,
-          "x-goalboard-idempotency-key": `feed-source-api-${mutation}`,
+          "x-molis-work-control-token": controlToken,
+          "x-molis-work-idempotency-key": `feed-source-api-${mutation}`,
         },
         body: body == null ? undefined : JSON.stringify(body),
       });
     };
     const page = await (await fetch(origin)).text();
     assert.match(page, /data-feed-sources-dialog/);
-    assert.match(page, /GoalBoard 直接保存来源、凭据、同步游标和正文/);
+    assert.match(page, /Molis Work 直接保存来源、凭据、同步游标和正文/);
     assert.match(page, /<select data-source-config-field="scope">[\s\S]*value="in:inbox is:unread" selected[\s\S]*value="is:starred"/);
     assert.match(page, /首次同步和增量同步都会执行同一范围；不做完整邮箱回填。/);
-    assert.match(page, /授权范围：gmail\.readonly、openid、email；GoalBoard 不发送、删除或修改 Gmail 邮件。/);
+    assert.match(page, /授权范围：gmail\.readonly、openid、email；Molis Work 不发送、删除或修改 Gmail 邮件。/);
     assert.doesNotMatch(page, /不会迁移账号凭据/);
 
     const definition = listFeedSourceCatalog()[0]!;
@@ -680,10 +680,10 @@ test("Feed source Web API manages local sources and encrypted connector bindings
       server.close((error) => (error ? reject(error) : resolve())),
     );
     resetSecretStoreCache();
-    if (oldHome == null) delete process.env.GOALBOARD_HOME;
-    else process.env.GOALBOARD_HOME = oldHome;
-    if (oldBackend == null) delete process.env.GOALBOARD_SECRET_BACKEND;
-    else process.env.GOALBOARD_SECRET_BACKEND = oldBackend;
+    if (oldHome == null) delete process.env.MOLIS_WORK_HOME;
+    else process.env.MOLIS_WORK_HOME = oldHome;
+    if (oldBackend == null) delete process.env.MOLIS_WORK_SECRET_BACKEND;
+    else process.env.MOLIS_WORK_SECRET_BACKEND = oldBackend;
     if (oldNodeEnv == null) delete process.env.NODE_ENV;
     else process.env.NODE_ENV = oldNodeEnv;
     rmSync(directory, { recursive: true, force: true });

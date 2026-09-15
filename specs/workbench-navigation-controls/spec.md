@@ -10,7 +10,7 @@
 
 本次目标是让控件位置与其控制对象一致，并补回窄屏网页版的项目上下文入口，同时保持现有移动端内容导航和 Native Desktop Companion 行为不变。
 
-关联 GoalBoard Goal：`draft-f1c6b937-d1b4-45c3-bc29-891e964261bc`。
+关联 Molis Work Goal：`draft-f1c6b937-d1b4-45c3-bc29-891e964261bc`。
 
 ## 完成等级
 

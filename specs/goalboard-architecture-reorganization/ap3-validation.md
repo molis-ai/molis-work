@@ -24,7 +24,7 @@ AP3 已把稳定文档 Shell、命名 UI Slot、Contribution mount 校验、浏�
 
 ### 禁止依赖审计
 
-- Workbench、UI Host、Design System 源码没有 `GoalBoardStore`、`GoalBoardCoordinator`、业务 Store/implementation 或旧 `src/` deep import。
+- Workbench、UI Host、Design System 源码没有 `MolisWorkStore`、`MolisWorkCoordinator`、业务 Store/implementation 或旧 `src/` deep import。
 - UI Host 只理解 contribution、surface、slot、format，不理解 Feed、Goal、Artifact 或其他产品数据。
 - Workbench 只装配公开 contribution；Feed 产品 renderer 仍由 Feed Native Plugin 拥有。
 - `pnpm boundary:check`：48 packages、143 source files、231 imports、55 dependency edges、16 个有 owner 的旧兼容条目，0 errors。

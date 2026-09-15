@@ -2,9 +2,9 @@ import { validatePluginManifestFile } from "./validate.js";
 import { createPluginProject } from "./create.js";
 import { packPluginProject } from "./package-files.js";
 import { readPublisherIdentity, signPluginPackageFile, verifyPluginPackageFile } from "./package-signing.js";
-import type { PluginDevelopmentResult } from "@adeptify/goalboard-contracts/platform/tooling";
+import type { PluginDevelopmentResult } from "@molis-ai/molis-work-contracts/platform/tooling";
 
-const usage = "Usage:\n  goalboard plugin dev <source-directory> <isolated-state-directory> <comma-separated-grants> --allow-unsigned-development\n  goalboard-plugin validate <manifest.json>\n  goalboard-plugin create <directory> <plugin-id> <publisher-id> <binding-signature>\n  goalboard-plugin pack <directory> <output.json>\n  goalboard-plugin identity <public-key.pem>\n  goalboard-plugin sign <input.json> <private-key.pem> <output.json>\n  goalboard-plugin verify <input.json> <trusted-public-key.pem>\n";
+const usage = "Usage:\n  molis-work plugin dev <source-directory> <isolated-state-directory> <comma-separated-grants> --allow-unsigned-development\n  molis-work-plugin validate <manifest.json>\n  molis-work-plugin create <directory> <plugin-id> <publisher-id> <binding-signature>\n  molis-work-plugin pack <directory> <output.json>\n  molis-work-plugin identity <public-key.pem>\n  molis-work-plugin sign <input.json> <private-key.pem> <output.json>\n  molis-work-plugin verify <input.json> <trusted-public-key.pem>\n";
 
 export interface PluginCliOutput {
   stdout(value: string): void;
@@ -29,7 +29,7 @@ export async function runPluginCli(args: readonly string[], output: PluginCliOut
   try {
     if (args[0] === "dev") {
       if (args[4] !== "--allow-unsigned-development") throw new Error("开发源码执行需要 --allow-unsigned-development；grant 不是 OS sandbox");
-      if (!host) throw new Error("请通过 goalboard plugin dev 使用应用 Host；独立工具不会创建另一套数据库实现");
+      if (!host) throw new Error("请通过 molis-work plugin dev 使用应用 Host；独立工具不会创建另一套数据库实现");
       const result = await host.runDevelopment({ directory: args[1]!, state_directory: args[2]!,
         grants: args[3]!.split(",").map(value => value.trim()).filter(Boolean), allow_unsigned_development: true });
       output.stdout(`${JSON.stringify(result)}\n`);

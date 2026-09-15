@@ -5,27 +5,27 @@ Use this reference for ordinary work on a connected Goal. Examples use `call(nam
 ## A useful Goal without a template
 
 ```javascript
-const created = await call("goalboard_v1_goal_intent_create", {
+const created = await call("molis_work_v1_goal_intent_create", {
   title: "Help a buyer find and verify their receipt",
   idempotency_key: "receipt-intent-1"
 });
 const g = created.goal.goal_id;
-await call("goalboard_v1_event_note", {
+await call("molis_work_v1_event_note", {
   goal_id: g,
   body: "The buyer looked for a receipt immediately after payment.",
   idempotency_key: "receipt-note-1"
 });
-let state = await call("goalboard_v1_goal_state", {goal_id: g});
+let state = await call("molis_work_v1_goal_state", {goal_id: g});
 ```
 
-For an existing Goal, start with `goalboard_v1_goal_list({limit:20})`, identify the intended Goal, and read its state. Follow the returned next cursor when needed; do not create a duplicate because the first page omitted it. A note needs no type registration, requirement, planning adoption or role.
+For an existing Goal, start with `molis_work_v1_goal_list({limit:20})`, identify the intended Goal, and read its state. Follow the returned next cursor when needed; do not create a duplicate because the first page omitted it. A note needs no type registration, requirement, planning adoption or role.
 
 ## Add structure when it improves the result
 
 This example registers one local type and defines the first result agreement. The type alone does not enable a completion requirement.
 
 ```javascript
-await call("goalboard_v1_event_configure", {
+await call("molis_work_v1_event_configure", {
   goal_id: g,
   expected_version: state.config.version,
   types: [{
@@ -43,8 +43,8 @@ await call("goalboard_v1_event_configure", {
   }],
   idempotency_key: "receipt-type-1"
 });
-state = await call("goalboard_v1_goal_state", {goal_id: g});
-await call("goalboard_v1_event_agree", {
+state = await call("molis_work_v1_goal_state", {goal_id: g});
+await call("molis_work_v1_event_agree", {
   goal_id: g,
   expected_config_version: state.config.version,
   expected_agreement_version: state.agreement.version,
@@ -64,7 +64,7 @@ This is a first agreement. Replacing an existing commitment follows [protocol.md
 ## Report a batch and use its current receipt
 
 ```javascript
-const receipt = await call("goalboard_v1_event_report", {
+const receipt = await call("molis_work_v1_event_report", {
   goal_id: g,
   events: [{
     type_id: "receipt-check",
@@ -95,7 +95,7 @@ To update progress without a new fact, call `event_progress` with `summary`, opt
 When a current requirement has `human_decision_required=true`, a supporting Runtime report still leaves a human acceptance gap. Request that specific decision; replace the requirement ID with the actual active one.
 
 ```javascript
-await call("goalboard_v1_event_decision_request", {
+await call("molis_work_v1_event_decision_request", {
   goal_id: g,
   purpose: "requirement_acceptance",
   question: "Have you personally opened the receipt and verified the payment amount?",
@@ -108,15 +108,15 @@ await call("goalboard_v1_event_decision_request", {
 });
 ```
 
-This optional branch is for a requirement already configured for human acceptance; it does not change the earlier example's default. Show the Goal URL returned by GoalBoard and the concrete decision awaiting the user. The user records acceptance or rejection in the protected interface. If that page needs starting, follow [service-start.md](service-start.md); continue unrelated work meanwhile.
+This optional branch is for a requirement already configured for human acceptance; it does not change the earlier example's default. Show the Goal URL returned by Molis Work and the concrete decision awaiting the user. The user records acceptance or rejection in the protected interface. If that page needs starting, follow [service-start.md](service-start.md); continue unrelated work meanwhile.
 
 Then read `goal_state` and use its actual requirement conclusions and pending decisions. Runtime cannot invoke `event_decide`, copy the user's wording into a fake identity, or treat “request saved” as “accepted.” A rejected decision leaves the requirement unmet.
 
 ## Close and explicitly continue
 
 ```javascript
-state = await call("goalboard_v1_goal_state", {goal_id: g});
-const closure = await call("goalboard_v1_event_close", {
+state = await call("molis_work_v1_goal_state", {goal_id: g});
+const closure = await call("molis_work_v1_event_close", {
   goal_id: g,
   kind: "complete",
   result: "The order receipt is accessible and its payment amount has been verified.",
@@ -132,7 +132,7 @@ Only `closure.completion_applied=true` establishes completion. If false, report 
 For explicit cancellation, use the same current versions with `kind:"cancel"` and the actual reason; no invented delivery is needed. When the user wants another round after either completed or cancelled:
 
 ```javascript
-await call("goalboard_v1_event_resume", {
+await call("molis_work_v1_event_resume", {
   goal_id: g,
   reason: "Start another round to verify the refund receipt.",
   idempotency_key: "receipt-resume-1"

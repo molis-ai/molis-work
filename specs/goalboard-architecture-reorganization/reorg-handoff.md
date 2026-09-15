@@ -1,6 +1,6 @@
 # 重组续接点
 
-2026-09-06。仓库交接不代替 GoalBoard；生命周期只用 host 提供的 goalboard_v1 MCP。
+2026-09-06。仓库交接不代替 Molis Work；生命周期只用 host 提供的 molis_work_v1 MCP。
 
 ## 最新可信进度
 
@@ -12,7 +12,7 @@
 
 ## 历史执行记录（以下阶段待办与租约已过时）
 
-- **最后入口与SDK迁移完成，进入全量自动回归（2026-09-08）**：卸载6/0/0、MCP44/0/0+真实stdio、CLI11/0/0、SDK/V1/迁移/边界139/0/0全部通过。Root只剩SDK index/store/types和CLI/MCP/Web入口，旧v1/Desktop目录删除；内部caller使用公开owner，根SDK保留本版本旧读方法/名称和唯一owner类型alias。MCP App tool-dispatch、Host身份/资源、Desktop Catalog注入；CLI App command-dispatch和顶层dispatch、Host存储/本机服务装配。边界719源码2784imports101边0errors、0compatibility豁免。当前 `NODE_NO_WARNINGS=1 pnpm test` 全量构建已完成、测试运行中（log `/private/tmp/goalboard-cutover-full-regression.log`）；不修改生产源码或build输入直到该轮结束。初步只读全仓体积扫描发现ClaimCommands835、WorkState727、Verification667等需要在清理/总审判断职责，不能把旧Huge计数0当全仓无Huge。下一步完整回归问题处理→统一真实UI/后端E2E→清理复验→初始架构总审；仍未关Cutover。Claim原到10:29:49.887UTC，按实际Contract续租。
+- **最后入口与SDK迁移完成，进入全量自动回归（2026-09-08）**：卸载6/0/0、MCP44/0/0+真实stdio、CLI11/0/0、SDK/V1/迁移/边界139/0/0全部通过。Root只剩SDK index/store/types和CLI/MCP/Web入口，旧v1/Desktop目录删除；内部caller使用公开owner，根SDK保留本版本旧读方法/名称和唯一owner类型alias。MCP App tool-dispatch、Host身份/资源、Desktop Catalog注入；CLI App command-dispatch和顶层dispatch、Host存储/本机服务装配。边界719源码2784imports101边0errors、0compatibility豁免。当前 `NODE_NO_WARNINGS=1 pnpm test` 全量构建已完成、测试运行中（log `/private/tmp/molis-work-cutover-full-regression.log`）；不修改生产源码或build输入直到该轮结束。初步只读全仓体积扫描发现ClaimCommands835、WorkState727、Verification667等需要在清理/总审判断职责，不能把旧Huge计数0当全仓无Huge。下一步完整回归问题处理→统一真实UI/后端E2E→清理复验→初始架构总审；仍未关Cutover。Claim原到10:29:49.887UTC，按实际Contract续租。
 
 
 - **Web完整退出与Host主装配迁移（2026-09-08）**：root Web仅57行命令/资源路径，Desktop web-host提供平台，Host按routing/catalog/request/server/composition/types分开，Native Goals拥有8组写请求。完整Web/desktop-tui/Session/Workspace98/0/0通过，Host/Desktop/root build、707源码2701imports100边0errors，旧Huge清单0（尚非最终全仓审查）。V3导入Native映射+Module末事件/指针、Host装配，8迁移回归；唯一Host composition改公开包、30入口回归；规划5+1、读页面8+4、引导3、Plugin完整CLI样例1通过。现无运行中测试。下一步旧CLI/MCP装配与uninstall/SDK最后残留退出，再执行原定完整E2E→清理→复验→初始架构总审。Claim到10:29:49.887UTC cursor1330。
@@ -35,13 +35,13 @@
 - **真实退出的旧入口**：`src/web/render.ts`、`src/projects/catalog.ts`、`catalog-session.ts`、`desktop-panel-adapter.ts`、`src/v1/demo.ts`与root Feed security/content等已删除，caller改公开owner。Workbench工厂组合注册UI，Host绑定唯一请求语言作用域，Desktop提供shell端口。风险决定归Goals Safety Contribution。默认GoalPolicy文本唯一归Goals；旧SDK仍兼容导出。
 - **Catalog与本地内容**：Runtime选择/建议/确认绑定/解绑/创建请求幂等归Private Work Context；Host按创建迁移/删除恢复/Demo重建分担文件生命周期。Host Catalog唯一装配，Desktop通过平台入口注入独立SQLite adapter，Host无反向Desktop依赖。Storage负责readonly/integrity/checkpoint/catalog metadata，以及原SecretStore技术adapter；Feed Module负责保留正文引用/内容，Host负责呈现时hydrate。原schema1–10、事务、错误identity与恢复路径保持。
 - **Feed应用与来源Runtime**：旧Store已删除，Native FeedApplication消费Module契约和有界事务/Listener/回执/事件端口，Host同连接装配。Relay目标DB直写已收回，批量导入/回执/事件仍同事务。Module错误identity归其Contracts并原入口重导出。RSS目录/Custom URL/正文分类归RSS，YouTube标识归YouTube，opaque搜索缓存/CAS/AEAD/Secret适配归Storage。Host持可信身份与SDK生命周期，Native Feed执行exact来源约束（Host注入definition端口），RSS ./host持网络实现；Plugin间无实现引用。root sources/runtime、intelligence-adapter、catalog、custom-rss、youtube、feed-body、search-storage和feed/errors已删除。
-- **Source业务最新切片**：旧SourceService删除，Native来源管理227/同步280/请求142行，通过有限provider/运行时/事务/事件端口消费Host装配。Sources契约拥有原sourceDeletedAt与RSS receipt公共类型；RSS/Gmail/YouTube实现仍在Integration。Host复用原event ID/actor、同连接immediate事务、错误与shutdown顺序。源码已通过完整build；35项Source/Upgrade/Feed/Connector/HTTP回归0fail/0skip，新提交失败回滚/同键恢复测试通过且去掉事务能稳定失败，构建已恢复。日志 `goalboard-cutover-source-service-{build,regression}` / `source-rollback{,-mutation}`。
+- **Source业务最新切片**：旧SourceService删除，Native来源管理227/同步280/请求142行，通过有限provider/运行时/事务/事件端口消费Host装配。Sources契约拥有原sourceDeletedAt与RSS receipt公共类型；RSS/Gmail/YouTube实现仍在Integration。Host复用原event ID/actor、同连接immediate事务、错误与shutdown顺序。源码已通过完整build；35项Source/Upgrade/Feed/Connector/HTTP回归0fail/0skip，新提交失败回滚/同键恢复测试通过且去掉事务能稳定失败，构建已恢复。日志 `molis-work-cutover-source-service-{build,regression}` / `source-rollback{,-mutation}`。
 - **证据**：切片详见cutover-work-plan；最新616源码2159imports95边、7兼容白名单、1旧Huge，边界0errors，类型/diff通过。页面五组严格输出比对原证据保持。原118依赖离线0download。当前没有未结束构建或测试。
 - **仍需处理**：root Web HTTP3176行、SourceScheduler、Connector/OAuth/Relay读取导入、Capsule/PTY/Onboarding与残留SDK/CLI/MCP装配。下一步读ConnectorService/Provider Registry/OAuth调用链，先写切片spec，再迁真实业务与Host生命周期；SourceScheduler复用Host source工厂但仍耦合Connector构造，随此切片退出。首次样式回归仍有一条旧测试期待搜索框display:none、生产display:flex，最终清理时处理，不改产品凑绿。
 - **审批事实**：Runtime首次混合大脚本被自动审批拒绝且未执行；准备具体14文件diff、核对§24授权与git apply --check后，单独重审应用补丁和离线安装均获批并完成。已解除，不再当阻塞或重放转换脚本。
 - **最终顺序不变**：全部开发→真实前后端用户E2E（含Desktop/CLI/MCP/安装升级卸载/恢复）→代码清理→受影响E2E复验→初始架构逐条总审。当前不是只剩测试，不得因局部全绿标完成或重复索取授权。以下为历史进度，不能覆盖本段。
 
-- **11:55UTC续接**：Storage连接/公共Journal已真实实现；Feed导入及迁移回执归Feed；迁移1–31/Feed相关Module启动顺序归Local Host；旧Store.snapshot改调Goals Plugin公开查询组合，四Module提供只读组装工厂。对应回归126、11+10、132、123均0fail/0skip，日志和修改边界见cutover-work-plan。两次真实pnpm内部依赖同步通过，外部依赖仍为原118项。旧Store约160行，Coordinator607行，尚非全量cutover完成。当前Claim续至12:19:04UTC，同一Run/actor继续；完整pnpm build已通过（48包、root清理后重建及PTY bundle）；Web/Host/Runtime/迁移跨入口回归见 `/private/tmp/goalboard-cutover-shared-entry-regression.log`，结束状态以实际进程为准。下一步读该回归结果，再继续Host/旧Catalog/Web/renderer等真实caller退出。旧Store历史读取wrapper仍在，不能说Repository已全部退出。
+- **11:55UTC续接**：Storage连接/公共Journal已真实实现；Feed导入及迁移回执归Feed；迁移1–31/Feed相关Module启动顺序归Local Host；旧Store.snapshot改调Goals Plugin公开查询组合，四Module提供只读组装工厂。对应回归126、11+10、132、123均0fail/0skip，日志和修改边界见cutover-work-plan。两次真实pnpm内部依赖同步通过，外部依赖仍为原118项。旧Store约160行，Coordinator607行，尚非全量cutover完成。当前Claim续至12:19:04UTC，同一Run/actor继续；完整pnpm build已通过（48包、root清理后重建及PTY bundle）；Web/Host/Runtime/迁移跨入口回归见 `/private/tmp/molis-work-cutover-shared-entry-regression.log`，结束状态以实际进程为准。下一步读该回归结果，再继续Host/旧Catalog/Web/renderer等真实caller退出。旧Store历史读取wrapper仍在，不能说Repository已全部退出。
 
 - **Cutover本轮后续切片（11:36UTC）**：工作阶段/完成门禁、资格评价、Ready/Available/Explain、Risk action授权、Review义务、Contract读模型均已归Goals Plugin；Board创建/current Goal写入及生命周期清理归Goals。Coordinator当前607行，SQL与Repository旁路已删除，尚有装配及有限转发，未宣称Host已退出。工作阶段135/0/0；资格151+查询7/0/0；Risk/Review/读模型124/0/0；Board121+直接Module3/0/0（含初始化事件失败回滚、重试幂等、无Host hook完成后指针清除及重开），详见cutover-work-plan与/tmp日志。新包构建/root tsc/48包边界0errors。当前Claim已续到11:53:57UTC，后续以实时Contract为准；同一Run继续。
 
@@ -57,9 +57,9 @@
 
 - **新对话已恢复，Outbox 范围提案待决定（2026-09-06 10:14 UTC）**：当前任务 `01a07630-be49-7791-bb05-de4db2d1377b` 经用户明确确认关联原项目。新 MCP Explain clarifier ready=true，根 coverage select allowed=true，原 `clarification_not_needed` 冲突已解除，不再等待安装或新对话。正式提案 `goal-tree-proposal-0500bb62-7509-4934-abf0-0bb3d36e8249` 仅一项 `item-assurance-existing-recovery-20260906`，修改同一 assurance Goal 的恢复验收，将 Outbox 实现/重放留后续并保留现有事务、幂等、重试与恢复。read/check 通过，cursor1256，conflict/planning issues 均空；尚未决定，不把关联回答“可以”当作批准。DD 独立提案仍保持未批准。详见 `assurance-scope-revision.md`。下方等待旧 MCP 的记录均为历史。
 
-- **现用更新已授权并完成，旧对话 MCP 待重新加载**：正式安装器刷新同版本 0.1.14，受管服务重启成功，健康 PID 96675→23734，14 个项目仍可见。Codex 配置/LaunchAgent 配置字节不变、Runtime detection=connected；已安装 release 的 13 项修复回归通过。当前宿主 MCP Explain 仍是旧 clarification_not_needed（cursor1248），不要重复领取或继续声称等待安装授权；需新对话加载新 MCP 后再推进。未批准 DD 提案或修改真实 Goal。详见 `../goalboard-coverage-clarifier/validation.md` 的现用更新段。
+- **现用更新已授权并完成，旧对话 MCP 待重新加载**：正式安装器刷新同版本 0.1.14，受管服务重启成功，健康 PID 96675→23734，14 个项目仍可见。Codex 配置/LaunchAgent 配置字节不变、Runtime detection=connected；已安装 release 的 13 项修复回归通过。当前宿主 MCP Explain 仍是旧 clarification_not_needed（cursor1248），不要重复领取或继续声称等待安装授权；需新对话加载新 MCP 后再推进。未批准 DD 提案或修改真实 Goal。详见 `../molis-work-coverage-clarifier/validation.md` 的现用更新段。
 
-- **覆盖澄清源码修复完成，现用入口未升级（2026-09-06）**。用户“确认修复”已授权实现；不能再称等待修复授权。见 `../goalboard-coverage-clarifier/spec.md` 与 `validation.md`：Goals Plugin 共用 coverage freshness，领取/Explain/work-state/Dialogue 一致，覆盖有效的已完成父项仍拒绝；待用户决定也不再误报 ready。150 个不同测试通过，类型及包边界通过。未改真实项目、未升级当前安装，现用 MCP 的 blocker 尚不能宣称解除；加载修复需要安装/重启授权。
+- **覆盖澄清源码修复完成，现用入口未升级（2026-09-06）**。用户“确认修复”已授权实现；不能再称等待修复授权。见 `../molis-work-coverage-clarifier/spec.md` 与 `validation.md`：Goals Plugin 共用 coverage freshness，领取/Explain/work-state/Dialogue 一致，覆盖有效的已完成父项仍拒绝；待用户决定也不再误报 ready。150 个不同测试通过，类型及包边界通过。未改真实项目、未升级当前安装，现用 MCP 的 blocker 尚不能宣称解除；加载修复需要安装/重启授权。
 
 - **Assurance 工程验证93项通过，范围修订入口受阻（2026-09-06）**：见 `assurance-validation.md`。新增完整离线Home恢复与缺密钥拒绝测试，中英文恢复文档已补。用户已明确“留到后续，本期只重组现有功能”，只指Outbox实现/重放，不能再问这同一范围决定。当前canonical assurance rev1 valid/unmet；executor Run已abandoned/释放，不假报完成。根coverage projection显示clarify ready，但原样select返回clarification_not_needed，explain确认同样拒绝，无新Claim。需要修复正式入口矛盾才能修改验收；不能通过CLI/SQLite、换Actor、新建空壳Goal或DD提案绕过。完整总目标保持未完成，测试进程均已结束。
 
@@ -136,13 +136,13 @@ DD2 完成记录见本节顶部，不使用历史检查点租期恢复执行。
 
 ## DV4 已有证据与待授权步骤
 
-- DV4 发布 tooling 已迁 Apps；旧孤立 npm payload 构建已改为 Local Host 自包含 release。干净副本 `/private/tmp/goalboard-dv4-clean.ITjqKC` 已通过锁文件 118 项供应链策略、全部 48 包+root 构建、Plugin CLI bin/manifest、官方 Node 下载校验和 Tauri App/DMG 构建。使用 Tauri Local Development 签名，公证因无凭据跳过；没有公开发布。
-- npm workspace:* 分发失败已修复：App Local Host npm staging + root `pnpm package:npm`，35 个内部/vendor 包随包交付，外部原生依赖由目标环境正常安装。干净副本完整构建/打包与 `/private/tmp/goalboard-dv4-npm-consumer.JbALTN` 正常安装、npm ls、真实 CLI/PTY/SQLite/方法/Home/MCP 验证成功，含升级/故障回滚/版本恢复/demo 数据比较/卸载预览确认。`tests/npm-package.test.ts` 通过；显式端到端复验命令 `node tests/npm-distribution-smoke.mjs /absolute/consumer`。首测裸 node-pty 绕过既有 helper 初始化，已改用真实 GoalBoardPtyHost；没有生产补丁。旧失败产物仅作历史复现在 `/private/tmp/goalboard-dv4-npm.iJUCGg`。
+- DV4 发布 tooling 已迁 Apps；旧孤立 npm payload 构建已改为 Local Host 自包含 release。干净副本 `/private/tmp/molis-work-dv4-clean.ITjqKC` 已通过锁文件 118 项供应链策略、全部 48 包+root 构建、Plugin CLI bin/manifest、官方 Node 下载校验和 Tauri App/DMG 构建。使用 Tauri Local Development 签名，公证因无凭据跳过；没有公开发布。
+- npm workspace:* 分发失败已修复：App Local Host npm staging + root `pnpm package:npm`，35 个内部/vendor 包随包交付，外部原生依赖由目标环境正常安装。干净副本完整构建/打包与 `/private/tmp/molis-work-dv4-npm-consumer.JbALTN` 正常安装、npm ls、真实 CLI/PTY/SQLite/方法/Home/MCP 验证成功，含升级/故障回滚/版本恢复/demo 数据比较/卸载预览确认。`tests/npm-package.test.ts` 通过；显式端到端复验命令 `node tests/npm-distribution-smoke.mjs /absolute/consumer`。首测裸 node-pty 绕过既有 helper 初始化，已改用真实 MolisWorkPtyHost；没有生产补丁。旧失败产物仅作历史复现在 `/private/tmp/molis-work-dv4-npm.iJUCGg`。
 - DMG 已通过真实安装脚本复制到临时 installed-apps，并用复制后的 App 内 Node/CLI 安装临时 dmg-user-home；installed/self_contained 与实际 CLI 启动成功。没有打开 App GUI、没有替换用户 Applications/Home。所有本轮 build/test/install 进程已终止，临时副本与产物保留用于后续验收。当前工作区的 `pnpm` 自动安装问题未通过删除 node_modules 规避；正式干净副本链已实证通过。
-- 最新完整 macOS release 命令两种签名环境都成功：保留 Tauri Local Development、以及未设置身份时默认 `-` 的真实 ad-hoc。DMG/zip/SHA256、解包 App 签名和正式 DMG 临时安装通过；最终产物在干净副本 release/macos，解包/安装在 `/private/tmp/goalboard-dv4-release-check.tmaj5v`。先前 sandbox 证书校验失败已在正常获准环境对同一 App 验证成功，不是包损坏；不可继续误报默认环境没设签名身份。
-- GUI 首启需暂停当前 4173 服务的明确授权：Desktop 和 LaunchAgent 固定端口/label，临时 GOALBOARD_HOME 不足以隔离。已确认用户服务运行中，没有停止它。待允许后只暂停现有服务、临时 Home 测试、清除本次临时服务并恢复原服务，不擅自更新用户 Home/项目/Runtime 配置。未获授权时该验证步骤保持未完成。
+- 最新完整 macOS release 命令两种签名环境都成功：保留 Tauri Local Development、以及未设置身份时默认 `-` 的真实 ad-hoc。DMG/zip/SHA256、解包 App 签名和正式 DMG 临时安装通过；最终产物在干净副本 release/macos，解包/安装在 `/private/tmp/molis-work-dv4-release-check.tmaj5v`。先前 sandbox 证书校验失败已在正常获准环境对同一 App 验证成功，不是包损坏；不可继续误报默认环境没设签名身份。
+- GUI 首启需暂停当前 4173 服务的明确授权：Desktop 和 LaunchAgent 固定端口/label，临时 MOLIS_WORK_HOME 不足以隔离。已确认用户服务运行中，没有停止它。待允许后只暂停现有服务、临时 Home 测试、清除本次临时服务并恢复原服务，不擅自更新用户 Home/项目/Runtime 配置。未获授权时该验证步骤保持未完成。
 # 2026-09-06 本轮最新补充
 
 用户明确“修”后，桌面重启确认框及 Web 自重启失败已修复，并通过实际 DMG 安装 App：取消保持 PID，确认后 48298→48829，受管服务 healthy/running/owned，退出重开正常。08:09:49 UTC 原服务恢复、配置字节不变。详见 `dv4-restart-repair.md`。旧“等待是否修复”说明已失效。
 
-用户随后明确新增修复：首次引导左上角品牌与红黄绿重叠、未垂直对齐。已修复并完成实际 App 验证，见 `../onboarding-native-titlebar/spec.md`；不改其他标题栏或引导功能。最终合并包为当前工作区 `release/macos/GoalBoard-0.1.14-macos-arm64.dmg`，仅在临时目录安装测试。
+用户随后明确新增修复：首次引导左上角品牌与红黄绿重叠、未垂直对齐。已修复并完成实际 App 验证，见 `../onboarding-native-titlebar/spec.md`；不改其他标题栏或引导功能。最终合并包为当前工作区 `release/macos/Molis Work-0.1.14-macos-arm64.dmg`，仅在临时目录安装测试。

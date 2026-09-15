@@ -1,5 +1,5 @@
 import { findGoalsFragmentItem, goalsReadCollection, type GoalsFragmentItem, type GoalsPageCollections,
-  type GoalDocumentCollection } from "@adeptify/goalboard-plugin-goals";
+  type GoalDocumentCollection } from "@molis-ai/molis-work-plugin-goals";
 
 interface FragmentView<TItem extends GoalsFragmentItem> extends GoalsPageCollections<TItem> {
   route_prefix: string;
@@ -22,7 +22,7 @@ export function createWorkbenchGoalsFragmentRenderer<TItem extends GoalsFragment
       if (!item) return null;
       return prefix(collection === "trash" ? owners.trash(item) : owners.document(item, view), view);
     },
-    renderGoalBoardMomentumFragment(view: TView, goalId: string, collection: GoalDocumentCollection = "current"): string | null {
+    renderMolisWorkMomentumFragment(view: TView, goalId: string, collection: GoalDocumentCollection = "current"): string | null {
       if (collection === "trash") return null;
       return prefix(owners.momentum(view, goalId, goalsReadCollection<TItem>(view, collection)), view);
     },

@@ -42,7 +42,7 @@
 
 - 输入：当前 Goal、Contract Proposal、Goal Tree Proposal 条目、Candidate、现有 Goal 关系和本地化函数。
 - 输出：三类默认可见短例子及其响应式样式。
-- 依赖：现有决定中心渲染、`GoalBoardWebView` 和 i18n 字典。
+- 依赖：现有决定中心渲染、`MolisWorkWebView` 和 i18n 字典。
 
 ## 文件边界
 

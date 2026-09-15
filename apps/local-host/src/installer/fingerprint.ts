@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-export interface GoalBoardBuildManifest {
+export interface MolisWorkBuildManifest {
   schema_version: 1;
   source_digest: string;
   created_at: string;
@@ -36,13 +36,13 @@ async function exists(file: string): Promise<boolean> {
   catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return false; throw error; }
 }
 
-export async function writeGoalBoardBuildManifest(packageRoot: string): Promise<GoalBoardBuildManifest> {
-  const manifest: GoalBoardBuildManifest = {
+export async function writeMolisWorkBuildManifest(packageRoot: string): Promise<MolisWorkBuildManifest> {
+  const manifest: MolisWorkBuildManifest = {
     schema_version: 1,
     source_digest: await computeBuildSourceDigest(packageRoot),
     created_at: new Date().toISOString(),
   };
-  const target = path.join(packageRoot, "dist", ".goalboard-build.json");
+  const target = path.join(packageRoot, "dist", ".molis-work-build.json");
   await fs.writeFile(target, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
   return manifest;
 }

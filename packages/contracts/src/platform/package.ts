@@ -22,7 +22,7 @@ export interface ContractDescriptor {
 }
 
 export const packageContract = {
-  contractId: "io.goalboard.platform.package.v1",
+  contractId: "io.molis.work.platform.package.v1",
   kind: "platform",
   schemaVersion: 1,
   maturity: "contract-only",

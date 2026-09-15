@@ -1,12 +1,12 @@
 import type {
   GoalsQueryApi,
   ProjectGuidanceView,
-} from "@adeptify/goalboard-contracts/modules/goals";
+} from "@molis-ai/molis-work-contracts/modules/goals";
 
 import type { BoardSnapshot, GoalContractView } from "./goal-entry-contract.js";
-import type { GoalPolicy, GoalRecord } from "@adeptify/goalboard-contracts/modules/goals";
-import type { GoalTreeProposalRecord } from "@adeptify/goalboard-contracts/modules/governance-collaboration";
-import type { ExecutionClaimRecord as ClaimRecord, ExecutionRunRecord as RunRecord } from "@adeptify/goalboard-contracts/modules/execution";
+import type { GoalPolicy, GoalRecord } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalTreeProposalRecord } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+import type { ExecutionClaimRecord as ClaimRecord, ExecutionRunRecord as RunRecord } from "@molis-ai/molis-work-contracts/modules/execution";
 
 export interface GoalReadApplicationPorts {
   now(): Date;

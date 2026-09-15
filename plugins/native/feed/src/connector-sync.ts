@@ -1,5 +1,5 @@
-import { FeedDomainError } from "@adeptify/goalboard-contracts/modules/feed";
-import { ListenerHostError, type ListenerRunReceipt } from "@adeptify/goalboard-contracts/services/listener-host";
+import { FeedDomainError } from "@molis-ai/molis-work-contracts/modules/feed";
+import { ListenerHostError, type ListenerRunReceipt } from "@molis-ai/molis-work-contracts/services/listener-host";
 import type { FeedApplication } from "./application.js";
 import type { FeedSourceRecord } from "./projection.js";
 import type { FeedSourceSyncResult } from "./source-ports.js";

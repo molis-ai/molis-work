@@ -3,21 +3,21 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
-  GOALBOARD_DENSITY_STORAGE_KEY,
-  GOALBOARD_TERMINAL_THEME_STORAGE_KEY,
-  GOALBOARD_THEME_STORAGE_KEY,
+  MOLIS_WORK_DENSITY_STORAGE_KEY,
+  MOLIS_WORK_TERMINAL_THEME_STORAGE_KEY,
+  MOLIS_WORK_THEME_STORAGE_KEY,
   THEME_BOOTSTRAP_SCRIPT,
   VISUAL_FOUNDATION_CLIENT_SCRIPT,
   VISUAL_FOUNDATION_STYLES,
-} from "@adeptify/goalboard-design-system";
+} from "@molis-ai/molis-work-design-system";
 import {
-  renderGoalBoardProjectIndexStylesheet,
-  renderGoalBoardSettingsStylesheet,
-  renderGoalBoardWorkbenchStylesheet,
+  renderMolisWorkProjectIndexStylesheet,
+  renderMolisWorkSettingsStylesheet,
+  renderMolisWorkWorkbenchStylesheet,
 } from "./workbench-renderer-fixture.js";
 
 test("visual foundation keeps Light, Dark, and System as local presentation choices", () => {
-  assert.equal(GOALBOARD_THEME_STORAGE_KEY, "goalboard:theme");
+  assert.equal(MOLIS_WORK_THEME_STORAGE_KEY, "molis-work:theme");
   assert.match(THEME_BOOTSTRAP_SCRIPT, /localStorage\.getItem/);
   assert.match(THEME_BOOTSTRAP_SCRIPT, /prefers-color-scheme: dark/);
   assert.match(VISUAL_FOUNDATION_CLIENT_SCRIPT, /data-theme-option/);
@@ -29,7 +29,7 @@ test("visual foundation keeps Light, Dark, and System as local presentation choi
 });
 
 test("dependency proposal records use semantic colors in both themes", () => {
-  const stylesheet = renderGoalBoardWorkbenchStylesheet();
+  const stylesheet = renderMolisWorkWorkbenchStylesheet();
   assert.match(stylesheet, /\.dependency-proposal \{[^}]*background: var\(--paper\);[^}]*color: var\(--ink\);/);
   assert.match(stylesheet, /\.dependency-rationale div \{[^}]*border-top: 1px solid var\(--line\);/);
   assert.match(stylesheet, /\.dependency-evidence \{[^}]*border-top: 1px solid var\(--line\);/);
@@ -37,9 +37,9 @@ test("dependency proposal records use semantic colors in both themes", () => {
 });
 
 test("primary and danger buttons keep semantic foregrounds across Light and Dark", () => {
-  const projectIndexStyles = renderGoalBoardProjectIndexStylesheet();
-  const settingsStyles = renderGoalBoardSettingsStylesheet();
-  const workbenchStyles = renderGoalBoardWorkbenchStylesheet();
+  const projectIndexStyles = renderMolisWorkProjectIndexStylesheet();
+  const settingsStyles = renderMolisWorkSettingsStylesheet();
+  const workbenchStyles = renderMolisWorkWorkbenchStylesheet();
   assert.match(VISUAL_FOUNDATION_STYLES, /--action: #202023;[\s\S]*--action-ink: #fbfbfc;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /data-resolved-theme="dark"[\s\S]*--action: #f0f0f2;[\s\S]*--action-ink: #202023;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /--danger-action: var\(--red\);[\s\S]*--danger-action-ink: var\(--page\);/);
@@ -65,7 +65,7 @@ test("visual foundation ships one restrained Calm Desktop world across workbench
 });
 
 test("desktop Diagnostics cards keep content inset and actions grouped", () => {
-  const stylesheet = renderGoalBoardSettingsStylesheet();
+  const stylesheet = renderMolisWorkSettingsStylesheet();
   assert.match(stylesheet, /\.diagnostics-summary > div:first-child \{[^}]*align-items: flex-start;[^}]*justify-content: space-between;/);
   assert.doesNotMatch(stylesheet, /\.diagnostics-summary > div \{/);
   assert.match(
@@ -79,8 +79,8 @@ test("desktop Diagnostics cards keep content inset and actions grouped", () => {
 });
 
 test("visual foundation keeps Standard and Compact as local presentation choices", () => {
-  assert.equal(GOALBOARD_DENSITY_STORAGE_KEY, "goalboard:density");
-  assert.match(THEME_BOOTSTRAP_SCRIPT, /goalboard:density/);
+  assert.equal(MOLIS_WORK_DENSITY_STORAGE_KEY, "molis-work:density");
+  assert.match(THEME_BOOTSTRAP_SCRIPT, /molis-work:density/);
   assert.match(THEME_BOOTSTRAP_SCRIPT, /dataset\.density = density/);
   assert.match(VISUAL_FOUNDATION_CLIENT_SCRIPT, /data-density-option/);
   assert.match(VISUAL_FOUNDATION_CLIENT_SCRIPT, /applyDensity/);
@@ -101,11 +101,11 @@ test("visual foundation keeps Standard and Compact as local presentation choices
 });
 
 test("visual foundation keeps terminal appearance separate and local", () => {
-  assert.equal(GOALBOARD_TERMINAL_THEME_STORAGE_KEY, "goalboard:terminal-theme");
+  assert.equal(MOLIS_WORK_TERMINAL_THEME_STORAGE_KEY, "molis-work:terminal-theme");
   assert.match(THEME_BOOTSTRAP_SCRIPT, /dataset\.resolvedTerminalTheme/);
   assert.match(VISUAL_FOUNDATION_CLIENT_SCRIPT, /data-terminal-theme-option/);
   assert.match(VISUAL_FOUNDATION_CLIENT_SCRIPT, /applyTerminalTheme/);
-  assert.match(VISUAL_FOUNDATION_CLIENT_SCRIPT, /goalboard:terminal-theme-change/);
+  assert.match(VISUAL_FOUNDATION_CLIENT_SCRIPT, /molis-work:terminal-theme-change/);
   assert.match(VISUAL_FOUNDATION_CLIENT_SCRIPT, /localStorage\.setItem\(terminalThemeKey/);
 });
 
@@ -119,7 +119,7 @@ test("embedded onboarding Runtime exposes only the real TUI work surface", () =>
 test("live xterm sessions receive the selected terminal palette", () => {
   const ptyClientSource = readFileSync(new URL("../plugins/native/work/src/terminal/screens.ts", import.meta.url), "utf8");
   assert.match(ptyClientSource, /theme: terminalPalette\(\)/);
-  assert.match(ptyClientSource, /goalboard:terminal-theme-change/);
+  assert.match(ptyClientSource, /molis-work:terminal-theme-change/);
   assert.match(ptyClientSource, /term\.options\.theme = palette/);
   assert.match(ptyClientSource, /selectionBackground/);
   assert.match(ptyClientSource, /brightWhite/);
@@ -202,7 +202,7 @@ test("all desktop shells share one Codex-style two-row titlebar contract", () =>
 });
 
 test("narrow settings keep one compact readable navigation layer", () => {
-  const stylesheet = renderGoalBoardSettingsStylesheet();
+  const stylesheet = renderMolisWorkSettingsStylesheet();
   assert.match(
     stylesheet,
     /@media \(max-width: 760px\)[\s\S]*\.settings-desktop-project,[\s\S]*\.settings-desktop-heading,[\s\S]*\.settings-navigation > \.personal-sidebar-footer \{ display: none !important; \}/,

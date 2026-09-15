@@ -1,4 +1,4 @@
-# GoalBoard Desktop 单目录个人工作台改版
+# Molis Work Desktop 单目录个人工作台改版
 
 ## 背景与当前证据
 
@@ -11,11 +11,11 @@
 - 根目录的 Feed、Promotion、可视化工作区目前只替换左栏目录，右侧仍停留在旧 Goal，形成“左侧已经切换、右侧没有响应”的错误状态；
 - 标题栏虽然声明了 Tauri 拖动权限，但左右实际可命中的空白拖动区分别只有最小 12px 和固定 48px，正常窗口宽度下近似不可用；
 - 标题栏曾把 `trafficLightPosition.y = 16` 错当成原生按钮中心线；改为 `24` 后，真实 2× Retina 安装包截图仍测得原生按钮中心约为 21.75 CSS px，而 Web 控件中心在 24px，相差 5 个物理像素。Web 控件因此需要独立校准到 21.5px，而不是继续假设配置值就是可见中心；
-- 本机同时存在 `~/Applications/GoalBoard.app` 与 `/Applications/GoalBoard.app` 时，启动脚本优先前者；若只更新后者，用户仍会打开旧版本；
+- 本机同时存在 `~/Applications/Molis Work.app` 与 `/Applications/Molis Work.app` 时，启动脚本优先前者；若只更新后者，用户仍会打开旧版本；
 - 旧 Desktop App 在 4173 服务重启的短暂空窗中会重新运行其内置安装器；同版本内置 Runtime 因内容摘要不同而覆盖刚安装的本地新构建，造成源码、安装目录和实际页面反复回退；
 - Desktop 从本地开发安装启动 Web 时，Legacy Node launcher 会再 spawn 真正的 server；App 退出若只强杀 launcher，server 会变成 PPID 1 的孤儿并继续占用 4173，随后 LaunchAgent 无法接管；
 - Desktop 项目页当前把 `Goals` 作为初始左栏目录，并恢复旧版保存的 `directory: goals`；因此即使新包已经安装，用户打开项目仍直接看到 Goal Tree，根目录工作台被藏在返回箭头后，视觉上与旧版几乎一致；
-- Desktop 请求曾写入一年有效期的 `goalboard-desktop` Cookie，导致同一浏览器随后访问普通 Web 也被错误识别成 Desktop；响应式聚焦页因此丢失项目切换入口；
+- Desktop 请求曾写入一年有效期的 `molis-work-desktop` Cookie，导致同一浏览器随后访问普通 Web 也被错误识别成 Desktop；响应式聚焦页因此丢失项目切换入口；
 - Desktop 与普通 Web 仍保留了两套项目壳层：Desktop 使用新版单目录工作台，Web 使用旧 Goal Tree。原生窗口一旦丢失 `desktop=1` 就直接暴露旧壳层；真实 Footballnia 页面已经复现。根因不是缺少更多身份补丁，而是同一个产品不该继续维护两套互相漂移的主界面；
 - 同壳层完成后，原生安全区仍由服务端是否看到 `desktop=1` 决定；进入 Goal、Inbox 跳转、归档、恢复、新建项目或 Web 服务恢复等完整页面导航会丢失该参数，随后 CSS 把标题栏左内缩从原生安全值降到普通 Web 的 `2px`，项目图标和标题再次被 traffic lights 遮挡；
 - Desktop 设置页仍使用“原生标题栏安全空行 + 下一行项目卡片”的旧结构，项目切换下沉并与设置标题重复；主工作台的项目控件左侧安全距离也不足，会与 traffic lights 重叠；
@@ -38,7 +38,7 @@
 
 ## 用户结果
 
-用户打开 GoalBoard Desktop 后只面对两个稳定区域：
+用户打开 Molis Work Desktop 后只面对两个稳定区域：
 
 1. **左侧唯一目录**：原生标题栏内直接选择项目和进入项目设置；标题栏下在工作台根目录、Goals、Goal Tree 或设置目录之间逐级切换；底部固定为本地身份和全局设置。
 2. **右侧项目工作面**：顶部是当前项目保存的 Inbox / Goal / 设置标签，下面显示 Inbox 列表、一条 Goal 的完整详情、设置文档或现有 Runtime 工作面。
@@ -54,7 +54,7 @@ THESIS: 只有一个目录入口，项目中的多条 Goal 在右侧复用；拒
 OWN-WORLD: 石墨目录、深浅同源的柔和工作面、克制钴蓝焦点、系统字体、Lucide 图标、阴影与色面区分层级，尽量减少结构线。
 STORY: 先选择项目和工作类型，再在 Goals 中展开真实 Goal Tree；打开的 Goal 作为项目标签留在右侧，详情首屏直接回答结果、原因、运转和下一步。
 FIRST VIEWPORT: 约 310px 单目录与剩余标签工作面；项目切换在 macOS 标题栏红黄绿按钮右侧，账户和全局设置贴左下，Inbox / Goal 标签在右上，Goal 详情以柔和分块连续展开。
-FORM: Operate 模式的 single-directory project-tab workbench，方向由 2026-08-29 用户确认的交互原型锁定（seed=goalboard-desktop-single-directory-project-tabs-2026-08-29）。
+FORM: Operate 模式的 single-directory project-tab workbench，方向由 2026-08-29 用户确认的交互原型锁定（seed=molis-work-desktop-single-directory-project-tabs-2026-08-29）。
 FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md
 ```
 
@@ -86,7 +86,7 @@ Desktop 与普通 Web 的宽屏界面共用一个目录列：
 - 选择 Goal 继续复用现有异步文档载入、History、Goal-bound Runtime 和写操作，不复制领域状态；
 - Feed、Promotion、可视化工作区作为项目内 utility 工作面打开；其占位内容、标签和左栏当前态同步切换，Goal 工作面继续留在 DOM 中。再次选择 Goal 标签或 Goals 目录时，恢复切换前的详情子页、滚动位置和 Runtime 会话；
 - Inbox 继续使用真实 `/decisions` 路由。离开 Goal 页面前保存项目级 Goal UI 状态，Inbox 使用独立的页面 UI 状态键，不能覆盖最近 Goal；从 Inbox 选择 Goals 时回到最近 Goal；
-- Inbox 当前使用 `/decisions` 作为真实数据路由，但用户界面统一命名为 `Inbox`；待决定处理仍写入原有 GoalBoard 领域状态，不创建第二份 Inbox 数据；
+- Inbox 当前使用 `/decisions` 作为真实数据路由，但用户界面统一命名为 `Inbox`；待决定处理仍写入原有 Molis Work 领域状态，不创建第二份 Inbox 数据；
 - 设置页在 Desktop 中也表现为可关闭的工作面标签，关闭或返回后回到项目 Goal；
 - 窄屏继续使用现有 Goals / Focus / Runtime Companion，不强行显示桌面标签条。
 
@@ -127,7 +127,7 @@ Desktop 与普通 Web 的宽屏界面共用一个目录列：
 - `desktop=1` 或 Desktop 请求头只启用原生增强：macOS traffic lights 安全距离、可拖动标题栏和 Tauri 窗口能力。它们不再决定用户看到哪套产品界面；
 - 原生增强不能只依赖服务端 URL 标记：页面在 stylesheet 生效前通过 Tauri 注入对象自识别原生环境，完整页面跳转统一保留 `desktop=1`，服务恢复也必须把当前 loopback URL 归一化为 Desktop URL。普通 Web 不获得原生安全区；
 - 普通 Web 在宽屏直接使用同一项目下拉和单目录工作台；760px 以下继续折叠为同一 DOM 的 Companion 视图，不另建旧版导航；
-- 旧 `goalboard_desktop` Cookie 不再读取或写入，桌面正确性也不依赖每条链接都追加查询参数；
+- 旧 `molis_work_desktop` Cookie 不再读取或写入，桌面正确性也不依赖每条链接都追加查询参数；
 - Desktop 内置 Runtime 只在首次缺失或版本号严格升级时写入本机安装；旧 App 不得以同版本内容覆盖本地新构建。内置版本升级后要重启已有的受管 Web 服务，让当前 App 与 4173 立即使用同一 release；
 - Desktop 自行启动的 Web launcher 使用独立进程组；窗口退出、替换或恢复时先向 launcher 与整个进程组发送 TERM，超时才 KILL，不能遗留占用 4173 的 server 孤儿进程；
 - 项目首页、项目设置和全局设置复用可缓存的静态样式资源，不在每个 HTML 响应中重复传输整份视觉基础样式；
@@ -160,7 +160,7 @@ Desktop 与普通 Web 的宽屏界面共用一个目录列：
 
 ### 输入
 
-- `GoalBoardWebView`、当前项目、当前 Goal 和 route flags；
+- `MolisWorkWebView`、当前项目、当前 Goal 和 route flags；
 - 现有 Goal Tree、决定数量、设置页面数据；
 - 现有 Session UI state 和项目 route prefix。
 
@@ -172,7 +172,7 @@ Desktop 与普通 Web 的宽屏界面共用一个目录列：
 - 当前右侧工作面（goal / inbox / feed / promotion / visual）及各工作面的滚动位置；
 - 当前设置工作面返回目标。
 
-这些状态只进入 `sessionStorage` 或 `localStorage`，不成为 GoalBoard SSOT，也不修改 SQLite。
+这些状态只进入 `sessionStorage` 或 `localStorage`，不成为 Molis Work SSOT，也不修改 SQLite。
 
 ### 允许修改
 
@@ -216,7 +216,7 @@ Desktop 与普通 Web 的宽屏界面共用一个目录列：
 11. Desktop 的当前、上下文、进展、关系和记录标签内容默认撑满可用宽度和剩余视口高度；活动 section 覆盖整个 stage，非活动 section 不额外占用 Grid 行；高窗口不受 `590px / 760px` 一类固定上限截断，短内容不再在卡片下方留下大片无归属空白，窄屏不被强制拉高。
 12. 复合父 Goal 的 Runtime 可见界面只保留子 Goal 选择与必要说明，不显示添加终端、终端操作条、空终端画布和 Runtime 菜单；叶子 Goal 仍可正常打开终端。为支持同页切换回叶子 Goal，终端结构可以留在 DOM 中，但必须从布局和可访问树隐藏。
 13. 在 Goal 页选择 Feed、Promotion 或可视化工作区时，右侧显示同名 utility 标签与真实“规划中”占位工作面；切回任一 Goal 标签后，Goal 详情子页、滚动位置和 Runtime 状态保持。Inbox 与 Goals 相互切换时不互相覆盖各自的 session UI 状态。
-14. 本地安装验证必须读取实际启动优先级最高的 `~/Applications/GoalBoard.app` 版本和内置 Runtime 版本；重新打开后健康服务与页面静态资源来自本轮构建，不能只证明 DMG 已生成或 `/Applications` 中另一个副本已更新。
+14. 本地安装验证必须读取实际启动优先级最高的 `~/Applications/Molis Work.app` 版本和内置 Runtime 版本；重新打开后健康服务与页面静态资源来自本轮构建，不能只证明 DMG 已生成或 `/Applications` 中另一个副本已更新。
 15. Desktop 首次打开项目或从旧导航状态升级时，左栏默认展示 Inbox、Goals、Feed、Promotion、可视化工作区根目录，右侧仍显示最近 Goal；明确进入 Goals 后，在同一会话内切换 Goal、Feed、Promotion、Inbox 再返回时继续恢复 Goal Tree、详情页签、滚动位置和 Runtime 状态。
 16. 同一项目 URL 无论是否携带 `desktop=1`，都渲染同一套单目录工作台；带参数时只多出原生拖动区与 traffic lights 安全距离，不允许出现旧 Goal Tree 壳层。
 17. 项目管理页使用响应式紧凑项目卡片网格，常规宽屏固定 4 列，中等宽度为 3 / 2 列，窄屏单列；项目首页与设置页的共享视觉 CSS 通过带 ETag 的静态资源复用，重复导航不再传输整份内联样式，页面 HTML 体积相较当前基线明显下降。
@@ -238,9 +238,9 @@ Desktop 与普通 Web 的宽屏界面共用一个目录列：
 - 复合父 Goal Runtime：只显示子 Goal 列表且无终端控件或空画布；叶子 Goal Runtime 回归添加终端与现有会话；
 - macOS Desktop 真实窗口：用截图测量 traffic lights 与项目图标、名称、下拉箭头、设置按钮的垂直中心误差（≤1px），并检查项目下拉、项目设置点击、空白处拖动窗口；
 - Desktop 真实窗口依次点击 Promotion → Feed → Goals → Inbox → Goals，核对左栏当前态、右侧标签/内容同步，并确认 Goal 详情页签、滚动位置和 Runtime 会话恢复；
-- 重新安装后读取 `~/Applications/GoalBoard.app/Contents/Info.plist` 与内置 `goalboard-runtime/package.json`，启动后核对 `/health` 和运行进程工作目录；
+- 重新安装后读取 `~/Applications/Molis Work.app/Contents/Info.plist` 与内置 `molis-work-runtime/package.json`，启动后核对 `/health` 和运行进程工作目录；
 - 普通 Web 与 720px Companion 回归；
-- 带旧 `goalboard-desktop` Cookie 的普通 Web 请求回归，确认 Cookie 不再参与界面分支且响应不再写 Cookie；
+- 带旧 `molis-work-desktop` Cookie 的普通 Web 请求回归，确认 Cookie 不再参与界面分支且响应不再写 Cookie；
 - 记录项目首页、项目设置、Goal 页修改前后的 HTML 字节数、TTFB 和浏览器导航耗时；连续切换项目/设置/Goal 时检查没有重复同步 Runtime 探测；
 - 项目管理页宽屏四列、中等宽度三列/两列与窄屏单列卡片截图；Light 模式检查页面底色、卡片描边、阴影方向与强度一致；
 - Light / Dark 批量检查项目、Goal、待决定、项目说明、规划方法、来源和 Runtime 中的主操作、危险操作、hover、focus、disabled 与 loading 状态；
@@ -249,5 +249,5 @@ Desktop 与普通 Web 的宽屏界面共用一个目录列：
 
 ## 假设与开放问题
 
-- 本轮项目下拉只消费 `GoalBoardWebView.projects` 中的现有项目目录数据，不复制项目 SSOT；未来 Cloud/Team 可在同一项目选择工作流中扩展。
+- 本轮项目下拉只消费 `MolisWorkWebView.projects` 中的现有项目目录数据，不复制项目 SSOT；未来 Cloud/Team 可在同一项目选择工作流中扩展。
 - `/decisions` 是 Inbox 当前真实内容来源；Feed、Promotion 和同步输入的实体与工作流仍需独立设计，本轮不写假数据。

@@ -1,4 +1,4 @@
-import { GOALS_PANELS_CLIENT_FACTORY_SCRIPT, GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT } from "@adeptify/goalboard-plugin-goals";
+import { GOALS_PANELS_CLIENT_FACTORY_SCRIPT, GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-goals";
 /** AP3 Workbench client segment: documents-state. */
 export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) => error instanceof DOMException && error.name === "AbortError";
 
@@ -9,7 +9,7 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
       showError: (message) => showToast(message, true),
       showStatus: (message) => showToast(message, false),
       reloadDocument: (goalId, restore) => reloadGoalEventDocument(goalId, restore),
-      controlHeaders: () => (typeof goalboardControlHeaders === "function" ? goalboardControlHeaders() : { "content-type": "application/json" }),
+      controlHeaders: () => (typeof molisWorkControlHeaders === "function" ? molisWorkControlHeaders() : { "content-type": "application/json" }),
     });
     const bindGoalEventDocument = (...args) => goalEventDocumentApi.bindGoalEventDocument(...args);
     const openEventReader = (name) => goalEventDocumentApi.openEventReader(name);
@@ -47,22 +47,12 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
     const decisionActionSelector = "[data-goal-tree-decision-form]";
 
     const activateDecisionFeedItem = (itemId) => {
-      setFeedPreset("inbox_message", false);
-      setDesktopDirectory("feed", false, false);
-      if (desktopWorkSurfaces.length) setDesktopWorkSurface("feed", false, false);
-      if (matchMedia("(max-width: 760px)").matches) setMobileView("document");
-      let row = [...feedList.querySelectorAll("[data-feed-entry-id]")]
-        .find((candidate) => candidate.dataset.feedEntryId === itemId);
-      if (row?.hidden) {
-        if (feedSearch) feedSearch.value = "";
-        if (feedSourceFilter) feedSourceFilter.value = "all";
-        if (feedStatusFilter) feedStatusFilter.value = "active";
-        filterFeedItems(false);
-        row = [...feedList.querySelectorAll("[data-feed-entry-id]")]
-          .find((candidate) => candidate.dataset.feedEntryId === itemId);
+      const goalId = String(itemId || "").startsWith("decision:") ? String(itemId).slice("decision:".length) : "";
+      if (goalId) {
+        location.assign(route("/goals/" + encodeURIComponent(goalId)));
+        return null;
       }
-      if (row && !row.hidden) selectFeedItem(itemId);
-      return row;
+      return null;
     };
 
     const revealDeepLinkTarget = (target) => {
@@ -94,17 +84,14 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
     };
 
     const revealDeepLinkFromId = async (targetId, behavior = "auto") => {
-      let target = deepLinkTargetFromId(targetId);
-      const legacyDecisionGoalId = decisionView && targetId?.startsWith("decision-goal-")
+      const legacyDecisionGoalId = targetId?.startsWith("decision-goal-")
         ? targetId.slice("decision-goal-".length)
         : "";
-      if (!target && legacyDecisionGoalId && feedList && feedWorkbench) {
-        const itemId = "decision:" + legacyDecisionGoalId;
-        activateDecisionFeedItem(itemId);
-        if (!(await ensureFeedWorkbenchLoaded())) return null;
-        target = [...feedWorkbench.querySelectorAll("[data-feed-detail]")]
-          .find((candidate) => candidate.dataset.feedDetail === itemId) || null;
+      if (legacyDecisionGoalId) {
+        location.assign(route("/goals/" + encodeURIComponent(legacyDecisionGoalId)));
+        return null;
       }
+      let target = deepLinkTargetFromId(targetId);
       if (!target) return null;
       const scrollTarget = revealDeepLinkTarget(target);
       requestAnimationFrame(() => {
@@ -217,17 +204,17 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
       desktopSurfaceScroll = ui?.surfaceScroll && typeof ui.surfaceScroll === "object" ? { ...ui.surfaceScroll } : {};
       if (ui?.documentTop != null && desktopSurfaceScroll.goal == null) desktopSurfaceScroll.goal = Number(ui.documentTop || 0);
       goalWorkspaceMode = ui?.workspaceMode || "focus";
-      const requestedDesktopSurface = ui?.workSurface || (decisionView ? "feed" : "goal");
-      const nextDesktopSurface = desktopWorkSurfaces.some((candidate) => candidate.dataset.workSurface === requestedDesktopSurface)
+      const requestedDesktopSurface = ui?.workSurface || (decisionView ? "inbox" : "goal");
+      let nextDesktopSurface = desktopWorkSurfaces.some((candidate) => candidate.dataset.workSurface === requestedDesktopSurface)
         ? requestedDesktopSurface
-        : decisionView ? "feed" : "goal";
+        : decisionView ? "inbox" : "goal";
       if (ui?.treeWidth) setTreeWidth(ui.treeWidth, false);
       if (ui?.tuiWidth) setTuiWidth(ui.tuiWidth, false);
       setDirectoryCollapsed(ui?.directoryCollapsed === true, false);
       if (desktopDirectoryPanels.length) {
         const restoredDirectory = ui?.navigationVersion === desktopNavigationStateVersion
-          ? ui?.directory || (decisionView ? "feed" : "root")
-          : decisionView ? "feed" : "root";
+          ? ui?.directory || (decisionView ? "inbox" : "root")
+          : decisionView ? "inbox" : "root";
         setDesktopDirectory(restoredDirectory, false, false);
       }
       restoreTreeCollapsed(ui?.collapsed);
@@ -243,12 +230,11 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
       filterTree(ui?.query || "");
       if (feedDirectory) {
         const deepLinkedDecisionEntry = decisionFeedEntryFromHash();
-        activeFeedPreset = deepLinkedDecisionEntry ? "inbox_message" : ui?.feedPreset === "feed" ? "feed" : "inbox_message";
+        activeFeedPreset = "feed";
         const persistedPresets = ui?.feedPresets && typeof ui.feedPresets === "object"
           ? ui.feedPresets
           : {};
         feedPresetState = {
-          inbox_message: { ...defaultFeedPresetState(), ...(persistedPresets.inbox_message || {}) },
           feed: { ...defaultFeedPresetState(), ...(persistedPresets.feed || {}) },
         };
         if (!ui?.feedPresets) {
@@ -263,8 +249,8 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
           };
         }
         if (deepLinkedDecisionEntry) {
-          feedPresetState.inbox_message = {
-            ...feedPresetState.inbox_message,
+          feedPresetState.feed = {
+            ...feedPresetState.feed,
             selected: deepLinkedDecisionEntry,
             query: "",
             source: "all",

@@ -1,8 +1,8 @@
-# GoalBoard 复杂关系 Graph 高保真实现
+# Molis Work 复杂关系 Graph 高保真实现
 
 ## 完成等级
 
-本 Goal 达到 **内部可用的桌面 UI 切片（Level 4）**：真实 GoalBoard Desktop 可在 List 与 Graph 间切换，Graph 从现有 Goal 与 Relation 事实生成，并与右侧 Goal Focus 联动。
+本 Goal 达到 **内部可用的桌面 UI 切片（Level 4）**：真实 Molis Work Desktop 可在 List 与 Graph 间切换，Graph 从现有 Goal 与 Relation 事实生成，并与右侧 Goal Focus 联动。
 
 ## 背景与目标
 
@@ -25,7 +25,7 @@
 
 ## 关键决策
 
-Graph 的分区只表达相对“当前选中 Goal”的拓扑事实：指向当前节点的关系在左，当前节点居中，从当前节点继续指向的关系在右，不属于当前连通网络的 Goal 单独放在“其他 Goal”。完整网络用线型和底部图例说明关系类型，隐藏每条边的重复文字；聚焦模式保留边标签。缩放、筛选和聚焦只保存在浏览器会话状态，不写回 GoalBoard。
+Graph 的分区只表达相对“当前选中 Goal”的拓扑事实：指向当前节点的关系在左，当前节点居中，从当前节点继续指向的关系在右，不属于当前连通网络的 Goal 单独放在“其他 Goal”。完整网络用线型和底部图例说明关系类型，隐藏每条边的重复文字；聚焦模式保留边标签。缩放、筛选和聚焦只保存在浏览器会话状态，不写回 Molis Work。
 
 ## 验收标准
 

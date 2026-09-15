@@ -1,10 +1,10 @@
-import { SERVICE_LABEL, type GoalBoardWebServiceAction, type GoalBoardWebServiceDetection, type GoalBoardWebServicePlan } from "./web-service-contract.js";
+import { SERVICE_LABEL, type MolisWorkWebServiceAction, type MolisWorkWebServiceDetection, type MolisWorkWebServicePlan } from "./web-service-contract.js";
 
 export function planStatus(
-  action: GoalBoardWebServiceAction,
-  detection: GoalBoardWebServiceDetection,
+  action: MolisWorkWebServiceAction,
+  detection: MolisWorkWebServiceDetection,
   managedArtifactsAbsent: boolean,
-): GoalBoardWebServicePlan["status"] {
+): MolisWorkWebServicePlan["status"] {
   if (!detection.supported) return "unsupported";
   if (detection.state === "conflict") {
     if (action === "remove" && detection.owned) return "ready";
@@ -32,11 +32,11 @@ export function planStatus(
 }
 
 export function serviceChanges(
-  action: GoalBoardWebServiceAction,
-  detection: GoalBoardWebServiceDetection,
-  status: GoalBoardWebServicePlan["status"],
+  action: MolisWorkWebServiceAction,
+  detection: MolisWorkWebServiceDetection,
+  status: MolisWorkWebServicePlan["status"],
   plistPath: string,
-): GoalBoardWebServicePlan["changes"] {
+): MolisWorkWebServicePlan["changes"] {
   if (status !== "ready") return [];
   if (action === "install") return [
     ...(detection.state === "absent" || detection.state === "needs_repair" ? [{ operation: "create" as const, target: plistPath }] : []),
@@ -45,30 +45,30 @@ export function serviceChanges(
   return [{ operation: action, target: action === "remove" ? plistPath : SERVICE_LABEL }];
 }
 
-export function confirmationFor(action: GoalBoardWebServiceAction, detection: GoalBoardWebServiceDetection): string {
+export function confirmationFor(action: MolisWorkWebServiceAction, detection: MolisWorkWebServiceDetection): string {
   if (action === "install") return detection.state === "needs_repair"
     ? "确认更新旧配置并重新加载 macOS 用户级常驻 Web 服务"
     : "确认安装并启动 macOS 用户级常驻 Web 服务";
-  if (action === "remove") return "确认停止并移除 GoalBoard 创建的 LaunchAgent（项目数据和日志保留）";
-  return `确认${({ start: "启动", stop: "停止", restart: "重启" } as const)[action]} GoalBoard Web 常驻服务`;
+  if (action === "remove") return "确认停止并移除 Molis Work 创建的 LaunchAgent（项目数据和日志保留）";
+  return `确认${({ start: "启动", stop: "停止", restart: "重启" } as const)[action]} Molis Work Web 常驻服务`;
 }
 
-export function planMessage(action: GoalBoardWebServiceAction, status: GoalBoardWebServicePlan["status"], detection: GoalBoardWebServiceDetection): string {
+export function planMessage(action: MolisWorkWebServiceAction, status: MolisWorkWebServicePlan["status"], detection: MolisWorkWebServiceDetection): string {
   if (
     status === "conflict"
     && detection.state === "needs_repair"
     && (action === "start" || action === "restart")
   ) {
-    return `${detection.message}；${action} 只会重载旧配置，无法完成修复。请改用 goalboard service install --confirm 原子更新配置`;
+    return `${detection.message}；${action} 只会重载旧配置，无法完成修复。请改用 molis-work service install --confirm 原子更新配置`;
   }
   if (status === "unsupported" || status === "conflict") return detection.message;
   if (status === "no_change") return `无需操作：${detection.message}`;
-  if (action === "install" && detection.state === "needs_repair") return "准备修复旧配置并重新加载 GoalBoard Web 常驻服务";
-  return `准备${({ install: "安装并启动", start: "启动", stop: "停止", restart: "重启", remove: "移除" } as const)[action]} GoalBoard Web 常驻服务`;
+  if (action === "install" && detection.state === "needs_repair") return "准备修复旧配置并重新加载 Molis Work Web 常驻服务";
+  return `准备${({ install: "安装并启动", start: "启动", stop: "停止", restart: "重启", remove: "移除" } as const)[action]} Molis Work Web 常驻服务`;
 }
 
-export function resultMessage(action: GoalBoardWebServiceAction): string {
-  if (action === "install") return "GoalBoard Web 已作为 macOS 用户级服务运行；关闭终端或 Runtime Session 不会使它退出";
-  if (action === "remove") return "GoalBoard Web 常驻服务已移除；项目数据和日志仍保留";
-  return `GoalBoard Web 常驻服务已${({ start: "启动", stop: "停止", restart: "重启" } as const)[action]}`;
+export function resultMessage(action: MolisWorkWebServiceAction): string {
+  if (action === "install") return "Molis Work Web 已作为 macOS 用户级服务运行；关闭终端或 Runtime Session 不会使它退出";
+  if (action === "remove") return "Molis Work Web 常驻服务已移除；项目数据和日志仍保留";
+  return `Molis Work Web 常驻服务已${({ start: "启动", stop: "停止", restart: "重启" } as const)[action]}`;
 }

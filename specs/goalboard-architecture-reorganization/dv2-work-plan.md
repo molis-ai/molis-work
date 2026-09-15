@@ -1,6 +1,6 @@
 # DV2 — Skill 与 Runtime 正式协议迁移
 
-日期：2026-09-05。依据 GoalBoard accepted `goal-reorg-dv2` revision 1 与总 spec 的 DV2 定位，不另改 canonical 范围。
+日期：2026-09-05。依据 Molis Work accepted `goal-reorg-dv2` revision 1 与总 spec 的 DV2 定位，不另改 canonical 范围。
 
 ## 目标与证据
 

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { GoalsHttpContext } from "./types.js";
-import type { GoalsCommandApi } from "@adeptify/goalboard-contracts/modules/goals";
+import type { GoalsCommandApi } from "@molis-ai/molis-work-contracts/modules/goals";
 
 export async function handleGoalPolicyGuidanceHttp(context: GoalsHttpContext): Promise<boolean> {
   if (context.method === "GET" && context.pathname === "/api/project-guidance") {

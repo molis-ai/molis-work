@@ -7,13 +7,13 @@ import {
 import fs from "node:fs";
 import path from "node:path";
 
-import { atomicWriteFileSync } from "@adeptify/goalboard-storage";
-import { resolveFeedSecurityDirectory } from "@adeptify/goalboard-storage";
-import { createFileSecretStore, type SecretStore } from "@adeptify/goalboard-storage";
+import { atomicWriteFileSync } from "@molis-ai/molis-work-storage";
+import { resolveFeedSecurityDirectory } from "@molis-ai/molis-work-storage";
+import { createFileSecretStore, type SecretStore } from "@molis-ai/molis-work-storage";
 
 const CONTENT_KEY_REF = "system:feed:evidence-content-key:v1";
 const RECOVERY_CONTENT_KEY_REF = "system:feed:evidence-content-key:v2";
-const CONTENT_REF = /^goalboard-feed\/sha256\/([0-9a-f]{64})$/u;
+const CONTENT_REF = /^molis-work-feed\/sha256\/([0-9a-f]{64})$/u;
 const MAX_CONTENT_BYTES = 1024 * 1024;
 const ALG = "aes-256-gcm" as const;
 
@@ -83,7 +83,7 @@ export function createFeedEvidenceContentStore(options: {
         throw new Error("feed evidence content exceeds local retention limit");
       }
       const digest = createHash("sha256").update(markdown).digest("hex");
-      const contentRef = `goalboard-feed/sha256/${digest}`;
+      const contentRef = `molis-work-feed/sha256/${digest}`;
       const destination = blobPath(root, contentRef);
       if (fs.existsSync(destination)) {
         let existing: string | null = null;

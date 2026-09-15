@@ -10,4 +10,4 @@
 
 **当前来源与 Goal：** `horizontal/listener-host` 管技术状态；Native Feed SourceScheduler 与 ConnectorSync 编排轮询；Local Host Web timer 管运行生命周期。FD1/Cutover 已完成旧路径退出。
 
-**FD1 当前实现：** `@adeptify/goalboard-service-listener-host` 已保存独立 cursor、lease、durable delivery、attempt、retry、quarantine 与 Run。Raw Event 先落盘，再交 Adapter 形成 Draft；只有收到 Signals Receipt 后才确认 delivery 和推进 cursor。同 operation 可在重启后恢复，终态 replay 不再调用 Provider。
+**FD1 当前实现：** `@molis-ai/molis-work-service-listener-host` 已保存独立 cursor、lease、durable delivery、attempt、retry、quarantine 与 Run。Raw Event 先落盘，再交 Adapter 形成 Draft；只有收到 Signals Receipt 后才确认 delivery 和推进 cursor。同 operation 可在重启后恢复，终态 replay 不再调用 Provider。

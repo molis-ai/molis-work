@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "plugin_id": "io.goalboard.integration.web-query",
+  "plugin_id": "io.molis.work.integration.web-query",
   "version": "1.0.0",
   "name": "Web Query",
   "kind": "integration",

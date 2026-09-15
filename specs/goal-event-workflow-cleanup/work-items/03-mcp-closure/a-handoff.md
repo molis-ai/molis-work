@@ -50,7 +50,7 @@ Web POST `/api/goals/:id/event-report|event-note|event-resume` → 同一 Applic
 | `pnpm boundary:check` | EXIT 0；`03-a-boundary.log` errors `[]` |
 | 定向 A 测试 6 个文件 | 50 pass / 0 fail / 0 skip；`03-a-tests.log` |
 | stdin `03-web-acceptance.mjs` | PASS 非法标量 progress 400 无写入；completed/cancelled resume；`03-a-web.log` |
-| `GOALBOARD_ACCEPT_INJECTED=1` stdin `03-session-repair-acceptance.mjs` | PASS 原键补记一条 Session 活动；`03-a-session-repair.log` |
+| `MOLIS_WORK_ACCEPT_INJECTED=1` stdin `03-session-repair-acceptance.mjs` | PASS 原键补记一条 Session 活动；`03-a-session-repair.log` |
 | stdin `03-runtime-core-acceptance.mjs` | PASS 最短 Runtime 闭环/身份/原子 report/resume；`03-a-runtime-core.log` |
 
 未跑：主 `03-runtime-acceptance.mjs` 退役断言（B/C）、全仓、Skill、UI 走查。根已独立跑过 01/02 保护探针，本组未重跑。

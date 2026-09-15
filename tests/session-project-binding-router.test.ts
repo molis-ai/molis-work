@@ -1,17 +1,17 @@
-import { openGoalBoardProjectCatalog } from "@adeptify/goalboard-app-desktop";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import { mkdtemp, mkdir, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { type RuntimeWorkContext } from "@adeptify/goalboard-app-local-host";
+import { type RuntimeWorkContext } from "@molis-ai/molis-work-app-local-host";
 
 test("one exact workspace Project reconnects a fresh Runtime Session without writing a binding", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "goalboard-workspace-suggestion-"));
-  const home = path.join(directory, ".goalboard");
+  const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-workspace-suggestion-"));
+  const home = path.join(directory, ".molis-work");
   const workspacePath = path.join(directory, "repository");
   await mkdir(workspacePath, { recursive: true });
-  const catalog = await openGoalBoardProjectCatalog({ homeDirectory: home });
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   try {
     const project = await catalog.createProject({ display_name: "候选项目", actor_id: "user" });
     catalog.addWorkspaceProject({

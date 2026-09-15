@@ -2,7 +2,7 @@
 
 ## 背景与目标
 
-Runtime 接入在写入配置和 Skill 后，会真实启动 `goalboard-mcp`，依次完成 MCP `initialize` 与 `tools/list`，验证成功后才保存接入结果。当前整个握手只有固定 3 秒，完整测试并行负载下曾在 3.03 秒被误判失败并回滚；同一场景单独运行约 0.34 秒通过，完整套件复跑也通过，说明超时余量不足而不是稳定的协议错误。
+Runtime 接入在写入配置和 Skill 后，会真实启动 `molis-work-mcp`，依次完成 MCP `initialize` 与 `tools/list`，验证成功后才保存接入结果。当前整个握手只有固定 3 秒，完整测试并行负载下曾在 3.03 秒被误判失败并回滚；同一场景单独运行约 0.34 秒通过，完整套件复跑也通过，说明超时余量不足而不是稳定的协议错误。
 
 目标是给冷启动和机器负载保留合理余量，避免有效接入被误判回滚，同时继续保证真正无响应的 MCP 会在有限时间内失败。
 
@@ -39,7 +39,7 @@ Runtime 接入在写入配置和 Skill 后，会真实启动 `goalboard-mcp`，�
 
 ## 输入、输出与依赖
 
-- 输入：GoalBoard MCP launcher、Runtime ID、GoalBoard home、plan ID。
+- 输入：Molis Work MCP launcher、Runtime ID、Molis Work home、plan ID。
 - 输出：布尔验证结果，继续由 `RuntimeIntegrationService.confirm` 转换为 `connected` 或 `rolled_back`。
 - 依赖：Node 子进程、stdio JSON-RPC、已构建的 `dist/mcp/server.js`。
 

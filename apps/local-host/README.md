@@ -2,11 +2,11 @@
 
 把数据库、业务 Modules、横向服务和 Plugins 接成同一个本地产品。CLI、MCP、Web 要执行真实项目操作时，经这里取得已装配的能力。
 
-包名：`@adeptify/goalboard-app-local-host`。工作区内部包，通过仓库构建和 Host 装配使用。
+包名：`@molis-ai/molis-work-app-local-host`。工作区内部包，通过仓库构建和 Host 装配使用。
 
 ## 一次典型调用
 
-createGoalBoardLocalHost 为项目创建运行实例与 Host Client；同一项目复用运行实例，capability 调用进入受控队列。project-host 负责连接生命周期，project-capabilities 绑定各 owner；GoalProjectApplication 组合跨 Module 用例。Web 工厂在入口统一解析显式 Home、GOALBOARD_HOME 和默认目录。
+createMolisWorkLocalHost 为项目创建运行实例与 Host Client；同一项目复用运行实例，capability 调用进入受控队列。project-host 负责连接生命周期，project-capabilities 绑定各 owner；GoalProjectApplication 组合跨 Module 用例。Web 工厂在入口统一解析显式 Home、MOLIS_WORK_HOME 和默认目录。
 
 ## 从哪里读代码
 
@@ -28,21 +28,21 @@ createGoalBoardLocalHost 为项目创建运行实例与 Host Client；同一项�
 
 本包的装配依赖见 [package.json](package.json)；包之间的允许方向由仓库边界检查约束。
 
-安装/分发也由本包装配：installGoalBoardHome 要求显式 sourceDirectory；RuntimeIntegrationService 和 GoalBoardWebServiceManager 保留检测、计划、确认与恢复流程。Web 自重启先返回 202，再运行 afterResponse，不能在响应发出前停止当前进程。createGoalBoardNpmPackageDirectory 与 createGoalBoardRuntimePayload 分别准备 npm 和 Desktop 资产，不会自动发布。
+安装/分发也由本包装配：installMolisWorkHome 要求显式 sourceDirectory；RuntimeIntegrationService 和 MolisWorkWebServiceManager 保留检测、计划、确认与恢复流程。Web 自重启先返回 202，再运行 afterResponse，不能在响应发出前停止当前进程。createMolisWorkNpmPackageDirectory 与 createMolisWorkRuntimePayload 分别准备 npm 和 Desktop 资产，不会自动发布。
 
 PluginHostExecutor 提供私人存储、Artifact 和 UI clients；这是受信任的进程内开发执行。应用通过 openWorkSessionRegistry 组合 Work 与 Ledger，关闭 Registry 时释放其拥有的连接。
 
 ## SDK 兼容发布面
 
-`sdk/` 保留 0.1.x 的根 SDK 名称与类型别名；它独立于本包 `src/index.ts`，由根 `tsconfig.sdk.json` 编译到 `dist/index.js` 及对应声明。消费者仍使用 `@adeptify/goalboard`，内部代码继续使用明确的 Module/Host 入口。
+`sdk/` 保留 0.1.x 的根 SDK 名称与类型别名；它独立于本包 `src/index.ts`，由根 `tsconfig.sdk.json` 编译到 `dist/index.js` 及对应声明。消费者仍使用 `@molis-ai/molis-work`，内部代码继续使用明确的 Module/Host 入口。
 
 ## 本地开发
 
 以下命令在**仓库根目录**执行，使用 Node.js 24+ 与仓库配置的 pnpm。首次准备运行 `pnpm install --frozen-lockfile` 和 `pnpm build`；之后可单独检查此包。
 
 ```bash
-pnpm --filter @adeptify/goalboard-app-local-host typecheck
-pnpm --filter @adeptify/goalboard-app-local-host build
+pnpm --filter @molis-ai/molis-work-app-local-host typecheck
+pnpm --filter @molis-ai/molis-work-app-local-host build
 ```
 
 已有行为示例与回归：[local-host.test.ts](../../tests/local-host.test.ts)、[web-home-isolation.test.ts](../../tests/web-home-isolation.test.ts)。完成上述构建后运行：
@@ -59,7 +59,7 @@ node --import tsx --test --test-concurrency=1 tests/local-host.test.ts tests/web
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
 - Status: `partial`
-- Contract entrypoint: `@adeptify/goalboard-contracts/platform/app-host`
+- Contract entrypoint: `@molis-ai/molis-work-contracts/platform/app-host`
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-ap2`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。

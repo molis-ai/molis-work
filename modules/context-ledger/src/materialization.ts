@@ -1,7 +1,7 @@
 import type {
   ContextAccess, ContextEdge, ContextLedgerApi, ContextMaterializationApi, ContextMaterializedNode,
   ContextObjectRead, ContextRebuildRequest, ObjectRef,
-} from "@adeptify/goalboard-contracts/modules/context-ledger";
+} from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { ContextLedgerError, sameRef } from "./service.js";
 
 function identity(ref: ObjectRef): string {

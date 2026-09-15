@@ -6,7 +6,7 @@ Read when the task benefits from professional methods, decomposition, a tree cha
 
 Start from the intended result and its consumer. Identify the work type, professional domain, industry or operating constraints that change how a good result is produced and judged.
 
-Call goalboard_v1_planning_methods with include_instructions=false for the lightweight catalog. Respect user-configured composition.method_pack_ids, then add methods whose distinct checks materially apply. Retrieve the selected method_ids and read their instructions. The returned catalog_id and returned_method_ids help detect a changed catalog or omitted selected method. Do not load every method body by default.
+Call molis_work_v1_planning_methods with include_instructions=false for the lightweight catalog. Respect user-configured composition.method_pack_ids, then add methods whose distinct checks materially apply. Retrieve the selected method_ids and read their instructions. The returned catalog_id and returned_method_ids help detect a changed catalog or omitted selected method. Do not load every method body by default.
 
 Work type, domain, industry and situational overlays are complementary lenses, not serial phases or one Goal each. If a needed provider or professional check is missing, consult the relevant additional method. Do not turn an example method bundle into a mandatory product/software/data checklist.
 
@@ -53,12 +53,12 @@ Each item supplies at least one real source_refs entry, reason and confidence. A
 In the call notation from [execution.md](execution.md), with g naming an existing parent:
 
 ```javascript
-const proposalNote = await call("goalboard_v1_event_note", {
+const proposalNote = await call("molis_work_v1_event_note", {
   goal_id: g,
   body: "Proposal: a reusable receipt guide could help the buyer return to their receipt.",
   idempotency_key: "receipt-tree-source-1"
 });
-const proposal = await call("goalboard_v1_goal_tree_propose", {
+const proposal = await call("molis_work_v1_goal_tree_propose", {
   root_goal_id: g,
   summary: "Add a receipt guide as a separately usable part of the buying experience",
   items: [{
@@ -86,8 +86,8 @@ const proposal = await call("goalboard_v1_goal_tree_propose", {
   idempotency_key: "receipt-tree-1"
 });
 const proposalId = proposal.proposal.proposal_id;
-await call("goalboard_v1_goal_tree_read", {proposal_id: proposalId});
-await call("goalboard_v1_goal_tree_check", {
+await call("molis_work_v1_goal_tree_read", {proposal_id: proposalId});
+await call("molis_work_v1_goal_tree_check", {
   proposal_id: proposalId,
   idempotency_key: "receipt-tree-check-1"
 });

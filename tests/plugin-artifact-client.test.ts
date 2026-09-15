@@ -3,16 +3,16 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { ArtifactsModule } from "@adeptify/goalboard-module-artifacts";
-import { createPluginArtifactClient, PluginArtifactAccessError } from "@adeptify/goalboard-plugin-artifacts";
-import { PluginRuntime, PluginRuntimeError } from "@adeptify/goalboard-plugin-runtime";
-import { createGithubIntegrationPlugin } from "@adeptify/goalboard-integration-github";
-import type { PluginArtifactClient, PluginDefinition, PluginManifest } from "@adeptify/goalboard-contracts/platform/plugin";
-import { seedDemoBoard, DEMO_BOARD_ID } from "@adeptify/goalboard-app-local-host";
-import { LocalProjectDatabase } from "@adeptify/goalboard-app-local-host";
+import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
+import { createPluginArtifactClient, PluginArtifactAccessError } from "@molis-ai/molis-work-plugin-artifacts";
+import { PluginRuntime, PluginRuntimeError } from "@molis-ai/molis-work-plugin-runtime";
+import { createGithubIntegrationPlugin } from "@molis-ai/molis-work-integration-github";
+import type { PluginArtifactClient, PluginDefinition, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { seedDemoBoard, DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 
 test("installed Plugins exchange exact Artifact versions by type, with bound authority and real denied side effects", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-plugin-artifacts-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-plugin-artifacts-"));
   const databasePath = join(directory, "board.db");
   seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath);
@@ -25,7 +25,7 @@ test("installed Plugins exchange exact Artifact versions by type, with bound aut
     } });
     async function author(name: string, options: { read?: boolean; schema?: number; actor?: string } = {}) {
       let client!: PluginArtifactClient;
-      const manifest: PluginManifest = { ...base.manifest, plugin_id: `io.goalboard.example.${name}`,
+      const manifest: PluginManifest = { ...base.manifest, plugin_id: `io.molis.work.example.${name}`,
         permissions: [...base.manifest.permissions,
           { permission: "artifact:write", required: false, reason: "Publish notes" },
           { permission: "artifact:read", required: false, reason: "Read notes" }],
@@ -51,7 +51,7 @@ test("installed Plugins exchange exact Artifact versions by type, with bound aut
     const first = producer.client.publish(value);
     assert.equal(first.artifact.board_id, DEMO_BOARD_ID);
     assert.equal(first.artifact.owner_actor_id, "author");
-    assert.equal(first.artifact.producer_plugin_id, "io.goalboard.example.producer");
+    assert.equal(first.artifact.producer_plugin_id, "io.molis.work.example.producer");
     assert.equal(first.artifact.scope, "personal");
     assert.deepEqual(consumer.client.read({ artifact_id: value.artifact_id, version: 1 }), first.artifact);
     assert.equal(producer.client.publish(value).replayed, true);

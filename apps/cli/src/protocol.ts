@@ -1,6 +1,6 @@
 import fs from "node:fs";
 
-export const DEFAULT_CLI_DATABASE = ".goalboard/goalboard.db";
+export const DEFAULT_CLI_DATABASE = ".molis-work/molis-work.db";
 
 export function cliFlagValue(args: string[], name: string): string | undefined {
   const index = args.indexOf(name);
@@ -24,12 +24,12 @@ export function cliGoalUrl(goalPath: string, baseUrl: string): string {
   try {
     return new URL(goalPath, baseUrl).toString();
   } catch {
-    throw new Error(`无效的 GoalBoard Web 地址: ${baseUrl}`);
+    throw new Error(`无效的 Molis Work Web 地址: ${baseUrl}`);
   }
 }
 
 export function printV1Help(): void {
-  console.log(`goalboard v1 <operation> --db PATH --json '{...}'
+  console.log(`molis-work v1 <operation> --db PATH --json '{...}'
 
 Operations:
   init | snapshot | goal-tree-propose | goal-tree-read | goal-tree-check | goal-tree-decide
@@ -37,5 +37,5 @@ Operations:
 
 Complex payloads may use --file payload.json instead of --json.
 The SQLite database defaults to ${DEFAULT_CLI_DATABASE}.`);
-  console.log("\nInstall GoalBoard itself: goalboard install [--home PATH]");
+  console.log("\nInstall Molis Work itself: molis-work install [--home PATH]");
 }

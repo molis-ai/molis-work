@@ -1,4 +1,4 @@
-import type { GoalEventStateView } from "@adeptify/goalboard-contracts/modules/goals";
+import type { GoalEventStateView } from "@molis-ai/molis-work-contracts/modules/goals";
 import { formatEventTime, renderWorkEventBody as renderGoalWorkEventBody } from "./event-history-body.js";
 export { formatEventTime, renderGoalWorkEventBody };
 import type { GoalsDocumentContext, GoalsDocumentItem, GoalsDocumentUiPrimitives } from "./document-ui-model.js";
@@ -55,6 +55,7 @@ export function renderGoalEventDocument(
         </div>
       </details>
     </aside>
+    ${context.decisionHtml ? `<section class="goal-pending-proposals" data-goal-decision-panel aria-label="${L("等待你确认的方案")}">${context.decisionHtml}</section>` : ""}
     <div class="goal-layout" data-goal-layout>
       <section class="timeline-pane" aria-labelledby="stream-title-${goalId}">
         <div class="stream-toolbar"><h2 id="stream-title-${goalId}">${L("时间线")} <span data-event-count>${doc?.timeline.items.length ?? 0}</span></h2>

@@ -1,4 +1,4 @@
-import { SourcesError, sourceDeletedAt } from "@adeptify/goalboard-contracts/modules/sources";
+import { SourcesError, sourceDeletedAt } from "@molis-ai/molis-work-contracts/modules/sources";
 import { randomUUID } from "node:crypto";
 
 import type {
@@ -9,14 +9,14 @@ import type {
   SourceStatus,
   SourcesApi,
   SourceSyncKind,
-} from "@adeptify/goalboard-contracts/modules/sources";
+} from "@molis-ai/molis-work-contracts/modules/sources";
 
 export const packageDescriptor = {
-  packageName: "@adeptify/goalboard-module-sources",
+  packageName: "@molis-ai/molis-work-module-sources",
   packagePath: "modules/sources",
   kind: "module",
   maturity: "partial",
-  contract: "@adeptify/goalboard-contracts/modules/sources",
+  contract: "@molis-ai/molis-work-contracts/modules/sources",
   migrationGoals: ["goal-reorg-f2", "goal-reorg-fd1"],
   ssot: "docs/SSOT-MATRIX.md",
   capabilities: ["sources.query.v1", "sources.command.v1"],
@@ -35,7 +35,7 @@ export interface SourcesSqliteDatabase {
   transaction<T>(operation: () => T): (() => T) & { immediate(): T };
 }
 
-export { SourcesError } from "@adeptify/goalboard-contracts/modules/sources";
+export { SourcesError } from "@molis-ai/molis-work-contracts/modules/sources";
 
 /**
  * Owns Source desired state in the existing `feed_sources` table while FD1
@@ -247,7 +247,7 @@ export class SourcesModule implements SourcesApi {
       config: {
         ...source.config,
         token_refs: undefined,
-        _goalboard_lifecycle: { deleted_at: retiredAt, history_decision: historyDecision },
+        _molis_work_lifecycle: { deleted_at: retiredAt, history_decision: historyDecision },
       },
       schedule: { mode: "manual" },
       connection_ref: null,
@@ -289,7 +289,7 @@ export class SourcesModule implements SourcesApi {
   }
 }
 
-export { sourceDeletedAt } from "@adeptify/goalboard-contracts/modules/sources";
+export { sourceDeletedAt } from "@molis-ai/molis-work-contracts/modules/sources";
 
 function mapSource(row: Row): SourceRecord {
   const schedule = parseJson<SourceSchedule>(row.schedule_json, { mode: "manual" });
@@ -370,4 +370,4 @@ function parseJson<T>(value: unknown, fallback: T): T {
   }
 }
 
-export type GoalBoardPackageDescriptor = typeof packageDescriptor;
+export type MolisWorkPackageDescriptor = typeof packageDescriptor;

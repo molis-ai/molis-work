@@ -1,7 +1,7 @@
 import type {
   GovernanceRecordsApi,
   GoalTreeProposalDecisionResult,
-} from "@adeptify/goalboard-contracts/modules/governance-collaboration";
+} from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 
 import type { GovernanceSqliteDatabase } from "./repository.js";
 import { GovernanceGoalTreeRecords } from "./goal-tree-records.js";

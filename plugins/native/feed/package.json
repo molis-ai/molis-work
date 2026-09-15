@@ -1,5 +1,5 @@
 {
-  "name": "@adeptify/goalboard-plugin-feed",
+  "name": "@molis-ai/molis-work-plugin-feed",
   "version": "0.0.0",
   "private": true,
   "description": "First-party Feed navigation, UI, disposition, and Module composition.",
@@ -25,17 +25,17 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@adeptify/goalboard-contracts": "workspace:*",
+    "@molis-ai/molis-work-contracts": "workspace:*",
     "marked": "^18.0.11",
     "sanitize-html": "^2.17.7",
     "@adeptify/search-evidence-layer": "file:../../../vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz",
     "@adeptify/intelligence-client": "file:../../../vendor/intelligence-client/adeptify-intelligence-client-0.2.2.tgz"
   },
-  "goalboard": {
+  "molis-work": {
     "path": "plugins/native/feed",
     "kind": "native-plugin",
     "maturity": "partial",
-    "contract": "@adeptify/goalboard-contracts/platform/plugin",
+    "contract": "@molis-ai/molis-work-contracts/platform/plugin",
     "migrationGoals": [
       "goal-reorg-f2",
       "goal-reorg-fd4"

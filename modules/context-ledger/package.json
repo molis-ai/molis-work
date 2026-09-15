@@ -1,5 +1,5 @@
 {
-  "name": "@adeptify/goalboard-module-context-ledger",
+  "name": "@molis-ai/molis-work-module-context-ledger",
   "version": "0.0.0",
   "private": true,
   "description": "Object references, cross-owner relationships, publication, and materialization records.",
@@ -25,13 +25,13 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@adeptify/goalboard-contracts": "workspace:*"
+    "@molis-ai/molis-work-contracts": "workspace:*"
   },
-  "goalboard": {
+  "molis-work": {
     "path": "modules/context-ledger",
     "kind": "module",
     "maturity": "partial",
-    "contract": "@adeptify/goalboard-contracts/modules/context-ledger",
+    "contract": "@molis-ai/molis-work-contracts/modules/context-ledger",
     "migrationGoals": [
       "goal-reorg-f2",
       "goal-reorg-ar2"

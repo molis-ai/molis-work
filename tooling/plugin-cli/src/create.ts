@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { parsePluginManifest } from "@adeptify/goalboard-contracts/platform/plugin";
+import { parsePluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { samplePluginSource } from "./sample-source.js";
 
 export interface CreatePluginProjectInput {
@@ -19,8 +19,8 @@ export async function createPluginProject(input: CreatePluginProjectInput): Prom
     permissions: ["storage:private", "artifact:write", "artifact:read", "ui:register"].map(permission => ({
       permission, required: true, reason: "Save a personal result, consume its exact version and show the local sample" })),
     capabilities: { provides: ["connector.sample.v1"], consumes: [] },
-    artifacts: { produces: [{ artifact_type_id: "io.goalboard.example.note", schema_version: 1 }],
-      consumes: [{ artifact_type_id: "io.goalboard.example.note", schema_version: 1 }] },
+    artifacts: { produces: [{ artifact_type_id: "io.molis.work.example.note", schema_version: 1 }],
+      consumes: [{ artifact_type_id: "io.molis.work.example.note", schema_version: 1 }] },
     ui: { contributions: [input.plugin_id + ".main"] },
   });
   const directory = resolve(input.directory);
@@ -31,10 +31,10 @@ export async function createPluginProject(input: CreatePluginProjectInput): Prom
     "index.mjs": samplePluginSource,
     "package.json": JSON.stringify({ name: input.plugin_id.replaceAll(".", "-"), version: "1.0.0", private: true,
       type: "module", files: ["index.mjs", "manifest.json", "README.md"],
-      dependencies: { "@adeptify/goalboard-plugin-sdk": "0.0.0" } }, null, 2) + "\n",
+      dependencies: { "@molis-ai/molis-work-plugin-sdk": "0.0.0" } }, null, 2) + "\n",
     "README.md": "# Local Plugin Sample\n\nThis is a local development sample, not a reviewed marketplace release.\n"
       + "The supplied publisher signature is a binding identity, not proof of cryptographic signing.\n\n"
-      + "Install the matching local GoalBoard SDK distribution, then run through the GoalBoard application Host.\n"
+      + "Install the matching local Molis Work SDK distribution, then run through the Molis Work application Host.\n"
       + "Each poll saves one personal Artifact version and a private counter; the UI displays that counter.\n"
       + "It performs no network request, Team sharing, or Runtime configuration changes.\n",
   };

@@ -1,5 +1,5 @@
-import type { GoalsCommandApi, GoalsQueryApi, CreateGoalIntentInput, CreateGoalIntentResult } from "@adeptify/goalboard-contracts/modules/goals";
-import type { GoalTreeProposalItemRecord, ProposalAffectedObject } from "@adeptify/goalboard-contracts/modules/governance-collaboration";
+import type { GoalsCommandApi, GoalsQueryApi, CreateGoalIntentInput, CreateGoalIntentResult } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalTreeProposalItemRecord, ProposalAffectedObject } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import { GoalTreeInputReader } from "./goal-tree-inputs.js";
 
 /** Convert confirmed proposal payloads; Goals retains rules, events and persistence. */

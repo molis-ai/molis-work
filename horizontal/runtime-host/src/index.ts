@@ -1,15 +1,15 @@
 export const packageDescriptor = {
-  packageName: "@adeptify/goalboard-service-runtime-host",
+  packageName: "@molis-ai/molis-work-service-runtime-host",
   packagePath: "horizontal/runtime-host",
   kind: "horizontal",
   maturity: "partial",
-  contract: "@adeptify/goalboard-contracts/services/runtime-host",
+  contract: "@molis-ai/molis-work-contracts/services/runtime-host",
   migrationGoals: ["goal-reorg-f2","goal-reorg-wk2"],
   ssot: "docs/SSOT-MATRIX.md",
   capabilities: ["runtime.host.v1", "runtime.codex.v1", "runtime.terminal-pty.v1"],
 } as const;
 
-export type GoalBoardPackageDescriptor = typeof packageDescriptor;
+export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export {
   RuntimeHostRouter,
@@ -25,7 +25,7 @@ export {
   type CodexAppServerTransportOptions,
 } from "./adapters/codex-app-server.js";
 export {
-  GoalBoardPtyHost,
+  MolisWorkPtyHost,
   buildPtyEnvironment,
   isBlockedPtyEnvKey,
   isPtyCommandAvailable,
@@ -44,4 +44,4 @@ export type {
   RuntimeSessionCapability,
   RuntimeSessionCapabilityMode,
   RuntimeSessionTransport,
-} from "@adeptify/goalboard-contracts/services/runtime-host";
+} from "@molis-ai/molis-work-contracts/services/runtime-host";

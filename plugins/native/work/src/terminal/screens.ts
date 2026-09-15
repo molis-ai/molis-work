@@ -73,7 +73,7 @@ export function createTerminalScreens(options: TerminalScreensOptions) {
       term.options.theme = palette;
     });
   };
-  window.addEventListener("goalboard:terminal-theme-change", applyTerminalPalette);
+  window.addEventListener("molis-work:terminal-theme-change", applyTerminalPalette);
   const ensureSession = (panelId: string) => {
     let session = sessions.get(panelId);
     if (session) return session;

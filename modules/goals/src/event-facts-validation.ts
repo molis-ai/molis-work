@@ -12,7 +12,7 @@ import {
   type GoalEventTypeDefinition,
   type GoalEventTypeDefinitionInput,
   type GoalEventTypeSource,
-} from "@adeptify/goalboard-contracts/modules/goals";
+} from "@molis-ai/molis-work-contracts/modules/goals";
 
 const EXECUTABLE_CONFIG = /<\s*script\b|javascript\s*:|data\s*:\s*text\/html|<\s*iframe\b|\bon[a-z]+\s*=/iu;
 const RESERVED_FIELD_IDS = new Set([

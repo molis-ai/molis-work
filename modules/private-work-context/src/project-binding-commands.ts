@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
-import type { ProjectsQueryApi } from "@adeptify/goalboard-contracts/modules/projects";
-import type { RuntimeWorkContext, NormalizedRuntimeWorkContext, NormalizedRuntimeWorkspaceContext, RuntimeProjectSuggestionClue, GoalBoardRuntimeContextResolution, RejectRuntimeContextSuggestionInput, GoalBoardRuntimeContextSuggestionRejectionResult, BindRuntimeWorkContextInput, UnbindRuntimeWorkContextInput, GoalBoardRuntimeContextUnbindResult, GoalBoardProjectBindingScope, RuntimeContextBindingRecord as GoalBoardRuntimeContextBinding, RuntimeContextBindingEventRecord as GoalBoardRuntimeContextBindingEvent } from "@adeptify/goalboard-contracts/modules/private-work-context";
-import type { ProjectWorkspaceMembership as GoalBoardWorkspaceMembership } from "@adeptify/goalboard-contracts/modules/projects";
+import type { ProjectsQueryApi } from "@molis-ai/molis-work-contracts/modules/projects";
+import type { RuntimeWorkContext, NormalizedRuntimeWorkContext, NormalizedRuntimeWorkspaceContext, RuntimeProjectSuggestionClue, MolisWorkRuntimeContextResolution, RejectRuntimeContextSuggestionInput, MolisWorkRuntimeContextSuggestionRejectionResult, BindRuntimeWorkContextInput, UnbindRuntimeWorkContextInput, MolisWorkRuntimeContextUnbindResult, MolisWorkProjectBindingScope, RuntimeContextBindingRecord as MolisWorkRuntimeContextBinding, RuntimeContextBindingEventRecord as MolisWorkRuntimeContextBindingEvent } from "@molis-ai/molis-work-contracts/modules/private-work-context";
+import type { ProjectWorkspaceMembership as MolisWorkWorkspaceMembership } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { RuntimeContextBindingRepository } from "./context-bindings.js";
 import { boundResolution, type RuntimeProjectResolution } from "./project-resolution.js";
 import type { RuntimeProjectBindingValidation, RuntimeProjectBindingErrorFactory } from "./project-binding-validation.js";
@@ -24,12 +24,12 @@ export class RuntimeProjectBindingCommands {
     private readonly error: RuntimeProjectBindingErrorFactory,
     private readonly transaction: <T>(operation: () => T) => T,
   ) {}
-  resolveRuntimeContext(context: RuntimeWorkContext, clues: readonly RuntimeProjectSuggestionClue[] = []): GoalBoardRuntimeContextResolution {
+  resolveRuntimeContext(context: RuntimeWorkContext, clues: readonly RuntimeProjectSuggestionClue[] = []): MolisWorkRuntimeContextResolution {
     return this.contextResolution.resolveRuntimeContext(this.validation.normalizeRuntimeWorkContext(context), clues);
   }
 rejectRuntimeContextSuggestion(
     input: RejectRuntimeContextSuggestionInput,
-  ): GoalBoardRuntimeContextSuggestionRejectionResult {
+  ): MolisWorkRuntimeContextSuggestionRejectionResult {
     const normalized = this.validation.requireStableRuntimeWorkContext(input.context);
     const actorId = this.validation.requiredActorId(input.actor_id);
     const projectId = this.validation.requiredProjectId(input.project_id);
@@ -79,12 +79,12 @@ rejectRuntimeContextSuggestion(
     });
   }
 
-bindRuntimeContext(input: BindRuntimeWorkContextInput): GoalBoardRuntimeContextResolution {
+bindRuntimeContext(input: BindRuntimeWorkContextInput): MolisWorkRuntimeContextResolution {
     const normalized = this.validation.requireRoutableRuntimeWorkContext(input.context);
     const actorId = this.validation.requiredActorId(input.actor_id);
     const projectId = input.project_id.trim();
     if (!projectId) {
-      throw this.error("catalog.project_not_found", "绑定时必须选择一个 GoalBoard 项目");
+      throw this.error("catalog.project_not_found", "绑定时必须选择一个 Molis Work 项目");
     }
     if (input.user_confirmed !== true) {
       throw this.error(
@@ -112,7 +112,7 @@ bindRuntimeContext(input: BindRuntimeWorkContextInput): GoalBoardRuntimeContextR
     });
   }
 
-unbindRuntimeContext(input: UnbindRuntimeWorkContextInput): GoalBoardRuntimeContextUnbindResult {
+unbindRuntimeContext(input: UnbindRuntimeWorkContextInput): MolisWorkRuntimeContextUnbindResult {
     const normalized = this.validation.requireRoutableRuntimeWorkContext(input.context);
     const actorId = this.validation.requiredActorId(input.actor_id);
     if (input.user_confirmed !== true) {
@@ -175,8 +175,8 @@ bindRuntimeContextInTransaction(input: {
     projectId: string;
     actorId: string;
     rebindConfirmed: boolean;
-    bindingScope: GoalBoardProjectBindingScope | "workspace_member";
-  }): GoalBoardRuntimeContextResolution {
+    bindingScope: MolisWorkProjectBindingScope | "workspace_member";
+  }): MolisWorkRuntimeContextResolution {
     const project = this.projects.query.getProject(input.projectId);
     if (input.bindingScope === "workspace_default") {
       throw this.error(
@@ -208,7 +208,7 @@ bindRuntimeContextInTransaction(input: {
     const current = this.contextResolution.findRuntimeContextBinding(input.normalized);
     if (!current) {
       const now = new Date().toISOString();
-      const binding: GoalBoardRuntimeContextBinding = {
+      const binding: MolisWorkRuntimeContextBinding = {
         binding_id: `context-binding-${randomUUID()}`,
         runtime_id: input.normalized.runtime_id,
         stable_work_context_id: input.normalized.stable_work_context_id!,
@@ -245,7 +245,7 @@ bindRuntimeContextInTransaction(input: {
 
     const now = new Date().toISOString();
     this.workContexts.updateProject(current.binding_id, project.project_id, input.actorId, now);
-    const rebound: GoalBoardRuntimeContextBinding = {
+    const rebound: MolisWorkRuntimeContextBinding = {
       ...current,
       project_id: project.project_id,
       bound_by: input.actorId,
@@ -275,7 +275,7 @@ bindRuntimeContextInTransaction(input: {
 
 listRuntimeContextBindingEvents(
     context?: RuntimeWorkContext,
-  ): GoalBoardRuntimeContextBindingEvent[] {
+  ): MolisWorkRuntimeContextBindingEvent[] {
     const normalized = context ? this.validation.normalizeRuntimeWorkContext(context) : null;
     if (normalized && !normalized.stable_work_context_id) return [];
     return normalized
@@ -286,14 +286,14 @@ listRuntimeContextBindingEvents(
       : this.workContexts.listEvents();
   }
 
-listRuntimeContextBindings(): GoalBoardRuntimeContextBinding[] {
+listRuntimeContextBindings(): MolisWorkRuntimeContextBinding[] {
     return this.workContexts.list();
   }
 
 findWorkspaceMembershipByIds(
     workspaceId: string,
     projectId: string,
-  ): GoalBoardWorkspaceMembership | null {
+  ): MolisWorkWorkspaceMembership | null {
     return this.projects.query.listWorkspaceMemberships().find(
       (membership) => membership.workspace_id === workspaceId && membership.project_id === projectId,
     ) ?? null;
@@ -307,7 +307,7 @@ upsertWorkspaceMembership(
     this.projects.lifecycle.upsertWorkspaceMembership(workspace, projectId, actorId);
   }
 
-removeSessionBinding(binding: GoalBoardRuntimeContextBinding, actorId: string): void {
+removeSessionBinding(binding: MolisWorkRuntimeContextBinding, actorId: string): void {
     const now = new Date().toISOString();
     this.workContexts.remove(binding.binding_id, actorId, now);
     this.appendRuntimeContextBindingEvent({
@@ -333,8 +333,8 @@ findRuntimeContextSetupRequest(
   }
 
 appendRuntimeContextBindingEvent(input: {
-    binding: GoalBoardRuntimeContextBinding;
-    type: GoalBoardRuntimeContextBindingEvent["type"];
+    binding: MolisWorkRuntimeContextBinding;
+    type: MolisWorkRuntimeContextBindingEvent["type"];
     previousProjectId: string | null;
     actorId: string;
     createdAt: string;

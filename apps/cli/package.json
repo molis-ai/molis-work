@@ -1,5 +1,5 @@
 {
-  "name": "@adeptify/goalboard-app-cli",
+  "name": "@molis-ai/molis-work-app-cli",
   "version": "0.0.0",
   "private": true,
   "description": "Thin CLI protocol, argument, and presentation adapter.",
@@ -25,14 +25,14 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@adeptify/goalboard-contracts": "workspace:*",
-    "@adeptify/goalboard-plugin-goals": "workspace:*"
+    "@molis-ai/molis-work-contracts": "workspace:*",
+    "@molis-ai/molis-work-plugin-goals": "workspace:*"
   },
-  "goalboard": {
+  "molis-work": {
     "path": "apps/cli",
     "kind": "app",
     "maturity": "partial",
-    "contract": "@adeptify/goalboard-contracts/platform/app-host",
+    "contract": "@molis-ai/molis-work-contracts/platform/app-host",
     "migrationGoals": [
       "goal-reorg-f2",
       "goal-reorg-dv1",

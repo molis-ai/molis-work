@@ -76,7 +76,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: goalboard-macos-${{ matrix.arch }}
+          name: molis-work-macos-${{ matrix.arch }}
           path: release/macos/*
           if-no-files-found: error
 
@@ -88,7 +88,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          pattern: goalboard-macos-*
+          pattern: molis-work-macos-*
           path: release-assets
           merge-multiple: true
 

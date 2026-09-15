@@ -1,4 +1,4 @@
-# GoalBoard 代码质量收敛
+# Molis Work 代码质量收敛
 
 ## 完成等级
 
@@ -6,13 +6,13 @@
 
 ## 背景与问题证据
 
-GoalBoard 已形成 CLI、MCP、Web、Desktop、Project Catalog 与 V1 领域层，但部分入口代码仍承担过多职责，且缺少一条基础的未使用代码约束。
+Molis Work 已形成 CLI、MCP、Web、Desktop、Project Catalog 与 V1 领域层，但部分入口代码仍承担过多职责，且缺少一条基础的未使用代码约束。
 
 本轮审计确认：
 
 - `src/v1/coordinator.ts` 与 `src/web/render.ts` 均超过 9,000 行，`src/web/server.ts` 的主请求处理函数超过 1,700 行；这些是明确的后续拆包对象，但不适合在一次无行为变化的整理里整体搬迁。
 - 临时开启 TypeScript 的 `noUnusedLocals` 与 `noUnusedParameters` 后发现 9 处确定的未使用导入、参数、常量或渲染链。
-- CLI、MCP、Web 与卸载流程多次重复 `GoalBoardProjectCatalog.open()` / `try` / `finally` / `close()`，资源生命周期依赖各调用方自行遵守。
+- CLI、MCP、Web 与卸载流程多次重复 `MolisWorkProjectCatalog.open()` / `try` / `finally` / `close()`，资源生命周期依赖各调用方自行遵守。
 - 当前 `tsconfig.json` 明确关闭未使用局部变量和参数检查，因此死代码可以继续进入主干。
 
 ## 目标
@@ -38,7 +38,7 @@ GoalBoard 已形成 CLI、MCP、Web、Desktop、Project Catalog 与 V1 领域层
 ### 非目标
 
 - 不改变产品功能、路由、MCP 工具协议、数据库结构或 Goal 状态机。
-- 不在本轮整体拆分 `GoalBoardCoordinator`、Web 请求路由或 HTML/CSS/JS 渲染文件。
+- 不在本轮整体拆分 `MolisWorkCoordinator`、Web 请求路由或 HTML/CSS/JS 渲染文件。
 - 不引入新的框架、依赖、校验和、迁移系统或抽象层级。
 - 不为了形式统一改写测试中需要显式控制 Catalog 生命周期的场景。
 - 不处理与本轮代码质量目标无关的既有工作区改动。
@@ -53,14 +53,14 @@ GoalBoard 已形成 CLI、MCP、Web、Desktop、Project Catalog 与 V1 领域层
 
 新增一个位于 `src/projects/` 的小型作用域助手：
 
-- 输入：`GoalBoardProjectCatalog.open()` 所需选项与一个操作函数。
+- 输入：`MolisWorkProjectCatalog.open()` 所需选项与一个操作函数。
 - 生产：打开 Catalog，把实例交给操作函数。
 - 边界：无论操作返回、抛错或异步失败，都在 `finally` 中关闭 Catalog。
 - 不负责：Catalog 业务方法、事务、重试、缓存或长生命周期实例。
 
 调用链收敛为：
 
-`CLI / MCP / Web / uninstall -> catalog scope helper -> GoalBoardProjectCatalog`
+`CLI / MCP / Web / uninstall -> catalog scope helper -> MolisWorkProjectCatalog`
 
 ### 大文件边界
 
@@ -91,7 +91,7 @@ pnpm build
 cargo check --manifest-path desktop/src-tauri/Cargo.toml
 cargo test --manifest-path desktop/src-tauri/Cargo.toml
 cargo clippy --manifest-path desktop/src-tauri/Cargo.toml -- -D warnings
-rg "GoalBoardProjectCatalog\\.open" src
+rg "MolisWorkProjectCatalog\\.open" src
 ```
 
 最后一条允许在 Catalog 类或明确的长生命周期所有者中出现；所有请求级、命令级临时访问都应通过作用域助手。
@@ -107,7 +107,7 @@ rg "GoalBoardProjectCatalog\\.open" src
 - `pnpm typecheck`：通过。
 - `pnpm test`：207/207 通过，包含构建、安装、卸载、MCP、规划、Web、Desktop TUI 与端到端路径。
 - 桌面外壳：`cargo check`、`cargo test`（1/1）与严格 Clippy 全部通过；测试辅助函数已限制在测试构建，Tauri 命令保留稳定的前端参数协议，并对该单一框架边界记录局部 Clippy 理由。
-- 资源边界：生产代码中只有 `catalog-session.ts` 可以直接调用 `GoalBoardProjectCatalog.open()`。
+- 资源边界：生产代码中只有 `catalog-session.ts` 可以直接调用 `MolisWorkProjectCatalog.open()`。
 - 作用域助手：成功返回与操作抛错两条路径都由测试证明会关闭 Catalog。
 - 入口可达性：从公开包入口、CLI、MCP、Web、PTY Client 与构建指纹入口扫描 35 个源码模块，35 个全部可达，没有孤儿模块。
 - 依赖方向：源码 import 图未发现循环依赖。
@@ -115,8 +115,8 @@ rg "GoalBoardProjectCatalog\\.open" src
 
 ### 后续专项，而非本轮遗留补丁
 
-1. `GoalBoardCoordinator` 仍同时承担规划、Goal 生命周期、证据、决策等职责，适合按领域服务逐步拆分。
-2. `handleGoalBoardWebRequest` 仍集中处理全局设置、项目与 Goal 路由，适合先按路由组提取，并保持统一认证入口。
+1. `MolisWorkCoordinator` 仍同时承担规划、Goal 生命周期、证据、决策等职责，适合按领域服务逐步拆分。
+2. `handleMolisWorkWebRequest` 仍集中处理全局设置、项目与 Goal 路由，适合先按路由组提取，并保持统一认证入口。
 3. `render.ts` 仍混合静态资源和多个页面渲染器，适合按页面边界拆分；不能只为降低行数机械搬文件。
 
 这三项需要各自的行为需求书和回归面，不应在本轮无行为变化整理中继续扩大范围。

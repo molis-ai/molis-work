@@ -1,8 +1,8 @@
-import type { RuntimeHostApi } from "@adeptify/goalboard-contracts/services/runtime-host";
-import type { WorkSessionApi } from "@adeptify/goalboard-contracts/modules/private-work-context";
+import type { RuntimeHostApi } from "@molis-ai/molis-work-contracts/services/runtime-host";
+import type { WorkSessionApi } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import type {
-  GoalBoardSessionEventRecord,
-  GoalBoardSessionRecord,
+  MolisWorkSessionEventRecord,
+  MolisWorkSessionRecord,
   SessionContentResult,
   SessionResumeResult,
   SessionTimelineEvent,
@@ -43,7 +43,7 @@ export class SessionContentService {
         native_error: {
           code: result.code,
           message: result.code === "runtime.response_too_large"
-            ? "这条 Session 的单项内容超过安全读取上限；GoalBoard 已停止本次读取，服务仍可继续使用。"
+            ? "这条 Session 的单项内容超过安全读取上限；Molis Work 已停止本次读取，服务仍可继续使用。"
             : "Runtime 内容读取失败。确认 Runtime 可用后重试。",
         },
       };
@@ -54,7 +54,7 @@ export class SessionContentService {
         content_mode: "failed",
         native_error: {
           code: "runtime.read_shape_unknown",
-          message: "Runtime 返回了 GoalBoard 不能识别的内容结构；已保留可验证的 GoalBoard 记录。",
+          message: "Runtime 返回了 Molis Work 不能识别的内容结构；已保留可验证的 Molis Work 记录。",
         },
       };
     }
@@ -108,7 +108,7 @@ export class SessionContentService {
 
 function nativeHistory(value: unknown): SessionContentResult["native_history"] {
   const root = record(value);
-  const page = root ? record(root.goalboard_history_page) : null;
+  const page = root ? record(root.molis_work_history_page) : null;
   if (!page || text(page.mode) !== "summary") return null;
   return {
     mode: "summary",
@@ -135,7 +135,7 @@ export function searchSessionTimeline(
 }
 
 export function normalizeCodexThreadRead(
-  session: GoalBoardSessionRecord,
+  session: MolisWorkSessionRecord,
   value: unknown,
 ): SessionTimelineEvent[] {
   const root = record(value);
@@ -196,8 +196,8 @@ export function normalizeCodexThreadRead(
 }
 
 function normalizeManagedEvent(
-  session: GoalBoardSessionRecord,
-  event: GoalBoardSessionEventRecord,
+  session: MolisWorkSessionRecord,
+  event: MolisWorkSessionEventRecord,
 ): SessionTimelineEvent {
   return {
     event_id: event.event_id,
@@ -205,7 +205,7 @@ function normalizeManagedEvent(
     source: event.source,
     kind: event.kind,
     label: event.source === "goalboard_tui"
-      ? event.kind === "terminal_output" ? "GoalBoard TUI" : "TUI 状态"
+      ? event.kind === "terminal_output" ? "Molis Work TUI" : "TUI 状态"
       : labelForKind(event.kind),
     content: clip(event.content ?? "本地加密内容当前不可读取。"),
     occurred_at: event.occurred_at,

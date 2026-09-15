@@ -6,8 +6,8 @@ import type {
   ProjectDeletionRecord,
   ProjectRecord,
   ProjectSelection,
-} from "@adeptify/goalboard-contracts/modules/projects";
-import { BUILTIN_PROJECT_PLUGIN_IDS } from "@adeptify/goalboard-contracts/modules/projects";
+} from "@molis-ai/molis-work-contracts/modules/projects";
+import { BUILTIN_PROJECT_PLUGIN_IDS, PROJECT_PLUGIN_COMPANIONS } from "@molis-ai/molis-work-contracts/modules/projects";
 
 import { ProjectsRepository, type StoredProjectDeletion } from "./repository.js";
 
@@ -45,7 +45,7 @@ export class ProjectService {
   get(projectId: string): ProjectRecord {
     const normalized = this.requiredProjectId(projectId);
     const project = this.repository.getProject(normalized);
-    if (!project) throw this.error("catalog.project_not_found", `找不到 GoalBoard 项目: ${normalized}`);
+    if (!project) throw this.error("catalog.project_not_found", `找不到 Molis Work 项目: ${normalized}`);
     return project;
   }
 
@@ -57,7 +57,7 @@ export class ProjectService {
       project_id: projectId,
       display_name: displayName,
       board_id: input.board_id?.trim() || projectId,
-      database_path: path.join(input.projects_directory, projectId, "goalboard.db"),
+      database_path: path.join(input.projects_directory, projectId, "molis-work.db"),
       source: input.source,
       data_class: input.data_class,
       migrated_from_path: input.migrated_from_path,
@@ -96,8 +96,11 @@ export class ProjectService {
       throw this.error("catalog.plugin_not_found", "找不到这个内置插件");
     }
     return this.repository.transaction(() => {
-      if (this.repository.addProjectPlugin(project.project_id, input.plugin_id, this.now())) {
-        this.appendEvent(project.project_id, "project.plugin_added", actor, { plugin_id: input.plugin_id });
+      const at = this.now();
+      for (const pluginId of [input.plugin_id, ...PROJECT_PLUGIN_COMPANIONS[input.plugin_id]]) {
+        if (this.repository.addProjectPlugin(project.project_id, pluginId, at)) {
+          this.appendEvent(project.project_id, "project.plugin_added", actor, { plugin_id: pluginId });
+        }
       }
       return this.listPlugins(project.project_id);
     });
@@ -114,6 +117,14 @@ export class ProjectService {
         display_name: nextName,
       });
     });
+    return this.get(existing.project_id);
+  }
+
+  updateDatabasePath(projectId: string, databasePath: string): ProjectRecord {
+    const existing = this.get(projectId);
+    const next = databasePath.trim();
+    if (path.resolve(existing.database_path) === path.resolve(next)) return existing;
+    this.repository.updateDatabasePath(existing.project_id, next, this.now());
     return this.get(existing.project_id);
   }
 

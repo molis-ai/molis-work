@@ -27,9 +27,9 @@ export function buildGoalCollectionModel<T extends GoalCollectionItem>(
     (collectionView ? undefined : visibleGoals.find(item => item.goal.goal_id === view.active_goal_id)) ??
     visibleGoals[0];
   const selectedId = selected?.goal.goal_id ?? "";
-  const title = decisionView ? L("等待你的决定 · GoalBoard") :
-    selected ? selected.goal.title + " · GoalBoard" :
-    trashView ? L("回收站 · GoalBoard") : archiveView ? L("已归档 Goal · GoalBoard") : "GoalBoard";
+  const title = decisionView ? L("Inbox · Molis Work") :
+    selected ? selected.goal.title + " · Molis Work" :
+    trashView ? L("回收站 · Molis Work") : archiveView ? L("已归档 Goal · Molis Work") : "Molis Work";
   const phaseSummary = [
     { label: L("需要你决定"), count: view.counts.waiting_for_human },
     { label: L("正在推进"), count: view.counts.executing },

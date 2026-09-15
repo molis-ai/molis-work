@@ -2,9 +2,9 @@
 
 产品工程归拢：根 src 与 desktop 已退出。启动器位于 apps/desktop/launchers，SDK 兼容源码位于 apps/local-host/sdk，Tauri 配置/资源位于 apps/desktop/src-tauri；构建输出和公开命令不变。下方旧路径为迁移历史。
 
-2026-09-08 清理补充：已删除 10 个无实现、无消费者的占位包，实际 workspace 为 38 包；未来设计见 SSOT 的 absent 条目。根 src 仅保留 6 个启动/SDK 文件。历史记录中的 48 包是当时口径。
+2026-09-08 清理补充：已删除 10 个无实现、无消费者的占位包。Inbox Native Plugin 落地后实际 workspace 为 39 包；未来设计见 SSOT 的 absent 条目。根 src 仅保留 6 个启动/SDK 文件。历史记录中的 48 包是当时口径。
 
-2026-09-08 Cutover：原混合实现 caller 已退出。当前运行结果以 [统一验收](../../specs/goalboard-architecture-reorganization/cutover-validation.md) 为准，下面表格为最终实现位置。
+2026-09-08 Cutover：原混合实现 caller 已退出。当前运行结果以 [统一验收](../../specs/molis-work-architecture-reorganization/cutover-validation.md) 为准，下面表格为最终实现位置。
 
 | 原路径 | 当前实现 | 旧路径状态 |
 | --- | --- | --- |
@@ -20,21 +20,21 @@
 
 ## 历史迁移阶段（下列数字和待办不表示当前状态）
 
-DV4 最终状态（2026-09-06 09:24 UTC）：安装、分发与文档迁移已通过完整 Review，GoalBoard completed。公开 owner/caller、旧实现退出、当前 npm 独立消费、真实 App 升级/卸载保留/重装及供应链资产均见 [完整验收](../../specs/goalboard-architecture-reorganization/dv4-validation.md)。最终检查额外修复旧编译输出混入包的问题：根构建统一执行 workspace clean/build，新 npm 和 App 已复验。下方 DV4 未完成文字为阶段历史；Apple 公证/公开发布、总数据安全恢复、全产品 E2E 和最终清理不在该完成结论内。
+DV4 最终状态（2026-09-06 09:24 UTC）：安装、分发与文档迁移已通过完整 Review，Molis Work completed。公开 owner/caller、旧实现退出、当前 npm 独立消费、真实 App 升级/卸载保留/重装及供应链资产均见 [完整验收](../../specs/molis-work-architecture-reorganization/dv4-validation.md)。最终检查额外修复旧编译输出混入包的问题：根构建统一执行 workspace clean/build，新 npm 和 App 已复验。下方 DV4 未完成文字为阶段历史；Apple 公证/公开发布、总数据安全恢复、全产品 E2E 和最终清理不在该完成结论内。
 
-GW6（2026-09-06）：Goals 基础 schema、15/25/26 与 migration 30 的 Goals revision/coverage 回填已由 Goals 接管。V3 importer 与 Web 覆盖账 caller 改用公开 Command/Query，Host 保留同连接跨 owner 顺序及事务。193 项定向前后端回归通过，补强历史升级对账 6 项通过，详情见 [GW6 验收](../../specs/goalboard-architecture-reorganization/gw6-validation.md)。旧 Store 仍非整体 retired；最终清理与全产品 E2E 义务不变。
+GW6（2026-09-06）：Goals 基础 schema、15/25/26 与 migration 30 的 Goals revision/coverage 回填已由 Goals 接管。V3 importer 与 Web 覆盖账 caller 改用公开 Command/Query，Host 保留同连接跨 owner 顺序及事务。193 项定向前后端回归通过，补强历史升级对账 6 项通过，详情见 [GW6 验收](../../specs/molis-work-architecture-reorganization/gw6-validation.md)。旧 Store 仍非整体 retired；最终清理与全产品 E2E 义务不变。
 
-DD2 工程状态（2026-09-06）：原生/历史提案应用与决定 UI/copy/client 已按 owner 迁移，209 项串行回归和 12 项边界反证通过。当前 Coordinator / root renderer / server 为 2,771 / 2,240 / 3,243 行；它们仍未整体退出。真实 caller 与验收见 `specs/goalboard-architecture-reorganization/dd2-caller-audit.md`、`dd2-validation.md`。下文旧阶段记录只保留当时边界；canonical 完成状态以 GoalBoard 为准。
+DD2 工程状态（2026-09-06）：原生/历史提案应用与决定 UI/copy/client 已按 owner 迁移，209 项串行回归和 12 项边界反证通过。当前 Coordinator / root renderer / server 为 2,771 / 2,240 / 3,243 行；它们仍未整体退出。真实 caller 与验收见 `specs/molis-work-architecture-reorganization/dd2-caller-audit.md`、`dd2-validation.md`。下文旧阶段记录只保留当时边界；canonical 完成状态以 Molis Work 为准。
 
-DD1（2026-09-06）：草稿 start/turn/resume 的真实应用已迁入 Goals Native Plugin；Governance clarification API 接管原记录、事件、幂等与事务，Goals/Execution 保持原事实 owner。Host 三个 capability 改绑新应用，CLI/MCP 契约不变；旧 Coordinator 三方法/独占 helper 和 root Store 澄清读取映射已删除。无 schema 改动，无新 Web 表单。DD2 的提案/决定、决定后关闭会话与最终 Host 清理仍未完成，详情见 `specs/goalboard-architecture-reorganization/dd1-validation.md`。
+DD1（2026-09-06）：草稿 start/turn/resume 的真实应用已迁入 Goals Native Plugin；Governance clarification API 接管原记录、事件、幂等与事务，Goals/Execution 保持原事实 owner。Host 三个 capability 改绑新应用，CLI/MCP 契约不变；旧 Coordinator 三方法/独占 helper 和 root Store 澄清读取映射已删除。无 schema 改动，无新 Web 表单。DD2 的提案/决定、决定后关闭会话与最终 Host 清理仍未完成，详情见 `specs/molis-work-architecture-reorganization/dd1-validation.md`。
 
-DV4 分发切片：release tooling 已归 Desktop / Local Host，Desktop payload 复用唯一 installer release 创建能力并保留 vendor provenance/SBOM。干净锁文件安装、全部 48 包构建、Node 下载校验、App/DMG 与 npm 独立 consumer 已验证。真实旧 DMG 0.1.13→0.1.14 升级发现 Listener 初始化遗漏，已通过 owner API 修复并重跑；普通项目正文/历史、普通卸载保留及实际 App 重装恢复通过。见 [旧版升级验收](../../specs/goalboard-architecture-reorganization/dv4-upgrade-validation.md)。Apple 公证、完整 DV4 Review 和全产品 E2E/最终审计仍不能从这些局部证据推断。
+DV4 分发切片：release tooling 已归 Desktop / Local Host，Desktop payload 复用唯一 installer release 创建能力并保留 vendor provenance/SBOM。干净锁文件安装、全部 48 包构建、Node 下载校验、App/DMG 与 npm 独立 consumer 已验证。真实旧 DMG 0.1.13→0.1.14 升级发现 Listener 初始化遗漏，已通过 owner API 修复并重跑；普通项目正文/历史、普通卸载保留及实际 App 重装恢复通过。见 [旧版升级验收](../../specs/molis-work-architecture-reorganization/dv4-upgrade-validation.md)。Apple 公证、完整 DV4 Review 和全产品 E2E/最终审计仍不能从这些局部证据推断。
 
-DV4 安装代码切片：旧 `src/install/` 实现已清零。Home、Runtime integration、常驻服务和卸载归 Local Host 的具名公开 API，均按职责拆分；卸载 catalog 只读事实检查归 Projects，根装配只注入连接生命周期和 Demo 删除。构建指纹已包含 workspace 源码，CLI 不传 `--source` 时仍安装根产品。当前验证见 [DV4 进展](../../specs/goalboard-architecture-reorganization/dv4-progress.md)；release/Tauri/provenance/SBOM 与整体用户 E2E 尚未完成。
+DV4 安装代码切片：旧 `src/install/` 实现已清零。Home、Runtime integration、常驻服务和卸载归 Local Host 的具名公开 API，均按职责拆分；卸载 catalog 只读事实检查归 Projects，根装配只注入连接生命周期和 Demo 删除。构建指纹已包含 workspace 源码，CLI 不传 `--source` 时仍安装根产品。当前验证见 [DV4 进展](../../specs/molis-work-architecture-reorganization/dv4-progress.md)；release/Tauri/provenance/SBOM 与整体用户 E2E 尚未完成。
 
-DV2 已完成：Skill 与中英文 MCP/Runtime 说明对应正式协议；真实 launcher handshake 归 MCP App 公开 validator，原安装 caller 已切换。66 项定向回归和边界检查通过，见 [DV2 验收报告](../../specs/goalboard-architecture-reorganization/dv2-validation.md)。DV3 已于 2026-09-05 07:42 UTC 通过正式 Review：真实本地开发 CLI、私有存储/Artifact/UI、公共 fixture、打包签名与外部安装 SDK 样例均已验证，见 [DV3 验收报告](../../specs/goalboard-architecture-reorganization/dv3-validation.md)。DV4 已开始，正在迁移安装与分发；整体前后端用户 E2E 未完成。
+DV2 已完成：Skill 与中英文 MCP/Runtime 说明对应正式协议；真实 launcher handshake 归 MCP App 公开 validator，原安装 caller 已切换。66 项定向回归和边界检查通过，见 [DV2 验收报告](../../specs/molis-work-architecture-reorganization/dv2-validation.md)。DV3 已于 2026-09-05 07:42 UTC 通过正式 Review：真实本地开发 CLI、私有存储/Artifact/UI、公共 fixture、打包签名与外部安装 SDK 样例均已验证，见 [DV3 验收报告](../../specs/molis-work-architecture-reorganization/dv3-validation.md)。DV4 已开始，正在迁移安装与分发；整体前后端用户 E2E 未完成。
 
-DV1 当前验收：CLI/MCP 全部 Goal caller 已走公开 Host Client，Board/import 等声明与完整类型已归官方 Goals Plugin。实际旧入口无 Store/Coordinator 直访；入口权限检查与 executable 装配保留，安装分发归 DV4。构建、601 项全量自动回归（0 失败/跳过）、边界检查通过。逐项证据见 [DV1 验收报告](../../specs/goalboard-architecture-reorganization/dv1-validation.md)。以下 DV1 切片是历史进展；不代表最终用户 E2E 或整体重组已完成。
+DV1 当前验收：CLI/MCP 全部 Goal caller 已走公开 Host Client，Board/import 等声明与完整类型已归官方 Goals Plugin。实际旧入口无 Store/Coordinator 直访；入口权限检查与 executable 装配保留，安装分发归 DV4。构建、601 项全量自动回归（0 失败/跳过）、边界检查通过。逐项证据见 [DV1 验收报告](../../specs/molis-work-architecture-reorganization/dv1-validation.md)。以下 DV1 切片是历史进展；不代表最终用户 E2E 或整体重组已完成。
 
 DV1 第十一切片：CLI/MCP 的 Goals/Execution/Available 已全面改走 typed Host Client；旧 application scope caller 清零。Host 把 Available+projection、trash+状态、planning composition 保持在一次具名调用内；Client `withScope` 保留打开/响应/关闭顺序，不暴露 Runtime。46 项受影响入口回归、125 项 V1/adapter/一致性回归通过，包含真实排队写入不能拆开结果的验证。仍有旧 Board/import 等 capability 声明公开收口和最终 DV1 验收；整体用户 E2E 未开始。
 
@@ -51,7 +51,7 @@ DV1 第九切片：完整 Goal Contract 唯一类型归官方 Goals Plugin，CLI
 - Session 内容/恢复、创建/发现、Handoff、TUI 记录和工作目录补偿恢复已归 `plugins/native/work`，事实仍通过 Projects / Private Work Context / Runtime Host / Desktop Panel 公共端口访问。
 - Session/Terminal 页面通过 Workbench 的 UI Host 挂载；终端按连接、面板生命周期、自动填入、xterm 显示和页面事件拆开。浏览器入口、xterm 依赖和终端英文文案跟随 Work，Web Server/renderer 仅留 Host 装配。
 - 旧 Session 应用、终端/Session 大文件、工作目录 action adapter 和无生产用途的 Registry/Adapter re-export 已清零后删除。535 项全量回归、最后 90 项定向回归通过；工作区类型、构建、边界通过。
-- 见 [WK3 验收与边界](../../specs/goalboard-architecture-reorganization/wk3-validation.md)。这不替代全部开发结束后的模拟用户 E2E、清理和最终规范审计。
+- 见 [WK3 验收与边界](../../specs/molis-work-architecture-reorganization/wk3-validation.md)。这不替代全部开发结束后的模拟用户 E2E、清理和最终规范审计。
 
 ## 1. 总体顺序
 
@@ -61,9 +61,9 @@ DV1 第九切片：完整 Goal Contract 唯一类型归官方 Goals Plugin，CLI
 4. Feed 作为首个真实垂直切片验证 Module、Horizontal、Plugin、Host 和 UI。
 5. 依次迁移 Goals、Artifacts/Ledger、Execution/Evidence/Governance、Work/Runtime、Projects/App Shell、开发者入口。
 
-AR3 已完成迁移验收：现有结果引用展示已由 Native Artifacts UI Contribution 经 Workbench/UI Host 提供；项目文件打开的 Evidence / 原 workspace 选择策略已迁入 Plugin，安全 reader 仍由 Evidence & Verification 拥有。正式版本列表、详情、本地导出和 Goal 上下文嵌入均已有实际 caller。普通引用不会被自动注册为 Artifact；上下文只读明确输入/产出关系，按 id/version 查看。Web 与上下文回归 62 项通过，嵌入的桌面/窄屏点击与独立界面审查通过；真实 Chrome 复制成功/拒绝与相关 Artifact 回归合计 13 项通过。切片证据与整体开发后 E2E 分开记录，详见 `specs/goalboard-architecture-reorganization/ar3-embed-validation.md`。
+AR3 已完成迁移验收：现有结果引用展示已由 Native Artifacts UI Contribution 经 Workbench/UI Host 提供；项目文件打开的 Evidence / 原 workspace 选择策略已迁入 Plugin，安全 reader 仍由 Evidence & Verification 拥有。正式版本列表、详情、本地导出和 Goal 上下文嵌入均已有实际 caller。普通引用不会被自动注册为 Artifact；上下文只读明确输入/产出关系，按 id/version 查看。Web 与上下文回归 62 项通过，嵌入的桌面/窄屏点击与独立界面审查通过；真实 Chrome 复制成功/拒绝与相关 Artifact 回归合计 13 项通过。切片证据与整体开发后 E2E 分开记录，详见 `specs/molis-work-architecture-reorganization/ar3-embed-validation.md`。
 
-DV1 进行中：JSON-RPC message/reply、宿主 `_meta`、Tool schema 与 Runtime audience 已迁入 MCP App；真实服务器的发现及调用分类共用公开目录。迁移前后管理端 57 / Runtime 44 个完整工具定义（顺序、描述、嵌套 schema）直接对比一致，MCP 协议与原 MCP 回归 35 项通过。CLI 和剩余 Store/初始化 caller 尚未清零，详见 `specs/goalboard-architecture-reorganization/dv1-work-plan.md`。
+DV1 进行中：JSON-RPC message/reply、宿主 `_meta`、Tool schema 与 Runtime audience 已迁入 MCP App；真实服务器的发现及调用分类共用公开目录。迁移前后管理端 57 / Runtime 44 个完整工具定义（顺序、描述、嵌套 schema）直接对比一致，MCP 协议与原 MCP 回归 35 项通过。CLI 和剩余 Store/初始化 caller 尚未清零，详见 `specs/molis-work-architecture-reorganization/dv1-work-plan.md`。
 
 DV1 后续进度：CLI 输入/帮助/JSON/URL 展示已迁入 CLI App；CLI/MCP 数据库目录准备共用 Local Host，V3 import、恢复事实和回收站读走 typed Host capabilities，两个入口的直接 Store 访问已清零。MCP 恢复展示只消费 Host 返回的既有事实。最新相关回归 43 项通过，另有 V1 CLI/导入/重验证定向 5 项通过；命令路由、Project/Session 宿主组合与完整 DV1 验收仍未完成。
 
@@ -84,7 +84,7 @@ DV1 第八切片：七个项目 context 工具的转换归 MCP App；公开 cata
 - 6 个 App、10 个 Foundation、16 个 Module、4 个 Horizontal Service、6 个 Native Plugin、5 个官方 Integration Plugin 和 1 个 Plugin CLI，共 48 个目标 package 已进入 pnpm workspace。
 - `packages/contracts` 提供 30 个 Module / Service / Platform public subpath；目标 package 只通过公开入口声明依赖，FD3 允许官方 Integration Plugin 显式依赖 Plugin SDK。
 - AR1 后 18 个目标 package 仍是 `contract-only`。Artifacts Module 因真实 Contract、Repository、migration 与 root composition 切片升级后，共 30 个 package 为 `partial`。
-- 根 `@adeptify/goalboard` 继续承载当前可工作的产品与发布兼容面。后续垂直 Goal 搬完真实调用链并完成行为对账后，才逐包改为 `partial`。
+- 根 `@molis-ai/molis-work` 继续承载当前可工作的产品与发布兼容面。后续垂直 Goal 搬完真实调用链并完成行为对账后，才逐包改为 `partial`。
 
 ### F3 已落地的门禁
 
@@ -114,10 +114,11 @@ DV1 第八切片：七个项目 context 工具的转换归 MCP App；公开 cata
 ### FD4 已落地的 Feed Native Plugin 与入口切换
 
 - `packages/contracts/platform/ui` 定义 UI Contribution、Surface 与 Slot；`packages/ui-host` 提供真实注册和渲染，`apps/workbench` 通过公开入口注册官方 Feed contribution。
-- `plugins/native/feed` 现在拥有 Feed / Inbox 列表与详情、Attention 处置、Source 管理、Connector 设置、调度、Relay 导入、空态、错误和重试 UI，以及全部既有 Feed/Inbox HTTP route descriptor。
+- `plugins/native/feed` 现在拥有 Feed 列表与详情、Source 管理、Connector 设置、调度、Relay 导入、空态、错误和重试 UI，以及既有 Feed HTTP route descriptor。Inbox 产品入口和 `/api/inbox` 已迁到 `plugins/native/inbox`。
 - `src/web/render.ts` 已删除 Feed / Source renderer，只保留 Workbench Shell、Goal 决定内容的 Slot 贡献和一个宿主数据映射 adapter；`src/web/server.ts` 已删除 Feed/Inbox route 分支，只调用 Feed Plugin HTTP adapter。
 - 现有浏览器交互选择器、API 路径、错误响应、来源配置和处理动作保持兼容；Feed/Attention 写入继续经过 FD2 的 Module-backed facade。
 - `src/web/feed-native-plugin-http.ts` 是当前 Node Host 的兼容 transport adapter；跨 Feed→Goal 的 promotion 已在 GW4 改走公开 Goals Command，AP2 再把当前 Coordinator-based Host binding 换成本地 Host capability。不把这段装配职责吸收回 Feed Module。
+- Inbox 插件拥有 Attention 产品入口：`plugins/native/inbox` 渲染独立目录/详情，`apps/local-host/src/inbox-native-plugin-http.ts` 匹配 `GET /api/inbox` 与 `POST /api/inbox/entries/:id/status`。完成/忽略只改 Attention 状态。`POST /api/feed/items/:id/inbox` 仍由 Feed HTTP 承担，但只创建或重开 Attention，不再改 `feed_items.disposition`，也不再把有 Attention 的行投影成 `item_type: inbox_message`。工作台不再接受 `feedPreset=inbox_message` 产品面；`GET /api/feed/workbench?preset=inbox_message` 返回 400。Feed snapshot 不再提供合并投影 `items`。历史 `inbox_message` 行仍由 `migrateInfoflowContractV2` 改成 `feed`。
 
 ### FD3 已落地的官方 Integration Plugin 样板
 
@@ -133,7 +134,7 @@ DV1 第八切片：七个项目 context 工具的转换归 MCP App；公开 cata
 
 - `packages/contracts/modules/goals` 现在公开 Goal、Relation、Policy、Risk、Project Guidance 的写入类型；`modules/goals` 通过 `GoalsModule.commands` 提供真实 Command API，并由 `GoalsRepository` 统一维护对应基础事实。
 - `GoalsModule.query` 现在公开 Board/Goal、Relation、Risk link、Policy、Guidance 与 Goal-owned snapshot；旧 Store 的重复列表、关系、Risk、Policy 和 Guidance 查询已改为委托。Web、MCP、CLI 的 Contract/Policy/Guidance/回收站读入口调用独立 `goalQueries` 应用层，不再调用 Coordinator 查询实现。
-- `GoalBoardCoordinator` 公开 `GoalsApplicationApi`，由 `commands`、`lifecycle`、`planning` 三个稳定子端口组成。GW4 已删除 `createGoal`、`updateDraftGoal`、Relation/Policy/Risk/Guidance、Lifecycle 和 Planning 的旧同名转发方法。
+- `MolisWorkCoordinator` 公开 `GoalsApplicationApi`，由 `commands`、`lifecycle`、`planning` 三个稳定子端口组成。GW4 已删除 `createGoal`、`updateDraftGoal`、Relation/Policy/Risk/Guidance、Lifecycle 和 Planning 的旧同名转发方法。
 - `GoalsModule.lifecycle` 现在负责 Draft 接受、同一 Goal 的 Contract revision 递增、revalidate/complete、archive、trash/restore 和复合父 Goal 的完成协调。Contract revision 的跨 owner 影响通过窄 port 交给 Execution/Review owner，Goals 不直接访问其 Store。
 - 归档、回收站、历史 Run/澄清修复、Active Goal 修复与 Contract coverage schema migration 已迁到 Goals public entrypoint；`src/v1/store.ts` 只按 migration id 调用，不再保存重复方法。`tooling/migrations` 提供只读升级对账工具。
 - Lifecycle 已按归档、重新校验、完成、版本和迁移拆成小文件，没有把 Coordinator 中的旧大段逻辑整体搬成新 Huge Class。
@@ -157,7 +158,7 @@ DV1 第八切片：七个项目 context 工具的转换归 MCP App；公开 cata
 - Evidence Module 接受已经由 Goals/Execution application layer 授权的 `goal_id + contract_revision + criterion_ids + optional run_id`，不读取 Goal Store、不写 Goal 状态，也不拥有 Review verdict。Coordinator 继续负责 action token、幂等 Receipt、Run/Goal 授权和跨 owner lifecycle reconciliation。
 - `src/v1/store.ts` 不再维护 Evidence/Correction schema、migration、mapping 或 snapshot SQL；`src/v1/action-projection.ts` 改调公开纯 coverage 函数；Web 项目引用通过 Evidence Query 和 locator public entrypoint 打开。旧 `src/evidence/locator.ts` 已删除。
 - `tests/evidence-verification-module.test.ts` 直接验证 public Module 的 locator preflight、Evidence、Correction、criterion coverage、rework freshness、Review link、owner 与 cycle 规则；原 V1 测试继续固定历史 migration、Human Review、revalidation、错误和兼容入口。
-- 完整命令、边界扫描、回归和未完成项见 [`EX2 Evidence 与 Verification 迁移验收记录`](../../specs/goalboard-architecture-reorganization/ex2-validation.md)。
+- 完整命令、边界扫描、回归和未完成项见 [`EX2 Evidence 与 Verification 迁移验收记录`](../../specs/molis-work-architecture-reorganization/ex2-validation.md)。
 
 ### EX3 已落地的 Governance 与 Collaboration 事实迁移
 
@@ -167,7 +168,7 @@ DV1 第八切片：七个项目 context 工具的转换归 MCP App；公开 cata
 - `src/v1/coordinator.ts` 不再持有 Governance 表 SQL 或具体 Repository；它只通过 `GovernanceApplicationApi` 提交已授权 Review、保存正式 Proposal/Decision，并调用目标 owner Command。Web/CLI/MCP/Action Projection 的最终应用入口切换仍归 EX4。
 - Planning 仍只负责分析和校验，不保存 Proposal/Decision；被接受的 Goal/Relation 继续由 Goals owner 写入。Decision 与目标 owner 写入在同一 SQLite 事务中执行，失败时整体回滚。
 - `tests/governance-collaboration-module.test.ts` 直接验证不同 reviewer、obligation 满足/重开、确认 provenance、非法状态转换和原子回滚；V1 回归固定历史 migration、冲突、部分/整案决定与旧入口行为。
-- 完整命令、边界扫描、回归和未完成项见 [`EX3 Governance 与 Collaboration 迁移验收记录`](../../specs/goalboard-architecture-reorganization/ex3-validation.md)。
+- 完整命令、边界扫描、回归和未完成项见 [`EX3 Governance 与 Collaboration 迁移验收记录`](../../specs/molis-work-architecture-reorganization/ex3-validation.md)。
 
 ### EX4 已落地的执行验收入口与 Action Projection
 
@@ -177,7 +178,7 @@ DV1 第八切片：七个项目 context 工具的转换归 MCP App；公开 cata
 - Workbench 的 Claim、Run、Evidence、Review renderer 已迁到 `apps/workbench/src/execution-validation-ui.ts`；旧 `render.ts` 只注入翻译、图标、日期和引用显示能力。
 - `tests/execution-validation-app-adapters.test.ts` 固定 CLI 领取 → MCP 报告 → Workbench Evidence/Review → Goal 完成的跨入口链，并覆盖错误 actor、stale token 和 UI contribution。
 - `boundary:check` 会阻止 Coordinator facade、旧 projection 文件、App 绕过 adapter、render 规则回流和新 execution owner 超过 1,000 行。
-- 完整对账见 [`EX4 执行验收入口迁移验收记录`](../../specs/goalboard-architecture-reorganization/ex4-validation.md)。
+- 完整对账见 [`EX4 执行验收入口迁移验收记录`](../../specs/molis-work-architecture-reorganization/ex4-validation.md)。
 
 ### AR1 已落地的 Artifact Core、版本与 Repository
 
@@ -198,7 +199,7 @@ DV1 第八切片：七个项目 context 工具的转换归 MCP App；公开 cata
 - Project 创建、选择、重命名、workspace 关联/修复/解除、Demo 重建、旧数据库迁移、删除收据和回滚保持旧公开行为。文件 staging 仍由兼容 Catalog 编排；WK1 已把 Runtime Session binding schema、mapping 和 SQL 移入 Private Work Context，AP4 已把 Desktop Panel 规则与 SQL 移出 Catalog。
 - `tooling/migrations/audit-project-identity.mjs` 只读检查 Catalog owner/version、身份唯一性、`board_id` 兼容映射和 membership 引用；`tests/projects-module.test.ts` 直接验证 public module 与 schema migration，原 `tests/project-catalog.test.ts` 固定端到端兼容。
 - `src/projects/catalog.ts` 在 AP1 从 2,955 行降至 2,392 行；AP4 移出 Desktop Panel 后进一步降至 2,104 行，没有把 Runtime 或 Desktop 职责错误吸收到 Projects Module。
-- 完整命令、caller 清单、迁移审计与全量回归结果见 [`AP1 Projects Module 迁移验收记录`](../../specs/goalboard-architecture-reorganization/ap1-validation.md)。
+- 完整命令、caller 清单、迁移审计与全量回归结果见 [`AP1 Projects Module 迁移验收记录`](../../specs/molis-work-architecture-reorganization/ap1-validation.md)。
 
 ### AP2 已落地的 Local Host composition
 
@@ -207,7 +208,7 @@ DV1 第八切片：七个项目 context 工具的转换归 MCP App；公开 cata
 - `src/local-host/composition.ts` 是迁移期唯一 `Store + Coordinator` 构造点；`src/web/server.ts`、`src/mcp/server.ts`、`src/v1/cli.ts` 已删除自己的构造代码。
 - Web Feed scheduler 复用 Host Store，不再为同一 Project 打开第二个 writer。个人规划方法更新后由 Host 统一重开已发现 Runtime。
 - CLI、MCP 与 Workbench 风格 Client 的同 Host fixture 固定相同事实、幂等结果、单次 runtime open 和重启恢复。当前 transport 是 embedded/in-process，未把未来 daemon/IPC 伪装成完成。
-- 详细边界见 [`Local Host 与 Host Client`](../platform/LOCAL-HOST.md)；命令、caller 清单和全量回归见 [`AP2 Local Host Composition 迁移验收记录`](../../specs/goalboard-architecture-reorganization/ap2-validation.md)。
+- 详细边界见 [`Local Host 与 Host Client`](../platform/LOCAL-HOST.md)；命令、caller 清单和全量回归见 [`AP2 Local Host Composition 迁移验收记录`](../../specs/molis-work-architecture-reorganization/ap2-validation.md)。
 
 ### AP3 已落地的 Workbench / UI Host / Design System
 
@@ -216,7 +217,7 @@ DV1 第八切片：七个项目 context 工具的转换归 MCP App；公开 cata
 - `packages/design-system` 已接管主题/密度偏好、browser bootstrap 和分层视觉样式。`src/web/visual-foundation.ts` 从 7,979 行降为 15 行兼容 re-export，原 CSS、client 和 bootstrap 输出逐字节一致。
 - Workbench browser CSS/JS 已从 `src/web/render.ts` 迁入按样式层和客户端职责拆分的文件；15 个静态资产常量与迁移前逐字节一致。全局 `src/web/i18n.ts` 从 3,710 行降为 140 行语言 runtime，当前 EN 产品文案暂存于 Workbench compatibility catalog，等待各 Native Plugin UI Goal 就近接管。
 - `src/web/render.ts` 从 14,028 行降为 6,129 行，已退出 Shell、Design System、UI Host、browser asset 以及 EX4 Claim/Run/Evidence/Review renderer 职责。剩余 Goals/Artifact/Work/App Shell 页面分别由 GW5/AR3/WK3/AP4 迁移。
-- 详细分工见 [`UI Platform`](../platform/UI-PLATFORM.md)；命令、caller 清单和回归结果见 [`AP3 Workbench / UI Host / Design System 迁移验收记录`](../../specs/goalboard-architecture-reorganization/ap3-validation.md)。
+- 详细分工见 [`UI Platform`](../platform/UI-PLATFORM.md)；命令、caller 清单和回归结果见 [`AP3 Workbench / UI Host / Design System 迁移验收记录`](../../specs/molis-work-architecture-reorganization/ap3-validation.md)。
 
 ### AP4 已落地的 Desktop / Tauri Shell
 
@@ -225,7 +226,7 @@ DV1 第八切片：七个项目 context 工具的转换归 MCP App；公开 cata
 - `src/web/capsule.ts` 从 1,044 行降为 496 行，只保留状态 read model 与兼容环境注入；576 行 Capsule CSS/client/HTML shell 由 Desktop App 拥有。
 - 原 1,473 行 `desktop/src-tauri/src/main.rs` 已删除并迁到 `apps/desktop/adapters/tauri/src/`，按窗口/Capsule composition、PTY、本地 Web service、Runtime environment 拆成 812/327/327/36 行。`desktop/src-tauri/` 只保存 Cargo/Tauri 发布配置并指向新 adapter。
 - 当前真实能力包括窗口/菜单栏/Capsule、PTY、本地服务恢复、内置 Runtime 升级修复和显式 Tauri permissions。系统通知按钮在基线中就是禁用占位，Desktop Keychain 也未实现；AP4 不注册假能力，未来实现仍放在 Desktop adapter。
-- 详细边界见 [`Desktop App 与 Tauri`](../platform/DESKTOP.md)；caller、Huge Class 与回归证据见 [`AP4 Desktop / Tauri Shell 迁移验收记录`](../../specs/goalboard-architecture-reorganization/ap4-validation.md)。
+- 详细边界见 [`Desktop App 与 Tauri`](../platform/DESKTOP.md)；caller、Huge Class 与回归证据见 [`AP4 Desktop / Tauri Shell 迁移验收记录`](../../specs/molis-work-architecture-reorganization/ap4-validation.md)。
 
 ## 2. 当前路径
 
@@ -252,7 +253,7 @@ DV1 第八切片：七个项目 context 工具的转换归 MCP App；公开 cata
 
 ## 3. 兼容入口
 
-迁移初期允许保留根 package、`GoalBoardCoordinator`、旧 Web route/render 和旧 Store 方法，但必须遵守：
+迁移初期允许保留根 package、`MolisWorkCoordinator`、旧 Web route/render 和旧 Store 方法，但必须遵守：
 
 - 只能调用新 public API，不保留第二套业务判断或双写事实。
 - 在本表或 package README 记录剩余 caller、兼容版本和删除 Goal。

@@ -1,11 +1,11 @@
-import { openGoalBoardProjectCatalog } from "@adeptify/goalboard-app-desktop";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 #!/usr/bin/env node
 /**
- * 创建或重建 GoalBoard 自带的可再生演示项目。
+ * 创建或重建 Molis Work 自带的可再生演示项目。
  *
  * 这个脚本保留给仓库开发和截图流程；产品用户应优先使用：
- *   goalboard demo create --confirm
- *   goalboard demo reset --confirm
+ *   molis-work demo create --confirm
+ *   molis-work demo reset --confirm
  */
 import os from "node:os";
 import path from "node:path";
@@ -16,10 +16,10 @@ const homeIndex = process.argv.indexOf("--home");
 const homeDirectory = path.resolve(
   homeIndex >= 0 && process.argv[homeIndex + 1]
     ? process.argv[homeIndex + 1]
-    : process.env.GOALBOARD_HOME ?? path.join(os.homedir(), ".goalboard"),
+    : process.env.MOLIS_WORK_HOME ?? path.join(os.homedir(), ".molis-work"),
 );
 
-const catalog = await openGoalBoardProjectCatalog({ homeDirectory });
+const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
 try {
   const existing = catalog.listProjects().find((project) => project.data_class === "regenerable_demo");
   const result = force && existing

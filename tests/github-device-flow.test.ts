@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createGithubDeviceFlow } from "@adeptify/goalboard-integration-github";
+import { createGithubDeviceFlow } from "@molis-ai/molis-work-integration-github";
 
 test("GitHub device authorization persists the selected client and binds only an authorized token", async () => {
   let storedClient = "old-client";
@@ -46,6 +46,6 @@ test("GitHub device authorization persists the selected client and binds only an
 test("GitHub authorization without a configured client does not request or bind credentials", async () => {
   const flow = createGithubDeviceFlow({ clientId: () => null, storeClientId: () => assert.fail("unexpected client write"), bindToken: () => assert.fail("unexpected credential write") });
   const fetchImpl = async (): Promise<Response> => assert.fail("unexpected network request");
-  await assert.rejects(flow.startGithubDeviceFlow({ fetchImpl }), /GOALBOARD_GITHUB_CLIENT_ID required/);
+  await assert.rejects(flow.startGithubDeviceFlow({ fetchImpl }), /MOLIS_WORK_GITHUB_CLIENT_ID required/);
   assert.deepEqual(await flow.pollGithubDeviceFlow({ deviceCode: "device-1", fetchImpl }), { status: "error", message: "Missing GitHub client id" });
 });

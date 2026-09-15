@@ -1,4 +1,4 @@
-import type { RuntimeSessionCapabilities, RuntimeSessionCapabilityMode } from "@adeptify/goalboard-contracts/services/runtime-host";
+import type { RuntimeSessionCapabilities, RuntimeSessionCapabilityMode } from "@molis-ai/molis-work-contracts/services/runtime-host";
 
 export interface ProjectOperationsProject {
   project_id: string;

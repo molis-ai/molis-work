@@ -1,5 +1,5 @@
-import { createGoalsDecisionPresentation, explainGoalDecision, type GoalsDocumentView, type GoalsDecisionView } from "@adeptify/goalboard-plugin-goals";
-import type { EvidenceKind, EvidenceResult } from "@adeptify/goalboard-contracts/modules/evidence-verification";
+import { createGoalsDecisionPresentation, explainGoalDecision, type GoalsDocumentView, type GoalsDecisionView } from "@molis-ai/molis-work-plugin-goals";
+import type { EvidenceKind, EvidenceResult } from "@molis-ai/molis-work-contracts/modules/evidence-verification";
 
 export const EXECUTION_EVIDENCE_KIND_LABELS: Record<EvidenceKind, string> = {
   test: "测试",
@@ -48,7 +48,7 @@ function renderHumanReviewScenario(item: GoalsDocumentView): string {
   let contextEffect = L("这条 Goal 还没有完成标准，暂时无法判断结果是否完成。");
   if (criterion?.decision_method === "human_decision") {
     contextLabel = L("需要你判断");
-    contextEffect = L("完成标准「{criterion}」只能由你根据实际体验判断。选择“通过”并说明理由后，GoalBoard 会把这次确认同时记录为该标准的人工结论依据。", {
+    contextEffect = L("完成标准「{criterion}」只能由你根据实际体验判断。选择“通过”并说明理由后，Molis Work 会把这次确认同时记录为该标准的人工结论依据。", {
       criterion: criterion.statement,
     });
   } else if (criterion && evidence?.result === "passed") {
@@ -93,7 +93,7 @@ function renderHumanReviewScenario(item: GoalsDocumentView): string {
           title: item.goal.title,
           count: remainingGateCount,
         })
-      : L("选择“通过”会记录这次用户检查{humanEvidence}；GoalBoard 会立即再核对全部门槛，都满足后 Goal「{title}」才会完成。", {
+      : L("选择“通过”会记录这次用户检查{humanEvidence}；Molis Work 会立即再核对全部门槛，都满足后 Goal「{title}」才会完成。", {
           humanEvidence: hasHumanDecisionCriterion ? L("和对应的人工结论依据") : "",
           title: item.goal.title,
         });

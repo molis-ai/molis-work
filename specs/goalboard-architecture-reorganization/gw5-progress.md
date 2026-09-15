@@ -1,6 +1,6 @@
 # GW5 执行进度与验证
 
-2026-09-05。accepted revision 1，执行中，**未完成整个 GW5**。生命周期以 GoalBoard 为准。
+2026-09-05。accepted revision 1，执行中，**未完成整个 GW5**。生命周期以 Molis Work 为准。
 
 ## 已迁移的实际职责
 
@@ -39,7 +39,7 @@
 - 真实关系浏览器验证 incoming/extends 方向与预览、空原因不写、新建只增加一条关系、取消不写、解除原因必填、inactive/原方向/原建立原因保留、重载展示解除历史，未启动 Run。
 - 最终命令：`node --import tsx --test tests/web.test.ts tests/goals-policy-ui.test.ts tests/goals-safety-ui.test.ts tests/goals-relation-ui.test.ts tests/goals-tree-ui.test.ts tests/goals-safety.e2e.test.ts tests/goals-relation.e2e.test.ts tests/goals-tree.e2e.test.ts`：**75 通过，0 失败，0 跳过，18.4 秒**（session 28765 exit 0）。首轮受 sandbox 限制无法 listen/启动 Chrome，不计为产品失败；获准隔离运行后暴露的两个问题已按上文修复并重新验证。未跳过失败测试或放宽产品规则。
 - Plugin、Design System、Workbench、root TypeScript 构建通过。边界检查：48 packages / 382 sources / 1,074 imports / 71 dependency edges / 30 contract subpaths / 10 compatibility entries / 5 legacy huge files，0 errors。当前 root renderer 5,052 行；tree UI 207、tree presentation 159、relation UI 152、relation client 166 行。行数只是迁移范围说明，不是验收替代品。
-- 桌面 1440×1100、窄屏 390×844 截图已实际查看：搜索、原工具栏、树和详情无相互遮挡，窄屏列表不溢出。截图位于本机临时目录 `/var/folders/m2/tx2tqs290l913y61zqz413dr0000gn/T/goalboard-gw5-tree-Adeex0/desktop.png` 与 `mobile.png`；它们不是公开发布物。临时数据库、服务和浏览器已清理，当前 4173 及用户数据未动。
+- 桌面 1440×1100、窄屏 390×844 截图已实际查看：搜索、原工具栏、树和详情无相互遮挡，窄屏列表不溢出。截图位于本机临时目录 `/var/folders/m2/tx2tqs290l913y61zqz413dr0000gn/T/molis-work-gw5-tree-Adeex0/desktop.png` 与 `mobile.png`；它们不是公开发布物。临时数据库、服务和浏览器已清理，当前 4173 及用户数据未动。
 
 ## 目标树客户端收口
 
@@ -64,7 +64,7 @@
 - 在重建 root dist **之前**，旧 compiled root 与新源 renderer 对 demo 12 个 Goal 的正常/归档/回收三种正文做中英文 **72 份逐字比较，通过**。这属于正文模板迁移证据，不包含之后声明的客户端时序修复，也不是归档写入证明；实际归档/回收写入另由 Web 回归验证。
 - 3 项公共 mount 测试通过：下一步全部原分支、归档/回收操作、选中/惰性面板、6 条标准只预览 5 条、完成状态不虚构 Evidence、owner 输入位置、外部文本转义和语言隔离。
 - 浏览器测试纠正一次误写的树 selector 后，确实复现旧产品缺陷：第一次点草稿主按钮，setGoalPanel 未等待异步模板，编辑器不展开、不聚焦（59821 exit 1）。修复为面板即时切换但返回加载结果，handler 等待后只处理原 Goal/仍活跃面板。没有改变保存或后端规则；没有靠预加载修改测试绕过问题。
-- 修复后浏览器首次路径通过（3054 exit 0）；追加真实 390px 输入点击、焦点/无溢出与截图后通过（22554 exit 0）。1440×1100、390×844 截图已查看，原编辑区可见且无新增遮挡；位置：`/var/folders/m2/tx2tqs290l913y61zqz413dr0000gn/T/goalboard-gw5-document-zV6LoE/desktop.png` 与 `mobile.png`。impeccable 仅指导此次已复现的时序/焦点修复，不重做视觉。
+- 修复后浏览器首次路径通过（3054 exit 0）；追加真实 390px 输入点击、焦点/无溢出与截图后通过（22554 exit 0）。1440×1100、390×844 截图已查看，原编辑区可见且无新增遮挡；位置：`/var/folders/m2/tx2tqs290l913y61zqz413dr0000gn/T/molis-work-gw5-document-zV6LoE/desktop.png` 与 `mobile.png`。impeccable 仅指导此次已复现的时序/焦点修复，不重做视觉。
 
 ## 本轮最终回归
 
@@ -83,12 +83,12 @@
 - 草稿客户端在覆盖 Workbench compiled baseline 前 **234,626 字符逐字一致，JS parse 通过**。这个长度包含前轮已声明的编辑器等待加载修复；本轮只迁归属，没有改该修复或其他交互。
 - 4 项公共 mount 测试通过：完整字段/四种拆分选择/必填原因、accepted 无编辑表单、scalar/object target、原文转义/语言隔离、部分/历史父子覆盖、子→父方向、缺失前置、范围空缺与资料引用。
 - 真实浏览器完成增删标准（最后一行清空但保留）、主按钮首次打开、填写所有字段和两种 target、阻断真实保存、保留原输入、恢复后重试、重载后核对表单。真实存储逐项验证列表去重、字段和 criteria 保留、只增加一次 `goal.draft_updated`，仍为 Draft/unmet、accepted_at=null；其他 Goal、Relation、Run 不变。
-- 首轮浏览器测试在成功保存后误读 `snapshot.events`（该快照不提供完整事件账本），并非产品保存失败。测试改走生产 `buildGoalBoardWebView` Query 读取该 Goal 的更新事件，未加 SQL 或修改产品来满足断言。最终运行：`node --import tsx --test tests/goals-context-ui.test.ts tests/goals-draft.e2e.test.ts tests/web.test.ts tests/goals-document-ui.test.ts tests/goals-document.e2e.test.ts`，**68 通过、0 失败、0 跳过，17.5 秒**（90557 exit 0）。
+- 首轮浏览器测试在成功保存后误读 `snapshot.events`（该快照不提供完整事件账本），并非产品保存失败。测试改走生产 `buildMolisWorkWebView` Query 读取该 Goal 的更新事件，未加 SQL 或修改产品来满足断言。最终运行：`node --import tsx --test tests/goals-context-ui.test.ts tests/goals-draft.e2e.test.ts tests/web.test.ts tests/goals-document-ui.test.ts tests/goals-document.e2e.test.ts`，**68 通过、0 失败、0 跳过，17.5 秒**（90557 exit 0）。
 - Plugin/Workbench/root TypeScript 构建、build manifest、boundary、diff check 通过。边界统计 48 packages / 406 sources / 1,135 imports / 71 edges / 30 contract subpaths / 10 compatibility entries / 5 legacy huge files，0 errors。根 renderer 4,416 行；仍未整体 retired。所有本轮测试句柄已终止，当前用户服务和数据未动。
 
 ## Planning 追加迁移与验证
 
-- 方法库、详情、新建/编辑和项目工作规划已通过 `io.goalboard.native.goals.planning.v1` 的 library/method/project 真实 surface 提供。presentation/detail/edit/library/project 分文件，专属样式、客户端、66 条原英文文案与 page matcher 就近。最小模型消费公开 Planning Method/Composition 和两个 Project 导航字段，不依赖根 Web view/Store；组合规则仍由 Goals Module 计算。Workbench 的 adapter 只 mount，根通用设置页 frame/nav/control 为显式输入。
+- 方法库、详情、新建/编辑和项目工作规划已通过 `io.molis.work.native.goals.planning.v1` 的 library/method/project 真实 surface 提供。presentation/detail/edit/library/project 分文件，专属样式、客户端、66 条原英文文案与 page matcher 就近。最小模型消费公开 Planning Method/Composition 和两个 Project 导航字段，不依赖根 Web view/Store；组合规则仍由 Goals Module 计算。Workbench 的 adapter 只 mount，根通用设置页 frame/nav/control 为显式输入。
 - 根 Planning 模板和专属样式/脚本已移出；根入口保留原签名但仅装配公开 contribution。GET 页面的路径匹配/单次 id 解码/模式描述已归 Plugin，HTTP host 保留项目解析、权限、查找/404 和所有保存调用。尚未宣称整个 server route composition 已退出。
 - 覆盖 root dist 前，中英文 × 浏览器/桌面 × 无项目/带项目 × library / 个人与项目的 detail/edit/new（含 built-in、personal、active/disabled project、空方法）/ 项目组合共 **272 份完整页面逐字相同**，设置页样式也一致。新建临时 id 比较时固定 Date.now，不改生产生成逻辑。模板所有布局和文案均保留。
 - 随后格式整理仍保持真实客户端 **5,090 字符**及 Planning 样式 **16,269 字符**逐字相同，JS parse 通过。这份比较在下述按钮请求修复之前；修复后仅多明确的 user_confirmed 字段，不能称为完全相同。
@@ -96,7 +96,7 @@
 - 真实旧产品缺陷：adoption client 没发送 user_confirmed，但 /apply 与 Goals Module 明确要求用户确认；原 HTTP 测试手工带字段而漏掉 UI 问题。修复前浏览器 80566 exit 1，后端提示“必须由用户确认”；修复限于现有按钮点击发送 true，没有放宽权限、自动采用或改写保存规则。修复后 19286 exit 0。impeccable harden 用于这个已复现的交互错误，未重做视觉。
 - 浏览器实测方法分类/我的方法空态、详情到个人副本、增删步骤和焦点、完整字段/正文保存、网络失败保留输入且无写入、重试个人版本 v1、重载；缺确认请求 400 且项目不变；明确点击采用网络失败/重试只有一份项目 v1、停用后项目 v2 不参与组合、个人 v1 完全不变、刷新可见未启用方法。其他方法、Goal/Relation/Run 都与原值一致。未触及用户 4173/安装/项目。
 - 4 项公共路由/mount 测试验证一次解码、无关路径、个人/项目链接、模板只读/副本表单、外部文本转义、正文/完整字段/空行/停用、语言与组合展示只信 Module 输入。现有 Web HTTP 回归继续覆盖模板库/方法保存/采用/项目上下文/控制权限。
-- 最终命令：`node --import tsx --test tests/goals-planning-ui.test.ts tests/goals-planning.e2e.test.ts tests/web.test.ts tests/goals-draft.e2e.test.ts tests/goals-document.e2e.test.ts`，**66 通过、0 失败、0 跳过，18.0 秒**（75309 exit 0）。之前截图轮 65 项也全通过；路径 `/var/folders/m2/tx2tqs290l913y61zqz413dr0000gn/T/goalboard-gw5-planning-OWJ9J5/desktop.png`（1440×1100）和 `mobile.png`（390×844）已查看，原桌面目录/窄屏导航与布局保留，没有为本修复扩展视觉工作。
+- 最终命令：`node --import tsx --test tests/goals-planning-ui.test.ts tests/goals-planning.e2e.test.ts tests/web.test.ts tests/goals-draft.e2e.test.ts tests/goals-document.e2e.test.ts`，**66 通过、0 失败、0 跳过，18.0 秒**（75309 exit 0）。之前截图轮 65 项也全通过；路径 `/var/folders/m2/tx2tqs290l913y61zqz413dr0000gn/T/molis-work-gw5-planning-OWJ9J5/desktop.png`（1440×1100）和 `mobile.png`（390×844）已查看，原桌面目录/窄屏导航与布局保留，没有为本修复扩展视觉工作。
 - Plugin/Workbench/root TypeScript 构建、build manifest、boundary、diff check 通过。最终 48 packages / 419 sources / 1,166 imports / 71 edges / 30 contract subpaths / 10 compatibility entries / 5 legacy huge files，0 errors。根 renderer 当前 **4,299 行**，仍未 retired。测试句柄全部 terminal。
 
 ## 状态、动作与关联组合迁移（2026-09-05）

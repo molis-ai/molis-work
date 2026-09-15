@@ -2,7 +2,7 @@
 
 保存 Artifact 身份、版本、内容引用、隐私范围及生产者信息，让交付物能被精确引用和读取。
 
-包名：`@adeptify/goalboard-module-artifacts`。工作区内部包，通过仓库构建和 Host 装配使用。
+包名：`@molis-ai/molis-work-module-artifacts`。工作区内部包，通过仓库构建和 Host 装配使用。
 
 ## 一次典型调用
 
@@ -32,8 +32,8 @@ ArtifactsModule 通过 query/commands 发布和读取；身份与版本分开记
 以下命令在**仓库根目录**执行，使用 Node.js 24+ 与仓库配置的 pnpm。首次准备运行 `pnpm install --frozen-lockfile` 和 `pnpm build`；之后可单独检查此包。
 
 ```bash
-pnpm --filter @adeptify/goalboard-module-artifacts typecheck
-pnpm --filter @adeptify/goalboard-module-artifacts build
+pnpm --filter @molis-ai/molis-work-module-artifacts typecheck
+pnpm --filter @molis-ai/molis-work-module-artifacts build
 ```
 
 已有行为示例与回归：[artifacts-module.test.ts](../../tests/artifacts-module.test.ts)。完成上述构建后运行：
@@ -50,7 +50,7 @@ node --import tsx --test --test-concurrency=1 tests/artifacts-module.test.ts
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
 - Status: `partial`
-- Contract entrypoint: `@adeptify/goalboard-contracts/modules/artifacts`
+- Contract entrypoint: `@molis-ai/molis-work-contracts/modules/artifacts`
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-ar1`, `goal-reorg-ar3`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。

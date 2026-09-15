@@ -1,4 +1,4 @@
-# GoalBoard Skill 对话与结构化确认改写
+# Molis Work Skill 对话与结构化确认改写
 
 ## 背景与目标
 
@@ -49,7 +49,7 @@
 
 ## 输入、输出与依赖
 
-- 输入：用户当前语言与原话、GoalBoard context resolution、Draft dialogue、Available item、Goal Tree proposal/check 结果。
+- 输入：用户当前语言与原话、Molis Work context resolution、Draft dialogue、Available item、Goal Tree proposal/check 结果。
 - 输出：自然对话、结构化 checkpoint、持久化 dialogue turn、可决定的 Goal Tree 摘要。
 - 依赖：现有 Runtime MCP 工具、`references/protocol.md`、Skill validator。
 

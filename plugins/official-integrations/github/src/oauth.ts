@@ -20,7 +20,7 @@ export interface DeviceCodePollResult {
 /**
  * GitHub's notifications endpoint requires the classic `notifications` or
  * `repo` OAuth scope and does not accept fine-grained PATs or GitHub App
- * tokens. GoalBoard requests the narrower notifications scope and only calls
+ * tokens. Molis Work requests the narrower notifications scope and only calls
  * GET endpoints even though GitHub's scope also grants notification writes.
  */
 export const GITHUB_DEVICE_DEFAULT_SCOPE = "notifications read:user";
@@ -49,7 +49,7 @@ export function createGithubDeviceFlow(ports: GithubDeviceFlowPorts) {
     const clientId = resolveClientId(opts?.clientId);
     if (!clientId) {
       throw new Error(
-        "GOALBOARD_GITHUB_CLIENT_ID required for device flow (or bind client id first)",
+        "MOLIS_WORK_GITHUB_CLIENT_ID required for device flow (or bind client id first)",
       );
     }
     if (opts?.clientId?.trim()) {
@@ -67,7 +67,7 @@ export function createGithubDeviceFlow(ports: GithubDeviceFlowPorts) {
       headers: {
         Accept: "application/json",
         "Content-Type": "application/x-www-form-urlencoded",
-        "User-Agent": "goalboard-feed-connector",
+        "User-Agent": "molis-work-feed-connector",
       },
       body: body.toString(),
     });
@@ -114,7 +114,7 @@ export function createGithubDeviceFlow(ports: GithubDeviceFlowPorts) {
       headers: {
         Accept: "application/json",
         "Content-Type": "application/x-www-form-urlencoded",
-        "User-Agent": "goalboard-feed-connector",
+        "User-Agent": "molis-work-feed-connector",
       },
       body: body.toString(),
     });

@@ -1,8 +1,8 @@
 # Plugin 作者接口
 
-帮助 Plugin 作者声明 Manifest、生命周期和 UI/Artifact 接口，用公共协议对接 GoalBoard。
+帮助 Plugin 作者声明 Manifest、生命周期和 UI/Artifact 接口，用公共协议对接 Molis Work。
 
-包名：`@adeptify/goalboard-plugin-sdk`。工作区内部包，通过仓库构建和 Host 装配使用。
+包名：`@molis-ai/molis-work-plugin-sdk`。工作区内部包，通过仓库构建和 Host 装配使用。
 
 ## 一次典型调用
 
@@ -22,7 +22,7 @@ definePlugin 校验定义；definePollingIntegrationPlugin 把 Provider port 组
 
 SDK 不包含 Runtime 或业务 Store。Manifest 解析委托 Contracts；授权的实际执行由 Host/Runtime 控制。当前工作区包是 private，不能把包名当作已经发布到 npm 的承诺。
 
-工作区依赖：`@adeptify/goalboard-contracts`。其他运行依赖见 [package.json](package.json)。
+工作区依赖：`@molis-ai/molis-work-contracts`。其他运行依赖见 [package.json](package.json)。
 
 可从[本地 Plugin 示例](../../examples/plugin-sample/README.md)开始：示例使用 context.services 存取私人状态、发布 Artifact 并注册 UI，完整授权和开发步骤见开发指南。
 
@@ -31,8 +31,8 @@ SDK 不包含 Runtime 或业务 Store。Manifest 解析委托 Contracts；授权
 以下命令在**仓库根目录**执行，使用 Node.js 24+ 与仓库配置的 pnpm。首次准备运行 `pnpm install --frozen-lockfile` 和 `pnpm build`；之后可单独检查此包。
 
 ```bash
-pnpm --filter @adeptify/goalboard-plugin-sdk typecheck
-pnpm --filter @adeptify/goalboard-plugin-sdk build
+pnpm --filter @molis-ai/molis-work-plugin-sdk typecheck
+pnpm --filter @molis-ai/molis-work-plugin-sdk build
 ```
 
 已有行为示例与回归：[plugin-authoring.test.ts](../../tests/plugin-authoring.test.ts)。完成上述构建后运行：
@@ -49,7 +49,7 @@ node --import tsx --test --test-concurrency=1 tests/plugin-authoring.test.ts
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
 - Status: `partial`
-- Contract entrypoint: `@adeptify/goalboard-contracts/platform/plugin`
+- Contract entrypoint: `@molis-ai/molis-work-contracts/platform/plugin`
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-fd3`, `goal-reorg-dv3`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。

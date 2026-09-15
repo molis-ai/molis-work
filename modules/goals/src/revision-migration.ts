@@ -1,4 +1,4 @@
-import type { GoalAcceptanceCriterion as AcceptanceCriterion } from "@adeptify/goalboard-contracts/modules/goals";
+import type { GoalAcceptanceCriterion as AcceptanceCriterion } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { GoalLifecycleMigrationDatabase } from "./migrations.js";
 
 type Row = Record<string, unknown>;

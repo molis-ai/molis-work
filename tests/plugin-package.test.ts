@@ -6,10 +6,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { parsePluginPackage, verifyPluginPackage, PluginPackageError } from "@adeptify/goalboard-plugin-runtime";
+import { parsePluginPackage, verifyPluginPackage, PluginPackageError } from "@molis-ai/molis-work-plugin-runtime";
 
 test("real CLI creates, packs, signs and verifies a Plugin while rejecting tampering, wrong identity and unsafe files", () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-plugin-package-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-plugin-package-"));
   try {
     const keys = generateKeyPairSync("ed25519");
     const publicFile = join(directory, "public.pem");
@@ -20,7 +20,7 @@ test("real CLI creates, packs, signs and verifies a Plugin while rejecting tampe
     const invoke = (...args: string[]) => spawnSync(process.execPath, [cli, ...args], { cwd: directory, encoding: "utf8" });
     const identity = JSON.parse(invoke("identity", publicFile).stdout).publisher_identity as string;
     const project = join(directory, "plugin");
-    assert.equal(invoke("create", project, "io.goalboard.example.signed", "developer", identity).status, 0);
+    assert.equal(invoke("create", project, "io.molis.work.example.signed", "developer", identity).status, 0);
     const unsigned = join(directory, "unsigned.json");
     const signed = join(directory, "signed.json");
     const code = readFileSync(join(project, "index.mjs"), "utf8");

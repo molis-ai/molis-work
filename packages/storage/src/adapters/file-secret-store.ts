@@ -2,7 +2,7 @@
  * SecretStore v2 — AES-256-GCM ciphertext only; never returns plaintext to Item rows.
  *
  * Backend selection (first match):
- *  1. GOALBOARD_ENCRYPTION_KEY env → env-key + AES-GCM file map
+ *  1. MOLIS_WORK_ENCRYPTION_KEY env → env-key + AES-GCM file map
  *  2. darwin + keychain available → master key in Keychain, ciphertext in secrets.json
  *  3. otherwise → install key file (0600) + AES-GCM secrets.json
  *
@@ -22,7 +22,7 @@ import {
 import { execFileSync } from "node:child_process";
 import { DatabaseSync } from "node:sqlite";
 import { atomicWriteFileSync } from "./atomic-write.js";
-import { resolveFeedSecurityDirectory, resolveGoalBoardHome, runWithGoalBoardHome } from "./local-security-paths.js";
+import { readProductEnv, resolveFeedSecurityDirectory, resolveMolisWorkHome, runWithMolisWorkHome } from "./local-security-paths.js";
 
 export interface SecretStore {
   put(authRef: string, plaintext: string): void;
@@ -69,8 +69,10 @@ export interface SecretStoreMigrationResult {
 
 const FORMAT_VERSION = 2;
 const ALG = "aes-256-gcm" as const;
-const KEYCHAIN_SERVICE = "com.adeptify.goalboard.feed.secretstore";
+const KEYCHAIN_SERVICE = "com.molis.work.feed.secretstore";
+const LEGACY_KEYCHAIN_SERVICE = "com.adeptify.goalboard.feed.secretstore";
 const KEYCHAIN_ACCOUNT = "install-master-key";
+const ENV_KEY_SALT = "goalboard-feed-secretstore-v1";
 
 /** On-disk sealed entry (v2). */
 interface SealedV2 {
@@ -151,9 +153,10 @@ function installKeyPath(): string {
 }
 
 function preferKeychain(): boolean {
-  if (process.env.GOALBOARD_SECRET_BACKEND === "file") return false;
-  if (process.env.GOALBOARD_SECRET_BACKEND === "keychain") return true;
-  if (process.env.GOALBOARD_SECRET_BACKEND === "env") return false;
+  const backend = readProductEnv("SECRET_BACKEND");
+  if (backend === "file") return false;
+  if (backend === "keychain") return true;
+  if (backend === "env") return false;
   // Tests / CI: avoid interactive keychain prompts unless forced
   if (process.env.NODE_ENV === "test" || process.env.CI === "true") return false;
   return process.platform === "darwin";
@@ -173,10 +176,10 @@ function parseEnvKey(raw: string): Buffer | null {
     /* fall through */
   }
   // Derive stable 32-byte key from arbitrary passphrase
-  return scryptSync(t, "goalboard-feed-secretstore-v1", 32);
+  return scryptSync(t, ENV_KEY_SALT, 32);
 }
 
-function readKeychain(): string | null {
+function readKeychainService(service: string): string | null {
   if (process.platform !== "darwin") return null;
   try {
     const out = execFileSync(
@@ -186,7 +189,7 @@ function readKeychain(): string | null {
         "-a",
         KEYCHAIN_ACCOUNT,
         "-s",
-        KEYCHAIN_SERVICE,
+        service,
         "-w",
       ],
       { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 3000 },
@@ -196,6 +199,17 @@ function readKeychain(): string | null {
   } catch {
     return null;
   }
+}
+
+function readKeychain(): string | null {
+  const current = readKeychainService(KEYCHAIN_SERVICE);
+  if (current) return current;
+  const legacy = readKeychainService(LEGACY_KEYCHAIN_SERVICE);
+  if (legacy) {
+    writeKeychain(legacy);
+    return legacy;
+  }
+  return null;
 }
 
 function writeKeychain(keyB64: string): boolean {
@@ -258,9 +272,9 @@ interface ResolvedMaster {
 function resolveMasterKey(): ResolvedMaster {
   const persisted = loadFile();
   const hasPersistedEntries = Object.keys(persisted.entries).length > 0;
-  const envRaw = process.env.GOALBOARD_ENCRYPTION_KEY?.trim();
+  const envRaw = readProductEnv("ENCRYPTION_KEY");
   if (persisted.backend === "env-key+aes-gcm" && hasPersistedEntries && !envRaw) {
-    throw new Error("GoalBoard encryption key is unavailable; refusing to rotate existing secrets");
+    throw new Error("Molis Work encryption key is unavailable; refusing to rotate existing secrets");
   }
   if (envRaw && (!hasPersistedEntries || persisted.backend === "env-key+aes-gcm")) {
     const key = parseEnvKey(envRaw);
@@ -268,7 +282,7 @@ function resolveMasterKey(): ResolvedMaster {
       return {
         key,
         kind: "env-key+aes-gcm",
-        label: "AES-256-GCM (GOALBOARD_ENCRYPTION_KEY)",
+        label: "AES-256-GCM (MOLIS_WORK_ENCRYPTION_KEY)",
         masterKeyExternal: true,
       };
     }
@@ -486,8 +500,8 @@ const storeCache = new Map<string, SecretStore>();
 
 function cacheKey(): string {
   const dataDir = resolveFeedSecurityDirectory();
-  const env = process.env.GOALBOARD_ENCRYPTION_KEY?.trim() || "";
-  const backend = process.env.GOALBOARD_SECRET_BACKEND || "";
+  const env = readProductEnv("ENCRYPTION_KEY") ?? "";
+  const backend = readProductEnv("SECRET_BACKEND") ?? "";
   return `${dataDir}::${backend}::${env}`;
 }
 
@@ -604,17 +618,17 @@ export function createFileSecretStore(): SecretStore {
   const hit = storeCache.get(key);
   if (hit) return hit;
   const master = withSecretsLock(() => resolveMasterKey());
-  const home = resolveGoalBoardHome();
+  const home = resolveMolisWorkHome();
   const implementation = buildStore(master);
   // Cached instances may outlive the request that created them.
   const store: SecretStore = {
-    put: (ref, value) => runWithGoalBoardHome(home, () => implementation.put(ref, value)),
-    get: (ref) => runWithGoalBoardHome(home, () => implementation.get(ref)),
-    delete: (ref) => runWithGoalBoardHome(home, () => implementation.delete(ref)),
-    createIfAbsent: (ref, value) => runWithGoalBoardHome(home, () => implementation.createIfAbsent(ref, value)),
-    deleteIfPresent: (ref) => runWithGoalBoardHome(home, () => implementation.deleteIfPresent(ref)),
+    put: (ref, value) => runWithMolisWorkHome(home, () => implementation.put(ref, value)),
+    get: (ref) => runWithMolisWorkHome(home, () => implementation.get(ref)),
+    delete: (ref) => runWithMolisWorkHome(home, () => implementation.delete(ref)),
+    createIfAbsent: (ref, value) => runWithMolisWorkHome(home, () => implementation.createIfAbsent(ref, value)),
+    deleteIfPresent: (ref) => runWithMolisWorkHome(home, () => implementation.deleteIfPresent(ref)),
     backend: () => implementation.backend(),
-    migrateIfNeeded: () => runWithGoalBoardHome(home, () => implementation.migrateIfNeeded()),
+    migrateIfNeeded: () => runWithMolisWorkHome(home, () => implementation.migrateIfNeeded()),
   };
   storeCache.set(key, store);
   return store;

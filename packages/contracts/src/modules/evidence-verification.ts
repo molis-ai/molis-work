@@ -1,7 +1,7 @@
 import type { ContractDescriptor } from "../platform/package.js";
 
 export const modulesEvidenceVerificationContract = {
-  contractId: "io.goalboard.module.evidence-verification.v1",
+  contractId: "io.molis.work.module.evidence-verification.v1",
   kind: "module",
   schemaVersion: 1,
   maturity: "partial",

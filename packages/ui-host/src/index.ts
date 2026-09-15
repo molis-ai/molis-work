@@ -5,22 +5,22 @@ import type {
   UiMountRequest,
   UiMountResult,
   UiRenderRequest,
-} from "@adeptify/goalboard-contracts/platform/ui";
+} from "@molis-ai/molis-work-contracts/platform/ui";
 
 export { createPluginUiClient, PluginUiAccessError } from "./plugin-client.js";
 
 export const packageDescriptor = {
-  packageName: "@adeptify/goalboard-ui-host",
+  packageName: "@molis-ai/molis-work-ui-host",
   packagePath: "packages/ui-host",
   kind: "foundation",
   maturity: "partial",
-  contract: "@adeptify/goalboard-contracts/platform/ui",
+  contract: "@molis-ai/molis-work-contracts/platform/ui",
   migrationGoals: ["goal-reorg-f2", "goal-reorg-fd4", "goal-reorg-ap3"],
   ssot: "docs/SSOT-MATRIX.md",
   capabilities: ["ui.contribution.registry.v1", "ui.surface.render.v1", "ui.slot.mount.v1"],
 } as const;
 
-export type GoalBoardPackageDescriptor = typeof packageDescriptor;
+export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export class UiContributionError extends Error {
   constructor(

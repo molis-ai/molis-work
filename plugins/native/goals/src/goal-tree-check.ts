@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import type { GoalsQueryApi, GoalsPlanningApi } from "@adeptify/goalboard-contracts/modules/goals";
-import type { GovernanceApplicationApi, GoalTreeProposalCheckInput, GoalTreeProposalCheckResult } from "@adeptify/goalboard-contracts/modules/governance-collaboration";
+import type { GoalsQueryApi, GoalsPlanningApi } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GovernanceApplicationApi, GoalTreeProposalCheckInput, GoalTreeProposalCheckResult } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import type { GoalTreeApplicationApi } from "./goal-tree-contract.js";
 import { goalTreeProposalItemValidationIssues } from "./proposal-item-validation.js";
 import { GoalTreeQueryApplication } from "./goal-tree-query.js";

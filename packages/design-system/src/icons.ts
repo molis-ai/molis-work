@@ -40,6 +40,7 @@ import {
   ListChecks,
   LockKeyhole,
   Maximize2,
+  AppWindow,
   MessageSquare,
   Minus,
   Monitor,
@@ -100,6 +101,7 @@ const ICONS = {
   lock: LockKeyhole,
   more: Ellipsis,
   maximize: Maximize2,
+  frame: AppWindow,
   message: MessageSquare,
   minus: Minus,
   moon: Moon,
@@ -131,7 +133,7 @@ const ICONS = {
   x: X,
 } satisfies Record<string, IconNode>;
 
-export type GoalBoardIcon = keyof typeof ICONS;
+export type MolisWorkIcon = keyof typeof ICONS;
 
 function escapeAttribute(value: string | number | undefined): string {
   return String(value ?? "")
@@ -159,6 +161,6 @@ export function renderIconSprite(): string {
   return `<svg class="icon-sprite" aria-hidden="true">${symbols}</svg>`;
 }
 
-export function icon(name: GoalBoardIcon, className = ""): string {
+export function icon(name: MolisWorkIcon, className = ""): string {
   return `<svg${className ? ` class="${escapeAttribute(className)}"` : ""} aria-hidden="true"><use href="#icon-${name}"></use></svg>`;
 }

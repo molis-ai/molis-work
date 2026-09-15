@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { GoalBoardHomeInstallError, SCHEMA_VERSION, INSTALLER_ID } from "./home-contract.js";
+import { MolisWorkHomeInstallError, SCHEMA_VERSION, INSTALLER_ID, isOwnedInstaller } from "./home-contract.js";
 import type { InspectedSource, ReleaseManifest, PromotedRelease } from "./home-contract.js";
 import { pathState, writeAtomic, readJsonIfPresent } from "./home-files.js";
 import { copyReleaseEntries, runtimeDependencyReleaseEntries } from "./package-release-files.js";
@@ -59,8 +59,8 @@ export async function createRelease(
   }
   const planningMethodsDirectory = path.join(
     embeddedNodeModules,
-    "@adeptify",
-    "goalboard-module-goals",
+    "@molis-ai",
+    "molis-work-module-goals",
     "methods",
   );
   if ((await pathState(planningMethodsDirectory))?.isDirectory()) {
@@ -77,7 +77,7 @@ export async function createRelease(
     path.join(stagingDirectory, "package.json"),
     `${JSON.stringify(
       {
-        name: "@adeptify/goalboard-home-runtime",
+        name: "@molis-ai/molis-work-home-runtime",
         private: true,
         type: "module",
         version,
@@ -144,9 +144,9 @@ async function assertLinkStaysInsideRelease(rootDirectory: string, entryPath: st
   const resolved = path.resolve(path.dirname(entryPath), target);
   const relative = path.relative(rootDirectory, resolved);
   if (path.isAbsolute(target) || relative === ".." || relative.startsWith(`..${path.sep}`)) {
-    throw new GoalBoardHomeInstallError(
+    throw new MolisWorkHomeInstallError(
       "source.invalid",
-      `GoalBoard 依赖链接指向安装 release 外部，无法生成自包含安装: ${entryPath}`,
+      `Molis Work 依赖链接指向安装 release 外部，无法生成自包含安装: ${entryPath}`,
     );
   }
 }
@@ -160,11 +160,11 @@ export async function inspectRelease(
   const state = await pathState(releaseDirectory);
   if (!state) return "missing";
   if (!state.isDirectory()) {
-    throw new GoalBoardHomeInstallError("release.conflict", `已存在未知 GoalBoard release 文件: ${releaseDirectory}`);
+    throw new MolisWorkHomeInstallError("release.conflict", `已存在未知 Molis Work release 文件: ${releaseDirectory}`);
   }
   const manifest = await readJsonIfPresent<ReleaseManifest>(path.join(releaseDirectory, "release.json"));
-  if (!manifest || manifest.installer !== INSTALLER_ID || manifest.version !== version) {
-    throw new GoalBoardHomeInstallError("release.conflict", `已存在未知 GoalBoard release 目录: ${releaseDirectory}`);
+  if (!manifest || !isOwnedInstaller(manifest.installer) || manifest.version !== version) {
+    throw new MolisWorkHomeInstallError("release.conflict", `已存在未知 Molis Work release 目录: ${releaseDirectory}`);
   }
   if (
     manifest.schema_version !== SCHEMA_VERSION

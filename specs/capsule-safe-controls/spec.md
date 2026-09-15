@@ -2,27 +2,27 @@
 
 ## Background and goal
 
-The Capsule can already show GoalBoard's live Project, Goal, Claim, Run, Review, and Available facts. It does not yet have a truthful way to pause or resume work. A UI-only toggle would lie about the Runtime, while releasing the Claim or closing a terminal would destroy continuity.
+The Capsule can already show Molis Work's live Project, Goal, Claim, Run, Review, and Available facts. It does not yet have a truthful way to pause or resume work. A UI-only toggle would lie about the Runtime, while releasing the Claim or closing a terminal would destroy continuity.
 
-This slice makes Capsule controls part of the same GoalBoard truth source. A user can request a safe pause, the owning Runtime can acknowledge the safe boundary, and the user can request that the same Run resume. An actionable Goal can be opened from the Capsule, but the Capsule never impersonates a Runtime or bypasses Claim selection.
+This slice makes Capsule controls part of the same Molis Work truth source. A user can request a safe pause, the owning Runtime can acknowledge the safe boundary, and the user can request that the same Run resume. An actionable Goal can be opened from the Capsule, but the Capsule never impersonates a Runtime or bypasses Claim selection.
 
 Completion level: internal complete for the control path, then included in the Capsule parent release build.
 
 ## Current behavior and evidence
 
 - `RunRecord.state` only describes execution lifecycle: started, blocked, or a terminal result.
-- Capsule expanded rows only open another GoalBoard page.
+- Capsule expanded rows only open another Molis Work page.
 - Releasing a Claim abandons its active Run; closing a PTY is therefore not a valid pause.
 - Available is already the authoritative query for Goals that can be selected now.
-- Local Web mutations already require the GoalBoard control token, same-origin validation, and an idempotency key.
+- Local Web mutations already require the Molis Work control token, same-origin validation, and an idempotency key.
 
 ## User scenarios
 
-1. While a Runtime is working, the user clicks **暂停**. Capsule immediately says that GoalBoard has asked the Runtime to stop at a safe boundary. The Runtime remains owner of the same Claim and Run.
+1. While a Runtime is working, the user clicks **暂停**. Capsule immediately says that Molis Work has asked the Runtime to stop at a safe boundary. The Runtime remains owner of the same Claim and Run.
 2. The Runtime observes the request, saves a coherent checkpoint, and acknowledges it. Capsule shows **已暂停** and keeps that Goal focused.
 3. The user clicks **恢复**. Capsule says it is waiting for the same Runtime to continue. The Runtime acknowledges and the same Run returns to its previous working phase.
 4. If the Run finishes, blocks, loses its Claim, or changes concurrently, the control returns the actual new state and a useful recovery action. It does not display generic success.
-5. For an Available Goal, Capsule opens its Goal page and explains that Runtime selection happens in GoalBoard. It does not create a Claim or Run itself.
+5. For an Available Goal, Capsule opens its Goal page and explains that Runtime selection happens in Molis Work. It does not create a Claim or Run itself.
 
 ## Scope
 
@@ -53,7 +53,7 @@ Completion level: internal complete for the control path, then included in the C
 - `control_state`: `pause_requested | paused | resume_requested | null`
 - `control_updated_at`: when that control state last changed
 
-This is not a second work database or a second Run. It lets GoalBoard distinguish “the Run still exists” from “the user asked it to wait”. Terminal Run transitions clear the overlay.
+This is not a second work database or a second Run. It lets Molis Work distinguish “the Run still exists” from “the user asked it to wait”. Terminal Run transitions clear the overlay.
 
 ### Authority and transitions
 
@@ -92,7 +92,7 @@ This is not a second work database or a second Run. It lets GoalBoard distinguis
 1. Pause keeps the same active Claim, Run, Goal focus, terminal, and all other Projects unchanged.
 2. Resume rechecks Run ownership and Claim validity; it never creates another Claim or Run.
 3. Success, pending, stale/conflict, invalid Claim, offline, retry, and duplicate-click outcomes are stated accurately.
-4. Start is only offered for an Available Goal and routes to main GoalBoard for Runtime selection.
+4. Start is only offered for an Available Goal and routes to main Molis Work for Runtime selection.
 5. Existing databases migrate without losing Runs or breaking foreign keys.
 6. Type checks, focused tests, full tests, Rust tests, release build, and installed-app smoke tests pass before release handoff.
 
@@ -106,6 +106,6 @@ This is not a second work database or a second Run. It lets GoalBoard distinguis
 
 ## Assumptions and open boundaries
 
-- A pause is cooperative. GoalBoard records intent and acknowledgement; it does not freeze an arbitrary process.
-- A Claim remains a lease. If it expires while paused, Resume must refuse and route the user back to GoalBoard for a new valid selection.
+- A pause is cooperative. Molis Work records intent and acknowledgement; it does not freeze an arbitrary process.
+- A Claim remains a lease. If it expires while paused, Resume must refuse and route the user back to Molis Work for a new valid selection.
 - The later `capsule-desktop-reliability` Goal owns launch/reopen/crash/offline reliability and release packaging beyond this control state machine.

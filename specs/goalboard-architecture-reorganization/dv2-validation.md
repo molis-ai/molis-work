@@ -13,16 +13,16 @@
 ## 实际调用与交付
 
 - Skill distribution：`skills/goal-advance/SKILL.md`、`references/protocol.md`、`references/project-connection.md`。其余规划/执行/服务参考保留；方法正文仍由 Goals Module 的 planning 实现提供，未复制到 Skill。
-- Runtime 安装接入：原 `RuntimeIntegrationService` → `@adeptify/goalboard-app-mcp` 的 `validateGoalBoardMcpLauncher` → 实际 stdio launcher。有限上下文只包含 runtime、launcher、home 和 plan；原公开上下文保留 SupportedRuntimeId 限制。
+- Runtime 安装接入：原 `RuntimeIntegrationService` → `@molis-ai/molis-work-app-mcp` 的 `validateMolisWorkMcpLauncher` → 实际 stdio launcher。有限上下文只包含 runtime、launcher、home 和 plan；原公开上下文保留 SupportedRuntimeId 限制。
 - 当前开发说明：`docs/mcp.md`、`docs/mcp.en.md`、`docs/runtime.md`、`docs/runtime.en.md`、MCP App README。工具 schema/展示归 MCP App，业务事实归 Modules，跨模块能力归官方 Goals Plugin，宿主装配归 Local Host。
-- `tests/runtime-skill-flow.test.ts` 通过生产 `GoalBoardServer.handleMessage` 调用真实工具；拒绝未确认决定后 snapshot 不变；重放答案后 snapshot 不变；重启后 Evidence/Review 各一条、Goal satisfied、无活动 Claim、Review Run completed。没有通过测试直接操纵 Store。
+- `tests/runtime-skill-flow.test.ts` 通过生产 `MolisWorkServer.handleMessage` 调用真实工具；拒绝未确认决定后 snapshot 不变；重放答案后 snapshot 不变；重启后 Evidence/Review 各一条、Goal satisfied、无活动 Claim、Review Run completed。没有通过测试直接操纵 Store。
 - `tests/runtime-integration.test.ts` 新增默认验证器真实子进程测试；失败接入不会残留目标 Runtime 配置/Skill，也不改此前成功接入的配置。
 
 ## 验证记录
 
 - MCP App build、根 TypeScript：通过。
-- `node --import tsx --test tests/runtime-integration.test.ts tests/runtime-skill-flow.test.ts tests/mcp.test.ts`：46 通过，0 失败/跳过。日志 `/private/tmp/goalboard-dv2-protocol-regression-20260905.log`。
-- `node --import tsx --test tests/planning-engine.test.ts tests/mcp-protocol.test.ts tests/runtime-context-entry.test.ts tests/mcp-session-activity.test.ts`：20 通过，0 失败/跳过。日志 `/private/tmp/goalboard-dv2-owner-regression-20260905.log`。
+- `node --import tsx --test tests/runtime-integration.test.ts tests/runtime-skill-flow.test.ts tests/mcp.test.ts`：46 通过，0 失败/跳过。日志 `/private/tmp/molis-work-dv2-protocol-regression-20260905.log`。
+- `node --import tsx --test tests/planning-engine.test.ts tests/mcp-protocol.test.ts tests/runtime-context-entry.test.ts tests/mcp-session-activity.test.ts`：20 通过，0 失败/跳过。日志 `/private/tmp/molis-work-dv2-owner-regression-20260905.log`。
 - `pnpm boundary:check`、`git diff --check`：通过。Skill quick_validate 通过，仅作为格式辅助，不作为功能证据。
 - DV1 的 601 项全量回归发生在 DV2 改动前，不冒充本项之后的全量结果。本项共 66 项针对性回归。
 

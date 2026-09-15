@@ -1,8 +1,8 @@
-# GoalBoard 视觉基础与桌面工作台切片
+# Molis Work 视觉基础与桌面工作台切片
 
 ## 完成等级
 
-本轮达到 **可交互高保真切片（Level 2）**：真实 GoalBoard 页面使用新的视觉基础，可在宽屏桌面工作站和 Harness 同屏窄窗口中体验。它不是整套 UI 改造完成，也不代表 Goal Navigator、Goal Detail、Goal Graph、截图和 README 子 Goal 已交付。
+本轮达到 **可交互高保真切片（Level 2）**：真实 Molis Work 页面使用新的视觉基础，可在宽屏桌面工作站和 Harness 同屏窄窗口中体验。它不是整套 UI 改造完成，也不代表 Goal Navigator、Goal Detail、Goal Graph、截图和 README 子 Goal 已交付。
 
 ## 背景与目标
 
@@ -10,9 +10,9 @@
 
 用户已确认的构图基准：
 
-- `.impeccable/mocks/goalboard-desktop-workstation-a.png`：桌面三栏主工作站。
-- `.impeccable/mocks/goalboard-harness-companion-b.png`：与 Codex/Harness 并排使用的窄窗口。
-- `.impeccable/mocks/goalboard-graph-workstation-c.png`：只为后续 Goal Graph 子 Goal 提供视觉语法，本轮不实现 Graph。
+- `.impeccable/mocks/molis-work-desktop-workstation-a.png`：桌面三栏主工作站。
+- `.impeccable/mocks/molis-work-harness-companion-b.png`：与 Codex/Harness 并排使用的窄窗口。
+- `.impeccable/mocks/molis-work-graph-workstation-c.png`：只为后续 Goal Graph 子 Goal 提供视觉语法，本轮不实现 Graph。
 
 ## 范围
 
@@ -35,7 +35,7 @@
 
 新增 `src/web/visual-foundation.ts`，集中提供主题启动脚本、主题交互脚本和可复用样式。`src/web/render.ts` 只接入该层、渲染主题选择控件并更新首屏设计合同，避免在现有大型样式字符串中进行机械重写。`src/web/icons.ts` 仅补齐主题选择所需的同一套 Lucide 图标。
 
-主题只影响呈现：偏好写入 `localStorage`，`system` 模式使用 `prefers-color-scheme`，不会进入 GoalBoard 数据库或项目状态。Dark 主题单独定义核心表面和文本，不使用简单滤镜反色。
+主题只影响呈现：偏好写入 `localStorage`，`system` 模式使用 `prefers-color-scheme`，不会进入 Molis Work 数据库或项目状态。Dark 主题单独定义核心表面和文本，不使用简单滤镜反色。
 
 ## 验收标准
 
@@ -43,7 +43,7 @@
 2. 宽屏 Goal 页面保留 Goal Tree、Goal Detail、Runtime/TUI 三栏，视觉层级与已确认的桌面构图一致。
 3. 760px 以下仍可在 Goals、Focus、Runtime 间切换，核心内容和操作均可访问。
 4. 核心文本、边界、焦点和语义状态在 Light 与 Dark 下清晰可读，状态不只依赖颜色。
-5. 现有 GoalBoard 功能、数据、API、状态与 Runtime/TUI 行为不变。
+5. 现有 Molis Work 功能、数据、API、状态与 Runtime/TUI 行为不变。
 6. 定向测试、类型检查和宽窄屏可视检查通过；用户已有未提交修改未被覆盖。
 
 ## 验证

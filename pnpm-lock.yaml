@@ -8,117 +8,120 @@ importers:
 
   .:
     dependencies:
-      '@adeptify/goalboard-app-cli':
-        specifier: workspace:*
-        version: link:apps/cli
-      '@adeptify/goalboard-app-desktop':
-        specifier: workspace:*
-        version: link:apps/desktop
-      '@adeptify/goalboard-app-local-host':
-        specifier: workspace:*
-        version: link:apps/local-host
-      '@adeptify/goalboard-app-mcp':
-        specifier: workspace:*
-        version: link:apps/mcp
-      '@adeptify/goalboard-app-workbench':
-        specifier: workspace:*
-        version: link:apps/workbench
-      '@adeptify/goalboard-contracts':
-        specifier: workspace:*
-        version: link:packages/contracts
-      '@adeptify/goalboard-design-system':
-        specifier: workspace:*
-        version: link:packages/design-system
-      '@adeptify/goalboard-integration-github':
-        specifier: workspace:*
-        version: link:plugins/official-integrations/github
-      '@adeptify/goalboard-integration-gmail':
-        specifier: workspace:*
-        version: link:plugins/official-integrations/gmail
-      '@adeptify/goalboard-integration-rss':
-        specifier: workspace:*
-        version: link:plugins/official-integrations/rss
-      '@adeptify/goalboard-integration-youtube':
-        specifier: workspace:*
-        version: link:plugins/official-integrations/youtube
-      '@adeptify/goalboard-kernel':
-        specifier: workspace:*
-        version: link:packages/kernel
-      '@adeptify/goalboard-module-artifacts':
-        specifier: workspace:*
-        version: link:modules/artifacts
-      '@adeptify/goalboard-module-attention-resumption':
-        specifier: workspace:*
-        version: link:modules/attention-resumption
-      '@adeptify/goalboard-module-context-ledger':
-        specifier: workspace:*
-        version: link:modules/context-ledger
-      '@adeptify/goalboard-module-evidence-verification':
-        specifier: workspace:*
-        version: link:modules/evidence-verification
-      '@adeptify/goalboard-module-execution':
-        specifier: workspace:*
-        version: link:modules/execution
-      '@adeptify/goalboard-module-feed':
-        specifier: workspace:*
-        version: link:modules/feed
-      '@adeptify/goalboard-module-goals':
-        specifier: workspace:*
-        version: link:modules/goals
-      '@adeptify/goalboard-module-governance-collaboration':
-        specifier: workspace:*
-        version: link:modules/governance-collaboration
-      '@adeptify/goalboard-module-private-work-context':
-        specifier: workspace:*
-        version: link:modules/private-work-context
-      '@adeptify/goalboard-module-projects':
-        specifier: workspace:*
-        version: link:modules/projects
-      '@adeptify/goalboard-module-signals':
-        specifier: workspace:*
-        version: link:modules/signals
-      '@adeptify/goalboard-module-sources':
-        specifier: workspace:*
-        version: link:modules/sources
-      '@adeptify/goalboard-plugin-artifacts':
-        specifier: workspace:*
-        version: link:plugins/native/artifacts
-      '@adeptify/goalboard-plugin-cli':
-        specifier: workspace:*
-        version: link:tooling/plugin-cli
-      '@adeptify/goalboard-plugin-feed':
-        specifier: workspace:*
-        version: link:plugins/native/feed
-      '@adeptify/goalboard-plugin-goals':
-        specifier: workspace:*
-        version: link:plugins/native/goals
-      '@adeptify/goalboard-plugin-runtime':
-        specifier: workspace:*
-        version: link:packages/plugin-runtime
-      '@adeptify/goalboard-plugin-work':
-        specifier: workspace:*
-        version: link:plugins/native/work
-      '@adeptify/goalboard-service-connector-host':
-        specifier: workspace:*
-        version: link:horizontal/connector-host
-      '@adeptify/goalboard-service-listener-host':
-        specifier: workspace:*
-        version: link:horizontal/listener-host
-      '@adeptify/goalboard-service-runtime-host':
-        specifier: workspace:*
-        version: link:horizontal/runtime-host
-      '@adeptify/goalboard-storage':
-        specifier: workspace:*
-        version: link:packages/storage
-      '@adeptify/goalboard-ui-host':
-        specifier: workspace:*
-        version: link:packages/ui-host
       '@adeptify/intelligence-client':
         specifier: file:vendor/intelligence-client/adeptify-intelligence-client-0.2.2.tgz
         version: file:vendor/intelligence-client/adeptify-intelligence-client-0.2.2.tgz(@adeptify/search-evidence-layer@file:vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz)
       '@adeptify/search-evidence-layer':
         specifier: file:vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz
         version: file:vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz
+      '@molis-ai/molis-work-app-cli':
+        specifier: workspace:*
+        version: link:apps/cli
+      '@molis-ai/molis-work-app-desktop':
+        specifier: workspace:*
+        version: link:apps/desktop
+      '@molis-ai/molis-work-app-local-host':
+        specifier: workspace:*
+        version: link:apps/local-host
+      '@molis-ai/molis-work-app-mcp':
+        specifier: workspace:*
+        version: link:apps/mcp
+      '@molis-ai/molis-work-app-workbench':
+        specifier: workspace:*
+        version: link:apps/workbench
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:packages/contracts
+      '@molis-ai/molis-work-design-system':
+        specifier: workspace:*
+        version: link:packages/design-system
+      '@molis-ai/molis-work-integration-github':
+        specifier: workspace:*
+        version: link:plugins/official-integrations/github
+      '@molis-ai/molis-work-integration-gmail':
+        specifier: workspace:*
+        version: link:plugins/official-integrations/gmail
+      '@molis-ai/molis-work-integration-rss':
+        specifier: workspace:*
+        version: link:plugins/official-integrations/rss
+      '@molis-ai/molis-work-integration-youtube':
+        specifier: workspace:*
+        version: link:plugins/official-integrations/youtube
+      '@molis-ai/molis-work-kernel':
+        specifier: workspace:*
+        version: link:packages/kernel
+      '@molis-ai/molis-work-module-artifacts':
+        specifier: workspace:*
+        version: link:modules/artifacts
+      '@molis-ai/molis-work-module-attention-resumption':
+        specifier: workspace:*
+        version: link:modules/attention-resumption
+      '@molis-ai/molis-work-module-context-ledger':
+        specifier: workspace:*
+        version: link:modules/context-ledger
+      '@molis-ai/molis-work-module-evidence-verification':
+        specifier: workspace:*
+        version: link:modules/evidence-verification
+      '@molis-ai/molis-work-module-execution':
+        specifier: workspace:*
+        version: link:modules/execution
+      '@molis-ai/molis-work-module-feed':
+        specifier: workspace:*
+        version: link:modules/feed
+      '@molis-ai/molis-work-module-goals':
+        specifier: workspace:*
+        version: link:modules/goals
+      '@molis-ai/molis-work-module-governance-collaboration':
+        specifier: workspace:*
+        version: link:modules/governance-collaboration
+      '@molis-ai/molis-work-module-private-work-context':
+        specifier: workspace:*
+        version: link:modules/private-work-context
+      '@molis-ai/molis-work-module-projects':
+        specifier: workspace:*
+        version: link:modules/projects
+      '@molis-ai/molis-work-module-signals':
+        specifier: workspace:*
+        version: link:modules/signals
+      '@molis-ai/molis-work-module-sources':
+        specifier: workspace:*
+        version: link:modules/sources
+      '@molis-ai/molis-work-plugin-artifacts':
+        specifier: workspace:*
+        version: link:plugins/native/artifacts
+      '@molis-ai/molis-work-plugin-cli':
+        specifier: workspace:*
+        version: link:tooling/plugin-cli
+      '@molis-ai/molis-work-plugin-feed':
+        specifier: workspace:*
+        version: link:plugins/native/feed
+      '@molis-ai/molis-work-plugin-goals':
+        specifier: workspace:*
+        version: link:plugins/native/goals
+      '@molis-ai/molis-work-plugin-inbox':
+        specifier: workspace:*
+        version: link:plugins/native/inbox
+      '@molis-ai/molis-work-plugin-runtime':
+        specifier: workspace:*
+        version: link:packages/plugin-runtime
+      '@molis-ai/molis-work-plugin-work':
+        specifier: workspace:*
+        version: link:plugins/native/work
+      '@molis-ai/molis-work-service-connector-host':
+        specifier: workspace:*
+        version: link:horizontal/connector-host
+      '@molis-ai/molis-work-service-listener-host':
+        specifier: workspace:*
+        version: link:horizontal/listener-host
+      '@molis-ai/molis-work-service-runtime-host':
+        specifier: workspace:*
+        version: link:horizontal/runtime-host
+      '@molis-ai/molis-work-storage':
+        specifier: workspace:*
+        version: link:packages/storage
+      '@molis-ai/molis-work-ui-host':
+        specifier: workspace:*
+        version: link:packages/ui-host
       better-sqlite3:
         specifier: 12.8.0
         version: 12.8.0
@@ -129,7 +132,7 @@ importers:
         specifier: ^8.21.3
         version: 8.21.3
     devDependencies:
-      '@adeptify/goalboard-test-kit':
+      '@molis-ai/molis-work-test-kit':
         specifier: workspace:*
         version: link:packages/test-kit
       '@tauri-apps/cli':
@@ -156,132 +159,135 @@ importers:
 
   apps/cli:
     dependencies:
-      '@adeptify/goalboard-contracts':
+      '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
-      '@adeptify/goalboard-plugin-goals':
+      '@molis-ai/molis-work-plugin-goals':
         specifier: workspace:*
         version: link:../../plugins/native/goals
 
   apps/desktop:
     dependencies:
-      '@adeptify/goalboard-app-local-host':
+      '@molis-ai/molis-work-app-local-host':
         specifier: workspace:*
         version: link:../local-host
-      '@adeptify/goalboard-contracts':
+      '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
-      '@adeptify/goalboard-plugin-feed':
+      '@molis-ai/molis-work-plugin-feed':
         specifier: workspace:*
         version: link:../../plugins/native/feed
-      '@adeptify/goalboard-service-runtime-host':
+      '@molis-ai/molis-work-service-runtime-host':
         specifier: workspace:*
         version: link:../../horizontal/runtime-host
-      '@adeptify/goalboard-storage':
+      '@molis-ai/molis-work-storage':
         specifier: workspace:*
         version: link:../../packages/storage
 
   apps/local-host:
     dependencies:
-      '@adeptify/goalboard-app-cli':
-        specifier: workspace:*
-        version: link:../cli
-      '@adeptify/goalboard-app-mcp':
-        specifier: workspace:*
-        version: link:../mcp
-      '@adeptify/goalboard-app-workbench':
-        specifier: workspace:*
-        version: link:../workbench
-      '@adeptify/goalboard-contracts':
-        specifier: workspace:*
-        version: link:../../packages/contracts
-      '@adeptify/goalboard-integration-github':
-        specifier: workspace:*
-        version: link:../../plugins/official-integrations/github
-      '@adeptify/goalboard-integration-gmail':
-        specifier: workspace:*
-        version: link:../../plugins/official-integrations/gmail
-      '@adeptify/goalboard-integration-rss':
-        specifier: workspace:*
-        version: link:../../plugins/official-integrations/rss
-      '@adeptify/goalboard-integration-youtube':
-        specifier: workspace:*
-        version: link:../../plugins/official-integrations/youtube
-      '@adeptify/goalboard-kernel':
-        specifier: workspace:*
-        version: link:../../packages/kernel
-      '@adeptify/goalboard-module-artifacts':
-        specifier: workspace:*
-        version: link:../../modules/artifacts
-      '@adeptify/goalboard-module-attention-resumption':
-        specifier: workspace:*
-        version: link:../../modules/attention-resumption
-      '@adeptify/goalboard-module-context-ledger':
-        specifier: workspace:*
-        version: link:../../modules/context-ledger
-      '@adeptify/goalboard-module-evidence-verification':
-        specifier: workspace:*
-        version: link:../../modules/evidence-verification
-      '@adeptify/goalboard-module-execution':
-        specifier: workspace:*
-        version: link:../../modules/execution
-      '@adeptify/goalboard-module-feed':
-        specifier: workspace:*
-        version: link:../../modules/feed
-      '@adeptify/goalboard-module-goals':
-        specifier: workspace:*
-        version: link:../../modules/goals
-      '@adeptify/goalboard-module-governance-collaboration':
-        specifier: workspace:*
-        version: link:../../modules/governance-collaboration
-      '@adeptify/goalboard-module-private-work-context':
-        specifier: workspace:*
-        version: link:../../modules/private-work-context
-      '@adeptify/goalboard-module-projects':
-        specifier: workspace:*
-        version: link:../../modules/projects
-      '@adeptify/goalboard-module-signals':
-        specifier: workspace:*
-        version: link:../../modules/signals
-      '@adeptify/goalboard-module-sources':
-        specifier: workspace:*
-        version: link:../../modules/sources
-      '@adeptify/goalboard-plugin-artifacts':
-        specifier: workspace:*
-        version: link:../../plugins/native/artifacts
-      '@adeptify/goalboard-plugin-feed':
-        specifier: workspace:*
-        version: link:../../plugins/native/feed
-      '@adeptify/goalboard-plugin-goals':
-        specifier: workspace:*
-        version: link:../../plugins/native/goals
-      '@adeptify/goalboard-plugin-runtime':
-        specifier: workspace:*
-        version: link:../../packages/plugin-runtime
-      '@adeptify/goalboard-plugin-work':
-        specifier: workspace:*
-        version: link:../../plugins/native/work
-      '@adeptify/goalboard-service-connector-host':
-        specifier: workspace:*
-        version: link:../../horizontal/connector-host
-      '@adeptify/goalboard-service-listener-host':
-        specifier: workspace:*
-        version: link:../../horizontal/listener-host
-      '@adeptify/goalboard-service-runtime-host':
-        specifier: workspace:*
-        version: link:../../horizontal/runtime-host
-      '@adeptify/goalboard-storage':
-        specifier: workspace:*
-        version: link:../../packages/storage
-      '@adeptify/goalboard-ui-host':
-        specifier: workspace:*
-        version: link:../../packages/ui-host
       '@adeptify/intelligence-client':
         specifier: file:../../vendor/intelligence-client/adeptify-intelligence-client-0.2.2.tgz
         version: file:vendor/intelligence-client/adeptify-intelligence-client-0.2.2.tgz(@adeptify/search-evidence-layer@file:vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz)
       '@adeptify/search-evidence-layer':
         specifier: file:../../vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz
         version: file:vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz
+      '@molis-ai/molis-work-app-cli':
+        specifier: workspace:*
+        version: link:../cli
+      '@molis-ai/molis-work-app-mcp':
+        specifier: workspace:*
+        version: link:../mcp
+      '@molis-ai/molis-work-app-workbench':
+        specifier: workspace:*
+        version: link:../workbench
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@molis-ai/molis-work-integration-github':
+        specifier: workspace:*
+        version: link:../../plugins/official-integrations/github
+      '@molis-ai/molis-work-integration-gmail':
+        specifier: workspace:*
+        version: link:../../plugins/official-integrations/gmail
+      '@molis-ai/molis-work-integration-rss':
+        specifier: workspace:*
+        version: link:../../plugins/official-integrations/rss
+      '@molis-ai/molis-work-integration-youtube':
+        specifier: workspace:*
+        version: link:../../plugins/official-integrations/youtube
+      '@molis-ai/molis-work-kernel':
+        specifier: workspace:*
+        version: link:../../packages/kernel
+      '@molis-ai/molis-work-module-artifacts':
+        specifier: workspace:*
+        version: link:../../modules/artifacts
+      '@molis-ai/molis-work-module-attention-resumption':
+        specifier: workspace:*
+        version: link:../../modules/attention-resumption
+      '@molis-ai/molis-work-module-context-ledger':
+        specifier: workspace:*
+        version: link:../../modules/context-ledger
+      '@molis-ai/molis-work-module-evidence-verification':
+        specifier: workspace:*
+        version: link:../../modules/evidence-verification
+      '@molis-ai/molis-work-module-execution':
+        specifier: workspace:*
+        version: link:../../modules/execution
+      '@molis-ai/molis-work-module-feed':
+        specifier: workspace:*
+        version: link:../../modules/feed
+      '@molis-ai/molis-work-module-goals':
+        specifier: workspace:*
+        version: link:../../modules/goals
+      '@molis-ai/molis-work-module-governance-collaboration':
+        specifier: workspace:*
+        version: link:../../modules/governance-collaboration
+      '@molis-ai/molis-work-module-private-work-context':
+        specifier: workspace:*
+        version: link:../../modules/private-work-context
+      '@molis-ai/molis-work-module-projects':
+        specifier: workspace:*
+        version: link:../../modules/projects
+      '@molis-ai/molis-work-module-signals':
+        specifier: workspace:*
+        version: link:../../modules/signals
+      '@molis-ai/molis-work-module-sources':
+        specifier: workspace:*
+        version: link:../../modules/sources
+      '@molis-ai/molis-work-plugin-artifacts':
+        specifier: workspace:*
+        version: link:../../plugins/native/artifacts
+      '@molis-ai/molis-work-plugin-feed':
+        specifier: workspace:*
+        version: link:../../plugins/native/feed
+      '@molis-ai/molis-work-plugin-goals':
+        specifier: workspace:*
+        version: link:../../plugins/native/goals
+      '@molis-ai/molis-work-plugin-inbox':
+        specifier: workspace:*
+        version: link:../../plugins/native/inbox
+      '@molis-ai/molis-work-plugin-runtime':
+        specifier: workspace:*
+        version: link:../../packages/plugin-runtime
+      '@molis-ai/molis-work-plugin-work':
+        specifier: workspace:*
+        version: link:../../plugins/native/work
+      '@molis-ai/molis-work-service-connector-host':
+        specifier: workspace:*
+        version: link:../../horizontal/connector-host
+      '@molis-ai/molis-work-service-listener-host':
+        specifier: workspace:*
+        version: link:../../horizontal/listener-host
+      '@molis-ai/molis-work-service-runtime-host':
+        specifier: workspace:*
+        version: link:../../horizontal/runtime-host
+      '@molis-ai/molis-work-storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
+      '@molis-ai/molis-work-ui-host':
+        specifier: workspace:*
+        version: link:../../packages/ui-host
       ws:
         specifier: ^8.21.3
         version: 8.21.3
@@ -292,58 +298,61 @@ importers:
 
   apps/mcp:
     dependencies:
-      '@adeptify/goalboard-contracts':
+      '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
-      '@adeptify/goalboard-plugin-goals':
+      '@molis-ai/molis-work-plugin-goals':
         specifier: workspace:*
         version: link:../../plugins/native/goals
 
   apps/workbench:
     dependencies:
-      '@adeptify/goalboard-contracts':
+      '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
-      '@adeptify/goalboard-design-system':
+      '@molis-ai/molis-work-design-system':
         specifier: workspace:*
         version: link:../../packages/design-system
-      '@adeptify/goalboard-integration-gmail':
+      '@molis-ai/molis-work-integration-gmail':
         specifier: workspace:*
         version: link:../../plugins/official-integrations/gmail
-      '@adeptify/goalboard-integration-rss':
+      '@molis-ai/molis-work-integration-rss':
         specifier: workspace:*
         version: link:../../plugins/official-integrations/rss
-      '@adeptify/goalboard-plugin-artifacts':
+      '@molis-ai/molis-work-plugin-artifacts':
         specifier: workspace:*
         version: link:../../plugins/native/artifacts
-      '@adeptify/goalboard-plugin-feed':
+      '@molis-ai/molis-work-plugin-feed':
         specifier: workspace:*
         version: link:../../plugins/native/feed
-      '@adeptify/goalboard-plugin-goals':
+      '@molis-ai/molis-work-plugin-goals':
         specifier: workspace:*
         version: link:../../plugins/native/goals
-      '@adeptify/goalboard-plugin-work':
+      '@molis-ai/molis-work-plugin-inbox':
+        specifier: workspace:*
+        version: link:../../plugins/native/inbox
+      '@molis-ai/molis-work-plugin-work':
         specifier: workspace:*
         version: link:../../plugins/native/work
-      '@adeptify/goalboard-ui-host':
+      '@molis-ai/molis-work-ui-host':
         specifier: workspace:*
         version: link:../../packages/ui-host
 
   horizontal/connector-host:
     dependencies:
-      '@adeptify/goalboard-contracts':
+      '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
 
   horizontal/listener-host:
     dependencies:
-      '@adeptify/goalboard-contracts':
+      '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
 
   horizontal/runtime-host:
     dependencies:
-      '@adeptify/goalboard-contracts':
+      '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
       node-pty:
@@ -352,46 +361,46 @@ importers:
 
   modules/artifacts:
     dependencies:
-      '@adeptify/goalboard-contracts':
+      '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
 
   modules/attention-resumption:
     dependencies:
-      '@adeptify/goalboard-contracts':
+      '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
 
   modules/context-ledger:
     dependencies:
-      '@adeptify/goalboard-contracts':
+      '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
 
   modules/evidence-verification:
     dependencies:
-      '@adeptify/goalboard-contracts':
+      '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
 
   modules/execution:
     dependencies:
-      '@adeptify/goalboard-contracts':
+      '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
 
   modules/feed:
     dependencies:
-      '@adeptify/goalboard-contracts':
+      '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
-      '@adeptify/goalboard-storage':
+      '@molis-ai/molis-work-storage':
         specifier: workspace:*
         version: link:../../packages/storage
 
   modules/goals:
     dependencies:
-      '@adeptify/goalboard-contracts':
+      '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
       better-sqlite3:
@@ -400,13 +409,13 @@ importers:
 
   modules/governance-collaboration:
     dependencies:
-      '@adeptify/goalboard-contracts':
+      '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
 
   modules/private-work-context:
     dependencies:
-      '@adeptify/goalboard-contracts':
+      '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
       better-sqlite3:
@@ -419,19 +428,19 @@ importers:
 
   modules/projects:
     dependencies:
-      '@adeptify/goalboard-contracts':
+      '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
 
   modules/signals:
     dependencies:
-      '@adeptify/goalboard-contracts':
+      '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
 
   modules/sources:
     dependencies:
-      '@adeptify/goalboard-contracts':
+      '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
 
@@ -439,7 +448,7 @@ importers:
 
   packages/design-system:
     dependencies:
-      '@adeptify/goalboard-contracts':
+      '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../contracts
       lucide:
@@ -448,63 +457,63 @@ importers:
 
   packages/kernel:
     dependencies:
-      '@adeptify/goalboard-contracts':
+      '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../contracts
 
   packages/plugin-runtime:
     dependencies:
-      '@adeptify/goalboard-contracts':
+      '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../contracts
 
   packages/plugin-sdk:
     dependencies:
-      '@adeptify/goalboard-contracts':
+      '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../contracts
 
   packages/storage:
     dependencies:
-      '@adeptify/goalboard-contracts':
-        specifier: workspace:*
-        version: link:../contracts
       '@adeptify/search-evidence-layer':
         specifier: file:../../vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz
         version: file:vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../contracts
       better-sqlite3:
         specifier: 12.8.0
         version: 12.8.0
 
   packages/test-kit:
     dependencies:
-      '@adeptify/goalboard-contracts':
+      '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../contracts
 
   packages/ui-host:
     dependencies:
-      '@adeptify/goalboard-contracts':
+      '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../contracts
 
   plugins/native/artifacts:
     dependencies:
-      '@adeptify/goalboard-contracts':
+      '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
 
   plugins/native/feed:
     dependencies:
-      '@adeptify/goalboard-contracts':
-        specifier: workspace:*
-        version: link:../../../packages/contracts
       '@adeptify/intelligence-client':
         specifier: file:../../../vendor/intelligence-client/adeptify-intelligence-client-0.2.2.tgz
         version: file:vendor/intelligence-client/adeptify-intelligence-client-0.2.2.tgz(@adeptify/search-evidence-layer@file:vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz)
       '@adeptify/search-evidence-layer':
         specifier: file:../../../vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz
         version: file:vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../../packages/contracts
       marked:
         specifier: ^18.0.11
         version: 18.0.11
@@ -518,22 +527,28 @@ importers:
 
   plugins/native/goals:
     dependencies:
-      '@adeptify/goalboard-contracts':
+      '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@adeptify/goalboard-module-evidence-verification':
+      '@molis-ai/molis-work-module-evidence-verification':
         specifier: workspace:*
         version: link:../../../modules/evidence-verification
-      '@adeptify/goalboard-module-execution':
+      '@molis-ai/molis-work-module-execution':
         specifier: workspace:*
         version: link:../../../modules/execution
-      '@adeptify/goalboard-module-goals':
+      '@molis-ai/molis-work-module-goals':
         specifier: workspace:*
         version: link:../../../modules/goals
 
+  plugins/native/inbox:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../../packages/contracts
+
   plugins/native/work:
     dependencies:
-      '@adeptify/goalboard-contracts':
+      '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
       '@xterm/addon-fit':
@@ -545,58 +560,58 @@ importers:
 
   plugins/official-integrations/github:
     dependencies:
-      '@adeptify/goalboard-contracts':
+      '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@adeptify/goalboard-plugin-sdk':
+      '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
 
   plugins/official-integrations/gmail:
     dependencies:
-      '@adeptify/goalboard-contracts':
+      '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@adeptify/goalboard-plugin-sdk':
+      '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
 
   plugins/official-integrations/rss:
     dependencies:
-      '@adeptify/goalboard-contracts':
-        specifier: workspace:*
-        version: link:../../../packages/contracts
-      '@adeptify/goalboard-plugin-sdk':
-        specifier: workspace:*
-        version: link:../../../packages/plugin-sdk
       '@adeptify/search-evidence-layer':
         specifier: file:../../../vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz
         version: file:vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../../packages/contracts
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../../../packages/plugin-sdk
 
   plugins/official-integrations/web-query:
     dependencies:
-      '@adeptify/goalboard-contracts':
+      '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@adeptify/goalboard-plugin-sdk':
+      '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
 
   plugins/official-integrations/youtube:
     dependencies:
-      '@adeptify/goalboard-contracts':
+      '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@adeptify/goalboard-plugin-sdk':
+      '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
 
   tooling/plugin-cli:
     dependencies:
-      '@adeptify/goalboard-contracts':
+      '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
-      '@adeptify/goalboard-plugin-runtime':
+      '@molis-ai/molis-work-plugin-runtime':
         specifier: workspace:*
         version: link:../../packages/plugin-runtime
 

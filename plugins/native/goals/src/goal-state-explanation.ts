@@ -1,4 +1,4 @@
-import type { GoalRecord } from "@adeptify/goalboard-contracts/modules/goals";
+import type { GoalRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { GoalPresentationState } from "./tree-order.js";
 import { WORK_STATE_COPY, type WorkStateExplanation } from "./goal-state-copy.js";
 export type GoalStatusTranslate = (text: string, values?: Record<string, string | number>) => string;

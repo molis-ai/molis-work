@@ -2,13 +2,13 @@
 
 ## 背景与目标
 
-项目化 Web 已能浏览受管理项目，但已有单独 GoalBoard DB 还不能从 Web 迁入项目目录。用户需要一次显式、可理解的迁移入口，迁移后继续按项目名浏览同一份 Goal、Run、Evidence 与历史。
+项目化 Web 已能浏览受管理项目，但已有单独 Molis Work DB 还不能从 Web 迁入项目目录。用户需要一次显式、可理解的迁移入口，迁移后继续按项目名浏览同一份 Goal、Run、Evidence 与历史。
 
-目标是在项目选择页提供一个明确确认的旧 DB 迁移流程，并只复用 `GoalBoardProjectCatalog.migrateLegacyDatabase()` 这一份 canonical 迁移服务。
+目标是在项目选择页提供一个明确确认的旧 DB 迁移流程，并只复用 `MolisWorkProjectCatalog.migrateLegacyDatabase()` 这一份 canonical 迁移服务。
 
 ## 当前行为与问题证据
 
-- `GoalBoardProjectCatalog` 已有校验、复制、快照验证、目录提交和失败回滚的迁移服务。
+- `MolisWorkProjectCatalog` 已有校验、复制、快照验证、目录提交和失败回滚的迁移服务。
 - 普通 Web 项目列表页不会创建项目，这一边界需要保留；目前也没有任何迁移入口。
 - 项目切换页已经有目录模式和项目特定路由，适合作为迁移成功后的落点。
 
@@ -16,8 +16,8 @@
 
 范围：
 
-- 项目列表页的“迁移已有 GoalBoard 数据”入口、来源 DB 输入、单独确认和成功／失败反馈。
-- 根级 Web API 调用既有 `GoalBoardProjectCatalog.migrateLegacyDatabase()`，成功后返回项目路由。
+- 项目列表页的“迁移已有 Molis Work 数据”入口、来源 DB 输入、单独确认和成功／失败反馈。
+- 根级 Web API 调用既有 `MolisWorkProjectCatalog.migrateLegacyDatabase()`，成功后返回项目路由。
 - 成功迁移后刷新／跳转到新项目；测试显式确认、事实保留、失败不移动来源和无 Runtime binding 写入。
 
 非目标：
@@ -28,9 +28,9 @@
 
 ## 用户场景
 
-1. 用户打开项目选择页，主动打开迁移入口，填写一份已有 GoalBoard DB 和可选项目名，勾选确认后迁移。
-2. 成功时页面跳到 `/projects/<project_id>/`，只显示迁移后的项目名；旧来源 DB 已由 canonical 服务转入 GoalBoard 管理目录。
-3. 未勾选确认、来源不存在或来源不是有效 GoalBoard DB 时，页面给出可重试错误；不创建项目、不移动来源，也不改变 Runtime binding。
+1. 用户打开项目选择页，主动打开迁移入口，填写一份已有 Molis Work DB 和可选项目名，勾选确认后迁移。
+2. 成功时页面跳到 `/projects/<project_id>/`，只显示迁移后的项目名；旧来源 DB 已由 canonical 服务转入 Molis Work 管理目录。
+3. 未勾选确认、来源不存在或来源不是有效 Molis Work DB 时，页面给出可重试错误；不创建项目、不移动来源，也不改变 Runtime binding。
 
 ## 方案与模块边界
 
@@ -44,7 +44,7 @@
 1. 未确认请求不会调用迁移服务，不移动来源 DB，也不创建项目记录。
 2. 有 Goal、Claim、Run、Evidence 的合法旧 DB 经确认迁移后，项目事实快照保持等价；新项目可从项目路由打开。
 3. 迁移失败时来源文件和已有项目目录保持原状，页面返回可重试原因。
-4. Web 只调用 `GoalBoardProjectCatalog.migrateLegacyDatabase()`；没有第二份复制／移动事务逻辑。
+4. Web 只调用 `MolisWorkProjectCatalog.migrateLegacyDatabase()`；没有第二份复制／移动事务逻辑。
 5. 浏览和迁移都不创建或修改 Runtime work-entry binding。
 6. Web 页面、启动提示和使用说明只表达“项目”；数据库路径只在本次迁移表单中作为来源输入，不再存在“兼容模式”入口或文案。
 
@@ -65,10 +65,10 @@ git diff --check
 
 ## 实现结果
 
-- 项目列表新增“迁移已有 GoalBoard 数据”操作和原生确认窗口；来源 DB 只在本次表单中出现，确认文案明确说明成功后会移入 GoalBoard 管理目录，以及失败不会移动来源。
-- `POST /api/projects/migrate` 先验证 `user_confirmed`、路径和名称，再仅调用 `GoalBoardProjectCatalog.migrateLegacyDatabase()`；没有新增复制、移动或 Runtime binding 逻辑。成功后返回项目 URL，失败返回可重试原因。
+- 项目列表新增“迁移已有 Molis Work 数据”操作和原生确认窗口；来源 DB 只在本次表单中出现，确认文案明确说明成功后会移入 Molis Work 管理目录，以及失败不会移动来源。
+- `POST /api/projects/migrate` 先验证 `user_confirmed`、路径和名称，再仅调用 `MolisWorkProjectCatalog.migrateLegacyDatabase()`；没有新增复制、移动或 Runtime binding 逻辑。成功后返回项目 URL，失败返回可重试原因。
 - 项目列表页 CSP 允许本页的本地迁移交互脚本和同源请求，保证迁移窗口能实际打开和提交。
-- `goalboard-web` 公开命令只从项目列表启动；`--db`、`--board-id`、`--demo` 会明确拒绝。工作台顶部始终只显示“项目”，不再展示兼容／单数据库模式。
+- `molis-work-web` 公开命令只从项目列表启动；`--db`、`--board-id`、`--demo` 会明确拒绝。工作台顶部始终只显示“项目”，不再展示兼容／单数据库模式。
 - README 改为项目与 Runtime Skill 为主的使用路径；旧 DB 仅作为显式迁移来源。
 
 ## 验证结果（2026-08-16）

@@ -6,7 +6,7 @@ Goal: `goal-infoflow-source-runtime`
 
 ## Environment
 
-- Local source build served at `http://127.0.0.1:4182` against the managed GoalBoard project catalog.
+- Local source build served at `http://127.0.0.1:4182` against the managed Molis Work project catalog.
 - Browser console errors and warnings: none.
 - Production project rendered 13 persisted sources; no demo rows were injected.
 

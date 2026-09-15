@@ -1,25 +1,25 @@
 import { createHash } from "node:crypto";
 
-import type { SignalCommands, SignalReceipt } from "@adeptify/goalboard-contracts/modules/signals";
+import type { SignalCommands, SignalReceipt } from "@molis-ai/molis-work-contracts/modules/signals";
 import type {
   ConnectorHostApi,
   ConnectorRawEvent,
   ConnectorReceipt,
-} from "@adeptify/goalboard-contracts/services/connector-host";
+} from "@molis-ai/molis-work-contracts/services/connector-host";
 import type {
   ListenerCheckpoint,
   ListenerHostApi,
   ListenerRunReceipt,
   ListenerRunRecord,
   RawEventAdapter,
-} from "@adeptify/goalboard-contracts/services/listener-host";
+} from "@molis-ai/molis-work-contracts/services/listener-host";
 
 export const packageDescriptor = {
-  packageName: "@adeptify/goalboard-service-listener-host",
+  packageName: "@molis-ai/molis-work-service-listener-host",
   packagePath: "horizontal/listener-host",
   kind: "horizontal",
   maturity: "partial",
-  contract: "@adeptify/goalboard-contracts/services/listener-host",
+  contract: "@molis-ai/molis-work-contracts/services/listener-host",
   migrationGoals: ["goal-reorg-f2", "goal-reorg-fd1"],
   ssot: "docs/SSOT-MATRIX.md",
   capabilities: ["listener.host.v1"],
@@ -37,8 +37,8 @@ export interface ListenerSqliteDatabase {
   transaction<T>(operation: () => T): (() => T) & { immediate(): T };
 }
 
-export { ListenerHostError } from "@adeptify/goalboard-contracts/services/listener-host";
-import { ListenerHostError } from "@adeptify/goalboard-contracts/services/listener-host";
+export { ListenerHostError } from "@molis-ai/molis-work-contracts/services/listener-host";
+import { ListenerHostError } from "@molis-ai/molis-work-contracts/services/listener-host";
 
 export function migrateListenerHost(db: ListenerSqliteDatabase): void {
   db.exec(`
@@ -663,7 +663,7 @@ function mapRun(row: Row): ListenerRunRecord {
 
 function summarizeConnectorReceipt(receipt: ConnectorReceipt): Record<string, unknown> {
   const common = {
-    schema: "goalboard-connector-receipt-v1",
+    schema: "molis-work-connector-receipt-v1",
     receipt_id: receipt.receipt_id,
     connection_id: receipt.connection_id,
     driver_id: receipt.driver_id,
@@ -741,4 +741,4 @@ function json<T>(value: unknown, fallback: T): T {
   }
 }
 
-export type GoalBoardPackageDescriptor = typeof packageDescriptor;
+export type MolisWorkPackageDescriptor = typeof packageDescriptor;

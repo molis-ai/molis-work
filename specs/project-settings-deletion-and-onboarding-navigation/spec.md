@@ -13,7 +13,7 @@
 ## 范围与方案
 
 - 项目设置增加“基本信息”页，包含项目名称保存、删除入口；既有项目设置导航和全局项目管理均可到达。沿用现有视觉和中英文文案体系。
-- 点击删除打开具名确认框，说明永久清除 GoalBoard 项目数据与关联、保留工作目录文件；明确确认后提交。取消/Escape 不写入；提交中禁止重复提交；错误原位显示且可重试。
+- 点击删除打开具名确认框，说明永久清除 Molis Work 项目数据与关联、保留工作目录文件；明确确认后提交。取消/Escape 不写入；提交中禁止重复提交；错误原位显示且可重试。
 - 新增受本地控制 token / Origin / 操作键保护的 POST /api/settings/projects/:id/delete，固定可信 Web actor，复用 catalog.deleteProject。客户端保留删除请求键用于网络结果不明或物理清理失败后的重试，HTTP 一次性操作键每次独立。
 - 拒绝删除仍有运行终端的项目，保留底层有效 Claim / 未结束 Run 保护；删除前释放该项目的 Host 连接和 Web 缓存、Feed 调度引用。成功清理后回项目目录；物理清理尚未完成则显示实际状态并允许重试。
 - 提高引导导航层级，保证 Web、desktop 模式与窄屏的链接/按钮命中；退出保留 desktop 上下文。
@@ -42,7 +42,7 @@ pnpm build；node --import tsx --test --test-concurrency=1 tests/project-setting
 
 ## 假设与开放问题
 
-“删除项目”按既有底层语义永久清理该 GoalBoard 项目；用产品确认框保障显式操作。无阻塞问题。
+“删除项目”按既有底层语义永久清理该 Molis Work 项目；用产品确认框保障显式操作。无阻塞问题。
 
 ## 验收结果（2026-09-11）
 
@@ -52,6 +52,6 @@ pnpm build；node --import tsx --test --test-concurrency=1 tests/project-setting
 4. **通过**：真实 Chrome 指针测试覆盖 1440px Web、980px desktop 模式、480px Web 的迁移与返回入口；390px desktop 模式首次跳过，保留 desktop=1。既有首次跳过、初始化项目与 Workspace、升级提示回归全部通过。
 5. **通过**：1280px 浅色与 480px 深色基本页及确认框截图人工查看；布局不溢出，确认框随内容高度；英文页面渲染与翻译回归通过。完整 pnpm build 通过，最终 UI 调整后的 Workbench build 通过，git diff --check 通过。
 
-定向回归共 **18 项通过、0 失败、0 跳过**：新增 HTTP/浏览器 6 项、已有 onboarding 3 项、catalog 删除 1 项、i18n 8 项。日志位于 `/private/tmp/goalboard-project-settings-{build,final-tests,onboarding-regression,catalog,i18n}.log`，UI 截图位于 `/private/tmp/goalboard-project-settings-1280-light.png`、`/private/tmp/goalboard-project-settings-480-dark.png`、`/private/tmp/goalboard-project-delete-480-dark.png`。
+定向回归共 **18 项通过、0 失败、0 跳过**：新增 HTTP/浏览器 6 项、已有 onboarding 3 项、catalog 删除 1 项、i18n 8 项。日志位于 `/private/tmp/molis-work-project-settings-{build,final-tests,onboarding-regression,catalog,i18n}.log`，UI 截图位于 `/private/tmp/molis-work-project-settings-1280-light.png`、`/private/tmp/molis-work-project-settings-480-dark.png`、`/private/tmp/molis-work-project-delete-480-dark.png`。
 
 完成等级：功能可用，并完成上述隔离集成/浏览器验证。**未运行**：重新打包安装 macOS App、实际 Native 窗口点击验收及全仓完整测试；本次 desktop 证据来自 Chrome 的 desktop=1 页面，不替代原生安装包验证。未修改用户已安装应用或真实项目数据。

@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import Database from "better-sqlite3";
-import type { ContextAccess, ContextLedgerApi, ObjectRef } from "@adeptify/goalboard-contracts/modules/context-ledger";
-import { createContextLedger } from "@adeptify/goalboard-module-context-ledger";
-import { FeedModule } from "@adeptify/goalboard-module-feed";
-import { AttentionModule } from "@adeptify/goalboard-module-attention-resumption";
+import type { ContextAccess, ContextLedgerApi, ObjectRef } from "@molis-ai/molis-work-contracts/modules/context-ledger";
+import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
+import { FeedModule } from "@molis-ai/molis-work-module-feed";
+import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
 
 const access: ContextAccess = { actor_id: "alice", scope: { kind: "personal", id: "project-a" } };
 const reference = (module: ObjectRef["module"], id: string, version: number | null = null): ObjectRef =>

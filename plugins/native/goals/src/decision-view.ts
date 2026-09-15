@@ -1,5 +1,5 @@
-import type { GoalTreeProposalRecord, ContractProposalRecord, CandidateGoalRecord, RewireRecord, ReviewRecord, ReviewObligationRecord } from "@adeptify/goalboard-contracts/modules/governance-collaboration";
-import type { RiskRecord, GoalRelationRecord } from "@adeptify/goalboard-contracts/modules/goals";
+import type { GoalTreeProposalRecord, ContractProposalRecord, CandidateGoalRecord, RewireRecord, ReviewRecord, ReviewObligationRecord } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+import type { RiskRecord, GoalRelationRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { GoalsSafetyItem } from "./safety-ui-model.js";
 export interface GoalsDecisionEvent {
   seq: number;

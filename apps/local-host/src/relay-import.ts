@@ -2,10 +2,10 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { createFeedEvidenceContentStore } from "@adeptify/goalboard-module-feed";
-import { createFileSecretStore, openRelaySecurity, readRelayContent } from "@adeptify/goalboard-storage";
-import { gmailInstallationSecretRefs } from "@adeptify/goalboard-integration-gmail";
-import { prepareRelayFeedImport, type FeedApplication, type RelayImportAvailability, type RelayImportResult } from "@adeptify/goalboard-plugin-feed";
+import { createFeedEvidenceContentStore } from "@molis-ai/molis-work-module-feed";
+import { createFileSecretStore, openRelaySecurity, readRelayContent } from "@molis-ai/molis-work-storage";
+import { gmailInstallationSecretRefs } from "@molis-ai/molis-work-integration-gmail";
+import { prepareRelayFeedImport, type FeedApplication, type RelayImportAvailability, type RelayImportResult } from "@molis-ai/molis-work-plugin-feed";
 import { RelayLegacyReader } from "./adapters/relay-reader.js";
 
 const MIGRATABLE_SECRET = /^connector:(?:github|gmail):/u;
@@ -71,17 +71,17 @@ export function importRelayData(target: FeedApplication, boardId: string,
     const relaySecurity = migrateOwnership
       ? openRelaySecurity(path.dirname(availability.path))
       : { entries: new Map<string, string>(), contentKey: null, readable: false };
-    const goalboardSecrets = migrateOwnership && relaySecurity.readable
+    const molisWorkSecrets = migrateOwnership && relaySecurity.readable
       ? createFileSecretStore()
       : null;
-    const goalboardContent = relaySecurity.contentKey && goalboardSecrets
-      ? createFeedEvidenceContentStore({ secretStore: goalboardSecrets })
+    const molisWorkContent = relaySecurity.contentKey && molisWorkSecrets
+      ? createFeedEvidenceContentStore({ secretStore: molisWorkSecrets })
       : null;
     let credentialsMigrated = 0;
     if (migrateOwnership && relaySecurity.readable) {
       for (const [authRef, plaintext] of relaySecurity.entries) {
         if (!MIGRATABLE_SECRET.test(authRef)) continue;
-        goalboardSecrets!.put(authRef, plaintext);
+        molisWorkSecrets!.put(authRef, plaintext);
         credentialsMigrated += 1;
       }
     }
@@ -92,7 +92,7 @@ export function importRelayData(target: FeedApplication, boardId: string,
       credentialRefs: new Set(relaySecurity.entries.keys()),
       credentials: { status: !migrateOwnership ? "not_requested" : relaySecurity.readable ? "migrated" : "unavailable", migrated: credentialsMigrated },
       gmailInstallationSecretRefs,
-      migrateContent: (ref) => migrateRelayContent(ref, path.dirname(availability.path), relaySecurity.contentKey, goalboardContent),
+      migrateContent: (ref) => migrateRelayContent(ref, path.dirname(availability.path), relaySecurity.contentKey, molisWorkContent),
       sourceFingerprint: () => sourceFingerprint(availability.path),
     });
   } finally {

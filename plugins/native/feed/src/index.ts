@@ -1,13 +1,13 @@
-import type { AttentionApi } from "@adeptify/goalboard-contracts/modules/attention-resumption";
-import type { FeedApi } from "@adeptify/goalboard-contracts/modules/feed";
-import type { SourcesApi } from "@adeptify/goalboard-contracts/modules/sources";
+import type { AttentionApi } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
+import type { FeedApi } from "@molis-ai/molis-work-contracts/modules/feed";
+import type { SourcesApi } from "@molis-ai/molis-work-contracts/modules/sources";
 
 export const packageDescriptor = {
-  packageName: "@adeptify/goalboard-plugin-feed",
+  packageName: "@molis-ai/molis-work-plugin-feed",
   packagePath: "plugins/native/feed",
   kind: "native-plugin",
   maturity: "partial",
-  contract: "@adeptify/goalboard-contracts/platform/plugin",
+  contract: "@molis-ai/molis-work-contracts/platform/plugin",
   migrationGoals: ["goal-reorg-f2","goal-reorg-fd4"],
   ssot: "docs/SSOT-MATRIX.md",
   capabilities: [
@@ -27,7 +27,7 @@ export interface FeedNativePluginModules {
   readonly sources: SourcesApi;
 }
 
-export type GoalBoardPackageDescriptor = typeof packageDescriptor;
+export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export * from "./routes.js";
 export * from "./ui.js";
@@ -41,6 +41,19 @@ export { renderFeedRichText, feedPlainText } from "./rich-content.js";
 export { FeedApplication } from "./application.js";
 export type { FeedApplicationPorts } from "./application-ports.js";
 export * from "./application-errors.js";
+
+export {
+  FEED_ARTIFACT_PRODUCER,
+  FEED_CAPTURE_ARTIFACT_TYPE_ID,
+  FEED_CAPTURE_SCHEMA_VERSION,
+  FeedOutRuleStore,
+  feedCaptureArtifactId,
+  feedOutRuleMatches,
+  migrateFeedOutRules,
+  parseFeedOutRulePatch,
+  parseFeedOutRuleWrite,
+} from "./out-rules.js";
+export type { FeedArtifactProducer, FeedOutRuleWrite, FeedPluginSqliteDatabase } from "./out-rules.js";
 
 export { createFeedExactRouteResolver, type FeedExactSourceDefinitions } from "./exact-source-routes.js";
 

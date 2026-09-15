@@ -7,14 +7,14 @@ export { packPluginProject, readPluginPackageFile } from "./package-files.js";
 export { readPublisherIdentity, signPluginPackageFile, verifyPluginPackageFile } from "./package-signing.js";
 
 export const packageDescriptor = {
-  packageName: "@adeptify/goalboard-plugin-cli",
+  packageName: "@molis-ai/molis-work-plugin-cli",
   packagePath: "tooling/plugin-cli",
   kind: "tooling",
   maturity: "partial",
-  contract: "@adeptify/goalboard-contracts/platform/tooling",
+  contract: "@molis-ai/molis-work-contracts/platform/tooling",
   migrationGoals: ["goal-reorg-f2","goal-reorg-dv3"],
   ssot: "docs/SSOT-MATRIX.md",
   capabilities: ["plugin.manifest.validate.v1"],
 } as const;
 
-export type GoalBoardPackageDescriptor = typeof packageDescriptor;
+export type MolisWorkPackageDescriptor = typeof packageDescriptor;

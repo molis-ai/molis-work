@@ -3,12 +3,12 @@ import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { GoalsModule, migrateGoalImpactHistory } from "@adeptify/goalboard-module-goals";
-import { GoalProjectApplication } from "@adeptify/goalboard-app-local-host";
-import { LocalProjectDatabase } from "@adeptify/goalboard-app-local-host";
+import { GoalsModule, migrateGoalImpactHistory } from "@molis-ai/molis-work-module-goals";
+import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 
 test("legacy Impact history schema migrates atomically and reopens without changing old declarations", () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-impact-owner-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-impact-owner-"));
   const databasePath = join(directory, "project.db");
   let store = new LocalProjectDatabase(databasePath);
   try {

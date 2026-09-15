@@ -6,7 +6,7 @@ Goal Detail 已按“概览 / 完成要求 / 进展与阻塞 / 完整记录”�
 
 本任务把 Goal 的日常理解、快速记录、关键因素维护和历史审计分开。用户进入 Goal 后应能快速回答：这条 Goal 还受什么影响、我要补充什么事实、保存后会改变什么、完整历史去哪里查。
 
-GoalBoard 中对应父 Goal 为 `ux-goal-factors-workbench`，依次完成三个叶子 Goal：
+Molis Work 中对应父 Goal 为 `ux-goal-factors-workbench`，依次完成三个叶子 Goal：
 
 1. `ux-goal-factors-navigation`：五区导航、快速记录、只读完整记录；
 2. `ux-goal-factors-controls`：关系、风险、影响范围和工作规则的可理解交互；
@@ -74,7 +74,7 @@ GoalBoard 中对应父 Goal 为 `ux-goal-factors-workbench`，依次完成三个
 
 - 输入：现有 `WebGoalView`、Relation、Risk、Impact、Policy binding、Evidence、Review、Event 和项目目录事实。
 - 输出：五区 Goal Detail、快速记录交互、四区关键因素工作台、只读完整记录、项目规则设置及操作回执。
-- 依赖：现有服务端 HTML 渲染和事件委托、现有写入 API、GoalBoard 项目目录、现有 UI 状态与项目作用域路由。
+- 依赖：现有服务端 HTML 渲染和事件委托、现有写入 API、Molis Work 项目目录、现有 UI 状态与项目作用域路由。
 
 ## 文件与模块边界
 
@@ -110,5 +110,5 @@ UI 完成后运行一次 Impeccable 机械检查，再做桌面和移动端浏�
 
 - 当前已有写入 API 足够支撑本次信息架构，不新增领域命令。
 - 快速记录优先复用同一表单与保存链路，避免形成两套行为。
-- 大型 Goal 的递归拆解质量已作为独立 GoalBoard Draft 记录，不混入本任务。
+- 大型 Goal 的递归拆解质量已作为独立 Molis Work Draft 记录，不混入本任务。
 

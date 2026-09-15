@@ -2,7 +2,7 @@ import type { GoalPolicy } from "./goals.js";
 import type { ContractDescriptor } from "../platform/package.js";
 
 export const modulesExecutionContract = {
-  contractId: "io.goalboard.module.execution.v1",
+  contractId: "io.molis.work.module.execution.v1",
   kind: "module",
   schemaVersion: 1,
   maturity: "partial",

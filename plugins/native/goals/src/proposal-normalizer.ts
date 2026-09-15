@@ -9,7 +9,7 @@ import type {
   GoalTreeProposalNarrative,
   ProposalAffectedObject,
   GovernanceProvenanceApi,
-} from "@adeptify/goalboard-contracts/modules/governance-collaboration";
+} from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 
 const GOAL_TREE_ITEM_KEYS = new Set([
   "item_id",
@@ -470,7 +470,7 @@ export class GoalTreeProposalNormalizer {
       if (issues.length) {
         throw this.errorFactory(issues[0]!.code, issues.map(issue => `${issue.path}: ${issue.message}`).join("\n"), {
           path: issues[0]!.path, issues,
-          recovery: "修正列出的字段后重试 goalboard_v1_goal_tree_propose；失败调用不会创建提案，无需切换接口。",
+          recovery: "修正列出的字段后重试 molis_work_v1_goal_tree_propose；失败调用不会创建提案，无需切换接口。",
         });
       }
       return {

@@ -1,5 +1,5 @@
 {
-  "name": "@adeptify/goalboard-plugin-goals",
+  "name": "@molis-ai/molis-work-plugin-goals",
   "version": "0.0.0",
   "private": true,
   "description": "Protected first-party Goals navigation, UI, commands, and composition.",
@@ -25,16 +25,16 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@adeptify/goalboard-contracts": "workspace:*",
-    "@adeptify/goalboard-module-evidence-verification": "workspace:*",
-    "@adeptify/goalboard-module-execution": "workspace:*",
-    "@adeptify/goalboard-module-goals": "workspace:*"
+    "@molis-ai/molis-work-contracts": "workspace:*",
+    "@molis-ai/molis-work-module-evidence-verification": "workspace:*",
+    "@molis-ai/molis-work-module-execution": "workspace:*",
+    "@molis-ai/molis-work-module-goals": "workspace:*"
   },
-  "goalboard": {
+  "molis-work": {
     "path": "plugins/native/goals",
     "kind": "native-plugin",
     "maturity": "partial",
-    "contract": "@adeptify/goalboard-contracts/platform/plugin",
+    "contract": "@molis-ai/molis-work-contracts/platform/plugin",
     "migrationGoals": [
       "goal-reorg-f2",
       "goal-f826dfb8-bf63-4e98-b6b7-57f6b4b7c3b8",

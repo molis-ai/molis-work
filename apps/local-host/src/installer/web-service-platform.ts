@@ -5,26 +5,28 @@ import { createConnection } from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import { SERVICE_LABEL, GoalBoardWebServiceError, type GoalBoardWebServiceManagerOptions, type GoalBoardWebServiceState, type GoalBoardWebServiceDetection, type WebServiceReceipt } from "./web-service-contract.js";
+import { SERVICE_LABEL, LEGACY_SERVICE_LABEL, MolisWorkWebServiceError, type MolisWorkWebServiceManagerOptions, type MolisWorkWebServiceState, type MolisWorkWebServiceDetection, type WebServiceReceipt } from "./web-service-contract.js";
+import { resolveConfiguredHome } from "../product-home.js";
 const execFileAsync = promisify(execFile);
 
 export class WebServiceEnvironment {
   readonly homeDirectory: string;
   readonly userHomeDirectory: string;
   readonly plistPath: string;
+  readonly legacyPlistPath: string;
   readonly receiptPath: string;
   readonly stdoutLog: string;
   readonly stderrLog: string;
   readonly platform: NodeJS.Platform;
   readonly uid: number;
   readonly nodeExecutablePath: string;
-  readonly runCommand: NonNullable<GoalBoardWebServiceManagerOptions["runCommand"]>;
-  readonly healthCheck: NonNullable<GoalBoardWebServiceManagerOptions["healthCheck"]>;
-  readonly legacyInstanceCheck: NonNullable<GoalBoardWebServiceManagerOptions["legacyInstanceCheck"]>;
-  readonly portCheck: NonNullable<GoalBoardWebServiceManagerOptions["portCheck"]>;
+  readonly runCommand: NonNullable<MolisWorkWebServiceManagerOptions["runCommand"]>;
+  readonly healthCheck: NonNullable<MolisWorkWebServiceManagerOptions["healthCheck"]>;
+  readonly legacyInstanceCheck: NonNullable<MolisWorkWebServiceManagerOptions["legacyInstanceCheck"]>;
+  readonly portCheck: NonNullable<MolisWorkWebServiceManagerOptions["portCheck"]>;
   readonly transitionDelayMilliseconds: number;
-  constructor(options: GoalBoardWebServiceManagerOptions = {}) {
-    this.homeDirectory = path.resolve(options.homeDirectory ?? path.join(os.homedir(), ".goalboard"));
+  constructor(options: MolisWorkWebServiceManagerOptions = {}) {
+    this.homeDirectory = path.resolve(options.homeDirectory ?? resolveConfiguredHome());
     this.userHomeDirectory = path.resolve(
       options.userHomeDirectory
         ?? (options.homeDirectory ? path.dirname(this.homeDirectory) : os.homedir()),
@@ -33,17 +35,18 @@ export class WebServiceEnvironment {
     this.uid = options.uid ?? (typeof process.getuid === "function" ? process.getuid() : 0);
     this.nodeExecutablePath = path.resolve(options.nodeExecutablePath ?? process.execPath);
     this.plistPath = path.join(this.userHomeDirectory, "Library", "LaunchAgents", `${SERVICE_LABEL}.plist`);
+    this.legacyPlistPath = path.join(this.userHomeDirectory, "Library", "LaunchAgents", `${LEGACY_SERVICE_LABEL}.plist`);
     this.receiptPath = path.join(this.homeDirectory, "config", "web-service.json");
     this.stdoutLog = path.join(this.homeDirectory, "logs", "web-service.log");
     this.stderrLog = path.join(this.homeDirectory, "logs", "web-service.error.log");
     this.runCommand = options.runCommand ?? runCommand;
-    this.healthCheck = options.healthCheck ?? goalBoardWebHealthCheck;
-    this.legacyInstanceCheck = options.legacyInstanceCheck ?? goalBoardLegacyWebInstanceCheck;
-    this.portCheck = options.portCheck ?? goalBoardWebPortCheck;
+    this.healthCheck = options.healthCheck ?? molisWorkWebHealthCheck;
+    this.legacyInstanceCheck = options.legacyInstanceCheck ?? molisWorkLegacyWebInstanceCheck;
+    this.portCheck = options.portCheck ?? molisWorkWebPortCheck;
     this.transitionDelayMilliseconds = Math.max(0, options.transitionDelayMilliseconds ?? 250);
   }
   command(): string[] {
-    return [path.join(this.homeDirectory, "bin", "goalboard-web"), "--home", this.homeDirectory];
+    return [path.join(this.homeDirectory, "bin", "molis-work-web"), "--home", this.homeDirectory];
   }
 
   plistSource(): string {
@@ -89,14 +92,16 @@ ${args}
 
   serviceTarget(): string { return `${this.domainTarget()}/${SERVICE_LABEL}`; }
 
+  legacyServiceTarget(): string { return `${this.domainTarget()}/${LEGACY_SERVICE_LABEL}`; }
+
   detection(
-    state: GoalBoardWebServiceState,
+    state: MolisWorkWebServiceState,
     supported: boolean,
     owned: boolean,
     running: boolean,
     command: string[],
     message: string,
-  ): GoalBoardWebServiceDetection {
+  ): MolisWorkWebServiceDetection {
     return {
       provider: supported ? "macos-launchagent" : "unsupported",
       state,
@@ -123,7 +128,7 @@ export async function runCommand(file: string, args: string[]): Promise<{ code: 
   }
 }
 
-export async function goalBoardWebHealthCheck(expectedProcessId?: number): Promise<boolean> {
+export async function molisWorkWebHealthCheck(expectedProcessId?: number): Promise<boolean> {
   try {
     const response = await fetch("http://127.0.0.1:4173/health", {
       headers: { accept: "application/json" },
@@ -143,7 +148,7 @@ export async function goalBoardWebHealthCheck(expectedProcessId?: number): Promi
   }
 }
 
-export async function goalBoardLegacyWebInstanceCheck(expectedProcessId: number): Promise<boolean> {
+export async function molisWorkLegacyWebInstanceCheck(expectedProcessId: number): Promise<boolean> {
   try {
     const response = await fetch("http://127.0.0.1:4173/health", {
       headers: { accept: "application/json" },
@@ -177,7 +182,7 @@ export async function goalBoardLegacyWebInstanceCheck(expectedProcessId: number)
   }
 }
 
-export async function goalBoardWebPortCheck(): Promise<boolean> {
+export async function molisWorkWebPortCheck(): Promise<boolean> {
   return new Promise((resolve) => {
     const socket = createConnection({ host: "127.0.0.1", port: 4173 });
     let settled = false;
@@ -195,8 +200,8 @@ export async function goalBoardWebPortCheck(): Promise<boolean> {
   });
 }
 
-export function commandError(action: string, result: { code: number; stderr: string }): GoalBoardWebServiceError {
-  return new GoalBoardWebServiceError("service.command_failed", `launchctl ${action}失败（${result.code}）：${result.stderr.trim() || "未知错误"}`);
+export function commandError(action: string, result: { code: number; stderr: string }): MolisWorkWebServiceError {
+  return new MolisWorkWebServiceError("service.command_failed", `launchctl ${action}失败（${result.code}）：${result.stderr.trim() || "未知错误"}`);
 }
 
 export function errorMessage(error: unknown): string {

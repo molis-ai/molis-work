@@ -34,8 +34,8 @@
 ## 2026-09-05 第一切片结果
 
 - 已实现 ContextEdge 版本历史、撤销、身份/精确版本引用、访问端口与 scope 拒绝；Feed Goal 关联已切换公共 API，旧列事务迁移并清空。
-- 首次 5 项定向回归通过；扩展全部 Feed / Connector / 终端 HTTP 到 87 项全部通过，日志 `/private/tmp/goalboard-ar2-feed-regression.log`。类型检查与包边界 0 错误。
-- 补充真实数据库关闭/重开后的关联查询后，5 项定向回归再次通过；最终 `pnpm test` 含完整构建与 **539 / 539** 全量回归通过，0 失败/跳过，日志 `/private/tmp/goalboard-ar2-first-slice-full.log`。`git diff --check` 通过。此证据仅证明当前第一切片，不替代剩余 AR2 开发及最终整产品 E2E。
+- 首次 5 项定向回归通过；扩展全部 Feed / Connector / 终端 HTTP 到 87 项全部通过，日志 `/private/tmp/molis-work-ar2-feed-regression.log`。类型检查与包边界 0 错误。
+- 补充真实数据库关闭/重开后的关联查询后，5 项定向回归再次通过；最终 `pnpm test` 含完整构建与 **539 / 539** 全量回归通过，0 失败/跳过，日志 `/private/tmp/molis-work-ar2-first-slice-full.log`。`git diff --check` 通过。此证据仅证明当前第一切片，不替代剩余 AR2 开发及最终整产品 E2E。
 - HTTP 回归仍验证原来返回的 Goal、Feed 状态、Attention 和上下文行为；内部持久化断言改为检查旧列为空、公共查询确实读到 Ledger 关联，没有降低产品行为断言。
 - 下一步证据：Session Registry 在独立的 `sessions.db`；`session_goal_links` 缺少历史 Project ID，`sessions.current_goal_id` 另存当前值。迁移必须保留原 link ID、时间、actor 和历史顺序，不能用当前 Project 猜测历史归属。先明确这些字段到 ObjectRef 的无损映射，再切换 Registry 与 LegacySessionMigrator caller。
 - `input_bindings` 中的 Feed 来源是 Goals 的输入绑定/验证状态，需在下一轮区分其业务 receipt 与跨模块 edge；不能只按相同 Goal/Feed ID 就删掉业务状态。
@@ -53,8 +53,8 @@
 
 - `openWorkSessionRegistry` 已归 apps/local-host，所有 Web/MCP 与相关测试入口切换；Module 间仍只通过 Contract 注入。
 - schema v4 的 Project/Goal/workspace 关联、Goal link 历史已由 Ledger 唯一保存；旧列与旧 link 表清空。Session 内容、身份、Handoff 和本地路径不移动。
-- Session/Workspace/Context 定向 **57 / 57** 通过，日志 `/private/tmp/goalboard-ar2-session-regression.log`；全量 **543 / 543** 通过，日志 `/private/tmp/goalboard-ar2-session-full.log`。
-- 全量结束前复核补齐了 v1/v2 schema 升级与 Ledger 迁移的外层原子事务；随后重新构建受影响包，类型检查和 **15 / 15** 定向回归通过，日志 `/private/tmp/goalboard-ar2-session-atomic-upgrade.log`。包含 v1 Ledger 初始化失败不留下半升级 schema 的实测。
+- Session/Workspace/Context 定向 **57 / 57** 通过，日志 `/private/tmp/molis-work-ar2-session-regression.log`；全量 **543 / 543** 通过，日志 `/private/tmp/molis-work-ar2-session-full.log`。
+- 全量结束前复核补齐了 v1/v2 schema 升级与 Ledger 迁移的外层原子事务；随后重新构建受影响包，类型检查和 **15 / 15** 定向回归通过，日志 `/private/tmp/molis-work-ar2-session-atomic-upgrade.log`。包含 v1 Ledger 初始化失败不留下半升级 schema 的实测。
 - 包边界检查：48 packages / 241 source files / 557 imports / 64 dependency edges，0 errors。`git diff --check` 通过。
 - 下一段已定位：`src/web/feed-native-plugin-http.ts` 仍直接写 `input_bindings`，`src/web/server.ts` 直接读取；这不是 Coordinator 中的 Goal 内部关系。应分别保留输入确认/快照语义与跨 owner 来源引用，不能把 GoalTree Proposal 的事务 materialize 误当成上下文装配。
 
@@ -62,7 +62,7 @@
 
 先把 input binding 的确认状态、输入名称、快照摘要和原始来源引用收回 Goals 的公开 API，退出 Web 与根 Store 中的业务 SQL / 重复类型。保留现有 `feed_item` 与 `url` 行为，不把 URL 猜测注册成 Artifact。随后分别对账可解析的模块引用与仍需 AR3 显式转换的旧 opaque locator，建立 Ledger provenance / materialization 入口。此中间切片不宣称已完成整个来源迁移。
 
-已完成第一步：`GoalInputBindingsApi`、Goals-owned schema / Repository、Feed promotion 与 Web caller 已切换。Coordinator 只增加公开 API 组合，WebInputBinding 改为 Contract 类型投影。Web / 终端 **93 / 93** 回归通过，日志 `/private/tmp/goalboard-ar2-input-caller.log`；随后增加 Project 归属校验、真实事务回滚测试，并复用 Goals 稳定错误类型。
+已完成第一步：`GoalInputBindingsApi`、Goals-owned schema / Repository、Feed promotion 与 Web caller 已切换。Coordinator 只增加公开 API 组合，WebInputBinding 改为 Contract 类型投影。Web / 终端 **93 / 93** 回归通过，日志 `/private/tmp/molis-work-ar2-input-caller.log`；随后增加 Project 归属校验、真实事务回滚测试，并复用 Goals 稳定错误类型。
 
 最终定向校验：重新构建 Goals 包、根类型检查通过，`goal-input-bindings` / `context-ledger` / `session-ledger-migration` 三组共 **10 / 10** 通过。新增 owner 文件均按实际职责组织，没有增加 Huge Class。全量 543 的证据早于这一小段输入 API 切换；93 项 Web / 终端与最后 10 项定向测试是这一小段的直接证据，不能混称全量 545 已运行。
 
@@ -85,7 +85,7 @@ Ledger 内部提供同步 `ContextMaterializationApi.rebuild`，产出类型化�
 
 已完成输入来源迁移、公开 API 兼容读取，以及 Runtime Feed advance-prompt 的实际接入。来源历史与当前 Feed 关联分离；迁移失败回滚、真实关闭/重开、重复打开不重复边、重复登记失败不篡改旧来源均有生产 API 测试。临时重建测试覆盖循环、精确 Artifact 版本不符、owner 拒绝/缺失、scope 拒绝、遍历预算、失败后重新创建 handler 并读取新内容。
 
-类型检查与包边界通过（48 packages / 245 source files / 568 imports / 64 dependency edges，0 errors）。`context-materialization`、`goal-input-bindings`、`context-ledger`、`desktop-tui`、`web` 合计 **103 / 103** 通过，日志 `/private/tmp/goalboard-ar2-rebuild-regression.log`。首次 Web 回归的三个失败来自测试中的错误 Coordinator 类名和已退出的旧列断言；修正后仍检验相同的 locator、唯一确认记录、Goal 和终端行为，没有改生产语义迎合测试。
+类型检查与包边界通过（48 packages / 245 source files / 568 imports / 64 dependency edges，0 errors）。`context-materialization`、`goal-input-bindings`、`context-ledger`、`desktop-tui`、`web` 合计 **103 / 103** 通过，日志 `/private/tmp/molis-work-ar2-rebuild-regression.log`。首次 Web 回归的三个失败来自测试中的错误 Coordinator 类名和已退出的旧列断言；修正后仍检验相同的 locator、唯一确认记录、Goal 和终端行为，没有改生产语义迎合测试。
 
 ### 余项归属核对（尚未关闭）
 
@@ -98,7 +98,7 @@ Ledger 内部提供同步 `ContextMaterializationApi.rebuild`，产出类型化�
 
 这些余项仍在总目标中；当前测试证明的是本切片，不能代替全部 AR2、整体 Huge Class 清理或最终模拟用户前后端 E2E。
 
-最终 `pnpm test`（含完整构建）**550 / 550** 通过，0 失败/跳过，日志 `/private/tmp/goalboard-ar2-provenance-materialization-full.log`；`git diff --check` 通过。新增实现文件为 68 / 95 / 44 行的实际职责单元，没有新增 Huge Class。此次全量覆盖了来源迁移与临时重建的新代码；完成等级仍是 AR2 开发中的已验证切片，不是整产品无损验收通过。
+最终 `pnpm test`（含完整构建）**550 / 550** 通过，0 失败/跳过，日志 `/private/tmp/molis-work-ar2-provenance-materialization-full.log`；`git diff --check` 通过。新增实现文件为 68 / 95 / 44 行的实际职责单元，没有新增 Huge Class。此次全量覆盖了来源迁移与临时重建的新代码；完成等级仍是 AR2 开发中的已验证切片，不是整产品无损验收通过。
 
 ## Handoff 切片：依据原始边界修正
 
@@ -110,9 +110,9 @@ schema v5 在原有 Session 迁移的同一外层事务里迁移 Handoff endpoin
 
 ### Handoff 切片结果
 
-已完成 `handoff-associations.ts`、Registry v5 原子迁移及 Handoff create/update/map caller 切换；Native Work prepare 传递实际 Goal revision。21 项 Handoff / Session Ledger / 隐私回归通过，日志 `/private/tmp/goalboard-ar2-handoff-migration-regression.log`。新测试真实关闭并重开旧 v4 数据库，逐字段对账四种 Handoff 状态和加密正文；迁移失败与新建/修改失败均不留下关系或 Work 状态的半次写入。旧 endpoint SQL 已限定在本 owner 的迁移/清空位置，产品读取只从 Ledger 投影。
+已完成 `handoff-associations.ts`、Registry v5 原子迁移及 Handoff create/update/map caller 切换；Native Work prepare 传递实际 Goal revision。21 项 Handoff / Session Ledger / 隐私回归通过，日志 `/private/tmp/molis-work-ar2-handoff-migration-regression.log`。新测试真实关闭并重开旧 v4 数据库，逐字段对账四种 Handoff 状态和加密正文；迁移失败与新建/修改失败均不留下关系或 Work 状态的半次写入。旧 endpoint SQL 已限定在本 owner 的迁移/清空位置，产品读取只从 Ledger 投影。
 
-包边界通过：48 packages / 246 source files / 573 imports / 64 dependency edges，0 errors。最终 `pnpm test`（含完整构建）**553 / 553** 通过，0 失败/跳过，日志 `/private/tmp/goalboard-ar2-handoff-full.log`。随后在真实 Native Work prepare 测试中增加 Ledger 精确 Goal 版本断言，**4 / 4** 通过，日志 `/private/tmp/goalboard-ar2-handoff-version-pin.log`。`git diff --check` 通过。
+包边界通过：48 packages / 246 source files / 573 imports / 64 dependency edges，0 errors。最终 `pnpm test`（含完整构建）**553 / 553** 通过，0 失败/跳过，日志 `/private/tmp/molis-work-ar2-handoff-full.log`。随后在真实 Native Work prepare 测试中增加 Ledger 精确 Goal 版本断言，**4 / 4** 通过，日志 `/private/tmp/molis-work-ar2-handoff-version-pin.log`。`git diff --check` 通过。
 
 下一段已定位 `RuntimeContextBindingRepository`：当前绑定的 Project endpoint 仍在 `runtime_context_bindings`，绑定/解除事件、setup request 与 suggestion rejection 是控制/授权历史，不能一概删掉。它在 catalog.db，schema 当前 v9，旧 project_id 有 NOT NULL + Project FK；迁移需由 Catalog 升级入口和 Work owner 共同原子提交，不能给它写空字符串绕过 FK。旧 reader 拒绝新版，重绑定/解除/Project 删除及候选拒绝行为要逐项回归。Handoff 的私人正文不再列作 AR2 必须迁入 Artifact 的欠项。
 
@@ -126,9 +126,9 @@ schema v5 在原有 Session 迁移的同一外层事务里迁移 Handoff endpoin
 
 ### Runtime 绑定定向结果
 
-已完成 Catalog v10 与 Work Ledger 适配。原有 Catalog / Work **19 / 19** 回归通过，日志 `/private/tmp/goalboard-ar2-runtime-binding-first.log`。新增 `tests/runtime-binding-ledger.test.ts` **3 / 3** 通过：真实 v9 metadata 表升级并重开、第二条边写入故障导致整次升级回滚并可重试、绑定/重绑定/解除/Project 删除的故障原子性与其他 Project 隔离。旧 schema 来自迁移前真实定义，不只把版本号调低来模拟升级。Ledger 历史、公开 Binding / Event / Project 数据和删除失败后的文件位置均被校验。
+已完成 Catalog v10 与 Work Ledger 适配。原有 Catalog / Work **19 / 19** 回归通过，日志 `/private/tmp/molis-work-ar2-runtime-binding-first.log`。新增 `tests/runtime-binding-ledger.test.ts` **3 / 3** 通过：真实 v9 metadata 表升级并重开、第二条边写入故障导致整次升级回滚并可重试、绑定/重绑定/解除/Project 删除的故障原子性与其他 Project 隔离。旧 schema 来自迁移前真实定义，不只把版本号调低来模拟升级。Ledger 历史、公开 Binding / Event / Project 数据和删除失败后的文件位置均被校验。
 
-完整 `pnpm test`（含构建）**556 / 556** 通过，0 失败/跳过，日志 `/private/tmp/goalboard-ar2-runtime-binding-full.log`。包边界检查通过：48 packages / 247 source files / 580 imports / 64 dependency edges，0 errors，日志 `/private/tmp/goalboard-ar2-runtime-binding-boundary.log`。`git diff --check` 通过。这些证据不等于 AR2 或最终模拟用户无损验收完成。
+完整 `pnpm test`（含构建）**556 / 556** 通过，0 失败/跳过，日志 `/private/tmp/molis-work-ar2-runtime-binding-full.log`。包边界检查通过：48 packages / 247 source files / 580 imports / 64 dependency edges，0 errors，日志 `/private/tmp/molis-work-ar2-runtime-binding-boundary.log`。`git diff --check` 通过。这些证据不等于 AR2 或最终模拟用户无损验收完成。
 
 环境待验事实：本轮 `context_resolve` 的 Project 关联可用，但 Session Registry 返回 `schema=5，当前 reader 支持 3`。最终真实用户验证前必须统一已安装宿主与 schema reader，再验证 Session 列表/恢复；不能把仓库测试通过当作当前已安装产品已经无损可用。
 
@@ -145,7 +145,7 @@ schema v5 在原有 Session 迁移的同一外层事务里迁移 Handoff endpoin
 
 `ImpactBindingRecord` / `ImpactAccess` 已移到 Goals Contract，旧类型路径仅保留别名。Execution 的 `executionImpactPolicy` 统一承担冲突判定和并行兼容；Coordinator 已删除规则副本，保留其调用期有效 Claim / confirmed 声明投影。声明 CRUD、schema 与 Proposal 写入仍是下段必需工作。
 
-受影响包构建、根类型检查通过；新增规则测试和 v1 / MCP 回归 **151 / 151** 通过，日志 `/private/tmp/goalboard-ar2-impact-policy-regression.log`。随后 `pnpm test` 完整重新构建宿主并运行 **559 / 559** 回归通过，0 失败/跳过，日志 `/private/tmp/goalboard-ar2-impact-policy-full.log`；这次 MCP 子进程读取的是更新后的根宿主构建。仍不能替代最终已安装产品的模拟用户验收。
+受影响包构建、根类型检查通过；新增规则测试和 v1 / MCP 回归 **151 / 151** 通过，日志 `/private/tmp/molis-work-ar2-impact-policy-regression.log`。随后 `pnpm test` 完整重新构建宿主并运行 **559 / 559** 回归通过，0 失败/跳过，日志 `/private/tmp/molis-work-ar2-impact-policy-full.log`；这次 MCP 子进程读取的是更新后的根宿主构建。仍不能替代最终已安装产品的模拟用户验收。
 
 接续位置：Coordinator `addImpact` / `updateImpact` / `deactivateImpact` / `normalizeImpactFacts`、Contract Proposal 与 Rewire 两处 `impact_bindings` insert、root Store 的 Impact schema / migration / snapshot mapper。使用现有 `GoalsCommandContext` 的事务、错误工厂、幂等与事件端口承接，避免再造一套命令基础设施；保留 Proposal 应用自己的审计事件粒度。规则迁移后剩余工作仍在 AR2，未报告 Run 完成、未提交完整验收证据。
 
@@ -153,9 +153,9 @@ schema v5 在原有 Session 迁移的同一外层事务里迁移 Handoff endpoin
 
 已实现 `GoalsModule.impacts`、`GoalImpactRepository` 和 Goals-owned schema/history migration；Coordinator 原命令、字段校验及两处 insert 均退出，root Store schema/mapper/migration 也切公开 owner。Web/CLI/MCP 使用各 App 的 Goals adapter，测试跟随同一公开 API，没有保留旧方法转发。`registerAccepted` 仅承接已有批准流程内的事实写入，保留其外层事务与整体审计事件。
 
-受影响包构建与根类型检查通过；Goals / v1 **119 / 119** 通过，日志 `/private/tmp/goalboard-ar2-impact-owner-first.log`。新增 owner 测试 **3 / 3** 通过，覆盖原始作者/时间/停用历史、逐字段审计内容、旧 schema 升级失败回滚与重开、事件写入失败后的事实/幂等回滚及原请求重试。随后在真实 Contract Proposal 与 Candidate→Rewire 流程增加整体审计失败回滚，确认声明随整次应用一起撤销，重试不重复独立事件。
+受影响包构建与根类型检查通过；Goals / v1 **119 / 119** 通过，日志 `/private/tmp/molis-work-ar2-impact-owner-first.log`。新增 owner 测试 **3 / 3** 通过，覆盖原始作者/时间/停用历史、逐字段审计内容、旧 schema 升级失败回滚与重开、事件写入失败后的事实/幂等回滚及原请求重试。随后在真实 Contract Proposal 与 Candidate→Rewire 流程增加整体审计失败回滚，确认声明随整次应用一起撤销，重试不重复独立事件。
 
-最终 `pnpm test`（含完整构建）**562 / 562** 通过，0 失败/跳过，日志 `/private/tmp/goalboard-ar2-impact-owner-full.log`。包边界通过：48 packages / 250 source files / 591 imports / 64 dependency edges，0 errors，日志 `/private/tmp/goalboard-ar2-impact-owner-boundary.log`。边界脚本原来用已删除的 `addImpact` 作为 `readProjectGuidance` 检查区间终点，已更新为实际相邻方法，未降低原 Query owner 要求。`git diff --check` 通过；生产 `impact_bindings` SQL 只剩 Goals 的 `impact-repository.ts`。
+最终 `pnpm test`（含完整构建）**562 / 562** 通过，0 失败/跳过，日志 `/private/tmp/molis-work-ar2-impact-owner-full.log`。包边界通过：48 packages / 250 source files / 591 imports / 64 dependency edges，0 errors，日志 `/private/tmp/molis-work-ar2-impact-owner-boundary.log`。边界脚本原来用已删除的 `addImpact` 作为 `readProjectGuidance` 检查区间终点，已更新为实际相邻方法，未降低原 Query owner 要求。`git diff --check` 通过；生产 `impact_bindings` SQL 只剩 Goals 的 `impact-repository.ts`。
 
 下一核对点：Coordinator `validateContractProposal` 的 `field_sources` 校验、Draft dialogue fact/assumption 来源整理、legacy Proposal→Goal Tree 的来源投影。这些已知记录保留 user_answer / repository_fact / document_fact / runtime_inference 和待确认状态，本身不是已确认 ContextEdge。存储已在 Governance；需把相应来源规则从 Coordinator 收回正确 owner，不能把普通文件/URL/对话 locator 伪造为 Artifact ID。完成这部分后再对 AR2 的所有要求、caller 与 publication/materialization 基线适用性逐项审计，尚未关闭 AR2。
 
@@ -177,8 +177,8 @@ Feed promotion caller 仍有一处直接查询 Goals 表来判断既有关联是
 
 Draft 事实/假设、Contract 字段、native Goal Tree 条目来源规则和 legacy Proposal 展示已迁 Governance。新增公开端口测试及实际用户修订流程验证：错误来源/提前确认会拒绝整次决定且不留下部分应用，原请求修正后可重试，来源排序去重并保留 pending 状态。没有改变接受门槛或扩大 Runtime 权限。
 
-完整 `pnpm test`（含构建）**566 / 566** 通过，日志 `/private/tmp/goalboard-ar2-governance-final-full.log`。之后的内容独立性补证与 Feed public Query caller 修改，根类型检查及 **61 / 61** 定向/Web 回归通过，日志 `/private/tmp/goalboard-ar2-owner-caller-regression.log`。最初独立性测试误用了不存在的应用查询方法，修正为真实 `goalQueries.readGoalContract` 后通过；没有为测试改动产品语义。
+完整 `pnpm test`（含构建）**566 / 566** 通过，日志 `/private/tmp/molis-work-ar2-governance-final-full.log`。之后的内容独立性补证与 Feed public Query caller 修改，根类型检查及 **61 / 61** 定向/Web 回归通过，日志 `/private/tmp/molis-work-ar2-owner-caller-regression.log`。最初独立性测试误用了不存在的应用查询方法，修正为真实 `goalQueries.readGoalContract` 后通过；没有为测试改动产品语义。
 
 最终包边界与 diff 检查通过；归属、SQL/caller 退出、基线不存在的 publication/异步 materialization 及其不应假报完成的边界，详见 [AR2 验收核对](./ar2-validation.md)。本叶子已具备提交证据和自验的条件；后续 AR3、剩余模块迁移、Huge Class 清理与真实前后端用户操作验收继续保持未完成。
 
-GoalBoard 已于本轮记录执行完成、三项 criterion 对应 Evidence 和 self-verifier pass，事件 cursor 919 返回 `goal-reorg-ar2` 为 completed。自验另运行 33 项 AR2 直接测试全部通过，日志 `/private/tmp/goalboard-ar2-self-review.log`。当前接续 `goal-reorg-ar3`，整体目标不关闭。
+Molis Work 已于本轮记录执行完成、三项 criterion 对应 Evidence 和 self-verifier pass，事件 cursor 919 返回 `goal-reorg-ar2` 为 completed。自验另运行 33 项 AR2 直接测试全部通过，日志 `/private/tmp/molis-work-ar2-self-review.log`。当前接续 `goal-reorg-ar3`，整体目标不关闭。

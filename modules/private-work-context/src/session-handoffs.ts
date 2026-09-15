@@ -3,18 +3,18 @@ import type Database from "better-sqlite3";
 import type { SessionContentStore } from "./content-store.js";
 import type {
   CreateSessionHandoffDraftInput,
-  GoalBoardSessionHandoffRecord,
-  GoalBoardSessionRecord,
+  MolisWorkSessionHandoffRecord,
+  MolisWorkSessionRecord,
   UpdateSessionHandoffDraftInput,
 } from "./contract-aliases.js";
-import { GoalBoardSessionError } from "./errors.js";
+import { MolisWorkSessionError } from "./errors.js";
 import { optionalAbsolutePath, optionalText, requiredText } from "./session-schema.js";
 import type { HandoffAssociationRepository } from "./handoff-associations.js";
 
 const HANDOFF_SEND_LEASE_MS = 5 * 60 * 1000;
 
 export interface HandoffSessionLookup {
-  get(sessionId: string): GoalBoardSessionRecord;
+  get(sessionId: string): MolisWorkSessionRecord;
 }
 
 export class SessionHandoffRepository {
@@ -26,11 +26,11 @@ export class SessionHandoffRepository {
     private readonly associations: HandoffAssociationRepository,
   ) {}
 
-  createDraft(input: CreateSessionHandoffDraftInput): GoalBoardSessionHandoffRecord {
+  createDraft(input: CreateSessionHandoffDraftInput): MolisWorkSessionHandoffRecord {
     return this.db.transaction(() => this.createDraftRecord(input)).immediate();
   }
 
-  private createDraftRecord(input: CreateSessionHandoffDraftInput): GoalBoardSessionHandoffRecord {
+  private createDraftRecord(input: CreateSessionHandoffDraftInput): MolisWorkSessionHandoffRecord {
     const sourceSessionId = requiredText(input.source_session_id, "来源 Session 不能为空");
     const sourceProjectId = requiredText(input.source_project_id, "来源 Project 不能为空");
     const sourceGoalId = requiredText(input.source_goal_id, "来源 Goal 不能为空");
@@ -40,7 +40,7 @@ export class SessionHandoffRepository {
     const content = requiredText(input.content, "Handoff 内容不能为空");
     const source = this.sessions.get(sourceSessionId);
     if (source.project_id !== sourceProjectId || source.current_goal_id !== sourceGoalId) {
-      throw new GoalBoardSessionError("session.invalid_input", "来源 Session 的当前 Project 或 Goal 已经变化，请重新生成 Handoff");
+      throw new MolisWorkSessionError("session.invalid_input", "来源 Session 的当前 Project 或 Goal 已经变化，请重新生成 Handoff");
     }
     const targetWorkspacePath = optionalAbsolutePath(input.target_workspace_path);
     const { content_ref: contentRef } = this.contentStore.write(content);
@@ -75,14 +75,14 @@ export class SessionHandoffRepository {
     return this.get(packageId);
   }
 
-  get(packageId: string): GoalBoardSessionHandoffRecord {
+  get(packageId: string): MolisWorkSessionHandoffRecord {
     const row = this.db.prepare("SELECT * FROM session_handoffs WHERE package_id = ?")
       .get(requiredText(packageId, "Handoff package ID 不能为空")) as Record<string, unknown> | undefined;
-    if (!row) throw new GoalBoardSessionError("session.handoff_not_found", "找不到这条 Handoff package");
+    if (!row) throw new MolisWorkSessionError("session.handoff_not_found", "找不到这条 Handoff package");
     return this.map(row);
   }
 
-  latestPending(sourceSessionId: string): GoalBoardSessionHandoffRecord | null {
+  latestPending(sourceSessionId: string): MolisWorkSessionHandoffRecord | null {
     this.recoverInterrupted();
     const row = this.db.prepare(`
       SELECT * FROM session_handoffs
@@ -93,7 +93,7 @@ export class SessionHandoffRepository {
     return row ? this.map(row) : null;
   }
 
-  listForSession(sessionId: string): GoalBoardSessionHandoffRecord[] {
+  listForSession(sessionId: string): MolisWorkSessionHandoffRecord[] {
     this.sessions.get(sessionId);
     return (this.db.prepare(`
       SELECT * FROM session_handoffs
@@ -102,17 +102,17 @@ export class SessionHandoffRepository {
     `).all(sessionId, sessionId) as Array<Record<string, unknown>>).map((row) => this.map(row));
   }
 
-  updateDraft(input: UpdateSessionHandoffDraftInput): GoalBoardSessionHandoffRecord {
+  updateDraft(input: UpdateSessionHandoffDraftInput): MolisWorkSessionHandoffRecord {
     return this.db.transaction(() => this.updateDraftRecord(input)).immediate();
   }
 
-  private updateDraftRecord(input: UpdateSessionHandoffDraftInput): GoalBoardSessionHandoffRecord {
+  private updateDraftRecord(input: UpdateSessionHandoffDraftInput): MolisWorkSessionHandoffRecord {
     const current = this.get(input.package_id);
     if (current.state !== "draft" && current.state !== "failed") {
-      throw new GoalBoardSessionError("session.handoff_invalid_state", "只有草稿或失败的 Handoff 可以修改");
+      throw new MolisWorkSessionError("session.handoff_invalid_state", "只有草稿或失败的 Handoff 可以修改");
     }
     if (current.state === "failed" && !current.retryable) {
-      throw new GoalBoardSessionError(
+      throw new MolisWorkSessionError(
         "session.handoff_invalid_state",
         "这次失败不能安全重试；请取消后重新创建 Handoff",
       );
@@ -129,7 +129,7 @@ export class SessionHandoffRepository {
       || current.target_workspace_id !== targetWorkspaceId
       || current.target_workspace_path !== targetWorkspacePath
     )) {
-      throw new GoalBoardSessionError(
+      throw new MolisWorkSessionError(
         "session.handoff_invalid_state",
         "目标 Session 已经创建；可以修改正文并重试，但不能再改变 Runtime、Project 或工作目录",
       );
@@ -152,17 +152,17 @@ export class SessionHandoffRepository {
       current.package_id,
     );
     if (updated.changes !== 1) {
-      throw new GoalBoardSessionError("session.handoff_invalid_state", "Handoff 状态已经变化，请刷新后再操作");
+      throw new MolisWorkSessionError("session.handoff_invalid_state", "Handoff 状态已经变化，请刷新后再操作");
     }
     this.associations.setTarget(current.package_id, targetProjectId, targetWorkspaceId, input.actor_id, now);
     return this.get(current.package_id);
   }
 
-  markSending(packageId: string): GoalBoardSessionHandoffRecord {
+  markSending(packageId: string): MolisWorkSessionHandoffRecord {
     const current = this.get(packageId);
     if (current.state === "sent") return current;
     if (current.state !== "draft" && current.state !== "failed") {
-      throw new GoalBoardSessionError("session.handoff_invalid_state", "这条 Handoff 当前不能发送");
+      throw new MolisWorkSessionError("session.handoff_invalid_state", "这条 Handoff 当前不能发送");
     }
     const updated = this.db.prepare(`
       UPDATE session_handoffs
@@ -173,7 +173,7 @@ export class SessionHandoffRepository {
     if (updated.changes !== 1) {
       const latest = this.get(current.package_id);
       if (latest.state === "sent") return latest;
-      throw new GoalBoardSessionError(
+      throw new MolisWorkSessionError(
         "session.handoff_invalid_state",
         "这条 Handoff 已在另一个请求中发送，请等待结果后刷新",
       );
@@ -184,11 +184,11 @@ export class SessionHandoffRepository {
   attachDestination(input: {
     package_id: string;
     destination_session_id: string;
-    delivery_mode: NonNullable<GoalBoardSessionHandoffRecord["delivery_mode"]>;
-  }): GoalBoardSessionHandoffRecord {
+    delivery_mode: NonNullable<MolisWorkSessionHandoffRecord["delivery_mode"]>;
+  }): MolisWorkSessionHandoffRecord {
     const current = this.get(input.package_id);
     if (current.state !== "sending") {
-      throw new GoalBoardSessionError("session.handoff_invalid_state", "只有发送中的 Handoff 可以记录目标 Session");
+      throw new MolisWorkSessionError("session.handoff_invalid_state", "只有发送中的 Handoff 可以记录目标 Session");
     }
     const destination = this.sessions.get(input.destination_session_id);
     if (
@@ -197,7 +197,7 @@ export class SessionHandoffRepository {
       || destination.current_goal_id !== current.source_goal_id
       || destination.runtime_id !== current.target_runtime_id
     ) {
-      throw new GoalBoardSessionError(
+      throw new MolisWorkSessionError(
         "session.identity_conflict",
         "目标 Session 的 Runtime、Project 或 Goal 与 Handoff 不一致",
       );
@@ -206,7 +206,7 @@ export class SessionHandoffRepository {
       if (current.destination_session_id === destination.session_id && current.delivery_mode === input.delivery_mode) {
         return current;
       }
-      throw new GoalBoardSessionError("session.identity_conflict", "Handoff 已连接另一个目标 Session");
+      throw new MolisWorkSessionError("session.identity_conflict", "Handoff 已连接另一个目标 Session");
     }
     const updated = this.db.prepare(`
       UPDATE session_handoffs
@@ -214,7 +214,7 @@ export class SessionHandoffRepository {
       WHERE package_id = ? AND state = 'sending' AND destination_session_id IS NULL
     `).run(destination.session_id, input.delivery_mode, this.now().toISOString(), current.package_id);
     if (updated.changes !== 1) {
-      throw new GoalBoardSessionError("session.handoff_invalid_state", "Handoff 状态已经变化，不能覆盖目标 Session");
+      throw new MolisWorkSessionError("session.handoff_invalid_state", "Handoff 状态已经变化，不能覆盖目标 Session");
     }
     return this.get(current.package_id);
   }
@@ -225,11 +225,11 @@ export class SessionHandoffRepository {
     error_message: string;
     retryable: boolean;
     destination_session_id?: string | null;
-    delivery_mode?: GoalBoardSessionHandoffRecord["delivery_mode"];
-  }): GoalBoardSessionHandoffRecord {
+    delivery_mode?: MolisWorkSessionHandoffRecord["delivery_mode"];
+  }): MolisWorkSessionHandoffRecord {
     const current = this.get(input.package_id);
     if (current.state !== "sending") {
-      throw new GoalBoardSessionError("session.handoff_invalid_state", "只有发送中的 Handoff 可以记录失败");
+      throw new MolisWorkSessionError("session.handoff_invalid_state", "只有发送中的 Handoff 可以记录失败");
     }
     const destinationSessionId = optionalText(input.destination_session_id) ?? current.destination_session_id;
     if (destinationSessionId) this.sessions.get(destinationSessionId);
@@ -248,7 +248,7 @@ export class SessionHandoffRepository {
       current.package_id,
     );
     if (updated.changes !== 1) {
-      throw new GoalBoardSessionError("session.handoff_invalid_state", "Handoff 状态已经变化，不能覆盖当前发送结果");
+      throw new MolisWorkSessionError("session.handoff_invalid_state", "Handoff 状态已经变化，不能覆盖当前发送结果");
     }
     return this.get(current.package_id);
   }
@@ -256,12 +256,12 @@ export class SessionHandoffRepository {
   markSent(input: {
     package_id: string;
     destination_session_id: string;
-    delivery_mode: NonNullable<GoalBoardSessionHandoffRecord["delivery_mode"]>;
-  }): GoalBoardSessionHandoffRecord {
+    delivery_mode: NonNullable<MolisWorkSessionHandoffRecord["delivery_mode"]>;
+  }): MolisWorkSessionHandoffRecord {
     const current = this.get(input.package_id);
     if (current.state === "sent") return current;
     if (current.state !== "sending") {
-      throw new GoalBoardSessionError("session.handoff_invalid_state", "只有发送中的 Handoff 可以完成");
+      throw new MolisWorkSessionError("session.handoff_invalid_state", "只有发送中的 Handoff 可以完成");
     }
     this.sessions.get(input.destination_session_id);
     const now = this.now().toISOString();
@@ -275,16 +275,16 @@ export class SessionHandoffRepository {
     if (updated.changes !== 1) {
       const latest = this.get(current.package_id);
       if (latest.state === "sent") return latest;
-      throw new GoalBoardSessionError("session.handoff_invalid_state", "Handoff 状态已经变化，不能覆盖当前发送结果");
+      throw new MolisWorkSessionError("session.handoff_invalid_state", "Handoff 状态已经变化，不能覆盖当前发送结果");
     }
     return this.get(current.package_id);
   }
 
-  cancel(packageId: string): GoalBoardSessionHandoffRecord {
+  cancel(packageId: string): MolisWorkSessionHandoffRecord {
     const current = this.get(packageId);
     if (current.state === "cancelled") return current;
     if (current.state !== "draft" && current.state !== "failed") {
-      throw new GoalBoardSessionError("session.handoff_invalid_state", "发送中或已发送的 Handoff 不能取消");
+      throw new MolisWorkSessionError("session.handoff_invalid_state", "发送中或已发送的 Handoff 不能取消");
     }
     const updated = this.db.prepare(`
       UPDATE session_handoffs SET state = 'cancelled', retryable = 0, updated_at = ?
@@ -293,7 +293,7 @@ export class SessionHandoffRepository {
     if (updated.changes !== 1) {
       const latest = this.get(current.package_id);
       if (latest.state === "cancelled") return latest;
-      throw new GoalBoardSessionError("session.handoff_invalid_state", "Handoff 状态已经变化，不能取消");
+      throw new MolisWorkSessionError("session.handoff_invalid_state", "Handoff 状态已经变化，不能取消");
     }
     return this.get(current.package_id);
   }
@@ -310,7 +310,7 @@ export class SessionHandoffRepository {
     `).run(now, staleBefore);
   }
 
-  private map(row: Record<string, unknown>): GoalBoardSessionHandoffRecord {
+  private map(row: Record<string, unknown>): MolisWorkSessionHandoffRecord {
     let content: string | null = null;
     try {
       content = this.contentStore.read(String(row.content_ref));
@@ -324,10 +324,10 @@ export class SessionHandoffRepository {
       target_runtime_id: String(row.target_runtime_id),
       target_workspace_path: row.target_workspace_path == null ? null : String(row.target_workspace_path),
       destination_session_id: row.destination_session_id == null ? null : String(row.destination_session_id),
-      state: String(row.state) as GoalBoardSessionHandoffRecord["state"],
+      state: String(row.state) as MolisWorkSessionHandoffRecord["state"],
       delivery_mode: row.delivery_mode == null
         ? null
-        : String(row.delivery_mode) as GoalBoardSessionHandoffRecord["delivery_mode"],
+        : String(row.delivery_mode) as MolisWorkSessionHandoffRecord["delivery_mode"],
       content,
       content_available: content !== null,
       content_digest: String(row.content_digest),

@@ -1,6 +1,6 @@
 # 信息流工作台视觉层级统一
 
-GoalBoard Goal：`draft-8674359b-02ae-4281-8ba6-66c38dc1096b`
+Molis Work Goal：`draft-8674359b-02ae-4281-8ba6-66c38dc1096b`
 
 ## 背景与目标
 

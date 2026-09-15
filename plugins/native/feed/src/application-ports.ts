@@ -1,13 +1,16 @@
-import type { SourcesApi } from "@adeptify/goalboard-contracts/modules/sources";
-import type { AttentionApi } from "@adeptify/goalboard-contracts/modules/attention-resumption";
-import type { FeedApi } from "@adeptify/goalboard-contracts/modules/feed";
-import type { FeedImportReceiptRecord, FeedContractMigrationReceiptRecord } from "@adeptify/goalboard-contracts/modules/feed";
-import type { ListenerCheckpoint, ListenerRunRecord } from "@adeptify/goalboard-contracts/services/listener-host";
+import type { SourcesApi } from "@molis-ai/molis-work-contracts/modules/sources";
+import type { AttentionApi } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
+import type { FeedApi } from "@molis-ai/molis-work-contracts/modules/feed";
+import type { FeedImportReceiptRecord, FeedContractMigrationReceiptRecord } from "@molis-ai/molis-work-contracts/modules/feed";
+import type { ListenerCheckpoint, ListenerRunRecord } from "@molis-ai/molis-work-contracts/services/listener-host";
+import type { FeedArtifactProducer, FeedOutRuleStore } from "./out-rules.js";
 
 export interface FeedApplicationPorts {
   readonly sources: SourcesApi;
   readonly attention: AttentionApi;
   readonly feed: FeedApi;
+  readonly outRules?: FeedOutRuleStore;
+  readonly artifacts?: FeedArtifactProducer;
   readonly receipts: {
     listImports(boardId: string): FeedImportReceiptRecord[];
     listContractMigrations(): FeedContractMigrationReceiptRecord[];

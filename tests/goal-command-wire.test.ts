@@ -3,12 +3,12 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { createMcpGoalToolHandlers } from "@adeptify/goalboard-app-mcp";
-import { GoalProjectApplication } from "@adeptify/goalboard-app-local-host";
-import { LocalProjectDatabase } from "@adeptify/goalboard-app-local-host";
+import { createMcpGoalToolHandlers } from "@molis-ai/molis-work-app-mcp";
+import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 
 test("remaining Goal wire handlers keep Board conversion and persist current guidance/planning facts", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-goal-wire-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-goal-wire-"));
   const store = new LocalProjectDatabase(join(directory, "project.db"));
   try {
     const coordinator = new GoalProjectApplication(store);
@@ -17,7 +17,7 @@ test("remaining Goal wire handlers keep Board conversion and persist current gui
     }
     const runtime = createMcpGoalToolHandlers(coordinator.goals, "runtime");
     const nestedBefore = coordinator.goalQueries.readProjectGuidance("nested");
-    const added = await runtime.goalboard_v1_project_guidance_add({
+    const added = await runtime.molis_work_v1_project_guidance_add({
       board_id: "selected",
       actor_id: "user",
       kind: "constraint",
@@ -37,7 +37,7 @@ test("remaining Goal wire handlers keep Board conversion and persist current gui
     assert.equal(saved?.content, "入口不改写领域语义。");
     assert.equal(saved?.board_id, "selected");
     assert.equal(saved?.created_by, "user");
-    const graph = await runtime.goalboard_v1_planning_graph_check({ board_id: "selected" });
+    const graph = await runtime.molis_work_v1_planning_graph_check({ board_id: "selected" });
     assert.deepEqual(graph.issues, []);
     assert.ok(Number.isInteger(graph.observed_event_cursor) && graph.observed_event_cursor >= 1);
     assert.deepEqual(coordinator.goalQueries.readProjectGuidance("nested"), nestedBefore);

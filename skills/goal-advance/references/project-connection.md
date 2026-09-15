@@ -1,6 +1,6 @@
 # Project connection and recovery
 
-Use this reference for project selection, binding, switching, connection errors, or recoverable Goal trash. Start with goalboard_v1_context_resolve.
+Use this reference for project selection, binding, switching, connection errors, or recoverable Goal trash. Start with molis_work_v1_context_resolve.
 
 ## Use the resolved state
 
@@ -12,7 +12,7 @@ Use this reference for project selection, binding, switching, connection errors,
 
 An exact realpath-verified workspace with one project membership can recover a connection read-only. This does not create a Session binding. Multiple, conflicting or unverified matches still need a choice. A repository name, directory, database path or mere project mention is not selection authority.
 
-Once the user selects an existing project, call goalboard_v1_context_bind with its returned project_id, the current Runtime actor_id and user_confirmed=true. Connection tools retain their explicit identity fields; the ordinary Goal-tool omission rule does not apply to them.
+Once the user selects an existing project, call molis_work_v1_context_bind with its returned project_id, the current Runtime actor_id and user_confirmed=true. Connection tools retain their explicit identity fields; the ordinary Goal-tool omission rule does not apply to them.
 
 For a new project, state its display name and the create-and-bind effect, then call context_create_and_bind with display_name, actor_id, user_confirmed=true and idempotency_key when that precise operation is authorized. A clear current request or answer already authorizing that name and operation is sufficient; do not ask again. If either the name or creation intent remains ambiguous, clarify only that gap.
 
@@ -47,16 +47,16 @@ Use the user's existing authorization for the precise effect. Choosing another p
 
 ## A Goal opened beside a Runtime
 
-After connection resolves, read the explicit Goal using goalboard_v1_goal_state. A Host-provided GOALBOARD_GOAL_ID identifies page context; it does not itself authorize doing the work.
+After connection resolves, read the explicit Goal using molis_work_v1_goal_state. A Host-provided MOLIS_WORK_GOAL_ID identifies page context; it does not itself authorize doing the work.
 
-When the user asks to advance it, continue from current agreement, requirements, progress and gaps. Updating another Goal never silently retargets the existing terminal. Do not invent GOALBOARD_WORK_CONTEXT_ID or GOALBOARD_PANEL_ID, ask the user to paste a Session ID, or send to a terminal as part of Goal navigation.
+When the user asks to advance it, continue from current agreement, requirements, progress and gaps. Updating another Goal never silently retargets the existing terminal. Do not invent MOLIS_WORK_WORK_CONTEXT_ID or MOLIS_WORK_PANEL_ID, ask the user to paste a Session ID, or send to a terminal as part of Goal navigation.
 
 ## Recoverable Goal trash
 
 Goal trash preserves the original ID, facts and relationship history. It differs from permanent project deletion.
 
-- goalboard_v1_goal_trash_list uses an empty ordinary input and is read-only.
-- goalboard_v1_goal_trash and goalboard_v1_goal_restore take flat goal_id, reason, user_confirmed=true and idempotency_key. Omit board/actor fields and the old payload envelope.
+- molis_work_v1_goal_trash_list uses an empty ordinary input and is read-only.
+- molis_work_v1_goal_trash and molis_work_v1_goal_restore take flat goal_id, reason, user_confirmed=true and idempotency_key. Omit board/actor fields and the old payload envelope.
 - Use the exact Goal and the user's explicit instruction to trash or restore it. If the requested effect is ambiguous, clarify it; do not repeat a clear instruction.
 
 Read the result literally: blocked means no transition; trashed is recoverable; restored keeps relations with unavailable endpoints inactive and identifies pending_relation_ids. already_trashed and already_active report existing state. After restoring, goal_state describes current work. Never force historical active work closed or invent a per-Goal permanent deletion route.

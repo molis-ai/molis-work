@@ -32,4 +32,4 @@ Runtime 工作入口到 Project 的当前绑定已迁为 `work.binding_project`�
 
 资源 Impact 的声明与历史归 Goals，占用冲突归 Execution；它们不是可解析对象关系。事实/假设、Contract/native 提案的来源规则与旧提案展示归 Governance。Coordinator 已退出这些规则，通过公开接口组合；来源 locator 和待确认历史不伪造为已确认 ContextEdge。
 
-AR2 的现有职责迁移、caller 与基线审计已通过，GoalBoard 已完成该叶子的证据与自验。未来 Publication Receipt、异步 Materialization 请求/取消与后台 handler 尚未实现，包成熟度仍为 partial；不能把本次迁移完成说成全部未来能力可用。范围与直接证据见[验收记录](../../specs/goalboard-architecture-reorganization/ar2-validation.md)。
+AR2 的现有职责迁移、caller 与基线审计已通过，Molis Work 已完成该叶子的证据与自验。未来 Publication Receipt、异步 Materialization 请求/取消与后台 handler 尚未实现，包成熟度仍为 partial；不能把本次迁移完成说成全部未来能力可用。范围与直接证据见[验收记录](../../specs/molis-work-architecture-reorganization/ar2-validation.md)。

@@ -1,10 +1,10 @@
-# GoalBoard 产品族与模块架构草案（历史输入）
+# Molis Work 产品族与模块架构草案（历史输入）
 
 状态：已被新的架构 SSOT 取代，仅保留为讨论和来源记录
 日期：2026-09-01
-替代文档：[`docs/SSOT-MATRIX.md`](SSOT-MATRIX.md) 与 [`specs/goalboard-architecture-reorganization/spec.md`](../specs/goalboard-architecture-reorganization/spec.md)
+替代文档：[`docs/SSOT-MATRIX.md`](SSOT-MATRIX.md) 与 [`specs/molis-work-architecture-reorganization/spec.md`](../specs/molis-work-architecture-reorganization/spec.md)
 
-本文记录了 GoalBoard、Relay、Loreport 重组讨论的早期输入，其中 `Space`、Server 业务边界、模块吸收关系等内容已经被后续决定修改。不要据此创建 package、实现功能或判断事实 owner；需要追溯早期思路时再阅读。
+本文记录了 Molis Work、Relay、Loreport 重组讨论的早期输入，其中 `Space`、Server 业务边界、模块吸收关系等内容已经被后续决定修改。不要据此创建 package、实现功能或判断事实 owner；需要追溯早期思路时再阅读。
 
 ## 1. 为什么需要重新整理
 
@@ -15,7 +15,7 @@
 3. 邮件、IM、社媒、RSS 等外部信息如何进入工作系统；
 4. Desktop 与 Server 各自保存什么、在哪里执行、如何同步。
 
-如果直接按 GoalBoard、Relay、Loreport 三个现有产品分配功能，很容易把产品名、部署位置、领域对象和 UI 页面混在一起。因此后续采用以下顺序：
+如果直接按 Molis Work、Relay、Loreport 三个现有产品分配功能，很容易把产品名、部署位置、领域对象和 UI 页面混在一起。因此后续采用以下顺序：
 
 1. 划分领域模块；
 2. 定义每个模块唯一拥有的实体、状态和内部工作流；
@@ -27,7 +27,7 @@
 
 ### 2.1 Goal 是个人与团队之间的连续主线
 
-GoalBoard 既不只解决个人注意力，也不只解决团队任务管理。共同核心是 Goal continuity：一个结果从被提出、澄清、拆解、执行、阻塞、交接、复核到完成，始终可以被理解和继续。
+Molis Work 既不只解决个人注意力，也不只解决团队任务管理。共同核心是 Goal continuity：一个结果从被提出、澄清、拆解、执行、阻塞、交接、复核到完成，始终可以被理解和继续。
 
 - 个人侧关注：我现在应该注意什么、哪些事情值得承诺、如何从上次状态继续。
 - 团队侧关注：共同推进什么、如何拆解和认领、如何交接、哪些决定和证据已经成为共享事实。
@@ -51,20 +51,20 @@ GoalBoard 既不只解决个人注意力，也不只解决团队任务管理。�
 
 ### 2.4 Server 可以保存 Feed，不只是保存 Goal
 
-GoalBoard Server 可以运行云端 Connector、保存个人或团队 Feed，并同步给 Desktop。来源可以选择不同的执行、凭据和存储策略：
+Molis Work Server 可以运行云端 Connector、保存个人或团队 Feed，并同步给 Desktop。来源可以选择不同的执行、凭据和存储策略：
 
 - 公共 RSS、公开网页和公开社媒适合默认在 Server 持续同步；
 - Gmail 等私人账号可以由用户在 Desktop 登录，也可以在云端完成 OAuth；
 - 云端 Connector 获取的内容由 Server 可靠同步到用户自己的 Desktop；
 - 本地 Connector 获取的内容可以仅保存在本地，也可以按用户选择同步元数据、摘要或完整内容。
 
-### 2.5 当前 GoalBoard 是个人端的起点
+### 2.5 当前 Molis Work 是个人端的起点
 
-当前 GoalBoard 保留本地优先、Goal 管理、Runtime 接入和真实执行状态能力，并逐步转化为 GoalBoard Personal / GoalBoard Desktop，即个人工作台。
+当前 Molis Work 保留本地优先、Goal 管理、Runtime 接入和真实执行状态能力，并逐步转化为 Molis Work Personal / Molis Work Desktop，即个人工作台。
 
-### 2.6 Loreport 是 GoalBoard Server 的候选基础
+### 2.6 Loreport 是 Molis Work Server 的候选基础
 
-Loreport 已经设计了 Team Space、IAM、Proposal/Review、共享 Context、Decision、Artifact 等概念，但目前主要是产品和架构文档。因此不再优先发展为一个独立产品，而是作为 GoalBoard Server 的设计和实现基础候选。
+Loreport 已经设计了 Team Space、IAM、Proposal/Review、共享 Context、Decision、Artifact 等概念，但目前主要是产品和架构文档。因此不再优先发展为一个独立产品，而是作为 Molis Work Server 的设计和实现基础候选。
 
 ### 2.7 Relay 是可部署在两端的能力层
 
@@ -73,7 +73,7 @@ Relay 不应被整体归入 Desktop 或 Server。它的 Connector、Source、同
 - Relay Desktop Host：本地账号、本地应用、本地文件和本地 Runtime；
 - Relay Cloud Host：公共 Feed、云端 OAuth、团队 IM 和持续在线同步。
 
-Relay 自己已有的 Team Workspace、Goal 相似状态和权限系统不应继续与 GoalBoard Server 平行扩张。
+Relay 自己已有的 Team Workspace、Goal 相似状态和权限系统不应继续与 Molis Work Server 平行扩张。
 
 ### 2.8 团队共享上下文与个人任务上下文必须分开
 
@@ -88,8 +88,8 @@ Reviewer 接受 Proposal 表示团队做出了一个 Decision，并同意一组�
 ## 3. 产品族的当前假设
 
 ```text
-GoalBoard
-├── GoalBoard Desktop / Personal
+Molis Work
+├── Molis Work Desktop / Personal
 │   ├── Personal Feed
 │   ├── Personal Action
 │   ├── Attention & Workline
@@ -99,7 +99,7 @@ GoalBoard
 │   ├── Local Relay Host
 │   └── Local Runtime / Run / Evidence
 │
-└── GoalBoard Server
+└── Molis Work Server
     ├── Personal Cloud Space
     ├── Team Space
     ├── Cloud Relay Host
@@ -203,7 +203,7 @@ Action 不是 Goal 的叶子副本。Goal 内部仍遵循“可执行叶子 Goal
 
 职责：定义结果、业务逻辑、范围、验收、拆解、依赖、风险和完成语义。
 
-当前 GoalBoard 已有的主要实体：
+当前 Molis Work 已有的主要实体：
 
 - Board
 - Goal
@@ -563,7 +563,7 @@ authority 接受 Command
 
 ## 9. 三个现有项目的保留、替换与忽略
 
-### 9.1 GoalBoard
+### 9.1 Molis Work
 
 保留：
 
@@ -596,7 +596,7 @@ authority 接受 Command
 替换：
 
 - 将通用 Item 拆成 Signal、FeedEntry、Action 或 Goal；
-- Assignment / Job 适配 GoalBoard Claim / Run；
+- Assignment / Job 适配 Molis Work Claim / Run；
 - Connector Contract 支持 Cloud Host 和 Desktop Host。
 
 忽略：
@@ -618,30 +618,30 @@ authority 接受 Command
 
 替换：
 
-- 产品定位调整为 GoalBoard Server；
+- 产品定位调整为 Molis Work Server；
 - Signals 不再限定为 Server 内的第一入口，而是与统一 Signal & Feed 模块对齐；
-- Task Room 的产品语义并入 Private Work Context；内容可按策略留在 GoalBoard Desktop 或负责人私有 Server 空间，但不会退化成普通 Session 日志；
+- Task Room 的产品语义并入 Private Work Context；内容可按策略留在 Molis Work Desktop 或负责人私有 Server 空间，但不会退化成普通 Session 日志；
 - Execution/Relay 改成对 Relay Host 和 Desktop Node 的适配。
 
 忽略：
 
-- 继续维护独立 Loreport 品牌和与 GoalBoard 重复的产品外壳；
+- 继续维护独立 Loreport 品牌和与 Molis Work 重复的产品外壳；
 - 让所有 Signal 自动进入团队共享上下文。
 
 ## 10. 仓库策略草案
 
-- `goalboard`：继续承载现有 Goal Core 和 Desktop，近期先把 UI 转化为个人工作台；
-- `loreport`：保留为 GoalBoard Server / Team Context 的设计来源和候选实现仓库；正式执行前需要用新方向替换当前“独立产品 Host”的 accepted 决策；
+- `molis-work`：继续承载现有 Goal Core 和 Desktop，近期先把 UI 转化为个人工作台；
+- `loreport`：保留为 Molis Work Server / Team Context 的设计来源和候选实现仓库；正式执行前需要用新方向替换当前“独立产品 Host”的 accepted 决策；
 - `relay`：暂时保留为能力来源和真实实现，优先通过 adapter 验证边界，再决定提取 package 或迁移代码；
 - 不立即进行大规模物理合仓或仓库改名。
 
-Loreport 只有在 GoalBoard 的 accepted 模块 Contract 和可执行 spec 已接管其全部唯一语义、Loreport 文档全部被可追踪地 supersede，并分别确认本地目录与 GitHub 仓库处理方式后，才可归档或删除。未来规划中出现同名能力不等于迁移已经完成；是否已经实现则是另一项完成等级判断，不能与文档迁移混为一谈。
+Loreport 只有在 Molis Work 的 accepted 模块 Contract 和可执行 spec 已接管其全部唯一语义、Loreport 文档全部被可追踪地 supersede，并分别确认本地目录与 GitHub 仓库处理方式后，才可归档或删除。未来规划中出现同名能力不等于迁移已经完成；是否已经实现则是另一项完成等级判断，不能与文档迁移混为一谈。
 
 ## 11. 近期执行顺序
 
 ### 第一阶段：个人工作台 UI 垂直切片
 
-先在当前 GoalBoard 中建立个人工作台的信息架构和可见体验，保留真实 Goal、Decision 和 Runtime 行为。尚未实现的 Feed、Action 和 Server Sync 不能伪装成可用功能，应以真实空状态、禁用入口或独立原型处理。
+先在当前 Molis Work 中建立个人工作台的信息架构和可见体验，保留真实 Goal、Decision 和 Runtime 行为。尚未实现的 Feed、Action 和 Server Sync 不能伪装成可用功能，应以真实空状态、禁用入口或独立原型处理。
 
 ### 第二阶段：主链领域 Contract
 
@@ -688,7 +688,7 @@ Goal-anchored Work Context → Private Task Context → Run → Draft Artifact
 
 ## 12. 仍待决定的问题
 
-1. GoalBoard Personal 的首个 UI 切片是“只重组现有真实能力”，还是允许出现 Feed / Action 的可交互原型数据；
+1. Molis Work Personal 的首个 UI 切片是“只重组现有真实能力”，还是允许出现 Feed / Action 的可交互原型数据；
 2. Board、Project、Space 三者的最终层级和命名；
 3. Personal Goal 开启同步后，是否统一迁移为 Server authority；
 4. Gmail 第一版默认使用云端持续同步还是仅本机同步；
@@ -701,8 +701,8 @@ Goal-anchored Work Context → Private Task Context → Run → Draft Artifact
 
 ## 13. 当前事实来源
 
-- GoalBoard 产品与现有约束：`PRODUCT.md`
-- GoalBoard 领域模型：`specs/goalboard-mvp/domain-contract.md`、`src/v1/types.ts`
+- Molis Work 产品与现有约束：`PRODUCT.md`
+- Molis Work 领域模型：`specs/molis-work-mvp/domain-contract.md`、`src/v1/types.ts`
 - 当前 Desktop 视觉与交互：`DESIGN.md`、`.impeccable/surfaces/src-web-render-ts.md`
 - Relay 产品和领域模型：`../relay/docs/PROJECT.md`、`../relay/src/domain/`
 - Loreport 产品与模块架构：`../loreport/docs/PROJECT.md`、`../loreport/docs/system/ARCHITECTURE.md`、`../loreport/docs/modules/`

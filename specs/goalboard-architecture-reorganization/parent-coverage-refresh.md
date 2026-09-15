@@ -2,7 +2,7 @@
 
 正式提案：`goal-tree-proposal-11becfc9-439e-4a2d-8ddc-73e539075550`。8项 `item-parent-coverage-refresh-{1..8}-20260906`，均 pending；read/check通过，cursor1263，conflict_item_ids=[]、planning_issues=[]。未决定、未改变 canonical。澄清 Run 已随提交完成释放。
 
-2026-09-06，基线 cursor1256。GoalBoard 为唯一生命周期事实源。本文件是提案审阅材料。
+2026-09-06，基线 cursor1256。Molis Work 为唯一生命周期事实源。本文件是提案审阅材料。
 
 ## 目的与边界
 

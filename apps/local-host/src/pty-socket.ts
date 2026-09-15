@@ -3,7 +3,7 @@ import type { IncomingMessage } from "node:http";
 import type http from "node:http";
 import type { Duplex } from "node:stream";
 import { WebSocketServer, type RawData, type WebSocket } from "ws";
-import { GoalBoardPtyHost, type PtySpawnRequest } from "@adeptify/goalboard-service-runtime-host";
+import { MolisWorkPtyHost, type PtySpawnRequest } from "@molis-ai/molis-work-service-runtime-host";
 
 type ClientMessage =
   | { type: "auth"; token: string }
@@ -12,7 +12,7 @@ type ClientMessage =
   | { type: "resize"; panelId: string; cols: number; rows: number }
   | { type: "kill"; panelId: string };
 
-export interface GoalBoardPtySocketHandlers {
+export interface MolisWorkPtySocketHandlers {
   onData?: (panelId: string, sessionId: string, data: string) => void;
   onExit?: (panelId: string, sessionId: string, exit: { exitCode: number; signal: number }) => void;
 }
@@ -63,14 +63,14 @@ function rejectUpgrade(socket: Duplex): void {
   socket.destroy();
 }
 
-export function attachGoalBoardPtySocket(
+export function attachMolisWorkPtySocket(
   server: http.Server,
   controlToken: string,
-  handlers: GoalBoardPtySocketHandlers = {},
-): GoalBoardPtyHost {
+  handlers: MolisWorkPtySocketHandlers = {},
+): MolisWorkPtyHost {
   const sockets = new Set<WebSocket>();
   const panelSessionIds = new Map<string, string>();
-  const host = new GoalBoardPtyHost({
+  const host = new MolisWorkPtyHost({
     onData: (panelId, data) => {
       const sessionId = panelSessionIds.get(panelId);
       if (sessionId) handlers.onData?.(panelId, sessionId, data);

@@ -28,6 +28,8 @@ export const GOALS_WORKSPACE_EN: Record<string, string> = {
   "调整工作区和时间线宽度": "Resize workspace and timeline",
   "工作区 {left}%，时间线 {right}%": "Workspace {left}%, timeline {right}%",
   "展开 Goal：{title}": "Open Goal: {title}",
+  "打开 Frame": "Open Frame",
+  "打开 Frame：{title}": "Open Frame: {title}",
   "还没有写清预期结果": "Expected result has not been defined",
   "属于：{title}": "Part of: {title}",
   "{count} 个目标 · 箭头从前置成果指向后续工作": "{count} Goals · Arrows lead from prerequisites to the work that uses them",

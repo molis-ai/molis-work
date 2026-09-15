@@ -1,18 +1,18 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { EN, L, htmlLang, localeSetCookie, resolveWebLocale, runWithLocale, safeNextPath } from "@adeptify/goalboard-app-local-host";
-import { explainGoalDecision } from "@adeptify/goalboard-plugin-goals";
-import { createGoalStateExplainer, type GoalPresentationState } from "@adeptify/goalboard-plugin-goals";
+import { EN, L, htmlLang, localeSetCookie, resolveWebLocale, runWithLocale, safeNextPath } from "@molis-ai/molis-work-app-local-host";
+import { explainGoalDecision } from "@molis-ai/molis-work-plugin-goals";
+import { createGoalStateExplainer, type GoalPresentationState } from "@molis-ai/molis-work-plugin-goals";
 const { explainWorkState } = createGoalStateExplainer(L);
 
 test("locale defaults to Chinese, then cookie, then Accept-Language", () => {
   assert.equal(resolveWebLocale(undefined, undefined), "zh");
-  assert.equal(resolveWebLocale("goalboard_locale=en", "zh-CN"), "en");
-  assert.equal(resolveWebLocale("theme=light; goalboard_locale=zh", "en-US"), "zh");
+  assert.equal(resolveWebLocale("molis_work_locale=en", "zh-CN"), "en");
+  assert.equal(resolveWebLocale("theme=light; molis_work_locale=zh", "en-US"), "zh");
   assert.equal(resolveWebLocale(undefined, "en-US,en;q=0.9"), "en");
   assert.equal(resolveWebLocale(undefined, "zh-CN,zh;q=0.9,en;q=0.8"), "zh");
-  assert.equal(resolveWebLocale("goalboard_locale=de", "fr-FR"), "zh");
+  assert.equal(resolveWebLocale("molis_work_locale=de", "fr-FR"), "zh");
 });
 
 test("safe next path only allows same-origin relative locations", () => {
@@ -38,7 +38,7 @@ test("L translates chrome in an English request and keeps Chinese as source", ()
     assert.equal(htmlLang(), "en");
   });
   assert.equal(htmlLang(), "zh-CN");
-  assert.match(localeSetCookie("en"), /goalboard_locale=en/);
+  assert.match(localeSetCookie("en"), /molis_work_locale=en/);
 });
 
 test("every static renderer label has an English translation", () => {
@@ -50,6 +50,8 @@ test("every static renderer label has an English translation", () => {
     "../apps/workbench/src/focus-sections.ts", "../apps/workbench/src/project-settings-pages.ts",
     "../apps/workbench/src/immersive-shell.ts", "../apps/workbench/src/project-home.ts",
     "../apps/workbench/src/feed-projection-ui.ts",
+    "../apps/workbench/src/inbox-projection-ui.ts",
+    "../apps/workbench/src/scripts/client/navigation-inbox.ts",
     "../apps/workbench/src/scripts/client/plugin-workbench.ts",
     "../apps/workbench/src/scripts/client/immersive-navigation.ts",
     "../apps/workbench/src/scripts/client/project-home-shortcuts.ts",
@@ -68,12 +70,17 @@ test("every static renderer label has an English translation", () => {
     "../plugins/native/work/src/ui/content-client.ts",
     "../plugins/native/work/src/ui/browser.ts",
     "../plugins/native/feed/src/ui.ts",
+    "../plugins/native/inbox/src/ui.ts",
+    "../plugins/native/inbox/src/projection.ts",
     "../plugins/native/artifacts/src/browser-ui.ts",
     "../plugins/native/artifacts/src/reference-ui.ts"]
     .map(path => readFileSync(new URL(path, import.meta.url), "utf8")).join("\n");
   const labels = [...source.matchAll(/\b(?:L|p\.text)\("((?:[^"\\]|\\.)*)"/g)]
     .map((match) => JSON.parse(`"${match[1]}"`) as string);
-  const missing = [...new Set(labels.filter((label) => EN[label] == null))];
+  const projection = readFileSync(new URL("../plugins/native/inbox/src/projection.ts", import.meta.url), "utf8");
+  const projectionLabels = [...projection.matchAll(/\btext\("((?:[^"\\]|\\.)*)"/g)]
+    .map((match) => JSON.parse(`"${match[1]}"`) as string);
+  const missing = [...new Set([...labels, ...projectionLabels].filter((label) => EN[label] == null))];
   assert.deepEqual(missing, []);
 });
 

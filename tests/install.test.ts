@@ -5,8 +5,8 @@ import { chmod, copyFile, lstat, mkdtemp, mkdir, readFile, realpath, rm, stat, s
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { GoalBoardHomeInstallError, installGoalBoardHome } from "@adeptify/goalboard-app-local-host";
-import { writeGoalBoardBuildManifest } from "@adeptify/goalboard-app-local-host";
+import { MolisWorkHomeInstallError, installMolisWorkHome } from "@molis-ai/molis-work-app-local-host";
+import { writeMolisWorkBuildManifest } from "@molis-ai/molis-work-app-local-host";
 
 const execFileAsync = promisify(execFile);
 
@@ -33,7 +33,7 @@ async function fixtureSource(root: string, version: string): Promise<string> {
     writeFile(
       join(source, "package.json"),
       JSON.stringify({
-        name: "fixture-goalboard",
+        name: "fixture-molis-work",
         version,
         type: "module",
         dependencies: { "fixture-dependency": "1.0.0" },
@@ -77,7 +77,7 @@ async function fixtureScopedRuntimeSource(root: string, version: string): Promis
     "fixture-native",
   );
   const cacheSentinel = join(workspacePackage, "src-tauri", "target", "cache.sentinel");
-  const payloadSentinel = join(workspacePackage, "resources", "goalboard-runtime", "old-payload.sentinel");
+  const payloadSentinel = join(workspacePackage, "resources", "molis-work-runtime", "old-payload.sentinel");
   const shippedModule = join(workspacePackage, "dist", "index.js");
   const shippedAsset = join(workspacePackage, "methods", "industry-developer-tools.md");
   const nativeBinary = join(nativeDirectory, "build", "Release", "addon.node");
@@ -85,7 +85,7 @@ async function fixtureScopedRuntimeSource(root: string, version: string): Promis
     mkdir(join(workspacePackage, "dist"), { recursive: true }),
     mkdir(join(workspacePackage, "methods"), { recursive: true }),
     mkdir(join(workspacePackage, "src-tauri", "target"), { recursive: true }),
-    mkdir(join(workspacePackage, "resources", "goalboard-runtime"), { recursive: true }),
+    mkdir(join(workspacePackage, "resources", "molis-work-runtime"), { recursive: true }),
     mkdir(join(nativeDirectory, "lib"), { recursive: true }),
     mkdir(join(nativeDirectory, "build", "Release"), { recursive: true }),
     mkdir(join(nativeDirectory, "src"), { recursive: true }),
@@ -96,7 +96,7 @@ async function fixtureScopedRuntimeSource(root: string, version: string): Promis
     writeFile(
       join(source, "package.json"),
       JSON.stringify({
-        name: "fixture-goalboard",
+        name: "fixture-molis-work",
         version,
         type: "module",
         dependencies: {
@@ -148,7 +148,7 @@ async function fixtureScopedRuntimeSource(root: string, version: string): Promis
 }
 
 async function withTemporaryDirectory<T>(run: (directory: string) => Promise<T>): Promise<T> {
-  const directory = await mkdtemp(join(tmpdir(), "goalboard-install-"));
+  const directory = await mkdtemp(join(tmpdir(), "molis-work-install-"));
   try {
     return await run(directory);
   } finally {
@@ -159,7 +159,7 @@ async function withTemporaryDirectory<T>(run: (directory: string) => Promise<T>)
 test("source and built CLI without --source use the product root even from another directory", async () => {
   await withTemporaryDirectory(async (directory) => {
     const productRoot = process.cwd();
-    const home = join(directory, ".goalboard");
+    const home = join(directory, ".molis-work");
     const output = await execFileAsync(process.execPath, [
       join(productRoot, "dist", "cli", "main.js"), "install", "--home", home, "--json",
     ], { cwd: directory });
@@ -167,13 +167,13 @@ test("source and built CLI without --source use the product root even from anoth
     assert.equal(installed.status, "installed");
     const sourcePackage = JSON.parse(await readFile(join(productRoot, "package.json"), "utf8"));
     const installedPackage = JSON.parse(await readFile(join(installed.release_directory, "package.json"), "utf8"));
-    assert.equal(installedPackage.name, "@adeptify/goalboard-home-runtime");
+    assert.equal(installedPackage.name, "@molis-ai/molis-work-home-runtime");
     assert.equal(installedPackage.version, sourcePackage.version);
     assert.equal(await readFile(join(installed.release_directory, "dist", "cli", "main.js"), "utf8"),
       await readFile(join(productRoot, "dist", "cli", "main.js"), "utf8"));
     const help = await execFileAsync(installed.launchers.cli, ["--help"], { cwd: directory });
-    assert.match(help.stdout, /GoalBoard commands/);
-    assert.match(help.stdout, /goalboard plugin/);
+    assert.match(help.stdout, /Molis Work commands/);
+    assert.match(help.stdout, /molis-work plugin/);
     const again = await execFileAsync(process.execPath, [
       "--import", import.meta.resolve("tsx"),
       join(productRoot, "apps", "desktop", "launchers", "cli", "main.ts"), "install", "--home", home, "--json",
@@ -185,7 +185,7 @@ test("source and built CLI without --source use the product root even from anoth
 test("home install is scoped, idempotent, and produces an owned release layout", async () => {
   await withTemporaryDirectory(async (directory) => {
     const source = await fixtureSource(directory, "1.0.0");
-    const home = join(directory, "home", ".goalboard");
+    const home = join(directory, "home", ".molis-work");
     const projectFile = join(directory, "project", "important.txt");
     const runtimeConfig = join(directory, "runtime", "config.json");
     await mkdir(join(directory, "project"), { recursive: true });
@@ -197,7 +197,7 @@ test("home install is scoped, idempotent, and produces an owned release layout",
     await mkdir(join(home, "config", "postinstall-project-selections"), { recursive: true });
     await writeFile(join(home, "config", "postinstall-project-selections", "obsolete.json"), "{}\n");
 
-    const first = await installGoalBoardHome({ homeDirectory: home, sourceDirectory: source });
+    const first = await installMolisWorkHome({ homeDirectory: home, sourceDirectory: source });
     assert.equal(first.status, "installed");
     assert.equal(first.runtime_layout, "self_contained");
     assert.match(first.next_steps.message, /没有创建项目/);
@@ -211,8 +211,11 @@ test("home install is scoped, idempotent, and produces an owned release layout",
     assert.ok((await stat(join(first.release_directory, "dist", "mcp", "server.js"))).isFile());
     assert.ok((await stat(join(first.skill_directory, "goal-advance", "SKILL.md"))).isFile());
     assert.ok((await stat(first.launchers.mcp)).isFile());
+    assert.ok((await stat(join(home, "bin", "goalboard"))).isFile());
+    assert.ok((await stat(join(home, "bin", "goalboard-mcp"))).isFile());
+    assert.ok((await stat(join(home, "bin", "goalboard-web"))).isFile());
 
-    const second = await installGoalBoardHome({ homeDirectory: home, sourceDirectory: source });
+    const second = await installMolisWorkHome({ homeDirectory: home, sourceDirectory: source });
     assert.equal(second.status, "unchanged");
     assert.deepEqual(second.written_paths, []);
   });
@@ -221,16 +224,16 @@ test("home install is scoped, idempotent, and produces an owned release layout",
 test("same-version content changes refresh atomically and identical content stays unchanged", async () => {
   await withTemporaryDirectory(async (directory) => {
     const source = await fixtureSource(directory, "1.0.0");
-    const home = join(directory, "home", ".goalboard");
+    const home = join(directory, "home", ".molis-work");
     const projectData = join(home, "projects", "user-project.db");
-    const first = await installGoalBoardHome({ homeDirectory: home, sourceDirectory: source });
+    const first = await installMolisWorkHome({ homeDirectory: home, sourceDirectory: source });
     await writeFile(projectData, "user-data");
     const oldCli = await readFile(join(first.release_directory, "dist", "cli", "main.js"), "utf8");
     const oldInstall = await readFile(join(home, "config", "installation.json"), "utf8");
 
     await writeFile(join(source, "dist", "cli", "main.js"), "#!/usr/bin/env node\nconsole.log(\"refreshed\");\n");
     await assert.rejects(
-      installGoalBoardHome({
+      installMolisWorkHome({
         homeDirectory: home,
         sourceDirectory: source,
         beforeStep(step) {
@@ -243,7 +246,7 @@ test("same-version content changes refresh atomically and identical content stay
     assert.equal(await readFile(join(home, "config", "installation.json"), "utf8"), oldInstall);
     assert.equal(await readFile(projectData, "utf8"), "user-data");
 
-    const refreshed = await installGoalBoardHome({ homeDirectory: home, sourceDirectory: source });
+    const refreshed = await installMolisWorkHome({ homeDirectory: home, sourceDirectory: source });
     assert.equal(refreshed.status, "refreshed");
     assert.match(await readFile(join(refreshed.release_directory, "dist", "cli", "main.js"), "utf8"), /refreshed/);
     const releaseManifest = JSON.parse(
@@ -254,7 +257,7 @@ test("same-version content changes refresh atomically and identical content stay
     };
     assert.match(releaseManifest.content_digest ?? "", /^[0-9a-f]{64}$/);
     assert.equal(installManifest.content_digest, releaseManifest.content_digest);
-    assert.equal((await installGoalBoardHome({ homeDirectory: home, sourceDirectory: source })).status, "unchanged");
+    assert.equal((await installMolisWorkHome({ homeDirectory: home, sourceDirectory: source })).status, "unchanged");
     assert.equal(await readFile(projectData, "utf8"), "user-data");
   });
 });
@@ -265,16 +268,16 @@ test("repository sources require a current build fingerprint and local install a
     await mkdir(join(source, "src"), { recursive: true });
     await writeFile(join(source, "src", "entry.ts"), "export const value = 1;\n");
     await writeFile(join(source, "tsconfig.json"), "{}\n");
-    await writeGoalBoardBuildManifest(source);
-    const home = join(directory, "home", ".goalboard");
-    const installed = await installGoalBoardHome({ homeDirectory: home, sourceDirectory: source });
+    await writeMolisWorkBuildManifest(source);
+    const home = join(directory, "home", ".molis-work");
+    const installed = await installMolisWorkHome({ homeDirectory: home, sourceDirectory: source });
     assert.equal(installed.status, "installed");
 
     await writeFile(join(source, "src", "entry.ts"), "export const value = 2;\n");
     await assert.rejects(
-      () => installGoalBoardHome({ homeDirectory: home, sourceDirectory: source }),
+      () => installMolisWorkHome({ homeDirectory: home, sourceDirectory: source }),
       (error: unknown) =>
-        error instanceof GoalBoardHomeInstallError
+        error instanceof MolisWorkHomeInstallError
         && error.code === "source.build_stale"
         && /pnpm install:local/.test(error.message),
     );
@@ -310,21 +313,21 @@ test("workspace source changes reject an old build before touching the installed
     await writeFile(join(workspace, "tsconfig.json"), "{}\n");
     const workspaceSource = join(workspace, "src", "entry.ts");
     await writeFile(workspaceSource, "export const implementation = 1;\n");
-    await writeGoalBoardBuildManifest(source);
+    await writeMolisWorkBuildManifest(source);
     const home = join(directory, "home");
-    const installed = await installGoalBoardHome({ homeDirectory: home, sourceDirectory: source });
+    const installed = await installMolisWorkHome({ homeDirectory: home, sourceDirectory: source });
     const installationPath = join(home, "config", "installation.json");
     const before = await readFile(installationPath, "utf8");
     const launcherBefore = await readFile(installed.launchers.cli, "utf8");
     await writeFile(join(workspace, "dist", "entry.js"), "generated output\n");
     await writeFile(join(workspace, "node_modules", "generated.txt"), "package manager output\n");
-    assert.equal((await installGoalBoardHome({ homeDirectory: home, sourceDirectory: source })).status, "unchanged");
+    assert.equal((await installMolisWorkHome({ homeDirectory: home, sourceDirectory: source })).status, "unchanged");
 
     for (const changedInput of [workspaceSource, launcherSource, sdkSource, sdkConfig]) {
       const original = await readFile(changedInput, "utf8");
       await writeFile(changedInput, original + "\n// changed source input\n");
-      await assert.rejects(installGoalBoardHome({ homeDirectory: home, sourceDirectory: source }),
-        (error: unknown) => error instanceof GoalBoardHomeInstallError && error.code === "source.build_stale");
+      await assert.rejects(installMolisWorkHome({ homeDirectory: home, sourceDirectory: source }),
+        (error: unknown) => error instanceof MolisWorkHomeInstallError && error.code === "source.build_stale");
       assert.equal(await readFile(installationPath, "utf8"), before);
       assert.equal(await readFile(installed.launchers.cli, "utf8"), launcherBefore);
       await writeFile(changedInput, original);
@@ -332,8 +335,8 @@ test("workspace source changes reject an old build before touching the installed
     await writeFile(workspaceSource, "export const implementation = 2;\n");
     const execution = await execFileAsync(installed.launchers.cli, []);
     assert.match(execution.stdout, /cli:embedded/, "the old installation remains runnable after rejection");
-    await writeGoalBoardBuildManifest(source);
-    assert.equal((await installGoalBoardHome({ homeDirectory: home, sourceDirectory: source })).status, "refreshed");
+    await writeMolisWorkBuildManifest(source);
+    assert.equal((await installMolisWorkHome({ homeDirectory: home, sourceDirectory: source })).status, "refreshed");
   });
 });
 
@@ -341,14 +344,14 @@ test("upgrade failure rolls back the new release and leaves project data and cur
   await withTemporaryDirectory(async (directory) => {
     const sourceOne = await fixtureSource(directory, "1.0.0");
     const sourceTwo = await fixtureSource(directory, "2.0.0");
-    const home = join(directory, "home", ".goalboard");
-    await installGoalBoardHome({ homeDirectory: home, sourceDirectory: sourceOne });
+    const home = join(directory, "home", ".molis-work");
+    await installMolisWorkHome({ homeDirectory: home, sourceDirectory: sourceOne });
     const database = join(home, "projects", "existing.db");
     await writeFile(database, "existing-project-data");
 
     await assert.rejects(
       () =>
-        installGoalBoardHome({
+        installMolisWorkHome({
           homeDirectory: home,
           sourceDirectory: sourceTwo,
           beforeStep(step) {
@@ -361,9 +364,9 @@ test("upgrade failure rolls back the new release and leaves project data and cur
     const current = JSON.parse(await readFile(join(home, "config", "installation.json"), "utf8")) as { version: string };
     assert.equal(current.version, "1.0.0");
     assert.equal(await readFile(database, "utf8"), "existing-project-data");
-    await assert.rejects(stat(join(home, "releases", "goalboard-2.0.0")));
+    await assert.rejects(stat(join(home, "releases", "molis-work-2.0.0")));
 
-    const upgraded = await installGoalBoardHome({ homeDirectory: home, sourceDirectory: sourceTwo });
+    const upgraded = await installMolisWorkHome({ homeDirectory: home, sourceDirectory: sourceTwo });
     assert.equal(upgraded.status, "upgraded");
     assert.match(upgraded.next_steps.message, /needs_repair/);
     assert.match(upgraded.next_steps.message, /service_install_command/);
@@ -378,11 +381,11 @@ test("upgrade failure rolls back the new release and leaves project data and cur
 test("repair replaces a broken owned release without changing its current version", async () => {
   await withTemporaryDirectory(async (directory) => {
     const source = await fixtureSource(directory, "1.0.0");
-    const home = join(directory, "home", ".goalboard");
-    const first = await installGoalBoardHome({ homeDirectory: home, sourceDirectory: source });
+    const home = join(directory, "home", ".molis-work");
+    const first = await installMolisWorkHome({ homeDirectory: home, sourceDirectory: source });
     await rm(join(first.release_directory, "dist", "cli", "main.js"));
 
-    const repaired = await installGoalBoardHome({ homeDirectory: home, sourceDirectory: source });
+    const repaired = await installMolisWorkHome({ homeDirectory: home, sourceDirectory: source });
     assert.equal(repaired.status, "repaired");
     assert.ok((await stat(join(repaired.release_directory, "dist", "cli", "main.js"))).isFile());
     assert.equal(
@@ -395,22 +398,22 @@ test("repair replaces a broken owned release without changing its current versio
 test("repair upgrades the obsolete linked release layout in place", async () => {
   await withTemporaryDirectory(async (directory) => {
     const source = await fixtureSource(directory, "1.0.0");
-    const home = join(directory, "home", ".goalboard");
-    const first = await installGoalBoardHome({ homeDirectory: home, sourceDirectory: source });
+    const home = join(directory, "home", ".molis-work");
+    const first = await installMolisWorkHome({ homeDirectory: home, sourceDirectory: source });
     await rm(join(first.release_directory, "node_modules"), { recursive: true, force: true });
     await symlink(join(source, "node_modules"), join(first.release_directory, "node_modules"), "dir");
     await writeFile(
       join(first.release_directory, "release.json"),
       `${JSON.stringify({
         schema_version: 1,
-        installer: "goalboard-home-install-v1",
+        installer: "molis-work-home-install-v1",
         version: "1.0.0",
         source_directory: source,
         created_at: "2026-08-16T00:00:00.000Z",
       }, null, 2)}\n`,
     );
 
-    const repaired = await installGoalBoardHome({ homeDirectory: home, sourceDirectory: source });
+    const repaired = await installMolisWorkHome({ homeDirectory: home, sourceDirectory: source });
     assert.equal(repaired.status, "repaired");
     assert.equal((await lstat(join(repaired.release_directory, "node_modules"))).isSymbolicLink(), false);
     const manifest = JSON.parse(await readFile(join(repaired.release_directory, "release.json"), "utf8")) as {
@@ -427,14 +430,14 @@ test("repair upgrades the obsolete linked release layout in place", async () => 
 test("home install refuses to overwrite unknown launcher files", async () => {
   await withTemporaryDirectory(async (directory) => {
     const source = await fixtureSource(directory, "1.0.0");
-    const home = join(directory, "home", ".goalboard");
-    const unknownLauncher = join(home, "bin", "goalboard-mcp");
+    const home = join(directory, "home", ".molis-work");
+    const unknownLauncher = join(home, "bin", "molis-work-mcp");
     await mkdir(join(home, "bin"), { recursive: true });
     await writeFile(unknownLauncher, "user launcher");
 
     await assert.rejects(
-      () => installGoalBoardHome({ homeDirectory: home, sourceDirectory: source }),
-      (error: unknown) => error instanceof GoalBoardHomeInstallError && error.code === "home.unknown_file",
+      () => installMolisWorkHome({ homeDirectory: home, sourceDirectory: source }),
+      (error: unknown) => error instanceof MolisWorkHomeInstallError && error.code === "home.unknown_file",
     );
     assert.equal(await readFile(unknownLauncher, "utf8"), "user launcher");
   });
@@ -460,9 +463,9 @@ test("home install rejects dependency links that would escape the installed rele
     );
 
     await assert.rejects(
-      () => installGoalBoardHome({ homeDirectory: join(directory, "home", ".goalboard"), sourceDirectory: source }),
+      () => installMolisWorkHome({ homeDirectory: join(directory, "home", ".molis-work"), sourceDirectory: source }),
       (error: unknown) =>
-        error instanceof GoalBoardHomeInstallError &&
+        error instanceof MolisWorkHomeInstallError &&
         error.code === "source.invalid" &&
         /指向安装 release 外部/.test(error.message),
     );
@@ -512,8 +515,8 @@ test("home install flattens transitive workspace dependencies without copying pa
       "dir",
     );
 
-    const installed = await installGoalBoardHome({
-      homeDirectory: join(directory, "home", ".goalboard"),
+    const installed = await installMolisWorkHome({
+      homeDirectory: join(directory, "home", ".molis-work"),
       sourceDirectory: source,
     });
     await assert.rejects(stat(join(installed.release_directory, "node_modules", "fixture-dependency", "node_modules")));
@@ -525,7 +528,7 @@ test("home install flattens transitive workspace dependencies without copying pa
 
 test("home install resolves production dependencies from a standard ancestor node_modules", async () => {
   await withTemporaryDirectory(async (directory) => {
-    const packageDirectory = join(directory, "runtime", "node_modules", "fixture-goalboard");
+    const packageDirectory = join(directory, "runtime", "node_modules", "fixture-molis-work");
     const dependencyDirectory = join(directory, "runtime", "node_modules", "fixture-dependency");
     await Promise.all([
       mkdir(join(packageDirectory, "dist", "cli"), { recursive: true }),
@@ -540,7 +543,7 @@ test("home install resolves production dependencies from a standard ancestor nod
       writeFile(
         join(packageDirectory, "package.json"),
         JSON.stringify({
-          name: "fixture-goalboard",
+          name: "fixture-molis-work",
           version: "1.0.0",
           type: "module",
           dependencies: { "fixture-dependency": "1.0.0" },
@@ -557,8 +560,8 @@ test("home install resolves production dependencies from a standard ancestor nod
       writeFile(join(dependencyDirectory, "index.js"), "export const marker = 'ancestor';\n"),
     ]);
 
-    const home = join(directory, "home", ".goalboard");
-    const installed = await installGoalBoardHome({ homeDirectory: home, sourceDirectory: packageDirectory });
+    const home = join(directory, "home", ".molis-work");
+    const installed = await installMolisWorkHome({ homeDirectory: home, sourceDirectory: packageDirectory });
     await rm(join(directory, "runtime"), { recursive: true, force: true });
 
     for (const [name, launcher] of Object.entries(installed.launchers)) {
@@ -574,7 +577,7 @@ test("home install rejects a declared production dependency that cannot be resol
     await writeFile(
       join(source, "package.json"),
       JSON.stringify({
-        name: "fixture-goalboard",
+        name: "fixture-molis-work",
         version: "1.0.0",
         type: "module",
         dependencies: { "missing-fixture-dependency": "1.0.0" },
@@ -582,9 +585,9 @@ test("home install rejects a declared production dependency that cannot be resol
     );
 
     await assert.rejects(
-      () => installGoalBoardHome({ homeDirectory: join(directory, "home", ".goalboard"), sourceDirectory: source }),
+      () => installMolisWorkHome({ homeDirectory: join(directory, "home", ".molis-work"), sourceDirectory: source }),
       (error: unknown) =>
-        error instanceof GoalBoardHomeInstallError &&
+        error instanceof MolisWorkHomeInstallError &&
         error.code === "source.asset_missing" &&
         /missing-fixture-dependency/.test(error.message),
     );
@@ -594,8 +597,8 @@ test("home install rejects a declared production dependency that cannot be resol
 test("all installed launchers keep running after the installation source is deleted", async () => {
   await withTemporaryDirectory(async (directory) => {
     const source = await fixtureSource(directory, "1.0.0");
-    const home = join(directory, "home", ".goalboard");
-    const result = await installGoalBoardHome({ homeDirectory: home, sourceDirectory: source });
+    const home = join(directory, "home", ".molis-work");
+    const result = await installMolisWorkHome({ homeDirectory: home, sourceDirectory: source });
     await rm(source, { recursive: true, force: true });
 
     for (const [name, launcher] of Object.entries(result.launchers)) {
@@ -608,7 +611,7 @@ test("all installed launchers keep running after the installation source is dele
 test("installed MCP launcher preserves the Runtime caller workspace", async () => {
   await withTemporaryDirectory(async (directory) => {
     const source = await fixtureSource(directory, "1.0.0");
-    const home = join(directory, "home", ".goalboard");
+    const home = join(directory, "home", ".molis-work");
     const runtimeWorkspace = join(directory, "runtime-workspace");
     await mkdir(runtimeWorkspace, { recursive: true });
     await writeFile(
@@ -616,7 +619,7 @@ test("installed MCP launcher preserves the Runtime caller workspace", async () =
       "console.log(JSON.stringify({ cwd: process.cwd(), pwd: process.env.PWD }));\n",
     );
 
-    const installed = await installGoalBoardHome({ homeDirectory: home, sourceDirectory: source });
+    const installed = await installMolisWorkHome({ homeDirectory: home, sourceDirectory: source });
     const output = await execFileAsync(process.execPath, [installed.launchers.mcp], { cwd: runtimeWorkspace });
 
     assert.deepEqual(JSON.parse(output.stdout.trim()), {
@@ -633,15 +636,15 @@ test("only the bundled Web launcher exports its LaunchAgent process identity", a
     await mkdir(join(source, "runtime"), { recursive: true });
     await copyFile(process.execPath, bundledNode);
     await chmod(bundledNode, 0o755);
-    const result = await installGoalBoardHome({
-      homeDirectory: join(directory, "home", ".goalboard"),
+    const result = await installMolisWorkHome({
+      homeDirectory: join(directory, "home", ".molis-work"),
       sourceDirectory: source,
     });
 
     const webLauncher = await readFile(result.launchers.web, "utf8");
-    assert.match(webLauncher, /exec \/usr\/bin\/env GOALBOARD_WEB_SERVICE_PROCESS_ID=\$\$/);
-    assert.doesNotMatch(await readFile(result.launchers.cli, "utf8"), /GOALBOARD_WEB_SERVICE_PROCESS_ID/);
-    assert.doesNotMatch(await readFile(result.launchers.mcp, "utf8"), /GOALBOARD_WEB_SERVICE_PROCESS_ID/);
+    assert.match(webLauncher, /exec \/usr\/bin\/env MOLIS_WORK_WEB_SERVICE_PROCESS_ID=\$\$/);
+    assert.doesNotMatch(await readFile(result.launchers.cli, "utf8"), /MOLIS_WORK_WEB_SERVICE_PROCESS_ID/);
+    assert.doesNotMatch(await readFile(result.launchers.mcp, "utf8"), /MOLIS_WORK_WEB_SERVICE_PROCESS_ID/);
   });
 });
 
@@ -653,10 +656,10 @@ test("bundled Node launchers use the installed runtime when PATH has no Node", a
     const hostNode = `'${process.execPath.replaceAll("'", `'\"'\"'`)}'`;
     await writeFile(bundledNode, `#!/bin/sh\nexec ${hostNode} \"$@\"\n`);
     await chmod(bundledNode, 0o755);
-    const home = join(directory, "home", ".goalboard");
-    const result = await installGoalBoardHome({ homeDirectory: home, sourceDirectory: source });
+    const home = join(directory, "home", ".molis-work");
+    const result = await installMolisWorkHome({ homeDirectory: home, sourceDirectory: source });
     assert.ok((await stat(join(result.release_directory, "runtime", "node"))).isFile());
-    assert.match(await readFile(result.launchers.cli, "utf8"), /^#!\/bin\/sh\n# goalboard-home-launcher-v2/);
+    assert.match(await readFile(result.launchers.cli, "utf8"), /^#!\/bin\/sh\n# molis-work-home-launcher-v2/);
     const releaseManifest = JSON.parse(
       await readFile(join(result.release_directory, "release.json"), "utf8"),
     ) as { node_runtime?: string };
@@ -676,7 +679,7 @@ test("bundled Node launchers use the installed runtime when PATH has no Node", a
 test("public install command is human-readable by default and JSON when requested", async () => {
   await withTemporaryDirectory(async (directory) => {
     const source = await fixtureSource(directory, "1.0.0");
-    const home = join(directory, "custom-home", ".goalboard");
+    const home = join(directory, "custom-home", ".molis-work");
     const projectFile = join(directory, "project", "unchanged.txt");
     await mkdir(join(directory, "project"), { recursive: true });
     await writeFile(projectFile, "unchanged");
@@ -686,7 +689,7 @@ test("public install command is human-readable by default and JSON when requeste
       [join(process.cwd(), "dist", "cli", "main.js"), "install", "--home", home, "--source", source],
       { cwd: directory },
     );
-    assert.match(output.stdout, /GoalBoard 安装完成/);
+    assert.match(output.stdout, /Molis Work 安装完成/);
     assert.match(output.stdout, /没有创建项目，也没有修改 Runtime 配置或用户项目文件/);
     assert.doesNotMatch(output.stdout, /^\s*\{/);
 
@@ -704,7 +707,7 @@ test("public install command is human-readable by default and JSON when requeste
     assert.equal(result.home_directory, home);
     assert.equal(result.status, "unchanged");
     assert.equal(result.runtime_layout, "self_contained");
-    assert.deepEqual(result.next_steps.web_command, [join(home, "bin", "goalboard-web"), "--home", home]);
+    assert.deepEqual(result.next_steps.web_command, [join(home, "bin", "molis-work-web"), "--home", home]);
     assert.equal(await readFile(projectFile, "utf8"), "unchanged");
   });
 });
@@ -716,8 +719,8 @@ test("home install copies declared workspace assets and native files, not exclud
     await mkdir(external, { recursive: true });
     await writeFile(join(external, "secret.txt"), "not-in-release");
     await symlink(external, join(fixture.workspacePackage, "src-tauri", "target", "escape"), "dir");
-    const home = join(directory, "home", ".goalboard");
-    const first = await installGoalBoardHome({ homeDirectory: home, sourceDirectory: fixture.source });
+    const home = join(directory, "home", ".molis-work");
+    const first = await installMolisWorkHome({ homeDirectory: home, sourceDirectory: fixture.source });
     assert.equal(first.status, "installed");
     const installedDesktop = join(first.release_directory, "node_modules", "fixture-desktop");
     const installedNative = join(first.release_directory, "node_modules", "fixture-native");
@@ -726,17 +729,17 @@ test("home install copies declared workspace assets and native files, not exclud
     assert.equal(await readFile(join(installedNative, "build", "Release", "addon.node"), "utf8"), "native-binary");
     assert.equal(await readFile(join(installedNative, "lib", "index.js"), "utf8"), "export const nativeMarker = 'native';\n");
     await assert.rejects(stat(join(installedDesktop, "src-tauri", "target", "cache.sentinel")));
-    await assert.rejects(stat(join(installedDesktop, "resources", "goalboard-runtime", "old-payload.sentinel")));
+    await assert.rejects(stat(join(installedDesktop, "resources", "molis-work-runtime", "old-payload.sentinel")));
     const output = await execFileAsync(process.execPath, [first.launchers.cli], { cwd: directory });
     assert.equal(output.stdout.trim(), "cli:embedded:workspace-dist:native");
 
     await writeFile(fixture.cacheSentinel, "changed-build-cache\n");
     await writeFile(fixture.payloadSentinel, "changed-nested-payload\n");
-    assert.equal((await installGoalBoardHome({ homeDirectory: home, sourceDirectory: fixture.source })).status, "unchanged");
+    assert.equal((await installMolisWorkHome({ homeDirectory: home, sourceDirectory: fixture.source })).status, "unchanged");
     assert.equal(await readFile(join(installedDesktop, "dist", "index.js"), "utf8"), "export const shipped = 'workspace-dist';\n");
 
     await writeFile(fixture.shippedModule, "export const shipped = 'workspace-refreshed';\n");
-    const refreshed = await installGoalBoardHome({ homeDirectory: home, sourceDirectory: fixture.source });
+    const refreshed = await installMolisWorkHome({ homeDirectory: home, sourceDirectory: fixture.source });
     assert.equal(refreshed.status, "refreshed");
     assert.equal(
       await readFile(join(refreshed.release_directory, "node_modules", "fixture-desktop", "dist", "index.js"), "utf8"),
@@ -752,9 +755,9 @@ test("home install fails when a workspace package is missing declared files or u
     const missing = await fixtureScopedRuntimeSource(directory, "1.0.0");
     await rm(join(missing.workspacePackage, "methods"), { recursive: true, force: true });
     await assert.rejects(
-      () => installGoalBoardHome({ homeDirectory: join(directory, "home-missing"), sourceDirectory: missing.source }),
+      () => installMolisWorkHome({ homeDirectory: join(directory, "home-missing"), sourceDirectory: missing.source }),
       (error: unknown) =>
-        error instanceof GoalBoardHomeInstallError
+        error instanceof MolisWorkHomeInstallError
         && error.code === "source.asset_missing"
         && /Missing release asset in fixture-desktop: methods/.test(error.message),
     );
@@ -771,9 +774,9 @@ test("home install fails when a workspace package is missing declared files or u
       }),
     );
     await assert.rejects(
-      () => installGoalBoardHome({ homeDirectory: join(directory, "home-globs"), sourceDirectory: globs.source }),
+      () => installMolisWorkHome({ homeDirectory: join(directory, "home-globs"), sourceDirectory: globs.source }),
       (error: unknown) =>
-        error instanceof GoalBoardHomeInstallError
+        error instanceof MolisWorkHomeInstallError
         && error.code === "source.invalid"
         && /Unsupported release files entry in fixture-desktop: dist\/\*\*/.test(error.message),
     );

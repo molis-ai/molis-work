@@ -6,7 +6,7 @@ name: "AI 与数据产品"
 summary: "同时覆盖数据、评测、运行成本、安全和用户干预。"
 applies_to: ["AI 功能","Agent 产品","数据产品"]
 domain_tags: ["ai","data-product"]
-source_refs: ["GoalBoard planning-engine spec"]
+source_refs: ["Molis Work planning-engine spec"]
 confidence: 0.94
 ---
 

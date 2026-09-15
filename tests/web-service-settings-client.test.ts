@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import vm from "node:vm";
-import { SETTINGS_CLIENT_SCRIPT } from "@adeptify/goalboard-app-workbench";
+import { SETTINGS_CLIENT_SCRIPT } from "@molis-ai/molis-work-app-workbench";
 
 // DOM ports exercise the shipped script, not a substitute for the native App test.
 class Element {
@@ -34,7 +34,7 @@ function fixture(failure?: "preview" | "confirm" | "restart" | "timeout" | "unow
     document: { body, createElement: () => new Element(),
       querySelectorAll: (s: string) => s === "[data-web-service-action]" ? [button] : [],
       querySelector: (s: string) => s === "[data-web-service-error]" ? error : s === "[data-settings-toast]" ? toast : null },
-    L: (value: string) => value, goalboardControlHeaders: () => ({ "x-goalboard-control-token": "token" }),
+    L: (value: string) => value, molisWorkControlHeaders: () => ({ "x-molis-work-control-token": "token" }),
     setTimeout: (f: () => void, ms: number) => { if (ms === 500) { clock += 1000; f(); } else timers.push(f); }, location: { reload() {} },
     Date: { now: () => clock }, AbortSignal,
     window: { confirm() { throw new Error("Native confirm must not be used"); } },
@@ -45,7 +45,7 @@ function fixture(failure?: "preview" | "confirm" | "restart" | "timeout" | "unow
         return { ok: true, json: async () => ({ status: "ok", service_process_id: failure === "timeout" || healthReads === 2 ? 100 : 200 }) };
       }
       if (url === "/api/settings/web-service") return { ok: true, json: async () => ({ state: "running", owned: failure !== "unowned" }) };
-      assert.equal(init.headers["x-goalboard-control-token"], "token");
+      assert.equal(init.headers["x-molis-work-control-token"], "token");
       const suffix = url.split("/").at(-1)!; const input = JSON.parse(init.body);
       requests.push({ suffix, body: input });
       const failed = failure === "preview" && suffix === "plan" || failure === "confirm" && suffix === "confirm";

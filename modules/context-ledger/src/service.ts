@@ -1,6 +1,6 @@
 import type {
   ContextAccess, ContextEdge, ContextEdgeInput, ContextEdgeQuery, ContextLedgerApi, ContextScope, ObjectRef,
-} from "@adeptify/goalboard-contracts/modules/context-ledger";
+} from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { ContextLedgerRepository } from "./repository.js";
 
 export class ContextLedgerError extends Error {

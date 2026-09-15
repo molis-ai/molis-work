@@ -1,11 +1,11 @@
 import { redactFeedContextSecrets } from "./context.js";
 import type { FeedUiPreset } from "./ui.js";
-import type { FeedItemRecord as CanonicalFeedItem, FeedMaterialRecord as CanonicalFeedMaterial, FeedImportReceiptRecord, FeedContractMigrationReceiptRecord } from "@adeptify/goalboard-contracts/modules/feed";
-import type { SourceRecord, SourceSchedule, SourceSyncKind, SourceStatus } from "@adeptify/goalboard-contracts/modules/sources";
-import type { AttentionEntryRecord, AttentionReason, AttentionStatus, AttentionSubjectType } from "@adeptify/goalboard-contracts/modules/attention-resumption";
-import type { ListenerRunRecord } from "@adeptify/goalboard-contracts/services/listener-host";
-export type { FeedItemDisposition, FeedImportReceiptRecord, FeedContractMigrationReceiptRecord } from "@adeptify/goalboard-contracts/modules/feed";
-export type { SourceHistoryDecision } from "@adeptify/goalboard-contracts/modules/sources";
+import type { FeedItemRecord as CanonicalFeedItem, FeedMaterialRecord as CanonicalFeedMaterial, FeedImportReceiptRecord, FeedContractMigrationReceiptRecord } from "@molis-ai/molis-work-contracts/modules/feed";
+import type { SourceRecord, SourceSchedule, SourceSyncKind, SourceStatus } from "@molis-ai/molis-work-contracts/modules/sources";
+import type { AttentionEntryRecord, AttentionReason, AttentionStatus, AttentionSubjectType } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
+import type { ListenerRunRecord } from "@molis-ai/molis-work-contracts/services/listener-host";
+export type { FeedItemDisposition, FeedImportReceiptRecord, FeedContractMigrationReceiptRecord } from "@molis-ai/molis-work-contracts/modules/feed";
+export type { SourceHistoryDecision } from "@molis-ai/molis-work-contracts/modules/sources";
 
 /** Existing local read projection. These are owner-derived views, never a second store. */
 export type FeedItemType = FeedUiPreset;
@@ -40,17 +40,32 @@ export interface FeedItemRecord extends Omit<CanonicalFeedItem, "project_id" | "
   materials: FeedMaterialRecord[];
 }
 
+export interface FeedOutRuleMatch {
+  contains?: string;
+  source_id?: string;
+  source_kind?: string;
+}
+
+export interface FeedOutRuleRecord {
+  board_id: string;
+  rule_id: string;
+  name: string;
+  enabled: boolean;
+  match: FeedOutRuleMatch;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface FeedSnapshot {
   sources: FeedSourceRecord[];
   /** Canonical external facts. Every record is a FeedItem, including items with Inbox references. */
   feed_items: FeedItemRecord[];
   /** Canonical attention state; entries reference facts or internal objects and never copy message bodies. */
   inbox_entries: InboxEntryRecord[];
-  /** Temporary compatibility projection for the current combined Inbox/Feed Web workbench. */
-  items: FeedItemRecord[];
   runs: FeedSourceRunRecord[];
   import_receipts: FeedImportReceiptRecord[];
   contract_migrations: FeedContractMigrationReceiptRecord[];
+  out_rules: FeedOutRuleRecord[];
 }
 
 export interface RelayImportAvailability {
@@ -69,8 +84,12 @@ const FEED_SOURCE_KINDS = new Set([
   "custom_rss",
 ]);
 
-export function feedItemTypeForSource(sourceKind: string): FeedItemType {
-  return FEED_SOURCE_KINDS.has(sourceKind) ? "feed" : "inbox_message";
+export function sourceKindOpensAttention(sourceKind: string): boolean {
+  return !FEED_SOURCE_KINDS.has(sourceKind);
+}
+
+export function feedItemTypeForSource(_sourceKind: string): FeedItemType {
+  return "feed";
 }
 
 function bounded(value: string, maximum: number): string {
@@ -90,7 +109,7 @@ export function feedItemContext(item: FeedItemRecord): string {
     })
     .join("\n");
   return redactFeedContextSecrets([
-    `来源类型：${item.item_type === "feed" ? "Feed" : "Inbox Message"}`,
+    "来源类型：Feed",
     `来源：${item.source_label || item.source_kind}`,
     item.author ? `作者/发送者：${item.author}` : "",
     item.url ? `原链接：${item.url}` : "",

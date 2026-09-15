@@ -1,6 +1,6 @@
 import type {
   AttentionEntryRecord,
-} from "@adeptify/goalboard-contracts/modules/attention-resumption";
+} from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import type {
   FeedUiEntry,
   FeedUiItem,
@@ -8,20 +8,20 @@ import type {
   FeedUiPrimitives,
   FeedUiSource,
   PersistedFeedDetailModel,
-} from "@adeptify/goalboard-plugin-feed";
+} from "@molis-ai/molis-work-plugin-feed";
 import { renderFeedContribution } from "./ui-composition.js";
-import { GMAIL_SCOPE_PRESETS } from "@adeptify/goalboard-integration-gmail/scope";
+import { GMAIL_SCOPE_PRESETS } from "@molis-ai/molis-work-integration-gmail/scope";
 
 import type {
   FeedItemRecord,
   FeedItemType,
   FeedSourceRecord,
   InboxEntryRecord,
-} from "@adeptify/goalboard-plugin-feed";
-import { readRssHttpState } from "@adeptify/goalboard-integration-rss";
-import { feedPlainText, renderFeedRichText } from "@adeptify/goalboard-plugin-feed";
-import { icon } from "@adeptify/goalboard-design-system";
-import type { GoalBoardWebView } from "./page-view.js";
+} from "@molis-ai/molis-work-plugin-feed";
+import { readRssHttpState } from "@molis-ai/molis-work-integration-rss";
+import { feedPlainText, renderFeedRichText } from "@molis-ai/molis-work-plugin-feed";
+import { icon } from "@molis-ai/molis-work-design-system";
+import type { MolisWorkWebView } from "./page-view.js";
 
 export type FeedSupplementalEntry = FeedUiEntry;
 
@@ -31,7 +31,7 @@ export function createWorkbenchFeedProjectionRenderer(primitives: {
 }) {
   const { L, dateTimeLocale } = primitives;
 function buildFeedNativePluginModel(
-  view: GoalBoardWebView,
+  view: MolisWorkWebView,
   preset: FeedItemType,
   supplementalEntries: readonly FeedSupplementalEntry[] = [],
   active = false,
@@ -61,6 +61,14 @@ function buildFeedNativePluginModel(
       github: view.feed_connector_auth?.github ?? { bound: false },
       gmail: view.feed_connector_auth?.gmail ?? { bound: false },
     },
+    out_rules: (view.feed.out_rules ?? []).map((rule) => ({
+      rule_id: rule.rule_id,
+      name: rule.name,
+      enabled: rule.enabled,
+      contains: rule.match.contains ?? null,
+      source_id: rule.match.source_id ?? null,
+      source_kind: rule.match.source_kind ?? null,
+    })),
     primitives: feedUiPrimitives,
     demo: view.demo,
     active,
@@ -68,7 +76,7 @@ function buildFeedNativePluginModel(
 }
 
 function renderFeedNativePluginSurface(
-  view: GoalBoardWebView,
+  view: MolisWorkWebView,
   surface: "directory" | "workbench" | "workbench-fragment" | "source-directory" | "source-workbench" | "overlays",
   preset: FeedItemType,
   supplementalEntries: readonly FeedSupplementalEntry[] = [],
@@ -83,87 +91,43 @@ function renderFeedNativePluginSurface(
 function renderFeedNativePluginPersistedDetail(
   item: FeedItemRecord,
   routePrefix = "",
-  options: { entryId?: string; inboxActive?: boolean; inboxEntry?: InboxEntryRecord | null } = {},
+  options: { entryId?: string; inboxActive?: boolean; inboxEntry?: InboxEntryRecord | null; surface?: "frame-block" } = {},
 ): string {
   const model: PersistedFeedDetailModel = {
     route_prefix: routePrefix,
     entry_id: options.entryId ?? item.item_id,
     item: itemModel(item),
     inbox_entry: options.inboxEntry ? attentionModel(options.inboxEntry) : null,
-    inbox_active: options.inboxActive ?? item.item_type === "inbox_message",
+    inbox_active: options.inboxActive ?? false,
     primitives: feedUiPrimitives,
   };
-  return renderFeedContribution("persisted-detail", model);
+  return renderFeedContribution(options.surface === "frame-block" ? "frame-block" : "persisted-detail", model);
 }
 
-function feedEntries(view: GoalBoardWebView): FeedUiEntry[] {
-  const feedItems = new Map(view.feed.feed_items.map((item) => [item.item_id, item]));
-  const attentionSubjects = new Set(view.feed.inbox_entries
-    .filter((entry) => entry.subject_type === "feed_item" && isActive(entry.status))
-    .map((entry) => entry.subject_id));
-  const feed = view.feed.feed_items.map((item): FeedUiEntry => ({
-    entry_id: item.item_id,
-    item_id: item.item_id,
-    inbox_entry: null,
-    item: itemModel({ ...item, item_type: "feed" }),
-    preset: "feed",
-    provider: provider(item),
-    kind_label: "Feed",
-    source_label: item.source_label || item.source_kind,
-    disposition: item.disposition === "inbox" && !attentionSubjects.has(item.item_id) ? "feed" : item.disposition,
-    title: item.title,
-    summary: feedPlainText(item.summary || item.body) || L("没有附加摘要"),
-    updated_at: item.source_updated_at || item.updated_at,
-    read: Boolean(item.read_at),
-    attention_rank: 0,
-  }));
-  const attention = view.feed.inbox_entries
-    .filter((entry) => entry.subject_type !== "goal_decision")
-    .map((entry): FeedUiEntry => {
-    if (entry.subject_type === "feed_item") {
-      const item = feedItems.get(entry.subject_id) ?? null;
-      return {
-        entry_id: `inbox:${entry.entry_id}`,
-        item_id: entry.subject_id,
-        inbox_entry: attentionModel(entry),
-        item: item ? itemModel({ ...item, item_type: "inbox_message" }) : null,
-        preset: "inbox_message",
-        provider: item ? provider(item) : "other",
-        kind_label: entry.reason === "manual" ? L("Inbox · 手工加入") : L("Inbox · 来源规则"),
-        source_label: item?.source_label || item?.source_kind || "Feed",
-        disposition: attentionDisposition(entry.status),
-        title: item?.title || L("原 Feed Item 已不可用"),
-        summary: feedPlainText(item?.summary || item?.body || "") || L("引用仍保留，但原消息已不可用。"),
-        updated_at: entry.updated_at,
-        read: Boolean(item?.read_at),
-        attention_rank: isActive(entry.status) ? 2 : 1,
-      };
-    }
-    const source = view.feed.sources.find((candidate) => candidate.source_id === entry.subject_id) ?? null;
-    return {
-      entry_id: `inbox:${entry.entry_id}`,
-      item_id: null,
-      inbox_entry: attentionModel(entry),
-      item: null,
-      preset: "inbox_message",
-      provider: "other",
-      kind_label: L("Inbox · 来源故障"),
-      source_label: source?.name || L("其他来源"),
-      disposition: attentionDisposition(entry.status),
-      title: source ? L("来源「{source}」需要处理", { source: source.name }) : L("原来源已不可用"),
-      summary: L("来源停止自动拉取；完成修复前不会推进可信游标。"),
-      updated_at: entry.updated_at,
-      read: true,
-      attention_rank: isActive(entry.status) ? 3 : 1,
-      detail_slot_html: `<article class="feed-detail feed-detail--attention inbox-reference-detail" data-feed-detail="inbox:${escapeHtml(entry.entry_id)}" data-inbox-reference-detail data-inbox-subject-type="source_fault"><header class="feed-detail-header"><div class="feed-detail-kicker"><span>${L("Inbox · 来源故障")}</span><span>${escapeHtml(source?.name || L("其他来源"))}</span><span>${entry.status === "in_progress" ? L("处理中") : L("待处理")}</span></div><h1>${escapeHtml(source?.name || L("原来源已不可用"))}</h1><p>${escapeHtml(source ? L("来源停止自动拉取；完成修复前不会推进可信游标。") : L("来源或本地历史已删除；Inbox 只保留这条故障记录。"))}</p><div class="feed-detail-actions" data-feed-actions>${source ? `<button class="button-primary" type="button" data-open-source-record="${escapeHtml(source.source_id)}">${icon("settings")}${L("查看来源")}</button>` : `<button type="button" disabled aria-disabled="true">${L("原对象不可用")}</button>`}<button type="button" data-inbox-action="done" data-inbox-entry-id="${escapeHtml(entry.entry_id)}" data-inbox-entry-revision="${entry.revision}">${icon("check")}${L("完成")}</button><button class="feed-action-subtle" type="button" data-inbox-action="dismissed" data-inbox-entry-id="${escapeHtml(entry.entry_id)}" data-inbox-entry-revision="${entry.revision}">${L("忽略")}</button></div><p class="feed-action-status" data-inbox-action-status role="status" hidden></p></header><section class="inbox-attention-context" aria-label="${L("处理上下文")}"><dl><div><dt>${L("为什么进入 Inbox")}</dt><dd>${L("来源需要人工恢复")}</dd></div><div><dt>${L("关联对象")}</dt><dd>${escapeHtml(source?.name || L("原来源已不可用"))}</dd></div><div><dt>${L("下一步")}</dt><dd>${escapeHtml(typeof entry.detail.user_action === "string" ? entry.detail.user_action : L("检查来源配置、授权或拉取范围后重新同步。"))}</dd></div></dl></section><p class="prototype-honesty-note">${icon("link")}${L("Inbox 只保存这条引用和进入原因；原对象内容没有复制到这里。")}</p></article>`,
-    };
-  });
-  return [...feed, ...attention, ...(view.demo ? demoFeedEntries(view) : [])];
+function feedEntries(view: MolisWorkWebView): FeedUiEntry[] {
+  return [
+    ...view.feed.feed_items.map((item): FeedUiEntry => ({
+      entry_id: item.item_id,
+      item_id: item.item_id,
+      inbox_entry: null,
+      item: itemModel({ ...item, item_type: "feed" }),
+      preset: "feed",
+      provider: provider(item),
+      kind_label: "Feed",
+      source_label: item.source_label || item.source_kind,
+      disposition: item.disposition === "inbox" ? "feed" : item.disposition,
+      title: item.title,
+      summary: feedPlainText(item.summary || item.body) || L("没有附加摘要"),
+      updated_at: item.source_updated_at || item.updated_at,
+      read: Boolean(item.read_at),
+      attention_rank: 0,
+    })),
+    ...(view.demo ? demoFeedEntries(view) : []),
+  ];
 }
 
-function demoFeedEntries(view: GoalBoardWebView): FeedUiEntry[] {
+function demoFeedEntries(view: MolisWorkWebView): FeedUiEntry[] {
   const boardId = view.snapshot.board.board_id;
-  const goalPath = `${view.route_prefix}/goals/draft-8f160677-f8f8-4f2b-935d-0881edb3aba3`;
   const createItem = (
     id: string,
     itemType: FeedItemType,
@@ -184,14 +148,14 @@ function demoFeedEntries(view: GoalBoardWebView): FeedUiEntry[] {
     title,
     summary,
     body,
-    source_kind: sourceId.includes("github") ? "github" : sourceId.includes("gmail") ? "gmail" : sourceId.includes("rss") ? "rss" : "goalboard",
+    source_kind: sourceId.includes("github") ? "github" : sourceId.includes("gmail") ? "gmail" : sourceId.includes("rss") ? "rss" : "molis-work",
     source_label: sourceLabel,
     external_id: id,
     url: null,
     origin_status: "prototype",
     priority: "normal",
     tags,
-    author: sourceId.includes("gmail") ? "Mina · Product Partner" : sourceId.includes("github") ? "adeptify/goalboard" : "Latent Space",
+    author: sourceId.includes("gmail") ? "Mina · Product Partner" : sourceId.includes("github") ? "adeptify/molis-work" : "Latent Space",
     disposition: "inbox",
     linked_goal_id: null,
     read_at: null,
@@ -216,28 +180,10 @@ function demoFeedEntries(view: GoalBoardWebView): FeedUiEntry[] {
       relation: "来源 Gmail · product@adeptify.ai → Feed Item",
     },
     {
-      item: createItem("prototype-feed-rss", "feed", "rss_entry", "prototype-source-rss", "RSS · Latent Space", "Designing calm inboxes for agentic products", "一篇讨论 agent 产品如何区分事件流与注意力队列的文章。", "文章提出：事件流应该完整、可追溯，注意力队列则必须有进入理由、负责人和退出条件。这个模式与 GoalBoard 当前的信息流重构高度相关。", "2026-08-30T12:25:00+08:00", ["RSS", "产品设计", "演示数据"]),
+      item: createItem("prototype-feed-rss", "feed", "rss_entry", "prototype-source-rss", "RSS · Latent Space", "Designing calm inboxes for agentic products", "一篇讨论 agent 产品如何区分事件流与注意力队列的文章。", "文章提出：事件流应该完整、可追溯，注意力队列则必须有进入理由、负责人和退出条件。这个模式与 Molis Work 当前的信息流重构高度相关。", "2026-08-30T12:25:00+08:00", ["RSS", "产品设计", "演示数据"]),
       reason: "公开来源内容进入完整事实流，不自动占用你的注意力。",
       nextAction: "保存为资料，或在确认要行动时升格为 Goal。",
       relation: "来源 RSS · Latent Space → Feed Item",
-    },
-    {
-      item: createItem("prototype-inbox-feed", "inbox_message", "feed_attention_reference", "prototype-source-github", "GitHub · adeptify", "确认 PR #418 的对象边界", "由 Feed Item 手工加入；需要在合并前给出产品判断。", "这条 Inbox Entry 引用 GitHub 的原始 Feed Item，不复制和篡改原消息。完成后会退出默认 Inbox，原消息仍保留在 Feed。", "2026-08-30T14:20:00+08:00", ["Feed 引用", "需判断", "演示数据"]),
-      reason: "你在 Feed 中手工标记为需要处理。",
-      nextAction: "检查对象关系并给出 review 结论。",
-      relation: "Inbox Entry → 原始 Feed Item · PR #418",
-    },
-    {
-      item: createItem("prototype-inbox-source", "inbox_message", "source_fault", "prototype-source-gmail", "Gmail · product@adeptify.ai", "Gmail 授权已失效，3 封新邮件尚未拉取", "来源故障需要人工重新授权；旧消息和游标仍然保留。", "GoalBoard 在 13:06 收到 401。系统没有把失败伪装成空结果，也没有推进 Gmail 游标。重新授权后可以安全补拉。", "2026-08-30T13:06:00+08:00", ["来源故障", "需重新授权", "演示数据"]),
-      reason: "来源无法自行恢复，需要你重新连接账号。",
-      nextAction: "打开来源配置并完成重新授权。",
-      relation: "Inbox Entry → 来源 Gmail · product@adeptify.ai",
-    },
-    {
-      item: { ...createItem("prototype-inbox-goal", "inbox_message", "goal_decision", "prototype-goalboard", "GoalBoard", "确认高保真是否真正分清来源、Feed 与 Inbox", "这是当前 Goal 的人工判断门禁；代码检查不能替代你的产品判断。", "请依次进入来源、Feed 和 Inbox，走完模拟同步、加入 Inbox 与完成处理，然后判断三者是否还会被理解成同一种收件箱。", "2026-08-30T12:02:00+08:00", ["Goal 决定", "人工判断", "演示数据"]), url: goalPath },
-      reason: "当前 Goal 的验收标准要求一骏亲自判断对象边界。",
-      nextAction: "走完原型主路径后，确认或指出仍然混淆的地方。",
-      relation: "Inbox Entry → Goal 高保真原型",
     },
   ];
   return examples.map(({ item, reason, nextAction, relation }) => ({
@@ -245,16 +191,16 @@ function demoFeedEntries(view: GoalBoardWebView): FeedUiEntry[] {
     item_id: item.item_id,
     inbox_entry: null,
     item: itemModel(item),
-    preset: item.item_type,
+    preset: "feed",
     provider: provider(item),
-    kind_label: item.item_type === "feed" ? L("Feed Item · 演示") : L("Inbox Entry · 演示"),
+    kind_label: L("Feed Item · 演示"),
     source_label: item.source_label,
-    disposition: item.disposition,
+    disposition: item.disposition === "inbox" ? "feed" : item.disposition,
     title: item.title,
     summary: item.summary,
     updated_at: item.source_updated_at,
     read: false,
-    attention_rank: item.item_type === "feed" ? 0 : 2,
+    attention_rank: 0,
     prototype: { reason, next_action: nextAction, relation },
   }));
 }
@@ -266,7 +212,7 @@ function itemModel(item: FeedItemRecord): FeedUiItem {
     source_id: item.source_id,
     signal_id: null,
     signal_revision: null,
-    item_type: item.item_type,
+    item_type: "feed",
     kind: item.kind,
     title: item.title,
     summary: item.summary,
@@ -298,7 +244,7 @@ function attentionModel(entry: InboxEntryRecord): AttentionEntryRecord {
   return { ...entry, project_id: entry.board_id };
 }
 
-function sourceModel(source: FeedSourceRecord, view: GoalBoardWebView): FeedUiSource {
+function sourceModel(source: FeedSourceRecord, view: MolisWorkWebView): FeedUiSource {
   const runs = view.feed.runs.filter((run) => run.source_id === source.source_id);
   const uiKind = source.sync_kind === "github"
     ? "github"
@@ -447,14 +393,6 @@ function provider(item: FeedItemRecord): FeedUiEntry["provider"] {
   if (value.includes("gmail") || value.includes("mail")) return "gmail";
   if (value.includes("rss") || value.includes("atom") || value.includes("feed")) return "rss";
   return "other";
-}
-
-function isActive(status: InboxEntryRecord["status"]): boolean {
-  return status === "open" || status === "in_progress";
-}
-
-function attentionDisposition(status: InboxEntryRecord["status"]): string {
-  return ({ open: "inbox", in_progress: "processing", done: "saved", dismissed: "archived" } as const)[status];
 }
 
 const feedUiPrimitives: FeedUiPrimitives = {

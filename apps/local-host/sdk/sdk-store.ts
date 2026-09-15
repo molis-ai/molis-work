@@ -1,9 +1,9 @@
-import { LocalProjectDatabase } from "@adeptify/goalboard-app-local-host";
-import { GoalsRepository, type GoalLifecycleMigrationDatabase } from "@adeptify/goalboard-module-goals";
-import type { GoalRecord, GoalPolicy, PlanningMethodPack, ProjectGuidanceEntryRecord, ProjectGuidanceRevisionRecord } from "@adeptify/goalboard-contracts/modules/goals";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { GoalsRepository, type GoalLifecycleMigrationDatabase } from "@molis-ai/molis-work-module-goals";
+import type { GoalRecord, GoalPolicy, PlanningMethodPack, ProjectGuidanceEntryRecord, ProjectGuidanceRevisionRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 
 /** Legacy root SDK read methods. Production runtimes use LocalProjectDatabase. */
-export class SqliteGoalBoardStore extends LocalProjectDatabase {
+export class SqliteMolisWorkStore extends LocalProjectDatabase {
   getGoal(goalId: string): GoalRecord | null {
     return new GoalsRepository(this.db as unknown as GoalLifecycleMigrationDatabase).getGoal(goalId);
   }

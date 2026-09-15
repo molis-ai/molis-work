@@ -1,6 +1,6 @@
 # Runtime 协议：约定、事实与收尾
 
-GoalBoard 保存目标、实际工作与当前结果。Runtime 在已有授权内推进工作，用户可以看到做了什么、还差什么，以及哪些变化需要自己决定。普通工作不需要领取角色、Run、完整规划或默认模板。
+Molis Work 保存目标、实际工作与当前结果。Runtime 在已有授权内推进工作，用户可以看到做了什么、还差什么，以及哪些变化需要自己决定。普通工作不需要领取角色、Run、完整规划或默认模板。
 
 ## 当前工作模型
 
@@ -19,7 +19,7 @@ GoalBoard 保存目标、实际工作与当前结果。Runtime 在已有授权�
 
 ## 连接项目与选择目标
 
-Runtime 通过 MCP 使用 GoalBoard。工具名、输入与展示由 `apps/mcp` 提供；Local Host 注入已绑定项目和操作者；Goals Module 保存当前事件事实，Goals Plugin 组装用例。Skill 不读取内部数据库或重新实现完成判断。
+Runtime 通过 MCP 使用 Molis Work。工具名、输入与展示由 `apps/mcp` 提供；Local Host 注入已绑定项目和操作者；Goals Module 保存当前事件事实，Goals Plugin 组装用例。Skill 不读取内部数据库或重新实现完成判断。
 
 先调用 `context_resolve`。已有Session绑定或唯一、已验证的workspace关联可以恢复项目；普通候选、目录名和模型猜测不授权绑定。需要选择项目时，复用用户对唯一项目的明确选择；只有存在歧义才询问。绑定、切换、新建、解绑和删除遵循各自授权，普通绑定不设置目录默认项目。具体接入见 [MCP 接入](mcp.md)。
 
@@ -27,7 +27,7 @@ Runtime 通过 MCP 使用 GoalBoard。工具名、输入与展示由 `apps/mcp` 
 
 ## 日常记录
 
-下列工具名省略 `goalboard_v1_` 前缀：
+下列工具名省略 `molis_work_v1_` 前缀：
 
 ```text
 context_resolve → goal_list / goal_intent_create → goal_state

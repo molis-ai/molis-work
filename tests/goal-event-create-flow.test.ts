@@ -3,11 +3,11 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { GoalProjectApplication, LocalProjectDatabase } from "@adeptify/goalboard-app-local-host";
-import { GoalBoardV1Error } from "@adeptify/goalboard-plugin-goals";
+import { GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkV1Error } from "@molis-ai/molis-work-plugin-goals";
 
 function fixture() {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-02-create-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-02-create-"));
   const store = new LocalProjectDatabase(join(directory, "project.db"));
   const app = new GoalProjectApplication(store);
   app.initializeBoard({ board_id: "board", title: "创建", actor_id: "user-1", idempotency_key: "init" });
@@ -85,7 +85,7 @@ test("user can revise a createIntent requirement; runtime cannot relax it withou
         idempotency_key: "runtime-revise-created", ...versions,
         revise_requirements: [{ requirement_id: target.requirement_id, statement: "Runtime 自行放宽原文" }],
       }),
-      (error: unknown) => error instanceof GoalBoardV1Error && error.code === "event_agreement.unauthorized_change",
+      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "event_agreement.unauthorized_change",
     );
     const blocked = data.app.goalEvents.readState("board", created.goal.goal_id);
     assert.equal(blocked.requirements[0]?.statement, "真实付款成功");
@@ -109,7 +109,7 @@ test("user can revise a createIntent requirement; runtime cannot relax it withou
 });
 
 test("listGoals continues from saved sort keys after the cursor goal changes", () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-02-page-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-02-page-"));
   const store = new LocalProjectDatabase(join(directory, "project.db"));
   try {
     const app = new GoalProjectApplication(store, () => new Date("2026-09-10T00:00:00.000Z"));

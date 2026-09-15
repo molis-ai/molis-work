@@ -1,6 +1,6 @@
 Current workbench direction (2026-09-12): see `.impeccable/surfaces/immersive-workbench.md` and `specs/immersive-workbench-implementation/spec.md`. The older shell/Goal layout below is historical; retained feature ownership remains applicable.
 
-Scope and mode: GoalBoard V1 local Web application, Operate mode. Goal canvas workspace, updated 2026-09-12.
+Scope and mode: Molis Work V1 local Web application, Operate mode. Goal canvas workspace, updated 2026-09-12.
 
 Audience and job: users need to see what each Goal produces, which Goal consumes it, and work on one Goal while keeping its current facts, terminal, and history together.
 
@@ -26,7 +26,7 @@ Approved structural comp: `.impeccable/mocks/decision/feed-dispatch-ledger.png`.
 
 The selected direction is the Dispatch Ledger because its light stone directory,
 compact repeated rows, continuous work surface, horizontal item actions, and
-structured source/context rail fit GoalBoard Calm Desktop more closely than a
+structured source/context rail fit Molis Work Calm Desktop more closely than a
 full-height dark console. Goals, Inbox, Feed, and Sources share one directory
 shell: the same heading, search and on-demand tools, row rhythm, selected state,
 keyboard movement, and detail linkage. Their row slots remain semantic: Goal

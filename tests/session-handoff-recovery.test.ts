@@ -1,17 +1,17 @@
-import { RegistryFallbackSessionAdapter } from "@adeptify/goalboard-plugin-work";
+import { RegistryFallbackSessionAdapter } from "@molis-ai/molis-work-plugin-work";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { GoalProjectApplication } from "@adeptify/goalboard-app-local-host";
-import { LocalProjectDatabase } from "@adeptify/goalboard-app-local-host";
-import { CodexRuntimeSessionAdapter, RuntimeHostRouter } from "@adeptify/goalboard-service-runtime-host";
-import { SessionContentService } from "@adeptify/goalboard-plugin-work";
-import { SessionDirectoryService } from "@adeptify/goalboard-plugin-work";
-import { SessionHandoffService } from "@adeptify/goalboard-plugin-work";
-import { GoalBoardSessionRegistry } from "@adeptify/goalboard-module-private-work-context";
-import type { RuntimeSessionTransport } from "@adeptify/goalboard-contracts/services/runtime-host";
+import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { CodexRuntimeSessionAdapter, RuntimeHostRouter } from "@molis-ai/molis-work-service-runtime-host";
+import { SessionContentService } from "@molis-ai/molis-work-plugin-work";
+import { SessionDirectoryService } from "@molis-ai/molis-work-plugin-work";
+import { SessionHandoffService } from "@molis-ai/molis-work-plugin-work";
+import { MolisWorkSessionRegistry } from "@molis-ai/molis-work-module-private-work-context";
+import type { RuntimeSessionTransport } from "@molis-ai/molis-work-contracts/services/runtime-host";
 import { sessionHandoffGoalContext } from "./historical-sql-fixture.js";
 
 function definitelyRejected(message: string): Error {
@@ -45,7 +45,7 @@ function contractFixture(databasePath: string, boardId: string, goalId: string) 
   return { store, contract: sessionHandoffGoalContext(coordinator, boardId, goalId) };
 }
 
-function services(registry: GoalBoardSessionRegistry, transport: RuntimeSessionTransport) {
+function services(registry: MolisWorkSessionRegistry, transport: RuntimeSessionTransport) {
   const router = new RuntimeHostRouter((runtimeId) => new RegistryFallbackSessionAdapter(runtimeId, registry));
   router.register(new CodexRuntimeSessionAdapter(transport));
   const content = new SessionContentService(registry, router);
@@ -61,8 +61,8 @@ function services(registry: GoalBoardSessionRegistry, transport: RuntimeSessionT
 }
 
 test("turn delivery failure keeps the real target and retry sends only to that thread after restart", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "goalboard-handoff-recovery-"));
-  const home = path.join(directory, ".goalboard");
+  const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-handoff-recovery-"));
+  const home = path.join(directory, ".molis-work");
   const boardId = "project-handoff-recovery";
   const goalId = "goal-handoff-recovery";
   const { store, contract } = contractFixture(path.join(directory, "board.db"), boardId, goalId);
@@ -135,11 +135,11 @@ test("turn delivery failure keeps the real target and retry sends only to that t
 });
 
 test("thread creation failure keeps a retryable package without a false destination Session", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "goalboard-handoff-create-failure-"));
+  const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-handoff-create-failure-"));
   const boardId = "project-handoff-create-failure";
   const goalId = "goal-handoff-create-failure";
   const { store, contract } = contractFixture(path.join(directory, "board.db"), boardId, goalId);
-  const registry = await openWorkSessionRegistry({ homeDirectory: path.join(directory, ".goalboard") });
+  const registry = await openWorkSessionRegistry({ homeDirectory: path.join(directory, ".molis-work") });
   const transport: RuntimeSessionTransport = {
     async request(method) {
       if (method === "thread/read") return { thread: { turns: [] } };
@@ -185,11 +185,11 @@ test("thread creation failure keeps a retryable package without a false destinat
 });
 
 test("an ambiguous thread creation result is not automatically replayed", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "goalboard-handoff-ambiguous-create-"));
+  const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-handoff-ambiguous-create-"));
   const boardId = "project-handoff-ambiguous-create";
   const goalId = "goal-handoff-ambiguous-create";
   const { store, contract } = contractFixture(path.join(directory, "board.db"), boardId, goalId);
-  const registry = await openWorkSessionRegistry({ homeDirectory: path.join(directory, ".goalboard") });
+  const registry = await openWorkSessionRegistry({ homeDirectory: path.join(directory, ".molis-work") });
   const calls: string[] = [];
   const transport: RuntimeSessionTransport = {
     async request(method) {
@@ -240,11 +240,11 @@ test("an ambiguous thread creation result is not automatically replayed", async 
 });
 
 test("a successful create response without a native Session ID is not automatically replayed", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "goalboard-handoff-missing-native-id-"));
+  const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-handoff-missing-native-id-"));
   const boardId = "project-handoff-missing-native-id";
   const goalId = "goal-handoff-missing-native-id";
   const { store, contract } = contractFixture(path.join(directory, "board.db"), boardId, goalId);
-  const registry = await openWorkSessionRegistry({ homeDirectory: path.join(directory, ".goalboard") });
+  const registry = await openWorkSessionRegistry({ homeDirectory: path.join(directory, ".molis-work") });
   const calls: string[] = [];
   const transport: RuntimeSessionTransport = {
     async request(method) {
@@ -295,11 +295,11 @@ test("a successful create response without a native Session ID is not automatica
 });
 
 test("an ambiguous delivery result keeps the target but blocks automatic replay", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "goalboard-handoff-ambiguous-delivery-"));
+  const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-handoff-ambiguous-delivery-"));
   const boardId = "project-handoff-ambiguous-delivery";
   const goalId = "goal-handoff-ambiguous-delivery";
   const { store, contract } = contractFixture(path.join(directory, "board.db"), boardId, goalId);
-  const registry = await openWorkSessionRegistry({ homeDirectory: path.join(directory, ".goalboard") });
+  const registry = await openWorkSessionRegistry({ homeDirectory: path.join(directory, ".molis-work") });
   const calls: string[] = [];
   const transport: RuntimeSessionTransport = {
     async request(method) {
@@ -351,11 +351,11 @@ test("an ambiguous delivery result keeps the target but blocks automatic replay"
 });
 
 test("a concurrent send cannot create a second target Session", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "goalboard-handoff-concurrent-"));
+  const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-handoff-concurrent-"));
   const boardId = "project-handoff-concurrent";
   const goalId = "goal-handoff-concurrent";
   const { store, contract } = contractFixture(path.join(directory, "board.db"), boardId, goalId);
-  const registry = await openWorkSessionRegistry({ homeDirectory: path.join(directory, ".goalboard") });
+  const registry = await openWorkSessionRegistry({ homeDirectory: path.join(directory, ".molis-work") });
   let releaseThreadStart!: () => void;
   let reportThreadStart!: () => void;
   const threadStartReleased = new Promise<void>((resolve) => { releaseThreadStart = resolve; });
@@ -422,11 +422,11 @@ test("a concurrent send cannot create a second target Session", async () => {
 });
 
 test("a Runtime cannot reuse the source native ID as the Handoff target", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "goalboard-handoff-source-reuse-"));
+  const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-handoff-source-reuse-"));
   const boardId = "project-handoff-source-reuse";
   const goalId = "goal-handoff-source-reuse";
   const { store, contract } = contractFixture(path.join(directory, "board.db"), boardId, goalId);
-  const registry = await openWorkSessionRegistry({ homeDirectory: path.join(directory, ".goalboard") });
+  const registry = await openWorkSessionRegistry({ homeDirectory: path.join(directory, ".molis-work") });
   const transport: RuntimeSessionTransport = {
     async request(method) {
       if (method === "thread/read") return { thread: { turns: [] } };
@@ -483,8 +483,8 @@ test("a Runtime cannot reuse the source native ID as the Handoff target", async 
 });
 
 test("an interrupted sending state keeps its known target and becomes retryable when the Registry reopens", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "goalboard-handoff-interrupted-"));
-  const home = path.join(directory, ".goalboard");
+  const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-handoff-interrupted-"));
+  const home = path.join(directory, ".molis-work");
   let nowMs = Date.parse("2026-08-31T00:00:00.000Z");
   const now = () => new Date(nowMs);
   let registry = await openWorkSessionRegistry({ homeDirectory: home, now });
@@ -538,4 +538,4 @@ test("an interrupted sending state keeps its known target and becomes retryable 
     await rm(directory, { recursive: true, force: true });
   }
 });
-import { openWorkSessionRegistry } from "@adeptify/goalboard-app-local-host";
+import { openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";

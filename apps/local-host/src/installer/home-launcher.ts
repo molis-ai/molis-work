@@ -19,7 +19,7 @@ export function launcherSource(
   if (useBundledNode) {
     const nodePath = path.join(releaseDirectory, "runtime", "node");
     const entryPath = path.join(releaseDirectory, target);
-    const serviceEnvironment = entry === "web" ? "/usr/bin/env GOALBOARD_WEB_SERVICE_PROCESS_ID=$$ " : "";
+    const serviceEnvironment = entry === "web" ? "/usr/bin/env MOLIS_WORK_WEB_SERVICE_PROCESS_ID=$$ " : "";
     return `${BUNDLED_NODE_LAUNCHER_HEADER}
 exec ${serviceEnvironment}${shellQuote(nodePath)} ${shellQuote(entryPath)} "$@"
 `;
@@ -27,7 +27,7 @@ exec ${serviceEnvironment}${shellQuote(nodePath)} ${shellQuote(entryPath)} "$@"
   const childEnvironment = entry === "web"
     ? `{
     ...process.env,
-    GOALBOARD_WEB_SERVICE_PROCESS_ID: String(process.pid),
+    MOLIS_WORK_WEB_SERVICE_PROCESS_ID: String(process.pid),
   }`
     : entry === "mcp"
       ? `{

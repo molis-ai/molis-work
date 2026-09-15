@@ -1,6 +1,6 @@
 import { createPrivateKey, sign } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { pluginPublisherIdentity, signPluginPackage, verifyPluginPackage } from "@adeptify/goalboard-plugin-runtime";
+import { pluginPublisherIdentity, signPluginPackage, verifyPluginPackage } from "@molis-ai/molis-work-plugin-runtime";
 import { readPluginPackageFile, writePluginPackageFile } from "./package-files.js";
 
 export async function readPublisherIdentity(publicKeyFile: string): Promise<string> {

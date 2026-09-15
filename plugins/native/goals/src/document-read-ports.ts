@@ -1,4 +1,4 @@
-import type { GoalInputBindingsApi } from "@adeptify/goalboard-contracts/modules/goals";
+import type { GoalInputBindingsApi } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { BoardSnapshot } from "./goal-entry-contract.js";
 import type { GoalReadApplication, projectGoalLifecycle } from "./goal-query-application.js";
 import type { GoalsDecisionEvent } from "./decision-view.js";

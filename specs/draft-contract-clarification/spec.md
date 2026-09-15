@@ -17,9 +17,9 @@
 
 ## 当前行为和问题证据
 
-- `GoalBoardCoordinator.validateGoalInput` 对 Draft 也强制 title、outcome、why、business_logic 全部非空。
+- `MolisWorkCoordinator.validateGoalInput` 对 Draft 也强制 title、outcome、why、business_logic 全部非空。
 - Web 新建 Goal 表单把这些字段全部设为 required。
-- `goalboard_v1_candidate_submit` 会创建新的 Candidate Goal，不能表达“补全现有 Draft”。
+- `molis_work_v1_candidate_submit` 会创建新的 Candidate Goal，不能表达“补全现有 Draft”。
 - SQLite 没有 Contract Proposal 记录；Contract、Snapshot 和 Web 都无法呈现字段来源、未确认状态或用户决定。
 - Runtime MCP 没有同一 Draft 的补全提案工具，Management MCP 也没有相应用户确认工具。
 
@@ -31,7 +31,7 @@
 - 用户整体接受或拒绝 Proposal；接受时原子更新同一个 Goal，而不是创建新 Goal。
 - 用户接受前 Draft canonical 字段、验收、Policy、Impact 和 Risk 都不改变。
 - 接受时校验最小可执行 Goal 门禁，写入 accepted / closed_leaf、Acceptance Criteria、goal-level Review policy、confirmed Impact 和 open Risk。
-- Dependency 仍使用 `goalboard_v1_dependency_propose → user rewire_confirm`；Contract Proposal 只能引用这些 Rewire，不能绕过独立依赖确认。
+- Dependency 仍使用 `molis_work_v1_dependency_propose → user rewire_confirm`；Contract Proposal 只能引用这些 Rewire，不能绕过独立依赖确认。
 - Contract、Snapshot、MCP 和 Web 呈现 Proposal、字段来源和用户决定。
 - Runtime Skill、协议、README 和 PRODUCT 与实现保持一致。
 - Runtime Skill 明确双服务启动前置协议：宿主/管理入口启动并验证 MCP 与 Web，共用同一绝对 SQLite、`board_id` 和 Contract-derived `goal_url`；Runtime 只检查连通性与身份，失败即停止，不自行启动实例或切换真相源。
@@ -52,7 +52,7 @@
 
 ### clarifier 补全
 
-clarifier 通过 Runtime MCP 领取 Draft，读取代码、文档和用户回答后提交一个 Contract Proposal。Proposal 必须引用发现它的 clarifier Run；GoalBoard 不扫描仓库，也不把 Runtime 推断自动当成事实。
+clarifier 通过 Runtime MCP 领取 Draft，读取代码、文档和用户回答后提交一个 Contract Proposal。Proposal 必须引用发现它的 clarifier Run；Molis Work 不扫描仓库，也不把 Runtime 推断自动当成事实。
 
 ### 用户确认
 
@@ -137,10 +137,10 @@ Runtime 发现依赖时先调用正式 Dependency Proposal。Contract Proposal �
 
 ## MCP、CLI 与 Web
 
-- Runtime MCP 新增 `goalboard_v1_contract_propose`。
-- Management MCP 新增 `goalboard_v1_contract_decide`；Runtime audience 不列出也不能直接调用。
+- Runtime MCP 新增 `molis_work_v1_contract_propose`。
+- Management MCP 新增 `molis_work_v1_contract_decide`；Runtime audience 不列出也不能直接调用。
 - CLI 增加 `contract-propose` 和 `contract-decide`，仅作为用户/管理和调试入口。
-- `goalboard_v1_contract` 返回当前 Goal 的 Contract Proposals。
+- `molis_work_v1_contract` 返回当前 Goal 的 Contract Proposals。
 - Web 在对应 Draft 文档中展示：
   - 待补字段；
   - 建议 Contract；

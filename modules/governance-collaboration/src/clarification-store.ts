@@ -1,6 +1,6 @@
 import type {
   ClarificationSessionRecord, ClarificationTurnRecord, GovernanceClarificationApi,
-} from "@adeptify/goalboard-contracts/modules/governance-collaboration";
+} from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import { parseJson, text, optionalText, type GovernanceRow } from "./mappers.js";
 import type { GovernanceSqliteDatabase } from "./repository.js";
 

@@ -27,12 +27,12 @@ export const IMMERSIVE_DIRECTORY_STYLES = `
   body.immersive-workbench .tree-pane .tree-entry .goal-status > span { position: static; width: auto; height: auto; overflow: visible; clip-path: none; }
 
 
-  body.immersive-workbench .tree-pane :is(.tree-chrome, .project-record-tools, .feed-directory-tools, .source-directory-tools) { flex: none; margin: 0; padding: 0 2px 8px; background: transparent; border: 0; }
-  body.immersive-workbench .tree-pane :is(.tree-search, .feed-directory-search) { min-width: 0; height: 32px; min-height: 32px; margin: 0; padding: 0 8px; border: 1px solid var(--line); border-radius: 6px; background: transparent; display: flex; gap: 6px; align-items: center; box-shadow: none; }
-  body.immersive-workbench .tree-pane :is(.tree-search, .feed-directory-search) input { flex: 1; min-width: 0; width: 100%; height: 30px; min-height: 0; padding: 0; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: 11px; }
+  body.immersive-workbench .tree-pane :is(.tree-chrome, .project-record-tools, .feed-directory-tools, .source-directory-tools) { flex: none; margin: 0; padding: 0 8px 8px; background: transparent; border: 0; }
+  body.immersive-workbench .tree-pane :is(.tree-search, .feed-directory-search) { min-width: 0; height: 30px; min-height: 30px; margin: 0; padding: 0 10px; border: 0; border-radius: 6px; background: var(--nav-hover); display: flex; gap: 6px; align-items: center; box-shadow: none; }
+  body.immersive-workbench .tree-pane :is(.tree-search, .feed-directory-search) input { flex: 1; min-width: 0; width: 100%; height: 28px; min-height: 0; padding: 0; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: 13px; }
   body.immersive-workbench .tree-pane :is(.tree-search, .feed-directory-search) svg { position: static; flex: none; width: 14px; height: 14px; color: var(--muted); }
-  body.immersive-workbench .tree-pane :is(.tree-search, .feed-directory-search) input::placeholder { color: var(--muted); opacity: 1; }
-  body.immersive-workbench .tree-pane :is(.tree-search, .feed-directory-search):focus-within { border-color: var(--blue); }
+  body.immersive-workbench .tree-pane :is(.tree-search, .feed-directory-search) input::placeholder { color: var(--faint); opacity: 1; }
+  body.immersive-workbench .tree-pane :is(.tree-search, .feed-directory-search):focus-within { outline: 2px solid var(--blue); outline-offset: 0; }
   body.immersive-workbench .tree-pane .tree-search kbd { font-size: 9px; }
   body.immersive-workbench .tree-pane .project-record-tools .tree-search kbd { display: none; }
   body.immersive-workbench .tree-pane .project-record-directory > .desktop-directory-heading { display: none !important; }
@@ -82,11 +82,18 @@ export const IMMERSIVE_DIRECTORY_STYLES = `
   body.immersive-workbench .tree-pane .feed-list-meta em { display: none; }
   body.immersive-workbench .tree-pane .feed-list-state { justify-self: start; padding: 0; border: 0; background: transparent; border-radius: 0; font-size: 10px; font-weight: 400; }
   body.immersive-workbench .tree-pane .feed-list-state[data-feed-disposition="feed"] { display: none; }
-  body.immersive-workbench .tree-pane :is(.tree-footer, .feed-directory-footer) { flex: none; min-height: 32px; margin: 0; padding: 8px; border: 0; background: transparent; font-size: 10px; color: var(--muted); }
-  body.immersive-workbench .tree-pane :is(.tree-footer, .feed-directory-footer) > span { font-size: 10px; font-weight: 400; }
-  body.immersive-workbench .tree-pane .feed-directory-footer small { display: none; }
-  body.immersive-workbench .tree-pane .source-filter-row { display: flex; flex-wrap: wrap; gap: 2px; padding-top: 6px; }
+  body.immersive-workbench .tree-pane :is(.tree-footer, .feed-directory-footer, [data-tree-footer]) { display: none !important; }
+  body.immersive-workbench .tree-pane[data-desktop-directory="sources"] .source-directory { grid-template-rows: auto minmax(0, 1fr) !important; }
+  body.immersive-workbench .tree-pane .source-directory-tools { display: grid; grid-template-columns: minmax(0, 1fr) 28px; align-items: start; gap: 4px; }
+  body.immersive-workbench .tree-pane .source-directory-tools .feed-directory-search { grid-column: 1; grid-row: 1; }
+  body.immersive-workbench .tree-pane .source-mobile-add { grid-column: 2; grid-row: 1; display: grid; place-items: center; width: 28px; height: 32px; min-height: 32px; padding: 0; border: 0 !important; border-radius: 5px; color: var(--muted) !important; background: transparent !important; box-shadow: none !important; cursor: pointer; font-size: 0; }
+  body.immersive-workbench .tree-pane .source-mobile-add svg { width: 15px; height: 15px; }
+  body.immersive-workbench .tree-pane .source-mobile-add:hover { color: var(--ink) !important; background: var(--nav-active) !important; }
+  body.immersive-workbench .tree-pane .source-filter-row { display: flex; flex-wrap: wrap; gap: 2px; padding-top: 6px; grid-column: 1 / -1; }
   body.immersive-workbench .tree-pane .source-filter-row button { min-height: 28px; padding: 4px 6px; border: 0; border-radius: 5px; font-size: 10px; }
+  body.immersive-workbench .tree-pane .inbox-filter-row { display: flex; flex-wrap: wrap; gap: 2px; padding: 0 8px 8px; }
+  body.immersive-workbench .tree-pane .inbox-filter-row button { min-height: 28px; padding: 4px 6px; border: 0; border-radius: 5px; font-size: 10px; cursor: pointer; color: var(--muted); background: transparent; }
+  body.immersive-workbench .tree-pane .inbox-filter-row button.is-active { color: var(--ink); background: var(--nav-active); }
   body.immersive-workbench .tree-pane .source-list-item { min-height: 72px; padding: 8px; border-radius: 6px; }
   body.immersive-workbench .tree-pane .source-list-copy strong { font-size: 12px; font-weight: 500; }
   body.immersive-workbench .tree-pane .source-list-copy :is(p, small, em) { font-size: 10px; font-weight: 400; }
@@ -96,6 +103,8 @@ export const IMMERSIVE_DIRECTORY_STYLES = `
     body.immersive-workbench .tree-pane .tree-toggle { height: 40px; min-height: 40px; }
     body.immersive-workbench .tree-pane :is(.tree-search, .feed-directory-search) { height: 40px; min-height: 40px; }
     body.immersive-workbench .tree-pane :is(.tree-search, .feed-directory-search) input { height: 38px; font-size: 16px; }
+    body.immersive-workbench .tree-pane .source-directory-tools { grid-template-columns: minmax(0, 1fr) 36px; }
+    body.immersive-workbench .tree-pane .source-mobile-add { width: 36px; height: 40px; min-height: 40px; }
     body.immersive-workbench .tree-pane .project-record-tools { grid-template-columns: minmax(0, 1fr) 36px 36px; }
     body.immersive-workbench .tree-pane .feed-directory-toolbar { grid-template-columns: minmax(0, 1fr) 36px; }
     body.immersive-workbench .tree-pane :is(.project-record-filter-menu > summary, .project-record-add-compact, .feed-filter-trigger) { width: 36px; height: 40px; min-height: 40px; }

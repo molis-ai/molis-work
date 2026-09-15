@@ -3,15 +3,15 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { createLocalFeedApplication } from "@adeptify/goalboard-app-local-host";
-import { createLocalFeedSourceService, listFeedSourceCatalog } from "@adeptify/goalboard-app-local-host";
-import { DEMO_BOARD_ID, seedDemoBoard } from "@adeptify/goalboard-app-local-host";
-import { LocalProjectDatabase } from "@adeptify/goalboard-app-local-host";
-import { createGoalBoardWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createLocalFeedApplication } from "@molis-ai/molis-work-app-local-host";
+import { createLocalFeedSourceService, listFeedSourceCatalog } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_BOARD_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
 test("opening a pre-reorg project initializes Listener storage and preserves old cursors and Goal content", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-feed-upgrade-"));
-  const databasePath = join(directory, "goalboard.sqlite");
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-feed-upgrade-"));
+  const databasePath = join(directory, "molis-work.sqlite");
   try {
     seedDemoBoard(databasePath);
     const legacy = new LocalProjectDatabase(databasePath);
@@ -30,7 +30,7 @@ test("opening a pre-reorg project initializes Listener storage and preserves old
     } finally { legacy.close(); }
 
     // Use the real project-opening route, including interrupted-run recovery.
-    const server = createGoalBoardWebServer({ databasePath, boardId: DEMO_BOARD_ID, homeDirectory: join(directory, "home") });
+    const server = createMolisWorkWebServer({ databasePath, boardId: DEMO_BOARD_ID, homeDirectory: join(directory, "home") });
     try {
       await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
       const address = server.address();

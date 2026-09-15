@@ -1,4 +1,4 @@
-import type { GoalRecord, GoalRelationRecord } from "@adeptify/goalboard-contracts/modules/goals";
+import type { GoalRecord, GoalRelationRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { GoalDisplayStatus, GoalPresentationState } from "./tree-order.js";
 
 export interface GoalsTreeItem {

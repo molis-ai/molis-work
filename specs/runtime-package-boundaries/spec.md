@@ -6,13 +6,13 @@
 
 ## 真实问题与根因
 
-2026-09-11，本机重新安装时首轮 App 构建完成，第二轮 v0.2.0 Runtime 打包耗时异常。实际 `resources/goalboard-runtime` 达到 30GB、桌面 `target` 达到 36GB。完整测试也在 `tests/e2e.test.ts` 的真实安装步骤耗时异常；已主动停止该测试，不能计作通过。
+2026-09-11，本机重新安装时首轮 App 构建完成，第二轮 v0.2.0 Runtime 打包耗时异常。实际 `resources/molis-work-runtime` 达到 30GB、桌面 `target` 达到 36GB。完整测试也在 `tests/e2e.test.ts` 的真实安装步骤耗时异常；已主动停止该测试，不能计作通过。
 
-`home-release.ts` 对运行依赖目录执行递归复制，仅排除顶层 node_modules。`home-source.ts` 对同一依赖目录的 `.` 计算内容摘要。`@adeptify/goalboard-app-desktop` 来自 workspace，目录同时含 `src-tauri/target` 和 `resources/goalboard-runtime`，因此旧构建、旧资源也被扫描并再次打包。该包已有明确 `files: ["dist", "README.md"]`。现有 npm 打包的 `copyPackageFiles` 已按明确 files 列表复制本地包，但 Home/App 路径没有遵守相同边界。
+`home-release.ts` 对运行依赖目录执行递归复制，仅排除顶层 node_modules。`home-source.ts` 对同一依赖目录的 `.` 计算内容摘要。`@molis-ai/molis-work-app-desktop` 来自 workspace，目录同时含 `src-tauri/target` 和 `resources/molis-work-runtime`，因此旧构建、旧资源也被扫描并再次打包。该包已有明确 `files: ["dist", "README.md"]`。现有 npm 打包的 `copyPackageFiles` 已按明确 files 列表复制本地包，但 Home/App 路径没有遵守相同边界。
 
 ## 行为合同
 
-1. GoalBoard workspace 依赖使用自身声明的发布文件范围，保留 package.json、必要文档、dist 和已声明的运行资产（如规划 methods）。不打包源码、桌面 target、旧 resources 或包管理器链接。
+1. Molis Work workspace 依赖使用自身声明的发布文件范围，保留 package.json、必要文档、dist 和已声明的运行资产（如规划 methods）。不打包源码、桌面 target、旧 resources 或包管理器链接。
 2. Home 安装和 App Runtime payload 共用这一范围，内容摘要与实际复制范围一致。修改已分发内容会触发同版本刷新；修改未分发的构建缓存不会触发刷新或继续递归扫描。
 3. 非 workspace/第三方依赖保留已有可运行边界，尤其 better-sqlite3、node-pty 的原生文件不能遗漏。不要把所有包假设为只有 dist，也不新建完整 npm packlist/glob 引擎或添加依赖。
 4. 仍保留已分发内容的路径与链接边界检查、运行依赖完整性、原子安装和失败恢复。缺少明确声明的必要资产必须失败；不能把缺失当作成功安装。

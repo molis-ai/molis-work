@@ -27,7 +27,7 @@ export const WORK_HANDOFF_CLIENT = `
       ? L("目标 Session 已经创建。可以修改交接正文并重试，但目标 Runtime 和工作目录不会再改变。")
       : native
         ? L("会创建一条新的原生 Session，并把右侧内容作为第一条消息发送；不会加载来源 Runtime 的原生身份。")
-        : L("这个 Runtime 没有原生 Handoff Adapter。GoalBoard 会创建托管 Session 并保存交接内容，不伪装成原生送达。");
+        : L("这个 Runtime 没有原生 Handoff Adapter。Molis Work 会创建托管 Session 并保存交接内容，不伪装成原生送达。");
     if (handoffRuntime) handoffRuntime.disabled = busy || handoffTargetLocked || !handoffRetryable;
     if (handoffWorkspace) handoffWorkspace.disabled = busy || handoffTargetLocked || !handoffRetryable;
     if (handoffContent) handoffContent.disabled = busy || !handoffRetryable;
@@ -83,7 +83,7 @@ export const WORK_HANDOFF_CLIENT = `
     try {
       const payload = await parseActionResponse(await fetch(route("/api/sessions/" + encodeURIComponent(handoffDetail.dataset.detailId) + "/handoffs"), {
         method: "POST",
-        headers: window.goalboardControlHeaders?.() || {},
+        headers: window.molisWorkControlHeaders?.() || {},
         body: JSON.stringify({
           target_runtime_id: handoffRuntime?.value || "codex",
           target_workspace_path: handoffWorkspace?.value.trim() || null,
@@ -91,7 +91,7 @@ export const WORK_HANDOFF_CLIENT = `
       }));
       applyHandoffPayload(payload);
       showDialogStatus(handoffStatus, payload.handoff?.state === "sending"
-        ? L("另一条发送请求仍在执行。GoalBoard 已锁定这份 package，完成或租约过期后再刷新。")
+        ? L("另一条发送请求仍在执行。Molis Work 已锁定这份 package，完成或租约过期后再刷新。")
         : payload.handoff?.state === "failed" && payload.handoff?.retryable === false
           ? L("上次失败不能安全重试。请取消这次 Handoff 后重新创建。")
           : payload.reused
@@ -118,7 +118,7 @@ export const WORK_HANDOFF_CLIENT = `
     try {
       const payload = await parseActionResponse(await fetch(route("/api/session-handoffs/" + encodeURIComponent(handoffPackageId)), {
         method: "PATCH",
-        headers: window.goalboardControlHeaders?.() || {},
+        headers: window.molisWorkControlHeaders?.() || {},
         body: JSON.stringify(handoffBody(false)),
       }));
       applyHandoffPayload(payload);
@@ -137,7 +137,7 @@ export const WORK_HANDOFF_CLIENT = `
     try {
       await parseActionResponse(await fetch(route("/api/session-handoffs/" + encodeURIComponent(handoffPackageId) + "/cancel"), {
         method: "POST",
-        headers: window.goalboardControlHeaders?.() || {},
+        headers: window.molisWorkControlHeaders?.() || {},
         body: "{}",
       }));
       handoffDialog?.close();
@@ -160,7 +160,7 @@ export const WORK_HANDOFF_CLIENT = `
     try {
       const response = await fetch(route("/api/session-handoffs/" + encodeURIComponent(handoffPackageId) + "/send"), {
         method: "POST",
-        headers: window.goalboardControlHeaders?.() || {},
+        headers: window.molisWorkControlHeaders?.() || {},
         body: JSON.stringify(handoffBody(true)),
       });
       const payload = await response.json().catch(() => ({}));
@@ -168,7 +168,7 @@ export const WORK_HANDOFF_CLIENT = `
       if (!response.ok) throw new Error(payload.error || L("目标 Runtime 没有完成 Handoff，package 已保留。"));
       showDialogStatus(handoffStatus, payload.handoff?.delivery_mode === "native"
         ? L("新原生 Session 已创建，Handoff 已作为第一条消息发送。")
-        : L("新的 GoalBoard 托管 Session 已创建；package 已保存为可读取内容。"), false);
+        : L("新的 Molis Work 托管 Session 已创建；package 已保存为可读取内容。"), false);
       handoffDialog?.close();
       location.reload();
     } catch (error) {

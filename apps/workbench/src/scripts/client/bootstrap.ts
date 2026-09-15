@@ -1,7 +1,7 @@
-import { GOALS_WORK_TABS_CLIENT_FACTORY_SCRIPT } from "@adeptify/goalboard-plugin-goals";
+import { GOALS_WORK_TABS_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-goals";
 /** AP3 Workbench client segment: bootstrap. */
 export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
-    let state = JSON.parse(document.querySelector("#goalboard-data").textContent);
+    let state = JSON.parse(document.querySelector("#molis-work-data").textContent);
     const workspace = document.querySelector("[data-workspace]");
     const documentPane = document.querySelector("[data-document-pane]");
     const treePane = document.querySelector("#goal-tree-pane");
@@ -62,7 +62,7 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     const feedApi = async (pathname, method, body) => {
       const response = await fetch(route(pathname), {
         method,
-        headers: goalboardControlHeaders(),
+        headers: molisWorkControlHeaders(),
         body: body == null ? undefined : JSON.stringify(body),
       });
       const result = await response.json();
@@ -121,7 +121,7 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
       return "decision:" + decodeURIComponent(location.hash.slice(prefix.length));
     };
     const visibleGoals = (source = state) => trashView ? source.trashed_goals : archiveView ? source.archived_goals : source.goals;
-    const goalUiStorageKey = "goalboard-ui:" + (state.project?.project_id || state.snapshot.board.board_id);
+    const goalUiStorageKey = "molis-work-ui:" + (state.project?.project_id || state.snapshot.board.board_id);
     const currentGoalUiStorageKey = goalUiStorageKey + ":current";
     const storageKey = decisionView
       ? goalUiStorageKey + ":inbox"
@@ -130,15 +130,16 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
         : archiveView
           ? goalUiStorageKey + ":archive"
           : currentGoalUiStorageKey;
-    const goalMoveReceiptKey = "goalboard-goal-move-receipt:" + (state.project?.project_id || state.snapshot.board.board_id);
-    const workTabsStorageKey = "goalboard-work-tabs:" + (state.project?.project_id || state.snapshot.board.board_id);
+    const goalMoveReceiptKey = "molis-work-goal-move-receipt:" + (state.project?.project_id || state.snapshot.board.board_id);
+    const workTabsStorageKey = "molis-work-work-tabs:" + (state.project?.project_id || state.snapshot.board.board_id);
     const desktopNavigationStateVersion = 4;
     let immersiveNavigation = null;
+    let frameContainer = null;
     let projectHome = null;
     let pluginWorkbench = null;
     let desktopDirectoryOrigin = null;
-    let activeDesktopSurface = document.body.dataset.desktopSurface || (decisionView ? "feed" : "goal");
-    let activeFeedPreset = feedDirectory?.dataset.feedPreset || "inbox_message";
+    let activeDesktopSurface = document.body.dataset.desktopSurface || (decisionView ? "inbox" : "goal");
+    let activeFeedPreset = feedDirectory?.dataset.feedPreset || "feed";
     let selectedFeedItem = feedList?.querySelector("[data-feed-entry-id].is-selected")?.dataset.feedEntryId || "";
     let selectedSource = sourceList?.querySelector("[data-source-entry-id].is-selected")?.dataset.sourceEntryId || "";
     let activeSourceFilter = "all";
@@ -152,7 +153,6 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
       sort: "newest",
     });
     let feedPresetState = {
-      inbox_message: defaultFeedPresetState(),
       feed: defaultFeedPresetState(),
     };
     let desktopSurfaceScroll = {};
@@ -178,7 +178,7 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
       handleGoalWorkTabClick, handleGoalWorkTabKeyboard } = (${GOALS_WORK_TABS_CLIENT_FACTORY_SCRIPT})({
         workTabs, decisionView, collectionView, visibleGoals,
         getSelected: () => selected, getActiveSurface: () => activeDesktopSurface,
-        readStoredTabs: () => JSON.parse(localStorage.getItem(workTabsStorageKey) || "[]"),
+        readStoredTabs: () => JSON.parse(localStorage.getItem(workTabsStorageKey) || localStorage.getItem("goalboard-work-tabs:" + (state.project?.project_id || state.snapshot.board.board_id)) || "[]"),
         writeStoredTabs: (tabs) => localStorage.setItem(workTabsStorageKey, JSON.stringify(tabs)),
         renderWorkTabs: () => renderWorkTabs(), selectGoal: (...args) => selectGoal(...args),
         setDesktopDirectory: (...args) => setDesktopDirectory(...args),

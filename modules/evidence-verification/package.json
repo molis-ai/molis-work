@@ -1,5 +1,5 @@
 {
-  "name": "@adeptify/goalboard-module-evidence-verification",
+  "name": "@molis-ai/molis-work-module-evidence-verification",
   "version": "0.0.0",
   "private": true,
   "description": "Evidence, immutable corrections, criterion coverage, and verification obligations.",
@@ -25,13 +25,13 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@adeptify/goalboard-contracts": "workspace:*"
+    "@molis-ai/molis-work-contracts": "workspace:*"
   },
-  "goalboard": {
+  "molis-work": {
     "path": "modules/evidence-verification",
     "kind": "module",
     "maturity": "partial",
-    "contract": "@adeptify/goalboard-contracts/modules/evidence-verification",
+    "contract": "@molis-ai/molis-work-contracts/modules/evidence-verification",
     "migrationGoals": [
       "goal-reorg-f2",
       "goal-reorg-ex2",

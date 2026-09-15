@@ -2,6 +2,15 @@ import { timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { L } from "./web-locale.js";
 
+export function requestHeader(request: IncomingMessage, name: string, legacyName?: string): string | undefined {
+  const candidates = [request.headers[name], legacyName ? request.headers[legacyName] : undefined];
+  for (const value of candidates) {
+    if (typeof value === "string" && value.trim()) return value;
+    if (Array.isArray(value) && typeof value[0] === "string" && value[0].trim()) return value[0];
+  }
+  return undefined;
+}
+
 export function sendLocalWebJson(response: ServerResponse, status: number, value: unknown): void {
   response.writeHead(status, {
     "content-type": "application/json; charset=utf-8",
@@ -34,7 +43,7 @@ function requestHost(request: IncomingMessage): string | null {
   }
 }
 
-function controlTokenMatches(expected: string, actual: string | string[] | undefined): boolean {
+function controlTokenMatches(expected: string, actual: string | undefined): boolean {
   if (typeof actual !== "string") return false;
   const expectedBytes = Buffer.from(expected);
   const actualBytes = Buffer.from(actual);
@@ -70,11 +79,11 @@ export function authorizeLocalWebRequest(
     sendLocalWebJson(response, 403, { error: L("本地控制请求校验失败") });
     return false;
   }
-  if (!controlTokenMatches(controlToken, request.headers["x-goalboard-control-token"])) {
+  if (!controlTokenMatches(controlToken, requestHeader(request, "x-molis-work-control-token", "x-goalboard-control-token"))) {
     sendLocalWebJson(response, 403, { error: L("本地控制请求校验失败") });
     return false;
   }
-  const idempotencyKey = request.headers["x-goalboard-idempotency-key"];
+  const idempotencyKey = requestHeader(request, "x-molis-work-idempotency-key", "x-goalboard-idempotency-key");
   if (
     typeof idempotencyKey !== "string"
     || idempotencyKey.length < 8

@@ -7,7 +7,7 @@ import type {
   ReviewObligationRecord,
   ReviewRecord,
   RewireRecord,
-} from "@adeptify/goalboard-contracts/modules/governance-collaboration";
+} from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 
 export type GovernanceRow = Record<string, unknown>;
 

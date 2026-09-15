@@ -41,7 +41,7 @@ export const WEB_SERVICE_SETTINGS_SCRIPT = `
     dialog.addEventListener("cancel", (event) => { event.preventDefault(); choose("declined"); });
     dialog.addEventListener("close", () => choose("declined"));
     const post = async (suffix, body) => {
-      const response = await fetch("/api/settings/web-service/" + suffix, { method: "POST", headers: goalboardControlHeaders(), body: JSON.stringify(body) });
+      const response = await fetch("/api/settings/web-service/" + suffix, { method: "POST", headers: molisWorkControlHeaders(), body: JSON.stringify(body) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || L("常驻服务操作失败"));
       return result;

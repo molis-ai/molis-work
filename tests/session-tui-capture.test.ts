@@ -5,13 +5,13 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { WebSocket } from "ws";
-import { GoalBoardSessionRegistry } from "@adeptify/goalboard-module-private-work-context";
-import { SessionTuiRecorder } from "@adeptify/goalboard-plugin-work";
-import { attachGoalBoardPtySocket } from "@adeptify/goalboard-app-local-host";
+import { MolisWorkSessionRegistry } from "@molis-ai/molis-work-module-private-work-context";
+import { SessionTuiRecorder } from "@molis-ai/molis-work-plugin-work";
+import { attachMolisWorkPtySocket } from "@molis-ai/molis-work-app-local-host";
 
 test("Goal TUI output survives Registry restart and remains linked to Session, project and Goal", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "goalboard-session-tui-"));
-  const home = path.join(directory, ".goalboard");
+  const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-session-tui-"));
+  const home = path.join(directory, ".molis-work");
   let sessionId = "";
   const first = await openWorkSessionRegistry({ homeDirectory: home });
   try {
@@ -51,8 +51,8 @@ test("Goal TUI output survives Registry restart and remains linked to Session, p
 });
 
 test("PTY socket carries session_id into the persistent TUI recorder", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "goalboard-session-tui-socket-"));
-  const home = path.join(directory, ".goalboard");
+  const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-session-tui-socket-"));
+  const home = path.join(directory, ".molis-work");
   const registry = await openWorkSessionRegistry({ homeDirectory: home });
   const session = registry.createSession({
     runtime_id: "generic",
@@ -65,7 +65,7 @@ test("PTY socket carries session_id into the persistent TUI recorder", async () 
   });
   const recorder = new SessionTuiRecorder(registry);
   const server = http.createServer((_request, response) => response.end("ok"));
-  attachGoalBoardPtySocket(server, "session-tui-socket-token", {
+  attachMolisWorkPtySocket(server, "session-tui-socket-token", {
     onData: (panelId, sessionId, data) => recorder.recordOutput(panelId, sessionId, data),
     onExit: (panelId, sessionId, exit) => recorder.recordExit(panelId, sessionId, exit),
   });
@@ -120,4 +120,4 @@ test("PTY socket carries session_id into the persistent TUI recorder", async () 
     await rm(directory, { recursive: true, force: true });
   }
 });
-import { openWorkSessionRegistry } from "@adeptify/goalboard-app-local-host";
+import { openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";

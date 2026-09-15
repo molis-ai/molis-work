@@ -1,14 +1,14 @@
-# GoalBoard Deterministic Coordinator Contract
+# Molis Work Deterministic Coordinator Contract
 
 Status: Draft deliverable of `GB-002-02`. The executable Work Order remains
-`specs/goalboard-mvp/goalboard.md`. This document defines application decisions;
+`specs/molis-work-mvp/molis-work.md`. This document defines application decisions;
 it does not define storage tables, SQL, CLI syntax, MCP payloads, or Runtime
 process behavior.
 
 ## 1. Outcome and business meaning
 
 The Coordinator is the deterministic authority that answers whether a requested
-GoalBoard action is currently allowed, explains every blocking reason, and
+Molis Work action is currently allowed, explains every blocking reason, and
 records allowed transitions exactly once.
 
 In plain language:

@@ -4,16 +4,16 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { createCliGoalsAdapter } from "@adeptify/goalboard-app-cli";
-import { createMcpGoalsAdapter } from "@adeptify/goalboard-app-mcp";
-import { createWorkbenchGoalsAdapter } from "@adeptify/goalboard-app-workbench";
+import { createCliGoalsAdapter } from "@molis-ai/molis-work-app-cli";
+import { createMcpGoalsAdapter } from "@molis-ai/molis-work-app-mcp";
+import { createWorkbenchGoalsAdapter } from "@molis-ai/molis-work-app-workbench";
 
-import { GoalProjectApplication } from "@adeptify/goalboard-app-local-host";
-import { LocalProjectDatabase } from "@adeptify/goalboard-app-local-host";
+import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 
 test("Workbench, MCP, and CLI bind the same public Goals application Contract", () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-goals-app-adapters-"));
-  const store = new LocalProjectDatabase(join(directory, "goalboard.sqlite"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-goals-app-adapters-"));
+  const store = new LocalProjectDatabase(join(directory, "molis-work.sqlite"));
   try {
     const coordinator = new GoalProjectApplication(store);
     coordinator.initializeBoard({

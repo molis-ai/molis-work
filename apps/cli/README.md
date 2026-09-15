@@ -1,8 +1,8 @@
 # CLI 命令适配
 
-把终端参数转换为 GoalBoard 的公开操作，并按 CLI 协议输出结果。维护命令、参数优先级、帮助信息或退出行为时，从这里开始。
+把终端参数转换为 Molis Work 的公开操作，并按 CLI 协议输出结果。维护命令、参数优先级、帮助信息或退出行为时，从这里开始。
 
-包名：`@adeptify/goalboard-app-cli`。工作区内部包，通过仓库构建和 Host 装配使用。
+包名：`@molis-ai/molis-work-app-cli`。工作区内部包，通过仓库构建和 Host 装配使用。
 
 ## 一次典型调用
 
@@ -24,15 +24,15 @@
 
 这个包不是数据库入口。新增命令应复用 Host capability，避免在命令处理器直接打开 Store。旧提案命令仍有兼容调用方。
 
-工作区依赖：`@adeptify/goalboard-contracts`、`@adeptify/goalboard-plugin-goals`。其他运行依赖见 [package.json](package.json)。
+工作区依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-goals`。其他运行依赖见 [package.json](package.json)。
 
 ## 本地开发
 
 以下命令在**仓库根目录**执行，使用 Node.js 24+ 与仓库配置的 pnpm。首次准备运行 `pnpm install --frozen-lockfile` 和 `pnpm build`；之后可单独检查此包。
 
 ```bash
-pnpm --filter @adeptify/goalboard-app-cli typecheck
-pnpm --filter @adeptify/goalboard-app-cli build
+pnpm --filter @molis-ai/molis-work-app-cli typecheck
+pnpm --filter @molis-ai/molis-work-app-cli build
 ```
 
 已有行为示例与回归：[cli-protocol.test.ts](../../tests/cli-protocol.test.ts)。完成上述构建后运行：
@@ -49,7 +49,7 @@ node --import tsx --test --test-concurrency=1 tests/cli-protocol.test.ts
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
 - Status: `partial`
-- Contract entrypoint: `@adeptify/goalboard-contracts/platform/app-host`
+- Contract entrypoint: `@molis-ai/molis-work-contracts/platform/app-host`
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-dv1`, `goal-reorg-gw4`, `goal-reorg-ex4`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。

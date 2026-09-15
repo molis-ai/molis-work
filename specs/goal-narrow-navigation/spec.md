@@ -59,9 +59,9 @@
 示例命令：
 
 ```sh
-pnpm --filter @adeptify/goalboard-plugin-goals build
-pnpm --filter @adeptify/goalboard-design-system build
-pnpm --filter @adeptify/goalboard-app-workbench build
+pnpm --filter @molis-ai/molis-work-plugin-goals build
+pnpm --filter @molis-ai/molis-work-design-system build
+pnpm --filter @molis-ai/molis-work-app-workbench build
 node --import tsx --test --test-concurrency=1 tests/goals-narrow-navigation.e2e.test.ts tests/goals-navigation.e2e.test.ts tests/goals-momentum.e2e.test.ts tests/workbench-ui-platform.test.ts
 ```
 
@@ -86,7 +86,7 @@ node --import tsx --test --test-concurrency=1 tests/goals-narrow-navigation.e2e.
 | 7. 态势、目标、聚焦互相可达 | 通过 | 最终浏览器 721px 态势选中目标且 aria-controls 指向 graph；聚焦返回正文；1440→390px 态势高 752px，点击目标后真实列表可见且 graph 隐藏 |
 | 8. 390/721/1440px 内容高度与桌面并列 | 通过 | 最终浏览器 390px 无横向溢出；721px 内容高 844px；1440px tree 宽 346px，document 宽 1086px，并列且均解除 inert |
 
-构建：Goals 插件首轮 build 通过（此后未修改插件）；最终 design-system / workbench build 均 exit 0。首轮 10 项定向测试通过；最终 narrow/navigation/momentum 6 项通过，0 失败、0 跳过，约 20.4 秒。日志：`/private/tmp/goalboard-narrow-nav/{focused-tests,final-tests,final-design-system-build,final-workbench-build}.log`。
+构建：Goals 插件首轮 build 通过（此后未修改插件）；最终 design-system / workbench build 均 exit 0。首轮 10 项定向测试通过；最终 narrow/navigation/momentum 6 项通过，0 失败、0 跳过，约 20.4 秒。日志：`/private/tmp/molis-work-narrow-nav/{focused-tests,final-tests,final-design-system-build,final-workbench-build}.log`。
 
 未运行：原生 macOS App 重打包、真机 Safari、全仓测试与发布验证；不属于本次 Web 窄窗口修复范围。Sessions 未单独手动走查，共享模块目录逻辑已审阅。本轮仅修正响应式布局与导航，不修改主题 token。
 

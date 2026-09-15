@@ -13,7 +13,7 @@ import {
   type GoalEventRequirementStatus,
   type GoalEventScope,
   type RecordGoalUserDecisionInput,
-} from "@adeptify/goalboard-contracts/modules/goals";
+} from "@molis-ai/molis-work-contracts/modules/goals";
 import {
   affectedExistingRequirementIds,
   type CanonicalAgreementChange,

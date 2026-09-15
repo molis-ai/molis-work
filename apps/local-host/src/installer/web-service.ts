@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { GoalBoardWebServiceError, type GoalBoardWebServiceManagerOptions, type GoalBoardWebServiceDetection, type GoalBoardWebServiceAction, type GoalBoardWebServicePlan, type GoalBoardWebServiceResult, type GoalBoardWebServiceRestartPending, type PreparedServicePlan } from "./web-service-contract.js";
+import { MolisWorkWebServiceError, type MolisWorkWebServiceManagerOptions, type MolisWorkWebServiceDetection, type MolisWorkWebServiceAction, type MolisWorkWebServicePlan, type MolisWorkWebServiceResult, type MolisWorkWebServiceRestartPending, type PreparedServicePlan } from "./web-service-contract.js";
 import { WebServiceEnvironment, readText, digest } from "./web-service-platform.js";
 import { detectWebService } from "./web-service-detection.js";
 import { WebServiceProcess } from "./web-service-process.js";
@@ -7,7 +7,7 @@ import { WebServiceOperations } from "./web-service-operations.js";
 import { planStatus, serviceChanges, confirmationFor, planMessage, resultMessage } from "./web-service-planning.js";
 
 /** Public preview/confirm boundary. OS transitions and rollback have separate owners below it. */
-export class GoalBoardWebServiceManager {
+export class MolisWorkWebServiceManager {
   readonly homeDirectory: string;
   readonly userHomeDirectory: string;
   readonly plistPath: string;
@@ -18,7 +18,7 @@ export class GoalBoardWebServiceManager {
   private readonly process: WebServiceProcess;
   private readonly operations: WebServiceOperations;
   private readonly plans = new Map<string, PreparedServicePlan>();
-  constructor(options: GoalBoardWebServiceManagerOptions = {}) {
+  constructor(options: MolisWorkWebServiceManagerOptions = {}) {
     this.environment = new WebServiceEnvironment(options);
     this.homeDirectory = this.environment.homeDirectory;
     this.userHomeDirectory = this.environment.userHomeDirectory;
@@ -29,13 +29,13 @@ export class GoalBoardWebServiceManager {
     this.process = new WebServiceProcess(this.environment);
     this.operations = new WebServiceOperations(this.environment, this.process);
   }
-  detect(): Promise<GoalBoardWebServiceDetection> { return detectWebService(this.environment); }
-  async prepare(action: GoalBoardWebServiceAction): Promise<GoalBoardWebServicePlan> {
+  detect(): Promise<MolisWorkWebServiceDetection> { return detectWebService(this.environment); }
+  async prepare(action: MolisWorkWebServiceAction): Promise<MolisWorkWebServicePlan> {
     const detection = await this.detect();
     const expectedPlist = this.environment.plistSource();
     const managedArtifactsAbsent = await readText(this.plistPath) == null && await readText(this.receiptPath) == null;
     const status = planStatus(action, detection, managedArtifactsAbsent);
-    const plan: GoalBoardWebServicePlan = {
+    const plan: MolisWorkWebServicePlan = {
       plan_id: `web-service-plan-${randomUUID()}`,
       action,
       status,
@@ -57,14 +57,14 @@ export class GoalBoardWebServiceManager {
     return plan;
   }
 
-  async confirm(input: { plan_id: string; decision: "confirmed" | "declined" }): Promise<GoalBoardWebServiceResult> {
+  async confirm(input: { plan_id: string; decision: "confirmed" | "declined" }): Promise<MolisWorkWebServiceResult> {
     const prepared = await this.consumePlan(input);
     return this.applyPlan(prepared, input.decision);
   }
 
   /** A Web server cannot bootout itself and then run the following start command. */
   async confirmFromWeb(input: { plan_id: string; decision: "confirmed" | "declined" }, servingProcessId: number): Promise<{
-    result: GoalBoardWebServiceResult | GoalBoardWebServiceRestartPending;
+    result: MolisWorkWebServiceResult | MolisWorkWebServiceRestartPending;
     afterResponse?: () => Promise<void>;
   }> {
     const prepared = await this.consumePlan(input);
@@ -89,20 +89,20 @@ export class GoalBoardWebServiceManager {
 
   private async consumePlan(input: { plan_id: string; decision: "confirmed" | "declined" }): Promise<PreparedServicePlan> {
     const prepared = this.plans.get(input.plan_id);
-    if (!prepared) throw new GoalBoardWebServiceError("service.plan_missing", "常驻服务预览不存在或已失效，请重新预览");
+    if (!prepared) throw new MolisWorkWebServiceError("service.plan_missing", "常驻服务预览不存在或已失效，请重新预览");
     this.plans.delete(input.plan_id);
     if (input.decision === "declined") {
       return prepared;
     }
-    if (prepared.publicPlan.status === "unsupported") throw new GoalBoardWebServiceError("service.unsupported", prepared.publicPlan.message);
-    if (prepared.publicPlan.status === "conflict") throw new GoalBoardWebServiceError("service.conflict", prepared.publicPlan.message);
+    if (prepared.publicPlan.status === "unsupported") throw new MolisWorkWebServiceError("service.unsupported", prepared.publicPlan.message);
+    if (prepared.publicPlan.status === "conflict") throw new MolisWorkWebServiceError("service.conflict", prepared.publicPlan.message);
     if (await this.snapshotHash() !== prepared.snapshotHash) {
-      throw new GoalBoardWebServiceError("service.plan_stale", "LaunchAgent 状态在预览后发生变化，请重新预览");
+      throw new MolisWorkWebServiceError("service.plan_stale", "LaunchAgent 状态在预览后发生变化，请重新预览");
     }
     return prepared;
   }
 
-  private async applyPlan(prepared: PreparedServicePlan, decision: "confirmed" | "declined"): Promise<GoalBoardWebServiceResult> {
+  private async applyPlan(prepared: PreparedServicePlan, decision: "confirmed" | "declined"): Promise<MolisWorkWebServiceResult> {
     if (decision === "declined") {
       return { status: "declined", action: prepared.publicPlan.action, detection: await this.detect(), message: "已取消，没有修改常驻服务" };
     }
@@ -110,7 +110,7 @@ export class GoalBoardWebServiceManager {
       return { status: "unchanged", action: prepared.publicPlan.action, detection: await this.detect(), message: prepared.publicPlan.message };
     }
     const action = prepared.publicPlan.action;
-    let finalDetection: GoalBoardWebServiceDetection | null = null;
+    let finalDetection: MolisWorkWebServiceDetection | null = null;
     if (action === "install") finalDetection = await this.operations.install(prepared.expectedPlist);
     if (action === "start") {
       finalDetection = prepared.publicPlan.detection.state === "unhealthy"
@@ -122,9 +122,9 @@ export class GoalBoardWebServiceManager {
     if (action === "remove") await this.operations.remove();
     finalDetection ??= await this.detect();
     if (["install", "start", "restart"].includes(action) && finalDetection.state !== "running") {
-      throw new GoalBoardWebServiceError(
+      throw new MolisWorkWebServiceError(
         "service.command_failed",
-        `GoalBoard Web 操作后没有保持当前受管实例的运行状态：${finalDetection.message}`,
+        `Molis Work Web 操作后没有保持当前受管实例的运行状态：${finalDetection.message}`,
       );
     }
     const status = ({ install: "installed", start: "started", stop: "stopped", restart: "restarted", remove: "removed" } as const)[action];

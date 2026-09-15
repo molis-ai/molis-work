@@ -1,4 +1,4 @@
-import type { GoalTreeProposalDecideInput } from "@adeptify/goalboard-contracts/modules/governance-collaboration";
+import type { GoalTreeProposalDecideInput } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 
 /** Prepare existing Web choices without authorizing or persisting a decision. */
 export class GoalTreeWebDecisionInput {

@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { DEMO_BOARD_ID } from "@adeptify/goalboard-app-local-host";
+import { DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 async function post(origin: string, path: string, body: object, key: string) {
   const response = await fetch(origin + path, {
     method: "POST",
     headers: { "content-type": "application/json", origin,
-      "x-goalboard-control-token": "goals-risk-test-control-token-0123456789",
-      "x-goalboard-idempotency-key": key },
+      "x-molis-work-control-token": "goals-risk-test-control-token-0123456789",
+      "x-molis-work-idempotency-key": key },
     body: JSON.stringify(body),
   });
   assert.ok(response.ok, await response.text());

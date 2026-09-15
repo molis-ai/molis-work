@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://goalboard.dev/contracts/casebook/planning-export/1.0.0",
-  "title": "GoalBoard Casebook Planning Export Envelope",
+  "$id": "https://molis-work.dev/contracts/casebook/planning-export/1.0.0",
+  "title": "Molis Work Casebook Planning Export Envelope",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -15,7 +15,7 @@
   ],
   "properties": {
     "contract_id": {
-      "const": "goalboard.casebook.planning-export"
+      "const": "molis-work.casebook.planning-export"
     },
     "schema_version": {
       "const": "1.0.0"

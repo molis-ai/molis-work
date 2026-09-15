@@ -1,10 +1,10 @@
-# GoalBoard Runtime Skill 信息架构重构
+# Molis Work Runtime Skill 信息架构重构
 
 ## 背景与目标
 
 `goal-advance` 已覆盖项目关联、Goal 澄清、规划方法召回、拆分、依赖、执行、证据、验收和恢复，但入口 `SKILL.md` 同时承载大量条件流程，并与 `references/protocol.md` 重复。规划主循环位于入口后半段，Skill 的发现描述和 UI 文案又偏向“启动 Web”，容易让 Runtime 抓错主线。
 
-本次达到“内部完整”：在不改变 GoalBoard 数据、状态和 MCP 行为的前提下，把 Skill 重组为清晰、渐进加载的 Runtime 工作协议，并通过结构与真实规划不变量测试证明关键规则没有丢失。
+本次达到“内部完整”：在不改变 Molis Work 数据、状态和 MCP 行为的前提下，把 Skill 重组为清晰、渐进加载的 Runtime 工作协议，并通过结构与真实规划不变量测试证明关键规则没有丢失。
 
 ## 当前行为与问题证据
 
@@ -17,8 +17,8 @@
 
 ### 保留
 
-- 只有用户明确调用 GoalBoard 才开始关联或 Goal 工作。
-- Goal 生命周期只通过 `goalboard_v1_*` Runtime MCP；Web 服务管理是唯一受控 CLI 例外。
+- 只有用户明确调用 Molis Work 才开始关联或 Goal 工作。
+- Goal 生命周期只通过 `molis_work_v1_*` Runtime MCP；Web 服务管理是唯一受控 CLI 例外。
 - 项目关联、切换、删除与 Goal 回收站保持现有确认和权限边界。
 - 同一对话内澄清、持久化、Proposal、用户决定、执行、证据、Review、完成和恢复闭环。
 - 方法组合、跨主题提供者/消费者检查、硬依赖方向、变化影响分析、复杂父 Goal 覆盖检查和叶子可执行性检查。
@@ -42,7 +42,7 @@
 
 ## 用户与 Runtime 场景
 
-1. 用户要求使用 GoalBoard：Runtime 解析并在需要时确认项目关联。
+1. 用户要求使用 Molis Work：Runtime 解析并在需要时确认项目关联。
 2. 用户给出新想法：Runtime 建立 Draft，用一次一个关键问题澄清并保存答案。
 3. 复杂 Goal 需要拆分或重连：Runtime 加载规划 reference 和方法库，循环召回相关主题，建立真实产出消费依赖，检查覆盖和叶子可执行性后提出完整 Proposal。
 4. 用户确认：Runtime 应用决定并按派生工作状态继续。
@@ -86,7 +86,7 @@
 
 ### `skills/goal-advance/agents/openai.yaml`
 
-简介和默认提示表达：连接 GoalBoard、澄清、组合规划方法、建立依赖、执行和纠偏。保留自动发现策略默认值，不新增无依据的 UI 字段。
+简介和默认提示表达：连接 Molis Work、澄清、组合规划方法、建立依赖、执行和纠偏。保留自动发现策略默认值，不新增无依据的 UI 字段。
 
 ### 测试
 
@@ -97,10 +97,10 @@
 
 ## 输入、输出与依赖
 
-- 输入：用户当前对话、宿主提供的 Session/Goal 上下文、`goalboard_v1_*` MCP 返回、项目规划组合与方法正文。
+- 输入：用户当前对话、宿主提供的 Session/Goal 上下文、`molis_work_v1_*` MCP 返回、项目规划组合与方法正文。
 - 输出：可读的 Goal 内容、持久化澄清记录、完整 Proposal、真实依赖、Evidence/Review/完成记录。
 - 依赖：现有 MCP 工具 Schema、Goal Tree Proposal 校验器、方法包编译器和安装器。
-- 边界：Skill 指导 Runtime 做专业判断；GoalBoard 继续负责图不变量、权限、状态和原子写入，不解析自然语言正文来替 Runtime 决策。
+- 边界：Skill 指导 Runtime 做专业判断；Molis Work 继续负责图不变量、权限、状态和原子写入，不解析自然语言正文来替 Runtime 决策。
 
 ## 验收标准
 
@@ -108,10 +108,10 @@
 2. 项目、规划、执行、服务四类条件流程都有可发现且互不重复的 reference 路由。
 3. 规划 reference 明确递归主题召回、真实产出消费、依赖方向、停止条件和非依赖反例。
 4. 现有权限、用户确认、MCP-only、Web 可选、同会话推进和派生工作状态语义全部保留。
-5. Skill 的 description、short description 和 default prompt 不再以 Web 启动为主，且准确限定为用户调用 GoalBoard 的场景。
+5. Skill 的 description、short description 和 default prompt 不再以 Web 启动为主，且准确限定为用户调用 Molis Work 的场景。
 6. 现有旧规划包兼容和全部 17 个内置包硬依赖测试继续通过。
 7. Skill validator、TypeScript、定向测试、全量测试、构建和 `git diff --check` 通过。
-8. 本地安装刷新后，GoalBoard 服务健康；新 Runtime Session 可读取新 Skill 结构。
+8. 本地安装刷新后，Molis Work 服务健康；新 Runtime Session 可读取新 Skill 结构。
 
 ## 验证命令
 

@@ -6,7 +6,7 @@ name: "品牌与传播"
 summary: "从受众认知、独特机制和可信证据形成一致且可传播的品牌表达。"
 applies_to: ["品牌定位","发布传播","内容与视觉表达"]
 domain_tags: ["brand","communication","positioning"]
-source_refs: ["GoalBoard value proposition chain","GoalBoard orthogonal SSOT framework"]
+source_refs: ["Molis Work value proposition chain","Molis Work orthogonal SSOT framework"]
 confidence: 0.9
 ---
 

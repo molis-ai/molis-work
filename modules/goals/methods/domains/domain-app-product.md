@@ -6,7 +6,7 @@ name: "通用 App"
 summary: "兼容历史 app task context 的产品完整性检查。"
 applies_to: ["通用应用产品"]
 domain_tags: ["app"]
-source_refs: ["GoalBoard legacy app context"]
+source_refs: ["Molis Work legacy app context"]
 confidence: 0.96
 ---
 

@@ -1,4 +1,4 @@
-import type { UiContribution } from "@adeptify/goalboard-contracts/platform/ui";
+import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { GoalsDocumentItem, GoalsDocumentContext, GoalsDocumentUiPrimitives } from "./document-ui-model.js";
 import { renderGoalEventDocument } from "./event-document-ui.js";
 
@@ -48,7 +48,7 @@ function createDocumentRenderer(primitives: GoalsDocumentUiPrimitives) {
   return { renderGoalDocument, renderTrashGoalDocument, renderInitialGoalTab, renderEmptyGoalCollection };
 }
 export type GoalsDocumentRenderer = ReturnType<typeof createDocumentRenderer>;
-export const GOALS_DOCUMENT_UI_CONTRIBUTION_ID = "io.goalboard.native.goals.document.v1";
+export const GOALS_DOCUMENT_UI_CONTRIBUTION_ID = "io.molis.work.native.goals.document.v1";
 export type GoalsDocumentUiModel = { primitives: GoalsDocumentUiPrimitives } & (
   | { kind: "document"; args: Parameters<GoalsDocumentRenderer["renderGoalDocument"]> }
   | { kind: "trash"; args: Parameters<GoalsDocumentRenderer["renderTrashGoalDocument"]> }
@@ -57,7 +57,7 @@ export type GoalsDocumentUiModel = { primitives: GoalsDocumentUiPrimitives } & (
 );
 export const goalsDocumentUiContribution: UiContribution<GoalsDocumentUiModel> = {
   descriptor: {
-    contribution_id: GOALS_DOCUMENT_UI_CONTRIBUTION_ID, plugin_id: "io.goalboard.native.goals", kind: "embedded", label: "Goal document",
+    contribution_id: GOALS_DOCUMENT_UI_CONTRIBUTION_ID, plugin_id: "io.molis.work.native.goals", kind: "embedded", label: "Goal document",
     surfaces: ["document", "trash", "initial-tab", "empty-collection"].map(surface_id => ({ surface_id, target_slot_id: "workbench.main", format: "declarative-html" })), slots: [],
   },
   render({ surface, model }) {

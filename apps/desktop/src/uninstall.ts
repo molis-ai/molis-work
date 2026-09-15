@@ -1,6 +1,6 @@
-import { createLocalUninstallService, type GoalBoardUninstallServiceOptions } from "@adeptify/goalboard-app-local-host";
-import { withGoalBoardProjectCatalog } from "./project-catalog.js";
+import { createLocalUninstallService, type MolisWorkUninstallServiceOptions } from "@molis-ai/molis-work-app-local-host";
+import { withMolisWorkProjectCatalog } from "./project-catalog.js";
 
-export function createDesktopUninstallService(options: Omit<GoalBoardUninstallServiceOptions, "projects"> = {}) {
-  return createLocalUninstallService(options, withGoalBoardProjectCatalog);
+export function createDesktopUninstallService(options: Omit<MolisWorkUninstallServiceOptions, "projects"> = {}) {
+  return createLocalUninstallService(options, withMolisWorkProjectCatalog);
 }

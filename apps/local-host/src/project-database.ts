@@ -1,16 +1,16 @@
-import { LocalSqliteStorage } from "@adeptify/goalboard-storage";
-import { createGoalReadServices } from "@adeptify/goalboard-module-goals";
-import { createExecutionQueryApi } from "@adeptify/goalboard-module-execution";
-import { createEvidenceQueryApi } from "@adeptify/goalboard-module-evidence-verification";
-import { createGovernanceReadServices } from "@adeptify/goalboard-module-governance-collaboration";
-import type { GoalsQueryApi } from "@adeptify/goalboard-contracts/modules/goals";
-import { readGoalBoardSnapshot, type BoardSnapshot, type GoalBoardSnapshotPorts } from "@adeptify/goalboard-plugin-goals";
+import { LocalSqliteStorage } from "@molis-ai/molis-work-storage";
+import { createGoalReadServices } from "@molis-ai/molis-work-module-goals";
+import { createExecutionQueryApi } from "@molis-ai/molis-work-module-execution";
+import { createEvidenceQueryApi } from "@molis-ai/molis-work-module-evidence-verification";
+import { createGovernanceReadServices } from "@molis-ai/molis-work-module-governance-collaboration";
+import type { GoalsQueryApi } from "@molis-ai/molis-work-contracts/modules/goals";
+import { readMolisWorkSnapshot, type BoardSnapshot, type MolisWorkSnapshotPorts } from "@molis-ai/molis-work-plugin-goals";
 import { migrateLocalProjectDatabase } from "./project-migrations.js";
 
 /** One local connection, owner migrations and public read services for a Project. */
 export class LocalProjectDatabase extends LocalSqliteStorage {
   readonly goalsQuery: GoalsQueryApi;
-  private readonly snapshotQueries: GoalBoardSnapshotPorts;
+  private readonly snapshotQueries: MolisWorkSnapshotPorts;
 
   constructor(path: string) {
     super(path);
@@ -26,6 +26,6 @@ export class LocalProjectDatabase extends LocalSqliteStorage {
   }
 
   snapshot(boardId: string): BoardSnapshot {
-    return readGoalBoardSnapshot(this.snapshotQueries, boardId);
+    return readMolisWorkSnapshot(this.snapshotQueries, boardId);
   }
 }

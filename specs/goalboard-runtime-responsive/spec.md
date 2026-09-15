@@ -1,12 +1,12 @@
-# GoalBoard Runtime 与响应式工作台
+# Molis Work Runtime 与响应式工作台
 
 ## 完成等级
 
-本 Goal 达到 **功能可用的 UI 重组（Level 3）**：真实 GoalBoard 在宽屏、标准宽度和窄屏形成清晰的三种工作台布局，现有 Runtime/TUI 行为、Goal 绑定、终端会话和 Web/Desktop 功能结果保持不变。
+本 Goal 达到 **功能可用的 UI 重组（Level 3）**：真实 Molis Work 在宽屏、标准宽度和窄屏形成清晰的三种工作台布局，现有 Runtime/TUI 行为、Goal 绑定、终端会话和 Web/Desktop 功能结果保持不变。
 
 ## 背景与目标
 
-GoalBoard 既要作为桌面主工作站，也要与 Codex、Claude Code 等 Harness 并排使用。宽屏适合同时查看 Goal Tree、Goal Focus 和 Runtime；标准宽度继续强塞三栏会压缩正文；窄屏则需要明确的单视图切换。目标是让三种宽度各自使用合适的信息组织，而不是等比例缩小同一个布局。
+Molis Work 既要作为桌面主工作站，也要与 Codex、Claude Code 等 Harness 并排使用。宽屏适合同时查看 Goal Tree、Goal Focus 和 Runtime；标准宽度继续强塞三栏会压缩正文；窄屏则需要明确的单视图切换。目标是让三种宽度各自使用合适的信息组织，而不是等比例缩小同一个布局。
 
 ## 范围
 

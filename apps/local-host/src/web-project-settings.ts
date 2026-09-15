@@ -1,13 +1,13 @@
 import { randomBytes } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { WebSettingsProject } from "@adeptify/goalboard-app-workbench";
-import { type GoalBoardProjectCatalog, type GoalBoardProjectCatalogOptions, GoalBoardProjectCatalogError } from "./project-catalog.js";
+import type { WebSettingsProject } from "@molis-ai/molis-work-app-workbench";
+import { type MolisWorkProjectCatalog, type MolisWorkProjectCatalogOptions, MolisWorkProjectCatalogError } from "./project-catalog.js";
 import { sendLocalWebJson as sendJson, readLocalWebBody as readBody } from "./web-http.js";
 import { projectNavigation, settingsProject, installationDiagnostics } from "./web-project-presentation.js";
 import { L } from "./web-locale.js";
-import { BUILTIN_PROJECT_PLUGIN_IDS, type BuiltinProjectPluginId } from "@adeptify/goalboard-contracts/modules/projects";
+import { BUILTIN_PROJECT_PLUGIN_IDS, type BuiltinProjectPluginId } from "@molis-ai/molis-work-contracts/modules/projects";
 
-export type LocalWebCatalogRunner = <T>(options: GoalBoardProjectCatalogOptions, operation: (catalog: GoalBoardProjectCatalog) => T | Promise<T>) => Promise<T>;
+export type LocalWebCatalogRunner = <T>(options: MolisWorkProjectCatalogOptions, operation: (catalog: MolisWorkProjectCatalog) => T | Promise<T>) => Promise<T>;
 
 export interface ProjectDeletionWebPorts {
   isPanelAlive(panelId: string): boolean;
@@ -19,12 +19,12 @@ function webMigrationRequest(body: Record<string, unknown>): {
   displayName?: string;
 } {
   if (body.user_confirmed !== true) {
-    throw new Error(L("请先明确确认要迁移这份已有 GoalBoard 数据"));
+    throw new Error(L("请先明确确认要迁移这份已有 Molis Work 数据"));
   }
   const legacyDatabasePath = typeof body.legacy_database_path === "string"
     ? body.legacy_database_path.trim()
     : "";
-  if (!legacyDatabasePath) throw new Error(L("请选择要迁移的已有 GoalBoard DB"));
+  if (!legacyDatabasePath) throw new Error(L("请选择要迁移的已有 Molis Work DB"));
   if (legacyDatabasePath.length > 4_000) throw new Error(L("来源 DB 路径过长"));
   const displayName = typeof body.display_name === "string" ? body.display_name.trim() : "";
   if (displayName.length > 160) throw new Error(L("迁移后项目名称过长"));
@@ -34,14 +34,14 @@ function webMigrationRequest(body: Record<string, unknown>): {
   };
 }
 
-export function createLocalProjectSettingsHttp(withGoalBoardProjectCatalog: LocalWebCatalogRunner) {
+export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: LocalWebCatalogRunner) {
   async function settingsProjects(homeDirectory: string | undefined): Promise<WebSettingsProject[]> {
-    return withGoalBoardProjectCatalog({ homeDirectory }, (catalog) => catalog.listProjects().map(settingsProject));
+    return withMolisWorkProjectCatalog({ homeDirectory }, (catalog) => catalog.listProjects().map(settingsProject));
   }
 
   async function handle(request: IncomingMessage, response: ServerResponse, url: URL, homeDirectory: string | undefined, projectCount: number, deletionPorts: ProjectDeletionWebPorts): Promise<boolean> {
     if (request.method === "GET" && url.pathname === "/api/settings/project-plugins") {
-      const projects = await withGoalBoardProjectCatalog({ homeDirectory }, catalog => catalog.listProjects().map(project => ({
+      const projects = await withMolisWorkProjectCatalog({ homeDirectory }, catalog => catalog.listProjects().map(project => ({
         project_id: project.project_id, display_name: project.display_name, plugins: catalog.listProjectPlugins(project.project_id),
       })));
       sendJson(response, 200, { projects });
@@ -56,12 +56,12 @@ export function createLocalProjectSettingsHttp(withGoalBoardProjectCatalog: Loca
       }
       try {
         const projectId = decodeURIComponent(pluginMatch[1]);
-        const plugins = await withGoalBoardProjectCatalog({ homeDirectory }, catalog => catalog.addProjectPlugin({
+        const plugins = await withMolisWorkProjectCatalog({ homeDirectory }, catalog => catalog.addProjectPlugin({
           project_id: projectId, plugin_id: body.plugin_id as BuiltinProjectPluginId, actor_id: "web-user",
         }));
         sendJson(response, 200, { project_id: projectId, plugins });
       } catch (error) {
-        sendJson(response, error instanceof GoalBoardProjectCatalogError && error.code === "catalog.project_not_found" ? 404 : 400,
+        sendJson(response, error instanceof MolisWorkProjectCatalogError && error.code === "catalog.project_not_found" ? 404 : 400,
           { error: error instanceof Error ? error.message : String(error) });
       }
       return true;
@@ -78,7 +78,7 @@ export function createLocalProjectSettingsHttp(withGoalBoardProjectCatalog: Loca
         return true;
       }
       try {
-        await withGoalBoardProjectCatalog({ homeDirectory }, async (catalog) => {
+        await withMolisWorkProjectCatalog({ homeDirectory }, async (catalog) => {
           const project = await catalog.createProject({ display_name: displayName, actor_id: "web-user" });
           sendJson(response, 201, {
             project: settingsProject(project),
@@ -100,7 +100,7 @@ export function createLocalProjectSettingsHttp(withGoalBoardProjectCatalog: Loca
         return true;
       }
       try {
-        await withGoalBoardProjectCatalog({ homeDirectory }, async (catalog) => {
+        await withMolisWorkProjectCatalog({ homeDirectory }, async (catalog) => {
           if (action === "create") {
             const result = await catalog.ensureDemoProject({ actor_id: "web-user", user_confirmed: true });
             sendJson(response, 200, {
@@ -146,7 +146,7 @@ export function createLocalProjectSettingsHttp(withGoalBoardProjectCatalog: Loca
         return true;
       }
       try {
-        await withGoalBoardProjectCatalog({ homeDirectory }, async (catalog) => {
+        await withMolisWorkProjectCatalog({ homeDirectory }, async (catalog) => {
           const projectId = decodeURIComponent(projectDeleteMatch[1]);
           // An already deleted project can still replay its persisted cleanup receipt.
           const project = catalog.listProjects().find((item) => item.project_id === projectId);
@@ -166,7 +166,7 @@ export function createLocalProjectSettingsHttp(withGoalBoardProjectCatalog: Loca
           sendJson(response, 200, result);
         });
       } catch (error) {
-        const activeWork = error instanceof GoalBoardProjectCatalogError && error.code === "catalog.project_active_work";
+        const activeWork = error instanceof MolisWorkProjectCatalogError && error.code === "catalog.project_active_work";
         sendJson(response, activeWork ? 409 : 400, {
           error: activeWork ? L("这个项目还有未结束的执行记录，请结束工作后再删除。")
             : error instanceof Error ? error.message : String(error),
@@ -183,7 +183,7 @@ export function createLocalProjectSettingsHttp(withGoalBoardProjectCatalog: Loca
         return true;
       }
       try {
-        await withGoalBoardProjectCatalog({ homeDirectory }, (catalog) => {
+        await withMolisWorkProjectCatalog({ homeDirectory }, (catalog) => {
           const project = catalog.renameProject(decodeURIComponent(projectRenameMatch[1]), displayName, "web-user");
           sendJson(response, 200, { project: settingsProject(project) });
         });
@@ -199,7 +199,7 @@ export function createLocalProjectSettingsHttp(withGoalBoardProjectCatalog: Loca
     if (request.method === "POST" && url.pathname === "/api/projects/migrate") {
       try {
         const requestInput = webMigrationRequest(await readBody(request));
-        await withGoalBoardProjectCatalog({ homeDirectory }, async (catalog) => {
+        await withMolisWorkProjectCatalog({ homeDirectory }, async (catalog) => {
           const project = await catalog.migrateLegacyDatabase({
             legacy_database_path: requestInput.legacyDatabasePath,
             ...(requestInput.displayName ? { display_name: requestInput.displayName } : {}),
@@ -211,7 +211,7 @@ export function createLocalProjectSettingsHttp(withGoalBoardProjectCatalog: Loca
           });
         });
       } catch (error) {
-        const message = error instanceof GoalBoardProjectCatalogError
+        const message = error instanceof MolisWorkProjectCatalogError
           ? error.message
           : error instanceof Error
             ? `${L("迁移失败：")}${error.message}`

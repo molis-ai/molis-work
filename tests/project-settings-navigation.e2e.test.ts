@@ -48,7 +48,7 @@ test("project general settings persist a rename, cancel safely, and retry deleti
   await navigate(() => command("Page.navigate", { url: origin + "/onboarding?desktop=1" }, sessionId));
   await navigate(() => click("[data-onboarding-dismiss]"));
   const created = await evaluate<{ project: { project_id: string } }>(`fetch('/api/settings/projects', {
-    method: 'POST', headers: goalboardControlHeaders(), body: JSON.stringify({display_name:'项目设置浏览器测试',user_confirmed:true})
+    method: 'POST', headers: molisWorkControlHeaders(), body: JSON.stringify({display_name:'项目设置浏览器测试',user_confirmed:true})
   }).then(async response => { if (!response.ok) throw new Error(await response.text()); return response.json(); })`);
   const projectId = created.project.project_id;
   const prefix = `/projects/${projectId}`;
@@ -79,12 +79,12 @@ test("project general settings persist a rename, cancel safely, and retry deleti
     await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: theme }] }, sessionId);
     await waitFor(`document.documentElement.dataset.resolvedTheme === ${JSON.stringify(theme)}`);
     const pageScreenshot = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);
-    await writeFile(`/private/tmp/goalboard-project-settings-${width}-${theme}.png`, Buffer.from(pageScreenshot.data, "base64"));
+    await writeFile(`/private/tmp/molis-work-project-settings-${width}-${theme}.png`, Buffer.from(pageScreenshot.data, "base64"));
     await click('[data-project-delete-open]');
     assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
     assert.equal(await evaluate("document.querySelector('[data-project-delete-dialog]').clientHeight < 500"), true);
     const screenshot = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);
-    await writeFile(`/private/tmp/goalboard-project-delete-${width}-${theme}.png`, Buffer.from(screenshot.data, "base64"));
+    await writeFile(`/private/tmp/molis-work-project-delete-${width}-${theme}.png`, Buffer.from(screenshot.data, "base64"));
     await click('[data-project-delete-cancel]');
   }
   await click('[data-project-delete-open]');

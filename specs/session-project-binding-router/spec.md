@@ -2,13 +2,13 @@
 
 ## Background and goal
 
-GoalBoard is installed once under `~/.goalboard`. A user may use its unified
+Molis Work is installed once under `~/.molis-work`. A user may use its unified
 Skill from any Runtime and Session. A newly opened Session must never silently
-inherit a GoalBoard project from a repository, directory, title, or other host
+inherit a Molis Work project from a repository, directory, title, or other host
 clue. Instead, the current Runtime may show host-provided candidate projects,
 ask the user to choose, and bind only after an explicit confirmation.
 
-The Board Goal is `GOALBOARD-SESSION-PROJECT-BINDING-ROUTER`.
+The Board Goal is `MOLIS_WORK-SESSION-PROJECT-BINDING-ROUTER`.
 
 ## Current evidence
 
@@ -43,11 +43,11 @@ context ID a “new Session”; that conflicts with the intended model.
 - Do not create or modify any Runtime configuration.
 - Do not change the behavior of an existing exact binding except to document
   that it resumes the same host Session/process.
-- Do not require opening GoalBoard Web.
+- Do not require opening Molis Work Web.
 
 ## Design
 
-`GoalBoardProjectCatalog` owns persistence and returns one of three states:
+`MolisWorkProjectCatalog` owns persistence and returns one of three states:
 
 1. `bound`: an exact opaque host context ID already has a project binding.
 2. `suggested`: the context is unbound and non-authoritative host clues rank
@@ -94,7 +94,7 @@ user before binding or rejecting.
 ```sh
 node --import tsx --test tests/project-catalog.test.ts tests/mcp.test.ts
 pnpm typecheck
-python3 /Users/yijunwang/.codex/skills/.system/skill-creator/scripts/generate_openai_yaml.py skills/goal-advance --interface 'display_name=GoalBoard Runtime' --interface 'short_description=让当前 Runtime 通过 MCP 连续推进一个 GoalBoard 项目' --interface 'default_prompt=Use $goal-advance to connect this work to GoalBoard and continue the current Runtime flow.'
+python3 /Users/yijunwang/.codex/skills/.system/skill-creator/scripts/generate_openai_yaml.py skills/goal-advance --interface 'display_name=Molis Work Runtime' --interface 'short_description=让当前 Runtime 通过 MCP 连续推进一个 Molis Work 项目' --interface 'default_prompt=Use $goal-advance to connect this work to Molis Work and continue the current Runtime flow.'
 python3 /Users/yijunwang/.codex/skills/.system/skill-creator/scripts/quick_validate.py skills/goal-advance
 pnpm test
 pnpm pack --dry-run --json
@@ -104,6 +104,6 @@ git diff --check
 ## Assumptions and open questions
 
 - The Runtime host provides a distinct opaque `stable_work_context_id` for a
-  fresh Session. GoalBoard cannot reliably infer that boundary itself.
+  fresh Session. Molis Work cannot reliably infer that boundary itself.
 - Host clue formats are intentionally lightweight and may evolve; they are
   ranking hints, not identity proof.

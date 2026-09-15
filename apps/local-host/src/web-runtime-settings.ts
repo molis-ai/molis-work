@@ -1,12 +1,13 @@
+import { readProductEnv } from "@molis-ai/molis-work-storage";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { sendLocalWebJson as sendJson, readLocalWebBody as readBody } from "./web-http.js";
 import type { RuntimeIntegrationService } from "./installer/runtime-integration.js";
 import { isSupportedRuntimeId, type SupportedRuntimeId } from "./installer/runtime-integration-contract.js";
-import type { GoalBoardWebServiceManager } from "./installer/web-service.js";
-import type { GoalBoardWebServiceAction } from "./installer/web-service-contract.js";
+import type { MolisWorkWebServiceManager } from "./installer/web-service.js";
+import type { MolisWorkWebServiceAction } from "./installer/web-service-contract.js";
 
 export function serviceProcessId(): number {
-  const inherited = Number(process.env.GOALBOARD_WEB_SERVICE_PROCESS_ID);
+  const inherited = Number(readProductEnv("WEB_SERVICE_PROCESS_ID"));
   return Number.isSafeInteger(inherited) && inherited > 0 ? inherited : process.pid;
 }
 
@@ -14,7 +15,7 @@ function supportedRuntimeId(value: string): SupportedRuntimeId | null {
   return isSupportedRuntimeId(value) ? value : null;
 }
 
-export async function handleLocalRuntimeSettingsHttp(request: IncomingMessage, response: ServerResponse, url: URL, runtimeIntegrations: RuntimeIntegrationService, webService: GoalBoardWebServiceManager): Promise<boolean> {
+export async function handleLocalRuntimeSettingsHttp(request: IncomingMessage, response: ServerResponse, url: URL, runtimeIntegrations: RuntimeIntegrationService, webService: MolisWorkWebServiceManager): Promise<boolean> {
   if (request.method === "GET" && url.pathname === "/api/settings/runtimes") {
     sendJson(response, 200, { runtimes: await runtimeIntegrations.detectAll() });
     return true;
@@ -27,7 +28,7 @@ export async function handleLocalRuntimeSettingsHttp(request: IncomingMessage, r
     const body = await readBody(request);
     const action = typeof body.action === "string"
       && ["install", "start", "stop", "restart", "remove"].includes(body.action)
-      ? body.action as GoalBoardWebServiceAction
+      ? body.action as MolisWorkWebServiceAction
       : null;
     if (!action) {
       sendJson(response, 400, { error: "常驻服务操作无效" });
@@ -52,7 +53,7 @@ export async function handleLocalRuntimeSettingsHttp(request: IncomingMessage, r
       const confirmation = await webService.confirmFromWeb({ plan_id: planId, decision }, serviceProcessId());
       if (confirmation.afterResponse) {
         response.once("finish", () => {
-          void confirmation.afterResponse!().catch((error) => console.error("GoalBoard Web restart failed:", error));
+          void confirmation.afterResponse!().catch((error) => console.error("Molis Work Web restart failed:", error));
         });
       }
       sendJson(response, confirmation.result.status === "restarting" ? 202 : 200, confirmation.result);

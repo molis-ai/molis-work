@@ -2,7 +2,7 @@
 
 ## 背景与目标
 
-本次同时修复两个会让 GoalBoard 把不可信结果继续当成“完成”的核心问题，并增加一份项目粒度的长期说明：
+本次同时修复两个会让 Molis Work 把不可信结果继续当成“完成”的核心问题，并增加一份项目粒度的长期说明：
 
 1. 已完成叶子 Goal 的通过 Evidence 被撤回或替代后，当前工作状态仍显示 `satisfied`，Runtime 看不到重新验证入口。
 2. `closed_compound` 父 Goal 只检查子 Goal 的 `fulfillment_state=satisfied`，会把已经失效、待重新验证、被回收或归档的子 Goal 当作可信完成。
@@ -29,9 +29,9 @@
 
 一个已完成父 Goal 的子结果后来变得不可信时，父 Goal 当前 `fulfillment_state` 回到 `unmet`，历史完成事件保留。子 Goal 重新验证成功后，现有复合完成传播重新把符合条件的父级标为完成。
 
-### 3. 项目说明是 GoalBoard 内的虚拟文档，不是仓库文件
+### 3. 项目说明是 Molis Work 内的虚拟文档，不是仓库文件
 
-GoalBoard 项目可能对应代码仓库、内容项目、运营流程或多个目录，因此不直接创建或改写项目仓库里的 `AGENTS.md`。项目数据库保存一组有修订历史的 `Project Guidance` 条目，并把当前生效版本确定性渲染成一份虚拟项目说明。
+Molis Work 项目可能对应代码仓库、内容项目、运营流程或多个目录，因此不直接创建或改写项目仓库里的 `AGENTS.md`。项目数据库保存一组有修订历史的 `Project Guidance` 条目，并把当前生效版本确定性渲染成一份虚拟项目说明。
 
 条目分类限定为：
 
@@ -69,16 +69,16 @@ Runtime 只有在内容满足以下条件时才建议持久化：
 虚拟项目说明以确定性区块进入 Runtime：
 
 ```text
-<GOALBOARD_PROJECT_GUIDANCE>
+<MOLIS_WORK_PROJECT_GUIDANCE>
 The following project-level guidance was explicitly confirmed by the user.
 Project: ...
 - [context] ...
 - [constraint] ...
-</GOALBOARD_PROJECT_GUIDANCE>
+</MOLIS_WORK_PROJECT_GUIDANCE>
 
-<GOALBOARD_CURRENT_GOAL>
+<MOLIS_WORK_CURRENT_GOAL>
 ...当前 Goal 的动态推进指令...
-</GOALBOARD_CURRENT_GOAL>
+</MOLIS_WORK_CURRENT_GOAL>
 ```
 
 设计约束：
@@ -160,5 +160,5 @@ git diff --check
 
 ## 假设与开放边界
 
-- “前缀索引命中”按通用 LLM prompt prefix caching/reuse 约束处理：稳定内容靠前、动态内容靠后、追加不改旧前缀。不同 Runtime 是否实际开启缓存由各 Harness/模型决定，GoalBoard 只保证输入结构稳定。
+- “前缀索引命中”按通用 LLM prompt prefix caching/reuse 约束处理：稳定内容靠前、动态内容靠后、追加不改旧前缀。不同 Runtime 是否实际开启缓存由各 Harness/模型决定，Molis Work 只保证输入结构稳定。
 - 首版把“文件”实现为 SQLite canonical entries + 确定性虚拟文档；如果未来需要与仓库 `AGENTS.md` 双向同步，应单独设计权限、冲突、作用域和撤回协议。

@@ -42,8 +42,8 @@ import {
   type ResumeGoalEventWorkInput,
   type SetGoalEventAgreementInput,
   type SubmitGoalEventClosureInput,
-} from "@adeptify/goalboard-contracts/modules/goals";
-import { GoalBoardV1Error } from "./errors.js";
+} from "@molis-ai/molis-work-contracts/modules/goals";
+import { MolisWorkV1Error } from "./errors.js";
 
 const STATE_REPORT_LIMIT = 5;
 
@@ -62,13 +62,13 @@ export class GoalEventApplication {
   createIntent(input: CreateGoalIntentInput): CreateGoalIntentResult {
     assertCreateIntentKeys(input);
     const title = input.title?.trim();
-    if (!title) throw new GoalBoardV1Error("goal.title_required", "意图创建只需要能辨认的标题");
+    if (!title) throw new MolisWorkV1Error("goal.title_required", "意图创建只需要能辨认的标题");
     const outcome = input.outcome?.trim() ?? "";
     const why = input.why?.trim() ?? "";
     const businessLogic = input.business_logic?.trim() ?? "";
     const priority = input.priority;
     if (priority != null && (!Number.isFinite(priority) || priority < 0 || priority > 100)) {
-      throw new GoalBoardV1Error("goal.priority_invalid", "priority 必须是 0 到 100 的数字");
+      throw new MolisWorkV1Error("goal.priority_invalid", "priority 必须是 0 到 100 的数字");
     }
     const hash = intentHash(input);
     return this.ports.events.runImmediate(() => {
@@ -197,11 +197,11 @@ export class GoalEventApplication {
   listGoals(query: GoalEventDirectoryQuery): GoalEventDirectoryPage {
     const limit = query.limit ?? 20;
     if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
-      throw new GoalBoardV1Error("goal_list.invalid_limit", "列表数量必须是 1 到 100");
+      throw new MolisWorkV1Error("goal_list.invalid_limit", "列表数量必须是 1 到 100");
     }
     const workStatus = query.work_status as string | undefined;
     if (workStatus != null && !(goalEventWorkStatuses as readonly string[]).includes(workStatus)) {
-      throw new GoalBoardV1Error("goal_list.invalid_status", "不支持的工作状态");
+      throw new MolisWorkV1Error("goal_list.invalid_status", "不支持的工作状态");
     }
     const cursor = query.after_cursor === undefined ? null : parseDirectoryCursor(query.after_cursor);
     const goals = this.ports.query.listGoals(query.board_id)
@@ -295,7 +295,7 @@ export class GoalEventApplication {
   recordTrustedDecision(input: RecordGoalUserDecisionInput): GoalEventDecisionResult {
     const persist = this.ports.recordTrustedDecision;
     if (!persist) {
-      throw new GoalBoardV1Error(
+      throw new MolisWorkV1Error(
         "event_decision.untrusted_actor",
         "用户决定必须经 Host 受保护入口与 Governance 来源校验，不能由 Runtime 自填",
       );
@@ -321,7 +321,7 @@ export class GoalEventApplication {
 
   private requireGoal(boardId: string, goalId: string): GoalRecord {
     const goal = this.ports.query.getGoal(boardId, goalId);
-    if (!goal) throw new GoalBoardV1Error("goal.not_found", `找不到这个 Goal: ${goalId}`);
+    if (!goal) throw new MolisWorkV1Error("goal.not_found", `找不到这个 Goal: ${goalId}`);
     return goal;
   }
 }
@@ -362,7 +362,7 @@ const CREATE_INTENT_KEYS = new Set([
 function assertCreateIntentKeys(input: CreateGoalIntentInput): void {
   const unexpected = Object.keys(input).filter((key) => !CREATE_INTENT_KEYS.has(key));
   if (unexpected.length) {
-    throw new GoalBoardV1Error("mcp.unexpected_field", `不能使用未许可字段：${unexpected.join("、")}`, { fields: unexpected });
+    throw new MolisWorkV1Error("mcp.unexpected_field", `不能使用未许可字段：${unexpected.join("、")}`, { fields: unexpected });
   }
 }
 
@@ -430,7 +430,7 @@ function parseDirectoryCursor(cursor: string): { updated_at: string; goal_id: st
   const updated_at = separator >= 0 ? cursor.slice(0, separator) : "";
   const goal_id = separator >= 0 ? cursor.slice(separator + 1) : "";
   if (!DIRECTORY_CURSOR_TIME.test(updated_at) || !goal_id || !Number.isFinite(Date.parse(updated_at))) {
-    throw new GoalBoardV1Error("goal_list.invalid_cursor", "列表游标无效");
+    throw new MolisWorkV1Error("goal_list.invalid_cursor", "列表游标无效");
   }
   return { updated_at, goal_id };
 }

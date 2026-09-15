@@ -1,4 +1,4 @@
-import type { RiskRecord } from "@adeptify/goalboard-contracts/modules/goals";
+import type { RiskRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 
 export const RISK_STATE_LABELS: Record<RiskRecord["state"], string> = {
   open: "待处理",

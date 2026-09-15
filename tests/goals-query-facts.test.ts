@@ -1,9 +1,9 @@
-import { buildGoalBoardWebView } from "@adeptify/goalboard-app-local-host";
+import { buildMolisWorkWebView } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { GoalsModule } from "@adeptify/goalboard-module-goals";
-import { GoalProjectApplication } from "@adeptify/goalboard-app-local-host";
-import { LocalProjectDatabase } from "@adeptify/goalboard-app-local-host";
+import { GoalsModule } from "@molis-ai/molis-work-module-goals";
+import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { insertHistoricalRisk } from "./historical-sql-fixture.js";
 
 test("public Query preserves complete rule history, linked risks and Runtime dependency/replacement facts", () => {
@@ -75,7 +75,7 @@ test("public Query preserves complete rule history, linked risks and Runtime dep
       [["risk-a", "claim", ["goal-facts"]], ["risk-z", "completion", ["goal-facts"]]]);
     assert.deepEqual(goals.query.listOpenGoalRisks("query-other", "subject"), []);
     const before = store.snapshot("query-main");
-    const view = buildGoalBoardWebView(store, coordinator, { boardId: "query-main" });
+    const view = buildMolisWorkWebView(store, coordinator, { boardId: "query-main" });
     assert.deepEqual(view.policy_bindings, expectedHistory, "The real Web view must carry inactive rules and original ordering");
     const webSubject = view.goals.find(item => item.goal.goal_id === "subject")!;
     assert.deepEqual(webSubject.risks.find(risk => risk.risk_id === "risk-z")?.goal_ids, ["dep-a", "subject"]);

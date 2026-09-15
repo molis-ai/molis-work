@@ -1,6 +1,6 @@
-# GoalBoard V1 SQLite Authority Contract
+# Molis Work V1 SQLite Authority Contract
 
-`GB-002-03` deliverable. The Work Order remains `goalboard.md`.
+`GB-002-03` deliverable. The Work Order remains `molis-work.md`.
 
 ## Authority boundary
 
@@ -18,7 +18,7 @@ PRAGMA foreign_keys = ON
 PRAGMA busy_timeout = 5000
 ```
 
-`FULL` is intentional: GoalBoard favors durable truth over maximum write speed.
+`FULL` is intentional: Molis Work favors durable truth over maximum write speed.
 Every operation captures authority time once and uses it throughout its decision.
 
 ## Canonical tables

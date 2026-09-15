@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
-import type { GoalsActorWrite as ActorWrite, GoalsCommandApi } from "@adeptify/goalboard-contracts/modules/goals";
+import type { GoalsActorWrite as ActorWrite, GoalsCommandApi } from "@molis-ai/molis-work-contracts/modules/goals";
 import { GoalsCommandContext, requestHash } from "./command-support.js";
 /** Own Board creation and the current Goal pointer alongside Goal lifecycle facts. */
-export class GoalBoardCommands {
+export class MolisWorkCommands {
    constructor(private readonly context: GoalsCommandContext) {}
   initializeBoard(input: {
     board_id: string;
@@ -36,7 +36,7 @@ export class GoalBoardCommands {
         type: "board.created",
         objectType: "board",
         objectId: input.board_id,
-        reason: "创建 GoalBoard 真相源",
+        reason: "创建 Molis Work 真相源",
         payload: { title: input.title.trim() },
         at,
       });

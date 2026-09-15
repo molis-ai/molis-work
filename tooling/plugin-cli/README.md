@@ -2,7 +2,7 @@
 
 给 Plugin 作者提供 validate、create、pack、identity、sign 和 verify 命令，并通过 Host 接入本地开发验证。
 
-包名：`@adeptify/goalboard-plugin-cli`。工作区内部包，通过仓库构建和 Host 装配使用。
+包名：`@molis-ai/molis-work-plugin-cli`。工作区内部包，通过仓库构建和 Host 装配使用。
 
 ## 一次典型调用
 
@@ -25,15 +25,15 @@ runPluginCli 分发命令；validate 使用 Contracts 的 Manifest parser，pack
 
 构建后再运行 bin。create 要求父目录已存在且目标不存在；pack 不覆盖输出，拒绝 symlink、越界路径、生命周期脚本及超过 64 MiB 的包。verify 依赖调用方提供的受信 Ed25519 公钥，签名不代表官方审核或 marketplace 上架。
 
-工作区依赖：`@adeptify/goalboard-plugin-runtime`、`@adeptify/goalboard-contracts`。其他运行依赖见 [package.json](package.json)。
+工作区依赖：`@molis-ai/molis-work-plugin-runtime`、`@molis-ai/molis-work-contracts`。其他运行依赖见 [package.json](package.json)。
 
 ## 本地开发
 
 以下命令在**仓库根目录**执行，使用 Node.js 24+ 与仓库配置的 pnpm。首次准备运行 `pnpm install --frozen-lockfile` 和 `pnpm build`；之后可单独检查此包。
 
 ```bash
-pnpm --filter @adeptify/goalboard-plugin-cli typecheck
-pnpm --filter @adeptify/goalboard-plugin-cli build
+pnpm --filter @molis-ai/molis-work-plugin-cli typecheck
+pnpm --filter @molis-ai/molis-work-plugin-cli build
 ```
 
 已有行为示例与回归：[plugin-package.test.ts](../../tests/plugin-package.test.ts)、[plugin-authoring.test.ts](../../tests/plugin-authoring.test.ts)。完成上述构建后运行：
@@ -58,7 +58,7 @@ node tooling/plugin-cli/dist/main.js validate examples/plugin-sample/manifest.js
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
 - Status: `partial`
-- Contract entrypoint: `@adeptify/goalboard-contracts/platform/tooling`
+- Contract entrypoint: `@molis-ai/molis-work-contracts/platform/tooling`
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-dv3`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。

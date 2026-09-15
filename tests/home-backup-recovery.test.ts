@@ -1,29 +1,29 @@
-import { openGoalBoardProjectCatalog } from "@adeptify/goalboard-app-desktop";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import { cp, mkdtemp, rename, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { openWorkSessionRegistry } from "@adeptify/goalboard-app-local-host";
-import { ArtifactsModule } from "@adeptify/goalboard-module-artifacts";
-import { createSessionContentStore } from "@adeptify/goalboard-module-private-work-context";
+import { openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
+import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
+import { createSessionContentStore } from "@molis-ai/molis-work-module-private-work-context";
 
-import { LocalProjectDatabase } from "@adeptify/goalboard-app-local-host";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import {
-  createGoalBoardLocalHost, createGoalIntentCapability, goalBoardHostProjectReference,
+  createMolisWorkLocalHost, createGoalIntentCapability, molisWorkHostProjectReference,
   snapshotBoardCapability,
-} from "@adeptify/goalboard-app-local-host";
+} from "@molis-ai/molis-work-app-local-host";
 
 test("offline Home restore preserves Project, Goal history, Artifact versions and encrypted Session content", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "goalboard-home-recovery-"));
+  const directory = await mkdtemp(join(tmpdir(), "molis-work-home-recovery-"));
   const home = join(directory, "home");
   const backup = join(directory, "backup");
   try {
-    const catalog = await openGoalBoardProjectCatalog({ homeDirectory: home });
+    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
     const project = await catalog.createProject({ display_name: "恢复演练项目", actor_id: "user" });
     catalog.close();
-    const reference = goalBoardHostProjectReference({ databasePath: project.database_path, boardId: project.board_id });
-    const host = createGoalBoardLocalHost({ instanceId: "backup-source" });
+    const reference = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id });
+    const host = createMolisWorkLocalHost({ instanceId: "backup-source" });
     try {
       await host.client(reference).invoke(createGoalIntentCapability, {
         board_id: project.board_id, actor_id: "user", actor_kind: "user", idempotency_key: "backup-goal",
@@ -59,10 +59,10 @@ test("offline Home restore preserves Project, Goal history, Artifact versions an
     await rename(home, join(directory, "offline-original"));
     await cp(backup, home, { recursive: true, errorOnExist: true, force: false });
 
-    const restoredCatalog = await openGoalBoardProjectCatalog({ homeDirectory: home });
+    const restoredCatalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
     try { assert.deepEqual(restoredCatalog.getProject(project.project_id), project); }
     finally { restoredCatalog.close(); }
-    const restoredHost = createGoalBoardLocalHost({ instanceId: "backup-restored" });
+    const restoredHost = createMolisWorkLocalHost({ instanceId: "backup-restored" });
     try {
       const snapshot = await restoredHost.client(reference).invoke(snapshotBoardCapability, { board_id: project.board_id });
       assert.deepEqual(snapshot, before, "all Goal facts and event history survive, not only IDs");
@@ -92,7 +92,7 @@ test("offline Home restore preserves Project, Goal history, Artifact versions an
 });
 
 test("restoring encrypted blobs without their key fails closed and recovers with the original key", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "goalboard-incomplete-backup-"));
+  const directory = await mkdtemp(join(tmpdir(), "molis-work-incomplete-backup-"));
   try {
     const content = createSessionContentStore(directory);
     const written = content.write("密钥和正文必须一起备份");

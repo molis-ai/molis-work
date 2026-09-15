@@ -3,15 +3,15 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { openGoalBoardProjectCatalog } from "@adeptify/goalboard-app-desktop";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import {
-  createGoalBoardLocalHost,
+  createMolisWorkLocalHost,
   GoalProjectApplication,
   LocalProjectDatabase,
   openWorkSessionRegistry,
-} from "@adeptify/goalboard-app-local-host";
-import { buildMcpResumeView, type McpResumeFacts } from "@adeptify/goalboard-app-mcp";
-import { GoalBoardServer } from "../apps/desktop/launchers/mcp/server.js";
+} from "@molis-ai/molis-work-app-local-host";
+import { buildMcpResumeView, type McpResumeFacts } from "@molis-ai/molis-work-app-mcp";
+import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 
 function factsFor(entries: Array<[string, McpResumeFacts["goals"][number]["work_status"], boolean]>): McpResumeFacts {
   return {
@@ -64,12 +64,12 @@ test("MCP resume keeps recovery ordering and excludes completed suggestions", ()
 });
 
 test("context_resolve restores Host and Session focus outside the discovery window", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-02-focus-"));
-  const catalog = await openGoalBoardProjectCatalog({ homeDirectory: directory });
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-02-focus-"));
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: directory });
   let store: LocalProjectDatabase | undefined;
   let registry: Awaited<ReturnType<typeof openWorkSessionRegistry>> | undefined;
-  let runtime: GoalBoardServer | undefined;
-  let host = createGoalBoardLocalHost();
+  let runtime: MolisWorkServer | undefined;
+  let host = createMolisWorkLocalHost();
   try {
     const project = await catalog.createProject({ display_name: "真实 Session 恢复", actor_id: "focus-user" });
     store = new LocalProjectDatabase(project.database_path);
@@ -111,8 +111,8 @@ test("context_resolve restores Host and Session focus outside the discovery wind
       databasePath: project.database_path, boardId: project.board_id,
       projectId: project.project_id, webBaseUrl: "http://127.0.0.1:4173",
     };
-    runtime = new GoalBoardServer("runtime", connection, runtimeHost, host);
-    const resolve = async () => JSON.parse(await runtime!.callTool("goalboard_v1_context_resolve", {}));
+    runtime = new MolisWorkServer("runtime", connection, runtimeHost, host);
+    const resolve = async () => JSON.parse(await runtime!.callTool("molis_work_v1_context_resolve", {}));
     let result = await resolve();
     assert.equal(result.resume.focus.goal_id, "FOCUS-HOST");
     assert.equal(result.resume.focus.source, "host_focus");
@@ -129,8 +129,8 @@ test("context_resolve restores Host and Session focus outside the discovery wind
     assert.deepEqual(registry.events(session.session_id), originalEvents);
     await runtime.close();
     await host.close();
-    host = createGoalBoardLocalHost();
-    runtime = new GoalBoardServer("runtime", connection, runtimeHost, host);
+    host = createMolisWorkLocalHost();
+    runtime = new MolisWorkServer("runtime", connection, runtimeHost, host);
     result = await resolve();
     assert.equal(result.resume.focus.goal_id, "FOCUS-SESSION");
     assert.equal(result.resume.focus.source, "session_focus");

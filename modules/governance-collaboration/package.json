@@ -1,5 +1,5 @@
 {
-  "name": "@adeptify/goalboard-module-governance-collaboration",
+  "name": "@molis-ai/molis-work-module-governance-collaboration",
   "version": "0.0.0",
   "private": true,
   "description": "Review obligations, Reviews, Proposals, Decisions, and confirmation provenance.",
@@ -25,13 +25,13 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@adeptify/goalboard-contracts": "workspace:*"
+    "@molis-ai/molis-work-contracts": "workspace:*"
   },
-  "goalboard": {
+  "molis-work": {
     "path": "modules/governance-collaboration",
     "kind": "module",
     "maturity": "partial",
-    "contract": "@adeptify/goalboard-contracts/modules/governance-collaboration",
+    "contract": "@molis-ai/molis-work-contracts/modules/governance-collaboration",
     "migrationGoals": [
       "goal-reorg-f2",
       "goal-reorg-ex3",

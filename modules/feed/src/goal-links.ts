@@ -1,4 +1,4 @@
-import type { ContextAccess, ContextLedgerApi, ObjectRef } from "@adeptify/goalboard-contracts/modules/context-ledger";
+import type { ContextAccess, ContextLedgerApi, ObjectRef } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 
 /** A local Project partition is not a Team. Host/API authentication remains outside this owner. */
 function access(projectId: string): ContextAccess {

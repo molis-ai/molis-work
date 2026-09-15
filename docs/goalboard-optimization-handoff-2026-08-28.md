@@ -1,8 +1,8 @@
-# GoalBoard 优化交接（2026-08-28）
+# Molis Work 优化交接（2026-08-28）
 
 ## 交接结论
 
-本轮不再使用 GoalBoard 推进 GoalBoard 自身优化。已经满足的 7 个 Goal 已从原脏工作树中拆成 7 个顺序提交，并已随集成提交 `140d25e` 快进到远端 `main`。最后一条“安全并行 Runtime 建议”Candidate 的代码修复位于分支 `codex/proactive-safe-parallel-runtime-choice`，与本文更新放在同一个独立提交中。后续仍以 Git 提交、代码评审和测试结果推进，不再把 GoalBoard 账本状态当作执行入口。
+本轮不再使用 Molis Work 推进 Molis Work 自身优化。已经满足的 7 个 Goal 已从原脏工作树中拆成 7 个顺序提交，并已随集成提交 `140d25e` 快进到远端 `main`。最后一条“安全并行 Runtime 建议”Candidate 的代码修复位于分支 `codex/proactive-safe-parallel-runtime-choice`，与本文更新放在同一个独立提交中。后续仍以 Git 提交、代码评审和测试结果推进，不再把 Molis Work 账本状态当作执行入口。
 
 本轮没有安装或发布，也没有清理原工作树中尚未完成的改动。最后一条 Candidate 修复是否已推送或合并，以 Git 远端和 PR 记录为准。
 
@@ -55,13 +55,13 @@
 3. 在干净集成结果上运行完整 TypeScript、v1、MCP、Web、安装与端到端测试；定向测试结果不能替代整仓回归。
 4. 对真实安装产物补做升级恢复、Web 启动与深链打开的产品实操；主观体验和真人确认项标记为 `UNVERIFIED`，直到用户本人认可。
 5. 再从“仍留在工作树”的工作簇中一次只选一个最小闭环，单独审查、实现和提交。
-6. 3 条 pending Candidate 的对应代码范围均已有修复，但账本状态仍属治理问题，不属于 Git 合并动作。除非用户以后明确要求，否则不要再通过 GoalBoard 推进或代替用户作 Candidate 决定。
+6. 3 条 pending Candidate 的对应代码范围均已有修复，但账本状态仍属治理问题，不属于 Git 合并动作。除非用户以后明确要求，否则不要再通过 Molis Work 推进或代替用户作 Candidate 决定。
 
 ## 拆分完成时的 Git 边界
 
-- 工作树：`/Users/oreal/.codex/worktrees/eea6/goalboard`
+- 工作树：`/Users/oreal/.codex/worktrees/eea6/molis-work`
 - 分支：`codex/split-completed-goal-fixes`
 - 拆分基线：`63e1246`
 - 已合入 `main` 的修复提交范围：`1feac8d..6435a74`（共 7 个提交），集成边界为 `140d25e`
 - 最后一条 Candidate 修复分支：`codex/proactive-safe-parallel-runtime-choice`
-- 本轮未执行：安装、发布、剩余改动清理或 GoalBoard 账本写入
+- 本轮未执行：安装、发布、剩余改动清理或 Molis Work 账本写入

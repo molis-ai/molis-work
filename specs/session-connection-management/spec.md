@@ -2,23 +2,23 @@
 
 ## 背景与目标
 
-GoalBoard 已能由 Runtime 宿主提供稳定工作入口 ID，并在当前 Runtime 对话中解析候选、确认绑定、切换或解绑。Web 项目设置页尚未展示这些已经确认过的关联，用户只能回到对应 Runtime Session 管理它们。
+Molis Work 已能由 Runtime 宿主提供稳定工作入口 ID，并在当前 Runtime 对话中解析候选、确认绑定、切换或解绑。Web 项目设置页尚未展示这些已经确认过的关联，用户只能回到对应 Runtime Session 管理它们。
 
 本 Work Item 让项目设置页管理 catalog 中已经存在的稳定工作入口关联，同时保持新 Session 的首次握手规则：候选不是绑定，只有 Runtime 与用户完成明确确认后才写入；打开网页、切换网页项目或查看设置都不会创建 Session 记录。
 
 ## 当前行为与问题证据
 
-- `GoalBoardProjectCatalog` 已有 `resolveRuntimeContext`、`bindRuntimeContext`、`unbindRuntimeContext` 和绑定事件，但没有公开的只读活动绑定列表。
+- `MolisWorkProjectCatalog` 已有 `resolveRuntimeContext`、`bindRuntimeContext`、`unbindRuntimeContext` 和绑定事件，但没有公开的只读活动绑定列表。
 - Runtime MCP 已能解析当前宿主 Session、展示候选、确认绑定和解绑；现有测试证明未知 Session 不会按 Git、目录名、标题或聊天内容自动绑定。
 - `/settings/projects` 可创建、导入、改名和打开项目，但明确说明 Session 管理留给后续 Work Item。
-- Web 若直接暴露 `stable_work_context_id`，会把宿主内部标识写进 HTML/API；管理动作应使用 GoalBoard 自己的 binding ID。
+- Web 若直接暴露 `stable_work_context_id`，会把宿主内部标识写进 HTML/API；管理动作应使用 Molis Work 自己的 binding ID。
 
 ## 范围
 
 - catalog 增加只读活动绑定列表，仍以已确认的 `runtime_context_bindings` 为唯一来源。
 - 项目设置页增加“已关联的 Runtime Session”连续列表，显示 Runtime、安全短标签、当前项目和更新时间。
 - 每条已知关联可明确选择另一个现有项目并确认切换，也可单独确认解绑。
-- Web API 只接收 GoalBoard binding ID，不向浏览器返回宿主 `stable_work_context_id`。
+- Web API 只接收 Molis Work binding ID，不向浏览器返回宿主 `stable_work_context_id`。
 - Web 路由重新打开 catalog，通过现有 `bindRuntimeContext` / `unbindRuntimeContext` 完成写入，不直接更新 SQLite。
 - 保持当前 Runtime 的 MCP 解析、候选确认、切换和解绑流程；补充跨入口回归，证明 UI 变更与 MCP 读取同一 catalog 事实。
 
@@ -34,7 +34,7 @@ GoalBoard 已能由 Runtime 宿主提供稳定工作入口 ID，并在当前 Run
 
 1. 用户打开项目设置，看到 Codex / Claude Code 中已经确认关联过的 Session，以及它们当前连接的项目。
 2. 用户把一条已知 Session 切换到另一个项目：先选择目标并勾选确认，catalog 记录 `context.rebound`；其他 Session 不受影响。
-3. 用户停止某条 Session 使用 GoalBoard：单独确认解绑后只删除该入口关联，项目和其他关联都保留。
+3. 用户停止某条 Session 使用 Molis Work：单独确认解绑后只删除该入口关联，项目和其他关联都保留。
 4. 新 Session 第一次调用 Skill：Runtime 可读取宿主候选线索并询问用户，但在用户确认前，项目设置页不会出现新关联。
 
 ## 方案与关键决策
@@ -49,7 +49,7 @@ GoalBoard 已能由 Runtime 宿主提供稳定工作入口 ID，并在当前 Run
 
 - 输入：binding ID、目标 project ID、明确确认。
 - 输出：安全的关联摘要、切换/解绑结果、catalog 事件。
-- 依赖：`GoalBoardProjectCatalog`、项目设置页、现有 Runtime context MCP。
+- 依赖：`MolisWorkProjectCatalog`、项目设置页、现有 Runtime context MCP。
 
 ## 文件与模块边界
 

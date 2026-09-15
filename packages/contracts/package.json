@@ -1,5 +1,5 @@
 {
-  "name": "@adeptify/goalboard-contracts",
+  "name": "@molis-ai/molis-work-contracts",
   "version": "0.0.0",
   "private": true,
   "description": "Publishable Module, service, and platform Contract subpaths.",
@@ -144,11 +144,11 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
-  "goalboard": {
+  "molis-work": {
     "path": "packages/contracts",
     "kind": "foundation",
     "maturity": "contract-only",
-    "contract": "@adeptify/goalboard-contracts/platform/package",
+    "contract": "@molis-ai/molis-work-contracts/platform/package",
     "migrationGoals": [
       "goal-reorg-f2",
       "goal-reorg-f3"

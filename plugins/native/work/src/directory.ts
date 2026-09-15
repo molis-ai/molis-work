@@ -1,8 +1,8 @@
-import type { WorkSessionApi } from "@adeptify/goalboard-contracts/modules/private-work-context";
-import type { RuntimeHostApi } from "@adeptify/goalboard-contracts/services/runtime-host";
+import type { WorkSessionApi } from "@molis-ai/molis-work-contracts/modules/private-work-context";
+import type { RuntimeHostApi } from "@molis-ai/molis-work-contracts/services/runtime-host";
 import {
-  GoalBoardSessionError,
-  type GoalBoardSessionRecord,
+  MolisWorkSessionError,
+  type MolisWorkSessionRecord,
   type RuntimeSessionAdapterResult,
 } from "./types.js";
 
@@ -20,7 +20,7 @@ export interface SessionDirectoryCreateInput {
 export interface SessionDirectoryDiscoveryResult {
   runtime_id: string;
   status: "ok" | "unsupported" | "failed";
-  records: GoalBoardSessionRecord[];
+  records: MolisWorkSessionRecord[];
   code?: string;
   message?: string;
 }
@@ -63,7 +63,7 @@ export class SessionDirectoryService {
         status: "failed",
         records: [],
         code: "runtime.discovery_shape_unknown",
-        message: "Runtime 返回了 GoalBoard 不能识别的 Session 列表结构",
+        message: "Runtime 返回了 Molis Work 不能识别的 Session 列表结构",
       };
     }
     return {
@@ -78,9 +78,9 @@ export class SessionDirectoryService {
     };
   }
 
-  async create(input: SessionDirectoryCreateInput): Promise<GoalBoardSessionRecord> {
+  async create(input: SessionDirectoryCreateInput): Promise<MolisWorkSessionRecord> {
     if (!input.user_confirmed) {
-      throw new GoalBoardSessionError("session.confirmation_required", "Session 写入必须由用户明确确认");
+      throw new MolisWorkSessionError("session.confirmation_required", "Session 写入必须由用户明确确认");
     }
     const runtimeId = requiredText(input.runtime_id, "Runtime 标识不能为空");
     const projectId = requiredText(input.project_id, "新 Session 必须关联 Project");
@@ -99,17 +99,17 @@ export class SessionDirectoryService {
       return resultRecord(result, "Runtime fallback 无法创建 Session 记录");
     }
     if (capability !== "native") {
-      throw new GoalBoardSessionError("session.invalid_input", `${runtimeId} 不支持创建 Session`);
+      throw new MolisWorkSessionError("session.invalid_input", `${runtimeId} 不支持创建 Session`);
     }
     const result = await this.router.invoke(runtimeId, "create", {
       ...(optionalText(input.workspace_path) ? { cwd: optionalText(input.workspace_path) } : {}),
     });
     if (result.status !== "ok") {
-      throw new GoalBoardSessionError("session.invalid_input", result.message);
+      throw new MolisWorkSessionError("session.invalid_input", result.message);
     }
     const nativeId = nativeSessionId(result.value);
     if (!nativeId) {
-      throw new GoalBoardSessionError("session.invalid_input", "Runtime 已响应，但没有返回可识别的原生 Session ID");
+      throw new MolisWorkSessionError("session.invalid_input", "Runtime 已响应，但没有返回可识别的原生 Session ID");
     }
     return this.registry.explicitlyLinkSession({
       runtime_id: runtimeId,
@@ -125,14 +125,14 @@ export class SessionDirectoryService {
   }
 }
 
-function resultRecord(result: RuntimeSessionAdapterResult, message: string): GoalBoardSessionRecord {
+function resultRecord(result: RuntimeSessionAdapterResult, message: string): MolisWorkSessionRecord {
   if (result.status !== "ok" || !isRecord(result.value) || typeof result.value.session_id !== "string") {
-    throw new GoalBoardSessionError(
+    throw new MolisWorkSessionError(
       "session.invalid_input",
       result.status === "ok" ? message : result.message,
     );
   }
-  return result.value as unknown as GoalBoardSessionRecord;
+  return result.value as unknown as MolisWorkSessionRecord;
 }
 
 function nativeSessionId(value: unknown): string | null {
@@ -205,6 +205,6 @@ function optionalText(value: unknown): string | null {
 
 function requiredText(value: unknown, message: string): string {
   const text = optionalText(value);
-  if (!text) throw new GoalBoardSessionError("session.invalid_input", message);
+  if (!text) throw new MolisWorkSessionError("session.invalid_input", message);
   return text;
 }

@@ -33,27 +33,27 @@ Governance `request_hash` 含 authority。稳定 `message_ref` 后，换 HTTP �
 
 ```
 pnpm_config_verify_deps_before_run=warn pnpm build
-  → /private/tmp/goalboard-flow-cleanup/02-d-build.log  EXIT 0
+  → /private/tmp/molis-work-flow-cleanup/02-d-build.log  EXIT 0
 
 pnpm_config_verify_deps_before_run=warn pnpm boundary:check
-  → /private/tmp/goalboard-flow-cleanup/02-d-boundary.log  EXIT 0  errors: []
+  → /private/tmp/molis-work-flow-cleanup/02-d-boundary.log  EXIT 0  errors: []
 
-node --import tsx --input-type=module < /private/tmp/goalboard-flow-cleanup/02-d-web-retry-acceptance.mjs
-  → /private/tmp/goalboard-flow-cleanup/02-d-web-retry-after.log  EXIT 0
+node --import tsx --input-type=module < /private/tmp/molis-work-flow-cleanup/02-d-web-retry-acceptance.mjs
+  → /private/tmp/molis-work-flow-cleanup/02-d-web-retry-after.log  EXIT 0
     PASS project Web creation: same key, new HTTP nonce, changed-input rejection, Origin and token protection; no duplicate persisted facts
     PASS real Web whole/partial/rejection replay returns the original decision after pending items changed; different input is rejected without graph or decision writes
     PASS actual Web server restart: body keys and header-only operation keys replay the same persisted create/decision results
     PASS real overlapping requests retain in-flight 409 protection; complete keys remain blocked outside explicitly idempotent endpoints
 
-node --import tsx --input-type=module < /private/tmp/goalboard-flow-cleanup/02-entry-acceptance.mjs
-  → /private/tmp/goalboard-flow-cleanup/02-d-entry.log  EXIT 0
+node --import tsx --input-type=module < /private/tmp/molis-work-flow-cleanup/02-entry-acceptance.mjs
+  → /private/tmp/molis-work-flow-cleanup/02-d-entry.log  EXIT 0
     含 Web 带要求/父子/依赖新建及重试、关联失败后同键改输入再试、跨 SQLite 重开
 
 env -u FORCE_COLOR NODE_NO_WARNINGS=1 node --import tsx --test --test-concurrency=1 \
   tests/goal-event-create-flow.test.ts tests/mcp-goal-events.test.ts \
   tests/feed-goal-promotion.test.ts tests/goal-tree-event-flow.test.ts \
   tests/goal-event-http.test.ts
-  → /private/tmp/goalboard-flow-cleanup/02-d-tests.log  19 pass / 1 fail / 0 skip
+  → /private/tmp/molis-work-flow-cleanup/02-d-tests.log  19 pass / 1 fail / 0 skip
 ```
 
 D 相关通过：同键创建 201 + `replayed`、新 HTTP 键复用 body 键、失败创建无已提交结果可改输入再试、同键不同输入 400 且无第二 Goal；树整组/部分批准与拒绝成功重试返回原 `applied_item_ids`，graph 各一次；完成键在非幂等探测路径仍 409。
@@ -73,15 +73,15 @@ D 相关通过：同键创建 201 + `replayed`、新 HTTP 键复用 body 键、�
 
 ```
 pnpm_config_verify_deps_before_run=warn pnpm build
-  → /private/tmp/goalboard-flow-cleanup/02-d-ui-build.log  EXIT 0
+  → /private/tmp/molis-work-flow-cleanup/02-d-ui-build.log  EXIT 0
 
 pnpm_config_verify_deps_before_run=warn pnpm boundary:check
-  → /private/tmp/goalboard-flow-cleanup/02-d-ui-boundary.log  EXIT 0  errors: []
+  → /private/tmp/molis-work-flow-cleanup/02-d-ui-boundary.log  EXIT 0  errors: []
 
 env -u FORCE_COLOR NODE_NO_WARNINGS=1 node --import tsx --test --test-concurrency=1 \
   tests/goal-event-http.test.ts tests/goal-event-create-flow.test.ts \
   tests/goal-tree-event-flow.test.ts
-  → /private/tmp/goalboard-flow-cleanup/02-d-ui-tests.log  14 pass / 1 fail / 0 skip
+  → /private/tmp/molis-work-flow-cleanup/02-d-ui-tests.log  14 pass / 1 fail / 0 skip
     新增「HTTP goal-tree reject prefills displayed relation conflict and keeps the submitted reason」通过：
     新协议 relation/deactivate 提案，提案外解除同一关系后 check 冲突；
     决定页预填已展示问题；空 reason 400 且无决定写入；用户改写原文落地；换 HTTP 键重放仍是同一原文。
@@ -93,7 +93,7 @@ env -u FORCE_COLOR NODE_NO_WARNINGS=1 node --import tsx --test --test-concurrenc
 
 ## 表单操作键（本轮）
 
-`goalboardControlHeaders()` 每次仍生成新随机 HTTP 键，未改全局。新建与普通树决定原先直接调用它，浏览器丢失 201 后再点会变成另一次操作。
+`molisWorkControlHeaders()` 每次仍生成新随机 HTTP 键，未改全局。新建与普通树决定原先直接调用它，浏览器丢失 201 后再点会变成另一次操作。
 
 只改这两处有效提交，沿用 `form.dataset.idempotencyKey`：
 
@@ -104,10 +104,10 @@ env -u FORCE_COLOR NODE_NO_WARNINGS=1 node --import tsx --test --test-concurrenc
 
 ```
 pnpm_config_verify_deps_before_run=warn pnpm build
-  → /private/tmp/goalboard-flow-cleanup/02-d-keys-build.log  EXIT 0
+  → /private/tmp/molis-work-flow-cleanup/02-d-keys-build.log  EXIT 0
 
 pnpm_config_verify_deps_before_run=warn pnpm boundary:check
-  → /private/tmp/goalboard-flow-cleanup/02-d-keys-boundary.log  EXIT 0  errors: []
+  → /private/tmp/molis-work-flow-cleanup/02-d-keys-boundary.log  EXIT 0  errors: []
 ```
 
 ## 未完 E/F

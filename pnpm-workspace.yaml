@@ -9,7 +9,7 @@ packages:
   - 'plugins/official-integrations/*'
   - 'tooling/plugin-cli'
 
-# Allow esbuild postinstall (required by tsx for pnpm goalboard / tests).
+# Allow esbuild postinstall (required by tsx for pnpm molis-work / tests).
 allowBuilds:
   better-sqlite3: true
   esbuild: true

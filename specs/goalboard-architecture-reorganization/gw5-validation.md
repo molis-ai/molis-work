@@ -1,10 +1,10 @@
 # GW5 Goals Native Plugin UI 与文案验收
 
-2026-09-06；accepted `goal-reorg-gw5` revision 1。完成等级：现有 Goals 功能可用、此项迁移行为无损；不代表整个架构重组或可发布验收完成。本文是整项验收证据，canonical 完成状态以 GoalBoard transition 为准。
+2026-09-06；accepted `goal-reorg-gw5` revision 1。完成等级：现有 Goals 功能可用、此项迁移行为无损；不代表整个架构重组或可发布验收完成。本文是整项验收证据，canonical 完成状态以 Molis Work transition 为准。
 
 ## 验收范围
 
-Canonical 回执：2026-09-05 17:01:04 UTC，三项 passed Evidence `evidence-8efddec5-17d9-4437-ab5a-c78b64f2ef91` 经 `review-15084847-4b63-438c-93fe-74e011422203` self-verifier pass 后，GoalBoard 自动完成 GW5（projection=completed）。旧到期 Run 历史未改，收尾与复核 Run 已自动释放。
+Canonical 回执：2026-09-05 17:01:04 UTC，三项 passed Evidence `evidence-8efddec5-17d9-4437-ab5a-c78b64f2ef91` 经 `review-15084847-4b63-438c-93fe-74e011422203` self-verifier pass 后，Molis Work 自动完成 GW5（projection=completed）。旧到期 Run 历史未改，收尾与复核 Run 已自动释放。
 
 按原 Contract 保留全部 Goals 一级入口、列表、详情、关系、编辑、Planning、Risk/Policy UI、对应 route/copy 与 Workbench 装配，不把范围缩成最后的项目规则表单。明确排除 Claim/Run/Evidence/Review/Decision 执行验收复合 UI、Store 事实迁移及新产品/视觉功能；排除项不是产品功能删除，而是原 owner 继续提供并在 Cutover 清理。
 

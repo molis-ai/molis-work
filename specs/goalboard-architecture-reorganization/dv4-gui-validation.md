@@ -6,7 +6,7 @@
 
 用户在明确的“临时暂停现用 4173、用隔离数据测试、恢复原服务”问题后回复确认。仅暂停原受管服务，没有升级用户 Home、修改 Runtime 配置、操作用户项目或安装到用户 Applications。原服务在正常系统权限下 detect=running/owned=true；普通沙箱看不到进程身份而报 conflict，不据此绕过所有权检查。
 
-测试根目录 `/private/tmp/goalboard-dv4-gui.M0ty9M`。测试 Home 是其 `user/.goalboard`，App 是其 `installed-apps/GoalBoard.app`。原 plist 与服务/安装收据先保存独立备份，结束后直接比较字节，没有使用 checksum 冒充行为证明。测试由有界恢复脚本管理，异常/超时进入恢复路径。
+测试根目录 `/private/tmp/molis-work-dv4-gui.M0ty9M`。测试 Home 是其 `user/.molis-work`，App 是其 `installed-apps/Molis Work.app`。原 plist 与服务/安装收据先保存独立备份，结束后直接比较字节，没有使用 checksum 冒充行为证明。测试由有界恢复脚本管理，异常/超时进入恢复路径。
 
 ## 已通过的真实路径
 

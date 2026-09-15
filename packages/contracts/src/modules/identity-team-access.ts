@@ -2,7 +2,7 @@
 import type { ContractDescriptor } from "../platform/package.js";
 
 export const modulesIdentityTeamAccessContract = {
-  contractId: "io.goalboard.module.identity-team-access.v1",
+  contractId: "io.molis.work.module.identity-team-access.v1",
   kind: "module",
   schemaVersion: 1,
   maturity: "contract-only",

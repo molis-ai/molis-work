@@ -1,10 +1,10 @@
 export { createWorkbenchDecisionCenterRenderer, type WorkbenchDecisionGroup } from "./decision-center.js";
 
-export { decisionTypeCounts } from "@adeptify/goalboard-plugin-goals";
+export { decisionTypeCounts } from "@molis-ai/molis-work-plugin-goals";
 
-export { buildDecisionGroups, pendingDecisionCount, decisionGroupCount, goalTreeProposalNeedsDecision, createGoalsDecisionResults, type GoalsDecisionGroup, type GoalsDecisionEvent } from "@adeptify/goalboard-plugin-goals";
+export { buildDecisionGroups, pendingDecisionCount, decisionGroupCount, goalTreeProposalNeedsDecision, createGoalsDecisionResults, type GoalsDecisionGroup, type GoalsDecisionEvent } from "@molis-ai/molis-work-plugin-goals";
 
-export { allGoalViews, findGoalView } from "@adeptify/goalboard-plugin-goals";
+export { allGoalViews, findGoalView } from "@molis-ai/molis-work-plugin-goals";
 
 export { createWorkbenchGoalsPageRenderer } from "./goals-page-renderer.js";
 
@@ -18,38 +18,38 @@ export type { ArtifactWorkbenchRequest } from "./artifact-ui.js";
 
 export { ARTIFACT_EMBED_STYLES } from "./artifact-ui.js";
 
-export type { ArtifactBrowserUiModel } from "@adeptify/goalboard-plugin-artifacts";
+export type { ArtifactBrowserUiModel } from "@molis-ai/molis-work-plugin-artifacts";
 
-export { PROJECT_OPERATIONS_STYLES, PROJECT_OPERATIONS_CLIENT_SCRIPT } from "@adeptify/goalboard-plugin-work";
+export { PROJECT_OPERATIONS_STYLES, PROJECT_OPERATIONS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-work";
 
-export type { ProjectOperationsProject, ProjectOperationsData, ProjectOperationsSlice, ProjectSessionRecord, ProjectWorkspaceRecord } from "@adeptify/goalboard-plugin-work";
+export type { ProjectOperationsProject, ProjectOperationsData, ProjectOperationsSlice, ProjectSessionRecord, ProjectWorkspaceRecord } from "@molis-ai/molis-work-plugin-work";
 
-export { createGoalActionPresenter, createGoalStateExplainer, GOAL_DISPLAY_STATUSES, type GoalPresentationState } from "@adeptify/goalboard-plugin-goals";
+export { createGoalActionPresenter, createGoalStateExplainer, GOAL_DISPLAY_STATUSES, type GoalPresentationState } from "@molis-ai/molis-work-plugin-goals";
 
-export { PLANNING_SETTINGS_STYLES, type GoalsPlanningPrimitives } from "@adeptify/goalboard-plugin-goals";
+export { PLANNING_SETTINGS_STYLES, type GoalsPlanningPrimitives } from "@molis-ai/molis-work-plugin-goals";
 
-export { matchGoalsPlanningRoute } from "@adeptify/goalboard-plugin-goals";
+export { matchGoalsPlanningRoute } from "@molis-ai/molis-work-plugin-goals";
 
-export { resolveGoalsReadRoute, resolveGoalsPageRoute, type GoalDocumentCollection } from "@adeptify/goalboard-plugin-goals";
+export { resolveGoalsReadRoute, resolveGoalsPageRoute, type GoalDocumentCollection } from "@molis-ai/molis-work-plugin-goals";
 
-export { buildGoalsNavigationItems } from "@adeptify/goalboard-plugin-goals";
+export { buildGoalsNavigationItems } from "@molis-ai/molis-work-plugin-goals";
 
-export { buildGoalCollectionModel } from "@adeptify/goalboard-plugin-goals";
+export { buildGoalCollectionModel } from "@molis-ai/molis-work-plugin-goals";
 
 export { createWorkbenchGoalsFragmentRenderer, type GoalsFragmentRenderers } from "./goals-fragment-renderer.js";
 
 export { renderWorkbenchGoalsReadRoute, renderWorkbenchGoalsReadRequest, renderWorkbenchGoalsPageRequest,
   type GoalsReadRenderers, type WorkbenchGoalPageSelection } from "./goals-document-routes.js";
 
-export { visibleGoalStatus, partOfChildViews, activeOutgoingDependsOn, goalWorkSatisfied, displayedPassedCriterionIds, isBlockedWorkStatus, firstBlockedDescendant, unsatisfiedOutgoingDependencies, goalTreeReferenceLabel, goalTreeReferenceLabels } from "@adeptify/goalboard-plugin-goals";
+export { visibleGoalStatus, partOfChildViews, activeOutgoingDependsOn, goalWorkSatisfied, displayedPassedCriterionIds, isBlockedWorkStatus, firstBlockedDescendant, unsatisfiedOutgoingDependencies, goalTreeReferenceLabel, goalTreeReferenceLabels } from "@molis-ai/molis-work-plugin-goals";
 
-export { GOALS_RELATION_LABELS } from "@adeptify/goalboard-plugin-goals";
+export { GOALS_RELATION_LABELS } from "@molis-ai/molis-work-plugin-goals";
 
-export { goalRiskStateEffect, RISK_STATE_LABELS, RISK_TREATMENT_LABELS, GOAL_TREE_STATUS_ORDER, sortGoalTreeItems, type GoalsSafetyRisk } from "@adeptify/goalboard-plugin-goals";
+export { goalRiskStateEffect, RISK_STATE_LABELS, RISK_TREATMENT_LABELS, GOAL_TREE_STATUS_ORDER, sortGoalTreeItems, type GoalsSafetyRisk } from "@molis-ai/molis-work-plugin-goals";
 
-export { mergeGoalPolicyFormValues, type GoalsPolicyBinding, type GoalsPolicyItem } from "@adeptify/goalboard-plugin-goals";
+export { mergeGoalPolicyFormValues, type GoalsPolicyBinding, type GoalsPolicyItem } from "@molis-ai/molis-work-plugin-goals";
 
-export { isProjectReference } from "@adeptify/goalboard-plugin-artifacts";
+export { isProjectReference } from "@molis-ai/molis-work-plugin-artifacts";
 
 
 export {
@@ -79,11 +79,11 @@ export {
 
 
 export const packageDescriptor = {
-  packageName: "@adeptify/goalboard-app-workbench",
+  packageName: "@molis-ai/molis-work-app-workbench",
   packagePath: "apps/workbench",
   kind: "app",
   maturity: "partial",
-  contract: "@adeptify/goalboard-contracts/platform/app-host",
+  contract: "@molis-ai/molis-work-contracts/platform/app-host",
   migrationGoals: ["goal-reorg-f2", "goal-reorg-fd4", "goal-reorg-ap3", "goal-reorg-gw4", "goal-reorg-gw5", "goal-reorg-ex4"],
   ssot: "docs/SSOT-MATRIX.md",
   capabilities: [
@@ -96,16 +96,16 @@ export const packageDescriptor = {
 } as const;
 
 
-export type GoalBoardPackageDescriptor = typeof packageDescriptor;
+export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
-export { explainGoalDecision, createGoalsDecisionPresentation, type DecisionEventKind } from "@adeptify/goalboard-plugin-goals";
+export { explainGoalDecision, createGoalsDecisionPresentation, type DecisionEventKind } from "@molis-ai/molis-work-plugin-goals";
 
 
-export { createWorkbenchOnboardingRenderer, type GoalBoardOnboardingRenderOptions, type OnboardingRenderPrimitives } from "./onboarding-renderer.js";
+export { createWorkbenchOnboardingRenderer, type MolisWorkOnboardingRenderOptions, type OnboardingRenderPrimitives } from "./onboarding-renderer.js";
 
 export { ONBOARDING_INTENT_FRAMES, onboardingIntentFrame, onboardingIntentFrameDefinition, onboardingPlanningHint, type OnboardingIntentFrame } from "./onboarding-intent.js";
 
-export { TRASH_GOAL_STYLES } from "@adeptify/goalboard-plugin-goals";
+export { TRASH_GOAL_STYLES } from "@molis-ai/molis-work-plugin-goals";
 
 
 export { createWorkbenchSettingsNavigation, type WebProjectNavigation, type WebSettingsSection, type SettingsNavigationPrimitives } from "./settings-navigation.js";
@@ -113,19 +113,19 @@ export { createWorkbenchSettingsNavigation, type WebProjectNavigation, type WebS
 export { createWorkbenchProjectDirectoryRenderer, type ProjectDirectoryPrimitives } from "./project-directory-renderer.js";
 
 
-export { GOALS_PRESENTATION_STATES, type GoalsDocumentView, type GoalsCoverageItem, type GoalsInputBinding } from "@adeptify/goalboard-plugin-goals";
+export { GOALS_PRESENTATION_STATES, type GoalsDocumentView, type GoalsCoverageItem, type GoalsInputBinding } from "@molis-ai/molis-work-plugin-goals";
 
 export { createWorkbenchHumanReviewRenderer, type HumanReviewPrimitives } from "./human-review-renderer.js";
 
 
 
 
-export type { WebSettingsProject, WebInstallationDiagnostics, GoalBoardSettingsView } from "./settings-view.js";
+export type { WebSettingsProject, WebInstallationDiagnostics, MolisWorkSettingsView } from "./settings-view.js";
 
 export { createWorkbenchSettingsRenderer, type SettingsRenderPrimitives } from "./settings-renderer.js";
 
 
-export type { GoalBoardWebView } from "./page-view.js";
+export type { MolisWorkWebView } from "./page-view.js";
 
 
 export * from "./i18n.js";

@@ -1,5 +1,5 @@
-import type { UiHostApi, UiSlotDescriptor } from "@adeptify/goalboard-contracts/platform/ui";
-import { GOALS_SAFETY_UI_CONTRIBUTION_ID, type GoalsSafetyRenderer, type GoalsSafetyUiPrimitives } from "@adeptify/goalboard-plugin-goals";
+import type { UiHostApi, UiSlotDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
+import { GOALS_SAFETY_UI_CONTRIBUTION_ID, type GoalsSafetyRenderer, type GoalsSafetyUiPrimitives } from "@molis-ai/molis-work-plugin-goals";
 
 export function createGoalsSafetyWorkbenchRenderer(host: UiHostApi, slot: UiSlotDescriptor) {
   return (primitives: GoalsSafetyUiPrimitives): GoalsSafetyRenderer => ({

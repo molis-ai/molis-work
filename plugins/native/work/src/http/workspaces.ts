@@ -1,4 +1,4 @@
-import { PrivateWorkContextError as GoalBoardSessionError } from "@adeptify/goalboard-contracts/modules/private-work-context";
+import { PrivateWorkContextError as MolisWorkSessionError } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import type { WorkSessionHttpContext } from "./types.js";
 import { publicSessionRecord } from "./public-records.js";
 
@@ -48,7 +48,7 @@ export async function handleWorkspaceHttp(context: WorkSessionHttpContext): Prom
       const result = await context.workspace.repair(current, normalized.canonical_path, options.project.project_id);
       context.respond(200, result);
     } catch (error) {
-      context.respond(error instanceof GoalBoardSessionError || context.workspace.isActionError(error) ? 503 : 400, {
+      context.respond(error instanceof MolisWorkSessionError || context.workspace.isActionError(error) ? 503 : 400, {
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -75,7 +75,7 @@ export async function handleWorkspaceHttp(context: WorkSessionHttpContext): Prom
       const result = await context.workspace.unlink(current, options.project.project_id);
       context.respond(200, result);
     } catch (error) {
-      context.respond(error instanceof GoalBoardSessionError || context.workspace.isActionError(error) ? 503 : 400, {
+      context.respond(error instanceof MolisWorkSessionError || context.workspace.isActionError(error) ? 503 : 400, {
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -127,7 +127,7 @@ export async function handleWorkspaceHttp(context: WorkSessionHttpContext): Prom
       });
       context.respond(201, { session: publicSessionRecord(session) });
     } catch (error) {
-      context.respond(error instanceof GoalBoardSessionError ? 400 : 503, {
+      context.respond(error instanceof MolisWorkSessionError ? 400 : 503, {
         error: error instanceof Error ? error.message : String(error),
       });
     }

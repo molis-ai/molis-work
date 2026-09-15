@@ -1,13 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import os from "node:os";
 import path from "node:path";
+import { resolveConfiguredHome } from "./product-home.js";
 
 export const ONBOARDING_STATE_RELATIVE_PATH = path.join("config", "onboarding.json");
 
 export type FirstRunJourneyState = "pending" | "completed" | "dismissed";
 
-export interface GoalBoardOnboardingState {
+export interface MolisWorkOnboardingState {
   schema_version: 1;
   first_run: FirstRunJourneyState;
   completed_project_id: string | null;
@@ -19,14 +19,14 @@ export interface GoalBoardOnboardingState {
   updated_at: string | null;
 }
 
-export interface GoalBoardOnboardingStatus {
-  state: GoalBoardOnboardingState;
+export interface MolisWorkOnboardingStatus {
+  state: MolisWorkOnboardingState;
   current_version: string | null;
   first_run_required: boolean;
   update_required: boolean;
 }
 
-const DEFAULT_ONBOARDING_STATE: GoalBoardOnboardingState = Object.freeze({
+const DEFAULT_ONBOARDING_STATE: MolisWorkOnboardingState = Object.freeze({
   schema_version: 1,
   first_run: "pending",
   completed_project_id: null,
@@ -38,8 +38,8 @@ const DEFAULT_ONBOARDING_STATE: GoalBoardOnboardingState = Object.freeze({
   updated_at: null,
 });
 
-function goalBoardHome(homeDirectory?: string): string {
-  return path.resolve(homeDirectory ?? path.join(os.homedir(), ".goalboard"));
+function molisWorkHome(homeDirectory?: string): string {
+  return path.resolve(homeDirectory ?? resolveConfiguredHome());
 }
 
 function optionalString(value: unknown): string | null {
@@ -50,7 +50,7 @@ function validFirstRun(value: unknown): FirstRunJourneyState {
   return value === "completed" || value === "dismissed" ? value : "pending";
 }
 
-function normalizeState(value: unknown): GoalBoardOnboardingState {
+function normalizeState(value: unknown): MolisWorkOnboardingState {
   if (!value || typeof value !== "object") return { ...DEFAULT_ONBOARDING_STATE };
   const record = value as Record<string, unknown>;
   const rawStep = Number(record.last_presented_step ?? 0);
@@ -67,8 +67,8 @@ function normalizeState(value: unknown): GoalBoardOnboardingState {
   };
 }
 
-export function readGoalBoardOnboardingState(homeDirectory?: string): GoalBoardOnboardingState {
-  const statePath = path.join(goalBoardHome(homeDirectory), ONBOARDING_STATE_RELATIVE_PATH);
+export function readMolisWorkOnboardingState(homeDirectory?: string): MolisWorkOnboardingState {
+  const statePath = path.join(molisWorkHome(homeDirectory), ONBOARDING_STATE_RELATIVE_PATH);
   try {
     return normalizeState(JSON.parse(readFileSync(statePath, "utf8")));
   } catch {
@@ -76,8 +76,8 @@ export function readGoalBoardOnboardingState(homeDirectory?: string): GoalBoardO
   }
 }
 
-export function readInstalledGoalBoardVersion(homeDirectory?: string): string | null {
-  const manifestPath = path.join(goalBoardHome(homeDirectory), "config", "installation.json");
+export function readInstalledMolisWorkVersion(homeDirectory?: string): string | null {
+  const manifestPath = path.join(molisWorkHome(homeDirectory), "config", "installation.json");
   try {
     const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as Record<string, unknown>;
     return optionalString(manifest.version);
@@ -86,11 +86,11 @@ export function readInstalledGoalBoardVersion(homeDirectory?: string): string | 
   }
 }
 
-export function writeGoalBoardOnboardingState(
+export function writeMolisWorkOnboardingState(
   homeDirectory: string | undefined,
-  state: GoalBoardOnboardingState,
-): GoalBoardOnboardingState {
-  const home = goalBoardHome(homeDirectory);
+  state: MolisWorkOnboardingState,
+): MolisWorkOnboardingState {
+  const home = molisWorkHome(homeDirectory);
   const configDirectory = path.join(home, "config");
   const statePath = path.join(home, ONBOARDING_STATE_RELATIVE_PATH);
   const tempPath = path.join(configDirectory, `.onboarding-${process.pid}-${randomUUID()}.tmp`);
@@ -101,12 +101,12 @@ export function writeGoalBoardOnboardingState(
   return normalized;
 }
 
-export function goalBoardOnboardingStatus(
+export function molisWorkOnboardingStatus(
   homeDirectory: string | undefined,
   projectCount: number,
-): GoalBoardOnboardingStatus {
-  const state = readGoalBoardOnboardingState(homeDirectory);
-  const currentVersion = readInstalledGoalBoardVersion(homeDirectory);
+): MolisWorkOnboardingStatus {
+  const state = readMolisWorkOnboardingState(homeDirectory);
+  const currentVersion = readInstalledMolisWorkVersion(homeDirectory);
   return {
     state,
     current_version: currentVersion,
@@ -117,14 +117,14 @@ export function goalBoardOnboardingStatus(
   };
 }
 
-export function markGoalBoardOnboardingStarted(
+export function markMolisWorkOnboardingStarted(
   homeDirectory: string | undefined,
   lastPresentedStep = 0,
   now = new Date(),
-): GoalBoardOnboardingState {
-  const current = readGoalBoardOnboardingState(homeDirectory);
+): MolisWorkOnboardingState {
+  const current = readMolisWorkOnboardingState(homeDirectory);
   const at = now.toISOString();
-  return writeGoalBoardOnboardingState(homeDirectory, {
+  return writeMolisWorkOnboardingState(homeDirectory, {
     ...current,
     last_presented_step: lastPresentedStep,
     started_at: current.started_at ?? at,
@@ -132,19 +132,19 @@ export function markGoalBoardOnboardingStarted(
   });
 }
 
-export function completeGoalBoardOnboarding(
+export function completeMolisWorkOnboarding(
   homeDirectory: string | undefined,
   projectId: string,
   now = new Date(),
-): GoalBoardOnboardingState {
-  const current = readGoalBoardOnboardingState(homeDirectory);
+): MolisWorkOnboardingState {
+  const current = readMolisWorkOnboardingState(homeDirectory);
   const at = now.toISOString();
-  return writeGoalBoardOnboardingState(homeDirectory, {
+  return writeMolisWorkOnboardingState(homeDirectory, {
     ...current,
     first_run: "completed",
     completed_project_id: projectId.trim() || null,
     last_presented_step: 5,
-    last_seen_app_version: readInstalledGoalBoardVersion(homeDirectory) ?? current.last_seen_app_version,
+    last_seen_app_version: readInstalledMolisWorkVersion(homeDirectory) ?? current.last_seen_app_version,
     started_at: current.started_at ?? at,
     dismissed_at: null,
     completed_at: at,
@@ -152,17 +152,17 @@ export function completeGoalBoardOnboarding(
   });
 }
 
-export function dismissGoalBoardOnboarding(
+export function dismissMolisWorkOnboarding(
   homeDirectory: string | undefined,
   kind: "first_run" | "update",
   now = new Date(),
-): GoalBoardOnboardingState {
-  const current = readGoalBoardOnboardingState(homeDirectory);
+): MolisWorkOnboardingState {
+  const current = readMolisWorkOnboardingState(homeDirectory);
   const at = now.toISOString();
-  return writeGoalBoardOnboardingState(homeDirectory, {
+  return writeMolisWorkOnboardingState(homeDirectory, {
     ...current,
     first_run: kind === "first_run" ? "dismissed" : current.first_run,
-    last_seen_app_version: readInstalledGoalBoardVersion(homeDirectory) ?? current.last_seen_app_version,
+    last_seen_app_version: readInstalledMolisWorkVersion(homeDirectory) ?? current.last_seen_app_version,
     started_at: current.started_at ?? at,
     dismissed_at: kind === "first_run" ? at : current.dismissed_at,
     updated_at: at,

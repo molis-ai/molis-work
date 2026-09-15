@@ -1,5 +1,5 @@
-import type { UiHostApi, UiSlotDescriptor } from "@adeptify/goalboard-contracts/platform/ui";
-import { GOALS_CONTEXT_UI_CONTRIBUTION_ID, type GoalsContextRenderer, type GoalsContextUiPrimitives } from "@adeptify/goalboard-plugin-goals";
+import type { UiHostApi, UiSlotDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
+import { GOALS_CONTEXT_UI_CONTRIBUTION_ID, type GoalsContextRenderer, type GoalsContextUiPrimitives } from "@molis-ai/molis-work-plugin-goals";
 
 export function createGoalsContextWorkbenchRenderer(host: UiHostApi, slot: UiSlotDescriptor) {
   return (primitives: GoalsContextUiPrimitives): GoalsContextRenderer => ({

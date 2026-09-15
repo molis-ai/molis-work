@@ -1,5 +1,5 @@
-import type { ProjectRecord as GoalBoardProjectRecord } from "@adeptify/goalboard-contracts/modules/projects";
-import type { RuntimeProjectSuggestionClueKind, RuntimeProjectSuggestionClue } from "@adeptify/goalboard-contracts/modules/private-work-context";
+import type { ProjectRecord as MolisWorkProjectRecord } from "@molis-ai/molis-work-contracts/modules/projects";
+import type { RuntimeProjectSuggestionClueKind, RuntimeProjectSuggestionClue } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 
 const RUNTIME_PROJECT_SUGGESTION_KINDS = new Set<RuntimeProjectSuggestionClueKind>([
   "workspace",
@@ -38,7 +38,7 @@ export function normalizeRuntimeProjectSuggestionClues(
 }
 
 export function scoreProjectSuggestion(
-  project: GoalBoardProjectRecord,
+  project: MolisWorkProjectRecord,
   clues: readonly RuntimeProjectSuggestionClue[],
 ): { score: number; reasons: string[] } | null {
   const normalizedProjectName = normalizeSuggestionText(project.display_name);
@@ -55,7 +55,7 @@ export function scoreProjectSuggestion(
 }
 
 function projectSuggestionRelevance(
-  project: GoalBoardProjectRecord,
+  project: MolisWorkProjectRecord,
   normalizedProjectName: string,
   clue: RuntimeProjectSuggestionClue,
 ): number {

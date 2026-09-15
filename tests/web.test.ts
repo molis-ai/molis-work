@@ -1,5 +1,5 @@
-import { buildGoalBoardWebView, cachedGoalBoardWebView } from "@adeptify/goalboard-app-local-host";
-import { openGoalBoardProjectCatalog } from "@adeptify/goalboard-app-desktop";
+import { buildMolisWorkWebView, cachedMolisWorkWebView } from "@molis-ai/molis-work-app-local-host";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -9,13 +9,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { Script } from "node:vm";
-import { GoalProjectApplication } from "@adeptify/goalboard-app-local-host";
-import { DEMO_BOARD_ID, seedDemoBoard } from "@adeptify/goalboard-app-local-host";
-import { LocalProjectDatabase } from "@adeptify/goalboard-app-local-host";
-import { type GoalBoardProjectCatalog, normalizeRuntimeWorkContext } from "@adeptify/goalboard-app-local-host";
-import { RuntimeIntegrationService } from "@adeptify/goalboard-app-local-host";
-import { GoalBoardWebServiceManager } from "@adeptify/goalboard-app-local-host";
-import { GoalBoardServer } from "../apps/desktop/launchers/mcp/server.js";
+import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_BOARD_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { type MolisWorkProjectCatalog, normalizeRuntimeWorkContext } from "@molis-ai/molis-work-app-local-host";
+import { RuntimeIntegrationService } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkWebServiceManager } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 import {
   GOAL_TREE_STATUS_ORDER,
   activeOutgoingDependsOn,
@@ -23,25 +23,25 @@ import {
   displayedPassedCriterionIds,
   firstBlockedDescendant,
   goalTreeReferenceLabel,
-  renderGoalBoardMomentumFragment,
+  renderMolisWorkMomentumFragment,
   renderFeedWorkbenchFragment,
   goalTreeReferenceLabels,
   renderGoalDocumentFragment,
-  renderGoalBoardWorkbenchClientScript,
-  renderGoalBoardWorkbenchStylesheet,
-  renderGoalBoardProjectSettings,
+  renderMolisWorkWorkbenchClientScript,
+  renderMolisWorkWorkbenchStylesheet,
+  renderMolisWorkProjectSettings,
   WORK_TAB_VISIBILITY_CLIENT_SCRIPT,
-  renderGoalBoardWeb,
+  renderMolisWorkWeb,
   renderPersistedFeedItemDetail,
   sortGoalTreeItems,
   unsatisfiedOutgoingDependencies,
   WEB_GOAL_STATUSES,
 } from "./workbench-renderer-fixture.js";
-import { createGoalBoardWebServer as createBaseGoalBoardWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createMolisWorkWebServer as createBaseMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
-const WEB_TEST_CONTROL_TOKEN = "goalboard-web-test-control-token-0123456789abcdef";
-const WORKBENCH_CLIENT_SCRIPT = renderGoalBoardWorkbenchClientScript();
-const WORKBENCH_STYLES = renderGoalBoardWorkbenchStylesheet();
+const WEB_TEST_CONTROL_TOKEN = "molis-work-web-test-control-token-0123456789abcdef";
+const WORKBENCH_CLIENT_SCRIPT = renderMolisWorkWorkbenchClientScript();
+const WORKBENCH_STYLES = renderMolisWorkWorkbenchStylesheet();
 let webRequestSequence = 0;
 
 type GoalTreeBrowserLayout = {
@@ -87,7 +87,7 @@ let cachedGoalTreeBrowserLayout: Promise<GoalTreeBrowserLayout | null> | undefin
 function readGoalTreeBrowserLayout(): Promise<GoalTreeBrowserLayout | null> {
   if (cachedGoalTreeBrowserLayout !== undefined) return cachedGoalTreeBrowserLayout;
   const browser = [
-    process.env.GOALBOARD_TEST_CHROME,
+    process.env.MOLIS_WORK_TEST_CHROME,
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
     "/usr/bin/google-chrome",
     "/usr/bin/chromium",
@@ -98,7 +98,7 @@ function readGoalTreeBrowserLayout(): Promise<GoalTreeBrowserLayout | null> {
     return cachedGoalTreeBrowserLayout;
   }
 
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-tree-layout-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-tree-layout-"));
   const htmlPath = join(directory, "layout.html");
   const profilePath = join(directory, "chrome-profile");
   mkdirSync(profilePath);
@@ -228,7 +228,7 @@ function readDecisionDeepLinkBrowserState(
   options: { width?: number; scenario?: "initial" | "after_feed_switch" | "restored_mobile_tree" } = {},
 ): Promise<DecisionDeepLinkBrowserState | null> {
   const browser = [
-    process.env.GOALBOARD_TEST_CHROME,
+    process.env.MOLIS_WORK_TEST_CHROME,
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
     "/usr/bin/google-chrome",
     "/usr/bin/chromium",
@@ -236,22 +236,21 @@ function readDecisionDeepLinkBrowserState(
   ].find((candidate): candidate is string => Boolean(candidate && existsSync(candidate)));
   if (!browser) return Promise.resolve(null);
 
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-decision-deep-link-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-decision-deep-link-"));
   const profilePath = join(directory, "chrome-profile");
   const htmlPath = join(directory, "decisions.html");
   mkdirSync(profilePath);
   const scenario = options.scenario ?? "initial";
   const browserHtml = html.replace(
-    '<script src="/assets/goalboard-workbench.js"></script>',
+    '<script src="/assets/molis-work-workbench.js"></script>',
     `<script>
       if (${JSON.stringify(scenario)} === "restored_mobile_tree") {
-        const state = JSON.parse(document.querySelector("#goalboard-data").textContent);
-        const storageKey = "goalboard-ui:" + (state.project?.project_id || state.snapshot.board.board_id) + ":inbox";
+        const state = JSON.parse(document.querySelector("#molis-work-data").textContent);
+        const storageKey = "molis-work-ui:" + (state.project?.project_id || state.snapshot.board.board_id) + ":inbox";
         sessionStorage.setItem(storageKey, JSON.stringify({
           mobileView: "tree",
-          workSurface: "feed",
-          directory: "feed",
-          feedPreset: "inbox_message",
+          workSurface: "inbox",
+          directory: "inbox",
           navigationVersion: 2,
         }));
       }
@@ -261,9 +260,8 @@ function readDecisionDeepLinkBrowserState(
       globalThis.fetch = (input, init) => {
         const url = new URL(String(input), location.href);
         if (url.pathname.endsWith("/api/feed/workbench")) {
-          const preset = url.searchParams.get("preset");
           return Promise.resolve(new Response(
-            preset === "inbox_message" ? globalThis.__gb24InboxWorkbenchHtml : "",
+            globalThis.__gb24InboxWorkbenchHtml,
             { status: 200, headers: { "content-type": "text/html" } },
           ));
         }
@@ -369,7 +367,7 @@ function readDesktopWorkTabBrowserLayout(
   openTabs: string[],
 ): Promise<DesktopWorkTabBrowserLayout | null> {
   const browser = [
-    process.env.GOALBOARD_TEST_CHROME,
+    process.env.MOLIS_WORK_TEST_CHROME,
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
     "/usr/bin/google-chrome",
     "/usr/bin/chromium",
@@ -377,7 +375,7 @@ function readDesktopWorkTabBrowserLayout(
   ].find((candidate): candidate is string => Boolean(candidate && existsSync(candidate)));
   if (!browser) return Promise.resolve(null);
 
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-work-tabs-layout-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-work-tabs-layout-"));
   const profilePath = join(directory, "chrome-profile");
   const htmlPath = join(directory, "work-tabs.html");
   mkdirSync(profilePath);
@@ -471,10 +469,10 @@ function readDesktopWorkTabBrowserLayout(
   });
 }
 
-function createGoalBoardWebServer(
-  options: Parameters<typeof createBaseGoalBoardWebServer>[0] = {},
+function createMolisWorkWebServer(
+  options: Parameters<typeof createBaseMolisWorkWebServer>[0] = {},
 ) {
-  return createBaseGoalBoardWebServer({ ...options, controlToken: WEB_TEST_CONTROL_TOKEN });
+  return createBaseMolisWorkWebServer({ ...options, controlToken: WEB_TEST_CONTROL_TOKEN });
 }
 
 function webFetch(input: string | URL | Request, init: RequestInit = {}): Promise<Response> {
@@ -483,12 +481,12 @@ function webFetch(input: string | URL | Request, init: RequestInit = {}): Promis
   const target = new URL(input instanceof Request ? input.url : String(input));
   const headers = new Headers(init.headers);
   if (!headers.has("origin")) headers.set("origin", target.origin);
-  if (!headers.has("x-goalboard-control-token")) {
-    headers.set("x-goalboard-control-token", WEB_TEST_CONTROL_TOKEN);
+  if (!headers.has("x-molis-work-control-token")) {
+    headers.set("x-molis-work-control-token", WEB_TEST_CONTROL_TOKEN);
   }
-  if (!headers.has("x-goalboard-idempotency-key")) {
+  if (!headers.has("x-molis-work-idempotency-key")) {
     webRequestSequence += 1;
-    headers.set("x-goalboard-idempotency-key", `web-test-request-${webRequestSequence}`);
+    headers.set("x-molis-work-idempotency-key", `web-test-request-${webRequestSequence}`);
   }
   return globalThis.fetch(input, { ...init, headers });
 }
@@ -554,15 +552,15 @@ function feedDetailHtml(html: string, itemId: string): string {
 }
 
 function webFixture() {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-web-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-web-"));
   const databasePath = join(directory, "demo.db");
   seedDemoBoard(databasePath);
   return { databasePath, homeDirectory: directory };
 }
 
 test("Web health identifies the process serving the response", async () => {
-  const homeDirectory = mkdtempSync(join(tmpdir(), "goalboard-web-health-"));
-  const server = createGoalBoardWebServer({ homeDirectory });
+  const homeDirectory = mkdtempSync(join(tmpdir(), "molis-work-web-health-"));
+  const server = createMolisWorkWebServer({ homeDirectory });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   try {
     const address = server.address();
@@ -585,11 +583,11 @@ test("Web health identifies the process serving the response", async () => {
 
 test("Web View cache follows canonical Board events instead of SQLite file lifecycle", () => {
   const { databasePath } = webFixture();
-  const cache = new Map() as Parameters<typeof cachedGoalBoardWebView>[0];
+  const cache = new Map() as Parameters<typeof cachedMolisWorkWebView>[0];
   const options = { databasePath, boardId: DEMO_BOARD_ID, demo: true };
 
   const firstStore = new LocalProjectDatabase(databasePath);
-  const first = cachedGoalBoardWebView(
+  const first = cachedMolisWorkWebView(
     cache,
     firstStore,
     new GoalProjectApplication(firstStore),
@@ -600,7 +598,7 @@ test("Web View cache follows canonical Board events instead of SQLite file lifec
   const reopenedStore = new LocalProjectDatabase(databasePath);
   try {
     const coordinator = new GoalProjectApplication(reopenedStore);
-    const unchanged = cachedGoalBoardWebView(cache, reopenedStore, coordinator, options);
+    const unchanged = cachedMolisWorkWebView(cache, reopenedStore, coordinator, options);
     assert.strictEqual(unchanged, first, "opening the SQLite WAL must not invalidate an unchanged Board");
 
     coordinator.goals.commands.createGoal(
@@ -617,7 +615,7 @@ test("Web View cache follows canonical Board events instead of SQLite file lifec
       },
       { actor_id: "test-user", idempotency_key: "web-cache-event" },
     );
-    const changed = cachedGoalBoardWebView(cache, reopenedStore, coordinator, options);
+    const changed = cachedMolisWorkWebView(cache, reopenedStore, coordinator, options);
     assert.notStrictEqual(changed, first);
     assert.ok(changed.goals.some((item) => item.goal.goal_id === "CACHE-EVENT"));
 
@@ -627,7 +625,7 @@ test("Web View cache follows canonical Board events instead of SQLite file lifec
 });
 
 async function webProjectCatalogFixture() {
-  const homeDirectory = mkdtempSync(join(tmpdir(), "goalboard-web-project-catalog-"));
+  const homeDirectory = mkdtempSync(join(tmpdir(), "molis-work-web-project-catalog-"));
   const alphaContext = {
     runtime_id: "web-project-test-runtime",
     stable_work_context_id: "web-project-alpha-session",
@@ -638,7 +636,7 @@ async function webProjectCatalogFixture() {
     stable_work_context_id: "web-project-beta-session",
     host_declares_stable: true,
   };
-  const catalog = await openGoalBoardProjectCatalog({ homeDirectory });
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   try {
     const alphaResolution = await catalog.createProjectAndBindRuntimeContext({
       context: alphaContext,
@@ -671,9 +669,9 @@ async function webProjectCatalogFixture() {
 
 function webRuntimeIntegrationFixture(homeDirectory: string) {
   const userHomeDirectory = join(homeDirectory, "test-user-home");
-  const release = join(homeDirectory, "releases", "goalboard-web-test");
+  const release = join(homeDirectory, "releases", "molis-work-web-test");
   const skill = join(release, "skills", "goal-advance");
-  const launcher = join(homeDirectory, "bin", "goalboard-mcp");
+  const launcher = join(homeDirectory, "bin", "molis-work-mcp");
   const runtimeBin = join(homeDirectory, "test-runtime-bin");
   mkdirSync(join(homeDirectory, "config"), { recursive: true });
   mkdirSync(skill, { recursive: true });
@@ -682,9 +680,9 @@ function webRuntimeIntegrationFixture(homeDirectory: string) {
   mkdirSync(userHomeDirectory, { recursive: true });
   writeFileSync(join(homeDirectory, "config", "installation.json"), `${JSON.stringify({
     schema_version: 2,
-    installer: "goalboard-home-install-v1",
+    installer: "molis-work-home-install-v1",
     version: "web-test",
-    release_path: "releases/goalboard-web-test",
+    release_path: "releases/molis-work-web-test",
   }, null, 2)}\n`);
   writeFileSync(join(skill, "SKILL.md"), "---\nname: goal-advance\n---\n");
   writeFileSync(launcher, "#!/bin/sh\nexit 0\n");
@@ -850,8 +848,8 @@ test("completed Goal presentation closes criteria without inventing Evidence", (
 });
 
 test("Web health identifies the process serving the response", async () => {
-  const homeDirectory = mkdtempSync(join(tmpdir(), "goalboard-web-health-"));
-  const server = createGoalBoardWebServer({ homeDirectory });
+  const homeDirectory = mkdtempSync(join(tmpdir(), "molis-work-web-health-"));
+  const server = createMolisWorkWebServer({ homeDirectory });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   try {
     const address = server.address();
@@ -873,8 +871,8 @@ test("Web health identifies the process serving the response", async () => {
 });
 
 test("Web first-run onboarding can be skipped without creating a project or Runtime binding", async () => {
-  const homeDirectory = mkdtempSync(join(tmpdir(), "goalboard-web-project-empty-"));
-  const server = createGoalBoardWebServer({ homeDirectory });
+  const homeDirectory = mkdtempSync(join(tmpdir(), "molis-work-web-project-empty-"));
+  const server = createMolisWorkWebServer({ homeDirectory });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   try {
     const address = server.address();
@@ -901,7 +899,7 @@ test("Web first-run onboarding can be skipped without creating a project or Runt
     assert.match(onboarding, /data-onboarding-step="4"/);
     assert.match(onboarding, /data-onboarding-runtime-frame/);
     assert.match(onboarding, /我们先把项目安排清楚/);
-    assert.match(onboarding, /安排好了，进入 GoalBoard/);
+    assert.match(onboarding, /安排好了，进入 Molis Work/);
 
     const dismissed = await webFetch(`${origin}/api/onboarding/dismiss`, {
       method: "POST",
@@ -922,7 +920,7 @@ test("Web first-run onboarding can be skipped without creating a project or Runt
     );
   }
 
-  const catalog = await openGoalBoardProjectCatalog({ homeDirectory });
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   try {
     assert.deepEqual(catalog.listProjects(), []);
     assert.deepEqual(catalog.listRuntimeContextBindingEvents(), []);
@@ -932,10 +930,10 @@ test("Web first-run onboarding can be skipped without creating a project or Runt
 });
 
 test("Web onboarding creates one real Project, root Draft Goal, and optional Workspace", async () => {
-  const homeDirectory = mkdtempSync(join(tmpdir(), "goalboard-web-onboarding-create-"));
+  const homeDirectory = mkdtempSync(join(tmpdir(), "molis-work-web-onboarding-create-"));
   const workspaceDirectory = join(homeDirectory, "workspace");
   mkdirSync(workspaceDirectory);
-  const server = createGoalBoardWebServer({ homeDirectory });
+  const server = createMolisWorkWebServer({ homeDirectory });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   let projectId = "";
   let goalId = "";
@@ -962,7 +960,7 @@ test("Web onboarding creates one real Project, root Draft Goal, and optional Wor
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         project_name: "真实首次项目",
-        outcome: "让第一次使用 GoalBoard 的人建立可以继续澄清的目标",
+        outcome: "让第一次使用 Molis Work 的人建立可以继续澄清的目标",
         intent_frame: "unknown",
         workspace_path: null,
         runtime_kind: null,
@@ -976,7 +974,7 @@ test("Web onboarding creates one real Project, root Draft Goal, and optional Wor
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         project_name: "真实首次项目",
-        outcome: "让第一次使用 GoalBoard 的人建立可以继续澄清的目标",
+        outcome: "让第一次使用 Molis Work 的人建立可以继续澄清的目标",
         intent_frame: "diagnose_fix",
         workspace_path: workspaceDirectory,
         runtime_kind: null,
@@ -1010,7 +1008,7 @@ test("Web onboarding creates one real Project, root Draft Goal, and optional Wor
     );
   }
 
-  const catalog = await openGoalBoardProjectCatalog({ homeDirectory });
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   try {
     const projects = catalog.listProjects();
     assert.equal(projects.length, 1);
@@ -1025,7 +1023,7 @@ test("Web onboarding creates one real Project, root Draft Goal, and optional Wor
       assert.equal(goals[0]?.goal_id, goalId);
       assert.equal(goals[0]?.definition_state, "draft");
       assert.equal(goals[0]?.decomposition_state, "abstract");
-      assert.equal(goals[0]?.outcome, "让第一次使用 GoalBoard 的人建立可以继续澄清的目标");
+      assert.equal(goals[0]?.outcome, "让第一次使用 Molis Work 的人建立可以继续澄清的目标");
       assert.match(goals[0]?.business_logic ?? "", /work-diagnose-fix/);
     } finally {
       store.close();
@@ -1036,14 +1034,14 @@ test("Web onboarding creates one real Project, root Draft Goal, and optional Wor
 });
 
 test("Web update onboarding is shown once per installed version", async () => {
-  const homeDirectory = mkdtempSync(join(tmpdir(), "goalboard-web-onboarding-update-"));
+  const homeDirectory = mkdtempSync(join(tmpdir(), "molis-work-web-onboarding-update-"));
   mkdirSync(join(homeDirectory, "config"), { recursive: true });
   writeFileSync(join(homeDirectory, "config", "installation.json"), JSON.stringify({
-    installer: "goalboard-home-install-v1",
+    installer: "molis-work-home-install-v1",
     version: "1.0.0",
     release_path: "releases/1.0.0",
   }));
-  const server = createGoalBoardWebServer({ homeDirectory });
+  const server = createMolisWorkWebServer({ homeDirectory });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   try {
     const address = server.address();
@@ -1061,7 +1059,7 @@ test("Web update onboarding is shown once per installed version", async () => {
     assert.equal(firstUpdate.headers.get("location"), "/onboarding?mode=update");
     const updatePage = await (await webFetch(`${origin}/onboarding?mode=update`)).text();
     assertInlineScriptsCompile(updatePage);
-    assert.match(updatePage, /GoalBoard 已更新 1\.0\.0/);
+    assert.match(updatePage, /Molis Work 已更新 1\.0\.0/);
 
     const acknowledged = await webFetch(`${origin}/api/onboarding/dismiss`, {
       method: "POST",
@@ -1072,7 +1070,7 @@ test("Web update onboarding is shown once per installed version", async () => {
     assert.equal((await webFetch(`${origin}/`, { redirect: "manual" })).status, 200);
 
     writeFileSync(join(homeDirectory, "config", "installation.json"), JSON.stringify({
-      installer: "goalboard-home-install-v1",
+      installer: "molis-work-home-install-v1",
       version: "1.1.0",
       release_path: "releases/1.1.0",
     }));
@@ -1089,7 +1087,7 @@ test("Web update onboarding is shown once per installed version", async () => {
 test("Web command only starts from the project catalog", () => {
   const result = spawnSync(
     process.execPath,
-    ["--import", "tsx", "apps/desktop/launchers/web/server.ts", "--db", "/tmp/legacy-goalboard.db"],
+    ["--import", "tsx", "apps/desktop/launchers/web/server.ts", "--db", "/tmp/legacy-molis-work.db"],
     { cwd: process.cwd(), encoding: "utf8" },
   );
   assert.equal(result.status, 1);
@@ -1098,12 +1096,12 @@ test("Web command only starts from the project catalog", () => {
 });
 
 test("Web command still starts when its entrypoint is reached through a symlink", () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-web-entrypoint-"));
-  const entrypoint = join(directory, "goalboard-web.ts");
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-web-entrypoint-"));
+  const entrypoint = join(directory, "molis-work-web.ts");
   symlinkSync(join(process.cwd(), "apps/desktop/launchers/web/server.ts"), entrypoint);
   const result = spawnSync(
     process.execPath,
-    ["--import", "tsx", entrypoint, "--db", "/tmp/legacy-goalboard.db"],
+    ["--import", "tsx", entrypoint, "--db", "/tmp/legacy-molis-work.db"],
     { cwd: process.cwd(), encoding: "utf8" },
   );
   assert.equal(result.status, 1);
@@ -1112,10 +1110,10 @@ test("Web command still starts when its entrypoint is reached through a symlink"
 });
 
 test("Web leaves an invalid legacy DB and the project catalog unchanged when migration fails", async () => {
-  const homeDirectory = mkdtempSync(join(tmpdir(), "goalboard-web-project-migration-failure-"));
-  const invalidDatabasePath = join(homeDirectory, "invalid-goalboard.db");
-  writeFileSync(invalidDatabasePath, "not a GoalBoard SQLite database");
-  const server = createGoalBoardWebServer({ homeDirectory });
+  const homeDirectory = mkdtempSync(join(tmpdir(), "molis-work-web-project-migration-failure-"));
+  const invalidDatabasePath = join(homeDirectory, "invalid-molis-work.db");
+  writeFileSync(invalidDatabasePath, "not a Molis Work SQLite database");
+  const server = createMolisWorkWebServer({ homeDirectory });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   try {
     const address = server.address();
@@ -1129,7 +1127,7 @@ test("Web leaves an invalid legacy DB and the project catalog unchanged when mig
       }),
     });
     assert.equal(response.status, 400);
-    assert.match(await response.text(), /GoalBoard DB|数据库|迁移/);
+    assert.match(await response.text(), /Molis Work DB|数据库|迁移/);
     assert.equal(existsSync(invalidDatabasePath), true);
   } finally {
     await new Promise<void>((resolve, reject) =>
@@ -1137,7 +1135,7 @@ test("Web leaves an invalid legacy DB and the project catalog unchanged when mig
     );
   }
 
-  const catalog = await openGoalBoardProjectCatalog({ homeDirectory });
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   try {
     assert.deepEqual(catalog.listProjects(), []);
     assert.deepEqual(catalog.listRuntimeContextBindingEvents(), []);
@@ -1147,8 +1145,8 @@ test("Web leaves an invalid legacy DB and the project catalog unchanged when mig
 });
 
 test("Web explains incomplete product decomposition and shows who owns each product path", () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-web-incomplete-decomposition-"));
-  const databasePath = join(directory, "goalboard.db");
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-web-incomplete-decomposition-"));
+  const databasePath = join(directory, "molis-work.db");
   const store = new LocalProjectDatabase(databasePath);
   const coordinator = new GoalProjectApplication(store);
   try {
@@ -1216,7 +1214,7 @@ test("Web normal Tree excludes trashed Goals while the coordinator retains their
     { goal_id: "TRASHED-WEB", trashed: true, reason: "验证正常 Web 读取过滤" },
     { actor_id: "test-user", idempotency_key: "trash-web-goal" },
   );
-  const view = buildGoalBoardWebView(store, coordinator, {
+  const view = buildMolisWorkWebView(store, coordinator, {
     databasePath,
     boardId: DEMO_BOARD_ID,
     demo: true,

@@ -1,9 +1,9 @@
-import type { UiContribution } from "@adeptify/goalboard-contracts/platform/ui";
+import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { GoalsMomentumItem, GoalsMomentumBoardView, GoalsMomentumUiPrimitives } from "./momentum-ui-model.js";
 import { sortGoalTreeItems } from "./tree-order.js";
 import { buildGoalMomentumView } from "./momentum-view.js";
 
-export const GOALS_MOMENTUM_UI_CONTRIBUTION_ID = "io.goalboard.native.goals.momentum.v1";
+export const GOALS_MOMENTUM_UI_CONTRIBUTION_ID = "io.molis.work.native.goals.momentum.v1";
 
 function createMomentumRenderer(primitives: GoalsMomentumUiPrimitives) {
   const { translate: L, escapeHtml, icon, renderVisibleGoalStatus } = primitives;
@@ -51,7 +51,7 @@ function createMomentumRenderer(primitives: GoalsMomentumUiPrimitives) {
       const parent = view.snapshot.relations.find((relation) => relation.state === "active" && relation.type === "part_of" && relation.from_goal_id === node.goal_id);
       const parentTitle = parent ? byId.get(parent.to_goal_id)?.goal.title : "";
       return `<article tabindex="0" role="group" class="goal-canvas-node${node.completed ? " is-complete" : ""}" data-graph-node data-momentum-node data-goal-id="${escapeHtml(node.goal_id)}" data-node-x="${node.level * 340 + 40}" data-node-y="${node.row * 232 + 70}" aria-label="${escapeHtml(L("选择 Goal：{title}", { title: node.title }))}">
-        ${renderVisibleGoalStatus(item)}<button class="goal-canvas-open" type="button" data-graph-open aria-label="${escapeHtml(L("展开 Goal：{title}", { title: node.title }))}" title="${L("打开 Goal")}">${icon("maximize")}</button><strong>${escapeHtml(node.title)}</strong>
+        ${renderVisibleGoalStatus(item)}<button class="goal-canvas-frame" type="button" data-graph-frame aria-label="${escapeHtml(L("打开 Frame：{title}", { title: node.title }))}" title="${L("打开 Frame")}">${icon("frame")}</button><button class="goal-canvas-open" type="button" data-graph-open aria-label="${escapeHtml(L("展开 Goal：{title}", { title: node.title }))}" title="${L("打开 Goal")}">${icon("maximize")}</button><strong>${escapeHtml(node.title)}</strong>
         <span class="goal-canvas-node-outcome">${escapeHtml(item.goal.outcome || L("还没有写清预期结果"))}</span>
         ${parentTitle ? `<small>${escapeHtml(L("属于：{title}", { title: parentTitle }))}</small>` : ""}
       </article>`;
@@ -79,7 +79,7 @@ export type GoalsMomentumUiModel = { primitives: GoalsMomentumUiPrimitives } & (
 );
 export const goalsMomentumUiContribution: UiContribution<GoalsMomentumUiModel> = {
   descriptor: {
-    contribution_id: GOALS_MOMENTUM_UI_CONTRIBUTION_ID, plugin_id: "io.goalboard.native.goals", kind: "embedded", label: "Goal momentum",
+    contribution_id: GOALS_MOMENTUM_UI_CONTRIBUTION_ID, plugin_id: "io.molis.work.native.goals", kind: "embedded", label: "Goal momentum",
     surfaces: ["momentum", "placeholder"].map(surface_id => ({ surface_id, target_slot_id: "workbench.main", format: "declarative-html" })), slots: [],
   },
   render({ surface, model }) {

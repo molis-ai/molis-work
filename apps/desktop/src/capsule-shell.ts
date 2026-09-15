@@ -181,15 +181,15 @@ export const CAPSULE_CLIENT_SCRIPT = `
   if (!root) return;
   const projects = JSON.parse(document.getElementById("capsule-projects")?.textContent || "[]");
   const projectSelects = Array.from(document.querySelectorAll("[data-capsule-project]"));
-  const storageKey = "goalboard:capsule-project";
-  const viewStorageKey = "goalboard:capsule-view:v1";
+  const storageKey = "molis-work:capsule-project";
+  const viewStorageKey = "molis-work:capsule-view:v1";
   const invoke = window.__TAURI__?.core?.invoke;
   const tabsRoot = document.querySelector("[data-capsule-tabs]");
   const listRoot = document.querySelector("[data-capsule-list]");
   const validProject = (id) => projects.some((project) => project.project_id === id);
   let savedView = { projectId: "", projects: {} };
   try {
-    const parsed = JSON.parse(localStorage.getItem(viewStorageKey) || "null");
+    const parsed = JSON.parse(localStorage.getItem(viewStorageKey) || localStorage.getItem("goalboard:capsule-view:v1") || "null");
     if (parsed && parsed.projects && typeof parsed.projects === "object") savedView = parsed;
   } catch {}
   const requested = new URLSearchParams(location.search).get("project");
@@ -197,7 +197,7 @@ export const CAPSULE_CLIENT_SCRIPT = `
   if (!projectId && validProject(savedView.projectId)) projectId = savedView.projectId;
   if (!projectId) {
     try {
-      const stored = localStorage.getItem(storageKey);
+      const stored = localStorage.getItem(storageKey) || localStorage.getItem("goalboard:capsule-project");
       if (validProject(stored)) projectId = stored;
     } catch {}
   }
@@ -466,7 +466,7 @@ export const CAPSULE_CLIENT_SCRIPT = `
     if (!projectId) {
       clearLoading();
       root.dataset.error = "true";
-      setText("[data-capsule-error]", L("还没有 GoalBoard 项目"));
+      setText("[data-capsule-error]", L("还没有 Molis Work 项目"));
       return;
     }
     const requestedProjectId = projectId;
@@ -491,11 +491,11 @@ export const CAPSULE_CLIENT_SCRIPT = `
       root.dataset.error = "true";
       root.dataset.state = "disconnected";
       setText("[data-capsule-status-text]", L("连接中断"));
-      setText("[data-capsule-error-detail]", L("GoalBoard 正在自动重新连接。恢复前，这里不会把旧状态当成正在进行。"));
+      setText("[data-capsule-error-detail]", L("Molis Work 正在自动重新连接。恢复前，这里不会把旧状态当成正在进行。"));
       setCapsuleHeight(252);
       invoke?.("capsule_update_menu_bar", {
         title: L("连接中断"),
-        tooltip: L("暂时无法确认最新工作状态，GoalBoard 正在自动重新连接"),
+        tooltip: L("暂时无法确认最新工作状态，Molis Work 正在自动重新连接"),
         path: snapshot?.state?.action_path || "/projects/" + encodeURIComponent(requestedProjectId),
       }).catch(() => {});
     } finally {
@@ -559,7 +559,7 @@ export function renderDesktopCapsuleShell(
 ): string {
   const L = environment.translate;
   const options = projectOptions(projects);
-  return `<!doctype html><html lang="${environment.htmlLang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${L("工作胶囊")} · GoalBoard</title><script>${environment.themeBootstrapScript}</script><style>${CAPSULE_STYLES}</style></head><body><main class="capsule-shell" data-capsule data-state="empty" data-error="false" data-loading="true" aria-busy="true">
+  return `<!doctype html><html lang="${environment.htmlLang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${L("工作胶囊")} · Molis Work</title><script>${environment.themeBootstrapScript}</script><style>${CAPSULE_STYLES}</style></head><body><main class="capsule-shell" data-capsule data-state="empty" data-error="false" data-loading="true" aria-busy="true">
     <i class="capsule__arrow" aria-hidden="true"></i>
     <section class="capsule">
       <header class="capsule__head">
@@ -568,8 +568,8 @@ export function renderDesktopCapsuleShell(
       </header>
       <nav class="capsule__tabs" data-capsule-tabs role="tablist" aria-label="${L("按工作状态查看 Goal")}" aria-busy="true"></nav>
       <section class="capsule__list" data-capsule-list role="tabpanel" aria-live="polite" aria-busy="true"><div class="capsule__loading"><i class="capsule__spinner" aria-hidden="true"></i><strong>${L("正在读取工作状态")}</strong><span>${L("正在获取这个项目的最新工作状态")}</span></div></section>
-      <footer class="capsule__actions"><p class="capsule__hint">Esc ${L("关闭")}</p><div class="capsule__buttons"><button class="capsule__button" type="button" data-capsule-open-board>${L("打开 GoalBoard")}</button></div></footer>
-      <div class="capsule__error" data-capsule-error role="alert"><strong>${L("暂时无法确认最新状态")}</strong><span data-capsule-error-detail>${L("GoalBoard 正在自动重新连接。恢复前，这里不会把旧状态当成正在进行。")}</span><button class="capsule__retry" type="button" data-capsule-retry>${L("立即重试")}</button></div>
+      <footer class="capsule__actions"><p class="capsule__hint">Esc ${L("关闭")}</p><div class="capsule__buttons"><button class="capsule__button" type="button" data-capsule-open-board>${L("打开 Molis Work")}</button></div></footer>
+      <div class="capsule__error" data-capsule-error role="alert"><strong>${L("暂时无法确认最新状态")}</strong><span data-capsule-error-detail>${L("Molis Work 正在自动重新连接。恢复前，这里不会把旧状态当成正在进行。")}</span><button class="capsule__retry" type="button" data-capsule-retry>${L("立即重试")}</button></div>
     </section>
   </main><script id="capsule-projects" type="application/json">${safeJson(projects)}</script><script>${environment.clientI18nScript}${CAPSULE_CLIENT_SCRIPT}</script></body></html>`;
 }

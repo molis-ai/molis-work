@@ -4,11 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark light">
-  <title>GoalBoard · Nordic Onboarding Prototype</title>
+  <title>Molis Work · Nordic Onboarding Prototype</title>
   <script>document.documentElement.classList.add('js')</script>
   <style>
     @font-face {
-      font-family: "GoalBoard Manrope";
+      font-family: "Molis Work Manrope";
       src: url("fonts/Manrope-Variable.ttf") format("truetype");
       font-style: normal;
       font-weight: 200 800;
@@ -48,7 +48,7 @@
       overflow: hidden;
       background: var(--room-bg);
       color: var(--fg);
-      font-family: "GoalBoard Manrope", "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", "Source Han Sans SC", sans-serif;
+      font-family: "Molis Work Manrope", "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", "Source Han Sans SC", sans-serif;
       -webkit-font-smoothing: antialiased;
       text-rendering: optimizeLegibility;
       transition: background-color 860ms var(--ease), color 660ms var(--ease);
@@ -633,8 +633,8 @@
       100% { opacity: .72; filter: blur(1px); transform: translateY(-2px) scale(.76); }
     }
 
-    .working-title { margin: 0; color: rgba(237,237,232,.85); font: 500 14px/1.5 "GoalBoard Manrope", "PingFang SC", sans-serif; }
-    .working-copy { margin: 9px 0 0; color: rgba(237,237,232,.62); font: 400 11px/1.6 "GoalBoard Manrope", "PingFang SC", sans-serif; }
+    .working-title { margin: 0; color: rgba(237,237,232,.85); font: 500 14px/1.5 "Molis Work Manrope", "PingFang SC", sans-serif; }
+    .working-copy { margin: 9px 0 0; color: rgba(237,237,232,.62); font: 400 11px/1.6 "Molis Work Manrope", "PingFang SC", sans-serif; }
 
     .tree-layout {
       display: grid;
@@ -859,7 +859,7 @@
   THESIS: Onboarding begins as a Nordic winter room before dawn; one human question and one blank replace the category's card-based product tour.
   OWN-WORLD: Carbon black, blue-gray first light, winter white, quiet modern grotesk type, borderless tonal depth, and no decorative chrome.
   STORY: The user names one real project, makes its result concrete, chooses the working context, inspects the handoff, and confirms the first Goal Tree.
-  FIRST VIEWPORT: Full black field; a left-aligned question at human reading scale; one borderless fill-in below; tiny GoalBoard and Skip recede at the top edge.
+  FIRST VIEWPORT: Full black field; a left-aligned question at human reading scale; one borderless fill-in below; tiny Molis Work and Skip recede at the top edge.
   FORM: Nordic winter-dawn room, grounded candidate 6, seed 91c9eee5; the signature motion is darkness becoming usable daylight as intent becomes structure.
   FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
   -->
@@ -867,7 +867,7 @@
     <div class="atmosphere" aria-hidden="true"></div>
 
     <header class="masthead">
-      <p class="wordmark">GoalBoard</p>
+      <p class="wordmark">Molis Work</p>
       <button class="skip" id="skipButton">跳过</button>
     </header>
 
@@ -910,7 +910,7 @@
         project: '',
         outcome: '',
         runtime: 'Codex',
-        workspace: '/Users/yijunwang/code/goalboard',
+        workspace: '/Users/yijunwang/code/molis-work',
         timer: null
       };
 
@@ -1009,7 +1009,7 @@
           <div class="terminal-wrap">
             <div class="terminal-bar"><span>${project()}</span><span>${escapeHTML(state.workspace)} · ${escapeHTML(state.runtime)}</span></div>
             <div class="terminal-body">
-              <p class="terminal-note">GoalBoard 已连接 Project 与 Workspace。以下仍是可编辑草稿。</p>
+              <p class="terminal-note">Molis Work 已连接 Project 与 Workspace。以下仍是可编辑草稿。</p>
               <div class="prompt-draft">我正在推进「${project()}」。
 希望看见的真实结果是：「${outcome()}」。
 
@@ -1071,8 +1071,8 @@
 
         if (step === 'skipped') return `
           <h1 class="question compact" tabindex="-1">好，引导先放在这里。</h1>
-          <p class="support">你可以直接进入 GoalBoard。之后随时从设置重新打开；这不会伪造任何项目或 Goal 状态。</p>
-          <div class="decision-actions"><button class="primary-action" data-action="enter-app">进入 GoalBoard</button><button class="secondary-action" data-action="restart">重新开始</button></div>`;
+          <p class="support">你可以直接进入 Molis Work。之后随时从设置重新打开；这不会伪造任何项目或 Goal 状态。</p>
+          <div class="decision-actions"><button class="primary-action" data-action="enter-app">进入 Molis Work</button><button class="secondary-action" data-action="restart">重新开始</button></div>`;
 
         if (step === 'update-intro') return `
           <h1 class="question" tabindex="-1">这次更新，只改变一件事。</h1>
@@ -1089,7 +1089,7 @@
           <div class="decision-actions"><button class="primary-action" data-action="try-update">在当前项目试用</button><button class="secondary-action" data-go="update-intro">返回</button></div>`;
 
         return `
-          ${context('当前项目 · GoalBoard Onboarding')}
+          ${context('当前项目 · Molis Work Onboarding')}
           <h1 class="question compact" tabindex="-1">试用入口已经准备好。</h1>
           <p class="support">生产版会打开当前项目的新 Session，并填入提交 Goal Tree Proposal 的提示。这个原型不会连接真实 Runtime。</p>
           <div class="decision-actions"><button class="primary-action" data-action="enter-app">回到当前项目</button><button class="secondary-action" data-go="update-intro">重新查看</button></div>`;
@@ -1235,7 +1235,7 @@
         if (action === 'accept-proposal') render('success');
         if (action === 'begin-goal' || action === 'view-tree' || action === 'enter-app') showToast('原型到此结束；生产版会进入当前 Project。');
         if (action === 'restart') {
-          Object.assign(state, { journey: 'first', step: 'project', project: '', outcome: '', runtime: 'Codex', workspace: '/Users/yijunwang/code/goalboard' });
+          Object.assign(state, { journey: 'first', step: 'project', project: '', outcome: '', runtime: 'Codex', workspace: '/Users/yijunwang/code/molis-work' });
           render('project');
         }
         if (action === 'see-update') render('update-detail');

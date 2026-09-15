@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { renderWorkbenchGoalsReadRequest, renderWorkbenchGoalsPageRequest, type GoalBoardWebView } from "@adeptify/goalboard-app-workbench";
-import { createContextLedger } from "@adeptify/goalboard-module-context-ledger";
+import { renderWorkbenchGoalsReadRequest, renderWorkbenchGoalsPageRequest, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
+import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import type { GoalProjectApplication } from "./goal-project-application.js";
 import type { LocalProjectDatabase } from "./project-database.js";
 import { renderGoalArtifactContext } from "./artifact-native-plugin-http.js";
@@ -12,20 +12,20 @@ import { sendLocalWebJson as sendJson } from "./web-http.js";
 
 export function createLocalGoalsReadHttp(ports: {
   withCatalog: LocalWebCatalogRunner;
-  renderer: Pick<ReturnType<typeof createLocalHostWorkbenchRenderer>, "renderGoalBoardProjectGeneralSettings" | "renderGoalBoardMomentumFragment" | "renderGoalBoardProjectGuidanceSettings" | "renderGoalBoardProjectSettings" | "renderGoalBoardRefreshFragment" | "renderGoalBoardWeb" | "renderGoalDocumentFragment">;
+  renderer: Pick<ReturnType<typeof createLocalHostWorkbenchRenderer>, "renderMolisWorkProjectGeneralSettings" | "renderMolisWorkMomentumFragment" | "renderMolisWorkProjectGuidanceSettings" | "renderMolisWorkProjectSettings" | "renderMolisWorkRefreshFragment" | "renderMolisWorkWeb" | "renderGoalDocumentFragment">;
   isDesktopShellRequest(request: IncomingMessage, url: URL): boolean;
   pageCsp: string;
   sessionProjectOperationsData: ReturnType<typeof createSessionProjectOperations>;
 }) {
-  const { withCatalog: withGoalBoardProjectCatalog, isDesktopShellRequest, pageCsp: PAGE_CSP, sessionProjectOperationsData } = ports;
-  const { renderGoalBoardProjectGeneralSettings, renderGoalBoardMomentumFragment, renderGoalBoardProjectGuidanceSettings, renderGoalBoardProjectSettings, renderGoalBoardRefreshFragment, renderGoalBoardWeb, renderGoalDocumentFragment } = ports.renderer;
+  const { withCatalog: withMolisWorkProjectCatalog, isDesktopShellRequest, pageCsp: PAGE_CSP, sessionProjectOperationsData } = ports;
+  const { renderMolisWorkProjectGeneralSettings, renderMolisWorkMomentumFragment, renderMolisWorkProjectGuidanceSettings, renderMolisWorkProjectSettings, renderMolisWorkRefreshFragment, renderMolisWorkWeb, renderGoalDocumentFragment } = ports.renderer;
   function settings(request: IncomingMessage, response: ServerResponse, url: URL, boardId: string,
-    readWebView: () => GoalBoardWebView, coordinator: GoalProjectApplication, controlToken: string,
+    readWebView: () => MolisWorkWebView, coordinator: GoalProjectApplication, controlToken: string,
   ): boolean {
     if (request.method === "GET" && url.pathname === "/settings/general") {
       const view = readWebView();
       if (!view.project) {
-        sendJson(response, 404, { error: "找不到这个 GoalBoard 项目" });
+        sendJson(response, 404, { error: "找不到这个 Molis Work 项目" });
         return true;
       }
       response.writeHead(200, {
@@ -33,7 +33,7 @@ export function createLocalGoalsReadHttp(ports: {
         "cache-control": "no-store",
         "content-security-policy": PAGE_CSP,
       });
-      response.end(renderGoalBoardProjectGeneralSettings(view.project, view.projects, controlToken, isDesktopShellRequest(request, url)));
+      response.end(renderMolisWorkProjectGeneralSettings(view.project, view.projects, controlToken, isDesktopShellRequest(request, url)));
       return true;
     }
     if (request.method === "GET" && url.pathname === "/settings/guidance") {
@@ -42,7 +42,7 @@ export function createLocalGoalsReadHttp(ports: {
         "cache-control": "no-store",
         "content-security-policy": PAGE_CSP,
       });
-      response.end(renderGoalBoardProjectGuidanceSettings(
+      response.end(renderMolisWorkProjectGuidanceSettings(
         readWebView(),
         coordinator.goalQueries.readProjectGuidance(boardId),
         controlToken,
@@ -56,7 +56,7 @@ export function createLocalGoalsReadHttp(ports: {
         "cache-control": "no-store",
         "content-security-policy": PAGE_CSP,
       });
-      response.end(renderGoalBoardProjectSettings(
+      response.end(renderMolisWorkProjectSettings(
         readWebView(),
         controlToken,
         isDesktopShellRequest(request, url),
@@ -66,7 +66,7 @@ export function createLocalGoalsReadHttp(ports: {
     return false;
   }
   function fragments(request: IncomingMessage, response: ServerResponse, url: URL, boardId: string,
-    store: LocalProjectDatabase, coordinator: GoalProjectApplication, readWebView: () => GoalBoardWebView,
+    store: LocalProjectDatabase, coordinator: GoalProjectApplication, readWebView: () => MolisWorkWebView,
   ): boolean {
     const renderedGoalsRead = renderWorkbenchGoalsReadRequest(request.method, url.pathname, url.searchParams, () => {
       const view = readWebView();
@@ -74,13 +74,13 @@ export function createLocalGoalsReadHttp(ports: {
         view, boardId, goalId, coordinator, store, collection,
       );
       return {
-        refresh: (goalId, collection) => renderGoalBoardRefreshFragment(
+        refresh: (goalId, collection) => renderMolisWorkRefreshFragment(
           eventView(goalId, collection),
           goalId,
           collection === "archive",
           collection === "trash",
         ),
-        momentum: (goalId, collection) => renderGoalBoardMomentumFragment(view, goalId, collection),
+        momentum: (goalId, collection) => renderMolisWorkMomentumFragment(view, goalId, collection),
         document: (goalId, collection) => renderGoalDocumentFragment(eventView(goalId, collection), goalId, collection),
       };
     });
@@ -100,14 +100,14 @@ export function createLocalGoalsReadHttp(ports: {
     return false;
   }
   async function page(request: IncomingMessage, response: ServerResponse, url: URL, options: WebViewOptions,
-    homeDirectory: string | undefined, readWebView: () => GoalBoardWebView, sessionResources: Promise<SessionRuntimeResources>, controlToken: string,
+    homeDirectory: string | undefined, readWebView: () => MolisWorkWebView, sessionResources: Promise<SessionRuntimeResources>, controlToken: string,
     coordinator?: GoalProjectApplication, store?: LocalProjectDatabase,
   ): Promise<boolean> {
     const renderedGoalsPage = await renderWorkbenchGoalsPageRequest(
       request.method, url.pathname, readWebView,
       async (view, { goalId: requestedGoalId, archiveView, trashView, decisionView }) => {
         const desktopShell = isDesktopShellRequest(request, url);
-        const projectConfiguration = options.project ? await withGoalBoardProjectCatalog({ homeDirectory }, catalog => ({
+        const projectConfiguration = options.project ? await withMolisWorkProjectCatalog({ homeDirectory }, catalog => ({
           plugins: catalog.listProjectPlugins(options.project!.project_id),
           workspaces: catalog.listWorkspaceDirectory(options.project!.project_id),
         })) : null;
@@ -121,7 +121,7 @@ export function createLocalGoalsReadHttp(ports: {
               projectConfiguration!.workspaces,
             )
           : { sessions: [], workspaces: [] };
-        return renderGoalBoardWeb(
+        return renderMolisWorkWeb(
           coordinator && store
             ? withSelectedGoalDocument(
                 view,
@@ -164,13 +164,13 @@ export function createLocalGoalsReadHttp(ports: {
 }
 
 function withSelectedGoalDocument(
-  view: GoalBoardWebView,
+  view: MolisWorkWebView,
   boardId: string,
   goalId: string | undefined,
   coordinator: GoalProjectApplication,
   store: LocalProjectDatabase,
   collection: "current" | "archive" | "trash" = "current",
-): GoalBoardWebView {
+): MolisWorkWebView {
   const eventView = withSelectedEventDocument(
     view,
     boardId,
@@ -189,7 +189,7 @@ function withSelectedGoalDocument(
       authorize: (access, operation) => operation === "read" && access.scope.kind === "personal" && access.scope.id === boardId,
     }).query,
   });
-  const decorate = (item: GoalBoardWebView["goals"][number]) =>
+  const decorate = (item: MolisWorkWebView["goals"][number]) =>
     item.goal.goal_id === goalId ? { ...item, artifact_embed_html: html } : item;
   return {
     ...eventView,

@@ -25,7 +25,7 @@ type GoalChangedDetail = {
 declare global {
   interface Window {
     L?: (zh: string, vars?: Record<string, string | number>) => string;
-    goalboardControlHeaders?: () => Record<string, string>;
+    molisWorkControlHeaders?: () => Record<string, string>;
   }
 }
 
@@ -77,12 +77,12 @@ export function startWorkTerminalClient() {
 
     const headers = () => ({
       "content-type": "application/json",
-      "x-goalboard-desktop": "1",
-      ...(window.goalboardControlHeaders?.() ?? {}),
+      "x-molis-work-desktop": "1",
+      ...(window.molisWorkControlHeaders?.() ?? {}),
     });
     const desktopHeaders = () => ({
-      "x-goalboard-desktop": "1",
-      ...(window.goalboardControlHeaders?.() ?? {}),
+      "x-molis-work-desktop": "1",
+      ...(window.molisWorkControlHeaders?.() ?? {}),
     });
 
     const goalId = () => pane.dataset.goalId || "";
@@ -223,7 +223,7 @@ export function startWorkTerminalClient() {
     };
 
     const controlToken = () =>
-      document.querySelector('meta[name="goalboard-control-token"]')?.getAttribute("content") || "";
+      document.querySelector('meta[name="molis-work-control-token"]')?.getAttribute("content") || "";
 
     const panelController = createTerminalPanels({
       screens, goalId,
@@ -405,7 +405,7 @@ export function startWorkTerminalClient() {
       void panelController.reopenPanel().catch((error) => setStatus(errorText(error), "error"));
     });
 
-    document.addEventListener("goalboard:goal-changed", (event) => {
+    document.addEventListener("molis-work:goal-changed", (event) => {
       const detail = (event as CustomEvent<GoalChangedDetail>).detail;
       if (ownerTitleEl && detail?.goalTitle) ownerTitleEl.textContent = detail.goalTitle;
       if (ownerStatusEl) {
@@ -434,7 +434,7 @@ export function startWorkTerminalClient() {
       panelController.resetGoal();
     });
 
-    document.addEventListener("goalboard:goal-document-loaded", (event) => {
+    document.addEventListener("molis-work:goal-document-loaded", (event) => {
       const detail = (event as CustomEvent<{ goalId?: string }>).detail;
       if (!detail?.goalId || detail.goalId !== goalId()) return;
       void loadPanels();

@@ -6,7 +6,7 @@
 
 真实结果是：Risk 已经按用户决定更新并物化，clarifier Run 也已结束，但发起工作的 Goal 仍是空白 `draft / abstract`，因此长期显示“待澄清”。同一个 Draft Run 甚至可以把 Proposal 挂到另一条 Goal 上。
 
-本次目标不是删除这类 Goal，也不是把 Risk 当成附属记录。Risk 的处理是一项有限、可验收、可以到 Done 的正式 Goal。GoalBoard 必须保证它从澄清、确认、执行、Evidence、Review 到完成走完整生命周期。
+本次目标不是删除这类 Goal，也不是把 Risk 当成附属记录。Risk 的处理是一项有限、可验收、可以到 Done 的正式 Goal。Molis Work 必须保证它从澄清、确认、执行、Evidence、Review 到完成走完整生命周期。
 
 关联现象：`draft-78a84b05-54c9-423d-b2f1-3c171ed6ebdc` 已物化 Risk 状态更新，但自身仍为无 Contract 的 Draft。
 

@@ -9,9 +9,9 @@ import type {
   PtyHostHandlers,
   PtySpawnRequest,
   PtySpawnResult,
-} from "@adeptify/goalboard-contracts/services/runtime-host";
+} from "@molis-ai/molis-work-contracts/services/runtime-host";
 
-export type { PtyHostHandlers, PtySpawnRequest, PtySpawnResult } from "@adeptify/goalboard-contracts/services/runtime-host";
+export type { PtyHostHandlers, PtySpawnRequest, PtySpawnResult } from "@molis-ai/molis-work-contracts/services/runtime-host";
 
 const REPLAY_LIMIT = 200_000;
 const UNIX_PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin";
@@ -347,7 +347,7 @@ function clipReplay(value: string): string {
   return value.length > REPLAY_LIMIT ? value.slice(value.length - REPLAY_LIMIT) : value;
 }
 
-export class GoalBoardPtyHost {
+export class MolisWorkPtyHost {
   private readonly sessions = new Map<string, IPty>();
   private readonly replay = new Map<string, string>();
 

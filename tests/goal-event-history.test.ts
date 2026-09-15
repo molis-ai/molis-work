@@ -8,8 +8,8 @@ import {
   mixedPageIsStable,
   pageHistoryItems,
   renderHistoryItemBody,
-} from "@adeptify/goalboard-plugin-goals";
-import type { GoalEventTimelineItem } from "@adeptify/goalboard-contracts/modules/goals";
+} from "@molis-ai/molis-work-plugin-goals";
+import type { GoalEventTimelineItem } from "@molis-ai/molis-work-contracts/modules/goals";
 
 test("legacy history mapping keeps original IDs and does not duplicate work events", () => {
   const work = {

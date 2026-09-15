@@ -6,7 +6,7 @@
 
 ## 本模块拥有
 
-- GoalBoard Session identity、Runtime native identity / correlation、surface identity。
+- Molis Work Session identity、Runtime native identity / correlation、surface identity。
 - Session 与 Project、Goal、workspace 的关联规则和 Goal 历史视图；关系事实由 Context Ledger 唯一保存。
 - 本地加密的 Session event / content reference。
 - Handoff 草稿、目标 Session、发送状态、重试与恢复事实。
@@ -22,9 +22,9 @@
 
 ## 公开入口与内部拆分
 
-所有业务调用从 `@adeptify/goalboard-module-private-work-context` 进入：
+所有业务调用从 `@molis-ai/molis-work-module-private-work-context` 进入：
 
-- `GoalBoardSessionRegistry`：兼容期 public facade，不保存混合实现。
+- `MolisWorkSessionRegistry`：兼容期 public facade，不保存混合实现。
 - `session-records.ts`：Session 身份与命令事务。
 - `session-associations.ts`：关联规则、Ledger 公开 API 适配与旧关联迁移，不保存第二套关系表。
 - `session-events.ts` 与 `content-store.ts`：过滤元数据并本地加密保存内容。
@@ -39,11 +39,11 @@ WK3 已将所有 Registry caller 切到公开 owner 包，并删除 `src/session
 
 ## 兼容与数据位置
 
-- 继续使用 `~/.goalboard/sessions/sessions.db` 和原有加密内容目录；schema v5 包含 v4 的 Session 关联迁移，并迁移 Handoff 的跨模块引用，不搬移或删除私人内容。旧 reader 不会误读新 schema。
+- 继续使用 `~/.molis-work/sessions/sessions.db` 和原有加密内容目录；schema v5 包含 v4 的 Session 关联迁移，并迁移 Handoff 的跨模块引用，不搬移或删除私人内容。旧 reader 不会误读新 schema。
 - 原 owner marker 继续作为数据兼容标识，不代表代码 owner 仍在旧目录。
 - WK1 迁移事实 owner；WK2 迁移 Runtime Host，WK3 再清除 Work UI / resume / handoff caller 的兼容入口。
 
-应用层通过 `@adeptify/goalboard-app-local-host` 的 `openWorkSessionRegistry` 组合两个 Module；Module 单独使用时显式注入 Ledger factory。v3 历史 link 的编号、操作者和起止时间保留，未知历史 Project 不用当前 Project 回填。`project_id`、`current_goal_id`、`workspace_id` 仍作为公开 Session response 字段，但从 Ledger 派生；旧列和旧 link 表迁移后清空，不再双写。Project 里的同名 Goal 通过 ObjectRef 的 Project namespace 区分。
+应用层通过 `@molis-ai/molis-work-app-local-host` 的 `openWorkSessionRegistry` 组合两个 Module；Module 单独使用时显式注入 Ledger factory。v3 历史 link 的编号、操作者和起止时间保留，未知历史 Project 不用当前 Project 回填。`project_id`、`current_goal_id`、`workspace_id` 仍作为公开 Session response 字段，但从 Ledger 派生；旧列和旧 link 表迁移后清空，不再双写。Project 里的同名 Goal 通过 ObjectRef 的 Project namespace 区分。
 
 Handoff 的 `source_project_id` / `source_goal_id` / `target_project_id` / `target_workspace_id` 同样由 Ledger 派生；旧必填列清空字符串，workspace 列清空 null。新 prepare 记录调用方实际使用的 Goal Contract revision，旧包未知版本保留 null。迁移从包自身的历史引用读取，不借用 Session 后来的关联。初始化升级、新建和目标修改均把 Work 状态与 Ledger 放入一个事务；失败不留下半迁移或孤立关系。
 

@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   CodexAppServerTransport,
   CodexAppServerTransportError,
-} from "@adeptify/goalboard-service-runtime-host";
+} from "@molis-ai/molis-work-service-runtime-host";
 
 const FAKE_APP_SERVER = `
 const readline = require("node:readline");

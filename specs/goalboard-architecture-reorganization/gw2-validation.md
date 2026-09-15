@@ -6,7 +6,7 @@ Completion level: functional migration with repository-wide compatibility verifi
 
 ## gw2-boundary
 
-- Public owner: `@adeptify/goalboard-module-goals` now advertises `goals.lifecycle.v1` from its package manifest, runtime descriptor, and workspace inventory.
+- Public owner: `@molis-ai/molis-work-module-goals` now advertises `goals.lifecycle.v1` from its package manifest, runtime descriptor, and workspace inventory.
 - Public implementation: `GoalsModule.lifecycle` exposes Draft acceptance, Contract revision, revalidation, completion, archive, trash/restore, validity changes, compound reconciliation, and lifecycle migration functions through `modules/goals/src/index.ts`.
 - Lifecycle implementation is split by responsibility:
   - `lifecycle-archive.ts`: archive and recoverable trash.
@@ -23,7 +23,7 @@ Completion level: functional migration with repository-wide compatibility verifi
 
 ## gw2-legacy-exit
 
-- `GoalBoardCoordinator` public archive, trash, restore/list, revalidate, and completion methods are thin calls to `GoalsModule.lifecycle`.
+- `MolisWorkCoordinator` public archive, trash, restore/list, revalidate, and completion methods are thin calls to `GoalsModule.lifecycle`.
 - Draft acceptance, accepted Contract revision, accepted compound closure, validity changes, and automatic completion/reopening no longer write Goal lifecycle facts in the Coordinator.
 - Contract revision still preserves the same `goal_id`; `current_contract_revision` increments and a matching `goal_contract_revisions` row records `metadata`, `revalidate`, or `rework` effect.
 - Cross-owner revision effects remain in a narrow Coordinator port until the Execution and Governance owners migrate: material changes abandon/revoke old Run/Claim state and waive old Review obligations; metadata-only changes advance the active Claim revision without restarting work.

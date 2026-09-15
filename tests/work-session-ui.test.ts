@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import vm from "node:vm";
 import test from "node:test";
-import { createWorkbenchUiHost, renderProjectOperations, WORKBENCH_UI_SLOTS } from "@adeptify/goalboard-app-workbench";
-import { PROJECT_OPERATIONS_CLIENT_SCRIPT, WORK_UI_CONTRIBUTION_ID } from "@adeptify/goalboard-plugin-work";
-import { icon } from "@adeptify/goalboard-design-system";
+import { createWorkbenchUiHost, renderProjectOperations, WORKBENCH_UI_SLOTS } from "@molis-ai/molis-work-app-workbench";
+import { PROJECT_OPERATIONS_CLIENT_SCRIPT, WORK_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-work";
+import { icon } from "@molis-ai/molis-work-design-system";
 
 test("Workbench mounts Work surfaces with real Session data and escapes user content", () => {
   const project = { project_id: "project-a", display_name: "Work project" };
@@ -61,7 +61,7 @@ for (const scenario of ["success", "unsupported", "failure"] as const) {
         querySelectorAll: (selector: string) => selector === "[data-session-load]" ? [button] : [],
         addEventListener() {},
       },
-      window: { goalboardControlHeaders: () => ({ "x-goalboard-control-token": "test-token" }) },
+      window: { molisWorkControlHeaders: () => ({ "x-molis-work-control-token": "test-token" }) },
       location: { hash: "" },
       fetch(url: string, init: RequestInit) {
         requests.push({ url, init });
@@ -76,7 +76,7 @@ for (const scenario of ["success", "unsupported", "failure"] as const) {
     assert.equal(requests.length, 1);
     assert.equal(requests[0]!.url, "/projects/project-a/api/sessions/session%2Fa/resume");
     assert.equal(requests[0]!.init.method, "POST");
-    assert.equal((requests[0]!.init.headers as Record<string, string>)["x-goalboard-control-token"], "test-token");
+    assert.equal((requests[0]!.init.headers as Record<string, string>)["x-molis-work-control-token"], "test-token");
     reply({
       ok: scenario === "success",
       json: async () => scenario === "success" ? { status: "ok" }

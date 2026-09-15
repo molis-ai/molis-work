@@ -3,7 +3,7 @@ import test from "node:test";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DEMO_BOARD_ID } from "@adeptify/goalboard-app-local-host";
+import { DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 test("Goals tree supports real collapse, search, status filtering and detail selection without changing project facts", { timeout: 60_000 }, async (t) => {
@@ -16,7 +16,7 @@ test("Goals tree supports real collapse, search, status filtering and detail sel
   await command("Page.bringToFront", {}, sessionId);
   await waitFor("document.readyState === 'complete' && document.querySelector('[data-tree-item][data-goal-id=CORE]')");
   const dom = (selector: string) => "document.querySelector(" + JSON.stringify(selector) + ")";
-  const screenshots = process.env.GOALBOARD_TEST_CAPTURE === "1" ? await mkdtemp(join(tmpdir(), "goalboard-gw5-tree-")) : null;
+  const screenshots = process.env.MOLIS_WORK_TEST_CAPTURE === "1" ? await mkdtemp(join(tmpdir(), "molis-work-gw5-tree-")) : null;
   async function capture(name: string) {
     if (!screenshots) return;
     const { data } = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);
@@ -71,7 +71,8 @@ test("Goals tree supports real collapse, search, status filtering and detail sel
   await waitFor(dom('[data-goal-event-document][data-goal-view="CORE"]'));
   assert.equal(await evaluate(dom('.tree-node[data-select-goal="CORE"]') + ".getAttribute('aria-pressed')"), "true");
   await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
-  await click('[data-mobile-target="tree"]');
+  await click("[data-directory-show]");
+  await waitFor("document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')");
   await click("[data-global-search]");
   assert.equal(await evaluate("document.activeElement.matches('[data-global-search]')"), true);
   assert.equal(await evaluate("document.documentElement.scrollWidth > innerWidth"), false);

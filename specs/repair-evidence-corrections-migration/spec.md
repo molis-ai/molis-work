@@ -2,7 +2,7 @@
 
 ## 背景与证据
 
-安装当前 GoalBoard Runtime 后，桌面端打开 Footballnia 项目返回：
+安装当前 Molis Work Runtime 后，桌面端打开 Footballnia 项目返回：
 
 `no such table: evidence_corrections`
 
@@ -10,13 +10,13 @@
 
 ## 目标
 
-让 GoalBoard 在打开这类历史项目时自动修复 migration 17 的结构漂移，使桌面端可以正常加载项目，同时不改写任何 Goal、Evidence 或事件事实。
+让 Molis Work 在打开这类历史项目时自动修复 migration 17 的结构漂移，使桌面端可以正常加载项目，同时不改写任何 Goal、Evidence 或事件事实。
 
 ## 范围
 
 - `src/v1/store.ts`：migration 17 同时校验账本记录与 `evidence_corrections` 表是否存在。
 - `tests/v1.test.ts`：覆盖“账本存在但表缺失”的真实回归形态。
-- 本地重新构建、安装并重启 GoalBoard Web 服务，验证 Footballnia 项目可打开。
+- 本地重新构建、安装并重启 Molis Work Web 服务，验证 Footballnia 项目可打开。
 
 ## 非目标
 

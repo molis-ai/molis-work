@@ -1,27 +1,27 @@
 import { createHash } from "node:crypto";
-import { parsePluginManifest, PluginManifestError } from "@adeptify/goalboard-contracts/platform/plugin";
+import { parsePluginManifest, PluginManifestError } from "@molis-ai/molis-work-contracts/platform/plugin";
 
-export { parsePluginManifest } from "@adeptify/goalboard-contracts/platform/plugin";
+export { parsePluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type {
   PluginManifest, PluginDefinition, PluginStartContext, PluginArtifactClient, PluginArtifactPublishInput, PluginPrivateStorage,
   PluginUiClient, PluginHostServices,
-} from "@adeptify/goalboard-contracts/platform/plugin";
-export type { ArtifactReference, ArtifactVersionRecord } from "@adeptify/goalboard-contracts/modules/artifacts";
-export type { UiContribution, UiContributionDescriptor, UiRenderRequest } from "@adeptify/goalboard-contracts/platform/ui";
+} from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { ArtifactReference, ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
+export type { UiContribution, UiContributionDescriptor, UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 
 import type {
   IntegrationProviderPort,
   PluginDefinition,
   PluginManifest,
   PluginStartContext,
-} from "@adeptify/goalboard-contracts/platform/plugin";
+} from "@molis-ai/molis-work-contracts/platform/plugin";
 
 export const packageDescriptor = {
-  packageName: "@adeptify/goalboard-plugin-sdk",
+  packageName: "@molis-ai/molis-work-plugin-sdk",
   packagePath: "packages/plugin-sdk",
   kind: "foundation",
   maturity: "partial",
-  contract: "@adeptify/goalboard-contracts/platform/plugin",
+  contract: "@molis-ai/molis-work-contracts/platform/plugin",
   migrationGoals: ["goal-reorg-f2", "goal-reorg-fd3", "goal-reorg-dv3"],
   ssot: "docs/SSOT-MATRIX.md",
   capabilities: ["plugin.define.v1", "integration.polling.v1"],
@@ -154,4 +154,4 @@ function normalizeDate(value: string | undefined, fallback: string): string {
   return value && Number.isFinite(Date.parse(value)) ? new Date(value).toISOString() : fallback;
 }
 
-export type GoalBoardPackageDescriptor = typeof packageDescriptor;
+export type MolisWorkPackageDescriptor = typeof packageDescriptor;

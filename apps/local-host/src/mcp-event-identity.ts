@@ -1,29 +1,29 @@
-import { GoalBoardV1Error } from "@adeptify/goalboard-plugin-goals";
-import type { GoalBoardRuntimeConnection, GoalBoardRuntimeContextHost } from "@adeptify/goalboard-contracts/platform/app-host";
-import { isRuntimeContextMcpTool, type McpToolCallContext } from "@adeptify/goalboard-app-mcp";
+import { MolisWorkV1Error } from "@molis-ai/molis-work-plugin-goals";
+import type { MolisWorkRuntimeConnection, MolisWorkRuntimeContextHost } from "@molis-ai/molis-work-contracts/platform/app-host";
+import { isRuntimeContextMcpTool, type McpToolCallContext } from "@molis-ai/molis-work-app-mcp";
 
 export const GOAL_EVENT_WRITE_TOOLS = new Set([
-  "goalboard_v1_goal_tree_propose",
-  "goalboard_v1_goal_intent_create",
-  "goalboard_v1_event_configure",
-  "goalboard_v1_event_report",
-  "goalboard_v1_event_note",
-  "goalboard_v1_event_progress",
-  "goalboard_v1_event_concern",
-  "goalboard_v1_event_decision_request",
-  "goalboard_v1_event_cite_decision",
-  "goalboard_v1_event_agree",
-  "goalboard_v1_event_close",
-  "goalboard_v1_event_resume",
+  "molis_work_v1_goal_tree_propose",
+  "molis_work_v1_goal_intent_create",
+  "molis_work_v1_event_configure",
+  "molis_work_v1_event_report",
+  "molis_work_v1_event_note",
+  "molis_work_v1_event_progress",
+  "molis_work_v1_event_concern",
+  "molis_work_v1_event_decision_request",
+  "molis_work_v1_event_cite_decision",
+  "molis_work_v1_event_agree",
+  "molis_work_v1_event_close",
+  "molis_work_v1_event_resume",
 ]);
 
 export const GOAL_EVENT_TOOLS = new Set([
   ...GOAL_EVENT_WRITE_TOOLS,
-  "goalboard_v1_goal_list",
-  "goalboard_v1_goal_state",
-  "goalboard_v1_event_list",
-  "goalboard_v1_event_read",
-  "goalboard_v1_event_decide",
+  "molis_work_v1_goal_list",
+  "molis_work_v1_goal_state",
+  "molis_work_v1_event_list",
+  "molis_work_v1_event_read",
+  "molis_work_v1_event_decide",
 ]);
 
 export const RUNTIME_CONNECTION_OVERRIDE_FIELDS = [
@@ -47,24 +47,24 @@ const RUNTIME_FORGED_AUTHORITY_FIELDS = [
 ] as const;
 
 const RUNTIME_CONFIRMATION_TOOLS = new Set([
-  "goalboard_v1_project_guidance_add",
-  "goalboard_v1_project_guidance_update",
-  "goalboard_v1_planning_method_save",
-  "goalboard_v1_goal_trash",
-  "goalboard_v1_goal_restore",
+  "molis_work_v1_project_guidance_add",
+  "molis_work_v1_project_guidance_update",
+  "molis_work_v1_planning_method_save",
+  "molis_work_v1_goal_trash",
+  "molis_work_v1_goal_restore",
 ]);
 
 const RUNTIME_READ_TOOLS = new Set([
-  "goalboard_v1_project_guidance_get",
-  "goalboard_v1_planning_methods",
-  "goalboard_v1_planning_analyze_change",
-  "goalboard_v1_planning_graph_check",
-  "goalboard_v1_goal_state",
-  "goalboard_v1_event_list",
-  "goalboard_v1_event_read",
-  "goalboard_v1_goal_list",
-  "goalboard_v1_goal_tree_read",
-  "goalboard_v1_goal_trash_list",
+  "molis_work_v1_project_guidance_get",
+  "molis_work_v1_planning_methods",
+  "molis_work_v1_planning_analyze_change",
+  "molis_work_v1_planning_graph_check",
+  "molis_work_v1_goal_state",
+  "molis_work_v1_event_list",
+  "molis_work_v1_event_read",
+  "molis_work_v1_goal_list",
+  "molis_work_v1_goal_tree_read",
+  "molis_work_v1_goal_trash_list",
 ]);
 
 export function assertRuntimeOrdinaryToolInput(
@@ -78,13 +78,13 @@ export function assertRuntimeOrdinaryToolInput(
   if (Object.hasOwn(arguments_, "user_confirmed") && !RUNTIME_CONFIRMATION_TOOLS.has(name)) {
     forged.push("user_confirmed");
   }
-  if (name === "goalboard_v1_goal_tree_propose") {
+  if (name === "molis_work_v1_goal_tree_propose") {
     for (const field of ["submitted_session_id", "discovered_in_run_id"]) {
       if (Object.hasOwn(arguments_, field) && !forged.includes(field)) forged.push(field);
     }
   }
   if (connection.length) {
-    throw new GoalBoardV1Error(
+    throw new MolisWorkV1Error(
       "mcp.connection_override_denied",
       `MCP 连接拒绝：Runtime 不能覆盖宿主固定的项目或地址字段：${connection.join("、")}`,
       { fields: connection },
@@ -92,7 +92,7 @@ export function assertRuntimeOrdinaryToolInput(
   }
   const impersonation = [...actor, ...forged];
   if (impersonation.length) {
-    throw new GoalBoardV1Error(
+    throw new MolisWorkV1Error(
       "mcp.user_impersonation_denied",
       `MCP 权限拒绝：Runtime 不能通过 ${impersonation.join("、")} 自填用户身份、批准、权威来源或创建渠道`,
       { fields: impersonation },
@@ -108,21 +108,21 @@ export function assertRuntimeGoalEventToolInput(
 }
 
 export function runtimeEventActor(
-  host: GoalBoardRuntimeContextHost | null,
+  host: MolisWorkRuntimeContextHost | null,
   callContext: McpToolCallContext,
 ): { actor_id: string; actor_kind: "runtime" } {
   const runtimeId = host?.runtimeContext.runtime_id?.trim();
   if (!host || !runtimeId) {
-    throw new GoalBoardV1Error(
+    throw new MolisWorkV1Error(
       "mcp.runtime_identity_missing",
-      "MCP 宿主没有可信 Runtime 身份。请重新连接 GoalBoard MCP，由宿主提供 runtime_id 与稳定 Session；不要在工具参数里填用户身份。",
+      "MCP 宿主没有可信 Runtime 身份。请重新连接 Molis Work MCP，由宿主提供 runtime_id 与稳定 Session；不要在工具参数里填用户身份。",
     );
   }
   const sessionId = stableRuntimeSessionId(host, callContext);
   if (!sessionId) {
-    throw new GoalBoardV1Error(
+    throw new MolisWorkV1Error(
       "mcp.runtime_identity_missing",
-      "MCP 宿主没有稳定 Session 身份。请重新连接 GoalBoard MCP，由宿主提供 runtime_id 以及稳定 Session（会话元数据、nativeRuntimeSessionId 或已声明的 stable_work_context_id）；不要在工具参数里填用户身份。",
+      "MCP 宿主没有稳定 Session 身份。请重新连接 Molis Work MCP，由宿主提供 runtime_id 以及稳定 Session（会话元数据、nativeRuntimeSessionId 或已声明的 stable_work_context_id）；不要在工具参数里填用户身份。",
     );
   }
   return {
@@ -132,7 +132,7 @@ export function runtimeEventActor(
 }
 
 function stableRuntimeSessionId(
-  host: GoalBoardRuntimeContextHost,
+  host: MolisWorkRuntimeContextHost,
   callContext: McpToolCallContext,
 ): string | null {
   const fromCall = callContext.runtimeSessionId?.trim();
@@ -149,19 +149,19 @@ function stableRuntimeSessionId(
 export function injectRuntimeIdentity(
   name: string,
   arguments_: Record<string, unknown>,
-  host: GoalBoardRuntimeContextHost | null,
+  host: MolisWorkRuntimeContextHost | null,
   callContext: McpToolCallContext,
-  connection: GoalBoardRuntimeConnection,
+  connection: MolisWorkRuntimeConnection,
 ): Record<string, unknown> {
   if (isRuntimeContextMcpTool(name)) return arguments_;
   const withBoard = { ...arguments_, board_id: connection.boardId };
   if (RUNTIME_READ_TOOLS.has(name)) return withBoard;
   const actor = runtimeEventActor(host, callContext);
-  if (name === "goalboard_v1_goal_tree_propose") {
+  if (name === "molis_work_v1_goal_tree_propose") {
     const sessionId = actor.actor_id.split(":").slice(2).join(":") || actor.actor_id;
     return { ...withBoard, actor_id: actor.actor_id, actor_kind: actor.actor_kind, submitted_session_id: sessionId };
   }
-  if (name === "goalboard_v1_goal_intent_create") {
+  if (name === "molis_work_v1_goal_intent_create") {
     return { ...withBoard, actor_id: actor.actor_id, actor_kind: actor.actor_kind, source_kind: "runtime" };
   }
   if (GOAL_EVENT_WRITE_TOOLS.has(name)) {

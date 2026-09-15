@@ -6,7 +6,7 @@ import type {
   ProjectWorkspaceDirectoryRecord,
   ProjectWorkspaceMembership,
   ProjectWorkspaceRef,
-} from "@adeptify/goalboard-contracts/modules/projects";
+} from "@molis-ai/molis-work-contracts/modules/projects";
 
 type Row = Record<string, unknown>;
 
@@ -83,6 +83,11 @@ export class ProjectsRepository {
   renameProject(projectId: string, displayName: string, updatedAt: string): void {
     this.db.prepare("UPDATE projects SET display_name = ?, updated_at = ? WHERE project_id = ?")
       .run(displayName, updatedAt, projectId);
+  }
+
+  updateDatabasePath(projectId: string, databasePath: string, updatedAt: string): void {
+    this.db.prepare("UPDATE projects SET database_path = ?, updated_at = ? WHERE project_id = ?")
+      .run(databasePath, updatedAt, projectId);
   }
 
   touchProject(projectId: string, updatedAt: string): void {
@@ -312,7 +317,7 @@ export function createProjectsSchema(db: ProjectsSqliteDatabase): void {
       ON projects(display_name COLLATE NOCASE, project_id);
     CREATE TABLE IF NOT EXISTS project_plugins (
       project_id TEXT NOT NULL REFERENCES projects(project_id) ON DELETE CASCADE,
-      plugin_id TEXT NOT NULL CHECK (plugin_id IN ('goals', 'sessions', 'feed', 'artifacts')),
+      plugin_id TEXT NOT NULL CHECK (plugin_id IN ('goals', 'sessions', 'inbox', 'feed', 'artifacts')),
       added_at TEXT NOT NULL,
       PRIMARY KEY (project_id, plugin_id)
     );
@@ -366,6 +371,22 @@ export function createProjectsSchema(db: ProjectsSqliteDatabase): void {
     );
     CREATE INDEX IF NOT EXISTS project_deletions_project_idx
       ON project_deletions(project_id, deleted_at, deletion_id);
+  `);
+}
+
+export function migrateProjectInboxPluginSchema(db: ProjectsSqliteDatabase): void {
+  db.exec(`
+    CREATE TABLE project_plugins_inbox_next (
+      project_id TEXT NOT NULL REFERENCES projects(project_id) ON DELETE CASCADE,
+      plugin_id TEXT NOT NULL CHECK (plugin_id IN ('goals', 'sessions', 'inbox', 'feed', 'artifacts')),
+      added_at TEXT NOT NULL,
+      PRIMARY KEY (project_id, plugin_id)
+    );
+    INSERT INTO project_plugins_inbox_next SELECT project_id, plugin_id, added_at FROM project_plugins;
+    DROP TABLE project_plugins;
+    ALTER TABLE project_plugins_inbox_next RENAME TO project_plugins;
+    INSERT OR IGNORE INTO project_plugins (project_id, plugin_id, added_at)
+    SELECT project_id, 'inbox', added_at FROM project_plugins WHERE plugin_id = 'feed';
   `);
 }
 

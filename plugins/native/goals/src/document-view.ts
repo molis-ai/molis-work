@@ -1,7 +1,7 @@
-import type { GoalInputBindingRecord, GoalRecord, ImpactBindingRecord, GoalRelationRecord, GoalPolicy } from "@adeptify/goalboard-contracts/modules/goals";
-import type { ExecutionClaimRecord as ClaimRecord, ExecutionRunRecord as RunRecord } from "@adeptify/goalboard-contracts/modules/execution";
-import type { EvidenceRecord } from "@adeptify/goalboard-contracts/modules/evidence-verification";
-import type { ReviewObligationRecord, ReviewRecord } from "@adeptify/goalboard-contracts/modules/governance-collaboration";
+import type { GoalInputBindingRecord, GoalRecord, ImpactBindingRecord, GoalRelationRecord, GoalPolicy } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { ExecutionClaimRecord as ClaimRecord, ExecutionRunRecord as RunRecord } from "@molis-ai/molis-work-contracts/modules/execution";
+import type { EvidenceRecord } from "@molis-ai/molis-work-contracts/modules/evidence-verification";
+import type { ReviewObligationRecord, ReviewRecord } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import type { GoalDisplayStatus, GoalPresentationState } from "./tree-order.js";
 import type { GoalsPolicyBinding } from "./policy-ui-model.js";
 import type { GoalsSafetyRisk } from "./safety-ui-model.js";

@@ -1,7 +1,7 @@
-import type { ArtifactsApplicationApi } from "@adeptify/goalboard-contracts/modules/artifacts";
+import type { ArtifactsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type {
   PluginArtifactClient, PluginManifest, PluginStartContext,
-} from "@adeptify/goalboard-contracts/platform/plugin";
+} from "@molis-ai/molis-work-contracts/platform/plugin";
 
 export class PluginArtifactAccessError extends Error {
   constructor(

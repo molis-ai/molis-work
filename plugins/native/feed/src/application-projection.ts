@@ -1,7 +1,7 @@
-import type { AttentionEntryRecord as ModuleAttentionEntryRecord } from "@adeptify/goalboard-contracts/modules/attention-resumption";
-import type { FeedItemRecord as ModuleFeedItemRecord, FeedMaterialRecord as ModuleFeedMaterialRecord } from "@adeptify/goalboard-contracts/modules/feed";
+import type { AttentionEntryRecord as ModuleAttentionEntryRecord } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
+import type { FeedItemRecord as ModuleFeedItemRecord, FeedMaterialRecord as ModuleFeedMaterialRecord } from "@molis-ai/molis-work-contracts/modules/feed";
 
-import type { ListenerRunRecord } from "@adeptify/goalboard-contracts/services/listener-host";
+import type { ListenerRunRecord } from "@molis-ai/molis-work-contracts/services/listener-host";
 
 import type { FeedItemRecord, FeedMaterialRecord, FeedSourceRunRecord, InboxEntryRecord, InboxEntryStatus } from "./projection.js";
 

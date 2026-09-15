@@ -4,9 +4,9 @@ import Database from "better-sqlite3";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { GOAL_INPUT_BINDINGS_SCHEMA_SQL, GoalInputBindings } from "@adeptify/goalboard-module-goals";
-import type { GoalInputBindingRecord } from "@adeptify/goalboard-contracts/modules/goals";
-import { createContextLedger } from "@adeptify/goalboard-module-context-ledger";
+import { GOAL_INPUT_BINDINGS_SCHEMA_SQL, GoalInputBindings } from "@molis-ai/molis-work-module-goals";
+import type { GoalInputBindingRecord } from "@molis-ai/molis-work-contracts/modules/goals";
+import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 
 test("Goal input receipts retain opaque locators and snapshots, isolate Projects, and share rollback", () => {
   const db = new Database(":memory:");
@@ -60,7 +60,7 @@ function seedLegacy(db: Database.Database): void {
 }
 
 test("Feed input provenance migrates losslessly and survives reopen independently of current Feed links", () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-input-ledger-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-input-ledger-"));
   const path = join(directory, "test.db");
   let db = new Database(path);
   try {

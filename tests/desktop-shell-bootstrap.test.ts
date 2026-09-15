@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { runInNewContext } from "node:vm";
 import test from "node:test";
-import { NATIVE_DESKTOP_BOOTSTRAP_SCRIPT } from "@adeptify/goalboard-app-desktop";
+import { NATIVE_DESKTOP_BOOTSTRAP_SCRIPT } from "@molis-ai/molis-work-app-desktop";
 
 function bootstrap(native: boolean, initialFullscreen = false) {
   let fullscreen = initialFullscreen;
@@ -26,7 +26,7 @@ function bootstrap(native: boolean, initialFullscreen = false) {
   };
   runInNewContext(NATIVE_DESKTOP_BOOTSTRAP_SCRIPT, context);
   return { dataset, properties, warnings, navigations, invocations,
-    openExternal: (context as typeof context & { goalboardOpenExternalUrl?: (url: string) => Promise<void> }).goalboardOpenExternalUrl,
+    openExternal: (context as typeof context & { molisWorkOpenExternalUrl?: (url: string) => Promise<void> }).molisWorkOpenExternalUrl,
     resize: async (value: boolean) => { fullscreen = value; await resized(); } };
 }
 

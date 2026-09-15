@@ -2,7 +2,7 @@ import type { ContractDescriptor } from "../platform/package.js";
 export * from "./runtime-project-context.js";
 
 export const modulesPrivateWorkContextContract = {
-  contractId: "io.goalboard.module.private-work-context.v1",
+  contractId: "io.molis.work.module.private-work-context.v1",
   kind: "module",
   schemaVersion: 1,
   maturity: "partial",
@@ -50,7 +50,7 @@ export type RuntimeProjectSuggestionClueKind =
 
 export interface RuntimeSessionHostSignals {
   runtime_id: string;
-  goalboard_session_id: string | null;
+  molis_work_session_id: string | null;
   native_runtime_session_id: string | null;
   legacy_work_context_id: string | null;
   surface_id: string | null;
@@ -75,7 +75,7 @@ export type PrivateWorkContextJsonValue =
 export type PrivateWorkContextMetadata = Record<string, unknown>;
 
 export type WorkSessionProvenance =
-  | "goalboard_created"
+  | "molis_work_created"
   | "runtime_discovered"
   | "explicitly_linked"
   | "legacy_migrated";
@@ -157,7 +157,7 @@ export interface WorkSessionEventRecord {
 
 export const WORK_SESSION_HANDOFF_STATES = ["draft", "sending", "failed", "sent", "cancelled"] as const;
 export type WorkSessionHandoffState = (typeof WORK_SESSION_HANDOFF_STATES)[number];
-export type WorkSessionHandoffDeliveryMode = "native" | "goalboard_fallback";
+export type WorkSessionHandoffDeliveryMode = "native" | "molis_work_fallback";
 
 export interface WorkSessionHandoffRecord {
   package_id: string;
@@ -427,9 +427,9 @@ export class PrivateWorkContextError extends Error {
     message: string,
   ) {
     super(message);
-    this.name = "GoalBoardSessionError";
+    this.name = "MolisWorkSessionError";
   }
 }
 
 /** Compatibility name retained while old Session callers move to the Module API. */
-export { PrivateWorkContextError as GoalBoardSessionError };
+export { PrivateWorkContextError as MolisWorkSessionError };

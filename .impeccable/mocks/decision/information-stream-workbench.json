@@ -6,7 +6,7 @@
       "id": "signal-board",
       "label": "A · 信号台",
       "kicker": "THE ROLL",
-      "lineage": "GoalBoard Calm Desktop × signal-board triage",
+      "lineage": "Molis Work Calm Desktop × signal-board triage",
       "thesis": "把状态、来源和时间变成第一层扫描信息，再把单个 Item 推进到行动。",
       "palette": ["#1b2229", "#f7f6f2", "#2463eb", "#8f969f"],
       "materials": ["固定结构的信号行", "紧凑行动栏"],

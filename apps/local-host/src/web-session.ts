@@ -1,16 +1,16 @@
 import fs from "node:fs";
-import type { RuntimeSessionTransport } from "@adeptify/goalboard-contracts/services/runtime-host";
-import type { GoalBoardWebView, WebProjectNavigation } from "@adeptify/goalboard-app-workbench";
-import { SessionContentService, SessionDirectoryService, SessionHandoffService, SessionTuiRecorder, RegistryFallbackSessionAdapter, buildWorkSessionView, type ProjectOperationsData } from "@adeptify/goalboard-plugin-work";
-import type { GoalBoardSessionRegistry } from "@adeptify/goalboard-module-private-work-context";
-import { CodexAppServerTransport, CodexRuntimeSessionAdapter, RuntimeHostRouter } from "@adeptify/goalboard-service-runtime-host";
-import { type GoalBoardProjectCatalog, type GoalBoardWorkspaceDirectoryRecord, normalizeRuntimeWorkContext } from "./project-catalog.js";
+import type { RuntimeSessionTransport } from "@molis-ai/molis-work-contracts/services/runtime-host";
+import type { MolisWorkWebView, WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
+import { SessionContentService, SessionDirectoryService, SessionHandoffService, SessionTuiRecorder, RegistryFallbackSessionAdapter, buildWorkSessionView, type ProjectOperationsData } from "@molis-ai/molis-work-plugin-work";
+import type { MolisWorkSessionRegistry } from "@molis-ai/molis-work-module-private-work-context";
+import { CodexAppServerTransport, CodexRuntimeSessionAdapter, RuntimeHostRouter } from "@molis-ai/molis-work-service-runtime-host";
+import { type MolisWorkProjectCatalog, type MolisWorkWorkspaceDirectoryRecord, normalizeRuntimeWorkContext } from "./project-catalog.js";
 import { SUPPORTED_RUNTIME_IDS } from "./installer/runtime-integration-contract.js";
 import { openWorkSessionRegistry } from "./session-registry.js";
 import { reconcileLegacySessionCatalog } from "./session-migration.js";
 
 export interface SessionRuntimeResources {
-  registry: GoalBoardSessionRegistry;
+  registry: MolisWorkSessionRegistry;
   router: RuntimeHostRouter;
   directory: SessionDirectoryService;
   content: SessionContentService;
@@ -20,7 +20,7 @@ export interface SessionRuntimeResources {
 }
 
 export async function desktopPanelSessionIds(
-  catalog: GoalBoardProjectCatalog,
+  catalog: MolisWorkProjectCatalog,
   panelIds: readonly string[],
 ): Promise<Map<string, string>> {
   const result = new Map<string, string>();
@@ -62,9 +62,9 @@ export function createSessionProjectOperations(runtimeTitle: (runtimeKind: strin
   return function sessionProjectOperationsData(
     resources: SessionRuntimeResources,
     projectId: string,
-    view: GoalBoardWebView,
+    view: MolisWorkWebView,
     projects: readonly WebProjectNavigation[] = [],
-    catalogWorkspaces: readonly GoalBoardWorkspaceDirectoryRecord[] = [],
+    catalogWorkspaces: readonly MolisWorkWorkspaceDirectoryRecord[] = [],
   ): ProjectOperationsData {
     return buildWorkSessionView({
       projectId,
@@ -78,7 +78,7 @@ export function createSessionProjectOperations(runtimeTitle: (runtimeKind: strin
       runtimeTitle,
       workspaceExists: fs.existsSync,
       normalizeWorkspace: (canonicalPath) => normalizeRuntimeWorkContext({
-        runtime_id: "goalboard-web",
+        runtime_id: "molis-work-web",
         stable_work_context_id: null,
         host_declares_stable: false,
         workspace: { canonical_path: canonicalPath, realpath_verified: false },

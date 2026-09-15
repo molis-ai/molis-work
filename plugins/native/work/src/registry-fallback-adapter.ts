@@ -3,8 +3,8 @@ import type {
   RuntimeSessionAdapterResult,
   RuntimeSessionCapabilities,
   RuntimeSessionCapability,
-} from "@adeptify/goalboard-contracts/services/runtime-host";
-import type { WorkSessionApi } from "@adeptify/goalboard-contracts/modules/private-work-context";
+} from "@molis-ai/molis-work-contracts/services/runtime-host";
+import type { WorkSessionApi } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 
 const FALLBACK_CAPABILITIES: RuntimeSessionCapabilities = {
   create: "registry",
@@ -41,7 +41,7 @@ export class RegistryFallbackSessionAdapter implements RuntimeSessionAdapter {
           workspace_id: optionalString(input.workspace_id),
           workspace_path: optionalString(input.workspace_path),
           title: optionalString(input.title),
-          provenance: "goalboard_created",
+          provenance: "molis_work_created",
           metadata: objectValue(input.metadata),
         });
         return { status: "ok", source: "registry", capability, value: record };

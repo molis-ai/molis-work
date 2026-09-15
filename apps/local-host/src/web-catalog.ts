@@ -1,25 +1,25 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { GoalBoardLocalHost } from "./project-host.js";
+import type { MolisWorkLocalHost } from "./project-host.js";
 import type { RuntimeIntegrationService } from "./installer/runtime-integration.js";
-import type { GoalBoardWebServiceManager } from "./installer/web-service.js";
+import type { MolisWorkWebServiceManager } from "./installer/web-service.js";
 import type { WebServerOptions, FeedSchedulerRuntime } from "./web-types.js";
 import type { LocalWebComposition } from "./web-composition.js";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
 import { L } from "./web-locale.js";
-import type { WebProjectNavigation, WebSettingsSection } from "@adeptify/goalboard-app-workbench";
+import type { WebProjectNavigation, WebSettingsSection } from "@molis-ai/molis-work-app-workbench";
 import { handleLocalRuntimeSettingsHttp, serviceProcessId } from "./web-runtime-settings.js";
 import { installationDiagnostics } from "./web-project-presentation.js";
-import { goalBoardOnboardingStatus } from "./onboarding.js";
+import { molisWorkOnboardingStatus } from "./onboarding.js";
 import type { ProjectDeletionWebPorts } from "./web-project-settings.js";
 
 export async function handleLocalCatalogWebRequest(
   request: IncomingMessage, response: ServerResponse, url: URL, serverOptions: WebServerOptions,
-  runtimeIntegrations: RuntimeIntegrationService, webService: GoalBoardWebServiceManager, controlToken: string,
-  feedSchedulers: Map<string, FeedSchedulerRuntime>, localHost: GoalBoardLocalHost, projects: WebProjectNavigation[], composition: LocalWebComposition,
+  runtimeIntegrations: RuntimeIntegrationService, webService: MolisWorkWebServiceManager, controlToken: string,
+  feedSchedulers: Map<string, FeedSchedulerRuntime>, localHost: MolisWorkLocalHost, projects: WebProjectNavigation[], composition: LocalWebComposition,
   deletionPorts: ProjectDeletionWebPorts,
 ): Promise<void> {
   const { PAGE_CSP, handleOnboarding, renderCapsuleShell, isDesktopShellRequest, planningHttp, projectSettings, servePtyClient } = composition;
-  const { renderGoalBoardSettings, renderGoalBoardProjectIndex } = composition.workbenchRenderer;
+  const { renderMolisWorkSettings, renderMolisWorkProjectIndex } = composition.workbenchRenderer;
   const { settingsProjects } = projectSettings;
   if (await handleOnboarding(request, response, url, serverOptions.homeDirectory, projects.length, localHost, controlToken)) return;
   if (request.method === "GET" && url.pathname === "/desktop/capsule") {
@@ -54,7 +54,7 @@ export async function handleLocalCatalogWebRequest(
       "cache-control": "no-store",
       "content-security-policy": PAGE_CSP,
     });
-    response.end(renderGoalBoardSettings({
+    response.end(renderMolisWorkSettings({
       section,
       context_project: contextProject,
       runtimes,
@@ -82,7 +82,7 @@ export async function handleLocalCatalogWebRequest(
   }
   if (request.method === "GET" && url.pathname === "/") {
     const desktopShell = isDesktopShellRequest(request, url);
-    const onboarding = goalBoardOnboardingStatus(serverOptions.homeDirectory, projects.length);
+    const onboarding = molisWorkOnboardingStatus(serverOptions.homeDirectory, projects.length);
     if (onboarding.first_run_required || onboarding.update_required) {
       const modeQuery = onboarding.update_required ? "?mode=update" : "";
       const desktopQuery = desktopShell ? `${modeQuery ? "&" : "?"}desktop=1` : "";
@@ -98,7 +98,7 @@ export async function handleLocalCatalogWebRequest(
       "cache-control": "no-store",
       "content-security-policy": PAGE_CSP,
     });
-    response.end(renderGoalBoardProjectIndex(projects, controlToken, desktopShell));
+    response.end(renderMolisWorkProjectIndex(projects, controlToken, desktopShell));
     return;
   }
   if (request.method === "GET" && (url.pathname === "/sessions" || url.pathname === "/workspaces")) {
@@ -110,7 +110,7 @@ export async function handleLocalCatalogWebRequest(
     return;
   }
   if (url.pathname === "/api" || url.pathname.startsWith("/api/")) {
-    sendJson(response, 400, { error: L("请先选择一个 GoalBoard 项目") });
+    sendJson(response, 400, { error: L("请先选择一个 Molis Work 项目") });
     return;
   }
   sendJson(response, 404, { error: L("页面不存在") });

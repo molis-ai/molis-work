@@ -3,20 +3,20 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { mcpGoalContractResponse, runtimeGoalTreeDecisionInput } from "@adeptify/goalboard-app-mcp";
-import { runtimeGoalTreeDecisionAuthority } from "@adeptify/goalboard-app-local-host";
+import { mcpGoalContractResponse, runtimeGoalTreeDecisionInput } from "@molis-ai/molis-work-app-mcp";
+import { runtimeGoalTreeDecisionAuthority } from "@molis-ai/molis-work-app-local-host";
 import {
   createGoalEntryCompositionClient,
   createGoalIntentCapability,
   readGoalEventStateCapability,
-} from "@adeptify/goalboard-plugin-goals";
-import { createGoalBoardLocalHost, goalBoardHostProjectReference, initializeBoardCapability, snapshotBoardCapability } from "@adeptify/goalboard-app-local-host";
-import { GoalBoardV1Error } from "@adeptify/goalboard-plugin-goals";
-import type { GoalEventStateView } from "@adeptify/goalboard-contracts/modules/goals";
-import { GoalBoardServer } from "../apps/desktop/launchers/mcp/server.js";
-import { runV1Cli } from "@adeptify/goalboard-app-local-host";
+} from "@molis-ai/molis-work-plugin-goals";
+import { createMolisWorkLocalHost, molisWorkHostProjectReference, initializeBoardCapability, snapshotBoardCapability } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkV1Error } from "@molis-ai/molis-work-plugin-goals";
+import type { GoalEventStateView } from "@molis-ai/molis-work-contracts/modules/goals";
+import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
+import { runV1Cli } from "@molis-ai/molis-work-app-local-host";
 
-const createError = (code: string, message: string) => new GoalBoardV1Error(code, message);
+const createError = (code: string, message: string) => new MolisWorkV1Error(code, message);
 
 test("Runtime confirmation validates before host provenance and preserves the original attestation", () => {
   let hostCalls = 0;
@@ -37,7 +37,7 @@ test("Runtime confirmation validates before host provenance and preserves the or
     [{ confirmation_summary: " " }, "mcp.confirmation_summary_required"],
   ] as const) {
     assert.throws(() => runtimeGoalTreeDecisionInput({ ...args, ...overrides }, authority, createError),
-      (error: unknown) => error instanceof GoalBoardV1Error && error.code === code);
+      (error: unknown) => error instanceof MolisWorkV1Error && error.code === code);
   }
   assert.equal(hostCalls, 0, "invalid confirmation never asks the host for provenance");
   const result = runtimeGoalTreeDecisionInput(args, authority, createError);
@@ -56,20 +56,20 @@ test("Runtime confirmation validates before host provenance and preserves the or
   assert.deepEqual(response, { goal_path: "/goals/g", opaque: { retained: true },
     goal_url: "https://example.com/projects/%E9%A1%B9%E7%9B%AE%2Fa/goals/g" });
   assert.throws(() => mcpGoalContractResponse({ goal_path: "/goals/g" }, "invalid", null, createError),
-    (error: unknown) => error instanceof GoalBoardV1Error && error.code === "web.url_invalid"
-      && error.message === "无效的 GoalBoard Web 地址: invalid");
+    (error: unknown) => error instanceof MolisWorkV1Error && error.code === "web.url_invalid"
+      && error.message === "无效的 Molis Work Web 地址: invalid");
 });
 
 test("CLI and MCP active Goal capabilities preserve rejection, payload replay, current Goal state and restart", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-read-entry-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-read-entry-"));
   const databasePath = join(directory, "project.db");
   const boardId = "project/a";
-  const host = createGoalBoardLocalHost({ clock: () => new Date("2026-09-05T01:00:00Z") });
-  const reference = goalBoardHostProjectReference({ databasePath, boardId });
+  const host = createMolisWorkLocalHost({ clock: () => new Date("2026-09-05T01:00:00Z") });
+  const reference = molisWorkHostProjectReference({ databasePath, boardId });
   const client = host.client(reference);
   const composition = createGoalEntryCompositionClient(client);
-  const management = new GoalBoardServer("management", null, null, host);
-  const runtime = new GoalBoardServer("runtime", { databasePath, boardId, projectId: "project/a", webBaseUrl: "https://example.com" }, null, host);
+  const management = new MolisWorkServer("management", null, null, host);
+  const runtime = new MolisWorkServer("runtime", { databasePath, boardId, projectId: "project/a", webBaseUrl: "https://example.com" }, null, host);
   const snapshot = () => client.invoke(snapshotBoardCapability, { board_id: boardId });
   async function cli<T>(operation: string, input: Record<string, unknown>): Promise<T> {
     const lines: string[] = [];
@@ -94,9 +94,9 @@ test("CLI and MCP active Goal capabilities preserve rejection, payload replay, c
     }, { actor_id: "user", idempotency_key: "trash-working" });
     const before = await snapshot();
     await assert.rejects(cli("active-goal", { board_id: boardId, goal_id: "missing", reason: "不存在", actor_id: "user", idempotency_key: "denied-missing" }),
-      (error: unknown) => error instanceof GoalBoardV1Error && error.code === "goal.not_found");
+      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "goal.not_found");
     await assert.rejects(cli("active-goal", { board_id: boardId, goal_id: "trashed-goal", reason: "不能选择回收站", actor_id: "user", idempotency_key: "denied-trash" }),
-      (error: unknown) => error instanceof GoalBoardV1Error && error.code === "goal.trashed");
+      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "goal.trashed");
     assert.deepEqual(await snapshot(), before);
     const input = { board_id: boardId, goal_id: "working", reason: "当前工作", actor_id: "user", idempotency_key: "active-cli" };
     const selected = await cli<{ active_goal_id: string; replayed: boolean; observed_event_cursor: number }>("active-goal", input);
@@ -105,21 +105,21 @@ test("CLI and MCP active Goal capabilities preserve rejection, payload replay, c
     assert.deepEqual(await cli("active-goal", input), { ...selected, replayed: true });
     const request = { database_path: databasePath, board_id: boardId,
       payload: { ...input, board_id: "forged-board", idempotency_key: "active-mcp", legacy_note: "preserved" } };
-    const mcpSelected = JSON.parse(await management.callTool("goalboard_v1_active_goal", request));
+    const mcpSelected = JSON.parse(await management.callTool("molis_work_v1_active_goal", request));
     const afterMcp = await snapshot();
-    assert.deepEqual(JSON.parse(await management.callTool("goalboard_v1_active_goal", request)), { ...mcpSelected, replayed: true });
+    assert.deepEqual(JSON.parse(await management.callTool("molis_work_v1_active_goal", request)), { ...mcpSelected, replayed: true });
     assert.deepEqual(await snapshot(), afterMcp);
-    await assert.rejects(management.callTool("goalboard_v1_active_goal", { ...request,
+    await assert.rejects(management.callTool("molis_work_v1_active_goal", { ...request,
       payload: { ...request.payload, legacy_note: "changed" } }), /幂等/);
     assert.deepEqual(await snapshot(), afterMcp, "the original complete MCP payload still participates in replay identity");
     const publicState = await client.invoke(readGoalEventStateCapability, { board_id: boardId, goal_id: "working" });
-    const mcpState = JSON.parse(await runtime.callTool("goalboard_v1_goal_state", { goal_id: "working" })) as GoalEventStateView & { goal_url: string };
+    const mcpState = JSON.parse(await runtime.callTool("molis_work_v1_goal_state", { goal_id: "working" })) as GoalEventStateView & { goal_url: string };
     assert.equal(publicState.work_status, "open");
     assert.equal(mcpState.work_status, publicState.work_status);
     assert.equal(mcpState.owner?.kind, publicState.owner?.kind);
     assert.equal(mcpState.goal_url, "https://example.com/projects/project%2Fa/goals/working");
     await host.close();
-    const restarted = createGoalBoardLocalHost();
+    const restarted = createMolisWorkLocalHost();
     try { assert.deepEqual(await restarted.client(reference).invoke(snapshotBoardCapability, { board_id: boardId }), afterMcp); }
     finally { await restarted.close(); }
   } finally {

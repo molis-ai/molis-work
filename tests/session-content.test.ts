@@ -1,16 +1,16 @@
-import { RegistryFallbackSessionAdapter } from "@adeptify/goalboard-plugin-work";
+import { RegistryFallbackSessionAdapter } from "@molis-ai/molis-work-plugin-work";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { CodexRuntimeSessionAdapter, RuntimeHostRouter } from "@adeptify/goalboard-service-runtime-host";
-import { searchSessionTimeline, SessionContentService } from "@adeptify/goalboard-plugin-work";
-import { GoalBoardSessionRegistry } from "@adeptify/goalboard-module-private-work-context";
+import { CodexRuntimeSessionAdapter, RuntimeHostRouter } from "@molis-ai/molis-work-service-runtime-host";
+import { searchSessionTimeline, SessionContentService } from "@molis-ai/molis-work-plugin-work";
+import { MolisWorkSessionRegistry } from "@molis-ai/molis-work-module-private-work-context";
 
-test("Session content merges native Codex items with explicitly labelled GoalBoard TUI events", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "goalboard-session-content-"));
-  const registry = await openWorkSessionRegistry({ homeDirectory: path.join(directory, ".goalboard") });
+test("Session content merges native Codex items with explicitly labelled Molis Work TUI events", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-session-content-"));
+  const registry = await openWorkSessionRegistry({ homeDirectory: path.join(directory, ".molis-work") });
   try {
     const session = registry.explicitlyLinkSession({
       runtime_id: "codex",
@@ -27,7 +27,7 @@ test("Session content merges native Codex items with explicitly labelled GoalBoa
       source_id: "panel-a:output:1",
       source_order: 1,
       occurred_at: "2026-08-30T10:02:00.000Z",
-      content: "GoalBoard TUI fallback line",
+      content: "Molis Work TUI fallback line",
       metadata: { panel_id: "panel-a", partial_terminal_history: true },
     });
     const router = new RuntimeHostRouter((runtimeId) => new RegistryFallbackSessionAdapter(runtimeId, registry));
@@ -99,9 +99,9 @@ test("Session content merges native Codex items with explicitly labelled GoalBoa
   }
 });
 
-test("unsupported Runtime returns only proven GoalBoard events and never fabricates native history", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "goalboard-session-fallback-"));
-  const registry = await openWorkSessionRegistry({ homeDirectory: path.join(directory, ".goalboard") });
+test("unsupported Runtime returns only proven Molis Work events and never fabricates native history", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-session-fallback-"));
+  const registry = await openWorkSessionRegistry({ homeDirectory: path.join(directory, ".molis-work") });
   try {
     const session = registry.explicitlyLinkSession({
       runtime_id: "future-runtime",
@@ -129,9 +129,9 @@ test("unsupported Runtime returns only proven GoalBoard events and never fabrica
   }
 });
 
-test("an unknown native read shape is a visible failure while proven GoalBoard events remain available", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "goalboard-session-read-shape-"));
-  const registry = await openWorkSessionRegistry({ homeDirectory: path.join(directory, ".goalboard") });
+test("an unknown native read shape is a visible failure while proven Molis Work events remain available", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-session-read-shape-"));
+  const registry = await openWorkSessionRegistry({ homeDirectory: path.join(directory, ".molis-work") });
   try {
     const session = registry.explicitlyLinkSession({
       runtime_id: "codex",
@@ -162,4 +162,4 @@ test("an unknown native read shape is a visible failure while proven GoalBoard e
     await rm(directory, { recursive: true, force: true });
   }
 });
-import { openWorkSessionRegistry } from "@adeptify/goalboard-app-local-host";
+import { openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";

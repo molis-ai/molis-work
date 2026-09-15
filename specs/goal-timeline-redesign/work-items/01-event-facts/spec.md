@@ -10,7 +10,7 @@
 
 ## 输入、输出与行为
 
-提供从 `@adeptify/goalboard-module-goals` 公共入口可用的 typed API，公开类型通过 `@adeptify/goalboard-contracts/modules/goals` 导出。具体类名与方法名可沿实现约定选择，在交接中列出，供下一项直接消费。
+提供从 `@molis-ai/molis-work-module-goals` 公共入口可用的 typed API，公开类型通过 `@molis-ai/molis-work-contracts/modules/goals` 导出。具体类名与方法名可沿实现约定选择，在交接中列出，供下一项直接消费。
 
 1. **配置读取与追加版本**：输入 board/goal、可信调用方提供的 actor、期望配置版本、幂等键，以及局部类型、采用规划的 ID/版本来源、要求绑定/新增要求。初始没有模板；不替用户补选模板。配置修改生成新版本与配置事件，旧版本不可覆写。只需支持增加类型、新类型版本和新增要求；不实现降低、删除或改写已有承诺。
 2. **字段定义**：稳定字段 ID、名称、用途、来源、类型版本、可选通用语义分类；本项实现真实需要的 text/longtext 与必填/可选。拒绝未支持格式、重复 ID 和可执行内容配置，不引入通用 schema 平台或依赖。输入普通文本可含 HTML 字符，保存原文，后续 UI 负责转义。

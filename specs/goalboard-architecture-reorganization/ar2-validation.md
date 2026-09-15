@@ -40,8 +40,8 @@ Goal 内部父子/依赖归 Goals；Artifact 内部版本 lineage 归 Artifacts�
 
 ## 最终检查结果
 
-- `pnpm test` 完整构建与 **566 / 566** 回归通过，0 失败/跳过，日志 `/private/tmp/goalboard-ar2-governance-final-full.log`。覆盖 Governance 来源迁移及增强的真实修订事务测试。
-- 此后补充原始内容独立性测试，以及 Feed promotion 查询入口替换；根类型检查与 **61 / 61** 原始内容/Web 回归通过，日志 `/private/tmp/goalboard-ar2-owner-caller-regression.log`。不把两个新增测试说成已运行全量 568。
+- `pnpm test` 完整构建与 **566 / 566** 回归通过，0 失败/跳过，日志 `/private/tmp/molis-work-ar2-governance-final-full.log`。覆盖 Governance 来源迁移及增强的真实修订事务测试。
+- 此后补充原始内容独立性测试，以及 Feed promotion 查询入口替换；根类型检查与 **61 / 61** 原始内容/Web 回归通过，日志 `/private/tmp/molis-work-ar2-owner-caller-regression.log`。不把两个新增测试说成已运行全量 568。
 - 最终包边界、`git diff --check` 通过。SQL 核对：`context_edges` 仅在 Ledger repository，`impact_bindings` 仅在 Goals impact repository；Session/Handoff/Runtime binding 的旧 endpoint 读取限定本 owner 升级路径。Feed SQL 中旧关联列的新写入值为 null，响应由 Ledger 派生。
 - Coordinator 剩余 `normalizeProposedRelations` 处理 Goal 内部依赖提案的合法性和依据，不是跨 Module 关系存储；Goals Native/规划决定入口在后续已确认切片中治理，不借 AR2 吸收整套 Governance 编排。
 - 新增 owner 实现分别为 Ledger schema/query/service/重建、业务 association、Impact commands/repository、Governance provenance/legacy projection；没有把原 Huge Class 整体搬到新包。原 Coordinator 和其他历史大文件尚未全部拆完，仍在总目标中。

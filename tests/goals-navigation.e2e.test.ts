@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { DEMO_BOARD_ID } from "@adeptify/goalboard-app-local-host";
+import { DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { insertHistoricalClaim, insertHistoricalEvidence, insertHistoricalRun } from "./historical-sql-fixture.js";
 
@@ -174,9 +174,9 @@ test("Sources mutation and Feed reload preserve utility state while fresh Goal l
   const snapshot = await response.json();
   assert.ok(snapshot.sources.some((source: { definition_id: string }) => source.definition_id === sourceDefinition));
   await click('[data-feed-views] [data-work-surface-open="feed"][data-feed-preset="feed"]');
-  await waitFor("document.body.dataset.desktopSurface === 'feed'");
+  await waitFor("document.body.dataset.desktopSurface === 'goal'");
   await reloadPage();
-  await waitFor("document.body.dataset.desktopSurface === 'feed'");
+  await waitFor("document.body.dataset.desktopSurface === 'goal'");
   assert.equal(await evaluate("document.querySelector('[data-feed-directory]').dataset.feedPreset"), "feed");
   await navigate(() => command("Page.navigate", { url: origin + "/goals/RELEASE?desktop=1" }, sessionId));
   await waitFor("document.body.dataset.desktopSurface === 'goal' && Boolean(document.querySelector('[data-goal-view=RELEASE]'))");

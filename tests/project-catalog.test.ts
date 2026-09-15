@@ -1,19 +1,19 @@
-import { openGoalBoardProjectCatalog } from "@adeptify/goalboard-app-desktop";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import { mkdtemp, mkdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import Database from "better-sqlite3";
-import { catalogSchemaCompatibilityError, type GoalBoardProjectCatalog, GoalBoardProjectCatalogError, type RuntimeWorkContext } from "@adeptify/goalboard-app-local-host";
-import { withGoalBoardProjectCatalog } from "@adeptify/goalboard-app-desktop";
-import { GoalProjectApplication } from "@adeptify/goalboard-app-local-host";
-import { DEMO_BOARD_ID } from "@adeptify/goalboard-app-local-host";
-import { LocalProjectDatabase } from "@adeptify/goalboard-app-local-host";
+import { catalogSchemaCompatibilityError, type MolisWorkProjectCatalog, MolisWorkProjectCatalogError, type RuntimeWorkContext } from "@molis-ai/molis-work-app-local-host";
+import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { insertHistoricalClaim, insertHistoricalRun } from "./historical-sql-fixture.js";
 
 async function withTemporaryDirectory<T>(run: (directory: string) => Promise<T>): Promise<T> {
-  const directory = await mkdtemp(join(tmpdir(), "goalboard-project-catalog-"));
+  const directory = await mkdtemp(join(tmpdir(), "molis-work-project-catalog-"));
   try {
     return await run(directory);
   } finally {
@@ -39,7 +39,7 @@ function createLegacyBoard(databasePath: string): void {
           title: goalId,
           outcome: `${goalId} outcome`,
           why: "migration fixture",
-          business_logic: "保留已有 GoalBoard 事实。",
+          business_logic: "保留已有 Molis Work 事实。",
           definition_state: "accepted",
           decomposition_state: "closed_leaf",
           acceptance_criteria: [
@@ -89,9 +89,9 @@ function createLegacyBoard(databasePath: string): void {
 
 test("catalog session closes its catalog after successful work", async () => {
   await withTemporaryDirectory(async (directory) => {
-    let scopedCatalog: GoalBoardProjectCatalog | null = null;
-    const result = await withGoalBoardProjectCatalog(
-      { homeDirectory: join(directory, ".goalboard") },
+    let scopedCatalog: MolisWorkProjectCatalog | null = null;
+    const result = await withMolisWorkProjectCatalog(
+      { homeDirectory: join(directory, ".molis-work") },
       (catalog) => {
         scopedCatalog = catalog;
         return catalog.listProjects().length;
@@ -106,10 +106,10 @@ test("catalog session closes its catalog after successful work", async () => {
 
 test("catalog session closes its catalog when work fails", async () => {
   await withTemporaryDirectory(async (directory) => {
-    let scopedCatalog: GoalBoardProjectCatalog | null = null;
+    let scopedCatalog: MolisWorkProjectCatalog | null = null;
     await assert.rejects(
-      withGoalBoardProjectCatalog(
-        { homeDirectory: join(directory, ".goalboard") },
+      withMolisWorkProjectCatalog(
+        { homeDirectory: join(directory, ".molis-work") },
         (catalog) => {
           scopedCatalog = catalog;
           throw new Error("fixture failure");
@@ -125,7 +125,7 @@ test("catalog session closes its catalog when work fails", async () => {
 
 test("a reader that is older than the catalog reports exact versions and a non-destructive recovery", () => {
   const error = catalogSchemaCompatibilityError(9, 8);
-  assert.ok(error instanceof GoalBoardProjectCatalogError);
+  assert.ok(error instanceof MolisWorkProjectCatalogError);
   assert.equal(error.code, "catalog.reader_too_old");
   assert.deepEqual(error.details, {
     actual_schema_version: 9,
@@ -144,8 +144,8 @@ test("a reader that is older than the catalog reports exact versions and a non-d
 
 test("opening a future catalog fails without rewriting its schema or project facts", async () => {
   await withTemporaryDirectory(async (directory) => {
-    const home = join(directory, "home", ".goalboard");
-    const created = await openGoalBoardProjectCatalog({ homeDirectory: home });
+    const home = join(directory, "home", ".molis-work");
+    const created = await openMolisWorkProjectCatalog({ homeDirectory: home });
     const project = await created.createProject({ display_name: "保留项目", actor_id: "user" });
     created.close();
 
@@ -158,9 +158,9 @@ test("opening a future catalog fails without rewriting its schema or project fac
     }
 
     await assert.rejects(
-      () => openGoalBoardProjectCatalog({ homeDirectory: home }),
+      () => openMolisWorkProjectCatalog({ homeDirectory: home }),
       (error: unknown) =>
-        error instanceof GoalBoardProjectCatalogError
+        error instanceof MolisWorkProjectCatalogError
         && error.code === "catalog.reader_too_old"
         && error.details.actual_schema_version === 12
         && error.details.supported_schema_max === 11,
@@ -214,11 +214,11 @@ function workspaceContext(
 
 test("managed projects have immutable identities, duplicate names, and isolated SQLite facts", async () => {
   await withTemporaryDirectory(async (directory) => {
-    const home = join(directory, "home", ".goalboard");
+    const home = join(directory, "home", ".molis-work");
     const userProjectFile = join(directory, "user-project", "note.txt");
     await mkdir(join(directory, "user-project"), { recursive: true });
     await writeFile(userProjectFile, "untouched");
-    const catalog = await openGoalBoardProjectCatalog({ homeDirectory: home });
+    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
     try {
       const first = await catalog.createProject({ display_name: "同名项目", actor_id: "user" });
       const second = await catalog.createProject({ display_name: "同名项目", actor_id: "user" });
@@ -272,14 +272,14 @@ test("managed projects have immutable identities, duplicate names, and isolated 
   });
 });
 
-test("legacy GoalBoard DB migrates to one managed source with complete facts", async () => {
+test("legacy Molis Work DB migrates to one managed source with complete facts", async () => {
   await withTemporaryDirectory(async (directory) => {
     const legacyDirectory = join(directory, "legacy");
-    const legacyDatabase = join(legacyDirectory, "goalboard.db");
+    const legacyDatabase = join(legacyDirectory, "molis-work.db");
     await mkdir(legacyDirectory, { recursive: true });
     createLegacyBoard(legacyDatabase);
     const before = snapshot(legacyDatabase);
-    const catalog = await openGoalBoardProjectCatalog({ homeDirectory: join(directory, "home", ".goalboard") });
+    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: join(directory, "home", ".molis-work") });
     try {
       const migrated = await catalog.migrateLegacyDatabase({ legacy_database_path: legacyDatabase, actor_id: "user" });
       assert.equal(migrated.source, "migrated");
@@ -296,13 +296,13 @@ test("legacy GoalBoard DB migrates to one managed source with complete facts", a
 
 test("demo data is classified, idempotently opened, reset, and removable without affecting user projects", async () => {
   await withTemporaryDirectory(async (directory) => {
-    const home = join(directory, "home", ".goalboard");
-    const catalog = await openGoalBoardProjectCatalog({ homeDirectory: home });
+    const home = join(directory, "home", ".molis-work");
+    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
     try {
       const userProject = await catalog.createProject({ display_name: "用户项目", actor_id: "user" });
       await assert.rejects(
         () => catalog.ensureDemoProject({ actor_id: "user", user_confirmed: false }),
-        (error: unknown) => error instanceof GoalBoardProjectCatalogError
+        (error: unknown) => error instanceof MolisWorkProjectCatalogError
           && error.code === "catalog.demo_confirmation_required",
       );
       const created = await catalog.ensureDemoProject({ actor_id: "user", user_confirmed: true });
@@ -316,7 +316,7 @@ test("demo data is classified, idempotently opened, reset, and removable without
       const demoStore = new LocalProjectDatabase(created.project.database_path);
       try {
         const demoSnapshot = demoStore.snapshot(DEMO_BOARD_ID);
-        assert.equal(demoSnapshot.board.title, "让第一次使用 GoalBoard 的人顺利完成一次目标协作");
+        assert.equal(demoSnapshot.board.title, "让第一次使用 Molis Work 的人顺利完成一次目标协作");
         assert.equal(
           demoSnapshot.goals.find((goal) => goal.goal_id === "V1")?.title,
           "让第一次使用的人顺利完成一轮目标协作",
@@ -369,7 +369,7 @@ test("demo data is classified, idempotently opened, reset, and removable without
           delete_confirmed: true,
           idempotency_key: "never-delete-user-as-demo",
         }),
-        (error: unknown) => error instanceof GoalBoardProjectCatalogError && error.code === "catalog.not_demo",
+        (error: unknown) => error instanceof MolisWorkProjectCatalogError && error.code === "catalog.not_demo",
       );
       await catalog.removeDemoProject({
         project_id: created.project.project_id,
@@ -388,12 +388,12 @@ test("demo data is classified, idempotently opened, reset, and removable without
 test("failed legacy migration keeps the old DB and does not leave a project record", async () => {
   await withTemporaryDirectory(async (directory) => {
     const legacyDirectory = join(directory, "legacy");
-    const legacyDatabase = join(legacyDirectory, "goalboard.db");
+    const legacyDatabase = join(legacyDirectory, "molis-work.db");
     await mkdir(legacyDirectory, { recursive: true });
     createLegacyBoard(legacyDatabase);
     const before = snapshot(legacyDatabase);
-    const home = join(directory, "home", ".goalboard");
-    const catalog = await openGoalBoardProjectCatalog({ homeDirectory: home });
+    const home = join(directory, "home", ".molis-work");
+    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
     try {
       await assert.rejects(
         () =>
@@ -417,8 +417,8 @@ test("failed legacy migration keeps the old DB and does not leave a project reco
 
 test("runtime Session/work-entry contexts reconnect only after an explicit binding and require a separate rebind confirmation", async () => {
   await withTemporaryDirectory(async (directory) => {
-    const home = join(directory, "home", ".goalboard");
-    const catalog = await openGoalBoardProjectCatalog({ homeDirectory: home });
+    const home = join(directory, "home", ".molis-work");
+    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
     try {
       const first = await catalog.createProject({ display_name: "同名项目", actor_id: "user" });
       const second = await catalog.createProject({ display_name: "同名项目", actor_id: "user" });
@@ -461,7 +461,7 @@ test("runtime Session/work-entry contexts reconnect only after an explicit bindi
             user_confirmed: false,
           }),
         (error: unknown) =>
-          error instanceof GoalBoardProjectCatalogError && error.code === "context.user_confirmation_required",
+          error instanceof MolisWorkProjectCatalogError && error.code === "context.user_confirmation_required",
       );
       const initial = catalog.bindRuntimeContext({
         context: codexEntry,
@@ -502,7 +502,7 @@ test("runtime Session/work-entry contexts reconnect only after an explicit bindi
             user_confirmed: true,
           }),
         (error: unknown) =>
-          error instanceof GoalBoardProjectCatalogError && error.code === "context.rebind_confirmation_required",
+          error instanceof MolisWorkProjectCatalogError && error.code === "context.rebind_confirmation_required",
       );
       assert.equal(catalog.resolveRuntimeContext(codexEntry).connection?.project_id, first.project_id);
       assert.equal(catalog.resolveRuntimeContext(claudeEntry).connection?.project_id, first.project_id);
@@ -538,7 +538,7 @@ test("runtime Session/work-entry contexts reconnect only after an explicit bindi
       catalog.close();
     }
 
-    const reopened = await openGoalBoardProjectCatalog({ homeDirectory: home });
+    const reopened = await openMolisWorkProjectCatalog({ homeDirectory: home });
     try {
       assert.equal(
         reopened.resolveRuntimeContext(stableContext("codex", "workspace-entry-01")).status,
@@ -557,12 +557,12 @@ test("runtime Session/work-entry contexts reconnect only after an explicit bindi
 
 test("canonical workspace routing supports symlinks, multiple project candidates, and isolated Session overrides", async () => {
   await withTemporaryDirectory(async (directory) => {
-    const home = join(directory, "home", ".goalboard");
+    const home = join(directory, "home", ".molis-work");
     const workspace = join(directory, "ordinary-project-directory");
     const workspaceAlias = join(directory, "project-alias");
     await mkdir(workspace, { recursive: true });
     await symlink(workspace, workspaceAlias);
-    const catalog = await openGoalBoardProjectCatalog({ homeDirectory: home });
+    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
     try {
       const first = await catalog.createProject({ display_name: "产品规划", actor_id: "user" });
       const second = await catalog.createProject({ display_name: "发布准备", actor_id: "user" });
@@ -648,8 +648,8 @@ test("canonical workspace routing supports symlinks, multiple project candidates
 
 test("a fresh Runtime Session receives host suggestions but needs confirmation, and rejection stays local", async () => {
   await withTemporaryDirectory(async (directory) => {
-    const home = join(directory, "home", ".goalboard");
-    const catalog = await openGoalBoardProjectCatalog({ homeDirectory: home });
+    const home = join(directory, "home", ".molis-work");
+    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
     try {
       const primary = await catalog.createProject({ display_name: "Alpha 主项目", actor_id: "user" });
       const related = await catalog.createProject({ display_name: "Alpha 文档", actor_id: "user" });
@@ -692,7 +692,7 @@ test("a fresh Runtime Session receives host suggestions but needs confirmation, 
             suggestion_clues: clues,
           }),
         (error: unknown) =>
-          error instanceof GoalBoardProjectCatalogError && error.code === "context.user_confirmation_required",
+          error instanceof MolisWorkProjectCatalogError && error.code === "context.user_confirmation_required",
       );
       const rejected = catalog.rejectRuntimeContextSuggestion({
         context: firstSession,
@@ -750,8 +750,8 @@ test("a fresh Runtime Session receives host suggestions but needs confirmation, 
 
 test("current Runtime can create and bind one new project without orphaning data on a rejected switch", async () => {
   await withTemporaryDirectory(async (directory) => {
-    const home = join(directory, "home", ".goalboard");
-    const catalog = await openGoalBoardProjectCatalog({ homeDirectory: home });
+    const home = join(directory, "home", ".molis-work");
+    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
     const context = stableContext("codex", "create-and-bind-entry");
     try {
       const created = await catalog.createProjectAndBindRuntimeContext({
@@ -787,7 +787,7 @@ test("current Runtime can create and bind one new project without orphaning data
             idempotency_key: "create-current-runtime-project",
           }),
         (error: unknown) =>
-          error instanceof GoalBoardProjectCatalogError && error.code === "context.idempotency_conflict",
+          error instanceof MolisWorkProjectCatalogError && error.code === "context.idempotency_conflict",
       );
 
       await assert.rejects(
@@ -800,7 +800,7 @@ test("current Runtime can create and bind one new project without orphaning data
             idempotency_key: "create-without-rebind-confirmation",
           }),
         (error: unknown) =>
-          error instanceof GoalBoardProjectCatalogError && error.code === "context.rebind_confirmation_required",
+          error instanceof MolisWorkProjectCatalogError && error.code === "context.rebind_confirmation_required",
       );
       assert.equal(catalog.listProjects().length, 1);
 
@@ -818,7 +818,7 @@ test("current Runtime can create and bind one new project without orphaning data
             idempotency_key: "create-without-stable-context",
           }),
         (error: unknown) =>
-          error instanceof GoalBoardProjectCatalogError && error.code === "context.stable_identity_required",
+          error instanceof MolisWorkProjectCatalogError && error.code === "context.stable_identity_required",
       );
       assert.equal(catalog.listProjects().length, 1);
     } finally {
@@ -827,10 +827,10 @@ test("current Runtime can create and bind one new project without orphaning data
   });
 });
 
-test("existing GoalBoard project catalogs migrate context-binding storage without touching project facts", async () => {
+test("existing Molis Work project catalogs migrate context-binding storage without touching project facts", async () => {
   await withTemporaryDirectory(async (directory) => {
-    const home = join(directory, "home", ".goalboard");
-    const created = await openGoalBoardProjectCatalog({ homeDirectory: home });
+    const home = join(directory, "home", ".molis-work");
+    const created = await openMolisWorkProjectCatalog({ homeDirectory: home });
     const project = await created.createProject({ display_name: "迁移项目", actor_id: "user" });
     created.close();
 
@@ -843,7 +843,7 @@ test("existing GoalBoard project catalogs migrate context-binding storage withou
       legacy.close();
     }
 
-    const migrated = await openGoalBoardProjectCatalog({ homeDirectory: home });
+    const migrated = await openMolisWorkProjectCatalog({ homeDirectory: home });
     try {
       assert.equal(migrated.getProject(project.project_id).database_path, project.database_path);
       const resolution = migrated.bindRuntimeContext({
@@ -862,9 +862,9 @@ test("existing GoalBoard project catalogs migrate context-binding storage withou
 
 test("v3 catalogs retain binding history while upgrading for unbind, deletion receipts, and suggestion rejection", async () => {
   await withTemporaryDirectory(async (directory) => {
-    const home = join(directory, "home", ".goalboard");
+    const home = join(directory, "home", ".molis-work");
     const context = stableContext("codex", "v3-history-entry");
-    const created = await openGoalBoardProjectCatalog({ homeDirectory: home });
+    const created = await openMolisWorkProjectCatalog({ homeDirectory: home });
     const project = await created.createProject({ display_name: "V3 历史项目", actor_id: "user" });
     created.bindRuntimeContext({
       context,
@@ -909,7 +909,7 @@ test("v3 catalogs retain binding history while upgrading for unbind, deletion re
       legacy.close();
     }
 
-    const migrated = await openGoalBoardProjectCatalog({ homeDirectory: home });
+    const migrated = await openMolisWorkProjectCatalog({ homeDirectory: home });
     try {
       assert.equal(migrated.resolveRuntimeContext(context).connection?.project_id, project.project_id);
       assert.deepEqual(migrated.listRuntimeContextBindingEvents(context).map((event) => event.type), ["context.bound"]);
@@ -945,8 +945,8 @@ test("v3 catalogs retain binding history while upgrading for unbind, deletion re
 
 test("unbinding removes only the current Runtime entry and preserves the managed project", async () => {
   await withTemporaryDirectory(async (directory) => {
-    const home = join(directory, "home", ".goalboard");
-    const catalog = await openGoalBoardProjectCatalog({ homeDirectory: home });
+    const home = join(directory, "home", ".molis-work");
+    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
     const context = stableContext("codex", "unbind-current-entry");
     try {
       const project = await catalog.createProject({ display_name: "保留数据的项目", actor_id: "user" });
@@ -965,7 +965,7 @@ test("unbinding removes only the current Runtime entry and preserves the managed
             user_confirmed: false,
           }),
         (error: unknown) =>
-          error instanceof GoalBoardProjectCatalogError && error.code === "context.user_confirmation_required",
+          error instanceof MolisWorkProjectCatalogError && error.code === "context.user_confirmation_required",
       );
       assert.equal(catalog.resolveRuntimeContext(context).connection?.project_id, project.project_id);
 
@@ -999,8 +999,8 @@ test("unbinding removes only the current Runtime entry and preserves the managed
 
 test("project deletion needs separate confirmation, protects active work, and records an idempotent receipt", async () => {
   await withTemporaryDirectory(async (directory) => {
-    const home = join(directory, "home", ".goalboard");
-    const catalog = await openGoalBoardProjectCatalog({ homeDirectory: home });
+    const home = join(directory, "home", ".molis-work");
+    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
     const context = stableContext("codex", "delete-current-entry");
     try {
       const project = await catalog.createProject({ display_name: "可删除项目", actor_id: "user" });
@@ -1020,7 +1020,7 @@ test("project deletion needs separate confirmation, protects active work, and re
       await assert.rejects(
         () => catalog.deleteProject({ ...deletionInput, delete_confirmed: false }),
         (error: unknown) =>
-          error instanceof GoalBoardProjectCatalogError && error.code === "catalog.delete_confirmation_required",
+          error instanceof MolisWorkProjectCatalogError && error.code === "catalog.delete_confirmation_required",
       );
 
       const store = new LocalProjectDatabase(project.database_path);
@@ -1074,7 +1074,7 @@ test("project deletion needs separate confirmation, protects active work, and re
       await assert.rejects(
         () => catalog.deleteProject(deletionInput),
         (error: unknown) =>
-          error instanceof GoalBoardProjectCatalogError && error.code === "catalog.project_active_work",
+          error instanceof MolisWorkProjectCatalogError && error.code === "catalog.project_active_work",
       );
       assert.equal(catalog.getProject(project.project_id).project_id, project.project_id);
 
@@ -1100,7 +1100,7 @@ test("project deletion needs separate confirmation, protects active work, and re
       assert.equal(deleted.deletion.cleanup_state, "complete");
       assert.equal(catalog.resolveRuntimeContext(context).status, "unbound");
       assert.deepEqual(catalog.listProjects(), []);
-      await assert.rejects(stat(join(home, "projects", project.project_id, "goalboard.db")));
+      await assert.rejects(stat(join(home, "projects", project.project_id, "molis-work.db")));
       assert.equal(catalog.listProjectDeletions()[0]?.deletion_id, deleted.deletion.deletion_id);
 
       const replay = await catalog.deleteProject(deletionInput);
@@ -1111,7 +1111,7 @@ test("project deletion needs separate confirmation, protects active work, and re
       await assert.rejects(
         () => catalog.deleteProject({ ...deletionInput, project_id: other.project_id }),
         (error: unknown) =>
-          error instanceof GoalBoardProjectCatalogError && error.code === "catalog.deletion_idempotency_conflict",
+          error instanceof MolisWorkProjectCatalogError && error.code === "catalog.deletion_idempotency_conflict",
       );
       assert.equal(catalog.getProject(other.project_id).project_id, other.project_id);
     } finally {
@@ -1122,10 +1122,10 @@ test("project deletion needs separate confirmation, protects active work, and re
 
 test("opening a desktop TUI panel binds that work context to the Goal and aliases a later host session", async () => {
   await withTemporaryDirectory(async (directory) => {
-    const home = join(directory, "home", ".goalboard");
+    const home = join(directory, "home", ".molis-work");
     const workspace = join(directory, "repo");
     await mkdir(workspace, { recursive: true });
-    const catalog = await openGoalBoardProjectCatalog({ homeDirectory: home });
+    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
     try {
       const project = await catalog.createProject({ display_name: "桌面项目", actor_id: "user" });
       assert.throws(
@@ -1138,7 +1138,7 @@ test("opening a desktop TUI panel binds that work context to the Goal and aliase
           user_confirmed: false,
         }),
         (error: unknown) =>
-          error instanceof GoalBoardProjectCatalogError && error.code === "catalog.panel_confirmation_required",
+          error instanceof MolisWorkProjectCatalogError && error.code === "catalog.panel_confirmation_required",
       );
 
       const panel = catalog.openDesktopPanel({

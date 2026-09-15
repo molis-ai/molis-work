@@ -1,20 +1,20 @@
 import type {
   HostCapabilityDefinition,
   HostCapabilityDescriptor,
-} from "@adeptify/goalboard-contracts/platform/app-host";
+} from "@molis-ai/molis-work-contracts/platform/app-host";
 
 export const packageDescriptor = {
-  packageName: "@adeptify/goalboard-kernel",
+  packageName: "@molis-ai/molis-work-kernel",
   packagePath: "packages/kernel",
   kind: "foundation",
   maturity: "partial",
-  contract: "@adeptify/goalboard-contracts/platform/kernel",
+  contract: "@molis-ai/molis-work-contracts/platform/kernel",
   migrationGoals: ["goal-reorg-f2","goal-reorg-f3","goal-reorg-ap2"],
   ssot: "docs/SSOT-MATRIX.md",
   capabilities: ["kernel.capability-registry.v1"],
 } as const;
 
-export type GoalBoardPackageDescriptor = typeof packageDescriptor;
+export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export type CapabilityHandler<Context, Input, Output> = (
   context: Context,

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { ConfirmedRelationBatch } from "@adeptify/goalboard-contracts/modules/goals";
+import type { ConfirmedRelationBatch } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { GoalsCommandContext } from "./command-support.js";
 
 /** Relation facts for an already-authorized proposal batch. */

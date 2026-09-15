@@ -5,12 +5,12 @@ import { join } from "node:path";
 import test from "node:test";
 import Database from "better-sqlite3";
 
-import { toFeedPublicError } from "@adeptify/goalboard-plugin-feed";
+import { toFeedPublicError } from "@molis-ai/molis-work-plugin-feed";
 import { PROVIDER_CONTRACT_FIXTURES } from "./fixtures/provider-contract.js";
-import { createLocalFeedApplication, migrateInfoflowContractV2 } from "@adeptify/goalboard-app-local-host";
-import type { FeedSourceRecord } from "@adeptify/goalboard-plugin-feed";
-import { DEMO_BOARD_ID, seedDemoBoard } from "@adeptify/goalboard-app-local-host";
-import { LocalProjectDatabase } from "@adeptify/goalboard-app-local-host";
+import { createLocalFeedApplication, migrateInfoflowContractV2 } from "@molis-ai/molis-work-app-local-host";
+import type { FeedSourceRecord } from "@molis-ai/molis-work-plugin-feed";
+import { DEMO_BOARD_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 
 function createLegacyInfoflowDb(databasePath: string): Database.Database {
   const db = new Database(databasePath);
@@ -78,7 +78,7 @@ function createLegacyInfoflowDb(databasePath: string): Database.Database {
       imported_at, updated_at
     ) VALUES (
       'legacy-board', 'source-github', 'github', 'github', 'github', 'GitHub', '',
-      'active', 1, 1, 'goalboard', '{}', '{"since":"1"}', NULL, '@user', NULL, NULL, NULL,
+      'active', 1, 1, 'molis-work', '{}', '{"since":"1"}', NULL, '@user', NULL, NULL, NULL,
       '2026-08-30T00:00:00.000Z', '2026-08-30T00:00:00.000Z'
     );
     INSERT INTO feed_items (
@@ -99,7 +99,7 @@ function createLegacyInfoflowDb(databasePath: string): Database.Database {
 }
 
 test("migration 29 reconciles legacy Inbox rows into Feed facts plus Inbox references", () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-infoflow-migration-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-infoflow-migration-"));
   const db = createLegacyInfoflowDb(join(directory, "legacy.sqlite"));
   try {
     const report = db.transaction(() => {
@@ -154,7 +154,7 @@ test("migration 29 reconciles legacy Inbox rows into Feed facts plus Inbox refer
 });
 
 test("migration 29 failure rolls schema and data back to the prior trusted state", () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-infoflow-rollback-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-infoflow-rollback-"));
   const db = createLegacyInfoflowDb(join(directory, "legacy.sqlite"));
   try {
     assert.throws(() => db.transaction(() => {
@@ -185,8 +185,8 @@ test("migration 29 failure rolls schema and data back to the prior trusted state
 });
 
 test("GitHub, Gmail and RSS fixtures all write FeedItem first and attention separately", () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-infoflow-fixtures-"));
-  const databasePath = join(directory, "goalboard.sqlite");
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-infoflow-fixtures-"));
+  const databasePath = join(directory, "molis-work.sqlite");
   try {
     seedDemoBoard(databasePath);
     const store = new LocalProjectDatabase(databasePath);
@@ -232,7 +232,7 @@ test("GitHub, Gmail and RSS fixtures all write FeedItem first and attention sepa
       assert.equal(snapshot.feed_items.length, 3);
       assert.equal(snapshot.feed_items.every((item) => item.item_type === "feed"), true);
       assert.equal(snapshot.inbox_entries.length, 2);
-      assert.equal(snapshot.items.filter((item) => item.item_type === "inbox_message").length, 2);
+      assert.equal("items" in snapshot, false);
       assert.equal(snapshot.inbox_entries.every((entry) => !Object.hasOwn(entry, "body")), true);
       const storedTypes = store.db.prepare(
         "SELECT DISTINCT item_type FROM feed_items ORDER BY item_type",

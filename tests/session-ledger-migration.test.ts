@@ -4,15 +4,15 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import Database from "better-sqlite3";
-import { openWorkSessionRegistry } from "@adeptify/goalboard-app-local-host";
-import { createContextLedger } from "@adeptify/goalboard-module-context-ledger";
-import { GoalBoardSessionRegistry } from "@adeptify/goalboard-module-private-work-context";
+import { openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
+import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
+import { MolisWorkSessionRegistry } from "@molis-ai/molis-work-module-private-work-context";
 
 const scope = { kind: "personal", id: "private-work-context" } as const;
 const readAccess = { actor_id: "test-reader", scope };
 
 async function legacyFixture() {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "goalboard-session-ledger-"));
+  const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-session-ledger-"));
   const homeDirectory = path.join(directory, "home");
   const registry = await openWorkSessionRegistry({ homeDirectory });
   const session = registry.createSession({ runtime_id: "codex", actor_id: "user", user_confirmed: true });
@@ -71,7 +71,7 @@ test("v3 Session associations migrate without guessing historic Projects and sur
 test("failed Session Ledger migration rolls back links, scalars and schema version together", async () => {
   const fixture = await legacyFixture();
   try {
-    await assert.rejects(GoalBoardSessionRegistry.open({ homeDirectory: fixture.homeDirectory, createLedger: (db) => {
+    await assert.rejects(MolisWorkSessionRegistry.open({ homeDirectory: fixture.homeDirectory, createLedger: (db) => {
       const ledger = createContextLedger(db, { authorize: () => true });
       let writes = 0;
       return { query: ledger.query, commands: { ...ledger.commands, put: (access, input) => {
@@ -96,7 +96,7 @@ test("Session association changes roll back all edges if one Ledger write fails"
   const fixture = await legacyFixture();
   let fail = false;
   try {
-    const registry = await GoalBoardSessionRegistry.open({ homeDirectory: fixture.homeDirectory, createLedger: (db) => {
+    const registry = await MolisWorkSessionRegistry.open({ homeDirectory: fixture.homeDirectory, createLedger: (db) => {
       const ledger = createContextLedger(db, { authorize: () => true });
       return { query: ledger.query, commands: { ...ledger.commands, put: (access, input) => {
         if (fail && input.type === "work.project") throw new Error("project edge failure");
@@ -137,7 +137,7 @@ test("v1 schema upgrade rolls back too when Ledger construction fails", async ()
     let db = new Database(fixture.databasePath);
     db.exec("DROP TABLE session_events; DROP TABLE session_handoffs; UPDATE session_meta SET value = '1' WHERE key = 'schema_version';");
     db.close();
-    await assert.rejects(GoalBoardSessionRegistry.open({ homeDirectory: fixture.homeDirectory,
+    await assert.rejects(MolisWorkSessionRegistry.open({ homeDirectory: fixture.homeDirectory,
       createLedger: () => { throw new Error("ledger unavailable"); },
     }), /ledger unavailable/);
     db = new Database(fixture.databasePath);

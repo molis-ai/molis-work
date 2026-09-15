@@ -1,4 +1,4 @@
-# GoalBoard Workbench Performance
+# Molis Work Workbench Performance
 
 ## Background and goal
 
@@ -57,7 +57,7 @@ Baseline evidence from the live desktop service:
 
 ### 1. Indexed Board read model
 
-`buildGoalBoardWebView` continues to produce the existing `GoalBoardWebView` contract, but builds `Map<goal_id, records[]>` and `Map<object_id, events[]>` indexes once. Per-Goal assembly consumes these maps. Proposal and rewire associations are indexed by the Goal IDs they touch. Existing record order must remain stable.
+`buildMolisWorkWebView` continues to produce the existing `MolisWorkWebView` contract, but builds `Map<goal_id, records[]>` and `Map<object_id, events[]>` indexes once. Per-Goal assembly consumes these maps. Proposal and rewire associations are indexed by the Goal IDs they touch. Existing record order must remain stable.
 
 This is an implementation optimization only: all status, policy, event, relation, and decision semantics stay canonical.
 
@@ -114,7 +114,7 @@ This avoids stale assets across local upgrades while eliminating repeated bundle
 
 ### 6. Goal document before Runtime panels
 
-`goalboard:goal-changed` continues to update Runtime ownership, status, and parent protection immediately, but it invalidates the previous panel list without starting another read. After the selected Goal document is successfully replaced, the workbench emits `goalboard:goal-document-loaded`; only then does the PTY client load and attach that Goal's panels.
+`molis-work:goal-changed` continues to update Runtime ownership, status, and parent protection immediately, but it invalidates the previous panel list without starting another read. After the selected Goal document is successfully replaced, the workbench emits `molis-work:goal-document-loaded`; only then does the PTY client load and attach that Goal's panels.
 
 This preserves the visible Runtime contract while preventing the panel request from competing with the request that makes the selected Goal usable. Aborted or failed Goal document reads never attach panels for a stale selection.
 
@@ -137,7 +137,7 @@ This preserves the visible Runtime contract while preventing the panel request f
 
 - Inputs: project-scoped SQLite Board/Feed state, requested Goal/Item IDs, collection view, current event cursor.
 - Outputs: unchanged canonical UI behavior delivered through smaller HTML fragments and summary payloads.
-- Dependencies: existing `SqliteGoalBoardStore`, `GoalBoardCoordinator`, `FeedStore`, content hydration, render functions, and local control-token protection for writes.
+- Dependencies: existing `SqliteMolisWorkStore`, `MolisWorkCoordinator`, `FeedStore`, content hydration, render functions, and local control-token protection for writes.
 - Trust boundary: Feed bodies remain untrusted display data; lazy loading must not expose credentials or automatically execute content.
 
 ## Acceptance criteria

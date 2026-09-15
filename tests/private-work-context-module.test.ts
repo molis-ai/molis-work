@@ -4,18 +4,18 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import Database from "better-sqlite3";
-import { createContextLedger } from "@adeptify/goalboard-module-context-ledger";
+import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import {
-  GoalBoardSessionRegistry,
+  MolisWorkSessionRegistry,
   RuntimeContextBindingRepository,
   createRuntimeContextBindingTables,
   createRuntimeContextSetupRequestTable,
   createRuntimeContextSuggestionRejectionTable,
-} from "@adeptify/goalboard-module-private-work-context";
+} from "@molis-ai/molis-work-module-private-work-context";
 
 test("Private Work Context public entrypoint preserves private Session facts across restart", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "goalboard-private-work-context-"));
-  const home = path.join(directory, ".goalboard");
+  const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-private-work-context-"));
+  const home = path.join(directory, ".molis-work");
   let registry = await openWorkSessionRegistry({ homeDirectory: home });
   try {
     const session = registry.createSession({
@@ -120,4 +120,4 @@ test("Runtime context binding facts are stored by the Private Work Context repos
     db.close();
   }
 });
-import { openWorkSessionRegistry } from "@adeptify/goalboard-app-local-host";
+import { openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";

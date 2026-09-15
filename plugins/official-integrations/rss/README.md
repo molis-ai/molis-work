@@ -2,7 +2,7 @@
 
 为目录来源和自定义 RSS 提供 Provider 接线、条件请求状态与正文处理，使公开订阅进入统一信息流。
 
-包名：`@adeptify/goalboard-integration-rss`。工作区内部包，通过仓库构建和 Host 装配使用。
+包名：`@molis-ai/molis-work-integration-rss`。工作区内部包，通过仓库构建和 Host 装配使用。
 
 ## 一次典型调用
 
@@ -28,15 +28,15 @@ createRssIntegrationPlugin 接收 Provider port 并注册轮询贡献；catalog/
 
 这里只处理 RSS 接入，不建立第二套 Feed/Source 状态。网络可达性和站点内容由实际运行决定；测试中的响应 fixture 不代表所有订阅源在线。
 
-工作区依赖：`@adeptify/goalboard-contracts`、`@adeptify/goalboard-plugin-sdk`。其他运行依赖见 [package.json](package.json)。
+工作区依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`。其他运行依赖见 [package.json](package.json)。
 
 ## 本地开发
 
 以下命令在**仓库根目录**执行，使用 Node.js 24+ 与仓库配置的 pnpm。首次准备运行 `pnpm install --frozen-lockfile` 和 `pnpm build`；之后可单独检查此包。
 
 ```bash
-pnpm --filter @adeptify/goalboard-integration-rss typecheck
-pnpm --filter @adeptify/goalboard-integration-rss build
+pnpm --filter @molis-ai/molis-work-integration-rss typecheck
+pnpm --filter @molis-ai/molis-work-integration-rss build
 ```
 
 已有行为示例与回归：[feed-sources.test.ts](../../../tests/feed-sources.test.ts)。完成上述构建后运行：
@@ -53,7 +53,7 @@ node --import tsx --test --test-concurrency=1 tests/feed-sources.test.ts
 - [架构与当前实现索引](../../../docs/SSOT-MATRIX.md)
 
 - Status: `partial`
-- Contract entrypoint: `@adeptify/goalboard-contracts/platform/plugin`
+- Contract entrypoint: `@molis-ai/molis-work-contracts/platform/plugin`
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-fd3`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。

@@ -7,7 +7,7 @@ Goal：`goal-infoflow-github-connector`
 ## 真实账号 smoke
 
 - 通过已有密封凭据执行真实只读同步；页面识别账号为 `@yijunw0212`。
-- GitHub 返回的实际授权为 classic `repo` scope；来源详情明确标注“权限较宽”，并同时显示 GoalBoard 只调用 `GET`。
+- GitHub 返回的实际授权为 classic `repo` scope；来源详情明确标注“权限较宽”，并同时显示 Molis Work 只调用 `GET`。
 - 首次新通知同步：新增 50、去重 0；GitHub 来源 Item 数从 11 变为 61。
 - 第二次同步：新增 0、去重 0；Item 数保持 61，证明条件请求 / Provider 游标没有制造副本。
 - 真实 Item 保留仓库、主题、reason、Provider 时间和 GitHub 原链接；`ci_activity` 通知按明确规则进入 Inbox。
@@ -33,4 +33,4 @@ Goal：`goal-infoflow-github-connector`
 ## 已知边界
 
 - GitHub Notifications API 不支持 fine-grained PAT 或 GitHub App token。
-- GitHub 的最小 `notifications` scope 同时包含通知写权限；GoalBoard 请求该最小 scope，并在实现中只调用 `GET`。当前已有账号使用更宽的 classic `repo` scope，界面已明确披露；用户可断开并使用 `notifications read:user` 重新连接。
+- GitHub 的最小 `notifications` scope 同时包含通知写权限；Molis Work 请求该最小 scope，并在实现中只调用 `GET`。当前已有账号使用更宽的 classic `repo` scope，界面已明确披露；用户可断开并使用 `notifications read:user` 重新连接。

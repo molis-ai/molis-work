@@ -1,4 +1,4 @@
-import { GoalBoardWebServiceError } from "./web-service-contract.js";
+import { MolisWorkWebServiceError } from "./web-service-contract.js";
 import { WebServiceEnvironment, commandError, delay, launchAgentProcessId } from "./web-service-platform.js";
 
 /** Owns launchctl transitions and process-identity readiness, not install files or confirmation. */
@@ -45,6 +45,13 @@ export class WebServiceProcess {
     if (result.code === 0) await this.waitForUnloaded();
   }
 
+  async stopLegacy(): Promise<void> {
+    const result = await this.environment.launchctl(["bootout", this.environment.legacyServiceTarget()]);
+    if (result.code !== 0 && !/could not find service|no such process/i.test(result.stderr)) {
+      throw commandError("停止", result);
+    }
+  }
+
   private async waitForUnloaded(): Promise<void> {
     let status = await this.environment.launchctl(["print", this.environment.serviceTarget()]);
     for (let attempt = 1; status.code === 0 && attempt < 25; attempt += 1) {
@@ -52,9 +59,9 @@ export class WebServiceProcess {
       status = await this.environment.launchctl(["print", this.environment.serviceTarget()]);
     }
     if (status.code === 0) {
-      throw new GoalBoardWebServiceError(
+      throw new MolisWorkWebServiceError(
         "service.command_failed",
-        "launchctl 停止超时：旧 GoalBoard Web 服务仍在卸载中，请稍后重试",
+        "launchctl 停止超时：旧 Molis Work Web 服务仍在卸载中，请稍后重试",
       );
     }
   }
@@ -66,9 +73,9 @@ export class WebServiceProcess {
       status = await this.environment.launchctl(["print", this.environment.serviceTarget()]);
     }
     if (launchAgentProcessId(status) == null) {
-      throw new GoalBoardWebServiceError(
+      throw new MolisWorkWebServiceError(
         "service.command_failed",
-        `launchctl 启动后未进入运行状态（${status.code}）：${status.stderr.trim() || "请查看 GoalBoard Web 错误日志"}`,
+        `launchctl 启动后未进入运行状态（${status.code}）：${status.stderr.trim() || "请查看 Molis Work Web 错误日志"}`,
       );
     }
   }
@@ -86,9 +93,9 @@ export class WebServiceProcess {
         await delay(this.environment.transitionDelayMilliseconds);
       }
     }
-    throw new GoalBoardWebServiceError(
+    throw new MolisWorkWebServiceError(
       "service.command_failed",
-      `GoalBoard Web 已有 LaunchAgent 进程，但当前实例的进程身份健康检查仍未通过；请查看错误日志：${this.environment.stderrLog}`,
+      `Molis Work Web 已有 LaunchAgent 进程，但当前实例的进程身份健康检查仍未通过；请查看错误日志：${this.environment.stderrLog}`,
     );
   }
 
@@ -101,9 +108,9 @@ export class WebServiceProcess {
 
   async assertPortAvailable(): Promise<void> {
     if (!await this.environment.portCheck()) return;
-    throw new GoalBoardWebServiceError(
+    throw new MolisWorkWebServiceError(
       "service.conflict",
-      "127.0.0.1:4173 已有进程监听；GoalBoard 不会接管、终止或随机改用其他端口",
+      "127.0.0.1:4173 已有进程监听；Molis Work 不会接管、终止或随机改用其他端口",
     );
   }
 }

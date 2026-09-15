@@ -39,7 +39,7 @@ export const SETTINGS_CLIENT_SCRIPT = WEB_SERVICE_SETTINGS_SCRIPT + PROJECT_SETT
         activePlan = null;
         reloadOnClose = false;
         title.textContent = L("正在准备接入预览");
-        message.textContent = L("GoalBoard 正在只读检查当前 Runtime 配置。");
+        message.textContent = L("Molis Work 正在只读检查当前 Runtime 配置。");
         changes.innerHTML = "";
         backup.textContent = L("检查中");
         restart.textContent = L("检查中");
@@ -53,7 +53,7 @@ export const SETTINGS_CLIENT_SCRIPT = WEB_SERVICE_SETTINGS_SCRIPT + PROJECT_SETT
         try {
           const response = await fetch("/api/settings/runtimes/" + encodeURIComponent(runtimeId) + "/plan", {
             method: "POST",
-            headers: goalboardControlHeaders(),
+            headers: molisWorkControlHeaders(),
             body: JSON.stringify({ action }),
           });
           const plan = await response.json();
@@ -82,7 +82,7 @@ export const SETTINGS_CLIENT_SCRIPT = WEB_SERVICE_SETTINGS_SCRIPT + PROJECT_SETT
       try {
         const response = await fetch("/api/settings/runtimes/" + encodeURIComponent(activePlan.runtime_id) + "/confirm", {
           method: "POST",
-          headers: goalboardControlHeaders(),
+          headers: molisWorkControlHeaders(),
           body: JSON.stringify({ plan_id: activePlan.plan_id, decision: "confirmed" }),
         });
         const result = await response.json();
@@ -114,10 +114,10 @@ export const SETTINGS_CLIENT_SCRIPT = WEB_SERVICE_SETTINGS_SCRIPT + PROJECT_SETT
       submit.disabled = true;
       error.hidden = true;
       try {
-        const response = await fetch("/api/settings/projects", { method: "POST", headers: goalboardControlHeaders(), body: JSON.stringify({ display_name: String(values.get("display_name") || "").trim(), user_confirmed: true }) });
+        const response = await fetch("/api/settings/projects", { method: "POST", headers: molisWorkControlHeaders(), body: JSON.stringify({ display_name: String(values.get("display_name") || "").trim(), user_confirmed: true }) });
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || L("项目创建失败"));
-        location.assign(globalThis.goalboardNavigationUrl(result.project_path));
+        location.assign(globalThis.molisWorkNavigationUrl(result.project_path));
       } catch (caught) {
         error.textContent = caught.message || L("项目创建失败");
         error.hidden = false;
@@ -137,7 +137,7 @@ export const SETTINGS_CLIENT_SCRIPT = WEB_SERVICE_SETTINGS_SCRIPT + PROJECT_SETT
         button.disabled = true;
         if (error) error.hidden = true;
         try {
-          const response = await fetch("/api/settings/demo", { method: "POST", headers: goalboardControlHeaders(), body: JSON.stringify({ action, user_confirmed: true }) });
+          const response = await fetch("/api/settings/demo", { method: "POST", headers: molisWorkControlHeaders(), body: JSON.stringify({ action, user_confirmed: true }) });
           const result = await response.json();
           if (!response.ok) throw new Error(result.error || L("demo 操作失败"));
           showToast(result.message || L("demo 已更新"));
@@ -285,7 +285,7 @@ export const PROJECT_GUIDANCE_CLIENT_SCRIPT = `
           isAdd ? routePrefix + "/api/project-guidance" : routePrefix + "/api/project-guidance/" + encodeURIComponent(guidanceId),
           {
             method: isAdd ? "POST" : "PATCH",
-            headers: goalboardControlHeaders(),
+            headers: molisWorkControlHeaders(),
             body: JSON.stringify({
               action: isAdd ? undefined : mode,
               kind: isAdd || mode === "edit" ? kindInput.value : undefined,
@@ -297,7 +297,7 @@ export const PROJECT_GUIDANCE_CLIENT_SCRIPT = `
         );
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || L("项目说明保存失败"));
-        sessionStorage.setItem("goalboard-guidance-receipt:" + routePrefix, copyReceipt(mode));
+        sessionStorage.setItem("molis-work-guidance-receipt:" + routePrefix, copyReceipt(mode));
         location.reload();
       } catch (error) {
         errorBox.textContent = error.message || L("项目说明保存失败，请检查输入后重试");
@@ -308,8 +308,8 @@ export const PROJECT_GUIDANCE_CLIENT_SCRIPT = `
     });
     const receipt = document.querySelector("[data-guidance-receipt]");
     try {
-      const saved = sessionStorage.getItem("goalboard-guidance-receipt:" + routePrefix);
-      sessionStorage.removeItem("goalboard-guidance-receipt:" + routePrefix);
+      const saved = sessionStorage.getItem("molis-work-guidance-receipt:" + routePrefix);
+      sessionStorage.removeItem("molis-work-guidance-receipt:" + routePrefix);
       if (receipt && saved) {
         receipt.textContent = saved;
         receipt.hidden = false;

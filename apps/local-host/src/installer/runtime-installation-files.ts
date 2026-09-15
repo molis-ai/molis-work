@@ -3,7 +3,7 @@ import { promises as fs, constants as fsConstants } from "node:fs";
 import path from "node:path";
 import type { SkillSnapshot } from "./runtime-integration-contract.js";
 
-export async function inspectSkillLink(targetPath: string, desiredTarget: string | null, goalboardHome: string): Promise<SkillSnapshot> {
+export async function inspectSkillLink(targetPath: string, desiredTarget: string | null, molisWorkHome: string): Promise<SkillSnapshot> {
   let state: Awaited<ReturnType<typeof fs.lstat>> | null;
   try {
     state = await fs.lstat(targetPath);
@@ -19,7 +19,7 @@ export async function inspectSkillLink(targetPath: string, desiredTarget: string
   const rawLinkTarget = await fs.readlink(targetPath);
   const resolvedLinkTarget = path.resolve(path.dirname(targetPath), rawLinkTarget);
   const current = desiredTarget != null && resolvedLinkTarget === path.resolve(desiredTarget);
-  const managed = isInside(goalboardHome, resolvedLinkTarget)
+  const managed = isInside(molisWorkHome, resolvedLinkTarget)
     && path.basename(resolvedLinkTarget) === "goal-advance"
     && path.basename(path.dirname(resolvedLinkTarget)) === "skills";
   return {
@@ -30,8 +30,8 @@ export async function inspectSkillLink(targetPath: string, desiredTarget: string
   };
 }
 
-export async function replaceSkillLink(targetPath: string, sourcePath: string, goalboardHome: string): Promise<void> {
-  const current = await inspectSkillLink(targetPath, sourcePath, goalboardHome);
+export async function replaceSkillLink(targetPath: string, sourcePath: string, molisWorkHome: string): Promise<void> {
+  const current = await inspectSkillLink(targetPath, sourcePath, molisWorkHome);
   if (current.state === "current") return;
   if (current.state === "conflict") throw new Error(`不会覆盖未知 Skill: ${targetPath}`);
   if (current.state === "managed") await fs.unlink(targetPath);

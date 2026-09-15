@@ -1,4 +1,4 @@
-import { importLegacyV3Board, type LegacyV3ImportInput, type V3ImportReport } from "@adeptify/goalboard-plugin-goals";
+import { importLegacyV3Board, type LegacyV3ImportInput, type V3ImportReport } from "@molis-ai/molis-work-plugin-goals";
 import type { GoalProjectApplication } from "./goal-project-application.js";
 import type { LocalProjectDatabase } from "./project-database.js";
 

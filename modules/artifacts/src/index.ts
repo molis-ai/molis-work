@@ -2,7 +2,7 @@ import type {
   ArtifactsApplicationApi,
   ArtifactsCommandApi,
   ArtifactsQueryApi,
-} from "@adeptify/goalboard-contracts/modules/artifacts";
+} from "@molis-ai/molis-work-contracts/modules/artifacts";
 
 import {
   ArtifactsRepository,
@@ -14,11 +14,11 @@ import {
 } from "./service.js";
 
 export const packageDescriptor = {
-  packageName: "@adeptify/goalboard-module-artifacts",
+  packageName: "@molis-ai/molis-work-module-artifacts",
   packagePath: "modules/artifacts",
   kind: "module",
   maturity: "partial",
-  contract: "@adeptify/goalboard-contracts/modules/artifacts",
+  contract: "@molis-ai/molis-work-contracts/modules/artifacts",
   migrationGoals: ["goal-reorg-f2","goal-reorg-ar1","goal-reorg-ar3"],
   ssot: "docs/SSOT-MATRIX.md",
   capabilities: [
@@ -29,7 +29,7 @@ export const packageDescriptor = {
   ],
 } as const;
 
-export type GoalBoardPackageDescriptor = typeof packageDescriptor;
+export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export interface ArtifactsModuleOptions extends ArtifactsServiceOptions {
   db: ArtifactsSqliteDatabase;

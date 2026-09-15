@@ -1,12 +1,12 @@
-# GoalBoard
+# Molis Work
 
 **English** | [简体中文](README.zh.md)
 
-GoalBoard is a Goal ledger and workbench shared by different AI Runtimes.
+Molis Work is a Goal ledger and workbench shared by different AI Runtimes.
 
 Long-running work fails in a boring way: a new Session cannot see the last one, the original outcome drifts as local decisions pile up, and “done” is a sentence with nothing to check. What is missing is not a smarter model. It is one project record every Runtime can read: the accepted Goal, how it was split, what is blocked, who is working, and the evidence for completion.
 
-GoalBoard keeps that record locally. Codex, Claude Code, OpenCode, or another connected Harness updates the same Goal. You confirm material changes. You can see how far the work has got without asking the model to recap.
+Molis Work keeps that record locally. Codex, Claude Code, OpenCode, or another connected Harness updates the same Goal. You confirm material changes. You can see how far the work has got without asking the model to recap.
 
 It does not host a model and does not dispatch an agent team. Execution stays in the Harness you already use.
 
@@ -18,12 +18,12 @@ Same project, three surfaces.
 
 ### Desktop
 
-A native macOS window: focus one Goal, then open a terminal that stays bound to it. GoalBoard also has a clickable **status icon in the macOS menu bar**. Click it for the current project, focused Goal, status, and next action.
+A native macOS window: focus one Goal, then open a terminal that stays bound to it. Molis Work also has a clickable **status icon in the macOS menu bar**. Click it for the current project, focused Goal, status, and next action.
 
 <p align="center">
-  <img src="docs/screenshots/showcase/desktop-focus-en-dark.jpg" width="32%" alt="GoalBoard Desktop: focus one Goal beside the Goal Navigator">
-  <img src="docs/screenshots/showcase/harness-runtime-en-dark.jpg" width="32%" alt="GoalBoard: a terminal bound to the selected Goal">
-  <img src="docs/screenshots/showcase/macos-menu-bar-capsule-en-dark.jpg" width="32%" alt="GoalBoard Work Capsule opened from the macOS status item">
+  <img src="docs/screenshots/showcase/desktop-focus-en-dark.jpg" width="32%" alt="Molis Work Desktop: focus one Goal beside the Goal Navigator">
+  <img src="docs/screenshots/showcase/harness-runtime-en-dark.jpg" width="32%" alt="Molis Work: a terminal bound to the selected Goal">
+  <img src="docs/screenshots/showcase/macos-menu-bar-capsule-en-dark.jpg" width="32%" alt="Molis Work Work Capsule opened from the macOS status item">
 </p>
 
 <p align="center">
@@ -32,7 +32,7 @@ A native macOS window: focus one Goal, then open a terminal that stays bound to 
 
 ### Inside a Harness
 
-Open GoalBoard in the Harness side browser and keep working in the same window. Narrow: the Goal list. Wider: the current Goal and its TUI.
+Open Molis Work in the Harness side browser and keep working in the same window. Narrow: the Goal list. Wider: the current Goal and its TUI.
 
 <p align="center">
   <a href="docs/screenshots/showcase/harness-narrow-en-dark.jpg"><img src="docs/screenshots/showcase/harness-narrow-en-dark.jpg" width="32%" alt="Harness side panel: Goal list"></a>
@@ -45,13 +45,13 @@ Open GoalBoard in the Harness side browser and keep working in the same window. 
 
 ### Web
 
-The same local project in a browser. Desktop and Web share data under `~/.goalboard`.
+The same local project in a browser. Desktop and Web share data under `~/.molis-work`.
 
-![GoalBoard Web: Goal Tree (historical workspace surface)](docs/screenshots/showcase/web-workspace-en-dark.jpg)
+![Molis Work Web: Goal Tree (historical workspace surface)](docs/screenshots/showcase/web-workspace-en-dark.jpg)
 
 These images show the workspace, Goal list, Goal-bound terminal, and macOS status item. They are historical product surfaces, not the current Goal event document. The current Goal page keeps the live judgment, what is already done, the next step, and risks at the top; a time index on the left; and the selected event body on the right.
 
-Built-in Runtime recipes cover Codex, Claude Code, OpenCode, Pi Agent, and Grok Build. Other Harnesses can use the same project through GoalBoard's MCP server and shared Skill.
+Built-in Runtime recipes cover Codex, Claude Code, OpenCode, Pi Agent, and Grok Build. Other Harnesses can use the same project through Molis Work's MCP server and shared Skill.
 
 ## Core features
 
@@ -71,9 +71,9 @@ A Runtime may discover new work, a new dependency, or a risk. It can propose. It
 
 ### Keep the terminal on the Goal
 
-Open Codex, Claude Code, or a custom command from a Goal. That terminal stays owned by that Goal — switching Focus later does not silently reassign it, and GoalBoard does not auto-send. A parent Goal can still record integration work; it does not become “done” just because its children exist.
+Open Codex, Claude Code, or a custom command from a Goal. That terminal stays owned by that Goal — switching Focus later does not silently reassign it, and Molis Work does not auto-send. A parent Goal can still record integration work; it does not become “done” just because its children exist.
 
-On macOS, the same current Goal is also on the **top menu bar**. Click the GoalBoard status icon for the project, the focused Goal, its state, and the next action; click away and the panel disappears.
+On macOS, the same current Goal is also on the **top menu bar**. Click the Molis Work status icon for the project, the focused Goal, its state, and the next action; click away and the panel disappears.
 
 ### Treat “done” as something you can check
 
@@ -89,18 +89,18 @@ A new intent can be saved without a plan or type, then followed by an ordinary n
 
 ### Connect a Runtime on purpose
 
-GoalBoard works as a board with no Runtime connected. Connect Codex, Claude Code, or another tool only when it should read and advance Goals directly. Integration configuration changes are previewed and applied after confirmation; a failed apply rolls back. Ordinary Goal notes and reports follow your existing work authorization. After connecting, open a **new Session** — tools load at Session start.
+Molis Work works as a board with no Runtime connected. Connect Codex, Claude Code, or another tool only when it should read and advance Goals directly. Integration configuration changes are previewed and applied after confirmation; a failed apply rolls back. Ordinary Goal notes and reports follow your existing work authorization. After connecting, open a **new Session** — tools load at Session start.
 
 ## Try it in 3 minutes
 
 ### macOS Desktop (recommended)
 
-Download the DMG for your Mac from [GitHub Releases](https://github.com/adeptify/GoalBoard/releases):
+Download the DMG for your Mac from [GitHub Releases](https://github.com/molis-ai/molis-work/releases):
 
 - Apple Silicon (M1/M2/M3/M4…): `macos-arm64`
 - Intel Mac: `macos-x64`
 
-Open the DMG, drag GoalBoard into Applications, and launch it. Desktop includes Node and the GoalBoard Runtime. On first launch it installs Core into `~/.goalboard` and starts the same local workbench, without requiring Node, pnpm, or a repository checkout. App upgrades do not rewrite existing projects or history.
+Open the DMG, drag Molis Work into Applications, and launch it. Desktop includes Node and the Molis Work Runtime. On first launch it installs Core into `~/.molis-work` and starts the same local workbench, without requiring Node, pnpm, or a repository checkout. App upgrades do not rewrite existing projects or history.
 
 Development builds that are not signed with Developer ID and notarized by Apple still trigger Gatekeeper and require explicit approval in System Settings → Privacy & Security. The release workflow produces signed and notarized artifacts once the repository has the Apple credentials.
 
@@ -109,23 +109,23 @@ Development builds that are not signed with Developer ID and notarized by Apple 
 You need Node.js 24+, pnpm, and macOS (the persistent Web service currently uses LaunchAgent; other platforms can run Web in the foreground).
 
 ```bash
-git clone https://github.com/adeptify/goalboard.git
-cd goalboard
+git clone https://github.com/molis-ai/molis-work.git
+cd molis-work
 pnpm install --frozen-lockfile
 
-# Build and install into ~/.goalboard
+# Build and install into ~/.molis-work
 pnpm install:local
 
 # macOS: install the persistent Web service
-"$HOME/.goalboard/bin/goalboard" service install --home "$HOME/.goalboard" --confirm
+"$HOME/.molis-work/bin/molis-work" service install --home "$HOME/.molis-work" --confirm
 
 # Create a rebuildable demo kept separate from user data
-"$HOME/.goalboard/bin/goalboard" demo create --confirm
+"$HOME/.molis-work/bin/molis-work" demo create --confirm
 ```
 
 Open `http://127.0.0.1:4173` and enter the demo project. In “Settings → Runtime,” preview and confirm an integration, then **open a new Runtime Session**:
 
-> Use GoalBoard to connect to the demo project, open a Goal, and tell me the current judgment, what is already done, the next step, and the completion requirements.
+> Use Molis Work to connect to the demo project, open a Goal, and tell me the current judgment, what is already done, the next step, and the completion requirements.
 
 Runtimes read MCP and Skill manifests at Session startup, so a newly connected Runtime needs a new Session.
 
@@ -145,15 +145,15 @@ pnpm desktop:install:macos
 pnpm desktop:start:macos
 ```
 
-Each architecture ships separately because GoalBoard's SQLite and PTY native addons must match both the bundled Node runtime and the Mac CPU. Pushing a `v*` tag makes GitHub Actions build Apple Silicon and Intel DMGs, but the public Release is published only after signing and notarization succeed. Credentials are read only from GitHub Secrets and never committed to the repository.
+Each architecture ships separately because Molis Work's SQLite and PTY native addons must match both the bundled Node runtime and the Mac CPU. Pushing a `v*` tag makes GitHub Actions build Apple Silicon and Intel DMGs, but the public Release is published only after signing and notarization succeed. Credentials are read only from GitHub Secrets and never committed to the repository.
 
 ## Product boundaries
 
-- The authoritative project state is stored in local SQLite; GoalBoard does not bundle a model.
+- The authoritative project state is stored in local SQLite; Molis Work does not bundle a model.
 - Opening a page does not bind a Session, start a Runtime, or send a command.
 - Runtime integration, terminal launch, and accepted Goal changes require explicit action or confirmation.
 - All current work uses event records. Database upgrades and V3 import preserve real history and connect Goals to current state; old Draft/Claim/Run writes are retired.
-- GoalBoard manages Goal facts and the execution loop; it does not replace a Harness or Agent Orchestration.
+- Molis Work manages Goal facts and the execution loop; it does not replace a Harness or Agent Orchestration.
 - v0.2.0 introduces the event workflow and retires the legacy Runtime write protocol. See the [release notes](docs/releases/v0.2.0.md) for compatibility and upgrade steps. Public macOS installers remain pending Developer ID signing and Apple notarization.
 
 ## Further reading
@@ -164,7 +164,7 @@ Each architecture ships separately because GoalBoard's SQLite and PTY native add
 - [MCP Integration](docs/mcp.en.md)
 - [CLI & Development](docs/cli-and-development.en.md)
 - [Runtime Skill](skills/goal-advance/SKILL.md)
-- [GoalBoard Bug Card Ledger (Chinese)](docs/goalboard-bug-cards.md)
+- [Molis Work Bug Card Ledger (Chinese)](docs/molis-work-bug-cards.md)
 
 ## License
 

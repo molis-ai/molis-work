@@ -16,7 +16,7 @@ Writer 完成「真实创建来源、干净新建回执、完整创建游标」�
 
 普通 Runtime 不能自报渠道。Host/MCP 决定 `runtime`。
 
-- MCP `goalboard_v1_goal_intent_create` schema 不再提供 `source_kind`。
+- MCP `molis_work_v1_goal_intent_create` schema 不再提供 `source_kind`。
 - Runtime 边界：调用者只要自带 `source_kind`（含 `runtime`）即拒绝，无 Goal 副作用。错误码仍为 `mcp.user_impersonation_denied`。
 - Host 在 Runtime 写入注入 `source_kind: "runtime"`；MCP Runtime 命令也按 audience 写入 `runtime`，不透传调用者字段。
 - 受保护入口仍显式自己的渠道：Web `web`，onboarding `onboarding`，Feed `feed`，tree materializer `tree`。
@@ -31,13 +31,13 @@ Writer 完成「真实创建来源、干净新建回执、完整创建游标」�
 
 ```
 pnpm_config_verify_deps_before_run=warn pnpm build
-  → /private/tmp/goalboard-flow-cleanup/02-c-build.log  EXIT 0
+  → /private/tmp/molis-work-flow-cleanup/02-c-build.log  EXIT 0
 
 pnpm_config_verify_deps_before_run=warn pnpm boundary:check
-  → /private/tmp/goalboard-flow-cleanup/02-c-boundary.log  EXIT 0  errors: []
+  → /private/tmp/molis-work-flow-cleanup/02-c-boundary.log  EXIT 0  errors: []
 
-node --import tsx --input-type=module < /private/tmp/goalboard-flow-cleanup/02-c-runtime-acceptance.mjs
-  → /private/tmp/goalboard-flow-cleanup/02-c-runtime-after.log  EXIT 0
+node --import tsx --input-type=module < /private/tmp/molis-work-flow-cleanup/02-c-runtime-acceptance.mjs
+  → /private/tmp/molis-work-flow-cleanup/02-c-runtime-after.log  EXIT 0
     PASS real Runtime entry owns source and returns a clean complete creation receipt; replay has no extra writes
     PASS caller-supplied creation channel is rejected even when equal to runtime; no Goal side effects
     PASS creation provenance survives later history pages and Host/SQLite restart; original receipt stays stable
@@ -46,7 +46,7 @@ env -u FORCE_COLOR NODE_NO_WARNINGS=1 node --import tsx --test --test-concurrenc
   tests/goal-event-create-flow.test.ts tests/mcp-goal-events.test.ts \
   tests/feed-goal-promotion.test.ts tests/goal-tree-event-flow.test.ts \
   tests/goal-event-http.test.ts
-  → /private/tmp/goalboard-flow-cleanup/02-c-tests.log  18 pass / 1 fail / 0 skip
+  → /private/tmp/molis-work-flow-cleanup/02-c-tests.log  18 pass / 1 fail / 0 skip
 ```
 
 C 相关通过：create-flow 要求/关系回滚与完整游标；mcp-goal-events 新建无旧三状态、默认 runtime、伪造渠道拒绝、45 条后与重启仍为 runtime；Feed 升格 41 条后与 SQLite 重开仍为 feed；HTTP 新建与 onboarding 回执无旧别名且来源分别为 web/onboarding。

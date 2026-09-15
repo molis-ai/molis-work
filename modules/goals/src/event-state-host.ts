@@ -6,7 +6,7 @@ import type {
   GoalEventSystemPayload,
   GoalRecord,
   GoalSystemWorkEventRecord,
-} from "@adeptify/goalboard-contracts/modules/goals";
+} from "@molis-ai/molis-work-contracts/modules/goals";
 import type { GoalEventCompletionContext } from "./event-state-completion.js";
 
 export interface GoalEventStateHost {

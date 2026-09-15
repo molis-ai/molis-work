@@ -2,14 +2,14 @@ import fs from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {performance} from 'node:perf_hooks';
-const {LocalProjectDatabase,GoalProjectApplication,seedDemoBoard,DEMO_BOARD_ID,buildGoalBoardWebView,cachedGoalBoardWebView}=await import('../../../apps/local-host/dist/index.js');
-const {runWithGoalBoardHome}=await import('../../../packages/storage/dist/index.js');
-const home=fs.mkdtempSync(join(tmpdir(),'goalboard-loading-benchmark-'));
-process.env.GOALBOARD_SECRET_BACKEND='file';process.env.NODE_ENV='test';process.env.RELAY_DB_PATH=home+'/absent-relay.sqlite';
-delete process.env.GOALBOARD_GITHUB_TOKEN;delete process.env.GOALBOARD_GMAIL_ACCESS_TOKEN;
+const {LocalProjectDatabase,GoalProjectApplication,seedDemoBoard,DEMO_BOARD_ID,buildMolisWorkWebView,cachedMolisWorkWebView}=await import('../../../apps/local-host/dist/index.js');
+const {runWithMolisWorkHome}=await import('../../../packages/storage/dist/index.js');
+const home=fs.mkdtempSync(join(tmpdir(),'molis-work-loading-benchmark-'));
+process.env.MOLIS_WORK_SECRET_BACKEND='file';process.env.NODE_ENV='test';process.env.RELAY_DB_PATH=home+'/absent-relay.sqlite';
+delete process.env.MOLIS_WORK_GITHUB_TOKEN;delete process.env.MOLIS_WORK_GMAIL_ACCESS_TOKEN;
 const dbFile=home+'/fixture.sqlite';if(!fs.existsSync(dbFile))seedDemoBoard(dbFile);
 const db=new LocalProjectDatabase(dbFile);const app=new GoalProjectApplication(db);
-try { await runWithGoalBoardHome(home,async()=>{
+try { await runWithMolisWorkHome(home,async()=>{
 const rows=[];
 for(const count of [30,100,250]){
  let total=db.snapshot(DEMO_BOARD_ID).goals.length;
@@ -17,9 +17,9 @@ for(const count of [30,100,250]){
  const options={databasePath:dbFile,boardId:DEMO_BOARD_ID};
  const snapshotRead=db.snapshot.bind(db);let snapshots=0;db.snapshot=(id)=>{snapshots++;return snapshotRead(id)};
  const times=[];let view;
- for(let i=0;i<3;i++){const start=performance.now();view=buildGoalBoardWebView(db,app,options);times.push(performance.now()-start)}
+ for(let i=0;i<3;i++){const start=performance.now();view=buildMolisWorkWebView(db,app,options);times.push(performance.now()-start)}
  db.snapshot=snapshotRead;
- const cache=new Map();cachedGoalBoardWebView(cache,db,app,options);const start=performance.now();for(let i=0;i<20;i++)cachedGoalBoardWebView(cache,db,app,options);
+ const cache=new Map();cachedMolisWorkWebView(cache,db,app,options);const start=performance.now();for(let i=0;i<20;i++)cachedMolisWorkWebView(cache,db,app,options);
  rows.push({goals:view.goals.length,events:view.events.length,coldViewMs:times.map(x=>Math.round(x)),snapshotReadsPerBuild:snapshots/3,warmViewMs:(performance.now()-start)/20,payloadBytes:Buffer.byteLength(JSON.stringify(view))});
  console.log(JSON.stringify(rows.at(-1)));
 }

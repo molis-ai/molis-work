@@ -6,7 +6,7 @@ name: "游戏"
 summary: "在核心玩法之外补齐内容生产、经济、社区、平台和持续运营的行业闭环。"
 applies_to: ["商业游戏","在线游戏","持续运营游戏"]
 domain_tags: ["games","live-ops","game-economy"]
-source_refs: ["GoalBoard domain-game-design method","platform and age-rating requirements vary by target market"]
+source_refs: ["Molis Work domain-game-design method","platform and age-rating requirements vary by target market"]
 confidence: 0.9
 ---
 

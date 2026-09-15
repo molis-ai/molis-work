@@ -1,9 +1,9 @@
 import type {
   ProjectsQueryApi,
   ProjectsCommandApi,
-  ProjectWorkspaceDirectoryRecord as GoalBoardWorkspaceDirectoryRecord,
-} from "@adeptify/goalboard-contracts/modules/projects";
-import type { WorkSessionCommandApi, WorkSessionRecord as GoalBoardSessionRecord } from "@adeptify/goalboard-contracts/modules/private-work-context";
+  ProjectWorkspaceDirectoryRecord as MolisWorkWorkspaceDirectoryRecord,
+} from "@molis-ai/molis-work-contracts/modules/projects";
+import type { WorkSessionCommandApi, WorkSessionRecord as MolisWorkSessionRecord } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 
 export interface ProjectWorkspaceActionRecord {
   id: string;
@@ -18,14 +18,14 @@ type WorkspaceActionCatalog = Pick<
 
 type WorkspaceActionRegistry = Pick<WorkSessionCommandApi, "reassignWorkspaceSessions">;
 
-export class GoalBoardWorkspaceActionError extends Error {
+export class MolisWorkWorkspaceActionError extends Error {
   constructor(
     readonly code: "workspace.change_rolled_back" | "workspace.recovery_required",
     message: string,
     options?: { cause?: unknown },
   ) {
     super(message, options);
-    this.name = "GoalBoardWorkspaceActionError";
+    this.name = "MolisWorkWorkspaceActionError";
   }
 }
 
@@ -36,7 +36,7 @@ export function repairProjectWorkspace(input: {
   canonicalPath: string;
   projectId: string;
   actorId: string;
-}): { workspace: GoalBoardWorkspaceDirectoryRecord; sessions: GoalBoardSessionRecord[] } {
+}): { workspace: MolisWorkWorkspaceDirectoryRecord; sessions: MolisWorkSessionRecord[] } {
   const beforeWorkspaceIds = new Set(
     input.catalog.listWorkspaceDirectory(input.projectId).map((workspace) => workspace.workspace_id),
   );
@@ -84,13 +84,13 @@ export function repairProjectWorkspace(input: {
         });
       }
     } catch (recoveryCause) {
-      throw new GoalBoardWorkspaceActionError(
+      throw new MolisWorkWorkspaceActionError(
         "workspace.recovery_required",
         `Session 关系更新失败，且目录关系自动恢复失败：${errorMessage(recoveryCause)}`,
         { cause },
       );
     }
-    throw new GoalBoardWorkspaceActionError(
+    throw new MolisWorkWorkspaceActionError(
       "workspace.change_rolled_back",
       `Session 关系更新失败；目录关系已自动恢复：${errorMessage(cause)}`,
       { cause },
@@ -104,7 +104,7 @@ export function unlinkProjectWorkspace(input: {
   current: ProjectWorkspaceActionRecord;
   projectId: string;
   actorId: string;
-}): { changed: boolean; sessions: GoalBoardSessionRecord[] } {
+}): { changed: boolean; sessions: MolisWorkSessionRecord[] } {
   if (input.current.projectLinked) {
     input.catalog.removeWorkspaceMembership({
       workspace_id: input.current.id,
@@ -134,14 +134,14 @@ export function unlinkProjectWorkspace(input: {
           user_confirmed: true,
         });
       } catch (recoveryCause) {
-        throw new GoalBoardWorkspaceActionError(
+        throw new MolisWorkWorkspaceActionError(
           "workspace.recovery_required",
           `Session 关系更新失败，且目录关系自动恢复失败：${errorMessage(recoveryCause)}`,
           { cause },
         );
       }
     }
-    throw new GoalBoardWorkspaceActionError(
+    throw new MolisWorkWorkspaceActionError(
       "workspace.change_rolled_back",
       `Session 关系更新失败；目录关系已自动恢复：${errorMessage(cause)}`,
       { cause },

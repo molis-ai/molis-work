@@ -31,7 +31,7 @@ node --import tsx --test tests/session-adapters.test.ts tests/session-registry.t
 - 同 workspace 的两个 Session 保持独立；不同 Runtime 可安全使用相同原生 ID 文本。
 - 原生 discover 不会自动写入 project、Goal 或 workspace 关系。
 - 晚到原生 ID 必须匹配短期 correlation 或 surface；Goal 变更追加历史而非覆盖。
-- `tests/mcp.test.ts` 验证 `GOALBOARD_SESSION_ID`、Codex thread、panel、Goal 与 legacy work context 在宿主边界保持分离。
+- `tests/mcp.test.ts` 验证 `MOLIS_WORK_SESSION_ID`、Codex thread、panel、Goal 与 legacy work context 在宿主边界保持分离。
 
 ## mcp-and-desktop-integration
 
@@ -45,8 +45,8 @@ node --import tsx --test tests/desktop-tui.test.ts
 结果：31 passed, 0 failed
 ```
 
-- 用户确认项目绑定后，`context_resolve` 返回 GoalBoard `session_id` 摘要。
-- desktop panel 启动环境包含 `GOALBOARD_SESSION_ID`，同时保留旧变量供兼容回退。
+- 用户确认项目绑定后，`context_resolve` 返回 Molis Work `session_id` 摘要。
+- desktop panel 启动环境包含 `MOLIS_WORK_SESSION_ID`，同时保留旧变量供兼容回退。
 - Codex `_meta.threadId` 晚到时补到相同 Session，不生成第二条记录。
 - 多 panel 列表每个请求只执行一次 Registry 对账，避免并发重复迁移。
 

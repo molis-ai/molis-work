@@ -123,7 +123,7 @@ const GOAL_TREE_CONTRACT_COVERAGE = {
 const GOAL_TREE_DECOMPOSITION_REVIEW = {
   type: "object",
   description:
-    "拆分检查。complete + closed_compound 必须提供 contract_coverage，并逐项覆盖父 Contract；GoalBoard 只验证明确引用，不猜测自然语言语义等价。",
+    "拆分检查。complete + closed_compound 必须提供 contract_coverage，并逐项覆盖父 Contract；Molis Work 只验证明确引用，不猜测自然语言语义等价。",
   properties: {
     status: { type: "string", enum: ["complete", "paused"] },
     method_pack_ids: V1_STRING_ARRAY,

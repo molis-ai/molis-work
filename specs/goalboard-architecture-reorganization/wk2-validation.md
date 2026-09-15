@@ -6,8 +6,8 @@
 
 ## Boundary
 
-- `horizontal/runtime-host` 唯一实现 Runtime router、Codex protocol/transport、PTY process lifecycle，通过 `@adeptify/goalboard-service-runtime-host` 公开入口提供能力。
-- RuntimeHostApi、Adapter、capability/result 和 PTY 输入输出由 `@adeptify/goalboard-contracts/services/runtime-host` 定义。实现包仅依赖 Contracts 和 node-pty，不持有 Session Registry、Execution Store、Goal 或 Artifact。
+- `horizontal/runtime-host` 唯一实现 Runtime router、Codex protocol/transport、PTY process lifecycle，通过 `@molis-ai/molis-work-service-runtime-host` 公开入口提供能力。
+- RuntimeHostApi、Adapter、capability/result 和 PTY 输入输出由 `@molis-ai/molis-work-contracts/services/runtime-host` 定义。实现包仅依赖 Contracts 和 node-pty，不持有 Session Registry、Execution Store、Goal 或 Artifact。
 - Web Server 初始化 Runtime Host；PTY socket 调公开入口；Session content/directory/handoff 消费 RuntimeHostApi。业务事实更新留在调用者，不由 transport 写 Store。
 - `pnpm boundary:check` 通过：48 packages、195 source files、419 imports、61 dependency edges，errors 为空。检查结合实现和实际 caller 审阅，不以行数或声明字段替代职责验收。
 
@@ -24,8 +24,8 @@
 
 ## Checks
 
-- `CI=true pnpm test`：521 tests，521 pass，0 fail/cancelled/skipped，83.6 秒。日志：本机 `/private/tmp/goalboard-wk2-tests-full.log`。
-- `pnpm workspace:verify`：退出码 0，工作区清理与构建通过。日志：本机 `/private/tmp/goalboard-wk2-workspace-full.log`。
+- `CI=true pnpm test`：521 tests，521 pass，0 fail/cancelled/skipped，83.6 秒。日志：本机 `/private/tmp/molis-work-wk2-tests-full.log`。
+- `pnpm workspace:verify`：退出码 0，工作区清理与构建通过。日志：本机 `/private/tmp/molis-work-wk2-workspace-full.log`。
 - `pnpm exec tsc --noEmit -p tsconfig.json`、`node scripts/verify-release-versions.mjs`、`git diff --check` 通过。
 - `tests/runtime-host.test.ts`：fake Provider 注册/能力/unsupported；Codex resume 和真实回调/取消订阅；真实 PTY attach/replay/input；同 panel 异常退出后重启；Ctrl-C；kill/killAll 后通过 OS PID 检查进程退出。
 - `tests/codex-transport.test.ts`：真实 Node 子进程模拟 app-server，验证初始化顺序、JSONL 流、订阅取消、初始化超时、异常退出后重新初始化、关闭拒绝 pending work、超大响应保护。

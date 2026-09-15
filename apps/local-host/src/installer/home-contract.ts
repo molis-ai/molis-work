@@ -1,33 +1,56 @@
 /** App-owned installation API and release-format types. No project facts. */
 
-export const INSTALLER_ID = "goalboard-home-install-v1";
+export const INSTALLER_ID = "molis-work-home-install-v1";
+export const LEGACY_INSTALLER_ID = "goalboard-home-install-v1";
+
+export function isOwnedInstaller(installer: unknown): boolean {
+  return installer === INSTALLER_ID || installer === LEGACY_INSTALLER_ID;
+}
 
 export const SCHEMA_VERSION = 4;
 
-export const LEGACY_LAUNCHER_HEADER = "#!/usr/bin/env node\n// goalboard-home-launcher-v1";
+export const LEGACY_LAUNCHER_HEADER = "#!/usr/bin/env node\n// molis-work-home-launcher-v1";
 
-export const BUNDLED_NODE_LAUNCHER_HEADER = "#!/bin/sh\n# goalboard-home-launcher-v2";
+export const BUNDLED_NODE_LAUNCHER_HEADER = "#!/bin/sh\n# molis-work-home-launcher-v2";
 
-export type GoalBoardHomeInstallStatus = "installed" | "upgraded" | "refreshed" | "repaired" | "unchanged";
+export const GOALBOARD_LAUNCHER_HEADER = "#!/usr/bin/env node\n// goalboard-home-launcher-v1";
 
-export type GoalBoardHomeInstallStep =
+export const GOALBOARD_BUNDLED_LAUNCHER_HEADER = "#!/bin/sh\n# goalboard-home-launcher-v2";
+
+export const OWNED_LAUNCHER_HEADERS = [
+  LEGACY_LAUNCHER_HEADER,
+  BUNDLED_NODE_LAUNCHER_HEADER,
+  GOALBOARD_LAUNCHER_HEADER,
+  GOALBOARD_BUNDLED_LAUNCHER_HEADER,
+] as const;
+
+export const CURRENT_LAUNCHER_NAMES = ["molis-work", "molis-work-mcp", "molis-work-web"] as const;
+export const LEGACY_LAUNCHER_NAMES = ["goalboard", "goalboard-mcp", "goalboard-web"] as const;
+
+export function isOwnedLauncherText(text: string): boolean {
+  return OWNED_LAUNCHER_HEADERS.some((header) => text.startsWith(header));
+}
+
+export type MolisWorkHomeInstallStatus = "installed" | "upgraded" | "refreshed" | "repaired" | "unchanged";
+
+export type MolisWorkHomeInstallStep =
   | "before_stage_release"
   | "before_activate_release"
   | "before_write_install_manifest";
 
-export interface GoalBoardHomeInstallOptions {
-  /** Defaults to ~/.goalboard. Tests and host integrations may supply another absolute path. */
+export interface MolisWorkHomeInstallOptions {
+  /** Defaults to ~/.molis-work. Tests and host integrations may supply another absolute path. */
   homeDirectory?: string;
   /** Package root containing dist/, skills/, package.json and node_modules/. */
   sourceDirectory: string;
   /** Defaults to the source package version. Intended for controlled release builds. */
   version?: string;
   /** Test-only failure injection used to verify rollback behavior. */
-  beforeStep?: (step: GoalBoardHomeInstallStep) => void | Promise<void>;
+  beforeStep?: (step: MolisWorkHomeInstallStep) => void | Promise<void>;
 }
 
-export interface GoalBoardHomeInstallResult {
-  status: GoalBoardHomeInstallStatus;
+export interface MolisWorkHomeInstallResult {
+  status: MolisWorkHomeInstallStatus;
   runtime_layout: "self_contained";
   home_directory: string;
   version: string;
@@ -98,7 +121,7 @@ export interface TextMutation {
   previous: string | null;
 }
 
-export class GoalBoardHomeInstallError extends Error {
+export class MolisWorkHomeInstallError extends Error {
   constructor(
     readonly code:
       | "home.not_directory"
@@ -111,7 +134,7 @@ export class GoalBoardHomeInstallError extends Error {
     message: string,
   ) {
     super(message);
-    this.name = "GoalBoardHomeInstallError";
+    this.name = "MolisWorkHomeInstallError";
   }
 }
 

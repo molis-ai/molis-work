@@ -64,7 +64,7 @@ const GOALS_TRASH_DIALOG_SCRIPT = `    const openGoalTrashDialog = (trigger, tra
       try {
         const response = await fetch(route("/api/goals/" + encodeURIComponent(trashIntent.goalId) + "/trash"), {
           method: "POST",
-          headers: goalboardControlHeaders(),
+          headers: molisWorkControlHeaders(),
           body: JSON.stringify({
             trashed: trashIntent.trashed,
             reason,
@@ -81,7 +81,7 @@ const GOALS_TRASH_DIALOG_SCRIPT = `    const openGoalTrashDialog = (trigger, tra
         const expected = trashIntent.trashed
           ? ["trashed", "already_trashed"]
           : ["restored", "already_active"];
-        if (!expected.includes(result.status)) throw new Error(L("GoalBoard 返回了无法识别的回收站状态"));
+        if (!expected.includes(result.status)) throw new Error(L("Molis Work 返回了无法识别的回收站状态"));
         redirecting = true;
         trashDialog.close();
         clearCollectionUiState();
@@ -149,7 +149,7 @@ const GOALS_CREATE_SUBMIT_SCRIPT = `    form?.addEventListener("change", updateR
         form.dataset.idempotencyKey = key;
         const response = await fetch(route("/api/goals"), {
           method: "POST",
-          headers: { ...goalboardControlHeaders(), "x-goalboard-idempotency-key": key },
+          headers: { ...molisWorkControlHeaders(), "x-molis-work-idempotency-key": key },
           body: JSON.stringify({ ...payload, idempotency_key: key }),
         });
         const result = await response.json();
@@ -175,7 +175,7 @@ const GOALS_DIALOG_ESCAPE_SCRIPT = `      if (event.key === "Escape" && dialog.o
 
 /** Dialog-local intent and draft state; Host supplies shared refresh, storage and navigation. */
 export const GOALS_DIALOGS_CLIENT_FACTORY_SCRIPT = `(host) => {
-    const { dialog, form, route, controlHeaders: goalboardControlHeaders, refreshBoard,
+    const { dialog, form, route, controlHeaders: molisWorkControlHeaders, refreshBoard,
       updateRelationPreviews, currentLocale, translate: L, clearCollectionUiState, clearCurrentGoalUiState, navigate } = host;
     const formError = document.querySelector("[data-create-error]");
     const trashDialog = document.querySelector("[data-goal-trash-dialog]");
@@ -257,10 +257,10 @@ const GOALS_LIFECYCLE_CLICK_SCRIPT = `      const archiveAction = target.closest
         try {
           const response = await fetch(route("/api/goals/" + encodeURIComponent(goalId) + "/archive"), {
             method: "POST",
-            headers: goalboardControlHeaders(),
+            headers: molisWorkControlHeaders(),
             body: JSON.stringify({
               archived,
-              reason: archived ? "用户在 GoalBoard 手动归档已完成 Goal" : "用户在 GoalBoard 恢复归档 Goal",
+              reason: archived ? "用户在 Molis Work 手动归档已完成 Goal" : "用户在 Molis Work 恢复归档 Goal",
             }),
           });
           const result = await response.json();
@@ -276,7 +276,7 @@ const GOALS_LIFECYCLE_CLICK_SCRIPT = `      const archiveAction = target.closest
 
 /** Archive and restore-from-archive use the existing Host HTTP. */
 export const GOALS_LIFECYCLE_CLIENT_FACTORY_SCRIPT = `(host) => {
-    const { route, controlHeaders: goalboardControlHeaders, showToast, navigate } = host;
+    const { route, controlHeaders: molisWorkControlHeaders, showToast, navigate } = host;
     const handleMatchedLifecycleClick = async (target) => {
 ${GOALS_LIFECYCLE_CLICK_SCRIPT}    };
     const handleGoalLifecycleClick = (target) => target.closest("[data-goal-archive]")

@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import type { CreateGoalIntentResult, GoalsQueryApi, GoalInputBindingsApi } from "@adeptify/goalboard-contracts/modules/goals";
+import type { CreateGoalIntentResult, GoalsQueryApi, GoalInputBindingsApi } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { FeedApplication } from "./application.js";
 import type { FeedItemRecord } from "./projection.js";
 import { FeedStoreError } from "./application-errors.js";
@@ -36,14 +36,11 @@ export function promoteFeedItemToGoal(ports: FeedGoalPromotionPorts, input: Feed
   const { itemId, startProcessing, expectedRevision } = input;
   return ports.transaction(() => {
     const item = ports.hydrateItem(feed.getItem(input.boardId, itemId));
-    const isInboxMessage = item.item_type === "inbox_message" || feed.listInboxEntries(input.boardId).some(
-      (entry) => entry.subject_type === "feed_item" && entry.subject_id === item.item_id && entry.reason === "source_rule",
-    );
     if (expectedRevision != null && expectedRevision !== item.revision) {
       throw new FeedStoreError("feed_revision_conflict", "这条 Item 已经变化，请刷新后重试");
     }
     if (item.disposition === "archived") {
-      throw new FeedStoreError("feed_invalid_transition", isInboxMessage ? "请先恢复这条已归档的 Inbox Message" : "请先恢复这条已忽略的 Feed Item");
+      throw new FeedStoreError("feed_invalid_transition", "请先恢复这条已忽略的 Feed Item");
     }
     const existingGoal = item.linked_goal_id
       ? ports.goalQuery.getGoal(input.boardId, item.linked_goal_id)
@@ -60,9 +57,9 @@ export function promoteFeedItemToGoal(ports: FeedGoalPromotionPorts, input: Feed
         runtime_autofill: startProcessing,
       };
     }
-    const context = feedItemContext(isInboxMessage ? { ...item, item_type: "inbox_message" } : item);
+    const context = feedItemContext(item);
     const sourceTitle = item.title.trim().replace(/[\u0000-\u001f\u007f]/gu, " ").slice(0, 104) || "未命名内容";
-    const itemTypeLabel = isInboxMessage ? "Inbox Message" : "Feed Item";
+    const itemTypeLabel = "Feed Item";
     const created = ports.createIntent({
       board_id: input.boardId,
       title: `处理 ${itemTypeLabel}：${sourceTitle}`.slice(0, 120),

@@ -1,4 +1,4 @@
-import type { GoalTreeProposalItemRecord } from "@adeptify/goalboard-contracts/modules/governance-collaboration";
+import type { GoalTreeProposalItemRecord } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 
 type GoalTreeProposalItemLike = Pick<
   GoalTreeProposalItemRecord,
@@ -77,7 +77,7 @@ export function goalTreeProposalItemValidationIssues(
     issues.push({
       code: "goal_tree_proposal.risk_blocking_mode_invalid",
       field: "blocking_mode",
-      message: "“对 Goal 的影响”不是 GoalBoard 支持的选项。",
+      message: "“对 Goal 的影响”不是 Molis Work 支持的选项。",
       recovery: "请退回方案，让 Runtime 重新选择是否阻止开始、完成或在发生时让 Goal 失效。",
     });
   }

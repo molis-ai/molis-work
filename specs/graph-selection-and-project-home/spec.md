@@ -30,7 +30,7 @@ Goals momentum renderer/client/viewport 负责图节点交互与 camera；Workbe
 - 通过：可开始的非复合 Goal 按优先级/创建顺序确定；进行中/当前/空图回退已测。首次进入以及先刷新首页再进入 Graph 均 100% 居中；手动视角刷新恢复。修复原因是旧 fallback 在隐藏首页加载 Graph，现由可见 canvas owner 统一加载；未初始化的 camera 不提前存为偏好。
 - 通过：目录文字状态标签可见、32px 行高和长标题不重叠，状态组件提供自身边界，不额外套框。
 - 通过：首页当地日期、名言手动切换/暂停/继续/减少动态效果、未发送草稿刷新恢复和跨项目隔离、真实创建记录更新与活动导航；无活动时显示真实空态。名言原文出处直接放在作者链接。
-- 通过：`pnpm build`（`/private/tmp/goalboard-home-final-build.log`）；最终 Graph/Home/导航 5 项全通过（`/private/tmp/goalboard-home-confirmation-tests.log`）。另外 Goal renderer/默认选择 4 项、工作框 camera/draft/终端 1 项在 `/private/tmp/goalboard-home-final-tests.log` 通过，目录交互回归在 `/private/tmp/goalboard-home-targeted.log` 通过。未为文字样式扩大整仓测试。
+- 通过：`pnpm build`（`/private/tmp/molis-work-home-final-build.log`）；最终 Graph/Home/导航 5 项全通过（`/private/tmp/molis-work-home-confirmation-tests.log`）。另外 Goal renderer/默认选择 4 项、工作框 camera/draft/终端 1 项在 `/private/tmp/molis-work-home-final-tests.log` 通过，目录交互回归在 `/private/tmp/molis-work-home-targeted.log` 通过。未为文字样式扩大整仓测试。
 - 通过：1440px 浅色/深色及 390px 手机截图成组检查、一次修正后确认，`.impeccable/review/home/`。其中 graph.png 是主动适应全图后的血缘选中截图；默认100%另由真实几何断言验证。
-- 本机：当前 Core/Web 已刷新至 `~/.goalboard`，原有 running 服务重启成功。隔离预览仍使用 64521 原地址与原项目；当前应用内预览标签已刷新并打开新首页。没有修改用户项目内容，未重打包 `/Applications` 原生 App。
+- 本机：当前 Core/Web 已刷新至 `~/.molis-work`，原有 running 服务重启成功。隔离预览仍使用 64521 原地址与原项目；当前应用内预览标签已刷新并打开新首页。没有修改用户项目内容，未重打包 `/Applications` 原生 App。
 - 声明缺口：原生 Agent 后端与发送尚未研发。当前输入框仅保存浏览器会话草稿；没有推理、工具执行、消息发送或伪造回复。本次不宣称等级 4/5。

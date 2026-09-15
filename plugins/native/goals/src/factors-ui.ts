@@ -1,4 +1,4 @@
-import type { UiContribution } from "@adeptify/goalboard-contracts/platform/ui";
+import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { GoalStatusTranslate } from "./goal-state-explanation.js";
 export interface GoalsFactorsItem {
     goal: {
@@ -78,12 +78,12 @@ function createFactorsRenderer(primitives: GoalsFactorsPrimitives) {
     return renderGoalFactors;
 }
 export type GoalsFactorsRenderer = ReturnType<typeof createFactorsRenderer>;
-export const GOALS_FACTORS_UI_CONTRIBUTION_ID = "io.goalboard.native.goals.factors.v1";
+export const GOALS_FACTORS_UI_CONTRIBUTION_ID = "io.molis.work.native.goals.factors.v1";
 export const goalsFactorsUiContribution: UiContribution<{
     primitives: GoalsFactorsPrimitives;
     args: Parameters<GoalsFactorsRenderer>;
 }> = {
-    descriptor: { contribution_id: GOALS_FACTORS_UI_CONTRIBUTION_ID, plugin_id: "io.goalboard.native.goals", kind: "embedded", label: "Goal relations and constraints",
+    descriptor: { contribution_id: GOALS_FACTORS_UI_CONTRIBUTION_ID, plugin_id: "io.molis.work.native.goals", kind: "embedded", label: "Goal relations and constraints",
         surfaces: [{ surface_id: "factors", target_slot_id: "workbench.main", format: "declarative-html" }], slots: [] },
     render({ model }) { return createFactorsRenderer(model.primitives)(...model.args); },
 };

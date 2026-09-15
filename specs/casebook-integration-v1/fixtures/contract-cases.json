@@ -1,7 +1,7 @@
 {
   "contract_version": "1.0.0",
   "base_export": {
-    "contract_id": "goalboard.casebook.planning-export",
+    "contract_id": "molis-work.casebook.planning-export",
     "schema_version": "1.0.0",
     "project_ref": "project-fixture",
     "authorization_epoch": "epoch-fixture-1",
@@ -68,14 +68,14 @@
     ]
   },
   "base_showcase": {
-    "contract_id": "goalboard.casebook.showcase-artifact",
+    "contract_id": "molis-work.casebook.showcase-artifact",
     "schema_version": "1.0.0",
     "showcase_id": "showcase-fixture",
     "artifact_version": 1,
     "slug": "fixture-planning-case",
     "title": "一个规划案例如何变得可执行",
     "dek": "从模糊目标到有证据边界的可执行 Goal Tree。",
-    "audience": "了解 AI Agent 与 GoalBoard 的产品和开发者",
+    "audience": "了解 AI Agent 与 Molis Work 的产品和开发者",
     "hero_asset": null,
     "story": {
       "problem": "原始目标缺少明确边界。",
@@ -115,7 +115,7 @@
     },
     "share": {
       "title": "一个规划案例如何变得可执行",
-      "description": "GoalBoard Casebook Showcase fixture",
+      "description": "Molis Work Casebook Showcase fixture",
       "image_public_path": "/showcase/fixture-card.png"
     },
     "delivery": {

@@ -1,10 +1,11 @@
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
-import type { WebProjectNavigation, WebSettingsProject, WebInstallationDiagnostics } from "@adeptify/goalboard-app-workbench";
-import type { GoalBoardProjectRecord } from "./project-catalog.js";
+import type { WebProjectNavigation, WebSettingsProject, WebInstallationDiagnostics } from "@molis-ai/molis-work-app-workbench";
+import type { MolisWorkProjectRecord } from "./project-catalog.js";
+import { isOwnedInstaller } from "./installer/home-contract.js";
+import { resolveConfiguredHome } from "./product-home.js";
 
-export function projectNavigation(project: GoalBoardProjectRecord): WebProjectNavigation {
+export function projectNavigation(project: MolisWorkProjectRecord): WebProjectNavigation {
   return {
     project_id: project.project_id,
     display_name: project.display_name,
@@ -12,7 +13,7 @@ export function projectNavigation(project: GoalBoardProjectRecord): WebProjectNa
   };
 }
 
-export function settingsProject(project: GoalBoardProjectRecord): WebSettingsProject {
+export function settingsProject(project: MolisWorkProjectRecord): WebSettingsProject {
   return {
     project_id: project.project_id,
     display_name: project.display_name,
@@ -27,7 +28,7 @@ export function installationDiagnostics(
   homeDirectory: string | undefined,
   projectCount: number,
 ): WebInstallationDiagnostics {
-  const home = path.resolve(homeDirectory ?? path.join(os.homedir(), ".goalboard"));
+  const home = path.resolve(homeDirectory ?? resolveConfiguredHome());
   const manifestPath = path.join(home, "config", "installation.json");
   let installationState: WebInstallationDiagnostics["installation_state"] = "missing";
   let version: string | null = null;
@@ -40,7 +41,7 @@ export function installationDiagnostics(
         release_path?: unknown;
       };
       if (
-        manifest.installer === "goalboard-home-install-v1"
+        isOwnedInstaller(manifest.installer)
         && typeof manifest.version === "string"
         && typeof manifest.release_path === "string"
       ) {
@@ -61,9 +62,9 @@ export function installationDiagnostics(
     release_directory: releaseDirectory,
     project_count: projectCount,
     launchers: ([
-      ["CLI", "goalboard"],
-      ["MCP", "goalboard-mcp"],
-      ["Web", "goalboard-web"],
+      ["CLI", "molis-work"],
+      ["MCP", "molis-work-mcp"],
+      ["Web", "molis-work-web"],
     ] as const).map(([name, file]) => {
       const launcherPath = path.join(home, "bin", file);
       return { name, path: launcherPath, state: fs.existsSync(launcherPath) ? "ready" : "missing" };

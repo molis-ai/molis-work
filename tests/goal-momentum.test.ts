@@ -6,7 +6,7 @@ import {
   buildGoalMomentumView,
   type GoalMomentumGoalInput,
   type GoalMomentumRelationInput,
-} from "@adeptify/goalboard-plugin-goals";
+} from "@molis-ai/molis-work-plugin-goals";
 
 const NOW = new Date("2026-08-30T12:00:00.000Z");
 

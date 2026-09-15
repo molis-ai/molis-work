@@ -14,76 +14,76 @@ import {
   type ResumeGoalEventWorkInput,
   type SetGoalEventAgreementInput,
   type SubmitGoalEventClosureInput,
-} from "@adeptify/goalboard-contracts/modules/goals";
-import { createGoalEventEntryClient, hostEventDecisionAuthority } from "@adeptify/goalboard-plugin-goals";
+} from "@molis-ai/molis-work-contracts/modules/goals";
+import { createGoalEventEntryClient, hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
 import { mcpWebUrl } from "./goal-presentation.js";
-import type { LocalHostProjectClient } from "@adeptify/goalboard-contracts/platform/app-host";
+import type { LocalHostProjectClient } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { McpPresentationErrorFactory } from "./query-presentation.js";
 
 const WRITE_TOOLS = new Set([
-  "goalboard_v1_goal_intent_create",
-  "goalboard_v1_event_configure",
-  "goalboard_v1_event_report",
-  "goalboard_v1_event_note",
-  "goalboard_v1_event_progress",
-  "goalboard_v1_event_concern",
-  "goalboard_v1_event_decision_request",
-  "goalboard_v1_event_cite_decision",
-  "goalboard_v1_event_agree",
-  "goalboard_v1_event_close",
-  "goalboard_v1_event_resume",
-  "goalboard_v1_event_decide",
+  "molis_work_v1_goal_intent_create",
+  "molis_work_v1_event_configure",
+  "molis_work_v1_event_report",
+  "molis_work_v1_event_note",
+  "molis_work_v1_event_progress",
+  "molis_work_v1_event_concern",
+  "molis_work_v1_event_decision_request",
+  "molis_work_v1_event_cite_decision",
+  "molis_work_v1_event_agree",
+  "molis_work_v1_event_close",
+  "molis_work_v1_event_resume",
+  "molis_work_v1_event_decide",
 ]);
 
 const ALLOWED_KEYS: Record<string, readonly string[]> = {
-  goalboard_v1_goal_intent_create: [
+  molis_work_v1_goal_intent_create: [
     "database_path", "board_id", "actor_id", "actor_kind", "title", "outcome", "why", "business_logic",
     "priority", "goal_id", "parent_goal_id", "dependency_goal_ids", "requirements", "source_kind", "idempotency_key",
   ],
-  goalboard_v1_goal_list: ["database_path", "board_id", "work_status", "limit", "after_cursor"],
-  goalboard_v1_goal_state: ["database_path", "board_id", "goal_id"],
-  goalboard_v1_event_configure: [
+  molis_work_v1_goal_list: ["database_path", "board_id", "work_status", "limit", "after_cursor"],
+  molis_work_v1_goal_state: ["database_path", "board_id", "goal_id"],
+  molis_work_v1_event_configure: [
     "database_path", "board_id", "actor_id", "actor_kind", "goal_id", "expected_version",
     "expected_agreement_version", "idempotency_key",
     "types", "adopted_planning", "adopt_default_requirement_ids", "requirement_bindings",
   ],
-  goalboard_v1_event_report: [
+  molis_work_v1_event_report: [
     "database_path", "board_id", "actor_id", "actor_kind", "goal_id", "idempotency_key", "events", "progress",
   ],
-  goalboard_v1_event_note: [
+  molis_work_v1_event_note: [
     "database_path", "board_id", "actor_id", "actor_kind", "goal_id", "body", "idempotency_key",
   ],
-  goalboard_v1_event_list: ["database_path", "board_id", "goal_id", "after_cursor", "limit"],
-  goalboard_v1_event_read: ["database_path", "board_id", "goal_id", "event_id"],
-  goalboard_v1_event_progress: [
+  molis_work_v1_event_list: ["database_path", "board_id", "goal_id", "after_cursor", "limit"],
+  molis_work_v1_event_read: ["database_path", "board_id", "goal_id", "event_id"],
+  molis_work_v1_event_progress: [
     "database_path", "board_id", "actor_id", "actor_kind", "goal_id", "idempotency_key",
     "based_on_cursor", "summary", "next_step", "next_actor",
   ],
-  goalboard_v1_event_concern: [
+  molis_work_v1_event_concern: [
     "database_path", "board_id", "actor_id", "actor_kind", "goal_id", "idempotency_key", "action",
     "concern_id", "title", "statement", "scope", "blocks_closure", "reason",
     "supporting_event_ids", "cited_decision_id",
   ],
-  goalboard_v1_event_decision_request: [
+  molis_work_v1_event_decision_request: [
     "database_path", "board_id", "actor_id", "actor_kind", "goal_id", "idempotency_key",
     "question", "options", "purpose", "proposed_change", "scope",
   ],
-  goalboard_v1_event_cite_decision: [
+  molis_work_v1_event_cite_decision: [
     "database_path", "board_id", "actor_id", "actor_kind", "goal_id", "idempotency_key", "decision_id", "scope",
   ],
-  goalboard_v1_event_agree: [
+  molis_work_v1_event_agree: [
     "database_path", "board_id", "actor_id", "actor_kind", "goal_id", "idempotency_key",
     "expected_config_version", "expected_agreement_version", "outcome", "new_requirements",
     "revise_requirements", "retire_requirement_ids", "cited_decision_id",
   ],
-  goalboard_v1_event_close: [
+  molis_work_v1_event_close: [
     "database_path", "board_id", "actor_id", "actor_kind", "goal_id", "idempotency_key",
     "kind", "result", "reason", "expected_config_version", "expected_agreement_version",
   ],
-  goalboard_v1_event_resume: [
+  molis_work_v1_event_resume: [
     "database_path", "board_id", "actor_id", "actor_kind", "goal_id", "idempotency_key", "reason",
   ],
-  goalboard_v1_event_decide: [
+  molis_work_v1_event_decide: [
     "database_path", "board_id", "actor_id", "actor_kind", "goal_id", "idempotency_key",
     "request_id", "selected_option_id", "conclusion", "accepts_requirements", "effects",
     "authorized_change", "scope",
@@ -114,7 +114,7 @@ export function createMcpGoalEventHandlers(
       throw createError(
         audience === "runtime" ? "mcp.runtime_identity_missing" : "mcp.actor_required",
         audience === "runtime"
-          ? "宿主没有提供可信 Runtime 身份。请重新连接 GoalBoard MCP，不要在参数里填用户身份。"
+          ? "宿主没有提供可信 Runtime 身份。请重新连接 Molis Work MCP，不要在参数里填用户身份。"
           : "管理入口需要 actor_id",
       );
     }
@@ -131,8 +131,8 @@ export function createMcpGoalEventHandlers(
   };
 
   return {
-    goalboard_v1_goal_intent_create: async (input: Record<string, unknown>) => {
-      rejectUnknown("goalboard_v1_goal_intent_create", input);
+    molis_work_v1_goal_intent_create: async (input: Record<string, unknown>) => {
+      rejectUnknown("molis_work_v1_goal_intent_create", input);
       const payload: CreateGoalIntentInput = {
         board_id: String(input.board_id),
         title: String(input.title ?? ""),
@@ -151,8 +151,8 @@ export function createMcpGoalEventHandlers(
       const created = await events.createIntent(payload);
       return withGoalUrl(created, created.goal.goal_id);
     },
-    goalboard_v1_goal_list: async (input: Record<string, unknown>) => {
-      rejectUnknown("goalboard_v1_goal_list", input);
+    molis_work_v1_goal_list: async (input: Record<string, unknown>) => {
+      rejectUnknown("molis_work_v1_goal_list", input);
       const page = await events.listGoals({
         board_id: String(input.board_id),
         work_status: input.work_status as "open" | "completed" | "cancelled" | undefined,
@@ -164,13 +164,13 @@ export function createMcpGoalEventHandlers(
         goals: page.goals.map((goal) => withGoalUrl(goal, goal.goal_id)),
       };
     },
-    goalboard_v1_goal_state: async (input: Record<string, unknown>) => {
-      rejectUnknown("goalboard_v1_goal_state", input);
+    molis_work_v1_goal_state: async (input: Record<string, unknown>) => {
+      rejectUnknown("molis_work_v1_goal_state", input);
       const state = await events.readState(String(input.board_id), String(input.goal_id));
       return withGoalUrl(state, String(input.goal_id));
     },
-    goalboard_v1_event_configure: async (input: Record<string, unknown>) => {
-      rejectUnknown("goalboard_v1_event_configure", input);
+    molis_work_v1_event_configure: async (input: Record<string, unknown>) => {
+      rejectUnknown("molis_work_v1_event_configure", input);
       const payload: ConfigureGoalEventsApplicationInput = {
         board_id: String(input.board_id),
         goal_id: String(input.goal_id),
@@ -185,8 +185,8 @@ export function createMcpGoalEventHandlers(
       };
       return events.configure(payload);
     },
-    goalboard_v1_event_report: async (input: Record<string, unknown>) => {
-      rejectUnknown("goalboard_v1_event_report", input);
+    molis_work_v1_event_report: async (input: Record<string, unknown>) => {
+      rejectUnknown("molis_work_v1_event_report", input);
       const payload: ReportGoalEventsInput = {
         board_id: String(input.board_id),
         goal_id: String(input.goal_id),
@@ -197,8 +197,8 @@ export function createMcpGoalEventHandlers(
       };
       return events.report(payload);
     },
-    goalboard_v1_event_note: async (input: Record<string, unknown>) => {
-      rejectUnknown("goalboard_v1_event_note", input);
+    molis_work_v1_event_note: async (input: Record<string, unknown>) => {
+      rejectUnknown("molis_work_v1_event_note", input);
       const payload: RecordGoalNoteInput = {
         board_id: String(input.board_id),
         goal_id: String(input.goal_id),
@@ -208,19 +208,19 @@ export function createMcpGoalEventHandlers(
       };
       return events.recordNote(payload);
     },
-    goalboard_v1_event_list: async (input: Record<string, unknown>) => {
-      rejectUnknown("goalboard_v1_event_list", input);
+    molis_work_v1_event_list: async (input: Record<string, unknown>) => {
+      rejectUnknown("molis_work_v1_event_list", input);
       return events.listEvents(String(input.board_id), String(input.goal_id), {
         after_cursor: input.after_cursor == null ? undefined : Number(input.after_cursor),
         limit: input.limit == null ? undefined : Number(input.limit),
       });
     },
-    goalboard_v1_event_read: async (input: Record<string, unknown>) => {
-      rejectUnknown("goalboard_v1_event_read", input);
+    molis_work_v1_event_read: async (input: Record<string, unknown>) => {
+      rejectUnknown("molis_work_v1_event_read", input);
       return events.readEvent(String(input.board_id), String(input.goal_id), String(input.event_id));
     },
-    goalboard_v1_event_progress: async (input: Record<string, unknown>) => {
-      rejectUnknown("goalboard_v1_event_progress", input);
+    molis_work_v1_event_progress: async (input: Record<string, unknown>) => {
+      rejectUnknown("molis_work_v1_event_progress", input);
       const payload: RecordGoalProgressSummaryInput = {
         board_id: String(input.board_id),
         goal_id: String(input.goal_id),
@@ -233,8 +233,8 @@ export function createMcpGoalEventHandlers(
       };
       return events.recordProgress(payload);
     },
-    goalboard_v1_event_concern: async (input: Record<string, unknown>) => {
-      rejectUnknown("goalboard_v1_event_concern", input);
+    molis_work_v1_event_concern: async (input: Record<string, unknown>) => {
+      rejectUnknown("molis_work_v1_event_concern", input);
       if (typeof input.action !== "string" || !(goalEventConcernActions as readonly string[]).includes(input.action)) {
         throw createError("event_concern.invalid_action", "Concern 动作只能是 open、resolve、accept 或 overturn", { value: input.action });
       }
@@ -255,8 +255,8 @@ export function createMcpGoalEventHandlers(
       };
       return events.applyConcern(payload);
     },
-    goalboard_v1_event_decision_request: async (input: Record<string, unknown>) => {
-      rejectUnknown("goalboard_v1_event_decision_request", input);
+    molis_work_v1_event_decision_request: async (input: Record<string, unknown>) => {
+      rejectUnknown("molis_work_v1_event_decision_request", input);
       const payload: RequestGoalDecisionInput = {
         board_id: String(input.board_id),
         goal_id: String(input.goal_id),
@@ -270,8 +270,8 @@ export function createMcpGoalEventHandlers(
       };
       return events.requestDecision(payload);
     },
-    goalboard_v1_event_cite_decision: async (input: Record<string, unknown>) => {
-      rejectUnknown("goalboard_v1_event_cite_decision", input);
+    molis_work_v1_event_cite_decision: async (input: Record<string, unknown>) => {
+      rejectUnknown("molis_work_v1_event_cite_decision", input);
       const payload: CiteGoalDecisionInput = {
         board_id: String(input.board_id),
         goal_id: String(input.goal_id),
@@ -282,8 +282,8 @@ export function createMcpGoalEventHandlers(
       };
       return events.citeDecision(payload);
     },
-    goalboard_v1_event_agree: async (input: Record<string, unknown>) => {
-      rejectUnknown("goalboard_v1_event_agree", input);
+    molis_work_v1_event_agree: async (input: Record<string, unknown>) => {
+      rejectUnknown("molis_work_v1_event_agree", input);
       const payload: SetGoalEventAgreementInput = {
         board_id: String(input.board_id),
         goal_id: String(input.goal_id),
@@ -299,8 +299,8 @@ export function createMcpGoalEventHandlers(
       };
       return events.setAgreement(payload);
     },
-    goalboard_v1_event_close: async (input: Record<string, unknown>) => {
-      rejectUnknown("goalboard_v1_event_close", input);
+    molis_work_v1_event_close: async (input: Record<string, unknown>) => {
+      rejectUnknown("molis_work_v1_event_close", input);
       if (typeof input.kind !== "string" || !(goalEventClosureKinds as readonly string[]).includes(input.kind)) {
         throw createError("event_closure.invalid_kind", "收尾类型只能是 complete 或 cancel", { value: input.kind });
       }
@@ -317,8 +317,8 @@ export function createMcpGoalEventHandlers(
       };
       return events.submitClosure(payload);
     },
-    goalboard_v1_event_resume: async (input: Record<string, unknown>) => {
-      rejectUnknown("goalboard_v1_event_resume", input);
+    molis_work_v1_event_resume: async (input: Record<string, unknown>) => {
+      rejectUnknown("molis_work_v1_event_resume", input);
       const payload: ResumeGoalEventWorkInput = {
         board_id: String(input.board_id),
         goal_id: String(input.goal_id),
@@ -328,8 +328,8 @@ export function createMcpGoalEventHandlers(
       };
       return events.resumeWork(payload);
     },
-    goalboard_v1_event_decide: async (input: Record<string, unknown>) => {
-      rejectUnknown("goalboard_v1_event_decide", input);
+    molis_work_v1_event_decide: async (input: Record<string, unknown>) => {
+      rejectUnknown("molis_work_v1_event_decide", input);
       if (audience !== "management") {
         throw createError(
           "mcp.authority_denied",

@@ -8,18 +8,18 @@ import {
   GovernanceCollaborationModule,
   GovernanceError,
   deriveGoalTreeProposalState,
-} from "@adeptify/goalboard-module-governance-collaboration";
+} from "@molis-ai/molis-work-module-governance-collaboration";
 
-import { DEMO_BOARD_ID, seedDemoBoard } from "@adeptify/goalboard-app-local-host";
-import { LocalProjectDatabase } from "@adeptify/goalboard-app-local-host";
+import { DEMO_BOARD_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 
 function fixture(name: string): {
   store: LocalProjectDatabase;
   governance: GovernanceCollaborationModule;
   dispose(): void;
 } {
-  const directory = mkdtempSync(join(tmpdir(), `goalboard-governance-${name}-`));
-  const databasePath = join(directory, "goalboard.sqlite");
+  const directory = mkdtempSync(join(tmpdir(), `molis-work-governance-${name}-`));
+  const databasePath = join(directory, "molis-work.sqlite");
   seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath);
   let sequence = 0;

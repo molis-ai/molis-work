@@ -6,7 +6,7 @@ name: "定价与商业化"
 summary: "把用户价值、计价单位、套餐边界、收费链路和商业证据连成闭环。"
 applies_to: ["产品定价","套餐设计","订阅与用量收费"]
 domain_tags: ["pricing","monetization","packaging"]
-source_refs: ["GoalBoard result-consumption dependency model","GoalBoard orthogonal SSOT framework"]
+source_refs: ["Molis Work result-consumption dependency model","Molis Work orthogonal SSOT framework"]
 confidence: 0.88
 ---
 

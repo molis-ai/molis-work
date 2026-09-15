@@ -2,7 +2,7 @@
 
 集中管理主题、密度、终端主题、图标和通用样式，使页面和 Native Plugin 使用同一套视觉基础。
 
-包名：`@adeptify/goalboard-design-system`。工作区内部包，通过仓库构建和 Host 装配使用。
+包名：`@molis-ai/molis-work-design-system`。工作区内部包，通过仓库构建和 Host 装配使用。
 
 ## 一次典型调用
 
@@ -25,15 +25,15 @@
 
 这里提供 CSS、脚本和视觉 primitives，不负责业务数据、路由或目标状态判断。修改共享样式时应检查实际 Workbench 页面及窄屏状态，单纯编译不能证明视觉效果。
 
-工作区依赖：`@adeptify/goalboard-contracts`。其他运行依赖见 [package.json](package.json)。
+工作区依赖：`@molis-ai/molis-work-contracts`。其他运行依赖见 [package.json](package.json)。
 
 ## 本地开发
 
 以下命令在**仓库根目录**执行，使用 Node.js 24+ 与仓库配置的 pnpm。首次准备运行 `pnpm install --frozen-lockfile` 和 `pnpm build`；之后可单独检查此包。
 
 ```bash
-pnpm --filter @adeptify/goalboard-design-system typecheck
-pnpm --filter @adeptify/goalboard-design-system build
+pnpm --filter @molis-ai/molis-work-design-system typecheck
+pnpm --filter @molis-ai/molis-work-design-system build
 ```
 
 已有行为示例与回归：[visual-foundation.test.ts](../../tests/visual-foundation.test.ts)。完成上述构建后运行：
@@ -50,7 +50,7 @@ node --import tsx --test --test-concurrency=1 tests/visual-foundation.test.ts
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
 - Status: `partial`
-- Contract entrypoint: `@adeptify/goalboard-contracts/platform/ui`
+- Contract entrypoint: `@molis-ai/molis-work-contracts/platform/ui`
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-ap3`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。

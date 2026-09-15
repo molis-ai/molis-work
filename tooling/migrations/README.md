@@ -1,4 +1,4 @@
-# GoalBoard migration tooling
+# Molis Work migration tooling
 
 This directory contains one-off operator tools for architecture and data migrations. It is deliberately not a workspace package and does not expose a stable API.
 
@@ -9,7 +9,7 @@ GW2 moved the runtime schema and reconciliation migrations into the Goals Module
 Before and after upgrading an existing database, run:
 
 ```bash
-node tooling/migrations/audit-goal-lifecycle.mjs /absolute/path/to/goalboard.sqlite
+node tooling/migrations/audit-goal-lifecycle.mjs /absolute/path/to/molis-work.sqlite
 ```
 
 The audit is read-only. It checks the required migration markers and reports historical states that should have been reconciled. A non-zero exit means the database should not be treated as migrated yet.

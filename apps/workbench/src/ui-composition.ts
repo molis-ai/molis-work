@@ -1,26 +1,26 @@
 
-import { goalsDecisionResultsUiContribution } from "@adeptify/goalboard-plugin-goals";
+import { goalsDecisionResultsUiContribution } from "@molis-ai/molis-work-plugin-goals";
 
 import { createGoalsDecisionResultsWorkbenchRenderer } from "./goals-decision-results-ui.js";
 
-import { goalsProposalUiContribution } from "@adeptify/goalboard-plugin-goals";
+import { goalsProposalUiContribution } from "@molis-ai/molis-work-plugin-goals";
 
 import { createGoalsProposalWorkbenchRenderer } from "./goals-proposal-ui.js";
 
-import { workUiContribution, workTerminalUiContribution, WORK_TERMINAL_UI_CONTRIBUTION_ID, type WorkTerminalUiModel } from "@adeptify/goalboard-plugin-work";
+import { workUiContribution, workTerminalUiContribution, WORK_TERMINAL_UI_CONTRIBUTION_ID, type WorkTerminalUiModel } from "@molis-ai/molis-work-plugin-work";
 
 import { createWorkSessionRenderer } from "./work-ui.js";
 
-import { THEME_BOOTSTRAP_SCRIPT, icon, renderIconSprite } from "@adeptify/goalboard-design-system";
+import { THEME_BOOTSTRAP_SCRIPT, icon, renderIconSprite } from "@molis-ai/molis-work-design-system";
 import { createArtifactWorkbenchRenderer, type ArtifactWorkbenchRequest } from "./artifact-ui.js";
 
 import type {
   UiRenderRequest,
   UiSlotDescriptor,
   WorkbenchDocumentRenderRequest,
-} from "@adeptify/goalboard-contracts/platform/ui";
+} from "@molis-ai/molis-work-contracts/platform/ui";
 
-import type { GoalsApplicationApi } from "@adeptify/goalboard-contracts/modules/goals";
+import type { GoalsApplicationApi } from "@molis-ai/molis-work-contracts/modules/goals";
 
 import {
   FEED_UI_CONTRIBUTION_ID,
@@ -28,43 +28,50 @@ import {
   type FeedUiSurface,
   type FeedUiModel,
   type PersistedFeedDetailModel,
-} from "@adeptify/goalboard-plugin-feed";
+} from "@molis-ai/molis-work-plugin-feed";
 
-import { UiHost } from "@adeptify/goalboard-ui-host";
+import {
+  INBOX_UI_CONTRIBUTION_ID,
+  inboxUiContribution,
+  type InboxUiModel,
+  type InboxUiSurface,
+} from "@molis-ai/molis-work-plugin-inbox";
 
-import { goalsPolicyUiContribution, goalsSafetyUiContribution, goalsRelationUiContribution } from "@adeptify/goalboard-plugin-goals";
+import { UiHost } from "@molis-ai/molis-work-ui-host";
+
+import { goalsPolicyUiContribution, goalsSafetyUiContribution, goalsRelationUiContribution } from "@molis-ai/molis-work-plugin-goals";
 
 import { createGoalsRelationWorkbenchRenderer } from "./goals-relation-ui.js";
 
-import { goalsTreeUiContribution } from "@adeptify/goalboard-plugin-goals";
+import { goalsTreeUiContribution } from "@molis-ai/molis-work-plugin-goals";
 
 import { createGoalsTreeWorkbenchRenderer } from "./goals-tree-ui.js";
 
-import { goalsMomentumUiContribution } from "@adeptify/goalboard-plugin-goals";
+import { goalsMomentumUiContribution } from "@molis-ai/molis-work-plugin-goals";
 
 import { createGoalsMomentumWorkbenchRenderer } from "./goals-momentum-ui.js";
 
-import { goalsDocumentUiContribution } from "@adeptify/goalboard-plugin-goals";
+import { goalsDocumentUiContribution } from "@molis-ai/molis-work-plugin-goals";
 
 import { createGoalsDocumentWorkbenchRenderer } from "./goals-document-ui.js";
 
-import { goalsContextUiContribution } from "@adeptify/goalboard-plugin-goals";
+import { goalsContextUiContribution } from "@molis-ai/molis-work-plugin-goals";
 
 import { createGoalsContextWorkbenchRenderer } from "./goals-context-ui.js";
 
-import { goalsPlanningUiContribution } from "@adeptify/goalboard-plugin-goals";
+import { goalsPlanningUiContribution } from "@molis-ai/molis-work-plugin-goals";
 
 import { createGoalsPlanningWorkbenchRenderer } from "./goals-planning-ui.js";
 
-import { goalsStatusUiContribution } from "@adeptify/goalboard-plugin-goals";
+import { goalsStatusUiContribution } from "@molis-ai/molis-work-plugin-goals";
 
 import { createGoalsStatusWorkbenchRenderer } from "./goals-status-ui.js";
 
-import { goalsFactorsUiContribution } from "@adeptify/goalboard-plugin-goals";
+import { goalsFactorsUiContribution } from "@molis-ai/molis-work-plugin-goals";
 
 import { createGoalsFactorsWorkbenchRenderer } from "./goals-factors-ui.js";
 
-import { goalsDialogsUiContribution } from "@adeptify/goalboard-plugin-goals";
+import { goalsDialogsUiContribution } from "@molis-ai/molis-work-plugin-goals";
 
 import { createGoalsDialogsWorkbenchRenderer } from "./goals-dialogs-ui.js";
 
@@ -72,7 +79,7 @@ import { createGoalsSafetyWorkbenchRenderer } from "./goals-safety-ui.js";
 
 import { createGoalsPolicyWorkbenchRenderer } from "./goals-policy-ui.js";
 
-import { artifactReferenceUiContribution, artifactBrowserUiContribution, ARTIFACT_REFERENCE_UI_CONTRIBUTION_ID, type ArtifactReferenceUiPrimitives } from "@adeptify/goalboard-plugin-artifacts";
+import { artifactReferenceUiContribution, artifactBrowserUiContribution, ARTIFACT_REFERENCE_UI_CONTRIBUTION_ID, type ArtifactReferenceUiPrimitives } from "@molis-ai/molis-work-plugin-artifacts";
 
 
 export type WorkbenchGoalsAdapter = GoalsApplicationApi;
@@ -85,6 +92,12 @@ export const WORKBENCH_UI_SLOTS = {
 } as const satisfies Record<string, UiSlotDescriptor>;
 
 
+const INBOX_SURFACE_SLOTS: Readonly<Record<InboxUiSurface, UiSlotDescriptor>> = {
+  directory: WORKBENCH_UI_SLOTS.directory,
+  workbench: WORKBENCH_UI_SLOTS.main,
+};
+
+
 const FEED_SURFACE_SLOTS: Readonly<Record<FeedUiSurface, UiSlotDescriptor>> = {
   directory: WORKBENCH_UI_SLOTS.directory,
   workbench: WORKBENCH_UI_SLOTS.main,
@@ -93,6 +106,7 @@ const FEED_SURFACE_SLOTS: Readonly<Record<FeedUiSurface, UiSlotDescriptor>> = {
   "source-workbench": WORKBENCH_UI_SLOTS.main,
   overlays: WORKBENCH_UI_SLOTS.overlay,
   "persisted-detail": WORKBENCH_UI_SLOTS.main,
+  "frame-block": WORKBENCH_UI_SLOTS.main,
 };
 
 
@@ -148,6 +162,7 @@ export function createWorkbenchGoalsAdapter(
 export function createWorkbenchUiHost(): UiHost {
   const host = new UiHost();
   host.register(feedUiContribution);
+  host.register(inboxUiContribution);
   host.register(workUiContribution);
   host.register(workTerminalUiContribution);
   host.register(artifactReferenceUiContribution);
@@ -233,6 +248,21 @@ export function renderFeedContribution(
 }
 
 
+export function renderInboxContribution(
+  surface: InboxUiSurface,
+  model: InboxUiModel,
+): string {
+  return workbenchUiHost.mount({
+    slot: INBOX_SURFACE_SLOTS[surface],
+    contribution: {
+      contribution_id: INBOX_UI_CONTRIBUTION_ID,
+      surface,
+      model,
+    },
+  }).html;
+}
+
+
 export function listWorkbenchUiContributions() {
   return workbenchUiHost.list();
 }
@@ -243,7 +273,7 @@ export function renderArtifactWorkbenchPage(
 ): string {
   return artifactWorkbench.page({
     ...request,
-    headHtml: `<script>${THEME_BOOTSTRAP_SCRIPT}${request.nativeDesktopBootstrapScript}</script><link rel="stylesheet" href="/assets/goalboard-workbench.css">`,
+    headHtml: `<script>${THEME_BOOTSTRAP_SCRIPT}${request.nativeDesktopBootstrapScript}</script><link rel="stylesheet" href="/assets/molis-work-workbench.css">`,
     backIconHtml: icon("arrow"), iconSpriteHtml: renderIconSprite(),
   });
 }

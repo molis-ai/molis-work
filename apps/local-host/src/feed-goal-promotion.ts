@@ -1,8 +1,8 @@
-import type { SqliteDatabase } from "@adeptify/goalboard-storage";
-import { createGoalReadServices } from "@adeptify/goalboard-module-goals";
-import type { GoalInputBindingsApi } from "@adeptify/goalboard-contracts/modules/goals";
-import { promoteFeedItemToGoal, type FeedGoalPromotionInput, type FeedApplication } from "@adeptify/goalboard-plugin-feed";
-import type { GoalEventApplication } from "@adeptify/goalboard-plugin-goals";
+import type { SqliteDatabase } from "@molis-ai/molis-work-storage";
+import { createGoalReadServices } from "@molis-ai/molis-work-module-goals";
+import type { GoalInputBindingsApi } from "@molis-ai/molis-work-contracts/modules/goals";
+import { promoteFeedItemToGoal, type FeedGoalPromotionInput, type FeedApplication } from "@molis-ai/molis-work-plugin-feed";
+import type { GoalEventApplication } from "@molis-ai/molis-work-plugin-goals";
 import { createLocalFeedApplication } from "./feed-application.js";
 import { hydrateFeedItemContent } from "./feed-content.js";
 

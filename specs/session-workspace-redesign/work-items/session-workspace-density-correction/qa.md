@@ -13,7 +13,7 @@ Session 详情继续使用紧凑 Hero + 执行主列 + Goal 历史侧栏，不�
 - `src/web/server.ts` 只向视图传递实际消费的 `session_id`、Runtime、内容模式、当前 Goal、Goal 历史、workspace、更新时间和摘要。
 - 已删除没有视图消费者的 `nativeRuntimeSessionId`、`goalHistoryIds`、`createdAt`、`provenance` 与 Session capability 副本；Runtime capability 仍只在创建/Handoff 选项上使用。
 - 内容加载不再依赖仅为原型区分而存在的 `data-live-session`；只要详情具有真实 `session_id`，便调用项目隔离的内容 API。
-- 原生内容、GoalBoard TUI/状态事件、unsupported 与 failed 仍由内容服务返回的真实 `content_mode` 决定；renderer 不生成示例正文。
+- 原生内容、Molis Work TUI/状态事件、unsupported 与 failed 仍由内容服务返回的真实 `content_mode` 决定；renderer 不生成示例正文。
 - 归档只保留 `data-session-archive` 的真实 API 动作；页面内假成功监听已删除。
 
 ## 自动验证

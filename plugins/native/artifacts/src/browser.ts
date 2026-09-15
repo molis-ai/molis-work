@@ -1,7 +1,7 @@
 import type {
   ArtifactConsumptionCompatibility, ArtifactConsumerType, ArtifactReference,
-  ArtifactsQueryApi, ArtifactVersionRecord,
-} from "@adeptify/goalboard-contracts/modules/artifacts";
+  ArtifactsQueryApi, ArtifactJsonValue, ArtifactVersionRecord,
+} from "@molis-ai/molis-work-contracts/modules/artifacts";
 
 export interface ArtifactBrowserView {
   readonly versions: readonly ArtifactVersionRecord[];
@@ -42,6 +42,25 @@ export function readArtifactSelection(
 export type ArtifactBrowserRoute =
   | { readonly kind: "index"; readonly reference: null }
   | { readonly kind: "detail" | "export"; readonly reference: ArtifactReference };
+
+const DISPLAY_TITLE_KEYS = ["title", "name", "text"] as const;
+
+/** Directory and reading-card title. Exact identity stays on artifact_id. */
+export function artifactDisplayTitle(artifact: Pick<ArtifactVersionRecord, "artifact_id" | "payload">): string {
+  const line = payloadDisplayLine(artifact.payload);
+  return line || artifact.artifact_id;
+}
+
+function payloadDisplayLine(payload: ArtifactJsonValue | null): string {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return "";
+  for (const key of DISPLAY_TITLE_KEYS) {
+    const value = payload[key];
+    if (typeof value !== "string") continue;
+    const line = value.trim().split(/\r?\n/, 1)[0]?.trim() ?? "";
+    if (line) return line;
+  }
+  return "";
+}
 
 /** Routes require an exact producer-supplied version, never an implicit latest. */
 export function matchArtifactBrowserRoute(pathname: string): ArtifactBrowserRoute | null {

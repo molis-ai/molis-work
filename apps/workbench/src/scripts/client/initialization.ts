@@ -74,6 +74,10 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       scheduleGoalGraphLayout();
     });
 
+    if (decisionView && location.hash.startsWith("#decision-goal-")) {
+      const goalId = decodeURIComponent(location.hash.slice("#decision-goal-".length));
+      if (goalId) location.replace(route("/goals/" + encodeURIComponent(goalId)));
+    }
     setTreeWidth(treePane.getBoundingClientRect().width, false);
     if (tuiPane) setTuiWidth(tuiPane.getBoundingClientRect().width, false);
     let restoredUi = false;
@@ -95,9 +99,9 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       openEventReaderFromHash();
       const initialFactor = goalFactorFromHash();
       if (initialFactor) setGoalFactor(initialFactor, false);
-      if (feedDirectory) setFeedPreset("inbox_message", false);
+      if (feedDirectory) setFeedPreset("feed", false);
       if (desktopDirectoryPanels.length) {
-        setDesktopDirectory(decisionView ? "feed" : treePane?.dataset.desktopDirectory || "root", false, false);
+        setDesktopDirectory(decisionView ? "inbox" : treePane?.dataset.desktopDirectory || "root", false, false);
       }
       if (desktopWorkSurfaces.length) setDesktopWorkSurface(activeDesktopSurface, false, false);
     }
@@ -148,18 +152,18 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       sessionStorage.removeItem(goalMoveReceiptKey);
     }
     try {
-      const storedDecisionReceipt = JSON.parse(sessionStorage.getItem("goalboard-decision-receipt") || "null");
-      sessionStorage.removeItem("goalboard-decision-receipt");
+      const storedDecisionReceipt = JSON.parse(sessionStorage.getItem("molis-work-decision-receipt") || "null");
+      sessionStorage.removeItem("molis-work-decision-receipt");
       if (storedDecisionReceipt?.message) {
         showDecisionReceipt(storedDecisionReceipt.message, storedDecisionReceipt.context);
       }
     } catch {
-      sessionStorage.removeItem("goalboard-decision-receipt");
+      sessionStorage.removeItem("molis-work-decision-receipt");
     }
     if (selected && tuiPane) {
       tuiPane.setAttribute("data-goal-id", selected);
       const selectedItem = visibleGoals().find((entry) => entry.goal.goal_id === selected);
-      document.dispatchEvent(new CustomEvent("goalboard:goal-changed", { detail: {
+      document.dispatchEvent(new CustomEvent("molis-work:goal-changed", { detail: {
         goalId: selected,
         goalTitle: selectedItem?.goal.title || selected,
         status: selectedItem?.status || "",
@@ -172,6 +176,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     }
     if (selected) ensureWorkTab(selected);
     else renderWorkTabs();
+    frameContainer?.restore();
     updateRelationPreviews();
     updateAllRelationFormPreviews();
     setInterval(refreshBoard, 4000);

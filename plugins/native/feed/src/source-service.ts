@@ -1,5 +1,5 @@
-import { FeedDomainError } from "@adeptify/goalboard-contracts/modules/feed";
-import { sourceDeletedAt } from "@adeptify/goalboard-contracts/modules/sources";
+import { FeedDomainError } from "@molis-ai/molis-work-contracts/modules/feed";
+import { sourceDeletedAt } from "@molis-ai/molis-work-contracts/modules/sources";
 import type { FeedApplication } from "./application.js";
 import type { FeedSourceRecord, FeedSourceSchedule, SourceHistoryDecision } from "./projection.js";
 import type { FeedSourcePorts, RegisterFeedSourceInput, UpdateFeedSourceInput, ConfigureFeedSourceScheduleInput, FeedSourceSyncResult } from "./source-ports.js";

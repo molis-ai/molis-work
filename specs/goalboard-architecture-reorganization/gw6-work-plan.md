@@ -15,7 +15,7 @@
 - `src/v1/store.ts` 的 `migrate()` 仍定义 Goals 基础表、索引和字段约束。
 - 同文件 `migrateRiskTreatmentPlan`、`migrateProjectGuidance`、`migrateProjectGuidanceRevisions` 仍实现 migration 15/25/26。
 - `migrateContinuousActionModel` 仍直接补 Goal revision 列、创建 revision/coverage 表、遍历 Goal/criteria 并生成历史 revision 1、回填父子覆盖。其他 owner 的 migration 30 部分已有公开函数。
-- `coverage_items` 不是废表：`src/v1/migration.ts` 的 `importV3Board` 直接写；`src/web/server.ts` 的 `buildGoalBoardWebView` 直接读并映射。`tests/v1.test.ts` 和 `tests/web.test.ts` 有真实导入/呈现行为约束。
+- `coverage_items` 不是废表：`src/v1/migration.ts` 的 `importV3Board` 直接写；`src/web/server.ts` 的 `buildMolisWorkWebView` 直接读并映射。`tests/v1.test.ts` 和 `tests/web.test.ts` 有真实导入/呈现行为约束。
 - GW2 证据明确只迁出 4/11/12/13/21 这组生命周期迁移，不用其历史全绿证明上述剩余代码已退出。Query 的新证据只证明其中列出的 Policy/Risk/Relation caller；没有证明旧版需求覆盖账已退出。
 
 这证明剩余所有权迁移未完成，不证明用户数据已损坏，也不证明一次请求发生过重复写入。保留 GW1–GW5 和 Query 已完成历史；用这个有限补齐结果承接父项遗漏，不重做这些结果。
@@ -43,7 +43,7 @@
 3. `packages/contracts/src/modules/` 给旧版覆盖记录提供有限类型/API；Goals 内部 Repository 拥有 SQL 和映射。V3 importer 保留格式转换、ID 映射和跨 owner 事务，通过公开端口写覆盖记录；Web 通过 Query 读取，保持原字段与排序。不得公开任意 SQL 或任意表操作。
 4. `src/v1/store.ts` 改为公开 schema / migration 装配，保留迁移顺序、条件与失败恢复；`src/v1/migration.ts`、`src/v1/goal-query-application.ts`、`src/web/server.ts` 仅切换上述 caller。若 V3 应用编排需要落到既定 Native Plugin，可在 `plugins/native/goals/src/` 使用现有窄端口，但不扩大到整个 Host 退出。
 5. 更新 `scripts/check-package-boundaries.mjs` 的实际边界检查：保护 Goals DDL、升级和 coverage 读写退出，配故意恢复旧写法会失败的反例；不能只新增扫描名单便宣称迁移完成。
-6. 同步 Goals README、模块文档、SSOT Matrix、迁移/huge class 记录和总 spec 的对应入口。生命周期与批准状态仍以 GoalBoard 为准。
+6. 同步 Goals README、模块文档、SSOT Matrix、迁移/huge class 记录和总 spec 的对应入口。生命周期与批准状态仍以 Molis Work 为准。
 
 允许测试与文档：`tests/` 中 Goals/schema/V3/Web 受影响测试和最小独立历史 fixture；上述规范文档与本工作计划。不得修改用户数据库、现用 4173、Home、Applications、Runtime/模型配置，不公开发布，不自动提交 Git。
 

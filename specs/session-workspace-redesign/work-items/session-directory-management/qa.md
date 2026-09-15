@@ -37,9 +37,9 @@ node --import tsx --test \
 - Session 关联写入需要确认，且只改变目标 Session。
 - Project 转移、移出、Goal 切换/清空和工作目录更新为同一 Registry 事务。
 - Goal 切换保留历史；同工作目录的其他 Session 不变。
-- 归档/恢复只改变 GoalBoard 状态，不删除 Runtime 内容。
+- 归档/恢复只改变 Molis Work 状态，不删除 Runtime 内容。
 - Codex discover 只调用 `thread/list`，不调用 `thread/read`，不自动写 Project/Goal/workspace 关系。
-- 未知 Runtime 的 discover 返回 unsupported；创建只建立 GoalBoard 可证明的 fallback 记录。
+- 未知 Runtime 的 discover 返回 unsupported；创建只建立 Molis Work 可证明的 fallback 记录。
 - Web discover、加入、原生创建、归档、恢复与 Project 转移通过真实 loopback API；跨项目查询保持隔离。
 - Registry 重开后 Session 与关系一致。
 

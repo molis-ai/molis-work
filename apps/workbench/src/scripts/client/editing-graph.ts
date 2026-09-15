@@ -1,12 +1,13 @@
-import { GOALS_DIALOGS_CLIENT_FACTORY_SCRIPT, GOALS_LIFECYCLE_CLIENT_FACTORY_SCRIPT } from "@adeptify/goalboard-plugin-goals";
-import { GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT } from "@adeptify/goalboard-plugin-goals";
-import { GOALS_RELATION_CLIENT_FACTORY_SCRIPT } from "@adeptify/goalboard-plugin-goals";
-import { GOALS_POLICY_CLIENT_FACTORY_SCRIPT } from "@adeptify/goalboard-plugin-goals";
+import { GOALS_DIALOGS_CLIENT_FACTORY_SCRIPT, GOALS_LIFECYCLE_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-goals";
+import { GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-goals";
+import { FRAME_CONTAINER_FACTORY_SCRIPT } from "./frame-container.js";
+import { GOALS_RELATION_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-goals";
+import { GOALS_POLICY_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-goals";
 /** AP3 Workbench client segment: editing-graph. */
 export const CLIENT_EDITING_GRAPH_SCRIPT = `
     const { updateRelationPreviews, updateAllRelationFormPreviews, handleGoalRelationChange,
       handleGoalRelationDisclosureClick, handleGoalRelationSubmit } = (${GOALS_RELATION_CLIENT_FACTORY_SCRIPT})({
-        form, currentLocale: () => document.documentElement.lang, route, controlHeaders: goalboardControlHeaders, translate: L,
+        form, currentLocale: () => document.documentElement.lang, route, controlHeaders: molisWorkControlHeaders, translate: L,
         refreshBoard: (...args) => refreshBoard(...args),
         requireFormFacts: (...args) => requireFormFacts(...args),
         requireDecisionText: (...args) => requireDecisionText(...args),
@@ -42,7 +43,7 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
     };
 
     const { handleGoalPolicySubmit } = (${GOALS_POLICY_CLIENT_FACTORY_SCRIPT})({
-      route, controlHeaders: goalboardControlHeaders, translate: L, requireFormFacts, showToast,
+      route, controlHeaders: molisWorkControlHeaders, translate: L, requireFormFacts, showToast,
       refreshBoard: (...args) => refreshBoard(...args),
       showFactorReceipt: (...args) => showFactorReceipt(...args),
       humanDecisionError: (...args) => humanDecisionError(...args),
@@ -53,16 +54,16 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
 
     const { readCreateDraft, refreshCreateChoices, handleGoalDialogClick, handleGoalTrashSubmit,
       bindGoalCreateEvents, handleGoalDialogEscape } = (${GOALS_DIALOGS_CLIENT_FACTORY_SCRIPT})({
-        dialog, form, route, controlHeaders: goalboardControlHeaders,
+        dialog, form, route, controlHeaders: molisWorkControlHeaders,
         refreshBoard: (...args) => refreshBoard(...args), updateRelationPreviews,
         currentLocale: () => document.documentElement.lang, translate: L,
         clearCollectionUiState: () => sessionStorage.removeItem(storageKey),
         clearCurrentGoalUiState: () => sessionStorage.removeItem(currentGoalUiStorageKey),
-        navigate: (url) => location.assign(globalThis.goalboardNavigationUrl(url)),
+        navigate: (url) => location.assign(globalThis.molisWorkNavigationUrl(url)),
       });
     const { handleGoalLifecycleClick } = (${GOALS_LIFECYCLE_CLIENT_FACTORY_SCRIPT})({
-      route, controlHeaders: goalboardControlHeaders, refreshBoard: (...args) => refreshBoard(...args),
-      showToast, navigate: (url) => location.assign(globalThis.goalboardNavigationUrl(url)),
+      route, controlHeaders: molisWorkControlHeaders, refreshBoard: (...args) => refreshBoard(...args),
+      showToast, navigate: (url) => location.assign(globalThis.molisWorkNavigationUrl(url)),
     });
     const applyMobilePanePresence = () => {
       if (immersiveNavigation) { immersiveNavigation.syncPresence(); return; }
@@ -133,11 +134,13 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
 
     const { graphElement, loadGoalGraph, syncGoalWorkspace, updateGraphVisibility, readMomentumState,
       restoreMomentumState, rememberMomentumGoal, scheduleGoalGraphLayout, restoreGoalGraphViewport,
-      handleMomentumNavigationClick, handleMomentumSelectionClick, handleMomentumZoomClick } =
+      locateGraphNode, handleMomentumNavigationClick, handleMomentumSelectionClick, handleMomentumZoomClick } =
       (${GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT})({
         workspace, treeSearch, documentCollection, route, translate: L,
         projectId: state.project?.project_id || state.snapshot.board.board_id,
         selectGoal: (...args) => selectGoal(...args),
+        openFrame: (id) => frameContainer?.openFrame(id),
+        isFrameTabActive: () => frameContainer?.isFrameTabActive() === true,
         getSelected: () => selected, getSelectedStatuses: () => getSelectedStatuses(),
         queueSave: () => queueSave(), setWorkspaceMode: (...args) => setWorkspaceMode(...args),
         setNavigatorView: (...args) => setNavigatorView(...args),
@@ -197,5 +200,19 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
     const setNavigatorView = (view, persist = true) => {
       setWorkspaceMode(view === "graph" ? "graph" : "focus", persist);
     };
+
+    frameContainer = (${FRAME_CONTAINER_FACTORY_SCRIPT})({
+      translate: L, showToast,
+      visibleGoals: () => visibleGoals(),
+      getSurface: () => activeDesktopSurface,
+      setWorkSurface: (...args) => setDesktopWorkSurface(...args),
+      setDirectory: (...args) => setDesktopDirectory(...args),
+      setWorkspaceMode: (...args) => setWorkspaceMode(...args),
+      setMobileView: (...args) => setMobileView(...args),
+      applySelection: (goalId) => applySelection(goalId, false),
+      locateGraphNode: (id) => locateGraphNode(id),
+      getProjectId: () => state.project?.project_id || state.snapshot.board.board_id,
+      route,
+    });
 
 `;

@@ -39,7 +39,7 @@ Feed 详情当前把正文、Markdown 链接和 HTML 标签全部作为纯文本
 3. 链接只允许 `http`、`https`，协议相对地址与相对地址不生成可点击外链；危险或无效 `href` 被移除但保留可读文字。
 4. `script / style / iframe / object / embed / form / input / svg / math` 等元素及其危险内容不可进入结果；事件属性、`style`、`class` 和未知属性全部丢弃。
 5. 目录与头部使用解析后提取的纯文本摘要，避免紧凑操作区被复杂排版污染；原正文仍完整保存在 Item 中。
-6. 本 spec 替代 `specs/goalboard-feed-workbench/work-items/real-feed/spec.md` 中“详情正文按纯文本呈现”的历史展示决定，不改变其数据所有权和不可信输入规则。
+6. 本 spec 替代 `specs/molis-work-feed-workbench/work-items/real-feed/spec.md` 中“详情正文按纯文本呈现”的历史展示决定，不改变其数据所有权和不可信输入规则。
 
 ## 输入、输出与模块边界
 
@@ -48,7 +48,7 @@ Feed 详情当前把正文、Markdown 链接和 HTML 标签全部作为纯文本
 - `src/web/render.ts`：在 Feed 目录、详情头部和正文位置消费上述输出；不自行复制解析规则。
 - `src/web/visual-foundation.ts`：Feed 正文的语义排版、折叠内容、代码和横向溢出样式。
 - `tests/feed-rich-content.test.ts`：纯函数与 Feed 详情集成测试。
-- 输出：可直接插入 GoalBoard 自己生成页面的安全 HTML 片段，以及用于紧凑 UI 的纯文本摘要。
+- 输出：可直接插入 Molis Work 自己生成页面的安全 HTML 片段，以及用于紧凑 UI 的纯文本摘要。
 
 ## 验收标准
 

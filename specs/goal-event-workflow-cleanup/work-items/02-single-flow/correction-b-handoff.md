@@ -19,7 +19,7 @@ Writer 完成「迁移保留仍有效、同范围用户批准的作用」，并�
 
 - 仓库 fixture：`tests/fixtures/goal-event-v35/{legacy,mixed,approved,approved-completed}.sql`（主导出的未改 v35 dump）。
 - 加载：`tests/goal-event-v35-fixture.ts` 把 dump 写入临时 SQLite，再由 `LocalProjectDatabase` 首次打开升级。
-- 原四份 `/private/tmp/goalboard-flow-cleanup/02-*-source.sqlite` 只复制、不改。
+- 原四份 `/private/tmp/molis-work-flow-cleanup/02-*-source.sqlite` 只复制、不改。
 - 独立负例：主 `02-b-scope-acceptance.mjs` 与仓库测试 `scoped complete approval is reused only while recorded requirement commitments still match`。在 approved v35 临时副本上把原完成批准改成 MIXED-C1 范围承诺；statement 不变则仍复用，改 statement 后 `imported-policy` 不得 `currently_satisfied`。
 - 直接绑定：主 `02-b-binding-acceptance.mjs` 与仓库测试 `direct bound_type_id is part of the current commitment snapshot`。在 approved v35 临时副本新增 `B-TYPED`（`bound_type_id=check`，绑定表无行）。原承诺含 `check` 则仍复用；原承诺无绑定、当前已有 `check` 则不复用。
 
@@ -29,25 +29,25 @@ Writer 完成「迁移保留仍有效、同范围用户批准的作用」，并�
 
 ```
 pnpm_config_verify_deps_before_run=warn pnpm build
-  → /private/tmp/goalboard-flow-cleanup/02-b-binding-build.log  EXIT 0
+  → /private/tmp/molis-work-flow-cleanup/02-b-binding-build.log  EXIT 0
 
 pnpm_config_verify_deps_before_run=warn pnpm boundary:check
-  → /private/tmp/goalboard-flow-cleanup/02-b-binding-boundary.log  EXIT 0  errors: []
+  → /private/tmp/molis-work-flow-cleanup/02-b-binding-boundary.log  EXIT 0  errors: []
 
 env -u FORCE_COLOR NODE_NO_WARNINGS=1 node --import tsx --test --test-concurrency=1 \
   tests/goal-event-migration.test.ts tests/goal-event-create-flow.test.ts
-  → /private/tmp/goalboard-flow-cleanup/02-b-binding-tests.log  10 pass / 0 fail
+  → /private/tmp/molis-work-flow-cleanup/02-b-binding-tests.log  10 pass / 0 fail
 
-node --import tsx --input-type=module < /private/tmp/goalboard-flow-cleanup/02-migration-acceptance.mjs
-  → /private/tmp/goalboard-flow-cleanup/02-b-binding-migration.log  EXIT 0  18 PASS
+node --import tsx --input-type=module < /private/tmp/molis-work-flow-cleanup/02-migration-acceptance.mjs
+  → /private/tmp/molis-work-flow-cleanup/02-b-binding-migration.log  EXIT 0  18 PASS
 
-node --import tsx --input-type=module < /private/tmp/goalboard-flow-cleanup/02-b-scope-acceptance.mjs
-  → /private/tmp/goalboard-flow-cleanup/02-b-binding-scope.log  EXIT 0
+node --import tsx --input-type=module < /private/tmp/molis-work-flow-cleanup/02-b-scope-acceptance.mjs
+  → /private/tmp/molis-work-flow-cleanup/02-b-binding-scope.log  EXIT 0
     PASS unchanged scoped commitment retains original approval
     PASS changed scoped requirement needs a current decision
 
-node --import tsx --input-type=module < /private/tmp/goalboard-flow-cleanup/02-b-binding-acceptance.mjs
-  → /private/tmp/goalboard-flow-cleanup/02-b-binding-acceptance.log  EXIT 0
+node --import tsx --input-type=module < /private/tmp/molis-work-flow-cleanup/02-b-binding-acceptance.mjs
+  → /private/tmp/molis-work-flow-cleanup/02-b-binding-acceptance.log  EXIT 0
     PASS unchanged direct binding retains valid approval
     PASS changed direct binding needs a current approval
 ```

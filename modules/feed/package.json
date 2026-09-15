@@ -1,5 +1,5 @@
 {
-  "name": "@adeptify/goalboard-module-feed",
+  "name": "@molis-ai/molis-work-module-feed",
   "version": "0.0.0",
   "private": true,
   "description": "Feed Item visibility, read/archive state, disposition, and promotion provenance.",
@@ -25,14 +25,14 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@adeptify/goalboard-contracts": "workspace:*",
-    "@adeptify/goalboard-storage": "workspace:*"
+    "@molis-ai/molis-work-contracts": "workspace:*",
+    "@molis-ai/molis-work-storage": "workspace:*"
   },
-  "goalboard": {
+  "molis-work": {
     "path": "modules/feed",
     "kind": "module",
     "maturity": "partial",
-    "contract": "@adeptify/goalboard-contracts/modules/feed",
+    "contract": "@molis-ai/molis-work-contracts/modules/feed",
     "migrationGoals": [
       "goal-reorg-f2",
       "goal-reorg-fd2"

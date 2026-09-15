@@ -1,13 +1,13 @@
-import { FeedError } from "@adeptify/goalboard-contracts/modules/feed";
+import { FeedError } from "@molis-ai/molis-work-contracts/modules/feed";
 import { migrateFeedImportReceipts } from "./import-receipts.js";
 import { randomUUID } from "node:crypto";
-import type { ContextLedgerApi } from "@adeptify/goalboard-contracts/modules/context-ledger";
+import type { ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { FeedGoalLinks } from "./goal-links.js";
 
 import type {
   AttentionApi,
   AttentionStatus,
-} from "@adeptify/goalboard-contracts/modules/attention-resumption";
+} from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import type {
   FeedApi,
   FeedEvent,
@@ -17,14 +17,14 @@ import type {
   ImportedFeedItemInput,
   InfoflowContractMigrationReport,
   IngestFeedItemInput,
-} from "@adeptify/goalboard-contracts/modules/feed";
+} from "@molis-ai/molis-work-contracts/modules/feed";
 
 export const packageDescriptor = {
-  packageName: "@adeptify/goalboard-module-feed",
+  packageName: "@molis-ai/molis-work-module-feed",
   packagePath: "modules/feed",
   kind: "module",
   maturity: "partial",
-  contract: "@adeptify/goalboard-contracts/modules/feed",
+  contract: "@molis-ai/molis-work-contracts/modules/feed",
   migrationGoals: ["goal-reorg-f2", "goal-reorg-fd2"],
   ssot: "docs/SSOT-MATRIX.md",
   capabilities: ["feed.query.v1", "feed.command.v1"],
@@ -60,7 +60,7 @@ export interface FeedModuleOptions {
   eventSink?: (event: FeedLegacyEvent) => void;
 }
 
-export { FeedError } from "@adeptify/goalboard-contracts/modules/feed";
+export { FeedError } from "@molis-ai/molis-work-contracts/modules/feed";
 
 export function migrateFeed(db: FeedSqliteDatabase): void {
   migrateFeedImportReceipts(db);
@@ -526,7 +526,11 @@ export class FeedModule implements FeedApi {
         if (disposition === "inbox") this.openManualAttention(projectId, itemId);
         return this.get(projectId, itemId);
       }
-      if (current.disposition === "archived" && disposition !== "inbox") {
+      if (disposition === "inbox") {
+        this.openManualAttention(projectId, itemId);
+        return this.get(projectId, itemId);
+      }
+      if (current.disposition === "archived") {
         throw new FeedError("feed_invalid_transition", "请先恢复这条已忽略的 Feed Item");
       }
       const at = this.now().toISOString();
@@ -968,7 +972,7 @@ function json<T>(value: unknown, fallback: T): T {
   }
 }
 
-export type GoalBoardPackageDescriptor = typeof packageDescriptor;
+export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export { FeedReceiptStore } from "./import-receipts.js";
 

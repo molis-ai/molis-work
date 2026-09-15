@@ -1,23 +1,23 @@
-import { cliFlagValue as flag } from "@adeptify/goalboard-app-cli";
-import { installGoalBoardHome } from "./installer/home.js";
-import type { GoalBoardHomeInstallResult } from "./installer/home-contract.js";
-import { GoalBoardWebServiceManager } from "./installer/web-service.js";
-import type { GoalBoardWebServiceAction, GoalBoardWebServicePlan } from "./installer/web-service-contract.js";
+import { cliFlagValue as flag } from "@molis-ai/molis-work-app-cli";
+import { installMolisWorkHome } from "./installer/home.js";
+import type { MolisWorkHomeInstallResult } from "./installer/home-contract.js";
+import { MolisWorkWebServiceManager } from "./installer/web-service.js";
+import type { MolisWorkWebServiceAction, MolisWorkWebServicePlan } from "./installer/web-service-contract.js";
 
 function printInstallHelp(): void {
-  console.log(`goalboard install [--home PATH] [--source PATH] [--version VERSION] [--json]
+  console.log(`molis-work install [--home PATH] [--source PATH] [--version VERSION] [--json]
 
-默认只把 GoalBoard 自身写入 ~/.goalboard，不创建或启动项目，也不修改任何 Runtime 配置。`);
+默认只把 Molis Work 自身写入 ~/.molis-work，不创建或启动项目，也不修改任何 Runtime 配置。`);
 }
 
 function printServiceHelp(): void {
-  console.log(`goalboard service status [--home PATH] [--json]
-goalboard service <install|start|stop|restart|remove> [--home PATH] [--confirm] [--json]
+  console.log(`molis-work service status [--home PATH] [--json]
+molis-work service <install|start|stop|restart|remove> [--home PATH] [--confirm] [--json]
 
 写操作默认只显示预览；只有显式传入 --confirm 才会修改 macOS 用户级 LaunchAgent。`);
 }
 
-function installStatusLabel(status: GoalBoardHomeInstallResult["status"]): string {
+function installStatusLabel(status: MolisWorkHomeInstallResult["status"]): string {
   if (status === "installed") return "安装完成";
   if (status === "upgraded") return "升级完成";
   if (status === "refreshed") return "同版本内容已刷新";
@@ -29,8 +29,8 @@ function displayCommand(args: string[]): string {
   return args.map((value) => (/^[0-9A-Za-z_./:+-]+$/.test(value) ? value : JSON.stringify(value))).join(" ");
 }
 
-function printInstallResult(result: GoalBoardHomeInstallResult): void {
-  console.log(`GoalBoard ${installStatusLabel(result.status)}（${result.version}）`);
+function printInstallResult(result: MolisWorkHomeInstallResult): void {
+  console.log(`Molis Work ${installStatusLabel(result.status)}（${result.version}）`);
   console.log(`安装目录：${result.home_directory}`);
   console.log(`CLI：${result.launchers.cli}`);
   console.log(`MCP：${result.launchers.mcp}`);
@@ -43,13 +43,13 @@ function printInstallResult(result: GoalBoardHomeInstallResult): void {
   }
 }
 
-function printServicePlan(plan: GoalBoardWebServicePlan): void {
+function printServicePlan(plan: MolisWorkWebServicePlan): void {
   console.log(plan.message);
   console.log(`状态：${plan.status}`);
   console.log(`LaunchAgent：${plan.detection.plist_path}`);
   console.log(`命令：${displayCommand(plan.detection.command)}`);
   console.log(`日志：${plan.detection.stdout_log} / ${plan.detection.stderr_log}`);
-  if (plan.next_action === "service_install") console.log("下一步：goalboard service install --confirm");
+  if (plan.next_action === "service_install") console.log("下一步：molis-work service install --confirm");
   for (const change of plan.changes) console.log(`- ${change.operation}: ${change.target}`);
   if (plan.status === "ready") console.log(`未执行。确认后重新运行并加 --confirm：${plan.confirmation}`);
 }
@@ -60,7 +60,7 @@ export async function runLocalInstallCli(args: string[], defaultSourceDirectory:
     printInstallHelp();
     return 0;
   }
-  const result = await installGoalBoardHome({
+  const result = await installMolisWorkHome({
     homeDirectory: flag(args, "--home"),
     sourceDirectory: flag(args, "--source") ?? defaultSourceDirectory(),
     version: flag(args, "--version"),
@@ -75,7 +75,7 @@ export async function runLocalServiceCli(args: string[]): Promise<number> {
     printServiceHelp();
     return 0;
   }
-  const manager = new GoalBoardWebServiceManager({ homeDirectory: flag(args, "--home") });
+  const manager = new MolisWorkWebServiceManager({ homeDirectory: flag(args, "--home") });
   if (args[1] === "status") {
     const detection = await manager.detect();
     if (args.includes("--json")) console.log(JSON.stringify(detection, null, 2));
@@ -87,7 +87,7 @@ export async function runLocalServiceCli(args: string[]): Promise<number> {
     }
     return 0;
   }
-  const action = args[1] as GoalBoardWebServiceAction;
+  const action = args[1] as MolisWorkWebServiceAction;
   if (!["install", "start", "stop", "restart", "remove"].includes(action)) {
     throw new Error(`未知常驻服务操作: ${args[1]}`);
   }

@@ -17,20 +17,20 @@ Writer 只完成「所有当前事件要求可修订/退休」。未宣称 WI02 
 - 迁入的 `imported_acceptance_criterion` / `imported_human_approval`：用户可修订或退休；Runtime 无具体授权不能放宽或退休。
 - 修订/退休后 `origin.kind` 与退休行的 `source_json` 仍在。
 
-完成等级：本项 A 切片功能可用。桌面/390px 表单由主用 `/private/tmp/goalboard-flow-cleanup/02-ui-requirements.mjs` 独立验。
+完成等级：本项 A 切片功能可用。桌面/390px 表单由主用 `/private/tmp/molis-work-flow-cleanup/02-ui-requirements.mjs` 独立验。
 
 ## 验证
 
 ```
 pnpm_config_verify_deps_before_run=warn pnpm build
-  → /private/tmp/goalboard-flow-cleanup/02-a-build.log  EXIT 0
+  → /private/tmp/molis-work-flow-cleanup/02-a-build.log  EXIT 0
 
 pnpm_config_verify_deps_before_run=warn pnpm boundary:check
-  → /private/tmp/goalboard-flow-cleanup/02-a-boundary.log  EXIT 0  errors: []
+  → /private/tmp/molis-work-flow-cleanup/02-a-boundary.log  EXIT 0  errors: []
 
 env -u FORCE_COLOR NODE_NO_WARNINGS=1 node --import tsx --test --test-concurrency=1 \
   tests/goal-event-create-flow.test.ts tests/goal-event-migration.test.ts
-  → /private/tmp/goalboard-flow-cleanup/02-a-tests.log  6 pass / 0 fail
+  → /private/tmp/molis-work-flow-cleanup/02-a-tests.log  6 pass / 0 fail
 ```
 
 新增回归：

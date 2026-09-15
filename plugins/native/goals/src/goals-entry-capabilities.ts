@@ -1,5 +1,5 @@
-import type { GoalsApplicationApi } from "@adeptify/goalboard-contracts/modules/goals";
-import type { HostMethodCapability, LocalHostProjectClient, AsyncApplicationMethods } from "@adeptify/goalboard-contracts/platform/app-host";
+import type { GoalsApplicationApi } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { HostMethodCapability, LocalHostProjectClient, AsyncApplicationMethods } from "@molis-ai/molis-work-contracts/platform/app-host";
 
 /** Host-registered Goals commands that still have current callers. */
 export interface GoalsEntryApi {
@@ -14,21 +14,21 @@ export type AsyncGoalsEntryApi = {
 export const goalsEntryCapabilities = {
   commands: {
     addProjectGuidance: {
-      capability_id: "io.goalboard.goals.commands.add-project-guidance", version: 1, operation: "command",
+      capability_id: "io.molis.work.goals.commands.add-project-guidance", version: 1, operation: "command",
     } as HostMethodCapability<GoalsEntryApi["commands"]["addProjectGuidance"]>,
     updateProjectGuidance: {
-      capability_id: "io.goalboard.goals.commands.update-project-guidance", version: 1, operation: "command",
+      capability_id: "io.molis.work.goals.commands.update-project-guidance", version: 1, operation: "command",
     } as HostMethodCapability<GoalsEntryApi["commands"]["updateProjectGuidance"]>,
   },
   planning: {
     saveProjectMethod: {
-      capability_id: "io.goalboard.goals.planning.save-project-method", version: 1, operation: "command",
+      capability_id: "io.molis.work.goals.planning.save-project-method", version: 1, operation: "command",
     } as HostMethodCapability<GoalsEntryApi["planning"]["saveProjectMethod"]>,
     analyzeChange: {
-      capability_id: "io.goalboard.goals.planning.analyze-change", version: 1, operation: "query",
+      capability_id: "io.molis.work.goals.planning.analyze-change", version: 1, operation: "query",
     } as HostMethodCapability<GoalsEntryApi["planning"]["analyzeChange"]>,
     validateBoardGraph: {
-      capability_id: "io.goalboard.goals.planning.validate-board-graph", version: 1, operation: "query",
+      capability_id: "io.molis.work.goals.planning.validate-board-graph", version: 1, operation: "query",
     } as HostMethodCapability<GoalsEntryApi["planning"]["validateBoardGraph"]>,
   },
 };

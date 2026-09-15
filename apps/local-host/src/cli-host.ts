@@ -1,4 +1,4 @@
-import { dispatchCli, type CliCommandPorts } from "@adeptify/goalboard-app-cli";
+import { dispatchCli, type CliCommandPorts } from "@molis-ai/molis-work-app-cli";
 import { runLocalInstallCli, runLocalServiceCli } from "./cli-install-service.js";
 import { runLocalDemoCli, runLocalUninstallCli } from "./cli-project-maintenance.js";
 import { runV1Cli } from "./cli-project.js";

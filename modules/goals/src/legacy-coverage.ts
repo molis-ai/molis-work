@@ -1,4 +1,4 @@
-import type { GoalLegacyCoverageRecord } from "@adeptify/goalboard-contracts/modules/goals";
+import type { GoalLegacyCoverageRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 import { GoalsCommandContext } from "./command-support.js";
 
 type Coverage = Omit<GoalLegacyCoverageRecord, "board_id">;

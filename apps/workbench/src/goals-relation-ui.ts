@@ -1,5 +1,5 @@
-import type { UiHostApi, UiSlotDescriptor } from "@adeptify/goalboard-contracts/platform/ui";
-import { GOALS_RELATION_UI_CONTRIBUTION_ID, type GoalsRelationRenderer, type GoalsRelationUiPrimitives } from "@adeptify/goalboard-plugin-goals";
+import type { UiHostApi, UiSlotDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
+import { GOALS_RELATION_UI_CONTRIBUTION_ID, type GoalsRelationRenderer, type GoalsRelationUiPrimitives } from "@molis-ai/molis-work-plugin-goals";
 
 /** Only mount the Plugin's public contribution; trusted history HTML comes from its separate owner. */
 export function createGoalsRelationWorkbenchRenderer(host: UiHostApi, slot: UiSlotDescriptor) {

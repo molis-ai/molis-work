@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { openArtifactProjectReference, ArtifactProjectReferenceError } from "@adeptify/goalboard-plugin-artifacts";
-import { ProjectReferenceError, readProjectReference } from "@adeptify/goalboard-module-evidence-verification";
+import { openArtifactProjectReference, ArtifactProjectReferenceError } from "@molis-ai/molis-work-plugin-artifacts";
+import { ProjectReferenceError, readProjectReference } from "@molis-ai/molis-work-module-evidence-verification";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
 
 export function handleLocalProjectReferenceHttp(request: IncomingMessage, response: ServerResponse, url: URL,

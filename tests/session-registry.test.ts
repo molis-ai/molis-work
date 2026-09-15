@@ -3,16 +3,16 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { findSessionForHostSignals } from "@adeptify/goalboard-module-private-work-context";
-import type { RuntimeSessionHostSignals } from "@adeptify/goalboard-contracts/modules/private-work-context";
-import { GoalBoardSessionRegistry } from "@adeptify/goalboard-module-private-work-context";
-import { GoalBoardSessionError } from "@adeptify/goalboard-module-private-work-context";
+import { findSessionForHostSignals } from "@molis-ai/molis-work-module-private-work-context";
+import type { RuntimeSessionHostSignals } from "@molis-ai/molis-work-contracts/modules/private-work-context";
+import { MolisWorkSessionRegistry } from "@molis-ai/molis-work-module-private-work-context";
+import { MolisWorkSessionError } from "@molis-ai/molis-work-module-private-work-context";
 
 async function withRegistry(
-  run: (registry: GoalBoardSessionRegistry, home: string) => Promise<void> | void,
+  run: (registry: MolisWorkSessionRegistry, home: string) => Promise<void> | void,
 ): Promise<void> {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "goalboard-session-registry-"));
-  const home = path.join(directory, ".goalboard");
+  const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-session-registry-"));
+  const home = path.join(directory, ".molis-work");
   const registry = await openWorkSessionRegistry({ homeDirectory: home });
   try {
     await run(registry, home);
@@ -22,12 +22,12 @@ async function withRegistry(
   }
 }
 
-test("Session Registry keeps GoalBoard, Runtime, surface and workspace identities separate", async () => {
+test("Session Registry keeps Molis Work, Runtime, surface and workspace identities separate", async () => {
   await withRegistry((registry) => {
     assert.throws(
       () => registry.createSession({ runtime_id: "codex", actor_id: "user", user_confirmed: false }),
       (error: unknown) =>
-        error instanceof GoalBoardSessionError && error.code === "session.confirmation_required",
+        error instanceof MolisWorkSessionError && error.code === "session.confirmation_required",
     );
 
     const first = registry.createSession({
@@ -96,7 +96,7 @@ test("late native identity requires matching correlation or surface and preserve
         correlation_token: "wrong-token",
       }),
       (error: unknown) =>
-        error instanceof GoalBoardSessionError && error.code === "session.correlation_invalid",
+        error instanceof MolisWorkSessionError && error.code === "session.correlation_invalid",
     );
 
     const linked = registry.linkNativeRuntimeSession({
@@ -145,7 +145,7 @@ test("Runtime discovery syncs metadata without creating project, Goal or workspa
         project_id: "project-a",
       }),
       (error: unknown) =>
-        error instanceof GoalBoardSessionError && error.code === "session.confirmation_required",
+        error instanceof MolisWorkSessionError && error.code === "session.confirmation_required",
     );
     const linked = registry.explicitlyLinkSession({
       runtime_id: "codex",
@@ -162,7 +162,7 @@ test("Runtime discovery syncs metadata without creating project, Goal or workspa
   });
 });
 
-test("stale GoalBoard or surface IDs cannot override a conflicting native Runtime Session", async () => {
+test("stale Molis Work or surface IDs cannot override a conflicting native Runtime Session", async () => {
   await withRegistry((registry) => {
     const stale = registry.createSession({
       runtime_id: "codex",
@@ -181,7 +181,7 @@ test("stale GoalBoard or surface IDs cannot override a conflicting native Runtim
     });
     const signals: RuntimeSessionHostSignals = {
       runtime_id: "codex",
-      goalboard_session_id: stale.session_id,
+      molis_work_session_id: stale.session_id,
       native_runtime_session_id: active.native_runtime_session_id,
       legacy_work_context_id: null,
       surface_id: stale.surface_id,
@@ -198,4 +198,4 @@ test("stale GoalBoard or surface IDs cannot override a conflicting native Runtim
     assert.equal(findSessionForHostSignals(registry, { ...signals, native_runtime_session_id: "thread-unknown" }), null);
   });
 });
-import { openWorkSessionRegistry } from "@adeptify/goalboard-app-local-host";
+import { openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";

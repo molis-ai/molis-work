@@ -2,26 +2,26 @@ import { ManagedProjectFiles } from "./managed-project-files.js";
 import { ManagedProjectDeletion } from "./managed-project-deletion.js";
 import { DemoProjectLifecycle } from "./demo-project-lifecycle.js";
 import { exists } from "./project-file-paths.js";
-import { type CreateGoalBoardProjectInput } from "./project-catalog-contract.js";
-import { type ManageGoalBoardDemoProjectInput } from "./project-catalog-contract.js";
-import { type GoalBoardDemoProjectResult } from "./project-catalog-contract.js";
-export { CreateGoalBoardProjectInput } from "./project-catalog-contract.js";
-export { ManageGoalBoardDemoProjectInput } from "./project-catalog-contract.js";
-export { GoalBoardDemoProjectResult } from "./project-catalog-contract.js";
+import { type CreateMolisWorkProjectInput } from "./project-catalog-contract.js";
+import { type ManageMolisWorkDemoProjectInput } from "./project-catalog-contract.js";
+import { type MolisWorkDemoProjectResult } from "./project-catalog-contract.js";
+export { CreateMolisWorkProjectInput } from "./project-catalog-contract.js";
+export { ManageMolisWorkDemoProjectInput } from "./project-catalog-contract.js";
+export { MolisWorkDemoProjectResult } from "./project-catalog-contract.js";
 import { initializeCatalog } from "./catalog-migrations.js";
 import { assertOwnedCatalog } from "./catalog-migrations.js";
 import { migrateCatalog } from "./catalog-migrations.js";
-import { GoalBoardProjectCatalogError } from "./project-catalog-contract.js";
-export { GoalBoardProjectCatalogError } from "./project-catalog-contract.js";
+import { MolisWorkProjectCatalogError } from "./project-catalog-contract.js";
+export { MolisWorkProjectCatalogError } from "./project-catalog-contract.js";
 export { catalogSchemaCompatibilityError } from "./project-catalog-contract.js";
-export { type GoalBoardProjectCatalogErrorDetails } from "./project-catalog-contract.js";
+export { type MolisWorkProjectCatalogErrorDetails } from "./project-catalog-contract.js";
 import { promises as fs } from "node:fs";
-import os from "node:os";
 import path from "node:path";
-import { LocalSqliteStorage, type SqliteDatabase } from "@adeptify/goalboard-storage";
-import { createContextLedger } from "@adeptify/goalboard-module-context-ledger";
-import type { ContextLedgerApi } from "@adeptify/goalboard-contracts/modules/context-ledger";
-import { PersonalPlanningMethods } from "@adeptify/goalboard-module-goals";
+import { resolveConfiguredHome } from "./product-home.js";
+import { LocalSqliteStorage, resolveProjectDatabaseFile, type SqliteDatabase } from "@molis-ai/molis-work-storage";
+import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
+import type { ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
+import { PersonalPlanningMethods } from "@molis-ai/molis-work-module-goals";
 import {
   type DesktopPanelCatalogApi,
   type DesktopPanelContextPort,
@@ -29,7 +29,7 @@ import {
   type AliasDesktopPanelSessionInput,
   type DesktopPanelRecord,
   type OpenDesktopPanelInput,
-} from "@adeptify/goalboard-contracts/platform/app-host";
+} from "@molis-ai/molis-work-contracts/platform/app-host";
 import type {
   AddProjectPluginInput,
   BuiltinProjectPluginId,
@@ -45,98 +45,98 @@ import type {
   ProjectWorkspaceDirectoryRecord,
   ProjectWorkspaceMembership,
   RepairWorkspaceProjectInput,
-} from "@adeptify/goalboard-contracts/modules/projects";
+} from "@molis-ai/molis-work-contracts/modules/projects";
 import {
   normalizeProjectWorkspace,
   ProjectsModule,
-} from "@adeptify/goalboard-module-projects";
+} from "@molis-ai/molis-work-module-projects";
 import type {
   RuntimeContextBindingEventRecord,
   RuntimeContextBindingRecord,
-} from "@adeptify/goalboard-contracts/modules/private-work-context";
+} from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import {
   RuntimeContextBindingRepository, RuntimeProjectResolution, RuntimeProjectBindingCommands, createRuntimeProjectSetup, createRuntimeProjectBindingValidation,
-} from "@adeptify/goalboard-module-private-work-context";
+} from "@molis-ai/molis-work-module-private-work-context";
 import { DEMO_BOARD_ID, seedDemoBoard } from "./demo-seed.js";
 
 
 
 
-export type GoalBoardProjectRecord = ProjectRecord;
+export type MolisWorkProjectRecord = ProjectRecord;
 
-export interface GoalBoardProjectCatalogOptions {
-  /** Defaults to ~/.goalboard. */
+export interface MolisWorkProjectCatalogOptions {
+  /** Defaults to ~/.molis-work. */
   homeDirectory?: string;
 }
 
 /**
  * An identity supplied by the Runtime host for the work entry the user is
- * currently using. `stable_work_context_id` is deliberately opaque: GoalBoard
+ * currently using. `stable_work_context_id` is deliberately opaque: Molis Work
  * never derives it from a repository, directory, or conversation. Reusing an
  * ID resumes the same host Session/work entry; a fresh Session must receive a
  * fresh ID from its host.
  */
-export type RuntimeWorkContext = import("@adeptify/goalboard-contracts/modules/private-work-context").RuntimeWorkContext;
+export type RuntimeWorkContext = import("@molis-ai/molis-work-contracts/modules/private-work-context").RuntimeWorkContext;
 
-export type NormalizedRuntimeWorkContext = import("@adeptify/goalboard-contracts/modules/private-work-context").NormalizedRuntimeWorkContext;
+export type NormalizedRuntimeWorkContext = import("@molis-ai/molis-work-contracts/modules/private-work-context").NormalizedRuntimeWorkContext;
 
-export type RuntimeWorkspaceContext = import("@adeptify/goalboard-contracts/modules/private-work-context").RuntimeWorkspaceContext;
+export type RuntimeWorkspaceContext = import("@molis-ai/molis-work-contracts/modules/private-work-context").RuntimeWorkspaceContext;
 
-export type NormalizedRuntimeWorkspaceContext = import("@adeptify/goalboard-contracts/modules/private-work-context").NormalizedRuntimeWorkspaceContext;
+export type NormalizedRuntimeWorkspaceContext = import("@molis-ai/molis-work-contracts/modules/private-work-context").NormalizedRuntimeWorkspaceContext;
 
-export type GoalBoardProjectBindingScope = import("@adeptify/goalboard-contracts/modules/private-work-context").GoalBoardProjectBindingScope;
+export type MolisWorkProjectBindingScope = import("@molis-ai/molis-work-contracts/modules/private-work-context").MolisWorkProjectBindingScope;
 
-export type GoalBoardWorkspaceMembership = ProjectWorkspaceMembership;
-export type GoalBoardWorkspaceDirectoryRecord = ProjectWorkspaceDirectoryRecord;
+export type MolisWorkWorkspaceMembership = ProjectWorkspaceMembership;
+export type MolisWorkWorkspaceDirectoryRecord = ProjectWorkspaceDirectoryRecord;
 export type { AddWorkspaceProjectInput, RepairWorkspaceProjectInput, ChangeWorkspaceProjectInput };
-export type GoalBoardProjectSelection = ProjectSelection;
+export type MolisWorkProjectSelection = ProjectSelection;
 
 /**
  * A non-authoritative, host-owned clue that can rank existing projects for a
  * fresh Session. It is never an identity and is never accepted from a Runtime
  * MCP tool argument.
  */
-export type RuntimeProjectSuggestionClueKind = import("@adeptify/goalboard-contracts/modules/private-work-context").RuntimeProjectSuggestionClueKind;
+export type RuntimeProjectSuggestionClueKind = import("@molis-ai/molis-work-contracts/modules/private-work-context").RuntimeProjectSuggestionClueKind;
 
-export type RuntimeProjectSuggestionClue = import("@adeptify/goalboard-contracts/modules/private-work-context").RuntimeProjectSuggestionClue;
+export type RuntimeProjectSuggestionClue = import("@molis-ai/molis-work-contracts/modules/private-work-context").RuntimeProjectSuggestionClue;
 
-export type GoalBoardProjectSuggestion = import("@adeptify/goalboard-contracts/modules/private-work-context").GoalBoardProjectSuggestion;
+export type MolisWorkProjectSuggestion = import("@molis-ai/molis-work-contracts/modules/private-work-context").MolisWorkProjectSuggestion;
 
-export type GoalBoardRuntimeContextBinding = RuntimeContextBindingRecord;
+export type MolisWorkRuntimeContextBinding = RuntimeContextBindingRecord;
 
-export type GoalBoardDesktopPanelRecord = DesktopPanelRecord;
-export type OpenGoalBoardDesktopPanelInput = OpenDesktopPanelInput;
-export type AliasGoalBoardDesktopPanelSessionInput = AliasDesktopPanelSessionInput;
+export type MolisWorkDesktopPanelRecord = DesktopPanelRecord;
+export type OpenMolisWorkDesktopPanelInput = OpenDesktopPanelInput;
+export type AliasMolisWorkDesktopPanelSessionInput = AliasDesktopPanelSessionInput;
 
-export type GoalBoardRuntimeContextBindingEvent = RuntimeContextBindingEventRecord;
+export type MolisWorkRuntimeContextBindingEvent = RuntimeContextBindingEventRecord;
 
-export type GoalBoardProjectConnection = import("@adeptify/goalboard-contracts/modules/private-work-context").GoalBoardProjectConnection;
+export type MolisWorkProjectConnection = import("@molis-ai/molis-work-contracts/modules/private-work-context").MolisWorkProjectConnection;
 
-export type GoalBoardRuntimeContextResolution = import("@adeptify/goalboard-contracts/modules/private-work-context").GoalBoardRuntimeContextResolution;
+export type MolisWorkRuntimeContextResolution = import("@molis-ai/molis-work-contracts/modules/private-work-context").MolisWorkRuntimeContextResolution;
 
-export type BindRuntimeWorkContextInput = import("@adeptify/goalboard-contracts/modules/private-work-context").BindRuntimeWorkContextInput;
+export type BindRuntimeWorkContextInput = import("@molis-ai/molis-work-contracts/modules/private-work-context").BindRuntimeWorkContextInput;
 
-export type UnbindRuntimeWorkContextInput = import("@adeptify/goalboard-contracts/modules/private-work-context").UnbindRuntimeWorkContextInput;
+export type UnbindRuntimeWorkContextInput = import("@molis-ai/molis-work-contracts/modules/private-work-context").UnbindRuntimeWorkContextInput;
 
-export type GoalBoardRuntimeContextUnbindResult = import("@adeptify/goalboard-contracts/modules/private-work-context").GoalBoardRuntimeContextUnbindResult;
+export type MolisWorkRuntimeContextUnbindResult = import("@molis-ai/molis-work-contracts/modules/private-work-context").MolisWorkRuntimeContextUnbindResult;
 
-export type RejectRuntimeContextSuggestionInput = import("@adeptify/goalboard-contracts/modules/private-work-context").RejectRuntimeContextSuggestionInput;
+export type RejectRuntimeContextSuggestionInput = import("@molis-ai/molis-work-contracts/modules/private-work-context").RejectRuntimeContextSuggestionInput;
 
-export type GoalBoardRuntimeContextSuggestionRejectionResult = import("@adeptify/goalboard-contracts/modules/private-work-context").GoalBoardRuntimeContextSuggestionRejectionResult;
+export type MolisWorkRuntimeContextSuggestionRejectionResult = import("@molis-ai/molis-work-contracts/modules/private-work-context").MolisWorkRuntimeContextSuggestionRejectionResult;
 
-export type DeleteGoalBoardProjectInput = DeleteProjectInput;
-export type GoalBoardProjectDeletionRecord = ProjectDeletionRecord;
-export type GoalBoardProjectDeletionResult = ProjectDeletionResult;
+export type DeleteMolisWorkProjectInput = DeleteProjectInput;
+export type MolisWorkProjectDeletionRecord = ProjectDeletionRecord;
+export type MolisWorkProjectDeletionResult = ProjectDeletionResult;
 
 /**
- * Creates a new GoalBoard project and binds it to the host-declared work
+ * Creates a new Molis Work project and binds it to the host-declared work
  * entry in one recoverable operation. Call this only after the user has
  * explicitly asked for a new project in the current Runtime conversation.
  */
-export type CreateAndBindRuntimeContextInput = import("@adeptify/goalboard-contracts/modules/private-work-context").CreateAndBindRuntimeContextInput;
+export type CreateAndBindRuntimeContextInput = import("@molis-ai/molis-work-contracts/modules/private-work-context").CreateAndBindRuntimeContextInput;
 
-export type GoalBoardProjectMigrationStep = ProjectMigrationStep;
-export type MigrateGoalBoardProjectInput = MigrateProjectInput;
+export type MolisWorkProjectMigrationStep = ProjectMigrationStep;
+export type MigrateMolisWorkProjectInput = MigrateProjectInput;
 
 export interface LocalCatalogPlatform {
   createPanelSchema(db: SqliteDatabase): void;
@@ -147,7 +147,7 @@ export interface LocalCatalogPlatform {
 }
 
 /** Local catalog resource lifetime and explicit composition of Project, Session and platform owners. */
-export class GoalBoardProjectCatalog {
+export class MolisWorkProjectCatalog {
   readonly homeDirectory: string;
   readonly projectsDirectory: string;
   readonly databasePath: string;
@@ -175,7 +175,7 @@ export class GoalBoardProjectCatalog {
     this.projects = new ProjectsModule({
       db,
       errorFactory: (code, message) =>
-        new GoalBoardProjectCatalogError(code as GoalBoardProjectCatalogError["code"], message),
+        new MolisWorkProjectCatalogError(code as MolisWorkProjectCatalogError["code"], message),
     });
     this.workContexts = new RuntimeContextBindingRepository(db, {
       ledger, assertProject: (projectId) => { this.projects.query.getProject(projectId); },
@@ -183,7 +183,7 @@ export class GoalBoardProjectCatalog {
     this.contextResolution = new RuntimeProjectResolution(this.projects.query, this.workContexts);
     this.contextBindings = new RuntimeProjectBindingCommands(
       this.workContexts, this.contextResolution, this.projects, contextBindingValidation,
-      (code, message) => new GoalBoardProjectCatalogError(code, message),
+      (code, message) => new MolisWorkProjectCatalogError(code, message),
       operation => db.transaction(operation)(),
     );
     this.projectFiles = new ManagedProjectFiles(this.projects, this.projectsDirectory, this.databasePath, contextBindingValidation);
@@ -193,7 +193,7 @@ export class GoalBoardProjectCatalog {
     }, contextBindingValidation);
     this.demoProjects = new DemoProjectLifecycle(this.projects, this.projectsDirectory, { boardId: DEMO_BOARD_ID, seed: seedDemoBoard }, this.projectDeletion, contextBindingValidation);
     this.desktopPanels = platform.createPanels(db, {
-      errorFactory: (code, message) => new GoalBoardProjectCatalogError(code, message),
+      errorFactory: (code, message) => new MolisWorkProjectCatalogError(code, message),
       context: {
         assertProject: (projectId) => { this.getProject(projectId); },
         bind: (input) => {
@@ -219,8 +219,8 @@ export class GoalBoardProjectCatalog {
     });
   }
 
-  static async open(options: GoalBoardProjectCatalogOptions, platform: LocalCatalogPlatform): Promise<GoalBoardProjectCatalog> {
-    const homeDirectory = path.resolve(options.homeDirectory ?? path.join(os.homedir(), ".goalboard"));
+  static async open(options: MolisWorkProjectCatalogOptions, platform: LocalCatalogPlatform): Promise<MolisWorkProjectCatalog> {
+    const homeDirectory = path.resolve(options.homeDirectory ?? resolveConfiguredHome());
     const projectsDirectory = path.join(homeDirectory, "projects");
     await fs.mkdir(projectsDirectory, { recursive: true });
     const databasePath = path.join(projectsDirectory, "catalog.db");
@@ -228,15 +228,18 @@ export class GoalBoardProjectCatalog {
     const storage = new LocalSqliteStorage(databasePath);
     const db = storage.db;
     try {
-      return db.transaction(() => {
+      const catalog = db.transaction(() => {
         if (existed) assertOwnedCatalog(storage, databasePath);
         const ledger = createContextLedger(db, {
           authorize: (access) => access.scope.kind === "personal" && access.scope.id === "private-work-context",
         });
         if (existed) migrateCatalog(storage, databasePath, ledger, platform.createPanelSchema);
         else initializeCatalog(storage, platform.createPanelSchema);
-        return new GoalBoardProjectCatalog(storage, homeDirectory, ledger, platform);
+        return new MolisWorkProjectCatalog(storage, homeDirectory, ledger, platform);
       }).immediate();
+      catalog.migrateManagedProjectDatabaseFilenames();
+      catalog.migrateOfficialDemoDisplayName();
+      return catalog;
     } catch (error) {
       storage.close();
       throw error;
@@ -247,7 +250,24 @@ export class GoalBoardProjectCatalog {
     this.storage.close();
   }
 
-  listProjects(): GoalBoardProjectRecord[] {
+  private migrateManagedProjectDatabaseFilenames(): void {
+    for (const project of this.listProjects()) {
+      const next = resolveProjectDatabaseFile(path.dirname(project.database_path));
+      if (path.resolve(project.database_path) === path.resolve(next)) continue;
+      this.projects.lifecycle.updateDatabasePath(project.project_id, next);
+    }
+  }
+
+  private migrateOfficialDemoDisplayName(): void {
+    const nextName = "Molis Work 示例项目";
+    const legacyNames = new Set(["GoalBoard 示例项目", "GoalBoard Demo"]);
+    for (const project of this.listProjects()) {
+      if (project.data_class !== "regenerable_demo" || !legacyNames.has(project.display_name)) continue;
+      this.renameProject(project.project_id, nextName, "molis-work");
+    }
+  }
+
+  listProjects(): MolisWorkProjectRecord[] {
     return this.projects.query.listProjects();
   }
 
@@ -259,21 +279,21 @@ export class GoalBoardProjectCatalog {
     return this.projects.commands.addProjectPlugin(input);
   }
 
-  getProject(projectId: string): GoalBoardProjectRecord {
+  getProject(projectId: string): MolisWorkProjectRecord {
     return this.projects.query.getProject(projectId);
   }
-  resolveRuntimeContext(context: RuntimeWorkContext, suggestionClues: readonly RuntimeProjectSuggestionClue[] = []): GoalBoardRuntimeContextResolution {
+  resolveRuntimeContext(context: RuntimeWorkContext, suggestionClues: readonly RuntimeProjectSuggestionClue[] = []): MolisWorkRuntimeContextResolution {
     return this.contextResolution.resolveRuntimeContext(normalizeRuntimeWorkContext(context), suggestionClues);
   }
   rejectRuntimeContextSuggestion(
     input: RejectRuntimeContextSuggestionInput,
-  ): GoalBoardRuntimeContextSuggestionRejectionResult { return this.contextBindings.rejectRuntimeContextSuggestion(input); }
-  bindRuntimeContext(input: BindRuntimeWorkContextInput): GoalBoardRuntimeContextResolution { return this.contextBindings.bindRuntimeContext(input); }
-  unbindRuntimeContext(input: UnbindRuntimeWorkContextInput): GoalBoardRuntimeContextUnbindResult { return this.contextBindings.unbindRuntimeContext(input); }
-  async createProjectAndBindRuntimeContext(input: CreateAndBindRuntimeContextInput): Promise<GoalBoardRuntimeContextResolution> {
+  ): MolisWorkRuntimeContextSuggestionRejectionResult { return this.contextBindings.rejectRuntimeContextSuggestion(input); }
+  bindRuntimeContext(input: BindRuntimeWorkContextInput): MolisWorkRuntimeContextResolution { return this.contextBindings.bindRuntimeContext(input); }
+  unbindRuntimeContext(input: UnbindRuntimeWorkContextInput): MolisWorkRuntimeContextUnbindResult { return this.contextBindings.unbindRuntimeContext(input); }
+  async createProjectAndBindRuntimeContext(input: CreateAndBindRuntimeContextInput): Promise<MolisWorkRuntimeContextResolution> {
     return createRuntimeProjectSetup({
       bindings: this.contextBindings, validation: contextBindingValidation,
-      error: (code, message) => new GoalBoardProjectCatalogError(code, message),
+      error: (code, message) => new MolisWorkProjectCatalogError(code, message),
       getProject: projectId => this.getProject(projectId),
       registerProject: (record, eventType, actorId) => this.insertProjectInTransaction(record, eventType, actorId),
       insertSetupRequest: input => this.workContexts.insertSetupRequest(input),
@@ -283,26 +303,26 @@ export class GoalBoardProjectCatalog {
   }
   listRuntimeContextBindingEvents(
     context?: RuntimeWorkContext,
-  ): GoalBoardRuntimeContextBindingEvent[] { return this.contextBindings.listRuntimeContextBindingEvents(context); }
-  listRuntimeContextBindings(): GoalBoardRuntimeContextBinding[] { return this.contextBindings.listRuntimeContextBindings(); }
+  ): MolisWorkRuntimeContextBindingEvent[] { return this.contextBindings.listRuntimeContextBindingEvents(context); }
+  listRuntimeContextBindings(): MolisWorkRuntimeContextBinding[] { return this.contextBindings.listRuntimeContextBindings(); }
 
-  openDesktopPanel(input: OpenGoalBoardDesktopPanelInput): GoalBoardDesktopPanelRecord {
+  openDesktopPanel(input: OpenMolisWorkDesktopPanelInput): MolisWorkDesktopPanelRecord {
     return this.desktopPanels.open(input);
   }
 
-  listDesktopPanels(projectId: string, goalId?: string): GoalBoardDesktopPanelRecord[] {
+  listDesktopPanels(projectId: string, goalId?: string): MolisWorkDesktopPanelRecord[] {
     return this.desktopPanels.list(projectId, goalId);
   }
 
-  getDesktopPanel(panelId: string): GoalBoardDesktopPanelRecord {
+  getDesktopPanel(panelId: string): MolisWorkDesktopPanelRecord {
     return this.desktopPanels.get(panelId);
   }
 
-  markDesktopPanelExited(panelId: string): GoalBoardDesktopPanelRecord {
+  markDesktopPanelExited(panelId: string): MolisWorkDesktopPanelRecord {
     return this.desktopPanels.markExited(panelId);
   }
 
-  markDesktopPanelOpen(panelId: string): GoalBoardDesktopPanelRecord {
+  markDesktopPanelOpen(panelId: string): MolisWorkDesktopPanelRecord {
     return this.desktopPanels.markOpen(panelId);
   }
 
@@ -310,14 +330,14 @@ export class GoalBoardProjectCatalog {
     this.desktopPanels.close(panelId, actorId);
   }
 
-  aliasDesktopPanelSession(input: AliasGoalBoardDesktopPanelSessionInput): GoalBoardDesktopPanelRecord {
+  aliasDesktopPanelSession(input: AliasMolisWorkDesktopPanelSessionInput): MolisWorkDesktopPanelRecord {
     return this.desktopPanels.aliasSession(input);
   }
 
   findDesktopPanelByWorkContext(
     runtimeId: string,
     workContextId: string,
-  ): GoalBoardDesktopPanelRecord | null {
+  ): MolisWorkDesktopPanelRecord | null {
     return this.desktopPanels.findByWorkContext(runtimeId, workContextId);
   }
 
@@ -326,46 +346,46 @@ export class GoalBoardProjectCatalog {
   }
 
   /** Safe Web/settings view: deliberately omits the canonical filesystem path. */
-  listWorkspaceMemberships(): GoalBoardWorkspaceMembership[] {
+  listWorkspaceMemberships(): MolisWorkWorkspaceMembership[] {
     return this.projects.query.listWorkspaceMemberships();
   }
 
   /** Project-scoped management view. The canonical path never enters global settings. */
-  listWorkspaceDirectory(projectId?: string): GoalBoardWorkspaceDirectoryRecord[] {
+  listWorkspaceDirectory(projectId?: string): MolisWorkWorkspaceDirectoryRecord[] {
     return this.projects.query.listWorkspaceDirectory(projectId);
   }
 
-  addWorkspaceProject(input: AddWorkspaceProjectInput): GoalBoardWorkspaceDirectoryRecord {
+  addWorkspaceProject(input: AddWorkspaceProjectInput): MolisWorkWorkspaceDirectoryRecord {
     return this.projects.commands.addWorkspaceProject(input);
   }
 
-  repairWorkspaceProject(input: RepairWorkspaceProjectInput): GoalBoardWorkspaceDirectoryRecord {
+  repairWorkspaceProject(input: RepairWorkspaceProjectInput): MolisWorkWorkspaceDirectoryRecord {
     return this.projects.commands.repairWorkspaceProject(input);
   }
 
-  setWorkspaceDefault(input: ChangeWorkspaceProjectInput): GoalBoardWorkspaceMembership[] {
+  setWorkspaceDefault(input: ChangeWorkspaceProjectInput): MolisWorkWorkspaceMembership[] {
     return this.projects.commands.setWorkspaceDefault(input);
   }
 
-  removeWorkspaceMembership(input: ChangeWorkspaceProjectInput): GoalBoardWorkspaceMembership[] {
+  removeWorkspaceMembership(input: ChangeWorkspaceProjectInput): MolisWorkWorkspaceMembership[] {
     return this.projects.commands.removeWorkspaceMembership(input);
   }
-  async createProject(input: CreateGoalBoardProjectInput): Promise<GoalBoardProjectRecord> { return this.projectFiles.createProject(input); }
-  async ensureDemoProject(input: ManageGoalBoardDemoProjectInput): Promise<GoalBoardDemoProjectResult> { return this.demoProjects.ensureDemoProject(input); }
-  async resetDemoProject(input: ManageGoalBoardDemoProjectInput): Promise<GoalBoardDemoProjectResult> { return this.demoProjects.resetDemoProject(input); }
-  async removeDemoProject(input: DeleteGoalBoardProjectInput): Promise<GoalBoardProjectDeletionResult> { return this.demoProjects.removeDemoProject(input); }
+  async createProject(input: CreateMolisWorkProjectInput): Promise<MolisWorkProjectRecord> { return this.projectFiles.createProject(input); }
+  async ensureDemoProject(input: ManageMolisWorkDemoProjectInput): Promise<MolisWorkDemoProjectResult> { return this.demoProjects.ensureDemoProject(input); }
+  async resetDemoProject(input: ManageMolisWorkDemoProjectInput): Promise<MolisWorkDemoProjectResult> { return this.demoProjects.resetDemoProject(input); }
+  async removeDemoProject(input: DeleteMolisWorkProjectInput): Promise<MolisWorkProjectDeletionResult> { return this.demoProjects.removeDemoProject(input); }
 
-  listProjectDeletions(): GoalBoardProjectDeletionRecord[] {
+  listProjectDeletions(): MolisWorkProjectDeletionRecord[] {
     return this.projects.query.listProjectDeletions();
   }
-  async deleteProject(input: DeleteGoalBoardProjectInput): Promise<GoalBoardProjectDeletionResult> { return this.projectDeletion.deleteProject(input); }
+  async deleteProject(input: DeleteMolisWorkProjectInput): Promise<MolisWorkProjectDeletionResult> { return this.projectDeletion.deleteProject(input); }
 
-  renameProject(projectId: string, displayName: string, actorId: string): GoalBoardProjectRecord {
+  renameProject(projectId: string, displayName: string, actorId: string): MolisWorkProjectRecord {
     return this.projects.commands.renameProject(projectId, displayName, actorId);
   }
-  async migrateLegacyDatabase(input: MigrateGoalBoardProjectInput): Promise<GoalBoardProjectRecord> { return this.projectFiles.migrateLegacyDatabase(input); }
+  async migrateLegacyDatabase(input: MigrateMolisWorkProjectInput): Promise<MolisWorkProjectRecord> { return this.projectFiles.migrateLegacyDatabase(input); }
 
-  private insertProjectInTransaction(record: GoalBoardProjectRecord, eventType: string, actorId: string): void {
+  private insertProjectInTransaction(record: MolisWorkProjectRecord, eventType: string, actorId: string): void {
     this.projects.lifecycle.register(record, eventType, actorId);
   }
 
@@ -375,7 +395,7 @@ export class GoalBoardProjectCatalog {
 }
 
 const contextBindingValidation = createRuntimeProjectBindingValidation({
-  error: (code, message) => new GoalBoardProjectCatalogError(code, message),
+  error: (code, message) => new MolisWorkProjectCatalogError(code, message),
   normalizeProjectWorkspace,
 });
 export const { normalizeRuntimeWorkContext } = contextBindingValidation;

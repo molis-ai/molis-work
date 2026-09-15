@@ -19,14 +19,14 @@ import type {
   PluginRuntimeApi,
   PluginRuntimeRepository,
   PluginStartContext,
-} from "@adeptify/goalboard-contracts/platform/plugin";
+} from "@molis-ai/molis-work-contracts/platform/plugin";
 
 export const packageDescriptor = {
-  packageName: "@adeptify/goalboard-plugin-runtime",
+  packageName: "@molis-ai/molis-work-plugin-runtime",
   packagePath: "packages/plugin-runtime",
   kind: "foundation",
   maturity: "partial",
-  contract: "@adeptify/goalboard-contracts/platform/plugin",
+  contract: "@molis-ai/molis-work-contracts/platform/plugin",
   migrationGoals: ["goal-reorg-f2", "goal-reorg-fd3", "goal-reorg-dv3"],
   ssot: "docs/SSOT-MATRIX.md",
   capabilities: ["plugin.lifecycle.v1", "plugin.grants.v1", "plugin.recovery.v1"],
@@ -467,4 +467,4 @@ function cloneRecord(record: PluginInstanceRecord): PluginInstanceRecord {
   return { ...record, grants: [...record.grants] };
 }
 
-export type GoalBoardPackageDescriptor = typeof packageDescriptor;
+export type MolisWorkPackageDescriptor = typeof packageDescriptor;

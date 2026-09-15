@@ -3,9 +3,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
-RESOURCE_DIR="$REPO_ROOT/apps/desktop/src-tauri/resources/goalboard-runtime"
-NODE_VERSION="${GOALBOARD_NODE_VERSION:-24.14.0}"
-REQUESTED_ARCH="${GOALBOARD_MACOS_ARCH:-$(uname -m)}"
+RESOURCE_DIR="$REPO_ROOT/apps/desktop/src-tauri/resources/molis-work-runtime"
+NODE_VERSION="${MOLIS_WORK_NODE_VERSION:-24.14.0}"
+REQUESTED_ARCH="${MOLIS_WORK_MACOS_ARCH:-$(uname -m)}"
 
 case "$REQUESTED_ARCH" in
   arm64|aarch64) NODE_ARCH="arm64" ;;
@@ -24,7 +24,7 @@ if [[ "$NODE_ARCH" != "$HOST_ARCH" ]]; then
   exit 1
 fi
 
-TEMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/goalboard-macos-runtime.XXXXXX")"
+TEMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/molis-work-macos-runtime.XXXXXX")"
 cleanup() { rm -rf "$TEMP_DIR"; }
 trap cleanup EXIT INT TERM
 
@@ -39,4 +39,4 @@ NODE_HOME="$TEMP_DIR/node-v${NODE_VERSION}-darwin-${NODE_ARCH}"
 
 node "$SCRIPT_DIR/prepare-runtime-payload.mjs" "$REPO_ROOT" "$RESOURCE_DIR" "$NODE_HOME/bin/node"
 
-echo "Prepared GoalBoard macOS runtime: $RESOURCE_DIR ($NODE_ARCH, Node v$NODE_VERSION)"
+echo "Prepared Molis Work macOS runtime: $RESOURCE_DIR ($NODE_ARCH, Node v$NODE_VERSION)"

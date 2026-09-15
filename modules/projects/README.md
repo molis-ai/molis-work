@@ -2,7 +2,7 @@
 
 维护项目记录、工作区关联及相关查询，让桌面目录和 Runtime 项目选择使用同一套事实。
 
-包名：`@adeptify/goalboard-module-projects`。工作区内部包，通过仓库构建和 Host 装配使用。
+包名：`@molis-ai/molis-work-module-projects`。工作区内部包，通过仓库构建和 Host 装配使用。
 
 ## 一次典型调用
 
@@ -32,8 +32,8 @@ ProjectsModule 用注入数据库建立 repository 与 service，公开 query、
 以下命令在**仓库根目录**执行，使用 Node.js 24+ 与仓库配置的 pnpm。首次准备运行 `pnpm install --frozen-lockfile` 和 `pnpm build`；之后可单独检查此包。
 
 ```bash
-pnpm --filter @adeptify/goalboard-module-projects typecheck
-pnpm --filter @adeptify/goalboard-module-projects build
+pnpm --filter @molis-ai/molis-work-module-projects typecheck
+pnpm --filter @molis-ai/molis-work-module-projects build
 ```
 
 已有行为示例与回归：[projects-module.test.ts](../../tests/projects-module.test.ts)。完成上述构建后运行：
@@ -50,7 +50,7 @@ node --import tsx --test --test-concurrency=1 tests/projects-module.test.ts
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
 - Status: `partial`
-- Contract entrypoint: `@adeptify/goalboard-contracts/modules/projects`
+- Contract entrypoint: `@molis-ai/molis-work-contracts/modules/projects`
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-ap1`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。

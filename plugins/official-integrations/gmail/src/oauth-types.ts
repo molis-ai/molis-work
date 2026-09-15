@@ -31,7 +31,7 @@ export const GMAIL_OAUTH_DEFAULT_SCOPES = [
 export const DEFAULT_SCOPES = GMAIL_OAUTH_DEFAULT_SCOPES.join(" ");
 
 export const RESTART_HINT =
-  "Restart Gmail authorization from GoalBoard Sources and complete the fresh callback.";
+  "Restart Gmail authorization from Molis Work Sources and complete the fresh callback.";
 
 export const REAUTH_ACTION =
   "Settings → Connectors · Restart Gmail authorization";
@@ -95,9 +95,11 @@ export interface GmailOAuthPorts {
   hasSecret(ref: string): boolean;
   environment(): {
     PORT?: string;
-    GOALBOARD_WEB_PORT?: string;
-    GOALBOARD_WEB_HOST?: string;
-    GOALBOARD_PUBLIC_BASE_URL?: string;
+    MOLIS_WORK_WEB_PORT?: string;
+    MOLIS_WORK_WEB_HOST?: string;
+    MOLIS_WORK_PUBLIC_BASE_URL?: string;
+    MOLIS_WORK_GMAIL_CLIENT_ID?: string;
+    MOLIS_WORK_GMAIL_CLIENT_SECRET?: string;
     GOALBOARD_GMAIL_CLIENT_ID?: string;
     GOALBOARD_GMAIL_CLIENT_SECRET?: string;
   };

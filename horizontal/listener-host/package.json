@@ -1,5 +1,5 @@
 {
-  "name": "@adeptify/goalboard-service-listener-host",
+  "name": "@molis-ai/molis-work-service-listener-host",
   "version": "0.0.0",
   "private": true,
   "description": "Durable cursor, lease, retry, quarantine, and Raw Event delivery mechanisms.",
@@ -25,13 +25,13 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@adeptify/goalboard-contracts": "workspace:*"
+    "@molis-ai/molis-work-contracts": "workspace:*"
   },
-  "goalboard": {
+  "molis-work": {
     "path": "horizontal/listener-host",
     "kind": "horizontal",
     "maturity": "partial",
-    "contract": "@adeptify/goalboard-contracts/services/listener-host",
+    "contract": "@molis-ai/molis-work-contracts/services/listener-host",
     "migrationGoals": [
       "goal-reorg-f2",
       "goal-reorg-fd1"

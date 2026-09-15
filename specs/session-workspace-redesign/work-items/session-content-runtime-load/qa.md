@@ -2,14 +2,14 @@
 
 ## 完成等级
 
-功能可用。项目内 Sessions 使用统一 `session_id` 展示真实 Registry 记录；详情按需读取 owning Runtime 的结构化历史并合并 GoalBoard TUI / 生命周期事件；空闲 Codex Session 可以通过原生 resume 加载。跨 Runtime Handoff 的生成与目标 Session 创建仍属于后续 Work Item。
+功能可用。项目内 Sessions 使用统一 `session_id` 展示真实 Registry 记录；详情按需读取 owning Runtime 的结构化历史并合并 Molis Work TUI / 生命周期事件；空闲 Codex Session 可以通过原生 resume 加载。跨 Runtime Handoff 的生成与目标 Session 创建仍属于后续 Work Item。
 
 ## Goal TUI 与关系恢复
 
 - PTY spawn 显式携带 `session_id`，socket 把输出和退出状态交给 `SessionTuiRecorder`。
 - TUI 正文使用 AES-256-GCM 文件存储，Registry 只保存内容引用与无敏感正文的元数据。
 - Registry 关闭后重新打开，终端输出、退出状态、project、Goal 与 Session 关系仍可读取。
-- GoalBoard MCP 在成功选择、推进、提交 Evidence/Review 或完成 Goal 后，把当前 Goal 与最小状态事件写回对应 Session；相同幂等调用不会生成重复事件。
+- Molis Work MCP 在成功选择、推进、提交 Evidence/Review 或完成 Goal 后，把当前 Goal 与最小状态事件写回对应 Session；相同幂等调用不会生成重复事件。
 - 当前真实 Codex Session 已对账到 `session-content-runtime-load`；项目 Sessions 列表、详情“当前关系”和关联历史均显示该 Goal。
 
 ## 原 Runtime 内容与加载
@@ -48,9 +48,9 @@
 ## 0.1.13 安装回归（2026-08-31）
 
 - 先安装 0.1.12 后，真实 Registry 仍保留当前 Codex Session、Project 与 `session-content-runtime-load` Goal 关系，但原生内容返回 `content_mode=failed`；这证明不是 Session 数据丢失，而是 Runtime transport 不可用。
-- 根因是受管 macOS LaunchAgent 的 `PATH` 没有包含 `~/.local/bin`，而本机 Codex CLI 位于该用户级目录。0.1.13 将该目录加入 GoalBoard 自己生成的 plist，并保留旧 plist 的 `needs_repair → 确认 install` 安全升级流程；未知 plist 仍不会被覆盖。
+- 根因是受管 macOS LaunchAgent 的 `PATH` 没有包含 `~/.local/bin`，而本机 Codex CLI 位于该用户级目录。0.1.13 将该目录加入 Molis Work 自己生成的 plist，并保留旧 plist 的 `needs_repair → 确认 install` 安全升级流程；未知 plist 仍不会被覆盖。
 - 本机安装 0.1.13 并确认修复服务后，`service status` 为 `running/owned=true`，`/health` 保持 10 个项目；当前 Session 的同一 `session_id`、原生 Runtime Session ID 和 Goal 关系均未变化。
-- 同一条当前 Session 再次读取为 `content_mode=native`、`native_error=null`，共返回 6,042 个事件：60 条用户消息、318 条 Runtime 消息、2,425 条工具记录、343 个 Artifact，其余为状态与一条 GoalBoard 关系事件。没有修改或重建 Session 数据。
+- 同一条当前 Session 再次读取为 `content_mode=native`、`native_error=null`，共返回 6,042 个事件：60 条用户消息、318 条 Runtime 消息、2,425 条工具记录、343 个 Artifact，其余为状态与一条 Molis Work 关系事件。没有修改或重建 Session 数据。
 - Codex、Claude Code 与 Grok Build 的受管 Skill/MCP 接入均事务式对齐到 0.1.13 并返回 `connected`；当前已运行的 Codex Session 没有被重启，新的 Runtime Session 才会加载新 Skill/MCP 清单。
 - 第一次完整 TypeScript 门禁中，既有 300 Goal 性能断言在全套并行负载下耗时 106.1ms，超过 100ms 阈值；单独复跑为 8.7ms。系统负载恢复后再次完整运行，最终 **401/401** 通过，Session Web 同样通过。Desktop Rust 12/12、Rust format、版本一致性和 `git diff --check` 通过。
 

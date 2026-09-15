@@ -1,5 +1,5 @@
 {
-  "name": "@adeptify/goalboard-module-sources",
+  "name": "@molis-ai/molis-work-module-sources",
   "version": "0.0.0",
   "private": true,
   "description": "Source identity, desired listening state, scope, schedule intent, and provider binding references.",
@@ -25,13 +25,13 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@adeptify/goalboard-contracts": "workspace:*"
+    "@molis-ai/molis-work-contracts": "workspace:*"
   },
-  "goalboard": {
+  "molis-work": {
     "path": "modules/sources",
     "kind": "module",
     "maturity": "partial",
-    "contract": "@adeptify/goalboard-contracts/modules/sources",
+    "contract": "@molis-ai/molis-work-contracts/modules/sources",
     "migrationGoals": [
       "goal-reorg-f2",
       "goal-reorg-fd1"

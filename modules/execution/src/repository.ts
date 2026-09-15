@@ -1,9 +1,9 @@
-import type { StoredModuleEvent } from "@adeptify/goalboard-contracts/platform/storage";
+import type { StoredModuleEvent } from "@molis-ai/molis-work-contracts/platform/storage";
 import type {
   ExecutionClaimRecord,
   ExecutionRunRecord,
   ExecutionRunWithClaim,
-} from "@adeptify/goalboard-contracts/modules/execution";
+} from "@molis-ai/molis-work-contracts/modules/execution";
 
 type Row = Record<string, unknown>;
 

@@ -1,4 +1,4 @@
-import type { RiskRecord, ImpactBindingRecord } from "@adeptify/goalboard-contracts/modules/goals";
+import type { RiskRecord, ImpactBindingRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { GoalDisplayStatus, GoalPresentationState } from "./tree-order.js";
 
 export interface GoalsSafetyRisk extends RiskRecord { goal_ids: string[]; }

@@ -1,4 +1,4 @@
-import type { GovernanceDecisionApi } from "@adeptify/goalboard-contracts/modules/governance-collaboration";
+import type { GovernanceDecisionApi } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import { GovernanceRepository, type GovernanceSqliteDatabase } from "./repository.js";
 
 /** The existing decision and nested preview savepoints, not a separate transaction system. */

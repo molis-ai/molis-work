@@ -2,7 +2,7 @@ import {
   type LocalSqliteStorage,
   LOCAL_JOURNAL_SCHEMA_SQL,
   SqliteSchema,
-} from "@adeptify/goalboard-storage";
+} from "@molis-ai/molis-work-storage";
 import {
   GOAL_BOARDS_SCHEMA_SQL,
   GOAL_EVENT_FACTS_SCHEMA_SQL,
@@ -12,17 +12,17 @@ import {
   migrateProjectGuidanceRevisions,
   migrateGoalContractRevisionColumn,
   backfillGoalContractRevisions,
-} from "@adeptify/goalboard-module-goals";
+} from "@molis-ai/molis-work-module-goals";
 import {
   GOAL_INPUT_BINDINGS_SCHEMA_SQL,
   GOAL_IMPACTS_SCHEMA_SQL,
   migrateGoalImpactHistory,
-} from "@adeptify/goalboard-module-goals";
+} from "@molis-ai/molis-work-module-goals";
 import {
   ARTIFACTS_SCHEMA_SQL,
   migrateArtifactsSchema,
   type ArtifactsSqliteDatabase,
-} from "@adeptify/goalboard-module-artifacts";
+} from "@molis-ai/molis-work-module-artifacts";
 import {
   EVIDENCE_SCHEMA_SQL,
   evidenceCorrectionsMigrationRequired,
@@ -32,7 +32,7 @@ import {
   migrateEvidenceLocatorValidation,
   migrateEvidenceLocatorWorkspace,
   type EvidenceMigrationDatabase,
-} from "@adeptify/goalboard-module-evidence-verification";
+} from "@molis-ai/molis-work-module-evidence-verification";
 import {
   EXECUTION_SCHEMA_SQL,
   migrateClarifierRoles,
@@ -40,7 +40,7 @@ import {
   migrateReviewerRunRoles,
   migrateUnifiedClaimRolesAndExclusivity,
   type ExecutionMigrationDatabase,
-} from "@adeptify/goalboard-module-execution";
+} from "@molis-ai/molis-work-module-execution";
 import {
   GOVERNANCE_SCHEMA_SQL,
   CLARIFICATION_SCHEMA_SQL,
@@ -57,7 +57,7 @@ import {
   migrateGoalEventTrustedDecisions,
   migrateGoalTreeSubmittedSession,
   type GovernanceSqliteDatabase,
-} from "@adeptify/goalboard-module-governance-collaboration";
+} from "@molis-ai/molis-work-module-governance-collaboration";
 import {
   migrateActiveGoalLifecycle,
   migrateGoalArchiveSchema,
@@ -76,7 +76,7 @@ import {
   migratePlanningMethodPacksSchema,
   migrateGoalTrashSchema,
   type GoalLifecycleMigrationDatabase,
-} from "@adeptify/goalboard-module-goals";
+} from "@molis-ai/molis-work-module-goals";
 import {
   migrateFeedTables,
   migrateInfoflowContractV2,

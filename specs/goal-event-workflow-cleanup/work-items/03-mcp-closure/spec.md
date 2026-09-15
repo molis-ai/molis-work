@@ -48,7 +48,7 @@ Runtime 普通工具 schema 不要求也不接受 `board_id`、`database_path`�
 - completed 与 cancelled 的明确继续、原因缺失、普通无关报告不重开、重试与重启全部验证。
 - build、boundary、针对性回归通过。删除/改写的旧测试逐类说明退役功能/新行为承接；旧测试生成历史数据可改为明确历史 fixture，不能因此留整套旧执行生产代码。全仓留04。
 
-交回 technical-plan.md 与实现后 handoff.md：最终 Runtime/管理工具名单、生产调用链及保留职责、删除测试的映射、真实命令结果/日志与未完项。主总状态文件仅由主更新。临时日志 `/private/tmp/goalboard-flow-cleanup/03-*`。
+交回 technical-plan.md 与实现后 handoff.md：最终 Runtime/管理工具名单、生产调用链及保留职责、删除测试的映射、真实命令结果/日志与未完项。主总状态文件仅由主更新。临时日志 `/private/tmp/molis-work-flow-cleanup/03-*`。
 
 ## 技术方案主裁决（2026-09-10）
 
@@ -154,7 +154,7 @@ C2c final correction evidence: the user-approved seven-file deletion is complete
 
 C2d begins with one additional reproduced Handoff defect. Root's 03-handoff-history-acceptance.mjs loads original v35 CORE, retires an actual mapped requirement through trusted setAgreement, and confirms the original acceptance criteria remain unchanged. The final production handoff still shows that retired criterion in its CURRENT acceptance section, before historical reading. Log: 03-c2c-corrected-root-handoff-history.log. Current acceptance must consume only current event requirements; original statements, pass conditions and decision methods remain readable under explicit history. The root probe is read-only.
 
-The allowed small C2d production correction is in plugins/native/work/src/handoff-package.ts and its retained tests. Also replace the internal resumeWork(reason) instruction with the actual public goalboard_v1_event_resume tool or a clear user action. Preserve the completed/cancelled boundary, Session delivery/source validation/provenance/version/storage, and the four original v35 SQL files. This is a correction within the existing current/history contract, not new product scope. C2 and overall level 4 are not yet complete.
+The allowed small C2d production correction is in plugins/native/work/src/handoff-package.ts and its retained tests. Also replace the internal resumeWork(reason) instruction with the actual public molis_work_v1_event_resume tool or a clear user action. Preserve the completed/cancelled boundary, Session delivery/source validation/provenance/version/storage, and the four original v35 SQL files. This is a correction within the existing current/history contract, not new product scope. C2 and overall level 4 are not yet complete.
 
 C2d test preservation clarification: narrowing i18n.test.ts to the eight current display states is correct; deleting its `en.meaning !== zh.meaning` assertion is not. English mode must return actual English explanations. Restore that behavior assertion and correct actual missing translations, or report a concrete final04 translation gap without weakening the test. Root's temporary 04-current-language-acceptance.mjs checks the real locale/explainer path independently. This enforces the existing test rule and adds no product scope.
 

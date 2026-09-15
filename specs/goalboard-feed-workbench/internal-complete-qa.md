@@ -6,10 +6,10 @@
 
 ### Migration and cutover
 
-- Relay 已通过用户明确确认的一次性入口迁入 GoalBoard；迁移器只读 Relay，并以稳定 ID 与 receipt 对账。
+- Relay 已通过用户明确确认的一次性入口迁入 Molis Work；迁移器只读 Relay，并以稳定 ID 与 receipt 对账。
 - 重复迁移不会覆盖 disposition、linked Goal 或正文引用，也不会制造重复 Source、Item 或 Material。
 - migration 29 把历史 Inbox 消息事务化拆为 FeedItem 事实与 InboxEntry 引用；失败演练会把 schema、数据和 migration ledger 一起回滚。
-- GoalBoard 的 Source、Connector、Run、Cursor、Item、Material、SecretStore 与正文读取均来自当前项目数据库；Relay 不参与日常拉取或阅读。
+- Molis Work 的 Source、Connector、Run、Cursor、Item、Material、SecretStore 与正文读取均来自当前项目数据库；Relay 不参与日常拉取或阅读。
 - 真实项目当前显示 14 个 Source、299 个 Feed Item，以及独立的 Inbox / Goal 决定入口；旧 Gmail 兼容 Source 已暂停，新的账号级 Gmail Source 独立运行，避免双轨重复同步。
 
 ### Real Provider paths
@@ -32,7 +32,7 @@
 ### Security and privacy
 
 - Gmail 只请求 gmail.readonly、openid、email；应用不存在发送、回复、改标签或服务端删除调用。
-- GitHub Notifications API 的 Provider scope 边界已在界面披露；GoalBoard 实现只调用 GET，且不把 Token 写入 HTML、API response、数据库事件或测试日志。
+- GitHub Notifications API 的 Provider scope 边界已在界面披露；Molis Work 实现只调用 GET，且不把 Token 写入 HTML、API response、数据库事件或测试日志。
 - Secret 与 retained content 继续用 AES-256-GCM 密封；Cursor、SyncRun、Inbox detail 与错误信息只保存非秘密元数据。
 - 断开账号立即停止拉取并删除本地 secret；删除 Source 继续要求用户在“保留本地历史 / 连同历史删除”之间明确选择。
 - Relay 缺席、旧内容 key 缺失和重新密封路径均保留原密文，不用不可读旧状态覆盖可信新状态。
@@ -50,12 +50,12 @@
 ### Human gate
 
 - 自动证据已经覆盖迁移、回归、故障恢复与安全边界。
-- GoalBoard Contract 仍要求一骏本人判断两项体验标准：桌面 / 窄屏是否顺畅，以及三条真实 Provider 的 Source → Feed → Inbox 处理体验是否可以作为内部完整接受。
+- Molis Work Contract 仍要求一骏本人判断两项体验标准：桌面 / 窄屏是否顺畅，以及三条真实 Provider 的 Source → Feed → Inbox 处理体验是否可以作为内部完整接受。
 - 本轮没有为凑验收数字擅自把真实 Gmail / RSS Item 加入 Inbox 或标记完成；这些是用户数据处置动作，应由一骏实际体验后确认。
 
 验收日期：2026-08-30
 完成等级：4 · 内部完整
-验收项目：GoalBoard 信息流工作台重设计
+验收项目：Molis Work 信息流工作台重设计
 验收范围：Goal、Inbox、Feed、来源与连接、Item 动作、Runtime/TUI、Relay 独立性与安全边界。
 
 ## AC1 · 分层自动化校验
@@ -106,17 +106,17 @@
 
 ### 真实项目数据库/界面对账
 
-- UI：13 个来源；Feed 152 个未忽略 Item；Inbox 左栏 49 项由 43 个持久化 Inbox Item 加 6 个 GoalBoard 决定/结果组成。
+- UI：13 个来源；Feed 152 个未忽略 Item；Inbox 左栏 49 项由 43 个持久化 Inbox Item 加 6 个 Molis Work 决定/结果组成。
 - DB：`feed` 为 155 项（152 待处理、3 已忽略），其中 3 项已读；`inbox_message` 为 54 项（42 待处理、1 已保存、11 已归档）。
 - DB：155 个 Material，155 个正文引用可用；13 个 Source 全部启用，2 个 Source 持有 credential ref；1 条 Relay ownership receipt。
-- UI 与 DB 的差额来自明确的 GoalBoard 决定/处理结果虚拟 Inbox Entry，不是类型串流或数据丢失。
+- UI 与 DB 的差额来自明确的 Molis Work 决定/处理结果虚拟 Inbox Entry，不是类型串流或数据丢失。
 
 异常恢复由定向测试覆盖：revision conflict、暂停来源、完整失败不推进 cursor、Connector 中断、Gmail stale history、SecretStore key 不可用、content blob 损坏、Relay schema drift、归档 Item 恢复、Item/Goal 解绑和 Runtime 进程重连。
 
 ## AC4 · Relay 缺席与安全边界
 
-- `tests/feed-security.test.ts` 在完成 ownership migration 后删除隔离 Relay DB、`secrets.json`、`secrets.key` 和 evidence 目录；GoalBoard 仍能读取迁入的 GitHub credential、Source、Item、Material 全文。
-- 生产代码、`package.json`、lockfile 和 vendored SDK metadata 中没有 `/code/relay` 或其他 Relay 仓库绝对路径；active 来源运行只解析 GoalBoard 自己的 `vendor/` 制品。
+- `tests/feed-security.test.ts` 在完成 ownership migration 后删除隔离 Relay DB、`secrets.json`、`secrets.key` 和 evidence 目录；Molis Work 仍能读取迁入的 GitHub credential、Source、Item、Material 全文。
+- 生产代码、`package.json`、lockfile 和 vendored SDK metadata 中没有 `/code/relay` 或其他 Relay 仓库绝对路径；active 来源运行只解析 Molis Work 自己的 `vendor/` 制品。
 - Secret 与 retained content 为 AES-256-GCM；Token 不进入 DB、HTML、API response、事件或测试日志。
 - Item/TUI 上下文只有一对显式 `UNTRUSTED_FEED_ITEM_DATA` 边界；Authorization、Cookie、Token、API key、client secret、password、私钥、JWT 和常见 Provider token 形态在进入 Terminal 前统一清理。
 - 本轮没有向 GitHub、Gmail、RSS 站点或其他 Provider 写回点赞、评论、状态或内容。公开来源只做读取；失败没有伪装成成功。

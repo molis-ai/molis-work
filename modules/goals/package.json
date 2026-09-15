@@ -1,5 +1,5 @@
 {
-  "name": "@adeptify/goalboard-module-goals",
+  "name": "@molis-ai/molis-work-module-goals",
   "version": "0.0.0",
   "private": true,
   "description": "Goal Contract, graph, policy, risk, lifecycle, guidance, and planning facts.",
@@ -27,13 +27,13 @@
   },
   "dependencies": {
     "better-sqlite3": "12.8.0",
-    "@adeptify/goalboard-contracts": "workspace:*"
+    "@molis-ai/molis-work-contracts": "workspace:*"
   },
-  "goalboard": {
+  "molis-work": {
     "path": "modules/goals",
     "kind": "module",
     "maturity": "partial",
-    "contract": "@adeptify/goalboard-contracts/modules/goals",
+    "contract": "@molis-ai/molis-work-contracts/modules/goals",
     "migrationGoals": [
       "goal-reorg-f2",
       "goal-f826dfb8-bf63-4e98-b6b7-57f6b4b7c3b8",

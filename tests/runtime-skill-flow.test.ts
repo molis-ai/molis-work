@@ -3,13 +3,13 @@ import { mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import type { GoalBoardRuntimeContextHost } from "@adeptify/goalboard-contracts/platform/app-host";
-import { openGoalBoardProjectCatalog } from "@adeptify/goalboard-app-desktop";
-import { GoalBoardServer } from "../apps/desktop/launchers/mcp/server.js";
-import { GoalProjectApplication, LocalProjectDatabase } from "@adeptify/goalboard-app-local-host";
+import type { MolisWorkRuntimeContextHost } from "@molis-ai/molis-work-contracts/platform/app-host";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
+import { GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 
 test("Runtime public JSON-RPC binds, records current events, and replays the same keys after restart", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-runtime-skill-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-runtime-skill-"));
   const host = {
     homeDirectory: join(directory, "home"),
     runtimeContext: {
@@ -18,13 +18,13 @@ test("Runtime public JSON-RPC binds, records current events, and replays the sam
       host_declares_stable: true,
       workspace: { canonical_path: realpathSync(directory), realpath_verified: true },
     },
-  } satisfies GoalBoardRuntimeContextHost;
-  let server = new GoalBoardServer("runtime", null, host);
+  } satisfies MolisWorkRuntimeContextHost;
+  let server = new MolisWorkServer("runtime", null, host);
   let requestId = 0;
   async function wire(name: string, args: object) {
     const response = await server.handleMessage({
       jsonrpc: "2.0", id: ++requestId, method: "tools/call",
-      params: { name: `goalboard_v1_${name}`, arguments: args, _meta: { threadId: "skill-session" } },
+      params: { name: `molis_work_v1_${name}`, arguments: args, _meta: { threadId: "skill-session" } },
     });
     return response!.result as { isError: boolean; content: Array<{ text: string }> };
   }
@@ -51,7 +51,7 @@ test("Runtime public JSON-RPC binds, records current events, and replays the sam
     });
     assert.equal(note.recorded, true);
     await server.close();
-    server = new GoalBoardServer("runtime", null, host);
+    server = new MolisWorkServer("runtime", null, host);
     assert.equal((await call<{ status: string }>("context_resolve", {})).status, "bound");
     const replayedIntent = await call<{ replayed: boolean; goal: { goal_id: string } }>("goal_intent_create", {
       goal_id: "skill-goal", title: "交付一份可读取的结果说明", outcome: "用户可以读取完整说明",
@@ -66,7 +66,7 @@ test("Runtime public JSON-RPC binds, records current events, and replays the sam
     assert.equal(replayedNote.event_id, note.event_id);
     const state = await call<{ work_status: string }>("goal_state", { goal_id: created.goal.goal_id });
     assert.equal(state.work_status, "open");
-    const catalog = await openGoalBoardProjectCatalog({ homeDirectory: host.homeDirectory });
+    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: host.homeDirectory });
     try {
       const project = catalog.listProjects().find((item) => item.project_id === connected.connection.project_id)
         ?? catalog.listProjects().find((item) => item.board_id === connected.connection.board_id);

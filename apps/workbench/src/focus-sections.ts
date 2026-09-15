@@ -1,7 +1,7 @@
-import { icon, type GoalBoardIcon } from "@adeptify/goalboard-design-system";
+import { icon, type MolisWorkIcon } from "@molis-ai/molis-work-design-system";
 export interface FocusSectionCardOptions {
   key: string;
-  iconName: GoalBoardIcon;
+  iconName: MolisWorkIcon;
   title: string;
   description: string;
   body: string;
@@ -21,13 +21,13 @@ export function createWorkbenchFocusSections(primitives: {
   escapeHtml(value: unknown): string;
 }) {
   const { L, escapeHtml } = primitives;
-function sectionHeading(iconName: GoalBoardIcon, title: string, description = ""): string {
+function sectionHeading(iconName: MolisWorkIcon, title: string, description = ""): string {
   return `<header class="section-heading"><span>${icon(iconName)}</span><div><h2>${escapeHtml(L(title))}</h2>${
     description ? `<p>${escapeHtml(L(description))}</p>` : ""
   }</div></header>`;
 }
 
-function subsectionHeading(iconName: GoalBoardIcon, title: string, description = ""): string {
+function subsectionHeading(iconName: MolisWorkIcon, title: string, description = ""): string {
   return `<header class="subsection-heading"><span>${icon(iconName)}</span><div><h3>${escapeHtml(L(title))}</h3>${
     description ? `<p>${escapeHtml(L(description))}</p>` : ""
   }</div></header>`;

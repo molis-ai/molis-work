@@ -6,7 +6,7 @@ name: "诊断与修复"
 summary: "先复现和定位根因，再修复、回归并恢复可信状态。"
 applies_to: ["故障诊断","缺陷修复","质量问题"]
 domain_tags: ["diagnose","fix"]
-source_refs: ["GoalBoard planning-engine spec"]
+source_refs: ["Molis Work planning-engine spec"]
 confidence: 0.94
 ---
 

@@ -28,6 +28,9 @@ export const GOALS_EVENT_DOCUMENT_STYLES = `
   .goal-event-document .overview-grid .owner { color: var(--blue); }
   .goal-event-document .overview-grid .risk-copy { color: var(--amber); }
   .goal-event-document .goal-layout { display: grid; grid-template-columns: 302px minmax(0, 1fr); min-height: 0; flex: 1; margin: 0 18px 14px; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; background: var(--paper); }
+  .goal-event-document .goal-pending-proposals { flex: none; margin: 0 18px 12px; max-height: min(48vh, 520px); overflow: auto; border: 1px solid var(--line); border-radius: 9px; background: var(--paper); }
+  .goal-event-document .goal-pending-proposals > .decision-record { margin: 0; border: 0; border-radius: 0; }
+  .goal-event-document .goal-pending-proposals > .decision-record + .decision-record { border-top: 1px solid var(--line); }
   .goal-event-document .timeline-pane { display: flex; flex-direction: column; min-height: 0; min-width: 0; background: color-mix(in srgb, var(--rail) 70%, var(--paper)); border-right: 1px solid var(--line); }
   .goal-event-document .stream-toolbar, .goal-event-document .detail-toolbar { height: 43px; display: flex; justify-content: space-between; align-items: center; padding: 0 12px 0 16px; border-bottom: 1px solid var(--line); flex-shrink: 0; gap: 6px; font-size: 11px; color: var(--muted); }
   .goal-event-document .stream-toolbar h2 { font-size: 12px; margin: 0; }

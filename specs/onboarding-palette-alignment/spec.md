@@ -16,7 +16,7 @@
 ## 完成证据
 - 通过：浅色 canvas #f4f5f8 / ink #272932 / accent #6262d6；深色 canvas #111216 / ink #e8e9ee / accent #a7a6f5，与主体对应。复用已有主题 bootstrap 与主题变化监听，未引入另一套偏好存储。
 - 通过：只替换色值与主题组合，保留原有尺寸、字体、排版、文案、步骤、动效和接口。真实截图发现共享 SVG 缺少笔画样式在深色下变黑，补用 currentColor 的原始图标笔画。
-- 通过：最终 pnpm build，日志 /private/tmp/goalboard-onboarding-palette-build.log；既有 8 项 Onboarding HTTP/浏览器/终端测试全过，日志 /private/tmp/goalboard-onboarding-palette-tests.log。最后 SVG 调色后重新构建和浏览器复核，未重复运行不涉及颜色的行为测试。
+- 通过：最终 pnpm build，日志 /private/tmp/molis-work-onboarding-palette-build.log；既有 8 项 Onboarding HTTP/浏览器/终端测试全过，日志 /private/tmp/molis-work-onboarding-palette-tests.log。最后 SVG 调色后重新构建和浏览器复核，未重复运行不涉及颜色的行为测试。
 - 通过：CUA 实际桌面浅深与窄屏浅深检查；下拉菜单/选中/焦点/错误提示与最终箭头复核。浏览器临时尺寸和主题模拟已清除。后续步骤与更新页沿用共用变量并通过既有行为测试，未逐页补拍截图。
 - 通过：本机 0.2.0 Core/Web 同版本刷新与服务重启；隔离预览 64521 已载入最终构建。没有创建用户项目或改 Runtime 配置。
 - 首页仅交三份生成式方案，生产首页未实施新方案。

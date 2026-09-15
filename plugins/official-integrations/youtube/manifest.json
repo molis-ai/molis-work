@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "plugin_id": "io.goalboard.integration.youtube",
+  "plugin_id": "io.molis.work.integration.youtube",
   "version": "1.0.0",
   "name": "YouTube Channel",
   "kind": "integration",

@@ -1,25 +1,25 @@
-import type { GoalBoardRuntimeContextHost, RuntimeProjectConnectionState } from "@adeptify/goalboard-contracts/platform/app-host";
-import type { GoalBoardRuntimeContextResolution, RuntimeSessionReadResult } from "@adeptify/goalboard-contracts/modules/private-work-context";
-import type { ProjectGuidanceView } from "@adeptify/goalboard-contracts/modules/goals";
+import type { MolisWorkRuntimeContextHost, RuntimeProjectConnectionState } from "@molis-ai/molis-work-contracts/platform/app-host";
+import type { MolisWorkRuntimeContextResolution, RuntimeSessionReadResult } from "@molis-ai/molis-work-contracts/modules/private-work-context";
+import type { ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/goals";
 import { mcpWebUrl } from "./goal-presentation.js";
 import { buildMcpResumeView, type McpResumeFacts } from "./resume-view.js";
 import type { McpPresentationErrorFactory } from "./query-presentation.js";
 
-type ProjectConnection = NonNullable<GoalBoardRuntimeContextResolution["connection"]>;
+type ProjectConnection = NonNullable<MolisWorkRuntimeContextResolution["connection"]>;
 
 export interface McpContextPresentationPorts {
   connection: RuntimeProjectConnectionState;
   readGuidance(connection: ProjectConnection): Promise<ProjectGuidanceView>;
   readResumeFacts(connection: ProjectConnection, focusGoalIds: readonly string[]): Promise<McpResumeFacts>;
-  readSession(host: GoalBoardRuntimeContextHost, reconcileLegacy: boolean): Promise<RuntimeSessionReadResult>;
+  readSession(host: MolisWorkRuntimeContextHost, reconcileLegacy: boolean): Promise<RuntimeSessionReadResult>;
   createError: McpPresentationErrorFactory;
 }
 
 /** Compose the existing response in its original order; no binding or recovery decisions. */
 export function createMcpContextPresenter(ports: McpContextPresentationPorts) {
   return async function presentResolution(
-    resolution: GoalBoardRuntimeContextResolution,
-    host: GoalBoardRuntimeContextHost,
+    resolution: MolisWorkRuntimeContextResolution,
+    host: MolisWorkRuntimeContextHost,
     reconcileLegacy: boolean = false,
   ): Promise<string> {
     const webBaseUrl = host.webBaseUrl ?? "http://127.0.0.1:4173";

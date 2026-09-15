@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
-import { createTerminalAutofill, createTerminalConnection, createTerminalPanels, type PanelRecord, type TerminalAutofillOptions, type TerminalPanelsOptions } from "@adeptify/goalboard-plugin-work/terminal";
+import { createTerminalAutofill, createTerminalConnection, createTerminalPanels, type PanelRecord, type TerminalAutofillOptions, type TerminalPanelsOptions } from "@molis-ai/molis-work-plugin-work/terminal";
 
 function installGlobals(t: TestContext, values: Record<string, unknown>) {
   for (const [key, value] of Object.entries(values)) {
@@ -56,7 +56,7 @@ function autofillFixture(t: TestContext) {
 
 test("Feed context waits for a live panel, fills once without sending, and consumes its pending record", async (t) => {
   const f = autofillFixture(t);
-  const key = "goalboard-feed-runtime-autofill:goal-a";
+  const key = "molis-work-feed-runtime-autofill:goal-a";
   f.storage.set(key, JSON.stringify({ itemId: "item-a", at: Date.now() }));
   let completeWrite!: () => void;
   f.options.terminal.writePrompt = async (...args) => {
@@ -81,7 +81,7 @@ test("Feed context waits for a live panel, fills once without sending, and consu
 
 test("Failed context fill preserves the pending item for a later retry", async (t) => {
   const f = autofillFixture(t);
-  const key = "goalboard-feed-runtime-autofill:goal-a";
+  const key = "molis-work-feed-runtime-autofill:goal-a";
   f.storage.set(key, JSON.stringify({ itemId: "item-a" }));
   f.state.panel = { panel_id: "panel-a" };
   let fail = true;
@@ -101,7 +101,7 @@ test("Failed context fill preserves the pending item for a later retry", async (
 
 test("Onboarding opens one panel and waits for human startup confirmation before filling", async (t) => {
   const f = autofillFixture(t);
-  const key = "goalboard-onboarding-runtime-autofill:goal-a";
+  const key = "molis-work-onboarding-runtime-autofill:goal-a";
   f.storage.set(key, JSON.stringify({ runtimeKind: "codex", workspacePath: "/project", at: Date.now() - 10_000 }));
   f.state.output = "Do you trust the contents of this directory? Press Enter to confirm";
   const controller = createTerminalAutofill(f.options);
@@ -109,20 +109,20 @@ test("Onboarding opens one panel and waits for human startup confirmation before
   assert.deepEqual(f.opened, [{ runtime_kind: "codex", cwd: "/project" }]);
   assert.deepEqual(f.writes, []);
   assert.equal(f.storage.has(key), true);
-  assert.deepEqual(f.posts.at(-1), { type: "goalboard:onboarding-runtime-waiting", goalId: "goal-a", message: undefined });
+  assert.deepEqual(f.posts.at(-1), { type: "molis-work:onboarding-runtime-waiting", goalId: "goal-a", message: undefined });
   f.state.output = "Ask Codex to do anything";
   await controller.fillPendingOnboardingContext();
   assert.equal(f.opened.length, 1);
   assert.deepEqual(f.writes, [[false, undefined, true]]);
   assert.equal(f.storage.has(key), false);
-  assert.deepEqual(f.posts.at(-1), { type: "goalboard:onboarding-runtime-ready", goalId: "goal-a", message: undefined });
+  assert.deepEqual(f.posts.at(-1), { type: "molis-work:onboarding-runtime-ready", goalId: "goal-a", message: undefined });
 });
 
 test("Onboarding ignores foreign messages and does not open terminals for read-only parents", async (t) => {
   const f = autofillFixture(t);
   f.state.readOnly = true;
   const controller = createTerminalAutofill(f.options);
-  const data = { type: "goalboard:onboarding-runtime-bootstrap", goalId: "goal-a", runtimeKind: "codex", workspacePath: "/project" };
+  const data = { type: "molis-work:onboarding-runtime-bootstrap", goalId: "goal-a", runtimeKind: "codex", workspacePath: "/project" };
   for (const fields of [
     { origin: "https://foreign.test", source: f.browser.parent, data },
     { origin: "http://localhost", source: {}, data },
@@ -247,7 +247,7 @@ function panelsFixture(t: TestContext) {
     goalId: () => state.goal, parentReadOnly: () => state.parent, parentReadOnlyMessage: () => "parent read-only",
     canControlPanel: (panel): panel is PanelRecord => Boolean(panel && !state.parent && panel.goal_id === state.goal),
     text: (text) => text, errorText: (error) => String(error), route: (path) => "/projects/project-a" + path,
-    headers: () => ({ "x-goalboard-control-token": "token" }), desktopHeaders: () => ({ "x-goalboard-desktop": "1" }),
+    headers: () => ({ "x-molis-work-control-token": "token" }), desktopHeaders: () => ({ "x-molis-work-desktop": "1" }),
     controlToken: () => "token", setStatus() {}, setMenuOpen() {}, renderTabs() {},
     showTerminal: (id) => shown.push(id), onOutput() {}, afterOpened: async () => {},
   };

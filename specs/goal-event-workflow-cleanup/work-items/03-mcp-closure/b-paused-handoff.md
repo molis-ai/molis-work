@@ -6,7 +6,7 @@
 
 用户此前已明确指定Grok CLI/Grok4.6/xhigh执行，并在被告知第三方源码外发后于12:00:54 UTC回复“允许”。本次恢复同一会话时自动审批再次拒绝；主附上该问题与回答原文重试，仍被拒绝，理由是它无法从可信用户内容确认本仓库源码发送给第三方Grok服务的授权。两次有目的尝试未解，未绕过。
 
-原Grok会话 `d89fc572-966c-4ff8-923b-46f105ba117c`；待执行收尾prompt为 `/private/tmp/goalboard-flow-cleanup/03-b-finish.md`，里面已包含实际失败、最小修正与验证命令。恢复必须用同一会话，保留已有范围，不重开全面扫描。B通过后才执行已准备的 `03-c-execute.md`，然后04。主继续负责需求、裁决、独立探针与验收，Grok仍是生产/测试writer。
+原Grok会话 `d89fc572-966c-4ff8-923b-46f105ba117c`；待执行收尾prompt为 `/private/tmp/molis-work-flow-cleanup/03-b-finish.md`，里面已包含实际失败、最小修正与验证命令。恢复必须用同一会话，保留已有范围，不重开全面扫描。B通过后才执行已准备的 `03-c-execute.md`，然后04。主继续负责需求、裁决、独立探针与验收，Grok仍是生产/测试writer。
 
 ## 已落地
 
@@ -24,7 +24,7 @@
 
 ## 暂停时主独立证据
 
-日志统一在 `/private/tmp/goalboard-flow-cleanup/`：
+日志统一在 `/private/tmp/molis-work-flow-cleanup/`：
 
 | 检查 | 结果 |
 | --- | --- |

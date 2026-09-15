@@ -1,3 +1,3 @@
-import { startWorkTerminalClient } from "@adeptify/goalboard-plugin-work/terminal-client";
+import { startWorkTerminalClient } from "@molis-ai/molis-work-plugin-work/terminal-client";
 
 startWorkTerminalClient();

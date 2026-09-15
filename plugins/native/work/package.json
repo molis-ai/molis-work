@@ -1,5 +1,5 @@
 {
-  "name": "@adeptify/goalboard-plugin-work",
+  "name": "@molis-ai/molis-work-plugin-work",
   "version": "0.0.0",
   "private": true,
   "description": "First-party Session, Runtime, resume, and handoff product UI.",
@@ -33,15 +33,15 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@adeptify/goalboard-contracts": "workspace:*",
+    "@molis-ai/molis-work-contracts": "workspace:*",
     "@xterm/xterm": "^6.0.0",
     "@xterm/addon-fit": "^0.11.0"
   },
-  "goalboard": {
+  "molis-work": {
     "path": "plugins/native/work",
     "kind": "native-plugin",
     "maturity": "partial",
-    "contract": "@adeptify/goalboard-contracts/platform/plugin",
+    "contract": "@molis-ai/molis-work-contracts/platform/plugin",
     "migrationGoals": [
       "goal-reorg-f2",
       "goal-reorg-wk3"

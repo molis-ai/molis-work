@@ -1,1 +1,1 @@
-export { PrivateWorkContextError, GoalBoardSessionError } from "@adeptify/goalboard-contracts/modules/private-work-context";
+export { PrivateWorkContextError, MolisWorkSessionError } from "@molis-ai/molis-work-contracts/modules/private-work-context";

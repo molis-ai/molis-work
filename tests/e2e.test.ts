@@ -10,7 +10,7 @@ import test from "node:test";
 const execFileAsync = promisify(execFile);
 
 async function withTemporaryDirectory<T>(run: (directory: string) => Promise<T>): Promise<T> {
-  const directory = await mkdtemp(join(tmpdir(), "goalboard-e2e-"));
+  const directory = await mkdtemp(join(tmpdir(), "molis-work-e2e-"));
   try {
     return await run(directory);
   } finally {
@@ -35,7 +35,7 @@ async function waitForWeb(origin: string, child: ChildProcessWithoutNullStreams)
   const deadline = Date.now() + 10_000;
   let lastError = "尚未响应";
   while (Date.now() < deadline) {
-    if (child.exitCode != null) throw new Error(`GoalBoard Web 提前退出: ${child.exitCode}`);
+    if (child.exitCode != null) throw new Error(`Molis Work Web 提前退出: ${child.exitCode}`);
     try {
       const response = await fetch(`${origin}/settings/diagnostics`);
       if (response.ok) return await response.text();
@@ -45,7 +45,7 @@ async function waitForWeb(origin: string, child: ChildProcessWithoutNullStreams)
     }
     await new Promise((resolve) => setTimeout(resolve, 40));
   }
-  throw new Error(`等待 GoalBoard Web 超时: ${lastError}`);
+  throw new Error(`等待 Molis Work Web 超时: ${lastError}`);
 }
 
 async function stopChild(child: ChildProcessWithoutNullStreams): Promise<void> {
@@ -59,7 +59,7 @@ async function stopChild(child: ChildProcessWithoutNullStreams): Promise<void> {
 }
 
 function controlTokenFrom(html: string): string {
-  const token = html.match(/<meta name="goalboard-control-token" content="([^"]+)">/)?.[1];
+  const token = html.match(/<meta name="molis-work-control-token" content="([^"]+)">/)?.[1];
   assert.ok(token, "设置页必须包含本地控制 token");
   return token;
 }
@@ -72,8 +72,8 @@ function securePost(origin: string, token: string, pathname: string, body: Recor
     headers: {
       "content-type": "application/json",
       origin,
-      "x-goalboard-control-token": token,
-      "x-goalboard-idempotency-key": `goalboard-e2e-web-${webMutationSequence}`,
+      "x-molis-work-control-token": token,
+      "x-molis-work-idempotency-key": `molis-work-e2e-web-${webMutationSequence}`,
     },
     body: JSON.stringify(body),
   });
@@ -129,7 +129,7 @@ class McpClient {
     const response = await this.request("initialize", {
       protocolVersion: "2025-03-26",
       capabilities: {},
-      clientInfo: { name: "goalboard-e2e", version: "1.0.0" },
+      clientInfo: { name: "molis-work-e2e", version: "1.0.0" },
     });
     assert.ok(response.result);
   }
@@ -174,8 +174,8 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
     const repository = process.cwd();
     const artifacts = join(directory, "artifacts");
     const runtimeRoot = join(directory, "runtime");
-    const packageDirectory = join(runtimeRoot, "node_modules", "@adeptify", "goalboard");
-    const goalboardHome = join(directory, "user", ".goalboard");
+    const packageDirectory = join(runtimeRoot, "node_modules", "@molis-ai", "molis-work");
+    const molisWorkHome = join(directory, "user", ".molis-work");
     const userHome = join(directory, "user");
     const fakeBin = join(directory, "fake-bin");
     await Promise.all([mkdir(artifacts, { recursive: true }), mkdir(dirname(packageDirectory), { recursive: true }), mkdir(fakeBin, { recursive: true })]);
@@ -209,10 +209,10 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
       PATH: `${fakeBin}:${process.env.PATH ?? ""}`,
     };
 
-    assert.deepEqual(await readdir(dirname(goalboardHome)), [".claude.json", ".codex"]);
+    assert.deepEqual(await readdir(dirname(molisWorkHome)), [".claude.json", ".codex"]);
     const installOutput = await execFileAsync(
       process.execPath,
-      [join(packageDirectory, "dist", "cli", "main.js"), "install", "--home", goalboardHome, "--source", packageDirectory, "--json"],
+      [join(packageDirectory, "dist", "cli", "main.js"), "install", "--home", molisWorkHome, "--source", packageDirectory, "--json"],
       { cwd: directory, env: environment, maxBuffer: 10 * 1024 * 1024 },
     );
     const installation = JSON.parse(installOutput.stdout) as {
@@ -221,7 +221,7 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
       launchers: { cli: string; mcp: string; web: string };
     };
     assert.equal(installation.status, "installed");
-    assert.deepEqual(await readdir(join(goalboardHome, "projects")), []);
+    assert.deepEqual(await readdir(join(molisWorkHome, "projects")), []);
     assert.equal(await readFile(join(userHome, ".codex", "config.toml"), "utf8"), unrelatedCodexConfig);
 
     const packedReadme = await readFile(join(packageDirectory, "README.md"), "utf8");
@@ -247,16 +247,16 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
     assert.match(packedReadme, /docs\/mcp\.en\.md/);
     assert.match(packedReadme, /skills\/goal-advance\/SKILL\.md/);
     assert.match(packedReadme, /MIT, see \[LICENSE\]/);
-    assert.doesNotMatch(packedReadme, /postinstall-project|兼容模式|GOALBOARD_DATABASE=/);
+    assert.doesNotMatch(packedReadme, /postinstall-project|兼容模式|MOLIS_WORK_DATABASE=/);
 
     await rm(runtimeRoot, { recursive: true, force: true });
     await rm(artifacts, { recursive: true, force: true });
     const cliHelp = await execFileAsync(process.execPath, [installation.launchers.cli, "--help"], { cwd: directory, env: environment });
-    assert.match(cliHelp.stdout, /goalboard v1 <operation>/);
+    assert.match(cliHelp.stdout, /molis-work v1 <operation>/);
 
     const port = await freePort();
     const origin = `http://127.0.0.1:${port}`;
-    const web = spawn(process.execPath, [installation.launchers.web, "--home", goalboardHome, "--port", String(port)], {
+    const web = spawn(process.execPath, [installation.launchers.web, "--home", molisWorkHome, "--port", String(port)], {
       cwd: directory,
       env: environment,
       stdio: ["pipe", "pipe", "pipe"],
@@ -281,7 +281,7 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
         installation_state: "ready",
         version: packageMetadata.version,
         project_count: 0,
-        home_directory: goalboardHome,
+        home_directory: molisWorkHome,
         release_directory: installation.release_directory,
         launchers: [
           { name: "CLI", path: installation.launchers.cli, state: "ready" },
@@ -300,13 +300,13 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
         decision: "confirmed",
       });
       assert.equal(runtimeConfirm.status, 200, await runtimeConfirm.text());
-      assert.match(await readFile(join(userHome, ".codex", "config.toml"), "utf8"), /GOALBOARD_RUNTIME_ID = "codex"/);
+      assert.match(await readFile(join(userHome, ".codex", "config.toml"), "utf8"), /MOLIS_WORK_RUNTIME_ID = "codex"/);
       const installedServiceStart = await readFile(
         join(userHome, ".codex", "skills", "goal-advance", "references", "service-start.md"),
         "utf8",
       );
       assert.match(installedServiceStart, /service status/);
-      assert.match(installedServiceStart, /临时打开 GoalBoard/);
+      assert.match(installedServiceStart, /临时打开 Molis Work/);
       assert.match(installedServiceStart, /one real choice between temporary foreground use and login-persistent use/);
       assert.match(installedServiceStart, /do not ask the same decision again/);
       const installedSkill = await readFile(
@@ -314,21 +314,21 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
         "utf8",
       );
       assert.match(installedSkill, /Never require a fixed phrase or verbatim repetition/);
-      assert.match(installedSkill, /goalboard_v1_event_resume/);
+      assert.match(installedSkill, /molis_work_v1_event_resume/);
       assert.match(installedSkill, /Planning is optional/);
       const installedExecution = await readFile(
         join(userHome, ".codex", "skills", "goal-advance", "references", "execution.md"),
         "utf8",
       );
-      assert.match(installedExecution, /goalboard_v1_event_note/);
-      assert.match(installedExecution, /goalboard_v1_event_report/);
-      assert.match(installedExecution, /goalboard_v1_event_resume/);
+      assert.match(installedExecution, /molis_work_v1_event_note/);
+      assert.match(installedExecution, /molis_work_v1_event_report/);
+      assert.match(installedExecution, /molis_work_v1_event_resume/);
       const installedPlanning = await readFile(
         join(userHome, ".codex", "skills", "goal-advance", "references", "planning.md"),
         "utf8",
       );
       assert.match(installedPlanning, /Plan useful outcomes and real dependencies/);
-      assert.match(installedPlanning, /goalboard_v1_goal_tree_propose/);
+      assert.match(installedPlanning, /molis_work_v1_goal_tree_propose/);
       assert.match(installedPlanning, /Only that real consumption justifies consumer depends_on provider/);
       const installedIndustryMethod = await readFile(
         join(userHome, ".codex", "skills", "goal-advance", "methods", "industries", "industry-education.md"),
@@ -353,7 +353,7 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
       };
       assert.equal(claudeConfig.privateNote, "keep");
       assert.ok(claudeConfig.mcpServers.other);
-      assert.equal(claudeConfig.mcpServers.goalboard.env?.GOALBOARD_RUNTIME_ID, "claude-code");
+      assert.equal(claudeConfig.mcpServers["molis-work"].env?.MOLIS_WORK_RUNTIME_ID, "claude-code");
 
       const projectResponse = await securePost(origin, token, "/api/settings/projects", {
         display_name: "全新安装项目",
@@ -364,11 +364,11 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
 
       const mcpEnvironment = {
         ...environment,
-        GOALBOARD_HOME: goalboardHome,
-        GOALBOARD_MCP_AUDIENCE: "runtime",
-        GOALBOARD_RUNTIME_ID: "codex",
+        MOLIS_WORK_HOME: molisWorkHome,
+        MOLIS_WORK_MCP_AUDIENCE: "runtime",
+        MOLIS_WORK_RUNTIME_ID: "codex",
         CODEX_THREAD_ID: "fresh-install-e2e-session",
-        GOALBOARD_WEB_URL: origin,
+        MOLIS_WORK_WEB_URL: origin,
         PWD: directory,
       };
       const originalNoteBody = "当前 Runtime 在对话内推进工作，Web 不是必经步骤。";
@@ -387,25 +387,25 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
         }).tools;
         const installedNames = installedTools.map((tool) => tool.name);
         for (const name of [
-          "goalboard_v1_goal_intent_create",
-          "goalboard_v1_event_note",
-          "goalboard_v1_goal_state",
-          "goalboard_v1_event_resume",
+          "molis_work_v1_goal_intent_create",
+          "molis_work_v1_event_note",
+          "molis_work_v1_goal_state",
+          "molis_work_v1_event_resume",
         ]) {
           assert.ok(installedNames.includes(name), name);
         }
         for (const name of [
-          "goalboard_v1_evidence_correct",
-          "goalboard_v1_evidence_submit",
-          "goalboard_v1_select_goal",
-          "goalboard_v1_draft_dialogue_start",
-          "goalboard_v1_draft_dialogue_resume",
-          "goalboard_v1_claim",
+          "molis_work_v1_evidence_correct",
+          "molis_work_v1_evidence_submit",
+          "molis_work_v1_select_goal",
+          "molis_work_v1_draft_dialogue_start",
+          "molis_work_v1_draft_dialogue_resume",
+          "molis_work_v1_claim",
         ]) {
           assert.ok(!installedNames.includes(name), name);
         }
         const rejected = await firstMcp.request("tools/call", {
-          name: "goalboard_v1_evidence_correct",
+          name: "molis_work_v1_evidence_correct",
           arguments: { evidence_id: "missing", correction: "should not dispatch" },
         });
         const rejectedResult = (rejected.result ?? {}) as McpToolResult;
@@ -413,7 +413,7 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
         assert.match(rejectedResult.content?.[0]?.text ?? "", /未知|unknown|evidence_correct/i);
         const templates = await firstMcp.request("resources/templates/list", {});
         assert.deepEqual((templates.result as { resourceTemplates: unknown[] }).resourceTemplates, []);
-        const unresolved = await firstMcp.call("goalboard_v1_context_resolve", {}) as {
+        const unresolved = await firstMcp.call("molis_work_v1_context_resolve", {}) as {
           status: string;
           connection: null;
           context: { workspace: { canonical_path: string } };
@@ -421,26 +421,26 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
         assert.equal(unresolved.status, "unbound");
         assert.equal(unresolved.connection, null);
         assert.equal(unresolved.context.workspace.canonical_path, await realpath(directory));
-        const bound = await firstMcp.call("goalboard_v1_context_bind", {
+        const bound = await firstMcp.call("molis_work_v1_context_bind", {
           project_id: created.project.project_id,
           actor_id: "runtime-codex",
           user_confirmed: true,
         }) as { connection: { board_id: string; project_id: string } };
         assert.equal(bound.connection.project_id, created.project.project_id);
         assert.ok(bound.connection.board_id);
-        const started = await firstMcp.call("goalboard_v1_goal_intent_create", {
-          title: "让用户在当前 Runtime 中通过自然语言维护 GoalBoard。",
+        const started = await firstMcp.call("molis_work_v1_goal_intent_create", {
+          title: "让用户在当前 Runtime 中通过自然语言维护 Molis Work。",
           outcome: "当前 Runtime 负责继续对话并持久化工作结果。",
           idempotency_key: "fresh-install-intent",
         }) as { goal: { goal_id: string }; replayed: boolean };
         assert.equal(started.replayed, false);
-        const note = await firstMcp.call("goalboard_v1_event_note", {
+        const note = await firstMcp.call("molis_work_v1_event_note", {
           goal_id: started.goal.goal_id,
           body: originalNoteBody,
           idempotency_key: "fresh-install-note",
         }) as { event_id: string; recorded: boolean; replayed?: boolean };
         assert.equal(note.recorded, true);
-        const state = await firstMcp.call("goalboard_v1_goal_state", {
+        const state = await firstMcp.call("molis_work_v1_goal_state", {
           goal_id: started.goal.goal_id,
         }) as { work_status: string; goal_url: string };
         assert.equal(state.work_status, "open");
@@ -457,27 +457,27 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
         stdio: ["pipe", "pipe", "pipe"],
       }), async (restartedMcp) => {
         await restartedMcp.initialize();
-        const restored = await restartedMcp.call("goalboard_v1_context_resolve", {}) as {
+        const restored = await restartedMcp.call("molis_work_v1_context_resolve", {}) as {
           status: string;
           connection: { project_id: string; board_id: string };
         };
         assert.equal(restored.status, "bound");
         assert.equal(restored.connection.project_id, created.project.project_id);
-        const replayedIntent = await restartedMcp.call("goalboard_v1_goal_intent_create", {
-          title: "让用户在当前 Runtime 中通过自然语言维护 GoalBoard。",
+        const replayedIntent = await restartedMcp.call("molis_work_v1_goal_intent_create", {
+          title: "让用户在当前 Runtime 中通过自然语言维护 Molis Work。",
           outcome: "当前 Runtime 负责继续对话并持久化工作结果。",
           idempotency_key: "fresh-install-intent",
         }) as { replayed: boolean; goal: { goal_id: string } };
         assert.equal(replayedIntent.replayed, true);
         assert.equal(replayedIntent.goal.goal_id, createdGoal.goalId);
-        const replayedNote = await restartedMcp.call("goalboard_v1_event_note", {
+        const replayedNote = await restartedMcp.call("molis_work_v1_event_note", {
           goal_id: createdGoal.goalId,
           body: originalNoteBody,
           idempotency_key: "fresh-install-note",
         }) as { replayed: boolean; event_id: string };
         assert.equal(replayedNote.replayed, true);
         assert.equal(replayedNote.event_id, createdGoal.noteId);
-        const listed = await restartedMcp.call("goalboard_v1_event_list", {
+        const listed = await restartedMcp.call("molis_work_v1_event_list", {
           goal_id: createdGoal.goalId,
           limit: 20,
         }) as { events: Array<{ event_id: string; kind: string; payload?: { operation?: string; body?: string } }> };
@@ -485,7 +485,7 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
         assert.equal(notes.length, 1);
         assert.equal(notes[0]?.payload?.body, originalNoteBody);
         const rejectedOld = await restartedMcp.request("tools/call", {
-          name: "goalboard_v1_draft_dialogue_resume",
+          name: "molis_work_v1_draft_dialogue_resume",
           arguments: { goal_id: createdGoal.goalId },
         });
         assert.equal(((rejectedOld.result ?? {}) as McpToolResult).isError, true);
@@ -493,10 +493,10 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
 
       const genericEnvironment = {
         ...environment,
-        GOALBOARD_HOME: goalboardHome,
-        GOALBOARD_MCP_AUDIENCE: "runtime",
-        GOALBOARD_RUNTIME_ID: "generic-mcp-host",
-        GOALBOARD_WEB_URL: origin,
+        MOLIS_WORK_HOME: molisWorkHome,
+        MOLIS_WORK_MCP_AUDIENCE: "runtime",
+        MOLIS_WORK_RUNTIME_ID: "generic-mcp-host",
+        MOLIS_WORK_WEB_URL: origin,
         PWD: directory,
       };
       await withMcpClient(spawn(process.execPath, [installation.launchers.mcp], {
@@ -506,11 +506,11 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
       }), async (genericMcp) => {
         await genericMcp.initialize();
         const genericSessionA = { sessionId: "generic-session-a" };
-        const genericSuggested = await genericMcp.call("goalboard_v1_context_resolve", {}, genericSessionA);
+        const genericSuggested = await genericMcp.call("molis_work_v1_context_resolve", {}, genericSessionA);
         assert.equal(genericSuggested.status, "bound");
         assert.equal(genericSuggested.connection.project_id, created.project.project_id);
         const freshGenericSession = await genericMcp.call(
-          "goalboard_v1_context_resolve",
+          "molis_work_v1_context_resolve",
           {},
           { sessionId: "generic-session-b" },
         );
@@ -551,7 +551,7 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
     const upgradeVersion = `${packageMetadata.version}-upgrade-test`;
     const upgradeOutput = await execFileAsync(
       process.execPath,
-      [installation.launchers.cli, "install", "--home", goalboardHome, "--source", installation.release_directory, "--version", upgradeVersion, "--json"],
+      [installation.launchers.cli, "install", "--home", molisWorkHome, "--source", installation.release_directory, "--version", upgradeVersion, "--json"],
       { cwd: directory, env: environment, maxBuffer: 10 * 1024 * 1024 },
     );
     const upgrade = JSON.parse(upgradeOutput.stdout) as { status: string; version: string; release_directory: string };
@@ -559,6 +559,6 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
     assert.equal(upgrade.version, upgradeVersion);
     assert.notEqual(upgrade.release_directory, installation.release_directory);
     const upgradedHelp = await execFileAsync(process.execPath, [installation.launchers.cli, "--help"], { cwd: directory, env: environment });
-    assert.match(upgradedHelp.stdout, /goalboard v1 <operation>/);
+    assert.match(upgradedHelp.stdout, /molis-work v1 <operation>/);
   });
 });

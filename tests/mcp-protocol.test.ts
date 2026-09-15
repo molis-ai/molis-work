@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { handleMcpMessage, type McpProtocolPorts, type McpToolCallContext } from "@adeptify/goalboard-app-mcp";
+import { handleMcpMessage, type McpProtocolPorts, type McpToolCallContext } from "@molis-ai/molis-work-app-mcp";
 
-const serverInfo = { name: "goalboard-mcp", version: "1.0.0" };
+const serverInfo = { name: "molis-work-mcp", version: "1.0.0" };
 const tools = [{ name: "fixture-query", description: "Read fixture", inputSchema: { type: "object" } }];
 
 test("MCP protocol negotiation, discovery and notifications do not execute application work", async () => {
@@ -33,8 +33,9 @@ test("MCP invokes the application once with unchanged arguments and host-only me
     formatToolError: () => assert.fail("Successful call formatted an error") };
   const input = { board_id: "selected", _meta: { threadId: "model-input-not-host" }, idempotency_key: "unchanged-key" };
   const cases: Array<[unknown, McpToolCallContext]> = [
-    [{ "goalboard/sessionId": " dedicated ", threadId: "thread", sessionId: "session" }, { runtimeSessionId: "dedicated", runtimeSessionIdSource: "goalboard/sessionId" }],
-    [{ "goalboard/sessionId": " ", threadId: " thread ", sessionId: "session" }, { runtimeSessionId: "thread", runtimeSessionIdSource: "threadId" }],
+    [{ "molis-work/sessionId": " dedicated ", threadId: "thread", sessionId: "session" }, { runtimeSessionId: "dedicated", runtimeSessionIdSource: "molis-work/sessionId" }],
+    [{ "goalboard/sessionId": " legacy-session ", threadId: "thread", sessionId: "session" }, { runtimeSessionId: "legacy-session", runtimeSessionIdSource: "goalboard/sessionId" }],
+    [{ "molis-work/sessionId": " ", threadId: " thread ", sessionId: "session" }, { runtimeSessionId: "thread", runtimeSessionIdSource: "threadId" }],
     [{ threadId: 123, sessionId: " session " }, { runtimeSessionId: "session", runtimeSessionIdSource: "sessionId" }],
     [undefined, { runtimeSessionId: null, runtimeSessionIdSource: null }],
     [[], { runtimeSessionId: null, runtimeSessionIdSource: null }],

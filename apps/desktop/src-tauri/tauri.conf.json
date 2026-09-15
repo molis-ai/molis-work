@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "GoalBoard",
+  "productName": "Molis Work",
   "version": "0.2.0",
-  "identifier": "com.adeptify.goalboard",
+  "identifier": "com.molis.work",
   "build": {
     "frontendDist": "../webview-placeholder"
   },
@@ -12,7 +12,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "GoalBoard",
+        "title": "Molis Work",
         "width": 1180,
         "height": 760,
         "minWidth": 460,
@@ -29,7 +29,7 @@
       },
       {
         "label": "capsule",
-        "title": "GoalBoard 工作胶囊",
+        "title": "Molis Work 工作胶囊",
         "width": 420,
         "height": 476,
         "resizable": false,
@@ -49,7 +49,7 @@
   "bundle": {
     "active": true,
     "targets": ["app", "dmg"],
-    "resources": ["resources/goalboard-runtime"],
+    "resources": ["resources/molis-work-runtime"],
     "icon": ["icons/icon.png", "icons/icon.icns"],
     "macOS": {
       "minimumSystemVersion": "13.0"

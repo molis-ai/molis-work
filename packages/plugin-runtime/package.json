@@ -1,5 +1,5 @@
 {
-  "name": "@adeptify/goalboard-plugin-runtime",
+  "name": "@molis-ai/molis-work-plugin-runtime",
   "version": "0.0.0",
   "private": true,
   "description": "Plugin identity, install, grants, isolation, lifecycle, and rollback boundary.",
@@ -25,13 +25,13 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@adeptify/goalboard-contracts": "workspace:*"
+    "@molis-ai/molis-work-contracts": "workspace:*"
   },
-  "goalboard": {
+  "molis-work": {
     "path": "packages/plugin-runtime",
     "kind": "foundation",
     "maturity": "partial",
-    "contract": "@adeptify/goalboard-contracts/platform/plugin",
+    "contract": "@molis-ai/molis-work-contracts/platform/plugin",
     "migrationGoals": [
       "goal-reorg-f2",
       "goal-reorg-fd3",

@@ -34,4 +34,4 @@
 
 ## 结论
 
-Inbox 工作台的待处理行动层级、响应式路径和现有业务操作满足本子 Goal 的三个验收条件，可以进入 Runtime 自检与 GoalBoard 收口。
+Inbox 工作台的待处理行动层级、响应式路径和现有业务操作满足本子 Goal 的三个验收条件，可以进入 Runtime 自检与 Molis Work 收口。

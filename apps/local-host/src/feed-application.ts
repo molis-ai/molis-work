@@ -1,29 +1,29 @@
 import {
   LocalSqliteJournal,
-} from "@adeptify/goalboard-storage";
+} from "@molis-ai/molis-work-storage";
 import {
   randomUUID,
 } from "node:crypto";
-import type { SqliteDatabase } from "@adeptify/goalboard-storage";
+import type { SqliteDatabase } from "@molis-ai/molis-work-storage";
 import {
   createContextLedger,
-} from "@adeptify/goalboard-module-context-ledger";
+} from "@molis-ai/molis-work-module-context-ledger";
 import {
   createGoalReadServices,
-} from "@adeptify/goalboard-module-goals";
+} from "@molis-ai/molis-work-module-goals";
 
 import {
   AttentionModule,
-} from "@adeptify/goalboard-module-attention-resumption";
+} from "@molis-ai/molis-work-module-attention-resumption";
 import {
   FeedModule,
   FeedReceiptStore,
-} from "@adeptify/goalboard-module-feed";
+} from "@molis-ai/molis-work-module-feed";
 
 import {
   SourcesError,
   SourcesModule,
-} from "@adeptify/goalboard-module-sources";
+} from "@molis-ai/molis-work-module-sources";
 import {
   deleteListenerSourceState,
   getListenerRunByOperationId,
@@ -33,11 +33,19 @@ import {
   recoverInterruptedListenerRuns,
   saveListenerRun,
   writeListenerCursor,
-} from "@adeptify/goalboard-service-listener-host";
-import { FeedApplication, type FeedApplicationPorts } from "@adeptify/goalboard-plugin-feed";
+} from "@molis-ai/molis-work-service-listener-host";
+import { FeedApplication, FeedOutRuleStore, type FeedApplicationPorts, type FeedArtifactProducer } from "@molis-ai/molis-work-plugin-feed";
+import { ArtifactsModule, type ArtifactsSqliteDatabase } from "@molis-ai/molis-work-module-artifacts";
+
+export interface LocalFeedApplicationOptions {
+  artifacts?: FeedArtifactProducer;
+}
 
 /** Assemble every Feed operation against the same local connection. */
-export function createLocalFeedApplication(db: SqliteDatabase): FeedApplication {
+export function createLocalFeedApplication(
+  db: SqliteDatabase,
+  options: LocalFeedApplicationOptions = {},
+): FeedApplication {
   const sources = new SourcesModule(db);
   const receipts = new FeedReceiptStore(db);
   const journal = new LocalSqliteJournal(db);
@@ -90,8 +98,27 @@ export function createLocalFeedApplication(db: SqliteDatabase): FeedApplication 
     journal.appendEvent({ eventId: `event-${randomUUID()}`, boardId, actorId: "web-user",
       objectType, objectId, type, reason, payload, at });
   }
+  const artifactsModule = new ArtifactsModule({
+    db: db as unknown as ArtifactsSqliteDatabase,
+    appendEvent: (input) => journal.appendEvent({
+      eventId: input.eventId,
+      boardId: input.boardId,
+      actorId: input.actorId,
+      type: input.type,
+      objectType: input.objectType,
+      objectId: input.objectId,
+      reason: input.reason,
+      payload: input.payload,
+      at: input.at,
+    }),
+  });
   return new FeedApplication({
     sources, feed: feedItems, attention, receipts, appendEvent,
+    outRules: new FeedOutRuleStore(db),
+    artifacts: options.artifacts ?? {
+      registerVersion: (input) => artifactsModule.commands.registerVersion(input),
+      latestVersion: (boardId, artifactId) => artifactsModule.query.latestArtifactVersion(boardId, artifactId),
+    },
     transaction: (operation) => db.transaction(operation).immediate(),
     listener: {
       listRuns: (boardId) => listListenerRuns(db, boardId),

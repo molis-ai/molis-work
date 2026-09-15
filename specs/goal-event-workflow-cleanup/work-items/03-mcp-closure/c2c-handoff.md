@@ -85,8 +85,8 @@ Event-owned Goal state is the current write/read path:
 
 | Check | Result | Log |
 | --- | --- | --- |
-| `pnpm_config_verify_deps_before_run=warn pnpm build` | EXIT 0 | `/private/tmp/goalboard-flow-cleanup/03-c2c-build.log` |
-| `pnpm_config_verify_deps_before_run=warn pnpm boundary:check` | EXIT 0; `errors: []`; 38 packages, 671 source files | `/private/tmp/goalboard-flow-cleanup/03-c2c-boundary.log` |
+| `pnpm_config_verify_deps_before_run=warn pnpm build` | EXIT 0 | `/private/tmp/molis-work-flow-cleanup/03-c2c-build.log` |
+| `pnpm_config_verify_deps_before_run=warn pnpm boundary:check` | EXIT 0; `errors: []`; 38 packages, 671 source files | `/private/tmp/molis-work-flow-cleanup/03-c2c-boundary.log` |
 
 Root 03 probes were not run (READONLY; root continues acceptance). Tests were not run (C2d).
 
@@ -109,7 +109,7 @@ Root continues acceptance probes, then C2d tests, then 04 (docs/Skill/copy). Thi
 
 Full build and boundary command completion were independently verified as EXIT0. The unchanged public runtime/retirement/identity/import/planning/metrics/migration/agreement/tree/Web/Session-repair/demo probes pass; current directory/archiving/trash/history/reopen also passes after root fixed its temporary harness to distinguish event rows from the board journal cursor. Two actual current defects remain: v35 historical pending Candidate/self-review/open Risk yields four current pending decisions despite zero event decisions; actual project HTTP Handoff includes old Current Run/Effective Evidence/Pending review roles and gives a cancelled Goal direct-continuation instructions. Their root logs are `03-c2c-root-current-decision.log` and `03-c2c-root-current-handoff.log`.
 
-Source review also confirms explicit no-op Draft/risk/impact client adapters, empty Draft context/render helpers, historical proposal title-only notices, and retained old state/parent-completion algorithms. These violate the accepted cleanup boundary; build success does not accept them. One bounded correction is in `/private/tmp/goalboard-flow-cleanup/03-c2c-root-correction.md`; tests remain C2d. Root has not accepted C2c or level4.
+Source review also confirms explicit no-op Draft/risk/impact client adapters, empty Draft context/render helpers, historical proposal title-only notices, and retained old state/parent-completion algorithms. These violate the accepted cleanup boundary; build success does not accept them. One bounded correction is in `/private/tmp/molis-work-flow-cleanup/03-c2c-root-correction.md`; tests remain C2d. Root has not accepted C2c or level4.
 
 ## Root-review correction (this session)
 
@@ -184,8 +184,8 @@ No other files were deleted under this approval. Unrelated `desktop/20260902-022
 
 | Check | Result | Log |
 | --- | --- | --- |
-| `pnpm_config_verify_deps_before_run=warn pnpm build` | EXIT 0 | `/private/tmp/goalboard-flow-cleanup/03-c2c-approved-delete-build.log` |
-| `pnpm_config_verify_deps_before_run=warn pnpm boundary:check` | EXIT 0; `errors: []`; 38 packages, 664 source files (was 671) | `/private/tmp/goalboard-flow-cleanup/03-c2c-approved-delete-boundary.log` |
+| `pnpm_config_verify_deps_before_run=warn pnpm build` | EXIT 0 | `/private/tmp/molis-work-flow-cleanup/03-c2c-approved-delete-build.log` |
+| `pnpm_config_verify_deps_before_run=warn pnpm boundary:check` | EXIT 0; `errors: []`; 38 packages, 664 source files (was 671) | `/private/tmp/molis-work-flow-cleanup/03-c2c-approved-delete-boundary.log` |
 
 Root 03 probes were not run (READONLY). Tests were not run (C2d). Remaining issue: none from this scoped deletion. Root continues affected probes, then C2d/04.
 
@@ -194,4 +194,4 @@ C2c final correction evidence: the user-approved seven-file deletion is complete
 
 C2d begins with one additional reproduced Handoff defect. Root's 03-handoff-history-acceptance.mjs loads original v35 CORE, retires an actual mapped requirement through trusted setAgreement, and confirms the original acceptance criteria remain unchanged. The final production handoff still shows that retired criterion in its CURRENT acceptance section, before historical reading. Log: 03-c2c-corrected-root-handoff-history.log. Current acceptance must consume only current event requirements; original statements, pass conditions and decision methods remain readable under explicit history. The root probe is read-only.
 
-The allowed small C2d production correction is in plugins/native/work/src/handoff-package.ts and its retained tests. Also replace the internal resumeWork(reason) instruction with the actual public goalboard_v1_event_resume tool or a clear user action. Preserve the completed/cancelled boundary, Session delivery/source validation/provenance/version/storage, and the four original v35 SQL files. This is a correction within the existing current/history contract, not new product scope. C2 and overall level 4 are not yet complete.
+The allowed small C2d production correction is in plugins/native/work/src/handoff-package.ts and its retained tests. Also replace the internal resumeWork(reason) instruction with the actual public molis_work_v1_event_resume tool or a clear user action. Preserve the completed/cancelled boundary, Session delivery/source validation/provenance/version/storage, and the four original v35 SQL files. This is a correction within the existing current/history contract, not new product scope. C2 and overall level 4 are not yet complete.

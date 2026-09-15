@@ -6,7 +6,7 @@ name: "设计与规划"
 summary: "先固定目标和约束，再形成可验证方案与落地路径。"
 applies_to: ["产品设计","系统设计","项目规划"]
 domain_tags: ["design","plan"]
-source_refs: ["GoalBoard planning-engine spec"]
+source_refs: ["Molis Work planning-engine spec"]
 confidence: 0.93
 ---
 

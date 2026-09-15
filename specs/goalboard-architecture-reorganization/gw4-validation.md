@@ -7,7 +7,7 @@ Goal：`goal-reorg-gw4`
 ## gw4-boundary
 
 - `packages/contracts/modules/goals` 公开 `GoalsApplicationApi`，稳定组合 `commands`、`lifecycle`、`planning` 三个端口。
-- `GoalBoardCoordinator.goals` 只公开 Contract 类型；Web、MCP、CLI 分别通过 `apps/workbench`、`apps/mcp`、`apps/cli` 的薄 adapter 绑定。
+- `MolisWorkCoordinator.goals` 只公开 Contract 类型；Web、MCP、CLI 分别通过 `apps/workbench`、`apps/mcp`、`apps/cli` 的薄 adapter 绑定。
 - 三个 App adapter 不导入 Goals implementation、Store、SQLite 或 Coordinator implementation，也不复制业务判断。
 - `pnpm boundary:check`：48 个 package、108 个 package source files、180 个 imports、54 条依赖边、30 个 Contract subpath、18 条 compatibility allowlist、14 个 legacy huge files，0 error。
 - `pnpm boundary:test`：9/9 通过；覆盖 deep import、跨 Module implementation/Store、Plugin implementation 互相导入、App 直连数据库、回流 legacy root、越界 relative import、公开 Contract、import 提取和依赖环。
@@ -15,7 +15,7 @@ Goal：`goal-reorg-gw4`
 
 ## gw4-legacy-exit
 
-- `GoalBoardCoordinator` 的 Goal write、Lifecycle、Planning 旧公开转发方法已经删除；内部 Goal mutation/analysis 也调用 `coordinator.goals` 公开端口。
+- `MolisWorkCoordinator` 的 Goal write、Lifecycle、Planning 旧公开转发方法已经删除；内部 Goal mutation/analysis 也调用 `coordinator.goals` 公开端口。
 - Web、MCP、CLI、demo、migration 和 Feed promotion 不再调用已删除 Facade；边界门禁会阻止旧调用重新出现。
 - 零 caller 的 `src/planning/goal-graph.ts`、`method-catalog.ts`、`method-packs.ts` 与 `src/v1/goal-decomposition-validation.ts` re-export 已删除。
 - `src/v1/coordinator.ts` 从重组基线 15,168 行降至 12,423 行；本切片没有把原实现整体搬进另一个 Huge Class。

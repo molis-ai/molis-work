@@ -1,4 +1,4 @@
-import type { GoalPolicy } from "@adeptify/goalboard-contracts/modules/goals";
+import type { GoalPolicy } from "@molis-ai/molis-work-contracts/modules/goals";
 
 /** Existing Web projection; its legacy scope strings are not Module binding scopes. */
 export interface GoalsPolicyBinding {

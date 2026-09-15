@@ -1,17 +1,17 @@
 import type {
   EvidenceVerificationApplicationApi,
   EvidenceQueryApi,
-} from "@adeptify/goalboard-contracts/modules/evidence-verification";
+} from "@molis-ai/molis-work-contracts/modules/evidence-verification";
 
 import { EvidenceRepository, type EvidenceSqliteDatabase } from "./repository.js";
 import { EvidenceVerificationService } from "./verification.js";
 
 export const packageDescriptor = {
-  packageName: "@adeptify/goalboard-module-evidence-verification",
+  packageName: "@molis-ai/molis-work-module-evidence-verification",
   packagePath: "modules/evidence-verification",
   kind: "module",
   maturity: "partial",
-  contract: "@adeptify/goalboard-contracts/modules/evidence-verification",
+  contract: "@molis-ai/molis-work-contracts/modules/evidence-verification",
   migrationGoals: ["goal-reorg-f2", "goal-reorg-ex2", "goal-reorg-ex4"],
   ssot: "docs/SSOT-MATRIX.md",
   capabilities: [
@@ -20,7 +20,7 @@ export const packageDescriptor = {
   ],
 } as const;
 
-export type GoalBoardPackageDescriptor = typeof packageDescriptor;
+export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export interface EvidenceVerificationModuleOptions {
   db: EvidenceSqliteDatabase;

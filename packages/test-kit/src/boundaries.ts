@@ -97,7 +97,7 @@ export function evaluateImportBoundary(observation: ImportObservation): readonly
     );
   }
 
-  if (specifier === "@adeptify/goalboard" || specifier.startsWith("@adeptify/goalboard/")) {
+  if (specifier === "@molis-ai/molis-work" || specifier.startsWith("@molis-ai/molis-work/")) {
     violations.push(
       violation(
         "legacy-root-import",
@@ -107,12 +107,12 @@ export function evaluateImportBoundary(observation: ImportObservation): readonly
     );
   }
 
-  if (specifier === "@adeptify/goalboard-contracts") {
+  if (specifier === "@molis-ai/molis-work-contracts") {
     violations.push(
       violation(
         "contracts-root-import",
         observation,
-        "Use an explicit @adeptify/goalboard-contracts subpath so the consumed Contract owner is visible",
+        "Use an explicit @molis-ai/molis-work-contracts subpath so the consumed Contract owner is visible",
       ),
     );
   }
@@ -170,7 +170,7 @@ export function evaluateImportBoundary(observation: ImportObservation): readonly
     );
   }
 
-  if (target.name === "@adeptify/goalboard-test-kit" && importer.name !== target.name) {
+  if (target.name === "@molis-ai/molis-work-test-kit" && importer.name !== target.name) {
     violations.push(
       violation(
         "production-test-kit-dependency",
@@ -180,7 +180,7 @@ export function evaluateImportBoundary(observation: ImportObservation): readonly
     );
   }
 
-  if (importer.name === "@adeptify/goalboard-contracts") {
+  if (importer.name === "@molis-ai/molis-work-contracts") {
     violations.push(
       violation(
         "contracts-implementation-dependency",

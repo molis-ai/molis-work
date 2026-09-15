@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { DEMO_BOARD_ID } from "@adeptify/goalboard-app-local-host";
+import { DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 test("canvas retries graph loading, pans without bounds, drags compact nodes without changing dependencies, and restores its view", { timeout: 60_000 }, async (t) => {

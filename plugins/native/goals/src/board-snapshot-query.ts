@@ -1,9 +1,9 @@
-import type { GoalsQueryApi, GoalsImpactApi } from "@adeptify/goalboard-contracts/modules/goals";
-import type { ExecutionQueryApi } from "@adeptify/goalboard-contracts/modules/execution";
-import type { EvidenceQueryApi } from "@adeptify/goalboard-contracts/modules/evidence-verification";
-import type { GovernanceApplicationApi, GovernanceQueryApi } from "@adeptify/goalboard-contracts/modules/governance-collaboration";
+import type { GoalsQueryApi, GoalsImpactApi } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { ExecutionQueryApi } from "@molis-ai/molis-work-contracts/modules/execution";
+import type { EvidenceQueryApi } from "@molis-ai/molis-work-contracts/modules/evidence-verification";
+import type { GovernanceApplicationApi, GovernanceQueryApi } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import type { BoardSnapshot } from "./goal-entry-contract.js";
-export interface GoalBoardSnapshotPorts {
+export interface MolisWorkSnapshotPorts {
  goals: GoalsQueryApi;
  impacts: Pick<GoalsImpactApi, "list">;
  execution: ExecutionQueryApi;
@@ -12,7 +12,7 @@ export interface GoalBoardSnapshotPorts {
  clarification: Pick<GovernanceApplicationApi["clarification"], "listSessions" | "listTurns">;
 }
 /** One read model from the owning Module queries, preserving their history and ordering. */
-export function readGoalBoardSnapshot(ports: GoalBoardSnapshotPorts, boardId: string): BoardSnapshot {
+export function readMolisWorkSnapshot(ports: MolisWorkSnapshotPorts, boardId: string): BoardSnapshot {
     const goals = ports.goals.snapshot(boardId);
     const execution = ports.execution;
     const evidence = ports.evidence;

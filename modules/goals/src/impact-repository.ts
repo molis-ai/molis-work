@@ -1,4 +1,4 @@
-import type { ImpactBindingRecord } from "@adeptify/goalboard-contracts/modules/goals";
+import type { ImpactBindingRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { GoalsSqliteDatabase } from "./repository.js";
 
 export const GOAL_IMPACTS_SCHEMA_SQL = `

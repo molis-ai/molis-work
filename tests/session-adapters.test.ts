@@ -1,4 +1,4 @@
-import { RegistryFallbackSessionAdapter } from "@adeptify/goalboard-plugin-work";
+import { RegistryFallbackSessionAdapter } from "@molis-ai/molis-work-plugin-work";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
@@ -8,13 +8,13 @@ import {
   assertCompleteRuntimeSessionCapabilities,
   CodexRuntimeSessionAdapter,
   RuntimeHostRouter,
-} from "@adeptify/goalboard-service-runtime-host";
-import { GoalBoardSessionRegistry } from "@adeptify/goalboard-module-private-work-context";
+} from "@molis-ai/molis-work-service-runtime-host";
+import { MolisWorkSessionRegistry } from "@molis-ai/molis-work-module-private-work-context";
 
 function definitelyRejected(message: string): Error {
   return Object.assign(new Error(message), { deliveryAccepted: false, retryable: true });
 }
-import { RUNTIME_SESSION_CAPABILITIES, type RuntimeSessionTransport } from "@adeptify/goalboard-contracts/services/runtime-host";
+import { RUNTIME_SESSION_CAPABILITIES, type RuntimeSessionTransport } from "@molis-ai/molis-work-contracts/services/runtime-host";
 
 test("Codex Adapter declares every capability and routes only through verified app-server methods", async () => {
   const calls: Array<{ method: string; params: Record<string, unknown> }> = [];
@@ -62,8 +62,8 @@ test("Codex Adapter declares every capability and routes only through verified a
 });
 
 test("unknown Runtime uses honest registry fallback without Runtime-name branching", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "goalboard-session-adapter-"));
-  const registry = await openWorkSessionRegistry({ homeDirectory: path.join(directory, ".goalboard") });
+  const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-session-adapter-"));
+  const registry = await openWorkSessionRegistry({ homeDirectory: path.join(directory, ".molis-work") });
   try {
     const router = new RuntimeHostRouter((runtimeId) => new RegistryFallbackSessionAdapter(runtimeId, registry));
     const created = await router.invoke("future-runtime", "create", {
@@ -123,10 +123,10 @@ test("Codex read uses metadata plus a bounded newest-first summary page", async 
   ]);
   const value = result.value as {
     thread: { turns: Array<{ id: string }> };
-    goalboard_history_page: { mode: string; turn_count: number; has_earlier: boolean };
+    molis_work_history_page: { mode: string; turn_count: number; has_earlier: boolean };
   };
   assert.deepEqual(value.thread.turns.map((turn) => turn.id), ["turn-old", "turn-new"]);
-  assert.deepEqual(value.goalboard_history_page, { mode: "summary", turn_count: 2, has_earlier: true });
+  assert.deepEqual(value.molis_work_history_page, { mode: "summary", turn_count: 2, has_earlier: true });
 });
 
 test("Adapter failures stay failed instead of becoming empty native results", async () => {
@@ -197,4 +197,4 @@ test("Codex Handoff does not automatically retry an ambiguous delivery error", a
     assert.equal(result.recovery?.retryable, false);
   }
 });
-import { openWorkSessionRegistry } from "@adeptify/goalboard-app-local-host";
+import { openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";

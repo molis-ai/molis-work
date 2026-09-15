@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { DEMO_BOARD_ID } from "@adeptify/goalboard-app-local-host";
+import { DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { insertHistoricalRisk } from "./historical-sql-fixture.js";
 
@@ -15,7 +15,7 @@ test("Goal description keeps risk links and hash targets usable through real nav
     goal_ids: ["RELEASE"],
     description,
     probability: "medium",
-    impact: "用户看不到 GoalBoard 工具，无法开始第一次使用",
+    impact: "用户看不到 Molis Work 工具，无法开始第一次使用",
     affected_surfaces: ["首次安装", "Runtime 接入"],
     trigger: "用户继续使用接入前已经打开的会话",
     treatment: "mitigate",

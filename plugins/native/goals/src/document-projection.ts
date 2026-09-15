@@ -1,4 +1,4 @@
-import type { GoalRecord } from "@adeptify/goalboard-contracts/modules/goals";
+import type { GoalRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { BoardSnapshot } from "./goal-entry-contract.js";
 import type { GoalsDocumentView } from "./document-view.js";
 import type { GoalDisplayStatus, GoalPresentationState } from "./tree-order.js";

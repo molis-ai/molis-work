@@ -12,7 +12,7 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
         error.hidden = true;
         try {
           const response = await fetch("/api/settings/projects/" + encodeURIComponent(form.dataset.projectRename) + "/rename", {
-            method: "POST", headers: goalboardControlHeaders(),
+            method: "POST", headers: molisWorkControlHeaders(),
             body: JSON.stringify({ display_name: String(new FormData(form).get("display_name") || "").trim() }),
           });
           const result = await response.json();
@@ -49,8 +49,8 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       if (busy || !confirmation.checked) return;
-      const headers = goalboardControlHeaders();
-      deletionKey ||= headers["x-goalboard-idempotency-key"];
+      const headers = molisWorkControlHeaders();
+      deletionKey ||= headers["x-molis-work-idempotency-key"];
       busy = true;
       submit.disabled = cancel.disabled = confirmation.disabled = true;
       error.hidden = true;
@@ -64,7 +64,7 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
         if (!response.ok) throw new Error(result.error || L("项目删除失败"));
         cleanupPending = result.deletion.cleanup_state !== "complete";
         if (cleanupPending) throw new Error(L("项目已从目录移除，但本机数据清理未完成。请重试清理。"));
-        location.assign(globalThis.goalboardNavigationUrl(form.dataset.projectDirectoryHref));
+        location.assign(globalThis.molisWorkNavigationUrl(form.dataset.projectDirectoryHref));
       } catch (caught) {
         error.textContent = caught.message || L("项目删除失败");
         error.hidden = false;

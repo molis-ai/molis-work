@@ -1,16 +1,16 @@
-import { RegistryFallbackSessionAdapter } from "@adeptify/goalboard-plugin-work";
+import { RegistryFallbackSessionAdapter } from "@molis-ai/molis-work-plugin-work";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { CodexRuntimeSessionAdapter, RuntimeHostRouter } from "@adeptify/goalboard-service-runtime-host";
-import { SessionContentService } from "@adeptify/goalboard-plugin-work";
-import { GoalBoardSessionRegistry } from "@adeptify/goalboard-module-private-work-context";
+import { CodexRuntimeSessionAdapter, RuntimeHostRouter } from "@molis-ai/molis-work-service-runtime-host";
+import { SessionContentService } from "@molis-ai/molis-work-plugin-work";
+import { MolisWorkSessionRegistry } from "@molis-ai/molis-work-module-private-work-context";
 
 test("resume loads the same native Session through its owning Runtime only", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "goalboard-session-resume-"));
-  const registry = await openWorkSessionRegistry({ homeDirectory: path.join(directory, ".goalboard") });
+  const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-session-resume-"));
+  const registry = await openWorkSessionRegistry({ homeDirectory: path.join(directory, ".molis-work") });
   try {
     const session = registry.explicitlyLinkSession({
       runtime_id: "codex",
@@ -43,8 +43,8 @@ test("resume loads the same native Session through its owning Runtime only", asy
 });
 
 test("Runtime without native resume returns an explicit Handoff next action", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "goalboard-session-resume-fallback-"));
-  const registry = await openWorkSessionRegistry({ homeDirectory: path.join(directory, ".goalboard") });
+  const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-session-resume-fallback-"));
+  const registry = await openWorkSessionRegistry({ homeDirectory: path.join(directory, ".molis-work") });
   try {
     const session = registry.explicitlyLinkSession({
       runtime_id: "future-runtime",
@@ -63,8 +63,8 @@ test("Runtime without native resume returns an explicit Handoff next action", as
 });
 
 test("an already-open Codex Session reports its active writer instead of a generic retry", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "goalboard-session-resume-active-"));
-  const registry = await openWorkSessionRegistry({ homeDirectory: path.join(directory, ".goalboard") });
+  const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-session-resume-active-"));
+  const registry = await openWorkSessionRegistry({ homeDirectory: path.join(directory, ".molis-work") });
   try {
     const session = registry.explicitlyLinkSession({
       runtime_id: "codex",
@@ -89,4 +89,4 @@ test("an already-open Codex Session reports its active writer instead of a gener
     await rm(directory, { recursive: true, force: true });
   }
 });
-import { openWorkSessionRegistry } from "@adeptify/goalboard-app-local-host";
+import { openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";

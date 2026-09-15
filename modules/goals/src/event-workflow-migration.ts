@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { GoalEventRequirementCommitment } from "@adeptify/goalboard-contracts/modules/goals";
+import type { GoalEventRequirementCommitment } from "@molis-ai/molis-work-contracts/modules/goals";
 import { commitmentsMatch } from "./event-state-authorization.js";
 import { GOAL_EVENT_WORKFLOW_MIGRATION_ID } from "./event-state-schema.js";
 import type { GoalLifecycleMigrationDatabase } from "./migrations.js";

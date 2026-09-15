@@ -1,7 +1,7 @@
-import type { GoalEventTimelineItem, GoalEventTimelinePage, GoalHistoryLane } from "@adeptify/goalboard-contracts/modules/goals";
-import type { ExecutionRunRecord } from "@adeptify/goalboard-contracts/modules/execution";
-import type { EvidenceRecord } from "@adeptify/goalboard-contracts/modules/evidence-verification";
-import type { ReviewObligationRecord, ReviewRecord } from "@adeptify/goalboard-contracts/modules/governance-collaboration";
+import type { GoalEventTimelineItem, GoalEventTimelinePage, GoalHistoryLane } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { ExecutionRunRecord } from "@molis-ai/molis-work-contracts/modules/execution";
+import type { EvidenceRecord } from "@molis-ai/molis-work-contracts/modules/evidence-verification";
+import type { ReviewObligationRecord, ReviewRecord } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import type { GoalsDecisionEvent } from "./decision-view.js";
 import type { BoardSnapshot } from "./goal-entry-contract.js";
 

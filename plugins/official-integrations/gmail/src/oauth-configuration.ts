@@ -2,8 +2,8 @@ import { GMAIL_OAUTH_CALLBACK_PATH, GMAIL_CLIENT_ID_REF, GMAIL_CLIENT_SECRET_REF
 
 export function createGmailOAuthConfiguration(ports: GmailOAuthPorts) {
   function defaultGmailRedirectUri(port?: string | number): string {
-    const p = port ?? ports.environment().PORT ?? ports.environment().GOALBOARD_WEB_PORT ?? "3000";
-    const host = ports.environment().GOALBOARD_WEB_HOST || "127.0.0.1";
+    const p = port ?? ports.environment().PORT ?? ports.environment().MOLIS_WORK_WEB_PORT ?? "3000";
+    const host = ports.environment().MOLIS_WORK_WEB_HOST || "127.0.0.1";
     return `http://${host}:${p}${GMAIL_OAUTH_CALLBACK_PATH}`;
   }
 
@@ -33,23 +33,23 @@ export function createGmailOAuthConfiguration(ports: GmailOAuthPorts) {
         `Gmail OAuth redirect must target loopback (127.0.0.1 / localhost), not ${host} — ${RESTART_HINT}`,
       );
     }
-    // A catalog-backed GoalBoard URL is project-scoped. Accept exactly the
+    // A catalog-backed Molis Work URL is project-scoped. Accept exactly the
     // callback itself or one encoded project segment followed by the callback;
     // reject every other prefix/suffix.
-    if (!isGoalBoardGmailCallbackPath(url.pathname)) {
+    if (!isMolisWorkGmailCallbackPath(url.pathname)) {
       throw new Error(
-        `Gmail OAuth redirect path must target the GoalBoard project callback — ${RESTART_HINT}`,
+        `Gmail OAuth redirect path must target the Molis Work project callback — ${RESTART_HINT}`,
       );
     }
   }
 
   /**
    * Public HTTPS callback for server deployments (CONN-002): when
-   * GOALBOARD_PUBLIC_BASE_URL is configured, members authorize from their own
+   * MOLIS_WORK_PUBLIC_BASE_URL is configured, members authorize from their own
    * browsers and Google redirects back to the shared instance's domain.
    */
   function publicGmailCallbackUri(): string | null {
-    const base = ports.environment().GOALBOARD_PUBLIC_BASE_URL?.trim().replace(/\/+$/, "");
+    const base = ports.environment().MOLIS_WORK_PUBLIC_BASE_URL?.trim().replace(/\/+$/, "");
     if (!base) return null;
     return `${base}${GMAIL_OAUTH_CALLBACK_PATH}`;
   }
@@ -68,7 +68,7 @@ export function createGmailOAuthConfiguration(ports: GmailOAuthPorts) {
         if (
           candidate.protocol === "https:"
           && candidate.origin === expected.origin
-          && isGoalBoardGmailCallbackPath(candidate.pathname)
+          && isMolisWorkGmailCallbackPath(candidate.pathname)
         ) return;
       } catch {
         /* falls through to loopback check for a precise error */
@@ -77,7 +77,7 @@ export function createGmailOAuthConfiguration(ports: GmailOAuthPorts) {
     assertLoopbackGmailRedirectUri(redirectUri);
   }
 
-  function isGoalBoardGmailCallbackPath(pathname: string): boolean {
+  function isMolisWorkGmailCallbackPath(pathname: string): boolean {
     return pathname === GMAIL_OAUTH_CALLBACK_PATH
       || /^\/projects\/[^/]+\/api\/feed\/connectors\/gmail\/oauth\/callback$/u.test(pathname);
   }
@@ -91,7 +91,9 @@ export function createGmailOAuthConfiguration(ports: GmailOAuthPorts) {
     } catch {
       /* ignore */
     }
-    return ports.environment().GOALBOARD_GMAIL_CLIENT_ID?.trim() || null;
+    return ports.environment().MOLIS_WORK_GMAIL_CLIENT_ID?.trim()
+      || ports.environment().GOALBOARD_GMAIL_CLIENT_ID?.trim()
+      || null;
   }
 
   function resolveGmailClientSecret(override?: string): string | null {
@@ -104,7 +106,9 @@ export function createGmailOAuthConfiguration(ports: GmailOAuthPorts) {
     } catch {
       /* ignore */
     }
-    return ports.environment().GOALBOARD_GMAIL_CLIENT_SECRET?.trim() || null;
+    return ports.environment().MOLIS_WORK_GMAIL_CLIENT_SECRET?.trim()
+      || ports.environment().GOALBOARD_GMAIL_CLIENT_SECRET?.trim()
+      || null;
   }
 
   function storeGmailOAuthClient(opts: {

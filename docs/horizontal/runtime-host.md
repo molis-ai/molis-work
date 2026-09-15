@@ -18,8 +18,8 @@
 
 ## 公开调用规则
 
-调用者只依赖 `@adeptify/goalboard-service-runtime-host` 或 `@adeptify/goalboard-contracts/services/runtime-host`。禁止导入 `horizontal/runtime-host/src/**`，也禁止 Runtime Host 导入 Session Registry、Execution Store 或 Web Server。
+调用者只依赖 `@molis-ai/molis-work-service-runtime-host` 或 `@molis-ai/molis-work-contracts/services/runtime-host`。禁止导入 `horizontal/runtime-host/src/**`，也禁止 Runtime Host 导入 Session Registry、Execution Store 或 Web Server。
 
 **迁移 Goal：** WK2 已迁 Runtime router、Codex transport/Adapter 和 PTY server host；WK3 继续迁 Work UI 与产品编排。PTY browser client 属于 Work Plugin 的 UI transport，不在 WK2 假装迁完。
 
-当前自动化验证与剩余边界见 [WK2 验收记录](../../specs/goalboard-architecture-reorganization/wk2-validation.md)。
+当前自动化验证与剩余边界见 [WK2 验收记录](../../specs/molis-work-architecture-reorganization/wk2-validation.md)。

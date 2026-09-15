@@ -6,7 +6,7 @@ name: "电商"
 summary: "把商品发现、库存价格、交易履约、售后和经营反馈连成完整商业闭环。"
 applies_to: ["在线零售","品牌商城","交易型电商"]
 domain_tags: ["ecommerce","retail","fulfillment"]
-source_refs: ["OECD Recommendation on Consumer Protection in E-commerce","GoalBoard commerce result chain"]
+source_refs: ["OECD Recommendation on Consumer Protection in E-commerce","Molis Work commerce result chain"]
 confidence: 0.92
 ---
 

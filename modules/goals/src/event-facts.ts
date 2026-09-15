@@ -34,7 +34,7 @@ import type {
   ResumeGoalEventWorkInput,
   SetGoalEventAgreementInput,
   SubmitGoalEventClosureInput,
-} from "@adeptify/goalboard-contracts/modules/goals";
+} from "@molis-ai/molis-work-contracts/modules/goals";
 import { GoalsCommandContext, requestHash } from "./command-support.js";
 import { GoalEventFactsRepository, type StoredWorkEvent } from "./event-facts-repository.js";
 import { GoalEventFactsConfig } from "./event-facts-config.js";

@@ -1,5 +1,5 @@
 import type { IncomingMessage } from "node:http";
-import type { WorkbenchRendererPorts } from "@adeptify/goalboard-app-workbench";
+import type { WorkbenchRendererPorts } from "@molis-ai/molis-work-app-workbench";
 import { createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
 import { createSessionProjectOperations } from "./web-session.js";
 import { createLocalPanelHttp } from "./web-panel.js";
@@ -38,7 +38,7 @@ export function createLocalWebComposition(platform: LocalWebPlatform) {
   const planningHttp = createLocalPlanningHttp({ withCatalog, renderer: workbenchRenderer, isDesktopShellRequest, pageCsp: PAGE_CSP });
   const goalsReadHttp = createLocalGoalsReadHttp({ withCatalog, renderer: workbenchRenderer, isDesktopShellRequest, pageCsp: PAGE_CSP, sessionProjectOperationsData });
   const handleOnboarding = createLocalOnboardingHttp({
-    withCatalog, renderOnboarding: workbenchRenderer.renderGoalBoardOnboarding,
+    withCatalog, renderOnboarding: workbenchRenderer.renderMolisWorkOnboarding,
     isRuntimeKind: platform.panel.isRuntimeKind, cliAvailability: platform.cliAvailability,
     isDesktopShellRequest, pageCsp: PAGE_CSP,
   });

@@ -2,7 +2,7 @@
 
 按明确的 capability 身份注册处理器，使 Host 能发现和调用功能而不把业务逻辑塞进分发器。
 
-包名：`@adeptify/goalboard-kernel`。工作区内部包，通过仓库构建和 Host 装配使用。
+包名：`@molis-ai/molis-work-kernel`。工作区内部包，通过仓库构建和 Host 装配使用。
 
 ## 一次典型调用
 
@@ -22,15 +22,15 @@ CapabilityRegistry.register 绑定定义与 handler，并返回注销函数；de
 
 Registry 负责身份、重复注册和缺失能力错误。参数的业务校验、用户权限、事务和状态转换由 Host 与实际 handler 负责。
 
-工作区依赖：`@adeptify/goalboard-contracts`。其他运行依赖见 [package.json](package.json)。
+工作区依赖：`@molis-ai/molis-work-contracts`。其他运行依赖见 [package.json](package.json)。
 
 ## 本地开发
 
 以下命令在**仓库根目录**执行，使用 Node.js 24+ 与仓库配置的 pnpm。首次准备运行 `pnpm install --frozen-lockfile` 和 `pnpm build`；之后可单独检查此包。
 
 ```bash
-pnpm --filter @adeptify/goalboard-kernel typecheck
-pnpm --filter @adeptify/goalboard-kernel build
+pnpm --filter @molis-ai/molis-work-kernel typecheck
+pnpm --filter @molis-ai/molis-work-kernel build
 ```
 
 已有行为示例与回归：[local-host.test.ts](../../tests/local-host.test.ts)。完成上述构建后运行：
@@ -47,7 +47,7 @@ node --import tsx --test --test-concurrency=1 tests/local-host.test.ts
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
 - Status: `partial`
-- Contract entrypoint: `@adeptify/goalboard-contracts/platform/kernel`
+- Contract entrypoint: `@molis-ai/molis-work-contracts/platform/kernel`
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-f3`, `goal-reorg-ap2`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。

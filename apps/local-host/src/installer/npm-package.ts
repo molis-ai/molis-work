@@ -17,7 +17,7 @@ interface PackageMetadata {
 }
 
 /** A portable npm distribution: bundle local JS packages, install registry/native dependencies on the consumer. */
-export async function createGoalBoardNpmPackageDirectory(options: {
+export async function createMolisWorkNpmPackageDirectory(options: {
   sourceDirectory: string;
   destinationDirectory: string;
 }): Promise<{ directory: string; bundledPackages: string[] }> {
@@ -52,7 +52,7 @@ export async function createGoalBoardNpmPackageDirectory(options: {
   }
   for (const name of Object.keys(registryDependencies)) delete optionalDependencies[name];
   await fs.mkdir(path.dirname(destination), { recursive: true });
-  const temporary = await fs.mkdtemp(path.join(path.dirname(destination), ".goalboard-npm-"));
+  const temporary = await fs.mkdtemp(path.join(path.dirname(destination), ".molis-work-npm-"));
   try {
     const staged = path.join(temporary, "package");
     await copyPackageFiles(source, staged, root);

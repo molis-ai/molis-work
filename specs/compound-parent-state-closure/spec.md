@@ -10,7 +10,7 @@
 
 - `deriveGoalWorkState()` 已在 `accepted + closed_compound + active children` 时返回 `waiting_children`。
 - `tests/v1.test.ts` 已覆盖完整 Goal Tree 决定把父 Goal 变为 `accepted / closed_compound` 后得到该状态。
-- 当前真实 Board 的 `GOALBOARD-PROJECT-RUNTIME-ONBOARDING`、`GOALBOARD-PROJECT-CATALOG-BINDING` 和 `GOALBOARD-DIALOGUE-GOAL-TREE` 仍是 Draft，尽管已有用户确认记录的子 Goal 关系，因此显示“待澄清”。
+- 当前真实 Board 的 `MOLIS_WORK-PROJECT-RUNTIME-ONBOARDING`、`MOLIS_WORK-PROJECT-CATALOG-BINDING` 和 `MOLIS_WORK-DIALOGUE-GOAL-TREE` 仍是 Draft，尽管已有用户确认记录的子 Goal 关系，因此显示“待澄清”。
 - `STATUS_LABELS.waiting_children` 只写“等待子 Goal”，没有直接告诉用户澄清已经完成。
 
 ## 范围与非目标
@@ -49,7 +49,7 @@
 - `skills/goal-advance/references/protocol.md`：Runtime MCP 流程与状态解释。
 - `tests/v1.test.ts`：父子关系与 Draft 确认边界。
 - `tests/web.test.ts`：`waiting_children` 文案回归。
-- GoalBoard SQLite：只通过 CLI 的 Goal Tree Proposal/Decision 记录历史父级确认。
+- Molis Work SQLite：只通过 CLI 的 Goal Tree Proposal/Decision 记录历史父级确认。
 
 ## 验收标准
 
@@ -64,7 +64,7 @@
 ```bash
 node --import tsx --test tests/v1.test.ts tests/web.test.ts
 pnpm typecheck
-python3 /Users/yijunwang/.codex/skills/.system/skill-creator/scripts/generate_openai_yaml.py skills/goal-advance --interface 'display_name=GoalBoard Runtime' --interface 'short_description=让当前 Runtime 通过 MCP 连续推进一个 GoalBoard 项目' --interface 'default_prompt=Use $goal-advance to connect this work to GoalBoard and continue the current Runtime flow.'
+python3 /Users/yijunwang/.codex/skills/.system/skill-creator/scripts/generate_openai_yaml.py skills/goal-advance --interface 'display_name=Molis Work Runtime' --interface 'short_description=让当前 Runtime 通过 MCP 连续推进一个 Molis Work 项目' --interface 'default_prompt=Use $goal-advance to connect this work to Molis Work and continue the current Runtime flow.'
 python3 /Users/yijunwang/.codex/skills/.system/skill-creator/scripts/quick_validate.py skills/goal-advance
 pnpm test
 ```

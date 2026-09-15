@@ -17,6 +17,6 @@ export interface GoalsMomentumUiPrimitives {
   translate(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;
   currentLocale(): string;
-  icon(name: "info" | "arrow" | "risk" | "workflow" | "maximize"): string;
+  icon(name: "info" | "arrow" | "risk" | "workflow" | "maximize" | "frame"): string;
   renderVisibleGoalStatus(item: Pick<GoalsMomentumItem, "status" | "display_status">): string;
 }

@@ -2,7 +2,7 @@
 
 ## 背景与目标
 
-GoalBoard Web 工作台、项目列表和设置页目前全部写死中文。仓库 README 已经提供中英两份，产品面向全球用户，但打开页面无法切换语言。
+Molis Work Web 工作台、项目列表和设置页目前全部写死中文。仓库 README 已经提供中英两份，产品面向全球用户，但打开页面无法切换语言。
 
 目标：前端展示支持中文和英文，用户可以在页面上切换，选择会被记住。Goal、项目名等用户内容保持原文，不做机器翻译。
 
@@ -49,7 +49,7 @@ GoalBoard Web 工作台、项目列表和设置页目前全部写死中文。仓
 
 ## 输入、输出与依赖
 
-- 输入：`Cookie: goalboard_locale=zh|en`，`Accept-Language`，`/locale` 的 `lang` 与 `next`。
+- 输入：`Cookie: molis_work_locale=zh|en`，`Accept-Language`，`/locale` 的 `lang` 与 `next`。
 - 输出：对应语言的 HTML/JSON 提示、`Set-Cookie`、`html[lang]`。
 - 依赖：现有 Web 渲染与本地控制门禁；不新增 npm 依赖。
 
@@ -64,7 +64,7 @@ GoalBoard Web 工作台、项目列表和设置页目前全部写死中文。仓
 ## 验收标准
 
 1. 无 cookie、无英文 `Accept-Language` 时，项目列表/设置/Goal 页为中文，`html[lang]=zh-CN`。
-2. `Cookie: goalboard_locale=en` 时，同一批页面为英文，`html[lang]=en`，顶栏能切回中文。
+2. `Cookie: molis_work_locale=en` 时，同一批页面为英文，`html[lang]=en`，顶栏能切回中文。
 3. 示例或用户 Goal 标题不因切换语言而改变。
 4. `GET /locale?lang=en&next=/settings/runtimes` 设置 cookie 并回到该相对路径；`next=//evil` 回退到 `/`。
 5. 现有中文断言的 Web 测试在默认 locale 下继续通过。

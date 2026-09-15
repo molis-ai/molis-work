@@ -1,6 +1,6 @@
 import { createHash, createPublicKey, type KeyObject, verify } from "node:crypto";
-import { parsePluginManifest } from "@adeptify/goalboard-contracts/platform/plugin";
-import type { PluginPackageBundle, PluginPackagePayload, PluginPackageSigner } from "@adeptify/goalboard-contracts/platform/plugin";
+import { parsePluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginPackageBundle, PluginPackagePayload, PluginPackageSigner } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 export class PluginPackageError extends Error {
   constructor(readonly code: "plugin_package_invalid" | "plugin_signature_invalid" | "plugin_signer_mismatch", message: string) {

@@ -2,7 +2,7 @@
 
 ## Background and goal
 
-GoalBoard currently runs a full `Verify` job for every pull request and push to `main`, and automatically publishes macOS artifacts for version tags. Temporarily pause those automated workloads without deleting the workflow definitions or making the protected `main` branch impossible to merge into.
+Molis Work currently runs a full `Verify` job for every pull request and push to `main`, and automatically publishes macOS artifacts for version tags. Temporarily pause those automated workloads without deleting the workflow definitions or making the protected `main` branch impossible to merge into.
 
 ## Current behavior and evidence
 

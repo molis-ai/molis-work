@@ -2,18 +2,18 @@ import type { ProjectRecord, DeleteProjectInput, ProjectDeletionResult } from ".
 import type { AliasDesktopPanelSessionInput, DesktopPanelRecord } from "./app-host.js";
 import type { LegacySessionMigrationApi } from "../modules/private-work-context.js";
 import type {
-  RuntimeWorkContext, RuntimeProjectSuggestionClue, GoalBoardRuntimeContextResolution,
-  BindRuntimeWorkContextInput, UnbindRuntimeWorkContextInput, GoalBoardRuntimeContextUnbindResult,
-  RejectRuntimeContextSuggestionInput, GoalBoardRuntimeContextSuggestionRejectionResult,
+  RuntimeWorkContext, RuntimeProjectSuggestionClue, MolisWorkRuntimeContextResolution,
+  BindRuntimeWorkContextInput, UnbindRuntimeWorkContextInput, MolisWorkRuntimeContextUnbindResult,
+  RejectRuntimeContextSuggestionInput, MolisWorkRuntimeContextSuggestionRejectionResult,
   CreateAndBindRuntimeContextInput,
 } from "../modules/private-work-context.js";
 
 /** Host-only identity and configuration; never decoded from model tool arguments. */
-export interface GoalBoardRuntimeContextHost {
+export interface MolisWorkRuntimeContextHost {
   homeDirectory?: string;
   runtimeContext: RuntimeWorkContext;
   webBaseUrl?: string;
-  goalBoardSessionId?: string | null;
+  molisWorkSessionId?: string | null;
   nativeRuntimeSessionId?: string | null;
   legacyWorkContextId?: string | null;
   goalId?: string | null;
@@ -27,7 +27,7 @@ export interface GoalBoardRuntimeContextHost {
   panelId?: string | null;
 }
 
-export interface GoalBoardRuntimeConnection {
+export interface MolisWorkRuntimeConnection {
   projectId?: string;
   databasePath: string;
   boardId: string;
@@ -36,12 +36,12 @@ export interface GoalBoardRuntimeConnection {
 
 /** Existing project/context operations exposed for a bounded catalog lifetime. */
 export interface RuntimeProjectApplicationApi {
-  resolveRuntimeContext(context: RuntimeWorkContext, clues?: readonly RuntimeProjectSuggestionClue[]): GoalBoardRuntimeContextResolution;
+  resolveRuntimeContext(context: RuntimeWorkContext, clues?: readonly RuntimeProjectSuggestionClue[]): MolisWorkRuntimeContextResolution;
   listProjects(): ProjectRecord[];
-  bindRuntimeContext(input: BindRuntimeWorkContextInput): GoalBoardRuntimeContextResolution;
-  unbindRuntimeContext(input: UnbindRuntimeWorkContextInput): GoalBoardRuntimeContextUnbindResult;
-  rejectRuntimeContextSuggestion(input: RejectRuntimeContextSuggestionInput): GoalBoardRuntimeContextSuggestionRejectionResult;
-  createProjectAndBindRuntimeContext(input: CreateAndBindRuntimeContextInput): Promise<GoalBoardRuntimeContextResolution>;
+  bindRuntimeContext(input: BindRuntimeWorkContextInput): MolisWorkRuntimeContextResolution;
+  unbindRuntimeContext(input: UnbindRuntimeWorkContextInput): MolisWorkRuntimeContextUnbindResult;
+  rejectRuntimeContextSuggestion(input: RejectRuntimeContextSuggestionInput): MolisWorkRuntimeContextSuggestionRejectionResult;
+  createProjectAndBindRuntimeContext(input: CreateAndBindRuntimeContextInput): Promise<MolisWorkRuntimeContextResolution>;
   deleteProject(input: DeleteProjectInput): Promise<ProjectDeletionResult>;
 }
 
@@ -61,11 +61,11 @@ export interface RuntimePanelCatalogProvider {
 
 /** In-process connection cache only; this is not a persisted project binding. */
 export interface RuntimeProjectConnectionState {
-  connection: GoalBoardRuntimeConnection | null;
+  connection: MolisWorkRuntimeConnection | null;
   readonly explicit: boolean;
   observe(context: RuntimeWorkContext): "current" | "refresh_required";
   clear(clearRefresh?: boolean): void;
-  accept(connection: GoalBoardRuntimeConnection | null, context: RuntimeWorkContext): void;
+  accept(connection: MolisWorkRuntimeConnection | null, context: RuntimeWorkContext): void;
 }
 /** Validated Runtime dialogue fields; Session identity is supplied separately by the host. */
 export interface RuntimeGoalTreeConfirmation {

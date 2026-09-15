@@ -1,12 +1,12 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import type { ProjectsModule } from "@adeptify/goalboard-module-projects";
-import type { ProjectRecord as GoalBoardProjectRecord } from "@adeptify/goalboard-contracts/modules/projects";
-import type { RuntimeProjectBindingValidation } from "@adeptify/goalboard-module-private-work-context";
-import { GoalBoardProjectCatalogError } from "./project-catalog-contract.js";
+import type { ProjectsModule } from "@molis-ai/molis-work-module-projects";
+import type { ProjectRecord as MolisWorkProjectRecord } from "@molis-ai/molis-work-contracts/modules/projects";
+import type { RuntimeProjectBindingValidation } from "@molis-ai/molis-work-module-private-work-context";
+import { MolisWorkProjectCatalogError } from "./project-catalog-contract.js";
 import { constants as fsConstants } from "node:fs";
-import type { MigrateProjectInput as MigrateGoalBoardProjectInput, ProjectMigrationStep as GoalBoardProjectMigrationStep } from "@adeptify/goalboard-contracts/modules/projects";
-import type { CreateGoalBoardProjectInput } from "./project-catalog-contract.js";
+import type { MigrateProjectInput as MigrateMolisWorkProjectInput, ProjectMigrationStep as MolisWorkProjectMigrationStep } from "@molis-ai/molis-work-contracts/modules/projects";
+import type { CreateMolisWorkProjectInput } from "./project-catalog-contract.js";
 import { isWithin, statOrNull } from "./project-file-paths.js";
 import { initializeProjectDatabase, readManagedBoard, validateManagedBoard } from "./managed-project-database.js";
 
@@ -15,7 +15,7 @@ export class ManagedProjectFiles {
   constructor(private readonly projects: Pick<ProjectsModule, "query" | "lifecycle">,
     private readonly projectsDirectory: string, private readonly databasePath: string,
     private readonly validation: Pick<RuntimeProjectBindingValidation, "requiredActorId">) {}
-async createProject(input: CreateGoalBoardProjectInput): Promise<GoalBoardProjectRecord> {
+async createProject(input: CreateMolisWorkProjectInput): Promise<MolisWorkProjectRecord> {
     const actorId = this.validation.requiredActorId(input.actor_id);
     return this.provisionCreatedProject({ displayName: input.display_name, actorId }, (record) => {
       this.projects.lifecycle.register(record, "project.created", actorId);
@@ -25,7 +25,7 @@ async createProject(input: CreateGoalBoardProjectInput): Promise<GoalBoardProjec
 
 async provisionCreatedProject<T>(
     input: { displayName: string; actorId: string },
-    commit: (record: GoalBoardProjectRecord) => T,
+    commit: (record: MolisWorkProjectRecord) => T,
   ): Promise<T> {
     const record = this.projects.lifecycle.prepareRecord({
       display_name: input.displayName,
@@ -41,12 +41,12 @@ async provisionCreatedProject<T>(
     try {
       await fs.mkdir(stagingDirectory, { recursive: false });
       await initializeProjectDatabase(
-        path.join(stagingDirectory, "goalboard.db"),
+        path.join(stagingDirectory, "molis-work.db"),
         record.project_id,
         record.display_name,
         input.actorId,
       );
-      await validateManagedBoard(path.join(stagingDirectory, "goalboard.db"), record.project_id);
+      await validateManagedBoard(path.join(stagingDirectory, "molis-work.db"), record.project_id);
       await fs.rename(stagingDirectory, projectDirectory);
       promoted = true;
       return commit(record);
@@ -57,17 +57,17 @@ async provisionCreatedProject<T>(
     }
   }
 
-async migrateLegacyDatabase(input: MigrateGoalBoardProjectInput): Promise<GoalBoardProjectRecord> {
+async migrateLegacyDatabase(input: MigrateMolisWorkProjectInput): Promise<MolisWorkProjectRecord> {
     const legacyDatabasePath = path.resolve(input.legacy_database_path);
     if (legacyDatabasePath === this.databasePath || isWithin(legacyDatabasePath, this.projectsDirectory)) {
-      throw new GoalBoardProjectCatalogError(
+      throw new MolisWorkProjectCatalogError(
         "catalog.legacy_conflict",
         "不能把托管项目目录中的数据库再次作为旧库迁移",
       );
     }
     const sourceState = await statOrNull(legacyDatabasePath);
     if (!sourceState?.isFile()) {
-      throw new GoalBoardProjectCatalogError("catalog.legacy_missing", `旧 GoalBoard 数据库不存在: ${legacyDatabasePath}`);
+      throw new MolisWorkProjectCatalogError("catalog.legacy_missing", `旧 Molis Work 数据库不存在: ${legacyDatabasePath}`);
     }
 
     const source = readManagedBoard(legacyDatabasePath, true);
@@ -85,12 +85,12 @@ async migrateLegacyDatabase(input: MigrateGoalBoardProjectInput): Promise<GoalBo
     let inserted = false;
     try {
       await fs.mkdir(stagingDirectory, { recursive: false });
-      const stagedDatabasePath = path.join(stagingDirectory, "goalboard.db");
+      const stagedDatabasePath = path.join(stagingDirectory, "molis-work.db");
       await fs.copyFile(legacyDatabasePath, stagedDatabasePath, fsConstants.COPYFILE_EXCL);
       await runStep(input, "after_copy");
       const staged = readManagedBoard(stagedDatabasePath, false);
       if (source.boardId !== staged.boardId || source.serializedSnapshot !== staged.serializedSnapshot) {
-        throw new GoalBoardProjectCatalogError("catalog.legacy_invalid", "旧数据库迁移后的事实快照不一致");
+        throw new MolisWorkProjectCatalogError("catalog.legacy_invalid", "旧数据库迁移后的事实快照不一致");
       }
       await runStep(input, "after_validation");
       await fs.rename(stagingDirectory, projectDirectory);
@@ -113,6 +113,6 @@ async migrateLegacyDatabase(input: MigrateGoalBoardProjectInput): Promise<GoalBo
   }
 }
 
-async function runStep(input: MigrateGoalBoardProjectInput, step: GoalBoardProjectMigrationStep): Promise<void> {
+async function runStep(input: MigrateMolisWorkProjectInput, step: MolisWorkProjectMigrationStep): Promise<void> {
   await input.beforeStep?.(step);
 }

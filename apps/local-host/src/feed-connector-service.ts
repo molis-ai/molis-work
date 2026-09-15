@@ -1,8 +1,8 @@
-import type { SqliteDatabase } from "@adeptify/goalboard-storage";
-import { createFileSecretStore, peekSealedEntry } from "@adeptify/goalboard-storage";
-import { FeedConnectorService } from "@adeptify/goalboard-plugin-feed";
-import { gmailInstallationSecretRefs, isGmailTokenRefs } from "@adeptify/goalboard-integration-gmail";
-import { GMAIL_DEFAULT_SCOPE, normalizeGmailScope } from "@adeptify/goalboard-integration-gmail/scope";
+import type { SqliteDatabase } from "@molis-ai/molis-work-storage";
+import { createFileSecretStore, peekSealedEntry, readProductEnv } from "@molis-ai/molis-work-storage";
+import { FeedConnectorService } from "@molis-ai/molis-work-plugin-feed";
+import { gmailInstallationSecretRefs, isGmailTokenRefs } from "@molis-ai/molis-work-integration-gmail";
+import { GMAIL_DEFAULT_SCOPE, normalizeGmailScope } from "@molis-ai/molis-work-integration-gmail/scope";
 import { authRefFor, bindConnectorToken, connectorCredentialStatus, unbindConnectorToken } from "./connector-credentials.js";
 import { completeGmailOAuthFlow, defaultGmailRedirectUri, gmailOAuthConfigured, startGmailOAuthFlow, storeGmailOAuthClient } from "./gmail-oauth.js";
 import { pollGithubDeviceFlow, startGithubDeviceFlow, storeGithubClientId } from "./github-oauth.js";
@@ -21,7 +21,7 @@ export function createLocalFeedConnectorService(db: SqliteDatabase, boardId: str
       return {
         github: connectorCredentialStatus("github"),
         gmail: connectorCredentialStatus("gmail"),
-        github_client_id_configured: Boolean(process.env.GOALBOARD_GITHUB_CLIENT_ID || githubClientIdBound),
+        github_client_id_configured: Boolean(readProductEnv("GITHUB_CLIENT_ID") || githubClientIdBound),
         gmail_oauth_configured: gmailOAuthConfigured(),
         gmail_redirect_uri: defaultGmailRedirectUri(),
       };

@@ -1,5 +1,5 @@
-import { createGmailOAuth } from "@adeptify/goalboard-integration-gmail";
-import { createFileSecretStore, peekSealedEntry } from "@adeptify/goalboard-storage";
+import { createGmailOAuth } from "@molis-ai/molis-work-integration-gmail";
+import { createFileSecretStore, peekSealedEntry } from "@molis-ai/molis-work-storage";
 import { GMAIL_AUTH_REF, bindConnectorToken, resolveGmailToken } from "./connector-credentials.js";
 
 const gmailOAuth = createGmailOAuth({
@@ -19,4 +19,4 @@ export const {
   resolveUsableGmailAccessToken, startGmailOAuthFlow,
   completeGmailOAuthFlow, gmailAccessBound,
 } = gmailOAuth;
-export type { GmailOAuthComplete } from "@adeptify/goalboard-integration-gmail";
+export type { GmailOAuthComplete } from "@molis-ai/molis-work-integration-gmail";

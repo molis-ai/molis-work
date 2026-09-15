@@ -1,14 +1,14 @@
-# GoalBoard 独立仓库：旧逻辑兼容边界
+# Molis Work 独立仓库：旧逻辑兼容边界
 
 ## 1. 目标
 
-把当前混合了 Clarification Agent V3 与 GoalBoard V1 的包收敛为独立 GoalBoard 产品。最终发布包只保留 SQLite 真相源、Coordinator、CLI、MCP、Web 和 Runtime Skill；旧 V3 只保留一次性 JSON 导入入口，不再保留可运行的旧 Runtime、领域 Profile 或旧渲染链路。
+把当前混合了 Clarification Agent V3 与 Molis Work V1 的包收敛为独立 Molis Work 产品。最终发布包只保留 SQLite 真相源、Coordinator、CLI、MCP、Web 和 Runtime Skill；旧 V3 只保留一次性 JSON 导入入口，不再保留可运行的旧 Runtime、领域 Profile 或旧渲染链路。
 
 本文是后续 `LEGACY-RUNTIME-REMOVAL` Goal 的删除依据。本文只确定边界和证据，不在本 Goal 中删除产品代码。
 
 ## 2. 决策词
 
-- **保留**：继续作为 GoalBoard 正式产品能力维护。
+- **保留**：继续作为 Molis Work 正式产品能力维护。
 - **替换**：用户能力仍存在，但实现或入口改为 V1-only 版本。
 - **删除**：不进入独立仓库，也不作为隐藏兼容 Runtime 保留；历史由 Git 保存。
 
@@ -18,9 +18,9 @@
 
 - `package.json` 当前把整个 `dist`、`domains`、`skills` 和 `README.md` 打进包；`pnpm pack --dry-run --json` 因此包含 `dist/core/**`、`dist/renderers/**` 和 `domains/**`。
 - `src/cli/main.ts` 同时路由 V1 和旧 `init/strategy/split/...` 命令，并直接依赖 `src/core/**` 与 `src/renderers/**`。
-- `src/mcp/server.ts` 同时暴露 `goalboard_v1_*` 和旧 `goalboard_*` 管理工具；Runtime audience 已过滤旧工具，但旧实现仍被编译和发布。
+- `src/mcp/server.ts` 同时暴露 `molis_work_v1_*` 和旧 `molis_work_*` 管理工具；Runtime audience 已过滤旧工具，但旧实现仍被编译和发布。
 - `src/index.ts` 仍公开导出旧 Core、Renderer 与 `core/types.ts`，所以旧逻辑也是 npm API 的一部分。
-- `src/v1/migration.ts` 对旧代码唯一必要的编译期依赖是 `GoalBoardData` 类型；实际只读取其中一小部分字段。
+- `src/v1/migration.ts` 对旧代码唯一必要的编译期依赖是 `MolisWorkData` 类型；实际只读取其中一小部分字段。
 - `yaml` 只被旧 `src/core/registry.ts` 使用；删除领域 Profile 运行时后不再需要。
 - 当前 Git 根目录仍是 `trick-catalog`，远端是 `https://github.com/adeptify/trick-catalog.git`；独立仓库和远端发布属于后续 Goal，不在本 Goal 操作。
 
@@ -38,19 +38,19 @@
 | `src/v1/cli.ts` | 保留 | 用户/管理 CLI 实现，包括显式 `import-v3` |
 | `src/web/server.ts`、`src/web/render.ts`、`src/web/icons.ts` | 保留 | 人查看和确认同一 SQLite Board 的 Web 产品面 |
 | `skills/goal-advance/**` | 保留 | Runtime 先校验宿主连接、读 Contract、Claim，再按角色工作 |
-| `PRODUCT.md`、`DESIGN.md`、`.impeccable/**` | 保留 | 当前 GoalBoard 产品与 shipped UI 说明 |
-| `specs/goalboard-mvp/**`、当前 V1 specs | 保留 | Contract、存储、协议和验收依据 |
+| `PRODUCT.md`、`DESIGN.md`、`.impeccable/**` | 保留 | 当前 Molis Work 产品与 shipped UI 说明 |
+| `specs/molis-work-mvp/**`、当前 V1 specs | 保留 | Contract、存储、协议和验收依据 |
 | `tests/v1.test.ts`、`tests/web.test.ts` | 保留并整理 | V1 Coordinator、CLI/MCP、迁移和 Web 回归 |
 
 ### 4.2 必须替换的混合入口
 
 | 当前路径 | 替换结果 | 不允许残留 |
 |---|---|---|
-| `src/cli/main.ts` | 变成 V1-only 可执行入口；继续支持 `goalboard v1 ...`，尤其 `goalboard v1 import-v3` | 旧 `init/load/strategy/coverage/split/assign/io/ask/answer/defer/out/promote/mark/audit/context/root/status/render/handoff/reflect/dry-run/explain/replay/profiles` 路由及旧持久化文件 |
-| `src/mcp/server.ts` | 只编译和暴露 V1 tools；Runtime/management audience 边界保持 | 所有旧 `goalboard_*` tool 定义、旧 Pipeline 状态和旧 JSON Board 文件读写 |
-| `src/index.ts` | 只导出 V1 Store、Coordinator、迁移输入/报告和 V1 types | `core/**`、`renderers/**` 与旧 `GoalBoardData` 公共导出 |
-| `README.md` | 只讲 GoalBoard 的产品模型、启动协议、CLI/MCP/Web、Runtime Skill 和一次性导入 | “仓库同时保留 V3”、旧安装/命令/结构/MCP tools 说明 |
-| `tests/mcp.test.ts` | 保留 V1 MCP audience、连接、Contract URL、权限与协议测试；移除旧 full scenario | 任何对旧 `goalboard_init/strategy/...` 工具的成功路径断言 |
+| `src/cli/main.ts` | 变成 V1-only 可执行入口；继续支持 `molis-work v1 ...`，尤其 `molis-work v1 import-v3` | 旧 `init/load/strategy/coverage/split/assign/io/ask/answer/defer/out/promote/mark/audit/context/root/status/render/handoff/reflect/dry-run/explain/replay/profiles` 路由及旧持久化文件 |
+| `src/mcp/server.ts` | 只编译和暴露 V1 tools；Runtime/management audience 边界保持 | 所有旧 `molis_work_*` tool 定义、旧 Pipeline 状态和旧 JSON Board 文件读写 |
+| `src/index.ts` | 只导出 V1 Store、Coordinator、迁移输入/报告和 V1 types | `core/**`、`renderers/**` 与旧 `MolisWorkData` 公共导出 |
+| `README.md` | 只讲 Molis Work 的产品模型、启动协议、CLI/MCP/Web、Runtime Skill 和一次性导入 | “仓库同时保留 V3”、旧安装/命令/结构/MCP tools 说明 |
+| `tests/mcp.test.ts` | 保留 V1 MCP audience、连接、Contract URL、权限与协议测试；移除旧 full scenario | 任何对旧 `molis_work_init/strategy/...` 工具的成功路径断言 |
 | `package.json` | 测试列表只含 V1/Web/MCP；files 不再包含 `domains`；移除 `yaml` | 编译后 `dist/core/**`、`dist/renderers/**` 和领域资料进入 tarball |
 
 ### 4.3 完整删除的旧实现
@@ -59,7 +59,7 @@
 |---|---|---|
 | V3 Core | `src/core/continuity.ts` | 只服务旧 JSON Board 连续性反思 |
 | V3 Core | `src/core/detectors.ts` | 只服务旧领域检测 |
-| V3 Core | `src/core/goalboard.ts` | 旧内存/JSON Board，不是 SQLite authority |
+| V3 Core | `src/core/molis-work.ts` | 旧内存/JSON Board，不是 SQLite authority |
 | V3 Core | `src/core/handoff.ts` | 旧 Markdown Handoff，不属于 V1 Claim/Run/Evidence 闭环 |
 | V3 Core | `src/core/pipeline.ts` | 旧命令式澄清管线，会形成第二套 Goal 真相 |
 | V3 Core | `src/core/registry.ts` | 旧 YAML 领域 Profile 注册表 |
@@ -81,7 +81,7 @@
 
 ## 5. 唯一保留的 V3 输入边界
 
-`src/v1/migration.ts` 应在 V1 目录内声明并导出一个独立类型（命名建议 `LegacyV3ImportInput`），不再 import `GoalBoardData`：
+`src/v1/migration.ts` 应在 V1 目录内声明并导出一个独立类型（命名建议 `LegacyV3ImportInput`），不再 import `MolisWorkData`：
 
 ```ts
 interface LegacyV3ImportInput {
@@ -149,8 +149,8 @@ interface LegacyV3ImportInput {
 
 保留两个受信入口，它们调用同一个 `importV3Board`：
 
-1. 用户/管理 CLI：`goalboard v1 import-v3 --db ... --board-id ... --actor ... --key ... --file ...`
-2. management MCP：`goalboard_v1_import_v3`
+1. 用户/管理 CLI：`molis-work v1 import-v3 --db ... --board-id ... --actor ... --key ... --file ...`
+2. management MCP：`molis_work_v1_import_v3`
 
 Runtime MCP 不列出、也不能直接调用导入。导入只创建新 Board；目标 Board 已存在时必须拒绝，不允许覆盖或合并。
 

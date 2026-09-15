@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createWorkbenchGoalsPlanningRenderer, matchGoalsPlanningRoute, renderWorkbenchPlanningRequest } from "@adeptify/goalboard-app-workbench";
-import type { PlanningMethodPack, PlanningMethodComposition } from "@adeptify/goalboard-contracts/modules/goals";
-import { L, listJoin, runWithLocale } from "@adeptify/goalboard-app-local-host";
-import { icon } from "@adeptify/goalboard-design-system";
-import { withDesktopQuery } from "@adeptify/goalboard-app-desktop";
+import { createWorkbenchGoalsPlanningRenderer, matchGoalsPlanningRoute, renderWorkbenchPlanningRequest } from "@molis-ai/molis-work-app-workbench";
+import type { PlanningMethodPack, PlanningMethodComposition } from "@molis-ai/molis-work-contracts/modules/goals";
+import { L, listJoin, runWithLocale } from "@molis-ai/molis-work-app-local-host";
+import { icon } from "@molis-ai/molis-work-design-system";
+import { withDesktopQuery } from "@molis-ai/molis-work-app-desktop";
 
 const escapeHtml = (v: string) => v.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 const renderer = createWorkbenchGoalsPlanningRenderer({

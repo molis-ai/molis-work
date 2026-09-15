@@ -3,7 +3,7 @@ export const PROJECT_RULES_CLIENT_SCRIPT = `
     const form = document.querySelector("[data-policy-form]");
     if (!form) return;
     const routePrefix = document.body.dataset.routePrefix || "";
-    const receiptKey = "goalboard-project-rules-receipt:" + routePrefix;
+    const receiptKey = "molis-work-project-rules-receipt:" + routePrefix;
     const receipt = document.querySelector("[data-project-rules-receipt]");
     const errorBox = form.querySelector("[data-policy-error]");
     const submit = form.querySelector('button[type="submit"]');
@@ -69,7 +69,7 @@ export const PROJECT_RULES_CLIENT_SCRIPT = `
       try {
         const response = await fetch(routePrefix + "/api/policy-bindings", {
           method: "POST",
-          headers: goalboardControlHeaders(),
+          headers: molisWorkControlHeaders(),
           body: JSON.stringify({
             scope: "project_default",
             reason,

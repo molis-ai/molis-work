@@ -4,7 +4,7 @@
 
 ## 背景与目标
 
-GoalBoard 已具备项目 catalog、Runtime 接入、统一 Skill、MCP、Web 和自包含安装，
+Molis Work 已具备项目 catalog、Runtime 接入、统一 Skill、MCP、Web 和自包含安装，
 但真实外部试用暴露出一组相互关联的问题：用户不知道产品长什么样；安装完成不等于
 当前 Session 立刻获得工具；Web 不是常驻服务；同版本源码可能继续使用旧构建；新版
 项目关联依赖 Codex stdio MCP 实际拿不到的 Session 环境变量；对话确认也依赖宿主没有
@@ -14,7 +14,7 @@ GoalBoard 已具备项目 catalog、Runtime 接入、统一 Skill、MCP、Web �
 Runtime 能稳定定位项目、用户在对话中的确认能够推进 Goal Tree、更新和卸载不丢用户数据，
 并用真实发行包端到端验证。
 
-GoalBoard Draft：`draft-44163d37-ebe8-411b-9220-ced1c0b05040`。
+Molis Work Draft：`draft-44163d37-ebe8-411b-9220-ced1c0b05040`。
 
 ## 当前行为与证据
 
@@ -23,10 +23,10 @@ GoalBoard Draft：`draft-44163d37-ebe8-411b-9220-ced1c0b05040`。
 - 最新 main 已加入真实产品截图和 `examples/seed-demo.mts`，README 的吸引力问题已有第一步修复；
   但 demo 仍是仓库脚本，不是安装后 UI/CLI 的自然入口，也没有在 catalog 中标记为可再生数据，
   因此首次使用和安全卸载仍未闭环。
-- Codex 官方文档要求保存 MCP 配置后重启 Session/extension。工具清单由宿主加载；GoalBoard
+- Codex 官方文档要求保存 MCP 配置后重启 Session/extension。工具清单由宿主加载；Molis Work
   无法让一个已经启动的旧 Session 凭空获得新 MCP 工具。当前提示只说“重启后生效”，
   没解释原因或如何续接。
-- `goalboard-web` 是前台进程。仓库没有 launchd/systemd 用户服务；关闭终端、Runtime
+- `molis-work-web` 是前台进程。仓库没有 launchd/systemd 用户服务；关闭终端、Runtime
   Session 或重启电脑后都不会自动恢复。`nohup` 也不能对抗宿主清理整个会话进程树。
 - 源码安装器直接读取现有 `dist`，不会构建或检查源码是否比产物新。
 - release 只用版本号判定有效；同版本内容改变时 `inspectRelease` 返回 `valid`，不会刷新。
@@ -37,20 +37,20 @@ GoalBoard Draft：`draft-44163d37-ebe8-411b-9220-ced1c0b05040`。
   阻断；但它把目录 hash 塞进原本的一对一 Session binding，既没有 `realpath` 合并符号链接，
   也没有 workspace 多项目/default 模型。它解决了“能连上”，尚未解决 monorepo、并发 Session
   override 和长期项目路由语义。
-- `goalboard_v1_goal_tree_decide` 在 Runtime audience 下要求进程内
+- `molis_work_v1_goal_tree_decide` 在 Runtime audience 下要求进程内
   `trustedUserDecisionProvider`；正式 stdio 启动没有 provider，因此对话里说 OK 也不可能生效。
 - 最新 main 已补齐 `resources/templates/list -> { resourceTemplates: [] }` 与回归测试；这一项
   作为已完成验收保留，不重复实现。
-- 当前 Session 的工具表中没有 GoalBoard MCP；真实配置仍是旧的静态
-  `GOALBOARD_DATABASE/GOALBOARD_BOARD_ID` entry，且没有当前 Skill 链接。代码仍保留静态 DB
+- 当前 Session 的工具表中没有 Molis Work MCP；真实配置仍是旧的静态
+  `MOLIS_WORK_DATABASE/MOLIS_WORK_BOARD_ID` entry，且没有当前 Skill 链接。代码仍保留静态 DB
   Runtime connection 分支，所谓“旧逻辑已删除”尚未完成。
-- 公开 CLI 没有 uninstall 命令。若用户目前通过删除 `~/.goalboard` 卸载，程序、catalog、
+- 公开 CLI 没有 uninstall 命令。若用户目前通过删除 `~/.molis-work` 卸载，程序、catalog、
   用户项目和 demo 会一起消失；这是缺失安全卸载契约，而不是某条现有卸载代码的局部 bug。
 
 ### 外部宿主事实
 
 - Codex 当前主线 app-server 会在其 `mcp_server_tool_call` 路径给 MCP tool-call `_meta`
-  增加 `threadId`。GoalBoard 应优先消费每次调用的宿主元数据，但不能把它假定为所有 Codex
+  增加 `threadId`。Molis Work 应优先消费每次调用的宿主元数据，但不能把它假定为所有 Codex
   版本、所有 Runtime 都存在的唯一来源。
 - Codex 公开配置支持显式 STDIO `command/args/env/env_vars/cwd`，但没有公开承诺把当前对话的
   用户消息或确认凭证传给第三方 MCP。
@@ -64,20 +64,20 @@ GoalBoard Draft：`draft-44163d37-ebe8-411b-9220-ced1c0b05040`。
 1. **会话负责审计，工作空间负责历史候选和可选默认。** 每次调用若有可信宿主 `threadId`，
    用它隔离当前 Session；同时把经过 `realpath` 规范化的 workspace 作为长期项目关联。普通选择
    只增加历史候选，新 Session 仍询问；只有用户单独明确设置 workspace default 后才自动恢复。
-2. **一个 workspace 可以关联多个 GoalBoard 项目。** catalog 保存成员关系和最多一个默认
+2. **一个 workspace 可以关联多个 Molis Work 项目。** catalog 保存成员关系和最多一个默认
    项目；成员永远不会因为数量为一而自然成为默认。无默认时即使只有一个成员也询问。显式
    切换可选择“仅当前 Session”或“设为 workspace 默认”；宿主无 Session ID 时普通选择只让当前
    MCP 调用流继续并记录历史，不伪造机器级 Session。
 3. **路径只是宿主工作空间事实，不是 Git 身份。** 使用绝对路径并以 `realpath` 合并符号链接；
    不要求 Git，不修改用户项目文件。拿不到可靠 workspace 时保持未解析并说明原因。
-4. **本地个人模式接受 Runtime 对用户确认的可审计声明。** GoalBoard 不再假装 Codex 能提供
+4. **本地个人模式接受 Runtime 对用户确认的可审计声明。** Molis Work 不再假装 Codex 能提供
    密码学可信的用户消息。Runtime 必须提交 `user_confirmed=true`、具体决定和可用的 thread
-   元数据；GoalBoard记录 actor、thread、proposal、决定和时间。Web 确认仍是另一种直接用户
+   元数据；Molis Work记录 actor、thread、proposal、决定和时间。Web 确认仍是另一种直接用户
    入口。此机制是本地协作的审计约束，不宣称能抵御恶意 Runtime。
 5. **配置写入继续先预览、后确认。** 安装本体不自动修改 Codex/Claude 用户配置，也不修改
    项目文件。常驻服务同样必须由用户在 UI/CLI 明确启用。
 6. **macOS 先交付常驻服务。** 使用用户级 LaunchAgent、登录后自动启动、异常退出自动恢复，
-   日志放在 `~/.goalboard/logs`。其他平台必须明确显示“尚未提供常驻集成”，不能假装后台
+   日志放在 `~/.molis-work/logs`。其他平台必须明确显示“尚未提供常驻集成”，不能假装后台
    成功；service provider 接口为后续 systemd/Windows 扩展保留边界。
 7. **用户数据默认永远保留。** uninstall 默认移除 owned Runtime 接入、服务、launchers 和
    releases，保留 catalog 与用户项目；demo 被标记为 `regenerable_demo`，可单独清理。
@@ -95,7 +95,7 @@ GoalBoard Draft：`draft-44163d37-ebe8-411b-9220-ced1c0b05040`。
 4. `managed-web-service`：macOS LaunchAgent 的 preview/confirm/status/remove 与 UI/CLI。
 5. `safe-uninstall-and-demo-data`：数据分类、安全卸载、显式 demo 创建/重置/移除。
 6. `public-readme-and-e2e`：真实截图、README、发行包全新安装/重启/升级/卸载端到端验收。
-7. `runtime-service-launch-routing`：把“启动 GoalBoard”路由到受管理的常驻服务，把明确的“临时打开”
+7. `runtime-service-launch-routing`：把“启动 Molis Work”路由到受管理的常驻服务，把明确的“临时打开”
    路由到前台 Web，并保证 Runtime 不会把服务管理误当作 Goal lifecycle fallback。
 
 依赖顺序：1 → 2；3 与 1 可独立；4 依赖 3 的稳定 launcher；5 依赖项目数据分类；6 最后
@@ -104,7 +104,7 @@ GoalBoard Draft：`draft-44163d37-ebe8-411b-9220-ced1c0b05040`。
 ## 非目标
 
 - 不通过 Git remote、仓库存在性或目录名定义“项目”。
-- 不向用户项目写 marker、`.codex/config.toml` 或其他 GoalBoard 文件。
+- 不向用户项目写 marker、`.codex/config.toml` 或其他 Molis Work 文件。
 - 不承诺在宿主未提供任何 thread/workspace 信息时自动猜中项目。
 - 不把 Web 变成 Goal 流程必经步骤；Web 是可选观察、设置和直接确认入口。
 - 不在首轮实现 Linux systemd、Windows service 或云端多用户权限模型。
@@ -128,7 +128,7 @@ GoalBoard Draft：`draft-44163d37-ebe8-411b-9220-ced1c0b05040`。
 - 旧静态 DB 配置可在用户确认的新接入计划中迁走，生产代码与 UI 不再保留旧运行模式。
 - 真实 pack E2E 覆盖安装、Runtime 接入、重启续接、项目解析、对话确认、服务恢复、同版本
   刷新和安全卸载。
-- Runtime 收到“启动 GoalBoard”会先检查 managed service；macOS 首次常驻安装/旧配置修复先说明
+- Runtime 收到“启动 Molis Work”会先检查 managed service；macOS 首次常驻安装/旧配置修复先说明
   影响并确认，只有明确“临时打开”才启动会随终端退出的前台 Web，非 macOS 不假装后台化。
 
 ## 验证
@@ -142,23 +142,23 @@ pnpm pack --dry-run --json
 git diff --check
 ```
 
-macOS 真实验收使用隔离的 GoalBoard home 与专用 LaunchAgent label，验证终端退出、进程异常退出、
+macOS 真实验收使用隔离的 Molis Work home 与专用 LaunchAgent label，验证终端退出、进程异常退出、
 登录启动、status 和 remove；不得改写真实项目 DB。
 
 ### 最终本机“全新用户”验收
 
 功能与自动化验证完成后，用户已明确授权在当前机器执行一次真实清场和复原：
 
-1. 先只读列出并核对 GoalBoard-owned 范围：`~/.goalboard`、GoalBoard 创建的 LaunchAgent、
-   Codex/Claude 用户级 GoalBoard MCP 与 Skill、以及已知项目目录中遗留的 GoalBoard 专属配置。
-2. 删除上述 GoalBoard 安装、数据和接入；项目源码及与 GoalBoard 无关的配置不在授权范围。
+1. 先只读列出并核对 Molis Work-owned 范围：`~/.molis-work`、Molis Work 创建的 LaunchAgent、
+   Codex/Claude 用户级 Molis Work MCP 与 Skill、以及已知项目目录中遗留的 Molis Work 专属配置。
+2. 删除上述 Molis Work 安装、数据和接入；项目源码及与 Molis Work 无关的配置不在授权范围。
 3. 不把旧 home/DB 偷偷作为新安装输入；从真实 pack/release 走公开 README 的正常安装路径。
 4. 以新用户身份完成 Web 服务启用、Runtime 接入、宿主重启、新建/关联项目、Draft 澄清、
    Goal Tree 确认、执行状态读取、服务重启恢复和卸载保护检查。
 5. 最后保留按新流程产生的正常安装与项目状态，让当前机器回到可继续使用的产品状态。
 
 清场是最终验收步骤，不在卸载/迁移实现和自动化测试通过前提前执行。任何无法证明属于
-GoalBoard 的同名文件或配置都停止删除并单独报告。
+Molis Work 的同名文件或配置都停止删除并单独报告。
 
 ## 假设与开放问题
 

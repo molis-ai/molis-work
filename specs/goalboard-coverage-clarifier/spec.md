@@ -2,9 +2,9 @@
 
 ## 背景与目标
 
-用户已确认本次重组不新增 Outbox。正式修订恢复验收时，现用 GoalBoard 给根 Goal 返回 `clarify / ready / target_type=coverage`，但领取同一个 action/token 返回 `goal.clarification_not_needed`，没有创建 Claim/Run；后续 Explain 也拒绝。该缺陷阻塞正式范围修订，不得通过直接改库、新建空壳Goal或伪造actor绕过。
+用户已确认本次重组不新增 Outbox。正式修订恢复验收时，现用 Molis Work 给根 Goal 返回 `clarify / ready / target_type=coverage`，但领取同一个 action/token 返回 `goal.clarification_not_needed`，没有创建 Claim/Run；后续 Explain 也拒绝。该缺陷阻塞正式范围修订，不得通过直接改库、新建空壳Goal或伪造actor绕过。
 
-2026-09-06 用户先“确认修复”，随后对“将修复更新到现用 GoalBoard 并重启服务”回复“确认”，已授权本体更新及既有受管服务重启。保留项目与 Runtime 配置，不包含 Goal 状态/提案决定。整体重组仍在进行；Outbox 留后续的用户决定不需要重复确认。
+2026-09-06 用户先“确认修复”，随后对“将修复更新到现用 Molis Work 并重启服务”回复“确认”，已授权本体更新及既有受管服务重启。保留项目与 Runtime 配置，不包含 Goal 状态/提案决定。整体重组仍在进行；Outbox 留后续的用户决定不需要重复确认。
 
 ## 根因与调用链
 

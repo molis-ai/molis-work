@@ -1,6 +1,6 @@
 # Draft Dialogue / Goal Tree Decision 入口迁移计划
 
-2026-09-06。沿用已接受 Goal `goal-1cb5db42-232a-426a-ac79-36c6320d621e` 的结果与非目标。原拆分提案 11 项全部 applied；DD1/DD2 现均 canonical completed，验收分别见 dd1-validation.md、dd2-validation.md。父项收口审查见 dd-parent-closure-audit.md，正式状态以 GoalBoard 为准。下文保留实施时计划与决定历史。项目架构 SSOT 仍为本目录 `spec.md`，Goals/Execution/Governance/Workbench 的 README 与 public Contract 分别拥有模块事实。
+2026-09-06。沿用已接受 Goal `goal-1cb5db42-232a-426a-ac79-36c6320d621e` 的结果与非目标。原拆分提案 11 项全部 applied；DD1/DD2 现均 canonical completed，验收分别见 dd1-validation.md、dd2-validation.md。父项收口审查见 dd-parent-closure-audit.md，正式状态以 Molis Work 为准。下文保留实施时计划与决定历史。项目架构 SSOT 仍为本目录 `spec.md`，Goals/Execution/Governance/Workbench 的 README 与 public Contract 分别拥有模块事实。
 
 ## 实施前证据与问题（历史基线）
 

@@ -6,7 +6,7 @@ Goal: `goal-infoflow-attention-inbox`
 
 ## Runtime surface
 
-- Project: `GoalBoard 信息流工作台重设计`
+- Project: `Molis Work 信息流工作台重设计`
 - URL: `http://127.0.0.1:4182/projects/project-aeb51deb-e335-403b-80cc-387e20e0e000/`
 - Real project data: 195 canonical Feed Items; 43 active Inbox references in the default Inbox view.
 - Default Inbox check: every visible row had status `inbox` or `processing`; the footer and sidebar both reported 43.

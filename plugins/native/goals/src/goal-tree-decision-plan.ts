@@ -1,5 +1,5 @@
-import type { GoalsQueryApi, GoalsPlanningApi, GoalRecord, PlanningGraphIssue } from "@adeptify/goalboard-contracts/modules/goals";
-import type { GoalTreeProposalRecord, GoalTreeProposalItemRecord, GoalTreeProposalDecideInput, GoalTreeProposalDecisionAuthority } from "@adeptify/goalboard-contracts/modules/governance-collaboration";
+import type { GoalsQueryApi, GoalsPlanningApi, GoalRecord, PlanningGraphIssue } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalTreeProposalRecord, GoalTreeProposalItemRecord, GoalTreeProposalDecideInput, GoalTreeProposalDecisionAuthority } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import { goalTreeProposalItemValidationIssues, goalTreeRiskDescription } from "./proposal-item-validation.js";
 import type { GoalTreeQueryApplication } from "./goal-tree-query.js";
 import type { GoalTreeInputReader } from "./goal-tree-inputs.js";
@@ -74,7 +74,7 @@ export class GoalTreeDecisionPlan {
       if (existingConflict) {
         this.abortWholeConfirmation(existingConflict, existingConflict.conflict ?? {
           code: "goal_tree_proposal.item_conflict",
-          message: "条目与当前 GoalBoard 事实不一致",
+          message: "条目与当前 Molis Work 事实不一致",
         });
       }
       const sharedReason = this.requiredText(

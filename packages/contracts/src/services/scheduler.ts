@@ -2,7 +2,7 @@
 import type { ContractDescriptor } from "../platform/package.js";
 
 export const servicesSchedulerContract = {
-  contractId: "io.goalboard.service.scheduler.v1",
+  contractId: "io.molis.work.service.scheduler.v1",
   kind: "service",
   schemaVersion: 1,
   maturity: "contract-only",

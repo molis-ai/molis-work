@@ -2,7 +2,7 @@ import type {
   GovernanceApplicationApi,
   GovernanceQueryApi,
   GovernanceRecordsApi,
-} from "@adeptify/goalboard-contracts/modules/governance-collaboration";
+} from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 
 import {
   GovernanceRepository,
@@ -17,11 +17,11 @@ import type { GovernanceErrorFactory } from "./errors.js";
 export { GovernanceClarificationStore } from "./clarification-store.js";
 
 export const packageDescriptor = {
-  packageName: "@adeptify/goalboard-module-governance-collaboration",
+  packageName: "@molis-ai/molis-work-module-governance-collaboration",
   packagePath: "modules/governance-collaboration",
   kind: "module",
   maturity: "partial",
-  contract: "@adeptify/goalboard-contracts/modules/governance-collaboration",
+  contract: "@molis-ai/molis-work-contracts/modules/governance-collaboration",
   migrationGoals: ["goal-reorg-f2","goal-reorg-ex3","goal-reorg-ex4"],
   ssot: "docs/SSOT-MATRIX.md",
   capabilities: [
@@ -31,7 +31,7 @@ export const packageDescriptor = {
   ],
 } as const;
 
-export type GoalBoardPackageDescriptor = typeof packageDescriptor;
+export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export interface GovernanceCollaborationModuleOptions {
   db: GovernanceSqliteDatabase;

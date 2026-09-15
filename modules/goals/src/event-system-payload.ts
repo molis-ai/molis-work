@@ -10,7 +10,7 @@ import {
   type GoalEventSystemPayload,
   type GoalEventUnmetReason,
   type GoalEventWorkStatus,
-} from "@adeptify/goalboard-contracts/modules/goals";
+} from "@molis-ai/molis-work-contracts/modules/goals";
 
 export function parseGoalEventSystemPayload(raw: Record<string, unknown>): GoalEventSystemPayload {
   const operation = raw.operation;

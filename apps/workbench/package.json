@@ -1,5 +1,5 @@
 {
-  "name": "@adeptify/goalboard-app-workbench",
+  "name": "@molis-ai/molis-work-app-workbench",
   "version": "0.0.0",
   "private": true,
   "description": "Local product UI composition root for the Workbench.",
@@ -25,21 +25,22 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@adeptify/goalboard-contracts": "workspace:*",
-    "@adeptify/goalboard-plugin-goals": "workspace:*",
-    "@adeptify/goalboard-plugin-feed": "workspace:*",
-    "@adeptify/goalboard-plugin-artifacts": "workspace:*",
-    "@adeptify/goalboard-ui-host": "workspace:*",
-    "@adeptify/goalboard-plugin-work": "workspace:*",
-    "@adeptify/goalboard-design-system": "workspace:*",
-    "@adeptify/goalboard-integration-rss": "workspace:*",
-    "@adeptify/goalboard-integration-gmail": "workspace:*"
+    "@molis-ai/molis-work-contracts": "workspace:*",
+    "@molis-ai/molis-work-plugin-goals": "workspace:*",
+    "@molis-ai/molis-work-plugin-feed": "workspace:*",
+    "@molis-ai/molis-work-plugin-inbox": "workspace:*",
+    "@molis-ai/molis-work-plugin-artifacts": "workspace:*",
+    "@molis-ai/molis-work-ui-host": "workspace:*",
+    "@molis-ai/molis-work-plugin-work": "workspace:*",
+    "@molis-ai/molis-work-design-system": "workspace:*",
+    "@molis-ai/molis-work-integration-rss": "workspace:*",
+    "@molis-ai/molis-work-integration-gmail": "workspace:*"
   },
-  "goalboard": {
+  "molis-work": {
     "path": "apps/workbench",
     "kind": "app",
     "maturity": "partial",
-    "contract": "@adeptify/goalboard-contracts/platform/app-host",
+    "contract": "@molis-ai/molis-work-contracts/platform/app-host",
     "migrationGoals": [
       "goal-reorg-f2",
       "goal-reorg-fd4",

@@ -14,15 +14,15 @@
 ### 保留
 
 - 项目根目录内 `Goals`、`Sessions`、`工作目录`平级。
-- Session 能查看执行内容、GoalBoard 兜底记录、不可读取与读取失败状态。
+- Session 能查看执行内容、Molis Work 兜底记录、不可读取与读取失败状态。
 - Session 能在原 Runtime 加载；Handoff 总是选择目标 Runtime，并创建新的目标 Session。
 - 工作目录能查看路径状态、已知 Sessions、项目关系和启动入口；启动与关系变更由用户确认。
-- Runtime 不支持原生 Session 查询时，继续通过能力适配层使用 GoalBoard 可证明的记录，不伪造原生内容。
+- Runtime 不支持原生 Session 查询时，继续通过能力适配层使用 Molis Work 可证明的记录，不伪造原生内容。
 
 ### 替换
 
 - 删除独立 Session / 工作目录页面和 `sw-*` 视觉系统。
-- 两个目录直接成为现有 GoalBoard 工作台的 `data-directory-panel`；两个详情直接成为现有右侧工作面的 `data-work-surface`。
+- 两个目录直接成为现有 Molis Work 工作台的 `data-directory-panel`；两个详情直接成为现有右侧工作面的 `data-work-surface`。
 - 列表直接复用 Goal Tree 的目录标题、搜索、工具、连续行、状态和底部计数语法。
 - 详情直接复用 Goal Detail 的状态与事实、标题与动作、主栏和上下文栏语法。
 
@@ -35,7 +35,7 @@
 
 1. 用户在项目根目录点击 Sessions，左侧原地替换为 Session 列表，右侧打开所选 Session，项目栏和已有 Goal 工作标签仍在。
 2. 用户扫描标题、Runtime、状态、当前 Goal 与更新时间，搜索或筛选后选择一条记录。
-3. 原生可读 Session 显示执行内容；fallback 只显示 GoalBoard 事实；不可读取或失败状态说明原因和恢复动作。
+3. 原生可读 Session 显示执行内容；fallback 只显示 Molis Work 事实；不可读取或失败状态说明原因和恢复动作。
 4. 用户从当前 Session 加载原 Runtime，或选择目标 Runtime 创建包含当前 Goal 信息的新 Session Handoff。
 5. 用户返回项目根目录，进入工作目录；检查路径、关联 Sessions 和启动条件，并在明确确认后预演修复或启动。
 6. 窄屏先显示当前目录，选择记录后进入右侧详情；使用现有“目录 / 当前列表 / 详情 / 运行”导航返回，不再创建另一套返回系统。
@@ -69,7 +69,7 @@
 
 - 设计模式：Operate。
 - `DESIGN_VARIANCE: 3`，`MOTION_INTENSITY: 2`，`VISUAL_DENSITY: 8`。
-- 继承现有 GoalBoard CSS variables、系统字体、图标族、圆角、焦点、Light / Dark 和 compact density。
+- 继承现有 Molis Work CSS variables、系统字体、图标族、圆角、焦点、Light / Dark 和 compact density。
 - 根入口为 button，不出现 link 下划线。
 - 返回动作直接复用 `.desktop-directory-heading [data-directory-back]`，使用真正的左箭头图标，不依赖响应式旋转样式。
 - Session / 工作目录列表使用连续 ledger 行；选中、hover、focus 不改变行尺寸。
@@ -80,7 +80,7 @@
 
 ## 状态与边界
 
-- Session：原生可读、GoalBoard fallback、不可读取、读取失败、无当前 Goal、归档。
+- Session：原生可读、Molis Work fallback、不可读取、读取失败、无当前 Goal、归档。
 - 工作目录：正常、缺失、冲突、无记录。
 - 搜索无结果时隐藏旧详情的可执行动作。
 - Handoff 没有当前 Goal 时禁用并说明原因。

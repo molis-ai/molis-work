@@ -1,8 +1,8 @@
-import { buildGoalBoardWebView } from "@adeptify/goalboard-app-local-host";
+import { buildMolisWorkWebView } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { DEMO_BOARD_ID } from "@adeptify/goalboard-app-local-host";
-import { GoalProjectApplication } from "@adeptify/goalboard-app-local-host";
+import { DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
+import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
@@ -25,8 +25,8 @@ test("refreshing create choices preserves the unsaved draft, selected relations 
   })()`);
   const response = await fetch(origin + "/api/goals", {
     method: "POST", headers: { "content-type": "application/json", origin,
-      "x-goalboard-control-token": "goals-risk-test-control-token-0123456789",
-      "x-goalboard-idempotency-key": "refresh-dialog-external-goal" },
+      "x-molis-work-control-token": "goals-risk-test-control-token-0123456789",
+      "x-molis-work-idempotency-key": "refresh-dialog-external-goal" },
     body: JSON.stringify({ goal_id: "NEW-CHOICE", title: "New available choice", outcome: "Refresh available choices",
       why: "Another operation changed the board", business_logic: "Keep the open form intact", priority: 10,
       acceptance_criteria: ["Available as a new choice"] }),
@@ -146,7 +146,7 @@ test("Goal dialogs create once after retry, cancel without writes, and trash/res
   assert.equal(goal().created_at, saved.created_at);
   assert.deepEqual(goal().acceptance_criteria, saved.acceptance_criteria);
   assert.equal(current().goals.length, before.goals.length + 1);
-  const view = buildGoalBoardWebView(store, new GoalProjectApplication(store), { boardId: DEMO_BOARD_ID });
+  const view = buildMolisWorkWebView(store, new GoalProjectApplication(store), { boardId: DEMO_BOARD_ID });
   const events = view.goals.find(item => item.goal.goal_id === goalId)!.events;
   assert.equal(events.filter(event => event.type === "goal.created").length, 1);
   assert.ok(events.some(event => event.reason === "Package migration browser test"));

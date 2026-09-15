@@ -1,4 +1,4 @@
-import { FeedDomainError } from "@adeptify/goalboard-contracts/modules/feed";
+import { FeedDomainError } from "@molis-ai/molis-work-contracts/modules/feed";
 import type { ConfigureFeedSourceScheduleInput, UpdateFeedSourceInput } from "./source-ports.js";
 import type { SourceHistoryDecision } from "./projection.js";
 import { requireParam, requireProvider, sourceRegistrationInput } from "./route-input.js";

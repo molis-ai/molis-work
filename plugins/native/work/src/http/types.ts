@@ -1,5 +1,5 @@
-import type { WorkSessionApi } from "@adeptify/goalboard-contracts/modules/private-work-context";
-import type { ProjectWorkspaceDirectoryRecord } from "@adeptify/goalboard-contracts/modules/projects";
+import type { WorkSessionApi } from "@molis-ai/molis-work-contracts/modules/private-work-context";
+import type { ProjectWorkspaceDirectoryRecord } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { SessionContentService } from "../content.js";
 import type { SessionDirectoryService } from "../directory.js";
 import type { SessionHandoffService } from "../handoff.js";

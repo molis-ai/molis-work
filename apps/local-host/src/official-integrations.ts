@@ -2,21 +2,21 @@ import type {
   IntegrationProviderPort,
   PluginDefinition,
   PluginIntegrationContribution,
-} from "@adeptify/goalboard-contracts/platform/plugin";
+} from "@molis-ai/molis-work-contracts/platform/plugin";
 import {
   createGithubIntegrationPlugin,
-} from "@adeptify/goalboard-integration-github";
+} from "@molis-ai/molis-work-integration-github";
 import {
   createGmailIntegrationPlugin,
   isGmailTokenRefs,
-} from "@adeptify/goalboard-integration-gmail";
-import { normalizeGmailScope } from "@adeptify/goalboard-integration-gmail/scope";
+} from "@molis-ai/molis-work-integration-gmail";
+import { normalizeGmailScope } from "@molis-ai/molis-work-integration-gmail/scope";
 import {
   MemoryPluginRuntimeRepository,
   PluginRuntime,
-} from "@adeptify/goalboard-plugin-runtime";
+} from "@molis-ai/molis-work-plugin-runtime";
 
-import type { FeedSourceRecord } from "@adeptify/goalboard-plugin-feed";
+import type { FeedSourceRecord } from "@molis-ai/molis-work-plugin-feed";
 import { createGithubConnector } from "./github-connector.js";
 import { createGmailConnector } from "./gmail-connector.js";
 

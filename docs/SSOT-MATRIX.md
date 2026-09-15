@@ -1,8 +1,8 @@
-# GoalBoard 架构 SSOT 索引
+# Molis Work 架构 SSOT 索引
 
-2026-09-08 Cutover：现有产品实现已退出旧混合目录，正式调用链位于 38 个实际 workspace 包；产品启动器已归 apps/desktop/launchers，0.1.x SDK 兼容出口已归 apps/local-host/sdk。完整用户验收与当前证据见 [Cutover 验证](../specs/goalboard-architecture-reorganization/cutover-validation.md)。本文描述当前 owner；各阶段历史数字保留在对应验证报告，不再作为当前实现位置。
+2026-09-08 Cutover：现有产品实现已退出旧混合目录，正式调用链位于 39 个实际 workspace 包；产品启动器已归 apps/desktop/launchers，0.1.x SDK 兼容出口已归 apps/local-host/sdk。完整用户验收与当前证据见 [Cutover 验证](../specs/molis-work-architecture-reorganization/cutover-validation.md)。本文描述当前 owner；各阶段历史数字保留在对应验证报告，不再作为当前实现位置。
 
-权威需求书：[架构需求书](../specs/goalboard-architecture-reorganization/spec.md)。每项事实只有一个 owner，详细规则在下列链接维护。
+权威需求书：[架构需求书](../specs/molis-work-architecture-reorganization/spec.md)。每项事实只有一个 owner，详细规则在下列链接维护。
 
 当前 Goal 行为按[事件工作流需求书](../specs/goal-event-workflow-cleanup/spec.md)收敛：事件是唯一工作协议，旧执行写入退役，历史数据与真实 Session／终端保留。本索引的相关 owner 行已同步；早期迁移报告保留当时的实现和验收记录。
 
@@ -11,7 +11,7 @@
 | 问题 | 唯一权威来源 |
 | --- | --- |
 | 产品为什么存在、对用户承诺什么 | [`PRODUCT.md`](../PRODUCT.md) |
-| 本次重组的完整决策、范围和逐包 Contract | [`specs/goalboard-architecture-reorganization/spec.md`](../specs/goalboard-architecture-reorganization/spec.md) |
+| 本次重组的完整决策、范围和逐包 Contract | [`specs/molis-work-architecture-reorganization/spec.md`](../specs/molis-work-architecture-reorganization/spec.md) |
 | 分层、部署与端到端调用 | [`docs/system/ARCHITECTURE.md`](system/ARCHITECTURE.md) |
 | 允许和禁止的代码依赖 | [`docs/system/PACKAGE-BOUNDARIES.md`](system/PACKAGE-BOUNDARIES.md) |
 | 旧路径、迁移状态、兼容出口 | [`docs/system/MIGRATION.md`](system/MIGRATION.md) |
@@ -36,7 +36,7 @@
 | `retired` | 旧路径 caller 清零并删除或只留下有时限的兼容入口 |
 | `workspace-root + legacy-release` | Monorepo 根已能管理全部 package，但当前产品构建与发布仍由旧根 package 承担 |
 
-当前 38 个 package 的描述符为 37 个 `partial`、1 个 `contract-only`（真实提供公共类型/Schema 的 Contracts）。另外 10 个仅含描述符的占位包已删除；下表保留未来目标路径并标为 `absent`，它们不参与构建或发布。`partial` 不表示依赖旧代码，也不声称未来契约全部实现。
+当前 39 个 package 的描述符为 38 个 `partial`、1 个 `contract-only`（真实提供公共类型/Schema 的 Contracts）。另外 10 个仅含描述符的占位包已删除；下表保留未来目标路径并标为 `absent`，它们不参与构建或发布。`partial` 不表示依赖旧代码，也不声称未来契约全部实现。
 
 ## 3. Apps
 
@@ -72,7 +72,7 @@
 | --- | --- | --- | --- | --- |
 | `modules/identity-team-access` | User、Team、membership、Access Decision | 占位包已删除；未来功能 | `absent` | F2；未来独立功能 Spec |
 | `modules/projects` | Project 身份、Catalog、workspace membership、`board_id` 兼容与迁移 | 正式 Project/Catalog 事实；Host 编排文件生命周期，Desktop 提供平台 | `partial` | AP1/AP2/Cutover；旧 Catalog 已删除 |
-| `modules/context-ledger` | ObjectRef、跨模块关系、publication、materialization | Feed / Session / Handoff / Runtime 关联、输入来源、临时重建与 Coordinator 归属审计已通过；未来 publication / 异步 materialization 未实现 | `partial` | AR2 已验收；[验收记录](../specs/goalboard-architecture-reorganization/ar2-validation.md) |
+| `modules/context-ledger` | ObjectRef、跨模块关系、publication、materialization | Feed / Session / Handoff / Runtime 关联、输入来源、临时重建与 Coordinator 归属审计已通过；未来 publication / 异步 materialization 未实现 | `partial` | AR2 已验收；[验收记录](../specs/molis-work-architecture-reorganization/ar2-validation.md) |
 | `modules/sync-replication` | 发布意图、replica、冲突和用户可见同步状态 | 占位包已删除；未来功能 | `absent` | F2；未来独立功能 Spec |
 | `modules/sources` | “监听哪里”与用户期望的 Source 配置 | Source 配置、schedule 与同步策略事实；应用由 Native Feed 编排 | `partial` | FD1–FD4/Cutover；旧 service caller 清零 |
 | `modules/signals` | 已观察到的外部事件与去重 provenance | Signal/Revision、去重与来源事实；Host 装配 Provider 投递 | `partial` | FD1–FD3/Cutover |
@@ -106,9 +106,10 @@ Horizontal Service 只保存可恢复的技术状态，不拥有 Goal、Signal�
 | --- | --- | --- | --- | --- |
 | `plugins/native/goals` | Goals 一级入口与产品 UI | 当前事件意图、约定、报告、树决定和历史正文组合；目录直接读当前状态；旧执行／草稿／提案写应用退役；Workbench 注册并组合 UI，不另算完成 | `partial` | GW/DD/EX/Cutover；事件工作流收敛 |
 | `plugins/native/artifacts` | Artifacts 一级入口、浏览和嵌入 | 已迁结果链接/项目文件打开；正式版本列表、详情与本地导出已接入 Web；Goal 上下文按明确输入/产出关系嵌入精确版本 | `partial` | AR3 已完成迁移验收；不包含未来安装/Team 同步 |
-| `plugins/native/feed` | Feed 一级入口和处置 UI | Sources/Feed/Inbox UI、路由、同步与 promotion 用例；Host 注入具体 IO | `partial` | FD/Cutover；旧 Feed facade 清零 |
+| `plugins/native/inbox` | Inbox 一级入口与 Attention 处置 UI | 目录/详情只读 Attention；完成/忽略走 setStatus；Host 注入展示信息与 HTTP | `partial` | Inbox/Feed 拆插件切片 2–3 |
+| `plugins/native/feed` | Feed 一级入口和处置 UI | Sources/Feed 流水、同步与 promotion 用例；不再投影 Inbox 面；加入 Inbox 仍走 Feed HTTP，只写 Attention | `partial` | FD/Cutover；Inbox/Feed 拆插件切片 3 |
 | `plugins/native/actions` | Actions 一级入口 | 占位包已删除；未来功能 | `absent` | F2；未来独立功能 Spec |
-| `plugins/native/work` | Session、Runtime、resume、handoff 应用和 UI | WK3 已迁应用编排、Session/Terminal contribution、浏览器控制器、HTTP 用例和工作目录恢复。`GET/POST /api/goals/:id/panels`（无子路径，JSON）仍是 Runtime 终端面板，与已删除的 Goal 五 tab fragment 不同 | `partial` | WK3；边界与证据见 `specs/goalboard-architecture-reorganization/wk3-validation.md` |
+| `plugins/native/work` | Session、Runtime、resume、handoff 应用和 UI | WK3 已迁应用编排、Session/Terminal contribution、浏览器控制器、HTTP 用例和工作目录恢复。`GET/POST /api/goals/:id/panels`（无子路径，JSON）仍是 Runtime 终端面板，与已删除的 Goal 五 tab fragment 不同 | `partial` | WK3；边界与证据见 `specs/molis-work-architecture-reorganization/wk3-validation.md` |
 | `plugins/native/automation` | Automation 一级入口 | 占位包已删除；未来功能 | `absent` | F2；未来独立功能 Spec |
 | `plugins/official-integrations/github` | GitHub connector/listener/signal adapter | GitHub Provider、Device OAuth 与账号呈现；Host 注入 Secret/env | `partial` | FD3/Cutover；无旧 connector caller |
 | `plugins/official-integrations/gmail` | Gmail OAuth/connector/listener/signal adapter | Gmail OAuth/安装账号/scope/cursor/Provider；Host 注入安全存储 | `partial` | FD3/Cutover；无旧 connector caller |
@@ -123,7 +124,7 @@ Goals 与 Artifacts 是官方签名保护的一等 Plugin。Plugin 之间不依�
 | 入口 | 当前 owner / 状态 | 交付边界 |
 | --- | --- | --- |
 | plugin CLI 与示例 | tooling/plugin-cli；examples/plugin-sample | 公开 SDK scaffold → validate/pack/sign → 本地安装 → Artifact/UI；样例不进生产 workspace |
-| workspace / npm | 根 scripts 调用 App-owned 构建与打包工具 | 38 包拓扑构建；发布包包含必要内部 JS 和资产，消费者安装原生依赖；不独立发布私有包 |
+| workspace / npm | 根 scripts 调用 App-owned 构建与打包工具 | 39 包拓扑构建；发布包包含必要内部 JS 和资产，消费者安装原生依赖；不独立发布私有包 |
 | root SDK | apps/local-host/sdk/{index,sdk-store,sdk-types}.ts | 0.1.x 已发布名称兼容期，仅转发公开 owner；内部 caller 不得通过 root SDK 绕过边界；移除须另行破坏性版本决策 |
 | CLI / MCP / Web bins | apps/desktop/launchers/cli/main.ts、apps/desktop/launchers/mcp/server.ts、apps/desktop/launchers/web/server.ts | 只保留启动环境/stdio/资源路径与公开 App 入口；无业务 SQL 或状态机 |
 | Desktop / Tauri | apps/desktop + apps/desktop/src-tauri | App/DMG/zip、bundle、ad-hoc codesign、本地安装/恢复；Developer ID、公证和公开发布不在本期验收承诺内 |

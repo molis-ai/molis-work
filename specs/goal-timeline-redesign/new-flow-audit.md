@@ -137,9 +137,9 @@ planning.md 首先要求新想法调用 goal_intent_create、不要 draft_dialog
 
 所有探针只使用新建临时项目、SQLite 和本机 HTTP，结束时清理数据库；没有写真实用户项目。
 
-- `/private/tmp/goalboard-new-flow-audit.mjs` 与 `.log`：真实 Runtime MCP 和默认 Web 创建，覆盖结果修改、缺省约定版本、人工要求、pending 决定、类型演化及 MCP 继续能力。首轮 Web 操作键过短，按真实接口要求更正后完整运行成功；该输入错误不作为产品缺陷。
-- `/private/tmp/goalboard-new-flow-audit-routing.mjs` 与 `.log`：真实 MCP 拆分、旧澄清门禁、工作发现和 Contract 投影；初版查询探针误用 app.snapshot，改用公开 snapshot MCP 后运行成功。
-- `/private/tmp/goalboard-new-flow-audit-tests.log`：45 项现有定向回归全部通过。
+- `/private/tmp/molis-work-new-flow-audit.mjs` 与 `.log`：真实 Runtime MCP 和默认 Web 创建，覆盖结果修改、缺省约定版本、人工要求、pending 决定、类型演化及 MCP 继续能力。首轮 Web 操作键过短，按真实接口要求更正后完整运行成功；该输入错误不作为产品缺陷。
+- `/private/tmp/molis-work-new-flow-audit-routing.mjs` 与 `.log`：真实 MCP 拆分、旧澄清门禁、工作发现和 Contract 投影；初版查询探针误用 app.snapshot，改用公开 snapshot MCP 后运行成功。
+- `/private/tmp/molis-work-new-flow-audit-tests.log`：45 项现有定向回归全部通过。
 
 回归命令：
 

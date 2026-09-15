@@ -6,9 +6,9 @@
 
 ## 背景与当前证据
 
-现有 Session Registry 已经把 GoalBoard Session、Runtime 原生 Session、Project、当前 Goal、Goal 历史和工作目录分开持久化；项目工作台也已经能显示真实 Session 记录、按需读取执行内容并请求原 Runtime 加载。但目录仍缺少真实管理闭环：添加、关联、转移、切换 Goal、归档和恢复要么没有入口，要么仍是页面内演示。
+现有 Session Registry 已经把 Molis Work Session、Runtime 原生 Session、Project、当前 Goal、Goal 历史和工作目录分开持久化；项目工作台也已经能显示真实 Session 记录、按需读取执行内容并请求原 Runtime 加载。但目录仍缺少真实管理闭环：添加、关联、转移、切换 Goal、归档和恢复要么没有入口，要么仍是页面内演示。
 
-GoalBoard 中本 Goal 的早期 Contract 仍写着“全局与项目内 Sessions 管理目录”。用户后续已明确纠正为：Sessions 和工作目录只出现在选定 Project 内，与 Goals 平级；全局 `/sessions` 不提供第二套管理页。`PRODUCT.md`、`DESIGN.md` 与已验收的高保真切片均已记录这一最新决定。本 Work Item 以最新用户决定为准；旧 Contract 的全局页面条款不伪装成已完成，并在交付时作为 Contract 偏差写回 GoalBoard。
+Molis Work 中本 Goal 的早期 Contract 仍写着“全局与项目内 Sessions 管理目录”。用户后续已明确纠正为：Sessions 和工作目录只出现在选定 Project 内，与 Goals 平级；全局 `/sessions` 不提供第二套管理页。`PRODUCT.md`、`DESIGN.md` 与已验收的高保真切片均已记录这一最新决定。本 Work Item 以最新用户决定为准；旧 Contract 的全局页面条款不伪装成已完成，并在交付时作为 Contract 偏差写回 Molis Work。
 
 ## 保留、替换、忽略
 
@@ -16,7 +16,7 @@ GoalBoard 中本 Goal 的早期 Contract 仍写着“全局与项目内 Sessions
 
 - 项目根目录内 Goals、Sessions、工作目录平级；Sessions 继续复用 Goal Tree 的左侧目录与 Goal Detail 的右侧工作面。
 - Session 内容按需读取、原 Runtime 加载和 Handoff 占位保持现有边界。
-- Runtime 原生能力、GoalBoard fallback 和 unsupported 三种能力等级继续由 Adapter 决定。
+- Runtime 原生能力、Molis Work fallback 和 unsupported 三种能力等级继续由 Adapter 决定。
 - 全局 Session Registry 是唯一事实源；项目目录只做 `project_id` 过滤。
 
 ### 替换
@@ -38,9 +38,9 @@ GoalBoard 中本 Goal 的早期 Contract 仍写着“全局与项目内 Sessions
 1. 用户在 Project 根目录进入 Sessions；目录只显示这个 Project 的 Session。
 2. 用户通过搜索、Runtime/状态/内容能力筛选和更新时间排序快速定位记录。
 3. 用户点击“添加 Session”，选择加入已有原生 Session 或创建新 Session；Runtime、工作目录和可选当前 Goal 在一个确认面中提交。
-4. 支持 discover 的 Runtime 在用户打开添加流程时只同步标题、状态、工作目录和时间等元数据，不读取正文；弱能力 Runtime 只显示 GoalBoard 可证明的记录或创建 GoalBoard 托管记录。
+4. 支持 discover 的 Runtime 在用户打开添加流程时只同步标题、状态、工作目录和时间等元数据，不读取正文；弱能力 Runtime 只显示 Molis Work 可证明的记录或创建 Molis Work 托管记录。
 5. 用户在详情中编辑关系：保留当前 Project、转移到另一个 Project或移出 Project；可以设置/切换/清空当前 Goal，并维护工作目录。所有变更都需要逐次勾选确认。
-6. 用户可归档或恢复 GoalBoard Session 记录；这只改变 Registry 状态，不删除或关闭 Runtime 原生 Session。
+6. 用户可归档或恢复 Molis Work Session 记录；这只改变 Registry 状态，不删除或关闭 Runtime 原生 Session。
 7. 写入成功后重新读取同一 Registry 并刷新目录；失败时保留输入，显示具体恢复方法。
 
 ## 模块与调用链
@@ -73,11 +73,11 @@ GoalBoard 中本 Goal 的早期 Contract 仍写着“全局与项目内 Sessions
 ## 输入、输出与不变量
 
 - 输入：当前 `project_id`、目标 `session_id`、Runtime、原生 Session ID、可选 Goal、可选绝对工作目录和用户确认。
-- 输出：一条更新后的 GoalBoard Session 记录、Goal 历史和 capability 摘要。
+- 输出：一条更新后的 Molis Work Session 记录、Goal 历史和 capability 摘要。
 - 一个 Session 同时最多一个 Project 和一个当前 Goal。
 - 转移或移出 Project 时，当前 Goal 自动变为历史；不把原 Project 的 Goal 带入目标 Project。
 - 空工作目录表示解除该关系；非空必须是绝对路径。
-- 归档只设置 GoalBoard `status=closed`；恢复设置 `status=active`。
+- 归档只设置 Molis Work `status=closed`；恢复设置 `status=active`。
 - discover 不能写 Project、Goal 或工作目录关系，不能预读正文。
 - 所有写动作只影响目标 Session，并要求 `user_confirmed=true`。
 
@@ -105,4 +105,4 @@ UI 另外在真实本地项目页面完成一轮桌面与窄屏浏览器检查�
 
 - Codex `thread/start` / `thread/list` 的响应字段由 app-server 协议控制；解析层必须兼容已验证的 `data` / `threads` 集合和 `thread.id` / `id`，未知结构要失败而不是猜测。
 - 创建新的原生 Runtime Session 只证明 Session 已创建并登记，不自动发送消息或推进 Goal。
-- 旧 Goal Contract 的“全局管理页”条款与最新产品决定冲突，因此本 Work Item 不能用该条款宣称全量通过；应由 GoalBoard 后续纠正 Contract 或用新 Goal 取代旧条款。
+- 旧 Goal Contract 的“全局管理页”条款与最新产品决定冲突，因此本 Work Item 不能用该条款宣称全量通过；应由 Molis Work 后续纠正 Contract 或用新 Goal 取代旧条款。

@@ -6,12 +6,12 @@ import { mkdtemp, mkdir, readFile, rm, stat, symlink, writeFile } from "node:fs/
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { createGoalBoardRuntimePayload } from "@adeptify/goalboard-app-local-host";
+import { createMolisWorkRuntimePayload } from "@molis-ai/molis-work-app-local-host";
 
 const exec = promisify(execFile);
 
 test("real workspace payload installs offline from an unrelated directory and preserves vendor sources", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "goalboard-runtime-payload-"));
+  const directory = await mkdtemp(join(tmpdir(), "molis-work-runtime-payload-"));
   try {
     const payload = join(directory, "payload");
     await exec(process.execPath, [
@@ -36,7 +36,7 @@ test("real workspace payload installs offline from an unrelated directory and pr
       assert.equal(bill.metadata.component.version, origin.package.version);
     }
     const marker = await readFile(join(payload, "release.json"));
-    await assert.rejects(createGoalBoardRuntimePayload({ sourceDirectory: process.cwd(), destinationDirectory: payload, nodeExecutablePath: process.execPath }), /输出已存在/);
+    await assert.rejects(createMolisWorkRuntimePayload({ sourceDirectory: process.cwd(), destinationDirectory: payload, nodeExecutablePath: process.execPath }), /输出已存在/);
     assert.deepEqual(await readFile(join(payload, "release.json")), marker);
     const home = join(directory, "home");
     const node = join(payload, "runtime", "node");
@@ -49,13 +49,13 @@ test("real workspace payload installs offline from an unrelated directory and pr
     // The actual installed launcher must no longer need its source payload.
     await rm(payload, { recursive: true, force: true });
     const help = await exec(installed.launchers.cli, ["--help"], { cwd: directory, env: { ...process.env, PATH: "/usr/bin:/bin", NODE_PATH: "" } });
-    assert.match(help.stdout, /goalboard plugin/);
+    assert.match(help.stdout, /molis-work plugin/);
     const moduleResult = await exec(join(installed.release_directory, "runtime", "node"), ["--input-type=module", "-e", `
       const { default: Database } = await import('better-sqlite3');
       const db = new Database(':memory:'); db.exec('CREATE TABLE probe(value TEXT)'); db.close();
       await import('node-pty');
-      const { ProjectsModule } = await import('@adeptify/goalboard-module-projects');
-      const { loadBuiltinPlanningMethodPacks } = await import('@adeptify/goalboard-module-goals');
+      const { ProjectsModule } = await import('@molis-ai/molis-work-module-projects');
+      const { loadBuiltinPlanningMethodPacks } = await import('@molis-ai/molis-work-module-goals');
       const developerMethod = loadBuiltinPlanningMethodPacks().find(method => method.method_id === 'industry-developer-tools');
       console.log(JSON.stringify({ projectType: typeof ProjectsModule, method: developerMethod?.name }));
     `], { cwd: installed.release_directory, env: { ...process.env, NODE_PATH: "" } });
@@ -97,7 +97,7 @@ async function fixtureScopedRuntimeSource(root: string, version: string): Promis
     mkdir(join(workspacePackage, "dist"), { recursive: true }),
     mkdir(join(workspacePackage, "methods"), { recursive: true }),
     mkdir(join(workspacePackage, "src-tauri", "target"), { recursive: true }),
-    mkdir(join(workspacePackage, "resources", "goalboard-runtime"), { recursive: true }),
+    mkdir(join(workspacePackage, "resources", "molis-work-runtime"), { recursive: true }),
     mkdir(join(nativeDirectory, "lib"), { recursive: true }),
     mkdir(join(nativeDirectory, "build", "Release"), { recursive: true }),
     mkdir(join(nativeDirectory, "src"), { recursive: true }),
@@ -108,7 +108,7 @@ async function fixtureScopedRuntimeSource(root: string, version: string): Promis
     writeFile(
       join(source, "package.json"),
       JSON.stringify({
-        name: "fixture-goalboard",
+        name: "fixture-molis-work",
         version,
         type: "module",
         dependencies: {
@@ -141,7 +141,7 @@ async function fixtureScopedRuntimeSource(root: string, version: string): Promis
     writeFile(join(workspacePackage, "methods", "industry-developer-tools.md"), "# shipped method\n"),
     writeFile(join(workspacePackage, "README.md"), "# desktop\n"),
     writeFile(join(workspacePackage, "src-tauri", "target", "cache.sentinel"), "build-cache\n"),
-    writeFile(join(workspacePackage, "resources", "goalboard-runtime", "old-payload.sentinel"), "nested-old-payload\n"),
+    writeFile(join(workspacePackage, "resources", "molis-work-runtime", "old-payload.sentinel"), "nested-old-payload\n"),
     writeFile(
       join(nativeDirectory, "package.json"),
       JSON.stringify({
@@ -163,11 +163,11 @@ async function fixtureScopedRuntimeSource(root: string, version: string): Promis
 }
 
 test("runtime payload keeps declared workspace assets and native files, not desktop caches or nested payloads", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "goalboard-runtime-payload-scope-"));
+  const directory = await mkdtemp(join(tmpdir(), "molis-work-runtime-payload-scope-"));
   try {
     const fixture = await fixtureScopedRuntimeSource(directory, "1.0.0");
     const payload = join(directory, "payload");
-    const created = await createGoalBoardRuntimePayload({
+    const created = await createMolisWorkRuntimePayload({
       sourceDirectory: fixture.source,
       destinationDirectory: payload,
       nodeExecutablePath: process.execPath,
@@ -179,7 +179,7 @@ test("runtime payload keeps declared workspace assets and native files, not desk
     assert.equal(await readFile(join(desktop, "methods", "industry-developer-tools.md"), "utf8"), "# shipped method\n");
     assert.equal(await readFile(join(native, "build", "Release", "addon.node"), "utf8"), "native-binary");
     await assert.rejects(stat(join(desktop, "src-tauri", "target", "cache.sentinel")));
-    await assert.rejects(stat(join(desktop, "resources", "goalboard-runtime", "old-payload.sentinel")));
+    await assert.rejects(stat(join(desktop, "resources", "molis-work-runtime", "old-payload.sentinel")));
     const output = await exec(process.execPath, [join(payload, "dist", "cli", "main.js")], { cwd: payload });
     assert.equal(output.stdout.trim(), "cli:embedded:workspace-dist:native");
   } finally {
@@ -188,7 +188,7 @@ test("runtime payload keeps declared workspace assets and native files, not desk
 });
 
 test("failed payload preparation leaves an existing Desktop resource untouched", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "goalboard-runtime-resource-"));
+  const directory = await mkdtemp(join(tmpdir(), "molis-work-runtime-resource-"));
   try {
     const resources = join(directory, "resources");
     await mkdir(resources);

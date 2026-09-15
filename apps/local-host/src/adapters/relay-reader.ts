@@ -1,6 +1,6 @@
-import { LocalSqliteStorage, type SqliteDatabase } from "@adeptify/goalboard-storage";
-import { GMAIL_INSTALLATIONS_SETTINGS_KEY } from "@adeptify/goalboard-integration-gmail";
-import type { RelayImportData, RelaySourceRow, RelayItemRow, RelayMaterialRow, RelayRunRow, RelayConnectorRow, RelayCursorRow } from "@adeptify/goalboard-plugin-feed";
+import { LocalSqliteStorage, type SqliteDatabase } from "@molis-ai/molis-work-storage";
+import { GMAIL_INSTALLATIONS_SETTINGS_KEY } from "@molis-ai/molis-work-integration-gmail";
+import type { RelayImportData, RelaySourceRow, RelayItemRow, RelayMaterialRow, RelayRunRow, RelayConnectorRow, RelayCursorRow } from "@molis-ai/molis-work-plugin-feed";
 
 const REQUIRED_TABLES = ["items", "inbox_sources", "evidence_refs"] as const;
 const REQUIRED_COLUMNS: Record<(typeof REQUIRED_TABLES)[number], readonly string[]> = {

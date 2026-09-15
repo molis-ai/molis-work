@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 import readline from "node:readline";
-import { GoalBoardServer } from "@adeptify/goalboard-app-desktop";
-export { GoalBoardServer } from "@adeptify/goalboard-app-desktop";
-export { runtimeContextHostFromEnvironment } from "@adeptify/goalboard-app-local-host";
-export type { GoalBoardMcpAudience, GoalBoardMcpToolCallContext, GoalBoardRuntimeContextHost } from "@adeptify/goalboard-app-local-host";
-export type { GoalBoardRuntimeConnection } from "@adeptify/goalboard-contracts/platform/app-host";
-export { MCP_TOOLS as TOOLS, RUNTIME_MCP_TOOLS as RUNTIME_TOOLS, MCP_SERVER_INFO as SERVER_INFO } from "@adeptify/goalboard-app-mcp";
+import { MolisWorkServer } from "@molis-ai/molis-work-app-desktop";
+export { MolisWorkServer } from "@molis-ai/molis-work-app-desktop";
+export { runtimeContextHostFromEnvironment } from "@molis-ai/molis-work-app-local-host";
+export type { MolisWorkMcpAudience, MolisWorkMcpToolCallContext, MolisWorkRuntimeContextHost } from "@molis-ai/molis-work-app-local-host";
+export type { MolisWorkRuntimeConnection } from "@molis-ai/molis-work-contracts/platform/app-host";
+export { MCP_TOOLS as TOOLS, RUNTIME_MCP_TOOLS as RUNTIME_TOOLS, MCP_SERVER_INFO as SERVER_INFO } from "@molis-ai/molis-work-app-mcp";
 
 async function runStdio(): Promise<void> {
-  const server = new GoalBoardServer();
+  const server = new MolisWorkServer();
   try {
     const rl = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
     for await (const line of rl) {

@@ -1,22 +1,22 @@
-import { cliFlagValue as flag } from "@adeptify/goalboard-app-cli";
+import { cliFlagValue as flag } from "@molis-ai/molis-work-app-cli";
 import { createLocalUninstallService } from "./local-uninstall.js";
-import type { GoalBoardUninstallPlan } from "./installer/uninstall-contract.js";
+import type { MolisWorkUninstallPlan } from "./installer/uninstall-contract.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 
 function printDemoHelp(): void {
-  console.log(`goalboard demo <create|reset|remove> [--home PATH] [--confirm] [--json]
+  console.log(`molis-work demo <create|reset|remove> [--home PATH] [--confirm] [--json]
 
 不带 --confirm 只显示将发生什么；demo 明确标记为可重建数据，不会与用户项目混淆。`);
 }
 
 function printUninstallHelp(): void {
-  console.log(`goalboard uninstall [--home PATH] [--confirm] [--json]
-goalboard uninstall --purge-user-data --confirm --confirm-home PATH --confirm-project-count N [--home PATH] [--json]
+  console.log(`molis-work uninstall [--home PATH] [--confirm] [--json]
+molis-work uninstall --purge-user-data --confirm --confirm-home PATH --confirm-project-count N [--home PATH] [--json]
 
 普通卸载保留用户项目、catalog、备份和日志。永久清除用户数据是独立操作，必须再次提供精确目录和项目数量。`);
 }
 
-function printUninstallPlan(plan: GoalBoardUninstallPlan): void {
+function printUninstallPlan(plan: MolisWorkUninstallPlan): void {
   console.log(plan.message);
   console.log(`状态：${plan.status}`);
   console.log(`用户项目：${plan.user_project_count}（${plan.purge_user_data ? "将永久删除" : "保留"}）`);
@@ -31,7 +31,7 @@ function randomId(): string {
 }
 
 
-export async function runLocalDemoCli(args: string[], withGoalBoardProjectCatalog: LocalWebCatalogRunner): Promise<number> {
+export async function runLocalDemoCli(args: string[], withMolisWorkProjectCatalog: LocalWebCatalogRunner): Promise<number> {
   if (args.includes("--help") || args.includes("-h") || !args[1]) {
     printDemoHelp();
     return 0;
@@ -39,7 +39,7 @@ export async function runLocalDemoCli(args: string[], withGoalBoardProjectCatalo
   const action = args[1];
   if (!["create", "reset", "remove"].includes(action)) throw new Error(`未知 demo 操作: ${action}`);
   const homeDirectory = flag(args, "--home");
-  return await withGoalBoardProjectCatalog({ homeDirectory }, async (catalog) => {
+  return await withMolisWorkProjectCatalog({ homeDirectory }, async (catalog) => {
     const demo = catalog.listProjects().find((project) => project.data_class === "regenerable_demo") ?? null;
     if (!args.includes("--confirm")) {
       const preview = {
@@ -57,13 +57,13 @@ export async function runLocalDemoCli(args: string[], withGoalBoardProjectCatalo
       return preview.status === "unavailable" ? 1 : 0;
     }
     const result = action === "create"
-      ? await catalog.ensureDemoProject({ actor_id: "goalboard-cli", user_confirmed: true })
+      ? await catalog.ensureDemoProject({ actor_id: "molis-work-cli", user_confirmed: true })
       : action === "reset"
-        ? await catalog.resetDemoProject({ actor_id: "goalboard-cli", user_confirmed: true })
+        ? await catalog.resetDemoProject({ actor_id: "molis-work-cli", user_confirmed: true })
         : demo
           ? await catalog.removeDemoProject({
               project_id: demo.project_id,
-              actor_id: "goalboard-cli",
+              actor_id: "molis-work-cli",
               delete_confirmed: true,
               idempotency_key: `demo-remove-${randomId()}`,
             })
@@ -74,12 +74,12 @@ export async function runLocalDemoCli(args: string[], withGoalBoardProjectCatalo
   });
 }
 
-export async function runLocalUninstallCli(args: string[], withGoalBoardProjectCatalog: LocalWebCatalogRunner): Promise<number> {
+export async function runLocalUninstallCli(args: string[], withMolisWorkProjectCatalog: LocalWebCatalogRunner): Promise<number> {
   if (args.includes("--help") || args.includes("-h")) {
     printUninstallHelp();
     return 0;
   }
-  const service = createLocalUninstallService({ homeDirectory: flag(args, "--home") }, withGoalBoardProjectCatalog);
+  const service = createLocalUninstallService({ homeDirectory: flag(args, "--home") }, withMolisWorkProjectCatalog);
   const purgeUserData = args.includes("--purge-user-data");
   const plan = await service.prepare({ purge_user_data: purgeUserData });
   if (!args.includes("--confirm")) {

@@ -4,11 +4,11 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { once } from "node:events";
-import { seedDemoBoard, DEMO_BOARD_ID } from "@adeptify/goalboard-app-local-host";
-import { createGoalBoardWebServer } from "../apps/desktop/launchers/web/server.js";
-import { resolveGoalsReadRoute, resolveGoalsPageRoute, type GoalsReadRoute } from "@adeptify/goalboard-plugin-goals";
+import { seedDemoBoard, DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
+import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { resolveGoalsReadRoute, resolveGoalsPageRoute, type GoalsReadRoute } from "@molis-ai/molis-work-plugin-goals";
 import { createWorkbenchGoalsFragmentRenderer, renderWorkbenchGoalsReadRoute, renderWorkbenchGoalsReadRequest, renderWorkbenchGoalsPageRequest,
-  type GoalsReadRenderers } from "@adeptify/goalboard-app-workbench";
+  type GoalsReadRenderers } from "@molis-ai/molis-work-app-workbench";
 
 test("fragment composition selects the correct owner and preserves collection restrictions, context and prefix behavior", () => {
   const goal = (goal_id: string, archived_at: string | null = null, trashed_at: string | null = null) =>
@@ -29,11 +29,11 @@ test("fragment composition selects the correct owner and preserves collection re
   check(() => fragments.renderGoalDocumentFragment(view, "same"), "document", [current, view]);
   check(() => fragments.renderGoalDocumentFragment(view, "same", "archive"), "document", [archived, view]);
   check(() => fragments.renderGoalDocumentFragment(view, "same", "trash"), "trash", [trash]);
-  check(() => fragments.renderGoalBoardMomentumFragment(view, "same", "archive"), "momentum", [view, "same", view.archived_goals]);
+  check(() => fragments.renderMolisWorkMomentumFragment(view, "same", "archive"), "momentum", [view, "same", view.archived_goals]);
   calls.length = 0;
   for (const action of [
     () => fragments.renderGoalDocumentFragment(view, "missing"),
-    () => fragments.renderGoalBoardMomentumFragment(view, "same", "trash"),
+    () => fragments.renderMolisWorkMomentumFragment(view, "same", "trash"),
   ]) assert.equal(action(), null);
   assert.deepEqual(calls, [], "Rejected surfaces do not invoke an owner or prefixer");
 });
@@ -114,10 +114,10 @@ test("Workbench routes call only the selected owner with exact inputs and retain
 });
 
 test("Goal document HTTP routes retain bad-encoding, collection, offset, missing-content and response-header behavior", async t => {
-  const directory = await mkdtemp(join(tmpdir(), "goalboard-document-route-"));
+  const directory = await mkdtemp(join(tmpdir(), "molis-work-document-route-"));
   const databasePath = join(directory, "fixture.db");
   seedDemoBoard(databasePath);
-  const server = createGoalBoardWebServer({ databasePath, boardId: DEMO_BOARD_ID, homeDirectory: directory, controlToken: "route-test-control-0123456789abcdef" });
+  const server = createMolisWorkWebServer({ databasePath, boardId: DEMO_BOARD_ID, homeDirectory: directory, controlToken: "route-test-control-0123456789abcdef" });
   t.after(async () => { await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); await rm(directory, { recursive: true, force: true }); });
   server.listen(0, "127.0.0.1");
   await once(server, "listening");
@@ -154,8 +154,8 @@ test("Goal document HTTP routes retain bad-encoding, collection, offset, missing
   const archive = await fetch(origin + "/api/goals/CORE/archive", {
     method: "POST",
     headers: { "content-type": "application/json", origin,
-      "x-goalboard-control-token": "route-test-control-0123456789abcdef",
-      "x-goalboard-idempotency-key": "route-archive-core" },
+      "x-molis-work-control-token": "route-test-control-0123456789abcdef",
+      "x-molis-work-idempotency-key": "route-archive-core" },
     body: JSON.stringify({ archived: true, reason: "Verify existing direct URL after archive" }),
   });
   assert.equal(archive.status, 200, await archive.text());

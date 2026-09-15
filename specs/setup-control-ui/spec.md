@@ -2,7 +2,7 @@
 
 ## 背景与目标
 
-GoalBoard 现在已有自包含安装和统一 Runtime 接入服务，但用户仍只能通过 Runtime 自然语言或手工命令完成后续设置。Web 顶导也没有全局设置入口，空项目页只能告诉用户去 Runtime，无法独立完成首次可用配置。
+Molis Work 现在已有自包含安装和统一 Runtime 接入服务，但用户仍只能通过 Runtime 自然语言或手工命令完成后续设置。Web 顶导也没有全局设置入口，空项目页只能告诉用户去 Runtime，无法独立完成首次可用配置。
 
 本 Work Item 在现有 Web 中增加全局设置控制面，让用户不依赖 Runtime 对话也能配置 Runtime、创建/导入/改名/打开项目并检查安装状态。首次使用复用这些真实页面，不建立另一套向导逻辑。
 
@@ -11,7 +11,7 @@ GoalBoard 现在已有自包含安装和统一 Runtime 接入服务，但用户�
 - `/` 只有项目列表和旧 DB 迁移，空状态明确禁止在 Web 新建项目。
 - 项目页顶导已有统一搜索、状态、新建、待决定、归档和回收站，但没有全局设置入口。
 - `RuntimeIntegrationService` 已提供 detect / prepare / confirm / remove，Web 尚未调用。
-- `GoalBoardProjectCatalog` 已提供 create / migrate / rename / list，Web 只调用 migrate。
+- `MolisWorkProjectCatalog` 已提供 create / migrate / rename / list，Web 只调用 migrate。
 - Web 没有全局诊断页，用户无法确认 home、版本和三个 launcher 是否完整。
 
 ## 范围
@@ -20,9 +20,9 @@ GoalBoard 现在已有自包含安装和统一 Runtime 接入服务，但用户�
 - 项目列表页与项目 Goal 页继续使用同一 58px 顶导高度。
 - Runtime 页面显示 Codex / Claude Code 探测状态，先请求公开 plan，再展示路径、字段级变化、备份和重启说明；用户明确确认后才调用 apply/remove。
 - 项目页面支持新建、导入旧 DB、改名和打开；DB 路径只作为辅助信息放在展开详情中，不作为项目身份或主要标题。
-- 诊断页面只读显示版本、GoalBoard home、安装清单、CLI/MCP/Web launcher 和项目数。
+- 诊断页面只读显示版本、Molis Work home、安装清单、CLI/MCP/Web launcher 和项目数。
 - 无项目的首页提供“创建第一个项目”和“设置 Runtime 接入”两个真实入口，并允许用户直接跳过。
-- UI 只调用 `RuntimeIntegrationService` 和 `GoalBoardProjectCatalog`；不直接修改 Runtime 配置、Skill 或项目 DB。
+- UI 只调用 `RuntimeIntegrationService` 和 `MolisWorkProjectCatalog`；不直接修改 Runtime 配置、Skill 或项目 DB。
 
 ## 非目标
 

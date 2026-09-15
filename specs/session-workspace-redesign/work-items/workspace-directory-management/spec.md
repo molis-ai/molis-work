@@ -4,7 +4,7 @@
 
 项目工作台已经把「工作目录」放在选定 Project 内，与 Goals、Sessions 平级，并能从真实 Session Registry 汇总路径和 Session 数量。但现有页面仍停留在高保真切片：路径修复、解除项目关系和从目录启动 Session 只更新页面或显示提示，没有写入真实事实源。
 
-GoalBoard 中本 Goal 的早期 Contract 仍写着“全局与项目内工作目录目录”。用户后续已经明确纠正为：Sessions 和工作目录只出现在选定 Project 内，与 Goals 平级；全局只负责选择 Project。本 Work Item 以最新用户决定为准，不实现第二套全局管理页，也不引入持久默认。
+Molis Work 中本 Goal 的早期 Contract 仍写着“全局与项目内工作目录目录”。用户后续已经明确纠正为：Sessions 和工作目录只出现在选定 Project 内，与 Goals 平级；全局只负责选择 Project。本 Work Item 以最新用户决定为准，不实现第二套全局管理页，也不引入持久默认。
 
 目标是把项目内工作目录从可交互原型升级为功能可用：用户可以看清路径健康、相关 Sessions 和项目关系，在逐次确认后添加目录、修复记录、解除当前项目关系，并从健康目录创建新的 Runtime Session。
 
@@ -16,7 +16,7 @@ GoalBoard 中本 Goal 的早期 Contract 仍写着“全局与项目内工作目
 - 合并当前 Project 下 Session Registry 已记录的工作目录，避免历史 Session 路径从页面消失。
 - 项目内按名称、规范化路径、Runtime、健康状态和 Session 使用情况搜索、筛选、排序。
 - 显式添加一个绝对路径并关联当前 Project；软链接解析到同一 canonical identity，不产生重复记录。
-- 修复缺失路径或冲突记录，只更新 GoalBoard 的目录身份、项目关系和目标 Session 的 workspace 关系，不移动、创建或删除真实文件。
+- 修复缺失路径或冲突记录，只更新 Molis Work 的目录身份、项目关系和目标 Session 的 workspace 关系，不移动、创建或删除真实文件。
 - 解除当前 Project 与目录的关系；保留其他 Project 的关系、Session 历史和真实文件夹。
 - 从健康目录选择 Runtime、可选当前 Goal和标题，逐次确认后创建新的 Session；能力不足时走现有 Runtime Adapter fallback，并明确返回真实结果。
 - 全局 `/workspaces` 返回项目选择；项目兼容路由进入同一个项目工作台。
@@ -79,7 +79,7 @@ GoalBoard 中本 Goal 的早期 Contract 仍写着“全局与项目内工作目
 ## 输入、输出与边界
 
 - 输入：当前 `project_id`、绝对工作目录路径、目标 workspace identity、可选 Runtime/Goal/Session 标题和用户确认。
-- 输出：规范化的 Project 工作目录记录，或新创建的 GoalBoard Session。
+- 输出：规范化的 Project 工作目录记录，或新创建的 Molis Work Session。
 - 一个目录可关联多个 Project；本页面的解除动作只删除当前 Project membership。
 - 目录 identity 来自规范化 canonical path，不来自 Session ID、cwd 文本或显示名称。
 - 缺失路径可以保留记录和修复，但不能启动 Session。
@@ -114,5 +114,5 @@ git diff --check
 ## 假设与开放项
 
 - 本次达到完成等级 3「功能可用」，不覆盖安装发布。
-- 旧 Contract 的全局目录条款与最新用户决定冲突；实现后提交 GoalBoard Candidate/Proposal 纠正，未确认前不伪报旧 Goal 完成。
-- 如果真实 Runtime `create` 不可用，现有 Adapter 可创建 GoalBoard 托管 Session，但界面必须如实显示能力来源。
+- 旧 Contract 的全局目录条款与最新用户决定冲突；实现后提交 Molis Work Candidate/Proposal 纠正，未确认前不伪报旧 Goal 完成。
+- 如果真实 Runtime `create` 不可用，现有 Adapter 可创建 Molis Work 托管 Session，但界面必须如实显示能力来源。

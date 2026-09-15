@@ -1,10 +1,10 @@
 import { createHash } from "node:crypto";
-import { LocalSqliteJournal, type SqliteDatabase } from "@adeptify/goalboard-storage";
-import { FeedSourceService, type FeedSourceCatalogView } from "@adeptify/goalboard-plugin-feed";
-import { FEED_CATEGORY_LABEL, listRegisterableFeeds, CUSTOM_RSS_DEFINITION_ID, customRssFeedHost, normalizeCustomRssFeedUrl, isRssSourceKind, readRssHttpState, withRssHttpFailure, withRssHttpSuccess } from "@adeptify/goalboard-integration-rss";
-import { YOUTUBE_CHANNEL_DEFINITION_ID, YOUTUBE_PUBLIC_FEED_HOST, normalizeYouTubeChannelId, youtubeChannelFeedUrl } from "@adeptify/goalboard-integration-youtube";
-import { GMAIL_DEFAULT_SCOPE, parseGmailScope } from "@adeptify/goalboard-integration-gmail/scope";
-import type { FeedSourceRecord } from "@adeptify/goalboard-plugin-feed";
+import { LocalSqliteJournal, type SqliteDatabase } from "@molis-ai/molis-work-storage";
+import { FeedSourceService, type FeedSourceCatalogView } from "@molis-ai/molis-work-plugin-feed";
+import { FEED_CATEGORY_LABEL, listRegisterableFeeds, CUSTOM_RSS_DEFINITION_ID, customRssFeedHost, normalizeCustomRssFeedUrl, isRssSourceKind, readRssHttpState, withRssHttpFailure, withRssHttpSuccess } from "@molis-ai/molis-work-integration-rss";
+import { YOUTUBE_CHANNEL_DEFINITION_ID, YOUTUBE_PUBLIC_FEED_HOST, normalizeYouTubeChannelId, youtubeChannelFeedUrl } from "@molis-ai/molis-work-integration-youtube";
+import { GMAIL_DEFAULT_SCOPE, parseGmailScope } from "@molis-ai/molis-work-integration-gmail/scope";
+import type { FeedSourceRecord } from "@molis-ai/molis-work-plugin-feed";
 import { createLocalFeedApplication } from "./feed-application.js";
 import { createFeedSourceRuntime, type FeedSourceRuntime } from "./feed-source-runtime.js";
 export function listFeedSourceCatalog(): FeedSourceCatalogView[] {

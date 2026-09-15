@@ -3,8 +3,8 @@ import test from "node:test";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { PlanningMethodPack } from "@adeptify/goalboard-contracts/modules/goals";
-import { DEMO_BOARD_ID } from "@adeptify/goalboard-app-local-host";
+import type { PlanningMethodPack } from "@molis-ai/molis-work-contracts/modules/goals";
+import { DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 test("Planning browser copies a template, recovers failed saves and adopts an independent project version", { timeout: 60_000 }, async t => {
@@ -77,7 +77,7 @@ test("Planning browser copies a template, recovers failed saves and adopts an in
   await waitFor("document.readyState === 'complete' && " + dom('[data-adopt-planning-method="' + id + '"]'));
   const projectBefore = await read(projectApi);
   const unconfirmed = await evaluate<{ status: number; error: string }>("(async()=>{const response=await fetch(" + JSON.stringify(projectApi + "/apply") +
-    ",{method:'POST',headers:globalThis.goalboardControlHeaders(),body:JSON.stringify({method_id:" + JSON.stringify(id) +
+    ",{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({method_id:" + JSON.stringify(id) +
     "})});return {status:response.status,...await response.json()};})()");
   assert.equal(unconfirmed.status, 400);
   assert.match(unconfirmed.error, /必须由用户确认/);
@@ -116,8 +116,8 @@ test("Planning browser copies a template, recovers failed saves and adopts an in
   assert.deepEqual(after.goals, before.goals);
   assert.deepEqual(after.relations, before.relations);
   assert.deepEqual(after.runs, before.runs);
-  if (process.env.GOALBOARD_TEST_CAPTURE) {
-    const captures = await mkdtemp(join(tmpdir(), "goalboard-gw5-planning-"));
+  if (process.env.MOLIS_WORK_TEST_CAPTURE) {
+    const captures = await mkdtemp(join(tmpdir(), "molis-work-gw5-planning-"));
     for (const [name, width, height] of [["desktop", 1440, 1100], ["mobile", 390, 844]] as const) {
       await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: name === "mobile" }, sessionId);
       await evaluate("window.scrollTo(0,0); new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");

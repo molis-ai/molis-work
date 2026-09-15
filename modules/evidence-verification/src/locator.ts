@@ -141,7 +141,7 @@ export function projectReferenceSegments(locator: string): string[] {
     throw new ProjectReferenceError(400, "项目内引用必须是相对路径");
   }
   if (!locatorPath.startsWith("project://") && /^[a-z][a-z0-9+.-]*:/i.test(locatorPath)) {
-    throw new ProjectReferenceError(400, "只有项目内相对路径可以在 GoalBoard 中打开");
+    throw new ProjectReferenceError(400, "只有项目内相对路径可以在 Molis Work 中打开");
   }
   if (path.isAbsolute(encodedPath) || encodedPath.includes("\0")) {
     throw new ProjectReferenceError(400, "项目内引用必须是安全的相对路径");
@@ -198,12 +198,12 @@ export function readProjectReference(
   if (resolved.size > MAX_PROJECT_REFERENCE_BYTES) {
     throw new ProjectReferenceError(
       413,
-      `项目内引用文件过大，不能在 GoalBoard 中打开（上限 512 KiB / ${MAX_PROJECT_REFERENCE_BYTES} 字节）`,
+      `项目内引用文件过大，不能在 Molis Work 中打开（上限 512 KiB / ${MAX_PROJECT_REFERENCE_BYTES} 字节）`,
     );
   }
   const content = fs.readFileSync(resolved.realFile);
   if (content.includes(0) || content.toString("utf8").includes("\uFFFD")) {
-    throw new ProjectReferenceError(415, "GoalBoard 只能打开项目内的文本引用");
+    throw new ProjectReferenceError(415, "Molis Work 只能打开项目内的文本引用");
   }
   return {
     content,
@@ -264,7 +264,7 @@ export function validateEvidenceLocator(
   if (/^https?:\/\//i.test(value)) {
     return {
       status: "unverified",
-      reason: "外部 URL 已保留，但 GoalBoard 不会发起网络请求或保证长期可用性",
+      reason: "外部 URL 已保留，但 Molis Work 不会发起网络请求或保证长期可用性",
       checked_at: checkedAt,
       normalized_locator: value,
     };
@@ -272,7 +272,7 @@ export function validateEvidenceLocator(
   if (/^file:\/\//i.test(value)) {
     return {
       status: "unverified",
-      reason: "机器本地 locator 已按原样保留为 UNVERIFIED；GoalBoard 不会读取或确认文件存在；调用方提供的 digest 未核验；如需 verified，请从该仓库的受控 workspace 重新提交项目内 locator，或同时提交可读的 sidecar summary。",
+      reason: "机器本地 locator 已按原样保留为 UNVERIFIED；Molis Work 不会读取或确认文件存在；调用方提供的 digest 未核验；如需 verified，请从该仓库的受控 workspace 重新提交项目内 locator，或同时提交可读的 sidecar summary。",
       checked_at: checkedAt,
       normalized_locator: value,
     };
@@ -299,7 +299,7 @@ export function validateEvidenceLocator(
   if (isOpaqueProtocol) {
     return {
       status: "unverified",
-      reason: "不透明或外部 locator 已保留为 UNVERIFIED；GoalBoard 不会调用自定义协议",
+      reason: "不透明或外部 locator 已保留为 UNVERIFIED；Molis Work 不会调用自定义协议",
       checked_at: checkedAt,
       normalized_locator: normalizedLocator,
     };
@@ -321,7 +321,7 @@ export function validateEvidenceLocator(
       : "";
     return {
       status: "unverified",
-      reason: `项目内文件路径已确认；${worktreeBoundary}但文件大小 ${resolved.size} 字节超过可全文打开上限 512 KiB（${MAX_PROJECT_REFERENCE_BYTES} 字节）；内容未全文预检；${anchorBoundary}如有 digest，它只会按原样记录，GoalBoard 未核验。建议同时提交小型 sidecar summary。`,
+      reason: `项目内文件路径已确认；${worktreeBoundary}但文件大小 ${resolved.size} 字节超过可全文打开上限 512 KiB（${MAX_PROJECT_REFERENCE_BYTES} 字节）；内容未全文预检；${anchorBoundary}如有 digest，它只会按原样记录，Molis Work 未核验。建议同时提交小型 sidecar summary。`,
       checked_at: checkedAt,
       normalized_locator: normalizedLocator,
     };

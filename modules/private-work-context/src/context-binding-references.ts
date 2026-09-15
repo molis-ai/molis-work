@@ -1,7 +1,7 @@
 import type Database from "better-sqlite3";
-import type { ContextAccess, ContextLedgerApi, ObjectRef } from "@adeptify/goalboard-contracts/modules/context-ledger";
-import type { RuntimeContextBindingRecord } from "@adeptify/goalboard-contracts/modules/private-work-context";
-import { GoalBoardSessionError } from "./errors.js";
+import type { ContextAccess, ContextLedgerApi, ObjectRef } from "@molis-ai/molis-work-contracts/modules/context-ledger";
+import type { RuntimeContextBindingRecord } from "@molis-ai/molis-work-contracts/modules/private-work-context";
+import { MolisWorkSessionError } from "./errors.js";
 
 const scope = { kind: "personal", id: "private-work-context" } as const;
 const access = (actor = "module:private-work-context"): ContextAccess => ({ actor_id: actor, scope });
@@ -13,7 +13,7 @@ export class RuntimeContextProjectReferences {
   get(bindingId: string): string {
     const edge = this.ledger.query.get(access(), `work.binding_project:${bindingId}`);
     if (!edge || edge.target.module !== "projects") {
-      throw new GoalBoardSessionError("session.invalid_input", "Runtime 工作入口的 Project 关系缺失，不能猜测绑定");
+      throw new MolisWorkSessionError("session.invalid_input", "Runtime 工作入口的 Project 关系缺失，不能猜测绑定");
     }
     return edge.target.id;
   }

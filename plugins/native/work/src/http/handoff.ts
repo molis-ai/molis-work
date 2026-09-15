@@ -1,5 +1,5 @@
 import type { WorkSessionHttpContext } from "./types.js";
-import { GoalBoardSessionError } from "@adeptify/goalboard-contracts/modules/private-work-context";
+import { MolisWorkSessionError } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import { publicSessionRecord, publicSessionHandoff } from "./public-records.js";
 
 export async function handleSessionHandoffHttp(context: WorkSessionHttpContext): Promise<boolean> {
@@ -50,7 +50,7 @@ export async function handleSessionHandoffHttp(context: WorkSessionHttpContext):
         },
       });
     } catch (error) {
-      respond( error instanceof GoalBoardSessionError ? 400 : 503, {
+      respond( error instanceof MolisWorkSessionError ? 400 : 503, {
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -97,7 +97,7 @@ export async function handleSessionHandoffHttp(context: WorkSessionHttpContext):
         });
         respond( 200, { handoff: publicSessionHandoff(handoff, true) });
       } catch (error) {
-        respond( error instanceof GoalBoardSessionError ? 400 : 503, {
+        respond( error instanceof MolisWorkSessionError ? 400 : 503, {
           error: error instanceof Error ? error.message : String(error),
         });
       }
@@ -128,7 +128,7 @@ export async function handleSessionHandoffHttp(context: WorkSessionHttpContext):
           ...(status === 502 ? { error: result.handoff.error_message } : {}),
         });
       } catch (error) {
-        respond( error instanceof GoalBoardSessionError ? 400 : 503, {
+        respond( error instanceof MolisWorkSessionError ? 400 : 503, {
           error: error instanceof Error ? error.message : String(error),
         });
       }
@@ -139,7 +139,7 @@ export async function handleSessionHandoffHttp(context: WorkSessionHttpContext):
         const handoff = resources.handoff.cancel(current.package_id);
         respond( 200, { handoff: publicSessionHandoff(handoff, false) });
       } catch (error) {
-        respond( error instanceof GoalBoardSessionError ? 400 : 503, {
+        respond( error instanceof MolisWorkSessionError ? 400 : 503, {
           error: error instanceof Error ? error.message : String(error),
         });
       }

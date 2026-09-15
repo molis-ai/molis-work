@@ -20,9 +20,9 @@ Goal：`goal-reorg-ap1`
 
 ### 依赖检查
 
-- 生产 caller 只有 `src/projects/catalog.ts`，并且只导入 `@adeptify/goalboard-module-projects` 公共入口。
-- 没有 `@adeptify/goalboard-module-projects/*` deep import。
-- Projects package 只声明 `@adeptify/goalboard-contracts` 依赖；不导入其他 Module implementation、旧 Store 或 Web/Desktop 实现。
+- 生产 caller 只有 `src/projects/catalog.ts`，并且只导入 `@molis-ai/molis-work-module-projects` 公共入口。
+- 没有 `@molis-ai/molis-work-module-projects/*` deep import。
+- Projects package 只声明 `@molis-ai/molis-work-contracts` 依赖；不导入其他 Module implementation、旧 Store 或 Web/Desktop 实现。
 - `pnpm workspace:check`：48 个 package、48 个唯一名称、30 个 Contract subpath，0 error。
 - `pnpm boundary:check`：48 个 package、111 个 source file、195 个 import、54 个 package edge，0 error。
 
@@ -63,7 +63,7 @@ Goal：`goal-reorg-ap1`
 node tooling/migrations/audit-project-identity.mjs <catalog.db>
 ```
 
-结果：Catalog owner 为 `goalboard-project-catalog-v1`，schema version 为 9；缺失表、重复 Project ID、重复数据库路径、新建 Project 的非标准 `board_id`、无效旧 Board mapping 和孤立 workspace membership 均为 0。
+结果：Catalog owner 为 `molis-work-project-catalog-v1`，schema version 为 9；缺失表、重复 Project ID、重复数据库路径、新建 Project 的非标准 `board_id`、无效旧 Board mapping 和孤立 workspace membership 均为 0。
 
 ### 验收结论
 

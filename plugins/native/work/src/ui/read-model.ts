@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 import path from "node:path";
-import type { WorkSessionQueryApi } from "@adeptify/goalboard-contracts/modules/private-work-context";
-import type { ProjectWorkspaceDirectoryRecord, ProjectWorkspaceRef } from "@adeptify/goalboard-contracts/modules/projects";
-import type { RuntimeHostApi } from "@adeptify/goalboard-contracts/services/runtime-host";
+import type { WorkSessionQueryApi } from "@molis-ai/molis-work-contracts/modules/private-work-context";
+import type { ProjectWorkspaceDirectoryRecord, ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
+import type { RuntimeHostApi } from "@molis-ai/molis-work-contracts/services/runtime-host";
 import type { ProjectOperationsData, ProjectOperationsProject, ProjectSessionRecord, ProjectWorkspaceRecord } from "./types.js";
 
 export interface WorkSessionViewInput {
@@ -53,9 +53,9 @@ export function buildWorkSessionView(input: WorkSessionViewInput): ProjectOperat
       updated: formatSessionTimestamp(session.updated_at),
       updatedAt: session.updated_at,
       summary: mode === "native"
-        ? "可按需读取原 Runtime 的结构化执行历史，并合并 GoalBoard TUI 记录。"
+        ? "可按需读取原 Runtime 的结构化执行历史，并合并 Molis Work TUI 记录。"
         : mode === "fallback"
-          ? "当前显示 GoalBoard 已持久化的 TUI 与执行事实。"
+          ? "当前显示 Molis Work 已持久化的 TUI 与执行事实。"
           : "这条 Session 的 Runtime 暂不提供内容读取能力。",
     };
   });
@@ -122,7 +122,7 @@ export function buildWorkSessionView(input: WorkSessionViewInput): ProjectOperat
           ? "路径可访问，项目关系与已知 Session 均可追溯。"
           : "路径正被当前项目的 Session 使用；尚未建立独立项目关系。"
         : state === "missing"
-          ? "原路径当前不可访问；修复只会更新 GoalBoard 记录。"
+          ? "原路径当前不可访问；修复只会更新 Molis Work 记录。"
           : "同一路径存在多个 workspace identity，需要确认关联。",
     };
   });

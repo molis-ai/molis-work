@@ -1,18 +1,18 @@
 import { randomUUID } from "node:crypto";
 import type Database from "better-sqlite3";
-import { GoalBoardSessionError } from "./errors.js";
+import { MolisWorkSessionError } from "./errors.js";
 import { SessionAssociationRepository } from "./session-associations.js";
 import type {
-  CreateGoalBoardSessionInput,
+  CreateMolisWorkSessionInput,
   DiscoverRuntimeSessionInput,
   ExplicitlyLinkRuntimeSessionInput,
-  GoalBoardSessionGoalLink,
-  GoalBoardSessionRecord,
-  GoalBoardSessionStatus,
+  MolisWorkSessionGoalLink,
+  MolisWorkSessionRecord,
+  MolisWorkSessionStatus,
   LinkNativeRuntimeSessionInput,
   ReassignWorkspaceSessionsInput,
   SessionListFilter,
-  SetGoalBoardSessionStatusInput,
+  SetMolisWorkSessionStatusInput,
   UpdateSessionAssociationsInput,
 } from "./contract-aliases.js";
 import {
@@ -36,8 +36,8 @@ export interface InsertSessionRecordInput {
   workspaceId: string | null;
   workspacePath: string | null;
   title: string | null;
-  status: GoalBoardSessionStatus;
-  provenance: GoalBoardSessionRecord["provenance"];
+  status: MolisWorkSessionStatus;
+  provenance: MolisWorkSessionRecord["provenance"];
   metadata: Record<string, unknown>;
   actorId: string;
   createdAt: string;
@@ -51,7 +51,7 @@ export class SessionRecordRepository {
     private readonly associations: SessionAssociationRepository,
   ) {}
 
-  createSession(input: CreateGoalBoardSessionInput): GoalBoardSessionRecord {
+  createSession(input: CreateMolisWorkSessionInput): MolisWorkSessionRecord {
     requireConfirmation(input.user_confirmed);
     const runtimeId = requiredText(input.runtime_id, "Runtime 标识不能为空");
     const actorId = requiredText(input.actor_id, "Session 写入必须记录执行者");
@@ -67,7 +67,7 @@ export class SessionRecordRepository {
         const existing = this.findBySurface(surfaceId);
         if (existing) {
           if (existing.runtime_id !== runtimeId) {
-            throw new GoalBoardSessionError("session.runtime_mismatch", "这个 surface 已属于另一个 Runtime Session");
+            throw new MolisWorkSessionError("session.runtime_mismatch", "这个 surface 已属于另一个 Runtime Session");
           }
           return this.updateAssociationsInTransaction(existing, input, actorId, now);
         }
@@ -86,7 +86,7 @@ export class SessionRecordRepository {
         workspacePath: optionalAbsolutePath(input.workspace_path),
         title: optionalText(input.title),
         status: "active",
-        provenance: input.provenance ?? "goalboard_created",
+        provenance: input.provenance ?? "molis_work_created",
         metadata: input.metadata ?? {},
         actorId,
         createdAt: now,
@@ -95,7 +95,7 @@ export class SessionRecordRepository {
     })();
   }
 
-  discoverSession(input: DiscoverRuntimeSessionInput): GoalBoardSessionRecord {
+  discoverSession(input: DiscoverRuntimeSessionInput): MolisWorkSessionRecord {
     const runtimeId = requiredText(input.runtime_id, "Runtime 标识不能为空");
     const nativeId = requiredText(input.native_runtime_session_id, "Runtime 原生 Session ID 不能为空");
     const now = this.now().toISOString();
@@ -136,7 +136,7 @@ export class SessionRecordRepository {
     })();
   }
 
-  explicitlyLinkSession(input: ExplicitlyLinkRuntimeSessionInput): GoalBoardSessionRecord {
+  explicitlyLinkSession(input: ExplicitlyLinkRuntimeSessionInput): MolisWorkSessionRecord {
     requireConfirmation(input.user_confirmed);
     const runtimeId = requiredText(input.runtime_id, "Runtime 标识不能为空");
     const nativeId = requiredText(input.native_runtime_session_id, "Runtime 原生 Session ID 不能为空");
@@ -167,8 +167,8 @@ export class SessionRecordRepository {
     })();
   }
 
-  linkNativeRuntimeSession(input: LinkNativeRuntimeSessionInput): GoalBoardSessionRecord {
-    const sessionId = requiredText(input.session_id, "GoalBoard Session ID 不能为空");
+  linkNativeRuntimeSession(input: LinkNativeRuntimeSessionInput): MolisWorkSessionRecord {
+    const sessionId = requiredText(input.session_id, "Molis Work Session ID 不能为空");
     const runtimeId = requiredText(input.runtime_id, "Runtime 标识不能为空");
     const nativeId = requiredText(input.native_runtime_session_id, "Runtime 原生 Session ID 不能为空");
     requiredText(input.actor_id, "Session 写入必须记录执行者");
@@ -176,15 +176,15 @@ export class SessionRecordRepository {
     return this.db.transaction(() => {
       const current = this.get(sessionId);
       if (current.runtime_id !== runtimeId) {
-        throw new GoalBoardSessionError("session.runtime_mismatch", "Runtime 与 GoalBoard Session 不匹配");
+        throw new MolisWorkSessionError("session.runtime_mismatch", "Runtime 与 Molis Work Session 不匹配");
       }
       if (current.native_runtime_session_id === nativeId) return current;
       if (current.native_runtime_session_id && current.native_runtime_session_id !== nativeId) {
-        throw new GoalBoardSessionError("session.identity_conflict", "GoalBoard Session 已连接另一个 Runtime 原生 Session");
+        throw new MolisWorkSessionError("session.identity_conflict", "Molis Work Session 已连接另一个 Runtime 原生 Session");
       }
       const byNative = this.findByNativeRuntimeSession(runtimeId, nativeId);
       if (byNative && byNative.session_id !== current.session_id) {
-        throw new GoalBoardSessionError("session.identity_conflict", "Runtime 原生 Session 已连接另一条 GoalBoard Session");
+        throw new MolisWorkSessionError("session.identity_conflict", "Runtime 原生 Session 已连接另一条 Molis Work Session");
       }
       const tokenMatches = Boolean(
         current.correlation_token
@@ -194,7 +194,7 @@ export class SessionRecordRepository {
       );
       const surfaceMatches = Boolean(current.surface_id && input.surface_id === current.surface_id);
       if (!tokenMatches && !surfaceMatches) {
-        throw new GoalBoardSessionError(
+        throw new MolisWorkSessionError(
           "session.correlation_invalid",
           "晚到的 Runtime 原生 Session 缺少有效 correlation 或匹配的 surface",
         );
@@ -209,18 +209,18 @@ export class SessionRecordRepository {
     })();
   }
 
-  updateAssociations(input: UpdateSessionAssociationsInput): GoalBoardSessionRecord {
+  updateAssociations(input: UpdateSessionAssociationsInput): MolisWorkSessionRecord {
     requireConfirmation(input.user_confirmed);
     const actorId = requiredText(input.actor_id, "Session 写入必须记录执行者");
     const now = this.now().toISOString();
     return this.db.transaction(() => this.updateAssociationsInTransaction(this.get(input.session_id), input, actorId, now))();
   }
 
-  setStatus(input: SetGoalBoardSessionStatusInput): GoalBoardSessionRecord {
+  setStatus(input: SetMolisWorkSessionStatusInput): MolisWorkSessionRecord {
     requireConfirmation(input.user_confirmed);
     requiredText(input.actor_id, "Session 写入必须记录执行者");
     if (input.status !== "active" && input.status !== "closed") {
-      throw new GoalBoardSessionError("session.invalid_input", "Session 只能归档或恢复");
+      throw new MolisWorkSessionError("session.invalid_input", "Session 只能归档或恢复");
     }
     const now = this.now().toISOString();
     return this.db.transaction(() => {
@@ -232,14 +232,14 @@ export class SessionRecordRepository {
     })();
   }
 
-  reassignWorkspaceSessions(input: ReassignWorkspaceSessionsInput): GoalBoardSessionRecord[] {
+  reassignWorkspaceSessions(input: ReassignWorkspaceSessionsInput): MolisWorkSessionRecord[] {
     requireConfirmation(input.user_confirmed);
     const projectId = requiredText(input.project_id, "Project 标识不能为空");
     requiredText(input.actor_id, "工作目录变更必须记录执行者");
     const previousWorkspaceId = optionalText(input.previous_workspace_id);
     const previousWorkspacePath = optionalAbsolutePath(input.previous_workspace_path);
     if (!previousWorkspaceId && !previousWorkspacePath) {
-      throw new GoalBoardSessionError("session.invalid_input", "必须提供要修复或解除的工作目录");
+      throw new MolisWorkSessionError("session.invalid_input", "必须提供要修复或解除的工作目录");
     }
     const workspaceId = optionalText(input.workspace_id);
     const workspacePath = optionalAbsolutePath(input.workspace_path);
@@ -260,29 +260,29 @@ export class SessionRecordRepository {
     })();
   }
 
-  get(sessionId: string): GoalBoardSessionRecord {
+  get(sessionId: string): MolisWorkSessionRecord {
     const row = this.db.prepare("SELECT * FROM sessions WHERE session_id = ?").get(sessionId.trim()) as
       | Record<string, unknown>
       | undefined;
-    if (!row) throw new GoalBoardSessionError("session.not_found", "找不到这条 GoalBoard Session");
+    if (!row) throw new MolisWorkSessionError("session.not_found", "找不到这条 Molis Work Session");
     return { ...mapSession(row), ...this.associations.read(String(row.session_id)) };
   }
 
-  findByNativeRuntimeSession(runtimeId: string, nativeId: string): GoalBoardSessionRecord | null {
+  findByNativeRuntimeSession(runtimeId: string, nativeId: string): MolisWorkSessionRecord | null {
     const row = this.db.prepare(`
       SELECT * FROM sessions WHERE runtime_id = ? AND native_runtime_session_id = ?
     `).get(runtimeId.trim(), nativeId.trim()) as Record<string, unknown> | undefined;
     return row ? this.get(String(row.session_id)) : null;
   }
 
-  findBySurface(surfaceId: string): GoalBoardSessionRecord | null {
+  findBySurface(surfaceId: string): MolisWorkSessionRecord | null {
     const row = this.db.prepare("SELECT * FROM sessions WHERE surface_id = ?").get(surfaceId.trim()) as
       | Record<string, unknown>
       | undefined;
     return row ? this.get(String(row.session_id)) : null;
   }
 
-  list(filter: SessionListFilter = {}): GoalBoardSessionRecord[] {
+  list(filter: SessionListFilter = {}): MolisWorkSessionRecord[] {
     const conditions: string[] = [];
     const values: string[] = [];
     for (const [column, value] of [
@@ -304,11 +304,11 @@ export class SessionRecordRepository {
         && (!optionalText(filter.workspace_id) || session.workspace_id === filter.workspace_id!.trim()));
   }
 
-  goalHistory(sessionId: string): GoalBoardSessionGoalLink[] {
+  goalHistory(sessionId: string): MolisWorkSessionGoalLink[] {
     return this.associations.history(sessionId.trim());
   }
 
-  insertSession(input: InsertSessionRecordInput): GoalBoardSessionRecord {
+  insertSession(input: InsertSessionRecordInput): MolisWorkSessionRecord {
     this.db.prepare(`
       INSERT INTO sessions (
         session_id, runtime_id, native_runtime_session_id, correlation_token,
@@ -333,7 +333,7 @@ export class SessionRecordRepository {
   }
 
   private updateAssociationsInTransaction(
-    current: GoalBoardSessionRecord,
+    current: MolisWorkSessionRecord,
     input: Partial<UpdateSessionAssociationsInput> & {
       project_id?: string | null;
       current_goal_id?: string | null;
@@ -342,7 +342,7 @@ export class SessionRecordRepository {
     },
     actorId: string,
     now: string,
-  ): GoalBoardSessionRecord {
+  ): MolisWorkSessionRecord {
     const projectId = Object.hasOwn(input, "project_id") ? optionalText(input.project_id) : current.project_id;
     const goalId = Object.hasOwn(input, "current_goal_id") ? optionalText(input.current_goal_id) : current.current_goal_id;
     const workspaceId = Object.hasOwn(input, "workspace_id") ? optionalText(input.workspace_id) : current.workspace_id;

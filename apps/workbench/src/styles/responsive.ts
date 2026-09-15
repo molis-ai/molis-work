@@ -1,4 +1,4 @@
-import { GOALS_PROPOSAL_MOBILE_STYLES, GOALS_LEGACY_PROPOSAL_MOBILE_STYLES } from "@adeptify/goalboard-plugin-goals";
+import { GOALS_PROPOSAL_MOBILE_STYLES, GOALS_LEGACY_PROPOSAL_MOBILE_STYLES } from "@molis-ai/molis-work-plugin-goals";
 export const RESPONSIVE_STYLES = `
   @container (max-width: 660px) {
     .goal-factor-nav, .goal-factor-panels { margin-left: 0; }

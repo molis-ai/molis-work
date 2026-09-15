@@ -1,4 +1,4 @@
-import type { WorkSessionQueryApi, WorkSessionRecord, RuntimeSessionHostSignals } from "@adeptify/goalboard-contracts/modules/private-work-context";
+import type { WorkSessionQueryApi, WorkSessionRecord, RuntimeSessionHostSignals } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 
 export function findSessionForHostSignals(
   registry: WorkSessionQueryApi,
@@ -6,9 +6,9 @@ export function findSessionForHostSignals(
   nativeRuntimeSessionId?: string | null,
 ): WorkSessionRecord | null {
   const nativeId = nativeRuntimeSessionId?.trim() || signals.native_runtime_session_id;
-  if (signals.goalboard_session_id) {
+  if (signals.molis_work_session_id) {
     try {
-      const session = registry.get(signals.goalboard_session_id);
+      const session = registry.get(signals.molis_work_session_id);
       if (
         session.runtime_id === signals.runtime_id
         && (!nativeId || !session.native_runtime_session_id || session.native_runtime_session_id === nativeId)

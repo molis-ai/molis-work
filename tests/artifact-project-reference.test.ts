@@ -3,9 +3,9 @@ import test from "node:test";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { openArtifactProjectReference, ArtifactProjectReferenceError } from "@adeptify/goalboard-plugin-artifacts";
-import { readProjectReference, ProjectReferenceError } from "@adeptify/goalboard-module-evidence-verification";
-import type { EvidenceProjectReferenceSource } from "@adeptify/goalboard-contracts/modules/evidence-verification";
+import { openArtifactProjectReference, ArtifactProjectReferenceError } from "@molis-ai/molis-work-plugin-artifacts";
+import { readProjectReference, ProjectReferenceError } from "@molis-ai/molis-work-module-evidence-verification";
+import type { EvidenceProjectReferenceSource } from "@molis-ai/molis-work-contracts/modules/evidence-verification";
 
 const source: EvidenceProjectReferenceSource = {
   board_id: "project", evidence_id: "evidence", locator: "project://result.txt",
@@ -13,8 +13,8 @@ const source: EvidenceProjectReferenceSource = {
 };
 
 test("Artifact result opening preserves original workspace bytes and does not expose the reader's path", async () => {
-  const original = await mkdtemp(join(tmpdir(), "goalboard-artifact-source-"));
-  const current = await mkdtemp(join(tmpdir(), "goalboard-artifact-current-"));
+  const original = await mkdtemp(join(tmpdir(), "molis-work-artifact-source-"));
+  const current = await mkdtemp(join(tmpdir(), "molis-work-artifact-current-"));
   try {
     await writeFile(join(original, "result.txt"), "原始结果\n");
     await writeFile(join(current, "result.txt"), "Wrong workspace\n");
@@ -74,7 +74,7 @@ test("Artifact result opening preserves legacy workspace fallback and refuses un
 });
 
 test("ordinary project result references use the bounded reader without querying or registering Evidence", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "goalboard-artifact-reference-"));
+  const directory = await mkdtemp(join(tmpdir(), "molis-work-artifact-reference-"));
   try {
     await writeFile(join(directory, "result.txt"), "Ordinary output\n");
     const ports = {

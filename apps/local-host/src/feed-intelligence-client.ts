@@ -1,4 +1,4 @@
-import { createFeedExactRouteResolver } from "@adeptify/goalboard-plugin-feed";
+import { createFeedExactRouteResolver } from "@molis-ai/molis-work-plugin-feed";
 /**
  * Embedded Intelligence Client exact path over the shared RSS SearchRuntime.
  *
@@ -22,45 +22,45 @@ import {
   type SearchStorageFoundationHandle,
 } from "@adeptify/search-evidence-layer/host/node";
 import { type SearchRuntime } from "@adeptify/search-evidence-layer";
-import type { SqliteDatabase } from "@adeptify/goalboard-storage";
+import type { SqliteDatabase } from "@molis-ai/molis-work-storage";
 
-import { createFileSecretStore, type SecretStore } from "@adeptify/goalboard-storage";
+import { createFileSecretStore, type SecretStore } from "@molis-ai/molis-work-storage";
 import {
   YOUTUBE_CHANNEL_DEFINITION_ID,
   YOUTUBE_PUBLIC_FEED_HOST,
   isYouTubePublicFeedUrl,
-} from "@adeptify/goalboard-integration-youtube";
+} from "@molis-ai/molis-work-integration-youtube";
 import {
   CUSTOM_RSS_DEFINITION_ID,
   customRssFeedHost,
   isCustomRssFeedUrl,
-} from "@adeptify/goalboard-integration-rss";
+} from "@molis-ai/molis-work-integration-rss";
 import {
   listRegisterableFeeds,
-} from "@adeptify/goalboard-integration-rss";
+} from "@molis-ai/molis-work-integration-rss";
 import {
   createFeedSearchAead,
   createFeedSearchOpaqueBlobStore,
   createFeedSearchSecretStore,
-} from "@adeptify/goalboard-storage";
+} from "@molis-ai/molis-work-storage";
 
-const APP_ID = "goalboard";
+const APP_ID = "molis-work";
 // v2 intentionally leaves the old opaque v1 ledger untouched. Some migrated
 // project databases contain v1 control state without the matching local
 // SecretStore key, which must not make public Feed sync permanently unusable.
 const KEY_NAMESPACE = "feed-intent-v2";
 const TENANT_ID = "solo";
-const PRINCIPAL_REF = "goalboard:local";
+const PRINCIPAL_REF = "molis-work:local";
 const WEB_QUERY_PROVIDER_ID = "anysearch";
 
 /** Composition-root only. Never accept identity from request bodies. */
-const GOALBOARD_TRUSTED_CALLER_CONTEXT = Object.freeze({
-  kind: "goalboard-composition-root" as const,
+const MOLIS_WORK_TRUSTED_CALLER_CONTEXT = Object.freeze({
+  kind: "molis-work-composition-root" as const,
   appId: APP_ID,
 });
 
-import type { IntelligenceCollectRequest, IntelligenceCollectResult } from "@adeptify/goalboard-plugin-feed";
-export type { IntelligenceCollectRequest, IntelligenceCollectResult } from "@adeptify/goalboard-plugin-feed";
+import type { IntelligenceCollectRequest, IntelligenceCollectResult } from "@molis-ai/molis-work-plugin-feed";
+export type { IntelligenceCollectRequest, IntelligenceCollectResult } from "@molis-ai/molis-work-plugin-feed";
 
 export interface IntelligenceCollectAdapter {
   executeExact(request: IntelligenceCollectRequest, options?: { signal?: AbortSignal }): Promise<IntelligenceCollectResult>;
@@ -169,7 +169,7 @@ async function bootstrapReady(
   const client = createIntelligenceIntentClientV1({
     transport: createEmbeddedIntelligenceIntentTransportV1({
       runtime: intentRuntime,
-      callerContext: GOALBOARD_TRUSTED_CALLER_CONTEXT,
+      callerContext: MOLIS_WORK_TRUSTED_CALLER_CONTEXT,
     }),
   });
   return { client, foundation, intentRuntime };
@@ -209,18 +209,18 @@ function multiplexExactSearchRuntime(
 }
 
 function isTrustedCallerContext(value: unknown): boolean {
-  if (value === GOALBOARD_TRUSTED_CALLER_CONTEXT) return true;
+  if (value === MOLIS_WORK_TRUSTED_CALLER_CONTEXT) return true;
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     return false;
   }
   const record = value as Record<string, unknown>;
   return (
-    record.kind === GOALBOARD_TRUSTED_CALLER_CONTEXT.kind
+    record.kind === MOLIS_WORK_TRUSTED_CALLER_CONTEXT.kind
     && record.appId === APP_ID
   );
 }
 
-/** Project Client result onto the frozen GoalBoard public field whitelist. */
+/** Project Client result onto the frozen Molis Work public field whitelist. */
 function toPublicResult(result: SearchIntentExactResultV1): IntelligenceCollectResult {
   return Object.freeze({
     operationId: result.operationId,

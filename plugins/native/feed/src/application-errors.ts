@@ -7,7 +7,8 @@ export class FeedStoreError extends Error {
       | "feed_source_not_found"
       | "feed_revision_conflict"
       | "feed_invalid_transition"
-      | "feed_read_not_supported",
+      | "feed_read_not_supported"
+      | "feed_out_rule_not_found",
     message: string,
   ) {
     super(message);

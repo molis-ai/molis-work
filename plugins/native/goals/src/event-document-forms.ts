@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { GoalEventFieldDefinition, GoalEventStateView, GoalEventTypeDefinition } from "@adeptify/goalboard-contracts/modules/goals";
+import type { GoalEventFieldDefinition, GoalEventStateView, GoalEventTypeDefinition } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { GoalsDocumentUiPrimitives } from "./document-ui-model.js";
 import type { GoalEventDocumentView } from "./event-document-model.js";
 

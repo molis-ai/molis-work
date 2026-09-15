@@ -8,14 +8,14 @@ import test from "node:test";
 import {
   GoalsCommandError,
   GoalsModule,
-} from "@adeptify/goalboard-module-goals";
+} from "@molis-ai/molis-work-module-goals";
 
-import { GoalProjectApplication } from "@adeptify/goalboard-app-local-host";
-import { LocalProjectDatabase } from "@adeptify/goalboard-app-local-host";
+import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { insertHistoricalPolicy, insertHistoricalRisk } from "./historical-sql-fixture.js";
 
 test("Policy proposal versions preserve old serialized baselines and distinguish timestamp-only from fact changes", () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-policy-version-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-policy-version-"));
   const store = new LocalProjectDatabase(join(directory, "project.db"));
   try {
     const coordinator = new GoalProjectApplication(store);
@@ -46,8 +46,8 @@ test("Policy proposal versions preserve old serialized baselines and distinguish
 });
 
 test("Goals public Query API owns list, detail, relation, policy, risk, trash, and snapshot reads", () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-goals-query-"));
-  const store = new LocalProjectDatabase(join(directory, "goalboard.sqlite"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-goals-query-"));
+  const store = new LocalProjectDatabase(join(directory, "molis-work.sqlite"));
   try {
     const coordinator = new GoalProjectApplication(store);
     coordinator.initializeBoard({

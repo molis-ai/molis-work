@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import type { GoalsQueryApi, GoalsPlanningApi } from "@adeptify/goalboard-contracts/modules/goals";
-import type { GovernanceApplicationApi, GoalTreeSemanticReview, GoalTreeProposalRecord, GoalTreeProposalDecisionAuthority } from "@adeptify/goalboard-contracts/modules/governance-collaboration";
+import type { GoalsQueryApi, GoalsPlanningApi } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GovernanceApplicationApi, GoalTreeSemanticReview, GoalTreeProposalRecord, GoalTreeProposalDecisionAuthority } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import type { NormalizedGoalTreeProposalDecision } from "./goal-tree-decision-inputs.js";
 import type { NormalizedGoalTreeProposalItem } from "./proposal-normalizer.js";
 import type { GoalTreeQueryApplication } from "./goal-tree-query.js";
@@ -26,7 +26,7 @@ export class GoalTreeDecisionFollowup {
       structural_validation: "passed",
       status: required ? "required" : "not_required",
       next_action: required ? "review_affected_subgraph" : "continue",
-      review_tool: "goalboard_v1_planning_analyze_change",
+      review_tool: "molis_work_v1_planning_analyze_change",
       canonical_changes_require_new_user_confirmation: true,
     };
   }

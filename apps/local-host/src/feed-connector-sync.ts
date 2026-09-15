@@ -1,12 +1,12 @@
 import { createHash } from "node:crypto";
-import { LocalSqliteJournal, type SqliteDatabase } from "@adeptify/goalboard-storage";
-import { ConnectorHost } from "@adeptify/goalboard-service-connector-host";
-import { ListenerHost } from "@adeptify/goalboard-service-listener-host";
-import { SignalsModule } from "@adeptify/goalboard-module-signals";
-import { gmailAccountPresentation } from "@adeptify/goalboard-integration-gmail";
-import { githubAccountPresentation } from "@adeptify/goalboard-integration-github";
-import type { IntegrationProviderItem } from "@adeptify/goalboard-contracts/platform/plugin";
-import { FeedConnectorSync, type FeedApplication, type FeedSourceRecord } from "@adeptify/goalboard-plugin-feed";
+import { LocalSqliteJournal, type SqliteDatabase } from "@molis-ai/molis-work-storage";
+import { ConnectorHost } from "@molis-ai/molis-work-service-connector-host";
+import { ListenerHost } from "@molis-ai/molis-work-service-listener-host";
+import { SignalsModule } from "@molis-ai/molis-work-module-signals";
+import { gmailAccountPresentation } from "@molis-ai/molis-work-integration-gmail";
+import { githubAccountPresentation } from "@molis-ai/molis-work-integration-github";
+import type { IntegrationProviderItem } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { FeedConnectorSync, type FeedApplication, type FeedSourceRecord } from "@molis-ai/molis-work-plugin-feed";
 import { createLocalFeedApplication } from "./feed-application.js";
 import { OfficialIntegrationRegistry, type OfficialProviderFactory } from "./official-integrations.js";
 

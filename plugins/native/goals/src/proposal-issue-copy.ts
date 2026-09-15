@@ -23,7 +23,7 @@ export function createGoalsProposalIssueCopy(L: GoalsProposalUiPrimitives["trans
         };
       case "blocking_mode":
         return {
-          message: L("“对 Goal 的影响”不是 GoalBoard 支持的选项。"),
+          message: L("“对 Goal 的影响”不是 Molis Work 支持的选项。"),
           recovery: L("请退回方案，让 Runtime 重新选择是否阻止开始、完成或在发生时让 Goal 失效。"),
         };
       case "state":

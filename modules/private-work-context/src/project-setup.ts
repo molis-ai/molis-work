@@ -1,5 +1,5 @@
-import type { CreateAndBindRuntimeContextInput, GoalBoardRuntimeContextResolution } from "@adeptify/goalboard-contracts/modules/private-work-context";
-import type { ProjectRecord } from "@adeptify/goalboard-contracts/modules/projects";
+import type { CreateAndBindRuntimeContextInput, MolisWorkRuntimeContextResolution } from "@molis-ai/molis-work-contracts/modules/private-work-context";
+import type { ProjectRecord } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { RuntimeContextBindingRepository } from "./context-bindings.js";
 import type { RuntimeProjectBindingCommands } from "./project-binding-commands.js";
 import type { RuntimeProjectBindingValidation, RuntimeProjectBindingErrorFactory } from "./project-binding-validation.js";
@@ -20,7 +20,7 @@ export interface RuntimeProjectSetupPorts {
 export function createRuntimeProjectSetup(ports: RuntimeProjectSetupPorts) {
 return async function createProjectAndBindRuntimeContext(
     input: CreateAndBindRuntimeContextInput,
-  ): Promise<GoalBoardRuntimeContextResolution> {
+  ): Promise<MolisWorkRuntimeContextResolution> {
     const normalized = ports.validation.requireRoutableRuntimeWorkContext(input.context);
     const actorId = ports.validation.requiredActorId(input.actor_id);
     const displayName = ports.validation.requiredName(input.display_name);

@@ -6,7 +6,7 @@ name: "双边市场"
 summary: "为连接供需双方的平台叠加流动性、匹配、信任、治理和利益平衡约束。"
 applies_to: ["交易平台","服务撮合","创作者或开发者市场"]
 domain_tags: ["marketplace","matching","liquidity"]
-source_refs: ["GoalBoard multi-sided value-flow method","OECD guidance on online marketplaces"]
+source_refs: ["Molis Work multi-sided value-flow method","OECD guidance on online marketplaces"]
 confidence: 0.9
 ---
 

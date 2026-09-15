@@ -1,5 +1,5 @@
-import type { GoalRecord } from "@adeptify/goalboard-contracts/modules/goals";
-import type { UiContribution } from "@adeptify/goalboard-contracts/platform/ui";
+import type { GoalRecord } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 
 export interface WorkTerminalUiModel {
   selected?: Pick<GoalRecord, "goal_id" | "title" | "decomposition_state" | "fulfillment_state"> & { statusHtml: string; event_work?: boolean };
@@ -9,11 +9,11 @@ export interface WorkTerminalUiModel {
   icon(name: "chevron-right" | "target" | "plus" | "tree" | "play" | "copy" | "refresh" | "terminal"): string;
 }
 
-export const WORK_TERMINAL_UI_CONTRIBUTION_ID = "io.goalboard.native.work.terminal.v1";
+export const WORK_TERMINAL_UI_CONTRIBUTION_ID = "io.molis.work.native.work.terminal.v1";
 export const workTerminalUiContribution: UiContribution<WorkTerminalUiModel> = {
   descriptor: {
     contribution_id: WORK_TERMINAL_UI_CONTRIBUTION_ID,
-    plugin_id: "io.goalboard.native.work",
+    plugin_id: "io.molis.work.native.work",
     kind: "embedded",
     label: "Terminal",
     surfaces: [{ surface_id: "terminal", target_slot_id: "workbench.main", format: "declarative-html" }],

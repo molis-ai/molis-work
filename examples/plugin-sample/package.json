@@ -1,10 +1,10 @@
 {
-  "name": "goalboard-local-plugin-sample",
+  "name": "molis-work-local-plugin-sample",
   "version": "1.0.0",
   "private": true,
   "type": "module",
   "files": ["index.mjs", "manifest.json", "README.md"],
   "dependencies": {
-    "@adeptify/goalboard-plugin-sdk": "0.0.0"
+    "@molis-ai/molis-work-plugin-sdk": "0.0.0"
   }
 }

@@ -6,7 +6,7 @@ name: "企业 SaaS"
 summary: "围绕采购、管理、使用、集成和续用角色建立可治理的组织级产品闭环。"
 applies_to: ["B2B SaaS","企业软件","组织协作产品"]
 domain_tags: ["saas","enterprise","b2b"]
-source_refs: ["NIST SP 800-207 Zero Trust Architecture","GoalBoard customer-success method"]
+source_refs: ["NIST SP 800-207 Zero Trust Architecture","Molis Work customer-success method"]
 confidence: 0.91
 ---
 

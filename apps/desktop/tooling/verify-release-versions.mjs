@@ -18,18 +18,18 @@ const codexTransport = readFileSync(
 );
 const cargoTomlVersion = cargoToml.match(/^version = "([^"]+)"$/m)?.[1];
 const cargoLockVersion = cargoLock.match(
-  /\[\[package\]\]\nname = "goalboard-desktop"\nversion = "([^"]+)"/,
+  /\[\[package\]\]\nname = "molis-work-desktop"\nversion = "([^"]+)"/,
 )?.[1];
 const feedRuntimeVersion = feedRuntime.match(/^const APP_VERSION = "([^"]+)";$/m)?.[1];
 const codexTransportVersion = codexTransport.match(
-  /clientInfo: \{ name: "goalboard-session-browser", title: "GoalBoard", version: "([^"]+)" \}/,
+  /clientInfo: \{ name: "molis-work-session-browser", title: "Molis Work", version: "([^"]+)" \}/,
 )?.[1];
 
 const versions = {
   "package.json": packageVersion,
   "apps/desktop/src-tauri/tauri.conf.json": tauriVersion,
   "apps/desktop/src-tauri/Cargo.toml": cargoTomlVersion,
-  "apps/desktop/src-tauri/Cargo.lock#goalboard-desktop": cargoLockVersion,
+  "apps/desktop/src-tauri/Cargo.lock#molis-work-desktop": cargoLockVersion,
   "apps/local-host/src/feed-source-runtime.ts#APP_VERSION": feedRuntimeVersion,
   "horizontal/runtime-host/src/adapters/codex-app-server.ts#clientInfo.version": codexTransportVersion,
 };
@@ -38,7 +38,7 @@ if (mismatches.length > 0) {
   const details = Object.entries(versions)
     .map(([source, version]) => `${source}=${version ?? "missing"}`)
     .join(", ");
-  throw new Error(`GoalBoard release versions are inconsistent: ${details}`);
+  throw new Error(`Molis Work release versions are inconsistent: ${details}`);
 }
 
-console.log(`GoalBoard release version sources agree: ${packageVersion}`);
+console.log(`Molis Work release version sources agree: ${packageVersion}`);

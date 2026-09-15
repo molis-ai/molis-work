@@ -1,4 +1,4 @@
-import type { FeedImportReceiptRecord, FeedContractMigrationReceiptRecord } from "@adeptify/goalboard-contracts/modules/feed";
+import type { FeedImportReceiptRecord, FeedContractMigrationReceiptRecord } from "@molis-ai/molis-work-contracts/modules/feed";
 import type { FeedSqliteDatabase } from "./index.js";
 type Row = Record<string, unknown>;
 export function migrateFeedImportReceipts(db: FeedSqliteDatabase): void {

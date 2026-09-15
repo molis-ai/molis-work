@@ -1,31 +1,29 @@
-import { countGoalDecisions } from "@adeptify/goalboard-plugin-goals";
+import { countGoalDecisions } from "@molis-ai/molis-work-plugin-goals";
 import { createWorkbenchProjectSettingsPages } from "./project-settings-pages.js";
 import { createWorkbenchFocusSections } from "./focus-sections.js";
-import type { GoalBoardWebView } from "./page-view.js";
+import type { MolisWorkWebView } from "./page-view.js";
 import { createWorkbenchSettingsRenderer } from "./settings-renderer.js";
-import { type GoalsDocumentView as WebGoalView } from "@adeptify/goalboard-plugin-goals";
+import { type GoalsDocumentView as WebGoalView } from "@molis-ai/molis-work-plugin-goals";
 import { createWorkbenchDecisionCenterRenderer } from "./decision-center.js";
-import { decisionTypeCounts } from "@adeptify/goalboard-plugin-goals";
+import { decisionTypeCounts } from "@molis-ai/molis-work-plugin-goals";
 import { type WorkbenchDecisionGroup } from "./decision-center.js";
-import { buildDecisionGroups } from "@adeptify/goalboard-plugin-goals";
-import { pendingDecisionCount } from "@adeptify/goalboard-plugin-goals";
-import { decisionGroupCount } from "@adeptify/goalboard-plugin-goals";
-import { createGoalsDecisionResults } from "@adeptify/goalboard-plugin-goals";
+import { buildDecisionGroups } from "@molis-ai/molis-work-plugin-goals";
+import { pendingDecisionCount } from "@molis-ai/molis-work-plugin-goals";
 import { createWorkbenchGoalsDecisionResultsRenderer } from "./ui-composition.js";
-import { type GoalsDecisionGroup } from "@adeptify/goalboard-plugin-goals";
+import { type GoalsDecisionGroup } from "@molis-ai/molis-work-plugin-goals";
 import { createWorkbenchGoalsFragmentRenderer } from "./goals-fragment-renderer.js";
 import { createWorkbenchGoalsPageRenderer } from "./goals-page-renderer.js";
-import { buildGoalsNavigationItems } from "@adeptify/goalboard-plugin-goals";
+import { buildGoalsNavigationItems } from "@molis-ai/molis-work-plugin-goals";
 import { ARTIFACT_EMBED_STYLES, ARTIFACT_WORKBENCH_STYLES } from "./artifact-ui.js";
-import { icon, renderIconSprite } from "@adeptify/goalboard-design-system";
+import { icon, renderIconSprite } from "@molis-ai/molis-work-design-system";
 import { createWorkbenchOnboardingRenderer } from "./onboarding-renderer.js";
-import { TRASH_GOAL_STYLES } from "@adeptify/goalboard-plugin-goals";
-import { ONBOARDING_STYLES } from "@adeptify/goalboard-design-system";
+import { TRASH_GOAL_STYLES } from "@molis-ai/molis-work-plugin-goals";
+import { ONBOARDING_STYLES } from "@molis-ai/molis-work-design-system";
 import {
   THEME_BOOTSTRAP_SCRIPT as BASE_THEME_BOOTSTRAP_SCRIPT,
   VISUAL_FOUNDATION_CLIENT_SCRIPT,
   VISUAL_FOUNDATION_STYLES,
-} from "@adeptify/goalboard-design-system";
+} from "@molis-ai/molis-work-design-system";
 import { CLIENT_SCRIPT } from "./browser-assets.js";
 import { CONTROL_CLIENT_SCRIPT } from "./browser-assets.js";
 import { IMMERSIVE_NAVIGATION_STYLES } from "./styles/immersive-navigation.js";
@@ -48,31 +46,31 @@ import { createWorkbenchGoalsMomentumRenderer } from "./ui-composition.js";
 import { createWorkbenchGoalsDocumentRenderer } from "./ui-composition.js";
 import { createWorkbenchGoalsContextRenderer } from "./ui-composition.js";
 import { createWorkbenchGoalsStatusRenderer } from "./ui-composition.js";
-import { createGoalStateExplainer } from "@adeptify/goalboard-plugin-goals";
+import { createGoalStateExplainer } from "@molis-ai/molis-work-plugin-goals";
 import { createWorkbenchGoalsFactorsRenderer } from "./ui-composition.js";
 import { createWorkbenchGoalsDialogsRenderer } from "./ui-composition.js";
-import { GOAL_DISPLAY_STATUSES } from "@adeptify/goalboard-plugin-goals";
-import { PLANNING_SETTINGS_STYLES } from "@adeptify/goalboard-plugin-goals";
-import { partOfChildViews } from "@adeptify/goalboard-plugin-goals";
-import { sortGoalTreeItems } from "@adeptify/goalboard-plugin-goals";
+import { GOAL_DISPLAY_STATUSES } from "@molis-ai/molis-work-plugin-goals";
+import { PLANNING_SETTINGS_STYLES } from "@molis-ai/molis-work-plugin-goals";
+import { partOfChildViews } from "@molis-ai/molis-work-plugin-goals";
+import { sortGoalTreeItems } from "@molis-ai/molis-work-plugin-goals";
 import { createArtifactReferenceRenderer } from "./ui-composition.js";
 import { renderWorkbenchDocument } from "./ui-composition.js";
-import { createGoalsDecisionPresentation } from "@adeptify/goalboard-plugin-goals";
+import { createGoalsDecisionPresentation } from "@molis-ai/molis-work-plugin-goals";
 import { createWorkbenchGoalsProposalRenderer } from "./ui-composition.js";
 import type {
   FeedItemRecord,
-  FeedItemType,
   InboxEntryRecord,
-} from "@adeptify/goalboard-plugin-feed";
-import { PROJECT_OPERATIONS_CLIENT_SCRIPT } from "@adeptify/goalboard-plugin-work";
-import { PROJECT_OPERATIONS_STYLES } from "@adeptify/goalboard-plugin-work";
+} from "@molis-ai/molis-work-plugin-feed";
+import { PROJECT_OPERATIONS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-work";
+import { PROJECT_OPERATIONS_STYLES } from "@molis-ai/molis-work-plugin-work";
 import { renderProjectOperations } from "./ui-composition.js";
 import { renderWorkTerminal } from "./ui-composition.js";
 import { createWorkbenchFeedProjectionRenderer } from "./feed-projection-ui.js";
+import { createWorkbenchInboxProjectionRenderer } from "./inbox-projection-ui.js";
 import { type FeedSupplementalEntry } from "./feed-projection-ui.js";
 import { createWorkbenchSettingsNavigation } from "./settings-navigation.js";
 import { createWorkbenchProjectDirectoryRenderer } from "./project-directory-renderer.js";
-import type { GoalPolicy, PlanningMethodPack, PlanningMethodComposition } from "@adeptify/goalboard-contracts/modules/goals";
+import type { GoalPolicy, PlanningMethodPack, PlanningMethodComposition } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { createWorkbenchLocale, WebLocale } from "./i18n.js";
 export interface WorkbenchRendererPorts {
   locale: Pick<ReturnType<typeof createWorkbenchLocale>, "L" | "htmlLang" | "dateTimeLocale" | "listJoin" | "localeSwitchHref" | "clientI18nScript"> & { currentLocale(): WebLocale };
@@ -89,8 +87,6 @@ const { sectionHeading, subsectionHeading, renderFocusSectionDeck } = createWork
 
 const decisionCenterRenderer = createWorkbenchDecisionCenterRenderer({ translate: L, escapeHtml, icon, currentLocale, formatDate });
 
-const { recentDecisionResults } = createGoalsDecisionResults(L);
-
 const renderRecentDecisionResults = createWorkbenchGoalsDecisionResultsRenderer({ translate: L, escapeHtml, icon, formatDate });
 
 type DecisionGoalGroup = GoalsDecisionGroup<WebGoalView>;
@@ -101,6 +97,7 @@ const { renderDecisionGoalLink } =
 const { renderGoalTreeProposalDecision } = createWorkbenchGoalsProposalRenderer({ translate: L, escapeHtml, icon, renderList });
 
 const { renderFeedNativePluginPersistedDetail, renderFeedNativePluginSurface } = createWorkbenchFeedProjectionRenderer({ L, dateTimeLocale });
+const { renderInboxNativePluginSurface } = createWorkbenchInboxProjectionRenderer({ L, dateTimeLocale });
 
 const { explainWorkState, explainParentCompletion } = createGoalStateExplainer(L);
 
@@ -110,11 +107,11 @@ const { settingsContextHref, renderProjectSwitcher, renderDesktopProjectChrome, 
 
 const projectDirectoryRenderer = createWorkbenchProjectDirectoryRenderer({ L, escapeHtml, icon, withDesktopQuery, htmlLang, renderIconSprite, controlTokenMeta, clientI18nScript, themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT, visualFoundationClientScript: VISUAL_FOUNDATION_CLIENT_SCRIPT });
 
-const { renderGoalBoardProjectIndex } = projectDirectoryRenderer;
+const { renderMolisWorkProjectIndex } = projectDirectoryRenderer;
 
 const { renderProjectMigrationDialog } = projectDirectoryRenderer;
 
-const renderGoalBoardSettings = createWorkbenchSettingsRenderer({
+const renderMolisWorkSettings = createWorkbenchSettingsRenderer({
   L, escapeHtml, icon, currentLocale, localeSwitchHref, htmlLang, controlTokenMeta, clientI18nScript, renderIconSprite,
   withDesktopQuery, settingsContextHref, renderSettingsNavigation, renderProjectMigrationDialog,
   themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT, visualFoundationClientScript: VISUAL_FOUNDATION_CLIENT_SCRIPT,
@@ -130,10 +127,10 @@ function escapeHtml(value: unknown): string {
 }
 
 function controlTokenMeta(controlToken: string): string {
-  return `<meta name="goalboard-control-token" content="${escapeHtml(controlToken)}">`;
+  return `<meta name="molis-work-control-token" content="${escapeHtml(controlToken)}">`;
 }
 
-function dataJson(view: GoalBoardWebView): string {
+function dataJson(view: MolisWorkWebView): string {
   const summarize = (items: WebGoalView[]) => buildGoalsNavigationItems(
     items, goalId => partOfChildViews(goalId, view), visibleGoalStatusIcon,
   );
@@ -192,7 +189,7 @@ const { renderGoalMomentum, renderMomentumPlaceholder } = createWorkbenchGoalsMo
 
 const goalsRelationRenderer = createWorkbenchGoalsRelationRenderer({ translate: L, escapeHtml, icon });
 
-function renderRelations(item: WebGoalView, view: GoalBoardWebView, editable = true): string {
+function renderRelations(item: WebGoalView, view: MolisWorkWebView, editable = true): string {
   return goalsRelationRenderer.renderRelations(item, view, editable);
 }
 
@@ -209,7 +206,7 @@ const { renderProjectPolicyDocument, renderPolicyEditor } = createWorkbenchGoals
   translate: L, escapeHtml, formatDate, icon, currentLocale, defaultPolicy: DEFAULT_GOAL_POLICY,
 });
 
-function decisionGroupModel(group: DecisionGoalGroup, view: GoalBoardWebView): WorkbenchDecisionGroup {
+function decisionGroupModel(group: DecisionGoalGroup, view: MolisWorkWebView): WorkbenchDecisionGroup {
   return { ownerGoalId: group.ownerGoalId, item: group.item,
     counts: { goalTree: group.goalTreeProposals.length },
     ownerLinkHtml: renderDecisionGoalLink(group.item),
@@ -219,95 +216,33 @@ function decisionGroupModel(group: DecisionGoalGroup, view: GoalBoardWebView): W
   };
 }
 
-function renderDecisionCenter(view: GoalBoardWebView, desktopInbox = false): string {
+function renderDecisionCenter(view: MolisWorkWebView, desktopInbox = false): string {
   return decisionCenterRenderer.renderDecisionCenter({ groups: buildDecisionGroups(view).map(group => decisionGroupModel(group, view)),
     count: pendingDecisionCount(view), typeCounts: decisionTypeCounts(view), recentHtml: renderRecentDecisionResults(view),
   }, desktopInbox);
 }
 
-function renderFeedDecisionGroupDetail(group: DecisionGoalGroup, view: GoalBoardWebView, goalId: string, title: string, summary: string, updatedAt: string): string {
-  return decisionCenterRenderer.renderFeedDecisionGroupDetail(decisionGroupModel(group, view), goalId, title, summary, updatedAt);
-}
-
 function renderPersistedFeedItemDetail(
   item: FeedItemRecord,
   routePrefix = "",
-  options: { entryId?: string; inboxActive?: boolean; inboxEntry?: InboxEntryRecord | null } = {},
+  options: { entryId?: string; inboxActive?: boolean; inboxEntry?: InboxEntryRecord | null; surface?: "frame-block" } = {},
 ): string {
   return renderFeedNativePluginPersistedDetail(item, routePrefix, options);
 }
 
-function renderFeedWorkbenchFragment(
-  view: GoalBoardWebView,
-  defaultPreset: FeedItemType,
-): string {
+function renderFeedWorkbenchFragment(view: MolisWorkWebView): string {
   return prefixLocalLinks(renderFeedNativePluginSurface(
     view,
     "workbench-fragment",
-    defaultPreset,
-    feedNativePluginSupplementalEntries(view),
+    "feed",
+    [],
     true,
   ), view.route_prefix);
 }
 
-function feedNativePluginSupplementalEntries(view: GoalBoardWebView): FeedSupplementalEntry[] {
-  const decisionGroups = buildDecisionGroups(view);
-  const decisions = decisionGroups.map((group): FeedSupplementalEntry => {
-    const goalId = group.item?.goal.goal_id ?? group.ownerGoalId ?? "board";
-    const title = group.item?.goal.title ?? L("整个项目的事项");
-    const count = decisionGroupCount(group);
-    const inboxEntry = goalId === "board" ? null : view.feed.inbox_entries.find((entry) =>
-      entry.subject_type === "goal_decision" && entry.subject_id === goalId &&
-      (entry.status === "open" || entry.status === "in_progress"),
-    ) ?? null;
-    return {
-      entry_id: `decision:${goalId}`,
-      item_id: null,
-      inbox_entry: inboxEntry ? { ...inboxEntry, project_id: inboxEntry.board_id } : null,
-      item: null,
-      preset: "inbox_message",
-      provider: "other",
-      kind_label: L("Inbox Message · Goal 决定"),
-      source_label: "GoalBoard",
-      disposition: "inbox",
-      title,
-      summary: L("{count} 项等待你判断。", { count }),
-      updated_at: group.item?.goal.updated_at ?? view.events[0]?.at ?? "",
-      read: true,
-      attention_rank: 3,
-      detail_slot_html: renderFeedDecisionGroupDetail(
-        group,
-        view,
-        goalId,
-        title,
-        L("{count} 项等待你判断。", { count }),
-        group.item?.goal.updated_at ?? view.events[0]?.at ?? "",
-      ),
-    };
-  });
-  const results = recentDecisionResults(view).map((result): FeedSupplementalEntry => ({
-    entry_id: `result:${result.event.event_id}`,
-    item_id: null,
-    inbox_entry: null,
-    item: null,
-    preset: "inbox_message",
-    provider: "other",
-    kind_label: L("Inbox Message · 处理结果"),
-    source_label: "GoalBoard",
-    disposition: "saved",
-    title: result.title,
-    summary: result.effects.join(currentLocale() === "en" ? " " : "；"),
-    updated_at: result.event.at,
-    read: true,
-    attention_rank: 1,
-    detail_slot_html: `<article class="feed-detail feed-detail--result" data-feed-detail="result:${escapeHtml(result.event.event_id)}"><header class="feed-detail-header"><div class="feed-detail-kicker"><span>Inbox Message</span><span>${escapeHtml(result.kindLabel)}</span><span>${escapeHtml(result.state)}</span></div><h1>${escapeHtml(result.title)}</h1><p>${escapeHtml(result.effects.join(currentLocale() === "en" ? " " : "；"))}</p><div class="feed-detail-meta"><span>${icon("workflow")}GoalBoard</span><time datetime="${escapeHtml(result.event.at)}">${formatDate(result.event.at)}</time></div></header><section class="decision-results feed-result-record" aria-label="${L("最近处理结果")}"><article class="decision-result decision-result--${result.kind}"><span class="decision-result-icon">${icon(result.kind === "risk" ? "risk" : result.kind === "rewire" ? "link" : result.kind === "review" ? "user" : result.kind === "candidate" ? "plus" : result.kind === "goalTree" ? "tree" : "clipboard")}</span><div class="decision-result-copy"><div><span>${escapeHtml(result.kindLabel)}</span><strong>${escapeHtml(result.state)}</strong><time datetime="${escapeHtml(result.event.at)}">${formatDate(result.event.at)}</time></div><h3>${escapeHtml(result.title)}</h3>${result.effects.map((effect) => `<p>${escapeHtml(effect)}</p>`).join("")}<small>${escapeHtml(result.reasonLabel ? `${result.reasonLabel}：${result.reason ?? result.event.reason}` : L("你的理由：{reason}", { reason: result.reason ?? result.event.reason }))}</small></div>${result.links.length ? `<div class="decision-result-links">${result.links.map((link) => `<a href="${link.href}">${escapeHtml(link.label)}${icon("chevron-right")}</a>`).join("")}</div>` : ""}</article></section></article>`,
-  }));
-  return [...decisions, ...results];
-}
-
 const goalsFactorsRenderer = createWorkbenchGoalsFactorsRenderer({ translate: L, escapeHtml, icon, renderFocusSectionDeck });
 
-function renderGoalFactors(item: WebGoalView, view: GoalBoardWebView): string {
+function renderGoalFactors(item: WebGoalView, view: MolisWorkWebView): string {
   return goalsFactorsRenderer(item, {
     relationsHtml: renderRelations(item, view, Boolean(item.event_document?.state.owner)),
     risksHtml: renderRiskWorkbench(item, view, true, false),
@@ -336,7 +271,13 @@ function renderInputBindingsHtml(item: WebGoalView): string {
   ).join("")}</div>`;
 }
 
-function renderGoalDocument(item: WebGoalView, view: GoalBoardWebView, selected: boolean): string {
+function renderGoalDecisionHtml(item: WebGoalView, view: MolisWorkWebView): string {
+  const group = buildDecisionGroups(view).find((entry) => entry.item?.goal.goal_id === item.goal.goal_id);
+  if (!group?.goalTreeProposals.length) return "";
+  return group.goalTreeProposals.map((proposal) => renderGoalTreeProposalDecision(proposal, view)).join("");
+}
+
+function renderGoalDocument(item: WebGoalView, view: MolisWorkWebView, selected: boolean): string {
   return goalsDocumentRenderer.renderGoalDocument(item, {
     activeGoalId: view.snapshot.board.active_goal_id,
     decisionCount: countGoalDecisions(view, item.goal.goal_id),
@@ -345,14 +286,15 @@ function renderGoalDocument(item: WebGoalView, view: GoalBoardWebView, selected:
       ? `<h3>${L("关联结果")}</h3>${item.artifact_embed_html}`
       : "",
     coverageHtml: `${renderCoverageHtml(item)}${renderInputBindingsHtml(item)}${renderContractCoverage(item, view)}${renderChildProgress(item, view)}`,
+    decisionHtml: renderGoalDecisionHtml(item, view),
     eventDocument: item.event_document ?? null,
   }, selected);
 }
 
 /** Bind the public fragment composition to existing content owners. */
 const {
-  renderGoalDocumentFragment, renderGoalBoardMomentumFragment,
-} = createWorkbenchGoalsFragmentRenderer<WebGoalView, GoalBoardWebView>({
+  renderGoalDocumentFragment, renderMolisWorkMomentumFragment,
+} = createWorkbenchGoalsFragmentRenderer<WebGoalView, MolisWorkWebView>({
   document: (item, view) => renderGoalDocument(item, view, true),
   trash: (item) => renderTrashGoalDocument(item, true),
   momentum: (view, goalId, items) => renderGoalMomentum(view, goalId, [...items]),
@@ -364,18 +306,18 @@ const goalsDialogsRenderer = createWorkbenchGoalsDialogsRenderer({ translate: L,
 
 const { renderGoalTrashDialog } = goalsDialogsRenderer;
 
-function renderCreateDialog(view: GoalBoardWebView): string {
+function renderCreateDialog(view: MolisWorkWebView): string {
   return goalsDialogsRenderer.renderCreateDialog(view.goals);
 }
 
-const renderGoalBoardOnboarding = createWorkbenchOnboardingRenderer({
+const renderMolisWorkOnboarding = createWorkbenchOnboardingRenderer({
   L, escapeHtml, htmlLang, controlTokenMeta, withDesktopQuery, clientI18nScript, icon, renderIconSprite,
   nativeDesktopBootstrapScript: NATIVE_DESKTOP_BOOTSTRAP_SCRIPT,
 });
 
 function renderTuiPane(
   selected: WebGoalView | undefined,
-  view: GoalBoardWebView,
+  view: MolisWorkWebView,
   cliAvailability: Record<string, boolean> = {},
 ): string {
   return renderWorkTerminal({
@@ -394,7 +336,7 @@ function renderTuiPane(
   });
 }
 
-const { renderGoalBoardProjectGeneralSettings, renderGoalBoardProjectSettings, renderGoalBoardProjectGuidanceSettings, renderGoalBoardPlanningLibrary, renderGoalBoardPlanningMethodPage, renderGoalBoardPlanningSettings } = createWorkbenchProjectSettingsPages({
+const { renderMolisWorkProjectGeneralSettings, renderMolisWorkProjectSettings, renderMolisWorkProjectGuidanceSettings, renderMolisWorkPlanningLibrary, renderMolisWorkPlanningMethodPage, renderMolisWorkPlanningSettings } = createWorkbenchProjectSettingsPages({
   L, escapeHtml, formatDate, icon, htmlLang, listJoin, controlTokenMeta, clientI18nScript, renderIconSprite, withDesktopQuery,
   themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT, visualFoundationClientScript: VISUAL_FOUNDATION_CLIENT_SCRIPT,
   navigation: { settingsContextHref, renderProjectSettingsNavigation, renderSettingsNavigation }, renderProjectPolicyDocument, composePlanningMethodPacks,
@@ -406,48 +348,48 @@ function prefixLocalLinks(html: string, routePrefix: string, desktopShell = fals
     : html;
   const resolved = prefixed
     .replaceAll('href="__PROJECT_INDEX__"', 'href="/"')
-    .replaceAll('href="__WORKBENCH_CSS__"', 'href="/assets/goalboard-workbench.css"')
+    .replaceAll('href="__WORKBENCH_CSS__"', 'href="/assets/molis-work-workbench.css"')
     .replaceAll('href="__PROJECT_SETTINGS__"', `href="${routePrefix ? `${routePrefix}/settings/guidance` : "/settings/projects"}"`)
     .replaceAll('href="__SYSTEM_SETTINGS__"', `href="/settings/appearance${routePrefix ? `?project=${routePrefix.slice("/projects/".length)}` : ""}"`);
   return desktopShell ? appendDesktopQueryToLocalHrefs(resolved) : resolved;
 }
 
 /** Shared workbench presentation. Kept outside project HTML so the browser can reuse it. */
-function renderGoalBoardWorkbenchStylesheet(): string {
+function renderMolisWorkWorkbenchStylesheet(): string {
   return `${STYLES}${MORE_STYLES}${RESPONSIVE_STYLES}${VISUAL_FOUNDATION_STYLES}${TRASH_GOAL_STYLES}${PROJECT_OPERATIONS_STYLES}${ARTIFACT_EMBED_STYLES}${ARTIFACT_WORKBENCH_STYLES}${IMMERSIVE_NAVIGATION_STYLES}${IMMERSIVE_DIRECTORY_STYLES}${PROJECT_HOME_STYLES}${GOAL_CANVAS_STYLES}.document-pane.is-syncing .goal-document { animation: none; }`;
 }
 
 /** Full-screen first-run and update journey. */
-function renderGoalBoardOnboardingStylesheet(): string {
+function renderMolisWorkOnboardingStylesheet(): string {
   return ONBOARDING_STYLES;
 }
 
 /** Shared project index presentation. */
-function renderGoalBoardProjectIndexStylesheet(): string {
+function renderMolisWorkProjectIndexStylesheet(): string {
   return `${STYLES}${PROJECT_INDEX_STYLES}${VISUAL_FOUNDATION_STYLES}`;
 }
 
 /** Shared settings presentation, reused across project and global settings routes. */
-function renderGoalBoardSettingsStylesheet(): string {
+function renderMolisWorkSettingsStylesheet(): string {
   return `${STYLES}${MORE_STYLES}${RESPONSIVE_STYLES}${PROJECT_INDEX_STYLES}${SETTINGS_STYLES}${PROJECT_GUIDANCE_SETTINGS_STYLES}${PROJECT_RULES_SETTINGS_STYLES}${PLANNING_SETTINGS_STYLES}${VISUAL_FOUNDATION_STYLES}`;
 }
 
 /** Shared workbench behavior. Locale strings and project facts remain page-local. */
-function renderGoalBoardWorkbenchClientScript(): string {
+function renderMolisWorkWorkbenchClientScript(): string {
   return `${CONTROL_CLIENT_SCRIPT}${CLIENT_SCRIPT}${VISUAL_FOUNDATION_CLIENT_SCRIPT}${PROJECT_OPERATIONS_CLIENT_SCRIPT}`;
 }
 
-const { renderGoalBoardWeb, renderGoalBoardRefreshFragment } =
-  createWorkbenchGoalsPageRenderer<WebGoalView, GoalBoardWebView, FeedSupplementalEntry>({
+const { renderMolisWorkWeb, renderMolisWorkRefreshFragment } =
+  createWorkbenchGoalsPageRenderer<WebGoalView, MolisWorkWebView, FeedSupplementalEntry>({
     L, escapeHtml, icon, htmlLang, controlTokenMeta, themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT,
     renderIconSprite, clientI18nScript, dataJson, prefixLocalLinks, renderWorkbenchDocument,
     renderGoalDocument, renderTrashGoalDocument, goalsDocumentRenderer, goalsTreeRenderer,
     renderCreateDialog, renderGoalTrashDialog, renderMomentumPlaceholder, renderTuiPane,
     renderProjectOperations: (project, data) => renderProjectOperations(project, data, icon, L),
     renderDesktopProjectChrome, renderProjectSwitcher,
-    feedNativePluginSupplementalEntries, renderFeedNativePluginSurface,
+    renderFeedNativePluginSurface, renderInboxNativePluginSurface,
   });
-  return { renderGoalBoardProjectIndex, renderGoalBoardSettings, renderDecisionCenter, renderPersistedFeedItemDetail, renderFeedWorkbenchFragment, renderGoalDocumentFragment, renderGoalBoardMomentumFragment, renderGoalBoardOnboarding, renderGoalBoardProjectGeneralSettings, renderGoalBoardProjectSettings, renderGoalBoardProjectGuidanceSettings, renderGoalBoardPlanningLibrary, renderGoalBoardPlanningMethodPage, renderGoalBoardPlanningSettings, renderGoalBoardWorkbenchStylesheet, renderGoalBoardOnboardingStylesheet, renderGoalBoardProjectIndexStylesheet, renderGoalBoardSettingsStylesheet, renderGoalBoardWorkbenchClientScript, renderGoalBoardWeb, renderGoalBoardRefreshFragment };
+  return { renderMolisWorkProjectIndex, renderMolisWorkSettings, renderDecisionCenter, renderPersistedFeedItemDetail, renderFeedWorkbenchFragment, renderGoalDocumentFragment, renderMolisWorkMomentumFragment, renderMolisWorkOnboarding, renderMolisWorkProjectGeneralSettings, renderMolisWorkProjectSettings, renderMolisWorkProjectGuidanceSettings, renderMolisWorkPlanningLibrary, renderMolisWorkPlanningMethodPage, renderMolisWorkPlanningSettings, renderMolisWorkWorkbenchStylesheet, renderMolisWorkOnboardingStylesheet, renderMolisWorkProjectIndexStylesheet, renderMolisWorkSettingsStylesheet, renderMolisWorkWorkbenchClientScript, renderMolisWorkWeb, renderMolisWorkRefreshFragment };
 }
 
 export type WorkbenchRenderer = ReturnType<typeof createWorkbenchRenderer>;

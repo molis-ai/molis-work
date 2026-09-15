@@ -2,13 +2,14 @@ import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { validateGoalBoardMcpLauncher } from "@adeptify/goalboard-app-mcp";
-import { INTEGRATION_OWNER, INSTALLER_OWNER, RuntimeIntegrationError } from "./runtime-integration-contract.js";
+import { validateMolisWorkMcpLauncher } from "@molis-ai/molis-work-app-mcp";
+import { INTEGRATION_OWNER, isOwnedInstallerOwner, isOwnedIntegrationOwner, RuntimeIntegrationError } from "./runtime-integration-contract.js";
 import type { RuntimeIntegrationServiceOptions, PreparedPlan, RuntimeIntegrationDetection, SupportedRuntimeId, RuntimeIntegrationAction, RuntimeIntegrationPlan, RuntimeIntegrationConfirmation, RuntimeIntegrationResult, RuntimeAdapter, RuntimeSnapshot, ConfigInspection, InstalledArtifacts, IntegrationReceipt, RuntimeConnectionState, RuntimeIntegrationResultStatus } from "./runtime-integration-contract.js";
 import { ADAPTERS, adapterFor } from "./runtime-config-adapters.js";
 import { RuntimeIntegrationPlanner } from "./runtime-integration-planner.js";
 import { digest } from "./runtime-config-text.js";
 import { inspectSkillLink, replaceSkillLink, removeExpectedSkillLink, restoreSkillSnapshot, replaceTextFile, writeAtomic, readTextOrNull, fileModeOrUndefined, pathState, anyPathExists, canExecute, isInside } from "./runtime-installation-files.js";
+import { resolveConfiguredHome } from "../product-home.js";
 
 export class RuntimeIntegrationService {
   private readonly planner: RuntimeIntegrationPlanner;
@@ -22,7 +23,7 @@ export class RuntimeIntegrationService {
   private readonly preparedPlans = new Map<string, PreparedPlan>();
 
   constructor(options: RuntimeIntegrationServiceOptions = {}) {
-    this.homeDirectory = path.resolve(options.homeDirectory ?? path.join(os.homedir(), ".goalboard"));
+    this.homeDirectory = path.resolve(options.homeDirectory ?? resolveConfiguredHome());
     this.userHomeDirectory = path.resolve(options.userHomeDirectory ?? os.homedir());
     this.options = options;
     this.planner = new RuntimeIntegrationPlanner({ homeDirectory: this.homeDirectory, userHomeDirectory: this.userHomeDirectory, receiptPath: id => this.receiptPath(id), backupPath: (id, plan) => this.backupPath(id, plan) });
@@ -131,7 +132,7 @@ export class RuntimeIntegrationService {
       }
 
       if (plan.action === "connect") {
-        if (!prepared.artifacts) throw new RuntimeIntegrationError("runtime.installation_invalid", "GoalBoard 安装不可用");
+        if (!prepared.artifacts) throw new RuntimeIntegrationError("runtime.installation_invalid", "Molis Work 安装不可用");
         await replaceSkillLink(skillPath, prepared.artifacts.skillSourcePath, this.homeDirectory);
         skillMutated = prepared.beforeSkill.state !== "current";
       } else {
@@ -143,12 +144,12 @@ export class RuntimeIntegrationService {
       if (!valid) throw new Error("Runtime 接入验证未通过");
 
       if (plan.action === "connect") {
-        if (!prepared.artifacts) throw new RuntimeIntegrationError("runtime.installation_invalid", "GoalBoard 安装不可用");
+        if (!prepared.artifacts) throw new RuntimeIntegrationError("runtime.installation_invalid", "Molis Work 安装不可用");
         const inspection = prepared.adapter.inspectConfig(
           prepared.nextConfigText,
           prepared.adapter.desiredConnection(prepared.artifacts, this.homeDirectory),
         );
-        if (!inspection.entryFingerprint) throw new Error("无法生成 GoalBoard 配置所有权指纹");
+        if (!inspection.entryFingerprint) throw new Error("无法生成 Molis Work 配置所有权指纹");
         await this.writeReceipt({
           schema_version: 1,
           owner: INTEGRATION_OWNER,
@@ -165,7 +166,7 @@ export class RuntimeIntegrationService {
           plan.plan_id,
           backupPath,
           this.receiptPath(plan.runtime_id),
-          `${plan.display_name} 已接入 GoalBoard。${plan.restart_instructions.join(" ")}`,
+          `${plan.display_name} 已接入 Molis Work。${plan.restart_instructions.join(" ")}`,
         );
       }
 
@@ -176,7 +177,7 @@ export class RuntimeIntegrationService {
         plan.plan_id,
         backupPath,
         null,
-        `${plan.display_name} 的 GoalBoard 接入已移除，其他 Runtime 配置保持不变。`,
+        `${plan.display_name} 的 Molis Work 接入已移除，其他 Runtime 配置保持不变。`,
       );
     } catch (error) {
       if (configMutated) await replaceTextFile(configPath, prepared.beforeConfigText, await fileModeOrUndefined(configPath));
@@ -201,7 +202,7 @@ export class RuntimeIntegrationService {
     const configPath = adapter.configPath(this.userHomeDirectory);
     const configText = await readTextOrNull(configPath);
     const inspectionArtifacts = artifacts ?? {
-      launcherPath: path.join(this.homeDirectory, "bin", "goalboard-mcp"),
+      launcherPath: path.join(this.homeDirectory, "bin", "molis-work-mcp"),
       skillSourcePath: path.join(this.homeDirectory, "releases", "missing", "skills", "goal-advance"),
     };
     const desired = adapter.desiredConnection(inspectionArtifacts, this.homeDirectory);
@@ -234,12 +235,19 @@ export class RuntimeIntegrationService {
     if (text == null) return null;
     try {
       const manifest = JSON.parse(text) as { installer?: unknown; release_path?: unknown };
-      if (manifest.installer !== INSTALLER_OWNER || typeof manifest.release_path !== "string") return null;
+      if (!isOwnedInstallerOwner(manifest.installer) || typeof manifest.release_path !== "string") return null;
       const releasePath = path.resolve(this.homeDirectory, manifest.release_path);
       if (!isInside(this.homeDirectory, releasePath)) return null;
-      const launcherPath = path.join(this.homeDirectory, "bin", "goalboard-mcp");
+      const nextLauncher = path.join(this.homeDirectory, "bin", "molis-work-mcp");
+      const legacyLauncher = path.join(this.homeDirectory, "bin", "goalboard-mcp");
       const skillSourcePath = path.join(releasePath, "skills", "goal-advance");
-      const [launcher, skill] = await Promise.all([pathState(launcherPath), pathState(skillSourcePath)]);
+      const [nextState, legacyState, skill] = await Promise.all([
+        pathState(nextLauncher),
+        pathState(legacyLauncher),
+        pathState(skillSourcePath),
+      ]);
+      const launcherPath = nextState?.isFile() ? nextLauncher : legacyState?.isFile() ? legacyLauncher : nextLauncher;
+      const launcher = nextState?.isFile() ? nextState : legacyState;
       if (!launcher?.isFile() || !skill?.isDirectory()) return null;
       return { launcherPath, skillSourcePath };
     } catch {
@@ -272,7 +280,7 @@ export class RuntimeIntegrationService {
     if (!prepared.artifacts || current.configInspection.state !== "current" || current.skill.state !== "current") {
       return false;
     }
-    const validate = this.options.validateConnection ?? validateGoalBoardMcpLauncher;
+    const validate = this.options.validateConnection ?? validateMolisWorkMcpLauncher;
     return Boolean(await validate({
       runtime_id: plan.runtime_id,
       launcher_path: prepared.artifacts.launcherPath,
@@ -317,12 +325,12 @@ export class RuntimeIntegrationService {
     if (text == null) return null;
     try {
       const receipt = JSON.parse(text) as IntegrationReceipt;
-      if (receipt.owner !== INTEGRATION_OWNER || receipt.schema_version !== 1 || receipt.runtime_id !== runtimeId) {
+      if (!isOwnedIntegrationOwner(receipt.owner) || receipt.schema_version !== 1 || receipt.runtime_id !== runtimeId) {
         throw new Error("owner mismatch");
       }
       return receipt;
     } catch {
-      throw new RuntimeIntegrationError("runtime.receipt_invalid", `GoalBoard 接入收据无法解析: ${filePath}`);
+      throw new RuntimeIntegrationError("runtime.receipt_invalid", `Molis Work 接入收据无法解析: ${filePath}`);
     }
   }
 
@@ -347,7 +355,7 @@ export class RuntimeIntegrationService {
 
 export function connectionStateFor(snapshot: RuntimeSnapshot): RuntimeConnectionState {
   if (!snapshot.runtimeDetected) return "not_detected";
-  if (!snapshot.artifacts) return "goalboard_unavailable";
+  if (!snapshot.artifacts) return "molis_work_unavailable";
   if (snapshot.configInspection.state === "conflict" || snapshot.skill.state === "conflict") return "conflict";
   if (snapshot.configInspection.state === "current" && snapshot.skill.state === "current") return "connected";
   if (snapshot.configInspection.state === "absent" && snapshot.skill.state === "absent") return "not_connected";
@@ -356,7 +364,7 @@ export function connectionStateFor(snapshot: RuntimeSnapshot): RuntimeConnection
 
 export function detectionMessage(state: RuntimeConnectionState, displayName: string): string {
   if (state === "not_detected") return `未检测到 ${displayName}`;
-  if (state === "goalboard_unavailable") return "GoalBoard 本体安装不完整";
+  if (state === "molis_work_unavailable") return "Molis Work 本体安装不完整";
   if (state === "not_connected") return `${displayName} 未接入`;
   if (state === "needs_repair") return `${displayName} 接入需要修复`;
   if (state === "connected") return `${displayName} 已接入`;

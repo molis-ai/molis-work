@@ -1,10 +1,10 @@
 {
   "kind": "ui-mockup",
-  "surface": "GoalBoard information stream workbench",
+  "surface": "Molis Work information stream workbench",
   "prompt_file": ".impeccable/mocks/decision/feed-dispatch-ledger.prompt.txt",
   "approved": true,
   "approved_at": "2026-08-30",
-  "approval": "User asked Codex to judge whether C best matches GoalBoard; C was selected as the closest structural fit.",
+  "approval": "User asked Codex to judge whether C best matches Molis Work; C was selected as the closest structural fit.",
   "carry_forward": [
     "light stone directory beside a warm light work surface",
     "compact grouped directory rows with fixed semantic slots",

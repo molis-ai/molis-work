@@ -1,20 +1,22 @@
-import type { SqliteDatabase } from "@adeptify/goalboard-storage";
-import { createContextLedger } from "@adeptify/goalboard-module-context-ledger";
-import { ArtifactsModule, type ArtifactsSqliteDatabase } from "@adeptify/goalboard-module-artifacts";
-import type { ArtifactsApplicationApi } from "@adeptify/goalboard-contracts/modules/artifacts";
-import { EvidenceVerificationModule, type EvidenceSqliteDatabase } from "@adeptify/goalboard-module-evidence-verification";
-import type { EvidenceVerificationApplicationApi } from "@adeptify/goalboard-contracts/modules/evidence-verification";
-import { ExecutionModule, type ExecutionSqliteDatabase } from "@adeptify/goalboard-module-execution";
-import type { ExecutionApplicationApi } from "@adeptify/goalboard-contracts/modules/execution";
-import { GovernanceCollaborationModule, type GovernanceSqliteDatabase } from "@adeptify/goalboard-module-governance-collaboration";
-import type { GovernanceApplicationApi } from "@adeptify/goalboard-contracts/modules/governance-collaboration";
+import { randomUUID } from "node:crypto";
+import type { SqliteDatabase } from "@molis-ai/molis-work-storage";
+import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
+import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
+import { ArtifactsModule, type ArtifactsSqliteDatabase } from "@molis-ai/molis-work-module-artifacts";
+import type { ArtifactsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import { EvidenceVerificationModule, type EvidenceSqliteDatabase } from "@molis-ai/molis-work-module-evidence-verification";
+import type { EvidenceVerificationApplicationApi } from "@molis-ai/molis-work-contracts/modules/evidence-verification";
+import { ExecutionModule, type ExecutionSqliteDatabase } from "@molis-ai/molis-work-module-execution";
+import type { ExecutionApplicationApi } from "@molis-ai/molis-work-contracts/modules/execution";
+import { GovernanceCollaborationModule, type GovernanceSqliteDatabase } from "@molis-ai/molis-work-module-governance-collaboration";
+import type { GovernanceApplicationApi } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import {
   GoalsModule,
   GoalInputBindings,
   type GoalsSqliteDatabase,
   type PlanningMethodPack,
-} from "@adeptify/goalboard-module-goals";
-import type { GoalsApplicationApi, GoalInputBindingsApi } from "@adeptify/goalboard-contracts/modules/goals";
+} from "@molis-ai/molis-work-module-goals";
+import type { GoalsApplicationApi, GoalInputBindingsApi } from "@molis-ai/molis-work-contracts/modules/goals";
 import {
   GoalTreeQueryApplication,
   GoalTreeInputReader,
@@ -29,22 +31,23 @@ import {
   GoalTreeDecisionNormalizer,
   GoalEventApplication,
   GoalReadApplication,
+  GoalDecisionAttentionSync,
   projectGoalLifecycle,
-  GoalBoardV1Error,
-} from "@adeptify/goalboard-plugin-goals";
+  MolisWorkV1Error,
+} from "@molis-ai/molis-work-plugin-goals";
 import { LocalProjectDatabase } from "./project-database.js";
-import type { BoardSnapshot } from "@adeptify/goalboard-plugin-goals";
-import type { GoalRecord, ProjectGuidanceView } from "@adeptify/goalboard-contracts/modules/goals";
-import type { ExecutionClaimRecord as ClaimRecord, ExecutionRunRecord as RunRecord } from "@adeptify/goalboard-contracts/modules/execution";
+import type { BoardSnapshot } from "@molis-ai/molis-work-plugin-goals";
+import type { GoalRecord, ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { ExecutionClaimRecord as ClaimRecord, ExecutionRunRecord as RunRecord } from "@molis-ai/molis-work-contracts/modules/execution";
 
-export { projectGoalLifecycle } from "@adeptify/goalboard-plugin-goals";
-export { GoalBoardV1Error } from "@adeptify/goalboard-plugin-goals";
+export { projectGoalLifecycle } from "@molis-ai/molis-work-plugin-goals";
+export { MolisWorkV1Error } from "@molis-ai/molis-work-plugin-goals";
 
-export type GoalTreeProposalListQuery = import("@adeptify/goalboard-plugin-goals").GoalTreeProposalListQuery;
-export type GoalTreeProposalListResult = import("@adeptify/goalboard-plugin-goals").GoalTreeProposalListResult;
-export type GoalTreeProposalCheckResult = import("@adeptify/goalboard-plugin-goals").GoalTreeProposalCheckResult;
-export type GoalTreeProposalDecisionResult = import("@adeptify/goalboard-plugin-goals").GoalTreeProposalDecisionResult;
-export type GoalTreeSemanticReview = import("@adeptify/goalboard-plugin-goals").GoalTreeSemanticReview;
+export type GoalTreeProposalListQuery = import("@molis-ai/molis-work-plugin-goals").GoalTreeProposalListQuery;
+export type GoalTreeProposalListResult = import("@molis-ai/molis-work-plugin-goals").GoalTreeProposalListResult;
+export type GoalTreeProposalCheckResult = import("@molis-ai/molis-work-plugin-goals").GoalTreeProposalCheckResult;
+export type GoalTreeProposalDecisionResult = import("@molis-ai/molis-work-plugin-goals").GoalTreeProposalDecisionResult;
+export type GoalTreeSemanticReview = import("@molis-ai/molis-work-plugin-goals").GoalTreeSemanticReview;
 
 interface ActorWrite {
   actor_id: string;
@@ -76,6 +79,7 @@ export class GoalProjectApplication {
   readonly goalTreeDecision: GoalTreeDecisionApplication;
   readonly goalTreeWebInput: GoalTreeWebDecisionInput;
   readonly goalTreeDecisionFollowup: GoalTreeDecisionFollowup;
+  readonly goalDecisionAttention: GoalDecisionAttentionSync;
 
   constructor(
     readonly store: LocalProjectDatabase,
@@ -85,7 +89,7 @@ export class GoalProjectApplication {
     const artifactsModule = new ArtifactsModule({
       db: this.store.db as unknown as ArtifactsSqliteDatabase,
       now: () => this.clock().toISOString(),
-      errorFactory: (code, message, details) => new GoalBoardV1Error(code, message, details),
+      errorFactory: (code, message, details) => new MolisWorkV1Error(code, message, details),
       appendEvent: (input) => this.store.appendEvent(input),
     });
     this.artifacts = {
@@ -107,7 +111,7 @@ export class GoalProjectApplication {
     const governanceModule = new GovernanceCollaborationModule({
       db: this.store.db as unknown as GovernanceSqliteDatabase,
       now: () => this.clock().toISOString(),
-      errorFactory: (code, message, details) => new GoalBoardV1Error(code, message, details),
+      errorFactory: (code, message, details) => new MolisWorkV1Error(code, message, details),
     });
     this.governance = {
       clarification: governanceModule.clarification,
@@ -133,7 +137,7 @@ export class GoalProjectApplication {
       },
       {
         now: this.clock,
-        errorFactory: (code, message, details) => new GoalBoardV1Error(code, message, details),
+        errorFactory: (code, message, details) => new MolisWorkV1Error(code, message, details),
         personalPlanningMethodPacks: this.personalPlanningMethodPacks,
       },
     );
@@ -154,19 +158,44 @@ export class GoalProjectApplication {
     this.goalTree = new GoalTreeQueryApplication({
       goals: this.goalsModule.query,
       governance: this.governance,
-      errorFactory: (code, message) => new GoalBoardV1Error(code, message),
+      errorFactory: (code, message) => new MolisWorkV1Error(code, message),
+    });
+    const attention = new AttentionModule(this.store.db, {
+      exists: (projectId, subjectType, subjectId) => subjectType === "goal_decision"
+        && this.goalsModule.query.getGoal(projectId, subjectId) !== null,
+    }, {
+      eventSink: (event) => {
+        this.store.appendEvent({
+          eventId: `event-${randomUUID()}`,
+          boardId: event.project_id,
+          actorId: "web-user",
+          objectType: "inbox_entry",
+          objectId: event.entry_id,
+          type: event.type,
+          reason: event.reason,
+          payload: event.payload,
+          at: event.at,
+        });
+      },
+    });
+    this.goalDecisionAttention = new GoalDecisionAttentionSync({
+      attention,
+      listProposals: (boardId) => this.goalTree.listGoalTreeProposals({ board_id: boardId }).proposals,
+      goalExists: (boardId, goalId) => this.goalsModule.query.getGoal(boardId, goalId) !== null,
+      runGoalId: (boardId, runId) => this.store.snapshot(boardId).runs.find((run) => run.run_id === runId)?.goal_id ?? null,
     });
     this.goalTreeSubmission = new GoalTreeSubmissionApplication({
       goals: { query: this.goalsModule.query, commands: this.goals.commands, planning: this.goals.planning },
       governance: this.governance, query: this.goalTree, clock: this.clock,
-      errorFactory: (code, message, details) => new GoalBoardV1Error(code, message, details),
+      errorFactory: (code, message, details) => new MolisWorkV1Error(code, message, details),
+      attention: this.goalDecisionAttention,
     });
     this.goalTreeInputs = new GoalTreeInputReader({ query: this.goalsModule.query, commands: this.goals.commands,
-      errorFactory: (code, message) => new GoalBoardV1Error(code, message) });
+      errorFactory: (code, message) => new MolisWorkV1Error(code, message) });
     this.goalTreeFacts = new GoalTreeFactMaterializer(
       { commands: this.goals.commands, query: this.goalsModule.query },
       this.goalTreeInputs,
-      (code, message, details) => new GoalBoardV1Error(code, message, details),
+      (code, message, details) => new MolisWorkV1Error(code, message, details),
       (input) => this.goalEvents.createIntent(input),
     );
     this.goalTreeConflicts = new GoalTreeMaterializationConflicts({ query: this.goalsModule.query, planning: this.goals.planning },
@@ -174,13 +203,13 @@ export class GoalProjectApplication {
     this.goalTreeMaterialization = new GoalTreeMaterializationApplication({
       goals: this.goalsModule.query, transactions: this.governance.decisions, facts: this.goalTreeFacts,
       conflicts: this.goalTreeConflicts,
-      isDomainError: (error): error is GoalBoardV1Error => error instanceof GoalBoardV1Error,
+      isDomainError: (error): error is MolisWorkV1Error => error instanceof MolisWorkV1Error,
     });
     this.goalTreeDecisionInputs = new GoalTreeDecisionNormalizer(this.governance.provenance,
-      (code, message) => new GoalBoardV1Error(code, message));
+      (code, message) => new MolisWorkV1Error(code, message));
     this.goalTreeDecisionFollowup = new GoalTreeDecisionFollowup({
       goals: { query: this.goalsModule.query, planning: this.goals.planning }, governance: this.governance,
-      query: this.goalTree, inputs: this.goalTreeInputs, errorFactory: (code, message) => new GoalBoardV1Error(code, message),
+      query: this.goalTree, inputs: this.goalTreeInputs, errorFactory: (code, message) => new MolisWorkV1Error(code, message),
     });
     this.goalQueries = new GoalReadApplication(goalsModule.query, {
       now: () => this.clock(),
@@ -192,15 +221,16 @@ export class GoalProjectApplication {
       goals: { ...this.goals, query: this.goalsModule.query }, governance: this.governance, query: this.goalTree,
       inputs: this.goalTreeInputs, normalizer: this.goalTreeDecisionInputs, conflicts: this.goalTreeConflicts,
       materialization: this.goalTreeMaterialization, followup: this.goalTreeDecisionFollowup, clock: this.clock,
-      errorFactory: (code, message, details) => new GoalBoardV1Error(code, message, details),
-      isDomainError: (error): error is GoalBoardV1Error => error instanceof GoalBoardV1Error,
+      errorFactory: (code, message, details) => new MolisWorkV1Error(code, message, details),
+      isDomainError: (error): error is MolisWorkV1Error => error instanceof MolisWorkV1Error,
+      attention: this.goalDecisionAttention,
     });
     this.goalTreeWebInput = new GoalTreeWebDecisionInput();
     this.goalTreeCheck = new GoalTreeCheckApplication({
       goals: { query: this.goalsModule.query, planning: this.goals.planning }, governance: this.governance,
       query: this.goalTree, materialization: this.goalTreeMaterialization, clock: this.clock,
-      errorFactory: (code, message, details) => new GoalBoardV1Error(code, message, details),
-      isDomainError: (error): error is GoalBoardV1Error => error instanceof GoalBoardV1Error,
+      errorFactory: (code, message, details) => new MolisWorkV1Error(code, message, details),
+      isDomainError: (error): error is MolisWorkV1Error => error instanceof MolisWorkV1Error,
     });
   }
 
@@ -246,4 +276,4 @@ export class GoalProjectApplication {
   }
 }
 
-export type GoalBoardDatabase = SqliteDatabase;
+export type MolisWorkDatabase = SqliteDatabase;

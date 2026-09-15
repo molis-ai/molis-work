@@ -1,8 +1,8 @@
-import type { GoalPolicy } from "@adeptify/goalboard-contracts/modules/goals";
-import type { UiContribution } from "@adeptify/goalboard-contracts/platform/ui";
+import type { GoalPolicy } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import { mergeGoalPolicyFormValues, type GoalsPolicyBinding, type GoalsPolicyItem, type GoalsPolicyUiPrimitives } from "./policy-ui-model.js";
 
-export const GOALS_POLICY_UI_CONTRIBUTION_ID = "io.goalboard.native.goals.policy.v1";
+export const GOALS_POLICY_UI_CONTRIBUTION_ID = "io.molis.work.native.goals.policy.v1";
 
 function createPolicyRenderer(primitives: GoalsPolicyUiPrimitives) {
   const { translate: L, escapeHtml, formatDate, icon, currentLocale, defaultPolicy: DEFAULT_GOAL_POLICY } = primitives;
@@ -194,7 +194,7 @@ export type GoalsPolicyUiModel = {
 export const goalsPolicyUiContribution: UiContribution<GoalsPolicyUiModel> = {
   descriptor: {
     contribution_id: GOALS_POLICY_UI_CONTRIBUTION_ID,
-    plugin_id: "io.goalboard.native.goals",
+    plugin_id: "io.molis.work.native.goals",
     kind: "embedded",
     label: "Goal work rules",
     surfaces: ["form", "editor", "check-summary", "project"].map(surface_id => ({ surface_id, target_slot_id: "workbench.main", format: "declarative-html" })),

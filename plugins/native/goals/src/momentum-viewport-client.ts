@@ -106,7 +106,7 @@ export const GOALS_MOMENTUM_VIEWPORT_FACTORY_SCRIPT = `(host) => {
       view.dataset.bound = "true";
       let drag = null;
       view.addEventListener("pointerdown", (event) => {
-        if (isExpanded() || event.button !== 0 || event.target.closest("[data-graph-open]")) return;
+        if (isExpanded() || event.button !== 0 || event.target.closest("[data-graph-open], [data-graph-frame]")) return;
         const node = event.target.closest("[data-graph-node]");
         drag = { id: event.pointerId, x: event.clientX, y: event.clientY, node, point: node ? { ...point(node) } : { ...camera }, moved: false };
         suppressClick = false;
@@ -139,7 +139,7 @@ export const GOALS_MOMENTUM_VIEWPORT_FACTORY_SCRIPT = `(host) => {
       view.addEventListener("click", (event) => { if (suppressClick) { event.preventDefault(); event.stopPropagation(); } }, true);
       view.addEventListener("dblclick", (event) => {
         const node = event.target.closest("[data-graph-node]");
-        if (!isExpanded() && node && !event.target.closest("[data-graph-open]") && !suppressClick) { event.preventDefault(); host.openGoal(node.dataset.goalId); }
+        if (!isExpanded() && node && !event.target.closest("[data-graph-open], [data-graph-frame]") && !suppressClick) { event.preventDefault(); host.openGoal(node.dataset.goalId); }
       });
       view.addEventListener("wheel", (event) => {
         if (isExpanded()) return;

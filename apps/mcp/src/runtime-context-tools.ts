@@ -1,12 +1,12 @@
-import type { RuntimeProjectCatalogProvider, RuntimeProjectConnectionState, GoalBoardRuntimeContextHost } from "@adeptify/goalboard-contracts/platform/app-host";
-import type { GoalBoardRuntimeContextResolution } from "@adeptify/goalboard-contracts/modules/private-work-context";
+import type { RuntimeProjectCatalogProvider, RuntimeProjectConnectionState, MolisWorkRuntimeContextHost } from "@molis-ai/molis-work-contracts/platform/app-host";
+import type { MolisWorkRuntimeContextResolution } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import type { McpToolCallContext } from "./protocol.js";
 
 export interface McpRuntimeContextPorts {
   catalogs: RuntimeProjectCatalogProvider;
   connection: RuntimeProjectConnectionState;
-  requireHost(context: McpToolCallContext): GoalBoardRuntimeContextHost;
-  presentResolution(resolution: GoalBoardRuntimeContextResolution, host: GoalBoardRuntimeContextHost, reconcileLegacy?: boolean): Promise<string>;
+  requireHost(context: McpToolCallContext): MolisWorkRuntimeContextHost;
+  presentResolution(resolution: MolisWorkRuntimeContextResolution, host: MolisWorkRuntimeContextHost, reconcileLegacy?: boolean): Promise<string>;
 }
 
 /** Named tool conversions over the Host's public catalog scope; no binding algorithm or Store. */
@@ -150,12 +150,12 @@ export function createMcpRuntimeContextHandlers(ports: McpRuntimeContextPorts) {
   }
 
   return {
-    goalboard_v1_context_resolve: (_arguments_: Record<string, unknown>, context: McpToolCallContext) => resolveRuntimeContext(context),
-    goalboard_v1_context_list_projects: (_arguments_: Record<string, unknown>, context: McpToolCallContext) => listRuntimeProjects(context),
-    goalboard_v1_context_reject_suggestion: (arguments_: Record<string, unknown>, context: McpToolCallContext) => rejectRuntimeContextSuggestion(arguments_, context),
-    goalboard_v1_context_bind: (arguments_: Record<string, unknown>, context: McpToolCallContext) => bindRuntimeContext(arguments_, context),
-    goalboard_v1_context_unbind: (arguments_: Record<string, unknown>, context: McpToolCallContext) => unbindRuntimeContext(arguments_, context),
-    goalboard_v1_context_create_and_bind: (arguments_: Record<string, unknown>, context: McpToolCallContext) => createAndBindRuntimeContext(arguments_, context),
-    goalboard_v1_project_delete: (arguments_: Record<string, unknown>, context: McpToolCallContext) => deleteRuntimeProject(arguments_, context),
+    molis_work_v1_context_resolve: (_arguments_: Record<string, unknown>, context: McpToolCallContext) => resolveRuntimeContext(context),
+    molis_work_v1_context_list_projects: (_arguments_: Record<string, unknown>, context: McpToolCallContext) => listRuntimeProjects(context),
+    molis_work_v1_context_reject_suggestion: (arguments_: Record<string, unknown>, context: McpToolCallContext) => rejectRuntimeContextSuggestion(arguments_, context),
+    molis_work_v1_context_bind: (arguments_: Record<string, unknown>, context: McpToolCallContext) => bindRuntimeContext(arguments_, context),
+    molis_work_v1_context_unbind: (arguments_: Record<string, unknown>, context: McpToolCallContext) => unbindRuntimeContext(arguments_, context),
+    molis_work_v1_context_create_and_bind: (arguments_: Record<string, unknown>, context: McpToolCallContext) => createAndBindRuntimeContext(arguments_, context),
+    molis_work_v1_project_delete: (arguments_: Record<string, unknown>, context: McpToolCallContext) => deleteRuntimeProject(arguments_, context),
   };
 }

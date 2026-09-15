@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { GovernanceRecordsApi, GoalTreeProposalDecisionResult } from "@adeptify/goalboard-contracts/modules/governance-collaboration";
+import type { GovernanceRecordsApi, GoalTreeProposalDecisionResult } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import { GovernanceError, type GovernanceErrorFactory } from "./errors.js";
 import { json, parseJson, text, type GovernanceRow } from "./mappers.js";
 import { GovernanceRepository, type GovernanceSqliteDatabase } from "./repository.js";

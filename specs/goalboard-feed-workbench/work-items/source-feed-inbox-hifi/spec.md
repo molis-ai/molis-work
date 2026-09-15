@@ -1,6 +1,6 @@
 # 来源、Feed 与 Inbox 可交互高保真切片
 
-GoalBoard Goal：`draft-8f160677-f8f8-4f2b-935d-0881edb3aba3`
+Molis Work Goal：`draft-8f160677-f8f8-4f2b-935d-0881edb3aba3`
 
 ## 背景与目标
 
@@ -16,7 +16,7 @@ GoalBoard Goal：`draft-8f160677-f8f8-4f2b-935d-0881edb3aba3`
 
 - 根目录中的“来源与连接”通过 `data-feed-sources-open` 打开大 Dialog，不是可以连续浏览的目录—详情工作台。
 - Inbox / Feed 复用同一套 `FeedItemType`，主要差异是预设和归档文案，Feed Item 加入 Inbox 的对象关系不可见。
-- Inbox 同时承载外部消息和 GoalBoard 决定，但列表没有优先解释“为什么现在需要我处理”与“下一步是什么”。
+- Inbox 同时承载外部消息和 Molis Work 决定，但列表没有优先解释“为什么现在需要我处理”与“下一步是什么”。
 - 窄屏已有目录 / 列表 / 详情分层基础，但来源管理仍是 Dialog，无法验证同一关键路径。
 
 ## 保留、替换、忽略

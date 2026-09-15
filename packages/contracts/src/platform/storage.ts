@@ -2,7 +2,7 @@
 import type { ContractDescriptor } from "./package.js";
 
 export const platformStorageContract = {
-  contractId: "io.goalboard.platform.storage.v1",
+  contractId: "io.molis.work.platform.storage.v1",
   kind: "platform",
   schemaVersion: 1,
   maturity: "contract-only",

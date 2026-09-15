@@ -1,6 +1,6 @@
-import type { IntegrationProviderItem, IntegrationProviderPort } from "@adeptify/goalboard-contracts/platform/plugin";
-import type { ListenerCheckpoint, ListenerRunReceipt } from "@adeptify/goalboard-contracts/services/listener-host";
-import type { SignalRecord } from "@adeptify/goalboard-contracts/modules/signals";
+import type { IntegrationProviderItem, IntegrationProviderPort } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { ListenerCheckpoint, ListenerRunReceipt } from "@molis-ai/molis-work-contracts/services/listener-host";
+import type { SignalRecord } from "@molis-ai/molis-work-contracts/modules/signals";
 import type { FeedSourceRecord } from "./projection.js";
 import type { FeedApplication } from "./application.js";
 

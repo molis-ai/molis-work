@@ -1,5 +1,5 @@
-import { buildGoalBoardWebView } from "@adeptify/goalboard-app-local-host";
-import { openGoalBoardProjectCatalog } from "@adeptify/goalboard-app-desktop";
+import { buildMolisWorkWebView } from "@molis-ai/molis-work-app-local-host";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -7,33 +7,33 @@ import { tmpdir } from "node:os";
 import { execFileSync } from "node:child_process";
 import test from "node:test";
 import { WebSocket, type RawData } from "ws";
-import { desktopAdvancePrompt, desktopLaunchSpec, desktopPanelEnv } from "@adeptify/goalboard-app-desktop";
-import { createLocalFeedApplication } from "@adeptify/goalboard-app-local-host";
+import { desktopAdvancePrompt, desktopLaunchSpec, desktopPanelEnv } from "@molis-ai/molis-work-app-desktop";
+import { createLocalFeedApplication } from "@molis-ai/molis-work-app-local-host";
 
-import { GoalProjectApplication } from "@adeptify/goalboard-app-local-host";
-import { DEMO_BOARD_ID, seedDemoBoard } from "@adeptify/goalboard-app-local-host";
-import { LocalProjectDatabase } from "@adeptify/goalboard-app-local-host";
-import { resolveWebControlToken, WEB_CONTROL_TOKEN_RELATIVE_PATH } from "@adeptify/goalboard-app-local-host";
-import { NATIVE_DESKTOP_BOOTSTRAP_SCRIPT } from "@adeptify/goalboard-app-desktop";
+import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_BOARD_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { resolveWebControlToken, WEB_CONTROL_TOKEN_RELATIVE_PATH } from "@molis-ai/molis-work-app-local-host";
+import { NATIVE_DESKTOP_BOOTSTRAP_SCRIPT } from "@molis-ai/molis-work-app-desktop";
 import {
-  GoalBoardPtyHost,
+  MolisWorkPtyHost,
   buildPtyEnvironment,
   isPtyCommandAvailable,
   resolveNvmBinDirectory,
   resolvePtyCommand,
-} from "@adeptify/goalboard-service-runtime-host";
+} from "@molis-ai/molis-work-service-runtime-host";
 import {
   CLIENT_SCRIPT,
   ONBOARDING_CLIENT_SCRIPT,
-} from "@adeptify/goalboard-app-workbench";
+} from "@molis-ai/molis-work-app-workbench";
 import {
-  renderGoalBoardWeb,
-  renderGoalBoardWorkbenchClientScript,
-  renderGoalBoardWorkbenchStylesheet,
+  renderMolisWorkWeb,
+  renderMolisWorkWorkbenchClientScript,
+  renderMolisWorkWorkbenchStylesheet,
 } from "./workbench-renderer-fixture.js";
-import { createGoalBoardWebServer as createBaseGoalBoardWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createMolisWorkWebServer as createBaseMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
-const WEB_TEST_CONTROL_TOKEN = "goalboard-web-test-control-token-0123456789abcdef";
+const WEB_TEST_CONTROL_TOKEN = "molis-work-web-test-control-token-0123456789abcdef";
 const PTY_CLIENT_SOURCE = readFileSync(new URL("../plugins/native/work/src/terminal/client.ts", import.meta.url), "utf8");
 const TERMINAL_AUTOFILL_SOURCE = readFileSync(new URL("../plugins/native/work/src/terminal/autofill.ts", import.meta.url), "utf8");
 const TERMINAL_PANELS_SOURCE = readFileSync(new URL("../plugins/native/work/src/terminal/panels.ts", import.meta.url), "utf8");
@@ -48,7 +48,7 @@ const TAURI_CONFIG = JSON.parse(
 let webRequestSequence = 0;
 
 test("Runtime stays available as a workspace view instead of an independently collapsed dock", () => {
-  assert.doesNotMatch(PTY_CLIENT_SOURCE, /goalboard:tui:collapsed/);
+  assert.doesNotMatch(PTY_CLIENT_SOURCE, /molis-work:tui:collapsed/);
   assert.doesNotMatch(PTY_CLIENT_SOURCE, /setTuiCollapsed/);
   assert.doesNotMatch(PTY_CLIENT_SOURCE, /initTuiCollapse/);
 });
@@ -68,7 +68,7 @@ test("release version sources agree before packaging", () => {
   const packageVersion = JSON.parse(
     readFileSync(new URL("../package.json", import.meta.url), "utf8"),
   ).version as string;
-  assert.equal(output.trim(), `GoalBoard release version sources agree: ${packageVersion}`);
+  assert.equal(output.trim(), `Molis Work release version sources agree: ${packageVersion}`);
 });
 
 test("native Desktop identity self-heals before layout and survives full-page navigation", () => {
@@ -84,10 +84,10 @@ test("native Desktop identity self-heals before layout and survives full-page na
   );
 });
 
-function createGoalBoardWebServer(
-  options: Parameters<typeof createBaseGoalBoardWebServer>[0] = {},
+function createMolisWorkWebServer(
+  options: Parameters<typeof createBaseMolisWorkWebServer>[0] = {},
 ) {
-  return createBaseGoalBoardWebServer({ ...options, controlToken: WEB_TEST_CONTROL_TOKEN });
+  return createBaseMolisWorkWebServer({ ...options, controlToken: WEB_TEST_CONTROL_TOKEN });
 }
 
 function webFetch(input: string | URL | Request, init: RequestInit = {}): Promise<Response> {
@@ -96,12 +96,12 @@ function webFetch(input: string | URL | Request, init: RequestInit = {}): Promis
   const target = new URL(input instanceof Request ? input.url : String(input));
   const headers = new Headers(init.headers);
   if (!headers.has("origin")) headers.set("origin", target.origin);
-  if (!headers.has("x-goalboard-control-token")) {
-    headers.set("x-goalboard-control-token", WEB_TEST_CONTROL_TOKEN);
+  if (!headers.has("x-molis-work-control-token")) {
+    headers.set("x-molis-work-control-token", WEB_TEST_CONTROL_TOKEN);
   }
-  if (!headers.has("x-goalboard-idempotency-key")) {
+  if (!headers.has("x-molis-work-idempotency-key")) {
     webRequestSequence += 1;
-    headers.set("x-goalboard-idempotency-key", `desktop-tui-request-${webRequestSequence}`);
+    headers.set("x-molis-work-idempotency-key", `desktop-tui-request-${webRequestSequence}`);
   }
   return globalThis.fetch(input, { ...init, headers });
 }
@@ -177,11 +177,11 @@ function addProjectGoal(
 function addProjectFeedItem(
   project: { database_path: string; board_id: string },
   itemId: string,
-  itemType: "feed" | "inbox_message" = "feed",
+  options: { openInbox?: boolean } = {},
 ): void {
   const store = new LocalProjectDatabase(project.database_path);
   const now = "2026-08-29T10:00:00.000Z";
-  const inbox = itemType === "inbox_message";
+  const inbox = Boolean(options.openInbox);
   try {
     store.db.prepare(`
       INSERT INTO feed_sources (
@@ -203,7 +203,7 @@ function addProjectFeedItem(
         tags_json, author, disposition, linked_goal_id, revision, source_created_at,
         source_updated_at, imported_at, updated_at
       ) VALUES (
-        @board_id, @item_id, @source_id, @item_type, @kind, @title,
+        @board_id, @item_id, @source_id, 'feed', @kind, @title,
         '验证升格、绑定和终端上下文', '正文里包含需要核对的事实\nAuthorization: Bearer runtime-secret-token', @source_kind, @source_label,
         @external_id, 'https://example.com/feed-item?access_token=url-secret-value', 'inbox', 'high', '["relay"]',
         '测试作者', 'inbox', NULL, 1, @now, @now, @now, @now
@@ -212,7 +212,6 @@ function addProjectFeedItem(
       board_id: project.board_id,
       item_id: itemId,
       source_id: inbox ? "source-test-inbox" : "source-test",
-      item_type: itemType,
       kind: inbox ? "github_issue" : "article",
       title: inbox ? "需要处理的 Inbox Message" : "用 Item 启动真实工作",
       source_kind: inbox ? "github" : "rss",
@@ -309,8 +308,8 @@ function addProjectChildRelation(
 }
 
 async function catalogFixture() {
-  const homeDirectory = mkdtempSync(join(tmpdir(), "goalboard-desktop-tui-"));
-  const catalog = await openGoalBoardProjectCatalog({ homeDirectory });
+  const homeDirectory = mkdtempSync(join(tmpdir(), "molis-work-desktop-tui-"));
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   try {
     const created = await catalog.createProject({
       display_name: "桌面 TUI 项目",
@@ -335,12 +334,12 @@ async function catalogFixture() {
   }
 }
 
-test("desktop Skill reads GOALBOARD_GOAL_ID and does not auto-claim", () => {
+test("desktop Skill reads MOLIS_WORK_GOAL_ID and does not auto-claim", () => {
   const projectConnection = readFileSync(
     join(process.cwd(), "skills/goal-advance/references/project-connection.md"),
     "utf8",
   );
-  assert.match(projectConnection, /GOALBOARD_GOAL_ID identifies page context/);
+  assert.match(projectConnection, /MOLIS_WORK_GOAL_ID identifies page context/);
   assert.match(projectConnection, /does not itself authorize doing the work/);
   assert.match(projectConnection, /never silently retargets the existing terminal/);
 });
@@ -351,7 +350,7 @@ test("advance prompt names the Goal and omits the five-chapter contract", () => 
   assert.match(prompt, /LEAF-1/);
   assert.match(prompt, /不要改别的 Goal/);
   assert.doesNotMatch(prompt, /outcome|business_logic|acceptance_criteria|为什么|怎样才算完成/);
-  assert.match(prompt, /^<GOALBOARD_CURRENT_GOAL>/);
+  assert.match(prompt, /^<MOLIS_WORK_CURRENT_GOAL>/);
 });
 
 test("onboarding advance prompt starts one-question-at-a-time clarification and Goal Tree proposal", () => {
@@ -387,11 +386,11 @@ test("advance prompt keeps confirmed project guidance before dynamic Goal and un
   const prompt = desktopAdvancePrompt({
     goal_id: "LEAF-GUIDANCE",
     title: "遵守项目说明",
-    project_guidance_prefix: "<GOALBOARD_PROJECT_GUIDANCE>\n- [constraint]\n  保留升级路径。\n</GOALBOARD_PROJECT_GUIDANCE>",
+    project_guidance_prefix: "<MOLIS_WORK_PROJECT_GUIDANCE>\n- [constraint]\n  保留升级路径。\n</MOLIS_WORK_PROJECT_GUIDANCE>",
     source_context: "外部 Item 正文",
   });
-  const guidance = prompt.indexOf("<GOALBOARD_PROJECT_GUIDANCE>");
-  const currentGoal = prompt.indexOf("<GOALBOARD_CURRENT_GOAL>");
+  const guidance = prompt.indexOf("<MOLIS_WORK_PROJECT_GUIDANCE>");
+  const currentGoal = prompt.indexOf("<MOLIS_WORK_CURRENT_GOAL>");
   const untrusted = prompt.indexOf("<UNTRUSTED_FEED_ITEM_DATA>");
   assert.ok(guidance >= 0 && guidance < currentGoal && currentGoal < untrusted);
 });
@@ -440,34 +439,34 @@ test("launch recipes resume Codex, Claude, OpenCode, Pi Agent, and Grok Build", 
   const generic = desktopLaunchSpec({ runtime_kind: "generic", command: "cat" });
   assert.equal(generic.command, "cat");
   const env = desktopPanelEnv({
-    homeDirectory: "/tmp/goalboard-home",
+    homeDirectory: "/tmp/molis-work-home",
     runtimeId: "opencode",
     sessionId: "session-1",
     panelId: "panel-1",
     workContextId: "panel-1",
     goalId: "LEAF-1",
   });
-  assert.equal(env.GOALBOARD_GOAL_ID, "LEAF-1");
-  assert.equal(env.GOALBOARD_PANEL_ID, "panel-1");
-  assert.equal(env.GOALBOARD_WORK_CONTEXT_ID, "panel-1");
-  assert.equal(env.GOALBOARD_RUNTIME_ID, "opencode");
-  assert.equal(env.GOALBOARD_SESSION_ID, "session-1");
-  assert.equal(env.GOALBOARD_WEB_URL, "http://127.0.0.1:4173");
+  assert.equal(env.MOLIS_WORK_GOAL_ID, "LEAF-1");
+  assert.equal(env.MOLIS_WORK_PANEL_ID, "panel-1");
+  assert.equal(env.MOLIS_WORK_WORK_CONTEXT_ID, "panel-1");
+  assert.equal(env.MOLIS_WORK_RUNTIME_ID, "opencode");
+  assert.equal(env.MOLIS_WORK_SESSION_ID, "session-1");
+  assert.equal(env.MOLIS_WORK_WEB_URL, "http://127.0.0.1:4173");
   assert.equal(
     desktopPanelEnv({
-      homeDirectory: "/tmp/goalboard-home",
+      homeDirectory: "/tmp/molis-work-home",
       runtimeId: "opencode",
       panelId: "panel-1",
       workContextId: "panel-1",
       goalId: "LEAF-1",
       webUrl: "http://127.0.0.1:4321",
-    }).GOALBOARD_WEB_URL,
+    }).MOLIS_WORK_WEB_URL,
     "http://127.0.0.1:4321",
   );
   assert.doesNotMatch(JSON.stringify(env), /claim|select_goal/i);
 });
 
-test("PTY environment keeps GoalBoard identity and drops host Node/editor flags", () => {
+test("PTY environment keeps Molis Work identity and drops host Node/editor flags", () => {
   const previousNodeOptions = process.env.NODE_OPTIONS;
   const previousNodePath = process.env.NODE_PATH;
   const previousPath = process.env.PATH;
@@ -479,15 +478,15 @@ test("PTY environment keeps GoalBoard identity and drops host Node/editor flags"
     const env = buildPtyEnvironment({
       NODE_OPTIONS: "--still-blocked",
       NODE_PATH: "/tmp/overlay-blocked",
-      GOALBOARD_GOAL_ID: "LEAF-1",
-      GOALBOARD_PANEL_ID: "panel-1",
+      MOLIS_WORK_GOAL_ID: "LEAF-1",
+      MOLIS_WORK_PANEL_ID: "panel-1",
     });
     assert.equal(env.NODE_OPTIONS, undefined);
     assert.equal(env.NODE_PATH, undefined);
     assert.equal(env.CURSOR_TRACE_ID, undefined);
     assert.equal(env.__CFBundleIdentifier, undefined);
-    assert.equal(env.GOALBOARD_GOAL_ID, "LEAF-1");
-    assert.equal(env.GOALBOARD_PANEL_ID, "panel-1");
+    assert.equal(env.MOLIS_WORK_GOAL_ID, "LEAF-1");
+    assert.equal(env.MOLIS_WORK_PANEL_ID, "panel-1");
     assert.equal(env.TERM, "xterm-256color");
     assert.match(env.PATH ?? "", /\/bin/);
     assert.doesNotMatch(env.PATH ?? "", /(^|:)(\.\/node_modules\/\.bin|\/tmp\/cursor-host-bin)(:|$)/);
@@ -507,7 +506,7 @@ test("PTY environment keeps GoalBoard identity and drops host Node/editor flags"
 });
 
 test("nvm major-version aliases resolve to an installed Node bin", () => {
-  const nvmDir = mkdtempSync(join(tmpdir(), "goalboard-nvm-alias-"));
+  const nvmDir = mkdtempSync(join(tmpdir(), "molis-work-nvm-alias-"));
   mkdirSync(join(nvmDir, "alias", "lts"), { recursive: true });
   mkdirSync(join(nvmDir, "versions", "node", "v24.9.0", "bin"), { recursive: true });
   mkdirSync(join(nvmDir, "versions", "node", "v24.14.0", "bin"), { recursive: true });
@@ -540,62 +539,68 @@ test("PTY PATH still finds node when NVM_BIN is absent", () => {
 });
 
 test("Web and Desktop share one project workbench; Desktop only adds native chrome hooks", () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-desktop-render-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-desktop-render-"));
   const databasePath = join(directory, "demo.db");
   seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath);
   const coordinator = new GoalProjectApplication(store);
   try {
-    const view = buildGoalBoardWebView(store, coordinator, {
+    const view = buildMolisWorkWebView(store, coordinator, {
       databasePath,
       boardId: DEMO_BOARD_ID,
       demo: true,
     });
-    const workbenchAssets = `<style>${renderGoalBoardWorkbenchStylesheet()}</style><script>${renderGoalBoardWorkbenchClientScript()}</script>`;
-    const browser = `${renderGoalBoardWeb(view)}${workbenchAssets}`;
-    const desktop = `${renderGoalBoardWeb(view, undefined, false, false, false, "", true)}${workbenchAssets}`;
-    const directGoal = renderGoalBoardWeb(view, view.goals[0]!.goal.goal_id);
-    const decisions = renderGoalBoardWeb(view, undefined, false, true);
-    const desktopDecisions = renderGoalBoardWeb(view, undefined, false, true, false, "", true);
+    const workbenchAssets = `<style>${renderMolisWorkWorkbenchStylesheet()}</style><script>${renderMolisWorkWorkbenchClientScript()}</script>`;
+    const browser = `${renderMolisWorkWeb(view)}${workbenchAssets}`;
+    const desktop = `${renderMolisWorkWeb(view, undefined, false, false, false, "", true)}${workbenchAssets}`;
+    const directGoal = renderMolisWorkWeb(view, view.goals[0]!.goal.goal_id);
+    const decisions = renderMolisWorkWeb(view, undefined, false, true);
+    const desktopDecisions = renderMolisWorkWeb(view, undefined, false, true, false, "", true);
     const browserMarkup = browser.slice(0, browser.indexOf("<style>"));
     assert.match(browser, /class="tui-pane"/);
     assert.match(browser, /推进这个 Goal/);
     assert.match(browser, /pty-client\.js/);
-    assert.match(browser, /class="workspace is-desktop-tui"/);
+    assert.match(browser, /class="immersive-workspace is-desktop-tui"/);
     assert.match(browser, /data-desktop-shell="true"/);
     assert.doesNotMatch(browserMarkup, /data-native-desktop="true"|data-tauri-drag-region/);
     assert.match(browser, /class="desktop-project-switcher navigator-project-menu"/);
     assert.match(browser, /data-desktop-directory="root"/);
     const rootDirectory = browser.match(/<section class="desktop-directory-panel desktop-directory-root"[\s\S]*?<\/section>/)?.[0];
     assert.ok(rootDirectory);
-    for (const label of ["Inbox", "Goals", "Sessions", "Feed", "来源"]) {
-      assert.match(
-        rootDirectory,
-        new RegExp(`<strong>${label}</strong><small>[^<]*</small></span><svg aria-hidden="true"><use href="#icon-chevron-right"></use></svg></button>`),
-      );
-    }
+    assert.match(rootDirectory, /directory-home-empty/);
+    assert.doesNotMatch(rootDirectory, /desktop-module-item|icon-chevron-right/);
     assert.doesNotMatch(rootDirectory, /<strong>工作目录<\/strong>|data-directory-open="workspaces"/);
-    assert.doesNotMatch(rootDirectory, /<em>\d+<\/em>/);
-    assert.equal([...rootDirectory.matchAll(/<em>规划中<\/em>/g)].length, 2);
+    const pluginStrip = browser.match(/<nav class="immersive-plugin-strip"[^>]*>[\s\S]*?<\/nav>/)?.[0];
+    assert.ok(pluginStrip);
+    assert.match(pluginStrip, /data-plugin-id="home"[^>]*data-work-surface-open="home"/);
+    for (const plugin of ["goals", "sessions", "inbox", "feed", "artifacts"]) {
+      assert.match(pluginStrip, new RegExp(`data-plugin-id="${plugin}"`));
+    }
+    assert.match(pluginStrip, /data-plugin-id="artifacts"[\s\S]*data-plugin-id="market"[^>]*data-work-surface-open="market"/);
+    assert.doesNotMatch(pluginStrip, /data-directory-back|返回项目目录/);
+    const accountFooter = browser.match(/<footer class="personal-sidebar-footer"[\s\S]*?<\/footer>/)?.[0];
+    assert.ok(accountFooter);
+    assert.doesNotMatch(accountFooter, /data-work-surface-open="market"|immersive-market-entry/);
+    assert.match(browser, /data-directory-list-title[^>]*>项目首页/);
+    assert.match(browser, /directory-list-region/);
+    assert.match(browser, /@keyframes directory-list-in/);
+    assert.match(renderMolisWorkWorkbenchStylesheet(), /tree-footer[\s\S]*display: none !important/);
+    assert.match(directGoal, /data-directory-list-title[^>]*>Goals/);
     assert.match(directGoal, /data-desktop-directory="goals"/);
     assert.match(directGoal, /data-directory-panel="goals">/);
     assert.match(browser, /class="desktop-workbench-bar"/);
     assert.doesNotMatch(browser, /class="navigator-project-meta"|class="web-project-switcher"/);
     assert.doesNotMatch(browser, /class="personal-sidebar"|class="desktop-project-context"/);
     assert.doesNotMatch(decisions, /class="tui-pane"|推进这个 Goal|复制命令|pty-client\.js|data-mobile-target="tui"/);
-    assert.match(desktopDecisions, /class="desktop-work-tabs" data-work-tabs role="tablist" aria-label="Inbox"/);
-    assert.match(desktopDecisions, /class="desktop-work-tab is-selected is-utility"><span role="tab" aria-selected="true">Inbox<\/span>/);
-    assert.match(desktopDecisions, /data-document-pane role="tabpanel" tabindex="0" aria-label="Inbox"/);
-    assert.match(desktopDecisions, /data-desktop-directory="feed"/);
-    assert.match(desktopDecisions, /class="desktop-module-item desktop-module-item--inbox is-current"[^>]*data-directory-open="feed"[^>]*data-feed-preset="inbox_message"/);
-    assert.match(desktopDecisions, /class="desktop-directory-panel feed-directory"[^>]*data-directory-panel="feed"/);
-    assert.match(desktopDecisions, /class="desktop-work-surface feed-workbench"[^>]*data-work-surface="feed"/);
-    assert.match(desktopDecisions, /class="feed-directory-toolbar"/);
-    assert.match(desktopDecisions, /data-feed-filter-trigger[^>]*aria-controls="feed-filter-panel"/);
-    assert.match(desktopDecisions, /data-feed-filter-option="source"[^>]*data-feed-filter-value="all"/);
-    assert.match(desktopDecisions, /data-feed-filter-option="status"[^>]*data-feed-filter-value="active"/);
-    assert.match(desktopDecisions, /data-feed-filter-option="sort"[^>]*data-feed-filter-value="newest"/);
-    assert.match(desktopDecisions, /等待你的决定 · GoalBoard/);
+    assert.match(desktopDecisions, /data-document-pane/);
+    assert.match(desktopDecisions, /data-desktop-directory="inbox"/);
+    assert.match(desktopDecisions, /data-desktop-surface="inbox"/);
+    assert.match(desktopDecisions, /data-directory-open="inbox" data-work-surface-open="inbox"/);
+    assert.match(desktopDecisions, /data-inbox-directory/);
+    assert.match(desktopDecisions, /data-inbox-workbench/);
+    assert.doesNotMatch(desktopDecisions, /data-feed-entry-id="decision:/);
+    assert.doesNotMatch(desktopDecisions, /data-feed-detail="decision:/);
+    assert.match(desktopDecisions, /Inbox · Molis Work/);
     assert.match(browser, /data-mobile-target="tui"/);
     assert.match(browser, /aria-controls="goal-tui-pane"/);
     assert.match(browser, /data-tui-kind="claude-code"/);
@@ -640,31 +645,32 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.doesNotMatch(desktop, /<span class="tui-expand-label">/);
     assert.match(desktop, /复制命令/);
     assert.match(desktop, /data-tui-copy/);
-    assert.doesNotMatch(desktop, /goalboard:tui-collapse/);
+    assert.doesNotMatch(desktop, /molis-work:tui-collapse/);
     assert.match(desktop, /\.document-pane::-webkit-scrollbar/);
     assert.match(desktop, /在这个 Goal 上打开终端/);
     assert.match(desktop, /querySelector\("\[data-tree-resizer\]"\)/);
     assert.match(desktop, /treeWidth: parseFloat\(workspace\.style\.getPropertyValue\("--tree-width"\)\)/);
     assert.match(desktop, /\.workspace\.is-desktop-tui \{ grid-template-columns: var\(--tree-width, 240px\)/);
-    assert.match(desktop, /class="workspace is-desktop-tui"/);
+    assert.match(desktop, /class="immersive-workspace is-desktop-tui"/);
     assert.match(desktop, /src="\/desktop\/pty-client\.js"/);
     assert.match(desktop, /data-desktop-shell="true"/);
     assert.match(desktop, /data-native-desktop="true"/);
     assert.doesNotMatch(desktop, /class="personal-sidebar"|class="personal-space-context"/);
     assert.match(desktop, /data-desktop-directory="root"/);
     assert.match(desktop, /data-directory-panel="root">/);
-    assert.doesNotMatch(desktop, /data-directory-panel="inbox"/);
+    assert.doesNotMatch(desktop, /data-directory-panel="workspaces"/);
+    assert.match(desktop, /data-directory-panel="inbox" hidden/);
     assert.match(desktop, /data-directory-panel="goals" hidden/);
     assert.match(desktop, /data-directory-panel="feed"[^>]*hidden/);
     assert.match(desktop, /data-directory-panel="sources"[^>]*data-source-directory hidden/);
-    assert.match(desktop, /data-directory-open="feed" data-work-surface-open="feed" data-feed-preset="inbox_message"[\s\S]*<strong>Inbox<\/strong>/);
+    assert.match(desktop, /data-directory-open="inbox" data-work-surface-open="inbox"[\s\S]*<strong>Inbox<\/strong>/);
     assert.match(desktop, /data-directory-open="goals" data-work-surface-open="goal"[\s\S]*<strong>Goals<\/strong>/);
     assert.match(desktop, /data-directory-open="feed" data-work-surface-open="feed" data-feed-preset="feed"[\s\S]*<strong>Feed<\/strong>/);
     assert.match(desktop, /data-directory-open="sources" data-work-surface-open="sources"[\s\S]*<strong>来源<\/strong>/);
     assert.match(desktop, /data-work-surface-open="promotion"[\s\S]*<strong>Promotion<\/strong>/);
     assert.match(desktop, /data-work-surface-open="visual"[\s\S]*可视化工作区/);
     assert.match(desktop, /data-work-surface="goal" data-work-surface-label="Goal Tree"/);
-    assert.match(desktop, /data-work-surface="feed" data-work-surface-label="Inbox"[^>]*hidden/);
+    assert.match(desktop, /data-work-surface="inbox" data-work-surface-label="Inbox"[^>]*hidden/);
     assert.match(desktop, /data-work-surface="sources" data-work-surface-label="来源"[^>]*data-source-workbench hidden/);
     assert.match(desktop, /data-work-surface="promotion" data-work-surface-label="Promotion" hidden/);
     assert.match(desktop, /data-work-surface="visual" data-work-surface-label="可视化工作区" hidden/);
@@ -685,7 +691,7 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.match(desktop, /class="desktop-work-tabs" data-work-tabs role="tablist"/);
     assert.match(desktop, /data-work-tab-shell=/);
     assert.match(desktop, /data-close-work-tab=/);
-    assert.match(desktop, /workTabsStorageKey = "goalboard-work-tabs:"/);
+    assert.match(desktop, /workTabsStorageKey = "molis-work-work-tabs:"/);
     assert.match(desktop, /goalUiStorageKey \+ ":inbox"/);
     assert.match(desktop, /const desktopNavigationStateVersion = 3/);
     assert.match(desktop, /navigationVersion: desktopNavigationStateVersion/);
@@ -715,7 +721,7 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
 test("panel APIs and the TUI pane work without a desktop shell marker", async () => {
   const fixture = await catalogFixture();
   addProjectGoal(fixture.project, "TUI-GOAL", "桌面关联 Goal");
-  const server = createGoalBoardWebServer({ homeDirectory: fixture.homeDirectory });
+  const server = createMolisWorkWebServer({ homeDirectory: fixture.homeDirectory });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   try {
     const address = server.address();
@@ -742,7 +748,7 @@ test("panel APIs and the TUI pane work without a desktop shell marker", async ()
     assert.match(desktopIndexHtml, new RegExp(`href="${prefix}\\?desktop=1"`));
 
     const cookieResponse = await webFetch(`${origin}${prefix}/goals/TUI-GOAL`, {
-      headers: { cookie: "goalboard_desktop=1" },
+      headers: { cookie: "molis_work_desktop=1" },
     });
     const cookiePage = await cookieResponse.text();
     assert.match(cookiePage, /data-tui-pane/);
@@ -762,7 +768,7 @@ test("panel APIs and the TUI pane work without a desktop shell marker", async ()
     assert.ok(Object.values(runtimeAvailability).every((available) => typeof available === "boolean"));
 
     const desktopPage = await (
-      await webFetch(`${origin}${prefix}/goals/TUI-GOAL`, { headers: { "x-goalboard-desktop": "1" } })
+      await webFetch(`${origin}${prefix}/goals/TUI-GOAL`, { headers: { "x-molis-work-desktop": "1" } })
     ).text();
     assert.match(desktopPage, /data-tui-pane/);
     assert.match(desktopPage, /推进这个 Goal/);
@@ -783,11 +789,11 @@ test("panel APIs and the TUI pane work without a desktop shell marker", async ()
     };
     assert.equal(payload.panel.goal_id, "TUI-GOAL");
     assert.equal(payload.spawn.command, "cat");
-    assert.equal(payload.spawn.env.GOALBOARD_GOAL_ID, "TUI-GOAL");
-    assert.equal(payload.spawn.env.GOALBOARD_PANEL_ID, payload.panel.panel_id);
-    assert.equal(payload.spawn.env.GOALBOARD_WORK_CONTEXT_ID, payload.panel.work_context_id);
-    assert.match(payload.spawn.env.GOALBOARD_SESSION_ID ?? "", /^session-/);
-    assert.equal(payload.spawn.env.GOALBOARD_WEB_URL, origin);
+    assert.equal(payload.spawn.env.MOLIS_WORK_GOAL_ID, "TUI-GOAL");
+    assert.equal(payload.spawn.env.MOLIS_WORK_PANEL_ID, payload.panel.panel_id);
+    assert.equal(payload.spawn.env.MOLIS_WORK_WORK_CONTEXT_ID, payload.panel.work_context_id);
+    assert.match(payload.spawn.env.MOLIS_WORK_SESSION_ID ?? "", /^session-/);
+    assert.equal(payload.spawn.env.MOLIS_WORK_WEB_URL, origin);
     assert.equal(payload.spawn.cwd, realpathSync.native(fixture.homeDirectory));
 
     const prompt = await webFetch(`${origin}${prefix}/api/goals/TUI-GOAL/advance-prompt`);
@@ -808,7 +814,7 @@ test("panel APIs and the TUI pane work without a desktop shell marker", async ()
     const listedBody = await listed.json() as { panels: Array<{ panel_id: string }> };
     assert.equal(listedBody.panels.length, 1);
 
-    const catalog = await openGoalBoardProjectCatalog({ homeDirectory: fixture.homeDirectory });
+    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: fixture.homeDirectory });
     try {
       assert.equal(
         catalog.resolveRuntimeContext({
@@ -841,7 +847,7 @@ test("compound parent terminals become read-only and direct execution APIs requi
   const fixture = await catalogFixture();
   addProjectAcceptedGoal(fixture.project, "TUI-PARENT", "交付完整终端体验", "closed_compound");
   addProjectAcceptedGoal(fixture.project, "TUI-CHILD", "实现具体终端交互", "closed_leaf");
-  const catalog = await openGoalBoardProjectCatalog({ homeDirectory: fixture.homeDirectory });
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: fixture.homeDirectory });
   let historicalPanelId: string;
   try {
     historicalPanelId = catalog.openDesktopPanel({
@@ -858,7 +864,7 @@ test("compound parent terminals become read-only and direct execution APIs requi
     catalog.close();
   }
   addProjectChildRelation(fixture.project, "TUI-CHILD", "TUI-PARENT");
-  const server = createGoalBoardWebServer({ homeDirectory: fixture.homeDirectory });
+  const server = createMolisWorkWebServer({ homeDirectory: fixture.homeDirectory });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   try {
     const address = server.address();
@@ -972,21 +978,21 @@ test("TUI client rejects cross-Goal and parent writes before touching the PTY ch
   assert.match(client, /detail\.statusIconMarkup/);
   assert.match(
     client,
-    /goalboard:goal-changed[\s\S]{0,1800}panelController\.resetGoal\(\)/,
+    /molis-work:goal-changed[\s\S]{0,1800}panelController\.resetGoal\(\)/,
   );
   assert.match(
     client,
-    /goalboard:goal-document-loaded[\s\S]{0,360}detail\.goalId !== goalId\(\)[\s\S]{0,120}void loadPanels\(\)/,
+    /molis-work:goal-document-loaded[\s\S]{0,360}detail\.goalId !== goalId\(\)[\s\S]{0,120}void loadPanels\(\)/,
   );
 });
 
 test("Feed processing opens Runtime and fills context without sending it", () => {
-  assert.match(WORKBENCH_UI_SOURCE, /goalboard-feed-runtime-autofill:/);
+  assert.match(WORKBENCH_UI_SOURCE, /molis-work-feed-runtime-autofill:/);
   assert.match(WORKBENCH_UI_SOURCE, /workspaceMode: action === "start" \? "runtime" : "focus"/);
   assert.match(WORKBENCH_UI_SOURCE, /feedStartRequested/);
   assert.match(WORKBENCH_UI_SOURCE, /goalWorkspaceMode = "runtime"/);
   assert.match(WORKBENCH_UI_SOURCE, /setDesktopWorkSurface\("goal", false, false\)/);
-  assert.match(TERMINAL_AUTOFILL_SOURCE, /goalboard-feed-runtime-autofill:/);
+  assert.match(TERMINAL_AUTOFILL_SOURCE, /molis-work-feed-runtime-autofill:/);
   assert.match(TERMINAL_AUTOFILL_SOURCE, /await writePrompt\(false, pending\.itemId\)/);
   assert.match(PTY_CLIENT_SOURCE, /const query = new URLSearchParams\(\)/);
   assert.match(PTY_CLIENT_SOURCE, /if \(feedItemId\) query\.set\("feed_item_id", feedItemId\)/);
@@ -1002,20 +1008,20 @@ test("Onboarding opens one Goal-bound TUI and fills the advance prompt without s
   assert.match(WORKBENCH_UI_SOURCE, /embeddedDestination\.searchParams\.set\("onboarding-runtime", "1"\)/);
   assert.match(WORKBENCH_UI_SOURCE, /embeddedDestination\.searchParams\.set\("onboarding-embed", "1"\)/);
   assert.match(WORKBENCH_UI_SOURCE, /data-onboarding-runtime-frame/);
-  assert.match(WORKBENCH_UI_SOURCE, /goalboard:onboarding-runtime-bootstrap/);
-  assert.match(WORKBENCH_UI_SOURCE, /goalboard:onboarding-runtime-ready/);
-  assert.match(WORKBENCH_UI_SOURCE, /安排好了，进入 GoalBoard/);
+  assert.match(WORKBENCH_UI_SOURCE, /molis-work:onboarding-runtime-bootstrap/);
+  assert.match(WORKBENCH_UI_SOURCE, /molis-work:onboarding-runtime-ready/);
+  assert.match(WORKBENCH_UI_SOURCE, /安排好了，进入 Molis Work/);
   assert.match(WORKBENCH_UI_SOURCE, /const onboardingRuntimeRequested = new URLSearchParams\(location\.search\)\.get\("onboarding-runtime"\) === "1"/);
   assert.match(WORKBENCH_UI_SOURCE, /onboardingRuntimeRequested[\s\S]{0,700}setWorkspaceMode\("runtime", false\)[\s\S]{0,220}setMobileView\("tui"\)/);
-  assert.match(TERMINAL_AUTOFILL_SOURCE, /goalboard-onboarding-runtime-autofill:/);
+  assert.match(TERMINAL_AUTOFILL_SOURCE, /molis-work-onboarding-runtime-autofill:/);
   assert.match(TERMINAL_AUTOFILL_SOURCE, /await openPanel\(\{ runtime_kind: pending\.runtimeKind, cwd: pending\.workspacePath \}\)/);
   assert.match(TERMINAL_AUTOFILL_SOURCE, /await waitForTerminalOutput\(panel\.panel_id\)/);
   assert.match(TERMINAL_AUTOFILL_SOURCE, /await writePrompt\(false, undefined, true\)/);
   assert.match(PTY_CLIENT_SOURCE, /query\.set\("onboarding", "1"\)/);
-  assert.match(TERMINAL_AUTOFILL_SOURCE, /goalboard:onboarding-runtime-bootstrap/);
-  assert.match(TERMINAL_AUTOFILL_SOURCE, /goalboard:onboarding-runtime-ready/);
-  assert.match(TERMINAL_AUTOFILL_SOURCE, /goalboard:onboarding-runtime-waiting/);
-  assert.match(TERMINAL_AUTOFILL_SOURCE, /goalboard:onboarding-runtime-error/);
+  assert.match(TERMINAL_AUTOFILL_SOURCE, /molis-work:onboarding-runtime-bootstrap/);
+  assert.match(TERMINAL_AUTOFILL_SOURCE, /molis-work:onboarding-runtime-ready/);
+  assert.match(TERMINAL_AUTOFILL_SOURCE, /molis-work:onboarding-runtime-waiting/);
+  assert.match(TERMINAL_AUTOFILL_SOURCE, /molis-work:onboarding-runtime-error/);
   assert.match(TERMINAL_AUTOFILL_SOURCE, /press enter to \(\?:continue\|confirm\)/);
   assert.match(TERMINAL_AUTOFILL_SOURCE, /ask codex to do anything/);
   assert.match(TERMINAL_AUTOFILL_SOURCE, /初始化提示已填入，检查后再发送/);
@@ -1025,7 +1031,7 @@ test("Onboarding opens one Goal-bound TUI and fills the advance prompt without s
 test("Feed Item actions create one bound Goal and expose its source context to Terminal", async () => {
   const fixture = await catalogFixture();
   addProjectFeedItem(fixture.project, "feed-item-test");
-  const server = createGoalBoardWebServer({ homeDirectory: fixture.homeDirectory });
+  const server = createMolisWorkWebServer({ homeDirectory: fixture.homeDirectory });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   try {
     const address = server.address();
@@ -1070,7 +1076,8 @@ test("Feed Item actions create one bound Goal and expose its source context to T
     assert.equal(addedAgain.status, 200);
     const pageAfterInbox = await (await webFetch(`${origin}${prefix}`)).text();
     assert.match(pageAfterInbox, /data-feed-entry-id="feed-item-test"[^>]*data-feed-entry-type="feed"/);
-    assert.match(pageAfterInbox, /data-feed-entry-id="inbox:[^"]+"[^>]*data-feed-item-id="feed-item-test"[^>]*data-inbox-entry-id="[^"]+"[^>]*data-feed-entry-type="inbox_message"/);
+    assert.doesNotMatch(pageAfterInbox, /data-feed-entry-id="inbox:/);
+    assert.match(pageAfterInbox, /data-inbox-row[^>]*data-inbox-entry-id="/);
 
     const missingRevision = await webFetch(`${origin}${prefix}/api/feed/items/feed-item-test/start`, {
       method: "POST",
@@ -1184,7 +1191,7 @@ test("Feed start reuses one Draft Goal across repeat clicks and a Web restart", 
   addProjectFeedItem(fixture.project, itemId);
   const prefix = `/projects/${encodeURIComponent(fixture.project.project_id)}`;
 
-  const firstServer = createGoalBoardWebServer({ homeDirectory: fixture.homeDirectory });
+  const firstServer = createMolisWorkWebServer({ homeDirectory: fixture.homeDirectory });
   await new Promise<void>((resolve) => firstServer.listen(0, "127.0.0.1", resolve));
   let goalId = "";
   let revision = 1;
@@ -1227,7 +1234,7 @@ test("Feed start reuses one Draft Goal across repeat clicks and a Web restart", 
     );
   }
 
-  const restartedServer = createGoalBoardWebServer({ homeDirectory: fixture.homeDirectory });
+  const restartedServer = createMolisWorkWebServer({ homeDirectory: fixture.homeDirectory });
   await new Promise<void>((resolve) => restartedServer.listen(0, "127.0.0.1", resolve));
   try {
     const address = restartedServer.address();
@@ -1270,20 +1277,24 @@ test("Feed start reuses one Draft Goal across repeat clicks and a Web restart", 
 test("Inbox Message save and start survives a Web restart without duplicating its Goal", async () => {
   const fixture = await catalogFixture();
   const itemId = "inbox-restart-test";
-  addProjectFeedItem(fixture.project, itemId, "inbox_message");
+  addProjectFeedItem(fixture.project, itemId, { openInbox: true });
   const prefix = `/projects/${encodeURIComponent(fixture.project.project_id)}`;
   let goalId = "";
   let revision = 1;
 
-  const firstServer = createGoalBoardWebServer({ homeDirectory: fixture.homeDirectory });
+  const firstServer = createMolisWorkWebServer({ homeDirectory: fixture.homeDirectory });
   await new Promise<void>((resolve) => firstServer.listen(0, "127.0.0.1", resolve));
   try {
     const address = firstServer.address();
     assert.ok(address && typeof address === "object");
     const origin = `http://127.0.0.1:${address.port}`;
     const page = await (await webFetch(`${origin}${prefix}`)).text();
-    assert.match(page, new RegExp(`data-feed-entry-id="inbox:[^"]+"[^>]*data-feed-item-id="${itemId}"[^>]*data-inbox-entry-id="[^"]+"[^>]*data-feed-entry-type="inbox_message"`));
-    const inboxEntryId = page.match(new RegExp(`data-feed-item-id="${itemId}"[^>]*data-inbox-entry-id="([^"]+)"`))?.[1];
+    assert.match(page, new RegExp(`data-feed-entry-id="${itemId}"[^>]*data-feed-entry-type="feed"`));
+    assert.doesNotMatch(page, /data-feed-entry-id="inbox:/);
+    const listed = await webFetch(`${origin}${prefix}/api/inbox`);
+    assert.equal(listed.status, 200);
+    const listedBody = await listed.json() as { entries: Array<{ entry_id: string; subject_id: string }> };
+    const inboxEntryId = listedBody.entries.find((entry) => entry.subject_id === itemId)?.entry_id;
     assert.ok(inboxEntryId);
 
     const completed = await webFetch(`${origin}${prefix}/api/inbox/entries/${inboxEntryId}/status`, {
@@ -1346,7 +1357,7 @@ test("Inbox Message save and start survives a Web restart without duplicating it
     );
   }
 
-  const restartedServer = createGoalBoardWebServer({ homeDirectory: fixture.homeDirectory });
+  const restartedServer = createMolisWorkWebServer({ homeDirectory: fixture.homeDirectory });
   await new Promise<void>((resolve) => restartedServer.listen(0, "127.0.0.1", resolve));
   try {
     const address = restartedServer.address();
@@ -1393,7 +1404,7 @@ test("Inbox Message save and start survives a Web restart without duplicating it
     `).get(fixture.project.board_id, itemId) as { count: number };
     assert.deepEqual(item, { disposition: "processing", linked_goal_id: null, read_at: null });
     assert.equal(createLocalFeedApplication(store.db).findLinkedGoalItem(fixture.project.board_id, goalId, itemId)?.linked_goal_id, goalId);
-    assert.equal(goal.title, "处理 Inbox Message：需要处理的 Inbox Message");
+    assert.equal(goal.title, "处理 Feed Item：需要处理的 Inbox Message");
     assert.equal(bindings.length, 1);
     assert.equal(materialCount.count, 1);
   } finally {
@@ -1402,18 +1413,18 @@ test("Inbox Message save and start survives a Web restart without duplicating it
 });
 
 test("TUI menu greys out runtimes whose CLI is missing", () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-desktop-cli-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-desktop-cli-"));
   const databasePath = join(directory, "demo.db");
   seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath);
   const coordinator = new GoalProjectApplication(store);
   try {
-    const view = buildGoalBoardWebView(store, coordinator, {
+    const view = buildMolisWorkWebView(store, coordinator, {
       databasePath,
       boardId: DEMO_BOARD_ID,
       demo: true,
     });
-    const withMissing = renderGoalBoardWeb(
+    const withMissing = renderMolisWorkWeb(
       view,
       undefined,
       false,
@@ -1430,7 +1441,7 @@ test("TUI menu greys out runtimes whose CLI is missing", () => {
     assert.match(withMissing, /tui-menu-missing/);
     assert.match(withMissing, /需要先安装 CLI/);
 
-    const allAvailable = renderGoalBoardWeb(view);
+    const allAvailable = renderMolisWorkWeb(view);
     assert.doesNotMatch(allAvailable, /data-tui-kind="(claude-code|codex|opencode|pi-agent|grok-build)" disabled/);
   } finally {
     store.close();
@@ -1439,12 +1450,12 @@ test("TUI menu greys out runtimes whose CLI is missing", () => {
 
 test("PTY command availability only accepts executable commands", () => {
   assert.equal(isPtyCommandAvailable("/bin/sh"), true);
-  assert.equal(isPtyCommandAvailable("goalboard-no-such-command-xyz"), false);
+  assert.equal(isPtyCommandAvailable("molis-work-no-such-command-xyz"), false);
   assert.equal(isPtyCommandAvailable(""), false);
 });
 
 test("PTY host attaches live sessions and refuses to spawn without a working directory", async () => {
-  const cwd = mkdtempSync(join(tmpdir(), "goalboard-pty-host-"));
+  const cwd = mkdtempSync(join(tmpdir(), "molis-work-pty-host-"));
   let resolveHello: (() => void) | undefined;
   const hello = new Promise<void>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error("PTY host did not emit hello")), 8_000);
@@ -1453,7 +1464,7 @@ test("PTY host attaches live sessions and refuses to spawn without a working dir
       resolve();
     };
   });
-  const host = new GoalBoardPtyHost({
+  const host = new MolisWorkPtyHost({
     onData: (_panelId, data) => {
       if (data.includes("hello")) resolveHello?.();
     },
@@ -1498,7 +1509,7 @@ test("PTY host attaches live sessions and refuses to spawn without a working dir
 
 test("local PTY socket auths with the page token and can spawn a process", async () => {
   const fixture = await catalogFixture();
-  const server = createGoalBoardWebServer({ homeDirectory: fixture.homeDirectory });
+  const server = createMolisWorkWebServer({ homeDirectory: fixture.homeDirectory });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const sockets: WebSocket[] = [];
   try {
@@ -1567,7 +1578,7 @@ test("local PTY socket auths with the page token and can spawn a process", async
 
 test("PTY spawn preflight reports missing commands and missing working directories", async () => {
   const fixture = await catalogFixture();
-  const server = createGoalBoardWebServer({ homeDirectory: fixture.homeDirectory });
+  const server = createMolisWorkWebServer({ homeDirectory: fixture.homeDirectory });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const sockets: WebSocket[] = [];
   try {
@@ -1596,7 +1607,7 @@ test("PTY spawn preflight reports missing commands and missing working directori
     socket.send(JSON.stringify({
       type: "spawn",
       panelId: "pty-missing",
-      command: "goalboard-no-such-command",
+      command: "molis-work-no-such-command",
       cwd: fixture.homeDirectory,
       cols: 80,
       rows: 24,
@@ -1616,7 +1627,7 @@ test("PTY spawn preflight reports missing commands and missing working directori
       type: "spawn",
       panelId: "pty-bad-cwd",
       command: "/bin/sh",
-      cwd: "/goalboard/definitely/not/here",
+      cwd: "/molis-work/definitely/not/here",
       cols: 80,
       rows: 24,
     }));
@@ -1632,7 +1643,7 @@ test("PTY spawn preflight reports missing commands and missing working directori
 test("OpenCode, Pi Agent, and Grok Build panels keep their launch recipes", async () => {
   const fixture = await catalogFixture();
   addProjectGoal(fixture.project, "TUI-RUNTIMES", "多 Runtime Goal");
-  const server = createGoalBoardWebServer({ homeDirectory: fixture.homeDirectory });
+  const server = createMolisWorkWebServer({ homeDirectory: fixture.homeDirectory });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   try {
     const address = server.address();
@@ -1662,8 +1673,8 @@ test("OpenCode, Pi Agent, and Grok Build panels keep their launch recipes", asyn
       assert.equal(payload.panel.host_session_id, recipe.resume_session_id);
       assert.equal(payload.spawn.command, recipe.command);
       assert.deepEqual(payload.spawn.args, recipe.args);
-      assert.equal(payload.spawn.env.GOALBOARD_RUNTIME_ID, recipe.runtime_kind);
-      assert.equal(payload.spawn.env.GOALBOARD_GOAL_ID, "TUI-RUNTIMES");
+      assert.equal(payload.spawn.env.MOLIS_WORK_RUNTIME_ID, recipe.runtime_kind);
+      assert.equal(payload.spawn.env.MOLIS_WORK_GOAL_ID, "TUI-RUNTIMES");
     }
   } finally {
     await new Promise<void>((resolve, reject) =>
@@ -1683,7 +1694,7 @@ test("isolated PTY PATH can start Grok Build help", async (t) => {
   assert.notEqual(grok, "grok");
 
   const fixture = await catalogFixture();
-  const server = createGoalBoardWebServer({ homeDirectory: fixture.homeDirectory });
+  const server = createMolisWorkWebServer({ homeDirectory: fixture.homeDirectory });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const sockets: WebSocket[] = [];
   try {
@@ -1723,10 +1734,10 @@ test("isolated PTY PATH can start Grok Build help", async (t) => {
 });
 
 test("Codex resume launch records host session on the same Goal panel", async () => {
-  const homeDirectory = mkdtempSync(join(tmpdir(), "goalboard-desktop-resume-"));
+  const homeDirectory = mkdtempSync(join(tmpdir(), "molis-work-desktop-resume-"));
   const workspace = join(homeDirectory, "repo");
   mkdirSync(workspace);
-  const catalog = await openGoalBoardProjectCatalog({ homeDirectory });
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   try {
     const project = await catalog.createProject({ display_name: "resume", actor_id: "user" });
     const panel = catalog.openDesktopPanel({
@@ -1755,8 +1766,8 @@ test("Codex resume launch records host session on the same Goal panel", async ()
 });
 
 test("opening a terminal without a project workspace is rejected", async () => {
-  const homeDirectory = mkdtempSync(join(tmpdir(), "goalboard-desktop-nows-"));
-  const catalog = await openGoalBoardProjectCatalog({ homeDirectory });
+  const homeDirectory = mkdtempSync(join(tmpdir(), "molis-work-desktop-nows-"));
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   let projectId = "";
   try {
     const created = await catalog.createProject({ display_name: "无目录项目", actor_id: "test-user" });
@@ -1765,7 +1776,7 @@ test("opening a terminal without a project workspace is rejected", async () => {
   } finally {
     catalog.close();
   }
-  const server = createGoalBoardWebServer({ homeDirectory });
+  const server = createMolisWorkWebServer({ homeDirectory });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   try {
     const address = server.address();
@@ -1789,7 +1800,7 @@ test("opening a terminal without a project workspace is rejected", async () => {
 
 test("PTY spawn sets PWD to the working directory and attach-only does not start a new process", async () => {
   const fixture = await catalogFixture();
-  const server = createGoalBoardWebServer({ homeDirectory: fixture.homeDirectory });
+  const server = createMolisWorkWebServer({ homeDirectory: fixture.homeDirectory });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const sockets: WebSocket[] = [];
   try {
@@ -1838,7 +1849,7 @@ test("PTY spawn sets PWD to the working directory and attach-only does not start
 test("deleting a panel kills the PTY on the server", async () => {
   const fixture = await catalogFixture();
   addProjectGoal(fixture.project, "TUI-KILL", "关闭即停");
-  const server = createGoalBoardWebServer({ homeDirectory: fixture.homeDirectory });
+  const server = createMolisWorkWebServer({ homeDirectory: fixture.homeDirectory });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const sockets: WebSocket[] = [];
   try {
@@ -1891,8 +1902,8 @@ test("deleting a panel kills the PTY on the server", async () => {
   }
 });
 
-test("control token persists in the GoalBoard home across server restarts", () => {
-  const homeDirectory = mkdtempSync(join(tmpdir(), "goalboard-web-token-"));
+test("control token persists in the Molis Work home across server restarts", () => {
+  const homeDirectory = mkdtempSync(join(tmpdir(), "molis-work-web-token-"));
   const first = resolveWebControlToken({ homeDirectory });
   const second = resolveWebControlToken({ homeDirectory });
   assert.equal(first, second);

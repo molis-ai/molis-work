@@ -2,7 +2,7 @@ import type {
   GovernanceProvenanceApi,
   GoalEventTrustedAuthority,
   GoalTreeProposalItemProvenanceInput, GoalTreeProposalItemRecord,
-} from "@adeptify/goalboard-contracts/modules/governance-collaboration";
+} from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import { GovernanceError, type GovernanceErrorFactory } from "./errors.js";
 import { legacyProposalView } from "./legacy-proposal-view.js";
 
@@ -35,7 +35,7 @@ export class GovernanceProvenance implements GovernanceProvenanceApi {
       const first = issues[0]!;
       throw this.error(first.code, issues.map(issue => issue.message).join("；"), {
         path: first.path, issues,
-        recovery: "修正列出的字段后重试 goalboard_v1_goal_tree_propose；失败调用不会创建提案，无需切换接口。",
+        recovery: "修正列出的字段后重试 molis_work_v1_goal_tree_propose；失败调用不会创建提案，无需切换接口。",
       });
     }
     return { source_refs: sourceRefs, reason, confidence: input.confidence, requires_user_confirmation: true };

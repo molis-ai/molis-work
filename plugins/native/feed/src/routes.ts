@@ -38,6 +38,10 @@ export interface FeedPluginRouteBinding extends FeedPluginRouteDefinition {
 export const FEED_NATIVE_PLUGIN_ROUTES = [
   route("feed.snapshot", "GET", /^\/api\/feed$/u),
   route("feed.workbench", "GET", /^\/api\/feed\/workbench$/u),
+  route("feed.out-rules.list", "GET", /^\/api\/feed\/out-rules$/u),
+  route("feed.out-rules.create", "POST", /^\/api\/feed\/out-rules$/u),
+  route("feed.out-rules.update", "PATCH", /^\/api\/feed\/out-rules\/([^/]+)$/u, ["rule_id"]),
+  route("feed.out-rules.delete", "DELETE", /^\/api\/feed\/out-rules\/([^/]+)$/u, ["rule_id"]),
   route("feed.sources.create", "POST", /^\/api\/feed\/sources$/u),
   route("feed.sources.update", "PATCH", /^\/api\/feed\/sources\/([^/]+)$/u, ["source_id"]),
   route("feed.sources.delete", "DELETE", /^\/api\/feed\/sources\/([^/]+)$/u, ["source_id"]),
@@ -53,7 +57,6 @@ export const FEED_NATIVE_PLUGIN_ROUTES = [
   route("feed.connector.gmail.oauth.callback", "GET", /^\/api\/feed\/connectors\/gmail\/oauth\/callback$/u),
   route("feed.relay.import", "POST", /^\/api\/feed\/import$/u),
   route("feed.item.detail", "GET", /^\/api\/feed\/items\/([^/]+)\/detail$/u, ["item_id"]),
-  route("feed.attention.status", "POST", /^\/api\/inbox\/entries\/([^/]+)\/status$/u, ["entry_id"]),
   route("feed.item.action", "POST", /^\/api\/feed\/items\/([^/]+)\/(read|inbox|save|archive|restore|promote|start)$/u, ["item_id", "action"]),
 ] as const satisfies readonly FeedPluginRouteDefinition[];
 

@@ -1,5 +1,5 @@
-import type { GoalProjectApplication } from "@adeptify/goalboard-app-local-host";
-import type { SessionHandoffGoalContext } from "@adeptify/goalboard-plugin-work";
+import type { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
+import type { SessionHandoffGoalContext } from "@molis-ai/molis-work-plugin-work";
 
 type SqlDatabase = {
   prepare(sql: string): { run(...params: unknown[]): unknown };

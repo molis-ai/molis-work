@@ -1,4 +1,4 @@
-import { THEME_BOOTSTRAP_SCRIPT, VISUAL_FOUNDATION_CLIENT_SCRIPT } from "@adeptify/goalboard-design-system";
+import { THEME_BOOTSTRAP_SCRIPT, VISUAL_FOUNDATION_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
 import { CONTROL_CLIENT_SCRIPT, ONBOARDING_CLIENT_SCRIPT } from "./browser-assets.js";
 import { ONBOARDING_INTENT_FRAMES } from "./onboarding-intent.js";
 
@@ -15,7 +15,7 @@ export interface OnboardingRenderPrimitives {
   renderIconSprite(): string;
 }
 
-export interface GoalBoardOnboardingRenderOptions {
+export interface MolisWorkOnboardingRenderOptions {
   mode: "first_run" | "new_project" | "update";
   currentVersion: string | null;
   controlToken?: string;
@@ -36,7 +36,7 @@ const ONBOARDING_ATMOSPHERE = `<div class="onboarding-atmosphere" aria-hidden="t
 export function createWorkbenchOnboardingRenderer(primitives: OnboardingRenderPrimitives) {
   const { L, escapeHtml, htmlLang, controlTokenMeta, withDesktopQuery, clientI18nScript, icon, renderIconSprite,
     nativeDesktopBootstrapScript: NATIVE_DESKTOP_BOOTSTRAP_SCRIPT } = primitives;
-  return function renderGoalBoardOnboarding(options: GoalBoardOnboardingRenderOptions): string {
+  return function renderMolisWorkOnboarding(options: MolisWorkOnboardingRenderOptions): string {
   const desktopShell = Boolean(options.desktopShell);
   const href = (target: string) => desktopShell ? withDesktopQuery(target) : target;
   if (options.mode === "update") {
@@ -47,17 +47,17 @@ export function createWorkbenchOnboardingRenderer(primitives: OnboardingRenderPr
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   ${controlTokenMeta(options.controlToken ?? "")}
-  <title>${L("GoalBoard 已更新")}</title>
+  <title>${L("Molis Work 已更新")}</title>
   <script>${NATIVE_DESKTOP_BOOTSTRAP_SCRIPT}</script>
   <script>${THEME_BOOTSTRAP_SCRIPT}</script>
-  <link rel="stylesheet" href="/assets/goalboard-onboarding.css">
+  <link rel="stylesheet" href="/assets/molis-work-onboarding.css">
 </head>
 <body class="onboarding-page onboarding-page--update"${desktopShell ? ' data-native-desktop="true"' : ""}>
   ${ONBOARDING_ATMOSPHERE}
   <main class="onboarding-update" aria-labelledby="onboarding-update-title">
-    <span class="onboarding-brand">GoalBoard</span>
+    <span class="onboarding-brand">Molis Work</span>
     <div class="onboarding-update-copy">
-      <h1 id="onboarding-update-title">${L("GoalBoard 已更新")}${version}</h1>
+      <h1 id="onboarding-update-title">${L("Molis Work 已更新")}${version}</h1>
       <p>${L("你的 Project、Goal 和工作记录仍保存在本机。更新不会替你接受 Goal，也不会自动修改 Runtime 配置。")}</p>
       <ul>
         <li><strong>${L("新项目可以从一个真实结果开始")}</strong><span>${L("创建 Project 时同时建立根 Draft Goal，后续从同一份事实继续。")}</span></li>
@@ -65,7 +65,7 @@ export function createWorkbenchOnboardingRenderer(primitives: OnboardingRenderPr
       </ul>
     </div>
     <div class="onboarding-update-actions">
-      <button type="button" data-onboarding-dismiss="update">${L("继续使用 GoalBoard")}</button>
+      <button type="button" data-onboarding-dismiss="update">${L("继续使用 Molis Work")}</button>
       <a href="${href("/settings/projects")}">${L("查看项目设置")}</a>
     </div>
     <p class="onboarding-error" data-onboarding-error role="alert" hidden></p>
@@ -99,7 +99,7 @@ export function createWorkbenchOnboardingRenderer(primitives: OnboardingRenderPr
   const intentOptions = ONBOARDING_INTENT_FRAMES
     .map((frame, index) => `<button type="button" role="option" aria-selected="${index === 0 ? "true" : "false"}" data-onboarding-intent-option="${frame.id}" data-intent-label="${escapeHtml(L(frame.label))}" data-placeholder="${escapeHtml(L(frame.placeholder))}"><span>${icon(intentIcons[frame.id])}<b>${escapeHtml(L(frame.label))}</b></span><i aria-hidden="true"></i></button>`)
     .join("");
-  const title = options.mode === "first_run" ? L("开始使用 GoalBoard") : L("建立一个新项目");
+  const title = options.mode === "first_run" ? L("开始使用 Molis Work") : L("建立一个新项目");
   return `<!doctype html>
 <html lang="${htmlLang()}">
 <head>
@@ -108,14 +108,14 @@ export function createWorkbenchOnboardingRenderer(primitives: OnboardingRenderPr
   ${controlTokenMeta(options.controlToken ?? "")}
   <title>${title}</title>
   <script>${THEME_BOOTSTRAP_SCRIPT}</script>
-  <link rel="stylesheet" href="/assets/goalboard-onboarding.css">
+  <link rel="stylesheet" href="/assets/molis-work-onboarding.css">
   <script>${NATIVE_DESKTOP_BOOTSTRAP_SCRIPT}</script>
 </head>
 <body class="onboarding-page" data-onboarding-mode="${options.mode}" data-onboarding-tone="0"${desktopShell ? ' data-native-desktop="true"' : ""}>
   ${renderIconSprite()}
   ${ONBOARDING_ATMOSPHERE}
   <header class="onboarding-topbar">
-    <a class="onboarding-brand" href="${href("/")}">GoalBoard</a>
+    <a class="onboarding-brand" href="${href("/")}">Molis Work</a>
     <div class="onboarding-topbar-actions"><a href="${href("/settings/projects")}">${L("迁移已有数据")}</a><button type="button" data-onboarding-dismiss="first_run">${options.mode === "first_run" ? L("跳过") : L("返回项目目录")}</button></div>
   </header>
   <main class="onboarding-room">
@@ -145,7 +145,7 @@ export function createWorkbenchOnboardingRenderer(primitives: OnboardingRenderPr
       <section class="onboarding-step" data-onboarding-step="1" aria-labelledby="onboarding-question-1" hidden>
         <p class="onboarding-echo"><span>${L("我们一起")}</span><strong data-onboarding-outcome></strong></p>
         <h1 id="onboarding-question-1" tabindex="-1">${L("给项目取个名字吧。")}</h1>
-        <label class="onboarding-answer onboarding-answer--single"><span>${L("项目叫")}</span><input name="project_name" type="text" maxlength="160" autocomplete="off" aria-describedby="onboarding-error-1" placeholder="${L("例如：GoalBoard 首次体验")}" required></label>
+        <label class="onboarding-answer onboarding-answer--single"><span>${L("项目叫")}</span><input name="project_name" type="text" maxlength="160" autocomplete="off" aria-describedby="onboarding-error-1" placeholder="${L("例如：Molis Work 首次体验")}" required></label>
         <p class="onboarding-field-error" id="onboarding-error-1" data-step-error="1" role="alert" hidden></p>
       </section>
       <section class="onboarding-step" data-onboarding-step="2" aria-labelledby="onboarding-question-2" hidden>

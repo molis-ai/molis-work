@@ -31,7 +31,7 @@
 
 ### Runtime 读取
 
-`goalboard_v1_planning_methods` 在保留 `methods` 的同时新增 `composition`：
+`molis_work_v1_planning_methods` 在保留 `methods` 的同时新增 `composition`：
 
 - `method_pack_ids`、`method_names`；
 - 各方法各自的规划路径，避免错误串行化；

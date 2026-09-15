@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { FeedPluginRouteTable, createFeedRouteHandlers, feedRouteErrorResponse, type FeedPluginRouteResponse } from "@adeptify/goalboard-plugin-feed";
-import type { GoalBoardWebView, WorkbenchRenderer } from "@adeptify/goalboard-app-workbench";
+import { FeedPluginRouteTable, createFeedRouteHandlers, feedRouteErrorResponse, type FeedPluginRouteResponse } from "@molis-ai/molis-work-plugin-feed";
+import type { MolisWorkWebView, WorkbenchRenderer } from "@molis-ai/molis-work-app-workbench";
 import type { GoalProjectApplication } from "./goal-project-application.js";
 import type { LocalProjectDatabase } from "./project-database.js";
 import { createLocalFeedApplication } from "./feed-application.js";
@@ -17,7 +17,7 @@ export interface FeedNativePluginHttpOptions {
   readonly databasePath: string;
   readonly store: LocalProjectDatabase;
   readonly coordinator: GoalProjectApplication;
-  readonly readWebView: () => GoalBoardWebView;
+  readonly readWebView: () => MolisWorkWebView;
   readonly invalidateWebView: () => void;
 }
 
@@ -27,7 +27,7 @@ export async function handleFeedNativePluginHttp(
   url: URL,
   options: FeedNativePluginHttpOptions,
 ): Promise<boolean> {
-  if (!url.pathname.startsWith("/api/feed") && !url.pathname.startsWith("/api/inbox/")) {
+  if (!url.pathname.startsWith("/api/feed")) {
     return false;
   }
   const method = request.method;
@@ -60,7 +60,7 @@ function createHandlers(options: FeedNativePluginHttpOptions) {
     hydrateItem: hydrateFeedItemContent, hydrateSnapshot: hydrateFeedSnapshotContent,
     sourceCatalog: listFeedSourceCatalog, detectRelayImport,
     importRelay: (feed) => importRelayData(feed, options.boardId, undefined, { migrateOwnership: true }),
-    renderWorkbench: (preset) => options.renderer.renderFeedWorkbenchFragment(options.readWebView(), preset),
+    renderWorkbench: () => options.renderer.renderFeedWorkbenchFragment(options.readWebView()),
     renderDetail: (item, detail) => options.renderer.renderPersistedFeedItemDetail(item, options.routePrefix, detail),
     promote: (feed, input) => createLocalFeedGoalPromotion(options.store.db, options.coordinator.goalEvents.createIntent.bind(options.coordinator.goalEvents), options.coordinator.goalInputs, feed)(input),
   });

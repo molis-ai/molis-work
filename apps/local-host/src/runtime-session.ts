@@ -1,13 +1,13 @@
-import { findSessionForHostSignals, type GoalBoardSessionRegistry } from "@adeptify/goalboard-module-private-work-context";
-import type { RuntimeGoalSessionActivity, RuntimeSessionReadResult } from "@adeptify/goalboard-contracts/modules/private-work-context";
+import { findSessionForHostSignals, type MolisWorkSessionRegistry } from "@molis-ai/molis-work-module-private-work-context";
+import type { RuntimeGoalSessionActivity, RuntimeSessionReadResult } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import { openWorkSessionRegistry } from "./session-registry.js";
-import { sessionSignalsForHost, type GoalBoardRuntimeContextHost } from "./runtime-context.js";
+import { sessionSignalsForHost, type MolisWorkRuntimeContextHost } from "./runtime-context.js";
 
 /** Composition only: Registry owns association validation and event persistence. */
 export class RuntimeSessionHost {
   private failure: string | null = null;
 
-  constructor(private readonly reconcileLegacy: (homeDirectory: string | undefined, registry: GoalBoardSessionRegistry) => Promise<void>) {}
+  constructor(private readonly reconcileLegacy: (homeDirectory: string | undefined, registry: MolisWorkSessionRegistry) => Promise<void>) {}
 
   recordFailure(error: unknown): void {
     this.failure = error instanceof Error ? error.message : String(error);
@@ -19,7 +19,7 @@ export class RuntimeSessionHost {
     finally { registry.close(); }
   }
 
-  async record(activity: RuntimeGoalSessionActivity, host: GoalBoardRuntimeContextHost, projectId: string | undefined): Promise<void> {
+  async record(activity: RuntimeGoalSessionActivity, host: MolisWorkRuntimeContextHost, projectId: string | undefined): Promise<void> {
     try {
       const registry = await openWorkSessionRegistry({ homeDirectory: host.homeDirectory });
       try {
@@ -42,7 +42,7 @@ export class RuntimeSessionHost {
     }
   }
 
-  async read(host: GoalBoardRuntimeContextHost, reconcileLegacy: boolean = false): Promise<RuntimeSessionReadResult> {
+  async read(host: MolisWorkRuntimeContextHost, reconcileLegacy: boolean = false): Promise<RuntimeSessionReadResult> {
     if (this.failure) return {
       sessionRegistry: { status: "unavailable" as const, message: this.failure, session: null },
       sessionGoalId: null,

@@ -7,25 +7,25 @@ import test from "node:test";
 import type {
   IntegrationProviderPort,
   PluginManifest,
-} from "@adeptify/goalboard-contracts/platform/plugin";
-import { SignalsModule } from "@adeptify/goalboard-module-signals";
-import { SourcesModule } from "@adeptify/goalboard-module-sources";
-import { ConnectorHost } from "@adeptify/goalboard-service-connector-host";
-import { ListenerHost } from "@adeptify/goalboard-service-listener-host";
+} from "@molis-ai/molis-work-contracts/platform/plugin";
+import { SignalsModule } from "@molis-ai/molis-work-module-signals";
+import { SourcesModule } from "@molis-ai/molis-work-module-sources";
+import { ConnectorHost } from "@molis-ai/molis-work-service-connector-host";
+import { ListenerHost } from "@molis-ai/molis-work-service-listener-host";
 import {
   createGithubIntegrationPlugin,
   githubIntegrationManifest,
-} from "@adeptify/goalboard-integration-github";
+} from "@molis-ai/molis-work-integration-github";
 import {
   MemoryPluginRuntimeRepository,
   PluginRuntime,
   PluginRuntimeError,
-} from "@adeptify/goalboard-plugin-runtime";
+} from "@molis-ai/molis-work-plugin-runtime";
 
-import { DEMO_BOARD_ID, seedDemoBoard } from "@adeptify/goalboard-app-local-host";
-import { OfficialIntegrationRegistry } from "@adeptify/goalboard-app-local-host";
-import type { FeedSourceRecord } from "@adeptify/goalboard-plugin-feed";
-import { LocalProjectDatabase } from "@adeptify/goalboard-app-local-host";
+import { DEMO_BOARD_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { OfficialIntegrationRegistry } from "@molis-ai/molis-work-app-local-host";
+import type { FeedSourceRecord } from "@molis-ai/molis-work-plugin-feed";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 
 const SOURCE_ID = "source-fd3-github";
 const CONNECTION_ID = "connection-fd3-github";
@@ -62,9 +62,9 @@ function connectorFor(driver: Parameters<ConnectorHost["registerDriver"]>[0]): C
 }
 
 test("official GitHub Plugin installs, grants, produces Signal, recovers, and uninstalls without data loss", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-fd3-runtime-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-fd3-runtime-"));
   try {
-    const databasePath = join(directory, "goalboard.sqlite");
+    const databasePath = join(directory, "molis-work.sqlite");
     seedDemoBoard(databasePath);
     const store = new LocalProjectDatabase(databasePath);
     try {
@@ -82,7 +82,7 @@ test("official GitHub Plugin installs, grants, produces Signal, recovers, and un
             mode: "live",
             items: [{
               externalId: "github-notification-42",
-              title: "Review GoalBoard PR",
+              title: "Review Molis Work PR",
               summary: polls === 1 ? "Review requested" : "Review request updated",
               occurredAt: "2026-09-02T08:00:00.000Z",
               kind: "pr",

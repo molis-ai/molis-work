@@ -1,17 +1,17 @@
 # DV4 完整切片验收
 
-2026-09-06。Contract：`goal-reorg-dv4` revision 1。本报告取代把分阶段进展直接当作完整验收的做法；保留所有原失败和修复记录。最终产物检查发现的旧编译残留已修复，新npm消费链和macOS包复验通过。三项工程条件通过，正式状态以GoalBoard Review为准。整体重组尚未完成。
+2026-09-06。Contract：`goal-reorg-dv4` revision 1。本报告取代把分阶段进展直接当作完整验收的做法；保留所有原失败和修复记录。最终产物检查发现的旧编译残留已修复，新npm消费链和macOS包复验通过。三项工程条件通过，正式状态以Molis Work Review为准。整体重组尚未完成。
 
 ## 边界与职责退出
 
 | 原职责 | 当前唯一实现与 caller | 核对结果 |
 | --- | --- | --- |
-| Home 安装 | Local Host `installer/home.ts` 负责事务，source/dependencies/release/files/launcher 分责；根 CLI 只补默认安装源并调用公开 `installGoalBoardHome` | 主事务170行；source检查、依赖收集、原子切换/失败回滚没有在CLI或Desktop复制 |
+| Home 安装 | Local Host `installer/home.ts` 负责事务，source/dependencies/release/files/launcher 分责；根 CLI 只补默认安装源并调用公开 `installMolisWorkHome` | 主事务170行；source检查、依赖收集、原子切换/失败回滚没有在CLI或Desktop复制 |
 | Runtime 接入 | Local Host 的配置 adapters、文本保留、文件/Skill IO、planner、confirmation service；Web 通过公开 `RuntimeIntegrationService` | 配置预览/确认/冲突/回滚保留；真实 launcher 验证使用 MCP App 公开API，不直接访问其内部实现 |
 | 常驻服务 | Local Host platform/detection/process/operations/planning/contract/manager；CLI/Web调用公开Manager | 同一所有权、过期计划、健康和PID规则；Web自重启经确认→202→afterResponse→launchd→新PID健康核对 |
 | 卸载 | Local Host Service负责确认和步骤；Projects公开catalog检查；根装配注入只读连接与原Demo删除 | installer不持有业务Store、不查询业务SQL；普通数据保留、强确认清除、失败收据继续有效 |
 | macOS分发 | `apps/desktop/tooling/`，Cargo/Tauri配置指向Desktop adapter | 根pnpm/CI调用同一工具；payload消费Local Host公开创建API，不在workspace manifest上孤立npm install |
-| npm分发 | Local Host `createGoalBoardNpmPackageDirectory` 与 `tooling/pack-npm.mjs` | 临时staging、只复制声明资产、内部JS包随包、注册表原生依赖由消费者安装；不改源码manifest、不公开发布私有包 |
+| npm分发 | Local Host `createMolisWorkNpmPackageDirectory` 与 `tooling/pack-npm.mjs` | 临时staging、只复制声明资产、内部JS包随包、注册表原生依赖由消费者安装；不改源码manifest、不公开发布私有包 |
 | 来源与开发资产 | 统一release资产列表、源码检查/内容摘要；vendor tarball、provenance、SBOM、LICENSE、README、Skill/方法资产 | vendor仍是供应链资产，不变成业务Module；方法资产随Goals包并供安装Skill引用 |
 
 只读caller盘点：实际安装调用位于 `src/cli/main.ts`；服务/接入调用位于 `src/web/server.ts`；根卸载装配为 `src/local-host/uninstall.ts`；发布工具分别位于两类App的tooling。均消费公开App/Module入口。`src/install/` 无源码；根scripts只剩workspace inventory和boundary工具，旧macOS脚本和build-manifest实现已退出。
@@ -22,9 +22,9 @@
 
 ### 当前源码的独立npm消费链（本轮重新执行）
 
-目录 `/private/tmp/goalboard-dv4-final-npm.ht4RY9`，源码基于checkpoint `6ba65c8` 加当前未提交修复。
+目录 `/private/tmp/molis-work-dv4-final-npm.ht4RY9`，源码基于checkpoint `6ba65c8` 加当前未提交修复。
 
-1. 正式 `pnpm package:npm /private/tmp/goalboard-dv4-final-npm.ht4RY9/archive`：48 workspace包、根入口、PTY bundle完整构建后生成3048820-byte tgz。不是只对较早快照的产物重新读版本号。
+1. 正式 `pnpm package:npm /private/tmp/molis-work-dv4-final-npm.ht4RY9/archive`：48 workspace包、根入口、PTY bundle完整构建后生成3048820-byte tgz。不是只对较早快照的产物重新读版本号。
 2. 新consumer正常 `npm install` 本轮tgz：63 packages，未跳过安装脚本、未全局安装，独立生成锁文件。Node/macOS arm64当前平台原生依赖实际安装。
 3. 既有生产路径 `tests/npm-distribution-smoke.mjs` 全通过：npm CLI；SQLite写入/重开；真实Runtime Host PTY输出；Goals方法加载；从无关cwd默认源安装Home；重复安装unchanged；临时demo创建；版本升级、注入失败回滚、恢复版本后的数据库保持；临时移走npm源包后安装CLI与真实MCP initialize/tools/list仍工作；卸载预览不写、确认清除临时程序和可重建demo。普通用户数据保留由下面真实App旧项目及installer回归另行证明。
 4. 当前installer/service/uninstall/catalog/runtime-integration/payload/npm-package定向回归66/0/0。覆盖同版本刷新、构建过期拒绝、配置冲突/不相关内容保留、失败回滚、真实慢MCP握手、来源资产内容、禁止覆盖现有输出、payload源不可用仍自包含、未知服务不接管、卸载强确认和恢复收据。npm archive检查没有构建机 `.node`/spawn-helper 或workspace/file依赖协议泄漏。
@@ -43,7 +43,7 @@
 
 ### macOS安装与用户可见旅程
 
-- 干净源码依赖安装/拓扑构建与DMG生成：`dv4-progress.md` 的干净副本 `goalboard-dv4-clean.ITjqKC`。此后当前代码又完整生成App/DMG/zip，最新日志 `/private/tmp/native-titlebar-macos-build.log`，真实DMG安装与窗口由 `../native-titlebar-alignment/spec.md` 记录。
+- 干净源码依赖安装/拓扑构建与DMG生成：`dv4-progress.md` 的干净副本 `molis-work-dv4-clean.ITjqKC`。此后当前代码又完整生成App/DMG/zip，最新日志 `/private/tmp/native-titlebar-macos-build.log`，真实DMG安装与窗口由 `../native-titlebar-alignment/spec.md` 记录。
 - 首装、首启、退出重开、服务断线恢复：`dv4-gui-validation.md`；其发现的重启失败不是当前结论，已由 `dv4-restart-repair.md` 的真实取消/确认/新PID恢复和App重开验证解决。
 - 真实旧0.1.13 DMG→0.1.14、普通项目正文/历史保留、普通卸载保留DB/WAL、实际App重装恢复：`dv4-upgrade-validation.md`。保留缺Listener表的失败证据，修复后全新旧环境重验通过。
 - 最新App的顶部对齐、全屏、目录收展与设置跨页：`../native-titlebar-alignment/spec.md`。全部测试服务移除，09:02:43 UTC原服务恢复且原配置不变，未更新现用用户安装。

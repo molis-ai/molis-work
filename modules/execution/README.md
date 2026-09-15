@@ -2,7 +2,7 @@
 
 读取既有 Claim、Run、尝试和租约记录，保留其原始身份、状态与时间，供历史正文、快照、数据升级和项目删除保护使用。
 
-包名：`@adeptify/goalboard-module-execution`。工作区内部包，通过仓库构建和 Host 装配使用。
+包名：`@molis-ai/molis-work-module-execution`。工作区内部包，通过仓库构建和 Host 装配使用。
 
 ## 一次典型调用
 
@@ -31,8 +31,8 @@ Host 装配 `ExecutionModule.query`，历史读者按原始 ID 查找 Claim/Run�
 以下命令在**仓库根目录**执行，使用 Node.js 24+ 与仓库配置的 pnpm。首次准备运行 `pnpm install --frozen-lockfile` 和 `pnpm build`；之后可单独检查此包。
 
 ```bash
-pnpm --filter @adeptify/goalboard-module-execution typecheck
-pnpm --filter @adeptify/goalboard-module-execution build
+pnpm --filter @molis-ai/molis-work-module-execution typecheck
+pnpm --filter @molis-ai/molis-work-module-execution build
 ```
 
 历史升级与原始记录保留可参考 [goal-event-migration.test.ts](../../tests/goal-event-migration.test.ts)，真实 Host 资源生命周期可参考 [host-entry-consistency.test.ts](../../tests/host-entry-consistency.test.ts)。完成仓库构建后运行：
@@ -49,7 +49,7 @@ node --import tsx --test --test-concurrency=1 tests/goal-event-migration.test.ts
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
 - Status: `partial`
-- Contract entrypoint: `@adeptify/goalboard-contracts/modules/execution`
+- Contract entrypoint: `@molis-ai/molis-work-contracts/modules/execution`
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-ex1`, `goal-reorg-ex4`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。

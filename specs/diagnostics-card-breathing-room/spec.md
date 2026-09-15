@@ -6,7 +6,7 @@ The Desktop Diagnostics page renders its three information groups as rounded pap
 
 The goal is to make the Diagnostics page comfortable to scan by giving every paper surface a consistent inner inset and a deliberate gap from the next surface, while preserving the existing content, hierarchy, data, actions, dark/light themes, and responsive behavior.
 
-Completion level: **Level 3 — functional**. The real page must render the corrected layout and keep its existing behavior; this task does not include release packaging or installing a new GoalBoard release into the user's home directory.
+Completion level: **Level 3 — functional**. The real page must render the corrected layout and keep its existing behavior; this task does not include release packaging or installing a new Molis Work release into the user's home directory.
 
 ## Current evidence
 
@@ -17,7 +17,7 @@ Completion level: **Level 3 — functional**. The real page must render the corr
 ## Scope
 
 - Desktop-shell Diagnostics page only.
-- The GoalBoard install summary, launcher list, persistent Web service summary, and page footnote.
+- The Molis Work install summary, launcher list, persistent Web service summary, and page footnote.
 - Wide and intermediate Desktop layouts, in both Light and Dark themes.
 - Preserve wrapping for long paths and commands.
 
@@ -26,7 +26,7 @@ Completion level: **Level 3 — functional**. The real page must render the corr
 - No copy, status, API, service-action, navigation, or data changes.
 - No redesign of Global Settings or other settings sections.
 - No new cards, gradients, decoration, or density preference.
-- No release build installation or mutation of `~/.goalboard`.
+- No release build installation or mutation of `~/.molis-work`.
 
 ## User scenario
 
@@ -76,4 +76,4 @@ Each rounded surface is one semantic group. Use a consistent medium inset inside
 - Impeccable layout detector on `src/web/render.ts` and `src/web/visual-foundation.ts`: **passed** with no findings (`[]`).
 - Rendered Dark Desktop inspection at the available intermediate viewport: **passed**. Computed surface padding is `22px 24px`, both inter-surface gaps are `12px`, long paths wrap, and document horizontal overflow is `0`.
 - Full `tests/visual-foundation.test.ts`: **not green because of four pre-existing assertions unrelated to this task** (the current faint token, narrow-companion expectation, desktop shell column expectation, and Goal Graph ID rule). The new Diagnostics test passes independently.
-- Release packaging and installation into `~/.goalboard`: **not run**, by scope.
+- Release packaging and installation into `~/.molis-work`: **not run**, by scope.

@@ -1,6 +1,6 @@
-import type { UiContribution } from "@adeptify/goalboard-contracts/platform/ui";
+import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 
-export const ARTIFACT_REFERENCE_UI_CONTRIBUTION_ID = "io.goalboard.native.artifacts.reference.v1";
+export const ARTIFACT_REFERENCE_UI_CONTRIBUTION_ID = "io.molis.work.native.artifacts.reference.v1";
 
 export interface ArtifactReferenceUiPrimitives {
   escape(value: string): string;
@@ -31,7 +31,7 @@ export function isProjectReference(value: string): boolean {
 export const artifactReferenceUiContribution: UiContribution<ArtifactReferenceUiModel> = {
   descriptor: {
     contribution_id: ARTIFACT_REFERENCE_UI_CONTRIBUTION_ID,
-    plugin_id: "io.goalboard.native.artifacts",
+    plugin_id: "io.molis.work.native.artifacts",
     kind: "embedded",
     label: "Artifact reference",
     surfaces: [{ surface_id: "reference", target_slot_id: "workbench.main", format: "declarative-html" }],

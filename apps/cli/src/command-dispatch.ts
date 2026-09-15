@@ -1,6 +1,6 @@
-import { importV3Capability, initializeBoardCapability, snapshotBoardCapability, createGoalProposalClients, setActiveGoalCapability } from "@adeptify/goalboard-plugin-goals";
-import type { LocalHostProjectClient } from "@adeptify/goalboard-contracts/platform/app-host";
-import type { LegacyV3ImportInput } from "@adeptify/goalboard-plugin-goals";
+import { importV3Capability, initializeBoardCapability, snapshotBoardCapability, createGoalProposalClients, setActiveGoalCapability } from "@molis-ai/molis-work-plugin-goals";
+import type { LocalHostProjectClient } from "@molis-ai/molis-work-contracts/platform/app-host";
+import type { LegacyV3ImportInput } from "@molis-ai/molis-work-plugin-goals";
 import { createCliGoalTreeHandlers } from "./goal-tree-commands.js";
 import { cliFlagValue as value, printCliJson as print } from "./protocol.js";
 

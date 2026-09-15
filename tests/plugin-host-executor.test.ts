@@ -4,17 +4,17 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import Database from "better-sqlite3";
-import { PluginHostExecutor } from "@adeptify/goalboard-app-local-host";
-import { PluginRuntime, PluginRuntimeError, SqlitePluginPrivateStorage } from "@adeptify/goalboard-plugin-runtime";
-import { UiHost, PluginUiAccessError } from "@adeptify/goalboard-ui-host";
-import { ArtifactsModule } from "@adeptify/goalboard-module-artifacts";
-import { createGithubIntegrationPlugin } from "@adeptify/goalboard-integration-github";
-import type { PluginDefinition, PluginStartContext } from "@adeptify/goalboard-contracts/platform/plugin";
-import { seedDemoBoard, DEMO_BOARD_ID } from "@adeptify/goalboard-app-local-host";
-import { LocalProjectDatabase } from "@adeptify/goalboard-app-local-host";
+import { PluginHostExecutor } from "@molis-ai/molis-work-app-local-host";
+import { PluginRuntime, PluginRuntimeError, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
+import { UiHost, PluginUiAccessError } from "@molis-ai/molis-work-ui-host";
+import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
+import { createGithubIntegrationPlugin } from "@molis-ai/molis-work-integration-github";
+import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { seedDemoBoard, DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 
 test("Host gives a real Plugin private storage, Artifact exchange and revocable UI across restart and failed stop", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-plugin-host-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-plugin-host-"));
   const file = join(directory, "board.db");
   seedDemoBoard(file);
   const store = new LocalProjectDatabase(file);
@@ -31,7 +31,7 @@ test("Host gives a real Plugin private storage, Artifact exchange and revocable 
     type: "fixture", async health() { return { ok: true, status: "connected", message: "ready" }; },
     async sync() { return { ok: true, mode: "fixture", items: [], cursor: null }; },
   } });
-  const id = "io.goalboard.example.hosted";
+  const id = "io.molis.work.example.hosted";
   const definition: PluginDefinition = { manifest: { ...base.manifest, plugin_id: id,
     permissions: [...base.manifest.permissions, ...["storage:private", "artifact:write", "artifact:read", "ui:register"]
       .map(permission => ({ permission, required: true, reason: "Hosted sample" }))],

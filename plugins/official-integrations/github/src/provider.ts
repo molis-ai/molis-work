@@ -8,7 +8,7 @@ import type {
   IntegrationProviderItem,
   IntegrationProviderPort,
   IntegrationProviderSyncResult,
-} from "@adeptify/goalboard-contracts/platform/plugin";
+} from "@molis-ai/molis-work-contracts/platform/plugin";
 
 type ConnectorHealth = Awaited<ReturnType<IntegrationProviderPort["health"]>>;
 type ConnectorIngestItem = IntegrationProviderItem;
@@ -151,7 +151,7 @@ export function createGithubProvider(opts?: {
           ok: true,
           status: "mock",
           message:
-            "Fixture mode — bind token in Settings or set GOALBOARD_GITHUB_TOKEN",
+            "Fixture mode — bind token in Settings or set MOLIS_WORK_GITHUB_TOKEN",
           action: "Settings → Connectors · PAT / Device Flow",
         };
       }
@@ -301,7 +301,7 @@ function githubHeaders(token: string): Record<string, string> {
     Authorization: `Bearer ${token}`,
     Accept: "application/vnd.github+json",
     "X-GitHub-Api-Version": GITHUB_API_VERSION,
-    "User-Agent": "goalboard-feed-connector",
+    "User-Agent": "molis-work-feed-connector",
   };
 }
 

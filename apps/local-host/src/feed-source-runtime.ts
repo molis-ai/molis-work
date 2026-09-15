@@ -1,5 +1,5 @@
-import { createAllowlistedRssTransport } from "@adeptify/goalboard-integration-rss/host";
-import type { SqliteDatabase } from "@adeptify/goalboard-storage";
+import { createAllowlistedRssTransport } from "@molis-ai/molis-work-integration-rss/host";
+import type { SqliteDatabase } from "@molis-ai/molis-work-storage";
 import {
   createSearchRuntime,
   type SearchRuntime,
@@ -14,17 +14,17 @@ import {
 import { createAnySearchProvider } from "@adeptify/search-evidence-layer/providers/anysearch";
 import { createRssProvider } from "@adeptify/search-evidence-layer/providers/rss";
 
-import { createFeedEvidenceContentStore, type FeedEvidenceContentStore } from "@adeptify/goalboard-module-feed";
-import { createFileSecretStore, type SecretStore } from "@adeptify/goalboard-storage";
+import { createFeedEvidenceContentStore, type FeedEvidenceContentStore } from "@molis-ai/molis-work-module-feed";
+import { createFileSecretStore, type SecretStore } from "@molis-ai/molis-work-storage";
 import { createIntelligenceCollectAdapter, type IntelligenceCollectAdapter } from "./feed-intelligence-client.js";
-import { listFeedUrls } from "@adeptify/goalboard-integration-rss";
-import { isYouTubePublicFeedUrl } from "@adeptify/goalboard-integration-youtube";
+import { listFeedUrls } from "@molis-ai/molis-work-integration-rss";
+import { isYouTubePublicFeedUrl } from "@molis-ai/molis-work-integration-youtube";
 import {
   readRssHttpState,
   type RssFetchReceipt,
-} from "@adeptify/goalboard-integration-rss";
+} from "@molis-ai/molis-work-integration-rss";
 
-const APP_ID = "goalboard";
+const APP_ID = "molis-work";
 const APP_VERSION = "0.2.0";
 
 type FetchPort = (input: string | URL, init?: RequestInit) => Promise<Response>;
@@ -70,7 +70,7 @@ export function createFeedSourceRuntime(options: {
       options.fetch ?? globalThis.fetch,
       {
         isPublicChannelFeed: isYouTubePublicFeedUrl,
-        userAgent: `GoalBoard/${APP_VERSION} (+local feed ingest)`,
+        userAgent: `Molis Work/${APP_VERSION} (+local feed ingest)`,
         allowCustomPublicFeeds: true,
         conditional: { etag: httpState.etag, lastModified: httpState.last_modified },
         onReceipt(receipt) { publicFeedReceipt = receipt; },
@@ -117,7 +117,7 @@ function createRssRuntime(hostBundle: PortBackedNodeSearchHost): SearchRuntime {
       {
         revision: 1,
         provider: createRssProvider({ appId: APP_ID }),
-        transportProfileId: "goalboard-rss-allowlist-v1",
+        transportProfileId: "molis-work-rss-allowlist-v1",
       },
     ],
   });
@@ -148,7 +148,7 @@ function createEncryptedContentPort(store: FeedEvidenceContentStore): SearchHost
       return store.write(markdown);
     },
     async read({ appId, contentRef }) {
-      if (appId !== APP_ID || !/^goalboard-feed\/sha256\/[0-9a-f]{64}$/u.test(contentRef)) {
+      if (appId !== APP_ID || !/^molis-work-feed\/sha256\/[0-9a-f]{64}$/u.test(contentRef)) {
         throw new Error("feed evidence content reference rejected");
       }
       return store.read(contentRef);

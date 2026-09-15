@@ -5,7 +5,7 @@ import type {
   GoalEventConcernStatus,
   GoalEventScope,
   GoalRecord,
-} from "@adeptify/goalboard-contracts/modules/goals";
+} from "@molis-ai/molis-work-contracts/modules/goals";
 import { requestHash, type GoalsCommandContext } from "./command-support.js";
 import { requiredText } from "./event-facts-validation.js";
 import type { GoalEventFactsRepository } from "./event-facts-repository.js";

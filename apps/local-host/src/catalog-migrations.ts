@@ -1,9 +1,9 @@
-import { LocalCatalogMetadata, type LocalSqliteStorage, type SqliteDatabase } from "@adeptify/goalboard-storage";
-import type { ContextLedgerApi } from "@adeptify/goalboard-contracts/modules/context-ledger";
-import { createProjectsSchema, migrateProjectDataClassSchema } from "@adeptify/goalboard-module-projects";
-import { createPersonalPlanningMethodSchema } from "@adeptify/goalboard-module-goals";
-import { createRuntimeContextBindingTables, createRuntimeContextSetupRequestTable, createRuntimeContextSuggestionRejectionTable, migrateRuntimeContextBindingEventsForUnbind, migrateRuntimeContextProjectReferences } from "@adeptify/goalboard-module-private-work-context";
-import { CATALOG_OWNER, CATALOG_SCHEMA_VERSION, GoalBoardProjectCatalogError, catalogSchemaCompatibilityError } from "./project-catalog-contract.js";
+import { LocalCatalogMetadata, type LocalSqliteStorage, type SqliteDatabase } from "@molis-ai/molis-work-storage";
+import type { ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
+import { createProjectsSchema, migrateProjectDataClassSchema, migrateProjectInboxPluginSchema } from "@molis-ai/molis-work-module-projects";
+import { createPersonalPlanningMethodSchema } from "@molis-ai/molis-work-module-goals";
+import { createRuntimeContextBindingTables, createRuntimeContextSetupRequestTable, createRuntimeContextSuggestionRejectionTable, migrateRuntimeContextBindingEventsForUnbind, migrateRuntimeContextProjectReferences } from "@molis-ai/molis-work-module-private-work-context";
+import { CATALOG_OWNER, CATALOG_SCHEMA_VERSION, MolisWorkProjectCatalogError, catalogSchemaCompatibilityError, isOwnedCatalogOwner, LEGACY_CATALOG_OWNER } from "./project-catalog-contract.js";
 
 export type CatalogDesktopSchema = (db: SqliteDatabase) => void;
 
@@ -22,14 +22,15 @@ export function initializeCatalog(storage: LocalSqliteStorage, createDesktopPane
 }
 
 export function assertOwnedCatalog(storage: LocalSqliteStorage, databasePath: string): void {
-  if (new LocalCatalogMetadata(storage.db).owner() !== CATALOG_OWNER) {
-    throw new GoalBoardProjectCatalogError("catalog.unknown_database", `不会复用未知项目目录数据库: ${databasePath}`);
+  if (!isOwnedCatalogOwner(new LocalCatalogMetadata(storage.db).owner())) {
+    throw new MolisWorkProjectCatalogError("catalog.unknown_database", `不会复用未知项目目录数据库: ${databasePath}`);
   }
 }
 
 export function migrateCatalog(storage: LocalSqliteStorage, databasePath: string, ledger: ContextLedgerApi, createDesktopPanelTables: CatalogDesktopSchema): void {
   const db = storage.db;
   const metadata = new LocalCatalogMetadata(db);
+  if (metadata.owner() === LEGACY_CATALOG_OWNER) metadata.setOwner(CATALOG_OWNER);
   const version = metadata.version();
   const compatibilityError = catalogSchemaCompatibilityError(version);
   if (compatibilityError) throw compatibilityError;
@@ -91,10 +92,15 @@ export function migrateCatalog(storage: LocalSqliteStorage, databasePath: string
       metadata.setVersion(11);
       current = 11;
     }
+    if (current === 11) {
+      migrateProjectInboxPluginSchema(db);
+      metadata.setVersion(12);
+      current = 12;
+    }
     if (current !== CATALOG_SCHEMA_VERSION) {
-      throw new GoalBoardProjectCatalogError(
+      throw new MolisWorkProjectCatalogError(
         "catalog.unsupported_schema",
-        `GoalBoard 项目目录数据库无法迁移到版本 ${CATALOG_SCHEMA_VERSION}: ${databasePath}`,
+        `Molis Work 项目目录数据库无法迁移到版本 ${CATALOG_SCHEMA_VERSION}: ${databasePath}`,
       );
     }
   })();

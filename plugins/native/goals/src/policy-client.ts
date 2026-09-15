@@ -35,7 +35,7 @@ const GOALS_POLICY_SUBMIT_SCRIPT = `      const policyForm = submittedForm.close
         try {
           const response = await fetch(route("/api/policy-bindings"), {
             method: "POST",
-            headers: goalboardControlHeaders(),
+            headers: molisWorkControlHeaders(),
             body: JSON.stringify({
               scope: values.get("scope"),
               goal_id: values.get("goal_id") || undefined,
@@ -85,7 +85,7 @@ const GOALS_POLICY_SUBMIT_SCRIPT = `      const policyForm = submittedForm.close
 `;
 
 export const GOALS_POLICY_CLIENT_FACTORY_SCRIPT = `(host) => {
-    const { route, controlHeaders: goalboardControlHeaders, translate: L,
+    const { route, controlHeaders: molisWorkControlHeaders, translate: L,
       requireFormFacts, refreshBoard, showFactorReceipt, showToast, humanDecisionError } = host;
     const submitMatchedPolicy = async (submittedForm, event) => {
 ${GOALS_POLICY_SUBMIT_SCRIPT}    };

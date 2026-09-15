@@ -2,7 +2,7 @@
 
 帮助维护者发现深层导入、跨 owner 实现依赖和依赖环，保护重组后的模块边界。
 
-包名：`@adeptify/goalboard-test-kit`。工作区内部包，通过仓库构建和 Host 装配使用。
+包名：`@molis-ai/molis-work-test-kit`。工作区内部包，通过仓库构建和 Host 装配使用。
 
 ## 一次典型调用
 
@@ -24,15 +24,15 @@
 
 本包提供与业务无关的检查规则，不替代模块测试、浏览器验收或数据迁移验证。新增边界规则应同时提供允许/拒绝案例，避免仅检查固定文件数量。
 
-工作区依赖：`@adeptify/goalboard-contracts`。其他运行依赖见 [package.json](package.json)。
+工作区依赖：`@molis-ai/molis-work-contracts`。其他运行依赖见 [package.json](package.json)。
 
 ## 本地开发
 
 以下命令在**仓库根目录**执行，使用 Node.js 24+ 与仓库配置的 pnpm。首次准备运行 `pnpm install --frozen-lockfile` 和 `pnpm build`；之后可单独检查此包。
 
 ```bash
-pnpm --filter @adeptify/goalboard-test-kit typecheck
-pnpm --filter @adeptify/goalboard-test-kit build
+pnpm --filter @molis-ai/molis-work-test-kit typecheck
+pnpm --filter @molis-ai/molis-work-test-kit build
 ```
 
 ```bash
@@ -48,7 +48,7 @@ pnpm boundary:test
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
 - Status: `partial`
-- Contract entrypoint: `@adeptify/goalboard-contracts/platform/testing`
+- Contract entrypoint: `@molis-ai/molis-work-contracts/platform/testing`
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-f3`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。

@@ -6,7 +6,7 @@ name: "市场分析"
 summary: "形成市场格局、差异、选项和待验证假设，而不是堆资料。"
 applies_to: ["市场研究","竞品分析","进入策略"]
 domain_tags: ["market","competition","growth"]
-source_refs: ["GoalBoard planning-engine spec"]
+source_refs: ["Molis Work planning-engine spec"]
 confidence: 0.93
 ---
 

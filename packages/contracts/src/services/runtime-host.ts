@@ -92,7 +92,7 @@ export interface PtyHostHandlers {
 }
 
 export const servicesRuntimeHostContract = {
-  contractId: "io.goalboard.service.runtime-host.v1",
+  contractId: "io.molis.work.service.runtime-host.v1",
   kind: "service",
   schemaVersion: 1,
   maturity: "partial",

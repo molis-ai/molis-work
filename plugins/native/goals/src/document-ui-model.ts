@@ -1,4 +1,4 @@
-import type { GoalRecord } from "@adeptify/goalboard-contracts/modules/goals";
+import type { GoalRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { GoalsTreeItem } from "./tree-ui-model.js";
 import type { GoalEventDocumentView } from "./event-document-model.js";
 
@@ -16,6 +16,7 @@ export interface GoalsDocumentContext {
   relatedWorkHtml: string;
   artifactHtml: string;
   coverageHtml: string;
+  decisionHtml?: string;
   eventDocument?: GoalEventDocumentView | null;
 }
 export interface GoalsDocumentUiPrimitives {

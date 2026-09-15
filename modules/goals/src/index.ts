@@ -1,4 +1,4 @@
-import { GoalBoardCommands } from "./board-commands.js";
+import { MolisWorkCommands } from "./board-commands.js";
 import type {
   AddGoalRelationInput,
   AddProjectGuidanceInput,
@@ -12,7 +12,7 @@ import type {
   GoalsImpactApi,
   GoalPolicy,
   UpdateProjectGuidanceInput,
-} from "@adeptify/goalboard-contracts/modules/goals";
+} from "@molis-ai/molis-work-contracts/modules/goals";
 
 import {
   GoalsCommandContext,
@@ -45,11 +45,11 @@ import { GoalEventFacts } from "./event-facts.js";
 import { GoalsRepository, type GoalsSqliteDatabase } from "./repository.js";
 
 export const packageDescriptor = {
-  packageName: "@adeptify/goalboard-module-goals",
+  packageName: "@molis-ai/molis-work-module-goals",
   packagePath: "modules/goals",
   kind: "module",
   maturity: "partial",
-  contract: "@adeptify/goalboard-contracts/modules/goals",
+  contract: "@molis-ai/molis-work-contracts/modules/goals",
   migrationGoals: [
     "goal-reorg-f2",
     "goal-f826dfb8-bf63-4e98-b6b7-57f6b4b7c3b8",
@@ -68,7 +68,7 @@ export const packageDescriptor = {
   ],
 } as const;
 
-export type GoalBoardPackageDescriptor = typeof packageDescriptor;
+export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export interface GoalsModuleHooks
   extends Pick<GoalsLifecycleHooks, "blockingWork"> {
@@ -112,7 +112,7 @@ export class GoalsModule {
     });
     const guidance = new GuidanceCommands(context);
     const confirmedRelations = new ConfirmedRelationCommands(context);
-    const boards = new GoalBoardCommands(context);
+    const boards = new MolisWorkCommands(context);
     this.commands = {
       initializeBoard: input => boards.initializeBoard(input),
       completeLegacyBoardImport: input => boards.completeLegacyBoardImport(input),
@@ -261,7 +261,7 @@ export type {
   GoalsPlanningApi,
   GoalsQueryApi,
   SaveProjectPlanningMethodInput,
-} from "@adeptify/goalboard-contracts/modules/goals";
+} from "@molis-ai/molis-work-contracts/modules/goals";
 export { GoalsRepository, type GoalsSqliteDatabase } from "./repository.js";
 export { GOAL_INPUT_BINDINGS_SCHEMA_SQL, GoalInputBindings } from "./input-bindings.js";
 export { createPersonalPlanningMethodSchema, PersonalPlanningMethods, readPersonalPlanningMethods } from "./planning/personal-methods.js";

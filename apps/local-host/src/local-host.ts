@@ -4,8 +4,8 @@ import type {
   LocalHostProjectClient,
   LocalHostProjectReference,
   LocalHostStatus,
-} from "@adeptify/goalboard-contracts/platform/app-host";
-import { CapabilityRegistry, type CapabilityHandler } from "@adeptify/goalboard-kernel";
+} from "@molis-ai/molis-work-contracts/platform/app-host";
+import { CapabilityRegistry, type CapabilityHandler } from "@molis-ai/molis-work-kernel";
 
 export interface LocalHostRuntimeFactory<Runtime> {
   open(reference: LocalHostProjectReference): Runtime | Promise<Runtime>;

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { PlanningMethodComposition, PlanningMethodPack } from "@adeptify/goalboard-contracts/modules/goals";
+import type { PlanningMethodComposition, PlanningMethodPack } from "@molis-ai/molis-work-contracts/modules/goals";
 
 /** Keep host-specific Error classes outside the presentation package. */
 export type McpPresentationErrorFactory = (code: string, message: string, details?: Record<string, unknown>) => Error;

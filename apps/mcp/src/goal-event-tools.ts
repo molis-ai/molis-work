@@ -24,7 +24,7 @@ const EVENT_ACTOR = {
 
 export const EVENT_TOOLS: McpToolDefinition[] = [
   {
-    name: "goalboard_v1_goal_intent_create",
+    name: "molis_work_v1_goal_intent_create",
     description:
       "用能辨认的标题创建一个事件 Goal，可附带结果、原文、优先级、要求和关系。不造默认规划，不领取角色或创建 Run。创建本身不是完成。",
     inputSchema: {
@@ -48,7 +48,7 @@ export const EVENT_TOOLS: McpToolDefinition[] = [
     },
   },
   {
-    name: "goalboard_v1_goal_list",
+    name: "molis_work_v1_goal_list",
     description:
       "按当前事件状态列出 Goal：ID、标题、工作状态、能否记录、待办提示和列表分页游标。after_cursor 是列表分页，不是事件日志游标。",
     inputSchema: {
@@ -64,7 +64,7 @@ export const EVENT_TOOLS: McpToolDefinition[] = [
     },
   },
   {
-    name: "goalboard_v1_goal_state",
+    name: "molis_work_v1_goal_state",
     description:
       "读取当前 Goal 的意图、当前约定、有效要求、最新报告摘要、事件游标和可继续信息。当前结果只在 agreement.outcome。历史正文用 event_read 或 event_list。",
     inputSchema: {
@@ -78,7 +78,7 @@ export const EVENT_TOOLS: McpToolDefinition[] = [
     },
   },
   {
-    name: "goalboard_v1_event_configure",
+    name: "molis_work_v1_event_configure",
     description:
       "为当前 Goal 登记事件类型、版本、局部要求和采用的规划。采用规划会保存当时的来源版本并把该方法的事件类型登记到 Goal；不会随模板库升级覆写已有约定。adopt_default_requirement_ids 必须显式选择，不会机械开启规划里的全部默认要求。没有模板也可以只登记局部类型。",
     inputSchema: {
@@ -100,7 +100,7 @@ export const EVENT_TOOLS: McpToolDefinition[] = [
     },
   },
   {
-    name: "goalboard_v1_event_note",
+    name: "molis_work_v1_event_note",
     description:
       "保存一条普通笔记。不需要先登记类型。完成后或取消后的无关笔记不会自动重开。",
     inputSchema: {
@@ -117,7 +117,7 @@ export const EVENT_TOOLS: McpToolDefinition[] = [
     },
   },
   {
-    name: "goalboard_v1_event_report",
+    name: "molis_work_v1_event_report",
     description:
       "一次提交多条已登记类型的工作事实，可附带本批进展说明。返回已保存事实和当前工作状态、差距与游标。不表示完成、人工验收或 Host 已连接。不需要 Claim 或 Run。",
     inputSchema: {
@@ -135,7 +135,7 @@ export const EVENT_TOOLS: McpToolDefinition[] = [
     },
   },
   {
-    name: "goalboard_v1_event_list",
+    name: "molis_work_v1_event_list",
     description: "按服务器接收顺序分页读取当前 Goal 的配置事件与工作事实。配置 payload 与报告文本字段按 kind 区分。",
     inputSchema: {
       type: "object",
@@ -150,7 +150,7 @@ export const EVENT_TOOLS: McpToolDefinition[] = [
     },
   },
   {
-    name: "goalboard_v1_event_read",
+    name: "molis_work_v1_event_read",
     description: "按事件 ID 读取一条历史事件，包括当时类型版本的字段定义。旧配置版本对应的历史正文不随后来的类型修改变化。",
     inputSchema: {
       type: "object",
@@ -164,7 +164,7 @@ export const EVENT_TOOLS: McpToolDefinition[] = [
     },
   },
   {
-    name: "goalboard_v1_event_progress",
+    name: "molis_work_v1_event_progress",
     description:
       "记录当前进展原文、所依据的当前 Goal 事件游标、下一步和责任描述。新事实会使摘要过时但不会删除它。建议某人继续不等于 Host 已开始执行。",
     inputSchema: {
@@ -184,7 +184,7 @@ export const EVENT_TOOLS: McpToolDefinition[] = [
     },
   },
   {
-    name: "goalboard_v1_event_concern",
+    name: "molis_work_v1_event_concern",
     description:
       "打开、解决、接受或推翻一个有明确作用范围的 Concern。一般观察不会自动变成全局阻塞。接受风险必须引用已保存的可信用户决定。",
     inputSchema: {
@@ -209,7 +209,7 @@ export const EVENT_TOOLS: McpToolDefinition[] = [
     },
   },
   {
-    name: "goalboard_v1_event_decision_request",
+    name: "molis_work_v1_event_decision_request",
     description:
       "提出一个具体问题、可区分选项与影响及作用范围，等待可信用户入口作决定。不能通过 actor_kind 或 user_confirmed 自行获得用户批准。",
     inputSchema: {
@@ -233,7 +233,7 @@ export const EVENT_TOOLS: McpToolDefinition[] = [
     },
   },
   {
-    name: "goalboard_v1_event_cite_decision",
+    name: "molis_work_v1_event_cite_decision",
     description:
       "引用当前 Goal 已持久化的可信决定，在原范围内复用，不必重问。换 Goal、扩大范围或把旧决定套到变化后的承诺会被拒绝。",
     inputSchema: {
@@ -251,7 +251,7 @@ export const EVENT_TOOLS: McpToolDefinition[] = [
     },
   },
   {
-    name: "goalboard_v1_event_agree",
+    name: "molis_work_v1_event_agree",
     description:
       "更新当前结果约定：首次补全结果、追加要求，或在已获针对具体变化的授权后修订/退休要求、替换已有结果。两个 expected 版本都必填，缺一拒绝。",
     inputSchema: {
@@ -277,7 +277,7 @@ export const EVENT_TOOLS: McpToolDefinition[] = [
     },
   },
   {
-    name: "goalboard_v1_event_close",
+    name: "molis_work_v1_event_close",
     description:
       "显式提交完成或取消。完成报告总会记录；只有存在具体结果约定、当前要求支持且适用决定/阻塞已处理后，completion_applied 才为 true。取消不要求伪造交付。成功上报本身永不自动完成。",
     inputSchema: {
@@ -301,7 +301,7 @@ export const EVENT_TOOLS: McpToolDefinition[] = [
     },
   },
   {
-    name: "goalboard_v1_event_resume",
+    name: "molis_work_v1_event_resume",
     description: "显式继续已经完成或取消的 Goal，必须说明理由。下一条无关观察不会默默重开。已 open 时新请求会说明无须重开。",
     inputSchema: {
       type: "object",
@@ -317,7 +317,7 @@ export const EVENT_TOOLS: McpToolDefinition[] = [
     },
   },
   {
-    name: "goalboard_v1_event_decide",
+    name: "molis_work_v1_event_decide",
     description:
       "由受保护的用户/管理入口记录可信决定或验收。Runtime 不能调用本工具；actor_kind=user、user_confirmed 或自填 authority 不能产生用户批准。",
     inputSchema: {

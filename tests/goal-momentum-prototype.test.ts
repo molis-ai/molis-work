@@ -84,7 +84,7 @@ test("Goal momentum queue order and reasoning stay explicit", () => {
   assert.doesNotMatch(html, /综合得分|score\s*[:=]/i);
 });
 
-test("Goal momentum selection links to real GoalBoard Goal details without adding write behavior", () => {
+test("Goal momentum selection links to real Molis Work Goal details without adding write behavior", () => {
   const html = readPrototype();
 
   assert.match(

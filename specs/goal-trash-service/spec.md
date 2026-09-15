@@ -2,9 +2,9 @@
 
 ## 背景与目标
 
-GoalBoard 已有“归档”：它只整理已完成 Goal，仍保留在归档视图中。用户要求的“删除”是不同概念：任何不在活动工作中的 Goal 可被移入回收站，保留原 `goal_id`、所有事实和事件，之后可恢复。UI 与 MCP 不得各自实现删除规则，必须共享一个领域服务。
+Molis Work 已有“归档”：它只整理已完成 Goal，仍保留在归档视图中。用户要求的“删除”是不同概念：任何不在活动工作中的 Goal 可被移入回收站，保留原 `goal_id`、所有事实和事件，之后可恢复。UI 与 MCP 不得各自实现删除规则，必须共享一个领域服务。
 
-本 Work Item 只实现领域服务、SQLite 事实、工作流过滤和普通 Web 读取过滤；删除/恢复按钮和 MCP 工具留给后续 `GOALBOARD-GOAL-TRASH-UI`、`GOALBOARD-GOAL-TRASH-MCP`。
+本 Work Item 只实现领域服务、SQLite 事实、工作流过滤和普通 Web 读取过滤；删除/恢复按钮和 MCP 工具留给后续 `MOLIS_WORK-GOAL-TRASH-UI`、`MOLIS_WORK-GOAL-TRASH-MCP`。
 
 ## 当前行为与问题证据
 
@@ -35,7 +35,7 @@ GoalBoard 已有“归档”：它只整理已完成 Goal，仍保留在归档�
 
 ```text
 未来 UI / MCP（分别验证用户意图）
-  → GoalBoardCoordinator.setGoalTrashed（唯一领域规则）
+  → MolisWorkCoordinator.setGoalTrashed（唯一领域规则）
     → SQLite goals + goal_trash_records + goal_trash_relation_records
     → goal_relations / boards / events（同一事务）
     → queryReady / Available / Claim / Run / Review / Revalidate / Web read model

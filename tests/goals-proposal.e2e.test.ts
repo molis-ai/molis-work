@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { DEMO_BOARD_ID } from "@adeptify/goalboard-app-local-host";
-import { GoalProjectApplication } from "@adeptify/goalboard-app-local-host";
+import { DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
+import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 test("Proposal UI preserves user input on failed confirmation, retries atomically, and rejects without creating Goals", { timeout: 60_000 }, async (t) => {
@@ -39,10 +39,22 @@ test("Proposal UI preserves user input on failed confirmation, retries atomicall
   await command("Network.enable", {}, sessionId);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
-  await command("Page.navigate", { url: origin + "/decisions" }, sessionId);
-  await command("Page.bringToFront", {}, sessionId);
-  await waitFor("document.readyState === 'complete' && " + dom(adoptForm));
-  await click('[data-feed-entry-id="decision:browser-adopt-root"]');
+  const openGoal = async (goalId: string, formSelector: string) => {
+    await command("Page.navigate", { url: origin + "/goals/" + encodeURIComponent(goalId) }, sessionId);
+    await command("Page.bringToFront", {}, sessionId);
+    await waitFor(
+      "document.readyState === 'complete' && !document.querySelector('[data-goal-node-workspace]')?.hidden && document.querySelector('[data-goal-node-workspace]')?.dataset.expandedGoal === " +
+        JSON.stringify(goalId) +
+        " && " +
+        dom(formSelector),
+    );
+  };
+  await openGoal("browser-adopt-root", adoptForm);
+  assert.equal(await evaluate("document.querySelectorAll('[data-feed-entry-id^=\"decision:\"]').length"), 0);
+  assert.equal(await evaluate("document.querySelectorAll('[data-feed-detail^=\"decision:\"]').length"), 0);
+  assert.ok(await evaluate("document.querySelectorAll('[data-inbox-row][data-inbox-subject-type=\"goal_decision\"]').length >= 2"));
+  assert.ok(await evaluate("Boolean(document.querySelector('[data-inbox-row][data-inbox-subject-id=\"browser-adopt-root\"]'))"));
+  assert.ok(await evaluate("Boolean(document.querySelector('[data-inbox-row][data-inbox-subject-id=\"browser-reject-root\"]'))"));
   await click(adoptForm + ' button[value="confirm"]');
   await waitFor("document.activeElement === " + dom(adoptForm + ' textarea[name="reason"]'));
   assert.equal(await evaluate(dom(adoptForm + ' textarea[name="reason"]') + ".getAttribute('aria-invalid')"), "true");
@@ -67,11 +79,11 @@ test("Proposal UI preserves user input on failed confirmation, retries atomicall
   assert.ok(afterAdopt.goal_tree_proposals.find((p) => p.proposal_id === adopted.proposal_id)!.items.every((item) => item.state === "applied"));
   assert.equal(await evaluate("document.activeElement.matches('[data-decision-receipt]')"), true);
   await reloadPage();
-  await waitFor(dom(rejectForm));
+  await waitFor("document.readyState === 'complete' && !" + dom(adoptForm));
   assert.equal(await evaluate("Boolean(" + dom(adoptForm) + ")"), false);
   assert.deepEqual(store.snapshot(DEMO_BOARD_ID).goals, afterAdopt.goals);
   assert.deepEqual(store.snapshot(DEMO_BOARD_ID).relations, afterAdopt.relations);
-  await click('[data-feed-entry-id="decision:browser-reject-root"]');
+  await openGoal("browser-reject-root", rejectForm);
   await click(rejectForm + ' button[value="reject"]');
   await waitFor("document.activeElement === " + dom(rejectForm + ' textarea[name="reason"]'));
   await command("Input.insertText", { text: "暂不需要这个分支，保留原目标树。" }, sessionId);

@@ -1,10 +1,10 @@
-import type { WorkSessionApi } from "@adeptify/goalboard-contracts/modules/private-work-context";
-import type { RuntimeHostApi } from "@adeptify/goalboard-contracts/services/runtime-host";
+import type { WorkSessionApi } from "@molis-ai/molis-work-contracts/modules/private-work-context";
+import type { RuntimeHostApi } from "@molis-ai/molis-work-contracts/services/runtime-host";
 import type { SessionDirectoryService } from "./directory.js";
 import {
-  GoalBoardSessionError,
-  type GoalBoardSessionHandoffRecord,
-  type GoalBoardSessionRecord,
+  MolisWorkSessionError,
+  type MolisWorkSessionHandoffRecord,
+  type MolisWorkSessionRecord,
   type SessionHandoffResult,
 } from "./types.js";
 
@@ -16,14 +16,14 @@ export class SessionHandoffDelivery {
     private readonly directory: SessionDirectoryService,
   ) {}
 
-  send(handoff: GoalBoardSessionHandoffRecord, actorId: string): Promise<SessionHandoffResult> {
+  send(handoff: MolisWorkSessionHandoffRecord, actorId: string): Promise<SessionHandoffResult> {
     return this.router.capabilities(handoff.target_runtime_id).handoff === "native"
       ? this.sendNative(handoff, actorId)
       : this.sendFallback(handoff, actorId);
   }
 
   private async sendNative(
-    handoff: GoalBoardSessionHandoffRecord,
+    handoff: MolisWorkSessionHandoffRecord,
     actorId: string,
   ): Promise<SessionHandoffResult> {
     let destination = handoff.destination_session_id
@@ -40,7 +40,7 @@ export class SessionHandoffDelivery {
           error_code: created.code,
           error_message: retryable
             ? "目标 Runtime 明确没有创建 Session。来源 Session 与草稿已保留，可以重试。"
-            : "目标 Session 的创建结果不确定。为避免重复创建，GoalBoard 不会自动重试；请先检查目标 Runtime。",
+            : "目标 Session 的创建结果不确定。为避免重复创建，Molis Work 不会自动重试；请先检查目标 Runtime。",
           retryable,
         });
         return { handoff: failed, destination_session: null };
@@ -50,7 +50,7 @@ export class SessionHandoffDelivery {
         const failed = this.registry.markHandoffFailed({
           package_id: handoff.package_id,
           error_code: "runtime.native_session_id_missing",
-          error_message: "目标 Runtime 已响应创建请求，但没有返回可识别的 Session ID。创建结果不确定；为避免重复创建，GoalBoard 不会自动重试，请先检查目标 Runtime。",
+          error_message: "目标 Runtime 已响应创建请求，但没有返回可识别的 Session ID。创建结果不确定；为避免重复创建，Molis Work 不会自动重试，请先检查目标 Runtime。",
           retryable: false,
         });
         return { handoff: failed, destination_session: null };
@@ -65,7 +65,7 @@ export class SessionHandoffDelivery {
       } catch (error) {
         const failed = this.registry.markHandoffFailed({
           package_id: handoff.package_id,
-          error_code: error instanceof GoalBoardSessionError ? error.code : "session.identity_conflict",
+          error_code: error instanceof MolisWorkSessionError ? error.code : "session.identity_conflict",
           error_message: error instanceof Error ? error.message : String(error),
           retryable: false,
         });
@@ -101,7 +101,7 @@ export class SessionHandoffDelivery {
         error_code: result.code,
         error_message: retryable
           ? "目标 Session 已创建，且 Runtime 明确没有接受 Handoff 内容；重试只会补发内容。"
-          : "目标 Session 已创建，但 Handoff 是否送达无法确认。为避免重复消息，GoalBoard 不会自动重试；请先检查目标 Session 内容。",
+          : "目标 Session 已创建，但 Handoff 是否送达无法确认。为避免重复消息，Molis Work 不会自动重试；请先检查目标 Session 内容。",
         retryable,
         destination_session_id: destination.session_id,
         delivery_mode: "native",
@@ -114,7 +114,7 @@ export class SessionHandoffDelivery {
       const failed = this.registry.markHandoffFailed({
         package_id: handoff.package_id,
         error_code: "session.identity_conflict",
-        error_message: "目标 Runtime 返回了另一条 Session 身份；GoalBoard 没有覆盖已确认的目标关系。",
+        error_message: "目标 Runtime 返回了另一条 Session 身份；Molis Work 没有覆盖已确认的目标关系。",
         retryable: false,
         destination_session_id: destination.session_id,
         delivery_mode: "native",
@@ -131,7 +131,7 @@ export class SessionHandoffDelivery {
   }
 
   private async sendFallback(
-    handoff: GoalBoardSessionHandoffRecord,
+    handoff: MolisWorkSessionHandoffRecord,
     actorId: string,
   ): Promise<SessionHandoffResult> {
     let destination = handoff.destination_session_id
@@ -151,7 +151,7 @@ export class SessionHandoffDelivery {
       this.registry.attachHandoffDestination({
         package_id: handoff.package_id,
         destination_session_id: destination.session_id,
-        delivery_mode: "goalboard_fallback",
+        delivery_mode: "molis_work_fallback",
       });
       this.registry.appendEvent({
         session_id: destination.session_id,
@@ -162,13 +162,13 @@ export class SessionHandoffDelivery {
         metadata: {
           handoff_package_id: handoff.package_id,
           source_session_id: handoff.source_session_id,
-          delivery_mode: "goalboard_fallback",
+          delivery_mode: "molis_work_fallback",
         },
       });
       const sent = this.registry.markHandoffSent({
         package_id: handoff.package_id,
         destination_session_id: destination.session_id,
-        delivery_mode: "goalboard_fallback",
+        delivery_mode: "molis_work_fallback",
       });
       this.recordLineageEvents(destination, sent);
       return { handoff: sent, destination_session: destination };
@@ -178,24 +178,24 @@ export class SessionHandoffDelivery {
         error_code: "handoff.fallback_failed",
         error_message: destination
           ? "目标托管 Session 已创建，但 package 写入失败；重试会继续使用这条 Session。"
-          : "GoalBoard 无法创建目标托管 Session；来源 Session 与草稿已保留。",
+          : "Molis Work 无法创建目标托管 Session；来源 Session 与草稿已保留。",
         retryable: true,
         destination_session_id: destination?.session_id,
-        delivery_mode: destination ? "goalboard_fallback" : null,
+        delivery_mode: destination ? "molis_work_fallback" : null,
       });
       return { handoff: failed, destination_session: destination };
     }
   }
 
   private ensureNativeDestination(
-    handoff: GoalBoardSessionHandoffRecord,
+    handoff: MolisWorkSessionHandoffRecord,
     nativeSessionId: string,
     actorId: string,
-  ): GoalBoardSessionRecord {
+  ): MolisWorkSessionRecord {
     if (handoff.destination_session_id) {
       const current = this.registry.get(handoff.destination_session_id);
       if (current.native_runtime_session_id === nativeSessionId) return current;
-      throw new GoalBoardSessionError("session.identity_conflict", "Handoff 已连接另一个目标 Runtime Session");
+      throw new MolisWorkSessionError("session.identity_conflict", "Handoff 已连接另一个目标 Runtime Session");
     }
     const existing = this.registry.findByNativeRuntimeSession(handoff.target_runtime_id, nativeSessionId);
     if (existing) {
@@ -203,9 +203,9 @@ export class SessionHandoffDelivery {
         existing.session_id !== handoff.source_session_id
         && existing.metadata.handoff_package_id === handoff.package_id
       ) return existing;
-      throw new GoalBoardSessionError(
+      throw new MolisWorkSessionError(
         "session.identity_conflict",
-        "目标 Runtime 返回的不是一条新的 Session；GoalBoard 没有覆盖现有 Session 关系",
+        "目标 Runtime 返回的不是一条新的 Session；Molis Work 没有覆盖现有 Session 关系",
       );
     }
     return this.registry.createSession({
@@ -226,7 +226,7 @@ export class SessionHandoffDelivery {
     });
   }
 
-  private findRecordedDestination(handoff: GoalBoardSessionHandoffRecord): GoalBoardSessionRecord | null {
+  private findRecordedDestination(handoff: MolisWorkSessionHandoffRecord): MolisWorkSessionRecord | null {
     return this.registry.list({ runtime_id: handoff.target_runtime_id })
       .find((session) => (
         session.session_id !== handoff.source_session_id
@@ -234,12 +234,12 @@ export class SessionHandoffDelivery {
       )) ?? null;
   }
 
-  private destinationTitle(handoff: GoalBoardSessionHandoffRecord): string {
+  private destinationTitle(handoff: MolisWorkSessionHandoffRecord): string {
     const source = this.registry.get(handoff.source_session_id);
     return `Handoff · ${source.title || handoff.source_goal_id}`.slice(0, 160);
   }
 
-  private recordLineageEvents(destination: GoalBoardSessionRecord, handoff: GoalBoardSessionHandoffRecord): void {
+  private recordLineageEvents(destination: MolisWorkSessionRecord, handoff: MolisWorkSessionHandoffRecord): void {
     try {
       this.registry.appendEvent({
         session_id: handoff.source_session_id,
@@ -261,8 +261,8 @@ export class SessionHandoffDelivery {
   }
 
   private recordDestinationStatus(
-    destination: GoalBoardSessionRecord,
-    handoff: GoalBoardSessionHandoffRecord,
+    destination: MolisWorkSessionRecord,
+    handoff: MolisWorkSessionHandoffRecord,
     content: string,
   ): void {
     try {

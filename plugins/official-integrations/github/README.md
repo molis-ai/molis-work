@@ -2,7 +2,7 @@
 
 提供 GitHub Provider、设备授权流程和账户呈现，将外部更新交给统一监听与 Signal 链路。
 
-包名：`@adeptify/goalboard-integration-github`。工作区内部包，通过仓库构建和 Host 装配使用。
+包名：`@molis-ai/molis-work-integration-github`。工作区内部包，通过仓库构建和 Host 装配使用。
 
 ## 一次典型调用
 
@@ -25,15 +25,15 @@ createGithubIntegrationPlugin 通过 SDK 注册 Driver/Adapter，createGithubPro
 
 Manifest 声明权限并不等于已经获得授权；实际 grant 与凭据由 Host 管理。本包不拥有 Feed 状态，也不以导入测试的通过声称真实 GitHub 账号已连通。
 
-工作区依赖：`@adeptify/goalboard-contracts`、`@adeptify/goalboard-plugin-sdk`。其他运行依赖见 [package.json](package.json)。
+工作区依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`。其他运行依赖见 [package.json](package.json)。
 
 ## 本地开发
 
 以下命令在**仓库根目录**执行，使用 Node.js 24+ 与仓库配置的 pnpm。首次准备运行 `pnpm install --frozen-lockfile` 和 `pnpm build`；之后可单独检查此包。
 
 ```bash
-pnpm --filter @adeptify/goalboard-integration-github typecheck
-pnpm --filter @adeptify/goalboard-integration-github build
+pnpm --filter @molis-ai/molis-work-integration-github typecheck
+pnpm --filter @molis-ai/molis-work-integration-github build
 ```
 
 已有行为示例与回归：[github-device-flow.test.ts](../../../tests/github-device-flow.test.ts)、[feed-connectors.test.ts](../../../tests/feed-connectors.test.ts)。完成上述构建后运行：
@@ -50,7 +50,7 @@ node --import tsx --test --test-concurrency=1 tests/github-device-flow.test.ts t
 - [架构与当前实现索引](../../../docs/SSOT-MATRIX.md)
 
 - Status: `partial`
-- Contract entrypoint: `@adeptify/goalboard-contracts/platform/plugin`
+- Contract entrypoint: `@molis-ai/molis-work-contracts/platform/plugin`
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-fd3`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。

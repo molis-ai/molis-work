@@ -2,9 +2,9 @@
 
 ## 背景与目标
 
-GoalBoard 已能在叶子 Goal 完成时向上结算复合父级，也能在已有 `accepted / abstract` 父 Goal 收口时结算；但普通 Draft 父 Goal 通过 Goal Tree Decision 变为 `accepted / closed_compound` 后，没有进入同一条结算调用链。
+Molis Work 已能在叶子 Goal 完成时向上结算复合父级，也能在已有 `accepted / abstract` 父 Goal 收口时结算；但普通 Draft 父 Goal 通过 Goal Tree Decision 变为 `accepted / closed_compound` 后，没有进入同一条结算调用链。
 
-真实 Board 已出现两个反例：`GOALBOARD-PROJECT-CATALOG-BINDING` 与 `GOALBOARD-DIALOGUE-GOAL-TREE` 的 active 子 Goal 全部 `satisfied`，父 Goal 仍为 `unmet`。目标是在 canonical Goal Tree 决定实际物化内容后，在同一事务内统一修复当前与历史复合父级的派生完成状态。
+真实 Board 已出现两个反例：`MOLIS_WORK-PROJECT-CATALOG-BINDING` 与 `MOLIS_WORK-DIALOGUE-GOAL-TREE` 的 active 子 Goal 全部 `satisfied`，父 Goal 仍为 `unmet`。目标是在 canonical Goal Tree 决定实际物化内容后，在同一事务内统一修复当前与历史复合父级的派生完成状态。
 
 ## 当前行为和问题证据
 

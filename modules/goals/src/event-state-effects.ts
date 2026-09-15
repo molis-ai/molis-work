@@ -18,7 +18,7 @@ import type {
   RequestGoalDecisionInput,
   ResumeGoalEventWorkInput,
   SubmitGoalEventClosureInput,
-} from "@adeptify/goalboard-contracts/modules/goals";
+} from "@molis-ai/molis-work-contracts/modules/goals";
 import { requestHash } from "./command-support.js";
 import {
   affectedExistingRequirementIds,

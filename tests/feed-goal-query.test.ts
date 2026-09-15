@@ -3,13 +3,13 @@ import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createLocalFeedApplication } from "@adeptify/goalboard-app-local-host";
-import { DEMO_BOARD_ID, seedDemoBoard } from "@adeptify/goalboard-app-local-host";
-import { LocalProjectDatabase } from "@adeptify/goalboard-app-local-host";
-import { GoalProjectApplication } from "@adeptify/goalboard-app-local-host";
+import { createLocalFeedApplication } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_BOARD_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 
 test("Feed Goal subject checks use project-scoped facts without hiding archived/trashed Goals or leaving failed writes", () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-feed-goal-query-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-feed-goal-query-"));
   const path = join(directory, "fixture.db");
   seedDemoBoard(path);
   const store = new LocalProjectDatabase(path);

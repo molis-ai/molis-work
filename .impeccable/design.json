@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "generatedAt": "2026-09-13T00:45:48+08:00",
-  "title": "Design System: GoalBoard Calm Desktop",
+  "title": "Design System: Molis Work Calm Desktop",
   "extensions": {
     "colorMeta": {
       "accent": {
@@ -281,7 +281,7 @@
   ],
   "narrative": {
     "northStar": "Calm Desktop",
-    "overview": "GoalBoard is a high-frequency personal workbench with a quiet project arrival surface and a dedicated Goal workspace. Its desktop workspace has two stable regions: one graphite directory that owns project and work navigation, and one flexible work surface. Project home can use generous whitespace; opening a Goal brings its current facts and real Runtime into view without duplicating domain state.\n\nThe Goal surface uses a neutral dotted dependency canvas. Clicking a compact Goal opens one fixed workspace within the main region: full-height Runtime on the left, collapsible Goal info above the chronological timeline on the right. Event bodies open inside that timeline; configuration and forms temporarily cover the left work area. The existing cool palette, system typography, and restrained spacing remain. The directory changes in place when the user enters Goals or the Feed Workbench. Inbox and Feed remain two presets of the same Item workspace, each with a visible path back.",
+    "overview": "Molis Work is a high-frequency personal workbench with a quiet project arrival surface and a dedicated Goal workspace. Its desktop workspace has two stable regions: one graphite directory that owns project and work navigation, and one flexible work surface. Project home can use generous whitespace; opening a Goal brings its current facts and real Runtime into view without duplicating domain state.\n\nThe Goal surface uses a neutral dotted dependency canvas. Clicking a compact Goal opens one fixed workspace within the main region: full-height Runtime on the left, collapsible Goal info above the chronological timeline on the right. Event bodies open inside that timeline; configuration and forms temporarily cover the left work area. The existing cool palette, system typography, and restrained spacing remain. The directory changes in place when the user enters Goals or the Feed Workbench. Inbox and Feed remain two presets of the same Item workspace, each with a visible path back.",
     "keyCharacteristics": [
       "One desktop directory instead of parallel navigation columns.",
       "Project-scoped, persistent Goal tabs above the main work surface.",
@@ -289,7 +289,7 @@
       "Soft tonal surfaces and calibrated shadows instead of pervasive structure lines.",
       "Cool monochrome surfaces with a restrained cobalt focus color.",
       "Compact information density in navigation, with calm reading density in the selected Goal.",
-      "Runtime application chrome follows GoalBoard; only the terminal canvas becomes a distinct execution environment."
+      "Runtime application chrome follows Molis Work; only the terminal canvas becomes a distinct execution environment."
     ],
     "rules": [
       {
@@ -384,7 +384,7 @@
       },
       {
         "name": "The Source-in-Context Rule",
-        "body": "Inbox and Feed rows always retain a visible source fact, even when the Item comes from GoalBoard itself. The 来源 workbench uses the same title, secondary-fact, and trailing-state hierarchy; its detail owns overview, configuration, pull schedule, source messages, and run state. Adding a source, binding an account, or migrating Relay may use a focused dialog, but browsing and managing an existing Source never depends on that dialog. Connector remains the capability and Source remains the configured instance.",
+        "body": "Inbox and Feed rows always retain a visible source fact, even when the Item comes from Molis Work itself. The 来源 workbench uses the same title, secondary-fact, and trailing-state hierarchy; its detail owns overview, configuration, pull schedule, source messages, and run state. Adding a source, binding an account, or migrating Relay may use a focused dialog, but browsing and managing an existing Source never depends on that dialog. Connector remains the capability and Source remains the configured instance.",
         "section": "components"
       },
       {
@@ -415,7 +415,7 @@
       "Do test Light, Dark, Standard, Compact, Runtime-open, narrow states, and both terminal palettes together.",
       "Do keep every mobile workspace surface full width and free of horizontal viewport escapes.",
       "Do let users scan 关联与约束 summaries before expanding one body, and reveal the correct card before honoring a deep link.",
-      "Do keep the existing Goal search usable inside the Goals drill-down. GW5 restored the search field above its compact toolbar after real browser tests found it hidden by desktop CSS; this does not add search to the root directory or change the visual direction. Desktop and 390px captures were inspected; details and evidence are in `specs/goalboard-architecture-reorganization/gw5-progress.md`.",
+      "Do keep the existing Goal search usable inside the Goals drill-down. GW5 restored the search field above its compact toolbar after real browser tests found it hidden by desktop CSS; this does not add search to the root directory or change the visual direction. Desktop and 390px captures were inspected; details and evidence are in `specs/molis-work-architecture-reorganization/gw5-progress.md`.",
       "Do treat an explicit “加入组合” click as the project-adoption confirmation and send it to the existing guarded API. GW5 repaired the missing client field; it did not weaken the server check or auto-adopt methods. Real failed/retried saves, independent personal/project versions and desktop/390px captures were verified; no visual redesign was made (impeccable harden)."
     ],
     "donts": [

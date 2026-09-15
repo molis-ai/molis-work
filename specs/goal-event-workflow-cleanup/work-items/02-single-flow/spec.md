@@ -47,7 +47,7 @@
 - 没有任何 Claim/Run 可提交、检查并批准结构关系；循环/跨项目/相关陈旧基线失败无部分写入；同键重试/Host 重启保持一次落地；新增树 Goal 可直接 report。
 - 同 Goal 的列表、状态、恢复和页面一致；未填规划仍可记录；完整状态不再含 legacy_claim_run、旧 role readiness 或重复 current_agreement/intent outcome 别名。
 - 临时旧版本 DB 含未完成、已完成和带人工要求的 Goal：一次迁入后要求/历史/原完成不丢、不生新批准；明确继续已完成后旧完成退出当前，重启无重复。
-- build、boundary 与针对性真实入口/树/恢复/数据迁移测试通过；被退役测试记录行为去向，禁 skip/放宽为绿。全仓和最终UI在04。临时日志 `/private/tmp/goalboard-flow-cleanup/02-*`。
+- build、boundary 与针对性真实入口/树/恢复/数据迁移测试通过；被退役测试记录行为去向，禁 skip/放宽为绿。全仓和最终UI在04。临时日志 `/private/tmp/molis-work-flow-cleanup/02-*`。
 
 输出本项 handoff.md：接口与迁移最终行为、实际调用链、删除/保留理由、命令证据、未完项；主共享 spec/progress/acceptance 仅由主更新。
 
@@ -76,7 +76,7 @@
 5. **分页与明确恢复焦点。** `updated_at|goal_id` 分页应按所存排序锚点继续（或明确报陈旧），不能因 anchor 已更新/删除而 findIndex=-1 后返回第一页。Host/Session 明确焦点应按 ID 单独读取/校验，不受普通发现 limit=100 截断影响，且不能覆盖终端绑定或向 Runtime 发消息。
 6. **完成有限类型与相关删除。** 新提交 input 必须真正引用 goal/create 与 relation/create|deactivate 的 discriminated union；只声明有限 payload interface、实际 items 仍接旧万能 kind/Record 不算完成。新协议不用的旧 MCP tree payload 不能仅增加 export 来压掉 unused 错误；去掉实际无消费者的定义和 glue。03 仍负责全局旧协议退役。
 
-独立证据 `/private/tmp/goalboard-flow-cleanup/02-entry-acceptance.log`、`02-tree-acceptance.log`、`02-migration-acceptance.log`（脚本同名 .mjs）。脚本在相互独立场景中累计失败并最终失败，不把继续诊断当作通过。已通过：真实引导/Web/Feed 创建与失败回滚，源/关联/要求重启保留；无 Run 树提交/检查/真实 Web 批准、部分选择、精确关系基线变化、全批循环、跨项目落地拒绝；迁移写失败回滚、四种样本原历史/支持/完成保留、明确继续；列表与单 Goal 状态一致。未通过项见上。
+独立证据 `/private/tmp/molis-work-flow-cleanup/02-entry-acceptance.log`、`02-tree-acceptance.log`、`02-migration-acceptance.log`（脚本同名 .mjs）。脚本在相互独立场景中累计失败并最终失败，不把继续诊断当作通过。已通过：真实引导/Web/Feed 创建与失败回滚，源/关联/要求重启保留；无 Run 树提交/检查/真实 Web 批准、部分选择、精确关系基线变化、全批循环、跨项目落地拒绝；迁移写失败回滚、四种样本原历史/支持/完成保留、明确继续；列表与单 Goal 状态一致。未通过项见上。
 
 基线测试只用精确引用关系本身的实际变更；两个共享端点但可交换的独立关系添加不要求机械冲突。跨项目/循环提案可以保存供检查，但 check/批准必须拒绝落地且无部分业务图写入，未知控制字段/退役 kind 在新输入校验拒绝。
 
@@ -84,7 +84,7 @@
 
 2026-09-10：接口与表单均按当前要求成员资格处理。`02-a-build.log` / `02-a-boundary.log` 通过；`02-a-tests.log` 6 项通过，无 skip。主实际 Chrome 点击验证 `02-a-ui.log` 通过：1440px 新建要求改原文并设人工验收，390px 迁入人工要求退休，最终当前状态符合输入；两张截图已目视检查。01 的保护性授权与 CAS 沿用；B–F 仍待完成。
 
-迁移回归当前还依赖本机 `/private/tmp` 的源库。B 需把真实旧版测试输入变为仓库内可复现 fixture（保留原始旧 schema/历史事实），禁止继续把本机临时文件作为测试前提。主已从四份不可变 v35 源库导出标准 SQLite SQL dump 到 `/private/tmp/goalboard-flow-cleanup/02-{legacy,mixed,approved,approved-completed}-v35.sql`，可纳入测试 fixture，在临时 DB 还原后走真实首次打开迁移；不使用新版本先迁好再伪装旧版本的测试替代物。
+迁移回归当前还依赖本机 `/private/tmp` 的源库。B 需把真实旧版测试输入变为仓库内可复现 fixture（保留原始旧 schema/历史事实），禁止继续把本机临时文件作为测试前提。主已从四份不可变 v35 源库导出标准 SQLite SQL dump 到 `/private/tmp/molis-work-flow-cleanup/02-{legacy,mixed,approved,approved-completed}-v35.sql`，可纳入测试 fixture，在临时 DB 还原后走真实首次打开迁移；不使用新版本先迁好再伪装旧版本的测试替代物。
 
 ### 修正 B 首次独立复核
 
@@ -110,7 +110,7 @@ D 首轮构建、边界、独立脚本的 writer 执行通过：`02-d-web-retry-
 
 主核对实际调用方发现：`proposal-client.ts` 在有系统问题时仍允许退回理由为空，`proposal-ui.ts` 仍将理由标为可选并声称后台自动附上问题。取消后台动态改写后，这条真实界面路径会空提交失败。D 必须同步：在显示决定表单时把当前已展示的问题预填为可编辑的具体退回理由，用户看到后可直接采用或修改；提交传原理由，前端对确认/拒绝统一拦空，并移除“提交后自动附上”的过时文案。理由来自已展示问题，不新增缓存/第二套校验或恢复后台按变化后的状态改写。实际 Chrome 点击验证预填提交、用户改写、清空报错和重试保存内容一致。其它旧 Risk/固定拆分界面的全局清理仍归03。
 
-完整调用链还包括客户端操作键：`dialogs-client.ts` 的新建和 `proposal-client.ts` 的树决定每次都直接调用 `goalboardControlHeaders()`（该函数每次随机生成键），未像当前 `event-document-client.ts` 那样在表单保存本次幂等键。成功响应丢失后再点同一表单，会变成另一操作。D 同步采用现有表单局部键模式：首次有效提交保存键，同一未完成提交重试复用该键；成功结束后清理，新的创建意图取得新键。只有这两个已有业务幂等入口需要调整，不修改全局控制头或扩大其它管理端点权限。真实 Chrome 模拟请求已经保存但响应丢失，验证再次点击返回同一个 Goal/树决定且无重复业务副作用。
+完整调用链还包括客户端操作键：`dialogs-client.ts` 的新建和 `proposal-client.ts` 的树决定每次都直接调用 `molisWorkControlHeaders()`（该函数每次随机生成键），未像当前 `event-document-client.ts` 那样在表单保存本次幂等键。成功响应丢失后再点同一表单，会变成另一操作。D 同步采用现有表单局部键模式：首次有效提交保存键，同一未完成提交重试复用该键；成功结束后清理，新的创建意图取得新键。只有这两个已有业务幂等入口需要调整，不修改全局控制头或扩大其它管理端点权限。真实 Chrome 模拟请求已经保存但响应丢失，验证再次点击返回同一个 Goal/树决定且无重复业务副作用。
 
 ### 修正 D 主验收通过
 

@@ -2,7 +2,7 @@ import type { AttentionApi, AttentionReason } from "./attention-resumption.js";
 import type { ContractDescriptor } from "../platform/package.js";
 
 export const modulesFeedContract = {
-  contractId: "io.goalboard.module.feed.v1",
+  contractId: "io.molis.work.module.feed.v1",
   kind: "module",
   schemaVersion: 1,
   maturity: "partial",

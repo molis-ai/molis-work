@@ -23,11 +23,11 @@ export function createTerminalAutofill(options: TerminalAutofillOptions) {
   let feedAutofillInFlight = false;
   let onboardingAutofillInFlight = false;
 
-  const feedAutofillKey = () => `goalboard-feed-runtime-autofill:${goalId()}`;
+  const feedAutofillKey = () => `molis-work-feed-runtime-autofill:${goalId()}`;
 
-  const onboardingAutofillKey = () => `goalboard-onboarding-runtime-autofill:${goalId()}`;
+  const onboardingAutofillKey = () => `molis-work-onboarding-runtime-autofill:${goalId()}`;
 
-  const postOnboardingRuntimeState = (type: "goalboard:onboarding-runtime-ready" | "goalboard:onboarding-runtime-waiting" | "goalboard:onboarding-runtime-error", message?: string) => {
+  const postOnboardingRuntimeState = (type: "molis-work:onboarding-runtime-ready" | "molis-work:onboarding-runtime-waiting" | "molis-work:onboarding-runtime-error", message?: string) => {
     if (new URLSearchParams(location.search).get("onboarding-embed") !== "1" || window.parent === window) return;
     window.parent.postMessage({ type, goalId: goalId(), message }, location.origin);
   };
@@ -154,20 +154,20 @@ export function createTerminalAutofill(options: TerminalAutofillOptions) {
       const terminalSettled = await waitForTerminalOutput(panel.panel_id, 15_000, 700);
       if (!terminalSettled) {
         setStatus(L("Runtime 还在启动；准备好后会自动填入项目提示。"), "busy");
-        postOnboardingRuntimeState("goalboard:onboarding-runtime-waiting");
+        postOnboardingRuntimeState("molis-work:onboarding-runtime-waiting");
         window.setTimeout(() => void fillPendingOnboardingContext(), 900);
         return;
       }
       const startupObservationRemaining = 7_500 - (Date.now() - pending.startedAt);
       if (startupObservationRemaining > 0) {
         setStatus(L("Runtime 还在启动；准备好后会自动填入项目提示。"), "busy");
-        postOnboardingRuntimeState("goalboard:onboarding-runtime-waiting");
+        postOnboardingRuntimeState("molis-work:onboarding-runtime-waiting");
         window.setTimeout(() => void fillPendingOnboardingContext(), Math.min(startupObservationRemaining + 80, 1_000));
         return;
       }
       if (terminalIsWaitingForStartupConfirmation(panel.panel_id)) {
         setStatus(L("先完成 Runtime 里的启动确认；完成后会自动填入项目提示。"), "busy");
-        postOnboardingRuntimeState("goalboard:onboarding-runtime-waiting");
+        postOnboardingRuntimeState("molis-work:onboarding-runtime-waiting");
         return;
       }
       if (terminalShowsReadyPrompt(panel.panel_id, pending.runtimeKind)) {
@@ -175,12 +175,12 @@ export function createTerminalAutofill(options: TerminalAutofillOptions) {
         sessionStorage.removeItem(onboardingAutofillKey());
         setStatus(L("初始化提示已填入，检查后再发送。"), "live");
         showPageToast(L("初始化提示已填入 Terminal"));
-        postOnboardingRuntimeState("goalboard:onboarding-runtime-ready");
+        postOnboardingRuntimeState("molis-work:onboarding-runtime-ready");
         return;
       }
       if (pending.runtimeKind === "codex") {
         setStatus(L("Runtime 还在启动；准备好后会自动填入项目提示。"), "busy");
-        postOnboardingRuntimeState("goalboard:onboarding-runtime-waiting");
+        postOnboardingRuntimeState("molis-work:onboarding-runtime-waiting");
         window.setTimeout(() => void fillPendingOnboardingContext(), 900);
         return;
       }
@@ -188,11 +188,11 @@ export function createTerminalAutofill(options: TerminalAutofillOptions) {
       sessionStorage.removeItem(onboardingAutofillKey());
       setStatus(L("初始化提示已填入，检查后再发送。"), "live");
       showPageToast(L("初始化提示已填入 Terminal"));
-      postOnboardingRuntimeState("goalboard:onboarding-runtime-ready");
+      postOnboardingRuntimeState("molis-work:onboarding-runtime-ready");
     } catch (error) {
       const message = errorText(error);
       setStatus(message, "error");
-      postOnboardingRuntimeState("goalboard:onboarding-runtime-error", message);
+      postOnboardingRuntimeState("molis-work:onboarding-runtime-error", message);
     } finally {
       onboardingAutofillInFlight = false;
     }
@@ -206,11 +206,11 @@ export function createTerminalAutofill(options: TerminalAutofillOptions) {
       runtimeKind?: string;
       workspacePath?: string;
     } | null;
-    if (data?.type !== "goalboard:onboarding-runtime-bootstrap" || data.goalId !== goalId()) return;
+    if (data?.type !== "molis-work:onboarding-runtime-bootstrap" || data.goalId !== goalId()) return;
     const runtimeKind = typeof data.runtimeKind === "string" ? data.runtimeKind.trim() : "";
     const workspacePath = typeof data.workspacePath === "string" ? data.workspacePath.trim() : "";
     if (!runtimeKind || !workspacePath) {
-      postOnboardingRuntimeState("goalboard:onboarding-runtime-error", L("Runtime 或工作目录无效，无法继续这次初始化。"));
+      postOnboardingRuntimeState("molis-work:onboarding-runtime-error", L("Runtime 或工作目录无效，无法继续这次初始化。"));
       return;
     }
     sessionStorage.setItem(onboardingAutofillKey(), JSON.stringify({ runtimeKind, workspacePath, at: Date.now() }));

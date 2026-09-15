@@ -6,7 +6,7 @@ name: "客户成功与服务"
 summary: "从客户目标、采用阶段、支持闭环和续用证据建立可持续服务体系。"
 applies_to: ["客户成功","用户支持","专业服务"]
 domain_tags: ["customer-success","support","service"]
-source_refs: ["ITIL service value system","GoalBoard operating-flow method"]
+source_refs: ["ITIL service value system","Molis Work operating-flow method"]
 confidence: 0.89
 ---
 

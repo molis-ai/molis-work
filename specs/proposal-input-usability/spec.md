@@ -1,7 +1,7 @@
 # 提案输入校验与机械参数减负
 
 ## 背景目标
-用户要求只修 GoalBoard，并质疑接口参数/设置复杂度。真实 FlyLeaf 任务提交 Goal Tree 时缺 source_refs/confidence、affected_objects 使用 kind/id，产生 TypeError .map；改走 legacy Contract 后逐个遇到 rationale/status 缺失。另一任务提案和 FlyLeaf 代码不修改。
+用户要求只修 Molis Work，并质疑接口参数/设置复杂度。真实 FlyLeaf 任务提交 Goal Tree 时缺 source_refs/confidence、affected_objects 使用 kind/id，产生 TypeError .map；改走 legacy Contract 后逐个遇到 rationale/status 缺失。另一任务提案和 FlyLeaf 代码不修改。
 完成等级：修复到功能可用，定向回归验证；不升级现用安装、不恢复桌面验收、不提交推送。
 
 ## 决策与边界
@@ -35,4 +35,4 @@ Governance provenance 持有来源校验和系统常量；Goals plugin 持有条
 - 未运行：更新现用 Home、真实 Runtime 新 Session、桌面启动；这些仍属于之前验收的待办，本轮未接触 4173 或另一任务的提案。未提交/推送。
 - 测试修正记录：初次新增 MCP 断言把已有“错误文字 + 末行 JSON”格式误当纯 JSON；按实际协议读取末行结构化 details 后通过，未修改产品错误格式来迁就测试。
 
-本地日志：/private/tmp/goalboard-proposal-fix-{build,tests,contract,replay,boundary}.log。
+本地日志：/private/tmp/molis-work-proposal-fix-{build,tests,contract,replay,boundary}.log。

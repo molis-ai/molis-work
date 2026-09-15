@@ -1,5 +1,5 @@
 import type { WorkSessionHttpContext } from "./types.js";
-import { GoalBoardSessionError } from "@adeptify/goalboard-contracts/modules/private-work-context";
+import { MolisWorkSessionError } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import { publicSessionRecord } from "./public-records.js";
 
 export async function handleSessionCreateHttp(context: WorkSessionHttpContext): Promise<boolean> {
@@ -112,7 +112,7 @@ export async function handleSessionCreateHttp(context: WorkSessionHttpContext): 
           });
       respond( 201, { session: publicSessionRecord(session) });
     } catch (error) {
-      respond( error instanceof GoalBoardSessionError ? 400 : 503, {
+      respond( error instanceof MolisWorkSessionError ? 400 : 503, {
         error: error instanceof Error ? error.message : String(error),
       });
     }

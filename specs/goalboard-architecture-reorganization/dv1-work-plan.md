@@ -96,7 +96,7 @@ MCP App 接管回收站命令转换/结果提示、链接、Runtime 决定参数
 
 第六条切片：补齐 CLI/MCP 已有 Draft Dialogue、Goal Tree 和 legacy proposal 的公开应用 Contract。Clarification 记录移到 Governance Contract 唯一定义；跨 Goal/Execution/Governance 的调用接口归官方 Goals Native Plugin，原类型保留别名，Host 绑定原 Coordinator 方法。App 只做具名 wire 参数转换和已有历史展示，不复制语义、事务或权限规则；Runtime Goal Tree 的宿主确认来源仍由 root 先核实，再向公开接口传入既有 authority。保持历史参数转换、分页校验先于写入、错误与幂等、用户决定前 canonical 数据不变。允许修改上述 Contract、Host 组合、CLI/MCP handler 与 caller、相关测试及开发文档。最终 Host Client 收口和独立 Draft/Goal Tree 业务实现迁移仍须后续完成，不能以新接口冒充业务已迁完。
 
-第五条切片：官方 Goals Native Plugin 接管既有 Ready / Available / Explain 查询 Contract（只迁移原字段和类型），旧 types/coordinator 保留别名，禁止复制第二份定义。Host 向入口公开三项具名 availability Query，暂时组合原 Coordinator 实现；不迁移/修改选择、依赖、阻塞或并行建议算法。CLI/MCP App 负责其 wire 参数转换；MCP 的方法目录、Available 摘要、澄清历史分页移入 `query-presentation.ts`，保留全量/精简字段、目录 ID、排序、分页游标、错误编码/文字/details 与 JSON 缩进。错误由 root 注入同一 GoalBoardV1Error factory；分页只要求输入 turn_index 并透传原结果字段，不在 App 重新声明 Draft 领域模型。允许修改 native Goals availability-contract/index、原类型别名、Host runtime 组合、两个 App 的 availability handlers、MCP 展示代码和 public index、真实 caller、相应测试与文档。非目标仍为 Draft/Goal Tree 语义、Session 生命周期和新功能。
+第五条切片：官方 Goals Native Plugin 接管既有 Ready / Available / Explain 查询 Contract（只迁移原字段和类型），旧 types/coordinator 保留别名，禁止复制第二份定义。Host 向入口公开三项具名 availability Query，暂时组合原 Coordinator 实现；不迁移/修改选择、依赖、阻塞或并行建议算法。CLI/MCP App 负责其 wire 参数转换；MCP 的方法目录、Available 摘要、澄清历史分页移入 `query-presentation.ts`，保留全量/精简字段、目录 ID、排序、分页游标、错误编码/文字/details 与 JSON 缩进。错误由 root 注入同一 MolisWorkV1Error factory；分页只要求输入 turn_index 并透传原结果字段，不在 App 重新声明 Draft 领域模型。允许修改 native Goals availability-contract/index、原类型别名、Host runtime 组合、两个 App 的 availability handlers、MCP 展示代码和 public index、真实 caller、相应测试与文档。非目标仍为 Draft/Goal Tree 语义、Session 生命周期和新功能。
 
 第四条切片：CLI/MCP 将已有 Goals 与 Execution 公共 API 的 wire-to-command 转换迁入各自 App 的 `goal-commands.ts` / `execution-commands.ts`。每个 factory 返回显式命名、穷尽当前迁移操作的 handler 对象；不提供任意名称的 execute 总线，不把 Coordinator 搬进 App。root switch 只选择对应 handler，业务参数校验、权限、幂等仍由原 application 负责。MCP 顶层 board_id 覆盖嵌套 payload 的行为由 App wire helper 统一保持；Evidence locator_context 仅从宿主注入，并在 Evidence 操作发生时读取，不能被模型覆盖。Runtime audience / impersonation / connection 检查仍先于 handler，risk-state 的 actor_kind 保持由 audience 决定。允许修改四个新文件、MCP payload helper、公开 index、对应 CLI/MCP caller、命令转换和跨入口测试及开发说明；不迁移尚无公开应用端口的 Draft/Goal Tree/Project/Session 业务，不增加命令、重试、二次校验或新的授权规则。
 
@@ -130,7 +130,7 @@ MCP App 接管回收站命令转换/结果提示、链接、Runtime 决定参数
 验证通过：
 
 - 迁移前通过生产 server 导出捕获完整 catalog，迁移后直接比较全部 JSON：管理端 57 个、Runtime 44 个定义与 SERVER_INFO 一致，包含顺序、文字、required、嵌套 schema 和 audience 差异；基线只用于本次内存对账，没有另存重复 schema 或 digest。
-- `pnpm --filter @adeptify/goalboard-app-mcp build`、`pnpm exec tsc --noEmit -p tsconfig.json` 通过。
+- `pnpm --filter @molis-ai/molis-work-app-mcp build`、`pnpm exec tsc --noEmit -p tsconfig.json` 通过。
 - `node --import tsx --test tests/mcp-protocol.test.ts tests/mcp.test.ts`：35/35 通过、0 跳过；实际 Runtime 直接调用隐藏管理工具仍被拒绝，原 Project / Session / 用户确认与 Goal 操作回归保持通过。使用 Node 的 tsx loader 避免沙箱中 tsx CLI 临时 IPC 权限限制，不改变测试内容。
 - `pnpm boundary:check`：48 包、264 source files、65 dependency edges，0 错误；`git diff --check` 通过。
 
@@ -176,7 +176,7 @@ DV1 仍进行中；最终全量回归、全部开发后的真实前后端用户 
 
 - `plugins/native/goals/src/availability-contract.ts` 是既有 Ready/Available/Explain 请求、结果与子项类型的唯一声明位置；原 root definitions 替换为类型别名。没有新增 Query 算法、状态或数据表。
 - Host 的兼容 runtime 提供类型明确的 `availability`，绑定同一个 Coordinator；CLI/MCP App 的具名 Query handlers 消费该公开接口，入口不再直调 queryReady/queryAvailable/explainGoal。仍使用 `withProject`，不是最终 Host Client 收口。
-- `apps/mcp/src/query-presentation.ts` 接管方法目录 ID/摘要/正文、Available 全量与摘要、澄清历史分页；沿用原字段、顺序和数值转换。只读透传 Draft 其余字段，不复制领域类型。root 注入原 GoalBoardV1Error factory，错误 class/code/details 不变。
+- `apps/mcp/src/query-presentation.ts` 接管方法目录 ID/摘要/正文、Available 全量与摘要、澄清历史分页；沿用原字段、顺序和数值转换。只读透传 Draft 其余字段，不复制领域类型。root 注入原 MolisWorkV1Error factory，错误 class/code/details 不变。
 
 验证：native Goals / CLI / MCP build、根 TypeScript 通过；第四切片列出的完整 V1 与受影响入口组合再次 163/163 通过、0 跳过。`node --import tsx --test tests/query-presentation.test.ts` 两项通过：默认摘要不带历史 turns、保留最新 checkpoint，游标逐页返回原 turn 全部字段，排序不修改原输入；分页参数错误保持原类型、编码、details 及既有数字字符串转换。随后公开返回类型改为推导的分页结构，重新 build/TypeScript 和两项定向测试通过；没有运行时代码语义变化。
 

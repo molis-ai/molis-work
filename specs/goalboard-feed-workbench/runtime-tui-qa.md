@@ -2,11 +2,11 @@
 
 验收日期：2026-08-30
 完成等级：内部完整
-验收方式：隔离的临时 GoalBoard 项目、真实 Web/PTY、`/bin/sh` Terminal、自动化回归。
+验收方式：隔离的临时 Molis Work 项目、真实 Web/PTY、`/bin/sh` Terminal、自动化回归。
 
 ## AC1
 
-Start 会把用户带到正确的 Goal Runtime，同时保持 GoalBoard 生命周期边界。
+Start 会把用户带到正确的 Goal Runtime，同时保持 Molis Work 生命周期边界。
 
 - 首次 Start 创建 1 个 Draft Goal、1 个 confirmed `input_binding`，Item 状态变为“处理中”。
 - 同一页面重复 Start、刷新和 Web 进程重启后再次 Start 都返回同一个 `goal_id`，`created=false`，revision 不再增加。

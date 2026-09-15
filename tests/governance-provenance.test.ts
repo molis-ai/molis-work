@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { GovernanceError, GovernanceProvenance } from "@adeptify/goalboard-module-governance-collaboration";
-import type { ContractFieldSource, ContractProposalRecord, LegacyGovernanceSnapshot } from "@adeptify/goalboard-contracts/modules/governance-collaboration";
+import { GovernanceError, GovernanceProvenance } from "@molis-ai/molis-work-module-governance-collaboration";
+import type { ContractFieldSource, ContractProposalRecord, LegacyGovernanceSnapshot } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 
 const provenance = new GovernanceProvenance();
 const source = (field: ContractFieldSource["field"]): ContractFieldSource => ({ field, source_kind: "user_answer",

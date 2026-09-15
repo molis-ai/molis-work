@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { WorkSessionApi } from "@adeptify/goalboard-contracts/modules/private-work-context";
+import type { WorkSessionApi } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 
 const FLUSH_BYTES = 32 * 1024;
 const FLUSH_DELAY_MS = 250;

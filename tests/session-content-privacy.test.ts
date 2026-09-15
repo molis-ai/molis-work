@@ -4,11 +4,11 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { GoalBoardSessionRegistry } from "@adeptify/goalboard-module-private-work-context";
+import { MolisWorkSessionRegistry } from "@molis-ai/molis-work-module-private-work-context";
 
 test("Session event bodies are encrypted and sensitive metadata is not persisted", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "goalboard-session-privacy-"));
-  const home = path.join(directory, ".goalboard");
+  const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-session-privacy-"));
+  const home = path.join(directory, ".molis-work");
   const registry = await openWorkSessionRegistry({ homeDirectory: home });
   const marker = "TOP-SECRET-SESSION-BODY-9f7c";
   try {
@@ -48,4 +48,4 @@ test("Session event bodies are encrypted and sensitive metadata is not persisted
   assert.equal(fs.statSync(keyPath).mode & 0o777, 0o600);
   await rm(directory, { recursive: true, force: true });
 });
-import { openWorkSessionRegistry } from "@adeptify/goalboard-app-local-host";
+import { openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";

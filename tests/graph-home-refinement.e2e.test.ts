@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
-import { DEMO_BOARD_ID } from "@adeptify/goalboard-app-local-host";
+import { DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 const captures = new URL("../.impeccable/review/home/", import.meta.url);
@@ -16,9 +16,9 @@ test("Graph separates lineage selection from opening and starts centered at 100 
   await waitFor("document.body.dataset.desktopSurface === 'home'");
   await reloadPage();
   await waitFor("!document.querySelector('[data-work-surface=home]').hidden");
-  await click('[data-directory-panel="root"] [data-directory-open="goals"]');
+  await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor("document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true'");
-  const state = await evaluate<any>("JSON.parse(document.querySelector('#goalboard-data').textContent)");
+  const state = await evaluate<any>("JSON.parse(document.querySelector('#molis-work-data').textContent)");
   const eligible = state.goals.filter((g: any) => g.status === "continue" && !g.is_compound_parent).map((g: any) => ({ goal: before.goals.find(goal => goal.goal_id === g.goal.goal_id)! }));
   assert.ok(eligible.length > 0, "fixture contains genuinely startable Goals");
   const highestPriority = Math.max(...eligible.map((g: any) => g.goal.priority));
@@ -32,7 +32,7 @@ test("Graph separates lineage selection from opening and starts centered at 100 
   await click('[data-graph-zoom="fit"]');
   const targetId = await evaluate<string>("document.querySelector('[data-graph-edge]').dataset.edgeTo");
   const node = '[data-graph-node][data-goal-id="' + targetId + '"]';
-  await evaluate("window.__documentFetches=[];window.__goalChanges=[];const f=window.fetch;window.fetch=(...a)=>{if(String(a[0]).includes('/goals/'))window.__documentFetches.push(String(a[0]));return f(...a)};document.addEventListener('goalboard:goal-changed',e=>window.__goalChanges.push(e.detail.goalId));");
+  await evaluate("window.__documentFetches=[];window.__goalChanges=[];const f=window.fetch;window.fetch=(...a)=>{if(String(a[0]).includes('/goals/'))window.__documentFetches.push(String(a[0]));return f(...a)};document.addEventListener('molis-work:goal-changed',e=>window.__goalChanges.push(e.detail.goalId));");
   await click(node);
   await waitFor("document.querySelector(" + JSON.stringify(node) + ").classList.contains('is-selected')");
   assert.equal(await evaluate("document.querySelector('[data-goal-node-workspace]').hidden"), true);
@@ -70,5 +70,11 @@ test("Graph separates lineage selection from opening and starts centered at 100 
   await waitFor("!document.querySelector('[data-goal-node-workspace]').hidden");
   assert.deepEqual(store.snapshot(DEMO_BOARD_ID).goals, before.goals);
   assert.deepEqual(store.snapshot(DEMO_BOARD_ID).runs, before.runs);
+  await click('[data-goal-collapse]');
+  await click(node + ' [data-graph-frame]');
+  await waitFor("document.querySelector('[data-container-tab=" + JSON.stringify(targetId) + "][aria-current=\"page\"]')");
+  assert.equal(await evaluate("document.querySelector('[data-goal-node-workspace]').hidden"), true);
+  assert.equal(await evaluate("document.querySelector('[data-goal-canvas-shell]').hidden"), true);
+  assert.equal(await evaluate("document.querySelector('[data-goal-frame-surface]').hidden"), false);
 });
 

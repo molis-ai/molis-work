@@ -1,11 +1,11 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { GoalBoardHomeInstallError } from "./home-contract.js";
+import { MolisWorkHomeInstallError } from "./home-contract.js";
 import { pathState } from "./home-files.js";
 
 const OPTIONAL_RELEASE_DOCS = ["LICENSE", "README.md"] as const;
 
-/** GoalBoard manifests use explicit relative files/directories, not globs. */
+/** Molis Work manifests use explicit relative files/directories, not globs. */
 export function isUnsupportedReleaseFileEntry(entry: string): boolean {
   return path.isAbsolute(entry) || entry.split(/[\\/]/).includes("..") || /[*?\[\]{}]/.test(entry);
 }
@@ -69,13 +69,13 @@ export async function runtimeDependencyReleaseEntries(directory: string): Promis
     });
     return [...new Set(["package.json", ...declared])].sort();
   } catch (error) {
-    if (error instanceof GoalBoardHomeInstallError) throw error;
+    if (error instanceof MolisWorkHomeInstallError) throw error;
     const message = error instanceof Error ? error.message : String(error);
-    throw new GoalBoardHomeInstallError(
+    throw new MolisWorkHomeInstallError(
       message.includes("Missing release asset") ? "source.asset_missing" : "source.invalid",
       message.startsWith("Missing release asset") || message.startsWith("Unsupported release files")
         ? message
-        : `GoalBoard 依赖发布文件范围无效: ${message}`,
+        : `Molis Work 依赖发布文件范围无效: ${message}`,
     );
   }
 }

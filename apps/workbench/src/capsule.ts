@@ -1,6 +1,6 @@
-import { countGoalDecisions } from "@adeptify/goalboard-plugin-goals";
-import { THEME_BOOTSTRAP_SCRIPT } from "@adeptify/goalboard-design-system";
-import type { GoalBoardWebView } from "./page-view.js";
+import { countGoalDecisions } from "@molis-ai/molis-work-plugin-goals";
+import { THEME_BOOTSTRAP_SCRIPT } from "@molis-ai/molis-work-design-system";
+import type { MolisWorkWebView } from "./page-view.js";
 import type { WebProjectNavigation } from "./settings-navigation.js";
 import type { WorkbenchRendererPorts } from "./renderer.js";
 import type { CapsuleSnapshot, CapsuleGoalItem, CapsuleTab, CapsuleTabKind } from "./capsule-view.js";
@@ -17,7 +17,7 @@ export function createCapsuleWorkbench(ports: CapsuleRendererPorts) {
   const { L, htmlLang, clientI18nScript } = ports.locale;
   const { newestRun, activeGoalViews, newestFirst, recentCompletedGoal, projectPath, decisionItem, activeItem, availableItem, blockedItem, waitingItem, completeItem, TAB_ORDER, tabMeta, stateFromItem } = createCapsuleItemProjection(L);
   function buildCapsuleSnapshot(
-    view: GoalBoardWebView,
+    view: MolisWorkWebView,
     directory: { goal_id: string }[],
     now = new Date(),
     completionDisplayMs = 10_000,
@@ -131,14 +131,14 @@ export function createCapsuleWorkbench(ports: CapsuleRendererPorts) {
         goal_id: null,
         goal_title: L("当前没有聚焦的目标"),
         goal_path: projectPath(view),
-        action_label: L("打开 GoalBoard"),
+        action_label: L("打开 Molis Work"),
         action_path: projectPath(view),
         status_since: null,
         why: L("当前没有正在执行或可以立即开始的目标"),
         just_completed: L("还没有新的完成记录"),
         current: L("当前没有正在执行的工作"),
         blocker: L("可能仍有前置事项、风险或目标说明需要处理"),
-        next: L("打开 GoalBoard 查看哪些条件还没有满足"),
+        next: L("打开 Molis Work 查看哪些条件还没有满足"),
         running_count: 0,
         additional_running: 0,
         menu_bar_title: L("空闲"),

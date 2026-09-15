@@ -1,5 +1,5 @@
 import { validateSearchIntentExactV1 } from "@adeptify/intelligence-client";
-import { FeedDomainError } from "@adeptify/goalboard-contracts/modules/feed";
+import { FeedDomainError } from "@molis-ai/molis-work-contracts/modules/feed";
 import type { FeedSourceRecord } from "./projection.js";
 import type { FeedSourceProviders, RegisterFeedSourceInput, IntelligenceCollectRequest } from "./source-ports.js";
 import { sha256, bounded, normalizeQuery } from "./source-input.js";
@@ -77,7 +77,7 @@ export function buildExactRequest(source: FeedSourceRecord, operationId: string,
     return validateSearchIntentExactV1({
       schema: "search-intent-v1",
       operationId,
-      goal: `同步网页查询来源「${source.name}」到 GoalBoard Feed`,
+      goal: `同步网页查询来源「${source.name}」到 Molis Work Feed`,
       taskProfile: "latest_monitoring",
       mode: "exact",
       input: { kind: "query", query },
@@ -120,7 +120,7 @@ export function buildExactRequest(source: FeedSourceRecord, operationId: string,
   return validateSearchIntentExactV1({
     schema: "search-intent-v1",
     operationId,
-    goal: `同步公开来源「${source.name}」到 GoalBoard Feed`,
+    goal: `同步公开来源「${source.name}」到 Molis Work Feed`,
     taskProfile: "exact_rss_ingest",
     mode: "exact",
     input: { kind: "feed", url: feedUrl },

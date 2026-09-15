@@ -4,7 +4,7 @@ accepted Goal goal-reorg-dv4 revision 1。唯一结果：按新包结构可复�
 
 ## 2026-09-06 已授权的桌面实测
 
-用户已明确同意临时暂停现用 4173，用隔离数据测试后恢复原服务。本次只暂停原受管服务，不更新用户安装、不改 Runtime 配置或用户项目；原 plist 与服务收据保持原样。先重新构建当前源码的 App/DMG，通过原安装脚本复制到新临时目录，再以独立 GOALBOARD_HOME 启动实际 App。核对首次安装、真实窗口/设置、退出重开和断线恢复；测试服务使用临时 Home 旁的 plist，但占用相同 LaunchAgent label，因此必须顺序进行。结束或故障时先退出测试 App、移除测试服务，再用原启动器恢复服务并验证健康及原配置不变。未完成的 GUI、升级或全产品验收明确保留，不用局部测试替代。
+用户已明确同意临时暂停现用 4173，用隔离数据测试后恢复原服务。本次只暂停原受管服务，不更新用户安装、不改 Runtime 配置或用户项目；原 plist 与服务收据保持原样。先重新构建当前源码的 App/DMG，通过原安装脚本复制到新临时目录，再以独立 MOLIS_WORK_HOME 启动实际 App。核对首次安装、真实窗口/设置、退出重开和断线恢复；测试服务使用临时 Home 旁的 plist，但占用相同 LaunchAgent label，因此必须顺序进行。结束或故障时先退出测试 App、移除测试服务，再用原启动器恢复服务并验证健康及原配置不变。未完成的 GUI、升级或全产品验收明确保留，不用局部测试替代。
 
 ## 当前证据与范围
 
@@ -16,7 +16,7 @@ accepted Goal goal-reorg-dv4 revision 1。唯一结果：按新包结构可复�
 
 ### 2026-09-06 实际旧包升级补验
 
-重启和标题栏修复已通过后，继续补 DV4 的旧安装升级链。仓库保留真实 `GoalBoard-0.1.13-macos-arm64.dmg`，不是伪改版本号；与当前 0.1.14 DMG 分别安装到新临时目录。先以独立 Home 启动旧 App，使用前端创建一个普通用户项目并记录可见内容，再退出旧 App、打开新 App，验证内嵌 Runtime 升级、受管服务切换、原项目与内容可见、退出重开保持。必要时通过该临时安装的正式 CLI 预览/确认普通卸载，再由新 App 重装并验证保留的项目恢复。当前真实用户 Home、Runtime 配置和 App 安装均不升级；共享 4173 只按已有授权短暂停用并恢复原服务。
+重启和标题栏修复已通过后，继续补 DV4 的旧安装升级链。仓库保留真实 `Molis Work-0.1.13-macos-arm64.dmg`，不是伪改版本号；与当前 0.1.14 DMG 分别安装到新临时目录。先以独立 Home 启动旧 App，使用前端创建一个普通用户项目并记录可见内容，再退出旧 App、打开新 App，验证内嵌 Runtime 升级、受管服务切换、原项目与内容可见、退出重开保持。必要时通过该临时安装的正式 CLI 预览/确认普通卸载，再由新 App 重装并验证保留的项目恢复。当前真实用户 Home、Runtime 配置和 App 安装均不升级；共享 4173 只按已有授权短暂停用并恢复原服务。
 
 这条验证只写本轮明确创建的测试项目，通过实际前端操作证明项目可用；后端检查核对安装版本、受管实例身份与持久化结果。不能把旧包比较、单元测试或安装收据单独当作完整用户旅程通过。失败时保留证据并在本 Goal 内定位，不修改产品版本或引入测试专用行为。现有生产回滚测试继续负责失败事务，不尝试把新 schema 强行降回旧 reader。
 
@@ -61,13 +61,13 @@ src/install 仍有 home 903 行、runtime-integration 1,393 行、web-service 79
 
 发布签名检查需要区分进程环境与产物：最初 sandbox codesign 校验返回 CSSMERR_TP_NOT_TRUSTED，但获准的完整发布进程签名校验通过；进一步核对发现当前环境已经指定 APPLE_SIGNING_IDENTITY=Tauri Local Development，因此不能把本次证书归因为 Tauri 无故误选，也不能称旧 shell 此次报告错了。按已有“无签名身份则内部 ad-hoc”约定明确提供 `-` 默认值，有显式身份时原样保留；打包前验证实际 App 签名并输出产物信息。两个环境分支需分别真实验证。无 Apple 公证不宣称公开可发布。当前 workflow 为 manual-only，文档不得描述为已有自动 tag 发布触发。
 
-Desktop GUI 首启固定使用 4173 和同一用户 LaunchAgent label；用户正在用该端口，临时 GOALBOARD_HOME 并不能隔离监听/LaunchAgent。普通无损重组不新增测试专用端口或隐藏禁用安装开关。先完成隔离 CLI/产物验证；需要真实占用该端口的 App 首启验收时，提供当前服务身份、暂停/恢复步骤和影响，取得精确授权后执行。
+Desktop GUI 首启固定使用 4173 和同一用户 LaunchAgent label；用户正在用该端口，临时 MOLIS_WORK_HOME 并不能隔离监听/LaunchAgent。普通无损重组不新增测试专用端口或隐藏禁用安装开关。先完成隔离 CLI/产物验证；需要真实占用该端口的 App 首启验收时，提供当前服务身份、暂停/恢复步骤和影响，取得精确授权后执行。
 
 干净副本实际 `pnpm install --frozen-lockfile` 已通过供应链校验，但原 build:migrated-packages 手写顺序在 Goals Plugin 处失败：它依赖的 Goals / Evidence Verification 模块尚未构建。改用 pnpm 按已声明依赖拓扑构建所有 workspace 包，不保留残留 dist 才能跑通的顺序；不通过加入虚假业务依赖调整构建。干净构建和完整包检查都必须再次执行。
 
-同一干净安装还证实 Plugin CLI 的 bin 直接指向未生成的 dist/main.js，pnpm 没创建命令且编译后也未自动补回。bin 改成随源码/发布包存在的薄启动文件，只 import 原编译入口；不复制 CLI 逻辑。安装建链后、构建完成时，实际 `pnpm exec goalboard-plugin` 必须可用。
+同一干净安装还证实 Plugin CLI 的 bin 直接指向未生成的 dist/main.js，pnpm 没创建命令且编译后也未自动补回。bin 改成随源码/发布包存在的薄启动文件，只 import 原编译入口；不复制 CLI 逻辑。安装建链后、构建完成时，实际 `pnpm exec molis-work-plugin` 必须可用。
 
-已证旧 macOS payload 脚本复制 workspace:* 根 manifest 后执行孤立 npm install，不能分发新结构。Local Host 增加 `createGoalBoardRuntimePayload` 公开构建入口：明确 source / 新 output / 已校验的 Node 文件，复用原 source inspection、递归依赖收集与 createRelease。不能在脚本里再写一套依赖树复制逻辑。输出是可直接用于 Tauri 和后续 `goalboard install --source` 的自包含目录；失败清理仅限本调用创建的 staging，不覆盖已有 output。
+已证旧 macOS payload 脚本复制 workspace:* 根 manifest 后执行孤立 npm install，不能分发新结构。Local Host 增加 `createMolisWorkRuntimePayload` 公开构建入口：明确 source / 新 output / 已校验的 Node 文件，复用原 source inspection、递归依赖收集与 createRelease。不能在脚本里再写一套依赖树复制逻辑。输出是可直接用于 Tauri 和后续 `molis-work install --source` 的自包含目录；失败清理仅限本调用创建的 staging，不覆盖已有 output。
 
 共享 release 内容包含 vendor 原始 tarball / provenance / SBOM、许可说明和原文档，它们也参与安装内容指纹，避免只复制运行代码而丢失来源。Node checksum 与目标架构校验保留在 Desktop release 工具；下载后用实际 bundled Node 打开 payload 的原生依赖并运行 CLI，不能只检查文件存在。移动 build / prepare / install / start / version-check 到 apps/desktop/tooling，package scripts、CI 和文档切新路径；根构建记录 adapter 属 Local Host tooling，workspace fingerprint 也覆盖对应 tooling 源文件。
 
@@ -91,6 +91,6 @@ Web Service Manager 保留公开的 detect / prepare / confirm 和相同结果�
 
 ## 主安装器切片
 
-home.ts 迁到 Local Host installer，按公开类型、源包检查、运行依赖收集、release staging/切换/回滚、launcher、受管文件 IO、安装事务分责。`installGoalBoardHome` 的 public API 要求显式 sourceDirectory；只有根 CLI 装配处按自己的入口位置提供默认产品根目录，保留用户不传 --source 时的原行为，不能在新子包中再用 ../.. 猜产品根目录。没有已发布的额外 Home API 兼容承诺，仓库所有调用者都随本切片切换。
+home.ts 迁到 Local Host installer，按公开类型、源包检查、运行依赖收集、release staging/切换/回滚、launcher、受管文件 IO、安装事务分责。`installMolisWorkHome` 的 public API 要求显式 sourceDirectory；只有根 CLI 装配处按自己的入口位置提供默认产品根目录，保留用户不传 --source 时的原行为，不能在新子包中再用 ../.. 猜产品根目录。没有已发布的额外 Home API 兼容承诺，仓库所有调用者都随本切片切换。
 
 构建指纹也归 App installer，root scripts 只调用公开生成函数。原检查仅覆盖根 src，迁到 workspace 的代码会漏检；增加当前 workspace 包的 src/package.json/tsconfig.json 和根 workspace/构建配置。忽略编译产物和 node_modules，避免检查因自身构建输出变化而永久过期。包发现按当前 pnpm workspace 层级，新增 workspace 层级时必须同步本列表与构建脚本。通过实际 install 测试证明只改 workspace 源码会拒绝旧构建、不会覆盖已有安装；更新构建记录后可安装。发行物没有源码时保留原 release 安装路径，不强加源码清单。

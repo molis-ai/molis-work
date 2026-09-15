@@ -1,8 +1,8 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { createGoalIntentCapability } from "@adeptify/goalboard-plugin-goals";
-import { onboardingPlanningHint } from "@adeptify/goalboard-app-workbench";
-import { goalBoardHostProjectReference, type GoalBoardLocalHost } from "./project-host.js";
-import { goalBoardOnboardingStatus, dismissGoalBoardOnboarding, completeGoalBoardOnboarding } from "./onboarding.js";
+import { createGoalIntentCapability } from "@molis-ai/molis-work-plugin-goals";
+import { onboardingPlanningHint } from "@molis-ai/molis-work-app-workbench";
+import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
+import { molisWorkOnboardingStatus, dismissMolisWorkOnboarding, completeMolisWorkOnboarding } from "./onboarding.js";
 import { projectNavigation } from "./web-project-presentation.js";
 import { webOnboardingInitializationInput, type WebOnboardingInitializationInput, type OnboardingRuntimePorts } from "./web-onboarding-input.js";
 import { sendLocalWebJson as sendJson, readLocalWebBody as readBody } from "./web-http.js";
@@ -12,15 +12,15 @@ import type { createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
 
 interface OnboardingHttpPorts extends OnboardingRuntimePorts {
   withCatalog: LocalWebCatalogRunner;
-  renderOnboarding: ReturnType<typeof createLocalHostWorkbenchRenderer>["renderGoalBoardOnboarding"];
+  renderOnboarding: ReturnType<typeof createLocalHostWorkbenchRenderer>["renderMolisWorkOnboarding"];
   isDesktopShellRequest(request: IncomingMessage, url: URL): boolean;
   pageCsp: string;
 }
 
 export function createLocalOnboardingHttp(ports: OnboardingHttpPorts) {
-  return async function handleOnboarding(request: IncomingMessage, response: ServerResponse, url: URL, homeDirectory: string | undefined, projectCount: number, localHost: GoalBoardLocalHost, controlToken: string): Promise<boolean> {
+  return async function handleOnboarding(request: IncomingMessage, response: ServerResponse, url: URL, homeDirectory: string | undefined, projectCount: number, localHost: MolisWorkLocalHost, controlToken: string): Promise<boolean> {
     if (request.method === "GET" && url.pathname === "/api/onboarding/status") {
-      sendJson(response, 200, goalBoardOnboardingStatus(homeDirectory, projectCount));
+      sendJson(response, 200, molisWorkOnboardingStatus(homeDirectory, projectCount));
       return true;
     }
     if (request.method === "POST" && url.pathname === "/api/onboarding/dismiss") {
@@ -32,7 +32,7 @@ export function createLocalOnboardingHttp(ports: OnboardingHttpPorts) {
       }
       try {
         sendJson(response, 200, {
-          state: dismissGoalBoardOnboarding(homeDirectory, kind),
+          state: dismissMolisWorkOnboarding(homeDirectory, kind),
         });
       } catch (error) {
         sendJson(response, 500, { error: error instanceof Error ? error.message : String(error) });
@@ -56,7 +56,7 @@ export function createLocalOnboardingHttp(ports: OnboardingHttpPorts) {
           });
           const projectPath = `/projects/${encodeURIComponent(project.project_id)}/`;
           partialProjectPath = projectPath;
-          const hostClient = localHost.client(goalBoardHostProjectReference({
+          const hostClient = localHost.client(molisWorkHostProjectReference({
             databasePath: project.database_path,
             boardId: project.board_id,
             projectId: project.project_id,
@@ -88,7 +88,7 @@ export function createLocalOnboardingHttp(ports: OnboardingHttpPorts) {
             : null;
           let journeyWarning: string | null = null;
           try {
-            completeGoalBoardOnboarding(homeDirectory, project.project_id);
+            completeMolisWorkOnboarding(homeDirectory, project.project_id);
           } catch (error) {
             journeyWarning = error instanceof Error ? error.message : String(error);
           }
@@ -123,7 +123,7 @@ export function createLocalOnboardingHttp(ports: OnboardingHttpPorts) {
       return true;
     }
     if (request.method === "GET" && url.pathname === "/onboarding") {
-      const status = goalBoardOnboardingStatus(homeDirectory, projectCount);
+      const status = molisWorkOnboardingStatus(homeDirectory, projectCount);
       const requestedMode = url.searchParams.get("mode");
       const mode = requestedMode === "update" || (status.update_required && requestedMode !== "new-project")
         ? "update"

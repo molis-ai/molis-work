@@ -8,8 +8,8 @@
 
 ## 当前行为和问题证据
 
-- `renderGoalBoardWeb` 对 `visibleGoals` 执行 `map(renderGoalDocument)`，所有正文与表单进入 DOM。
-- `#goalboard-data` 内嵌完整 `GoalBoardWebView`，重复携带全部 Goal 的历史和执行事实。
+- `renderMolisWorkWeb` 对 `visibleGoals` 执行 `map(renderGoalDocument)`，所有正文与表单进入 DOM。
+- `#molis-work-data` 内嵌完整 `MolisWorkWebView`，重复携带全部 Goal 的历史和执行事实。
 - `refreshBoard` 每 4 秒请求约 2.7MB 的 `/api/board`；事件游标变化后又请求并解析整页。
 - `applySelection` 依赖预渲染文档，只在多个 `[data-goal-view]` 之间切换 `hidden`。
 
@@ -34,9 +34,9 @@
 
 ## 方案与关键决策
 
-1. 服务端继续用同一 `GoalBoardWebView` 和同一文档 renderer，新增单 Goal fragment 输出，避免页面与按需接口形成两套渲染逻辑。
+1. 服务端继续用同一 `MolisWorkWebView` 和同一文档 renderer，新增单 Goal fragment 输出，避免页面与按需接口形成两套渲染逻辑。
 2. 页面只输出 `selected` 文档；空集合继续输出现有空状态。
-3. `goalboard-data` 改为轻量结构：事件游标、项目/Board 身份、当前聚焦 ID，以及当前/归档/回收站集合的 `goal_id`、标题和状态。
+3. `molis-work-data` 改为轻量结构：事件游标、项目/Board 身份、当前聚焦 ID，以及当前/归档/回收站集合的 `goal_id`、标题和状态。
 4. 新增只读 `GET /api/board/cursor`，直接读取事件游标，不构建或传输完整 Board View。
 5. 新增只读 `GET /api/goals/:goal_id/document?view=current|archive|trash`，从同一 Web View 选择并渲染一份 `<article>`；错误集合返回 404。
 6. 客户端切换使用请求序号丢弃过期响应；加载失败保留原文档、恢复原选中项并给出错误提示。
@@ -46,7 +46,7 @@
 
 - 输入：当前项目路由、Goal ID、页面集合类型、Board 事件游标。
 - 输出：轻量 cursor JSON、单 Goal HTML fragment、只含一份正文的完整页面。
-- 依赖：`SqliteGoalBoardStore.eventCursor`、`buildGoalBoardWebView`、现有 renderer 与事件委托表单。
+- 依赖：`SqliteMolisWorkStore.eventCursor`、`buildMolisWorkWebView`、现有 renderer 与事件委托表单。
 
 ## 文件与模块边界
 

@@ -51,7 +51,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     status.textContent = L("正在添加…");
     try {
       const response = await fetch("/api/settings/projects/" + encodeURIComponent(targetProject) + "/plugins", {
-        method: "POST", headers: globalThis.goalboardControlHeaders(),
+        method: "POST", headers: globalThis.molisWorkControlHeaders(),
         body: JSON.stringify({ plugin_id: button.dataset.marketAdd }),
       });
       const result = await response.json();
@@ -65,7 +65,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
   });
   const directory = document.querySelector("[data-artifact-directory]");
   const detail = document.querySelector("[data-artifact-detail]");
-  const artifactKey = "goalboard-artifact-selection:" + route("/");
+  const artifactKey = "molis-work-artifact-selection:" + route("/");
   let artifactPath = null, artifactRequest = null;
   try {
     const storedPath = sessionStorage.getItem(artifactKey);
@@ -78,7 +78,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     const message = document.createElement("p"); message.textContent = L("正在读取成果…"); message.role = "status";
     detail.replaceChildren(message);
     try {
-      const response = await fetch(path, { cache: "no-store", headers: { "x-goalboard-fragment": "artifact-workbench" }, signal: controller.signal });
+      const response = await fetch(path, { cache: "no-store", headers: { "x-molis-work-fragment": "artifact-workbench" }, signal: controller.signal });
       if (!response.ok && response.status !== 404) throw new Error(L("无法读取成果"));
       const template = document.createElement("template"); template.innerHTML = await response.text();
       const nextDirectory = template.content.querySelector("[data-artifact-directory]");
@@ -104,6 +104,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     const base = route("/artifacts");
     if (url.origin !== location.origin || !(url.pathname === base || url.pathname.startsWith(base + "/"))) return;
     event.preventDefault();
+    if (link.closest("[data-frame-block]")) { event.preventDefault(); return; }
     setSurface("artifacts");
     void loadArtifacts(url.pathname);
     if (matchMedia("(max-width: 600px)").matches) setMobileView(url.pathname === base ? "tree" : "document");

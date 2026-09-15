@@ -1,10 +1,10 @@
-import type { StoredModuleEvent } from "@adeptify/goalboard-contracts/platform/storage";
+import type { StoredModuleEvent } from "@molis-ai/molis-work-contracts/platform/storage";
 import type {
   EvidenceCorrectionRecord,
   EvidenceRecord,
   EvidenceProjectReferenceSource,
   EvidenceReviewReference,
-} from "@adeptify/goalboard-contracts/modules/evidence-verification";
+} from "@molis-ai/molis-work-contracts/modules/evidence-verification";
 
 type Row = Record<string, unknown>;
 

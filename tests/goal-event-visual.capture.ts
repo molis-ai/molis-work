@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import test from "node:test";
-import { DEMO_BOARD_ID, GoalProjectApplication } from "@adeptify/goalboard-app-local-host";
+import { DEMO_BOARD_ID, GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
-const OUT = "/tmp/goalboard-grok/04-ui";
+const OUT = "/tmp/molis-work-grok/04-ui";
 
 test("capture isolated production Goal event document screenshots", { timeout: 90_000 }, async (t) => {
   const browser = await openGoalBrowser(t);

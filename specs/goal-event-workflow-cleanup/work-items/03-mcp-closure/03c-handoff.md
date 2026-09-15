@@ -8,7 +8,7 @@ Root independently re-runs affected probes, then dispatches 04 (UI copy, documen
 
 ## Production correction already in tree
 
-`plugins/native/work/src/handoff-package.ts` current acceptance uses `eventFacts.requirements` only. Original Goal `acceptance_criteria` statements, pass conditions and decision methods sit under `## 历史记录（只读）` / `## 历史验收标准`. Completed/cancelled continuation names public `goalboard_v1_event_resume`. Session delivery/source/provenance/storage unchanged.
+`plugins/native/work/src/handoff-package.ts` current acceptance uses `eventFacts.requirements` only. Original Goal `acceptance_criteria` statements, pass conditions and decision methods sit under `## 历史记录（只读）` / `## 历史验收标准`. Completed/cancelled continuation names public `molis_work_v1_event_resume`. Session delivery/source/provenance/storage unchanged.
 
 Root already verified: `03-c2d-root-handoff-history.log`, `03-c2d-root-current-handoff.log`. Retained `tests/session-handoff.test.ts` covers live-requirement vs historical criteria and the public resume tool. Keep those tests.
 
@@ -83,7 +83,7 @@ Direct old relation create/deactivate HTTP subpath is also retired (route delete
 
 ## Production copy this continuation
 
-`plugins/native/goals/src/goal-state-copy.ts`: positive current-event next actions (no “领取角色 / 不要领取”). Resume instructions name `goalboard_v1_event_resume`.
+`plugins/native/goals/src/goal-state-copy.ts`: positive current-event next actions (no “领取角色 / 不要领取”). Resume instructions name `molis_work_v1_event_resume`.
 `plugins/native/goals/src/status-en.ts` and `apps/workbench/src/i18n/en.ts`: English for the eight current states’ meaning/next/continuation.
 
 safety-ui / dialogs copy remains for 04.
@@ -94,11 +94,11 @@ safety-ui / dialogs copy remains for 04.
 
 | Command | Result | Log |
 | --- | --- | --- |
-| `pnpm_config_verify_deps_before_run=warn pnpm build` | EXIT 0 | `/private/tmp/goalboard-flow-cleanup/03-c2d-resume-build.log` |
-| `env -u FORCE_COLOR NODE_NO_WARNINGS=1 node --import tsx --test --test-concurrency=1 tests/i18n.test.ts tests/draft-dialogue-application.test.ts tests/evidence-verification-module.test.ts tests/runtime-skill-flow.test.ts tests/proposal-entry-chain.test.ts tests/goal-tree-event-flow.test.ts tests/goal-event-http.test.ts tests/goal-event-document-history.test.ts` | 27 pass / 0 fail | `/private/tmp/goalboard-flow-cleanup/03-c2d-resume-unit.log` |
-| same runner `tests/goals-proposal.e2e.test.ts` | 1 pass / 0 fail (real Chrome) | `/private/tmp/goalboard-flow-cleanup/03-c2d-resume-proposal-e2e.log` |
+| `pnpm_config_verify_deps_before_run=warn pnpm build` | EXIT 0 | `/private/tmp/molis-work-flow-cleanup/03-c2d-resume-build.log` |
+| `env -u FORCE_COLOR NODE_NO_WARNINGS=1 node --import tsx --test --test-concurrency=1 tests/i18n.test.ts tests/draft-dialogue-application.test.ts tests/evidence-verification-module.test.ts tests/runtime-skill-flow.test.ts tests/proposal-entry-chain.test.ts tests/goal-tree-event-flow.test.ts tests/goal-event-http.test.ts tests/goal-event-document-history.test.ts` | 27 pass / 0 fail | `/private/tmp/molis-work-flow-cleanup/03-c2d-resume-unit.log` |
+| same runner `tests/goals-proposal.e2e.test.ts` | 1 pass / 0 fail (real Chrome) | `/private/tmp/molis-work-flow-cleanup/03-c2d-resume-proposal-e2e.log` |
 
-Previously passing groups were not repeated: `03-c2d-unit-required.log` (115 raw), `03-c2d-e2e.log` (10 named browser), `03-c2d-v1.log` (24), `03-c2d-capsule.log` (11), session-handoff history tests. Command inventory: `/private/tmp/goalboard-flow-cleanup/03-c2d-tested-groups.json`.
+Previously passing groups were not repeated: `03-c2d-unit-required.log` (115 raw), `03-c2d-e2e.log` (10 named browser), `03-c2d-v1.log` (24), `03-c2d-capsule.log` (11), session-handoff history tests. Command inventory: `/private/tmp/molis-work-flow-cleanup/03-c2d-tested-groups.json`.
 
 Full `tests/*.test.ts` not run. Root probes not run.
 

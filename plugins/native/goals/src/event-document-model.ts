@@ -6,10 +6,10 @@ import type {
   GoalRelationRecord,
   PlanningMethodPack,
   RiskRecord,
-} from "@adeptify/goalboard-contracts/modules/goals";
-import type { ExecutionRunRecord } from "@adeptify/goalboard-contracts/modules/execution";
-import type { EvidenceRecord } from "@adeptify/goalboard-contracts/modules/evidence-verification";
-import type { ReviewObligationRecord, ReviewRecord } from "@adeptify/goalboard-contracts/modules/governance-collaboration";
+} from "@molis-ai/molis-work-contracts/modules/goals";
+import type { ExecutionRunRecord } from "@molis-ai/molis-work-contracts/modules/execution";
+import type { EvidenceRecord } from "@molis-ai/molis-work-contracts/modules/evidence-verification";
+import type { ReviewObligationRecord, ReviewRecord } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import type { GoalEventApplication } from "./goal-event-application.js";
 import type { GoalsDecisionEvent } from "./decision-view.js";
 import type { BoardSnapshot } from "./goal-entry-contract.js";

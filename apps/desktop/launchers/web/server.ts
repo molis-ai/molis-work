@@ -2,11 +2,11 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createDesktopWebHost } from "@adeptify/goalboard-app-desktop";
-export type { WebServerOptions } from "@adeptify/goalboard-app-local-host";
-export { resolveWebControlToken, WEB_CONTROL_TOKEN_RELATIVE_PATH } from "@adeptify/goalboard-app-local-host";
+import { createDesktopWebHost } from "@molis-ai/molis-work-app-desktop";
+export type { WebServerOptions } from "@molis-ai/molis-work-app-local-host";
+export { resolveWebControlToken, WEB_CONTROL_TOKEN_RELATIVE_PATH } from "@molis-ai/molis-work-app-local-host";
 
-export const createGoalBoardWebServer = createDesktopWebHost({ ptyClientFilePath });
+export const createMolisWorkWebServer = createDesktopWebHost({ ptyClientFilePath });
 
 function ptyClientFilePath(): string {
   const here = path.dirname(fileURLToPath(import.meta.url));
@@ -37,10 +37,10 @@ if (isMain) {
   const port = Number(flag(args, "--port") ?? 4173);
   const unsupported = ["--db", "--board-id", "--demo"].find((argument) => args.includes(argument));
   if (unsupported) {
-    console.error(`GoalBoard Web 只按项目启动；${unsupported} 已不支持。请先在当前 Runtime 使用 GoalBoard Skill 创建、连接或迁移项目。`);
+    console.error(`Molis Work Web 只按项目启动；${unsupported} 已不支持。请先在当前 Runtime 使用 Molis Work Skill 创建、连接或迁移项目。`);
     process.exitCode = 1;
   } else {
-    const server = createGoalBoardWebServer({
+    const server = createMolisWorkWebServer({
       ...(homeArgument ? { homeDirectory: path.resolve(homeArgument) } : {}),
     });
     const shutdown = () => {
@@ -50,7 +50,7 @@ if (isMain) {
     process.once("SIGINT", shutdown);
     process.once("SIGTERM", shutdown);
     server.listen(port, "127.0.0.1", () => {
-      console.log(`GoalBoard Web: http://127.0.0.1:${port}`);
+      console.log(`Molis Work Web: http://127.0.0.1:${port}`);
       console.log("项目列表（网页不会修改 Runtime Session 绑定）");
     });
   }

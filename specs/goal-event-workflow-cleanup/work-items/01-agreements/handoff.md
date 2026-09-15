@@ -56,16 +56,16 @@ Writer 已按独立验收裁决完成三项修正，未宣称主验收通过。�
 
 ```
 pnpm_config_verify_deps_before_run=warn pnpm build
-  → /private/tmp/goalboard-flow-cleanup/01-correction-build.log  EXIT 0
+  → /private/tmp/molis-work-flow-cleanup/01-correction-build.log  EXIT 0
 
 pnpm_config_verify_deps_before_run=warn pnpm boundary:check
-  → /private/tmp/goalboard-flow-cleanup/01-correction-boundary.log  EXIT 0
+  → /private/tmp/molis-work-flow-cleanup/01-correction-boundary.log  EXIT 0
 
 env -u FORCE_COLOR NODE_NO_WARNINGS=1 node --import tsx --test --test-concurrency=1 \
   tests/goal-events.test.ts tests/goal-events-state.test.ts \
   tests/mcp-goal-events-state.test.ts tests/goal-event-http.test.ts \
   tests/goal-events-planning.test.ts
-  → /private/tmp/goalboard-flow-cleanup/01-correction-tests.log  52 pass / 0 fail
+  → /private/tmp/molis-work-flow-cleanup/01-correction-tests.log  52 pass / 0 fail
 ```
 
 未跑全仓、未截图、未 commit/push。未改 /tmp 主验收脚本。

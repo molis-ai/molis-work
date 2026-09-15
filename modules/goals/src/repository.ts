@@ -1,4 +1,4 @@
-import type { StoredModuleEvent } from "@adeptify/goalboard-contracts/platform/storage";
+import type { StoredModuleEvent } from "@molis-ai/molis-work-contracts/platform/storage";
 import type {
   AcceptedRiskFacts,
   GoalContractRevisionRecord,
@@ -13,7 +13,7 @@ import type {
   ProjectGuidanceEntryRecord,
   ProjectGuidanceRevisionRecord,
   RiskRecord,
-} from "@adeptify/goalboard-contracts/modules/goals";
+} from "@molis-ai/molis-work-contracts/modules/goals";
 
 type Row = Record<string, unknown>;
 

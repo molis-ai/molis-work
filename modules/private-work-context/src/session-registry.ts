@@ -1,5 +1,5 @@
-import type { WorkSessionApi } from "@adeptify/goalboard-contracts/modules/private-work-context";
-import type { ContextLedgerApi } from "@adeptify/goalboard-contracts/modules/context-ledger";
+import type { WorkSessionApi } from "@molis-ai/molis-work-contracts/modules/private-work-context";
+import type { ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { SessionAssociationRepository } from "./session-associations.js";
 import { HandoffAssociationRepository } from "./handoff-associations.js";
 import { promises as fs } from "node:fs";
@@ -8,21 +8,21 @@ import path from "node:path";
 import Database from "better-sqlite3";
 import { createSessionContentStore } from "./content-store.js";
 import type {
-  AppendGoalBoardSessionEventInput,
-  CreateGoalBoardSessionInput,
+  AppendMolisWorkSessionEventInput,
+  CreateMolisWorkSessionInput,
   CreateSessionHandoffDraftInput,
   DiscoverRuntimeSessionInput,
   ExplicitlyLinkRuntimeSessionInput,
-  GoalBoardSessionEventRecord,
-  GoalBoardSessionGoalLink,
-  GoalBoardSessionHandoffRecord,
-  GoalBoardSessionRecord,
+  MolisWorkSessionEventRecord,
+  MolisWorkSessionGoalLink,
+  MolisWorkSessionHandoffRecord,
+  MolisWorkSessionRecord,
   LegacySessionMigrationInput,
   LegacySessionMigrationReport,
   LinkNativeRuntimeSessionInput,
   ReassignWorkspaceSessionsInput,
   SessionListFilter,
-  SetGoalBoardSessionStatusInput,
+  SetMolisWorkSessionStatusInput,
   UpdateSessionAssociationsInput,
   UpdateSessionHandoffDraftInput,
 } from "./contract-aliases.js";
@@ -32,7 +32,7 @@ import { LegacySessionMigrator } from "./session-migration.js";
 import { SessionRecordRepository } from "./session-records.js";
 import { initializeOrValidateSessionSchema } from "./session-schema.js";
 
-export interface GoalBoardSessionRegistryOptions {
+export interface MolisWorkSessionRegistryOptions {
   createLedger(db: Database.Database): ContextLedgerApi;
   homeDirectory?: string;
   now?: () => Date;
@@ -45,7 +45,7 @@ export interface GoalBoardSessionRegistryOptions {
  * components; callers keep the established API while their imports move to the
  * package public entrypoint.
  */
-export class GoalBoardSessionRegistry implements WorkSessionApi {
+export class MolisWorkSessionRegistry implements WorkSessionApi {
   readonly homeDirectory: string;
   readonly databasePath: string;
 
@@ -61,8 +61,8 @@ export class GoalBoardSessionRegistry implements WorkSessionApi {
     this.databasePath = path.join(homeDirectory, "sessions", "sessions.db");
   }
 
-  static async open(options: GoalBoardSessionRegistryOptions): Promise<GoalBoardSessionRegistry> {
-    const homeDirectory = path.resolve(options.homeDirectory ?? path.join(os.homedir(), ".goalboard"));
+  static async open(options: MolisWorkSessionRegistryOptions): Promise<MolisWorkSessionRegistry> {
+    const homeDirectory = path.resolve(options.homeDirectory ?? path.join(os.homedir(), ".molis-work"));
     const sessionsDirectory = path.join(homeDirectory, "sessions");
     await fs.mkdir(sessionsDirectory, { recursive: true });
     const databasePath = path.join(sessionsDirectory, "sessions.db");
@@ -85,7 +85,7 @@ export class GoalBoardSessionRegistry implements WorkSessionApi {
       }).immediate();
       const sessions = new SessionRecordRepository(db, now, associations);
       const handoffs = new SessionHandoffRepository(db, now, contentStore, sessions, handoffAssociations);
-      const registry = new GoalBoardSessionRegistry(
+      const registry = new MolisWorkSessionRegistry(
         db,
         homeDirectory,
         sessions,
@@ -105,59 +105,59 @@ export class GoalBoardSessionRegistry implements WorkSessionApi {
     this.db.close();
   }
 
-  createSession(input: CreateGoalBoardSessionInput): GoalBoardSessionRecord {
+  createSession(input: CreateMolisWorkSessionInput): MolisWorkSessionRecord {
     return this.sessions.createSession(input);
   }
 
-  discoverSession(input: DiscoverRuntimeSessionInput): GoalBoardSessionRecord {
+  discoverSession(input: DiscoverRuntimeSessionInput): MolisWorkSessionRecord {
     return this.sessions.discoverSession(input);
   }
 
-  explicitlyLinkSession(input: ExplicitlyLinkRuntimeSessionInput): GoalBoardSessionRecord {
+  explicitlyLinkSession(input: ExplicitlyLinkRuntimeSessionInput): MolisWorkSessionRecord {
     return this.sessions.explicitlyLinkSession(input);
   }
 
-  linkNativeRuntimeSession(input: LinkNativeRuntimeSessionInput): GoalBoardSessionRecord {
+  linkNativeRuntimeSession(input: LinkNativeRuntimeSessionInput): MolisWorkSessionRecord {
     return this.sessions.linkNativeRuntimeSession(input);
   }
 
-  updateAssociations(input: UpdateSessionAssociationsInput): GoalBoardSessionRecord {
+  updateAssociations(input: UpdateSessionAssociationsInput): MolisWorkSessionRecord {
     return this.sessions.updateAssociations(input);
   }
 
-  setStatus(input: SetGoalBoardSessionStatusInput): GoalBoardSessionRecord {
+  setStatus(input: SetMolisWorkSessionStatusInput): MolisWorkSessionRecord {
     return this.sessions.setStatus(input);
   }
 
-  reassignWorkspaceSessions(input: ReassignWorkspaceSessionsInput): GoalBoardSessionRecord[] {
+  reassignWorkspaceSessions(input: ReassignWorkspaceSessionsInput): MolisWorkSessionRecord[] {
     return this.sessions.reassignWorkspaceSessions(input);
   }
 
-  get(sessionId: string): GoalBoardSessionRecord {
+  get(sessionId: string): MolisWorkSessionRecord {
     return this.sessions.get(sessionId);
   }
 
-  findByNativeRuntimeSession(runtimeId: string, nativeId: string): GoalBoardSessionRecord | null {
+  findByNativeRuntimeSession(runtimeId: string, nativeId: string): MolisWorkSessionRecord | null {
     return this.sessions.findByNativeRuntimeSession(runtimeId, nativeId);
   }
 
-  findBySurface(surfaceId: string): GoalBoardSessionRecord | null {
+  findBySurface(surfaceId: string): MolisWorkSessionRecord | null {
     return this.sessions.findBySurface(surfaceId);
   }
 
-  list(filter: SessionListFilter = {}): GoalBoardSessionRecord[] {
+  list(filter: SessionListFilter = {}): MolisWorkSessionRecord[] {
     return this.sessions.list(filter);
   }
 
-  goalHistory(sessionId: string): GoalBoardSessionGoalLink[] {
+  goalHistory(sessionId: string): MolisWorkSessionGoalLink[] {
     return this.sessions.goalHistory(sessionId);
   }
 
-  appendEvent(input: AppendGoalBoardSessionEventInput): GoalBoardSessionEventRecord {
+  appendEvent(input: AppendMolisWorkSessionEventInput): MolisWorkSessionEventRecord {
     return this.eventsRepository.append(input);
   }
 
-  events(sessionId: string): GoalBoardSessionEventRecord[] {
+  events(sessionId: string): MolisWorkSessionEventRecord[] {
     return this.eventsRepository.list(sessionId);
   }
 
@@ -165,35 +165,35 @@ export class GoalBoardSessionRegistry implements WorkSessionApi {
     return this.eventsRepository.count(sessionId);
   }
 
-  createHandoffDraft(input: CreateSessionHandoffDraftInput): GoalBoardSessionHandoffRecord {
+  createHandoffDraft(input: CreateSessionHandoffDraftInput): MolisWorkSessionHandoffRecord {
     return this.handoffs.createDraft(input);
   }
 
-  getHandoff(packageId: string): GoalBoardSessionHandoffRecord {
+  getHandoff(packageId: string): MolisWorkSessionHandoffRecord {
     return this.handoffs.get(packageId);
   }
 
-  latestPendingHandoff(sourceSessionId: string): GoalBoardSessionHandoffRecord | null {
+  latestPendingHandoff(sourceSessionId: string): MolisWorkSessionHandoffRecord | null {
     return this.handoffs.latestPending(sourceSessionId);
   }
 
-  handoffsForSession(sessionId: string): GoalBoardSessionHandoffRecord[] {
+  handoffsForSession(sessionId: string): MolisWorkSessionHandoffRecord[] {
     return this.handoffs.listForSession(sessionId);
   }
 
-  updateHandoffDraft(input: UpdateSessionHandoffDraftInput): GoalBoardSessionHandoffRecord {
+  updateHandoffDraft(input: UpdateSessionHandoffDraftInput): MolisWorkSessionHandoffRecord {
     return this.handoffs.updateDraft(input);
   }
 
-  markHandoffSending(packageId: string): GoalBoardSessionHandoffRecord {
+  markHandoffSending(packageId: string): MolisWorkSessionHandoffRecord {
     return this.handoffs.markSending(packageId);
   }
 
   attachHandoffDestination(input: {
     package_id: string;
     destination_session_id: string;
-    delivery_mode: NonNullable<GoalBoardSessionHandoffRecord["delivery_mode"]>;
-  }): GoalBoardSessionHandoffRecord {
+    delivery_mode: NonNullable<MolisWorkSessionHandoffRecord["delivery_mode"]>;
+  }): MolisWorkSessionHandoffRecord {
     return this.handoffs.attachDestination(input);
   }
 
@@ -203,20 +203,20 @@ export class GoalBoardSessionRegistry implements WorkSessionApi {
     error_message: string;
     retryable: boolean;
     destination_session_id?: string | null;
-    delivery_mode?: GoalBoardSessionHandoffRecord["delivery_mode"];
-  }): GoalBoardSessionHandoffRecord {
+    delivery_mode?: MolisWorkSessionHandoffRecord["delivery_mode"];
+  }): MolisWorkSessionHandoffRecord {
     return this.handoffs.markFailed(input);
   }
 
   markHandoffSent(input: {
     package_id: string;
     destination_session_id: string;
-    delivery_mode: NonNullable<GoalBoardSessionHandoffRecord["delivery_mode"]>;
-  }): GoalBoardSessionHandoffRecord {
+    delivery_mode: NonNullable<MolisWorkSessionHandoffRecord["delivery_mode"]>;
+  }): MolisWorkSessionHandoffRecord {
     return this.handoffs.markSent(input);
   }
 
-  cancelHandoff(packageId: string): GoalBoardSessionHandoffRecord {
+  cancelHandoff(packageId: string): MolisWorkSessionHandoffRecord {
     return this.handoffs.cancel(packageId);
   }
 

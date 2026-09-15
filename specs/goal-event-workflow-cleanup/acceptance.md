@@ -30,7 +30,7 @@
 | 真实持久化与原始证据序号 | `runtime-skill-flow.test.ts`重启重放后无条件读取实际catalog/SQLite，唯一Goal和原笔记保持；`evidence-verification-module.test.ts`核对原v35Evidence及真实提交事件序号；两项已在首次全仓对应项通过 |
 | 最终预览 | [最新构建](http://127.0.0.1:62811/goals/V1)，隔离演示数据库；实际GET返回200及当前Goal文档。已发送应用面板打开请求 |
 
-日志和截图前缀均为`/private/tmp/goalboard-flow-cleanup/`。最新中文UI通过后生产行为未再改变，仅补英文映射；英文另行实际复核。先前六组核心结果按影响面沿用，没有重跑无关成功项。
+日志和截图前缀均为`/private/tmp/molis-work-flow-cleanup/`。最新中文UI通过后生产行为未再改变，仅补英文映射；英文另行实际复核。先前六组核心结果按影响面沿用，没有重跑无关成功项。
 
 ## 首次全仓失败逐项收尾
 

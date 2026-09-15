@@ -1,15 +1,20 @@
-import type { AttentionReason as ModuleAttentionReason, AttentionStatus as ModuleAttentionStatus, AttentionSubjectType as ModuleAttentionSubjectType } from "@adeptify/goalboard-contracts/modules/attention-resumption";
-import type { FeedItemRecord as ModuleFeedItemRecord, ImportedFeedItemInput } from "@adeptify/goalboard-contracts/modules/feed";
-import type { SourceRecord } from "@adeptify/goalboard-contracts/modules/sources";
+import type { AttentionReason as ModuleAttentionReason, AttentionStatus as ModuleAttentionStatus, AttentionSubjectType as ModuleAttentionSubjectType } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
+import type { ImportedFeedItemInput } from "@molis-ai/molis-work-contracts/modules/feed";
+import type { SourceRecord } from "@molis-ai/molis-work-contracts/modules/sources";
 
 
-import type { FeedItemDisposition, FeedItemRecord, FeedImportReceiptRecord, FeedMaterialRecord, FeedSnapshot, FeedSourceRunRecord, FeedSourceRecord, InboxEntryReason, InboxEntryRecord, InboxEntryStatus, InboxEntrySubjectType, SourceHistoryDecision } from "./projection.js";
-import { SourcesError } from "@adeptify/goalboard-contracts/modules/sources";
-import { FeedError } from "@adeptify/goalboard-contracts/modules/feed";
-import { AttentionError } from "@adeptify/goalboard-contracts/modules/attention-resumption";
+import type { FeedItemDisposition, FeedItemRecord, FeedImportReceiptRecord, FeedMaterialRecord, FeedOutRuleRecord, FeedSnapshot, FeedSourceRunRecord, FeedSourceRecord, InboxEntryReason, InboxEntryRecord, InboxEntryStatus, InboxEntrySubjectType, SourceHistoryDecision } from "./projection.js";
+import { SourcesError } from "@molis-ai/molis-work-contracts/modules/sources";
+import { FeedError } from "@molis-ai/molis-work-contracts/modules/feed";
+import { AttentionError } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import { FeedStoreError, assertSourceHistoryDecision } from "./application-errors.js";
-import { toLegacyAttentionEntry, toLegacyFeedItem, toLegacyFeedMaterial, compatibleRun, isActiveAttention } from "./application-projection.js";
+import { toLegacyAttentionEntry, toLegacyFeedItem, toLegacyFeedMaterial, compatibleRun } from "./application-projection.js";
 import type { FeedApplicationPorts } from "./application-ports.js";
+import {
+  feedOutRuleMatches,
+  registerFeedCaptureVersion,
+  type FeedOutRuleWrite,
+} from "./out-rules.js";
 
 /** Product operations over module facts; connection and lifecycle are supplied by the host. */
 export class FeedApplication {
@@ -19,12 +24,6 @@ export class FeedApplication {
     const sources = this.ports.sources.query.list(boardId).map((source) => this.compatibleSource(source));
     const feedItems = this.ports.feed.query.list(boardId).map(toLegacyFeedItem);
     const inboxEntries = this.ports.attention.query.list(boardId).map(toLegacyAttentionEntry);
-    const activeInboxSubjects = new Set(inboxEntries
-      .filter((entry) => entry.subject_type === "feed_item" && isActiveAttention(entry.status))
-      .map((entry) => entry.subject_id));
-    const items = feedItems.map((item) => activeInboxSubjects.has(item.item_id)
-      ? { ...item, item_type: "inbox_message" as const }
-      : item);
     const runs = this.ports.listener.listRuns(boardId).map(compatibleRun);
     const importReceipts = this.ports.receipts.listImports(boardId);
     const contractMigrations = this.ports.receipts.listContractMigrations();
@@ -32,18 +31,15 @@ export class FeedApplication {
       sources,
       feed_items: feedItems,
       inbox_entries: inboxEntries,
-      items,
       runs,
       import_receipts: importReceipts,
       contract_migrations: contractMigrations,
+      out_rules: this.ports.outRules?.list(boardId) ?? [],
     };
   }
 
   getItem(boardId: string, itemId: string): FeedItemRecord {
-    return this.projectLegacyItem(
-      boardId,
-      this.callFeed(() => this.ports.feed.query.get(boardId, itemId)),
-    );
+    return toLegacyFeedItem(this.callFeed(() => this.ports.feed.query.get(boardId, itemId)));
   }
 
   getFeedItem(boardId: string, itemId: string): FeedItemRecord {
@@ -52,7 +48,7 @@ export class FeedApplication {
 
   findLinkedGoalItem(boardId: string, goalId: string, itemId?: string): FeedItemRecord | null {
     const item = this.ports.feed.query.findByLinkedGoal(boardId, goalId, itemId);
-    return item ? this.projectLegacyItem(boardId, item) : null;
+    return item ? toLegacyFeedItem(item) : null;
   }
 
   listInboxEntries(boardId: string): InboxEntryRecord[] {
@@ -187,6 +183,18 @@ export class FeedApplication {
     return { entry: toLegacyAttentionEntry(result.entry), created: result.created };
   }
 
+  addToInbox(boardId: string, itemId: string, expectedRevision?: number): FeedItemRecord {
+    const item = this.getFeedItem(boardId, itemId);
+    if (expectedRevision != null && expectedRevision !== item.revision) {
+      throw new FeedStoreError("feed_revision_conflict", "这条 Item 已经变化，请刷新后重试");
+    }
+    const stored = this.ensureInboxEntryForFeedItem(boardId, itemId, "manual", { added_by: "web_user" });
+    if (stored.entry.status === "done" || stored.entry.status === "dismissed") {
+      this.setInboxEntryStatus(boardId, stored.entry.entry_id, "open", stored.entry.revision);
+    }
+    return item;
+  }
+
   setInboxEntryStatus(
     boardId: string,
     entryId: string,
@@ -250,7 +258,7 @@ export class FeedApplication {
       detail?: Record<string, unknown>;
     };
     material?: Omit<FeedMaterialRecord, "board_id" | "item_id" | "imported_at" | "updated_at">;
-  }): { item: FeedItemRecord; created: boolean } {
+  }): { item: FeedItemRecord; created: boolean; updated: boolean } {
     const result = this.callFeed(() => this.ports.feed.commands.ingest({
       project_id: input.source.board_id,
       source_id: input.source.source_id,
@@ -272,7 +280,31 @@ export class FeedApplication {
         ...input.material,
       } : undefined,
     }));
-    return { item: this.projectLegacyItem(input.source.board_id, result.item), created: result.created };
+    const item = toLegacyFeedItem(result.item);
+    if (result.created || result.updated) {
+      try {
+        this.captureAfterIngest(item);
+      } catch (error) {
+        this.recordArtifactOutFailure(item, [], [errorCode(error)]);
+      }
+    }
+    return { item, created: result.created, updated: result.updated };
+  }
+
+  listOutRules(boardId: string): FeedOutRuleRecord[] {
+    return this.ports.outRules?.list(boardId) ?? [];
+  }
+
+  createOutRule(boardId: string, input: FeedOutRuleWrite): FeedOutRuleRecord {
+    return this.requireOutRules().create(boardId, input);
+  }
+
+  updateOutRule(boardId: string, ruleId: string, patch: Partial<FeedOutRuleWrite>): FeedOutRuleRecord {
+    return this.requireOutRules().update(boardId, ruleId, patch);
+  }
+
+  deleteOutRule(boardId: string, ruleId: string): FeedOutRuleRecord {
+    return this.requireOutRules().delete(boardId, ruleId);
   }
 
   upsertImportedItem(input: ImportedFeedItemInput): FeedItemRecord {
@@ -308,7 +340,7 @@ export class FeedApplication {
       this.ports.receipts.putImportReceipt(receipt);
       const { sources, items, materials, runs, credentials, content } = receipt.summary;
       this.ports.appendEvent(receipt.board_id, "board", receipt.board_id,
-        "feed.relay_ownership_migrated", "用户把 Relay Feed 数据与可用本机所有权迁入 GoalBoard",
+        "feed.relay_ownership_migrated", "用户把 Relay Feed 数据与可用本机所有权迁入 Molis Work",
         { receipt_id: receipt.receipt_id, sources, items, materials, runs, credentials, content },
         receipt.completed_at);
       return result;
@@ -324,7 +356,7 @@ export class FeedApplication {
     const item = this.callFeed(
       () => this.ports.feed.commands.setDisposition(boardId, itemId, disposition, expectedRevision),
     );
-    return this.projectLegacyItem(boardId, item);
+    return toLegacyFeedItem(item);
   }
 
   restoreToFeed(boardId: string, itemId: string, expectedRevision?: number): FeedItemRecord {
@@ -334,9 +366,8 @@ export class FeedApplication {
   }
 
   markRead(boardId: string, itemId: string): FeedItemRecord {
-    const projected = this.getItem(boardId, itemId);
-    return this.projectLegacyItem(boardId, this.callFeed(
-      () => this.ports.feed.commands.markRead(boardId, itemId, projected.item_type),
+    return toLegacyFeedItem(this.callFeed(
+      () => this.ports.feed.commands.markRead(boardId, itemId, "feed"),
     ));
   }
 
@@ -349,7 +380,69 @@ export class FeedApplication {
     const item = this.callFeed(
       () => this.ports.feed.commands.linkGoal(boardId, itemId, goalId, disposition),
     );
-    return this.projectLegacyItem(boardId, item);
+    return toLegacyFeedItem(item);
+  }
+
+  private requireOutRules() {
+    if (!this.ports.outRules) {
+      throw new FeedStoreError("feed_out_rule_not_found", "捕捉规则尚未初始化");
+    }
+    return this.ports.outRules;
+  }
+
+  private captureAfterIngest(item: FeedItemRecord): void {
+    const rules = this.ports.outRules?.list(item.board_id) ?? [];
+    const matched = rules.filter((rule) => feedOutRuleMatches(rule, item));
+    if (matched.length === 0) return;
+    if (!this.ports.artifacts) {
+      this.recordArtifactOutFailure(item, matched.map((rule) => rule.rule_id), ["feed_artifact_producer_missing"]);
+      return;
+    }
+    const failedRuleIds: string[] = [];
+    const errorCodes: string[] = [];
+    for (const rule of matched) {
+      try {
+        registerFeedCaptureVersion(this.ports.artifacts, item, rule);
+      } catch (error) {
+        failedRuleIds.push(rule.rule_id);
+        errorCodes.push(errorCode(error));
+      }
+    }
+    if (failedRuleIds.length > 0) {
+      this.recordArtifactOutFailure(item, failedRuleIds, errorCodes);
+      return;
+    }
+    this.completeArtifactOutFailure(item);
+  }
+
+  private recordArtifactOutFailure(item: FeedItemRecord, ruleIds: string[], errorCodes: string[]): void {
+    try {
+      const { entry } = this.callAttention(() => this.ports.attention.commands.create({
+        project_id: item.board_id,
+        subject_type: "feed_item",
+        subject_id: item.item_id,
+        reason: "artifact_out_failed",
+        detail: { rule_ids: ruleIds, error_codes: errorCodes },
+      }));
+      if (entry.status === "done" || entry.status === "dismissed") {
+        this.setInboxEntryStatus(item.board_id, entry.entry_id, "open");
+      }
+    } catch {
+      // ingest already persisted; missing Inbox is worse than throwing into sync
+    }
+  }
+
+  private completeArtifactOutFailure(item: FeedItemRecord): void {
+    try {
+      for (const entry of this.ports.attention.query.findForSubject(item.board_id, "feed_item", item.item_id)) {
+        if (entry.reason !== "artifact_out_failed") continue;
+        if (entry.status === "open" || entry.status === "in_progress") {
+          this.setInboxEntryStatus(item.board_id, entry.entry_id, "done");
+        }
+      }
+    } catch {
+      // successful artifacts already exist
+    }
   }
 
   private compatibleSource(source: SourceRecord): FeedSourceRecord {
@@ -379,12 +472,6 @@ export class FeedApplication {
     };
   }
 
-  private projectLegacyItem(boardId: string, item: ModuleFeedItemRecord): FeedItemRecord {
-    const inbox = this.ports.attention.query.findActiveForSubject(boardId, "feed_item", item.item_id);
-    const legacy = toLegacyFeedItem(item);
-    return inbox ? { ...legacy, item_type: "inbox_message" } : legacy;
-  }
-
   private callFeed<T>(operation: () => T): T {
     try {
       return operation();
@@ -412,4 +499,11 @@ export class FeedApplication {
     }
   }
 
+}
+
+function errorCode(error: unknown): string {
+  if (error && typeof error === "object" && "code" in error && typeof error.code === "string" && error.code) {
+    return error.code;
+  }
+  return "feed_artifact_register_failed";
 }

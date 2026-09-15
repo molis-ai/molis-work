@@ -1,5 +1,5 @@
-import type { UiHostApi, UiSlotDescriptor, WorkbenchDocumentRenderRequest } from "@adeptify/goalboard-contracts/platform/ui";
-import { ARTIFACT_BROWSER_UI_CONTRIBUTION_ID, type ArtifactBrowserUiModel, type GoalArtifactEmbed } from "@adeptify/goalboard-plugin-artifacts";
+import type { UiHostApi, UiSlotDescriptor, WorkbenchDocumentRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
+import { ARTIFACT_BROWSER_UI_CONTRIBUTION_ID, artifactDisplayTitle, type ArtifactBrowserUiModel, type GoalArtifactEmbed } from "@molis-ai/molis-work-plugin-artifacts";
 
 export const ARTIFACT_EMBED_STYLES = `
   .artifact-embed { padding:20px 0; overflow-wrap:anywhere; }
@@ -76,19 +76,20 @@ export function createArtifactWorkbenchRenderer(
   slots: { readonly directory: UiSlotDescriptor; readonly main: UiSlotDescriptor },
   document: (request: WorkbenchDocumentRenderRequest) => string,
 ) {
-  const mount = (surface: "directory" | "detail" | "embed", model: ArtifactBrowserUiModel) => host.mount({
+  const mount = (surface: "directory" | "detail" | "embed" | "frame-block", model: ArtifactBrowserUiModel) => host.mount({
     slot: surface === "directory" ? slots.directory : slots.main,
     contribution: { contribution_id: ARTIFACT_BROWSER_UI_CONTRIBUTION_ID, surface, model },
   }).html;
   return {
-    fragments: (model: ArtifactBrowserUiModel): string => `<div data-artifact-directory>${mount("directory", model)}</div><div data-artifact-detail>${mount("detail", model)}</div>`,
+    fragments: (model: ArtifactBrowserUiModel, surface: "detail" | "frame-block" = "detail"): string =>
+      `<div data-artifact-directory>${mount("directory", model)}</div><div data-artifact-detail>${surface === "frame-block" ? mount("frame-block", model) : mount("detail", model)}</div>`,
     embed: (model: ArtifactBrowserUiModel): string => mount("embed", model),
     goalContext: (items: readonly GoalArtifactEmbed[], model: Omit<ArtifactBrowserUiModel, "view" | "relationship">): string =>
       items.map((item) => mount("embed", { ...model, view: item.view, relationship: item.relationship })).join(""),
     page: (request: ArtifactWorkbenchRequest): string => {
       const p = request.primitives;
       return document({
-        lang: request.lang, title: `${request.view.selected?.artifact_id ?? "Artifacts"} · ${request.projectTitle} · GoalBoard`,
+        lang: request.lang, title: `${request.view.selected ? artifactDisplayTitle(request.view.selected) : "Artifacts"} · ${request.projectTitle} · Molis Work`,
         head_html: `${request.headHtml}<style>${ARTIFACT_WORKBENCH_STYLES}</style>`,
         body_attributes: { class: "artifact-page", "data-artifact-selected": Boolean(request.view.requested), "data-native-desktop": request.desktopShell },
         body_html: `${request.iconSpriteHtml}<!-- AR3: existing Calm Desktop directory/detail; exact-version results only; read-only browsing, no implicit publishing. -->

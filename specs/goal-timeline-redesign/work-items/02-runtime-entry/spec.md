@@ -14,9 +14,9 @@
 
 ## 行为合同
 
-01 公开 API 为 `GoalsModule.events`：`configure(input)`、`report(input)`、`readConfig(boardId,goalId)`、`listEvents(boardId,goalId,{after_cursor?,limit?})`、`readEvent(boardId,goalId,eventId)`、`readCurrentRequirements(boardId,goalId)`；读取也由 `createGoalReadServices(db).events` 提供。Contracts 从 `@adeptify/goalboard-contracts/modules/goals` 再导出。配置以 `expected_version` / `idempotency_key` 提交；报告以 `events:[{type_id,type_version,title,fields,judgments?}]` 提交。不复制其校验或 SQL。
+01 公开 API 为 `GoalsModule.events`：`configure(input)`、`report(input)`、`readConfig(boardId,goalId)`、`listEvents(boardId,goalId,{after_cursor?,limit?})`、`readEvent(boardId,goalId,eventId)`、`readCurrentRequirements(boardId,goalId)`；读取也由 `createGoalReadServices(db).events` 提供。Contracts 从 `@molis-ai/molis-work-contracts/modules/goals` 再导出。配置以 `expected_version` / `idempotency_key` 提交；报告以 `events:[{type_id,type_version,title,fields,judgments?}]` 提交。不复制其校验或 SQL。
 
-新增 Runtime 工具固定为 `goalboard_v1_goal_intent_create`、`goalboard_v1_goal_state`、`goalboard_v1_event_configure`、`goalboard_v1_event_report`、`goalboard_v1_event_list`、`goalboard_v1_event_read`。按现有 schema/catalog/dispatch 与错误包装机制接入，工具 schema 必须完整定义本项字段，禁止新建裸 object payload。动态 fields 使用 string-valued additionalProperties 是明确的已登记字段映射，领域模块继续校验允许字段。
+新增 Runtime 工具固定为 `molis_work_v1_goal_intent_create`、`molis_work_v1_goal_state`、`molis_work_v1_event_configure`、`molis_work_v1_event_report`、`molis_work_v1_event_list`、`molis_work_v1_event_read`。按现有 schema/catalog/dispatch 与错误包装机制接入，工具 schema 必须完整定义本项字段，禁止新建裸 object payload。动态 fields 使用 string-valued additionalProperties 是明确的已登记字段映射，领域模块继续校验允许字段。
 
 对外输出按实际 `kind` 提供明确的配置事件 payload 与报告文本字段类型（discriminated union），不要让消费者反复猜测 `Record<string,unknown>` 中有哪些属性；内部 JSON 落库仍可沿现有方式，不另建重复解析或 schema 平台。
 
@@ -77,6 +77,6 @@ node --import tsx --test --test-concurrency=1 tests/mcp-goal-events.test.ts test
 pnpm boundary:check
 ```
 
-真实集成参考 `tests/mcp-session-activity.test.ts` 的临时 home、catalog、Host 和 `GoalBoardServer`；不可只测试 handler mock，不能只验 schema 字段存在。规划测试需让实际内置/个人/项目方法读取或保存路径驱动配置与报告，检验采用内容和版本保存后不随方法更改。
+真实集成参考 `tests/mcp-session-activity.test.ts` 的临时 home、catalog、Host 和 `MolisWorkServer`；不可只测试 handler mock，不能只验 schema 字段存在。规划测试需让实际内置/个人/项目方法读取或保存路径驱动配置与报告，检验采用内容和版本保存后不随方法更改。
 
 交回：工具调用样例与真实响应、公开 API、修改路径、实际命令结果、身份/项目边界验证、下一项可直接消费的入口及任何未完成项。不把事实工具接通称为正式完成/审批或 UI 已完成。

@@ -1,8 +1,8 @@
 {
-  "name": "@adeptify/goalboard-app-desktop",
+  "name": "@molis-ai/molis-work-app-desktop",
   "version": "0.0.0",
   "private": true,
-  "description": "GoalBoard macOS product shell and native bridge composition root.",
+  "description": "Molis Work macOS product shell and native bridge composition root.",
   "type": "module",
   "license": "MIT",
   "engines": {
@@ -25,17 +25,17 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@adeptify/goalboard-app-local-host": "workspace:*",
-    "@adeptify/goalboard-contracts": "workspace:*",
-    "@adeptify/goalboard-plugin-feed": "workspace:*",
-    "@adeptify/goalboard-storage": "workspace:*",
-    "@adeptify/goalboard-service-runtime-host": "workspace:*"
+    "@molis-ai/molis-work-app-local-host": "workspace:*",
+    "@molis-ai/molis-work-contracts": "workspace:*",
+    "@molis-ai/molis-work-plugin-feed": "workspace:*",
+    "@molis-ai/molis-work-storage": "workspace:*",
+    "@molis-ai/molis-work-service-runtime-host": "workspace:*"
   },
-  "goalboard": {
+  "molis-work": {
     "path": "apps/desktop",
     "kind": "app",
     "maturity": "partial",
-    "contract": "@adeptify/goalboard-contracts/platform/app-host",
+    "contract": "@molis-ai/molis-work-contracts/platform/app-host",
     "migrationGoals": [
       "goal-reorg-f2",
       "goal-reorg-ap4",

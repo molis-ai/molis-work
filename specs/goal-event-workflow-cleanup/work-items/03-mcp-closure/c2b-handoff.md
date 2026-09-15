@@ -46,9 +46,9 @@
 
 | 命令 | 结果 | 日志 |
 | --- | --- | --- |
-| `pnpm --filter @adeptify/goalboard-module-execution typecheck` + `build` | EXIT 0 | `/private/tmp/goalboard-flow-cleanup/03-c2b-correction-execution-typecheck.log`、`...-build.log` |
-| `pnpm --filter @adeptify/goalboard-module-evidence-verification typecheck` + `build` | EXIT 0 | `/private/tmp/goalboard-flow-cleanup/03-c2b-correction-evidence-typecheck.log`、`...-build.log` |
-| `pnpm --filter @adeptify/goalboard-module-governance-collaboration typecheck` + `build` | EXIT 0 | `/private/tmp/goalboard-flow-cleanup/03-c2b-correction-governance-typecheck.log`、`...-build.log` |
+| `pnpm --filter @molis-ai/molis-work-module-execution typecheck` + `build` | EXIT 0 | `/private/tmp/molis-work-flow-cleanup/03-c2b-correction-execution-typecheck.log`、`...-build.log` |
+| `pnpm --filter @molis-ai/molis-work-module-evidence-verification typecheck` + `build` | EXIT 0 | `/private/tmp/molis-work-flow-cleanup/03-c2b-correction-evidence-typecheck.log`、`...-build.log` |
+| `pnpm --filter @molis-ai/molis-work-module-governance-collaboration typecheck` + `build` | EXIT 0 | `/private/tmp/molis-work-flow-cleanup/03-c2b-correction-governance-typecheck.log`、`...-build.log` |
 
 未改 contracts，未重跑 contracts/Goals。未跑全仓、boundary、测试、根探针。`pnpm_config_verify_deps_before_run=warn`，无 install/repair。
 

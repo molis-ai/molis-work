@@ -2,20 +2,20 @@
 
 ## 完成等级
 
-内部完整，并具备可发布流水线：Apple Silicon 与 Intel 用户可以下载对应 DMG、把 GoalBoard 拖入 Applications 并直接启动。正式面向公网免 Gatekeeper 警告仍以 Developer ID 与 Apple notarization 凭据为发布门禁。
+内部完整，并具备可发布流水线：Apple Silicon 与 Intel 用户可以下载对应 DMG、把 Molis Work 拖入 Applications 并直接启动。正式面向公网免 Gatekeeper 警告仍以 Developer ID 与 Apple notarization 凭据为发布门禁。
 
 ## 背景与问题证据
 
-- 当前 `pnpm install:local` 能安装 GoalBoard Core，`goalboard service` 能维护 macOS LaunchAgent，`pnpm desktop` 能从源码启动 Tauri Desktop。
+- 当前 `pnpm install:local` 能安装 Molis Work Core，`molis-work service` 能维护 macOS LaunchAgent，`pnpm desktop` 能从源码启动 Tauri Desktop。
 - 当前 Tauri `bundle.active=false`，README 明确写着 Desktop 只是源码 Preview，没有 DMG、签名、公证或 GitHub Release。
-- Desktop 启动时只会查找 `~/.goalboard/bin/goalboard-web`；全新用户下载单独的 App 后无法启动。
-- 现有 GoalBoard launcher 使用 `/usr/bin/env node`，即使 App 内附 Core，只要用户没有系统 Node，MCP、Web 与 CLI 仍不可用。
+- Desktop 启动时只会查找 `~/.molis-work/bin/molis-work-web`；全新用户下载单独的 App 后无法启动。
+- 现有 Molis Work launcher 使用 `/usr/bin/env node`，即使 App 内附 Core，只要用户没有系统 Node，MCP、Web 与 CLI 仍不可用。
 
 ## 目标与用户路径
 
-1. 用户下载与 CPU 架构匹配的 `GoalBoard-<version>-macos-<arch>.dmg`。
-2. 用户把 GoalBoard 拖入 Applications 并打开。
-3. App 从自己的 Resources 中找到 Node 与 GoalBoard Runtime；若本机尚未安装，则调用现有安装服务写入 `~/.goalboard`。
+1. 用户下载与 CPU 架构匹配的 `Molis Work-<version>-macos-<arch>.dmg`。
+2. 用户把 Molis Work 拖入 Applications 并打开。
+3. App 从自己的 Resources 中找到 Node 与 Molis Work Runtime；若本机尚未安装，则调用现有安装服务写入 `~/.molis-work`。
 4. 安装后的 CLI、MCP 与 Web launcher 使用 release 自带 Node，不依赖系统 Node、pnpm 或源码仓库。
 5. App 启动或复用本地 Web 服务并进入 Desktop 工作台；已有项目、配置和历史保持不变。
 6. 开发者也可以通过仓库内的 build、install、start 脚本构建、安装和启动同一 App。
@@ -23,7 +23,7 @@
 ## 方案与模块边界
 
 - `src/install/home.ts`：识别可选的 `runtime/node`，将其纳入内容摘要和原子 release；为这种 release 生成自带 Node 的 shell launcher，同时兼容并可升级旧 Node launcher。
-- `src/install/uninstall.ts`：把新旧两代 launcher 都视为 GoalBoard 自有文件，仍按原来的冲突保护卸载。
+- `src/install/uninstall.ts`：把新旧两代 launcher 都视为 Molis Work 自有文件，仍按原来的冲突保护卸载。
 - `desktop/src-tauri/src/main.rs`：在 App setup 阶段读取 bundled resource；本地 Web 未运行时幂等安装或刷新同版本 Core，再启动 Web。失败时在窗口中显示可操作错误，不静默退出。
 - `scripts/prepare-macos-runtime.sh`：下载固定 Node LTS，校验官方 SHA256，使用这份 Node 安装生产依赖，并生成 Tauri resource payload。
 - `scripts/build-macos-release.sh`：构建 Core、准备 payload、生成 `.app` 与 `.dmg`，输出架构明确的产物与 SHA256。
@@ -35,7 +35,7 @@
 - 输入：仓库版本、macOS 架构、固定 Node LTS 版本、可选 Apple Developer secrets。
 - 输出：`release/macos/*.dmg`、`.app.zip`、`.sha256`，以及 GitHub Release assets。
 - Node 与生产依赖必须和目标架构一致；不生成一个混合 native addon 的伪 universal 包。
-- 用户权威数据仍只在 `~/.goalboard/projects` 与 catalog 中，Desktop payload 不包含用户数据。
+- 用户权威数据仍只在 `~/.molis-work/projects` 与 catalog 中，Desktop payload 不包含用户数据。
 
 ## 非目标
 
@@ -66,4 +66,4 @@ pnpm test
 git diff --check
 ```
 
-手动验证：把本机已有 `GOALBOARD_HOME` 指向临时目录启动构建出的 App，确认它自动安装 bundled Core、页面健康、三个 launcher 均可在移除 Node PATH 后运行；再以正常 `~/.goalboard` 启动，确认已有项目不变。
+手动验证：把本机已有 `MOLIS_WORK_HOME` 指向临时目录启动构建出的 App，确认它自动安装 bundled Core、页面健康、三个 launcher 均可在移除 Node PATH 后运行；再以正常 `~/.molis-work` 启动，确认已有项目不变。

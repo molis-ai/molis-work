@@ -1,5 +1,5 @@
 {
-  "name": "@adeptify/goalboard-module-projects",
+  "name": "@molis-ai/molis-work-module-projects",
   "version": "0.0.0",
   "private": true,
   "description": "Project identity, Catalog, membership, lifecycle, and board_id migration facts.",
@@ -25,13 +25,13 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@adeptify/goalboard-contracts": "workspace:*"
+    "@molis-ai/molis-work-contracts": "workspace:*"
   },
-  "goalboard": {
+  "molis-work": {
     "path": "modules/projects",
     "kind": "module",
     "maturity": "partial",
-    "contract": "@adeptify/goalboard-contracts/modules/projects",
+    "contract": "@molis-ai/molis-work-contracts/modules/projects",
     "migrationGoals": [
       "goal-reorg-f2",
       "goal-reorg-ap1"

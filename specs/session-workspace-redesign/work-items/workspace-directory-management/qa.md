@@ -90,6 +90,6 @@ node /Users/yijunwang/.agents/skills/impeccable/scripts/detect.mjs --json \
 5. Goals、Sessions、工作目录维持项目内平级，无全局页、switch、新容器体系或链接下划线；Session / 工作目录列表复用 Goal / Feed directory ledger，不使用独立描边卡片或双层状态框：通过。
 6. 768px Dark 桌面、392px 移动列表和 312px 窄详情无横向溢出，行密度、整行按钮与 Hero 触控高度符合要求，确认门禁可用：通过。
 
-## GoalBoard Contract 差异
+## Molis Work Contract 差异
 
 当前 Goal 的旧 Contract 仍要求“全局 + 项目内”两套目录。最新用户决定是“Sessions 与工作目录都只在选定 Project 内，与 Goals 平级”。实现与本需求书按最新决定交付，但纠偏 Candidate 仍待用户确认；旧 Goal 不能在条款被正式替换前伪报完成。

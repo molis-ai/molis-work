@@ -1,4 +1,4 @@
-import type { GoalRelationRecord } from "@adeptify/goalboard-contracts/modules/goals";
+import type { GoalRelationRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 import { allGoalViews } from "./proposal-ui-model.js";
 import { goalRiskStateEffect, RISK_STATE_LABELS } from "./risk-presentation.js";
 import { GOALS_RELATION_LABELS as RELATION_LABELS } from "./relation-presentation.js";

@@ -1,11 +1,11 @@
 export const CONTROL_CLIENT_SCRIPT = `
-  globalThis.goalboardControlHeaders = () => {
-    const token = document.querySelector('meta[name="goalboard-control-token"]')?.content || "";
+  globalThis.molisWorkControlHeaders = () => {
+    const token = document.querySelector('meta[name="molis-work-control-token"]')?.content || "";
     const requestKey = globalThis.crypto?.randomUUID?.() || (Date.now().toString(36) + "-" + Math.random().toString(36).slice(2));
     return {
       "content-type": "application/json",
-      "x-goalboard-control-token": token,
-      "x-goalboard-idempotency-key": requestKey,
+      "x-molis-work-control-token": token,
+      "x-molis-work-idempotency-key": requestKey,
     };
   };
 `;
@@ -34,7 +34,7 @@ export const ONBOARDING_CLIENT_SCRIPT = `
       try {
         const response = await fetch("/api/onboarding/dismiss", {
           method: "POST",
-          headers: globalThis.goalboardControlHeaders(),
+          headers: globalThis.molisWorkControlHeaders(),
           body: JSON.stringify({ kind, user_confirmed: true }),
         });
         const payload = await response.json();
@@ -152,7 +152,7 @@ export const ONBOARDING_CLIENT_SCRIPT = `
       }
       if (submit) submit.hidden = currentStep !== 3;
       if (nextLabel) {
-        nextLabel.textContent = currentStep === 4 ? L("安排好了，进入 GoalBoard") : L("下一步");
+        nextLabel.textContent = currentStep === 4 ? L("安排好了，进入 Molis Work") : L("下一步");
       }
       document.body.dataset.onboardingTone = String(currentStep);
       if (currentStep === 3) updateReview();
@@ -279,7 +279,7 @@ export const ONBOARDING_CLIENT_SCRIPT = `
     };
     const sendRuntimeBootstrap = () => {
       if (!runtimeBootstrap || !runtimeFrame?.contentWindow) return;
-      runtimeFrame.contentWindow.postMessage({ type: "goalboard:onboarding-runtime-bootstrap", ...runtimeBootstrap }, location.origin);
+      runtimeFrame.contentWindow.postMessage({ type: "molis-work:onboarding-runtime-bootstrap", ...runtimeBootstrap }, location.origin);
     };
     runtimeFrame?.addEventListener("load", () => {
       setRuntimeStatus(L("正在把项目上下文交给 Runtime…"), "busy");
@@ -288,19 +288,19 @@ export const ONBOARDING_CLIENT_SCRIPT = `
     window.addEventListener("message", (event) => {
       if (event.origin !== location.origin || event.source !== runtimeFrame?.contentWindow) return;
       if (!runtimeBootstrap || event.data?.goalId !== runtimeBootstrap.goalId) return;
-      if (event.data?.type === "goalboard:onboarding-runtime-ready") {
+      if (event.data?.type === "molis-work:onboarding-runtime-ready") {
         runtimeReady = true;
-        setRuntimeStatus(L("提示已经填好。和 Runtime 把项目安排清楚后，再进入 GoalBoard。"), "ready");
+        setRuntimeStatus(L("提示已经填好。和 Runtime 把项目安排清楚后，再进入 Molis Work。"), "ready");
         if (runtimeRetry) runtimeRetry.hidden = true;
         updateNavigation();
       }
-      if (event.data?.type === "goalboard:onboarding-runtime-waiting") {
+      if (event.data?.type === "molis-work:onboarding-runtime-waiting") {
         runtimeReady = false;
         setRuntimeStatus(L("先在 Runtime 里完成启动确认；之后会自动填入项目提示。"), "busy");
         if (runtimeRetry) runtimeRetry.hidden = true;
         updateNavigation();
       }
-      if (event.data?.type === "goalboard:onboarding-runtime-error") {
+      if (event.data?.type === "molis-work:onboarding-runtime-error") {
         runtimeReady = false;
         setRuntimeStatus(event.data.message || L("Runtime 没有成功打开。"), "error");
         if (runtimeRetry) runtimeRetry.hidden = false;
@@ -325,7 +325,7 @@ export const ONBOARDING_CLIENT_SCRIPT = `
       try {
         const response = await fetch("/api/onboarding/initialize", {
           method: "POST",
-          headers: globalThis.goalboardControlHeaders(),
+          headers: globalThis.molisWorkControlHeaders(),
           body: JSON.stringify({
             project_name: data.projectName,
             outcome: data.outcome,
@@ -338,7 +338,7 @@ export const ONBOARDING_CLIENT_SCRIPT = `
         const payload = await response.json();
         if (!response.ok) throw new Error(payload.error || L("项目初始化失败"));
         if (data.runtimeKind && payload.goal_id) {
-          sessionStorage.setItem("goalboard-onboarding-runtime-autofill:" + payload.goal_id, JSON.stringify({
+          sessionStorage.setItem("molis-work-onboarding-runtime-autofill:" + payload.goal_id, JSON.stringify({
             runtimeKind: data.runtimeKind,
             workspacePath: data.workspacePath,
             at: Date.now(),
@@ -411,7 +411,7 @@ export const PROJECT_INDEX_CLIENT_SCRIPT = `
       const values = new FormData(form);
       const confirmed = values.get("user_confirmed") === "on";
       if (!confirmed) {
-        errorBox.textContent = L("请先确认你要迁移这份已有 GoalBoard 数据。");
+        errorBox.textContent = L("请先确认你要迁移这份已有 Molis Work 数据。");
         errorBox.hidden = false;
         return;
       }
@@ -421,7 +421,7 @@ export const PROJECT_INDEX_CLIENT_SCRIPT = `
       try {
         const response = await fetch("/api/projects/migrate", {
           method: "POST",
-          headers: goalboardControlHeaders(),
+          headers: molisWorkControlHeaders(),
           body: JSON.stringify({
             legacy_database_path: String(values.get("legacy_database_path") || "").trim(),
             display_name: String(values.get("display_name") || "").trim(),
@@ -430,7 +430,7 @@ export const PROJECT_INDEX_CLIENT_SCRIPT = `
         });
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || L("迁移失败，请检查来源 DB 后重试"));
-        location.assign(globalThis.goalboardNavigationUrl(result.project_path));
+        location.assign(globalThis.molisWorkNavigationUrl(result.project_path));
       } catch (error) {
         errorBox.textContent = error.message || L("迁移失败，请检查来源 DB 后重试");
         errorBox.hidden = false;

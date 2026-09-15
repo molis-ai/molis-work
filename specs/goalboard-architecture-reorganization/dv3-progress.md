@@ -26,6 +26,6 @@
 - CLI create 的输出和仓库 examples/plugin-sample 都在最终开发命令中实际执行通过。sample package 是本地 0.0.0 SDK 消费者，不代表已发布 npm 或审核过的安装生态；产品 pack 文件清单确认排除 sample。
 - Runtime 安装记录持久化已接开发流程，普通 dev 结束卸载运行实例并保留个人数据。可选非保留卸载的数据删除由 Host 调用 Runtime owner，底层删除行为已有测试，dev 本身不提供清除用户数据命令。
 - 标准 pnpm run 的 dependency auto-check 要求重建当前 node_modules，非交互 purge 被拒绝。未删依赖目录；锁文件更新、pnpm pack、外部目录 offline npm install 成功，现有编译器/测试可继续。开发环境与 DV4 分发验证需收口，不改用户全局设置。
-- 14 项定向回归通过；仓库样例的新增应用 CLI 路径单独再次通过。48 包、324 源文件、69 边，边界错误 0，根类型与 diff 检查通过。后续以 dv3-validation.md 和 GoalBoard Review 为准。
+- 14 项定向回归通过；仓库样例的新增应用 CLI 路径单独再次通过。48 包、324 源文件、69 边，边界错误 0，根类型与 diff 检查通过。后续以 dv3-validation.md 和 Molis Work Review 为准。
 
 更大的未完范围仍见总 spec 与 reorg-handoff.md：其余代码职责迁移、Huge Class/Cutover、实际前后端用户 E2E、清理后重复 E2E和初始架构要求逐项复核。

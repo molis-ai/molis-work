@@ -3,15 +3,15 @@ import { LocalHost } from "./local-host.js";
 import { GoalProjectApplication } from "./goal-project-application.js";
 import { LocalProjectDatabase } from "./project-database.js";
 import { registerProjectCapabilities } from "./project-capabilities.js";
-import type { LocalHostProjectClient, LocalHostProjectReference, LocalHostStatus } from "@adeptify/goalboard-contracts/platform/app-host";
-import type { PlanningMethodPack } from "@adeptify/goalboard-contracts/modules/goals";
+import type { LocalHostProjectClient, LocalHostProjectReference, LocalHostStatus } from "@molis-ai/molis-work-contracts/platform/app-host";
+import type { PlanningMethodPack } from "@molis-ai/molis-work-contracts/modules/goals";
 
-export interface GoalBoardProjectRuntime {
+export interface MolisWorkProjectRuntime {
   store: LocalProjectDatabase;
   coordinator: GoalProjectApplication;
 }
 
-export interface GoalBoardLocalHostOptions {
+export interface MolisWorkLocalHostOptions {
   planningMethods?: () => readonly PlanningMethodPack[];
   clock?: () => Date;
   instanceId?: string;
@@ -19,7 +19,7 @@ export interface GoalBoardLocalHostOptions {
   onRuntimeClose?: (reference: LocalHostProjectReference) => void;
 }
 
-export function goalBoardHostProjectReference(input: {
+export function molisWorkHostProjectReference(input: {
   databasePath: string;
   boardId: string;
   projectId?: string | null;
@@ -36,10 +36,10 @@ export function goalBoardHostProjectReference(input: {
 /**
  * The project composition owner: one database and application per Host runtime.
  */
-export class GoalBoardLocalHost {
-  private readonly host: LocalHost<GoalBoardProjectRuntime>;
+export class MolisWorkLocalHost {
+  private readonly host: LocalHost<MolisWorkProjectRuntime>;
 
-  constructor(options: GoalBoardLocalHostOptions = {}) {
+  constructor(options: MolisWorkLocalHostOptions = {}) {
     this.host = new LocalHost({
       instanceId: options.instanceId,
       runtimeFactory: {
@@ -71,7 +71,7 @@ export class GoalBoardLocalHost {
 
   withProject<Result>(
     reference: LocalHostProjectReference,
-    operation: (runtime: GoalBoardProjectRuntime) => Result | Promise<Result>,
+    operation: (runtime: MolisWorkProjectRuntime) => Result | Promise<Result>,
   ): Promise<Result> {
     return this.host.withRuntime(reference, operation);
   }
@@ -89,6 +89,6 @@ export class GoalBoardLocalHost {
   }
 }
 
-export function createGoalBoardLocalHost(options: GoalBoardLocalHostOptions = {}): GoalBoardLocalHost {
-  return new GoalBoardLocalHost(options);
+export function createMolisWorkLocalHost(options: MolisWorkLocalHostOptions = {}): MolisWorkLocalHost {
+  return new MolisWorkLocalHost(options);
 }

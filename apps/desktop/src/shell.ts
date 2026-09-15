@@ -2,7 +2,7 @@ import type { IncomingMessage } from "node:http";
 
 export const NATIVE_DESKTOP_BOOTSTRAP_SCRIPT = `(()=>{
   const native=Boolean(globalThis.__TAURI_INTERNALS__||globalThis.__TAURI__);
-  globalThis.goalboardNavigationUrl=(value)=>{
+  globalThis.molisWorkNavigationUrl=(value)=>{
     const input=String(value);
     if(!native)return input;
     try{
@@ -13,7 +13,7 @@ export const NATIVE_DESKTOP_BOOTSTRAP_SCRIPT = `(()=>{
     }catch{return input}
   };
   if(!native)return;
-  globalThis.goalboardOpenExternalUrl=(url)=>globalThis.__TAURI__.core.invoke("open_external_url",{url});
+  globalThis.molisWorkOpenExternalUrl=(url)=>globalThis.__TAURI__.core.invoke("open_external_url",{url});
   document.documentElement.dataset.nativeDesktop="true";
   const root=document.documentElement;
   root.style.setProperty("--desktop-window-safe-inline-start","88px");
@@ -24,18 +24,18 @@ export const NATIVE_DESKTOP_BOOTSTRAP_SCRIPT = `(()=>{
         const fullscreen=await nativeWindow.isFullscreen();
         root.dataset.nativeFullscreen=String(fullscreen);
         root.style.setProperty("--desktop-window-safe-inline-start",fullscreen?"2px":"88px");
-      }catch(error){console.warn("GoalBoard could not read native fullscreen state",error)}
+      }catch(error){console.warn("Molis Work could not read native fullscreen state",error)}
     };
     nativeWindow.onResized(syncFullscreen).then(syncFullscreen).catch((error)=>{
-      console.warn("GoalBoard could not observe native window resize",error);
+      console.warn("Molis Work could not observe native window resize",error);
     });
   }
-  const normalized=globalThis.goalboardNavigationUrl(location.href);
+  const normalized=globalThis.molisWorkNavigationUrl(location.href);
   if(normalized!==location.href)location.replace(normalized);
 })();`;
 
 export function isDesktopShellRequest(request: IncomingMessage, url: URL): boolean {
-  const header = request.headers["x-goalboard-desktop"];
+  const header = request.headers["x-molis-work-desktop"] ?? request.headers["x-goalboard-desktop"];
   if (header === "1" || (Array.isArray(header) && header.includes("1"))) return true;
   return url.searchParams.get("desktop") === "1";
 }

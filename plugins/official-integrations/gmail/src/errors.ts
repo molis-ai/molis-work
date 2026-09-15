@@ -1,4 +1,4 @@
-import type { IntegrationProviderSyncResult } from "@adeptify/goalboard-contracts/platform/plugin";
+import type { IntegrationProviderSyncResult } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 type ConnectorSyncFailure = Extract<IntegrationProviderSyncResult, { ok: false }>;
 export type GmailFailureStage = "profile" | "list" | "history" | "detail" | "unknown";

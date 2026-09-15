@@ -1,8 +1,8 @@
-# GoalBoard 高保真还原纠正
+# Molis Work 高保真还原纠正
 
 ## 完成等级
 
-本轮达到 **内部完整的 UI 修正（Level 4，UI 范围）**：真实 GoalBoard `.app` 的中文、英文、桌面宽屏、Harness 伴随窄屏与 Goal Graph 均可直接评审。现有领域能力和 Runtime/TUI 行为不改变。
+本轮达到 **内部完整的 UI 修正（Level 4，UI 范围）**：真实 Molis Work `.app` 的中文、英文、桌面宽屏、Harness 伴随窄屏与 Goal Graph 均可直接评审。现有领域能力和 Runtime/TUI 行为不改变。
 
 ## 背景与问题证据
 
@@ -19,7 +19,7 @@
 9. 决定中心仍有只针对浅色背景设计的卡片、选项、依据区、禁用态与操作按钮，Dark 下层级和对比度没有进入同一套主题系统。
 10. Desktop 虽保留了 `data-tauri-drag-region` 和可缩放窗口配置，但 capability 只声明 `core:window:default`；自定义 TitleBar 发起的拖动命令没有独立授权，因此真实窗口无法移动。
 
-上述反馈已作为失败复核写回 GoalBoard；原“已达到高保真”的完成结论不再作为本轮验收依据。
+上述反馈已作为失败复核写回 Molis Work；原“已达到高保真”的完成结论不再作为本轮验收依据。
 
 ## 目标
 
@@ -56,11 +56,11 @@
 
 ### 语言边界
 
-品牌名 `GoalBoard` 与协议名 `Goal`、`Runtime` 可按产品约定保留；页面区域、操作、状态和说明必须经过 `L(...)`。中文模式使用中文区域名，英文模式使用对应英文。桌面壳不再成为强制英文的条件。
+品牌名 `Molis Work` 与协议名 `Goal`、`Runtime` 可按产品约定保留；页面区域、操作、状态和说明必须经过 `L(...)`。中文模式使用中文区域名，英文模式使用对应英文。桌面壳不再成为强制英文的条件。
 
 ### 桌面与伴随模式
 
-Desktop 宽屏改为稳定的双栏工作台：左栏始终承担项目级 Goal Navigator，并提供“列表 / 图谱”入口；右栏是单一主工作区，Goal 级只在“聚焦 / Runtime”之间切换。进入图谱时，右侧显示完整项目网络，左侧入口明确表明它属于项目导航而不是某个 Goal 的详情 Tab；选中图中节点后仍联动对应 Goal。切到 Runtime 时，其组件 Header 必须保留当前 Goal 标题与绑定状态，因此外层不再重复显示 Runtime 标题。原生 TitleBar 承担全局控制与居中的 GoalBoard 品牌；默认窗口必须完整落在常见笔记本工作区内，并允许用户拖动和缩放。760px 以下继续使用目标 / 聚焦 / Runtime 独占视图，首屏字号、卡片高度和操作密度按伴随窗口重新校准，不是缩小后的宽屏页面。
+Desktop 宽屏改为稳定的双栏工作台：左栏始终承担项目级 Goal Navigator，并提供“列表 / 图谱”入口；右栏是单一主工作区，Goal 级只在“聚焦 / Runtime”之间切换。进入图谱时，右侧显示完整项目网络，左侧入口明确表明它属于项目导航而不是某个 Goal 的详情 Tab；选中图中节点后仍联动对应 Goal。切到 Runtime 时，其组件 Header 必须保留当前 Goal 标题与绑定状态，因此外层不再重复显示 Runtime 标题。原生 TitleBar 承担全局控制与居中的 Molis Work 品牌；默认窗口必须完整落在常见笔记本工作区内，并允许用户拖动和缩放。760px 以下继续使用目标 / 聚焦 / Runtime 独占视图，首屏字号、卡片高度和操作密度按伴随窗口重新校准，不是缩小后的宽屏页面。
 
 桌面宽屏先作为本轮第一个垂直切片，必须直接替换可见组件结构，而不是继续给旧 DOM 换皮：
 
@@ -85,9 +85,9 @@ Graph 默认显示完整网络，用户可切到“直接相关”聚焦当前 G
 
 - 输入：现有 `WebGoalView`、active Relation、当前选择、语言和主题。
 - 布局：`buildGoalGraphLayout` 只返回展示坐标与关系角色。
-- 渲染：`renderGoalBoardWeb` / `renderGoalGraph` 生成可访问 DOM。
+- 渲染：`renderMolisWorkWeb` / `renderGoalGraph` 生成可访问 DOM。
 - 交互：现有 `selectGoal`、筛选、搜索、缩放和 TUI 事件继续复用。
-- 输出：Web 与 Desktop 的 UI；任何视图操作都不得产生 GoalBoard 写入。
+- 输出：Web 与 Desktop 的 UI；任何视图操作都不得产生 Molis Work 写入。
 
 ## 验收标准
 

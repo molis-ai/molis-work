@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "plugin_id": "io.goalboard.integration.github",
+  "plugin_id": "io.molis.work.integration.github",
   "version": "1.0.0",
   "name": "GitHub",
   "kind": "integration",

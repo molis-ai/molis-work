@@ -3,11 +3,11 @@ import { rmSync } from "node:fs";
 import test from "node:test";
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
-import { DEMO_BOARD_ID, GoalProjectApplication, LocalProjectDatabase } from "@adeptify/goalboard-app-local-host";
-import { createGoalBoardWebServer } from "../apps/desktop/launchers/web/server.js";
+import { DEMO_BOARD_ID, GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { materializeGoalEventV35Fixture } from "./goal-event-v35-fixture.js";
 
-const TOKEN = "goalboard-history-contract-token-0123456789abcdef";
+const TOKEN = "molis-work-history-contract-token-0123456789abcdef";
 
 function listen(server: Server): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -25,7 +25,7 @@ test("public document timeline is bounded, keeps journal, and does not label sel
   const databasePath = fixture.path;
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
-  const server = createGoalBoardWebServer({ databasePath, boardId: DEMO_BOARD_ID, homeDirectory: directory, controlToken: TOKEN });
+  const server = createMolisWorkWebServer({ databasePath, boardId: DEMO_BOARD_ID, homeDirectory: directory, controlToken: TOKEN });
   const origin = await listen(server);
   try {
     const page = async (goalId: string, query: Record<string, string>) => {

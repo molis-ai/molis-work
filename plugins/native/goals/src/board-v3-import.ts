@@ -1,4 +1,4 @@
-import type { GoalEventFactsApi, GoalsCommandApi, GoalsQueryApi } from "@adeptify/goalboard-contracts/modules/goals";
+import type { GoalEventFactsApi, GoalsCommandApi, GoalsQueryApi } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { LegacyV3ImportInput, V3ImportReport } from "./board-import-contract.js";
 
 export interface LegacyV3ImportPorts {

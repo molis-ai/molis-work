@@ -1,11 +1,11 @@
 # Desktop App 与 Tauri 边界
 
 状态：AP4/DV4/Cutover 已迁入并完成本地 App/DMG 安装和真实窗口验收；本轮未做公开发布或公证
-公开 package：`@adeptify/goalboard-app-desktop`
+公开 package：`@molis-ai/molis-work-app-desktop`
 
 ## 1. 大白话说明
 
-Desktop 是 GoalBoard 在 macOS 上的“外壳和控制台”。它负责开窗口、启动本地 Runtime、管理终端面板、显示菜单栏 Capsule，并在本地服务暂时不可用时恢复连接。它不判断 Goal 是否完成、不保存 Project 正式事实，也不复制 Feed、Session 或其他 Module 的业务规则。
+Desktop 是 Molis Work 在 macOS 上的“外壳和控制台”。它负责开窗口、启动本地 Runtime、管理终端面板、显示菜单栏 Capsule，并在本地服务暂时不可用时恢复连接。它不判断 Goal 是否完成、不保存 Project 正式事实，也不复制 Feed、Session 或其他 Module 的业务规则。
 
 例如，用户从一个 Goal 打开 Codex 面板时：
 
@@ -27,7 +27,7 @@ Desktop 是 GoalBoard 在 macOS 上的“外壳和控制台”。它负责开窗
 | `apps/desktop/src/adapters/sqlite-panels.ts` | Desktop Panel SQLite Repository | 面板业务判断 |
 | `apps/desktop/src-tauri/` | Cargo/Tauri 配置、权限和打包资源 | Desktop 业务源码 |
 
-旧 `src/desktop/` 与 `src/web/desktop-shell.ts` 已删除；caller 使用 `@adeptify/goalboard-app-desktop`。
+旧 `src/desktop/` 与 `src/web/desktop-shell.ts` 已删除；caller 使用 `@molis-ai/molis-work-app-desktop`。
 
 ## 3. 与其他边界怎样合作
 
@@ -45,7 +45,7 @@ AP4 保持并迁移了以下既有能力：
 - Codex、Claude Code、OpenCode、Pi、Grok 与自定义命令的启动配方。
 - 面板打开/退出/重开/关闭、Session alias、Project 关联和 PTY 生命周期。
 - 菜单栏状态、Capsule 定位/显示、项目切换、主题与中英文 locale。
-- 内置 GoalBoard Runtime 的版本比较、升级安装与 owned service 配置修复。
+- 内置 Molis Work Runtime 的版本比较、升级安装与 owned service 配置修复。
 - Tauri command 的显式 permission allowlist。
 
 当前产品没有系统级通知实现：界面中的通知按钮原本就是“暂不可用”的禁用占位。Desktop 也没有独立 Keychain adapter；Feed 的现有 credential backend 仍由它自己的 Host 接线管理。AP4 不把不存在的功能伪装成已迁入。将来实现系统通知、Keychain 或 App 自更新时，应作为 `apps/desktop/adapters/tauri/` 的受控 adapter 接入，但权限策略和业务判断仍由调用它的正式 owner 决定。
@@ -56,4 +56,4 @@ AP4 保持并迁移了以下既有能力：
 
 `apps/desktop/src-tauri/` 保留 Cargo/Tauri 发布配置和资源。最终 App、DMG、zip 与 ad-hoc 签名已构建，DMG 安装至临时目录后真实启动、退出并恢复原服务。没有升级现用安装，也未进行 Developer ID 公证或公开发布。
 
-历史分工见 [AP4](../../specs/goalboard-architecture-reorganization/ap4-validation.md)，最终证据见 [Cutover 验证](../../specs/goalboard-architecture-reorganization/cutover-validation.md)。
+历史分工见 [AP4](../../specs/molis-work-architecture-reorganization/ap4-validation.md)，最终证据见 [Cutover 验证](../../specs/molis-work-architecture-reorganization/cutover-validation.md)。

@@ -1,9 +1,9 @@
-import type { GoalFactsView, ImpactBindingRecord, ProjectGuidanceView, GoalsActorWrite, GoalsBoardRecord, GoalContractRevisionRecord, CoverageContractRevisionRecord, PlanningMethodPack, ProjectGuidanceEntryRecord, GoalRecord, GoalRelationRecord, RiskRecord, GoalRiskLinkRecord } from "@adeptify/goalboard-contracts/modules/goals";
-import type { ExecutionClaimRecord, ExecutionRunRecord } from "@adeptify/goalboard-contracts/modules/execution";
-import type { EvidenceRecord, EvidenceCorrectionRecord } from "@adeptify/goalboard-contracts/modules/evidence-verification";
-import type { ReviewObligationRecord, ReviewRecord, CandidateGoalRecord, ContractProposalRecord, RewireRecord, ClarificationSessionRecord, ClarificationTurnRecord, GoalTreeProposalRecord } from "@adeptify/goalboard-contracts/modules/governance-collaboration";
-import type { HostCapabilityDefinition } from "@adeptify/goalboard-contracts/platform/app-host";
-import type { StoredModuleEvent } from "@adeptify/goalboard-contracts/platform/storage";
+import type { GoalFactsView, ImpactBindingRecord, ProjectGuidanceView, GoalsActorWrite, GoalsBoardRecord, GoalContractRevisionRecord, CoverageContractRevisionRecord, PlanningMethodPack, ProjectGuidanceEntryRecord, GoalRecord, GoalRelationRecord, RiskRecord, GoalRiskLinkRecord } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { ExecutionClaimRecord, ExecutionRunRecord } from "@molis-ai/molis-work-contracts/modules/execution";
+import type { EvidenceRecord, EvidenceCorrectionRecord } from "@molis-ai/molis-work-contracts/modules/evidence-verification";
+import type { ReviewObligationRecord, ReviewRecord, CandidateGoalRecord, ContractProposalRecord, RewireRecord, ClarificationSessionRecord, ClarificationTurnRecord, GoalTreeProposalRecord } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+import type { HostCapabilityDefinition } from "@molis-ai/molis-work-contracts/platform/app-host";
+import type { StoredModuleEvent } from "@molis-ai/molis-work-contracts/platform/storage";
 
 /** Existing full project snapshot; every record is defined by its fact owner. */
 export interface BoardSnapshot {
@@ -51,19 +51,19 @@ export interface GoalContractView extends GoalFactsView {
 }
 
 export const readGoalContractCapability = {
-  capability_id: "io.goalboard.local-host.goals.contract",
+  capability_id: "io.molis.work.local-host.goals.contract",
   version: 1,
   operation: "query",
 } as HostCapabilityDefinition<{ board_id: string; goal_id: string }, GoalContractView>;
 
 export const readProjectGuidanceCapability = {
-  capability_id: "io.goalboard.local-host.project.guidance",
+  capability_id: "io.molis.work.local-host.project.guidance",
   version: 1,
   operation: "query",
 } as HostCapabilityDefinition<{ board_id: string }, ProjectGuidanceView>;
 
 export const setActiveGoalCapability = {
-  capability_id: "io.goalboard.local-host.goals.set-active",
+  capability_id: "io.molis.work.local-host.goals.set-active",
   version: 1,
   operation: "command",
 } as HostCapabilityDefinition<{

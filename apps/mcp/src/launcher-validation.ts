@@ -10,16 +10,16 @@ export interface McpLauncherValidationContext {
 
 const MCP_VALIDATION_TIMEOUT_MS = 10_000;
 
-export async function validateGoalBoardMcpLauncher(context: McpLauncherValidationContext): Promise<boolean> {
+export async function validateMolisWorkMcpLauncher(context: McpLauncherValidationContext): Promise<boolean> {
   return new Promise((resolve) => {
     const child = spawn(context.launcher_path, [], {
       env: {
         ...process.env,
-        GOALBOARD_HOME: context.home_directory,
-        GOALBOARD_MCP_AUDIENCE: "runtime",
-        GOALBOARD_RUNTIME_ID: context.runtime_id,
-        GOALBOARD_WORK_CONTEXT_ID: `integration-validation-${context.plan_id}`,
-        GOALBOARD_WORK_CONTEXT_STABLE: "true",
+        MOLIS_WORK_HOME: context.home_directory,
+        MOLIS_WORK_MCP_AUDIENCE: "runtime",
+        MOLIS_WORK_RUNTIME_ID: context.runtime_id,
+        MOLIS_WORK_WORK_CONTEXT_ID: `integration-validation-${context.plan_id}`,
+        MOLIS_WORK_WORK_CONTEXT_STABLE: "true",
       },
       stdio: ["pipe", "pipe", "ignore"],
     });
@@ -56,7 +56,7 @@ export async function validateGoalBoardMcpLauncher(context: McpLauncherValidatio
       jsonrpc: "2.0",
       id: 1,
       method: "initialize",
-      params: { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "goalboard-validator", version: "1" } },
+      params: { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "molis-work-validator", version: "1" } },
     })}\n`);
   });
 }

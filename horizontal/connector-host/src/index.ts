@@ -5,14 +5,14 @@ import type {
   ConnectorHealth,
   ConnectorHostApi,
   ConnectorReceipt,
-} from "@adeptify/goalboard-contracts/services/connector-host";
+} from "@molis-ai/molis-work-contracts/services/connector-host";
 
 export const packageDescriptor = {
-  packageName: "@adeptify/goalboard-service-connector-host",
+  packageName: "@molis-ai/molis-work-service-connector-host",
   packagePath: "horizontal/connector-host",
   kind: "horizontal",
   maturity: "partial",
-  contract: "@adeptify/goalboard-contracts/services/connector-host",
+  contract: "@molis-ai/molis-work-contracts/services/connector-host",
   migrationGoals: ["goal-reorg-f2", "goal-reorg-fd1", "goal-reorg-fd3"],
   ssot: "docs/SSOT-MATRIX.md",
   capabilities: ["connector.host.v1"],
@@ -174,4 +174,4 @@ async function withTimeout<T>(
   }
 }
 
-export type GoalBoardPackageDescriptor = typeof packageDescriptor;
+export type MolisWorkPackageDescriptor = typeof packageDescriptor;

@@ -4,7 +4,7 @@ Goal：`goal-reorg-fd4`
 Contract revision：1  
 核对日期：2026-09-02
 
-这份记录证明 Feed、Inbox 和 Source 的现有页面与 HTTP 入口已经迁到 Feed Native Plugin，并保留迁移前行为。它不宣称整个 GoalBoard 已完成架构重组；Local Host 与 Goals Command 的最终解耦仍由 AP2/GW4 继续完成。
+这份记录证明 Feed、Inbox 和 Source 的现有页面与 HTTP 入口已经迁到 Feed Native Plugin，并保留迁移前行为。它不宣称整个 Molis Work 已完成架构重组；Local Host 与 Goals Command 的最终解耦仍由 AP2/GW4 继续完成。
 
 ## fd4-boundary
 
@@ -52,7 +52,7 @@ server.ts → feed-native-plugin-http.ts → FeedPluginRouteTable → Host bindi
 
 仍留在旧 Web 目录的两个 adapter 都有明确退出条件：
 
-- `feed-native-plugin-ui.ts` 在 AP3/各 Query read model 接通后，不再从全局 `GoalBoardWebView` 组装 Feed model；
+- `feed-native-plugin-ui.ts` 在 AP3/各 Query read model 接通后，不再从全局 `MolisWorkWebView` 组装 Feed model；
 - `feed-native-plugin-http.ts` 在 AP2/GW4 接通 Local Host capability 与 Goals Command 后，删除 Secret/OAuth 与 Feed→Goal 的兼容接线。
 
 这两个 adapter 不是新的事实 owner，也不复制 Feed/Attention 状态机。Feed/Attention 写入继续走 FD2 的 public Module API；Gmail scope 直接消费官方 Gmail Integration Plugin 的公开 `scope` subpath，没有在 UI Plugin 复制 Provider 规则。

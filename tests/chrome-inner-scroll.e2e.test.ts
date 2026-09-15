@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { openGoalBoardProjectCatalog } from "@adeptify/goalboard-app-desktop";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 const scrollProbe = (chromeSelector: string, scrollerSelector: string) => `(() => {
@@ -32,7 +32,7 @@ test("Window chrome stays put while project index, settings, Feed, Sessions and 
   const browser = await openGoalBrowser(t, "migrated");
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
-  const catalog = await openGoalBoardProjectCatalog({ homeDirectory });
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   for (const plugin_id of ["feed", "sessions", "artifacts"] as const) catalog.addProjectPlugin({ project_id: projectId!, plugin_id, actor_id: "scroll-test" });
   catalog.close();
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
@@ -77,35 +77,40 @@ test("Window chrome stays put while project index, settings, Feed, Sessions and 
 
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/?desktop=1" }, sessionId));
   await waitFor("document.body.classList.contains('immersive-workbench') && document.body.dataset.desktopSurface === 'home'");
+  assert.equal(await evaluate("document.querySelector('[data-directory-list-title]')?.textContent"), "项目首页");
   await expectContained(".immersive-titlebar", "[data-work-surface=home]");
   await expectContained(".navigator-project", "[data-directory-panel=root]");
+  await expectContained("[data-directory-list-chrome]", "[data-directory-panel=root]");
 
-  await click('[data-directory-panel="root"] [data-directory-open="feed"]');
-  await waitFor("document.querySelector('[data-work-surface=feed]:not([hidden])') && document.querySelector('[data-directory-panel=feed]:not([hidden])') && document.querySelector('[data-feed-views]:not([hidden])')");
-  await expectContained(".immersive-titlebar", "[data-work-surface=feed]");
+  await click('[data-plugin-strip] [data-plugin-id="feed"]');
+  await waitFor("document.body.dataset.desktopSurface === 'feed' && document.querySelector('[data-directory-panel=feed]:not([hidden])') && document.querySelector('[data-feed-views]:not([hidden])') && document.querySelector('[data-directory-list-title]')?.textContent === 'Feed'");
+  await expectContained(".immersive-titlebar", "[data-feed-list]");
   await expectContained(".navigator-project", "[data-feed-list]");
+  await expectContained("[data-directory-list-chrome]", "[data-feed-list]");
   await expectContained(".feed-directory-tools", "[data-feed-list]");
 
   await click('[data-feed-views] [data-work-surface-open="sources"]');
-  await waitFor("document.querySelector('[data-directory-panel=sources]:not([hidden])') && document.querySelector('[data-source-list]')");
+  await waitFor("document.querySelector('[data-directory-panel=sources]:not([hidden])') && document.querySelector('[data-source-list]') && document.querySelector('[data-directory-list-title]')?.textContent === '来源'");
   await expectContained(".immersive-titlebar", "[data-work-surface=sources]");
   await expectContained(".source-directory-tools", "[data-source-list]");
 
   await click('[data-plugin-strip] [data-plugin-id="sessions"]');
-  await waitFor("document.querySelector('[data-work-surface=sessions]:not([hidden])') && document.querySelector('[data-directory-panel=sessions]:not([hidden])')");
-  await expectContained(".immersive-titlebar", "[data-work-surface=sessions]");
+  await waitFor("document.body.dataset.desktopSurface === 'sessions' && document.querySelector('[data-directory-panel=sessions]:not([hidden])')");
+  await expectContained(".immersive-titlebar", "[data-operation-list=sessions]");
   await expectContained(".navigator-project", "[data-operation-list=sessions]");
+  await expectContained("[data-directory-list-chrome]", "[data-operation-list=sessions]");
   await expectContained(".project-record-tools", "[data-operation-list=sessions]");
 
   await click('[data-plugin-strip] [data-plugin-id="artifacts"]');
-  await waitFor("document.querySelector('[data-work-surface=artifacts]:not([hidden])') && document.querySelector('[data-directory-panel=artifacts]:not([hidden])')");
-  await expectContained(".immersive-titlebar", "[data-work-surface=artifacts]");
+  await waitFor("document.body.dataset.desktopSurface === 'artifacts' && document.querySelector('[data-directory-panel=artifacts]:not([hidden])')");
+  await expectContained(".immersive-titlebar", "[data-artifact-directory]");
   await expectContained(".navigator-project", "[data-artifact-directory]");
 
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor("document.querySelector('[data-directory-panel=goals]:not([hidden])') && document.querySelector('[data-tree-scroll]')");
   await expectContained(".immersive-titlebar", "[data-tree-scroll]");
   await expectContained(".navigator-project", "[data-tree-scroll]");
+  await expectContained("[data-directory-list-chrome]", "[data-tree-scroll]");
   await expectContained(".tree-chrome", "[data-tree-scroll]");
 
   await click('[data-work-surface-open="market"]');

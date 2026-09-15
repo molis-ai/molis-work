@@ -1,4 +1,4 @@
-import type { RuntimeWorkContext, NormalizedRuntimeWorkContext, RuntimeWorkspaceContext, NormalizedRuntimeWorkspaceContext } from "@adeptify/goalboard-contracts/modules/private-work-context";
+import type { RuntimeWorkContext, NormalizedRuntimeWorkContext, RuntimeWorkspaceContext, NormalizedRuntimeWorkspaceContext } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 export type RuntimeProjectBindingErrorCode = "context.user_confirmation_required" | "context.suggestion_not_available" | "catalog.project_not_found" | "context.workspace_default_unsupported" | "context.workspace_required" | "context.idempotency_conflict" | "context.rebind_confirmation_required" | "context.stable_identity_required" | "context.identity_required" | "catalog.invalid_name" | "context.idempotency_key_required";
 export type RuntimeProjectBindingErrorFactory = (code: RuntimeProjectBindingErrorCode, message: string) => Error;
 export interface RuntimeProjectBindingValidationPorts {

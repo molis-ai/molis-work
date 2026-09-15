@@ -1,5 +1,5 @@
-import type { GoalBoardRuntimeConnection, RuntimeProjectConnectionState } from "@adeptify/goalboard-contracts/platform/app-host";
-import type { RuntimeWorkContext } from "@adeptify/goalboard-contracts/modules/private-work-context";
+import type { MolisWorkRuntimeConnection, RuntimeProjectConnectionState } from "@molis-ai/molis-work-contracts/platform/app-host";
+import type { RuntimeWorkContext } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 
 function contextKey(context: RuntimeWorkContext): string {
   const workspace = context.workspace?.canonical_path ?? "no-workspace";
@@ -8,11 +8,11 @@ function contextKey(context: RuntimeWorkContext): string {
 
 /** Preserve the existing cache invalidation protocol without changing canonical bindings. */
 export class RuntimeProjectConnection implements RuntimeProjectConnectionState {
-  connection: GoalBoardRuntimeConnection | null;
+  connection: MolisWorkRuntimeConnection | null;
   private key: string | null;
   private refreshKey: string | null = null;
 
-  constructor(connection: GoalBoardRuntimeConnection | null = null) {
+  constructor(connection: MolisWorkRuntimeConnection | null = null) {
     this.connection = connection;
     this.key = connection ? "explicit" : null;
   }
@@ -37,7 +37,7 @@ export class RuntimeProjectConnection implements RuntimeProjectConnectionState {
     if (clearRefresh) this.refreshKey = null;
   }
 
-  accept(connection: GoalBoardRuntimeConnection | null, context: RuntimeWorkContext): void {
+  accept(connection: MolisWorkRuntimeConnection | null, context: RuntimeWorkContext): void {
     this.refreshKey = null;
     this.connection = connection;
     this.key = connection ? contextKey(context) : null;

@@ -2,18 +2,18 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import type { UiContribution } from "@adeptify/goalboard-contracts/platform/ui";
+import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import {
   THEME_BOOTSTRAP_SCRIPT,
   VISUAL_FOUNDATION_CLIENT_SCRIPT,
   VISUAL_FOUNDATION_STYLES,
-} from "@adeptify/goalboard-design-system";
+} from "@molis-ai/molis-work-design-system";
 import {
   WORKBENCH_UI_SLOTS,
   createWorkbenchUiHost,
   renderWorkbenchDocument,
-} from "@adeptify/goalboard-app-workbench";
-import { UiContributionError, UiHost } from "@adeptify/goalboard-ui-host";
+} from "@molis-ai/molis-work-app-workbench";
+import { UiContributionError, UiHost } from "@molis-ai/molis-work-ui-host";
 
 test("Workbench owns the document shell and escapes document metadata", () => {
   const html = renderWorkbenchDocument({
@@ -40,8 +40,8 @@ test("Workbench owns the document shell and escapes document metadata", () => {
 test("UI Host mounts only declared Plugin surfaces into compatible Workbench slots", () => {
   const contribution: UiContribution<{ title: string }> = {
     descriptor: {
-      contribution_id: "io.goalboard.test.ui.v1",
-      plugin_id: "io.goalboard.test",
+      contribution_id: "io.molis.work.test.ui.v1",
+      plugin_id: "io.molis.work.test",
       kind: "embedded",
       label: "Test",
       surfaces: [
@@ -64,7 +64,7 @@ test("UI Host mounts only declared Plugin surfaces into compatible Workbench slo
   });
   assert.deepEqual(mounted, {
     slot_id: "workbench.main",
-    contribution_id: "io.goalboard.test.ui.v1",
+    contribution_id: "io.molis.work.test.ui.v1",
     surface: "panel",
     html: "<article>Mounted</article>",
   });
@@ -94,7 +94,7 @@ test("UI Host mounts only declared Plugin surfaces into compatible Workbench slo
 
 test("Workbench registers Native Plugin surfaces against stable slots", () => {
   const descriptors = createWorkbenchUiHost().list();
-  const feed = descriptors.find((item) => item.contribution_id === "io.goalboard.native.feed.ui.v1");
+  const feed = descriptors.find((item) => item.contribution_id === "io.molis.work.native.feed.ui.v1");
   assert.ok(feed);
   assert.deepEqual(
     new Set(feed.surfaces?.map((surface) => surface.target_slot_id)),
@@ -107,13 +107,13 @@ test("Design System and Workbench responsibilities have left legacy huge files",
   const renderer = readFileSync("apps/workbench/src/renderer.ts", "utf8");
 
   assert.ok(i18nRuntime.split(/\r?\n/u).length < 200);
-  assert.match(renderer, /from "@adeptify\/goalboard-design-system"/);
+  assert.match(renderer, /from "@molis-ai\/molis-work-design-system"/);
   assert.match(renderer, /renderWorkbenchDocument/);
   assert.doesNotMatch(renderer, /const CLIENT_SCRIPT =/);
   assert.doesNotMatch(renderer, /const VISUAL_FOUNDATION_STYLES =/);
-  assert.doesNotMatch(renderer, /SqliteGoalBoardStore|GoalBoardCoordinator/);
+  assert.doesNotMatch(renderer, /SqliteMolisWorkStore|MolisWorkCoordinator/);
 
-  assert.match(THEME_BOOTSTRAP_SCRIPT, /goalboard:theme/);
+  assert.match(THEME_BOOTSTRAP_SCRIPT, /molis-work:theme/);
   assert.match(VISUAL_FOUNDATION_CLIENT_SCRIPT, /data-theme-option/);
   assert.match(VISUAL_FOUNDATION_STYLES, /@media \(prefers-reduced-motion: reduce\)/);
   assert.match(VISUAL_FOUNDATION_STYLES, /:focus-visible/);

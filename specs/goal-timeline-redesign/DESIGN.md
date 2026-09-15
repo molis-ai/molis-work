@@ -21,7 +21,7 @@ rounded:
 
 ## Overview
 
-2026-09-09 第三版，模式为 Operate / Read。本文只描述本目录 `prototype/` 的实际设计，完成等级为 **2：可交互原型**，不作为 GoalBoard 全项目设计规范。
+2026-09-09 第三版，模式为 Operate / Read。本文只描述本目录 `prototype/` 的实际设计，完成等级为 **2：可交互原型**，不作为 Molis Work 全项目设计规范。
 
 **Creative North Star: "整体进展与双栏时间线"**
 

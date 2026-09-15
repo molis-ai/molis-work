@@ -1,5 +1,5 @@
 {
-  "name": "@adeptify/goalboard-design-system",
+  "name": "@molis-ai/molis-work-design-system",
   "version": "0.0.0",
   "private": true,
   "description": "Tokens, primitives, icons, themes, and accessibility foundations.",
@@ -25,14 +25,14 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@adeptify/goalboard-contracts": "workspace:*",
+    "@molis-ai/molis-work-contracts": "workspace:*",
     "lucide": "^1.31.0"
   },
-  "goalboard": {
+  "molis-work": {
     "path": "packages/design-system",
     "kind": "foundation",
     "maturity": "partial",
-    "contract": "@adeptify/goalboard-contracts/platform/ui",
+    "contract": "@molis-ai/molis-work-contracts/platform/ui",
     "migrationGoals": [
       "goal-reorg-f2",
       "goal-reorg-ap3"

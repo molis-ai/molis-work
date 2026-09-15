@@ -6,7 +6,7 @@ name: "增长与分发"
 summary: "围绕目标用户、触发时刻、渠道机制和可验证增长循环组织工作。"
 applies_to: ["用户增长","产品分发","留存与推荐"]
 domain_tags: ["growth","distribution","retention"]
-source_refs: ["AARRR funnel as a diagnostic heuristic","GoalBoard orthogonal SSOT framework"]
+source_refs: ["AARRR funnel as a diagnostic heuristic","Molis Work orthogonal SSOT framework"]
 confidence: 0.9
 ---
 

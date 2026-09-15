@@ -1,4 +1,4 @@
-import type { GoalTreeProposalItemRecord } from "@adeptify/goalboard-contracts/modules/governance-collaboration";
+import type { GoalTreeProposalItemRecord } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 
 /** New Goals first, then relations that may point at them. Ordering never grants approval. */
 export function goalTreeMaterializationGroups(

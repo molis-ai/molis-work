@@ -1,6 +1,6 @@
 import type { FeedApplication } from "./application.js";
 import type { RelayImportData, RelayImportPorts, RelayImportResult } from "./relay-import-types.js";
-import { feedItemTypeForSource } from "./projection.js";
+import { sourceKindOpensAttention } from "./projection.js";
 import { stableId } from "./source-input.js";
 import { text, optionalText, parsedJson, parsedTags } from "./relay-import-values.js";
 import { importRelaySources } from "./relay-import-sources.js";
@@ -71,7 +71,7 @@ export function prepareRelayFeedImport(target: FeedApplication, boardId: string,
           imported_at: now,
           updated_at: now,
         });
-        if (feedItemTypeForSource(sourceKind) === "inbox_message") {
+        if (sourceKindOpensAttention(sourceKind)) {
           target.ensureInboxEntryForFeedItem(boardId, itemId, "source_rule", {
             source_id: sourceId,
             imported_from: "relay",

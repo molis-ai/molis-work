@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createWorkbenchGoalsTreeRenderer, createWorkbenchUiHost } from "@adeptify/goalboard-app-workbench";
-import { buildGoalCollectionModel, GOALS_TREE_UI_CONTRIBUTION_ID, type GoalsTreeItem, type GoalsTreeView } from "@adeptify/goalboard-plugin-goals";
-import type { GoalRelationRecord } from "@adeptify/goalboard-contracts/modules/goals";
-import { icon } from "@adeptify/goalboard-design-system";
-import { L, currentLocale, listJoin, runWithLocale } from "@adeptify/goalboard-app-local-host";
-import { GOAL_DISPLAY_STATUSES } from "@adeptify/goalboard-plugin-goals";
+import { createWorkbenchGoalsTreeRenderer, createWorkbenchUiHost } from "@molis-ai/molis-work-app-workbench";
+import { buildGoalCollectionModel, GOALS_TREE_UI_CONTRIBUTION_ID, type GoalsTreeItem, type GoalsTreeView } from "@molis-ai/molis-work-plugin-goals";
+import type { GoalRelationRecord } from "@molis-ai/molis-work-contracts/modules/goals";
+import { icon } from "@molis-ai/molis-work-design-system";
+import { L, currentLocale, listJoin, runWithLocale } from "@molis-ai/molis-work-app-local-host";
+import { GOAL_DISPLAY_STATUSES } from "@molis-ai/molis-work-plugin-goals";
 
 const escapeHtml = (value: unknown) => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 const renderer = createWorkbenchGoalsTreeRenderer({ translate: L, escapeHtml, icon, currentLocale, listJoin,
@@ -63,7 +63,7 @@ test("collection selection preserves requested/active/first precedence and archi
   const empty = buildGoalCollectionModel({ ...model, goals: [] }, undefined, false, false, false, L);
   assert.equal(empty.selected, undefined);
   assert.equal(empty.selectedId, "");
-  assert.equal(empty.title, "GoalBoard");
+  assert.equal(empty.title, "Molis Work");
   assert.match(renderer.renderGoalRefreshDirectory(model, empty), /共 0 个目标/);
   assert.deepEqual(model, before);
 });

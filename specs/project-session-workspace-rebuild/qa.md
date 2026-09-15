@@ -12,7 +12,7 @@
 | 不再存在独立管理页和 `sw-*` 壳层 | 通过 | 旧 renderer、独立 CSS / JS 资产与旧截图已移除；项目兼容路由重定向到同一工作台 hash |
 | 目录层级对齐 Goal Tree | 通过 | 使用同一 `.tree-pane`、`.desktop-directory-heading`、搜索、连续行、选择、focus 与 `.tree-footer` 语法 |
 | 详情层级对齐 Goal Detail | 通过 | 使用同一 `.document-pane`、工作标签、`goal-document`、标题动作、主工作面与上下文栏 |
-| Session 执行内容和 Goal 历史占主要比重 | 通过 | 桌面执行流占主栏，当前关系和 Goal 历史在右侧持续可见；fallback 只呈现 GoalBoard 可证明事实 |
+| Session 执行内容和 Goal 历史占主要比重 | 通过 | 桌面执行流占主栏，当前关系和 Goal 历史在右侧持续可见；fallback 只呈现 Molis Work 可证明事实 |
 | 返回方向和入口下划线 | 通过 | 目录返回统一使用真实 `ArrowLeft` 图标；入口是 button，不存在浏览器链接下划线 |
 | Light / Dark | 通过 | 浏览器检查两套主题，选中、状态、正文、上下文栏与动作均可辨认 |
 | 窄屏列表与详情 | 通过 | 500 CSS px 详情与 390×844 列表均实测；列表复用现有移动导航，详情标题与动作分行；Session 与工作目录详情 `scrollWidth === clientWidth` |
@@ -27,8 +27,8 @@
 
 ## 本地安装版验收
 
-- `pnpm install:local`：通过；`0.1.8` 同版本内容已刷新到 `/Users/yijunwang/.goalboard`，安装器保留旧版本恢复能力。
-- `/Users/yijunwang/.goalboard/bin/goalboard service restart --home /Users/yijunwang/.goalboard --confirm --json`：通过；受管 LaunchAgent 返回 `restarted`。
+- `pnpm install:local`：通过；`0.1.8` 同版本内容已刷新到 `/Users/yijunwang/.molis-work`，安装器保留旧版本恢复能力。
+- `/Users/yijunwang/.molis-work/bin/molis-work service restart --home /Users/yijunwang/.molis-work --confirm --json`：通过；受管 LaunchAgent 返回 `restarted`。
 - `http://127.0.0.1:4173/health`：通过；重启后返回 `status: ok`，监听进程与 `service_process_id` 均已更新。
 - 当前项目真实安装页：通过；刷新后在项目根目录看到 Goals、Sessions、工作目录平级 button，入口 `text-decoration: none`。
 - Sessions：通过；左栏为搜索、筛选和连续 Session 列表，右侧以执行内容为主，并展示当前关系与 Goal 关联历史。

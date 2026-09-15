@@ -1,4 +1,4 @@
-import type { ContextEdge, ContextEdgeQuery, ContextScope } from "@adeptify/goalboard-contracts/modules/context-ledger";
+import type { ContextEdge, ContextEdgeQuery, ContextScope } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 
 interface Statement {
   all(...params: unknown[]): unknown[];

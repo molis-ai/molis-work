@@ -18,7 +18,7 @@ import type {
   GoalEventUnmetReason,
   GoalEventUserConclusion,
   GoalEventWorkStatus,
-} from "@adeptify/goalboard-contracts/modules/goals";
+} from "@molis-ai/molis-work-contracts/modules/goals";
 import { rowJson, rowText, sqliteJson, type GoalsSqliteDatabase } from "./repository.js";
 
 type Row = Record<string, unknown>;

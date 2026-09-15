@@ -1,4 +1,4 @@
-import type { RuntimeGoalSessionActivity } from "@adeptify/goalboard-contracts/modules/private-work-context";
+import type { RuntimeGoalSessionActivity } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 
 type RuntimeSessionLifecycle = {
   actorId: string;
@@ -8,28 +8,28 @@ type RuntimeSessionLifecycle = {
 
 function runtimeSessionLifecycleEvent(name: string): RuntimeSessionLifecycle | null {
   switch (name) {
-    case "goalboard_v1_goal_intent_create":
-      return { actorId: "goalboard:goal-intent", kind: "status", label: "保存 Goal 意图" };
-    case "goalboard_v1_event_configure":
-      return { actorId: "goalboard:event-configure", kind: "status", label: "登记 Goal 事件配置" };
-    case "goalboard_v1_event_report":
-      return { actorId: "goalboard:event-report", kind: "status", label: "上报 Goal 工作事实" };
-    case "goalboard_v1_event_note":
-      return { actorId: "goalboard:event-note", kind: "status", label: "记录 Goal 笔记" };
-    case "goalboard_v1_event_progress":
-      return { actorId: "goalboard:event-progress", kind: "status", label: "记录 Goal 进展摘要" };
-    case "goalboard_v1_event_concern":
-      return { actorId: "goalboard:event-concern", kind: "status", label: "更新 Goal Concern" };
-    case "goalboard_v1_event_decision_request":
-      return { actorId: "goalboard:event-decision-request", kind: "approval", label: "请求 Goal 决定" };
-    case "goalboard_v1_event_cite_decision":
-      return { actorId: "goalboard:event-cite-decision", kind: "approval", label: "引用已有 Goal 决定" };
-    case "goalboard_v1_event_agree":
-      return { actorId: "goalboard:event-agree", kind: "status", label: "补充 Goal 结果约定" };
-    case "goalboard_v1_event_close":
-      return { actorId: "goalboard:event-close", kind: "status", label: "提交 Goal 收尾" };
-    case "goalboard_v1_event_resume":
-      return { actorId: "goalboard:event-resume", kind: "status", label: "继续 Goal" };
+    case "molis_work_v1_goal_intent_create":
+      return { actorId: "molis-work:goal-intent", kind: "status", label: "保存 Goal 意图" };
+    case "molis_work_v1_event_configure":
+      return { actorId: "molis-work:event-configure", kind: "status", label: "登记 Goal 事件配置" };
+    case "molis_work_v1_event_report":
+      return { actorId: "molis-work:event-report", kind: "status", label: "上报 Goal 工作事实" };
+    case "molis_work_v1_event_note":
+      return { actorId: "molis-work:event-note", kind: "status", label: "记录 Goal 笔记" };
+    case "molis_work_v1_event_progress":
+      return { actorId: "molis-work:event-progress", kind: "status", label: "记录 Goal 进展摘要" };
+    case "molis_work_v1_event_concern":
+      return { actorId: "molis-work:event-concern", kind: "status", label: "更新 Goal Concern" };
+    case "molis_work_v1_event_decision_request":
+      return { actorId: "molis-work:event-decision-request", kind: "approval", label: "请求 Goal 决定" };
+    case "molis_work_v1_event_cite_decision":
+      return { actorId: "molis-work:event-cite-decision", kind: "approval", label: "引用已有 Goal 决定" };
+    case "molis_work_v1_event_agree":
+      return { actorId: "molis-work:event-agree", kind: "status", label: "补充 Goal 结果约定" };
+    case "molis_work_v1_event_close":
+      return { actorId: "molis-work:event-close", kind: "status", label: "提交 Goal 收尾" };
+    case "molis_work_v1_event_resume":
+      return { actorId: "molis-work:event-resume", kind: "status", label: "继续 Goal" };
     default:
       return null;
   }

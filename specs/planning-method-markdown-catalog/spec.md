@@ -2,7 +2,7 @@
 
 ## 背景与目标
 
-GoalBoard 当前把所有内置规划方法直接写在 `src/planning/method-packs.ts` 中。继续扩充工作类型、专业领域、行业和场景约束时，这个文件会持续膨胀；方法内容、Runtime 代码和 UI 分类也会互相牵连，新增一个行业需要修改代码。
+Molis Work 当前把所有内置规划方法直接写在 `src/planning/method-packs.ts` 中。继续扩充工作类型、专业领域、行业和场景约束时，这个文件会持续膨胀；方法内容、Runtime 代码和 UI 分类也会互相牵连，新增一个行业需要修改代码。
 
 本任务把内置方法迁移为可校验的 Markdown 目录，并扩展为五层组合：工作类型、专业领域、行业、场景叠加层和项目自定义。每个方法只占一个 Markdown 文件，尤其保证每个行业一个文件，不建立汇总所有行业正文的巨型文件。
 
@@ -40,7 +40,7 @@ skills/goal-advance/methods/
 
 - 每个方法一个 `.md` 文件，文件名与 `method_id` 一致。
 - 每个行业只对应一个 canonical Markdown 文件；不复制翻译版正文，不建立行业总正文。
-- `SKILL.md` 只负责在需要规划时引导 Runtime 使用 GoalBoard 返回的有效方法，不加载整套目录。
+- `SKILL.md` 只负责在需要规划时引导 Runtime 使用 Molis Work 返回的有效方法，不加载整套目录。
 - 个人和项目自定义方法仍使用现有 SQLite JSON 结构，不迁移为本地文件。
 
 ### 2. Markdown 契约

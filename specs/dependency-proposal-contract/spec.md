@@ -1,6 +1,6 @@
 # Dependency Proposal Contract
 
-GoalBoard Goal：`DEPENDENCY-PROPOSAL-CONTRACT`
+Molis Work Goal：`DEPENDENCY-PROPOSAL-CONTRACT`
 
 ## 背景与目标
 
@@ -11,7 +11,7 @@ GoalBoard Goal：`DEPENDENCY-PROPOSAL-CONTRACT`
 ## 范围
 
 - 定义强类型 `DependencyProposal`。
-- 为 Runtime 增加独立的 `goalboard_v1_dependency_propose` MCP 能力。
+- 为 Runtime 增加独立的 `molis_work_v1_dependency_propose` MCP 能力。
 - Candidate 中的 `depends_on` 也使用同一字段校验。
 - 复用现有 Rewire 用户确认/拒绝入口。
 - 用户确认后支持新增依赖或停用一条已确认依赖；反转由“停用旧方向 + 新增新方向”两个 Proposal 条目表达。

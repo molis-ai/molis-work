@@ -10,4 +10,4 @@
 
 **当前实现与 Goal：** Sources Module 拥有来源配置，Native Feed 管理来源用例，Integration Plugin 解释 Provider；FD1/FD3/Cutover 已退出旧 src/feed。
 
-**FD1 当前实现：** `@adeptify/goalboard-module-sources` 已提供 Source Query / Command 和独立 Repository。Source record 不含 cursor、lease、retry；旧 `FeedStore` 的 Source 方法只转发到新 owner。公开 RSS/Web Query/YouTube 的 provider 编排和 Web caller 仍按 FD3/FD4 退出。
+**FD1 当前实现：** `@molis-ai/molis-work-module-sources` 已提供 Source Query / Command 和独立 Repository。Source record 不含 cursor、lease、retry；旧 `FeedStore` 的 Source 方法只转发到新 owner。公开 RSS/Web Query/YouTube 的 provider 编排和 Web caller 仍按 FD3/FD4 退出。

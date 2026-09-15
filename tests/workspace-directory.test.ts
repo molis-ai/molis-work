@@ -1,17 +1,17 @@
-import { openGoalBoardProjectCatalog } from "@adeptify/goalboard-app-desktop";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import { mkdtemp, mkdir, rm, symlink } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { GoalBoardSessionRegistry } from "@adeptify/goalboard-module-private-work-context";
-import { PROJECT_OPERATIONS_STYLES } from "@adeptify/goalboard-plugin-work";
+import { MolisWorkSessionRegistry } from "@molis-ai/molis-work-module-private-work-context";
+import { PROJECT_OPERATIONS_STYLES } from "@molis-ai/molis-work-plugin-work";
 import {
-  GoalBoardWorkspaceActionError,
+  MolisWorkWorkspaceActionError,
   repairProjectWorkspace,
   unlinkProjectWorkspace,
-} from "@adeptify/goalboard-plugin-work";
+} from "@molis-ai/molis-work-plugin-work";
 
 test("Session and workspace row states render one status frame", () => {
   assert.doesNotMatch(PROJECT_OPERATIONS_STYLES, /\.project-record-row \.directory-row-state/);
@@ -20,13 +20,13 @@ test("Session and workspace row states render one status frame", () => {
 });
 
 test("workspace repair and unlink restore Catalog membership when Session Registry update fails", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "goalboard-workspace-compensation-"));
-  const home = path.join(directory, ".goalboard");
+  const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-workspace-compensation-"));
+  const home = path.join(directory, ".molis-work");
   const previous = path.join(directory, "previous");
   const next = path.join(directory, "next");
   await mkdir(previous, { recursive: true });
   await mkdir(next, { recursive: true });
-  const catalog = await openGoalBoardProjectCatalog({ homeDirectory: home });
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   try {
     const project = await catalog.createProject({ display_name: "补偿事务项目", actor_id: "user" });
     const workspace = catalog.addWorkspaceProject({
@@ -49,7 +49,7 @@ test("workspace repair and unlink restore Catalog membership when Session Regist
       canonicalPath: next,
       projectId: project.project_id,
       actorId: "user",
-    }), (error) => error instanceof GoalBoardWorkspaceActionError
+    }), (error) => error instanceof MolisWorkWorkspaceActionError
       && error.code === "workspace.change_rolled_back"
       && /已自动恢复/.test(error.message));
     assert.deepEqual(
@@ -63,7 +63,7 @@ test("workspace repair and unlink restore Catalog membership when Session Regist
       current,
       projectId: project.project_id,
       actorId: "user",
-    }), (error) => error instanceof GoalBoardWorkspaceActionError
+    }), (error) => error instanceof MolisWorkWorkspaceActionError
       && error.code === "workspace.change_rolled_back"
       && /已自动恢复/.test(error.message));
     assert.deepEqual(
@@ -77,15 +77,15 @@ test("workspace repair and unlink restore Catalog membership when Session Regist
 });
 
 test("workspace directory canonicalizes symlinks, keeps monorepo paths distinct, and never creates defaults", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "goalboard-workspace-directory-"));
-  const home = path.join(directory, ".goalboard");
+  const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-workspace-directory-"));
+  const home = path.join(directory, ".molis-work");
   const repository = path.join(directory, "repository");
   const packageDirectory = path.join(repository, "packages", "app");
   const alias = path.join(directory, "repository-alias");
   const missing = path.join(directory, "moved-repository");
   await mkdir(packageDirectory, { recursive: true });
   await symlink(repository, alias);
-  const catalog = await openGoalBoardProjectCatalog({ homeDirectory: home });
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   try {
     const project = await catalog.createProject({ display_name: "工作目录项目", actor_id: "user" });
     assert.throws(() => catalog.addWorkspaceProject({
@@ -132,8 +132,8 @@ test("workspace directory canonicalizes symlinks, keeps monorepo paths distinct,
 });
 
 test("workspace Session reassignment is project isolated and preserves Session identity", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "goalboard-workspace-sessions-"));
-  const home = path.join(directory, ".goalboard");
+  const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-workspace-sessions-"));
+  const home = path.join(directory, ".molis-work");
   const previous = path.join(directory, "previous");
   const next = path.join(directory, "next");
   await mkdir(previous, { recursive: true });
@@ -186,4 +186,4 @@ test("workspace Session reassignment is project isolated and preserves Session i
     await rm(directory, { recursive: true, force: true });
   }
 });
-import { openWorkSessionRegistry } from "@adeptify/goalboard-app-local-host";
+import { openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";

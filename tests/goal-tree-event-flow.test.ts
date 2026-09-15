@@ -3,12 +3,12 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { DEMO_BOARD_ID, GoalProjectApplication, LocalProjectDatabase, buildGoalBoardWebView } from "@adeptify/goalboard-app-local-host";
-import { buildDecisionGroups, hostEventDecisionAuthority, pendingDecisionCount } from "@adeptify/goalboard-plugin-goals";
+import { DEMO_BOARD_ID, GoalProjectApplication, LocalProjectDatabase, buildMolisWorkWebView } from "@molis-ai/molis-work-app-local-host";
+import { buildDecisionGroups, hostEventDecisionAuthority, pendingDecisionCount } from "@molis-ai/molis-work-plugin-goals";
 import { materializeGoalEventV35Fixture } from "./goal-event-v35-fixture.js";
 
 function fixture() {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-02-tree-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-02-tree-"));
   const store = new LocalProjectDatabase(join(directory, "project.db"));
   const app = new GoalProjectApplication(store);
   app.initializeBoard({ board_id: "board", title: "树", actor_id: "user-1", idempotency_key: "init" });
@@ -62,7 +62,7 @@ test("tree submit does not need a Run and approved goals can be recorded immedia
       idempotency_key: "check-1",
     });
     assert.deepEqual(checked.conflict_item_ids, []);
-    const pendingView = buildGoalBoardWebView(data.store, data.app, { boardId: "board" });
+    const pendingView = buildMolisWorkWebView(data.store, data.app, { boardId: "board" });
     assert.equal(pendingDecisionCount(pendingView), 1);
     assert.deepEqual(
       buildDecisionGroups(pendingView).flatMap((group) => group.goalTreeProposals.map((item) => item.proposal_id)),
@@ -97,7 +97,7 @@ test("tree submit does not need a Run and approved goals can be recorded immedia
       idempotency_key: "dec-1",
     });
     assert.equal(decided.applied_item_ids.length, 3);
-    const decidedView = buildGoalBoardWebView(data.store, data.app, { boardId: "board" });
+    const decidedView = buildMolisWorkWebView(data.store, data.app, { boardId: "board" });
     assert.equal(pendingDecisionCount(decidedView), 0);
     const child = data.app.goalEvents.readState("board", "tree-child");
     assert.equal(child.can_record, true);
@@ -142,7 +142,7 @@ test("original v35 pending Candidate, self-review and open Risks stay history wi
     for (const goal of before.goals) {
       assert.equal(app.goalEvents.readState(DEMO_BOARD_ID, goal.goal_id).pending_decisions.length, 0);
     }
-    const view = buildGoalBoardWebView(store, app, { databasePath: fixture.path, boardId: DEMO_BOARD_ID, demo: true });
+    const view = buildMolisWorkWebView(store, app, { databasePath: fixture.path, boardId: DEMO_BOARD_ID, demo: true });
     assert.equal(pendingDecisionCount(view), 0);
     assert.deepEqual(buildDecisionGroups(view), []);
     assert.deepEqual(store.snapshot(DEMO_BOARD_ID), before);

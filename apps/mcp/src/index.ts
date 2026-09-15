@@ -3,7 +3,7 @@ export type { McpContextPresentationPorts } from "./context-presentation.js";
 export { createMcpGoalTrashHandlers } from "./goal-trash-commands.js";
 export { mcpWebUrl, mcpGoalContractResponse } from "./goal-presentation.js";
 export { createMcpGoalTreeHandlers, runtimeGoalTreeDecisionInput } from "./goal-tree-commands.js";
-import type { GoalsApplicationApi } from "@adeptify/goalboard-contracts/modules/goals";
+import type { GoalsApplicationApi } from "@molis-ai/molis-work-contracts/modules/goals";
 
 export { handleMcpMessage } from "./protocol.js";
 export { mcpRuntimeSessionActivity } from "./session-activity.js";
@@ -23,21 +23,22 @@ export {
   MCP_SERVER_INFO,
   isRuntimeMcpTool,
   isRuntimeContextMcpTool,
+  canonicalMcpToolName,
 } from "./tool-catalog.js";
 export type { McpProtocolPorts, McpToolCallContext, McpToolDefinition } from "./protocol.js";
 
 export const packageDescriptor = {
-  packageName: "@adeptify/goalboard-app-mcp",
+  packageName: "@molis-ai/molis-work-app-mcp",
   packagePath: "apps/mcp",
   kind: "app",
   maturity: "partial",
-  contract: "@adeptify/goalboard-contracts/platform/app-host",
+  contract: "@molis-ai/molis-work-contracts/platform/app-host",
   migrationGoals: ["goal-reorg-f2", "goal-reorg-dv1", "goal-reorg-dv2", "goal-reorg-gw4", "goal-reorg-ex4"],
   ssot: "docs/SSOT-MATRIX.md",
   capabilities: ["mcp.goals-command-adapter.v1"],
 } as const;
 
-export type GoalBoardPackageDescriptor = typeof packageDescriptor;
+export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export type McpGoalsAdapter = GoalsApplicationApi;
 
@@ -53,7 +54,7 @@ export function createMcpGoalsAdapter(
   };
 }
 
-export { validateGoalBoardMcpLauncher } from "./launcher-validation.js";
+export { validateMolisWorkMcpLauncher } from "./launcher-validation.js";
 export type { McpLauncherValidationContext } from "./launcher-validation.js";
 export { dispatchMcpProjectTool } from "./tool-dispatch.js";
 export type { McpToolDispatchPorts } from "./tool-dispatch.js";

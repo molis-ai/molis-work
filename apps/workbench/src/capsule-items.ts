@@ -1,5 +1,5 @@
-import type { GoalsDocumentView as WebGoalView } from "@adeptify/goalboard-plugin-goals";
-import type { GoalBoardWebView } from "./page-view.js";
+import type { GoalsDocumentView as WebGoalView } from "@molis-ai/molis-work-plugin-goals";
+import type { MolisWorkWebView } from "./page-view.js";
 import type { WorkbenchRendererPorts } from "./renderer.js";
 import type { CapsuleGoalItem, CapsuleState, CapsuleStateKind, CapsuleTab, CapsuleTabKind } from "./capsule-view.js";
 
@@ -22,7 +22,7 @@ export function createCapsuleItemProjection(L: WorkbenchRendererPorts["locale"][
     return evidence.digest?.trim() || L("一项完成依据已经通过检查");
   }
 
-  function activeGoalViews(view: GoalBoardWebView): WebGoalView[] {
+  function activeGoalViews(view: MolisWorkWebView): WebGoalView[] {
     return view.goals.filter((item) => item.display_status === "in_progress");
   }
 
@@ -47,7 +47,7 @@ export function createCapsuleItemProjection(L: WorkbenchRendererPorts["locale"][
   }
 
   function recentCompletedGoal(
-    view: GoalBoardWebView,
+    view: MolisWorkWebView,
     now: Date,
     visibleForMs: number,
   ): { item: WebGoalView; at: string } | null {
@@ -63,15 +63,15 @@ export function createCapsuleItemProjection(L: WorkbenchRendererPorts["locale"][
     return null;
   }
 
-  function goalPath(view: GoalBoardWebView, goalId: string): string {
+  function goalPath(view: MolisWorkWebView, goalId: string): string {
     return `${view.route_prefix}/goals/${encodeURIComponent(goalId)}`;
   }
 
-  function decisionPath(view: GoalBoardWebView, goalId: string): string {
-    return `${view.route_prefix}/decisions#decision-goal-${encodeURIComponent(goalId)}`;
+  function decisionPath(view: MolisWorkWebView, goalId: string): string {
+    return goalPath(view, goalId);
   }
 
-  function projectPath(view: GoalBoardWebView): string {
+  function projectPath(view: MolisWorkWebView): string {
     return view.route_prefix || "/";
   }
 
@@ -88,7 +88,7 @@ export function createCapsuleItemProjection(L: WorkbenchRendererPorts["locale"][
   }
 
   function itemBase(
-    view: GoalBoardWebView,
+    view: MolisWorkWebView,
     item: WebGoalView,
     input: Omit<CapsuleGoalItem, "goal_id" | "goal_title" | "goal_path" | "why" | "just_completed">,
   ): CapsuleGoalItem {
@@ -102,7 +102,7 @@ export function createCapsuleItemProjection(L: WorkbenchRendererPorts["locale"][
     };
   }
 
-  function decisionItem(view: GoalBoardWebView, item: WebGoalView, decisionCount: number): CapsuleGoalItem {
+  function decisionItem(view: MolisWorkWebView, item: WebGoalView, decisionCount: number): CapsuleGoalItem {
     const actionPath = decisionCount > 0
       ? decisionPath(view, item.goal.goal_id)
       : goalPath(view, item.goal.goal_id);
@@ -127,7 +127,7 @@ export function createCapsuleItemProjection(L: WorkbenchRendererPorts["locale"][
     return item.display_status === "waiting_user" || item.status.includes("review") ? "checking" : "working";
   }
 
-  function activeItem(view: GoalBoardWebView, item: WebGoalView): CapsuleGoalItem {
+  function activeItem(view: MolisWorkWebView, item: WebGoalView): CapsuleGoalItem {
     const run = newestRun(item);
     return itemBase(view, item, {
       tab_kind: "in_progress",
@@ -145,7 +145,7 @@ export function createCapsuleItemProjection(L: WorkbenchRendererPorts["locale"][
   }
 
   function availableItem(
-    view: GoalBoardWebView,
+    view: MolisWorkWebView,
     item: WebGoalView,
   ): CapsuleGoalItem {
     return itemBase(view, item, {
@@ -163,7 +163,7 @@ export function createCapsuleItemProjection(L: WorkbenchRendererPorts["locale"][
     });
   }
 
-  function blockedItem(view: GoalBoardWebView, item: WebGoalView): CapsuleGoalItem {
+  function blockedItem(view: MolisWorkWebView, item: WebGoalView): CapsuleGoalItem {
     const blocker = primaryBlocker(item);
     return itemBase(view, item, {
       tab_kind: "blocked",
@@ -180,7 +180,7 @@ export function createCapsuleItemProjection(L: WorkbenchRendererPorts["locale"][
     });
   }
 
-  function waitingItem(view: GoalBoardWebView, item: WebGoalView): CapsuleGoalItem {
+  function waitingItem(view: MolisWorkWebView, item: WebGoalView): CapsuleGoalItem {
     return itemBase(view, item, {
       tab_kind: "waiting",
       kind: "waiting",
@@ -196,7 +196,7 @@ export function createCapsuleItemProjection(L: WorkbenchRendererPorts["locale"][
     });
   }
 
-  function completeItem(view: GoalBoardWebView, item: WebGoalView, at: string): CapsuleGoalItem {
+  function completeItem(view: MolisWorkWebView, item: WebGoalView, at: string): CapsuleGoalItem {
     return itemBase(view, item, {
       tab_kind: "completed",
       kind: "complete",
@@ -239,7 +239,7 @@ export function createCapsuleItemProjection(L: WorkbenchRendererPorts["locale"][
   }
 
   function stateFromItem(
-    view: GoalBoardWebView,
+    view: MolisWorkWebView,
     tabs: CapsuleTab[],
     selected: CapsuleGoalItem,
     runningCount: number,

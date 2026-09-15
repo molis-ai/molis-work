@@ -73,7 +73,7 @@ export function migrateGoalLifecycleState(
 ): void {
   db.transaction(() => {
     const migratedAt = now().toISOString();
-    const migrationActor = "goalboard:migration-12";
+    const migrationActor = "molis-work:migration-12";
     const staleRuns = db.prepare(`
       SELECT r.run_id, r.board_id, r.goal_id, r.claim_id,
         r.state AS run_state, c.state AS claim_state, c.released_at
@@ -152,7 +152,7 @@ export function migrateActiveGoalLifecycle(
 ): void {
   db.transaction(() => {
     const migratedAt = now().toISOString();
-    const migrationActor = "goalboard:migration-13";
+    const migrationActor = "molis-work:migration-13";
     const staleActiveGoals = db.prepare(`
       SELECT b.board_id, b.active_goal_id, g.goal_id,
         g.fulfillment_state, g.archived_at, g.trashed_at

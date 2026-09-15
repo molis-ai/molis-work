@@ -6,20 +6,20 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { WebSocket } from "ws";
-import { openGoalBoardProjectCatalog } from "@adeptify/goalboard-app-desktop";
-import { createGoalBoardLocalHost } from "@adeptify/goalboard-app-local-host";
-import { createGoalBoardWebServer } from "../apps/desktop/launchers/web/server.js";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { createMolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
 const TOKEN = "project-settings-deletion-test-0123456789";
 
 async function fixture(t: TestContext) {
-  const directory = await mkdtemp(join(tmpdir(), "goalboard-project-delete-"));
+  const directory = await mkdtemp(join(tmpdir(), "molis-work-project-delete-"));
   const homeDirectory = join(directory, "home");
-  const catalog = await openGoalBoardProjectCatalog({ homeDirectory });
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   const project = await catalog.createProject({ display_name: "可删除的项目", actor_id: "test-user" });
   const other = await catalog.createProject({ display_name: "保留的项目", actor_id: "test-user" });
-  const localHost = createGoalBoardLocalHost();
-  const server = createGoalBoardWebServer({ homeDirectory, controlToken: TOKEN, localHost });
+  const localHost = createMolisWorkLocalHost();
+  const server = createMolisWorkWebServer({ homeDirectory, controlToken: TOKEN, localHost });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();
   assert.ok(address && typeof address === "object");
@@ -27,8 +27,8 @@ async function fixture(t: TestContext) {
   let sequence = 0;
   const post = (path: string, body: Record<string, unknown>, headers: Record<string, string> = {}) => fetch(origin + path, {
     method: "POST",
-    headers: { "content-type": "application/json", origin, "x-goalboard-control-token": TOKEN,
-      "x-goalboard-idempotency-key": `project-delete-http-${++sequence}`, ...headers },
+    headers: { "content-type": "application/json", origin, "x-molis-work-control-token": TOKEN,
+      "x-molis-work-idempotency-key": `project-delete-http-${++sequence}`, ...headers },
     body: JSON.stringify(body),
   });
   t.after(async () => {
@@ -64,7 +64,7 @@ test("project settings deletion requires authorization and confirmation, closes 
   assert.equal(catalog.getProject(project.project_id).display_name, "已经改名的项目");
   assert.match(await (await fetch(origin + prefix + "/settings/general")).text(), /value="已经改名的项目"/);
   const body = { delete_confirmed: true, idempotency_key: "delete-project-once" };
-  assert.equal((await post(deletePath, body, { "x-goalboard-control-token": "invalid" })).status, 403);
+  assert.equal((await post(deletePath, body, { "x-molis-work-control-token": "invalid" })).status, 403);
   assert.equal((await post(deletePath, body, { origin: "http://example.com" })).status, 403);
   assert.equal((await post(deletePath, { ...body, delete_confirmed: false })).status, 400);
   assert.equal((await post(deletePath, { delete_confirmed: true })).status, 400);
@@ -93,7 +93,7 @@ test("project settings deletion requires authorization and confirmation, closes 
   const conflict = await post(`/api/settings/projects/${other.project_id}/delete`, body);
   assert.equal(conflict.status, 400);
   assert.equal(existsSync(other.database_path), true);
-  const reopened = await openGoalBoardProjectCatalog({ homeDirectory });
+  const reopened = await openMolisWorkProjectCatalog({ homeDirectory });
   try {
     assert.deepEqual(reopened.listProjects().map(item => item.project_id), [other.project_id]);
     assert.deepEqual(reopened.listProjectDeletions().map(item => item.deletion_id), [result.deletion.deletion_id]);

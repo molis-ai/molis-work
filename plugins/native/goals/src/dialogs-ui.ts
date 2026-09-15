@@ -1,4 +1,4 @@
-import type { UiContribution } from "@adeptify/goalboard-contracts/platform/ui";
+import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import { sortGoalTreeItems } from "./tree-order.js";
 import type { GoalDisplayStatus } from "./tree-order.js";
 import type { GoalPresentationState } from "./tree-order.js";
@@ -70,7 +70,7 @@ function createDialogsRenderer(primitives: GoalsDialogPrimitives) {
     return { renderGoalTrashDialog, renderCreateDialog };
 }
 export type GoalsDialogsRenderer = ReturnType<typeof createDialogsRenderer>;
-export const GOALS_DIALOGS_UI_CONTRIBUTION_ID = "io.goalboard.native.goals.dialogs.v1";
+export const GOALS_DIALOGS_UI_CONTRIBUTION_ID = "io.molis.work.native.goals.dialogs.v1";
 export type GoalsDialogsUiModel = {
     primitives: GoalsDialogPrimitives;
 } & ({
@@ -81,7 +81,7 @@ export type GoalsDialogsUiModel = {
     args: Parameters<GoalsDialogsRenderer["renderGoalTrashDialog"]>;
 });
 export const goalsDialogsUiContribution: UiContribution<GoalsDialogsUiModel> = {
-    descriptor: { contribution_id: GOALS_DIALOGS_UI_CONTRIBUTION_ID, plugin_id: "io.goalboard.native.goals", kind: "embedded", label: "Goal dialogs",
+    descriptor: { contribution_id: GOALS_DIALOGS_UI_CONTRIBUTION_ID, plugin_id: "io.molis.work.native.goals", kind: "embedded", label: "Goal dialogs",
         surfaces: ["create", "trash"].map(surface_id => ({ surface_id, target_slot_id: "workbench.overlay", format: "declarative-html" })), slots: [] },
     render({ surface, model }) {
         if (surface !== model.kind)

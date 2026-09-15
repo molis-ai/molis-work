@@ -62,4 +62,5 @@ export const GOALS_DOCUMENT_EN: Record<string, string> = {
   "目标值": "Target",
   "所需证据": "Required evidence",
   "未指定": "Not specified",
+  "等待你确认的方案": "Proposals waiting for your decision",
 };

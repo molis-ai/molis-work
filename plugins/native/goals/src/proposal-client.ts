@@ -1,6 +1,6 @@
 /** Goal proposal decisions; Workbench supplies transport and cross-surface refresh/receipts. */
 export const GOALS_PROPOSAL_CLIENT_FACTORY_SCRIPT = `(host) => {
-    const { translate: L, route, controlHeaders: goalboardControlHeaders, decisionReceiptContext, refreshBoardWithDecisionReceipt } = host;
+    const { translate: L, route, controlHeaders: molisWorkControlHeaders, decisionReceiptContext, refreshBoardWithDecisionReceipt } = host;
     const requireDecisionText = (decisionForm, errorBox, fieldName, message) => {
       const field = decisionForm.querySelector('[name="' + fieldName + '"]');
       if (String(field?.value || "").trim()) {
@@ -64,7 +64,7 @@ export const GOALS_PROPOSAL_CLIENT_FACTORY_SCRIPT = `(host) => {
         goalTreeDecisionForm.dataset.idempotencyKey = key;
         const response = await fetch(route("/api/goal-tree-proposals/" + encodeURIComponent(goalTreeDecisionForm.dataset.goalTreeProposalId) + "/decision"), {
           method: "POST",
-          headers: { ...goalboardControlHeaders(), "x-goalboard-idempotency-key": key },
+          headers: { ...molisWorkControlHeaders(), "x-molis-work-idempotency-key": key },
           body: JSON.stringify({
             ...(decision === "confirm"
               ? { confirm_all_pending: true }
@@ -76,7 +76,7 @@ export const GOALS_PROPOSAL_CLIENT_FACTORY_SCRIPT = `(host) => {
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || L("方案决定提交失败"));
         if (Array.isArray(result.conflict_item_ids) && result.conflict_item_ids.length) {
-          throw new Error(L("GoalBoard 已经发生变化。请让 Runtime 更新方案后再决定。"));
+          throw new Error(L("Molis Work 已经发生变化。请让 Runtime 更新方案后再决定。"));
         }
         await refreshBoardWithDecisionReceipt(
           decision === "confirm" ? L("这份 Goal 方案已经采用，相关 Goal 和关系已更新。") : L("这份 Goal 方案已退回，当前 Goal Tree 保持不变。"),

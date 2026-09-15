@@ -6,7 +6,7 @@ export const GOALS_MOMENTUM_EN: Record<string, string> = {
   "打开 Goal": "Open Goal",
   "Goal 推进态势": "Goal Momentum",
   "先看推进是否流动，再决定现在做什么": "See whether work is moving, then decide what to do now",
-  "时间变化、完整依赖拓扑和行动顺序共用同一份 GoalBoard 事实。": "Cadence, the complete dependency topology, and action order use the same GoalBoard facts.",
+  "时间变化、完整依赖拓扑和行动顺序共用同一份 Molis Work 事实。": "Cadence, the complete dependency topology, and action order use the same Molis Work facts.",
   "推进节奏": "Momentum cadence",
   "由子 Goal 推进": "Driven by child Goals",
   "停滞": "Stalled",

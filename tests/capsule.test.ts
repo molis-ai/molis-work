@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createLocalHostCapsule } from "@adeptify/goalboard-app-local-host";
-import { renderDesktopCapsuleShell } from "@adeptify/goalboard-app-desktop";
+import { createLocalHostCapsule } from "@molis-ai/molis-work-app-local-host";
+import { renderDesktopCapsuleShell } from "@molis-ai/molis-work-app-desktop";
 const { buildCapsuleSnapshot, renderCapsuleShell } = createLocalHostCapsule(renderDesktopCapsuleShell);
-import type { GoalActionKind, GoalDisplayStatus } from "@adeptify/goalboard-plugin-goals";
-import type { GoalRecord } from "@adeptify/goalboard-contracts/modules/goals";
-import type { GoalBoardWebView, WebGoalView } from "./workbench-renderer-fixture.js";
+import type { GoalActionKind, GoalDisplayStatus } from "@molis-ai/molis-work-plugin-goals";
+import type { GoalRecord } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { MolisWorkWebView, WebGoalView } from "./workbench-renderer-fixture.js";
 
 const PROJECT = { project_id: "project-capsule", display_name: "胶囊测试" };
 
@@ -16,7 +16,7 @@ function goal(goalId: string, title: string, fulfillmentState: "unmet" | "satisf
     title,
     outcome: `${title}有明确结果`,
     why: `为了验证${title}`,
-    business_logic: "只读取同一份 GoalBoard 状态。",
+    business_logic: "只读取同一份 Molis Work 状态。",
     in_scope: [],
     out_of_scope: [],
     constraints: [],
@@ -40,7 +40,7 @@ function goal(goalId: string, title: string, fulfillmentState: "unmet" | "satisf
       goal_id: goalId,
       statement: "真实状态能在四秒内显示",
       decision_method: "inspection",
-      pass_condition: "界面显示与 GoalBoard 一致",
+      pass_condition: "界面显示与 Molis Work 一致",
       target: null,
       required_evidence: [],
     }],
@@ -147,7 +147,7 @@ function webGoal(
   };
 }
 
-function view(goals: WebGoalView[], activeGoalId: string | null): GoalBoardWebView {
+function view(goals: WebGoalView[], activeGoalId: string | null): MolisWorkWebView {
   return {
     snapshot: {
       board: {
@@ -183,7 +183,7 @@ function view(goals: WebGoalView[], activeGoalId: string | null): GoalBoardWebVi
     goals,
     archived_goals: [],
     trashed_goals: [],
-    counts: {} as GoalBoardWebView["counts"],
+    counts: {} as MolisWorkWebView["counts"],
     coverage: [],
     input_bindings: [],
     policy_bindings: [],
@@ -231,7 +231,7 @@ test("capsule projects a real active Run as Working", () => {
   assert.deepEqual(result.tabs.map((tab) => [tab.kind, tab.items.length]), [["in_progress", 1]]);
 });
 
-test("capsule routes an actionable Goal to main GoalBoard instead of creating work", () => {
+test("capsule routes an actionable Goal to main Molis Work instead of creating work", () => {
   const record = goal("startable-goal", "开始下一项真实工作");
   const result = buildCapsuleSnapshot(
     view([webGoal(record, "execution_pending")], null),
@@ -536,7 +536,7 @@ test("capsule shell is one menu-bar popover with horizontal state tabs and inlin
   assert.match(html, /load\(\{ showLoading: true \}\)/);
   assert.match(html, /window\.setInterval\(refresh, 2500\)/);
   assert.match(html, /prefers-reduced-motion: reduce/);
-  assert.match(html, /goalboard:capsule-view:v1/);
+  assert.match(html, /molis-work:capsule-view:v1/);
   assert.match(html, /expandedGoals\.get\(projectId\)/);
   assert.match(html, /localStorage\.setItem\(viewStorageKey/);
   assert.match(html, /data-capsule-error-detail/);

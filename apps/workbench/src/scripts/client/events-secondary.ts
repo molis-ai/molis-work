@@ -34,7 +34,7 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `        return;
         try {
           const response = await fetch(route("/api/feed/import"), {
             method: "POST",
-            headers: goalboardControlHeaders(),
+            headers: molisWorkControlHeaders(),
             body: JSON.stringify({ user_confirmed: true }),
           });
           const result = await response.json();
@@ -74,6 +74,10 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `        return;
         return;
       }
       const openSourceRecord = target.closest("[data-open-source-record]");
+      if (target.closest("[data-frame-block]") && target.closest("[data-open-source-record], [data-feed-action], [data-inbox-action], [data-inbox-open-feed], [data-work-surface-link], [data-retry-feed-detail]")) {
+        event.preventDefault();
+        return;
+      }
       if (openSourceRecord) {
         const sourceId = openSourceRecord.dataset.openSourceRecord;
         if (!sourceId || !sourceList?.querySelector('[data-source-entry-id="' + CSS.escape(sourceId) + '"]')) {
@@ -88,6 +92,23 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `        return;
       const feedEntry = target.closest("[data-feed-entry-id]");
       if (feedEntry) {
         selectFeedItem(feedEntry.dataset.feedEntryId, true, true);
+        if (!frameContainer?.isFrameTabActive()) setDesktopWorkSurface("feed", true, true);
+        return;
+      }
+      const inboxRow = target.closest("[data-inbox-row]");
+      if (inboxRow) {
+        selectInboxEntry(inboxRow.dataset.inboxEntryId, true);
+        if (!frameContainer?.isFrameTabActive()) setDesktopWorkSurface("inbox", true, true);
+        return;
+      }
+      const sessionSelect = target.closest("[data-operation-select]");
+      if (sessionSelect && !frameContainer?.isFrameTabActive()) {
+        setDesktopWorkSurface("sessions", true, true);
+        return;
+      }
+      const inboxFilter = target.closest("[data-inbox-filter]");
+      if (inboxFilter) {
+        setInboxFilter(inboxFilter.dataset.inboxFilter, true);
         return;
       }
       const inboxOpenFeed = target.closest("[data-inbox-open-feed]");
@@ -106,7 +127,7 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `        return;
         const entryId = inboxAction.dataset.inboxEntryId;
         const expectedRevision = Number(inboxAction.dataset.inboxEntryRevision || 0) || undefined;
         if (!statusValue || !entryId || !expectedRevision) return;
-        const status = inboxAction.closest("[data-feed-detail]")?.querySelector("[data-inbox-action-status], [data-feed-action-status]");
+        const status = inboxAction.closest("[data-inbox-detail], [data-feed-detail]")?.querySelector("[data-inbox-action-status], [data-feed-action-status]");
         const original = inboxAction.innerHTML;
         inboxAction.disabled = true;
         inboxAction.setAttribute("aria-busy", "true");
@@ -144,7 +165,7 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `        return;
           const restoreTarget = feedAction.dataset.feedRestoreTarget;
           const response = await fetch(route("/api/feed/items/" + encodeURIComponent(itemId) + "/" + action), {
             method: "POST",
-            headers: goalboardControlHeaders(),
+            headers: molisWorkControlHeaders(),
             body: JSON.stringify(expectedRevision
               ? { expected_revision: expectedRevision, ...(restoreTarget ? { restore_target: restoreTarget } : {}) }
               : {}),
@@ -156,7 +177,7 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `        return;
             let existing = {};
             try { existing = JSON.parse(sessionStorage.getItem(currentGoalUiStorageKey) || sessionStorage.getItem(goalUiStorageKey) || "null") || {}; } catch {}
             if (action === "start" && result.runtime_autofill && result.goal_id) {
-              sessionStorage.setItem("goalboard-feed-runtime-autofill:" + result.goal_id, JSON.stringify({ itemId, at: Date.now() }));
+              sessionStorage.setItem("molis-work-feed-runtime-autofill:" + result.goal_id, JSON.stringify({ itemId, at: Date.now() }));
             }
             sessionStorage.setItem(currentGoalUiStorageKey, JSON.stringify({
               ...existing,
@@ -167,7 +188,7 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `        return;
               workspaceMode: action === "start" ? "runtime" : "focus",
               mobileView: action === "start" ? "tui" : "document",
             }));
-            location.assign(globalThis.goalboardNavigationUrl(result.goal_path + (action === "start" ? "?feed-start=1" : "")));
+            location.assign(globalThis.molisWorkNavigationUrl(result.goal_path + (action === "start" ? "?feed-start=1" : "")));
             return;
           }
           saveUiState();
@@ -199,7 +220,7 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `        return;
       if (surfaceOpen) {
         const surface = surfaceOpen.dataset.workSurfaceOpen || "goal";
         if (surface === "feed") {
-          setFeedPreset(surfaceOpen.dataset.feedPreset || "inbox_message", true);
+          setFeedPreset(surfaceOpen.dataset.feedPreset || "feed", true);
           const source = surfaceOpen.dataset.feedSource;
           if (source) {
             if (feedSearch) feedSearch.value = "";
@@ -223,7 +244,7 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `        return;
         }
         setDesktopDirectory(surface === "goal"
           ? "goals"
-          : surface === "feed" || surface === "sources" || surface === "sessions" || surface === "artifacts"
+          : surface === "feed" || surface === "sources" || surface === "sessions" || surface === "artifacts" || surface === "inbox"
             ? surface
             : "root", true, true, surfaceOpen);
         setDesktopWorkSurface(surface, true, true);
@@ -243,6 +264,7 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `        return;
       }
       if (target.closest("[data-directory-back]") && desktopDirectoryPanels.length) {
         setDesktopDirectory("root");
+        setDesktopWorkSurface("home");
         return;
       }
       const goalWorkTabClick = handleGoalWorkTabClick(target);

@@ -1,4 +1,4 @@
-import { FeedDomainError } from "@adeptify/goalboard-contracts/modules/feed";
+import { FeedDomainError } from "@molis-ai/molis-work-contracts/modules/feed";
 import type { FeedApplication } from "./application.js";
 import type { FeedSourceRecord } from "./projection.js";
 import type { FeedConnectorSync } from "./connector-sync.js";

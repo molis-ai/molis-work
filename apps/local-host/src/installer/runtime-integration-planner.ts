@@ -21,7 +21,7 @@ export class RuntimeIntegrationPlanner {
       return preparedWithStatus(common, snapshot, receipt, "unavailable", `没有检测到 ${adapter.displayName}，不会修改配置。`);
     }
     if (!snapshot.artifacts) {
-      return preparedWithStatus(common, snapshot, receipt, "unavailable", "GoalBoard 本体安装不完整，请先修复安装。" );
+      return preparedWithStatus(common, snapshot, receipt, "unavailable", "Molis Work 本体安装不完整，请先修复安装。" );
     }
     if (snapshot.configInspection.state === "conflict" || snapshot.skill.state === "conflict") {
       return preparedWithStatus(
@@ -29,7 +29,7 @@ export class RuntimeIntegrationPlanner {
         snapshot,
         receipt,
         "conflict",
-        "发现同名但不属于 GoalBoard 的配置或 Skill。为避免覆盖用户内容，本次不会写入。",
+        "发现同名但不属于 Molis Work 的配置或 Skill。为避免覆盖用户内容，本次不会写入。",
       );
     }
 
@@ -46,7 +46,7 @@ export class RuntimeIntegrationPlanner {
         target_path: adapter.configPath(this.paths.userHomeDirectory),
         operation: snapshot.configInspection.state === "absent" ? "add" : "replace",
         before: snapshot.configInspection.summary,
-        after: `GoalBoard MCP（命令 ${snapshot.artifacts.launcherPath}；环境仅含 GOALBOARD_HOME、GOALBOARD_MCP_AUDIENCE、GOALBOARD_RUNTIME_ID）`,
+        after: `Molis Work MCP（命令 ${snapshot.artifacts.launcherPath}；环境仅含 MOLIS_WORK_HOME、MOLIS_WORK_MCP_AUDIENCE、MOLIS_WORK_RUNTIME_ID）`,
       });
     }
     if (snapshot.skill.state !== "current") {
@@ -63,8 +63,8 @@ export class RuntimeIntegrationPlanner {
         kind: "ownership_receipt",
         target_path: this.paths.receiptPath(adapter.id),
         operation: receipt ? "replace" : "add",
-        before: receipt ? "已有 GoalBoard 所有权收据" : "无",
-        after: "记录 GoalBoard 写入的字段指纹和 Skill 链接，不保存用户配置内容",
+        before: receipt ? "已有 Molis Work 所有权收据" : "无",
+        after: "记录 Molis Work 写入的字段指纹和 Skill 链接，不保存用户配置内容",
       });
     }
 
@@ -85,12 +85,12 @@ export class RuntimeIntegrationPlanner {
   prepareRemove(snapshot: RuntimeSnapshot, receipt: IntegrationReceipt | null): PreparedPlan {
     const { adapter } = snapshot;
     const common = this.planCommon(snapshot, "remove");
-    const hasGoalBoardState = snapshot.configInspection.state !== "absent" || snapshot.skill.state !== "absent";
+    const hasMolisWorkState = snapshot.configInspection.state !== "absent" || snapshot.skill.state !== "absent";
     if (!receipt) {
-      const status = hasGoalBoardState ? "conflict" : "no_change";
-      const message = hasGoalBoardState
-        ? "现有 GoalBoard 配置没有统一接入服务的所有权收据，不能自动删除。可先完成一次接入修复，再从同一入口移除。"
-        : `${adapter.displayName} 没有由 GoalBoard 管理的接入。`;
+      const status = hasMolisWorkState ? "conflict" : "no_change";
+      const message = hasMolisWorkState
+        ? "现有 Molis Work 配置没有统一接入服务的所有权收据，不能自动删除。可先完成一次接入修复，再从同一入口移除。"
+        : `${adapter.displayName} 没有由 Molis Work 管理的接入。`;
       return preparedWithStatus(common, snapshot, receipt, status, message);
     }
     if (
@@ -104,7 +104,7 @@ export class RuntimeIntegrationPlanner {
         snapshot,
         receipt,
         "conflict",
-        "GoalBoard 接入后相关配置或 Skill 已被改动。为避免删除用户修改，本次不会移除。",
+        "Molis Work 接入后相关配置或 Skill 已被改动。为避免删除用户修改，本次不会移除。",
       );
     }
 
@@ -118,25 +118,25 @@ export class RuntimeIntegrationPlanner {
         target_path: adapter.configPath(this.paths.userHomeDirectory),
         operation: "remove",
         before: snapshot.configInspection.summary,
-        after: "只移除 GoalBoard MCP entry，保留其他 Runtime 配置",
+        after: "只移除 Molis Work MCP entry，保留其他 Runtime 配置",
       },
       {
         kind: "skill_link",
         target_path: adapter.skillPath(this.paths.userHomeDirectory),
         operation: "remove",
         before: skillSummary(snapshot.skill),
-        after: "移除 GoalBoard 创建的 Skill 链接",
+        after: "移除 Molis Work 创建的 Skill 链接",
       },
       {
         kind: "ownership_receipt",
         target_path: this.paths.receiptPath(adapter.id),
         operation: "remove",
-        before: "GoalBoard 所有权收据",
+        before: "Molis Work 所有权收据",
         after: "无",
       },
     ];
     return {
-      publicPlan: this.publicPlan(common, "ready", changes, backupPath, `准备移除 ${adapter.displayName} 的 GoalBoard 接入。`),
+      publicPlan: this.publicPlan(common, "ready", changes, backupPath, `准备移除 ${adapter.displayName} 的 Molis Work 接入。`),
       adapter,
       beforeConfigText: snapshot.configText,
       beforeConfigHash: snapshot.configHash,
@@ -192,7 +192,7 @@ export class RuntimeIntegrationPlanner {
       changes,
       backup_path: backupPath,
       confirmation: `确认${verb} ${common.adapter.displayName}`,
-      alternative: "可以保持当前状态，稍后再从设置页操作；GoalBoard 本体和已有项目不会受影响。",
+      alternative: "可以保持当前状态，稍后再从设置页操作；Molis Work 本体和已有项目不会受影响。",
       restart_instructions: [...common.adapter.restartInstructions],
       message,
     };
@@ -219,7 +219,7 @@ export function preparedWithStatus(
       changes: [],
       backup_path: null,
       confirmation: `确认${verb} ${common.adapter.displayName}`,
-      alternative: "可以保持当前状态，稍后再从设置页操作；GoalBoard 本体和已有项目不会受影响。",
+      alternative: "可以保持当前状态，稍后再从设置页操作；Molis Work 本体和已有项目不会受影响。",
       restart_instructions: [...common.adapter.restartInstructions],
       message,
     },
@@ -234,9 +234,9 @@ export function preparedWithStatus(
 }
 
 export function skillSummary(skill: SkillSnapshot): string {
-  if (skill.state === "absent") return "未安装 GoalBoard Skill";
-  if (skill.state === "current") return "当前 GoalBoard Skill 链接";
-  if (skill.state === "managed") return "旧版 GoalBoard Skill 链接";
-  return "同名但不属于 GoalBoard 的 Skill";
+  if (skill.state === "absent") return "未安装 Molis Work Skill";
+  if (skill.state === "current") return "当前 Molis Work Skill 链接";
+  if (skill.state === "managed") return "旧版 Molis Work Skill 链接";
+  return "同名但不属于 Molis Work 的 Skill";
 }
 

@@ -5,7 +5,7 @@ import {
   type GoalEventExtraRequirementInput,
   type GoalEventRequirementRevisionInput,
   type GoalEventRequirementStatus,
-} from "@adeptify/goalboard-contracts/modules/goals";
+} from "@molis-ai/molis-work-contracts/modules/goals";
 import {
   assertAllowedKeys,
   assertConfigText,

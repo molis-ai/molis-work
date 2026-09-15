@@ -1,10 +1,10 @@
 import { prepareLocalProjectStorage } from "./project-storage.js";
-import { createGoalBoardLocalHost, goalBoardHostProjectReference, type GoalBoardLocalHost } from "./project-host.js";
+import { createMolisWorkLocalHost, molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import { dispatchCliProjectCommand, DEFAULT_CLI_DATABASE, cliFlagValue as value,
-  readCliJsonPayload as payload, printV1Help } from "@adeptify/goalboard-app-cli";
+  readCliJsonPayload as payload, printV1Help } from "@molis-ai/molis-work-app-cli";
 
 export interface V1CliOptions {
-  localHost?: GoalBoardLocalHost;
+  localHost?: MolisWorkLocalHost;
 }
 
 export async function runV1Cli(args: string[], options: V1CliOptions = {}): Promise<number> {
@@ -19,12 +19,12 @@ export async function runV1Cli(args: string[], options: V1CliOptions = {}): Prom
   );
   const { databasePath } = storage;
   if (storage.status === "missing") {
-    throw new Error(`GoalBoard 数据库不存在: ${databasePath}`);
+    throw new Error(`Molis Work 数据库不存在: ${databasePath}`);
   }
   const input = payload(args);
-  const localHost = options.localHost ?? createGoalBoardLocalHost();
+  const localHost = options.localHost ?? createMolisWorkLocalHost();
   const ownsLocalHost = !options.localHost;
-  const reference = goalBoardHostProjectReference({
+  const reference = molisWorkHostProjectReference({
     databasePath,
     boardId: String(input.board_id ?? value(args, "--board-id") ?? `database:${databasePath}`),
   });

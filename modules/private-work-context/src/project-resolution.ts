@@ -1,5 +1,5 @@
-import type { ProjectRecord as GoalBoardProjectRecord, ProjectSelection as GoalBoardProjectSelection, ProjectsQueryApi } from "@adeptify/goalboard-contracts/modules/projects";
-import type { NormalizedRuntimeWorkContext, NormalizedRuntimeWorkspaceContext, RuntimeProjectSuggestionClue, GoalBoardProjectSuggestion, GoalBoardRuntimeContextResolution, RuntimeContextBindingRecord as GoalBoardRuntimeContextBinding } from "@adeptify/goalboard-contracts/modules/private-work-context";
+import type { ProjectRecord as MolisWorkProjectRecord, ProjectSelection as MolisWorkProjectSelection, ProjectsQueryApi } from "@molis-ai/molis-work-contracts/modules/projects";
+import type { NormalizedRuntimeWorkContext, NormalizedRuntimeWorkspaceContext, RuntimeProjectSuggestionClue, MolisWorkProjectSuggestion, MolisWorkRuntimeContextResolution, RuntimeContextBindingRecord as MolisWorkRuntimeContextBinding } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import type { RuntimeContextBindingRepository } from "./context-bindings.js";
 import { normalizeRuntimeProjectSuggestionClues, scoreProjectSuggestion } from "./project-suggestions.js";
 
@@ -12,7 +12,7 @@ export class RuntimeProjectResolution {
 resolveRuntimeContext(
     normalized: NormalizedRuntimeWorkContext,
     suggestionClues: readonly RuntimeProjectSuggestionClue[] = [],
-  ): GoalBoardRuntimeContextResolution {
+  ): MolisWorkRuntimeContextResolution {
     const availableProjects = this.projectSelections();
     if (!normalized.stable_work_context_id && !normalized.workspace) {
       return unboundResolution(normalized, "missing_stable_context", availableProjects);
@@ -35,13 +35,13 @@ resolveRuntimeContext(
     return unboundResolution(normalized, "unknown_context", availableProjects);
   }
 
-private projectSelections(): GoalBoardProjectSelection[] {
+private projectSelections(): MolisWorkProjectSelection[] {
     return this.projects.selections();
   }
 
 private workspaceMemberSuggestions(
     workspace: NormalizedRuntimeWorkspaceContext | undefined,
-  ): GoalBoardProjectSuggestion[] {
+  ): MolisWorkProjectSuggestion[] {
     if (!workspace) return [];
     return this.projects.workspaceProjectSelections(workspace.workspace_id).map((project) => ({
       project_id: project.project_id,
@@ -54,9 +54,9 @@ runtimeContextSuggestions(
     context: NormalizedRuntimeWorkContext,
     clues: readonly RuntimeProjectSuggestionClue[],
     includeRejected = false,
-  ): GoalBoardProjectSuggestion[] {
+  ): MolisWorkProjectSuggestion[] {
     if (!context.stable_work_context_id) return [];
-    // An explicit unbind means “stop using GoalBoard in this current Session”.
+    // An explicit unbind means “stop using Molis Work in this current Session”.
     // Do not immediately turn a prior Session's history into another prompt.
     if (this.hasRuntimeContextUnboundEvent(context)) return [];
     const normalizedClues = normalizeRuntimeProjectSuggestionClues(clues);
@@ -81,7 +81,7 @@ runtimeContextSuggestions(
             }
           : null;
       })
-      .filter((suggestion): suggestion is GoalBoardProjectSuggestion & { score: number; index: number } =>
+      .filter((suggestion): suggestion is MolisWorkProjectSuggestion & { score: number; index: number } =>
         suggestion !== null && !rejectedProjectIds.has(suggestion.project_id),
       )
       .sort((left, right) => right.score - left.score || left.index - right.index)
@@ -110,7 +110,7 @@ private latestConfirmedProjectIdForOtherSession(context: NormalizedRuntimeWorkCo
 
 findRuntimeContextBinding(
     context: NormalizedRuntimeWorkContext,
-  ): GoalBoardRuntimeContextBinding | null {
+  ): MolisWorkRuntimeContextBinding | null {
     if (!context.stable_work_context_id) return null;
     return this.workContexts.find(context.runtime_id, context.stable_work_context_id);
   }
@@ -118,8 +118,8 @@ findRuntimeContextBinding(
 
 export function boundResolution(
   context: NormalizedRuntimeWorkContext,
-  project: GoalBoardProjectRecord,
-): GoalBoardRuntimeContextResolution {
+  project: MolisWorkProjectRecord,
+): MolisWorkRuntimeContextResolution {
   return {
     status: "bound",
     reason: null,
@@ -138,9 +138,9 @@ export function boundResolution(
 
 function suggestedResolution(
   context: NormalizedRuntimeWorkContext,
-  suggestedProjects: GoalBoardProjectSuggestion[],
-  availableProjects: GoalBoardProjectSelection[],
-): GoalBoardRuntimeContextResolution {
+  suggestedProjects: MolisWorkProjectSuggestion[],
+  availableProjects: MolisWorkProjectSelection[],
+): MolisWorkRuntimeContextResolution {
   return {
     status: "suggested",
     reason: null,
@@ -156,8 +156,8 @@ function suggestedResolution(
 function unboundResolution(
   context: NormalizedRuntimeWorkContext,
   reason: "missing_stable_context" | "unknown_context",
-  availableProjects: GoalBoardProjectSelection[],
-): GoalBoardRuntimeContextResolution {
+  availableProjects: MolisWorkProjectSelection[],
+): MolisWorkRuntimeContextResolution {
   return {
     status: "unbound",
     reason,

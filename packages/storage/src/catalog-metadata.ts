@@ -22,4 +22,9 @@ export class LocalCatalogMetadata {
   setVersion(version: number): void {
     this.db.prepare("UPDATE catalog_meta SET value = ? WHERE key = 'schema_version'").run(String(version));
   }
+
+  setOwner(owner: string): void {
+    const changed = Number(this.db.prepare("UPDATE catalog_meta SET value = ? WHERE key = 'owner'").run(owner).changes);
+    if (changed === 0) this.db.prepare("INSERT INTO catalog_meta (key, value) VALUES (?, ?)").run("owner", owner);
+  }
 }

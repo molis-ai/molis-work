@@ -2,13 +2,13 @@
 
 ## 目标
 
-让 GoalBoard MCP 在 Codex、Claude Code 和其他标准 MCP Runtime 的真实能力边界内工作：不依赖
+让 Molis Work MCP 在 Codex、Claude Code 和其他标准 MCP Runtime 的真实能力边界内工作：不依赖
 stdio 启动环境中的 Session 变量，不依赖不存在的可信用户消息 provider，并补齐客户端会枚举的
 标准方法。
 
 ## 范围
 
-- 解析 `tools/call.params._meta.threadId`、通用 `sessionId` 和 GoalBoard namespaced session ID 等
+- 解析 `tools/call.params._meta.threadId`、通用 `sessionId` 和 Molis Work namespaced session ID 等
   adapter 明确支持的宿主元数据，并把它作为当前调用的 Session 审计上下文；Claude Code 等
   已提供稳定 Session 环境信号的 Runtime 继续使用 adapter 信号；两类信号都没有时仍可初始化、
   解析工作目录线索并进入显式关联流程。
@@ -18,7 +18,7 @@ stdio 启动环境中的 Session 变量，不依赖不存在的可信用户消�
   永远无法满足的 `trustedUserDecisionProvider` 前置条件。
 - 保留并验证最新 main 已实现的 `resources/templates/list -> { resourceTemplates: [] }`，并让
   initialize capabilities 与实际 resources 行为一致，不重复造第二套实现。
-- 删除 `GOALBOARD_DATABASE/GOALBOARD_BOARD_ID` 静态 Runtime connection 生产分支、文档和测试；
+- 删除 `MOLIS_WORK_DATABASE/MOLIS_WORK_BOARD_ID` 静态 Runtime connection 生产分支、文档和测试；
   新接入计划可识别并替换旧 config，但不保留旧运行模式。
 - 更新 Skill：用人话说明确认内容，并在用户明确同意后提交决定；不把 Runtime 声明描述成
   “宿主密码学证明”。

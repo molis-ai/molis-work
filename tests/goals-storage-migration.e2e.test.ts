@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { GoalsQueryService, GoalsRepository } from "@adeptify/goalboard-module-goals";
-import { DEMO_BOARD_ID } from "@adeptify/goalboard-app-local-host";
-import { LocalProjectDatabase } from "@adeptify/goalboard-app-local-host";
-import { GoalProjectApplication } from "@adeptify/goalboard-app-local-host";
-import { importV3Board } from "@adeptify/goalboard-app-local-host";
+import { GoalsQueryService, GoalsRepository } from "@molis-ai/molis-work-module-goals";
+import { DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
+import { importV3Board } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 test("V3 imported Goal keeps coverage visible and records a current browser note after reopen and refresh", { timeout: 60_000 }, async t => {

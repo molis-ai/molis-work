@@ -1,8 +1,8 @@
-import { type GoalBoardProjectCatalog, normalizeRuntimeWorkContext } from "./project-catalog.js";
-import type { LegacySessionMigrationApi, LegacyWorkSessionMigrationReport as LegacySessionMigrationReport } from "@adeptify/goalboard-contracts/modules/private-work-context";
+import { type MolisWorkProjectCatalog, normalizeRuntimeWorkContext } from "./project-catalog.js";
+import type { LegacySessionMigrationApi, LegacyWorkSessionMigrationReport as LegacySessionMigrationReport } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 
 export function reconcileLegacySessionCatalog(
-  catalog: GoalBoardProjectCatalog,
+  catalog: MolisWorkProjectCatalog,
   registry: LegacySessionMigrationApi,
   beforeStep?: (step: "after_panels" | "after_bindings" | "before_commit") => void,
 ): LegacySessionMigrationReport {

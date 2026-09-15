@@ -6,7 +6,7 @@
 
 主 Session 临时脚本均从仓库根目录运行 `node --import tsx --input-type=module < <脚本>`，使用真实 Host / Native Goals / Web / Chrome 与隔离 SQLite。启动端口和 Chrome 需要本地测试权限；首次沙箱 EPERM 不计为产品缺陷。
 
-- `/private/tmp/goalboard-grok/04-review-http.mjs`、`04-review-http-results.json`：完整 Origin、control token、幂等头下，`kind=bogus` 返回 200，新增 kind=complete 的收尾事件，cursor 从 2 到 3。
+- `/private/tmp/molis-work-grok/04-review-http.mjs`、`04-review-http-results.json`：完整 Origin、control token、幂等头下，`kind=bogus` 返回 200，新增 kind=complete 的收尾事件，cursor 从 2 到 3。
 - `04-review-history.mjs`、`04-review-history-results.json`：真实 demo CORE，limit=1 返回 3 条；转交并追加报告后 limit=2 的两页各返回 5 条，重复相同 Run/Evidence/Review。真实 self_verifier / runtime-core 被映射为 actor_kind=user。V1 初始文档有 4 条 journal，timeline API 返回空。
 - `04-review-browser.mjs`、`04-review-browser-results.json`、`04-review-browser.log`：真实 pointer click，不用 DOM click 绕过可见性。6 个场景全部复现失败：新增要求表单不可见；Concern 原文/范围不显示；首个类型有两个必填字段时“补充一条”失败；保存抢走历史选择；写入成功而读取断线后重试产生重复事件；取消后没有可达的继续操作。
 - `04-review-{build,tests,boundary}.log` 保存独立基础检查。生产截图在 `04-ui/`；补充真实操作截图在 `04-review-ui/`。后者 `user-534-reading.png` 是宽窗口内显式约束阅读容器，实际 Goal 宽 522px，不冒充已打开 Runtime。`mobile-type.png` 是操作后滚动位置，不是完整页面截图，不能据此做全页面通过结论。

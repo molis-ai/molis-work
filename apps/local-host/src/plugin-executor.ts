@@ -1,8 +1,8 @@
-import type { ArtifactsApplicationApi } from "@adeptify/goalboard-contracts/modules/artifacts";
-import type { PluginDefinition, PluginExecutor, PluginManifest, PluginPrivateStorage, PluginStartContext } from "@adeptify/goalboard-contracts/platform/plugin";
-import type { UiHostApi } from "@adeptify/goalboard-contracts/platform/ui";
-import { createPluginArtifactClient } from "@adeptify/goalboard-plugin-artifacts";
-import { createPluginUiClient } from "@adeptify/goalboard-ui-host";
+import type { ArtifactsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import type { PluginDefinition, PluginExecutor, PluginManifest, PluginPrivateStorage, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { UiHostApi } from "@molis-ai/molis-work-contracts/platform/ui";
+import { createPluginArtifactClient } from "@molis-ai/molis-work-plugin-artifacts";
+import { createPluginUiClient } from "@molis-ai/molis-work-ui-host";
 
 export interface PluginHostExecutorOptions {
   board_id: string;

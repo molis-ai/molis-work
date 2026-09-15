@@ -1,5 +1,5 @@
-import { goalRelationTypes, type CreateGoalInput, type GoalRecord, type GoalRelationRecord, type GoalsCommandApi, type GoalsQueryApi } from "@adeptify/goalboard-contracts/modules/goals";
-import type { GoalTreeProposalItemRecord } from "@adeptify/goalboard-contracts/modules/governance-collaboration";
+import { goalRelationTypes, type CreateGoalInput, type GoalRecord, type GoalRelationRecord, type GoalsCommandApi, type GoalsQueryApi } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalTreeProposalItemRecord } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 
 type GoalTreeProposalItemShape = Pick<GoalTreeProposalItemRecord, "item_id" | "kind" | "operation" | "payload">;
 const GOAL_RELATION_TYPES = new Set<GoalRelationRecord["type"]>(goalRelationTypes);

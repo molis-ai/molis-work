@@ -1,7 +1,7 @@
 import type { ContractDescriptor } from "../platform/package.js";
 
 export const modulesAttentionResumptionContract = {
-  contractId: "io.goalboard.module.attention-resumption.v1",
+  contractId: "io.molis.work.module.attention-resumption.v1",
   kind: "module",
   schemaVersion: 1,
   maturity: "partial",
@@ -9,7 +9,7 @@ export const modulesAttentionResumptionContract = {
 } as const satisfies ContractDescriptor;
 
 export type AttentionSubjectType = "feed_item" | "goal_decision" | "source_fault";
-export type AttentionReason = "manual" | "source_rule" | "goal_decision" | "source_fault";
+export type AttentionReason = "manual" | "source_rule" | "goal_decision" | "source_fault" | "artifact_out_failed";
 export type AttentionStatus = "open" | "in_progress" | "done" | "dismissed";
 
 /**

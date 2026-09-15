@@ -10,4 +10,4 @@
 
 **当前实现与 Goal：** Signals Module 拥有规范化事件与去重；Listener Host 管投递技术状态，Integration Plugin 管 Provider 转换；FD1/FD3/Cutover 已退出旧 src/feed。
 
-**FD1 当前实现：** `@adeptify/goalboard-module-signals` 已拥有 `signals` 与 `signal_revisions`，Draft 以 Project + Source + provider dedupe identity 接受、去重或递增 revision。GitHub/Gmail 已真实经过这条链；Feed Item 仍是 FD2 的独立事实，不与 Signal 合并。
+**FD1 当前实现：** `@molis-ai/molis-work-module-signals` 已拥有 `signals` 与 `signal_revisions`，Draft 以 Project + Source + provider dedupe identity 接受、去重或递增 revision。GitHub/Gmail 已真实经过这条链；Feed Item 仍是 FD2 的独立事实，不与 Signal 合并。

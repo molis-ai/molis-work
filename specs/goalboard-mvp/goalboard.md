@@ -1,18 +1,18 @@
-# GoalBoard V1 Bootstrap Work Order
+# Molis Work V1 Bootstrap Work Order
 
-This file is the single development truth source for GoalBoard V1 until the
-SQLite-backed GoalBoard can import it and pass the migration acceptance checks.
+This file is the single development truth source for Molis Work V1 until the
+SQLite-backed Molis Work can import it and pass the migration acceptance checks.
 It replaces a separate `spec.md`; no second executable requirement document may
 compete with it.
 
 ## Board identity
 
 ```yaml
-board_id: goalboard-mvp-development
-authority: specs/goalboard-mvp/goalboard.md
+board_id: molis-work-mvp-development
+authority: specs/molis-work-mvp/molis-work.md
 authority_mode: bootstrap-manual
-root_goal_id: goalboard-mvp
-active_product_goal_id: goalboard-v1-product
+root_goal_id: molis-work-mvp
+active_product_goal_id: molis-work-v1-product
 writer_policy: single-writer
 writer: codex-main-session
 runtime_selection: pull
@@ -104,7 +104,7 @@ notes.
 3. An accepted Goal's semantic fields are immutable. Changed semantics create a
    new Goal related by `extends`, `replaces`, `corrects`, or `invalidates`.
 4. A Runtime queries the Ready Set, chooses a Goal, and attempts an atomic Claim.
-   GoalBoard never selects or launches a Runtime.
+   Molis Work never selects or launches a Runtime.
 5. A Runtime discovery is a Candidate Goal until a user confirms its promotion
    and dependency rewire.
 6. `ready` is derived, never manually asserted as durable truth.
@@ -123,7 +123,7 @@ notes.
 ## Root Goal Contract
 
 ```yaml
-goal_id: goalboard-mvp
+goal_id: molis-work-mvp
 parent_goal_id: null
 definition_state: accepted
 decomposition_state: abstract
@@ -131,7 +131,7 @@ validity: valid
 execution_state: review
 
 outcome: >
-  Establish a local-first GoalBoard MVP backed by shared SQLite so multiple
+  Establish a local-first Molis Work MVP backed by shared SQLite so multiple
   Runtime processes can query, claim, execute, and verify leaf Goals against one
   authoritative source of truth.
 
@@ -181,7 +181,7 @@ acceptance:
 ## Active Product Goal Contract
 
 ```yaml
-goal_id: goalboard-v1-product
+goal_id: molis-work-v1-product
 parent_goal_id: null
 definition_state: accepted
 decomposition_state: closed_compound
@@ -190,19 +190,19 @@ execution_state: review
 
 relations:
   - type: extends
-    target: goalboard-mvp
+    target: molis-work-mvp
 
 outcome: >
-  Ship a usable GoalBoard V1 with SQLite authority, shared CLI/MCP semantics, and
+  Ship a usable Molis Work V1 with SQLite authority, shared CLI/MCP semantics, and
   a plain-language Web UI that lets people understand and operate the Goal Spine.
 
 why: >
-  A protocol-only GoalBoard cannot prove product value. Users need a working
+  A protocol-only Molis Work cannot prove product value. Users need a working
   source of truth and a visual surface where goals, next actions, blockers,
   risks, evidence, and decisions are understandable without reading contracts.
 
 business_logic: |
-  A user opens GoalBoard and immediately sees the outcome being pursued, the
+  A user opens Molis Work and immediately sees the outcome being pursued, the
   current executable Goals, and what is blocking the rest. They can open any Goal
   to read its business logic, acceptance conditions, dependencies, risks, Runs,
   Evidence, and Reviews. AI Runtimes query and claim work through CLI or MCP.
@@ -211,7 +211,7 @@ business_logic: |
   dispatches a Runtime.
 
 in_scope:
-  - accepted GoalBoard domain and Coordinator semantics
+  - accepted Molis Work domain and Coordinator semantics
   - shared local SQLite authority
   - Runtime pull, Claim/Lease, Run, Evidence, Review, Candidate, and Rewire flows
   - semantically equivalent CLI and MCP operations
@@ -246,7 +246,7 @@ satisfied; only the user-owned release review remains open.
 | Goal | Definition | Decomposition | Validity | Execution | Ready result |
 | --- | --- | --- | --- | --- | --- |
 | `GB-001` | accepted | closed leaf | valid | satisfied | all acceptance and Review gates passed |
-| `goalboard-v1-product` | accepted | closed compound | valid | review | implementation complete; user release gate pending |
+| `molis-work-v1-product` | accepted | closed compound | valid | review | implementation complete; user release gate pending |
 | `GB-002` | accepted | closed compound | valid | satisfied | domain, Coordinator, and storage contracts accepted |
 | `GB-002-01` | accepted | closed leaf | valid | satisfied | all acceptance and Review gates passed |
 | `GB-002-02` | accepted | closed leaf | valid | satisfied | user continued V1 delivery; all gates passed |
@@ -256,22 +256,22 @@ satisfied; only the user-owned release review remains open.
 | `GB-005` | accepted | closed leaf | valid | satisfied | usable responsive Web UI passed independent review |
 | `GB-006` | accepted | closed leaf | valid | satisfied | V3 import, documentation, build, and package checks passed |
 
-## Leaf Goal `GB-001`: Establish the Bootstrap GoalBoard
+## Leaf Goal `GB-001`: Establish the Bootstrap Molis Work
 
 ```yaml
 goal_id: GB-001
-parent_goal_id: goalboard-mvp
+parent_goal_id: molis-work-mvp
 definition_state: accepted
 decomposition_state: closed_leaf
 validity: valid
 execution_state: satisfied
 
 outcome: >
-  Establish one durable and reviewable Bootstrap GoalBoard that guides this
-  development before the transactional GoalBoard exists.
+  Establish one durable and reviewable Bootstrap Molis Work that guides this
+  development before the transactional Molis Work exists.
 
 why: >
-  GoalBoard should be tested first on its own development, and the team needs a
+  Molis Work should be tested first on its own development, and the team needs a
   single source of scope, status, risk, acceptance, and discovery truth before
   product code changes begin.
 
@@ -304,14 +304,14 @@ inputs:
   - repository-level development protocol
 
 outputs:
-  - specs/goalboard-mvp/goalboard.md
+  - specs/molis-work-mvp/molis-work.md
 
 depends_on: []
 
 impact_surfaces:
-  - surface: decision:goalboard-development-contract
+  - surface: decision:molis-work-development-contract
     access: decide
-  - surface: artifact:specs/goalboard-mvp/goalboard.md
+  - surface: artifact:specs/molis-work-mvp/molis-work.md
     access: write
   - surface: rule:goal-lifecycle
     access: decide
@@ -330,7 +330,7 @@ review_policy:
   human_approval: required
 
 acceptance:
-  - There is exactly one executable Work Order for the GoalBoard MVP.
+  - There is exactly one executable Work Order for the Molis Work MVP.
   - It records the accepted Root Goal and its plain-language business logic.
   - It records policy, invariants, frontier, coverage, risks, and bootstrap state.
   - GB-001 is a closed leaf Goal with independent acceptance conditions.
@@ -361,7 +361,7 @@ release_reason: executor_work_submitted_for_verification
 evidence:
   - evidence_id: EVIDENCE-GB-001-ARTIFACT
     kind: artifact
-    source: specs/goalboard-mvp/goalboard.md
+    source: specs/molis-work-mvp/molis-work.md
     result: passed
     covers:
       - single Work Order
@@ -373,7 +373,7 @@ evidence:
     source: bootstrap board structural and working-tree scope checks
     result: passed
     details:
-      - exactly one file exists under specs/goalboard-mvp
+      - exactly one file exists under specs/molis-work-mvp
       - three accepted or planned Goal Contracts contain business_logic
       - all four registered risks contain an owner
       - no trailing whitespace was found
@@ -396,11 +396,11 @@ reviews:
     source: user message "继续"
 ```
 
-## Abstract Goal `GB-002`: Define the GoalBoard Domain and Protocol
+## Abstract Goal `GB-002`: Define the Molis Work Domain and Protocol
 
 ```yaml
 goal_id: GB-002
-parent_goal_id: goalboard-mvp
+parent_goal_id: molis-work-mvp
 definition_state: accepted
 decomposition_state: frontier_open
 validity: valid
@@ -408,11 +408,11 @@ execution_state: idle
 
 outcome: >
   Produce an implementation-ready domain and protocol definition for the
-  GoalBoard MVP before product modules are changed.
+  Molis Work MVP before product modules are changed.
 
 business_logic: |
   A developer or Runtime can read the protocol and unambiguously understand what
-  each GoalBoard object means, which changes are permitted, how a Goal becomes
+  each Molis Work object means, which changes are permitted, how a Goal becomes
   ready, how simultaneous claims are resolved, how risks and conflicts block
   work, how completion evidence is judged, and how discoveries become confirmed
   new Goals without rewriting history.
@@ -448,7 +448,7 @@ validity: valid
 execution_state: satisfied
 
 outcome: >
-  Define the canonical GoalBoard domain objects, ownership boundaries, semantic
+  Define the canonical Molis Work domain objects, ownership boundaries, semantic
   invariants, state axes, and completion meaning without choosing storage or API
   implementation details.
 
@@ -458,7 +458,7 @@ why: >
   Candidate Goal, and evolving coordination facts.
 
 business_logic: |
-  A user, Runtime, and reviewer should be able to look at the same GoalBoard and
+  A user, Runtime, and reviewer should be able to look at the same Molis Work and
   agree on what result was promised, what may still change, what is currently
   executable, who is attempting it, what proof exists, and whether it is safe to
   call the Goal complete. Business promises remain stable after acceptance,
@@ -483,21 +483,21 @@ out_of_scope:
 
 inputs:
   - accepted Root Goal and Project Policy Contract
-  - current src/core/types.ts and src/core/goalboard.ts behavior
+  - current src/core/types.ts and src/core/molis-work.ts behavior
   - current coverage, continuity, handoff, CLI, and MCP boundaries
 
 outputs:
-  - specs/goalboard-mvp/domain-contract.md
+  - specs/molis-work-mvp/domain-contract.md
 
 depends_on:
   - GB-001
 
 impact_surfaces:
-  - surface: decision:goalboard-domain-boundary
+  - surface: decision:molis-work-domain-boundary
     access: decide
   - surface: rule:goal-lifecycle
     access: decide
-  - surface: artifact:specs/goalboard-mvp/domain-contract.md
+  - surface: artifact:specs/molis-work-mvp/domain-contract.md
     access: write
 
 risk_refs:
@@ -545,7 +545,7 @@ release_reason: domain_contract_submitted_for_verification
 evidence:
   - evidence_id: EVIDENCE-GB-002-01-ARTIFACT
     kind: artifact
-    source: specs/goalboard-mvp/domain-contract.md
+    source: specs/molis-work-mvp/domain-contract.md
     result: passed
     covers:
       - canonical entity boundary and write ownership
@@ -594,7 +594,7 @@ execution_state: satisfied
 
 outcome: >
   Define deterministic Coordinator decisions, gates, reason codes, and state
-  transitions over the canonical GoalBoard domain without selecting storage or
+  transitions over the canonical Molis Work domain without selecting storage or
   transport implementation.
 
 why: >
@@ -627,18 +627,18 @@ out_of_scope:
   - TypeScript implementation
 
 inputs:
-  - accepted specs/goalboard-mvp/domain-contract.md
+  - accepted specs/molis-work-mvp/domain-contract.md
   - accepted Root Goal and Project Policy Contract
   - current V3 mutation, validation, audit, and trace behavior
 
 outputs:
-  - specs/goalboard-mvp/coordinator-contract.md
+  - specs/molis-work-mvp/coordinator-contract.md
 
 depends_on:
   - GB-002-01
 
 impact_surfaces:
-  - surface: decision:goalboard-coordinator-semantics
+  - surface: decision:molis-work-coordinator-semantics
     access: decide
   - surface: rule:readiness
     access: decide
@@ -646,7 +646,7 @@ impact_surfaces:
     access: decide
   - surface: rule:completion
     access: decide
-  - surface: artifact:specs/goalboard-mvp/coordinator-contract.md
+  - surface: artifact:specs/molis-work-mvp/coordinator-contract.md
     access: write
 
 risk_refs:
@@ -695,7 +695,7 @@ release_reason: coordinator_contract_submitted_for_verification
 evidence:
   - evidence_id: EVIDENCE-GB-002-02-ARTIFACT
     kind: artifact
-    source: specs/goalboard-mvp/coordinator-contract.md
+    source: specs/molis-work-mvp/coordinator-contract.md
     result: passed
     covers:
       - decision envelope, structured reasons, and idempotency
@@ -746,7 +746,7 @@ outcome: >
   decisions atomically across CLI, MCP, and Web processes.
 
 business_logic: |
-  Every GoalBoard client opens the same local database. Reads see a coherent
+  Every Molis Work client opens the same local database. Reads see a coherent
   Board snapshot. Writes either record the requested domain change, event, and
   idempotency result together or record none of them. Two Runtimes racing for a
   conflicting Goal cannot both receive an active Claim.
@@ -766,7 +766,7 @@ out_of_scope:
   - UI implementation
 
 outputs:
-  - specs/goalboard-mvp/storage-contract.md
+  - specs/molis-work-mvp/storage-contract.md
 
 depends_on:
   - GB-002-02
@@ -774,9 +774,9 @@ depends_on:
 impact_surfaces:
   - surface: decision:sqlite-authority
     access: decide
-  - surface: data:goalboard-v1
+  - surface: data:molis-work-v1
     access: decide
-  - surface: artifact:specs/goalboard-mvp/storage-contract.md
+  - surface: artifact:specs/molis-work-mvp/storage-contract.md
     access: write
 
 execution_policy:
@@ -817,7 +817,7 @@ release_reason: storage_contract_and_transaction_slice_verified
 evidence:
   - evidence_id: EVIDENCE-GB-002-03-CONTRACT
     kind: artifact
-    source: specs/goalboard-mvp/storage-contract.md
+    source: specs/molis-work-mvp/storage-contract.md
     result: passed
   - evidence_id: EVIDENCE-GB-002-03-SLICE
     kind: test
@@ -835,7 +835,7 @@ reviews:
 
 ```yaml
 goal_id: GB-003
-parent_goal_id: goalboard-v1-product
+parent_goal_id: molis-work-v1-product
 definition_state: accepted
 decomposition_state: closed_leaf
 validity: valid
@@ -916,12 +916,12 @@ reviews:
 
 ```yaml
 goal_id: GB-004
-parent_goal_id: goalboard-v1-product
+parent_goal_id: molis-work-v1-product
 definition_state: accepted
 decomposition_state: closed_leaf
 validity: valid
 execution_state: satisfied
-outcome: Let a Runtime query and operate the same GoalBoard decisions through CLI or MCP.
+outcome: Let a Runtime query and operate the same Molis Work decisions through CLI or MCP.
 business_logic: |
   A Runtime can ask what is ready, understand why work is blocked, claim a Goal,
   report work and proof, and submit discoveries through either interface. Both
@@ -945,7 +945,7 @@ review: self verification passed
 
 ```yaml
 goal_id: GB-005
-parent_goal_id: goalboard-v1-product
+parent_goal_id: molis-work-v1-product
 definition_state: accepted
 decomposition_state: closed_leaf
 validity: valid
@@ -978,12 +978,12 @@ review: independent Impeccable finish review passed with no Blocker or P1
 
 ```yaml
 goal_id: GB-006
-parent_goal_id: goalboard-v1-product
+parent_goal_id: molis-work-v1-product
 definition_state: accepted
 decomposition_state: closed_leaf
 validity: valid
 execution_state: satisfied
-outcome: Make GoalBoard V1 installable, understandable, and safe to initialize from V3 data.
+outcome: Make Molis Work V1 installable, understandable, and safe to initialize from V3 data.
 business_logic: |
   A user can install version 1.0.0, initialize a fresh SQLite workspace, run the
   CLI, MCP server, or Web UI, and explicitly import safe V3 structure. Missing V1
@@ -1013,7 +1013,7 @@ decision for the user. No implementation blocker remains.
 
 | Requirement | Status | Covered by / disposition |
 | --- | --- | --- |
-| GoalBoard is the Runtime-neutral source of truth | covered | Root Goal, invariants 2 and 4 |
+| Molis Work is the Runtime-neutral source of truth | covered | Root Goal, invariants 2 and 4 |
 | Runtime pulls and chooses; Board does not dispatch | covered | Project execution policy |
 | Leaf Goal and Task have one identity | covered | Invariant 1 |
 | Every accepted Goal explains business logic in non-technical language | covered | Project Policy Contract and both Goal Contracts |
@@ -1026,8 +1026,8 @@ decision for the user. No implementation blocker remains.
 | Parent completion is not the sum of child statuses | covered | Root acceptance and invariant 8 |
 | Shared SQLite is the single-device, single-workspace MVP authority | covered | Root Goal and authority transition |
 | CLI and MCP share semantics | covered | Root and `GB-002` acceptance |
-| GoalBoard V1 includes a usable Web UI | covered | `goalboard-v1-product` acceptance |
-| UI explains Goal, next action, blockers, and completion in plain language | covered | `goalboard-v1-product` business logic and PRODUCT.md |
+| Molis Work V1 includes a usable Web UI | covered | `molis-work-v1-product` acceptance |
+| UI explains Goal, next action, blockers, and completion in plain language | covered | `molis-work-v1-product` business logic and PRODUCT.md |
 | UI design and QA follow Impeccable | covered | active V1 delivery policy and Web UI delivery Goal |
 | Runtime actor/reviewer independence trust model | covered | local actor IDs plus enforced executor/reviewer separation |
 | Existing V3 JSON migration behavior | covered | explicit one-time import that preserves safe structure and regenerates missing semantics |
@@ -1044,7 +1044,7 @@ state: resolved
 probability: certain
 impact: duplicate or conflicting writers could fork operational truth.
 affected_surfaces:
-  - artifact:specs/goalboard-mvp/goalboard.md
+  - artifact:specs/molis-work-mvp/molis-work.md
 blocking_mode: claim
 trigger: a second writer attempts to update bootstrap state
 treatment: accept_with_control
@@ -1086,7 +1086,7 @@ trigger: execution discovers an undeclared read, write, decision, or exclusive s
 treatment: mitigate
 control: submit a Candidate Goal or impact correction and mark dependents for revalidation
 revisit_when: impact fixtures and discovery flows are implemented
-owner: goalboard-product-owner
+owner: molis-work-product-owner
 ```
 
 ### `RISK-FALSE-PARENT-COMPLETION`
@@ -1094,7 +1094,7 @@ owner: goalboard-product-owner
 ```yaml
 description: Completed children may not produce the Root outcome.
 probability: medium
-impact: GoalBoard MVP could be declared complete without a usable end-to-end flow.
+impact: Molis Work MVP could be declared complete without a usable end-to-end flow.
 affected_surfaces:
   - rule:parent-completion
 blocking_mode: completion
@@ -1102,7 +1102,7 @@ trigger: all known child Goals are satisfied
 treatment: mitigate
 control: independently execute every Root acceptance condition plus coverage and risk closure
 revisit_when: evaluating Root completion
-owner: goalboard-product-owner
+owner: molis-work-product-owner
 ```
 
 ### `RISK-COORDINATOR-NONDETERMINISM`
@@ -1121,7 +1121,7 @@ trigger: the same canonical snapshot and actor request produce different decisio
 treatment: mitigate
 control: pure decision contracts, structured reason codes, application-level idempotency, and scenario fixtures
 revisit_when: Coordinator contract tests and SQLite concurrency tests pass
-owner: goalboard-product-owner
+owner: molis-work-product-owner
 resolution: Coordinator scenario, idempotency, concurrency, lifecycle, Risk, Candidate, and Rewire tests pass deterministically
 ```
 
@@ -1187,7 +1187,7 @@ affected_surfaces:
     access: decide
   - surface: rule:accepted-goal-immutability
     access: decide
-  - surface: artifact:specs/goalboard-mvp/goalboard.md
+  - surface: artifact:specs/molis-work-mvp/molis-work.md
     access: write
 ```
 
@@ -1237,7 +1237,7 @@ After work:
 | Date | Event |
 | --- | --- |
 | 2026-08-15 | User selected shared SQLite as the single-device, single-workspace MVP authority. |
-| 2026-08-15 | User required GoalBoard's own logic to guide GoalBoard development. |
+| 2026-08-15 | User required Molis Work's own logic to guide Molis Work development. |
 | 2026-08-15 | Root Goal and `GB-001` semantics accepted; `GB-001` claimed by the main Codex session. |
 | 2026-08-15 | `GB-001` executor work and self-verification passed; Claim released and Goal moved to human Review. |
 | 2026-08-15 | User approved `GB-001`; all gates passed, Goal satisfied, and `GB-002` decomposition gate opened. |
@@ -1248,7 +1248,7 @@ After work:
 | 2026-08-15 | User approved `GB-002-01`; Goal satisfied and `GB-002-02` entered the Ready frontier. |
 | 2026-08-15 | `GB-002-02` accepted and claimed to define deterministic Coordinator semantics. |
 | 2026-08-15 | `GB-002-02` Coordinator Contract and self-verification passed; Claim released and Goal moved to human Review. |
-| 2026-08-15 | User expanded scope to GoalBoard V1 with a usable Impeccable Web UI; `goalboard-v1-product` accepted as a new Goal extending the historical MVP Goal. |
+| 2026-08-15 | User expanded scope to Molis Work V1 with a usable Impeccable Web UI; `molis-work-v1-product` accepted as a new Goal extending the historical MVP Goal. |
 | 2026-08-15 | User directed the team to focus on delivery rather than micro-approvals; `GB-002-02` approved and future Human Review concentrated at major milestones. |
 | 2026-08-15 | `GB-002-03` accepted and claimed to define the SQLite authority boundary before implementation. |
 | 2026-08-15 | `GB-002-03` storage contract and transaction slice passed; Goal satisfied and `GB-003` claimed for the runnable lifecycle core. |

@@ -1,21 +1,21 @@
-import type { GoalRecord, RiskRecord } from "@adeptify/goalboard-contracts/modules/goals";
-import type { ExecutionRunRecord } from "@adeptify/goalboard-contracts/modules/execution";
-import type { EvidenceRecord } from "@adeptify/goalboard-contracts/modules/evidence-verification";
+import type { GoalRecord, RiskRecord } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { ExecutionRunRecord } from "@molis-ai/molis-work-contracts/modules/execution";
+import type { EvidenceRecord } from "@molis-ai/molis-work-contracts/modules/evidence-verification";
 import type {
   WorkSessionEventKind as SessionTimelineKind,
   WorkSessionEventSource as SessionEventSource,
-  WorkSessionRecord as GoalBoardSessionRecord,
-  WorkSessionHandoffRecord as GoalBoardSessionHandoffRecord,
-} from "@adeptify/goalboard-contracts/modules/private-work-context";
+  WorkSessionRecord as MolisWorkSessionRecord,
+  WorkSessionHandoffRecord as MolisWorkSessionHandoffRecord,
+} from "@molis-ai/molis-work-contracts/modules/private-work-context";
 
-export { GoalBoardSessionError } from "@adeptify/goalboard-contracts/modules/private-work-context";
+export { MolisWorkSessionError } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 export type {
-  WorkSessionRecord as GoalBoardSessionRecord,
-  WorkSessionEventRecord as GoalBoardSessionEventRecord,
-  WorkSessionHandoffRecord as GoalBoardSessionHandoffRecord,
+  WorkSessionRecord as MolisWorkSessionRecord,
+  WorkSessionEventRecord as MolisWorkSessionEventRecord,
+  WorkSessionHandoffRecord as MolisWorkSessionHandoffRecord,
   WorkSessionEventKind as SessionTimelineKind,
-} from "@adeptify/goalboard-contracts/modules/private-work-context";
-export type { RuntimeSessionAdapterResult } from "@adeptify/goalboard-contracts/services/runtime-host";
+} from "@molis-ai/molis-work-contracts/modules/private-work-context";
+export type { RuntimeSessionAdapterResult } from "@molis-ai/molis-work-contracts/services/runtime-host";
 
 /** Read-only inputs consumed by handoff; no coordinator or business Store crosses into Work. */
 export interface SessionHandoffGoalContext {
@@ -55,7 +55,7 @@ export interface SessionTimelineEvent {
 export type SessionContentMode = "native" | "fallback" | "unavailable" | "failed";
 
 export interface SessionContentResult {
-  session: GoalBoardSessionRecord;
+  session: MolisWorkSessionRecord;
   content_mode: SessionContentMode;
   events: SessionTimelineEvent[];
   native_error: { code: string; message: string } | null;
@@ -104,6 +104,6 @@ export interface SendSessionHandoffInput {
 }
 
 export interface SessionHandoffResult {
-  handoff: GoalBoardSessionHandoffRecord;
-  destination_session: GoalBoardSessionRecord | null;
+  handoff: MolisWorkSessionHandoffRecord;
+  destination_session: MolisWorkSessionRecord | null;
 }

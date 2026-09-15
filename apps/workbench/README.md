@@ -2,7 +2,7 @@
 
 组合目标、信息流、会话、设置和首次使用页面，让各 Native Plugin 的功能在同一个工作区中呈现。
 
-包名：`@adeptify/goalboard-app-workbench`。工作区内部包，通过仓库构建和 Host 装配使用。
+包名：`@molis-ai/molis-work-app-workbench`。工作区内部包，通过仓库构建和 Host 装配使用。
 
 ## 一次典型调用
 
@@ -32,8 +32,8 @@ Local Host 提供页面模型和操作端口；Workbench renderer 组合公共�
 以下命令在**仓库根目录**执行，使用 Node.js 24+ 与仓库配置的 pnpm。首次准备运行 `pnpm install --frozen-lockfile` 和 `pnpm build`；之后可单独检查此包。
 
 ```bash
-pnpm --filter @adeptify/goalboard-app-workbench typecheck
-pnpm --filter @adeptify/goalboard-app-workbench build
+pnpm --filter @molis-ai/molis-work-app-workbench typecheck
+pnpm --filter @molis-ai/molis-work-app-workbench build
 ```
 
 已有行为示例与回归：[workbench-ui-platform.test.ts](../../tests/workbench-ui-platform.test.ts)。完成上述构建后运行：
@@ -50,7 +50,7 @@ node --import tsx --test --test-concurrency=1 tests/workbench-ui-platform.test.t
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
 - Status: `partial`
-- Contract entrypoint: `@adeptify/goalboard-contracts/platform/app-host`
+- Contract entrypoint: `@molis-ai/molis-work-contracts/platform/app-host`
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-fd4`, `goal-reorg-ap3`, `goal-reorg-gw4`, `goal-reorg-gw5`, `goal-reorg-ex4`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。

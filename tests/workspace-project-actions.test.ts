@@ -1,27 +1,27 @@
-import { openGoalBoardProjectCatalog } from "@adeptify/goalboard-app-desktop";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import { access, mkdtemp, mkdir, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { GoalBoardSessionRegistry } from "@adeptify/goalboard-module-private-work-context";
-import { createGoalBoardWebServer } from "../apps/desktop/launchers/web/server.js";
+import { MolisWorkSessionRegistry } from "@molis-ai/molis-work-module-private-work-context";
+import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
-const TOKEN = "goalboard-workspace-actions-token-0123456789";
+const TOKEN = "molis-work-workspace-actions-token-0123456789";
 
 test("project workspace actions require confirmation, repair matching Sessions, launch, and unlink without touching files", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "goalboard-workspace-actions-"));
-  const home = path.join(directory, ".goalboard");
+  const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-workspace-actions-"));
+  const home = path.join(directory, ".molis-work");
   const previousPath = path.join(directory, "repository-before");
   const repairedPath = path.join(directory, "repository-after");
   await mkdir(previousPath, { recursive: true });
   await mkdir(repairedPath, { recursive: true });
-  const catalog = await openGoalBoardProjectCatalog({ homeDirectory: home });
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const project = await catalog.createProject({ display_name: "工作目录动作", actor_id: "user" });
   catalog.close();
 
-  const server = createGoalBoardWebServer({ homeDirectory: home, controlToken: TOKEN });
+  const server = createMolisWorkWebServer({ homeDirectory: home, controlToken: TOKEN });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   try {
     const address = server.address();
@@ -32,8 +32,8 @@ test("project workspace actions require confirmation, repair matching Sessions, 
       method,
       headers: {
         origin,
-        "x-goalboard-control-token": TOKEN,
-        "x-goalboard-idempotency-key": `workspace-test-${method}-${pathname}`,
+        "x-molis-work-control-token": TOKEN,
+        "x-molis-work-idempotency-key": `workspace-test-${method}-${pathname}`,
       },
       body: JSON.stringify(body),
     });
@@ -116,7 +116,7 @@ test("project workspace actions require confirmation, repair matching Sessions, 
     const unlink = await unlinkResponse.json() as { updated_session_count: number };
     assert.equal(unlink.updated_session_count, 3);
 
-    const finalCatalog = await openGoalBoardProjectCatalog({ homeDirectory: home });
+    const finalCatalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
     assert.equal(finalCatalog.listWorkspaceDirectory(project.project_id).length, 0);
     assert.equal(finalCatalog.listWorkspaceMemberships().some((membership) => membership.is_default), false);
     finalCatalog.close();
@@ -132,4 +132,4 @@ test("project workspace actions require confirmation, repair matching Sessions, 
     await rm(directory, { recursive: true, force: true });
   }
 });
-import { openWorkSessionRegistry } from "@adeptify/goalboard-app-local-host";
+import { openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";

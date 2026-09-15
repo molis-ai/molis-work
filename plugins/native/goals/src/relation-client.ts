@@ -107,7 +107,7 @@ const GOALS_RELATION_SUBMIT_SCRIPT = `      const relationForm = submittedForm.c
         try {
           const response = await fetch(route("/api/goals/" + encodeURIComponent(relationForm.dataset.goalId) + "/relations"), {
             method: "POST",
-            headers: goalboardControlHeaders(),
+            headers: molisWorkControlHeaders(),
             body: JSON.stringify({
               direction: values.get("direction"),
               type: values.get("type"),
@@ -145,7 +145,7 @@ const GOALS_RELATION_SUBMIT_SCRIPT = `      const relationForm = submittedForm.c
         try {
           const response = await fetch(route("/api/relations/" + encodeURIComponent(relationDeactivateForm.dataset.relationId) + "/deactivate"), {
             method: "POST",
-            headers: goalboardControlHeaders(),
+            headers: molisWorkControlHeaders(),
             body: JSON.stringify({ reason }),
           });
           const result = await response.json();
@@ -167,7 +167,7 @@ const GOALS_RELATION_SUBMIT_SCRIPT = `      const relationForm = submittedForm.c
 `;
 
 export const GOALS_RELATION_CLIENT_FACTORY_SCRIPT = `(host) => {
-    const { form, currentLocale, route, controlHeaders: goalboardControlHeaders, translate: L,
+    const { form, currentLocale, route, controlHeaders: molisWorkControlHeaders, translate: L,
       refreshBoard, requireFormFacts, requireDecisionText, showFactorReceipt, humanDecisionError } = host;
 ${GOALS_RELATION_PREVIEW_SCRIPT}
     const handleGoalRelationChange = (changed) => {

@@ -1,6 +1,6 @@
 # Goal 推进态势高保真切片
 
-GoalBoard Goal：`goal-momentum-hifi-slice`
+Molis Work Goal：`goal-momentum-hifi-slice`
 
 ## 完成等级
 
@@ -12,7 +12,7 @@ GoalBoard Goal：`goal-momentum-hifi-slice`
 
 - 现有关系图把 `part_of` 与 `depends_on` 混画成血缘网络，既没有稳定的阅读方向，也无法区分“归属”与“执行前置”，真实使用反馈表明它不能支持推进判断。
 - GoalTree 列表能看层级和单项状态，却需要用户逐项阅读，无法形成整体节奏和关键路径。
-- 通用 Kanban 会把 GoalBoard 的派生工作状态压成第二套可拖拽状态，既重复又容易失真。
+- 通用 Kanban 会把 Molis Work 的派生工作状态压成第二套可拖拽状态，既重复又容易失真。
 - 当前项目已经有真实 Goal 标题、依赖、完成状态、Claim / Run 与事件时间，可以构成足够逼真的验证样本。
 
 ## 保留、替换、忽略
@@ -34,7 +34,7 @@ GoalBoard Goal：`goal-momentum-hifi-slice`
 
 - 不实现 Kanban 分栏、拖拽、手工排序或第二套状态。
 - 不实现人员 / Runtime 容量、工时和工作量估算。
-- 不接生产接口、不写 GoalBoard 数据、不移除旧关系图。
+- 不接生产接口、不写 Molis Work 数据、不移除旧关系图。
 - 不做跨项目总览、任意日期查询或可配置报表。
 
 ## 用户问题与最短闭环
@@ -90,7 +90,7 @@ GoalBoard Goal：`goal-momentum-hifi-slice`
 
 ## 视觉与交互方案
 
-- 延续 GoalBoard 冷静浅色工作台：纸面灰白背景、深墨文字、克制钴蓝焦点、低饱和状态色。
+- 延续 Molis Work 冷静浅色工作台：纸面灰白背景、深墨文字、克制钴蓝焦点、低饱和状态色。
 - 顶部不是 KPI 卡片墙，而是一条连续的“节奏轨”：摘要句、7 / 30 天切换、事件刻度和少量数字融为同一时间结构。
 - 完整依赖拓扑是主体主舞台并占满可用宽度：列标题固定解释拓扑层级，父 Goal 分组带承担树状归属，节点与边只使用真实关系。
 - 行动队列与选择详情位于拓扑下方，继续解释“现在做什么”、状态、排序原因、影响链、数据可信度和“打开 Goal 详情”。

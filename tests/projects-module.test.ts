@@ -8,7 +8,7 @@ import {
   createProjectsSchema,
   migrateProjectDataClassSchema,
   ProjectsModule,
-} from "@adeptify/goalboard-module-projects";
+} from "@molis-ai/molis-work-module-projects";
 import Database from "better-sqlite3";
 
 class ProjectsTestError extends Error {
@@ -28,7 +28,7 @@ function createModule(db: Database.Database): ProjectsModule {
 }
 
 test("Projects Module owns canonical project identity and workspace membership", () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-projects-module-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-projects-module-"));
   const db = new Database(":memory:");
   try {
     db.pragma("foreign_keys = ON");
@@ -141,8 +141,8 @@ test("project identity schema migration is rollback-safe and idempotent", () => 
 
 test("Host Catalog reaches Projects only through the public module entrypoint", () => {
   const source = readFileSync(new URL("../apps/local-host/src/project-catalog.ts", import.meta.url), "utf8");
-  assert.match(source, /from "@adeptify\/goalboard-module-projects"/u);
-  assert.doesNotMatch(source, /@adeptify\/goalboard-module-projects\//u, "deep imports are forbidden");
+  assert.match(source, /from "@molis-ai\/molis-work-module-projects"/u);
+  assert.doesNotMatch(source, /@molis-ai\/molis-work-module-projects\//u, "deep imports are forbidden");
   assert.doesNotMatch(
     source,
     /\b(?:SELECT\b[^;`]*\bFROM|INSERT\s+INTO|UPDATE|DELETE\s+FROM|CREATE\s+TABLE(?:\s+IF\s+NOT\s+EXISTS)?)\s+(?:projects|project_events|workspaces|workspace_project_memberships|project_deletions)\b/iu,

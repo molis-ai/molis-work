@@ -1,11 +1,12 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { ArtifactsQueryApi } from "@adeptify/goalboard-contracts/modules/artifacts";
-import type { ContextLedgerApi } from "@adeptify/goalboard-contracts/modules/context-ledger";
+import type { ArtifactsQueryApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import type { ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import {
   ArtifactBrowserError, exportArtifactVersion, matchArtifactBrowserRoute, readArtifactBrowser, readGoalArtifactEmbeds,
-} from "@adeptify/goalboard-plugin-artifacts";
-import { artifactWorkbench, renderArtifactWorkbenchPage } from "@adeptify/goalboard-app-workbench";
+} from "@molis-ai/molis-work-plugin-artifacts";
+import { artifactWorkbench, renderArtifactWorkbenchPage } from "@molis-ai/molis-work-app-workbench";
 import { dateTimeLocale, htmlLang, L } from "./web-locale.js";
+import { requestHeader } from "./web-http.js";
 
 export interface ArtifactHttpContext {
   readonly boardId: string;
@@ -49,11 +50,13 @@ export function createLocalArtifactHttp(ports: { nativeDesktopBootstrapScript: s
         return true;
       }
       const view = readArtifactBrowser(context.query, context.boardId, route.reference);
-      if (request.headers["x-goalboard-fragment"] === "artifact-workbench") {
+      if (requestHeader(request, "x-molis-work-fragment", "x-goalboard-fragment") === "artifact-workbench"
+        || requestHeader(request, "x-molis-work-fragment", "x-goalboard-fragment") === "frame-block") {
+        const compact = requestHeader(request, "x-molis-work-fragment", "x-goalboard-fragment") === "frame-block";
         response.writeHead(view.requested && !view.selected ? 404 : 200, {
-          "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "vary": "x-goalboard-fragment",
+          "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "vary": "x-molis-work-fragment",
         });
-        response.end(artifactWorkbench.fragments({ view, routePrefix: context.routePrefix, primitives }));
+        response.end(artifactWorkbench.fragments({ view, routePrefix: context.routePrefix, primitives }, compact ? "frame-block" : "detail"));
         return true;
       }
       const html = renderArtifactWorkbenchPage({

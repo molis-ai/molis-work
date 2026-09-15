@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
+import { resolveConfiguredHome } from "./product-home.js";
 
 export const WEB_CONTROL_TOKEN_RELATIVE_PATH = "config/web-control-token";
 
@@ -16,7 +16,7 @@ export function resolveWebControlToken(options: {
     }
     return injected;
   }
-  const home = path.resolve(options.homeDirectory ?? path.join(os.homedir(), ".goalboard"));
+  const home = path.resolve(options.homeDirectory ?? resolveConfiguredHome());
   const filePath = path.join(home, WEB_CONTROL_TOKEN_RELATIVE_PATH);
   try {
     const existing = fs.readFileSync(filePath, "utf8").trim();

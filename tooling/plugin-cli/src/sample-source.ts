@@ -1,12 +1,12 @@
 /** Kept with the developer tool so generated projects do not import repository implementation paths. */
-export const samplePluginSource = `import { definePollingIntegrationPlugin } from "@adeptify/goalboard-plugin-sdk";
+export const samplePluginSource = `import { definePollingIntegrationPlugin } from "@molis-ai/molis-work-plugin-sdk";
 import manifest from "./manifest.json" with { type: "json" };
 
 export default definePollingIntegrationPlugin({
   manifest,
   createProvider(context) {
     const services = context.services;
-    if (!services?.storage) throw new Error("This sample requires the GoalBoard application Host");
+    if (!services?.storage) throw new Error("This sample requires the Molis Work application Host");
     const storage = services.storage;
     const artifactId = context.install_id + ":sample-result";
     function savedCount() {
@@ -31,7 +31,7 @@ export default definePollingIntegrationPlugin({
       async sync() {
         const version = savedCount() + 1;
         const result = services.artifacts.publish({
-          artifact_id: artifactId, version, artifact_type_id: "io.goalboard.example.note", schema_version: 1,
+          artifact_id: artifactId, version, artifact_type_id: "io.molis.work.example.note", schema_version: 1,
           content: { kind: "inline", payload: { title: "Local sample result", sequence: version } },
         });
         // Publish first: if interrupted before this write, the same version/content can replay safely.

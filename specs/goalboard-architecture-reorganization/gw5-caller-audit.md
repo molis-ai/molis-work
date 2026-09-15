@@ -1,10 +1,10 @@
 # GW5 剩余调用与职责审查
 
-2026-09-06。依据当前源码和本次读取的 accepted Contract；本文只记录工程证据，不修改 Goal 生命周期。GW5 整项工程验收已齐，详见 `gw5-validation.md`；canonical 完成以 GoalBoard receipt 为准。
+2026-09-06。依据当前源码和本次读取的 accepted Contract；本文只记录工程证据，不修改 Goal 生命周期。GW5 整项工程验收已齐，详见 `gw5-validation.md`；canonical 完成以 Molis Work receipt 为准。
 
 ## 已切换的链路
 
-- 整项审查补齐 project Policy：root `renderGoalBoardProjectSettings` 只保留共享 settings shell/navigation，默认 binding 预填和完整规则文档通过 Policy `project` surface；专属保存/失败/回执脚本、样式和 19 条文案归 Goals。原 Workbench settings 实现删除，公共资产出口转发同一 owner。该处此前误归笼统 Shell，已实际修正而非留给 Cutover。
+- 整项审查补齐 project Policy：root `renderMolisWorkProjectSettings` 只保留共享 settings shell/navigation，默认 binding 预填和完整规则文档通过 Policy `project` surface；专属保存/失败/回执脚本、样式和 19 条文案归 Goals。原 Workbench settings 实现删除，公共资产出口转发同一 owner。该处此前误归笼统 Shell，已实际修正而非留给 Cutover。
 
 - HTTP fragment：root Project/auth/read-view → Workbench `renderWorkbenchGoalsReadRequest` → Goals route parser → Workbench fragment owner dispatch → 原 UI contribution。非法路径不读取 view；失败仍由 root 写原 status/headers。`document-routes.ts` 中的集合/fragment 选择唯一，不在 root 重复。
 - HTTP full page：root Project/auth → Workbench `renderWorkbenchGoalsPageRequest` → Goals actual collection lookup → Host Session/Workspace provider → `createWorkbenchGoalsPageRenderer`。页面不存在时不加载 Project operations。

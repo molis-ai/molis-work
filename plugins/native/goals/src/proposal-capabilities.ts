@@ -1,18 +1,18 @@
-import type { HostMethodCapability as MethodCapability, LocalHostProjectClient, AsyncApplicationMethods } from "@adeptify/goalboard-contracts/platform/app-host";
+import type { HostMethodCapability as MethodCapability, LocalHostProjectClient, AsyncApplicationMethods } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { GoalTreeApplicationApi } from "./goal-tree-contract.js";
 
 export const goalTreeCapabilities = {
   submitGoalTreeProposal: {
-    capability_id: "io.goalboard.goals.submit-goal-tree-proposal", version: 1, operation: "command",
+    capability_id: "io.molis.work.goals.submit-goal-tree-proposal", version: 1, operation: "command",
   } as MethodCapability<GoalTreeApplicationApi["submitGoalTreeProposal"]>,
   listGoalTreeProposals: {
-    capability_id: "io.goalboard.goals.list-goal-tree-proposals", version: 1, operation: "query",
+    capability_id: "io.molis.work.goals.list-goal-tree-proposals", version: 1, operation: "query",
   } as MethodCapability<GoalTreeApplicationApi["listGoalTreeProposals"]>,
   checkGoalTreeProposal: {
-    capability_id: "io.goalboard.goals.check-goal-tree-proposal", version: 1, operation: "command",
+    capability_id: "io.molis.work.goals.check-goal-tree-proposal", version: 1, operation: "command",
   } as MethodCapability<GoalTreeApplicationApi["checkGoalTreeProposal"]>,
   decideGoalTreeProposal: {
-    capability_id: "io.goalboard.goals.decide-goal-tree-proposal", version: 1, operation: "command",
+    capability_id: "io.molis.work.goals.decide-goal-tree-proposal", version: 1, operation: "command",
   } as MethodCapability<GoalTreeApplicationApi["decideGoalTreeProposal"]>,
 };
 

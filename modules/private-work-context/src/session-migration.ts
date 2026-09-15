@@ -1,11 +1,11 @@
 import { createHash, randomUUID } from "node:crypto";
 import type Database from "better-sqlite3";
 import type {
-  GoalBoardSessionRecord,
+  MolisWorkSessionRecord,
   LegacySessionMigrationInput,
   LegacySessionMigrationReport,
 } from "./contract-aliases.js";
-import { GoalBoardSessionError } from "./errors.js";
+import { MolisWorkSessionError } from "./errors.js";
 import { SessionRecordRepository } from "./session-records.js";
 import { DEFAULT_CORRELATION_TTL_SECONDS } from "./session-schema.js";
 
@@ -22,7 +22,7 @@ export class LegacySessionMigrator {
       let reusedSessions = 0;
       let receiptsWritten = 0;
       const sessionIds = new Set<string>();
-      const panelSessions = new Map<string, GoalBoardSessionRecord>();
+      const panelSessions = new Map<string, MolisWorkSessionRecord>();
 
       for (const panel of input.panels) {
         const sourceId = `panel:${panel.panel_id}`;
@@ -99,7 +99,7 @@ export class LegacySessionMigrator {
           createdSessions += 1;
         } else {
           if (session.project_id && session.project_id !== binding.project_id) {
-            throw new GoalBoardSessionError(
+            throw new MolisWorkSessionError(
               "session.identity_conflict",
               "同一逻辑 Session 的旧 panel 与 binding 指向不同项目，迁移已回滚",
             );
@@ -127,7 +127,7 @@ export class LegacySessionMigrator {
     })();
   }
 
-  private sessionForReceipt(sourceId: string): GoalBoardSessionRecord | null {
+  private sessionForReceipt(sourceId: string): MolisWorkSessionRecord | null {
     const row = this.db.prepare(`
       SELECT sessions.*
       FROM session_migration_receipts AS receipts
@@ -153,17 +153,17 @@ export class LegacySessionMigrator {
   }
 
   private reconcilePanel(
-    current: GoalBoardSessionRecord,
+    current: MolisWorkSessionRecord,
     panel: LegacySessionMigrationInput["panels"][number],
-  ): GoalBoardSessionRecord {
+  ): MolisWorkSessionRecord {
     if (current.runtime_id !== panel.runtime_id) {
-      throw new GoalBoardSessionError("session.runtime_mismatch", "旧 panel 与已有 Session 的 Runtime 不匹配");
+      throw new MolisWorkSessionError("session.runtime_mismatch", "旧 panel 与已有 Session 的 Runtime 不匹配");
     }
     if (current.project_id && current.project_id !== panel.project_id) {
-      throw new GoalBoardSessionError("session.identity_conflict", "旧 panel 与已有 Session 指向不同项目");
+      throw new MolisWorkSessionError("session.identity_conflict", "旧 panel 与已有 Session 指向不同项目");
     }
     if (panel.host_session_id && current.native_runtime_session_id && current.native_runtime_session_id !== panel.host_session_id) {
-      throw new GoalBoardSessionError("session.identity_conflict", "旧 panel 已连接另一个 Runtime 原生 Session");
+      throw new MolisWorkSessionError("session.identity_conflict", "旧 panel 已连接另一个 Runtime 原生 Session");
     }
     const now = panel.updated_at || this.now().toISOString();
     this.sessions.setAssociationReferences(current.session_id, current.project_id ?? panel.project_id,

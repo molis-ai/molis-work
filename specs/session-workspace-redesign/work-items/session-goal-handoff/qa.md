@@ -31,8 +31,8 @@
 ## 验收标准映射
 
 1. **通过。** `Handoff package uses the canonical Goal and a minimal Session context...` 验证 package 使用 canonical Goal、保留最小用户上下文并排除 tool 内容；package 列出状态为 `started` 或 `blocked` 的当前 Run，包含全部 effective Evidence 及其结果状态。prepare 阶段只读取来源 thread，确认前未创建或发送目标 Session；Web API 测试验证草稿可编辑。
-2. **通过。** native Handoff 与 Adapter 测试验证 Codex 先 create/`thread/start`，拿到真实 native ID 后持久化目标 lineage，再以 `turn/start` 发送用户确认后的正文；目标 GoalBoard `session_id` 与来源不同，重复或并发发送不会创建第二个目标。
-3. **通过。** `unsupported Runtime receives an honest GoalBoard fallback Session...` 验证不支持 native Handoff 的 Runtime 创建 `goalboard_fallback` Session，目标无伪造 native ID，且 package 可从目标 Session 内容读取。
+2. **通过。** native Handoff 与 Adapter 测试验证 Codex 先 create/`thread/start`，拿到真实 native ID 后持久化目标 lineage，再以 `turn/start` 发送用户确认后的正文；目标 Molis Work `session_id` 与来源不同，重复或并发发送不会创建第二个目标。
+3. **通过。** `unsupported Runtime receives an honest Molis Work fallback Session...` 验证不支持 native Handoff 的 Runtime 创建 `molis_work_fallback` Session，目标无伪造 native ID，且 package 可从目标 Session 内容读取。
 4. **通过。** recovery 测试验证 `thread/start` 的明确失败不产生虚假目标 Session；`turn/start` 的明确拒绝保留真实目标与 package，重启后只补发 `turn/start`；并发 send 不会创建第二目标。只有 Runtime 显式返回 `deliveryAccepted: false, retryable: true` 的明确拒绝才允许自动重试。`thread/start` / `turn/start` 超时、断线等不确定结果均记为 `retryable = false`：保留 package 与已知目标，并阻止重复发送；定向测试分别覆盖 ambiguous create 与 ambiguous delivery。Runtime 的 `thread/start` 即使返回成功对象，只要缺少原生 Session ID，也会判定为创建结果不确定、不可自动重试；第二次 send 被阻止，且整个场景只调用一次 `thread/start`。发送租约验证表明：5 分钟租约内，第二个 Registry 连接不会把 active `sending` 改为 `failed`；fake clock 推进到 6 分钟后才恢复 `failed`，且保留已知 destination。
 5. **通过。** `session-web` 验证 Session Hero 的 Handoff 入口、弹窗、正文与确认控件存在；无当前 Goal 的定向测试验证禁止 prepare。真实浏览器检查覆盖固定 Project/Goal 信息、Runtime/workspace、可编辑正文、草稿生成/复用及未确认时禁用发送按钮，并验证桌面/窄屏布局。
 6. **通过。** Handoff Web API、Session Web、Registry 与 content privacy 定向测试共同覆盖来源/目标 Project 隔离、绝对工作目录约束、显式确认、已发送记录幂等复用，以及正文加密和敏感 metadata 不落盘的边界；Project 前缀下的 Handoff mutation 在缺少本地 control token 时返回 `403`。Runtime 若返回来源 native ID，发送会失败且不会覆盖既有来源/目标关系。

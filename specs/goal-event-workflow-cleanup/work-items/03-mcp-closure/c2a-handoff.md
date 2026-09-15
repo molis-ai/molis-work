@@ -48,9 +48,9 @@ Goals 公开写入口只剩当前职责：创建 Goal、加/停关系、指导�
 
 | 命令 | 结果 | 日志 |
 | --- | --- | --- |
-| `pnpm --filter @adeptify/goalboard-contracts build` | EXIT 0 | `/private/tmp/goalboard-flow-cleanup/03-c2a-contracts-build.log` |
-| `pnpm --filter @adeptify/goalboard-module-goals typecheck` | EXIT 0 | `/private/tmp/goalboard-flow-cleanup/03-c2a-goals-typecheck.log` |
-| `pnpm --filter @adeptify/goalboard-module-goals build` | EXIT 0 | `/private/tmp/goalboard-flow-cleanup/03-c2a-goals-build.log` |
+| `pnpm --filter @molis-ai/molis-work-contracts build` | EXIT 0 | `/private/tmp/molis-work-flow-cleanup/03-c2a-contracts-build.log` |
+| `pnpm --filter @molis-ai/molis-work-module-goals typecheck` | EXIT 0 | `/private/tmp/molis-work-flow-cleanup/03-c2a-goals-typecheck.log` |
+| `pnpm --filter @molis-ai/molis-work-module-goals build` | EXIT 0 | `/private/tmp/molis-work-flow-cleanup/03-c2a-goals-build.log` |
 
 未跑全仓 build、boundary、测试、根探针。`pnpm_config_verify_deps_before_run=warn`，无 install/repair。
 

@@ -36,5 +36,5 @@
 - 通过：真实指针拖动、方向键、双击重置、释放时存储、刷新恢复、折叠后调整窗口再展开、另一项目独立宽度。尺寸检查等待浏览器提交布局，防止将上一帧尺寸误判为最终值。
 - 通过：Feed 真实空态、来源入库后的列表、无匹配搜索/清除、筛选弹层边界、阅读后的持久化已读；Sessions 真实 Registry 记录、按 Runtime 筛选、打开详情、Escape 关闭筛选。
 - 通过：1440/1280、1024、700、390px；手机项目头及底部入口恢复，抽屉宽度不被桌面偏好挤压；深色 Session 标题使用正文色。截图 `.impeccable/review/directory/`，成组检查与一次修正后的确认。
-- 通过：`pnpm build`，`git diff --check`，目录 layout detector 无问题。11 个相关测试最终通过（Go​​als navigation 3、immersive workbench 3、work session UI 4、目录端到端 1）；最后目录确认日志 `/private/tmp/goalboard-directory-confirmation.log`，其余回归在 `/private/tmp/goalboard-directory-final-tests.log`。
-- 本机运行代码已刷新到 `~/.goalboard` 并重启既有服务。沿用当前桌面开发程序，未更换 `/Applications` App 包；没有改用户项目内容。Feed 与 Sessions 主区的既有详情布局保留。
+- 通过：`pnpm build`，`git diff --check`，目录 layout detector 无问题。11 个相关测试最终通过（Go​​als navigation 3、immersive workbench 3、work session UI 4、目录端到端 1）；最后目录确认日志 `/private/tmp/molis-work-directory-confirmation.log`，其余回归在 `/private/tmp/molis-work-directory-final-tests.log`。
+- 本机运行代码已刷新到 `~/.molis-work` 并重启既有服务。沿用当前桌面开发程序，未更换 `/Applications` App 包；没有改用户项目内容。Feed 与 Sessions 主区的既有详情布局保留。

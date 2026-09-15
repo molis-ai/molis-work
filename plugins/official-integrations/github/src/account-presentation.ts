@@ -15,10 +15,10 @@ export function githubAccountPresentation(cursor: unknown, currentAccountLabel: 
       ? "classic_pat_or_oauth_notifications"
       : "unknown";
   const scopeCopy = authorizationKind === "classic_pat_or_oauth_repo"
-    ? "GitHub 通知 · GoalBoard 只调用 GET · classic repo scope（权限较宽）"
+    ? "GitHub 通知 · Molis Work 只调用 GET · classic repo scope（权限较宽）"
     : authorizationKind === "classic_pat_or_oauth_notifications"
-      ? "GitHub 通知 · GoalBoard 只调用 GET · notifications scope"
-      : "GitHub 通知 · GoalBoard 只调用 GET · scope 由真实拉取验证";
+      ? "GitHub 通知 · Molis Work 只调用 GET · notifications scope"
+      : "GitHub 通知 · Molis Work 只调用 GET · scope 由真实拉取验证";
   return {
     account_label: accountLabel,
     scope: scopeCopy,
@@ -26,7 +26,7 @@ export function githubAccountPresentation(cursor: unknown, currentAccountLabel: 
       provider: "github",
       kind: authorizationKind,
       granted_scopes: scopes,
-      goalboard_http_methods: ["GET"],
+      molis_work_http_methods: ["GET"],
     },
   };
 }

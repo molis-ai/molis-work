@@ -1,4 +1,4 @@
-# GoalBoard Visual Redesign
+# Molis Work Visual Redesign
 
 ## Completion level
 
@@ -22,7 +22,7 @@ Replace:
 Ignore:
 
 - Quiet Paper as an aesthetic target.
-- Existing `DESIGN.md` statements about how GoalBoard should look. `DESIGN.md` will be rewritten from the verified build.
+- Existing `DESIGN.md` statements about how Molis Work should look. `DESIGN.md` will be rewritten from the verified build.
 
 ## Current evidence
 
@@ -56,7 +56,7 @@ The first rendered pass was not acceptable despite passing its automated checks:
 ### Regression evidence after the third Calm Desktop pass
 
 - “下一步”已经有清楚的文字标题，但正文左侧又放了一个独立黑色箭头。它既不表示状态，也不是可操作控件，还把标题、说明和按钮推到不同的对齐线。
-- Runtime 把 Goal 所属信息、页签、上层 Goal 引导、子 Goal 选择和操作按钮全部染成终端黑底。应用导航与真正的终端画布没有视觉边界，所以非终端内容既脱离 GoalBoard 主题，也降低了浅色界面的可读性。
+- Runtime 把 Goal 所属信息、页签、上层 Goal 引导、子 Goal 选择和操作按钮全部染成终端黑底。应用导航与真正的终端画布没有视觉边界，所以非终端内容既脱离 Molis Work 主题，也降低了浅色界面的可读性。
 - 浏览器中的 xterm 使用写死的深色 palette；修改 CSS 只能改变容器背景，不能改变真实终端的前景、光标和选区，因此当前没有可信的终端外观设置。
 
 ### Regression evidence after the fourth Calm Desktop pass
@@ -86,7 +86,7 @@ The first rendered pass was not acceptable despite passing its automated checks:
 
 Create a restrained, clear, elegant desktop workbench inspired by the supplied YouMind references without copying its product structure.
 
-GoalBoard's unique mechanism must be visible immediately: one selected Goal flows from outline, to readable decision surface, to execution Runtime.
+Molis Work's unique mechanism must be visible immediately: one selected Goal flows from outline, to readable decision surface, to execution Runtime.
 
 ## Direction: Calm Desktop
 
@@ -104,7 +104,7 @@ GoalBoard's unique mechanism must be visible immediately: one selected Goal flow
 2. A continuous cool-gray Project and Goal rail, approximately 300px wide.
 3. A full-bleed white Goal surface with no outer card, centered readable content, and stronger editorial type hierarchy.
 4. Goal sections organized by alignment and whitespace; no repeated card shells.
-5. Runtime uses the same application surface as the rest of GoalBoard for navigation and guidance; only the real terminal canvas uses its independent, user-selectable palette.
+5. Runtime uses the same application surface as the rest of Molis Work for navigation and guidance; only the real terminal canvas uses its independent, user-selectable palette.
 
 **Goal overview spatial thesis:** the reading path is Goal title → next action → completion requirements. Project facts and bound Runtime belong together in a compact supporting rail. At document content widths below 720px the rail moves below the work content without changing DOM or focus order.
 
@@ -112,7 +112,7 @@ GoalBoard's unique mechanism must be visible immediately: one selected Goal flow
 
 **Focus detail motion:** motion is authored only for section selection. Cards remain stationary while the selection outline, icon, and summary tone settle quickly. The shared detail stage changes height and reveals the selected body through clipping, opacity, and a small vertical translation using exponential ease-out. `prefers-reduced-motion` removes these transitions without hiding information.
 
-**Runtime spatial thesis:** Goal ownership, tabs, guidance, child choices, and actions are application UI and follow the current GoalBoard theme. The terminal canvas is a distinct execution region. Its palette is a local preference—Follow interface, Light, or Dark—and updates both the CSS surface and live xterm instances.
+**Runtime spatial thesis:** Goal ownership, tabs, guidance, child choices, and actions are application UI and follow the current Molis Work theme. The terminal canvas is a distinct execution region. Its palette is a local preference—Follow interface, Light, or Dark—and updates both the CSS surface and live xterm instances.
 
 **Shape rule:** 6px rows, 8px controls, 10px transient surfaces. Persistent panes are square and structural, not floating cards.
 
@@ -157,7 +157,7 @@ GoalBoard's unique mechanism must be visible immediately: one selected Goal flow
 
 ## Acceptance criteria
 
-- [x] The top bar reads as a functional desktop frame with GoalBoard aligned to the rail, not floating in the center.
+- [x] The top bar reads as a functional desktop frame with Molis Work aligned to the rail, not floating in the center.
 - [x] Persistent panes are full-bleed structural regions without large rounded outer cards.
 - [x] Project and Goal navigation form one continuous hierarchy; the selected Goal is immediately identifiable.
 - [x] Goal titles, progress, dependency facts, and status tags form four distinct and readable information levels in both Standard and Compact.
@@ -181,7 +181,7 @@ GoalBoard's unique mechanism must be visible immediately: one selected Goal flow
 - [x] Completion requirements read as a compact working checklist; context facts do not become a full-width table.
 - [x] Detail tabs use a clear editorial/navigation treatment instead of a floating segmented pill.
 - [x] The central document has a readable measure and purposeful whitespace at 1280px and wider.
-- [x] Runtime application chrome follows the current GoalBoard theme, while only the terminal canvas uses terminal-specific colors.
+- [x] Runtime application chrome follows the current Molis Work theme, while only the terminal canvas uses terminal-specific colors.
 - [x] Settings exposes Follow interface, Light, and Dark terminal appearance choices that persist on the current device and update live xterm instances.
 - [x] Runtime primary, secondary, semantic, disabled, and terminal text remain readable in app Light/Dark combined with terminal Light/Dark.
 - [x] Settings and project pages belong to the same product without copying the workbench layout blindly.
@@ -225,4 +225,4 @@ The Compact inset correction was verified on 2026-08-28 at 706px, 882px, and 128
 
 - The supplied YouMind screenshots are the confirmed craft-level reference.
 - Native system typography is retained for Chinese rendering quality and zero-loading latency.
-- Existing icons and the GoalBoard wordmark remain product assets, but their placement and emphasis may change.
+- Existing icons and the Molis Work wordmark remain product assets, but their placement and emphasis may change.

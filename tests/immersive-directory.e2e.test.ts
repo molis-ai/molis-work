@@ -2,22 +2,22 @@ import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
-import { openGoalBoardProjectCatalog } from "@adeptify/goalboard-app-desktop";
-import { createLocalFeedApplication, DEMO_BOARD_ID, GoalProjectApplication, openWorkSessionRegistry } from "@adeptify/goalboard-app-local-host";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { createLocalFeedApplication, DEMO_BOARD_ID, GoalProjectApplication, openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 test("Immersive directories resize and retain compact, operable Goal, Feed and Session lists", { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t, "migrated");
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, reloadPage, origin, store, projectId, homeDirectory } = browser;
-  const catalog = await openGoalBoardProjectCatalog({ homeDirectory });
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   for (const plugin_id of ["feed", "sessions"] as const) catalog.addProjectPlugin({ project_id: projectId!, plugin_id, actor_id: "directory-test" });
   const other = await catalog.createProject({ display_name: "另一项目", actor_id: "directory-test" });
   catalog.close();
   new GoalProjectApplication(store).goalEvents.createIntent({ board_id: DEMO_BOARD_ID, goal_id: "long-child", parent_goal_id: "CORE", actor_id: "directory-test", actor_kind: "user", title: "迁移 Execution Claim / Run 生命周期并保留现有 Runtime 与 Goal 的完整关联", outcome: "验证多层目录中的长标题不会挤压状态标记。", idempotency_key: "long-child" });
   const before = store.snapshot(DEMO_BOARD_ID);
   const registry = await openWorkSessionRegistry({ homeDirectory });
-  const session = registry.createSession({ runtime_id: "codex", project_id: projectId!, current_goal_id: "CORE", title: "完成 GoalBoard 架构、代码与文档重组，保留已有项目工作过程", user_confirmed: true, actor_id: "directory-test" });
+  const session = registry.createSession({ runtime_id: "codex", project_id: projectId!, current_goal_id: "CORE", title: "完成 Molis Work 架构、代码与文档重组，保留已有项目工作过程", user_confirmed: true, actor_id: "directory-test" });
   registry.createSession({ runtime_id: "claude-code", project_id: projectId!, current_goal_id: "WEB", title: "检查目录与工作区交互", user_confirmed: true, actor_id: "directory-test" });
   registry.close();
   const page = origin + "/projects/" + projectId + "/?desktop=1";
@@ -28,8 +28,8 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
     await command("Input.dispatchKeyEvent", { type: "keyUp", key: value, windowsVirtualKeyCode: code }, sessionId);
   };
   const capture = async (name: string) => {
-    if (!process.env.GOALBOARD_DIRECTORY_CAPTURE) return;
-    const directory = process.env.GOALBOARD_DIRECTORY_CAPTURE;
+    if (!process.env.MOLIS_WORK_DIRECTORY_CAPTURE) return;
+    const directory = process.env.MOLIS_WORK_DIRECTORY_CAPTURE;
     await mkdir(directory, { recursive: true });
     const { data } = await command<{ data: string }>("Page.captureScreenshot", { format: "png", captureBeyondViewport: false }, sessionId);
     await writeFile(join(directory, name + ".png"), Buffer.from(data, "base64"));
@@ -39,7 +39,10 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
   await viewport(1440);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: page }, sessionId));
-  await click('[data-directory-panel="root"] [data-directory-open="goals"]');
+  await waitFor("document.querySelector('[data-directory-list-title]')?.textContent === '项目首页'");
+  await click('[data-plugin-strip] [data-plugin-id="goals"]');
+  await waitFor("document.querySelector('[data-directory-list-title]')?.textContent === 'Goals'");
+  assert.ok(await evaluate("(()=>{const title=document.querySelector('[data-directory-list-title]'),search=document.querySelector('[data-global-search]'),region=document.querySelector('[data-directory-list-region]');return Boolean(title&&search&&region)&&title.getBoundingClientRect().bottom<=search.getBoundingClientRect().top+1&&getComputedStyle(region).borderTopWidth==='1px';})()"));
   const metrics = await evaluate<{ height: number; weight: string; line: string; titleRight: number; stateLeft: number; border: string }[]>(`[...document.querySelectorAll('.tree-entry')].map(row => {
     const title = row.querySelector('strong'), state = row.querySelector('.directory-row-state');
     return { height: row.getBoundingClientRect().height, weight: getComputedStyle(title).fontWeight, line: getComputedStyle(title).whiteSpace, titleRight: title.getBoundingClientRect().right, stateLeft: state.getBoundingClientRect().left, border: getComputedStyle(state).borderWidth };
@@ -59,7 +62,7 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
   await command("Input.dispatchMouseEvent", { type: "mouseMoved", x: point.x + 120, y: point.y, button: "left", buttons: 1 }, sessionId);
   await command("Input.dispatchMouseEvent", { type: "mouseReleased", x: point.x + 120, y: point.y, button: "left", clickCount: 1 }, sessionId);
   await expectWidth(initial + 120);
-  assert.equal(await evaluate("JSON.parse(sessionStorage.getItem('goalboard-ui:' + JSON.parse(document.querySelector('#goalboard-data').textContent).project.project_id + ':current')).treeWidth"), initial + 120, "Pointer release persists the final width");
+  assert.equal(await evaluate("JSON.parse(sessionStorage.getItem('molis-work-ui:' + JSON.parse(document.querySelector('#molis-work-data').textContent).project.project_id + ':current')).treeWidth"), initial + 120, "Pointer release persists the final width");
   await reloadPage();
   await expectWidth(initial + 120);
   await evaluate("document.querySelector('[data-tree-resizer]').focus()");
@@ -73,14 +76,15 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
   await expectWidth(264);
   await navigate(() => command("Page.navigate", { url: page }, sessionId));
   await expectWidth(initial + 104);
-  await click('[data-directory-panel="root"] [data-directory-open="goals"]');
+  await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await evaluate("document.querySelector('[data-tree-resizer]').dispatchEvent(new MouseEvent('dblclick',{bubbles:true}))");
   await expectWidth(264);
-  await click('[data-select-goal="long-child"]');
+  await waitFor("Boolean(document.querySelector('[data-graph-node][data-goal-id=long-child] [data-graph-open]'))");
+  await click('[data-graph-node][data-goal-id="long-child"] [data-graph-open]');
   await waitFor("document.querySelector('[data-goal-node-workspace]').dataset.expandedGoal==='long-child'");
   await click('[data-goal-collapse]');
   await click('[data-plugin-strip] [data-plugin-id="feed"]');
-  await waitFor("!document.querySelector('[data-feed-empty]').hidden");
+  await waitFor("!document.querySelector('[data-feed-empty]').hidden && document.querySelector('[data-directory-list-title]')?.textContent === 'Feed'");
   assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-feed-empty]')).backgroundColor"), "rgba(0, 0, 0, 0)");
   const emptyText = await evaluate<string>("document.querySelector('[data-feed-empty]').textContent");
   assert.match(emptyText, /打开来源/);
@@ -103,10 +107,9 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
   await capture("directory-feed-filter");
   await click('[data-feed-filter-trigger]');
   await click('[data-feed-item-id="' + item.item.item_id + '"]');
-  await waitFor("document.querySelector('[data-feed-detail]:not([hidden])')");
-  assert.ok(feed.getItem(DEMO_BOARD_ID, item.item.item_id).read_at);
+  await waitFor("document.body.dataset.desktopSurface === 'feed' && (document.querySelector('[data-work-surface=feed]')?.textContent || '').includes('从首次使用观察中找到下一步值得改进的地方')");
   await click('[data-plugin-strip] [data-plugin-id="sessions"]');
-  await waitFor("document.querySelectorAll('[data-operation-row=session]').length===2");
+  await waitFor("document.querySelectorAll('[data-operation-row=session]').length===2 && document.querySelector('[data-directory-list-title]')?.textContent === 'Sessions'");
   assert.ok(await evaluate("(()=>{let a=document.querySelector('[data-operation-search=sessions]').getBoundingClientRect(),b=document.querySelector('.project-record-filter-menu > summary').getBoundingClientRect();return Math.abs(a.y-b.y)<3;})()"));
   await capture("directory-sessions-list");
   await click('.project-record-filter-menu > summary');
@@ -117,10 +120,10 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
   await key("Escape", 27);
   assert.equal(await evaluate("document.querySelector('.project-record-filter-menu').open"), false);
   await click('[data-operation-select="' + session.session_id + '"]');
-  assert.match(await evaluate<string>("document.querySelector('[data-operation-detail=session]:not([hidden])').textContent"), /完成 GoalBoard 架构/);
+  await waitFor("document.body.dataset.desktopSurface === 'sessions' && !document.querySelector('[data-work-surface=sessions]').hidden");
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "dark" }, { name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await evaluate("document.documentElement.dataset.resolvedTheme='dark'");
-  assert.equal(await evaluate("getComputedStyle(document.querySelector('.project-record-select strong')).color"), "rgb(232, 233, 238)");
+  assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-operation-row=session] strong')).color"), "rgb(232, 233, 238)");
   await capture("directory-sessions-dark");
   await viewport(1024, 800);
   assert.ok(await evaluate("document.documentElement.scrollWidth<=innerWidth"));

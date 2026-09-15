@@ -79,7 +79,7 @@ node --import tsx --test tests/goal-canvas-workspace.e2e.test.ts tests/goals-mom
 node --import tsx --test tests/goal-event-http.test.ts
 ```
 
-检查边界：本次未运行全仓测试，也未构建、安装或发布 macOS App。交付仍为等级 3，原有 GoalBoard.app 不会因源码修改自动更新。
+检查边界：本次未运行全仓测试，也未构建、安装或发布 macOS App。交付仍为等级 3，原有 Molis Work.app 不会因源码修改自动更新。
 
 
 ## 首版独立复核与交付
@@ -90,4 +90,4 @@ node --import tsx --test tests/goal-event-http.test.ts
 
 开发预览使用隔离演示库：`http://127.0.0.1:64512/projects/project-1689e905-3dd7-4c8e-bd0e-2f3194ebcff0/`。项目数据位于系统临时目录，预览进程退出后链接不可用。现有已安装 App 和用户项目数据未更新。
 
-本轮预览已用相同隔离演示数据重启，链接不变。新版截图更新 desktop、desktop-dark、mobile、user-1024 和 reader；新增 record-menu 展示三种记录用途。未重新安装或发布 GoalBoard.app。
+本轮预览已用相同隔离演示数据重启，链接不变。新版截图更新 desktop、desktop-dark、mobile、user-1024 和 reader；新增 record-menu 展示三种记录用途。未重新安装或发布 Molis Work.app。

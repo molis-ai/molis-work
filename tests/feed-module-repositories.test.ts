@@ -4,12 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { AttentionModule } from "@adeptify/goalboard-module-attention-resumption";
-import { FeedModule } from "@adeptify/goalboard-module-feed";
-import { createContextLedger } from "@adeptify/goalboard-module-context-ledger";
+import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
+import { FeedModule } from "@molis-ai/molis-work-module-feed";
+import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 
-import { DEMO_BOARD_ID, seedDemoBoard } from "@adeptify/goalboard-app-local-host";
-import { LocalProjectDatabase } from "@adeptify/goalboard-app-local-host";
+import { DEMO_BOARD_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 
 function feedModules(store: LocalProjectDatabase): {
   attention: AttentionModule;
@@ -27,8 +27,8 @@ function feedModules(store: LocalProjectDatabase): {
 }
 
 test("Feed and Attention repositories preserve Signal revisions and state across restart", () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-feed-modules-"));
-  const databasePath = join(directory, "goalboard.sqlite");
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-feed-modules-"));
+  const databasePath = join(directory, "molis-work.sqlite");
   try {
     seedDemoBoard(databasePath);
     const firstStore = new LocalProjectDatabase(databasePath);

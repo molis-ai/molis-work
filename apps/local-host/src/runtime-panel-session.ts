@@ -1,9 +1,9 @@
-import type { GoalBoardRuntimeContextHost, RuntimePanelCatalogProvider } from "@adeptify/goalboard-contracts/platform/app-host";
+import type { MolisWorkRuntimeContextHost, RuntimePanelCatalogProvider } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { openWorkSessionRegistry } from "./session-registry.js";
 
 /** Link the late native identity using the same Desktop and Session owners. */
 export function createRuntimePanelSessionLinker(ports: RuntimePanelCatalogProvider) {
-  return async (host: GoalBoardRuntimeContextHost | null, nativeSessionId: string | null): Promise<void> => {
+  return async (host: MolisWorkRuntimeContextHost | null, nativeSessionId: string | null): Promise<void> => {
     const panelId = host?.panelId?.trim() || "";
     const runtimeSessionId = nativeSessionId?.trim() || "";
     if (!host || !panelId || !runtimeSessionId) return;

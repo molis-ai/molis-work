@@ -5,7 +5,7 @@ import {
   type RuntimeSessionAdapterResult,
   type RuntimeSessionCapabilities,
   type RuntimeSessionCapability,
-} from "@adeptify/goalboard-contracts/services/runtime-host";
+} from "@molis-ai/molis-work-contracts/services/runtime-host";
 
 export type RuntimeAdapterFallback = (runtimeId: string) => RuntimeSessionAdapter | null;
 

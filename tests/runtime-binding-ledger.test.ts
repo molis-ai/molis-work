@@ -1,20 +1,20 @@
-import { openGoalBoardProjectCatalog } from "@adeptify/goalboard-app-desktop";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, rm, access as fileAccess } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Database from "better-sqlite3";
-import { createContextLedger } from "@adeptify/goalboard-module-context-ledger";
+import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 
 
 const context = (id: string) => ({ runtime_id: "codex", stable_work_context_id: id, host_declares_stable: true });
 const access = { actor_id: "test-reader", scope: { kind: "personal", id: "private-work-context" } as const };
 
 async function fixture(legacy = true) {
-  const directory = await mkdtemp(join(tmpdir(), "goalboard-runtime-binding-ledger-"));
+  const directory = await mkdtemp(join(tmpdir(), "molis-work-runtime-binding-ledger-"));
   const homeDirectory = join(directory, "home");
-  const catalog = await openGoalBoardProjectCatalog({ homeDirectory });
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   try {
     const first = await catalog.createProject({ display_name: "Original project", actor_id: "user" });
     const second = await catalog.createProject({ display_name: "Other project", actor_id: "user" });
@@ -54,7 +54,7 @@ test("v9 Runtime bindings migrate once with exact identities, projects, actors a
   const data = await fixture();
   try {
     for (let attempt = 0; attempt < 2; attempt++) {
-      const catalog = await openGoalBoardProjectCatalog({ homeDirectory: data.homeDirectory });
+      const catalog = await openMolisWorkProjectCatalog({ homeDirectory: data.homeDirectory });
       try {
         assert.deepEqual(catalog.listRuntimeContextBindings(), data.bindings);
         assert.deepEqual(catalog.listRuntimeContextBindingEvents(), data.events);
@@ -90,13 +90,13 @@ test("a failure after the first migrated binding rolls back the entire catalog u
       WHEN NEW.relation_type = 'work.binding_project'
         AND EXISTS (SELECT 1 FROM context_edges WHERE relation_type = 'work.binding_project')
       BEGIN SELECT RAISE(ABORT, 'injected migration failure'); END;`);
-    await assert.rejects(openGoalBoardProjectCatalog({ homeDirectory: data.homeDirectory }), /injected migration failure/);
+    await assert.rejects(openMolisWorkProjectCatalog({ homeDirectory: data.homeDirectory }), /injected migration failure/);
     assert.equal((db.prepare("SELECT value FROM catalog_meta WHERE key = 'schema_version'").get() as { value: string }).value, "9");
     assert.deepEqual(db.prepare("SELECT * FROM runtime_context_bindings ORDER BY binding_id").all(),
       [...data.bindings].sort((a, b) => a.binding_id.localeCompare(b.binding_id)));
     assert.deepEqual(db.prepare("SELECT * FROM context_edges").all(), []);
     db.exec("DROP TRIGGER reject_second_binding");
-    const catalog = await openGoalBoardProjectCatalog({ homeDirectory: data.homeDirectory });
+    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: data.homeDirectory });
     try {
       assert.deepEqual(catalog.listRuntimeContextBindings(), data.bindings);
       assert.deepEqual(catalog.listRuntimeContextBindingEvents(), data.events);
@@ -107,7 +107,7 @@ test("a failure after the first migrated binding rolls back the entire catalog u
 
 test("binding changes and deletion atomically preserve metadata, events, Ledger history and the other project", async () => {
   const data = await fixture(false);
-  const catalog = await openGoalBoardProjectCatalog({ homeDirectory: data.homeDirectory });
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: data.homeDirectory });
   const db = new Database(data.databasePath);
   try {
     const ledger = createContextLedger(db, { authorize: () => true });

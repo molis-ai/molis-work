@@ -6,7 +6,7 @@ name: "游戏设计"
 summary: "围绕核心循环、系统内容、玩家旅程和反馈建立可玩闭环。"
 applies_to: ["游戏设计","玩法系统","游戏内容"]
 domain_tags: ["game","design"]
-source_refs: ["GoalBoard planning-engine spec"]
+source_refs: ["Molis Work planning-engine spec"]
 confidence: 0.94
 ---
 

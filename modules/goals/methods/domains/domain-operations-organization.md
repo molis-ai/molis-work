@@ -6,7 +6,7 @@ name: "运营与组织流程"
 summary: "把角色、权限、工具、例外和度量连成可持续运行闭环。"
 applies_to: ["组织流程","服务运营","跨角色协作"]
 domain_tags: ["operations","organization"]
-source_refs: ["GoalBoard planning-engine spec"]
+source_refs: ["Molis Work planning-engine spec"]
 confidence: 0.93
 ---
 

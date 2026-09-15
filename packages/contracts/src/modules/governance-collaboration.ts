@@ -14,7 +14,7 @@ import type {
 export type { GoalEventTrustedAuthority, GoalEventTrustedDecisionRecord, RecordGoalUserDecisionInput };
 
 export const modulesGovernanceCollaborationContract = {
-  contractId: "io.goalboard.module.governance-collaboration.v1",
+  contractId: "io.molis.work.module.governance-collaboration.v1",
   kind: "module",
   schemaVersion: 1,
   maturity: "partial",
@@ -25,7 +25,7 @@ export interface GoalTreeSemanticReview extends GoalChangeImpact {
   structural_validation: "passed";
   status: "required" | "not_required";
   next_action: "review_affected_subgraph" | "continue";
-  review_tool: "goalboard_v1_planning_analyze_change";
+  review_tool: "molis_work_v1_planning_analyze_change";
   canonical_changes_require_new_user_confirmation: true;
 }
 

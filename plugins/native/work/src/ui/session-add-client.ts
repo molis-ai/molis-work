@@ -54,10 +54,10 @@ export const WORK_SESSION_ADD_CLIENT = `
     if (capability) capability.textContent = action === "create"
       ? createMode === "native"
         ? L("会请求所选 Runtime 创建一条新的原生 Session；不会自动发送消息。")
-        : L("这个 Runtime 没有原生创建接口，将建立 GoalBoard 托管记录，不伪装成已启动 Runtime。")
+        : L("这个 Runtime 没有原生创建接口，将建立 Molis Work 托管记录，不伪装成已启动 Runtime。")
       : discoverMode === "native"
         ? L("可以先同步 Runtime 元数据；只有提交后才会关联当前 Project。")
-        : L("这个 Runtime 不支持发现列表，请粘贴原生 Session ID；GoalBoard 不读取正文。");
+        : L("这个 Runtime 不支持发现列表，请粘贴原生 Session ID；Molis Work 不读取正文。");
     if (sessionAddSubmit) {
       sessionAddSubmit.textContent = action === "create" ? L("启动 Session") : L("关联 Session");
       sessionAddSubmit.disabled = !sessionAddConfirm?.checked || (action === "link" && !sessionAddNativeInput?.value.trim());
@@ -105,7 +105,7 @@ export const WORK_SESSION_ADD_CLIENT = `
     try {
       const payload = await parseActionResponse(await fetch(route("/api/sessions/discover"), {
         method: "POST",
-        headers: window.goalboardControlHeaders?.() || {},
+        headers: window.molisWorkControlHeaders?.() || {},
         body: JSON.stringify({ runtime_id: sessionAddRuntime.value }),
       }));
       const options = sessionAddForm.querySelector("[data-session-discovery-options]");
@@ -134,7 +134,7 @@ export const WORK_SESSION_ADD_CLIENT = `
     try {
       await parseActionResponse(await fetch(route("/api/sessions"), {
         method: "POST",
-        headers: window.goalboardControlHeaders?.() || {},
+        headers: window.molisWorkControlHeaders?.() || {},
         body: JSON.stringify({
           action: sessionAddAction.value,
           runtime_id: sessionAddRuntime.value,

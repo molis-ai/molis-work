@@ -1,5 +1,5 @@
 import { fingerprintSearchIntentExactV1 } from "@adeptify/intelligence-client";
-import { FeedDomainError } from "@adeptify/goalboard-contracts/modules/feed";
+import { FeedDomainError } from "@molis-ai/molis-work-contracts/modules/feed";
 import type { FeedApplication } from "./application.js";
 import type { FeedSourceRecord, FeedSourceRunRecord } from "./projection.js";
 import type { FeedSourcePorts, FeedSourceSyncResult, PublicFeedRuntime, IntelligenceCollectResult } from "./source-ports.js";
@@ -193,7 +193,7 @@ export class PublicSourceSync {
         empty: result.materials.length === 0,
         error_code: errorCode,
         receipt: {
-          schema: "goalboard-feed-collection-receipt-v1",
+          schema: "molis-work-feed-collection-receipt-v1",
           intent_fingerprint: result.intentFingerprint,
           requirement_met: result.requirementMet,
           receipts: structuredClone(result.receipts),

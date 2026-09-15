@@ -1,5 +1,5 @@
 {
-  "name": "@adeptify/goalboard-integration-web-query",
+  "name": "@molis-ai/molis-work-integration-web-query",
   "version": "0.0.0",
   "private": true,
   "description": "Official Web Query provider adapter and settings boundary.",
@@ -26,14 +26,14 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@adeptify/goalboard-contracts": "workspace:*",
-    "@adeptify/goalboard-plugin-sdk": "workspace:*"
+    "@molis-ai/molis-work-contracts": "workspace:*",
+    "@molis-ai/molis-work-plugin-sdk": "workspace:*"
   },
-  "goalboard": {
+  "molis-work": {
     "path": "plugins/official-integrations/web-query",
     "kind": "integration-plugin",
     "maturity": "partial",
-    "contract": "@adeptify/goalboard-contracts/platform/plugin",
+    "contract": "@molis-ai/molis-work-contracts/platform/plugin",
     "migrationGoals": [
       "goal-reorg-f2",
       "goal-reorg-fd3"

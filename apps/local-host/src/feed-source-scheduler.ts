@@ -1,5 +1,5 @@
-import type { SqliteDatabase } from "@adeptify/goalboard-storage";
-import { FeedSourceScheduler, type FeedSourceSchedulerDispatch } from "@adeptify/goalboard-plugin-feed";
+import type { SqliteDatabase } from "@molis-ai/molis-work-storage";
+import { FeedSourceScheduler, type FeedSourceSchedulerDispatch } from "@molis-ai/molis-work-plugin-feed";
 import { createLocalFeedSourceService } from "./feed-source-service.js";
 import { createLocalFeedConnectorService } from "./feed-connector-service.js";
 

@@ -22,11 +22,11 @@
 1. `src/web/server.ts` 从 Session Registry、Project Catalog 和 Runtime capability 构造最小 `ProjectOperationsData`。
 2. `src/web/render.ts` 把这份数据交给 `renderProjectOperations`。
 3. `src/web/project-session-workspaces.ts` 只渲染真实 records；缺少数据时只渲染真实空态。
-4. 原生/GoalBoard 内容均通过现有内容 API 按需加载；unsupported 只显示能力缺失，不生成示例正文。
+4. 原生/Molis Work 内容均通过现有内容 API 按需加载；unsupported 只显示能力缺失，不生成示例正文。
 
 ## 验收标准
 
-1. Session Hero 仍集中展示状态、Runtime、GoalBoard Session ID、更新时间与主动作；执行内容与 Goal 历史无需互斥切换。
+1. Session Hero 仍集中展示状态、Runtime、Molis Work Session ID、更新时间与主动作；执行内容与 Goal 历史无需互斥切换。
 2. 桌面执行内容占主列，Goal 历史位于侧栏；窄屏按 Hero、执行内容、Goal 历史顺序阅读，页面无横向溢出。
 3. 生产 renderer 不再包含静态 Session/workspace IDs、`liveData`、模拟 transcript、模拟归档监听或未消费的原生 ID/历史 ID/创建时间/provenance/capability 视图字段。
 4. 真实 Session/工作目录、空态、内容加载、归档、Handoff 和项目隔离回归通过。

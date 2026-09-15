@@ -2,12 +2,12 @@ import {
   createGmailProvider,
   type GmailFetch,
   type GmailTokenRefs,
-} from "@adeptify/goalboard-integration-gmail";
+} from "@molis-ai/molis-work-integration-gmail";
 
 import { connectorFixtureAllowed } from "./connector-execution-mode.js";
-import { createFileSecretStore } from "@adeptify/goalboard-storage";
+import { createFileSecretStore, readProductEnv } from "@molis-ai/molis-work-storage";
 import { resolveUsableGmailAccessToken } from "./gmail-oauth.js";
-import type { IntegrationProviderItem, IntegrationProviderPort } from "@adeptify/goalboard-contracts/platform/plugin";
+import type { IntegrationProviderItem, IntegrationProviderPort } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 export function createGmailConnector(opts?: {
   fixture?: IntegrationProviderItem[];
@@ -22,7 +22,7 @@ export function createGmailConnector(opts?: {
   return createGmailProvider({
     ...opts,
     allowFixture: opts?.allowFixture ?? connectorFixtureAllowed(),
-    authRef: opts?.authRef ?? process.env.GOALBOARD_GMAIL_AUTH_REF,
+    authRef: opts?.authRef ?? readProductEnv("GMAIL_AUTH_REF"),
     resolveAuthRef(authRef) {
       return createFileSecretStore().get(authRef);
     },

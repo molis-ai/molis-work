@@ -1,4 +1,4 @@
-import { openGoalBoardProjectCatalog } from "@adeptify/goalboard-app-desktop";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import { access, mkdir, mkdtemp, rm } from "node:fs/promises";
 import type { AddressInfo } from "node:net";
@@ -6,13 +6,13 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { GoalBoardSessionRegistry } from "@adeptify/goalboard-module-private-work-context";
-import type { RuntimeSessionTransport } from "@adeptify/goalboard-contracts/services/runtime-host";
-import { GoalProjectApplication } from "@adeptify/goalboard-app-local-host";
-import { LocalProjectDatabase } from "@adeptify/goalboard-app-local-host";
-import { createGoalBoardWebServer } from "../apps/desktop/launchers/web/server.js";
+import { MolisWorkSessionRegistry } from "@molis-ai/molis-work-module-private-work-context";
+import type { RuntimeSessionTransport } from "@molis-ai/molis-work-contracts/services/runtime-host";
+import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
-const TOKEN = "goalboard-session-workspace-e2e-token-0123456789";
+const TOKEN = "molis-work-session-workspace-e2e-token-0123456789";
 
 function addAcceptedGoal(databasePath: string, boardId: string, goalId: string, title: string): void {
   const store = new LocalProjectDatabase(databasePath);
@@ -47,13 +47,13 @@ function addAcceptedGoal(databasePath: string, boardId: string, goalId: string, 
   }
 }
 
-async function listen(server: ReturnType<typeof createGoalBoardWebServer>): Promise<string> {
+async function listen(server: ReturnType<typeof createMolisWorkWebServer>): Promise<string> {
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const address = server.address() as AddressInfo;
   return `http://127.0.0.1:${address.port}`;
 }
 
-async function close(server: ReturnType<typeof createGoalBoardWebServer>): Promise<void> {
+async function close(server: ReturnType<typeof createMolisWorkWebServer>): Promise<void> {
   await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
 }
 
@@ -64,19 +64,19 @@ function mutator(origin: string) {
     headers: {
       origin,
       "content-type": "application/json",
-      "x-goalboard-control-token": TOKEN,
-      "x-goalboard-idempotency-key": `session-workspace-e2e-${++requestNumber}`,
+      "x-molis-work-control-token": TOKEN,
+      "x-molis-work-idempotency-key": `session-workspace-e2e-${++requestNumber}`,
     },
     body: JSON.stringify(body),
   });
 }
 
 test("Codex native journey stays project-scoped from discovery through Handoff and restart", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "goalboard-session-native-e2e-"));
-  const home = path.join(directory, ".goalboard");
+  const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-session-native-e2e-"));
+  const home = path.join(directory, ".molis-work");
   const workspace = path.join(directory, "native-workspace");
   await mkdir(workspace, { recursive: true });
-  const catalog = await openGoalBoardProjectCatalog({ homeDirectory: home });
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const project = await catalog.createProject({ display_name: "Native Session Project", actor_id: "e2e-user" });
   const otherProject = await catalog.createProject({ display_name: "Other Project", actor_id: "e2e-user" });
   const workspaceRecord = catalog.addWorkspaceProject({
@@ -116,7 +116,7 @@ test("Codex native journey stays project-scoped from discovery through Handoff a
     subscribe() { return () => undefined; },
   };
 
-  let server = createGoalBoardWebServer({ homeDirectory: home, controlToken: TOKEN, runtimeSessionTransport: transport });
+  let server = createMolisWorkWebServer({ homeDirectory: home, controlToken: TOKEN, runtimeSessionTransport: transport });
   let origin = await listen(server);
   const prefix = `/projects/${encodeURIComponent(project.project_id)}`;
   const otherPrefix = `/projects/${encodeURIComponent(otherProject.project_id)}`;
@@ -246,7 +246,7 @@ test("Codex native journey stays project-scoped from discovery through Handoff a
     assert.equal(restored.status, 200);
 
     await close(server);
-    server = createGoalBoardWebServer({ homeDirectory: home, controlToken: TOKEN, runtimeSessionTransport: transport });
+    server = createMolisWorkWebServer({ homeDirectory: home, controlToken: TOKEN, runtimeSessionTransport: transport });
     origin = await listen(server);
     mutate = mutator(origin);
     const afterRestart = await (await fetch(`${origin}${prefix}/api/sessions`)).json() as {
@@ -265,13 +265,13 @@ test("Codex native journey stays project-scoped from discovery through Handoff a
 });
 
 test("fallback journey preserves TUI content, honest capability limits, workspace repair and ID isolation", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "goalboard-session-fallback-e2e-"));
-  const home = path.join(directory, ".goalboard");
+  const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-session-fallback-e2e-"));
+  const home = path.join(directory, ".molis-work");
   const firstPath = path.join(directory, "workspace-before");
   const repairedPath = path.join(directory, "workspace-after");
   await mkdir(firstPath, { recursive: true });
   await mkdir(repairedPath, { recursive: true });
-  const catalog = await openGoalBoardProjectCatalog({ homeDirectory: home });
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const project = await catalog.createProject({ display_name: "Fallback Session Project", actor_id: "e2e-user" });
   const otherProject = await catalog.createProject({ display_name: "Fallback Other Project", actor_id: "e2e-user" });
   const workspace = catalog.addWorkspaceProject({
@@ -284,7 +284,7 @@ test("fallback journey preserves TUI content, honest capability limits, workspac
   const goalId = "goal-fallback-e2e";
   addAcceptedGoal(project.database_path, project.board_id, goalId, "完成 fallback Session 主链");
 
-  const server = createGoalBoardWebServer({ homeDirectory: home, controlToken: TOKEN });
+  const server = createMolisWorkWebServer({ homeDirectory: home, controlToken: TOKEN });
   const origin = await listen(server);
   const prefix = `/projects/${encodeURIComponent(project.project_id)}`;
   const otherPrefix = `/projects/${encodeURIComponent(otherProject.project_id)}`;
@@ -385,7 +385,7 @@ test("fallback journey preserves TUI content, honest capability limits, workspac
       handoff: { delivery_mode: string; state: string };
       destination_session: { session_id: string; native_runtime_session_id: string | null; workspace_id: string | null };
     };
-    assert.equal(sent.handoff.delivery_mode, "goalboard_fallback");
+    assert.equal(sent.handoff.delivery_mode, "molis_work_fallback");
     assert.equal(sent.handoff.state, "sent");
     assert.equal(sent.destination_session.native_runtime_session_id, null);
     assert.equal(sent.destination_session.workspace_id, workspace.workspace_id);
@@ -418,4 +418,4 @@ test("fallback journey preserves TUI content, honest capability limits, workspac
     await rm(directory, { recursive: true, force: true });
   }
 });
-import { openWorkSessionRegistry } from "@adeptify/goalboard-app-local-host";
+import { openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";

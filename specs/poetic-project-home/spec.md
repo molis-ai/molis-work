@@ -4,7 +4,7 @@
 
 ## 目标与证据
 
-当前首页仍是问候大标题、活动列表、可输入草稿与名言控制条；与已确认的新入口不同。结构依据：本会话 `goalboard-home-start.html` 交互预览，默认靠下的柔和圆角输入框。旧 A/B/C 图不再有设计权威。
+当前首页仍是问候大标题、活动列表、可输入草稿与名言控制条；与已确认的新入口不同。结构依据：本会话 `molis-work-home-start.html` 交互预览，默认靠下的柔和圆角输入框。旧 A/B/C 图不再有设计权威。
 
 ## 行为与范围
 
@@ -12,7 +12,7 @@
 2. 月历周一起始，可前后翻月，今天有明确标记。跨日与回到页面时同步日期；浏览过的月份不被普通刷新强制重置。没有虚构日程或任务计数。
 3. 名言每 5 秒自动轮换、0.5 秒淡出/淡入，固定区域防跳动；无播放/切换/暂停按钮。引用复用原有有出处的三段文字。悬停或聚焦名言时暂缓；非当前首页、页面隐藏时不前进；减少动态效果时直接换文。
 4. 快捷方式首次为空，可添加、编辑、移除。名称最多 32 字、网址最多 4096 字，只接受不含用户名/密码的 http/https URL。数据是当前浏览器或桌面端的项目界面偏好，以 project_id（旧单板模式使用 board_id）隔离保存到 localStorage；刷新/重开后恢复，不写 Goal 真相源、不跨设备同步。取消不保存；存储失败保留编辑内容并提示，不伪报成功。名称按普通文本显示，不加载第三方 favicon。
-5. Web 外链打开新页；macOS 桌面端补一个受现有本机源与主窗口权限约束的 http/https 外链通道，在系统浏览器打开，不加载到 GoalBoard 主窗口。Native 再次验证协议、host、凭据；参数直接传给系统打开程序，不经过 shell。
+5. Web 外链打开新页；macOS 桌面端补一个受现有本机源与主窗口权限约束的 http/https 外链通道，在系统浏览器打开，不加载到 Molis Work 主窗口。Native 再次验证协议、host、凭据；参数直接传给系统打开程序，不经过 shell。
 6. 输入框与发送按钮均原生 disabled，提示 Agent 尚未开放。移除首页草稿/活动客户端逻辑与不再消费的 home_activity 投影；不删除用户已有浏览器草稿数据，不添加 Harness、对话或假响应。
 
 ## 文件与依赖
@@ -40,7 +40,7 @@
 | 快捷方式真实持久化与边界 | 通过。浏览器新增/取消/编辑/移除/刷新恢复/另一项目隔离，拒绝无效、可执行、文件及带凭据 URL；名称按文本渲染；写入失败保留表单与原数据，重试不重复。 |
 | 外链行为 | 通过。Web 测试验证真实新标签页目标与原首页保留；native bridge 参数与失败提示测试通过。使用本次 debug 二进制的临时 macOS QA 窗口，在已有示例项目内添加临时本机 health 快捷方式并打开，Chrome 显示目标页，原生窗口保持首页；随后移除该快捷方式并关闭验证页。 |
 | 既有导航与数据 | 通过。Graph 选择/打开/视角恢复、Goals/Sessions/Feed/Artifacts 导航回归，测试前后 Goals/runs 状态一致。 |
-| 构建与测试 | 通过。`pnpm build`，最终仅样式改动后 `pnpm --filter @adeptify/goalboard-app-workbench build`；本次 17 个相关 JS 测试分别通过（home 2、i18n 8、导航 3、Graph 1、desktop bridge 3）；`cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml` 20/20，native debug 构建通过。未运行全仓 JS 测试套件。 |
+| 构建与测试 | 通过。`pnpm build`，最终仅样式改动后 `pnpm --filter @molis-ai/molis-work-app-workbench build`；本次 17 个相关 JS 测试分别通过（home 2、i18n 8、导航 3、Graph 1、desktop bridge 3）；`cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml` 20/20，native debug 构建通过。未运行全仓 JS 测试套件。 |
 | 本机更新与可体验结果 | 通过。`install --source .` 更新 Core/Web，service status 为 running 后 `service restart --confirm` 成功；恢复新版 native debug 窗口。隔离预览重新启动并刷新至新首页：`http://127.0.0.1:64521/projects/project-88e68787-f14b-4362-893f-8068d2b4fd4c/`。 |
 
 交付边界：这是本机功能可用版本，未打包/替换 `/Applications` 的发布应用，未提交或推送。Harness、跨设备同步不在本 spec 范围；范围内无未完成项。

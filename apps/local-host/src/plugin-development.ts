@@ -1,6 +1,6 @@
-import type { PluginDevelopmentInput, PluginDevelopmentResult } from "@adeptify/goalboard-contracts/platform/tooling";
-import type { PluginRuntimeRepository } from "@adeptify/goalboard-contracts/platform/plugin";
-import { loadDevelopmentPlugin, PluginRuntime } from "@adeptify/goalboard-plugin-runtime";
+import type { PluginDevelopmentInput, PluginDevelopmentResult } from "@molis-ai/molis-work-contracts/platform/tooling";
+import type { PluginRuntimeRepository } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { loadDevelopmentPlugin, PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { PluginHostExecutor, type PluginHostExecutorOptions } from "./plugin-executor.js";
 
 /** Public developer fixture, with the same real owner ports used by the application Host. */

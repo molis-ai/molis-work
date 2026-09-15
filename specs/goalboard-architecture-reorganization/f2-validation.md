@@ -22,17 +22,17 @@ F2 已把 F1 确认的完整包地图变成真实 pnpm workspace：
 
 `packages/contracts` 公开 30 个 Module / Service / Platform subpath。48 个目标 package 都有独立 manifest、TypeScript 配置、public entrypoint、README、build/typecheck 命令和迁移 Goal 标记。
 
-所有目标 package 当前统一标为 `contract-only`。根 `@adeptify/goalboard` 继续承载现有可工作的产品和发布兼容面；F2 没有宣称旧业务已经迁入。
+所有目标 package 当前统一标为 `contract-only`。根 `@molis-ai/molis-work` 继续承载现有可工作的产品和发布兼容面；F2 没有宣称旧业务已经迁入。
 
 ## f2-boundary
 
 结论：通过。
 
 - `pnpm workspace:check`：`packageCount=48`、`uniquePackageNames=48`、`contractSubpaths=30`、`errors=[]`。
-- 清单检查要求每个非 Contract package 只声明 `@adeptify/goalboard-contracts: workspace:*`，Contract package 不依赖 implementation。
+- 清单检查要求每个非 Contract package 只声明 `@molis-ai/molis-work-contracts: workspace:*`，Contract package 不依赖 implementation。
 - 每个 public export 都从 `dist` 暴露；不存在指向其他 package 源码的 deep import。
 - 48 个入口只导出 `packageDescriptor`，`capabilities` 为空；没有跨 owner Store、Provider 注册或复制旧业务规则。
-- 代表性独立解析检查同时 import 了 `@adeptify/goalboard-module-goals` 与 `@adeptify/goalboard-contracts/modules/goals`，解析结果均为 `contract-only`。
+- 代表性独立解析检查同时 import 了 `@molis-ai/molis-work-module-goals` 与 `@molis-ai/molis-work-contracts/modules/goals`，解析结果均为 `contract-only`。
 
 F3 将在这份确定的包清单上增加持续运行的 import boundary 与 Contract conformance 自动门禁；F2 不提前实现 F3。
 

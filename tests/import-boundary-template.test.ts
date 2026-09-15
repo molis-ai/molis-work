@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { extractImportSpecifiers } from "@adeptify/goalboard-test-kit";
+import { extractImportSpecifiers } from "@molis-ai/molis-work-test-kit";
 
 test("boundary scanner distinguishes executable imports from exported Plugin source templates", () => {
   const source = [

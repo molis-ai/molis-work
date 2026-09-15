@@ -3,8 +3,8 @@ import test from "node:test";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { GOALS_DOCUMENT_CLIENT_FACTORY_SCRIPT } from "@adeptify/goalboard-plugin-goals";
-import { DEMO_BOARD_ID } from "@adeptify/goalboard-app-local-host";
+import { GOALS_DOCUMENT_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-goals";
+import { DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 test("Goal document tabs retry lazy loading, restore selection, and keep the current event document", { timeout: 60_000 }, async (t) => {
@@ -20,7 +20,7 @@ test("Goal document tabs retry lazy loading, restore selection, and keep the cur
   await waitFor("document.readyState === 'complete' && " + dom("[data-goal-event-document]"));
   assert.equal(await evaluate(dom("[data-goal-event-document]") + ".dataset.goalView"), "V1");
   await command("Network.setBlockedURLs", { urls: [origin + "/api/goals/V1/event-state*"] }, sessionId);
-  await click("[data-event-reader='planning']");
+  await evaluate(`document.querySelector(".goal-more").open = true; document.querySelector('.goal-more [data-event-reader="planning"]').click();`);
   await waitFor(dom("[data-event-reader-root]") + " && !" + dom("[data-event-reader-root]") + ".hasAttribute('hidden')");
   assert.deepEqual(store.snapshot(DEMO_BOARD_ID).goals, before.goals);
   await command("Network.setBlockedURLs", { urls: [] }, sessionId);
@@ -31,7 +31,7 @@ test("Goal document tabs retry lazy loading, restore selection, and keep the cur
   await click('.tree-node[data-select-goal="RELEASE"]');
   await waitFor(dom("[data-goal-event-document]") + "?.dataset.goalView === 'RELEASE'");
   assert.equal(await evaluate(dom("[data-current-summary]") + " != null"), true);
-  const screenshots = process.env.GOALBOARD_TEST_CAPTURE === "1" ? await mkdtemp(join(tmpdir(), "goalboard-gw5-document-")) : null;
+  const screenshots = process.env.MOLIS_WORK_TEST_CAPTURE === "1" ? await mkdtemp(join(tmpdir(), "molis-work-gw5-document-")) : null;
   async function capture(name: string) {
     if (!screenshots) return;
     const { data } = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);
@@ -40,8 +40,7 @@ test("Goal document tabs retry lazy loading, restore selection, and keep the cur
   }
   await capture("desktop");
   await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
-  await click('[data-mobile-target="document"]');
-  await click("[data-event-reader='planning']");
+  await evaluate(`document.querySelector(".goal-more").open = true; document.querySelector('.goal-more [data-event-reader="planning"]').click();`);
   await waitFor(dom("[data-event-reader-root]") + " && !" + dom("[data-event-reader-root]") + ".hasAttribute('hidden')");
   assert.equal(await evaluate("document.documentElement.scrollWidth > innerWidth"), false);
   await capture("mobile");

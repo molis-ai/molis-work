@@ -9,10 +9,10 @@ import {
   GoalsModule,
   migrateGoalLifecycleState,
   type GoalLifecycleMigrationDatabase,
-} from "@adeptify/goalboard-module-goals";
+} from "@molis-ai/molis-work-module-goals";
 
-import { GoalProjectApplication } from "@adeptify/goalboard-app-local-host";
-import { LocalProjectDatabase } from "@adeptify/goalboard-app-local-host";
+import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { insertHistoricalClaim, insertHistoricalRun } from "./historical-sql-fixture.js";
 
 function acceptedGoal(goalId: string, title: string, outcome: string) {
@@ -34,8 +34,8 @@ function acceptedGoal(goalId: string, title: string, outcome: string) {
 }
 
 test("Goals public Command API owns Goal, relation, and Guidance writes", () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-goals-module-"));
-  const store = new LocalProjectDatabase(join(directory, "goalboard.sqlite"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-goals-module-"));
+  const store = new LocalProjectDatabase(join(directory, "molis-work.sqlite"));
   try {
     new GoalProjectApplication(store).initializeBoard({
       board_id: "board-module",
@@ -100,8 +100,8 @@ test("Goals public Command API owns Goal, relation, and Guidance writes", () => 
 });
 
 test("Goals public Lifecycle API owns archive and trash", () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-goals-lifecycle-"));
-  const store = new LocalProjectDatabase(join(directory, "goalboard.sqlite"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-goals-lifecycle-"));
+  const store = new LocalProjectDatabase(join(directory, "molis-work.sqlite"));
   try {
     const goals = new GoalsModule(store.db, {});
     const initialize = { board_id: "board-lifecycle", title: "Goals Lifecycle", actor_id: "user-1", idempotency_key: "initialize" };
@@ -156,8 +156,8 @@ test("Goals public Lifecycle API owns archive and trash", () => {
 });
 
 test("Goal lifecycle migration rolls back every write when one recovery event fails", () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-goals-migration-"));
-  const store = new LocalProjectDatabase(join(directory, "goalboard.sqlite"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-goals-migration-"));
+  const store = new LocalProjectDatabase(join(directory, "molis-work.sqlite"));
   try {
     const coordinator = new GoalProjectApplication(store);
     coordinator.initializeBoard({
@@ -206,7 +206,7 @@ test("Goal lifecycle migration rolls back every write when one recovery event fa
       DELETE FROM schema_migrations WHERE migration_id = 12;
       CREATE TRIGGER fail_goal_lifecycle_migration
       BEFORE INSERT ON events
-      WHEN NEW.actor_id = 'goalboard:migration-12'
+      WHEN NEW.actor_id = 'molis-work:migration-12'
       BEGIN
         SELECT RAISE(ABORT, 'forced lifecycle migration failure');
       END;

@@ -149,7 +149,7 @@ function processShowcase(value) {
   return { status: "accepted" };
 }
 
-test("GoalBoard-owned Casebook integration schemas are strict JSON Schema 2020-12 documents", () => {
+test("Molis Work-owned Casebook integration schemas are strict JSON Schema 2020-12 documents", () => {
   const ids = new Set();
   for (const [name, schema] of schemas) {
     assert.equal(schema.$schema, "https://json-schema.org/draft/2020-12/schema", name);
@@ -161,7 +161,7 @@ test("GoalBoard-owned Casebook integration schemas are strict JSON Schema 2020-1
   assert.equal(schemas.get("showcase-artifact.schema.json").additionalProperties, false);
 });
 
-test("base export and public Showcase validate against GoalBoard-owned contracts", () => {
+test("base export and public Showcase validate against Molis Work-owned contracts", () => {
   assert.deepEqual(
     validateSchema(schemas.get("planning-export.schema.json"), fixture.base_export, { rootKey: "planning-export.schema.json" }),
     [],

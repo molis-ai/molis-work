@@ -1,4 +1,4 @@
-import { GovernanceRecordStore } from "@adeptify/goalboard-module-governance-collaboration";
+import { GovernanceRecordStore } from "@molis-ai/molis-work-module-governance-collaboration";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -9,15 +9,15 @@ import Database from "better-sqlite3";
 import {
   GoalsCommandError,
   GoalsModule,
-} from "@adeptify/goalboard-module-goals";
-import { GoalEventApplication } from "@adeptify/goalboard-plugin-goals";
-import { LocalProjectDatabase } from "@adeptify/goalboard-app-local-host";
+} from "@molis-ai/molis-work-module-goals";
+import { GoalEventApplication } from "@molis-ai/molis-work-plugin-goals";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 
 import type {
   GoalEventFieldDefinition,
   GoalEventTypeDefinitionInput,
   ReportGoalWorkEventInput,
-} from "@adeptify/goalboard-contracts/modules/goals";
+} from "@molis-ai/molis-work-contracts/modules/goals";
 
 const BOARD = "board-events";
 const GOAL = "goal-events";
@@ -41,7 +41,7 @@ function openModule(store: LocalProjectDatabase) {
 }
 
 function fixture(options: { human?: boolean } = {}) {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-goal-events-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-goal-events-"));
   const databasePath = join(directory, "project.db");
   const store = new LocalProjectDatabase(databasePath);
   const module = openModule(store);
@@ -590,7 +590,7 @@ test("existing non-empty databases upgrade idempotently; fresh databases get the
       upgradedAgain.close();
     }
 
-    const freshDir = mkdtempSync(join(tmpdir(), "goalboard-goal-events-fresh-"));
+    const freshDir = mkdtempSync(join(tmpdir(), "molis-work-goal-events-fresh-"));
     const freshPath = join(freshDir, "fresh.db");
     const fresh = new LocalProjectDatabase(freshPath);
     try {

@@ -1,13 +1,23 @@
-import type { McpLauncherValidationContext } from "@adeptify/goalboard-app-mcp";
+import type { McpLauncherValidationContext } from "@molis-ai/molis-work-app-mcp";
 
-export const INTEGRATION_OWNER = "goalboard-runtime-integration-v1";
+export const INTEGRATION_OWNER = "molis-work-runtime-integration-v1";
+export const LEGACY_INTEGRATION_OWNER = "goalboard-runtime-integration-v1";
 
-export const INSTALLER_OWNER = "goalboard-home-install-v1";
+export const INSTALLER_OWNER = "molis-work-home-install-v1";
+export const LEGACY_INSTALLER_OWNER = "goalboard-home-install-v1";
 
-import { SUPPORTED_RUNTIME_IDS } from "@adeptify/goalboard-contracts/platform/app-host";
-import type { SupportedRuntimeId } from "@adeptify/goalboard-contracts/platform/app-host";
-export { SUPPORTED_RUNTIME_IDS } from "@adeptify/goalboard-contracts/platform/app-host";
-export type { SupportedRuntimeId, RuntimeConnectionState, RuntimeIntegrationDetection } from "@adeptify/goalboard-contracts/platform/app-host";
+export function isOwnedInstallerOwner(installer: unknown): boolean {
+  return installer === INSTALLER_OWNER || installer === LEGACY_INSTALLER_OWNER;
+}
+
+export function isOwnedIntegrationOwner(owner: unknown): boolean {
+  return owner === INTEGRATION_OWNER || owner === LEGACY_INTEGRATION_OWNER;
+}
+
+import { SUPPORTED_RUNTIME_IDS } from "@molis-ai/molis-work-contracts/platform/app-host";
+import type { SupportedRuntimeId } from "@molis-ai/molis-work-contracts/platform/app-host";
+export { SUPPORTED_RUNTIME_IDS } from "@molis-ai/molis-work-contracts/platform/app-host";
+export type { SupportedRuntimeId, RuntimeConnectionState, RuntimeIntegrationDetection } from "@molis-ai/molis-work-contracts/platform/app-host";
 export function isSupportedRuntimeId(value: string): value is SupportedRuntimeId {
   return (SUPPORTED_RUNTIME_IDS as readonly string[]).includes(value);
 }
@@ -70,7 +80,7 @@ export interface RuntimeIntegrationValidationContext extends McpLauncherValidati
 }
 
 export interface RuntimeIntegrationServiceOptions {
-  /** GoalBoard-owned home. Defaults to ~/.goalboard. */
+  /** Molis Work-owned home. Defaults to ~/.molis-work. */
   homeDirectory?: string;
   /** User home containing Runtime configuration. Defaults to os.homedir(). */
   userHomeDirectory?: string;
@@ -90,7 +100,7 @@ export interface InstalledArtifacts {
 export interface DesiredConnection {
   runtimeId: SupportedRuntimeId;
   launcherPath: string;
-  goalboardHome: string;
+  molisWorkHome: string;
 }
 
 export interface ConfigInspection {
@@ -124,7 +134,7 @@ export interface RuntimeAdapter {
   detectionPaths(userHome: string): readonly string[];
   configPath(userHome: string): string;
   skillPath(userHome: string): string;
-  desiredConnection(artifacts: InstalledArtifacts, goalboardHome: string): DesiredConnection;
+  desiredConnection(artifacts: InstalledArtifacts, molisWorkHome: string): DesiredConnection;
   inspectConfig(contents: string | null, desired: DesiredConnection): ConfigInspection;
   connectConfig(contents: string | null, desired: DesiredConnection): string;
   removeConfig(contents: string | null): string | null;
@@ -133,7 +143,7 @@ export interface RuntimeAdapter {
 
 export interface IntegrationReceipt {
   schema_version: 1;
-  owner: typeof INTEGRATION_OWNER;
+  owner: string;
   runtime_id: SupportedRuntimeId;
   config_path: string;
   config_entry_fingerprint: string;

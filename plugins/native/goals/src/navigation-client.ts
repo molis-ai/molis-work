@@ -19,7 +19,7 @@ const GOALS_SELECT_SCRIPT = `    const selectGoal = async (goalId, updateHistory
         return;
       }
       ensureWorkTab(goalId);
-      document.dispatchEvent(new CustomEvent("goalboard:goal-document-loaded", { detail: { goalId } }));
+      document.dispatchEvent(new CustomEvent("molis-work:goal-document-loaded", { detail: { goalId } }));
       if (updateHistory) {
         history.pushState({ goalId }, "", goalPageUrl(goalId));
       }

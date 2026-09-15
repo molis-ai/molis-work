@@ -8,11 +8,11 @@ import type {
   PlanningDependencyRule,
   PlanningMethodDefaultRequirement,
   PlanningMethodKind,
-} from "@adeptify/goalboard-contracts/modules/goals";
+} from "@molis-ai/molis-work-contracts/modules/goals";
 import {
   goalEventFieldFormats,
   goalEventSemanticFamilies,
-} from "@adeptify/goalboard-contracts/modules/goals";
+} from "@molis-ai/molis-work-contracts/modules/goals";
 
 export interface ParsedPlanningMethodSource {
   method_id: string;

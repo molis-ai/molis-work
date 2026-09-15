@@ -5,7 +5,7 @@ import Database from "better-sqlite3";
 
 const databasePath = process.argv[2];
 if (!databasePath) {
-  console.error("usage: node tooling/migrations/audit-goal-lifecycle.mjs /absolute/path/to/goalboard.sqlite");
+  console.error("usage: node tooling/migrations/audit-goal-lifecycle.mjs /absolute/path/to/molis-work.sqlite");
   process.exitCode = 2;
 } else {
   const resolvedPath = path.resolve(databasePath);

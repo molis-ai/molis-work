@@ -1,6 +1,6 @@
-# GoalBoard 架构与包重组需求书
+# Molis Work 架构与包重组需求书
 
-2026-09-06 范围澄清（用户明确确认）：**Outbox 的实现与重放验收留到后续，本期只重组现有功能。** 下文 Storage/Exchange/Materialization 中的 Outbox 设计仍保留为目标架构，不再表述为本期已有能力；本期完整保留并验证已实现的事务、幂等、失败重试与恢复。此澄清不减免旧代码清零、Huge Class治理、包边界、全产品前后端E2E及清理后复验。GoalBoard对应验收条目的正式修订当前遇到澄清入口冲突，见 [验证与范围记录](assurance-validation.md)，未冒充canonical已更新。
+2026-09-06 范围澄清（用户明确确认）：**Outbox 的实现与重放验收留到后续，本期只重组现有功能。** 下文 Storage/Exchange/Materialization 中的 Outbox 设计仍保留为目标架构，不再表述为本期已有能力；本期完整保留并验证已实现的事务、幂等、失败重试与恢复。此澄清不减免旧代码清零、Huge Class治理、包边界、全产品前后端E2E及清理后复验。Molis Work对应验收条目的正式修订当前遇到澄清入口冲突，见 [验证与范围记录](assurance-validation.md)，未冒充canonical已更新。
 
 GW6 实施补齐（2026-09-06）：按已接受 `gw6-work-plan.md`，Goals 基础 schema、15/25/26/30 Goals 升级、V3 旧覆盖账 Query/导入写入已经归入 Goals；Host 保留同连接跨 owner 事务，Web/导入器使用公开 API。已完成定向前后端兼容与失败恢复检查，见 [GW6 验收](gw6-validation.md)。不新增产品功能，不缩减父项/根目标的完整 E2E、清理、再次 E2E 和架构总审要求。
 
@@ -11,13 +11,13 @@ GW6 实施补齐（2026-09-06）：按已接受 `gw6-work-plan.md`，Goals 基�
 
 ## 1. 目标
 
-本轮只定义 GoalBoard、Relay 与 Loreport 收拢后的代码包边界、模块事实所有权、依赖方向、Local / Server 部署边界、Plugin Contract、Huge Class 拆分路径和文档 SSOT。它不实现 Team、权限、同步、插件市场或新的产品交互。
+本轮只定义 Molis Work、Relay 与 Loreport 收拢后的代码包边界、模块事实所有权、依赖方向、Local / Server 部署边界、Plugin Contract、Huge Class 拆分路径和文档 SSOT。它不实现 Team、权限、同步、插件市场或新的产品交互。
 
-本文是本轮架构重组的唯一权威需求书。现有 `docs/goalboard-product-family-and-module-architecture.md` 作为历史输入保留，并已明确标记为 superseded；实现与 package 判断以本文和 `docs/SSOT-MATRIX.md` 为准。
+本文是本轮架构重组的唯一权威需求书。现有 `docs/molis-work-product-family-and-module-architecture.md` 作为历史输入保留，并已明确标记为 superseded；实现与 package 判断以本文和 `docs/SSOT-MATRIX.md` 为准。
 
 ## 2. 当前证据
 
-- 仓库当前仍是单一 `@adeptify/goalboard` package；`src/` 同时承载 CLI、MCP、Web、Desktop glue、Goal Core、Feed、Project 与 Session。
+- 仓库当前仍是单一 `@molis-ai/molis-work` package；`src/` 同时承载 CLI、MCP、Web、Desktop glue、Goal Core、Feed、Project 与 Session。
 - `src/v1/` 同时包含 Goal、Execution、Evidence、Review、Lifecycle、Store 与 Coordinator，领域边界没有落实到代码包。
 - `src/web/` 同时拥有 App Host、路由、页面渲染、终端、模块展示和业务 mutation，UI Host 与各模块 UI 未分离。
 - 当前最大的两个文件 `src/v1/coordinator.ts` 与 `src/web/render.ts` 均超过 14,000 行；`src/web/server.ts`、`src/mcp/server.ts`、`src/projects/catalog.ts` 和 `src/v1/store.ts` 也同时承担多种职责。只把这些文件原样移动到新目录，不会形成真正的模块边界。
@@ -54,10 +54,10 @@ GW6 实施补齐（2026-09-06）：按已接受 `gw6-work-plan.md`，Goals 基�
 
 ### 4.1 产品关系
 
-- GoalBoard 是统一产品与总品牌。
+- Molis Work 是统一产品与总品牌。
 - Desktop / Personal 与 Team / Server 是不同产品面，共用同一套模块契约。
 - Relay 不再拥有平行的 Goal、Team 或 Review 真相；其能力按 Adapter、Plugin 或 Host 迁入。
-- Loreport 不再发展平行产品权威；其模块方法和已确认机制迁入 GoalBoard SSOT。
+- Loreport 不再发展平行产品权威；其模块方法和已确认机制迁入 Molis Work SSOT。
 
 ### 4.2 User、Team 与 Project
 
@@ -168,7 +168,7 @@ ArtifactRef
 
 ### 8.1 Microkernel
 
-GoalBoard 保留不可由普通 Plugin 热替换的最小 Microkernel，只负责：
+Molis Work 保留不可由普通 Plugin 热替换的最小 Microkernel，只负责：
 
 - Plugin 身份、签名、加载与恢复；
 - Module Contract 与 Capability 路由；
@@ -209,7 +209,7 @@ Microkernel 不拥有 Goal、Artifact、Feed、Execution 等业务语义。
 - Local Plugin 由用户安装，默认数据为个人、本地数据；只有用户在 Plugin 自己的业务界面明确发布的 Goal / Artifact 才进入 Team 同步。
 - Server Plugin 由 Team 决定安装，其 Team 输出仍通过 Goal / Artifact 交换。
 - 同一个 Plugin Manifest 可以声明共享 Contract，以及独立部署的 Local 与 Server entrypoint。
-- GoalBoard Hosted Server 只运行官方审核的 Server Plugin。
+- Molis Work Hosted Server 只运行官方审核的 Server Plugin。
 - 自定义或开源 Server Plugin 由 Team 自行托管，通过 Remote Plugin API 接入。
 - Team 可以表达推荐或某项能力所需的 Local Plugin，但不能替成员自动安装或授予本地权限。
 
@@ -261,7 +261,7 @@ Native Plugin 按一级产品入口与完整应用能力划分，不与 16 个 M
 下面是本次重组的目标包地图。F1 只把它定为权威基线；F2 负责完整创建 workspace 与物理 package，后续垂直切片再迁移真实业务实现。
 
 ```text
-goalboard/
+molis-work/
 ├── apps/
 │   ├── desktop/
 │   ├── workbench/
@@ -458,7 +458,7 @@ Server App
 | `src/desktop/` | Desktop launch 与 Runtime bridge | Desktop App + Platform bridge |
 | `src/install/` | 安装、服务、Runtime integration | App installer + Plugin lifecycle / Runtime integration |
 | `src/evidence/` | Evidence 文件、引用与导出辅助 | Evidence & Verification Module + Artifacts Module；按事实与文件内容分别归位 |
-| `skills/goal-advance/` | Codex Runtime 的 GoalBoard 使用协议、规划方法与操作说明 | 开发者 / Runtime 集成发布面；继续消费正式 Module Contract，不复制业务规则 |
+| `skills/goal-advance/` | Codex Runtime 的 Molis Work 使用协议、规划方法与操作说明 | 开发者 / Runtime 集成发布面；继续消费正式 Module Contract，不复制业务规则 |
 | `examples/` | CLI、MCP、Skill 与集成示例 | 与对应公共入口共同迁移；Plugin 样例统一为非 production workspace 的 `examples/plugin-sample` |
 | `scripts/` | macOS 构建、安装、卸载、升级与发布脚本 | Desktop / App installer / release owner；通用迁移脚本进入非 package 的 `tooling/migrations` |
 | `.github/workflows/` | 单包 CI 与 macOS Release | F2/F3 接入 package 门禁；DV4 / Cutover 更新构建、签名、公证、SBOM 与发布验收 |
@@ -525,7 +525,7 @@ Server App
 
 ### 13.5 垂直切片迁移顺序（已确认）
 
-不按“先搬全部 types、再搬全部 Store、最后重写 UI”的技术层次横向迁移，也不先完整拆完 `GoalBoardCoordinator` 或 `render.ts`。每个切片必须同时覆盖：
+不按“先搬全部 types、再搬全部 Store、最后重写 UI”的技术层次横向迁移，也不先完整拆完 `MolisWorkCoordinator` 或 `render.ts`。每个切片必须同时覆盖：
 
 ```text
 Contract
@@ -549,7 +549,7 @@ Contract
 8. **Projects、Local Host 与 App Shell**：拆分 Project Catalog、Runtime binding、Local Host composition、Workbench / Desktop 边界、workspace membership、migration，以及 Settings / Plugin Manager 管理面；保持 Onboarding、Capsule、TUI、i18n 和关键 UI 路径。
 9. **开发者集成与分发**：迁移 CLI、MCP、`goal-advance` Skill、Plugin SDK / CLI、示例、安装 / 升级 / 卸载、Tauri bundle、vendored dependency provenance / SBOM 和开发文档，使干净环境可以完成首次真实调用与调试。
 10. **迁移、安全与恢复保证**：对所有已迁移切片执行迁移前后对账、备份恢复、回滚演练、Plugin / Module 隔离、Secret 与私人 Session 内容验证、依赖故障和诊断检查；本 Work Item 产出最终切换实际消费的保证证据。
-11. **最终 Cutover、清理与发布验收**：所有 caller 切换后移除 `GoalBoardCoordinator`、Web route / render Compatibility Facade、重复 Store / 类型和旧路径；运行完整回归、构建、视觉 / e2e、干净环境安装与文档链接检查，形成可发布候选。
+11. **最终 Cutover、清理与发布验收**：所有 caller 切换后移除 `MolisWorkCoordinator`、Web route / render Compatibility Facade、重复 Store / 类型和旧路径；运行完整回归、构建、视觉 / e2e、干净环境安装与文档链接检查，形成可发布候选。
 
 每完成一个切片，`coordinator.ts`、`store.ts`、`server.ts` 和 `render.ts` 中属于该切片的职责必须真实删除或只保留薄转发；不能同时在新旧两处继续演进。
 
@@ -586,7 +586,7 @@ Contract
 | Projects / Host / App Shell | AP3 Workbench / UI Host / Design System | 可组合的 Workbench Shell 与 Plugin UI Host | 将 `src/web/render.ts` 拆成 Shell、Design System、UI Host 和各 Native Plugin UI，不保留巨型 renderer |
 | Projects / Host / App Shell | AP4 Desktop / Tauri Shell | Desktop Native Bridge、Onboarding、Capsule 与 i18n 兼容 | 从 `src/projects/catalog.ts`、`src/desktop/`、`desktop/src-tauri/` 和 Web Server 抽出平台桥接与生命周期 |
 | 开发者集成与分发 | DV1 CLI / MCP Thin Adapter | CLI 与 MCP 只做协议、参数和展示适配 | 拆分 `src/mcp/server.ts` 与 `src/cli/`，删除复制的业务判断和 Store 访问 |
-| 开发者集成与分发 | DV2 goal-advance Runtime 集成 | Skill 通过正式 Contract 完成 GoalBoard 工作流 | 更新 `skills/goal-advance/`，移除对旧 Coordinator / 路由 / 内部结构的假设 |
+| 开发者集成与分发 | DV2 goal-advance Runtime 集成 | Skill 通过正式 Contract 完成 Molis Work 工作流 | 更新 `skills/goal-advance/`，移除对旧 Coordinator / 路由 / 内部结构的假设 |
 | 开发者集成与分发 | DV3 Plugin SDK / CLI / Sample | 干净环境中的首个真实 Plugin 结果 | 建立 public SDK、Plugin CLI 与非 production workspace 的 `examples/plugin-sample`，不暴露内部实现 |
 | 开发者集成与分发 | DV4 安装、供应链与发布文档 | 可复现的安装 / 升级 / 卸载和供应链发布物 | 迁移 `src/install/`、`scripts/`、Tauri bundle、`vendor/` provenance / SBOM 与开发文档 |
 
@@ -736,7 +736,7 @@ Team / Project 角色、Restricted Project 细节、Retention、成员退出后�
 
 **当前抽取来源与验收：**
 
-- 从现有 Web、MCP、Session adapter router 和启动代码中提取通用路由模式，但不把 `GoalBoardCoordinator` 搬入 Kernel。
+- 从现有 Web、MCP、Session adapter router 和启动代码中提取通用路由模式，但不把 `MolisWorkCoordinator` 搬入 Kernel。
 - 测试必须覆盖 provider 注册与冲突、binding、权限拒绝、provider 缺失、超时、取消、生命周期顺序、错误归一和 trace 传播。
 - Kernel 测试不启动真实数据库、网络、Tauri 或业务 Module；这些只在组合测试中使用。
 
@@ -820,7 +820,7 @@ Team / Project 角色、Restricted Project 细节、Retention、成员退出后�
 
 **当前抽取来源与验收：**
 
-- Relay 的传输、ACK、Cursor、重试和外部交换机制是迁移参考；GoalBoard 当前 outbox / replay 行为作为兼容输入，不直接复制 Relay 业务模型。
+- Relay 的传输、ACK、Cursor、重试和外部交换机制是迁移参考；Molis Work 当前 outbox / replay 行为作为兼容输入，不直接复制 Relay 业务模型。
 - 测试必须覆盖离线重连、重复投递、乱序、CAS 冲突、Cursor replay、Blob 中断续传、权限拒绝、协议版本不兼容和密文不可解析。
 - Server 测试要证明自定义 Artifact Payload 无相应 Plugin Schema 时仍能可靠存储与转发。
 
@@ -886,7 +886,7 @@ Plugin Runtime Control Plane
 
 ### 19.5 `packages/plugin-sdk`（已确认）
 
-**定位：** 面向官方安装包和用户自行编译 Plugin 的薄 Host Client；让 Plugin 安全、类型化地使用已授权能力，不分发 GoalBoard 内部实现。
+**定位：** 面向官方安装包和用户自行编译 Plugin 的薄 Host Client；让 Plugin 安全、类型化地使用已授权能力，不分发 Molis Work 内部实现。
 
 **物理与导出结构：**
 
@@ -933,7 +933,7 @@ plugin-sdk/
 
 - 现有 MCP / Web API client pattern、Feed connector 接口和 Session adapter contract 是易用性参考，不直接复制 Host 内部对象。
 - 测试必须使用 public SDK 完成示例 Plugin 的安装后调用、私有存储、Goal / Artifact 交换、UI 注册、权限拒绝和版本不兼容流程。
-- 验收时示例 Plugin 不得 import GoalBoard 源码内部路径，也不能因切换 Local / Remote transport 修改业务代码。
+- 验收时示例 Plugin 不得 import Molis Work 源码内部路径，也不能因切换 Local / Remote transport 修改业务代码。
 
 ### 19.6 `packages/ui-host`（已确认）
 
@@ -985,7 +985,7 @@ Installed Plugin
 
 ### 19.7 `packages/design-system`（已确认）
 
-**定位：** GoalBoard Workbench、Native Plugin、Host-rendered Plugin Embed 和 Server 轻量管理面共用的视觉基础与无业务语义交互模式。
+**定位：** Molis Work Workbench、Native Plugin、Host-rendered Plugin Embed 和 Server 轻量管理面共用的视觉基础与无业务语义交互模式。
 
 **提供：**
 
@@ -1085,7 +1085,7 @@ test-kit/
 - Goal、Artifact、Feed、Execution、Team 等业务 fixture builder、seed 和 invariant assertion 跟随对应 Module test support 存放。
 - `test-kit` 可以组合调用 Module 提供的 public test fixture，但不复制其 Schema、直接 seed 内部表或通过 shared Store 构造状态。
 - 跨 Module 场景通过公开 Command、Event 与 Receipt 建立，不能以测试便利为由绕过正式边界。
-- 示例 Plugin 的公开合规 fixture 可以通过 `plugin-sdk/testing` 提供；GoalBoard 内部实现和 App 集成 fixture 留在 `test-kit`。
+- 示例 Plugin 的公开合规 fixture 可以通过 `plugin-sdk/testing` 提供；Molis Work 内部实现和 App 集成 fixture 留在 `test-kit`。
 
 **硬边界：**
 
@@ -1096,7 +1096,7 @@ test-kit/
 **当前抽取来源与验收：**
 
 - 现有 tests 中重复的临时目录、SQLite setup、fake runtime、HTTP fixture 和时间控制是提取来源；业务断言迁回对应 Module。
-- 测试 Test Kit 自身时必须用至少两个假 Module、两个 provider 和一个示例 Plugin 证明组合能力，不导入真实 GoalBoard 业务实现。
+- 测试 Test Kit 自身时必须用至少两个假 Module、两个 provider 和一个示例 Plugin 证明组合能力，不导入真实 Molis Work 业务实现。
 - Boundary check 必须证明生产依赖图中没有指向 `test-kit` 的边。
 
 ## 20. Module Contract
@@ -1175,7 +1175,7 @@ test-kit/
 - AP1 已把 `projects`、`project_events`、`workspaces`、`workspace_project_memberships`、`project_deletions` 的 schema、Repository、规则与迁移 helper 移入 `modules/projects`；旧 Catalog 不再直接读写这些表。
 - 当前完成的是已有行为无损迁移：Project 创建/选择/重命名、目录关联、Demo、旧库迁移、删除收据与回滚均保持。Team owner、archive/access mode 等当前基线不存在的能力仍需未来独立功能 Spec。
 - 当前测试覆盖正式 Project 身份、workspace membership、旧 Board mapping、schema migration 回滚/幂等，以及原 Catalog 创建、选择、重命名、目录关联、Demo、删除与恢复兼容行为；不以尚未实现的 Team owner、archive/access mode 冒充验收结果。
-- AP1 验收记录见 [`ap1-validation.md`](./ap1-validation.md)；验收后 `GoalBoardProjectCatalog` 不再拥有 Project 正式事实，但 Runtime、Panel 与文件 staging 仍按 WK1、AP4、AP2 的边界暂留。
+- AP1 验收记录见 [`ap1-validation.md`](./ap1-validation.md)；验收后 `MolisWorkProjectCatalog` 不再拥有 Project 正式事实，但 Runtime、Panel 与文件 staging 仍按 WK1、AP4、AP2 的边界暂留。
 
 ### 20.3 `modules/context-ledger`（已确认）
 
@@ -1383,7 +1383,7 @@ test-kit/
 **当前处理：**
 
 - 仓库没有独立 Personal / External Action 类型、表、Store、API、UI 或测试；`GoalWorkState.next_action` 是派生建议，Feed 操作也不是 Action。
-- Relay 的 external write-back 是未来 External Action / Dispatcher 的迁移参考，当前 GoalBoard Source Scheduler 不属于 Actions。
+- Relay 的 external write-back 是未来 External Action / Dispatcher 的迁移参考，当前 Molis Work Source Scheduler 不属于 Actions。
 - F2 创建 `modules/actions` 的 `contract-only` package、公开 Contract 与边界测试；首个真实用例仍需在对应垂直切片中迁入，不能注册假 Provider、假 Store 或伪成功 API。
 
 ### 20.9 `modules/attention-resumption`（已有最小实现来源）
@@ -1494,7 +1494,7 @@ test-kit/
 
 **WK1 本次执行合同：**
 
-- 保留现有 `~/.goalboard/sessions/sessions.db`、schema version 3、内容目录和 AES-256-GCM 文件格式，不迁移或重写用户内容；旧 Registry owner marker 作为兼容数据格式标识继续接受。
+- 保留现有 `~/.molis-work/sessions/sessions.db`、schema version 3、内容目录和 AES-256-GCM 文件格式，不迁移或重写用户内容；旧 Registry owner marker 作为兼容数据格式标识继续接受。
 - `modules/private-work-context` 接管 Session identity、Runtime native identity/correlation、surface、Project/Goal/Workspace association、Goal history、私有 Session event、handoff record、legacy migration receipt 和 Runtime context binding facts。
 - 原 `src/sessions/registry.ts` 不能原样搬迁。新实现按 Session、Event、Handoff、Legacy Migration、Content Store 和 Runtime Context Binding Repository 拆分，单个 owner 文件不得超过 500 行；旧路径只保留打开 SQLite/目录的技术 adapter 与兼容 re-export。
 - Project Catalog 的项目选择、workspace membership 与创建 Project 事务仍属于 Projects application composition；但 `runtime_context_bindings`、binding events、setup request 和 suggestion rejection 的 schema、mapping 与 SQL 由 Private Work Context Repository 拥有，Catalog 只调用公开 Repository/API。
@@ -1813,7 +1813,7 @@ Horizontal Service 是可重建运行机制。它可以保存 queue、cursor、l
 2026-09-05 恢复验证发现两项可复现的 Runtime 生命周期缺陷：并发首次请求可抢在 initialize 完成前发送；initialize 超时后进程未清理且重试复用未初始化连接。WK2 的启动、恢复与资源清理验收包含修复这两项；保留已完成请求和业务状态，不自动重放写请求。
 
 - 完成等级：功能可用的无损迁移；本 Goal 完成自动化 Contract、边界、定向与全量回归，统一人工端到端验证按第 24 节在全部架构开发完成后执行。
-- `@adeptify/goalboard-contracts/services/runtime-host` 是 Runtime capability、Provider Adapter、transport result/error 的唯一类型入口；`horizontal/runtime-host` 只通过公开入口对调用者开放。
+- `@molis-ai/molis-work-contracts/services/runtime-host` 是 Runtime capability、Provider Adapter、transport result/error 的唯一类型入口；`horizontal/runtime-host` 只通过公开入口对调用者开放。
 - `horizontal/runtime-host` 接收现有 Runtime router、Codex app-server transport/Adapter 与 Terminal/PT​Y process host；不导入 Execution Store、Private Work Context Registry、Web Server 或业务写入实现。
 - 未知 Runtime 的 Session registry fallback 仍属于 Private Work Context 兼容编排，不能被 Runtime Host 吸收；WebSocket 鉴权和 Session 内容记录仍属于 Web/Work Plugin 调用层。
 - 旧 `src/sessions/adapters.ts`、`src/sessions/codex-transport.ts` 与 `src/web/pty-host.ts` 只保留薄兼容出口；生产 Web composition、PTY socket 和 Session 内容服务改用新包公开 API。
@@ -1925,7 +1925,7 @@ ProducerProvenance
 ```
 
 - `artifact_id + artifact_version` 指向一份具体结果及其版本。
-- `artifact_type_id + schema_version` 决定消费方是否理解该 Payload；Type ID 使用全局唯一命名空间，例如 `io.goalboard.report.document`。
+- `artifact_type_id + schema_version` 决定消费方是否理解该 Payload；Type ID 使用全局唯一命名空间，例如 `io.molis.work.report.document`。
 - `producer_plugin_id + producer_plugin_version` 只记录来源和审计信息，不自动形成安装依赖或消费限制。
 - Artifact Type Contract 与生产者身份分离；任何 Plugin 都可以声明生产该类型，只要本地 Host 能按对应 Schema 验证其输出。
 - Plugin Manifest 声明 `produces`、`consumes` 的 Artifact Type Contract，以及需要的 Module / Horizontal Capability；不提供任意 `depends_on_plugin_id`。
@@ -2031,7 +2031,7 @@ plugins/official-integrations/<provider>/
 - `plugins/` 只包含官方 Native Plugin 与官方 Integration Plugin，不保留没有真实实现来源的 `plugins/examples` package。
 - `plugin-sdk/testing` 可以携带最小合规测试 fixture，但它不是安装生态条目。
 - 面向开发者的完整样例在 SDK 真正实现时再创建为 `examples/plugin-sample`，默认不加入生产 workspace 和发布链。
-- 第三方开源 Plugin 保持在各自源码仓库，由用户自行构建和安装；GoalBoard 主仓库不为了展示生态而复制维护。
+- 第三方开源 Plugin 保持在各自源码仓库，由用户自行构建和安装；Molis Work 主仓库不为了展示生态而复制维护。
 
 ## 24. 整体开发完成后的统一验证与清理顺序（2026-09-02 已确认）
 

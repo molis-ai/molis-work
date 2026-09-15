@@ -1,12 +1,12 @@
 # MCP 工具适配
 
-向 AI Runtime 提供 GoalBoard 工具、输入 schema 和响应视图。维护工具名、参数、上下文呈现或协议错误时使用本包。
+向 AI Runtime 提供 Molis Work 工具、输入 schema 和响应视图。维护工具名、参数、上下文呈现或协议错误时使用本包。
 
-包名：`@adeptify/goalboard-app-mcp`。工作区内部包，通过仓库构建和 Host 装配使用。
+包名：`@molis-ai/molis-work-app-mcp`。工作区内部包，通过仓库构建和 Host 装配使用。
 
 ## 一次典型调用
 
-根 apps/desktop/launchers/mcp/server.ts 处理进程入口；Host 管理项目连接和调用身份。本包通过 handleMcpMessage、工具目录及 dispatchMcpProjectTool 把请求交给 Host Client，再组合返回值。Runtime 事件工具是 `goalboard_v1_goal_intent_create`、`goalboard_v1_goal_state`、`goalboard_v1_event_configure`、`goalboard_v1_event_report`、`goalboard_v1_event_list`、`goalboard_v1_event_read`、`goalboard_v1_event_progress`、`goalboard_v1_event_concern`、`goalboard_v1_event_decision_request`、`goalboard_v1_event_cite_decision`、`goalboard_v1_event_agree`、`goalboard_v1_event_close`、`goalboard_v1_event_resume`。`goalboard_v1_event_decide` 只接受 Host Web/管理入口，不属于 Runtime audience。Runtime 身份由 Host 写入，工具参数不能自填用户或批准。上报返回记录成功，不表示正式完成；显式收尾才可能让 `completion_applied` 为 true。未转交 `legacy_claim_run` Goal 仍暴露 `select_goal` / `claim_renew` / `run_*` / `evidence_*` / `review_submit`。
+根 apps/desktop/launchers/mcp/server.ts 处理进程入口；Host 管理项目连接和调用身份。本包通过 handleMcpMessage、工具目录及 dispatchMcpProjectTool 把请求交给 Host Client，再组合返回值。Runtime 事件工具是 `molis_work_v1_goal_intent_create`、`molis_work_v1_goal_state`、`molis_work_v1_event_configure`、`molis_work_v1_event_report`、`molis_work_v1_event_list`、`molis_work_v1_event_read`、`molis_work_v1_event_progress`、`molis_work_v1_event_concern`、`molis_work_v1_event_decision_request`、`molis_work_v1_event_cite_decision`、`molis_work_v1_event_agree`、`molis_work_v1_event_close`、`molis_work_v1_event_resume`。`molis_work_v1_event_decide` 只接受 Host Web/管理入口，不属于 Runtime audience。Runtime 身份由 Host 写入，工具参数不能自填用户或批准。上报返回记录成功，不表示正式完成；显式收尾才可能让 `completion_applied` 为 true。未转交 `legacy_claim_run` Goal 仍暴露 `select_goal` / `claim_renew` / `run_*` / `evidence_*` / `review_submit`。
 
 ## 从哪里读代码
 
@@ -25,15 +25,15 @@
 
 Session 身份来自 Host 上下文，不能把模型提交的参数直接当作身份。工具 schema 与响应适配属于这里；Goal 事件事实和完成效果属于 Goals，可信用户决定属于 Governance，UI 不另算完成。
 
-工作区依赖：`@adeptify/goalboard-contracts`、`@adeptify/goalboard-plugin-goals`。其他运行依赖见 [package.json](package.json)。
+工作区依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-goals`。其他运行依赖见 [package.json](package.json)。
 
 ## 本地开发
 
 以下命令在**仓库根目录**执行，使用 Node.js 24+ 与仓库配置的 pnpm。首次准备运行 `pnpm install --frozen-lockfile` 和 `pnpm build`；之后可单独检查此包。
 
 ```bash
-pnpm --filter @adeptify/goalboard-app-mcp typecheck
-pnpm --filter @adeptify/goalboard-app-mcp build
+pnpm --filter @molis-ai/molis-work-app-mcp typecheck
+pnpm --filter @molis-ai/molis-work-app-mcp build
 ```
 
 已有行为示例与回归：[host-entry-consistency.test.ts](../../tests/host-entry-consistency.test.ts)。完成上述构建后运行：
@@ -50,7 +50,7 @@ node --import tsx --test --test-concurrency=1 tests/host-entry-consistency.test.
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
 - Status: `partial`
-- Contract entrypoint: `@adeptify/goalboard-contracts/platform/app-host`
+- Contract entrypoint: `@molis-ai/molis-work-contracts/platform/app-host`
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-dv1`, `goal-reorg-dv2`, `goal-reorg-gw4`, `goal-reorg-ex4`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。

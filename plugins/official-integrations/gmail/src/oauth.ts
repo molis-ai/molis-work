@@ -43,7 +43,7 @@ export function createGmailOAuth(ports: GmailOAuthPorts) {
     const clientId = resolveGmailClientId(opts?.clientId);
     if (!clientId) {
       throw new Error(
-        "GOALBOARD_GMAIL_CLIENT_ID required for Gmail OAuth (or bind client id in Sources)",
+        "MOLIS_WORK_GMAIL_CLIENT_ID required for Gmail OAuth (or bind client id in Sources)",
       );
     }
     if (opts?.clientId?.trim()) {

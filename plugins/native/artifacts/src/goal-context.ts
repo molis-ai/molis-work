@@ -1,5 +1,5 @@
-import type { ArtifactsQueryApi, ArtifactConsumerType } from "@adeptify/goalboard-contracts/modules/artifacts";
-import type { ContextLedgerApi } from "@adeptify/goalboard-contracts/modules/context-ledger";
+import type { ArtifactsQueryApi, ArtifactConsumerType } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import type { ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { readArtifactSelection, type ArtifactBrowserView } from "./browser.js";
 
 export interface GoalArtifactEmbed {

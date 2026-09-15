@@ -2,7 +2,7 @@
 
 组合 Session、Runtime 和项目上下文，提供会话目录、内容读取、恢复、handoff 和终端操作。
 
-包名：`@adeptify/goalboard-plugin-work`。工作区内部包，通过仓库构建和 Host 装配使用。
+包名：`@molis-ai/molis-work-plugin-work`。工作区内部包，通过仓库构建和 Host 装配使用。
 
 ## 一次典型调用
 
@@ -26,15 +26,15 @@ SessionDirectoryService 处理发现/创建，SessionContentService 处理内容
 
 Session 事实归 Private Work Context，跨对象关联归 Ledger，进程归 Runtime Host。交接包保持私人内容，不自动发布 Artifact/Team 数据。发送失败、重试和取消保留对应状态，不能把准备完成视为发送成功。
 
-工作区依赖：`@adeptify/goalboard-contracts`。其他运行依赖见 [package.json](package.json)。
+工作区依赖：`@molis-ai/molis-work-contracts`。其他运行依赖见 [package.json](package.json)。
 
 ## 本地开发
 
 以下命令在**仓库根目录**执行，使用 Node.js 24+ 与仓库配置的 pnpm。首次准备运行 `pnpm install --frozen-lockfile` 和 `pnpm build`；之后可单独检查此包。
 
 ```bash
-pnpm --filter @adeptify/goalboard-plugin-work typecheck
-pnpm --filter @adeptify/goalboard-plugin-work build
+pnpm --filter @molis-ai/molis-work-plugin-work typecheck
+pnpm --filter @molis-ai/molis-work-plugin-work build
 ```
 
 已有行为示例与回归：[session-handoff.test.ts](../../../tests/session-handoff.test.ts)、[session-directory.test.ts](../../../tests/session-directory.test.ts)。完成上述构建后运行：
@@ -51,7 +51,7 @@ node --import tsx --test --test-concurrency=1 tests/session-handoff.test.ts test
 - [架构与当前实现索引](../../../docs/SSOT-MATRIX.md)
 
 - Status: `partial`
-- Contract entrypoint: `@adeptify/goalboard-contracts/platform/plugin`
+- Contract entrypoint: `@molis-ai/molis-work-contracts/platform/plugin`
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-wk3`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。

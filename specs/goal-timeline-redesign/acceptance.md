@@ -18,6 +18,6 @@
 | 迁入关系/风险、旧验收覆盖与 Artifact 在桌面/窄屏可用 | 通过 | 长草稿、风险/Artifact、原约束/输入/输出及完整原标准真实浏览器脚本通过，读取状态不变；阅读器与转交表单互斥已修复。独立 [05 finish review](work-items/05-cleanup-and-acceptance/finish-review.md) disposition: ship，范围为8张截图；最后原标准2张截图经主复核 |
 | 完整测试、构建、边界检查、文档与可打开的生产预览 | 通过 | 主完整回归810通过、0失败、0跳过（05-final-full-tests.log）。后续有限清理的116项、原值修正9项、私有参数清理9项受影响回归及构建/边界通过；产品双语文档、Skill、DESIGN/sidecar已同步；隔离本地预览已实际打开。详见 [05 acceptance](work-items/05-cleanup-and-acceptance/acceptance.md) |
 
-01–03 的详细命令与验收结论见 [implementation.md](implementation.md)。诊断日志位于 `/private/tmp/goalboard-grok/`。不会将未运行项目写为通过，也不以测试数量宣称可发布。
+01–03 的详细命令与验收结论见 [implementation.md](implementation.md)。诊断日志位于 `/private/tmp/molis-work-grok/`。不会将未运行项目写为通过，也不以测试数量宣称可发布。
 
 无阻塞未完成项。三项非阻塞视觉细节保留在 05 finish review。可从 [试用目标](http://127.0.0.1:49797/goals/goal-4facb41b-7ac0-41d4-bbd6-588f4a5fec2a) 或 [空白目标](http://127.0.0.1:49797/goals/goal-09869bf1-26fa-4ca7-8a99-e7f8677f5d95) 体验；使用临时数据库，未改变真实用户项目。代码未提交、推送、安装或发布。

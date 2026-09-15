@@ -1,15 +1,15 @@
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { createWorkbenchRenderer } from "@adeptify/goalboard-app-workbench";
+import type { createWorkbenchRenderer } from "@molis-ai/molis-work-app-workbench";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
 
 export function createLocalWebAssets(ports: {
   ptyClientFilePath(): string;
-  renderer: Pick<ReturnType<typeof createWorkbenchRenderer>, "renderGoalBoardWorkbenchStylesheet" | "renderGoalBoardWorkbenchClientScript" | "renderGoalBoardProjectIndexStylesheet" | "renderGoalBoardOnboardingStylesheet" | "renderGoalBoardSettingsStylesheet">;
+  renderer: Pick<ReturnType<typeof createWorkbenchRenderer>, "renderMolisWorkWorkbenchStylesheet" | "renderMolisWorkWorkbenchClientScript" | "renderMolisWorkProjectIndexStylesheet" | "renderMolisWorkOnboardingStylesheet" | "renderMolisWorkSettingsStylesheet">;
 }) {
   const { ptyClientFilePath } = ports;
-  const { renderGoalBoardWorkbenchStylesheet, renderGoalBoardWorkbenchClientScript, renderGoalBoardProjectIndexStylesheet, renderGoalBoardOnboardingStylesheet, renderGoalBoardSettingsStylesheet } = ports.renderer;
+  const { renderMolisWorkWorkbenchStylesheet, renderMolisWorkWorkbenchClientScript, renderMolisWorkProjectIndexStylesheet, renderMolisWorkOnboardingStylesheet, renderMolisWorkSettingsStylesheet } = ports.renderer;
   function servePtyClient(request: IncomingMessage, response: ServerResponse): boolean {
     const filePath = ptyClientFilePath();
     if (!fs.existsSync(filePath)) {
@@ -40,16 +40,16 @@ export function createLocalWebAssets(ports: {
     pathname: string,
   ): boolean {
     if (request.method !== "GET" && request.method !== "HEAD") return false;
-    const asset = pathname === "/assets/goalboard-workbench.css"
-      ? { body: renderGoalBoardWorkbenchStylesheet(), contentType: "text/css; charset=utf-8" }
-      : pathname === "/assets/goalboard-workbench.js"
-        ? { body: renderGoalBoardWorkbenchClientScript(), contentType: "text/javascript; charset=utf-8" }
-        : pathname === "/assets/goalboard-project-index.css"
-          ? { body: renderGoalBoardProjectIndexStylesheet(), contentType: "text/css; charset=utf-8" }
-          : pathname === "/assets/goalboard-onboarding.css"
-            ? { body: renderGoalBoardOnboardingStylesheet(), contentType: "text/css; charset=utf-8" }
-          : pathname === "/assets/goalboard-settings.css"
-            ? { body: renderGoalBoardSettingsStylesheet(), contentType: "text/css; charset=utf-8" }
+    const asset = pathname === "/assets/molis-work-workbench.css"
+      ? { body: renderMolisWorkWorkbenchStylesheet(), contentType: "text/css; charset=utf-8" }
+      : pathname === "/assets/molis-work-workbench.js"
+        ? { body: renderMolisWorkWorkbenchClientScript(), contentType: "text/javascript; charset=utf-8" }
+        : pathname === "/assets/molis-work-project-index.css"
+          ? { body: renderMolisWorkProjectIndexStylesheet(), contentType: "text/css; charset=utf-8" }
+          : pathname === "/assets/molis-work-onboarding.css"
+            ? { body: renderMolisWorkOnboardingStylesheet(), contentType: "text/css; charset=utf-8" }
+          : pathname === "/assets/molis-work-settings.css"
+            ? { body: renderMolisWorkSettingsStylesheet(), contentType: "text/css; charset=utf-8" }
         : null;
     if (!asset) return false;
     const etag = `"${createHash("sha256").update(asset.body).digest("base64url")}"`;

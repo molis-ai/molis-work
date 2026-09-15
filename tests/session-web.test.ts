@@ -1,22 +1,22 @@
-import { openGoalBoardProjectCatalog } from "@adeptify/goalboard-app-desktop";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { GoalBoardSessionRegistry } from "@adeptify/goalboard-module-private-work-context";
-import type { RuntimeSessionTransport } from "@adeptify/goalboard-contracts/services/runtime-host";
+import { MolisWorkSessionRegistry } from "@molis-ai/molis-work-module-private-work-context";
+import type { RuntimeSessionTransport } from "@molis-ai/molis-work-contracts/services/runtime-host";
 import {
   PROJECT_OPERATIONS_CLIENT_SCRIPT,
   PROJECT_OPERATIONS_STYLES,
   renderProjectOperations,
-} from "@adeptify/goalboard-app-workbench";
-import { icon } from "@adeptify/goalboard-design-system";
-import { renderGoalBoardWeb, type GoalBoardWebView } from "./workbench-renderer-fixture.js";
-import { createGoalBoardWebServer } from "../apps/desktop/launchers/web/server.js";
+} from "@molis-ai/molis-work-app-workbench";
+import { icon } from "@molis-ai/molis-work-design-system";
+import { renderMolisWorkWeb, type MolisWorkWebView } from "./workbench-renderer-fixture.js";
+import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
-const TOKEN = "goalboard-session-web-token-0123456789abcdef";
+const TOKEN = "molis-work-session-web-token-0123456789abcdef";
 
 test("project root directory uses one chevron affordance for every navigable module", () => {
   const view = {
@@ -63,10 +63,10 @@ test("project root directory uses one chevron affordance for every navigable mod
       sources: [],
       feed_items: [],
       inbox_entries: [],
-      items: [],
       runs: [],
       import_receipts: [],
       contract_migrations: [],
+      out_rules: [],
     },
     relay_import: {
       path: "",
@@ -76,11 +76,11 @@ test("project root directory uses one chevron affordance for every navigable mod
       material_count: 0,
       error: null,
     },
-  } as GoalBoardWebView;
-  const html = renderGoalBoardWeb(view);
+  } as MolisWorkWebView;
+  const html = renderMolisWorkWeb(view);
   const rootDirectory = html.match(/<section class="desktop-directory-panel desktop-directory-root"[\s\S]*?<\/section>/)?.[0];
   assert.ok(rootDirectory);
-  for (const label of ["Inbox", "Goals", "Sessions", "Feed", "来源"]) {
+  for (const label of ["Inbox", "Goals", "Sessions", "Feed", "Artifacts"]) {
     assert.match(
       rootDirectory,
       new RegExp(`<strong>${label}</strong><small>[^<]*</small></span><svg aria-hidden="true"><use href="#icon-chevron-right"></use></svg></button>`),
@@ -88,13 +88,13 @@ test("project root directory uses one chevron affordance for every navigable mod
   }
   assert.doesNotMatch(rootDirectory, /<strong>工作目录<\/strong>|data-directory-open="workspaces"/);
   assert.doesNotMatch(rootDirectory, /<em>\d+<\/em>/);
-  assert.equal([...rootDirectory.matchAll(/<em>规划中<\/em>/g)].length, 2);
+  assert.doesNotMatch(rootDirectory, /<em>规划中<\/em>/);
 });
 
 test("project operation renderer uses real records or an honest empty state without prototype branches", () => {
   const rendered = renderProjectOperations({
     project_id: "project-real-only",
-    display_name: "GoalBoard 信息流工作台重设计",
+    display_name: "Molis Work 信息流工作台重设计",
   }, undefined, icon);
   const html = `${rendered.rootItems}${rendered.directories}${rendered.surfaces}${rendered.overlays}`;
   assert.match(rendered.rootItems, /<strong>Sessions<\/strong><small>执行内容、运行位置与续跑<\/small><\/span><svg aria-hidden="true"><use href="#icon-chevron-right"><\/use><\/svg>/);
@@ -133,9 +133,9 @@ test("project operation renderer uses real records or an honest empty state with
 });
 
 test("project Sessions render real Registry records and content/resume APIs stay project isolated", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "goalboard-session-web-"));
-  const home = path.join(directory, ".goalboard");
-  const catalog = await openGoalBoardProjectCatalog({ homeDirectory: home });
+  const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-session-web-"));
+  const home = path.join(directory, ".molis-work");
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const first = await catalog.createProject({ display_name: "Session 项目 A", actor_id: "user" });
   const second = await catalog.createProject({ display_name: "Session 项目 B", actor_id: "user" });
   catalog.close();
@@ -189,7 +189,7 @@ test("project Sessions render real Registry records and content/resume APIs stay
     },
     subscribe() { return () => undefined; },
   };
-  const server = createGoalBoardWebServer({
+  const server = createMolisWorkWebServer({
     homeDirectory: home,
     controlToken: TOKEN,
     runtimeSessionTransport: transport,
@@ -233,8 +233,8 @@ test("project Sessions render real Registry records and content/resume APIs stay
       method: "POST",
       headers: {
         origin,
-        "x-goalboard-control-token": TOKEN,
-        "x-goalboard-idempotency-key": "session-web-resume-a",
+        "x-molis-work-control-token": TOKEN,
+        "x-molis-work-idempotency-key": "session-web-resume-a",
       },
       body: "{}",
     });
@@ -245,4 +245,4 @@ test("project Sessions render real Registry records and content/resume APIs stay
     await rm(directory, { recursive: true, force: true });
   }
 });
-import { openWorkSessionRegistry } from "@adeptify/goalboard-app-local-host";
+import { openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";

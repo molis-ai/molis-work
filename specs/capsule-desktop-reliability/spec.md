@@ -2,7 +2,7 @@
 
 ## Background and goal
 
-The Capsule already reads GoalBoard's canonical Project, Goal, Claim, Run, Review, Available, and Run-control state. This final parent slice makes that experience dependable when the macOS app stays open for a long time or the local Web service and windows change lifecycle state.
+The Capsule already reads Molis Work's canonical Project, Goal, Claim, Run, Review, Available, and Run-control state. This final parent slice makes that experience dependable when the macOS app stays open for a long time or the local Web service and windows change lifecycle state.
 
 Completion level: internally complete and verified from an installed macOS release build.
 
@@ -17,10 +17,10 @@ Completion level: internally complete and verified from an installed macOS relea
 
 ## User scenarios
 
-1. The user selects a Project, status tab, and Goal, closes the popover, then reopens it or restarts GoalBoard. The Capsule restores that view when the same facts still exist and falls back safely when they do not.
+1. The user selects a Project, status tab, and Goal, closes the popover, then reopens it or restarts Molis Work. The Capsule restores that view when the same facts still exist and falls back safely when they do not.
 2. The local Web service stops. The Capsule and menu bar say that the latest state cannot be confirmed; they never continue to present a live Working signal. The desktop shell restarts the service and reloads the Capsule after health returns.
 3. The user closes the main window and later opens the current Goal from the menu bar. The same main window reappears at the requested path.
-4. The user quits GoalBoard from the menu-bar menu. Every desktop PTY is explicitly terminated before the app exits.
+4. The user quits Molis Work from the menu-bar menu. Every desktop PTY is explicitly terminated before the app exits.
 5. A keyboard user can move between tabs, expand a Goal, operate its actions, close the popover, and keep focus on the control they just used. Long titles become readable when expanded. Reduced-motion users receive the same state information without depending on animation.
 
 ## Scope
@@ -46,7 +46,7 @@ Completion level: internally complete and verified from an installed macOS relea
 
 ### Preferences are local display state
 
-The browser origin stores one small versioned preference object containing the focused Project and, per Project, the selected tab and expanded Goal. A restored value is only applied if the latest canonical snapshot still contains it. GoalBoard remains the only source of business truth.
+The browser origin stores one small versioned preference object containing the focused Project and, per Project, the selected tab and expanded Goal. A restored value is only applied if the latest canonical snapshot still contains it. Molis Work remains the only source of business truth.
 
 ### Offline means unconfirmed
 
@@ -58,7 +58,7 @@ The native shell checks local Web health on a short interval. After detecting an
 
 ### Window and process lifecycle
 
-Closing the main window hides it and prevents destruction. Opening a Goal always navigates and shows that reusable window. Choosing **退出 GoalBoard** explicitly kills all PTY children and any local Web process that this App instance started before exiting. A Web service that was already running independently remains untouched. Clicking elsewhere or pressing Esc continues to hide only the temporary Capsule popover.
+Closing the main window hides it and prevents destruction. Opening a Goal always navigates and shows that reusable window. Choosing **退出 Molis Work** explicitly kills all PTY children and any local Web process that this App instance started before exiting. A Web service that was already running independently remains untouched. Clicking elsewhere or pressing Esc continues to hide only the temporary Capsule popover.
 
 ## Inputs, outputs, and module boundaries
 
@@ -72,7 +72,7 @@ Closing the main window hides it and prevents destruction. Opening a Goal always
 
 1. Offline state explicitly says the latest work cannot be confirmed, menu bar changes from live work to **连接中断**, mutations are unavailable, and successful recovery reloads canonical state.
 2. Project, valid selected tab, and valid expanded Goal survive reopening/restart without creating business state or restoring invalid items.
-3. Closing the main window hides it; menu-bar and Capsule actions can reopen it at the correct GoalBoard path.
+3. Closing the main window hides it; menu-bar and Capsule actions can reopen it at the correct Molis Work path.
 4. App quit explicitly terminates every desktop PTY and Web process owned by that App instance, leaves no orphan desktop child, and does not stop an independently managed Web service.
 5. All actions have keyboard paths; tab and Goal focus remain stable after local re-render; an expanded long title is readable; reduced motion does not remove status meaning.
 6. Focused and full TypeScript tests, Rust tests, build, macOS release build, installed-app startup, menu-bar/popover lifecycle, cross-Project view, and representative controls pass.

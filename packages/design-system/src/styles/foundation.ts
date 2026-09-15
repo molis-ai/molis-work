@@ -109,11 +109,11 @@ export const FOUNDATION_STYLES = `  :root {
     height: 2px;
     background: var(--blue);
     transform-origin: left center;
-    animation: goalboard-navigation-progress .7s ease-in-out infinite alternate;
+    animation: molis-work-navigation-progress .7s ease-in-out infinite alternate;
     pointer-events: none;
   }
   body[data-navigation-pending="true"] a[aria-busy="true"] { color: var(--blue-dark); }
-  @keyframes goalboard-navigation-progress {
+  @keyframes molis-work-navigation-progress {
     from { transform: scaleX(.45); opacity: .72; }
     to { transform: translateX(160%) scaleX(1.1); opacity: 1; }
   }

@@ -1,7 +1,7 @@
-import type { UiContribution } from "@adeptify/goalboard-contracts/platform/ui";
-import { artifactVersionPath, type ArtifactBrowserView } from "./browser.js";
+import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
+import { artifactDisplayTitle, artifactVersionPath, type ArtifactBrowserView } from "./browser.js";
 
-export const ARTIFACT_BROWSER_UI_CONTRIBUTION_ID = "io.goalboard.native.artifacts.browser.v1";
+export const ARTIFACT_BROWSER_UI_CONTRIBUTION_ID = "io.molis.work.native.artifacts.browser.v1";
 
 export interface ArtifactBrowserUiModel {
   readonly view: ArtifactBrowserView;
@@ -18,8 +18,9 @@ function directory({ view, routePrefix, primitives: p }: ArtifactBrowserUiModel)
   if (!view.versions.length) return `<p class="artifact-empty">${p.text("还没有 Artifact。插件明确发布的结果会出现在这里；普通文件引用和私人会话不会自动加入。")}</p>`;
   return `<nav aria-label="${p.text("Artifact 版本")}" class="artifact-version-list">${view.versions.map((artifact) => {
     const selected = view.selected?.artifact_id === artifact.artifact_id && view.selected.version === artifact.version;
-    return `<a href="${p.escape(routePrefix + artifactVersionPath(artifact))}"${selected ? ' aria-current="page"' : ""}>
-      <strong>${p.escape(artifact.artifact_id)}</strong><span>v${artifact.version} · ${p.escape(artifact.artifact_type_id)}</span>
+    const title = artifactDisplayTitle(artifact);
+    return `<a href="${p.escape(routePrefix + artifactVersionPath(artifact))}" draggable="true" data-frame-asset="artifact" data-frame-asset-id="${p.escape(artifact.artifact_id + "#" + artifact.version)}" data-frame-asset-title="${p.escape(title)}" data-frame-asset-caption="${p.escape("v" + artifact.version + " · " + artifact.artifact_type_id)}"${selected ? ' aria-current="page"' : ""}>
+      <strong>${p.escape(title)}</strong><span>v${artifact.version} · ${p.escape(artifact.artifact_type_id)}</span>
       <small>${p.escape(p.formatDate(artifact.created_at))} · ${p.text(artifact.lifecycle_state === "archived" ? "已归档" : artifact.availability === "unavailable" ? "内容不可用" : "可用")}</small>
     </a>`;
   }).join("")}</nav>`;
@@ -36,6 +37,7 @@ function detail(model: ArtifactBrowserUiModel, embedded: boolean): string {
     <p>${p.text(view.requested ? "它可能属于其他项目，或这个版本尚未发布。请返回列表选择；不会自动替换成最新版本。" : "查看插件发布的结果、来源和原始内容，不改变 Goal 或 Evidence。")}</p>
     ${view.requested ? `<a href="${p.escape(routePrefix + "/artifacts")}">${p.text("返回 Artifact 列表")}</a>` : ""}</section>`;
   const href = routePrefix + artifactVersionPath(artifact);
+  const title = artifactDisplayTitle(artifact);
   const notice = view.compatibility?.reason === "artifact_unavailable"
     ? "这个版本的内容不可用；引用和来源信息仍然保留。"
     : view.compatibility?.reason === "artifact_archived"
@@ -47,7 +49,7 @@ function detail(model: ArtifactBrowserUiModel, embedded: boolean): string {
         : "已有兼容的类型声明；具体操作由消费插件提供。";
   const reference = JSON.stringify({ artifact_id: artifact.artifact_id, version: artifact.version });
   return `<article class="artifact-detail${embedded ? " artifact-embed" : ""}" data-artifact-id="${p.escape(artifact.artifact_id)}" data-artifact-version="${artifact.version}">
-    <header>${embedded ? `<h3><a href="${p.escape(href)}">${p.escape(artifact.artifact_id)}</a></h3>` : `<h1>${p.escape(artifact.artifact_id)}</h1>`}<span>v${artifact.version}${model.relationship ? ` · ${p.text(model.relationship === "input" ? "输入结果" : "产出结果")}` : ""}</span></header>
+    <header>${embedded ? `<h3><a href="${p.escape(href)}">${p.escape(title)}</a></h3>` : `<h1>${p.escape(title)}</h1>`}<span>v${artifact.version}${model.relationship ? ` · ${p.text(model.relationship === "input" ? "输入结果" : "产出结果")}` : ""}</span></header>
     <p class="artifact-notice">${p.text(embedded && view.compatibility?.reason === "consumer_missing" ? "没有兼容插件。可打开这个版本查看信息或导出本地副本。" : notice)}</p>
     ${artifact.unavailable_reason ? `<p>${p.escape(artifact.unavailable_reason)}</p>` : ""}
     <dl class="artifact-facts">
@@ -64,14 +66,28 @@ function detail(model: ArtifactBrowserUiModel, embedded: boolean): string {
   </article>`;
 }
 
+export function renderArtifactFrameBlock({ view, primitives: p }: ArtifactBrowserUiModel): string {
+  const artifact = view.selected;
+  if (!artifact) {
+    return `<article class="frame-reading" data-frame-reading="artifact"><p>${p.text(view.requested ? "找不到这个 Artifact 版本" : "选择一个结果版本")}</p></article>`;
+  }
+  return `<article class="frame-reading" data-frame-reading="artifact" data-artifact-id="${p.escape(artifact.artifact_id)}" data-artifact-version="${artifact.version}">
+    <p class="frame-reading-meta">v${artifact.version} · ${p.escape(artifact.artifact_type_id)}</p>
+    <div class="artifact-facts">
+      <p>${p.escape(artifact.artifact_type_id)} · Schema ${artifact.schema_version} · ${p.escape(artifact.producer_plugin_id)} ${p.escape(artifact.producer_plugin_version)} · ${p.escape(p.formatDate(artifact.created_at))}</p>
+    </div>
+  </article>`;
+}
+
 export const artifactBrowserUiContribution: UiContribution<ArtifactBrowserUiModel> = {
   descriptor: {
-    contribution_id: ARTIFACT_BROWSER_UI_CONTRIBUTION_ID, plugin_id: "io.goalboard.native.artifacts",
+    contribution_id: ARTIFACT_BROWSER_UI_CONTRIBUTION_ID, plugin_id: "io.molis.work.native.artifacts",
     kind: "primary-page", navigation_id: "artifacts", label: "Artifacts", slots: [],
     surfaces: [
       { surface_id: "directory", target_slot_id: "workbench.directory", format: "declarative-html" },
       { surface_id: "detail", target_slot_id: "workbench.main", format: "declarative-html" },
       { surface_id: "embed", target_slot_id: "workbench.main", format: "declarative-html" },
+      { surface_id: "frame-block", target_slot_id: "workbench.main", format: "declarative-html" },
     ],
   },
   render({ surface, model }) {
@@ -79,6 +95,7 @@ export const artifactBrowserUiContribution: UiContribution<ArtifactBrowserUiMode
       case "directory": return directory(model);
       case "detail": return detail(model, false);
       case "embed": return detail(model, true);
+      case "frame-block": return renderArtifactFrameBlock(model);
       default: throw new Error(`Artifact UI surface ${surface} 不存在`);
     }
   },

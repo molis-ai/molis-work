@@ -2,7 +2,7 @@
 
 ## 整项审查补齐项目工作规则页面
 
-审查发现 `renderGoalBoardProjectSettings` 仍在 root 定位项目默认 binding、合并预填并渲染项目规则说明/回执/脚注；专属保存脚本和样式仍在 Workbench settings 聚合。该页面属于已接受的 Policy UI，不可归入笼统 Shell later 后声称 GW5 完成。将完整 settings document body 与预填交由既有 Policy contribution 的 project surface，脚本/样式/专属英文文案归 Goals。共享项目导航、head/meta/token/桌面标识继续由 Host 组装。旧 public asset 名作为 Workbench mount/export 保留，但不复制实现。
+审查发现 `renderMolisWorkProjectSettings` 仍在 root 定位项目默认 binding、合并预填并渲染项目规则说明/回执/脚注；专属保存脚本和样式仍在 Workbench settings 聚合。该页面属于已接受的 Policy UI，不可归入笼统 Shell later 后声称 GW5 完成。将完整 settings document body 与预填交由既有 Policy contribution 的 project surface，脚本/样式/专属英文文案归 Goals。共享项目导航、head/meta/token/桌面标识继续由 Host 组装。旧 public asset 名作为 Workbench mount/export 保留，但不复制实现。
 
 保留 last active project_default binding 选择、系统默认预填、所有说明/回执 DOM、表单字段/验证/失败恢复、sessionStorage 一次性回执与保存后 reload。比较迁移前后的中英文/桌面/空项目页面及脚本/样式；真实浏览器使用隔离项目验证缺失原因、失败重试、保存后恢复字段与回执、后台唯一更新及后续 Goal 继承。界面视觉与产品策略不改；公共 raw IIFE 保留既有 CONTROL/L Host 入口，不改整个 settings bootstrap。
 
@@ -10,7 +10,7 @@
 
 随后将 personal/project Planning GET 的定位/404/页面选择接入统一 Workbench request adapter，消费 Goals route owner。Host 仍按原顺序提供有效 methods、Project context 和已 mount 的 renderer；project 新建页不增加 methods 查询，personal 路由保留原有效方法加载。保留两个 scope 不同的 404 文案、project 仅选择 project 方法、非法编码的原异常路径、GET-only 和响应头；Planning 写入、采用确认和权限不变。验证生产公共请求入口与真实 Planning 浏览器/HTTP 回归。
 
-将根 `renderGoalBoardWeb` / `renderGoalBoardRefreshFragment` 的页面编排整体迁入 Workbench 有限 renderer，保留两个公共函数名和原参数默认值。输入仅约束集合、项目导航及 route prefix；完整 Web read model 通过泛型传给既有 owner，不复制根类型、Store 或执行规则。Goal document/tree/dialog、Feed、Work terminal/project operations 都通过明确的 owner 渲染入口装配，公共 HTML 外框、语言、图标、导航前缀仍是 Host 原语。Goals 在一级目录的入口模板由既有 Tree contribution 提供；Workbench 决定位置，不复制该按钮产品内容。
+将根 `renderMolisWorkWeb` / `renderMolisWorkRefreshFragment` 的页面编排整体迁入 Workbench 有限 renderer，保留两个公共函数名和原参数默认值。输入仅约束集合、项目导航及 route prefix；完整 Web read model 通过泛型传给既有 owner，不复制根类型、Store 或执行规则。Goal document/tree/dialog、Feed、Work terminal/project operations 都通过明确的 owner 渲染入口装配，公共 HTML 外框、语言、图标、导航前缀仍是 Host 原语。Goals 在一级目录的入口模板由既有 Tree contribution 提供；Workbench 决定位置，不复制该按钮产品内容。
 
 保留完整页与 refresh 页的 DOM、调用顺序、Decision/归档/回收的 TUI 与态势显示条件、空集合、项目链接前缀、桌面标识和客户端数据。迁移前保存隔离输出，再比较中英文完整页面/refresh，并验证真实 HTTP、浏览器导航/刷新、Desktop 回归。不会因此把跨 owner Decision/Execution 内容移进 Goals，或宣布全局 Cutover 完成。
 

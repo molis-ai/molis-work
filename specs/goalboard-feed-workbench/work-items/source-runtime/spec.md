@@ -1,6 +1,6 @@
 # 来源管理与定时拉取运行底座
 
-GoalBoard Goal：`goal-infoflow-source-runtime`
+Molis Work Goal：`goal-infoflow-source-runtime`
 
 完成等级：4（本 Work Item 的来源运行底座达到内部完整；GitHub、Gmail、RSS 各自的真实 Provider 能力仍由后续 Goal 验收）
 

@@ -33,7 +33,7 @@
 
 - 本机真实 PTY 测试已运行；没有启动外部 AI 任务或新对话能力。
 - 原生 macOS App 未重新安装/打包/启动验证，因此不能宣称等级 4/5 或真实窗口标题栏已经验收。
-- 隔离开发预览：http://127.0.0.1:64521/projects/project-88e68787-f14b-4362-893f-8068d2b4fd4c/ 。数据目录 /private/tmp/goalboard-immersive-preview-20260912，含明确标记的开发预览项目和空白项目，产品读写接口真实。
+- 隔离开发预览：http://127.0.0.1:64521/projects/project-88e68787-f14b-4362-893f-8068d2b4fd4c/ 。数据目录 /private/tmp/molis-work-immersive-preview-20260912，含明确标记的开发预览项目和空白项目，产品读写接口真实。
 - 原型 64520 保留为对照；当前生产分支 feature/immersive-workbench，未提交、未发布，保留既有其他任务改动。
 
 最终自检补充：目录选中按钮与外层行的状态原先不同步，已在 Goals 所属 selectTreeGoal 中统一更新；真实浏览器验证只有当前 Goal 行处于选中态，失败恢复、键盘和浏览历史继续通过。

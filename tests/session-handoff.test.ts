@@ -1,24 +1,24 @@
-import { openGoalBoardProjectCatalog } from "@adeptify/goalboard-app-desktop";
-import { RegistryFallbackSessionAdapter } from "@adeptify/goalboard-plugin-work";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { RegistryFallbackSessionAdapter } from "@molis-ai/molis-work-plugin-work";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import Database from "better-sqlite3";
-import { createContextLedger } from "@adeptify/goalboard-module-context-ledger";
+import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 
-import { DEMO_BOARD_ID, GoalProjectApplication } from "@adeptify/goalboard-app-local-host";
-import { LocalProjectDatabase } from "@adeptify/goalboard-app-local-host";
-import { CodexRuntimeSessionAdapter, RuntimeHostRouter } from "@adeptify/goalboard-service-runtime-host";
-import { SessionContentService } from "@adeptify/goalboard-plugin-work";
-import { SessionDirectoryService } from "@adeptify/goalboard-plugin-work";
-import { SessionHandoffService, buildSessionHandoffPackage } from "@adeptify/goalboard-plugin-work";
-import { GoalBoardSessionRegistry } from "@adeptify/goalboard-module-private-work-context";
-import { GoalBoardSessionError } from "@adeptify/goalboard-module-private-work-context";
-import type { RuntimeSessionTransport } from "@adeptify/goalboard-contracts/services/runtime-host";
-import { createGoalBoardWebServer } from "../apps/desktop/launchers/web/server.js";
-import { openWorkSessionRegistry } from "@adeptify/goalboard-app-local-host";
+import { DEMO_BOARD_ID, GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { CodexRuntimeSessionAdapter, RuntimeHostRouter } from "@molis-ai/molis-work-service-runtime-host";
+import { SessionContentService } from "@molis-ai/molis-work-plugin-work";
+import { SessionDirectoryService } from "@molis-ai/molis-work-plugin-work";
+import { SessionHandoffService, buildSessionHandoffPackage } from "@molis-ai/molis-work-plugin-work";
+import { MolisWorkSessionRegistry } from "@molis-ai/molis-work-module-private-work-context";
+import { MolisWorkSessionError } from "@molis-ai/molis-work-module-private-work-context";
+import type { RuntimeSessionTransport } from "@molis-ai/molis-work-contracts/services/runtime-host";
+import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
 import {
   insertHistoricalClaim,
   insertHistoricalEvidence,
@@ -28,7 +28,7 @@ import {
 } from "./historical-sql-fixture.js";
 import { materializeGoalEventV35Fixture } from "./goal-event-v35-fixture.js";
 
-const WEB_TOKEN = "goalboard-session-handoff-token-0123456789abcdef";
+const WEB_TOKEN = "molis-work-session-handoff-token-0123456789abcdef";
 
 function handoffCurrentSection(content: string): string {
   return content.split("## 历史记录（只读）")[0] ?? content;
@@ -101,8 +101,8 @@ function createContract(databasePath: string, boardId: string, goalId: string) {
 }
 
 test("Handoff package uses the canonical Goal and a minimal Session context, then creates a new Codex Session", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "goalboard-session-handoff-"));
-  const home = path.join(directory, ".goalboard");
+  const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-session-handoff-"));
+  const home = path.join(directory, ".molis-work");
   const boardId = "project-handoff-native";
   const goalId = "goal-handoff-native";
   const { store, contract } = createContract(path.join(directory, "board.db"), boardId, goalId);
@@ -214,12 +214,12 @@ test("Handoff package uses the canonical Goal and a minimal Session context, the
   }
 });
 
-test("unsupported Runtime receives an honest GoalBoard fallback Session with encrypted package content", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "goalboard-session-handoff-fallback-"));
+test("unsupported Runtime receives an honest Molis Work fallback Session with encrypted package content", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-session-handoff-fallback-"));
   const boardId = "project-handoff-fallback";
   const goalId = "goal-handoff-fallback";
   const { store, contract } = createContract(path.join(directory, "board.db"), boardId, goalId);
-  const registry = await openWorkSessionRegistry({ homeDirectory: path.join(directory, ".goalboard") });
+  const registry = await openWorkSessionRegistry({ homeDirectory: path.join(directory, ".molis-work") });
   try {
     const source = registry.createSession({
       runtime_id: "runtime-without-read",
@@ -253,7 +253,7 @@ test("unsupported Runtime receives an honest GoalBoard fallback Session with enc
       user_confirmed: true,
     });
     assert.equal(sent.handoff.state, "sent");
-    assert.equal(sent.handoff.delivery_mode, "goalboard_fallback");
+    assert.equal(sent.handoff.delivery_mode, "molis_work_fallback");
     assert.equal(sent.destination_session?.runtime_id, "claude-code");
     assert.equal(sent.destination_session?.native_runtime_session_id, null);
     const targetContent = await content.read(sent.destination_session!.session_id);
@@ -267,11 +267,11 @@ test("unsupported Runtime receives an honest GoalBoard fallback Session with enc
 });
 
 test("a source Session without a current Goal cannot prepare a Handoff", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "goalboard-session-handoff-no-goal-"));
+  const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-session-handoff-no-goal-"));
   const boardId = "project-handoff-no-goal";
   const goalId = "goal-handoff-no-goal";
   const { store, contract } = createContract(path.join(directory, "board.db"), boardId, goalId);
-  const registry = await openWorkSessionRegistry({ homeDirectory: path.join(directory, ".goalboard") });
+  const registry = await openWorkSessionRegistry({ homeDirectory: path.join(directory, ".molis-work") });
   try {
     const source = registry.createSession({
       runtime_id: "unknown",
@@ -295,7 +295,7 @@ test("a source Session without a current Goal cannot prepare a Handoff", async (
         actor_id: "user",
         goal_contract: contract,
       }),
-      (error: unknown) => error instanceof GoalBoardSessionError && /当前 Goal/.test(error.message),
+      (error: unknown) => error instanceof MolisWorkSessionError && /当前 Goal/.test(error.message),
     );
   } finally {
     registry.close();
@@ -305,9 +305,9 @@ test("a source Session without a current Goal cannot prepare a Handoff", async (
 });
 
 test("project Handoff web API keeps the editable draft, requires confirmation, and exposes the target Session", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "goalboard-session-handoff-web-"));
-  const home = path.join(directory, ".goalboard");
-  const catalog = await openGoalBoardProjectCatalog({ homeDirectory: home });
+  const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-session-handoff-web-"));
+  const home = path.join(directory, ".molis-work");
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const project = await catalog.createProject({ display_name: "Handoff Web Project", actor_id: "user" });
   catalog.close();
 
@@ -360,7 +360,7 @@ test("project Handoff web API keeps the editable draft, requires confirmation, a
   });
   registry.close();
 
-  const server = createGoalBoardWebServer({ homeDirectory: home, controlToken: WEB_TOKEN });
+  const server = createMolisWorkWebServer({ homeDirectory: home, controlToken: WEB_TOKEN });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   try {
     const address = server.address();
@@ -373,8 +373,8 @@ test("project Handoff web API keeps the editable draft, requires confirmation, a
       headers: {
         origin,
         "content-type": "application/json",
-        "x-goalboard-control-token": WEB_TOKEN,
-        "x-goalboard-idempotency-key": `session-handoff-web-${++requestNumber}`,
+        "x-molis-work-control-token": WEB_TOKEN,
+        "x-molis-work-idempotency-key": `session-handoff-web-${++requestNumber}`,
       },
       body: JSON.stringify(body),
     });
@@ -435,7 +435,7 @@ test("project Handoff web API keeps the editable draft, requires confirmation, a
       destination_session: { session_id: string; runtime_id: string };
     };
     assert.equal(sent.handoff.state, "sent");
-    assert.equal(sent.handoff.delivery_mode, "goalboard_fallback");
+    assert.equal(sent.handoff.delivery_mode, "molis_work_fallback");
     assert.equal(sent.handoff.content, editedContent);
     assert.equal(sent.destination_session.runtime_id, "claude-code");
 
@@ -456,8 +456,8 @@ test("project Handoff web API keeps the editable draft, requires confirmation, a
 });
 
 test("event-work handoff package uses current facts and does not force Proposal or roles", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "goalboard-session-handoff-event-"));
-  const home = path.join(directory, ".goalboard");
+  const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-session-handoff-event-"));
+  const home = path.join(directory, ".molis-work");
   const boardId = "project-handoff-event";
   const store = new LocalProjectDatabase(path.join(directory, "board.db"));
   const coordinator = new GoalProjectApplication(store);
@@ -601,12 +601,12 @@ test("current handoff acceptance uses live event requirements; original v35 crit
 });
 
 test("completed Goal handoff names the public resume tool and keeps historical Run/Evidence/Risk out of current protocol", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "goalboard-session-handoff-resume-"));
+  const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-session-handoff-resume-"));
   const boardId = "project-handoff-resume";
   const goalId = "goal-handoff-resume";
   const { store, contract: openContract } = createContract(path.join(directory, "board.db"), boardId, goalId);
   const coordinator = new GoalProjectApplication(store);
-  const registry = await openWorkSessionRegistry({ homeDirectory: path.join(directory, ".goalboard") });
+  const registry = await openWorkSessionRegistry({ homeDirectory: path.join(directory, ".molis-work") });
   try {
     coordinator.goalEvents.configure({
       board_id: boardId,
@@ -669,7 +669,7 @@ test("completed Goal handoff names the public resume tool and keeps historical R
     });
     const current = handoffCurrentSection(content);
     const historical = handoffHistorySection(content);
-    assert.match(current, /goalboard_v1_event_resume/);
+    assert.match(current, /molis_work_v1_event_resume/);
     assert.match(current, /必须显式继续/);
     assert.doesNotMatch(content, /resumeWork\(/);
     assert.doesNotMatch(current, /## 当前 Run|有效 Evidence|待检查角色/);

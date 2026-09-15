@@ -22,10 +22,10 @@
 
 ## 旧变量边界
 
-- `GOALBOARD_SESSION_ID` 是新路径，表示 GoalBoard Session。
-- `GOALBOARD_PANEL_ID` 只表示 surface。
-- `GOALBOARD_GOAL_ID` 只提供启动时当前 Goal 候选；不独立创建或改写 Session。
-- `GOALBOARD_WORK_CONTEXT_ID` 只由 compatibility adapter 解释为 legacy correlation/work entry。
+- `MOLIS_WORK_SESSION_ID` 是新路径，表示 Molis Work Session。
+- `MOLIS_WORK_PANEL_ID` 只表示 surface。
+- `MOLIS_WORK_GOAL_ID` 只提供启动时当前 Goal 候选；不独立创建或改写 Session。
+- `MOLIS_WORK_WORK_CONTEXT_ID` 只由 compatibility adapter 解释为 legacy correlation/work entry。
 - `CODEX_THREAD_ID`、Claude Session env 与 MCP `_meta.threadId` 是 Runtime 原生身份候选；只有宿主声明或匹配 correlation/surface 时写入。
 
 ## 回退与恢复

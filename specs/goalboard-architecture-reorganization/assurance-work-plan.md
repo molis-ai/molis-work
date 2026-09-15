@@ -6,9 +6,9 @@
 
 ## 已有证据和缺口
 
-用户于本轮明确回答：“留到后续，本期只重组现有功能”。Outbox 的实现与重放验收留后续；本期仍完整验证既有事务、幂等、失败重试和恢复。此记录保存用户决定，正式 GoalBoard Contract revision 另走统一提案；未落地前不按旧条件声称完成。
+用户于本轮明确回答：“留到后续，本期只重组现有功能”。Outbox 的实现与重放验收留后续；本期仍完整验证既有事务、幂等、失败重试和恢复。此记录保存用户决定，正式 Molis Work Contract revision 另走统一提案；未落地前不按旧条件声称完成。
 
-2026-09-06 当前源码的 16 文件定向回归 55/0/0：Goals schema/Web升级、Feed旧游标、Session/Ledger/Handoff迁移及回滚、Artifact版本、Plugin私有存储/失败恢复/授权、Session与Feed加密、Runtime和Connector恢复。日志 `/private/tmp/goalboard-assurance-baseline.log`。
+2026-09-06 当前源码的 16 文件定向回归 55/0/0：Goals schema/Web升级、Feed旧游标、Session/Ledger/Handoff迁移及回滚、Artifact版本、Plugin私有存储/失败恢复/授权、Session与Feed加密、Runtime和Connector恢复。日志 `/private/tmp/molis-work-assurance-baseline.log`。
 
 尚缺一个跨数据库与加密 Blob 的完整离线恢复场景；单独验证文件可复制不是用户数据恢复证明。Storage 包仍 contract-only，没有现成通用在线备份实现。本轮测试采用停止全部写入后备份整个临时 Home，再在原绝对路径恢复，保留 Catalog 既有绝对项目路径语义；不声称跨机器搬家已验证。
 

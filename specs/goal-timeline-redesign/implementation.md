@@ -30,7 +30,7 @@ Grok 在当前仓库执行每项允许范围，主 Session 负责检查 diff、�
 
 - 代码分支最初为 `main`；已有未跟踪的本目录设计产物。
 - 既有 `desktop/20260902-022934.jpg` 删除与本任务无关，保持原样。
-- Node v24.14.0、pnpm 11.9.0；改动前 `pnpm build` 通过，日志 `/private/tmp/goalboard-events-baseline-build.log`。
+- Node v24.14.0、pnpm 11.9.0；改动前 `pnpm build` 通过，日志 `/private/tmp/molis-work-events-baseline-build.log`。
 - Grok CLI 已安装并登录，模型列表缓存含 `grok-4.6`；普通沙箱内模型列表联网被 DNS/网络限制阻止，实际执行需要获准的网络访问。
 
 ## 验收记录
@@ -50,16 +50,16 @@ Grok 在当前仓库执行每项允许范围，主 Session 负责检查 diff、�
 - 分支：`feature/goal-event-timeline`。
 - 直接 CLI 会话：`4f3ddf25-435f-435b-8cef-9cd2ca56e8ff`；显式参数 `--model grok-4.6 --reasoning-effort xhigh --no-subagents`。
 - 工作项：[01-event-facts/spec.md](work-items/01-event-facts/spec.md)。调用时提供允许修改范围、禁止真实用户数据迁移、测试与交回要求。
-- 本地诊断输出：`/private/tmp/goalboard-grok/01-events.ndjson`、`/private/tmp/goalboard-grok/01-stderr.log`。
-- 首轮实现已返回，主 Session 复核复现类型绑定未校验、特殊字段 ID 原型读取问题；同一 CLI 会话续接修复，记录 `/private/tmp/goalboard-grok/01-correction.ndjson`。修复后独立定向测试 12 pass / 0 fail（包含原有 Command/Lifecycle），日志 `/private/tmp/goalboard-grok/01-accepted-tests.log`。
-- Grok 报告构建和边界检查通过。主 Session 的独立构建起初被 pnpm 无 TTY 的自动依赖重装预检查阻止，原因是 `enableGlobalVirtualStore` 的环境值差异；以本进程 `pnpm_config_verify_deps_before_run=warn` 保留现有依赖并运行实际构建/边界检查，均通过，`errors: []`。日志 `/private/tmp/goalboard-grok/01-accepted-build.log`、`01-accepted-boundary.log`。未修改依赖或 lockfile。
+- 本地诊断输出：`/private/tmp/molis-work-grok/01-events.ndjson`、`/private/tmp/molis-work-grok/01-stderr.log`。
+- 首轮实现已返回，主 Session 复核复现类型绑定未校验、特殊字段 ID 原型读取问题；同一 CLI 会话续接修复，记录 `/private/tmp/molis-work-grok/01-correction.ndjson`。修复后独立定向测试 12 pass / 0 fail（包含原有 Command/Lifecycle），日志 `/private/tmp/molis-work-grok/01-accepted-tests.log`。
+- Grok 报告构建和边界检查通过。主 Session 的独立构建起初被 pnpm 无 TTY 的自动依赖重装预检查阻止，原因是 `enableGlobalVirtualStore` 的环境值差异；以本进程 `pnpm_config_verify_deps_before_run=warn` 保留现有依赖并运行实际构建/边界检查，均通过，`errors: []`。日志 `/private/tmp/molis-work-grok/01-accepted-build.log`、`01-accepted-boundary.log`。未修改依赖或 lockfile。
 - 验收：类型/历史恢复通过；要求支持→反证/未知及 Human 来源边界通过；非法输入/跨归属/整批回滚通过；同请求重放、冲突及双连接旧版本拒绝通过；新库/非空旧库升级与重复打开通过；分页与特殊字段恢复通过。01 内无未完成项；UI、正式状态和产品入口仍待后续项。
 
 ### 02 产品入口与 Runtime
 
 - 工作项：[02-runtime-entry/spec.md](work-items/02-runtime-entry/spec.md)。依赖 01 已验收。
 - 直接 CLI 会话：`4e992b95-709f-4838-b109-b87db9e12e83`；Grok 4.6 / xhigh / no-subagents。新会话读取自包含 spec 和现有公开实现，不复制前项整段聊天。
-- 本地诊断输出：`/private/tmp/goalboard-grok/02-events.ndjson`、`02-stderr.log`。首轮已交回，自报构建、8 个集成测试和边界检查通过；尚未验收。
+- 本地诊断输出：`/private/tmp/molis-work-grok/02-events.ndjson`、`02-stderr.log`。首轮已交回，自报构建、8 个集成测试和边界检查通过；尚未验收。
 - 主 Session 使用实际构建后的公开 Module/Native Goals API 与临时 SQLite 独立复现：55 条报告状态只读到第 49 条；第二 Goal 采用同名模板要求冲突；采用后省略规划追加局部类型失败；模板升级后原配置请求重试失败；Runtime 支持报告隐藏人工确认差距。另确认缺稳定 Session 时仍生成 runtime 级身份、多规划未处理等价合并。已补齐 02 验收条目，并在同一 CLI 会话续接修复；诊断输出 `02-correction-events.ndjson` / `02-correction-stderr.log`。
 - 修复后主 Session 独立构建通过；真实 Host/MCP、SQLite、重启及身份边界回归 22 pass / 0 fail / 0 skipped；边界检查 `errors: []`。日志 `02-accepted-build.log`、`02-accepted-tests.log`、`02-accepted-boundary.log`。另独立重跑原复现，最新报告、跨 Goal 默认要求、追加类型、模板升级重放、人工确认差距和缺失 Session 拒绝均通过，重放无新增事件。
 - 02 已验收。新增 Module 端口 `configureRequested(input, resolveAdoption)` 在同一事务内按原请求幂等、解析采用和配置；`listLatestReports` 为有界最新读取。Native `GoalEventApplication` 保持 createIntent/readState/configure/report/listEvents/readEvent，供 03 接入。
@@ -71,8 +71,8 @@ Grok 在当前仓库执行每项允许范围，主 Session 负责检查 diff、�
 
 - 工作项：[03-state-and-decisions/spec.md](work-items/03-state-and-decisions/spec.md)。依赖 02 已验收。
 - 直接 CLI 会话：`78de56d8-bf63-43c2-bce3-68405a745149`，Grok 4.6 / xhigh / no-subagents；明确单项写入边界、真实用户来源、旧状态 owner 检查和临时数据库验证。
-- 诊断输出：`/private/tmp/goalboard-grok/03-events.ndjson`、`03-stderr.log`。首轮构建与指定 32 项测试已通过，writer 正在完成包边界拆分；尚未验收。
-- 主 Session 的独立临时 Host/MCP 与 Native/SQLite 复现已确认：拒绝决定可被当作接受风险授权；无效来源可推翻 Concern；旧版本 outcome-only 写入可覆盖；依赖、明确人工验收、现存完成风险及适用待决定未进入收尾门禁；用户拒绝/后续反证与取消恢复状态不一致；无关类型变更误使授权失效；非法 kind 会完成；系统事件历史缺摘要原文且 payload 仍为任意对象。具体反例已追加 03 spec，首轮最终构建后再次独立重跑仍复现，同一 CLI 会话已续接修正，诊断输出 `03-correction-events.ndjson` / `03-correction-stderr.log`。独立脚本与输出在 `/private/tmp/goalboard-grok/03-review-{repro,gates}*`。
+- 诊断输出：`/private/tmp/molis-work-grok/03-events.ndjson`、`03-stderr.log`。首轮构建与指定 32 项测试已通过，writer 正在完成包边界拆分；尚未验收。
+- 主 Session 的独立临时 Host/MCP 与 Native/SQLite 复现已确认：拒绝决定可被当作接受风险授权；无效来源可推翻 Concern；旧版本 outcome-only 写入可覆盖；依赖、明确人工验收、现存完成风险及适用待决定未进入收尾门禁；用户拒绝/后续反证与取消恢复状态不一致；无关类型变更误使授权失效；非法 kind 会完成；系统事件历史缺摘要原文且 payload 仍为任意对象。具体反例已追加 03 spec，首轮最终构建后再次独立重跑仍复现，同一 CLI 会话已续接修正，诊断输出 `03-correction-events.ndjson` / `03-correction-stderr.log`。独立脚本与输出在 `/private/tmp/molis-work-grok/03-review-{repro,gates}*`。
 
 - 首轮修正已交回，主独立 build 和原 repro/gates/upgrade 行为通过。指定测试独立为 36 pass / 2 fail，均涉及同毫秒记录按随机 ID 选择旧 closure；新增 effects 接口独立复现效果与 bool 投影分歧、历史拒绝永久阻断、效果超范围。已追加同一 03 spec 并在原 Grok 会话集中续接，03 未验收。
 

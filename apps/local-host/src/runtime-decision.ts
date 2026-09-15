@@ -1,10 +1,10 @@
 import { createHash } from "node:crypto";
-import type { GoalTreeProposalDecisionAuthority } from "@adeptify/goalboard-contracts/modules/governance-collaboration";
-import type { GoalBoardRuntimeContextHost, RuntimeGoalTreeConfirmation } from "@adeptify/goalboard-contracts/platform/app-host";
+import type { GoalTreeProposalDecisionAuthority } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+import type { MolisWorkRuntimeContextHost, RuntimeGoalTreeConfirmation } from "@molis-ai/molis-work-contracts/platform/app-host";
 
 /** Audit provenance from trusted host metadata; this does not grant domain decision authority. */
 export function runtimeGoalTreeDecisionAuthority(
-  host: GoalBoardRuntimeContextHost | null,
+  host: MolisWorkRuntimeContextHost | null,
   context: { runtimeSessionId: string | null; runtimeSessionIdSource: string | null },
   confirmation: RuntimeGoalTreeConfirmation,
 ): GoalTreeProposalDecisionAuthority {

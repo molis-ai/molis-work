@@ -1,6 +1,6 @@
 /** Project-scoped UI preferences. Domain data and Runtime state are never written. */
 export const HOME_SHORTCUTS_FACTORY_SCRIPT = `({ home, translate: L, projectKey }) => {
-  const key = "goalboard:home-shortcuts:" + projectKey;
+  const key = "molis-work:home-shortcuts:" + projectKey;
   const list = home.querySelector("[data-home-shortcuts]");
   const add = home.querySelector("[data-home-shortcut-add]");
   const template = home.querySelector("[data-home-shortcut-template]");
@@ -20,7 +20,7 @@ export const HOME_SHORTCUTS_FACTORY_SCRIPT = `({ home, translate: L, projectKey 
   const report = message => { status.textContent = L(message); status.hidden = !message; };
   const load = () => {
     try {
-      const stored = JSON.parse(localStorage.getItem(key) || "[]");
+      const stored = JSON.parse(localStorage.getItem(key) || localStorage.getItem("goalboard:home-shortcuts:" + projectKey) || "[]");
       if (!Array.isArray(stored)) throw new Error("Invalid shortcuts");
       const ids = new Set();
       items = stored.filter(item => {
@@ -81,12 +81,12 @@ export const HOME_SHORTCUTS_FACTORY_SCRIPT = `({ home, translate: L, projectKey 
     const trigger = returnFocus?.isConnected ? returnFocus : add;
     if (!home.hidden) trigger.focus();
   });
-  window.addEventListener("storage", event => { if (event.key === key || event.key === null) { load(); render(); } });
+  window.addEventListener("storage", event => { if (event.key === key || event.key === "goalboard:home-shortcuts:" + projectKey || event.key === null) { load(); render(); } });
   home.addEventListener("click", async event => {
     const link = event.target.closest("a[data-home-external]");
-    if (!link || !globalThis.goalboardOpenExternalUrl) return;
+    if (!link || !globalThis.molisWorkOpenExternalUrl) return;
     event.preventDefault();
-    try { await globalThis.goalboardOpenExternalUrl(link.href); report(""); }
+    try { await globalThis.molisWorkOpenExternalUrl(link.href); report(""); }
     catch { report("无法打开链接，请检查系统浏览器后重试。"); }
   });
   load(); render();

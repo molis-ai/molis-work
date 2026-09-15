@@ -2,8 +2,8 @@ import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { WEB_CONTROL_TOKEN_RELATIVE_PATH } from "../web-control-token.js";
-import { INSTALLER_ID as HOME_OWNER, BUNDLED_NODE_LAUNCHER_HEADER, LEGACY_LAUNCHER_HEADER } from "./home-contract.js";
-import type { GoalBoardUninstallChange } from "./uninstall-contract.js";
+import { CURRENT_LAUNCHER_NAMES, LEGACY_LAUNCHER_NAMES, isOwnedInstaller, isOwnedLauncherText } from "./home-contract.js";
+import type { MolisWorkUninstallChange } from "./uninstall-contract.js";
 export async function inspectOwnedHomeAssets(homeDirectory: string): Promise<{
   ownedPaths: string[];
   snapshotPaths: string[];
@@ -19,8 +19,8 @@ export async function inspectOwnedHomeAssets(homeDirectory: string): Promise<{
   snapshotPaths.push(controlTokenPath);
   if (manifestText != null) {
     const manifest = parseOwnedJson(manifestText);
-    if (manifest?.installer === HOME_OWNER) ownedPaths.push(manifestPath);
-    else conflicts.push(`安装清单不属于 GoalBoard：${manifestPath}`);
+    if (isOwnedInstaller(manifest?.installer)) ownedPaths.push(manifestPath);
+    else conflicts.push(`安装清单不属于 Molis Work：${manifestPath}`);
   }
   const controlToken = await readText(controlTokenPath);
   if (controlToken != null) {
@@ -28,11 +28,11 @@ export async function inspectOwnedHomeAssets(homeDirectory: string): Promise<{
     if (token.length >= 32 && token.length <= 512 && !/[\r\n]/.test(token)) ownedPaths.push(controlTokenPath);
     else conflicts.push(`Web 控制令牌文件已被修改，不会删除：${controlTokenPath}`);
   }
-  for (const launcher of ["goalboard", "goalboard-mcp", "goalboard-web"].map((name) => path.join(homeDirectory, "bin", name))) {
+  for (const launcher of [...CURRENT_LAUNCHER_NAMES, ...LEGACY_LAUNCHER_NAMES].map((name) => path.join(homeDirectory, "bin", name))) {
     const text = await readText(launcher);
     snapshotPaths.push(launcher);
     if (text == null) continue;
-    if ([LEGACY_LAUNCHER_HEADER, BUNDLED_NODE_LAUNCHER_HEADER].some((header) => text.startsWith(header))) ownedPaths.push(launcher);
+    if (isOwnedLauncherText(text)) ownedPaths.push(launcher);
     else conflicts.push(`启动器已被修改，不会删除：${launcher}`);
   }
   const releasesDirectory = path.join(homeDirectory, "releases");
@@ -43,19 +43,19 @@ export async function inspectOwnedHomeAssets(homeDirectory: string): Promise<{
     const releaseManifestText = entry.isDirectory() ? await readText(releaseManifestPath) : null;
     snapshotPaths.push(releaseManifestPath);
     const manifest = releaseManifestText == null ? null : parseOwnedJson(releaseManifestText);
-    if (entry.isDirectory() && manifest?.installer === HOME_OWNER) ownedPaths.push(releasePath);
-    else conflicts.push(`release 不属于 GoalBoard 或已损坏，不会删除：${releasePath}`);
+    if (entry.isDirectory() && isOwnedInstaller(manifest?.installer)) ownedPaths.push(releasePath);
+    else conflicts.push(`release 不属于 Molis Work 或已损坏，不会删除：${releasePath}`);
   }
   return { ownedPaths, snapshotPaths, conflicts };
 }
 
-export function assetKind(target: string): GoalBoardUninstallChange["kind"] {
+export function assetKind(target: string): MolisWorkUninstallChange["kind"] {
   if (target.endsWith("installation.json")) return "install_manifest";
   if (target.includes(`${path.sep}releases${path.sep}`)) return "release";
   return "launcher";
 }
 
-export function assetKindLabel(kind: GoalBoardUninstallChange["kind"]): string {
+export function assetKindLabel(kind: MolisWorkUninstallChange["kind"]): string {
   if (kind === "install_manifest") return "安装清单";
   if (kind === "release") return "程序 release";
   return "启动器";

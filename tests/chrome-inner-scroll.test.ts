@@ -1,15 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  renderGoalBoardProjectIndexStylesheet,
-  renderGoalBoardSettingsStylesheet,
-  renderGoalBoardWorkbenchStylesheet,
+  renderMolisWorkProjectIndexStylesheet,
+  renderMolisWorkSettingsStylesheet,
+  renderMolisWorkWorkbenchStylesheet,
 } from "./workbench-renderer-fixture.js";
 
 test("project index, settings, and workbench keep titles pinned and scroll only the content lists", () => {
-  const index = renderGoalBoardProjectIndexStylesheet();
-  const settings = renderGoalBoardSettingsStylesheet();
-  const workbench = renderGoalBoardWorkbenchStylesheet();
+  const index = renderMolisWorkProjectIndexStylesheet();
+  const settings = renderMolisWorkSettingsStylesheet();
+  const workbench = renderMolisWorkWorkbenchStylesheet();
 
   assert.match(index, /html \{[^}]*overflow: hidden;/);
   assert.doesNotMatch(index, /body\.project-index-page \{ overflow: auto/);

@@ -4,7 +4,7 @@ import type {
   ProjectsApplicationApi,
   ProjectsCommandApi,
   ProjectsQueryApi,
-} from "@adeptify/goalboard-contracts/modules/projects";
+} from "@molis-ai/molis-work-contracts/modules/projects";
 
 import {
   ProjectService,
@@ -14,6 +14,7 @@ import {
 import {
   createProjectsSchema,
   migrateProjectDataClassSchema,
+  migrateProjectInboxPluginSchema,
   ProjectsRepository,
   type ProjectsSqliteDatabase,
   type StoredProjectDeletion,
@@ -21,11 +22,11 @@ import {
 import { normalizeProjectWorkspace, ProjectWorkspaceService } from "./workspace.js";
 
 export const packageDescriptor = {
-  packageName: "@adeptify/goalboard-module-projects",
+  packageName: "@molis-ai/molis-work-module-projects",
   packagePath: "modules/projects",
   kind: "module",
   maturity: "partial",
-  contract: "@adeptify/goalboard-contracts/modules/projects",
+  contract: "@molis-ai/molis-work-contracts/modules/projects",
   migrationGoals: ["goal-reorg-f2", "goal-reorg-ap1"],
   ssot: "docs/SSOT-MATRIX.md",
   capabilities: [
@@ -36,7 +37,7 @@ export const packageDescriptor = {
   ],
 } as const;
 
-export type GoalBoardPackageDescriptor = typeof packageDescriptor;
+export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export interface ProjectsModuleOptions {
   db: ProjectsSqliteDatabase;
@@ -82,6 +83,7 @@ export class ProjectsModule implements ProjectsApplicationApi {
     normalizeWorkspace: typeof normalizeProjectWorkspace;
     upsertWorkspaceMembership: ProjectWorkspaceService["upsertMembership"];
     unlinkWorkspaceMembership: ProjectWorkspaceService["unlink"];
+    updateDatabasePath: ProjectService["updateDatabasePath"];
   };
 
   constructor(options: ProjectsModuleOptions) {
@@ -130,6 +132,7 @@ export class ProjectsModule implements ProjectsApplicationApi {
         this.workspaces.upsertMembership(workspace, projectId, actorId),
       unlinkWorkspaceMembership: (workspaceId, projectId, actorId, removeEmptyWorkspace) =>
         this.workspaces.unlink(workspaceId, projectId, actorId, removeEmptyWorkspace),
+      updateDatabasePath: (projectId, databasePath) => this.records.updateDatabasePath(projectId, databasePath),
     };
   }
 }
@@ -137,6 +140,7 @@ export class ProjectsModule implements ProjectsApplicationApi {
 export {
   createProjectsSchema,
   migrateProjectDataClassSchema,
+  migrateProjectInboxPluginSchema,
   normalizeProjectWorkspace,
   ProjectService,
   ProjectsRepository,

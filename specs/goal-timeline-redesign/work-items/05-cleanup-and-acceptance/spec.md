@@ -86,7 +86,7 @@
 ### 明确不改
 
 - `desktop/20260902-022934.jpg` 既有删除保持。
-- 用户 `~/.goalboard`、凭据、lockfile、依赖安装。
+- 用户 `~/.molis-work`、凭据、lockfile、依赖安装。
 - 安装/签名/Runtime adapter 未改变的事实。
 - 根 `DESIGN.md` 与 `.impeccable/design.json`：本项只在验收记录列出真实布局与应删旧规则，由主 Session 最终 documenter 统一更新。
 - 不为验收重拍未改视觉面的截图；原六项视觉 finish review 保持 resolved。
@@ -128,7 +128,7 @@ pnpm_config_verify_deps_before_run=warn pnpm boundary:check
 
 ### 主复核的 owner 边界（2026-09-10，接入旧草稿前）
 
-主临时公开 API 复现 `/private/tmp/goalboard-grok/05-review-draft-owner.mjs`：`createIntent` 立即建立 event_work owner，同时 Goal.definition_state 仍是 draft；旧 `updateDraftGoal` 允许修改它，结果 `canonicalGoalOutcome=旧草稿表单的新结果` 而 `eventAgreementOutcome=原事件约定`。这说明 definition_state=draft 不是“可以走旧编辑器”的条件。主已暂停writer，保留全部清理并修订边界后续接。
+主临时公开 API 复现 `/private/tmp/molis-work-grok/05-review-draft-owner.mjs`：`createIntent` 立即建立 event_work owner，同时 Goal.definition_state 仍是 draft；旧 `updateDraftGoal` 允许修改它，结果 `canonicalGoalOutcome=旧草稿表单的新结果` 而 `eventAgreementOutcome=原事件约定`。这说明 definition_state=draft 不是“可以走旧编辑器”的条件。主已暂停writer，保留全部清理并修订边界后续接。
 
 旧草稿 UI 必须同时确认没有事件 owner，服务端正式命令也须拒绝 event owner（不能只藏按钮）。拒绝后 Goal字段、criteria、事件约定和事件事实均不变；旧未转交Draft仍可编辑。事件Goal修改约定继续用已存在的event-agree/configure，不把旧表单静默转换成事件或重新引入旧验收标准 owner。沿现有 owner 查询/命令边界做最小完整修复，不建立第二套owner检测协议。
 

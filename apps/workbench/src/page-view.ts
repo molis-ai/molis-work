@@ -1,8 +1,8 @@
-import type { BoardSnapshot, GoalPresentationState as WebGoalStatus, GoalsDocumentView as WebGoalView, GoalsCoverageItem as WebCoverageItem, GoalsInputBinding as WebInputBinding, GoalsPolicyBinding as WebPolicyBinding, GoalsDecisionEvent as WebEventRecord } from "@adeptify/goalboard-plugin-goals";
-import type { FeedSnapshot, RelayImportAvailability, FeedSourceCatalogView, FeedUiModel } from "@adeptify/goalboard-plugin-feed";
+import type { BoardSnapshot, GoalPresentationState as WebGoalStatus, GoalsDocumentView as WebGoalView, GoalsCoverageItem as WebCoverageItem, GoalsInputBinding as WebInputBinding, GoalsPolicyBinding as WebPolicyBinding, GoalsDecisionEvent as WebEventRecord } from "@molis-ai/molis-work-plugin-goals";
+import type { FeedSnapshot, RelayImportAvailability, FeedSourceCatalogView, FeedUiModel } from "@molis-ai/molis-work-plugin-feed";
 import type { WebProjectNavigation } from "./settings-navigation.js";
-export interface GoalBoardWebView {
-  enabled_plugins?: import("@adeptify/goalboard-contracts/modules/projects").BuiltinProjectPluginId[];
+export interface MolisWorkWebView {
+  enabled_plugins?: import("@molis-ai/molis-work-contracts/modules/projects").BuiltinProjectPluginId[];
   snapshot: BoardSnapshot;
   project: WebProjectNavigation | null;
   projects: WebProjectNavigation[];

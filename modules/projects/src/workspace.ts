@@ -9,7 +9,7 @@ import type {
   ProjectWorkspaceMembership,
   ProjectWorkspaceRef,
   RepairWorkspaceProjectInput,
-} from "@adeptify/goalboard-contracts/modules/projects";
+} from "@molis-ai/molis-work-contracts/modules/projects";
 
 import type { ProjectsErrorFactory } from "./project-service.js";
 import { ProjectsRepository } from "./repository.js";

@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createWorkbenchGoalsStatusRenderer, createWorkbenchGoalsFactorsRenderer } from "@adeptify/goalboard-app-workbench";
-import { type GoalsFactorsPrimitives } from "@adeptify/goalboard-plugin-goals";
-import { L, runWithLocale } from "@adeptify/goalboard-app-local-host";
-import { icon } from "@adeptify/goalboard-design-system";
+import { createWorkbenchGoalsStatusRenderer, createWorkbenchGoalsFactorsRenderer } from "@molis-ai/molis-work-app-workbench";
+import { type GoalsFactorsPrimitives } from "@molis-ai/molis-work-plugin-goals";
+import { L, runWithLocale } from "@molis-ai/molis-work-app-local-host";
+import { icon } from "@molis-ai/molis-work-design-system";
 
 const escapeHtml = (value: string) => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 

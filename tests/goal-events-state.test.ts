@@ -4,9 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { GoalProjectApplication, LocalProjectDatabase } from "@adeptify/goalboard-app-local-host";
-import { GoalBoardV1Error, handleGoalEventDecisionHttp, hostEventDecisionAuthority } from "@adeptify/goalboard-plugin-goals";
-import type { GoalEventTypeDefinitionInput } from "@adeptify/goalboard-contracts/modules/goals";
+import { GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkV1Error, handleGoalEventDecisionHttp, hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
+import type { GoalEventTypeDefinitionInput } from "@molis-ai/molis-work-contracts/modules/goals";
 
 const BOARD = "board-state";
 
@@ -25,7 +25,7 @@ function delivery(): GoalEventTypeDefinitionInput {
 }
 
 function fixture() {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-goal-events-state-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-goal-events-state-"));
   const store = new LocalProjectDatabase(join(directory, "project.db"));
   const app = new GoalProjectApplication(store);
   app.initializeBoard({
@@ -246,7 +246,7 @@ test("progress summary uses this Goal cursor, goes stale on new facts, and ignor
         board_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: "sum-future",
         based_on_cursor: cursor + 50, summary: "未来",
       }),
-      (error: unknown) => error instanceof GoalBoardV1Error && error.code === "event_progress.future_cursor",
+      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "event_progress.future_cursor",
     );
     const other = data.app.goalEvents.createIntent({
       board_id: BOARD, title: "另一个 Goal", actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: "intent-other",
@@ -267,7 +267,7 @@ test("progress summary uses this Goal cursor, goes stale on new facts, and ignor
         board_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: "sum-foreign",
         based_on_cursor: otherReport.events[0]!.journal_seq, summary: "错用其他 Goal",
       }),
-      (error: unknown) => error instanceof GoalBoardV1Error && error.code === "event_progress.cursor_not_on_goal",
+      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "event_progress.cursor_not_on_goal",
     );
 
     const combinedGoal = data.app.goalEvents.createIntent({
@@ -294,7 +294,7 @@ test("progress summary uses this Goal cursor, goes stale on new facts, and ignor
         }],
         progress: { summary: "不同进展" },
       }),
-      (error: unknown) => error instanceof GoalBoardV1Error && error.code === "request.idempotency_key_reused",
+      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "request.idempotency_key_reused",
     );
     const beforeBad = data.app.goalEvents.listEvents(BOARD, combinedGoal, { limit: 100 }).events.length;
     assert.throws(
@@ -305,7 +305,7 @@ test("progress summary uses this Goal cursor, goes stale on new facts, and ignor
         }],
         progress: { summary: "坏字段", unexpected: true } as never,
       }),
-      (error: unknown) => error instanceof GoalBoardV1Error && error.code === "event_report.unknown_progress_field",
+      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "event_report.unknown_progress_field",
     );
     assert.equal(data.app.goalEvents.listEvents(BOARD, combinedGoal, { limit: 100 }).events.length, beforeBad);
   } finally {
@@ -335,7 +335,7 @@ test("scoped concerns, trusted user decisions, reuse, and runtime forgery", () =
         board_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: "con-accept-runtime",
         action: "accept", concern_id: opened.concern.concern_id, reason: "Runtime 自行接受",
       }),
-      (error: unknown) => error instanceof GoalBoardV1Error && error.code === "event_concern.accept_requires_user_decision",
+      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "event_concern.accept_requires_user_decision",
     );
     const requested = data.app.goalEvents.requestDecision({
       board_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: "ask-1",
@@ -361,7 +361,7 @@ test("scoped concerns, trusted user decisions, reuse, and runtime forgery", () =
         accepts_requirements: true,
         scope: { requirement_ids: ["human-ok"] },
       }),
-      (error: unknown) => error instanceof GoalBoardV1Error && (
+      (error: unknown) => error instanceof MolisWorkV1Error && (
         error.code === "event_decision.runtime_dialogue_not_user" || error.code === "event_decision.untrusted_actor"
       ),
     );
@@ -395,7 +395,7 @@ test("scoped concerns, trusted user decisions, reuse, and runtime forgery", () =
         board_id: BOARD, goal_id: other.goal.goal_id, actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: "cite-cross",
         decision_id: decided.decision.decision_id,
       }),
-      (error: unknown) => error instanceof GoalBoardV1Error && error.code === "event_decision.not_found",
+      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "event_decision.not_found",
     );
     const followUp = reportSupport(data.app, goalId, "report-after-concern", "human-ok");
     const resolved = data.app.goalEvents.applyConcern({
@@ -491,7 +491,7 @@ test("cancel needs no fake evidence; ordinary reports do not resume; stale versi
       () => data.app.goalEvents.resumeWork({
         board_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: "resume-no-reason", reason: "   ",
       }),
-      (error: unknown) => error instanceof GoalBoardV1Error && error.code === "event_resume.reason_required",
+      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "event_resume.reason_required",
     );
     const resumed = data.app.goalEvents.resumeWork({
       board_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: "resume-1", reason: "明确继续",
@@ -506,14 +506,14 @@ test("cancel needs no fake evidence; ordinary reports do not resume; stale versi
       () => data.app.goalEvents.resumeWork({
         board_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: "resume-open", reason: "已在进行",
       }),
-      (error: unknown) => error instanceof GoalBoardV1Error && error.code === "event_resume.already_open",
+      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "event_resume.already_open",
     );
     assert.throws(
       () => data.app.goalEvents.submitClosure({
         board_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: "stale-close",
         kind: "complete", reason: "旧版本", expected_config_version: 0, expected_agreement_version: 0,
       }),
-      (error: unknown) => error instanceof GoalBoardV1Error && error.code === "event_closure.stale_version",
+      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "event_closure.stale_version",
     );
     const first = data.app.goalEvents.submitClosure({
       board_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: "close-retry",
@@ -1240,7 +1240,7 @@ test("later comparable decision is current; old cite cannot undo a later rejecti
 
 test("same-millisecond closures keep this-event receipt and journal-seq current read", () => {
   const frozen = new Date("2026-09-09T12:00:00.000Z");
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-goal-events-same-ms-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-goal-events-same-ms-"));
   const store = new LocalProjectDatabase(join(directory, "project.db"));
   const app = new GoalProjectApplication(store, () => frozen);
   const data = { directory, store, app };

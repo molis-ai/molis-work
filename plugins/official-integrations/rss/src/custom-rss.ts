@@ -4,7 +4,7 @@
  * Feed URLs are product identifiers, not credentials. Inbox Source rows may
  * store them in plaintext; Activity / Run ledgers must not.
  */
-import { FeedDomainError as DomainError } from "@adeptify/goalboard-contracts/modules/feed";
+import { FeedDomainError as DomainError } from "@molis-ai/molis-work-contracts/modules/feed";
 
 export const CUSTOM_RSS_DEFINITION_ID = "custom-rss";
 export const CUSTOM_RSS_MAX_URL_LENGTH = 2048;

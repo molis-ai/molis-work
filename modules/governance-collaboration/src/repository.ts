@@ -1,4 +1,4 @@
-import type { StoredModuleEvent } from "@adeptify/goalboard-contracts/platform/storage";
+import type { StoredModuleEvent } from "@molis-ai/molis-work-contracts/platform/storage";
 import type {
   CandidateGoalRecord,
   ContractProposalRecord,
@@ -9,7 +9,7 @@ import type {
   ReviewObligationRecord,
   ReviewRecord,
   RewireRecord,
-} from "@adeptify/goalboard-contracts/modules/governance-collaboration";
+} from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 
 import {
   json,

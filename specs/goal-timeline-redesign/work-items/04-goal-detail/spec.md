@@ -22,7 +22,7 @@ Workbench 的 `goal-document-panels.ts` 组装旧进展/完成/记录等面板�
 
 现有 `tests/goals-document.e2e.test.ts` 验证 lazy load 失败重试、刷新选择、迟到请求不覆盖新 Goal、桌面/手机；这些有效的异步与恢复约束应进入新界面验收，旧五个 tab 的选择器和行为应删除或重写。
 
-主 Session 已在隔离临时数据库启动真实 Web，并查看 1440px 桌面及约 534px 内容区。桌面目录默认 320px；已有 Goal 工作模式“聚焦 / Runtime”，手机还有目录/目标/聚焦/运行导航。截图 `../../.impeccable/review/production-baseline/desktop.png` 记录旧实现基线，只用于容器及替换范围参考，不是新版验收。演示运行位置保存在临时 `/private/tmp/goalboard-grok/ui-preview.json`；该服务会随后续构建/迁移需要重启。
+主 Session 已在隔离临时数据库启动真实 Web，并查看 1440px 桌面及约 534px 内容区。桌面目录默认 320px；已有 Goal 工作模式“聚焦 / Runtime”，手机还有目录/目标/聚焦/运行导航。截图 `../../.impeccable/review/production-baseline/desktop.png` 记录旧实现基线，只用于容器及替换范围参考，不是新版验收。演示运行位置保存在临时 `/private/tmp/molis-work-grok/ui-preview.json`；该服务会随后续构建/迁移需要重启。
 
 ## 行为合同
 
@@ -46,7 +46,7 @@ Workbench 的 `goal-document-panels.ts` 组装旧进展/完成/记录等面板�
 
 当前 `GoalEventListQuery` 只有 `after_cursor`，`listEvents` 从较早记录正向读取；`listLatestReports` 只含 report，不能代表完整时间线。04 必须提供有界的“最新系统/配置/报告 → 更早页”读取方式，并继续保留 Runtime 正向接续语义。沿 Goals Module 公开查询增加必要的明确方向/游标或独立历史查询，不在浏览器拉完所有事件再逆序。时间线索引可返回轻量项目，正文根据 event ID 读取；历史映射同样保证分页顺序、无重复和来源明确。
 
-`buildGoalBoardWebView` 目前经 `buildGoalsDocumentCollection` 为每个 Goal 调用旧 `getGoalWorkStates/getGoalActionProjections`、按全 Board journal 建索引。新 owner 的目录状态和主动作必须从事件当前状态得到，不能保留“draft 就待规划 / Claim 存在才正在推进”等旧推断。所选 Goal 的具体约定/Concern/决定/时间线按需加载；不把新事件完整正文塞入每个目录节点。既有 Feed、归档、回收站等有效职责保留，各处同一 Goal 的当前完成/取消表达应一致。
+`buildMolisWorkWebView` 目前经 `buildGoalsDocumentCollection` 为每个 Goal 调用旧 `getGoalWorkStates/getGoalActionProjections`、按全 Board journal 建索引。新 owner 的目录状态和主动作必须从事件当前状态得到，不能保留“draft 就待规划 / Claim 存在才正在推进”等旧推断。所选 Goal 的具体约定/Concern/决定/时间线按需加载；不把新事件完整正文塞入每个目录节点。既有 Feed、归档、回收站等有效职责保留，各处同一 Goal 的当前完成/取消表达应一致。
 
 原型提供布局与阅读路径，但未实现正式用户决定、收尾及类型版本修改。生产新增这些行为时沿右侧阅读面与原有视觉层级加入有明确返回路径的表单。所需正式版本来自最新状态，冲突展示“当前约定已变化”并保留输入供对照重试；不得在后台自动改 expected version 后提交旧判断。用户决定的效果、范围和来源以 03 最终有限 Contracts 为准。
 
@@ -61,7 +61,7 @@ Workbench 的 `goal-document-panels.ts` 组装旧进展/完成/记录等面板�
 
 ## 验证准备
 
-使用独立临时 home 和测试项目；公开 Web launcher 支持 `--home` 与 `--port`，不接受数据库 CLI 参数。临时目录通过项目 catalog + Host 创建项目，随后启动真实网页；禁止连接或迁移用户现用 ~/.goalboard。
+使用独立临时 home 和测试项目；公开 Web launcher 支持 `--home` 与 `--port`，不接受数据库 CLI 参数。临时目录通过项目 catalog + Host 创建项目，随后启动真实网页；禁止连接或迁移用户现用 ~/.molis-work。
 
 除构建/边界和真实 Web API 集成外，必须有浏览器关键路径、桌面和约 390px 窄屏截图及交互检查；重启服务后读回事实。最后按 Impeccable 已批准方向执行独立 finish review，具体可用评审方式遵守用户的直接 Grok CLI 执行要求。不得以 HTML 字符串存在或原型截图替代生产 UI 可用证据。
 
@@ -74,7 +74,7 @@ node --import tsx --test --test-concurrency=1 tests/goals-document-routes.test.t
 pnpm_config_verify_deps_before_run=warn pnpm boundary:check
 ```
 
-同批运行本项新增真实 HTTP/历史归属/事件 UI 集成测试；必要调整旧用例以验证替代后的实际行为，但不删除迟到响应、失败重试、恢复选择等仍有效约束。最终全套测试在 05 统一运行。现有 `goals-document.e2e` 支持 `GOALBOARD_TEST_CAPTURE=1` 输出临时截图，可沿真实 fixture 保存最终证据；截图位置须实际返回，不只报告“已截图”。
+同批运行本项新增真实 HTTP/历史归属/事件 UI 集成测试；必要调整旧用例以验证替代后的实际行为，但不删除迟到响应、失败重试、恢复选择等仍有效约束。最终全套测试在 05 统一运行。现有 `goals-document.e2e` 支持 `MOLIS_WORK_TEST_CAPTURE=1` 输出临时截图，可沿真实 fixture 保存最终证据；截图位置须实际返回，不只报告“已截图”。
 
 ## 既有 Goal 的明确转交策略
 

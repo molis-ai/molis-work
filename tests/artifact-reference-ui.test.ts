@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createArtifactReferenceRenderer, isProjectReference } from "@adeptify/goalboard-app-workbench";
-import { icon } from "@adeptify/goalboard-design-system";
-import { L, runWithLocale } from "@adeptify/goalboard-app-local-host";
+import { createArtifactReferenceRenderer, isProjectReference } from "@molis-ai/molis-work-app-workbench";
+import { icon } from "@molis-ai/molis-work-design-system";
+import { L, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 
 const render = createArtifactReferenceRenderer({
   escape: (value) => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;"),

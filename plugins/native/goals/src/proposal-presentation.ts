@@ -1,5 +1,5 @@
-import type { GoalTreeProposalRecord } from "@adeptify/goalboard-contracts/modules/governance-collaboration";
-import type { RiskRecord } from "@adeptify/goalboard-contracts/modules/goals";
+import type { GoalTreeProposalRecord } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+import type { RiskRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 import { goalTreeRiskDescription } from "./proposal-item-validation.js";
 import { GOALS_RELATION_LABELS as RELATION_LABELS } from "./relation-presentation.js";
 import { RISK_TREATMENT_LABELS } from "./risk-presentation.js";

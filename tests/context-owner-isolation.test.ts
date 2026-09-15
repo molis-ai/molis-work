@@ -4,15 +4,15 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Database from "better-sqlite3";
-import { createContextLedger } from "@adeptify/goalboard-module-context-ledger";
-import { FeedModule } from "@adeptify/goalboard-module-feed";
-import { AttentionModule } from "@adeptify/goalboard-module-attention-resumption";
-import { openWorkSessionRegistry } from "@adeptify/goalboard-app-local-host";
-import { GoalProjectApplication } from "@adeptify/goalboard-app-local-host";
-import { LocalProjectDatabase } from "@adeptify/goalboard-app-local-host";
+import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
+import { FeedModule } from "@molis-ai/molis-work-module-feed";
+import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
+import { openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
+import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 
 test("losing the Ledger does not delete Goal, Artifact or Feed content or recreate links from old columns", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "goalboard-owner-isolation-"));
+  const directory = await mkdtemp(join(tmpdir(), "molis-work-owner-isolation-"));
   const databasePath = join(directory, "fixture.db");
   let store = new LocalProjectDatabase(databasePath);
   const compose = () => {
@@ -58,7 +58,7 @@ test("losing the Ledger does not delete Goal, Artifact or Feed content or recrea
 });
 
 test("losing private Ledger links preserves the Session identity and encrypted event content after reopening", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "goalboard-work-owner-isolation-"));
+  const directory = await mkdtemp(join(tmpdir(), "molis-work-work-owner-isolation-"));
   let registry = await openWorkSessionRegistry({ homeDirectory: directory });
   try {
     const session = registry.createSession({ runtime_id: "codex", actor_id: "user", user_confirmed: true,

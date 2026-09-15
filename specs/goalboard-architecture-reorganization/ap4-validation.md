@@ -24,7 +24,7 @@ AP4 已把 Desktop 产品外壳、Runtime 启动配方、面板生命周期、Ca
 
 ### 当前能力与未来 adapter
 
-- 真实更新能力是内置 GoalBoard Runtime 的 semver 升级、安装和 owned service 修复，不等同于尚未实现的 App 自动更新器。
+- 真实更新能力是内置 Molis Work Runtime 的 semver 升级、安装和 owned service 修复，不等同于尚未实现的 App 自动更新器。
 - Tauri 使用显式 permission allowlist；PTY 与 Capsule commands 只有声明过的能力可以调用。
 - 菜单栏状态、Capsule 和窗口恢复是现有 native surface。
 - 系统通知与 Desktop Keychain 在迁移前不存在，AP4 没有注册假 adapter；将来实现时放在 Desktop Tauri adapter，通过公开 port 被正式 owner 调用。

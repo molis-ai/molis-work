@@ -5,12 +5,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { parsePluginManifest, PluginManifestError } from "@adeptify/goalboard-contracts/platform/plugin";
+import { parsePluginManifest, PluginManifestError } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 function manifest() {
   return {
     schema_version: 1, host_api_version: 1,
-    plugin_id: "io.goalboard.example.notes", version: "1.0.0", name: "Notes", kind: "integration",
+    plugin_id: "io.molis.work.example.notes", version: "1.0.0", name: "Notes", kind: "integration",
     publisher: { publisher_id: "local-developer", signature: "local-development-identity" },
     entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [{ permission: "artifact:write", required: true, reason: "分享用户选择的笔记" }],
@@ -44,17 +44,17 @@ test("wire Manifest rejects missing shapes, invalid permissions and incompatible
 });
 
 test("real Plugin CLI validates in a clean directory without executing entrypoint or modifying input", () => {
-  const directory = mkdtempSync(join(tmpdir(), "goalboard-plugin-cli-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-plugin-cli-"));
   try {
     const manifestPath = join(directory, "manifest.json");
     const bytes = JSON.stringify(manifest());
     writeFileSync(manifestPath, bytes);
     writeFileSync(join(directory, "entry.mjs"), 'import { writeFileSync } from "node:fs"; writeFileSync("executed", "bad");');
-    const cli = fileURLToPath(new URL("../tooling/plugin-cli/bin/goalboard-plugin.mjs", import.meta.url));
+    const cli = fileURLToPath(new URL("../tooling/plugin-cli/bin/molis-work-plugin.mjs", import.meta.url));
     const invoke = (...args: string[]) => spawnSync(process.execPath, [cli, ...args], { cwd: directory, encoding: "utf8" });
     const valid = invoke("validate", manifestPath);
     assert.equal(valid.status, 0, valid.stderr);
-    assert.deepEqual(JSON.parse(valid.stdout), { valid: true, plugin_id: "io.goalboard.example.notes", version: "1.0.0" });
+    assert.deepEqual(JSON.parse(valid.stdout), { valid: true, plugin_id: "io.molis.work.example.notes", version: "1.0.0" });
     assert.equal(readFileSync(manifestPath, "utf8"), bytes);
     assert.equal(existsSync(join(directory, "executed")), false);
     writeFileSync(manifestPath, JSON.stringify({ ...manifest(), host_api_version: 2 }));

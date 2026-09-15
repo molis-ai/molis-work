@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createWorkbenchGoalsMomentumRenderer, createWorkbenchUiHost } from "@adeptify/goalboard-app-workbench";
-import { GOALS_MOMENTUM_UI_CONTRIBUTION_ID, type GoalsMomentumItem, type GoalsMomentumBoardView } from "@adeptify/goalboard-plugin-goals";
-import type { GoalRelationRecord } from "@adeptify/goalboard-contracts/modules/goals";
-import { icon } from "@adeptify/goalboard-design-system";
-import { L, currentLocale, runWithLocale } from "@adeptify/goalboard-app-local-host";
+import { createWorkbenchGoalsMomentumRenderer, createWorkbenchUiHost } from "@molis-ai/molis-work-app-workbench";
+import { GOALS_MOMENTUM_UI_CONTRIBUTION_ID, type GoalsMomentumItem, type GoalsMomentumBoardView } from "@molis-ai/molis-work-plugin-goals";
+import type { GoalRelationRecord } from "@molis-ai/molis-work-contracts/modules/goals";
+import { icon } from "@molis-ai/molis-work-design-system";
+import { L, currentLocale, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 
 const escapeHtml = (value: unknown) => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 const renderer = createWorkbenchGoalsMomentumRenderer({ translate: L, escapeHtml, icon, currentLocale,
@@ -29,6 +29,11 @@ test("canvas renders provider-to-consumer edges, keeps parent membership separat
   assert.match(html, /属于：Parent/);
   assert.match(html, /API → User &quot;&lt;title&gt; · Provider &quot;result&quot; &lt;safe&gt;/);
   assert.match(html, /展开 Goal：User &quot;&lt;title&gt;/);
+  assert.match(html, /打开 Frame：User &quot;&lt;title&gt;/);
+  assert.match(html, /class="goal-canvas-frame"/);
+  assert.match(html, /class="goal-canvas-open"/);
+  assert.match(html, /data-graph-frame/);
+  assert.match(html, /data-graph-open/);
   const providerX = Number(html.match(/data-goal-id="API" data-node-x="(\d+)"/)?.[1]);
   const consumerX = Number(html.match(/data-goal-id="APP" data-node-x="(\d+)"/)?.[1]);
   assert.ok(providerX < consumerX, "the provider is placed before its consumer");
@@ -57,6 +62,8 @@ test("canvas has an honest empty state and localizes controls without translatin
   const html = runWithLocale("en", () => renderer.renderGoalMomentum(model, "USER", model.goals));
   assert.match(html, /<strong>目标关系<\/strong>/);
   assert.match(html, /<h1>Goal relationships<\/h1>/);
+  assert.match(html, /Open Frame/);
+  assert.match(html, /Open Goal/);
   assert.match(renderer.renderGoalMomentum(model, "USER", model.goals), /<h1>目标关系<\/h1>/);
 });
 

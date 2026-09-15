@@ -15,8 +15,8 @@ CLI 此时先打印“启动/重启成功”，用户立刻打开页面会看到
 ## 范围
 
 - 建立 service provider 接口，首版实现 macOS LaunchAgent。
-- plist 只执行 `~/.goalboard/bin/goalboard-web --home ~/.goalboard`，使用稳定 launcher；日志写入
-  `~/.goalboard/logs`，监听仍限制 loopback。服务环境显式包含安装时 Node 所在目录，不能依赖
+- plist 只执行 `~/.molis-work/bin/molis-work-web --home ~/.molis-work`，使用稳定 launcher；日志写入
+  `~/.molis-work/logs`，监听仍限制 loopback。服务环境显式包含安装时 Node 所在目录，不能依赖
   交互式 shell 的 PATH。
 - UI/CLI 提供 detect、preview、confirm install/start/stop/restart/remove 和 status。
 - 未确认不写 `~/Library/LaunchAgents`；写入前展示路径、label、命令、日志和恢复行为。

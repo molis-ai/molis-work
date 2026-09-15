@@ -11,7 +11,7 @@ export type HostMethodCapability<Method> = Method extends (...args: infer Args) 
   ? HostCapabilityDefinition<Args, Result> : never;
 
 export const platformAppHostContract = {
-  contractId: "io.goalboard.platform.app-host.v1",
+  contractId: "io.molis.work.platform.app-host.v1",
   kind: "platform",
   schemaVersion: 1,
   maturity: "partial",
@@ -119,7 +119,7 @@ export interface LocalHostProjectClient {
   ): Promise<Output>;
 }
 
-export { SUPPORTED_RUNTIME_IDS, type SupportedRuntimeId, type RuntimeConnectionState, type RuntimeIntegrationDetection, type GoalBoardWebServiceState, type GoalBoardWebServiceDetection } from "./installation-detection.js";
+export { SUPPORTED_RUNTIME_IDS, type SupportedRuntimeId, type RuntimeConnectionState, type RuntimeIntegrationDetection, type MolisWorkWebServiceState, type MolisWorkWebServiceDetection } from "./installation-detection.js";
 
 export type DesktopPanelErrorCode =
   | "catalog.invalid_name"

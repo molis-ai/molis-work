@@ -4,7 +4,7 @@
  * Channel IDs are product identifiers, not credentials. Inbox Source rows may
  * store them in plaintext; Activity / Run ledgers must not.
  */
-import { FeedDomainError as DomainError } from "@adeptify/goalboard-contracts/modules/feed";
+import { FeedDomainError as DomainError } from "@molis-ai/molis-work-contracts/modules/feed";
 
 export const YOUTUBE_CHANNEL_DEFINITION_ID = "youtube-channel";
 export const YOUTUBE_PUBLIC_FEED_HOST = "www.youtube.com";

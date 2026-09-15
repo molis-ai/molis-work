@@ -1,41 +1,42 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { GoalBoardLocalHost } from "./project-host.js";
+import type { MolisWorkLocalHost } from "./project-host.js";
 import type { RuntimeIntegrationService } from "./installer/runtime-integration.js";
-import type { GoalBoardWebServiceManager } from "./installer/web-service.js";
+import type { MolisWorkWebServiceManager } from "./installer/web-service.js";
 import type { WebServerOptions, FeedSchedulerRuntime } from "./web-types.js";
 import type { LocalWebComposition } from "./web-composition.js";
-import { sendLocalWebJson as sendJson, readLocalWebBody as readBody } from "./web-http.js";
+import { sendLocalWebJson as sendJson, readLocalWebBody as readBody, requestHeader } from "./web-http.js";
 import { L } from "./web-locale.js";
 import fs from "node:fs";
-import { handleGoalsWebHttp } from "@adeptify/goalboard-plugin-goals";
-import { createWorkbenchGoalsAdapter, type GoalBoardWebView } from "@adeptify/goalboard-app-workbench";
-import type { GoalBoardPtyHost } from "@adeptify/goalboard-service-runtime-host";
+import { handleGoalsWebHttp } from "@molis-ai/molis-work-plugin-goals";
+import { createWorkbenchGoalsAdapter, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
+import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host";
 import type { SessionRuntimeResources } from "./web-session.js";
-import { cachedGoalBoardWebView, type GoalBoardWebViewCache } from "./web-view.js";
-import { goalBoardHostProjectReference } from "./project-host.js";
+import { cachedMolisWorkWebView, type MolisWorkWebViewCache } from "./web-view.js";
+import { molisWorkHostProjectReference } from "./project-host.js";
 import { createLocalFeedApplication } from "./feed-application.js";
 import { createLocalFeedSourceScheduler } from "./feed-source-scheduler.js";
 import { createLocalFeedConnectorService } from "./feed-connector-service.js";
 import { handleFeedNativePluginHttp } from "./feed-native-plugin-http.js";
+import { handleInboxNativePluginHttp } from "./inbox-native-plugin-http.js";
 import { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
 import { serviceProcessId } from "./web-runtime-settings.js";
 import { resolveWebRequest } from "./web-routing.js";
 import { handleLocalCatalogWebRequest } from "./web-catalog.js";
 
-export async function handleGoalBoardWebRequest(
+export async function handleMolisWorkWebRequest(
   request: IncomingMessage,
   response: ServerResponse,
   url: URL,
   serverOptions: WebServerOptions,
   runtimeIntegrations: RuntimeIntegrationService,
-  webService: GoalBoardWebServiceManager,
+  webService: MolisWorkWebServiceManager,
   controlToken: string,
-  webViewCache: GoalBoardWebViewCache,
+  webViewCache: MolisWorkWebViewCache,
   feedSchedulers: Map<string, FeedSchedulerRuntime>,
-  ptyHost: GoalBoardPtyHost,
+  ptyHost: MolisWorkPtyHost,
   webUrl: string,
   sessionResources: Promise<SessionRuntimeResources>,
-  localHost: GoalBoardLocalHost,
+  localHost: MolisWorkLocalHost,
   composition: LocalWebComposition,
 ): Promise<void> {
   const { PAGE_CSP, handleSessions, handleDesktopPanelApi, goalsReadHttp, planningHttp, desktopRuntimeAvailability, servePtyClient, workbenchRenderer, buildCapsuleSnapshot, handleArtifactNativePluginHttp, isDesktopShellRequest } = composition;
@@ -52,21 +53,21 @@ export async function handleGoalBoardWebRequest(
     return;
   }
       if (resolved.kind === "project_not_found") {
-        sendJson(response, 404, { error: L("找不到这个 GoalBoard 项目") });
+        sendJson(response, 404, { error: L("找不到这个 Molis Work 项目") });
         return;
       }
       const options = resolved.options;
       url.pathname = resolved.pathname;
       if (!fs.existsSync(options.databasePath)) {
         if (url.pathname.startsWith("/api/")) {
-          sendJson(response, 404, { error: "GoalBoard 数据库不存在，请先初始化" });
+          sendJson(response, 404, { error: "Molis Work 数据库不存在，请先初始化" });
         } else {
           response.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
-          response.end("GoalBoard 数据库不存在，请先运行 goalboard v1 init。\n");
+          response.end("Molis Work 数据库不存在，请先运行 molis-work v1 init。\n");
         }
         return;
       }
-      const hostReference = goalBoardHostProjectReference({
+      const hostReference = molisWorkHostProjectReference({
         databasePath: options.databasePath,
         boardId: options.boardId,
         projectId: options.project?.project_id,
@@ -83,8 +84,8 @@ export async function handleGoalBoardWebRequest(
         }).catch(() => undefined);
       }
       const goalsAdapter = createWorkbenchGoalsAdapter(coordinator.goals);
-      const readWebView = (): GoalBoardWebView =>
-        cachedGoalBoardWebView(webViewCache, store, coordinator, options);
+      const readWebView = (): MolisWorkWebView =>
+        cachedMolisWorkWebView(webViewCache, store, coordinator, options);
       {
         const projectSessionWorkspaceMatch = url.pathname.match(/^\/(sessions|workspaces)$/);
         if (request.method === "GET" && projectSessionWorkspaceMatch) {
@@ -153,6 +154,12 @@ export async function handleGoalBoardWebRequest(
           sendJson(response, 200, readWebView());
           return;
         }
+        if (await handleInboxNativePluginHttp(request, response, url, {
+          boardId: options.boardId,
+          store,
+          invalidateWebView: () => webViewCache.delete(options.databasePath),
+          reconcileGoalDecisions: () => coordinator.goalDecisionAttention.reconcile(options.boardId),
+        })) return;
         if (await handleFeedNativePluginHttp(request, response, url, {
           renderer: workbenchRenderer,
           boardId: options.boardId,
@@ -165,7 +172,7 @@ export async function handleGoalBoardWebRequest(
         })) return;
         if (request.method === "GET" && url.pathname === "/api/capsule") {
           if (!options.project) {
-            sendJson(response, 400, { error: L("请先选择一个 GoalBoard 项目") });
+            sendJson(response, 400, { error: L("请先选择一个 Molis Work 项目") });
             return;
           }
           const directory = coordinator.goalEvents.listGoals({
@@ -193,7 +200,7 @@ export async function handleGoalBoardWebRequest(
         if (await handleGoalsWebHttp({
           method: request.method, pathname: url.pathname, search: url.searchParams,
           readBody: () => readBody(request), respond: (status, body) => sendJson(response, status, body),
-          options, idempotencyHeader: request.headers["x-goalboard-idempotency-key"],
+          options, idempotencyHeader: requestHeader(request, "x-molis-work-idempotency-key", "x-goalboard-idempotency-key"),
           snapshot: () => store.snapshot(options.boardId), changed: () => { webViewCache.delete(options.databasePath); },
           commands: goalsAdapter.commands, lifecycle: goalsAdapter.lifecycle,
           query: coordinator.goalQueries,
@@ -204,7 +211,7 @@ export async function handleGoalBoardWebRequest(
         })) return;
         if (handleArtifactNativePluginHttp(request, response, url.pathname, {
           boardId: options.boardId, routePrefix: options.routePrefix ?? "",
-          projectTitle: options.project?.display_name ?? "GoalBoard",
+          projectTitle: options.project?.display_name ?? "Molis Work",
           query: coordinator.artifacts.query, desktopShell: isDesktopShellRequest(request, url), pageCsp: PAGE_CSP,
         })) return;
         if (await goalsReadHttp.page(request, response, url, options, serverOptions.homeDirectory, readWebView, sessionResources, controlToken, coordinator, store)) return;

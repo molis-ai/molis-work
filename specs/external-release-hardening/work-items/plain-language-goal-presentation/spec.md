@@ -9,7 +9,7 @@ Policy 和历史作为大量同级区块连续排列，阅读路径不够清楚�
 本 Work Item 不新增字段或状态。它要求 Runtime 把现有业务字段写成人能直接理解的内容，并把 Goal
 正文整理为少量、连续的阅读章节。
 
-GoalBoard Goal：`GOALBOARD-PLAIN-LANGUAGE-GOAL-PRESENTATION`。
+Molis Work Goal：`MOLIS_WORK-PLAIN-LANGUAGE-GOAL-PRESENTATION`。
 
 ## 当前行为与证据
 
@@ -60,7 +60,7 @@ GoalBoard Goal：`GOALBOARD-PLAIN-LANGUAGE-GOAL-PRESENTATION`。
 
 ## 验收标准
 
-- `PLAIN-C1`：Skill 明确要求业务字段写人话，并用 GoalBoard 场景给出“技术名词标题”与“用户结果标题”
+- `PLAIN-C1`：Skill 明确要求业务字段写人话，并用 Molis Work 场景给出“技术名词标题”与“用户结果标题”
   的正反例；Proposal 前逐条检查所有父、子和叶子 Goal。
 - `PLAIN-C2`：Web 正文只有五个清楚的阅读章节，内容顺序符合目标定义、完成判断、当前推进、风险规则、
   历史；没有总括式“执行细节”折叠。

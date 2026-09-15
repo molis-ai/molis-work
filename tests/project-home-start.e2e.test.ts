@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
-import { DEMO_BOARD_ID } from "@adeptify/goalboard-app-local-host";
+import { DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 const captures = new URL("../.impeccable/review/home-start/", import.meta.url);
@@ -27,7 +27,7 @@ test("Account footer keeps its two text rows and theme below the old desktop bre
   const directory = new URL("../.impeccable/review/home-footer-quotes/", import.meta.url);
   await mkdir(directory,{recursive:true});
   await command("Emulation.setEmulatedMedia",{features:[{name:"prefers-reduced-motion",value:"reduce"}]},sessionId);
-  await command("Network.setCookie",{name:"goalboard_locale",value:"en",url:origin},sessionId);
+  await command("Network.setCookie",{name:"molis_work_locale",value:"en",url:origin},sessionId);
   await navigate(()=>command("Page.navigate",{url:origin+"/projects/"+projectId+"/"},sessionId));
   await waitFor("document.body.dataset.desktopSurface==='home'");
   for(const width of [761,760,600,390]){
@@ -35,9 +35,9 @@ test("Account footer keeps its two text rows and theme below the old desktop bre
     if(width<=600 && !await evaluate("document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')"))await click('[data-directory-show]');
     for(const theme of ["light","dark"]){
       await evaluate(`document.documentElement.dataset.resolvedTheme=${JSON.stringify(theme)}`);
-      await waitFor("getComputedStyle(document.querySelector('.personal-account')).color===getComputedStyle(document.querySelector('.immersive-market-entry')).color");
+      await waitFor("getComputedStyle(document.querySelector('.personal-account')).color===getComputedStyle(document.querySelector('[data-plugin-id=home]')).color");
       await evaluate("new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))");
-      const metrics=await evaluate<any>(`(()=>{const account=document.querySelector('.personal-account'),name=account.querySelector('strong'),detail=account.querySelector('small'),avatar=account.querySelector('.personal-account-avatar'),icon=avatar.querySelector('svg'),settings=account.querySelector('.personal-account-settings');const rect=e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height}};return {name:rect(name),detail:rect(detail),avatar:rect(avatar),icon:rect(icon),settings:rect(settings),account:rect(account),decoration:getComputedStyle(account).textDecorationLine,color:getComputedStyle(account).color,nameColor:getComputedStyle(name).color,expectedColor:getComputedStyle(document.querySelector('.immersive-market-entry')).color}})()`);
+      const metrics=await evaluate<any>(`(()=>{const account=document.querySelector('.personal-account'),name=account.querySelector('strong'),detail=account.querySelector('small'),avatar=account.querySelector('.personal-account-avatar'),icon=avatar.querySelector('svg'),settings=account.querySelector('.personal-account-settings');const rect=e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height}};return {name:rect(name),detail:rect(detail),avatar:rect(avatar),icon:rect(icon),settings:rect(settings),account:rect(account),decoration:getComputedStyle(account).textDecorationLine,color:getComputedStyle(account).color,nameColor:getComputedStyle(name).color,expectedColor:getComputedStyle(document.querySelector('[data-plugin-id=home]')).color}})()`);
       assert.ok(metrics.name.bottom<=metrics.detail.y+1, width+theme+": name and space must remain separate rows "+JSON.stringify(metrics));
       assert.equal(metrics.decoration,"none",width+theme);
       assert.equal(metrics.color,metrics.nameColor,width+theme);
@@ -99,12 +99,11 @@ test("Home keeps local calendar and quotes current without enabling Agent input 
   assert.equal(await evaluate("(()=>{const link=document.querySelector('[data-home-quote][aria-hidden=true] a');link.focus();return document.activeElement===link})()"),false,"inactive citation cannot take keyboard focus");
   await evaluate("window.__homeTimers[5000]()");
   assert.equal(await evaluate(quote), "1", "focused citation pauses rotation");
-  await click('[data-directory-panel="root"] [data-directory-open="goals"]');
+  await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor("document.body.dataset.desktopSurface === 'goal'");
   await evaluate("window.__homeTimers[5000]()");
   assert.equal(await evaluate(quote), "1", "non-home surface pauses rotation");
-  await click('[data-plugin-heading] [data-directory-back]');
-  await click('[data-directory-panel="root"] [data-work-surface-open="home"]');
+  await click('[data-plugin-strip] [data-plugin-id="home"]');
   await evaluate("document.activeElement.blur();Object.defineProperty(document,'hidden',{configurable:true,value:true});window.__homeTimers[5000]();delete document.hidden");
   assert.equal(await evaluate(quote), "1", "background page pauses rotation");
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "no-preference" }] }, sessionId);
@@ -130,7 +129,7 @@ test("Home keeps local calendar and quotes current without enabling Agent input 
     const shot=await command<{data:string}>("Page.captureScreenshot",{format:"png",captureBeyondViewport:false},sessionId);
     await writeFile(new URL(name+".png",captures),Buffer.from(shot.data,"base64"));
   }
-  await evaluate("document.cookie='goalboard_locale=en;path=/'");
+  await evaluate("document.cookie='molis_work_locale=en;path=/'");
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
   assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-home-quote]')].slice(3).map(q=>q.querySelector('blockquote').textContent+' - '+q.querySelector('figcaption').textContent)"),adeptifyCopy,"all original Adeptify passages and attributions are migrated in order");
   assert.equal(await evaluate("[...document.querySelectorAll('[data-home-quote]')].slice(3).some(q=>q.querySelector('a'))"),false,"no invented source links");
@@ -168,7 +167,7 @@ test("Home shortcuts persist per project, open a new browser page, and preserve 
   const before=store.snapshot(DEMO_BOARD_ID);
   await command("Emulation.setDeviceMetricsOverride",{width:1024,height:768,deviceScaleFactor:1,mobile:false},sessionId);
   const url=origin+"/projects/"+projectId+"/";
-  const key="goalboard:home-shortcuts:"+projectId;
+  const key="molis-work:home-shortcuts:"+projectId;
   const saved=()=>evaluate<any[]>(`JSON.parse(localStorage.getItem(${JSON.stringify(key)})||'[]')`);
   const fill=async(name:string,target:string)=>evaluate(`document.querySelector('[name=shortcut_name]').value=${JSON.stringify(name)};document.querySelector('[name=shortcut_url]').value=${JSON.stringify(target)}`);
   await navigate(()=>command("Page.navigate",{url},sessionId));
@@ -197,7 +196,7 @@ test("Home shortcuts persist per project, open a new browser page, and preserve 
   await command("Target.closeTarget",{targetId:opened.targetId});
   assert.equal(await evaluate("location.href"),url);
   await click('[data-home-shortcut-edit]');await fill("<img src=x onerror=alert(1)>",target);
-  await evaluate("window.__save=Storage.prototype.setItem;Storage.prototype.setItem=function(k,v){if(k.startsWith('goalboard:home-shortcuts:'))throw new DOMException('blocked','QuotaExceededError');return window.__save.call(this,k,v)}");
+  await evaluate("window.__save=Storage.prototype.setItem;Storage.prototype.setItem=function(k,v){if(k.startsWith('molis-work:home-shortcuts:'))throw new DOMException('blocked','QuotaExceededError');return window.__save.call(this,k,v)}");
   await click('.home-shortcut-save');
   assert.equal(await evaluate("document.querySelector('[data-home-shortcut-dialog]').open"),true);
   assert.match(await evaluate<string>("document.querySelector('[data-home-shortcut-form-error]').textContent"),/未能保存/);
@@ -208,13 +207,13 @@ test("Home shortcuts persist per project, open a new browser page, and preserve 
   assert.equal(await evaluate("document.querySelector('[data-home-shortcut-name]').textContent"),"<img src=x onerror=alert(1)>");
   assert.equal(await evaluate("document.querySelector('[data-home-shortcut-name] img')"),null);
   await reloadPage();await waitFor("document.querySelector('[data-home-shortcut-link]')");
-  await evaluate("window.__external=[];globalThis.goalboardOpenExternalUrl=async url=>{window.__external.push(url);throw new Error('native open failed')}");
+  await evaluate("window.__external=[];globalThis.molisWorkOpenExternalUrl=async url=>{window.__external.push(url);throw new Error('native open failed')}");
   await click('[data-home-shortcut-link]');
   await waitFor("!document.querySelector('[data-home-shortcut-error]').hidden");
   assert.deepEqual(await evaluate("window.__external"),[target]);
-  await evaluate("globalThis.goalboardOpenExternalUrl=async url=>window.__external.push(url)");
+  await evaluate("globalThis.molisWorkOpenExternalUrl=async url=>window.__external.push(url)");
   await click('[data-home-shortcut-link]');await waitFor("document.querySelector('[data-home-shortcut-error]').hidden");
-  const other=await evaluate<string>(`(async()=>{const r=await fetch('/api/settings/projects',{method:'POST',headers:globalThis.goalboardControlHeaders(),body:JSON.stringify({display_name:'另一张书桌',user_confirmed:true})});if(!r.ok)throw new Error(await r.text());return(await r.json()).project.project_id})()`);
+  const other=await evaluate<string>(`(async()=>{const r=await fetch('/api/settings/projects',{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({display_name:'另一张书桌',user_confirmed:true})});if(!r.ok)throw new Error(await r.text());return(await r.json()).project.project_id})()`);
   await navigate(()=>command("Page.navigate",{url:origin+"/projects/"+other+"/"},sessionId));
   await waitFor("document.body.dataset.desktopSurface === 'home'");
   assert.equal(await evaluate("document.querySelectorAll('[data-shortcut-id]').length"),0);

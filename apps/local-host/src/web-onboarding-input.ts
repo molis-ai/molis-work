@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { onboardingIntentFrame, type OnboardingIntentFrame } from "@adeptify/goalboard-app-workbench";
+import { onboardingIntentFrame, type OnboardingIntentFrame } from "@molis-ai/molis-work-app-workbench";
 
 export interface OnboardingRuntimePorts {
   isRuntimeKind(runtimeKind: string): boolean;
@@ -47,7 +47,7 @@ export function webOnboardingInitializationInput(body: Record<string, unknown>, 
   }
   if (runtimeKind) {
     if (!runtime.isRuntimeKind(runtimeKind) || runtimeKind === "generic") {
-      throw new Error("请选择 GoalBoard 支持的 Runtime");
+      throw new Error("请选择 Molis Work 支持的 Runtime");
     }
     if (!workspacePath) throw new Error("打开 TUI 前需要选择一个存在的绝对工作目录");
     if (runtime.cliAvailability()[runtimeKind] !== true) {

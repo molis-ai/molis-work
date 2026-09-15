@@ -1,6 +1,6 @@
 # Runtime Protocol: Agreements, Facts, and Closure
 
-GoalBoard keeps goals, actual work, and current outcomes together. A Runtime works within its existing authority; the user can see what happened, what remains, and which changes need a decision. Ordinary work requires no Claim, Run, complete plan, or default template.
+Molis Work keeps goals, actual work, and current outcomes together. A Runtime works within its existing authority; the user can see what happened, what remains, and which changes need a decision. Ordinary work requires no Claim, Run, complete plan, or default template.
 
 ## The current work model
 
@@ -19,7 +19,7 @@ GoalBoard keeps goals, actual work, and current outcomes together. A Runtime wor
 
 ## Connect a project and select a Goal
 
-The Runtime uses GoalBoard through MCP. `apps/mcp` owns tool names, inputs, and presentation; Local Host injects the bound project and actor; Goals Module owns current event facts, and the Goals Plugin composes use cases. The Skill does not inspect internal databases or reimplement completion checks.
+The Runtime uses Molis Work through MCP. `apps/mcp` owns tool names, inputs, and presentation; Local Host injects the bound project and actor; Goals Module owns current event facts, and the Goals Plugin composes use cases. The Skill does not inspect internal databases or reimplement completion checks.
 
 Start with `context_resolve`. An existing Session binding or one verified workspace association can recover the project. Suggestions, directory names, and model guesses do not authorize binding. Reuse the user's explicit choice when it identifies one project; ask only when the choice is ambiguous. Binding, switching, creating, unlinking, and deleting retain their respective authorization. An ordinary binding does not set a directory default. See [MCP integration](mcp.en.md).
 
@@ -27,7 +27,7 @@ Use `goal_list` to find work or `goal_intent_create` to save a new intent. Creat
 
 ## Record everyday work
 
-The following names omit the `goalboard_v1_` prefix:
+The following names omit the `molis_work_v1_` prefix:
 
 ```text
 context_resolve → goal_list / goal_intent_create → goal_state

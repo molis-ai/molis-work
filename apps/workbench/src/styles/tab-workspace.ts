@@ -71,24 +71,39 @@ export const TAB_WORKSPACE_STYLES = `
     body.immersive-workbench .tab-pane-body > .immersive-home { padding: 30px 20px 26px; }
   }
 
-  body.immersive-workbench .tab-strip { align-items: flex-end; gap: 6px; padding-block: 6px 0; }
-  body.immersive-workbench .tab-group { --group-color: var(--muted); gap: 4px; height: 38px; border-bottom: 2px solid var(--group-color); }
-  body.immersive-workbench .tab-group[data-tab-group="home"] { border-bottom-color: transparent; }
+  body.immersive-workbench .tab-strip { align-items: center; gap: 8px; padding-block: 4px; overflow: hidden; }
+  body.immersive-workbench .tab-scroll { display: flex; align-items: center; flex: 0 1 auto; min-width: 0; gap: 8px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; scroll-padding-inline: 2px; }
+  body.immersive-workbench .tab-scroll::-webkit-scrollbar { display: none; }
+  body.immersive-workbench .tab-group { --group-color: var(--muted); gap: 2px; height: 36px; border: 0; }
+  body.immersive-workbench .tab-group[data-tab-group="home"] { --group-color: var(--ink-soft); }
   body.immersive-workbench .tab-group[data-tab-group="goals"] { --group-color: light-dark(#3c6fc6, #91b5f6); }
   body.immersive-workbench .tab-group[data-tab-group="feed"] { --group-color: light-dark(#a06119, #e0af70); }
   body.immersive-workbench .tab-group[data-tab-group="sessions"] { --group-color: light-dark(#8260b2, #c3a2ec); }
   body.immersive-workbench .tab-group[data-tab-group="inbox"] { --group-color: light-dark(#287a67, #88cbb4); }
   body.immersive-workbench .tab-group[data-tab-group="artifacts"] { --group-color: light-dark(#a45673, #e6a0b8); }
   body.immersive-workbench .tab-group:not([data-tab-group="home"]) { border-left: 0; padding-left: 0; }
-  body.immersive-workbench .tab-group-label, body.immersive-workbench .tab-group[data-active="true"] .tab-group-label { color: var(--group-color); background: color-mix(in srgb, var(--group-color) 12%, transparent); height: 24px; margin-inline: 4px; }
-  body.immersive-workbench .tab-group-pages { gap: 1px; }
-  body.immersive-workbench .tab-item { width: 172px; min-width: 172px; max-width: 172px; height: 36px; border-radius: 10px 10px 0 0; border: 0; padding: 0 8px 0 12px; }
-  body.immersive-workbench .tab-item:not(.is-active)::after { content: ''; position: absolute; right: 0; top: 10px; bottom: 10px; border-right: 1px solid var(--line-strong); }
-  body.immersive-workbench .tab-item.is-active { background: var(--paper); box-shadow: none; }
+  body.immersive-workbench .tab-group-label, body.immersive-workbench .tab-group[data-active="true"] .tab-group-label { color: var(--group-color); background: transparent; width: 18px; height: 32px; padding: 0; justify-content: center; margin: 0; }
+  body.immersive-workbench .tab-group-label::before { display: none; }
+  body.immersive-workbench .tab-group-name { display: none; }
+  body.immersive-workbench .tab-group[data-collapsed="true"]:not([data-active="true"]) .tab-group-label { width: auto; padding-inline: 8px; gap: 6px; background: var(--nav-hover); }
+  body.immersive-workbench .tab-group[data-collapsed="true"]:not([data-active="true"]) .tab-group-name { display: inline; }
+  body.immersive-workbench .tab-group[data-pinned-group] { gap: 0; }
+  body.immersive-workbench .tab-group-label:hover { background: var(--nav-hover); }
+  body.immersive-workbench .tab-group-pages { gap: 6px; }
+  body.immersive-workbench .tab-item { width: 172px; min-width: 172px; max-width: 172px; height: 34px; border-radius: 9px; border: 0; padding: 0 6px 0 10px; background: color-mix(in srgb, var(--nav-hover) 55%, var(--nav-bg)); color: var(--ink-soft); }
+  body.immersive-workbench .tab-item-trigger { display: flex; align-items: center; gap: 8px; }
+  body.immersive-workbench .tab-item-trigger .tab-item-icon { width: 17px; height: 17px; flex: none; color: var(--group-color); }
+  body.immersive-workbench .tab-item-trigger .tab-item-name { flex: 1; }
+  body.immersive-workbench .tab-item[data-pinned] { width: 36px; min-width: 36px; max-width: 36px; padding: 0; }
+  body.immersive-workbench .tab-item[data-pinned] .tab-item-trigger { justify-content: center; }
+  body.immersive-workbench .tab-item[data-pinned] .tab-item-name { display: none; }
+  body.immersive-workbench .tab-item:active { background: var(--nav-active); }
+  body.immersive-workbench .tab-item:hover { background: var(--nav-hover); color: var(--ink); }
+  body.immersive-workbench .tab-item.is-active { background: var(--nav-raised); color: var(--ink); box-shadow: inset 0 0 0 1px var(--control-border); }
   body.immersive-workbench .tab-item-close { border-radius: 50%; }
-  body.immersive-workbench .tab-split-button { flex: none; align-self: center; display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 6px; color: var(--muted); background: transparent; cursor: pointer; }
-  body.immersive-workbench .tab-split-button:hover { background: var(--nav-hover); color: var(--ink); }
-  body.immersive-workbench .tab-split-button svg { width: 15px; height: 15px; }
+  body.immersive-workbench :is(.tab-split-button, .tab-add-button) { flex: none; align-self: center; display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 6px; color: var(--muted); background: transparent; cursor: pointer; }
+  body.immersive-workbench :is(.tab-split-button, .tab-add-button):hover { background: var(--nav-hover); color: var(--ink); }
+  body.immersive-workbench :is(.tab-split-button, .tab-add-button) svg { width: 15px; height: 15px; }
   body.immersive-workbench .tab-workspace-panes { display: flex; gap: 0; background: var(--paper); }
   body.immersive-workbench .tab-workspace-panes > * { flex: 1; }
   body.immersive-workbench .tab-split { display: grid; min-width: 0; min-height: 0; }
@@ -122,8 +137,9 @@ export const TAB_WORKSPACE_STYLES = `
     body.immersive-workbench .tab-strip { padding-block: 0; align-items: center; }
     body.immersive-workbench .tab-group, body.immersive-workbench .tab-item { height: 44px; }
     body.immersive-workbench .tab-item { padding-right: 0; }
-    body.immersive-workbench .tab-item-close, body.immersive-workbench .tab-split-button { width: 44px; height: 44px; }
-    body.immersive-workbench .tab-group .tab-group-label { min-height: 44px; margin-block: 0; }
+    body.immersive-workbench .tab-item-close, body.immersive-workbench .tab-split-button, body.immersive-workbench .tab-add-button { width: 44px; height: 44px; }
+    body.immersive-workbench .tab-item[data-pinned] { width: 44px; min-width: 44px; max-width: 44px; }
+    body.immersive-workbench .tab-group .tab-group-label { min-width: 44px; min-height: 44px; margin-block: 0; }
   }
 
 
@@ -150,6 +166,10 @@ export const TAB_WORKSPACE_STYLES = `
   }
 
   .workspace-layout-menu { position:fixed; inset:auto; margin:0; width:260px; max-height:calc(100vh - 60px); overflow:auto; padding:6px; color:var(--ink); background:var(--paper); border:1px solid var(--line); border-radius:10px; box-shadow:var(--control-shadow); }
+  .workspace-tab-menu > strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .workspace-tab-menu:popover-open { animation: tab-menu-in 120ms var(--ease-out); }
+  @keyframes tab-menu-in { from { opacity: .6; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+  @media(prefers-reduced-motion:reduce) { .workspace-tab-menu:popover-open { animation: none; } }
   .workspace-layout-menu > strong { display:block; padding:10px 10px 8px; font-size:12px; font-weight:550; color:var(--muted); }
   .workspace-layout-menu button { display:flex; align-items:center; gap:10px; width:100%; min-height:34px; padding:7px 10px; text-align:left; border:0; background:transparent; border-radius:5px; font-size:13px; }
   .workspace-layout-menu button:hover,.workspace-layout-menu button:focus-visible { background:var(--nav-hover); }

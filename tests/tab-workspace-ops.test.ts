@@ -124,3 +124,31 @@ test("moving tabs reorders and closing the last tab merges its split", () => {
   assert.equal(state.panes.length, 1);
   assert.equal(state.layout.tree.paneId, state.panes[0].id);
 });
+
+test('pinning keeps tabs first without duplicates and survives moving, copying and restoring', () => {
+  const state = ops.create();
+  const home = ops.activeTab(state);
+  const goal = ops.openItem(state, 'goals', 'CORE', '主目标');
+  ops.openPlugin(state, 'feed');
+  const pane = ops.focused(state);
+  ops.togglePinned(state, pane.id, goal.id);
+  assert.equal(pane.tabs[0].id, goal.id);
+  assert.equal(pane.tabs[0].pinned, true);
+  assert.equal(ops.activeTab(state)?.plugin, 'feed');
+  ops.openItem(state, 'goals', 'SECOND', '另一个目标');
+  assert.equal(pane.tabs[0].id, goal.id);
+  assert.equal(pane.tabs[1].id, home.id);
+  ops.splitPane(state, pane.id, 'bottom', 'copy', pane.id, goal.id);
+  const other = ops.focused(state);
+  assert.equal(other.tabs[0].pinned, true);
+  ops.togglePinned(state, other.id, other.tabs[0].id);
+  assert.equal(other.tabs[0].pinned, false);
+  assert.equal(pane.tabs[0].pinned, true);
+  ops.moveTab(state, pane.id, goal.id, other.id, null);
+  assert.equal(other.tabs.filter(tab => tab.itemId === 'CORE').length, 1);
+  assert.equal(other.tabs[0].pinned, false); // existing destination tab retains its own preference
+  const restored = JSON.parse(JSON.stringify(state));
+  ops.ensureHome(restored);
+  assert.equal(ops.activeTab(restored)?.itemId, 'CORE');
+  assert.equal(ops.activeTab(restored)?.pinned, false);
+});

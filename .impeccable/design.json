@@ -40,7 +40,7 @@
       },
       "tab": {
         "displayName": "Work Tab",
-        "purpose": "Equal-width work tabs; active weight 550. Titles truncate while keeping their full accessible name."
+        "purpose": "Equal-width ordinary work tabs with colored icons; active weight 550. Pinned tabs show icons only. Titles retain their full accessible name."
       }
     },
     "shadows": [
@@ -271,7 +271,7 @@
     "overview": "Molis Work is a personal workbench for finding current work, reading its facts, and taking the next action. Its current visual language follows the user's Linear × coss.ui direction: continuous paper surfaces, thin boundaries, compact controls, distinct navigation levels, and short feedback. The quiet project home and denser Goal workspace belong to the same system.\n\nThis is the current built world as of 2026-09-16. [Coss workbench redesign](specs/coss-workbench-redesign/spec.md) establishes the shared foundation; [Workbench panes, Feed and global settings redesign](specs/workbench-pane-feed-redesign/spec.md) owns the current tabs, nested panes, Feed and global preferences. The independent project settings world follows [Project settings redesign](specs/project-settings-redesign/spec.md). [PRODUCT.md](PRODUCT.md) remains the authority for product behavior, data relationships, and module ownership; this document records their current visual expression. The latest [whole-product interaction redesign](specs/product-interaction-redesign/spec.md) and its [surface inventory](specs/product-interaction-redesign/inventory.md) own the current form actions, Feed reader, Session entry, settings return context and Artifact empty states. Its v11 correction makes Goal work and records continuous with the pane and attaches temporary editors to the workspace edge. It retains v6 attention continuity and v7–v10 scrolling, reading and editing behavior. Detailed behavior, source ownership, motion and verification boundaries are in the [workbench surface record](.impeccable/surfaces/immersive-workbench.md).",
     "keyCharacteristics": [
       "One directory for project identity, destinations, the active plugin list, shortcuts and device settings.",
-      "A 44px work bar with equal-width Chrome-style tabs and stable plugin group colors.",
+      "A 44px work bar with rounded equal-width tabs, compact pinned icons, stable plugin colors and a separate action area.",
       "Neutral Light/Dark tokens shared by the workbench, settings and project index.",
       "Independent global and project settings with category navigation and one content scroll boundary.",
       "Compact navigation and continuous reading/work surfaces; temporary editors meet the workspace edge while preserving modal focus.",

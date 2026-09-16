@@ -26,7 +26,9 @@ export function createTabWorkspaceOps() {
     const children = node.children.map((child) => pruneTree(child, ids)).filter(Boolean);
     return children.length === 2 ? { ...node, children } : children[0] || null;
   };
+  const orderPinned = (pane) => { pane.tabs = [...pane.tabs.filter(tab => tab.pinned), ...pane.tabs.filter(tab => !tab.pinned)]; };
   const normalizeLayout = (state) => {
+    state.panes.forEach(orderPinned);
     const old = state.layout || { direction: "row", sizes: [] };
     const sizes = state.panes.map((_, index) => Number(old.sizes?.[index]) > 0 ? Number(old.sizes[index]) : 1);
     const total = sizes.reduce((sum, size) => sum + size, 0);
@@ -80,8 +82,9 @@ export function createTabWorkspaceOps() {
       activateInPane(pane, existing);
       return existing;
     }
-    const lastGroupIndex = pane.tabs.findLastIndex((candidate) => candidate.plugin === tab.plugin);
+    const lastGroupIndex = pane.tabs.findLastIndex((candidate) => candidate.plugin === tab.plugin && Boolean(candidate.pinned) === Boolean(tab.pinned));
     pane.tabs.splice(lastGroupIndex < 0 ? pane.tabs.length : lastGroupIndex + 1, 0, tab);
+    orderPinned(pane);
     activateInPane(pane, tab);
     return tab;
   };
@@ -100,6 +103,14 @@ export function createTabWorkspaceOps() {
     state.exclusive = null;
     const pane = focused(state);
     return openInPane(state, pane, itemTab(plugin, itemId, title || itemId));
+  };
+  const togglePinned = (state, paneId, tabId) => {
+    const pane = state.panes.find(candidate => candidate.id === paneId);
+    const tab = pane?.tabs.find(candidate => candidate.id === tabId);
+    if (!tab) return state;
+    tab.pinned = !tab.pinned;
+    orderPinned(pane);
+    return state;
   };
   const closeTab = (state, paneId, tabId) => {
     const pane = state.panes.find((candidate) => candidate.id === paneId);
@@ -190,6 +201,7 @@ export function createTabWorkspaceOps() {
     openPlugin,
     openItem,
     closeTab,
+    togglePinned,
     closePane,
     splitPane,
     moveTab,

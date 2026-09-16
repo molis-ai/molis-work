@@ -114,20 +114,24 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   const paneMarkup = () => '<nav class="tab-strip" data-tab-strip></nav><div class="tab-pane-body" data-tab-pane-body></div><button type="button" class="tab-pane-close" data-tab-pane-close aria-label="' + L("关闭分栏") + '"><svg aria-hidden="true"><use href="#icon-x"></use></svg></button><div class="tab-drop-edges" data-tab-edges><button type="button" data-tab-edge="left" aria-label="' + L("拆到左侧") + '"></button><button type="button" data-tab-edge="right" aria-label="' + L("拆到右侧") + '"></button><button type="button" data-tab-edge="top" aria-label="' + L("拆到上方") + '"></button><button type="button" data-tab-edge="bottom" aria-label="' + L("拆到下方") + '"></button></div>';
   const tabLabel = (tab) => {
     if (tab.plugin === "home") return L("项目首页");
-    if (tab.kind === "mother") return tab.plugin === "goals" ? L("画布") : L("全部");
+    if (tab.kind === "mother") return tab.plugin === "goals" ? L("画布") : ops.pluginTitle(tab.plugin);
     return tab.title;
   };
+  const tabIcon = (plugin) => ({home: "home", goals: "target", sessions: "terminal", feed: "activity", inbox: "input", artifacts: "file"}[plugin] || "frame");
+  const iconMarkup = (plugin) => '<svg class="tab-item-icon" aria-hidden="true"><use href="#icon-' + tabIcon(plugin) + '"></use></svg>';
   const renderStrip = (pane, strip) => {
     if (!strip) return;
-    const scrollLeft = strip.scrollLeft;
+    const scrollLeft = strip.querySelector("[data-tab-scroll]")?.scrollLeft || 0;
     const previousActive = strip.querySelector('[data-tab-id][aria-current]')?.dataset.tabId;
     strip.setAttribute("role", "tablist");
     strip.setAttribute("aria-label", L("工作区标签"));
     const fragment = document.createDocumentFragment();
+    const scrollArea = document.createElement("div"); scrollArea.className = "tab-scroll"; scrollArea.dataset.tabScroll = "";
+    fragment.append(scrollArea);
     const groups = [];
     pane.tabs.forEach((tab) => {
       const last = groups[groups.length - 1];
-      if (!last || last.plugin !== tab.plugin) groups.push({ plugin: tab.plugin, tabs: [tab] });
+      if (!last || last.plugin !== tab.plugin || last.pinned !== Boolean(tab.pinned)) groups.push({ plugin: tab.plugin, pinned: Boolean(tab.pinned), tabs: [tab] });
       else last.tabs.push(tab);
     });
     groups.forEach((group) => {
@@ -135,19 +139,21 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       wrap.className = "tab-group";
       wrap.dataset.tabGroup = group.plugin;
       wrap.dataset.active = String(group.tabs.some((tab) => tab.id === pane.activeTabId));
-      if (pane.collapsed[group.plugin]) wrap.dataset.collapsed = "true";
-      if (group.plugin !== "home") {
+      if (group.pinned) wrap.dataset.pinnedGroup = "true";
+      if (!group.pinned && pane.collapsed[group.plugin]) wrap.dataset.collapsed = "true";
+      if (!group.pinned && group.plugin !== "home") {
         const label = document.createElement("button");
         label.type = "button";
         label.className = "tab-group-label";
         label.dataset.tabGroupToggle = group.plugin;
-        label.textContent = ops.pluginTitle(group.plugin);
+        const groupName = document.createElement("span"); groupName.className = "tab-group-name"; groupName.textContent = ops.pluginTitle(group.plugin); label.append(groupName);
         const chevron = document.createElementNS("http://www.w3.org/2000/svg", "svg");
         chevron.setAttribute("viewBox", "0 0 16 16");
         chevron.setAttribute("aria-hidden", "true");
         chevron.innerHTML = '<path d="m4 6 4 4 4-4"/>';
         label.append(chevron);
-        label.title = ops.pluginTitle(group.plugin);
+        label.title = (pane.collapsed[group.plugin] ? L("展开标签组") : L("收起标签组")) + " · " + ops.pluginTitle(group.plugin);
+        label.setAttribute("aria-label", label.title);
         label.setAttribute("aria-expanded", String(!pane.collapsed[group.plugin]));
         wrap.append(label);
       }
@@ -160,6 +166,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
         button.dataset.tabId = tab.id;
         if (tab.itemId) button.dataset.itemId = tab.itemId;
         button.dataset.tabKind = tab.kind;
+        if (tab.pinned) button.dataset.pinned = "true";
         button.draggable = true;
         button.title = tabLabel(tab);
         if (selected) button.setAttribute("aria-current", "page");
@@ -180,20 +187,26 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
         close.title = L("关闭标签") + " · " + tabLabel(tab);
         close.tabIndex = selected ? 0 : -1;
         close.innerHTML = '<svg aria-hidden="true"><use href="#icon-x"></use></svg>';
+        trigger.innerHTML = iconMarkup(tab.plugin);
+        name.className = "tab-item-name";
         trigger.append(name);
-        button.append(trigger, close);
+        button.append(trigger);
+        if (!tab.pinned) button.append(close);
         pages.append(button);
       });
       wrap.append(pages);
-      fragment.append(wrap);
+      scrollArea.append(wrap);
     });
     if (!pane.tabs.length) {
       const empty = document.createElement("p");
       empty.className = "tab-pane-empty-hint";
       empty.textContent = L("从左边打开，或把标签拖进来。");
-      fragment.append(empty);
+      scrollArea.append(empty);
     }
     if (!embedded) {
+      const add = document.createElement("button"); add.type = "button"; add.className = "tab-add-button"; add.dataset.tabAdd = pane.id;
+      add.setAttribute("aria-label", L("打开标签")); add.title = L("打开标签"); add.setAttribute("aria-haspopup", "menu");
+      add.innerHTML = '<svg aria-hidden="true"><use href="#icon-plus"></use></svg>'; fragment.append(add);
       const split = document.createElement("button");
       split.type = "button"; split.className = "tab-split-button"; split.dataset.tabSplit = pane.id;
       split.title = L("布局与分屏"); split.setAttribute("aria-label", split.title);
@@ -201,7 +214,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       fragment.append(split);
     }
     strip.replaceChildren(fragment);
-    strip.scrollLeft = scrollLeft;
+    scrollArea.scrollLeft = scrollLeft;
     if (previousActive !== pane.activeTabId) requestAnimationFrame(() => {
       strip.querySelector('[data-tab-id][aria-current]')?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
     });
@@ -399,6 +412,9 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     const tabs = [...strip.querySelectorAll('[data-tab-id]')].filter((node) => node.getClientRects().length);
     const index = tabs.indexOf(tab);
     let target = null;
+    if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
+      event.preventDefault(); openTabMenu(paneId, tab, tab.dataset.tabId); return;
+    }
     if (event.key === "ArrowRight") target = tabs[(index + 1) % tabs.length];
     if (event.key === "ArrowLeft") target = tabs[(index - 1 + tabs.length) % tabs.length];
     if (event.key === "Home") target = tabs[0];
@@ -448,6 +464,58 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     apply();
     persist();
   };
+  const tabMenu = document.createElement("div");
+  tabMenu.className = "workspace-layout-menu workspace-tab-menu";
+  // Contextmenu fires on mouse-down on macOS; auto popovers dismiss on its mouse-up.
+  tabMenu.setAttribute("popover", "manual"); tabMenu.setAttribute("role", "menu");
+  tabMenu.dataset.workspaceTabMenu = ""; document.body.append(tabMenu);
+  document.addEventListener("pointerdown", event => {
+    if (tabMenu.matches(":popover-open") && !tabMenu.contains(event.target)) tabMenu.hidePopover();
+  });
+  document.addEventListener("focusin", event => {
+    if (tabMenu.matches(":popover-open") && !tabMenu.contains(event.target)) tabMenu.hidePopover();
+  });
+  let tabMenuAnchor = null;
+  tabMenu.addEventListener("keydown", event => {
+    if (event.key === "Escape") {
+      event.preventDefault(); event.stopPropagation(); tabMenu.hidePopover();
+      (tabMenuAnchor?.querySelector(".tab-item-trigger") || tabMenuAnchor)?.focus({preventScroll:true}); return;
+    }
+    if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+    const buttons = [...tabMenu.querySelectorAll("button")];
+    const index = buttons.indexOf(document.activeElement);
+    const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : (index + (event.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length;
+    event.preventDefault(); buttons[next]?.focus();
+  });
+  const openTabMenu = (paneId, anchor, tabId = null) => {
+    const pane = state.panes.find(candidate => candidate.id === paneId); if (!pane) return;
+    const tab = pane.tabs.find(candidate => candidate.id === (tabId || pane.activeTabId));
+    tabMenuAnchor = anchor; tabMenu.replaceChildren();
+    tabMenu.setAttribute("aria-label", L(tabId ? "标签操作" : "打开标签"));
+    const add = (label, icon, key, action) => {
+      const button = document.createElement("button"); button.type = "button"; button.setAttribute("role", "menuitem"); button.dataset.tabMenuAction = key;
+      button.innerHTML = '<svg aria-hidden="true"><use href="#icon-' + icon + '"></use></svg><span></span>';
+      button.querySelector("span").textContent = label;
+      button.addEventListener("click", () => { tabMenu.hidePopover(); state.focusedPaneId = paneId; action(); apply(); persist(); focusActiveTab(); });
+      tabMenu.append(button);
+    };
+    if (!tabId) {
+      ["home", "goals", "sessions", "feed", "inbox", "artifacts"].filter(plugin => plugin === "home" || document.querySelector('[data-plugin-strip] [data-plugin-id="' + plugin + '"]')).forEach(plugin => {
+        add(L(ops.pluginTitle(plugin)), tabIcon(plugin), "open-" + plugin, () => ops.openPlugin(state, plugin));
+      });
+      if (tab) tabMenu.append(document.createElement("hr"));
+    }
+    if (tab) {
+      const heading = document.createElement("strong"); heading.textContent = tabLabel(tab); heading.title = tabLabel(tab); tabMenu.append(heading);
+      add(L(tab.pinned ? "取消固定标签" : "固定标签"), "lock", "pin", () => ops.togglePinned(state, paneId, tab.id));
+      add(L("关闭标签"), "x", "close", () => ops.closeTab(state, paneId, tab.id));
+    }
+    if (layoutMenu.matches(":popover-open")) layoutMenu.hidePopover();
+    const rect = anchor.getBoundingClientRect(); tabMenu.showPopover();
+    tabMenu.style.left = Math.max(8, Math.min(rect.left, innerWidth - tabMenu.offsetWidth - 8)) + "px";
+    tabMenu.style.top = Math.max(8, Math.min(rect.bottom + 6, innerHeight - tabMenu.offsetHeight - 8)) + "px";
+    tabMenu.querySelector("button")?.focus();
+  };
   const layoutMenu = document.createElement("div");
   layoutMenu.className = "workspace-layout-menu"; layoutMenu.setAttribute("popover", "auto"); layoutMenu.dataset.workspaceLayout = "";
   layoutMenu.setAttribute("aria-label", L("布局与分屏")); document.body.append(layoutMenu);
@@ -460,6 +528,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   });
   let layoutPane = null;
   const openLayoutMenu = (paneId, trigger) => {
+    if (tabMenu.matches(":popover-open")) tabMenu.hidePopover();
     layoutPane = paneId;
     layoutMenu.replaceChildren();
     const heading = document.createElement("strong"); heading.textContent = L("布局与分屏"); layoutMenu.append(heading);
@@ -492,6 +561,8 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     const focusPane = event.target.closest("[data-focus-pane]");
     if (focusPane) { activate(focusPane.dataset.focusPane); return true; }
     if (!paneId) return;
+    const add = event.target.closest("[data-tab-add]");
+    if (add) { openTabMenu(paneId, add); return true; }
     const split = event.target.closest("[data-tab-split]");
     if (split) {
       openLayoutMenu(paneId, split); return true;
@@ -594,6 +665,10 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     return { paneId, edge, beforeId, section };
   };
   [panesEl, titlebarStrip].filter(Boolean).forEach((surface) => {
+    surface.addEventListener("contextmenu", (event) => {
+      const tab = event.target.closest("[data-tab-id]"); if (!tab) return;
+      event.preventDefault(); openTabMenu(tab.closest("[data-tab-pane]")?.dataset.tabPane || surface.dataset.chromePane, tab, tab.dataset.tabId);
+    });
     surface.addEventListener("dragstart", (event) => {
       const tab = event.target.closest("[data-tab-id]"); if (!tab) return;
       dragTab = { paneId: tab.closest("[data-tab-pane]")?.dataset.tabPane || surface.dataset.chromePane, tabId: tab.dataset.tabId };

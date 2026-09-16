@@ -42,7 +42,7 @@ export const GOALS_REFRESH_CLIENT_FACTORY_SCRIPT = `(host) => {
       const apply = (refreshShellLinks) => {
         const createDraft = dialog.open ? readCreateDraft() : null;
         documentPane.classList.add("is-syncing");
-        treeScroll.innerHTML = nextTree.innerHTML;
+        if (treeScroll) treeScroll.innerHTML = nextTree.innerHTML;
         const currentSurface = documentPane.querySelector('[data-work-surface="goal"]');
         const nextSurface = nextDocument.querySelector('[data-work-surface="goal"]');
         if (currentSurface && nextSurface) {
@@ -51,7 +51,8 @@ export const GOALS_REFRESH_CLIENT_FACTORY_SCRIPT = `(host) => {
           documentPane.replaceChildren(...nextDocument.childNodes);
         }
         if (nextFilter && treeFilter) treeFilter.innerHTML = nextFilter.innerHTML;
-        document.querySelector("[data-tree-footer]").innerHTML = nextFooter.innerHTML;
+        const footer = document.querySelector("[data-tree-footer]");
+        if (footer && nextFooter) footer.innerHTML = nextFooter.innerHTML;
         if (nextCount) document.querySelector("[data-tree-count]").textContent = nextCount.textContent;
         refreshShellLinks();
         if (nextDialog) refreshCreateChoices(nextDialog, createDraft);

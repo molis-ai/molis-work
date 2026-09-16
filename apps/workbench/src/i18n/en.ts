@@ -3146,22 +3146,10 @@ Object.assign(EN, {
   "这条 Goal 已取消，不会被普通记录自动恢复。": "This Goal is cancelled and ordinary records will not reopen it.",
   "继续前必须打开「显式继续」并填写原因。": "Before continuing, open Resume explicitly and give a reason.",
   "这条 Goal 已从日常列表移除，但内容和历史仍然保留。": "This Goal was removed from the active list; its content and history remain.",
-  "真正开始做的工作台": "The workbench where work actually happens",
-  "真正开始做的工作台，不必先有 Goal。": "The workbench where work actually starts. You don't need a Goal first.",
-  "新建 Task": "New Task",
-  "Task 列表": "Task list",
-  "还没有 Task": "No Tasks yet",
-  "可以先建一条工作台，稍后再挂到 Goal。": "Create a workbench first. You can link a Goal later.",
-  "选择或新建一条 Task": "Select or create a Task",
-  "Task 是真正干活的工作台，不必先有 Goal。": "A Task is the workbench itself. You don't need a Goal first.",
-  "把这条工作需要的内容放在这里": "Put what this work needs here",
+  "把这项目标需要的内容放在这里": "Put what this Goal needs here",
   "从目录拖入消息、会话或资料，在同一个画布上组织工作。": "Drag messages, sessions, or files from the directory and arrange them on one canvas.",
   "打开工作区": "Open workspace",
   "在关系画布中定位": "Locate on the relation canvas",
-  "未命名 Task": "Untitled Task",
-  "Task 操作失败": "Task action failed",
-  "无法打开这条 Task": "Could not open this Task",
-  "无法创建 Task": "Could not create this Task",
 });
 
 Object.assign(EN, GAP_EN);

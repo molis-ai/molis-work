@@ -23,6 +23,7 @@ export {
   VISUAL_FOUNDATION_CLIENT_SCRIPT,
   VISUAL_FOUNDATION_STYLES,
   COSS_CONTROL_STYLES,
+  INTERACTION_TEXTURE_STYLES,
   type MolisWorkDensity,
   type MolisWorkTerminalTheme,
   type MolisWorkTheme,

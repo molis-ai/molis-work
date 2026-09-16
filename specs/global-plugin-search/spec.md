@@ -17,7 +17,7 @@ Goals 目录工具栏里有一条「在当前 Goal Tree 内搜索」。它只过
 - 浮层按插件分组：Goals、Sessions、Inbox、Feed、来源、Artifacts。无关键词时每组最多 8 条；有关键词时每组最多 12 条匹配项。空组不出现。
 - 选中一项即关闭浮层，并打开对应插件目录与对象（Goal 走现有 `selectGoal`；其余点击已有目录行）。
 - 底部「快捷操作」：新建目标、项目首页、插件市场。无关键词时始终出现；有关键词时仅标题匹配才出现。
-- 去掉 Goals 目录 `tree-chrome` 里的搜索框。状态筛选、新建、归档、回收站、折叠全部保留。关键词不再过滤 Goal 树；旧 sessionStorage 里的树搜索词不再恢复。
+- 去掉 Goals 目录 `tree-chrome` 里的搜索框。状态筛选、新建、归档、回收站保留。「折叠全部」已由 `specs/goals-directory-remove-collapse-all/spec.md` 删除。关键词不再过滤 Goal 树；旧 sessionStorage 里的树搜索词不再恢复。
 - Sessions / Feed / 来源目录里的列表内搜索框去掉；筛选菜单保留。关键词跳转走全局搜索。
 
 ### 非目标

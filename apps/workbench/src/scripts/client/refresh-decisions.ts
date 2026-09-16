@@ -67,10 +67,10 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
         goalPageUrl, setWorkspaceMode, saveUiState, localPathname, visibleGoals,
         openEventReaderFromHash, goalFactorFromHash, setGoalFactor, revealDeepLinkFromId,
       });
-    const { selectTreeGoal, getCollapsedTreeGoals, restoreTreeCollapsed, setSelectedStatuses, getSelectedStatuses, isTreeSearchComposing,
+    const { selectTreeGoal, syncGoalCollectionFolds, getCollapsedTreeGoals, restoreTreeCollapsed, setSelectedStatuses, getSelectedStatuses, isTreeSearchComposing,
       setTreeFilterOpen, filterTree, bindTreeSearchEvents, bindTreeFilterTrigger,
       handleTreeStatusChange, handleTreeSearchFocus, handleTreeDisclosureClick,
-      handleTreeCollapseAllClick, handleTreeKeyboard } = (${GOALS_TREE_CLIENT_FACTORY_SCRIPT})({
+      handleTreeKeyboard } = (${GOALS_TREE_CLIENT_FACTORY_SCRIPT})({
         treeFilter, treeFilterTrigger, treeSearch, treeScroll, globalSearch, translate: L,
         updateGraphVisibility, queueSave, saveUiState,
         noteSearchActivity: (...args) => noteSearchActivity(...args),
@@ -236,10 +236,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
             replaceNavLink(document.querySelector(selector), parsed.querySelector(selector));
           }
         });
-        const previousTasks = Array.isArray(state.tasks) ? state.tasks : [];
         state = nextState;
-        if ((!Array.isArray(state.tasks) || !state.tasks.length) && previousTasks.length) state.tasks = previousTasks;
-        (state.tasks || []).forEach((task) => upsertTaskDirectoryRow(task));
         projectHome?.sync();
         document.querySelector("#molis-work-data").textContent = JSON.stringify(state).replaceAll("<", "\\u003c");
         selected = goalRefresh.nextSelected;

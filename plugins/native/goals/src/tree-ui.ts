@@ -78,7 +78,8 @@ function renderTreeChildProgress(children: readonly GoalsTreeItem[]): string {
 function renderGoalTree(
   view: GoalsTreeView,
   selectedGoalId: string,
-  items: GoalsTreeItem[] = view.goals,
+  items: readonly GoalsTreeItem[] = view.goals,
+  rootToken = "data-tree-root",
 ): string {
   const referenceLabels = goalTreeReferenceLabels(view.goals.map((item) => item.goal.goal_id));
   const byId = new Map(items.map((item) => [item.goal.goal_id, item]));
@@ -132,7 +133,7 @@ function renderGoalTree(
   const leftovers = sortGoals(items.filter((item) => !visited.has(item.goal.goal_id)))
     .map((item) => renderNode(item, 0))
     .join("");
-  return `<ul class="goal-tree" data-tree-root>${rendered}${leftovers}</ul>`;
+  return `<ul class="goal-tree" ${rootToken}>${rendered}${leftovers}</ul>`;
 }
 
 function renderTreeStatusFilter(items: readonly GoalsTreeItem[]): string {
@@ -153,59 +154,88 @@ function renderTreeStatusFilter(items: readonly GoalsTreeItem[]): string {
   </section>`;
 }
 
-function renderTreeChrome(
+function renderCollectionFold(
   view: GoalsTreeView,
-  visibleGoals: readonly GoalsTreeItem[],
-  archiveView: boolean,
-  trashView: boolean,
+  selectedId: string,
+  kind: "current" | "archive" | "trash",
+  items: readonly GoalsTreeItem[],
+  open: boolean,
 ): string {
-  const archiveHref = archiveView ? "/" : "/archive";
-  const trashHref = trashView ? "/" : "/trash";
-  const archiveLabel = archiveView ? L("返回 Goal Tree") : L("查看已归档 Goal");
-  const trashLabel = trashView ? L("返回 Goal Tree") : L("查看回收站");
-  const archiveCount = archiveView ? "" : `<small>${view.archived_goals.length}</small>`;
-  const trashCount = trashView ? "" : `<small>${view.trashed_goals.length}</small>`;
-  const archiveText = archiveView ? L("返回") : L("归档");
-  const trashText = trashView ? L("返回") : L("回收站");
+  const title = kind === "current" ? L("当前") : kind === "archive" ? L("归档") : L("回收站");
+  const empty = kind === "current" ? L("还没有 Goal") : kind === "archive" ? L("没有已归档的 Goal") : L("回收站是空的");
+  const persist = kind === "current" ? "goal-collection-current" : kind === "archive" ? "goal-collection-archive" : "goal-collection-trash";
+  const treeToken = kind === "current" ? "data-tree-root" : `data-collection-tree="${kind}"`;
+  const tree = items.length ? renderGoalTree(view, selectedId, items, treeToken) : "";
+  const filterEmpty = kind === "current"
+    ? `<div class="tree-filter-empty" data-tree-filter-empty hidden><p>${L("没有符合当前筛选条件的 Goal。")}</p><button type="button" data-clear-tree-filter>${L("清除所有筛选")}</button></div>`
+    : "";
+  const body = items.length ? `${tree}${filterEmpty}` : `<p class="goal-collection-empty">${empty}</p>`;
+  return `<details class="goal-collection-fold" data-goal-collection-fold="${kind}" data-persist-open="${persist}"${open ? " open data-collection-open" : ""}>
+    <summary>
+      <span class="goal-collection-caret" aria-hidden="true">${icon("chevron-down")}</span>
+      <strong>${title}</strong>
+      <small>${items.length}</small>
+    </summary>
+    ${body}
+  </details>`;
+}
+
+function selectedInCollection(selectedId: string, items: readonly GoalsTreeItem[]): boolean {
+  return Boolean(selectedId) && items.some((item) => item.goal.goal_id === selectedId);
+}
+
+function selectedOutsideCurrentTree(view: GoalsTreeView, selectedId: string, items: readonly GoalsTreeItem[]): boolean {
+  return Boolean(selectedId)
+    && !selectedInCollection(selectedId, view.goals)
+    && selectedInCollection(selectedId, items);
+}
+
+function renderGoalList(view: GoalsTreeView, selectedId: string, archiveView: boolean, trashView: boolean): string {
+  const currentOpen = selectedInCollection(selectedId, view.goals) || (!archiveView && !trashView);
+  const archiveOpen = archiveView || selectedOutsideCurrentTree(view, selectedId, view.archived_goals);
+  const trashOpen = trashView || selectedOutsideCurrentTree(view, selectedId, view.trashed_goals);
+  return `${renderCollectionFold(view, selectedId, "current", view.goals, currentOpen)}${renderCollectionFold(view, selectedId, "archive", view.archived_goals, archiveOpen)}${renderCollectionFold(view, selectedId, "trash", view.trashed_goals, trashOpen)}`;
+}
+
+function renderTreeChrome(view: GoalsTreeView): string {
   return `<header class="tree-chrome" data-tree-chrome data-directory-list-actions>
-    ${!archiveView && !trashView ? `<div class="navigator-view-switch" role="tablist" aria-label="${L("Goal 视图")}">
-      <button class="is-active" type="button" role="tab" aria-selected="true" data-navigator-view="list">${icon("list")}<span>${L("目标工作区")}</span></button>
-      <button type="button" role="tab" aria-selected="false" data-navigator-view="graph">${icon("workflow")}<span>${L("关系画布")}</span></button>
-    </div>` : ""}
     <div class="tree-tools">
+      <button class="tree-create" type="button" data-open-create>${icon("plus")}<span>${L("新建 Goal")}</span></button>
       <div class="tree-filter-control">
-        <button class="tree-tool" type="button" data-tree-filter-trigger aria-expanded="false" aria-controls="tree-status-filter" aria-label="${L("筛选目标")}" title="${L("筛选目标")}">${icon("filter")}<span>${L("状态")}</span></button>
-        ${renderTreeStatusFilter(visibleGoals)}
+        <button class="tree-filter-trigger" type="button" data-tree-filter-trigger aria-expanded="false" aria-controls="tree-status-filter" aria-label="${L("筛选目标")}" title="${L("筛选目标")}">${icon("filter")}<span>${L("状态")}</span></button>
+        ${renderTreeStatusFilter(view.goals)}
       </div>
-        <button class="tree-tool" type="button" data-open-create aria-label="${L("新建目标")}" title="${L("新建目标")}">${icon("plus")}<span>${L("新建")}</span></button>
-      <a class="tree-tool${archiveView ? " is-current" : ""}" data-archive-link href="${archiveHref}" aria-label="${archiveLabel}" title="${archiveLabel}"${archiveView ? ' aria-current="page"' : ""}>${icon(archiveView ? "tree" : "archive")}<span>${archiveText}</span>${archiveCount}</a>
-      <a class="tree-tool${trashView ? " is-current" : ""}" data-trash-link href="${trashHref}" aria-label="${trashLabel}" title="${trashLabel}"${trashView ? ' aria-current="page"' : ""}>${icon(trashView ? "tree" : "trash")}<span>${trashText}</span>${trashCount}</a>
-      <button class="tree-tool" type="button" data-collapse-all aria-label="${L("折叠全部")}" title="${L("折叠全部")}">${icon("tree")}<span>${L("折叠全部")}</span></button>
     </div>
   </header>`;
 }
 
+function renderTreeFooter(view: GoalsTreeView, collection: GoalCollectionModel<GoalsTreeItem>): string {
+  const { collectionSuffix, collectionNote } = collection;
+  return `<footer class="tree-footer" data-tree-footer><span data-tree-filter-count data-tree-suffix="${escapeHtml(collectionSuffix)}">${L("共 {count} 个{suffix}目标", { count: view.goals.length, suffix: "" })}</span><small>${collectionNote}</small></footer>`;
+}
 
+function renderGoalStageList(view: GoalsTreeView, collection: GoalCollectionModel<GoalsTreeItem>): string {
+  const { selectedId, archiveView, trashView } = collection;
+  return `<div class="goal-stage-list" data-goal-stage-list data-tree-scroll tabindex="0" aria-label="${L("目标列表")}"><div class="goal-list-view" data-goal-list-view>${renderGoalList(view, selectedId, archiveView, trashView)}</div></div>`;
+}
 
 function renderGoalDirectory(view: GoalsTreeView, collection: GoalCollectionModel<GoalsTreeItem>, initiallyOpen: boolean): string {
-  const { visibleGoals, selectedId, collectionTitle, collectionSuffix, collectionView, collectionNote, archiveView, trashView } = collection;
+  const { collectionTitle } = collection;
   return `<section class="desktop-directory-panel desktop-goal-directory" data-directory-panel="goals"${initiallyOpen ? "" : " hidden"}>
-          <header class="desktop-directory-heading"><button type="button" data-directory-back aria-label="${L("返回上一级")}">${icon("back")}</button><span><strong>${collectionTitle === L("Goal Tree") ? "Goals" : collectionTitle}</strong><small>${collectionView ? collectionNote : L("Goal Tree")}</small></span></header>
-          ${renderTreeChrome(view, visibleGoals, archiveView, trashView)}
-          <div class="tree-scroll" data-tree-scroll tabindex="0" aria-label="${collectionTitle} ${L("目标列表")}"><div class="goal-list-view" data-goal-list-view>${renderGoalTree(view, selectedId, visibleGoals)}<div class="tree-filter-empty" data-tree-filter-empty hidden><p>${L("没有符合当前筛选条件的 Goal。")}</p><button type="button" data-clear-tree-filter>${L("清除所有筛选")}</button></div></div></div>
-          <footer class="tree-footer" data-tree-footer><span data-tree-filter-count data-tree-suffix="${escapeHtml(collectionSuffix)}">${L("共 {count} 个{suffix}目标", { count: visibleGoals.length, suffix: collectionSuffix ? `${collectionSuffix} ` : "" })}</span><small>${collectionNote}</small></footer>
+          <header class="desktop-directory-heading"><button type="button" data-directory-back aria-label="${L("返回上一级")}">${icon("back")}</button><span><strong>${collectionTitle === L("Goal Tree") ? "Goals" : collectionTitle}</strong><small>${L("Goal Tree")}</small></span></header>
+          ${renderTreeChrome(view)}
+          ${renderTreeFooter(view, collection)}
         </section>`;
 }
 
 function renderGoalRefreshDirectory(view: GoalsTreeView, collection: GoalCollectionModel<GoalsTreeItem>): string {
-  const { visibleGoals, selectedId, collectionSuffix, collectionNote, archiveView, trashView } = collection;
-  const tree = `${renderGoalTree(view, selectedId, visibleGoals)}<div class="tree-filter-empty" data-tree-filter-empty hidden><p>${L("没有符合当前筛选条件的 Goal。")}</p><button type="button" data-clear-tree-filter>${L("清除所有筛选")}</button></div>`;
-  return `<div data-refresh-tree-chrome hidden>${renderTreeChrome(view, visibleGoals, archiveView, trashView)}</div>
-    <div data-tree-scroll>${tree}</div>
-    <footer data-tree-footer><span data-tree-filter-count data-tree-suffix="${escapeHtml(collectionSuffix)}">${L("共 {count} 个{suffix}目标", { count: visibleGoals.length, suffix: collectionSuffix ? `${collectionSuffix} ` : "" })}</span><small>${collectionNote}</small></footer>`;
+  const { selectedId, archiveView, trashView } = collection;
+  return `<div data-refresh-tree-chrome hidden>${renderTreeChrome(view)}</div>
+    <div data-tree-scroll>${renderGoalList(view, selectedId, archiveView, trashView)}</div>
+    ${renderTreeFooter(view, collection)}`;
 }
 
-  return { renderGoalTree, renderTreeChrome, renderGoalDirectory, renderGoalRefreshDirectory, renderGoalRootEntry };
+  return { renderGoalTree, renderTreeChrome, renderGoalDirectory, renderGoalRefreshDirectory, renderGoalStageList, renderGoalRootEntry };
 }
 export type GoalsTreeRenderer = ReturnType<typeof createTreeRenderer>;
 export type GoalsTreeUiModel = { primitives: GoalsTreeUiPrimitives } & (
@@ -214,12 +244,13 @@ export type GoalsTreeUiModel = { primitives: GoalsTreeUiPrimitives } & (
   | { kind: "chrome"; args: Parameters<GoalsTreeRenderer["renderTreeChrome"]> }
   | { kind: "directory"; args: Parameters<GoalsTreeRenderer["renderGoalDirectory"]> }
   | { kind: "refresh"; args: Parameters<GoalsTreeRenderer["renderGoalRefreshDirectory"]> }
+  | { kind: "stage-list"; args: Parameters<GoalsTreeRenderer["renderGoalStageList"]> }
 );
 export const goalsTreeUiContribution: UiContribution<GoalsTreeUiModel> = {
   descriptor: {
     contribution_id: GOALS_TREE_UI_CONTRIBUTION_ID, plugin_id: "io.molis.work.native.goals",
     kind: "embedded", label: "Goal Tree",
-    surfaces: ["root-entry", "tree", "chrome", "directory", "refresh"].map(surface_id => ({ surface_id, target_slot_id: "workbench.directory", format: "declarative-html" })),
+    surfaces: ["root-entry", "tree", "chrome", "directory", "refresh", "stage-list"].map(surface_id => ({ surface_id, target_slot_id: "workbench.directory", format: "declarative-html" })),
     slots: [],
   },
   render({ surface, model }) {
@@ -231,6 +262,7 @@ export const goalsTreeUiContribution: UiContribution<GoalsTreeUiModel> = {
       case "chrome": return renderer.renderTreeChrome(...model.args);
       case "directory": return renderer.renderGoalDirectory(...model.args);
       case "refresh": return renderer.renderGoalRefreshDirectory(...model.args);
+      case "stage-list": return renderer.renderGoalStageList(...model.args);
     }
   },
 };

@@ -328,7 +328,8 @@ export const PERSONAL_WORKBENCH_V3_STYLES = `  /* Personal workbench v3: one dir
       background: color-mix(in srgb, var(--blue) 11%, var(--paper));
       box-shadow: none;
     }
-    body[data-desktop-shell="true"] .tree-tools { min-width: 0; display: flex; justify-content: flex-end; gap: 2px; }
+    body[data-desktop-shell="true"] .tree-tools { min-width: 0; width: 100%; display: flex; justify-content: flex-start; gap: 4px; }
+    body[data-desktop-shell="true"] .tree-create { height: 26px; min-height: 26px; }
     body[data-desktop-shell="true"] .tree-tool { width: 26px; height: 26px; min-height: 26px; padding: 0; border: 0; border-radius: 7px; justify-content: center; }
     body[data-desktop-shell="true"] .tree-tool:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 6%, transparent); box-shadow: none; }
     body[data-desktop-shell="true"] .tree-tool span,

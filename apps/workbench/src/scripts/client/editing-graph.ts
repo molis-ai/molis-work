@@ -140,7 +140,8 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
         workspace, treeSearch, documentCollection, route, translate: L,
         projectId: state.project?.project_id || state.snapshot.board.board_id,
         selectGoal: (...args) => selectGoal(...args),
-        openFrame: (id) => { void openTaskForGoal(id, visibleGoals().find((item) => item.goal.goal_id === id)?.goal.title || id); },
+        openFrame: (id) => frameContainer?.openFrame(id),
+        applySelection: (id) => applySelection(id, false),
         isFrameTabActive: () => frameContainer?.isFrameTabActive() === true,
         isKanbanTabActive: () => frameContainer?.isKanbanTabActive() === true,
         getSelected: () => selected, getSelectedStatuses: () => getSelectedStatuses(),
@@ -218,9 +219,7 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
       locateGraphNode: (id) => locateGraphNode(id),
       getProjectId: () => state.project?.project_id || state.snapshot.board.board_id,
       route,
-      listTasks: () => state.tasks || [],
-      rememberTask: (task) => rememberTask(task),
-      openTaskForGoal: (goalId, title, mode) => openTaskForGoal(goalId, title, mode),
+      openGoalTab: (id) => tabWorkspace?.openItem("goals", id, undefined, "frame"),
       openGoalWork: () => tabWorkspace?.openGoalWork(),
       activateGoalsMother: () => {
         const current = tabWorkspace?.state?.();
@@ -232,7 +231,7 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
     });
     tabWorkspace = (${TAB_WORKSPACE_FACTORY_SCRIPT})({
       setFeedTask, setFeedAddOpen,
-      showTaskFrame: (id) => frameContainer?.showTaskFrame(id),
+      showGoalFrame: (id) => frameContainer?.showGoalFrame(id),
       translate: L,
       getSurface: () => activeDesktopSurface,
       setWorkSurface: (...args) => setDesktopWorkSurface(...args),
@@ -251,10 +250,6 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
       restoreBoard: () => frameContainer?.restoreBoard(),
       releaseFrame: () => frameContainer?.releaseFrame(),
       isFrameTabActive: () => frameContainer?.isFrameTabActive() === true,
-      listTasks: () => state.tasks || [],
-      hydrateTasks: () => hydrateTasks(),
-      ensureTaskForGoal: (goalId, title) => ensureTaskForGoal(goalId, title),
-      openTaskForGoal: (goalId, title, mode) => openTaskForGoal(goalId, title, mode),
     });
 
 

@@ -105,6 +105,32 @@ export const COSS_CONTROL_STYLES = `
     opacity: 1;
     transform: none !important;
   }
+  body.immersive-workbench .tree-create,
+  body.immersive-workbench [data-tree-filter-trigger] {
+    height: var(--control-h) !important;
+    min-height: var(--control-h) !important;
+    border: 1px solid var(--line) !important;
+    border-radius: var(--radius-control) !important;
+    background: var(--paper) !important;
+    color: var(--ink) !important;
+    box-shadow: none !important;
+    transform: none !important;
+  }
+  body.immersive-workbench .tree-create:hover,
+  body.immersive-workbench [data-tree-filter-trigger]:is(:hover, .is-active, [aria-expanded="true"]) {
+    background: var(--nav-hover) !important;
+    color: var(--ink) !important;
+  }
+  body.immersive-workbench [data-tree-filter-trigger] {
+    width: var(--control-h) !important;
+    min-width: var(--control-h) !important;
+    padding: 0 !important;
+    display: inline-grid !important;
+    place-items: center !important;
+    flex: none !important;
+  }
+  body.immersive-workbench [data-tree-filter-trigger] > span { display: none !important; }
+  body.immersive-workbench [data-tree-filter-trigger] svg { width: 14px; height: 14px; color: inherit; }
   .button-primary:disabled,
   .goal-primary-action:disabled,
   .project-migration-submit:disabled,

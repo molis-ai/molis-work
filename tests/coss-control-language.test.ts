@@ -42,6 +42,9 @@ test("primary actions stay Action fill with the control radius", () => {
   const workbench = renderMolisWorkWorkbenchStylesheet();
   const coss = workbench.slice(workbench.lastIndexOf(COSS_CONTROL_STYLES.trim().slice(0,80)));
   assert.match(coss, /\.button-primary,[\s\S]*border-radius: var\(--radius-control\) !important;[\s\S]*background: var\(--action\) !important;/);
+  assert.doesNotMatch(coss.slice(0, coss.indexOf("body.immersive-workbench .tree-create")), /tree-create|data-tree-filter-trigger/);
+  assert.match(coss, /body\.immersive-workbench \.tree-create,[\s\S]*background: var\(--paper\) !important;/);
+  assert.match(coss, /body\.immersive-workbench \[data-tree-filter-trigger\] \{[\s\S]*padding: 0 !important;/);
   assert.match(coss, /body\.immersive-workbench \.home-shortcut-dialog \.home-shortcut-save/);
   assert.doesNotMatch(coss, /source-mobile-add/);
 });

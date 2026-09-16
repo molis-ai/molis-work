@@ -26,7 +26,7 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
     if (surface === "home") return "home";
     if (surface === "market") return "market";
     if (surface === "project-settings") return "";
-    if (surface === "sessions" || surface === "inbox" || surface === "artifacts" || surface === "task") return surface;
+    if (surface === "sessions" || surface === "inbox" || surface === "artifacts") return surface;
     return "";
   };
   const syncPresence = () => {
@@ -83,7 +83,7 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
       else button.removeAttribute("aria-current");
     });
     const surface = getSurface();
-    const labels = { home: L("项目首页"), goal: "Goals", task: "Task", sessions: "Sessions", inbox: "Inbox", feed: "Feed", sources: "Feed", artifacts: "Artifacts", market: L("插件市场"), "project-settings": L("项目设置") };
+    const labels = { home: L("项目首页"), goal: "Goals", sessions: "Sessions", inbox: "Inbox", feed: "Feed", sources: "Feed", artifacts: "Artifacts", market: L("插件市场"), "project-settings": L("项目设置") };
     const pluginTitle = document.querySelector("[data-immersive-plugin-title]");
     if (pluginTitle) {
       pluginTitle.hidden = true;
@@ -124,7 +124,7 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
       return;
     }
     if (event.target.closest("[data-goal-details-toggle]")) setDetails(frame.dataset.detailsOpen !== "true", true);
-    if (event.target.closest("[data-select-goal], [data-task-row], [data-operation-select], [data-artifact-select], [data-inbox-row]")) {
+    if (event.target.closest("[data-select-goal], [data-operation-select], [data-artifact-select], [data-inbox-row]")) {
       if (narrow()) setMobileView("document");
       sync();
     }

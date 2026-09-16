@@ -40,3 +40,4 @@ export const VISUAL_FOUNDATION_STYLES = [
 ].join("");
 
 export { COSS_CONTROL_STYLES } from "./styles/coss-controls.js";
+export { INTERACTION_TEXTURE_STYLES } from "./styles/interaction-texture.js";

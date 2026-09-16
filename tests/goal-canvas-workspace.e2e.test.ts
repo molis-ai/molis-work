@@ -34,6 +34,8 @@ test("Fixed Goal frame preserves camera and draft; details stay beside desktop w
   await screenshot("home-light");
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor("document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true'");
+  await click("[data-board-view-tab=canvas]");
+  await waitFor("document.querySelector('[data-goal-canvas-shell]')?.dataset.boardView === 'canvas'");
   const camera = () => evaluate("JSON.stringify(document.querySelector('[data-graph-stage]').dataset)");
   await click('[data-graph-zoom="in"]');
   const beforeOpen = await camera();

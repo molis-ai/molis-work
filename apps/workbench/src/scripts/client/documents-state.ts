@@ -166,7 +166,7 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
       selected,
       collapsed: getCollapsedTreeGoals(),
       disclosures: [...document.querySelectorAll("[data-persist-open][open]")].map((item) => item.dataset.persistOpen),
-      treeTop: treeScroll.scrollTop,
+      treeTop: treeScroll?.scrollTop || 0,
       documentTop: activeDesktopSurface === "goal" ? documentPane.scrollTop : Number(desktopSurfaceScroll.goal || 0),
       workSurface: activeDesktopSurface,
       surfaceScroll: { ...desktopSurfaceScroll, [activeDesktopSurface]: (activeDesktopSurface === "goal" ? documentPane : desktopWorkSurfaces.find(item => item.dataset.workSurface === activeDesktopSurface))?.scrollTop || 0 },
@@ -230,6 +230,7 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
       document.querySelectorAll("[data-persist-open]").forEach((item) => {
         item.open = disclosures.has(item.dataset.persistOpen);
       });
+      syncGoalCollectionFolds();
       if (treeSearch) treeSearch.value = "";
       setSelectedStatuses(ui?.statuses || []);
       restoreMomentumState({
@@ -300,7 +301,7 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
       setGoalFactor(goalFactorFromHash() || (ui?.selected === selected ? ui?.goalFactor : "relations"), false);
       const hashTargetId = decodeURIComponent(location.hash.slice(1));
       const hashTarget = hashTargetId ? document.getElementById(hashTargetId) : null;
-      treeScroll.scrollTop = Number(ui?.treeTop || 0);
+      if (treeScroll) treeScroll.scrollTop = Number(ui?.treeTop || 0);
       documentPane.scrollTop = hashTarget?.closest?.("[data-event-panel], [data-goal-factor-panel]") && activeDesktopSurface === "goal"
         ? 0
         : activeDesktopSurface === "goal" && ui?.selected === selected

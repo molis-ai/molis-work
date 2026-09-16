@@ -78,7 +78,6 @@ test("every static renderer label has an English translation", () => {
     "../plugins/native/feed/src/ui.ts",
     "../plugins/native/inbox/src/ui.ts",
     "../plugins/native/inbox/src/projection.ts",
-    "../plugins/native/task/src/ui.ts",
     "../plugins/native/artifacts/src/browser-ui.ts",
     "../plugins/native/artifacts/src/reference-ui.ts"]
     .map(path => readFileSync(new URL(path, import.meta.url), "utf8")).join("\n");

@@ -70,7 +70,7 @@ export class ProjectService {
     this.repository.transaction(() => {
       this.repository.insertProject(record);
       // Imported projects retain their existing entry points; new projects start with Goals.
-      const plugins = record.source === "migrated" ? BUILTIN_PROJECT_PLUGIN_IDS : ["goals", "task"] as const;
+      const plugins = record.source === "migrated" ? BUILTIN_PROJECT_PLUGIN_IDS : ["goals"] as const;
       for (const plugin of plugins) this.repository.addProjectPlugin(record.project_id, plugin, record.created_at);
       this.appendEvent(record.project_id, eventType, this.requiredActorId(actorId), {
         board_id: record.board_id,

@@ -30,7 +30,6 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       setMobileView: (...args) => setMobileView(...args),
       noteSearchActivity: (...args) => noteSearchActivity(...args),
       openTabItem: (plugin, id, title, mode) => tabWorkspace?.openItem(plugin, id, title, undefined, mode),
-      openTaskForGoal: (goalId, title, mode) => openTaskForGoal(goalId, title, mode),
       expandDirectory: (id) => setPluginSectionExpanded(id === "sources" ? "feed" : id, true, true),
     });
     projectHome = (${PROJECT_HOME_FACTORY_SCRIPT})({ getState: () => state, translate: L });
@@ -132,7 +131,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     );
     if (tabWorkspace) {
       if (directGoalRequested && selected && !restoredNavigation) {
-        void openTaskForGoal(selected, visibleGoals().find((item) => item.goal.goal_id === selected)?.goal.title || selected, "commit");
+        tabWorkspace.openItem("goals", selected);
       }
     } else if (!directGoalRequested && !restoredNavigation && !decisionView && !collectionView) {
       goalWorkspaceMode = "graph";
@@ -149,8 +148,8 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       saveUiState();
     }
     if (directGoalRequested && selected && !restoredNavigation && tabWorkspace) {
-      setDesktopDirectory("task", false, false);
-      setWorkspaceMode("graph", false);
+      setDesktopDirectory("goals", false, false);
+      setWorkspaceMode("focus", false);
       if (matchMedia("(max-width: 760px)").matches) setMobileView("document");
       saveUiState();
     }

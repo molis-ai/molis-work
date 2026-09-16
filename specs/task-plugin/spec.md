@@ -1,8 +1,8 @@
 # Task 插件：真正工作台，从 Goals 剥离 Frame
 
-状态：功能可用（完成等级 3）。不宣称可发布。不改用户真实库、不发布、不安装新 App。
+状态：已取代。产品撤回独立 Task 对象；见 `specs/remove-task-plugin/spec.md`。下文只作历史记录。
 
-本文件是这次行为变更的唯一需求书。它取代：
+本文件曾是这次行为变更的唯一需求书。它曾取代：
 
 - `PRODUCT.md` 里「叶子 Goal 和 Task 是同一真相节点」；
 - `specs/workbench-frame-container/spec.md` 里「Frame 不进左目录、只按 Goal 绑定、不能当插件点」；

@@ -29,7 +29,7 @@ const GOALS_TREE_FILTER_SCRIPT = `    function setSelectedStatuses(values) {
 
     function filterTree(value) {
       const query = value.trim().toLowerCase();
-      const items = [...document.querySelectorAll("[data-tree-item]")];
+      const items = [...document.querySelectorAll("[data-tree-root] [data-tree-item]")];
       const matched = items.filter((item) => {
         const matchesQuery = !query || String(item.dataset.goalSearch || "").includes(query);
         const matchesStatus = selectedStatuses.size === 0 || selectedStatuses.has(item.dataset.goalStatus);
@@ -47,7 +47,7 @@ const GOALS_TREE_FILTER_SCRIPT = `    function setSelectedStatuses(values) {
         });
       }
       const count = document.querySelector("[data-tree-filter-count]");
-      const empty = treeScroll.querySelector("[data-tree-filter-empty]");
+      const empty = treeScroll?.querySelector("[data-tree-filter-empty]");
       const suffix = count?.dataset.treeSuffix || "";
       if (count) {
         const suffixText = suffix ? suffix + " " : "";
@@ -76,7 +76,7 @@ const GOALS_TREE_SEARCH_EVENTS_SCRIPT = `    treeSearch?.addEventListener("input
       searchComposing = false;
       noteSearchActivity(500);
     });
-    treeScroll.addEventListener("keydown", (event) => {
+    treeScroll?.addEventListener("keydown", (event) => {
       if (event.target !== treeScroll) return;
       const page = Math.max(38, treeScroll.clientHeight - 38);
       const next = {
@@ -92,7 +92,7 @@ const GOALS_TREE_SEARCH_EVENTS_SCRIPT = `    treeSearch?.addEventListener("input
       treeScroll.scrollTop = next;
       queueSave();
     });
-    treeScroll.addEventListener("scroll", queueSave, { passive: true });
+    treeScroll?.addEventListener("scroll", queueSave, { passive: true });
 `;
 
 const GOALS_TREE_STATUS_CHANGE_SCRIPT = `      const statusFilter = changed.closest("[data-status-filter]");
@@ -147,19 +147,6 @@ const GOALS_TREE_DISCLOSURE_SCRIPT = `      if (!treeFilter?.hidden && !target.c
       return false;
 `;
 
-const GOALS_TREE_COLLAPSE_ALL_SCRIPT = `      if (target.closest("[data-collapse-all]")) {
-        const items = [...document.querySelectorAll("[data-tree-item]")];
-        const shouldCollapse = items.some((item) => !item.classList.contains("is-collapsed"));
-        items.forEach((item) => item.classList.toggle("is-collapsed", shouldCollapse));
-        document.querySelectorAll("[data-tree-toggle]").forEach((button) => {
-          button.setAttribute("aria-expanded", String(!shouldCollapse));
-        });
-        saveUiState();
-        return true;
-      }
-      return false;
-`;
-
 const GOALS_TREE_KEYBOARD_SCRIPT = `      if (event.key === "Escape" && !treeFilter?.hidden) {
         event.preventDefault();
         setTreeFilterOpen(false);
@@ -186,13 +173,22 @@ ${GOALS_TREE_FILTER_SCRIPT}
     };
 
 
+    const syncGoalCollectionFolds = () => {
+      document.querySelectorAll("[data-goal-collection-fold]").forEach((fold) => {
+        if (fold.hasAttribute("data-collection-open") || fold.querySelector(".tree-node.is-selected")) fold.open = true;
+      });
+    };
     const selectTreeGoal = (goalId) => {
       document.querySelectorAll(".tree-node[data-select-goal]").forEach((button) => {
         const active = button.dataset.selectGoal === goalId;
         button.classList.toggle("is-selected", active);
         button.closest(".tree-entry")?.classList.toggle("is-selected", active);
         button.setAttribute("aria-pressed", String(active));
-        if (active) expandAncestors(button);
+        if (active) {
+          expandAncestors(button);
+          const fold = button.closest("[data-goal-collection-fold]");
+          if (fold) fold.open = true;
+        }
       });
     };
     const getCollapsedTreeGoals = () => [...document.querySelectorAll("[data-tree-item].is-collapsed")].map((item) => item.dataset.goalId);
@@ -216,12 +212,10 @@ ${GOALS_TREE_STATUS_CHANGE_SCRIPT}    };
 ${GOALS_TREE_SEARCH_FOCUS_SCRIPT}    };
     const handleTreeDisclosureClick = (target) => {
 ${GOALS_TREE_DISCLOSURE_SCRIPT}    };
-    const handleTreeCollapseAllClick = (target) => {
-${GOALS_TREE_COLLAPSE_ALL_SCRIPT}    };
     const handleTreeKeyboard = (event) => {
 ${GOALS_TREE_KEYBOARD_SCRIPT}    };
-    return { selectTreeGoal, getCollapsedTreeGoals, restoreTreeCollapsed, setSelectedStatuses, getSelectedStatuses, isTreeSearchComposing,
+    return { selectTreeGoal, syncGoalCollectionFolds, getCollapsedTreeGoals, restoreTreeCollapsed, setSelectedStatuses, getSelectedStatuses, isTreeSearchComposing,
       setTreeFilterOpen, filterTree, bindTreeSearchEvents, bindTreeFilterTrigger,
       handleTreeStatusChange, handleTreeSearchFocus, handleTreeDisclosureClick,
-      handleTreeCollapseAllClick, handleTreeKeyboard };
+      handleTreeKeyboard };
   }`;

@@ -8,7 +8,6 @@ export interface ImmersiveShellPrimitives {
 
 const DIRECTORY_PLUGINS = [
   { id: "goals", surface: "goal", label: "Goals", glyph: "target" as const },
-  { id: "task", surface: "task", label: "Task", glyph: "list" as const },
   { id: "sessions", surface: "sessions", label: "Sessions", glyph: "terminal" as const },
   { id: "inbox", surface: "inbox", label: "Inbox", glyph: "input" as const },
   { id: "feed", surface: "feed", label: "Feed", glyph: "activity" as const },
@@ -70,9 +69,10 @@ export function renderDirectoryPluginSections(
   return `${plugins}${settingsSection}`;
 }
 
-export function renderImmersiveHeader(primitives: ImmersiveShellPrimitives, desktop: boolean): string {
+export function renderImmersiveHeader(primitives: ImmersiveShellPrimitives, desktop: boolean, chromeHtml = ""): string {
   const { L, icon } = primitives;
   return `<header class="workbench-header immersive-titlebar">
+    ${chromeHtml ? renderWorkspaceChrome(primitives, chromeHtml) : ""}
     <div class="workspace-history">
       <button class="workspace-history-button" type="button" data-workspace-history="back" aria-label="${L("上一步")}" title="${L("上一步")}" disabled>${icon("back")}</button>
       <button class="workspace-history-button" type="button" data-workspace-history="forward" aria-label="${L("下一步")}" title="${L("下一步")}" disabled>${icon("arrow")}</button>
@@ -115,7 +115,6 @@ export function renderGlobalSearchOverlay({ L }: ImmersiveShellPrimitives): stri
 export function renderPluginMarket({ L, icon }: ImmersiveShellPrimitives): string {
   const plugins = [
     { id: "goals", label: "Goals", glyph: "target" as const, copy: "确定目标，推进工作，留下结果。" },
-    { id: "task", label: "Task", glyph: "list" as const, copy: "真正开始做的工作台，不必先有 Goal。" },
     { id: "sessions", label: "Sessions", glyph: "terminal" as const, copy: "回到你的会话，继续正在做的事。" },
     { id: "inbox", label: "Inbox", glyph: "input" as const, copy: "只看需要你介入的事项。" },
     { id: "feed", label: "Feed", glyph: "activity" as const, copy: "查看来源消息和完整流水。" },

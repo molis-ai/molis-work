@@ -29,7 +29,7 @@ Molis Work 是 Goal 的权威真相源。它把用户意图逐步整理成可理
 
 Molis Work 不是另一个 Kanban，也不是 Agent 调度器。它的差异机制是：
 
-- 叶子 Goal 是可独立交付和验收的目标节点；真正干活的工作台是独立的 Task，可以没有 Goal 就创建，一条 Goal 最多关联一条 Task；
+- 叶子 Goal 和 Task 是同一真相节点；
 - Plan 和 TaskBoard 都是 Goal Spine 的派生视图；
 - Runtime 自己读取和上报，Board 不派单；未转交历史 Goal 仍可领取；
 - 接受后的业务 Goal 不被静默改写；

@@ -16,7 +16,7 @@ test('Dense workspace keeps many long tabs, nested panes and long Feed content i
   await command('Emulation.setDeviceMetricsOverride',{width:1440,height:900,deviceScaleFactor:1,mobile:false},sessionId);
   await navigate(()=>command('Page.navigate',{url:`${origin}/projects/${projectId}/`},sessionId));
   await click('[data-plugin-id=goals]');
-  for(const id of ids)await click(`[data-directory-panel=goals] [data-select-goal="${id}"]`);
+  for(const id of ids)await click(`[data-goal-stage-list] [data-select-goal="${id}"]`);
   assert.ok(await evaluate("document.querySelectorAll('.tab-item').length>=12"));
   await click('[data-plugin-id=feed]');await click(`[data-feed-task-toggle="${source.source_id}"]`);
   for(const direction of ['right','bottom']) {

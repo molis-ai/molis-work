@@ -19,6 +19,8 @@ test("Project navigation preserves the fixed Goal workspace, terminal instance, 
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor("document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true'");
   await waitFor("document.querySelector('[data-plugin-strip] [data-plugin-id=goals]').getAttribute('aria-current') === 'page'");
+  await click("[data-board-view-tab=canvas]");
+  await waitFor("document.querySelector('[data-goal-canvas-shell]')?.dataset.boardView === 'canvas'");
   const goalId = await evaluate<string>("document.querySelector('[data-select-goal]').dataset.selectGoal");
   const camera = await evaluate("document.querySelector('[data-graph-stage]').getAttribute('style')");
   await waitFor("Boolean(document.querySelector(" + JSON.stringify('[data-graph-node][data-goal-id="' + goalId + '"] [data-graph-open]') + "))");
@@ -84,8 +86,8 @@ test("Bundled market adds to the selected project and Artifact versions stay in 
   await waitFor("document.querySelector('[data-market-add=feed]').textContent === '已添加'");
   assert.equal(await evaluate("document.querySelector('[data-market-add=inbox]').textContent"), "已添加");
   const list = await evaluate<{ project_id: string; plugins: string[] }[]>("fetch('/api/settings/project-plugins').then(r=>r.json()).then(r=>r.projects)");
-  assert.deepEqual(list.find(item => item.project_id === projectId)!.plugins, ["goals", "task"]);
-  assert.deepEqual(list.find(item => item.project_id === otherId)!.plugins, ["feed", "goals", "inbox", "task"]);
+  assert.deepEqual(list.find(item => item.project_id === projectId)!.plugins, ["goals"]);
+  assert.deepEqual(list.find(item => item.project_id === otherId)!.plugins, ["feed", "goals", "inbox"]);
   await evaluate(`(()=>{const s=document.querySelector('[data-market-project]');s.value=${JSON.stringify(projectId)};s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   await navigate(() => click('[data-market-add="artifacts"]'));
   await waitFor("document.body.dataset.desktopSurface === 'market' && !document.querySelector('[data-market-project]').disabled");
@@ -123,6 +125,8 @@ test("Project entry lands at home, while refresh preserves work and Goal links r
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor("document.body.dataset.desktopSurface === 'goal'");
   await waitFor("document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true'");
+  await click("[data-board-view-tab=canvas]");
+  await waitFor("document.querySelector('[data-goal-canvas-shell]')?.dataset.boardView === 'canvas'");
   const goalId = await evaluate<string>("document.querySelector('[data-select-goal]').dataset.selectGoal");
   await waitFor("Boolean(document.querySelector(" + JSON.stringify('[data-graph-node][data-goal-id="' + goalId + '"] [data-graph-open]') + "))");
   await click('[data-graph-node][data-goal-id="' + goalId + '"] [data-graph-open]');

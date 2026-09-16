@@ -11,7 +11,7 @@ Goals 目录在标题「Goals」下面还有一整条工具栏（用户截图里
 ### 范围
 
 - 每个插件目录的标题行是：**左侧插件名，右侧该插件的操作**，同一行，约 32px。
-- Goals：筛选、新建、归档、回收站、折叠全部保留，贴在「Goals」右侧。目录内不再有搜索框。
+- Goals：目录内不再有搜索框。「折叠全部」已由 `specs/goals-directory-remove-collapse-all/spec.md` 删除。新建横条、筛选位置、归档/回收站百叶窗见 `specs/goals-directory-collection-folds/spec.md`。
 - Sessions：筛选、新建贴在「Sessions」右侧。去掉目录内搜索框；关键词跳转走全局搜索。
 - Feed：筛选贴在「Feed」右侧。Feed / 来源分段仍在同一行标题区。去掉目录内搜索框。
 - 来源：筛选（原「全部 / 账号 / 公开 Feed / 需处理」收进筛选菜单）和添加贴在「来源」右侧。去掉目录内搜索框。
@@ -53,7 +53,7 @@ Goals 目录在标题「Goals」下面还有一整条工具栏（用户截图里
 
 1. Goals / Sessions / Feed / Inbox / 来源：插件标题与操作垂直中心对齐，同一行；目录内没有搜索输入。**通过**（隔离试用 4193，各插件点开确认；目录内无搜索框）。
 2. 项目选择旁放大镜仍在；点开仍是按插件分组的全局搜索。**通过**（输入 `Session` 只出 Sessions 分组结果）。
-3. Goals 状态筛选、新建、归档、回收站、折叠可用；Sessions 筛选 / Feed 筛选 / Inbox 分段 / 来源添加可用。**通过**（Goals / Sessions / Feed / 来源筛选面板宽度贴近目录，不挤在图标里；Inbox「历史」切到空态文案）。
+3. Goals 状态筛选、新建、归档、回收站可用；Sessions 筛选 / Feed 筛选 / Inbox 分段 / 来源添加可用。**通过**（Goals / Sessions / Feed / 来源筛选面板宽度贴近目录，不挤在图标里；Inbox「历史」切到空态文案）。「折叠全部」后来删除，见 `specs/goals-directory-remove-collapse-all/spec.md`。
 4. 定向测试与相关 e2e 通过。**通过**（52 通过，1 跳过 grok CLI）。
 
 窄屏抽屉点按：**未运行**浏览器 390 宽；`tests/goals-narrow-navigation.e2e.test.ts` 已绿。

@@ -2,7 +2,7 @@
 export const IMMERSIVE_DIRECTORY_STYLES = `
   body.immersive-workbench .tree-resizer {
     display: block;
-    grid-column: 2; grid-row: 2 / -1; justify-self: end; align-self: stretch;
+    grid-column: 2; grid-row: 1 / -1; justify-self: end; align-self: stretch;
     width: 8px; margin-right: -4px; z-index: 25; background: transparent;
   }
   body.immersive-workbench .tree-resizer::before { inset: 0; }
@@ -28,7 +28,12 @@ export const IMMERSIVE_DIRECTORY_STYLES = `
   body.immersive-workbench .tree-pane .tree-entry .goal-status > span { position: static; width: auto; height: auto; overflow: visible; clip-path: none; }
 
 
-  body.immersive-workbench .tree-pane [data-directory-list-actions] { position: static; display: flex; align-items: center; justify-content: flex-start; flex-wrap: wrap; gap: 2px; margin: 0; padding: 0 8px; background: transparent; border: 0; }
+  body.immersive-workbench .tree-pane [data-directory-list-actions] { position: static; display: flex; align-items: center; justify-content: flex-start; flex-wrap: nowrap; gap: 4px; margin: 0; padding: 0 8px; background: transparent; border: 0; width: 100%; box-sizing: border-box; }
+  body.immersive-workbench .tree-pane .goal-collection-fold { margin: 0; border-top: 0; }
+  body.immersive-workbench .tree-pane .goal-collection-fold > summary { height: var(--dir-row-h, 28px); min-height: var(--dir-row-h, 28px); padding: 0 4px; border-radius: 5px; color: var(--muted); }
+  body.immersive-workbench .tree-pane .goal-collection-fold > summary:hover { color: var(--ink); background: var(--nav-hover); }
+  body.immersive-workbench .tree-pane .goal-collection-fold > summary strong { font-size: 11px; font-weight: 550; }
+  body.immersive-workbench .tree-pane .goal-collection-empty { padding: 4px 8px 8px 22px; font-size: 11px; }
   body.immersive-workbench .tree-pane .project-record-directory > .desktop-directory-heading { display: none !important; }
   body.immersive-workbench .tree-pane .project-record-filter-menu { position: static; min-width: 0; }
   body.immersive-workbench .tree-pane .project-record-filter-menu > summary { list-style: none; }

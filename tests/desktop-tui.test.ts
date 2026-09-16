@@ -566,10 +566,11 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.match(browser, /class="desktop-project-switcher navigator-project-menu"/);
     assert.match(browser, /data-global-search-open/);
     assert.match(browser, /data-global-search-dialog/);
-    const goalsDirectory = browser.match(/<section class="desktop-directory-panel desktop-goal-directory"[\s\S]*?<div class="tree-scroll"/)?.[0] ?? "";
+    const goalsDirectory = browser.match(/<section class="desktop-directory-panel desktop-goal-directory"[\s\S]*?<\/section>/)?.[0] ?? "";
     assert.match(goalsDirectory, /data-directory-panel="goals"/);
     assert.doesNotMatch(goalsDirectory, /tree-search|data-global-search/);
     assert.match(goalsDirectory, /data-directory-list-actions/);
+    assert.doesNotMatch(goalsDirectory, /data-select-goal|data-goal-collection-fold|class="tree-scroll"/);
     assert.match(browser, /data-desktop-directory="root"/);
     assert.doesNotMatch(browserMarkup, /desktop-directory-root|directory-list-region|data-directory-list-title/);
     assert.doesNotMatch(browser, /directory-home-empty|首页没有条目|点上面的插件/);
@@ -577,10 +578,10 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     const pluginStrip = browser.match(/<nav class="plugin-rail immersive-plugin-strip"[^>]*>[\s\S]*?<\/nav>/)?.[0];
     assert.ok(pluginStrip);
     assert.match(pluginStrip, /data-plugin-id="home"[^>]*data-work-surface-open="home"/);
-    for (const plugin of ["goals", "task", "sessions", "inbox", "feed", "artifacts"]) {
+    for (const plugin of ["goals", "sessions", "inbox", "feed", "artifacts"]) {
       assert.match(pluginStrip, new RegExp(`data-plugin-id="${plugin}"`));
     }
-    assert.match(pluginStrip, /data-plugin-id="goals"[\s\S]*data-plugin-id="task"[\s\S]*data-plugin-id="sessions"/);
+    assert.match(pluginStrip, /data-plugin-id="goals"[\s\S]*data-plugin-id="sessions"/);
     assert.match(pluginStrip, /data-plugin-id="artifacts"[\s\S]*data-plugin-id="market"[^>]*data-work-surface-open="market"/);
     assert.doesNotMatch(pluginStrip, /返回项目目录/);
     assert.doesNotMatch(pluginStrip, /data-plugin-section=|data-plugin-expand=/);
@@ -712,18 +713,24 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     const titlebarMarkup = desktop.match(/<header class="workbench-header immersive-titlebar">[\s\S]*?<\/header>/)?.[0] ?? "";
     assert.match(titlebarMarkup, /data-workspace-history="back"/);
     assert.match(titlebarMarkup, /data-titlebar-tabs/);
-    assert.doesNotMatch(titlebarMarkup, /navigator-project-selector|data-global-search-open|navigator-project-settings/);
+    assert.match(titlebarMarkup, /navigator-project-selector/);
+    assert.match(titlebarMarkup, /data-global-search-open/);
     assert.match(renderMolisWorkWorkbenchStylesheet(), /\.workspace-chrome \{/);
-    assert.match(renderMolisWorkWorkbenchStylesheet(), /\.immersive-workspace > \.workspace-chrome \{/);
+    assert.match(renderMolisWorkWorkbenchStylesheet(), /\.immersive-titlebar > \.workspace-chrome \{/);
     assert.match(renderMolisWorkWorkbenchStylesheet(), /grid-template-columns: var\(--plugin-rail-width\) var\(--tree-width/);
     assert.doesNotMatch(renderMolisWorkWorkbenchStylesheet(), /data-native-desktop="true"\] \.titlebar-chrome \{ order: 4;/);
     assert.match(desktop, /class="plugin-rail immersive-plugin-strip"/);
     assert.match(desktop, /data-tab-workspace/);
     assert.match(desktop, /data-tab-panes/);
     assert.match(desktop, /data-goal-canvas-shell[\s\S]*data-goal-frame-surface|data-tab-workspace[\s\S]*data-goal-frame-surface/);
-    assert.match(desktop, /data-task-frame-surface/);
-    assert.match(desktop, /data-plugin-id="task"/);
-    assert.match(desktop, /openTaskForGoal/);
+    assert.match(desktop, /data-goal-canvas-shell[^>]*data-board-view="list"/);
+    assert.match(desktop, /data-board-view-tab="list"/);
+    assert.match(desktop, /data-board-view-tab="canvas"/);
+    assert.match(desktop, /data-board-view-tab="kanban"/);
+    assert.match(desktop, /data-goal-stage-list/);
+    assert.doesNotMatch(desktop.slice(0, desktop.indexOf("<style>")), /class="navigator-view-switch"/);
+    assert.match(desktop, /data-goal-frame-surface/);
+    assert.doesNotMatch(desktop, /data-task-frame-surface|data-plugin-id="task"|openTaskForGoal/);
     assert.match(desktop, /openWorkbenchSurface/);
     assert.match(desktop, /data-container-tabs/);
     assert.match(desktop, /molis-work-tab-workspace:/);

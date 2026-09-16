@@ -12,6 +12,8 @@ test("canvas retries graph loading, pans without bounds, drags compact nodes wit
   await command("Network.setBlockedURLs", { urls: [origin + "/api/board/momentum*"] }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/" }, sessionId));
   await click('[data-plugin-id="goals"]');
+  await click("[data-board-view-tab=canvas]");
+  await waitFor("document.querySelector('[data-goal-canvas-shell]')?.dataset.boardView === 'canvas'");
   await waitFor("document.querySelector('[data-retry-goal-momentum]')?.hidden === false && !document.querySelector('[data-goal-momentum]').hasAttribute('aria-busy')");
   assert.deepEqual(store.snapshot(DEMO_BOARD_ID).runs, before.runs);
   await command("Network.setBlockedURLs", { urls: [] }, sessionId);

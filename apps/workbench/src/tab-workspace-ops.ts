@@ -12,7 +12,6 @@ export function createTabWorkspaceOps() {
   const pluginTitle = (plugin) => ({
     home: "项目首页",
     goals: "Goals",
-    task: "Task",
     sessions: "Sessions",
     inbox: "Inbox",
     feed: "Feed",

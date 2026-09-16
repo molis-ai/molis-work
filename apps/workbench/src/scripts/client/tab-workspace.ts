@@ -1,15 +1,15 @@
 import { createTabWorkspaceOps } from "../../tab-workspace-ops.js";
 
-/** Cross-plugin tabs and split panes. Goals canvas/kanban chrome stays in frame-container; Task owns Frame. */
+/** Cross-plugin tabs and split panes. Goals canvas/kanban/Frame chrome stays in frame-container. */
 export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
-  const { showTaskFrame, setFeedAddOpen, setFeedTask, translate: L, getSurface, setWorkSurface, setDirectory, setWorkspaceMode, setMobileView,
-    applySelection, loadGoalDocument, getDocumentGoalId, locateGraphNode, selectFeedItem, selectInboxEntry, getProjectId, visibleGoals, showCanvas, restoreBoard, releaseFrame, isFrameTabActive, listTasks, hydrateTasks, ensureTaskForGoal, openTaskForGoal } = host;
+  const { showGoalFrame, setFeedAddOpen, setFeedTask, translate: L, getSurface, setWorkSurface, setDirectory, setWorkspaceMode, setMobileView,
+    applySelection, loadGoalDocument, getDocumentGoalId, locateGraphNode, selectFeedItem, selectInboxEntry, getProjectId, visibleGoals, showCanvas, restoreBoard, releaseFrame, isFrameTabActive } = host;
   const root = document.querySelector("[data-tab-workspace]");
   const panesEl = document.querySelector("[data-tab-panes]");
   const pool = document.querySelector("[data-surface-pool]");
   if (!root || !panesEl || !pool) return { apply() {}, openPlugin() {}, openItem() {}, setExclusive() {}, restore() {}, isExclusive() { return false; } };
-  const PLUGIN_COLOR = { home: "var(--ink-soft)", goals: "light-dark(#3c6fc6, #91b5f6)", task: "light-dark(#4b5ea8, #a8b6ee)", feed: "light-dark(#a06119, #e0af70)", sessions: "light-dark(#8260b2, #c3a2ec)", inbox: "light-dark(#287a67, #88cbb4)", artifacts: "light-dark(#a45673, #e6a0b8)" };
-  const GROUP_COLOR = { grey: "light-dark(#5f6368, #9aa0a6)", blue: "light-dark(#1a73e8, #8ab4f8)", red: "light-dark(#d93025, #f28b82)", yellow: "light-dark(#f9ab00, #fdd663)", green: "light-dark(#188038, #81c995)", pink: "light-dark(#d01884, #ff8bcb)", purple: "light-dark(#9334e6, #d7aefb)", cyan: "light-dark(#007b83, #78d9ec)" };
+  const PLUGIN_COLOR = { home: "var(--ink-soft)", goals: "light-dark(#3c6fc6, #8fb2f5)", feed: "light-dark(#9c5f1a, #dcab6d)", sessions: "light-dark(#7f5eb0, #c0a0ea)", inbox: "light-dark(#26785f, #86c9b1)", artifacts: "light-dark(#a15571, #e39eb6)" };
+  const GROUP_COLOR = { grey: "light-dark(#6b7080, #9ba1b0)", blue: "light-dark(#2f6fd0, #7fb0f5)", red: "light-dark(#c04c4c, #ef8b8b)", yellow: "light-dark(#a3761c, #e5b969)", green: "light-dark(#2b7d5c, #6cc397)", pink: "light-dark(#bf4d7c, #eb92b5)", purple: "light-dark(#7a5bc4, #b6a2f0)", cyan: "light-dark(#1d7a86, #6cc6d4)" };
   const ops = (${createTabWorkspaceOps.toString()})();
   const storageKey = "molis-work-tab-workspace:" + (getProjectId() || "board");
   const paneParams = new URLSearchParams(location.search);
@@ -46,49 +46,24 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
         persist();
       }
     } catch {}
-    void restoreTaskTabs();
-  };
-  const taskRecord = (taskId) => (listTasks?.() || []).find((item) => item.task_id === taskId) || null;
-  const bindTaskGoal = (tab, goalId) => {
-    if (!tab) return;
-    if (goalId) tab.goalId = goalId;
-    else delete tab.goalId;
-  };
-  const adoptTaskIdentity = (tab, task) => {
-    if (!tab || !task) return;
-    tab.plugin = "task";
-    tab.kind = "item";
-    tab.itemId = task.task_id;
-    tab.title = task.title || tab.title;
-    bindTaskGoal(tab, task.goal_id);
-    delete tab.goalView;
-  };
-  const restoreTaskTabs = async () => {
-    await hydrateTasks?.();
-    for (const pane of state.panes) {
-      for (const tab of pane.tabs) {
-        if (tab.plugin !== "task" || tab.kind !== "item" || !tab.itemId) continue;
-        const task = taskRecord(tab.itemId);
-        if (task?.goal_id) bindTaskGoal(tab, task.goal_id);
-      }
-    }
-    await rewriteLegacyGoalFrameTabs();
+    rewriteRetiredTaskTabs();
     apply();
     persist();
   };
-  const rewriteLegacyGoalFrameTabs = async () => {
-    let changed = false;
-    for (const pane of state.panes) {
-      for (const tab of pane.tabs) {
-        if (tab.plugin !== "goals" || tab.kind !== "item" || tab.goalView === "work") continue;
-        const linked = (listTasks?.() || []).find((item) => item.goal_id === tab.itemId);
-        const task = linked || await ensureTaskForGoal?.(tab.itemId, tab.title);
-        if (!task) continue;
-        adoptTaskIdentity(tab, task);
-        changed = true;
-      }
+  const rewriteRetiredTaskTabs = () => {
+    for (const pane of state.panes || []) {
+      pane.tabs = (pane.tabs || []).filter((tab) => {
+        if (tab.plugin !== "task") return true;
+        if (tab.kind !== "item" || !tab.goalId) return false;
+        tab.plugin = "goals";
+        tab.itemId = tab.goalId;
+        delete tab.goalId;
+        delete tab.goalView;
+        return true;
+      });
+      if (!pane.tabs.some((tab) => tab.id === pane.activeTabId)) pane.activeTabId = pane.tabs[0]?.id;
     }
-    if (changed) { apply(); persist(); }
+    ops.ensureHome(state);
   };
   const pluginSurface = (plugin) => plugin === "goals" ? "goal" : plugin === "home" ? "home" : plugin;
   const directoryOf = (plugin) => plugin === "home" ? "root" : plugin === "goals" ? "goals" : plugin;
@@ -97,43 +72,18 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     ? document.querySelector("[data-goal-canvas-shell]") || document.querySelector('[data-document-pane]')
     : [...document.querySelectorAll('[data-work-surface="' + pluginSurface(plugin) + '"]')]
       .find((node) => !node.closest("[data-goal-canvas-shell]")) || null;
-  const rootForTab = (tab) => tab?.plugin === "task" && tab.kind === "item"
-    ? document.querySelector("[data-task-frame-surface], [data-goal-frame-surface]") : tab ? topLevelSurface(tab.plugin) : null;
+  const rootForTab = (tab) => supportsGoalFrames() && tab?.plugin === "goals" && tab.kind === "item" && tab.goalView !== "work"
+    ? document.querySelector("[data-goal-frame-surface]") : tab ? topLevelSurface(tab.plugin) : null;
   const titleForItem = (plugin, itemId, fallback) => {
     if (plugin === "goals") return visibleGoals()?.find((item) => item.goal.goal_id === itemId)?.goal.title || fallback || itemId;
-    if (plugin === "task") {
-      const task = taskRecord(itemId);
-      if (task?.title) return task.title;
-    }
-    const row = document.querySelector('[data-operation-select="' + CSS.escape(itemId) + '"], [data-feed-entry-id="' + CSS.escape(itemId) + '"], [data-inbox-row="' + CSS.escape(itemId) + '"], [data-artifact-select="' + CSS.escape(itemId) + '"], [data-task-row][data-task-id="' + CSS.escape(itemId) + '"]');
-    return row?.getAttribute("data-frame-asset-title") || row?.dataset.taskTitle || row?.querySelector("strong")?.textContent?.trim() || fallback || itemId;
+    const row = document.querySelector('[data-operation-select="' + CSS.escape(itemId) + '"], [data-feed-entry-id="' + CSS.escape(itemId) + '"], [data-inbox-row="' + CSS.escape(itemId) + '"], [data-artifact-select="' + CSS.escape(itemId) + '"]');
+    return row?.getAttribute("data-frame-asset-title") || row?.querySelector("strong")?.textContent?.trim() || fallback || itemId;
   };
   let loadingGoalId = null;
   const applyTabContent = (tab, keepFrame) => {
     if (!tab) return;
-      if (tab.plugin === "task" && tab.kind === "item" && tab.itemId) {
-      document.querySelectorAll("[data-task-row]").forEach((row) => {
-        const active = row.dataset.taskId === tab.itemId;
-        row.classList.toggle("is-selected", active);
-        row.setAttribute("aria-selected", String(active));
-        row.tabIndex = active ? 0 : -1;
-      });
-      const linkedGoal = tab.goalId || taskRecord(tab.itemId)?.goal_id;
-      bindTaskGoal(tab, linkedGoal);
-      showTaskFrame?.(tab.itemId, linkedGoal);
-      if (linkedGoal) applySelection?.(linkedGoal);
-      return;
-    }
-    if (tab.plugin === "task") {
-      releaseFrame?.();
-      document.querySelectorAll("[data-task-row]").forEach((row) => {
-        row.classList.remove("is-selected");
-        row.setAttribute("aria-selected", "false");
-      });
-      return;
-    }
     if (tab.plugin === "goals" && tab.kind === "item" && tab.itemId) {
-      if (tab.goalView === "work") {
+      if (supportsGoalFrames() && tab.goalView !== "work") { applySelection?.(tab.itemId); showGoalFrame?.(tab.itemId); return; }
       releaseFrame?.();
       applySelection?.(tab.itemId);
       if ((getDocumentGoalId() !== tab.itemId || loadingGoalId) && loadingGoalId !== tab.itemId) {
@@ -147,15 +97,6 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       const collapse = document.querySelector("[data-goal-collapse]");
       collapse?.setAttribute("aria-label", L("返回 Goal 画布"));
       collapse?.setAttribute("title", L("返回 Goal 画布"));
-      return;
-      }
-      void (async () => {
-        const task = await ensureTaskForGoal?.(tab.itemId, tab.title);
-        if (!task) return;
-        adoptTaskIdentity(tab, task);
-        apply();
-        persist();
-      })();
       return;
     }
     if (tab.plugin === "goals") {
@@ -193,10 +134,10 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   const paneMarkup = () => '<nav class="tab-strip" data-tab-strip></nav><div class="tab-pane-body" data-tab-pane-body></div><button type="button" class="tab-pane-close" data-tab-pane-close aria-label="' + L("关闭分栏") + '"><svg aria-hidden="true"><use href="#icon-x"></use></svg></button><div class="tab-drop-edges" data-tab-edges><button type="button" data-tab-edge="left" aria-label="' + L("拆到左侧") + '"></button><button type="button" data-tab-edge="right" aria-label="' + L("拆到右侧") + '"></button><button type="button" data-tab-edge="top" aria-label="' + L("拆到上方") + '"></button><button type="button" data-tab-edge="bottom" aria-label="' + L("拆到下方") + '"></button></div>';
   const tabLabel = (tab) => {
     if (tab.plugin === "home") return L("项目首页");
-    if (tab.kind === "mother") return tab.plugin === "goals" ? L("画布") : tab.plugin === "task" ? L("全部") : ops.pluginTitle(tab.plugin);
+    if (tab.kind === "mother") return tab.plugin === "goals" ? L("画布") : ops.pluginTitle(tab.plugin);
     return tab.title;
   };
-  const tabIcon = (plugin) => ({home: "home", goals: "target", task: "list", sessions: "terminal", feed: "activity", inbox: "input", artifacts: "file"}[plugin] || "frame");
+  const tabIcon = (plugin) => ({home: "home", goals: "target", sessions: "terminal", feed: "activity", inbox: "input", artifacts: "file"}[plugin] || "frame");
   const iconMarkup = (plugin) => '<svg class="tab-item-icon" aria-hidden="true"><use href="#icon-' + tabIcon(plugin) + '"></use></svg>';
   const appendTab = (parent, pane, tab) => {
     const selected = tab.id === pane.activeTabId;
@@ -205,13 +146,6 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     button.dataset.tabId = tab.id;
     button.dataset.plugin = tab.plugin;
     if (tab.itemId) button.dataset.itemId = tab.itemId;
-    if (tab.plugin === "task") {
-      const goalId = tab.goalId || taskRecord(tab.itemId)?.goal_id;
-      if (goalId) {
-        tab.goalId = goalId;
-        button.dataset.goalId = goalId;
-      }
-    }
     button.dataset.tabKind = tab.kind;
     if (tab.pinned) button.dataset.pinned = "true";
     if (tab.preview) button.dataset.preview = "true";
@@ -295,6 +229,13 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       const add = document.createElement("button"); add.type = "button"; add.className = "tab-add-button"; add.dataset.tabAdd = pane.id;
       add.setAttribute("aria-label", L("打开标签")); add.title = L("打开标签"); add.setAttribute("aria-haspopup", "menu");
       add.innerHTML = '<svg aria-hidden="true"><use href="#icon-plus"></use></svg>'; fragment.append(add);
+      if (strip.hasAttribute("data-titlebar-tabs")) {
+        const spacer = document.createElement("div");
+        spacer.className = "tab-strip-spacer";
+        spacer.setAttribute("aria-hidden", "true");
+        if (document.body.dataset.nativeDesktop === "true") spacer.dataset.tauriDragRegion = "";
+        fragment.append(spacer);
+      }
       const split = document.createElement("button");
       split.type = "button"; split.className = "tab-split-button"; split.dataset.tabSplit = pane.id;
       split.title = L("布局与分屏"); split.setAttribute("aria-label", split.title);
@@ -317,8 +258,8 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   }).observe(titlebarStrip);
   const exclusiveEl = document.querySelector("[data-tab-exclusive]");
   const collectMounted = () => [
-    ...pool.querySelectorAll(":scope > [data-work-surface], :scope > [data-goal-canvas-shell], :scope > [data-task-frame-surface], :scope > [data-goal-frame-surface], :scope > [data-document-pane]"),
-    ...panesEl.querySelectorAll("[data-tab-pane-body] > [data-work-surface], [data-tab-pane-body] > [data-goal-canvas-shell], [data-tab-pane-body] > [data-task-frame-surface], [data-tab-pane-body] > [data-goal-frame-surface], [data-tab-pane-body] > [data-document-pane]"),
+    ...pool.querySelectorAll(":scope > [data-work-surface], :scope > [data-goal-canvas-shell], :scope > [data-goal-frame-surface], :scope > [data-document-pane]"),
+    ...panesEl.querySelectorAll("[data-tab-pane-body] > [data-work-surface], [data-tab-pane-body] > [data-goal-canvas-shell], [data-tab-pane-body] > [data-goal-frame-surface], [data-tab-pane-body] > [data-document-pane]"),
     ...(exclusiveEl ? [...exclusiveEl.children] : []),
   ];
   const findSplit = (node, id) => !node || node.paneId ? null : node.id === id ? node : findSplit(node.children[0], id) || findSplit(node.children[1], id);
@@ -608,7 +549,6 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     const owner = plugin === "goals" && mode !== "preview" && state.panes.find((pane) => pane.tabs.some((tab) => tab.plugin === plugin && tab.itemId === itemId && !tab.preview));
     if (owner) state.focusedPaneId = owner.id;
     const tab = ops.openItem(state, plugin, itemId, titleForItem(plugin, itemId, title), mode);
-    if (plugin === "task") bindTaskGoal(tab, taskRecord(itemId)?.goal_id);
     if (plugin === "goals" && goalView === "frame") {
       delete tab.goalView;
       panesEl.querySelector('iframe[data-pane-tab="' + tab.id + '"]')?.contentWindow?.postMessage({type:"workbench-goal-view", view:"frame"}, location.origin);
@@ -618,22 +558,6 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   };
   const openGoalWork = () => {
     const tab = ops.activeTab(state);
-    if (tab?.plugin === "task" && tab.kind === "item") {
-      const task = taskRecord(tab.itemId);
-      if (!task?.goal_id) return;
-      const title = visibleGoals()?.find((item) => item.goal.goal_id === task.goal_id)?.goal.title || task.title;
-      if (embedded) {
-        notifyParent("workbench-pane-goal-view", { view: "work", goalId: task.goal_id, title });
-        return;
-      }
-      tab.plugin = "goals";
-      tab.kind = "item";
-      tab.itemId = task.goal_id;
-      tab.title = title;
-      tab.goalView = "work";
-      apply(); persist();
-      return;
-    }
     if (tab?.plugin !== "goals" || tab.kind !== "item") return;
     tab.goalView = "work"; apply(); persist();
     if (embedded) notifyParent("workbench-pane-goal-view", { view: "work", goalId: tab.itemId, title: tab.title });
@@ -685,7 +609,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       tabMenu.append(button);
     };
     if (!tabId) {
-      ["home", "goals", "task", "sessions", "feed", "inbox", "artifacts"].filter(plugin => plugin === "home" || document.querySelector('[data-plugin-strip] [data-plugin-id="' + plugin + '"]')).forEach(plugin => {
+      ["home", "goals", "sessions", "feed", "inbox", "artifacts"].filter(plugin => plugin === "home" || document.querySelector('[data-plugin-strip] [data-plugin-id="' + plugin + '"]')).forEach(plugin => {
         add(L(ops.pluginTitle(plugin)), tabIcon(plugin), "open-" + plugin, () => ops.openPlugin(state, plugin));
       });
       if (tab) tabMenu.append(document.createElement("hr"));
@@ -957,9 +881,10 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     if (event.origin !== location.origin) return;
     if (embedded && event.source === window.parent && event.data?.type === "workbench-goal-view") {
       const tab = ops.activeTab(state);
-      if (event.data.view === "work" && event.data.goalId && tab) {
-        tab.plugin = "goals"; tab.kind = "item"; tab.itemId = event.data.goalId; tab.title = event.data.title || tab.title; tab.goalView = "work"; apply();
-      } else if (tab?.plugin === "goals" && tab.kind === "item") { delete tab.goalView; apply(); }
+      if (tab?.plugin === "goals" && tab.kind === "item") {
+        if (event.data.view === "work") tab.goalView = "work"; else delete tab.goalView;
+      }
+      apply();
       return;
     }
     if (!["workbench-pane-focus", "workbench-pane-open", "workbench-pane-goal-view"].includes(event.data?.type)) return;
@@ -968,24 +893,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     if (!pane) return;
     if (event.data.type === "workbench-pane-goal-view") {
       const tab = pane.tabs.find(tab => tab.id === frame.dataset.paneTab);
-      if (!tab) return;
-      if (event.data.view === "work" && event.data.goalId) {
-        tab.plugin = "goals";
-        tab.kind = "item";
-        tab.itemId = event.data.goalId;
-        tab.title = event.data.title || tab.title;
-        tab.goalView = "work";
-        persist(); apply();
-      } else if (event.data.taskId) {
-        const task = taskRecord(event.data.taskId);
-        tab.plugin = "task";
-        tab.kind = "item";
-        tab.itemId = event.data.taskId;
-        tab.title = event.data.title || task?.title || tab.title;
-        bindTaskGoal(tab, task?.goal_id);
-        delete tab.goalView;
-        persist(); apply();
-      } else if (tab.plugin === "goals" && tab.kind === "item") {
+      if (tab?.plugin === "goals" && tab.kind === "item") {
         if (event.data.view === "work") tab.goalView = "work"; else delete tab.goalView;
         persist(); apply();
       }
@@ -999,18 +907,6 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   document.addEventListener("click", (event) => {
     if (event.target.closest("[data-goal-collapse]")) {
       const tab = ops.activeTab(state);
-      if (tab?.plugin === "goals" && tab.kind === "item" && tab.goalView === "work") {
-        const linked = (listTasks?.() || []).find((item) => item.goal_id === tab.itemId);
-        if (linked) {
-          adoptTaskIdentity(tab, linked);
-          apply(); persist();
-          if (embedded) notifyParent("workbench-pane-goal-view", { view: "frame", taskId: linked.task_id, title: linked.title });
-          return;
-        }
-        delete tab.goalView; apply(); persist();
-        if (embedded) notifyParent("workbench-pane-goal-view", { view: "frame" });
-        return;
-      }
       if (tab?.plugin === "goals" && tab.kind === "item") { delete tab.goalView; apply(); persist(); if (embedded) notifyParent("workbench-pane-goal-view", {view:"frame"}); }
     }
   });

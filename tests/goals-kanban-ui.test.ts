@@ -2,7 +2,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createWorkbenchGoalsMomentumRenderer, createWorkbenchLocale, createWorkbenchUiHost, type WebLocale } from "@molis-ai/molis-work-app-workbench";
-import { GOAL_DISPLAY_STATUSES, GOALS_MOMENTUM_UI_CONTRIBUTION_ID, type GoalsMomentumItem, type GoalsMomentumBoardView } from "@molis-ai/molis-work-plugin-goals";
+import { GOAL_DISPLAY_STATUSES, GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT, GOALS_MOMENTUM_UI_CONTRIBUTION_ID, type GoalsMomentumItem, type GoalsMomentumBoardView } from "@molis-ai/molis-work-plugin-goals";
 import type { GoalRelationRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 import { icon } from "@molis-ai/molis-work-design-system";
 import { GOAL_CANVAS_STYLES } from "../apps/workbench/src/styles/goal-canvas.ts";
@@ -80,6 +80,8 @@ test("kanban CSS shares six columns on desktop and stacks groups when the pane i
   assert.match(GOAL_CANVAS_STYLES, /flex: 1 1 0/);
   assert.match(GOAL_CANVAS_STYLES, /container: goal-board \/ inline-size/);
   assert.match(GOAL_CANVAS_STYLES, /@container goal-board \(max-width: 839px\)/);
+  assert.match(GOAL_CANVAS_STYLES, /data-board-view="list"/);
+  assert.match(GOAL_CANVAS_STYLES, /goal-stage-list/);
   assert.match(GOAL_CANVAS_STYLES, /goal-kanban-chevron/);
   assert.match(GOAL_CANVAS_STYLES, /goal-kanban-status svg/);
   assert.match(GOAL_CANVAS_STYLES, /details > summary \{ display: flex; width: 100%/);
@@ -92,4 +94,11 @@ test("kanban CSS shares six columns on desktop and stacks groups when the pane i
   assert.match(GOAL_CANVAS_STYLES, /-webkit-line-clamp: 2/);
   assert.doesNotMatch(GOAL_CANVAS_STYLES, /flex: 0 0 252px/);
   assert.doesNotMatch(GOAL_CANVAS_STYLES, /min-width: 152px/);
+});
+
+test("momentum client keeps Frame clicks from rewriting the stage view", () => {
+  assert.doesNotMatch(GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT, /shell\.dataset\.boardView = kanbanActive \? "kanban" : "canvas"/);
+  assert.match(GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT, /boardView === "list"/);
+  assert.match(GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT, /host\.applySelection\?\.\(id\)/);
+  assert.match(GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT, /host\.openFrame\) host\.openFrame\(id\)/);
 });

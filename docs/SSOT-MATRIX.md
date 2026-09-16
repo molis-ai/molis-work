@@ -80,7 +80,6 @@
 | `modules/actions` | 个人/外部 Action 请求、状态和结果引用 | 占位包已删除；未来功能 | `absent` | F2；未来独立功能 Spec |
 | `modules/attention-resumption` | Attention reference、reason 与最小处置状态 | Attention reference/reason 与最小处置；旧 Inbox 转发已退出 | `partial` | FD2/Cutover；完整 snooze/resume 仍是未来能力 |
 | `modules/goals` | Goal、当前约定与要求、Graph、事件事实与工作状态、Planning、指导及历史 | `events` 唯一决定完成效果；当前意图／树／导入使用同一事件归属；图分析读当前状态；原规则／风险／验收继续作为历史读取 | `partial` | GW1–GW6/DD1/DD2/Cutover；事件工作流收敛 |
-| `modules/task` | Task 身份、可选 Goal 关联、Frame 构图 | 独立工作对象；`goal_id` 可空；构图权威在项目库 | `partial` | `specs/task-plugin/spec.md` |
 | `modules/private-work-context` | 私人 Session、内容引用、关联语义、Runtime context binding 与 Handoff 事实 | Session / Handoff / Runtime 当前 Project 关联经 Ledger API 保存；私人内容与控制历史留在 Work | `partial` | WK1–WK3 已迁移；AR2 切换 Session schema v5、Catalog v10 与应用层组合 |
 | `modules/execution` | 历史 Claim、Run、lease、attempt | 保留查询、schema 和升级；供历史阅读与项目删除的现有活动保护使用；旧执行写入退役 | `partial` | EX1/EX4 历史迁移；事件工作流收敛 |
 | `modules/artifacts` | Artifact、版本、类型、内容引用与 provenance | AR1 已建立唯一正式事实；旧代码仅有各 owner 的字符串引用，没有第二套 Artifact Store | `partial` | AR1 已迁 Core；AR3 切换现有结果入口 |
@@ -106,7 +105,6 @@ Horizontal Service 只保存可恢复的技术状态，不拥有 Goal、Signal�
 | 目标 package | 产品能力 | 当前来源 | 包成熟度 | 迁移 / 实现 Goal |
 | --- | --- | --- | --- | --- |
 | `plugins/native/goals` | Goals 一级入口与产品 UI | 当前事件意图、约定、报告、树决定和历史正文组合；目录直接读当前状态；旧执行／草稿／提案写应用退役；Workbench 注册并组合 UI，不另算完成 | `partial` | GW/DD/EX/Cutover；事件工作流收敛 |
-| `plugins/native/task` | Task 一级入口、目录和 Frame 工作台 | 无 Goal 可建 Task；点 Goal 打开或复用关联 Task；构图读写走 Task HTTP | `partial` | `specs/task-plugin/spec.md` |
 | `plugins/native/artifacts` | Artifacts 一级入口、浏览和嵌入 | 已迁结果链接/项目文件打开；正式版本列表、详情与本地导出已接入 Web；Goal 上下文按明确输入/产出关系嵌入精确版本 | `partial` | AR3 已完成迁移验收；不包含未来安装/Team 同步 |
 | `plugins/native/inbox` | Inbox 一级入口与 Attention 处置 UI | 目录/详情只读 Attention；完成/忽略走 setStatus；Host 注入展示信息与 HTTP | `partial` | Inbox/Feed 拆插件切片 2–3 |
 | `plugins/native/feed` | Feed 一级入口和处置 UI | Sources/Feed 流水、同步与 promotion 用例；不再投影 Inbox 面；加入 Inbox 仍走 Feed HTTP，只写 Attention | `partial` | FD/Cutover；Inbox/Feed 拆插件切片 3 |

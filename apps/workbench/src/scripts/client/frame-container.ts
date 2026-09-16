@@ -1,81 +1,45 @@
-/** Goals board view (canvas | kanban) and Frame canvas. Cross-plugin tabs and split panes live in tab-workspace. */
+/** Goals board view (list | canvas | kanban) and Frame canvas. Cross-plugin tabs and split panes live in tab-workspace. */
 export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
   const { translate: L, showToast, visibleGoals, getSurface, setWorkSurface, setDirectory,
-    setWorkspaceMode, setMobileView, applySelection, locateGraphNode, getProjectId, route, listTasks, rememberTask, openTaskForGoal } = host;
+    setWorkspaceMode, setMobileView, applySelection, locateGraphNode, getProjectId, route } = host;
+  const LIST_TAB = "list";
   const CANVAS_TAB = "canvas";
   const KANBAN_TAB = "kanban";
-  const isBoardTab = (tab) => tab === CANVAS_TAB || tab === KANBAN_TAB;
+  const isBoardTab = (tab) => tab === LIST_TAB || tab === CANVAS_TAB || tab === KANBAN_TAB;
   const tabsEl = document.querySelector(".immersive-titlebar [data-container-tabs]") || document.querySelector("[data-container-tabs]");
-  const surfaceEl = document.querySelector("[data-task-frame-surface], [data-goal-frame-surface]");
+  const surfaceEl = document.querySelector("[data-goal-frame-surface]");
   const canvasEl = document.querySelector("[data-frame-canvas]");
   const worldEl = document.querySelector("[data-frame-world]");
   const zoomValue = document.querySelector("[data-frame-zoom-value]");
   const shell = document.querySelector("[data-goal-canvas-shell]");
-  const noop = { releaseFrame: () => {}, isFrameTabActive: () => false, isKanbanTabActive: () => false, openFrame: () => {}, locateGoal: () => {}, showCanvas: () => {}, showKanban: () => {}, restoreBoard: () => {}, restore: () => {}, sync: () => {} };
+  const noop = { releaseFrame: () => {}, isFrameTabActive: () => false, isKanbanTabActive: () => false, openFrame: () => {}, showGoalFrame: () => {}, locateGoal: () => {}, showList: () => {}, showCanvas: () => {}, showKanban: () => {}, restoreBoard: () => {}, restore: () => {}, sync: () => {} };
   if (!tabsEl || !shell || !surfaceEl || !canvasEl || !worldEl) return noop;
   const toRoute = typeof route === "function" ? route : (pathname) => pathname;
   const storageKey = () => "molis-work-frame-container:" + (getProjectId() || "board");
   const kindLabel = (kind) => ({ session: L("会话"), feed: "Feed", inbox: "Inbox", artifact: L("交付物") }[kind] || kind);
   let openFrames = [];
-  let activeTab = CANVAS_TAB;
-  let lastBoardView = CANVAS_TAB;
+  let activeTab = LIST_TAB;
+  let lastBoardView = LIST_TAB;
   let frames = {};
-  let linkedGoals = {};
   let blockSeq = 1;
   let suppressClick = false;
   let ready = false;
   const containerEnabled = () => document.body.dataset.boardView === "current" && Boolean(shell);
-  const isFrameTabActive = () => containerEnabled() && getSurface() === "task" && !isBoardTab(activeTab);
+  const isFrameTabActive = () => containerEnabled() && getSurface() === "goal" && !isBoardTab(activeTab);
   const isKanbanTabActive = () => containerEnabled() && getSurface() === "goal" && activeTab === KANBAN_TAB;
   const knownGoalIds = () => new Set(visibleGoals().map((item) => item.goal.goal_id));
   const goalTitle = (goalId) => visibleGoals().find((item) => item.goal.goal_id === goalId)?.goal.title || goalId;
   const loadedFrames = new Set();
   const savedFrames = new Map();
-  const persistTimers = {};
-  const taskRecord = (taskId) => (listTasks?.() || []).find((item) => item.task_id === taskId) || null;
-  const frameKey = (taskId) => storageKey() + ":task:" + taskId;
-  const legacyGoalKey = (goalId) => storageKey() + ":goal:" + goalId;
-  const isEmptyFrame = (frame) => !frame || !Array.isArray(frame.blocks) || frame.blocks.length === 0;
-  const persistRemote = (taskId) => {
-    if (!ready || isBoardTab(taskId)) return;
-    clearTimeout(persistTimers[taskId]);
-    persistTimers[taskId] = setTimeout(() => {
-      const frame = ensureFrame(taskId);
-      fetch(toRoute("/api/tasks/" + encodeURIComponent(taskId) + "/frame"), {
-        method: "PUT",
-        headers: { "content-type": "application/json", ...(window.molisWorkControlHeaders?.() || {}) },
-        body: JSON.stringify({ frame }),
-      }).then(async (response) => {
-        if (!response.ok) return;
-        const payload = await response.json();
-        if (payload.task) rememberTask?.(payload.task);
-      }).catch(() => {});
-    }, 400);
-  };
-  const ensureFrame = (taskId) => {
-    if (!loadedFrames.has(taskId)) {
-      loadedFrames.add(taskId);
-      const record = taskRecord(taskId);
-      if (record?.frame && isEmptyFrame(frames[taskId]) && !isEmptyFrame(record.frame)) {
-        try { frames[taskId] = JSON.parse(JSON.stringify(record.frame)); } catch { frames[taskId] = record.frame; }
-      }
-      if (isEmptyFrame(frames[taskId])) {
-        try {
-          const saved = localStorage.getItem(frameKey(taskId));
-          if (saved) frames[taskId] = JSON.parse(saved);
-          else if (record?.goal_id) {
-            const legacy = localStorage.getItem(legacyGoalKey(record.goal_id));
-            if (legacy) {
-              frames[taskId] = JSON.parse(legacy);
-              persistRemote(taskId);
-            }
-          }
-        } catch {}
-      }
-      savedFrames.set(taskId, JSON.stringify(frames[taskId]));
+  const frameKey = (goalId) => storageKey() + ":goal:" + goalId;
+  const ensureFrame = (goalId) => {
+    if (!loadedFrames.has(goalId)) {
+      loadedFrames.add(goalId);
+      try { const saved = localStorage.getItem(frameKey(goalId)); if (saved) frames[goalId] = JSON.parse(saved); } catch {}
+      savedFrames.set(goalId, JSON.stringify(frames[goalId]));
     }
-    if (!frames[taskId]) frames[taskId] = { camera: { x: 0, y: 0, z: 1 }, blocks: [], expanded: "" };
-    const frame = frames[taskId];
+    if (!frames[goalId]) frames[goalId] = { camera: { x: 0, y: 0, z: 1 }, blocks: [], expanded: "" };
+    const frame = frames[goalId];
     if (!frame.camera) frame.camera = { x: 0, y: 0, z: 1 };
     if (!Array.isArray(frame.blocks)) frame.blocks = [];
     if (typeof frame.expanded !== "string") frame.expanded = "";
@@ -87,26 +51,32 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
       const serialized = JSON.stringify(ensureFrame(activeTab));
       if (serialized !== savedFrames.get(activeTab)) {
         try { localStorage.setItem(frameKey(activeTab), serialized); savedFrames.set(activeTab, serialized); } catch {}
-        persistRemote(activeTab);
       }
     }
     if (window.parent !== window && new URLSearchParams(location.search).has("workbenchPane")) return;
-    try { localStorage.setItem(storageKey(), JSON.stringify({ openFrames, activeTab, lastBoardView, frames, linkedGoals })); } catch {}
+    try { localStorage.setItem(storageKey(), JSON.stringify({ openFrames, activeTab, lastBoardView, frames })); } catch {}
   };
   const prune = () => {
-    const knownTasks = new Set((listTasks?.() || []).map((item) => item.task_id));
-    if (!knownTasks.size) return;
-    openFrames = openFrames.filter((id) => knownTasks.has(id));
-    if (!isBoardTab(activeTab) && !knownTasks.has(activeTab)) activeTab = lastBoardView;
+    const known = knownGoalIds();
+    if (!known.size) {
+      if (!document.querySelector(".tree-node[data-select-goal]")) {
+        openFrames = [];
+        if (!isBoardTab(activeTab)) activeTab = lastBoardView;
+      }
+      return;
+    }
+    openFrames = openFrames.filter((id) => known.has(id));
+    Object.keys(frames).forEach((id) => { if (!known.has(id)) delete frames[id]; });
+    if (!isBoardTab(activeTab) && !openFrames.includes(activeTab)) activeTab = lastBoardView;
   };
   const applySurface = () => {
     const onGoal = getSurface() === "goal";
-    const showFrame = getSurface() === "task" && !isBoardTab(activeTab);
+    const showFrame = onGoal && !isBoardTab(activeTab);
     if (!shell.closest("[data-tab-pane-body]")) shell.hidden = !onGoal || showFrame;
     const tabRoot = document.querySelector("[data-tab-workspace]");
     if (tabRoot) tabRoot.hidden = false;
     surfaceEl.hidden = !showFrame;
-    if (onGoal && !showFrame) shell.dataset.boardView = activeTab === KANBAN_TAB ? KANBAN_TAB : CANVAS_TAB;
+    if (onGoal && !showFrame) shell.dataset.boardView = isBoardTab(activeTab) ? activeTab : LIST_TAB;
     if (showFrame) renderFrame();
   };
   const applyCamera = () => {
@@ -250,6 +220,15 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
       else button.removeAttribute("aria-current");
     });
     const fragment = document.createDocumentFragment();
+    const list = document.createElement("button");
+    list.type = "button";
+    list.className = "container-tab is-pinned";
+    list.dataset.containerTab = LIST_TAB;
+    if (activeTab === LIST_TAB) list.setAttribute("aria-current", "page");
+    const listLabel = document.createElement("span");
+    listLabel.textContent = L("列表");
+    list.append(listLabel);
+    fragment.append(list);
     const canvas = document.createElement("button");
     canvas.type = "button";
     canvas.className = "container-tab is-pinned";
@@ -291,31 +270,24 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     tabsEl.querySelector("[aria-current]")?.scrollIntoView({ inline: "nearest", block: "nearest" });
   };
   window.addEventListener("storage", (event) => {
-    if (!event.key?.startsWith(storageKey() + ":task:") || !event.newValue) return;
-    const taskId = event.key.slice((storageKey() + ":task:").length);
+    if (!event.key?.startsWith(storageKey() + ":goal:") || !event.newValue) return;
+    const goalId = event.key.slice((storageKey() + ":goal:").length);
     try {
-      frames[taskId] = JSON.parse(event.newValue); savedFrames.set(taskId, event.newValue); loadedFrames.add(taskId);
-      if (activeTab === taskId && isFrameTabActive()) renderFrame();
+      frames[goalId] = JSON.parse(event.newValue); savedFrames.set(goalId, event.newValue); loadedFrames.add(goalId);
+      if (activeTab === goalId && isFrameTabActive()) renderFrame();
     } catch {}
   });
   const renderFrame = () => {
     if (isBoardTab(activeTab)) return;
     const frame = ensureFrame(activeTab);
-    const task = taskRecord(activeTab);
-    const tabGoal = document.querySelector('.tab-item[aria-current][data-plugin=task]')?.dataset.goalId || "";
-    const goalId = task?.goal_id || linkedGoals[activeTab] || tabGoal || "";
-    const item = goalId ? visibleGoals().find((entry) => entry.goal.goal_id === goalId) : null;
-    if (goalId) surfaceEl.dataset.frameGoal = goalId; else delete surfaceEl.dataset.frameGoal;
-    surfaceEl.querySelector('[data-frame-goal-title]').textContent = task?.title || (goalId ? goalTitle(goalId) : activeTab);
+    const item = visibleGoals().find((entry) => entry.goal.goal_id === activeTab);
+    surfaceEl.dataset.frameGoal = activeTab;
+    surfaceEl.querySelector('[data-frame-goal-title]').textContent = goalTitle(activeTab);
     const status = item?.display_status || item?.status || "";
     const statusEl = surfaceEl.querySelector('[data-frame-goal-status]');
-    statusEl.textContent = item ? (item.status_label || L(status)) : "";
+    statusEl.textContent = item?.status_label || L(status);
     statusEl.dataset.status = status;
-    statusEl.hidden = !item;
-    const outcomeEl = surfaceEl.querySelector('[data-frame-goal-outcome]');
-    outcomeEl.textContent = item?.goal.outcome || (goalId ? L("还没有写明预期结果，可在工作区补充。") : "");
-    outcomeEl.hidden = !goalId;
-    surfaceEl.querySelectorAll("[data-frame-goal-work], [data-frame-goal-locate]").forEach((button) => { button.hidden = !goalId; });
+    surfaceEl.querySelector('[data-frame-goal-outcome]').textContent = item?.goal.outcome || L("还没有写明预期结果，可在工作区补充。");
     surfaceEl.querySelector('[data-frame-empty]').hidden = frame.blocks.length > 0;
     applyCamera();
     worldEl.replaceChildren();
@@ -351,10 +323,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     });
   };
   surfaceEl.querySelector('[data-frame-goal-work]')?.addEventListener('click', () => host.openGoalWork?.());
-  surfaceEl.querySelector('[data-frame-goal-locate]')?.addEventListener('click', () => {
-    const goalId = taskRecord(activeTab)?.goal_id || linkedGoals[activeTab];
-    if (goalId) locateGoal(goalId);
-  });
+  surfaceEl.querySelector('[data-frame-goal-locate]')?.addEventListener('click', () => locateGoal(activeTab));
   const sync = () => {
     renderTabs();
     applySurface();
@@ -366,19 +335,20 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     activeTab = view;
     setWorkSurface("goal");
     host.activateGoalsMother?.();
-    if (!already) setWorkspaceMode("graph");
     sync();
+    if (!already) setWorkspaceMode("graph");
     persist();
   };
+  const showList = () => showBoard(LIST_TAB);
   const showCanvas = () => showBoard(CANVAS_TAB);
   const showKanban = () => showBoard(KANBAN_TAB);
-  const openFrame = (goalId) => { void openTaskForGoal?.(goalId); };
-  const showTaskFrame = (taskId, goalId) => {
-    if (!containerEnabled() || !taskId) return;
-    if (goalId) linkedGoals[taskId] = goalId;
-    ensureFrame(taskId);
-    activeTab = taskId;
-    setWorkSurface("task");
+  const openFrame = (goalId) => host.openGoalTab?.(goalId);
+  const showGoalFrame = (goalId) => {
+    if (!containerEnabled() || !goalId || !knownGoalIds().has(goalId)) return;
+    ensureFrame(goalId);
+    if (!openFrames.includes(goalId)) openFrames.push(goalId);
+    activeTab = goalId;
+    setWorkSurface("goal");
     setWorkspaceMode("graph");
     sync();
     persist();
@@ -412,7 +382,8 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
   };
   const locateGoal = (goalId) => {
     if (!containerEnabled() || !goalId) return;
-    if (!isBoardTab(activeTab)) activeTab = lastBoardView;
+    lastBoardView = CANVAS_TAB;
+    activeTab = CANVAS_TAB;
     host.activateGoalsMother?.();
     setDirectory("goals", true, false);
     setWorkSurface("goal");
@@ -550,12 +521,11 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
       const stored = JSON.parse(localStorage.getItem(storageKey()) || "null");
       if (stored && typeof stored === "object") {
         openFrames = Array.isArray(stored.openFrames) ? stored.openFrames.map(String) : [];
-        lastBoardView = stored.lastBoardView === KANBAN_TAB ? KANBAN_TAB : CANVAS_TAB;
-        activeTab = stored.activeTab ? String(stored.activeTab) : lastBoardView;
+        lastBoardView = isBoardTab(stored.lastBoardView) ? stored.lastBoardView : LIST_TAB;
+        activeTab = isBoardTab(stored.activeTab) || openFrames.includes(stored.activeTab) ? stored.activeTab : lastBoardView;
         frames = stored.frames && typeof stored.frames === "object" ? stored.frames : {};
-        linkedGoals = stored.linkedGoals && typeof stored.linkedGoals === "object" ? stored.linkedGoals : {};
       }
-    } catch { openFrames = []; activeTab = CANVAS_TAB; lastBoardView = CANVAS_TAB; frames = {}; linkedGoals = {}; }
+    } catch { openFrames = []; activeTab = LIST_TAB; lastBoardView = LIST_TAB; frames = {}; }
     prune();
     ready = true;
     sync();
@@ -565,7 +535,8 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     if (close) { event.preventDefault(); event.stopPropagation(); closeFrame(close.dataset.containerTabClose); return; }
     const tab = event.target.closest("[data-container-tab]");
     if (!tab) return;
-    if (tab.dataset.containerTab === CANVAS_TAB) showCanvas();
+    if (tab.dataset.containerTab === LIST_TAB) showList();
+    else if (tab.dataset.containerTab === CANVAS_TAB) showCanvas();
     else if (tab.dataset.containerTab === KANBAN_TAB) showKanban();
     else openFrame(tab.dataset.containerTab);
   });
@@ -573,11 +544,12 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     const tab = event.target.closest("[data-board-view-tab]");
     if (!tab) return;
     event.preventDefault();
-    if (tab.dataset.boardViewTab === KANBAN_TAB) showKanban();
+    if (tab.dataset.boardViewTab === LIST_TAB) showList();
+    else if (tab.dataset.boardViewTab === KANBAN_TAB) showKanban();
     else showCanvas();
   });
   document.addEventListener("click", (event) => {
-    if (!containerEnabled() || getSurface() !== "task") return;
+    if (!containerEnabled() || getSurface() !== "goal") return;
     const asset = readAsset(event.target);
     if (!asset?.kind) return;
     if (asset.kind === "goal") return;
@@ -734,5 +706,5 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     persist();
   });
   restore();
-  return { isFrameTabActive, isKanbanTabActive, openFrame, showTaskFrame, locateGoal, showCanvas, showKanban, restoreBoard, closeFrame, releaseFrame, restore, sync };
+  return { isFrameTabActive, isKanbanTabActive, openFrame, showGoalFrame, locateGoal, showList, showCanvas, showKanban, restoreBoard, closeFrame, releaseFrame, restore, sync };
 }`;

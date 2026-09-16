@@ -242,7 +242,7 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `        return;
         }
         setDesktopDirectory(surface === "goal"
           ? "goals"
-          : surface === "feed" || surface === "sources" || surface === "sessions" || surface === "artifacts" || surface === "inbox" || surface === "task"
+          : surface === "feed" || surface === "sources" || surface === "sessions" || surface === "artifacts" || surface === "inbox"
             ? surface
             : "root", true, true, surfaceOpen);
         const pluginId = surfaceOpen.dataset.pluginId;
@@ -286,25 +286,12 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `        return;
       }
       if (handleMomentumSelectionClick(target)) return;
       if (handleMomentumZoomClick(target)) return;
-      if (target.closest("[data-task-create]")) {
-        event.preventDefault();
-        void createStandaloneTask(directoryTabMode(event));
-        return;
-      }
-      const taskRow = target.closest("[data-task-row]");
-      if (taskRow) {
-        if (!openDirectorySurface("task", taskRow.dataset.taskId, taskRow.dataset.taskTitle, event)) {
-          setDesktopWorkSurface("task", true, true);
-        }
-        return;
-      }
       const goalLink = target.closest("[data-select-goal]");
       if (goalLink) {
-        void openTaskForGoal(goalLink.dataset.selectGoal, goalLink.textContent?.trim(), directoryTabMode(event));
+        openDirectorySurface("goal", goalLink.dataset.selectGoal, goalLink.textContent?.trim(), event);
         return;
       }
       if (handleGoalDialogClick(target)) return;
-      if (handleTreeCollapseAllClick(target)) return;
       const mobileTarget = target.closest("[data-mobile-target]");
       if (mobileTarget) {
         const mobileView = mobileTarget.dataset.mobileTarget;

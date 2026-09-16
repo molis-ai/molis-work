@@ -51,7 +51,27 @@ export const STYLES = `
   .tree-search input { width: 100%; height: 32px; padding: 0 42px 0 32px; border: 1px solid var(--line); border-radius: 5px; background: #fff; }
   .tree-search input:hover, .tree-search input:focus { border-color: color-mix(in srgb, var(--blue), var(--line-strong) 42%); }
   .tree-search kbd { position: absolute; right: 8px; color: var(--faint); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; font: 12px/20px var(--font); background: #fff; }
-  .tree-tools { display: flex; flex-wrap: nowrap; align-items: center; gap: 1px; min-width: 0; }
+  .tree-tools { display: flex; flex-wrap: nowrap; align-items: center; gap: 4px; min-width: 0; width: 100%; }
+  .tree-create { flex: 1; min-width: 0; height: 28px; padding: 0 12px; border: 1px solid var(--line); border-radius: var(--radius-control, 8px); background: var(--paper); color: var(--ink); display: inline-flex; align-items: center; justify-content: center; gap: 6px; font: inherit; font-size: 12px; font-weight: 550; cursor: pointer; }
+  .tree-create svg { width: 14px; height: 14px; flex: none; color: inherit; }
+  .tree-create:hover { background: var(--nav-hover); }
+  [data-tree-filter-trigger] { width: 28px; min-width: 28px; height: 28px; padding: 0; border: 1px solid var(--line); border-radius: var(--radius-control, 8px); background: var(--paper); color: var(--ink); display: inline-grid; place-items: center; flex: none; cursor: pointer; }
+  [data-tree-filter-trigger] > span { display: none; }
+  [data-tree-filter-trigger] svg { width: 14px; height: 14px; color: inherit; }
+  [data-tree-filter-trigger]:is(:hover, .is-active, [aria-expanded="true"]) { background: var(--nav-hover); color: var(--ink); }
+  .goal-collection-fold { margin: 0; border-top: 0; }
+  .goal-collection-fold > summary { list-style: none; display: flex; align-items: center; gap: 6px; height: 28px; min-height: 28px; padding: 0 6px; border-radius: 5px; color: var(--muted); cursor: pointer; user-select: none; }
+  .goal-collection-fold > summary::-webkit-details-marker { display: none; }
+  .goal-collection-fold > summary:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 5%, transparent); }
+  .goal-collection-caret { display: grid; place-items: center; width: 16px; flex: none; }
+  .goal-collection-caret svg { width: 12px; height: 12px; transform: rotate(-90deg); transition: transform .16s ease; }
+  .goal-collection-fold[open] > summary .goal-collection-caret svg { transform: rotate(0deg); }
+  .goal-collection-fold > summary strong { flex: 1; min-width: 0; font-size: 11px; font-weight: 600; }
+  .goal-collection-fold > summary small { font-variant-numeric: tabular-nums; font-size: 11px; }
+  .goal-collection-empty { margin: 0; padding: 6px 8px 10px 22px; color: var(--muted); font-size: 12px; }
+  @media (prefers-reduced-motion: reduce) {
+    .goal-collection-caret svg { transition: none; }
+  }
   .tree-tool { height: 28px; padding: 0 6px; border: 0; border-radius: 4px; background: transparent; color: #4a5260; display: inline-flex; align-items: center; gap: 4px; font: inherit; font-size: 12px; font-weight: 650; cursor: pointer; white-space: nowrap; text-decoration: none; }
   a.tree-tool { color: #4a5260; text-decoration: none; }
   .tree-tool:hover, a.tree-tool:hover { color: var(--blue-dark); background: var(--blue-soft); }
@@ -63,7 +83,7 @@ export const STYLES = `
     .tree-tool span, .tree-tool small { display: none; }
     .tree-tool { width: 28px; padding: 0; justify-content: center; }
   }
-  .tree-filter-control { position: static; display: flex; align-items: center; }
+  .tree-filter-control { position: static; display: flex; align-items: center; flex: none; }
   .tree-filter { position: absolute; z-index: 12; top: calc(100% + 4px); left: 10px; right: 10px; width: auto; max-height: min(430px, calc(100dvh - 68px)); overflow: auto; padding: 13px 14px 12px; color: var(--ink); background: #fff; box-shadow: 0 9px 24px rgba(25, 34, 45, .14); }
   .tree-filter[hidden] { display: none; }
   .tree-filter > header { display: flex; align-items: baseline; gap: 10px; }

@@ -4,8 +4,49 @@ export const GOAL_CANVAS_STYLES = `
   .goal-canvas-shell [hidden] { display: none !important; }
   .goal-canvas-shell .goal-canvas-map { position: absolute; inset: 0; width: 100%; height: 100%; display: block; padding: 0; margin: 0; overflow: hidden; background: transparent; }
   .goal-canvas-shell .goal-kanban { position: absolute; inset: 0; display: none; overflow-x: auto; overflow-y: hidden; overscroll-behavior: contain; background: var(--canvas); scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+  .goal-canvas-shell .goal-stage-list { display: none; position: absolute; inset: 0; z-index: 1; overflow: auto; overscroll-behavior: contain; padding: 52px 20px 28px; background: var(--paper); scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+  .goal-canvas-shell[data-board-view="list"] .goal-stage-list { display: block; }
+  .goal-canvas-shell[data-expanded="true"] .goal-stage-list { display: none !important; }
+  .goal-canvas-shell[data-board-view="list"] > [data-goal-momentum] { display: none !important; }
   .goal-canvas-shell[data-board-view="kanban"] > [data-goal-kanban] { display: flex; position: absolute; inset: 0; width: 100%; height: 100%; }
   .goal-canvas-shell[data-board-view="kanban"] > [data-goal-momentum] { display: none !important; }
+  body.immersive-workbench [data-goal-stage-list] .tree-copy > small,
+  body.immersive-workbench [data-goal-stage-list] .tree-meta-line { display: flex !important; }
+  .goal-stage-list .goal-collection-fold { margin: 0 0 10px; border: 0; }
+  .goal-stage-list .goal-collection-fold > summary { display: flex; align-items: center; gap: 8px; height: 32px; min-height: 32px; padding: 0 8px; border-radius: 6px; color: var(--muted); list-style: none; cursor: pointer; }
+  .goal-stage-list .goal-collection-fold > summary::-webkit-details-marker, .goal-stage-list .goal-collection-fold > summary::marker { display: none; }
+  .goal-stage-list .goal-collection-fold > summary:hover { color: var(--ink); background: var(--nav-hover); }
+  .goal-stage-list .goal-collection-fold > summary strong { font-size: 12px; font-weight: 550; }
+  .goal-stage-list .goal-collection-fold > summary small { font-size: 11px; font-variant-numeric: tabular-nums; color: var(--faint); }
+  .goal-stage-list .goal-collection-caret { display: grid; place-items: center; width: 16px; height: 16px; color: var(--muted); }
+  .goal-stage-list .goal-collection-caret svg { width: 12px; height: 12px; transition: transform 140ms cubic-bezier(.16, 1, .3, 1); }
+  .goal-stage-list .goal-collection-fold:not([open]) > summary .goal-collection-caret svg { transform: rotate(-90deg); }
+  .goal-stage-list .goal-collection-empty { margin: 0; padding: 6px 8px 10px 32px; font-size: 12px; color: var(--muted); }
+  .goal-stage-list .goal-tree { margin: 0; padding: 0; list-style: none; }
+  .goal-stage-list .tree-item { margin: 0; padding: 0; }
+  .goal-stage-list .tree-row { display: flex; align-items: center; gap: 2px; min-height: 28px; padding: 0; }
+  .goal-stage-list .tree-toggle, .goal-stage-list .tree-guide { flex: none; width: 16px; height: 28px; min-height: 28px; padding: 0; display: grid; place-items: center; border: 0; background: transparent; color: var(--muted); }
+  .goal-stage-list .tree-toggle svg { width: 11px; height: 11px; }
+  .goal-stage-list .tree-children { margin: 0 0 0 8px; padding-left: 8px; border-left: 1px solid var(--line); }
+  .goal-stage-list .tree-entry { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; height: 28px; min-height: 28px; padding: 0 8px; border-radius: 6px; overflow: visible; }
+  .goal-stage-list .tree-entry:hover { background: var(--nav-hover); }
+  .goal-stage-list .tree-entry.is-selected { background: var(--nav-active); }
+  .goal-stage-list .tree-node { display: flex; align-items: center; flex: 1; min-width: 0; height: 28px; min-height: 28px; padding: 0; border: 0; background: transparent; color: var(--ink); text-align: left; cursor: pointer; }
+  .goal-stage-list .tree-copy { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: 10px; min-width: 0; flex: 1; overflow: visible; }
+  .goal-stage-list .tree-copy > small { grid-column: 1; grid-row: 1; display: block !important; min-width: 4.5ch; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 11px; font-weight: 550; font-variant-numeric: tabular-nums; }
+  .goal-stage-list .tree-title-line { grid-column: 2; min-width: 0; overflow: hidden; }
+  .goal-stage-list .tree-title-line strong { display: block; font-size: 13px; font-weight: 450; line-height: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  body.immersive-workbench .goal-stage-list .directory-row-state { display: inline-flex; align-items: center; flex: none; min-width: 0; min-height: 0; padding: 0; border: 0; border-radius: 0; background: transparent; overflow: visible; font-size: inherit; font-weight: inherit; }
+  body.immersive-workbench .goal-stage-list .goal-status { display: inline-flex; align-items: center; gap: 5px; min-height: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; font-size: 11px; font-weight: 550; white-space: nowrap; }
+  .goal-stage-list .goal-status svg { display: none; }
+  .goal-stage-list .goal-status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
+  .goal-stage-list .tree-meta-line { display: inline-flex !important; align-items: center; gap: 10px; flex: none; max-width: 42%; overflow: hidden; }
+  .goal-stage-list .tree-progress { display: inline-flex; align-items: center; gap: 6px; margin: 0; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .goal-stage-list .tree-progress > i { width: 34px; height: 2px; overflow: hidden; background: var(--line-strong); }
+  .goal-stage-list .tree-progress > i > b { display: block; width: var(--tree-progress); height: 100%; background: var(--green); }
+  .goal-stage-list .tree-relations { margin: 0; }
+  .goal-stage-list .tree-relations > summary { display: inline-flex; align-items: center; gap: 4px; min-height: 22px; padding: 0; border: 0; background: transparent; color: var(--muted); cursor: pointer; }
+  .goal-stage-list .tree-relations .tree-deps { position: absolute; z-index: 3; }
   .goal-kanban-board { display: flex; align-items: stretch; gap: 8px; box-sizing: border-box; min-width: 0; flex: 1; min-height: 0; height: 100%; width: 100%; padding: 52px 12px 12px; }
   .goal-kanban-column { flex: 1 1 0; width: auto; min-width: 0; height: 100%; display: flex; flex-direction: column; min-height: 0; overflow: hidden; position: relative; background: transparent; border: 0; border-radius: 0; }
   .goal-kanban-column > details { display: block; height: 100%; min-height: 0; overflow: hidden; }
@@ -40,9 +81,10 @@ export const GOAL_CANVAS_STYLES = `
   .goal-kanban-card:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
   @container goal-board (max-width: 839px) {
     .goal-canvas-shell .goal-kanban,
-    .goal-canvas-shell[data-board-view="kanban"] > [data-goal-kanban] { display: block; overflow-x: hidden; overflow-y: auto; background: var(--paper); }
-    .goal-kanban-board { flex-direction: column; align-items: stretch; gap: 6px; min-width: 0; flex: none; width: auto; height: auto; min-height: 100%; margin: 0; padding: 44px 12px 24px; background: transparent; border: 0; border-radius: 0; }
+    .goal-canvas-shell[data-board-view="kanban"] > [data-goal-kanban] { display: block; overflow-x: hidden; overflow-y: auto; background: var(--paper); min-width: 0; max-width: 100%; }
+    .goal-kanban-board { flex-direction: column; align-items: stretch; gap: 6px; box-sizing: border-box; min-width: 0; max-width: 100%; flex: none; width: 100%; height: auto; min-height: 100%; margin: 0; padding: 44px 12px 24px; background: transparent; border: 0; border-radius: 0; overflow-x: hidden; }
     .goal-kanban-column { flex: none; width: auto; min-width: 0; max-width: 100%; height: auto; overflow: visible; }
+    .goal-kanban-card { max-width: 100%; }
     .goal-kanban-column > details { display: block; height: auto; overflow: visible; }
     .goal-kanban-column > details[open] { padding-bottom: 2px; }
     .goal-kanban-chevron { display: grid; transition: transform 140ms cubic-bezier(.16, 1, .3, 1); transform-origin: 50% 50%; }
@@ -52,7 +94,7 @@ export const GOAL_CANVAS_STYLES = `
     .goal-kanban-column > details[open] > summary { background: color-mix(in srgb, var(--ink) 4.5%, transparent); }
     .goal-kanban-column > details > summary:hover { background: color-mix(in srgb, var(--ink) 6.5%, transparent); }
     .goal-kanban-column > details > summary:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
-    .goal-kanban-group-name { color: var(--ink-soft); }
+    .goal-kanban-group-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--ink-soft); }
     .goal-kanban-count { color: var(--faint); font-size: 13px; font-weight: 400; }
     .goal-kanban-column [data-kanban-cards] { position: static; inset: auto; overflow: visible; gap: 0; padding: 2px 0 0; height: auto; }
     .goal-kanban-empty { display: none; }

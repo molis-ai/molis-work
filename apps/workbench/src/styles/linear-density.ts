@@ -15,14 +15,18 @@ export const LINEAR_DENSITY_STYLES = `
   }
   body.project-preferences-page { --control-h: 28px; }
   body.immersive-workbench .immersive-workspace {
-    grid-template-rows: var(--desktop-titlebar-height) var(--workspace-chrome-height) minmax(0, 1fr);
+    grid-template-rows: var(--desktop-titlebar-height) minmax(0, 1fr);
   }
   body.immersive-workbench .workspace-chrome {
-    height: var(--workspace-chrome-height); min-height: var(--workspace-chrome-height); padding: 0 4px 0 6px; gap: 2px;
+    height: var(--desktop-titlebar-height); min-height: var(--desktop-titlebar-height); padding: 0 4px 0 6px; gap: 2px;
   }
   body.immersive-workbench .workspace-chrome .navigator-project-primary {
-    display: flex; flex: none; min-width: 0; align-items: center; gap: 2px;
-    height: var(--workspace-chrome-height); min-height: var(--workspace-chrome-height); margin: 0; padding: 0;
+    display: flex; flex: 1; min-width: 0; align-items: center; gap: 2px;
+    height: var(--desktop-titlebar-height); min-height: var(--desktop-titlebar-height); margin: 0; padding: 0;
+  }
+  body.immersive-workbench .immersive-workspace.is-directory-collapsed .workspace-chrome .navigator-project-primary,
+  body.immersive-workbench .immersive-workspace.is-plugin-directory-empty .workspace-chrome .navigator-project-primary {
+    flex: none;
   }
   body.immersive-workbench .immersive-workspace .navigator-project-selector {
     height: 28px; min-height: 28px; padding: 0 4px; gap: 6px;
@@ -61,7 +65,7 @@ export const LINEAR_DENSITY_STYLES = `
   body.immersive-workbench .tree-pane .artifact-version-list a { min-height: var(--dir-row-2h); padding: 4px 6px; }
   body.immersive-workbench .tree-pane .feed-list-copy { grid-template-rows: 18px 14px; }
   body.immersive-workbench .feed-source-task { min-height: var(--dir-row-2h); padding: 4px 6px; }
-  body.immersive-workbench .immersive-titlebar { height: var(--desktop-titlebar-height); min-height: var(--desktop-titlebar-height); padding: 0 8px 0 4px; }
+  body.immersive-workbench .immersive-titlebar { height: var(--desktop-titlebar-height); min-height: var(--desktop-titlebar-height); padding: 0 8px 0 0; }
   body.immersive-workbench[data-native-desktop="true"] .immersive-titlebar {
     padding-left: var(--desktop-window-safe-inline-start, 88px);
   }

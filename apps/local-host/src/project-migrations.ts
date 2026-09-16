@@ -81,11 +81,6 @@ import {
   migrateFeedTables,
   migrateInfoflowContractV2,
 } from "./feed-migrations.js";
-import {
-  migrateTasksSchema,
-  TASKS_SCHEMA_SQL,
-  type TaskSqliteDatabase,
-} from "@molis-ai/molis-work-module-task";
 
 /** Preserve the installed Project migration order while each Module owns its DDL. */
 export function migrateLocalProjectDatabase(storage: LocalSqliteStorage): void {
@@ -118,8 +113,6 @@ export function migrateLocalProjectDatabase(storage: LocalSqliteStorage): void {
         ${GOAL_EVENT_FACTS_SCHEMA_SQL}
 
         ${GOAL_EVENT_STATE_SCHEMA_SQL}
-
-        ${TASKS_SCHEMA_SQL}
       `);
       schema.recordMigration(1, new Date().toISOString());
       schema.recordMigration(2, new Date().toISOString());
@@ -159,7 +152,7 @@ export function migrateLocalProjectDatabase(storage: LocalSqliteStorage): void {
       schema.recordMigration(34, new Date().toISOString());
       schema.recordMigration(35, new Date().toISOString());
       schema.recordMigration(36, new Date().toISOString());
-      schema.recordMigration(37, new Date().toISOString());
+      schema.recordMigration(38, new Date().toISOString());
       });
       migrateGoalEventTrustedDecisions(storage.db as unknown as GovernanceSqliteDatabase);
       return;
@@ -331,9 +324,13 @@ export function migrateLocalProjectDatabase(storage: LocalSqliteStorage): void {
       migrateGoalEventWorkflow(storage.db as unknown as GoalLifecycleMigrationDatabase);
     }
     migrateGoalEventTrustedDecisions(storage.db as unknown as GovernanceSqliteDatabase);
-    const tasksApplied = schema.hasMigration(37);
-    if (!tasksApplied || !schema.hasTable("tasks")) {
-      migrateTasksSchema(storage.db as unknown as TaskSqliteDatabase);
+    if (schema.hasTable("tasks")) {
+      storage.immediate(() => {
+        storage.db.exec("DROP TABLE IF EXISTS tasks");
+      });
+    }
+    if (!schema.hasMigration(38)) {
+      schema.recordMigration(38, new Date().toISOString());
     }
   }
 

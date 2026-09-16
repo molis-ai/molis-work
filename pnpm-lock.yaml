@@ -86,9 +86,6 @@ importers:
       '@molis-ai/molis-work-module-sources':
         specifier: workspace:*
         version: link:modules/sources
-      '@molis-ai/molis-work-module-task':
-        specifier: workspace:*
-        version: link:modules/task
       '@molis-ai/molis-work-plugin-artifacts':
         specifier: workspace:*
         version: link:plugins/native/artifacts
@@ -107,9 +104,6 @@ importers:
       '@molis-ai/molis-work-plugin-runtime':
         specifier: workspace:*
         version: link:packages/plugin-runtime
-      '@molis-ai/molis-work-plugin-task':
-        specifier: workspace:*
-        version: link:plugins/native/task
       '@molis-ai/molis-work-plugin-work':
         specifier: workspace:*
         version: link:plugins/native/work
@@ -261,9 +255,6 @@ importers:
       '@molis-ai/molis-work-module-sources':
         specifier: workspace:*
         version: link:../../modules/sources
-      '@molis-ai/molis-work-module-task':
-        specifier: workspace:*
-        version: link:../../modules/task
       '@molis-ai/molis-work-plugin-artifacts':
         specifier: workspace:*
         version: link:../../plugins/native/artifacts
@@ -279,9 +270,6 @@ importers:
       '@molis-ai/molis-work-plugin-runtime':
         specifier: workspace:*
         version: link:../../packages/plugin-runtime
-      '@molis-ai/molis-work-plugin-task':
-        specifier: workspace:*
-        version: link:../../plugins/native/task
       '@molis-ai/molis-work-plugin-work':
         specifier: workspace:*
         version: link:../../plugins/native/work
@@ -343,9 +331,6 @@ importers:
       '@molis-ai/molis-work-plugin-inbox':
         specifier: workspace:*
         version: link:../../plugins/native/inbox
-      '@molis-ai/molis-work-plugin-task':
-        specifier: workspace:*
-        version: link:../../plugins/native/task
       '@molis-ai/molis-work-plugin-work':
         specifier: workspace:*
         version: link:../../plugins/native/work
@@ -459,12 +444,6 @@ importers:
         specifier: workspace:*
         version: link:../../packages/contracts
 
-  modules/task:
-    dependencies:
-      '@molis-ai/molis-work-contracts':
-        specifier: workspace:*
-        version: link:../../packages/contracts
-
   packages/contracts: {}
 
   packages/design-system:
@@ -562,12 +541,6 @@ importers:
         version: link:../../../modules/goals
 
   plugins/native/inbox:
-    dependencies:
-      '@molis-ai/molis-work-contracts':
-        specifier: workspace:*
-        version: link:../../../packages/contracts
-
-  plugins/native/task:
     dependencies:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*

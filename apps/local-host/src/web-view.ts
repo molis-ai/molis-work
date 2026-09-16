@@ -8,7 +8,6 @@ import { currentLocale, L } from "./web-locale.js";
 import { createLocalFeedApplication } from "./feed-application.js";
 import { listFeedSourceCatalog } from "./feed-source-service.js";
 import { createLocalFeedConnectorService } from "./feed-connector-service.js";
-import { createProjectTaskModule } from "./task-native-plugin-http.js";
 
 export interface WebViewOptions {
   databasePath: string; boardId: string; demo?: boolean; projectRoot?: string;
@@ -56,7 +55,6 @@ export function buildMolisWorkWebView(store: LocalProjectDatabase, coordinator: 
     feed: feedDirectorySnapshot(createLocalFeedApplication(store.db), options.boardId),
     feed_source_catalog: listFeedSourceCatalog(),
     feed_connector_auth: createLocalFeedConnectorService(store.db, options.boardId).authStatus(),
-    tasks: createProjectTaskModule(store.db).query.listTasks(options.boardId),
   };
 }
 

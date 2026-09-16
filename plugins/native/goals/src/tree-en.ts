@@ -35,5 +35,9 @@ export const GOALS_TREE_EN: Record<string, string> = {
   "{done}/{total} 完成，{blocked} 个阻塞": "{done}/{total} done, {blocked} blocked",
   "返回 Goal Tree": "Return to Goal Tree",
   "查看已归档 Goal": "View archived Goals",
-  "折叠全部": "Collapse all",
+  "新建 Goal": "New Goal",
+  "当前": "Current",
+  "还没有 Goal": "No Goals yet",
+  "没有已归档的 Goal": "No archived Goals",
+  "回收站是空的": "Trash is empty",
 };

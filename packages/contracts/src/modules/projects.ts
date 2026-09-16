@@ -27,14 +27,13 @@ export interface ProjectSelection {
 }
 
 /** Bundled project navigation entries; activation does not grant API permissions. */
-export const BUILTIN_PROJECT_PLUGIN_IDS = ["goals", "task", "sessions", "inbox", "feed", "artifacts"] as const;
+export const BUILTIN_PROJECT_PLUGIN_IDS = ["goals", "sessions", "inbox", "feed", "artifacts"] as const;
 export type BuiltinProjectPluginId = typeof BUILTIN_PROJECT_PLUGIN_IDS[number];
 /** Enabling Feed always enables Inbox so the attention entry cannot disappear. */
 export const PROJECT_PLUGIN_COMPANIONS: {
   readonly [K in BuiltinProjectPluginId]: readonly BuiltinProjectPluginId[];
 } = {
   goals: [],
-  task: [],
   sessions: [],
   inbox: [],
   feed: ["inbox"],

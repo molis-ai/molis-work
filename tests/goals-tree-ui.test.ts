@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createWorkbenchGoalsTreeRenderer, createWorkbenchUiHost } from "@molis-ai/molis-work-app-workbench";
-import { buildGoalCollectionModel, GOALS_TREE_UI_CONTRIBUTION_ID, type GoalsTreeItem, type GoalsTreeView } from "@molis-ai/molis-work-plugin-goals";
+import { buildGoalCollectionModel, GOALS_TREE_CLIENT_FACTORY_SCRIPT, GOALS_TREE_EN, GOALS_TREE_UI_CONTRIBUTION_ID, type GoalsTreeItem, type GoalsTreeView } from "@molis-ai/molis-work-plugin-goals";
 import type { GoalRelationRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 import { icon } from "@molis-ai/molis-work-design-system";
 import { L, currentLocale, listJoin, runWithLocale } from "@molis-ai/molis-work-app-local-host";
@@ -47,24 +47,45 @@ test("collection selection preserves requested/active/first precedence and archi
   assert.equal(current.collectionNote, "需要你决定 1 · 正在推进 2 · 受阻 8");
   const full = renderer.renderGoalDirectory(model, current, true);
   const compact = renderer.renderGoalRefreshDirectory(model, current);
+  const stage = renderer.renderGoalStageList(model, current);
   assert.match(full, /data-directory-panel="goals">/);
-  assert.match(full, /data-goal-list-view/);
   assert.match(full, /共 3 个目标/);
+  assert.match(full, /class="tree-create"[^>]*>[\s\S]*新建 Goal/);
+  assert.match(full, /class="tree-filter-trigger"[^>]*data-tree-filter-trigger/);
+  assert.doesNotMatch(full, /data-goal-list-view|data-tree-root|data-select-goal|data-goal-collection-fold/);
+  assert.doesNotMatch(full, /data-archive-link|data-trash-link|data-navigator-view/);
+  assert.match(stage, /data-goal-stage-list/);
+  assert.match(stage, /data-goal-list-view/);
+  assert.match(stage, /data-goal-collection-fold="current"[^>]*\sopen/);
+  assert.match(stage, /data-goal-collection-fold="archive"/);
+  assert.match(stage, /data-goal-collection-fold="trash"/);
+  assert.match(stage, /data-tree-root/);
+  assert.match(stage, /data-collection-tree="archive"/);
+  assert.match(stage, /data-collection-tree="trash"/);
+  assert.doesNotMatch(stage, /data-goal-collection-fold="archive"[^>]*\sopen/);
+  assert.match(stage, /data-select-goal="active" aria-pressed="true"/);
   assert.match(compact, /data-refresh-tree-chrome hidden/);
   assert.doesNotMatch(compact, /data-directory-panel|data-goal-list-view/);
-  assert.match(full, /data-select-goal="active" aria-pressed="true"/);
+  assert.match(compact, /data-tree-scroll/);
+  assert.match(compact, /data-goal-collection-fold="current"/);
   const archive = runWithLocale("en", () => {
     const collection = select(undefined, true);
-    return renderer.renderGoalDirectory(model, collection, false);
+    return {
+      directory: renderer.renderGoalDirectory(model, collection, false),
+      stage: renderer.renderGoalStageList(model, collection),
+    };
   });
-  assert.match(archive, /data-directory-panel="goals" hidden/);
-  assert.match(archive, /Can be restored any time/);
-  assert.doesNotMatch(archive, /data-global-search|tree-search/);
+  assert.match(archive.directory, /data-directory-panel="goals" hidden/);
+  assert.match(archive.directory, /Can be restored any time/);
+  assert.doesNotMatch(archive.directory, /data-global-search|tree-search|data-archive-link|data-trash-link|data-select-goal/);
+  assert.match(archive.stage, /data-goal-collection-fold="archive"[^>]*\sopen/);
+  assert.match(archive.stage, /data-collection-open/);
+  assert.match(archive.stage, /data-tree-root/);
   const empty = buildGoalCollectionModel({ ...model, goals: [] }, undefined, false, false, false, L);
   assert.equal(empty.selected, undefined);
   assert.equal(empty.selectedId, "");
   assert.equal(empty.title, "Molis Work");
-  assert.match(renderer.renderGoalRefreshDirectory(model, empty), /共 0 个目标/);
+  assert.match(renderer.renderGoalRefreshDirectory({ ...model, goals: [] }, empty), /共 0 个目标/);
   assert.deepEqual(model, before);
 });
 
@@ -80,6 +101,7 @@ test("tree contribution retains nesting, sibling order, selected row, progress, 
   const html = renderer.renderGoalTree(view([parent, done, blocked, ready, cycleA, cycleB], relations), "ready");
   assert.match(html, /Parent &quot;&lt;title&gt;/);
   assert.match(html, /class="tree-children"/);
+  assert.match(html, /data-tree-toggle/);
   assert.ok(html.indexOf('data-goal-id="ready"') < html.indexOf('data-goal-id="blocked"'));
   assert.ok(html.indexOf('data-goal-id="blocked"') < html.indexOf('data-goal-id="done"'));
   assert.match(html, /data-select-goal="ready" aria-pressed="true"/);
@@ -106,22 +128,65 @@ test("tree dependencies preserve outgoing direction, archived results, missing t
   assert.doesNotMatch(html, /data-select-goal="upstream"|data-select-goal="inactive"/);
 });
 
-test("tree chrome keeps status counts, collection navigation, localized copy, and empty states", () => {
+test("tree chrome keeps status counts, localized copy, and empty states", () => {
   const ready = item("ready"), completed = { ...item("done"), display_status: "completed" as const };
   const archived = { ...item("old"), status: "archived" as const };
   const model = { ...view([ready, item("also-ready"), completed]), archived_goals: [archived], trashed_goals: [item("trash")] };
-  const html = renderer.renderTreeChrome(model, model.goals, false, false);
+  const html = renderer.renderTreeChrome(model);
   assert.match(html, /value="continue" data-status-filter><span><span>continue<\/span><\/span><small>2<\/small>/);
   assert.match(html, /value="completed" data-status-filter/);
   assert.doesNotMatch(html, /value="blocked" data-status-filter/);
-  assert.doesNotMatch(html, /data-global-search|tree-search/);
-  assert.match(html, /data-navigator-view="graph"/);
-  assert.match(html, /data-archive-link href="\/archive"/);
-  assert.match(html, /data-trash-link href="\/trash"/);
-  const archive = runWithLocale("en", () => renderer.renderTreeChrome(model, model.archived_goals, true, false));
-  assert.match(archive, /value="archived" data-status-filter/);
-  assert.match(archive, /data-archive-link href="\/" aria-label="Return to Goal Tree"/);
-  assert.doesNotMatch(archive, /data-navigator-view/);
-  assert.match(renderer.renderTreeChrome(view([]), [], false, false), /当前没有可筛选的 Goal/);
+  assert.doesNotMatch(html, /value="archived" data-status-filter|value="trashed" data-status-filter/);
+  assert.doesNotMatch(html, /data-global-search|tree-search|data-archive-link|data-trash-link|data-navigator-view/);
+  assert.match(html, /class="tree-filter-trigger"[^>]*data-tree-filter-trigger/);
+  assert.match(html, /class="tree-create"[^>]*>[\s\S]*新建 Goal/);
+  assert.match(html, /data-open-create/);
+  assert.doesNotMatch(html, /data-collapse-all|折叠全部|Collapse all/);
+  const english = runWithLocale("en", () => renderer.renderTreeChrome(model));
+  assert.match(english, /New Goal/);
+  assert.doesNotMatch(english, /value="archived" data-status-filter/);
+  assert.doesNotMatch(english, /data-collapse-all|折叠全部|Collapse all/);
+  assert.equal("折叠全部" in GOALS_TREE_EN, false);
+  assert.doesNotMatch(GOALS_TREE_CLIENT_FACTORY_SCRIPT, /data-collapse-all|handleTreeCollapseAllClick/);
+  assert.match(GOALS_TREE_CLIENT_FACTORY_SCRIPT, /\[data-tree-root\] \[data-tree-item\]/);
+  assert.match(GOALS_TREE_CLIENT_FACTORY_SCRIPT, /syncGoalCollectionFolds/);
+  assert.match(renderer.renderTreeChrome(view([])), /当前没有可筛选的 Goal/);
   assert.equal(renderer.renderGoalTree(view([]), ""), '<ul class="goal-tree" data-tree-root></ul>');
+});
+
+test("stage list keeps current, archive and trash collection folds", () => {
+  const emptyModel = {
+    ...view([]), active_goal_id: null, counts: { waiting_for_human: 0, executing: 0, execution_pending: 0, execution_blocked: 0, invalidated: 0 },
+  };
+  const emptyCollection = buildGoalCollectionModel(emptyModel, undefined, false, false, false, L);
+  const emptyDirectory = renderer.renderGoalDirectory(view([]), emptyCollection, true);
+  const empty = renderer.renderGoalStageList(view([]), emptyCollection);
+  assert.doesNotMatch(emptyDirectory, /data-goal-collection-fold|data-select-goal|data-tree-root/);
+  assert.match(empty, /data-goal-collection-fold="current"[^>]*\sopen/);
+  assert.match(empty, /还没有 Goal/);
+  assert.match(empty, /data-goal-collection-fold="archive"/);
+  assert.match(empty, /data-goal-collection-fold="trash"/);
+  assert.match(empty, /没有已归档的 Goal/);
+  assert.match(empty, /回收站是空的/);
+  assert.doesNotMatch(empty, /data-goal-collection-fold="archive"[^>]*\sopen/);
+  assert.doesNotMatch(empty, /data-goal-collection-fold="trash"[^>]*\sopen/);
+  const archived = { ...item("old"), status: "archived" as const };
+  const trashed = item("gone");
+  const current = item("live");
+  const model = { ...view([current]), archived_goals: [archived], trashed_goals: [trashed],
+    active_goal_id: "live", counts: { waiting_for_human: 0, executing: 0, execution_pending: 0, execution_blocked: 0, invalidated: 0 } };
+  const html = renderer.renderGoalStageList(model, buildGoalCollectionModel(model, "old", true, false, false, L));
+  assert.match(html, /data-tree-root/);
+  assert.match(html, /data-select-goal="live"/);
+  assert.doesNotMatch(html, /data-goal-collection-fold="current"[^>]*\sopen/);
+  assert.match(html, /data-collection-tree="archive"/);
+  assert.match(html, /data-select-goal="old" aria-pressed="true"/);
+  assert.match(html, /data-goal-collection-fold="archive"[^>]*\sopen/);
+  assert.match(html, /data-collection-tree="trash"/);
+  assert.match(html, /data-select-goal="gone"/);
+  const english = runWithLocale("en", () => renderer.renderGoalStageList(view([]), buildGoalCollectionModel({
+    ...view([]), active_goal_id: null, counts: { waiting_for_human: 0, executing: 0, execution_pending: 0, execution_blocked: 0, invalidated: 0 },
+  }, undefined, false, false, false, L)));
+  assert.match(english, />Current<\/strong>/);
+  assert.match(english, /No Goals yet/);
 });

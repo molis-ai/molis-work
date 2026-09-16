@@ -52,5 +52,9 @@ test("project index, settings, and workbench keep titles pinned and scroll only 
   assert.match(workbench, /--dir-row-h: 28px;/);
   assert.match(workbench, /--plugin-rail-width: 48px;/);
   assert.ok(workbench.includes("grid-template-columns: var(--plugin-rail-width) var(--tree-width, var(--immersive-sidebar-width)) minmax(0, 1fr)"));
+  assert.match(workbench, /\.plugin-rail \{\n    grid-column: 1; grid-row: 2 \/ -1;/);
+  assert.match(workbench, /\.immersive-titlebar > \.workspace-chrome \{/);
+  assert.match(workbench, /grid-template-rows: var\(--desktop-titlebar-height\) minmax\(0, 1fr\)/);
+  assert.match(workbench, /width: calc\(var\(--plugin-rail-width\) \+ var\(--tree-width, var\(--immersive-sidebar-width\)\)\);/);
   assert.ok(workbench.lastIndexOf("--control-h: 28px") > workbench.lastIndexOf("--control-h: 32px"), "Linear density must win over the shared 32px control token");
 });

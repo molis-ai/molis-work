@@ -23,7 +23,7 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
     };
 
     const syncMobilePluginLabels = (surface, directory) => {
-      const plugin = directory === "sources" || directory === "feed" || directory === "inbox" || directory === "sessions" || directory === "artifacts" || directory === "task"
+      const plugin = directory === "sources" || directory === "feed" || directory === "inbox" || directory === "sessions" || directory === "artifacts"
         ? directory
         : surface;
       if (mobileTreeTab) mobileTreeTab.textContent = plugin === "feed"
@@ -36,10 +36,8 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
             ? "Sessions"
             : plugin === "artifacts"
               ? "Artifacts"
-              : plugin === "task"
-                ? "Task"
-                : defaultMobileTreeLabel;
-      if (mobileDocumentTab) mobileDocumentTab.textContent = plugin === "feed" || plugin === "sources" || plugin === "sessions" || plugin === "inbox" || plugin === "artifacts" || plugin === "task"
+              : defaultMobileTreeLabel;
+      if (mobileDocumentTab) mobileDocumentTab.textContent = plugin === "feed" || plugin === "sources" || plugin === "sessions" || plugin === "inbox" || plugin === "artifacts"
         ? L("详情")
         : defaultMobileDocumentLabel;
     };
@@ -117,95 +115,7 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
     };
     const openDirectorySurface = (surface, itemId, title, clickEvent) => openWorkbenchSurface(surface, itemId, title, directoryTabMode(clickEvent));
 
-    const rememberTask = (task) => {
-      if (!task?.task_id) return task;
-      state.tasks = Array.isArray(state.tasks) ? state.tasks.slice() : [];
-      const index = state.tasks.findIndex((item) => item.task_id === task.task_id);
-      if (index >= 0) state.tasks[index] = task;
-      else state.tasks.push(task);
-      const dataNode = document.querySelector("#molis-work-data");
-      if (dataNode) dataNode.textContent = JSON.stringify(state).replaceAll("<", "\\u003c");
-      upsertTaskDirectoryRow(task);
-      return task;
-    };
-    const hydrateTasks = async () => {
-      try {
-        const result = await taskApi("/api/tasks", "GET");
-        (result.tasks || []).forEach((task) => rememberTask(task));
-      } catch {}
-    };
-    const findTaskByGoal = (goalId) => (state.tasks || []).find((item) => item.goal_id === goalId) || null;
-    const taskApi = async (pathname, method, body) => {
-      const response = await fetch(route(pathname), {
-        method,
-        cache: "no-store",
-        headers: { "content-type": "application/json", ...molisWorkControlHeaders() },
-        body: body == null ? undefined : JSON.stringify(body),
-      });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || L("Task 操作失败"));
-      return result;
-    };
-    const upsertTaskDirectoryRow = (task) => {
-      const list = document.querySelector("[data-task-list]");
-      if (!list || !task?.task_id) return;
-      const empty = list.querySelector("[data-task-empty]");
-      let row = list.querySelector('[data-task-row][data-task-id="' + CSS.escape(task.task_id) + '"]');
-      const caption = task.goal_id
-        ? (visibleGoals().find((item) => item.goal.goal_id === task.goal_id)?.goal.title || task.goal_id)
-        : L("未关联 Goal");
-      if (!row) {
-        row = document.createElement("button");
-        row.className = "feed-list-item directory-list-row";
-        row.type = "button";
-        row.setAttribute("role", "option");
-        row.dataset.taskRow = "";
-        list.insertBefore(row, empty);
-      }
-      row.dataset.taskId = task.task_id;
-      row.dataset.taskGoal = task.goal_id || "";
-      row.dataset.taskTitle = task.title;
-      row.setAttribute("title", task.title);
-      const iconNode = document.querySelector('[data-plugin-id="task"] svg');
-      row.innerHTML = '<span class="feed-list-icon"></span><span class="feed-list-copy"><span class="feed-list-meta"><em>Task</em><small></small></span><strong></strong></span>';
-      if (iconNode) row.querySelector(".feed-list-icon").append(iconNode.cloneNode(true));
-      row.querySelector("small").textContent = caption;
-      row.querySelector("strong").textContent = task.title;
-      if (empty) empty.hidden = true;
-    };
-    const ensureTaskForGoal = async (goalId, title) => {
-      if (!goalId) return null;
-      const existing = findTaskByGoal(goalId);
-      if (existing) return existing;
-      const result = await taskApi("/api/tasks/open-for-goal", "POST", { goal_id: goalId, title: title || goalId });
-      return rememberTask(result.task);
-    };
-    const openTaskForGoal = async (goalId, title, mode = "commit") => {
-      const keepGoalsDirectory = treePane?.dataset.desktopDirectory === "goals";
-      try {
-        const task = await ensureTaskForGoal(goalId, title);
-        if (!task) return null;
-        tabWorkspace?.openItem("task", task.task_id, task.title, undefined, mode);
-        if (keepGoalsDirectory) setDesktopDirectory("goals", false, false);
-        return task;
-      } catch (error) {
-        showToast(error instanceof Error ? error.message : L("无法打开这条 Task"));
-        return null;
-      }
-    };
-    const createStandaloneTask = async (mode = "commit") => {
-      try {
-        const result = await taskApi("/api/tasks", "POST", { title: L("未命名 Task") });
-        const task = rememberTask(result.task);
-        tabWorkspace?.openItem("task", task.task_id, task.title, undefined, mode);
-        return task;
-      } catch (error) {
-        showToast(error instanceof Error ? error.message : L("无法创建 Task"));
-        return null;
-      }
-    };
-
-    const currentModuleDirectory = () => activeDesktopSurface === "feed" || activeDesktopSurface === "sources" || activeDesktopSurface === "sessions" || activeDesktopSurface === "artifacts" || activeDesktopSurface === "inbox" || activeDesktopSurface === "task"
+    const currentModuleDirectory = () => activeDesktopSurface === "feed" || activeDesktopSurface === "sources" || activeDesktopSurface === "sessions" || activeDesktopSurface === "artifacts" || activeDesktopSurface === "inbox"
       ? activeDesktopSurface
       : "goals";
 
@@ -230,7 +140,7 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
       });
     };
 
-    const LIST_PLUGIN_SECTIONS = ["goals", "task", "sessions", "inbox", "feed", "artifacts"];
+    const LIST_PLUGIN_SECTIONS = ["goals", "sessions", "inbox", "feed", "artifacts"];
 
     const syncPluginDirectory = (directory) => {
       const empty = directory === "root";

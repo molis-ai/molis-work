@@ -99,6 +99,8 @@ export const TAB_WORKSPACE_STYLES = `
   body.immersive-workbench .tab-item.is-active { background: var(--nav-raised); color: var(--ink); box-shadow: inset 0 0 0 1px var(--control-border); }
   body.immersive-workbench .tab-item-close { border-radius: 50%; }
   body.immersive-workbench :is(.tab-split-button, .tab-add-button) { flex: none; align-self: center; display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 6px; color: var(--muted); background: transparent; cursor: pointer; }
+  body.immersive-workbench .tab-strip .tab-strip-spacer { flex: 1 1 auto; min-width: 0; align-self: stretch; }
+  body.immersive-workbench[data-native-desktop="true"] .tab-strip .tab-strip-spacer { -webkit-app-region: drag; }
   body.immersive-workbench .tab-strip .tab-split-button { margin-left: auto; }
   body.immersive-workbench :is(.tab-split-button, .tab-add-button):hover { background: var(--nav-hover); color: var(--ink); }
   body.immersive-workbench :is(.tab-split-button, .tab-add-button) svg { width: 15px; height: 15px; }

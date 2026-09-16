@@ -1,6 +1,6 @@
 /** Workbench-owned jump palette. Plugin owners keep their own open/select behavior. */
 export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
-  const { translate: L, setDirectory, setWorkSurface, selectGoal, setMobileView, noteSearchActivity, openTabItem, openTaskForGoal, expandDirectory } = host;
+  const { translate: L, setDirectory, setWorkSurface, selectGoal, setMobileView, noteSearchActivity, openTabItem, expandDirectory } = host;
   const dialog = document.querySelector("[data-global-search-dialog]");
   const form = document.querySelector("[data-global-search-form]");
   const input = document.querySelector("[data-global-search]");
@@ -33,19 +33,6 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
         surface: "goal",
       })));
       if (items.length) groups.push({ label: "Goals", items });
-    }
-    if (pluginEnabled("task")) {
-      const items = take([...document.querySelectorAll("[data-task-row]")].map((row) => ({
-        kind: "task",
-        id: row.dataset.taskId,
-        title: row.dataset.taskTitle || row.querySelector("strong")?.textContent?.trim() || row.dataset.taskId,
-        plugin: "Task",
-        search: String((row.dataset.taskTitle || "") + " " + (row.querySelector("small")?.textContent || "")).toLowerCase(),
-        directory: "task",
-        surface: "task",
-        element: row,
-      })));
-      if (items.length) groups.push({ label: "Task", items });
     }
     if (pluginEnabled("sessions")) {
       const items = take([...document.querySelectorAll('[data-operation-row="session"]')].map((row) => ({
@@ -160,12 +147,12 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
       }
       if (hit.kind === "goal") {
         expandDirectory?.("goals");
-        void openTaskForGoal?.(hit.id, hit.title, "commit");
+        openTabItem?.("goals", hit.id, hit.title, "commit");
         requestAnimationFrame(() => {
           document.querySelector('[data-tree-item][data-goal-id="' + CSS.escape(hit.id) + '"]')?.scrollIntoView({ block: "nearest" });
         });
       } else {
-        const plugin = { session: "sessions", inbox: "inbox", feed: "feed", artifact: "artifacts", source: "feed", task: "task" }[hit.kind];
+        const plugin = { session: "sessions", inbox: "inbox", feed: "feed", artifact: "artifacts", source: "feed" }[hit.kind];
         if (plugin) {
           expandDirectory?.(plugin);
           openTabItem?.(plugin, hit.id, hit.title);

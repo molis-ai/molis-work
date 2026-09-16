@@ -18,7 +18,6 @@ import { createLocalFeedSourceScheduler } from "./feed-source-scheduler.js";
 import { createLocalFeedConnectorService } from "./feed-connector-service.js";
 import { handleFeedNativePluginHttp } from "./feed-native-plugin-http.js";
 import { handleInboxNativePluginHttp } from "./inbox-native-plugin-http.js";
-import { handleTaskNativePluginHttp } from "./task-native-plugin-http.js";
 import { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
 import { serviceProcessId } from "./web-runtime-settings.js";
 import { resolveWebRequest } from "./web-routing.js";
@@ -160,11 +159,6 @@ export async function handleMolisWorkWebRequest(
           store,
           invalidateWebView: () => webViewCache.delete(options.databasePath),
           reconcileGoalDecisions: () => coordinator.goalDecisionAttention.reconcile(options.boardId),
-        })) return;
-        if (await handleTaskNativePluginHttp(request, response, url, {
-          boardId: options.boardId,
-          store,
-          invalidateWebView: () => webViewCache.delete(options.databasePath),
         })) return;
         if (await handleFeedNativePluginHttp(request, response, url, {
           renderer: workbenchRenderer,

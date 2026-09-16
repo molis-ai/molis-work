@@ -73,7 +73,7 @@ test("plugin rail lists enabled plugins; directory sections stay in the second c
   assert.match(html, /data-plugin-id="home"/);
   assert.match(html, /data-plugin-id="market"/);
   assert.doesNotMatch(html, /data-plugin-section="home"|data-plugin-section="market"/);
-  for (const plugin of ["goals", "task", "sessions", "inbox", "feed", "artifacts"]) {
+  for (const plugin of ["goals", "sessions", "inbox", "feed", "artifacts"]) {
     assert.match(html, new RegExp(`data-plugin-section="${plugin}"[^>]*data-plugin-expanded="true"`));
     assert.match(html, new RegExp(`data-plugin-id="${plugin}"`));
   }

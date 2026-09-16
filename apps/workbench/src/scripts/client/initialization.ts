@@ -206,6 +206,15 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     immersiveNavigation?.sync();
     frameContainer?.restore();
     tabWorkspace?.apply();
+    if (restoredUi) {
+      try {
+        const restored = JSON.parse(sessionStorage.getItem(storageKey) || "null");
+        if (Array.isArray(restored?.statuses) && restored.statuses.length) {
+          setSelectedStatuses(restored.statuses);
+          filterTree("");
+        }
+      } catch {}
+    }
     if (!(directGoalRequested && !restoredNavigation) && matchMedia("(max-width: 760px)").matches && (restoredMobileView === "tree" || restoredMobileView === "document" || restoredMobileView === "tui")) {
       setMobileView(restoredMobileView);
     }

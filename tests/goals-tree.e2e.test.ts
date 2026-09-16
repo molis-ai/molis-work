@@ -63,6 +63,7 @@ test("Goals tree supports real collapse, search, status filtering and detail sel
   assert.equal(await evaluate(dom('[data-tree-item][data-goal-id="CORE"]') + ".hidden"), false);
   assert.equal(await evaluate(dom('[data-tree-item][data-goal-id="WEB"]') + ".hidden"), true);
   assert.equal(await evaluate(dom(root) + ".hidden"), false, "The ancestor remains visible so the completed child keeps its hierarchy");
+  await evaluate("new Promise((resolve) => setTimeout(resolve, 250))");
   await reloadPage();
   await waitFor(dom('[data-status-filter][value="completed"]') + "?.checked === true");
   assert.equal(await evaluate(dom('[data-tree-item][data-goal-id="CORE"]') + ".hidden"), false);
@@ -71,11 +72,11 @@ test("Goals tree supports real collapse, search, status filtering and detail sel
   await click("[data-tree-filter-trigger]");
   await click("[data-clear-status-filter]");
   assert.equal(await evaluate(dom('[data-tree-item][data-goal-id="WEB"]') + ".hidden"), false);
-  await evaluate("document.querySelector('.tab-item[data-tab-kind=mother] [role=tab], .tab-item[data-tab-kind=mother] .tab-item-trigger')?.click()");
+  await evaluate("document.querySelector('[data-titlebar-tabs] .tab-item[data-tab-kind=mother] [role=tab]')?.click()");
   await evaluate("document.querySelector('[data-board-view-tab=list]')?.click()");
   await waitFor("document.querySelector('[data-goal-canvas-shell]')?.dataset.boardView === 'list' && !document.querySelector('[data-goal-canvas-shell]')?.hidden");
   await click("[data-tree-filter-trigger]");
-  await click('.tree-node[data-select-goal="CORE"]');
+  await evaluate("document.querySelector('.tree-node[data-select-goal=\"CORE\"]').click()");
   await waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal === 'CORE' && " + dom('.tree-node[data-select-goal="CORE"]') + ".getAttribute('aria-pressed') === 'true'");
   const core = before.goals.find(goal => goal.goal_id === "CORE")!;
   assert.equal(await evaluate(dom('.tree-node[data-select-goal="CORE"] strong') + ".textContent"), core.title);

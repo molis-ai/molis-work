@@ -101,7 +101,7 @@ export function listGoalDocumentHistory(input: {
     if (cursorItem?.event_id) workIds.add(cursorItem.event_id);
     let merged = mergeGoalHistoryItems({
       work: { items: workItems, observed_event_cursor: observed },
-      legacy: [...legacyMapped, ...mapJournalHistoryItems(journal, workIds)],
+      legacy: [...legacyMapped, ...mapJournalHistoryItems(journal, workIds, input.snapshot)],
     });
     if (cursorItem) merged = merged.filter((item) => compareHistoryItems(item, cursorItem) > 0);
     const pageItems = merged.slice(0, limit);
@@ -167,7 +167,7 @@ export function findHistoryIndexItem(
   }
   const event = journal.find((row) => row.event_id === originalId);
   if ((parsed?.source === "legacy_record" || !parsed) && event) {
-    return mapJournalHistoryItems([event], new Set())[0] ?? null;
+    return mapJournalHistoryItems([event], new Set(), input.snapshot)[0] ?? null;
   }
   return null;
 }

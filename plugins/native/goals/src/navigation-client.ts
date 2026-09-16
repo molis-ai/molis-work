@@ -18,7 +18,6 @@ const GOALS_SELECT_SCRIPT = `    const selectGoal = async (goalId, updateHistory
         if (getSelected() === goalId && fallbackGoalId) applySelection(fallbackGoalId, false);
         return;
       }
-      ensureWorkTab(goalId);
       document.dispatchEvent(new CustomEvent("molis-work:goal-document-loaded", { detail: { goalId } }));
       if (updateHistory) {
         history.pushState({ goalId }, "", goalPageUrl(goalId));
@@ -65,7 +64,7 @@ export const GOALS_NAVIGATION_CLIENT_FACTORY_SCRIPT = `(host) => {
     const {
       decisionView, trashView, archiveView, documentPane, getSelected, getActiveGoalId,
       navigateToGoal, applySelection, loadGoalDocument,
-      ensureWorkTab, goalPageUrl, setWorkspaceMode, saveUiState, localPathname,
+      goalPageUrl, setWorkspaceMode, saveUiState, localPathname,
       visibleGoals, openEventReaderFromHash, goalFactorFromHash,
       setGoalFactor, revealDeepLinkFromId,
     } = host;

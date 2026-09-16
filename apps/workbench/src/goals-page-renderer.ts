@@ -4,7 +4,6 @@ import type { ProjectOperationsData, ProjectOperationsProject, ProjectOperations
 
 import type { MolisWorkIcon as PageIcon } from "@molis-ai/molis-work-design-system";
 import { renderImmersivePluginStrip, renderImmersiveHeader, renderImmersiveGoalHeader, renderImmersiveWorkTabs, renderProjectHome, renderPluginMarket, renderGlobalSearchOverlay, wrapDirectoryListRegion, renderDirectoryShortcuts } from "./immersive-shell.js";
-import { renderProjectSettingsDirectory } from "./project-settings-stage.js";
 type Translate = (text: string, values?: Record<string, string | number>) => string;
 type FeedPageSurface = "workbench" | "source-workbench" | "directory" | "source-directory" | "overlays";
 export interface WorkbenchGoalsPageView<TItem extends GoalCollectionItem> extends GoalCollectionView<TItem> {
@@ -147,19 +146,26 @@ function renderMolisWorkWeb(
     </section>
   </div>` : goalDocument;
   const frameStage = showTui ? `<section class="goal-frame-surface" data-goal-frame-surface aria-label="Frame" hidden>
-    <div class="goal-frame-canvas" data-frame-canvas>
+    <header class="frame-goal-summary"><div class="frame-goal-heading"><h1 data-frame-goal-title></h1><span data-frame-goal-status></span></div><p data-frame-goal-outcome></p><div class="frame-goal-actions"><button type="button" data-frame-add-content>${icon("plus")}${L("添加已有内容")}</button><button type="button" data-frame-goal-work>${icon("terminal")}${L("打开工作区")}</button><button type="button" data-frame-goal-locate>${icon("target")}${L("在关系画布中定位")}</button></div></header>
+    <div class="goal-frame-canvas" data-frame-canvas><div class="frame-empty" data-frame-empty><strong>${L("把这项目标需要的内容放在这里")}</strong><p>${L("从目录拖入消息、会话或资料，在同一个画布上组织工作。")}</p><button type="button" class="button" data-frame-add-content>${icon("plus")}${L("添加已有内容")}</button></div>
       <div class="goal-frame-world" data-frame-world></div>
     </div>
+    <dialog class="frame-picker" data-frame-picker aria-labelledby="frame-picker-title">
+      <header><h2 id="frame-picker-title">${L("添加已有内容")}</h2><button type="button" class="icon-button" data-frame-picker-close aria-label="${L("关闭")}">${icon("x")}</button></header>
+      <div class="frame-picker-tools"><input type="search" data-frame-picker-search placeholder="${L("搜索标题或来源")}" aria-label="${L("搜索标题或来源")}" autofocus><select data-frame-picker-kind aria-label="${L("内容来源")}"><option value="all">${L("全部来源")}</option><option value="feed">Feed</option><option value="inbox">Inbox</option><option value="session">${L("会话")}</option><option value="artifact">${L("交付物")}</option></select></div>
+      <div class="frame-picker-list" data-frame-picker-list></div>
+      <footer><span>${L("添加引用，原内容保持在所属来源。")}</span><button type="button" class="button" data-frame-picker-close>${L("取消")}</button></footer>
+    </dialog>
     <footer class="goal-canvas-tools goal-frame-tools"><div role="group" aria-label="${L("画布缩放")}"><button type="button" data-frame-zoom="out" aria-label="${L("缩小")}">−</button><output data-frame-zoom-value>100%</output><button type="button" data-frame-zoom="in" aria-label="${L("放大")}">+</button></div></footer>
   </section>` : "";
-  const feedViews = `<nav class="immersive-feed-views" data-feed-views hidden aria-label="${L("Feed 视图")}"><button type="button" data-directory-open="feed" data-work-surface-open="feed" data-feed-preset="feed">Feed</button><button type="button" data-directory-open="sources" data-work-surface-open="sources">${L("来源")}</button></nav>`;
   const html = renderWorkbenchDocument({
     preamble_html: `<!--
-THESIS: 从项目首页进入工作，在同一 Goal 框内操作终端和检查结果。
-OWN-WORLD: 用户确认的石墨中性色、Codex 目的地目录、平面选中及 32px 对齐标题栏。
+THESIS: 在连续工作区内阅读、记录和执行，内容贴齐标签页，避免浮窗套浮窗。
+OWN-WORLD: 用户指定的 Linear × coss 方向；石墨中性色、细分隔线、平面选中、44px 标签栏。
 STORY: 点左边插件在右边开分组标签；点 item 开一张；可拆栏并排看。
-FIRST VIEWPORT: 左侧项目、首页与插件目的地、当前列表；右侧默认项目首页标签。点 Goals 后出现画布母标签。
-FORM: 已确认 docs/design/immersive-workbench 原型，生产数据与 Runtime 通过所属 Plugin 接入。
+FIRST VIEWPORT: 左侧目录，右侧固定标签栏和全宽内容；Goal 返回在左上，编辑操作在固定底栏。临时配置贴右边缘。
+FORM: 用户指定 continuous-workspace-v11；保留画布节点、分屏及真实 Plugin 数据与 Runtime 契约。控件短反馈，面板轻淡入，无缩放弹起。
+FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
 -->\n`,
     lang: htmlLang(),
     title,
@@ -181,8 +187,9 @@ FORM: 已确认 docs/design/immersive-workbench 原型，生产数据与 Runtime
     <main class="immersive-workspace${showTui ? " is-desktop-tui" : ""}" data-workspace data-mobile-view="document" data-workspace-mode="graph">
       <aside class="tree-pane" id="goal-tree-pane" data-desktop-directory="${initialDesktopDirectory}" aria-label="${L("应用目录")}">
         ${projectNavigatorLayer}
+        <div class="directory-content-scroll">
         ${renderImmersivePluginStrip(primitives, enabledPlugins)}
-        ${wrapDirectoryListRegion(primitives, initialDesktopDirectory, feedViews, `
+        ${wrapDirectoryListRegion(primitives, initialDesktopDirectory, `
         ${desktopRootDirectory}
         ${goalsTreeRenderer.renderGoalDirectory(view, collection, initialDesktopDirectory === "goals")}
         ${projectOperations.directories}
@@ -190,8 +197,9 @@ FORM: 已确认 docs/design/immersive-workbench 原型，生产数据与 Runtime
         ${renderFeedNativePluginSurface(view, "directory", initialFeedPreset)}
         ${renderFeedNativePluginSurface(view, "source-directory", initialFeedPreset)}
         <section class="desktop-directory-panel" data-directory-panel="artifacts" hidden><div data-artifact-directory></div></section>
-        ${renderProjectSettingsDirectory(L)}`)}
+        `)}
         ${renderDirectoryShortcuts(primitives)}
+        </div>
         ${desktopAccountFooter}
       </aside>
       <div class="tree-resizer" data-tree-resizer role="separator" tabindex="0" aria-orientation="vertical" aria-label="${L("调整目录宽度")}" aria-controls="goal-tree-pane" aria-valuemin="236" aria-valuemax="520" aria-valuenow="264" title="${L("拖动调整目录宽度，双击恢复默认")}"></div>
@@ -210,7 +218,6 @@ FORM: 已确认 docs/design/immersive-workbench 原型，生产数据与 Runtime
             ${renderFeedNativePluginSurface(view, "source-workbench", initialFeedPreset)}
             <section class="desktop-work-surface immersive-artifact-surface" data-work-surface="artifacts" data-work-surface-label="Artifacts" hidden><div data-artifact-detail></div></section>
             <section class="desktop-work-surface immersive-market" data-work-surface="market" data-work-surface-label="${L("插件市场")}" hidden>${renderPluginMarket(primitives)}</section>
-            <section class="desktop-work-surface project-settings-stage" data-work-surface="project-settings" data-work-surface-label="${L("项目设置")}" hidden><div data-project-settings-page-root></div></section>
           </div>
         </div>
         ${frameStage}

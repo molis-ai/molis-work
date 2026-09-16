@@ -149,7 +149,7 @@ test("Inbox directory lists Attention reason, related object, and next step with
   assert.doesNotMatch(rendered.directory, /这条消息的完整正文不应该出现/);
   assert.match(rendered.workbench, /data-inbox-detail="entry-open"/);
   assert.match(rendered.workbench, /data-inbox-open-feed="item-1"/);
-  assert.match(rendered.workbench, /data-open-source-record="source-1"/);
+  assert.match(rendered.workbench, /data-feed-task-config-open="source-1"/);
   assert.match(rendered.workbench, /href="\/projects\/project-test\/goals\/goal-1"/);
   assert.match(rendered.workbench, /到 Goals 完成判断，Inbox 不内嵌决定表单。/);
   assert.match(rendered.workbench, /data-inbox-action="done"/);

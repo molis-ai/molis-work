@@ -609,7 +609,7 @@ test("Connector service persists cursor only after success and safely replays or
     next = failure("needs_auth");
     await assert.rejects(
       service.sync(source.source_id, { idempotencyKey: "connector-sync-0002" }),
-      (error: unknown) => error instanceof FeedDomainError && error.code === "connector_needs_auth",
+      (error: unknown) => error instanceof FeedDomainError && error.code === "connector_needs_auth" && /管理账号连接/.test(error.message),
     );
     assert.deepEqual(service.feed.getSource(DEMO_BOARD_ID, source.source_id).cursor, cursor1);
     const fault = service.feed.listInboxEntries(DEMO_BOARD_ID).find(

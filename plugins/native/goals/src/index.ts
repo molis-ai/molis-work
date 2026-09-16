@@ -86,7 +86,6 @@ export * from "./refresh-client.js";
 export * from "./panels-client.js";
 export * from "./navigation-client.js";
 export * from "./navigation-model.js";
-export * from "./work-tabs-client.js";
 export { GOALS_CONTEXT_EN } from "./context-en.js";
 export { GOALS_DOCUMENT_EN } from "./document-en.js";
 

@@ -9,6 +9,19 @@ export const GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT = `(host) => {
     const divider = workspace.querySelector("[data-goal-workspace-divider]");
     const graphElement = () => workspace.querySelector("[data-goal-momentum]");
     const kanbanElement = () => workspace.querySelector("[data-goal-kanban]");
+    workspace.addEventListener("wheel", (event) => {
+      const board = event.target.closest?.("[data-goal-kanban]");
+      if (!board || board.hasAttribute("inert") || event.ctrlKey || event.metaKey) return;
+      const horizontal = event.shiftKey || Math.abs(event.deltaX) > Math.abs(event.deltaY);
+      const cards = event.target.closest("[data-kanban-cards]");
+      // Keep vertical reading in its column, including at either end. Never switch axes at an edge.
+      if (!horizontal && cards && cards.scrollHeight > cards.clientHeight + 1) return;
+      if (board.scrollWidth <= board.clientWidth + 1) return;
+      const amount = horizontal && event.deltaX ? event.deltaX : event.deltaY;
+      const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? board.clientWidth : 1;
+      board.scrollLeft += amount * unit;
+      event.preventDefault();
+    }, { passive: false });
     let expanded = false;
     let goalGraphRequest = null;
     let graphLoadedOnce = false;

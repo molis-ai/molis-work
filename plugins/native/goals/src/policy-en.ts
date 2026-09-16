@@ -1,5 +1,17 @@
 /** English copy owned by the Goals work-rules surfaces. Shared shell labels remain in Workbench. */
 export const GOALS_POLICY_EN: Record<string, string> = {
+  "由其他执行者检查结果与依据": "Other executors check the results and evidence",
+  "独立复核人数": "Independent reviewers",
+  "主动寻找遗漏、反例和错误假设": "Look for omissions, counterexamples, and incorrect assumptions",
+  "反例检查人数": "Adversarial reviewers",
+
+  "当前使用系统默认": "Using system defaults",
+  "执行工具是否需要声明遵守当前目标、边界和完成标准。": "Whether tools must declare that they follow the current goal, scope, and completion criteria.",
+  "设置能力要求、领取时长和独立检查人数。": "Set required capabilities, claim duration, and independent checks.",
+  "说明这次调整的原因，保存后会保留在版本记录中。": "Explain this change. The reason will be kept in the version history.",
+  "这些规则只约束之后开始或重新领取的工作。": "These rules apply to work started or claimed again after saving.",
+  "保存项目默认规则": "Save project rules",
+
   "请说明为什么要调整项目默认规则。": "Explain why the project default rules need to change.",
   "独立复核人数需要是 0 或正整数。": "The independent reviewer count must be zero or a positive integer.",
   "反例检查人数需要是 0 或正整数。": "The counterexample reviewer count must be zero or a positive integer.",

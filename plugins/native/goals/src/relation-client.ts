@@ -78,6 +78,7 @@ const GOALS_RELATION_DISCLOSURE_SCRIPT = `      const openRelationDeactivate = t
       }
       const cancelRelationDeactivate = target.closest("[data-relation-deactivate-cancel]");
       if (cancelRelationDeactivate) {
+        if (cancelRelationDeactivate.closest("form")?.getAttribute("aria-busy") === "true") return true;
         const record = cancelRelationDeactivate.closest(".relation-record");
         const deactivateForm = record?.querySelector("[data-relation-deactivate-form]");
         const openButton = record?.querySelector("[data-relation-deactivate-open]");
@@ -95,19 +96,22 @@ const GOALS_RELATION_DISCLOSURE_SCRIPT = `      const openRelationDeactivate = t
 const GOALS_RELATION_SUBMIT_SCRIPT = `      const relationForm = submittedForm.closest?.("[data-relation-form]");
       if (relationForm) {
         event.preventDefault();
+        if (relationForm.getAttribute("aria-busy") === "true") return;
         const submit = relationForm.querySelector('button[type="submit"]');
         const errorBox = relationForm.querySelector("[data-relation-error]");
         if (requireFormFacts(relationForm, errorBox)) return;
         const values = new FormData(relationForm);
         const relationSummary = relationForm.querySelector("[data-relation-live-preview] strong")?.textContent?.trim() || L("当前 Goal 的关系");
         const submitLabel = submit.textContent;
-        submit.disabled = true;
+        relationForm.setAttribute("aria-busy", "true");
+        const controls = [...relationForm.querySelectorAll("input:not(:disabled),select:not(:disabled),textarea:not(:disabled),button:not(:disabled)")];
+        controls.forEach(control => { control.disabled = true; });
         submit.textContent = L("正在保存…");
         errorBox.hidden = true;
         try {
           const response = await fetch(route("/api/goals/" + encodeURIComponent(relationForm.dataset.goalId) + "/relations"), {
             method: "POST",
-            headers: molisWorkControlHeaders(),
+            headers: { ...molisWorkControlHeaders(), "x-molis-work-idempotency-key": relationForm.dataset.idempotencyKey ||= crypto.randomUUID() },
             body: JSON.stringify({
               direction: values.get("direction"),
               type: values.get("type"),
@@ -124,10 +128,13 @@ const GOALS_RELATION_SUBMIT_SCRIPT = `      const relationForm = submittedForm.c
             L("已建立：{relation}。准确方向和建立原因已进入完整记录。", { relation: relationSummary }),
           );
         } catch (error) {
-          errorBox.textContent = humanDecisionError(error.message, L("关系建立失败，请检查目标、方向和原因"));
+          errorBox.textContent = humanDecisionError(error instanceof TypeError ? L("无法连接本地服务，输入已保留，请重试。") : error.message, L("关系建立失败，请检查目标、方向和原因"));
           errorBox.hidden = false;
           submit.disabled = false;
           submit.textContent = submitLabel;
+        } finally {
+          relationForm.removeAttribute("aria-busy");
+          controls.forEach(control => { control.disabled = false; });
         }
         return;
       }
@@ -135,17 +142,20 @@ const GOALS_RELATION_SUBMIT_SCRIPT = `      const relationForm = submittedForm.c
       const relationDeactivateForm = submittedForm.closest?.("[data-relation-deactivate-form]");
       if (relationDeactivateForm) {
         event.preventDefault();
+        if (relationDeactivateForm.getAttribute("aria-busy") === "true") return;
         const submit = relationDeactivateForm.querySelector('button[type="submit"]');
         const errorBox = relationDeactivateForm.querySelector("[data-relation-deactivate-error]");
         if (requireDecisionText(relationDeactivateForm, errorBox, "reason", "请填写解除原因。说明这条关系为什么不再成立。")) return;
         const reason = String(new FormData(relationDeactivateForm).get("reason") || "").trim();
         const relatedGoal = relationDeactivateForm.closest(".relation-record")?.querySelector(".relation-copy strong")?.textContent?.trim() || L("另一个 Goal");
-        submit.disabled = true;
+        relationDeactivateForm.setAttribute("aria-busy", "true");
+        const controls = [...relationDeactivateForm.querySelectorAll("input:not(:disabled),select:not(:disabled),textarea:not(:disabled),button:not(:disabled)")];
+        controls.forEach(control => { control.disabled = true; });
         errorBox.hidden = true;
         try {
           const response = await fetch(route("/api/relations/" + encodeURIComponent(relationDeactivateForm.dataset.relationId) + "/deactivate"), {
             method: "POST",
-            headers: molisWorkControlHeaders(),
+            headers: { ...molisWorkControlHeaders(), "x-molis-work-idempotency-key": relationDeactivateForm.dataset.idempotencyKey ||= crypto.randomUUID() },
             body: JSON.stringify({ reason }),
           });
           const result = await response.json();
@@ -157,9 +167,12 @@ const GOALS_RELATION_SUBMIT_SCRIPT = `      const relationForm = submittedForm.c
             L("与「{goal}」的关系已停止生效；原方向和解除原因仍保留在完整记录中。", { goal: relatedGoal }),
           );
         } catch (error) {
-          errorBox.textContent = humanDecisionError(error.message, L("关系解除失败，请检查解除原因后重试"));
+          errorBox.textContent = humanDecisionError(error instanceof TypeError ? L("无法连接本地服务，输入已保留，请重试。") : error.message, L("关系解除失败，请检查解除原因后重试"));
           errorBox.hidden = false;
           submit.disabled = false;
+        } finally {
+          relationDeactivateForm.removeAttribute("aria-busy");
+          controls.forEach(control => { control.disabled = false; });
         }
         return;
       }

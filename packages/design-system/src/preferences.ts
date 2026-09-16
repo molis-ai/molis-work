@@ -152,6 +152,17 @@ export const VISUAL_FOUNDATION_CLIENT_SCRIPT = `
   });
   applyTheme(readTheme());
   applyDensity(readDensity());
+  // A short tactile tick only confirms a direct touch selection on supporting devices.
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+  let touchSelection = false;
+  document.addEventListener("pointerdown", (event) => { touchSelection = event.pointerType === "touch"; }, { passive: true });
+  document.addEventListener("keydown", () => { touchSelection = false; }, { passive: true });
+  document.addEventListener("change", (event) => {
+    if (!touchSelection || reducedMotion.matches || typeof navigator.vibrate !== "function") return;
+    if (!event.target.matches?.('input[type="checkbox"], input[type="radio"], select')) return;
+    if (event.target.disabled || !event.isTrusted) return;
+    navigator.vibrate(8);
+    touchSelection = false;
+  });
 })();`;
-
 

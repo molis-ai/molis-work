@@ -539,18 +539,14 @@ export class FeedModule implements FeedApi {
         SET disposition = ?, revision = revision + 1, updated_at = ?
         WHERE board_id = ? AND item_id = ?
       `).run(disposition, at, projectId, itemId);
-      if (disposition === "inbox") {
-        this.openManualAttention(projectId, itemId);
-      } else {
-        const inbox = this.attention.query.findActiveForSubject(projectId, "feed_item", itemId);
-        if (inbox) {
-          const nextStatus: AttentionStatus = disposition === "processing"
-            ? "in_progress"
-            : disposition === "archived"
-              ? "dismissed"
-              : "done";
-          this.attention.commands.setStatus(projectId, inbox.entry_id, nextStatus, inbox.revision);
-        }
+      const inbox = this.attention.query.findActiveForSubject(projectId, "feed_item", itemId);
+      if (inbox) {
+        const nextStatus: AttentionStatus = disposition === "processing"
+          ? "in_progress"
+          : disposition === "archived"
+            ? "dismissed"
+            : "done";
+        this.attention.commands.setStatus(projectId, inbox.entry_id, nextStatus, inbox.revision);
       }
       this.appendEvent(
         projectId,

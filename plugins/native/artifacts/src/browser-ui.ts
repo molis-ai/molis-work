@@ -33,7 +33,8 @@ function detail(model: ArtifactBrowserUiModel, embedded: boolean): string {
     <h3><a href="${p.escape(routePrefix + artifactVersionPath(view.requested))}">${p.escape(view.requested.artifact_id)} · v${view.requested.version}</a></h3>
     <p>${p.text("关联的版本不可用或不存在。引用仍然保留，不会替换成最新版本。")}</p></article>`;
   if (!artifact) return `<section class="artifact-empty"${view.requested ? ' role="status"' : ""}>
-    <h1>${p.text(view.requested ? "找不到这个 Artifact 版本" : "选择一个结果版本")}</h1>
+    <h1>${p.text(view.requested ? "找不到这个 Artifact 版本" : view.versions.length ? "选择一个结果版本" : "还没有项目成果")}</h1>
+    ${!view.requested && !view.versions.length ? `<p>${p.text("项目发布的成果版本会保存在这里。先推进一项 Goal，提交成果后即可在这里查看。")}</p>` : ""}
     ${view.requested ? `<p>${p.text("它可能属于其他项目，或这个版本尚未发布。请返回列表选择；不会自动替换成最新版本。")}</p><a href="${p.escape(routePrefix + "/artifacts")}">${p.text("返回 Artifact 列表")}</a>` : ""}</section>`;
   const href = routePrefix + artifactVersionPath(artifact);
   const title = artifactDisplayTitle(artifact);
@@ -49,7 +50,7 @@ function detail(model: ArtifactBrowserUiModel, embedded: boolean): string {
   const reference = JSON.stringify({ artifact_id: artifact.artifact_id, version: artifact.version });
   return `<article class="artifact-detail${embedded ? " artifact-embed" : ""}" data-artifact-id="${p.escape(artifact.artifact_id)}" data-artifact-version="${artifact.version}">
     <header>${embedded ? `<h3><a href="${p.escape(href)}">${p.escape(title)}</a></h3>` : `<h1>${p.escape(title)}</h1>`}<span>v${artifact.version}${model.relationship ? ` · ${p.text(model.relationship === "input" ? "输入结果" : "产出结果")}` : ""}</span></header>
-    <p class="artifact-notice">${p.text(embedded && view.compatibility?.reason === "consumer_missing" ? "没有兼容插件。可打开这个版本查看信息或导出本地副本。" : notice)}</p>
+    ${embedded ? "" : `<div class="artifact-detail-content">`}<p class="artifact-notice">${p.text(embedded && view.compatibility?.reason === "consumer_missing" ? "没有兼容插件。可打开这个版本查看信息或导出本地副本。" : notice)}</p>
     ${artifact.unavailable_reason ? `<p>${p.escape(artifact.unavailable_reason)}</p>` : ""}
     <dl class="artifact-facts">
       <div><dt>${p.text("结果类型")}</dt><dd>${p.escape(artifact.artifact_type_id)} · Schema ${artifact.schema_version}</dd></div>
@@ -58,17 +59,18 @@ function detail(model: ArtifactBrowserUiModel, embedded: boolean): string {
       <div><dt>${p.text("发布时间")}</dt><dd>${p.escape(p.formatDate(artifact.created_at))}</dd></div>
     </dl>
     ${embedded ? `<a href="${p.escape(href)}">${p.text("查看这个版本")}</a>` : `
-      <div class="artifact-actions"><a class="artifact-export" href="${p.escape(routePrefix + "/api" + artifactVersionPath(artifact) + "/export")}" download>${p.text("导出这个版本")}</a><span>${p.text("仅下载本地副本，不会发布或共享。")}</span></div>
-      <label class="artifact-reference-label">${p.text("精确版本引用")}<input readonly value="${p.escape(reference)}" aria-label="${p.text("精确版本引用")}"></label>
+      <details class="artifact-raw"><summary>${p.text("引用这个版本")}</summary><label class="artifact-reference-label">${p.text("精确版本引用")}<input readonly value="${p.escape(reference)}" aria-label="${p.text("精确版本引用")}"></label></details>
       ${artifact.content_kind === "inline" && artifact.availability === "available" ? `<details class="artifact-raw"><summary>${p.text("查看原始 JSON（非业务预览）")}</summary><pre>${p.escape(JSON.stringify(artifact.payload, null, 2))}</pre></details>` : artifact.content_ref ? `<section class="artifact-content-reference"><h2>${p.text("内容引用")}</h2><p>${p.text("这里只保留定位信息，不保证当前文件仍对应这个版本；读取和校验由消费插件处理。")}</p><input readonly aria-label="${p.text("内容引用")}" value="${p.escape(artifact.content_ref)}"></section>` : ""}
       <details class="artifact-raw"><summary>${p.text("查看原始元数据")}</summary><pre>${p.escape(JSON.stringify(artifact.metadata, null, 2))}</pre></details>`}
+    ${embedded ? "" : `</div>
+      <div class="artifact-actions"><a class="artifact-export" href="${p.escape(routePrefix + "/api" + artifactVersionPath(artifact) + "/export")}" download>${p.text("导出这个版本")}</a><span>${p.text("仅下载本地副本，不会发布或共享。")}</span></div>`}
   </article>`;
 }
 
 export function renderArtifactFrameBlock({ view, primitives: p }: ArtifactBrowserUiModel): string {
   const artifact = view.selected;
   if (!artifact) {
-    return `<article class="frame-reading" data-frame-reading="artifact"><p>${p.text(view.requested ? "找不到这个 Artifact 版本" : "选择一个结果版本")}</p></article>`;
+    return `<article class="frame-reading" data-frame-reading="artifact"><p>${p.text(view.requested ? "找不到这个 Artifact 版本" : view.versions.length ? "选择一个结果版本" : "还没有项目成果")}</p></article>`;
   }
   return `<article class="frame-reading" data-frame-reading="artifact" data-artifact-id="${p.escape(artifact.artifact_id)}" data-artifact-version="${artifact.version}">
     <p class="frame-reading-meta">v${artifact.version} · ${p.escape(artifact.artifact_type_id)}</p>

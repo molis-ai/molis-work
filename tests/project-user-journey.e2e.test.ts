@@ -1,0 +1,80 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { openMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
+import { createLocalFeedApplication, DEMO_BOARD_ID, GoalProjectApplication } from '@molis-ai/molis-work-app-local-host';
+import { openGoalBrowser } from './fixtures/goal-browser.js';
+
+for (const [width,height] of [[1440,900],[390,640]]) {
+  test(`Project journey ${width}: create Goal, record note, create Feed task, read and process Inbox`, {timeout:90000}, async t => {
+    const b=await openGoalBrowser(t,true);if(!b)return;
+    const {command,sessionId,navigate,origin,projectId,evaluate,click,waitFor}=b;
+    const catalog=await openMolisWorkProjectCatalog({homeDirectory:b.homeDirectory});
+    catalog.addProjectPlugin({project_id:projectId!,plugin_id:'feed',actor_id:'journey-test'});catalog.close();
+    const prefix=`${origin}/projects/${projectId}`;
+    await command('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:false},sessionId);
+    await command('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]},sessionId);
+    await navigate(()=>command('Page.navigate',{url:prefix+'/'},sessionId));
+    const directory=async()=>{if(width<760&&await evaluate("!document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')"))await click('[data-directory-show]');};
+    const plugin=async(id:string)=>{await directory();await click(`[data-plugin-id=${id}]`);};
+    const fill=async(selector:string,text:string)=>{await click(selector);await command('Input.insertText',{text},sessionId);};
+    const capture=async(name:string)=>{const dir='.impeccable/review/journeys-v13';await mkdir(dir,{recursive:true});const shot=await command<{data:string}>('Page.captureScreenshot',{format:'png'},sessionId);await writeFile(`${dir}/${name}-${width}.png`,Buffer.from(shot.data,'base64'));};
+    await plugin('goals');await directory();await click('[data-open-create]');
+    await fill('[data-create-form] [name=title]','完成跨页面工作流验收');
+    await fill('[data-create-form] [name=outcome]','创建、记录、阅读与处理可以顺畅连续完成');
+    await navigate(()=>click('[data-create-form] button[type=submit]'));
+    await waitFor("document.querySelector('[data-goal-frame-surface]')?.hidden===false");
+    const goalId=await evaluate<string>("document.querySelector('[data-goal-frame-surface]').dataset.frameGoal");
+    assert.equal(b.store.snapshot(DEMO_BOARD_ID).goals.find(g=>g.goal_id===goalId)?.title,'完成跨页面工作流验收');
+    if (width < 760) {
+      assert.equal(await evaluate("document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')"), false, 'creation opens the new Goal content');
+      await directory();
+      await b.reloadPage();
+      assert.equal(await evaluate("document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')"), true, 'reload preserves an intentionally open directory');
+      await click('[data-directory-toggle]');
+    }
+    await click('[data-frame-goal-work]');
+    if(await evaluate("document.querySelector('[data-goal-details-toggle]').getAttribute('aria-expanded')==='false'"))await click('[data-goal-details-toggle]');
+    await click('[data-record-menu] > summary');await click('[data-record-menu] [data-event-form-open=note]');
+    await fill('[data-event-form=note] [name=note]','已经从项目首页创建目标，接下来核对信息处理路径。');
+    await click('[data-event-form=note] button[type=submit]');
+    await waitFor("!document.querySelector('[data-event-form=note]') || document.querySelector('[data-event-form=note]').hidden || document.querySelector('[data-event-form=note]').getClientRects().length===0");
+    await waitFor("document.querySelector('[data-event-timeline]').textContent.includes('已经从项目首页创建目标')");
+    const app=new GoalProjectApplication(b.store);
+    assert.match(JSON.stringify(app.goalEvents.listEvents(DEMO_BOARD_ID,goalId, {limit: 20})),/已经从项目首页创建目标/);
+    await capture('goal-recorded');
+    await plugin('feed');await directory();await click('[data-directory-panel=feed] [data-feed-add-toggle]');
+    await click('[data-feed-choose-kind=custom_rss]');
+    await fill('[data-feed-add-name]','团队设计资料');
+    await fill('[data-feed-source-value=custom_rss]','https://example.com/journey.xml');
+    await navigate(()=>click('[data-feed-source-register]'));
+    await directory();
+    const sourceId=await evaluate<string>("[...document.querySelectorAll('[data-feed-task-toggle]')].find(e=>e.textContent.includes('团队设计资料')).dataset.feedTaskToggle");
+    const feed=createLocalFeedApplication(b.store.db),source=feed.getSource(DEMO_BOARD_ID,sourceId);
+    // External fetching is outside this UI journey; the source above is created by the actual form.
+    const item=feed.ingestItem({source,externalId:'journey-item',title:'评审工作区的用户动线',summary:'明确需要确认的页面与处理动作。',body:'这是一条隔离验收资料。\n'+Array.from({length:30},(_,i)=>`检查 ${i+1}：内容在所属组件内滚动，操作入口保持可见。`).join('\n'),occurredAt:new Date().toISOString(),attention:false}).item;
+    await b.reloadPage();await directory();await click(`[data-feed-task-toggle="${sourceId}"]`);
+    if(width<760&&await evaluate("document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')"))await click('[data-directory-toggle]');
+    await click(`[data-feed-entry-id="${item.item_id}"]`);
+    await waitFor(`document.querySelector('[data-feed-detail="${item.item_id}"] [data-feed-action=inbox]')`);
+    assert.ok(feed.getItem(DEMO_BOARD_ID,item.item_id).read_at);
+    await navigate(()=>click(`[data-feed-detail="${item.item_id}"] [data-feed-action=inbox]`));
+    await plugin('inbox');
+    if(width<760&&await evaluate("document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')"))await click('[data-directory-toggle]');
+    await waitFor("document.querySelector('[data-inbox-detail]:not([hidden]) [data-inbox-action=done]')");
+    assert.match(await evaluate<string>("document.querySelector('[data-inbox-detail]:not([hidden])').textContent"),/评审工作区的用户动线/);
+    await capture('inbox-from-feed');
+    await click('[data-inbox-open-feed]');
+    await waitFor(`document.querySelector('[data-feed-detail="${item.item_id}"]')?.getClientRects().length > 0`);
+    assert.match(await evaluate<string>(`document.querySelector('[data-feed-detail="${item.item_id}"]').textContent`), /这是一条隔离验收资料/);
+    await plugin('inbox');
+    if (width < 760 && await evaluate("document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')")) await click('[data-directory-toggle]');
+    const entryId=await evaluate<string>("document.querySelector('[data-inbox-detail]:not([hidden])').dataset.inboxDetail");
+    await navigate(()=>click('[data-inbox-detail]:not([hidden]) [data-inbox-action=done]'));
+    const history=await (await fetch(prefix+'/api/inbox?filter=history')).json();
+    assert.equal(history.entries.find((e:{entry_id:string})=>e.entry_id===entryId)?.status,'done');
+    assert.equal(feed.getItem(DEMO_BOARD_ID,item.item_id).body,item.body);
+    await b.reloadPage();assert.equal(await evaluate('document.scrollingElement.scrollHeight<=innerHeight+1'),true);
+    assert.match(JSON.stringify(app.goalEvents.listEvents(DEMO_BOARD_ID,goalId, {limit: 20})),/已经从项目首页创建目标/);
+  });
+}

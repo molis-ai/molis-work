@@ -26,8 +26,9 @@ export interface ArtifactWorkbenchRequest extends ArtifactBrowserUiModel {
 }
 
 export const ARTIFACT_WORKBENCH_STYLES = `
-  .artifact-page { margin:0; background:var(--page); color:var(--ink); font:13px/1.52 var(--font); }
-  .artifact-shell { display:grid; grid-template-columns:minmax(230px,286px) minmax(0,1fr); min-height:100dvh; }
+  html:has(> body.artifact-page) { height:100dvh; overflow:hidden; }
+  .artifact-page { height:100dvh; overflow:hidden; margin:0; background:var(--page); color:var(--ink); font:13px/1.52 var(--font); }
+  .artifact-shell { display:grid; grid-template-columns:minmax(230px,286px) minmax(0,1fr); height:100dvh; min-height:0; overflow:hidden; }
   .artifact-directory { background:var(--rail); padding:24px 16px; min-width:0; }
   .artifact-directory header { margin-bottom:24px; }
   .artifact-directory h1 { font-size:17px; margin:16px 0 4px; }
@@ -57,7 +58,16 @@ export const ARTIFACT_WORKBENCH_STYLES = `
   .artifact-page input { box-sizing:border-box; width:100%; padding:10px; font:inherit; color:var(--ink); background:var(--paper); border:1px solid var(--line); border-radius:8px; }
   .artifact-raw { margin-top:24px; }
   .artifact-raw summary { cursor:pointer; padding:8px 0; }
-  .artifact-raw pre { padding:16px; background:var(--rail); border-radius:8px; white-space:pre-wrap; overflow-wrap:anywhere; font-size:12px; }
+  .artifact-raw pre { max-height:min(45dvh,400px); overflow:auto; overscroll-behavior:contain; padding:16px; background:var(--rail); border-radius:8px; white-space:pre-wrap; overflow-wrap:anywhere; font-size:12px; }
+  .artifact-page .artifact-directory { display:flex; flex-direction:column; height:100%; min-height:0; overflow:hidden; box-sizing:border-box; }
+  .artifact-page .artifact-directory > header { flex:none; margin-bottom:16px; }
+  .artifact-page .artifact-version-list { flex:1; min-height:0; overflow:auto; overscroll-behavior:contain; align-content:start; }
+  .artifact-page .artifact-stage { display:flex; flex-direction:column; height:100%; min-height:0; overflow:hidden; box-sizing:border-box; }
+  .artifact-page .artifact-stage > .artifact-back { flex:none; }
+  .artifact-page .artifact-detail { display:flex; flex-direction:column; flex:1; min-height:0; }
+  .artifact-page .artifact-detail > header { flex:none; max-height:30%; overflow:auto; margin:12px 0; }
+  .artifact-page .artifact-detail-content { flex:1; min-height:0; overflow:auto; overscroll-behavior:contain; }
+  .artifact-page .artifact-actions { flex:none; margin:0; padding:12px 0; border-top:1px solid var(--line); }
   .artifact-page :focus-visible { outline:2px solid var(--blue); outline-offset:3px; }
   .artifact-page ::selection { background:var(--blue-soft); color:var(--ink); }
   .artifact-page[data-native-desktop] .artifact-directory, .artifact-page[data-native-desktop] .artifact-stage { padding-top:48px; }

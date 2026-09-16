@@ -10,6 +10,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
     };
 
     saveUiState = () => {
+      if (window.parent !== window && new URLSearchParams(location.search).has("workbenchPane")) return;
       try {
         sessionStorage.setItem(storageKey, JSON.stringify(readUiState()));
       } catch {}
@@ -35,7 +36,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
       if (navigatorView === "graph") updateGraphVisibility();
       document.title = item.goal.title + " · Molis Work";
       if (resetScroll && activeDesktopSurface === "goal") documentPane.scrollTop = 0;
-      renderWorkTabs();
+      immersiveNavigation?.sync();
       return true;
     };
 
@@ -62,7 +63,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
         decisionView, trashView, archiveView, documentPane,
         getSelected: () => selected, getActiveGoalId: () => state.active_goal_id,
         navigateToGoal: (goalId) => location.assign(globalThis.molisWorkNavigationUrl(route("/goals/" + encodeURIComponent(goalId)))),
-        applySelection, loadGoalDocument, ensureWorkTab,
+        applySelection, loadGoalDocument,
         goalPageUrl, setWorkspaceMode, saveUiState, localPathname, visibleGoals,
         openEventReaderFromHash, goalFactorFromHash, setGoalFactor, revealDeepLinkFromId,
       });
@@ -86,7 +87,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
         .some((form) => form.getClientRects().length > 0 || form.closest("[data-goal-node-workspace]")?.hidden);
       if (dirtyVisibleForm) return true;
       return active?.matches?.('input, textarea, select, [contenteditable="true"]') && Boolean(
-        active.closest?.('[data-directory-panel="feed"], [data-directory-panel="sources"], [data-work-surface="feed"], [data-work-surface="sources"]'),
+        active.closest?.('[data-directory-panel="sources"], [data-work-surface="feed"], [data-work-surface="sources"]'),
       );
     };
 
@@ -239,7 +240,6 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
         projectHome?.sync();
         document.querySelector("#molis-work-data").textContent = JSON.stringify(nextState).replaceAll("<", "\\u003c");
         selected = goalRefresh.nextSelected;
-        if (selected) ensureWorkTab(selected);
         if (!decisionView && selected) applySelection(selected, false);
         applyUiState(ui);
         updateAllRelationFormPreviews();

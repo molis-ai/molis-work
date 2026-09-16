@@ -602,7 +602,7 @@ test("Feed source Web API manages local sources and encrypted connector bindings
     };
     const page = await (await fetch(origin)).text();
     assert.match(page, /data-feed-sources-dialog/);
-    assert.match(page, /Molis Work 直接保存来源、凭据、同步游标和正文/);
+    assert.match(page, /添加拉取任务/);
     assert.match(page, /<select data-source-config-field="scope">[\s\S]*value="in:inbox is:unread" selected[\s\S]*value="is:starred"/);
     assert.match(page, /首次同步和增量同步都会执行同一范围；不做完整邮箱回填。/);
     assert.match(page, /授权范围：gmail\.readonly、openid、email；Molis Work 不发送、删除或修改 Gmail 邮件。/);

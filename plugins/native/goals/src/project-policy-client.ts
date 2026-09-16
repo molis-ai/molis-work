@@ -12,6 +12,8 @@ export const PROJECT_RULES_CLIENT_SCRIPT = `
     const receipt = scope.querySelector("[data-project-rules-receipt]");
     const errorBox = form.querySelector("[data-policy-error]");
     const submit = form.querySelector('button[type="submit"]');
+    let saveKey = null;
+    let saving = false;
     try {
       const savedReceipt = JSON.parse(sessionStorage.getItem(receiptKey) || "null");
       sessionStorage.removeItem(receiptKey);
@@ -36,12 +38,20 @@ export const PROJECT_RULES_CLIENT_SCRIPT = `
       errorBox.hidden = false;
       field.focus();
     };
+    form.addEventListener("reset", (event) => {
+      if (saving) { event.preventDefault(); return; }
+      saveKey = null;
+      errorBox.hidden = true;
+      form.querySelectorAll("[aria-invalid]").forEach(field => field.removeAttribute("aria-invalid"));
+    });
     form.addEventListener("input", (event) => {
+      saveKey = null;
       event.target?.removeAttribute?.("aria-invalid");
       errorBox.hidden = true;
     });
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
+      if (saving) return;
       const values = new FormData(form);
       const reason = String(values.get("reason") || "").trim();
       if (!reason) {
@@ -68,7 +78,10 @@ export const PROJECT_RULES_CLIENT_SCRIPT = `
         .map((item) => item.trim())
         .filter(Boolean);
       const submitLabel = submit.textContent;
-      submit.disabled = true;
+      saving = true;
+      form.setAttribute("aria-busy", "true");
+      const enabledControls = [...form.querySelectorAll("button, input, select, textarea")].filter(control => !control.disabled);
+      enabledControls.forEach(control => { control.disabled = true; });
       submit.textContent = L("正在保存…");
       errorBox.hidden = true;
       try {
@@ -76,6 +89,8 @@ export const PROJECT_RULES_CLIENT_SCRIPT = `
           method: "POST",
           headers: molisWorkControlHeaders(),
           body: JSON.stringify({
+            user_confirmed: true,
+            idempotency_key: saveKey || (saveKey = crypto.randomUUID()),
             scope: "project_default",
             reason,
             policy: {
@@ -102,9 +117,12 @@ export const PROJECT_RULES_CLIENT_SCRIPT = `
         }));
         location.reload();
       } catch (error) {
-        errorBox.textContent = error.message || L("项目默认工作规则保存失败，请检查输入后重试");
+        errorBox.textContent = error instanceof TypeError ? L("无法连接本地服务，输入已保留，请重试。") : error.message || L("项目默认工作规则保存失败，请检查输入后重试");
         errorBox.hidden = false;
-        submit.disabled = false;
+        saving = false;
+        form.removeAttribute("aria-busy");
+        enabledControls.forEach(control => { control.disabled = false; });
+        submit.focus();
         submit.textContent = submitLabel;
       }
     });

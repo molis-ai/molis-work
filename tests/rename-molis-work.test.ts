@@ -311,9 +311,7 @@ test("GitHub Releases links point at molis-ai/molis-work", async () => {
 
 test("workbench storage reads legacy goalboard keys", async () => {
   const navigation = await readFile(join(repoRoot, "apps/workbench/src/scripts/client/immersive-navigation.ts"), "utf8");
-  const bootstrap = await readFile(join(repoRoot, "apps/workbench/src/scripts/client/bootstrap.ts"), "utf8");
   const momentum = await readFile(join(repoRoot, "plugins/native/goals/src/momentum-client.ts"), "utf8");
   assert.match(navigation, /goalboard-goal-work-modes:/);
-  assert.match(bootstrap, /goalboard-work-tabs:/);
   assert.match(momentum, /goalboard-goal-workspace-split:/);
 });

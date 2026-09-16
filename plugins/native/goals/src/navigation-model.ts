@@ -4,7 +4,7 @@ import { visibleGoalStatus } from "./tree-presentation.js";
 
 /** Presentation input, not a Goal fact store or an execution permission decision. */
 export interface GoalsNavigationItem extends Pick<GoalsTreeItem, "status" | "display_status"> {
-  goal: Pick<GoalRecord, "goal_id" | "title" | "decomposition_state">;
+  goal: Pick<GoalRecord, "goal_id" | "title" | "decomposition_state"> & Partial<Pick<GoalRecord, "outcome">>;
   status_label: string;
   action_summary: string;
   main_action_label: string;
@@ -17,7 +17,7 @@ export function buildGoalsNavigationItems(
   statusIcon: (item: Pick<GoalsTreeItem, "status" | "display_status">) => string,
 ) {
   return items.map(item => ({
-    goal: { goal_id: item.goal.goal_id, title: item.goal.title },
+    goal: { goal_id: item.goal.goal_id, title: item.goal.title, ...(item.goal.outcome !== undefined ? { outcome: item.goal.outcome } : {}) },
     status: visibleGoalStatus(item),
     status_label: item.status_label,
     status_meaning: item.action_summary,

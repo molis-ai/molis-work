@@ -28,6 +28,7 @@ export function renderProjectHome(name: string, { L, escapeHtml: e, icon }: Imme
           <h1 class="home-today"><time data-home-date></time><span data-home-weekday></span></h1>
           <section class="home-reflection" aria-label="${L("工作间隙的一句话")}" data-home-quotes>
             <div class="home-quote-pages">${quotes.map((quote, i) => `<figure data-home-quote="${i}" aria-hidden="${i ? "true" : "false"}"${i ? " inert" : ""}><blockquote>${e(L(quote.text))}</blockquote><figcaption>${quote.source ? `<a href="${e(quote.source)}" target="_blank" rel="noopener noreferrer" data-home-external>${e(L(quote.by))}</a>` : e(L(quote.by))}</figcaption></figure>`).join("")}</div>
+            <button type="button" class="text-button home-quote-next" data-home-quote-next>${icon("refresh")}${L("换一句")}</button>
           </section>
         </div>
         <section class="home-calendar" aria-label="${L("月历")}">
@@ -36,6 +37,7 @@ export function renderProjectHome(name: string, { L, escapeHtml: e, icon }: Imme
         </section>
       </section>
       <section class="home-launch" aria-label="${L("你想推进什么？")}">
+        <button type="button" class="button home-goals-entry" data-work-surface-open="goal">${icon("tree")}${L("打开 Goals")}${icon("chevron-right")}</button>
         <div class="home-composer"><span class="home-agent-icon" aria-hidden="true">${icon("sparkles")}</span><input type="text" data-home-agent-input placeholder="${L("你想推进什么？")}" aria-label="${L("Agent 尚未开放，暂不可输入")}" aria-describedby="home-agent-status" disabled><button type="button" class="home-send" disabled aria-label="${L("Agent 即将接入，暂不可发送")}">${icon("arrow")}</button></div>
         <p class="home-agent-note" id="home-agent-status">${icon("lock")}<span>${L("Agent 尚未开放")}</span></p>
       </section>

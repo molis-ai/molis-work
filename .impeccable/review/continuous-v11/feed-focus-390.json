@@ -1,0 +1,38 @@
+[
+  {
+    "theme": "light",
+    "kind": "input",
+    "tag": "INPUT",
+    "visible": true,
+    "outline": "color(srgb 0.12549 0.12549 0.137255 / 0.55) solid 2px",
+    "shadow": "none",
+    "contrast": 3.686430987120698
+  },
+  {
+    "theme": "light",
+    "kind": "select",
+    "tag": "SELECT",
+    "visible": true,
+    "outline": "color(srgb 0.12549 0.12549 0.137255 / 0.55) solid 2px",
+    "shadow": "none",
+    "contrast": 3.686430987120698
+  },
+  {
+    "theme": "dark",
+    "kind": "input",
+    "tag": "INPUT",
+    "visible": true,
+    "outline": "color(srgb 1 1 1 / 0.6) solid 2px",
+    "shadow": "none",
+    "contrast": 6.826085970120123
+  },
+  {
+    "theme": "dark",
+    "kind": "select",
+    "tag": "SELECT",
+    "visible": true,
+    "outline": "color(srgb 1 1 1 / 0.6) solid 2px",
+    "shadow": "none",
+    "contrast": 6.826085970120123
+  }
+]

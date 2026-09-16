@@ -60,7 +60,6 @@ test("Workbench registers the Feed UI Contribution through the generic UI Host",
     model: model(),
   });
   assert.match(directory, /data-directory-panel="feed"/);
-  assert.doesNotMatch(directory, /data-feed-list|data-feed-entry-id|data-feed-empty-title/);
 
   const workbench = host.render({
     contribution_id: FEED_UI_CONTRIBUTION_ID,
@@ -68,7 +67,7 @@ test("Workbench registers the Feed UI Contribution through the generic UI Host",
     model: model(),
   });
   assert.match(workbench, /data-feed-stage-directory="true"/);
-  assert.match(workbench, /data-feed-task="all"/);
+  assert.match(directory, /data-feed-task="all"/);
   assert.match(workbench, /data-feed-empty-title>这里还没有 Item/);
   assert.match(workbench, /data-feed-add-toggle/);
   assert.match(workbench, /data-feed-source-filter hidden/);
@@ -186,9 +185,9 @@ test("Feed demo data keeps page-local actions and never calls real Source APIs",
   assert.match(detail, /data-feed-entry-prototype="true"/);
   assert.match(detail, /class="feed-stage-entry directory-list-row"/);
   assert.doesNotMatch(detail, /class="feed-list-item/);
-  assert.match(detail, /data-prototype-feed-empty-state/);
+  assert.doesNotMatch(detail, /data-prototype-feed-empty-state/);
   assert.match(detail, /data-prototype-feed-action="inbox"/);
-  assert.match(detail, /data-feed-task="prototype-source-github"/);
+  assert.match(directory, /data-feed-task="prototype-source-github"/);
   assert.match(source, /data-prototype-source-sync="prototype-source-github"/);
   assert.match(source, /data-prototype-config-save/);
   assert.match(source, /data-prototype-schedule-save/);

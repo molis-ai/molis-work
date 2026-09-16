@@ -22,10 +22,13 @@ export function createWorkbenchSettingsNavigation(primitives: SettingsNavigation
   const { L, escapeHtml, icon, withDesktopQuery } = primitives;
 function settingsContextHref(
   path: string,
-  _project: Pick<WebProjectNavigation, "project_id"> | null,
+  project: Pick<WebProjectNavigation, "project_id"> | null,
   desktopShell: boolean,
 ): string {
-  return desktopShell ? withDesktopQuery(path) : path;
+  const scopedPath = project && path.startsWith("/settings/")
+    ? path + (path.includes("?") ? "&" : "?") + "project=" + encodeURIComponent(project.project_id)
+    : path;
+  return desktopShell ? withDesktopQuery(scopedPath) : scopedPath;
 }
 
 function renderProjectSwitcher(
@@ -64,7 +67,7 @@ function renderDesktopProjectChrome(
   const settings = settingsHref
     ? `<a class="navigator-project-settings" href="${settingsHref}"${options.settingsCurrent ? ' aria-current="page"' : ""} aria-label="${options.settingsCurrent ? L("当前项目设置") : L("打开当前项目设置")}" title="${L("项目设置")}">${icon("settings")}</a>`
     : "";
-  return `<div class="navigator-native-row">${directoryToggle}<div class="desktop-titlebar-drag desktop-titlebar-drag--left"${dragAttribute} aria-hidden="true"></div></div><div class="navigator-project-primary">${renderProjectSwitcher(currentProject, projects, desktopShell, options.switcherClass, options.manageHref)}${search}<button class="navigator-project-notifications" type="button" disabled aria-label="${L("通知，暂不可用")}" title="${L("通知功能即将开放")}">${icon("bell")}</button>${settings}</div>`;
+  return `<div class="navigator-native-row">${directoryToggle}${search}<div class="desktop-titlebar-drag desktop-titlebar-drag--left"${dragAttribute} aria-hidden="true"></div></div><div class="navigator-project-primary">${renderProjectSwitcher(currentProject, projects, desktopShell, options.switcherClass, options.manageHref)}${settings}</div>`;
 }
 
 function renderSettingsNavigation(
@@ -73,11 +76,11 @@ function renderSettingsNavigation(
   desktopShell = false,
   _projects: readonly WebProjectNavigation[] = [],
 ): string {
-  const href = (path: string) => desktopShell ? withDesktopQuery(path) : path;
+  const href = (path: string) => settingsContextHref(path, project, desktopShell);
   const current = (section: SettingsNavigationActive) => active === section ? ' aria-current="page"' : "";
   const projectHome = project ? `/projects/${encodeURIComponent(project.project_id)}/` : "/";
   return `<nav class="settings-navigation settings-navigation--codex" aria-label="${L("系统设置")}">
-    <a class="settings-nav-back" href="${href(projectHome)}">← ${L("返回项目")}</a>
+    <a class="settings-nav-back" href="${href(projectHome)}">${icon("arrow")} ${L("返回项目")}</a>
     <div class="settings-nav-body">
       <div class="settings-nav-group-label">${L("本机")}</div>
       <a href="${href("/settings/appearance")}"${current("appearance")}>${L("外观")}</a>
@@ -100,9 +103,9 @@ function renderProjectSettingsNavigation(
   const href = (path: string) => desktopShell ? withDesktopQuery(path) : path;
   const current = (section: ProjectSettingsNavigationActive) => active === section ? ' aria-current="page"' : "";
   return `<nav class="settings-navigation settings-navigation--codex project-settings-navigation" aria-label="${L("项目设置")}">
-    <a class="settings-nav-back" href="${href(`${routePrefix}/`)}">← ${L("返回项目")}</a>
+    <a class="settings-nav-back" href="${href(`${routePrefix}/`)}">${icon("arrow")} ${L("返回工作台")}</a>
+    <div class="settings-project-identity"><strong title="${escapeHtml(project.display_name)}">${escapeHtml(project.display_name)}</strong><span>${L("项目设置")}</span></div>
     <div class="settings-nav-body">
-      <div class="settings-nav-group-label">${L("项目设置")}</div>
       <a href="${href(`${routePrefix}/settings`)}"${current("general")}>${L("常规")}</a>
       <a href="${href(`${routePrefix}/settings/guidance`)}"${current("guidance")}>${L("项目说明")}</a>
       <a href="${href(`${routePrefix}/settings/rules`)}"${current("rules")}>${L("工作规则")}</a>

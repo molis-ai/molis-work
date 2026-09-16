@@ -81,8 +81,9 @@ test("project policy document selects the last active project binding, preserves
   const html = renderer.renderProjectPolicyDocument(view);
   assert.match(html, /id="project-rules-title">项目工作规则/);
   assert.match(html, /data-project-rules-receipt role="status" tabindex="-1" hidden/);
-  assert.match(html, /这些规则什么时候生效/);
-  assert.match(html, /不会改写 Goal 内容，也不会自动启动任何执行工具/);
+  assert.match(html, /这些规则只约束之后开始或重新领取的工作/);
+  assert.match(html, /<select id="project-goal-mode" name="goal_mode">/);
+  assert.match(html, /<option value="required" selected>/);
   assert.match(html, /name="cross_reviewers"[^>]*value="4"/);
   assert.match(html, /name="max_lease_seconds"[^>]*value="600"/);
   assert.match(html, /Latest &quot;&lt;safe&gt;/);
@@ -94,5 +95,5 @@ test("project policy document selects the last active project binding, preserves
   assert.match(defaults, /policy-project_default-current-project/);
   const english = runWithLocale("en", () => renderer.renderProjectPolicyDocument(view));
   assert.match(english, /Project work rules/);
-  assert.match(english, /When these rules take effect/);
+  assert.match(english, /These rules apply to work started or claimed again after saving/);
 });

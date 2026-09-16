@@ -90,7 +90,7 @@ export function renderWorkSessionSurface(surface: WorkUiSurface, model: WorkUiMo
     return `<article class="goal-document project-operation-document project-session-document" data-operation-detail="session" data-detail-id="${escapeHtml(item.id)}" data-session-runtime-id="${escapeHtml(item.runtimeId)}" data-session-resume-mode="${escapeHtml(item.resumeMode)}" data-session-current-goal-id="${escapeHtml(item.currentGoalId || "")}" data-session-workspace-path="${escapeHtml(item.workspacePath || "")}" data-session-archived="${item.state === "archived"}"${selected ? "" : " hidden"}>
     <section class="goal-hero project-operation-hero" aria-labelledby="session-title-${escapeHtml(item.id)}">
       <header class="goal-header">
-        <div class="goal-title-kicker"><span class="project-record-state project-record-state--${escapeHtml(item.state)}">${escapeHtml(sessionStateLabel(item.state))}</span><div class="goal-title-facts"><span>${escapeHtml(item.runtime)}</span><span>${escapeHtml(item.id)}</span><span>${L("最近更新 {time}", { time: item.updated })}</span></div></div>
+        <div class="goal-title-kicker"><span class="project-record-state project-record-state--${escapeHtml(item.state)}">${escapeHtml(sessionStateLabel(item.state))}</span><div class="goal-title-facts"><span>${escapeHtml(item.runtime)}</span><span>${L("最近更新 {time}", { time: item.updated })}</span></div></div>
         <div class="goal-title-row"><div class="goal-title-copy"><h1 id="session-title-${escapeHtml(item.id)}">${escapeHtml(item.title)}</h1><p class="goal-title-outcome">${escapeHtml(item.summary)}</p></div><div class="goal-title-actions"><button class="goal-primary-action" type="button" data-session-load="${escapeHtml(item.resumeMode)}"${canLoad ? "" : ` disabled title="${L("这个 Runtime 不能原生加载这条 Session，可使用 Handoff 创建新 Session")}"`}>${icon("external")}<span>${L("加载原 Session")}</span></button><button class="document-action" type="button" data-open-session-handoff${canHandoff ? "" : ` disabled title="${L("请先为 Session 选择当前 Goal")}"`}>${icon("switch")}<span>${L("创建 Handoff")}</span></button></div></div>
         <p class="operation-action-status" data-session-load-status role="status" hidden></p>
       </header>
@@ -102,12 +102,12 @@ export function renderWorkSessionSurface(surface: WorkUiSurface, model: WorkUiMo
           <div class="session-content-body">${renderSessionContent(item)}<p class="operation-search-empty" data-session-content-empty hidden>${L("当前内容中没有匹配结果。")}</p></div>
         </section>
       </div>
-      <aside class="goal-focus-aside" aria-label="${L("Session 上下文")}">
+      <details class="session-context-disclosure"><summary>${L("Session 上下文")}</summary><aside class="goal-focus-aside" aria-label="${L("Session 上下文")}">
         <section class="goal-focus-context operation-current-context"><header><div><h2>${L("当前关系")}</h2><p>${L("续跑使用这些已确认事实。")}</p></div><button type="button" data-open-session-relations>${L("管理关系")}</button></header><dl><div><dt>${L("项目")}</dt><dd>${escapeHtml(projectName)}</dd></div><div><dt>${L("当前 Goal")}</dt><dd><span data-current-goal-value>${escapeHtml(item.currentGoal || L("未选择"))}</span><button type="button" data-work-surface-open="goal" data-directory-open="goals">${L("去 Goals")}</button></dd></div><div><dt>${L("工作目录")}</dt><dd><code>${escapeHtml(item.workspace)}</code></dd></div><div><dt>${L("内容来源")}</dt><dd>${escapeHtml(contentModeLabel(item.contentMode))}</dd></div></dl></section>
         <section class="companion-runtime operation-goal-history"><header><div><small>Goal</small><h2>${L("关联历史")}</h2></div><span data-goal-history-count>${L("{count} 次", { count: item.goalHistory.length + (item.currentGoal ? 1 : 0) })}</span></header>${renderGoalHistory(item)}</section>
         <details class="operation-identity"><summary>${icon("info")}${L("身份与能力边界")}</summary><dl><div><dt>Session ID</dt><dd>${escapeHtml(item.id)}</dd></div><div><dt>Runtime</dt><dd>${escapeHtml(item.runtime)}</dd></div><div><dt>${L("原生内容")}</dt><dd>${escapeHtml(contentModeLabel(item.contentMode))}</dd></div><div><dt>Panel ID</dt><dd>${L("只负责 PTY 所有权")}</dd></div><div><dt>Work Context ID</dt><dd>${L("只用于弱能力兼容")}</dd></div></dl></details>
         <button class="document-action operation-archive" type="button" data-session-archive="${item.state !== "archived"}">${icon(item.state === "archived" ? "refresh" : "archive")}<span>${item.state === "archived" ? L("恢复记录") : L("归档记录")}</span></button>
-      </aside>
+      </aside></details>
     </div>
   </article>`;
   }
@@ -115,7 +115,7 @@ export function renderWorkSessionSurface(surface: WorkUiSurface, model: WorkUiMo
   function renderSessionSurface(records: readonly ProjectSessionRecord[], hasData: boolean, projectName: string): string {
     return `<section class="desktop-work-surface project-operation-surface" data-work-surface="sessions" data-work-surface-label="Sessions" hidden>${hasData
     ? records.map((item, index) => renderSessionDetail(item, index === 0, projectName)).join("")
-    : `<div class="archive-empty project-operation-surface-empty">${icon("terminal")}<h1>${L("这个项目还没有 Session")}</h1></div>`}</section>`;
+    : `<div class="archive-empty project-operation-surface-empty">${icon("terminal")}<h1>${L("这个项目还没有 Session")}</h1><p>${L("启动一条新的工作会话，或关联已有的 Runtime 会话。")}</p><button class="button-primary" type="button" data-open-session-add>${icon("plus")}${L("新建 Session")}</button></div>`}</section>`;
   }
 
   function renderOverlays(data: ProjectOperationsData | undefined, project: ProjectOperationsProject | null): string {

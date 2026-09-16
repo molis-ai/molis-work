@@ -116,7 +116,7 @@ export const PROJECT_INDEX_STYLES = `
   .project-index-heading h1 {
     margin: 0;
     font-size: clamp(27px, 2.25vw, 34px);
-    font-weight: 710;
+    font-weight: 600;
     line-height: 1.2;
     letter-spacing: -.035em;
   }
@@ -180,14 +180,14 @@ export const PROJECT_INDEX_STYLES = `
     border-radius: 12px;
     color: inherit;
     background: var(--paper);
-    box-shadow: var(--shadow-soft);
+    box-shadow: none;
     display: grid;
     grid-template-rows: auto minmax(0, 1fr) auto;
     gap: 14px;
     text-decoration: none;
     transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
   }
-  .project-card:hover { border-color: var(--line-strong); box-shadow: var(--shadow-raised); transform: translateY(-1px); }
+  .project-card:hover { border-color: var(--line-strong); background: var(--nav-hover); box-shadow: none; }
   .project-card:focus-visible { outline: 2px solid color-mix(in srgb, var(--blue) 62%, transparent); outline-offset: 3px; }
   .project-card > header, .project-card > footer { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
   .project-card > div { min-width: 0; }
@@ -207,7 +207,7 @@ export const PROJECT_INDEX_STYLES = `
     margin: 0;
     overflow: hidden;
     font-size: 14px;
-    font-weight: 700;
+    font-weight: 600;
     letter-spacing: -.015em;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -225,7 +225,7 @@ export const PROJECT_INDEX_STYLES = `
   .project-card footer svg { width: 14px; height: 14px; transform: none; transition: transform .18s ease; }
   .project-card:hover footer svg { transform: translateX(2px); }
   .project-index-empty { padding: 36px 8px 40px; color: var(--muted); }
-  .project-index-empty h2 { margin: 0 0 8px; color: var(--ink); font-size: 18px; font-weight: 700; letter-spacing: -.015em; }
+  .project-index-empty h2 { margin: 0 0 8px; color: var(--ink); font-size: 18px; font-weight: 600; letter-spacing: -.015em; }
   .project-index-empty p { max-width: 48ch; margin: 0; font-size: 13px; line-height: 1.52; }
   .project-index-start { margin-top: 18px; display: flex; flex-wrap: wrap; gap: 9px; }
   .project-index-start a { min-height: 34px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 8px; color: var(--ink); background: var(--paper); display: inline-flex; align-items: center; font-weight: 650; text-decoration: none; }

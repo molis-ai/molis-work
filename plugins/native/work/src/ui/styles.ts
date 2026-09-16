@@ -165,13 +165,15 @@ export const PROJECT_OPERATIONS_STYLES = `
   .operation-identity dd { margin: 0; overflow-wrap: anywhere; }
   .operation-archive { width: 100%; min-height: 34px; justify-content: center; }
 
-  .project-operation-dialog { width: min(520px, calc(100vw - 28px)); max-height: calc(100dvh - 28px); padding: 0; border: 1px solid var(--control-border); border-radius: var(--radius-surface); color: var(--ink); background: var(--paper); box-shadow: var(--control-shadow); }
+  .project-operation-dialog { width: min(520px, calc(100vw - 28px)); max-height: calc(100dvh - 28px); overflow: hidden; padding: 0; border: 1px solid var(--control-border); border-radius: var(--radius-surface); color: var(--ink); background: var(--paper); box-shadow: var(--control-shadow); }
   .project-operation-dialog::backdrop { background: rgba(12, 16, 22, .52); }
+  .project-operation-dialog form { display: flex; flex-direction: column; max-height: calc(100dvh - 30px); }
+  .project-operation-dialog form > header, .project-operation-dialog form > footer { flex: none; }
   .project-operation-dialog form > header { padding: 16px 18px 13px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 12px; }
   .project-operation-dialog h2 { margin: 0; font-size: 16px; }
   .project-operation-dialog header p { margin: 3px 0 0; color: var(--muted); font-size: 10px; }
-  .project-operation-dialog header button { width: 32px; height: 32px; padding: 0; border: 0; border-radius: 7px; background: transparent; }
-  .project-operation-dialog form > section { padding: 16px 18px; display: grid; gap: 12px; }
+  .project-operation-dialog header button[data-dialog-close] { width: 32px; height: 32px; padding: 0; border: 0; border-radius: 7px; background: transparent; }
+  .project-operation-dialog form > section { min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 16px 18px; display: grid; gap: 12px; }
   .project-operation-dialog label:not(.operation-confirm-check) { color: var(--muted); display: grid; gap: 5px; font-size: 10px; }
   .project-operation-dialog input:not([type="checkbox"]), .project-operation-dialog select { width: 100%; height: var(--control-h); padding: 0 9px; border: 1px solid var(--control-input); border-radius: var(--radius-control); color: var(--ink); background: var(--paper); }
   .operation-confirm-facts { margin: 0; }
@@ -212,7 +214,7 @@ export const PROJECT_OPERATIONS_STYLES = `
   .session-add-dialog form > header > button { width: 44px; height: 44px; border: 1px solid var(--line); border-radius: 10px; }
   .session-add-heading { min-width: 0; flex: 1; }
   .session-add-heading-row { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
-  .session-add-heading-row [data-session-add-toggle] { min-height: 28px; padding: 0; border: 0; color: var(--blue-dark); background: transparent; font-size: 10px; white-space: nowrap; }
+  .session-add-heading-row [data-session-add-toggle] { width: auto; flex-shrink: 0; min-height: 28px; padding: 0; border: 0; color: var(--blue-dark); background: transparent; font-size: 10px; white-space: nowrap; }
   .session-add-dialog form > section { padding: 10px 21px 14px; gap: 11px; }
   .session-add-field-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
   .operation-field-label { color: var(--muted); display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 10px; }
@@ -229,7 +231,7 @@ export const PROJECT_OPERATIONS_STYLES = `
   .session-workspace-picker > summary small { color: var(--faint); font: 9.5px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace; }
   .session-workspace-picker > summary > svg { flex: none; color: var(--faint); }
   .session-workspace-picker[open] > summary { border-color: color-mix(in srgb, var(--blue) 58%, var(--line)); }
-  .session-workspace-options { position: static; z-index: 90; width: min(304px, 100%); max-height: min(260px, calc(100dvh - 442px)); margin-top: 5px; overflow: auto; padding: 5px; border: 1px solid var(--line-strong); border-radius: 9px; background: var(--paper); box-shadow: 0 15px 40px rgba(10, 15, 22, .2); }
+  .session-workspace-options { position: static; z-index: 90; width: min(304px, 100%); max-height: min(260px, 45dvh); margin-top: 5px; overflow: auto; padding: 5px; border: 1px solid var(--line-strong); border-radius: 9px; background: var(--paper); box-shadow: 0 15px 40px rgba(10, 15, 22, .2); }
   .session-workspace-options button { width: 100%; min-height: 48px; padding: 7px 8px; border: 0; border-radius: 7px; color: var(--ink-soft); background: transparent; display: flex; align-items: center; justify-content: space-between; gap: 10px; text-align: left; }
   .session-workspace-options button:hover:not(:disabled), .session-workspace-options button:focus-visible { color: var(--ink); background: color-mix(in srgb, var(--blue) 8%, transparent); }
   .session-workspace-options button:disabled { opacity: .48; cursor: not-allowed; }
@@ -306,8 +308,9 @@ export const PROJECT_OPERATIONS_STYLES = `
     .operation-current-context dd button, .operation-archive { min-height: 44px; }
     .project-operation-dialog { width: 100vw; max-width: none; height: 100dvh; max-height: none; margin: 0; border: 0; border-radius: 0; }
     .session-add-dialog { transform: none; }
-    .project-operation-dialog form > section { max-height: calc(100dvh - 132px); overflow: auto; }
-    .session-handoff-dialog form { height: 100dvh; }
+    .project-operation-dialog form { height: 100%; max-height: 100%; }
+    .project-operation-dialog form > section { flex: 1; }
+    .session-handoff-dialog form { height: 100%; }
     .session-handoff-dialog form > section.session-handoff-review { max-height: none; overflow: auto; grid-template-columns: minmax(0, 1fr); }
     .session-handoff-controls { overflow: visible; border-right: 0; border-bottom: 1px solid var(--line); }
     .session-handoff-editor { min-height: 54dvh; }
@@ -332,4 +335,8 @@ export const PROJECT_OPERATIONS_STYLES = `
   @media (prefers-reduced-motion: reduce) {
     .project-record-row, .project-operation-dialog { transition: none; }
   }
+
+  .project-operation-surface-empty button[data-open-session-add] { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; padding: 0 12px; border: 1px solid var(--ink); border-radius: 7px; color: var(--paper); background: var(--ink); font: inherit; font-size: 12px; cursor: pointer; }
+  .project-operation-surface-empty button[data-open-session-add] svg { width: 16px; height: 16px; margin: 0; }
+  @media (max-width: 760px) { .session-add-heading-row { align-items: flex-start; flex-direction: column; gap: 8px; } .project-operation-dialog header button[data-dialog-close] { flex-shrink: 0; width: 44px; height: 44px; } .project-operation-surface-empty button[data-open-session-add] { min-height: 44px; } }
 `;

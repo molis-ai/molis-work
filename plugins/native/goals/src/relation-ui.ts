@@ -74,7 +74,7 @@ function renderRelations(item: GoalsRelationItem, view: GoalsRelationView, edita
     (relation) => !upstream.includes(relation) && !downstream.includes(relation),
   );
   return `<div class="relation-layout">
-    ${relationGroup("上游", "这个 Goal 开始前需要什么", upstream, item, view, editable)}
+    ${relationGroup("上游", "这个 Goal 的归属与完成依赖", upstream, item, view, editable)}
     ${relationGroup("下游", "哪些 Goal 等待或包含它", downstream, item, view, editable)}
     ${relationGroup("其他关联", "扩展、替代、修正或风险关系", other, item, view, editable)}
   </div>
@@ -105,7 +105,7 @@ function renderRelationForm(item: GoalsRelationItem, view: GoalsRelationView): s
   return `<form class="relation-form" data-relation-form data-live-form="relation-${escapeHtml(item.goal.goal_id)}" data-goal-id="${escapeHtml(item.goal.goal_id)}" data-current-goal-name="${escapeHtml(item.goal.title)}" novalidate>
       <div class="relation-authority"><span>${icon("shield")}</span><p><strong>${L("你正在直接修改 Goal 关系")}</strong><small>${L("保存后立即生效并进入历史。执行工具提出的关系变化仍会先进入")}<a href="/decisions">${L("Inbox")}</a>${L("，由你确认后才生效。")}</small></p></div>
       <div class="relation-builder">
-        <label><span>${L("这条关系表示什么")}</span><select name="relation_intent"><option value="needs">${L("当前 Goal 开始前需要它完成")}</option><option value="belongs">${L("当前 Goal 属于它")}</option><option value="enables">${L("它开始前需要当前 Goal 完成")}</option><option value="contains">${L("它属于当前 Goal")}</option><option value="other">${L("其他关系")}</option></select></label>
+        <label><span>${L("这条关系表示什么")}</span><select name="relation_intent"><option value="needs">${L("当前 Goal 收尾前需要它完成")}</option><option value="belongs">${L("当前 Goal 属于它")}</option><option value="enables">${L("它收尾前需要当前 Goal 完成")}</option><option value="contains">${L("它属于当前 Goal")}</option><option value="other">${L("其他关系")}</option></select></label>
         <label><span>${L("另一个 Goal")}</span><select name="target_goal_id">${targetOptions}</select></label>
       </div>
       <div class="relation-live-preview" data-relation-live-preview><small>${L("保存后会形成")}</small><strong>${escapeHtml(item.goal.title)} <span>${L("→ 依赖 →")}</span> ${escapeHtml(firstTarget.title)}</strong><p>${L("另一个 Goal 完成前，当前 Goal 还不能收尾。普通笔记和准备仍可先做。")}</p></div>

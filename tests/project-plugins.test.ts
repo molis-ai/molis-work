@@ -76,12 +76,10 @@ test("Adding Feed also enables Inbox, Inbox can be added alone, and repeats stay
   }
   assert.deepEqual((await (await add(inboxOnly.project_id, "inbox")).json()).plugins, ["goals", "inbox"]);
   const feedPage = await (await fetch(`${origin}/projects/${project.project_id}/`)).text();
-  const feedViews = feedPage.match(/<nav class="immersive-feed-views"[^>]*>[\s\S]*?<\/nav>/)?.[0] ?? "";
   assert.match(feedPage, /data-plugin-id="inbox"[^>]*data-directory-open="inbox"[^>]*data-work-surface-open="inbox"/);
   assert.match(feedPage, /data-directory-panel="inbox"/);
   assert.match(feedPage, /data-work-surface="inbox" data-work-surface-label="Inbox"/);
-  assert.match(feedViews, /data-feed-preset="feed">Feed<\/button>/);
-  assert.doesNotMatch(feedViews, /inbox_message|>Inbox</);
+  assert.doesNotMatch(feedPage, /data-feed-views|data-directory-open="sources"/);
   const inboxOnlyPage = await (await fetch(`${origin}/projects/${inboxOnly.project_id}/`)).text();
   assert.match(inboxOnlyPage, /data-plugin-id="inbox"/);
   assert.doesNotMatch(inboxOnlyPage, /data-plugin-id="feed"/);

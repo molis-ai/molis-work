@@ -37,6 +37,7 @@ test("Planning browser copies a template, recovers failed saves and adopts an in
   assert.equal(await evaluate(dom("[data-planning-edit-form]") + ".dataset.saveScope"), "personal");
   const row = '[data-planning-row-list="steps"] [data-planning-row]';
   const count = await evaluate<number>("document.querySelectorAll(" + JSON.stringify(row) + ").length");
+  await click('.planning-edit-section.form-disclosure > summary');
   await click('[data-add-planning-row="steps"]');
   assert.equal(await evaluate("document.activeElement.name"), "steps");
   assert.equal(await evaluate("document.querySelectorAll(" + JSON.stringify(row) + ").length"), count + 1);

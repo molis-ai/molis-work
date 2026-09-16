@@ -33,7 +33,6 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     projectHome = (${PROJECT_HOME_FACTORY_SCRIPT})({ getState: () => state, translate: L });
     bindGoalCreateEvents();
     addEventListener("popstate", (event) => {
-      if (projectSettingsStage?.parse(localPathname())) return;
       if (localPathname() === "/" && !decisionView && !collectionView) {
         setDesktopDirectory("root", false, false);
         if (!openWorkbenchSurface("home")) setDesktopWorkSurface("home");
@@ -43,7 +42,6 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     addEventListener("pagehide", saveUiState);
     addEventListener("keydown", (event) => {
       if (globalSearchPalette?.handleKeyboard(event)) return;
-      if (handleGoalWorkTabKeyboard(event)) return;
       const currentFocusSection = event.target?.closest?.("[data-focus-section-trigger]:not([data-goal-factor-tab])");
       if (currentFocusSection && ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) {
         const triggers = [...currentFocusSection.closest("[data-focus-section-deck]").querySelectorAll("[data-focus-section-card-row] > [data-focus-section-card] > [data-focus-section-trigger]")];
@@ -202,12 +200,10 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
         children: selectedItem?.children || [],
       } }));
     }
-    if (selected) ensureWorkTab(selected);
-    else renderWorkTabs();
+    immersiveNavigation?.sync();
     frameContainer?.restore();
     tabWorkspace?.apply();
-    projectSettingsStage?.syncFromLocation();
-    if (matchMedia("(max-width: 760px)").matches && (restoredMobileView === "tree" || restoredMobileView === "document" || restoredMobileView === "tui")) {
+    if (!(directGoalRequested && !restoredNavigation) && matchMedia("(max-width: 760px)").matches && (restoredMobileView === "tree" || restoredMobileView === "document" || restoredMobileView === "tui")) {
       setMobileView(restoredMobileView);
     }
     updateRelationPreviews();

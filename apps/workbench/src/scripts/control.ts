@@ -416,6 +416,7 @@ export const PROJECT_INDEX_CLIENT_SCRIPT = `
       dialog.showModal();
       requestAnimationFrame(() => form?.elements.legacy_database_path?.focus());
     };
+    if (new URLSearchParams(location.search).get("migration") === "1") open();
     document.querySelectorAll("[data-open-project-migration]").forEach((button) => {
       button.addEventListener("click", open);
     });

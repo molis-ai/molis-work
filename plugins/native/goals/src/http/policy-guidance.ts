@@ -3,6 +3,23 @@ import type { GoalsHttpContext } from "./types.js";
 import type { GoalsCommandApi } from "@molis-ai/molis-work-contracts/modules/goals";
 
 export async function handleGoalPolicyGuidanceHttp(context: GoalsHttpContext): Promise<boolean> {
+  if (context.method === "POST" && context.pathname === "/api/policy-bindings") {
+    const body = await context.readBody();
+    try {
+      if (body.scope !== "project_default" || body.goal_id != null) throw new Error("此入口只保存项目默认规则。");
+      const result = context.commands.saveProjectPolicy({
+        board_id: context.options.boardId, actor_id: "web-user",
+        reason: String(body.reason ?? ""), user_confirmed: body.user_confirmed === true,
+        policy: body.policy as Parameters<GoalsCommandApi["saveProjectPolicy"]>[0]["policy"],
+        idempotency_key: String(body.idempotency_key ?? ""),
+      });
+      context.respond(200, result);
+      context.changed();
+    } catch (error) {
+      context.respond(400, { error: error instanceof Error ? error.message : String(error) });
+    }
+    return true;
+  }
   if (context.method === "GET" && context.pathname === "/api/project-guidance") {
     context.respond( 200, context.query.readProjectGuidance(context.options.boardId));
     return true;

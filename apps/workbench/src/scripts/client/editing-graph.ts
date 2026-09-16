@@ -2,7 +2,6 @@ import { GOALS_DIALOGS_CLIENT_FACTORY_SCRIPT, GOALS_LIFECYCLE_CLIENT_FACTORY_SCR
 import { GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-goals";
 import { FRAME_CONTAINER_FACTORY_SCRIPT } from "./frame-container.js";
 import { TAB_WORKSPACE_FACTORY_SCRIPT } from "./tab-workspace.js";
-import { PROJECT_SETTINGS_STAGE_FACTORY_SCRIPT } from "./project-settings-stage.js";
 import { GOALS_RELATION_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-goals";
 import { GOALS_POLICY_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-goals";
 /** AP3 Workbench client segment: editing-graph. */
@@ -219,6 +218,8 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
       locateGraphNode: (id) => locateGraphNode(id),
       getProjectId: () => state.project?.project_id || state.snapshot.board.board_id,
       route,
+      openGoalTab: (id) => tabWorkspace?.openItem("goals", id, undefined, "frame"),
+      openGoalWork: () => tabWorkspace?.openGoalWork(),
       activateGoalsMother: () => {
         const current = tabWorkspace?.state?.();
         const pane = current?.panes?.find((item) => item.id === current.focusedPaneId);
@@ -228,6 +229,8 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
       },
     });
     tabWorkspace = (${TAB_WORKSPACE_FACTORY_SCRIPT})({
+      setFeedTask, setFeedAddOpen,
+      showGoalFrame: (id) => frameContainer?.showGoalFrame(id),
       translate: L,
       getSurface: () => activeDesktopSurface,
       setWorkSurface: (...args) => setDesktopWorkSurface(...args),
@@ -235,6 +238,8 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
       setWorkspaceMode: (...args) => setWorkspaceMode(...args),
       setMobileView: (...args) => setMobileView(...args),
       applySelection: (goalId) => applySelection(goalId, false),
+      loadGoalDocument: (goalId) => loadGoalDocument(goalId),
+      getDocumentGoalId: () => documentPane.querySelector("[data-goal-view]")?.dataset.goalView,
       locateGraphNode: (id) => locateGraphNode(id),
       selectFeedItem: (...args) => selectFeedItem(...args),
       selectInboxEntry: (...args) => selectInboxEntry(...args),
@@ -245,11 +250,6 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
       releaseFrame: () => frameContainer?.releaseFrame(),
       isFrameTabActive: () => frameContainer?.isFrameTabActive() === true,
     });
-    projectSettingsStage = (${PROJECT_SETTINGS_STAGE_FACTORY_SCRIPT})({
-      translate: L, route, localPathname,
-      setDirectory: (...args) => setDesktopDirectory(...args),
-      tabWorkspace: () => tabWorkspace,
-      workspace,
-    });
+
 
 `;

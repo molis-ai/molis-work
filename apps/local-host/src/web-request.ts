@@ -8,7 +8,7 @@ import { sendLocalWebJson as sendJson, readLocalWebBody as readBody, requestHead
 import { L } from "./web-locale.js";
 import fs from "node:fs";
 import { handleGoalsWebHttp } from "@molis-ai/molis-work-plugin-goals";
-import { createWorkbenchGoalsAdapter, isProjectSettingsWorkbenchPath, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
+import { createWorkbenchGoalsAdapter, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host";
 import type { SessionRuntimeResources } from "./web-session.js";
 import { cachedMolisWorkWebView, type MolisWorkWebViewCache } from "./web-view.js";
@@ -125,9 +125,6 @@ export async function handleMolisWorkWebRequest(
                 : null,
             };
           })) return;
-        if (request.method === "GET" && isProjectSettingsWorkbenchPath(url.pathname) && url.searchParams.get("embed") !== "1") {
-          url.pathname = "/";
-        }
         if (goalsReadHttp.settings(request, response, url, options.boardId, readWebView, coordinator, controlToken)) return;
         if (await planningHttp.project(request, response, url, serverOptions.homeDirectory, options.boardId, controlToken, readWebView, goalsAdapter.planning)) return;
         if (request.method === "GET" && url.pathname === "/health") {

@@ -1,0 +1,104 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { DEMO_BOARD_ID, GoalProjectApplication } from '@molis-ai/molis-work-app-local-host';
+import { openGoalBrowser } from './fixtures/goal-browser.js';
+
+for (const [width, height] of [[1024, 400], [390, 500]]) {
+  test(`Goal forms ${width}×${height}: scrolling, draft recovery and a single persisted concern`, { timeout: 60000 }, async t => {
+    const b = await openGoalBrowser(t); if (!b) return;
+    const { command, sessionId, navigate, evaluate, click, waitFor, origin } = b;
+    const app = new GoalProjectApplication(b.store);
+    const goalId = app.goalEvents.createIntent({ board_id: DEMO_BOARD_ID, title: '低窗口里的目标编辑', outcome: '表单保存取消清楚可达', actor_id: 'web-user', actor_kind: 'user', idempotency_key: 'viewport' }).goal.goal_id;
+    const read = () => app.goalEvents.readState(DEMO_BOARD_ID, goalId);
+    const form = '[data-event-form=concern]';
+    const field = (name: string) => `${form} [name=${name}]`;
+    const fill = async (name: string, value: string) => evaluate(`(()=>{const e=document.querySelector(${JSON.stringify(field(name))});e.value=${JSON.stringify(value)};e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+    const rect = (selector: string) => evaluate<{ top: number; bottom: number }>(`(()=>{const r=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();return {top:r.top,bottom:r.bottom}})()`);
+    const contained = async (selector: string) => {
+      const r = await rect(selector);
+      assert.ok(r.top >= 0 && r.bottom <= height, `${selector} outside viewport: ${JSON.stringify(r)}`);
+      return r;
+    };
+    // Keep Chrome producing frames while checking transition completion.
+    const settle = () => evaluate(`new Promise((resolve,reject)=>{const until=Date.now()+3000;const check=()=>{const running=document.getAnimations().some(a=>a.playState==='running'&&a.effect?.getComputedTiming().iterations!==Infinity);if(!running)return resolve(true);if(Date.now()>until)return reject(new Error('Transitions did not finish'));requestAnimationFrame(check);};requestAnimationFrame(check);})`);
+    const capture = async (name: string) => {
+      await settle();
+      const dir = process.env.MOLIS_CONTENT_CAPTURE || '.impeccable/review/goal-forms-v10';
+      await mkdir(dir, { recursive: true });
+      const png = await command<{ data: string }>('Page.captureScreenshot', { format: 'png' }, sessionId);
+      await writeFile(`${dir}/${name}-${width}.png`, Buffer.from(png.data, 'base64'));
+    };
+    const openConcern = async () => {
+      if (await evaluate("document.querySelector('[data-goal-details-toggle]').getAttribute('aria-expanded')==='false'")) await click('[data-goal-details-toggle]');
+      await click('[data-record-menu] > summary');
+      await click('[data-record-menu] [data-event-form-open=concern]');
+      await waitFor(`document.activeElement.closest('${form}') && document.activeElement.name==='title'`);
+      await settle();
+    };
+    await command('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false }, sessionId);
+    await command('Network.enable', {}, sessionId);
+    await command('Page.addScriptToEvaluateOnNewDocument', {source: `(()=>{const original=window.fetch;window.__concernPosts=0;window.fetch=function(input,init){if(String(input).endsWith('/event-concern')&&init?.method==='POST')window.__concernPosts++;return original.apply(this,arguments);};})()`},sessionId);
+    await navigate(() => command('Page.navigate', { url: origin + '/goals/' + goalId }, sessionId));
+    if (await evaluate("document.querySelector('[data-frame-goal-work]')?.getBoundingClientRect().width>0")) await click('[data-frame-goal-work]');
+    await waitFor(`document.querySelector('[data-goal-event-document]')?.dataset.goalView==='${goalId}' && !document.querySelector('[data-goal-node-workspace]').hidden`);
+    await openConcern();
+    const header = await contained(`${form} > header`);
+    const footer = await contained(`${form} footer`);
+    const body = `${form} .event-form-body`;
+    const metrics = await evaluate<{ x: number; y: number; ch: number; sh: number }>(`(()=>{const e=document.querySelector('${body}'),r=e.getBoundingClientRect();return {x:r.x+8,y:r.y+8,ch:e.clientHeight,sh:e.scrollHeight}})()`);
+    assert.ok(metrics.ch >= 80 && metrics.sh > metrics.ch);
+    assert.ok((await rect(body)).bottom <= (await rect(`${form} .event-form-bottom`)).top, 'field scroll ends before the actions');
+    assert.equal(await evaluate(`document.querySelector('${form}').scrollHeight===document.querySelector('${form}').clientHeight`), true, 'form itself does not scroll');
+    await capture('concern');
+    await command('Input.dispatchMouseEvent', { type: 'mouseWheel', x: metrics.x, y: metrics.y, deltaX: 0, deltaY: 900 }, sessionId);
+    await waitFor(`document.querySelector('${body}').scrollTop>0`);
+    assert.deepEqual(await rect(`${form} > header`), header);
+    assert.deepEqual(await rect(`${form} footer`), footer);
+    const before = read().goal_event_cursor;
+    await fill('title', '首屏操作栏不能盖住输入');
+    const statement = '在较低的窗口中，检查问题说明、影响范围与保存反馈。\n'.repeat(12).trim();
+    await fill('statement', statement);
+    await click(`${form} footer [data-event-back]`);
+    await waitFor("document.activeElement.matches('[data-record-menu] > summary')");
+    assert.equal(read().goal_event_cursor, before);
+    assert.equal(read().concerns.length, 0);
+    await openConcern();
+    await click(`${form} .form-disclosure > summary`);
+    await fill('scope_action', 'complete');
+    await command('Network.setBlockedURLs', { urls: [origin + '/api/goals/' + goalId + '/event-concern'] }, sessionId);
+    await click(`${form} button[type=submit]`);
+    await waitFor(`!document.querySelector('${form} [data-form-status]').hidden && !document.querySelector('${form} button[type=submit]').disabled`);
+    assert.match(await evaluate<string>(`document.querySelector('${form} [data-form-status]').textContent`), /输入已保留/);
+    assert.equal(await evaluate(`document.querySelector('${field('statement')}').value`), statement);
+    assert.equal(await evaluate(`document.querySelector('${body}').inert`), false);
+    await contained(`${form} [data-form-status]`);
+    await contained(`${form} footer`);
+    assert.equal(read().concerns.length, 0);
+    await capture('concern-error');
+    await evaluate("localStorage.setItem('molis-work:theme','dark');window.dispatchEvent(new StorageEvent('storage',{key:'molis-work:theme',newValue:'dark'}))");
+    await evaluate('new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))');
+    await capture('concern-error-dark');
+    await command('Network.setBlockedURLs', { urls: [] }, sessionId);
+    await command('Network.emulateNetworkConditions', { offline: false, latency: 800, downloadThroughput: -1, uploadThroughput: -1 }, sessionId);
+    await click(`${form} button[type=submit]`);
+    assert.equal(await evaluate(`document.querySelector('${body}').inert && document.querySelector('${form} footer [data-event-back]').disabled`), true);
+    assert.equal(await evaluate(`document.querySelector('${form} button[type=submit]').textContent`), '正在保存…');
+    // A second submit event exercises the production in-flight guard, bypassing only the disabled button.
+    await evaluate(`document.querySelector('${form}').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}))`);
+    await waitFor(`document.querySelector('[data-document-pane]')?.getAttribute('aria-busy')!=='true' && document.querySelector('${form}')?.hidden===true`, 6000);
+    await command('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 }, sessionId);
+    assert.equal(read().concerns.length, 1);
+    assert.equal(read().concerns[0].title, '首屏操作栏不能盖住输入');
+    assert.equal(read().concerns[0].status, 'open');
+    assert.equal(read().concerns[0].statement, statement);
+    assert.equal(read().concerns[0].scope.action, 'complete');
+    assert.equal(await evaluate('window.__concernPosts'), 2, 'one failed request and one retry; duplicate submit does not send another request');
+    const after = read().goal_event_cursor;
+    assert.ok(after > before);
+    await b.reloadPage();
+    assert.equal(read().goal_event_cursor, after);
+    assert.equal(read().concerns.length, 1);
+    assert.equal(await evaluate('document.scrollingElement.scrollHeight<=innerHeight+1 && document.scrollingElement.scrollTop===0'), true);
+  });
+}

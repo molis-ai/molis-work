@@ -4,7 +4,7 @@ import type { EvidenceRecord } from "@molis-ai/molis-work-contracts/modules/evid
 import type { ReviewRecord } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import type { GoalsDecisionEvent } from "./decision-view.js";
 import type { GoalsDocumentUiPrimitives } from "./document-ui-model.js";
-import { JOURNAL_TYPE_LABELS, SYSTEM_TYPE_LABELS, reviewVerdictLabel, type GoalHistoryIndexItem } from "./event-history-map.js";
+import { RUN_STATE_LABELS, EVIDENCE_RESULT_LABELS, EVIDENCE_LIFECYCLE_LABELS, EVIDENCE_KIND_LABELS, JOURNAL_TYPE_LABELS, SYSTEM_TYPE_LABELS, reviewVerdictLabel, type GoalHistoryIndexItem } from "./event-history-map.js";
 
 export interface GoalHistoryBodyLookups {
   workEvent?: GoalWorkEventRecord | null;
@@ -25,7 +25,7 @@ export function renderHistoryItemBody(
   if (item.source === "legacy_run" && lookups.run) return renderLegacyRun(lookups.run, L, escapeHtml);
   if (item.source === "legacy_evidence" && lookups.evidence) return renderLegacyEvidence(lookups.evidence, L, escapeHtml);
   if (item.source === "legacy_review" && lookups.review) return renderLegacyReview(lookups.review, L, escapeHtml);
-  if (item.source === "legacy_record" && lookups.journal) return renderJournal(lookups.journal, L, escapeHtml);
+  if (item.source === "legacy_record" && lookups.journal) return renderJournal(lookups.journal, L, escapeHtml, item.relation);
   return `<article class="event"><h2>${escapeHtml(item.title)}</h2><p class="event-meta">${escapeHtml(item.type_label)} · ${escapeHtml(item.actor_id)}</p><p>${L("原文当前不可读。记录仍保留原 ID 和来源。")}</p></article>`;
 }
 
@@ -149,7 +149,7 @@ function renderScope(
 
 function renderLegacyRun(run: ExecutionRunRecord, L: GoalsDocumentUiPrimitives["translate"], escapeHtml: GoalsDocumentUiPrimitives["escapeHtml"]): string {
   const refs = run.output_refs.map((item) => `<li>${escapeHtml(item)}</li>`).join("");
-  return `<article class="event"><h2>${escapeHtml(run.state)}</h2><p class="event-meta">${L("推进记录")} · ${escapeHtml(run.actor_id)} · ${escapeHtml(formatEventTime(run.ended_at ?? run.started_at))}</p>
+  return `<article class="event"><h2>${escapeHtml(L(RUN_STATE_LABELS[run.state]))}</h2><p class="event-meta">${L("推进记录")} · ${escapeHtml(run.actor_id)} · ${escapeHtml(formatEventTime(run.ended_at ?? run.started_at))}</p>
     <p><small>${L("原 Run")} ${escapeHtml(run.run_id)} · ${escapeHtml(run.role)}</small></p>
     ${run.block_reason ? `<p>${escapeHtml(run.block_reason)}</p>` : ""}
     ${refs ? `<h3>${L("产物")}</h3><ul>${refs}</ul>` : ""}
@@ -165,8 +165,8 @@ function renderLegacyEvidence(item: EvidenceRecord, L: GoalsDocumentUiPrimitives
     : /^https?:\/\//i.test(item.locator)
       ? `<p class="attachment"><a class="inline-ref" href="${escapeHtml(item.locator)}" target="_blank" rel="noreferrer">${escapeHtml(item.locator)}</a>${copy}<small>${escapeHtml(access)}${reason}</small></p>`
       : `<p class="attachment">${copy}<small>${escapeHtml(access)}${reason}</small></p>`;
-  return `<article class="event"><h2>${escapeHtml(item.kind)} · ${escapeHtml(item.result)}</h2><p class="event-meta">${L("完成依据")} · ${escapeHtml(item.producer_actor_id)} · ${escapeHtml(formatEventTime(item.captured_at))}</p>
-    <p><small>${L("原 Evidence")} ${escapeHtml(item.evidence_id)} · ${escapeHtml(item.lifecycle_state)}</small></p>
+  return `<article class="event"><h2>${escapeHtml(L(EVIDENCE_KIND_LABELS[item.kind]))} · ${escapeHtml(L(EVIDENCE_RESULT_LABELS[item.result]))}</h2><p class="event-meta">${L("完成依据")} · ${escapeHtml(item.producer_actor_id)} · ${escapeHtml(formatEventTime(item.captured_at))}</p>
+    <p><small>${L("原 Evidence")} ${escapeHtml(item.evidence_id)} · ${escapeHtml(L(EVIDENCE_LIFECYCLE_LABELS[item.lifecycle_state]))}</small></p>
     ${locator}
     ${item.digest ? `<p>${escapeHtml(item.digest)}</p>` : ""}
   </article>`;
@@ -180,7 +180,17 @@ function renderLegacyReview(item: ReviewRecord, L: GoalsDocumentUiPrimitives["tr
   </article>`;
 }
 
-function renderJournal(event: GoalsDecisionEvent, L: GoalsDocumentUiPrimitives["translate"], escapeHtml: GoalsDocumentUiPrimitives["escapeHtml"]): string {
+function renderJournal(event: GoalsDecisionEvent, L: GoalsDocumentUiPrimitives["translate"], escapeHtml: GoalsDocumentUiPrimitives["escapeHtml"], relationInfo?: GoalHistoryIndexItem["relation"]): string {
+  if (relationInfo) {
+    const relation = relationInfo;
+    const status = relation.removed ? L("已解除") : L("已建立");
+    return `<article class="event event-relation"><header><span class="history-state" data-tone="${relation.removed ? "muted" : "positive"}">${relation.removed ? "−" : "+"} ${status}</span><h2>${L("Goal 关系变更")}</h2></header>
+      <p class="event-meta">${escapeHtml(event.actor_id)} · ${escapeHtml(formatEventTime(event.at))}</p>
+      <div class="history-relation-flow"><button type="button" data-select-goal="${escapeHtml(relation.from_id)}">${escapeHtml(relation.from_title)}</button><span class="history-relation-link">${escapeHtml(L(relation.label))}<span aria-hidden="true">↓</span></span><button type="button" data-select-goal="${escapeHtml(relation.to_id)}">${escapeHtml(relation.to_title)}</button></div>
+      ${relation.type === "depends_on" ? `<p class="form-note">${L("上方 Goal 收尾前，需要下方 Goal 先完成。")}</p>` : ""}
+      <h3>${L("变更原因")}</h3><p>${escapeHtml(event.reason || L("未补充原因"))}</p>
+      <details class="form-disclosure"><summary>${L("查看原始记录标识")}</summary><code>${escapeHtml(event.object_id)}</code></details></article>`;
+  }
   const payload = event.payload && typeof event.payload === "object" && !Array.isArray(event.payload)
     ? event.payload as Record<string, unknown>
     : {};
@@ -190,7 +200,7 @@ function renderJournal(event: GoalsDecisionEvent, L: GoalsDocumentUiPrimitives["
   const sentence = event.reason?.trim() || relation || L("这条记录保留了当时发生的事。");
   const typeName = JOURNAL_TYPE_LABELS[event.type] ?? L("记录");
   return `<article class="event"><h2>${escapeHtml(sentence)}</h2><p class="event-meta">${escapeHtml(typeName)} · ${escapeHtml(event.actor_id)} · ${escapeHtml(formatEventTime(event.at))}</p>
-    <p><small>${L("原记录")} ${escapeHtml(event.object_type)} ${escapeHtml(event.object_id)}</small></p>
+    <details class="form-disclosure"><summary>${L("查看原始记录标识")}</summary><code>${escapeHtml(event.object_id)}</code></details>
   </article>`;
 }
 

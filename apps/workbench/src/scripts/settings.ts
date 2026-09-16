@@ -193,6 +193,8 @@ export const PROJECT_GUIDANCE_CLIENT_SCRIPT = `
     const contentInput = form.elements.content;
     const reasonInput = form.elements.reason;
     let returnFocus = null;
+    let saving = false;
+    let focusTimer;
     const labels = {
       add: { title: L("新增项目说明"), description: L("保存后会立即成为所有 Goal 共享的长期上下文。"), submit: L("保存说明") },
       edit: { title: L("修改项目说明"), description: L("原版本会保留在下方的版本记录中。"), submit: L("保存新版本") },
@@ -200,6 +202,8 @@ export const PROJECT_GUIDANCE_CLIENT_SCRIPT = `
       restore: { title: L("恢复项目说明"), description: L("恢复后这条说明会重新进入 Runtime Prompt。"), submit: L("确认恢复") },
     };
     const openEditor = (mode, guidanceId = "", trigger = null) => {
+      if (saving) return;
+      clearTimeout(focusTimer);
       const entry = entries.find((item) => item.guidance_id === guidanceId);
       const copy = labels[mode] || labels.add;
       returnFocus = trigger instanceof HTMLElement
@@ -224,7 +228,7 @@ export const PROJECT_GUIDANCE_CLIENT_SCRIPT = `
         contentInput.value = entry.content;
         preview.textContent = entry.content;
       } else {
-        kindInput.value = "context";
+        kindInput.value = trigger?.dataset.guidanceKind || "context";
         contentInput.value = "";
         preview.textContent = "";
       }
@@ -232,9 +236,11 @@ export const PROJECT_GUIDANCE_CLIENT_SCRIPT = `
       editor.hidden = false;
       const reduceMotion = globalThis.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
       editor.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
-      setTimeout(() => (editsContent ? contentInput : reasonInput).focus(), reduceMotion ? 0 : 220);
+      focusTimer = setTimeout(() => { if (!editor.hidden) (editsContent ? contentInput : reasonInput).focus(); }, reduceMotion ? 0 : 220);
     };
     const closeEditor = () => {
+      if (saving) return;
+      clearTimeout(focusTimer);
       const focusTarget = returnFocus;
       editor.hidden = true;
       form.reset();
@@ -271,6 +277,7 @@ export const PROJECT_GUIDANCE_CLIENT_SCRIPT = `
     form.addEventListener("input", () => { errorBox.hidden = true; });
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
+      if (saving) return;
       const mode = modeInput.value;
       const guidanceId = idInput.value;
       const content = String(contentInput.value || "").trim();
@@ -288,6 +295,11 @@ export const PROJECT_GUIDANCE_CLIENT_SCRIPT = `
         return;
       }
       const submitLabel = submit.textContent;
+      saving = true;
+      errorBox.hidden = true;
+      form.setAttribute("aria-busy", "true");
+      const enabledControls = [...editor.querySelectorAll("button, input, select, textarea")].filter(control => !control.disabled);
+      enabledControls.forEach(control => { control.disabled = true; });
       submit.disabled = true;
       submit.textContent = L("正在保存…");
       try {
@@ -311,10 +323,13 @@ export const PROJECT_GUIDANCE_CLIENT_SCRIPT = `
         sessionStorage.setItem("molis-work-guidance-receipt:" + routePrefix, copyReceipt(mode));
         location.reload();
       } catch (error) {
-        errorBox.textContent = error.message || L("项目说明保存失败，请检查输入后重试");
+        errorBox.textContent = error instanceof TypeError ? L("无法连接本地服务，输入已保留，请重试。") : error.message || L("项目说明保存失败，请检查输入后重试");
         errorBox.hidden = false;
-        submit.disabled = false;
+        saving = false;
+        form.removeAttribute("aria-busy");
+        enabledControls.forEach(control => { control.disabled = false; });
         submit.textContent = submitLabel;
+        submit.focus();
       }
     });
     const receipt = scope.querySelector("[data-guidance-receipt]");

@@ -773,11 +773,11 @@ test("desktop work tabs keep a readable width and scroll instead of overlapping"
     /\.desktop-work-tab > \[role="tab"\] span \{[^}]*overflow: hidden;[^}]*text-overflow: ellipsis;[^}]*white-space: nowrap;/,
   );
   assert.match(
-    WORKBENCH_CLIENT_SCRIPT,
+    WORK_TAB_VISIBILITY_CLIENT_SCRIPT,
     /const ensureActiveWorkTabVisible = \(\) => \{[\s\S]*activeTabShell[\s\S]*workTabs\.scrollLeft/,
   );
-  assert.match(WORKBENCH_CLIENT_SCRIPT, /new ResizeObserver\(ensureActiveWorkTabVisible\)/);
-  assert.match(WORKBENCH_CLIENT_SCRIPT, /persistWorkTabs\(\);\s*ensureActiveWorkTabVisible\(\);/);
+  assert.match(WORK_TAB_VISIBILITY_CLIENT_SCRIPT, /new ResizeObserver\(ensureActiveWorkTabVisible\)/);
+  assert.doesNotMatch(WORKBENCH_CLIENT_SCRIPT, /persistWorkTabs\(\)|ensureWorkTab\(/);
 });
 
 test("desktop work tabs keep the active tab fully visible after restore and resize", async (context) => {

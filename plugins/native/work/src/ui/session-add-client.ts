@@ -17,6 +17,8 @@ export const WORK_SESSION_ADD_CLIENT = `
   const sessionAddWorkspaceMenu = sessionAddForm?.querySelector("[data-session-workspace-menu]");
   const sessionAddWorkspaceCustomPanel = sessionAddForm?.querySelector("[data-session-workspace-custom-panel]");
   const sessionAddWorkspaceCustomInput = sessionAddForm?.querySelector("[data-session-workspace-custom-input]");
+  let savingSession = false;
+  sessionAddDialog?.addEventListener("cancel", (event) => { if (savingSession) event.preventDefault(); });
   const initialSessionWorkspace = {
     id: sessionAddWorkspaceId?.defaultValue || "",
     path: sessionAddWorkspace?.defaultValue || "",
@@ -32,6 +34,7 @@ export const WORK_SESSION_ADD_CLIENT = `
     if (custom) queueMicrotask(() => sessionAddWorkspaceCustomInput?.focus());
   };
   const updateSessionAddForm = () => {
+    if (savingSession) return;
     const action = sessionAddAction?.value || "create";
     const option = sessionAddRuntime?.selectedOptions?.[0];
     const createMode = option?.dataset.createMode || "registry";
@@ -128,8 +131,13 @@ export const WORK_SESSION_ADD_CLIENT = `
   });
   sessionAddForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (!sessionAddConfirm?.checked) return;
-    sessionAddSubmit.disabled = true;
+    if (savingSession || !sessionAddConfirm?.checked || !sessionAddForm.reportValidity()) return;
+    savingSession = true;
+    sessionAddForm.setAttribute("aria-busy", "true");
+    const enabledControls = [...sessionAddForm.querySelectorAll("input:not(:disabled), select:not(:disabled), textarea:not(:disabled), button:not(:disabled)")];
+    enabledControls.forEach((control) => { control.disabled = true; });
+    const submitLabel = sessionAddSubmit.textContent;
+    sessionAddSubmit.textContent = L("正在保存…");
     showDialogStatus(sessionAddStatus, sessionAddAction.value === "create" ? L("正在创建并登记 Session...") : L("正在关联这条 Session..."), false);
     try {
       await parseActionResponse(await fetch(route("/api/sessions"), {
@@ -149,8 +157,15 @@ export const WORK_SESSION_ADD_CLIENT = `
       sessionAddDialog.close();
       location.reload();
     } catch (error) {
-      showDialogStatus(sessionAddStatus, error instanceof Error ? error.message : String(error), true);
-      sessionAddSubmit.disabled = false;
+      showDialogStatus(sessionAddStatus, error instanceof TypeError
+        ? L("无法连接本地服务，输入已保留，请重试。")
+        : error instanceof Error ? error.message : String(error), true);
+    } finally {
+      savingSession = false;
+      sessionAddForm.removeAttribute("aria-busy");
+      enabledControls.forEach((control) => { control.disabled = false; });
+      sessionAddSubmit.textContent = submitLabel;
+      if (sessionAddDialog.open) sessionAddSubmit.focus();
     }
   });
 

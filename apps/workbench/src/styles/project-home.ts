@@ -9,7 +9,7 @@ export const PROJECT_HOME_STYLES = `
   .immersive-home .home-today time { font-size: 30px; font-weight: 500; letter-spacing: -.035em; line-height: 1.3; }
   .immersive-home .home-today > span { font-size: 12px; font-weight: 400; color: var(--muted); }
   .immersive-home .home-reflection { margin-top: 29px; }
-  .immersive-home .home-quote-pages { display: grid; min-height: 112px; transition: opacity .5s ease; }
+  .immersive-home .home-quote-pages { display: grid; min-height: 112px; transition: opacity 160ms ease; }
   .immersive-home [data-home-quote] { grid-area: 1 / 1; align-self: start; min-width: 0; visibility: visible; }
   .immersive-home .home-quote-pages * { transition: none; }
   .immersive-home [data-home-quote][aria-hidden="true"] { visibility: hidden; }
@@ -58,6 +58,10 @@ export const PROJECT_HOME_STYLES = `
   body.immersive-workbench .home-shortcut-dialog footer button { min-height: var(--control-h); padding: 0 var(--control-pad-x); border: 1px solid var(--control-border); border-radius: var(--radius-control); color: var(--ink); background: var(--control-fill); font: inherit; cursor: pointer; }
   body.immersive-workbench .home-shortcut-dialog .home-shortcut-remove { margin-right: auto; color: var(--red); background: transparent; border-color: transparent; }
   body.immersive-workbench .home-shortcut-dialog .home-shortcut-save { color: var(--action-ink); background: var(--action); border-color: var(--action); }
+  .immersive-home .home-quote-next { display: inline-flex; align-items: center; margin-top: 8px; min-height: var(--control-h); gap: 6px; font: inherit; font-size: 12px; color: var(--muted); cursor: pointer; }
+  .immersive-home .home-quote-next svg { width: 14px; height: 14px; flex: none; }
+  .immersive-home .home-goals-entry { display:inline-flex; align-items:center; margin-bottom:16px; gap:8px; font:inherit; font-size:13px; cursor:pointer; }
+  .immersive-home .home-goals-entry svg { width:14px; height:14px; }
   @media (prefers-reduced-motion: reduce) { .immersive-home .home-quote-pages { transition: none; } }
   @container plugin-stage (max-width: 640px) {
     body.immersive-workbench .immersive-workspace .immersive-plugin-stage > .immersive-home,

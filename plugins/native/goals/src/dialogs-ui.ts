@@ -44,23 +44,26 @@ function createDialogsRenderer(primitives: GoalsDialogPrimitives) {
     <form method="dialog" class="dialog-shell" data-create-form>
       <header><div><span class="dialog-icon">${icon("plus")}</span><div><h2 id="create-dialog-title">${L("新建目标")}</h2><p>${L("先记录你的想法，再补全目标说明。规划可选。")}</p></div></div><button class="icon-button" type="button" data-close-create aria-label="${L("关闭")}">${icon("x")}</button></header>
       <div class="dialog-body">
-        <aside class="goal-lifecycle-hint">${icon("info")}<span><strong>${L("Goal 应描述一项有限、可验收、最终能完成的改变。")}</strong><small>${L("能力稳定后，用普通报告记录反复出现的结果；发现问题再开有限的改进 Goal，不必把原 Goal 一直留着。")}</small></span></aside>
-        <div class="field-row field-row--split"><label><span>Goal ID <small>${L("可选")}</small></span><input name="goal_id" autocomplete="off" placeholder="${L("例如 GOAL-AUTHORING")}"></label><label><span>${L("优先级")}</span><input name="priority" type="number" min="0" max="100" value="50"></label></div>
         <label><span>${L("目标名称")}</span><input name="title" required maxlength="120" placeholder="${L("一句话说明要完成什么")}"></label>
         <label><span>${L("要得到的结果 ")}<small>${L("可稍后补")}</small></span><textarea name="outcome" rows="2" placeholder="${L("完成后，用户或系统获得什么可观察结果")}"></textarea></label>
+        <details class="form-disclosure"><summary>${L("补充说明与验收条件")}</summary>
         <label><span>${L("为什么做 ")}<small>${L("可稍后补")}</small></span><textarea name="why" rows="2" placeholder="${L("这个问题为什么值得现在解决")}"></textarea></label>
         <label><span>${L("它会怎样运转 ")}<small>${L("可稍后补")}</small></span><textarea name="business_logic" rows="3" placeholder="${L("用简单语言说明实际使用方式和边界")}"></textarea></label>
         <label><span>${L("验收条件 ")}<small>${L("每行一条，可稍后补")}</small></span><textarea name="acceptance_criteria" rows="3" placeholder="${L("例如：可以创建 Goal，并在左侧 Tree 中立即看到")}"></textarea></label>
+        </details><details class="form-disclosure"><summary>${L("归属与完成依赖")}</summary>
         <section class="relation-field" aria-labelledby="parent-relation-title">
           <div class="relation-field-heading"><span>${L("目录层级")}</span><div><h3 id="parent-relation-title">${L("它属于哪个更大的 Goal？ ")}<small>${L("可选")}</small></h3><p id="parent-relation-hint">${L("表示“它是这个 Goal 的一部分”，只决定 Tree 中放在哪里，不要求上级 Goal 先完成。")}</p></div></div>
           <label><span>${L("所属上级 Goal")}</span><select name="parent_goal_id" aria-describedby="parent-relation-hint parent-relation-preview"><option value="">${L("作为独立 Goal，不指定上级")}</option>${options}</select></label>
           <p class="relation-preview" id="parent-relation-preview" data-parent-preview>${L("关系预览：新 Goal 将作为独立 Goal 出现在 Tree 中。")}</p>
         </section>
         <fieldset class="relation-field" aria-describedby="dependency-relation-hint dependency-relation-preview">
-          <legend><span>${L("执行前置")}</span><div><strong>${L("开始前必须等哪些 Goal 完成？ ")}<small>${L("可选")}</small></strong><small id="dependency-relation-hint">${L("只有确实要等对方完成后才能收尾时才选择。普通笔记和准备仍可先做。")}</small></div></legend>
+          <legend><span>${L("执行前置")}</span><div><strong>${L("收尾前需要哪些 Goal 先完成？ ")}<small>${L("可选")}</small></strong><small id="dependency-relation-hint">${L("只有确实要等对方完成后才能收尾时才选择。普通笔记和准备仍可先做。")}</small></div></legend>
           <div class="goal-choice-list">${dependencyOptions}</div>
           <p class="relation-preview" id="dependency-relation-preview" data-dependency-preview>${L("关系预览：当前没有执行前置，Goal 可以独立推进。")}</p>
         </fieldset>
+        </details><details class="form-disclosure"><summary>${L("标识与优先级")}</summary>
+        <div class="field-row field-row--split"><label><span>Goal ID <small>${L("可选")}</small></span><input name="goal_id" autocomplete="off" placeholder="${L("例如 GOAL-AUTHORING")}"></label><label><span>${L("优先级")}</span><input name="priority" type="number" min="0" max="100" value="50"></label></div>
+        </details>
         <p class="form-error" data-create-error role="alert" hidden></p>
       </div>
       <footer><button type="button" data-close-create>${L("取消")}</button><button class="button-primary" type="submit">${L("创建 Goal")}</button></footer>

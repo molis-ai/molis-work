@@ -40,26 +40,25 @@ export function createEventDocumentForms(primitives: GoalsDocumentUiPrimitives) 
       ? `<label><span>${L("关联完成要求")}</span><select data-judgment-requirement name="judgment_requirement_id"><option value="">${L("只记录，不作完成判断")}</option>${
         bound.map((item) => `<option value="${escapeHtml(item.requirement_id)}">${escapeHtml(item.statement)}</option>`).join("")
       }</select></label>
-        <label><span>${L("对这项要求的判断")}</span><select data-judgment-verdict name="judgment_verdict"><option value="">${L("默认只记录")}</option><option value="supports">${L("报告支持")}</option><option value="unknown">${L("仍无法判断")}</option><option value="contradicts">${L("尚未达到")}</option></select><small>${L("支持只表示报告者的判断，不是独立验收。")}</small></label>`
+        <label data-judgment-row hidden><span>${L("对这项要求的判断")}</span><select data-judgment-verdict name="judgment_verdict" disabled><option value="">${L("默认只记录")}</option><option value="supports">${L("报告支持")}</option><option value="unknown">${L("仍无法判断")}</option><option value="contradicts">${L("尚未达到")}</option></select><small>${L("支持只表示报告者的判断，不是独立验收。")}</small></label>`
       : `<p class="form-note">${L("这个类型还没有绑定完成要求。保存只记录事实。")}</p>`;
     return `<form class="event-form" data-event-form="report" data-type-id="${escapeHtml(type.type_id)}" data-type-version="${type.version}" hidden>
-      <button type="button" class="text-button" data-event-reader="planning">${L("返回记录模板")}</button>
-      <h2>${escapeHtml(type.name)}</h2>
-      <p class="form-lead">${escapeHtml(type.purpose)}</p>
-      <label><span>${L("一句话标题")}</span><input data-event-title name="event_title" required maxlength="200">${fieldError("event_title")}</label>
+      <header class="event-form-heading"><button type="button" class="text-button" data-event-reader="planning">${L("返回记录模板")}</button><h2>${escapeHtml(type.name)}</h2>
+      <p class="form-lead">${escapeHtml(type.purpose)}</p></header>
+      <div class="event-form-body"><label><span>${L("一句话标题")}</span><input data-event-title name="event_title" required maxlength="200">${fieldError("event_title")}</label>
       ${fields}
       ${judgments}
-      <p class="event-form-status" data-form-status hidden></p>
-      <div class="composer-bottom"><span>${L("失败会保留你刚填的内容，可原样重试。")}</span><button class="button primary" type="submit">${L("保存记录")}</button></div>
+
+      <p class="event-form-help">${L("失败会保留你刚填的内容，可原样重试。")}</p></div>
+      <div class="event-form-bottom"><p class="event-form-status" data-form-status role="status" hidden></p><footer class="event-form-actions"><button class="button" type="button" data-event-back>${L("取消")}</button><button class="button primary" type="submit">${L("保存记录")}</button></footer></div>
     </form>`;
   }
 
   function renderTypeForm(doc: GoalEventDocumentView): string {
     return `<form class="event-form" data-event-form="type" data-config-version="${doc.state.config.version}" data-agreement-version="${doc.state.agreement.version}" hidden>
-      <button type="button" class="text-button" data-event-reader="planning">${L("返回记录模板")}</button>
-      <h2>${L("新增事件类型")}</h2>
-      <p class="form-lead">${L("只作用于当前 Goal。登记类型不会自动启用完成要求。标识会自动生成，已有记录的标识不会改。")}</p>
-      <input type="hidden" name="type_id" value="${newToken("type")}">
+      <header class="event-form-heading"><button type="button" class="text-button" data-event-reader="planning">${L("返回记录模板")}</button><h2>${L("新增事件类型")}</h2>
+      <p class="form-lead">${L("只作用于当前 Goal。登记类型不会自动启用完成要求。标识会自动生成，已有记录的标识不会改。")}</p></header>
+      <div class="event-form-body"><input type="hidden" name="type_id" value="${newToken("type")}">
       <label><span>${L("名称")}</span><input name="name" required>${fieldError("name")}</label>
       <label><span>${L("用途")}</span><textarea name="purpose" rows="2" required></textarea>${fieldError("purpose")}</label>
       <label><span>${L("通用分类")}</span><select name="semantic_family"><option value="">${L("不分类")}</option><option value="progress">${L("进展")}</option><option value="delivery">${L("交付")}</option><option value="verification">${L("验证")}</option><option value="concern">${L("问题与风险")}</option><option value="observation">${L("观察")}</option><option value="custom">${L("自定义")}</option></select></label>
@@ -68,8 +67,9 @@ export function createEventDocumentForms(primitives: GoalsDocumentUiPrimitives) 
       <label class="check-row"><input type="checkbox" name="add_requirement"><span>${L("同时增加一条完成要求（分开的选择，不会因为有类型就启用）")}</span></label>
       <label data-new-requirement hidden><span>${L("完成要求")}</span><textarea name="requirement_statement" rows="2"></textarea>
         <input type="hidden" name="new_requirement_id" value="${newToken("req")}"></label>
-      <p class="event-form-status" data-form-status hidden></p>
-      <div class="composer-bottom"><span>${L("至少保留一个字段。")}</span><button class="button primary" type="submit">${L("登记到当前 Goal")}</button></div>
+
+      <p class="event-form-help">${L("至少保留一个字段。")}</p></div>
+      <div class="event-form-bottom"><p class="event-form-status" data-form-status role="status" hidden></p><footer class="event-form-actions"><button class="button" type="button" data-event-back>${L("取消")}</button><button class="button primary" type="submit">${L("登记到当前 Goal")}</button></footer></div>
     </form>`;
   }
 
@@ -96,67 +96,61 @@ export function createEventDocumentForms(primitives: GoalsDocumentUiPrimitives) 
 
   function renderRequirementForm(doc: GoalEventDocumentView): string {
     return `<form class="event-form" data-event-form="requirement" data-config-version="${doc.state.config.version}" data-agreement-version="${doc.state.agreement.version}" hidden>
-      <button type="button" class="text-button" data-event-reader="planning">${L("返回记录模板")}</button>
-      <h3>${L("增加完成要求")}</h3>
-      <p class="form-lead">${L("启用完成要求是单独操作，不会因为登记了类型就自动出现。")}</p>
-      <input type="hidden" name="requirement_id" value="${newToken("req")}">
+      <header class="event-form-heading"><button type="button" class="text-button" data-event-reader="planning">${L("返回记录模板")}</button><h3>${L("增加完成要求")}</h3>
+      <p class="form-lead">${L("启用完成要求是单独操作，不会因为登记了类型就自动出现。")}</p></header>
+      <div class="event-form-body"><input type="hidden" name="requirement_id" value="${newToken("req")}">
       <label><span>${L("具体结果")}</span><textarea name="statement" rows="2" required></textarea></label>
       <label><span>${L("绑定类型（可选）")}</span><select name="bound_type_id"><option value="">${L("不绑定")}</option>${
         doc.types.map((type) => `<option value="${escapeHtml(type.type_id)}">${escapeHtml(type.name)}</option>`).join("")
       }</select></label>
       <label class="check-row"><input type="checkbox" name="human_decision_required"><span>${L("需要用户验收")}</span></label>
-      <p class="form-note">${L("不勾选时，Runtime 报告支持即可参与完成判断。勾选后必须有仍然有效的用户结论。")}</p>
-      <p class="event-form-status" data-form-status hidden></p>
-      <button class="button primary" type="submit">${L("保存要求")}</button>
+      <p class="form-note">${L("不勾选时，Runtime 报告支持即可参与完成判断。勾选后必须有仍然有效的用户结论。")}</p></div>
+      <div class="event-form-bottom"><p class="event-form-status" data-form-status role="status" hidden></p><footer class="event-form-actions"><button class="button" type="button" data-event-back>${L("取消")}</button><button class="button primary" type="submit">${L("保存要求")}</button></footer></div>
     </form>`;
   }
 
   function renderProgressForm(state: GoalEventStateView): string {
     return `<form class="event-form" data-event-form="progress" hidden>
-      <button type="button" class="text-button" data-event-back>${L("返回所选事件")}</button>
-      <h2>${L("同步进展")}</h2>
-      <p class="form-lead">${L("更新 Goal 信息中的当前进展，并把这次更新留在时间线。")}</p>
-      <label><span>${L("现在做到哪了")}</span><textarea name="summary" rows="4" required></textarea></label>
+      <header class="event-form-heading"><h2>${L("同步进展")}</h2>
+      <p class="form-lead">${L("更新 Goal 信息中的当前进展，并把这次更新留在时间线。")}</p></header>
+      <div class="event-form-body"><label><span>${L("现在做到哪了")}</span><textarea name="summary" rows="4" required></textarea></label>
       <label><span>${L("下一步（可选）")}</span><input name="next_step"></label>
       <label><span>${L("谁来做（可选）")}</span><input name="next_actor"></label>
-      <input type="hidden" name="based_on_cursor" value="${state.goal_event_cursor}">
-      <p class="event-form-status" data-form-status hidden></p>
-      <button class="button primary" type="submit">${L("保存进展")}</button>
+      <input type="hidden" name="based_on_cursor" value="${state.goal_event_cursor}"></div>
+      <div class="event-form-bottom"><p class="event-form-status" data-form-status role="status" hidden></p><footer class="event-form-actions"><button class="button" type="button" data-event-back>${L("取消")}</button><button class="button primary" type="submit">${L("保存进展")}</button></footer></div>
     </form>`;
   }
 
   function renderConcernForm(state: GoalEventStateView): string {
     const open = state.concerns.filter((item) => item.status === "open");
     const existing = open.length
-      ? `<label><span>${L("已有问题")}</span><select name="concern_id"><option value="">${L("新开一条")}</option>${
+      ? `<label><span>${L("已有问题")}</span><select name="concern_id"><option value="">${L("记录新问题")}</option>${
         open.map((item) => `<option value="${escapeHtml(item.concern_id)}">${escapeHtml(item.title)}</option>`).join("")
       }</select></label>
-        <label><span>${L("处理")}</span><select name="action"><option value="open">${L("新开")}</option><option value="resolve">${L("已解决")}</option><option value="accept">${L("接受风险")}</option><option value="overturn">${L("反证推翻")}</option></select></label>`
+        <label data-concern-existing hidden><span>${L("处理结果")}</span><select name="action"><option value="open">${L("新开")}</option><option value="resolve">${L("已解决")}</option><option value="accept">${L("接受风险")}</option><option value="overturn">${L("反证推翻")}</option></select></label>`
       : `<input type="hidden" name="action" value="open">`;
     const requirements = state.requirements.map((item) => `<label class="check-row"><input type="checkbox" name="requirement_ids" value="${escapeHtml(item.requirement_id)}"><span>${escapeHtml(item.statement)}</span></label>`).join("");
     const decisions = state.current_decisions.length
-      ? `<label><span>${L("引用的用户决定（接受风险时需要）")}</span><select name="cited_decision_id"><option value="">${L("不引用")}</option>${
+      ? `<label data-concern-accept hidden><span>${L("引用的用户决定（接受风险时需要）")}</span><select name="cited_decision_id"><option value="">${L("不引用")}</option>${
         state.current_decisions.map((item) => `<option value="${escapeHtml(item.decision_id)}">${escapeHtml(item.conclusion)} · ${escapeHtml(item.actor_id)}</option>`).join("")
       }</select></label>`
-      : `<p class="form-note">${L("接受风险前需要一条覆盖该范围的用户决定。")}</p>`;
+      : `<p class="form-note" data-concern-accept hidden>${L("接受风险前需要一条覆盖该范围的用户决定。")}</p>`;
     return `<form class="event-form" data-event-form="concern" hidden>
-      <button type="button" class="text-button" data-event-back>${L("返回所选事件")}</button>
-      <h2>${L("问题与风险")}</h2>
-      <p class="form-lead">${L("记录需要跟进的问题，或更新已有问题的处理结果。")}</p>
-      ${existing}
-      <label><span>${L("标题")}</span><input name="title"></label>
-      <label><span>${L("说明")}</span><textarea name="statement" rows="3"></textarea></label>
-      <label><span>${L("理由")}</span><textarea name="reason" rows="2"></textarea></label>
+      <header class="event-form-heading"><h2>${L("问题与风险")}</h2>
+      <p class="form-lead">${L("记录需要跟进的问题，或更新已有问题的处理结果。")}</p></header>
+      <div class="event-form-body">${existing}
+      <label data-concern-new><span>${L("问题标题")}</span><input name="title" required placeholder="${L("发生了什么，需要跟进什么")}"></label>
+      <label data-concern-new><span>${L("说明")}</span><textarea name="statement" rows="3" required></textarea></label>
+      <label data-concern-existing hidden><span>${L("处理理由")}</span><textarea name="reason" rows="2"></textarea></label>
       <fieldset><legend>${L("明确影响范围")}</legend>
         <p class="form-note">${L("请说明影响哪项要求、哪条事件或哪个动作。")}</p>
         ${requirements || `<p class="form-note">${L("当前没有完成要求。仍可指定事件或动作。")}</p>`}
-        <label><span>${L("相关事件 ID（可选）")}</span><input name="event_ids" placeholder="gevt-…"></label>
-        <label><span>${L("相关动作（可选）")}</span><input name="scope_action" placeholder="complete"></label>
+        <details class="form-disclosure"><summary>${L("关联具体事件或动作（可选）")}</summary><label><span>${L("相关事件 ID")}</span><input name="event_ids" placeholder="gevt-…"></label>
+        <label><span>${L("相关动作（可选）")}</span><input name="scope_action" placeholder="${L("例如 complete（完成目标），或约定的动作名称")}"></label></details>
       </fieldset>
       ${decisions}
-      <label class="check-row"><input type="checkbox" name="blocks_closure" checked><span>${L("会挡住完成")}</span></label>
-      <p class="event-form-status" data-form-status hidden></p>
-      <button class="button primary" type="submit">${L("保存问题")}</button>
+      <label class="check-row" data-concern-new><input type="checkbox" name="blocks_closure" checked><span>${L("会挡住完成")}</span></label></div>
+      <div class="event-form-bottom"><p class="event-form-status" data-form-status role="status" hidden></p><footer class="event-form-actions"><button class="button" type="button" data-event-back>${L("取消")}</button><button class="button primary" type="submit">${L("保存问题")}</button></footer></div>
     </form>`;
   }
 
@@ -192,32 +186,28 @@ export function createEventDocumentForms(primitives: GoalsDocumentUiPrimitives) 
         ? `<input type="hidden" name="action" value="${escapeHtml(pendingAction)}"><p class="form-note">${L("待决定动作")}：${escapeHtml(pendingAction)}</p>`
         : `<label><span>${L("相关动作（授权或拒绝时填写，不从一句话猜测）")}</span><input name="action" placeholder="complete"></label>`}`;
     return `<form class="event-form" data-event-form="decision" data-pending-action="${escapeHtml(pendingAction)}" hidden>
-      <button type="button" class="text-button" data-event-back>${L("返回所选事件")}</button>
-      <h2>${L("用户决定")}</h2>
-      ${pending ? `<p class="reader-lead">${escapeHtml(pending.question)}</p><input type="hidden" name="request_id" value="${escapeHtml(pending.request_id)}">` : `<label><span>${L("结论")}</span><textarea name="conclusion" rows="3" required></textarea></label>`}
+      <header class="event-form-heading"><h2>${L("用户决定")}</h2></header>
+      <div class="event-form-body">${pending ? `<p class="reader-lead">${escapeHtml(pending.question)}</p><input type="hidden" name="request_id" value="${escapeHtml(pending.request_id)}">` : `<label><span>${L("结论")}</span><textarea name="conclusion" rows="3" required></textarea></label>`}
       ${options}
       ${pending?.proposed_change ? renderProposedChange(pending, state) : ""}
       ${expired ? `<p class="form-note">${L("这份请求所依据的结果或要求已经变化，不能按当时内容批准。请刷新或重新请求。")}</p>` : ""}
       ${effects}
       ${pending ? `<label><span>${L("结论")}</span><textarea name="conclusion" rows="2" required></textarea></label>` : ""}
-      <p class="form-note">${L("效果和范围由这里的选择决定，不会从任意一句话猜测批准。")}</p>
-      <p class="event-form-status" data-form-status hidden></p>
-      <button class="button primary" type="submit">${L("记录决定")}</button>
+      <p class="form-note">${L("效果和范围由这里的选择决定，不会从任意一句话猜测批准。")}</p></div>
+      <div class="event-form-bottom"><p class="event-form-status" data-form-status role="status" hidden></p><footer class="event-form-actions"><button class="button" type="button" data-event-back>${L("取消")}</button><button class="button primary" type="submit">${L("记录决定")}</button></footer></div>
     </form>`;
   }
 
   function renderClosureForm(state: GoalEventStateView): string {
     return `<form class="event-form" data-event-form="closure" hidden>
-      <button type="button" class="text-button" data-event-back>${L("返回所选事件")}</button>
-      <h2>${L("显式收尾")}</h2>
-      <label><span>${L("结论")}</span><select name="kind"><option value="complete">${L("完成")}</option><option value="cancel">${L("取消")}</option></select></label>
+      <header class="event-form-heading"><h2>${L("显式收尾")}</h2></header>
+      <div class="event-form-body"><label><span>${L("结论")}</span><select name="kind"><option value="complete">${L("完成")}</option><option value="cancel">${L("取消")}</option></select></label>
       <label><span>${L("结果说明")}</span><textarea name="result" rows="2"></textarea></label>
       <label><span>${L("理由")}</span><textarea name="reason" rows="3" required></textarea></label>
       <input type="hidden" name="expected_config_version" value="${state.config.version}">
       <input type="hidden" name="expected_agreement_version" value="${state.agreement.version}">
-      <p class="form-note">${L("如果约定已经变化，会停下来让你对照当前版本后重试，不会自动换版本提交旧判断。")}</p>
-      <p class="event-form-status" data-form-status hidden></p>
-      <button class="button primary" type="submit">${L("提交收尾")}</button>
+      <p class="form-note">${L("如果约定已经变化，会停下来让你对照当前版本后重试，不会自动换版本提交旧判断。")}</p></div>
+      <div class="event-form-bottom"><p class="event-form-status" data-form-status role="status" hidden></p><footer class="event-form-actions"><button class="button" type="button" data-event-back>${L("取消")}</button><button class="button primary" type="submit">${L("提交收尾")}</button></footer></div>
     </form>`;
   }
 
@@ -225,27 +215,23 @@ export function createEventDocumentForms(primitives: GoalsDocumentUiPrimitives) 
     if (doc.transfer.kind !== "resume_cancelled" && doc.transfer.kind !== "reopen_event_completed") return "";
     const completed = doc.transfer.kind === "reopen_event_completed";
     return `<form class="event-form" data-event-form="resume" hidden>
-      <button type="button" class="text-button" data-event-back>${L("返回所选事件")}</button>
-      <h2>${completed ? L("继续此目标") : L("继续已取消的目标")}</h2>
-      <p class="form-lead">${completed ? L("原完成事实和来源会保留。明确继续后开启新一轮工作。") : L("不会被普通记录自动恢复。")}</p>
-      <label><span>${L("理由")}</span><textarea name="reason" rows="3" required></textarea></label>
-      <p class="event-form-status" data-form-status hidden></p>
-      <button class="button primary" type="submit">${L("显式继续")}</button>
+      <header class="event-form-heading"><h2>${completed ? L("继续此目标") : L("继续已取消的目标")}</h2>
+      <p class="form-lead">${completed ? L("原完成事实和来源会保留。明确继续后开启新一轮工作。") : L("不会被普通记录自动恢复。")}</p></header>
+      <div class="event-form-body"><label><span>${L("理由")}</span><textarea name="reason" rows="3" required></textarea></label></div>
+      <div class="event-form-bottom"><p class="event-form-status" data-form-status role="status" hidden></p><footer class="event-form-actions"><button class="button" type="button" data-event-back>${L("取消")}</button><button class="button primary" type="submit">${L("显式继续")}</button></footer></div>
     </form>`;
   }
 
   function renderAdoptForm(doc: GoalEventDocumentView): string {
     const methods = doc.planning_methods.filter((item) => item.enabled !== false);
     const options = methods.map((item) => `<option value="${escapeHtml(item.method_id)}" data-version="${item.version}" data-source="${item.scope === "project" ? "project" : item.scope === "personal" ? "personal" : "built_in"}">${escapeHtml(item.name)} · ${escapeHtml(item.scope)} v${item.version}</option>`).join("");
-    const defaults = methods.flatMap((item) => item.default_requirements.map((req) => `<label class="check-row"><input type="checkbox" name="adopt_default_requirement_ids" value="${escapeHtml(req.requirement_id)}"><span>${escapeHtml(item.name)} · ${escapeHtml(req.statement)}</span></label>`)).join("");
+    const defaults = methods.flatMap((item) => item.default_requirements.map((req) => `<label class="check-row" data-adopt-method="${escapeHtml(item.method_id)}"${item.method_id === methods[0]?.method_id ? '' : ' hidden'}><input type="checkbox" name="adopt_default_requirement_ids" value="${escapeHtml(req.requirement_id)}"><span>${escapeHtml(item.name)} · ${escapeHtml(req.statement)}</span></label>`)).join("");
     return `<form class="event-form" data-event-form="adopt" data-config-version="${doc.state.config.version}" data-agreement-version="${doc.state.agreement.version}" hidden>
-      <button type="button" class="text-button" data-event-reader="planning">${L("返回记录模板")}</button>
-      <h2>${L("采用规划方法")}</h2>
-      <p class="form-lead">${L("只作用于当前 Goal。空白起点不会暗中补选。启用完成要求是分开的选择。")}</p>
-      <label><span>${L("方法")}</span><select name="method_id">${options || `<option value="">${L("当前没有可选用的方法")}</option>`}</select></label>
-      ${defaults ? `<fieldset><legend>${L("同时采用这些默认要求")}</legend>${defaults}</fieldset>` : ""}
-      <p class="event-form-status" data-form-status hidden></p>
-      <button class="button primary" type="submit">${L("采用到当前 Goal")}</button>
+      <header class="event-form-heading"><button type="button" class="text-button" data-event-reader="planning">${L("返回记录模板")}</button><h2>${L("采用规划方法")}</h2>
+      <p class="form-lead">${L("只作用于当前 Goal。空白起点不会暗中补选。启用完成要求是分开的选择。")}</p></header>
+      <div class="event-form-body"><label><span>${L("方法")}</span><select name="method_id">${options || `<option value="">${L("当前没有可选用的方法")}</option>`}</select></label>
+      ${defaults ? `<fieldset><legend>${L("同时采用完成要求（可选）")}</legend>${defaults}<p class="form-note" data-adopt-empty${methods[0]?.default_requirements.length ? ' hidden' : ''}>${L("这个规划没有预设完成要求。")}</p></fieldset>` : ""}</div>
+      <div class="event-form-bottom"><p class="event-form-status" data-form-status role="status" hidden></p><footer class="event-form-actions"><button class="button" type="button" data-event-back>${L("取消")}</button><button class="button primary" type="submit"${methods.length ? '' : ' disabled'}>${L("采用到当前 Goal")}</button></footer></div>
     </form>`;
   }
 
@@ -259,15 +245,13 @@ export function createEventDocumentForms(primitives: GoalsDocumentUiPrimitives) 
       ${item.human_decision_required ? `<p class="form-note">${L("取消人工验收需要你亲自确认这一份变化。")}</p>` : ""}
     </fieldset>`).join("");
     return `<form class="event-form" data-event-form="agreement" hidden>
-      <button type="button" class="text-button" data-event-back>${L("返回所选事件")}</button>
-      <h2>${L("修改当前约定")}</h2>
-      <label><span>${L("预期结果")}</span><textarea name="outcome" rows="3" required>${escapeHtml(state.agreement.outcome)}</textarea></label>
+      <header class="event-form-heading"><h2>${L("修改当前约定")}</h2></header>
+      <div class="event-form-body"><label><span>${L("预期结果")}</span><textarea name="outcome" rows="3" required>${escapeHtml(state.agreement.outcome)}</textarea></label>
       ${rows || `<p class="form-note">${L("还没有可修订的当前要求。")}</p>`}
       <input type="hidden" name="expected_config_version" value="${state.config.version}">
       <input type="hidden" name="expected_agreement_version" value="${state.agreement.version}">
-      <p class="form-note">${L("会同时核对约定版本和配置版本。改已有结果或要求原文、退休要求、取消人工验收都是可审阅的具体变化。冲突时停下来对照，不会自动换版本。")}</p>
-      <p class="event-form-status" data-form-status hidden></p>
-      <button class="button primary" type="submit">${L("保存约定")}</button>
+      <p class="form-note">${L("会同时核对约定版本和配置版本。改已有结果或要求原文、退休要求、取消人工验收都是可审阅的具体变化。冲突时停下来对照，不会自动换版本。")}</p></div>
+      <div class="event-form-bottom"><p class="event-form-status" data-form-status role="status" hidden></p><footer class="event-form-actions"><button class="button" type="button" data-event-back>${L("取消")}</button><button class="button primary" type="submit">${L("保存约定")}</button></footer></div>
     </form>`;
   }
 
@@ -326,31 +310,28 @@ export function createEventDocumentForms(primitives: GoalsDocumentUiPrimitives) 
 
   function renderTypeEditForms(doc: GoalEventDocumentView): string {
     return doc.types.map((type) => `<form class="event-form" data-event-form="type-edit" data-type-id="${escapeHtml(type.type_id)}" data-config-version="${doc.state.config.version}" hidden>
-      <button type="button" class="text-button" data-event-reader="planning">${L("返回记录模板")}</button>
-      <h2>${L("登记新版本")} · ${escapeHtml(type.name)}</h2>
-      <p class="form-lead">${L("历史事件仍按当时版本阅读。新报告使用 v{version}。", { version: type.version + 1 })}</p>
-      <input type="hidden" name="type_id" value="${escapeHtml(type.type_id)}">
+      <header class="event-form-heading"><button type="button" class="text-button" data-event-reader="planning">${L("返回记录模板")}</button><h2>${L("登记新版本")} · ${escapeHtml(type.name)}</h2>
+      <p class="form-lead">${L("历史事件仍按当时版本阅读。新报告使用 v{version}。", { version: type.version + 1 })}</p></header>
+      <div class="event-form-body"><input type="hidden" name="type_id" value="${escapeHtml(type.type_id)}">
       <input type="hidden" name="version" value="${type.version + 1}">
       <input type="hidden" name="semantic_family" value="${escapeHtml(type.semantic_family ?? "")}">
       <label><span>${L("名称")}</span><input name="name" required value="${escapeHtml(type.name)}"></label>
       <label><span>${L("用途")}</span><textarea name="purpose" rows="2" required>${escapeHtml(type.purpose)}</textarea></label>
       <div data-type-fields>${type.fields.map((field) => renderFieldRow(field)).join("")}</div>
-      <button type="button" class="button secondary" data-add-type-field>${L("增加字段")}</button>
-      <p class="event-form-status" data-form-status hidden></p>
-      <button class="button primary" type="submit">${L("保存新版本")}</button>
+      <button type="button" class="button secondary" data-add-type-field>${L("增加字段")}</button></div>
+      <div class="event-form-bottom"><p class="event-form-status" data-form-status role="status" hidden></p><footer class="event-form-actions"><button class="button" type="button" data-event-back>${L("取消")}</button><button class="button primary" type="submit">${L("保存新版本")}</button></footer></div>
     </form>`).join("");
   }
 
   function renderNoteForm(doc?: GoalEventDocumentView | null): string {
     return `<form class="event-form" data-event-form="note" hidden>
-      <button type="button" class="text-button" data-event-back>${L("返回所选事件")}</button>
-      <h2>${L("随手备注")}</h2>
-      <p class="form-lead">${L("只在时间线留下一笔。要让 AI 继续工作，请到 Runtime 中发送指令。")}</p>
-      ${doc?.types.length ? `<details class="record-templates"><summary>${L("使用记录模板")}</summary><div class="event-actions">${doc.types.map((type) => `<button type="button" class="button secondary" data-event-report="${escapeHtml(type.type_id)}">${escapeHtml(type.name)}</button>`).join("")}</div></details>` : ""}
+      <header class="event-form-heading"><h2>${L("随手备注")}</h2>
+      <p class="form-lead">${L("只在时间线留下一笔。要让 AI 继续工作，请到 Runtime 中发送指令。")}</p></header>
+      <div class="event-form-body">${doc?.types.length ? `<details class="record-templates"><summary>${L("使用记录模板")}</summary><div class="event-actions">${doc.types.map((type) => `<button type="button" class="button secondary" data-event-report="${escapeHtml(type.type_id)}">${escapeHtml(type.name)}</button>`).join("")}</div></details>` : ""}
       <label for="event-note">${L("备注")}</label>
       <textarea id="event-note" name="note" rows="3" maxlength="5000" required placeholder="${L("补充事实、想法，或说说你希望调整什么…")}"></textarea>
-      <div class="composer-bottom"><span>${L("保存到时间线，不会发送给 AI，也不会更改完成要求。")}</span><button class="button primary" type="submit">${L("保存记录")}</button></div>
-      <p class="event-form-status" data-form-status hidden></p>
+      <p class="event-form-help">${L("保存到时间线，不会发送给 AI，也不会更改完成要求。")}</p></div>
+      <div class="event-form-bottom"><p class="event-form-status" data-form-status role="status" hidden></p><footer class="event-form-actions"><button class="button" type="button" data-event-back>${L("取消")}</button><button class="button primary" type="submit">${L("保存记录")}</button></footer></div>
     </form>`;
   }
 

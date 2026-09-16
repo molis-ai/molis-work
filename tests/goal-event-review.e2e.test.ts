@@ -52,9 +52,15 @@ test("event document pointer path covers requirement form, concern body, note, s
   const history = () => app.goalEvents.listEvents(DEMO_BOARD_ID, goalId, { limit: 100 }).events;
   async function openGoal() {
     await navigate(() => command("Page.navigate", { url: `${origin}/goals/${goalId}` }, sessionId));
+    if (await evaluate("document.querySelector('[data-frame-goal-work]')?.getBoundingClientRect().width > 0")) await click("[data-frame-goal-work]");
     await waitFor(`document.querySelector('[data-goal-event-document]')?.dataset.goalView === ${JSON.stringify(goalId)}`);
   }
   async function planning() {
+    if (await evaluate("document.querySelector('[data-goal-event-document]')?.classList.contains('is-editing-goal')")) {
+      const formOpen = await visible('[data-event-form]:not([hidden])');
+      await click(formOpen ? '[data-event-form]:not([hidden]) footer [data-event-back]' : '.detail-toolbar [data-event-back]');
+    }
+    await click('.goal-more > summary');
     await click('[data-event-reader="planning"]');
     await waitFor(`!document.querySelector('[data-event-reader-root]').hidden`);
   }
@@ -77,8 +83,8 @@ test("event document pointer path covers requirement form, concern body, note, s
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await openGoal();
-  await planning();
-  await click('[data-event-form-open="requirement"]');
+  await click('[data-event-reader="requirements"]');
+  await click('[data-event-panel="requirements"] [data-event-form-open="requirement"]');
   assert.equal(await visible('[data-event-form="requirement"]'), true);
 
   await openGoal();
@@ -89,7 +95,8 @@ test("event document pointer path covers requirement form, concern body, note, s
   assert.match(concernBody, /重启后仍能接续同一个目标|restart/);
 
   await openGoal();
-  await click('[data-event-form-open="note"]');
+  await click('[data-record-menu] > summary');
+  await click('[data-record-menu] [data-event-form-open="note"]');
   const beforeNote = app.goalEvents.readState(DEMO_BOARD_ID, goalId).observed_event_cursor;
   await fillField('[data-event-form="note"] [name="note"]', "补充说明：明天继续核对重启后的历史读取。");
   await submitSuccess('[data-event-form="note"] button[type="submit"]');
@@ -100,7 +107,9 @@ test("event document pointer path covers requirement form, concern body, note, s
   await click(`[data-timeline-item="${selection}"]`);
   await waitFor(`document.querySelector('[data-event-sheet] .event')`);
   await planning();
-  await click('[data-event-form-open="progress"]');
+  await click('.detail-toolbar [data-event-back]');
+  await click('[data-record-menu] > summary');
+  await click('[data-record-menu] [data-event-form-open="progress"]');
   await fillField('[data-event-form="progress"] [name="summary"]', "保留当前阅读位置的进度更新");
   await fillField('[data-event-form="progress"] [name="next_step"]', "继续核对读取行为");
   await submitSuccess('[data-event-form="progress"] button[type="submit"]');
@@ -109,7 +118,9 @@ test("event document pointer path covers requirement form, concern body, note, s
   assert.equal(selectionAfter, selection);
 
   await planning();
-  await click('[data-event-form-open="progress"]');
+  await click('.detail-toolbar [data-event-back]');
+  await click('[data-record-menu] > summary');
+  await click('[data-record-menu] [data-event-form-open="progress"]');
   const beforeRetry = history().filter((event) => event.kind === "system" && event.payload.operation === "progress_summary").length;
   await fillField('[data-event-form="progress"] [name="summary"]', "写入成功但读回断线");
   await evaluate(`(() => {
@@ -131,7 +142,9 @@ test("event document pointer path covers requirement form, concern body, note, s
   assert.equal(app.goalEvents.readState(DEMO_BOARD_ID, goalId).progress_summary?.summary, "写入成功但读回断线");
 
   await planning();
-  await click('[data-event-panel="planning"] [data-event-form-open="closure"]');
+  await click('.detail-toolbar [data-event-back]');
+  await click('[data-event-reader="requirements"]');
+  await click('[data-event-panel="requirements"] [data-event-form-open="closure"]');
   await waitFor(`document.querySelector('[data-event-form="closure"]') && document.querySelector('[data-event-form="closure"]').hidden === false`);
   await evaluate(`(() => { const f=document.querySelector('[data-event-form="closure"]'); f.querySelector('[name="kind"]').value='complete'; })()`);
   await fillField('[data-event-form="closure"] [name="reason"]', "Concern 仍开着，完成应被挡住");

@@ -1,5 +1,6 @@
 import type { MolisWorkIcon } from "@molis-ai/molis-work-design-system";
 
+/** Standalone hub / embed fold stack. Workbench exclusive settings use project-settings-stage. */
 export type ProjectSettingsFoldId = "general" | "guidance" | "rules" | "planning";
 
 export interface ProjectSettingsFoldProject {
@@ -56,7 +57,7 @@ export function createProjectSettingsFolds(primitives: ProjectSettingsFoldsPrimi
         <button type="submit">${L("保存名称")}</button>
         <p class="settings-form-error" role="alert" hidden></p>
       </form>
-      ${storage}
+      ${storage ? `<details class="form-disclosure"><summary>${L("本地数据位置")}</summary>${storage}</details>` : ""}
     </section>`;
   }
 
@@ -96,7 +97,7 @@ export function createProjectSettingsFolds(primitives: ProjectSettingsFoldsPrimi
     const href = `/projects/${encodeURIComponent(project.project_id)}`;
     const open = options.showOpenTree === false
       ? ""
-      : `<a class="project-manager-open" href="${href}/">${icon("tree")}<span>${L("打开 Goal Tree")}</span></a>`;
+      : `<a class="project-manager-open" href="${href}/">${icon("tree")}<span>${L("打开工作台")}</span></a>`;
     return `<header class="project-manager-hero">
       <div>
         <${headingTag} id="project-pane-title-${safe}">${escapeHtml(project.display_name)}</${headingTag}>

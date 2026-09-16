@@ -34,7 +34,6 @@ export function createLocalGoalsReadHttp(ports: {
         return true;
       }
       const embed = url.searchParams.get("embed") === "1";
-      if (!embed) return false;
       const html = renderMolisWorkProjectSettingsHub(
         view,
         coordinator.goalQueries.readProjectGuidance(boardId),
@@ -42,7 +41,7 @@ export function createLocalGoalsReadHttp(ports: {
         controlToken,
         isDesktopShellRequest(request, url),
         open,
-        open,
+        embed ? open : null,
       );
       response.writeHead(200, {
         "content-type": "text/html; charset=utf-8",

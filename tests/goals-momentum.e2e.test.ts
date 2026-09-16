@@ -11,6 +11,7 @@ test("canvas retries graph loading, pans without bounds, drags compact nodes wit
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Network.setBlockedURLs", { urls: [origin + "/api/board/momentum*"] }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/" }, sessionId));
+  await click('[data-plugin-id="goals"]');
   await waitFor("document.querySelector('[data-retry-goal-momentum]')?.hidden === false && !document.querySelector('[data-goal-momentum]').hasAttribute('aria-busy')");
   assert.deepEqual(store.snapshot(DEMO_BOARD_ID).runs, before.runs);
   await command("Network.setBlockedURLs", { urls: [] }, sessionId);
@@ -41,7 +42,7 @@ test("canvas retries graph loading, pans without bounds, drags compact nodes wit
   await reloadPage();
   await waitFor("document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true'");
   assert.equal(await evaluate("document.querySelector(" + JSON.stringify(node) + ").style.transform"), moved);
-  await click(node);
+  await click(node + " [data-graph-open]");
   await waitFor("document.querySelector('[data-goal-node-workspace]').dataset.expandedGoal === 'INTERFACES'");
   assert.equal(await evaluate("location.pathname"), "/goals/INTERFACES");
   const after = store.snapshot(DEMO_BOARD_ID);

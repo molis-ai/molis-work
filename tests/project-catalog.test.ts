@@ -151,8 +151,10 @@ test("opening a future catalog fails without rewriting its schema or project fac
 
     const databasePath = join(home, "projects", "catalog.db");
     const future = new Database(databasePath);
+    const supportedVersion = Number(future.prepare("SELECT value FROM catalog_meta WHERE key = 'schema_version'").pluck().get());
+    const futureVersion = supportedVersion + 1;
     try {
-      future.prepare("UPDATE catalog_meta SET value = '12' WHERE key = 'schema_version'").run();
+      future.prepare("UPDATE catalog_meta SET value = ? WHERE key = 'schema_version'").run(String(futureVersion));
     } finally {
       future.close();
     }
@@ -162,15 +164,15 @@ test("opening a future catalog fails without rewriting its schema or project fac
       (error: unknown) =>
         error instanceof MolisWorkProjectCatalogError
         && error.code === "catalog.reader_too_old"
-        && error.details.actual_schema_version === 12
-        && error.details.supported_schema_max === 11,
+        && error.details.actual_schema_version === futureVersion
+        && error.details.supported_schema_max === supportedVersion,
     );
 
     const preserved = new Database(databasePath, { readonly: true });
     try {
       assert.equal(
         preserved.prepare("SELECT value FROM catalog_meta WHERE key = 'schema_version'").pluck().get(),
-        "12",
+        String(futureVersion),
       );
       assert.equal(
         preserved.prepare("SELECT display_name FROM projects WHERE project_id = ?").pluck().get(project.project_id),

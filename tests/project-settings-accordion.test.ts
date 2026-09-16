@@ -54,7 +54,7 @@ test("project manager right pane only edits identity and deletion", () => {
   assert.match(css, /\.settings-navigation--codex/);
 });
 
-test("workbench project gear stays on the project settings stage path", () => {
+test("workbench project gear links to the standalone settings path", () => {
   const html = renderMolisWorkWeb({
     snapshot: {
       board: {
@@ -114,6 +114,6 @@ test("workbench project gear stays on the project settings stage path", () => {
     },
   } as MolisWorkWebView);
   assert.match(html, /class="navigator-project-settings" href="\/projects\/project-1\/settings"/);
-  assert.match(html, /data-work-surface="project-settings"/);
+  assert.doesNotMatch(html, /data-work-surface="project-settings"/);
   assert.doesNotMatch(html, /navigator-project-settings" href="[^"]*\/settings\/guidance/);
 });

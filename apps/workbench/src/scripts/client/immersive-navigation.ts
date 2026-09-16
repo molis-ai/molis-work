@@ -88,8 +88,6 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
     }
     const goalTools = document.querySelector("[data-immersive-goal-tools]");
     if (goalTools) goalTools.hidden = true;
-    const feedViews = document.querySelector("[data-feed-views]");
-    if (feedViews) feedViews.hidden = true;
     const listTitle = document.querySelector("[data-directory-list-title]");
     if (listTitle) {
       const directory = treePane.dataset.desktopDirectory || "root";

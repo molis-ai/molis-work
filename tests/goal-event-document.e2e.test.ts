@@ -74,6 +74,7 @@ test("event document writes planning, report, concern, decision and closure thro
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await command("Page.addScriptToEvaluateOnNewDocument", { source: `(()=>{const original=window.setInterval;window.setInterval=function(fn,ms,...args){if(ms===4000&&typeof fn==='function')window.__refreshCallback=fn;return original.call(this,fn,ms,...args);};})()` }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/goals/" + encodeURIComponent(goalId) }, sessionId));
+    if (await evaluate("document.querySelector('[data-frame-goal-work]')?.getBoundingClientRect().width > 0")) await click("[data-frame-goal-work]");
   await waitDom(`document.querySelector('[data-goal-event-document]')?.dataset.goalView === ${JSON.stringify(goalId)}`);
   const headerBeforeHistory = await evaluate("document.querySelector('[data-current-summary]')?.textContent");
   await openPlanning();
@@ -308,6 +309,7 @@ test("legacy unfinished Goal history remains readable without writing owner or a
   assert.equal(beforeEvidence.locator, evidenceLocator);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/goals/" + encodeURIComponent(goalId) }, sessionId));
+    if (await evaluate("document.querySelector('[data-frame-goal-work]')?.getBoundingClientRect().width > 0")) await click("[data-frame-goal-work]");
   await waitFor(`document.querySelector('[data-goal-event-document]')?.dataset.goalView === ${JSON.stringify(goalId)}`);
   const page = await evaluate("document.querySelector('[data-goal-event-document]:not([hidden])')?.outerHTML || ''") as string;
   assert.match(page, new RegExp(originalTitle));
@@ -359,6 +361,7 @@ test("timeline pagination retries in place and preserves dates, type markers and
   await command("Network.enable", {}, sessionId);
   await command("Emulation.setTimezoneOverride", { timezoneId: "Asia/Shanghai" }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/goals/" + encodeURIComponent(goal.goal_id) }, sessionId));
+    if (await evaluate("document.querySelector('[data-frame-goal-work]')?.getBoundingClientRect().width > 0")) await click("[data-frame-goal-work]");
   if (await evaluate("document.querySelector('[data-document-pane]').hidden")) await click("[data-goal-details-toggle]");
   await waitFor("document.querySelector('[data-load-more-timeline]') && !document.querySelector('[data-load-more-timeline]').hidden");
   await command("Network.setBlockedURLs", { urls: [origin + "/api/goals/" + goal.goal_id + "/event-timeline*"] }, sessionId);

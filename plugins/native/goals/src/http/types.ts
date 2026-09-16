@@ -16,7 +16,7 @@ export interface GoalsHttpContext {
   idempotencyHeader: string | string[] | undefined;
   snapshot(): BoardSnapshot;
   changed(): void;
-  commands: Pick<GoalsApplicationApi["commands"], "addProjectGuidance" | "updateProjectGuidance">;
+  commands: Pick<GoalsApplicationApi["commands"], "addProjectGuidance" | "updateProjectGuidance" | "saveProjectPolicy" | "addRelation" | "deactivateRelation">;
   lifecycle: GoalsApplicationApi["lifecycle"];
   query: Pick<GoalReadApplication, "readGoalContract" | "readProjectGuidance">;
   setActiveGoal: GoalsCommandApi["setActiveGoal"];

@@ -70,7 +70,7 @@ test("Artifact HTTP links exact versions, exports opaque records and preserves e
   const before = store.snapshot(DEMO_BOARD_ID);
   const versions = coordinator.artifacts.query.listArtifacts(DEMO_BOARD_ID);
   const root = await (await get("/")).text();
-  assert.match(root, /data-work-surface-open="artifacts"/);
+  assert.match(root, /data-plugin-id="artifacts"/);
   const index = await get("/artifacts");
   assert.equal(index.status, 200);
   const directory = await index.text();
@@ -173,6 +173,7 @@ test("Artifact navigation and export retain the selected catalog Project", async
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: directory });
   const alpha = await catalog.createProject({ display_name: "Alpha results", actor_id: "fixture-user" });
   const beta = await catalog.createProject({ display_name: "Beta results", actor_id: "fixture-user" });
+  catalog.addProjectPlugin({ project_id: alpha.project_id, plugin_id: "artifacts", actor_id: "fixture-user" });
   catalog.close();
   const store = new LocalProjectDatabase(alpha.database_path);
   const coordinator = new GoalProjectApplication(store);
@@ -192,7 +193,7 @@ test("Artifact navigation and export retain the selected catalog Project", async
   assert.ok(page.includes(`href="${prefix}/"`));
   const root = await (await fetch(origin + prefix + "/")).text();
   assert.ok(root.includes(`data-route-prefix="${prefix}"`));
-  assert.match(root, /data-work-surface-open="artifacts"/);
+  assert.match(root, /data-plugin-id="artifacts"/);
   const exported = await fetch(origin + prefix + `/api${exactPath(1)}/export`);
   assert.deepEqual(await exported.json(), original);
   const other = await fetch(origin + `/projects/${beta.project_id}` + exactPath(1));
@@ -259,4 +260,18 @@ test("Goal context embeds explicit exact Artifact relations and refreshes owner 
   const unknown = await get("/goals/missing");
   assert.equal(unknown.status, 404);
   assert.doesNotMatch(await unknown.text(), /artifact-embed|report/);
+});
+
+
+test("Artifact browser distinguishes no results, unselected versions and missing references", async t => {
+  const {coordinator,get}=await fixture(t);
+  const empty=await (await get("/artifacts")).text();
+  assert.match(empty,/还没有项目成果/);
+  assert.doesNotMatch(empty,/<h1>选择一个结果版本<\/h1>/);
+  coordinator.artifacts.commands.registerVersion(registration());
+  const unselected=await (await get("/artifacts")).text();
+  assert.match(unselected,/<h1>选择一个结果版本<\/h1>/);
+  const missing=await (await get(exactPath(99))).text();
+  assert.match(missing,/找不到这个 Artifact 版本/);
+  assert.match(missing,/不会自动替换成最新版本/);
 });

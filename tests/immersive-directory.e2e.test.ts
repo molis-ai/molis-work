@@ -86,7 +86,8 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
   await click('[data-plugin-strip] [data-plugin-id="feed"]');
   await waitFor("document.body.dataset.desktopSurface === 'feed' && !document.querySelector('[data-feed-empty]').hidden && Boolean(document.querySelector('[data-feed-stage-directory]')) && Boolean(document.querySelector('[data-feed-task=all].is-open'))");
   assert.equal(await evaluate("document.querySelector('[data-feed-list]')?.closest('#goal-tree-pane')"), null);
-  assert.equal(await evaluate("document.querySelector('[data-feed-views]')?.hidden ?? true"), true);
+  assert.equal(await evaluate("document.querySelector('[data-feed-views]')"), null);
+  assert.equal(await evaluate("document.querySelector('#goal-tree-pane')?.dataset.desktopDirectory"), "root");
   assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-feed-empty]')).backgroundColor"), "rgba(0, 0, 0, 0)");
   const emptyText = await evaluate<string>("document.querySelector('[data-feed-empty]').textContent");
   assert.match(emptyText, /添加任务/);

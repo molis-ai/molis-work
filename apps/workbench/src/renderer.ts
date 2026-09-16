@@ -35,8 +35,10 @@ import { IMMERSIVE_NAVIGATION_STYLES } from "./styles/immersive-navigation.js";
 import { PROJECT_HOME_STYLES } from "./styles/project-home.js";
 import { IMMERSIVE_DIRECTORY_STYLES } from "./styles/immersive-directory.js";
 import { GOAL_CANVAS_STYLES } from "./styles/goal-canvas.js";
+import { SURFACE_LANGUAGE_STYLES } from "./styles/surface-language.js";
+import { DETAIL_READING_STYLES } from "./styles/detail-reading.js";
 import { TAB_WORKSPACE_STYLES } from "./styles/tab-workspace.js";
-import { PROJECT_SETTINGS_STAGE_STYLES } from "./styles/project-settings-stage.js";
+import { PROJECT_SETTINGS_PAGE_STYLES } from "./styles/project-settings-page.js";
 import { MORE_STYLES } from "./browser-assets.js";
 import { PROJECT_GUIDANCE_SETTINGS_STYLES } from "./browser-assets.js";
 import { PROJECT_INDEX_STYLES } from "./browser-assets.js";
@@ -359,13 +361,13 @@ function prefixLocalLinks(html: string, routePrefix: string, desktopShell = fals
     .replaceAll('href="__WORKBENCH_CSS__"', 'href="/assets/molis-work-workbench.css"')
     .replaceAll('href="__PROJECT_SETTINGS__"', `href="${routePrefix ? `${routePrefix}/settings` : "/settings/projects"}"`)
     .replaceAll('href="__PROJECT_RULES_SETTINGS__"', `href="${routePrefix ? `${routePrefix}/settings/rules` : "/settings/projects"}"`)
-    .replaceAll('href="__SYSTEM_SETTINGS__"', 'href="/settings/appearance"');
+    .replaceAll('href="__SYSTEM_SETTINGS__"', `href="/settings/appearance${routePrefix ? `?project=${encodeURIComponent(routePrefix.split("/")[2]!)}` : ""}"`);
   return desktopShell ? appendDesktopQueryToLocalHrefs(resolved) : resolved;
 }
 
 /** Shared workbench presentation. Kept outside project HTML so the browser can reuse it. */
 function renderMolisWorkWorkbenchStylesheet(): string {
-  return `${STYLES}${MORE_STYLES}${RESPONSIVE_STYLES}${VISUAL_FOUNDATION_STYLES}${TRASH_GOAL_STYLES}${PROJECT_OPERATIONS_STYLES}${ARTIFACT_EMBED_STYLES}${ARTIFACT_WORKBENCH_STYLES}${IMMERSIVE_NAVIGATION_STYLES}${IMMERSIVE_DIRECTORY_STYLES}${PROJECT_HOME_STYLES}${GOAL_CANVAS_STYLES}${TAB_WORKSPACE_STYLES}${PROJECT_SETTINGS_STAGE_STYLES}${PROJECT_GUIDANCE_SETTINGS_STYLES}${PROJECT_RULES_SETTINGS_STYLES}${PLANNING_SETTINGS_STYLES}.document-pane.is-syncing .goal-document { animation: none; }${COSS_CONTROL_STYLES}`;
+  return `${STYLES}${MORE_STYLES}${RESPONSIVE_STYLES}${VISUAL_FOUNDATION_STYLES}${TRASH_GOAL_STYLES}${PROJECT_OPERATIONS_STYLES}${ARTIFACT_EMBED_STYLES}${ARTIFACT_WORKBENCH_STYLES}${IMMERSIVE_NAVIGATION_STYLES}${IMMERSIVE_DIRECTORY_STYLES}${PROJECT_HOME_STYLES}${GOAL_CANVAS_STYLES}${TAB_WORKSPACE_STYLES}${DETAIL_READING_STYLES}${PROJECT_GUIDANCE_SETTINGS_STYLES}${PROJECT_RULES_SETTINGS_STYLES}${PLANNING_SETTINGS_STYLES}.document-pane.is-syncing .goal-document { animation: none; }${COSS_CONTROL_STYLES}${SURFACE_LANGUAGE_STYLES}`;
 }
 
 /** Full-screen first-run and update journey. */
@@ -375,12 +377,12 @@ function renderMolisWorkOnboardingStylesheet(): string {
 
 /** Shared project index presentation. */
 function renderMolisWorkProjectIndexStylesheet(): string {
-  return `${STYLES}${VISUAL_FOUNDATION_STYLES}${PROJECT_INDEX_STYLES}${COSS_CONTROL_STYLES}`;
+  return `${STYLES}${VISUAL_FOUNDATION_STYLES}${PROJECT_INDEX_STYLES}${COSS_CONTROL_STYLES}${SURFACE_LANGUAGE_STYLES}`;
 }
 
 /** Shared settings presentation, reused across project and global settings routes. */
 function renderMolisWorkSettingsStylesheet(): string {
-  return `${STYLES}${MORE_STYLES}${RESPONSIVE_STYLES}${SETTINGS_STYLES}${PROJECT_GUIDANCE_SETTINGS_STYLES}${PROJECT_RULES_SETTINGS_STYLES}${PLANNING_SETTINGS_STYLES}${VISUAL_FOUNDATION_STYLES}${PROJECT_INDEX_STYLES}${SETTINGS_IA_NAV_STYLES}${COSS_CONTROL_STYLES}`;
+  return `${STYLES}${MORE_STYLES}${RESPONSIVE_STYLES}${SETTINGS_STYLES}${PROJECT_GUIDANCE_SETTINGS_STYLES}${PROJECT_RULES_SETTINGS_STYLES}${PLANNING_SETTINGS_STYLES}${VISUAL_FOUNDATION_STYLES}${PROJECT_INDEX_STYLES}${SETTINGS_IA_NAV_STYLES}${COSS_CONTROL_STYLES}${PROJECT_SETTINGS_PAGE_STYLES}${SURFACE_LANGUAGE_STYLES}`;
 }
 
 /** Shared workbench behavior. Locale strings and project facts remain page-local. */

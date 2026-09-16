@@ -107,7 +107,7 @@ test("Planning details and editors preserve scope, instructions, blank rows and 
   const blank = renderer.renderMethod(null, "new", "personal", null);
   assert.match(blank, /data-coverage-row/);
   assert.match(blank, /data-dependency-row/);
-  assert.match(blank, /name="instructions" rows="18" required/);
+  assert.match(blank, /name="instructions" rows="10" required/);
   assert.match(runWithLocale("en", () => renderer.renderMethod(null, "new", "personal", null)), /Save to my method library/);
 });
 

@@ -112,7 +112,7 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     const point = await evaluate<{ x: number; y: number }>(`(async () => { const element = document.querySelector(${JSON.stringify(selector)});
       if (!element) throw new Error('Missing click target'); element.scrollIntoView({block:'center',behavior:'instant'});
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-      const rect = element.getBoundingClientRect(); if (!rect.width || !rect.height) throw new Error('Hidden click target');
+      const rect = element.getBoundingClientRect(); if (!rect.width || !rect.height) throw new Error('Hidden click target: ' + ${JSON.stringify(selector)});
       const hit = document.elementFromPoint(rect.x+rect.width/2,rect.y+rect.height/2);
       if (!element.contains(hit)) throw new Error('Click target ' + ${JSON.stringify(selector)} + ' is covered by ' + hit?.outerHTML.slice(0, 400));
       return {x:rect.x+rect.width/2,y:rect.y+rect.height/2}; })()`);

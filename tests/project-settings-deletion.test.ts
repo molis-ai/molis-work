@@ -54,20 +54,20 @@ test("project settings deletion requires authorization and confirmation, closes 
   const initial = await fetch(origin + prefix + "/settings/general");
   assert.equal(initial.status, 200);
   const workbench = await initial.text();
-  assert.match(workbench, /immersive-workbench/);
-  assert.match(workbench, /data-work-surface="project-settings"/);
-  assert.match(workbench, /data-project-settings-dir/);
+  assert.match(workbench, /project-preferences-page/);
+  assert.doesNotMatch(workbench, /data-work-surface="project-settings"/);
+  assert.match(workbench, /project-settings-navigation/);
   assert.doesNotMatch(workbench, /project-settings-hub-page/);
   const englishPage = await (await fetch(origin + prefix + "/settings/general?embed=1", { headers: { "accept-language": "en" } })).text();
-  assert.match(englishPage, /data-settings-fold="general"/);
+  assert.match(englishPage, /data-project-rename=/);
   assert.match(englishPage, />Project name</);
   assert.match(englishPage, />Confirm project deletion<\/button>/);
   assert.doesNotMatch(englishPage, /<!doctype/i);
   const hub = await fetch(origin + prefix + "/settings");
   assert.equal(hub.status, 200);
   const hubPage = await hub.text();
-  assert.match(hubPage, /data-work-surface="project-settings"/);
-  assert.match(hubPage, /data-project-settings-page="planning"/);
+  assert.match(hubPage, /project-preferences-page/);
+  assert.match(hubPage, /href="[^"]*\/settings\/planning"/);
   assert.doesNotMatch(hubPage, /project-settings-hub-page/);
   const embed = await fetch(origin + prefix + "/settings/guidance?embed=1");
   assert.equal(embed.status, 200);
@@ -76,7 +76,7 @@ test("project settings deletion requires authorization and confirmation, closes 
   assert.match(embedHtml, /guidance-document|data-guidance-new/);
   const generalEmbed = await (await fetch(origin + prefix + "/settings/general?embed=1")).text();
   assert.match(generalEmbed, /data-project-delete-dialog/);
-  assert.match(generalEmbed, /project-manager-storage/);
+  assert.match(generalEmbed, /settings-data-disclosure/);
   assert.equal(localHost.status().projects.some(item => item.project_id === project.project_id), true);
 
   const renamed = await post(`/api/settings/projects/${project.project_id}/rename`, { display_name: "已经改名的项目" });

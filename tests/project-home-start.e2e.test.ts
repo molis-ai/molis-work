@@ -96,22 +96,18 @@ test("Home keeps local calendar and quotes current without enabling Agent input 
   assert.equal(await evaluate("document.querySelector('[data-home-agent-input]').value"), "");
   assert.equal(await evaluate("document.querySelector('[data-quote-step], [data-quote-pause], [data-home-draft], [data-home-activity]')"), null);
   await command("Input.dispatchMouseEvent", { type: "mouseMoved", x: 10, y: 10 }, sessionId);
-  await evaluate("document.activeElement.blur();window.__homeTimers[5000]()");
+  assert.equal(await evaluate("window.__homeTimers[5000] === undefined"), true, "quotes never rotate on a timer");
+  await click("[data-home-quote-next]");
   assert.equal(await evaluate(quote), "1");
   const focusedQuote=await evaluate<any>("(()=>{const link=document.querySelector('[data-home-quote][aria-hidden=false] a');link.focus();const q=link.closest('figure'),s=getComputedStyle(q);return {focused:document.activeElement===link,inert:q.inert,hasInert:q.hasAttribute('inert'),aria:q.getAttribute('aria-hidden'),visibility:s.visibility,transition:s.transition,animation:s.animation,active:document.activeElement.tagName}})()");
   assert.equal(focusedQuote.focused,true,JSON.stringify(focusedQuote));
   assert.equal(await evaluate("(()=>{const link=document.querySelector('[data-home-quote][aria-hidden=true] a');link.focus();return document.activeElement===link})()"),false,"inactive citation cannot take keyboard focus");
-  await evaluate("window.__homeTimers[5000]()");
-  assert.equal(await evaluate(quote), "1", "focused citation pauses rotation");
-  await click('[data-plugin-strip] [data-plugin-id="goals"]');
+  await click('[data-work-surface-open="goal"]');
   await waitFor("document.body.dataset.desktopSurface === 'goal'");
-  await evaluate("window.__homeTimers[5000]()");
-  assert.equal(await evaluate(quote), "1", "non-home surface pauses rotation");
+  assert.equal(await evaluate(quote), "1", "navigation leaves the chosen quotation unchanged");
   await click('[data-plugin-strip] [data-plugin-id="home"]');
-  await evaluate("document.activeElement.blur();Object.defineProperty(document,'hidden',{configurable:true,value:true});window.__homeTimers[5000]();delete document.hidden");
-  assert.equal(await evaluate(quote), "1", "background page pauses rotation");
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "no-preference" }] }, sessionId);
-  await evaluate("window.__homeTimers[5000]()");
+  await evaluate("document.querySelector('[data-home-quote-next]').click()");
   assert.equal(await evaluate("document.querySelector('.home-quote-pages').classList.contains('is-changing')"), true);
   assert.equal(await evaluate(quote), "1", "old words remain until fade completes");
   await waitFor(quote + " === '2'");
@@ -121,14 +117,19 @@ test("Home keeps local calendar and quotes current without enabling Agent input 
     await command("Emulation.setDeviceMetricsOverride", { width,height,deviceScaleFactor:1,mobile:width<600 }, sessionId);
     await evaluate(`document.documentElement.dataset.resolvedTheme=${JSON.stringify(dark?"dark":"light")};document.activeElement.blur()`);
     await command("Input.dispatchMouseEvent", { type:"mouseMoved", x:1,y:1 }, sessionId);
+    if (width===390) {
+      const targets=await evaluate<number[]>("[...document.querySelectorAll('[data-home-quote-next],.home-goals-entry')].map(x=>x.getBoundingClientRect().height)");
+      assert.equal(targets.length,2);
+      assert.ok(targets.every(height=>height>=44),name+": new Home actions have 44px touch targets");
+    }
     const heights:number[]=[];
     for(let i=0;i<adeptifyCopy.length+3;i++) {
-      await evaluate("window.__homeTimers[5000]()");
+      await evaluate("document.querySelector('[data-home-quote-next]').click()");
       heights.push(await evaluate<number>("document.querySelector('.home-context').getBoundingClientRect().height"));
     }
     assert.ok(Math.max(...heights)-Math.min(...heights)<1, name+": quotes must not shift layout");
     assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"),true,name);
-    await evaluate("for(let n=0;n<13&&document.querySelector('[data-home-quote][aria-hidden=false]').dataset.homeQuote!=='4';n++)window.__homeTimers[5000]()");
+    await evaluate("for(let n=0;n<13&&document.querySelector('[data-home-quote][aria-hidden=false]').dataset.homeQuote!=='4';n++)document.querySelector('[data-home-quote-next]').click()");
     await evaluate("document.querySelector('[data-work-surface=home]').scrollTop=0;new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))");
     const shot=await command<{data:string}>("Page.captureScreenshot",{format:"png",captureBeyondViewport:false},sessionId);
     await writeFile(new URL(name+".png",captures),Buffer.from(shot.data,"base64"));
@@ -145,14 +146,14 @@ test("Home keeps local calendar and quotes current without enabling Agent input 
     const heights:number[]=[];
     const visited=new Set<string>();
     for(let i=0;i<adeptifyCopy.length+3;i++){
-      await evaluate("window.__homeTimers[5000]()");
+      await evaluate("document.querySelector('[data-home-quote-next]').click()");
       heights.push(await evaluate<number>("document.querySelector('.home-context').getBoundingClientRect().height"));
       visited.add(await evaluate<string>(quote));
       assert.equal(await evaluate("[...document.querySelectorAll('[data-home-quote]')].every(q=>q.inert===(q.getAttribute('aria-hidden')==='true')&&getComputedStyle(q).visibility===(q.inert?'hidden':'visible'))"),true);
     }
     assert.equal(visited.size,adeptifyCopy.length+3,"every passage is actually reachable in a full rotation");
     assert.ok(Math.max(...heights)-Math.min(...heights)<1,name+": translated quotes must not shift layout: "+heights.join(','));
-    await evaluate("for(let n=0;n<13&&document.querySelector('[data-home-quote][aria-hidden=false]').dataset.homeQuote!=='4';n++)window.__homeTimers[5000]()");
+    await evaluate("for(let n=0;n<13&&document.querySelector('[data-home-quote][aria-hidden=false]').dataset.homeQuote!=='4';n++)document.querySelector('[data-home-quote-next]').click()");
     const shot=await command<{data:string}>("Page.captureScreenshot",{format:"png",captureBeyondViewport:false},sessionId);
     await writeFile(new URL(name+".png",captures),Buffer.from(shot.data,"base64"));
   }

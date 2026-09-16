@@ -1,78 +1,87 @@
 ---
-name: Molis Work Calm Desktop
-description: A calm single-directory workbench with a dependency canvas and a fixed expanded Goal workspace combining full-height Runtime, collapsible Goal info, and an inline timeline.
+name: Molis Work Coss Workbench
+description: A neutral, compact personal workbench with continuous work surfaces, edge-attached editors, grouped work tabs, and restrained state feedback.
 colors:
-  accent: "#5068b7"
-  accent-strong: "#344b9b"
-  accent-soft: "#e9edfb"
-  app-canvas: "#f3f3f5"
-  goal-canvas: "#ffffff"
-  navigator: "#f1f1f3"
-  ink: "#19191b"
-  ink-soft: "#424247"
-  muted: "#62626b"
-  faint: "#66666f"
-  line: "#e7e7ea"
-  line-strong: "#d9d9de"
-  action: "#202023"
-  action-ink: "#fbfbfc"
-  terminal-dark: "#101012"
-  terminal-light: "#fbfbfc"
-  semantic-green: "#347759"
-  semantic-amber: "#936b2d"
-  semantic-red: "#a64e51"
+  page: "#f7f7f8"
+  paper: "#ffffff"
+  rail: "#f4f4f5"
+  nav-bg: "#f7f7f8"
+  ink: "#202023"
+  ink-soft: "#515157"
+  muted: "#65656d"
+  faint: "#707078"
+  line: "#e5e5e8"
+  line-strong: "#d4d4d8"
+  nav-hover: "#ededf0"
+  nav-active: "#e8e8ec"
+  nav-raised: "#ffffff"
+  accent: "#5c5cc9"
+  accent-strong: "#4848b0"
+  accent-soft: "#eeeef9"
+  action: "#252528"
+  action-ink: "#ffffff"
+  dark-page: "#141416"
+  dark-paper: "#1c1c1f"
+  dark-nav-bg: "#171719"
+  dark-ink: "#f0f0f2"
+  dark-ink-soft: "#c1c1c8"
+  dark-muted: "#a2a2ab"
+  dark-faint: "#9696a0"
+  dark-line: "#2d2d32"
+  dark-line-strong: "#414148"
+  dark-nav-hover: "#242428"
+  dark-nav-active: "#2b2b30"
+  dark-nav-raised: "#303035"
+  dark-accent: "#b1adf6"
+  dark-accent-strong: "#c4c1ff"
+  dark-accent-soft: "#2d2b43"
+  dark-action: "#ededf0"
+  dark-action-ink: "#202023"
 typography:
+  body:
+    fontFamily: "-apple-system, BlinkMacSystemFont, SF Pro Text, PingFang SC, Microsoft YaHei, sans-serif"
+    fontSize: "13px"
+    fontWeight: 400
+    lineHeight: 1.55
+  directory-title:
+    fontSize: "13px"
+    fontWeight: 450
+    lineHeight: "20px"
+  directory-caption:
+    fontSize: "12px"
+    fontWeight: 500
+    lineHeight: "18px"
+  tab:
+    fontSize: "12px"
+    fontWeight: 450
+  event-heading:
+    fontSize: "16px"
+    fontWeight: 550
+    lineHeight: 1.5
+    letterSpacing: "-.01em"
+  settings-heading:
+    fontSize: "20px"
+    fontWeight: 600
+    lineHeight: 1.4
+    letterSpacing: "-.025em"
   home-quote:
     fontFamily: "Songti SC, Noto Serif CJK SC, STSong, Georgia, serif"
     fontSize: "17px"
     fontWeight: 400
     lineHeight: 1.85
     letterSpacing: "0.015em"
-  goal-title:
-    fontFamily: "-apple-system, BlinkMacSystemFont, SF Pro Text, PingFang SC, Microsoft YaHei, system-ui, sans-serif"
-    fontSize: "16px"
-    fontWeight: 650
-    lineHeight: 1.4
-    letterSpacing: "-0.02em"
-  display:
-    fontFamily: "-apple-system, BlinkMacSystemFont, SF Pro Text, PingFang SC, Microsoft YaHei, system-ui, sans-serif"
-    fontSize: "clamp(27px, 2.25vw, 34px)"
-    fontWeight: 710
-    lineHeight: 1.2
-    letterSpacing: "-0.035em"
-  headline:
-    fontFamily: "-apple-system, BlinkMacSystemFont, SF Pro Text, PingFang SC, Microsoft YaHei, system-ui, sans-serif"
-    fontSize: "17px"
-    fontWeight: 700
-    lineHeight: 1.35
-    letterSpacing: "-0.015em"
-  body:
-    fontFamily: "-apple-system, BlinkMacSystemFont, SF Pro Text, PingFang SC, Microsoft YaHei, system-ui, sans-serif"
-    fontSize: "13px"
-    fontWeight: 400
-    lineHeight: 1.52
-    letterSpacing: "normal"
-  label:
-    fontFamily: "-apple-system, BlinkMacSystemFont, SF Pro Text, PingFang SC, Microsoft YaHei, system-ui, sans-serif"
-    fontSize: "11px"
-    fontWeight: 650
-    lineHeight: 1.4
-    letterSpacing: "normal"
 rounded:
-  home-composer: "23px"
   item: "6px"
-  control: "10px"
-  transient: "10px"
+  control: "8px"
   surface: "12px"
-  canvas-node: "12px"
+  home-composer: "23px"
 spacing:
   xs: "4px"
   sm: "8px"
   md: "12px"
+  content: "16px"
   lg: "24px"
   xl: "32px"
-  workspace-frame: "18px"
-  mobile-workspace-frame: "10px"
 components:
   button-primary:
     backgroundColor: "{colors.action}"
@@ -80,363 +89,213 @@ components:
     rounded: "{rounded.control}"
     padding: "0 12px"
     height: "32px"
-  button-event-primary:
-    backgroundColor: "{colors.accent}"
-    textColor: "{colors.action-ink}"
-    rounded: "{rounded.item}"
-    padding: "6px 10px"
-    height: "31px"
-  button-event-secondary:
-    backgroundColor: "{colors.accent-soft}"
-    textColor: "{colors.accent-strong}"
-    rounded: "{rounded.item}"
-    padding: "6px 10px"
-    height: "31px"
-  search-field:
-    backgroundColor: "{colors.goal-canvas}"
+  input:
+    backgroundColor: "{colors.paper}"
     textColor: "{colors.ink}"
     rounded: "{rounded.control}"
-    padding: "0 31px"
-    height: "34px"
-  goal-row-selected:
-    backgroundColor: "{colors.goal-canvas}"
+    padding: "0 10px"
+    height: "32px"
+  tab-active:
+    backgroundColor: "{colors.paper}"
+    textColor: "{colors.ink}"
+    rounded: "10px 10px 0 0"
+    height: "36px"
+    width: "172px"
+  directory-selected:
+    backgroundColor: "{colors.nav-active}"
     textColor: "{colors.ink}"
     rounded: "{rounded.item}"
-    padding: "5px 8px"
-  goal-overview:
-    backgroundColor: "transparent"
-    textColor: "{colors.ink}"
-    padding: "0 22px 16px"
   goal-workspace:
-    backgroundColor: "{colors.goal-canvas}"
+    backgroundColor: "{colors.paper}"
+    textColor: "{colors.ink}"
+    rounded: "0"
+  goal-canvas-node:
+    backgroundColor: "{colors.paper}"
     textColor: "{colors.ink}"
     rounded: "{rounded.surface}"
-  goal-canvas-node:
-    backgroundColor: "{colors.goal-canvas}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.canvas-node}"
-    padding: "16px"
+    padding: "18px 16px 14px"
     width: "258px"
     height: "190px"
-  timeline-entry-selected:
-    backgroundColor: "{colors.accent-soft}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.item}"
-    padding: "9px 8px"
 ---
 
-# Design System: Molis Work Calm Desktop
-
-## Current workbench — 2026-09-13
-
-The immersive project workbench supersedes the older shell and Goal-layout descriptions below. Its implementation authority is `specs/immersive-workbench-implementation/spec.md`; prior descriptions remain references for unchanged Settings, source content and domain-specific components.
-
-- Project home follows `specs/poetic-project-home/spec.md`, with the footer and quotation follow-up in `specs/home-narrow-footer-quotes/spec.md`: local date, weekday and 13 automatically rotating quotations on the left; a small month calendar on the right; user-added web shortcuts immediately above a disabled single-line composer near the bottom. There is no greeting headline, recent activity list, editable draft or quotation control bar. The Agent Harness is not integrated. Goals opens its canvas only after explicit navigation. Direct Goal links open that Goal; reload/back may restore ongoing work. The full home behavior and evidence are recorded in `.impeccable/surfaces/immersive-workbench.md`.
-- One fixed directory: 264px, 236px at medium widths. Both titlebars are 32px. Project identity occupies the second left row. Root and plugin directories share the same column; a text-only horizontal plugin strip has a softly raised selected item. Returning to root preserves the work surface.
-- Graphite palette comes from `apps/workbench/src/styles/immersive-navigation.ts`: light paper #fff, navigation #f8f9fb, ink #272932; dark paper #191a20, navigation #15161b, ink #e8e9ee. Purple focus #6262d6 / #a7a6f5. Existing Settings tokens remain unchanged.
-- Goal directory rows retain compact text status labels. Graph click selects lineage without changing the document or terminal; a corner button, double-click, or Enter opens work. The initial camera centers the next startable leaf at 100%; explicit pan/zoom and collapse/restore persist.
-- Goals open in a fixed 24px-inset frame, 10px on phone. Terminal fills the main area. Conversation is disabled until its actual feature exists. The 300px information/timeline rail can close; below an 840px frame width it overlays the work area. Readers/forms use the available frame space. There is no adjustable 70/30 separator and no top Goal-tab row.
-- At 600px and below, the directory is a drawer with an inert background and a focus loop. Selecting a Goal or record closes it. Mobile uses the same full-height workspace, with details available on demand.
-- Goals, Sessions, Inbox, Feed and Artifacts are bundled project plugins. Existing projects retain their previous entries on catalog migration; projects that already have Feed also receive Inbox. New projects start with Goals. Market activation is project-local and persistent. Enabling Feed also enables Inbox. Inbox owns attention; Feed owns the source stream and Sources. Artifacts uses the owner-rendered exact-version directory/detail within the stage; downloads preserve their exact version.
-- Native drag regions remain in the shell. Packaged macOS titlebar/traffic-light alignment has not been reverified; the 32px web implementation is not proof of a rebuilt native window.
-- Evidence: `.impeccable/review/production-*.png`, the implementation progress record, production HTTP/SQLite tests and browser paths. Functional level 3; no release or installation claim.
-
-## Current workbench — 2026-09-15
-
-Project home and the list under each plugin share one Calm Desktop family. Authority: `specs/home-directory-visual-unify/spec.md`.
-
-- Destinations stay Codex-quiet: icon plus name, current item by weight and ink, no raised chip. Plugin market sits last, with a small gap before the list; there is no hairline between destinations and the list. Authority for removing that line: `specs/directory-list-divider/spec.md`.
-- The directory account row is 36px on desktop (44px in the phone drawer), two-line name and space, same graphite field, with no hairline above the footer or the shortcut section. Authority: `specs/directory-account-compact/spec.md`.
-- List chrome titles use the same 12px / 500 muted caption as the home year and month.
-- Control language (buttons, fields, dialogs, menus) follows Coss UI on the existing HTML stack: 10px control corners, 12px dialog corners, near-black primary, ink-tint secondary, translucent borders. Directory rows, poetic home, and the Goal canvas keep Calm Desktop geometry. Authority: `specs/coss-control-language/spec.md`.
-- Goals remain 32px single-line rows with 13px / 450 titles and text status. Sessions, Inbox, Feed, Sources and Artifacts use 44px two-line rows: the same title, one 11px muted fact, flat `nav-active` selection. Directory lists do not show summaries, type chips or count footers.
-- The home list region is blank. The poetic stage still holds date, quotation, calendar, shortcuts and the disabled composer.
+# Design System: Molis Work Coss Workbench
 
 ## Overview
 
-**Creative North Star: "Calm Desktop"**
+**Creative North Star: "Operate"**
 
-Molis Work is a high-frequency personal workbench with a quiet project arrival surface and a dedicated Goal workspace. Its desktop workspace has two stable regions: one graphite directory that owns project and work navigation, and one flexible work surface. Project home can use generous whitespace; opening a Goal brings its current facts and real Runtime into view without duplicating domain state.
+Molis Work is a personal workbench for finding current work, reading its facts, and taking the next action. Its current visual language follows the user's Linear × coss.ui direction: continuous paper surfaces, thin boundaries, compact controls, distinct navigation levels, and short feedback. The quiet project home and denser Goal workspace belong to the same system.
 
-The Goal surface uses a neutral dotted dependency canvas. Clicking a compact Goal opens one fixed workspace within the main region: full-height Runtime on the left, collapsible Goal info above the chronological timeline on the right. Event bodies open inside that timeline; configuration and forms temporarily cover the left work area. The existing cool palette, system typography, and restrained spacing remain. The directory changes in place when the user enters Goals, Inbox, or Feed. Inbox and Feed are sibling plugins.
+This is the current built world as of 2026-09-16. [Coss workbench redesign](specs/coss-workbench-redesign/spec.md) establishes the shared foundation; [Workbench panes, Feed and global settings redesign](specs/workbench-pane-feed-redesign/spec.md) owns the current tabs, nested panes, Feed and global preferences. The independent project settings world follows [Project settings redesign](specs/project-settings-redesign/spec.md). [PRODUCT.md](PRODUCT.md) remains the authority for product behavior, data relationships, and module ownership; this document records their current visual expression. The latest [whole-product interaction redesign](specs/product-interaction-redesign/spec.md) and its [surface inventory](specs/product-interaction-redesign/inventory.md) own the current form actions, Feed reader, Session entry, settings return context and Artifact empty states. Its v11 correction makes Goal work and records continuous with the pane and attaches temporary editors to the workspace edge. It retains v6 attention continuity and v7–v10 scrolling, reading and editing behavior. Detailed behavior, source ownership, motion and verification boundaries are in the [workbench surface record](.impeccable/surfaces/immersive-workbench.md).
 
 **Key Characteristics:**
 
-- One desktop directory instead of parallel navigation columns.
-- Project-scoped, persistent Goal tabs above the main work surface.
-- Goal canvas composition: one fixed expanded workspace, with full-height Runtime beside Goal info and an inline timeline.
-- Soft tonal surfaces and calibrated shadows instead of pervasive structure lines.
-- Cool monochrome surfaces with a restrained cobalt focus color.
-- Compact information density in navigation, with calm reading density in the selected Goal.
-- Runtime application chrome follows Molis Work; only the terminal canvas becomes a distinct execution environment.
+- One directory for project identity, destinations, the active plugin list, shortcuts and device settings.
+- A 44px work bar with equal-width Chrome-style tabs and stable plugin group colors.
+- Neutral Light/Dark tokens shared by the workbench, settings and project index.
+- Independent global and project settings with category navigation and one content scroll boundary.
+- Compact navigation and continuous reading/work surfaces; temporary editors meet the workspace edge while preserving modal focus.
+- Real state and explicit actions; unavailable capabilities remain visibly unavailable.
 
 ## Colors
 
-Project home inherits the immersive workbench's live neutral Light/Dark variables and violet interaction accent from `apps/workbench/src/styles/immersive-navigation.ts`. It adds no separate palette. The cobalt foundation below remains applicable to unchanged Settings and domain-specific components; it does not override the immersive surface's theme.
-
-The palette uses cool neutrals for structure and one low-saturation cobalt for focus, links, progress, and Goal event-document operate cues. Green, amber, and red are reserved for true semantic state. Production tokens live in the visual foundation (`--page`, `--paper`, `--rail`, `--ink`, `--blue`, `--green`, `--amber`, `--red`, `--action`) and resolve in Light and Dark; the Goal event document consumes those variables and does not introduce a second palette.
+The palette is neutral gray with a restrained violet interaction accent. `packages/design-system/src/styles/coss-controls.ts`, loaded after page styles, owns the shared Light/Dark foundation. The frontmatter lists its actual values; component examples use Light tokens and resolve to their Dark counterparts through runtime CSS variables.
 
 ### Primary
 
-- **Cobalt Focus**: keyboard focus, progress, links, selected timeline rows, owner chips, and Goal event-document primary saves.
-- **Deep Cobalt**: accent text that must remain legible on pale surfaces, including secondary event buttons and 完成要求.
+Action is near-black in Light and near-white in Dark. It identifies primary actions across chrome and Goal event forms. Violet (`--blue`, `--blue-dark`, `--blue-soft`) identifies links, text selection and relevant selected content; it is not a second filled-button system.
 
 ### Neutral
 
-- **App Canvas**: the outer desktop and landing-page field.
-- **Goal Canvas**: the primary reading, decision, settings, and event-reader surface.
-- **Navigator Gray**: the Project and Goal directory surface, and the dotted dependency-canvas field.
-- **Desktop Ink**: primary titles, current-summary column copy, and actions.
-- **Soft Ink**: explanations and secondary facts.
-- **Faint Ink**: the light-theme floor for quiet secondary facts; `#66666f` remains 5.04:1 against the `#f1f1f3` directory rail.
-- **Quiet Line**: persistent structural separators, including the workspace toolbar, Terminal boundary, and timeline divider.
-- **Terminal Dark / Terminal Light**: curated execution-canvas palettes, independent from the surrounding Runtime application chrome.
+Page/canvas is the outer work field; paper/panel is the reading surface; navigation uses `--nav-bg`. Ink, soft ink, muted and faint establish reading hierarchy. Thin lines separate meaningful regions. `--nav-active` is a flat directory selection; selected work tabs join the paper surface without a shadow. Plugin group labels and bottom rules use stable, theme-aware colors: blue for Goals, amber for Feed, violet for Sessions, green for Inbox and rose for Artifacts. These identify ownership, not status; labels remain visible.
 
-**The One Accent Rule.** Cobalt appears for focus, links, progress, selected intent, and Goal event-document save and owner cues. It never becomes a decorative field or a general-purpose card tint. Near-black Action remains the workbench primary for Session, draft save, and other chrome.
-
-**The Semantic Color Rule.** Green, amber, and red always describe real application state and appear with text, never as decoration. Timeline dots use green for result, cobalt for decision, and amber for problem, always with a Chinese type label beside them.
+Green, amber and red retain their existing semantic roles for real state and appear with readable labels or icons. Preserve domain status names; neither a colored dot nor a tint is sufficient on its own. Terminal palettes remain a bounded execution-canvas preference rather than a second application theme.
 
 ## Typography
 
-**Display Font:** native system UI stack with Chinese-first fallbacks.
+Native system typography with Chinese fallbacks is the default. Weight, spacing and scale establish hierarchy; protocol IDs stay secondary and monospace is reserved for commands, identifiers and measured values. Interface language can change between Chinese and English without rewriting user titles or record bodies.
 
-**Body Font:** the same native system stack.
+- **Directory:** 13px / 450 titles, 12px / 500 section captions, 11px secondary facts. Long titles truncate inside a shrinking text column; status and actions retain their own space.
+- **Work tabs:** 12px / 450, increasing to 550 when active. Long titles retain a tooltip and accessible name.
+- **Goal reading:** compact timeline row titles use 11px / 500; expanded event headings use 16px / 550 / 1.5; event copy uses 12px / 1.8 and wraps completely.
+- **Feed:** source/time/read labels use 11px, list titles 14px / 550, summaries 12px / 1.65 and expanded body 14px / 1.8, bounded to 76ch. An open row retains one title and hides its repeated summary.
+- **Temporary editors:** 18px / 600 headings, 13px labels, 14px fields and 12px help; fields use 16px at 760px and below. Session add and relations share this hierarchy.
+- **Project settings:** headings use the settings-heading token, remaining 20px at 760px and below; section headings use 14px / 600. Setting labels use 13px / 550, supporting copy uses 12–13px, and mobile form text uses 16px. Path and storage facts wrap without widening the page.
+- **Home:** quotation text alone uses the serif token; date, calendar, navigation and the disabled composer use the system stack.
 
-**Character:** direct, compact, and platform-native. Hierarchy comes from weight and scale rather than mixing type families or adding tracked micro-labels.
-
-### Hierarchy
-
-- **Display** (710, 27-34px, 1.2): retained large chrome titles. The expanded Goal uses the compact goal-title token; canvas nodes use 16px / 630.
-- **Headline** (700, 17px, 1.35): important section statements. Inline timeline event titles use 15px / 1.5; configuration reader headings use 18px.
-- **Title** (700, 13-14px): Project names, section labels, and settings headings. Current-summary lead is 13px / 550. Event-form labels are 12px / 550.
-- **Body** (400, 13px, 1.52): explanations and document content. Expanded Goal outcome copy uses 13px / 1.7; inline event paragraphs use 12px / 1.75 and wrap within the timeline.
-- **Label** (650, 10-12px): tabs, metadata, compact controls, and status text. Timeline titles are 11px / 550 clamped to two lines; time, type, and author are 10px, with tabular time numerals.
-
-**The Native Clarity Rule.** Controls and Goal work use native system typography. Project home alone uses the home-quote serif token for quotations; its date, weekday, calendar, shortcuts and composer remain in the system stack. Monospace remains limited to commands, identifiers, and measured values.
-
-**The Secondary-Fact Floor.** Source, time, filter labels, and other critical secondary facts use Faint Ink or stronger and never render below 9px.
-
-**The Chinese Reading Voice Rule.** Timeline entries and event meta use Chinese type names (当前进展, 进展记录, 配置, 建立目标, 增加关系, 工作记录, 补充说明). Judgments read 报告支持, 尚未达到, or 仍无法判断. Protocol IDs, original record IDs, and criterion IDs stay secondary.
+Status copy stays direct and specific. Timeline events use human-readable Chinese labels rather than raw event names; original IDs and sources remain available as secondary facts.
 
 ## Layout
 
-Project home's content is centered within an 800px maximum width. The upper date/quotation and calendar region is at most 670px wide; the lower launch region is at most 740px wide and settles near the bottom with flexible space between them. Shortcuts wrap directly above the composer. At a stage width of 640px the layout tightens; at 450px it stacks date/quotation, centered calendar, shortcuts and composer. These are container-width decisions, so resizing the directory produces the same responsive behavior as a narrow window.
+Density v12 uses 12px field gaps, 4–6px within fields and 20–24px between semantic groups. Feed rows have an 88px minimum with 12px padding and a 52px toolbar; long titles grow naturally. Desktop Session editors pair Runtime and Goal selectors in DOM order; at 760px and below they stack. Optional Goal sections retain 44px summary targets. Settings rows use 14px vertical padding, sections 24px spacing, and a 920px content column. Goal form headings are 18px; Frame, Inbox and Artifact titles are 20px. Body copy, focus, fixed actions and component scrolling retain their own reading/accessibility rules.
 
-On Desktop at 761px and above, the workspace has two regions: a single resizable directory approximately 286-334px wide, and the remaining width as the main workbench. The directory is the only persistent navigation column. A narrow resize affordance sits between the regions without becoming another visual pane.
+The desktop shell contains one resizable directory and one flexible work stage. The shell stays within one viewport; tabs and primary toolbars remain in place while lists, readers, board columns and long forms scroll inside their own regions. Long content remains reachable at narrow widths and in split panes without shrinking text or introducing document scrolling. Default directory width is 280px, or 256px at viewport widths up to 1050px. A saved project-local width takes precedence; double-clicking the separator restores the applicable default. The directory has a thin right edge. Its 44px top row holds search and the directory toggle; a separate 52px project row gives the project name most of the width and keeps project settings alongside it. There is no notification placeholder.
 
-In macOS Overlay mode, `--desktop-titlebar-height` reserves a 48px native-chrome band. The first row contains the directory toggle and right-side work tabs; the project selector and project-settings control retain their second row. Tauri keeps the native `trafficLightPosition.y = 24px` inset; the packaged window's visible traffic-light center is approximately 22 CSS px. Both sides of the first row use that same visible center, including when the directory is collapsed. Native detection runs before stylesheets load; full-page Desktop navigation and service recovery retain the desktop query. The public Desktop bootstrap reads the real Tauri fullscreen state on page load and resize: the shared leading inset is 88px in a window and 2px in fullscreen, without changing vertical alignment. A maximized window is not fullscreen. The remaining left-side titlebar space and an elastic right workbench track with a 72px minimum may drag the window; interactive controls explicitly remain no-drag.
+Destinations remain visible above the active plugin directory. Plugin title and actions align on one content-toolbar row. Shortcuts sit below the current list, followed by the pinned account footer. The account name and local-space label stay on separate lines; desktop footer height is 36px and drawer height is 44px. The destination/list transition and footer do not gain decorative separators.
 
-Project and Global Settings use the same titlebar rhythm: a 48px native band aligned with the right-side title, the existing project-controls row, then one 50px scope heading in the directory. Settings and project-index topbars do not make their outer containers draggable; only plain-text context or otherwise empty spacer regions may drag the window. The directory resizer starts at grid row 2, below the titlebar band, and utility tabs stay on one line. These Overlay rules do not change ordinary Web or the Companion at 760px and below.
+Work tabs occupy a 44px bar. Each plugin has a group, a mother page and opened item tabs. Tabs are 172px wide and 36px high, with rounded upper corners; at 760px and below their width is 144px. Each pane owns its strip. A binary layout tree supports nested horizontal and vertical splits, including T-shaped arrangements, with 5px adjustable separators. Tabs, focus and layout persist per project on this device. The same item may appear in multiple panes; this state never becomes Goal truth. At 760px and below only the focused pane is shown, with window selectors to switch focus while preserving the layout. At narrow widths or with a coarse pointer, tabs, group labels, Close and Split use 44px interactive heights inside the same 44px bar; desktop fine-pointer tabs retain 36px height.
 
-The titlebar contains the current project selector, its real project dropdown, a search control beside the selector, and a separate project-settings control. Clicking search opens a centered command palette grouped by plugin; it is not a resident field in the root directory. The directory root begins immediately below it with 项目首页, Goals, Sessions, Inbox, Feed, and Artifacts, without permanent group headings. Goals and Sessions stay adjacent because they are sibling project work types. Sessions owns Runtime execution identity, readable execution history, Goal history, and the working-directory choice used to create, link, or hand off work. Connector remains the available capability behind a Source instance. Feed is the complete source-message fact stream, with Sources inside that plugin; Inbox only keeps references and internal matters that need intervention, with a visible reason and next step. Switching back to Goals restores its selected Goal, reading state, open Goal tabs, and canvas view; Terminal ownership remains with Work.
+An opened Goal fills its pane beneath the tabs: zero inset, square edges, no shadow and no canvas backdrop. A compact toolbar with a 48px minimum height keeps Back on the left. Runtime owns the flexible main column; a closable 300px rail holds Goal information and the inline timeline. Below 840px Goal-workspace width, the rail overlays the work area at up to 330px. Goal reading and recording use the continuous paper surface, with fixed heading/actions and internally scrolling content; covered controls and return focus retain their existing behavior. Compact canvas nodes can move; opened workspaces cannot.
 
-A Session detail reuses the compact metadata → title → actions → main work surface order. Runtime, Session ID, state, the two primary actions, and the visible Level 2 demo boundary stay above the work surface without becoming a separate marketing Hero. Project, current Goal, workspace, Goal history, archive, and compatibility facts live in the contextual rail. Execution content owns the flexible majority of the desktop stage while Goal history remains visible beside it; at 760px and below, the detail stacks execution before Goal context and identity. Handoff requires a current Goal and always creates a new destination Session. Narrow-screen actions provide at least 44px touch targets.
+At viewport widths of 600px and below, the directory becomes a 264px drawer with a scrim, inert background and focus loop; selection closes it. The opened Goal remains flush and square. Tabs remain available and keep the current item visible when space changes. The work area stays full height with details available on demand. There is no revived 70/30 adjustable Goal split or stacked information → Runtime → timeline layout.
 
-Project is the global scope selector, not one side of a Project / Sessions switch. Inside a selected project, Goals and Sessions are sibling entries in the same root directory. 工作目录 is a Session launch and relationship attribute, not a standalone workbench module: users choose it while creating, linking, handing off, or editing a Session. Entering Sessions keeps the project selector and project workbench chrome, replaces the left root with a returnable Session directory, and opens the selected work record on the right. The Session detail uses a chronological execution timeline for dialogue, tools, status, artifacts, and terminal evidence, while keeping current relations and Goal history visible. Global compatibility `/sessions` and `/workspaces` routes return to the project index; both project-prefixed compatibility routes open the Sessions directory.
+Project settings is a standalone Coss/Codex-style preferences page: a 44px header, 224px category rail and centered content up to 920px. The rail contains return, project identity and four categories: 常规, 项目说明, 工作规则 and 工作规划. It has no workbench directory, plugin bar or workspace tabs. The content region owns the single main scroll boundary; inner documents flow naturally. Desktop content uses 24px top padding and 20–40px horizontal padding. At 760px and below, return and four equal category links sit above the content, project identity leaves the rail, forms and storage facts stack, and content padding becomes 24px 20px 48px. Project planning detail/edit pages retain this shell.
 
-Sessions inherits the existing Goal list / Goal Detail layout contract instead of defining a parallel management system. Its subdirectory uses the same compact heading, tool rhythm, row hierarchy, flat selected location, focus behavior, and pinned count footer as the Goal Tree; its detail uses the same page background, title scale, metadata/action hierarchy, related-paper work surface, and contextual rail. Working-directory selection appears only inside Session creation, linking, handoff, and relationship controls. Root entries never expose browser link underlines, and every return affordance uses a left arrow because it moves back to the project root.
+Feed sources live in the left directory, one task per source. The stage shows the selected source's message list and reading detail. Project home remains a centered date/quotation/calendar composition with its disabled composer below; shortcuts are in the directory. Global preferences uses the independent settings shell for appearance, execution tools, diagnostics and planning library, including library detail/edit pages; the work bar has no theme shortcut.
 
-Entering Goals replaces the root directory in the same column with the original Goal Tree. Parent-child expansion, status filtering, creation, archive, and trash sit on the same row as the plugin title. Entering Inbox opens the attention directory with 待处理 / 历史 on that same title row. Entering Feed leaves only destinations on the left. The stage is the Feed directory: 全部, each source task, inline items, and inline item detail. Sources are tasks inside that directory, not a second destination or Feed / 来源 tabs. Keyword search lives beside the project selector, not inside each plugin list. Source, status, and sorting still disclose in an anchored panel instead of standing native selects.
-
-The project Goal canvas shows the real dependency graph. Arrows run from provider to consumer; parent membership is a separate 属于 label. Completed nodes remain visible with a quieter fill. Users pan empty space, drag compact nodes, zoom, or fit the whole graph; these are local view changes. Clicking a node or list entry opens the same Goal. The canvas does not edit dependencies or dispatch work.
-
-**The Account Footer Rule.** The directory footer stays pinned to the bottom and shows the local identity and local-space state. In the immersive workbench, its own styles apply at every width, including the mobile drawer: name and space stay on separate lines, the link uses the current theme's ink without an underline, and the centered avatar and Settings icon keep their dimensions while long text shrinks and truncates within its own column. There is no hairline above the footer. Its Settings control always enters global settings. Project settings remain beside the project selector at the top, so project scope and device scope cannot be mistaken for one another.
-
-The right workbench begins with project-scoped work tabs. Opening a Goal creates or reuses its tab; the current project may retain at most eight Goal tabs in local device storage. Closing an inactive tab only removes it, while closing the active tab selects an adjacent Goal and preserves at least one displayable Goal. Switching projects restores that project's own tab set. Goal selection continues to use the existing asynchronous document loading, history, write actions, and Goal-bound Runtime.
-
-An expanded Goal is fixed inside the main canvas region with an 18px frame and an upper-right 收起 action. It cannot be dragged. Only one Goal is expanded at a time; closing restores the camera and compact-node positions. The left side defaults to 70% and contains full-height Runtime; the right 30% contains collapsible Goal info above the timeline. The 6px separator supports pointer dragging, Left/Right keyboard adjustment, and Home to restore 70%. The share is stored locally by project and Goal and clamped to available width. Goal info, Runtime, and timeline keep separate scrolling boundaries. Runtime stays in the full-height left grid cell at intermediate desktop widths, including 761–1180px.
-
-At 760px and below, the frame is 10px and the work area stacks foldable Goal info → Runtime → timeline. Goal info starts folded with the Goal title visible; its expanded body is bounded to 240px; the regions remain scrollable and the work area scrolls to reach them. The desktop divider is hidden. A reader or form covers the full work area on mobile.
-
-记录模板, 目标与要求, 完成要求, and event forms share one temporary reader over the left Runtime area. 返回工作区 closes it. The desktop timeline stays visible and interactive; covered Runtime controls are inert; visible Goal info remains operable. At 760px and below the overlay also covers Goal info and the timeline, both inert until return. Focus enters the active reader/form and returns to a visible trigger. Reader/form states remain exclusive, including the untransferred 使用事件记录继续 form; long content scrolls within the reader.
-
-目标与要求 holds purpose, outcome, operating logic, effective decisions, scope, bound materials, and the existing 关联与约束 deck (Goal 关系 / 风险 / 影响范围 / 工作规则). Untransferred drafts retain their editor; event-owned Goals change agreement through 记录模板 → 修改当前约定. 完成要求 shows current event requirements as the live authority, then read-only 原 Goal 标准 and exact Artifact versions. Original criteria never become another completion algorithm.
-
-Project Settings and Global Settings reuse the same single-directory / work-surface language. Project Settings contains the current project's Work Rules and Work Planning; Global Settings contains device-level Appearance & Language, AI & Execution Tools, and Diagnostics. Headers, directory labels, close/return behavior, and explanatory copy state the active scope.
-
-At 760px and below, the shell still moves between the root, current list, and its work surface. Goals preserves a path back to its list; the expanded work area contains foldable Goal info, Runtime, and timeline together. Feed keeps the expandable stage directory on the document surface. Browser Web and Desktop share the adaptive DOM; native traffic-light spacing, drag regions, and Tauri abilities remain platform-specific.
-
-**The One Directory Rule.** The root modules, Goal Tree, Sessions, Inbox, Artifacts, and settings navigation all use one left directory; project context belongs to the titlebar. Feed is the exception: destinations stay on the left, and the Feed directory lives on the stage. Never add a second persistent navigation column.
-
-**The Project Tabs Rule.** Work tabs live in the 32px titlebar, using the Goal container-tab language: flat text, a 2px current marker, always-visible close. Plugin groups are a colored left bar plus the plugin name; they are not a second row of tabs. Each plugin has a mother page tab (Goals = 画布, other plugins = 全部) and an item tab for each opened object. Canvas and board are views of the Goals mother page, switched from a corner control on that page. Titlebar Frame tabs appear only while a Goal Frame is open. Split panes keep a strip on unfocused panes. The same item may appear in more than one pane. Tabs, groups, and pane layout persist per project on this device. They never become a second source of Goal truth. Authority: `specs/workbench-tab-workspace/spec.md`.
-
-**The Native Chrome Safe-Zone Rule.** In macOS Overlay mode, reserve the 48px titlebar band and calibrate native traffic-light inset against the visible center of the left project controls in a real packaged window. Collapsing the directory preserves that same inset before the reveal control and expands the collapsed rail just enough to contain it; work tabs begin after the rail. Only empty or plain-text titlebar regions may drag; tabs, buttons, interactive containers, and the resizer never overlap the traffic lights or inherit drag behavior. The directory and work surface separate through a quiet tonal shift, never a full-height border or standing shadow; the resize gutter only appears on interaction.
-
-**The Compact State Tag Rule.** A Goal state is one visual tag. Directory layout wrappers may place the tag but never draw a second border or background around it, including under compact-density overrides.
-
-**The First-Viewport Rule.** Project home is the daily arrival surface and the default work tab. Opening a plugin adds that plugin's mother tab; Goals' mother tab is the dependency canvas. Opening a Goal, Session, Feed item, or Inbox row adds an item tab in the focused pane. The disabled home composer never replaces the Goal's working Runtime.
-
-**The Current-Summary Rule.** Goal info reads live `readState`, including requirement support, concerns, and pending decisions; it does not recompute completion. Selecting history only changes its inline event body. Neither absent activity nor missing requirements proves work has started.
-
-**The Fixed Workspace Rule.** Compact nodes are draggable; the expanded workspace is fixed. The Runtime and Goal-info/timeline split remains through 761px and stacks at 760px. Collapsing restores the prior camera and node layout.
-
-**The Reader Presence Rule.** Readers and forms occupy the left work area one at a time. Covered controls are inert. The visible desktop timeline stays operable; the mobile timeline is inert under the full-area overlay. Returning restores the workspace and focus.
+Native window drag regions and actual fullscreen-aware safe insets remain platform-owned. Tabs, buttons and resizers must remain outside native system controls and must not become drag regions. The 44px browser work bar does not establish packaged macOS traffic-light alignment. Project index remains a full-page arrival surface with its own brand, search and device-settings entry.
 
 ## Elevation & Depth
 
-Project home stays open and flat around the date and calendar. Its disabled composer uses one faint structural shadow (`0 4px 16px color-mix(in srgb, var(--ink) 5%, transparent)`), while the shortcut editor is a modal above the work surface. Shortcuts use quiet circular icon grounds, without card containers or raster imagery.
+Thin boundaries and tonal differences carry most structure. Directory rows are flat. Active work tabs use a paper surface, rounded upper corners and no shadow. Goal work and records remain flat and continuous with their pane. Temporary editors use a workspace edge and fine separator instead of a floating frame. Compact search and confirmation surfaces retain restrained depth.
 
-The system uses shallow, persistent layering. The directory and workbench separate through quiet tone; compact location states stay flat. The expanded Goal has a low structural shadow over the dotted canvas. Its Goal info popover has a 12px corner and shallow shadow, the timeline uses a light rail/paper mix, and the selected event row uses cobalt-soft. Hairlines mark the toolbar, Terminal boundary, inline event rail, and adjustable divider. Dark uses the same semantic variables and geometry. Menus, dialogs, and unrelated contract panels retain their existing low shadows.
+- Shared surface shadow, Light: `0 1px 3px #18181b12, 0 1px 2px #18181b08`.
+- Shared surface shadow, Dark: `0 1px 3px #00000038, 0 1px 2px #00000024`.
+- Goal workspace and attached editors: `box-shadow: none`. Attached editors use a 10% theme-ink backdrop without blur.
+- Compact search, shortcuts, Runtime plan, trash, operation confirmation, migration and Feed import dialogs: `0 8px 28px #00000018`, with `#00000026` backdrop and no blur.
+- Other existing menus/dialogs retain `--control-shadow`. Home retains its faint composer shadow.
 
-**The Soft Layer Rule.** Use a low shadow to separate one meaningful navigation or content level, not to make every row float.
-
-**The Flat Location Rule.** In Light, a control that only answers “where am I?” never uses a paper fill plus exterior shadow. Use stronger text with either one quiet tonal fill or a two-pixel bottom marker; reserve elevation for content and overlays.
-
-**The Line Rationing Rule.** A border must explain state, grouping, or interaction. Do not outline every item or split the entire workspace into a management-grid skeleton.
+Motion expresses a state transition: shared feedback is 120ms; attached editors use a 140ms opacity transition without translation or scale. Other shared surface arrival remains 180ms with `cubic-bezier(.16, 1, .3, 1)`. Feed readers reveal over 160ms ease-out with a 3px upward starting offset; disclosure chevrons use 160ms ease. Project settings disclosures and switch knobs use 160ms ease; their reduced-motion rule removes transitions and animations. Existing surface-specific timings are recorded in the surface record and sidecar. Reduced-motion preference suppresses animation and smooth scrolling.
 
 ## Shapes
 
-The home composer uses the softly rounded home-composer token and a single-line input within a 76px-high surface, reduced to 70px on narrow stages. Shortcut icons sit in 43px circles; the editor uses a 15px corner and stays inside the viewport. These home shapes do not change Goal state tags or ordinary form controls.
+Shared controls use 8px corners. Goal workspaces and attached editors, including the inner Goal creation shell, use square edges. Compact search/confirmation dialogs use 8px corners; other retained shared surfaces may use 12px. Directory rows use 6px. Compact canvas nodes use 12px; board cards currently use 10px. The home composer retains its established 23px corner as a surface-specific shape. These are current component values, not a requirement to wrap every content section.
 
-Compact directory rows keep 6px corners. Buttons, inputs and menus use 10px; dialogs and popovers use 12px. Compact canvas nodes use 12px corners; the expanded Goal uses 14px on desktop and 10px on mobile. The home composer keeps its 23px token. Goal info is a compact 12px rounded popover inspired by the approved Codex environment-info reference. Timeline rows and event buttons use 6px corners, event-form fields 5px, and timeline markers remain small circles on a thin rail.
-
-Goal state is always a compact bounded tag: 5–6px corners, a one-pixel semantic border, a quiet semantic tint, a Lucide icon, and readable text. Tags are labels rather than pills; they never use a full-radius capsule and never rely on color alone.
-
-Relationship records use one stable reading grid: bounded relation type, leading Goal title with quiet ID/path/reason text, compact lifecycle state, then the secondary action. The metadata remains ordinary text—not a stack of full-width chips—and every repeated row shares the same title, state, and action columns. At the narrowest content width the action moves below without changing semantic order.
+Status presentation follows context: directory Goal status is compact icon/text without a second surrounding border; canvas and board status use small dots with text. Other domain tags may retain their bounded tag treatment. Do not apply a universal pill style or outline the wrapper around an existing status tag.
 
 ## Components
 
-### Project Home
+### Buttons, fields and overlays
 
-The date, quotation and month calendar provide quiet local context. The calendar starts on Monday, offers previous/next month controls and marks today; it contains no schedules or task counts. The quotation collection retains the three original sourced passages and appends all ten Adeptify English originals with their original attributions, for 13 total. The migrated text remains English in the Chinese interface. All attributions use quiet 11px text; the original three source links remain, while migrated attributions are plain text without added citations or a claim of independent verification.
+Primary controls use Action/Action Ink, 32px minimum height, 8px corners and a stable short label. Secondary controls use ink-tinted fill and a translucent boundary; ghost controls are transparent until interaction. Hover changes tone without lifting. Disabled actions stay visibly unavailable. Shared mobile action selectors use 44px minimum height. At widths up to 760px or with a coarse pointer, the new Home Goals/quotation actions, Frame add actions and picker search/source/Cancel controls use a scoped 44px control height from the final shared sheet; desktop controls retain their compact scale.
 
-Quotations rotate every five seconds with a half-second fade in each direction. All pages share one grid cell, reserving the natural height of the longest content at the current width with a 112px minimum, so complete wrapping does not move the date, calendar or launch area during rotation. Inactive pages stay in layout with hidden visibility, `aria-hidden` and `inert`; they never use `hidden` or `display: none`. Only the outer quotation group fades. Descendants have no transitions, preventing inherited reduced-motion rules from animating visibility. There are no quote buttons. Hover or focus pauses rotation; hidden pages and inactive home surfaces do not advance it; reduced motion changes the text directly.
+Goal event forms, rule editors and planning save footers pair Cancel on the left with the specific Submit action on the right, in one adjacent action group. Supporting explanations sit outside that group. These form actions and Feed reader actions use 36px desktop minimum controls and 44px mobile controls; compact navigation retains its separate scale. Cancel follows the form’s existing non-submit return or reset behavior.
 
-Shortcuts begin empty with an Add shortcut action in the left directory, below the current list and above the account footer, under a small 「快捷方式」 heading. They are not part of the home canvas. Each user-created link has a plain-text name, a shared Lucide link icon and a separate edit action. The modal supports add, edit, remove and cancel; validation and storage failures keep the entered form visible. These are project-local device preferences, restored from localStorage, never Goal records or synced project content. Web opens validated http(s) links in a new page; macOS uses the system browser through the native external-link channel. Authority: `specs/directory-shortcuts/spec.md`.
+Inputs use paper, an ink-derived 10% input boundary, 8px corners and 32px height. Textareas grow independently. The shared keyboard ring is 2px with a 2px offset; tabs draw it inside their container. New Goal, Feed task configuration, Session add/relations and Frame picker dialogs attach to the right edge at 44px below the viewport top. They fill the remaining height, use `min(560px, 100vw)` width, and become full width at 760px and below. Square, shadowless shells and the 10% ink backdrop reduce floating-window appearance; native dialog focus trapping, Escape, cancellation and focus return remain. Headers and action footers stay outside scrolling fields; the Goal creation body aligns fields to the start with 12px gaps. Feed fields explicitly retain the shared 2px theme focus outline without a halo. Mobile fields use 16px type and relevant actions retain 44px targets. The directory middle (destinations, active list, shortcuts) can scroll when height is scarce, while project and account chrome remain outside; active lists retain at least 180px. Errors keep entered data available and provide an explicit correction or retry path.
 
-**The Home Agent Availability Rule.** Both the home input and send button are natively disabled and accompanied by “Agent 尚未开放”. They do not capture drafts, accept input, send messages or imply a working Agent Harness. Goal work keeps its existing explicit terminal entry and ownership rules; Conversation stays disabled until that feature is implemented.
+### Directory and project search
 
-### Buttons
+Destinations combine icon and label, with flat tone and stronger text for the current plugin. Goal rows are 36px and single-line; Sessions, Inbox and Artifact lists use compact two-line rows where applicable, with a title and one secondary fact. Feed source tasks show name, state and count in this directory. Empty states describe the missing content and offer only a real available action.
 
-- **Workbench primary:** near-black fill in Light, near-white fill in Dark, 10px corners, 32px height, short stable one-line label. Session “加载原 Session” and untransferred 保存草稿修改 keep this Action fill. Feed/Inbox primary actions use the same Action fill, not cobalt.
-- **Secondary:** ink 4.5% fill, 8% translucent border, ink label, same 10px corner and 32px height. Settings and dialog footers use this instead of a blue outline.
-- **Goal event primary:** same Action primary as the workbench. Event-document saves no longer introduce a second cobalt filled button.
-- **Ghost / text:** transparent at rest; event text buttons (完成要求 and 返回工作区) remain text. Icon-only chrome (directory toggle, titlebar tools) stays square and borderless.
-- **Hover:** secondary darkens the tint; primary mixes 10% of its ink. No lift.
-- **Focus:** a two-pixel ink ring with a two-pixel offset on controls. Links may keep cobalt.
-- Dynamic Goal titles belong in surrounding copy, `title`, and accessible names, never in the visible button.
+Search in the directory top row opens a centered palette grouped by plugin and navigates to the selected object. It remains available with the directory collapsed or on a phone. The project selector and project settings keep distinct roles. The account footer opens global device settings. Plugin market remains project-local activation, with search, installed icons, text filters and catalog rows; enabling Feed also enables Inbox.
 
-### Inputs / Fields
+### Grouped work tabs
 
-- **Style:** paper fill, one-pixel translucent input border (ink 10%), 10px corners, 32px height, no inset shadow. Settings, dialogs and project forms share this. Event-document fields still pending a follow-up slice may keep tighter padding until collected.
-- **Focus:** ink ring independent of the border so keyboard focus remains obvious.
-- **Placeholder:** visibly secondary but still readable.
-- **Mobile event forms:** 16px input text; helper copy stacks above a full-width primary. Type editors show 字段名, then 内容形式 / 必填 / 移除; IDs are hidden tokens. Empty-field submit is blocked in the client.
-- **Error / conflict:** field errors sit on the control; version conflict uses a quiet red-soft panel and keeps the user’s input for an explicit retry against the current versions.
+Groups use a colored dot, tinted name/disclosure label and matching bottom rule. Equal-width tabs have a title trigger and separate close button with stable reserved space; long titles truncate with their full accessible name and tooltip retained. Active tabs join the content surface; inactive tabs have a short vertical separator. Inactive fine-pointer closes reveal on hover or focus, while touch closes remain visible.
 
-### Navigation
+Native tab triggers support Arrow keys, Home and End to move and select; Delete closes a closable tab. Rerendering restores trigger focus. Collapsing a group keeps its current tab visible and keyboard-accessible. The focused pane synchronizes the active Goal title and directory selection without rebinding terminals. Opening or restoring a Goal tab loads that Goal's actual body, not only its title. Current tabs scroll into view after selection and viewport changes. Dragging reorders or moves tabs across panes; Alt/Option copies. Dropping at any pane edge splits with the dragged tab. The split control opens right, or below with Shift. Separators support pointer/keyboard resizing and double-click equalization. Closing a pane closes its tabs and expands the remaining layout; closing the final workspace tab restores home.
 
-- The Desktop titlebar begins with project selection and project settings; the directory below changes in place between root, Goals, Inbox, Sessions, and Artifacts, and ends with the pinned local identity / global-settings entry. Feed does not replace that column with an Item list.
-- The root order is 项目首页, Goals, Sessions, Inbox, Feed, and Artifacts. It has no permanent group labels or search bar; Goals and Sessions stay adjacent as sibling project work types. Working-directory choice lives inside Session actions. Sources stay inside Feed as tasks on the stage.
-- Inbox and Feed are sibling plugins. Inbox opens the attention surface. Feed opens the stage directory of 全部 and source tasks.
-- Goal decisions appear in Inbox as attention rows and are completed on the Goal document. They are not Feed directory rows and do not use an Inbox Message preset.
-- Promotion and Visual Workspace remain reserved locations. Their empty states explain that entities and workflows must be defined before real content appears.
-- Goals opens the existing Goal Tree in the same directory. Its heading owns the back action and compact tools; the tree retains its real hierarchy and state.
-- In Light, selected directory items use a quiet flat tone and stronger text; hover uses a lighter transient tone. Neither state lifts above the directory. Dark may use its theme-appropriate paper tone without changing dimensions.
-- In ordinary Web, the same compact project selector, single directory, project tabs, and work surfaces remain in place; responsive CSS folds Goals into Companion navigation. Feed stays an expandable stage directory below 760px instead of switching between Item and Detail pages.
-- Goal titles, child progress, dependency health, and status tags form four distinct reading levels; no metadata uses an inaccessible faint tone.
-- Compact parent progress uses a short accessible line instead of another text badge.
+Same-plugin panes contain independently usable content. Loaded content windows stay mounted when tabs move or panes merge, preserving their unsubmitted input. Navigation inside an embedded content window delegates new tab selection to its parent, allowing A → B → A to return to the original content. Same-pane focus changes do not move or reload the work surface. Splitting preserves the current Frame/work view; an explicit “打开 Frame” action selects Frame even when that Goal’s existing tab last showed work. This live-document continuity is separate from persisted layout restoration; it does not promise that unsubmitted forms survive a page refresh.
 
-**The Directory Ledger Rule.** Goals, Inbox, Feed, and 来源 share one row grammar: one leading hierarchy/type position, one flexible content column, and one stable trailing state column. The title owns the first line; identifiers, progress, source, time, and dependency health share a compact secondary line. Resting rows keep stable heights and column lines; selected, hovered, and focused rows keep identical dimensions. In Light, the selected row is a flat cobalt-neutral tint without exterior shadow. Goal rows use a 40px resting rhythm, and dependency detail adds height only after explicit expansion.
+### Goal canvas, board and work area
 
-**The Source-in-Context Rule.** Inbox and Feed rows always retain a visible source fact, even when the Item comes from Molis Work itself. Expanding a source task in the Feed directory is how an existing Source is browsed; adding a source, binding an account, or migrating Relay may use a focused dialog. Connector remains the capability and Source remains the configured instance.
+The dependency canvas uses real Goal/active relation data. Arrows run from provider to consumer; parent membership is separate. Completed nodes remain visible but quieter. Clicking a canvas node selects lineage; its open control, double-click or Enter opens work. Panning, zooming, node positions and collapse/restore remain local view state.
 
-**The Attention Boundary Rule.** Feed is complete and append-oriented; Inbox is selective and action-oriented. An Inbox row must say why it needs intervention, which Feed Item, Source, or Goal it references, and what the next real step is. Completing it removes it from the default Inbox without deleting or copying the referenced object.
+The Goals mother page switches between canvas and board. Board columns show counts derived from their actual items and a visible empty-column message. Opening a card uses the same Goal content. Vertical wheel input over an overflowing card column scrolls that column, including at its ends; horizontal gestures and Shift-wheel move the board horizontally. Vertical wheel over headers, gaps or non-overflowing columns can move the board horizontally. Zoom gestures and the open Goal work area retain their own behavior. The expanded workspace keeps full-height Runtime and optional information/timeline. When terminal is the only available work mode, the duplicate Conversation/Terminal mode bar is omitted.
 
-### Feed Workbench
+Goal information reads live `readState` and prioritizes actual unmet requirements, pending decisions and blockers with their relevant entry points. An existing dependency alone is not presented as a completion blocker. Historical bodies start collapsed on ordinary entry; explicit selection, deep links and restored reading can expand the original event inline without replacing current facts. Relation body headings remain secondary to the main document heading. Requirements, pending decisions, concerns and older history retain their real data and retry behavior. 目标与要求 includes purpose, scope, decisions, material references and the relation/risk/impact/rules deck. 完成要求 shows current requirements, read-only historical criteria and exact Artifact versions. These views never calculate completion themselves.
 
-Selecting Feed keeps destinations on the left and puts the directory on the stage. The first task is 全部; each configured source is a task beneath it. Expanding a task shows 44px two-line item rows (13px / 450 title, 11px muted source and time) with Ignore on the row. Expanding an item opens detail in the same tree: body, Inbox, promote, and 查看来源, which expands that source task instead of leaving the directory. Add task expands an inline name and URL form and starts a pull; GitHub / Gmail still use the existing overlay. Type, source, disposition, and sort stay in an anchored filter panel on the stage. Keyword search uses the project-level palette. Returning to Feed restores the last task and open item.
+### Frame content picker
 
-The item detail is a continuation of the directory, not a second page or a large empty paper. It still shows type and disposition, source and author, timestamp, summary or body, tags, original link, and attached materials, with honest empty states when those are missing.
+Empty and populated Frames offer “添加已有内容”. Its viewport-contained dialog searches and filters the current project’s loaded Feed, Inbox, Session and Artifact references by source. Existing owner loaders read the selected content. Already-added items are disabled and labeled; empty projects and unmatched searches have distinct explanations. Adding stores only project/Goal-local canvas references and positions, retained after reload; it does not create a domain object. Search receives focus, Cancel returns to the opener, and adding focuses the new block. Cross-pane dragging remains available.
 
-来源属于 Feed 任务，不再占用独立 work surface。添加来源、绑定账号和迁移 Relay 仍可用 overlay；浏览一个已有来源则展开对应任务。Inbox 是独立插件工作面：进入原因、关联对象和下一步在前，不复制原消息正文。目录选择仍遵守 Flat Location Rule，只用平面色调，不使用外部阴影。
+### Runtime and domain ownership
 
-Relay ownership migration is a user-confirmed local operation. Its dialog previews Source, Item, and Material counts, keeps Relay read-only, and explains that Molis Work takes over every usable Feed asset: source definitions, Items, Materials, cursors, run history, decryptable GitHub/Gmail credentials, and retained encrypted bodies. Secrets and bodies are re-sealed into Molis Work-owned stores; the interface must never expose token values or imply that ongoing synchronization still depends on Relay. Source and Relay dialogs belong to the workspace overlay layer, so the active work surface or narrow Item-list mode cannot hide them; below 760px they remain contained inside the viewport. The source manager overlay remains the control surface for adding public feeds, connecting GitHub/Gmail accounts, reading status and failures, and manually synchronizing, pausing, or resuming each source. Everyday browsing of a source happens by expanding that task in the Feed directory.
+Work owns Session/PTY identity and terminals. Opening, selecting or closing a Goal never starts, sends to, destroys or rebinds execution. The empty terminal surface offers a local Add terminal action that opens the existing chooser, focuses its first available choice and returns focus on Cancel. Users explicitly add/start a terminal. Event-owned parent Goals can record integration in their own Runtime; the existing untransferred compound-parent guard remains. Only the terminal canvas uses its independent Follow interface/Light/Dark palette.
 
-Promote and Start create or reuse one Draft Goal and bind the Item as its input. Start moves into that Goal's Runtime. If no TUI is open, the Runtime picker stays visible; after the user chooses one, source, body, and material context is filled into the terminal without being sent. All source-derived content stays inside a visible untrusted-data boundary and terminal control characters cannot become input actions. This preserves Goal ownership and gives the user a final review point.
+Session creation and association share a readable dialog heading, with the mode switch separate from Close; on mobile, the mode switch sits below the title. The first-use creation action uses the shared primary style and an aligned plus icon. Artifact reading distinguishes no project results, available results with no selected version, and an unavailable exact version; each state describes the actual next step.
 
-### Project Goal Tabs
+Goals retains event writing and domain decisions; Work/Sessions retains execution identity, histories and working-directory relationships; Artifacts retains owner-rendered exact versions and downloads. Inbox owns attention with an entry reason, related object and next action. Feed owns source-message facts and source tasks. Source migration, credential handling and promotion semantics remain in their existing owners; shared chrome does not change these contracts.
 
-- Tabs are grouped by plugin, restored from local device storage, and split into at most three panes.
-- Opening the same item in one pane focuses its existing tab. The same item may also be copied into another pane.
-- Closing the last tab in the workspace restores the project-home tab. Empty panes may remain until the user closes them.
-- In Light, work tabs stay flat inside the workbench bar: the selected tab uses stronger text and a two-pixel bottom marker rather than a white fill or exterior shadow, while inactive hover uses only a faint transient tone. Dark keeps its theme-appropriate paper surface; status remains readable through its dot and the Goal content itself.
-- The close action is separate from the tab button. Closing the active tab selects a neighbor and never removes the last displayable Goal.
-- The tab strip uses complete tab semantics and disappears in the narrow Companion.
+### Home, Feed and settings
 
-### Native Window Chrome
+Home retains local date/weekday, a navigable month calendar and the existing 13 quotations, with a real “打开 Goals” entry. “换一句” is a quiet shared Coss action with aligned icon/text and visible hover/focus states. Quotations change only on that action, using a 160ms opacity transition; reduced motion switches directly. Quote layout reserves the longest text's space. Original text and attributions are unchanged. The home input and send control remain natively disabled with “Agent 尚未开放”. No Agent Harness is implied.
 
-- First-run and update Onboarding use a compact 44px native-only topbar with an 88px leading safe area and a 1px optical lift. In the packaged macOS App, the brand and right-side actions align with the visible traffic-light center. Both pages reuse the Desktop bootstrap before styles load; ordinary browser/mobile topbars keep their existing dimensions. Do not move the system buttons to compensate for page layout.
-- macOS Overlay uses a fixed 48px titlebar band, with the directory toggle and right-side tabs/titles centered at approximately `y=22px`. Project controls retain their existing second row. The shared native inset follows actual fullscreen state (88px window / 2px fullscreen), including full-page navigation; never infer it from viewport width.
-- The workbench bar contains tabs, one dedicated empty 48px drag slot, and actions. Utility tabs stay on one line.
-- Whole workbench, project-index, and Settings topbars are never drag regions. Only empty spacers or plain-text context may carry window drag behavior.
-- **The Project Index Arrival Rule.** Choosing a project is a full-page arrival, not the workbench. Its topbar is one full-width brand + device-settings row. Workbench directory chrome must not leak onto it: do not hide `.topbar`, do not place it at `grid-column: 2`, and do not hide or center the brand. Native Overlay still uses the 48px band and traffic-light inset. The heading and search stay pinned; only the project cards scroll.
-- The directory resizer begins below the native titlebar at grid row 2 so resizing and macOS traffic-light interaction never compete.
-- Ordinary Web and the Companion at 760px and below retain their existing chrome and structure.
+Directory shortcuts remain project-local preferences. Their modal supports add/edit/remove/cancel, keeps input on failure, restores focus, and opens validated http(s) links through the existing web/native path. They do not create Goal records.
 
-### Goal Canvas and Expanded Workspace
+Feed keeps a full-width fixed toolbar boundary above its internally scrolling list and reader, including in narrow and split panes. Opening, collapsing and retrying an item retain its focus and appropriate scroll position. Feed selection synchronizes the source task, selected-source heading and filtered list; the stage has no redundant Feed eyebrow. Rows show a provider glyph, source/time/read state, title, quieter summary and disclosure chevron. Opening a row keeps that single title and brings the original source link and body into continuous inline reading. Tags and optional material disclosures follow the body; destination state and grouped actions sit in a divided footer. Read state and destination state are distinct. At 760px and below, the reader actions form two equal columns with 44px targets; long titles and body wrap. Search, filters, keyboard selection, collapse/reopen and detail-error retry remain available. Demo actions explicitly change only the current page. Feed task configuration uses the attached editor; compact Relay import retains its confirmation surface. Task configuration has one Cancel/Save configuration footer; the pull-plan disclosure names its separate save scope and pairs Undo changes with Save pull plan. Saving the plan preserves unsaved task fields; resetting returns to the latest saved plan, including its paused state. Save failures keep input available for retry. Promote/Start retains create-or-reuse Draft behavior and source context boundaries; filling a chosen terminal never automatically sends. Inbox attention and its authoritative processing history remain separate from the Feed stream.
 
-Compact nodes show a readable title, outcome, status, and parent membership when present. The node itself opens the Goal and supports keyboard activation; dragging changes only local layout. Dependencies are provider → consumer paths and completed nodes remain visible. The canvas becomes inert while a Goal is expanded; 收起 restores the view and focuses its compact node.
+Project settings opens directly as complete server-rendered HTML. Returning restores the project’s persisted workspace tabs and splits; category navigation, refresh and browser history do not depend on an asynchronous workbench settings stage. Obsolete persisted `project-settings` exclusive state is cleared on workspace restoration. The `embed=1` fragment remains for existing project-management callers.
 
-Goal info shows the outcome, live progress, requirement support, and pending decisions. Its footer offers Goal and requirements plus a more menu for record templates and lifecycle actions. The timeline exposes one Add entry disclosure with explained choices for a note, progress update, or issue. Set as current Goal is removed. Folded info retains the Goal title and status.
+General uses a name-edit row, a local-data disclosure and separate rebuild/delete actions. Guidance has six categories, category-specific add actions, one inline editor, version history and inactive entries. Rules use flat rows with right-aligned selects/switches, advanced disclosure, change reason and a clear save footer. Failed saves preserve input. Planning prioritizes the active composition, then search/category filters and content-sized adoption rows: a typical desktop row is about 112px tall, with no 168px minimum. Controls move below the copy on narrow screens. Mobile return/category links, inputs, buttons, planning filters and guidance actions have 44px minimum targets; the switch retains its small visual knob inside a larger clickable setting row.
 
-The timeline is latest-first and grouped by day. Entries show time, title, Chinese type, author, and relevant state. Results, concerns/blockers, pending decisions, decision outcomes, and ordinary records stay in one chronology. Selecting an entry expands its original body immediately below it; selecting it again can collapse the body. Arrow keys move between entries. 查看更早记录 loads earlier history with failure/retry feedback. There are no result/decision filters or separate event-body column. Historical Run / Evidence / Review / Decision keep original IDs and sources.
-
-关联与约束 remains a nested deck inside 目标与要求: equal-width summary selectors and one full-width body. It is not primary workspace navigation. Risk/relation deep links reveal the corresponding content.
-
-### Runtime
-
-The Goal Runtime occupies the full-height left column. Its duplicate owner header is hidden; tabs, parent guidance, child choices, and controls use Molis Work application colors and system typography. Work owns separate Goal terminals; selecting, expanding, or collapsing a Goal does not launch a Runtime, send input, destroy a process, or rebind an existing terminal. Users explicitly add or start a terminal. The unopened state says 还没有终端. Parent guidance and child choices remain flat rows separated by lines.
-
-Event-owned Goals, including parent Goals that record their own integration, keep the executable Runtime surface. Switching Goal does not rebind an already open terminal and never auto-sends. Untransferred `closed_compound` Goals without event ownership still use the parent-read-only terminal guard: add/open controls stay disabled on that Goal, and the user enters a child Goal to execute. Child-count is not a completion algorithm, and the event document does not hide Runtime because a parent is compound.
-
-Only the bounded terminal canvas uses terminal tokens. The local terminal appearance preference offers Follow interface, Light, and Dark. It is applied before first paint and updates live xterm background, foreground, cursor, selection, and ANSI colors without reloading. Terminal Dark uses `#101012`, `#f0f0f2`, `#b5b5bd`, and `#92929b`; Terminal Light uses `#fbfbfc`, `#202023`, `#65656e`, and `#7b7b84`.
-
-### Settings
-
-Desktop settings reuse the same single directory, local-identity footer, flat Light current-location treatment, and soft content section panels as the Goal workspace. Project Settings is reached beside the project selector and only contains Work Rules and Work Planning for that project. Global Settings is reached from the pinned footer and only contains Appearance & Language, AI & Execution Tools, and Diagnostics for the current device. Ordinary Web settings retain their existing shell.
+Global settings presents theme, language, density and terminal appearance as compact setting rows. Execution tools put Runtime status and the relevant preview/connect/repair/remove action first, with local paths collapsed. Diagnostics separates installation, launch entries and Web service status/actions; technical configuration and logs are disclosed on demand. Planning library browsing, detail and editing use the same independent shell. Global category changes, planning detail/edit and cancel retain the originating project context so Return restores the prior project workspace. Both settings scopes share the neutral palette and controls. Explicit planning adoption retains confirmation and independent project/personal versions. Project default rule saves reach a Goals-owned command with validation, transaction, audit history and idempotent retry; presentation does not own business state.
 
 ## Do's and Don'ts
 
-### Do:
+### Do
 
-- **Do** establish hierarchy with proportion, alignment, and whitespace before adding a container.
-- **Do** keep project, module, Goal Tree, and settings navigation in one replaceable directory.
-- **Do** preserve project-local Goal tabs as UI state, never canonical Goal state.
-- **Do** reserve the 48px macOS Overlay safe zone and limit window dragging to empty or plain-text titlebar regions.
-- **Do** distinguish project settings from global device settings at their entry, directory, header, and content.
-- **Do** use tonal surfaces and low shadows to reduce the need for structure lines.
-- **Do** keep full-height Runtime visible beside Goal info and the timeline.
-- **Do** keep the selected Goal continuous across its list entry, canvas node, workspace, and owned Terminal.
-- **Do** keep Goal info on live `readState` while history selection changes only its inline body.
-- **Do** keep the 70/30 desktop split adjustable and locally persistent, including intermediate widths.
-- **Do** open 记录模板 / 目标与要求 / 完成要求 over the left work area with 返回工作区, and remove covered controls from keyboard focus.
-- **Do** preserve the cool-neutral palette and reserve cobalt for interaction, focus, and event-document operate cues.
-- **Do** keep Promotion and Visual Workspace visibly labeled “规划中” and limited to honest reserved views until their real entities and flows exist.
-- **Do** test Light, Dark, Standard, Compact, Runtime-open, narrow states, and both terminal palettes together.
-- **Do** keep every mobile workspace surface full width and free of horizontal viewport escapes.
-- **Do** let users scan 关联与约束 summaries before expanding one body, and reveal the correct card before honoring a deep link.
+- **Do** build hierarchy from spacing, text and meaningful boundaries; use paper continuity for work and selected tabs, attached edges for temporary editors and restrained depth for compact prompts.
+- **Do** keep the current tab, loaded body, selected directory item and owned terminal consistent without copying domain state.
+- **Do** retain source links, exact Artifact versions and original record IDs; make current facts distinct from historical evidence.
+- **Do** preserve visible focus, keyboard paths, error recovery, responsive reading and reduced motion. Keep the shell within the viewport and scroll long content in its owning component.
+- **Do** state settings scope, keep global and project preferences independent and provide a direct return to prior work.
+- **Do** use the existing owner renderer and shared token source when adding screens.
+- **Do** keep Feed read state separate from destination state, read the body before processing, and disclose optional materials only when present.
+- **Do** pair form Cancel and Submit, label independently saved regions, preserve drafts on failure, and carry project context through global settings.
 
-### Don't:
+### Don't
 
-- **Don't** add a second persistent navigation column or repeat project context across the shell.
-- **Don't** restore permanent search, group headings, and tool blocks at the root directory.
-- **Do** put a magnifying-glass control beside the project selector. It opens a centered palette whose results are grouped by plugin (Goals, Sessions, Inbox, Feed, Sources, Artifacts) and jumps to the chosen object. Goals drill-down no longer has an inline search field; status filters remain. Authority: `specs/global-plugin-search/spec.md`.
-- **Don't** let pane splits grow past three, or leak tab workspace state across projects.
-- **Don't** place tabs, buttons, or the directory resizer in the traffic-light safe zone, or mark an interactive topbar container as draggable.
-- **Don't** replace an opened Goal's current facts, timeline or real Runtime with project-home whitespace or its disabled composer.
-- **Don't** present reserved placeholder views as working modules or fill them with fake content, counts, or activity.
-- **Don't** treat the Goal Tree or an AI chat homepage as the entire application.
-- **Don't** restore five Goal tabs (概览 / 完成要求 / 进展与阻塞 / 关联与约束 / 完整记录) as the selected Goal’s primary navigation.
-- **Don't** let 目标与要求 or 完成要求 share the reader with 使用事件记录继续.
-- **Don't** restore result/decision filters, a separate event-body column, or exclusive Goal Focus/Runtime panes.
-- **Don't** drag an expanded Goal or represent parent membership as dependency arrows.
-- **Don't** treat 原 Goal 标准 as the live completion authority; current requirements and `readState` own that reading.
-- **Don't** use protocol identifiers (`report`, `goal.created`, English verdicts) as the primary timeline or event explanation.
-- **Don't** blur project-setting and global-setting scope.
-- **Do** treat an explicit “加入组合” click as the project-adoption confirmation and send it to the existing guarded API. GW5 repaired the missing client field; it did not weaken the server check or auto-adopt methods. Real failed/retried saves, independent personal/project versions and desktop/390px captures were verified; no visual redesign was made (impeccable harden).
-- **Don't** force the Desktop two-pane arrangement into the narrow Companion; Feed keeps the expandable stage directory on the document surface.
-- **Don't** turn unrelated filters and navigation into segmented pills; keep grouped controls limited to choices that belong together.
-- **Don't** stack unrelated detail sections into one unbroken page or give every nested content block another decorative border.
-- **Don't** make status colors decorative or rely on color without text.
-- **Don't** copy YouMind's product IA, content cards, branding, or imagery.
+- **Don't** restore the old 32px work bar, underlined active work tab, 10px shared controls, or separate Settings palette.
+- **Don't** add a second persistent directory inside the workbench, decorative dashboard cards, duplicate mode bars or inactive placeholder tools.
+- **Don't** embed project preferences in workspace/plugin tabs or revive the asynchronous exclusive settings stage.
+- **Don't** turn a disabled composer, Session demo, reserved module or browser screenshot into a claim of an integrated feature.
+- **Don't** infer completion from child counts, activity or missing requirements, or treat UI selection as execution authority.
+- **Don't** make status color the only explanation, allow long paths to widen the viewport, or hide the current tab when resizing.
+- **Don't** use review screenshots as product imagery or claim browser review verifies the native package or every low-frequency form.
+- **Don't** repeat the Feed stage eyebrow, expanded title or summary, or ask users to select an Artifact when the project has no results.
+
+
+### Long detail reading
+Inbox uses a 20–22px title in a scrolling context region, with processing actions and failure feedback in a separate footer. Artifact detail keeps its title and local export reachable in both workbench and direct version pages; its raw JSON scrolls within a maximum of 45dvh/400px. Session detail keeps a compact title/action area and full-width search toolbar above the scrolling execution record. Relations and history are available in a collapsed context disclosure below it; opening the disclosure does not leave the reading surface. These rules apply within split panes as well as narrow windows.
+
+
+### Settings editing
+Project rules, project guidance and planning-method editing use the available settings panel: fixed heading and action footer, with fields scrolling independently. Guidance editing replaces the list in that panel until save/cancel; cancel restores focus to its entry point. Save and cancel sit together at the right, with failure feedback immediately above them. Pending saves disable editing and cancellation; a failed connection preserves the draft and offers a readable retry message. Category navigation remains in the independent settings shell. The pattern is verified at 1024×400 and 390×500.
+
+
+### Goal form panels
+Goal record forms use a fixed compact heading, a scrolling field region and a separate action/feedback footer. The outer Goal title remains visible; the duplicate detail toolbar hides during form editing. Fields never scroll under the buttons. The shared structure covers note, progress, concern, decision, closure/resume, agreement, requirements and record-template forms. At 760px and below actions retain 44px targets. Pending writes keep fields inert and disable local form actions without removing inputs from FormData; failures retain drafts, and write-success/read-failure keeps its separate retry-reading action.
+
+### Partial saves and connection recovery
+When a multi-step save completes only its first step, name the saved part and the unfinished part in the same feedback area. Retrying must preserve identity and avoid duplicate records. Goal type/requirement saves follow this rule. Planning methods distinguish mandatory steps, coverage questions and dependency rules from optional advanced guidance; validation opens and focuses the missing group. Pending planning saves disable both local return and cancel links. Connector authorization failures point to the current Feed task settings → Manage account connection, while retaining provider diagnostics in history.

@@ -39,47 +39,16 @@ function runtimeStatePresentation(state: RuntimeIntegrationDetection["connection
 }
 
 function renderAppearanceSettings(nextPath: string): string {
-  const densityPreview = (mode: "standard" | "compact") =>
-    `<span class="density-preview density-preview--${mode}" aria-hidden="true"><i></i><span><i></i><i></i><i></i><i></i><i></i></span></span>`;
   const locale = currentLocale();
-  const languageOption = (value: "zh" | "en", label: string, description: string) =>
-    `<a class="preference-option" href="${localeSwitchHref(value, nextPath)}" hreflang="${value === "zh" ? "zh-CN" : "en"}" lang="${value === "zh" ? "zh-CN" : "en"}" aria-current="${locale === value}"><span class="language-preview" aria-hidden="true">${value === "zh" ? "中" : "EN"}</span><span><strong>${label}</strong><small>${description}</small></span>${icon("check", "preference-check")}</a>`;
-  return `<section class="settings-document appearance-document" aria-labelledby="settings-title">
-    <header class="settings-heading"><h1 id="settings-title">${L("界面与语言")}</h1><p>${L("集中设置当前设备上的语言、主题、终端外观和信息密度，不会改动项目、Goal 或 Runtime 数据。")}</p></header>
-    <div class="settings-body"><div class="appearance-settings">
-      <section class="preference-section" aria-labelledby="language-settings-title">
-        <div class="preference-copy"><h2 id="language-settings-title">${L("界面语言")}</h2><p>${L("只改变 Molis Work 的界面文案，不翻译 Goal 名称和正文内容。")}</p></div>
-        <div class="preference-options preference-options--language" role="group" aria-label="${L("界面语言")}">
-          ${languageOption("zh", "中文", L("使用中文界面。"))}
-          ${languageOption("en", "English", L("使用英文界面。"))}
-        </div>
-      </section>
-      <section class="preference-section" aria-labelledby="density-settings-title">
-        <div class="preference-copy"><h2 id="density-settings-title">${L("界面密度")}</h2><p>${L("决定桌面 Goal 工作台一次显示多少 Goal 和正文内容。")}</p></div>
-        <div class="preference-options preference-options--density" role="group" aria-label="${L("界面密度")}">
-          <button class="preference-option" type="button" data-density-option="standard" aria-pressed="true">${densityPreview("standard")}<span><strong>${L("标准")}</strong><small>${L("舒展的间距，适合专注阅读和一般工作量。")}</small></span>${icon("check", "preference-check")}</button>
-          <button class="preference-option" type="button" data-density-option="compact" aria-pressed="false">${densityPreview("compact")}<span><strong>${L("紧凑")}</strong><small>${L("减少 Goal 行和正文留白，适合长 Goal Tree 与宽屏。")}</small></span>${icon("check", "preference-check")}</button>
-        </div>
-      </section>
-      <section class="preference-section" aria-labelledby="theme-settings-title">
-        <div class="preference-copy"><h2 id="theme-settings-title">${L("主题")}</h2><p>${L("选择固定主题，或让 Molis Work 跟随当前系统外观。")}</p></div>
-        <div class="preference-options preference-options--theme" role="group" aria-label="${L("主题")}">
-          <button class="preference-option" type="button" data-theme-option="light" aria-pressed="false">${icon("sun")}<span><strong>${L("浅色")}</strong><small>${L("适合明亮环境。")}</small></span>${icon("check", "preference-check")}</button>
-          <button class="preference-option" type="button" data-theme-option="dark" aria-pressed="false">${icon("moon")}<span><strong>${L("深色")}</strong><small>${L("适合低光环境。")}</small></span>${icon("check", "preference-check")}</button>
-          <button class="preference-option" type="button" data-theme-option="system" aria-pressed="true">${icon("system")}<span><strong>${L("跟随系统")}</strong><small>${L("随设备主题自动切换。")}</small></span>${icon("check", "preference-check")}</button>
-        </div>
-      </section>
-      <section class="preference-section" aria-labelledby="terminal-theme-settings-title">
-        <div class="preference-copy"><h2 id="terminal-theme-settings-title">${L("终端外观")}</h2><p>${L("只改变终端画布的配色；Runtime 导航、Goal 信息和操作继续使用界面主题。")}</p></div>
-        <div class="preference-options preference-options--theme" role="group" aria-label="${L("终端外观")}">
-          <button class="preference-option" type="button" data-terminal-theme-option="auto" aria-pressed="true">${icon("system")}<span><strong>${L("跟随界面")}</strong><small>${L("终端随 Molis Work 的浅色或深色主题切换。")}</small></span>${icon("check", "preference-check")}</button>
-          <button class="preference-option" type="button" data-terminal-theme-option="light" aria-pressed="false">${icon("sun")}<span><strong>${L("浅色终端")}</strong><small>${L("始终使用浅色终端画布。")}</small></span>${icon("check", "preference-check")}</button>
-          <button class="preference-option" type="button" data-terminal-theme-option="dark" aria-pressed="false">${icon("moon")}<span><strong>${L("深色终端")}</strong><small>${L("始终使用深色终端画布。")}</small></span>${icon("check", "preference-check")}</button>
-        </div>
-      </section>
-    </div>
-    <p class="preference-note">${L("语言、主题、终端外观和密度只保存在当前设备。紧凑模式仅影响 760px 以上的 Goal 导航和 Goal 正文；Runtime、决定中心、设置页和窄屏布局保持原来的密度。")}</p></div>
-  </section>`;
+  const options = (attribute: string, values: [string, string][]) => `<div class="settings-segmented" role="group">${values.map(([value, label]) => `<button type="button" ${attribute}="${value}" aria-pressed="false">${L(label)}</button>`).join("")}</div>`;
+  const row = (title: string, description: string, control: string) => `<section class="settings-setting-row"><div class="setting-copy"><strong>${L(title)}</strong><span>${L(description)}</span></div><div class="setting-value" aria-label="${L(title)}">${control}</div></section>`;
+  return `<section class="settings-document appearance-document" aria-labelledby="settings-title"><header class="settings-heading"><h1 id="settings-title">${L("界面与语言")}</h1><p>${L("设置这台设备上的阅读和工作习惯。")}</p></header><div class="settings-body">
+    ${row("主题", "选择固定主题，或跟随系统外观。", options("data-theme-option", [["light", "浅色"], ["dark", "深色"], ["system", "跟随系统"]]))}
+    ${row("界面语言", "只改变界面文案，保留项目内容的原始语言。", `<div class="settings-segmented">${(["zh", "en"] as const).map((value) => `<a href="${localeSwitchHref(value, nextPath)}" lang="${value}" aria-current="${locale === value}">${value === "zh" ? "中文" : "English"}</a>`).join("")}</div>`)}
+    ${row("界面密度", "调整 Goal 导航和正文的间距。", options("data-density-option", [["standard", "标准"], ["compact", "紧凑"]]))}
+    ${row("终端外观", "为终端内容单独选择明暗配色。", options("data-terminal-theme-option", [["auto", "跟随界面"], ["light", "浅色"], ["dark", "深色"]]))}
+    <p class="settings-footnote">${L("更改即时生效，保存在当前设备。")}</p>
+  </div></section>`;
 }
 
 function renderRuntimeSettings(view: MolisWorkSettingsView): string {
@@ -93,7 +62,7 @@ function renderRuntimeSettings(view: MolisWorkSettingsView): string {
         <div class="settings-record-title"><span class="record-icon">${icon("workflow")}</span><div><h2>${escapeHtml(runtime.display_name)}</h2><p>${escapeHtml(state.description)}</p></div></div>
         <div class="settings-record-action"><span class="settings-state settings-state--${state.tone}">${escapeHtml(state.label)}</span><button type="button" data-runtime-plan="${escapeHtml(runtime.runtime_id)}" data-runtime-action="${action}"${unavailable ? " disabled" : ""}>${escapeHtml(actionLabel)}</button></div>
       </header>
-      <dl class="settings-paths"><div><dt>Runtime</dt><dd>${runtime.executable_path ? escapeHtml(runtime.executable_path) : L("未找到可执行文件")}</dd></div><div><dt>${L("配置")}</dt><dd>${escapeHtml(runtime.config_path)}</dd></div><div><dt>Skill</dt><dd>${escapeHtml(runtime.skill_path)}</dd></div></dl>
+      <details class="settings-data-disclosure"><summary><span>${L("本机路径")}</span>${icon("chevron-down")}</summary><dl class="settings-paths"><div><dt>Runtime</dt><dd>${runtime.executable_path ? escapeHtml(runtime.executable_path) : L("未找到可执行文件")}</dd></div><div><dt>${L("配置")}</dt><dd>${escapeHtml(runtime.config_path)}</dd></div><div><dt>Skill</dt><dd>${escapeHtml(runtime.skill_path)}</dd></div></dl></details>
     </article>`;
   }).join("");
   return `<section class="settings-document" aria-labelledby="settings-title">
@@ -115,7 +84,7 @@ function renderProjectDetail(project: WebSettingsProject, selected: boolean, des
   const href = `/projects/${encodeURIComponent(id)}`;
   return `<article class="project-manager-detail" data-project-pane="${safe}" data-route-prefix="${href}"${selected ? "" : " hidden"} aria-labelledby="project-pane-title-${safe}">
     ${folds.renderProjectSettingsHero(project, { headingTag: "h2", showOpenTree: true })}
-    <p class="settings-footnote">${L("项目说明、工作规则和工作规划请在项目工作台的齿轮里打开。")}</p>
+    <p class="settings-footnote">${L("项目说明、工作规则和工作规划在项目设置中维护。")}</p>
     ${folds.renderGeneralBody(project)}
     ${folds.renderDanger(project)}
     ${folds.renderProjectDeleteDialog(project, desktopShell)}
@@ -156,7 +125,7 @@ function renderProjectSettings(view: MolisWorkSettingsView, desktopShell: boolea
         <header class="project-manager-hero">
           <div>
             <h2 id="create-project-title">${L("创建项目")}</h2>
-            <p>${L("创建一个空的 Molis Work 项目，然后直接打开它的 Goal Tree。")}</p>
+            <p>${L("创建一个空项目，随后进入工作台。")}</p>
           </div>
         </header>
         <form class="inline-settings-form project-manager-create-form" data-project-create>
@@ -168,7 +137,7 @@ function renderProjectSettings(view: MolisWorkSettingsView, desktopShell: boolea
         <section class="project-manager-section" aria-labelledby="import-project-title">
           <h3 id="import-project-title">${L("导入已有 Molis Work 数据")}</h3>
           <p>${L("选择并确认数据文件后，Molis Work 会把它作为一个独立项目保存。")}</p>
-          <button type="button" data-open-project-migration>${L("选择数据文件并预览")}</button>
+          <button type="button" data-open-project-migration>${L("导入已有数据")}</button>
         </section>
         ${demo ? "" : `<section class="project-manager-section" aria-labelledby="demo-project-title"><h3 id="demo-project-title">${L("产品示例")}</h3><p>${L("创建一份明确标记为可重建的示例数据；普通卸载会清理它，但保留用户项目。")}</p><button type="button" data-demo-action="create">${L("创建示例项目")}</button><p class="settings-form-error" data-demo-error role="alert" hidden></p></section>`}
         <p class="settings-footnote">${view.projects.length ? L("普通用户项目不会被示例操作或普通卸载删除；永久清除用户数据需要单独确认精确数据目录和项目数量。") : L("创建第一个项目，或导入已有 Molis Work 数据。")}</p>
@@ -202,9 +171,9 @@ function renderDiagnosticsSettings(view: MolisWorkSettingsView): string {
   const serviceButtons = serviceActions.map(([action, label]) => `<button type="button" data-web-service-action="${action}">${label}</button>`).join("");
   return `<section class="settings-document" aria-labelledby="settings-title">
     <header class="settings-heading"><h1 id="settings-title">${L("诊断")}</h1><p>${L("这里只读取 Molis Work 自己的安装状态，不扫描项目内容，也不会自动修复或修改 Runtime。")}</p></header>
-    <div class="settings-body"><section class="diagnostics-summary"><div><h2>${L("Molis Work 本体")}</h2><span class="settings-state settings-state--${installation.tone}">${installation.label}</span></div><dl><div><dt>${L("版本")}</dt><dd>${escapeHtml(diagnostics.version ?? L("未识别"))}</dd></div><div><dt>Home</dt><dd>${escapeHtml(diagnostics.home_directory)}</dd></div><div><dt>Release</dt><dd>${escapeHtml(diagnostics.release_directory ?? L("未找到"))}</dd></div><div><dt>${L("项目数")}</dt><dd>${diagnostics.project_count}</dd></div></dl></section>
+    <div class="settings-body"><section class="diagnostics-summary"><div><h2>${L("Molis Work 本体")}</h2><span class="settings-state settings-state--${installation.tone}">${installation.label}</span></div><dl><div><dt>${L("版本")}</dt><dd>${escapeHtml(diagnostics.version ?? L("未识别"))}</dd></div><div><dt>${L("项目数")}</dt><dd>${diagnostics.project_count}</dd></div></dl><details class="settings-data-disclosure"><summary><span>${L("本机路径")}</span>${icon("chevron-down")}</summary><dl class="settings-paths"><div><dt>Home</dt><dd>${escapeHtml(diagnostics.home_directory)}</dd></div><div><dt>Release</dt><dd>${escapeHtml(diagnostics.release_directory ?? L("未找到"))}</dd></div></dl></details></section>
     <section class="launcher-section" aria-labelledby="launcher-title"><h2 id="launcher-title">${L("启动入口")}</h2><ul>${launchers}</ul></section>
-    <section class="diagnostics-summary" aria-labelledby="web-service-title"><div><div><h2 id="web-service-title">${L("Web 常驻服务")}</h2><p>${escapeHtml(L(service.message))}</p></div><span class="settings-state settings-state--${serviceTone}">${serviceLabel}</span></div><dl><div><dt>${L("方式")}</dt><dd>${service.provider === "macos-launchagent" ? L("macOS 用户级 LaunchAgent") : L("尚未提供")}</dd></div><div><dt>${L("命令")}</dt><dd>${escapeHtml(service.command.join(" "))}</dd></div><div><dt>${L("配置")}</dt><dd>${escapeHtml(service.plist_path)}</dd></div><div><dt>${L("日志")}</dt><dd>${escapeHtml(service.stdout_log)}<br>${escapeHtml(service.stderr_log)}</dd></div></dl><div class="service-action-row">${serviceButtons}</div><p class="settings-form-error" data-web-service-error role="alert" hidden></p></section>
+    <section class="diagnostics-summary" aria-labelledby="web-service-title"><div><div><h2 id="web-service-title">${L("Web 常驻服务")}</h2><p>${escapeHtml(L(service.message))}</p></div><span class="settings-state settings-state--${serviceTone}">${serviceLabel}</span></div><div class="service-action-row">${serviceButtons}</div><details class="settings-data-disclosure"><summary><span>${L("服务配置与日志")}</span>${icon("chevron-down")}</summary><dl><div><dt>${L("方式")}</dt><dd>${service.provider === "macos-launchagent" ? L("macOS 用户级 LaunchAgent") : L("尚未提供")}</dd></div><div><dt>${L("命令")}</dt><dd>${escapeHtml(service.command.join(" "))}</dd></div><div><dt>${L("配置")}</dt><dd>${escapeHtml(service.plist_path)}</dd></div><div><dt>${L("日志")}</dt><dd>${escapeHtml(service.stdout_log)}<br>${escapeHtml(service.stderr_log)}</dd></div></dl></details><p class="settings-form-error" data-web-service-error role="alert" hidden></p></section>
     <p class="settings-footnote">${L("如果本体不完整，请在终端重新运行 ")}<code>molis-work install</code>${L("。常驻服务操作会先展示预览并要求确认；不会在后台使用 nohup。")}</p></div>
   </section>`;
 }
@@ -242,9 +211,9 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
   return `<!doctype html>
 <html lang="${htmlLang()}">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${controlTokenMeta(controlToken)}<title>${title} · ${L("Molis Work 设置")}</title><script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-settings.css"></head>
-<body class="settings-page" data-settings-section="${view.section}" data-desktop-shell="true"${desktopShell ? ' data-native-desktop="true"' : ""}>
+<body class="settings-page project-preferences-page global-preferences-page" data-settings-section="${view.section}" data-desktop-shell="false"${desktopShell ? ' data-native-desktop="true"' : ""}>
   ${renderIconSprite()}
-  <header class="topbar"><a class="brand" href="${returnHref}" aria-label="${contextProject ? L("返回 Goal Tree") : L("返回 Molis Work 项目列表")}">${icon("brand")}<strong>Molis Work</strong></a><div class="project-context"${desktopShell ? " data-tauri-drag-region" : ""}><strong${desktopShell ? " data-tauri-drag-region" : ""}>${projectManager ? L("项目管理") : L("全局设置")}</strong><small${desktopShell ? " data-tauri-drag-region" : ""}>${projectManager ? L("创建、导入和维护项目") : title}</small></div><div class="top-spacer"${desktopShell ? " data-tauri-drag-region" : ""}></div><a class="top-action" href="${returnHref}" aria-label="${L("关闭全局设置")}">${icon(desktopShell ? "x" : contextProject ? "tree" : "folder")}<span>${contextProject ? L("Goal Tree") : L("项目列表")}</span></a></header>
+  <header class="project-preferences-chrome"${desktopShell ? " data-tauri-drag-region" : ""}><span>${projectManager ? L("项目管理") : L("全局设置")}</span><a href="${returnHref}" aria-label="${L("关闭全局设置")}">${icon("x")}</a></header>
   <main class="settings-shell${projectManager ? " settings-shell--standalone" : ""}">
     ${projectManager ? "" : renderSettingsNavigation(view.section, contextProject, desktopShell, view.projects)}
     <div class="settings-content">${content}</div>

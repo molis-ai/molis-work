@@ -23,6 +23,7 @@ import {
   type GoalRelationGraphIssue,
 } from "./goal-commands.js";
 import { GuidanceCommands } from "./guidance-commands.js";
+import { ProjectPolicyCommands } from "./policy-commands.js";
 import { LegacyGoalCoverage } from "./legacy-coverage.js";
 import { GoalImpactRepository } from "./impact-repository.js";
 import { ConfirmedRelationCommands } from "./confirmed-relations.js";
@@ -111,9 +112,11 @@ export class GoalsModule {
       validateRelationGraph: hooks.validateRelationGraph,
     });
     const guidance = new GuidanceCommands(context);
+    const projectPolicy = new ProjectPolicyCommands(context);
     const confirmedRelations = new ConfirmedRelationCommands(context);
     const boards = new MolisWorkCommands(context);
     this.commands = {
+      saveProjectPolicy: input => projectPolicy.save(input),
       initializeBoard: input => boards.initializeBoard(input),
       completeLegacyBoardImport: input => boards.completeLegacyBoardImport(input),
       setActiveGoal: (...args) => boards.setActiveGoal(...args),

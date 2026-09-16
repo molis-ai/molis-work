@@ -98,7 +98,8 @@ function renderWorkTerminal(model: WorkTerminalUiModel): string {
             <div class="tui-empty" data-tui-empty>
               <span class="tui-empty-mark" aria-hidden="true">${icon("terminal")}</span>
               <p><strong>${compoundParent ? L("这个上层 Goal 不直接使用终端") : L("还没有终端")}</strong></p>
-              <p>${compoundParent ? L("请从上方进入一个具体的子 Goal。") : L("点右上角「添加终端」，在这个 Goal 上打开常用 Runtime 或自定义命令。")}</p>
+              <p>${compoundParent ? L("请从上方进入一个具体的子 Goal。") : L("选择常用 Runtime 或自定义命令，在这个 Goal 上开始工作。")}</p>
+              <button type="button" class="button primary" data-tui-empty-add aria-haspopup="true" aria-controls="tui-open-menu" aria-expanded="false"${compoundParent ? " hidden" : ""}>${icon("plus")}${L("添加终端")}</button>
             </div>
           </div>
         </div>
@@ -111,7 +112,7 @@ function renderWorkTerminal(model: WorkTerminalUiModel): string {
           </div>
           ${missingHint}
           <label data-tui-generic-fields hidden>${L("命令")}<input name="command" type="text" autocomplete="off" placeholder="opencode"></label>
-          <label>${L("继续会话 ID（可选）")}<input name="resume_session_id" type="text" autocomplete="off"></label>
+          <details class="form-disclosure"><summary>${L("继续已有会话（可选）")}</summary><label>${L("会话 ID")}<input name="resume_session_id" type="text" autocomplete="off"></label><small>${L("先填入对应 Runtime 的会话 ID，再选择上方的 Runtime。")}</small></details>
           <div class="tui-menu-actions">
             <button type="button" data-tui-menu-cancel>${L("取消")}</button>
             <button type="submit" data-tui-generic-open hidden>${L("打开")}</button>

@@ -1,164 +1,90 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-13T00:45:48+08:00",
-  "title": "Design System: Molis Work Calm Desktop",
+  "generatedAt": "2026-09-15T21:27:31+00:00",
+  "title": "Design System: Molis Work Coss Workbench",
   "extensions": {
     "colorMeta": {
       "accent": {
         "role": "primary",
-        "displayName": "Cobalt Focus",
-        "canonical": "#5068b7",
-        "tonalRamp": [
-          "#11162b",
-          "#1d2850",
-          "#2d3e78",
-          "#40549a",
-          "#657bc4",
-          "#91a3da",
-          "#c2cbeb",
-          "#eef1fb"
-        ]
+        "displayName": "Violet Focus"
       },
-      "app-canvas": {
+      "page": {
         "role": "neutral",
-        "displayName": "App Canvas",
-        "canonical": "#f3f3f5",
-        "tonalRamp": [
-          "#202023",
-          "#3d3d42",
-          "#5c5c62",
-          "#7c7c84",
-          "#9d9da5",
-          "#bebec5",
-          "#dedee2",
-          "#f3f3f5"
-        ]
+        "displayName": "Workbench Canvas"
       },
-      "goal-canvas": {
+      "paper": {
         "role": "neutral",
-        "displayName": "Goal Canvas",
-        "canonical": "#ffffff",
-        "tonalRamp": [
-          "#242427",
-          "#444448",
-          "#66666b",
-          "#89898f",
-          "#adadb2",
-          "#d0d0d4",
-          "#ececee",
-          "#ffffff"
-        ]
+        "displayName": "Reading Paper"
       },
-      "navigator": {
+      "nav-bg": {
         "role": "neutral",
-        "displayName": "Navigator Gray",
-        "canonical": "#f1f1f3",
-        "tonalRamp": [
-          "#1d1d20",
-          "#3b3b40",
-          "#5a5a60",
-          "#797980",
-          "#9999a0",
-          "#babac0",
-          "#dcdce0",
-          "#f1f1f3"
-        ]
+        "displayName": "Navigation Gray"
       },
       "ink": {
         "role": "neutral",
-        "displayName": "Desktop Ink",
-        "canonical": "#19191b",
-        "tonalRamp": [
-          "#19191b",
-          "#343438",
-          "#515156",
-          "#6e6e74",
-          "#8d8d94",
-          "#adadb3",
-          "#ceced2",
-          "#f0f0f2"
-        ]
-      },
-      "terminal": {
-        "role": "neutral",
-        "displayName": "Terminal Canvas Dark",
-        "canonical": "#101012",
-        "tonalRamp": [
-          "#101012",
-          "#202023",
-          "#343438",
-          "#515156",
-          "#73737b",
-          "#96969f",
-          "#c6c6cc",
-          "#f0f0f2"
-        ]
-      },
-      "terminal-light": {
-        "role": "neutral",
-        "displayName": "Terminal Canvas Light",
-        "canonical": "#fbfbfc",
-        "tonalRamp": [
-          "#202023",
-          "#45454b",
-          "#65656e",
-          "#85858d",
-          "#a5a5ac",
-          "#c6c6cb",
-          "#e5e5e8",
-          "#fbfbfc"
-        ]
+        "displayName": "Workbench Ink"
       }
     },
     "typographyMeta": {
-      "display": {
-        "displayName": "Selected Goal",
-        "purpose": "Retained large chrome titles; expanded Goal titles use clamp(19px, 1.7vw, 25px) / 650."
-      },
-      "headline": {
-        "displayName": "Action Headline",
-        "purpose": "Important section statements; inline timeline event titles use 15px / 1.5."
-      },
       "body": {
         "displayName": "Workbench Body",
         "purpose": "Readable explanations and Goal event paragraphs, normally held within 76ch."
       },
-      "label": {
-        "displayName": "Control Label",
-        "purpose": "Tabs, statuses, timeline meta, and compact controls."
-      },
       "home-quote": {
         "displayName": "Home Quotation",
         "purpose": "The 13 project-home quotations: three existing sourced passages plus all ten Adeptify English originals with original attributions. Dates, calendar, shortcuts, composer and Goal work retain native system typography. Attributions use quiet 11px text; only the original three retain source links, with no new citation or independent-verification claim for migrated text."
+      },
+      "settings-heading": {
+        "displayName": "Project Settings Heading",
+        "purpose": "Independent global/project preferences and planning headings use 20px/600/1.4 across desktop and narrow widths; desktop token is in DESIGN.md."
+      },
+      "tab": {
+        "displayName": "Work Tab",
+        "purpose": "Equal-width work tabs; active weight 550. Titles truncate while keeping their full accessible name."
       }
     },
     "shadows": [
       {
-        "name": "transient-light",
-        "value": "0 18px 48px rgba(25, 25, 31, .12)",
-        "purpose": "Menus and dialogs above the Light workspace."
+        "name": "surface-light",
+        "value": "0 1px 3px #18181b12, 0 1px 2px #18181b08",
+        "purpose": "Shared shallow surface depth; current work tabs explicitly omit it."
       },
       {
-        "name": "transient-dark",
-        "value": "0 22px 58px rgba(0, 0, 0, .38)",
-        "purpose": "Menus and dialogs above the Dark workspace."
+        "name": "surface-dark",
+        "value": "0 1px 3px #00000038, 0 1px 2px #00000024",
+        "purpose": "Shared shallow depth in Dark."
+      },
+      {
+        "name": "control-light",
+        "value": "0 1px 2px color-mix(in srgb, var(--ink) 6%, transparent), 0 12px 32px color-mix(in srgb, var(--ink) 12%, transparent)",
+        "purpose": "Retained menus and other dialogs; attached editors omit depth and compact search/confirmation surfaces use compact-dialog."
+      },
+      {
+        "name": "control-dark",
+        "value": "0 1px 2px rgba(0, 0, 0, .28), 0 16px 40px rgba(0, 0, 0, .38)",
+        "purpose": "Retained menus and other dialogs; attached editors omit depth and compact search/confirmation surfaces use compact-dialog."
       },
       {
         "name": "expanded-goal",
-        "value": "0 12px 40px color-mix(in srgb, var(--ink) 12%, transparent)",
-        "purpose": "Separates the fixed expanded Goal workspace from the neutral dotted canvas."
+        "value": "none",
+        "purpose": "Goal work and records are flush to the pane, without inset, radius, shadow or canvas backdrop."
       },
       {
         "name": "home-composer",
         "value": "0 4px 16px color-mix(in srgb, var(--ink) 5%, transparent)",
         "purpose": "A faint structural lift for the disabled home composer; the date and calendar remain flat."
+      },
+      {
+        "name": "compact-dialog",
+        "value": "0 8px 28px #00000018",
+        "purpose": "8px compact search/confirmation surfaces; #00000026 backdrop, no blur. Attached temporary editors use no shadow and a 10% theme-ink backdrop."
       }
     ],
     "motion": [
       {
         "name": "control-feedback",
-        "value": "160ms ease-out",
-        "purpose": "Hover, focus, and pressed feedback without decorative motion."
+        "value": "120ms ease",
+        "purpose": "Shared hover and focus feedback; removed under reduced motion."
       },
       {
         "name": "section-reveal",
@@ -167,23 +93,31 @@
       },
       {
         "name": "home-quotation",
-        "value": "opacity 500ms ease; rotation interval 5000ms",
-        "purpose": "The outer quotation group fades out and back in. All 13 pages share one grid cell, reserving the natural height of the longest content at the current width with a 112px minimum. Inactive pages retain layout with visibility:hidden, aria-hidden and inert, never hidden/display:none. Descendants have no transitions, preventing inherited reduced-motion rules from animating visibility. Hover/focus, hidden pages and inactive home defer rotation; reduced motion switches text directly. No quote controls."
+        "value": "opacity 160ms ease; manual change only",
+        "purpose": "The quiet shared Coss “换一句” action changes the quotation; there is no automatic rotation. All 13 pages share one grid cell, reserving the natural height of the longest content at the current width with a 112px minimum. Inactive pages retain layout with visibility:hidden, aria-hidden and inert. Original text and attributions remain unchanged. Reduced motion switches directly."
+      },
+      {
+        "name": "project-settings-disclosure",
+        "value": "160ms ease",
+        "purpose": "Independent project preferences disclosure arrows and switch knobs. Removed under prefers-reduced-motion: reduce."
+      },
+      {
+        "name": "surface-arrival",
+        "value": "180ms cubic-bezier(.16, 1, .3, 1)",
+        "purpose": "Retained shared dialog arrival; attached editors use editor-opacity instead. Removed under reduced motion."
+      },
+      {
+        "name": "feed-reader-reveal",
+        "value": "160ms ease-out",
+        "purpose": "Inline reader arrives from opacity 0 and translateY(-3px); its chevron uses transform 160ms ease. Both are removed under reduced motion."
+      },
+      {
+        "name": "editor-opacity",
+        "value": "140ms ease",
+        "purpose": "Attached temporary editors fade without translation or scale; removed under reduced motion."
       }
     ],
     "breakpoints": [
-      {
-        "name": "narrow",
-        "value": "760px"
-      },
-      {
-        "name": "intermediate",
-        "value": "1080px"
-      },
-      {
-        "name": "wide-runtime",
-        "value": "1180px"
-      },
       {
         "name": "home-context-compact-container",
         "value": "640px"
@@ -191,6 +125,46 @@
       {
         "name": "home-context-stack-container",
         "value": "450px"
+      },
+      {
+        "name": "project-settings-categories",
+        "value": "760px",
+        "purpose": "Project preferences replaces its 224px rail with four equal category links above the single content scroller; controls and navigation use 44px minimum targets."
+      },
+      {
+        "name": "directory-drawer",
+        "value": "600px",
+        "purpose": "Focus-managed 264px directory drawer."
+      },
+      {
+        "name": "pane-focus",
+        "value": "760px",
+        "purpose": "Only the focused pane is visible; tabs are 144px wide and window selectors retain access to other panes."
+      },
+      {
+        "name": "directory-compact",
+        "value": "1050px",
+        "purpose": "Default directory width is 256px instead of 280px."
+      },
+      {
+        "name": "goal-rail-overlay-container",
+        "value": "840px",
+        "purpose": "Goal-workspace container threshold for the information/timeline overlay."
+      },
+      {
+        "name": "feed-reader-actions",
+        "value": "760px",
+        "purpose": "Two equal action columns with 44px minimum targets; body insets reduce and titles wrap."
+      },
+      {
+        "name": "attention-controls",
+        "value": "760px",
+        "purpose": "At this maximum viewport width OR pointer:coarse, tabs/group labels and Close/Split use 44px targets; the final shared sheet scopes 44px control height to Frame picker/add actions and Home Goals/manual-quotation actions. Desktop fine-pointer dimensions remain compact."
+      },
+      {
+        "name": "attached-editor-full-width",
+        "value": "760px",
+        "purpose": "New Goal, Feed tasks, Session add/relations and Frame picker fill viewport width. Above this width they use min(560px, 100vw); all begin at 44px and fill the remaining height."
       }
     ]
   },
@@ -199,245 +173,135 @@
       "name": "Primary Button",
       "kind": "button",
       "refersTo": "button-primary",
-      "description": "Workbench Action fill for Session, draft save, and other chrome outside the Goal event document.",
+      "description": "Shared neutral primary action; event forms use the same Action colors.",
       "html": "<button class=\"ds-primary\">保存草稿修改</button>",
-      "css": ".ds-primary { min-height: 38px; padding: 0 14px; border: 1px solid var(--action, #202023); border-radius: 8px; background: var(--action, #202023); color: var(--action-ink, #fbfbfc); font: 680 13px/1.4 -apple-system, BlinkMacSystemFont, sans-serif; cursor: pointer; transition: opacity 160ms ease-out, transform 160ms ease-out; } .ds-primary:hover { opacity: .9; transform: translateY(-1px); } .ds-primary:focus-visible { outline: 2px solid var(--blue, #5068b7); outline-offset: 2px; }"
+      "css": ".ds-primary, .ds-event-primary { min-height:32px; padding:0 12px; border:1px solid var(--action, #252528); border-radius:8px; background:var(--action, #252528); color:var(--action-ink, #fff); font:550 13px/1.4 -apple-system,BlinkMacSystemFont,sans-serif; cursor:pointer; transition:background-color 120ms ease; } .ds-primary:hover, .ds-event-primary:hover { background:color-mix(in srgb,var(--action, #252528) 90%,var(--action-ink, #fff)); } .ds-primary:focus-visible, .ds-event-primary:focus-visible { outline:2px solid var(--control-ring, #707078); outline-offset:2px; }"
     },
     {
       "name": "Event Primary Button",
       "kind": "button",
-      "refersTo": "button-event-primary",
-      "description": "Cobalt save control inside the Goal event document.",
+      "description": "Goal event Submit uses shared Action colors, adjacent to Cancel on its left. Form action groups use 36px desktop / 44px mobile minimum heights; explanations remain outside the group.",
       "html": "<button class=\"ds-event-primary\">登记到当前 Goal</button>",
-      "css": ".ds-event-primary { display: inline-flex; align-items: center; justify-content: center; min-height: 31px; padding: 6px 10px; border: 1px solid var(--blue, #5068b7); border-radius: 6px; background: var(--blue, #5068b7); color: var(--action-ink, #fff); font: 550 11px/1.4 -apple-system, BlinkMacSystemFont, sans-serif; cursor: pointer; } .ds-event-primary:hover { opacity: .92; } .ds-event-primary:focus-visible { outline: 2px solid var(--blue, #5068b7); outline-offset: 2px; }"
+      "css": ".ds-primary, .ds-event-primary { min-height:36px; padding:0 12px; border:1px solid var(--action, #252528); border-radius:8px; background:var(--action, #252528); color:var(--action-ink, #fff); font:550 13px/1.4 -apple-system,BlinkMacSystemFont,sans-serif; cursor:pointer; transition:background-color 120ms ease; } .ds-primary:hover, .ds-event-primary:hover { background:color-mix(in srgb,var(--action, #252528) 90%,var(--action-ink, #fff)); } .ds-primary:focus-visible, .ds-event-primary:focus-visible { outline:2px solid var(--control-ring, #707078); outline-offset:2px; } @media(max-width:760px) { .ds-event-primary { min-height:44px; } } @media(prefers-reduced-motion:reduce) { .ds-event-primary { transition:none; } }",
+      "refersTo": "button-primary"
     },
     {
       "name": "Goal Search",
       "kind": "input",
-      "refersTo": "search-field",
-      "description": "A quiet white field inside the cool navigator.",
+      "description": "Compact search field using shared paper and input boundaries.",
       "html": "<input class=\"ds-search\" type=\"search\" placeholder=\"在当前 Goal Tree 内搜索\">",
-      "css": ".ds-search { width: 280px; height: 34px; padding: 0 12px; border: 1px solid var(--line-strong, #d9d9de); border-radius: 8px; background: var(--paper, #ffffff); color: var(--ink, #19191b); font: 400 13px/1.5 -apple-system, BlinkMacSystemFont, sans-serif; box-shadow: none; } .ds-search::placeholder { color: var(--muted, #62626b); opacity: 1; } .ds-search:focus-visible { outline: 2px solid var(--blue, #5068b7); outline-offset: 2px; }"
+      "css": ".ds-search { width:280px; height:32px; padding:0 10px; border:1px solid var(--control-input, #d4d4d8); border-radius:8px; background:var(--paper, #fff); color:var(--ink, #202023); font:400 13px/1.5 -apple-system,BlinkMacSystemFont,sans-serif; } .ds-search::placeholder { color:var(--muted, #65656d); } .ds-search:hover { border-color:var(--line-strong, #d4d4d8); } .ds-search:focus-visible { outline:2px solid var(--control-ring, #707078); outline-offset:2px; }",
+      "refersTo": "input"
     },
     {
       "name": "Selected Goal Row",
       "kind": "nav",
-      "refersTo": "goal-row-selected",
-      "description": "The selected Goal is the only white item inside the navigator; its status remains a bounded semantic tag.",
+      "description": "Flat selected directory row with compact readable status.",
       "html": "<button class=\"ds-goal-row\"><strong>让用户打开页面就看懂下一步</strong><span class=\"ds-status\">◉ 待执行</span></button>",
-      "css": ".ds-goal-row { width: 300px; min-height: 38px; padding: 5px 7px; border: 0; border-radius: 6px; background: var(--paper, #ffffff); color: var(--ink, #19191b); box-shadow: 0 1px 2px rgba(24,24,30,.08), inset 0 0 0 1px var(--line, #e7e7ea); display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 9px; font: 620 13px/1.35 -apple-system, BlinkMacSystemFont, sans-serif; text-align: left; } .ds-goal-row strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ds-status { min-height: 22px; padding: 1px 7px; border: 1px solid #b5bdd4; border-radius: 6px; background: #f1f3fa; color: var(--blue-dark, #344b9b); display: inline-flex; align-items: center; font: 680 10.5px/1.2 -apple-system, BlinkMacSystemFont, sans-serif; } .ds-goal-row:focus-visible { outline: 2px solid var(--blue, #5068b7); outline-offset: 2px; }"
+      "css": ".ds-goal-row { width:300px; height:36px; padding:5px 7px; border:0; border-radius:6px; background:var(--nav-active, #e8e8ec); color:var(--ink, #202023); display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:9px; font:450 13px/20px -apple-system,BlinkMacSystemFont,sans-serif; text-align:left; } .ds-goal-row strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:450; } .ds-status { color:var(--muted, #65656d); font-size:11px; } .ds-goal-row:hover { background:var(--nav-hover, #ededf0); } .ds-goal-row:focus-visible { outline:2px solid var(--control-ring, #707078); outline-offset:2px; }",
+      "refersTo": "directory-selected"
     },
     {
-      "name": "Goal Info Popover",
+      "name": "Goal Information Rail",
       "kind": "custom",
-      "refersTo": "goal-overview",
-      "description": "Live Goal facts in a collapsible popover above the right timeline; event selection does not change current judgment.",
+      "description": "Flat current-fact disclosure within the optional 300px information/timeline rail; below 840px workspace width the rail overlays at up to 330px. Goal work remains flush to the pane.",
       "html": "<details class=\"ds-goal-info\" open><summary>Goal info</summary><h1>Complete the first internal trial</h1><p>New users can create a Goal, connect Runtime, and read the result.</p><button type=\"button\">Requirements: 1/2 satisfied</button><button type=\"button\">Goal and requirements</button></details>",
-      "css": ".ds-goal-info { width: 292px; padding: 12px 14px; background: var(--paper, #fff); color: var(--ink, #19191b); border-radius: 12px; box-shadow: 0 4px 18px rgba(24,24,30,.09); font: 12px/1.65 -apple-system, BlinkMacSystemFont, sans-serif; } .ds-goal-info summary { cursor: pointer; font-weight: 600; } .ds-goal-info h1 { font-size: 16px; line-height: 1.5; } .ds-goal-info button { display: block; border: 0; background: transparent; color: inherit; padding: 8px 0; }"
+      "css": ".ds-goal-info { width: 300px; max-width: 100%; padding: 12px 14px; background: var(--paper, #fff); color: var(--ink, #202023); border-radius: 0; box-shadow: none; font: 12px/1.65 -apple-system, BlinkMacSystemFont, sans-serif; } .ds-goal-info summary { cursor: pointer; font-weight: 600; } .ds-goal-info h1 { font-size: 16px; line-height: 1.5; } .ds-goal-info button { display: block; border: 0; background: transparent; color: inherit; padding: 8px 0; }"
     },
     {
       "name": "Timeline Entry",
       "kind": "nav",
-      "refersTo": "timeline-entry-selected",
-      "description": "Latest-first chronological entry with an original event body expanded directly below it; no separate reader column or type filters.",
+      "description": "Latest-first chronological entry, shown here explicitly expanded. Ordinary entry leaves historical bodies collapsed; selection, deep links and restored reading can reveal the original event inline. No separate reader column or type filters.",
       "html": "<button class=\"ds-timeline\" aria-current=\"true\" aria-expanded=\"true\"><time>00:59</time><span class=\"ds-dot\" aria-hidden=\"true\"><i></i></span><span class=\"ds-copy\"><strong>记录当前进展和下一步</strong><small>当前进展 · web-user</small></span></button><article class=\"ds-inline-event\"><h2>记录当前进展和下一步</h2><p>原始结果和依据在这条记录下阅读。</p></article>",
-      "css": ".ds-timeline { display: grid; grid-template-columns: 32px 15px minmax(0,1fr); gap: 7px; width: 280px; min-height: 54px; padding: 9px 8px; border: 0; border-radius: 6px; background: var(--blue-soft, #e9edfb); color: var(--ink, #19191b); text-align: left; font-family: -apple-system, BlinkMacSystemFont, sans-serif; cursor: pointer; } .ds-timeline time { font-size: 10px; color: var(--muted, #62626b); font-variant-numeric: tabular-nums; line-height: 18px; } .ds-dot { display: flex; justify-content: center; } .ds-dot i { width: 6px; height: 6px; margin-top: 6px; border: 1px solid var(--muted, #62626b); border-radius: 50%; background: var(--paper, #fff); } .ds-copy strong { display: -webkit-box; overflow: hidden; font-size: 11px; font-weight: 550; line-height: 1.55; -webkit-line-clamp: 2; -webkit-box-orient: vertical; } .ds-copy small { display: block; margin-top: 3px; color: var(--muted, #62626b); font-size: 10px; line-height: 1.5; } .ds-timeline:focus-visible { outline: 2px solid var(--blue, #5068b7); outline-offset: 2px; } .ds-timeline:hover { background: var(--blue-soft, #e9edfb); } .ds-inline-event { margin: 0 6px 8px 22px; padding: 10px 12px 22px 24px; border-left: 1px solid var(--line, #e7e7ea); color: var(--ink, #19191b); } .ds-inline-event h2 { font: 630 15px/1.5 -apple-system, BlinkMacSystemFont, sans-serif; } .ds-inline-event p { font: 400 12px/1.75 -apple-system, BlinkMacSystemFont, sans-serif; overflow-wrap: anywhere; }"
+      "css": ".ds-timeline { display: grid; grid-template-columns: 32px 15px minmax(0,1fr); gap: 7px; width: 280px; min-height: 54px; padding: 9px 8px; border: 0; border-radius: 6px; background: var(--blue-soft, #eeeef9); color: var(--ink, #202023); text-align: left; font-family: -apple-system, BlinkMacSystemFont, sans-serif; cursor: pointer; } .ds-timeline time { font-size: 10px; color: var(--muted, #65656d); font-variant-numeric: tabular-nums; line-height: 18px; } .ds-dot { display: flex; justify-content: center; } .ds-dot i { width: 6px; height: 6px; margin-top: 6px; border: 1px solid var(--muted, #65656d); border-radius: 50%; background: var(--paper, #fff); } .ds-copy strong { display: -webkit-box; overflow: hidden; font-size: 11px; font-weight: 550; line-height: 1.55; -webkit-line-clamp: 2; -webkit-box-orient: vertical; } .ds-copy small { display: block; margin-top: 3px; color: var(--muted, #65656d); font-size: 10px; line-height: 1.5; } .ds-timeline:focus-visible { outline: 2px solid var(--blue, #5c5cc9); outline-offset: 2px; } .ds-timeline:hover { background: var(--blue-soft, #eeeef9); } .ds-inline-event { margin: 0 6px 8px 22px; padding: 10px 12px 22px 24px; border-left: 1px solid var(--line, #e5e5e8); color: var(--ink, #202023); } .ds-inline-event h2 { font: 630 15px/1.5 -apple-system, BlinkMacSystemFont, sans-serif; } .ds-inline-event p { font: 400 12px/1.75 -apple-system, BlinkMacSystemFont, sans-serif; overflow-wrap: anywhere; }"
     },
     {
       "name": "Event Reader",
       "kind": "custom",
       "description": "Temporary reader over the left Runtime area with 返回工作区; covers the whole work area at ≤760px. Covered controls are inert, while the visible desktop timeline remains interactive.",
       "html": "<section class=\"ds-reader\"><header><button type=\"button\">返回工作区</button><h2>完成要求</h2></header><div><h3>当前完成要求</h3><p>首次使用的人能从首屏看懂目标、下一步和阻塞 · 尚未满足</p><details open><summary>原 Goal 标准</summary><p>这里保留目标已保存的原验收标准；当前结果以上方状态为准。</p></details></div></section>",
-      "css": ".ds-reader { width: 420px; display: flex; flex-direction: column; background: var(--paper, #fff); color: var(--ink, #19191b); font-family: -apple-system, BlinkMacSystemFont, sans-serif; } .ds-reader header { padding: 12px 22px; border-bottom: 1px solid var(--line, #e7e7ea); } .ds-reader header button { padding: 4px 6px; border: 0; background: none; color: var(--blue-dark, #344b9b); font-size: 11px; cursor: pointer; } .ds-reader header button:focus-visible { outline: 2px solid var(--blue, #5068b7); outline-offset: 2px; } .ds-reader h2 { margin: 0; font-size: 18px; } .ds-reader > div { padding: 20px 22px; } .ds-reader h3 { margin: 0 0 8px; font-size: 13px; } .ds-reader p { max-width: 76ch; margin: 0; color: var(--ink-soft, #424247); font-size: 13px; line-height: 1.85; } .ds-reader summary { cursor: pointer; font-size: 12px; font-weight: 550; }"
+      "css": ".ds-reader { width: 420px; display: flex; flex-direction: column; background: var(--paper, #fff); color: var(--ink, #202023); font-family: -apple-system, BlinkMacSystemFont, sans-serif; } .ds-reader header { padding: 12px 22px; border-bottom: 1px solid var(--line, #e5e5e8); } .ds-reader header button { padding: 4px 6px; border: 0; background: none; color: var(--blue-dark, #4848b0); font-size: 11px; cursor: pointer; } .ds-reader header button:focus-visible { outline: 2px solid var(--blue, #5c5cc9); outline-offset: 2px; } .ds-reader h2 { margin: 0; font-size: 18px; } .ds-reader > div { padding: 20px 22px; } .ds-reader h3 { margin: 0 0 8px; font-size: 13px; } .ds-reader p { max-width: 76ch; margin: 0; color: var(--ink-soft, #515157); font-size: 13px; line-height: 1.85; } .ds-reader summary { cursor: pointer; font-size: 12px; font-weight: 550; }"
     },
     {
       "name": "Factor Section Deck",
       "kind": "disclosure",
       "description": "Nested 关联与约束 deck inside 目标与要求: equal-width summary cards and one full-width stage. Not the Goal document’s primary navigation.",
       "html": "<section class=\"ds-section-deck\"><div class=\"ds-section-row\"><article class=\"ds-section-card is-active\"><button aria-expanded=\"true\">Goal 关系</button></article><article class=\"ds-section-card\"><button aria-expanded=\"false\">风险</button></article></div><div class=\"ds-section-stage\">说明这条 Goal 属于什么、依赖什么，以及会影响哪些其他 Goal。</div></section>",
-      "css": ".ds-section-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(136px, 1fr)); align-items: stretch; gap: 10px; } .ds-section-card { min-width: 0; border: 1px solid var(--line, #e7e7ea); border-radius: 10px; background: var(--rail, #f1f1f3); overflow: hidden; } .ds-section-card.is-active { border-color: #91a3da; background: var(--paper, #fff); box-shadow: inset 0 -2px 0 var(--blue, #5068b7); } .ds-section-card button { width: 100%; height: 100%; min-height: 84px; padding: 13px; border: 0; background: transparent; text-align: left; } .ds-section-stage { margin-top: 12px; min-height: 120px; padding: 22px; border-radius: 12px; background: var(--rail, #f1f1f3); box-shadow: inset 0 0 0 1px var(--line, #e7e7ea); } @media (max-width: 700px) { .ds-section-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } } @media (max-width: 430px) { .ds-section-row { grid-template-columns: 1fr; } } @media (prefers-reduced-motion: reduce) { .ds-section-card, .ds-section-stage { transition: none; } }"
+      "css": ".ds-section-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(136px, 1fr)); align-items: stretch; gap: 10px; } .ds-section-card { min-width: 0; border: 1px solid var(--line, #e5e5e8); border-radius: 10px; background: var(--rail, #f4f4f5); overflow: hidden; } .ds-section-card.is-active { border-color: #91a3da; background: var(--paper, #fff); box-shadow: inset 0 -2px 0 var(--blue, #5c5cc9); } .ds-section-card button { width: 100%; height: 100%; min-height: 84px; padding: 13px; border: 0; background: transparent; text-align: left; } .ds-section-stage { margin-top: 12px; min-height: 120px; padding: 22px; border-radius: 12px; background: var(--rail, #f4f4f5); box-shadow: inset 0 0 0 1px var(--line, #e5e5e8); } @media (max-width: 700px) { .ds-section-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } } @media (max-width: 430px) { .ds-section-row { grid-template-columns: 1fr; } } @media (prefers-reduced-motion: reduce) { .ds-section-card, .ds-section-stage { transition: none; } }"
     },
     {
       "name": "Relationship Record",
       "kind": "list-item",
       "description": "A stable information row for Goal relationships: bounded type, readable Goal facts, compact lifecycle state, and an aligned secondary action.",
       "html": "<div class=\"ds-relation\"><span class=\"ds-relation-kind\">包含</span><span class=\"ds-relation-copy\"><strong>让项目事实成为共同底座</strong><small>PLATFORM · 属于当前 Goal</small><small>建立原因：共同组成完整体验</small></span><span class=\"ds-relation-state\">生效</span><button>解除</button></div>",
-      "css": ".ds-relation { min-width: 0; display: grid; grid-template-columns: 54px minmax(0, 1fr) auto 48px; align-items: start; gap: 12px; border-bottom: 1px solid var(--line, #e7e7ea); color: var(--ink, #19191b); font-family: -apple-system, BlinkMacSystemFont, sans-serif; } .ds-relation-kind, .ds-relation-state { width: fit-content; margin-top: 14px; padding: 2px 7px; border: 1px solid var(--line-strong, #d9d9de); border-radius: 8px; color: var(--muted, #62626b); font: 650 9px/1.35 -apple-system, BlinkMacSystemFont, sans-serif; } .ds-relation-copy { min-width: 0; padding: 14px 0; display: grid; gap: 4px; } .ds-relation-copy strong { font-size: 12px; } .ds-relation-copy small { padding: 0; border: 0; background: transparent; color: var(--muted, #62626b); font-size: 10px; overflow-wrap: anywhere; } .ds-relation > button { align-self: stretch; border: 0; border-left: 1px solid var(--line, #e7e7ea); background: transparent; color: var(--muted, #62626b); }"
+      "css": ".ds-relation { min-width: 0; display: grid; grid-template-columns: 54px minmax(0, 1fr) auto 48px; align-items: start; gap: 12px; border-bottom: 1px solid var(--line, #e5e5e8); color: var(--ink, #202023); font-family: -apple-system, BlinkMacSystemFont, sans-serif; } .ds-relation-kind, .ds-relation-state { width: fit-content; margin-top: 14px; padding: 2px 7px; border: 1px solid var(--line-strong, #d4d4d8); border-radius: 8px; color: var(--muted, #65656d); font: 650 9px/1.35 -apple-system, BlinkMacSystemFont, sans-serif; } .ds-relation-copy { min-width: 0; padding: 14px 0; display: grid; gap: 4px; } .ds-relation-copy strong { font-size: 12px; } .ds-relation-copy small { padding: 0; border: 0; background: transparent; color: var(--muted, #65656d); font-size: 10px; overflow-wrap: anywhere; } .ds-relation > button { align-self: stretch; border: 0; border-left: 1px solid var(--line, #e5e5e8); background: transparent; color: var(--muted, #65656d); }"
     },
     {
       "name": "Runtime Surface",
       "kind": "custom",
-      "description": "Work-owned real Runtime fills the left column beside Goal info and timeline. Opening or collapsing the Goal never starts, sends input, or rebinds a terminal; the unopened state remains honest.",
+      "description": "Work-owned Runtime fills the main column beside current Goal information and timeline. Its empty state offers local Add terminal through the existing chooser with focus/Cancel return. Opening or collapsing a Goal never starts, sends input or rebinds a terminal.",
       "html": "<section class=\"ds-runtime\"><div class=\"ds-runtime-guide\"><strong>绑定到 Goal</strong><p>打开不会自动发送。切换 Goal 不改绑已打开的终端。</p><button type=\"button\">添加终端</button></div><div class=\"ds-terminal\">Terminal</div></section>",
-      "css": ".ds-runtime { width: 460px; min-height: 280px; padding: 20px; background: var(--paper, #ffffff); color: var(--ink, #19191b); font-family: -apple-system, BlinkMacSystemFont, sans-serif; } .ds-runtime-guide { padding-bottom: 18px; border-bottom: 1px solid var(--line, #e7e7ea); } .ds-runtime-guide strong { font-size: 15px; } .ds-runtime-guide p { margin: 6px 0 16px; color: var(--muted, #62626b); font-size: 12px; } .ds-runtime-guide button { min-height: 28px; padding: 0 10px; border: 1px solid var(--line-strong, #d9d9de); border-radius: 5px; background: var(--paper, #fff); color: var(--ink, #19191b); font-size: 12px; } .ds-runtime-guide button:focus-visible { outline: 2px solid var(--blue, #5068b7); outline-offset: 2px; } .ds-terminal { min-height: 150px; margin-top: 14px; padding: 14px; border: 1px solid var(--terminal-border, #303036); border-radius: 8px; background: var(--terminal, #101012); color: var(--terminal-ink, #f0f0f2); font: 12px/1.5 ui-monospace, monospace; }"
+      "css": ".ds-runtime { width: 460px; min-height: 280px; padding: 20px; background: var(--paper, #ffffff); color: var(--ink, #202023); font-family: -apple-system, BlinkMacSystemFont, sans-serif; } .ds-runtime-guide { padding-bottom: 18px; border-bottom: 1px solid var(--line, #e5e5e8); } .ds-runtime-guide strong { font-size: 15px; } .ds-runtime-guide p { margin: 6px 0 16px; color: var(--muted, #65656d); font-size: 12px; } .ds-runtime-guide button { min-height: 28px; padding: 0 10px; border: 1px solid var(--line-strong, #d4d4d8); border-radius: 5px; background: var(--paper, #fff); color: var(--ink, #202023); font-size: 12px; } .ds-runtime-guide button:focus-visible { outline: 2px solid var(--blue, #5c5cc9); outline-offset: 2px; } .ds-terminal { min-height: 150px; margin-top: 14px; padding: 14px; border: 1px solid var(--terminal-border, #303036); border-radius: 8px; background: var(--terminal, #101012); color: var(--terminal-ink, #f0f0f2); font: 12px/1.5 ui-monospace, monospace; }"
     },
     {
       "name": "Project Home Launch",
       "kind": "custom",
-      "description": "Home-only launch region: project-local user web shortcuts immediately above a disabled single-line Agent composer. The Add action opens the shortcut editor in production; the Agent Harness is unavailable. Inherits the immersive workbench neutral Light/Dark and violet variables.",
-      "html": "<section class=\"ds-home-launch\" aria-label=\"快捷方式与 Agent 输入\"><div class=\"ds-home-shortcuts\"><button class=\"ds-home-add\" type=\"button\"><span class=\"ds-home-shortcut-icon\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" aria-hidden=\"true\"><path d=\"M12 5v14M5 12h14\"/></svg></span><span>添加快捷方式</span></button></div><div class=\"ds-home-composer\"><span class=\"ds-home-agent-icon\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" aria-hidden=\"true\"><path d=\"m12 3 2.7 6.3L21 12l-6.3 2.7L12 21l-2.7-6.3L3 12l6.3-2.7L12 3ZM5 3v4M3 5h4\"/></svg></span><input type=\"text\" placeholder=\"你想推进什么？\" aria-label=\"Agent 尚未开放，暂不可输入\" aria-describedby=\"ds-home-agent-status\" disabled><button class=\"ds-home-send\" type=\"button\" aria-label=\"Agent 即将接入，暂不可发送\" disabled><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" aria-hidden=\"true\"><path d=\"M12 19V5m-7 7 7-7 7 7\"/></svg></button></div><p class=\"ds-home-agent-note\" id=\"ds-home-agent-status\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" aria-hidden=\"true\"><rect x=\"4\" y=\"10\" width=\"16\" height=\"11\" rx=\"2\"/><path d=\"M8 10V6a4 4 0 0 1 8 0v4M12 14v3\"/></svg><span>Agent 尚未开放</span></p></section>",
-      "css": ".ds-home-launch { width: min(740px, 100%); color: var(--ink, #272932); font: 13px/1.55 -apple-system, BlinkMacSystemFont, \"SF Pro Text\", \"PingFang SC\", \"Microsoft YaHei\", sans-serif; } .ds-home-shortcuts { display: flex; justify-content: center; flex-wrap: wrap; gap: 18px; margin-bottom: 25px; } .ds-home-add { display: flex; flex-direction: column; align-items: center; gap: 9px; width: 88px; padding: 0; border: 0; background: transparent; color: var(--muted, #60636f); font: inherit; font-size: 11px; cursor: pointer; } .ds-home-shortcut-icon { display: grid; place-items: center; width: 43px; height: 43px; border-radius: 50%; color: var(--blue, #6262d6); background: var(--blue-soft, #efeffc); transition: background .15s ease, color .15s ease; } .ds-home-shortcut-icon svg { width: 18px; height: 18px; } .ds-home-add:hover .ds-home-shortcut-icon { background: var(--nav-active, #e9eaf0); color: var(--blue, #6262d6); } .ds-home-add:focus-visible { outline: 2px solid var(--blue, #6262d6); outline-offset: 3px; } .ds-home-composer { display: flex; align-items: center; gap: 16px; height: 76px; padding: 12px 17px 12px 24px; box-sizing: border-box; border: 1px solid var(--line, #e4e5ea); border-radius: 23px; background: var(--rail, #f4f5f8); box-shadow: 0 4px 16px color-mix(in srgb, var(--ink, #272932) 5%, transparent); } .ds-home-agent-icon { display: grid; place-items: center; flex: none; color: var(--faint, #6b6e79); } .ds-home-agent-icon svg { width: 21px; height: 21px; } .ds-home-composer input { flex: 1; width: 100%; min-width: 0; padding: 8px 0; border: 0; background: transparent; color: var(--faint, #6b6e79); font: inherit; font-size: 17px; opacity: .7; -webkit-text-fill-color: var(--faint, #6b6e79); cursor: not-allowed; } .ds-home-composer input::placeholder { color: var(--faint, #6b6e79); opacity: 1; } .ds-home-send { display: grid; place-items: center; flex: none; width: 38px; height: 38px; padding: 0; border: 0; border-radius: 11px; color: var(--faint, #6b6e79); background: var(--nav-active, #e9eaf0); cursor: not-allowed; } .ds-home-send svg { width: 19px; height: 19px; } .ds-home-agent-note { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 12px 0 0; color: var(--muted, #60636f); font-size: 11px; } .ds-home-agent-note svg { width: 12px; height: 12px; } @media (prefers-reduced-motion: reduce) { .ds-home-shortcut-icon { transition: none; } }"
+      "description": "Home has a real Goals entry and a disabled Agent composer; shortcuts remain in the directory. The separate quiet “换一句” action manually changes unchanged quotations with 160ms feedback. Both new Home actions have 44px narrow/coarse targets.",
+      "html": "<section class=\"ds-home-launch\" aria-label=\"Goals 与 Agent 输入\"><div class=\"ds-home-shortcuts\"><button class=\"ds-home-goals\" type=\"button\">打开 Goals</button></div><div class=\"ds-home-composer\"><span class=\"ds-home-agent-icon\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" aria-hidden=\"true\"><path d=\"m12 3 2.7 6.3L21 12l-6.3 2.7L12 21l-2.7-6.3L3 12l6.3-2.7L12 3ZM5 3v4M3 5h4\"/></svg></span><input type=\"text\" placeholder=\"你想推进什么？\" aria-label=\"Agent 尚未开放，暂不可输入\" aria-describedby=\"ds-home-agent-status\" disabled><button class=\"ds-home-send\" type=\"button\" aria-label=\"Agent 即将接入，暂不可发送\" disabled><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" aria-hidden=\"true\"><path d=\"M12 19V5m-7 7 7-7 7 7\"/></svg></button></div><p class=\"ds-home-agent-note\" id=\"ds-home-agent-status\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" aria-hidden=\"true\"><rect x=\"4\" y=\"10\" width=\"16\" height=\"11\" rx=\"2\"/><path d=\"M8 10V6a4 4 0 0 1 8 0v4M12 14v3\"/></svg><span>Agent 尚未开放</span></p></section>",
+      "css": ".ds-home-launch { width: min(740px, 100%); color: var(--ink, #272932); font: 13px/1.55 -apple-system, BlinkMacSystemFont, \"SF Pro Text\", \"PingFang SC\", \"Microsoft YaHei\", sans-serif; } .ds-home-shortcuts { display: flex; justify-content: center; flex-wrap: wrap; gap: 18px; margin-bottom: 25px; } .ds-home-add { display: flex; flex-direction: column; align-items: center; gap: 9px; width: 88px; padding: 0; border: 0; background: transparent; color: var(--muted, #60636f); font: inherit; font-size: 11px; cursor: pointer; } .ds-home-shortcut-icon { display: grid; place-items: center; width: 43px; height: 43px; border-radius: 50%; color: var(--blue, #6262d6); background: var(--blue-soft, #efeffc); transition: background .15s ease, color .15s ease; } .ds-home-shortcut-icon svg { width: 18px; height: 18px; } .ds-home-add:hover .ds-home-shortcut-icon { background: var(--nav-active, #e9eaf0); color: var(--blue, #6262d6); } .ds-home-add:focus-visible { outline: 2px solid var(--blue, #6262d6); outline-offset: 3px; } .ds-home-composer { display: flex; align-items: center; gap: 16px; height: 76px; padding: 12px 17px 12px 24px; box-sizing: border-box; border: 1px solid var(--line, #e4e5ea); border-radius: 23px; background: var(--rail, #f4f5f8); box-shadow: 0 4px 16px color-mix(in srgb, var(--ink, #272932) 5%, transparent); } .ds-home-agent-icon { display: grid; place-items: center; flex: none; color: var(--faint, #6b6e79); } .ds-home-agent-icon svg { width: 21px; height: 21px; } .ds-home-composer input { flex: 1; width: 100%; min-width: 0; padding: 8px 0; border: 0; background: transparent; color: var(--faint, #6b6e79); font: inherit; font-size: 17px; opacity: .7; -webkit-text-fill-color: var(--faint, #6b6e79); cursor: not-allowed; } .ds-home-composer input::placeholder { color: var(--faint, #6b6e79); opacity: 1; } .ds-home-send { display: grid; place-items: center; flex: none; width: 38px; height: 38px; padding: 0; border: 0; border-radius: 11px; color: var(--faint, #6b6e79); background: var(--nav-active, #e9eaf0); cursor: not-allowed; } .ds-home-send svg { width: 19px; height: 19px; } .ds-home-agent-note { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 12px 0 0; color: var(--muted, #60636f); font-size: 11px; } .ds-home-agent-note svg { width: 12px; height: 12px; } @media (prefers-reduced-motion: reduce) { .ds-home-shortcut-icon { transition: none; } } .ds-home-goals { display:inline-flex; align-items:center; min-height:32px; padding:0 12px; border:1px solid var(--control-border,#d4d4d8); border-radius:8px; background:var(--control-fill,#ededf0); color:var(--ink,#202023); font:inherit; cursor:pointer; } .ds-home-goals:hover { background:var(--nav-hover,#ededf0); } .ds-home-goals:focus-visible { outline:2px solid var(--control-ring,#707078); outline-offset:2px; } @media(max-width:760px),(pointer:coarse) { .ds-home-goals { min-height:44px; } }"
+    },
+    {
+      "name": "Project Settings Category Navigation",
+      "kind": "nav",
+      "description": "Standalone project preferences categories; no plugin or workspace tabs. Active category uses shared neutral tokens.",
+      "html": "<nav class=\"ds-project-settings-nav\" aria-label=\"项目设置\"><a href=\"#general\" aria-current=\"page\">常规</a><a href=\"#guidance\">项目说明</a><a href=\"#rules\">工作规则</a><a href=\"#planning\">工作规划</a></nav>",
+      "css": ".ds-project-settings-nav{display:grid;gap:4px;width:200px;padding:12px;background:var(--nav-bg);font:13px -apple-system,BlinkMacSystemFont,sans-serif}.ds-project-settings-nav a{display:flex;align-items:center;min-height:32px;padding:0 10px;border-radius:8px;color:var(--muted);text-decoration:none}.ds-project-settings-nav a:hover{background:var(--nav-hover);color:var(--ink)}.ds-project-settings-nav a[aria-current=page]{background:var(--nav-active);color:var(--ink);font-weight:550}.ds-project-settings-nav a:focus-visible{outline:2px solid var(--blue);outline-offset:2px}@media(max-width:760px){.ds-project-settings-nav{width:auto;grid-template-columns:repeat(4,minmax(0,1fr));gap:2px}.ds-project-settings-nav a{min-height:44px;justify-content:center;padding:0 6px;font-size:12px}}"
+    },
+    {
+      "name": "Grouped Work Tab",
+      "kind": "nav",
+      "refersTo": "tab-active",
+      "description": "Stable plugin tint, equal-width tab, paper selection and reserved close slot. The focused pane synchronizes Goal title/directory identity. Collapsed groups retain the current tab. Width becomes 144px at 760px; narrow/coarse targets use 44px height.",
+      "html": "<div class=\"ds-group\"><button class=\"ds-group-label\">Goals ▾</button><div class=\"ds-tab\"><button class=\"ds-tab-trigger\">完善第一次使用体验</button><button class=\"ds-tab-close\" aria-label=\"关闭标签\">×</button></div></div>",
+      "css": ".ds-group { --group-color:light-dark(#3c6fc6,#91b5f6); display:flex; align-items:flex-end; width:max-content; border-bottom:2px solid var(--group-color); background:var(--nav-bg,#f7f7f8); gap:4px; font:450 12px -apple-system,BlinkMacSystemFont,sans-serif; } .ds-group-label { height:24px; margin:0 4px 7px; padding:0 6px; border:0; border-radius:6px; color:var(--group-color); background:color-mix(in srgb,var(--group-color) 12%,transparent); } .ds-tab { display:flex; align-items:center; box-sizing:border-box; width:172px; height:36px; padding:0 8px 0 12px; gap:8px; border-radius:10px 10px 0 0; background:var(--paper,#fff); color:var(--ink,#202023); } .ds-tab-trigger { flex:1; min-width:0; height:100%; border:0; background:transparent; color:inherit; font:550 12px -apple-system,BlinkMacSystemFont,sans-serif; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:left; } .ds-tab-close { flex:none; width:22px; height:22px; padding:0; border:0; border-radius:50%; color:var(--muted,#65656d); background:transparent; } .ds-tab-close:hover,.ds-group-label:hover { background:var(--nav-hover,#ededf0); } .ds-tab:has(:focus-visible),.ds-group-label:focus-visible { outline:2px solid var(--control-ring,#707078); outline-offset:-2px; } @media(max-width:760px) { .ds-tab { width:144px; } } @media(max-width:760px),(pointer:coarse) { .ds-group,.ds-tab { height:44px; } .ds-tab { padding-right:0; } .ds-tab-close { width:44px; height:44px; } .ds-group-label { min-height:44px; margin-block:0; } }"
     }
   ],
   "narrative": {
-    "northStar": "Calm Desktop",
-    "overview": "Molis Work is a high-frequency personal workbench with a quiet project arrival surface and a dedicated Goal workspace. Its desktop workspace has two stable regions: one graphite directory that owns project and work navigation, and one flexible work surface. Project home can use generous whitespace; opening a Goal brings its current facts and real Runtime into view without duplicating domain state.\n\nThe Goal surface uses a neutral dotted dependency canvas. Clicking a compact Goal opens one fixed workspace within the main region: full-height Runtime on the left, collapsible Goal info above the chronological timeline on the right. Event bodies open inside that timeline; configuration and forms temporarily cover the left work area. The existing cool palette, system typography, and restrained spacing remain. The directory changes in place when the user enters Goals or the Feed Workbench. Inbox and Feed remain two presets of the same Item workspace, each with a visible path back.",
+    "northStar": "Operate",
+    "overview": "Molis Work is a personal workbench for finding current work, reading its facts, and taking the next action. Its current visual language follows the user's Linear × coss.ui direction: continuous paper surfaces, thin boundaries, compact controls, distinct navigation levels, and short feedback. The quiet project home and denser Goal workspace belong to the same system.\n\nThis is the current built world as of 2026-09-16. [Coss workbench redesign](specs/coss-workbench-redesign/spec.md) establishes the shared foundation; [Workbench panes, Feed and global settings redesign](specs/workbench-pane-feed-redesign/spec.md) owns the current tabs, nested panes, Feed and global preferences. The independent project settings world follows [Project settings redesign](specs/project-settings-redesign/spec.md). [PRODUCT.md](PRODUCT.md) remains the authority for product behavior, data relationships, and module ownership; this document records their current visual expression. The latest [whole-product interaction redesign](specs/product-interaction-redesign/spec.md) and its [surface inventory](specs/product-interaction-redesign/inventory.md) own the current form actions, Feed reader, Session entry, settings return context and Artifact empty states. Its v11 correction makes Goal work and records continuous with the pane and attaches temporary editors to the workspace edge. It retains v6 attention continuity and v7–v10 scrolling, reading and editing behavior. Detailed behavior, source ownership, motion and verification boundaries are in the [workbench surface record](.impeccable/surfaces/immersive-workbench.md).",
     "keyCharacteristics": [
-      "One desktop directory instead of parallel navigation columns.",
-      "Project-scoped, persistent Goal tabs above the main work surface.",
-      "Goal canvas composition: one fixed expanded workspace, with full-height Runtime beside Goal info and an inline timeline.",
-      "Soft tonal surfaces and calibrated shadows instead of pervasive structure lines.",
-      "Cool monochrome surfaces with a restrained cobalt focus color.",
-      "Compact information density in navigation, with calm reading density in the selected Goal.",
-      "Runtime application chrome follows Molis Work; only the terminal canvas becomes a distinct execution environment."
+      "One directory for project identity, destinations, the active plugin list, shortcuts and device settings.",
+      "A 44px work bar with equal-width Chrome-style tabs and stable plugin group colors.",
+      "Neutral Light/Dark tokens shared by the workbench, settings and project index.",
+      "Independent global and project settings with category navigation and one content scroll boundary.",
+      "Compact navigation and continuous reading/work surfaces; temporary editors meet the workspace edge while preserving modal focus.",
+      "Real state and explicit actions; unavailable capabilities remain visibly unavailable.",
+      "Adjacent Cancel/Submit actions, scoped saves, single-title inline Feed reading and explicit empty states.",
+      "One viewport shell with stable toolbars and scrolling owned by lists, readers, boards and forms.",
+      "Current Goal facts before history, explicit Frame/work transitions and existing-content references stored only as local canvas state.",
+      "Manual home quotations, pointer-aware board scrolling and retained keyboard focus.",
+      "Density v12: 12px field gaps, 88px minimum Feed rows, 920px settings column, desktop paired Session selectors; mobile 16px fields and 44px actions retained."
     ],
-    "rules": [
-      {
-        "name": "The One Accent Rule",
-        "body": "Cobalt appears for focus, links, progress, selected intent, and Goal event-document save and owner cues. It never becomes a decorative field or a general-purpose card tint. Near-black Action remains the workbench primary for Session, draft save, and other chrome.",
-        "section": "colors"
-      },
-      {
-        "name": "The Semantic Color Rule",
-        "body": "Green, amber, and red always describe real application state and appear with text, never as decoration. Timeline dots use green for result, cobalt for decision, and amber for problem, always with a Chinese type label beside them.",
-        "section": "colors"
-      },
-      {
-        "name": "The Native Clarity Rule",
-        "body": "Controls and Goal work use native system typography. Project home alone uses the home-quote serif token for quotations; its date, weekday, calendar, shortcuts and composer remain in the system stack. Monospace remains limited to commands, identifiers, and measured values.",
-        "section": "typography"
-      },
-      {
-        "name": "The Secondary-Fact Floor",
-        "body": "Source, time, filter labels, and other critical secondary facts use Faint Ink or stronger and never render below 9px.",
-        "section": "typography"
-      },
-      {
-        "name": "The Chinese Reading Voice Rule",
-        "body": "Timeline entries and event meta use Chinese type names (当前进展, 进展记录, 配置, 建立目标, 增加关系, 工作记录, 补充说明). Judgments read 报告支持, 尚未达到, or 仍无法判断. Protocol IDs, original record IDs, and criterion IDs stay secondary.",
-        "section": "typography"
-      },
-      {
-        "name": "The Account Footer Rule",
-        "body": "The directory footer stays pinned to the bottom and shows the local identity and local-space state. In the immersive workbench, its own styles apply at every width, including the mobile drawer: name and space stay on separate lines, the link uses the current theme's ink without an underline, and the centered avatar and Settings icon keep their dimensions while long text shrinks and truncates within its own column. Its Settings control always enters global settings. Project settings remain beside the project selector at the top, so project scope and device scope cannot be mistaken for one another.",
-        "section": "layout"
-      },
-      {
-        "name": "The One Directory Rule",
-        "body": "The root modules, Goal Tree, Feed Item list, Sessions, and settings navigation all use one left directory; project context belongs to the titlebar. Goals, the Feed Workbench, and Sessions replace the root only while active, and their back action restores it. Working-directory choice stays inside Session actions rather than becoming another root module. Never add a second persistent navigation column.",
-        "section": "layout"
-      },
-      {
-        "name": "The Project Tabs Rule",
-        "body": "Work tabs belong to one project, reuse existing Goals, persist locally, and never become a second source of Goal truth.",
-        "section": "layout"
-      },
-      {
-        "name": "The Native Chrome Safe-Zone Rule",
-        "body": "In macOS Overlay mode, reserve the 48px titlebar band and calibrate native traffic-light inset against the visible center of the left project controls in a real packaged window. Collapsing the directory preserves that same inset before the reveal control and expands the collapsed rail just enough to contain it; work tabs begin after the rail. Only empty or plain-text titlebar regions may drag; tabs, buttons, interactive containers, and the resizer never overlap the traffic lights or inherit drag behavior. The directory and work surface separate through a quiet tonal shift, never a full-height border or standing shadow; the resize gutter only appears on interaction.",
-        "section": "layout"
-      },
-      {
-        "name": "The Compact State Tag Rule",
-        "body": "A Goal state is one visual tag. Directory layout wrappers may place the tag but never draw a second border or background around it, including under compact-density overrides.",
-        "section": "layout"
-      },
-      {
-        "name": "The First-Viewport Rule",
-        "body": "Project home is the daily arrival surface. Entering Goals shows the dependency canvas; opening a Goal keeps current facts, the explicit Terminal entry and timeline together according to the current workbench frame. The disabled home composer never replaces the Goal's working Runtime.",
-        "section": "layout"
-      },
-      {
-        "name": "The Current-Summary Rule",
-        "body": "Goal info reads live `readState`, including requirement support, concerns, and pending decisions; it does not recompute completion. Selecting history only changes its inline event body. Neither absent activity nor missing requirements proves work has started.",
-        "section": "layout"
-      },
-      {
-        "name": "The Fixed Workspace Rule",
-        "body": "Compact nodes are draggable; the expanded workspace is fixed. The Runtime and Goal-info/timeline split remains through 761px and stacks at 760px. Collapsing restores the prior camera and node layout.",
-        "section": "layout"
-      },
-      {
-        "name": "The Reader Presence Rule",
-        "body": "Readers and forms occupy the left work area one at a time. Covered controls are inert. The visible desktop timeline stays operable; the mobile timeline is inert under the full-area overlay. Returning restores the workspace and focus.",
-        "section": "layout"
-      },
-      {
-        "name": "The Soft Layer Rule",
-        "body": "Use a low shadow to separate one meaningful navigation or content level, not to make every row float.",
-        "section": "elevation"
-      },
-      {
-        "name": "The Flat Location Rule",
-        "body": "In Light, a control that only answers “where am I?” never uses a paper fill plus exterior shadow. Use stronger text with either one quiet tonal fill or a two-pixel bottom marker; reserve elevation for content and overlays.",
-        "section": "elevation"
-      },
-      {
-        "name": "The Line Rationing Rule",
-        "body": "A border must explain state, grouping, or interaction. Do not outline every item or split the entire workspace into a management-grid skeleton.",
-        "section": "elevation"
-      },
-      {
-        "name": "The Directory Ledger Rule",
-        "body": "Goals, Inbox, Feed, and 来源 share one row grammar: one leading hierarchy/type position, one flexible content column, and one stable trailing state column. The title owns the first line; identifiers, progress, source, time, and dependency health share a compact secondary line. Resting rows keep stable heights and column lines; selected, hovered, and focused rows keep identical dimensions. In Light, the selected row is a flat cobalt-neutral tint without exterior shadow. Goal rows use a 40px resting rhythm, and dependency detail adds height only after explicit expansion.",
-        "section": "components"
-      },
-      {
-        "name": "The Source-in-Context Rule",
-        "body": "Inbox and Feed rows always retain a visible source fact, even when the Item comes from Molis Work itself. The 来源 workbench uses the same title, secondary-fact, and trailing-state hierarchy; its detail owns overview, configuration, pull schedule, source messages, and run state. Adding a source, binding an account, or migrating Relay may use a focused dialog, but browsing and managing an existing Source never depends on that dialog. Connector remains the capability and Source remains the configured instance.",
-        "section": "components"
-      },
-      {
-        "name": "The Attention Boundary Rule",
-        "body": "Feed is complete and append-oriented; Inbox is selective and action-oriented. An Inbox row must say why it needs intervention, which Feed Item, Source, or Goal it references, and what the next real step is. Completing it removes it from the default Inbox without deleting or copying the referenced object.",
-        "section": "components"
-      },
-      {
-        "name": "The Home Agent Availability Rule",
-        "body": "Both the home input and send button are natively disabled and accompanied by “Agent 尚未开放”. They do not capture drafts, accept input, send messages or imply a working Agent Harness. Goal work keeps its existing explicit terminal entry and ownership rules; Conversation stays disabled until that feature is implemented.",
-        "section": "components"
-      }
-    ],
+    "rules": [],
     "dos": [
-      "Do establish hierarchy with proportion, alignment, and whitespace before adding a container.",
-      "Do keep project, module, Goal Tree, and settings navigation in one replaceable directory.",
-      "Do preserve project-local Goal tabs as UI state, never canonical Goal state.",
-      "Do reserve the 48px macOS Overlay safe zone and limit window dragging to empty or plain-text titlebar regions.",
-      "Do distinguish project settings from global device settings at their entry, directory, header, and content.",
-      "Do use tonal surfaces and low shadows to reduce the need for structure lines.",
-      "Do keep full-height Runtime visible beside Goal info and the timeline.",
-      "Do keep the selected Goal continuous across its list entry, canvas node, workspace, and owned Terminal.",
-      "Do keep Goal info on live `readState` while history selection changes only its inline body.",
-      "Do keep the 70/30 desktop split adjustable and locally persistent, including intermediate widths.",
-      "Do open 记录模板 / 目标与要求 / 完成要求 over the left work area with 返回工作区, and remove covered controls from keyboard focus.",
-      "Do preserve the cool-neutral palette and reserve cobalt for interaction, focus, and event-document operate cues.",
-      "Do keep Promotion and Visual Workspace visibly labeled “规划中” and limited to honest reserved views until their real entities and flows exist.",
-      "Do test Light, Dark, Standard, Compact, Runtime-open, narrow states, and both terminal palettes together.",
-      "Do keep every mobile workspace surface full width and free of horizontal viewport escapes.",
-      "Do let users scan 关联与约束 summaries before expanding one body, and reveal the correct card before honoring a deep link.",
-      "Do keep the existing Goal search usable inside the Goals drill-down. GW5 restored the search field above its compact toolbar after real browser tests found it hidden by desktop CSS; this does not add search to the root directory or change the visual direction. Desktop and 390px captures were inspected; details and evidence are in `specs/molis-work-architecture-reorganization/gw5-progress.md`.",
-      "Do treat an explicit “加入组合” click as the project-adoption confirmation and send it to the existing guarded API. GW5 repaired the missing client field; it did not weaken the server check or auto-adopt methods. Real failed/retried saves, independent personal/project versions and desktop/390px captures were verified; no visual redesign was made (impeccable harden)."
+      "**Do** build hierarchy from spacing, text and meaningful boundaries; use paper continuity for work and selected tabs, attached edges for temporary editors and restrained depth for compact prompts.",
+      "**Do** keep the current tab, loaded body, selected directory item and owned terminal consistent without copying domain state.",
+      "**Do** retain source links, exact Artifact versions and original record IDs; make current facts distinct from historical evidence.",
+      "**Do** preserve visible focus, keyboard paths, error recovery, responsive reading and reduced motion. Keep the shell within the viewport and scroll long content in its owning component.",
+      "**Do** state settings scope, keep global and project preferences independent and provide a direct return to prior work.",
+      "**Do** use the existing owner renderer and shared token source when adding screens.",
+      "**Do** keep Feed read state separate from destination state, read the body before processing, and disclose optional materials only when present.",
+      "**Do** pair form Cancel and Submit, label independently saved regions, preserve drafts on failure, and carry project context through global settings."
     ],
     "donts": [
-      "Don't add a second persistent navigation column or repeat project context across the shell.",
-      "Don't restore permanent search, group headings, and tool blocks at the root directory.",
-      "Don't let open Goal tabs grow without limit or leak across projects.",
-      "Don't place tabs, buttons, or the directory resizer in the traffic-light safe zone, or mark an interactive topbar container as draggable.",
-      "Don't replace an opened Goal's current facts, timeline or real Runtime with project-home whitespace or its disabled composer.",
-      "Don't present reserved placeholder views as working modules or fill them with fake content, counts, or activity.",
-      "Don't treat the Goal Tree or an AI chat homepage as the entire application.",
-      "Don't restore five Goal tabs (概览 / 完成要求 / 进展与阻塞 / 关联与约束 / 完整记录) as the selected Goal’s primary navigation.",
-      "Don't let 目标与要求 or 完成要求 share the reader with 使用事件记录继续.",
-      "Don't restore result/decision filters, a separate event-body column, or exclusive Goal Focus/Runtime panes.",
-      "Don't drag an expanded Goal or represent parent membership as dependency arrows.",
-      "Don't treat 原 Goal 标准 as the live completion authority; current requirements and `readState` own that reading.",
-      "Don't use protocol identifiers (`report`, `goal.created`, English verdicts) as the primary timeline or event explanation.",
-      "Don't blur project-setting and global-setting scope.",
-      "Don't force the Desktop two-pane arrangement into the narrow Companion; Feed must switch between Item and Detail.",
-      "Don't turn unrelated filters and navigation into segmented pills; keep grouped controls limited to choices that belong together.",
-      "Don't stack unrelated detail sections into one unbroken page or give every nested content block another decorative border.",
-      "Don't make status colors decorative or rely on color without text.",
-      "Don't copy YouMind's product IA, content cards, branding, or imagery."
+      "**Don't** restore the old 32px work bar, underlined active work tab, 10px shared controls, or separate Settings palette.",
+      "**Don't** add a second persistent directory inside the workbench, decorative dashboard cards, duplicate mode bars or inactive placeholder tools.",
+      "**Don't** embed project preferences in workspace/plugin tabs or revive the asynchronous exclusive settings stage.",
+      "**Don't** turn a disabled composer, Session demo, reserved module or browser screenshot into a claim of an integrated feature.",
+      "**Don't** infer completion from child counts, activity or missing requirements, or treat UI selection as execution authority.",
+      "**Don't** make status color the only explanation, allow long paths to widen the viewport, or hide the current tab when resizing.",
+      "**Don't** use review screenshots as product imagery or claim browser review verifies the native package or every low-frequency form.",
+      "**Don't** repeat the Feed stage eyebrow, expanded title or summary, or ask users to select an Artifact when the project has no results."
     ]
   }
 }

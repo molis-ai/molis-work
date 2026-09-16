@@ -36,7 +36,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
     };
     treeResizer?.addEventListener("pointerup", finishTreeResize);
     treeResizer?.addEventListener("pointercancel", finishTreeResize);
-    treeResizer?.addEventListener("dblclick", () => setTreeWidth(innerWidth <= 1050 ? 236 : 264));
+    treeResizer?.addEventListener("dblclick", () => setTreeWidth(innerWidth <= 1050 ? 256 : 280));
     treeResizer?.addEventListener("keydown", (event) => {
       if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
       event.preventDefault();
@@ -88,6 +88,17 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
         filterFeedItems();
       });
     });
+    document.addEventListener("change", (event) => {
+      if (!event.target.matches?.("[data-source-schedule-mode]")) return;
+      const detail = event.target.closest("[data-feed-task-config]");
+      if (!detail) return;
+      const interval = event.target.value === "interval";
+      detail.querySelectorAll("[data-source-schedule-interval], [data-source-schedule-enabled]").forEach(input => {
+        input.closest("label").hidden = !interval;
+        input.disabled = !interval;
+      });
+      if (interval) detail.querySelector("[data-source-schedule-enabled]").checked = true;
+    });
     feedFilterPanel?.addEventListener("keydown", (event) => {
       const current = event.target.closest?.("[data-feed-filter-option]");
       if (!current || !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) return;
@@ -133,7 +144,6 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
     document.addEventListener("click", async (event) => {
       const target = event.target instanceof Element ? event.target : null;
       if (!target) return;
-      if (projectSettingsStage?.handleClick(event, target)) return;
       const humanReviewJump = target.closest("[data-human-review-jump]");
       if (humanReviewJump) {
         const reviewForm = humanReviewJump.closest(".human-review-list")?.querySelector("[data-human-review-form]");
@@ -203,24 +213,46 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
         queueSave();
         return;
       }
+      const policyCancel = target.closest("[data-policy-cancel]");
+      if (policyCancel) {
+        const form = policyCancel.closest("form");
+        form?.querySelectorAll("[aria-invalid]").forEach(field => field.removeAttribute("aria-invalid"));
+        const error = form?.querySelector("[data-policy-error]");
+        if (error) error.hidden = true;
+        return;
+      }
+      const planReset = target.closest("[data-source-schedule-reset]");
+      if (planReset) {
+        const region = planReset.closest("[data-feed-plan-region]");
+        resetFeedFields(region);
+        const manual = region?.querySelector("[data-source-schedule-mode]")?.value === "manual";
+        for (const selector of ["[data-source-schedule-interval]", "[data-source-schedule-enabled]"]) {
+          const label = region?.querySelector(selector)?.closest("label");
+          if (label) label.hidden = manual;
+        }
+        const status = region?.closest("[data-source-detail]")?.querySelector("[data-source-action-status]");
+        if (status) status.hidden = true;
+        return;
+      }
       const sourceConfigSave = target.closest("[data-source-config-save]");
       if (sourceConfigSave) {
-        const detail = sourceConfigSave.closest("[data-source-detail]");
+        const detail = sourceConfigSave.closest("[data-source-detail]") || feedSourcesDialog?.querySelector("[data-feed-task-config]:not([hidden])");
         const sourceId = sourceConfigSave.dataset.sourceId;
         const readField = (name) => detail?.querySelector('[data-source-config-field="' + name + '"]')?.value || "";
+        if ([...detail.querySelectorAll('[data-source-config-field]')].some(input => !input.reportValidity())) return;
         sourceConfigSave.disabled = true;
-        showPrototypeStatus(sourceConfigSave, L("正在保存来源配置…"));
+        showPrototypeStatus(detail, L("正在保存来源配置…"));
         try {
           await feedApi("/api/feed/sources/" + encodeURIComponent(sourceId), "PATCH", {
             name: readField("name"),
             description: readField("description"),
-            scope: readField("scope"),
+            scope: detail.querySelector('[data-source-config-field="scope"]') ? readField("scope") : undefined,
             feed_url: readField("feed_url") || undefined,
           });
-          showPrototypeStatus(sourceConfigSave, L("来源配置已保存。地址与秘密凭据没有改变。"));
+          showPrototypeStatus(detail, L("任务配置已保存。"));
           globalThis.setTimeout(() => location.reload(), 450);
         } catch (error) {
-          showPrototypeStatus(sourceConfigSave, error.message || L("来源配置保存失败，请检查后重试。"));
+          showPrototypeStatus(detail, error.message || L("来源配置保存失败，请检查后重试。"));
           sourceConfigSave.disabled = false;
         }
         return;
@@ -241,7 +273,12 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
           showPrototypeStatus(sourceScheduleSave, mode === "manual"
             ? L("已改为仅手动拉取。")
             : enabled ? L("定时拉取已保存；本地服务会在到期后执行。") : L("定时拉取已暂停。"));
-          globalThis.setTimeout(() => location.reload(), 450);
+          detail.querySelectorAll("[data-source-schedule-mode], [data-source-schedule-interval], [data-source-schedule-enabled]").forEach(field => {
+            if (field.tagName === "SELECT") [...field.options].forEach(option => option.defaultSelected = option.selected);
+            else if (field.type === "checkbox") field.defaultChecked = field.checked;
+            else field.defaultValue = field.value;
+          });
+          sourceScheduleSave.disabled = false;
         } catch (error) {
           showPrototypeStatus(sourceScheduleSave, error.message || L("拉取计划保存失败，请检查后重试。"));
           sourceScheduleSave.disabled = false;
@@ -439,18 +476,20 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
         filterFeedItems(false);
         return;
       }
-      if (target.closest("[data-feed-sources-open]")) {
-        feedSourcesDialog?.showModal();
-        setFeedSourceFeedback("");
-        return;
-      }
+      const feedChoice = target.closest("[data-feed-choose-kind], [data-feed-connect-kind]");
+      if (feedChoice) { showFeedSetup("setup", feedChoice.dataset.feedChooseKind || feedChoice.dataset.feedConnectKind); return; }
+      const feedConfig = target.closest("[data-feed-task-config-open]");
+      if (feedConfig) { showFeedSetup("config", feedConfig.dataset.feedTaskConfigOpen); return; }
+      if (target.closest("[data-feed-advanced-open]")) { showFeedSetup("advanced"); return; }
+      if (target.closest("[data-feed-sources-open], [data-feed-setup-back]")) { showFeedSetup(); return; }
       if (target.closest("[data-feed-sources-close]")) {
-        feedSourcesDialog?.close();
-        return;
+        const config = feedSourcesDialog?.querySelector("[data-feed-task-config]:not([hidden])");
+        if (config) resetFeedFields(config);
+        feedSourcesDialog?.close(); return;
       }
       const sourceRegister = target.closest("[data-feed-source-register]");
       if (sourceRegister) {
-        const form = sourceRegister.closest("[data-feed-add-form]");
+        const form = sourceRegister.form || sourceRegister.closest("[data-feed-add-form]");
         const scope = form || feedSourcesDialog;
         const kind = sourceRegister.dataset.feedSourceRegister;
         const value = kind === "rss"
@@ -462,6 +501,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
           : kind === "youtube_channel" ? { kind, channel_id: value }
           : { kind, feed_url: value };
         if (name) body.name = name;
+        if (form && !form.reportValidity()) return;
         sourceRegister.disabled = true;
         const inlineError = form?.querySelector("[data-feed-add-error]");
         if (inlineError) {
@@ -470,11 +510,27 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
         }
         setFeedSourceFeedback(L("正在添加来源…"));
         try {
-          await feedApi("/api/feed/sources", "POST", body);
+          let sourceId = form?.dataset.createdSourceId;
+          if (!sourceId) {
+            const result = await feedApi("/api/feed/sources", "POST", body);
+            sourceId = result.source.source_id;
+            if (form) form.dataset.createdSourceId = sourceId;
+          }
+          const minutes = Number(form?.querySelector("[data-feed-create-frequency]")?.value || 0);
+          if (minutes) await feedApi("/api/feed/sources/" + encodeURIComponent(sourceId) + "/schedule", "PUT", { mode: "interval", enabled: true, interval_minutes: minutes });
+          selectedFeedTask = sourceId;
+          document.dispatchEvent(new CustomEvent("workbench-feed-task", { detail: { taskId: sourceId } }));
           saveUiState();
           location.reload();
         } catch (error) {
-          const message = error.message || L("添加来源失败");
+          const message = form?.dataset.createdSourceId
+            ? L("任务已创建，拉取计划未保存。请重试，不会重复创建任务。") + " " + error.message
+            : error.message || L("添加来源失败");
+          if (form?.dataset.createdSourceId) {
+            form.querySelectorAll("input, [data-feed-rss-definition]").forEach(input => input.disabled = true);
+            feedSourcesDialog.querySelector("[data-feed-setup-back]").hidden = true;
+            sourceRegister.textContent = L("重试保存计划");
+          }
           if (inlineError) {
             inlineError.textContent = message;
             inlineError.hidden = false;

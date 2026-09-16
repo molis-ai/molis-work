@@ -216,7 +216,7 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
         const restoredDirectoryRaw = ui?.navigationVersion === desktopNavigationStateVersion
           ? ui?.directory || (decisionView ? "inbox" : "root")
           : decisionView ? "inbox" : "root";
-        const restoredDirectory = restoredDirectoryRaw === "sources" ? "feed" : restoredDirectoryRaw;
+        const restoredDirectory = directoryPanelFor(restoredDirectoryRaw);
         setDesktopDirectory(restoredDirectory, false, false);
       }
       restoreTreeCollapsed(ui?.collapsed);

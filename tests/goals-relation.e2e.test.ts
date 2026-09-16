@@ -46,6 +46,8 @@ test("Goals relation UI preserves incoming direction, historical reading and rel
   const record = "#relation-" + relationId;
   async function openRelations() {
     await waitFor("document.readyState === 'complete' && document.querySelector('[data-goal-event-document]')");
+    if (await evaluate("document.querySelector('[data-frame-goal-work]')?.getBoundingClientRect().width > 0")) await click("[data-frame-goal-work]");
+    if (await evaluate("!document.querySelector('[data-event-panel=description]')?.hidden")) await click('.detail-toolbar [data-event-back]');
     await click('[data-event-reader="description"]');
     await waitFor("document.querySelector('[data-event-panel=\"description\"]') && document.querySelector('[data-event-panel=\"description\"]').hidden === false");
     await waitFor("document.querySelector('#goal-factor-tab-relations-V1')");

@@ -37,6 +37,10 @@ test("kanban keeps six visible-status columns, empty columns, and current-tree c
   assert.match(columnBody(html, "in_progress"), /data-goal-id="APP"/);
   assert.match(columnBody(html, "waiting"), /data-goal-id="ROOT"/);
   assert.match(columnBody(html, "waiting_user"), /data-kanban-cards/);
+  assert.match(columnBody(html, "waiting_user"), /class="goal-kanban-count">0</);
+  assert.match(columnBody(html, "waiting_user"), /class="goal-kanban-empty">暂无 Goal</);
+  assert.match(columnBody(html, "in_progress"), /class="goal-kanban-count">1</);
+  assert.doesNotMatch(columnBody(html, "in_progress"), /goal-kanban-empty/);
   assert.doesNotMatch(columnBody(html, "waiting_user"), /data-kanban-card(?!s)/);
   assert.match(html, /属于：Parent/);
   assert.match(html, /User &quot;&lt;title&gt;/);

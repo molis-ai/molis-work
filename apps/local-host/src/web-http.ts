@@ -23,6 +23,8 @@ export type LocalMutationState = "in_flight" | "complete";
 
 function isEventCommandReplayPath(pathname: string): boolean {
   return /(?:^|\/)api\/goals\/[^/]+\/event-(?:configure|report|progress|concern|decision-request|decision|agree|close|resume|continue|note)$/.test(pathname)
+    || /(?:^|\/)api\/goals\/[^/]+\/relations$/.test(pathname)
+    || /(?:^|\/)api\/relations\/[^/]+\/deactivate$/.test(pathname)
     || /(?:^|\/)api\/goals$/.test(pathname)
     || /(?:^|\/)api\/goal-tree-proposals\/[^/]+\/decision$/.test(pathname);
 }

@@ -53,12 +53,13 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `        return;
       }
       const feedTaskToggle = target.closest("[data-feed-task-toggle]");
       if (feedTaskToggle) {
+        tabWorkspace?.openPlugin("feed");
         setFeedTask(feedTaskToggle.dataset.feedTaskToggle || "all");
+        setMobileView("document");
         return;
       }
       if (target.closest("[data-feed-add-toggle]")) {
-        const add = document.querySelector("[data-feed-add]");
-        setFeedAddOpen(!add?.classList.contains("is-open"));
+        tabWorkspace?.addFeedTask();
         return;
       }
       if (target.closest("[data-feed-clear-filters]")) {
@@ -288,8 +289,6 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `        return;
         if (!openWorkbenchSurface("home")) setDesktopWorkSurface("home");
         return;
       }
-      const goalWorkTabClick = handleGoalWorkTabClick(target);
-      if (goalWorkTabClick) { await goalWorkTabClick; return; }
       if (handleTreeSearchFocus(target)) return;
       if (handleTreeDisclosureClick(target)) return;
       if (handleMomentumNavigationClick(target)) return;
@@ -311,12 +310,7 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `        return;
       if (handleMomentumZoomClick(target)) return;
       const goalLink = target.closest("[data-select-goal]");
       if (goalLink) {
-        if (frameContainer?.isFrameTabActive()) {
-          frameContainer.locateGoal(goalLink.dataset.selectGoal);
-          return;
-        }
         openWorkbenchSurface("goal", goalLink.dataset.selectGoal, goalLink.textContent?.trim());
-        handleGoalSelectClick(target);
         return;
       }
       if (handleGoalDialogClick(target)) return;

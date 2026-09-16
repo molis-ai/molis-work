@@ -66,7 +66,7 @@ export function createWorkbenchOnboardingRenderer(primitives: OnboardingRenderPr
     </div>
     <div class="onboarding-update-actions">
       <button type="button" data-onboarding-dismiss="update">${L("继续使用 Molis Work")}</button>
-      <a href="${href("/settings/projects")}">${L("查看项目设置")}</a>
+      <a href="${href("/?migration=1")}">${L("查看项目设置")}</a>
     </div>
     <p class="onboarding-error" data-onboarding-error role="alert" hidden></p>
   </main>
@@ -116,7 +116,7 @@ export function createWorkbenchOnboardingRenderer(primitives: OnboardingRenderPr
   ${ONBOARDING_ATMOSPHERE}
   <header class="onboarding-topbar">
     <a class="onboarding-brand" href="${href("/")}">Molis Work</a>
-    <div class="onboarding-topbar-actions"><a href="${href("/settings/projects")}">${L("迁移已有数据")}</a><button type="button" data-onboarding-dismiss="first_run">${options.mode === "first_run" ? L("跳过") : L("返回项目目录")}</button></div>
+    <div class="onboarding-topbar-actions"><a href="${href("/?migration=1")}">${L("迁移已有数据")}</a><button type="button" data-onboarding-dismiss="first_run">${options.mode === "first_run" ? L("跳过") : L("返回项目目录")}</button></div>
   </header>
   <main class="onboarding-room">
     <form class="onboarding-flow" data-onboarding-form novalidate>
@@ -151,7 +151,7 @@ export function createWorkbenchOnboardingRenderer(primitives: OnboardingRenderPr
       <section class="onboarding-step" data-onboarding-step="2" aria-labelledby="onboarding-question-2" hidden>
         <p class="onboarding-echo"><span>${L("项目叫")}</span><strong data-onboarding-project></strong></p>
         <h1 id="onboarding-question-2" tabindex="-1">${L("接下来，你想在哪里继续？")}</h1>
-        <label class="onboarding-workspace"><span>${L("工作目录")}</span><input name="workspace_path" type="text" autocomplete="off" placeholder="/absolute/path/to/project" aria-describedby="onboarding-runtime-hint onboarding-error-2"></label>
+        <label class="onboarding-workspace"><span>${L("工作目录")}</span><input name="workspace_path" type="text" autocomplete="off" placeholder="/Users/name/code/project" aria-describedby="onboarding-runtime-hint onboarding-error-2"></label>
         <fieldset class="onboarding-runtime"><legend>${L("想用哪个工具继续？")}</legend>${runtimeChoices}</fieldset>
         <p class="onboarding-hint" id="onboarding-runtime-hint">${runtimeHint}</p>
         <p class="onboarding-field-error" id="onboarding-error-2" data-step-error="2" role="alert" hidden></p>

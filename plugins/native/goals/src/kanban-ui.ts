@@ -9,7 +9,8 @@ export function createKanbanRenderer(primitives: GoalsMomentumUiPrimitives) {
   function renderGoalKanban(view: GoalsMomentumBoardView, selectedGoalId: string, items: readonly GoalsMomentumItem[]): string {
     const byId = new Map(items.map((item) => [item.goal.goal_id, item]));
     const columns = GOAL_DISPLAY_STATUSES.map((status) => {
-      const cards = sortGoalTreeItems(items.filter((item) => item.display_status === status)).map((entry) => {
+      const columnItems = sortGoalTreeItems(items.filter((item) => item.display_status === status));
+      const cards = columnItems.map((entry) => {
         const parent = view.snapshot.relations.find((relation) => relation.state === "active" && relation.type === "part_of" && relation.from_goal_id === entry.goal.goal_id);
         const parentTitle = parent ? byId.get(parent.to_goal_id)?.goal.title : "";
         const selected = entry.goal.goal_id === selectedGoalId;
@@ -21,8 +22,8 @@ export function createKanbanRenderer(primitives: GoalsMomentumUiPrimitives) {
       </article>`;
       }).join("");
       return `<section class="goal-kanban-column" data-kanban-column="${status}" aria-label="${escapeHtml(goalDisplayStatusLabel(status))}">
-      <h2>${escapeHtml(goalDisplayStatusLabel(status))}</h2>
-      <div data-kanban-cards>${cards}</div>
+      <h2><span>${escapeHtml(goalDisplayStatusLabel(status))}</span><span class="goal-kanban-count">${columnItems.length}</span></h2>
+      <div data-kanban-cards>${cards || `<p class="goal-kanban-empty">${escapeHtml(L("暂无 Goal"))}</p>`}</div>
     </section>`;
     }).join("");
     return `<section class="goal-kanban" data-goal-kanban aria-label="${L("看板")}">

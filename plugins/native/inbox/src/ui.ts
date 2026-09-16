@@ -82,11 +82,12 @@ function renderInboxDetail(entry: InboxUiEntry, selected: boolean, p: InboxUiPri
   const active = isActiveInboxStatus(entry.status);
   const openAction = openButton(entry, p);
   const resultActions = active
-    ? `<button class="button-primary" type="button" data-inbox-action="done" data-inbox-entry-id="${p.escape(entry.entry_id)}" data-inbox-entry-revision="${entry.revision}">${p.icon("check")}${p.text("完成")}</button><button class="feed-action-subtle" type="button" data-inbox-action="dismissed" data-inbox-entry-id="${p.escape(entry.entry_id)}" data-inbox-entry-revision="${entry.revision}">${p.text("忽略")}</button>`
+    ? `<button class="button-primary" type="button" data-inbox-action="done" data-inbox-entry-id="${p.escape(entry.entry_id)}" data-inbox-entry-revision="${entry.revision}">${p.icon("check")}${p.text("标记已处理")}</button><button class="feed-action-subtle" type="button" data-inbox-action="dismissed" data-inbox-entry-id="${p.escape(entry.entry_id)}" data-inbox-entry-revision="${entry.revision}">${p.text("忽略")}</button>`
     : `<button type="button" data-inbox-action="open" data-inbox-entry-id="${p.escape(entry.entry_id)}" data-inbox-entry-revision="${entry.revision}">${p.text("重新打开")}</button>`;
   return `<article class="feed-detail feed-detail--attention inbox-reference-detail" data-inbox-detail="${p.escape(entry.entry_id)}" data-inbox-subject-type="${entry.subject_type}"${selected ? "" : " hidden"}>
-    <header class="feed-detail-header"><div class="feed-detail-kicker"><span>${p.escape(entry.kind_label)}</span><span>${p.escape(entry.source_label)}</span><span>${p.escape(entry.status_label)}</span></div><h1>${p.escape(entry.title)}</h1><div class="feed-detail-actions">${openAction}${resultActions}</div><p class="feed-action-status" data-inbox-action-status role="status" hidden></p></header>
-    <section class="inbox-attention-context" aria-label="${p.text("处理上下文")}"><dl><div><dt>${p.text("为什么进入 Inbox")}</dt><dd>${p.escape(entry.reason_label)}</dd></div><div><dt>${p.text("关联对象")}</dt><dd>${p.escape(entry.relation_label)}</dd></div><div class="inbox-attention-next"><dt>${p.text("下一步")}</dt><dd>${p.escape(entry.next_action)}</dd></div><div><dt>${p.text("当前状态")}</dt><dd>${p.escape(entry.status_label)}</dd></div></dl></section>
+    <div class="inbox-reference-body"><header class="feed-detail-header"><div class="feed-detail-kicker"><span>${p.escape(entry.kind_label)}</span><span>${p.escape(entry.source_label)}</span><span>${p.escape(entry.status_label)}</span></div><h1>${p.escape(entry.title)}</h1></header>
+    <section class="inbox-attention-context" aria-label="${p.text("处理上下文")}"><dl><div><dt>${p.text("为什么进入 Inbox")}</dt><dd>${p.escape(entry.reason_label)}</dd></div><div><dt>${p.text("关联对象")}</dt><dd>${p.escape(entry.relation_label)}</dd></div><div class="inbox-attention-next"><dt>${p.text("下一步")}</dt><dd>${p.escape(entry.next_action)}</dd></div><div><dt>${p.text("当前状态")}</dt><dd>${p.escape(entry.status_label)}</dd></div></dl></section></div>
+    <footer class="inbox-reference-footer"><div class="feed-detail-actions">${openAction}${resultActions}</div><p class="feed-action-status" data-inbox-action-status role="status" hidden></p></footer>
   </article>`;
 }
 
@@ -98,7 +99,7 @@ function openButton(entry: InboxUiEntry, p: InboxUiPrimitives): string {
     return `<button type="button" data-inbox-open-feed="${p.escape(entry.open.item_id)}">${p.icon("activity")}${p.text("查看原消息")}</button>`;
   }
   if (entry.open.kind === "source") {
-    return `<button type="button" data-open-source-record="${p.escape(entry.open.source_id)}">${p.icon("settings")}${p.text("查看来源")}</button>`;
+    return `<button type="button" data-feed-task-config-open="${p.escape(entry.open.source_id)}">${p.icon("settings")}${p.text("处理任务配置")}</button>`;
   }
   return `<a class="feed-linked-goal" href="${p.escape(entry.open.href)}">${p.icon("target")}${p.text("打开 Goal")}</a>`;
 }

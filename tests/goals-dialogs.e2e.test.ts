@@ -108,6 +108,7 @@ test("Goal dialogs create once after retry, cancel without writes, and trash/res
   assert.deepEqual(newRelations(), expectedRelations);
   const openTrash = '[data-goal-view="' + goalId + '"] [data-open-goal-trash]';
   const openTrashMenu = async () => {
+    if (await evaluate("document.querySelector('[data-frame-goal-work]')?.getBoundingClientRect().width > 0")) await click("[data-frame-goal-work]");
     if (!await evaluate(dom(".goal-more") + ".open")) await click(".goal-more > summary");
     await click(openTrash);
   };

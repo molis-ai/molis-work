@@ -47,7 +47,7 @@ export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
       article.querySelector("[data-event-reader-root]")?.setAttribute("hidden", "");
       article.querySelectorAll("[data-event-form]").forEach((form) => { form.hidden = true; });
       const sheet = article.querySelector("[data-event-sheet]");
-      if (sheet) sheet.hidden = false;
+      if (sheet) sheet.hidden = !reading.item;
       article.classList.remove("is-editing-goal");
       syncPanelPresence();
       if (restoreFocus) requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -146,7 +146,7 @@ export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
         if (title) {
           title.textContent = name === "planning" ? L("记录模板") : name === "description" ? L("目标与要求") : L("完成要求");
           title.tabIndex = -1;
-          title.focus({ preventScroll: true });
+          requestAnimationFrame(() => { if (title.isConnected && reading.reader === name) title.focus({ preventScroll: true }); });
         }
         showDetail(true);
         return;
@@ -158,7 +158,10 @@ export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
           : article.querySelector('[data-event-form="' + CSS.escape(name) + '"]');
       if (form) {
         form.hidden = false;
-        form.querySelector("input, textarea, select, button")?.focus();
+        requestAnimationFrame(() => {
+          if (!form.isConnected || form.hidden || reading.form !== name) return;
+          [...form.querySelectorAll('input:not([type="hidden"]), textarea, select')].find((field) => !field.disabled && field.getClientRects().length)?.focus({ preventScroll: true });
+        });
       }
       showDetail(true);
     };
@@ -290,6 +293,7 @@ export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
     };
 
     const submitForm = async (form) => {
+      if (form.getAttribute("aria-busy") === "true") return;
       const article = root();
       const currentGoal = goalId();
       const kind = form.dataset.eventForm;
@@ -312,8 +316,16 @@ export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
       const key = form.dataset.idempotencyKey || (globalThis.crypto?.randomUUID?.() || (String(Date.now()) + Math.random()));
       form.dataset.idempotencyKey = key;
       form.setAttribute("data-live-dirty", "true");
-      form.querySelector("[type=submit]")?.setAttribute("disabled", "true");
+      form.setAttribute("aria-busy", "true");
+      const fields = form.querySelector(".event-form-body");
+      if (fields) fields.inert = true;
+      const buttons = [...form.querySelectorAll("button:not(:disabled)")];
+      buttons.forEach(button => { button.disabled = true; });
+      const submit = form.querySelector("[type=submit]");
+      const submitLabel = submit?.textContent;
+      if (submit) submit.textContent = L("正在保存…");
       const restore = { ...captureRestore(), form: kind };
+      let typeSaved = false;
       try {
         const response = await fetch(route("/api/goals/" + encodeURIComponent(currentGoal) + formPath(kind)), {
           method: "POST", headers: { ...jsonHeaders(), "x-molis-work-idempotency-key": key },
@@ -356,6 +368,7 @@ export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
           if (status) { status.hidden = false; status.textContent = body.error || L("保存失败"); }
           return;
         }
+        typeSaved = kind === "type";
         if (kind === "type" && form.querySelector('[name="add_requirement"]')?.checked) {
           const extraData = new FormData(form);
           const extraStatement = String(extraData.get("requirement_statement") || "").trim();
@@ -380,7 +393,7 @@ export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
           const extraBody = await extraRes.json().catch(() => ({}));
           if (!extraRes.ok) {
             fieldError(form, extraBody.details?.field_id, extraBody.error || L("保存失败"));
-            if (status) { status.hidden = false; status.textContent = extraBody.error || L("类型已登记，但完成要求没有写上。"); }
+            if (status) { status.hidden = false; status.textContent = L("类型已登记，但完成要求没有写上。") + " " + (extraBody.error || L("保存失败")) + " " + L("输入已保留，重试将继续保存完成要求。"); }
             return;
           }
         }
@@ -412,12 +425,19 @@ export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
           return;
         }
         showStatus?.(L("已保存。顶部已按当前权威状态更新。"));
+        reading.form = "";
+        reading.reader = "";
         hidePanels(true);
       } catch (error) {
-        if (status) { status.hidden = false; status.textContent = error.message || L("保存失败"); }
-        showError?.(error.message || L("保存失败"));
+        const message = error instanceof TypeError ? L("无法连接本地服务，输入已保留，请重试。") : error.message || L("保存失败");
+        if (status) { status.hidden = false; status.textContent = typeSaved ? L("类型已登记，但完成要求没有写上。") + " " + message : message; }
+        else showError?.(message);
       } finally {
-        form.querySelector("[type=submit]")?.removeAttribute("disabled");
+        form.removeAttribute("aria-busy");
+        if (fields) fields.inert = false;
+        buttons.forEach(button => { button.disabled = false; });
+        if (submit) submit.textContent = submitLabel;
+        if (form.isConnected && !form.hidden) (form.querySelector(":invalid") || submit)?.focus();
       }
     };
 
@@ -456,7 +476,8 @@ export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
         applyLaneFilter(button);
         const time = validDate ? pad(date.getHours()) + ":" + pad(date.getMinutes()) : "--:--";
         const status = item.type_label === "请求决定" ? pending.has(item.event_id) ? L("待你决定") : L("已处理") : item.status_label;
-        button.innerHTML = "<time></time><span class=timeline-dot aria-hidden=true><i></i></span><span class=timeline-copy><strong>" + escapeText(item.title || "") + "</strong><small><b class=timeline-type>" + escapeText(item.type_label || "") + "</b> · " + escapeText(item.actor_id || "") + "</small>" + (status ? "<em>" + escapeText(status) + "</em>" : "") + "</span>";
+        const mark = item.relation ? "↗" : item.lane === "result" ? "✓" : item.lane === "decision" ? "◇" : item.lane === "problem" ? "!" : "·";
+        button.innerHTML = "<time></time><span class=timeline-dot aria-hidden=true><span class=timeline-mark>" + mark + "</span></span><span class=timeline-copy><strong>" + escapeText(item.title || "") + "</strong><small><b class=timeline-type>" + escapeText(item.type_label || "") + "</b> <span class=timeline-actor>" + escapeText(item.actor_id || "") + "</span></small>" + (status ? "<em class=history-state>" + escapeText(status) + "</em>" : "") + "</span>";
         button.querySelector("time").dateTime = received;
         button.querySelector("time").textContent = time;
         nav.append(button);
@@ -466,12 +487,15 @@ export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
     const onClick = (event) => {
       const article = event.target.closest?.("[data-goal-event-document]");
       if (!article || article !== root()) return;
+      if (article.querySelector('[data-event-form][aria-busy="true"]')) { event.preventDefault(); return; }
       const item = event.target.closest("[data-timeline-item]");
       if (item) {
         const sheet = article.querySelector("[data-event-sheet]");
         if (item.getAttribute("aria-expanded") === "true" && sheet && !sheet.hidden && !reading.form && !reading.reader) {
           selectedRequest += 1;
           item.setAttribute("aria-expanded", "false");
+          item.setAttribute("aria-current", "false");
+          reading.item = "";
           sheet.hidden = true;
         } else void loadEventBody(item, true);
         return;
@@ -622,10 +646,44 @@ export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (items[next]) { event.preventDefault(); void loadEventBody(items[next], true); items[next].focus(); }
     };
     const onChange = (event) => {
-      const checkbox = event.target.closest?.('[name="add_requirement"]');
-      if (!checkbox || checkbox.closest("[data-goal-event-document]") !== root()) return;
-      const row = checkbox.closest("form")?.querySelector("[data-new-requirement]");
-      if (row) row.hidden = !checkbox.checked;
+      const input = event.target;
+      const form = input.closest?.("[data-event-form]");
+      if (!form || form.closest("[data-goal-event-document]") !== root()) return;
+      if (input.name === "effect" && input.checked) {
+        const opposite = { accept_requirements: "reject_requirements", reject_requirements: "accept_requirements", accept_concerns: "reject_concerns", reject_concerns: "accept_concerns", authorize_action: "deny_action", deny_action: "authorize_action" }[input.value];
+        if (opposite) { const other = form.querySelector('[name="effect"][value="' + opposite + '"]'); if (other) other.checked = false; }
+      }
+      if (input.matches('[name="add_requirement"]')) {
+        const row = form.querySelector("[data-new-requirement]");
+        if (row) { row.hidden = !input.checked; row.querySelector("textarea").required = input.checked; }
+      }
+      if (input.matches("[data-judgment-requirement]")) {
+        const verdict = form.querySelector("[data-judgment-verdict]");
+        verdict.disabled = !input.value; verdict.closest("label").hidden = !input.value;
+        if (!input.value) verdict.value = "";
+      }
+      if (form.dataset.eventForm === "adopt" && input.name === "method_id") {
+        let count = 0;
+        form.querySelectorAll("[data-adopt-method]").forEach(row => {
+          row.hidden = row.dataset.adoptMethod !== input.value;
+          const checkbox = row.querySelector("input"); checkbox.disabled = row.hidden;
+          if (row.hidden) checkbox.checked = false; else count++;
+        });
+        const empty = form.querySelector("[data-adopt-empty]"); if (empty) empty.hidden = count > 0;
+      }
+      if (form.dataset.eventForm === "concern" && (input.name === "concern_id" || input.name === "action")) {
+        const existing = Boolean(form.querySelector('[name="concern_id"]')?.value);
+        const action = form.querySelector('[name="action"]');
+        if (input.name === "concern_id") action.value = existing ? "resolve" : "open";
+        form.querySelectorAll("[data-concern-new]").forEach(row => row.hidden = existing);
+        form.querySelectorAll("[data-concern-existing]").forEach(row => row.hidden = !existing);
+        form.querySelector('[name="title"]').required = !existing;
+        form.querySelector('[name="statement"]').required = !existing;
+        form.querySelector('[name="reason"]').required = existing;
+        const open = action.querySelector('option[value="open"]'); if (open) open.hidden = existing;
+        form.querySelectorAll("[data-concern-accept]").forEach(row => row.hidden = action.value !== "accept");
+        const decision = form.querySelector('[name="cited_decision_id"]'); if (decision) decision.required = action.value === "accept";
+      }
     };
 
     document.addEventListener("click", (event) => {
@@ -663,15 +721,12 @@ export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
           button.setAttribute("aria-pressed", String(button.dataset.timelineFilter === (reading.filter || "all")));
         });
         article?.querySelectorAll("[data-timeline-item]").forEach((node) => applyLaneFilter(node));
-        const first = article?.querySelector("[data-timeline-item]");
-        const width = article?.getBoundingClientRect().width || article?.clientWidth || 0;
         if (reading.item) {
           article?.querySelectorAll("[data-timeline-item]").forEach((node) => node.setAttribute("aria-current", String(node.dataset.timelineItem === reading.item)));
         }
         if (reading.form) showForm(reading.form);
         else if (reading.reader) showForm(reading.reader);
         else if (reading.item) void locateHistory(reading.item);
-        else if (first) void loadEventBody(first);
       },
     };
   }`;

@@ -31,7 +31,7 @@ test("public document timeline is bounded, keeps journal, and does not label sel
     const page = async (goalId: string, query: Record<string, string>) => {
       const response = await fetch(`${origin}/api/goals/${goalId}/event-timeline?${new URLSearchParams(query)}`);
       assert.equal(response.status, 200);
-      return response.json() as Promise<{ items: Array<{ item_id: string; original_id: string; source: string; actor_id: string; actor_kind: string | null }>; next_cursor: string | null }>;
+      return response.json() as Promise<{ items: Array<{ item_id: string; original_id: string; source: string; actor_id: string; actor_kind: string | null; relation?: { from_id: string; to_id: string; from_title: string; to_title: string; label: string }; status_label: string | null }>; next_cursor: string | null }>;
     };
     const coreBefore = await page("CORE", { limit: "1" });
     assert.ok(coreBefore.items.length <= 1, "limit must bound mixed history");
@@ -53,6 +53,17 @@ test("public document timeline is bounded, keeps journal, and does not label sel
     const v1History = await page("V1", { limit: "100" });
     assert.ok(renderedIds.length > 0);
     assert.ok(renderedIds.every((id) => v1History.items.some((item) => item.item_id === id)));
+    const relationEntry = v1History.items.find(item => item.relation);
+    assert.ok(relationEntry?.relation, "relation events must carry readable endpoints");
+    assert.equal(relationEntry.relation.from_title, snapshot.goals.find(goal => goal.goal_id === relationEntry.relation!.from_id)?.title);
+    assert.equal(relationEntry.relation.to_title, snapshot.goals.find(goal => goal.goal_id === relationEntry.relation!.to_id)?.title);
+    assert.equal(relationEntry.status_label, "已建立");
+    const relationBody = await (await fetch(`${origin}/api/goals/V1/history/${encodeURIComponent(relationEntry.item_id)}`)).json() as { html: string };
+    assert.match(relationBody.html, /history-relation-flow/);
+    assert.ok(relationBody.html.includes(`data-select-goal="${relationEntry.relation.from_id}"`));
+    assert.ok(relationBody.html.includes(`data-select-goal="${relationEntry.relation.to_id}"`));
+    assert.match(relationBody.html, /变更原因/);
+    assert.doesNotMatch(fragment, /<em[^>]*>relation<\/em>/);
 
     app.goalEvents.resumeWork({
       board_id: DEMO_BOARD_ID, goal_id: "CORE", actor_id: "review-user", actor_kind: "user",

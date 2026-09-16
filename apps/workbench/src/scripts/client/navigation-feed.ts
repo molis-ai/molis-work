@@ -1,37 +1,6 @@
 /** AP3 Workbench client segment: navigation-feed. */
 export const CLIENT_NAVIGATION_FEED_SCRIPT = `
-    const renderWorkTabs = () => {
-      immersiveNavigation?.sync();
-      if (!workTabs) return;
-      const byId = new Map(visibleGoals().map((item) => [item.goal.goal_id, item]));
-      const fragment = document.createDocumentFragment();
-      appendGoalWorkTabs(fragment, byId);
-      if (activeDesktopSurface !== "goal" || decisionView || collectionView) {
-        const surface = desktopWorkSurfaces.find((candidate) => candidate.dataset.workSurface === activeDesktopSurface);
-        if (surface) {
-          const utility = document.createElement("div");
-          utility.className = "desktop-work-tab is-selected is-utility";
-          const label = document.createElement("span");
-          label.id = "desktop-work-tab-utility";
-          label.role = "tab";
-          label.tabIndex = 0;
-          label.dataset.utilityWorkTab = activeDesktopSurface;
-          label.setAttribute("aria-selected", "true");
-          label.setAttribute("aria-controls", "goal-document-pane");
-          label.textContent = surface.dataset.workSurfaceLabel || activeDesktopSurface;
-          utility.append(label);
-          fragment.append(utility);
-        }
-      }
-      workTabs.replaceChildren(fragment);
-      const activeTab = workTabs.querySelector('[data-work-tab][aria-selected="true"]');
-      const activeUtilityTab = workTabs.querySelector('[data-utility-work-tab][aria-selected="true"]');
-      if (activeTab?.id) documentPane.setAttribute("aria-labelledby", activeTab.id);
-      else if (activeUtilityTab?.id) documentPane.setAttribute("aria-labelledby", activeUtilityTab.id);
-      else documentPane.removeAttribute("aria-labelledby");
-      persistWorkTabs();
-      ensureActiveWorkTabVisible();
-    };
+    const directoryPanelFor = (directory) => directory;
 
     const restoreLastGoal = (openGoalsDirectory = false) => {
       let goalId = "";
@@ -86,7 +55,7 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
       }
       const surfaceChanged = activeDesktopSurface !== surface;
       if (activeDesktopSurface && surfaceChanged) {
-        desktopSurfaceScroll[activeDesktopSurface] = (activeDesktopSurface === "goal" ? documentPane : desktopWorkSurfaces.find(item => item.dataset.workSurface === activeDesktopSurface))?.scrollTop || 0;
+        desktopSurfaceScroll[activeDesktopSurface] = (activeDesktopSurface === "goal" ? documentPane : activeDesktopSurface === "feed" ? feedWorkbench?.querySelector(".feed-stage-tree") : desktopWorkSurfaces.find(item => item.dataset.workSurface === activeDesktopSurface))?.scrollTop || 0;
         if (activeDesktopSurface === "goal") goalWorkspaceMode = workspace.dataset.workspaceMode || "focus";
       }
       activeDesktopSurface = surface;
@@ -106,11 +75,11 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
         else item.removeAttribute("aria-current");
       });
       if (surfaceChanged) setWorkspaceMode(surface === "goal" ? goalWorkspaceMode : "focus", false, true);
-      renderWorkTabs();
+      immersiveNavigation?.sync();
       const label = nextSurface.dataset.workSurfaceLabel || surface;
       documentPane.setAttribute("aria-label", label);
       requestAnimationFrame(() => {
-        const scrollPane = surface === "goal" ? documentPane : nextSurface;
+        const scrollPane = surface === "goal" ? documentPane : surface === "feed" ? nextSurface.querySelector(".feed-stage-tree") || nextSurface : nextSurface;
         scrollPane.scrollTop = restoreScroll ? Number(desktopSurfaceScroll[surface] || 0) : 0;
       });
       pluginWorkbench?.open(surface);
@@ -127,11 +96,9 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
     const openWorkbenchSurface = (surface, itemId, title) => {
       if (!tabWorkspace) return false;
       if (surface === "market") {
-        projectSettingsStage?.leave({ surface });
         tabWorkspace.setExclusive(surface);
         return true;
       }
-      if (surface !== "project-settings") projectSettingsStage?.leave({ surface });
       if (surface === "sources") {
         tabWorkspace.openPlugin("feed");
         return true;
@@ -168,7 +135,7 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
 
     const setDesktopDirectory = (directory, persist = true, focusTarget = true, origin = null) => {
       if (!desktopDirectoryPanels.length || !treePane?.dataset.desktopDirectory) return;
-      if (directory === "sources") directory = "feed";
+      directory = directoryPanelFor(directory);
       const available = new Set(desktopDirectoryPanels.map((panel) => panel.dataset.directoryPanel));
       const next = available.has(directory) ? directory : "root";
       const current = treePane.dataset.desktopDirectory;
@@ -228,6 +195,7 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
         const active = row === selectedRow;
         row.classList.toggle("is-selected", active);
         row.setAttribute("aria-selected", String(active));
+        row.setAttribute("aria-expanded", String(active));
         row.tabIndex = active ? 0 : -1;
       });
       sourceWorkbench.querySelectorAll("[data-source-detail]").forEach((detail) => {
@@ -284,13 +252,55 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
       return Boolean(row) && !row.hidden && !wrap?.hidden;
     };
 
+    const resetFeedFields = (root) => {
+      root?.querySelectorAll("input, textarea, select").forEach(field => {
+        if (field.tagName === "SELECT") [...field.options].forEach(option => option.selected = option.defaultSelected);
+        else if (field.type === "checkbox") field.checked = field.defaultChecked;
+        else field.value = field.defaultValue;
+      });
+      root?.querySelectorAll("[data-source-action-status]").forEach(status => status.hidden = true);
+    };
+    feedSourcesDialog?.addEventListener("close", () => {
+      const config = feedSourcesDialog.querySelector("[data-feed-task-config]:not([hidden])");
+      if (config) resetFeedFields(config);
+    });
+    const showFeedSetup = (stage = "choose", value = "") => {
+      if (!feedSourcesDialog) return;
+      if (stage === "config" && !feedSourcesDialog.querySelector('[data-feed-task-config="' + CSS.escape(value) + '"]')) {
+        showToast(L("这个任务已不可用，请刷新后查看。")); return;
+      }
+      const draft = feedSourcesDialog.querySelector("[data-feed-add-form]");
+      if (stage === "choose" && draft?.dataset.createdSourceId) { stage = "setup"; value = feedSourcesDialog.querySelector("[data-feed-source-register]").dataset.feedSourceRegister; }
+      const setup = stage === "setup";
+      const configSave = feedSourcesDialog.querySelector("[data-feed-config-submit]");
+      configSave.hidden = stage !== "config";
+      configSave.dataset.sourceId = value;
+      configSave.disabled = feedSourcesDialog.querySelector('[data-feed-task-config="' + CSS.escape(value) + '"]')?.dataset.prototype === "true";
+
+      const headings = { custom_rss: "订阅网站与博客", rss: "选择推荐订阅", web_query: "追踪关键词", youtube_channel: "关注 YouTube 频道", github: "连接 GitHub", gmail: "连接 Gmail" };
+      const title = stage === "config" ? "任务配置" : stage === "advanced" ? "捕捉规则与迁移" : setup ? headings[value] : "添加拉取任务";
+      feedSourcesDialog.querySelector("h2").textContent = L(title);
+      feedSourcesDialog.querySelector('footer [data-feed-sources-close]').textContent = L(stage === "advanced" ? "关闭" : "取消");
+      const description = feedSourcesDialog.querySelector("[data-feed-setup-description]");
+      description.textContent = L(stage === "choose" ? "先选择你想关注的来源。" : setup ? "完成配置后，内容会出现在左侧的独立任务中。" : stage === "config" ? "管理这个任务的内容范围与拉取方式。" : "为新内容设置捕捉规则，或导入已有历史。");
+      for (const [selector, visible] of [["[data-feed-source-choices]", stage === "choose"], ["[data-feed-source-setup]", setup], ["[data-feed-task-configs]", stage === "config"], ["[data-feed-advanced]", stage === "advanced"]]) feedSourcesDialog.querySelector(selector).hidden = !visible;
+      feedSourcesDialog.querySelectorAll("[data-feed-task-config]").forEach(panel => panel.hidden = panel.dataset.feedTaskConfig !== value);
+      feedSourcesDialog.querySelectorAll("[data-feed-setup-kind]").forEach(panel => {
+        panel.hidden = !setup || panel.dataset.feedSetupKind !== value;
+        panel.querySelectorAll("input,select").forEach(input => input.disabled = panel.hidden || Boolean(draft?.dataset.createdSourceId));
+      });
+      feedSourcesDialog.querySelectorAll("[data-feed-footer-kind]").forEach(button => button.hidden = !setup || button.dataset.feedFooterKind !== value);
+      const form = feedSourcesDialog.querySelector("[data-feed-add-form]");
+      form.hidden = !setup || value === "github" || value === "gmail";
+      const create = feedSourcesDialog.querySelector("[data-feed-source-register]");
+      create.hidden = form.hidden;
+      if (!form.hidden) create.dataset.feedSourceRegister = value;
+      setFeedSourceFeedback("");
+      if (!feedSourcesDialog.open) feedSourcesDialog.showModal();
+      (feedSourcesDialog.querySelector('[data-feed-source-setup]:not([hidden]) [data-feed-setup-kind]:not([hidden]) input') || feedSourcesDialog.querySelector('section:not([hidden]) button'))?.focus();
+    };
     const setFeedAddOpen = (open) => {
-      const add = document.querySelector("[data-feed-add]");
-      const form = add?.querySelector("[data-feed-add-form]");
-      if (!add || !form) return;
-      add.classList.toggle("is-open", open);
-      form.hidden = !open;
-      if (open) add.querySelector("[data-feed-add-name]")?.focus?.();
+      if (open) showFeedSetup(); else feedSourcesDialog?.close();
     };
 
     const setFeedTask = (taskId, persist = true) => {
@@ -298,18 +308,13 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
       const next = available ? taskId : "all";
       selectedFeedTask = next;
       document.querySelectorAll("[data-feed-task]").forEach((task) => {
-        const open = task.dataset.feedTask === next;
-        task.classList.toggle("is-open", open);
-        task.querySelector("[data-feed-task-toggle]")?.setAttribute("aria-expanded", String(open));
+        const selected = task.dataset.feedTask === next;
+        const button = task.querySelector("[data-feed-task-toggle]");
+        if (selected) button?.setAttribute("aria-current", "page"); else button?.removeAttribute("aria-current");
       });
-      const body = document.querySelector('[data-feed-task="' + CSS.escape(next) + '"] [data-feed-task-body]');
-      if (body) body.hidden = false;
-      document.querySelectorAll("[data-feed-task]").forEach((task) => {
-        if (task.dataset.feedTask === next) return;
-        const other = task.querySelector("[data-feed-task-body]");
-        if (other) other.hidden = true;
-      });
-      if (feedList && body && feedList.parentElement !== body) body.append(feedList);
+      const title = document.querySelector("[data-feed-task-title]");
+      if (title) title.textContent = available?.querySelector("strong")?.textContent || L("全部");
+      if (persist) document.dispatchEvent(new CustomEvent("workbench-feed-task", { detail: { taskId: next } }));
       filterFeedItems(true, persist);
       return true;
     };
@@ -396,6 +401,7 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
       if (slot) {
         slot.hidden = false;
         if (!slot.querySelector("[data-feed-detail]")) {
+          if (slot.contains(document.activeElement)) row.focus({ preventScroll: true });
           const loading = document.createElement("p");
           loading.className = "feed-stage-loading";
           loading.textContent = L("正在载入 Item…");
@@ -438,7 +444,8 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
           const failed = document.createElement("p");
           failed.className = "feed-stage-loading";
           failed.textContent = message;
-          slot.replaceChildren(failed);
+          const retry = document.createElement("button"); retry.type = "button"; retry.dataset.retryFeedDetail = ""; retry.textContent = L("重试");
+          slot.replaceChildren(failed, retry);
           slot.hidden = false;
         }
         setFeedDetailPlaceholder(message, L("这条 Item 仍然保留，点击重试即可。"), true);
@@ -457,7 +464,8 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
       if (slot) slot.hidden = true;
       row?.classList.remove("is-selected", "is-open");
       row?.setAttribute("aria-selected", "false");
-      if (row) row.tabIndex = -1;
+      row?.setAttribute("aria-expanded", "false");
+      if (row) row.tabIndex = 0;
     };
 
     const selectFeedItem = (itemId, moveToDetail = false, recordRead = false, allowToggle = true) => {
@@ -480,6 +488,7 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
         row.classList.toggle("is-selected", active);
         row.classList.toggle("is-open", active);
         row.setAttribute("aria-selected", String(active));
+        row.setAttribute("aria-expanded", String(active));
         row.tabIndex = active ? 0 : -1;
         if (!active) collapseFeedItemDetail(row);
       });
@@ -571,6 +580,8 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
         }
         selectedFeedItem = "";
       }
+      const keyboardEntry = visible.find(row => row.dataset.feedEntryId === selectedFeedItem) || visible[0];
+      rows.forEach(row => row.tabIndex = row === keyboardEntry ? 0 : -1);
       if (persist) queueSave();
     };
 
@@ -696,7 +707,7 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
       setFeedTask(selectedFeedTask || "all", false);
       if (activeDesktopSurface === "feed") {
         setDesktopWorkSurface("feed", false, false);
-        renderWorkTabs();
+        immersiveNavigation?.sync();
       }
     };
 `;

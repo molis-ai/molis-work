@@ -4,6 +4,7 @@ import type { EvidenceRecord } from "@molis-ai/molis-work-contracts/modules/evid
 import type { ReviewObligationRecord, ReviewRecord } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import type { GoalsDecisionEvent } from "./decision-view.js";
 import type { BoardSnapshot } from "./goal-entry-contract.js";
+import { GOALS_RELATION_LABELS } from "./relation-presentation.js";
 
 export const NEW_WORK_JOURNAL_PREFIXES = ["goal.event_config.", "goal.work_event.", "goal.event_state."] as const;
 
@@ -14,6 +15,11 @@ export type GoalHistorySource =
   | "legacy_review"
   | "legacy_decision"
   | "legacy_record";
+
+export const RUN_STATE_LABELS = { started: "进行中", completed: "已完成", blocked: "受阻", failed: "失败", abandoned: "已放弃" };
+export const EVIDENCE_RESULT_LABELS = { passed: "报告通过", failed: "报告未通过", inconclusive: "尚无定论" };
+export const EVIDENCE_LIFECYCLE_LABELS = { effective: "有效", superseded: "已替代", invalidated: "已失效", retracted: "已撤回" };
+export const EVIDENCE_KIND_LABELS = { test: "测试", measurement: "测量", artifact: "产物", inspection: "检查", attestation: "声明", human_verdict: "人工判断" };
 
 export interface GoalHistoryIndexItem {
   item_id: string;
@@ -28,6 +34,7 @@ export interface GoalHistoryIndexItem {
   actor_id: string;
   actor_kind: "user" | "runtime" | null;
   status_label: string | null;
+  relation?: { type: string; label: string; from_id: string; from_title: string; to_id: string; to_title: string; removed: boolean };
 }
 
 export interface GoalHistoryTimelinePage {
@@ -137,7 +144,7 @@ export function mapLegacyHistoryItems(input: {
     lane: "result" as const,
     actor_id: run.actor_id,
     actor_kind: "runtime" as const,
-    status_label: run.state,
+    status_label: RUN_STATE_LABELS[run.state],
   }));
   const evidence = input.evidence.map((item) => ({
     item_id: `legacy:evidence:${item.evidence_id}`,
@@ -151,7 +158,7 @@ export function mapLegacyHistoryItems(input: {
     lane: "result" as const,
     actor_id: item.producer_actor_id,
     actor_kind: "runtime" as const,
-    status_label: `${item.result} · ${item.lifecycle_state}`,
+    status_label: `${EVIDENCE_RESULT_LABELS[item.result]} · ${EVIDENCE_LIFECYCLE_LABELS[item.lifecycle_state]}`,
   }));
   const reviews = input.reviews.map((item) => ({
     item_id: `legacy:review:${item.review_id}`,
@@ -165,7 +172,7 @@ export function mapLegacyHistoryItems(input: {
     lane: "other" as const,
     actor_id: item.actor_id,
     actor_kind: reviewActorKind(item, obligationById.get(item.obligation_id)),
-    status_label: item.verdict,
+    status_label: reviewVerdictLabel(item.verdict),
   }));
   return [...runs, ...evidence, ...reviews];
 }
@@ -173,9 +180,21 @@ export function mapLegacyHistoryItems(input: {
 export function mapJournalHistoryItems(
   events: readonly GoalsDecisionEvent[],
   workEventIds: ReadonlySet<string>,
+  snapshot?: Pick<BoardSnapshot, "goals" | "relations">,
 ): GoalHistoryIndexItem[] {
   return events.flatMap((event) => {
     if (isNewWorkJournalType(event.type) || workEventIds.has(event.event_id)) return [];
+    const record = event.type.startsWith("relation.") ? snapshot?.relations.find(row => row.relation_id === event.object_id) : undefined;
+    const payload = event.payload as Record<string, unknown> | null;
+    const from = record?.from_goal_id ?? (typeof payload?.from_goal_id === "string" ? payload.from_goal_id : "");
+    const to = record?.to_goal_id ?? (typeof payload?.to_goal_id === "string" ? payload.to_goal_id : "");
+    const type = record?.type ?? (typeof payload?.type === "string" ? payload.type : "");
+    const relation = event.type.startsWith("relation.") && from && to ? {
+      type, label: GOALS_RELATION_LABELS[type]?.out ?? "关联",
+      from_id: from, from_title: snapshot?.goals.find(goal => goal.goal_id === from)?.title ?? from,
+      to_id: to, to_title: snapshot?.goals.find(goal => goal.goal_id === to)?.title ?? to,
+      removed: event.type === "relation.deactivated",
+    } : undefined;
     return [{
       item_id: `legacy:journal:${event.event_id}`,
       source: "legacy_record" as const,
@@ -183,12 +202,13 @@ export function mapJournalHistoryItems(
       event_id: null,
       journal_seq: event.seq,
       received_at: event.at,
-      title: event.reason?.trim() || JOURNAL_TYPE_LABELS[event.type] || "记录",
+      title: relation ? `${relation.from_title} → ${relation.label} → ${relation.to_title}` : event.reason?.trim() || JOURNAL_TYPE_LABELS[event.type] || "记录",
       type_label: JOURNAL_TYPE_LABELS[event.type] ?? "记录",
       lane: "other" as const,
       actor_id: event.actor_id,
       actor_kind: null,
-      status_label: event.object_type,
+      status_label: relation ? relation.removed ? "已解除" : "已建立" : null,
+      ...(relation ? { relation } : {}),
     }];
   });
 }

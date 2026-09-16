@@ -64,12 +64,12 @@ test("empty panes are allowed after a split, and the same tab can exist in two p
   assert.notEqual(state.panes[0].tabs[0].id, state.panes[1].tabs[0].id);
 });
 
-test("split stops at three panes", () => {
+test("split supports nested groups beyond three panes", () => {
   const state = ops.create();
   ops.splitPane(state, state.focusedPaneId, "right", "copy");
   ops.splitPane(state, state.focusedPaneId, "right", "copy");
   ops.splitPane(state, state.focusedPaneId, "right", "copy");
-  assert.equal(state.panes.length, 3);
+  assert.equal(state.panes.length, 4);
 });
 
 test("closing a split pane restores a single full-width pane", () => {
@@ -93,4 +93,34 @@ test("market is exclusive and does not add a tab", () => {
   ops.setExclusive(state, "market");
   assert.equal(state.exclusive, "market");
   assert.equal(ops.activeTab(state)?.kind, "home");
+});
+
+
+test("splitting a target uses the dragged tab and preserves an orthogonal layout", () => {
+  const state = ops.create();
+  const original = state.focusedPaneId;
+  const goal = ops.openItem(state, "goals", "CORE", "Core");
+  ops.splitPane(state, original, "right", "copy");
+  const right = state.focusedPaneId;
+  ops.openPlugin(state, "feed");
+  ops.splitPane(state, right, "bottom", "move", original, goal.id);
+  assert.equal(state.layout.tree.direction, "row");
+  assert.equal(state.layout.tree.children[1].direction, "column");
+  assert.equal(ops.activeTab(state)?.itemId, "CORE");
+  assert.equal(state.panes.find(p => p.id === original).tabs.some(t => t.id === goal.id), false);
+  const restored = JSON.parse(JSON.stringify(state));
+  ops.normalizeLayout(restored);
+  assert.deepEqual(restored.layout.tree, state.layout.tree);
+});
+
+test("moving tabs reorders and closing the last tab merges its split", () => {
+  const state = ops.create();
+  const home = ops.activeTab(state);
+  const goal = ops.openItem(state, "goals", "CORE", "Core");
+  ops.moveTab(state, state.focusedPaneId, goal.id, state.focusedPaneId, home.id);
+  assert.equal(ops.focused(state).tabs[0].id, goal.id);
+  ops.splitPane(state, state.focusedPaneId, "bottom", "copy");
+  ops.closeTab(state, state.focusedPaneId, ops.activeTab(state).id);
+  assert.equal(state.panes.length, 1);
+  assert.equal(state.layout.tree.paneId, state.panes[0].id);
 });

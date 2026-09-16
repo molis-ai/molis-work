@@ -16,7 +16,11 @@ export function renderImmersivePluginStrip({ L, icon }: ImmersiveShellPrimitives
     { id: "artifacts", surface: "artifacts", label: "Artifacts", glyph: "file" as const },
   ];
   const home = `<button class="immersive-plugin-link" type="button" data-plugin-id="home" data-work-surface-open="home" aria-label="${L("项目首页")}">${icon("home")}<span>${L("项目首页")}</span></button>`;
-  const links = plugins.filter(plugin => enabled.includes(plugin.id)).map((plugin) => `<button class="immersive-plugin-link" type="button" data-plugin-id="${plugin.id}" data-directory-open="${plugin.id}" data-work-surface-open="${plugin.surface}"${plugin.id === "feed" ? ' data-feed-preset="feed"' : ""} aria-label="${L("切换到插件")}：${plugin.label}">${icon(plugin.glyph)}<span>${plugin.label}</span></button>`).join("");
+  const links = plugins.filter(plugin => enabled.includes(plugin.id)).map((plugin) => {
+    const directory = plugin.id === "feed" ? "" : ` data-directory-open="${plugin.id}"`;
+    const feedPreset = plugin.id === "feed" ? ' data-feed-preset="feed"' : "";
+    return `<button class="immersive-plugin-link" type="button" data-plugin-id="${plugin.id}"${directory} data-work-surface-open="${plugin.surface}"${feedPreset} aria-label="${L("切换到插件")}：${plugin.label}">${icon(plugin.glyph)}<span>${plugin.label}</span></button>`;
+  }).join("");
   const market = `<button class="immersive-plugin-link immersive-market-entry" type="button" data-plugin-id="market" data-work-surface-open="market" aria-label="${L("插件市场")}">${icon("plus")}<span>${L("插件市场")}</span></button>`;
   return `<div class="immersive-directory-heading" data-plugin-heading>
     <nav class="immersive-plugin-strip" data-plugin-strip aria-label="${L("项目入口")}">${home}${links}${market}</nav>
@@ -44,14 +48,12 @@ export function directoryListTitle(directory: string, L: ImmersiveShellPrimitive
 export function wrapDirectoryListRegion(
   primitives: ImmersiveShellPrimitives,
   directory: string,
-  feedViews: string,
   panelsHtml: string,
 ): string {
   const { L } = primitives;
   return `<div class="directory-list-region" data-directory-list-region>
     <header class="directory-list-chrome" data-directory-list-chrome>
       <h2 class="directory-list-title" data-directory-list-title aria-live="polite">${directoryListTitle(directory, L)}</h2>
-      ${feedViews}
     </header>
     <div class="directory-list-stage" data-directory-list-stage>${panelsHtml}</div>
   </div>`;
@@ -87,14 +89,13 @@ export function renderImmersiveHeader(primitives: ImmersiveShellPrimitives, desk
     <nav class="tab-strip tab-strip--chrome" data-titlebar-tabs aria-label="${L("工作区标签")}"></nav>
     <nav class="container-tabs" data-container-tabs aria-label="${L("工作区标签")}" hidden></nav>
     <div class="desktop-titlebar-drag"${desktop ? " data-tauri-drag-region" : ""} aria-hidden="true"></div>
-    <button class="immersive-icon-button" type="button" data-immersive-theme aria-label="${L("切换外观")}" title="${L("切换外观")}">${icon("sun")}</button>
   </header>`;
 }
 
 export function renderImmersiveGoalHeader(title: string, primitives: ImmersiveShellPrimitives): string {
   const { L, escapeHtml, icon } = primitives;
-  return `<header class="goal-node-toolbar"><div class="goal-node-heading"><h1 data-workspace-goal-title tabindex="-1">${escapeHtml(title)}</h1><span data-workspace-goal-status></span></div>
-    <div class="goal-node-actions"><button type="button" data-goal-details-toggle aria-expanded="true" aria-label="${L("收起 Goal 信息与时间线")}" title="${L("Goal 信息与时间线")}">${icon("panel")}</button><button type="button" data-goal-collapse aria-label="${L("收起 Goal，返回关系画布")}" title="${L("收起 Goal，返回关系画布")}">${icon("x")}</button></div>
+  return `<header class="goal-node-toolbar"><button class="goal-node-back" type="button" data-goal-collapse aria-label="${L("返回 Goal 画布")}" title="${L("返回 Goal 画布")}">${icon("chevron-right")}</button><div class="goal-node-heading"><h1 data-workspace-goal-title tabindex="-1">${escapeHtml(title)}</h1><span data-workspace-goal-status></span></div>
+    <div class="goal-node-actions"><button type="button" data-goal-details-toggle aria-expanded="true" aria-label="${L("收起 Goal 信息与时间线")}" title="${L("Goal 信息与时间线")}">${icon("panel")}</button></div>
   </header>`;
 }
 

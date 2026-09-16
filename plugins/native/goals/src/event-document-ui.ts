@@ -2,7 +2,7 @@ import type { GoalEventStateView } from "@molis-ai/molis-work-contracts/modules/
 import { formatEventTime, renderWorkEventBody as renderGoalWorkEventBody } from "./event-history-body.js";
 export { formatEventTime, renderGoalWorkEventBody };
 import type { GoalsDocumentContext, GoalsDocumentItem, GoalsDocumentUiPrimitives } from "./document-ui-model.js";
-import { eventDirectoryPresentation, type GoalEventDocumentView } from "./event-document-model.js";
+import { type GoalEventDocumentView } from "./event-document-model.js";
 import { createEventDocumentForms } from "./event-document-forms.js";
 import type { GoalHistoryIndexItem } from "./event-history-map.js";
 
@@ -39,7 +39,6 @@ export function renderGoalEventDocument(
     <button type="button" data-event-form-open="concern"><strong>${L("问题与风险")}</strong><small>${L("记录或处理影响完成的问题")}</small></button>
   </div></details>` : "";
   const timeline = renderTimeline(doc?.timeline.items ?? [], L, escapeHtml, state);
-  const selectedItem = doc?.timeline.items[0] ?? null;
   return `<article class="goal-event-document" data-goal-view="${goalId}" data-goal-event-document data-event-work="${doc?.state.owner ? "true" : "false"}" data-agreement-version="${state?.agreement.version ?? 0}" data-config-version="${state?.config.version ?? 0}" data-observed-cursor="${state?.observed_event_cursor ?? 0}" data-goal-event-cursor="${state?.goal_event_cursor ?? 0}"${selected ? "" : " hidden"}>
     <aside class="goal-workspace-hero" aria-label="${L("Goal 信息")}">
       <details class="goal-info-popover" data-goal-info open>
@@ -47,7 +46,7 @@ export function renderGoalEventDocument(
         <div class="goal-info-body">
           <h1 id="goal-title-${goalId}">${escapeHtml(goal.title)}</h1>
           <p class="goal-info-outcome">${escapeHtml((state?.agreement.outcome || goal.outcome) || L("还没有写清预期结果。"))}</p>
-          <div class="goal-info-status" data-current-summary><p>${escapeHtml(judgment.lead)}</p>${stale}${state?.progress_summary?.next_step ? `<p>${L("下一步")}：${escapeHtml(state.progress_summary.next_step)}</p>` : ""}</div>
+          <div class="goal-info-status" data-current-summary><p class="goal-current-fact">${escapeHtml(judgment.lead)}</p>${judgment.action ? `<button type="button" class="text-button" ${judgment.form && owned ? `data-event-form-open="${judgment.form}"` : `data-event-reader="${judgment.reader || "requirements"}"`}>${escapeHtml(judgment.action)}${icon("chevron-right")}</button>` : ""}${state?.progress_summary?.summary && state.progress_summary.summary !== judgment.lead ? `<p class="goal-progress-fact">${escapeHtml(state.progress_summary.summary)}</p>` : ""}${stale}${state?.progress_summary?.next_step ? `<p>${L("下一步")}：${escapeHtml(state.progress_summary.next_step)}</p>` : ""}</div>
           <button type="button" class="goal-info-requirements" data-event-reader="requirements" data-goal-requirement-progress><span>${L("完成要求")}</span><span>${state?.requirements.length ? L("{done}/{total} 已满足", { done: state.requirements.filter((requirement) => requirement.currently_satisfied).length, total: state.requirements.length }) : L("待明确")}</span>${icon("chevron-right")}</button>
           ${state?.pending_decisions.length ? `<button type="button" class="goal-info-attention" data-event-form-open="decision">${L("{count} 项待你确认", { count: state.pending_decisions.length })}${icon("chevron-right")}</button>` : ""}
           ${owned && (doc?.transfer.kind === "resume_cancelled" || doc?.transfer.kind === "reopen_event_completed") ? `<button type="button" class="button primary" data-event-form-open="resume">${L("继续此目标")}</button>` : ""}
@@ -73,7 +72,7 @@ export function renderGoalEventDocument(
             <button type="button" class="text-button" data-next-event aria-label="${L("下一条事件")}">${L("下一条")}</button>
           </div>
         </div>
-        <div class="event-sheet" data-event-sheet tabindex="-1">${renderEventPlaceholder(selectedItem, L, escapeHtml)}</div>
+        <div class="event-sheet" data-event-sheet tabindex="-1" hidden></div>
         <section class="reader" data-event-reader-root hidden>
           <header class="reader-header"><button type="button" class="text-button" data-event-back>${L("返回所选事件")}</button><h2 data-reader-title></h2></header>
           <div class="reader-content" data-reader-content>
@@ -100,76 +99,27 @@ export function renderGoalEventDocument(
   </article>`;
 }
 
-function currentJudgment(state: GoalEventStateView | undefined, L: GoalsDocumentUiPrimitives["translate"], doc?: GoalEventDocumentView | null) {
-  if (!state) {
-    return { title: L("正在读取当前事实"), pill: L("载入中"), tone: "", lead: L("顶部始终显示当前状态，不会因为点开历史而退回。"), done: L("尚未载入。"), next: L("载入后显示下一步。"), owner: "", risk: L("载入后显示风险。") };
-  }
-  if (!state.owner) {
-    return {
-      title: L("仍按原来源阅读"),
-      pill: state.completion_effect ? L("已完成") : L("可阅读"),
-      tone: state.completion_effect ? "green" : "amber",
-      lead: L("阅读原来的说明、要求和历史。这里不能写入。"),
-      done: state.latest_reports[0]?.title || L("原结果和材料按原来源展示。"),
-      next: L("阅读原来的说明、要求和历史。这里不能写入。"),
-      owner: "",
-      risk: state.gaps.map((gap) => gap.statement).join("；") || L("读取不会改变归属。"),
-    };
-  }
-  if (state.work_status === "completed") {
-    return {
-      title: L("已有完成结论"),
-      pill: L("已完成"),
-      tone: "green",
-      lead: state.imported_completion?.label || state.closure?.result || state.agreement.outcome || L("完成结论来自显式收尾，不是记录数。"),
-      done: state.closure?.result || L("见完成事件。"),
-      next: L("如需新一轮工作，使用继续此目标。"),
-      owner: "",
-      risk: L("完成结论已生效。"),
-    };
-  }
-  if (state.work_status === "cancelled") {
-    return { title: L("已取消"), pill: L("已取消"), tone: "amber", lead: L("不会被普通记录自动恢复。"), done: L("取消不需要伪造交付。"), next: L("显式继续后才能再写入。"), owner: "", risk: L("已取消，不会被普通记录自动恢复。") };
-  }
-  const presentation = eventDirectoryPresentation(state)!;
+function currentJudgment(state: GoalEventStateView | undefined, L: GoalsDocumentUiPrimitives["translate"], doc?: GoalEventDocumentView | null): { lead: string; action?: string; form?: string; reader?: string } {
+  if (!state) return { lead: L("正在读取当前事实") };
+  if (!state.owner) return { lead: L("阅读原来的说明、要求和历史。这里不能写入。") };
+  if (state.work_status === "completed") return { lead: state.imported_completion?.label || state.closure?.result || state.agreement.outcome || L("已有完成结论") };
+  if (state.work_status === "cancelled") return { lead: L("已取消，不会被普通记录自动恢复。") };
   const pending = state.pending_decisions[0];
-  const blocking = state.concerns.filter((item) => item.status === "open" && item.blocks_closure);
-  const gaps = state.gaps;
-  const supported = state.requirements.filter((item) => item.currently_satisfied && item.user_conclusion?.verdict === "accepted");
-  const reportedOnly = state.requirements.filter((item) => item.currently_satisfied && item.user_conclusion?.verdict !== "accepted" && item.current_report);
-  const needHuman = state.requirements.filter((item) => item.human_decision_required && item.user_conclusion?.verdict !== "accepted");
-  const openRisks = (doc?.risks ?? []).filter((item) => item.state === "open" || item.state === "triggered");
-  const blockingRisks = openRisks.filter((item) => item.blocking_mode === "completion" || item.blocking_mode === "invalidate_on_trigger");
-  const deps = (doc?.relations ?? []).filter((item) => item.state === "active" && item.type === "depends_on");
-  const done = supported.length
-    ? supported.map((item) => item.statement).join("；")
-    : reportedOnly.length
-      ? L("仅有报告支持，尚未独立验收：{text}", { text: reportedOnly.map((item) => item.statement).join("；") })
-      : L("还没有可确认的结果。");
-  const next = pending
-    ? pending.question
-    : state.progress_summary?.next_step
-      || L("打开终端开始工作，或添加一条记录。");
-  const riskParts = [
-    ...blocking.map((item) => item.title),
-    ...gaps.map((item) => item.statement),
-    ...needHuman.map((item) => `${L("需要用户验收")}：${item.statement}`),
-    ...openRisks.map((item) => item.description),
-    ...deps.map((item) => `${L("依赖")} ${item.to_goal_id}`),
-    ...(state.closure && !state.closure.completion_applied ? state.closure.unmet_reasons.map((item) => item.message) : []),
-  ].filter((part) => part && part !== next);
-  const unmet = state.closure && !state.closure.completion_applied ? state.closure.unmet_reasons : [];
-  const blocked = Boolean(pending || blocking.length || gaps.length || needHuman.length || blockingRisks.length || deps.length || unmet.length);
-  return {
-    title: L(presentation.status_label),
-    pill: state.progress_summary?.stale ? L("摘要待更新") : L(presentation.main_action_label),
-    tone: pending || blocked ? "amber" : "",
-    lead: state.progress_summary?.summary || (pending ? L("需要你作出决定。") : blocked ? L("有事项挡住完成。") : L("按当前约定继续。")),
-    done,
-    next,
-    owner: state.progress_summary?.next_actor || L("待接续"),
-    risk: riskParts.join("；") || L("当前没有挡住完成的事项。"),
-  };
+  if (pending) return { lead: pending.question, action: L("作出决定"), form: "decision" };
+  const concern = state.concerns.find((item) => item.status === "open" && item.blocks_closure);
+  if (concern) return { lead: L("待解决：{text}", { text: concern.title }), action: L("查看问题与风险"), form: "concern" };
+  const unmet = state.closure && !state.closure.completion_applied ? state.closure.unmet_reasons[0] : null;
+  if (unmet) return { lead: unmet.message, action: L("查看完成要求"), reader: "requirements" };
+  const risk = doc?.risks.find((item) => (item.state === "open" || item.state === "triggered") && (item.blocking_mode === "completion" || item.blocking_mode === "invalidate_on_trigger"));
+  if (risk) return { lead: L("待解决：{text}", { text: risk.description }), action: L("查看目标与要求"), reader: "description" };
+  const human = state.requirements.find((item) => item.human_decision_required && item.user_conclusion?.verdict !== "accepted");
+  if (human) return { lead: L("待你验收：{text}", { text: human.statement }), action: L("查看完成要求"), reader: "requirements" };
+  const requirement = state.requirements.find((item) => !item.currently_satisfied);
+  if (requirement) return { lead: L("尚待完成：{text}", { text: requirement.statement }), action: L("查看完成要求"), reader: "requirements" };
+  const gap = state.gaps[0];
+  if (gap) return { lead: gap.statement, action: L("查看完成要求"), reader: "requirements" };
+  if (!state.requirements.length) return { lead: L("还没有明确完成要求。"), action: L("添加完成要求"), form: "requirement" };
+  return { lead: state.progress_summary?.summary || L("完成要求已满足，等待确认收尾。"), action: L("查看完成要求"), reader: "requirements" };
 }
 
 function renderTimeline(items: readonly GoalHistoryIndexItem[], L: GoalsDocumentUiPrimitives["translate"], escapeHtml: GoalsDocumentUiPrimitives["escapeHtml"], state?: GoalEventStateView): string {
@@ -179,23 +129,18 @@ function renderTimeline(items: readonly GoalHistoryIndexItem[], L: GoalsDocument
     const day = formatEventTime(item.received_at).slice(0, 10) || L("未标注日期");
     groups.set(day, [...(groups.get(day) ?? []), item]);
   }
-  return [...groups.entries()].map(([day, rows]) => `<div class="day-label">${escapeHtml(day)}</div>${rows.map((item, index) => {
-    const current = index === 0 && day === [...groups.keys()][0];
+  return [...groups.entries()].map(([day, rows]) => `<div class="day-label">${escapeHtml(day)}</div>${rows.map((item) => {
+    const current = false;
     const kind = item.lane && item.lane !== "other" ? item.lane : "";
     const time = formatClock(item.received_at);
     const pending = item.type_label === "请求决定" ? state?.pending_decisions.find((request) => request.event_id === item.event_id) : undefined;
     const statusLabel = item.type_label === "请求决定" && state ? pending ? L("待你决定") : L("已处理") : item.status_label;
     return `<button type="button" class="timeline-entry${kind ? ` is-${kind}` : ""}" data-timeline-item="${escapeHtml(item.item_id)}" data-event-id="${escapeHtml(item.event_id ?? "")}" data-source="${escapeHtml(item.source)}" data-original-id="${escapeHtml(item.original_id)}" data-lane="${escapeHtml(item.lane)}" aria-current="${current ? "true" : "false"}" aria-expanded="${current ? "true" : "false"}">
       <time datetime="${escapeHtml(item.received_at)}">${escapeHtml(time)}</time>
-      <span class="timeline-dot" aria-hidden="true"><i></i></span>
-      <span class="timeline-copy"><strong>${escapeHtml(item.title)}</strong><small><b class="timeline-type">${escapeHtml(item.type_label)}</b> · ${escapeHtml(item.actor_id)}</small>${statusLabel ? `<em>${escapeHtml(statusLabel)}</em>` : ""}</span>
+      <span class="timeline-dot" aria-hidden="true"><span class="timeline-mark">${item.relation ? "↗" : kind === "result" ? "✓" : kind === "decision" ? "◇" : kind === "problem" ? "!" : "·"}</span></span>
+      <span class="timeline-copy"><strong>${escapeHtml(item.title)}</strong><small><b class="timeline-type">${escapeHtml(item.type_label)}</b> <span class="timeline-actor">${escapeHtml(item.actor_id)}</span></small>${statusLabel ? `<em class="history-state">${escapeHtml(statusLabel)}</em>` : ""}</span>
     </button>`;
   }).join("")}`).join("");
-}
-
-function renderEventPlaceholder(item: GoalHistoryIndexItem | null, L: GoalsDocumentUiPrimitives["translate"], escapeHtml: GoalsDocumentUiPrimitives["escapeHtml"]): string {
-  if (!item) return `<p class="no-results">${L("选择左侧时间点阅读完整内容。")}</p>`;
-  return `<article class="event" data-selected-item="${escapeHtml(item.item_id)}"><h2>${escapeHtml(item.title)}</h2><p class="event-meta">${escapeHtml(item.type_label)} · ${escapeHtml(item.actor_id)} · ${escapeHtml(formatEventTime(item.received_at))}</p><p>${L("正在载入原文…")}</p></article>`;
 }
 
 function isEventStateOwner(item: GoalsDocumentItem, doc: GoalEventDocumentView | null | undefined): boolean {

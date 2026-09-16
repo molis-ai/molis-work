@@ -50,6 +50,8 @@ export function startWorkTerminalClient() {
     const fillBtn = pane.querySelector("[data-tui-fill]") as HTMLButtonElement;
     const reopenBtn = pane.querySelector("[data-tui-reopen]") as HTMLButtonElement;
     const addBtn = pane.querySelector("[data-tui-add]") as HTMLButtonElement;
+    const emptyAddBtn = pane.querySelector<HTMLButtonElement>("[data-tui-empty-add]");
+    let menuReturnTarget = addBtn;
     const genericFields = menu.querySelector("[data-tui-generic-fields]") as HTMLElement | null;
     const genericOpen = menu.querySelector("[data-tui-generic-open]") as HTMLButtonElement | null;
     const L = window.L ?? ((zh: string) => zh);
@@ -151,10 +153,13 @@ export function startWorkTerminalClient() {
       menu.classList.toggle("is-open", open);
       menu.setAttribute("aria-hidden", String(!open));
       addBtn.setAttribute("aria-expanded", String(open));
+      emptyAddBtn?.setAttribute("aria-expanded", String(open));
       if (open) {
         menu.removeAttribute("inert");
         setKind(selectedKind);
-        (menu.querySelector(`[data-tui-kind="${selectedKind}"]`) as HTMLButtonElement | null)?.focus();
+        requestAnimationFrame(() => {
+          if (menu.classList.contains("is-open")) (menu.querySelector(`[data-tui-kind="${selectedKind}"]`) as HTMLButtonElement | null)?.focus();
+        });
         return;
       }
       menu.setAttribute("inert", "");
@@ -200,13 +205,14 @@ export function startWorkTerminalClient() {
 
     const updateEmptyCopy = (readOnly: boolean) => {
       if (!emptyEl) return;
+      if (emptyAddBtn) emptyAddBtn.hidden = readOnly;
       const paragraphs = emptyEl.querySelectorAll("p");
       const title = paragraphs[0]?.querySelector("strong");
       if (title) title.textContent = readOnly ? L("这个上层 Goal 不直接使用终端") : L("还没有终端");
       if (paragraphs[1]) {
         paragraphs[1].textContent = readOnly
           ? L("请从上方进入一个具体的子 Goal。")
-          : L("点右上角「添加终端」，在这个 Goal 上打开常用 Runtime 或自定义命令。");
+          : L("选择常用 Runtime 或自定义命令，在这个 Goal 上开始工作。");
       }
     };
 
@@ -339,7 +345,12 @@ export function startWorkTerminalClient() {
       }
     };
 
+    emptyAddBtn?.addEventListener("click", () => {
+      menuReturnTarget = emptyAddBtn;
+      setMenuOpen(true);
+    });
     addBtn.addEventListener("click", () => {
+      menuReturnTarget = addBtn;
       if (parentReadOnly) {
         setStatus(parentReadOnlyMessage(), "error");
         return;
@@ -348,19 +359,19 @@ export function startWorkTerminalClient() {
     });
     menu.querySelector("[data-tui-menu-cancel]")?.addEventListener("click", () => {
       setMenuOpen(false);
-      addBtn.focus();
+      menuReturnTarget.focus();
     });
     document.addEventListener("pointerdown", (event) => {
       if (!menu.classList.contains("is-open")) return;
       const target = event.target as Node;
-      if (menu.contains(target) || addBtn.contains(target)) return;
+      if (menu.contains(target) || addBtn.contains(target) || emptyAddBtn?.contains(target)) return;
       setMenuOpen(false);
     });
     document.addEventListener("keydown", (event) => {
       if (event.key !== "Escape" || !menu.classList.contains("is-open")) return;
       event.preventDefault();
       setMenuOpen(false);
-      addBtn.focus();
+      menuReturnTarget.focus();
     });
     menu.querySelectorAll("[data-tui-kind]").forEach((button) => {
       button.addEventListener("click", () => {

@@ -14,7 +14,9 @@ test("onboarding header links receive real pointer clicks in Web, desktop and na
     await navigate(() => command("Page.navigate", { url: origin + path }, sessionId));
     assert.equal(await evaluate("document.body.dataset.onboardingMode"), "new_project");
     await navigate(() => click('.onboarding-topbar-actions a'));
-    assert.equal(await evaluate("location.pathname"), "/settings/projects");
+    assert.equal(await evaluate("location.pathname"), "/");
+    assert.equal(await evaluate("new URLSearchParams(location.search).get('migration')"), "1");
+    assert.equal(await evaluate("document.querySelector('[data-project-migration-dialog]')?.open"), true);
     assert.equal(await evaluate("new URLSearchParams(location.search).get('desktop')"), desktop ? "1" : null);
     await navigate(() => command("Page.navigate", { url: origin + path }, sessionId));
     await navigate(() => click('[data-onboarding-dismiss]'));
@@ -53,9 +55,9 @@ test("project general settings persist a rename, cancel safely, and retry deleti
   const projectId = created.project.project_id;
   const prefix = `/projects/${projectId}`;
   await navigate(() => command("Page.navigate", { url: origin + prefix + "/settings/general?desktop=1" }, sessionId));
-  await waitFor("document.body.classList.contains('immersive-workbench') && !!document.querySelector('[data-project-rename]')");
-  assert.equal(await evaluate("!!document.querySelector('[data-settings-fold=general] [data-project-rename]')"), true);
-  assert.equal(await evaluate("document.querySelector('[data-directory-panel=settings] [data-project-settings-page=rules]') != null"), true);
+  await waitFor("document.body.classList.contains('project-preferences-page') && !!document.querySelector('[data-project-rename]')");
+  assert.equal(await evaluate("!!document.querySelector('.project-name-form[data-project-rename]')"), true);
+  assert.equal(await evaluate("document.querySelector('.project-settings-navigation a[href*=rules]') != null"), true);
   assert.equal(await evaluate("document.querySelector('[data-settings-fold=guidance]')"), null);
   await click('[data-project-rename] input');
   await evaluate("document.querySelector('[data-project-rename] input').select()");
@@ -110,4 +112,32 @@ test("project general settings persist a rename, cancel safely, and retry deleti
   await navigate(() => click('[data-project-delete-dialog] button[type=submit]'));
   assert.equal(await evaluate("location.pathname + location.search"), "/?desktop=1");
   assert.deepEqual(await (await fetch(origin + "/api/settings/projects")).json(), { projects: [] });
+});
+
+test("global settings retain project context through sections, planning cancel and return", {timeout:60_000}, async t=>{
+  const b=await openGoalBrowser(t,true);if(!b)return;
+  const {origin,projectId,sessionId,command,evaluate,click,navigate,waitFor}=b;
+  for(const desktop of [false,true]) {
+    await navigate(()=>command('Page.navigate',{url:`${origin}/projects/${projectId}/${desktop?'?desktop=1':''}`},sessionId));
+    await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");
+    await click('[data-plugin-id=goals]');
+    await click('.tree-node[data-select-goal=CORE]');
+    await waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal==='CORE'");
+    await navigate(()=>command('Page.navigate',{url:`${origin}/settings/appearance?project=${projectId}${desktop?'&desktop=1':''}`},sessionId));
+    for(const section of ['runtimes','planning']){
+      await navigate(()=>click(`.settings-navigation a[href^="/settings/${section}"]`));
+      assert.equal(await evaluate("new URLSearchParams(location.search).get('project')"),projectId);
+      assert.equal(await evaluate("new URLSearchParams(location.search).get('desktop')"),desktop?'1':null);
+    }
+    await navigate(()=>click('a[href^="/settings/planning/new"]'));
+    await navigate(()=>click('.planning-edit-footer a'));
+    await navigate(()=>click('.settings-navigation a[href^="/settings/diagnostics"]'));
+    await navigate(()=>click('.settings-nav-back'));
+    assert.equal(await evaluate('location.pathname'),`/projects/${projectId}/`);
+    await waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal==='CORE' && !document.querySelector('[data-goal-frame-surface]').hidden");
+  }
+  await navigate(()=>command('Page.navigate',{url:origin+'/settings/appearance'},sessionId));
+  await navigate(()=>click('.settings-navigation a[href^="/settings/runtimes"]'));
+  await navigate(()=>click('[aria-label="关闭全局设置"]'));
+  assert.equal(await evaluate('location.pathname'),'/');
 });

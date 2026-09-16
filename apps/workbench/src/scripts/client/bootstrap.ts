@@ -1,4 +1,3 @@
-import { GOALS_WORK_TABS_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-goals";
 /** AP3 Workbench client segment: bootstrap. */
 export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     let state = JSON.parse(document.querySelector("#molis-work-data").textContent);
@@ -16,7 +15,6 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     const desktopDirectoryPanels = [...document.querySelectorAll("[data-directory-panel]")];
     const desktopWorkSurfaces = [...document.querySelectorAll("[data-work-surface]")];
     const projectMenus = [...document.querySelectorAll("[data-project-menu]")];
-    const workTabs = document.querySelector("[data-work-tabs]");
     const feedDirectory = document.querySelector("[data-feed-directory]");
     const feedWorkbench = document.querySelector("[data-feed-workbench]");
     const feedList = document.querySelector("[data-feed-list]");
@@ -108,7 +106,7 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     };
     if (new URLSearchParams(location.search).get("feed-auth") === "gmail") {
       queueMicrotask(() => {
-        feedSourcesDialog?.showModal();
+        showFeedSetup("setup", "gmail");
         setFeedSourceFeedback(L("Gmail 授权完成，账号已成为独立来源。"));
       });
     }
@@ -131,12 +129,10 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
           ? goalUiStorageKey + ":archive"
           : currentGoalUiStorageKey;
     const goalMoveReceiptKey = "molis-work-goal-move-receipt:" + (state.project?.project_id || state.snapshot.board.board_id);
-    const workTabsStorageKey = "molis-work-work-tabs:" + (state.project?.project_id || state.snapshot.board.board_id);
     const desktopNavigationStateVersion = 4;
     let immersiveNavigation = null;
     let frameContainer = null;
     let tabWorkspace = null;
-    let projectSettingsStage = null;
     let projectHome = null;
     let pluginWorkbench = null;
     let globalSearchPalette = null;
@@ -184,16 +180,5 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     let deferredRefreshTimer;
     let navigatorView = "list";
     let desktopCompanionActive = document.body.dataset.desktopShell === "true" && matchMedia("(max-width: 760px)").matches;
-    const { appendGoalWorkTabs, persistWorkTabs, ensureWorkTab,
-      handleGoalWorkTabClick, handleGoalWorkTabKeyboard } = (${GOALS_WORK_TABS_CLIENT_FACTORY_SCRIPT})({
-        workTabs, decisionView, collectionView, visibleGoals,
-        getSelected: () => selected, getActiveSurface: () => activeDesktopSurface,
-        readStoredTabs: () => JSON.parse(localStorage.getItem(workTabsStorageKey) || localStorage.getItem("goalboard-work-tabs:" + (state.project?.project_id || state.snapshot.board.board_id)) || "[]"),
-        writeStoredTabs: (tabs) => localStorage.setItem(workTabsStorageKey, JSON.stringify(tabs)),
-        renderWorkTabs: () => renderWorkTabs(), selectGoal: (...args) => selectGoal(...args),
-        setDesktopDirectory: (...args) => setDesktopDirectory(...args),
-        setDesktopWorkSurface: (...args) => setDesktopWorkSurface(...args),
-        showToast: (...args) => showToast(...args), translate: L,
-      });
 
 `;

@@ -110,11 +110,11 @@ export class FeedConnectorSync {
           ...(retryAfterAt ? { retry_after_at: retryAfterAt } : {}),
         });
       });
-      this.recordActionableSourceFault(source, listenerResult.error_code!, message, completedAt);
-      throw new FeedDomainError(
-        action ? `${message} — ${action}` : message,
-        listenerResult.error_code!,
-      );
+      const publicMessage = failure === "needs_auth"
+        ? `${source.name} 授权已失效或不可用，请打开任务设置中的“管理账号连接”重新授权。`
+        : action ? `${message} — ${action}` : message;
+      this.recordActionableSourceFault(source, listenerResult.error_code!, publicMessage, completedAt);
+      throw new FeedDomainError(publicMessage, listenerResult.error_code!);
     }
     const mode = connectorReceipt.mode === "fixture" ? "fixture" : "live";
     const cursor = listener.checkpoint().cursor;

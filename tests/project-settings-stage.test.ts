@@ -4,7 +4,6 @@ import {
   isProjectSettingsWorkbenchPath,
   projectSettingsPageFromPath,
   projectSettingsPath,
-  renderProjectSettingsDirectory,
 } from "../apps/workbench/src/project-settings-stage.ts";
 import { renderMolisWorkSettings, renderMolisWorkWeb, type MolisWorkWebView } from "./workbench-renderer-fixture.js";
 
@@ -23,16 +22,6 @@ test("project settings workbench paths stay on the four category pages", () => {
   assert.equal(projectSettingsPath("rules"), "/settings/rules");
 });
 
-test("project settings directory is a single-line category list", () => {
-  const html = renderProjectSettingsDirectory((text) => text);
-  assert.match(html, /data-directory-panel="settings"/);
-  assert.match(html, /data-project-settings-page="general"/);
-  assert.match(html, /data-project-settings-page="guidance"/);
-  assert.match(html, /data-project-settings-page="rules"/);
-  assert.match(html, /data-project-settings-page="planning"/);
-  assert.doesNotMatch(html, /<details/);
-  assert.doesNotMatch(html, /<small>/);
-});
 
 const webService = {
   provider: "macos-launchagent" as const,
@@ -74,7 +63,7 @@ test("user settings left nav is grouped single-line categories", () => {
   assert.doesNotMatch(html, /只影响当前设备<\/small>/);
 });
 
-test("workbench HTML has a project settings exclusive surface and directory", () => {
+test("workbench links to standalone settings without an embedded settings surface", () => {
   const html = renderMolisWorkWeb({
     snapshot: {
       board: {
@@ -134,9 +123,9 @@ test("workbench HTML has a project settings exclusive surface and directory", ()
     },
   } as MolisWorkWebView);
   assert.match(html, /class="navigator-project-settings" href="\/projects\/project-1\/settings"/);
-  assert.match(html, /data-work-surface="project-settings"/);
-  assert.match(html, /data-directory-panel="settings"/);
-  assert.match(html, /data-project-settings-page="rules"/);
+  assert.doesNotMatch(html, /data-work-surface="project-settings"/);
+  assert.doesNotMatch(html, /data-directory-panel="settings"/);
+
   assert.match(html, /href="\/settings\/appearance"/);
   assert.doesNotMatch(html, /href="\/settings\/appearance\?project=/);
 });

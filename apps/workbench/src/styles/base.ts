@@ -198,7 +198,7 @@ export const STYLES = `
   .tui-empty-mark svg { width: 18px; height: 18px; }
   .tui-empty p { margin: 0; max-width: 28ch; font-size: 13px; line-height: 1.5; }
   .tui-empty strong { color: var(--terminal-ink); font-size: 14px; font-weight: 650; }
-  .tui-menu { position: absolute; z-index: 20; top: 44px; right: 10px; width: min(320px, calc(100% - 20px)); padding: 14px; border: 1px solid var(--line-strong); border-radius: 8px; background: #fff; box-shadow: 0 8px 28px rgba(26, 38, 52, .12); display: grid; gap: 10px; opacity: 0; visibility: hidden; pointer-events: none; transform: translateY(-6px); transition: opacity .2s cubic-bezier(.16, 1, .3, 1), transform .2s cubic-bezier(.16, 1, .3, 1), visibility .2s; }
+  .tui-menu { position: absolute; z-index: 20; top: 44px; right: 10px; width: min(320px, calc(100% - 20px)); padding: 14px; border: 1px solid var(--line-strong); border-radius: 8px; background: #fff; box-shadow: 0 8px 28px rgba(26, 38, 52, .12); display: grid; gap: 10px; opacity: 0; visibility: hidden; pointer-events: none; transform: translateY(-6px); transition: opacity .2s cubic-bezier(.16, 1, .3, 1), transform .2s cubic-bezier(.16, 1, .3, 1); }
   .tui-menu.is-open { opacity: 1; visibility: visible; pointer-events: auto; transform: none; }
   .tui-menu > strong { font-size: 13px; letter-spacing: -.015em; }
   .tui-menu p { margin: 0; color: var(--muted); font-size: 12px; font-weight: 400; line-height: 1.45; }

@@ -42,12 +42,13 @@ export function renderWorkSessionSurface(surface: WorkUiSurface, model: WorkUiMo
       item.updated,
     ].filter(Boolean).join(" ").toLocaleLowerCase();
     const updatedAt = Number.isFinite(Date.parse(item.updatedAt || "")) ? Date.parse(item.updatedAt!) : 0;
+    const statusKind = item.state === "archived" ? "archived" : "waiting";
     return `<button class="project-record-row directory-list-row${selected ? " is-selected" : ""}" type="button" role="option" aria-selected="${selected}" tabindex="${selected ? "0" : "-1"}" draggable="true" data-frame-asset="session" data-frame-asset-id="${escapeHtml(item.id)}" data-frame-asset-title="${escapeHtml(item.title)}" data-frame-asset-caption="${escapeHtml(item.runtime)}" data-operation-row="session" data-operation-select="${escapeHtml(item.id)}" data-record-id="${escapeHtml(item.id)}" data-record-runtime="${escapeHtml(item.runtimeId || item.runtime)}" data-record-status="${escapeHtml(item.state)}" data-record-content="${escapeHtml(item.contentMode)}" data-record-updated="${updatedAt}" data-record-search="${escapeHtml(search)}">
     <span class="project-record-select">
-      <span><strong title="${escapeHtml(item.title)}">${escapeHtml(item.title)}</strong><small title="${escapeHtml(item.id)}">${escapeHtml([item.runtime, item.currentGoal].filter(Boolean).join(" · "))}</small></span>
+      <span><strong title="${escapeHtml(item.title)}">${escapeHtml(item.title)}</strong><small hidden title="${escapeHtml(item.id)}">${escapeHtml([item.runtime, item.currentGoal].filter(Boolean).join(" · "))}</small></span>
     </span>
-    <span class="directory-row-state project-record-state--${escapeHtml(item.state)}">${escapeHtml(sessionStateLabel(item.state))}</span>
-    <span class="project-record-meta"><span>${escapeHtml(item.currentGoal || L("未选择当前 Goal"))}</span><time>${escapeHtml(item.updated)}</time></span>
+    <span class="directory-row-state project-record-state--${escapeHtml(item.state)}"><span class="goal-status goal-status--${statusKind}">${item.state === "archived" ? icon("archive") : icon("activity")}<span>${escapeHtml(sessionStateLabel(item.state))}</span></span></span>
+    <span class="project-record-meta" hidden><span>${escapeHtml(item.currentGoal || L("未选择当前 Goal"))}</span><time>${escapeHtml(item.updated)}</time></span>
   </button>`;
   }
 
@@ -58,7 +59,7 @@ export function renderWorkSessionSurface(surface: WorkUiSurface, model: WorkUiMo
     const rows = hasData
       ? records.map((item, index) => renderSessionRow(item, index === 0)).join("")
       : "";
-    return `<section class="desktop-directory-panel project-record-directory" data-directory-panel="sessions" data-operation-directory="sessions" hidden>
+    return `<section class="desktop-directory-panel project-record-directory" data-directory-panel="sessions" data-operation-directory="sessions">
     <header class="desktop-directory-heading"><button type="button" data-directory-back aria-label="${L("返回上一级")}">${icon("back")}</button><span><strong>Sessions</strong><small>${L("执行与内容")}</small></span><button class="directory-heading-action" type="button" data-open-session-add aria-label="${L("新建 Session")}" title="${L("新建 Session")}">${icon("plus")}</button></header>
     <header class="project-record-tools" data-directory-list-actions>
       <details class="project-record-filter-menu"><summary aria-label="${L("筛选与排序")}">${icon("filter")}<span>${L("筛选")}</span></summary><div><label>Runtime<select data-session-runtime-filter><option value="all">${L("全部 Runtime")}</option></select></label><label>${L("状态")}<select data-session-status-filter><option value="all">${L("全部状态")}</option><option value="idle">${L("可查看")}</option><option value="archived">${L("已归档")}</option></select></label><label>${L("内容")}<select data-operation-filter="sessions"><option value="all">${L("全部内容")}</option><option value="native">${L("原生内容")}</option><option value="fallback">${L("Molis Work 记录")}</option><option value="unavailable">${L("不可读取")}</option></select></label><label>${L("排序")}<select data-session-sort><option value="updated-desc">${L("最近更新")}</option><option value="updated-asc">${L("最早更新")}</option><option value="title-asc">${L("标题 A–Z")}</option></select></label></div></details><button class="project-record-add-compact" type="button" data-open-session-add aria-label="${L("新建 Session")}">${icon("plus")}</button>

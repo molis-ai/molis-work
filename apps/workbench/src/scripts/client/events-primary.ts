@@ -16,27 +16,50 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
         if (factorError) factorError.hidden = true;
       }
     });
-    treeResizer?.addEventListener("pointerdown", (event) => {
-      if (event.button !== 0) return;
-      if (document.body.classList.contains("immersive-workbench") ? matchMedia("(max-width: 600px)").matches : matchMedia("(max-width: 760px)").matches && !workspace.classList.contains("is-desktop-tui")) return;
-      resizeStartX = event.clientX;
+    const treeResizeBlocked = () => document.body.classList.contains("immersive-workbench")
+      ? matchMedia("(max-width: 600px)").matches
+      : matchMedia("(max-width: 760px)").matches && !workspace.classList.contains("is-desktop-tui");
+    const beginTreeResize = (clientX) => {
+      resizeStartX = clientX;
       resizeStartWidth = treePane.getBoundingClientRect().width;
       treeResizer.classList.add("is-dragging");
-      treeResizer.setPointerCapture(event.pointerId);
-      event.preventDefault();
-    });
-    treeResizer?.addEventListener("pointermove", (event) => {
-      if (!treeResizer.hasPointerCapture(event.pointerId)) return;
-      setTreeWidth(resizeStartWidth + event.clientX - resizeStartX);
-    });
-    const finishTreeResize = (event) => {
-      if (treeResizer?.hasPointerCapture(event.pointerId)) treeResizer.releasePointerCapture(event.pointerId);
+    };
+    const stopTreeResize = () => {
       treeResizer?.classList.remove("is-dragging");
       saveUiState();
     };
-    treeResizer?.addEventListener("pointerup", finishTreeResize);
-    treeResizer?.addEventListener("pointercancel", finishTreeResize);
-    treeResizer?.addEventListener("dblclick", () => setTreeWidth(innerWidth <= 1050 ? 256 : 280));
+    treeResizer?.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0 || treeResizeBlocked()) return;
+      beginTreeResize(event.clientX);
+      const pointerId = event.pointerId;
+      const move = (moveEvent) => {
+        if (moveEvent.pointerId !== pointerId) return;
+        setTreeWidth(resizeStartWidth + moveEvent.clientX - resizeStartX);
+      };
+      const end = (endEvent) => {
+        if (endEvent.pointerId !== pointerId) return;
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", end);
+        window.removeEventListener("pointercancel", end);
+        stopTreeResize();
+      };
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", end);
+      window.addEventListener("pointercancel", end);
+    });
+    treeResizer?.addEventListener("mousedown", (event) => {
+      if (event.button !== 0 || treeResizeBlocked()) return;
+      if (!treeResizer.classList.contains("is-dragging")) beginTreeResize(event.clientX);
+      const move = (moveEvent) => setTreeWidth(resizeStartWidth + moveEvent.clientX - resizeStartX);
+      const end = () => {
+        window.removeEventListener("mousemove", move);
+        window.removeEventListener("mouseup", end);
+        if (treeResizer.classList.contains("is-dragging")) stopTreeResize();
+      };
+      window.addEventListener("mousemove", move);
+      window.addEventListener("mouseup", end);
+    });
+    treeResizer?.addEventListener("dblclick", () => setTreeWidth(innerWidth <= 1050 ? 220 : 240));
     treeResizer?.addEventListener("keydown", (event) => {
       if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
       event.preventDefault();
@@ -391,7 +414,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
           ? requestedSource
           : document.querySelector('[data-source-kind="' + CSS.escape(openPrototypeSource.dataset.openSourceKind || "") + '"]')?.dataset.feedTask || document.querySelector('[data-source-kind="' + CSS.escape(openPrototypeSource.dataset.openSourceKind || "") + '"]')?.dataset.sourceEntryId;
         setDesktopDirectory("feed", true, false, openPrototypeSource);
-        if (!openWorkbenchSurface("feed")) setDesktopWorkSurface("feed", true, false);
+        if (!openDirectorySurface("feed", undefined, undefined, event)) setDesktopWorkSurface("feed", true, false);
         setFeedTask(fallbackSource || requestedSource || "all");
         return;
       }

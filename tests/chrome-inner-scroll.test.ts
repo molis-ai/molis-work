@@ -43,7 +43,14 @@ test("project index, settings, and workbench keep titles pinned and scroll only 
   assert.ok(workbench.includes("plugin-market-list { display: grid;"));
   assert.doesNotMatch(workbench, /plugin-market-grid article \{ padding: 24px;/);
   assert.ok(workbench.includes(".feed-workbench { padding: 0; background: var(--canvas); overflow: auto; overscroll-behavior: contain; }"));
-  assert.ok(workbench.includes(":is(.tree-scroll, .project-record-scroll, .feed-directory-list, .source-directory-list, .feed-item-scroll, .source-list) { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain;"));
-  assert.ok(workbench.includes(".directory-list-stage > .desktop-directory-root:not([hidden]) { display: block;"));
-  assert.ok(workbench.includes("overflow: auto; overscroll-behavior: contain; padding: 0 8px 14px;"));
+  assert.ok(workbench.includes("scrollbar-width: none"));
+  assert.ok(workbench.includes(".directory-content-scroll::-webkit-scrollbar { width: 0; height: 0; }"));
+  assert.ok(workbench.includes(":is(.tree-scroll, .project-record-scroll, .feed-directory-list, .source-directory-list, .feed-item-scroll, .source-list) { flex: none; height: auto; min-height: 0; overflow: visible;"));
+  assert.doesNotMatch(workbench, /\.directory-shortcuts/);
+  assert.ok(workbench.includes(".immersive-home .home-shortcuts { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: flex-start; gap: 18px; list-style: none; margin: 0 0 16px; padding: 0; }"));
+  assert.doesNotMatch(workbench, /\.directory-list-stage > \.desktop-directory-root:not\(\[hidden\]\) \{ display: block;/);
+  assert.match(workbench, /--dir-row-h: 28px;/);
+  assert.match(workbench, /--plugin-rail-width: 48px;/);
+  assert.ok(workbench.includes("grid-template-columns: var(--plugin-rail-width) var(--tree-width, var(--immersive-sidebar-width)) minmax(0, 1fr)"));
+  assert.ok(workbench.lastIndexOf("--control-h: 28px") > workbench.lastIndexOf("--control-h: 32px"), "Linear density must win over the shared 32px control token");
 });

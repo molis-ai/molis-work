@@ -35,7 +35,6 @@ function model(overrides: Partial<FeedUiModel> = {}): FeedUiModel {
     entries: [],
     sources: [],
     out_rules: [],
-    relay_import: { available: false, source_count: 0, item_count: 0, material_count: 0 },
     source_catalog: [],
     connector_auth: { github: { bound: false }, gmail: { bound: false } },
     primitives,
@@ -60,6 +59,9 @@ test("Workbench registers the Feed UI Contribution through the generic UI Host",
     model: model(),
   });
   assert.match(directory, /data-directory-panel="feed"/);
+  assert.match(directory, /data-feed-advanced-open/);
+  assert.match(directory, /捕捉规则/);
+  assert.doesNotMatch(directory, /Relay|data-relay-import|导入已有历史|与迁移/);
 
   const workbench = host.render({
     contribution_id: FEED_UI_CONTRIBUTION_ID,
@@ -89,6 +91,7 @@ test("Workbench registers the Feed UI Contribution through the generic UI Host",
   });
   assert.match(overlays, /data-feed-out-rules/);
   assert.match(overlays, /data-feed-out-rule-create/);
+  assert.doesNotMatch(overlays, /Relay|data-relay-import|导入已有历史|与迁移/);
 });
 
 test("Feed demo data keeps page-local actions and never calls real Source APIs", () => {
@@ -218,7 +221,6 @@ test("Feed Plugin route table owns matching while the Host supplies handlers", a
     "feed.connector.gmail.client",
     "feed.connector.gmail.oauth.start",
     "feed.connector.gmail.oauth.callback",
-    "feed.relay.import",
     "feed.item.detail",
     "feed.item.action",
   ].map((routeId) => [routeId, routeId === "feed.item.action"
@@ -264,8 +266,6 @@ test("Feed workbench HTTP rejects inbox_message and serves the Feed surface", as
     hydrateItem: unused,
     hydrateSnapshot: unused,
     sourceCatalog: () => [],
-    detectRelayImport: unused,
-    importRelay: unused,
     renderWorkbench: () => "<div data-feed-workbench></div>",
     renderDetail: unused,
     promote: unused,

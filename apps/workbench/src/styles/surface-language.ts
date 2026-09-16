@@ -13,7 +13,7 @@ export const SURFACE_LANGUAGE_STYLES = `
   body.immersive-workbench .goal-event-document .event-form { width: min(100%, 880px); }
 
   /* All temporary editors meet the workspace edge, rather than floating over it. */
-  ${EDITOR_PANEL} { position: fixed; inset: 44px 0 0 auto; margin: 0; width: min(560px, 100vw); max-width: 100vw; height: calc(100dvh - 44px); max-height: calc(100dvh - 44px); padding: 0; border: 0; border-left: 1px solid var(--line); border-radius: 0; background: var(--paper); color: var(--ink); box-shadow: none; overflow: hidden; transform: none; animation: none; transition: opacity 140ms ease, overlay 140ms allow-discrete, display 140ms allow-discrete; }
+  ${EDITOR_PANEL} { position: fixed; inset: var(--tab-strip-h, 32px) 0 0 auto; margin: 0; width: min(560px, 100vw); max-width: 100vw; height: calc(100dvh - var(--tab-strip-h, 32px)); max-height: calc(100dvh - var(--tab-strip-h, 32px)); padding: 0; border: 0; border-left: 1px solid var(--line); border-radius: 0; background: var(--paper); color: var(--ink); box-shadow: none; overflow: hidden; transform: none; animation: none; transition: opacity 140ms ease, overlay 140ms allow-discrete, display 140ms allow-discrete; }
   ${EDITOR_PANEL}::backdrop { background: color-mix(in srgb, var(--ink) 10%, transparent); backdrop-filter: none; }
   ${EDITOR_PANEL} > :is(form, .feed-task-dialog-shell) { height: 100%; max-height: 100%; min-height: 0; }
   ${EDITOR_PANEL} > .dialog-shell { border: 0; border-radius: 0; box-shadow: none; }
@@ -58,7 +58,7 @@ export const SURFACE_LANGUAGE_STYLES = `
     .goal-node-toolbar button { width: 44px; min-height: 44px; }
   }
   /* Search and irreversible confirmations remain compact, with restrained depth. */
-  body :is(.global-search-dialog, .home-shortcut-dialog, .runtime-plan-dialog, .goal-trash-dialog, .project-operation-confirm-dialog, .project-migration-dialog, .feed-import-dialog) { border-radius: 8px; box-shadow: 0 8px 28px #00000018; }
-  body :is(.global-search-dialog, .home-shortcut-dialog, .runtime-plan-dialog, .goal-trash-dialog, .project-operation-confirm-dialog, .project-migration-dialog, .feed-import-dialog)::backdrop { background: #00000026; backdrop-filter: none; }
+  body :is(.global-search-dialog, .home-shortcut-dialog, .runtime-plan-dialog, .goal-trash-dialog, .project-operation-confirm-dialog, .project-migration-dialog) { border-radius: 8px; box-shadow: 0 8px 28px #00000018; }
+  body :is(.global-search-dialog, .home-shortcut-dialog, .runtime-plan-dialog, .goal-trash-dialog, .project-operation-confirm-dialog, .project-migration-dialog)::backdrop { background: #00000026; backdrop-filter: none; }
   @media (prefers-reduced-motion: reduce) { ${EDITOR_PANEL}, ${EDITOR_PANEL}::backdrop { animation: none; transition: none; } }
 `;

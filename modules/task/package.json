@@ -1,0 +1,42 @@
+{
+  "name": "@molis-ai/molis-work-module-task",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Task identity, optional Goal link, and Frame composition facts.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=24"
+  },
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@molis-ai/molis-work-contracts": "workspace:*"
+  },
+  "molis-work": {
+    "path": "modules/task",
+    "kind": "module",
+    "maturity": "partial",
+    "contract": "@molis-ai/molis-work-contracts/modules/task",
+    "migrationGoals": [],
+    "ssot": "docs/SSOT-MATRIX.md",
+    "capabilities": [
+      "task.query.v1",
+      "task.command.v1"
+    ]
+  }
+}

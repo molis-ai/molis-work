@@ -40,7 +40,7 @@ test('icon tabs pin, restore, expose keyboard and touch actions and keep fixed d
   assert.equal(await evaluate("document.activeElement.dataset.tabMenuAction"),'close');
   await command('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',windowsVirtualKeyCode:27},sessionId);
   assert.equal(await evaluate("document.activeElement.closest('[data-tab-id]')?.dataset.tabId"),coreId);
-  assert.equal(await evaluate("document.querySelector('.tab-item[aria-current]').closest('[data-tab-group]').dataset.tabGroup"),'feed');
+  assert.equal(await evaluate("document.querySelector('.tab-item[aria-current]').dataset.plugin"),'feed');
   await click('[data-titlebar-tabs] [data-tab-add]'); await click('[data-tab-menu-action=pin]');
   await click('[data-titlebar-tabs] [data-tab-add]'); await click('[data-tab-menu-action=open-sessions]');
   await click(coreSelector+' .tab-item-trigger');

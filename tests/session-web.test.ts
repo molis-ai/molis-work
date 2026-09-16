@@ -18,7 +18,7 @@ import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.j
 
 const TOKEN = "molis-work-session-web-token-0123456789abcdef";
 
-test("project root directory uses one chevron affordance for every navigable module", () => {
+test("plugin rail lists enabled plugins; directory sections stay in the second column", () => {
   const view = {
     snapshot: {
       board: {
@@ -64,31 +64,21 @@ test("project root directory uses one chevron affordance for every navigable mod
       feed_items: [],
       inbox_entries: [],
       runs: [],
-      import_receipts: [],
       contract_migrations: [],
       out_rules: [],
     },
-    relay_import: {
-      path: "",
-      available: false,
-      source_count: 0,
-      item_count: 0,
-      material_count: 0,
-      error: null,
-    },
   } as MolisWorkWebView;
   const html = renderMolisWorkWeb(view);
-  const rootDirectory = html.match(/<section class="desktop-directory-panel desktop-directory-root"[\s\S]*?<\/section>/)?.[0];
-  assert.ok(rootDirectory);
-  for (const label of ["Inbox", "Goals", "Sessions", "Feed", "Artifacts"]) {
-    assert.match(
-      rootDirectory,
-      new RegExp(`<strong>${label}</strong><small>[^<]*</small></span><svg aria-hidden="true"><use href="#icon-chevron-right"></use></svg></button>`),
-    );
+  assert.match(html, /class="plugin-rail immersive-plugin-strip"/);
+  assert.match(html, /data-plugin-id="home"/);
+  assert.match(html, /data-plugin-id="market"/);
+  assert.doesNotMatch(html, /data-plugin-section="home"|data-plugin-section="market"/);
+  for (const plugin of ["goals", "task", "sessions", "inbox", "feed", "artifacts"]) {
+    assert.match(html, new RegExp(`data-plugin-section="${plugin}"[^>]*data-plugin-expanded="true"`));
+    assert.match(html, new RegExp(`data-plugin-id="${plugin}"`));
   }
-  assert.doesNotMatch(rootDirectory, /<strong>工作目录<\/strong>|data-directory-open="workspaces"/);
-  assert.doesNotMatch(rootDirectory, /<em>\d+<\/em>/);
-  assert.doesNotMatch(rootDirectory, /<em>规划中<\/em>/);
+  assert.doesNotMatch(html, /data-plugin-expand=/);
+  assert.doesNotMatch(html, /desktop-directory-root|data-directory-open="workspaces"/);
 });
 
 test("project operation renderer uses real records or an honest empty state without prototype branches", () => {

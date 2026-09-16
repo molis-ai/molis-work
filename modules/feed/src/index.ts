@@ -1,5 +1,4 @@
 import { FeedError } from "@molis-ai/molis-work-contracts/modules/feed";
-import { migrateFeedImportReceipts } from "./import-receipts.js";
 import { randomUUID } from "node:crypto";
 import type { ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { FeedGoalLinks } from "./goal-links.js";
@@ -14,7 +13,6 @@ import type {
   FeedItemDisposition,
   FeedItemRecord,
   FeedMaterialRecord,
-  ImportedFeedItemInput,
   InfoflowContractMigrationReport,
   IngestFeedItemInput,
 } from "@molis-ai/molis-work-contracts/modules/feed";
@@ -63,7 +61,6 @@ export interface FeedModuleOptions {
 export { FeedError } from "@molis-ai/molis-work-contracts/modules/feed";
 
 export function migrateFeed(db: FeedSqliteDatabase): void {
-  migrateFeedImportReceipts(db);
   db.exec(`
     CREATE TABLE IF NOT EXISTS feed_items (
       board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
@@ -173,7 +170,6 @@ export class FeedModule implements FeedApi {
 
   readonly commands = {
     ingest: (input: IngestFeedItemInput) => this.ingest(input),
-    upsertImportedItem: (input: ImportedFeedItemInput) => this.upsertImportedItem(input),
     upsertMaterial: (material: FeedMaterialRecord) => this.upsertMaterial(material),
     setDisposition: (
       projectId: string,
@@ -404,57 +400,6 @@ export class FeedModule implements FeedApi {
       );
       return { item: this.get(input.project_id, itemId), created: true, updated: false };
     }).immediate();
-  }
-
-  private upsertImportedItem(input: ImportedFeedItemInput): FeedItemRecord {
-    this.db.prepare(`
-      INSERT INTO feed_items (
-        board_id, item_id, source_id, signal_id, signal_revision, item_type,
-        kind, title, summary, body, source_kind, source_label, external_id, url,
-        origin_status, priority, tags_json, author, disposition, linked_goal_id,
-        read_at, revision, source_created_at, source_updated_at, imported_at, updated_at
-      ) VALUES (?, ?, ?, NULL, NULL, 'feed', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, 1, ?, ?, ?, ?)
-      ON CONFLICT(board_id, item_id) DO UPDATE SET
-        source_id = excluded.source_id,
-        item_type = 'feed',
-        kind = excluded.kind,
-        title = excluded.title,
-        summary = excluded.summary,
-        body = excluded.body,
-        source_kind = excluded.source_kind,
-        source_label = excluded.source_label,
-        external_id = excluded.external_id,
-        url = excluded.url,
-        origin_status = excluded.origin_status,
-        priority = excluded.priority,
-        tags_json = excluded.tags_json,
-        author = excluded.author,
-        source_created_at = excluded.source_created_at,
-        source_updated_at = excluded.source_updated_at,
-        imported_at = excluded.imported_at
-    `).run(
-      input.project_id,
-      input.item_id,
-      input.source_id,
-      input.kind,
-      input.title,
-      input.summary,
-      input.body,
-      input.source_kind,
-      input.source_label,
-      input.external_id,
-      input.url,
-      input.origin_status,
-      input.priority,
-      JSON.stringify(input.tags),
-      input.author,
-      input.disposition,
-      input.source_created_at,
-      input.source_updated_at,
-      input.imported_at,
-      input.updated_at,
-    );
-    return this.get(input.project_id, input.item_id);
   }
 
   private upsertMaterial(material: FeedMaterialRecord): FeedMaterialRecord {
@@ -970,6 +915,6 @@ function json<T>(value: unknown, fallback: T): T {
 
 export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
-export { FeedReceiptStore } from "./import-receipts.js";
+export { FeedReceiptStore } from "./contract-receipts.js";
 
 export { type FeedEvidenceContentStore, createFeedEvidenceContentStore } from "./content-store.js";

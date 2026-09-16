@@ -1,6 +1,6 @@
 /** Workbench-owned jump palette. Plugin owners keep their own open/select behavior. */
 export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
-  const { translate: L, setDirectory, setWorkSurface, selectGoal, setMobileView, noteSearchActivity, openTabItem } = host;
+  const { translate: L, setDirectory, setWorkSurface, selectGoal, setMobileView, noteSearchActivity, openTabItem, openTaskForGoal, expandDirectory } = host;
   const dialog = document.querySelector("[data-global-search-dialog]");
   const form = document.querySelector("[data-global-search-form]");
   const input = document.querySelector("[data-global-search]");
@@ -33,6 +33,19 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
         surface: "goal",
       })));
       if (items.length) groups.push({ label: "Goals", items });
+    }
+    if (pluginEnabled("task")) {
+      const items = take([...document.querySelectorAll("[data-task-row]")].map((row) => ({
+        kind: "task",
+        id: row.dataset.taskId,
+        title: row.dataset.taskTitle || row.querySelector("strong")?.textContent?.trim() || row.dataset.taskId,
+        plugin: "Task",
+        search: String((row.dataset.taskTitle || "") + " " + (row.querySelector("small")?.textContent || "")).toLowerCase(),
+        directory: "task",
+        surface: "task",
+        element: row,
+      })));
+      if (items.length) groups.push({ label: "Task", items });
     }
     if (pluginEnabled("sessions")) {
       const items = take([...document.querySelectorAll('[data-operation-row="session"]')].map((row) => ({
@@ -103,6 +116,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     const actions = [
       { kind: "action", id: "create", title: L("新建目标"), plugin: L("快捷操作"), search: "新建目标 create goal", selector: "[data-open-create]" },
       { kind: "action", id: "home", title: L("项目首页"), plugin: L("快捷操作"), search: "项目首页 home", selector: '[data-plugin-id="home"]' },
+      { kind: "action", id: "settings", title: L("设置"), plugin: L("快捷操作"), search: "设置 settings", selector: '[data-plugin-id="settings"]' },
       { kind: "action", id: "market", title: L("插件市场"), plugin: L("快捷操作"), search: "插件市场 market", selector: '[data-plugin-id="market"]' },
     ].filter((item) => document.querySelector(item.selector) && (!q || item.search.includes(q)));
     if (actions.length) groups.push({ label: L("快捷操作"), items: actions });
@@ -145,14 +159,21 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
         return;
       }
       if (hit.kind === "goal") {
-        openTabItem?.("goals", hit.id, hit.title);
-        void selectGoal(hit.id);
+        expandDirectory?.("goals");
+        void openTaskForGoal?.(hit.id, hit.title, "commit");
+        requestAnimationFrame(() => {
+          document.querySelector('[data-tree-item][data-goal-id="' + CSS.escape(hit.id) + '"]')?.scrollIntoView({ block: "nearest" });
+        });
       } else {
-        const plugin = { session: "sessions", inbox: "inbox", feed: "feed", artifact: "artifacts" }[hit.kind];
-        if (plugin) openTabItem?.(plugin, hit.id, hit.title);
+        const plugin = { session: "sessions", inbox: "inbox", feed: "feed", artifact: "artifacts", source: "feed", task: "task" }[hit.kind];
+        if (plugin) {
+          expandDirectory?.(plugin);
+          openTabItem?.(plugin, hit.id, hit.title);
+        }
         if (hit.directory) setDirectory(hit.directory);
         if (hit.surface && !plugin) setWorkSurface(hit.surface);
         hit.element?.click();
+        requestAnimationFrame(() => hit.element?.scrollIntoView?.({ block: "nearest" }));
       }
       if (matchMedia("(max-width: 600px)").matches) setMobileView("document");
     };

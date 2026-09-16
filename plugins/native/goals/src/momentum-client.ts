@@ -9,6 +9,18 @@ export const GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT = `(host) => {
     const divider = workspace.querySelector("[data-goal-workspace-divider]");
     const graphElement = () => workspace.querySelector("[data-goal-momentum]");
     const kanbanElement = () => workspace.querySelector("[data-goal-kanban]");
+    const reopenKanbanGroups = () => {
+      const kanban = kanbanElement();
+      if (!kanban || kanban.clientWidth <= 839) return;
+      kanban.querySelectorAll("details[data-kanban-group]").forEach((group) => { group.open = true; });
+    };
+    if (shell && typeof ResizeObserver === "function") new ResizeObserver(reopenKanbanGroups).observe(shell);
+    workspace.addEventListener("toggle", (event) => {
+      const group = event.target;
+      if (!group?.matches?.("details[data-kanban-group]")) return;
+      const kanban = kanbanElement();
+      if (kanban && kanban.clientWidth > 839) group.open = true;
+    });
     workspace.addEventListener("wheel", (event) => {
       const board = event.target.closest?.("[data-goal-kanban]");
       if (!board || board.hasAttribute("inert") || event.ctrlKey || event.metaKey) return;
@@ -119,8 +131,18 @@ export const GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT = `(host) => {
             const board = kanban.querySelector(".goal-kanban-board");
             if (nextBoard && board) {
               const left = kanban.scrollLeft;
+              const top = kanban.scrollTop;
+              const stacked = kanban.clientWidth <= 839;
+              const collapsed = stacked
+                ? [...board.querySelectorAll("[data-kanban-column]")].filter((column) => column.querySelector("details")?.open === false).map((column) => column.dataset.kanbanColumn)
+                : [];
               board.replaceChildren(...nextBoard.childNodes);
               kanban.scrollLeft = left;
+              kanban.scrollTop = top;
+              collapsed.forEach((status) => {
+                const group = board.querySelector('[data-kanban-column="' + status + '"] details');
+                if (group) group.open = false;
+              });
             } else {
               const inert = kanban.hasAttribute("inert");
               kanban.replaceWith(nextKanban);
@@ -135,6 +157,7 @@ export const GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT = `(host) => {
           graphLoadedOnce = true;
           applyBoardVisibility();
           syncKanbanSelection();
+          reopenKanbanGroups();
           view.layout();
           return true;
         } catch (error) {

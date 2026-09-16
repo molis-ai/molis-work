@@ -29,7 +29,7 @@ Molis Work 是 Goal 的权威真相源。它把用户意图逐步整理成可理
 
 Molis Work 不是另一个 Kanban，也不是 Agent 调度器。它的差异机制是：
 
-- 叶子 Goal 和 Task 是同一真相节点；
+- 叶子 Goal 是可独立交付和验收的目标节点；真正干活的工作台是独立的 Task，可以没有 Goal 就创建，一条 Goal 最多关联一条 Task；
 - Plan 和 TaskBoard 都是 Goal Spine 的派生视图；
 - Runtime 自己读取和上报，Board 不派单；未转交历史 Goal 仍可领取；
 - 接受后的业务 Goal 不被静默改写；
@@ -50,7 +50,7 @@ Project 是内容范围，不与 Sessions 构成全局 switch。用户先选择�
 
 来源、Feed 与 Inbox 是一条信息流上的三个不同对象。来源管理账号和接入源、连接状态、配置以及手动或定时拉取计划，并采用与 Goal 相同的目录—详情工作台；Feed 保存所有来源拉取到的完整消息事实；Inbox 只保存需要用户介入的引用或内部事项，必须说明进入原因、关联对象、当前状态与下一步。Feed Item 可以手工或经明确规则进入 Inbox，也可以保存为资料、升格 Goal 或忽略；Inbox Entry 处理完成后退出默认待处理列表，但原 Feed Item、来源、Goal 和权威事件仍可追溯。桌面保持目录与详情并列，窄屏按目录、当前列表、详情逐层推进。
 
-Relay 所有权迁移由用户显式触发：Molis Work 以只读方式打开本机 Relay 数据库，按稳定 ID 迁入公开来源、Item、资料、同步游标与运行记录；能取得 Relay 解密材料时，还会把 GitHub/Gmail 凭据和加密正文解密后重新封装进 Molis Work 自己的 SecretStore 与正文仓库。迁移不修改 Relay，也不让 Molis Work 在运行时调用 Relay。Molis Work 随后直接注册、暂停、恢复和同步公开 RSS/Atom、网页查询、YouTube，以及 GitHub/Gmail 账号来源；所有同步均有本地运行状态、幂等键、失败收据和中断恢复。保存为资料只改变 Item 的本地处理状态；“升格为 Goal”和“开始处理”会创建或复用同一条 Draft Goal，并把 Item 绑定为输入。外部标题、摘要、正文、链接、资料和来源元数据始终是不可信输入，不得直接成为 Goal、系统或 Runtime 指令。“开始处理”随后进入该 Goal 的 Runtime；用户选择 TUI 后，Molis Work 把经过控制字符清理并带有不可信数据边界的上下文填入终端，但不会自动发送。窄屏下 Feed Workbench 在 Item 列表与详情之间切换，不把两栏同时挤进视口。
+Molis Work 直接注册、暂停、恢复和同步公开 RSS/Atom、网页查询、YouTube，以及 GitHub/Gmail 账号来源；所有同步均有本地运行状态、幂等键、失败收据和中断恢复。保存为资料只改变 Item 的本地处理状态；“升格为 Goal”和“开始处理”会创建或复用同一条 Draft Goal，并把 Item 绑定为输入。外部标题、摘要、正文、链接、资料和来源元数据始终是不可信输入，不得直接成为 Goal、系统或 Runtime 指令。“开始处理”随后进入该 Goal 的 Runtime；用户选择 TUI 后，Molis Work 把经过控制字符清理并带有不可信数据边界的上下文填入终端，但不会自动发送。窄屏下 Feed Workbench 在 Item 列表与详情之间切换，不把两栏同时挤进视口。
 
 ## Authority and Proposal Rules
 
@@ -119,7 +119,7 @@ Relay 所有权迁移由用户显式触发：Molis Work 以只读方式打开本
 - `modules/` 与 `apps/local-host/`：业务事实、跨模块用例装配、项目数据库和旧数据导入。
 - `apps/desktop/launchers/cli/main.ts` 与 `apps/desktop/launchers/mcp/server.ts`：V1-only CLI/MCP 入口及 Runtime/management audience 边界。
 - `apps/workbench/` 与 `plugins/native/goals/`：Goal Tree 与事件正文工作区。Workbench 只做通用呈现装配；完成判断不另算在 UI。
-- `plugins/native/feed/`、相关 Modules 与官方 Integrations：Feed Workbench 的 Item、来源、资料、处理状态、公开来源与账号连接器运行时、加密本地存储，以及 Relay 所有权迁移。
+- `plugins/native/feed/`、相关 Modules 与官方 Integrations：Feed Workbench 的 Item、来源、资料、处理状态、公开来源与账号连接器运行时，以及加密本地存储。
 - `apps/desktop/`：可选 macOS App 壳，复用同一套带 TUI 的 Web 工作台。
 - `tests/v1.test.ts`、`tests/mcp.test.ts`、`tests/feed.test.ts`、`tests/web.test.ts`：状态门禁、权限、迁移和 UI 数据流证据。
 

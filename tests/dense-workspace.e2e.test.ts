@@ -20,7 +20,7 @@ test('Dense workspace keeps many long tabs, nested panes and long Feed content i
   assert.ok(await evaluate("document.querySelectorAll('.tab-item').length>=12"));
   await click('[data-plugin-id=feed]');await click(`[data-feed-task-toggle="${source.source_id}"]`);
   for(const direction of ['right','bottom']) {
-    await click('[data-titlebar-tabs] [data-tab-split]');await click(`[data-layout-split=${direction}]`);
+    await click('[data-titlebar-tabs]:not([hidden]) [data-tab-split], .tab-pane.is-focused [data-tab-split]');await click(`[data-layout-split=${direction}]`);
     await waitFor(`document.querySelectorAll('iframe.tab-content-frame').length>=${direction==='right'?2:3}`);
   }
   await waitFor("[...document.querySelectorAll('iframe.tab-content-frame')].every(f=>f.contentDocument?.querySelector('[data-feed-entry-id]'))");
@@ -41,7 +41,7 @@ test('Dense workspace keeps many long tabs, nested panes and long Feed content i
   await b.reloadPage();await waitFor("document.querySelectorAll('[data-tab-pane]').length===3");
   await command('Emulation.setDeviceMetricsOverride',{width:390,height:500,deviceScaleFactor:1,mobile:false},sessionId);
   await evaluate("localStorage.setItem('molis-work:theme','dark');window.dispatchEvent(new StorageEvent('storage',{key:'molis-work:theme',newValue:'dark'}))");
-  await click('[data-titlebar-tabs] [data-tab-split]');await click('[data-focus-pane]');
+  await click('[data-titlebar-tabs]:not([hidden]) [data-tab-split], .tab-pane.is-focused [data-tab-split]');await click('[data-focus-pane]');
   await waitFor("[...document.querySelectorAll('[data-tab-pane]')].filter(p=>p.getBoundingClientRect().width>0).length===1");
   assert.equal(await evaluate('document.scrollingElement.scrollHeight<=innerHeight+1 && document.scrollingElement.scrollWidth<=innerWidth+1'),true);
   await capture('dense-mobile-dark');

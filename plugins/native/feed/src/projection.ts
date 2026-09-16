@@ -1,10 +1,10 @@
 import { redactFeedContextSecrets } from "./context.js";
 import type { FeedUiPreset } from "./ui.js";
-import type { FeedItemRecord as CanonicalFeedItem, FeedMaterialRecord as CanonicalFeedMaterial, FeedImportReceiptRecord, FeedContractMigrationReceiptRecord } from "@molis-ai/molis-work-contracts/modules/feed";
+import type { FeedItemRecord as CanonicalFeedItem, FeedMaterialRecord as CanonicalFeedMaterial, FeedContractMigrationReceiptRecord } from "@molis-ai/molis-work-contracts/modules/feed";
 import type { SourceRecord, SourceSchedule, SourceSyncKind, SourceStatus } from "@molis-ai/molis-work-contracts/modules/sources";
 import type { AttentionEntryRecord, AttentionReason, AttentionStatus, AttentionSubjectType } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import type { ListenerRunRecord } from "@molis-ai/molis-work-contracts/services/listener-host";
-export type { FeedItemDisposition, FeedImportReceiptRecord, FeedContractMigrationReceiptRecord } from "@molis-ai/molis-work-contracts/modules/feed";
+export type { FeedItemDisposition, FeedContractMigrationReceiptRecord } from "@molis-ai/molis-work-contracts/modules/feed";
 export type { SourceHistoryDecision } from "@molis-ai/molis-work-contracts/modules/sources";
 
 /** Existing local read projection. These are owner-derived views, never a second store. */
@@ -63,18 +63,8 @@ export interface FeedSnapshot {
   /** Canonical attention state; entries reference facts or internal objects and never copy message bodies. */
   inbox_entries: InboxEntryRecord[];
   runs: FeedSourceRunRecord[];
-  import_receipts: FeedImportReceiptRecord[];
   contract_migrations: FeedContractMigrationReceiptRecord[];
   out_rules: FeedOutRuleRecord[];
-}
-
-export interface RelayImportAvailability {
-  path: string;
-  available: boolean;
-  source_count: number;
-  item_count: number;
-  material_count: number;
-  error: string | null;
 }
 
 const FEED_SOURCE_KINDS = new Set([

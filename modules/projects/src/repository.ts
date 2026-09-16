@@ -317,7 +317,7 @@ export function createProjectsSchema(db: ProjectsSqliteDatabase): void {
       ON projects(display_name COLLATE NOCASE, project_id);
     CREATE TABLE IF NOT EXISTS project_plugins (
       project_id TEXT NOT NULL REFERENCES projects(project_id) ON DELETE CASCADE,
-      plugin_id TEXT NOT NULL CHECK (plugin_id IN ('goals', 'sessions', 'inbox', 'feed', 'artifacts')),
+      plugin_id TEXT NOT NULL CHECK (plugin_id IN ('goals', 'task', 'sessions', 'inbox', 'feed', 'artifacts')),
       added_at TEXT NOT NULL,
       PRIMARY KEY (project_id, plugin_id)
     );
@@ -378,7 +378,7 @@ export function migrateProjectInboxPluginSchema(db: ProjectsSqliteDatabase): voi
   db.exec(`
     CREATE TABLE project_plugins_inbox_next (
       project_id TEXT NOT NULL REFERENCES projects(project_id) ON DELETE CASCADE,
-      plugin_id TEXT NOT NULL CHECK (plugin_id IN ('goals', 'sessions', 'inbox', 'feed', 'artifacts')),
+      plugin_id TEXT NOT NULL CHECK (plugin_id IN ('goals', 'task', 'sessions', 'inbox', 'feed', 'artifacts')),
       added_at TEXT NOT NULL,
       PRIMARY KEY (project_id, plugin_id)
     );
@@ -387,6 +387,22 @@ export function migrateProjectInboxPluginSchema(db: ProjectsSqliteDatabase): voi
     ALTER TABLE project_plugins_inbox_next RENAME TO project_plugins;
     INSERT OR IGNORE INTO project_plugins (project_id, plugin_id, added_at)
     SELECT project_id, 'inbox', added_at FROM project_plugins WHERE plugin_id = 'feed';
+  `);
+}
+
+export function migrateProjectTaskPluginSchema(db: ProjectsSqliteDatabase): void {
+  db.exec(`
+    CREATE TABLE project_plugins_task_next (
+      project_id TEXT NOT NULL REFERENCES projects(project_id) ON DELETE CASCADE,
+      plugin_id TEXT NOT NULL CHECK (plugin_id IN ('goals', 'task', 'sessions', 'inbox', 'feed', 'artifacts')),
+      added_at TEXT NOT NULL,
+      PRIMARY KEY (project_id, plugin_id)
+    );
+    INSERT INTO project_plugins_task_next SELECT project_id, plugin_id, added_at FROM project_plugins;
+    DROP TABLE project_plugins;
+    ALTER TABLE project_plugins_task_next RENAME TO project_plugins;
+    INSERT OR IGNORE INTO project_plugins (project_id, plugin_id, added_at)
+    SELECT project_id, 'task', added_at FROM project_plugins WHERE plugin_id = 'goals';
   `);
 }
 

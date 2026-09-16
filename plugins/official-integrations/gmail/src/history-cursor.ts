@@ -1,7 +1,7 @@
 /**
  * Gmail live-sync cursor protocol — pure, versioned, privacy-safe.
  *
- * Freezes how Relay interprets a persisted connector cursor and how one
+ * Freezes how Molis Work interprets a persisted connector cursor and how one
  * bounded history.list page sequence becomes unique message ids + a final
  * cursor candidate. No HTTP, secrets, DB writes, or Item mutations.
  *
@@ -423,7 +423,7 @@ type HistoryChangeMessage = { message?: { id?: unknown } };
 /**
  * Collect unique message ids from named Gmail history change fields only.
  * Ignores the generic `messages` array (it duplicates specific change rows).
- * Does not surface deletions — Relay must not delete Items in this protocol.
+ * Does not surface deletions — Feed items are not deleted by this protocol.
  */
 export function collectGmailHistoryMessageIds(history: unknown): string[] {
   if (!Array.isArray(history)) return [];
@@ -453,9 +453,9 @@ export function collectGmailHistoryMessageIds(history: unknown): string[] {
   for (const record of history) {
     if (!isPlainObject(record)) continue;
     // Named change types only:
-    // - messagesAdded / labelsAdded → candidate ids for Relay ingest
+    // - messagesAdded / labelsAdded → candidate ids for Feed ingest
     // - messages (generic) → ignored (duplicates the specific arrays)
-    // - messagesDeleted → ignored (this milestone never deletes Relay Items)
+    // - messagesDeleted → ignored (this milestone never deletes Feed items)
     takeFromChanges(record.messagesAdded);
     takeFromChanges(record.labelsAdded);
   }

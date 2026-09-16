@@ -8,7 +8,6 @@ import { createLocalFeedConnectorService } from "./feed-connector-service.js";
 import { createLocalFeedSourceService, listFeedSourceCatalog } from "./feed-source-service.js";
 import { createLocalFeedGoalPromotion } from "./feed-goal-promotion.js";
 import { hydrateFeedItemContent, hydrateFeedSnapshotContent } from "./feed-content.js";
-import { detectRelayImport, importRelayData } from "./relay-import.js";
 
 export interface FeedNativePluginHttpOptions {
   readonly renderer: Pick<WorkbenchRenderer, "renderFeedWorkbenchFragment" | "renderPersistedFeedItemDetail">;
@@ -58,8 +57,7 @@ function createHandlers(options: FeedNativePluginHttpOptions) {
     connectors: () => createLocalFeedConnectorService(options.store.db, options.boardId),
     changed: () => options.invalidateWebView(),
     hydrateItem: hydrateFeedItemContent, hydrateSnapshot: hydrateFeedSnapshotContent,
-    sourceCatalog: listFeedSourceCatalog, detectRelayImport,
-    importRelay: (feed) => importRelayData(feed, options.boardId, undefined, { migrateOwnership: true }),
+    sourceCatalog: listFeedSourceCatalog,
     renderWorkbench: () => options.renderer.renderFeedWorkbenchFragment(options.readWebView()),
     renderDetail: (item, detail) => options.renderer.renderPersistedFeedItemDetail(item, options.routePrefix, detail),
     promote: (feed, input) => createLocalFeedGoalPromotion(options.store.db, options.coordinator.goalEvents.createIntent.bind(options.coordinator.goalEvents), options.coordinator.goalInputs, feed)(input),

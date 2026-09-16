@@ -1,5 +1,5 @@
 /**
- * Molis Work-owned public RSS catalog, migrated from Relay.
+ * Molis Work-owned public RSS catalog.
  *
  * Base list comes from `@adeptify/search-evidence-layer` MEDIA_FEED_SOURCES.
  * We append additional working public feeds, attach categories, and honest

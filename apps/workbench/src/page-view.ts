@@ -1,5 +1,6 @@
 import type { BoardSnapshot, GoalPresentationState as WebGoalStatus, GoalsDocumentView as WebGoalView, GoalsCoverageItem as WebCoverageItem, GoalsInputBinding as WebInputBinding, GoalsPolicyBinding as WebPolicyBinding, GoalsDecisionEvent as WebEventRecord } from "@molis-ai/molis-work-plugin-goals";
-import type { FeedSnapshot, RelayImportAvailability, FeedSourceCatalogView, FeedUiModel } from "@molis-ai/molis-work-plugin-feed";
+import type { FeedSnapshot, FeedSourceCatalogView, FeedUiModel } from "@molis-ai/molis-work-plugin-feed";
+import type { TaskRecord } from "@molis-ai/molis-work-contracts/modules/task";
 import type { WebProjectNavigation } from "./settings-navigation.js";
 export interface MolisWorkWebView {
   enabled_plugins?: import("@molis-ai/molis-work-contracts/modules/projects").BuiltinProjectPluginId[];
@@ -19,7 +20,7 @@ export interface MolisWorkWebView {
   policy_bindings: WebPolicyBinding[];
   events: WebEventRecord[];
   feed: FeedSnapshot;
-  relay_import: RelayImportAvailability;
   feed_source_catalog?: FeedSourceCatalogView[];
   feed_connector_auth?: FeedUiModel["connector_auth"];
+  tasks?: TaskRecord[];
 }

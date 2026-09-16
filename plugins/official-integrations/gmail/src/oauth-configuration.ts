@@ -8,7 +8,7 @@ export function createGmailOAuthConfiguration(ports: GmailOAuthPorts) {
   }
 
   /**
-   * Relay Gmail OAuth must complete on a local loopback HTTP origin only.
+   * Gmail OAuth must complete on a local loopback HTTP origin only.
    * Rejects https, non-loopback hosts, and non-callback paths.
    * Kept strict for the legacy single-account local path.
    */

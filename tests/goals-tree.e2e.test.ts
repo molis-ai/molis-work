@@ -43,7 +43,7 @@ test("Goals tree supports real collapse, search, status filtering and detail sel
   await waitFor("document.querySelector('[data-global-search-dialog]')?.open !== true");
   assert.equal(await evaluate(dom(".desktop-goal-directory .tree-search")), null);
 
-  await click(".tree-pane [data-global-search-open]");
+  await click("[data-global-search-open]");
   await waitFor("document.querySelector('[data-global-search-dialog]')?.open === true");
   const coreTitle = before.goals.find(goal => goal.goal_id === "CORE")!.title;
   await evaluate("(()=>{const input=document.querySelector('[data-global-search]');input.focus();input.value=" + JSON.stringify(coreTitle) + ";input.dispatchEvent(new Event('input',{bubbles:true}));})()");
@@ -80,7 +80,7 @@ test("Goals tree supports real collapse, search, status filtering and detail sel
   await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
   await click("[data-directory-show]");
   await waitFor("document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')");
-  await click(".tree-pane [data-global-search-open]");
+  await click("[data-global-search-open]");
   await waitFor("document.querySelector('[data-global-search-dialog]')?.open === true");
   assert.equal(await evaluate("document.activeElement.matches('[data-global-search]')"), true);
   assert.equal(await evaluate("document.documentElement.scrollWidth > innerWidth"), false);

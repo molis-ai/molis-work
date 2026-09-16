@@ -1,31 +1,76 @@
 /** The canvas composition belongs to Workbench; Goal and Work keep their own content. */
 export const GOAL_CANVAS_STYLES = `
-  .immersive-plugin-stage > .goal-canvas-shell, .tab-pane-body > .goal-canvas-shell { position: absolute; inset: 0; min-width: 0; min-height: 0; overflow: hidden; overscroll-behavior: contain; background: var(--canvas); }
+  .immersive-plugin-stage > .goal-canvas-shell, .tab-pane-body > .goal-canvas-shell { position: absolute; inset: 0; min-width: 0; min-height: 0; overflow: hidden; overscroll-behavior: contain; background: var(--canvas); container: goal-board / inline-size; }
   .goal-canvas-shell [hidden] { display: none !important; }
   .goal-canvas-shell .goal-canvas-map { position: absolute; inset: 0; width: 100%; height: 100%; display: block; padding: 0; margin: 0; overflow: hidden; background: transparent; }
-  .goal-canvas-shell .goal-kanban { position: absolute; inset: 0; display: none; overflow-x: auto; overflow-y: hidden; overscroll-behavior: contain; background: var(--canvas); }
+  .goal-canvas-shell .goal-kanban { position: absolute; inset: 0; display: none; overflow-x: auto; overflow-y: hidden; overscroll-behavior: contain; background: var(--canvas); scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
   .goal-canvas-shell[data-board-view="kanban"] > [data-goal-kanban] { display: flex; position: absolute; inset: 0; width: 100%; height: 100%; }
   .goal-canvas-shell[data-board-view="kanban"] > [data-goal-momentum] { display: none !important; }
-  .goal-kanban-board { display: flex; align-items: stretch; gap: 16px; box-sizing: border-box; min-width: min-content; flex: 1; min-height: 0; height: 100%; padding: 60px 24px 24px; }
-  .goal-kanban-column { flex: 0 0 252px; width: 252px; min-width: 252px; height: 100%; display: flex; flex-direction: column; min-height: 0; background: transparent; border: 0; border-radius: 0; }
-  .goal-kanban-column h2 { display: flex; align-items: center; gap: 8px; margin: 0 2px 12px; padding: 0 0 12px; border-bottom: 1px solid var(--line); font-size: 12px; font-weight: 550; color: var(--ink); }
-  .goal-kanban-count { color: var(--muted); font-size: 11px; font-weight: 450; font-variant-numeric: tabular-nums; }
-  .goal-kanban-empty { margin: 0; padding: 16px 12px; border: 1px dashed var(--line); border-radius: 8px; color: var(--muted); font-size: 12px; }
-  .goal-kanban-column [data-kanban-cards] { flex: 1; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 8px; padding: 2px 2px 12px; }
-  .goal-kanban-card { box-shadow: var(--surface-shadow); transition: border-color var(--motion-fast), background-color var(--motion-fast); flex: none; display: grid; gap: 5px; padding: 10px; background: var(--paper); color: var(--ink); border: 1px solid var(--line); border-radius: 10px; text-align: left; cursor: pointer; }
+  .goal-kanban-board { display: flex; align-items: stretch; gap: 8px; box-sizing: border-box; min-width: 0; flex: 1; min-height: 0; height: 100%; width: 100%; padding: 52px 12px 12px; }
+  .goal-kanban-column { flex: 1 1 0; width: auto; min-width: 0; height: 100%; display: flex; flex-direction: column; min-height: 0; overflow: hidden; position: relative; background: transparent; border: 0; border-radius: 0; }
+  .goal-kanban-column > details { display: block; height: 100%; min-height: 0; overflow: hidden; }
+  .goal-kanban-column > details > summary { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; padding: 0 0 8px; border-bottom: 1px solid var(--line); font-size: 13px; font-weight: 500; letter-spacing: -.011em; color: var(--ink); list-style: none; cursor: default; pointer-events: none; user-select: none; }
+  .goal-kanban-column > details > summary::-webkit-details-marker, .goal-kanban-column > details > summary::marker { display: none; }
+  .goal-kanban-chevron { display: none; width: 16px; height: 16px; color: var(--muted); flex: none; place-items: center; }
+  .goal-kanban-chevron svg { display: block; width: 12px; height: 12px; }
+  .goal-kanban-status { width: 16px; height: 16px; display: grid; place-items: center; flex: none; color: var(--ink-soft); }
+  .goal-kanban-status svg { display: block; width: 16px; height: 16px; overflow: visible; }
+  .goal-kanban-column[data-kanban-column="continue"] .goal-kanban-status { color: var(--ink-soft); }
+  .goal-kanban-column[data-kanban-column="in_progress"] .goal-kanban-status { color: var(--blue); }
+  .goal-kanban-column[data-kanban-column="waiting_user"] .goal-kanban-status { color: var(--blue-dark); }
+  .goal-kanban-column[data-kanban-column="waiting"] .goal-kanban-status { color: var(--faint); }
+  .goal-kanban-column[data-kanban-column="blocked"] .goal-kanban-status { color: var(--red); }
+  .goal-kanban-column[data-kanban-column="completed"] .goal-kanban-status { color: var(--green); }
+  .goal-kanban-card > .goal-kanban-status { display: none; }
+  .goal-kanban-group-name { min-width: 0; white-space: nowrap; }
+  .goal-kanban-count { color: var(--muted); font-size: 12px; font-weight: 400; font-variant-numeric: tabular-nums; flex: none; }
+  .goal-kanban-empty { margin: 0; padding: 8px 10px; border: 1px dashed var(--line); border-radius: 6px; color: var(--muted); font-size: 12px; }
+  .goal-kanban-column [data-kanban-cards] { position: absolute; inset: 36px 0 0; flex: none; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 6px; padding: 0 0 8px; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+  .goal-kanban-card { transition: border-color var(--motion-fast), background-color var(--motion-fast); flex: none; display: grid; gap: 3px; min-width: 0; padding: 8px 9px; background: var(--paper); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; text-align: left; cursor: pointer; }
   .goal-kanban-card:hover { border-color: color-mix(in srgb, var(--ink) 22%, var(--line)); }
   .goal-kanban-card.is-selected { border-color: var(--blue); }
   .goal-kanban-card.is-complete strong { color: color-mix(in srgb, var(--ink) 82%, var(--muted)); }
-  .goal-kanban-card strong { font-size: 14px; line-height: 1.35; font-weight: 620; letter-spacing: -.014em; overflow-wrap: anywhere; }
-  .goal-kanban-card-outcome { color: color-mix(in srgb, var(--ink) 78%, var(--muted)); font-size: 12px; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-  .goal-kanban-card small { color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .goal-kanban-card > .goal-status { display: inline-flex; align-items: center; gap: 6px; width: max-content; padding: 0; border: 0; background: transparent; font-size: 11px; font-weight: 550; }
-  .goal-kanban-card > .goal-status svg { display: none; }
-  .goal-kanban-card > .goal-status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
+  .goal-kanban-card strong { font-size: 13px; line-height: 1.3; font-weight: 550; letter-spacing: -.012em; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .goal-kanban-card-outcome { color: color-mix(in srgb, var(--ink) 78%, var(--muted)); font-size: 12px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .goal-kanban-card-meta { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .goal-kanban-card-meta small { min-width: 0; color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  body.immersive-workbench .goal-kanban-card .goal-status { display: inline-flex; align-items: center; gap: 5px; width: max-content; max-width: 100%; min-height: 0; padding: 0; border: 0; border-radius: 0; background: transparent; font-size: 11px; font-weight: 550; }
+  body.immersive-workbench .goal-kanban-card .goal-status svg { display: none; }
+  body.immersive-workbench .goal-kanban-card .goal-status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
   .goal-kanban-card:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+  @container goal-board (max-width: 839px) {
+    .goal-canvas-shell .goal-kanban,
+    .goal-canvas-shell[data-board-view="kanban"] > [data-goal-kanban] { display: block; overflow-x: hidden; overflow-y: auto; background: var(--paper); }
+    .goal-kanban-board { flex-direction: column; align-items: stretch; gap: 6px; min-width: 0; flex: none; width: auto; height: auto; min-height: 100%; margin: 0; padding: 44px 12px 24px; background: transparent; border: 0; border-radius: 0; }
+    .goal-kanban-column { flex: none; width: auto; min-width: 0; max-width: 100%; height: auto; overflow: visible; }
+    .goal-kanban-column > details { display: block; height: auto; overflow: visible; }
+    .goal-kanban-column > details[open] { padding-bottom: 2px; }
+    .goal-kanban-chevron { display: grid; transition: transform 140ms cubic-bezier(.16, 1, .3, 1); transform-origin: 50% 50%; }
+    @media (prefers-reduced-motion: reduce) { .goal-kanban-chevron { transition: none; } }
+    .goal-kanban-column > details[open] > summary .goal-kanban-chevron { transform: rotate(90deg); }
+    .goal-kanban-column > details > summary { display: flex; width: 100%; max-width: none; height: 32px; min-height: 32px; margin: 0; padding: 0 10px 0 8px; gap: 8px; border: 0; border-radius: 6px; font-size: 13px; font-weight: 500; color: var(--ink-soft); background: transparent; cursor: pointer; pointer-events: auto; }
+    .goal-kanban-column > details[open] > summary { background: color-mix(in srgb, var(--ink) 4.5%, transparent); }
+    .goal-kanban-column > details > summary:hover { background: color-mix(in srgb, var(--ink) 6.5%, transparent); }
+    .goal-kanban-column > details > summary:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+    .goal-kanban-group-name { color: var(--ink-soft); }
+    .goal-kanban-count { color: var(--faint); font-size: 13px; font-weight: 400; }
+    .goal-kanban-column [data-kanban-cards] { position: static; inset: auto; overflow: visible; gap: 0; padding: 2px 0 0; height: auto; }
+    .goal-kanban-empty { display: none; }
+    .goal-kanban-card > .goal-kanban-status { display: grid; }
+    .goal-kanban-card { display: grid; grid-template-columns: 16px minmax(0, 1fr); align-items: center; gap: 8px; height: 36px; min-height: 36px; padding: 0 10px 0 32px; background: transparent; border: 0; border-radius: 6px; }
+    .goal-kanban-card:hover { background: color-mix(in srgb, var(--ink) 4.5%, transparent); border-color: transparent; }
+    .goal-kanban-card.is-selected { background: color-mix(in srgb, var(--ink) 7%, transparent); border-color: transparent; }
+    .goal-kanban-card.is-complete strong { color: color-mix(in srgb, var(--ink) 48%, var(--muted)); }
+    .goal-kanban-card-outcome,
+    .goal-kanban-card-meta { display: none; }
+    .goal-kanban-card strong { grid-column: 2; grid-row: 1; display: block; font-size: 13px; font-weight: 400; line-height: 20px; letter-spacing: -.011em; color: var(--ink); white-space: nowrap; text-overflow: ellipsis; -webkit-line-clamp: unset; -webkit-box-orient: unset; overflow: hidden; }
+    .goal-kanban-card:focus-visible { outline-offset: 0; }
+  }
   @media (max-width: 760px) {
-    .goal-kanban-board { padding: 44px 14px 14px; gap: 10px; }
-    .goal-kanban-column { flex: 0 0 228px; width: 228px; min-width: 228px; }
+    @container goal-board (max-width: 839px) {
+      .goal-kanban-board { padding: 40px 8px 16px; }
+      .goal-kanban-column > details > summary, .goal-kanban-card { height: 44px; min-height: 44px; }
+    }
   }
   .goal-canvas-viewport { position: absolute; inset: 0; overflow: hidden; touch-action: none; cursor: grab; background-image: radial-gradient(circle, color-mix(in srgb, var(--muted) 36%, transparent) .9px, transparent 1px); background-size: 22px 22px; }
   .goal-canvas-viewport.is-panning { cursor: grabbing; user-select: none; }

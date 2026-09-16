@@ -896,7 +896,6 @@ export const PERSONAL_WORKBENCH_V3_STYLES = `  /* Personal workbench v3: one dir
     }
     body[data-desktop-shell="true"] .feed-directory:not([hidden]) { display: grid; }
     body[data-desktop-shell="true"] .feed-directory-heading { grid-template-columns: 24px minmax(0, 1fr) 24px; }
-    body[data-desktop-shell="true"] .feed-directory-heading .feed-import-trigger svg { transform: none; }
     body[data-desktop-shell="true"] .feed-directory-tools {
       padding: 2px 6px 8px;
       display: grid;
@@ -1123,23 +1122,6 @@ export const PERSONAL_WORKBENCH_V3_STYLES = `  /* Personal workbench v3: one dir
     body[data-desktop-shell="true"] .feed-decision-work > header > div { display: grid; gap: 4px; }
     body[data-desktop-shell="true"] .feed-decision-work > header > div > span, body[data-desktop-shell="true"] .feed-decision-work > header > small { color: var(--faint); font-size: 9px; }
 
-    body[data-desktop-shell="true"] .feed-import-dialog { width: min(92vw, 470px); padding: 0; border: 0; border-radius: 16px; color: var(--ink); background: var(--paper); box-shadow: 0 24px 70px color-mix(in srgb, var(--shadow-color) 76%, transparent); }
-    body[data-desktop-shell="true"] .feed-import-dialog::backdrop { background: color-mix(in srgb, #08090c 58%, transparent); }
-    body[data-desktop-shell="true"] .feed-import-dialog form { padding: 20px; display: grid; gap: 16px; }
-    body[data-desktop-shell="true"] .feed-import-dialog header { display: grid; grid-template-columns: 30px minmax(0, 1fr) 28px; gap: 9px; align-items: start; }
-    body[data-desktop-shell="true"] .feed-import-dialog header > span { width: 30px; height: 30px; border-radius: 9px; color: var(--blue-dark); background: color-mix(in srgb, var(--blue) 10%, var(--paper)); display: grid; place-items: center; }
-    body[data-desktop-shell="true"] .feed-import-dialog h2, body[data-desktop-shell="true"] .feed-import-dialog p { margin: 0; }
-    body[data-desktop-shell="true"] .feed-import-dialog h2 { font-size: 16px; }
-    body[data-desktop-shell="true"] .feed-import-dialog p { color: var(--muted); font-size: 10px; line-height: 1.55; }
-    body[data-desktop-shell="true"] .feed-import-dialog header button { width: 28px; height: 28px; padding: 0; border: 0; border-radius: 7px; color: var(--faint); background: transparent; display: grid; place-items: center; }
-    body[data-desktop-shell="true"] .feed-import-dialog dl { margin: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
-    body[data-desktop-shell="true"] .feed-import-dialog dl div { padding: 10px; border-radius: 10px; background: color-mix(in srgb, var(--rail) 62%, var(--paper)); }
-    body[data-desktop-shell="true"] .feed-import-dialog dt { color: var(--faint); font-size: 8px; }
-    body[data-desktop-shell="true"] .feed-import-dialog dd { margin: 3px 0 0; color: var(--ink); font-size: 17px; font-weight: 720; }
-    body[data-desktop-shell="true"] .feed-import-dialog footer { display: flex; justify-content: flex-end; gap: 7px; }
-    body[data-desktop-shell="true"] .feed-import-dialog footer button { min-height: 32px; padding: 0 11px; border: 0; border-radius: 8px; color: var(--ink-soft); background: color-mix(in srgb, var(--rail) 64%, var(--paper)); font-size: 10px; font-weight: 680; }
-    body[data-desktop-shell="true"] .feed-import-dialog footer .button-primary { color: var(--paper); background: var(--blue-dark); }
-
   }
 
     body[data-desktop-shell="true"] .feed-source-dialog { width: min(94vw, 820px); height: min(90vh, 860px); max-height: min(90vh, 860px); padding: 0; overflow: hidden; border: 0; border-radius: 18px; color: var(--ink); background: var(--paper); box-shadow: 0 28px 90px color-mix(in srgb, var(--shadow-color) 78%, transparent); }
@@ -1154,7 +1136,7 @@ export const PERSONAL_WORKBENCH_V3_STYLES = `  /* Personal workbench v3: one dir
     body[data-desktop-shell="true"] .feed-source-dialog-scroll { min-height: 0; padding: 2px 22px 24px; overflow-y: auto; }
     body[data-desktop-shell="true"] .feed-source-section { padding: 20px 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 62%, transparent); }
     body[data-desktop-shell="true"] .feed-source-section-title { margin-bottom: 11px; display: flex; align-items: end; justify-content: space-between; gap: 14px; }
-    body[data-desktop-shell="true"] .feed-source-section-title h3, body[data-desktop-shell="true"] .feed-relay-migration h3 { margin: 0; color: var(--ink); font-size: 14px; }
+    body[data-desktop-shell="true"] .feed-source-section-title h3 { margin: 0; color: var(--ink); font-size: 14px; }
     body[data-desktop-shell="true"] .feed-source-section-title small { color: var(--faint); font-size: 9px; }
     body[data-desktop-shell="true"] .feed-source-list { display: grid; gap: 6px; }
     body[data-desktop-shell="true"] .feed-source-row { min-width: 0; padding: 11px; border-radius: 11px; background: color-mix(in srgb, var(--rail) 54%, var(--paper)); display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: start; gap: 9px; }
@@ -1171,7 +1153,7 @@ export const PERSONAL_WORKBENCH_V3_STYLES = `  /* Personal workbench v3: one dir
     body[data-desktop-shell="true"] .feed-source-dialog button:hover:not(:disabled) { color: var(--blue-dark); background: color-mix(in srgb, var(--blue) 10%, var(--paper)); }
     body[data-desktop-shell="true"] .feed-source-dialog button:focus-visible, body[data-desktop-shell="true"] .feed-source-dialog summary:focus-visible { outline: 2px solid color-mix(in srgb, var(--blue) 64%, transparent); outline-offset: 2px; }
     body[data-desktop-shell="true"] .feed-source-dialog button:disabled { opacity: .45; cursor: default; }
-    body[data-desktop-shell="true"] .feed-source-actions button:first-child svg, body[data-desktop-shell="true"] .feed-relay-migration > button svg { width: 10px; height: 10px; }
+    body[data-desktop-shell="true"] .feed-source-actions button:first-child svg { width: 10px; height: 10px; }
     body[data-desktop-shell="true"] .feed-source-empty { margin: 0; padding: 14px; border-radius: 10px; color: var(--muted); background: color-mix(in srgb, var(--rail) 48%, transparent); font-size: 10px; }
     body[data-desktop-shell="true"] .feed-source-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
     body[data-desktop-shell="true"] .feed-source-form { min-width: 0; padding: 10px; border-radius: 10px; background: color-mix(in srgb, var(--rail) 48%, var(--paper)); display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 7px; }
@@ -1190,9 +1172,6 @@ export const PERSONAL_WORKBENCH_V3_STYLES = `  /* Personal workbench v3: one dir
     body[data-desktop-shell="true"] .feed-connector-card details[open] summary { margin-bottom: 8px; }
     body[data-desktop-shell="true"] .feed-connector-card details label + label { margin-top: 7px; }
     body[data-desktop-shell="true"] .feed-connector-card details > button, body[data-desktop-shell="true"] .feed-connector-card details > .feed-connector-actions { margin-top: 8px; }
-    body[data-desktop-shell="true"] .feed-relay-migration { border-bottom: 0; display: flex; align-items: center; justify-content: space-between; gap: 18px; }
-    body[data-desktop-shell="true"] .feed-relay-migration p { max-width: 62ch; margin: 5px 0 0; color: var(--muted); font-size: 9px; line-height: 1.5; }
-    body[data-desktop-shell="true"] .feed-relay-migration > button { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px; }
     body[data-desktop-shell="true"] .feed-source-progress, body[data-desktop-shell="true"] .feed-source-dialog .form-error { position: sticky; bottom: 0; margin: 0; padding: 9px 11px; border-radius: 8px; font-size: 9px; }
     body[data-desktop-shell="true"] .feed-source-progress { color: var(--blue-dark); background: color-mix(in srgb, var(--blue) 10%, var(--paper)); }
     body[data-desktop-shell="true"] .feed-source-dialog .form-error { color: var(--danger); background: color-mix(in srgb, var(--danger) 8%, var(--paper)); }
@@ -1206,7 +1185,6 @@ export const PERSONAL_WORKBENCH_V3_STYLES = `  /* Personal workbench v3: one dir
       body[data-desktop-shell="true"] .feed-source-dialog button { min-height: 36px; }
       body[data-desktop-shell="true"] .feed-source-row { grid-template-columns: 28px minmax(0, 1fr); }
       body[data-desktop-shell="true"] .feed-source-actions { grid-column: 2; }
-      body[data-desktop-shell="true"] .feed-relay-migration { align-items: flex-start; flex-direction: column; }
     }
 
   @media (min-width: 761px) {

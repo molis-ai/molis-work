@@ -41,7 +41,6 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     const feedSourcesDialog = document.querySelector("[data-feed-sources-dialog]");
     const feedSourceError = feedSourcesDialog?.querySelector("[data-feed-source-error]");
     const feedSourceProgress = feedSourcesDialog?.querySelector("[data-feed-source-progress]");
-    const relayImportDialog = document.querySelector("[data-relay-import-dialog]");
     const mobileTreeTab = document.querySelector('[data-mobile-target="tree"]');
     const mobileDocumentTab = document.querySelector('[data-mobile-target="document"]');
     const mobileDirectoryTab = document.querySelector("[data-mobile-directory-root]");

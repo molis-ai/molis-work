@@ -2,7 +2,7 @@ import { createFeedExactRouteResolver } from "@molis-ai/molis-work-plugin-feed";
 /**
  * Embedded Intelligence Client exact path over the shared RSS SearchRuntime.
  *
- * Storage foundation is created lazily on first executeExact so Relay bootstrap
+ * Storage foundation is created lazily on first executeExact so Host bootstrap
  * stays synchronous. Trusted caller context is fixed here — never from the body.
  */
 import {

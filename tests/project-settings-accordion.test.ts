@@ -100,17 +100,8 @@ test("workbench project gear links to the standalone settings path", () => {
       feed_items: [],
       inbox_entries: [],
       runs: [],
-      import_receipts: [],
       contract_migrations: [],
       out_rules: [],
-    },
-    relay_import: {
-      path: "",
-      available: false,
-      source_count: 0,
-      item_count: 0,
-      material_count: 0,
-      error: null,
     },
   } as MolisWorkWebView);
   assert.match(html, /class="navigator-project-settings" href="\/projects\/project-1\/settings"/);

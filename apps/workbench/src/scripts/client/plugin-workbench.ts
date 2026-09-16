@@ -208,7 +208,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     event.preventDefault();
     if (link.closest("[data-frame-block]")) { event.preventDefault(); return; }
     setSurface("artifacts");
-    openTabItem?.("artifacts", url.pathname, link.textContent?.trim());
+    openTabItem?.("artifacts", url.pathname, link.textContent?.trim(), (matchMedia("(pointer: coarse)").matches || matchMedia("(max-width: 760px)").matches || event.detail !== 1) ? "commit" : "preview");
     void loadArtifacts(url.pathname);
     if (matchMedia("(max-width: 600px)").matches) setMobileView(url.pathname === base ? "tree" : "document");
   });

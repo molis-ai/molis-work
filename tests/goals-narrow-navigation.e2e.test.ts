@@ -50,7 +50,7 @@ const SNAPSHOT = `(() => {
     graph: measure(document.querySelector(".goal-momentum")),
     hit: hit(center.x, center.y),
     searchVisible: (() => {
-      const search = document.querySelector(".tree-pane [data-global-search-open]");
+      const search = document.querySelector("[data-global-search-open]");
       if (!search) return false;
       const rect = search.getBoundingClientRect();
       return getComputedStyle(search).display !== "none" && rect.width > 0 && rect.height > 0;

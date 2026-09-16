@@ -27,13 +27,15 @@ test("opening the same plugin again only activates the mother tab", () => {
   assert.equal(ops.focused(state).tabs.filter((tab) => tab.plugin === "goals" && tab.kind === "mother").length, 1);
 });
 
-test("an item tab shares the plugin group and can sit beside the mother tab", () => {
+test("an item tab sits beside the mother tab without a plugin group", () => {
   const state = ops.create();
   ops.openPlugin(state, "goals");
   ops.openItem(state, "goals", "goal-1", "发布");
   const pane = ops.focused(state);
   assert.equal(pane.tabs.filter((tab) => tab.plugin === "goals").length, 2);
   assert.equal(ops.activeTab(state)?.itemId, "goal-1");
+  assert.equal(pane.groups.length, 0);
+  assert.equal(pane.tabs.some((tab) => tab.groupId), false);
 });
 
 test("closing the last tab in the workspace restores home", () => {
@@ -151,4 +153,88 @@ test('pinning keeps tabs first without duplicates and survives moving, copying a
   ops.ensureHome(restored);
   assert.equal(ops.activeTab(restored)?.itemId, 'CORE');
   assert.equal(ops.activeTab(restored)?.pinned, false);
+});
+
+test("preview reuses one tab and commit keeps the same id", () => {
+  const state = ops.create();
+  const canvas = ops.openPlugin(state, "goals", "preview");
+  assert.equal(canvas.preview, true);
+  assert.equal(ops.countTabs(state), 2);
+  const goal = ops.openItem(state, "goals", "goal-1", "发布", "preview");
+  assert.equal(goal.id, canvas.id);
+  assert.equal(goal.kind, "item");
+  assert.equal(goal.preview, true);
+  assert.equal(ops.focused(state).tabs.filter((tab) => tab.preview).length, 1);
+  const committed = ops.openItem(state, "goals", "goal-1", "发布", "commit");
+  assert.equal(committed.id, goal.id);
+  assert.equal(committed.preview, false);
+  const other = ops.openItem(state, "goals", "goal-2", "下一个", "preview");
+  assert.notEqual(other.id, committed.id);
+  assert.equal(other.preview, true);
+  assert.equal(ops.focused(state).tabs.filter((tab) => tab.plugin === "goals").length, 2);
+});
+
+test("previewing an already committed tab only activates it", () => {
+  const state = ops.create();
+  ops.openItem(state, "goals", "goal-1", "发布");
+  ops.openPlugin(state, "sessions");
+  const again = ops.openItem(state, "goals", "goal-1", "发布", "preview");
+  assert.equal(again.preview, false);
+  assert.equal(again.itemId, "goal-1");
+  assert.equal(ops.focused(state).tabs.filter((tab) => tab.itemId === "goal-1").length, 1);
+});
+
+test("manual groups stay contiguous, collapse is recorded, and pinning leaves the group", () => {
+  const state = ops.create();
+  const home = ops.activeTab(state);
+  const goal = ops.openItem(state, "goals", "CORE", "Core");
+  ops.openPlugin(state, "sessions");
+  const pane = ops.focused(state);
+  ops.addTabToNewGroup(state, pane.id, goal.id);
+  assert.equal(pane.groups.length, 1);
+  ops.addTabToGroup(state, pane.id, home.id, pane.groups[0].id);
+  const grouped = pane.tabs.filter((tab) => tab.groupId === pane.groups[0].id);
+  assert.equal(grouped.length, 2);
+  assert.equal(pane.tabs.indexOf(grouped[1]), pane.tabs.indexOf(grouped[0]) + 1);
+  ops.toggleGroup(state, pane.id, pane.groups[0].id);
+  assert.equal(pane.groups[0].collapsed, true);
+  ops.togglePinned(state, pane.id, goal.id);
+  assert.equal(goal.pinned, true);
+  assert.equal(goal.groupId, undefined);
+  assert.equal(pane.tabs[0].id, goal.id);
+});
+
+test("split copies do not keep the source group", () => {
+  const state = ops.create();
+  const goal = ops.openItem(state, "goals", "CORE", "Core");
+  ops.addTabToNewGroup(state, state.focusedPaneId, goal.id);
+  ops.splitPane(state, state.focusedPaneId, "right", "copy");
+  const copy = ops.activeTab(state);
+  assert.equal(copy.groupId, undefined);
+  assert.equal(ops.focused(state).groups.length, 0);
+  assert.equal(state.panes[0].groups.length, 1);
+});
+
+test("dropping a tab after a group joins that group", () => {
+  const state = ops.create();
+  const home = ops.activeTab(state);
+  const goal = ops.openItem(state, "goals", "CORE", "Core");
+  const session = ops.openPlugin(state, "sessions");
+  ops.addTabToNewGroup(state, state.focusedPaneId, goal.id);
+  ops.moveTab(state, state.focusedPaneId, session.id, state.focusedPaneId, null);
+  assert.equal(session.groupId, goal.groupId);
+  ops.moveTab(state, state.focusedPaneId, session.id, state.focusedPaneId, home.id);
+  assert.equal(session.groupId, undefined);
+});
+
+test("old plugin collapsed maps are discarded and not restored as user groups", () => {
+  const state = ops.create();
+  ops.openPlugin(state, "goals");
+  ops.openItem(state, "goals", "CORE", "Core");
+  const pane = ops.focused(state);
+  pane.collapsed = { goals: true };
+  ops.normalizeLayout(state);
+  assert.equal("collapsed" in pane, false);
+  assert.equal(pane.groups.length, 0);
+  assert.equal(pane.tabs.some((tab) => tab.groupId), false);
 });

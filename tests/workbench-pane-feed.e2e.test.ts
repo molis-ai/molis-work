@@ -29,11 +29,13 @@ test("Feed source navigation, independent nested panes, resize and restore", { t
   await click('[data-titlebar-tabs] [data-tab-split]');
   await click('[data-layout-split=right]');
   await waitFor("document.querySelectorAll('iframe.tab-content-frame').length === 2 && [...document.querySelectorAll('iframe.tab-content-frame')].every(f=>f.contentDocument?.querySelector('[data-feed-task-title]')?.textContent==='RSS · Latent Space')");
+  assert.equal(await evaluate("document.querySelector('[data-titlebar-tabs]')?.hidden"), true);
+  assert.equal(await evaluate("[...document.querySelectorAll('[data-tab-pane] [data-tab-strip]')].every(strip => !strip.hidden)"), true);
   const frameSelector = "document.querySelector('iframe.tab-content-frame').contentDocument";
   await evaluate(`{ const field = ${frameSelector}.querySelector('[data-feed-search]'); field.value = 'not found in this source'; field.dispatchEvent(new Event('input',{bubbles:true})); }`);
   assert.equal(await evaluate(`${frameSelector}.querySelector('[data-feed-result-count]').textContent`), "0 个 Item");
   assert.equal(await evaluate("[...document.querySelectorAll('iframe.tab-content-frame')][1].contentDocument.querySelector('[data-feed-result-count]').textContent"), "1 个 Item");
-  await click('[data-titlebar-tabs] [data-tab-split]');
+  await click('.tab-pane.is-focused [data-tab-split]');
   await click('[data-layout-split=bottom]');
   await waitFor("document.querySelectorAll('[data-tab-pane]').length===3 && document.querySelector('[data-direction=column]')");
   assert.equal(await evaluate(`${frameSelector}.querySelector('[data-feed-search]').value`), "not found in this source", "splitting a neighbour must preserve existing content state");
@@ -49,7 +51,7 @@ test("Feed source navigation, independent nested panes, resize and restore", { t
   assert.equal(await evaluate("document.querySelector('[data-direction=row] [data-tab-sash]').getAttribute('aria-valuenow')"), ratio);
   await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: false }, sessionId);
   assert.equal(await evaluate("[...document.querySelectorAll('[data-tab-pane]')].filter(p=>p.getBoundingClientRect().width>0).length"), 1);
-  await click('[data-titlebar-tabs] [data-tab-split]');
+  await click('.tab-pane.is-focused [data-tab-split]');
   await click('[data-focus-pane]');
   assert.equal(await evaluate("document.querySelector('.tab-pane.is-focused').dataset.tabPane===document.querySelector('[data-focus-pane]').dataset.focusPane"), true);
 });

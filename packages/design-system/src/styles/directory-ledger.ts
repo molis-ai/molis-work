@@ -429,8 +429,7 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Unified directory ledger: Goals est
     gap: 6px;
   }
   body[data-desktop-shell="true"] .feed-source-side > .directory-row-state[data-source-status="active"] { color: var(--green); }
-  body[data-desktop-shell="true"] .feed-source-side > .directory-row-state[data-source-status="paused"],
-  body[data-desktop-shell="true"] .feed-source-side > .directory-row-state[data-source-status="imported"] { color: var(--muted); }
+  body[data-desktop-shell="true"] .feed-source-side > .directory-row-state[data-source-status="paused"] { color: var(--muted); }
   body[data-desktop-shell="true"] .feed-source-side > .directory-row-state[data-source-status="error"] { color: var(--red); }
   body[data-desktop-shell="true"] .feed-source-side > .directory-row-state[data-source-status="disconnected"] { color: var(--amber); }
   body[data-desktop-shell="true"] .feed-source-dialog-shell > header h2 { font-size: 21px; }

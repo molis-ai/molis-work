@@ -2,6 +2,7 @@ import { PROJECT_HOME_FACTORY_SCRIPT } from "./project-home.js";
 import { PLUGIN_WORKBENCH_FACTORY_SCRIPT } from "./plugin-workbench.js";
 import { IMMERSIVE_NAVIGATION_FACTORY_SCRIPT } from "./immersive-navigation.js";
 import { GLOBAL_SEARCH_FACTORY_SCRIPT } from "./global-search.js";
+import { SETTINGS_DIRECTORY_FACTORY_SCRIPT } from "./settings-directory.js";
 /** AP3 Workbench client segment: initialization. */
 export const CLIENT_INITIALIZATION_SCRIPT = `    });
 
@@ -18,7 +19,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     pluginWorkbench = (${PLUGIN_WORKBENCH_FACTORY_SCRIPT})({
       route, translate: L, projectId: state.project?.project_id,
       setSurface: surface => { setDesktopDirectory("artifacts", false, false); setDesktopWorkSurface(surface); },
-      openTabItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title),
+      openTabItem: (plugin, id, title, mode) => tabWorkspace?.openItem(plugin, id, title, undefined, mode),
       saveUiState, setMobileView,
     });
     globalSearchPalette = (${GLOBAL_SEARCH_FACTORY_SCRIPT})({
@@ -28,9 +29,12 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       selectGoal: (...args) => selectGoal(...args),
       setMobileView: (...args) => setMobileView(...args),
       noteSearchActivity: (...args) => noteSearchActivity(...args),
-      openTabItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title),
+      openTabItem: (plugin, id, title, mode) => tabWorkspace?.openItem(plugin, id, title, undefined, mode),
+      openTaskForGoal: (goalId, title, mode) => openTaskForGoal(goalId, title, mode),
+      expandDirectory: (id) => setPluginSectionExpanded(id === "sources" ? "feed" : id, true, true),
     });
     projectHome = (${PROJECT_HOME_FACTORY_SCRIPT})({ getState: () => state, translate: L });
+    (${SETTINGS_DIRECTORY_FACTORY_SCRIPT})({ translate: L });
     bindGoalCreateEvents();
     addEventListener("popstate", (event) => {
       if (localPathname() === "/" && !decisionView && !collectionView) {
@@ -128,7 +132,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     );
     if (tabWorkspace) {
       if (directGoalRequested && selected && !restoredNavigation) {
-        tabWorkspace.openItem("goals", selected);
+        void openTaskForGoal(selected, visibleGoals().find((item) => item.goal.goal_id === selected)?.goal.title || selected, "commit");
       }
     } else if (!directGoalRequested && !restoredNavigation && !decisionView && !collectionView) {
       goalWorkspaceMode = "graph";
@@ -145,8 +149,8 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       saveUiState();
     }
     if (directGoalRequested && selected && !restoredNavigation && tabWorkspace) {
-      setDesktopDirectory("goals", false, false);
-      setWorkspaceMode("focus", false);
+      setDesktopDirectory("task", false, false);
+      setWorkspaceMode("graph", false);
       if (matchMedia("(max-width: 760px)").matches) setMobileView("document");
       saveUiState();
     }

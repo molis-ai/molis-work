@@ -5,7 +5,7 @@ export const GOALS_EVENT_DOCUMENT_STYLES = `
   .goal-event-document .goal-header { padding: 10px 18px 12px; flex: none; }
   .goal-event-document .title-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
   .goal-event-document .goal-title-heading { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  .goal-event-document .goal-title-heading h1 { margin: 0; font-size: 21px; line-height: 1.4; letter-spacing: -.02em; font-weight: 650; }
+  .goal-event-document .goal-title-heading h1 { margin: 0; font-size: 16px; line-height: 1.3; letter-spacing: -.02em; font-weight: 550; }
   .goal-event-document .goal-outcome { color: var(--muted); font-size: 12px; margin: 5px 0 0; max-width: 78ch; }
   .goal-event-document .header-actions { display: flex; gap: 7px; flex-wrap: wrap; flex-shrink: 0; }
   .goal-event-document .header-actions > .button { flex: none; white-space: nowrap; }
@@ -72,7 +72,7 @@ export const GOALS_EVENT_DOCUMENT_STYLES = `
   .goal-event-document .event-sheet:focus, .goal-event-document .event-sheet:focus-visible { outline: none; }
   .goal-event-document .timeline-entry:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
   .goal-event-document .event { max-width: 76ch; }
-  .goal-event-document .event h2 { font-size: 22px; font-weight: 630; line-height: 1.5; margin: 0 0 10px; }
+  .goal-event-document .event h2 { font-size: 16px; font-weight: 550; line-height: 1.4; margin: 0 0 6px; }
   .goal-event-document .event-meta { display: flex; flex-wrap: wrap; gap: 7px; color: var(--muted); font-size: 11px; margin: 0 0 18px; }
   .goal-event-document .event p { font-size: 13px; line-height: 1.85; color: var(--ink-soft, var(--muted)); max-width: 76ch; }
   .goal-event-document .no-results { color: var(--muted); font-size: 12px; padding: 24px 16px; }
@@ -114,7 +114,7 @@ export const GOALS_EVENT_DOCUMENT_STYLES = `
   .goal-event-document [data-event-timeline]::-webkit-scrollbar-thumb, .goal-event-document .event-sheet::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--muted) 45%, transparent); border-radius: 99px; }
   @container goal-event-read (max-width: 1100px) {
     .goal-layout { grid-template-columns: 278px minmax(0, 1fr) !important; }
-    .goal-title-heading h1 { font-size: 20px; }
+    .goal-title-heading h1 { font-size: 16px; }
   }
   @container goal-event-read (min-width: 1400px) {
     .goal-layout { grid-template-columns: 326px minmax(0, 1fr) !important; }

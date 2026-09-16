@@ -21,6 +21,8 @@ test("Goal kanban sits beside the canvas, opens the workspace, and remembers the
   await waitFor("document.querySelector('[data-board-view-tab=kanban][aria-current=\"page\"]') && document.querySelector('[data-goal-canvas-shell]')?.dataset.boardView === 'kanban'");
   assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-goal-kanban]')).display !== 'none'"), true);
   assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-goal-momentum]')).display === 'none'"), true);
+  const desktopFit = await evaluate<{ sw: number; cw: number }>("(() => { const el = document.querySelector('[data-goal-kanban]'); return { sw: el?.scrollWidth || 0, cw: el?.clientWidth || 0 }; })()");
+  assert.ok(desktopFit.sw <= desktopFit.cw + 1, "desktop kanban fits six columns without horizontal scroll");
   assert.equal(await evaluate("document.querySelector('[data-kanban-card][data-goal-id=\"" + goalId + "\"]') != null"), true);
   await click('[data-kanban-card][data-goal-id="' + goalId + '"]');
   await waitFor("document.querySelector('[data-goal-node-workspace]')?.dataset.expandedGoal === " + JSON.stringify(goalId));
@@ -59,7 +61,10 @@ test("Goal kanban sits beside the canvas, opens the workspace, and remembers the
   }
   await waitFor("document.querySelector('[data-board-view-tab=kanban][aria-current=\"page\"]') && document.querySelector('[data-goal-canvas-shell]')?.dataset.boardView === 'kanban'");
   await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 2, mobile: true }, sessionId);
-  const overflow = await evaluate<{ board: number; shell: number }>("(() => { const board = document.querySelector('[data-goal-kanban] .goal-kanban-board'); const shell = document.querySelector('[data-goal-kanban]'); return { board: board?.scrollWidth || 0, shell: shell?.clientWidth || 0 }; })()");
-  assert.ok(overflow.board > overflow.shell, "narrow kanban stays a horizontal board");
+  const stacked = await evaluate<{ direction: string; sw: number; cw: number; groups: number; outcome: string }>("(() => { const board = document.querySelector('[data-goal-kanban] .goal-kanban-board'); const shell = document.querySelector('[data-goal-kanban]'); const outcome = document.querySelector('.goal-kanban-card-outcome'); return { direction: getComputedStyle(board).flexDirection, sw: shell?.scrollWidth || 0, cw: shell?.clientWidth || 0, groups: document.querySelectorAll('[data-kanban-group]').length, outcome: outcome ? getComputedStyle(outcome).display : 'none' }; })()");
+  assert.equal(stacked.direction, "column");
+  assert.equal(stacked.groups, 6);
+  assert.equal(stacked.outcome, "none");
+  assert.ok(stacked.sw <= stacked.cw + 1, "narrow kanban stacks groups instead of scrolling sideways");
   assert.deepEqual(store.snapshot(DEMO_BOARD_ID).goals, before.goals);
 });

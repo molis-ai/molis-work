@@ -1,10 +1,15 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createWorkbenchGoalsMomentumRenderer, createWorkbenchUiHost } from "@molis-ai/molis-work-app-workbench";
+import { createWorkbenchGoalsMomentumRenderer, createWorkbenchLocale, createWorkbenchUiHost, type WebLocale } from "@molis-ai/molis-work-app-workbench";
 import { GOAL_DISPLAY_STATUSES, GOALS_MOMENTUM_UI_CONTRIBUTION_ID, type GoalsMomentumItem, type GoalsMomentumBoardView } from "@molis-ai/molis-work-plugin-goals";
 import type { GoalRelationRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 import { icon } from "@molis-ai/molis-work-design-system";
-import { L, currentLocale, runWithLocale } from "@molis-ai/molis-work-app-local-host";
+import { GOAL_CANVAS_STYLES } from "../apps/workbench/src/styles/goal-canvas.ts";
+
+const localeStore = new AsyncLocalStorage<WebLocale>();
+const runWithLocale = <T,>(locale: WebLocale, fn: () => T) => localeStore.run(locale, fn);
+const { L, currentLocale } = createWorkbenchLocale(() => localeStore.getStore() ?? "zh");
 
 const escapeHtml = (value: unknown) => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 const renderer = createWorkbenchGoalsMomentumRenderer({ translate: L, escapeHtml, icon, currentLocale,
@@ -33,15 +38,23 @@ test("kanban keeps six visible-status columns, empty columns, and current-tree c
   const html = renderer.renderGoalKanban(model, "APP", model.goals);
   assert.deepEqual(columnIds(html), [...GOAL_DISPLAY_STATUSES]);
   assert.match(html, /data-goal-kanban/);
+  assert.match(html, /data-kanban-group/);
+  assert.match(html, /goal-kanban-chevron/);
+  assert.match(html, /goal-kanban-caret/);
+  assert.match(html, /goal-kanban-status/);
+  assert.match(columnBody(html, "in_progress"), /<span class="goal-kanban-status"[^>]*>[\s\S]*viewBox="0 0 16 16"/);
+  assert.doesNotMatch(html, /#icon-chevron-right/);
   assert.match(columnBody(html, "continue"), /data-goal-id="NEXT"/);
   assert.match(columnBody(html, "in_progress"), /data-goal-id="APP"/);
   assert.match(columnBody(html, "waiting"), /data-goal-id="ROOT"/);
-  assert.match(columnBody(html, "waiting_user"), /data-kanban-cards/);
+  assert.match(columnBody(html, "waiting_user"), /<details data-kanban-group>/);
   assert.match(columnBody(html, "waiting_user"), /class="goal-kanban-count">0</);
   assert.match(columnBody(html, "waiting_user"), /class="goal-kanban-empty">暂无 Goal</);
   assert.match(columnBody(html, "in_progress"), /class="goal-kanban-count">1</);
+  assert.match(columnBody(html, "in_progress"), /<details open data-kanban-group>/);
   assert.doesNotMatch(columnBody(html, "in_progress"), /goal-kanban-empty/);
   assert.doesNotMatch(columnBody(html, "waiting_user"), /data-kanban-card(?!s)/);
+  assert.match(columnBody(html, "in_progress"), /<strong>User &quot;&lt;title&gt;<\/strong>[\s\S]*goal-kanban-card-meta[\s\S]*属于：Parent/);
   assert.match(html, /属于：Parent/);
   assert.match(html, /User &quot;&lt;title&gt;/);
   assert.match(html, /APP outcome/);
@@ -61,4 +74,22 @@ test("kanban localizes column labels without translating user titles or adding h
   assert.match(html, />Blocked</);
   assert.match(html, />Completed</);
   assert.doesNotMatch(html, /Kanban|How to use|Click a card to open/);
+});
+
+test("kanban CSS shares six columns on desktop and stacks groups when the pane is narrow", () => {
+  assert.match(GOAL_CANVAS_STYLES, /flex: 1 1 0/);
+  assert.match(GOAL_CANVAS_STYLES, /container: goal-board \/ inline-size/);
+  assert.match(GOAL_CANVAS_STYLES, /@container goal-board \(max-width: 839px\)/);
+  assert.match(GOAL_CANVAS_STYLES, /goal-kanban-chevron/);
+  assert.match(GOAL_CANVAS_STYLES, /goal-kanban-status svg/);
+  assert.match(GOAL_CANVAS_STYLES, /details > summary \{ display: flex; width: 100%/);
+  assert.doesNotMatch(GOAL_CANVAS_STYLES, /inline-flex; width: max-content/);
+  assert.doesNotMatch(GOAL_CANVAS_STYLES, /conic-gradient/);
+  assert.doesNotMatch(GOAL_CANVAS_STYLES, /goal-kanban-group-mark/);
+  assert.match(GOAL_CANVAS_STYLES, /goal-kanban-empty \{ display: none/);
+  assert.match(GOAL_CANVAS_STYLES, /goal-kanban-card-outcome,/);
+  assert.match(GOAL_CANVAS_STYLES, /goal-kanban-card-meta/);
+  assert.match(GOAL_CANVAS_STYLES, /-webkit-line-clamp: 2/);
+  assert.doesNotMatch(GOAL_CANVAS_STYLES, /flex: 0 0 252px/);
+  assert.doesNotMatch(GOAL_CANVAS_STYLES, /min-width: 152px/);
 });

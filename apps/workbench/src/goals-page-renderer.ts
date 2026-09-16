@@ -3,7 +3,9 @@ import { buildGoalCollectionModel, type GoalCollectionItem, type GoalCollectionV
 import type { ProjectOperationsData, ProjectOperationsProject, ProjectOperationsSlice } from "@molis-ai/molis-work-plugin-work";
 
 import type { MolisWorkIcon as PageIcon } from "@molis-ai/molis-work-design-system";
-import { renderImmersivePluginStrip, renderImmersiveHeader, renderImmersiveGoalHeader, renderImmersiveWorkTabs, renderProjectHome, renderPluginMarket, renderGlobalSearchOverlay, wrapDirectoryListRegion, renderDirectoryShortcuts } from "./immersive-shell.js";
+import { renderDirectoryPluginSections, renderImmersiveHeader, renderImmersiveGoalHeader, renderImmersiveWorkTabs, renderPluginRail, renderProjectHome, renderPluginMarket, renderGlobalSearchOverlay, renderWorkspaceChrome } from "./immersive-shell.js";
+import { renderPluginRailAccountFooter, renderSettingsDirectorySection } from "./settings-directory.js";
+import { renderRuntimePlanDialog } from "./settings-appearance.js";
 type Translate = (text: string, values?: Record<string, string | number>) => string;
 type FeedPageSurface = "workbench" | "source-workbench" | "directory" | "source-directory" | "overlays";
 export interface WorkbenchGoalsPageView<TItem extends GoalCollectionItem> extends GoalCollectionView<TItem> {
@@ -53,6 +55,7 @@ export interface WorkbenchGoalsPageOwners<TItem extends GoalCollectionItem, TVie
   renderFeedNativePluginSurface(view: TView, surface: FeedPageSurface, preset: "feed",
     entries?: TFeedEntry[], active?: boolean): string;
   renderInboxNativePluginSurface(view: TView, surface: "directory" | "workbench"): string;
+  renderTaskNativePluginSurface(view: TView, surface: "directory" | "workbench" | "frame"): string;
 }
 
 /** Workbench owns placement; Goals/Feed/Work owners retain their actual UI and facts. */
@@ -65,7 +68,7 @@ export function createWorkbenchGoalsPageRenderer<TItem extends GoalCollectionIte
     renderGoalDocument, renderTrashGoalDocument, goalsDocumentRenderer, goalsTreeRenderer,
     renderCreateDialog, renderGoalTrashDialog, renderMomentumPlaceholder, renderGoalKanban, renderTuiPane,
     renderProjectOperations, renderDesktopProjectChrome,
-    renderFeedNativePluginSurface, renderInboxNativePluginSurface } = owners;
+    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderTaskNativePluginSurface } = owners;
 
 function renderMolisWorkRefreshFragment(
   view: TView,
@@ -106,20 +109,16 @@ function renderMolisWorkWeb(
   const initialFeedPreset = "feed" as const;
   const initialDesktopDirectory = decisionView ? "inbox" : requestedGoalId || archiveView || trashView ? "goals" : "root";
   const projectOptions = view.projects.length ? view.projects : view.project ? [view.project] : [];
-  const primitives = { L, escapeHtml, icon };
-  const enabledPlugins = view.enabled_plugins ?? ["goals", "sessions", "inbox", "feed", "artifacts"];
+  const primitives = { L, escapeHtml, icon, htmlLang };
+  const enabledPlugins = view.enabled_plugins ?? ["goals", "task", "sessions", "inbox", "feed", "artifacts"];
   const projectOperations = renderProjectOperations(view.project
     ? { project_id: view.project.project_id, display_name: view.project.display_name }
     : null, projectOperationsData);
-  const desktopAccountFooter = `<footer class="personal-sidebar-footer">
-    <a class="personal-account" data-settings-link href="__SYSTEM_SETTINGS__" aria-label="${L("打开全局设置")}">
-      <span class="personal-account-avatar" aria-hidden="true">${icon("user")}</span>
-      <span class="personal-account-copy"><strong>${L("一骏")}</strong><small>${L("本地空间")}</small></span>
-      <span class="personal-account-settings" aria-hidden="true">${icon("settings")}</span>
-    </a>
-  </footer>`;
-  const desktopRootDirectory = `<section class="desktop-directory-panel desktop-directory-root" data-directory-panel="root"${initialDesktopDirectory === "root" ? "" : " hidden"}></section>`;
-  const projectNavigatorLayer = `<section class="navigator-project" aria-label="${L("当前项目")}">${renderDesktopProjectChrome(view.project ?? null, projectOptions, desktopShell, view.project ? "__PROJECT_SETTINGS__" : null, { switcherClass: "desktop-project-switcher", manageHref: "__PROJECT_INDEX__", directoryToggle: true, globalSearch: true })}</section>`;
+  const desktopAccountFooter = renderPluginRailAccountFooter(primitives);
+  const settingsDirectory = renderSettingsDirectorySection(primitives, `${view.route_prefix || ""}/` || "/");
+  const pluginEnabled = (id: string) => enabledPlugins.includes(id);
+  const projectTitlebarChrome = renderDesktopProjectChrome(view.project ?? null, projectOptions, desktopShell, view.project ? "__PROJECT_SETTINGS__" : null, { switcherClass: "desktop-project-switcher", manageHref: "__PROJECT_INDEX__", directoryToggle: true, globalSearch: true });
+  const directoryEmpty = initialDesktopDirectory === "root";
   const showTui = !decisionView && !archiveView && !trashView;
   const renderedDocumentContent = selected
     ? trashView ? renderTrashGoalDocument(selected, true) : renderGoalDocument(selected, view, true)
@@ -145,19 +144,7 @@ function renderMolisWorkWeb(
       </div>
     </section>
   </div>` : goalDocument;
-  const frameStage = showTui ? `<section class="goal-frame-surface" data-goal-frame-surface aria-label="Frame" hidden>
-    <header class="frame-goal-summary"><div class="frame-goal-heading"><h1 data-frame-goal-title></h1><span data-frame-goal-status></span></div><p data-frame-goal-outcome></p><div class="frame-goal-actions"><button type="button" data-frame-add-content>${icon("plus")}${L("添加已有内容")}</button><button type="button" data-frame-goal-work>${icon("terminal")}${L("打开工作区")}</button><button type="button" data-frame-goal-locate>${icon("target")}${L("在关系画布中定位")}</button></div></header>
-    <div class="goal-frame-canvas" data-frame-canvas><div class="frame-empty" data-frame-empty><strong>${L("把这项目标需要的内容放在这里")}</strong><p>${L("从目录拖入消息、会话或资料，在同一个画布上组织工作。")}</p><button type="button" class="button" data-frame-add-content>${icon("plus")}${L("添加已有内容")}</button></div>
-      <div class="goal-frame-world" data-frame-world></div>
-    </div>
-    <dialog class="frame-picker" data-frame-picker aria-labelledby="frame-picker-title">
-      <header><h2 id="frame-picker-title">${L("添加已有内容")}</h2><button type="button" class="icon-button" data-frame-picker-close aria-label="${L("关闭")}">${icon("x")}</button></header>
-      <div class="frame-picker-tools"><input type="search" data-frame-picker-search placeholder="${L("搜索标题或来源")}" aria-label="${L("搜索标题或来源")}" autofocus><select data-frame-picker-kind aria-label="${L("内容来源")}"><option value="all">${L("全部来源")}</option><option value="feed">Feed</option><option value="inbox">Inbox</option><option value="session">${L("会话")}</option><option value="artifact">${L("交付物")}</option></select></div>
-      <div class="frame-picker-list" data-frame-picker-list></div>
-      <footer><span>${L("添加引用，原内容保持在所属来源。")}</span><button type="button" class="button" data-frame-picker-close>${L("取消")}</button></footer>
-    </dialog>
-    <footer class="goal-canvas-tools goal-frame-tools"><div role="group" aria-label="${L("画布缩放")}"><button type="button" data-frame-zoom="out" aria-label="${L("缩小")}">−</button><output data-frame-zoom-value>100%</output><button type="button" data-frame-zoom="in" aria-label="${L("放大")}">+</button></div></footer>
-  </section>` : "";
+  const frameStage = showTui && pluginEnabled("task") ? renderTaskNativePluginSurface(view, "frame") : "";
   const html = renderWorkbenchDocument({
     preamble_html: `<!--
 THESIS: 在连续工作区内阅读、记录和执行，内容贴齐标签页，避免浮窗套浮窗。
@@ -184,27 +171,28 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
     body_html: `
   ${renderIconSprite()}
   <div class="app">
-    <main class="immersive-workspace${showTui ? " is-desktop-tui" : ""}" data-workspace data-mobile-view="document" data-workspace-mode="graph">
-      <aside class="tree-pane" id="goal-tree-pane" data-desktop-directory="${initialDesktopDirectory}" aria-label="${L("应用目录")}">
-        ${projectNavigatorLayer}
-        <div class="directory-content-scroll">
-        ${renderImmersivePluginStrip(primitives, enabledPlugins)}
-        ${wrapDirectoryListRegion(primitives, initialDesktopDirectory, `
-        ${desktopRootDirectory}
-        ${goalsTreeRenderer.renderGoalDirectory(view, collection, initialDesktopDirectory === "goals")}
-        ${projectOperations.directories}
-        ${renderInboxNativePluginSurface(view, "directory")}
-        ${renderFeedNativePluginSurface(view, "directory", initialFeedPreset)}
-        ${renderFeedNativePluginSurface(view, "source-directory", initialFeedPreset)}
-        <section class="desktop-directory-panel" data-directory-panel="artifacts" hidden><div data-artifact-directory></div></section>
-        `)}
-        ${renderDirectoryShortcuts(primitives)}
-        </div>
-        ${desktopAccountFooter}
-      </aside>
-      <div class="tree-resizer" data-tree-resizer role="separator" tabindex="0" aria-orientation="vertical" aria-label="${L("调整目录宽度")}" aria-controls="goal-tree-pane" aria-valuemin="236" aria-valuemax="520" aria-valuenow="264" title="${L("拖动调整目录宽度，双击恢复默认")}"></div>
-      <button class="immersive-sidebar-scrim" data-directory-dismiss tabindex="-1" aria-label="${L("收起目录")}" hidden></button>
+    <main class="immersive-workspace${showTui ? " is-desktop-tui" : ""}${directoryEmpty ? " is-plugin-directory-empty" : ""}" data-workspace data-mobile-view="document" data-workspace-mode="graph">
       ${renderImmersiveHeader(primitives, desktopShell)}
+      ${renderPluginRail(primitives, enabledPlugins, desktopAccountFooter)}
+      ${renderWorkspaceChrome(primitives, projectTitlebarChrome)}
+      <aside class="tree-pane" id="goal-tree-pane" data-desktop-directory="${initialDesktopDirectory}" aria-label="${L("应用目录")}">
+        <div class="directory-content-scroll">
+        ${renderDirectoryPluginSections(primitives, enabledPlugins, {
+          goals: pluginEnabled("goals") ? goalsTreeRenderer.renderGoalDirectory(view, collection, true) : "",
+          task: pluginEnabled("task") ? renderTaskNativePluginSurface(view, "directory") : "",
+          sessions: pluginEnabled("sessions") ? projectOperations.directories : "",
+          inbox: pluginEnabled("inbox") ? renderInboxNativePluginSurface(view, "directory") : "",
+          feed: pluginEnabled("feed")
+            ? `${renderFeedNativePluginSurface(view, "directory", initialFeedPreset)}${renderFeedNativePluginSurface(view, "source-directory", initialFeedPreset)}`
+            : "",
+          artifacts: pluginEnabled("artifacts")
+            ? `<section class="desktop-directory-panel" data-directory-panel="artifacts"><div data-artifact-directory></div></section>`
+            : "",
+        }, initialDesktopDirectory, settingsDirectory)}
+        </div>
+      </aside>
+      <div class="tree-resizer" data-tree-resizer role="separator" tabindex="0" aria-orientation="vertical" aria-label="${L("调整目录宽度")}" aria-controls="goal-tree-pane" aria-valuemin="200" aria-valuemax="520" aria-valuenow="240" title="${L("拖动调整目录宽度，双击恢复默认")}"></div>
+      <button class="immersive-sidebar-scrim" data-directory-dismiss tabindex="-1" aria-label="${L("收起目录")}" hidden></button>
       <div class="immersive-plugin-stage" data-plugin-stage>
         <div class="tab-workspace" data-tab-workspace>
           <div class="tab-workspace-panes" data-tab-panes></div>
@@ -212,6 +200,8 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
           <div class="tab-workspace-pool" data-surface-pool>
             ${renderProjectHome(view.project?.display_name || title, primitives)}
             ${goalStage}
+            ${pluginEnabled("task") ? renderTaskNativePluginSurface(view, "workbench") : ""}
+            ${frameStage}
             ${projectOperations.surfaces}
             ${renderInboxNativePluginSurface(view, "workbench")}
             ${renderFeedNativePluginSurface(view, "workbench", initialFeedPreset, [], false)}
@@ -220,16 +210,16 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
             <section class="desktop-work-surface immersive-market" data-work-surface="market" data-work-surface-label="${L("插件市场")}" hidden>${renderPluginMarket(primitives)}</section>
           </div>
         </div>
-        ${frameStage}
       </div>
       ${renderFeedNativePluginSurface(view, "overlays", initialFeedPreset)}
+      ${renderRuntimePlanDialog({ L, icon })}
     </main>
   </div>
   ${renderCreateDialog(view)}
   ${renderGlobalSearchOverlay(primitives)}
   ${renderGoalTrashDialog()}
   ${projectOperations.overlays}
-  <div class="toast" data-toast role="status" aria-live="polite"></div>
+  <div class="toast" data-toast data-settings-toast role="status" aria-live="polite"></div>
   <script id="molis-work-data" type="application/json">${dataJson(view)}</script>
   <script>${clientI18nScript()}</script>
   <script src="/assets/molis-work-workbench.js"></script>

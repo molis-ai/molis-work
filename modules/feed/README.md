@@ -6,7 +6,7 @@
 
 ## 一次典型调用
 
-FeedModule.commands.ingest 接收条目，query 提供读取，setDisposition 等命令更新处置。Attention 经注入的公开 API 协作；Feed → Goal 关联通过 Context Ledger 端口维护。正文引用与导入收据也有独立存储入口。
+FeedModule.commands.ingest 接收条目，query 提供读取，setDisposition 等命令更新处置。Attention 经注入的公开 API 协作；Feed → Goal 关联通过 Context Ledger 端口维护。正文引用与 schema 迁移收据也有独立存储入口。
 
 ## 从哪里读代码
 
@@ -17,7 +17,7 @@ FeedModule.commands.ingest 接收条目，query 提供读取，setDisposition �
 | [src/index.ts](src/index.ts) | FeedModule 与迁移 |
 | [src/goal-links.ts](src/goal-links.ts) | Feed/Goal 关联端口 |
 | [src/content-store.ts](src/content-store.ts) | 正文引用存储 |
-| [src/import-receipts.ts](src/import-receipts.ts) | 导入收据 |
+| [src/contract-receipts.ts](src/contract-receipts.ts) | schema 迁移收据 |
 
 可对照现有调用方 [apps/local-host/src/feed-application.ts](../../apps/local-host/src/feed-application.ts) 阅读装配方式。
 

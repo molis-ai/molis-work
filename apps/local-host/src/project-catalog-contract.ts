@@ -1,4 +1,4 @@
-export const CATALOG_SCHEMA_VERSION = 12;
+export const CATALOG_SCHEMA_VERSION = 13;
 export const CATALOG_OWNER = "molis-work-project-catalog-v1";
 export const LEGACY_CATALOG_OWNER = "goalboard-project-catalog-v1";
 

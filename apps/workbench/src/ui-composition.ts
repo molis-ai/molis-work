@@ -37,6 +37,13 @@ import {
   type InboxUiSurface,
 } from "@molis-ai/molis-work-plugin-inbox";
 
+import {
+  TASK_UI_CONTRIBUTION_ID,
+  taskUiContribution,
+  type TaskUiModel,
+  type TaskUiSurface,
+} from "@molis-ai/molis-work-plugin-task";
+
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 
 import { goalsPolicyUiContribution, goalsSafetyUiContribution, goalsRelationUiContribution } from "@molis-ai/molis-work-plugin-goals";
@@ -95,6 +102,13 @@ export const WORKBENCH_UI_SLOTS = {
 const INBOX_SURFACE_SLOTS: Readonly<Record<InboxUiSurface, UiSlotDescriptor>> = {
   directory: WORKBENCH_UI_SLOTS.directory,
   workbench: WORKBENCH_UI_SLOTS.main,
+};
+
+
+const TASK_SURFACE_SLOTS: Readonly<Record<TaskUiSurface, UiSlotDescriptor>> = {
+  directory: WORKBENCH_UI_SLOTS.directory,
+  workbench: WORKBENCH_UI_SLOTS.main,
+  frame: WORKBENCH_UI_SLOTS.main,
 };
 
 
@@ -163,6 +177,7 @@ export function createWorkbenchUiHost(): UiHost {
   const host = new UiHost();
   host.register(feedUiContribution);
   host.register(inboxUiContribution);
+  host.register(taskUiContribution);
   host.register(workUiContribution);
   host.register(workTerminalUiContribution);
   host.register(artifactReferenceUiContribution);
@@ -256,6 +271,21 @@ export function renderInboxContribution(
     slot: INBOX_SURFACE_SLOTS[surface],
     contribution: {
       contribution_id: INBOX_UI_CONTRIBUTION_ID,
+      surface,
+      model,
+    },
+  }).html;
+}
+
+
+export function renderTaskContribution(
+  surface: TaskUiSurface,
+  model: TaskUiModel,
+): string {
+  return workbenchUiHost.mount({
+    slot: TASK_SURFACE_SLOTS[surface],
+    contribution: {
+      contribution_id: TASK_UI_CONTRIBUTION_ID,
       surface,
       model,
     },

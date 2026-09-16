@@ -3,7 +3,7 @@ import { HOME_SHORTCUTS_FACTORY_SCRIPT } from "./project-home-shortcuts.js";
 /** Daily context and presentation only; the disabled Agent never receives input. */
 export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
   const { getState, translate: L } = host;
-  (${HOME_SHORTCUTS_FACTORY_SCRIPT})({ root: document.querySelector("[data-directory-shortcuts]"), translate: L,
+  (${HOME_SHORTCUTS_FACTORY_SCRIPT})({ root: document.querySelector('[data-work-surface="home"]'), translate: L,
     projectKey: getState().project?.project_id || getState().snapshot.board.board_id });
   const home = document.querySelector('[data-work-surface="home"]');
   if (!home) return null;
@@ -65,8 +65,13 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
   const pages = home.querySelector(".home-quote-pages");
   const motion = matchMedia("(prefers-reduced-motion: reduce)");
   let index = 0, fading = false;
+  const homeShown = () => !document.hidden && document.body.dataset.desktopSurface === "home" && !home.hidden;
+  const quoteHeld = () => {
+    const region = home.querySelector(".home-reflection");
+    return !!(region && (region.matches(":hover") || region.contains(document.activeElement)));
+  };
   const rotate = () => {
-    if (fading) return;
+    if (fading || !homeShown() || quoteHeld()) return;
     const change = () => {
         quotes[index].setAttribute("aria-hidden", "true"); quotes[index].inert = true;
         index = (index + 1) % quotes.length;
@@ -77,8 +82,8 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
     fading = true; pages.classList.add("is-changing"); setTimeout(change, 160);
   };
   sync();
-  home.querySelector("[data-home-quote-next]")?.addEventListener("click", rotate);
-  setInterval(() => { if (!document.hidden && document.body.dataset.desktopSurface === "home" && !home.hidden) sync(); }, 30000);
+  setInterval(rotate, 8000);
+  setInterval(() => { if (homeShown()) sync(); }, 30000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) sync(); });
   return { sync };
 }`;

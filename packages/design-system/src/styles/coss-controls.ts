@@ -40,6 +40,9 @@ export const COSS_CONTROL_STYLES = `
     --control-shadow: 0 1px 2px rgba(0, 0, 0, .28), 0 16px 40px rgba(0, 0, 0, .38);
     --control-ring: color-mix(in srgb, #fff 60%, transparent);
   }
+  body.immersive-workbench,
+  body.settings-page,
+  body.project-preferences-page { --control-h: 28px; }
 
   body { caret-color: var(--ink); }
   ::selection { background: var(--blue-soft); color: var(--ink); }
@@ -67,7 +70,6 @@ export const COSS_CONTROL_STYLES = `
   .tui-menu-actions button[type="submit"],
   body[data-desktop-shell="true"] .source-now button:not(:disabled),
   body.immersive-workbench .feed-detail-actions .button-primary,
-  body.immersive-workbench .feed-import-dialog footer .button-primary,
   body.immersive-workbench .feed-stage-add-actions .button-primary,
   body.immersive-workbench .home-shortcut-dialog .home-shortcut-save {
     min-height: var(--control-h) !important;
@@ -96,7 +98,6 @@ export const COSS_CONTROL_STYLES = `
   .tui-menu-actions button[type="submit"]:hover,
   body[data-desktop-shell="true"] .source-now button:hover:not(:disabled),
   body.immersive-workbench .feed-detail-actions .button-primary:hover,
-  body.immersive-workbench .feed-import-dialog footer .button-primary:hover,
   body.immersive-workbench .feed-stage-add-actions .button-primary:hover,
   body.immersive-workbench .home-shortcut-dialog .home-shortcut-save:hover {
     background: color-mix(in srgb, var(--action) 90%, var(--action-ink)) !important;
@@ -136,8 +137,6 @@ export const COSS_CONTROL_STYLES = `
 
   .frame-picker footer .button,
   .frame-empty .button,
-  .home-goals-entry,
-  .home-quote-next,
   .form-actions > button[type=reset],
   .event-form-actions > button:not(.primary),
   .settings-record-action button:not(.button-primary):not(.button-danger):not(.project-delete-button),
@@ -152,7 +151,6 @@ export const COSS_CONTROL_STYLES = `
   .runtime-plan-shell > footer button:not(.runtime-plan-apply):not(.button-primary):not(.button-danger),
   .create-dialog footer button:not(.button-primary):not(.button-danger),
   .project-operation-dialog footer button:not(.button-primary):not(.button-danger),
-  .feed-import-dialog footer button:not(.button-primary):not(.button-danger),
   .project-index-migrate,
   .project-manager-danger-actions button:not([data-demo-action="remove"]),
   .project-migration-form > footer button:not(.project-migration-submit),
@@ -169,8 +167,6 @@ export const COSS_CONTROL_STYLES = `
   }
   .frame-picker footer .button:hover,
   .frame-empty .button:hover,
-  .home-goals-entry:hover,
-  .home-quote-next:hover,
   .form-actions > button[type=reset]:hover,
   .event-form-actions > button:not(.primary):hover,
   .settings-record-action button:not(.button-primary):not(.button-danger):not(.project-delete-button):hover,
@@ -184,7 +180,6 @@ export const COSS_CONTROL_STYLES = `
   .runtime-plan-shell > footer button:not(.runtime-plan-apply):not(.button-primary):not(.button-danger):hover,
   .create-dialog footer button:not(.button-primary):not(.button-danger):hover,
   .project-operation-dialog footer button:not(.button-primary):not(.button-danger):hover,
-  .feed-import-dialog footer button:not(.button-primary):not(.button-danger):hover,
   .project-index-migrate:hover,
   .project-manager-danger-actions button:not([data-demo-action="remove"]):hover,
   .project-migration-form > footer button:not(.project-migration-submit):hover,
@@ -252,7 +247,6 @@ export const COSS_CONTROL_STYLES = `
   .project-delete-dialog,
   .project-migration-dialog,
   .project-operation-dialog,
-  .feed-import-dialog,
   .home-shortcut-dialog {
     border: 1px solid var(--control-border);
     border-radius: var(--radius-surface);
@@ -265,7 +259,6 @@ export const COSS_CONTROL_STYLES = `
   .project-delete-dialog::backdrop,
   .project-migration-dialog::backdrop,
   .project-operation-dialog::backdrop,
-  .feed-import-dialog::backdrop,
   .home-shortcut-dialog::backdrop {
     background: color-mix(in srgb, #080910 38%, transparent);
   }
@@ -425,7 +418,7 @@ export const COSS_CONTROL_STYLES = `
   :is(.form-actions, .event-form-actions, .feed-reader-footer, .project-operation-dialog) { --control-h: 36px; }
   @media (max-width: 760px) { :is(.form-actions, .event-form-actions, .feed-reader-footer, .project-operation-dialog, .project-operation-surface-empty) { --control-h: 44px; } }
   @media (max-width: 760px), (pointer: coarse) {
-    :is(.frame-picker, .frame-goal-actions, .frame-empty, .home-goals-entry, .home-quote-next) { --control-h: 44px; }
+    :is(.frame-picker, .frame-goal-actions, .frame-empty) { --control-h: 44px; }
     .frame-goal-actions button, .frame-empty button, .frame-picker > header button { min-height: 44px; }
     .frame-picker > header button { min-width: 44px; }
     .frame-picker-tools :is(input, select) { font-size: 16px; }

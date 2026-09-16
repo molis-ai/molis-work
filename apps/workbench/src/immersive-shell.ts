@@ -6,90 +6,88 @@ export interface ImmersiveShellPrimitives {
   icon(name: MolisWorkIcon): string;
 }
 
-/** Application chrome only. Plugin owners continue to render and operate their content. */
-export function renderImmersivePluginStrip({ L, icon }: ImmersiveShellPrimitives, enabled: readonly string[]): string {
-  const plugins = [
-    { id: "goals", surface: "goal", label: "Goals", glyph: "target" as const },
-    { id: "sessions", surface: "sessions", label: "Sessions", glyph: "terminal" as const },
-    { id: "inbox", surface: "inbox", label: "Inbox", glyph: "input" as const },
-    { id: "feed", surface: "feed", label: "Feed", glyph: "activity" as const },
-    { id: "artifacts", surface: "artifacts", label: "Artifacts", glyph: "file" as const },
-  ];
-  const home = `<button class="immersive-plugin-link" type="button" data-plugin-id="home" data-work-surface-open="home" aria-label="${L("项目首页")}">${icon("home")}<span>${L("项目首页")}</span></button>`;
-  const links = plugins.filter(plugin => enabled.includes(plugin.id)).map((plugin) => {
-    const directory = plugin.id === "feed" ? "" : ` data-directory-open="${plugin.id}"`;
-    const feedPreset = plugin.id === "feed" ? ' data-feed-preset="feed"' : "";
-    return `<button class="immersive-plugin-link" type="button" data-plugin-id="${plugin.id}"${directory} data-work-surface-open="${plugin.surface}"${feedPreset} aria-label="${L("切换到插件")}：${plugin.label}">${icon(plugin.glyph)}<span>${plugin.label}</span></button>`;
-  }).join("");
-  const market = `<button class="immersive-plugin-link immersive-market-entry" type="button" data-plugin-id="market" data-work-surface-open="market" aria-label="${L("插件市场")}">${icon("plus")}<span>${L("插件市场")}</span></button>`;
-  return `<div class="immersive-directory-heading" data-plugin-heading>
-    <nav class="immersive-plugin-strip" data-plugin-strip aria-label="${L("项目入口")}">${home}${links}${market}</nav>
-  </div>`;
+const DIRECTORY_PLUGINS = [
+  { id: "goals", surface: "goal", label: "Goals", glyph: "target" as const },
+  { id: "task", surface: "task", label: "Task", glyph: "list" as const },
+  { id: "sessions", surface: "sessions", label: "Sessions", glyph: "terminal" as const },
+  { id: "inbox", surface: "inbox", label: "Inbox", glyph: "input" as const },
+  { id: "feed", surface: "feed", label: "Feed", glyph: "activity" as const },
+  { id: "artifacts", surface: "artifacts", label: "Artifacts", glyph: "file" as const },
+] as const;
+
+function pluginLink(
+  { L, icon }: ImmersiveShellPrimitives,
+  plugin: { id: string; surface: string; label: string; glyph: MolisWorkIcon },
+  extraClass = "",
+): string {
+  const directory = plugin.id === "home" || plugin.id === "market" || plugin.id === "feed" ? "" : ` data-directory-open="${plugin.id}"`;
+  const feedPreset = plugin.id === "feed" ? ' data-feed-preset="feed"' : "";
+  const aria = plugin.id === "home" || plugin.id === "market"
+    ? ` aria-label="${plugin.label}"`
+    : ` aria-label="${L("切换到插件")}：${plugin.label}"`;
+  const className = extraClass ? `immersive-plugin-link ${extraClass}` : "immersive-plugin-link";
+  return `<button class="${className}" type="button" data-plugin-id="${plugin.id}"${directory} data-work-surface-open="${plugin.surface}"${feedPreset}${aria}>${icon(plugin.glyph)}<span>${plugin.label}</span></button>`;
 }
 
-const DIRECTORY_LIST_TITLES: Record<string, string> = {
-  root: "项目首页",
-  goals: "Goals",
-  sessions: "Sessions",
-  inbox: "Inbox",
-  feed: "Feed",
-  sources: "来源",
-  artifacts: "Artifacts",
-  settings: "项目设置",
-};
-
-export function directoryListTitle(directory: string, L: ImmersiveShellPrimitives["L"]): string {
-  const key = DIRECTORY_LIST_TITLES[directory] || "项目首页";
-  return directory === "goals" || directory === "sessions" || directory === "inbox" || directory === "feed" || directory === "artifacts"
-    ? key
-    : L(key);
+function currentListPlugin(directory: string): string {
+  if (directory === "sources") return "feed";
+  if (directory === "root" || directory === "market" || directory === "home") return "";
+  return directory;
 }
 
-export function wrapDirectoryListRegion(
+/** Icon rail: home, enabled plugins, market. Account stays at the bottom. */
+export function renderPluginRail(
   primitives: ImmersiveShellPrimitives,
-  directory: string,
-  panelsHtml: string,
+  enabled: readonly string[],
+  accountFooter: string,
 ): string {
   const { L } = primitives;
-  return `<div class="directory-list-region" data-directory-list-region>
-    <header class="directory-list-chrome" data-directory-list-chrome>
-      <h2 class="directory-list-title" data-directory-list-title aria-live="polite">${directoryListTitle(directory, L)}</h2>
-    </header>
-    <div class="directory-list-stage" data-directory-list-stage>${panelsHtml}</div>
-  </div>`;
+  const home = pluginLink(primitives, { id: "home", surface: "home", label: L("项目首页"), glyph: "home" }, "plugin-rail-item");
+  const plugins = DIRECTORY_PLUGINS.filter(plugin => enabled.includes(plugin.id))
+    .map(plugin => pluginLink(primitives, plugin, "plugin-rail-item"))
+    .join("");
+  const market = pluginLink(primitives, { id: "market", surface: "market", label: L("插件市场"), glyph: "plus" }, "plugin-rail-item");
+  return `<nav class="plugin-rail immersive-plugin-strip" data-plugin-strip data-plugin-heading aria-label="${L("项目入口")}">
+    <div class="plugin-rail-items">${home}${plugins}${market}</div>
+    ${accountFooter}
+  </nav>`;
 }
 
-export function renderDirectoryShortcuts({ L, icon }: ImmersiveShellPrimitives): string {
-  return `<section class="directory-shortcuts" data-directory-shortcuts>
-    <h2 class="directory-shortcuts-title">${L("快捷方式")}</h2>
-    <ul class="directory-shortcuts-list" data-home-shortcuts aria-label="${L("快捷方式")}">
-      <li class="directory-shortcut directory-shortcut-add"><button type="button" data-home-shortcut-add aria-label="${L("添加快捷方式")}"><span aria-hidden="true">${icon("plus")}</span><span>${L("添加")}</span></button></li>
-    </ul>
-    <p class="directory-shortcuts-error" data-home-shortcut-error role="alert" hidden></p>
-    <template data-home-shortcut-template><li class="directory-shortcut"><a target="_blank" rel="noopener noreferrer" data-home-shortcut-link data-home-external>${icon("link")}<span data-home-shortcut-name></span></a><button type="button" data-home-shortcut-edit>${icon("more")}</button></li></template>
-    <dialog class="home-shortcut-dialog" data-home-shortcut-dialog aria-labelledby="home-shortcut-title">
-      <form data-home-shortcut-form novalidate>
-        <header><h2 id="home-shortcut-title">${L("添加快捷方式")}</h2><button type="button" data-home-shortcut-cancel aria-label="${L("关闭")}">${icon("x")}</button></header>
-        <label>${L("名称")}<input name="shortcut_name" maxlength="32" autocomplete="off" required placeholder="${L("例如：项目文档")}"></label>
-        <label>${L("网址")}<input name="shortcut_url" type="url" maxlength="4096" autocomplete="off" required placeholder="https://"></label>
-        <p class="home-shortcut-form-error" data-home-shortcut-form-error role="alert"></p>
-        <footer><button type="button" class="home-shortcut-remove" data-home-shortcut-remove hidden>${L("移除")}</button><button type="button" data-home-shortcut-cancel>${L("取消")}</button><button type="submit" class="home-shortcut-save">${L("保存")}</button></footer>
-      </form>
-    </dialog>
-  </section>`;
+/** Application chrome only. Plugin owners continue to render and operate their content. */
+export function renderDirectoryPluginSections(
+  primitives: ImmersiveShellPrimitives,
+  enabled: readonly string[],
+  panels: Readonly<Record<string, string>>,
+  activeDirectory = "root",
+  settingsSection = "",
+): string {
+  const current = currentListPlugin(activeDirectory);
+  const plugins = DIRECTORY_PLUGINS.filter(plugin => enabled.includes(plugin.id)).map((plugin) => {
+    const panel = panels[plugin.id] || "";
+    const visible = plugin.id === current;
+    return `<section class="plugin-section is-expanded" data-plugin-section="${plugin.id}" data-plugin-expanded="true"${visible ? "" : " hidden"}>${pluginLink(primitives, plugin)}<div class="plugin-section-body" id="plugin-section-body-${plugin.id}">${panel}</div></section>`;
+  }).join("");
+  return `${plugins}${settingsSection}`;
 }
 
 export function renderImmersiveHeader(primitives: ImmersiveShellPrimitives, desktop: boolean): string {
   const { L, icon } = primitives;
   return `<header class="workbench-header immersive-titlebar">
-    <button class="immersive-icon-button immersive-show-directory" type="button" data-directory-show aria-label="${L("展开目录")}" title="${L("展开目录")}">${icon("panel")}</button>
-    <button class="immersive-icon-button immersive-show-search" type="button" data-global-search-open aria-label="${L("打开搜索")}" title="${L("打开搜索")}">${icon("search")}</button>
+    <div class="workspace-history">
+      <button class="workspace-history-button" type="button" data-workspace-history="back" aria-label="${L("上一步")}" title="${L("上一步")}" disabled>${icon("back")}</button>
+      <button class="workspace-history-button" type="button" data-workspace-history="forward" aria-label="${L("下一步")}" title="${L("下一步")}" disabled>${icon("arrow")}</button>
+    </div>
     <strong data-immersive-plugin-title hidden>Goals</strong>
     <div class="immersive-goal-tools" data-immersive-goal-tools hidden><button class="immersive-icon-button" type="button" data-directory-open="goals" aria-label="${L("打开 Goal 列表")}" title="${L("打开 Goal 列表")}">${icon("list")}</button></div>
     <nav class="tab-strip tab-strip--chrome" data-titlebar-tabs aria-label="${L("工作区标签")}"></nav>
     <nav class="container-tabs" data-container-tabs aria-label="${L("工作区标签")}" hidden></nav>
     <div class="desktop-titlebar-drag"${desktop ? " data-tauri-drag-region" : ""} aria-hidden="true"></div>
   </header>`;
+}
+
+export function renderWorkspaceChrome(primitives: ImmersiveShellPrimitives, chromeHtml: string): string {
+  const { L } = primitives;
+  return `<section class="workspace-chrome titlebar-chrome navigator-project" data-workspace-chrome data-titlebar-chrome aria-label="${L("当前项目")}">${chromeHtml}</section>`;
 }
 
 export function renderImmersiveGoalHeader(title: string, primitives: ImmersiveShellPrimitives): string {
@@ -117,6 +115,7 @@ export function renderGlobalSearchOverlay({ L }: ImmersiveShellPrimitives): stri
 export function renderPluginMarket({ L, icon }: ImmersiveShellPrimitives): string {
   const plugins = [
     { id: "goals", label: "Goals", glyph: "target" as const, copy: "确定目标，推进工作，留下结果。" },
+    { id: "task", label: "Task", glyph: "list" as const, copy: "真正开始做的工作台，不必先有 Goal。" },
     { id: "sessions", label: "Sessions", glyph: "terminal" as const, copy: "回到你的会话，继续正在做的事。" },
     { id: "inbox", label: "Inbox", glyph: "input" as const, copy: "只看需要你介入的事项。" },
     { id: "feed", label: "Feed", glyph: "activity" as const, copy: "查看来源消息和完整流水。" },

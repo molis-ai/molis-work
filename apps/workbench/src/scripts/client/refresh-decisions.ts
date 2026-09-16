@@ -236,9 +236,12 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
             replaceNavLink(document.querySelector(selector), parsed.querySelector(selector));
           }
         });
+        const previousTasks = Array.isArray(state.tasks) ? state.tasks : [];
         state = nextState;
+        if ((!Array.isArray(state.tasks) || !state.tasks.length) && previousTasks.length) state.tasks = previousTasks;
+        (state.tasks || []).forEach((task) => upsertTaskDirectoryRow(task));
         projectHome?.sync();
-        document.querySelector("#molis-work-data").textContent = JSON.stringify(nextState).replaceAll("<", "\\u003c");
+        document.querySelector("#molis-work-data").textContent = JSON.stringify(state).replaceAll("<", "\\u003c");
         selected = goalRefresh.nextSelected;
         if (!decisionView && selected) applySelection(selected, false);
         applyUiState(ui);

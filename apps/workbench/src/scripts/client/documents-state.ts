@@ -131,9 +131,9 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
       const immersive = document.body.classList.contains("immersive-workbench");
       if (immersive ? matchMedia("(max-width: 600px)").matches : matchMedia("(max-width: 760px)").matches && !workspace.classList.contains("is-desktop-tui")) return;
       if (!treeResizer) return;
-      const minimum = immersive ? 236 : 260;
+      const minimum = immersive ? 200 : 260;
       const maximum = immersive ? Math.min(520, innerWidth - 360) : Math.min(520, Math.max(320, innerWidth * 0.48));
-      const width = Math.round(Math.min(maximum, Math.max(minimum, Number(value) || 264)));
+      const width = Math.round(Math.min(maximum, Math.max(minimum, Number(value) || 240)));
       workspace.style.setProperty("--tree-width", width + "px");
       treeResizer.setAttribute("aria-valuemin", String(minimum));
       treeResizer.setAttribute("aria-valuemax", String(maximum));
@@ -170,7 +170,7 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
       documentTop: activeDesktopSurface === "goal" ? documentPane.scrollTop : Number(desktopSurfaceScroll.goal || 0),
       workSurface: activeDesktopSurface,
       surfaceScroll: { ...desktopSurfaceScroll, [activeDesktopSurface]: (activeDesktopSurface === "goal" ? documentPane : desktopWorkSurfaces.find(item => item.dataset.workSurface === activeDesktopSurface))?.scrollTop || 0 },
-      treeWidth: parseFloat(workspace.style.getPropertyValue("--tree-width")) || treePane.getBoundingClientRect().width,
+      treeWidth: parseFloat(workspace.style.getPropertyValue("--tree-width")) || (treePane.getBoundingClientRect().width > 44 ? treePane.getBoundingClientRect().width : 240),
       tuiWidth: workspace.classList.contains("is-tui-collapsed")
         ? parseFloat(workspace.style.getPropertyValue("--tui-width")) || undefined
         : tuiPane?.getBoundingClientRect().width,
@@ -183,6 +183,7 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
       navigationVersion: desktopNavigationStateVersion,
       directory: treePane?.dataset.desktopDirectory || "root",
       directoryCollapsed: workspace.classList.contains("is-directory-collapsed"),
+      directoryCollapsedSections: [...document.querySelectorAll("[data-plugin-section][data-plugin-expanded='false']")].map((section) => section.dataset.pluginSection).filter(Boolean),
       feedPreset: activeFeedPreset,
       feedSelected: selectedFeedItem,
       feedTask: selectedFeedTask || "all",
@@ -218,6 +219,11 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
           : decisionView ? "inbox" : "root";
         const restoredDirectory = directoryPanelFor(restoredDirectoryRaw);
         setDesktopDirectory(restoredDirectory, false, false);
+        const collapsedSections = new Set(Array.isArray(ui?.directoryCollapsedSections) ? ui.directoryCollapsedSections : []);
+        document.querySelectorAll("[data-plugin-expand]").forEach((toggle) => {
+          const id = toggle.dataset.pluginExpand;
+          if (id) setPluginSectionExpanded(id, !collapsedSections.has(id), false);
+        });
       }
       restoreTreeCollapsed(ui?.collapsed);
       const disclosures = new Set(ui?.disclosures || []);

@@ -55,7 +55,7 @@ export function migrateSources(db: SourcesSqliteDatabase): void {
       status TEXT NOT NULL,
       enabled INTEGER NOT NULL DEFAULT 1,
       item_count INTEGER NOT NULL DEFAULT 0,
-      origin TEXT NOT NULL CHECK (origin IN ('relay', 'goalboard')),
+      origin TEXT NOT NULL CHECK (origin = 'goalboard'),
       config_json TEXT NOT NULL DEFAULT '{}',
       schedule_json TEXT NOT NULL DEFAULT '{"mode":"manual"}',
       cursor_json TEXT NOT NULL DEFAULT '{}',
@@ -89,6 +89,8 @@ export function migrateSources(db: SourcesSqliteDatabase): void {
   ensureColumn(db, "feed_sources", "cursor_json", "TEXT NOT NULL DEFAULT '{}'");
   ensureColumn(db, "feed_sources", "credential_ref", "TEXT");
   ensureColumn(db, "feed_sources", "account_label", "TEXT");
+  db.exec("UPDATE feed_sources SET origin = 'goalboard' WHERE origin <> 'goalboard'");
+  db.exec("UPDATE feed_sources SET status = 'disconnected' WHERE status = 'imported'");
 }
 
 export class SourcesModule implements SourcesApi {
@@ -196,7 +198,7 @@ export class SourcesModule implements SourcesApi {
         source.description,
         source.status,
         source.enabled ? 1 : 0,
-        source.origin,
+        "goalboard",
         JSON.stringify(source.config),
         JSON.stringify(source.schedule),
         source.connection_ref,
@@ -304,7 +306,7 @@ function mapSource(row: Row): SourceRecord {
     description: asText(row.description),
     status: asText(row.status) as SourceStatus,
     enabled: Number(row.enabled ?? 0) === 1,
-    origin: asText(row.origin) as SourceRecord["origin"],
+    origin: "goalboard",
     config: parseJson<Record<string, unknown>>(row.config_json, {}),
     schedule,
     connection_ref: optionalText(row.credential_ref),
@@ -338,7 +340,6 @@ function assertStatusTransition(current: SourceStatus, next: SourceStatus): void
     paused: ["active", "error", "disconnected"],
     error: ["active", "paused", "disconnected"],
     disconnected: ["active", "paused", "error"],
-    imported: ["active", "paused", "error", "disconnected"],
   };
   if (!allowed[current]?.includes(next)) {
     throw new SourcesError("source_invalid_transition", `来源不能从 ${current} 变成 ${next}`);

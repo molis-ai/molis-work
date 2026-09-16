@@ -1,6 +1,6 @@
 import { LocalCatalogMetadata, type LocalSqliteStorage, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import type { ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
-import { createProjectsSchema, migrateProjectDataClassSchema, migrateProjectInboxPluginSchema } from "@molis-ai/molis-work-module-projects";
+import { createProjectsSchema, migrateProjectDataClassSchema, migrateProjectInboxPluginSchema, migrateProjectTaskPluginSchema } from "@molis-ai/molis-work-module-projects";
 import { createPersonalPlanningMethodSchema } from "@molis-ai/molis-work-module-goals";
 import { createRuntimeContextBindingTables, createRuntimeContextSetupRequestTable, createRuntimeContextSuggestionRejectionTable, migrateRuntimeContextBindingEventsForUnbind, migrateRuntimeContextProjectReferences } from "@molis-ai/molis-work-module-private-work-context";
 import { CATALOG_OWNER, CATALOG_SCHEMA_VERSION, MolisWorkProjectCatalogError, catalogSchemaCompatibilityError, isOwnedCatalogOwner, LEGACY_CATALOG_OWNER } from "./project-catalog-contract.js";
@@ -96,6 +96,11 @@ export function migrateCatalog(storage: LocalSqliteStorage, databasePath: string
       migrateProjectInboxPluginSchema(db);
       metadata.setVersion(12);
       current = 12;
+    }
+    if (current === 12) {
+      migrateProjectTaskPluginSchema(db);
+      metadata.setVersion(13);
+      current = 13;
     }
     if (current !== CATALOG_SCHEMA_VERSION) {
       throw new MolisWorkProjectCatalogError(

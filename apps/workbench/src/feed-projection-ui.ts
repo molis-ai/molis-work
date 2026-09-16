@@ -46,12 +46,6 @@ function buildFeedNativePluginModel(
     preset,
     entries: [...feedEntries(view), ...supplementalEntries],
     sources,
-    relay_import: {
-      available: view.relay_import.available,
-      source_count: view.relay_import.source_count,
-      item_count: view.relay_import.item_count,
-      material_count: view.relay_import.material_count,
-    },
     source_catalog: (view.feed_source_catalog ?? []).map((source) => ({
       id: source.id,
       name: source.name,
@@ -384,7 +378,7 @@ function demoSourceModels(projectId: string): FeedUiSource[] {
 }
 
 function sourceStatusLabel(status: FeedSourceRecord["status"]): string {
-  return ({ active: L("已连接"), paused: L("已暂停"), error: L("需处理"), disconnected: L("未连接"), imported: L("仅历史数据") } as const)[status];
+  return ({ active: L("已连接"), paused: L("已暂停"), error: L("需处理"), disconnected: L("未连接") } as const)[status];
 }
 
 function provider(item: FeedItemRecord): FeedUiEntry["provider"] {

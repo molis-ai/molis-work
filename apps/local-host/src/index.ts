@@ -92,12 +92,11 @@ export { createLocalFeedConnectorService } from "./feed-connector-service.js";
 
 export { createLocalFeedSourceScheduler } from "./feed-source-scheduler.js";
 
-export { defaultRelayDatabasePath, detectRelayImport, importRelayData } from "./relay-import.js";
-
 export { createLocalFeedGoalPromotion } from "./feed-goal-promotion.js";
 
 export { handleFeedNativePluginHttp, type FeedNativePluginHttpOptions } from "./feed-native-plugin-http.js";
 export { handleInboxNativePluginHttp, type InboxNativePluginHttpOptions } from "./inbox-native-plugin-http.js";
+export { handleTaskNativePluginHttp, type TaskNativePluginHttpOptions } from "./task-native-plugin-http.js";
 
 export { createLocalArtifactHttp, renderGoalArtifactContext } from "./artifact-native-plugin-http.js";
 

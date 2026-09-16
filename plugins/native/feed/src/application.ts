@@ -1,14 +1,11 @@
 import type { AttentionReason as ModuleAttentionReason, AttentionStatus as ModuleAttentionStatus, AttentionSubjectType as ModuleAttentionSubjectType } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
-import type { ImportedFeedItemInput } from "@molis-ai/molis-work-contracts/modules/feed";
 import type { SourceRecord } from "@molis-ai/molis-work-contracts/modules/sources";
-
-
-import type { FeedItemDisposition, FeedItemRecord, FeedImportReceiptRecord, FeedMaterialRecord, FeedOutRuleRecord, FeedSnapshot, FeedSourceRunRecord, FeedSourceRecord, InboxEntryReason, InboxEntryRecord, InboxEntryStatus, InboxEntrySubjectType, SourceHistoryDecision } from "./projection.js";
+import type { FeedItemDisposition, FeedItemRecord, FeedMaterialRecord, FeedOutRuleRecord, FeedSnapshot, FeedSourceRunRecord, FeedSourceRecord, InboxEntryReason, InboxEntryRecord, InboxEntryStatus, InboxEntrySubjectType, SourceHistoryDecision } from "./projection.js";
 import { SourcesError } from "@molis-ai/molis-work-contracts/modules/sources";
 import { FeedError } from "@molis-ai/molis-work-contracts/modules/feed";
 import { AttentionError } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import { FeedStoreError, assertSourceHistoryDecision } from "./application-errors.js";
-import { toLegacyAttentionEntry, toLegacyFeedItem, toLegacyFeedMaterial, compatibleRun } from "./application-projection.js";
+import { toLegacyAttentionEntry, toLegacyFeedItem, compatibleRun } from "./application-projection.js";
 import type { FeedApplicationPorts } from "./application-ports.js";
 import {
   feedOutRuleMatches,
@@ -25,14 +22,12 @@ export class FeedApplication {
     const feedItems = this.ports.feed.query.list(boardId).map(toLegacyFeedItem);
     const inboxEntries = this.ports.attention.query.list(boardId).map(toLegacyAttentionEntry);
     const runs = this.ports.listener.listRuns(boardId).map(compatibleRun);
-    const importReceipts = this.ports.receipts.listImports(boardId);
     const contractMigrations = this.ports.receipts.listContractMigrations();
     return {
       sources,
       feed_items: feedItems,
       inbox_entries: inboxEntries,
       runs,
-      import_receipts: importReceipts,
       contract_migrations: contractMigrations,
       out_rules: this.ports.outRules?.list(boardId) ?? [],
     };
@@ -305,46 +300,6 @@ export class FeedApplication {
 
   deleteOutRule(boardId: string, ruleId: string): FeedOutRuleRecord {
     return this.requireOutRules().delete(boardId, ruleId);
-  }
-
-  upsertImportedItem(input: ImportedFeedItemInput): FeedItemRecord {
-    return toLegacyFeedItem(this.callFeed(() => this.ports.feed.commands.upsertImportedItem(input)));
-  }
-
-  upsertMaterial(material: FeedMaterialRecord): FeedMaterialRecord {
-    return toLegacyFeedMaterial(this.callFeed(() => this.ports.feed.commands.upsertMaterial({
-      project_id: material.board_id,
-      material_id: material.material_id,
-      item_id: material.item_id,
-      canonical_url: material.canonical_url,
-      title: material.title,
-      source_name: material.source_name,
-      published_at: material.published_at,
-      preview: material.preview,
-      content_hash: material.content_hash,
-      content_ref: material.content_ref,
-      content_available: material.content_available,
-      content_type: material.content_type,
-      character_count: material.character_count,
-      captured_at: material.captured_at,
-      provenance: material.provenance,
-      selected_for_context: material.selected_for_context,
-      imported_at: material.imported_at,
-      updated_at: material.updated_at,
-    })));
-  }
-
-  importOwnershipBatch<T>(operation: () => { result: T; receipt: FeedImportReceiptRecord }): T {
-    return this.ports.transaction(() => {
-      const { result, receipt } = operation();
-      this.ports.receipts.putImportReceipt(receipt);
-      const { sources, items, materials, runs, credentials, content } = receipt.summary;
-      this.ports.appendEvent(receipt.board_id, "board", receipt.board_id,
-        "feed.relay_ownership_migrated", "用户把 Relay Feed 数据与可用本机所有权迁入 Molis Work",
-        { receipt_id: receipt.receipt_id, sources, items, materials, runs, credentials, content },
-        receipt.completed_at);
-      return result;
-    });
   }
 
   setDisposition(

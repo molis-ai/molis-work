@@ -19,6 +19,8 @@ test("Workbench mounts Work surfaces with real Session data and escapes user con
   };
   const rendered = renderProjectOperations(project, data, icon);
   assert.match(rendered.directories, /data-record-id="session-a"/);
+  assert.match(rendered.directories, /goal-status--waiting/);
+  assert.doesNotMatch(rendered.directories, /goal-status--idle/);
   assert.match(rendered.surfaces, /data-detail-id="session-a"/);
   assert.match(rendered.surfaces, /&lt;script&gt;session&lt;\/script&gt;/);
   assert.doesNotMatch(rendered.surfaces, /<script>session/);

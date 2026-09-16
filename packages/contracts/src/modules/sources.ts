@@ -8,7 +8,7 @@ export const modulesSourcesContract = {
   ssot: "docs/modules/sources.md",
 } as const satisfies ContractDescriptor;
 
-export type SourceStatus = "active" | "paused" | "error" | "disconnected" | "imported";
+export type SourceStatus = "active" | "paused" | "error" | "disconnected";
 export type SourceSyncKind = "public_source" | "github" | "gmail" | "manual";
 export type SourceHistoryDecision = "retain_history" | "delete_local_history";
 export type SourceSchedule =
@@ -31,7 +31,7 @@ export interface SourceRecord {
   description: string;
   status: SourceStatus;
   enabled: boolean;
-  origin: "relay" | "goalboard";
+  origin: "goalboard";
   config: Record<string, unknown>;
   schedule: SourceSchedule;
   connection_ref: string | null;

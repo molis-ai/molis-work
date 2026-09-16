@@ -92,13 +92,6 @@ export interface FeedUiConnectorStatus {
   readonly problem?: string | null;
 }
 
-export interface FeedUiRelayImport {
-  readonly available: boolean;
-  readonly source_count: number;
-  readonly item_count: number;
-  readonly material_count: number;
-}
-
 export interface FeedUiPrimitives {
   escape(value: unknown): string;
   icon(name: string): string;
@@ -124,7 +117,6 @@ export interface FeedUiModel {
   readonly entries: readonly FeedUiEntry[];
   readonly sources: readonly FeedUiSource[];
   readonly out_rules: readonly FeedUiOutRule[];
-  readonly relay_import: FeedUiRelayImport;
   readonly source_catalog: readonly FeedUiCatalogSource[];
   readonly connector_auth: {
     readonly github: FeedUiConnectorStatus;
@@ -213,11 +205,11 @@ export function renderFeedDirectory(model: FeedUiModel): string {
   const p = model.primitives;
   const entries = sortedFeedEntries(model);
   const task = (id: string, name: string, status: string, count: number) => `<div data-feed-task="${p.escape(id)}"><button type="button" class="feed-source-task" data-feed-task-toggle="${p.escape(id)}"${id === "all" ? ' aria-current="page"' : ""}><span class="feed-source-task-icon">${p.icon(id === "all" ? "input" : "refresh")}</span><span><strong>${p.escape(name)}</strong><small>${p.escape(status)}</small></span><span class="feed-source-task-count">${count}</span></button>${id !== "all" ? `<button class="feed-task-config-trigger" type="button" data-feed-task-config-open="${p.escape(id)}" aria-label="${p.text("任务配置")} · ${p.escape(name)}" title="${p.text("任务配置")}">${p.icon("more")}</button>` : ""}</div>`;
-  return `<section class="desktop-directory-panel feed-source-directory" data-directory-panel="feed" hidden>
+  return `<section class="desktop-directory-panel feed-source-directory" data-directory-panel="feed">
     ${task("all", p.text("全部"), p.text("所有来源的流水"), entries.length)}
     <h2>${p.text("拉取任务")}</h2>
     ${model.sources.map((source) => task(source.source_id, source.name, [source.status_label, source.last_fetch_label].filter(Boolean).join(" · "), entries.filter((entry) => entrySourceId(entry, model) === source.source_id).length)).join("")}
-    <button class="feed-directory-add" type="button" data-feed-add-toggle>${p.icon("plus")}${p.text("添加任务")}</button><button class="feed-directory-advanced" type="button" data-feed-advanced-open>${p.text("捕捉规则与迁移")}</button>
+    <button class="feed-directory-add" type="button" data-feed-add-toggle>${p.icon("plus")}${p.text("添加任务")}</button><button class="feed-directory-advanced" type="button" data-feed-advanced-open>${p.text("捕捉规则")}</button>
   </section>`;
 }
 
@@ -363,7 +355,7 @@ function renderSourceRuns(source: FeedUiSource, p: FeedUiModel["primitives"]): s
 }
 
 export function renderFeedOverlays(model: FeedUiModel): string {
-  const { primitives: p, relay_import: relay } = model;
+  const p = model.primitives;
   const catalogOptions = model.source_catalog.map((source) => `<option value="${p.escape(source.id)}">${p.escape(`${source.category_label} · ${source.name}`)}</option>`).join("");
   const connectorLabel = (status: FeedUiConnectorStatus) => status.bound ? `${p.text("已连接")} ${p.escape(status.hint || "")}` : status.problem ? p.text("凭据不可读取") : p.text("未连接");
   const choices = [
@@ -407,11 +399,10 @@ export function renderFeedOverlays(model: FeedUiModel): string {
         <article class="feed-connector-card" data-feed-setup-kind="github" hidden><div><strong>GitHub</strong><em>${connectorLabel(model.connector_auth.github)}</em></div><p>${p.text("读取 GitHub 未读通知；直接点名、分配、Review、CI 与安全提醒才进入 Inbox。")}</p><label><span>${p.text("GitHub 访问令牌（需要 notifications 权限）")}</span><input type="password" autocomplete="off" data-feed-connector-token="github" placeholder="ghp_…"></label><div class="feed-connector-actions">${model.connector_auth.github.bound ? `<button type="button" data-feed-connector-unbind="github">${p.text("断开")}</button>` : ""}</div><details><summary>${p.text("使用 Device Flow（notifications + read:user）")}</summary><label><span>OAuth App Client ID</span><input autocomplete="off" data-feed-github-client-id></label><div class="feed-connector-actions"><button type="button" data-feed-github-device-start>${p.text("开始授权")}</button><button type="button" data-feed-github-device-poll hidden>${p.text("我已授权，检查状态")}</button></div><p data-feed-github-device-status hidden></p></details></article><article class="feed-connector-card" data-feed-setup-kind="gmail" hidden><div><strong>Gmail</strong><em>${connectorLabel(model.connector_auth.gmail)}</em></div><p>${p.text("只读访问必要的邮件元数据与预览；每个 Gmail 账号建立独立来源、范围和游标。")}</p><label><span>Google 访问令牌</span><input type="password" autocomplete="off" data-feed-connector-token="gmail" placeholder="ya29.…"></label><div class="feed-connector-actions">${model.connector_auth.gmail.bound ? `<button type="button" data-feed-connector-unbind="gmail">${p.text("断开")}</button>` : ""}</div><details><summary>${p.text("使用 Google OAuth")}</summary><p>${p.text("授权范围：gmail.readonly、openid、email；Molis Work 不发送、删除或修改 Gmail 邮件。")}</p><label><span>OAuth Client ID</span><input autocomplete="off" data-feed-gmail-client-id></label><label><span>Client secret（可选）</span><input type="password" autocomplete="off" data-feed-gmail-client-secret></label><button type="button" data-feed-gmail-oauth-start>${p.text("打开授权页面")}</button></details></article>
       </section>
       <section data-feed-task-configs hidden>${taskPanels}</section>
-      <section data-feed-advanced hidden>${renderOutRulesSection(model)}<details class="feed-task-extra"><summary>${p.text("从 Relay 迁移历史")}</summary><p>${relay.available?p.text("将 Relay 中的来源和历史消息导入当前项目。"):p.text("没有找到 Relay 数据库")}</p><button type="button" data-relay-import-open${relay.available?'':' disabled'}>${p.text("查看迁移内容")}</button></details></section>
+      <section data-feed-advanced hidden>${renderOutRulesSection(model)}</section>
       <p class="form-error" data-feed-source-error role="alert" hidden></p><p class="feed-source-progress" data-feed-source-progress role="status" hidden></p>
     </div><footer><button type="button" data-feed-sources-close>${p.text("取消")}</button><button class="button-primary" type="button" data-feed-config-submit data-source-config-save hidden>${p.text("保存配置")}</button><button class="button-primary" type="button" form="feed-add-task-form" data-feed-source-register="custom_rss" hidden>${p.text("创建任务")}</button><button class="button-primary" type="button" data-feed-footer-kind="github" data-feed-connector-bind="github" hidden>${p.text("连接 GitHub")}</button><button class="button-primary" type="button" data-feed-footer-kind="gmail" data-feed-connector-bind="gmail" hidden>${p.text("连接 Gmail")}</button></footer>
-  </div></dialog>
-    <dialog class="feed-import-dialog" data-relay-import-dialog><form method="dialog"><header><span>${p.icon("refresh")}</span><div><h2>${p.text("迁移 Relay Feed")}</h2><p>${p.text("把 Feed 的运行所有权完整迁入 Molis Work。")}</p></div><button value="cancel" aria-label="${p.text("取消")}">${p.icon("x")}</button></header><dl><div><dt>${p.text("来源")}</dt><dd>${relay.source_count}</dd></div><div><dt>Item</dt><dd>${relay.item_count}</dd></div><div><dt>${p.text("资料")}</dt><dd>${relay.material_count}</dd></div></dl><p class="form-error" data-relay-import-error role="alert" hidden></p><footer><button value="cancel">${p.text("取消")}</button><button class="button-primary" type="button" data-relay-import-confirm${relay.available ? "" : " disabled"}>${p.text("确认迁移")}</button></footer></form></dialog>`;
+  </div></dialog>`;
 }
 
 function renderOutRulesSection(model: FeedUiModel): string {

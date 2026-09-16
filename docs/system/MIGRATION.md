@@ -114,7 +114,7 @@ DV1 第八切片：七个项目 context 工具的转换归 MCP App；公开 cata
 ### FD4 已落地的 Feed Native Plugin 与入口切换
 
 - `packages/contracts/platform/ui` 定义 UI Contribution、Surface 与 Slot；`packages/ui-host` 提供真实注册和渲染，`apps/workbench` 通过公开入口注册官方 Feed contribution。
-- `plugins/native/feed` 现在拥有 Feed 列表与详情、Source 管理、Connector 设置、调度、Relay 导入、空态、错误和重试 UI，以及既有 Feed HTTP route descriptor。Inbox 产品入口和 `/api/inbox` 已迁到 `plugins/native/inbox`。
+- `plugins/native/feed` 现在拥有 Feed 列表与详情、Source 管理、Connector 设置、调度、空态、错误和重试 UI，以及既有 Feed HTTP route descriptor。Inbox 产品入口和 `/api/inbox` 已迁到 `plugins/native/inbox`。
 - `src/web/render.ts` 已删除 Feed / Source renderer，只保留 Workbench Shell、Goal 决定内容的 Slot 贡献和一个宿主数据映射 adapter；`src/web/server.ts` 已删除 Feed/Inbox route 分支，只调用 Feed Plugin HTTP adapter。
 - 现有浏览器交互选择器、API 路径、错误响应、来源配置和处理动作保持兼容；Feed/Attention 写入继续经过 FD2 的 Module-backed facade。
 - `src/web/feed-native-plugin-http.ts` 是当前 Node Host 的兼容 transport adapter；跨 Feed→Goal 的 promotion 已在 GW4 改走公开 Goals Command，AP2 再把当前 Coordinator-based Host binding 换成本地 Host capability。不把这段装配职责吸收回 Feed Module。

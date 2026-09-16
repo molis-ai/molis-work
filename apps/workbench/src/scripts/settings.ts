@@ -1,7 +1,7 @@
 import { PROJECT_SETTINGS_CLIENT_SCRIPT } from "./project-settings.js";
 import { WEB_SERVICE_SETTINGS_SCRIPT } from "./settings-web-service.js";
 
-export const SETTINGS_CLIENT_SCRIPT = WEB_SERVICE_SETTINGS_SCRIPT + PROJECT_SETTINGS_CLIENT_SCRIPT + `
+export const RUNTIME_PLAN_CLIENT_SCRIPT = `
   (() => {
     const dialog = document.querySelector("[data-runtime-plan-dialog]");
     if (!dialog) return;
@@ -15,7 +15,7 @@ export const SETTINGS_CLIENT_SCRIPT = WEB_SERVICE_SETTINGS_SCRIPT + PROJECT_SETT
     const confirmLabel = dialog.querySelector("[data-runtime-confirm-label]");
     const applyButton = dialog.querySelector("[data-runtime-plan-apply]");
     const errorBox = dialog.querySelector("[data-runtime-plan-error]");
-    const toast = document.querySelector("[data-settings-toast]");
+    const toast = document.querySelector("[data-settings-toast], [data-toast]");
     let activePlan = null;
     let reloadOnClose = false;
     const showToast = (text) => {
@@ -32,47 +32,47 @@ export const SETTINGS_CLIENT_SCRIPT = WEB_SERVICE_SETTINGS_SCRIPT + PROJECT_SETT
     confirmInput?.addEventListener("change", () => {
       applyButton.disabled = !confirmInput.checked || !activePlan || activePlan.status !== "ready";
     });
-    document.querySelectorAll("[data-runtime-plan]").forEach((button) => {
-      button.addEventListener("click", async () => {
-        const runtimeId = button.dataset.runtimePlan;
-        const action = button.dataset.runtimeAction;
-        activePlan = null;
-        reloadOnClose = false;
-        title.textContent = L("正在准备接入预览");
-        message.textContent = L("Molis Work 正在只读检查当前 Runtime 配置。");
-        changes.innerHTML = "";
-        backup.textContent = L("检查中");
-        restart.textContent = L("检查中");
-        confirmRow.hidden = true;
-        confirmInput.checked = false;
-        applyButton.disabled = true;
-        applyButton.hidden = false;
-        applyButton.textContent = L("确认应用");
-        errorBox.hidden = true;
-        dialog.showModal();
-        try {
-          const response = await fetch("/api/settings/runtimes/" + encodeURIComponent(runtimeId) + "/plan", {
-            method: "POST",
-            headers: molisWorkControlHeaders(),
-            body: JSON.stringify({ action }),
-          });
-          const plan = await response.json();
-          if (!response.ok) throw new Error(plan.error || L("无法生成 Runtime 接入预览"));
-          activePlan = plan;
-          title.textContent = plan.display_name + (plan.action === "remove" ? L(" · 移除预览") : L(" · 接入预览"));
-          message.textContent = plan.message;
-          changes.innerHTML = (plan.changes || []).map((change) => "<li><strong>" + escapeText(change.operation === "remove" ? L("移除") : change.operation === "replace" ? L("替换") : L("新增")) + "</strong><div><p>" + escapeText(change.target_path) + "</p><small>" + escapeText(change.before) + " → " + escapeText(change.after) + "</small></div></li>").join("") || L("<li><strong>无变更</strong><div><p>当前状态无需写入。</p></div></li>");
-          backup.textContent = plan.backup_path || L("当前变更无须备份");
-          restart.textContent = (plan.restart_instructions || []).join(" ") || L("无须重启");
-          confirmRow.hidden = plan.status !== "ready";
-          confirmLabel.textContent = plan.confirmation;
-          applyButton.hidden = plan.status !== "ready";
-        } catch (error) {
-          errorBox.textContent = error.message || L("无法生成 Runtime 接入预览");
-          errorBox.hidden = false;
-          message.textContent = L("没有修改任何配置。");
-        }
-      });
+    document.addEventListener("click", async (event) => {
+      const button = event.target.closest("[data-runtime-plan]");
+      if (!button) return;
+      const runtimeId = button.dataset.runtimePlan;
+      const action = button.dataset.runtimeAction;
+      activePlan = null;
+      reloadOnClose = false;
+      title.textContent = L("正在准备接入预览");
+      message.textContent = L("Molis Work 正在只读检查当前 Runtime 配置。");
+      changes.innerHTML = "";
+      backup.textContent = L("检查中");
+      restart.textContent = L("检查中");
+      confirmRow.hidden = true;
+      confirmInput.checked = false;
+      applyButton.disabled = true;
+      applyButton.hidden = false;
+      applyButton.textContent = L("确认应用");
+      errorBox.hidden = true;
+      dialog.showModal();
+      try {
+        const response = await fetch("/api/settings/runtimes/" + encodeURIComponent(runtimeId) + "/plan", {
+          method: "POST",
+          headers: molisWorkControlHeaders(),
+          body: JSON.stringify({ action }),
+        });
+        const plan = await response.json();
+        if (!response.ok) throw new Error(plan.error || L("无法生成 Runtime 接入预览"));
+        activePlan = plan;
+        title.textContent = plan.display_name + (plan.action === "remove" ? L(" · 移除预览") : L(" · 接入预览"));
+        message.textContent = plan.message;
+        changes.innerHTML = (plan.changes || []).map((change) => "<li><strong>" + escapeText(change.operation === "remove" ? L("移除") : change.operation === "replace" ? L("替换") : L("新增")) + "</strong><div><p>" + escapeText(change.target_path) + "</p><small>" + escapeText(change.before) + " → " + escapeText(change.after) + "</small></div></li>").join("") || L("<li><strong>无变更</strong><div><p>当前状态无需写入。</p></div></li>");
+        backup.textContent = plan.backup_path || L("当前变更无须备份");
+        restart.textContent = (plan.restart_instructions || []).join(" ") || L("无须重启");
+        confirmRow.hidden = plan.status !== "ready";
+        confirmLabel.textContent = plan.confirmation;
+        applyButton.hidden = plan.status !== "ready";
+      } catch (error) {
+        errorBox.textContent = error.message || L("无法生成 Runtime 接入预览");
+        errorBox.hidden = false;
+        message.textContent = L("没有修改任何配置。");
+      }
     });
     applyButton?.addEventListener("click", async () => {
       if (!activePlan || !confirmInput.checked) return;
@@ -100,6 +100,20 @@ export const SETTINGS_CLIENT_SCRIPT = WEB_SERVICE_SETTINGS_SCRIPT + PROJECT_SETT
         applyButton.textContent = L("重新确认");
       }
     });
+    function escapeText(value) {
+      return String(value == null ? "" : value).replace(/[&<>"']/g, (character) => {
+        if (character === "&") return "&amp;";
+        if (character === "<") return "&lt;";
+        if (character === ">") return "&gt;";
+        if (character === '"') return "&quot;";
+        return "&#039;";
+      });
+    }
+  })();
+`;
+
+export const SETTINGS_CLIENT_SCRIPT = WEB_SERVICE_SETTINGS_SCRIPT + PROJECT_SETTINGS_CLIENT_SCRIPT + RUNTIME_PLAN_CLIENT_SCRIPT + `
+  (() => {
     const projectManager = document.querySelector("[data-project-manager]");
     if (projectManager) {
       const radios = [...projectManager.querySelectorAll('input[name="project-focus"]')];
@@ -154,15 +168,6 @@ export const SETTINGS_CLIENT_SCRIPT = WEB_SERVICE_SETTINGS_SCRIPT + PROJECT_SETT
       }
     });
     globalThis.molisWorkBindProjectIdentity?.(document);
-    function escapeText(value) {
-      return String(value == null ? "" : value).replace(/[&<>"']/g, (character) => {
-        if (character === "&") return "&amp;";
-        if (character === "<") return "&lt;";
-        if (character === ">") return "&gt;";
-        if (character === '"') return "&quot;";
-        return "&#039;";
-      });
-    }
   })();
 `;
 

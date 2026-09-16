@@ -1,130 +1,149 @@
 /** Approved project/plugin chrome. Scoped to the workbench, so settings retain their own layout. */
 export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench {
-    --desktop-titlebar-height: 44px; --desktop-titlebar-control-height: 28px;
-    --desktop-project-header-height: 96px; --immersive-sidebar-width: 280px;
+    --desktop-titlebar-height: 32px; --desktop-titlebar-control-height: 26px; --workspace-chrome-height: 32px;
+    --desktop-project-header-height: 36px; --immersive-sidebar-width: 240px; --plugin-rail-width: 48px; --tab-strip-h: 32px;
     background: var(--canvas); color: var(--ink); height: 100dvh; overflow: hidden; overscroll-behavior: none;
-    font: 13px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Microsoft YaHei", sans-serif;
+    font: 13px/1.35 -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Microsoft YaHei", sans-serif;
   }
   body.immersive-workbench [hidden] { display: none !important; }
   body.immersive-workbench .app { display: block; height: 100dvh; min-height: 0; overflow: hidden; padding: 0; margin: 0; max-width: none; }
   body.immersive-workbench .immersive-workspace {
-    display: grid; grid-template-columns: var(--tree-width, var(--immersive-sidebar-width)) minmax(0, 1fr);
-    grid-template-rows: var(--desktop-titlebar-height) minmax(0, 1fr); height: 100dvh; min-height: 0; min-width: 0;
+    display: grid; grid-template-columns: var(--plugin-rail-width) var(--tree-width, var(--immersive-sidebar-width)) minmax(0, 1fr);
+    grid-template-rows: var(--desktop-titlebar-height) var(--workspace-chrome-height) minmax(0, 1fr); height: 100dvh; min-height: 0; min-width: 0;
     padding: 0; margin: 0; gap: 0; border: 0; border-radius: 0; overflow: hidden;
   }
-  body.immersive-workbench .immersive-workspace.is-directory-collapsed { grid-template-columns: 0 minmax(0, 1fr); }
-  body.immersive-workbench .immersive-workspace.is-directory-collapsed > .tree-pane { display: none; }
+  body.immersive-workbench .immersive-workspace.is-directory-collapsed,
+  body.immersive-workbench .immersive-workspace.is-plugin-directory-empty {
+    grid-template-columns: var(--plugin-rail-width) 0 minmax(0, 1fr);
+  }
+  body.immersive-workbench .immersive-workspace.is-directory-collapsed > .tree-pane,
+  body.immersive-workbench .immersive-workspace.is-plugin-directory-empty > .tree-pane { display: none; }
+  body.immersive-workbench .plugin-rail {
+    grid-column: 1; grid-row: 2 / -1; min-width: 0; min-height: 0; width: auto;
+    display: flex; flex-direction: column; align-items: stretch; overflow: hidden;
+    padding: 6px 0 8px; background: var(--nav-bg); border-right: 1px solid var(--line); z-index: 8;
+  }
+  body.immersive-workbench .plugin-rail-items {
+    display: flex; flex: 1; flex-direction: column; align-items: center; gap: 2px; min-height: 0;
+    padding: 0 6px; overflow: auto; scrollbar-width: none;
+  }
+  body.immersive-workbench .plugin-rail-items::-webkit-scrollbar { width: 0; height: 0; }
+  body.immersive-workbench .plugin-rail .plugin-rail-item {
+    width: 36px; height: 32px; min-height: 32px; padding: 0; flex: none; justify-content: center; gap: 0; border-radius: 8px;
+  }
+  body.immersive-workbench .plugin-rail .plugin-rail-item > span {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
+  body.immersive-workbench .plugin-rail .plugin-rail-item svg { width: 18px; height: 18px; }
+  body.immersive-workbench .plugin-rail .personal-sidebar-footer {
+    flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; margin: 0; padding: 8px 0 0; border: 0; background: transparent;
+  }
+  body.immersive-workbench .plugin-rail .personal-account {
+    width: 36px; height: 32px; min-height: 32px; padding: 0; gap: 0; justify-content: center; border: 0; background: transparent; cursor: pointer; font: inherit;
+  }
+  body.immersive-workbench .plugin-rail .personal-account-copy,
+  body.immersive-workbench .plugin-rail .personal-account-settings { display: none; }
+  body.immersive-workbench .plugin-rail .personal-account-avatar { width: 28px; height: 28px; }
   body.immersive-workbench .immersive-workspace > .tree-pane {
-    grid-column: 1; grid-row: 1 / 3; position: relative; inset: auto; width: auto; min-width: 0; min-height: 0;
+    grid-column: 2; grid-row: 3; position: relative; inset: auto; width: auto; min-width: 0; min-height: 0;
     padding: 0 !important; display: flex; flex-direction: column; overflow: hidden;
     background: var(--nav-bg); border: 0; border-right: 1px solid var(--line); border-radius: 0;
   }
-  body.immersive-workbench .immersive-workspace .navigator-project {
-    display: flex; flex-direction: column; height: 96px; min-height: 96px; padding: 0 !important;
-    margin: 0; border: 0; background: var(--nav-bg); gap: 0; overflow: visible; z-index: 12;
+  body.immersive-workbench .immersive-workspace > .workspace-chrome {
+    grid-column: 2; grid-row: 2; display: flex; flex-direction: row; align-items: center;
+    height: var(--workspace-chrome-height); min-height: var(--workspace-chrome-height);
+    padding: 0 4px 0 6px; margin: 0; gap: 2px; min-width: 0; overflow: visible; z-index: 12;
+    background: var(--nav-bg); border: 0; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line);
+    grid-template-rows: none !important; grid-template-columns: none !important; pointer-events: none;
   }
-  body.immersive-workbench .immersive-workspace .navigator-native-row {
-    display: flex; flex-direction: row-reverse; align-items: center; flex: none;
-    height: 44px; min-height: 44px; padding: 0 13px; gap: 0;
+  body.immersive-workbench .immersive-workspace.is-directory-collapsed > .workspace-chrome,
+  body.immersive-workbench .immersive-workspace.is-plugin-directory-empty > .workspace-chrome {
+    grid-column: 2 / -1; border-right: 0;
   }
-  body.immersive-workbench .immersive-workspace .navigator-directory-toggle {
-    width: 25px; height: 25px; min-height: 25px; padding: 0; margin: 0; border: 0; border-radius: 5px;
-    flex: none; color: var(--muted); background: transparent; display: grid; place-items: center;
+  body.immersive-workbench .desktop-titlebar-drag { align-self: stretch; height: auto; min-height: 0; min-width: 12px; }
+  body.immersive-workbench .titlebar-chrome .desktop-titlebar-drag--left { display: none; }
+  body.immersive-workbench .workspace-chrome .navigator-project-primary {
+    display: flex; flex: none; min-width: 0; align-items: center; gap: 2px;
+    height: var(--workspace-chrome-height); min-height: var(--workspace-chrome-height); margin: 0; padding: 0; border: 0; box-sizing: border-box;
+    grid-template-columns: none !important; pointer-events: auto;
   }
-  body.immersive-workbench .navigator-directory-toggle svg { width: 14px; height: 14px; }
-  body.immersive-workbench .desktop-titlebar-drag { align-self: stretch; flex: 1; height: auto; min-height: 0; min-width: 12px; }
-  body.immersive-workbench .immersive-workspace .navigator-project-primary {
-    display: flex; align-items: center; gap: 3px; height: 52px; min-height: 52px;
-    margin: 0; padding: 4px 11px 13px; border: 0; box-sizing: border-box;
-  }
-  body.immersive-workbench .immersive-workspace .navigator-project-menu { flex: 1; width: auto; min-width: 0; position: static; }
+  body.immersive-workbench .workspace-chrome .navigator-project-menu { flex: 1 1 72px; width: auto; max-width: 180px; min-width: 72px; position: relative; }
   body.immersive-workbench .immersive-workspace .navigator-project-selector {
-    width: 100%; height: 35px; min-height: 35px; padding: 6px 4px; display: flex; align-items: center;
-    gap: 8px; border: 0; border-radius: 6px; color: var(--ink); background: transparent;
+    width: auto; min-width: 0; flex: 1; height: 28px; min-height: 28px; padding: 0 4px; display: flex; align-items: center;
+    gap: 6px; border: 0; border-radius: 6px; color: var(--ink); background: transparent;
   }
-  body.immersive-workbench .navigator-project-selector > svg:first-child { height: 23px; width: 23px; padding: 4px; border-radius: 6px; background: var(--action); color: var(--action-ink); flex: none; }
+  body.immersive-workbench .navigator-project-selector > svg:first-child { height: 16px; width: 16px; padding: 2px; border-radius: 4px; background: var(--action); color: var(--action-ink); flex: none; }
   body.immersive-workbench .navigator-project-selector > svg:last-child { width: 11px; height: 11px; margin-left: auto; flex: none; }
   body.immersive-workbench .navigator-project-selector strong { font-size: 13px; font-weight: 550; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
   body.immersive-workbench .immersive-workspace .navigator-project-settings,
   body.immersive-workbench .immersive-workspace .navigator-project-search,
-  body.immersive-workbench .immersive-workspace .navigator-project-notifications { width: 27px; height: 29px; min-height: 29px; border: 0; border-radius: 5px; background: none; flex: none; color: var(--muted); display: grid; place-items: center; padding: 0; }
-  body.immersive-workbench .navigator-project-settings svg, body.immersive-workbench .navigator-project-search svg, body.immersive-workbench .navigator-project-notifications svg { width: 15px; height: 15px; }
-  body.immersive-workbench .navigator-project-menu-popover { position: absolute; top: 90px; left: 10px; right: 10px; width: auto; max-height: min(500px, calc(100dvh - 100px)); overflow: auto; padding: 6px; background: var(--paper); color: var(--ink); border: 0; border-radius: 9px; box-shadow: 0 8px 32px #00000035; z-index: 30; }
+  body.immersive-workbench .immersive-workspace .navigator-project-notifications,
+  body.immersive-workbench .titlebar-chrome .navigator-directory-toggle { width: 27px; height: 29px; min-height: 29px; border: 0; border-radius: 5px; background: none; flex: none; color: var(--muted); display: grid; place-items: center; padding: 0; }
+  body.immersive-workbench .navigator-project-settings svg, body.immersive-workbench .navigator-project-search svg, body.immersive-workbench .navigator-project-notifications svg,
+  body.immersive-workbench .titlebar-chrome .navigator-directory-toggle svg,
+  body.immersive-workbench .titlebar-chrome .immersive-show-directory svg { width: 15px; height: 15px; }
+  body.immersive-workbench .navigator-project-menu-popover { position: absolute; top: calc(100% + 4px); left: 0; right: auto; width: min(280px, calc(100vw - 24px)); max-height: min(500px, calc(100dvh - 100px)); overflow: auto; padding: 6px; background: var(--paper); color: var(--ink); border: 0; border-radius: 9px; box-shadow: 0 8px 32px #00000035; z-index: 30; }
   body.immersive-workbench .navigator-project-option { padding: 9px 8px; border-radius: 5px; color: var(--ink); }
   body.immersive-workbench .navigator-project-option strong { font-size: 12px; font-weight: 550; }
   body.immersive-workbench .navigator-project-menu-popover > span { padding: 6px 8px; font-size: 10px; color: var(--muted); }
   body.immersive-workbench .navigator-project-manage { font-size: 11px; color: var(--muted); }
-  body.immersive-workbench .immersive-directory-heading { flex: none; min-width: 0; padding: 4px 8px 8px; }
-  body.immersive-workbench .immersive-plugin-strip { display: flex; flex-direction: column; gap: 3px; min-width: 0; padding: 0; overflow: visible; }
-  body.immersive-workbench .immersive-plugin-link { flex: none; display: flex; align-items: center; gap: 10px; width: 100%; min-height: 36px; padding: 0 10px; font: inherit; font-size: 13px; font-weight: 450; white-space: nowrap; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; text-align: left; transition: color 150ms ease, background-color 150ms ease; }
+  body.immersive-workbench .immersive-directory-heading { display: none; }
+  body.immersive-workbench .plugin-section { position: relative; display: flex; flex-direction: column; align-items: stretch; gap: 0; min-width: 0; }
+  body.immersive-workbench .plugin-section.is-expanded { display: flex; flex-direction: column; align-items: stretch; min-width: 0; }
+  body.immersive-workbench .plugin-section > .immersive-plugin-link { flex: none; pointer-events: none; }
+  body.immersive-workbench .plugin-section:not(.is-expanded) > .plugin-section-body { display: none; }
+  body.immersive-workbench .plugin-section.is-expanded > .plugin-section-body { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  body.immersive-workbench .plugin-section.is-expanded > .plugin-section-body > .desktop-directory-panel:not([hidden]) { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  body.immersive-workbench .plugin-section.is-expanded > .plugin-section-body > .desktop-directory-panel:not([hidden]) > [data-directory-list-actions] { flex: none; justify-content: flex-start; }
+  body.immersive-workbench .plugin-section.is-expanded > .plugin-section-body > .desktop-directory-panel:not([hidden]) > :not([data-directory-list-actions]):not(.desktop-directory-heading) { min-width: 0; padding-inline: 8px 4px; }
+  body.immersive-workbench .plugin-section[data-plugin-section="settings"].is-expanded > .plugin-section-body > .desktop-directory-panel:not([hidden]) { gap: 8px; padding: 0 8px 12px; }
+  body.immersive-workbench .plugin-section-market { display: none; }
+  body.immersive-workbench .tree-pane .immersive-plugin-link { flex: none; display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 28px; padding: 0 6px 0 8px; font: inherit; font-size: 13px; font-weight: 550; white-space: nowrap; border: 0; border-radius: 6px; background: transparent; color: var(--ink); cursor: default; text-align: left; }
+  body.immersive-workbench .plugin-rail .immersive-plugin-link { flex: none; display: flex; align-items: center; font: inherit; font-size: 13px; font-weight: 450; white-space: nowrap; border: 0; background: transparent; color: var(--muted); cursor: pointer; text-align: left; transition: color 150ms ease, background-color 150ms ease; }
   body.immersive-workbench .immersive-plugin-link svg { width: 16px; height: 16px; color: var(--faint); flex: none; }
-  body.immersive-workbench .immersive-plugin-link:hover { background: var(--nav-hover); color: var(--ink); }
-  body.immersive-workbench .immersive-plugin-link:hover svg { color: var(--ink); }
-  body.immersive-workbench .immersive-plugin-link[aria-current] { background: var(--nav-active); color: var(--ink); font-weight: 550; box-shadow: none; }
-  body.immersive-workbench .immersive-plugin-link[aria-current] svg { color: var(--ink); }
-  body.immersive-workbench .immersive-plugin-link[aria-current]:hover { background: var(--nav-hover); }
-  body.immersive-workbench .immersive-market-entry { margin-top: 6px; }
-  body.immersive-workbench .directory-shortcuts { flex: none; display: flex; flex-direction: column; min-width: 0; min-height: 0; max-height: min(38vh, 240px); margin: 0; padding: 8px 8px 6px; border: 0; }
-  body.immersive-workbench .directory-shortcuts-title { margin: 0; padding: 4px 8px; font: inherit; font-size: 12px; font-weight: 500; line-height: 18px; color: var(--muted); }
-  body.immersive-workbench .directory-shortcuts-list { display: flex; flex-direction: column; gap: 1px; min-height: 0; margin: 0; padding: 0; list-style: none; overflow: auto; overscroll-behavior: contain; }
-  body.immersive-workbench .directory-shortcut { display: flex; align-items: center; min-width: 0; gap: 2px; }
-  body.immersive-workbench .directory-shortcut a,
-  body.immersive-workbench .directory-shortcut-add button { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; min-height: 32px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: 13px; font-weight: 450; text-decoration: none; text-align: left; cursor: pointer; }
-  body.immersive-workbench .directory-shortcut a svg,
-  body.immersive-workbench .directory-shortcut-add button svg { width: 16px; height: 16px; color: var(--faint); flex: none; }
-  body.immersive-workbench .directory-shortcut a:hover,
-  body.immersive-workbench .directory-shortcut-add button:hover { background: var(--nav-hover); color: var(--ink); }
-  body.immersive-workbench .directory-shortcut a:hover svg,
-  body.immersive-workbench .directory-shortcut-add button:hover svg { color: var(--ink); }
-  body.immersive-workbench .directory-shortcut [data-home-shortcut-name] { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  body.immersive-workbench .directory-shortcut [data-home-shortcut-edit] { flex: none; display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 5px; color: var(--muted); background: transparent; opacity: 0; cursor: pointer; }
-  body.immersive-workbench .directory-shortcut [data-home-shortcut-edit] svg { width: 14px; height: 14px; }
-  body.immersive-workbench .directory-shortcut:hover [data-home-shortcut-edit],
-  body.immersive-workbench .directory-shortcut [data-home-shortcut-edit]:focus-visible { opacity: 1; }
-  body.immersive-workbench .directory-shortcuts-error { margin: 4px 8px 0; font-size: 11px; line-height: 1.6; color: var(--red); }
-  body.immersive-workbench .directory-content-scroll { display: flex; flex: 1; flex-direction: column; min-height: 0; overflow: auto; overscroll-behavior: contain; }
-  body.immersive-workbench .directory-content-scroll > .directory-list-region { min-height: 180px; flex-shrink: 0; }
-  body.immersive-workbench .directory-list-region { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto minmax(0, 1fr); flex: 1; min-height: 0; min-width: 0; border-top: 0; overflow: hidden; position: relative; }
-  body.immersive-workbench .directory-list-chrome { grid-column: 1; grid-row: 1; display: flex; align-items: center; gap: 6px; min-width: 0; min-height: 44px; padding: 10px 4px 6px 18px; }
-  body.immersive-workbench .directory-list-title { margin: 0; min-width: 0; flex: 1; font: inherit; font-size: 12px; font-weight: 500; line-height: 18px; color: var(--muted); letter-spacing: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  body.immersive-workbench .directory-list-stage { display: contents; }
-  body.immersive-workbench .directory-list-stage > .desktop-directory-panel:not([hidden]):not(.desktop-directory-root):not(.feed-source-directory) { display: contents; }
-  body.immersive-workbench .directory-list-stage > .desktop-directory-root:not([hidden]) { display: block; grid-column: 1 / -1; grid-row: 2; min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 0 8px 14px; }
-  body.immersive-workbench .directory-list-stage > .desktop-directory-panel:not([hidden]) > [data-directory-list-actions] { grid-column: 2; grid-row: 1; align-self: center; z-index: 5; }
-  body.immersive-workbench .directory-list-stage > .desktop-directory-panel:not([hidden]):not(.feed-source-directory) > :not([data-directory-list-actions]):not(.desktop-directory-heading) { grid-column: 1 / -1; grid-row: 2; min-width: 0; min-height: 0; padding-inline: 8px; }
-  body.immersive-workbench .desktop-directory-panel.is-directory-enter { animation: directory-list-in 220ms cubic-bezier(.16, 1, .3, 1); }
-  body.immersive-workbench .directory-list-title.is-title-enter { animation: directory-title-in 180ms cubic-bezier(.16, 1, .3, 1); }
-  @keyframes directory-list-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-  @keyframes directory-title-in { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+  body.immersive-workbench .plugin-rail .immersive-plugin-link:hover { background: var(--nav-hover); color: var(--ink); }
+  body.immersive-workbench .plugin-rail .immersive-plugin-link:hover svg { color: var(--ink); }
+  body.immersive-workbench .plugin-rail .immersive-plugin-link[aria-current] { background: var(--nav-active); color: var(--ink); font-weight: 550; box-shadow: none; }
+  body.immersive-workbench .plugin-rail .immersive-plugin-link[aria-current] svg { color: var(--ink); }
+  body.immersive-workbench .plugin-rail .immersive-plugin-link[aria-current]:hover { background: var(--nav-hover); }
   @media (prefers-reduced-motion: reduce) {
-    body.immersive-workbench .desktop-directory-panel.is-directory-enter,
-    body.immersive-workbench .directory-list-title.is-title-enter { animation: none; }
+    body.immersive-workbench .titlebar-chrome .navigator-directory-toggle svg { transition: none; }
   }
+  body.immersive-workbench .directory-content-scroll {
+    display: flex; flex: 1; flex-direction: column; min-height: 0; overflow: auto; overscroll-behavior: contain;
+    scrollbar-width: none; -ms-overflow-style: none;
+  }
+  body.immersive-workbench .directory-content-scroll::-webkit-scrollbar { width: 0; height: 0; }
   body.immersive-workbench .tree-pane .goal-list-view { display: block; }
+  body.immersive-workbench[data-desktop-shell="true"] .plugin-section.is-expanded .desktop-goal-directory:not([hidden]),
+  body.immersive-workbench .plugin-section.is-expanded > .plugin-section-body > .desktop-directory-panel:not([hidden]) { display: flex; flex-direction: column; }
   body.immersive-workbench .immersive-workspace .desktop-directory-heading { display: none !important; }
-  body.immersive-workbench .immersive-workspace .desktop-directory-root { padding-bottom: 14px; }
   body.immersive-workbench .desktop-module-list { display: grid; gap: 3px; }
-  body.immersive-workbench .desktop-module-item { display: flex; align-items: center; gap: 11px; width: 100%; min-height: 52px; padding: 9px 10px; border: 0; border-radius: 7px; background: transparent; color: var(--ink); text-align: left; cursor: pointer; }
+  body.immersive-workbench .desktop-module-item { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 28px; padding: 4px 8px; border: 0; border-radius: 7px; background: transparent; color: var(--ink); text-align: left; cursor: pointer; }
   body.immersive-workbench .desktop-module-item > svg { width: 16px; height: 16px; color: var(--muted); flex: none; }
   body.immersive-workbench .desktop-module-item > svg:last-child { width: 12px; height: 12px; }
   body.immersive-workbench .desktop-module-item > span { flex: 1; min-width: 0; }
   body.immersive-workbench .desktop-module-item strong { display: block; font-size: 12px; font-weight: 550; }
   body.immersive-workbench .desktop-module-item small { display: block; font-size: 10px; line-height: 1.5; color: var(--muted); margin-top: 3px; }
   body.immersive-workbench .desktop-module-item.is-current { background: var(--nav-active); }
-  body.immersive-workbench .immersive-workspace .tree-chrome { position: static; padding: 0 8px 0 4px; background: transparent; border: 0; }
+  body.immersive-workbench .immersive-workspace .tree-chrome,
+  body.immersive-workbench[data-desktop-shell="true"] .desktop-goal-directory .tree-chrome {
+    position: static; padding: 0; background: transparent; border: 0; display: flex; justify-content: flex-start; flex-wrap: wrap; min-height: 0;
+  }
   body.immersive-workbench .navigator-view-switch { display: none; }
   body.immersive-workbench .tree-search { display: flex; align-items: center; gap: 6px; min-height: 30px; padding: 0 10px; background: var(--nav-hover); border: 0; border-radius: 6px; box-shadow: none; }
   body.immersive-workbench .tree-search input { font: inherit; font-size: 13px; padding: 0; border: 0; outline: none; background: transparent; color: var(--ink); flex: 1; min-width: 0; }
   body.immersive-workbench .tree-search svg { position: static; flex: none; width: 14px; height: 14px; color: var(--muted); }
   body.immersive-workbench .tree-search kbd { position: static; flex: none; font-family: inherit; font-size: 9px; line-height: 1.5; color: var(--muted); border: 0; padding: 0; background: transparent; }
   body.immersive-workbench .tree-search:focus-within { outline: 2px solid var(--blue); outline-offset: 0; }
-  body.immersive-workbench .tree-tools { gap: 2px; padding: 0; margin: 0; border: 0; display: flex; }
+  body.immersive-workbench .tree-tools,
+  body.immersive-workbench[data-desktop-shell="true"] .tree-pane .tree-tools { gap: 2px; padding: 0; margin: 0; border: 0; display: flex; flex-wrap: wrap; justify-content: flex-start; }
   body.immersive-workbench .tree-tool { width: 27px; height: 27px; min-height: 27px; padding: 0; display: inline-grid; place-items: center; background: transparent; border: 0; border-radius: 5px; color: var(--muted); }
   body.immersive-workbench .tree-tool > span, body.immersive-workbench .tree-tool > b, body.immersive-workbench .tree-tool > small { display: none; }
   body.immersive-workbench .tree-filter-control { margin: 0; }
   body.immersive-workbench .tree-tool svg { width: 14px; height: 14px; }
-  body.immersive-workbench .immersive-workspace :is(.tree-scroll, .project-record-scroll, .feed-directory-list, .source-directory-list, .feed-item-scroll, .source-list) { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 0; background: transparent; }
+  body.immersive-workbench .immersive-workspace :is(.tree-scroll, .project-record-scroll, .feed-directory-list, .source-directory-list, .feed-item-scroll, .source-list) { flex: none; height: auto; min-height: 0; overflow: visible; padding: 0; background: transparent; }
   body.immersive-workbench .goal-tree { padding: 0; margin: 0; }
   body.immersive-workbench .tree-item { margin: 0; padding: 0; border: 0; }
   body.immersive-workbench .tree-row { display: flex; align-items: flex-start; gap: 2px; padding: 2px 0; margin: 0; }
@@ -141,11 +160,13 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench .tree-pane .tree-footer,
   body.immersive-workbench .tree-pane .feed-directory-footer,
   body.immersive-workbench .tree-pane [data-tree-footer] { display: none !important; }
-  body.immersive-workbench .project-record-tools { padding: 0 10px 0 4px; border: 0; gap: 2px; }
-  body.immersive-workbench .project-record-row { padding: 4px 8px; border: 0; border-radius: 6px; background: transparent; }
+  body.immersive-workbench .project-record-tools { padding: 0; border: 0; gap: 2px; }
+  body.immersive-workbench .project-record-row { padding: 0 7px; border: 0; border-radius: 5px; background: transparent; }
+  body.immersive-workbench .project-record-row:hover { background: var(--nav-hover); }
   body.immersive-workbench .project-record-row.is-selected { background: var(--nav-active); }
   body.immersive-workbench .project-record-select strong { font-size: 13px; font-weight: 450; }
-  body.immersive-workbench .project-record-select small, body.immersive-workbench .project-record-meta { font-size: 11px; color: var(--muted); }
+  body.immersive-workbench .tree-pane .project-record-select small,
+  body.immersive-workbench .tree-pane .project-record-meta { display: none !important; }
   body.immersive-workbench .immersive-workspace .personal-sidebar-footer { flex: none; height: auto; min-height: 0; margin: 0; padding: 4px 8px; border: 0; border-top: 0; background: transparent; display: block; }
   body.immersive-workbench .immersive-workspace .personal-account { display: flex; align-items: center; min-width: 0; min-height: 36px; gap: 8px; padding: 4px 6px; border: 0; border-radius: 6px; color: var(--ink); text-decoration: none; }
   body.immersive-workbench .immersive-workspace .personal-account-avatar { display: grid; place-items: center; flex: none; width: 22px; height: 22px; border-radius: 50%; color: var(--muted); background: transparent; border: 1px solid var(--line); }
@@ -156,9 +177,33 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench .immersive-workspace .personal-account-copy small { display: block; font-size: 10px; line-height: 14px; color: var(--muted); }
   body.immersive-workbench .immersive-workspace .personal-account-settings { display: grid; place-items: center; flex: none; width: 22px; height: 22px; color: var(--muted); }
   body.immersive-workbench .immersive-workspace .personal-account-settings svg { width: 13px; height: 13px; }
-  body.immersive-workbench .immersive-titlebar { grid-column: 2; grid-row: 1; display: flex; align-items: center; gap: 8px; height: var(--desktop-titlebar-height); min-height: var(--desktop-titlebar-height); padding: 0 12px 0 8px; margin: 0; border: 0; background: var(--nav-bg); box-shadow: inset 0 -1px 0 var(--line); overflow: visible; }
-  body.immersive-workbench .immersive-titlebar [data-titlebar-tabs] { flex: 1; min-width: 0; }
-  body.immersive-workbench .immersive-titlebar [data-titlebar-tabs]:not([hidden]) ~ .desktop-titlebar-drag { flex: 0 0 16px; }
+  body.immersive-workbench .plugin-rail .personal-sidebar-footer { padding: 8px 0 0; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  body.immersive-workbench .plugin-rail .personal-account { width: 36px; min-width: 36px; height: 32px; min-height: 32px; padding: 0; gap: 0; justify-content: center; }
+  body.immersive-workbench .plugin-rail .personal-account-copy,
+  body.immersive-workbench .plugin-rail .personal-account-settings { display: none; }
+  body.immersive-workbench .plugin-rail .personal-account-avatar { width: 28px; height: 28px; }
+  body.immersive-workbench .plugin-rail .personal-account:hover { background: var(--nav-hover); }
+  body.immersive-workbench .immersive-titlebar {
+    grid-column: 1 / -1; grid-row: 1; display: flex; align-items: center; gap: 6px;
+    height: var(--desktop-titlebar-height); min-height: var(--desktop-titlebar-height);
+    padding: 0 10px 0 8px; margin: 0; border: 0; background: var(--nav-bg); box-shadow: inset 0 -1px 0 var(--line); overflow: visible;
+  }
+  body.immersive-workbench .workspace-history {
+    order: 1; flex: none; display: flex; align-items: center; gap: 0; height: var(--desktop-titlebar-height);
+  }
+  body.immersive-workbench .workspace-history-button {
+    width: 26px; height: 26px; min-height: 26px; padding: 0; flex: none; display: inline-grid; place-items: center;
+    border: 0; border-radius: 5px; background: transparent; color: var(--muted); cursor: pointer;
+  }
+  body.immersive-workbench .workspace-history-button svg { width: 15px; height: 15px; }
+  body.immersive-workbench .workspace-history-button:hover:not(:disabled) { background: var(--nav-active); color: var(--ink); }
+  body.immersive-workbench .immersive-titlebar [data-titlebar-tabs] { order: 2; flex: 1; min-width: 0; }
+  body.immersive-workbench .immersive-titlebar .desktop-titlebar-drag { order: 3; }
+  body.immersive-workbench .immersive-titlebar [data-titlebar-tabs]:not([hidden]) ~ .desktop-titlebar-drag { flex: 0 0 0; min-width: 0; width: 0; overflow: hidden; }
+  body.immersive-workbench[data-native-desktop="true"] .immersive-titlebar {
+    padding-left: var(--desktop-window-safe-inline-start, 88px);
+  }
+  body.immersive-workbench[data-native-desktop="true"] .immersive-titlebar [data-titlebar-tabs]:not([hidden]) ~ .desktop-titlebar-drag { flex: 1; min-width: 16px; width: auto; overflow: visible; }
   body.immersive-workbench .immersive-titlebar > strong { font-size: 11px; font-weight: 500; }
   body.immersive-workbench .container-tabs { min-width: 0; flex: 1; height: 44px; padding-block: 6px; display: flex; align-items: stretch; overflow: auto; scrollbar-width: none; gap: 4px; }
   body.immersive-workbench .container-tabs::-webkit-scrollbar { display: none; }
@@ -175,10 +220,12 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench .immersive-icon-button { width: 28px; height: 28px; padding: 0; flex: none; display: inline-grid; place-items: center; border: 0; border-radius: 5px; background: transparent; color: var(--muted); cursor: pointer; }
   body.immersive-workbench .immersive-icon-button svg { height: 16px; width: 16px; }
   body.immersive-workbench .immersive-show-directory { display: none; }
-  body.immersive-workbench .immersive-show-search { display: none; }
   body.immersive-workbench .is-directory-collapsed .immersive-show-directory { display: inline-grid; }
-  body.immersive-workbench .is-directory-collapsed .immersive-show-search { display: inline-grid; }
-  body.immersive-workbench .immersive-plugin-stage { grid-column: 2; grid-row: 2; position: relative; min-width: 0; min-height: 0; overflow: hidden; container: plugin-stage / inline-size; }
+  body.immersive-workbench .is-directory-collapsed .titlebar-chrome .navigator-directory-toggle,
+  body.immersive-workbench .is-plugin-directory-empty .titlebar-chrome .navigator-directory-toggle { display: none; }
+  body.immersive-workbench .immersive-plugin-stage { grid-column: 3; grid-row: 2 / -1; position: relative; min-width: 0; min-height: 0; overflow: hidden; container: plugin-stage / inline-size; }
+  body.immersive-workbench .immersive-workspace.is-directory-collapsed > .immersive-plugin-stage,
+  body.immersive-workbench .immersive-workspace.is-plugin-directory-empty > .immersive-plugin-stage { grid-row: 3; }
   body.immersive-workbench .immersive-plugin-stage > * { position: absolute; inset: 0; min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; }
   body.immersive-workbench .desktop-work-surface { min-height: 0; }
   body.immersive-workbench .immersive-plugin-stage > .desktop-work-surface { min-height: 0; background: var(--paper); padding: 32px clamp(18px, 4%, 56px); }
@@ -259,13 +306,13 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench .plugin-market-list [data-market-add]:disabled { color: var(--muted); opacity: 1; }
   body.immersive-workbench .plugin-market-empty, body.immersive-workbench .plugin-market-note { margin-top: 22px; font-size: 12px; color: var(--muted); }
   body.immersive-workbench .plugin-market-note { margin-top: 36px; }
-  body.immersive-workbench [data-artifact-directory] { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; }
+  body.immersive-workbench [data-artifact-directory] { flex: none; height: auto; min-height: 0; overflow: visible; }
   body.immersive-workbench .artifact-version-list a { font-size: 13px; font-weight: 450; }
   body.immersive-workbench .artifact-version-list small { font-size: 11px; }
   body.immersive-workbench .immersive-artifact-surface .artifact-detail, body.immersive-workbench .immersive-artifact-surface .artifact-empty { max-width: 800px; margin: 24px auto; }
   body.immersive-workbench .artifact-reference-label input, body.immersive-workbench .artifact-content-reference input { width: 100%; padding: 10px; font: inherit; color: var(--ink); background: var(--nav-bg); border: 1px solid var(--line); border-radius: 6px; }
   body.immersive-workbench .artifact-export { color: var(--ink); }
-  body.immersive-workbench :is(.immersive-icon-button, .navigator-directory-toggle, .navigator-project-selector, .navigator-project-search, .navigator-project-settings, .tree-tool):hover { background: var(--nav-active); color: var(--ink); }
+  body.immersive-workbench :is(.immersive-icon-button, .navigator-directory-toggle, .navigator-project-selector, .navigator-project-search, .navigator-project-settings, .tree-tool, .workspace-history-button):hover { background: var(--nav-active); color: var(--ink); }
   body.immersive-workbench .global-search-dialog {
     width: min(520px, calc(100vw - 24px)); max-height: min(640px, calc(100dvh - 48px)); margin: auto;
     padding: 0; border: 0; border-radius: 16px; background: var(--paper); color: var(--ink);
@@ -311,21 +358,39 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench :is(input, textarea) { caret-color: var(--blue); }
   body.immersive-workbench * { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
   body.immersive-workbench button:disabled { cursor: default; opacity: .45; }
-  @media (max-width: 1050px) { body.immersive-workbench { --immersive-sidebar-width: 256px; } body.immersive-workbench .immersive-titlebar { padding: 0 16px; gap: 8px; } }
+  @media (max-width: 1050px) { body.immersive-workbench { --immersive-sidebar-width: 220px; } }
   @media (max-width: 600px) {
-    body.immersive-workbench .immersive-workspace { grid-template-columns: 0 minmax(0, 1fr); }
-    body.immersive-workbench .immersive-workspace > .tree-pane { display: none; position: fixed; inset: 0 auto 0 0; width: 264px; z-index: 40; box-shadow: 12px 0 40px #00000035; }
+    body.immersive-workbench { --desktop-titlebar-height: 44px; --workspace-chrome-height: 44px; --tab-strip-h: 44px; }
+    body.immersive-workbench .immersive-workspace,
+    body.immersive-workbench .immersive-workspace.is-directory-collapsed,
+    body.immersive-workbench .immersive-workspace.is-plugin-directory-empty {
+      grid-template-columns: 0 0 minmax(0, 1fr);
+    }
+    body.immersive-workbench .plugin-rail {
+      display: none; position: fixed; top: calc(var(--desktop-titlebar-height) + var(--workspace-chrome-height)); left: 0; bottom: 0; width: var(--plugin-rail-width);
+      z-index: 40; border-right: 1px solid var(--line); box-shadow: none;
+    }
+    body.immersive-workbench .immersive-workspace > .tree-pane {
+      display: none; position: fixed; top: calc(var(--desktop-titlebar-height) + var(--workspace-chrome-height)); left: var(--plugin-rail-width); bottom: 0; width: 216px;
+      z-index: 40; box-shadow: 12px 0 40px #00000035;
+    }
+    body.immersive-workbench .immersive-workspace.is-directory-drawer-open > .plugin-rail { display: flex; }
     body.immersive-workbench .immersive-workspace.is-directory-drawer-open > .tree-pane { display: flex; }
-    body.immersive-workbench .immersive-sidebar-scrim:not([hidden]) { display: block; position: fixed; inset: 0; z-index: 35; border: 0; padding: 0; background: #08091080; }
+    body.immersive-workbench .immersive-workspace.is-directory-drawer-open.is-plugin-directory-empty > .tree-pane { display: none; }
+    body.immersive-workbench .immersive-sidebar-scrim:not([hidden]) { display: block; position: fixed; inset: calc(var(--desktop-titlebar-height) + var(--workspace-chrome-height)) 0 0; z-index: 35; border: 0; padding: 0; background: #08091080; }
     body.immersive-workbench .immersive-titlebar { padding: 0 12px; gap: 8px; }
-    body.immersive-workbench .immersive-show-directory,
-    body.immersive-workbench .immersive-show-search { display: inline-grid; }
+    body.immersive-workbench .workspace-chrome { grid-column: 1 / -1; border-right: 0; }
+    body.immersive-workbench .immersive-plugin-stage { grid-row: 3 !important; }
+    body.immersive-workbench .workspace-history-button { width: 44px; height: 44px; min-height: 44px; }
+    body.immersive-workbench .immersive-show-directory { display: inline-grid; }
+    body.immersive-workbench .titlebar-chrome .navigator-directory-toggle { display: none; }
+    body.immersive-workbench .is-directory-drawer-open .titlebar-chrome .navigator-directory-toggle { display: grid; }
+    body.immersive-workbench .is-directory-drawer-open .immersive-show-directory { display: none; }
     body.immersive-workbench .immersive-goal-tools > span { display: none; }
-    body.immersive-workbench .immersive-plugin-link { min-height: 44px; }
-    body.immersive-workbench .directory-shortcut a,
-    body.immersive-workbench .directory-shortcut-add button { min-height: 44px; }
-    body.immersive-workbench .directory-shortcut [data-home-shortcut-edit] { width: 44px; height: 44px; opacity: 1; }
-    body.immersive-workbench .immersive-workspace .personal-account { min-height: 44px; }
+    body.immersive-workbench .plugin-rail .plugin-rail-item,
+    body.immersive-workbench .plugin-rail .personal-account,
+    body.immersive-workbench .plugin-rail .personal-settings { width: 40px; height: 44px; min-height: 44px; }
+    body.immersive-workbench .tree-pane .immersive-plugin-link { min-height: 44px; }
     body.immersive-workbench .tree-search input, body.immersive-workbench .plugin-market-search input,
     body.immersive-workbench .global-search-field input { font-size: 16px; }
     body.immersive-workbench .plugin-market-heading { flex-direction: column; align-items: stretch; }
@@ -345,7 +410,6 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
     body.immersive-workbench .plugin-market-list { grid-template-columns: 1fr; }
   }
 
-  body.immersive-workbench .directory-list-stage > .feed-source-directory:not([hidden]) { display: block; grid-column: 1 / -1; grid-row: 2; min-height: 0; overflow: auto; padding: 0 8px 12px; }
   body.immersive-workbench .feed-source-directory > header { justify-content: flex-end; height: 30px; }
   body.immersive-workbench .feed-source-directory > header > strong { display: none; }
 `;

@@ -78,6 +78,10 @@
       "types": "./dist/modules/sync-replication.d.ts",
       "import": "./dist/modules/sync-replication.js"
     },
+    "./modules/task": {
+      "types": "./dist/modules/task.d.ts",
+      "import": "./dist/modules/task.js"
+    },
     "./platform/app-host": {
       "types": "./dist/platform/app-host.d.ts",
       "import": "./dist/platform/app-host.js"

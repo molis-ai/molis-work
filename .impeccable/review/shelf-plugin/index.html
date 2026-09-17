@@ -414,6 +414,50 @@
     .drop p { margin: 0; font-size: 11.5px; color: var(--da-muted); }
 
     .clip-now { font-size: 10px; color: var(--da-accent); margin-left: 6px; }
+
+    .wheel-scene {
+      position: fixed; inset: 0; z-index: 40; display: none;
+      background: color-mix(in srgb, var(--mw-page) 28%, transparent);
+    }
+    .wheel-scene.on { display: block; }
+    .wheel-svg {
+      position: absolute; left: 50%; top: 50%;
+      width: 344px; height: 344px; margin: -172px 0 0 -172px;
+      overflow: visible;
+    }
+    .wheel-svg .slice {
+      fill: none;
+      stroke: color-mix(in srgb, var(--da-panel) 96%, transparent);
+      stroke-width: 64;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      filter: drop-shadow(0 5px 10px rgba(0,0,0,.14));
+    }
+    .wheel-svg g[data-slice].hot .slice {
+      stroke: color-mix(in srgb, var(--da-hover) 82%, var(--ochre-fill));
+      filter: drop-shadow(0 6px 12px rgba(0,0,0,.22));
+    }
+    .wheel-svg g[data-slice].off { opacity: .45; }
+    .wheel-svg .slice-edge {
+      fill: none;
+      stroke: var(--da-line);
+      stroke-width: 0.8;
+      stroke-linecap: round;
+      pointer-events: none;
+    }
+    .wheel-svg g[data-slice].hot .slice-edge { stroke: color-mix(in srgb, var(--ochre) 70%, transparent); stroke-width: 1.4; }
+    .wheel-svg .slice-label {
+      font-size: 10.5px; font-weight: 500; fill: var(--da-text);
+      text-anchor: middle; dominant-baseline: middle; pointer-events: none;
+    }
+    .wheel-svg .slice-icon {
+      fill: none; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; pointer-events: none;
+    }
+    .wheel-caption {
+      position: absolute; left: 50%; top: calc(50% + 188px);
+      transform: translateX(-50%);
+      font-size: 12px; color: var(--da-muted); text-align: center; white-space: nowrap;
+    }
   </style>
 </head>
 <body>
@@ -429,6 +473,7 @@
         <button class="chip" data-scene="result" type="button">结果</button>
         <button class="chip" data-scene="compare" type="button">对照</button>
         <button class="chip" data-scene="talk" type="button">对话</button>
+        <button class="chip" data-scene="wheel" type="button">轮盘</button>
         <span>外观</span>
         <button class="chip on" data-theme="light" type="button">浅</button>
         <button class="chip" data-theme="dark" type="button">深</button>
@@ -543,6 +588,10 @@ ready. 材料不会写回原路径。</pre>
       </section>
     </div>
   </div>
+  <div class="wheel-scene" id="wheelScene">
+    <svg class="wheel-svg" id="wheelSvg" viewBox="0 0 344 344" aria-label="DropAgent 轮盘"></svg>
+    <p class="wheel-caption">拖文件约 0.18 秒钉在指针上。圆心空洞。出圈消失。</p>
+  </div>
   <script>
     const preview = document.getElementById("preview");
     const stage = document.getElementById("stage");
@@ -584,8 +633,49 @@ ready. 材料不会写回原路径。</pre>
       ).join("")}</div><span class="act-rule" aria-hidden="true"></span><span class="act${stage.classList.contains("is-talk") ? " is-on" : ""}" role="button" tabindex="0" data-id="talk" title="打开终端会话。不会生成新文件。发给终端请用轮盘。">${actSvg("talk")}对话</span><span class="more"><span class="act" role="button" tabindex="0" data-id="more">···</span><div class="more-menu" hidden><span class="more-item" data-id="arrange">整理动作</span><span class="more-item" data-id="pick">新建</span></div></span>`;
     }
 
+    function polar(deg, r, cx, cy) {
+      const a = (deg * Math.PI) / 180;
+      return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+    }
+    function buildWheel() {
+      const svg = document.getElementById("wheelSvg");
+      const cx = 172, cy = 172, inner = 64, outer = 128;
+      const midR = (inner + outer) / 2;
+      const thick = outer - inner;
+      const cap = Math.atan((thick / 2) / midR) * 180 / Math.PI;
+      const inset = cap + 4;
+      const labels = ["加入材料", "发给终端", "总结", "提取信息", "翻译", "转 MD"];
+      const tones = ["var(--ochre)", "var(--plum)", "var(--slate)", "var(--blue)", "var(--blue)", "var(--plum)"];
+      const icons = [
+        '<path d="M2 4.2h10v2L7 10.2 2 6.2V4.2Z"/><path d="M4.2 12h5.6"/>',
+        '<path d="M2.2 7h9.2"/><path d="M8.2 3.6 12.2 7 8.2 10.4"/>',
+        '<path d="M3 4.2h8"/><path d="M3 7h8"/><path d="M3 9.8h5"/>',
+        '<path d="M5.6 3.4c-2 0-2.4 1.6-2.4 3.6s.4 3.6 2.4 3.6"/><path d="M8.4 3.4c2 0 2.4 1.6 2.4 3.6s-.4 3.6-2.4 3.6"/>',
+        '<circle cx="7" cy="7" r="4.1"/><path d="M3 7h8"/><path d="M7 3c-1.3 1.5-1.3 6.5 0 8"/><path d="M7 3c1.3 1.5 1.3 6.5 0 8"/>',
+        '<path d="M4 2.8h4.2L10.6 5.2v6H4Z"/><path d="M8.2 2.8V5.2h2.4"/>'
+      ];
+      let html = "";
+      for (let i = 0; i < 6; i++) {
+        const mid = -90 + i * 60;
+        const a0 = mid - 30 + inset;
+        const a1 = mid + 30 - inset;
+        const [x0, y0] = polar(a0, midR, cx, cy);
+        const [x1, y1] = polar(a1, midR, cx, cy);
+        const d = `M ${x0} ${y0} A ${midR} ${midR} 0 0 1 ${x1} ${y1}`;
+        const [ix, iy] = polar(mid, midR + 8, cx, cy);
+        const [lx, ly] = polar(mid, midR - 12, cx, cy);
+        const off = i === 0 ? "" : " off";
+        const hot = i === 0 ? " hot" : "";
+        html += `<g data-slice="${i}" class="${hot}${off}"><path class="slice" d="${d}"></path><path class="slice-edge" d="${d}"></path><g class="slice-icon" stroke="${tones[i]}" transform="translate(${ix - 7} ${iy - 7})">${icons[i]}</g><text class="slice-label" x="${lx}" y="${ly}">${labels[i]}</text></g>`;
+      }
+      svg.innerHTML = html;
+    }
+    buildWheel();
+
     function setScene(name) {
       document.querySelectorAll("[data-scene]").forEach((b) => b.classList.toggle("on", b.dataset.scene === name));
+      const wheelScene = document.getElementById("wheelScene");
+      wheelScene.classList.toggle("on", name === "wheel");
       stage.classList.remove("is-result", "is-confirm", "is-run", "is-talk");
       document.getElementById("runLine").hidden = true;
       document.getElementById("runBtn").hidden = false;
@@ -687,7 +777,10 @@ ready. 材料不会写回原路径。</pre>
     });
     document.getElementById("shelf").addEventListener("drop", (e) => { e.preventDefault(); document.getElementById("shelf").classList.remove("is-drop"); });
 
-    setScene("idle");
+    const hash = location.hash.replace("#", "");
+    if (hash.includes("dark")) document.documentElement.dataset.theme = "dark";
+    document.querySelectorAll("[data-theme]").forEach((x) => x.classList.toggle("on", x.dataset.theme === (hash.includes("dark") ? "dark" : "light")));
+    setScene(hash.startsWith("wheel") ? "wheel" : "idle");
   </script>
 </body>
 </html>

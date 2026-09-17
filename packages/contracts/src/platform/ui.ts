@@ -8,7 +8,7 @@ export const platformUiContract = {
   ssot: "docs/platform/UI-PLATFORM.md",
 } as const satisfies ContractDescriptor;
 
-export type UiContributionKind = "primary-page" | "embedded" | "overlay";
+export type UiContributionKind = "primary-page" | "embedded" | "overlay" | "settings-page";
 
 export interface UiSlotDescriptor {
   readonly slot_id: string;

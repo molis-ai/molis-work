@@ -68,6 +68,8 @@ test("user settings left nav is grouped single-line categories", () => {
   assert.match(html, />AI 与执行工具</);
   assert.match(html, />规划方法</);
   assert.match(html, />诊断</);
+  assert.match(html, /href="\/settings\/shelf"[^>]*>[\s\S]*Shelf/);
+  assert.doesNotMatch(html, /Gmail|Inbox/);
   assert.match(html, /settings-navigation--codex[\s\S]*#icon-sun/);
   assert.doesNotMatch(html, /界面与语言<\/strong>/);
   assert.doesNotMatch(html, /只影响当前设备<\/small>/);
@@ -205,6 +207,8 @@ test("settings documents use Codex title, card, and row rhythm instead of Linear
 test("switching a settings category resets the stage body to the top", () => {
   assert.match(SETTINGS_DIRECTORY_FACTORY_SCRIPT, /body\.scrollTop = 0/);
   assert.match(SETTINGS_DIRECTORY_FACTORY_SCRIPT, /requestAnimationFrame\(resetScroll\)/);
+  assert.match(SETTINGS_DIRECTORY_FACTORY_SCRIPT, /if \(child !== node\) child\.remove\(\)/);
+  assert.doesNotMatch(SETTINGS_DIRECTORY_FACTORY_SCRIPT, /child\.hidden = child !== node/);
   assert.match(PROJECT_SETTINGS_PAGE_STYLES, /overflow-anchor: none/);
   assert.doesNotMatch(PROJECT_SETTINGS_PAGE_STYLES, /:has\(> \.project-rules-document:not\(\[hidden\]\)\)/);
   assert.match(PROJECT_SETTINGS_PAGE_STYLES, /:has\(\.guidance-editor:not\(\[hidden\]\)\)/);

@@ -55,6 +55,7 @@ test("Runtime stays available as a workspace view instead of an independently co
 
 test("desktop capability permits the custom title bar to drag its window", () => {
   assert.ok(DESKTOP_CAPABILITIES.permissions?.includes("core:window:allow-start-dragging"));
+  assert.ok(DESKTOP_CAPABILITIES.permissions?.includes("allow-shelf-desktop"));
   const mainWindow = TAURI_CONFIG.app?.windows?.find((window) => window.label === "main");
   assert.equal(mainWindow?.titleBarStyle, "Overlay");
   assert.equal(mainWindow?.hiddenTitle, true);
@@ -77,6 +78,8 @@ test("native Desktop identity self-heals before layout and survives full-page na
   assert.match(NATIVE_DESKTOP_BOOTSTRAP_SCRIPT, /--desktop-window-safe-inline-start","88px"/);
   assert.match(NATIVE_DESKTOP_BOOTSTRAP_SCRIPT, /next\.searchParams\.set\("desktop","1"\)/);
   assert.match(NATIVE_DESKTOP_BOOTSTRAP_SCRIPT, /location\.replace\(normalized\)/);
+  assert.match(NATIVE_DESKTOP_BOOTSTRAP_SCRIPT, /molisWorkOpenShelf/);
+  assert.match(NATIVE_DESKTOP_BOOTSTRAP_SCRIPT, /molisWorkShelfNotice/);
   assert.match(WEB_RENDER_SOURCE, /const THEME_BOOTSTRAP_SCRIPT = `\$\{BASE_THEME_BOOTSTRAP_SCRIPT\}\$\{NATIVE_DESKTOP_BOOTSTRAP_SCRIPT\}`/);
   assert.doesNotMatch(
     WEB_RENDER_SOURCE,
@@ -719,6 +722,8 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.match(desktop, /data-work-surface="settings"[^>]*>[\s\S]*data-theme-option="dark"/);
     const settingsDirectory = desktop.match(/data-directory-panel="settings"[^>]*>([\s\S]*?)<\/section>/)?.[1] ?? "";
     assert.match(settingsDirectory, /data-settings-section="appearance"/);
+    assert.match(settingsDirectory, /data-settings-section="shelf"/);
+    assert.doesNotMatch(settingsDirectory, /Gmail|Inbox/);
     assert.match(settingsDirectory, /mw-dir-row--compact/);
     assert.match(settingsDirectory, /mw-dir-row__icon/);
     assert.doesNotMatch(settingsDirectory, /data-theme-option/);

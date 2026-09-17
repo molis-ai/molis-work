@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { fileURLToPath } from "node:url";
-import type { createWorkbenchRenderer } from "@molis-ai/molis-work-app-workbench";
+import type { WorkbenchRenderer } from "@molis-ai/molis-work-app-workbench";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
 
 const INTER_VARIABLE_FONT_PATH = fileURLToPath(
@@ -14,7 +14,7 @@ const NOTO_SANS_SC_FONT_PATH = fileURLToPath(
 
 export function createLocalWebAssets(ports: {
   ptyClientFilePath(): string;
-  renderer: Pick<ReturnType<typeof createWorkbenchRenderer>, "renderMolisWorkWorkbenchStylesheet" | "renderMolisWorkWorkbenchClientScript" | "renderMolisWorkProjectIndexStylesheet" | "renderMolisWorkOnboardingStylesheet" | "renderMolisWorkSettingsStylesheet">;
+  renderer: Pick<WorkbenchRenderer, "renderMolisWorkWorkbenchStylesheet" | "renderMolisWorkWorkbenchClientScript" | "renderMolisWorkProjectIndexStylesheet" | "renderMolisWorkOnboardingStylesheet" | "renderMolisWorkSettingsStylesheet">;
 }) {
   const { ptyClientFilePath } = ports;
   const { renderMolisWorkWorkbenchStylesheet, renderMolisWorkWorkbenchClientScript, renderMolisWorkProjectIndexStylesheet, renderMolisWorkOnboardingStylesheet, renderMolisWorkSettingsStylesheet } = ports.renderer;

@@ -1,4 +1,4 @@
-import { renderPaletteTokens, renderPluginTintBindings } from "../palette.js";
+import { renderLinearShellTokens, renderPaletteTokens, renderPluginTintBindings } from "../palette.js";
 
 /** Linear × Coss interaction texture. Loaded after every page stylesheet so it owns the
  * final colour ramp, elevation, motion and icon calibration without moving any layout.
@@ -19,23 +19,10 @@ export const INTERACTION_TEXTURE_STYLES = `
   body.settings-page,
   body.project-index-page,
   body.project-preferences-page {
-    /* Linear product zinc: sidebar field, white paper, indigo accent only. */
-    --page: #f3f4f5; --canvas: #f3f4f5; --rail: #eceef0;
-    --paper: #ffffff; --panel: #ffffff; --nav-bg: #f3f4f5;
-    --ink: #222326; --text: #222326; --ink-soft: #3c3f44;
-    --muted: #6b6f76; --faint: #737882;
-    --line: #e2e4e7; --line-strong: #d0d6e0;
-
-    /* Interaction fills are ink at low alpha, so one recipe reads correctly on every surface. */
-    --nav-hover: color-mix(in srgb, var(--ink) 6%, transparent);
-    --nav-active: color-mix(in srgb, var(--ink) 10%, transparent);
+    ${renderLinearShellTokens("light")}
     --nav-press: color-mix(in srgb, var(--ink) 14%, transparent);
-    --nav-raised: #ffffff;
     --hairline: color-mix(in srgb, var(--ink) 12%, transparent);
     --edge-highlight: transparent;
-
-    --blue-dark: #4c56c4;
-    --action: #222326; --action-ink: #ffffff;
     ${renderPaletteTokens("light")}
 
     --shadow-color: #131520;
@@ -56,22 +43,10 @@ export const INTERACTION_TEXTURE_STYLES = `
 
   html[data-resolved-theme="dark"],
   html[data-resolved-theme="dark"] :is(body.immersive-workbench, body.settings-page, body.project-index-page, body.project-preferences-page) {
-    /* Linear product dark: panel #0f1011, paper barely lifted, type #f7f8f8 / #8a8f98. */
-    --page: #0f1011; --canvas: #0f1011; --rail: #0f1011;
-    --paper: #161718; --panel: #161718; --nav-bg: #0f1011;
-    --ink: #f7f8f8; --text: #f7f8f8; --ink-soft: #d0d1d3;
-    --muted: #8a8f98; --faint: #737880;
-    --line: #23252a; --line-strong: #2e3036;
-
-    --nav-hover: color-mix(in srgb, var(--ink) 8%, transparent);
-    --nav-active: color-mix(in srgb, var(--ink) 12%, transparent);
+    ${renderLinearShellTokens("dark")}
     --nav-press: color-mix(in srgb, var(--ink) 16%, transparent);
-    --nav-raised: #1c1c1f;
     --hairline: color-mix(in srgb, var(--ink) 14%, transparent);
     --edge-highlight: rgba(255, 255, 255, .07);
-
-    --blue-dark: #a8aef5;
-    --action: #f7f8f8; --action-ink: #0f1011;
     ${renderPaletteTokens("dark")}
 
     --shadow-color: #000000;
@@ -276,6 +251,7 @@ export const INTERACTION_TEXTURE_STYLES = `
   .mw-dir-row[data-settings-section="runtimes"] { --plugin-tint: var(--tone-progress); }
   .mw-dir-row[data-settings-section="planning"] { --plugin-tint: var(--tone-hold); }
   .mw-dir-row[data-settings-section="diagnostics"] { --plugin-tint: var(--tone-blocked); }
+  .mw-dir-row[data-settings-section="shelf"] { --plugin-tint: var(--plugin-shelf); }
   .mw-dir-row[data-settings-section="general"] { --plugin-tint: var(--tone-idle); }
   .mw-dir-row[data-settings-section="guidance"] { --plugin-tint: var(--tone-progress); }
   .mw-dir-row[data-settings-section="rules"] { --plugin-tint: var(--tone-done); }

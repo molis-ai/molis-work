@@ -1,6 +1,6 @@
 import { PROJECT_HOME_FACTORY_SCRIPT } from "./project-home.js";
 import { PLUGIN_WORKBENCH_FACTORY_SCRIPT } from "./plugin-workbench.js";
-import { SHELF_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-shelf";
+import { SHELF_CLIENT_FACTORY_SCRIPT, SHELF_SETTINGS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-shelf";
 import { IMMERSIVE_NAVIGATION_FACTORY_SCRIPT } from "./immersive-navigation.js";
 import { GLOBAL_SEARCH_FACTORY_SCRIPT } from "./global-search.js";
 import { SETTINGS_DIRECTORY_FACTORY_SCRIPT } from "./settings-directory.js";
@@ -35,6 +35,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     });
     projectHome = (${PROJECT_HOME_FACTORY_SCRIPT})({ getState: () => state, translate: L });
     (${SHELF_CLIENT_FACTORY_SCRIPT})({ translate: L });
+    ${SHELF_SETTINGS_CLIENT_SCRIPT}
     const settingsDirectory = (${SETTINGS_DIRECTORY_FACTORY_SCRIPT})({
       translate: L,
       setDirectory: (...args) => setDesktopDirectory(...args),

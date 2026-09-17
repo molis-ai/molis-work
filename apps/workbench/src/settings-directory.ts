@@ -1,6 +1,7 @@
 import { renderDirectoryPanel, renderDirectoryRow, type MolisWorkIcon } from "@molis-ai/molis-work-design-system";
 import { renderAppearanceSettingsDocument } from "./settings-appearance.js";
 import { createProjectSettingsFolds, type ProjectSettingsFoldProject } from "./project-settings-folds.js";
+import { listPluginSettingsNavItems } from "./plugin-settings-catalog.js";
 
 export interface SettingsDirectoryPrimitives {
   L(text: string): string;
@@ -16,6 +17,17 @@ const SETTINGS_SECTIONS = [
   { id: "planning", label: "规划方法", icon: "workflow" },
   { id: "diagnostics", label: "诊断", icon: "bug" },
 ] as const satisfies readonly { id: string; label: string; icon: MolisWorkIcon }[];
+
+function globalSettingsSections(): readonly { id: string; label: string; icon: MolisWorkIcon }[] {
+  return [
+    ...SETTINGS_SECTIONS,
+    ...listPluginSettingsNavItems().map((item) => ({
+      id: item.section_id,
+      label: item.label,
+      icon: item.icon,
+    })),
+  ];
+}
 
 const PROJECT_SETTINGS_SECTIONS = [
   { id: "general", label: "常规", icon: "tune" },
@@ -68,7 +80,7 @@ export function renderSettingsDirectorySection(primitives: SettingsDirectoryPrim
   return `<section class="plugin-section is-expanded" data-plugin-section="settings" data-plugin-expanded="true" hidden>
     <div class="immersive-plugin-link" aria-hidden="true">${icon("settings")}<span>${L("设置")}</span></div>
     <div class="plugin-section-body">
-      ${renderSettingsNav(primitives, SETTINGS_SECTIONS, "appearance", "系统设置", "settings")}
+      ${renderSettingsNav(primitives, globalSettingsSections(), "appearance", "系统设置", "settings")}
     </div>
   </section>`;
 }

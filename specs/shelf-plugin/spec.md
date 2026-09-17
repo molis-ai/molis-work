@@ -1,6 +1,6 @@
 # Shelf：复刻 DropAgent 的功能、交互与视觉
 
-状态：执行中。完成等级目标 **4：内部完整**。刚完成垂直切片：**确认条与动作栏**（不适用的 Agent 动作不占位；对话前分隔；确认条写清产出与隔离；切走材料即取消确认；对话在确认时降低高度；⋯ 可整理动作 / 新建）。下一刀默认 Desktop：**轮盘**。全局热键、Vision OCR、CLI Recipe、真实拖出、系统剪贴板轮询仍待 Desktop adapter。不发布、不改用户真实库。
+状态：执行中。完成等级目标 **4：内部完整**。当前垂直切片：**全局热键改键**（走已落地的插件全局设置页，不另做设置系统、不塞进 Molis「外观」）。点格子再按新组合，必须带 ⌃⌥⇧⌘ 之一；`/api/shelf/settings` 部分保存 `hotkeys`；立刻 Unregister + Register；占用文案「这个组合被占用。」；非默认出现「默认」。面板内 Esc / ⌘V / ⌘C / ⌫ 改键、Vision OCR、CLI Recipe 真跑、发给终端 PTY、真实拖出、系统剪贴板轮询、轮盘 native 读开关仍待后续切片。不发布、不改用户真实库。
 
 高保真切片（可点，对齐 DropAgent 现行表面）：`.impeccable/review/shelf-plugin/index.html`。外壳是 Molis 标题栏和插件轨，工作面是 DropAgent 的色、行、纸钮和底栏。
 
@@ -172,6 +172,7 @@ DropAgent README 与 `01-requirements.md` 里的成功标准都要能在 Molis �
 2. **插件 id `shelf`，栏名 Shelf。** 默认启用，目录顺序在 Artifacts 之上。
 3. **DropAgent 是验收原文。** 行为与视觉冲突时改实现，不改成 Molis 习惯。
 4. **没有「先做子集」。** 工程可以按垂直切片提交，但完成定义是功能、交互、图标色彩、样式、质感全部复刻。不能把轮盘、剪贴板、对照原文、抓页、发给终端、动作整理，或雾蓝/五色图标/纸面按压标成 later 来结案。
+5. **改键走插件全局设置。** 三条 Carbon 全局热键的录制、保存、占用和「默认」画在全局设置目录里的 Shelf 页，走现有 `/api/shelf/settings` 部分保存。不另做设置窗口，不塞进 Molis「外观」。面板内 Esc / ⌘V / ⌘C / ⌫ 仍待后续切片。
 
 ## 输入输出与依赖
 
@@ -204,7 +205,8 @@ DropAgent README 与 `01-requirements.md` 里的成功标准都要能在 Molis �
 ```
 pnpm --filter @molis-ai/molis-work-plugin-shelf typecheck
 pnpm --filter @molis-ai/molis-work-app-workbench typecheck
-node --import tsx --test --test-concurrency=1 tests/shelf-plugin.test.ts tests/shelf-plugin.e2e.test.ts
+node --import tsx --test --test-concurrency=1 tests/shelf-plugin.test.ts tests/plugin-global-settings.test.ts
+cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --bin molis-work-desktop
 ```
 
 对照 DropAgent 的 Check / `--e2e` 场景在 Molis 桌面复跑等价路径。浅/深 Shelf 工作面与 DropAgent 同状态截图放进 `.impeccable/review/shelf-plugin/`。隔离试用必须 `--home` 临时目录。

@@ -25,7 +25,9 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@molis-ai/molis-work-contracts": "workspace:*"
+    "@molis-ai/molis-work-contracts": "workspace:*",
+    "@molis-ai/molis-work-design-system": "workspace:*",
+    "@molis-ai/molis-work-module-shelf": "workspace:*"
   },
   "molis-work": {
     "path": "plugins/native/shelf",

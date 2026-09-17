@@ -1,7 +1,4 @@
-export function shelfActionIcon(name: string, className?: string): string {
-  const cls = className ? ` class="${className}"` : "";
-  return `<svg${cls} aria-hidden="true"><use href="#icon-${name}"></use></svg>`;
-}
+import { icon } from "@molis-ai/molis-work-design-system";
 
 export const SHELF_GLYPH = {
   pdf: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l5 5v13a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M14 3v6h6"/></svg>`,
@@ -12,16 +9,16 @@ export const SHELF_GLYPH = {
   website: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>`,
   file: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l5 5v13a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M14 3v6h6"/></svg>`,
   folder: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h6l2 2h10v10H3z"/></svg>`,
-  copy: shelfActionIcon("copy"),
-  hide: shelfActionIcon("x"),
-  trash: shelfActionIcon("trash"),
-  search: shelfActionIcon("search"),
-  chevron: shelfActionIcon("chevron-down", "shelf-chev"),
-  compare: shelfActionIcon("columns"),
-  download: shelfActionIcon("download"),
-  tray: shelfActionIcon("download"),
-  talk: shelfActionIcon("message"),
-  lines: shelfActionIcon("list"),
+  copy: icon("copy"),
+  hide: icon("x"),
+  trash: icon("trash"),
+  search: icon("search"),
+  chevron: icon("chevron-down", "shelf-chev"),
+  compare: icon("columns"),
+  download: icon("download"),
+  tray: icon("download"),
+  talk: icon("message"),
+  lines: icon("list"),
 } as const;
 
 export function toneForKind(kind: string, group = "material"): "slate" | "blue" | "ochre" | "plum" | "clay" {

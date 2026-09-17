@@ -1,20 +1,9 @@
+import { renderLinearShellTokens } from "../palette.js";
+
 /** AP3 visual layer: foundation. */
 export const FOUNDATION_STYLES = `  :root {
     color-scheme: light;
-    --page: #f3f4f5;
-    --paper: #ffffff;
-    --ink: #222326;
-    --ink-soft: #3c3f44;
-    --muted: #6b6f76;
-    --faint: #737882;
-    --line: #e2e4e7;
-    --line-strong: #d0d6e0;
-    --rail: #eceef0;
-    --nav-hover: color-mix(in srgb, var(--ink) 6%, transparent);
-    --nav-active: color-mix(in srgb, var(--ink) 10%, transparent);
-    --blue: #5e6ad2;
-    --blue-dark: #4c56c4;
-    --blue-soft: #eef0fb;
+    ${renderLinearShellTokens("light")}
     --green: #2d7a5a;
     --green-soft: #e8f4ee;
     --amber: #8a5c18;
@@ -27,8 +16,6 @@ export const FOUNDATION_STYLES = `  :root {
     --terminal-faint: #92929b;
     --terminal-border: #303036;
     --terminal-selection: #33405b;
-    --action: #222326;
-    --action-ink: #ffffff;
     --danger-action: var(--red);
     --danger-action-ink: var(--page);
     --shadow-soft: 0 1px 2px rgba(25, 25, 31, .045), 0 4px 12px rgba(25, 25, 31, .035);
@@ -51,20 +38,7 @@ export const FOUNDATION_STYLES = `  :root {
 
   html[data-resolved-theme="dark"] {
     color-scheme: dark;
-    --page: #0f1011;
-    --paper: #161718;
-    --ink: #f7f8f8;
-    --ink-soft: #d0d1d3;
-    --muted: #8a8f98;
-    --faint: #737880;
-    --line: #23252a;
-    --line-strong: #2e3036;
-    --rail: #0f1011;
-    --nav-hover: color-mix(in srgb, var(--ink) 8%, transparent);
-    --nav-active: color-mix(in srgb, var(--ink) 12%, transparent);
-    --blue: #8b93f1;
-    --blue-dark: #a8aef5;
-    --blue-soft: #262848;
+    ${renderLinearShellTokens("dark")}
     --green: #6bc49a;
     --green-soft: #173026;
     --amber: #d4a15c;
@@ -78,8 +52,6 @@ export const FOUNDATION_STYLES = `  :root {
     --terminal-faint: #92929b;
     --terminal-border: #303036;
     --terminal-selection: #33405b;
-    --action: #f7f8f8;
-    --action-ink: #0f1011;
     --shadow-soft: 0 1px 2px rgba(0, 0, 0, .22), 0 5px 14px rgba(0, 0, 0, .14);
     --shadow-raised: 0 3px 7px rgba(0, 0, 0, .24), 0 13px 32px rgba(0, 0, 0, .18);
     --shadow: 0 22px 58px rgba(0, 0, 0, .38);

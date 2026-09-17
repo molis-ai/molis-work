@@ -48,6 +48,7 @@ export {
   MW_HUES,
   MW_PLUGINS,
   MW_SURFACES,
+  renderLinearShellTokens,
   renderPaletteTokens,
   type MwContentMarkId,
   type MwHueId,

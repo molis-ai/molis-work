@@ -21,7 +21,8 @@ export interface WebInstallationDiagnostics {
 }
 
 export interface MolisWorkSettingsView {
-  section: WebSettingsSection;
+  section: WebSettingsSection | string;
+  plugin_settings_html?: string;
   context_project?: WebProjectNavigation | null;
   runtimes: RuntimeIntegrationDetection[];
   projects: WebSettingsProject[];

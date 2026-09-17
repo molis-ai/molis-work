@@ -12,6 +12,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     globalThis.molisWorkBindProjectRules?.(root);
     globalThis.molisWorkBindPlanningSettings?.(root);
     globalThis.molisWorkBindPlanningAdoption?.(root);
+    globalThis.molisWorkBindShelfSettings?.(root);
     document.dispatchEvent(new CustomEvent("molis-work:settings-embed", { detail: { root } }));
   };
   const extractContent = (html) => {
@@ -43,7 +44,9 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     const showNode = (node) => {
       if (!body || !node) return;
       if (node.ownerDocument !== document) document.adoptNode(node);
-      [...body.children].forEach((child) => { child.hidden = child !== node; });
+      [...body.children].forEach((child) => {
+        if (child !== node) child.remove();
+      });
       if (node.parentElement !== body) body.append(node);
       node.hidden = false;
       const resetScroll = () => {
@@ -146,7 +149,11 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     if (pathname.startsWith("/settings/runtimes")) return "runtimes";
     if (pathname.startsWith("/settings/diagnostics")) return "diagnostics";
     if (pathname.startsWith("/settings/appearance") || pathname === "/settings") return "appearance";
-    return "";
+    const slug = pathname.replace(/^\\/settings\\//, "").split("/")[0];
+    if (!slug || slug === pathname) return "";
+    const known = [...document.querySelectorAll("[data-directory-panel=settings] [data-settings-section]")]
+      .map((row) => row.dataset.settingsSection);
+    return known.includes(slug) ? slug : "";
   };
   const openShell = (kind, section, fetchPath) => {
     setDirectory?.(kind, true, true);

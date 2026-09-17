@@ -4,7 +4,9 @@ import path from "node:path";
 import type {
   ShelfAdmitInput,
   ShelfClipboardRecord,
+  ShelfDeviceSettings,
   ShelfItemKind,
+  ShelfSettingsPatch,
   ShelfItemRecord,
   ShelfJobRecord,
   ShelfRecipeAvailability,
@@ -14,6 +16,7 @@ import type {
 import { ShelfError } from "./errors.js";
 import { extractLocalText, markdownFromExtract, resultNameForExtract } from "./extract.js";
 import { SAMPLE_PDF_TEXT, createExtractablePdf } from "./pdf.js";
+import { defaultShelfDeviceSettings, mergeShelfSettings, normalizeShelfSettings } from "./hotkeys.js";
 
 const CATALOG_VERSION = 1;
 const SAMPLE_NAME = "试用示例.pdf";
@@ -52,6 +55,7 @@ interface CatalogFile {
   jobs: ShelfJobRecord[];
   clipboard: ShelfClipboardRecord[];
   current_clip_id: string | null;
+  settings: ShelfDeviceSettings;
 }
 
 function assertNotBusy(catalog: CatalogFile, itemId: string): void {
@@ -74,6 +78,17 @@ export class ShelfStore {
   constructor(readonly root: string) {
     mkdirSync(path.join(root, "files"), { recursive: true });
     mkdirSync(path.join(root, "jobs"), { recursive: true });
+  }
+
+  settings(): ShelfDeviceSettings {
+    return normalizeSettings(this.readCatalog().settings);
+  }
+
+  saveSettings(patch: ShelfSettingsPatch): ShelfDeviceSettings {
+    this.update((catalog) => {
+      catalog.settings = normalizeSettings(mergeShelfSettings(normalizeSettings(catalog.settings), patch));
+    });
+    return this.settings();
   }
 
   snapshot(): ShelfSnapshot {
@@ -506,6 +521,7 @@ function classify(filename: string, mime: string): ShelfItemKind {
   const lower = filename.toLowerCase();
   if (mime === "application/pdf" || lower.endsWith(".pdf")) return "pdf";
   if (mime.startsWith("image/") || /\.(png|jpe?g|gif|webp|heic)$/u.test(lower)) return "image";
+  if (mime === "text/x-shelf-website") return "website";
   if (mime === "text/uri-list" || mime === "text/x-uri" || lower.endsWith(".url")) return "url";
   if (lower.endsWith(".md") || mime === "text/markdown") return "markdown";
   if (mime.startsWith("text/") || lower.endsWith(".txt")) return "text";
@@ -517,6 +533,7 @@ function mimeFor(kind: ShelfItemKind, filename: string): string {
   if (kind === "markdown") return "text/markdown";
   if (kind === "text") return "text/plain";
   if (kind === "url") return "text/uri-list";
+  if (kind === "website") return "text/x-shelf-website";
   if (kind === "image") return filename.toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg";
   return "application/octet-stream";
 }
@@ -529,12 +546,28 @@ function previewFor(kind: ShelfItemKind, bytes: Buffer): string | null {
       return null;
     }
   }
-  if (kind === "text" || kind === "markdown" || kind === "url") return bytes.toString("utf8").slice(0, 20_000);
+  if (kind === "text" || kind === "markdown" || kind === "url" || kind === "website") return bytes.toString("utf8").slice(0, 20_000);
   return null;
 }
 
 function emptyCatalog(): CatalogFile {
-  return { version: CATALOG_VERSION, seeded_sample: false, items: [], jobs: [], clipboard: [], current_clip_id: null };
+  return {
+    version: CATALOG_VERSION,
+    seeded_sample: false,
+    items: [],
+    jobs: [],
+    clipboard: [],
+    current_clip_id: null,
+    settings: defaultSettings(),
+  };
+}
+
+function defaultSettings(): ShelfDeviceSettings {
+  return defaultShelfDeviceSettings();
+}
+
+function normalizeSettings(raw: unknown): ShelfDeviceSettings {
+  return normalizeShelfSettings(raw);
 }
 
 function normalizeCatalog(raw: CatalogFile): CatalogFile {
@@ -549,6 +582,7 @@ function normalizeCatalog(raw: CatalogFile): CatalogFile {
     jobs: Array.isArray(raw.jobs) ? raw.jobs : [],
     clipboard,
     current_clip_id: current,
+    settings: normalizeSettings(raw.settings),
   };
 }
 

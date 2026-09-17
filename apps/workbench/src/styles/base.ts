@@ -1,11 +1,9 @@
+import { renderLinearShellTokens } from "@molis-ai/molis-work-design-system";
+
 export const STYLES = `
   :root {
     color-scheme: light;
-    --page: #f3f4f5; --paper: #ffffff; --ink: #222326; --ink-soft: #3c3f44; --muted: #6b6f76;
-    --faint: #737882; --line: #e2e4e7; --line-strong: #d0d6e0; --rail: #eceef0;
-    --nav-hover: color-mix(in srgb, var(--ink) 6%, transparent);
-    --nav-active: color-mix(in srgb, var(--ink) 10%, transparent);
-    --blue: #5e6ad2; --blue-dark: #4c56c4; --blue-soft: #eef0fb;
+    ${renderLinearShellTokens("light")}
     --green: #2d7a5a; --green-soft: #e8f4ee; --amber: #8a5c18;
     --amber-soft: #f8f0e2; --red: #b03d45; --red-soft: #fbecec;
     --terminal: #1b2129; --terminal-ink: #e8edf2;

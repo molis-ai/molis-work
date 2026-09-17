@@ -1,16 +1,9 @@
+import { renderLinearShellTokens } from "../palette.js";
+
 /** Shared Coss surfaces and controls. Loaded last by each page renderer. */
 export const COSS_CONTROL_STYLES = `
   :root, body.immersive-workbench, body.settings-page, body.project-index-page {
-    --page: #f3f4f5; --canvas: #f3f4f5; --rail: #eceef0;
-    --paper: #ffffff; --panel: #ffffff; --nav-bg: #f3f4f5;
-    --ink: #222326; --text: #222326; --ink-soft: #3c3f44;
-    --muted: #6b6f76; --faint: #737882;
-    --line: #e2e4e7; --line-strong: #d0d6e0;
-    --nav-hover: color-mix(in srgb, var(--ink) 6%, transparent);
-    --nav-active: color-mix(in srgb, var(--ink) 10%, transparent);
-    --nav-raised: #ffffff;
-    --blue: #5e6ad2; --blue-dark: #4c56c4; --blue-soft: #eef0fb; --focus: #5e6ad2;
-    --action: #222326; --action-ink: #ffffff;
+    ${renderLinearShellTokens("light")}
     --surface-shadow: 0 1px 3px #18181b12, 0 1px 2px #18181b08;
     --motion-fast: 120ms; --motion-normal: 180ms; --ease-out: cubic-bezier(.16, 1, .3, 1);
     --radius-item: 8px;
@@ -27,16 +20,7 @@ export const COSS_CONTROL_STYLES = `
   }
   html[data-resolved-theme="dark"],
   html[data-resolved-theme="dark"] :is(body.immersive-workbench, body.settings-page, body.project-index-page) {
-    --page: #0f1011; --canvas: #0f1011; --rail: #0f1011;
-    --paper: #161718; --panel: #161718; --nav-bg: #0f1011;
-    --ink: #f7f8f8; --text: #f7f8f8; --ink-soft: #d0d1d3;
-    --muted: #8a8f98; --faint: #737880;
-    --line: #23252a; --line-strong: #2e3036;
-    --nav-hover: color-mix(in srgb, var(--ink) 8%, transparent);
-    --nav-active: color-mix(in srgb, var(--ink) 12%, transparent);
-    --nav-raised: #1c1c1f;
-    --blue: #8b93f1; --blue-dark: #a8aef5; --blue-soft: #262848; --focus: #8b93f1;
-    --action: #f7f8f8; --action-ink: #0f1011;
+    ${renderLinearShellTokens("dark")}
     --surface-shadow: 0 1px 3px #00000038, 0 1px 2px #00000024;
     --control-border: color-mix(in srgb, #fff 8%, transparent);
     --control-input: color-mix(in srgb, #fff 10%, transparent);

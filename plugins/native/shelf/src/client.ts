@@ -22,6 +22,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
   let arranging = false;
   let hiddenActs = new Set();
   let lastBarKind = "empty";
+  let stickyHint = "";
   const fileUrl = (id) => "/api/shelf/items/" + encodeURIComponent(id) + "/file";
   const TEXT_EDIT = { txt:1, md:1, markdown:1, json:1, swift:1, py:1, js:1, ts:1, mjs:1, css:1, yaml:1, yml:1, xml:1, toml:1, ini:1, rs:1, go:1, rb:1, sh:1, zsh:1, c:1, h:1, cc:1, cpp:1, m:1, mm:1, csv:1, log:1 };
   const isEditable = (item) => {
@@ -255,7 +256,12 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     lastBarKind = kind;
     const hint = workbench.querySelector("[data-shelf-bar-hint]");
     if (hint) {
-      hint.hidden = !(kind === "pdf" || kind === "text" || kind === "markdown" || kind === "image" || kind === "url") || !agentMissing();
+      if (stickyHint) {
+        hint.hidden = false;
+        hint.textContent = stickyHint;
+      } else {
+        hint.hidden = !(kind === "pdf" || kind === "text" || kind === "markdown" || kind === "image" || kind === "url" || kind === "website") || !agentMissing();
+      }
     }
     if (kind === "empty") {
       bar.innerHTML = actButton(L("新建"), "pick", true);
@@ -350,6 +356,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
 
   const selectItem = async (id) => {
+    stickyHint = "";
     await flushEdit();
     editing = false;
     selectedClip = null;
@@ -399,7 +406,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
 
   const copyShelfItem = async (id, name) => {
     const item = items().find((entry) => entry.item_id === id);
-    if (item && (item.kind === "markdown" || item.kind === "text" || item.kind === "url")) {
+    if (item && (item.kind === "markdown" || item.kind === "text" || item.kind === "url" || item.kind === "website")) {
       const text = item.preview_text || await (await fetch(fileUrl(id))).text();
       try { await navigator.clipboard.writeText(text); } catch {}
       return;
@@ -705,6 +712,11 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
 
   const boot = () => { if (document.body.dataset.desktopSurface === "shelf") load().catch(() => {}); };
   document.addEventListener("molis-work:surface", boot);
+  window.addEventListener("molis-shelf-notice", (event) => {
+    stickyHint = event.detail && event.detail.message ? String(event.detail.message) : "";
+    paintPreview();
+  });
+  window.addEventListener("molis-shelf-refresh", () => { load().catch(() => {}); });
   new MutationObserver(boot).observe(document.body, { attributes: true, attributeFilter: ["data-desktop-surface"] });
   boot();
 

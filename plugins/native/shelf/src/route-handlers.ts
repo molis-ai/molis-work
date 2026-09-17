@@ -1,9 +1,12 @@
-import type { ShelfAdmitInput, ShelfRecipeId, ShelfSnapshot } from "@molis-ai/molis-work-contracts/modules/shelf";
+import type { ShelfAdmitInput, ShelfDeviceSettings, ShelfRecipeId, ShelfSettingsPatch, ShelfSnapshot } from "@molis-ai/molis-work-contracts/modules/shelf";
+import { parseSettingsWriteBody } from "@molis-ai/molis-work-module-shelf";
 import type { ShelfItemRecord, ShelfJobRecord, ShelfClipboardRecord } from "@molis-ai/molis-work-contracts/modules/shelf";
 import type { ShelfPluginRouteHandler } from "./routes.js";
 
 export interface ShelfRouteHandlerPorts {
   snapshot(): ShelfSnapshot;
+  settings(): ShelfDeviceSettings;
+  saveSettings(patch: ShelfSettingsPatch): ShelfDeviceSettings;
   admit(input: ShelfAdmitInput): ShelfItemRecord;
   admitText(body: string, title?: string): ShelfItemRecord;
   seedSample(): ShelfItemRecord;
@@ -21,6 +24,12 @@ export interface ShelfRouteHandlerPorts {
 export function createShelfRouteHandlers(options: ShelfRouteHandlerPorts): Record<string, ShelfPluginRouteHandler> {
   return {
     "shelf.snapshot": () => ({ status: 200, body: options.snapshot() }),
+    "shelf.settings.read": () => ({ status: 200, body: options.settings() }),
+    "shelf.settings.write": ({ request }) => {
+      const parsed = parseSettingsWriteBody(request.body);
+      if ("error" in parsed) return { status: 400, body: { error: parsed.error } };
+      return { status: 200, body: options.saveSettings(parsed.ok) };
+    },
     "shelf.sample": () => ({ status: 200, body: { item: options.seedSample(), snapshot: options.snapshot() } }),
     "shelf.admit": ({ request }) => {
       const text = stringValue(request.body.text);

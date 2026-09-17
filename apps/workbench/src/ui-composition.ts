@@ -1,27 +1,11 @@
-
-import { goalsDecisionResultsUiContribution } from "@molis-ai/molis-work-plugin-goals";
-
-import { createGoalsDecisionResultsWorkbenchRenderer } from "./goals-decision-results-ui.js";
-
-import { goalsProposalUiContribution } from "@molis-ai/molis-work-plugin-goals";
-
-import { createGoalsProposalWorkbenchRenderer } from "./goals-proposal-ui.js";
-
-import { workUiContribution, workTerminalUiContribution, WORK_TERMINAL_UI_CONTRIBUTION_ID, type WorkTerminalUiModel } from "@molis-ai/molis-work-plugin-work";
-
-import { createWorkSessionRenderer } from "./work-ui.js";
-
 import { THEME_BOOTSTRAP_SCRIPT, icon, renderIconSprite } from "@molis-ai/molis-work-design-system";
-import { createArtifactWorkbenchRenderer, type ArtifactWorkbenchRequest } from "./artifact-ui.js";
-
+import type { GoalsApplicationApi } from "@molis-ai/molis-work-contracts/modules/goals";
 import type {
   UiRenderRequest,
   UiSlotDescriptor,
   WorkbenchDocumentRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
-
-import type { GoalsApplicationApi } from "@molis-ai/molis-work-contracts/modules/goals";
-
+import { artifactReferenceUiContribution, artifactBrowserUiContribution, ARTIFACT_REFERENCE_UI_CONTRIBUTION_ID, type ArtifactReferenceUiPrimitives } from "@molis-ai/molis-work-plugin-artifacts";
 import {
   FEED_UI_CONTRIBUTION_ID,
   feedUiContribution,
@@ -29,75 +13,62 @@ import {
   type FeedUiModel,
   type PersistedFeedDetailModel,
 } from "@molis-ai/molis-work-plugin-feed";
-
+import {
+  goalsContextUiContribution,
+  goalsDecisionResultsUiContribution,
+  goalsDialogsUiContribution,
+  goalsDocumentUiContribution,
+  goalsFactorsUiContribution,
+  goalsMomentumUiContribution,
+  goalsPlanningUiContribution,
+  goalsPolicyUiContribution,
+  goalsProposalUiContribution,
+  goalsRelationUiContribution,
+  goalsSafetyUiContribution,
+  goalsStatusUiContribution,
+  goalsTreeUiContribution,
+} from "@molis-ai/molis-work-plugin-goals";
 import {
   INBOX_UI_CONTRIBUTION_ID,
   inboxUiContribution,
   type InboxUiModel,
   type InboxUiSurface,
 } from "@molis-ai/molis-work-plugin-inbox";
-
 import {
   SHELF_UI_CONTRIBUTION_ID,
+  SHELF_SETTINGS_UI_CONTRIBUTION_ID,
   shelfUiContribution,
+  shelfSettingsUiContribution,
   type ShelfUiModel,
   type ShelfUiSurface,
+  type ShelfSettingsUiModel,
 } from "@molis-ai/molis-work-plugin-shelf";
-
+import { workUiContribution, workTerminalUiContribution, WORK_TERMINAL_UI_CONTRIBUTION_ID, type WorkTerminalUiModel } from "@molis-ai/molis-work-plugin-work";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
-
-import { goalsPolicyUiContribution, goalsSafetyUiContribution, goalsRelationUiContribution } from "@molis-ai/molis-work-plugin-goals";
-
-import { createGoalsRelationWorkbenchRenderer } from "./goals-relation-ui.js";
-
-import { goalsTreeUiContribution } from "@molis-ai/molis-work-plugin-goals";
-
-import { createGoalsTreeWorkbenchRenderer } from "./goals-tree-ui.js";
-
-import { goalsMomentumUiContribution } from "@molis-ai/molis-work-plugin-goals";
-
-import { createGoalsMomentumWorkbenchRenderer } from "./goals-momentum-ui.js";
-
-import { goalsDocumentUiContribution } from "@molis-ai/molis-work-plugin-goals";
-
-import { createGoalsDocumentWorkbenchRenderer } from "./goals-document-ui.js";
-
-import { goalsContextUiContribution } from "@molis-ai/molis-work-plugin-goals";
-
+import { createArtifactWorkbenchRenderer, type ArtifactWorkbenchRequest } from "./artifact-ui.js";
 import { createGoalsContextWorkbenchRenderer } from "./goals-context-ui.js";
-
-import { goalsPlanningUiContribution } from "@molis-ai/molis-work-plugin-goals";
-
-import { createGoalsPlanningWorkbenchRenderer } from "./goals-planning-ui.js";
-
-import { goalsStatusUiContribution } from "@molis-ai/molis-work-plugin-goals";
-
-import { createGoalsStatusWorkbenchRenderer } from "./goals-status-ui.js";
-
-import { goalsFactorsUiContribution } from "@molis-ai/molis-work-plugin-goals";
-
-import { createGoalsFactorsWorkbenchRenderer } from "./goals-factors-ui.js";
-
-import { goalsDialogsUiContribution } from "@molis-ai/molis-work-plugin-goals";
-
+import { createGoalsDecisionResultsWorkbenchRenderer } from "./goals-decision-results-ui.js";
 import { createGoalsDialogsWorkbenchRenderer } from "./goals-dialogs-ui.js";
-
-import { createGoalsSafetyWorkbenchRenderer } from "./goals-safety-ui.js";
-
+import { createGoalsDocumentWorkbenchRenderer } from "./goals-document-ui.js";
+import { createGoalsFactorsWorkbenchRenderer } from "./goals-factors-ui.js";
+import { createGoalsMomentumWorkbenchRenderer } from "./goals-momentum-ui.js";
+import { createGoalsPlanningWorkbenchRenderer } from "./goals-planning-ui.js";
 import { createGoalsPolicyWorkbenchRenderer } from "./goals-policy-ui.js";
-
-import { artifactReferenceUiContribution, artifactBrowserUiContribution, ARTIFACT_REFERENCE_UI_CONTRIBUTION_ID, type ArtifactReferenceUiPrimitives } from "@molis-ai/molis-work-plugin-artifacts";
-
+import { createGoalsProposalWorkbenchRenderer } from "./goals-proposal-ui.js";
+import { createGoalsRelationWorkbenchRenderer } from "./goals-relation-ui.js";
+import { createGoalsSafetyWorkbenchRenderer } from "./goals-safety-ui.js";
+import { createGoalsStatusWorkbenchRenderer } from "./goals-status-ui.js";
+import { createGoalsTreeWorkbenchRenderer } from "./goals-tree-ui.js";
+import { createWorkSessionRenderer } from "./work-ui.js";
 
 export type WorkbenchGoalsAdapter = GoalsApplicationApi;
-
 
 export const WORKBENCH_UI_SLOTS = {
   directory: { slot_id: "workbench.directory", version: 1, accepts: ["declarative-html"] },
   main: { slot_id: "workbench.main", version: 1, accepts: ["declarative-html"] },
   overlay: { slot_id: "workbench.overlay", version: 1, accepts: ["declarative-html"] },
+  settings: { slot_id: "workbench.settings", version: 1, accepts: ["declarative-html"] },
 } as const satisfies Record<string, UiSlotDescriptor>;
-
 
 const INBOX_SURFACE_SLOTS: Readonly<Record<InboxUiSurface, UiSlotDescriptor>> = {
   directory: WORKBENCH_UI_SLOTS.directory,
@@ -108,7 +79,6 @@ const SHELF_SURFACE_SLOTS: Readonly<Record<ShelfUiSurface, UiSlotDescriptor>> = 
   directory: WORKBENCH_UI_SLOTS.directory,
   workbench: WORKBENCH_UI_SLOTS.main,
 };
-
 
 const FEED_SURFACE_SLOTS: Readonly<Record<FeedUiSurface, UiSlotDescriptor>> = {
   directory: WORKBENCH_UI_SLOTS.directory,
@@ -121,7 +91,6 @@ const FEED_SURFACE_SLOTS: Readonly<Record<FeedUiSurface, UiSlotDescriptor>> = {
   "frame-block": WORKBENCH_UI_SLOTS.main,
 };
 
-
 function escapeHtml(value: string): string {
   return value
     .replaceAll("&", "&amp;")
@@ -130,14 +99,12 @@ function escapeHtml(value: string): string {
     .replaceAll('"', "&quot;");
 }
 
-
 function renderAttributes(attributes: WorkbenchDocumentRenderRequest["body_attributes"]): string {
   return Object.entries(attributes ?? {})
     .filter((entry): entry is [string, string | boolean] => entry[1] !== null && entry[1] !== undefined && entry[1] !== false)
     .map(([name, value]) => value === true ? ` ${name}` : ` ${name}="${escapeHtml(String(value))}"`)
     .join("");
 }
-
 
 /** Own the stable HTML document shell while product Plugins own their rendered surfaces. */
 export function renderWorkbenchDocument(request: WorkbenchDocumentRenderRequest): string {
@@ -156,7 +123,6 @@ ${request.body_html}
 </html>`;
 }
 
-
 /** Bind Workbench routes to the public Goals Contract without copying Module rules. */
 export function createWorkbenchGoalsAdapter(
   goals: GoalsApplicationApi,
@@ -169,13 +135,13 @@ export function createWorkbenchGoalsAdapter(
   };
 }
 
-
 /** Shared Workbench composition root. Product renderers never import a Plugin implementation directly. */
 export function createWorkbenchUiHost(): UiHost {
   const host = new UiHost();
   host.register(feedUiContribution);
   host.register(inboxUiContribution);
   host.register(shelfUiContribution);
+  host.register(shelfSettingsUiContribution);
   host.register(workUiContribution);
   host.register(workTerminalUiContribution);
   host.register(artifactReferenceUiContribution);
@@ -195,7 +161,6 @@ export function createWorkbenchUiHost(): UiHost {
   host.register(goalsDialogsUiContribution);
   return host;
 }
-
 
 const workbenchUiHost = createWorkbenchUiHost();
 
@@ -245,7 +210,6 @@ export const renderWorkTerminal = (model: WorkTerminalUiModel): string => workbe
   contribution: { contribution_id: WORK_TERMINAL_UI_CONTRIBUTION_ID, surface: "terminal", model },
 }).html;
 
-
 export function renderFeedContribution(
   surface: UiRenderRequest<FeedUiModel | PersistedFeedDetailModel>["surface"],
   model: FeedUiModel | PersistedFeedDetailModel,
@@ -259,7 +223,6 @@ export function renderFeedContribution(
     },
   }).html;
 }
-
 
 export function renderInboxContribution(
   surface: InboxUiSurface,
@@ -289,11 +252,27 @@ export function renderShelfContribution(
   }).html;
 }
 
+export function renderPluginSettingsContribution(
+  contributionId: string,
+  model: unknown,
+): string {
+  return workbenchUiHost.mount({
+    slot: WORKBENCH_UI_SLOTS.settings,
+    contribution: {
+      contribution_id: contributionId,
+      surface: "settings",
+      model,
+    },
+  }).html;
+}
+
+export function renderShelfSettingsContribution(model: ShelfSettingsUiModel): string {
+  return renderPluginSettingsContribution(SHELF_SETTINGS_UI_CONTRIBUTION_ID, model);
+}
 
 export function listWorkbenchUiContributions() {
   return workbenchUiHost.list();
 }
-
 
 export function renderArtifactWorkbenchPage(
   request: Omit<ArtifactWorkbenchRequest, "headHtml" | "backIconHtml" | "iconSpriteHtml"> & { nativeDesktopBootstrapScript: string },

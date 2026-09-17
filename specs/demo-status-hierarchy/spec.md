@@ -55,8 +55,8 @@
 1. 新 seed 的当前树含 `continue` / `in_progress` / `waiting_user` / `blocked` / `completed`。
 2. `GRAPH` 已归档；`AUTO-CONNECT` 仍在回收站；没有新增回收站 Goal。
 3. 存在 `data-tree-depth="5"` 且 `WEB-SCAN-ROW` 仍是 depth 4。
-4. `tests/project-catalog.test.ts`、`tests/desktop-tui.test.ts` 相关断言通过。
-5. 重建 `~/.molis-work` 的示例项目后，4180 列表/画布/看板能看到上述差。
+4. `tests/project-catalog.test.ts` 通过。渲染确认 `WEB-SCAN-ROW` 仍是 depth 4，且存在 `data-tree-depth="5"`。
+5. 重建 `~/.molis-work` 的示例项目后，4180 列表/画布/看板能看到上述差。归档 `GRAPH` 后画布会提示「部分关系不完整」，节点和跨分支箭头仍可读。
 
 ## 验证命令
 

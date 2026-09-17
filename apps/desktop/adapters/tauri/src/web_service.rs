@@ -28,7 +28,7 @@ fn product_env(suffix: &str) -> Option<String> {
         .filter(|value| !value.is_empty())
 }
 
-fn molis_work_home() -> PathBuf {
+pub(crate) fn molis_work_home() -> PathBuf {
     if let Some(home) = product_env("HOME") {
         return PathBuf::from(home);
     }

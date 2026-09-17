@@ -198,6 +198,36 @@ export function renderPaletteTokens(theme: "light" | "dark"): string {
   return `${hueCustomProperties(theme)} --blue-dark: ${blueDark}; ${semanticAliases()} ${contentCustomProperties(theme)}`;
 }
 
+/** Linear zinc shell shared by foundation, Coss overlay, interaction texture, and workbench base. */
+export function renderLinearShellTokens(theme: "light" | "dark"): string {
+  if (theme === "dark") {
+    return [
+      "--page: #0f1011; --canvas: #0f1011; --rail: #0f1011;",
+      "--paper: #161718; --panel: #161718; --nav-bg: #0f1011;",
+      "--ink: #f7f8f8; --text: #f7f8f8; --ink-soft: #d0d1d3;",
+      "--muted: #8a8f98; --faint: #737880;",
+      "--line: #23252a; --line-strong: #2e3036;",
+      "--nav-hover: color-mix(in srgb, var(--ink) 8%, transparent);",
+      "--nav-active: color-mix(in srgb, var(--ink) 12%, transparent);",
+      "--nav-raised: #1c1c1f;",
+      "--blue: #8b93f1; --blue-dark: #a8aef5; --blue-soft: #262848; --focus: #8b93f1;",
+      "--action: #f7f8f8; --action-ink: #0f1011;",
+    ].join(" ");
+  }
+  return [
+    "--page: #f3f4f5; --canvas: #f3f4f5; --rail: #eceef0;",
+    "--paper: #ffffff; --panel: #ffffff; --nav-bg: #f3f4f5;",
+    "--ink: #222326; --text: #222326; --ink-soft: #3c3f44;",
+    "--muted: #6b6f76; --faint: #737882;",
+    "--line: #e2e4e7; --line-strong: #d0d6e0;",
+    "--nav-hover: color-mix(in srgb, var(--ink) 6%, transparent);",
+    "--nav-active: color-mix(in srgb, var(--ink) 10%, transparent);",
+    "--nav-raised: #ffffff;",
+    "--blue: #5e6ad2; --blue-dark: #4c56c4; --blue-soft: #eef0fb; --focus: #5e6ad2;",
+    "--action: #222326; --action-ink: #ffffff;",
+  ].join(" ");
+}
+
 export function renderPluginTintBindings(): string {
   return MW_PLUGINS.flatMap((plugin) => {
     const extras = plugin.id === "settings"

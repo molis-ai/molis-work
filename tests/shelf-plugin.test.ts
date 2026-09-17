@@ -136,6 +136,14 @@ test("hide, delete, clipboard, and use-as-material keep copies off the original 
     const urlItem = store.clipboardToMaterial(snapshot.clipboard[1]!.clip_id);
     assert.equal(urlItem.kind, "url");
     assert.equal(urlItem.name, "example.com.url");
+    const site = store.admit({
+      filename: "Example Domain.md",
+      bytes: Buffer.from("# Example Domain\n\nhttps://example.com/\n\nHello\n", "utf8"),
+      mime: "text/x-shelf-website",
+    });
+    assert.equal(site.kind, "website");
+    assert.equal(site.mime, "text/x-shelf-website");
+    assert.match(site.preview_text ?? "", /https:\/\/example.com\//);
   });
 });
 
@@ -331,6 +339,13 @@ test("Shelf UI contribution paints DropAgent directory groups and command chrome
   assert.equal(SHELF_EN["正在编辑副本。原文件保持不变。"], "Editing a copy. The original stays unchanged.");
   assert.equal(SHELF_EN["将生成 pdf.md。原文件保持不变。"], "Creates pdf.md. Your original file stays unchanged.");
   assert.equal(SHELF_EN["整理动作"], "Arrange actions");
+  assert.equal(SHELF_EN["快捷键"], "Shortcuts");
+  assert.equal(SHELF_EN["打开 / 关闭 Shelf"], "Open / close Shelf");
+  assert.equal(SHELF_EN["按下…"], "Press…");
+  assert.equal(SHELF_EN["默认"], "Default");
+  assert.equal(SHELF_EN["这个组合被占用。"], "This shortcut is already in use.");
+  assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /molis-shelf-notice/);
+  assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /molis-shelf-refresh/);
   assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /原材料已不在工作区，无法对照/);
   assert.match(SHELF_STYLES, /--da-font: var\(--font\)/);
   assert.match(SHELF_STYLES, /--clay: var\(--mark-clay\)/);

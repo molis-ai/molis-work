@@ -76,7 +76,28 @@ export const SHELF_STYLES = `
   }
   [data-shelf] .shelf-search input:focus { outline: none !important; box-shadow: none !important; }
   [data-shelf] .shelf-search input::placeholder { color: var(--da-faint); }
-  [data-shelf] .shelf-side-scroll { flex: 1; min-height: 0; overflow: auto; padding-bottom: 8px; scrollbar-width: none; }
+  [data-shelf="settings"] .settings-heading h1 { margin: 0; }
+  [data-shelf="settings"] .settings-section h2 { margin: 0 0 4px; font-size: 13px; font-weight: 500; color: var(--da-muted); }
+  [data-shelf="settings"] .settings-setting-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin: 0; padding: 10px 0; border-bottom: 1px solid var(--da-line); }
+  [data-shelf="settings"] .shelf-hotkey-lead { margin: 0 0 12px; font-size: 11px; color: var(--da-faint); }
+  [data-shelf="settings"] .shelf-hotkey-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 12px; margin: 0 0 8px;
+    background: color-mix(in srgb, var(--da-text) 4.5%, var(--da-panel));
+    border-radius: 12px;
+  }
+  [data-shelf="settings"] .shelf-hotkey-row .setting-copy { min-width: 0; flex: 1; }
+  [data-shelf="settings"] .shelf-hotkey-row .setting-copy strong { display: block; font-size: 13px; font-weight: 500; }
+  [data-shelf="settings"] .shelf-hotkey-row .setting-copy span { display: block; margin-top: 2px; font-size: 12px; color: var(--da-faint); }
+  [data-shelf="settings"] .shelf-hotkey-row .setting-copy span[data-occupied] { color: var(--da-muted); }
+  [data-shelf="settings"] .shelf-hotkey-keys { display: flex; align-items: center; gap: 6px; flex: none; }
+  [data-shelf="settings"] .shelf-hotkey-record {
+    min-width: 72px; justify-content: center;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-weight: 600;
+  }
+  [data-shelf="settings"] .shelf-hotkey-row.is-recording .shelf-hotkey-record { color: var(--da-accent); }
+
   [data-shelf] .shelf-side-scroll::-webkit-scrollbar { width: 0; height: 0; }
   [data-shelf] .shelf-fold {
     display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 4px;

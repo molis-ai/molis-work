@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
+  COSS_CONTROL_STYLES,
   INTERACTION_TEXTURE_STYLES,
   MOLIS_WORK_DENSITY_STORAGE_KEY,
   MOLIS_WORK_TERMINAL_THEME_STORAGE_KEY,
@@ -13,12 +14,26 @@ import {
   VISUAL_FOUNDATION_STYLES,
   interVariableFontFilePath,
   notoSansScFontFilePath,
+  renderLinearShellTokens,
 } from "@molis-ai/molis-work-design-system";
+import { STYLES } from "@molis-ai/molis-work-app-workbench";
 import {
   renderMolisWorkProjectIndexStylesheet,
   renderMolisWorkSettingsStylesheet,
   renderMolisWorkWorkbenchStylesheet,
 } from "./workbench-renderer-fixture.js";
+
+test("Linear zinc shell tokens come from one helper", () => {
+  const light = renderLinearShellTokens("light");
+  const dark = renderLinearShellTokens("dark");
+  assert.ok(VISUAL_FOUNDATION_STYLES.includes(light));
+  assert.ok(VISUAL_FOUNDATION_STYLES.includes(dark));
+  assert.ok(COSS_CONTROL_STYLES.includes(light));
+  assert.ok(COSS_CONTROL_STYLES.includes(dark));
+  assert.ok(INTERACTION_TEXTURE_STYLES.includes(light));
+  assert.ok(INTERACTION_TEXTURE_STYLES.includes(dark));
+  assert.ok(STYLES.includes(light));
+});
 
 test("visual foundation keeps Light, Dark, and System as local presentation choices", () => {
   assert.equal(MOLIS_WORK_THEME_STORAGE_KEY, "molis-work:theme");

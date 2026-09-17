@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-shelf-desktop"
+description = "Allow the main window to report Shelf surface state, global hotkey occupancy, and remapped chords."
+commands.allow = ["shelf_surface_changed", "shelf_hotkey_status", "shelf_apply_hotkeys"]

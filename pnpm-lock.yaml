@@ -581,6 +581,12 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
+      '@molis-ai/molis-work-design-system':
+        specifier: workspace:*
+        version: link:../../../packages/design-system
+      '@molis-ai/molis-work-module-shelf':
+        specifier: workspace:*
+        version: link:../../../modules/shelf
 
   plugins/native/work:
     dependencies:

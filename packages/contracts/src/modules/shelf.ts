@@ -81,6 +81,30 @@ export interface ShelfSnapshot {
   readonly current_clip_id: string | null;
 }
 
+/** Device-local plugin preferences. Not project data and not Molis appearance. */
+export type ShelfHotKeySlot = "toggle" | "capture" | "files";
+
+export interface ShelfHotKeyChord {
+  readonly key_code: number;
+  readonly carbon_modifiers: number;
+}
+
+export interface ShelfHotKeys {
+  readonly toggle: ShelfHotKeyChord;
+  readonly capture: ShelfHotKeyChord;
+  readonly files: ShelfHotKeyChord;
+}
+
+export interface ShelfDeviceSettings {
+  readonly drop_wheel_enabled: boolean;
+  readonly hotkeys: ShelfHotKeys;
+}
+
+export interface ShelfSettingsPatch {
+  readonly drop_wheel_enabled?: boolean;
+  readonly hotkeys?: Partial<ShelfHotKeys>;
+}
+
 export interface ShelfAdmitInput {
   readonly filename: string;
   readonly bytes: Uint8Array;

@@ -107,6 +107,13 @@ test("Workbench registers Native Plugin surfaces against stable slots", () => {
     new Set(shelf.surfaces?.map((surface) => surface.target_slot_id)),
     new Set(["workbench.directory", "workbench.main"]),
   );
+  const shelfSettings = descriptors.find((item) => item.contribution_id === "io.molis.work.native.shelf.settings.v1");
+  assert.ok(shelfSettings);
+  assert.equal(shelfSettings.kind, "settings-page");
+  assert.deepEqual(
+    new Set(shelfSettings.surfaces?.map((surface) => surface.target_slot_id)),
+    new Set(["workbench.settings"]),
+  );
 });
 
 test("primitive catalog page is a local document with theme controls", () => {

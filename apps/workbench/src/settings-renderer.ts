@@ -5,6 +5,7 @@ import type { MolisWorkSettingsView, WebSettingsProject } from "./settings-view.
 import type { createWorkbenchSettingsNavigation } from "./settings-navigation.js";
 import { createProjectSettingsFolds } from "./project-settings-folds.js";
 import { renderAppearanceSettingsDocument, renderRuntimePlanDialog } from "./settings-appearance.js";
+import { findPluginSettingsNavItem } from "./plugin-settings-catalog.js";
 export interface SettingsRenderPrimitives {
   L(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;
@@ -176,25 +177,31 @@ function renderDiagnosticsSettings(view: MolisWorkSettingsView): string {
 }
 
 function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "", desktopShell = false): string {
+  const pluginPage = findPluginSettingsNavItem(view.section);
   const title = view.section === "appearance"
     ? L("界面与语言")
     : view.section === "runtimes"
       ? L("AI 与执行工具")
       : view.section === "projects"
         ? L("项目设置")
-        : L("诊断");
+        : view.section === "diagnostics"
+          ? L("诊断")
+          : L(pluginPage?.label ?? view.section);
   const contextProject = view.context_project ?? null;
   const settingsPath = settingsContextHref(`/settings/${view.section}`, contextProject, desktopShell);
   const rawReturnHref = contextProject ? `/projects/${encodeURIComponent(contextProject.project_id)}/` : "/";
   const returnHref = desktopShell ? withDesktopQuery(rawReturnHref) : rawReturnHref;
   const projectManager = view.section === "projects";
-  const content = view.section === "appearance"
-    ? renderAppearanceSettings(settingsPath)
-    : view.section === "runtimes"
-      ? renderRuntimeSettings(view)
-      : view.section === "projects"
-        ? renderProjectSettings(view, desktopShell)
-        : renderDiagnosticsSettings(view);
+  const content = view.plugin_settings_html
+    || (view.section === "appearance"
+      ? renderAppearanceSettings(settingsPath)
+      : view.section === "runtimes"
+        ? renderRuntimeSettings(view)
+        : view.section === "projects"
+          ? renderProjectSettings(view, desktopShell)
+          : view.section === "diagnostics"
+            ? renderDiagnosticsSettings(view)
+            : "");
   return `<!doctype html>
 <html lang="${htmlLang()}">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${controlTokenMeta(controlToken)}<title>${title} · ${L("Molis Work 设置")}</title><script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-settings.css"></head>

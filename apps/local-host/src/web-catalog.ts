@@ -7,8 +7,10 @@ import type { LocalWebComposition } from "./web-composition.js";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
 import { L } from "./web-locale.js";
 import type { WebProjectNavigation, WebSettingsSection } from "@molis-ai/molis-work-app-workbench";
-import { renderMolisWorkPrimitiveCatalog } from "@molis-ai/molis-work-app-workbench";
+import { findPluginSettingsNavItem, renderMolisWorkPrimitiveCatalog, renderPluginSettingsContribution } from "@molis-ai/molis-work-app-workbench";
 import { handleShelfNativePluginHttp } from "./shelf-native-plugin-http.js";
+import { SHELF_SETTINGS_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-shelf";
+import { openShelfStore } from "@molis-ai/molis-work-module-shelf";
 import { handleLocalRuntimeSettingsHttp, serviceProcessId } from "./web-runtime-settings.js";
 import { installationDiagnostics } from "./web-project-presentation.js";
 import { molisWorkOnboardingStatus } from "./onboarding.js";
@@ -76,6 +78,38 @@ export async function handleLocalCatalogWebRequest(
     }, controlToken, isDesktopShellRequest(request, url)));
     return;
   }
+  const pluginSettingsSlug = url.pathname.match(/^\/settings\/([^/]+)$/)?.[1];
+  const pluginSettings = pluginSettingsSlug ? findPluginSettingsNavItem(pluginSettingsSlug) : null;
+  if (request.method === "GET" && pluginSettings && serverOptions.homeDirectory) {
+    if (pluginSettings.contribution_id !== SHELF_SETTINGS_UI_CONTRIBUTION_ID) {
+      sendJson(response, 404, { error: L("页面不存在") });
+      return;
+    }
+    const projects = await settingsProjects(serverOptions.homeDirectory);
+    const contextProjectId = url.searchParams.get("project");
+    const contextProject = contextProjectId
+      ? projects.find((project) => project.project_id === contextProjectId) ?? null
+      : null;
+    const plugin_settings_html = renderPluginSettingsContribution(pluginSettings.contribution_id, {
+      settings: openShelfStore(serverOptions.homeDirectory).settings(),
+      primitives: { escape: escapeSettingsHtml, text: L },
+    });
+    response.writeHead(200, {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-store",
+      "content-security-policy": PAGE_CSP,
+    });
+    response.end(renderMolisWorkSettings({
+      section: pluginSettings.section_id,
+      plugin_settings_html,
+      context_project: contextProject,
+      runtimes: [],
+      projects,
+      web_service: await webService.detect(),
+      diagnostics: installationDiagnostics(serverOptions.homeDirectory, projects.length),
+    }, controlToken, isDesktopShellRequest(request, url)));
+    return;
+  }
   if (await handleLocalRuntimeSettingsHttp(request, response, url, runtimeIntegrations, webService)) return;
   if (await projectSettings.handle(request, response, url, serverOptions.homeDirectory, projects.length, deletionPorts)) return;
   if (request.method === "GET" && url.pathname === "/desktop/pty-client.js") {
@@ -127,4 +161,12 @@ export async function handleLocalCatalogWebRequest(
   }
   sendJson(response, 404, { error: L("页面不存在") });
   return;
+}
+
+function escapeSettingsHtml(value: unknown): string {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
 }

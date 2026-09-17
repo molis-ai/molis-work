@@ -38,6 +38,8 @@ export interface ShelfPluginRouteBinding extends ShelfPluginRouteDefinition {
 
 export const SHELF_NATIVE_PLUGIN_ROUTES = [
   route("shelf.snapshot", "GET", /^\/api\/shelf$/u),
+  route("shelf.settings.read", "GET", /^\/api\/shelf\/settings$/u),
+  route("shelf.settings.write", "POST", /^\/api\/shelf\/settings$/u),
   route("shelf.admit", "POST", /^\/api\/shelf\/items$/u),
   route("shelf.sample", "POST", /^\/api\/shelf\/sample$/u),
   route("shelf.hide", "POST", /^\/api\/shelf\/items\/([^/]+)\/hide$/u, ["item_id"]),

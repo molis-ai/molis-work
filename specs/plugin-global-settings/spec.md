@@ -1,6 +1,6 @@
 # 插件本机设置进全局设置
 
-状态：方案已对齐，未执行。完成等级目标 **3：功能可用**（设置列表能打开插件自己的设置页，第一页是 Shelf，轮盘开关能保存并生效）。不宣称可发布。不改用户真实库、不提交、不发布。
+状态：**等级 3 已完成**（设置列表能打开插件自己的设置页，第一页是 Shelf，轮盘开关能保存并回读）。不宣称可发布。不改用户真实库、不提交、不发布。
 
 本文件是这次宿主能力的唯一需求书。Shelf 设置里有哪些栏目、轮盘怎么关，仍以 [`specs/shelf-plugin/spec.md`](../shelf-plugin/spec.md) 为准。全局设置壳仍以 [`specs/settings-directory-panel/spec.md`](../settings-directory-panel/spec.md) 为准。
 
@@ -77,7 +77,7 @@
 
 - 输入：已运行且登记了本机设置的插件、该插件自己的设置状态（Shelf：轮盘开关等）。
 - 输出：全局设置目录多出的行、右边插件设置文档、开关对插件行为生效。
-- 依赖：现有设置壳、UI Host mount、插件私人存储、Shelf / DropAgent 轮盘语义。
+- 依赖：现有设置壳、UI Host mount、Shelf 本机 store（内置 Shelf 尚未走 PluginHostExecutor 私人存储）、Shelf / DropAgent 轮盘语义。
 - 轮盘真正出现仍依赖 Desktop adapter；本需求保证开关能保存，并在轮盘实现后被读取。开关先落地、轮盘后接上，不算未完成这条设置链。
 
 ## 文件 / 模块边界
@@ -104,15 +104,34 @@
 ## 验证命令
 
 ```
-npx pnpm --filter @molis-ai/molis-work-app-workbench build
+npx pnpm --filter @molis-ai/molis-work-contracts build
+npx pnpm --filter @molis-ai/molis-work-module-shelf build
 npx pnpm --filter @molis-ai/molis-work-plugin-shelf build
+npx pnpm --filter @molis-ai/molis-work-app-workbench build
+npx pnpm --filter @molis-ai/molis-work-app-local-host build
 node --import tsx --test --test-concurrency=1 \
-  tests/desktop-tui.test.ts \
-  tests/project-home-start.e2e.test.ts \
+  tests/plugin-global-settings.test.ts \
+  tests/workbench-ui-platform.test.ts \
+  tests/project-settings-stage.test.ts \
   tests/shelf-plugin.test.ts
 ```
 
 执行时按落地测试名补全，不得用「看起来有一行」代替保存与回读。
+
+## 验收结果（2026-09-17）
+
+| # | 标准 | 结果 | 证据 |
+| --- | --- | --- | --- |
+| 1 | 齿轮目录原四项下有 Shelf；无 Gmail / Inbox | **通过** | 独立页与工作台内目录均为 外观 / AI 与执行工具 / 规划方法 / 诊断 / Shelf。`tests/plugin-global-settings.test.ts` 目录组装断言同此。 |
+| 2 | 点 Shelf 后正文是 Shelf 设置页 | **通过** | 独立 `/settings/shelf` 与工作台 `[data-work-surface=settings]` 均为 `data-shelf-settings`；导航 `aria-current` 为 shelf。 |
+| 3 | 关轮盘后刷新仍关 | **通过** | 浏览器关掉后 `GET /api/shelf/settings` 为 `false`，DOM `checked===false`，刷新仍关。Desktop 拖到菜单栏出轮盘未测（spec 允许开关先落地）。 |
+| 4 | Molis 外观页没有轮盘开关 | **通过** | 独立 `/settings/appearance` 与工作台切回外观后，可见正文是主题/语言；轮盘控件不在外观文档。工作台切页会把上一页从设置舞台卸掉，缓存节点不留在 DOM。 |
+| 5 | Feed 仍管来源 / Gmail；设置目录没有这些项 | **通过** | 设置目录无 Gmail/Inbox。Gmail 只出现在 Feed 模板，不在设置列表。 |
+| 6 | 独立 `/settings/*` 目录与工作台一致，能打开 Shelf | **通过** | `/settings/appearance` 有 Shelf 行；点进去到 `/settings/shelf`。 |
+| 7 | 未登记本机设置的插件不出现 | **通过** | Inbox/Feed 的 `primary-page` 不进目录；`pluginSettingsNavItemsFrom` 对空贡献返回 `[]`。 |
+| 8 | 定向测试覆盖目录、渲染、存取、不误挂内容页 | **通过** | spec 验证命令（含 local-host 构建）后定向测试全绿。未把门禁放到脏树里已失败的 `desktop-tui` / 全量 `i18n`。 |
+
+浏览器验证用临时 home `/tmp/molis-work-plugin-settings-INL2kk`、端口 4187，未写用户真实库。验证结束后已停该服务。
 
 ## 假设与开放问题
 

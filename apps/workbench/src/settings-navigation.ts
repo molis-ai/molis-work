@@ -1,3 +1,5 @@
+import { listPluginSettingsNavItems } from "./plugin-settings-catalog.js";
+
 export interface WebProjectNavigation {
   project_id: string;
   display_name: string;
@@ -8,14 +10,14 @@ export interface WebProjectNavigation {
 
 
 export type WebSettingsSection = "appearance" | "runtimes" | "projects" | "diagnostics";
-type SettingsNavigationActive = WebSettingsSection | "planning";
+type SettingsNavigationActive = string;
 type ProjectSettingsNavigationActive = "general" | "guidance" | "rules" | "planning";
 
 
 export interface SettingsNavigationPrimitives {
   L(text: string): string;
   escapeHtml(value: unknown): string;
-  icon(name: "database" | "chevron-down" | "check" | "settings" | "panel" | "bell" | "search" | "arrow" | "user" | "system" | "workflow" | "tree" | "activity" | "bug" | "book" | "shield" | "sun" | "terminal" | "tune"): string;
+  icon(name: "database" | "chevron-down" | "check" | "settings" | "panel" | "bell" | "search" | "arrow" | "user" | "system" | "workflow" | "tree" | "activity" | "bug" | "book" | "shield" | "sun" | "terminal" | "tune" | "library"): string;
   withDesktopQuery(path: string): string;
 }
 export function createWorkbenchSettingsNavigation(primitives: SettingsNavigationPrimitives) {
@@ -89,6 +91,7 @@ function renderSettingsNavigation(
       <a href="${href("/settings/planning")}"${current("planning")}>${icon("workflow")}${L("规划方法")}</a>
       <div class="settings-nav-group-label">${L("系统")}</div>
       <a href="${href("/settings/diagnostics")}"${current("diagnostics")}>${icon("bug")}${L("诊断")}</a>
+      ${listPluginSettingsNavItems().map((page) => `<a href="${href(`/settings/${page.section_id}`)}"${current(page.section_id)}>${icon(page.icon)}${escapeHtml(L(page.label))}</a>`).join("")}
     </div>
   </nav>`;
 }

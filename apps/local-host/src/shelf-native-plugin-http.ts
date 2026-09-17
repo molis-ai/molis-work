@@ -20,6 +20,8 @@ export async function handleShelfNativePluginHttp(
   const store = openShelfStore(homeDirectory);
   const routes = new ShelfPluginRouteTable(createShelfRouteHandlers({
     snapshot: () => store.snapshot(),
+    settings: () => store.settings(),
+    saveSettings: (patch) => store.saveSettings(patch),
     admit: (input) => store.admit(input),
     admitText: (text, title) => store.admitText(text, title),
     seedSample: () => store.seedSample(),

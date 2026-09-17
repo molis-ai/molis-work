@@ -1,7 +1,14 @@
 mod capsule_window;
+mod drop_wheel;
+#[cfg(target_os = "macos")]
+mod drop_wheel_macos;
 mod external_links;
 mod pty;
 mod runtime_env;
+mod shelf_hotkeys;
+#[cfg(target_os = "macos")]
+mod shelf_hotkeys_macos;
+mod shelf_http;
 mod web_service;
 
 #[cfg(test)]
@@ -544,6 +551,61 @@ fn capsule_open_main(
     open_main_window(&app, &path)
 }
 
+#[tauri::command]
+fn shelf_surface_changed(active: bool) {
+    #[cfg(target_os = "macos")]
+    drop_wheel_macos::set_shelf_surface(active);
+}
+
+#[derive(serde::Serialize)]
+struct ShelfHotkeyStatus {
+    toggle: bool,
+    capture: bool,
+    files: bool,
+    toggle_label: String,
+    capture_label: String,
+    files_label: String,
+}
+
+#[tauri::command]
+fn shelf_hotkey_status() -> ShelfHotkeyStatus {
+    let available = shelf_hotkeys::availability();
+    ShelfHotkeyStatus {
+        toggle: available.toggle,
+        capture: available.capture,
+        files: available.files,
+        toggle_label: shelf_hotkeys::current_toggle().label(),
+        capture_label: shelf_hotkeys::current_capture().label(),
+        files_label: shelf_hotkeys::current_files().label(),
+    }
+}
+
+#[tauri::command]
+fn shelf_apply_hotkeys(
+    toggle: shelf_hotkeys::HotKeyChordDto,
+    capture: shelf_hotkeys::HotKeyChordDto,
+    files: shelf_hotkeys::HotKeyChordDto,
+) -> Result<ShelfHotkeyStatus, String> {
+    let toggle = shelf_hotkeys::HotKeyChord::from(toggle);
+    let capture = shelf_hotkeys::HotKeyChord::from(capture);
+    let files = shelf_hotkeys::HotKeyChord::from(files);
+    #[cfg(target_os = "macos")]
+    shelf_hotkeys_macos::apply(toggle, capture, files)?;
+    #[cfg(not(target_os = "macos"))]
+    {
+        if !toggle.has_modifier() || !capture.has_modifier() || !files.has_modifier() {
+            return Err("全局快捷键必须带 ⌃ ⌥ ⇧ 或 ⌘。".into());
+        }
+        shelf_hotkeys::adopt_chords(toggle, capture, files);
+        shelf_hotkeys::set_availability(shelf_hotkeys::HotKeyAvailability {
+            toggle: false,
+            capture: false,
+            files: false,
+        });
+    }
+    Ok(shelf_hotkey_status())
+}
+
 fn install_molis_work_tray(app: &tauri::App) -> tauri::Result<()> {
     let state = app.state::<CapsuleStatusState>();
     let locale = current_capsule_locale(state.inner()).unwrap_or_default();
@@ -622,10 +684,21 @@ fn main() {
       capsule_update_menu_bar,
       capsule_set_locale,
       capsule_open_main,
-      external_links::open_external_url
+      external_links::open_external_url,
+      shelf_surface_changed,
+      shelf_hotkey_status,
+      shelf_apply_hotkeys
     ])
     .setup(|app| {
       install_molis_work_tray(app)?;
+      #[cfg(target_os = "macos")]
+      if let Err(error) = drop_wheel_macos::install(app.handle()) {
+        eprintln!("Molis Work 轮盘未装上：{error}");
+      }
+      #[cfg(target_os = "macos")]
+      if let Err(error) = shelf_hotkeys_macos::install(app.handle()) {
+        eprintln!("Molis Work 热键未装上：{error}");
+      }
       #[cfg(target_os = "macos")]
       if let Some(capsule) = app.get_webview_window("capsule") {
         let _ = capsule_window::macos::prepare_capsule_native_window(&capsule);

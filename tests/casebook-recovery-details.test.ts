@@ -11,6 +11,23 @@ import {createMolisWorkLocalHost} from '@molis-ai/molis-work-app-local-host';
 import {LocalSqliteStorage} from '@molis-ai/molis-work-storage';
 import {createMolisWorkWebServer} from '../apps/desktop/launchers/web/server.js';
 import {MolisWorkCasebookClient, CasebookError, PURPOSE} from '../apps/local-host/src/casebook/client.js';
+import {assertProjectRecoverySchema} from '../apps/local-host/src/project-migrations.js';
+import {PROJECT_RECOVERY_COLUMNS} from '../apps/local-host/src/project-recovery-details.js';
+
+test('recovery accepts retired migration 37 history but still requires 38 and rejects future versions', () => {
+  // Metadata only: exercise the production guard without opening any project database.
+  const inspect = (ids: number[]) => assertProjectRecoverySchema({db: {prepare(sql: string) {
+    if (sql === 'SELECT migration_id FROM schema_migrations') return {all: () => ids.map(migration_id => ({migration_id}))};
+    if (sql === "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?") return {get: () => ({present: 1})};
+    if (sql === 'SELECT name FROM pragma_table_info(?)') return {all: (table: string) => PROJECT_RECOVERY_COLUMNS[table]!.map(name => ({name}))};
+    throw new Error(`Unexpected metadata query: ${sql}`);
+  }}} as Parameters<typeof assertProjectRecoverySchema>[0]);
+  const old = Array.from({length: 36}, (_, i) => i + 1);
+  assert.doesNotThrow(() => inspect([...old, 37, 38]));
+  assert.doesNotThrow(() => inspect([...old, 38]));
+  assert.throws(() => inspect([...old, 37]), {code: 'project_recovery_requires_migration'});
+  assert.throws(() => inspect([...old, 37, 38, 39]), {code: 'project_recovery_unsupported_schema'});
+});
 
 test('authorized recovery reports only missing schema metadata through HTTP without migrating or joining', async t => {
   const homeDirectory = mkdtempSync(join(tmpdir(), 'casebook-recovery-details-'));

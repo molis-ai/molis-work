@@ -91,7 +91,9 @@ export function assertProjectRecoverySchema(storage: LocalSqliteStorage): void {
   const schema = new SqliteSchema(storage.db);
   const hasMigrations = schema.hasTable('schema_migrations');
   const rows = hasMigrations ? storage.db.prepare('SELECT migration_id FROM schema_migrations').all() as {migration_id:number}[] : [];
-  if (rows.some(row => !Number.isInteger(row.migration_id) || row.migration_id < 1 || (row.migration_id > 36 && row.migration_id !== 38)))
+  // Retiring Task in migration 38 does not erase an already-applied migration 37.
+  // New projects skip 37; upgraded projects may legitimately retain both entries.
+  if (rows.some(row => !Number.isInteger(row.migration_id) || row.migration_id < 1 || row.migration_id > 38))
     throw new ProjectRecoveryError('project_recovery_unsupported_schema');
   // The current owner also has idempotent column/table upgrades outside numbered migrations.
   const details: ProjectRecoveryDetails = {

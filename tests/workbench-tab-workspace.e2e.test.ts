@@ -62,7 +62,10 @@ test("project workbench previews on click, commits on double-click, and keeps sp
   await evaluate(`document.querySelector('.tree-node[data-select-goal="CORE"]').dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window, detail: 2 }))`);
   await waitFor("document.querySelector('.tab-item[aria-current][data-plugin=goals][data-item-id=CORE]') && !document.querySelector('.tab-item[aria-current]').dataset.preview");
   const coreTabId = await evaluate<string>("document.querySelector('.tab-item[aria-current]').dataset.tabId");
-  await evaluate(`document.querySelector('.tree-node[data-select-goal="INTERFACES"]').dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window, detail: 1 }))`);
+  await evaluate("document.querySelector('[data-titlebar-tabs] .tab-item[data-tab-kind=mother] [role=tab]')?.click()");
+  await evaluate("document.querySelector('[data-board-view-tab=list]')?.click()");
+  await waitFor("document.querySelector('.tab-item[data-tab-kind=mother][aria-current]') && !document.querySelector('[data-goal-canvas-shell]')?.hidden && document.querySelector('[data-goal-canvas-shell]')?.dataset.boardView === 'list' && document.querySelector('.tree-node[data-select-goal=\"INTERFACES\"]')?.getClientRects().length > 0");
+  await click('.tree-node[data-select-goal="INTERFACES"]');
   await waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal === 'INTERFACES'");
   const interfacesTabId = await evaluate<string>("document.querySelector('.tab-item[aria-current]').dataset.tabId");
   assert.notEqual(interfacesTabId, coreTabId);
@@ -76,9 +79,9 @@ test("project workbench previews on click, commits on double-click, and keeps sp
   await click('.tab-item[aria-current] .tab-item-trigger');
   await evaluate("document.querySelector('.tab-item[aria-current] .tab-item-trigger')?.focus()");
   await command("Input.dispatchKeyEvent", { type: "keyDown", key: "ArrowLeft", windowsVirtualKeyCode: 37 }, sessionId);
-  await waitFor("document.activeElement?.closest('[data-tab-kind=home]') != null");
-  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "End", windowsVirtualKeyCode: 35 }, sessionId);
-  await waitFor("document.activeElement?.closest('[data-tab-kind=item]') != null");
+  await waitFor("document.activeElement?.closest('[data-tab-kind=mother], [data-tab-kind=home]') != null");
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "ArrowRight", windowsVirtualKeyCode: 39 }, sessionId);
+  await waitFor("document.activeElement?.closest('[data-tab-kind=item][data-item-id=CORE]') != null");
   await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Delete", windowsVirtualKeyCode: 46 }, sessionId);
   await waitFor("!document.querySelector('.tab-item[data-tab-kind=item][data-item-id=CORE]')");
   await click('[data-plugin-strip] [data-plugin-id="sessions"]');
@@ -119,7 +122,12 @@ test("project workbench previews on click, commits on double-click, and keeps sp
   await waitFor("document.querySelector('[data-workspace]')?.classList.contains('is-directory-drawer-open')");
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await evaluate("document.querySelector('[data-board-view-tab=list]')?.click()");
-  await evaluate("document.querySelector('.tree-node[data-select-goal=\"CORE\"]').click()");
+  await waitFor("document.querySelector('[data-goal-canvas-shell]')?.dataset.boardView === 'list' && Boolean(document.querySelector('.tree-node[data-select-goal=CORE]'))");
+  await evaluate(`(() => {
+    const node = document.querySelector('.tree-node[data-select-goal="CORE"]');
+    node.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window, detail: 1 }));
+    node.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window, detail: 2 }));
+  })()`);
   await waitFor("document.querySelector('.tab-item[data-plugin=goals][data-item-id=CORE][aria-current]') && !document.querySelector('.tab-item[aria-current]').dataset.preview");
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
   await evaluate(`(() => { for (let i = 0; i < 16; i += 1) document.querySelector("[data-tab-close]")?.click(); })()`);

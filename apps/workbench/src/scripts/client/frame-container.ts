@@ -72,7 +72,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
   const applySurface = () => {
     const onGoal = getSurface() === "goal";
     const showFrame = onGoal && !isBoardTab(activeTab);
-    if (!shell.closest("[data-tab-pane-body]")) shell.hidden = !onGoal || showFrame;
+    shell.hidden = !onGoal || showFrame;
     const tabRoot = document.querySelector("[data-tab-workspace]");
     if (tabRoot) tabRoot.hidden = false;
     surfaceEl.hidden = !showFrame;

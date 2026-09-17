@@ -153,8 +153,8 @@ export const LOCAL_JOURNAL_SCHEMA_SQL = `
 `;
 
 export class LocalSqliteStorage extends LocalSqliteJournal {
-  constructor(readonly path: string, options: { readonly?: boolean } = {}) {
-    const db = new Database(path, { timeout: 5000, ...(options.readonly ? { readonly: true, fileMustExist: true } : {}) });
+  constructor(readonly path: string, options: { readonly?: boolean; fileMustExist?: boolean } = {}) {
+    const db = new Database(path, { timeout: 5000, fileMustExist: options.fileMustExist ?? false, ...(options.readonly ? { readonly: true, fileMustExist: true } : {}) });
     if (!options.readonly) {
       db.pragma("journal_mode = WAL");
       db.pragma("synchronous = FULL");

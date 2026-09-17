@@ -1,3 +1,4 @@
+import { registerCasebookCapabilities } from './casebook/integration.js';
 import { importV3Capability, projectResumeFactsCapability, trashedGoalsCapability, initializeBoardCapability, snapshotBoardCapability,
   goalsEntryCapabilities, goalEntryCompositionCapabilities,
   goalTreeCapabilities,
@@ -29,6 +30,7 @@ export function registerProjectCapabilities(
   host: LocalHost<MolisWorkProjectRuntime>,
   ports: ProjectCapabilityPorts = {},
 ): void {
+  registerCasebookCapabilities(host);
   const { workspaceFor } = ports;
   if (workspaceFor !== undefined) {
     // Scoped to the runtime's own project: the Capability takes no project id,

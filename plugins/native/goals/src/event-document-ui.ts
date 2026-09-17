@@ -26,12 +26,12 @@ export function renderGoalEventDocument(
       ? `<span class="overview-timestamp">${formatDate(state.progress_summary.recorded_at)}</span>`
       : "";
   const moreActions = `<details class="goal-more"><summary aria-label="${L("更多 Goal 操作")}">${icon("more")}</summary><div>
-    <button class="document-action" type="button" data-event-reader="planning">${icon("tune")}<span>${L("记录模板")}</span></button>
+    <button class="mw-btn mw-btn--secondary" type="button" data-event-reader="planning">${icon("tune")}<span>${L("记录模板")}</span></button>
     ${goal.archived_at
-      ? `<button class="document-action" type="button" data-goal-archive="false" data-goal-id="${goalId}">${icon("refresh")}<span>${L("恢复")}</span></button>`
+      ? `<button class="mw-btn mw-btn--secondary" type="button" data-goal-archive="false" data-goal-id="${goalId}">${icon("refresh")}<span>${L("恢复")}</span></button>`
       : item.display_status === "completed"
-        ? `<button class="document-action" type="button" data-goal-archive="true" data-goal-id="${goalId}">${icon("archive")}<span>${L("归档 Goal")}</span></button>` : ""}
-    ${goal.archived_at ? "" : `<button class="document-action document-action--danger" type="button" data-open-goal-trash data-goal-id="${goalId}" data-goal-title="${escapeHtml(goal.title)}">${icon("archive")}<span>${L("移入回收站")}</span></button>`}
+        ? `<button class="mw-btn mw-btn--secondary" type="button" data-goal-archive="true" data-goal-id="${goalId}">${icon("archive")}<span>${L("归档 Goal")}</span></button>` : ""}
+    ${goal.archived_at ? "" : `<button class="mw-btn mw-btn--danger-outline" type="button" data-open-goal-trash data-goal-id="${goalId}" data-goal-title="${escapeHtml(goal.title)}">${icon("archive")}<span>${L("移入回收站")}</span></button>`}
   </div></details>`;
   const recordMenu = owned ? `<details class="timeline-compose" data-record-menu><summary>${icon("plus")}<span>${L("记一笔")}</span></summary><div class="timeline-compose-options">
     <button type="button" data-event-form-open="note"><strong>${L("随手备注")}</strong><small>${L("保存想法或补充事实，不发给 AI")}</small></button>
@@ -46,11 +46,11 @@ export function renderGoalEventDocument(
         <div class="goal-info-body">
           <h1 id="goal-title-${goalId}">${escapeHtml(goal.title)}</h1>
           <p class="goal-info-outcome">${escapeHtml((state?.agreement.outcome || goal.outcome) || L("还没有写清预期结果。"))}</p>
-          <div class="goal-info-status" data-current-summary><p class="goal-current-fact">${escapeHtml(judgment.lead)}</p>${judgment.action ? `<button type="button" class="text-button" ${judgment.form && owned ? `data-event-form-open="${judgment.form}"` : `data-event-reader="${judgment.reader || "requirements"}"`}>${escapeHtml(judgment.action)}${icon("chevron-right")}</button>` : ""}${state?.progress_summary?.summary && state.progress_summary.summary !== judgment.lead ? `<p class="goal-progress-fact">${escapeHtml(state.progress_summary.summary)}</p>` : ""}${stale}${state?.progress_summary?.next_step ? `<p>${L("下一步")}：${escapeHtml(state.progress_summary.next_step)}</p>` : ""}</div>
+          <div class="goal-info-status" data-current-summary><p class="goal-current-fact">${escapeHtml(judgment.lead)}</p>${judgment.action ? `<button type="button" class="mw-btn mw-btn--link" ${judgment.form && owned ? `data-event-form-open="${judgment.form}"` : `data-event-reader="${judgment.reader || "requirements"}"`}>${escapeHtml(judgment.action)}${icon("chevron-right")}</button>` : ""}${state?.progress_summary?.summary && state.progress_summary.summary !== judgment.lead ? `<p class="goal-progress-fact">${escapeHtml(state.progress_summary.summary)}</p>` : ""}${stale}${state?.progress_summary?.next_step ? `<p>${L("下一步")}：${escapeHtml(state.progress_summary.next_step)}</p>` : ""}</div>
           <button type="button" class="goal-info-requirements" data-event-reader="requirements" data-goal-requirement-progress><span>${L("完成要求")}</span><span>${state?.requirements.length ? L("{done}/{total} 已满足", { done: state.requirements.filter((requirement) => requirement.currently_satisfied).length, total: state.requirements.length }) : L("待明确")}</span>${icon("chevron-right")}</button>
           ${state?.pending_decisions.length ? `<button type="button" class="goal-info-attention" data-event-form-open="decision">${L("{count} 项待你确认", { count: state.pending_decisions.length })}${icon("chevron-right")}</button>` : ""}
-          ${owned && (doc?.transfer.kind === "resume_cancelled" || doc?.transfer.kind === "reopen_event_completed") ? `<button type="button" class="button primary" data-event-form-open="resume">${L("继续此目标")}</button>` : ""}
-          <div class="goal-info-actions"><button type="button" class="text-button" data-event-reader="description">${L("目标与要求")}${icon("chevron-right")}</button>${moreActions}</div>
+          ${owned && (doc?.transfer.kind === "resume_cancelled" || doc?.transfer.kind === "reopen_event_completed") ? `<button type="button" class="mw-btn mw-btn--primary" data-event-form-open="resume">${L("继续此目标")}</button>` : ""}
+          <div class="goal-info-actions"><button type="button" class="mw-btn mw-btn--link" data-event-reader="description">${L("目标与要求")}${icon("chevron-right")}</button>${moreActions}</div>
         </div>
       </details>
     </aside>
@@ -61,20 +61,20 @@ export function renderGoalEventDocument(
           ${recordMenu}
         </div>
         <nav data-event-timeline data-pending-decision-events="${escapeHtml(JSON.stringify(state?.pending_decisions.map((request) => request.event_id) ?? []))}" aria-label="${L("按时间选择事件")}">${timeline}</nav>
-        <div class="timeline-footer">${L("最新在前")} <button type="button" class="text-button" data-load-more-timeline${doc?.timeline.next_cursor == null ? " hidden" : ""} data-next-cursor="${doc?.timeline.next_cursor ?? ""}">${L("查看更早记录")}</button><span>${L("↑ ↓ 切换事件")}</span></div>
+        <div class="timeline-footer">${L("最新在前")} <button type="button" class="mw-btn mw-btn--link" data-load-more-timeline${doc?.timeline.next_cursor == null ? " hidden" : ""} data-next-cursor="${doc?.timeline.next_cursor ?? ""}">${L("查看更早记录")}</button><span>${L("↑ ↓ 切换事件")}</span></div>
       </section>
       <section class="detail-pane" aria-label="${L("所选事件及内容")}">
-        <div class="detail-toolbar"><button type="button" class="text-button" data-event-back>${L("返回工作区")}</button>
-          <button type="button" class="text-button mobile-back" data-action="timeline">${L("返回时间线")}</button>
+        <div class="detail-toolbar"><button type="button" class="mw-btn mw-btn--link" data-event-back>${L("返回工作区")}</button>
+          <button type="button" class="mw-btn mw-btn--link mobile-back" data-action="timeline">${L("返回时间线")}</button>
           <span data-detail-location>${L("事件内容")}</span>
           <div class="event-paging">
-            <button type="button" class="text-button" data-previous-event aria-label="${L("上一条事件")}">${L("上一条")}</button>
-            <button type="button" class="text-button" data-next-event aria-label="${L("下一条事件")}">${L("下一条")}</button>
+            <button type="button" class="mw-btn mw-btn--link" data-previous-event aria-label="${L("上一条事件")}">${L("上一条")}</button>
+            <button type="button" class="mw-btn mw-btn--link" data-next-event aria-label="${L("下一条事件")}">${L("下一条")}</button>
           </div>
         </div>
         <div class="event-sheet" data-event-sheet tabindex="-1" hidden></div>
         <section class="reader" data-event-reader-root hidden>
-          <header class="reader-header"><button type="button" class="text-button" data-event-back>${L("返回所选事件")}</button><h2 data-reader-title></h2></header>
+          <header class="reader-header"><button type="button" class="mw-btn mw-btn--link" data-event-back>${L("返回所选事件")}</button><h2 data-reader-title></h2></header>
           <div class="reader-content" data-reader-content>
             ${doc ? forms.renderPlanning(doc, owned) : ""}
             ${renderDescription(doc, item, context, L, escapeHtml)}
@@ -226,9 +226,9 @@ function renderRequirements(
           ? `${L("报告者")} ${escapeHtml(requirement.current_report.actor_id)} · ${L("未独立核对")}`
           : requirement.human_decision_required ? L("需要用户验收") : "";
       const boundType = owned ? escapeHtml(requirement.bound_type_ids[0] ?? "") : "";
-      return `<li><button type="button" class="text-button" data-locate-event="${escapeHtml(requirement.current_report?.event_id ?? "")}"${boundType ? ` data-bound-type="${boundType}"` : ""}>${escapeHtml(requirement.statement)}</button><small>${requirement.currently_satisfied ? L("当前满足") : L("尚未满足")}${source ? ` · ${source}` : ""}</small></li>`;
+      return `<li><button type="button" class="mw-btn mw-btn--link" data-locate-event="${escapeHtml(requirement.current_report?.event_id ?? "")}"${boundType ? ` data-bound-type="${boundType}"` : ""}>${escapeHtml(requirement.statement)}</button><small>${requirement.currently_satisfied ? L("当前满足") : L("尚未满足")}${source ? ` · ${source}` : ""}</small></li>`;
     }).join("")}</ul>` : `<p>${L("还没有完成要求。")}</p>`}
-    ${owned ? `<div class="event-actions"><button type="button" class="button secondary" data-event-form-open="requirement">${L("增加完成要求")}</button><button type="button" class="button secondary" data-event-form-open="agreement">${L("修改当前约定")}</button><button type="button" class="button" data-event-form-open="decision">${L("记录决定")}</button><button type="button" class="button" data-event-form-open="closure">${L("检查并收尾")}</button></div>` : ""}
+    ${owned ? `<div class="event-actions"><button type="button" class="mw-btn mw-btn--secondary" data-event-form-open="requirement">${L("增加完成要求")}</button><button type="button" class="mw-btn mw-btn--secondary" data-event-form-open="agreement">${L("修改当前约定")}</button><button type="button" class="mw-btn mw-btn--primary" data-event-form-open="decision">${L("记录决定")}</button><button type="button" class="mw-btn mw-btn--primary" data-event-form-open="closure">${L("检查并收尾")}</button></div>` : ""}
     ${renderOriginalCriteria(original, L, escapeHtml)}
     ${context.artifactHtml}
   </div>`;

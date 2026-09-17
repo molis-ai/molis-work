@@ -55,7 +55,7 @@ export function migrateSources(db: SourcesSqliteDatabase): void {
       status TEXT NOT NULL,
       enabled INTEGER NOT NULL DEFAULT 1,
       item_count INTEGER NOT NULL DEFAULT 0,
-      origin TEXT NOT NULL CHECK (origin = 'goalboard'),
+      origin TEXT NOT NULL CHECK (origin = 'molis_work'),
       config_json TEXT NOT NULL DEFAULT '{}',
       schedule_json TEXT NOT NULL DEFAULT '{"mode":"manual"}',
       cursor_json TEXT NOT NULL DEFAULT '{}',
@@ -89,7 +89,9 @@ export function migrateSources(db: SourcesSqliteDatabase): void {
   ensureColumn(db, "feed_sources", "cursor_json", "TEXT NOT NULL DEFAULT '{}'");
   ensureColumn(db, "feed_sources", "credential_ref", "TEXT");
   ensureColumn(db, "feed_sources", "account_label", "TEXT");
-  db.exec("UPDATE feed_sources SET origin = 'goalboard' WHERE origin <> 'goalboard'");
+  ensureColumn(db, "feed_sources", "last_sync_at", "TEXT");
+  ensureColumn(db, "feed_sources", "last_outcome", "TEXT");
+  ensureColumn(db, "feed_sources", "last_error_code", "TEXT");
   db.exec("UPDATE feed_sources SET status = 'disconnected' WHERE status = 'imported'");
 }
 
@@ -198,7 +200,7 @@ export class SourcesModule implements SourcesApi {
         source.description,
         source.status,
         source.enabled ? 1 : 0,
-        "goalboard",
+        "molis_work",
         JSON.stringify(source.config),
         JSON.stringify(source.schedule),
         source.connection_ref,
@@ -306,7 +308,7 @@ function mapSource(row: Row): SourceRecord {
     description: asText(row.description),
     status: asText(row.status) as SourceStatus,
     enabled: Number(row.enabled ?? 0) === 1,
-    origin: "goalboard",
+    origin: "molis_work",
     config: parseJson<Record<string, unknown>>(row.config_json, {}),
     schedule,
     connection_ref: optionalText(row.credential_ref),

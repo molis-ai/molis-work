@@ -2,8 +2,8 @@ import { timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { L } from "./web-locale.js";
 
-export function requestHeader(request: IncomingMessage, name: string, legacyName?: string): string | undefined {
-  const candidates = [request.headers[name], legacyName ? request.headers[legacyName] : undefined];
+export function requestHeader(request: IncomingMessage, name: string): string | undefined {
+  const candidates = [request.headers[name]];
   for (const value of candidates) {
     if (typeof value === "string" && value.trim()) return value;
     if (Array.isArray(value) && typeof value[0] === "string" && value[0].trim()) return value[0];
@@ -81,11 +81,11 @@ export function authorizeLocalWebRequest(
     sendLocalWebJson(response, 403, { error: L("本地控制请求校验失败") });
     return false;
   }
-  if (!controlTokenMatches(controlToken, requestHeader(request, "x-molis-work-control-token", "x-goalboard-control-token"))) {
+  if (!controlTokenMatches(controlToken, requestHeader(request, "x-molis-work-control-token"))) {
     sendLocalWebJson(response, 403, { error: L("本地控制请求校验失败") });
     return false;
   }
-  const idempotencyKey = requestHeader(request, "x-molis-work-idempotency-key", "x-goalboard-idempotency-key");
+  const idempotencyKey = requestHeader(request, "x-molis-work-idempotency-key");
   if (
     typeof idempotencyKey !== "string"
     || idempotencyKey.length < 8

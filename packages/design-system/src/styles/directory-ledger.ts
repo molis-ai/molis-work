@@ -23,7 +23,7 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Unified directory ledger: Goals est
     overflow: hidden;
     font-size: 9px;
     font-style: normal;
-    font-weight: 660;
+    font-weight: 400;
     line-height: 1.2;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -105,7 +105,7 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Unified directory ledger: Goals est
     overflow: hidden;
     color: inherit;
     font-size: 12px;
-    font-weight: 620;
+    font-weight: 400;
     line-height: 1.35;
     letter-spacing: -.008em;
     overflow-wrap: anywhere;
@@ -137,7 +137,7 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Unified directory ledger: Goals est
     grid-row: 1;
   }
   body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-entry.is-selected .tree-title-line strong {
-    font-weight: 690;
+    font-weight: 400;
   }
   body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-meta-line {
     min-width: 0;
@@ -238,7 +238,7 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Unified directory ledger: Goals est
   }
   body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-relations > summary strong {
     font-size: 8.5px;
-    font-weight: 620;
+    font-weight: 400;
   }
   body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-relations > summary .tree-relations-mark {
     display: none;
@@ -315,24 +315,24 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Unified directory ledger: Goals est
     flex: 0 1 auto;
     color: var(--muted);
     font-style: normal;
-    font-weight: 660;
+    font-weight: 400;
   }
   body[data-desktop-shell="true"] .feed-list-copy small { min-width: 0; flex: 1 1 auto; }
   body[data-desktop-shell="true"] .feed-list-copy small.feed-list-read {
     flex: 0 0 auto;
     color: var(--blue-dark);
-    font-weight: 680;
+    font-weight: 400;
   }
   body[data-desktop-shell="true"] .feed-list-item[data-feed-entry-read="read"] .feed-list-read {
     color: var(--faint);
-    font-weight: 540;
+    font-weight: 400;
   }
   body[data-desktop-shell="true"] .feed-list-copy strong {
     min-width: 0;
     overflow: hidden;
     color: inherit;
     font-size: 11.5px;
-    font-weight: 630;
+    font-weight: 400;
     line-height: 1.35;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -362,7 +362,7 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Unified directory ledger: Goals est
   body[data-desktop-shell="true"] .feed-directory-search input { font-size: 10.5px; }
   body[data-desktop-shell="true"] .feed-detail[data-feed-detail-read="unread"] [data-feed-read-state] {
     color: var(--blue-dark);
-    font-weight: 720;
+    font-weight: 400;
   }
   body[data-desktop-shell="true"] .feed-directory-footer span,
   body[data-desktop-shell="true"] .feed-directory-footer small { font-size: 8.5px; }
@@ -400,7 +400,7 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Unified directory ledger: Goals est
     overflow: hidden;
     color: var(--ink);
     font-size: 11.5px;
-    font-weight: 630;
+    font-weight: 400;
     line-height: 1.35;
     text-overflow: ellipsis;
     white-space: nowrap;

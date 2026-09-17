@@ -58,9 +58,9 @@ export class ProjectsRepository {
       record.display_name,
       record.board_id,
       record.database_path,
-      record.source,
+      "created",
       record.data_class,
-      record.migrated_from_path,
+      null,
       record.created_at,
       record.updated_at,
     );
@@ -307,8 +307,8 @@ export function createProjectsSchema(db: ProjectsSqliteDatabase): void {
       display_name TEXT NOT NULL,
       board_id TEXT NOT NULL,
       database_path TEXT NOT NULL UNIQUE,
-      source TEXT NOT NULL CHECK (source IN ('created', 'migrated')),
-      data_class TEXT NOT NULL CHECK (data_class IN ('user', 'migrated_user', 'regenerable_demo')),
+      source TEXT NOT NULL CHECK (source IN ('created')),
+      data_class TEXT NOT NULL CHECK (data_class IN ('user', 'regenerable_demo')),
       migrated_from_path TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
@@ -436,15 +436,25 @@ export function migrateProjectDataClassSchema(db: ProjectsSqliteDatabase): void 
   `);
 }
 
+export function migrateProjectDropLegacyImportSchema(db: ProjectsSqliteDatabase): void {
+  db.exec(`
+    UPDATE projects SET data_class = 'user' WHERE data_class = 'migrated_user';
+    UPDATE projects SET source = 'created', migrated_from_path = NULL WHERE source = 'migrated';
+  `);
+}
+
+function projectDataClass(value: unknown): ProjectRecord["data_class"] {
+  return text(value) === "regenerable_demo" ? "regenerable_demo" : "user";
+}
+
 function mapProject(row: Row): ProjectRecord {
   return {
     project_id: text(row.project_id),
     display_name: text(row.display_name),
     board_id: text(row.board_id),
     database_path: text(row.database_path),
-    source: text(row.source) as ProjectRecord["source"],
-    data_class: text(row.data_class) as ProjectRecord["data_class"],
-    migrated_from_path: nullableText(row.migrated_from_path),
+    source: "created",
+    data_class: projectDataClass(row.data_class),
     created_at: text(row.created_at),
     updated_at: text(row.updated_at),
   };

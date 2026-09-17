@@ -66,7 +66,7 @@ export interface ProjectOperationsData {
 
 export type WorkUiSurface = "root" | "directory" | "main" | "overlay";
 export type WorkUiIconName = "activity" | "archive" | "back" | "chevron-down" | "chevron-right"
-  | "external" | "filter" | "folder" | "info" | "lock" | "minus" | "plus" | "refresh"
+  | "external" | "filter" | "folder" | "info" | "link" | "lock" | "minus" | "more" | "panel" | "plus" | "refresh"
   | "search" | "switch" | "terminal" | "target" | "history" | "x";
 export interface WorkUiModel {
   project: ProjectOperationsProject | null;

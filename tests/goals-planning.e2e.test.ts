@@ -32,7 +32,7 @@ test("Planning browser copies a template, recovers failed saves and adopts an in
   assert.equal(await evaluate("Array.from(document.querySelectorAll('[data-planning-method]')).filter(x=>!x.hidden).every(x=>x.dataset.kind==='domain')"), true);
   await navigate(() => click('a[href="/settings/planning/' + id + '"]'));
   await waitFor("document.readyState === 'complete' && " + dom(".planning-detail"));
-  await navigate(() => click(".planning-primary-action"));
+  await navigate(() => click(".planning-detail-header .mw-btn--primary"));
   await waitFor("document.readyState === 'complete' && " + dom("[data-planning-edit-form]"));
   assert.equal(await evaluate(dom("[data-planning-edit-form]") + ".dataset.saveScope"), "personal");
   const row = '[data-planning-row-list="steps"] [data-planning-row]';
@@ -99,7 +99,7 @@ test("Planning browser copies a template, recovers failed saves and adopts an in
   assert.equal((await read(projectApi)).methods.filter(x => x.method_id === id).length, 1);
   await navigate(() => click('.planning-composition-row[href="' + prefix + '/settings/planning/' + id + '"]'));
   await waitFor("document.readyState === 'complete' && " + dom(".planning-detail"));
-  await navigate(() => click(".planning-primary-action"));
+  await navigate(() => click(".planning-detail-header .mw-btn--primary"));
   await waitFor("document.readyState === 'complete' && " + dom("[data-planning-edit-form]"));
   await click('[name="enabled"]');
   await navigate(() => click(submit));

@@ -1,6 +1,5 @@
 mod capsule_window;
 mod external_links;
-mod legacy_app;
 mod pty;
 mod runtime_env;
 mod web_service;
@@ -626,7 +625,6 @@ fn main() {
       external_links::open_external_url
     ])
     .setup(|app| {
-      legacy_app::retire_legacy_desktop_apps();
       install_molis_work_tray(app)?;
       #[cfg(target_os = "macos")]
       if let Some(capsule) = app.get_webview_window("capsule") {

@@ -312,7 +312,7 @@ test("fallback journey preserves TUI content, honest capability limits, workspac
     try {
       registry.appendEvent({
         session_id: created.session.session_id,
-        source: "goalboard_tui",
+        source: "molis_work_tui",
         kind: "terminal_output",
         source_id: "fallback-e2e-tui",
         content: marker,
@@ -353,7 +353,7 @@ test("fallback journey preserves TUI content, honest capability limits, workspac
     const contentResponse = await fetch(`${origin}${prefix}/api/sessions/${encodeURIComponent(created.session.session_id)}/content`);
     const content = await contentResponse.json() as { content_mode: string; events: Array<{ content: string; source: string }> };
     assert.equal(content.content_mode, "fallback");
-    assert.deepEqual(content.events.map((event) => event.source), ["goalboard_tui"]);
+    assert.deepEqual(content.events.map((event) => event.source), ["molis_work_tui"]);
     assert.match(content.events[0]?.content ?? "", new RegExp(marker));
     const crossProject = await fetch(`${origin}${otherPrefix}/api/sessions/${encodeURIComponent(created.session.session_id)}/content`);
     assert.equal(crossProject.status, 404);

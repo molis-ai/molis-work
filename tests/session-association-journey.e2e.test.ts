@@ -18,7 +18,7 @@ for (const [width, height] of [[1440, 900], [390, 640]]) {
     if (width < 760 && await evaluate("!document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')")) await click('[data-directory-show]');
     await click('[data-plugin-id=sessions]');
     if (width < 760 && await evaluate("!document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')")) await click('[data-directory-show]');
-    await click(width < 760 ? '[data-directory-panel=sessions] .project-record-add-compact' : '[data-work-surface=sessions] [data-open-session-add]');
+    await click(width < 760 ? '[data-directory-panel=sessions] [data-open-session-add]' : '[data-work-surface=sessions] [data-open-session-add]');
     await click('[data-session-add-toggle]');
     await evaluate(`{
       const set=(selector,value,event='input')=>{const e=document.querySelector(selector);e.value=value;e.dispatchEvent(new Event(event,{bubbles:true}));};

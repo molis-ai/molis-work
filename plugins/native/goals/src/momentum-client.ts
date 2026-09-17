@@ -82,7 +82,7 @@ export const GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT = `(host) => {
     const splitScope = host.projectId || route("/");
     const splitKey = "molis-work-goal-workspace-split:" + splitScope;
     let shares = {};
-    try { shares = JSON.parse(localStorage.getItem(splitKey) || localStorage.getItem("goalboard-goal-workspace-split:" + splitScope) || "{}"); } catch {}
+    try { shares = JSON.parse(localStorage.getItem(splitKey) || "{}"); } catch {}
     const setShare = (value, persist = false) => {
       if (!workbench || !divider) return;
       const width = workbench.clientWidth;
@@ -99,7 +99,15 @@ export const GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT = `(host) => {
         try { localStorage.setItem(splitKey, JSON.stringify(shares)); } catch {}
       }
     };
-    const view = (${GOALS_MOMENTUM_VIEWPORT_FACTORY_SCRIPT})({ graphElement, getSelected: () => expanded ? getSelected() : graphSelected, isExpanded: () => expanded, queueSave, openGoal: (id) => selectGoal(id), selectNode: selectGraphNode });
+    let boardGestureTimer = null;
+    const openBoardWorkspace = (id) => { if (id) void selectGoal(id); };
+    const openBoardGoal = (id, detail) => {
+      if (!id) return;
+      if (boardGestureTimer) { clearTimeout(boardGestureTimer); boardGestureTimer = null; }
+      if (Number(detail) > 1) { openGoalFrame(id); return; }
+      boardGestureTimer = setTimeout(() => { boardGestureTimer = null; openBoardWorkspace(id); }, 220);
+    };
+    const view = (${GOALS_MOMENTUM_VIEWPORT_FACTORY_SCRIPT})({ graphElement, getSelected: () => expanded ? getSelected() : graphSelected, isExpanded: () => expanded, queueSave, openGoal: (id) => selectGoal(id), openFrame: (id) => openGoalFrame(id), selectNode: selectGraphNode });
     const syncGoalWorkspace = (mode, active) => {
       if (!shell || !frame) return;
       const graph = graphElement();
@@ -236,7 +244,7 @@ export const GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT = `(host) => {
       const card = event.target.closest("[data-kanban-card]");
       if (!card || event.target !== card) return;
       event.preventDefault();
-      openGoalFrame(card.dataset.goalId);
+      openBoardWorkspace(card.dataset.goalId);
     });
     if (shell) new ResizeObserver(() => { setShare(shares[getSelected()] ?? .7); if (shell.dataset.goalActive === "true") view.layout(); }).observe(shell);
     return {
@@ -257,16 +265,17 @@ export const GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT = `(host) => {
         view.centerGoal();
       },
       handleMomentumNavigationClick: (target) => { if (!target.closest("[data-retry-goal-momentum]")) return false; void loadGoalGraph(true); return true; },
-      handleMomentumSelectionClick: (target) => {
+      handleMomentumSelectionClick: (target, event) => {
         const card = target.closest("[data-kanban-card]");
         if (card) {
-          openGoalFrame(card.dataset.goalId);
+          openBoardGoal(card.dataset.goalId, event?.detail);
           return true;
         }
         const node = target.closest("[data-momentum-node]");
         if (!node) return false;
-        if (target.closest("[data-graph-open]")) void selectGoal(node.dataset.goalId);
-        else openGoalFrame(node.dataset.goalId);
+        if (target.closest("[data-graph-frame]")) openGoalFrame(node.dataset.goalId);
+        else if (target.closest("[data-graph-open]")) openBoardWorkspace(node.dataset.goalId);
+        else openBoardGoal(node.dataset.goalId, event?.detail);
         return true;
       },
       handleMomentumZoomClick: (target) => {

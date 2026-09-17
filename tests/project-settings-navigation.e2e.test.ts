@@ -3,7 +3,7 @@ import { writeFile } from "node:fs/promises";
 import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
-test("onboarding header links receive real pointer clicks in Web, desktop and narrow layouts", { timeout: 60_000 }, async t => {
+test("onboarding header return receives real pointer clicks in Web, desktop and narrow layouts", { timeout: 60_000 }, async t => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { origin, sessionId, command, evaluate, click, navigate } = browser;
@@ -13,14 +13,13 @@ test("onboarding header links receive real pointer clicks in Web, desktop and na
     const path = "/onboarding?mode=new-project" + (desktop ? "&desktop=1" : "");
     await navigate(() => command("Page.navigate", { url: origin + path }, sessionId));
     assert.equal(await evaluate("document.body.dataset.onboardingMode"), "new_project");
-    await navigate(() => click('.onboarding-topbar-actions a'));
-    assert.equal(await evaluate("location.pathname"), "/");
-    assert.equal(await evaluate("new URLSearchParams(location.search).get('migration')"), "1");
-    assert.equal(await evaluate("document.querySelector('[data-project-migration-dialog]')?.open"), true);
-    assert.equal(await evaluate("new URLSearchParams(location.search).get('desktop')"), desktop ? "1" : null);
-    await navigate(() => command("Page.navigate", { url: origin + path }, sessionId));
+    assert.equal(await evaluate("document.querySelector('.onboarding-topbar-actions a')"), null);
+    assert.doesNotMatch(await evaluate("document.body.innerHTML"), /迁移已有数据|data-project-migration|migration=1/);
     await navigate(() => click('[data-onboarding-dismiss]'));
     assert.equal(await evaluate("location.pathname"), "/");
+    assert.equal(await evaluate("new URLSearchParams(location.search).get('migration')"), null);
+    assert.equal(await evaluate("document.querySelector('[data-project-migration-dialog]')"), null);
+    assert.doesNotMatch(await evaluate("document.body.innerHTML"), /project-index-migration|data-open-project-migration/);
     assert.equal(await evaluate("new URLSearchParams(location.search).get('desktop')"), desktop ? "1" : null);
   }
   assert.deepEqual(await (await fetch(origin + "/api/settings/projects")).json(), projects);
@@ -116,12 +115,12 @@ test("project general settings persist a rename, cancel safely, and retry deleti
 
 test("global settings retain project context through sections, planning cancel and return", {timeout:60_000}, async t=>{
   const b=await openGoalBrowser(t,true);if(!b)return;
-  const {origin,projectId,sessionId,command,evaluate,click,navigate,waitFor}=b;
+  const {origin,projectId,sessionId,command,evaluate,click,openGoalFrame,navigate,waitFor}=b;
   for(const desktop of [false,true]) {
     await navigate(()=>command('Page.navigate',{url:`${origin}/projects/${projectId}/${desktop?'?desktop=1':''}`},sessionId));
     await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");
     await click('[data-plugin-id=goals]');
-    await click('.tree-node[data-select-goal=CORE]');
+    await openGoalFrame('.tree-node[data-select-goal=CORE]');
     await waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal==='CORE'");
     await navigate(()=>command('Page.navigate',{url:`${origin}/settings/appearance?project=${projectId}${desktop?'&desktop=1':''}`},sessionId));
     for(const section of ['runtimes','planning']){

@@ -38,6 +38,7 @@ test("project index, settings, and workbench keep titles pinned and scroll only 
   assert.ok(workbench.includes("immersive-plugin-stage > .goal-canvas-shell"));
   assert.ok(workbench.includes("tab-pane-body > .goal-canvas-shell"));
   assert.ok(workbench.includes("tab-workspace { position: absolute; inset: 0"));
+  assert.ok(workbench.includes("[data-pane-embedded] .immersive-workspace > :is(.plugin-rail, .tree-pane, .tree-resizer, .immersive-titlebar, .workspace-chrome, .mobile-tabs, .immersive-sidebar-scrim)"));
   assert.ok(workbench.includes("immersive-plugin-stage > .immersive-market { overflow: hidden; display: flex; flex-direction: column;"));
   assert.ok(workbench.includes("plugin-market-body { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain;"));
   assert.ok(workbench.includes("plugin-market-list { display: grid;"));
@@ -56,5 +57,7 @@ test("project index, settings, and workbench keep titles pinned and scroll only 
   assert.match(workbench, /\.immersive-titlebar > \.workspace-chrome \{/);
   assert.match(workbench, /grid-template-rows: var\(--desktop-titlebar-height\) minmax\(0, 1fr\)/);
   assert.match(workbench, /width: calc\(var\(--plugin-rail-width\) \+ var\(--tree-width, var\(--immersive-sidebar-width\)\)\);/);
-  assert.ok(workbench.lastIndexOf("--control-h: 28px") > workbench.lastIndexOf("--control-h: 32px"), "Linear density must win over the shared 32px control token");
+  assert.match(workbench, /body\.immersive-workbench \{[\s\S]*--control-h: 28px;/);
+  assert.match(workbench, /:is\(body\.project-preferences-page, \.settings-stage\), body\.settings-page \{ --control-h: 32px; \}/);
+  assert.doesNotMatch(workbench, /:is\(body\.project-preferences-page, \.settings-stage\) \{ --control-h: 28px; \}/);
 });

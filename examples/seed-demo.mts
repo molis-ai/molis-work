@@ -1,4 +1,3 @@
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 #!/usr/bin/env node
 /**
  * 创建或重建 Molis Work 自带的可再生演示项目。
@@ -9,6 +8,7 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
  */
 import os from "node:os";
 import path from "node:path";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 
 
 const force = process.argv.includes("--force");

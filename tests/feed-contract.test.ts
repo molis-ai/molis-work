@@ -205,7 +205,7 @@ test("GitHub, Gmail and RSS fixtures all write FeedItem first and attention sepa
           status: "active",
           enabled: true,
           item_count: 0,
-          origin: "goalboard",
+          origin: "molis_work",
           config: {},
           schedule: fixture.source.schedule,
           cursor: fixture.cursor_before,

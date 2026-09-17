@@ -9,17 +9,9 @@ export async function detectWebService(environment: WebServiceEnvironment): Prom
     }
     const launcherAvailable = await fileExists(command[0]);
     const plist = await readText(environment.plistPath);
-    const legacyPlist = await readText(environment.legacyPlistPath);
     const receipt = await readReceipt(environment.receiptPath);
     const receiptOwned = isOwnedWebServiceReceipt(receipt);
     if (plist == null) {
-      if (legacyPlist != null && receiptOwned) {
-        const status = await environment.launchctl(["print", environment.legacyServiceTarget()]);
-        const running = launchAgentProcessId(status) != null;
-        return launcherAvailable
-          ? environment.detection("needs_repair", true, true, running, command, "Molis Work Web 常驻服务仍使用旧 LaunchAgent 标识，可预览并确认升级")
-          : environment.detection("unavailable", true, true, running, command, "Molis Work Web 启动器缺失；可移除旧服务或先修复 Molis Work 安装");
-      }
       if (receiptOwned) {
         const status = await environment.launchctl(["print", environment.serviceTarget()]);
         const running = launchAgentProcessId(status) != null;

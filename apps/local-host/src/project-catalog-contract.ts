@@ -1,9 +1,8 @@
-export const CATALOG_SCHEMA_VERSION = 14;
+export const CATALOG_SCHEMA_VERSION = 15;
 export const CATALOG_OWNER = "molis-work-project-catalog-v1";
-export const LEGACY_CATALOG_OWNER = "goalboard-project-catalog-v1";
 
 export function isOwnedCatalogOwner(owner: string | null | undefined): boolean {
-  return owner === CATALOG_OWNER || owner === LEGACY_CATALOG_OWNER;
+  return owner === CATALOG_OWNER;
 }
 
 export interface MolisWorkProjectCatalogErrorDetails {
@@ -21,9 +20,7 @@ export class MolisWorkProjectCatalogError extends Error {
       | "catalog.reader_too_old"
       | "catalog.invalid_name"
       | "catalog.project_not_found"
-      | "catalog.legacy_missing"
       | "catalog.legacy_invalid"
-      | "catalog.legacy_conflict"
       | "catalog.project_storage_invalid"
       | "catalog.project_active_work"
       | "catalog.delete_confirmation_required"

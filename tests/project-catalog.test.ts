@@ -21,72 +21,6 @@ async function withTemporaryDirectory<T>(run: (directory: string) => Promise<T>)
   }
 }
 
-function createLegacyBoard(databasePath: string): void {
-  const store = new LocalProjectDatabase(databasePath);
-  const coordinator = new GoalProjectApplication(store);
-  try {
-    coordinator.initializeBoard({
-      board_id: "legacy-board",
-      title: "旧项目",
-      actor_id: "user",
-      idempotency_key: "legacy-init",
-    });
-    for (const goalId of ["legacy-a", "legacy-b"]) {
-      coordinator.goals.commands.createGoal(
-        "legacy-board",
-        {
-          goal_id: goalId,
-          title: goalId,
-          outcome: `${goalId} outcome`,
-          why: "migration fixture",
-          business_logic: "保留已有 Molis Work 事实。",
-          definition_state: "accepted",
-          decomposition_state: "closed_leaf",
-          acceptance_criteria: [
-            {
-              criterion_id: `${goalId}-criterion`,
-              statement: "fixture acceptance",
-              decision_method: "automated_check",
-              pass_condition: "fixture passes",
-            },
-          ],
-        },
-        { actor_id: "user", idempotency_key: `create-${goalId}` },
-      );
-    }
-    coordinator.goals.commands.addRelation(
-      "legacy-board",
-      {
-        from_goal_id: "legacy-b",
-        to_goal_id: "legacy-a",
-        type: "depends_on",
-        reason: "legacy relation",
-      },
-      { actor_id: "user", idempotency_key: "legacy-relation" },
-    );
-    insertHistoricalClaim(store.db, {
-      claim_id: "legacy-claim",
-      board_id: "legacy-board",
-      goal_id: "legacy-a",
-      actor_id: "runtime",
-      state: "released",
-    });
-    insertHistoricalRun(store.db, {
-      run_id: "legacy-run",
-      board_id: "legacy-board",
-      goal_id: "legacy-a",
-      claim_id: "legacy-claim",
-      actor_id: "runtime",
-      state: "completed",
-      ended_at: "2026-09-02T00:02:00.000Z",
-      output_refs_json: JSON.stringify(["fixture://legacy"]),
-    });
-  } finally {
-    store.db.pragma("wal_checkpoint(TRUNCATE)");
-    store.close();
-  }
-}
-
 test("catalog session closes its catalog after successful work", async () => {
   await withTemporaryDirectory(async (directory) => {
     let scopedCatalog: MolisWorkProjectCatalog | null = null;
@@ -184,15 +118,6 @@ test("opening a future catalog fails without rewriting its schema or project fac
   });
 });
 
-function snapshot(databasePath: string) {
-  const store = new LocalProjectDatabase(databasePath);
-  try {
-    return store.snapshot("legacy-board");
-  } finally {
-    store.close();
-  }
-}
-
 function stableContext(runtimeId: string, workContextId: string): RuntimeWorkContext {
   return {
     runtime_id: runtimeId,
@@ -274,28 +199,6 @@ test("managed projects have immutable identities, duplicate names, and isolated 
   });
 });
 
-test("legacy Molis Work DB migrates to one managed source with complete facts", async () => {
-  await withTemporaryDirectory(async (directory) => {
-    const legacyDirectory = join(directory, "legacy");
-    const legacyDatabase = join(legacyDirectory, "molis-work.db");
-    await mkdir(legacyDirectory, { recursive: true });
-    createLegacyBoard(legacyDatabase);
-    const before = snapshot(legacyDatabase);
-    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: join(directory, "home", ".molis-work") });
-    try {
-      const migrated = await catalog.migrateLegacyDatabase({ legacy_database_path: legacyDatabase, actor_id: "user" });
-      assert.equal(migrated.source, "migrated");
-      assert.equal(migrated.data_class, "migrated_user");
-      assert.equal(migrated.board_id, "legacy-board");
-      await assert.rejects(stat(legacyDatabase));
-      assert.deepEqual(snapshot(migrated.database_path), before);
-      assert.equal(catalog.listProjects()[0]?.project_id, migrated.project_id);
-    } finally {
-      catalog.close();
-    }
-  });
-});
-
 test("demo data is classified, idempotently opened, reset, and removable without affecting user projects", async () => {
   await withTemporaryDirectory(async (directory) => {
     const home = join(directory, "home", ".molis-work");
@@ -335,6 +238,28 @@ test("demo data is classified, idempotently opened, reset, and removable without
           /升级前应先看到安全说明/,
         );
         assert.ok(demoSnapshot.goals.find((goal) => goal.goal_id === "AUTO-CONNECT")?.trashed_at);
+        assert.ok(demoSnapshot.goals.find((goal) => goal.goal_id === "GRAPH")?.archived_at);
+        assert.equal(demoSnapshot.goals.find((goal) => goal.goal_id === "WEB-SCAN-NEST")?.title, "再下一层仍能看出归属");
+        assert.ok(demoSnapshot.relations.some((relation) =>
+          relation.type === "part_of"
+          && relation.from_goal_id === "WEB-SCAN-NEST"
+          && relation.to_goal_id === "WEB-SCAN-ROW",
+        ));
+        const v1 = demoApp.goalEvents.readState(DEMO_BOARD_ID, "V1");
+        const decide = demoApp.goalEvents.readState(DEMO_BOARD_ID, "DECIDE");
+        const risk = demoApp.goalEvents.readState(DEMO_BOARD_ID, "RISK");
+        const dropped = demoApp.goalEvents.readState(DEMO_BOARD_ID, "DROPPED");
+        const graph = demoApp.goalEvents.readState(DEMO_BOARD_ID, "GRAPH");
+        const core = demoApp.goalEvents.readState(DEMO_BOARD_ID, "CORE");
+        const desktop = demoApp.goalEvents.readState(DEMO_BOARD_ID, "DESKTOP");
+        assert.equal(core.work_status, "completed");
+        assert.equal(graph.work_status, "completed");
+        assert.equal(dropped.work_status, "cancelled");
+        assert.ok(v1.progress_summary?.next_step);
+        assert.ok(desktop.progress_summary?.next_step);
+        assert.ok(decide.pending_decisions.length > 0);
+        assert.ok(risk.concerns.some((concern) => concern.status === "open" && concern.blocks_closure));
+        assert.equal(demoSnapshot.goals.filter((goal) => goal.trashed_at).map((goal) => goal.goal_id).join(","), "AUTO-CONNECT");
         new GoalProjectApplication(demoStore).goals.commands.createGoal(
           DEMO_BOARD_ID,
           {
@@ -381,36 +306,6 @@ test("demo data is classified, idempotently opened, reset, and removable without
       });
       assert.deepEqual(catalog.listProjects().map((project) => project.project_id), [userProject.project_id]);
       assert.equal((await stat(userProject.database_path)).isFile(), true);
-    } finally {
-      catalog.close();
-    }
-  });
-});
-
-test("failed legacy migration keeps the old DB and does not leave a project record", async () => {
-  await withTemporaryDirectory(async (directory) => {
-    const legacyDirectory = join(directory, "legacy");
-    const legacyDatabase = join(legacyDirectory, "molis-work.db");
-    await mkdir(legacyDirectory, { recursive: true });
-    createLegacyBoard(legacyDatabase);
-    const before = snapshot(legacyDatabase);
-    const home = join(directory, "home", ".molis-work");
-    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
-    try {
-      await assert.rejects(
-        () =>
-          catalog.migrateLegacyDatabase({
-            legacy_database_path: legacyDatabase,
-            actor_id: "user",
-            beforeStep(step) {
-              if (step === "before_catalog_commit") throw new Error("injected migration failure");
-            },
-          }),
-        /injected migration failure/,
-      );
-      assert.deepEqual(snapshot(legacyDatabase), before);
-      assert.deepEqual(catalog.listProjects(), []);
-      assert.equal((await stat(join(home, "projects", "catalog.db"))).isFile(), true);
     } finally {
       catalog.close();
     }

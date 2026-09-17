@@ -6,12 +6,12 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 test("Goal Frame keeps the outer tabs and layout offers explicit bottom splitting", { timeout: 60_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
-  const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId } = b;
+  const { evaluate, waitFor, click, openGoalFrame, command, sessionId, navigate, origin, projectId } = b;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", {url: `${origin}/projects/${projectId}/`}, sessionId));
   await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");
   await click('[data-plugin-id="goals"]');
-  await click('.tree-node[data-select-goal="CORE"]');
+  await openGoalFrame('.tree-node[data-select-goal="CORE"]');
   await waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal==='CORE' && !document.querySelector('[data-goal-frame-surface]').hidden");
   assert.equal(await evaluate("document.querySelector('[data-titlebar-tabs]').getBoundingClientRect().height>0"), true);
   const core = b.store.snapshot(DEMO_BOARD_ID).goals.find(goal => goal.goal_id === "CORE")!;
@@ -36,6 +36,7 @@ test("Feed task creation is a scoped dialog with validation and persistent sched
   await navigate(() => command("Page.navigate", {url: `${origin}/projects/${projectId}/`}, sessionId));
   await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");
   await click('[data-plugin-id="feed"]');
+  assert.equal(await evaluate("document.querySelector('[data-feed-advanced-open]')"), null);
   await click('[data-directory-panel="feed"] [data-feed-add-toggle]');
   await waitFor("document.querySelector('[data-feed-sources-dialog]').open");
   assert.equal(await evaluate("document.querySelector('[data-feed-add]')"), null);
@@ -47,6 +48,8 @@ test("Feed task creation is a scoped dialog with validation and persistent sched
     document.querySelector('[data-feed-add-name]').value='设计观察';
     document.querySelector('[data-feed-source-value=custom_rss]').value='https://example.com/design.xml';
     document.querySelector('[data-feed-create-frequency]').value='360';
+    document.querySelector('[data-feed-add-out-rule-name]').value='发布相关';
+    document.querySelector('[data-feed-add-out-rule-contains]').value='launch';
   }`);
   await navigate(() => click('[data-feed-source-register]'));
   await waitFor("[...document.querySelectorAll('[data-feed-task-toggle]')].some(x=>x.textContent.includes('设计观察'))");
@@ -62,6 +65,13 @@ test("Feed task creation is a scoped dialog with validation and persistent sched
     assert.equal(saved.schedule.enabled, true); assert.equal(saved.schedule.interval_minutes, 360);
     assert.ok(Date.parse(saved.schedule.next_pull_at!) > Date.now());
   }
+  const rules = createLocalFeedApplication(b.store.db).listOutRules(DEMO_BOARD_ID)
+    .filter((rule) => rule.match.source_id === sourceId);
+  assert.equal(rules.length, 1);
+  assert.equal(rules[0]?.name, "发布相关");
+  assert.equal(rules[0]?.match.contains, "launch");
+  assert.equal(rules[0]?.match.source_id, sourceId);
+  assert.match(await evaluate(`document.querySelector('[data-feed-out-rules="${sourceId}"]')?.textContent || ""`), /发布相关/);
 });
 
 test("Feed creation recovers a failed schedule without duplicating the task", { timeout: 60_000 }, async t => {

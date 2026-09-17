@@ -155,7 +155,7 @@ export class SessionHandoffDelivery {
       });
       this.registry.appendEvent({
         session_id: destination.session_id,
-        source: "goalboard",
+        source: "molis_work",
         kind: "user_message",
         source_id: `handoff:${handoff.package_id}:package`,
         content: handoff.content ?? "",
@@ -243,7 +243,7 @@ export class SessionHandoffDelivery {
     try {
       this.registry.appendEvent({
         session_id: handoff.source_session_id,
-        source: "goalboard",
+        source: "molis_work",
         kind: "status",
         source_id: `handoff:${handoff.package_id}:sent`,
         content: `Handoff 已创建目标 ${destination.runtime_id} Session：${destination.session_id}`,
@@ -268,7 +268,7 @@ export class SessionHandoffDelivery {
     try {
       this.registry.appendEvent({
         session_id: destination.session_id,
-        source: "goalboard",
+        source: "molis_work",
         kind: "status",
         source_id: `handoff:${handoff.package_id}:lineage`,
         content,

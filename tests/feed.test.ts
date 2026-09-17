@@ -17,7 +17,7 @@ function insertRssFeedItem(store: LocalProjectDatabase, itemId: string): void {
       board_id, source_id, kind, name, description, status, enabled, item_count,
       origin, last_sync_at, last_outcome, last_error_code, imported_at, updated_at
     ) VALUES (?, 'source-rss', 'rss', '少数派', '公开 RSS', 'active', 1, 1,
-      'goalboard', ?, 'completed', NULL, ?, ?)
+      'molis_work', ?, 'completed', NULL, ?, ?)
   `).run(DEMO_BOARD_ID, now, now, now);
   store.db.prepare(`
     INSERT INTO feed_items (
@@ -64,7 +64,7 @@ test("migration 29 creates separated Feed and Inbox contracts with persisted rea
   }
 });
 
-test("opening sources rewrites leftover origin and imported status", () => {
+test("opening sources disconnects leftover imported status", () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-source-origin-"));
   const databasePath = join(directory, "molis-work.sqlite");
   const db = new Database(databasePath);
@@ -81,19 +81,19 @@ test("opening sources rewrites leftover origin and imported status", () => {
         status TEXT NOT NULL,
         enabled INTEGER NOT NULL DEFAULT 1,
         item_count INTEGER NOT NULL DEFAULT 0,
-        origin TEXT NOT NULL CHECK (origin IN ('relay', 'goalboard')),
+        origin TEXT NOT NULL CHECK (origin = 'molis_work'),
         imported_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         PRIMARY KEY (board_id, source_id)
       );
       INSERT INTO feed_sources VALUES (
         '${DEMO_BOARD_ID}', 'legacy-source', 'rss', '少数派', '', 'imported', 1, 0,
-        'relay', '2026-08-29T08:00:00.000Z', '2026-08-29T08:00:00.000Z'
+        'molis_work', '2026-08-29T08:00:00.000Z', '2026-08-29T08:00:00.000Z'
       );
     `);
     migrateSources(db);
     const row = db.prepare("SELECT origin, status FROM feed_sources WHERE source_id = 'legacy-source'").get() as { origin: string; status: string };
-    assert.equal(row.origin, "goalboard");
+    assert.equal(row.origin, "molis_work");
     assert.equal(row.status, "disconnected");
   } finally {
     db.close();

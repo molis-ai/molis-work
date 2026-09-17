@@ -28,7 +28,7 @@ for (const [width, height] of [[1024, 400], [390, 500]]) {
     await waitFor("!document.querySelector('[data-feed-sources-dialog]').open");
     if (width < 760 && await evaluate("document.querySelector('[data-workspace]').dataset.mobileView!=='tree'")) await click('[data-directory-show]');
     await click('[data-plugin-id="sessions"]');
-    await click(width < 760 ? '[data-directory-panel="sessions"] .project-record-add-compact' : '[data-work-surface="sessions"] [data-open-session-add]');
+    await click(width < 760 ? '[data-directory-panel="sessions"] [data-open-session-add]' : '[data-work-surface="sessions"] [data-open-session-add]');
     await waitFor("document.querySelector('[data-session-add-dialog]').open");
     await click('[data-session-add-toggle]');
     await evaluate("Promise.all(document.querySelector('[data-session-add-dialog]').getAnimations({subtree:true}).map(a=>a.finished.catch(()=>{})))");

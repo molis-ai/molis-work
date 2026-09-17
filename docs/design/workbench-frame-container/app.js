@@ -32,7 +32,7 @@
       feedCap: "来源与待处理",
       artifactsCap: "成果与版本",
       market: "插件市场",
-      currentProduct: "当前产品",
+      currentProject: "当前项目",
       otherProject: "另一个项目",
       dirEmpty: "这个目录还没有条目。",
       continue: "可继续",
@@ -86,7 +86,7 @@
       feedCap: "Sources and attention",
       artifactsCap: "Results and versions",
       market: "Plugin market",
-      currentProduct: "Current product",
+      currentProject: "Current project",
       otherProject: "Another project",
       dirEmpty: "Nothing in this directory yet.",
       continue: "Continue",
@@ -138,9 +138,9 @@
   const ITEM_KIND = { goals: "goal", sessions: "session", feed: "feed_entry", artifacts: "artifact" };
 
   const catalog = {
-    goalboard: {
-      name: "GoalBoard",
-      emblem: "G",
+    studio: {
+      name: "工作台",
+      emblem: "工",
       plugins: ["goals", "sessions", "feed", "artifacts"],
       items: {
         goals: [
@@ -191,7 +191,7 @@
     frames: {},
   });
 
-  function demoGoalboard() {
+  function demoStudio() {
     uid = 40;
     return {
       directory: "goals",
@@ -228,8 +228,8 @@
     };
   }
 
-  const stores = { goalboard: demoGoalboard(), spark: demoSpark() };
-  let projectId = query.get("project") === "spark" ? "spark" : "goalboard";
+  const stores = { studio: demoStudio(), spark: demoSpark() };
+  let projectId = query.get("project") === "spark" ? "spark" : "studio";
   let toastTimer = 0;
   let toastText = "";
 
@@ -740,7 +740,7 @@
     surface.addEventListener("drop", (event) => {
       event.preventDefault();
       surface.classList.remove("is-drop");
-      const raw = event.dataTransfer.getData("text/goalboard-item");
+      const raw = event.dataTransfer.getData("text/mw-item");
       if (!raw) return;
       const item = JSON.parse(raw);
       if (current.activeTab === CANVAS_TAB) {
@@ -778,7 +778,7 @@
       menu.innerHTML = Object.entries(catalog).map(([id, row]) => `
         <button type="button" data-project="${id}" ${id === projectId ? "aria-current='true'" : ""}>
           <span class="emblem">${row.emblem}</span>
-          <span><strong>${esc(row.name)}</strong><small>${esc(id === "goalboard" ? t("currentProduct") : t("otherProject"))}</small></span>
+          <span><strong>${esc(row.name)}</strong><small>${esc(id === "studio" ? t("currentProject") : t("otherProject"))}</small></span>
         </button>`).join("");
     }
   });
@@ -832,7 +832,7 @@
   $("item-list").addEventListener("dragstart", (event) => {
     const btn = event.target.closest("[data-kind]");
     if (!btn) return;
-    event.dataTransfer.setData("text/goalboard-item", JSON.stringify({ kind: btn.dataset.kind, id: btn.dataset.id }));
+    event.dataTransfer.setData("text/mw-item", JSON.stringify({ kind: btn.dataset.kind, id: btn.dataset.id }));
     event.dataTransfer.effectAllowed = "copy";
   });
   $("tabstrip").addEventListener("click", (event) => {

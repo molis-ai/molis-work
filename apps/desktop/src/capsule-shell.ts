@@ -28,43 +28,47 @@ export const CAPSULE_STYLES = `
     color-scheme: light;
     --paper: #ffffff;
     --paper-raised: #ffffff;
-    --ink: #1a1c21;
-    --ink-soft: #3f4652;
-    --muted: #6c7380;
-    --faint: #9aa0aa;
-    --line: #e5e7eb;
-    --line-strong: #d7dae0;
-    --surface: #f5f6f8;
-    --surface-hover: #eef1ff;
-    --accent: #4f6ff7;
-    --accent-hover: #3654d8;
-    --accent-soft: #eef1ff;
-    --green: #2b8a57;
-    --amber: #a76513;
-    --red: #bf4545;
+    --ink: #222326;
+    --ink-soft: #3c3f44;
+    --muted: #6b6f76;
+    --faint: #737882;
+    --line: #e2e4e7;
+    --line-strong: #d0d6e0;
+    --surface: #f3f4f5;
+    --surface-hover: color-mix(in srgb, var(--ink) 6%, transparent);
+    --accent: #5e6ad2;
+    --accent-hover: #4c56c4;
+    --accent-soft: #eef0fb;
+    --green: #2d7a5a;
+    --amber: #8a5c18;
+    --red: #b03d45;
+    --action: #222326;
+    --action-ink: #ffffff;
     --shadow: 0 20px 50px rgba(21, 24, 31, .20), 0 3px 12px rgba(21, 24, 31, .12);
-    --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    --font: "Inter Variable", Inter, "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
     --capsule-anchor-x: 210px;
     --capsule-height: 476px;
   }
   html[data-resolved-theme="dark"] {
     color-scheme: dark;
-    --paper: #191c22;
-    --paper-raised: #191c22;
-    --ink: #f1f3f6;
-    --ink-soft: #c7ccd4;
-    --muted: #9ba2ae;
-    --faint: #747c89;
-    --line: #2a2e36;
-    --line-strong: #363b45;
-    --surface: #15181e;
-    --surface-hover: #242c4b;
-    --accent: #7189ff;
-    --accent-hover: #9bafff;
-    --accent-soft: #242c4b;
-    --green: #61c58b;
-    --amber: #e0a553;
-    --red: #f07575;
+    --paper: #161718;
+    --paper-raised: #161718;
+    --ink: #f7f8f8;
+    --ink-soft: #d0d1d3;
+    --muted: #8a8f98;
+    --faint: #737880;
+    --line: #23252a;
+    --line-strong: #2e3036;
+    --surface: #0f1011;
+    --surface-hover: color-mix(in srgb, var(--ink) 8%, transparent);
+    --accent: #8b93f1;
+    --accent-hover: #a8aef5;
+    --accent-soft: #262848;
+    --green: #6bc49a;
+    --amber: #d4a15c;
+    --red: #ee858c;
+    --action: #f7f8f8;
+    --action-ink: #0f1011;
     --shadow: 0 24px 60px rgba(0, 0, 0, .44), 0 3px 12px rgba(0, 0, 0, .28);
   }
   * { box-sizing: border-box; }
@@ -90,9 +94,9 @@ export const CAPSULE_STYLES = `
   .capsule__project-wrap { position: relative; display: flex; align-items: center; min-width: 0; max-width: 230px; }
   .capsule__project-mark { position: relative; flex: 0 0 auto; width: 18px; height: 18px; margin-right: 7px; border: 1.5px solid var(--accent); border-radius: 50%; }
   .capsule__project-mark::after { content: ""; position: absolute; top: 50%; left: 50%; width: 4px; height: 4px; border-radius: 50%; background: var(--accent); transform: translate(-50%, -50%); }
-  .capsule__project { min-width: 0; max-width: 202px; height: 30px; border: 0; padding: 0 22px 0 0; background: transparent; color: var(--ink-soft); font-size: 12px; font-weight: 650; text-overflow: ellipsis; cursor: pointer; }
+  .capsule__project { min-width: 0; max-width: 202px; height: 30px; border: 0; padding: 0 22px 0 0; background: transparent; color: var(--ink-soft); font-size: 12px; font-weight: 400; text-overflow: ellipsis; cursor: pointer; }
   .capsule__project:hover { color: var(--ink); }
-  .capsule__status { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; color: var(--ink-soft); font-size: 12px; font-weight: 680; font-variant-numeric: tabular-nums; }
+  .capsule__status { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; color: var(--ink-soft); font-size: 12px; font-weight: 400; font-variant-numeric: tabular-nums; }
   .capsule__dot { width: 7px; height: 7px; border-radius: 50%; background: var(--blue); }
   .capsule-shell[data-state="working"] .capsule__dot { background: var(--accent); animation: capsule-pulse 1.8s cubic-bezier(.16, 1, .3, 1) infinite; }
   .capsule-shell[data-state="checking"] .capsule__dot { background: var(--amber); }
@@ -104,7 +108,7 @@ export const CAPSULE_STYLES = `
   .capsule-shell[data-state="disconnected"] .capsule__dot { background: var(--faint); }
   .capsule__tabs { min-width: 0; display: flex; align-items: stretch; gap: 2px; overflow-x: auto; overflow-y: hidden; padding: 0 10px; border-bottom: 1px solid var(--line); background: var(--paper); scrollbar-width: none; }
   .capsule__tabs::-webkit-scrollbar { display: none; }
-  .capsule__tab { position: relative; flex: 0 0 auto; min-width: 0; border: 0; padding: 0 8px; background: transparent; color: var(--muted); font-size: 12px; font-weight: 670; white-space: nowrap; cursor: pointer; }
+  .capsule__tab { position: relative; flex: 0 0 auto; min-width: 0; border: 0; padding: 0 8px; background: transparent; color: var(--muted); font-size: 12px; font-weight: 400; white-space: nowrap; cursor: pointer; }
   .capsule__tab::after { content: ""; position: absolute; right: 8px; bottom: 0; left: 8px; height: 2px; border-radius: 4px 4px 0 0; background: transparent; }
   .capsule__tab:hover { color: var(--ink-soft); }
   .capsule__tab[aria-selected="true"] { color: var(--ink); }
@@ -117,9 +121,9 @@ export const CAPSULE_STYLES = `
   .capsule__goal-summary { width: 100%; min-width: 0; border: 0; padding: 11px 13px 10px; background: transparent; color: inherit; text-align: left; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; cursor: pointer; }
   .capsule__goal-summary:hover { background: var(--surface); }
   .capsule__goal-summary[aria-expanded="true"] { background: var(--surface); }
-  .capsule__goal-title { min-width: 0; overflow: hidden; color: var(--ink); font-size: 13px; font-weight: 700; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+  .capsule__goal-title { min-width: 0; overflow: hidden; color: var(--ink); font-size: 13px; font-weight: 400; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
   .capsule__goal-summary[aria-expanded="true"] .capsule__goal-title { overflow: visible; text-overflow: clip; white-space: normal; }
-  .capsule__goal-state { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 10px; font-weight: 650; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .capsule__goal-state { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 10px; font-weight: 400; white-space: nowrap; font-variant-numeric: tabular-nums; }
   .capsule__goal-state::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--faint); }
   .capsule__goal-row[data-tone="working"] .capsule__goal-state::before { background: var(--accent); }
   .capsule__goal-row[data-tone="checking"] .capsule__goal-state::before { background: var(--amber); }
@@ -137,13 +141,13 @@ export const CAPSULE_STYLES = `
   .capsule__why strong { margin-right: 5px; color: var(--ink); font-size: 10px; }
   .capsule__facts { margin: 0; }
   .capsule__fact { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 9px; padding: 5px 0; }
-  .capsule__fact dt { color: var(--muted); font-size: 10px; font-weight: 650; }
+  .capsule__fact dt { color: var(--muted); font-size: 10px; font-weight: 400; }
   .capsule__fact dd { min-width: 0; margin: 0; color: var(--ink-soft); font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
   .capsule__fact--next dt { color: var(--accent); }
-  .capsule__fact--next dd { color: var(--ink); font-weight: 620; }
+  .capsule__fact--next dd { color: var(--ink); font-weight: 400; }
   .capsule__item-actions { display: flex; justify-content: flex-end; gap: 7px; padding-top: 9px; }
-  .capsule__item-action { min-height: 30px; border: 1px solid var(--accent); border-radius: 7px; padding: 0 11px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 690; cursor: pointer; }
-  .capsule__item-action:hover { border-color: var(--accent-hover); background: var(--accent-hover); }
+  .capsule__item-action { min-height: 30px; border: 1px solid var(--action); border-radius: 7px; padding: 0 11px; background: var(--action); color: var(--action-ink); font-size: 12px; font-weight: 400; cursor: pointer; }
+  .capsule__item-action:hover { border-color: var(--ink); background: var(--ink); color: var(--action-ink); }
   .capsule__empty { min-height: 100%; padding: 38px 28px; color: var(--muted); display: grid; place-content: center; gap: 5px; text-align: center; }
   .capsule__empty strong { color: var(--ink); font-size: 13px; }
   .capsule__empty span { max-width: 30ch; font-size: 12px; line-height: 1.5; }
@@ -154,16 +158,16 @@ export const CAPSULE_STYLES = `
   .capsule__actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 10px 9px 14px; border-top: 1px solid var(--line); background: var(--surface); }
   .capsule__hint { min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 10px; }
   .capsule__buttons { display: flex; gap: 6px; }
-  .capsule__button { height: 31px; border: 1px solid var(--line-strong); border-radius: 7px; padding: 0 11px; background: var(--paper-raised); color: var(--ink-soft); font-size: 12px; font-weight: 680; cursor: pointer; transition: background 120ms ease, border-color 120ms ease, color 120ms ease, transform 120ms ease; }
+  .capsule__button { height: 31px; border: 1px solid var(--line-strong); border-radius: 7px; padding: 0 11px; background: var(--paper-raised); color: var(--ink-soft); font-size: 12px; font-weight: 400; cursor: pointer; transition: background 120ms ease, border-color 120ms ease, color 120ms ease, transform 120ms ease; }
   .capsule__button:hover { border-color: var(--faint); background: var(--surface-hover); color: var(--ink); }
   .capsule__button:active { transform: translateY(1px); }
-  .capsule__button--primary { border-color: var(--accent); background: var(--accent); color: #fff; }
-  .capsule__button--primary:hover { border-color: var(--accent-hover); background: var(--accent-hover); color: #fff; }
+  .capsule__button--primary { border-color: var(--action); background: var(--action); color: var(--action-ink); }
+  .capsule__button--primary:hover { border-color: var(--ink); background: var(--ink); color: var(--action-ink); }
   .capsule__error { display: none; grid-row: 1 / -1; place-content: center; justify-items: center; gap: 8px; margin: 0; padding: 30px; color: var(--muted); text-align: center; font-size: 12px; line-height: 1.55; }
-  .capsule__error::before { content: "!"; display: block; width: 28px; height: 28px; margin: 0 auto; border: 1px solid currentColor; border-radius: 50%; font-weight: 750; line-height: 26px; }
+  .capsule__error::before { content: "!"; display: block; width: 28px; height: 28px; margin: 0 auto; border: 1px solid currentColor; border-radius: 50%; font-weight: 400; line-height: 26px; }
   .capsule__error strong { color: var(--ink); font-size: 13px; }
   .capsule__error span { max-width: 32ch; }
-  .capsule__retry { min-height: 30px; margin-top: 5px; border: 1px solid var(--line-strong); border-radius: 7px; padding: 0 12px; background: var(--paper-raised); color: var(--ink-soft); font-size: 12px; font-weight: 680; cursor: pointer; }
+  .capsule__retry { min-height: 30px; margin-top: 5px; border: 1px solid var(--line-strong); border-radius: 7px; padding: 0 12px; background: var(--paper-raised); color: var(--ink-soft); font-size: 12px; font-weight: 400; cursor: pointer; }
   .capsule__retry:hover { border-color: var(--faint); background: var(--surface-hover); color: var(--ink); }
   .capsule-shell[data-error="true"] .capsule > :not(.capsule__error) { display: none; }
   .capsule-shell[data-error="true"] .capsule__error { display: grid; }
@@ -189,7 +193,7 @@ export const CAPSULE_CLIENT_SCRIPT = `
   const validProject = (id) => projects.some((project) => project.project_id === id);
   let savedView = { projectId: "", projects: {} };
   try {
-    const parsed = JSON.parse(localStorage.getItem(viewStorageKey) || localStorage.getItem("goalboard:capsule-view:v1") || "null");
+    const parsed = JSON.parse(localStorage.getItem(viewStorageKey) || "null");
     if (parsed && parsed.projects && typeof parsed.projects === "object") savedView = parsed;
   } catch {}
   const requested = new URLSearchParams(location.search).get("project");
@@ -197,7 +201,7 @@ export const CAPSULE_CLIENT_SCRIPT = `
   if (!projectId && validProject(savedView.projectId)) projectId = savedView.projectId;
   if (!projectId) {
     try {
-      const stored = localStorage.getItem(storageKey) || localStorage.getItem("goalboard:capsule-project");
+      const stored = localStorage.getItem(storageKey);
       if (validProject(stored)) projectId = stored;
     } catch {}
   }

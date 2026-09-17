@@ -9,7 +9,7 @@ const escapeHtml = (value: string) => value.replaceAll("&", "&amp;").replaceAll(
 
 test("public status mounts prefer collection state, retain hooks and escape translated attributes", () => {
   const renderer = createWorkbenchGoalsStatusRenderer({ translate: L, escapeHtml, icon });
-  for (const [status, expectedIcon] of [["archived", "archive"], ["trashed", "archive"]] as const) {
+    for (const [status, expectedIcon] of [["archived", "archive"], ["trashed", "trash"]] as const) {
     const item = { status, display_status: "continue" as const };
     assert.match(renderer.renderVisibleGoalStatus(item), new RegExp("goal-status--" + status));
     assert.equal(renderer.visibleGoalStatusIcon(item), icon(expectedIcon));

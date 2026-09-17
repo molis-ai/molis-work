@@ -24,7 +24,7 @@ test("activity extraction preserves established priority, ignored operations and
   assert.deepEqual(activity, {
     goal_id: "top-goal", actor_id: "molis-work:event-report",
     event: {
-      source: "goalboard", kind: "status", source_id: "molis_work_v1_event_report:report-key",
+      source: "molis_work", kind: "status", source_id: "molis_work_v1_event_report:report-key",
       content: "上报 Goal 工作事实：top-goal",
       metadata: { tool: "molis_work_v1_event_report", goal_id: "top-goal", run_id: null, state: null },
     },
@@ -86,7 +86,7 @@ test("successful MCP writes update only their Session and survive a secondary Re
       assert.equal(inspect.get(sessionId).current_goal_id, goal_id);
       assert.equal(inspect.events(sessionId).filter((event) => event.source_id === "molis_work_v1_event_note:note-focus").length, 1);
       assert.equal(inspect.get(unrelatedId).current_goal_id, null);
-      assert.equal(inspect.events(unrelatedId).filter((event) => event.source === "goalboard").length, 0);
+      assert.equal(inspect.events(unrelatedId).filter((event) => event.source === "molis_work").length, 0);
     } finally { inspect.close(); }
 
     await mcp.callTool("molis_work_v1_event_configure", {

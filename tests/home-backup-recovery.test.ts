@@ -48,7 +48,7 @@ test("offline Home restore preserves Project, Goal history, Artifact versions an
     const registry = await openWorkSessionRegistry({ homeDirectory: home });
     const session = registry.createSession({ runtime_id: "codex", actor_id: "user", user_confirmed: true,
       project_id: project.project_id, current_goal_id: "retained-goal" });
-    registry.appendEvent({ session_id: session.session_id, source: "goalboard_tui", kind: "terminal_output",
+    registry.appendEvent({ session_id: session.session_id, source: "molis_work_tui", kind: "terminal_output",
       source_id: "before-backup", content: "恢复前的私人正文" });
     const links = registry.goalHistory(session.session_id);
     registry.close();
@@ -82,7 +82,7 @@ test("offline Home restore preserves Project, Goal history, Artifact versions an
       assert.deepEqual(recoveredRegistry.goalHistory(session.session_id), links);
       assert.equal(recoveredRegistry.get(session.session_id).project_id, project.project_id);
       assert.deepEqual(recoveredRegistry.events(session.session_id).map(event => event.content), ["恢复前的私人正文"]);
-      recoveredRegistry.appendEvent({ session_id: session.session_id, source: "goalboard_tui", kind: "terminal_output",
+      recoveredRegistry.appendEvent({ session_id: session.session_id, source: "molis_work_tui", kind: "terminal_output",
         source_id: "after-restore", content: "恢复后继续工作" });
     } finally { recoveredRegistry.close(); }
     const reopened = await openWorkSessionRegistry({ homeDirectory: home });

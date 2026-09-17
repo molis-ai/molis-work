@@ -71,7 +71,7 @@ export function ensureConnectorSources(feed: FeedApplication, boardId: string, p
         status: credential.problem ? "error" : credential.bound ? "active" : "disconnected",
         enabled: true,
         item_count: 0,
-        origin: "goalboard",
+        origin: "molis_work",
         config: kind === "gmail" ? { scope: ports.gmail.defaultScope } : {},
         schedule: { mode: "manual" },
         cursor: {},

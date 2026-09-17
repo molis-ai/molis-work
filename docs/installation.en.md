@@ -12,7 +12,7 @@ Repository development provides the same release path:
 
 ```bash
 pnpm desktop:build:macos    # DMG, App zip, and SHA256 under release/macos
-pnpm desktop:install:macos  # install in ~/Applications; trash previous Molis Work and owned GoalBoard.app first
+pnpm desktop:install:macos  # install in ~/Applications; trash previous Molis Work and the owned previous desktop app first
 pnpm desktop:start:macos    # launch the installed App
 ```
 
@@ -86,7 +86,7 @@ Both the CLI and Web "Settings → Projects" can create the same demo data. Prev
 "$HOME/.molis-work/bin/molis-work" demo remove --confirm
 ```
 
-This project is clearly marked `regenerable_demo` in the catalog, separate from `user` and `migrated_user` data. Re-creating opens the existing demo; resetting clears changes inside the demo; removal and normal uninstall only clean up the regenerable demo and never touch user projects. Repository development and screenshots can still use `examples/seed-demo.mts`, which calls the same classification and rebuild logic.
+This project is clearly marked `regenerable_demo` in the catalog, separate from `user` data. Re-creating opens the existing demo; resetting clears changes inside the demo; removal and normal uninstall only clean up the regenerable demo and never touch user projects. Repository development and screenshots can still use `examples/seed-demo.mts`, which calls the same classification and rebuild logic.
 
 ## Starting Web: persistent or temporary
 

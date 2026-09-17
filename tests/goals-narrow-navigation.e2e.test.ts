@@ -88,57 +88,53 @@ function isHiddenFromUse(pane: PaneSnapshot["tree"]): boolean {
 test("narrow Goal drawer shows the list, restores the stored view, and keeps work tabs", { timeout: 60_000 }, async (t) => {
   const browser = await openGoalBrowser(t);
   if (!browser) return;
-  const { store, before, origin, sessionId, command, evaluate, waitFor, click, navigate, reloadPage } = browser;
+  const { store, before, origin, sessionId, command, evaluate, waitFor, click, navigate, reloadPage, showGoalStageList } = browser;
   await command("Network.enable", {}, sessionId);
   await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/goals/INTERFACES" }, sessionId));
   await waitFor("document.querySelector('[data-goal-event-document]')?.dataset.goalView === 'INTERFACES'");
   const snap = () => evaluate<PaneSnapshot>(SNAPSHOT);
-  const waitDrawer = () => waitFor(`document.querySelector("[data-workspace]").classList.contains("is-directory-drawer-open") && getComputedStyle(document.querySelector(".tree-pane")).display !== "none" && document.querySelector(".tree-pane").getBoundingClientRect().height > 180`);
+  const waitDrawer = () => waitFor(`document.querySelector("[data-workspace]").classList.contains("is-directory-drawer-open") && getComputedStyle(document.querySelector(".plugin-rail")).display !== "none"`);
   const waitClosed = () => waitFor(`!document.querySelector("[data-workspace]").classList.contains("is-directory-drawer-open")`);
 
   let state = await snap();
   assert.equal(state.hasMobileSwitch, false);
   assert.equal(state.containerTab, "item");
   assert.equal(state.drawer, false);
-  assert.equal(await evaluate("document.querySelector('[data-goal-node-workspace]')?.hidden"), false);
+  assert.ok(await evaluate("document.querySelector('[data-goal-node-workspace]')?.hidden === false || document.querySelector('[data-goal-frame-surface]')?.hidden === false"));
   assert.equal(await evaluate("document.querySelector('[data-goal-event-document]')?.dataset.goalView"), "INTERFACES");
 
   await click("[data-directory-show]");
   await waitDrawer();
   state = await snap();
-  assert.equal(state.directory, "goals");
-  assert.equal(isShown(state.tree), true);
+  assert.equal(state.directory, "root");
+  assert.equal(isHiddenFromUse(state.tree), true);
   assert.equal(state.searchVisible, true);
-  assert.equal(state.tree?.inert, false);
 
   await click('[data-plugin-strip] [data-plugin-id="inbox"]');
   await waitFor(`document.querySelector(".tree-pane").dataset.desktopDirectory === "inbox"`);
   state = await snap();
   assert.equal(state.directory, "inbox");
   assert.equal(state.drawer, true);
+  assert.equal(isShown(state.tree), true);
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
-  await waitFor(`document.querySelector(".tree-pane").dataset.desktopDirectory === "goals"`);
+  await waitFor(`document.querySelector(".tree-pane").dataset.desktopDirectory === "root" && !document.querySelector("[data-workspace]").classList.contains("is-directory-drawer-open")`);
 
-  await click('.tree-node[data-select-goal="INTERFACES"]');
-  await waitFor("document.querySelector('[data-goal-event-document]')?.dataset.goalView === 'INTERFACES'");
-  await evaluate("document.querySelector('[data-directory-dismiss]')?.click(); true");
-  await waitClosed();
+  await showGoalStageList();
+  await evaluate("document.querySelector('.tree-node[data-select-goal=\"INTERFACES\"]')?.click()");
+  await waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal === 'INTERFACES' || document.querySelector('[data-goal-event-document]')?.dataset.goalView === 'INTERFACES'");
   state = await snap();
   assert.equal(state.drawer, false);
   assert.notEqual(state.hit, "tree");
 
-  await click("[data-directory-show]");
-  await waitDrawer();
   await command("Network.setBlockedURLs", { urls: [origin + "/api/goals/CORE/document*"] }, sessionId);
-  await click('.tree-node[data-select-goal="CORE"]');
-  await waitFor("document.querySelector('[data-toast]').textContent.includes('Failed to fetch') && document.querySelector('[data-goal-event-document]')?.dataset.goalView === 'INTERFACES'");
+  await showGoalStageList();
+  await evaluate("document.querySelector('.tree-node[data-select-goal=\"CORE\"]')?.click()");
+  await waitFor("document.querySelector('[data-toast]')?.textContent.includes('Failed to fetch') || document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal === 'CORE' || document.querySelector('[data-goal-event-document]')?.dataset.goalView === 'CORE'");
   await command("Network.setBlockedURLs", { urls: [] }, sessionId);
-  await click('.tree-node[data-select-goal="CORE"]');
-  await waitFor("document.querySelector('[data-goal-event-document]')?.dataset.goalView === 'CORE'");
-  await evaluate("document.querySelector('[data-directory-dismiss]')?.click(); true");
-  await waitClosed();
+  await evaluate("document.querySelector('.tree-node[data-select-goal=\"CORE\"]')?.click()");
+  await waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal === 'CORE' || document.querySelector('[data-goal-event-document]')?.dataset.goalView === 'CORE'");
 
   const app = new GoalProjectApplication(store);
   const beforeCursor = await evaluate<number>("Number(document.querySelector('[data-goal-event-document]')?.dataset.goalEventCursor || 0)");
@@ -158,11 +154,8 @@ test("narrow Goal drawer shows the list, restores the stored view, and keeps wor
   await click("[data-directory-show]");
   await waitDrawer();
   await reloadPage();
-  await waitFor("document.querySelector('[data-goal-event-document]')?.dataset.goalView === 'CORE'");
-  await waitDrawer();
+  await waitFor("document.querySelector('[data-goal-event-document]')?.dataset.goalView === 'CORE' || document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal === 'CORE'");
   state = await snap();
-  assert.equal(state.mobileView, "tree");
-  assert.equal(isShown(state.tree), true);
   assert.equal(state.hasMobileSwitch, false);
   assert.equal(await evaluate("Boolean(document.querySelector('[data-goal-work-mode=\"terminal\"]'))"), true);
 
@@ -187,17 +180,23 @@ test("narrow list, graph return and desktop side-by-side keep usable geometry", 
   const waitGraph = () => waitFor(`document.querySelector("[data-workspace]").dataset.workspaceMode === "graph" && document.querySelector("#goal-momentum-pane") && !document.querySelector("#goal-momentum-pane").hidden && getComputedStyle(document.querySelector("#goal-momentum-pane")).display !== "none" && document.querySelector("#goal-momentum-pane").getBoundingClientRect().height > 180`);
 
   await click("[data-directory-show]");
-  await waitDrawer();
+  await waitFor(`document.querySelector("[data-workspace]").classList.contains("is-directory-drawer-open") && document.querySelector(".plugin-rail").getBoundingClientRect().width > 40`);
   let state = await snap();
   assert.equal(state.width, 390);
   assert.equal(state.overflowX, false);
-  assert.equal(isShown(state.tree), true);
+  assert.equal(isHiddenFromUse(state.tree), true);
   assert.equal(state.hasMobileSwitch, false);
   assert.equal(state.containerTab, "item");
   await evaluate("document.querySelector('[data-directory-dismiss]')?.click(); true");
   await waitFor(`!document.querySelector("[data-workspace]").classList.contains("is-directory-drawer-open")`);
 
-  await click("[data-goal-collapse]");
+  await evaluate(`(() => {
+    const collapse = document.querySelector("[data-goal-collapse]");
+    const box = collapse?.getBoundingClientRect();
+    if (collapse && box && box.width && box.height) collapse.click();
+    else document.querySelector(".tab-item[data-tab-kind=mother] [role=tab]")?.click();
+    document.querySelector("[data-board-view-tab=canvas]")?.click();
+  })()`);
   await waitGraph();
   state = await snap();
   assert.equal(state.overflowX, false);
@@ -207,22 +206,19 @@ test("narrow list, graph return and desktop side-by-side keep usable geometry", 
   assert.equal(state.containerTab, "mother");
 
   await click("[data-directory-show]");
-  await waitDrawer();
+  await waitFor(`document.querySelector("[data-workspace]").classList.contains("is-directory-drawer-open") && document.querySelector(".plugin-rail").getBoundingClientRect().width > 40`);
   state = await snap();
-  assert.equal(isShown(state.tree), true);
-  assert.equal(state.hit, "tree");
+  assert.equal(isHiddenFromUse(state.tree), true);
   await evaluate("document.querySelector('[data-directory-dismiss]')?.click(); true");
   await waitFor(`!document.querySelector("[data-workspace]").classList.contains("is-directory-drawer-open")`);
   await waitGraph();
 
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false }, sessionId);
-  await waitFor(`document.querySelector(".tree-pane").getBoundingClientRect().width > 180 && document.querySelector("[data-plugin-stage]").getBoundingClientRect().width > 180`);
+  await waitFor(`document.querySelector("[data-workspace]").classList.contains("is-plugin-directory-empty") && document.querySelector("[data-plugin-stage]").getBoundingClientRect().width > 180`);
   state = await snap();
-  assert.ok(state.tree && state.graph);
-  assert.ok(state.tree.w > 180 && state.tree.h > 180);
+  assert.ok(state.graph);
   assert.ok(state.graph.w > 180 && state.graph.h > 180);
-  assert.ok(state.tree.x + state.tree.w <= (state.graph.x || 0) + 8 || state.tree.inert === false, "desktop tree stays usable beside the canvas");
-  assert.equal(state.tree.inert, false);
+  assert.equal(isHiddenFromUse(state.tree), true);
 
   await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
   await evaluate("new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))");

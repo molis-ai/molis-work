@@ -7,13 +7,13 @@
 - `specs/goal-kanban-view/spec.md` 里母页只有「画布 | 看板」、点卡片展开工作框；
 - `specs/goals-directory-collection-folds/spec.md` 里当前/归档/回收站百叶窗挂在目录。
 
-点 Goal 进 Frame 仍走现有 tab-workspace / Frame 合同。
+双击 Goal 进 Frame 仍走现有 tab-workspace / Frame 合同。单击进 `.goal-node-workspace`，见 `specs/goals-list-workspace-split/spec.md`。
 
 ## 背景目标
 
 Goals 左目录是压缩 Goal 列表，内容区母页只有画布和看板。列表、画布、看板应是同一内容区的三种并行视图。目录不再出 Goal Item。
 
-完成等级 **3：功能可用**：内容区列表可点进 Frame，三视图能切。
+完成等级 **3：功能可用**：内容区列表可点进工作区，三视图能切。单击/双击合同见 `specs/goals-list-workspace-split/spec.md`。
 
 ## 当前行为与问题证据
 
@@ -26,10 +26,11 @@ Goals 左目录是压缩 Goal 列表，内容区母页只有画布和看板。�
 
 做：
 
-- 内容区三种并行视图：列表、画布、看板，都铺满标签下面的舞台。切换条仍叠在内容区右上，不跟 titlebar 里已打开的 Frame 标签抢位置。
-- 列表：同一套目录树行拉满内容区宽度，露出编号、状态、标题、子进度、前置依赖。不编造负责人头像。当前/归档/回收站百叶窗跟着 Item 进内容区。
+- 内容区三种并行视图：列表、画布、看板，都铺满标签下面的舞台。切换条是左上 chrome 里的三个图标，紧挨筛选，不跟 titlebar 里已打开的 Frame 标签抢位置。
+- 列表：同一套目录树行拉满内容区宽度，露出编号、状态、标题、子进度、前置依赖。行内四列对齐与单行合同见 `specs/goals-stage-list-row/spec.md`。不编造负责人头像。当前/归档/回收站百叶窗跟着 Item 进内容区。
 - 目录只留 Goals 名称、新建 Goal、筛选。不再渲染任何 Goal Item。
-- 列表行、画布节点、看板卡片单击都打开该 Goal 的 Frame，并同步选中。画布空白处仍平移缩放。节点上旧「展开工作框」maximize 先不动。
+  已改由 `specs/goals-stage-chrome/spec.md`：Goals 不占第二栏，筛选和新建在舞台左上。
+- 列表行、画布节点、看板卡片单击打开该 Goal 的工作区（Runtime 左、信息/时间线右），并同步选中；双击才开 Frame。画布空白处仍平移缩放。节点上旧「展开工作框」maximize 先不动。
 - `lastBoardView` 加上 `list`。第一次进 Goals 默认列表。打开 Frame 后关掉，回到刚才那个视图。刷新记住上次视图。
 - 删掉目录里隐藏的 `navigator-view-switch`。
 
@@ -37,22 +38,22 @@ Goals 左目录是压缩 Goal 列表，内容区母页只有画布和看板。�
 
 ## 使用场景
 
-1. 打开 Goals，内容区是 Linear 宽行列表，目录里没有 Goal 行。点一行打开 Frame；关掉回到列表。
-2. 切到画布，点节点打开同一条 Goal 的 Frame；空白处仍可平移缩放。
-3. 切到看板，点卡片打开 Frame。
+1. 打开 Goals，内容区是 Linear 宽行列表，目录里没有 Goal 行。点一行打开工作区；双击打开 Frame。
+2. 切到画布，点节点打开同一条 Goal 的工作区；空白处仍可平移缩放。
+3. 切到看板，点卡片打开工作区。
 4. 刷新后仍停在上次的列表/画布/看板。
 
 ## 方案与关键决策
 
 - 目录树从 `renderGoalDirectory` 抽到 `renderGoalStageList`，挂在 `.goal-canvas-shell` 的 `[data-goal-stage-list][data-tree-scroll]`。刷新片段继续带 `[data-tree-scroll]`，避免刷新把树塞回目录。
 - `frame-container.ts` 的 board tab 从 `canvas|kanban` 扩成 `list|canvas|kanban`；shell `data-board-view` 驱动显示哪一块。body 上的 `data-board-view` 仍是 current/archive/trash/decisions，不混用。
-- 看板卡片和画布节点单击改走已有 `openFrame` / `openGoalTab`。
+- 看板卡片和画布节点单击走 `selectGoal` 工作区；双击走已有 `openFrame` / `openGoalTab`。
 - 列表宽行样式只挂在内容区。目录密度规则继续藏 meta。
 
 ## 输入输出与依赖
 
 - 输入：现有 Goal 树、画布、看板模型和 Frame/tab-workspace。
-- 输出：内容区三视图；目录 chrome；单击进 Frame。
+- 输出：内容区三视图；目录 chrome；单击进工作区，双击进 Frame。
 - 依赖：`lastBoardView` 本地存储、tree refresh 的 `[data-tree-scroll]`。
 
 ## 文件 / 模块边界
@@ -67,7 +68,7 @@ Goals 左目录是压缩 Goal 列表，内容区母页只有画布和看板。�
 
 1. Goals 内容区能切 列表 / 画布 / 看板，三者都铺满舞台；目录没有 Goal Item。
 2. 列表行是现有树行拉宽，能看到编号和更多字段；展开、筛选、新建仍可用。
-3. 三种视图单击 Goal 都打开对应 Goal Frame；关 Frame 回到刚才的视图。
+3. 三种视图单击 Goal 打开工作区，双击打开对应 Goal Frame；关 Frame 回到刚才的视图。
 4. 刷新记住上次视图。
 
 ## 验证命令
@@ -77,7 +78,7 @@ pnpm --filter @molis-ai/molis-work-plugin-goals --filter @molis-ai/molis-work-ap
 node --import tsx --test --test-concurrency=1 tests/goals-tree-ui.test.ts tests/goal-kanban.e2e.test.ts tests/immersive-directory.e2e.test.ts tests/workbench-frame-container.e2e.test.ts
 ```
 
-再在 4174 点三种视图进 Frame。
+再在 4180 点三种视图：单击进工作区，双击进 Frame。
 
 ## 假设与开放问题
 

@@ -27,7 +27,7 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
     align-items: center;
     gap: 7px;
     font-size: 9px;
-    font-weight: 750;
+    font-weight: 400;
     letter-spacing: .08em;
     text-transform: uppercase;
   }
@@ -49,7 +49,7 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
     background: transparent;
     color: var(--muted);
     font-size: 10px;
-    font-weight: 620;
+    font-weight: 400;
     cursor: pointer;
   }
   .momentum-period-switch button.is-active, .momentum-map-filter button.is-active {
@@ -198,7 +198,7 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
     align-items: center;
     gap: 6px;
     font-size: 9px;
-    font-weight: 650;
+    font-weight: 400;
   }
   .momentum-level b { min-width: 20px; height: 20px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--paper); color: var(--ink-soft); display: grid; place-items: center; font: 700 8px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
   .momentum-group {
@@ -214,11 +214,11 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
     pointer-events: none;
   }
   .momentum-group[hidden] { display: none; }
-  .momentum-group header { position: absolute; top: 5px; left: 8px; right: 8px; min-width: 0; color: var(--muted); display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 8px; font-weight: 650; }
+  .momentum-group header { position: absolute; top: 5px; left: 8px; right: 8px; min-width: 0; color: var(--muted); display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 8px; font-weight: 400; }
   .momentum-group header button, .momentum-group header > span { min-width: 0; overflow: hidden; padding: 2px 4px; border: 0; border-radius: 5px; background: transparent; color: inherit; font: inherit; text-overflow: ellipsis; white-space: nowrap; }
   .momentum-group header button { cursor: pointer; pointer-events: auto; }
-  .momentum-group header button:hover, .momentum-group header button.is-selected { color: var(--blue-dark); background: var(--blue-soft); }
-  .momentum-group header small { flex: 0 0 auto; font-size: 8px; font-weight: 500; white-space: nowrap; }
+  .momentum-group header button:hover, .momentum-group header button.is-selected { color: var(--ink); background: var(--nav-hover); }
+  .momentum-group header small { flex: 0 0 auto; font-size: 8px; font-weight: 400; white-space: nowrap; }
   .momentum-edges { z-index: 1; position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
   .momentum-edge path { fill: none; stroke: var(--line-strong); stroke-width: 1.15; stroke-linecap: round; stroke-linejoin: round; opacity: .2; vector-effect: non-scaling-stroke; }
   .momentum-edge.is-selected-path path { stroke: var(--blue); stroke-width: 2; opacity: 1; }
@@ -256,7 +256,7 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
   .momentum-node-kicker > b { color: var(--muted); font: 700 8px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
   .momentum-node .goal-status { min-height: 15px; padding: 0 4px; border: 0; background: transparent; font-size: 8px; }
   .momentum-node .goal-status svg { width: 9px; height: 9px; }
-  .momentum-node > strong { display: -webkit-box; overflow: hidden; font-size: 10.5px; line-height: 1.35; font-weight: 670; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+  .momentum-node > strong { display: -webkit-box; overflow: hidden; font-size: 10.5px; line-height: 1.35; font-weight: 400; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
   .momentum-node > small { display: block; margin-top: 4px; overflow: hidden; color: var(--muted); font-size: 8px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
   .momentum-legend { min-height: 38px; padding: 7px 13px; border-top: 1px solid var(--line); background: var(--rail); color: var(--muted); display: flex; align-items: center; flex-wrap: wrap; gap: 9px 15px; font-size: 9px; }
   .momentum-legend span { display: inline-flex; align-items: center; gap: 6px; }
@@ -270,7 +270,7 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
   .momentum-queue-list li + li { border-top: 1px solid var(--line); }
   .momentum-queue-item { width: 100%; min-height: 60px; padding: 10px 12px; border: 0; background: transparent; color: var(--ink); display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; align-items: center; gap: 9px; text-align: left; cursor: pointer; }
   .momentum-queue-item:hover { background: var(--rail); }
-  .momentum-queue-item.is-selected { background: var(--blue-soft); }
+  .momentum-queue-item.is-selected { background: var(--nav-active); }
   .momentum-queue-item > b { width: 23px; height: 23px; border: 1px solid var(--line-strong); border-radius: 7px; background: var(--paper); color: var(--muted); display: grid; place-items: center; font: 650 8px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
   .momentum-queue-item > span { min-width: 0; display: grid; gap: 3px; }
   .momentum-queue-item > span strong { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
@@ -284,7 +284,7 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
   .momentum-selection dl { margin: 16px 0 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
   .momentum-selection dl div { padding: 9px; border: 1px solid var(--line); border-radius: 9px; background: var(--rail); }
   .momentum-selection dt { color: var(--muted); font-size: 8px; }
-  .momentum-selection dd { margin: 3px 0 0; color: var(--ink); font-size: 13px; font-weight: 700; }
+  .momentum-selection dd { margin: 3px 0 0; color: var(--ink); font-size: 13px; font-weight: 400; }
   .momentum-selection ul { margin: 14px 0 18px; padding-left: 17px; color: var(--ink-soft); display: grid; gap: 6px; font-size: 10px; line-height: 1.45; }
   .momentum-selection > a { width: fit-content; min-height: 31px; padding: 0 11px; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
   .momentum-selection > a svg { width: 11px; height: 11px; }
@@ -293,7 +293,7 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
   .momentum-empty h2 { margin: 12px 0 5px; color: var(--ink); font-size: 16px; }
   .momentum-empty p { max-width: 360px; margin: 0; font-size: 10px; line-height: 1.5; }
   html[data-resolved-theme="dark"] .momentum-group { background: color-mix(in srgb, var(--paper) 54%, transparent); }
-  html[data-resolved-theme="dark"] .momentum-period-switch button.is-active { background: var(--blue-soft); color: var(--blue-dark); }
+  html[data-resolved-theme="dark"] .momentum-period-switch button.is-active { background: var(--nav-active); color: var(--ink); }
 
   @container (max-width: 780px) {
     .momentum-cadence-panel { min-height: 0; padding: 15px 16px; grid-template-columns: minmax(0, 1fr); gap: 14px; }
@@ -340,7 +340,7 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
     align-items: center;
     gap: 8px;
     font-size: 11px;
-    font-weight: 620;
+    font-weight: 400;
   }
   .goal-document-loading::before {
     content: "";
@@ -373,7 +373,7 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
   }
   .goal-focus-outcome > span { color: var(--blue); padding-top: 2px; }
   .goal-focus-outcome > span svg { width: 17px; height: 17px; }
-  .goal-focus-outcome small { color: var(--muted); font-size: 11px; font-weight: 650; }
+  .goal-focus-outcome small { color: var(--muted); font-size: 11px; font-weight: 400; }
   .goal-focus-outcome p { max-width: 70ch; margin: 5px 0 0; color: var(--ink); font-size: 17px; line-height: 1.55; letter-spacing: -.015em; white-space: pre-wrap; }
   .goal-now {
     margin-top: 0;
@@ -407,9 +407,9 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
   .goal-focus-criteria ul { list-style: none; margin: 10px 0 0; padding: 0; }
   .goal-focus-criteria li { min-height: 38px; padding: 7px 0; border-top: 1px solid var(--line); display: flex; align-items: flex-start; gap: 10px; }
   .goal-focus-criteria li > span:last-child { min-width: 0; display: grid; gap: 1px; }
-  .goal-focus-criteria li > span:last-child > strong { font-size: 12px; font-weight: 620; }
+  .goal-focus-criteria li > span:last-child > strong { font-size: 12px; font-weight: 400; }
   .goal-focus-criteria li small { color: var(--muted); font-size: 10px; }
-  .goal-focus-criteria > a { width: fit-content; margin-top: 10px; color: var(--blue-dark); display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 650; text-decoration: none; }
+  .goal-focus-criteria > a { width: fit-content; margin-top: 10px; color: var(--blue-dark); display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 400; text-decoration: none; }
   .goal-focus-criteria > a svg { width: 12px; height: 12px; }
   .goal-focus-criteria > a:hover { text-decoration: underline; }
   .goal-focus-context { padding: 19px 0 21px; border-bottom: 1px solid var(--line); }
@@ -437,7 +437,7 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
     align-items: center;
     flex: 0 0 auto;
     font-size: 11px;
-    font-weight: 650;
+    font-weight: 400;
   }
   .tui-stage { padding: 11px 12px 12px; gap: 9px; }
   .tui-tab.is-active { color: var(--ink); background: var(--paper); box-shadow: inset 0 0 0 1px var(--line); }
@@ -452,10 +452,10 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
     gap: 12px;
   }
   .tui-owner-copy { min-width: 0; flex: 1 1 auto; display: grid; gap: 3px; }
-  .tui-owner-copy > strong { min-width: 0; overflow: hidden; color: var(--ink); font-size: 14px; font-weight: 680; text-overflow: ellipsis; white-space: nowrap; }
+  .tui-owner-copy > strong { min-width: 0; overflow: hidden; color: var(--ink); font-size: 14px; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
   .tui-owner-binding { min-width: 0; color: var(--muted); display: flex; align-items: center; gap: 6px; font-size: 10px; }
   .tui-owner-binding i { width: 5px; height: 5px; border-radius: 50%; background: var(--green); flex: 0 0 auto; }
-  .tui-owner-binding b { font-weight: 600; }
+  .tui-owner-binding b { font-weight: 400; }
   .tui-owner-actions { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; }
   .tui-owner-actions > .goal-status { flex: 0 0 auto; }
   .tui-focus-return {
@@ -467,7 +467,7 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
     background: transparent;
     font: inherit;
     font-size: 9.5px;
-    font-weight: 650;
+    font-weight: 400;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -489,16 +489,16 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
   }
   .tui-menu input::placeholder { color: var(--faint); }
   .tui-runtime-choices button,
-  .tui-menu-actions button {
+  .tui-menu-actions button:not(.mw-btn) {
     border-color: var(--line-strong);
     background: color-mix(in srgb, var(--paper) 92%, var(--rail));
     color: var(--ink-soft);
   }
   .tui-runtime-choices button:hover,
   .tui-runtime-choices button.is-selected {
-    border-color: color-mix(in srgb, var(--blue), var(--line-strong) 42%);
-    background: var(--blue-soft);
-    color: var(--blue-dark);
+    border-color: var(--line-strong);
+    background: var(--nav-active);
+    color: var(--ink);
   }
   .tui-runtime-choices button:disabled {
     border-color: var(--line);
@@ -511,9 +511,9 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
     background: var(--amber-soft);
     color: var(--amber);
   }
-  .tui-chrome button { border-color: var(--line-strong); border-radius: 8px; background: var(--paper); }
-  .tui-terminal { border-color: #2e3440; border-radius: 11px; box-shadow: inset 0 1px 0 rgba(255,255,255,.025); }
-  .tui-empty { color: #89919f; }
+  .tui-chrome button:not(.mw-btn) { border-color: var(--line-strong); border-radius: 8px; background: var(--paper); }
+  .tui-terminal { border-color: var(--terminal-border); border-radius: 11px; box-shadow: none; }
+  .tui-empty { color: var(--muted); }
   body[data-desktop-shell="true"] .tui-pane { grid-template-rows: 58px 42px minmax(0, 1fr); }
   body[data-desktop-shell="true"] .tui-owner { padding-inline: 18px; }
   body[data-desktop-shell="true"] .tui-owner-copy > strong { font-size: 14px; }
@@ -561,19 +561,18 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
   html[data-resolved-theme="dark"] .evidence-record p,
   html[data-resolved-theme="dark"] .relation-copy .relation-path,
   html[data-resolved-theme="dark"] .relation-authority small { color: var(--ink-soft); }
-  html[data-resolved-theme="dark"] input,
+  html[data-resolved-theme="dark"] input:not([type="range"]):not(.mw-slider),
   html[data-resolved-theme="dark"] textarea,
   html[data-resolved-theme="dark"] select,
   html[data-resolved-theme="dark"] .tree-filter,
   html[data-resolved-theme="dark"] .tree-search input,
   html[data-resolved-theme="dark"] .tree-search kbd,
   html[data-resolved-theme="dark"] .tui-tab.is-active,
-  html[data-resolved-theme="dark"] .document-action,
   html[data-resolved-theme="dark"] .goal-meta,
   html[data-resolved-theme="dark"] .decision-record,
   html[data-resolved-theme="dark"] .decision-results,
   html[data-resolved-theme="dark"] .goal-tree-risk-options,
-  html[data-resolved-theme="dark"] .decision-actions button:not(.button-primary) {
+  html[data-resolved-theme="dark"] .decision-actions button:not(.mw-btn--primary) {
     border-color: var(--line-strong);
     background: color-mix(in srgb, var(--paper) 86%, var(--rail));
     color: var(--ink);
@@ -617,11 +616,10 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
     background: var(--page) !important;
     color: var(--faint) !important;
   }
-  html[data-resolved-theme="dark"] .button-primary,
-  html[data-resolved-theme="dark"] .button-primary:hover,
+  html[data-resolved-theme="dark"] .mw-btn--primary,
+  html[data-resolved-theme="dark"] .mw-btn--primary:hover,
   html[data-resolved-theme="dark"] .planning-form footer button[type="submit"],
-  html[data-resolved-theme="dark"] .runtime-plan-shell > footer .runtime-plan-apply,
-  html[data-resolved-theme="dark"] .project-migration-form > footer .project-migration-submit {
+  html[data-resolved-theme="dark"] .runtime-plan-shell > footer .runtime-plan-apply {
     color: var(--action-ink) !important;
   }
   html[data-resolved-theme="dark"] .navigator-view-switch,
@@ -636,9 +634,9 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
   html[data-resolved-theme="dark"] .factor-advanced { border-color: var(--line-strong); background: var(--rail); }
   html[data-resolved-theme="dark"] .goal-factor-nav button { border-color: var(--line); background: transparent; color: var(--muted); }
   html[data-resolved-theme="dark"] .goal-factor-nav button:hover,
-  html[data-resolved-theme="dark"] .goal-factor-nav button[aria-selected="true"] { background: var(--paper); color: var(--blue-dark); box-shadow: none; }
+  html[data-resolved-theme="dark"] .goal-factor-nav button[aria-selected="true"] { background: var(--nav-active); color: var(--ink); box-shadow: none; }
   html[data-resolved-theme="dark"] .goal-factor-nav button small { background: var(--line); color: var(--muted); }
-  html[data-resolved-theme="dark"] .goal-factor-nav button[aria-selected="true"] small { background: var(--blue-soft); color: var(--blue-dark); }
+  html[data-resolved-theme="dark"] .goal-factor-nav button[aria-selected="true"] small { background: var(--nav-hover); color: var(--ink); }
   html[data-resolved-theme="dark"] .relation-group > header,
   html[data-resolved-theme="dark"] .relation-actions,
   html[data-resolved-theme="dark"] .risk-actions,
@@ -673,7 +671,7 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
       color: var(--muted);
       background: transparent;
       font-size: 9.5px;
-      font-weight: 600;
+      font-weight: 400;
     }
     .goal-title-status--narrow .goal-status::before { content: ""; width: 5px; height: 5px; flex: none; border-radius: 50%; background: var(--goal-status-tone); }
     .goal-title-status--narrow .goal-status > svg { display: none; }
@@ -876,7 +874,7 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
       border-radius: 0;
       color: var(--muted);
       font-size: 12px;
-      font-weight: 620;
+      font-weight: 400;
     }
     .mobile-switch button:focus-visible {
       outline: 0;
@@ -924,7 +922,6 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
     body[data-desktop-shell="true"] .goal-title-row { display: flex; align-items: flex-start; gap: 12px; }
     body[data-desktop-shell="true"] .goal-title-actions { flex: 0 0 auto; justify-content: flex-end; }
     body[data-desktop-shell="true"] .goal-title-row h1 { font-size: 18px; line-height: 1.28; letter-spacing: -.025em; }
-    body[data-desktop-shell="true"] .goal-title-actions .document-action--quick span { display: none; }
     body[data-desktop-shell="true"] .goal-focus-outcome { display: none; }
     body[data-desktop-shell="true"] .goal-now {
       margin: 0;
@@ -947,9 +944,9 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
       gap: 10px;
     }
     body[data-desktop-shell="true"] .companion-runtime > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-    body[data-desktop-shell="true"] .companion-runtime header small { color: var(--muted); font-size: 10px; font-weight: 650; }
+    body[data-desktop-shell="true"] .companion-runtime header small { color: var(--muted); font-size: 10px; font-weight: 400; }
     body[data-desktop-shell="true"] .companion-runtime h2 { margin: 2px 0 0; font-size: 15px; letter-spacing: -.015em; }
-    body[data-desktop-shell="true"] .companion-runtime-state { color: var(--muted); display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 650; }
+    body[data-desktop-shell="true"] .companion-runtime-state { color: var(--muted); display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 400; }
     body[data-desktop-shell="true"] .companion-runtime-state i { width: 6px; height: 6px; border-radius: 50%; background: var(--faint); }
     body[data-desktop-shell="true"] .companion-runtime-state.is-active { color: var(--green); }
     body[data-desktop-shell="true"] .companion-runtime-state.is-active i { background: var(--green); }
@@ -961,8 +958,8 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
     body[data-desktop-shell="true"] .companion-runtime dl { margin: 0; padding-top: 9px; border-top: 1px solid var(--line); display: grid; grid-template-columns: 1fr 1fr; }
     body[data-desktop-shell="true"] .companion-runtime dl div { display: grid; gap: 2px; }
     body[data-desktop-shell="true"] .companion-runtime dt { color: var(--muted); font-size: 9px; }
-    body[data-desktop-shell="true"] .companion-runtime dd { margin: 0; color: var(--ink); font-size: 11px; font-weight: 650; }
-    body[data-desktop-shell="true"] .companion-runtime > button { width: fit-content; padding: 0; border: 0; background: transparent; color: var(--blue-dark); display: inline-flex; align-items: center; gap: 5px; font: 650 10px/1.2 var(--font); cursor: pointer; }
+    body[data-desktop-shell="true"] .companion-runtime dd { margin: 0; color: var(--ink); font-size: 11px; font-weight: 400; }
+    body[data-desktop-shell="true"] .companion-runtime > button { width: fit-content; padding: 0; border: 0; background: transparent; color: var(--ink); display: inline-flex; align-items: center; gap: 5px; font: 400 10px/1.2 var(--font); cursor: pointer; }
     body[data-desktop-shell="true"] .companion-runtime > button svg { width: 11px; height: 11px; }
     body[data-desktop-shell="true"] .goal-focus-criteria { margin-top: 3px; padding-top: 18px; }
     .navigator-view-switch { width: 100%; grid-template-columns: repeat(2, 1fr); }
@@ -1016,7 +1013,7 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
     }
     html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .tree-copy strong {
       font-size: 12px;
-      font-weight: 570;
+      font-weight: 400;
     }
     html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .tree-copy {
       display: flex;

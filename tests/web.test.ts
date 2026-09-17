@@ -1109,10 +1109,8 @@ test("Web command still starts when its entrypoint is reached through a symlink"
   assert.match(result.stderr, /--db 已不支持/);
 });
 
-test("Web leaves an invalid legacy DB and the project catalog unchanged when migration fails", async () => {
-  const homeDirectory = mkdtempSync(join(tmpdir(), "molis-work-web-project-migration-failure-"));
-  const invalidDatabasePath = join(homeDirectory, "invalid-molis-work.db");
-  writeFileSync(invalidDatabasePath, "not a Molis Work SQLite database");
+test("Web no longer exposes the old-DB migrate HTTP API", async () => {
+  const homeDirectory = mkdtempSync(join(tmpdir(), "molis-work-web-project-migration-removed-"));
   const server = createMolisWorkWebServer({ homeDirectory });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   try {
@@ -1122,13 +1120,14 @@ test("Web leaves an invalid legacy DB and the project catalog unchanged when mig
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        legacy_database_path: invalidDatabasePath,
+        legacy_database_path: join(homeDirectory, "invalid-molis-work.db"),
         user_confirmed: true,
       }),
     });
+    const body = await response.text();
     assert.equal(response.status, 400);
-    assert.match(await response.text(), /Molis Work DB|数据库|迁移/);
-    assert.equal(existsSync(invalidDatabasePath), true);
+    assert.match(body, /请先选择一个 Molis Work 项目/);
+    assert.doesNotMatch(body, /迁移|来源 DB|legacy_database/);
   } finally {
     await new Promise<void>((resolve, reject) =>
       server.close((error) => (error ? reject(error) : resolve())),

@@ -53,7 +53,7 @@ export * from "./web-locale.js";
 
 export { createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
 
-export { CATALOG_SCHEMA_VERSION, CATALOG_OWNER, LEGACY_CATALOG_OWNER, isOwnedCatalogOwner, MolisWorkProjectCatalogError, catalogSchemaCompatibilityError, type MolisWorkProjectCatalogErrorDetails } from "./project-catalog-contract.js";
+export { CATALOG_SCHEMA_VERSION, CATALOG_OWNER, isOwnedCatalogOwner, MolisWorkProjectCatalogError, catalogSchemaCompatibilityError, type MolisWorkProjectCatalogErrorDetails } from "./project-catalog-contract.js";
 export { initializeProjectDatabase, readManagedBoard, validateManagedBoard, assertProjectHasNoActiveWork } from "./managed-project-database.js";
 
 export { ManagedProjectFiles } from "./managed-project-files.js";
@@ -96,6 +96,7 @@ export { createLocalFeedGoalPromotion } from "./feed-goal-promotion.js";
 
 export { handleFeedNativePluginHttp, type FeedNativePluginHttpOptions } from "./feed-native-plugin-http.js";
 export { handleInboxNativePluginHttp, type InboxNativePluginHttpOptions } from "./inbox-native-plugin-http.js";
+export { handleShelfNativePluginHttp } from "./shelf-native-plugin-http.js";
 
 export { createLocalArtifactHttp, renderGoalArtifactContext } from "./artifact-native-plugin-http.js";
 

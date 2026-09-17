@@ -1,12 +1,14 @@
+import { renderPaletteTokens, renderPluginTintBindings } from "../palette.js";
+
 /** Linear × Coss interaction texture. Loaded after every page stylesheet so it owns the
  * final colour ramp, elevation, motion and icon calibration without moving any layout.
  * Structure, density and component ownership stay with the existing layers. */
 
 /** Menus, popovers and compact dialogs that share one raised-surface recipe. */
-const RAISED_SURFACE = ":is(.navigator-project-menu-popover, .tree-filter, .global-search-dialog, .home-shortcut-dialog, .runtime-plan-dialog, .goal-trash-dialog, .project-operation-confirm-dialog, .project-migration-dialog, .tui-menu, .source-filter-menu > .source-filter-row, .feed-filter-panel, .project-record-filter-menu > div)";
+const RAISED_SURFACE = ":is(.navigator-project-menu-popover, .tree-filter, .global-search-dialog, .home-shortcut-dialog, .runtime-plan-dialog, .goal-trash-dialog, .project-operation-confirm-dialog, .tui-menu, .source-filter-menu > .source-filter-row, .feed-filter-panel, .project-record-filter-menu > div)";
 
 /** Modals that dim the app behind them. */
-const SCRIMMED = ":is(.global-search-dialog, .home-shortcut-dialog, .runtime-plan-dialog, .goal-trash-dialog, .project-operation-confirm-dialog, .project-migration-dialog)";
+const SCRIMMED = ":is(.global-search-dialog, .home-shortcut-dialog, .runtime-plan-dialog, .goal-trash-dialog, .project-operation-confirm-dialog)";
 
 /** Scroll regions that already show a scrollbar. `.document-pane` keeps its scrollbar-free rule. */
 const SCROLL_REGION = "body :is(.settings-body, .project-settings-stage, .tab-pane-body, .feed-detail-scroll, .goal-info-body)";
@@ -17,26 +19,24 @@ export const INTERACTION_TEXTURE_STYLES = `
   body.settings-page,
   body.project-index-page,
   body.project-preferences-page {
-    /* Neutral ramp carries a faint indigo cast so greys belong to the accent family. */
-    --page: #f6f7f9; --canvas: #f6f7f9; --rail: #f0f1f4;
-    --paper: #ffffff; --panel: #ffffff; --nav-bg: #f8f8fa;
-    --ink: #15161a; --text: #15161a; --ink-soft: #43464f;
-    --muted: #5f636d; --faint: #6e727c;
-    --line: #e6e7ec; --line-strong: #d5d7de;
+    /* Linear product zinc: sidebar field, white paper, indigo accent only. */
+    --page: #f3f4f5; --canvas: #f3f4f5; --rail: #eceef0;
+    --paper: #ffffff; --panel: #ffffff; --nav-bg: #f3f4f5;
+    --ink: #222326; --text: #222326; --ink-soft: #3c3f44;
+    --muted: #6b6f76; --faint: #737882;
+    --line: #e2e4e7; --line-strong: #d0d6e0;
 
     /* Interaction fills are ink at low alpha, so one recipe reads correctly on every surface. */
-    --nav-hover: color-mix(in srgb, var(--ink) 5.5%, transparent);
-    --nav-active: color-mix(in srgb, var(--ink) 9%, transparent);
-    --nav-press: color-mix(in srgb, var(--ink) 13%, transparent);
+    --nav-hover: color-mix(in srgb, var(--ink) 6%, transparent);
+    --nav-active: color-mix(in srgb, var(--ink) 10%, transparent);
+    --nav-press: color-mix(in srgb, var(--ink) 14%, transparent);
     --nav-raised: #ffffff;
-    --hairline: color-mix(in srgb, var(--ink) 9%, transparent);
+    --hairline: color-mix(in srgb, var(--ink) 12%, transparent);
     --edge-highlight: transparent;
 
-    --blue: #5a63d6; --blue-dark: #474fbd; --blue-soft: #eeeffb; --focus: #5a63d6;
-    --green: #2e7d5c; --green-soft: #e9f4ee;
-    --amber: #8a6320; --amber-soft: #faf1e2;
-    --red: #b0424a; --red-soft: #fbecec;
-    --action: #1c1d21; --action-ink: #ffffff;
+    --blue-dark: #4c56c4;
+    --action: #222326; --action-ink: #ffffff;
+    ${renderPaletteTokens("light")}
 
     --shadow-color: #131520;
     --surface-shadow: 0 1px 2px rgba(19, 21, 32, .05), 0 2px 5px rgba(19, 21, 32, .04);
@@ -56,25 +56,23 @@ export const INTERACTION_TEXTURE_STYLES = `
 
   html[data-resolved-theme="dark"],
   html[data-resolved-theme="dark"] :is(body.immersive-workbench, body.settings-page, body.project-index-page, body.project-preferences-page) {
-    /* Deeper base with clearly separated layers: field → navigation → paper → raised. */
-    --page: #0e0f12; --canvas: #0e0f12; --rail: #131417;
-    --paper: #17181c; --panel: #17181c; --nav-bg: #121316;
-    --ink: #f2f3f6; --text: #f2f3f6; --ink-soft: #c4c7d0;
-    --muted: #9a9ea9; --faint: #82868f;
-    --line: #26272d; --line-strong: #363840;
+    /* Linear product dark: panel #0f1011, paper barely lifted, type #f7f8f8 / #8a8f98. */
+    --page: #0f1011; --canvas: #0f1011; --rail: #0f1011;
+    --paper: #161718; --panel: #161718; --nav-bg: #0f1011;
+    --ink: #f7f8f8; --text: #f7f8f8; --ink-soft: #d0d1d3;
+    --muted: #8a8f98; --faint: #737880;
+    --line: #23252a; --line-strong: #2e3036;
 
-    --nav-hover: color-mix(in srgb, var(--ink) 6%, transparent);
-    --nav-active: color-mix(in srgb, var(--ink) 10%, transparent);
-    --nav-press: color-mix(in srgb, var(--ink) 14%, transparent);
-    --nav-raised: #212328;
-    --hairline: color-mix(in srgb, var(--ink) 10%, transparent);
-    --edge-highlight: rgba(255, 255, 255, .055);
+    --nav-hover: color-mix(in srgb, var(--ink) 8%, transparent);
+    --nav-active: color-mix(in srgb, var(--ink) 12%, transparent);
+    --nav-press: color-mix(in srgb, var(--ink) 16%, transparent);
+    --nav-raised: #1c1c1f;
+    --hairline: color-mix(in srgb, var(--ink) 14%, transparent);
+    --edge-highlight: rgba(255, 255, 255, .07);
 
-    --blue: #9aa2fb; --blue-dark: #b6bbfd; --blue-soft: #24263f; --focus: #8f97f8;
-    --green: #62c08f; --green-soft: #172f23;
-    --amber: #d8a45f; --amber-soft: #352b1c;
-    --red: #ec8087; --red-soft: #381f23;
-    --action: #edeef1; --action-ink: #17181c;
+    --blue-dark: #a8aef5;
+    --action: #f7f8f8; --action-ink: #0f1011;
+    ${renderPaletteTokens("dark")}
 
     --shadow-color: #000000;
     --surface-shadow: 0 1px 2px rgba(0, 0, 0, .45), 0 2px 6px rgba(0, 0, 0, .3);
@@ -114,7 +112,7 @@ export const INTERACTION_TEXTURE_STYLES = `
   html[data-resolved-theme="dark"] body :is(button, [role="button"], summary):active:not(:disabled, [aria-disabled="true"], [aria-expanded], [aria-haspopup]) {
     filter: brightness(1.06);
   }
-  body.immersive-workbench :is(.tree-tool, .icon-button, .immersive-plugin-link, .tab-item-close, .workspace-history-button,
+  body.immersive-workbench :is(.tree-tool, .immersive-plugin-link, .tab-item-close, .workspace-history-button,
         .navigator-project-settings, .navigator-project-search, .tab-add-button, .tab-split-button):active:not(:disabled) {
     background: var(--nav-press);
   }
@@ -123,7 +121,7 @@ export const INTERACTION_TEXTURE_STYLES = `
    * Lucide draws on a 24 grid, so 2 keeps a 16px glyph at a Linear-weight 1.33px stroke. */
   body:is(.immersive-workbench, .settings-page, .project-index-page, .project-preferences-page) svg { stroke-width: 2; }
   body.immersive-workbench :is(.tui-empty-mark, .goal-canvas-empty, .work-empty) svg { stroke-width: 1.6; }
-  body.immersive-workbench :is(.immersive-plugin-link, .tree-tool, .icon-button, .tab-item-close, .workspace-history-button) svg {
+  body.immersive-workbench :is(.immersive-plugin-link, .tree-tool, .tab-item-close, .workspace-history-button) svg {
     transition: color var(--motion-instant) var(--ease-standard), opacity var(--motion-instant) var(--ease-standard);
   }
   body.immersive-workbench :is(.navigator-project-settings, .navigator-project-search, .navigator-project-notifications, .workspace-history-button, .tab-add-button, .tab-split-button) svg {
@@ -140,14 +138,10 @@ export const INTERACTION_TEXTURE_STYLES = `
   body.immersive-workbench .plugin-rail .immersive-plugin-link[aria-current]:hover {
     background: color-mix(in srgb, var(--plugin-tint, var(--ink)) 18%, transparent);
   }
-  body.immersive-workbench .plugin-rail [data-plugin-id="goals"] { --plugin-tint: light-dark(#3c6fc6, #8fb2f5); }
-  body.immersive-workbench .plugin-rail [data-plugin-id="feed"] { --plugin-tint: light-dark(#9c5f1a, #dcab6d); }
-  body.immersive-workbench .plugin-rail [data-plugin-id="sessions"] { --plugin-tint: light-dark(#7f5eb0, #c0a0ea); }
-  body.immersive-workbench .plugin-rail [data-plugin-id="inbox"] { --plugin-tint: light-dark(#26785f, #86c9b1); }
-  body.immersive-workbench .plugin-rail [data-plugin-id="artifacts"] { --plugin-tint: light-dark(#a15571, #e39eb6); }
+  ${renderPluginTintBindings()}
 
   /* Directory rows: press feedback, and a current row that reads as selected, not merely hovered. */
-  body.immersive-workbench .tree-pane :is(.tree-entry, .desktop-module-item, .project-record-row, .feed-list-item, .source-list-item):active {
+  body.immersive-workbench .tree-pane :is(.tree-entry, .desktop-module-item, .project-record-row, .feed-list-item, .source-list-item, .mw-dir-row):active {
     background: var(--nav-press);
   }
   body.immersive-workbench .immersive-workspace .tree-pane .directory-list-row.is-selected {
@@ -155,7 +149,11 @@ export const INTERACTION_TEXTURE_STYLES = `
     background: var(--nav-active);
     color: var(--ink);
   }
-  body.immersive-workbench .immersive-workspace .tree-pane .directory-list-row.is-selected::before {
+  body.immersive-workbench .immersive-workspace .tree-pane .mw-dir-row-wrap .directory-list-row.is-selected,
+  body.immersive-workbench .immersive-workspace .tree-pane .mw-dir-row-wrap .directory-list-row[aria-current="page"] {
+    background: transparent;
+  }
+  body.immersive-workbench .immersive-workspace .tree-pane .directory-list-row.is-selected:not(.mw-dir-row)::before {
     content: "";
     position: absolute;
     left: 0;
@@ -167,7 +165,7 @@ export const INTERACTION_TEXTURE_STYLES = `
     background: color-mix(in srgb, var(--focus) 88%, transparent);
     pointer-events: none;
   }
-  body.immersive-workbench .tree-pane .directory-list-row.is-selected :is(.tree-title-line strong, > strong) { color: var(--ink); font-weight: 550; }
+  body.immersive-workbench .tree-pane .directory-list-row.is-selected :is(.tree-title-line strong, > strong) { color: var(--ink); font-weight: 400; }
 
   /* Raised surfaces get a hairline and, in Dark, a top edge highlight so they read as glass.
    * Repeated at workbench and Dark specificity because several surfaces pin their own shadow there. */
@@ -216,33 +214,88 @@ export const INTERACTION_TEXTURE_STYLES = `
   ${SCROLL_REGION}::-webkit-scrollbar-corner { background: transparent; }
 
   /* Fields answer focus with their own accent ring instead of a detached browser outline. */
-  body :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea):focus-visible {
+  body :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(.mw-slider):not(.mw-input):not(.mw-textarea):not(.mw-select), select:not(.mw-select), textarea:not(.mw-textarea)):focus-visible {
     outline: none;
     border-color: color-mix(in srgb, var(--focus) 62%, transparent);
     box-shadow:
       0 0 0 1px color-mix(in srgb, var(--focus) 72%, transparent),
       0 0 0 3.5px color-mix(in srgb, var(--focus) 15%, transparent);
   }
-  body :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+  body :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(.mw-slider):not(.mw-input), select:not(.mw-select), textarea:not(.mw-textarea)) {
     transition: border-color var(--motion-fast) var(--ease-standard), box-shadow var(--motion-fast) var(--ease-standard), background-color var(--motion-fast) var(--ease-standard);
   }
   body :is(input, textarea)::placeholder { color: var(--faint); }
 
-  /* Status marks read as tone, not as a second bordered container. */
+  /* Status marks read as tone, not as a second bordered container.
+   * Keep the default token on .goal-status only. Putting it on
+   * body[data-desktop-shell=true] .goal-status would beat every
+   * .goal-status--* family rule and collapse all statuses to idle. */
+  .goal-status { --goal-status-tone: var(--tone-idle); }
   .goal-status,
   body[data-desktop-shell="true"] .goal-status {
     border-color: transparent;
     border-radius: 5px;
     background: color-mix(in srgb, var(--goal-status-tone, var(--muted)) 11%, transparent);
+    color: var(--goal-status-tone);
     font-size: 11px;
-    font-weight: 600;
+    font-weight: 400;
     letter-spacing: 0;
+  }
+  .goal-status svg { width: 12px; height: 12px; flex: none; }
+  .goal-status--continue,
+  .goal-status--execution_pending { --goal-status-tone: var(--tone-idle); }
+  .goal-status--clarifying,
+  .goal-status--executing,
+  .goal-status--reviewing,
+  .goal-status--revalidating,
+  .goal-status--in_progress { --goal-status-tone: var(--tone-progress); }
+  .goal-status--clarification_pending,
+  .goal-status--clarification_decision_pending,
+  .goal-status--compound_closure_pending,
+  .goal-status--completion_pending,
+  .goal-status--review_pending,
+  .goal-status--waiting_for_human,
+  .goal-status--revalidation_pending,
+  .goal-status--waiting_user { --goal-status-tone: var(--tone-attention); }
+  .goal-status--waiting_children,
+  .goal-status--waiting { --goal-status-tone: var(--tone-hold); }
+  .goal-status--clarification_blocked,
+  .goal-status--execution_blocked,
+  .goal-status--completion_blocked,
+  .goal-status--review_blocked,
+  .goal-status--revalidation_blocked,
+  .goal-status--invalidated,
+  .goal-status--blocked { --goal-status-tone: var(--tone-blocked); }
+  .goal-status--satisfied,
+  .goal-status--completed { --goal-status-tone: var(--tone-done); }
+  .goal-status--trashed,
+  .goal-status--archived,
+  .goal-status--replaced { --goal-status-tone: var(--tone-quiet); }
+
+  .mw-dir-row[data-settings-section="appearance"] { --plugin-tint: var(--tone-attention); }
+  .mw-dir-row[data-settings-section="runtimes"] { --plugin-tint: var(--tone-progress); }
+  .mw-dir-row[data-settings-section="planning"] { --plugin-tint: var(--tone-hold); }
+  .mw-dir-row[data-settings-section="diagnostics"] { --plugin-tint: var(--tone-blocked); }
+  .mw-dir-row[data-settings-section="general"] { --plugin-tint: var(--tone-idle); }
+  .mw-dir-row[data-settings-section="guidance"] { --plugin-tint: var(--tone-progress); }
+  .mw-dir-row[data-settings-section="rules"] { --plugin-tint: var(--tone-done); }
+
+  /* Kickers are the same quiet tags, never stadium pills. */
+  body[data-desktop-shell="true"] .feed-detail-kicker span,
+  body[data-desktop-shell="true"] .feed-detail-kicker span:first-child,
+  .feed-detail-kicker > :is(span, .mw-status) {
+    padding: 2px 6px;
+    border-radius: 5px;
+    font-size: 11px;
+    font-weight: 400;
+    background: color-mix(in srgb, var(--status-tone, var(--ink)) 11%, transparent);
+    color: var(--status-tone, var(--ink-soft));
   }
 
   /* An empty board column says so at a readable weight instead of a near-invisible dash. */
   body.immersive-workbench .goal-kanban-empty {
     border: 1px dashed var(--line-strong);
-    color: var(--faint);
+    color: var(--ink-soft);
     background: transparent;
   }
 
@@ -278,7 +331,7 @@ export const INTERACTION_TEXTURE_STYLES = `
 
   /* One segmented control everywhere: a recessed track with a raised chip on the current choice.
    * The board switch used to invert that polarity against the settings and locale switches. */
-  body :is(.goal-board-switch, .settings-segmented, .locale-switch) {
+  body :is(.goal-board-switch, .settings-segmented, .locale-switch, .mw-toggle-group) {
     display: inline-flex;
     gap: 2px;
     padding: 3px;
@@ -287,7 +340,7 @@ export const INTERACTION_TEXTURE_STYLES = `
     background: var(--control-fill);
     box-shadow: none;
   }
-  body :is(.goal-board-switch, .settings-segmented, .locale-switch) > :is(button, a) {
+  body :is(.goal-board-switch, .settings-segmented, .locale-switch, .mw-toggle-group) > :is(button, a) {
     min-height: 26px;
     padding: 0 11px;
     border: 0;
@@ -295,16 +348,32 @@ export const INTERACTION_TEXTURE_STYLES = `
     background: transparent;
     color: var(--muted);
     font-size: 12px;
-    font-weight: 500;
+    font-weight: 400;
     box-shadow: none;
   }
-  body :is(.goal-board-switch, .settings-segmented, .locale-switch) > :is(button, a):hover { color: var(--ink); background: var(--nav-hover); }
-  body :is(.goal-board-switch, .settings-segmented, .locale-switch) > :is([aria-current="true"], [aria-current="page"], [aria-pressed="true"], .is-current, .is-active) {
+  body :is(.goal-board-switch, .settings-segmented, .locale-switch, .mw-toggle-group) > :is(button, a):hover { color: var(--ink); background: var(--nav-hover); }
+  body :is(.goal-board-switch, .settings-segmented, .locale-switch, .mw-toggle-group) > :is([aria-current="true"], [aria-current="page"], [aria-pressed="true"], .is-current, .is-active) {
     color: var(--ink);
-    font-weight: 550;
+    font-weight: 400;
     background: var(--nav-raised);
     box-shadow: var(--surface-shadow), inset 0 0 0 1px var(--hairline), inset 0 1px 0 var(--edge-highlight);
   }
+  body .goal-board-switch {
+    height: var(--control-h, 28px);
+    min-height: var(--control-h, 28px);
+    padding: 2px;
+    box-sizing: border-box;
+  }
+  body .goal-board-switch > :is(button, a) {
+    width: calc(var(--control-h, 28px) - 6px);
+    min-width: calc(var(--control-h, 28px) - 6px);
+    height: calc(var(--control-h, 28px) - 6px);
+    min-height: calc(var(--control-h, 28px) - 6px);
+    padding: 0;
+    display: inline-grid;
+    place-items: center;
+  }
+  body .goal-board-switch svg { width: 14px; height: 14px; }
   /* The directory keeps its own compact metrics; only the track and chip tones are shared. */
   body.immersive-workbench .tree-pane .settings-segmented {
     border-color: var(--hairline);
@@ -334,7 +403,7 @@ export const INTERACTION_TEXTURE_STYLES = `
     display: block;
     color: var(--ink-soft);
     font-size: 12px;
-    font-weight: 550;
+    font-weight: 400;
   }
   body.immersive-workbench .tree-pane :is(.feed-list-empty, .source-list-empty, .project-record-empty) > svg {
     display: block;

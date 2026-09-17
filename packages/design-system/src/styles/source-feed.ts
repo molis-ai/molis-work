@@ -37,7 +37,7 @@ export const SOURCE_FEED_STYLES = `  /* Source → Feed → Inbox high-fidelity 
     overflow: hidden;
     font: inherit;
     font-size: 8.5px;
-    font-weight: 620;
+    font-weight: 400;
     text-overflow: ellipsis;
     white-space: nowrap;
     cursor: pointer;
@@ -81,12 +81,12 @@ export const SOURCE_FEED_STYLES = `  /* Source → Feed → Inbox high-fidelity 
   body[data-desktop-shell="true"] .source-list-icon svg { width: 11px; height: 11px; }
   body[data-desktop-shell="true"] .source-list-copy { min-width: 0; display: grid; gap: 2px; }
   body[data-desktop-shell="true"] .source-list-copy > span { min-width: 0; display: flex; align-items: center; gap: 5px; }
-  body[data-desktop-shell="true"] .source-list-copy em { color: var(--blue-dark); font-size: 7.5px; font-style: normal; font-weight: 720; }
+  body[data-desktop-shell="true"] .source-list-copy em { color: var(--blue-dark); font-size: 7.5px; font-style: normal; font-weight: 400; }
   body[data-desktop-shell="true"] .source-list-copy > span small { padding: 2px 4px; border-radius: 5px; color: var(--faint); background: color-mix(in srgb, var(--ink) 5%, transparent); }
   body[data-desktop-shell="true"] .source-list-copy strong,
   body[data-desktop-shell="true"] .source-list-copy p,
   body[data-desktop-shell="true"] .source-list-copy > small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  body[data-desktop-shell="true"] .source-list-copy strong { color: inherit; font-size: 11.5px; font-weight: 640; line-height: 1.35; }
+  body[data-desktop-shell="true"] .source-list-copy strong { color: inherit; font-size: 11.5px; font-weight: 400; line-height: 1.35; }
   body[data-desktop-shell="true"] .source-list-copy p { margin: 0; color: var(--muted); font-size: 9px; }
   body[data-desktop-shell="true"] .source-list-copy small { color: var(--faint); font-size: 8px; line-height: 1.35; }
   body[data-desktop-shell="true"] .source-list-state { max-width: 68px; align-self: start; }
@@ -116,13 +116,13 @@ export const SOURCE_FEED_STYLES = `  /* Source → Feed → Inbox high-fidelity 
   body[data-desktop-shell="true"] .source-detail-mark svg { width: 18px; height: 18px; }
   body[data-desktop-shell="true"] .source-detail-labels { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
   body[data-desktop-shell="true"] .source-detail-labels span,
-  body[data-desktop-shell="true"] .source-detail-labels em { padding: 3px 6px; border-radius: 6px; font-size: 9px; font-style: normal; font-weight: 650; }
+  body[data-desktop-shell="true"] .source-detail-labels em { padding: 3px 6px; border-radius: 6px; font-size: 9px; font-style: normal; font-weight: 400; }
   body[data-desktop-shell="true"] .source-detail-labels span { color: var(--blue-dark); background: color-mix(in srgb, var(--blue) 10%, transparent); }
   body[data-desktop-shell="true"] .source-detail-labels em { color: var(--faint); background: color-mix(in srgb, var(--ink) 5%, transparent); }
-  body[data-desktop-shell="true"] .source-detail-header h1 { margin: 7px 0 0; color: var(--ink); font-size: clamp(23px, 2.7vw, 32px); font-weight: 720; letter-spacing: -.03em; line-height: 1.16; }
+  body[data-desktop-shell="true"] .source-detail-header h1 { margin: 7px 0 0; color: var(--ink); font-size: clamp(23px, 2.7vw, 32px); font-weight: 400; letter-spacing: -.03em; line-height: 1.16; }
   body[data-desktop-shell="true"] .source-detail-header p { max-width: 64ch; margin: 8px 0 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
   body[data-desktop-shell="true"] .source-detail-health { flex: 0 0 auto; padding: 7px 9px; border-radius: 9px; background: color-mix(in srgb, var(--paper) 62%, transparent); display: grid; justify-items: end; gap: 3px; }
-  body[data-desktop-shell="true"] .source-detail-health strong { color: var(--green); font-size: 11px; font-weight: 690; }
+  body[data-desktop-shell="true"] .source-detail-health strong { color: var(--green); font-size: 11px; font-weight: 400; }
   body[data-desktop-shell="true"] .source-detail-health[data-source-status="attention"] strong { color: var(--red); }
   body[data-desktop-shell="true"] .source-detail-health[data-source-status="syncing"] strong { color: var(--blue-dark); }
   body[data-desktop-shell="true"] .source-detail-health[data-source-status="paused"] strong { color: var(--faint); }
@@ -149,7 +149,7 @@ export const SOURCE_FEED_STYLES = `  /* Source → Feed → Inbox high-fidelity 
     background: transparent;
     font: inherit;
     font-size: 10.5px;
-    font-weight: 630;
+    font-weight: 400;
     cursor: pointer;
   }
   body[data-desktop-shell="true"] .source-detail-tabs button:hover { color: var(--ink); }
@@ -165,26 +165,21 @@ export const SOURCE_FEED_STYLES = `  /* Source → Feed → Inbox high-fidelity 
   }
   body[data-desktop-shell="true"] .source-detail-panel[hidden] { display: none; }
   body[data-desktop-shell="true"] .source-panel-heading { margin: 0 0 14px; display: grid; gap: 4px; }
-  body[data-desktop-shell="true"] .source-panel-heading h2 { margin: 0; color: var(--ink); font-size: 14px; font-weight: 690; }
+  body[data-desktop-shell="true"] .source-panel-heading h2 { margin: 0; color: var(--ink); font-size: 14px; font-weight: 400; }
   body[data-desktop-shell="true"] .source-panel-heading p { max-width: 68ch; margin: 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
   body[data-desktop-shell="true"] .source-overview-section { margin-top: 22px; }
   body[data-desktop-shell="true"] .source-overview-ledger { margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 28px; }
   body[data-desktop-shell="true"] .source-overview-ledger > div { min-width: 0; padding: 12px 0; border-top: 1px solid color-mix(in srgb, var(--line) 64%, transparent); display: grid; grid-template-columns: minmax(96px, .42fr) minmax(0, 1fr); align-items: baseline; gap: 12px; }
-  body[data-desktop-shell="true"] .source-overview-ledger dt { color: var(--faint); font-size: 9.5px; font-weight: 650; }
-  body[data-desktop-shell="true"] .source-overview-ledger dd { min-width: 0; margin: 0; overflow: hidden; color: var(--ink-soft); font-size: 12px; font-weight: 620; line-height: 1.45; text-overflow: ellipsis; white-space: nowrap; }
+  body[data-desktop-shell="true"] .source-overview-ledger dt { color: var(--faint); font-size: 9.5px; font-weight: 400; }
+  body[data-desktop-shell="true"] .source-overview-ledger dd { min-width: 0; margin: 0; overflow: hidden; color: var(--ink-soft); font-size: 12px; font-weight: 400; line-height: 1.45; text-overflow: ellipsis; white-space: nowrap; }
   body[data-desktop-shell="true"] .source-now { padding: 0 0 22px; border-bottom: 1px solid color-mix(in srgb, var(--line) 64%, transparent); display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 16px; }
   body[data-desktop-shell="true"] .source-now h2,
   body[data-desktop-shell="true"] .source-message-list h2,
-  body[data-desktop-shell="true"] .source-schedule-heading h2 { margin: 0; color: var(--ink); font-size: 15px; font-weight: 680; }
+  body[data-desktop-shell="true"] .source-schedule-heading h2 { margin: 0; color: var(--ink); font-size: 15px; font-weight: 400; }
   body[data-desktop-shell="true"] .source-now p,
   body[data-desktop-shell="true"] .source-message-list header p,
   body[data-desktop-shell="true"] .source-schedule-heading p { margin: 5px 0 0; color: var(--muted); font-size: 10.5px; line-height: 1.55; }
-  body[data-desktop-shell="true"] .source-now button,
-  body[data-desktop-shell="true"] .source-config-actions button,
-  body[data-desktop-shell="true"] .source-schedule-actions button,
-  body[data-desktop-shell="true"] .source-runtime-actions button,
-  body[data-desktop-shell="true"] .source-runtime-actions summary,
-  body[data-desktop-shell="true"] .source-message-list header button {
+  body[data-desktop-shell="true"] .source-runtime-actions summary {
     min-height: 34px;
     padding: 0 11px;
     border: 0;
@@ -197,20 +192,13 @@ export const SOURCE_FEED_STYLES = `  /* Source → Feed → Inbox high-fidelity 
     gap: 5px;
     font: inherit;
     font-size: 10px;
-    font-weight: 650;
+    font-weight: 400;
     cursor: pointer;
+    list-style: none;
   }
-  body[data-desktop-shell="true"] .source-now button { color: var(--action-ink); background: var(--action); }
-  body[data-desktop-shell="true"] .source-now button:hover:not(:disabled),
-  body[data-desktop-shell="true"] .source-config-actions button:hover,
-  body[data-desktop-shell="true"] .source-schedule-actions button:hover,
-  body[data-desktop-shell="true"] .source-runtime-actions button:hover,
-  body[data-desktop-shell="true"] .source-runtime-actions summary:hover,
-  body[data-desktop-shell="true"] .source-message-list header button:hover { color: var(--blue-dark); box-shadow: 0 5px 14px color-mix(in srgb, var(--shadow-color) 34%, transparent); }
-  body[data-desktop-shell="true"] .source-now button:hover:not(:disabled) { color: var(--action-ink); background: color-mix(in srgb, var(--action) 90%, var(--action-ink)); }
-  body[data-desktop-shell="true"] .source-now button:disabled { border-color: var(--line); color: var(--faint); background: var(--rail); opacity: 1; cursor: wait; }
-  body[data-desktop-shell="true"] .source-now button svg,
-  body[data-desktop-shell="true"] .source-message-list header button svg { width: 12px; height: 12px; }
+  body[data-desktop-shell="true"] .source-runtime-actions summary:hover { color: var(--blue-dark); }
+  body[data-desktop-shell="true"] .source-now .mw-btn svg,
+  body[data-desktop-shell="true"] .source-message-list header .mw-btn svg { width: 12px; height: 12px; }
   body[data-desktop-shell="true"] .source-now [data-prototype-action-status],
   body[data-desktop-shell="true"] .source-now [data-source-action-status] { grid-column: 1 / -1; margin: 0; color: var(--blue-dark); font-size: 10px; }
   body[data-desktop-shell="true"] .source-runtime-actions { margin-top: 22px; padding-top: 18px; border-top: 1px solid color-mix(in srgb, var(--line) 64%, transparent); display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; }
@@ -227,7 +215,7 @@ export const SOURCE_FEED_STYLES = `  /* Source → Feed → Inbox high-fidelity 
   body[data-desktop-shell="true"] .source-config-sheet label,
   body[data-desktop-shell="true"] .source-schedule-sheet > label { display: grid; gap: 6px; }
   body[data-desktop-shell="true"] .source-config-sheet label > span,
-  body[data-desktop-shell="true"] .source-schedule-sheet > label > span { color: var(--faint); font-size: 9px; font-weight: 650; }
+  body[data-desktop-shell="true"] .source-schedule-sheet > label > span { color: var(--faint); font-size: 9px; font-weight: 400; }
   body[data-desktop-shell="true"] .source-config-sheet input,
   body[data-desktop-shell="true"] .source-config-sheet textarea,
   body[data-desktop-shell="true"] .source-config-sheet select,
@@ -272,7 +260,7 @@ export const SOURCE_FEED_STYLES = `  /* Source → Feed → Inbox high-fidelity 
   body[data-desktop-shell="true"] .source-message-list li span,
   body[data-desktop-shell="true"] .source-run-ledger li div { min-width: 0; display: grid; gap: 3px; }
   body[data-desktop-shell="true"] .source-message-list li strong,
-  body[data-desktop-shell="true"] .source-run-ledger li strong { color: var(--ink-soft); font-size: 11px; font-weight: 640; }
+  body[data-desktop-shell="true"] .source-run-ledger li strong { color: var(--ink-soft); font-size: 11px; font-weight: 400; }
   body[data-desktop-shell="true"] .source-message-list li small,
   body[data-desktop-shell="true"] .source-run-ledger li p,
   body[data-desktop-shell="true"] .source-run-ledger li time { margin: 0; color: var(--faint); font-size: 9px; line-height: 1.45; }
@@ -339,7 +327,7 @@ export const SOURCE_FEED_STYLES = `  /* Source → Feed → Inbox high-fidelity 
   body[data-desktop-shell="true"] .feed-rich-content h6 {
     margin: 1.7em 0 .55em;
     color: var(--ink);
-    font-weight: 720;
+    font-weight: 400;
     letter-spacing: -.018em;
     line-height: 1.3;
     text-transform: none;
@@ -401,9 +389,9 @@ export const SOURCE_FEED_STYLES = `  /* Source → Feed → Inbox high-fidelity 
   }
   body[data-desktop-shell="true"] .feed-rich-content th,
   body[data-desktop-shell="true"] .feed-rich-content td { min-width: 110px; padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: start; vertical-align: top; }
-  body[data-desktop-shell="true"] .feed-rich-content th { color: var(--ink); font-size: 12px; font-weight: 680; background: color-mix(in srgb, var(--ink) 4%, transparent); }
+  body[data-desktop-shell="true"] .feed-rich-content th { color: var(--ink); font-size: 12px; font-weight: 400; background: color-mix(in srgb, var(--ink) 4%, transparent); }
   body[data-desktop-shell="true"] .feed-rich-content details { margin: 1.35em 0; padding-block: 10px; border-block: 1px solid color-mix(in srgb, var(--line) 78%, transparent); }
-  body[data-desktop-shell="true"] .feed-rich-content summary { color: var(--ink); font-weight: 680; cursor: pointer; }
+  body[data-desktop-shell="true"] .feed-rich-content summary { color: var(--ink); font-weight: 400; cursor: pointer; }
   body[data-desktop-shell="true"] .feed-rich-content summary:focus-visible { outline: 2px solid color-mix(in srgb, var(--blue) 62%, transparent); outline-offset: 3px; border-radius: 3px; }
   body[data-desktop-shell="true"] .feed-rich-content details[open] summary { margin-bottom: 12px; }
   body[data-desktop-shell="true"] .feed-rich-content hr { margin: 1.8em 0; border: 0; border-top: 1px solid var(--line); }
@@ -424,11 +412,11 @@ export const SOURCE_FEED_STYLES = `  /* Source → Feed → Inbox high-fidelity 
   body[data-desktop-shell="true"] .inbox-attention-context { max-width: 76ch; margin-top: 24px; }
   body[data-desktop-shell="true"] .inbox-attention-context dl { margin: 0; display: flex; flex-direction: column; }
   body[data-desktop-shell="true"] .inbox-attention-context dl > div { padding: 12px 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 70%, transparent); display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 18px; }
-  body[data-desktop-shell="true"] .inbox-attention-context dt { color: var(--faint); font-size: 9.5px; font-weight: 650; }
+  body[data-desktop-shell="true"] .inbox-attention-context dt { color: var(--faint); font-size: 9.5px; font-weight: 400; }
   body[data-desktop-shell="true"] .inbox-attention-context dd { margin: 0; color: var(--ink-soft); font-size: 11.5px; line-height: 1.55; }
   body[data-desktop-shell="true"] .inbox-attention-context .inbox-attention-next { order: -1; padding: 0 0 18px; }
-  body[data-desktop-shell="true"] .inbox-attention-context .inbox-attention-next dt { color: var(--blue-dark); font-weight: 720; }
-  body[data-desktop-shell="true"] .inbox-attention-context .inbox-attention-next dd { color: var(--ink); font-size: 14px; font-weight: 680; line-height: 1.5; }
+  body[data-desktop-shell="true"] .inbox-attention-context .inbox-attention-next dt { color: var(--blue-dark); font-weight: 400; }
+  body[data-desktop-shell="true"] .inbox-attention-context .inbox-attention-next dd { color: var(--ink); font-size: 14px; font-weight: 400; line-height: 1.5; }
   body[data-desktop-shell="true"] .feed-detail--prototype .feed-action-status { color: var(--blue-dark); }
   body[data-desktop-shell="true"] .feed-detail--prototype .feed-detail-tags { max-width: 74ch; margin-top: 18px; display: flex; flex-wrap: wrap; gap: 5px; }
   body[data-desktop-shell="true"] .feed-detail--prototype .feed-detail-tags span { padding: 4px 7px; border-radius: 7px; color: var(--muted); background: color-mix(in srgb, var(--rail) 58%, transparent); font-size: 9px; }

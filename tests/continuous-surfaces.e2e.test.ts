@@ -37,7 +37,7 @@ for (const [width,height] of [[1440,900],[390,640]]) {
     await click('[data-frame-empty] [data-frame-add-content]');
     await checkEditor('[data-frame-picker]');await capture('frame-picker');
     await click('[data-frame-picker] footer [data-frame-picker-close]');
-    await showDirectory();await click('[data-open-create]');
+    await click('[data-open-create]');
     await checkEditor('[data-create-dialog]');await capture('goal-create');
     const inner=await evaluate<any>("(()=>{const s=getComputedStyle(document.querySelector('[data-create-form]'));return {radius:s.borderRadius,shadow:s.boxShadow,border:s.borderTopWidth}})()");
     assert.deepEqual(inner,{radius:'0px',shadow:'none',border:'0px'},'creation is one continuous surface');
@@ -55,8 +55,14 @@ for (const [width,height] of [[1440,900],[390,640]]) {
     if(width<760&&await evaluate("document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')"))await click('[data-directory-toggle]');
     await click('[data-frame-goal-work]');
     await waitFor("!document.querySelector('[data-goal-node-workspace]').hidden");
-    const fillsPane=await evaluate<any>("(()=>{const e=document.querySelector('[data-goal-node-workspace]'),r=e.getBoundingClientRect(),p=e.parentElement.getBoundingClientRect(),s=getComputedStyle(e);return {gap:[r.top-p.top,p.bottom-r.bottom,r.left-p.left,p.right-r.right],radius:s.borderRadius,shadow:s.boxShadow}})()");
-    assert.deepEqual(fillsPane.gap,[0,0,0,0]);assert.equal(fillsPane.radius,'0px');assert.equal(fillsPane.shadow,'none');
+    const fillsPane=await evaluate<any>(`(()=>{const e=document.querySelector('[data-goal-node-workspace]'),r=e.getBoundingClientRect(),p=e.parentElement.getBoundingClientRect(),s=getComputedStyle(e),list=document.querySelector('[data-goal-stage-list]'),listBox=list?.getBoundingClientRect(),listShown=${width}>=761 && getComputedStyle(list||document.body).display==='block' && listBox && listBox.width>0;return {gap:[r.top-p.top,p.bottom-r.bottom,r.left-p.left,p.right-r.right],radius:s.borderRadius,shadow:s.boxShadow,listWidth:listShown?Math.round(listBox.width):0}})()`);
+    if (width >= 761) {
+      assert.ok(Math.abs(fillsPane.gap[0]) < 1 && Math.abs(fillsPane.gap[1]) < 1 && Math.abs(fillsPane.gap[3]) < 1);
+      assert.ok(Math.abs(fillsPane.gap[2] - fillsPane.listWidth) <= 2, "Workspace sits beside the list rail " + JSON.stringify(fillsPane));
+    } else {
+      assert.deepEqual(fillsPane.gap,[0,0,0,0]);
+    }
+    assert.equal(fillsPane.radius,'0px');assert.equal(fillsPane.shadow,'none');
     if(await evaluate("document.querySelector('[data-goal-details-toggle]').getAttribute('aria-expanded')==='false'"))await click('[data-goal-details-toggle]');
     await click('[data-record-menu] > summary');await click('[data-record-menu] [data-event-form-open=note]');
     await waitFor("document.activeElement.name==='note'");
@@ -92,7 +98,7 @@ for (const [width,height] of [[1440,900],[390,640]]) {
     await click('[data-feed-sources-dialog] footer [data-feed-sources-close]');
     await openPlugin('sessions');
     if(width<760)await showDirectory();
-    await click(width<760?'[data-directory-panel=sessions] .project-record-add-compact':'[data-work-surface=sessions] [data-open-session-add]');
+    await click(width<760?'[data-directory-panel=sessions] [data-open-session-add]':'[data-work-surface=sessions] [data-open-session-add]');
     await checkEditor('[data-session-add-dialog]');await click('[data-session-add-toggle]');await capture('session-editor');
     await click('[data-session-add-form] > footer [data-dialog-close]');
     await navigate(()=>command('Page.navigate',{url:prefix+'/settings/general'},sessionId));await capture('settings');

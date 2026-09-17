@@ -7,11 +7,10 @@ import type {
 import { MolisWorkSessionError } from "./errors.js";
 
 export const SESSION_REGISTRY_OWNER = "molis-work-session-registry-v1";
-export const LEGACY_SESSION_REGISTRY_OWNER = "goalboard-session-registry-v1";
 export const SESSION_REGISTRY_SCHEMA_VERSION = 5;
 
 function isOwnedSessionRegistry(owner: unknown): boolean {
-  return owner === SESSION_REGISTRY_OWNER || owner === LEGACY_SESSION_REGISTRY_OWNER;
+  return owner === SESSION_REGISTRY_OWNER;
 }
 
 export const DEFAULT_CORRELATION_TTL_SECONDS = 15 * 60;
@@ -87,9 +86,6 @@ export function initializeOrValidateSessionSchema(db: Database.Database): void {
   if (!isOwnedSessionRegistry(owner)) {
     throw new MolisWorkSessionError("session.registry_unknown", "不会复用未知 Session Registry 数据库");
   }
-  if (owner === LEGACY_SESSION_REGISTRY_OWNER) {
-    db.prepare("UPDATE session_meta SET value = ? WHERE key = 'owner'").run(SESSION_REGISTRY_OWNER);
-  }
   const version = Number((db.prepare("SELECT value FROM session_meta WHERE key = 'schema_version'").get() as
     | { value?: unknown }
     | undefined)?.value);
@@ -100,9 +96,7 @@ export function initializeOrValidateSessionSchema(db: Database.Database): void {
       db.prepare("UPDATE session_meta SET value = ? WHERE key = 'schema_version'")
         .run("3");
     })();
-    return;
-  }
-  if (version !== 3 && version !== 4 && version !== SESSION_REGISTRY_SCHEMA_VERSION) {
+  } else if (version !== 3 && version !== 4 && version !== SESSION_REGISTRY_SCHEMA_VERSION) {
     throw new MolisWorkSessionError(
       "session.registry_reader_too_old",
       `Session Registry schema=${version}，当前 reader 支持 ${SESSION_REGISTRY_SCHEMA_VERSION}`,
@@ -115,7 +109,7 @@ function sessionEventsSchema(): string {
     CREATE TABLE IF NOT EXISTS session_events (
       event_id TEXT PRIMARY KEY,
       session_id TEXT NOT NULL REFERENCES sessions(session_id) ON DELETE CASCADE,
-      source TEXT NOT NULL CHECK (source IN ('goalboard_tui', 'goalboard')),
+      source TEXT NOT NULL CHECK (source IN ('molis_work_tui', 'molis_work')),
       kind TEXT NOT NULL CHECK (kind IN (
         'user_message', 'runtime_message', 'tool', 'approval',
         'status', 'artifact', 'terminal_output'

@@ -82,6 +82,11 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
         row.dataset.feedEntryRead = "read";
         if (detail) detail.dataset.feedDetailRead = "read";
         row.querySelectorAll("[data-feed-read-state]").forEach((label) => { label.textContent = L("已读"); });
+        const readMark = row.querySelector(".feed-entry-status:has([data-feed-read-state])");
+        if (readMark) {
+          readMark.classList.remove("mw-status--attention");
+          readMark.classList.add("mw-status--quiet");
+        }
         detail?.querySelectorAll("[data-feed-read-state]").forEach((label) => { label.textContent = L("已读"); });
         if (status?.dataset.feedReadError === "true") {
           status.hidden = true;
@@ -177,6 +182,7 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     let feedDetailRequest = null;
     let searchBusyUntil = 0;
     let deferredRefreshTimer;
+    let stageListGestureTimer;
     let navigatorView = "list";
     let desktopCompanionActive = document.body.dataset.desktopShell === "true" && matchMedia("(max-width: 760px)").matches;
 

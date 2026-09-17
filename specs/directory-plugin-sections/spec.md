@@ -31,9 +31,9 @@
 - 同时可展开多个插件。展开状态按项目记在本机。
 - 中区（插件分段）共用一个滚动容器。超出可滚；滚动条不出现（含悬停时的 overlay 拇指）。滚轮、触控板、触摸、键盘、把焦点行滚进视口仍可用。
 - 各插件列表不再自建滚动层，避免套两层滚动。
-- 点插件名：桌面单击预览该插件主表面，双击才钉成普通标签（`specs/chrome-tabs-preview-groups/spec.md`）；若该段收着则一并展开。
+- 点插件名：在焦点栏添加该插件母标签（`specs/additive-tabs/spec.md`）；若该段收着则一并展开。
 - 点段的展开控件：只开/收列表，不换右边。
-- 点列表里的 item：桌面单击预览，双击才在焦点栏留下普通标签。
+- 点列表里的 item：在焦点栏添加一张该 item 标签，不替换已有标签。
 - 当前插件高亮跟焦点栏走，与各段是否展开无关。
 - Feed 左边挂来源任务（含「全部」）；条目列表和详情仍在右边。不再把「来源」做成会换掉整列的第二目录。
 - 首页、插件市场没有内容列表，不出现空标题区。
@@ -134,4 +134,4 @@ Chrome e2e 需要非沙箱。隔离试用必须 `--home` 临时目录，禁止 `
 | 6 窄屏抽屉 | 通过。`immersive-directory` 390 抽屉 264px，选 Goal 后关闭。 |
 | 7 定向测试与隔离路径 | 通过。workbench typecheck/build；spec 列出的 12 项 e2e 全绿。隔离 `--home` 走完：全开 → 收起 Goals 仍见 Feed → 点 Session 开标签 → 滚到市场。 |
 
-试用目录 `/var/folders/.../molis-dir-sections-*`，未打默认 home。快捷方式位置仍以 `specs/home-shortcuts-return/spec.md` 为准。标签单击预览/双击钉住以 `specs/chrome-tabs-preview-groups/spec.md` 为准。
+试用目录 `/var/folders/.../molis-dir-sections-*`，未打默认 home。快捷方式位置仍以 `specs/home-shortcuts-return/spec.md` 为准。标签单击添加、不替代以 `specs/additive-tabs/spec.md` 为准。

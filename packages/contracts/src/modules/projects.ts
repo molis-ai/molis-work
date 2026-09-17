@@ -14,9 +14,8 @@ export interface ProjectRecord {
   display_name: string;
   board_id: string;
   database_path: string;
-  source: "created" | "migrated";
-  data_class: "user" | "migrated_user" | "regenerable_demo";
-  migrated_from_path: string | null;
+  source: "created";
+  data_class: "user" | "regenerable_demo";
   created_at: string;
   updated_at: string;
 }
@@ -116,15 +115,6 @@ export interface DeleteProjectInput {
 export interface ProjectDeletionResult {
   deletion: ProjectDeletionRecord;
   replayed: boolean;
-}
-
-export type ProjectMigrationStep = "after_copy" | "after_validation" | "before_catalog_commit";
-
-export interface MigrateProjectInput {
-  legacy_database_path: string;
-  display_name?: string;
-  actor_id: string;
-  beforeStep?: (step: ProjectMigrationStep) => void | Promise<void>;
 }
 
 export interface ProjectsQueryApi {

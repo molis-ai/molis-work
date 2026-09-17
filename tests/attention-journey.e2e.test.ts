@@ -19,8 +19,8 @@ test("Kanban routes wheel by pointer and axis without switching axes at column b
   const actual = await evaluate<string>(`[...document.querySelectorAll('[data-kanban-cards]')].find(x=>x.scrollHeight>x.clientHeight+80)?.closest('[data-kanban-column]')?.dataset.kanbanColumn`);
   assert.ok(actual, "real created goals overflow a column");
   const cards = `[data-kanban-column="${actual}"] [data-kanban-cards]`;
-  const wheel = async (selector: string, dx: number, dy: number, modifiers = 0) => {
-    const point = await evaluate<{x:number;y:number}>(`(()=>{const r=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();return {x:r.x+Math.min(30,Math.max(8,r.width/2)),y:r.y+Math.min(20,Math.max(8,r.height/2))}})()`);
+  const wheel = async (selector: string, dx: number, dy: number, modifiers = 0, inset = { x: 30, y: 20 }) => {
+    const point = await evaluate<{x:number;y:number}>(`(()=>{const r=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();return {x:r.x+Math.min(${inset.x},Math.max(8,r.width/2)),y:r.y+Math.min(${inset.y},Math.max(8,r.height/2))}})()`);
     await command("Input.dispatchMouseEvent", { type: "mouseWheel", ...point, deltaX: dx, deltaY: dy, modifiers }, sessionId);
   };
   const left = () => evaluate<number>("document.querySelector('[data-goal-kanban]').scrollLeft");
@@ -40,7 +40,7 @@ test("Kanban routes wheel by pointer and axis without switching axes at column b
   assert.ok(stacked.sw <= stacked.cw + 1, "stacked kanban does not scroll sideways");
   assert.ok(stacked.sh > stacked.ch + 40, "stacked kanban reads vertically");
   await evaluate("document.querySelector('[data-goal-kanban]').scrollTop=0");
-  await wheel("[data-goal-kanban]", 0, 220);
+  await wheel(".goal-kanban-board", 0, 220, 0, { x: 40, y: 80 });
   await waitFor("document.querySelector('[data-goal-kanban]').scrollTop>40");
   assert.equal(await evaluate("document.scrollingElement.scrollTop"), 0);
   assert.equal(await evaluate("document.scrollingElement.scrollHeight <= innerHeight + 1"), true);

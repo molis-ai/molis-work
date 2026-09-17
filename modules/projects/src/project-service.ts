@@ -18,9 +18,7 @@ export interface ProjectRecordDraftInput {
   display_name: string;
   board_id?: string;
   projects_directory: string;
-  source: ProjectRecord["source"];
   data_class: ProjectRecord["data_class"];
-  migrated_from_path: string | null;
 }
 
 export class ProjectService {
@@ -58,9 +56,8 @@ export class ProjectService {
       display_name: displayName,
       board_id: input.board_id?.trim() || projectId,
       database_path: path.join(input.projects_directory, projectId, "molis-work.db"),
-      source: input.source,
+      source: "created",
       data_class: input.data_class,
-      migrated_from_path: input.migrated_from_path,
       created_at: at,
       updated_at: at,
     };
@@ -69,14 +66,10 @@ export class ProjectService {
   register(record: ProjectRecord, eventType: string, actorId: string): void {
     this.repository.transaction(() => {
       this.repository.insertProject(record);
-      // Imported projects retain their existing entry points; new projects start with Goals.
-      const plugins = record.source === "migrated" ? BUILTIN_PROJECT_PLUGIN_IDS : ["goals"] as const;
-      for (const plugin of plugins) this.repository.addProjectPlugin(record.project_id, plugin, record.created_at);
+      this.repository.addProjectPlugin(record.project_id, "goals", record.created_at);
       this.appendEvent(record.project_id, eventType, this.requiredActorId(actorId), {
         board_id: record.board_id,
         database_path: record.database_path,
-        source: record.source,
-        migrated_from_path: record.migrated_from_path,
       });
     });
   }

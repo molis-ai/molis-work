@@ -20,11 +20,21 @@ test("opening a plugin adds a mother tab without removing home", () => {
   assert.ok(ops.focused(state).tabs.some((tab) => tab.kind === "home"));
 });
 
-test("opening the same plugin again only activates the mother tab", () => {
+test("Shelf is a named mother tab, not a later-only plugin", () => {
   const state = ops.create();
-  ops.openPlugin(state, "goals");
-  ops.openPlugin(state, "goals");
-  assert.equal(ops.focused(state).tabs.filter((tab) => tab.plugin === "goals" && tab.kind === "mother").length, 1);
+  const tab = ops.openPlugin(state, "shelf");
+  assert.equal(tab.plugin, "shelf");
+  assert.equal(ops.pluginTitle("shelf"), "Shelf");
+});
+
+test("opening the same plugin again activates the existing mother tab", () => {
+  const state = ops.create();
+  const first = ops.openPlugin(state, "goals");
+  const second = ops.openPlugin(state, "goals");
+  const mothers = ops.focused(state).tabs.filter((tab) => tab.plugin === "goals" && tab.kind === "mother");
+  assert.equal(mothers.length, 1);
+  assert.equal(first.id, second.id);
+  assert.equal(ops.activeTab(state)?.id, first.id);
 });
 
 test("an item tab sits beside the mother tab without a plugin group", () => {
@@ -147,41 +157,65 @@ test('pinning keeps tabs first without duplicates and survives moving, copying a
   assert.equal(other.tabs[0].pinned, false);
   assert.equal(pane.tabs[0].pinned, true);
   ops.moveTab(state, pane.id, goal.id, other.id, null);
-  assert.equal(other.tabs.filter(tab => tab.itemId === 'CORE').length, 1);
-  assert.equal(other.tabs[0].pinned, false); // existing destination tab retains its own preference
+  assert.equal(other.tabs.filter(tab => tab.itemId === 'CORE').length, 2);
+  assert.equal(ops.activeTab(state)?.id, goal.id);
+  assert.equal(goal.pinned, true);
   const restored = JSON.parse(JSON.stringify(state));
   ops.ensureHome(restored);
   assert.equal(ops.activeTab(restored)?.itemId, 'CORE');
-  assert.equal(ops.activeTab(restored)?.pinned, false);
+  assert.equal(ops.activeTab(restored)?.pinned, true);
 });
 
-test("preview reuses one tab and commit keeps the same id", () => {
+test("opening another plugin or item adds a tab without replacing existing ones", () => {
   const state = ops.create();
-  const canvas = ops.openPlugin(state, "goals", "preview");
-  assert.equal(canvas.preview, true);
+  const canvas = ops.openPlugin(state, "goals");
   assert.equal(ops.countTabs(state), 2);
-  const goal = ops.openItem(state, "goals", "goal-1", "发布", "preview");
-  assert.equal(goal.id, canvas.id);
+  const goal = ops.openItem(state, "goals", "goal-1", "发布");
+  assert.notEqual(goal.id, canvas.id);
   assert.equal(goal.kind, "item");
-  assert.equal(goal.preview, true);
-  assert.equal(ops.focused(state).tabs.filter((tab) => tab.preview).length, 1);
-  const committed = ops.openItem(state, "goals", "goal-1", "发布", "commit");
-  assert.equal(committed.id, goal.id);
-  assert.equal(committed.preview, false);
-  const other = ops.openItem(state, "goals", "goal-2", "下一个", "preview");
-  assert.notEqual(other.id, committed.id);
-  assert.equal(other.preview, true);
-  assert.equal(ops.focused(state).tabs.filter((tab) => tab.plugin === "goals").length, 2);
+  assert.equal("preview" in goal, false);
+  assert.equal(ops.focused(state).tabs.some((tab) => tab.id === canvas.id && tab.kind === "mother"), true);
+  const again = ops.openItem(state, "goals", "goal-1", "发布");
+  assert.equal(again.id, goal.id);
+  const other = ops.openItem(state, "goals", "goal-2", "下一个");
+  assert.notEqual(other.id, goal.id);
+  assert.equal(ops.focused(state).tabs.filter((tab) => tab.plugin === "goals").length, 3);
+  assert.equal(ops.openPlugin(state, "goals").id, canvas.id);
+  assert.equal(ops.focused(state).tabs.some((tab) => tab.id === goal.id), true);
 });
 
-test("previewing an already committed tab only activates it", () => {
+test("opening an already open item activates it and leaves other tabs", () => {
   const state = ops.create();
-  ops.openItem(state, "goals", "goal-1", "发布");
+  const first = ops.openItem(state, "goals", "goal-1", "发布");
   ops.openPlugin(state, "sessions");
-  const again = ops.openItem(state, "goals", "goal-1", "发布", "preview");
-  assert.equal(again.preview, false);
-  assert.equal(again.itemId, "goal-1");
+  const again = ops.openItem(state, "goals", "goal-1", "发布");
+  assert.equal(again.id, first.id);
   assert.equal(ops.focused(state).tabs.filter((tab) => tab.itemId === "goal-1").length, 1);
+  assert.equal(ops.focused(state).tabs.some((tab) => tab.plugin === "sessions" && tab.kind === "mother"), true);
+});
+
+test("a split pane can hold the same identity the other pane already has", () => {
+  const state = ops.create();
+  const left = state.focusedPaneId;
+  ops.splitPane(state, left, "right", "copy");
+  const right = state.panes.find((pane) => pane.id !== left).id;
+  state.focusedPaneId = left;
+  const leftGoals = ops.openPlugin(state, "goals");
+  state.focusedPaneId = right;
+  const rightGoals = ops.openPlugin(state, "goals");
+  assert.notEqual(leftGoals.id, rightGoals.id);
+  assert.equal(state.panes.every((pane) => pane.tabs.filter((tab) => tab.plugin === "goals" && tab.kind === "mother").length === 1), true);
+  assert.equal(ops.openPlugin(state, "goals").id, rightGoals.id);
+  state.focusedPaneId = left;
+  assert.equal(ops.openPlugin(state, "goals").id, leftGoals.id);
+});
+
+test("restored preview flags are stripped", () => {
+  const state = ops.create();
+  const tab = ops.openPlugin(state, "goals");
+  tab.preview = true;
+  ops.normalizeLayout(state);
+  assert.equal("preview" in tab, false);
 });
 
 test("manual groups stay contiguous, collapse is recorded, and pinning leaves the group", () => {

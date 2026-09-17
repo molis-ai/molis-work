@@ -142,6 +142,7 @@ export { createWorkbenchProjectSettingsPages, type ProjectSettingsPagePorts } fr
 export type { ProjectSettingsFoldId } from "./project-settings-folds.js";
 
 export { createWorkbenchRenderer, type WorkbenchRendererPorts, type WorkbenchRenderer } from "./renderer.js";
+export { renderMolisWorkPrimitiveCatalog } from "./primitive-catalog.js";
 
 export { createCapsuleWorkbench, type CapsuleRendererPorts } from "./capsule.js";
 export type * from "./capsule-view.js";

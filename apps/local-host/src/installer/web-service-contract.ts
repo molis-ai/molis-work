@@ -1,13 +1,9 @@
 export const SERVICE_OWNER = "molis-work-web-service-v1";
 export const SERVICE_LABEL = "com.molis.work.web";
-export const LEGACY_SERVICE_OWNER = "goalboard-web-service-v1";
-export const LEGACY_SERVICE_LABEL = "com.adeptify.goalboard.web";
 
 export function isOwnedWebServiceReceipt(receipt: { owner?: string; label?: string } | null | undefined): boolean {
   if (!receipt) return false;
-  const ownedOwner = receipt.owner === SERVICE_OWNER || receipt.owner === LEGACY_SERVICE_OWNER;
-  const ownedLabel = receipt.label === SERVICE_LABEL || receipt.label === LEGACY_SERVICE_LABEL;
-  return ownedOwner && ownedLabel;
+  return receipt.owner === SERVICE_OWNER && receipt.label === SERVICE_LABEL;
 }
 
 export type MolisWorkWebServiceAction = "install" | "start" | "stop" | "restart" | "remove";

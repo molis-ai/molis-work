@@ -216,7 +216,10 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     const workspaceTabs = document.querySelector("[data-titlebar-tabs]");
     if (workspaceTabs) workspaceTabs.hidden = false;
     shell.querySelectorAll("[data-board-view-tab]").forEach((button) => {
-      if (isBoardTab(activeTab) && button.dataset.boardViewTab === activeTab) button.setAttribute("aria-current", "page");
+      const current = isBoardTab(activeTab) && button.dataset.boardViewTab === activeTab;
+      button.classList.toggle("is-current", current);
+      button.setAttribute("aria-pressed", String(current));
+      if (current) button.setAttribute("aria-current", "page");
       else button.removeAttribute("aria-current");
     });
     const fragment = document.createDocumentFragment();
@@ -285,7 +288,11 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     surfaceEl.querySelector('[data-frame-goal-title]').textContent = goalTitle(activeTab);
     const status = item?.display_status || item?.status || "";
     const statusEl = surfaceEl.querySelector('[data-frame-goal-status]');
-    statusEl.textContent = item?.status_label || L(status);
+    const source = document.querySelector('[data-goal-id="' + CSS.escape(activeTab) + '"] .goal-status');
+    statusEl.className = source?.className || ("goal-status" + (status ? " goal-status--" + status : ""));
+    statusEl.setAttribute("data-frame-goal-status", "");
+    if (source) statusEl.innerHTML = source.innerHTML;
+    else statusEl.textContent = item?.status_label || L(status);
     statusEl.dataset.status = status;
     surfaceEl.querySelector('[data-frame-goal-outcome]').textContent = item?.goal.outcome || L("还没有写明预期结果，可在工作区补充。");
     surfaceEl.querySelector('[data-frame-empty]').hidden = frame.blocks.length > 0;
@@ -366,7 +373,6 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     const previous = activeTab;
     if (!isBoardTab(activeTab)) activeTab = lastBoardView;
     setWorkSurface("goal");
-    setWorkspaceMode("graph", false, true);
     sync();
     if (previous !== activeTab) persist();
   };
@@ -549,11 +555,10 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     else showCanvas();
   });
   document.addEventListener("click", (event) => {
-    if (!containerEnabled() || getSurface() !== "goal") return;
+    if (!isFrameTabActive()) return;
     const asset = readAsset(event.target);
     if (!asset?.kind) return;
     if (asset.kind === "goal") return;
-    if (isBoardTab(activeTab) && asset.kind !== "goal") return;
     event.preventDefault();
     event.stopPropagation();
     routeAsset(asset);

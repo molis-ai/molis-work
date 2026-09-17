@@ -111,7 +111,7 @@ export interface WorkSessionGoalLink {
   ended_at: string | null;
 }
 
-export const WORK_SESSION_EVENT_SOURCES = ["goalboard_tui", "goalboard"] as const;
+export const WORK_SESSION_EVENT_SOURCES = ["molis_work_tui", "molis_work"] as const;
 export type WorkSessionEventSource = (typeof WORK_SESSION_EVENT_SOURCES)[number];
 
 export const WORK_SESSION_EVENT_KINDS = [

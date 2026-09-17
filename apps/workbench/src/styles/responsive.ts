@@ -71,7 +71,6 @@ export const RESPONSIVE_STYLES = `
     .goal-now > header, .goal-now-body { grid-template-columns: 1fr; display: grid; }
     .goal-now > header { gap: 8px; }
     .goal-now > header .goal-status { justify-self: start; }
-    .goal-primary-action { justify-self: start; white-space: normal; text-align: left; }
     .goal-now-blockers, .goal-purpose > section, .completion-boundaries > section, .supporting-boundaries > div > section { grid-template-columns: 1fr; gap: 5px; }
     .goal-purpose, .goal-edit-disclosure, .child-progress, .progress-overview, .goal-technical-body { margin-left: 0; padding-left: 0; }
     .progress-facts, .technical-meta { grid-template-columns: 1fr; }
@@ -119,7 +118,7 @@ export const RESPONSIVE_STYLES = `
     .tree-search input { padding-right: 10px; }
     .mobile-switch { grid-row: 2; display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); padding: 0 5px; min-height: 44px; border-bottom: 1px solid var(--line); background: var(--rail); }
     .mobile-switch button { border: 0; border-radius: 4px; background: transparent; color: var(--muted); min-height: 44px; }
-    .mobile-switch button.is-active { color: var(--blue-dark); background: #fff; box-shadow: 0 1px 3px rgba(22, 31, 43, .1); }
+    .mobile-switch button.is-active { color: var(--ink); background: var(--paper); box-shadow: 0 1px 3px color-mix(in srgb, var(--ink) 10%, transparent); }
     .mobile-switch button:focus-visible { outline: 0; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--blue) 62%, transparent); }
     .workspace { grid-row: 3; grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr); }
     .tree-resizer, .tui-resizer { display: none; }
@@ -150,7 +149,7 @@ export const RESPONSIVE_STYLES = `
     .goal-meta { gap: 8px 16px; }
     .trash-summary, .trash-restore-row { margin-left: 0; }
     .trash-restore-row { align-items: stretch; flex-direction: column; }
-    .trash-restore-row .button-primary { align-self: flex-start; }
+    .trash-restore-row .mw-btn { align-self: flex-start; }
     .runtime-grid { grid-template-columns: 1fr; }
     .runtime-grid > section { min-height: 0; border-right: 0 !important; border-bottom: 1px solid var(--line) !important; }
     .runtime-grid > section:last-child { border-bottom: 0 !important; }

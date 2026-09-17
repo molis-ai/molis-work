@@ -342,7 +342,7 @@ function demoSourceModels(projectId: string): FeedUiSource[] {
     description,
     status: statusKind === "paused" ? "paused" : statusKind === "attention" ? "error" : "active",
     enabled: true,
-    origin: "goalboard",
+    origin: "molis_work",
     config: { scope: kind === "gmail" ? "label:product OR label:partner" : L("新消息与更新") },
     schedule: { mode: "interval", enabled: true, interval_minutes: intervalMinutes, next_pull_at: null },
     connection_ref: null,

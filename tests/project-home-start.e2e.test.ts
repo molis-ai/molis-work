@@ -5,24 +5,10 @@ import { DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 const captures = new URL("../.impeccable/review/home-start/", import.meta.url);
-// Original Adeptify product copy: verify the complete migration through the rendered carousel.
-const adeptifyCopy = [
-  "Intelligence is the ability to adapt to change. - Stephen Hawking",
-  "The question of whether a computer can think is no more interesting than the question of whether a submarine can swim. - Edsger Dijkstra",
-  "AI will likely continue to amplify human ingenuity, not replace it. - Satya Nadella",
-  "The real danger is not that machines will begin to think like humans, but that humans will begin to think like machines. - David Chalmers",
-  "Prediction is not just about seeing the future, it's about creating it. - Peter Drucker",
-  "Simplicity is the ultimate sophistication. - Leonardo da Vinci",
-  "The best way to predict the future is to invent it. - Alan Kay",
-  "We are the only species that can rewrite our own code. - Anonymous",
-  "Knowledge is not power. Knowledge applied is power. - Bruce Lee",
-  "The measure of intelligence is the ability to change. - Aristotle"
-];
+const homeHasQuotes = "!!document.querySelector('[data-home-quote], [data-home-quotes], .home-reflection, .home-quote-pages, .immersive-home blockquote, .immersive-home figure') || /千里之行|Stephen Hawking|Intelligence is the ability/.test(document.querySelector('.immersive-home')?.textContent || '')";
 
-const quote = "document.querySelector('[data-home-quote][aria-hidden=false]').dataset.homeQuote";
-
-test("Settings gear sits above the account avatar and opens settings in the directory", { timeout: 45_000 }, async t => {
-  const browser = await openGoalBrowser(t, "migrated"); if (!browser) return;
+test("Settings gear sits above the account avatar and opens settings in the stage", { timeout: 45_000 }, async t => {
+  const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
   const {command,sessionId,evaluate,navigate,click,origin,projectId,waitFor}=browser;
   const directory = new URL("../.impeccable/review/home-footer-quotes/", import.meta.url);
   await mkdir(directory,{recursive:true});
@@ -54,23 +40,37 @@ test("Settings gear sits above the account avatar and opens settings in the dire
     }
   }
   await command("Emulation.setDeviceMetricsOverride",{width:1440,height:900,deviceScaleFactor:1,mobile:false},sessionId);
-  await click(".personal-account");
+  await evaluate("dispatchEvent(new Event('resize'))");
+  await evaluate("new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))");
+  await evaluate("document.querySelector('.personal-account').click()");
   await evaluate("new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))");
   assert.equal(await evaluate("location.pathname"), "/projects/"+projectId+"/");
   await click("[data-plugin-id=settings]");
-  await waitFor("document.querySelector('#goal-tree-pane').dataset.desktopDirectory==='settings' && document.querySelector('#goal-tree-pane').getBoundingClientRect().width>80 && document.querySelector('[data-directory-panel=settings] [data-theme-option=dark]')");
+  await waitFor("document.querySelector('#goal-tree-pane').dataset.desktopDirectory==='settings' && document.querySelector('#goal-tree-pane').getBoundingClientRect().width>80 && document.querySelector('[data-tab-workspace]')?.dataset.exclusive==='settings' && document.querySelector('[data-work-surface=settings] [data-theme-option=dark]')");
   assert.equal(await evaluate("location.pathname"), "/projects/"+projectId+"/");
   assert.equal(await evaluate("document.body.classList.contains('settings-page')"), false);
   assert.equal(await evaluate("document.querySelector('[data-plugin-id=settings]').getAttribute('aria-current')"), "page");
-  await evaluate("document.querySelector('[data-directory-panel=settings] [data-theme-option=dark]').click()");
+  assert.equal(await evaluate("!!document.querySelector('[data-directory-panel=settings] [data-theme-option=dark]')"), false);
+  await evaluate("document.querySelector('[data-work-surface=settings] [data-theme-option=dark]').click()");
   await waitFor("document.documentElement.dataset.resolvedTheme==='dark'");
   await click("[data-plugin-id=goals]");
-  await waitFor("document.querySelector('#goal-tree-pane').dataset.desktopDirectory==='goals'");
+  await waitFor("document.querySelector('#goal-tree-pane').dataset.desktopDirectory==='root' && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty') && !document.querySelector('[data-tab-workspace]').dataset.exclusive");
   assert.equal(await evaluate("document.querySelector('[data-plugin-id=settings]').hasAttribute('aria-current')"), false);
+  await click(".navigator-project-settings");
+  await waitFor("document.querySelector('#goal-tree-pane').dataset.desktopDirectory==='project-settings' && document.querySelector('#goal-tree-pane').getBoundingClientRect().width>80 && document.querySelector('[data-tab-workspace]')?.dataset.exclusive==='project-settings' && document.querySelector('[data-work-surface=project-settings] [data-project-rename]') && !document.body.dataset.navigationPending");
+  assert.equal(await evaluate("location.pathname"), "/projects/"+projectId+"/");
+  assert.equal(await evaluate("document.body.classList.contains('settings-page')"), false);
+  assert.equal(await evaluate("document.querySelector('.navigator-project-settings').getAttribute('aria-current')"), "page");
+  assert.equal(await evaluate("document.querySelector('[data-plugin-id=settings]').hasAttribute('aria-current')"), false);
+  await click('[data-directory-panel=project-settings] [data-settings-section="guidance"]');
+  await waitFor("!!document.querySelector('[data-work-surface=project-settings] [data-guidance-form]')");
+  await click("[data-plugin-id=goals]");
+  await waitFor("document.querySelector('#goal-tree-pane').dataset.desktopDirectory==='root' && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty') && !document.querySelector('[data-tab-workspace]').dataset.exclusive");
+  assert.equal(await evaluate("document.querySelector('.navigator-project-settings').hasAttribute('aria-current')"), false);
 });
 
-test("Home keeps local calendar and quotes current without enabling Agent input or moving the layout", { timeout: 90_000 }, async t => {
-  const browser = await openGoalBrowser(t, "migrated");
+test("Home keeps local calendar current without enabling Agent input or moving the layout", { timeout: 90_000 }, async t => {
+  const browser = await openGoalBrowser(t, "seeded");
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, store } = browser;
   const before = store.snapshot(DEMO_BOARD_ID);
@@ -79,7 +79,7 @@ test("Home keeps local calendar and quotes current without enabling Agent input 
     window.__clock=new Date(2028,1,29,23,59).getTime();const RealDate=Date;
     window.Date=class extends RealDate{constructor(...args){super(...(args.length?args:[window.__clock]))}static now(){return window.__clock}};
     window.__homeTimers={};const interval=window.setInterval;window.setInterval=(fn,ms,...args)=>{
-      if(ms===8000||ms===30000){window.__homeTimers[ms]=fn;return 0}return interval(fn,ms,...args)};
+      if(ms===30000){window.__homeTimers[ms]=fn;return 0}return interval(fn,ms,...args)};
   ` }, sessionId);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
@@ -106,68 +106,36 @@ test("Home keeps local calendar and quotes current without enabling Agent input 
   await command("Input.insertText", { text: "不能保存的输入" }, sessionId);
   assert.equal(await evaluate("document.querySelector('[data-home-agent-input]').value"), "");
   assert.equal(await evaluate("document.querySelector('[data-quote-step], [data-quote-pause], [data-home-draft], [data-home-activity], [data-home-quote-next], .home-goals-entry')"), null);
-  await command("Input.dispatchMouseEvent", { type: "mouseMoved", x: 10, y: 10 }, sessionId);
-  assert.equal(await evaluate("typeof window.__homeTimers[8000]"), "function", "quotes autoplay on an 8s timer");
-  await evaluate("window.__homeTimers[8000]()");
-  assert.equal(await evaluate(quote), "1");
-  const focusedQuote=await evaluate<any>("(()=>{const link=document.querySelector('[data-home-quote][aria-hidden=false] a');link.focus();const q=link.closest('figure'),s=getComputedStyle(q);return {focused:document.activeElement===link,inert:q.inert,hasInert:q.hasAttribute('inert'),aria:q.getAttribute('aria-hidden'),visibility:s.visibility,transition:s.transition,animation:s.animation,active:document.activeElement.tagName}})()");
-  assert.equal(focusedQuote.focused,true,JSON.stringify(focusedQuote));
-  await evaluate("window.__homeTimers[8000]()");
-  assert.equal(await evaluate(quote), "1", "focus on the quotation holds autoplay");
-  assert.equal(await evaluate("(()=>{const link=document.querySelector('[data-home-quote][aria-hidden=true] a');link.focus();return document.activeElement===link})()"),false,"inactive citation cannot take keyboard focus");
-  await evaluate("document.activeElement.blur()");
+  assert.equal(await evaluate(homeHasQuotes), false, "home has no quotation carousel or famous-quote copy");
+  assert.equal(await evaluate("window.__homeTimers[8000]"), undefined, "no quote autoplay timer");
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor("document.body.dataset.desktopSurface === 'goal'");
-  await evaluate("window.__homeTimers[8000]()");
-  assert.equal(await evaluate(quote), "1", "navigation leaves the chosen quotation unchanged");
   await click('[data-plugin-strip] [data-plugin-id="home"]');
   await waitFor("document.body.dataset.desktopSurface === 'home'");
   const homeStack=await evaluate<{gap:number;composer:number}>("(()=>{const c=document.querySelector('.home-context').getBoundingClientRect();const l=document.querySelector('.home-launch').getBoundingClientRect();return {gap:Math.round(l.top-c.bottom),composer:Math.round(document.querySelector('.home-composer').getBoundingClientRect().height)}})()");
   assert.ok(homeStack.gap>=28 && homeStack.gap<=48, "launch follows the date block: "+homeStack.gap);
   assert.ok(homeStack.composer<=56, "composer stays a tool row: "+homeStack.composer);
-  await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "no-preference" }] }, sessionId);
-  await evaluate("window.__homeTimers[8000]()");
-  assert.equal(await evaluate("document.querySelector('.home-quote-pages').classList.contains('is-changing')"), true);
-  assert.equal(await evaluate(quote), "1", "old words remain until fade completes");
-  await waitFor(quote + " === '2'");
   await mkdir(captures, { recursive: true });
-  await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   for (const [name,width,height,dark] of [["desktop",1440,1000,false],["desktop-dark",1440,1000,true],["user-1024",1024,768,false],["user-1024-dark",1024,768,true],["mobile",390,844,false],["mobile-dark",390,844,true]] as const) {
     await command("Emulation.setDeviceMetricsOverride", { width,height,deviceScaleFactor:1,mobile:width<600 }, sessionId);
     await evaluate(`document.documentElement.dataset.resolvedTheme=${JSON.stringify(dark?"dark":"light")};document.activeElement.blur()`);
     await command("Input.dispatchMouseEvent", { type:"mouseMoved", x:1,y:1 }, sessionId);
-    const heights:number[]=[];
-    for(let i=0;i<adeptifyCopy.length+3;i++) {
-      await evaluate("window.__homeTimers[8000]()");
-      heights.push(await evaluate<number>("document.querySelector('.home-context').getBoundingClientRect().height"));
-    }
-    assert.ok(Math.max(...heights)-Math.min(...heights)<1, name+": quotes must not shift layout");
     assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"),true,name);
-    await evaluate("for(let n=0;n<13&&document.querySelector('[data-home-quote][aria-hidden=false]').dataset.homeQuote!=='4';n++)window.__homeTimers[8000]()");
+    assert.equal(await evaluate(homeHasQuotes), false, name+": no quotes after viewport change");
     await evaluate("document.querySelector('[data-work-surface=home]').scrollTop=0;new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))");
     const shot=await command<{data:string}>("Page.captureScreenshot",{format:"png",captureBeyondViewport:false},sessionId);
     await writeFile(new URL(name+".png",captures),Buffer.from(shot.data,"base64"));
   }
   await evaluate("document.cookie='molis_work_locale=en;path=/'");
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
-  assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-home-quote]')].slice(3).map(q=>q.querySelector('blockquote').textContent+' - '+q.querySelector('figcaption').textContent)"),adeptifyCopy,"all original Adeptify passages and attributions are migrated in order");
-  assert.equal(await evaluate("[...document.querySelectorAll('[data-home-quote]')].slice(3).some(q=>q.querySelector('a'))"),false,"no invented source links");
+  await waitFor("document.body.dataset.desktopSurface === 'home'");
+  assert.equal(await evaluate(homeHasQuotes), false, "english locale still has no quotations");
   for (const [name,width,height] of [["english-1024",1024,768],["english-760",760,844],["english-mobile",390,844]] as const) {
     await command("Emulation.setDeviceMetricsOverride",{width,height,deviceScaleFactor:1,mobile:width<600},sessionId);
     await evaluate("document.documentElement.dataset.resolvedTheme='light';document.activeElement.blur()");
     await command("Input.dispatchMouseEvent",{type:"mouseMoved",x:1,y:1},sessionId);
     await evaluate("document.fonts.ready.then(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))");
-    const heights:number[]=[];
-    const visited=new Set<string>();
-    for(let i=0;i<adeptifyCopy.length+3;i++){
-      await evaluate("window.__homeTimers[8000]()");
-      heights.push(await evaluate<number>("document.querySelector('.home-context').getBoundingClientRect().height"));
-      visited.add(await evaluate<string>(quote));
-      assert.equal(await evaluate("[...document.querySelectorAll('[data-home-quote]')].every(q=>q.inert===(q.getAttribute('aria-hidden')==='true')&&getComputedStyle(q).visibility===(q.inert?'hidden':'visible'))"),true);
-    }
-    assert.equal(visited.size,adeptifyCopy.length+3,"every passage is actually reachable in a full rotation");
-    assert.ok(Math.max(...heights)-Math.min(...heights)<1,name+": translated quotes must not shift layout: "+heights.join(','));
-    await evaluate("for(let n=0;n<13&&document.querySelector('[data-home-quote][aria-hidden=false]').dataset.homeQuote!=='4';n++)window.__homeTimers[8000]()");
+    assert.equal(await evaluate(homeHasQuotes), false, name);
     const shot=await command<{data:string}>("Page.captureScreenshot",{format:"png",captureBeyondViewport:false},sessionId);
     await writeFile(new URL(name+".png",captures),Buffer.from(shot.data,"base64"));
   }
@@ -182,7 +150,7 @@ test("Home keeps local calendar and quotes current without enabling Agent input 
 });
 
 test("Home shortcuts persist per project, open a new browser page, and preserve edits on failure", { timeout: 90_000 }, async t => {
-  const browser=await openGoalBrowser(t,"migrated");if(!browser)return;
+  const browser=await openGoalBrowser(t,"seeded");if(!browser)return;
   const {command,sessionId,evaluate,waitFor,navigate,click,origin,projectId,reloadPage,store}=browser;
   const before=store.snapshot(DEMO_BOARD_ID);
   await command("Emulation.setDeviceMetricsOverride",{width:1024,height:768,deviceScaleFactor:1,mobile:false},sessionId);

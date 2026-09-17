@@ -30,7 +30,7 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
         const td = document.createElement("td"), number = document.createElement("span");
         number.textContent = new Intl.NumberFormat(locale).format(day.getDate());
         td.dataset.date = civilKey(day);
-        if (day.getMonth() !== month) td.className = "home-calendar-outside";
+        if (day.getMonth() !== month) td.className = "mw-calendar__outside home-calendar-outside";
         if (civilKey(day) === civilKey(now)) td.setAttribute("aria-current", "date");
         td.append(number); tr.append(td);
       }
@@ -61,28 +61,8 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
     home.querySelector("[data-home-weekday]").textContent = new Intl.DateTimeFormat(locale, { weekday: "long" }).format(now);
     renderCalendar(now);
   };
-  const quotes = [...home.querySelectorAll("[data-home-quote]")];
-  const pages = home.querySelector(".home-quote-pages");
-  const motion = matchMedia("(prefers-reduced-motion: reduce)");
-  let index = 0, fading = false;
   const homeShown = () => !document.hidden && document.body.dataset.desktopSurface === "home" && !home.hidden;
-  const quoteHeld = () => {
-    const region = home.querySelector(".home-reflection");
-    return !!(region && (region.matches(":hover") || region.contains(document.activeElement)));
-  };
-  const rotate = () => {
-    if (fading || !homeShown() || quoteHeld()) return;
-    const change = () => {
-        quotes[index].setAttribute("aria-hidden", "true"); quotes[index].inert = true;
-        index = (index + 1) % quotes.length;
-        quotes[index].setAttribute("aria-hidden", "false"); quotes[index].inert = false;
-      pages.classList.remove("is-changing"); fading = false;
-    };
-    if (motion.matches) { change(); return; }
-    fading = true; pages.classList.add("is-changing"); setTimeout(change, 160);
-  };
   sync();
-  setInterval(rotate, 8000);
   setInterval(() => { if (homeShown()) sync(); }, 30000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) sync(); });
   return { sync };

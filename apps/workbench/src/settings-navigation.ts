@@ -1,9 +1,9 @@
 export interface WebProjectNavigation {
   project_id: string;
   display_name: string;
-  data_class?: "user" | "migrated_user" | "regenerable_demo";
+  data_class?: "user" | "regenerable_demo";
   database_path?: string;
-  source?: "created" | "migrated";
+  source?: "created";
 }
 
 
@@ -15,7 +15,7 @@ type ProjectSettingsNavigationActive = "general" | "guidance" | "rules" | "plann
 export interface SettingsNavigationPrimitives {
   L(text: string): string;
   escapeHtml(value: unknown): string;
-  icon(name: "database" | "chevron-down" | "check" | "settings" | "panel" | "bell" | "search" | "arrow" | "user" | "system" | "workflow" | "tree" | "activity" | "book" | "shield"): string;
+  icon(name: "database" | "chevron-down" | "check" | "settings" | "panel" | "bell" | "search" | "arrow" | "user" | "system" | "workflow" | "tree" | "activity" | "bug" | "book" | "shield" | "sun" | "terminal" | "tune"): string;
   withDesktopQuery(path: string): string;
 }
 export function createWorkbenchSettingsNavigation(primitives: SettingsNavigationPrimitives) {
@@ -59,13 +59,13 @@ function renderDesktopProjectChrome(
 ): string {
   const dragAttribute = desktopShell ? " data-tauri-drag-region" : "";
   const directoryToggle = options.directoryToggle
-    ? `<button class="navigator-directory-toggle" type="button" data-directory-toggle aria-expanded="true" aria-label="${L("收起目录")}" title="${L("收起目录")}">${icon("panel")}</button><button class="immersive-icon-button immersive-show-directory" type="button" data-directory-show aria-label="${L("展开目录")}" title="${L("展开目录")}">${icon("panel")}</button>`
+    ? `<button class="mw-btn mw-btn--ghost mw-btn--icon-only navigator-directory-toggle" type="button" data-directory-toggle aria-expanded="true" aria-label="${L("收起目录")}" title="${L("收起目录")}">${icon("panel")}</button><button class="mw-btn mw-btn--ghost mw-btn--icon-only immersive-icon-button immersive-show-directory" type="button" data-directory-show aria-label="${L("展开目录")}" title="${L("展开目录")}">${icon("panel")}</button>`
     : "";
   const search = options.globalSearch
-    ? `<button class="navigator-project-search" type="button" data-global-search-open aria-label="${L("打开搜索")}" title="${L("打开搜索")}">${icon("search")}</button>`
+    ? `<button class="mw-btn mw-btn--ghost mw-btn--icon-only navigator-project-search" type="button" data-global-search-open aria-label="${L("打开搜索")}" title="${L("打开搜索")}">${icon("search")}</button>`
     : "";
   const settings = settingsHref
-    ? `<a class="navigator-project-settings" href="${settingsHref}"${options.settingsCurrent ? ' aria-current="page"' : ""} aria-label="${options.settingsCurrent ? L("当前项目设置") : L("打开当前项目设置")}" title="${L("项目设置")}">${icon("settings")}</a>`
+    ? `<a class="navigator-project-settings" href="${settingsHref}" data-directory-open="project-settings"${options.settingsCurrent ? ' aria-current="page"' : ""} aria-label="${options.settingsCurrent ? L("当前项目设置") : L("打开当前项目设置")}" title="${L("项目设置")}">${icon("settings")}</a>`
     : "";
   return `<div class="navigator-project-primary">${renderProjectSwitcher(currentProject, projects, desktopShell, options.switcherClass, options.manageHref)}<div class="desktop-titlebar-drag desktop-titlebar-drag--left"${dragAttribute} aria-hidden="true"></div>${search}${settings}${directoryToggle}</div>`;
 }
@@ -83,12 +83,12 @@ function renderSettingsNavigation(
     <a class="settings-nav-back" href="${href(projectHome)}">${icon("arrow")} ${L("返回项目")}</a>
     <div class="settings-nav-body">
       <div class="settings-nav-group-label">${L("本机")}</div>
-      <a href="${href("/settings/appearance")}"${current("appearance")}>${L("外观")}</a>
+      <a href="${href("/settings/appearance")}"${current("appearance")}>${icon("sun")}${L("外观")}</a>
       <div class="settings-nav-group-label">${L("工具")}</div>
-      <a href="${href("/settings/runtimes")}"${current("runtimes")}>${L("AI 与执行工具")}</a>
-      <a href="${href("/settings/planning")}"${current("planning")}>${L("规划方法")}</a>
+      <a href="${href("/settings/runtimes")}"${current("runtimes")}>${icon("terminal")}${L("AI 与执行工具")}</a>
+      <a href="${href("/settings/planning")}"${current("planning")}>${icon("workflow")}${L("规划方法")}</a>
       <div class="settings-nav-group-label">${L("系统")}</div>
-      <a href="${href("/settings/diagnostics")}"${current("diagnostics")}>${L("诊断")}</a>
+      <a href="${href("/settings/diagnostics")}"${current("diagnostics")}>${icon("bug")}${L("诊断")}</a>
     </div>
   </nav>`;
 }
@@ -106,10 +106,10 @@ function renderProjectSettingsNavigation(
     <a class="settings-nav-back" href="${href(`${routePrefix}/`)}">${icon("arrow")} ${L("返回工作台")}</a>
     <div class="settings-project-identity"><strong title="${escapeHtml(project.display_name)}">${escapeHtml(project.display_name)}</strong><span>${L("项目设置")}</span></div>
     <div class="settings-nav-body">
-      <a href="${href(`${routePrefix}/settings`)}"${current("general")}>${L("常规")}</a>
-      <a href="${href(`${routePrefix}/settings/guidance`)}"${current("guidance")}>${L("项目说明")}</a>
-      <a href="${href(`${routePrefix}/settings/rules`)}"${current("rules")}>${L("工作规则")}</a>
-      <a href="${href(`${routePrefix}/settings/planning`)}"${current("planning")}>${L("工作规划")}</a>
+      <a href="${href(`${routePrefix}/settings`)}"${current("general")}>${icon("tune")}${L("常规")}</a>
+      <a href="${href(`${routePrefix}/settings/guidance`)}"${current("guidance")}>${icon("book")}${L("项目说明")}</a>
+      <a href="${href(`${routePrefix}/settings/rules`)}"${current("rules")}>${icon("shield")}${L("工作规则")}</a>
+      <a href="${href(`${routePrefix}/settings/planning`)}"${current("planning")}>${icon("workflow")}${L("工作规划")}</a>
     </div>
   </nav>`;
 }

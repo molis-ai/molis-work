@@ -229,28 +229,39 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
         tabWorkspace?.openPlugin("goals");
       },
     });
-    tabWorkspace = (${TAB_WORKSPACE_FACTORY_SCRIPT})({
-      setFeedTask, setFeedAddOpen,
-      showGoalFrame: (id) => frameContainer?.showGoalFrame(id),
-      translate: L,
-      getSurface: () => activeDesktopSurface,
-      setWorkSurface: (...args) => setDesktopWorkSurface(...args),
-      setDirectory: (...args) => setDesktopDirectory(...args),
-      setWorkspaceMode: (...args) => setWorkspaceMode(...args),
-      setMobileView: (...args) => setMobileView(...args),
-      applySelection: (goalId) => applySelection(goalId, false),
-      loadGoalDocument: (goalId) => loadGoalDocument(goalId),
-      getDocumentGoalId: () => documentPane.querySelector("[data-goal-view]")?.dataset.goalView,
-      locateGraphNode: (id) => locateGraphNode(id),
-      selectFeedItem: (...args) => selectFeedItem(...args),
-      selectInboxEntry: (...args) => selectInboxEntry(...args),
-      getProjectId: () => state.project?.project_id || state.snapshot.board.board_id,
-      visibleGoals: () => visibleGoals(),
-      showCanvas: () => frameContainer?.showCanvas(),
-      restoreBoard: () => frameContainer?.restoreBoard(),
-      releaseFrame: () => frameContainer?.releaseFrame(),
-      isFrameTabActive: () => frameContainer?.isFrameTabActive() === true,
-    });
-
+    try {
+      tabWorkspace = (${TAB_WORKSPACE_FACTORY_SCRIPT})({
+        setFeedTask, setFeedAddOpen,
+        showGoalFrame: (id) => frameContainer?.showGoalFrame(id),
+        translate: L,
+        getSurface: () => activeDesktopSurface,
+        setWorkSurface: (...args) => setDesktopWorkSurface(...args),
+        setDirectory: (...args) => setDesktopDirectory(...args),
+        setWorkspaceMode: (...args) => setWorkspaceMode(...args),
+        setMobileView: (...args) => setMobileView(...args),
+        applySelection: (goalId) => applySelection(goalId, false),
+        loadGoalDocument: (goalId) => loadGoalDocument(goalId),
+        getDocumentGoalId: () => documentPane.querySelector("[data-goal-view]")?.dataset.goalView,
+        locateGraphNode: (id) => locateGraphNode(id),
+        selectFeedItem: (...args) => selectFeedItem(...args),
+        selectInboxEntry: (...args) => selectInboxEntry(...args),
+        getProjectId: () => state.project?.project_id || state.snapshot.board.board_id,
+        visibleGoals: () => visibleGoals(),
+        showCanvas: () => frameContainer?.showCanvas(),
+        restoreBoard: () => frameContainer?.restoreBoard(),
+        releaseFrame: () => frameContainer?.releaseFrame(),
+        isFrameTabActive: () => frameContainer?.isFrameTabActive() === true,
+      });
+    } catch (error) {
+      console.warn("Molis Work tab workspace failed to start", error);
+    }
+    document.addEventListener("click", (event) => {
+      if (frameContainer?.isFrameTabActive()) return;
+      const target = event.target instanceof Element ? event.target : event.target?.parentElement;
+      const select = target?.closest("[data-operation-select]");
+      const directory = select?.closest("[data-operation-directory]");
+      if (!select || !directory) return;
+      openDirectorySurface(directory.dataset.operationDirectory, select.dataset.operationSelect, select.getAttribute("data-frame-asset-title"), event);
+    }, true);
 
 `;

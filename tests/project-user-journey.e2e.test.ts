@@ -19,7 +19,7 @@ for (const [width,height] of [[1440,900],[390,640]]) {
     const plugin=async(id:string)=>{await directory();await click(`[data-plugin-id=${id}]`);};
     const fill=async(selector:string,text:string)=>{await click(selector);await command('Input.insertText',{text},sessionId);};
     const capture=async(name:string)=>{const dir='.impeccable/review/journeys-v13';await mkdir(dir,{recursive:true});const shot=await command<{data:string}>('Page.captureScreenshot',{format:'png'},sessionId);await writeFile(`${dir}/${name}-${width}.png`,Buffer.from(shot.data,'base64'));};
-    await plugin('goals');await directory();await click('[data-open-create]');
+    await plugin('goals');await click('[data-open-create]');
     await fill('[data-create-form] [name=title]','完成跨页面工作流验收');
     await fill('[data-create-form] [name=outcome]','创建、记录、阅读与处理可以顺畅连续完成');
     await navigate(()=>click('[data-create-form] button[type=submit]'));

@@ -35,7 +35,7 @@ export const NATIVE_DESKTOP_BOOTSTRAP_SCRIPT = `(()=>{
 })();`;
 
 export function isDesktopShellRequest(request: IncomingMessage, url: URL): boolean {
-  const header = request.headers["x-molis-work-desktop"] ?? request.headers["x-goalboard-desktop"];
+  const header = request.headers["x-molis-work-desktop"];
   if (header === "1" || (Array.isArray(header) && header.includes("1"))) return true;
   return url.searchParams.get("desktop") === "1";
 }

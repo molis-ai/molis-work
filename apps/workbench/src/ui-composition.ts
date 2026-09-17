@@ -37,6 +37,13 @@ import {
   type InboxUiSurface,
 } from "@molis-ai/molis-work-plugin-inbox";
 
+import {
+  SHELF_UI_CONTRIBUTION_ID,
+  shelfUiContribution,
+  type ShelfUiModel,
+  type ShelfUiSurface,
+} from "@molis-ai/molis-work-plugin-shelf";
+
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 
 import { goalsPolicyUiContribution, goalsSafetyUiContribution, goalsRelationUiContribution } from "@molis-ai/molis-work-plugin-goals";
@@ -93,6 +100,11 @@ export const WORKBENCH_UI_SLOTS = {
 
 
 const INBOX_SURFACE_SLOTS: Readonly<Record<InboxUiSurface, UiSlotDescriptor>> = {
+  directory: WORKBENCH_UI_SLOTS.directory,
+  workbench: WORKBENCH_UI_SLOTS.main,
+};
+
+const SHELF_SURFACE_SLOTS: Readonly<Record<ShelfUiSurface, UiSlotDescriptor>> = {
   directory: WORKBENCH_UI_SLOTS.directory,
   workbench: WORKBENCH_UI_SLOTS.main,
 };
@@ -163,6 +175,7 @@ export function createWorkbenchUiHost(): UiHost {
   const host = new UiHost();
   host.register(feedUiContribution);
   host.register(inboxUiContribution);
+  host.register(shelfUiContribution);
   host.register(workUiContribution);
   host.register(workTerminalUiContribution);
   host.register(artifactReferenceUiContribution);
@@ -256,6 +269,20 @@ export function renderInboxContribution(
     slot: INBOX_SURFACE_SLOTS[surface],
     contribution: {
       contribution_id: INBOX_UI_CONTRIBUTION_ID,
+      surface,
+      model,
+    },
+  }).html;
+}
+
+export function renderShelfContribution(
+  surface: ShelfUiSurface,
+  model: ShelfUiModel,
+): string {
+  return workbenchUiHost.mount({
+    slot: SHELF_SURFACE_SLOTS[surface],
+    contribution: {
+      contribution_id: SHELF_UI_CONTRIBUTION_ID,
       surface,
       model,
     },

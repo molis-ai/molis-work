@@ -511,10 +511,7 @@ test("Runtime host keeps Session identity independent from the canonical workspa
     GOALBOARD_WEB_URL: "http://127.0.0.1:4173",
     CODEX_THREAD_ID: "legacy-thread",
   }, "/workspace/legacy");
-  assert.equal(legacyEnv?.homeDirectory, "/tmp/legacy-home");
-  assert.equal(legacyEnv?.webBaseUrl, "http://127.0.0.1:4173");
-  assert.equal(legacyEnv?.runtimeContext.runtime_id, "codex");
-  assert.equal(legacyEnv?.runtimeContext.stable_work_context_id, "legacy-thread");
+  assert.equal(legacyEnv, null);
 
   const nextEnvWins = runtimeContextHostFromEnvironment({
     MOLIS_WORK_RUNTIME_ID: "claude-code",

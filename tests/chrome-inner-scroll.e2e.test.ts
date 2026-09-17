@@ -29,7 +29,7 @@ const scrollProbe = (chromeSelector: string, scrollerSelector: string) => `(() =
 })()`;
 
 test("Window chrome stays put while project index, settings, Feed, Sessions and Goals scroll inside their containers", { timeout: 90_000 }, async t => {
-  const browser = await openGoalBrowser(t, "migrated");
+  const browser = await openGoalBrowser(t, "seeded");
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
@@ -77,7 +77,7 @@ test("Window chrome stays put while project index, settings, Feed, Sessions and 
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/?desktop=1" }, sessionId));
   await waitFor("document.body.classList.contains('immersive-workbench') && document.body.dataset.desktopSurface === 'home'");
   assert.equal(await evaluate("document.querySelector('[data-directory-list-title]')"), null);
-  assert.equal(await evaluate("document.querySelector('[data-plugin-section=goals]')?.dataset.pluginExpanded"), "true");
+  assert.equal(await evaluate("document.querySelector('[data-plugin-section=goals]')"), null);
   await expectContained(".immersive-titlebar", "[data-work-surface=home]");
   await expectContained("[data-workspace-chrome]", "[data-work-surface=home]");
   await expectContained(".plugin-rail", "[data-work-surface=home]");
@@ -98,10 +98,10 @@ test("Window chrome stays put while project index, settings, Feed, Sessions and 
   await expectContained(".plugin-rail", ".directory-content-scroll");
 
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
-  await waitFor("document.querySelector('[data-directory-panel=goals]:not([hidden])') && document.querySelector('[data-tree-scroll]')");
-  await expectContained(".immersive-titlebar", ".directory-content-scroll");
-  await expectContained("[data-workspace-chrome]", ".directory-content-scroll");
-  await expectContained(".plugin-rail", ".directory-content-scroll");
+  await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('[data-goal-stage-list]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
+  await expectContained(".immersive-titlebar", "[data-goal-stage-list]");
+  await expectContained("[data-workspace-chrome]", "[data-goal-stage-list]");
+  await expectContained(".plugin-rail", "[data-goal-stage-list]");
 
   await click('[data-work-surface-open="market"]');
   await waitFor("document.querySelector('[data-work-surface=market]:not([hidden])')");

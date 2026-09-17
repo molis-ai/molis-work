@@ -36,6 +36,7 @@ export const GOALS_TREE_EN: Record<string, string> = {
   "返回 Goal Tree": "Return to Goal Tree",
   "查看已归档 Goal": "View archived Goals",
   "新建 Goal": "New Goal",
+  "创建人": "Creator",
   "当前": "Current",
   "还没有 Goal": "No Goals yet",
   "没有已归档的 Goal": "No archived Goals",

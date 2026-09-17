@@ -107,12 +107,12 @@ test("moving a Feed tab and merging panes preserves its unfinished source form",
 test("opening a related Goal inside a pane leaves the original Goal tab intact", { timeout: 90_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
-  const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId } = browser;
+  const { evaluate, waitFor, click, openGoalFrame, command, sessionId, navigate, origin, projectId } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");
   await click('[data-plugin-id="goals"]');
-  await click('.tree-node[data-select-goal="CORE"]');
+  await openGoalFrame('.tree-node[data-select-goal="CORE"]');
   await click('[data-frame-goal-work]');
   await waitFor("document.querySelector('[data-goal-view]')?.dataset.goalView==='CORE'");
   await click('[data-titlebar-tabs] [data-tab-split]');

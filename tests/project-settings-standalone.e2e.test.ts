@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
-test("settings serve complete category pages and restore workspace tabs and splits after navigation", { timeout: 60_000 }, async t => {
+test("settings serve complete category pages; the project gear opens them in the workbench stage", { timeout: 60_000 }, async t => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { origin, projectId, command, sessionId, evaluate, navigate, click, waitFor, reloadPage } = browser;
@@ -22,37 +22,139 @@ test("settings serve complete category pages and restore workspace tabs and spli
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + prefix + "/" }, sessionId));
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
-  await click('.tree-node[data-select-goal="CORE"]');
+  await browser.openGoalFrame('.tree-node[data-select-goal="CORE"]');
   await waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal === 'CORE'");
   await evaluate("document.querySelector('[data-tab-edge=right]').click()");
   await waitFor("document.querySelectorAll('[data-tab-pane]').length === 2");
   const storageKey = "molis-work-tab-workspace:" + projectId;
   const readState = `JSON.parse(localStorage.getItem(${JSON.stringify(storageKey)}))`;
   const before = await evaluate(readState);
-  // A normal category page must remain usable even if every old embed request is blocked.
-  await command("Network.enable", {}, sessionId);
-  await command("Network.setBlockedURLs", { urls: ["*embed=1*"] }, sessionId);
-  await navigate(() => click(".navigator-project-settings"));
-  await waitFor("!!document.querySelector('[data-project-rename]')");
-  for (const category of ["guidance", "rules", "planning"]) {
-    await navigate(() => click(`.settings-nav-body a[href$="/${category}"]`));
-    assert.equal(await evaluate("document.body.dataset.settingsSection"), category);
-    assert.equal(await evaluate("document.querySelectorAll('[data-tab-workspace], [data-plugin-strip]').length"), 0);
-    await reloadPage();
-    assert.equal(await evaluate("document.body.dataset.settingsSection"), category);
+  await click(".navigator-project-settings");
+  await waitFor("document.querySelector('#goal-tree-pane')?.dataset.desktopDirectory==='project-settings' && document.querySelector('[data-tab-workspace]')?.dataset.exclusive==='project-settings' && !!document.querySelector('[data-work-surface=project-settings] [data-project-rename]') && !document.body.dataset.navigationPending");
+  assert.equal(await evaluate("document.querySelector('.navigator-project-settings').hasAttribute('aria-busy')"), false);
+  assert.equal(await evaluate("location.pathname.includes('/settings')"), false);
+  assert.equal(await evaluate("document.body.classList.contains('settings-page')"), false);
+  assert.equal(await evaluate("!!document.querySelector('[data-plugin-strip]')"), true);
+  assert.equal(await evaluate("document.querySelector('.navigator-project-settings').getAttribute('aria-current')"), "page");
+  assert.equal(await evaluate("!!document.querySelector('[data-directory-panel=project-settings] [data-project-rename]')"), false);
+  const rhythm = await evaluate<{
+    titleSize: number;
+    cardRadius: string;
+    rowPadding: number;
+    navHeight: number;
+    navBar: string;
+    hasIcon: boolean;
+    controlRight: boolean;
+    iconLabelGap: number;
+    labelFromStart: number;
+  }>(`(() => {
+    const title = document.querySelector('[data-work-surface=project-settings] h1');
+    const card = document.querySelector('[data-work-surface=project-settings] .settings-section');
+    const row = document.querySelector('[data-work-surface=project-settings] .settings-setting-row');
+    const copy = row?.querySelector('.setting-copy');
+    const value = row?.querySelector('.setting-value');
+    const nav = document.querySelector('[data-directory-panel=project-settings] [data-settings-section="general"]');
+    const icon = nav?.querySelector('.mw-dir-row__icon');
+    const label = nav?.querySelector('.mw-dir-row__copy');
+    const cs = getComputedStyle(title);
+    const cardCs = getComputedStyle(card);
+    const rowCs = getComputedStyle(row);
+    const before = getComputedStyle(nav, '::before');
+    const iconBox = icon.getBoundingClientRect();
+    const labelBox = label.getBoundingClientRect();
+    const navBox = nav.getBoundingClientRect();
+    return {
+      titleSize: parseFloat(cs.fontSize),
+      cardRadius: cardCs.borderTopLeftRadius,
+      rowPadding: parseFloat(rowCs.paddingTop),
+      navHeight: navBox.height,
+      navBar: before.display === 'none' || before.content === 'none' || before.width === '0px' ? 'none' : before.width,
+      hasIcon: !!icon,
+      controlRight: value.getBoundingClientRect().x > copy.getBoundingClientRect().x,
+      iconLabelGap: labelBox.x - iconBox.right,
+      labelFromStart: labelBox.x - navBox.x,
+    };
+  })()`);
+  assert.ok(rhythm.titleSize >= 26 && rhythm.titleSize <= 30, "settings title stays near 28px, got " + rhythm.titleSize);
+  assert.equal(rhythm.cardRadius, "12px");
+  assert.ok(rhythm.rowPadding >= 9 && rhythm.rowPadding <= 12, "setting rows stay compact like Codex, got " + rhythm.rowPadding);
+  assert.ok(rhythm.navHeight >= 34 && rhythm.navHeight <= 40, "category rows stay near 36px, got " + rhythm.navHeight);
+  assert.equal(rhythm.navBar, "none");
+  assert.equal(rhythm.hasIcon, true);
+  assert.equal(rhythm.controlRight, true);
+  assert.ok(rhythm.iconLabelGap >= 0 && rhythm.iconLabelGap <= 16, "category label sits next to its icon, gap " + rhythm.iconLabelGap);
+  assert.ok(rhythm.labelFromStart < 48, "category label stays on the left, inset " + rhythm.labelFromStart);
+  const columnAlignment = async (paneSelector: string, docSelector: string) => evaluate<{ offset: number; width: number; pane: number }>(`(() => {
+    const pane = document.querySelector(${JSON.stringify(paneSelector)});
+    const doc = pane?.querySelector(${JSON.stringify(docSelector)});
+    const p = pane.getBoundingClientRect();
+    const d = doc.getBoundingClientRect();
+    return { offset: (d.left + d.width / 2) - (p.left + p.width / 2), width: d.width, pane: p.width };
+  })()`);
+  const workbenchColumn = await columnAlignment("[data-work-surface=project-settings] .settings-content", ".project-settings-page, .settings-document");
+  assert.ok(workbenchColumn.pane > 900, "desktop settings pane is wide enough to show centering, got " + workbenchColumn.pane);
+  assert.ok(workbenchColumn.width <= 762, "settings column stays at most 760px, got " + workbenchColumn.width);
+  assert.ok(Math.abs(workbenchColumn.offset) <= 24, "workbench settings column is centered, offset " + workbenchColumn.offset);
+  for (const [category, selector] of [["guidance", "[data-guidance-form]"], ["rules", "[data-policy-form]"], ["planning", "[data-planning-search]"]]) {
+    await click(`[data-directory-panel=project-settings] [data-settings-section="${category}"]`);
+    await waitFor(`!!document.querySelector('[data-work-surface=project-settings] ${selector}')`);
+    assert.equal(await evaluate("location.pathname.includes('/settings')"), false);
+    assert.equal(await evaluate("document.body.classList.contains('settings-page')"), false);
+    assert.equal(await evaluate(`!!document.querySelector('[data-directory-panel=project-settings] ${selector}')`), false);
   }
-  await navigate(() => evaluate("history.back()"));
-  assert.equal(await evaluate("document.body.dataset.settingsSection"), "rules");
-  await navigate(() => evaluate("history.forward()"));
-  assert.equal(await evaluate("document.body.dataset.settingsSection"), "planning");
-  await navigate(() => click(".settings-nav-back"));
-  await waitFor("document.querySelectorAll('[data-tab-pane]').length === 2");
-  assert.deepEqual(await evaluate(readState), before);
-  // Old builds persisted settings as an exclusive workspace surface. The new build clears only that flag.
-  await evaluate(`(() => { const state=${readState}; state.exclusive='project-settings'; localStorage.setItem(${JSON.stringify(storageKey)},JSON.stringify(state)); })()`);
+  await click('[data-plugin-strip] [data-plugin-id="goals"]');
+  await waitFor("document.querySelector('#goal-tree-pane')?.dataset.desktopDirectory==='root' && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty') && !document.querySelector('[data-tab-workspace]').dataset.exclusive");
+  assert.equal(await evaluate("document.querySelectorAll('[data-tab-pane]').length"), 2);
+  assert.equal(await evaluate("document.querySelector('.navigator-project-settings').hasAttribute('aria-current')"), false);
+  const afterLeave = await evaluate(readState);
+  assert.equal(afterLeave?.panes?.length, before?.panes?.length);
+  assert.equal(afterLeave?.exclusive, null);
+  await click(".navigator-project-settings");
+  await waitFor("document.querySelector('[data-tab-workspace]')?.dataset.exclusive==='project-settings' && !!document.querySelector('[data-work-surface=project-settings] [data-project-rename]') && !document.body.dataset.navigationPending");
   await reloadPage();
-  await waitFor("document.querySelectorAll('[data-tab-pane]').length === 2 && !document.querySelector('[data-tab-workspace]').dataset.exclusive");
-  assert.deepEqual(await evaluate(readState), before);
+  await waitFor("document.querySelector('#goal-tree-pane')?.dataset.desktopDirectory==='project-settings' && document.querySelector('[data-tab-workspace]')?.dataset.exclusive==='project-settings' && !!document.querySelector('[data-work-surface=project-settings] [data-project-rename]')");
+  assert.equal(await evaluate("document.querySelectorAll('[data-tab-pane]').length"), 2);
+  await navigate(() => command("Page.navigate", { url: origin + prefix + "/settings/general" }, sessionId));
+  await waitFor("!!document.querySelector('body.settings-page .settings-content .project-settings-page, body.settings-page .settings-content [data-project-rename]')");
+  const projectPage = await columnAlignment("body.settings-page .settings-content", ".project-settings-page, .settings-document");
+  assert.ok(projectPage.pane > 900, "independent project settings pane is wide enough to show centering, got " + projectPage.pane);
+  assert.ok(projectPage.width <= 762, "independent project settings column stays at most 760px, got " + projectPage.width);
+  assert.ok(Math.abs(projectPage.offset) <= 24, "independent project settings column is centered, offset " + projectPage.offset);
+  await navigate(() => command("Page.navigate", { url: origin + "/settings/appearance" }, sessionId));
+  await waitFor("!!document.querySelector('body.settings-page .settings-content .appearance-document, body.settings-page .settings-content [data-settings-panel=appearance]')");
+  const globalPage = await columnAlignment("body.settings-page .settings-content", ".settings-document, [data-settings-panel]");
+  assert.ok(globalPage.pane > 900, "global settings pane is wide enough to show centering, got " + globalPage.pane);
+  assert.ok(globalPage.width <= 762, "global settings column stays at most 760px, got " + globalPage.width);
+  assert.ok(Math.abs(globalPage.offset) <= 24, "global settings column is centered, offset " + globalPage.offset);
+});
+
+test("leaving planning puts the general heading back at the top of the settings pane", { timeout: 60_000 }, async t => {
+  const browser = await openGoalBrowser(t, true);
+  if (!browser) return;
+  const { origin, projectId, command, sessionId, evaluate, navigate, click, waitFor } = browser;
+  const prefix = `/projects/${projectId}`;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 700, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: origin + prefix + "/" }, sessionId));
+  await waitFor("Boolean(document.body.dataset.desktopSurface) && document.body.classList.contains('immersive-workbench')");
+  await click(".navigator-project-settings");
+  await waitFor("!document.body.classList.contains('settings-page') && document.querySelector('[data-tab-workspace]')?.dataset.exclusive==='project-settings' && !!document.querySelector('[data-work-surface=project-settings] [data-project-rename]')");
+  await click('[data-directory-panel=project-settings] [data-settings-section="planning"]');
+  await waitFor("!!document.querySelector('[data-work-surface=project-settings] [data-planning-search]')");
+  const planningScroll = await evaluate<number>(`(() => {
+    const pane = document.querySelector("[data-work-surface=project-settings] [data-settings-stage-body]");
+    pane.scrollTop = 8000;
+    pane.querySelectorAll(".settings-body").forEach((el) => { el.scrollTop = 8000; });
+    return pane.scrollTop;
+  })()`);
+  assert.ok(planningScroll > 0, "planning pane must be tall enough to keep a scroll offset, got " + planningScroll);
+  await click('[data-directory-panel=project-settings] [data-settings-section="general"]');
+  await waitFor(`(() => {
+    const pane = document.querySelector("[data-work-surface=project-settings] [data-settings-stage-body]");
+    const heading = pane?.querySelector("[data-settings-panel=general]:not([hidden]) h1");
+    if (!pane || !heading || pane.scrollTop !== 0) return false;
+    const pad = pane.getBoundingClientRect().top + parseFloat(getComputedStyle(pane).paddingTop);
+    return Math.abs(heading.getBoundingClientRect().top - pad) <= 8;
+  })()`);
 });
 
 test("project settings preserve edits on failed saves, record guidance versions, and combine planning search with filters", { timeout: 60_000 }, async t => {

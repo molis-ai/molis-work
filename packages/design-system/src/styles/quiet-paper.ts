@@ -49,7 +49,7 @@ export const QUIET_PAPER_STYLES = `  /* Quiet Paper visual replacement. Persiste
   .navigator-project-primary > strong {
     color: var(--ink);
     font-size: 13px;
-    font-weight: 680;
+    font-weight: 400;
   }
   body[data-desktop-shell="true"] .desktop-pane-header--navigator {
     min-height: 30px;
@@ -58,7 +58,7 @@ export const QUIET_PAPER_STYLES = `  /* Quiet Paper visual replacement. Persiste
   body[data-desktop-shell="true"] .desktop-pane-header--navigator strong {
     color: var(--faint);
     font-size: 10px;
-    font-weight: 650;
+    font-weight: 400;
     letter-spacing: .035em;
   }
   body[data-desktop-shell="true"] .tree-pane {
@@ -68,9 +68,9 @@ export const QUIET_PAPER_STYLES = `  /* Quiet Paper visual replacement. Persiste
   .tree-chrome { padding: 7px 10px 9px; }
   body[data-desktop-shell="true"] .tree-chrome { padding: 7px 12px 9px; }
   .tree-search input,
-  input:not([type="checkbox"]):not([type="radio"]),
-  textarea,
-  select {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(.mw-slider):not(.mw-input):not(.mw-textarea):not(.mw-select),
+  textarea:not(.mw-textarea),
+  select:not(.mw-select) {
     border-color: transparent;
     border-radius: var(--radius-control);
     background: color-mix(in srgb, var(--paper) 68%, var(--rail));
@@ -124,7 +124,7 @@ export const QUIET_PAPER_STYLES = `  /* Quiet Paper visual replacement. Persiste
     box-shadow: none;
   }
   .tree-node.is-selected .tree-copy small { color: var(--muted); }
-  .navigator-goal-row.is-selected .navigator-goal-leading { color: var(--blue-dark); }
+  .navigator-goal-row.is-selected .navigator-goal-leading { color: var(--ink); }
   .navigator-group { border-bottom-color: transparent; }
   .navigator-group + .navigator-group { margin-top: 3px; }
   .navigator-group > header { height: 36px; }
@@ -155,14 +155,12 @@ export const QUIET_PAPER_STYLES = `  /* Quiet Paper visual replacement. Persiste
     letter-spacing: -.032em;
   }
   .goal-title-outcome { max-width: 72ch; color: var(--muted); }
-  .document-action,
   .goal-more > summary {
     border-color: transparent;
     border-radius: var(--radius-control);
     background: transparent;
     color: var(--muted);
   }
-  .document-action:hover,
   .goal-more > summary:hover {
     border-color: transparent;
     color: var(--ink);
@@ -174,66 +172,27 @@ export const QUIET_PAPER_STYLES = `  /* Quiet Paper visual replacement. Persiste
   .goal-focus-context,
   .document-section { border-bottom-color: color-mix(in srgb, var(--line) 78%, transparent); }
   .goal-focus-outcome { padding-block: 25px 24px; }
-  .goal-focus-outcome > span { color: var(--blue-dark); }
+  .goal-focus-outcome > span { color: var(--ink-soft); }
   .goal-focus-outcome p { max-width: 72ch; color: var(--ink); }
   .goal-now { padding-block: 23px; }
-  .button-primary,
-  .goal-primary-action,
-  .planning-primary-action,
-  .project-index-create,
-  .project-index-start a:first-child,
-  .project-migration-submit,
-  .runtime-plan-apply,
-  .tui-chrome .tui-advance:not(:disabled),
-  .tui-menu-actions button[type="submit"],
-  .human-review-jump,
-  .guidance-primary-action,
-  .planning-edit-footer button[type="submit"],
-  body[data-desktop-shell="true"] .source-now button:not(:disabled),
-  body[data-desktop-shell="true"] .source-mobile-add {
+  .mw-btn--primary {
     border-color: var(--action) !important;
     border-radius: var(--radius-control) !important;
     background: var(--action) !important;
     color: var(--action-ink) !important;
     box-shadow: none !important;
   }
-  .button-primary:hover,
-  .goal-primary-action:hover,
-  .planning-primary-action:hover,
-  .project-index-create:hover,
-  .project-index-start a:first-child:hover,
-  .project-migration-submit:hover,
-  .runtime-plan-apply:hover,
-  .tui-chrome .tui-advance:hover:not(:disabled),
-  .tui-menu-actions button[type="submit"]:hover,
-  .human-review-jump:hover,
-  .guidance-primary-action:hover,
-  .planning-edit-footer button[type="submit"]:hover,
-  body[data-desktop-shell="true"] .source-now button:hover:not(:disabled),
-  body[data-desktop-shell="true"] .source-mobile-add:hover {
+  .mw-btn--primary:hover:not(:disabled) {
     background: color-mix(in srgb, var(--action) 90%, var(--action-ink)) !important;
     color: var(--action-ink) !important;
     opacity: 1;
   }
-  .button-primary:disabled,
-  .goal-primary-action:disabled,
-  .project-migration-submit:disabled,
-  .runtime-plan-apply:disabled,
-  .tui-chrome .tui-advance:disabled,
-  .guidance-primary-action:disabled,
-  .planning-edit-footer button[type="submit"]:disabled,
-  body[data-desktop-shell="true"] .source-now button:disabled {
-    border-color: var(--line) !important;
-    background: var(--rail) !important;
-    color: var(--faint) !important;
-    opacity: 1 !important;
-  }
-  .button-danger {
+  .mw-btn--danger {
     border-color: var(--danger-action) !important;
     background: var(--danger-action) !important;
     color: var(--danger-action-ink) !important;
   }
-  .button-danger:hover {
+  .mw-btn--danger:hover {
     background: color-mix(in srgb, var(--danger-action) 90%, var(--danger-action-ink)) !important;
     color: var(--danger-action-ink) !important;
   }
@@ -250,8 +209,7 @@ export const QUIET_PAPER_STYLES = `  /* Quiet Paper visual replacement. Persiste
   .theme-menu,
   .tui-menu,
   .dialog-shell,
-  .runtime-plan-dialog,
-  .project-migration-dialog {
+  .runtime-plan-dialog {
     border-color: var(--line);
     border-radius: var(--radius-surface);
     background: var(--paper);
@@ -271,7 +229,7 @@ export const QUIET_PAPER_STYLES = `  /* Quiet Paper visual replacement. Persiste
     box-shadow: none;
   }
   .tui-mode-label { border-bottom-color: var(--ink-soft); }
-  .tui-terminal { border-color: #30322f; border-radius: 12px; }
+  .tui-terminal { border-color: var(--terminal-border); border-radius: 12px; }
 
   .settings-content { background: var(--page); }
   .settings-navigation {
@@ -313,24 +271,22 @@ export const QUIET_PAPER_STYLES = `  /* Quiet Paper visual replacement. Persiste
     color: var(--ink);
     background: color-mix(in srgb, var(--ink) 5%, var(--paper));
   }
-  .preference-option .preference-check { color: var(--blue-dark); }
-  .settings-record-action button,
-  .settings-button,
-  .settings-action-section button,
-  .settings-import-row button,
-  .project-record-tools form button,
-  .service-action-row button {
+  .preference-option .preference-check { color: var(--ink); }
+  .settings-record-action .mw-btn,
+  .settings-action-section .mw-btn,
+  .settings-import-row .mw-btn,
+  .project-record-tools form .mw-btn,
+  .service-action-row .mw-btn {
     border-color: var(--line-strong);
     border-radius: var(--radius-control);
     color: var(--ink-soft);
     background: var(--paper);
   }
-  .settings-record-action button:hover,
-  .settings-button:hover,
-  .settings-action-section button:hover,
-  .settings-import-row button:hover,
-  .project-record-tools form button:hover,
-  .service-action-row button:hover {
+  .settings-record-action .mw-btn:hover,
+  .settings-action-section .mw-btn:hover,
+  .settings-import-row .mw-btn:hover,
+  .project-record-tools form .mw-btn:hover,
+  .service-action-row .mw-btn:hover {
     border-color: var(--line-strong);
     color: var(--ink);
     background: color-mix(in srgb, var(--ink) 5%, var(--paper));
@@ -390,14 +346,12 @@ export const QUIET_PAPER_STYLES = `  /* Quiet Paper visual replacement. Persiste
     border-radius: var(--radius-control);
     background: var(--rail);
     color: var(--ink-soft);
-    font-weight: 520;
+    font-weight: 400;
   }
   .project-list a:hover { background: color-mix(in srgb, var(--ink) 5%, var(--paper)); }
   .project-list a:hover svg { color: var(--ink); }
-  .project-index-migration,
   .project-index-note { background: color-mix(in srgb, var(--paper) 42%, var(--rail)); }
-  .project-index-start a,
-  .project-index-migrate { border-radius: var(--radius-control); }
+  .project-index-start a { border-radius: var(--radius-control); }
   .project-index-start a:first-child {
     border-color: var(--action);
     color: var(--action-ink);

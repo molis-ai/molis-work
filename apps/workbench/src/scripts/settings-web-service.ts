@@ -9,7 +9,7 @@ export const WEB_SERVICE_SETTINGS_SCRIPT = `
       dialog = document.createElement("dialog");
       dialog.className = "runtime-plan-dialog";
       dialog.setAttribute("aria-labelledby", "web-service-plan-title");
-      dialog.innerHTML = '<div class="runtime-plan-shell"><header><div><h2 id="web-service-plan-title"></h2><p data-service-message></p></div></header><div class="runtime-plan-body"><ul class="runtime-change-list" data-service-changes></ul><p data-service-confirmation></p></div><footer><button type="button" data-service-cancel></button><button type="button" class="runtime-plan-apply" data-service-apply></button></footer></div>';
+      dialog.innerHTML = '<div class="runtime-plan-shell"><header><div><h2 id="web-service-plan-title"></h2><p data-service-message></p></div></header><div class="runtime-plan-body"><ul class="runtime-change-list" data-service-changes></ul><p data-service-confirmation></p></div><footer><button class="mw-btn mw-btn--secondary" type="button" data-service-cancel></button><button class="mw-btn mw-btn--primary runtime-plan-apply" type="button" data-service-apply></button></footer></div>';
       document.body.append(dialog);
       const cancel = dialog.querySelector("[data-service-cancel]");
       const apply = dialog.querySelector("[data-service-apply]");

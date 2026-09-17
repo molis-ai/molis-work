@@ -66,6 +66,10 @@
       "types": "./dist/modules/projects.d.ts",
       "import": "./dist/modules/projects.js"
     },
+    "./modules/shelf": {
+      "types": "./dist/modules/shelf.d.ts",
+      "import": "./dist/modules/shelf.js"
+    },
     "./modules/signals": {
       "types": "./dist/modules/signals.d.ts",
       "import": "./dist/modules/signals.js"

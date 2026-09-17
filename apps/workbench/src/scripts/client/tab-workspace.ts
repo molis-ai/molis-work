@@ -8,8 +8,8 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   const panesEl = document.querySelector("[data-tab-panes]");
   const pool = document.querySelector("[data-surface-pool]");
   if (!root || !panesEl || !pool) return { apply() {}, openPlugin() {}, openItem() {}, setExclusive() {}, restore() {}, isExclusive() { return false; } };
-  const PLUGIN_COLOR = { home: "var(--ink-soft)", goals: "light-dark(#3c6fc6, #8fb2f5)", feed: "light-dark(#9c5f1a, #dcab6d)", sessions: "light-dark(#7f5eb0, #c0a0ea)", inbox: "light-dark(#26785f, #86c9b1)", artifacts: "light-dark(#a15571, #e39eb6)" };
-  const GROUP_COLOR = { grey: "light-dark(#6b7080, #9ba1b0)", blue: "light-dark(#2f6fd0, #7fb0f5)", red: "light-dark(#c04c4c, #ef8b8b)", yellow: "light-dark(#a3761c, #e5b969)", green: "light-dark(#2b7d5c, #6cc397)", pink: "light-dark(#bf4d7c, #eb92b5)", purple: "light-dark(#7a5bc4, #b6a2f0)", cyan: "light-dark(#1d7a86, #6cc6d4)" };
+  const PLUGIN_COLOR = { home: "var(--plugin-home)", goals: "var(--plugin-goals)", feed: "var(--plugin-feed)", sessions: "var(--plugin-sessions)", inbox: "var(--plugin-inbox)", shelf: "var(--plugin-shelf)", artifacts: "var(--plugin-artifacts)" };
+  const GROUP_COLOR = { grey: "var(--hue-gray)", blue: "var(--hue-blue)", red: "var(--hue-red)", yellow: "var(--hue-yellow)", green: "var(--hue-green)", pink: "var(--hue-pink)", purple: "var(--hue-purple)", cyan: "var(--hue-cyan)" };
   const ops = (${createTabWorkspaceOps.toString()})();
   const storageKey = "molis-work-tab-workspace:" + (getProjectId() || "board");
   const paneParams = new URLSearchParams(location.search);
@@ -21,7 +21,11 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     document.addEventListener("focusin", () => notifyParent("workbench-pane-focus"));
     document.addEventListener("click", (event) => {
       const link = event.target.closest("a[href]");
-      if (link && new URL(link.href).pathname.includes("/settings")) { event.preventDefault(); parent.location.href = link.href; }
+      if (!link) return;
+      const path = new URL(link.href, location.origin).pathname;
+      if (!path.includes("/settings")) return;
+      event.preventDefault();
+      notifyParent("workbench-open-settings", { href: link.href });
     });
   }
   const narrow = () => matchMedia("(max-width: 760px)").matches;
@@ -35,13 +39,14 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       const tab = paneParams.has("paneItem") ? ops.openItem(state, plugin, paneParams.get("paneItem"), paneParams.get("paneTitle")) : ops.openPlugin(state, plugin);
       if (plugin === "goals" && paneParams.get("paneGoalView") === "work") tab.goalView = "work";
       pane.tabs = [tab];
+      pane.activeTabId = tab.id;
+      apply();
       return;
     }
     try {
       const stored = JSON.parse(localStorage.getItem(storageKey) || "null");
       if (stored?.panes?.length) {
         state = stored;
-        if (state.exclusive === "project-settings") state.exclusive = null;
         ops.ensureHome(state);
         persist();
       }
@@ -66,7 +71,11 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     ops.ensureHome(state);
   };
   const pluginSurface = (plugin) => plugin === "goals" ? "goal" : plugin === "home" ? "home" : plugin;
-  const directoryOf = (plugin) => plugin === "home" ? "root" : plugin === "goals" ? "goals" : plugin;
+  const directoryOf = (plugin) => {
+      if (plugin === "home" || plugin === "market") return "root";
+      const directory = plugin === "goals" ? "goals" : plugin;
+      return document.querySelector('[data-directory-panel="' + directory + '"]') ? directory : "root";
+    };
   const supportsGoalFrames = () => document.body.dataset.boardView === "current";
   const topLevelSurface = (plugin) => plugin === "goals"
     ? document.querySelector("[data-goal-canvas-shell]") || document.querySelector('[data-document-pane]')
@@ -107,7 +116,6 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
         return;
       }
       (restoreBoard || showCanvas)?.();
-      setWorkspaceMode("graph", false, true);
       return;
     }
     if (tab.plugin === "feed" && tab.feedTask) setFeedTask?.(tab.feedTask, false);
@@ -137,7 +145,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     if (tab.kind === "mother") return tab.plugin === "goals" ? L("画布") : ops.pluginTitle(tab.plugin);
     return tab.title;
   };
-  const tabIcon = (plugin) => ({home: "home", goals: "target", sessions: "terminal", feed: "activity", inbox: "input", artifacts: "file"}[plugin] || "frame");
+  const tabIcon = (plugin) => ({home: "home", goals: "target", sessions: "terminal", feed: "rss", inbox: "inbox", shelf: "library", artifacts: "package"}[plugin] || "frame");
   const iconMarkup = (plugin) => '<svg class="tab-item-icon" aria-hidden="true"><use href="#icon-' + tabIcon(plugin) + '"></use></svg>';
   const appendTab = (parent, pane, tab) => {
     const selected = tab.id === pane.activeTabId;
@@ -148,7 +156,6 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     if (tab.itemId) button.dataset.itemId = tab.itemId;
     button.dataset.tabKind = tab.kind;
     if (tab.pinned) button.dataset.pinned = "true";
-    if (tab.preview) button.dataset.preview = "true";
     button.style.setProperty("--plugin-color", PLUGIN_COLOR[tab.plugin] || "var(--muted)");
     button.draggable = true;
     button.title = tabLabel(tab);
@@ -158,7 +165,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     trigger.role = "tab";
     trigger.className = "tab-item-trigger";
     trigger.tabIndex = selected ? 0 : -1;
-    trigger.setAttribute("aria-label", tabLabel(tab) + (tab.preview ? " · " + L("预览") : ""));
+    trigger.setAttribute("aria-label", tabLabel(tab));
     trigger.setAttribute("aria-selected", String(selected));
     const name = document.createElement("span");
     name.textContent = tabLabel(tab);
@@ -176,6 +183,46 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     button.append(trigger);
     if (!tab.pinned) button.append(close);
     parent.append(button);
+  };
+  const scrollTabIntoStrip = (tab) => {
+    const scroller = tab?.closest("[data-tab-scroll]") || tab?.closest(".tab-strip")?.querySelector("[data-tab-scroll]");
+    if (!tab || !scroller) return;
+    const pad = scroller.querySelector("[data-tab-scroll-pad]");
+    if (pad) pad.style.width = "0px";
+    const railBox = () => scroller.getBoundingClientRect();
+    if (tab.getBoundingClientRect().width < 1 || railBox().width < 1) return;
+    const alignActive = () => {
+      const rail = railBox();
+      const box = tab.getBoundingClientRect();
+      if (box.left < rail.left) scroller.scrollLeft -= rail.left - box.left;
+      else if (box.right > rail.right) scroller.scrollLeft += box.right - rail.right;
+    };
+    alignActive();
+    for (let step = 0; step < 4; step += 1) {
+      const rail = railBox();
+      const hanging = [...scroller.querySelectorAll(".tab-item")].find((item) => {
+        const rect = item.getBoundingClientRect();
+        return rect.width > 1 && rect.left < rail.left - 1 && rect.right > rail.left + 1;
+      });
+      if (!hanging) return;
+      if (hanging === tab) {
+        scroller.scrollLeft -= rail.left - hanging.getBoundingClientRect().left;
+        return;
+      }
+      const hang = hanging.getBoundingClientRect();
+      const reveal = rail.left - hang.left;
+      if (tab.getBoundingClientRect().right + reveal <= rail.right + 1) scroller.scrollLeft -= reveal;
+      else {
+        const sliver = Math.max(1, hang.right - rail.left);
+        const before = scroller.scrollLeft;
+        scroller.scrollLeft += sliver;
+        if (pad && scroller.scrollLeft < before + sliver - 1) {
+          pad.style.width = (Number.parseFloat(pad.style.width) || 0) + sliver + "px";
+          scroller.scrollLeft += sliver;
+        }
+      }
+      alignActive();
+    }
   };
   const renderStrip = (pane, strip) => {
     if (!strip) return;
@@ -219,6 +266,10 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       appendTab(scrollArea, pane, tab);
       index += 1;
     }
+    const pad = document.createElement("span");
+    pad.dataset.tabScrollPad = "";
+    pad.setAttribute("aria-hidden", "true");
+    scrollArea.append(pad);
     if (!pane.tabs.length) {
       const empty = document.createElement("p");
       empty.className = "tab-pane-empty-hint";
@@ -239,20 +290,20 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       const split = document.createElement("button");
       split.type = "button"; split.className = "tab-split-button"; split.dataset.tabSplit = pane.id;
       split.title = L("布局与分屏"); split.setAttribute("aria-label", split.title);
-      split.innerHTML = '<svg aria-hidden="true"><use href="#icon-panel"></use></svg>';
+      split.innerHTML = '<svg aria-hidden="true"><use href="#icon-grid"></use></svg>';
       fragment.append(split);
     }
     strip.replaceChildren(fragment);
     scrollArea.scrollLeft = scrollLeft;
     if (previousActive !== pane.activeTabId) requestAnimationFrame(() => {
-      strip.querySelector('[data-tab-id][aria-current]')?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
+      scrollTabIntoStrip(strip.querySelector('[data-tab-id][aria-current]'));
     });
   };
   const titlebarStrip = document.querySelector("[data-titlebar-tabs]");
   if (titlebarStrip) new ResizeObserver(() => {
     requestAnimationFrame(() => {
       document.querySelectorAll('.tab-strip:not([hidden]) [data-tab-id][aria-current]').forEach((tab) => {
-        if (tab.getClientRects().length) tab.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
+        if (tab.getClientRects().length) scrollTabIntoStrip(tab);
       });
     });
   }).observe(titlebarStrip);
@@ -375,11 +426,24 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       if (titlebarStrip) titlebarStrip.hidden = true;
       const node = [...document.querySelectorAll('[data-work-surface="' + state.exclusive + '"]')]
         .find((candidate) => !candidate.closest("[data-goal-canvas-shell]"));
-      if (exclusiveEl && node) {
+      if (exclusiveEl) {
         exclusiveEl.hidden = false;
-        exclusiveEl.append(node);
-        node.hidden = false;
+        [...exclusiveEl.children].forEach((child) => { if (child !== node) pool.append(child); });
+        if (node) {
+          exclusiveEl.append(node);
+          node.hidden = false;
+        }
       }
+      ops.normalizeLayout(state);
+      root.toggleAttribute("data-split", state.panes.length > 1);
+      state.panes.forEach((pane) => {
+        if (panesEl.querySelector('[data-tab-pane="' + pane.id + '"]')) return;
+        const section = document.createElement("section");
+        section.className = "tab-pane";
+        section.dataset.tabPane = pane.id;
+        section.innerHTML = paneMarkup();
+        panesEl.append(section);
+      });
       setWorkSurface(state.exclusive, false, false);
       return;
     }
@@ -402,7 +466,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     if (focusedTab) {
       const surface = pluginSurface(focusedTab.plugin);
       if (getSurface() !== surface) setWorkSurface(surface, false, false);
-      if (document.querySelector("#goal-tree-pane")?.dataset.desktopDirectory !== "settings") {
+      if (!["settings", "project-settings"].includes(document.querySelector("#goal-tree-pane")?.dataset.desktopDirectory)) {
         setDirectory(directoryOf(focusedTab.plugin), false, false);
       }
       if (focusedTab.plugin === "feed") setFeedTask?.(focusedTab.feedTask || "all", false);
@@ -509,7 +573,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   const focusActiveTab = () => {
     const selected = (titlebarStrip && !titlebarStrip.hidden ? titlebarStrip : panesEl.querySelector('[data-tab-pane="' + state.focusedPaneId + '"] [data-tab-strip]'))?.querySelector('.tab-item-trigger[aria-selected="true"]');
     selected?.focus({ preventScroll: true });
-    selected?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
+    scrollTabIntoStrip(selected?.closest("[data-tab-id]"));
   };
   const handleStripKey = (paneId, event) => {
     if (!paneId || event.target.closest("[data-tab-close], [data-tab-group-toggle], [data-tab-pane-close]")) return;
@@ -537,18 +601,16 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       focusActiveTab();
     }
   };
-  const openPlugin = (plugin, mode = "commit") => {
+  const openPlugin = (plugin) => {
     if (embedded) { notifyParent("workbench-pane-open", { plugin }); return; }
     state.focusedPaneId = ops.focused(state).id;
-    ops.openPlugin(state, plugin, mode);
+    ops.openPlugin(state, plugin);
     apply();
     persist();
   };
-  const openItem = (plugin, itemId, title, goalView, mode = "commit") => {
+  const openItem = (plugin, itemId, title, goalView) => {
     if (embedded) { notifyParent("workbench-pane-open", { plugin, itemId, title: titleForItem(plugin, itemId, title), goalView }); return; }
-    const owner = plugin === "goals" && mode !== "preview" && state.panes.find((pane) => pane.tabs.some((tab) => tab.plugin === plugin && tab.itemId === itemId && !tab.preview));
-    if (owner) state.focusedPaneId = owner.id;
-    const tab = ops.openItem(state, plugin, itemId, titleForItem(plugin, itemId, title), mode);
+    const tab = ops.openItem(state, plugin, itemId, titleForItem(plugin, itemId, title));
     if (plugin === "goals" && goalView === "frame") {
       delete tab.goalView;
       panesEl.querySelector('iframe[data-pane-tab="' + tab.id + '"]')?.contentWindow?.postMessage({type:"workbench-goal-view", view:"frame"}, location.origin);
@@ -573,7 +635,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     persist();
   };
   const tabMenu = document.createElement("div");
-  tabMenu.className = "workspace-layout-menu workspace-tab-menu";
+  tabMenu.className = "workspace-layout-menu workspace-tab-menu mw-menu mw-menu--context";
   // Contextmenu fires on mouse-down on macOS; auto popovers dismiss on its mouse-up.
   tabMenu.setAttribute("popover", "manual"); tabMenu.setAttribute("role", "menu");
   tabMenu.dataset.workspaceTabMenu = ""; document.body.append(tabMenu);
@@ -602,14 +664,14 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     tabMenuAnchor = anchor; tabMenu.replaceChildren();
     tabMenu.setAttribute("aria-label", L(tabId ? "标签操作" : "打开标签"));
     const add = (label, icon, key, action) => {
-      const button = document.createElement("button"); button.type = "button"; button.setAttribute("role", "menuitem"); button.dataset.tabMenuAction = key;
+      const button = document.createElement("button"); button.type = "button"; button.className = "mw-menu__item"; button.setAttribute("role", "menuitem"); button.dataset.tabMenuAction = key;
       button.innerHTML = '<svg aria-hidden="true"><use href="#icon-' + icon + '"></use></svg><span></span>';
       button.querySelector("span").textContent = label;
       button.addEventListener("click", () => { tabMenu.hidePopover(); state.focusedPaneId = paneId; action(); apply(); persist(); focusActiveTab(); });
       tabMenu.append(button);
     };
     if (!tabId) {
-      ["home", "goals", "sessions", "feed", "inbox", "artifacts"].filter(plugin => plugin === "home" || document.querySelector('[data-plugin-strip] [data-plugin-id="' + plugin + '"]')).forEach(plugin => {
+      ["home", "goals", "sessions", "feed", "inbox", "shelf", "artifacts"].filter(plugin => plugin === "home" || document.querySelector('[data-plugin-strip] [data-plugin-id="' + plugin + '"]')).forEach(plugin => {
         add(L(ops.pluginTitle(plugin)), tabIcon(plugin), "open-" + plugin, () => ops.openPlugin(state, plugin));
       });
       if (tab) tabMenu.append(document.createElement("hr"));
@@ -617,7 +679,6 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     if (tab) {
       const heading = document.createElement("strong"); heading.textContent = tabLabel(tab); heading.title = tabLabel(tab); tabMenu.append(heading);
       add(L(tab.pinned ? "取消固定标签" : "固定标签"), "lock", "pin", () => ops.togglePinned(state, paneId, tab.id));
-      if (tab.preview) add(L("钉住预览"), "lock", "commit", () => ops.commitTab(state, paneId, tab.id));
       if (!tab.pinned) {
         add(L("添加到新分组"), "frame", "new-group", () => ops.addTabToNewGroup(state, paneId, tab.id));
         (pane.groups || []).filter((group) => group.id !== tab.groupId).forEach((group) => {
@@ -655,7 +716,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     });
     tabMenu.append(colors);
     const add = (label, icon, key, action) => {
-      const button = document.createElement("button"); button.type = "button"; button.setAttribute("role", "menuitem"); button.dataset.tabMenuAction = key;
+      const button = document.createElement("button"); button.type = "button"; button.className = "mw-menu__item"; button.setAttribute("role", "menuitem"); button.dataset.tabMenuAction = key;
       button.innerHTML = '<svg aria-hidden="true"><use href="#icon-' + icon + '"></use></svg><span></span>';
       button.querySelector("span").textContent = label;
       button.addEventListener("click", () => { tabMenu.hidePopover(); state.focusedPaneId = paneId; action(); apply(); persist(); });
@@ -670,7 +731,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     name.focus();
   };
   const layoutMenu = document.createElement("div");
-  layoutMenu.className = "workspace-layout-menu"; layoutMenu.setAttribute("popover", "auto"); layoutMenu.dataset.workspaceLayout = "";
+  layoutMenu.className = "workspace-layout-menu mw-menu"; layoutMenu.setAttribute("popover", "auto"); layoutMenu.dataset.workspaceLayout = "";
   layoutMenu.setAttribute("aria-label", L("布局与分屏")); document.body.append(layoutMenu);
   layoutMenu.addEventListener("keydown", event => {
     if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
@@ -742,12 +803,8 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     const tab = event.target.closest("[data-tab-id]");
     if (tab) {
       const pane = state.panes.find((candidate) => candidate.id === paneId);
-      const record = pane?.tabs.find((candidate) => candidate.id === tab.dataset.tabId);
       const alreadyActive = pane?.activeTabId === tab.dataset.tabId && state.focusedPaneId === paneId;
-      if (record?.preview && event.detail >= 2) {
-        ops.commitTab(state, paneId, tab.dataset.tabId);
-        activate(paneId, tab.dataset.tabId);
-      } else if (!alreadyActive) {
+      if (!alreadyActive) {
         activate(paneId, tab.dataset.tabId);
       }
       focusActiveTab();
@@ -879,6 +936,10 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   });
   window.addEventListener("message", (event) => {
     if (event.origin !== location.origin) return;
+    if (!embedded && event.data?.type === "workbench-open-settings") {
+      document.dispatchEvent(new CustomEvent("molis-work:open-settings-path", { detail: { href: event.data.href || "" } }));
+      return;
+    }
     if (embedded && event.source === window.parent && event.data?.type === "workbench-goal-view") {
       const tab = ops.activeTab(state);
       if (tab?.plugin === "goals" && tab.kind === "item") {
@@ -924,7 +985,6 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     if (event.data?.type === "workbench-feed-task") setFeedTask?.(event.data.taskId, false);
     if (event.data?.type === "workbench-feed-add") setFeedAddOpen?.(true);
   });
-  restore();
   if (embedded && paneParams.has("paneFeedTask")) requestAnimationFrame(() => setFeedTask?.(paneParams.get("paneFeedTask"), false));
   return { apply, openPlugin, openItem, openGoalWork, addFeedTask, setExclusive, restore, isExclusive: () => Boolean(state.exclusive), isEmbedded: () => embedded, state: () => state };
 }`;

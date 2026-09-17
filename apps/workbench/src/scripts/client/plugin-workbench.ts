@@ -76,7 +76,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     market.querySelector("[data-market-installed]").hidden = installed.childElementCount === 0 || Boolean(query);
     let count = 0;
     market.querySelectorAll("[data-market-plugin]").forEach(card => {
-      const added = addedIds.includes(card.dataset.marketPlugin);
+      const added = addedIds.includes(card.dataset.marketPlugin) || card.dataset.marketPlugin === "shelf";
       card.hidden = (onlyAdded && !added) || !((card.querySelector("h2").textContent + " " + card.querySelector("p").textContent).toLocaleLowerCase().includes(query));
       if (!card.hidden) count++;
       const button = card.querySelector("[data-market-add]");
@@ -136,7 +136,10 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     if (event.target.closest("[data-market-retry]")) { void loadMarket(); return; }
     const scope = event.target.closest("[data-market-scope]");
     if (scope) {
-      market.querySelectorAll("[data-market-scope]").forEach(button => button.setAttribute("aria-pressed", String(button === scope)));
+      market.querySelectorAll("[data-market-scope]").forEach(button => {
+        button.setAttribute("aria-pressed", String(button === scope));
+        button.classList.toggle("is-current", button === scope);
+      });
       filter();
       return;
     }
@@ -207,8 +210,9 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     if (url.origin !== location.origin || !(url.pathname === base || url.pathname.startsWith(base + "/"))) return;
     event.preventDefault();
     if (link.closest("[data-frame-block]")) { event.preventDefault(); return; }
+    if (event.detail > 1) return;
     setSurface("artifacts");
-    openTabItem?.("artifacts", url.pathname, link.textContent?.trim(), (matchMedia("(pointer: coarse)").matches || matchMedia("(max-width: 760px)").matches || event.detail !== 1) ? "commit" : "preview");
+    openTabItem?.("artifacts", url.pathname, link.textContent?.trim());
     void loadArtifacts(url.pathname);
     if (matchMedia("(max-width: 600px)").matches) setMobileView(url.pathname === base ? "tree" : "document");
   });

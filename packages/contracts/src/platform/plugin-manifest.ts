@@ -11,7 +11,7 @@ export class PluginManifestError extends Error {
 }
 
 export function canonicalPluginId(pluginId: string): string {
-  return pluginId.startsWith("io.goalboard.") ? `io.molis.work.${pluginId.slice("io.goalboard.".length)}` : pluginId;
+  return pluginId;
 }
 
 /** Validate the public wire shape before authors or tools use any Manifest fields. */
@@ -21,7 +21,7 @@ export function parsePluginManifest(input: unknown): PluginManifest {
   if (manifest.schema_version !== 1 || manifest.host_api_version !== 1) {
     throw new PluginManifestError("plugin_manifest_invalid", "Plugin Manifest schema_version 和 host_api_version 必须为 1");
   }
-  if (!text(manifest.plugin_id) || !/^io\.(?:molis\.work|goalboard)\.[a-z0-9][a-z0-9.-]*$/u.test(manifest.plugin_id)
+  if (!text(manifest.plugin_id) || !/^io\.molis\.work\.[a-z0-9][a-z0-9.-]*$/u.test(manifest.plugin_id)
     || !text(manifest.version) || !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u.test(manifest.version)
     || !text(manifest.name) || !text(publisher.publisher_id) || !text(publisher.signature)
     || (manifest.kind !== "native" && manifest.kind !== "integration")) {

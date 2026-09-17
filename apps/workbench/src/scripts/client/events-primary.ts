@@ -503,7 +503,6 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
       if (feedChoice) { showFeedSetup("setup", feedChoice.dataset.feedChooseKind || feedChoice.dataset.feedConnectKind); return; }
       const feedConfig = target.closest("[data-feed-task-config-open]");
       if (feedConfig) { showFeedSetup("config", feedConfig.dataset.feedTaskConfigOpen); return; }
-      if (target.closest("[data-feed-advanced-open]")) { showFeedSetup("advanced"); return; }
       if (target.closest("[data-feed-sources-open], [data-feed-setup-back]")) { showFeedSetup(); return; }
       if (target.closest("[data-feed-sources-close]")) {
         const config = feedSourcesDialog?.querySelector("[data-feed-task-config]:not([hidden])");
@@ -532,6 +531,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
           inlineError.textContent = "";
         }
         setFeedSourceFeedback(L("正在添加来源…"));
+        let phase = "source";
         try {
           let sourceId = form?.dataset.createdSourceId;
           if (!sourceId) {
@@ -540,19 +540,28 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
             if (form) form.dataset.createdSourceId = sourceId;
           }
           const minutes = Number(form?.querySelector("[data-feed-create-frequency]")?.value || 0);
+          phase = "schedule";
           if (minutes) await feedApi("/api/feed/sources/" + encodeURIComponent(sourceId) + "/schedule", "PUT", { mode: "interval", enabled: true, interval_minutes: minutes });
+          phase = "out-rule";
+          await saveFeedAddOutRule(form, sourceId);
           selectedFeedTask = sourceId;
           document.dispatchEvent(new CustomEvent("workbench-feed-task", { detail: { taskId: sourceId } }));
           saveUiState();
           location.reload();
         } catch (error) {
-          const message = form?.dataset.createdSourceId
-            ? L("任务已创建，拉取计划未保存。请重试，不会重复创建任务。") + " " + error.message
+          const retryCopy = phase === "out-rule"
+            ? L("任务已创建，捕捉规则未保存。请重试，不会重复创建任务。")
+            : form?.dataset.createdSourceId
+              ? L("任务已创建，拉取计划未保存。请重试，不会重复创建任务。")
+              : "";
+          const message = retryCopy
+            ? retryCopy + " " + error.message
             : error.message || L("添加来源失败");
           if (form?.dataset.createdSourceId) {
             form.querySelectorAll("input, [data-feed-rss-definition]").forEach(input => input.disabled = true);
             feedSourcesDialog.querySelector("[data-feed-setup-back]").hidden = true;
-            sourceRegister.textContent = L("重试保存计划");
+            sourceRegister.textContent = phase === "out-rule" ? L("重试保存捕捉规则") : L("重试保存计划");
+            form.querySelectorAll("[data-feed-add-out-rule-name], [data-feed-add-out-rule-contains]").forEach(input => input.disabled = false);
           }
           if (inlineError) {
             inlineError.textContent = message;
@@ -565,12 +574,19 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
       }
       const createOutRule = target.closest("[data-feed-out-rule-create]");
       if (createOutRule) {
-        const name = feedSourcesDialog?.querySelector("[data-feed-out-rule-name]")?.value;
-        const contains = feedSourcesDialog?.querySelector("[data-feed-out-rule-contains]")?.value;
+        const section = createOutRule.closest("[data-feed-out-rules]");
+        const sourceId = section?.dataset.feedOutRules;
+        const name = section?.querySelector("[data-feed-out-rule-name]")?.value?.trim();
+        const contains = section?.querySelector("[data-feed-out-rule-contains]")?.value?.trim();
+        if (!sourceId) return;
+        if (!name && !contains) {
+          setFeedSourceFeedback(L("请填写规则名称或包含关键字"), true);
+          return;
+        }
         createOutRule.disabled = true;
         setFeedSourceFeedback(L("正在添加捕捉规则…"));
         try {
-          await feedApi("/api/feed/out-rules", "POST", { name, contains });
+          await feedApi("/api/feed/out-rules", "POST", { name: name || contains, contains, source_id: sourceId });
           saveUiState();
           location.reload();
         } catch (error) {

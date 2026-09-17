@@ -522,6 +522,10 @@ test("capsule shell is one menu-bar popover with horizontal state tabs and inlin
   assert.match(html, /capsule__goal-row/);
   assert.match(html, /aria-selected/);
   assert.match(html, /overflow-x: auto/);
+  assert.match(html, /--accent: #5e6ad2/);
+  assert.match(html, /Noto Sans SC/);
+  assert.match(html, /html body \* \{[\s\S]*font-weight: 400 !important/);
+  assert.doesNotMatch(html, /#4f6ff7/);
   assert.match(html, /event\.key !== "ArrowLeft"/);
   assert.match(html, /event\.key !== "Escape"/);
   assert.match(html, /capsule_hide/);

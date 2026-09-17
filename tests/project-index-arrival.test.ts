@@ -3,9 +3,9 @@ import test from "node:test";
 import { renderMolisWorkProjectIndex, renderMolisWorkProjectIndexStylesheet } from "./workbench-renderer-fixture.js";
 
 const projects = [
-  { project_id: "local-1", display_name: "goalboard", data_class: "user" as const },
+  { project_id: "local-1", display_name: "工作台", data_class: "user" as const },
   { project_id: "demo-1", display_name: "Molis Work 示例项目", data_class: "regenerable_demo" as const },
-  { project_id: "migrated-1", display_name: "旧库", data_class: "migrated_user" as const },
+  { project_id: "local-2", display_name: "另一份项目", data_class: "user" as const },
 ];
 
 test("project index isolates arrival chrome from workbench directory styles", () => {
@@ -14,11 +14,11 @@ test("project index isolates arrival chrome from workbench directory styles", ()
 
   assert.match(html, /class="brand"[^>]*>[\s\S]*<strong>Molis Work<\/strong>/);
   assert.match(html, /class="top-action"[^>]*>[\s\S]*系统设置/);
-  assert.match(html, /<span>迁移后项目名 <small>/);
   assert.match(html, /data-project-search-row="[^"]*演示数据/);
   assert.match(html, /data-project-search-row="[^"]*本地项目/);
-  assert.match(html, /data-project-search-row="[^"]*已迁移/);
+  assert.doesNotMatch(html, /已迁移/);
   assert.doesNotMatch(html, /Goals 与 Sessions/);
+  assert.doesNotMatch(html, /project-index-migration|data-project-migration-dialog|data-open-project-migration|migration=1/);
 
   assert.match(css, /body\.project-index-page \{[\s\S]*grid-template-columns: minmax\(0, 1fr\)/);
   assert.match(css, /body\.project-index-page > \.topbar,[\s\S]*grid-column: 1;/);

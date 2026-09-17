@@ -119,7 +119,7 @@ export function mcpRuntimeSessionActivity(name: string, arguments_: Record<strin
     goal_id: goalId,
     actor_id: lifecycle.actorId,
     event: {
-      source: "goalboard",
+      source: "molis_work",
       kind: lifecycle.kind,
       source_id: `${name}:${idempotencyKey}`,
       content: `${lifecycle.label}：${goalId}${lifecycleState(arguments_, result)}`,

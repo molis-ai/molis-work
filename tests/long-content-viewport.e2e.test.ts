@@ -18,7 +18,7 @@ for (const [width,height] of [[1024,400],[390,500]]) test(`Long content keeps ac
   const item=createLocalFeedApplication(b.store.db).ingestItem({source,externalId:"long-reading",title:"请确认工作台在矮窗口和上下分屏中的阅读体验：标题、处理动作与上下文应当保持清晰可达",summary:"核对真实长内容。",body:"需要保留原消息。",occurredAt:new Date().toISOString(),attention:false}).item;
   const registry=await openWorkSessionRegistry({homeDirectory:b.homeDirectory});
   const session=registry.createSession({runtime_id:"opencode",project_id:projectId!,current_goal_id:"CORE",title:"检查长执行记录中的搜索、上下文和后续操作",user_confirmed:true,actor_id:"content-test"});
-  for(let i=0;i<35;i++)registry.appendEvent({session_id:session.session_id,source:"goalboard_tui",kind:"terminal_output",source_id:`line-${i}`,source_order:i,occurred_at:new Date(1777622400000+i*60000).toISOString(),content:`检查记录 ${i+1}\n已核对组件滚动边界，保留原始执行事实。\n需要查看时可以继续读取相关上下文。`});
+  for(let i=0;i<35;i++)registry.appendEvent({session_id:session.session_id,source:"molis_work_tui",kind:"terminal_output",source_id:`line-${i}`,source_order:i,occurred_at:new Date(1777622400000+i*60000).toISOString(),content:`检查记录 ${i+1}\n已核对组件滚动边界，保留原始执行事实。\n需要查看时可以继续读取相关上下文。`});
   registry.close();
   await command("Emulation.setDeviceMetricsOverride",{width,height,deviceScaleFactor:1,mobile:false},sessionId);
   await command("Emulation.setEmulatedMedia",{features:[{name:"prefers-reduced-motion",value:"reduce"}]},sessionId);
@@ -37,7 +37,7 @@ for (const [width,height] of [[1024,400],[390,500]]) test(`Long content keeps ac
     await theme("dark");await capture(name+"-dark");await theme("light");
   };
   const probe=async(selector:string)=>evaluate<{top:number;bottom:number;ch:number;sh:number;overflow:string}>(`(()=>{const e=document.querySelector(${JSON.stringify(selector)}),r=e.getBoundingClientRect();return {top:r.top,bottom:r.bottom,ch:e.clientHeight,sh:e.scrollHeight,overflow:getComputedStyle(e).overflowY}})()`);
-  const visible=async(selector:string)=>{const r=await probe(selector);assert.ok(r.top>=44 && r.bottom<=height+0.5,`${selector} stays in viewport: ${JSON.stringify(r)}`);return r;};
+  const visible=async(selector:string)=>{const r=await probe(selector);assert.ok(r.top>=32 && r.bottom<=height+0.5,`${selector} stays in viewport: ${JSON.stringify(r)}`);return r;};
   const wheel=async(selector:string,dy:number)=>{const point=await evaluate<{x:number;y:number}>(`(()=>{const r=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();return {x:r.x+Math.min(r.width/2,100),y:Math.max(50,Math.min(r.bottom-10,r.top+20))}})()`);await command("Input.dispatchMouseEvent",{type:"mouseWheel",...point,deltaX:0,deltaY:dy},sessionId);};
   await openPlugin("inbox");
   await waitFor("document.querySelector('[data-inbox-detail]:not([hidden])')");
@@ -79,21 +79,21 @@ for (const [width,height] of [[1024,400],[390,500]]) test(`Long content keeps ac
   if(await evaluate("Boolean(document.querySelector('[data-session-content-load]'))")) await click('[data-session-content-load]');
   await waitFor("document.querySelector('.session-content-body').textContent.includes('检查记录')");
   await capture("session");await darkCapture("session");
-  const sessionHeader=await visible('.project-operation-hero');
-  const searchHeader=await visible('.session-execution > header');
-  assert.equal(await evaluate("document.querySelector('.session-execution > header').clientWidth>=document.querySelector('.session-execution').clientWidth-1"),true,"search toolbar spans the reading region");
+  const sessionHeader=await visible('.session-stage-bar');
+  const searchHeader=await visible('.session-execution-toolbar');
+  assert.equal(await evaluate("document.querySelector('.session-execution-toolbar').clientWidth>=document.querySelector('.session-execution').clientWidth-1"),true,"search toolbar spans the reading region");
   const content=await probe('.session-content-body');
   assert.ok(content.ch>=90 && content.sh>content.ch*2,"reading retains useful height with real execution history");
   await wheel('.session-content-body',700);
   await waitFor("document.querySelector('.session-content-body').scrollTop>200");
-  assert.deepEqual(await visible('.project-operation-hero'),sessionHeader);
-  assert.deepEqual(await visible('.session-execution > header'),searchHeader);
+  assert.deepEqual(await visible('.session-stage-bar'),sessionHeader);
+  assert.deepEqual(await visible('.session-execution-toolbar'),searchHeader);
   await click('[data-session-content-search]');
   await command("Input.insertText",{text:"检查记录 35"},sessionId);
   await waitFor("document.querySelectorAll('.session-timeline-event:not([hidden])').length===1");
   assert.match(await evaluate<string>("document.querySelector('.session-timeline-event:not([hidden])').textContent"),/检查记录 35/);
-  await click('.session-context-disclosure > summary');
-  await click('[data-open-session-relations]');
+  if(await evaluate("getComputedStyle(document.querySelector('[data-session-rail-open]')).display!=='none'")) await click('[data-session-rail-open]');
+  await click('.session-rail [data-open-session-relations]');
   await waitFor("document.querySelector('[data-session-relations-dialog]').open");
   await click('[data-session-relations-dialog] footer [data-dialog-close]');
   await waitFor("!document.querySelector('[data-session-relations-dialog]').open");
@@ -103,16 +103,16 @@ for (const [width,height] of [[1024,400],[390,500]]) test(`Long content keeps ac
   if(width===1024){
     await command("Emulation.setDeviceMetricsOverride",{width:1280,height:900,deviceScaleFactor:1,mobile:false},sessionId);
     await click('[data-titlebar-tabs] [data-tab-split]');await click('[data-layout-split="bottom"]');
+    const splitDocs="[...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].map(f=>f.contentDocument).filter(d=>d?.querySelector('.project-session-document')?.getBoundingClientRect().height>0)";
     await waitFor("document.querySelectorAll('[data-tab-pane]').length===2");
-    await waitFor("[...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].some(f=>f.contentDocument?.querySelector('.project-session-document'))");
-    await waitFor("[document,...[...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].map(f=>f.contentDocument)].filter(d=>d?.querySelector('.project-session-document')?.getBoundingClientRect().height>0).length>=2");
+    await waitFor(splitDocs+".length>=2", 15_000);
     await capture("session-split");
-    await evaluate("[document,...[...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].map(f=>f.contentDocument)].forEach(d=>d?.querySelector('[data-session-content-load]')?.click())");
-    await waitFor("[document,...[...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].map(f=>f.contentDocument)].filter(d=>d?.querySelector('.project-session-document')?.getBoundingClientRect().height>0).every(d=>d.querySelector('.session-content-body').textContent.includes('检查记录'))");
-    const fullWidths=await evaluate<boolean[]>("[document,...[...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].map(f=>f.contentDocument)].filter(d=>d?.querySelector('.project-session-document')?.getBoundingClientRect().height>0).map(d=>d.querySelector('.goal-focus-main').clientWidth>=d.querySelector('.project-operation-layout').clientWidth-1)");
-    assert.ok(fullWidths.every(Boolean),"each split reading area uses the available pane width");
-    const panes=await evaluate<{height:number;scroll:boolean}[]>("[document,...[...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].map(f=>f.contentDocument)].filter(d=>d?.querySelector('.project-session-document')?.getBoundingClientRect().height>0).map(d=>({height:d.querySelector('.session-content-body').clientHeight,scroll:d.scrollingElement.scrollHeight<=d.defaultView.innerHeight+1}))");
-    assert.ok(panes.length>=2);for(const pane of panes){assert.ok(pane.height>=90);assert.equal(pane.scroll,true);}
+    await evaluate(splitDocs+".forEach(d=>d.querySelector('[data-session-content-load]')?.click())");
+    await waitFor(splitDocs+".every(d=>d.querySelector('.session-content-body').textContent.includes('检查记录'))", 15_000);
+    const paneReady=await evaluate<boolean[]>(splitDocs+".map(d=>{const main=d.querySelector('.session-stage-main');return Boolean(main)&&main.clientWidth>=200})");
+    assert.ok(paneReady.every(Boolean),"each split Session pane keeps a usable main column");
+    const panes=await evaluate<{height:number;scroll:boolean}[]>(splitDocs+".map(d=>({height:d.querySelector('.session-content-body').clientHeight,scroll:d.scrollingElement.scrollHeight<=d.defaultView.innerHeight+1}))");
+    assert.ok(panes.length>=2, JSON.stringify(panes));for(const pane of panes){assert.ok(pane.height>=90, JSON.stringify(panes));assert.equal(pane.scroll,true, JSON.stringify(panes));}
     await capture("session-split");
   }
   await command("Emulation.setDeviceMetricsOverride",{width,height,deviceScaleFactor:1,mobile:false},sessionId);

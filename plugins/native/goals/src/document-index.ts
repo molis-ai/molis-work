@@ -107,5 +107,15 @@ export function createGoalDocumentIndex(
     }
     for (const goalId of touchedGoalIds) addGroupedValue(rewiresByGoal, goalId, rewire);
   }
-  return { riskGoalIds, goalRiskIds, webRisks, evidenceByGoal, evidenceCorrectionsByGoal, reviewObligationsByGoal, reviewsByGoal, impactsByGoal, contractProposalsByGoal, clarificationSessionsByGoal, clarificationTurnsByGoal, coverageByGoal, inputBindingsByGoal, policyBindingsByGoal, projectPolicyBindings, eventsByObject, relationsByGoal, candidatesByRun, goalTreeProposalsByGoal, rewiresByGoal, rewiresByCandidate };
+  const createdByGoal = new Map<string, { revision: number; actor: string }>();
+  for (const revision of snapshot.goal_contract_revisions ?? []) {
+    const actor = revision.changed_by.trim();
+    if (!actor) continue;
+    const current = createdByGoal.get(revision.goal_id);
+    if (!current || revision.revision < current.revision) {
+      createdByGoal.set(revision.goal_id, { revision: revision.revision, actor });
+    }
+  }
+  const createdByActor = new Map([...createdByGoal].map(([goalId, value]) => [goalId, value.actor]));
+  return { riskGoalIds, goalRiskIds, webRisks, evidenceByGoal, evidenceCorrectionsByGoal, reviewObligationsByGoal, reviewsByGoal, impactsByGoal, contractProposalsByGoal, clarificationSessionsByGoal, clarificationTurnsByGoal, coverageByGoal, inputBindingsByGoal, policyBindingsByGoal, projectPolicyBindings, eventsByObject, relationsByGoal, candidatesByRun, goalTreeProposalsByGoal, rewiresByGoal, rewiresByCandidate, createdByGoal: createdByActor };
 }

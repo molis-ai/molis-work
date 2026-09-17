@@ -27,7 +27,7 @@ export class SessionContentService {
       events: sortTimeline(managed),
       native_error: null,
       native_history: null,
-      partial_terminal_history: managed.some((event) => event.source === "goalboard_tui"),
+      partial_terminal_history: managed.some((event) => event.source === "molis_work_tui"),
     });
     if (!session.native_runtime_session_id) return fallback();
 
@@ -65,7 +65,7 @@ export class SessionContentService {
       events: sortTimeline([...native, ...managed]),
       native_error: null,
       native_history: nativeHistory(result.value),
-      partial_terminal_history: managed.some((event) => event.source === "goalboard_tui"),
+      partial_terminal_history: managed.some((event) => event.source === "molis_work_tui"),
     };
   }
 
@@ -204,7 +204,7 @@ function normalizeManagedEvent(
     session_id: session.session_id,
     source: event.source,
     kind: event.kind,
-    label: event.source === "goalboard_tui"
+    label: event.source === "molis_work_tui"
       ? event.kind === "terminal_output" ? "Molis Work TUI" : "TUI 状态"
       : labelForKind(event.kind),
     content: clip(event.content ?? "本地加密内容当前不可读取。"),
@@ -279,8 +279,8 @@ function userMessageContent(value: unknown): string {
 function sortTimeline(events: readonly SessionTimelineEvent[]): SessionTimelineEvent[] {
   const sourceRank: Record<SessionTimelineEvent["source"], number> = {
     runtime_native: 0,
-    goalboard: 1,
-    goalboard_tui: 2,
+    molis_work: 1,
+    molis_work_tui: 2,
   };
   return [...events].sort((left, right) =>
     Date.parse(left.occurred_at) - Date.parse(right.occurred_at)

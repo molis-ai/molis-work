@@ -8,7 +8,7 @@
 - `specs/directory-title-toolbar/spec.md` 里项目切换/搜索/设置住在目录头顶；
 - `specs/linear-workbench-density/spec.md` 里目录列通顶、titlebar 只盖内容列（`tree-pane` `grid-row: 1 / 3`）。
 
-右边标签、分栏、单击预览/双击钉住、各插件主表面与领域事实仍以 `specs/workbench-tab-workspace/spec.md`、`specs/chrome-tabs-preview-groups/spec.md`、`specs/pane-local-split-tabs/spec.md` 为准。快捷方式仍在项目首页，见 `specs/home-shortcuts-return/spec.md`。
+右边标签、分栏、单击添加、各插件主表面与领域事实仍以 `specs/workbench-tab-workspace/spec.md`、`specs/additive-tabs/spec.md`、`specs/pane-local-split-tabs/spec.md` 为准。快捷方式仍在项目首页，见 `specs/home-shortcuts-return/spec.md`。
 
 ## 背景与目标
 
@@ -41,8 +41,8 @@
 - **网页：** 没有红绿灯留白。上一步/下一步贴 titlebar 左，标签在它们右边。
 - 上一步/下一步按当前焦点栏的标签激活栈前进后退；没有上一页或下一页时按钮禁用。
 - 插件目录：**标题单独一行，该插件操作在标题下方**，不再和标题挤同一行。Goals 目录的新建横条、筛选位置和归档/回收站百叶窗见 `specs/goals-directory-collection-folds/spec.md`。没有操作的插件不留空工具行。Feed 左边仍是来源任务，条目在右边。
-- 点插件栏图标：走现有单击预览母标签、双击钉住。同时把第二栏切到该插件。
-- 点目录 item：现有预览/钉住合同不变。
+- 点插件栏图标：添加该插件母标签，不替换已有标签。同时把第二栏切到该插件。
+- 点目录 item：现有添加合同不变。
 - ≤600px：插件栏 + 第二栏仍作为同一抽屉；选一条 item 后关抽屉。Titlebar 保留标签和上一步/下一步；搜索仍在下面那条。桌面抽屉打开时仍不得挡住红绿灯点击。
 - 分栏后仍是每栏自己一条标签，不把所有栏的标签都塞进窗口 titlebar。
 - 「布局与分屏」始终靠 titlebar / 当前标签条右缘，不跟在最后一个标签后面。加号仍挨着标签。桌面实现见 `specs/tab-split-right-align/spec.md`。

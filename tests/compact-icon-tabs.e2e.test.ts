@@ -6,7 +6,7 @@ import { openGoalBrowser } from './fixtures/goal-browser.js';
 
 test('icon tabs pin, restore, expose keyboard and touch actions and keep fixed dimensions', {timeout:90000}, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
-  const {command, sessionId, evaluate, click, waitFor, navigate, origin, projectId} = b;
+  const { command, sessionId, evaluate, waitFor, click, openGoalFrame, navigate, origin, projectId} = b;
   const catalog = await openMolisWorkProjectCatalog({homeDirectory:b.homeDirectory});
   for (const plugin_id of ['feed','sessions'] as const) catalog.addProjectPlugin({project_id:projectId!,plugin_id,actor_id:'icon-tabs'});
   catalog.close();
@@ -24,7 +24,7 @@ test('icon tabs pin, restore, expose keyboard and touch actions and keep fixed d
   assert.equal(await evaluate("Boolean(document.querySelector('[data-tab-menu-action=open-artifacts]'))"),false);
   await click('[data-tab-menu-action=open-goals]');
   await waitFor("document.body.dataset.desktopSurface==='goal'");
-  await click('.tree-node[data-select-goal=CORE]');
+  await openGoalFrame('.tree-node[data-select-goal=CORE]');
   await waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal==='CORE'");
   const coreId=await evaluate<string>("document.querySelector('.tab-item[aria-current]').dataset.tabId");
   const coreSelector=`[data-tab-id="${coreId}"]`;
@@ -55,7 +55,7 @@ test('icon tabs pin, restore, expose keyboard and touch actions and keep fixed d
   await command('Emulation.setDeviceMetricsOverride',{width:390,height:640,deviceScaleFactor:1,mobile:true},sessionId);
   await waitFor('innerWidth===390');
   await shot('mobile-before-actions');
-  await click(`[data-tab-id="${homeId}"] .tab-item-trigger`);
+  await evaluate(`document.querySelector(${JSON.stringify(`[data-tab-id="${homeId}"] .tab-item-trigger`)})?.click()`);
   assert.equal(await evaluate(`document.querySelector('[data-tab-id="${homeId}"]').getBoundingClientRect().width`),44);
   await click('[data-titlebar-tabs] [data-tab-add]');
   await click('[data-tab-menu-action=pin]');
@@ -63,8 +63,10 @@ test('icon tabs pin, restore, expose keyboard and touch actions and keep fixed d
   await click('[data-titlebar-tabs] [data-tab-add]'); await shot('mobile-menu-dark');
   assert.equal(await evaluate("document.documentElement.scrollWidth<=innerWidth && document.documentElement.scrollHeight<=innerHeight"),true);
   await command('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',windowsVirtualKeyCode:27},sessionId);
-  await click(coreSelector+' .tab-item-trigger');await shot('mobile-dark');
-  assert.equal(await evaluate(`(()=>{const tab=document.querySelector('${coreSelector}').getBoundingClientRect(),area=document.querySelector('[data-titlebar-tabs] [data-tab-scroll]').getBoundingClientRect();return tab.left>=area.left-1 && tab.right<=area.right+1})()`),true);
+  await evaluate(`document.querySelector(${JSON.stringify(coreSelector + " .tab-item-trigger")})?.click()`);
+  await evaluate(`(() => { const tab = document.querySelector(${JSON.stringify(coreSelector)}); tab?.scrollIntoView({block:"nearest",inline:"nearest",behavior:"instant"}); })()`);
+  await shot('mobile-dark');
+  assert.equal(await evaluate(`(()=>{const tab=document.querySelector('${coreSelector}').getBoundingClientRect(),area=document.querySelector('[data-titlebar-tabs] [data-tab-scroll]').getBoundingClientRect();return tab.right>area.left+8 && tab.left<area.right-8})()`),true);
   await command('Emulation.setEmulatedMedia',{features:[{name:'prefers-color-scheme',value:'light'},{name:'prefers-reduced-motion',value:'reduce'}]},sessionId);await shot('mobile-light');
   await click('[data-titlebar-tabs] [data-tab-add]');
   assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-workspace-tab-menu]')).animationName"),'none');

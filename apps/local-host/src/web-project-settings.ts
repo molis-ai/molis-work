@@ -3,7 +3,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { WebSettingsProject } from "@molis-ai/molis-work-app-workbench";
 import { type MolisWorkProjectCatalog, type MolisWorkProjectCatalogOptions, MolisWorkProjectCatalogError } from "./project-catalog.js";
 import { sendLocalWebJson as sendJson, readLocalWebBody as readBody } from "./web-http.js";
-import { projectNavigation, settingsProject, installationDiagnostics } from "./web-project-presentation.js";
+import { settingsProject, installationDiagnostics } from "./web-project-presentation.js";
 import { L } from "./web-locale.js";
 import { BUILTIN_PROJECT_PLUGIN_IDS, type BuiltinProjectPluginId } from "@molis-ai/molis-work-contracts/modules/projects";
 
@@ -12,26 +12,6 @@ export type LocalWebCatalogRunner = <T>(options: MolisWorkProjectCatalogOptions,
 export interface ProjectDeletionWebPorts {
   isPanelAlive(panelId: string): boolean;
   releaseProject(databasePath: string): Promise<void>;
-}
-
-function webMigrationRequest(body: Record<string, unknown>): {
-  legacyDatabasePath: string;
-  displayName?: string;
-} {
-  if (body.user_confirmed !== true) {
-    throw new Error(L("请先明确确认要迁移这份已有 Molis Work 数据"));
-  }
-  const legacyDatabasePath = typeof body.legacy_database_path === "string"
-    ? body.legacy_database_path.trim()
-    : "";
-  if (!legacyDatabasePath) throw new Error(L("请选择要迁移的已有 Molis Work DB"));
-  if (legacyDatabasePath.length > 4_000) throw new Error(L("来源 DB 路径过长"));
-  const displayName = typeof body.display_name === "string" ? body.display_name.trim() : "";
-  if (displayName.length > 160) throw new Error(L("迁移后项目名称过长"));
-  return {
-    legacyDatabasePath,
-    ...(displayName ? { displayName } : {}),
-  };
 }
 
 export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: LocalWebCatalogRunner) {
@@ -194,30 +174,6 @@ export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: Loca
     }
     if (request.method === "GET" && url.pathname === "/api/settings/diagnostics") {
       sendJson(response, 200, installationDiagnostics(homeDirectory, projectCount));
-      return true;
-    }
-    if (request.method === "POST" && url.pathname === "/api/projects/migrate") {
-      try {
-        const requestInput = webMigrationRequest(await readBody(request));
-        await withMolisWorkProjectCatalog({ homeDirectory }, async (catalog) => {
-          const project = await catalog.migrateLegacyDatabase({
-            legacy_database_path: requestInput.legacyDatabasePath,
-            ...(requestInput.displayName ? { display_name: requestInput.displayName } : {}),
-            actor_id: "web-user",
-          });
-          sendJson(response, 201, {
-            project: projectNavigation(project),
-            project_path: `/projects/${encodeURIComponent(project.project_id)}/`,
-          });
-        });
-      } catch (error) {
-        const message = error instanceof MolisWorkProjectCatalogError
-          ? error.message
-          : error instanceof Error
-            ? `${L("迁移失败：")}${error.message}`
-            : L("迁移失败，请检查来源 DB 后重试");
-        sendJson(response, 400, { error: message });
-      }
       return true;
     }
     return false;

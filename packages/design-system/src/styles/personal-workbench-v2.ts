@@ -25,7 +25,7 @@ export const PERSONAL_WORKBENCH_V2_STYLES = `  /* Personal workbench v2: Codex-d
       gap: 7px;
     }
     .personal-sidebar-brand svg { width: 16px; height: 16px; }
-    .personal-sidebar-brand strong { font-size: 14px; font-weight: 730; }
+    .personal-sidebar-brand strong { font-size: 14px; font-weight: 400; }
 
     .personal-space-context {
       min-height: 36px;
@@ -88,7 +88,7 @@ export const PERSONAL_WORKBENCH_V2_STYLES = `  /* Personal workbench v2: Codex-d
       align-items: center;
       justify-content: space-between;
       font-size: 9.5px;
-      font-weight: 680;
+      font-weight: 400;
       letter-spacing: .02em;
     }
     .personal-nav-section > h2 a {
@@ -122,7 +122,7 @@ export const PERSONAL_WORKBENCH_V2_STYLES = `  /* Personal workbench v2: Codex-d
       color: var(--faint);
       background: transparent;
       font-size: 8.5px;
-      font-weight: 620;
+      font-weight: 400;
     }
     .personal-nav-item > strong {
       min-width: 16px;
@@ -147,7 +147,7 @@ export const PERSONAL_WORKBENCH_V2_STYLES = `  /* Personal workbench v2: Codex-d
       overflow: hidden;
       color: var(--ink-soft);
       font-size: 11px;
-      font-weight: 620;
+      font-weight: 400;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
@@ -184,7 +184,7 @@ export const PERSONAL_WORKBENCH_V2_STYLES = `  /* Personal workbench v2: Codex-d
     }
     .personal-account-avatar svg { width: 14px; height: 14px; }
     .personal-account-copy { min-width: 0; display: grid; gap: 1px; }
-    .personal-account-copy strong { font-size: 11px; font-weight: 650; }
+    .personal-account-copy strong { font-size: 11px; font-weight: 400; }
     .personal-account-copy small { color: var(--faint); display: flex; align-items: center; gap: 5px; font-size: 8.5px; }
     .personal-account-copy small i { width: 5px; height: 5px; border-radius: 50%; background: var(--green); }
     .personal-account-settings { width: 26px; height: 26px; border-radius: 6px; color: var(--muted); display: grid; place-items: center; }
@@ -212,7 +212,7 @@ export const PERSONAL_WORKBENCH_V2_STYLES = `  /* Personal workbench v2: Codex-d
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    body[data-desktop-shell="true"] .desktop-project-context > strong { max-width: min(42vw, 520px); color: var(--ink-soft); font-size: 10.5px; font-weight: 620; }
+    body[data-desktop-shell="true"] .desktop-project-context > strong { max-width: min(42vw, 520px); color: var(--ink-soft); font-size: 10.5px; font-weight: 400; }
     body[data-desktop-shell="true"] .desktop-project-context > svg { width: 11px; height: 11px; }
     body[data-desktop-shell="true"] .desktop-project-sync { margin-left: auto; }
 
@@ -307,7 +307,7 @@ export const PERSONAL_WORKBENCH_V2_STYLES = `  /* Personal workbench v2: Codex-d
       letter-spacing: -.025em;
     }
     body[data-desktop-shell="true"] .goal-title-outcome { display: none; }
-    body[data-desktop-shell="true"] .goal-title-actions .document-action { min-height: 28px; }
+    body[data-desktop-shell="true"] .goal-title-actions .mw-btn { min-height: 28px; }
 
     body[data-desktop-shell="true"] .goal-brief-grid {
       margin-top: 10px;
@@ -325,7 +325,7 @@ export const PERSONAL_WORKBENCH_V2_STYLES = `  /* Personal workbench v2: Codex-d
       margin: 0 0 4px;
       color: var(--faint);
       font-size: 9.5px;
-      font-weight: 680;
+      font-weight: 400;
     }
     body[data-desktop-shell="true"] .goal-brief-item p {
       margin: 0;

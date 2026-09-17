@@ -12,9 +12,6 @@ SOURCE="${1:-}"
 APP_DIR="${MOLIS_WORK_APP_DIR:-$HOME/Applications}"
 MOUNT_DIR=""
 
-# shellcheck source=retire-legacy-macos-app.sh
-. "$SCRIPT_DIR/retire-legacy-macos-app.sh"
-
 cleanup() {
   if [[ -n "$MOUNT_DIR" && -d "$MOUNT_DIR" ]]; then
     hdiutil detach "$MOUNT_DIR" -quiet || true
@@ -52,7 +49,6 @@ if [[ -e "$TARGET" ]]; then
 fi
 ditto "$SOURCE" "$TARGET"
 echo "Installed Molis Work to $TARGET"
-MOLIS_WORK_RETIRE_SKIP="$TARGET" retire_legacy_macos_apps "$APP_DIR" || true
 if [[ "${MOLIS_WORK_SKIP_OPEN:-0}" != "1" ]]; then
   open "$TARGET"
 fi

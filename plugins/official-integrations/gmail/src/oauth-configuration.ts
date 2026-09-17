@@ -92,7 +92,6 @@ export function createGmailOAuthConfiguration(ports: GmailOAuthPorts) {
       /* ignore */
     }
     return ports.environment().MOLIS_WORK_GMAIL_CLIENT_ID?.trim()
-      || ports.environment().GOALBOARD_GMAIL_CLIENT_ID?.trim()
       || null;
   }
 
@@ -107,7 +106,6 @@ export function createGmailOAuthConfiguration(ports: GmailOAuthPorts) {
       /* ignore */
     }
     return ports.environment().MOLIS_WORK_GMAIL_CLIENT_SECRET?.trim()
-      || ports.environment().GOALBOARD_GMAIL_CLIENT_SECRET?.trim()
       || null;
   }
 

@@ -7,7 +7,7 @@ export interface McpToolDefinition {
 export interface McpToolCallContext {
   /** Host per-call identity; never derived from model-supplied tool arguments. */
   readonly runtimeSessionId: string | null;
-  readonly runtimeSessionIdSource: "threadId" | "sessionId" | "molis-work/sessionId" | "goalboard/sessionId" | null;
+  readonly runtimeSessionIdSource: "threadId" | "sessionId" | "molis-work/sessionId" | null;
 }
 
 export interface McpProtocolPorts {
@@ -22,7 +22,7 @@ function toolCallContextFromParams(params: Record<string, unknown>): McpToolCall
   const meta = params._meta;
   if (!meta || typeof meta !== "object" || Array.isArray(meta)) return empty;
   const metadata = meta as Record<string, unknown>;
-  for (const key of ["molis-work/sessionId", "goalboard/sessionId", "threadId", "sessionId"] as const) {
+  for (const key of ["molis-work/sessionId", "threadId", "sessionId"] as const) {
     const value = metadata[key];
     if (typeof value !== "string") continue;
     const runtimeSessionId = value.trim();

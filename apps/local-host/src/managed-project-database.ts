@@ -43,7 +43,7 @@ export function readManagedBoard(
     if (boardIds.length !== 1 || typeof boardIds[0] !== "string" || !boardIds[0]) {
       throw new MolisWorkProjectCatalogError(
         "catalog.legacy_invalid",
-        `旧数据库必须恰好包含一个 Molis Work: ${databasePath}`,
+        `项目数据库必须恰好包含一个 Board: ${databasePath}`,
       );
     }
     const boardId = boardIds[0];

@@ -38,7 +38,7 @@ export const PERSONAL_SHELL_STYLES = `  /* Personal workspace shell. The applica
       color: var(--ink);
     }
     .personal-sidebar-brand svg { width: 17px; height: 17px; color: var(--ink); }
-    .personal-sidebar-brand strong { font-size: 15px; font-weight: 740; letter-spacing: -.025em; }
+    .personal-sidebar-brand strong { font-size: 15px; font-weight: 400; letter-spacing: -.025em; }
 
     .personal-space-context {
       min-width: 0;
@@ -69,7 +69,7 @@ export const PERSONAL_SHELL_STYLES = `  /* Personal workspace shell. The applica
       overflow: hidden;
       color: var(--ink);
       font-size: 12px;
-      font-weight: 690;
+      font-weight: 400;
       letter-spacing: -.01em;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -81,7 +81,7 @@ export const PERSONAL_SHELL_STYLES = `  /* Personal workspace shell. The applica
       color: var(--muted);
       background: var(--rail);
       font-size: 9px;
-      font-weight: 650;
+      font-weight: 400;
     }
 
     .personal-new-goal {
@@ -96,7 +96,7 @@ export const PERSONAL_SHELL_STYLES = `  /* Personal workspace shell. The applica
       color: var(--action-ink);
       background: var(--action);
       font-size: 12px;
-      font-weight: 680;
+      font-weight: 400;
       cursor: pointer;
       transition: opacity .18s ease, transform .18s cubic-bezier(.16, 1, .3, 1);
     }
@@ -149,7 +149,7 @@ export const PERSONAL_SHELL_STYLES = `  /* Personal workspace shell. The applica
       min-width: 0;
       overflow: hidden;
       font-size: 12px;
-      font-weight: 610;
+      font-weight: 400;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
@@ -163,7 +163,7 @@ export const PERSONAL_SHELL_STYLES = `  /* Personal workspace shell. The applica
       color: var(--muted);
       background: color-mix(in srgb, var(--ink) 5%, transparent);
       font-size: 10px;
-      font-weight: 700;
+      font-weight: 400;
     }
     .personal-nav-item.has-pending > strong { color: var(--blue-dark); background: var(--blue-soft); }
     .personal-nav-item kbd {
@@ -174,7 +174,7 @@ export const PERSONAL_SHELL_STYLES = `  /* Personal workspace shell. The applica
       color: var(--muted);
       cursor: default;
     }
-    .personal-nav-item.is-planned > span { font-weight: 560; }
+    .personal-nav-item.is-planned > span { font-weight: 400; }
     .personal-nav-item.is-planned > small,
     .personal-nav-item.is-planned > em {
       color: var(--faint);
@@ -196,7 +196,7 @@ export const PERSONAL_SHELL_STYLES = `  /* Personal workspace shell. The applica
       margin: 0 9px 7px;
       color: var(--faint);
       font-size: 10px;
-      font-weight: 650;
+      font-weight: 400;
     }
     .personal-project-link {
       min-width: 0;
@@ -216,7 +216,7 @@ export const PERSONAL_SHELL_STYLES = `  /* Personal workspace shell. The applica
       min-width: 0;
       overflow: hidden;
       font-size: 11px;
-      font-weight: 610;
+      font-weight: 400;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
@@ -237,7 +237,7 @@ export const PERSONAL_SHELL_STYLES = `  /* Personal workspace shell. The applica
       gap: 8px;
       color: var(--ink-soft);
       font-size: 11px;
-      font-weight: 610;
+      font-weight: 400;
       text-decoration: none;
     }
     .personal-settings-link:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 5%, transparent); }
@@ -253,7 +253,7 @@ export const PERSONAL_SHELL_STYLES = `  /* Personal workspace shell. The applica
     }
     .personal-local-state > svg { width: 14px; height: 14px; margin-top: 2px; }
     .personal-local-state > span { min-width: 0; display: grid; gap: 1px; }
-    .personal-local-state strong { color: var(--ink-soft); font-size: 10px; font-weight: 630; }
+    .personal-local-state strong { color: var(--ink-soft); font-size: 10px; font-weight: 400; }
     .personal-local-state small { overflow: hidden; color: var(--faint); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
 
     body[data-desktop-shell="true"]:not(.settings-page) .topbar {
@@ -295,7 +295,7 @@ export const PERSONAL_SHELL_STYLES = `  /* Personal workspace shell. The applica
       overflow: hidden;
       color: var(--ink);
       font-size: 13px;
-      font-weight: 700;
+      font-weight: 400;
       letter-spacing: -.015em;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -309,7 +309,7 @@ export const PERSONAL_SHELL_STYLES = `  /* Personal workspace shell. The applica
       color: var(--green);
       background: var(--green-soft);
       font-size: 9px;
-      font-weight: 660;
+      font-weight: 400;
       white-space: nowrap;
     }
     .desktop-project-sync.is-syncing { color: var(--blue-dark); background: var(--blue-soft); }
@@ -324,7 +324,7 @@ export const PERSONAL_SHELL_STYLES = `  /* Personal workspace shell. The applica
       gap: 6px;
       color: var(--muted);
       font-size: 10px;
-      font-weight: 620;
+      font-weight: 400;
       text-decoration: none;
     }
     .desktop-project-actions a:hover { color: var(--ink); background: var(--rail); }

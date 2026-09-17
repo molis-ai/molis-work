@@ -44,6 +44,54 @@ function model(overrides: Partial<FeedUiModel> = {}): FeedUiModel {
   };
 }
 
+function source(overrides: Partial<FeedUiModel["sources"][number]> = {}): FeedUiModel["sources"][number] {
+  return {
+    project_id: "project-test",
+    source_id: "source-a",
+    kind: "rss",
+    definition_id: null,
+    sync_kind: "public_source",
+    name: "Design",
+    description: "Design feed",
+    status: "active",
+    enabled: true,
+    origin: "molis_work",
+    config: {},
+    schedule: { mode: "manual" },
+    connection_ref: null,
+    account_label: null,
+    last_sync_at: null,
+    last_outcome: null,
+    last_error_code: null,
+    imported_at: "2026-09-17T00:00:00.000Z",
+    updated_at: "2026-09-17T00:00:00.000Z",
+    prototype: false,
+    item_count: 0,
+    ui_kind: "rss",
+    type_label: "RSS / Atom",
+    status_kind: "active",
+    status_label: "运行正常",
+    last_fetch_label: "尚未拉取",
+    next_fetch_label: "手动",
+    schedule_label: "手动拉取",
+    scope_label: "全部",
+    scope_options: [],
+    configured_endpoint: "https://example.com/feed.xml",
+    protocol_status: null,
+    home_url: null,
+    editable_endpoint: true,
+    messages: [],
+    runs: [],
+    ...overrides,
+  };
+}
+
+function taskConfigPanel(html: string, sourceId: string): string {
+  const match = html.match(new RegExp(`<section data-feed-task-config="${sourceId}"[\\s\\S]*?</section>`));
+  assert.ok(match, `missing task config ${sourceId}`);
+  return match[0];
+}
+
 test("Workbench registers the Feed UI Contribution through the generic UI Host", () => {
   const host = new UiHost();
   host.register(feedUiContribution);
@@ -59,8 +107,26 @@ test("Workbench registers the Feed UI Contribution through the generic UI Host",
     model: model(),
   });
   assert.match(directory, /data-directory-panel="feed"/);
-  assert.match(directory, /data-feed-advanced-open/);
-  assert.match(directory, /捕捉规则/);
+  assert.match(directory, /data-feed-collection-fold="all"/);
+  assert.match(directory, /goal-collection-fold/);
+  assert.match(directory, /goal-collection-caret/);
+  assert.match(directory, /goal-collection-mark/);
+  assert.match(directory, /data-feed-task-toggle="all"[^>]*>[\s\S]*<strong>/);
+  assert.doesNotMatch(directory, /data-feed-task="all"[^>]*mw-dir-row/);
+  assert.match(directory, /goal-collection-empty/);
+  assert.match(directory, /还没有拉取任务/);
+  assert.doesNotMatch(directory, /mw-dir-row--compact/);
+  assert.match(directory, /data-feed-add-toggle/);
+  assert.ok(
+    directory.indexOf("data-feed-add-toggle") < directory.indexOf('data-feed-task="all"'),
+    "Feed add task sits above the All / source rows",
+  );
+  assert.doesNotMatch(directory, /mw-dir-row--meta/);
+  assert.doesNotMatch(directory, /mw-dir-row__icon/);
+  assert.doesNotMatch(directory, /data-slot="directory-heading"/);
+  assert.doesNotMatch(directory, /所有来源的流水/);
+  assert.doesNotMatch(directory, /feed-source-task/);
+  assert.doesNotMatch(directory, /data-feed-advanced-open|捕捉规则/);
   assert.doesNotMatch(directory, /Relay|data-relay-import|导入已有历史|与迁移/);
 
   const workbench = host.render({
@@ -89,9 +155,65 @@ test("Workbench registers the Feed UI Contribution through the generic UI Host",
     surface: "overlays",
     model: model(),
   });
-  assert.match(overlays, /data-feed-out-rules/);
-  assert.match(overlays, /data-feed-out-rule-create/);
+  assert.match(overlays, /data-feed-add-out-rule-contains/);
+  assert.match(overlays, /捕捉规则（可选）/);
+  assert.doesNotMatch(overlays, /data-feed-advanced|data-feed-advanced-open/);
   assert.doesNotMatch(overlays, /Relay|data-relay-import|导入已有历史|与迁移/);
+  assert.match(overlays, /data-feed-choose-kind="custom_rss"/);
+  assert.match(overlays, /RSS \/ Atom/);
+  assert.doesNotMatch(overlays, /网站与博客|持续收集新文章|先选择你想关注的来源|chevron-right/);
+  assert.doesNotMatch(overlays, /data-feed-choose-kind="rss"/);
+
+  const catalogOverlays = host.render({
+    contribution_id: FEED_UI_CONTRIBUTION_ID,
+    surface: "overlays",
+    model: model({
+      source_catalog: [{ id: "catalog-1", name: "Latent Space", category_label: "AI" }],
+    }),
+  });
+  assert.match(catalogOverlays, /data-feed-choose-kind="rss"/);
+});
+
+test("Feed capture rules belong to a task, not the directory", () => {
+  const host = new UiHost();
+  host.register(feedUiContribution);
+  const sourceA = source({ source_id: "source-a", name: "Design" });
+  const sourceB = source({ source_id: "source-b", name: "Release" });
+  const uiModel = model({
+    sources: [sourceA, sourceB],
+    out_rules: [
+      { rule_id: "rule-a", name: "A launch", enabled: true, contains: "launch", source_id: "source-a", source_kind: null },
+      { rule_id: "rule-b", name: "B release", enabled: true, contains: "release", source_id: "source-b", source_kind: null },
+      { rule_id: "rule-global", name: "Global", enabled: true, contains: "global", source_id: null, source_kind: null },
+    ],
+  });
+  const directory = host.render({
+    contribution_id: FEED_UI_CONTRIBUTION_ID,
+    surface: "directory",
+    model: uiModel,
+  });
+  const overlays = host.render({
+    contribution_id: FEED_UI_CONTRIBUTION_ID,
+    surface: "overlays",
+    model: uiModel,
+  });
+  assert.doesNotMatch(directory, /data-feed-advanced-open|捕捉规则/);
+  assert.match(directory, /mw-dir-row--nested/);
+  assert.match(directory, /mw-dir-row--compact/);
+  assert.doesNotMatch(directory, /goal-collection-empty/);
+  assert.ok(
+    directory.indexOf('data-feed-task-toggle="all"') < directory.indexOf('data-feed-task="source-a"'),
+    "source tasks sit inside the All collection fold",
+  );
+  assert.match(directory, /data-feed-task-config-open="source-a"/);
+  const panelA = taskConfigPanel(overlays, "source-a");
+  const panelB = taskConfigPanel(overlays, "source-b");
+  assert.match(panelA, /data-feed-out-rules="source-a"/);
+  assert.match(panelA, /A launch/);
+  assert.match(panelA, /data-feed-out-rule-create/);
+  assert.doesNotMatch(panelA, /B release|Global/);
+  assert.match(panelB, /B release/);
+  assert.doesNotMatch(panelB, /A launch|Global/);
 });
 
 test("Feed demo data keeps page-local actions and never calls real Source APIs", () => {
@@ -150,7 +272,7 @@ test("Feed demo data keeps page-local actions and never calls real Source APIs",
     description: "Demo source",
     status: "active",
     enabled: true,
-    origin: "goalboard",
+    origin: "molis_work",
     config: { scope: "review requests" },
     schedule: { mode: "interval", enabled: true, interval_minutes: 30, next_pull_at: null },
     connection_ref: null,
@@ -187,10 +309,16 @@ test("Feed demo data keeps page-local actions and never calls real Source APIs",
   assert.doesNotMatch(directory, /data-feed-entry-prototype="true"|data-prototype-feed-empty-state/);
   assert.match(detail, /data-feed-entry-prototype="true"/);
   assert.match(detail, /class="feed-stage-entry directory-list-row"/);
+  assert.match(detail, /class="feed-stage-leading"/);
+  assert.match(detail, /mw-status mw-status--attention mw-status--plain feed-entry-status/);
+  assert.match(detail, /已加入 Inbox/);
+  assert.doesNotMatch(detail, /feed-entry-chevron|feed-entry-origin|feed-stage-entry-copy/);
   assert.doesNotMatch(detail, /class="feed-list-item/);
   assert.doesNotMatch(detail, /data-prototype-feed-empty-state/);
   assert.match(detail, /data-prototype-feed-action="inbox"/);
   assert.match(directory, /data-feed-task="prototype-source-github"/);
+  assert.match(directory, /mw-status mw-status--done mw-status--plain mw-dir-row__status/);
+  assert.match(directory, /运行正常/);
   assert.match(source, /data-prototype-source-sync="prototype-source-github"/);
   assert.match(source, /data-prototype-config-save/);
   assert.match(source, /data-prototype-schedule-save/);

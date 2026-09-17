@@ -30,10 +30,6 @@
         "displayName": "Workbench Body",
         "purpose": "Readable explanations and Goal event paragraphs, normally held within 76ch."
       },
-      "home-quote": {
-        "displayName": "Home Quotation",
-        "purpose": "The 13 project-home quotations: three existing sourced passages plus all ten Adeptify English originals with original attributions. Dates, calendar, shortcuts, composer and Goal work retain native system typography. Attributions use quiet 11px text; only the original three retain source links, with no new citation or independent-verification claim for migrated text."
-      },
       "settings-heading": {
         "displayName": "Project Settings Heading",
         "purpose": "Independent global/project preferences and planning headings use 20px/600/1.4 across desktop and narrow widths; desktop token is in DESIGN.md."
@@ -90,11 +86,6 @@
         "name": "section-reveal",
         "value": "480ms cubic-bezier(.16, 1, .3, 1)",
         "purpose": "Reveal the selected body in the 关联与约束 stage while selector cards remain stationary; removed under reduced motion."
-      },
-      {
-        "name": "home-quotation",
-        "value": "opacity 160ms ease; manual change only",
-        "purpose": "The quiet shared Coss “换一句” action changes the quotation; there is no automatic rotation. All 13 pages share one grid cell, reserving the natural height of the longest content at the current width with a 112px minimum. Inactive pages retain layout with visibility:hidden, aria-hidden and inert. Original text and attributions remain unchanged. Reduced motion switches directly."
       },
       {
         "name": "project-settings-disclosure",
@@ -246,7 +237,7 @@
     {
       "name": "Project Home Launch",
       "kind": "custom",
-      "description": "Home has a real Goals entry and a disabled Agent composer; shortcuts remain in the directory. The separate quiet “换一句” action manually changes unchanged quotations with 160ms feedback. Both new Home actions have 44px narrow/coarse targets.",
+      "description": "Home has a disabled Agent composer; shortcuts remain on the home canvas. Narrow/coarse Frame add and picker controls use 44px targets.",
       "html": "<section class=\"ds-home-launch\" aria-label=\"Goals 与 Agent 输入\"><div class=\"ds-home-shortcuts\"><button class=\"ds-home-goals\" type=\"button\">打开 Goals</button></div><div class=\"ds-home-composer\"><span class=\"ds-home-agent-icon\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" aria-hidden=\"true\"><path d=\"m12 3 2.7 6.3L21 12l-6.3 2.7L12 21l-2.7-6.3L3 12l6.3-2.7L12 3ZM5 3v4M3 5h4\"/></svg></span><input type=\"text\" placeholder=\"你想推进什么？\" aria-label=\"Agent 尚未开放，暂不可输入\" aria-describedby=\"ds-home-agent-status\" disabled><button class=\"ds-home-send\" type=\"button\" aria-label=\"Agent 即将接入，暂不可发送\" disabled><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" aria-hidden=\"true\"><path d=\"M12 19V5m-7 7 7-7 7 7\"/></svg></button></div><p class=\"ds-home-agent-note\" id=\"ds-home-agent-status\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" aria-hidden=\"true\"><rect x=\"4\" y=\"10\" width=\"16\" height=\"11\" rx=\"2\"/><path d=\"M8 10V6a4 4 0 0 1 8 0v4M12 14v3\"/></svg><span>Agent 尚未开放</span></p></section>",
       "css": ".ds-home-launch { width: min(740px, 100%); color: var(--ink, #272932); font: 13px/1.55 -apple-system, BlinkMacSystemFont, \"SF Pro Text\", \"PingFang SC\", \"Microsoft YaHei\", sans-serif; } .ds-home-shortcuts { display: flex; justify-content: center; flex-wrap: wrap; gap: 18px; margin-bottom: 25px; } .ds-home-add { display: flex; flex-direction: column; align-items: center; gap: 9px; width: 88px; padding: 0; border: 0; background: transparent; color: var(--muted, #60636f); font: inherit; font-size: 11px; cursor: pointer; } .ds-home-shortcut-icon { display: grid; place-items: center; width: 43px; height: 43px; border-radius: 50%; color: var(--blue, #6262d6); background: var(--blue-soft, #efeffc); transition: background .15s ease, color .15s ease; } .ds-home-shortcut-icon svg { width: 18px; height: 18px; } .ds-home-add:hover .ds-home-shortcut-icon { background: var(--nav-active, #e9eaf0); color: var(--blue, #6262d6); } .ds-home-add:focus-visible { outline: 2px solid var(--blue, #6262d6); outline-offset: 3px; } .ds-home-composer { display: flex; align-items: center; gap: 16px; height: 76px; padding: 12px 17px 12px 24px; box-sizing: border-box; border: 1px solid var(--line, #e4e5ea); border-radius: 23px; background: var(--rail, #f4f5f8); box-shadow: 0 4px 16px color-mix(in srgb, var(--ink, #272932) 5%, transparent); } .ds-home-agent-icon { display: grid; place-items: center; flex: none; color: var(--faint, #6b6e79); } .ds-home-agent-icon svg { width: 21px; height: 21px; } .ds-home-composer input { flex: 1; width: 100%; min-width: 0; padding: 8px 0; border: 0; background: transparent; color: var(--faint, #6b6e79); font: inherit; font-size: 17px; opacity: .7; -webkit-text-fill-color: var(--faint, #6b6e79); cursor: not-allowed; } .ds-home-composer input::placeholder { color: var(--faint, #6b6e79); opacity: 1; } .ds-home-send { display: grid; place-items: center; flex: none; width: 38px; height: 38px; padding: 0; border: 0; border-radius: 11px; color: var(--faint, #6b6e79); background: var(--nav-active, #e9eaf0); cursor: not-allowed; } .ds-home-send svg { width: 19px; height: 19px; } .ds-home-agent-note { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 12px 0 0; color: var(--muted, #60636f); font-size: 11px; } .ds-home-agent-note svg { width: 12px; height: 12px; } @media (prefers-reduced-motion: reduce) { .ds-home-shortcut-icon { transition: none; } } .ds-home-goals { display:inline-flex; align-items:center; min-height:32px; padding:0 12px; border:1px solid var(--control-border,#d4d4d8); border-radius:8px; background:var(--control-fill,#ededf0); color:var(--ink,#202023); font:inherit; cursor:pointer; } .ds-home-goals:hover { background:var(--nav-hover,#ededf0); } .ds-home-goals:focus-visible { outline:2px solid var(--control-ring,#707078); outline-offset:2px; } @media(max-width:760px),(pointer:coarse) { .ds-home-goals { min-height:44px; } }"
     },
@@ -279,7 +270,7 @@
       "Adjacent Cancel/Submit actions, scoped saves, single-title inline Feed reading and explicit empty states.",
       "One viewport shell with stable toolbars and scrolling owned by lists, readers, boards and forms.",
       "Current Goal facts before history, explicit Frame/work transitions and existing-content references stored only as local canvas state.",
-      "Manual home quotations, pointer-aware board scrolling and retained keyboard focus.",
+      "Pointer-aware board scrolling and retained keyboard focus.",
       "Density v12: 12px field gaps, 88px minimum Feed rows, 920px settings column, desktop paired Session selectors; mobile 16px fields and 44px actions retained."
     ],
     "rules": [],

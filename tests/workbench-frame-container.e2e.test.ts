@@ -17,7 +17,7 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
   const feed = createLocalFeedApplication(store.db);
   const source = feed.upsertSource({
     board_id: DEMO_BOARD_ID, source_id: "frame-rss", kind: "rss", definition_id: "rss", sync_kind: "manual",
-    name: "产品观察", description: "Frame 验证", status: "active", enabled: true, item_count: 0, origin: "goalboard",
+    name: "产品观察", description: "Frame 验证", status: "active", enabled: true, item_count: 0, origin: "molis_work",
     config: {}, schedule: { mode: "manual" }, cursor: null, credential_ref: null, account_label: null,
     last_sync_at: null, last_outcome: null, last_error_code: null, imported_at: now, updated_at: now,
   });
@@ -43,7 +43,7 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
   });
   registry.appendEvent({
     session_id: session.session_id,
-    source: "goalboard_tui",
+    source: "molis_work_tui",
     kind: "user_message",
     source_id: "frame-session-note",
     source_order: 1,
@@ -134,7 +134,7 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
   })()`);
   await waitFor("document.querySelector('[data-toast]').classList.contains('is-visible') && document.querySelector('[data-toast]').textContent.includes('Goal 留在主画布')");
   assert.equal(await evaluate("document.querySelectorAll('[data-frame-block]').length"), 4);
-  await evaluate("document.querySelector('.tree-node[data-select-goal=CORE]').click()");
+  await evaluate("document.querySelector('.tree-node[data-select-goal=CORE]').dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true,view:window,detail:1}));document.querySelector('.tree-node[data-select-goal=CORE]').dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true,view:window,detail:2}))");
   await waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal === 'CORE' && !document.querySelector('[data-goal-frame-surface]').hidden && document.querySelector('.tab-item[data-plugin=goals][data-item-id=CORE][aria-current]')");
   assert.equal(await evaluate("document.querySelector('[data-titlebar-tabs] .tab-item[data-item-id=CORE]') != null"), true);
   await click('[data-plugin-strip] [data-plugin-id="sessions"]');

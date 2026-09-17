@@ -118,7 +118,7 @@ export class FeedConnectorService {
         name: `Gmail · ${scoped.email || "已连接账号"}`,
         status: "active",
         enabled: true,
-        origin: "goalboard",
+        origin: "molis_work",
         account_label: scoped.email ?? null,
         config: {
           installation_id: scoped.installationId,

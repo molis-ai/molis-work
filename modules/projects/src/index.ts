@@ -14,6 +14,7 @@ import {
 import {
   createProjectsSchema,
   migrateProjectDataClassSchema,
+  migrateProjectDropLegacyImportSchema,
   migrateProjectInboxPluginSchema,
   migrateProjectTaskPluginSchema,
   migrateProjectDropTaskPluginSchema,
@@ -142,6 +143,7 @@ export class ProjectsModule implements ProjectsApplicationApi {
 export {
   createProjectsSchema,
   migrateProjectDataClassSchema,
+  migrateProjectDropLegacyImportSchema,
   migrateProjectInboxPluginSchema,
   migrateProjectTaskPluginSchema,
   migrateProjectDropTaskPluginSchema,

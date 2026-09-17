@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createWorkbenchGoalsTreeRenderer, createWorkbenchUiHost } from "@molis-ai/molis-work-app-workbench";
-import { buildGoalCollectionModel, GOALS_TREE_CLIENT_FACTORY_SCRIPT, GOALS_TREE_EN, GOALS_TREE_UI_CONTRIBUTION_ID, type GoalsTreeItem, type GoalsTreeView } from "@molis-ai/molis-work-plugin-goals";
+import { buildGoalCollectionModel, GOALS_TREE_CLIENT_FACTORY_SCRIPT, GOALS_TREE_EN, GOALS_TREE_UI_CONTRIBUTION_ID, goalTreeCreatedLabel, goalTreeCreatorHue, goalTreeCreatorInitial, type GoalsTreeItem, type GoalsTreeView } from "@molis-ai/molis-work-plugin-goals";
 import type { GoalRelationRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 import { icon } from "@molis-ai/molis-work-design-system";
 import { L, currentLocale, listJoin, runWithLocale } from "@molis-ai/molis-work-app-local-host";
@@ -11,7 +11,8 @@ const escapeHtml = (value: unknown) => String(value ?? "").replaceAll("&", "&amp
 const renderer = createWorkbenchGoalsTreeRenderer({ translate: L, escapeHtml, icon, currentLocale, listJoin,
   renderStatus: status => `<span>${status}</span>`, renderActionStatus: status => `<span>${status}</span>`,
   renderVisibleGoalStatus: item => `<span>${item.display_status}</span>`, displayStatuses: GOAL_DISPLAY_STATUSES });
-const item = (id: string, title = id): GoalsTreeItem => ({ goal: { goal_id: id, title, priority: 1, created_at: "2026-09-05", fulfillment_state: "unmet", acceptance_criteria: [] },
+const item = (id: string, title = id, acceptedBy?: string): GoalsTreeItem => ({
+  goal: { goal_id: id, title, priority: 1, created_at: "2026-09-05", fulfillment_state: "unmet", acceptance_criteria: [], ...(acceptedBy ? { accepted_by: acceptedBy } : {}) },
   status: "execution_pending", display_status: "continue", passed_criteria: [], relations: [] });
 const relation = (id: string, type: GoalRelationRecord["type"], from: string, to: string): GoalRelationRecord => ({
   relation_id: id, board_id: "board", type, from_goal_id: from, to_goal_id: to, state: "active", reason: 'Dependency "reason" <safe>',
@@ -21,11 +22,12 @@ const view = (goals: GoalsTreeItem[], relations: GoalRelationRecord[] = []): Goa
 test("Goals root directory contribution keeps its count, selection and navigation actions", () => {
   const active = renderer.renderGoalRootEntry(3, true);
   assert.match(active, /class="desktop-module-item is-current"/);
-  assert.match(active, /data-directory-open="goals" data-work-surface-open="goal" aria-current="page"/);
+  assert.match(active, /data-work-surface-open="goal" aria-current="page"/);
+  assert.doesNotMatch(active, /data-directory-open/);
   assert.match(active, /<strong>Goals<\/strong><small>3 个 Goal<\/small>/);
   const inactive = renderer.renderGoalRootEntry(0, false);
-  assert.doesNotMatch(inactive, /is-current|aria-current/);
-  assert.match(inactive, /data-directory-open="goals" data-work-surface-open="goal"/);
+  assert.doesNotMatch(inactive, /is-current|aria-current|data-directory-open/);
+  assert.match(inactive, /data-work-surface-open="goal"/);
   assert.match(inactive, /<small>0 个 Goal<\/small>/);
 });
 
@@ -48,15 +50,14 @@ test("collection selection preserves requested/active/first precedence and archi
   const full = renderer.renderGoalDirectory(model, current, true);
   const compact = renderer.renderGoalRefreshDirectory(model, current);
   const stage = renderer.renderGoalStageList(model, current);
-  assert.match(full, /data-directory-panel="goals">/);
-  assert.match(full, /共 3 个目标/);
-  assert.match(full, /class="tree-create"[^>]*>[\s\S]*新建 Goal/);
-  assert.match(full, /class="tree-filter-trigger"[^>]*data-tree-filter-trigger/);
-  assert.doesNotMatch(full, /data-goal-list-view|data-tree-root|data-select-goal|data-goal-collection-fold/);
-  assert.doesNotMatch(full, /data-archive-link|data-trash-link|data-navigator-view/);
+  const chrome = renderer.renderTreeChrome(model);
+  assert.equal(full, "");
+  assert.match(chrome, /tree-create[^>]*>[\s\S]*新建 Goal/);
+  assert.match(chrome, /class="[^"]*tree-filter-trigger"[^>]*data-tree-filter-trigger/);
   assert.match(stage, /data-goal-stage-list/);
   assert.match(stage, /data-goal-list-view/);
   assert.match(stage, /data-goal-collection-fold="current"[^>]*\sopen/);
+  assert.match(stage, /class="goal-collection-mark"/);
   assert.match(stage, /data-goal-collection-fold="archive"/);
   assert.match(stage, /data-goal-collection-fold="trash"/);
   assert.match(stage, /data-tree-root/);
@@ -73,11 +74,12 @@ test("collection selection preserves requested/active/first precedence and archi
     return {
       directory: renderer.renderGoalDirectory(model, collection, false),
       stage: renderer.renderGoalStageList(model, collection),
+      refresh: renderer.renderGoalRefreshDirectory(model, collection),
     };
   });
-  assert.match(archive.directory, /data-directory-panel="goals" hidden/);
-  assert.match(archive.directory, /Can be restored any time/);
-  assert.doesNotMatch(archive.directory, /data-global-search|tree-search|data-archive-link|data-trash-link|data-select-goal/);
+  assert.equal(archive.directory, "");
+  assert.match(archive.refresh, /Can be restored any time/);
+  assert.doesNotMatch(archive.refresh, /data-global-search|tree-search|data-archive-link|data-trash-link|data-directory-panel/);
   assert.match(archive.stage, /data-goal-collection-fold="archive"[^>]*\sopen/);
   assert.match(archive.stage, /data-collection-open/);
   assert.match(archive.stage, /data-tree-root/);
@@ -96,18 +98,29 @@ test("tree contribution retains nesting, sibling order, selected row, progress, 
   const blocked = { ...item("blocked"), status: "execution_blocked" as const, display_status: "blocked" as const };
   const done = { ...item("done"), display_status: "completed" as const };
   const cycleA = item("cycle-a"), cycleB = item("cycle-b");
+  const leaf = item("leaf");
   const relations = [relation("c1", "part_of", "done", "parent"), relation("c2", "part_of", "blocked", "parent"), relation("c3", "part_of", "ready", "parent"),
+    relation("c4", "part_of", "leaf", "ready"),
     relation("cycle1", "part_of", "cycle-a", "cycle-b"), relation("cycle2", "part_of", "cycle-b", "cycle-a")];
-  const html = renderer.renderGoalTree(view([parent, done, blocked, ready, cycleA, cycleB], relations), "ready");
+  const html = renderer.renderGoalTree(view([parent, done, blocked, ready, leaf, cycleA, cycleB], relations), "ready");
   assert.match(html, /Parent &quot;&lt;title&gt;/);
   assert.match(html, /class="tree-children"/);
   assert.match(html, /data-tree-toggle/);
+  assert.match(html, /data-tree-depth="0"/);
+  assert.match(html, /data-tree-depth="1"/);
+  assert.match(html, /data-tree-depth="2"/);
+  assert.match(html, /class="tree-leading"/);
+  assert.equal((html.match(/class="tree-avatar is-unknown"/g) ?? []).length, 7);
+  assert.equal((html.match(/<time class="tree-created"/g) ?? []).length, 7);
+  assert.match(html, />Sep 5</);
+  assert.doesNotMatch(html, /class="tree-ref"/);
+  assert.match(html, /tree-progress is-empty/);
   assert.ok(html.indexOf('data-goal-id="ready"') < html.indexOf('data-goal-id="blocked"'));
   assert.ok(html.indexOf('data-goal-id="blocked"') < html.indexOf('data-goal-id="done"'));
   assert.match(html, /data-select-goal="ready" aria-pressed="true"/);
   assert.match(html, /aria-label="1\/3 完成，1 个阻塞"/);
   assert.match(html, /--tree-progress:33%/);
-  for (const id of ["parent", "ready", "blocked", "done", "cycle-a", "cycle-b"]) assert.equal(html.split(`data-goal-id="${id}"`).length - 1, 1);
+  for (const id of ["parent", "ready", "blocked", "done", "leaf", "cycle-a", "cycle-b"]) assert.equal(html.split(`data-goal-id="${id}"`).length - 1, 1);
 });
 
 test("tree dependencies preserve outgoing direction, archived results, missing targets, and searchable reasons", () => {
@@ -121,6 +134,8 @@ test("tree dependencies preserve outgoing direction, archived results, missing t
   assert.match(html, /tree-relations is-blocked/);
   assert.match(html, /3 个前置/);
   assert.match(html, /1 个阻塞/);
+  assert.match(html, /tree-relations-copy/);
+  assert.doesNotMatch(html, /tree-relations-mark|tree-meta-line/);
   assert.match(html, /data-select-goal="archived"/);
   assert.match(html, /已完成，不再挡住/);
   assert.match(html, /data-select-goal="missing"/);
@@ -138,8 +153,8 @@ test("tree chrome keeps status counts, localized copy, and empty states", () => 
   assert.doesNotMatch(html, /value="blocked" data-status-filter/);
   assert.doesNotMatch(html, /value="archived" data-status-filter|value="trashed" data-status-filter/);
   assert.doesNotMatch(html, /data-global-search|tree-search|data-archive-link|data-trash-link|data-navigator-view/);
-  assert.match(html, /class="tree-filter-trigger"[^>]*data-tree-filter-trigger/);
-  assert.match(html, /class="tree-create"[^>]*>[\s\S]*新建 Goal/);
+  assert.match(html, /class="[^"]*tree-filter-trigger"[^>]*data-tree-filter-trigger/);
+  assert.match(html, /tree-create[^>]*>[\s\S]*新建 Goal/);
   assert.match(html, /data-open-create/);
   assert.doesNotMatch(html, /data-collapse-all|折叠全部|Collapse all/);
   const english = runWithLocale("en", () => renderer.renderTreeChrome(model));
@@ -189,4 +204,22 @@ test("stage list keeps current, archive and trash collection folds", () => {
   }, undefined, false, false, false, L)));
   assert.match(english, />Current<\/strong>/);
   assert.match(english, /No Goals yet/);
+});
+
+test("list rows show created date and creator avatar instead of Goal id", () => {
+  assert.equal(goalTreeCreatedLabel("2026-09-17T08:12:00.000Z"), "Sep 17");
+  assert.equal(goalTreeCreatorInitial("demo-user"), "D");
+  assert.equal(typeof goalTreeCreatorHue("demo-user"), "number");
+  const html = renderer.renderGoalTree(view([item("V1", "Root", "demo-user")]), "V1");
+  assert.match(html, /class="tree-avatar"[^>]*>D</);
+  const fromCreatedBy = renderer.renderGoalTree({
+    ...view([item("draft")]),
+    goals: [{ ...item("draft"), created_by: "demo-user" }],
+  }, "draft");
+  assert.match(fromCreatedBy, /class="tree-avatar"[^>]*>D</);
+  assert.match(html, /<span class="tree-copy"><span class="tree-title-line">/);
+  assert.match(html, /class="tree-created-meta"/);
+  assert.match(html, /aria-label="创建人 demo-user"/);
+  assert.match(html, /<time class="tree-created" datetime="2026-09-05"[^>]*>Sep 5<\/time>/);
+  assert.doesNotMatch(html, /class="tree-ref"|Goal 编号/);
 });

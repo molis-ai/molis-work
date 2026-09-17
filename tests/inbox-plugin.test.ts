@@ -159,7 +159,7 @@ function insertFeedItem(project: { database_path: string; board_id: string }, it
         board_id, source_id, kind, name, description, status, enabled, item_count,
         origin, last_sync_at, last_outcome, last_error_code, imported_at, updated_at
       ) VALUES (@board_id, 'source-inbox-plugin', 'rss', '测试 RSS', '测试来源', 'active', 1, 1,
-        'goalboard', @now, 'completed', NULL, @now, @now)
+        'molis_work', @now, 'completed', NULL, @now, @now)
     `).run({ board_id: project.board_id, now });
     store.db.prepare(`
       INSERT INTO feed_items (

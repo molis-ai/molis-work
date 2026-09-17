@@ -45,13 +45,6 @@ export class WebServiceProcess {
     if (result.code === 0) await this.waitForUnloaded();
   }
 
-  async stopLegacy(): Promise<void> {
-    const result = await this.environment.launchctl(["bootout", this.environment.legacyServiceTarget()]);
-    if (result.code !== 0 && !/could not find service|no such process/i.test(result.stderr)) {
-      throw commandError("停止", result);
-    }
-  }
-
   private async waitForUnloaded(): Promise<void> {
     let status = await this.environment.launchctl(["print", this.environment.serviceTarget()]);
     for (let attempt = 1; status.code === 0 && attempt < 25; attempt += 1) {

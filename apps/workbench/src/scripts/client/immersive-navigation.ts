@@ -15,18 +15,20 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
   const modesScope = getState().project?.project_id || getState().snapshot.board.board_id;
   const modesKey = "molis-work-goal-work-modes:" + modesScope;
   let modes = {};
-  try { modes = JSON.parse(localStorage.getItem(modesKey) || localStorage.getItem("goalboard-goal-work-modes:" + modesScope) || "{}"); } catch {}
+  try { modes = JSON.parse(localStorage.getItem(modesKey) || "{}"); } catch {}
   const narrow = () => matchMedia("(max-width: 600px)").matches;
   const persistModes = () => { try { localStorage.setItem(modesKey, JSON.stringify(modes)); } catch {} };
   const currentPlugin = () => {
     if (treePane?.dataset.desktopDirectory === "settings") return "settings";
+    if (treePane?.dataset.desktopDirectory === "project-settings") return "project-settings";
     const surface = getSurface();
     if (surface === "goal") return "goals";
     if (surface === "feed" || surface === "sources") return "feed";
     if (surface === "home") return "home";
     if (surface === "market") return "market";
-    if (surface === "project-settings") return "";
-    if (surface === "sessions" || surface === "inbox" || surface === "artifacts") return surface;
+    if (surface === "settings") return "settings";
+    if (surface === "project-settings") return "project-settings";
+    if (surface === "sessions" || surface === "inbox" || surface === "artifacts" || surface === "shelf") return surface;
     return "";
   };
   const syncPresence = () => {
@@ -37,7 +39,7 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
     treePane.toggleAttribute("inert", narrow() && !drawerOpen);
     stage.toggleAttribute("inert", drawerOpen);
     header.removeAttribute("inert");
-    const editing = Boolean(documentPane.querySelector(".is-editing-goal"));
+    const editing = Boolean(!documentPane.hidden && documentPane.querySelector(".is-editing-goal"));
     const overlayDetails = Boolean(frame && frame.clientWidth < 840 && frame.dataset.detailsOpen === "true");
     workMain?.toggleAttribute("inert", editing || overlayDetails);
   };
@@ -46,8 +48,8 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
     frame.dataset.detailsOpen = String(open);
     documentPane.hidden = !open;
     const button = frame.querySelector("[data-goal-details-toggle]");
-    button.setAttribute("aria-expanded", String(open));
-    button.setAttribute("aria-label", open ? L("收起 Goal 信息与时间线") : L("展开 Goal 信息与时间线"));
+    button?.setAttribute("aria-expanded", String(open));
+    button?.setAttribute("aria-label", open ? L("收起 Goal 信息与时间线") : L("展开 Goal 信息与时间线"));
     if (persist && getSelected()) {
       modes[getSelected()] = { ...modes[getSelected()], details: open };
       persistModes();
@@ -60,7 +62,10 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
     const item = getState().goals.find(item => item.goal.goal_id === goalId);
     frame.querySelector("[data-workspace-goal-title]").textContent = item?.goal.title || "";
     const status = frame.querySelector("[data-workspace-goal-status]");
-    status.textContent = documentPane.querySelector(".goal-info-popover > summary .goal-status")?.textContent?.trim() || "";
+    const source = documentPane.querySelector(".goal-info-popover > summary .goal-status");
+    status.className = source?.className || "goal-status";
+    status.setAttribute("data-workspace-goal-status", "");
+    status.innerHTML = source?.innerHTML || "";
     const saved = modes[goalId] || {};
     const workMode = "terminal";
     frame.dataset.workMode = workMode;
@@ -82,8 +87,18 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
       if (active) button.setAttribute("aria-current", "page");
       else button.removeAttribute("aria-current");
     });
+    const projectGear = document.querySelector(".navigator-project-settings");
+    if (projectGear) {
+      if (plugin === "project-settings") {
+        projectGear.setAttribute("aria-current", "page");
+        projectGear.setAttribute("aria-label", L("当前项目设置"));
+      } else {
+        projectGear.removeAttribute("aria-current");
+        projectGear.setAttribute("aria-label", L("打开当前项目设置"));
+      }
+    }
     const surface = getSurface();
-    const labels = { home: L("项目首页"), goal: "Goals", sessions: "Sessions", inbox: "Inbox", feed: "Feed", sources: "Feed", artifacts: "Artifacts", market: L("插件市场"), "project-settings": L("项目设置") };
+    const labels = { home: L("项目首页"), goal: "Goals", sessions: "Sessions", inbox: "Inbox", feed: "Feed", sources: "Feed", shelf: "Shelf", artifacts: "Artifacts", market: L("插件市场"), "project-settings": L("项目设置") };
     const pluginTitle = document.querySelector("[data-immersive-plugin-title]");
     if (pluginTitle) {
       pluginTitle.hidden = true;

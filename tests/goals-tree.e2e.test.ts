@@ -9,14 +9,13 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 test("Goals tree supports real collapse, search, status filtering and detail selection without changing project facts", { timeout: 60_000 }, async (t) => {
   const browser = await openGoalBrowser(t);
   if (!browser) return;
-  const { store, origin, before, sessionId, command, evaluate, waitFor, click, reloadPage } = browser;
+  const { store, origin, before, sessionId, command, evaluate, waitFor, click, reloadPage, showGoalStageList } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await command("Page.navigate", { url: origin + "/goals/V1" }, sessionId);
   await command("Page.bringToFront", {}, sessionId);
   await waitFor("document.readyState === 'complete' && document.querySelector('[data-tree-item][data-goal-id=CORE]')");
-  await evaluate("document.querySelector('[data-board-view-tab=list]')?.click()");
-  await waitFor("document.querySelector('[data-goal-canvas-shell]')?.dataset.boardView === 'list' && !document.querySelector('[data-goal-canvas-shell]')?.hidden");
+  await showGoalStageList();
   const dom = (selector: string) => "document.querySelector(" + JSON.stringify(selector) + ")";
   const screenshots = process.env.MOLIS_WORK_TEST_CAPTURE === "1" ? await mkdtemp(join(tmpdir(), "molis-work-gw5-tree-")) : null;
   async function capture(name: string) {
@@ -53,7 +52,8 @@ test("Goals tree supports real collapse, search, status filtering and detail sel
   await click('[data-global-search-id="CORE"]');
   await waitFor("document.querySelector('[data-global-search-dialog]')?.open !== true && document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal === 'CORE'");
 
-  await click("[data-tree-filter-trigger]");
+  await showGoalStageList();
+  await click("[data-goal-stage-chrome] [data-tree-filter-trigger]");
   await command("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
   await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
   assert.equal(await evaluate(dom("[data-tree-filter]") + ".hidden"), true);
@@ -69,20 +69,18 @@ test("Goals tree supports real collapse, search, status filtering and detail sel
   assert.equal(await evaluate(dom('[data-tree-item][data-goal-id="CORE"]') + ".hidden"), false);
   assert.equal(await evaluate(dom('[data-tree-item][data-goal-id="WEB"]') + ".hidden"), true);
   assert.equal(await evaluate(dom(root) + ".hidden"), false);
-  await click("[data-tree-filter-trigger]");
+  await showGoalStageList();
+  await click("[data-goal-stage-chrome] [data-tree-filter-trigger]");
   await click("[data-clear-status-filter]");
   assert.equal(await evaluate(dom('[data-tree-item][data-goal-id="WEB"]') + ".hidden"), false);
-  await evaluate("document.querySelector('[data-titlebar-tabs] .tab-item[data-tab-kind=mother] [role=tab]')?.click()");
-  await evaluate("document.querySelector('[data-board-view-tab=list]')?.click()");
-  await waitFor("document.querySelector('[data-goal-canvas-shell]')?.dataset.boardView === 'list' && !document.querySelector('[data-goal-canvas-shell]')?.hidden");
-  await click("[data-tree-filter-trigger]");
-  await evaluate("document.querySelector('.tree-node[data-select-goal=\"CORE\"]').click()");
-  await waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal === 'CORE' && " + dom('.tree-node[data-select-goal="CORE"]') + ".getAttribute('aria-pressed') === 'true'");
+  await showGoalStageList();
+  await evaluate("document.querySelector('[data-goal-stage-list] .tree-node[data-select-goal=\"CORE\"]').click()");
+  await waitFor("document.querySelector('[data-goal-node-workspace]')?.dataset.expandedGoal === 'CORE' && !document.querySelector('[data-goal-node-workspace]').hidden");
+  await waitFor(dom('.tree-node[data-select-goal="CORE"]') + ".getAttribute('aria-pressed') === 'true'");
   const core = before.goals.find(goal => goal.goal_id === "CORE")!;
   assert.equal(await evaluate(dom('.tree-node[data-select-goal="CORE"] strong') + ".textContent"), core.title);
   await reloadPage();
-  await waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal === 'CORE'");
-  assert.equal(await evaluate(dom('.tree-node[data-select-goal="CORE"]') + ".getAttribute('aria-pressed')"), "true");
+  await waitFor(dom('.tree-node[data-select-goal="CORE"]') + ".getAttribute('aria-pressed') === 'true'");
   await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
   await click("[data-directory-show]");
   await waitFor("document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')");

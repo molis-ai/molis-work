@@ -102,7 +102,7 @@ export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
       } catch (error) {
         if (isAbortError?.(error) || requestId !== selectedRequest || goalId() !== currentGoal || reading.goal !== currentGoal) return;
         if (!explicit && (reading.form || reading.reader)) return;
-        renderEventHtml("<p class=\\"no-results\\" role=\\"alert\\">" + escapeText(error.message || L("无法读取事件")) + "</p><button type=\\"button\\" class=\\"text-button\\" data-retry-event>" + escapeText(L("重试读取事件")) + "</button>");
+        renderEventHtml("<p class=\\"no-results\\" role=\\"alert\\">" + escapeText(error.message || L("无法读取事件")) + "</p><button type=\\"button\\" class=\\"mw-btn mw-btn--link\\" data-retry-event>" + escapeText(L("重试读取事件")) + "</button>");
       }
     };
 
@@ -346,7 +346,7 @@ export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
               if (status) {
                 status.hidden = false;
                 status.innerHTML = escapeText((readError.message || L("读取断线")) + " · " + L("已保存，请重试读取，不会再写一条。"))
-                  + '<button type="button" class="button secondary" data-retry-read>' + escapeText(L("重试读取")) + "</button>";
+                  + '<button type="button" class="mw-btn mw-btn--secondary" data-retry-read>' + escapeText(L("重试读取")) + "</button>";
               }
             }
             return;
@@ -358,7 +358,7 @@ export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
             conflict.innerHTML = "<p>" + escapeText(body.error || L("当前约定已变化。输入已保留。")) + "</p>"
               + "<p>" + escapeText(L("当前预期结果")) + "：" + escapeText(current.agreement?.outcome || L("未填写")) + "</p>"
               + "<p>" + escapeText(L("约定版本")) + " " + escapeText(current.agreement?.version ?? "") + " · " + escapeText(L("配置版本")) + " " + escapeText(current.config?.version ?? "") + "</p>"
-              + '<button type="button" class="button secondary" data-conflict-retry>' + escapeText(L("按当前版本重新审阅后提交")) + "</button>";
+              + '<button type="button" class="mw-btn mw-btn--secondary" data-conflict-retry>' + escapeText(L("按当前版本重新审阅后提交")) + "</button>";
           }
           form.setAttribute("data-live-dirty", "true");
           return;
@@ -413,7 +413,7 @@ export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
           if (status) {
             status.hidden = false;
             status.innerHTML = escapeText((readError.message || L("读取断线")) + " · " + L("已保存，请重试读取，不会再写一条。"))
-              + '<button type="button" class="button secondary" data-retry-read>' + escapeText(L("重试读取")) + "</button>";
+              + '<button type="button" class="mw-btn mw-btn--secondary" data-retry-read>' + escapeText(L("重试读取")) + "</button>";
           }
           showError?.(L("已保存，但当前页面还没读回。"));
           return;
@@ -602,7 +602,7 @@ export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
         const wrap = document.createElement("div");
         wrap.className = "type-field-row";
         const id = "field-" + (globalThis.crypto?.randomUUID?.().slice(0, 8) || String(Date.now()));
-        wrap.innerHTML = '<input type="hidden" name="field_id" value="' + id + '"><label><span>' + escapeText(L("字段名")) + '</span><input name="field_name" required></label><label><span>' + escapeText(L("说明")) + '</span><input name="field_purpose" required value="' + escapeText(L("记录原文")) + '"></label><div class="type-field-tools"><label><span>' + escapeText(L("内容形式")) + '</span><select name="field_format"><option value="text">' + escapeText(L("短文本")) + '</option><option value="longtext" selected>' + escapeText(L("长文本")) + '</option></select></label><label class="check-row"><input type="checkbox" name="field_required" checked><span>' + escapeText(L("必填")) + '</span></label><button type="button" class="text-button" data-remove-type-field>' + escapeText(L("移除")) + '</button></div>';
+        wrap.innerHTML = '<input type="hidden" name="field_id" value="' + id + '"><label><span>' + escapeText(L("字段名")) + '</span><input name="field_name" required></label><label><span>' + escapeText(L("说明")) + '</span><input name="field_purpose" required value="' + escapeText(L("记录原文")) + '"></label><div class="type-field-tools"><label><span>' + escapeText(L("内容形式")) + '</span><select name="field_format"><option value="text">' + escapeText(L("短文本")) + '</option><option value="longtext" selected>' + escapeText(L("长文本")) + '</option></select></label><label class="check-row"><input type="checkbox" name="field_required" checked><span>' + escapeText(L("必填")) + '</span></label><button type="button" class="mw-btn mw-btn--link" data-remove-type-field>' + escapeText(L("移除")) + '</button></div>';
         box.append(wrap);
         return;
       }

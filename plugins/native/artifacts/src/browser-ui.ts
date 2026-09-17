@@ -1,4 +1,5 @@
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
+import { renderDirectoryRow } from "@molis-ai/molis-work-design-system";
 import { artifactDisplayTitle, artifactVersionPath, type ArtifactBrowserView } from "./browser.js";
 
 export const ARTIFACT_BROWSER_UI_CONTRIBUTION_ID = "io.molis.work.native.artifacts.browser.v1";
@@ -15,14 +16,38 @@ export interface ArtifactBrowserUiModel {
 }
 
 function directory({ view, routePrefix, primitives: p }: ArtifactBrowserUiModel): string {
-  if (!view.versions.length) return `<p class="artifact-empty">${p.text("还没有 Artifact")}</p>`;
-  return `<nav aria-label="${p.text("Artifact 版本")}" class="artifact-version-list">${view.versions.map((artifact) => {
+  if (!view.versions.length) return `<p class="artifact-empty mw-empty">${p.text("还没有 Artifact")}</p>`;
+  return `<nav aria-label="${p.text("Artifact 版本")}" class="mw-dir__list artifact-version-list">${view.versions.map((artifact) => {
     const selected = view.selected?.artifact_id === artifact.artifact_id && view.selected.version === artifact.version;
     const title = artifactDisplayTitle(artifact);
-    return `<a href="${p.escape(routePrefix + artifactVersionPath(artifact))}" draggable="true" data-frame-asset="artifact" data-frame-asset-id="${p.escape(artifact.artifact_id + "#" + artifact.version)}" data-frame-asset-title="${p.escape(title)}" data-frame-asset-caption="${p.escape("v" + artifact.version + " · " + artifact.artifact_type_id)}"${selected ? ' aria-current="page"' : ""}>
-      <strong>${p.escape(title)}</strong><span>v${artifact.version} · ${p.escape(artifact.artifact_type_id)}</span>
-      <small>${p.escape(p.formatDate(artifact.created_at))} · ${p.text(artifact.lifecycle_state === "archived" ? "已归档" : artifact.availability === "unavailable" ? "内容不可用" : "可用")}</small>
-    </a>`;
+    const status = artifact.lifecycle_state === "archived"
+      ? p.text("已归档")
+      : artifact.availability === "unavailable"
+        ? p.text("内容不可用")
+        : p.text("可用");
+    const statusTone = artifact.lifecycle_state === "archived"
+      ? "quiet"
+      : artifact.availability === "unavailable"
+        ? "blocked"
+        : "done";
+    const statusIcon = statusTone === "quiet" ? "archive" : statusTone === "blocked" ? "alert" : "check";
+    return renderDirectoryRow({
+      title,
+      caption: `v${artifact.version} · ${artifact.artifact_type_id}`,
+      status,
+      statusTone,
+      statusIcon,
+      density: "meta",
+      href: routePrefix + artifactVersionPath(artifact),
+      current: selected,
+      draggable: true,
+      attrs: {
+        "data-frame-asset": "artifact",
+        "data-frame-asset-id": `${artifact.artifact_id}#${artifact.version}`,
+        "data-frame-asset-title": title,
+        "data-frame-asset-caption": `v${artifact.version} · ${artifact.artifact_type_id}`,
+      },
+    });
   }).join("")}</nav>`;
 }
 

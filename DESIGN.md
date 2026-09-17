@@ -2,91 +2,101 @@
 name: Molis Work Coss Workbench
 description: A neutral, compact personal workbench with continuous work surfaces, edge-attached editors, grouped work tabs, and restrained state feedback.
 colors:
-  page: "#f6f7f9"
+  page: "#f3f4f5"
   paper: "#ffffff"
-  rail: "#f0f1f4"
-  nav-bg: "#f8f8fa"
-  ink: "#15161a"
-  ink-soft: "#43464f"
-  muted: "#5f636d"
-  faint: "#6e727c"
-  line: "#e6e7ec"
-  line-strong: "#d5d7de"
-  nav-hover: "ink 5.5%"
-  nav-active: "ink 9%"
-  nav-press: "ink 13%"
+  rail: "#eceef0"
+  nav-bg: "#f3f4f5"
+  ink: "#222326"
+  ink-soft: "#3c3f44"
+  muted: "#6b6f76"
+  faint: "#737882"
+  line: "#e2e4e7"
+  line-strong: "#d0d6e0"
+  nav-hover: "ink 6%"
+  nav-active: "ink 10%"
+  nav-press: "ink 14%"
   nav-raised: "#ffffff"
-  hairline: "ink 9%"
-  accent: "#5a63d6"
-  accent-strong: "#474fbd"
-  accent-soft: "#eeeffb"
-  green: "#2e7d5c"
-  amber: "#8a6320"
-  red: "#b0424a"
-  action: "#1c1d21"
+  hairline: "ink 12%"
+  accent: "#5e6ad2"
+  accent-strong: "#4c56c4"
+  accent-soft: "#eef0fb"
+  green: "#2d7a5a"
+  amber: "#8a5c18"
+  red: "#b03d45"
+  action: "#222326"
   action-ink: "#ffffff"
-  scrim: "rgba(19, 21, 32, .3)"
-  dark-page: "#0e0f12"
-  dark-paper: "#17181c"
-  dark-rail: "#131417"
-  dark-nav-bg: "#121316"
-  dark-ink: "#f2f3f6"
-  dark-ink-soft: "#c4c7d0"
-  dark-muted: "#9a9ea9"
-  dark-faint: "#82868f"
-  dark-line: "#26272d"
-  dark-line-strong: "#363840"
-  dark-nav-hover: "ink 6%"
-  dark-nav-active: "ink 10%"
-  dark-nav-press: "ink 14%"
-  dark-nav-raised: "#212328"
-  dark-hairline: "ink 10%"
-  dark-edge-highlight: "rgba(255, 255, 255, .055)"
-  dark-accent: "#9aa2fb"
-  dark-accent-strong: "#b6bbfd"
-  dark-accent-soft: "#24263f"
-  dark-green: "#62c08f"
-  dark-amber: "#d8a45f"
-  dark-red: "#ec8087"
-  dark-action: "#edeef1"
-  dark-action-ink: "#17181c"
-  dark-scrim: "rgba(0, 0, 0, .55)"
+  scrim: "rgba(18, 18, 24, .32)"
+  dark-page: "#0f1011"
+  dark-paper: "#161718"
+  dark-rail: "#0f1011"
+  dark-nav-bg: "#0f1011"
+  dark-ink: "#f7f8f8"
+  dark-ink-soft: "#d0d1d3"
+  dark-muted: "#8a8f98"
+  dark-faint: "#737880"
+  dark-line: "#23252a"
+  dark-line-strong: "#2e3036"
+  dark-nav-hover: "ink 8%"
+  dark-nav-active: "ink 12%"
+  dark-nav-press: "ink 16%"
+  dark-nav-raised: "#1c1c1f"
+  dark-hairline: "ink 14%"
+  dark-edge-highlight: "rgba(255, 255, 255, .07)"
+  dark-accent: "#8b93f1"
+  dark-accent-strong: "#a8aef5"
+  dark-accent-soft: "#262848"
+  dark-green: "#6bc49a"
+  dark-amber: "#d4a15c"
+  dark-red: "#ee858c"
+  dark-action: "#f7f8f8"
+  dark-action-ink: "#0f1011"
+  dark-scrim: "rgba(0, 0, 0, .58)"
+  tone-idle: "#5c6570"
+  tone-progress: "#5e6ad2"
+  tone-attention: "#8a5c18"
+  tone-hold: "#3d6f78"
+  tone-blocked: "#b03d45"
+  tone-done: "#2d7a5a"
+  tone-quiet: "#6d6d76"
+  dark-tone-idle: "#b3b8c2"
+  dark-tone-progress: "#8b93f1"
+  dark-tone-attention: "#d4a15c"
+  dark-tone-hold: "#86c0c7"
+  dark-tone-blocked: "#ee858c"
+  dark-tone-done: "#6bc49a"
+  dark-tone-quiet: "#94949c"
 typography:
   body:
-    fontFamily: "-apple-system, BlinkMacSystemFont, SF Pro Text, PingFang SC, Microsoft YaHei, sans-serif"
+    fontFamily: "Inter Variable, Inter, Noto Sans SC, PingFang SC, Hiragino Sans GB, Microsoft YaHei, sans-serif"
+    fontFeatureSettings: "cv01, ss03, calt"
     fontSize: "13px"
     fontWeight: 400
-    lineHeight: 1.55
+    lineHeight: 1.5
+    letterSpacing: "-.011em"
   directory-title:
     fontSize: "13px"
-    fontWeight: 450
-    lineHeight: "20px"
+    fontWeight: 400
+    lineHeight: "18px"
   directory-caption:
     fontSize: "12px"
-    fontWeight: 500
-    lineHeight: "18px"
+    fontWeight: 400
+    lineHeight: "14px"
   tab:
     fontSize: "12px"
-    fontWeight: 450
+    fontWeight: 400
   event-heading:
     fontSize: "16px"
-    fontWeight: 550
+    fontWeight: 400
     lineHeight: 1.5
     letterSpacing: "-.01em"
   settings-heading:
-    fontSize: "20px"
-    fontWeight: 600
-    lineHeight: 1.4
-    letterSpacing: "-.025em"
-  home-quote:
-    fontFamily: "Songti SC, Noto Serif CJK SC, STSong, Georgia, serif"
-    fontSize: "17px"
+    fontSize: "28px"
     fontWeight: 400
-    lineHeight: 1.85
-    letterSpacing: "0.015em"
+    lineHeight: 1.2
+    letterSpacing: "-.03em"
 rounded:
-  item: "6px"
-  control: "8px"
+  item: "8px"
+  control: "10px"
   surface: "12px"
   home-composer: "23px"
 spacing:
@@ -160,7 +170,7 @@ This is the current built world as of 2026-09-16. [Coss workbench redesign](spec
 
 ## Colors
 
-The palette is neutral gray with a restrained violet interaction accent. `packages/design-system/src/styles/coss-controls.ts` owns the shared Coss control layer, and `packages/design-system/src/styles/interaction-texture.ts`, loaded after every page stylesheet, owns the final colour ramp, elevation, motion and icon calibration. The frontmatter lists its actual values; component examples use Light tokens and resolve to their Dark counterparts through runtime CSS variables.
+The palette is cool zinc with a Linear indigo accent. `packages/design-system/src/palette.ts` owns the hue, plugin, status and content tables; `packages/design-system/src/styles/interaction-texture.ts` writes the final CSS variables. Neutrals stay distinct by layer instead of a muddy indigo-grey wash. Chromatic color is a 14-hue set (gray, brown, orange, yellow, green, mint, cyan, blue, indigo, purple, pink, red, steel, slate). Each hue has text (13px on paper ≥4.5:1), fill (6–8px marks, Linear-bright) and soft (≈11% wash). `--blue` / `--focus` alias indigo `#5e6ad2`. `--green` / `--amber` / `--red` alias green / orange / red. Plugin tokens (`--plugin-goals` …) alias the ownership hues. The reading surface is a second family, not a second skin: `--content-*` is DropAgent warm paper (side `#f5f5f4`, paper `#fcfcfb`, ink `#292a2e`); `--content-accent` aliases `--hue-slate` (`#66709e`). Five `--mark-*` type colors (steel-blue, mist-cyan, ochre, plum, clay; ink + chip fill, no green) mark files and actions on that surface. Shelf `--da-*` aliases the content family so chrome stays Linear zinc. The Catalog 色板 specimen is the readable table; the frontmatter lists Light surface and type values.
 
 ### Primary
 
@@ -168,43 +178,43 @@ Action is near-black in Light and near-white in Dark. It identifies primary acti
 
 ### Neutral
 
-The neutral ramp carries a faint indigo cast so greys belong to the accent family rather than reading as unrelated system grey. Page/canvas is the outer work field; paper/panel is the reading surface; navigation uses `--nav-bg`. Dark separates those layers as field `#0e0f12` → navigation `#121316` → paper `#17181c` → raised `#212328`. Ink, soft ink, muted and faint establish reading hierarchy and all four stay at or above 4.5:1 on their own surface. Thin lines separate meaningful regions.
+The neutral ramp is Linear product zinc so field, rail and paper stay distinct; indigo is reserved for accent, focus and selected content. Page/canvas is the outer work field; paper/panel is the reading surface; navigation uses `--nav-bg`. Dark matches Linear’s panel: field and navigation `#0f1011`, paper `#161718`, raised `#1c1c1f`. Ink `#f7f8f8`, muted `#8a8f98`, and faint (WCAG floor on paper) establish reading hierarchy. Body copy uses ink or soft ink, not muted. Do not stack extra opacity on faint or muted type. Thin lines separate meaningful regions.
 
-`--nav-hover`, `--nav-active` and `--nav-press` are ink at low alpha, so one hover/selected/press recipe composites correctly over any surface in either theme. A selected directory row is that flat fill plus a 2px accent bar at its leading edge and `--ink` title; hover alone never shows the bar. Selected work tabs join the paper surface with a hairline and, in Dark, a top edge highlight. Plugin group labels, work-tab icons, bottom rules and the current plugin rail item use stable, theme-aware colors: blue for Goals, amber for Feed, violet for Sessions, green for Inbox and rose for Artifacts. These identify ownership, not status; labels remain visible.
+`--nav-hover`, `--nav-active` and `--nav-press` are ink at low alpha, so one hover/selected/press recipe composites correctly over any surface in either theme. A selected directory row is that flat fill and `--ink` title, matching Goal; it does not add a second leading bar. Selected work tabs join the paper surface with a hairline and, in Dark, a top edge highlight. Plugin group labels, work-tab icons, bottom rules, the current plugin rail item and that plugin’s directory glyphs use stable, theme-aware colors: blue for Goals, brown for Feed, violet for Sessions, mint for Inbox, rose for Artifacts, slate for Shelf, steel for settings. These identify ownership, not status; labels remain visible.
 
-Green, amber and red retain their existing semantic roles for real state and appear with readable labels or icons. Preserve domain status names; neither a colored dot nor a tint is sufficient on its own. Terminal palettes remain a bounded execution-canvas preference rather than a second application theme.
+Green, amber and red remain the done / attention / blocked hues. Status families add quiet companions so pending states are not all indigo: idle slate for “can start”, progress indigo for work in motion, attention clay for “your turn”, hold fog-teal for waiting on others or children, and quiet muted for archive/trash.
 
 ## Typography
 
-Native system typography with Chinese fallbacks is the default. Weight, spacing and scale establish hierarchy; protocol IDs stay secondary and monospace is reserved for commands, identifiers and measured values. Interface language can change between Chinese and English without rewriting user titles or record bodies.
+Latin UI uses self-hosted Inter Variable with Linear’s `cv01` and `ss03` features. Chinese uses self-hosted Noto Sans SC Regular, a geometric sans close to Inter; PingFang SC / Microsoft YaHei remain fallbacks. Default weight is 400 everywhere: hierarchy is size and `--ink` / `--ink-soft` / `--muted` / `--faint`, not bold. Selected directory rows and tabs change fill and color, not weight. Protocol IDs stay secondary and monospace is reserved for commands, identifiers and measured values. Interface language can change between Chinese and English without rewriting user titles or record bodies.
 
-- **Directory:** 13px / 450 titles, 12px / 500 section captions, 11px secondary facts. Long titles truncate inside a shrinking text column; status and actions retain their own space.
-- **Work tabs:** 12px / 450, increasing to 550 when active. Long titles retain a tooltip and accessible name.
-- **Goal reading:** compact timeline row titles use 11px / 500; expanded event headings use 16px / 550 / 1.5; event copy uses 12px / 1.8 and wraps completely.
-- **Feed:** source/time labels use 11px, closed-row titles 13px / 450 on one line, and expanded body 13px / 1.6, bounded to 76ch. Closed rows hide the summary; an open row reads inline.
-- **Temporary editors:** 15px / 550 headings, 13px labels, 14px fields and 12px help; fields use 16px at 760px and below. Session add and relations share this hierarchy.
-- **Project settings:** headings 16px / 550 / 1.3, remaining 16px at 760px and below; section headings use 14px / 600. Setting labels use 13px / 550, supporting copy uses 12–13px, and mobile form text uses 16px. Path and storage facts wrap without widening the page.
-- **Home:** quotation text alone uses the serif token; date, calendar, navigation and the disabled composer use the system stack.
+- **Directory:** 13px / 400 titles, 12px / 400 captions. Long titles truncate inside a shrinking text column; status and actions retain their own space.
+- **Work tabs:** 12px / 400. Long titles retain a tooltip and accessible name.
+- **Goal reading:** compact timeline row titles use 11px / 400; expanded event headings use 16px / 400 / 1.5; event copy uses 12px / 1.8 and wraps completely.
+- **Feed:** source/time labels use 11px, closed-row titles 13px / 400 on one line with the Goal list grammar, and expanded body 13px / 1.6, bounded to 76ch. An open row keeps that single title and reads inline below.
+- **Temporary editors:** 15px / 400 headings, 13px labels, 14px fields and 12px help; fields use 16px at 760px and below. Session add and relations share this hierarchy.
+- **Project settings:** headings 28px / 400 / 1.2, remaining 20px at 760px and below; section headings use 13px / 400. Setting labels use 14px / 400, supporting copy uses 13px, and mobile form text uses 16px. Path and storage facts wrap without widening the page.
+- **Home:** date, calendar numbers, navigation and the disabled composer use Inter. Calendar “today” uses Action fill, not a second violet chip.
 
 Status copy stays direct and specific. Timeline events use human-readable Chinese labels rather than raw event names; original IDs and sources remain available as secondary facts.
 
 ## Layout
 
-Density v15 uses Linear tool spacing as the desktop default: 28px shared controls, 28px Goal/Session rows, 36px two-line directory rows, 40px closed Feed rows and 8px settings row padding. Field groups keep 12px gaps. Desktop Session editors pair Runtime and Goal selectors in DOM order; at 760px and below they stack. Optional Goal sections retain 44px summary targets on touch/narrow screens. Settings content stays a 920px column. Goal form, Frame, Inbox and Artifact titles are 14–16px. Body copy, focus, fixed actions and component scrolling retain their own reading/accessibility rules.
+Density v15 uses Linear tool spacing as the desktop default: 28px shared controls, 28px Goal/Session/Feed rows, 36px two-line directory rows. Settings documents leave that compression: 28px titles, 10px row padding and grouped white 12px cards on a `--page` canvas. Field groups keep 12px gaps. Desktop Session editors pair Runtime and Goal selectors in DOM order; at 760px and below they stack. Optional Goal sections retain 44px summary targets on touch/narrow screens. Settings content stays a centered 760px column in the remaining pane. Goal form, Frame, Inbox and Artifact titles are 14–16px. Body copy, focus, fixed actions and component scrolling retain their own reading/accessibility rules.
 
 The desktop shell is a full-width titlebar over three columns: a 48px plugin icon rail, a resizable plugin directory, and one flexible work stage. The shell stays within one viewport; tabs and primary toolbars remain in place while lists, readers, board columns and long forms scroll inside their own regions. Long content remains reachable at narrow widths and in split panes without shrinking text or introducing document scrolling. Default directory width is 240px, or 220px at viewport widths up to 1050px. A saved project-local width takes precedence; double-clicking the separator restores the applicable default. The directory has a thin right edge. Project switching, search and project settings sit in the titlebar, occupying the width of the plugin rail and directory; the rail, directory and stage share one top edge below that row. There is no notification placeholder.
 
 The plugin rail lists Home, enabled plugins and the plugin market, with the account avatar at the bottom. The second column shows only the current plugin’s list. Home and the plugin market leave that column closed. Plugin title and actions stay on one row above the list. The directory list is one scroll region without a visible scrollbar. Users may still collapse the directory; the rail remains. Collapse and the current plugin persist per project.
 
-Work tabs occupy a 32px bar. Tabs are a flat strip by default. A single-click in the directory reuses one italic preview tab per pane; a double-click, search, deep link or coarse/narrow tap commits a durable tab. Users may group tabs themselves with a named color chip and a short underline; plugins do not auto-group. Tabs are 172px wide and 26px high, with rounded upper corners; at 760px and below their width is 144px. Each pane owns its strip. A binary layout tree supports nested horizontal and vertical splits, including T-shaped arrangements, with 5px adjustable separators. Tabs, focus and layout persist per project on this device. The same item may appear in multiple panes; this state never becomes Goal truth. At 760px and below only the focused pane is shown, with window selectors to switch focus while preserving the layout. At narrow widths or with a coarse pointer, tabs, group labels, Close and Split use 44px interactive heights inside a 44px bar; desktop fine-pointer tabs retain 26px height.
+Work tabs occupy a 32px bar. Tabs are a flat strip by default. Opening a plugin or item always inserts a new durable tab; existing tabs keep their identity and are not replaced. Users may group tabs themselves with a named color chip and a short underline; plugins do not auto-group. Tabs are 172px wide and 26px high, with rounded upper corners; at 760px and below their width is 144px. Each pane owns its strip. A binary layout tree supports nested horizontal and vertical splits, including T-shaped arrangements, with 5px adjustable separators. Tabs, focus and layout persist per project on this device. The same item may appear more than once in a pane and in multiple panes; this state never becomes Goal truth. At 760px and below only the focused pane is shown, with window selectors to switch focus while preserving the layout. At narrow widths or with a coarse pointer, tabs, group labels, Close and Split use 44px interactive heights inside a 44px bar; desktop fine-pointer tabs retain 26px height.
 
 An opened Goal fills its pane beneath the tabs: zero inset, square edges, no shadow and no canvas backdrop. A compact toolbar with a 32px minimum height keeps Back on the left. Runtime owns the flexible main column; a closable 300px rail holds Goal information and the inline timeline. Below 840px Goal-workspace width, the rail overlays the work area at up to 330px. Goal reading and recording use the continuous paper surface, with fixed heading/actions and internally scrolling content; covered controls and return focus retain their existing behavior. Compact canvas nodes can move; opened workspaces cannot.
 
 At viewport widths of 600px and below, the plugin rail and current directory become one drawer below the titlebar, with a scrim, inert background and focus loop; selection closes it. Titlebar tabs and search remain. Native traffic lights stay in the titlebar and are not covered by the drawer. The opened Goal remains flush and square. Tabs remain available and keep the current item visible when space changes. The work area stays full height with details available on demand. There is no revived 70/30 adjustable Goal split or stacked information → Runtime → timeline layout.
 
-Project settings is a standalone Coss/Codex-style preferences page: a 36px header, 224px category rail and centered content up to 920px. The rail contains return, project identity and four categories: 常规, 项目说明, 工作规则 and 工作规划. It has no workbench directory, plugin bar or workspace tabs. The content region owns the single main scroll boundary; inner documents flow naturally. Desktop content uses 16px top padding and 16–28px horizontal padding. At 760px and below, return and four equal category links sit above the content, project identity leaves the rail, forms and storage facts stack, and content padding becomes 24px 20px 48px. Project planning detail/edit pages retain this shell.
+Project settings is a standalone Coss/Codex-style preferences page: a 36px header, 224px category rail with icons and centered content up to 760px. The rail contains return, project identity and four categories: 常规, 项目说明, 工作规则 and 工作规划. It has no workbench directory, plugin bar or workspace tabs. The content region owns the single main scroll boundary; inner documents flow as grouped cards with left copy and right controls. Desktop content uses 40px top padding and 28–56px horizontal padding. At 760px and below, return and four equal category links sit above the content, project identity leaves the rail, forms and storage facts stack, and content padding becomes 24px 20px 48px. Project planning detail/edit pages retain this shell.
 
-Feed sources live in the left directory, one task per source. The stage shows the selected source's message list and reading detail. Closed Feed rows are source plus title; the summary appears only after expansion. Project home remains a centered date/quotation/calendar composition with circular shortcuts above its disabled composer. Global preferences uses the independent settings shell for appearance, execution tools, diagnostics and planning library, including library detail/edit pages; the work bar has no theme shortcut.
+Feed sources live in the left directory, one task per source. The stage shows the selected source's message list and reading detail. Closed Feed rows are source plus title; the summary appears only after expansion. Project home remains a centered date/calendar composition with circular shortcuts above its disabled composer. Global preferences uses the independent settings shell for appearance, execution tools, diagnostics and planning library, including library detail/edit pages; the remaining pane keeps the same centered 760px document as project settings. The work bar has no theme shortcut.
 
 Native window drag regions and actual fullscreen-aware safe insets remain platform-owned. Tabs, buttons and resizers must remain outside native system controls and must not become drag regions. Overlay traffic lights sit in the 32px titlebar (`trafficLightPosition.y = 10`). Project switching, search and project settings share that titlebar row, filling the plugin-rail-plus-directory width after the traffic-light inset. The plugin rail, directory and stage start together on the next row. Project index remains a full-page arrival surface with its own brand, search and device-settings entry.
 
@@ -224,27 +234,27 @@ Fields answer focus with their own accent ring — a 1px `--focus` line plus a 3
 
 ## Shapes
 
-Shared controls use 8px corners. Goal workspaces and attached editors, including the inner Goal creation shell, use square edges. Compact search/confirmation dialogs use 8px corners; other retained shared surfaces may use 12px. Directory rows use 6px. Compact canvas nodes use 12px; wide-board cards use 8px; the stacked Goal list (pane under 840px) uses full-width 6px group bars and 16px status marks, matching Linear issue groups rather than hugging chips or nested cards. The home composer retains its established 23px corner as a surface-specific shape. These are current component values, not a requirement to wrap every content section.
+Shared controls use 10px corners. Goal workspaces and attached editors, including the inner Goal creation shell and Sheets, use square edges. Compact search/confirmation dialogs and menus use 12px corners; grouped paper (Card, Catalog shell, tables) uses `--radius-surface` 12px. Directory rows use 8px. Compact canvas nodes use 12px; wide-board cards use 8px; the stacked Goal list (pane under 840px) uses full-width 8px group bars and 16px status marks. The home composer retains its established 23px corner as a surface-specific shape. These are current component values, not a requirement to wrap every content section.
 
-Status presentation follows context: directory Goal status is compact icon/text without a second surrounding border; canvas and board status use small dots with text and no container behind them. Elsewhere a status tag is a borderless 11% tone wash at 5px corners, never an outlined pill. Other domain tags may retain their bounded tag treatment. Do not apply a universal pill style or outline the wrapper around an existing status tag.
+Status presentation follows context and a shared `mw-status` mark: directory and stage-list status is compact Lucide icon plus text in the family colour, without a second surrounding border; canvas and board status use small dots with text and no container behind them. Elsewhere a status tag is a borderless 11% tone wash at 5px corners, never an outlined or stadium pill. Feed/Inbox kickers use that same tag. Preserve domain status names; neither a colored dot nor a tint is sufficient on its own. Terminal palettes remain a bounded execution-canvas preference rather than a second application theme.
 
-Icons are Lucide drawn on a 24 grid. Application surfaces render them at `stroke-width: 2`, which keeps a 16px glyph at a 1.33px stroke; large empty-state marks drop to 1.6 so they do not read as heavy. Chrome icon boxes are 16px. An icon rests one step quieter than its label — `--faint` in the plugin rail — and resolves to `--ink-soft` or its plugin colour on hover and when current.
+Icons are a curated Lucide library on a 24 grid, grouped as 栏 / 动作 / 对象 / 状态 in Catalog. Application surfaces render them at `stroke-width: 2`, which keeps a 16px glyph at a Linear-weight 1.33px stroke; large empty-state marks drop to 1.6 so they do not read as heavy. Chrome icon boxes are 16px. An icon rests one step quieter than its label — `--faint` in the plugin rail — and resolves to `--ink-soft` or its plugin colour on hover and when current. Do not introduce a second icon family or emoji.
 
 ## Components
 
 ### Buttons, fields and overlays
 
-Primary controls use Action/Action Ink, 32px minimum height, 8px corners and a stable short label. Secondary controls use ink-tinted fill and a translucent boundary; ghost controls are transparent until interaction. Hover changes tone without lifting. Disabled actions stay visibly unavailable. Shared mobile action selectors use 44px minimum height. At widths up to 760px or with a coarse pointer, the new Home Goals/quotation actions, Frame add actions and picker search/source/Cancel controls use a scoped 44px control height from the final shared sheet; desktop controls retain their compact scale.
+Primary controls use Action/Action Ink, 32px minimum height, 10px corners and a stable short label. Secondary controls use ink-tinted fill and a translucent boundary; ghost controls are transparent until interaction. Hover changes tone without lifting. Disabled actions stay visibly unavailable. Shared mobile action selectors use 44px minimum height. At widths up to 760px or with a coarse pointer, Frame add actions and picker search/source/Cancel controls use a scoped 44px control height from the final shared sheet; desktop controls retain their compact scale.
 
 Goal event forms, rule editors and planning save footers pair Cancel on the left with the specific Submit action on the right, in one adjacent action group. Supporting explanations sit outside that group. These form actions and Feed reader actions use 36px desktop minimum controls and 44px mobile controls; compact navigation retains its separate scale. Cancel follows the form’s existing non-submit return or reset behavior.
 
-Inputs use paper, an ink-derived 10% input boundary, 8px corners and 32px height. Textareas grow independently. Buttons, links and summaries keep the shared 2px keyboard ring at a 2px offset, and tabs draw it inside their container. Fields answer focus with their own accent ring instead — a 1px `--focus` line plus a 3.5px halo — so a focused field reads as active rather than merely outlined; Feed dialog fields keep their outline-only ring.
+Inputs use paper, an ink-derived 10% input boundary, 10px corners and 32px height. An Input Group or Number Field keeps that boundary on the shell only; the inner control is chromeless. A slider is a 28px hit target, not a text field: 4px `--control-fill` track, `--action` fill to the thumb (same grammar as Progress), and a 16px `--paper` disc with a hairline and the Switch raised shadow. Focus halo sits on the thumb. Legacy page-wide `input` cosmetics do not restyle `mw-*` fields or `type=range`. Textareas grow independently. Buttons, links and summaries keep the shared 2px keyboard ring at a 2px offset, and tabs draw it inside their container. Fields answer focus with their own accent ring instead — a 1px `--focus` line plus a 3.5px halo — so a focused field reads as active rather than merely outlined; Feed dialog fields keep their outline-only ring.
 
-One segmented control serves the board switch, settings choices and the locale switch: a recessed `--control-fill` track with a `--hairline` boundary, 9px corners and 3px padding, and a raised `--nav-raised` chip on the current choice carrying the hairline, the shared surface shadow and, in Dark, the top edge highlight. The directory keeps its own compact metrics and shares only those tones. Directory empty states share one calm left-aligned block — 18px/10px padding, `--muted` copy, an `--ink-soft` lead line and a 16px `--faint` mark — instead of a different padding and alignment per plugin. New Goal, Feed task configuration, Session add/relations and Frame picker dialogs attach to the right edge at 44px below the viewport top. They fill the remaining height, use `min(560px, 100vw)` width, and become full width at 760px and below. Square, shadowless shells and the 10% ink backdrop reduce floating-window appearance; native dialog focus trapping, Escape, cancellation and focus return remain. Headers and action footers stay outside scrolling fields; the Goal creation body aligns fields to the start with 12px gaps. Feed fields explicitly retain the shared 2px theme focus outline without a halo. Mobile fields use 16px type and relevant actions retain 44px targets. The directory middle (plugin sections) can scroll when height is scarce, without a visible scrollbar, while project and account chrome remain outside. Errors keep entered data available and provide an explicit correction or retry path.
+One segmented control serves the board switch, settings choices and the locale switch: a recessed `--control-fill` track with a `--hairline` boundary, 10px corners and 3px padding, and a raised `--nav-raised` chip on the current choice carrying the hairline, the shared surface shadow and, in Dark, the top edge highlight. The directory keeps its own compact metrics and shares only those tones. Directory empty states share one calm left-aligned block — 18px/10px padding, `--muted` copy, an `--ink-soft` lead line and a 16px `--faint` mark — instead of a different padding and alignment per plugin. New Goal, Feed task configuration, Session add/relations and Frame picker dialogs attach to the right edge at 44px below the viewport top. They fill the remaining height, use `min(560px, 100vw)` width, and become full width at 760px and below. Square, shadowless shells and the 10% ink backdrop reduce floating-window appearance; native dialog focus trapping, Escape, cancellation and focus return remain. Headers and action footers stay outside scrolling fields; the Goal creation body aligns fields to the start with 12px gaps. Feed fields explicitly retain the shared 2px theme focus outline without a halo. Mobile fields use 16px type and relevant actions retain 44px targets. The directory middle (plugin sections) can scroll when height is scarce, without a visible scrollbar, while project and account chrome remain outside. Errors keep entered data available and provide an explicit correction or retry path.
 
 ### Directory and project search
 
-Destinations are plugin section headers: icon and label, with a disclosure control when the plugin has a list. Flat tone and stronger text mark the current plugin. Lists nest under their plugin and may stay expanded together. Goal and Session rows are 28px and single-line, with a title and compact status; Inbox and Artifact lists use compact two-line rows where applicable, with a title and one secondary fact. Feed source tasks show name, state and count in this directory. Empty states describe the missing content and offer only a real available action. The Goals directory keeps a full-width New Goal control with the status filter on its right; the live tree, archive and trash live as collection folds in the Goals stage list, not in the directory.
+Destinations are plugin section headers: icon and label, with a disclosure control when the plugin has a list. Flat tone and stronger text mark the current plugin. Lists nest under their plugin and may stay expanded together. Plugin lists that occupy the second column share the `mw-dir` panel and `mw-dir-row` grammar: Session rows are 28px and single-line, with a title and compact status mark, nested under runtime collection folds that use the same caret, mark, title and count as Goals’ 当前; Inbox and Artifact lists use 36px two-line rows with a title, one secondary fact and a trailing status mark; Feed’s 全部 is the same collection fold as Goals’ 当前 — caret, mark, title and count — with source tasks nested inside as compact 28px rows that keep a trailing health mark; last-fetch lives in task configuration; Feed and Session add sit above those folds. Settings categories use the same compact 28px row with a quiet section-coloured icon. Titles are 13px/450 (`--ink-soft`), 550 and `--ink` when selected. Captions and counts are 12px `--faint`; selected captions use `--muted`. Status marks are 12px/400 Lucide plus the domain label in the family colour, with no second enclosing box; they must not outrank the title. The tools row is the plugin name plus icon actions. Group headings are 11px/550 `--faint`, with more space above than below. Row chrome — height, padding, 8px corners, hover fill, selected `--nav-active` — lives only on `mw-dir-row`, and spans any trailing action. The directory does not add a second 2px leading mark; that selected grammar matches Goal. Leftover plugin row classes must not carry a second height, selection tint or padding. Create actions sit as a full-width 28px add control; Feed and Sessions place it above the collection folds. Empty states describe the missing content and offer only a real available action. The Goals tree keeps its own hierarchy widget and does not use this row. The Goals directory keeps a full-width New Goal control with the status filter on its right; the live tree, archive and trash live as collection folds in the Goals stage list, with target / archive / trash marks.
 
 Search in the directory top row opens a centered palette grouped by plugin and navigates to the selected object. It remains available with the directory collapsed or on a phone. The project selector and project settings keep distinct roles. The account footer opens global device settings. Plugin market remains project-local activation, with search, installed icons, text filters and catalog rows; enabling Feed also enables Inbox.
 
@@ -260,7 +270,7 @@ Same-plugin panes contain independently usable content. Loaded content windows s
 
 The dependency canvas uses real Goal/active relation data. Arrows run from provider to consumer; parent membership is separate. Completed nodes remain visible but quieter. Clicking a canvas node, a kanban card, or a stage-list row opens that Goal's Frame and selects it; the node's open control still expands the existing work surface. Panning, zooming, node positions and collapse/restore remain local view state.
 
-The Goals mother page switches between list, canvas and board. The list is the same Goal tree as the former directory, stretched across the stage so Goal IDs, status, child progress and prerequisites stay visible. Board columns show counts derived from their actual items and a visible empty-column message. On a desktop pane 840px or wider the six columns share the available width so the board itself does not scroll horizontally. When the Goal board pane is narrower than 840px, the same six groups stack as a collapsible list on the pane’s paper surface: 32px rows, a real chevron, status discs shared by group and row, one-line titles, and a single vertical scroll. Collapsed group headers hug their content. Empty groups remain as headers, start collapsed, and hide the empty-column sentence. Opening a card uses the same Goal content. Vertical wheel input over an overflowing card column scrolls that column, including at its ends; horizontal gestures and Shift-wheel move the board horizontally only while six columns are showing and the board actually overflows. In the stacked list, vertical wheel reads the list. Vertical wheel over headers, gaps or non-overflowing columns can move the board horizontally when columns are showing. Zoom gestures and the open Goal work area retain their own behavior. The expanded workspace keeps full-height Runtime and optional information/timeline. When terminal is the only available work mode, the duplicate Conversation/Terminal mode bar is omitted.
+The Goals mother page switches between list, canvas and board. An empty canvas keeps New Goal in the stage chrome and centers a two-line status on the dotted field: there are no Goals yet, and Goals and dependencies will appear here as nodes. It does not repeat the create control. The list is the same Goal tree as the former directory, stretched across the stage so Goal IDs, status, child progress and prerequisites stay visible. Board columns show counts derived from their actual items and a visible empty-column message. On a desktop pane 840px or wider the six columns share the available width so the board itself does not scroll horizontally. When the Goal board pane is narrower than 840px, the same six groups stack as a collapsible list on the pane’s paper surface: 32px rows, a real chevron, status discs shared by group and row, one-line titles, and a single vertical scroll. Collapsed group headers hug their content. Empty groups remain as headers, start collapsed, and hide the empty-column sentence. Opening a card uses the same Goal content. Vertical wheel input over an overflowing card column scrolls that column, including at its ends; horizontal gestures and Shift-wheel move the board horizontally only while six columns are showing and the board actually overflows. In the stacked list, vertical wheel reads the list. Vertical wheel over headers, gaps or non-overflowing columns can move the board horizontally when columns are showing. Zoom gestures and the open Goal work area retain their own behavior. The expanded workspace keeps full-height Runtime and optional information/timeline. When terminal is the only available work mode, the duplicate Conversation/Terminal mode bar is omitted.
 
 Goal information reads live `readState` and prioritizes actual unmet requirements, pending decisions and blockers with their relevant entry points. An existing dependency alone is not presented as a completion blocker. Historical bodies start collapsed on ordinary entry; explicit selection, deep links and restored reading can expand the original event inline without replacing current facts. Relation body headings remain secondary to the main document heading. Requirements, pending decisions, concerns and older history retain their real data and retry behavior. 目标与要求 includes purpose, scope, decisions, material references and the relation/risk/impact/rules deck. 完成要求 shows current requirements, read-only historical criteria and exact Artifact versions. These views never calculate completion themselves.
 
@@ -274,17 +284,17 @@ Work owns Session/PTY identity and terminals. Opening, selecting or closing a Go
 
 Session creation and association share a readable dialog heading, with the mode switch separate from Close; on mobile, the mode switch sits below the title. The first-use creation action uses the shared primary style and an aligned plus icon. Artifact reading distinguishes no project results, available results with no selected version, and an unavailable exact version; each state describes the actual next step.
 
-Goals retains event writing and domain decisions; Work/Sessions retains execution identity, histories and working-directory relationships; Artifacts retains owner-rendered exact versions and downloads. Inbox owns attention with an entry reason, related object and next action. Feed owns source-message facts and source tasks. Source migration, credential handling and promotion semantics remain in their existing owners; shared chrome does not change these contracts.
+Goals retains event writing and domain decisions; Work/Sessions retains execution identity, histories and working-directory relationships; Artifacts retains owner-rendered exact versions and downloads. Inbox owns attention with an entry reason, related object and next action. Feed owns source-message facts and source tasks. Shelf is a personal DropAgent-shaped ingest surface: its directory, preview, command bar, confirm strip and drop veil use DropAgent tokens (`#F5F5F4` / `#19191B`, fog-blue `#66709E` / `#A6AFD5`, five icon tones, paper press that darkens). Molis chrome (plugin rail, titlebar, other plugins) stays Coss. Source migration, credential handling and promotion semantics remain in their existing owners; shared chrome does not change these contracts.
 
 ### Home, Feed and settings
 
-Home retains local date/weekday, a navigable month calendar and the existing 13 quotations. There is no Home “打开 Goals” control; Goals is opened from the directory or plugin strip. Date, calendar, quotations, shortcuts and the disabled composer stack from the top as one column; leftover paper stays below, not as a gap between the date and the input. Quotations autoplay about every 8 seconds while Home is visible; hovering or focusing the quotation pauses the cycle so source links stay clickable. There is no “换一句” control. Rotation uses a 160ms opacity transition; reduced motion switches directly. Quote layout reserves the longest text's space. Original text and attributions are unchanged. The home input and send control remain natively disabled with “Agent 尚未开放”. No Agent Harness is implied.
+Home retains local date/weekday and a navigable month calendar. There is no quotation carousel, no Home “打开 Goals” control, and Goals is opened from the directory or plugin strip. Date, calendar, shortcuts and the disabled composer stack from the top as one column; leftover paper stays below, not as a gap between the date and the input. The home input and send control remain natively disabled with “Agent 尚未开放”. No Agent Harness is implied.
 
 Home shortcuts remain project-local preferences on the project home page, above the disabled composer. Their modal supports add/edit/remove/cancel, keeps input on failure, restores focus, and opens validated http(s) links through the existing web/native path. They do not create Goal records. The add-shortcut circle is an empty slot — a `--line-strong` hairline ring with a `--muted` mark that fills on hover — rather than the most saturated element on a quiet page.
 
-Feed keeps a full-width fixed toolbar boundary above its internally scrolling list and reader, including in narrow and split panes. Opening, collapsing and retrying an item retain its focus and appropriate scroll position. Feed selection synchronizes the source task, selected-source heading and filtered list; the stage has no redundant Feed eyebrow. Rows show a provider glyph, source/time/read state, title, quieter summary and disclosure chevron. Opening a row keeps that single title and brings the original source link and body into continuous inline reading. Tags and optional material disclosures follow the body; destination state and grouped actions sit in a divided footer. Read state and destination state are distinct. At 760px and below, the reader actions form two equal columns with 44px targets; long titles and body wrap. Search, filters, keyboard selection, collapse/reopen and detail-error retry remain available. Demo actions explicitly change only the current page. Feed task configuration uses the attached editor. Task configuration has one Cancel/Save configuration footer; the pull-plan disclosure names its separate save scope and pairs Undo changes with Save pull plan. Saving the plan preserves unsaved task fields; resetting returns to the latest saved plan, including its paused state. Save failures keep input available for retry. Promote/Start retains create-or-reuse Draft behavior and source context boundaries; filling a chosen terminal never automatically sends. Inbox attention and its authoritative processing history remain separate from the Feed stream.
+Feed keeps a full-width fixed toolbar boundary above its internally scrolling list and reader, including in narrow and split panes. Opening, collapsing and retrying an item retain its focus and appropriate scroll position. Feed selection synchronizes the source task, selected-source heading and filtered list; the stage has no redundant Feed eyebrow. Closed rows share the Goal list grammar: a 16px provider glyph and title, then source, time and a plain status mark. Opening a row keeps that single title and brings the original source link and body into continuous inline reading. Tags and optional material disclosures follow the body; destination state and grouped actions sit in a divided footer. Read state and destination state are distinct; destination replaces the read mark when the item is no longer only in Feed. At 760px and below, the reader actions form two equal columns with 44px targets; long titles and body wrap. Search, filters, keyboard selection, collapse/reopen and detail-error retry remain available. Demo actions explicitly change only the current page. Feed task configuration uses the attached editor. Adding a task opens a type list of 32px rows — name plus a short hint — not marketing cards. Capture rules belong to a source task: they are optional when adding a task and managed inside that task's configuration; the Feed directory has no separate capture-rules entry. Task configuration has one Cancel/Save configuration footer; the pull-plan disclosure names its separate save scope and pairs Undo changes with Save pull plan. Saving the plan preserves unsaved task fields; resetting returns to the latest saved plan, including its paused state. Save failures keep input available for retry. Promote/Start retains create-or-reuse Draft behavior and source context boundaries; filling a chosen terminal never automatically sends. Inbox attention and its authoritative processing history remain separate from the Feed stream.
 
-Project settings opens directly as complete server-rendered HTML. Returning restores the project’s persisted workspace tabs and splits; category navigation, refresh and browser history do not depend on an asynchronous workbench settings stage. Obsolete persisted `project-settings` exclusive state is cleared on workspace restoration. The `embed=1` fragment remains for existing project-management callers.
+Project settings from the titlebar gear stay in the plugin shell: the directory lists the four categories with icons and a 36px rounded current row, and the selected page occupies the exclusive main stage as a Codex-style document (a centered 760px column, grouped cards, inline controls). Workspace tabs stay in state but are covered until another plugin clears exclusive. Direct `/projects/{id}/settings*` URLs still render the independent settings page. The `embed=1` fragment remains for stage loading and project-management callers. Refreshing while settings are open restores the directory and exclusive stage.
 
 General uses a name-edit row, a local-data disclosure and separate rebuild/delete actions. Guidance has six categories, category-specific add actions, one inline editor, version history and inactive entries. Rules use flat rows with right-aligned selects/switches, advanced disclosure, change reason and a clear save footer. Failed saves preserve input. Planning prioritizes the active composition, then search/category filters and content-sized adoption rows: a typical desktop row is about 112px tall, with no 168px minimum. Controls move below the copy on narrow screens. Mobile return/category links, inputs, buttons, planning filters and guidance actions have 44px minimum targets; the switch retains its small visual knob inside a larger clickable setting row.
 
@@ -316,7 +326,7 @@ Global settings presents theme, language, density and terminal appearance as com
 
 
 ### Long detail reading
-Inbox uses a 20–22px title in a scrolling context region, with processing actions and failure feedback in a separate footer. Artifact detail keeps its title and local export reachable in both workbench and direct version pages; its raw JSON scrolls within a maximum of 45dvh/400px. Session detail keeps a compact title/action area and full-width search toolbar above the scrolling execution record. Relations and history are available in a collapsed context disclosure below it; opening the disclosure does not leave the reading surface. These rules apply within split panes as well as narrow windows.
+Inbox uses a 20–22px title in a scrolling context region, with processing actions and failure feedback in a separate footer. Artifact detail keeps its title and local export reachable in both workbench and direct version pages; its raw JSON scrolls within a maximum of 45dvh/400px. Session detail is a continue cockpit flush to the pane: a compact identity bar, one primary continue action, and a relations rail. Search and event filters appear only after execution events are loaded, and those records scroll inside the main column. On a narrow pane the rail becomes an overlay from the identity bar. These rules apply within split panes as well as narrow windows.
 
 
 ### Settings editing

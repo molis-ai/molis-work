@@ -21,8 +21,8 @@ const GOALS_TRASH_DIALOG_SCRIPT = `    const openGoalTrashDialog = (trigger, tra
       trashForm.elements.reason.placeholder = trashed
         ? L("说明为什么暂时不再保留这条 Goal")
         : L("说明为什么现在要恢复这条 Goal");
-      trashSubmit.classList.toggle("button-danger", trashed);
-      trashSubmit.classList.toggle("button-primary", !trashed);
+      trashSubmit.classList.toggle("mw-btn--danger", trashed);
+      trashSubmit.classList.toggle("mw-btn--primary", !trashed);
       trashSubmit.textContent = trashed ? L("移入回收站") : L("恢复到 Goal Tree");
       trashDialog.showModal();
       if (!matchMedia("(max-width: 760px)").matches) {

@@ -10,11 +10,13 @@ import type { TestContext } from "node:test";
 import { WebSocket } from "ws";
 import { DEMO_BOARD_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { BUILTIN_PROJECT_PLUGIN_IDS } from "@molis-ai/molis-work-contracts/modules/projects";
+import Database from "better-sqlite3";
 import { createMolisWorkWebServer } from "../../apps/desktop/launchers/web/server.js";
 
 
 /** One isolated project and Chrome profile; no user services or Runtime bindings. */
-export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "empty" | "migrated" = false, seed = seedDemoBoard) {
+export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "empty" | "seeded" = false, seed = seedDemoBoard) {
   const chrome = [process.env.MOLIS_WORK_TEST_CHROME, "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
     "/usr/bin/google-chrome", "/usr/bin/chromium", "/usr/bin/chromium-browser"]
     .find((path): path is string => Boolean(path && existsSync(path)));
@@ -22,16 +24,39 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   const directory = await mkdtemp(join(tmpdir(), "molis-work-goals-browser-"));
   let databasePath = join(directory, "fixture.db");
   let projectId: string | null = null;
-  if (catalogMode === true || catalogMode === "migrated") {
+  if (catalogMode === true || catalogMode === "seeded") {
     const catalog = await openMolisWorkProjectCatalog({ homeDirectory: directory });
+    let catalogDatabasePath: string | undefined;
     try {
-      if (catalogMode === "migrated") seed(databasePath);
-      const project = catalogMode === "migrated"
-        ? await catalog.migrateLegacyDatabase({ legacy_database_path: databasePath, display_name: "目录交互验证", actor_id: "browser-test", user_confirmed: true })
-        : (await catalog.ensureDemoProject({ actor_id: "browser-test", user_confirmed: true })).project;
-      databasePath = project.database_path;
-      projectId = project.project_id;
+      if (catalogMode === "seeded") {
+        const project = await catalog.createProject({ display_name: "目录交互验证", actor_id: "browser-test" });
+        for (const plugin_id of BUILTIN_PROJECT_PLUGIN_IDS) {
+          catalog.addProjectPlugin({ project_id: project.project_id, plugin_id, actor_id: "browser-test" });
+        }
+        databasePath = project.database_path;
+        projectId = project.project_id;
+        catalogDatabasePath = catalog.databasePath;
+      } else {
+        const project = (await catalog.ensureDemoProject({ actor_id: "browser-test", user_confirmed: true })).project;
+        databasePath = project.database_path;
+        projectId = project.project_id;
+      }
     } finally { catalog.close(); }
+    if (catalogMode === "seeded" && catalogDatabasePath && projectId) {
+      await rm(databasePath, { force: true });
+      await rm(`${databasePath}-wal`, { force: true });
+      await rm(`${databasePath}-shm`, { force: true });
+      seed(databasePath);
+      const catalogDb = new Database(catalogDatabasePath);
+      const projectDb = new LocalProjectDatabase(databasePath);
+      try {
+        const boardId = projectDb.goalsQuery.listBoardIds()[0];
+        if (boardId) catalogDb.prepare("UPDATE projects SET board_id = ? WHERE project_id = ?").run(boardId, projectId);
+      } finally {
+        projectDb.close();
+        catalogDb.close();
+      }
+    }
   } else seed(databasePath);
   const store = new LocalProjectDatabase(databasePath);
   let child: ChildProcess | undefined;
@@ -81,10 +106,10 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     else entry.resolve(response.result);
   });
   t.after(() => { for (const entry of pending.values()) clearTimeout(entry.timer); });
-  function command<T = unknown>(method: string, params: Record<string, unknown> = {}, sessionId?: string): Promise<T> {
+  function command<T = unknown>(method: string, params: Record<string, unknown> = {}, sessionId?: string, timeoutMs = 5_000): Promise<T> {
     const id = ++nextId;
     return new Promise((resolve, reject) => {
-      pending.set(id, { resolve: (value) => resolve(value as T), reject, timer: setTimeout(() => { pending.delete(id); reject(new Error(`CDP timeout: ${method}`)); }, 5_000) });
+      pending.set(id, { resolve: (value) => resolve(value as T), reject, timer: setTimeout(() => { pending.delete(id); reject(new Error(`CDP timeout: ${method}`)); }, timeoutMs) });
       socket!.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }));
     });
   }
@@ -103,14 +128,15 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     return result.result.value;
   }
   async function waitFor(expression: string, timeoutMs = 4000): Promise<void> {
-    await evaluate(`new Promise((resolve, reject) => {
+    const result = await command<{ result: { value: unknown }; exceptionDetails?: unknown }>("Runtime.evaluate", { expression: `new Promise((resolve, reject) => {
       const deadline = Date.now() + ${timeoutMs};
       const check = () => { if (${expression}) resolve(true); else if (Date.now() >= deadline) reject(new Error('DOM condition timeout; toast=' + document.querySelector('[data-toast]')?.textContent + '; focused=' + document.activeElement?.outerHTML.slice(0,500))); else requestAnimationFrame(check); }; check();
-    })`);
+    })`, awaitPromise: true, returnByValue: true }, sessionId, timeoutMs + 2_000);
+    assert.equal(result.exceptionDetails, undefined, JSON.stringify(result.exceptionDetails));
   }
   async function click(selector: string): Promise<void> {
     const point = await evaluate<{ x: number; y: number }>(`(async () => { const element = document.querySelector(${JSON.stringify(selector)});
-      if (!element) throw new Error('Missing click target'); element.scrollIntoView({block:'center',behavior:'instant'});
+      if (!element) throw new Error('Missing click target: ' + ${JSON.stringify(selector)}); element.scrollIntoView({block:'nearest',behavior:'instant'});
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       const rect = element.getBoundingClientRect(); if (!rect.width || !rect.height) throw new Error('Hidden click target: ' + ${JSON.stringify(selector)});
       const hit = document.elementFromPoint(rect.x+rect.width/2,rect.y+rect.height/2);
@@ -139,5 +165,22 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     }
   }
   const reloadPage = () => navigate(() => command("Page.reload", { ignoreCache: true }, sessionId));
-  return { store, origin, before, sessionId, command, evaluate, waitFor, click, reloadPage, navigate, projectId, homeDirectory: directory };
+  async function openGoalFrame(selector: string) {
+    await evaluate(`(() => {
+      const node = document.querySelector(${JSON.stringify(selector)});
+      if (!node) throw new Error("Missing Goal for Frame: " + ${JSON.stringify(selector)});
+      node.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window, detail: 1 }));
+      node.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window, detail: 2 }));
+    })()`);
+  }
+  async function showGoalStageList() {
+    await evaluate(`(() => {
+      const mother = document.querySelector(".tab-item[data-tab-kind=mother] [role=tab]");
+      if (mother) mother.click();
+      else document.querySelector('[data-plugin-strip] [data-plugin-id="goals"]')?.click();
+      document.querySelector("[data-board-view-tab=list]")?.click();
+    })()`);
+    await waitFor("document.querySelector('[data-goal-canvas-shell]') && !document.querySelector('[data-goal-canvas-shell]').hidden && document.querySelector('[data-goal-stage-chrome] [data-open-create]')?.getBoundingClientRect().width > 0");
+  }
+  return { store, origin, before, sessionId, command, evaluate, waitFor, click, openGoalFrame, reloadPage, navigate, showGoalStageList, projectId, homeDirectory: directory };
 }

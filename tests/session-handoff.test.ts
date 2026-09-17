@@ -131,14 +131,14 @@ test("Handoff package uses the canonical Goal and a minimal Session context, the
     });
     registry.appendEvent({
       session_id: source.session_id,
-      source: "goalboard",
+      source: "molis_work",
       kind: "user_message",
       source_id: "source-user",
       content: "请从当前验收缺口继续。",
     });
     registry.appendEvent({
       session_id: source.session_id,
-      source: "goalboard",
+      source: "molis_work",
       kind: "tool",
       source_id: "source-tool",
       content: "SHOULD-NOT-BE-IN-HANDOFF",
@@ -353,7 +353,7 @@ test("project Handoff web API keeps the editable draft, requires confirmation, a
   });
   registry.appendEvent({
     session_id: source.session_id,
-    source: "goalboard",
+    source: "molis_work",
     kind: "user_message",
     source_id: "handoff-web-source-message",
     content: "来源 Session 的最小上下文。",

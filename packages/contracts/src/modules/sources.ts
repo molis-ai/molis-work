@@ -31,7 +31,7 @@ export interface SourceRecord {
   description: string;
   status: SourceStatus;
   enabled: boolean;
-  origin: "goalboard";
+  origin: "molis_work";
   config: Record<string, unknown>;
   schedule: SourceSchedule;
   connection_ref: string | null;

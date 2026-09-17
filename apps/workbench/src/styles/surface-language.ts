@@ -7,7 +7,7 @@ export const SURFACE_LANGUAGE_STYLES = `
   .goal-node-toolbar .goal-node-back { flex: none; margin-left: -6px; }
   .goal-node-back svg { transform: rotate(180deg); }
   .goal-node-toolbar { gap: 10px; }
-  body.immersive-workbench .goal-node-workbench > .document-pane { background: var(--paper); box-shadow: none; }
+  body.immersive-workbench .goal-details-aside { background: var(--paper); box-shadow: none; }
   body.immersive-workbench .goal-canvas-shell .tui-empty { border: 0; border-radius: 0; background: transparent; box-shadow: none; }
   body.immersive-workbench .goal-event-document .event-form button[type=submit] { border-color: var(--action); }
   body.immersive-workbench .goal-event-document .event-form { width: min(100%, 880px); }
@@ -35,7 +35,7 @@ export const SURFACE_LANGUAGE_STYLES = `
   ${EDITOR_PANEL} header button[data-dialog-close] { flex: none; width: 40px; height: 40px; border: 0; border-radius: var(--radius-control); background: var(--nav-bg); }
   ${EDITOR_PANEL} header button[data-dialog-close] svg { width: 16px; height: 16px; }
   ${EDITOR_PANEL} .dialog-icon { display: none; }
-  ${EDITOR_PANEL} :is(h2, .feed-task-dialog-shell h2) { font-size: 18px; font-weight: 600; line-height: 1.4; letter-spacing: -.015em; }
+  ${EDITOR_PANEL} :is(h2, .feed-task-dialog-shell h2) { font-size: 18px; font-weight: 400; line-height: 1.4; letter-spacing: -.015em; }
   ${EDITOR_PANEL} :is(header, footer) { box-shadow: none; }
   ${EDITOR_PANEL} > form > header, ${EDITOR_PANEL} .feed-task-dialog-shell > header { padding: 16px 20px 12px; }
   ${EDITOR_PANEL} > form > footer, ${EDITOR_PANEL} .feed-task-dialog-shell > footer { padding: 10px 20px; }
@@ -55,10 +55,10 @@ export const SURFACE_LANGUAGE_STYLES = `
     ${EDITOR_PANEL} :is(input:not([type=checkbox]), select, textarea) { font-size: 16px; }
     ${EDITOR_PANEL} :is([data-session-add-toggle], header button[data-dialog-close]) { min-height: 44px; }
     ${EDITOR_PANEL} > form > footer, ${EDITOR_PANEL} .feed-task-dialog-shell > footer { padding: 10px 16px; }
-    .goal-node-toolbar button { width: 44px; min-height: 44px; }
+    .goal-node-toolbar button, .goal-details-toggle { width: 44px; min-height: 44px; }
   }
   /* Search and irreversible confirmations remain compact, with restrained depth. */
-  body :is(.global-search-dialog, .home-shortcut-dialog, .runtime-plan-dialog, .goal-trash-dialog, .project-operation-confirm-dialog, .project-migration-dialog) { border-radius: 8px; box-shadow: 0 8px 28px #00000018; }
-  body :is(.global-search-dialog, .home-shortcut-dialog, .runtime-plan-dialog, .goal-trash-dialog, .project-operation-confirm-dialog, .project-migration-dialog)::backdrop { background: #00000026; backdrop-filter: none; }
+  body :is(.global-search-dialog, .home-shortcut-dialog, .runtime-plan-dialog, .goal-trash-dialog, .project-operation-confirm-dialog) { border-radius: 8px; box-shadow: 0 8px 28px #00000018; }
+  body :is(.global-search-dialog, .home-shortcut-dialog, .runtime-plan-dialog, .goal-trash-dialog, .project-operation-confirm-dialog)::backdrop { background: #00000026; backdrop-filter: none; }
   @media (prefers-reduced-motion: reduce) { ${EDITOR_PANEL}, ${EDITOR_PANEL}::backdrop { animation: none; transition: none; } }
 `;

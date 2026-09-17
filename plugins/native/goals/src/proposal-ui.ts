@@ -289,7 +289,7 @@ function renderGoalTreeProposalDecision(proposal: GoalTreeProposalRecord, view: 
       ? `<label class="decision-reason"><span>${L("决定理由或修改意见")}（${L("必填")}）</span><textarea name="reason" rows="3" required placeholder="${L("已按下方问题预填，可以直接采用，也可以改写")}">${escapeHtml(prefilledRejectReason)}</textarea></label>`
       : `<label class="decision-reason"><span>${L("决定理由或修改意见")}（${L("必填")}）</span><textarea name="reason" rows="3" required placeholder="${L("采用时说明为什么方案准确；退回时写清需要修改什么")}"></textarea></label>`}
     <p class="form-error" data-decision-error role="alert" hidden></p>
-    <footer class="decision-actions"><button type="submit" name="decision" value="reject">${problemCount ? L("退回修正") : L("退回修改")}</button><button class="button-primary" type="submit" name="decision" value="confirm"${problemCount || !actionableItems.length ? ` disabled aria-disabled="true"` : ""}>${invalidItemCount ? disabledConfirmLabel : conflictCount ? L("先更新冲突项") : L("采用整份方案")}</button></footer>
+    <footer class="decision-actions"><button type="submit" name="decision" value="reject">${problemCount ? L("退回修正") : L("退回修改")}</button><button class="mw-btn mw-btn--primary" type="submit" name="decision" value="confirm"${problemCount || !actionableItems.length ? ` disabled aria-disabled="true"` : ""}>${invalidItemCount ? disabledConfirmLabel : conflictCount ? L("先更新冲突项") : L("采用整份方案")}</button></footer>
   </form>`;
 }
 return { renderGoalTreeProposalDecision };

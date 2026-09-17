@@ -24,13 +24,11 @@ export class WebServiceOperations {
         serviceMutated = true;
         await this.process.stop();
       }
-      await this.process.stopLegacy();
       await this.process.assertPortAvailable();
       await fs.mkdir(path.dirname(this.environment.plistPath), { recursive: true });
       await fs.mkdir(path.dirname(this.environment.receiptPath), { recursive: true });
       await fs.mkdir(path.dirname(this.environment.stdoutLog), { recursive: true });
       await writeAtomic(this.environment.plistPath, plist);
-      await fs.rm(this.environment.legacyPlistPath, { force: true });
       filesMutated = true;
       await writeAtomic(this.environment.receiptPath, `${JSON.stringify({
         schema_version: 1,
@@ -109,9 +107,7 @@ export class WebServiceOperations {
     const detection = await this.detect();
     if (!detection.owned) throw new MolisWorkWebServiceError("service.conflict", "LaunchAgent 不属于 Molis Work，拒绝移除");
     await this.process.stop();
-    await this.process.stopLegacy();
     await fs.rm(this.environment.plistPath, { force: true });
-    await fs.rm(this.environment.legacyPlistPath, { force: true });
     await fs.rm(this.environment.receiptPath, { force: true });
   }
 

@@ -105,7 +105,7 @@ export const NAVIGATION_OWNERSHIP_STYLES = `  /* Navigation ownership correction
       align-items: center;
       gap: 5px;
       font-size: 9.5px;
-      font-weight: 660;
+      font-weight: 400;
       cursor: pointer;
       transition: color .14s ease, background .14s ease, box-shadow .14s ease;
     }
@@ -166,7 +166,7 @@ export const NAVIGATION_OWNERSHIP_STYLES = `  /* Navigation ownership correction
       gap: 5px;
       position: static;
       font-size: 9.5px;
-      font-weight: 650;
+      font-weight: 400;
       transition: color .14s ease, background .14s ease;
     }
     body[data-desktop-shell="true"] .tui-focus-return:hover { color: var(--ink); background: var(--paper); }
@@ -219,7 +219,7 @@ export const NAVIGATION_OWNERSHIP_STYLES = `  /* Navigation ownership correction
       top: -4px;
       right: -4px;
       font-size: 8px;
-      font-weight: 760;
+      font-weight: 400;
       font-variant-numeric: tabular-nums;
       line-height: 1;
       box-shadow: 0 2px 6px color-mix(in srgb, var(--shadow-color) 34%, transparent);
@@ -244,23 +244,11 @@ export const NAVIGATION_OWNERSHIP_STYLES = `  /* Navigation ownership correction
     }
     body[data-desktop-shell="true"] .feed-filter-panel[hidden] { display: none; }
     body[data-desktop-shell="true"] .feed-filter-panel > header { min-height: 44px; display: flex; align-items: center; gap: 8px; }
-    body[data-desktop-shell="true"] .feed-filter-panel > header strong { font-size: 13px; font-weight: 690; }
-    body[data-desktop-shell="true"] .feed-filter-panel > header button {
-      min-height: 44px;
-      margin-left: auto;
-      padding: 0 3px;
-      border: 0;
-      color: var(--blue-dark);
-      background: transparent;
-      font: inherit;
-      font-size: 12px;
-      font-weight: 640;
-      cursor: pointer;
-    }
-    body[data-desktop-shell="true"] .feed-filter-panel > header button:disabled { color: var(--faint); cursor: default; }
+    body[data-desktop-shell="true"] .feed-filter-panel > header strong { font-size: 13px; font-weight: 400; }
+    body[data-desktop-shell="true"] .feed-filter-panel > header .mw-btn { margin-left: auto; }
     body[data-desktop-shell="true"] .feed-filter-section { padding-top: 8px; border-top: 1px solid var(--line); display: grid; gap: 5px; }
     body[data-desktop-shell="true"] .feed-filter-section + .feed-filter-section { margin-top: 8px; }
-    body[data-desktop-shell="true"] .feed-filter-section > span { color: var(--faint); font-size: 10.5px; font-weight: 680; letter-spacing: .03em; }
+    body[data-desktop-shell="true"] .feed-filter-section > span { color: var(--faint); font-size: 10.5px; font-weight: 400; letter-spacing: .03em; }
     body[data-desktop-shell="true"] .feed-filter-options { min-width: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px; }
     body[data-desktop-shell="true"] .feed-filter-option {
       min-width: 0;
@@ -280,7 +268,7 @@ export const NAVIGATION_OWNERSHIP_STYLES = `  /* Navigation ownership correction
       cursor: pointer;
     }
     body[data-desktop-shell="true"] .feed-filter-option:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 5%, transparent); }
-    body[data-desktop-shell="true"] .feed-filter-option[aria-checked="true"] { color: var(--blue-dark); background: color-mix(in srgb, var(--blue) 10%, transparent); font-weight: 670; }
+    body[data-desktop-shell="true"] .feed-filter-option[aria-checked="true"] { color: var(--blue-dark); background: color-mix(in srgb, var(--blue) 10%, transparent); font-weight: 400; }
     body[data-desktop-shell="true"] .feed-filter-option:focus-visible { outline: 0; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--blue) 60%, transparent); }
     body[data-desktop-shell="true"] .feed-filter-option span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     body[data-desktop-shell="true"] .feed-filter-option svg { width: 11px; height: 11px; opacity: 0; }
@@ -353,7 +341,7 @@ export const NAVIGATION_OWNERSHIP_STYLES = `  /* Navigation ownership correction
       display: flex;
       align-items: center;
       font-size: 9px;
-      font-weight: 650;
+      font-weight: 400;
     }
     body[data-desktop-shell="true"]:not([data-native-desktop="true"]) .mobile-project-switcher .navigator-project-menu-popover nav {
       display: grid;
@@ -389,7 +377,7 @@ export const NAVIGATION_OWNERSHIP_STYLES = `  /* Navigation ownership correction
       min-width: 0;
       overflow: hidden;
       font-size: 11px;
-      font-weight: 590;
+      font-weight: 400;
       text-overflow: ellipsis;
       white-space: nowrap;
     }

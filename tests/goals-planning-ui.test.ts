@@ -89,7 +89,11 @@ test("Planning library mounts categorized cards, escaped copy and contextual des
 
 test("Planning details and editors preserve scope, instructions, blank rows and disabled state", () => {
   const html = renderer.renderMethod(method, "detail", "personal", project);
+  assert.match(html, /<p>For real delivery<\/p><div class="planning-detail-tags" aria-label="适合哪些工作">/);
+  assert.match(html, /planning-detail-lede[\s\S]*planning-detail-tags[\s\S]*mw-btn--primary/);
+  assert.doesNotMatch(html, /mw-btn--primary[\s\S]*planning-detail-tags/);
   assert.match(html, /创建我的版本/);
+  assert.doesNotMatch(renderer.renderMethod({ ...method, applies_to: [] }, "detail", "personal", project), /planning-detail-tags/);
   assert.match(html, /&lt;script&gt;unsafe&lt;\/script&gt;/);
   assert.match(html, /consumer 依赖关系 provider/);
   assert.match(html, /先完成可交付结果，再开始使用它的工作/);

@@ -22,7 +22,7 @@ test("Session content merges native Codex items with explicitly labelled Molis W
     });
     registry.appendEvent({
       session_id: session.session_id,
-      source: "goalboard_tui",
+      source: "molis_work_tui",
       kind: "terminal_output",
       source_id: "panel-a:output:1",
       source_order: 1,
@@ -85,11 +85,11 @@ test("Session content merges native Codex items with explicitly labelled Molis W
         ["tool", "runtime_native"],
         ["tool", "runtime_native"],
         ["artifact", "runtime_native"],
-        ["terminal_output", "goalboard_tui"],
+        ["terminal_output", "molis_work_tui"],
       ],
     );
     assert.equal(searchSessionTimeline(result.events, "typecheck").length, 1);
-    assert.equal(searchSessionTimeline(result.events, "fallback")[0]?.source, "goalboard_tui");
+    assert.equal(searchSessionTimeline(result.events, "fallback")[0]?.source, "molis_work_tui");
     const imageTool = result.events.find((event) => event.event_id === "native:image-tool-a");
     assert.match(imageTool?.content ?? "", /二进制内容已省略/);
     assert.doesNotMatch(imageTool?.content ?? "", /A{100}|B{100}|data:image\/png;base64/);
@@ -115,14 +115,14 @@ test("unsupported Runtime returns only proven Molis Work events and never fabric
     assert.deepEqual(empty.events, []);
     registry.appendEvent({
       session_id: session.session_id,
-      source: "goalboard",
+      source: "molis_work",
       kind: "status",
       source_id: "goal-link-a",
       content: "已关联 Goal",
     });
     const fallback = await new SessionContentService(registry, new RuntimeHostRouter((runtimeId) => new RegistryFallbackSessionAdapter(runtimeId, registry))).read(session.session_id);
     assert.equal(fallback.content_mode, "fallback");
-    assert.deepEqual(fallback.events.map((event) => event.source), ["goalboard"]);
+    assert.deepEqual(fallback.events.map((event) => event.source), ["molis_work"]);
   } finally {
     registry.close();
     await rm(directory, { recursive: true, force: true });
@@ -142,7 +142,7 @@ test("an unknown native read shape is a visible failure while proven Molis Work 
     });
     registry.appendEvent({
       session_id: session.session_id,
-      source: "goalboard_tui",
+      source: "molis_work_tui",
       kind: "terminal_output",
       source_id: "shape-fallback",
       content: "仍可验证的本地记录",

@@ -1,5 +1,5 @@
 // @ts-nocheck
-/** Pure tab-workspace rules for preview tabs, user groups, and split panes. Stringified into the browser client; keep it type-annotation-free. */
+/** Pure tab-workspace rules for additive tabs, user groups, and split panes. Stringified into the browser client; keep it type-annotation-free. */
 export function createTabWorkspaceOps() {
   const MAX_PANES = Infinity;
   const GROUP_COLORS = ["grey", "blue", "red", "yellow", "green", "pink", "purple", "cyan"];
@@ -8,13 +8,13 @@ export function createTabWorkspaceOps() {
   const motherTab = (plugin, title) => ({ id: uid(), plugin, kind: "mother", title });
   const itemTab = (plugin, itemId, title) => ({ id: uid(), plugin, kind: "item", itemId, title });
   const tabKey = (tab) => tab.kind === "item" ? tab.plugin + ":item:" + tab.itemId : tab.plugin + ":" + tab.kind;
-  const sameTab = (a, b) => tabKey(a) === tabKey(b);
   const pluginTitle = (plugin) => ({
     home: "项目首页",
     goals: "Goals",
     sessions: "Sessions",
     inbox: "Inbox",
     feed: "Feed",
+    shelf: "Shelf",
     artifacts: "Artifacts",
   }[plugin] || plugin);
   const pluginOfSurface = (surface) => surface === "goal" ? "goals" : surface === "sources" ? "feed" : surface;
@@ -34,6 +34,7 @@ export function createTabWorkspaceOps() {
     const used = new Set(pane.tabs.map((tab) => tab.groupId).filter(Boolean));
     pane.groups = pane.groups.filter((group) => used.has(group.id));
     pane.tabs.forEach((tab) => {
+      delete tab.preview;
       if (tab.groupId && !used.has(tab.groupId)) delete tab.groupId;
     });
   };
@@ -107,67 +108,29 @@ export function createTabWorkspaceOps() {
     }
     return activeIndex + 1;
   };
-  const assignIdentity = (target, source) => {
-    target.plugin = source.plugin;
-    target.kind = source.kind;
-    target.title = source.title;
-    if (source.kind === "item") target.itemId = source.itemId;
-    else {
-      delete target.itemId;
-      delete target.goalView;
-    }
-    if (source.feedTask) target.feedTask = source.feedTask;
-    else delete target.feedTask;
-  };
   const insertNew = (pane, tab) => {
+    delete tab.preview;
     pane.tabs.splice(insertIndex(pane), 0, tab);
     orderPinned(pane);
     activateInPane(pane, tab);
     return tab;
   };
-  const findCommitted = (pane, tab) => pane.tabs.find((candidate) => sameTab(candidate, tab) && !candidate.preview);
-  const findAny = (pane, tab) => findCommitted(pane, tab) || pane.tabs.find((candidate) => sameTab(candidate, tab));
-  const previewInPane = (state, pane, tab) => {
+  const openInPane = (state, pane, tab) => {
     state.exclusive = null;
-    const committed = findCommitted(pane, tab);
-    if (committed) return activateInPane(pane, committed);
-    const preview = pane.tabs.find((candidate) => candidate.preview);
-    if (preview) {
-      assignIdentity(preview, tab);
-      preview.preview = true;
-      return activateInPane(pane, preview);
-    }
-    tab.preview = true;
+    const existing = pane.tabs.find((candidate) => tabKey(candidate) === tabKey(tab));
+    if (existing) return activateInPane(pane, existing);
     return insertNew(pane, tab);
   };
-  const commitInPane = (state, pane, tab) => {
-    state.exclusive = null;
-    const existing = findAny(pane, tab);
-    if (existing) {
-      existing.preview = false;
-      pane.tabs = pane.tabs.filter((candidate) => candidate === existing || !(candidate.preview && sameTab(candidate, existing)));
-      return activateInPane(pane, existing);
-    }
-    tab.preview = false;
-    return insertNew(pane, tab);
-  };
-  const openInPane = (state, pane, tab, mode) => mode === "preview" ? previewInPane(state, pane, tab) : commitInPane(state, pane, tab);
-  const openPlugin = (state, plugin, mode = "commit") => {
+  const openPlugin = (state, plugin) => {
     state.exclusive = null;
     const pane = focused(state);
-    if (plugin === "home") return commitInPane(state, pane, homeTab());
-    return openInPane(state, pane, motherTab(plugin, pluginTitle(plugin)), mode);
+    if (plugin === "home") return openInPane(state, pane, homeTab());
+    return openInPane(state, pane, motherTab(plugin, pluginTitle(plugin)));
   };
-  const openItem = (state, plugin, itemId, title, mode = "commit") => {
+  const openItem = (state, plugin, itemId, title) => {
     state.exclusive = null;
     const pane = focused(state);
-    return openInPane(state, pane, itemTab(plugin, itemId, title || itemId), mode);
-  };
-  const commitTab = (state, paneId, tabId) => {
-    const pane = state.panes.find((candidate) => candidate.id === paneId);
-    const tab = pane?.tabs.find((candidate) => candidate.id === tabId);
-    if (tab) tab.preview = false;
-    return tab;
+    return openInPane(state, pane, itemTab(plugin, itemId, title || itemId));
   };
   const nextGroupColor = (pane) => {
     const used = new Set((pane.groups || []).map((group) => group.color));
@@ -290,20 +253,16 @@ export function createTabWorkspaceOps() {
       if (from.activeTabId === tabId) from.activeTabId = from.tabs[0]?.id || null;
       pruneEmptyGroups(from);
     }
-    const duplicate = to.tabs.find((item) => sameTab(item, next));
-    if (duplicate && from !== to) to.activeTabId = duplicate.id;
-    else {
-      if (!next.pinned) {
-        const groupId = groupIdAtInsert(to.tabs, next.id, beforeId);
-        if (groupId) next.groupId = groupId;
-        else delete next.groupId;
-      }
-      const index = to.tabs.findIndex((item) => item.id === beforeId);
-      to.tabs.splice(index < 0 ? to.tabs.length : index, 0, next);
-      if (next.groupId) gatherGroup(to, next.groupId, next);
-      else orderPinned(to);
-      to.activeTabId = next.id;
+    if (!next.pinned) {
+      const groupId = groupIdAtInsert(to.tabs, next.id, beforeId);
+      if (groupId) next.groupId = groupId;
+      else delete next.groupId;
     }
+    const index = to.tabs.findIndex((item) => item.id === beforeId);
+    to.tabs.splice(index < 0 ? to.tabs.length : index, 0, next);
+    if (next.groupId) gatherGroup(to, next.groupId, next);
+    else orderPinned(to);
+    to.activeTabId = next.id;
     state.focusedPaneId = to.id;
     if (!from.tabs.length && from !== to) closePane(state, from.id);
     pruneEmptyGroups(to);
@@ -356,7 +315,6 @@ export function createTabWorkspaceOps() {
     create,
     openPlugin,
     openItem,
-    commitTab,
     closeTab,
     togglePinned,
     closePane,

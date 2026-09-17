@@ -23,7 +23,7 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
     };
 
     const syncMobilePluginLabels = (surface, directory) => {
-      const plugin = directory === "sources" || directory === "feed" || directory === "inbox" || directory === "sessions" || directory === "artifacts"
+      const plugin = directory === "sources" || directory === "feed" || directory === "inbox" || directory === "sessions" || directory === "artifacts" || directory === "shelf"
         ? directory
         : surface;
       if (mobileTreeTab) mobileTreeTab.textContent = plugin === "feed"
@@ -36,8 +36,10 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
             ? "Sessions"
             : plugin === "artifacts"
               ? "Artifacts"
+              : plugin === "shelf"
+                ? "Shelf"
               : defaultMobileTreeLabel;
-      if (mobileDocumentTab) mobileDocumentTab.textContent = plugin === "feed" || plugin === "sources" || plugin === "sessions" || plugin === "inbox" || plugin === "artifacts"
+      if (mobileDocumentTab) mobileDocumentTab.textContent = plugin === "feed" || plugin === "sources" || plugin === "sessions" || plugin === "inbox" || plugin === "artifacts" || plugin === "shelf"
         ? L("详情")
         : defaultMobileDocumentLabel;
     };
@@ -93,12 +95,8 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
     };
 
     const pluginForSurface = (surface) => surface === "goal" ? "goals" : surface === "home" ? "home" : surface;
-    const directoryTabMode = (event) => {
-      if (matchMedia("(pointer: coarse)").matches || matchMedia("(max-width: 760px)").matches) return "commit";
-      if (!event) return "commit";
-      if (event.type === "dblclick" || (event.detail || 0) !== 1) return "commit";
-      return "preview";
-    };
+    const directoryTabMode = () => "commit";
+    let lastDirectoryOpen = { key: "", at: 0 };
     const openWorkbenchSurface = (surface, itemId, title, mode = "commit") => {
       if (!tabWorkspace) return false;
       if (surface === "market") {
@@ -113,9 +111,16 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
       else tabWorkspace.openPlugin(pluginForSurface(surface), mode);
       return true;
     };
-    const openDirectorySurface = (surface, itemId, title, clickEvent) => openWorkbenchSurface(surface, itemId, title, directoryTabMode(clickEvent));
+    const openDirectorySurface = (surface, itemId, title, clickEvent) => {
+      const plugin = pluginForSurface(surface);
+      const key = itemId ? plugin + ":item:" + itemId : plugin + ":mother";
+      const detail = Number(clickEvent?.detail || 0);
+      if (detail > 1 && lastDirectoryOpen.key === key) return true;
+      lastDirectoryOpen = { key, at: Date.now() };
+      return openWorkbenchSurface(surface, itemId, title, directoryTabMode());
+    };
 
-    const currentModuleDirectory = () => activeDesktopSurface === "feed" || activeDesktopSurface === "sources" || activeDesktopSurface === "sessions" || activeDesktopSurface === "artifacts" || activeDesktopSurface === "inbox"
+    const currentModuleDirectory = () => activeDesktopSurface === "feed" || activeDesktopSurface === "sources" || activeDesktopSurface === "sessions" || activeDesktopSurface === "artifacts" || activeDesktopSurface === "inbox" || activeDesktopSurface === "shelf"
       ? activeDesktopSurface
       : "goals";
 
@@ -140,7 +145,7 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
       });
     };
 
-    const LIST_PLUGIN_SECTIONS = ["goals", "sessions", "inbox", "feed", "artifacts"];
+    const LIST_PLUGIN_SECTIONS = ["goals", "sessions", "inbox", "feed", "shelf", "artifacts"];
 
     const syncPluginDirectory = (directory) => {
       const empty = directory === "root";
@@ -178,7 +183,7 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
       if (feedPanel) feedPanel.hidden = next === "sources";
       if (sourcesPanel) sourcesPanel.hidden = next !== "sources";
       syncPluginDirectory(next);
-      if (next === "settings" || (persist && origin?.closest?.("[data-plugin-strip]") && next !== "root")) {
+      if (next === "settings" || next === "project-settings" || (persist && origin?.closest?.("[data-plugin-strip]") && next !== "root")) {
         setDirectoryCollapsed?.(false, false);
         const storedWidth = parseFloat(workspace.style.getPropertyValue("--tree-width")) || 0;
         if (storedWidth > 0 && storedWidth < 200) workspace.style.setProperty("--tree-width", "240px");
@@ -304,13 +309,13 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
       configSave.dataset.sourceId = value;
       configSave.disabled = feedSourcesDialog.querySelector('[data-feed-task-config="' + CSS.escape(value) + '"]')?.dataset.prototype === "true";
 
-      const headings = { custom_rss: "订阅网站与博客", rss: "选择推荐订阅", web_query: "追踪关键词", youtube_channel: "关注 YouTube 频道", github: "连接 GitHub", gmail: "连接 Gmail" };
-      const title = stage === "config" ? "任务配置" : stage === "advanced" ? "捕捉规则" : setup ? headings[value] : "添加拉取任务";
+      const headings = { custom_rss: "RSS / Atom", rss: "目录订阅", web_query: "网页搜索", youtube_channel: "YouTube", github: "GitHub", gmail: "Gmail" };
+      const title = stage === "config" ? "任务配置" : setup ? headings[value] : "添加任务";
       feedSourcesDialog.querySelector("h2").textContent = L(title);
-      feedSourcesDialog.querySelector('footer [data-feed-sources-close]').textContent = L(stage === "advanced" ? "关闭" : "取消");
+      feedSourcesDialog.querySelector('footer [data-feed-sources-close]').textContent = L("取消");
       const description = feedSourcesDialog.querySelector("[data-feed-setup-description]");
-      description.textContent = L(stage === "choose" ? "先选择你想关注的来源。" : setup ? "完成配置后，内容会出现在左侧的独立任务中。" : stage === "config" ? "管理这个任务的内容范围与拉取方式。" : "为新内容设置捕捉规则。");
-      for (const [selector, visible] of [["[data-feed-source-choices]", stage === "choose"], ["[data-feed-source-setup]", setup], ["[data-feed-task-configs]", stage === "config"], ["[data-feed-advanced]", stage === "advanced"]]) feedSourcesDialog.querySelector(selector).hidden = !visible;
+      description.textContent = L(stage === "choose" ? "选一种来源。" : setup ? "填完后会出现在 Feed 目录。" : "范围、计划和捕捉规则。");
+      for (const [selector, visible] of [["[data-feed-source-choices]", stage === "choose"], ["[data-feed-source-setup]", setup], ["[data-feed-task-configs]", stage === "config"]]) feedSourcesDialog.querySelector(selector).hidden = !visible;
       feedSourcesDialog.querySelectorAll("[data-feed-task-config]").forEach(panel => panel.hidden = panel.dataset.feedTaskConfig !== value);
       feedSourcesDialog.querySelectorAll("[data-feed-setup-kind]").forEach(panel => {
         panel.hidden = !setup || panel.dataset.feedSetupKind !== value;
@@ -329,6 +334,14 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
     const setFeedAddOpen = (open) => {
       if (open) showFeedSetup(); else feedSourcesDialog?.close();
     };
+    const saveFeedAddOutRule = async (form, sourceId) => {
+      if (!form || form.dataset.createdOutRuleId) return;
+      const contains = String(form.querySelector("[data-feed-add-out-rule-contains]")?.value || "").trim();
+      const name = String(form.querySelector("[data-feed-add-out-rule-name]")?.value || "").trim();
+      if (!contains && !name) return;
+      const result = await feedApi("/api/feed/out-rules", "POST", { name: name || contains, contains, source_id: sourceId });
+      form.dataset.createdOutRuleId = result.rule.rule_id;
+    };
 
     const setFeedTask = (taskId, persist = true) => {
       const available = document.querySelector('[data-feed-task="' + CSS.escape(taskId || "") + '"]');
@@ -336,7 +349,13 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
       selectedFeedTask = next;
       document.querySelectorAll("[data-feed-task]").forEach((task) => {
         const selected = task.dataset.feedTask === next;
+        if (task.matches("details")) {
+          const summary = task.querySelector(":scope > summary");
+          if (selected) summary?.setAttribute("aria-current", "page"); else summary?.removeAttribute("aria-current");
+          return;
+        }
         const button = task.querySelector("[data-feed-task-toggle]");
+        button?.classList.toggle("is-selected", selected);
         if (selected) button?.setAttribute("aria-current", "page"); else button?.removeAttribute("aria-current");
       });
       const title = document.querySelector("[data-feed-task-title]");

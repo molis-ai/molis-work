@@ -398,66 +398,6 @@ export const PROJECT_INDEX_CLIENT_SCRIPT = `
       applyProjectSearch();
       event.preventDefault();
     });
-    const dialog = document.querySelector("[data-project-migration-dialog]");
-    const form = document.querySelector("[data-project-migration-form]");
-    const errorBox = document.querySelector("[data-project-migration-error]");
-    const resetMigrationDialog = () => {
-      form?.reset();
-      if (errorBox) {
-        errorBox.hidden = true;
-        errorBox.textContent = "";
-      }
-      const submit = form?.querySelector("[data-project-migration-submit]");
-      if (submit) submit.disabled = false;
-    };
-    const open = () => {
-      if (!dialog) return;
-      resetMigrationDialog();
-      dialog.showModal();
-      requestAnimationFrame(() => form?.elements.legacy_database_path?.focus());
-    };
-    if (new URLSearchParams(location.search).get("migration") === "1") open();
-    document.querySelectorAll("[data-open-project-migration]").forEach((button) => {
-      button.addEventListener("click", open);
-    });
-    document.querySelectorAll("[data-close-project-migration]").forEach((button) => {
-      button.addEventListener("click", () => dialog?.close());
-    });
-    dialog?.addEventListener("click", (event) => {
-      if (event.target === dialog) dialog.close();
-    });
-    dialog?.addEventListener("close", resetMigrationDialog);
-    form?.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const values = new FormData(form);
-      const confirmed = values.get("user_confirmed") === "on";
-      if (!confirmed) {
-        errorBox.textContent = L("请先确认你要迁移这份已有 Molis Work 数据。");
-        errorBox.hidden = false;
-        return;
-      }
-      const submit = form.querySelector("[data-project-migration-submit]");
-      submit.disabled = true;
-      errorBox.hidden = true;
-      try {
-        const response = await fetch("/api/projects/migrate", {
-          method: "POST",
-          headers: molisWorkControlHeaders(),
-          body: JSON.stringify({
-            legacy_database_path: String(values.get("legacy_database_path") || "").trim(),
-            display_name: String(values.get("display_name") || "").trim(),
-            user_confirmed: true,
-          }),
-        });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || L("迁移失败，请检查来源 DB 后重试"));
-        location.assign(globalThis.molisWorkNavigationUrl(result.project_path));
-      } catch (error) {
-        errorBox.textContent = error.message || L("迁移失败，请检查来源 DB 后重试");
-        errorBox.hidden = false;
-        submit.disabled = false;
-      }
-    });
   })();
 `;
 

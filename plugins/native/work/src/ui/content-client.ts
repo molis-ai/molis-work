@@ -3,12 +3,17 @@ export const WORK_CONTENT_CLIENT = `
 ({ route, L }) => {
   const sourceLabel = (source) => source === "runtime_native"
     ? L("Runtime 原生")
-    : source === "goalboard_tui"
+    : source === "molis_work_tui"
       ? L("Molis Work TUI · 部分终端记录")
       : L("Molis Work 记录");
+  const setContentToolbar = (detail, visible) => {
+    const toolbar = detail?.querySelector(".session-execution-toolbar");
+    if (toolbar) toolbar.hidden = !visible;
+  };
   const renderContentState = (detail, title, message, retry = false) => {
     const body = detail.querySelector(".session-content-body");
     body.replaceChildren();
+    setContentToolbar(detail, false);
     const state = document.createElement("div");
     state.className = "session-content-state";
     const copy = document.createElement("div");
@@ -20,7 +25,7 @@ export const WORK_CONTENT_CLIENT = `
     if (retry) {
       const button = document.createElement("button");
       button.type = "button";
-      button.className = "document-action";
+      button.className = "mw-btn mw-btn--secondary";
       button.dataset.sessionRetry = "";
       button.textContent = L("重试读取");
       copy.append(button);
@@ -65,7 +70,7 @@ export const WORK_CONTENT_CLIENT = `
   const applySessionContentFilters = (detail) => {
     if (!detail) return;
     const query = String(detail.querySelector("[data-session-content-search]")?.value || "").trim().toLocaleLowerCase();
-    const filter = String(detail.querySelector("[data-session-content-filter]")?.value || "all");
+    const filter = String(detail.querySelector("[data-session-content-filter][aria-pressed='true']")?.dataset.sessionContentFilter || "all");
     let shown = 0;
     detail.querySelectorAll(".session-timeline-event").forEach((item) => {
       const matchesQuery = !query || String(item.dataset.eventSearch || item.textContent || "").toLocaleLowerCase().includes(query);
@@ -93,6 +98,7 @@ export const WORK_CONTENT_CLIENT = `
       renderContentState(detail, title, message, payload.content_mode === "failed");
       return;
     }
+    setContentToolbar(detail, true);
     const list = document.createElement("div");
     list.className = "session-transcript";
     list.dataset.sessionContentList = "";
@@ -230,6 +236,7 @@ export const WORK_CONTENT_CLIENT = `
   };
   const loadSessionContent = async (detail, force = false) => {
     if (!detail?.dataset.detailId) return;
+    if (!force && detail.dataset.sessionStage === "unavailable") return;
     if (!force && ["loading", "loaded"].includes(detail.dataset.contentState || "")) return;
     detail.dataset.contentState = "loading";
     renderContentState(detail, L("正在读取执行内容"), L("正在联系原 Runtime，并加载 Molis Work 已保存的 TUI 记录。"), false);
@@ -250,13 +257,35 @@ export const WORK_CONTENT_CLIENT = `
   document.addEventListener("input", (event) => {
     if (event.target.matches("[data-session-content-search]")) applySessionContentFilters(event.target.closest("[data-operation-detail]"));
   });
-  document.addEventListener("change", (event) => {
-    if (event.target.matches("[data-session-content-filter]")) applySessionContentFilters(event.target.closest("[data-operation-detail]"));
-  });
   document.addEventListener("click", (event) => {
+    const filter = event.target.closest("[data-session-content-filter]");
+    if (filter) {
+      const group = filter.closest("[data-slot='toggle-group']");
+      group?.querySelectorAll("[data-session-content-filter]").forEach((button) => {
+        const current = button === filter;
+        button.classList.toggle("is-current", current);
+        button.setAttribute("aria-pressed", String(current));
+      });
+      applySessionContentFilters(filter.closest("[data-operation-detail]"));
+      return;
+    }
+    const railOpen = event.target.closest("[data-session-rail-open]");
+    if (railOpen) {
+      railOpen.closest("[data-operation-detail]")?.classList.toggle("is-rail-open");
+      return;
+    }
+    const railDismiss = event.target.closest("[data-session-rail-dismiss]");
+    if (railDismiss) {
+      railDismiss.closest("[data-operation-detail]")?.classList.remove("is-rail-open");
+      return;
+    }
     const load = event.target.closest("[data-session-content-load]");
     const retry = event.target.closest("[data-session-retry]");
     if (load || retry) void loadSessionContent(event.target.closest("[data-operation-detail]"), true);
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || document.querySelector("dialog[open]")) return;
+    document.querySelector(".session-stage.is-rail-open")?.classList.remove("is-rail-open");
   });
   document.querySelectorAll("[data-session-load]").forEach((button) => button.addEventListener("click", () => {
     const status = button.closest("[data-operation-detail]").querySelector("[data-session-load-status]");
@@ -275,7 +304,7 @@ export const WORK_CONTENT_CLIENT = `
       status.textContent = L("原 Runtime 已加载这条 Session，可以继续执行。");
     }).catch((error) => {
       status.textContent = error.nextAction === "create_handoff"
-        ? L("{message} 可以使用上方“创建 Handoff”交给新的目标 Session。", { message: error.message })
+        ? L("{message} 可以使用“创建 Handoff”交给新的目标 Session。", { message: error.message })
         : error.message;
       status.classList.toggle("is-error", !String(error.message || "").includes("无需重复加载"));
     }).finally(() => { button.disabled = false; });

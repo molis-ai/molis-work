@@ -143,8 +143,12 @@ test("Inbox directory lists Attention reason, related object, and next step with
   };
   assert.match(rendered.directory, /data-inbox-filter="history"/);
   assert.match(rendered.directory, /data-inbox-row[^>]*data-inbox-entry-id="entry-open"/);
+  assert.match(rendered.directory, /mw-dir-row--meta/);
+  assert.doesNotMatch(rendered.directory, /feed-list-item/);
   assert.match(rendered.directory, /data-inbox-subject-type="goal_decision"[^>]*data-inbox-subject-id="goal-1"/);
   assert.match(rendered.directory, /你手工加入/);
+  assert.match(rendered.directory, /mw-status mw-status--attention mw-status--plain mw-dir-row__status/);
+  assert.match(rendered.directory, /mw-status--done/);
   assert.match(rendered.directory, /data-inbox-status="done"[^>]* hidden/);
   assert.doesNotMatch(rendered.directory, /这条消息的完整正文不应该出现/);
   assert.match(rendered.workbench, /data-inbox-detail="entry-open"/);

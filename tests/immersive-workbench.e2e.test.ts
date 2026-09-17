@@ -37,6 +37,8 @@ test("Project navigation preserves the fixed Goal workspace, terminal instance, 
   assert.equal(await evaluate("document.querySelector('[data-work-surface=sessions]').hidden"), false);
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   assert.equal(await evaluate("document.body.dataset.desktopSurface"), "goal");
+  assert.equal(await evaluate("document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')"), true);
+  assert.equal(await evaluate("document.querySelector('#goal-tree-pane').dataset.desktopDirectory"), "root");
   assert.equal(await evaluate("document.querySelector('[data-goal-node-workspace]').dataset.expandedGoal"), "");
   assert.equal(await evaluate("document.querySelector('[data-goal-node-workspace]').hidden"), true);
   await click('[data-graph-node][data-goal-id="' + goalId + '"] [data-graph-open]');
@@ -44,7 +46,7 @@ test("Project navigation preserves the fixed Goal workspace, terminal instance, 
   assert.equal(await evaluate("document.querySelector('[data-tui-pane]').hidden"), false);
   assert.equal(await evaluate("window.__terminalInstance===document.querySelector('[data-tui-terminal]')"), true);
   assert.equal(await evaluate("document.querySelector('[data-plugin-heading]').hidden"), false);
-  assert.equal(await evaluate("document.querySelector('#goal-tree-pane').dataset.desktopDirectory"), "goals");
+  assert.equal(await evaluate("document.querySelector('#goal-tree-pane').dataset.desktopDirectory"), "root");
   assert.equal(await evaluate("document.querySelector('[data-goal-node-workspace]').hidden"), false);
   await click('[data-goal-collapse]');
   assert.equal(await evaluate("document.querySelector('[data-graph-stage]').getAttribute('style')"), camera);
@@ -53,8 +55,9 @@ test("Project navigation preserves the fixed Goal workspace, terminal instance, 
   await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
   await click('[data-directory-show]');
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
-  assert.equal(await evaluate("document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')"), true);
-  assert.equal(await evaluate("document.querySelector('[data-plugin-stage]').inert"), true);
+  await waitFor("!document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
+  await evaluate("document.querySelector('[data-board-view-tab=list]')?.click()");
+  await waitFor("document.querySelector('[data-goal-canvas-shell]')?.dataset.boardView === 'list'");
   await click('[data-select-goal="' + goalId + '"]');
   await waitFor("!document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')");
   assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
@@ -76,7 +79,7 @@ test("Bundled market adds to the selected project and Artifact versions stay in 
   const prefix = "/projects/" + projectId;
   await navigate(() => command("Page.navigate", { url: origin + prefix + "/" }, sessionId));
   assert.equal(await evaluate("document.querySelector('[data-plugin-strip] [data-plugin-id=artifacts]')"), null);
-  assert.equal(await evaluate("[...document.querySelectorAll('[data-plugin-strip] [data-plugin-id]')].at(-1)?.dataset.pluginId"), "market");
+  assert.equal(await evaluate("[...document.querySelectorAll('.plugin-rail-items [data-plugin-id]')].at(-1)?.dataset.pluginId"), "market");
   assert.equal(await evaluate("document.querySelector('.personal-sidebar-footer [data-work-surface-open=market]')"), null);
   const otherId = await evaluate<string>(`(async()=>{const r=await fetch('/api/settings/projects',{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({display_name:'另一个项目',user_confirmed:true})});if(!r.ok)throw new Error(await r.text());return (await r.json()).project.project_id;})()`);
   await click('[data-work-surface-open="market"]');

@@ -5,7 +5,7 @@ import { createConnection } from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import { SERVICE_LABEL, LEGACY_SERVICE_LABEL, MolisWorkWebServiceError, type MolisWorkWebServiceManagerOptions, type MolisWorkWebServiceState, type MolisWorkWebServiceDetection, type WebServiceReceipt } from "./web-service-contract.js";
+import { SERVICE_LABEL, MolisWorkWebServiceError, type MolisWorkWebServiceManagerOptions, type MolisWorkWebServiceState, type MolisWorkWebServiceDetection, type WebServiceReceipt } from "./web-service-contract.js";
 import { resolveConfiguredHome } from "../product-home.js";
 const execFileAsync = promisify(execFile);
 
@@ -13,7 +13,6 @@ export class WebServiceEnvironment {
   readonly homeDirectory: string;
   readonly userHomeDirectory: string;
   readonly plistPath: string;
-  readonly legacyPlistPath: string;
   readonly receiptPath: string;
   readonly stdoutLog: string;
   readonly stderrLog: string;
@@ -35,7 +34,6 @@ export class WebServiceEnvironment {
     this.uid = options.uid ?? (typeof process.getuid === "function" ? process.getuid() : 0);
     this.nodeExecutablePath = path.resolve(options.nodeExecutablePath ?? process.execPath);
     this.plistPath = path.join(this.userHomeDirectory, "Library", "LaunchAgents", `${SERVICE_LABEL}.plist`);
-    this.legacyPlistPath = path.join(this.userHomeDirectory, "Library", "LaunchAgents", `${LEGACY_SERVICE_LABEL}.plist`);
     this.receiptPath = path.join(this.homeDirectory, "config", "web-service.json");
     this.stdoutLog = path.join(this.homeDirectory, "logs", "web-service.log");
     this.stderrLog = path.join(this.homeDirectory, "logs", "web-service.error.log");
@@ -91,8 +89,6 @@ ${args}
   domainTarget(): string { return `gui/${this.uid}`; }
 
   serviceTarget(): string { return `${this.domainTarget()}/${SERVICE_LABEL}`; }
-
-  legacyServiceTarget(): string { return `${this.domainTarget()}/${LEGACY_SERVICE_LABEL}`; }
 
   detection(
     state: MolisWorkWebServiceState,

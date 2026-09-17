@@ -89,6 +89,31 @@ export function unsatisfiedOutgoingDependencies<T extends GoalsTreeItem>(item: T
     .filter((target): target is T => target != null && !goalWorkSatisfied(target));
 }
 
+const GOAL_CREATED_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
+
+export function goalTreeCreatedLabel(iso: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso.trim());
+  if (!match) return "";
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return "";
+  return `${GOAL_CREATED_MONTHS[month - 1]} ${day}`;
+}
+
+export function goalTreeCreatorInitial(actorId: string): string {
+  const compact = actorId.trim();
+  if (!compact) return "";
+  const source = compact.includes("@") ? compact.slice(0, compact.indexOf("@")) : compact;
+  const token = source.split(/[-_./\s]+/).find((part) => part.length > 0) ?? source;
+  return (Array.from(token)[0] || "?").toUpperCase();
+}
+
+export function goalTreeCreatorHue(actorId: string): number {
+  let hash = 0;
+  for (const char of actorId) hash = (hash * 33 + char.charCodeAt(0)) >>> 0;
+  return hash % 360;
+}
+
 export function goalTreeReferenceLabel(goalId: string): string | null {
   const normalized = goalId.trim();
   const hierarchicalCode = normalized

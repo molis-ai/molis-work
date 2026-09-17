@@ -63,7 +63,7 @@ test("losing private Ledger links preserves the Session identity and encrypted e
   try {
     const session = registry.createSession({ runtime_id: "codex", actor_id: "user", user_confirmed: true,
       project_id: "project", current_goal_id: "goal" });
-    registry.appendEvent({ session_id: session.session_id, source: "goalboard_tui", kind: "terminal_output",
+    registry.appendEvent({ session_id: session.session_id, source: "molis_work_tui", kind: "terminal_output",
       source_id: "original-output", source_order: 1, occurred_at: "2026-09-05T00:00:00Z",
       content: "Original private output", metadata: { partial_terminal_history: true } });
     const events = registry.events(session.session_id);

@@ -1,6 +1,15 @@
 /** AP3 Workbench client segment: events-accessibility. */
 export const CLIENT_EVENTS_ACCESSIBILITY_SCRIPT = `    });
 
+    document.addEventListener("dblclick", (event) => {
+      const target = event.target instanceof Element ? event.target : null;
+      const goalLink = target?.closest("[data-select-goal]");
+      if (!goalLink?.closest("[data-goal-stage-list]")) return;
+      event.preventDefault();
+      if (stageListGestureTimer) { clearTimeout(stageListGestureTimer); stageListGestureTimer = null; }
+      frameContainer?.openFrame(goalLink.dataset.selectGoal);
+    });
+
     document.addEventListener("submit", async (event) => {
       if (event.target.matches("[data-feed-add-form]")) {
         event.preventDefault(); feedSourcesDialog?.querySelector("[data-feed-source-register]")?.click(); return;

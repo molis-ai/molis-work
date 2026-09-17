@@ -1,14 +1,18 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
+  INTERACTION_TEXTURE_STYLES,
   MOLIS_WORK_DENSITY_STORAGE_KEY,
   MOLIS_WORK_TERMINAL_THEME_STORAGE_KEY,
   MOLIS_WORK_THEME_STORAGE_KEY,
   THEME_BOOTSTRAP_SCRIPT,
+  TYPEFACE_STYLES,
   VISUAL_FOUNDATION_CLIENT_SCRIPT,
   VISUAL_FOUNDATION_STYLES,
+  interVariableFontFilePath,
+  notoSansScFontFilePath,
 } from "@molis-ai/molis-work-design-system";
 import {
   renderMolisWorkProjectIndexStylesheet,
@@ -25,6 +29,11 @@ test("visual foundation keeps Light, Dark, and System as local presentation choi
   assert.match(VISUAL_FOUNDATION_CLIENT_SCRIPT, /addEventListener\?\.\("change"/);
   assert.match(VISUAL_FOUNDATION_CLIENT_SCRIPT, /dataset\.navigationPending = "true"/);
   assert.match(VISUAL_FOUNDATION_CLIENT_SCRIPT, /a\[aria-busy="true"\]/);
+  assert.match(VISUAL_FOUNDATION_CLIENT_SCRIPT, /event\.defaultPrevented/);
+  assert.doesNotMatch(
+    VISUAL_FOUNDATION_CLIENT_SCRIPT,
+    /dataset\.navigationPending = "true";\s*anchor\.setAttribute\("aria-busy", "true"\);\s*\}, true\)/,
+  );
   assert.match(VISUAL_FOUNDATION_STYLES, /data-navigation-pending="true"/);
 });
 
@@ -36,32 +45,41 @@ test("dependency proposal records use semantic colors in both themes", () => {
   assert.doesNotMatch(stylesheet, /\.dependency-proposal \{[^}]*background: #fff;/);
 });
 
-test("primary and danger buttons keep semantic foregrounds across Light and Dark", () => {
+  test("primary and danger buttons keep semantic foregrounds across Light and Dark", () => {
   const projectIndexStyles = renderMolisWorkProjectIndexStylesheet();
   const settingsStyles = renderMolisWorkSettingsStylesheet();
   const workbenchStyles = renderMolisWorkWorkbenchStylesheet();
-  assert.match(VISUAL_FOUNDATION_STYLES, /--action: #202023;[\s\S]*--action-ink: #fbfbfc;/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /data-resolved-theme="dark"[\s\S]*--action: #f0f0f2;[\s\S]*--action-ink: #202023;/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /--action: #222326;[\s\S]*--action-ink: #ffffff;/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /data-resolved-theme="dark"[\s\S]*--action: #f7f8f8;[\s\S]*--action-ink: #0f1011;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /--danger-action: var\(--red\);[\s\S]*--danger-action-ink: var\(--page\);/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.human-review-jump,[\s\S]*\.guidance-primary-action,[\s\S]*\.source-now button:not\(:disabled\)[\s\S]*background: var\(--action\) !important;[\s\S]*color: var\(--action-ink\) !important;/);
-  assert.match(projectIndexStyles, /\.project-index-create \{[^}]*color: var\(--action-ink\);[^}]*background: var\(--action\);/);
-  assert.match(settingsStyles, /\.guidance-primary-action \{[^}]*color: var\(--action-ink\);[^}]*background: var\(--action\);/);
-  assert.match(workbenchStyles, /\.button-danger \{[^}]*color: var\(--danger-action-ink\) !important;[^}]*background: var\(--danger-action\) !important;/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /\.mw-btn--primary[\s\S]*background: var\(--action\) !important;[\s\S]*color: var\(--action-ink\) !important;/);
+  assert.match(projectIndexStyles, /\.mw-btn--primary[\s\S]*background: var\(--action\)/);
+  assert.match(settingsStyles, /\.mw-btn--primary[\s\S]*background: var\(--action\)/);
+  assert.match(workbenchStyles, /\.mw-btn--danger[\s\S]*background: var\(--danger-action\)/);
   assert.doesNotMatch(VISUAL_FOUNDATION_STYLES, /\.source-now button \{[^}]*color: #fff;[^}]*background: var\(--ink\)/);
 });
 
 test("visual foundation ships one restrained Calm Desktop world across workbench and settings", () => {
-  assert.match(VISUAL_FOUNDATION_STYLES, /--page: #f6f6f7;/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /--page: #f3f4f5;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /--shadow-soft: 0 1px 2px/);
   assert.match(VISUAL_FOUNDATION_STYLES, /--paper: #ffffff;/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /--muted: #62626b;/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /--faint: #66666f;/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /--action: #202023;/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /--muted: #6b6f76;/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /--faint: #737882;/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /--action: #222326;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /--radius-surface: 12px;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /body\[data-board-view\] \.document-pane,[\s\S]*border-radius: 0;[\s\S]*box-shadow: none;/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.tree-node\.is-selected,[\s\S]*background: var\(--paper\);[\s\S]*inset 0 0 0 1px var\(--line\)/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.settings-navigation a\[aria-current="page"\][\s\S]*background: var\(--paper\);/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /\.tree-node\.is-selected,[\s\S]*background: var\(--nav-active\);[\s\S]*box-shadow: none;/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /\.settings-navigation a\[aria-current="page"\][\s\S]*background: var\(--nav-active\);/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.project-index-panel \{[\s\S]*border-radius: 12px;/);
+});
+
+test("workbench chrome no longer ships Ant Design selected blues", () => {
+  const workbenchStyles = renderMolisWorkWorkbenchStylesheet();
+  assert.doesNotMatch(workbenchStyles, /#1677ff|#1677ed|#328bff/);
+  assert.doesNotMatch(workbenchStyles, /linear-gradient\(180deg,\s*#328bff/);
+  assert.doesNotMatch(workbenchStyles, /rgba\(22,\s*119,\s*255/);
+  assert.match(workbenchStyles, /\.tree-node\.is-selected \{ color: var\(--ink\); background: var\(--nav-active\)/);
+  assert.match(workbenchStyles, /\.top-action:hover, a\.top-action:hover \{ color: var\(--ink\); background: var\(--nav-hover\)/);
 });
 
 test("desktop Diagnostics cards keep content inset and actions grouped", () => {
@@ -136,9 +154,9 @@ test("visual foundation defines one wide workbench and one narrow companion", ()
   assert.match(VISUAL_FOUNDATION_STYLES, /body\[data-desktop-shell="true"\] \.brand svg \{[^}]*display: block/);
   assert.match(VISUAL_FOUNDATION_STYLES, /grid-template-columns: var\(--tree-width, clamp\(360px, 30vw, 480px\)\) 5px minmax\(430px, 1fr\) 5px var\(--tui-width, clamp\(440px, 37vw, 620px\)\)/);
   assert.doesNotMatch(VISUAL_FOUNDATION_STYLES, /\.goal-workspace-nav/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.goal-primary-action,\s*\n\s*\.button-primary/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /\.mw-btn--primary[\s\S]*background: var\(--action\)/);
   assert.doesNotMatch(VISUAL_FOUNDATION_STYLES, /\.goal-now-body \.goal-primary-action/);
-  assert.equal(VISUAL_FOUNDATION_STYLES.match(/linear-gradient/g)?.length, 2);
+  assert.equal(VISUAL_FOUNDATION_STYLES.match(/linear-gradient/g)?.length, 3);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.momentum-map\.graph-stage \{[\s\S]*linear-gradient\(to right,[\s\S]*linear-gradient\(to bottom,/);
 });
 
@@ -296,7 +314,7 @@ test("visual foundation keeps the Goal navigator dense and relationships progres
   assert.match(VISUAL_FOUNDATION_STYLES, /\.tree-dep-copy small \{[^}]*text-overflow: ellipsis/);
   assert.match(VISUAL_FOUNDATION_STYLES, /--goal-status-tone: var\(--ink-soft\)/);
   assert.match(VISUAL_FOUNDATION_STYLES, /border: 1px solid color-mix\(in srgb, var\(--goal-status-tone\) 28%, var\(--line\)\)/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.goal-status--execution_blocked,[\s\S]*--goal-status-tone: var\(--red\)/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /\.goal-status--execution_blocked,[\s\S]*--goal-status-tone: var\(--tone-blocked, var\(--red\)\)/);
   assert.match(VISUAL_FOUNDATION_STYLES, /body\[data-desktop-shell="true"\] \.navigator-project-primary \{[\s\S]*grid-template-columns: minmax\(0, 178px\) 28px minmax\(12px, 1fr\)/);
   assert.match(VISUAL_FOUNDATION_STYLES, /body\[data-desktop-shell="true"\] \.navigator-project-selector \{[\s\S]*height: 30px;[\s\S]*grid-template-columns: 16px minmax\(0, 1fr\) 12px/);
   assert.match(VISUAL_FOUNDATION_STYLES, /body\[data-desktop-shell="true"\] \.navigator-project-settings \{[\s\S]*width: 28px;[\s\S]*place-items: center/);
@@ -378,6 +396,39 @@ test("visual foundation gives every Focus detail one responsive section deck", (
   assert.match(VISUAL_FOUNDATION_STYLES, /Relations read as records, not a pile of pills/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.focus-section-card-reveal \.relation-row \{[\s\S]*grid-template-columns: 54px minmax\(0, 1fr\) auto 16px;[\s\S]*justify-content: stretch;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.relation-goal-id, \.relation-path, \.relation-reason[\s\S]*background: transparent !important;/);
+});
+
+test("final interaction texture keeps Light and Dark type readable on distinct surfaces", () => {
+  assert.match(INTERACTION_TEXTURE_STYLES, /--page: #f3f4f5;[\s\S]*--paper: #ffffff;[\s\S]*--ink: #222326;[\s\S]*--muted: #6b6f76;[\s\S]*--faint: #737882;/);
+  assert.match(INTERACTION_TEXTURE_STYLES, /--hue-indigo: #5e6ad2;/);
+  assert.match(INTERACTION_TEXTURE_STYLES, /--blue: var\(--hue-indigo\)/);
+  assert.match(INTERACTION_TEXTURE_STYLES, /--content-accent: var\(--hue-slate\)/);
+  assert.match(INTERACTION_TEXTURE_STYLES, /--mark-slate: #647DB5;/);
+  assert.match(INTERACTION_TEXTURE_STYLES, /\n  \.goal-status \{ --goal-status-tone: var\(--tone-idle\); \}\n  \.goal-status,\n  body\[data-desktop-shell="true"\] \.goal-status \{/);
+  assert.match(
+    INTERACTION_TEXTURE_STYLES,
+    /data-resolved-theme="dark"[\s\S]*--page: #0f1011;[\s\S]*--paper: #161718;[\s\S]*--ink: #f7f8f8;[\s\S]*--muted: #8a8f98;[\s\S]*--faint: #737880;/,
+  );
+  const workbench = renderMolisWorkWorkbenchStylesheet();
+  const index = renderMolisWorkProjectIndexStylesheet();
+  assert.match(TYPEFACE_STYLES, /font-family: "Inter Variable"/);
+  assert.match(TYPEFACE_STYLES, /font-family: "Noto Sans SC"/);
+  assert.match(TYPEFACE_STYLES, /html body \* \{[\s\S]*font-weight: 400 !important/);
+  assert.match(TYPEFACE_STYLES, /font-feature-settings: "cv01" 1, "ss03" 1, "calt" 1/);
+  assert.doesNotMatch(TYPEFACE_STYLES, /--font-quote|QUOTE_FONT|immersive-home blockquote/);
+  assert.equal(existsSync(interVariableFontFilePath()), true);
+  assert.equal(existsSync(notoSansScFontFilePath()), true);
+  assert.match(workbench, /font: 13px\/1\.5 /);
+  assert.match(workbench, /font-family: "Inter Variable"/);
+  assert.match(workbench, /font-family: "Noto Sans SC"/);
+  assert.match(workbench, /font-weight: 400 !important/);
+  assert.doesNotMatch(workbench, /\.immersive-home blockquote/);
+  assert.doesNotMatch(workbench, /--font-quote/);
+  assert.doesNotMatch(workbench, /\.home-calendar td\.home-calendar-outside \{[^}]*opacity:/);
+  assert.doesNotMatch(workbench, /\.home-composer input \{[^}]*opacity: \.7/);
+  assert.match(workbench, /\.frame-empty\.mw-empty \{[\s\S]*justify-content: center;[\s\S]*gap: 12px/);
+  assert.match(index, /\.project-index-panel \{[\s\S]*height: auto;[\s\S]*max-height: 100%;/);
+  assert.match(index, /\.project-card p \{[\s\S]*color: var\(--ink-soft\)/);
 });
 
 test("desktop Goal tabs preserve readable titles instead of shrinking to status dots", () => {

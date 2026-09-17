@@ -7,7 +7,7 @@ import { openGoalBrowser } from './fixtures/goal-browser.js';
 
 test('Dense workspace keeps many long tabs, nested panes and long Feed content inside the viewport',{timeout:90000},async t=>{
   const b=await openGoalBrowser(t,true);if(!b)return;
-  const {command,sessionId,evaluate,click,waitFor,navigate,origin,projectId}=b;
+  const {command,sessionId,evaluate,click,openGoalFrame,waitFor,navigate,origin,projectId}=b;
   const catalog=await openMolisWorkProjectCatalog({homeDirectory:b.homeDirectory});catalog.addProjectPlugin({project_id:projectId!,plugin_id:'feed',actor_id:'density-test'});catalog.close();
   const app=new GoalProjectApplication(b.store),ids:string[]=[];
   for(let i=0;i<12;i++)ids.push(app.goalEvents.createIntent({board_id:DEMO_BOARD_ID,title:`工作区验收 ${i}：跨团队长期目标，保留清晰的信息层级和用户注意力`,outcome:'切换与分屏可连续使用',actor_id:'web-user',actor_kind:'user',idempotency_key:'dense-'+i}).goal.goal_id);
@@ -16,7 +16,7 @@ test('Dense workspace keeps many long tabs, nested panes and long Feed content i
   await command('Emulation.setDeviceMetricsOverride',{width:1440,height:900,deviceScaleFactor:1,mobile:false},sessionId);
   await navigate(()=>command('Page.navigate',{url:`${origin}/projects/${projectId}/`},sessionId));
   await click('[data-plugin-id=goals]');
-  for(const id of ids)await click(`[data-goal-stage-list] [data-select-goal="${id}"]`);
+  for(const id of ids)await openGoalFrame(`[data-goal-stage-list] [data-select-goal="${id}"]`);
   assert.ok(await evaluate("document.querySelectorAll('.tab-item').length>=12"));
   await click('[data-plugin-id=feed]');await click(`[data-feed-task-toggle="${source.source_id}"]`);
   for(const direction of ['right','bottom']) {

@@ -25,9 +25,7 @@ async ensureDemoProject(input: ManageMolisWorkDemoProjectInput): Promise<MolisWo
       display_name: input.display_name ?? "Molis Work 示例项目",
       board_id: this.demo.boardId,
       projects_directory: this.projectsDirectory,
-      source: "created",
       data_class: "regenerable_demo",
-      migrated_from_path: null,
     });
     const stagingDirectory = path.join(this.projectsDirectory, `.staging-${record.project_id}`);
     const projectDirectory = path.dirname(record.database_path);

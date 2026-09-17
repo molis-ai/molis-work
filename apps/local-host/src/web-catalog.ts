@@ -7,6 +7,8 @@ import type { LocalWebComposition } from "./web-composition.js";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
 import { L } from "./web-locale.js";
 import type { WebProjectNavigation, WebSettingsSection } from "@molis-ai/molis-work-app-workbench";
+import { renderMolisWorkPrimitiveCatalog } from "@molis-ai/molis-work-app-workbench";
+import { handleShelfNativePluginHttp } from "./shelf-native-plugin-http.js";
 import { handleLocalRuntimeSettingsHttp, serviceProcessId } from "./web-runtime-settings.js";
 import { installationDiagnostics } from "./web-project-presentation.js";
 import { molisWorkOnboardingStatus } from "./onboarding.js";
@@ -21,6 +23,7 @@ export async function handleLocalCatalogWebRequest(
   const { PAGE_CSP, handleOnboarding, renderCapsuleShell, isDesktopShellRequest, planningHttp, projectSettings, servePtyClient } = composition;
   const { renderMolisWorkSettings, renderMolisWorkProjectIndex } = composition.workbenchRenderer;
   const { settingsProjects } = projectSettings;
+  if (serverOptions.homeDirectory && await handleShelfNativePluginHttp(request, response, url, serverOptions.homeDirectory)) return;
   if (await handleOnboarding(request, response, url, serverOptions.homeDirectory, projects.length, localHost, controlToken)) return;
   if (request.method === "GET" && url.pathname === "/desktop/capsule") {
     response.writeHead(200, {
@@ -29,6 +32,15 @@ export async function handleLocalCatalogWebRequest(
       "content-security-policy": PAGE_CSP,
     });
     response.end(renderCapsuleShell(projects));
+    return;
+  }
+  if (request.method === "GET" && url.pathname === "/__ui/catalog") {
+    response.writeHead(200, {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-store",
+      "content-security-policy": PAGE_CSP,
+    });
+    response.end(renderMolisWorkPrimitiveCatalog());
     return;
   }
   if (request.method === "GET" && url.pathname === "/settings") {

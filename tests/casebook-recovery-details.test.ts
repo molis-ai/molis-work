@@ -14,7 +14,7 @@ import {MolisWorkCasebookClient, CasebookError, PURPOSE} from '../apps/local-hos
 import {assertProjectRecoverySchema} from '../apps/local-host/src/project-migrations.js';
 import {PROJECT_RECOVERY_COLUMNS} from '../apps/local-host/src/project-recovery-details.js';
 
-test('recovery accepts retired migration 37 history but still requires 38 and rejects future versions', () => {
+test('recovery accepts known Task histories without requiring retirement and rejects future versions', () => {
   // Metadata only: exercise the production guard without opening any project database.
   const inspect = (ids: number[]) => assertProjectRecoverySchema({db: {prepare(sql: string) {
     if (sql === 'SELECT migration_id FROM schema_migrations') return {all: () => ids.map(migration_id => ({migration_id}))};
@@ -25,7 +25,8 @@ test('recovery accepts retired migration 37 history but still requires 38 and re
   const old = Array.from({length: 36}, (_, i) => i + 1);
   assert.doesNotThrow(() => inspect([...old, 37, 38]));
   assert.doesNotThrow(() => inspect([...old, 38]));
-  assert.throws(() => inspect([...old, 37]), {code: 'project_recovery_requires_migration'});
+  assert.doesNotThrow(() => inspect([...old, 37]));
+  assert.doesNotThrow(() => inspect(old));
   assert.throws(() => inspect([...old, 37, 38, 39]), {code: 'project_recovery_unsupported_schema'});
 });
 

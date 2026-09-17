@@ -73,13 +73,22 @@ test('legacy planning remains explicit delegation, not inferred from the current
  const f=await fixture(t);assert.throws(()=>f.api.readPlanningEvents({}),{code:'legacy_planning_provider_required'});
 });
 
-test('an older Molis owner is rejected without sending an empty legacy migration checklist',async t=>{
+test('compatible Goal facts recover without Task retirement or deletion of retained Task data',async t=>{
  const f=await fixture(t);
- await f.host.withProject(f.ref,r=>r.store.db.exec('DELETE FROM schema_migrations WHERE migration_id=38'));
+ await f.api.setInteractionAuthorization(f.request('join','join'));
+ await f.create('before-recovery');const facts=(await f.read()).facts;
+ await f.host.withProject(f.ref,r=>r.store.db.exec(`
+  DELETE FROM schema_migrations WHERE migration_id=38;
+  INSERT INTO schema_migrations VALUES(37,'fixture-history');
+  CREATE TABLE tasks(task_id TEXT PRIMARY KEY, title TEXT, frame_json TEXT);
+  INSERT INTO tasks VALUES('retained-task','保留的旧任务','{"blocks":["keep-me"]}');
+ `));
  await f.host.closeProject(f.ref);
- await assert.rejects(f.host.restoreExistingProject(f.ref),error=>{
-  assert.equal((error as {code:string}).code,'project_recovery_requires_migration');
-  assert.equal((error as {details?:unknown}).details,undefined);
-  return true;
+ await f.host.restoreExistingProject(f.ref);
+ assert.deepEqual((await f.read()).facts,facts);
+ await f.create('after-recovery');assert.ok((await f.read()).facts.length>facts.length);
+ await f.host.withProject(f.ref,r=>{
+  assert.equal(r.store.db.prepare('SELECT migration_id FROM schema_migrations WHERE migration_id=38').get(),undefined);
+  assert.deepEqual(r.store.db.prepare('SELECT * FROM tasks').all(),[{task_id:'retained-task',title:'保留的旧任务',frame_json:'{"blocks":["keep-me"]}'}]);
  });
 });

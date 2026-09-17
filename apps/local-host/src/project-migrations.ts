@@ -83,7 +83,7 @@ import {
   migrateInfoflowContractV2,
 } from "./feed-migrations.js";
 
-/** Recovery is deliberately fail-closed: only this owner's complete schema is supported. */
+/** Recovery validates the supported Goal schema without performing owner migrations. */
 export class ProjectRecoveryError extends Error {
   constructor(readonly code: string, readonly details?: ProjectRecoveryDetails) { super(code); }
 }
@@ -109,10 +109,9 @@ export function assertProjectRecoverySchema(storage: LocalSqliteStorage): void {
   }
   if (rows.filter(row => row.migration_id <= 36).length !== 36 || details.missing_tables.length || Object.keys(details.missing_columns).length)
     throw new ProjectRecoveryError('project_recovery_requires_migration', details);
-  // The pinned legacy client cannot describe migration 38. Return the recovery
-  // blocker without pretending its empty legacy checklist explains that gap.
-  if (!rows.some(row => row.migration_id === 38))
-    throw new ProjectRecoveryError('project_recovery_requires_migration');
+  // Migrations 37/38 create/retire Task, which this Goal-based consumer never
+  // reads. Do not force Task deletion merely to recover compatible Goal facts.
+  // Normal owner opening still owns retirement; recovery leaves Task data intact.
 }
 
 /** Preserve the installed Project migration order while each Module owns its DDL. */

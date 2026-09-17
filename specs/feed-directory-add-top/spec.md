@@ -16,10 +16,10 @@ Feed 左边目录把「添加任务」放在 GitHub / Gmail / RSS 下面。Goal 
 
 ## 方案
 
-`DirectoryPanelOptions.addPlacement: "start" | "end"`，默认 `end`。Feed 用 `start`。DOM：添加按钮在 `mw-dir__body` 之前，「全部」仍是第一行任务。
+`DirectoryPanelOptions.addPlacement: "start" | "end"`，默认 `end`。Feed 用 `start`。DOM：添加按钮在 `mw-dir__body` 之前，来源任务在下面。目录不再有「全部」行，见 `specs/feed-directory-drop-all/spec.md`。
 
 ## 验收
 
-1. Feed 目录 HTML 里 `data-feed-add-toggle` 出现在 `data-feed-task="all"` 之前。
-2. 4180 打开 Feed：左边先看到「添加任务」，下面才是全部和来源；点它仍打开现有添加流程。
+1. Feed 目录 HTML 里 `data-feed-add-toggle` 出现在第一个 `data-feed-task` 之前。
+2. 打开 Feed：左边先看到「添加任务」，下面才是来源任务；点它仍打开现有添加流程。
 3. Sessions 新建位置不再由本 spec 约束。

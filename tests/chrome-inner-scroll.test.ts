@@ -44,6 +44,7 @@ test("project index, settings, and workbench keep titles pinned and scroll only 
   assert.ok(workbench.includes("plugin-market-list { display: grid;"));
   assert.doesNotMatch(workbench, /plugin-market-grid article \{ padding: 24px;/);
   assert.ok(workbench.includes(".feed-workbench { padding: 0; background: var(--canvas); overflow: auto; overscroll-behavior: contain; }"));
+  assert.match(workbench, /feed-stage-list .goal-collection-fold > summary/);
   assert.ok(workbench.includes("scrollbar-width: none"));
   assert.ok(workbench.includes(".directory-content-scroll::-webkit-scrollbar { width: 0; height: 0; }"));
   assert.ok(workbench.includes(":is(.tree-scroll, .project-record-scroll, .feed-directory-list, .source-directory-list, .feed-item-scroll, .source-list) { flex: none; height: auto; min-height: 0; overflow: visible;"));

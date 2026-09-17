@@ -39,5 +39,8 @@ test("plugin market client script stays valid JavaScript inside the workbench bu
   assert.match(script, /plugin-market-installed-item/);
   assert.match(script, /grey: "var\(--hue-gray\)"/);
   assert.match(script, /feed: "rss", inbox: "inbox"/);
+  assert.match(script, /\[data-feed-stage-group\]/);
+  assert.match(script, /feed-stage-group-body/);
+  assert.doesNotMatch(script, /feedList\.insertBefore\(wrap, feedEmpty\)/);
   new Function(script);
 });

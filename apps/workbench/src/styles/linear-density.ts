@@ -139,8 +139,9 @@ export const LINEAR_DENSITY_STYLES = `
   body.immersive-workbench .goal-info-popover > summary { min-height: 28px; padding: 4px 10px; }
   body.immersive-workbench .inbox-reference-detail h1,
   body.immersive-workbench .immersive-artifact-surface .artifact-detail h1 { font-size: 16px; line-height: 1.3; }
+  body.immersive-workbench .inbox-reference-detail > .feed-detail-header { padding: 12px 16px 6px; }
   body.immersive-workbench .inbox-reference-body { padding: 12px 16px; }
-  body.immersive-workbench .inbox-reference-footer { padding: 8px 16px; }
+  body.immersive-workbench .inbox-reference-footer { padding: 2px 16px 10px; }
   body.immersive-workbench .immersive-artifact-surface .artifact-detail > header { padding: 8px 16px; }
   body.immersive-workbench .goal-event-document .goal-header { padding: 8px 14px 8px; }
   body.immersive-workbench .goal-event-document .goal-title-heading h1 { font-size: 16px; line-height: 1.3; }

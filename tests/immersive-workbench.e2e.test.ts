@@ -115,7 +115,8 @@ test("Bundled market adds to the selected project and Artifact versions stay in 
   await waitFor("document.body.dataset.desktopSurface === 'feed' && Boolean(document.querySelector('[data-feed-stage-directory]'))");
   assert.equal(await evaluate("document.querySelector('[data-feed-views]')"), null);
   assert.equal(await evaluate("document.querySelector('#goal-tree-pane')?.dataset.desktopDirectory"), "feed");
-  assert.ok(await evaluate("Boolean(document.querySelector('[data-feed-task=all]'))"));
+  assert.ok(await evaluate("Boolean(document.querySelector('[data-feed-add-toggle]'))"));
+  assert.equal(await evaluate("document.querySelector('#goal-tree-pane [data-feed-task=all]')"), null);
   assert.equal(await evaluate("document.querySelector('[data-feed-list]')?.closest('#goal-tree-pane')"), null);
 });
 

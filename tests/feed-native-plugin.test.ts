@@ -86,6 +86,68 @@ function source(overrides: Partial<FeedUiModel["sources"][number]> = {}): FeedUi
   };
 }
 
+function itemEntry(overrides: {
+  entry_id: string;
+  source_id: string | null;
+  title: string;
+  provider?: FeedUiModel["entries"][number]["provider"];
+  source_label?: string;
+}): FeedUiModel["entries"][number] {
+  const provider = overrides.provider ?? "rss";
+  const sourceLabel = overrides.source_label ?? "Design";
+  return {
+    entry_id: overrides.entry_id,
+    item_id: overrides.entry_id,
+    inbox_entry: null,
+    preset: "feed",
+    provider,
+    kind_label: "Feed",
+    source_label: sourceLabel,
+    disposition: "feed",
+    title: overrides.title,
+    summary: "",
+    updated_at: "2026-08-30T14:18:00+08:00",
+    read: false,
+    attention_rank: 0,
+    item: {
+      project_id: "project-test",
+      item_id: overrides.entry_id,
+      source_id: overrides.source_id,
+      signal_id: null,
+      signal_revision: null,
+      item_type: "feed",
+      kind: provider,
+      title: overrides.title,
+      summary: "",
+      body: "",
+      source_kind: provider,
+      source_label: sourceLabel,
+      external_id: overrides.entry_id,
+      url: null,
+      origin_status: "ok",
+      priority: "normal",
+      tags: [],
+      author: null,
+      disposition: "feed",
+      linked_goal_id: null,
+      read_at: null,
+      revision: 1,
+      source_created_at: "2026-08-30T14:18:00+08:00",
+      source_updated_at: "2026-08-30T14:18:00+08:00",
+      imported_at: "2026-08-30T14:18:00+08:00",
+      updated_at: "2026-08-30T14:18:00+08:00",
+      materials: [],
+    },
+  };
+}
+
+function stageGroup(html: string, sourceId: string): string {
+  const start = html.indexOf(`data-feed-stage-group="${sourceId}"`);
+  assert.ok(start >= 0, `missing stage group ${sourceId}`);
+  const next = html.indexOf("data-feed-stage-group=", start + 1);
+  return html.slice(start, next >= 0 ? next : html.length);
+}
+
 function taskConfigPanel(html: string, sourceId: string): string {
   const match = html.match(new RegExp(`<section data-feed-task-config="${sourceId}"[\\s\\S]*?</section>`));
   assert.ok(match, `missing task config ${sourceId}`);
@@ -107,20 +169,12 @@ test("Workbench registers the Feed UI Contribution through the generic UI Host",
     model: model(),
   });
   assert.match(directory, /data-directory-panel="feed"/);
-  assert.match(directory, /data-feed-collection-fold="all"/);
-  assert.match(directory, /goal-collection-fold/);
-  assert.match(directory, /goal-collection-caret/);
-  assert.match(directory, /goal-collection-mark/);
-  assert.match(directory, /data-feed-task-toggle="all"[^>]*>[\s\S]*<strong>/);
-  assert.doesNotMatch(directory, /data-feed-task="all"[^>]*mw-dir-row/);
+  assert.doesNotMatch(directory, /data-feed-collection-fold/);
+  assert.doesNotMatch(directory, /data-feed-task-toggle="all"|data-feed-task="all"/);
   assert.match(directory, /goal-collection-empty/);
   assert.match(directory, /还没有拉取任务/);
   assert.doesNotMatch(directory, /mw-dir-row--compact/);
   assert.match(directory, /data-feed-add-toggle/);
-  assert.ok(
-    directory.indexOf("data-feed-add-toggle") < directory.indexOf('data-feed-task="all"'),
-    "Feed add task sits above the All / source rows",
-  );
   assert.doesNotMatch(directory, /mw-dir-row--meta/);
   assert.doesNotMatch(directory, /mw-dir-row__icon/);
   assert.doesNotMatch(directory, /data-slot="directory-heading"/);
@@ -135,7 +189,8 @@ test("Workbench registers the Feed UI Contribution through the generic UI Host",
     model: model(),
   });
   assert.match(workbench, /data-feed-stage-directory="true"/);
-  assert.match(directory, /data-feed-task="all"/);
+  assert.doesNotMatch(directory, /data-feed-task="all"/);
+  assert.doesNotMatch(workbench, /data-feed-stage-group/);
   assert.match(workbench, /data-feed-empty-title>这里还没有 Item/);
   assert.match(workbench, /data-feed-add-toggle/);
   assert.match(workbench, /data-feed-source-filter hidden/);
@@ -198,12 +253,15 @@ test("Feed capture rules belong to a task, not the directory", () => {
     model: uiModel,
   });
   assert.doesNotMatch(directory, /data-feed-advanced-open|捕捉规则/);
-  assert.match(directory, /mw-dir-row--nested/);
+  assert.doesNotMatch(directory, /mw-dir-row--nested/);
   assert.match(directory, /mw-dir-row--compact/);
+  assert.match(directory, /mw-dir-row__icon/);
+  assert.match(directory, /href="#icon-rss"/);
   assert.doesNotMatch(directory, /goal-collection-empty/);
+  assert.doesNotMatch(directory, /data-feed-task-toggle="all"|data-feed-collection-fold/);
   assert.ok(
-    directory.indexOf('data-feed-task-toggle="all"') < directory.indexOf('data-feed-task="source-a"'),
-    "source tasks sit inside the All collection fold",
+    directory.indexOf("data-feed-add-toggle") < directory.indexOf('data-feed-task="source-a"'),
+    "Feed add task sits above source rows",
   );
   assert.match(directory, /data-feed-task-config-open="source-a"/);
   const panelA = taskConfigPanel(overlays, "source-a");
@@ -214,6 +272,50 @@ test("Feed capture rules belong to a task, not the directory", () => {
   assert.doesNotMatch(panelA, /B release|Global/);
   assert.match(panelB, /B release/);
   assert.doesNotMatch(panelB, /A launch|Global/);
+});
+
+test("Feed stage list groups items by source task", () => {
+  const host = new UiHost();
+  host.register(feedUiContribution);
+  const sourceA = source({ source_id: "source-a", name: "GitHub · adeptify", ui_kind: "github" });
+  const sourceB = source({ source_id: "source-b", name: "Gmail · product", ui_kind: "gmail" });
+  const emptySource = source({ source_id: "source-empty", name: "空任务", ui_kind: "rss" });
+  const workbench = host.render({
+    contribution_id: FEED_UI_CONTRIBUTION_ID,
+    surface: "workbench",
+    model: model({
+      sources: [sourceA, sourceB, emptySource],
+      entries: [
+        itemEntry({ entry_id: "entry-b", source_id: "source-b", title: "Gmail item", provider: "gmail", source_label: "Gmail · product" }),
+        itemEntry({ entry_id: "entry-a", source_id: "source-a", title: "GitHub item", provider: "github", source_label: "GitHub · adeptify" }),
+        itemEntry({ entry_id: "entry-orphan", source_id: "missing-source", title: "Orphan item", provider: "other", source_label: "Unknown" }),
+      ],
+    }),
+  });
+  const github = stageGroup(workbench, "source-a");
+  const gmail = stageGroup(workbench, "source-b");
+  const other = stageGroup(workbench, "other");
+  assert.match(workbench, /data-feed-stage-group="source-a"[^>]*open/);
+  assert.match(github, /goal-collection-fold/);
+  assert.match(github, /goal-collection-caret/);
+  assert.match(github, /goal-collection-mark/);
+  assert.match(github, /<strong>GitHub · adeptify<\/strong>/);
+  assert.match(github, /data-feed-stage-group-count>1</);
+  assert.match(github, /data-feed-entry-id="entry-a"/);
+  assert.doesNotMatch(github, /data-feed-entry-id="entry-b"|data-feed-entry-id="entry-orphan"/);
+  assert.match(gmail, /data-feed-entry-id="entry-b"/);
+  assert.doesNotMatch(gmail, /data-feed-entry-id="entry-a"/);
+  assert.match(other, /<strong>其他<\/strong>/);
+  assert.match(other, /data-feed-entry-id="entry-orphan"/);
+  assert.doesNotMatch(workbench, /data-feed-stage-group="source-empty"/);
+  assert.ok(
+    workbench.indexOf('data-feed-stage-group="source-a"') < workbench.indexOf('data-feed-stage-group="source-b"'),
+    "stage groups follow source task order",
+  );
+  assert.ok(
+    workbench.indexOf('data-feed-stage-group="source-b"') < workbench.indexOf('data-feed-stage-group="other"'),
+    "unmatched items sit after configured source tasks",
+  );
 });
 
 test("Feed demo data keeps page-local actions and never calls real Source APIs", () => {
@@ -308,6 +410,7 @@ test("Feed demo data keeps page-local actions and never calls real Source APIs",
   const source = host.render({ contribution_id: FEED_UI_CONTRIBUTION_ID, surface: "source-workbench", model: demoModel });
   assert.doesNotMatch(directory, /data-feed-entry-prototype="true"|data-prototype-feed-empty-state/);
   assert.match(detail, /data-feed-entry-prototype="true"/);
+  assert.match(detail, /data-feed-stage-group="prototype-source-github"/);
   assert.match(detail, /class="feed-stage-entry directory-list-row"/);
   assert.match(detail, /class="feed-stage-leading"/);
   assert.match(detail, /mw-status mw-status--attention mw-status--plain feed-entry-status/);
@@ -317,6 +420,9 @@ test("Feed demo data keeps page-local actions and never calls real Source APIs",
   assert.doesNotMatch(detail, /data-prototype-feed-empty-state/);
   assert.match(detail, /data-prototype-feed-action="inbox"/);
   assert.match(directory, /data-feed-task="prototype-source-github"/);
+  assert.match(directory, /mw-dir-row__icon/);
+  assert.match(directory, /href="#icon-tree"/);
+  assert.doesNotMatch(directory, /data-feed-task="all"|mw-dir-row--nested/);
   assert.match(directory, /mw-status mw-status--done mw-status--plain mw-dir-row__status/);
   assert.match(directory, /运行正常/);
   assert.match(source, /data-prototype-source-sync="prototype-source-github"/);

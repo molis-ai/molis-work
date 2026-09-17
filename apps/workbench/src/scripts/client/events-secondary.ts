@@ -21,10 +21,9 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `        return;
       }
       const feedTaskToggle = target.closest("[data-feed-task-toggle]");
       if (feedTaskToggle) {
-        if (target.closest(".goal-collection-caret")) return;
-        if (feedTaskToggle.closest("summary") && target !== feedTaskToggle) event.preventDefault();
         tabWorkspace?.openPlugin("feed");
-        setFeedTask(feedTaskToggle.dataset.feedTaskToggle || "all");
+        const taskId = feedTaskToggle.dataset.feedTaskToggle || "all";
+        setFeedTask(selectedFeedTask === taskId ? "all" : taskId);
         setMobileView("document");
         return;
       }
@@ -247,6 +246,7 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `        return;
         const pluginId = surfaceOpen.dataset.pluginId;
         if (pluginId && pluginId !== "home" && pluginId !== "market" && nextDirectory !== "root") setDirectoryCollapsed?.(false, false);
         if (!openDirectorySurface(surface, undefined, undefined, event)) setDesktopWorkSurface(surface, true, true);
+        if (surface === "feed" && surfaceOpen.dataset.pluginId === "feed" && !surfaceOpen.dataset.feedSource) setFeedTask("all");
         if (surface === "home" && !decisionView && !collectionView && localPathname() !== "/") {
           history.pushState({ workSurface: "home" }, "", route("/"));
         }

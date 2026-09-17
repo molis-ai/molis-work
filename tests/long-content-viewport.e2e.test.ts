@@ -43,6 +43,8 @@ for (const [width,height] of [[1024,400],[390,500]]) test(`Long content keeps ac
   await waitFor("document.querySelector('[data-inbox-detail]:not([hidden])')");
   await capture("inbox");await darkCapture("inbox");
   const inboxFooter=await visible('.inbox-reference-footer');
+  const inboxBody=await probe('.inbox-reference-body');
+  assert.ok(inboxFooter.bottom<=inboxBody.top+0.5,"Inbox actions stay above the scrolling context");
   await wheel('.inbox-reference-body',600);
   assert.deepEqual(await visible('.inbox-reference-footer'),inboxFooter);
   assert.equal((await probe('.inbox-reference-body')).overflow,"auto");

@@ -575,8 +575,7 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
       const task = selectedFeedTask || "all";
       const rows = [...feedList.querySelectorAll("[data-feed-entry-id]")];
       const presetRows = rows.filter((row) => row.dataset.feedEntryType === type);
-      const visible = rows.filter((row) => {
-        const wrap = row.closest("[data-feed-item-wrap]") || row;
+      const matchesRow = (row) => {
         const matchesType = type === "all" || row.dataset.feedEntryType === type;
         const matchesTask = task === "all" || row.dataset.feedEntrySourceId === task;
         const matchesSource = source === "all" || row.dataset.feedEntrySource === source;
@@ -593,20 +592,37 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
             ? row.dataset.feedEntryStatus !== "archived"
             : row.dataset.feedEntryStatus === status;
         const matchesQuery = !query || String(row.dataset.feedEntrySearch || "").includes(query);
-        const match = matchesType && matchesTask && matchesSource && matchesProvider && matchesTime && matchesStatus && matchesQuery;
-        wrap.hidden = !match;
-        return match;
-      });
+        return matchesType && matchesTask && matchesSource && matchesProvider && matchesTime && matchesStatus && matchesQuery;
+      };
       const compare = (left, right) => {
         if (sort === "oldest") return String(left.dataset.feedEntryTime || "").localeCompare(String(right.dataset.feedEntryTime || ""));
         if (sort === "source") return String(left.dataset.feedEntrySource || "").localeCompare(String(right.dataset.feedEntrySource || ""));
         if (sort === "title") return String(left.dataset.feedEntryTitle || "").localeCompare(String(right.dataset.feedEntryTitle || ""));
         return String(right.dataset.feedEntryTime || "").localeCompare(String(left.dataset.feedEntryTime || ""));
       };
-      rows.sort(compare).forEach((row) => {
-        const wrap = row.closest("[data-feed-item-wrap]") || row;
-        feedList.insertBefore(wrap, feedEmpty);
-      });
+      const visible = [];
+      const groups = [...feedList.querySelectorAll("[data-feed-stage-group]")];
+      for (const group of groups) {
+        const groupRows = [...group.querySelectorAll("[data-feed-entry-id]")];
+        const groupVisible = [];
+        for (const row of groupRows) {
+          const wrap = row.closest("[data-feed-item-wrap]") || row;
+          const match = matchesRow(row);
+          wrap.hidden = !match;
+          if (match) groupVisible.push(row);
+        }
+        group.hidden = groupVisible.length === 0;
+        const count = group.querySelector("[data-feed-stage-group-count]");
+        if (count) count.textContent = String(groupVisible.length);
+        const empty = group.querySelector("[data-feed-stage-group-empty]");
+        if (empty) empty.hidden = groupVisible.length > 0;
+        const body = group.querySelector(".feed-stage-group-body") || group;
+        groupRows.sort(compare).forEach((row) => {
+          const wrap = row.closest("[data-feed-item-wrap]") || row;
+          body.insertBefore(wrap, empty);
+        });
+        visible.push(...groupVisible);
+      }
       if (feedResultCount) feedResultCount.textContent = L("{count} 个 Item", { count: visible.length });
       const filteredEmpty = visible.length === 0 && presetRows.length > 0;
       if (feedEmpty) {

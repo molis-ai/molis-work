@@ -138,6 +138,16 @@ export const IMMERSIVE_DIRECTORY_STYLES = `
   body.immersive-workbench .feed-stage-task { width: 100%; min-width: 0; }
   body.immersive-workbench .feed-stage-task-body { width: 100%; min-width: 0; padding: 8px 0 12px 24px; box-sizing: border-box; }
   body.immersive-workbench .feed-stage-list { width: 100%; min-width: 0; }
+  body.immersive-workbench .feed-stage-list .goal-collection-fold { margin: 0 0 10px; border: 0; }
+  body.immersive-workbench .feed-stage-list .goal-collection-fold > summary {
+    display: flex; align-items: center; gap: 8px; height: 32px; min-height: 32px; padding: 0 8px;
+    border-radius: 6px; color: var(--muted); list-style: none; cursor: pointer;
+  }
+  body.immersive-workbench .feed-stage-list .goal-collection-fold > summary:hover { color: var(--ink); background: var(--nav-hover); }
+  body.immersive-workbench .feed-stage-list .goal-collection-fold > summary strong { font-size: 12px; font-weight: 400; }
+  body.immersive-workbench .feed-stage-list .goal-collection-fold > summary small { font-size: 11px; font-variant-numeric: tabular-nums; color: var(--faint); }
+  body.immersive-workbench .feed-stage-list .goal-collection-empty { margin: 0; padding: 6px 8px 10px 32px; font-size: 12px; color: var(--muted); }
+  body.immersive-workbench .feed-stage-group-body { width: 100%; min-width: 0; }
   body.immersive-workbench .feed-stage-item { width: 100%; min-width: 0; border: 0; }
   body.immersive-workbench .feed-stage-item-line { display: block; width: 100%; min-width: 0; }
   body.immersive-workbench .feed-stage-entry {

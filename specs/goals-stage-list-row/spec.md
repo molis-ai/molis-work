@@ -40,7 +40,7 @@
 ## 方案
 
 - `plugins/native/goals/src/tree-ui.ts`：行结构改成 leading + 状态 + 进度 + 前置；写入 `--tree-depth`；每行都有 `.tree-ref`；前置 summary 合成一条 copy。
-- `apps/workbench/src/styles/goal-canvas.ts`：舞台列表用 grid 列；`.tree-leading` 按 `--tree-depth * 16px` 只缩进标题簇。
+- `apps/workbench/src/styles/goal-canvas.ts`：舞台列表用 grid 列；`.tree-leading` 按 `(depth + 1) * 16px` 只缩进标题簇，让根 Goal 相对分类标题再缩一档（见 `specs/goal-list-collection-indent/spec.md`）。
 - `apps/local-host/src/demo-seed.ts`：在 WEB 下再挂两层子 Goal。
 - 测试：源码行结构与 depth=2；e2e 量 28px、nowrap、跨层状态列对齐、标题 left 随 depth 增加。
 

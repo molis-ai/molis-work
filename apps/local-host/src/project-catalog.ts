@@ -186,7 +186,14 @@ export class MolisWorkProjectCatalog {
       removeBindings: (projectId, actorId, at) => this.workContexts.removeProjectFacts(projectId, actorId, at),
       removePanels: projectId => this.desktopPanels.deleteForProject(projectId),
     }, contextBindingValidation);
-    this.demoProjects = new DemoProjectLifecycle(this.projects, this.projectsDirectory, { boardId: DEMO_BOARD_ID, seed: seedDemoBoard }, this.projectDeletion, contextBindingValidation);
+    this.demoProjects = new DemoProjectLifecycle(
+      this.projects,
+      this.homeDirectory,
+      this.projectsDirectory,
+      { boardId: DEMO_BOARD_ID, seed: seedDemoBoard },
+      this.projectDeletion,
+      contextBindingValidation,
+    );
     this.desktopPanels = platform.createPanels(db, {
       errorFactory: (code, message) => new MolisWorkProjectCatalogError(code, message),
       context: {

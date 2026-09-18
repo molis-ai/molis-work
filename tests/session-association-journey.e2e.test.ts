@@ -11,14 +11,14 @@ for (const [width, height] of [[1440, 900], [390, 640]]) {
     const catalog = await openMolisWorkProjectCatalog({ homeDirectory: b.homeDirectory });
     catalog.addProjectPlugin({ project_id: projectId!, plugin_id: 'sessions', actor_id: 'journey-test' }); catalog.close();
     const prefix = `${origin}/projects/${projectId}`;
-    const sessions = async () => (await (await fetch(prefix + '/api/sessions')).json()).sessions;
+    const sessions = async () => (await (await fetch(prefix + '/api/sessions')).json()).sessions as Array<{ title: string; native_runtime_session_id?: string; current_goal_id?: string }>;
+    const journeySessions = async () => (await sessions()).filter((item) => item.title === '跨页面关联验收');
     await command('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false }, sessionId);
     await command('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
     await navigate(() => command('Page.navigate', { url: prefix + '/' }, sessionId));
     if (width < 760 && await evaluate("!document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')")) await click('[data-directory-show]');
     await click('[data-plugin-id=sessions]');
-    if (width < 760 && await evaluate("!document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')")) await click('[data-directory-show]');
-    await click(width < 760 ? '[data-directory-panel=sessions] [data-open-session-add]' : '[data-work-surface=sessions] [data-open-session-add]');
+    await click('[data-work-surface=sessions] [data-open-session-add]');
     await click('[data-session-add-toggle]');
     await evaluate(`{
       const set=(selector,value,event='input')=>{const e=document.querySelector(selector);e.value=value;e.dispatchEvent(new Event(event,{bubbles:true}));};
@@ -39,7 +39,7 @@ for (const [width, height] of [[1440, 900], [390, 640]]) {
     await click('[data-session-add-confirm]');
     await click('[data-session-add-submit]');
     await waitFor("document.querySelector('[data-session-add-status]').classList.contains('is-error')");
-    assert.equal((await sessions()).length, 0);
+    assert.equal((await journeySessions()).length, 0);
     assert.equal(await evaluate("document.querySelector('[data-session-native-id]').value"), 'fixture-existing-session');
     assert.equal(await evaluate("document.querySelector('[data-session-add-submit]').disabled"), false);
     assert.match(await evaluate<string>("document.querySelector('[data-session-add-status]').textContent"), /输入已保留/);
@@ -57,7 +57,7 @@ for (const [width, height] of [[1440, 900], [390, 640]]) {
     const shot = await command<{data:string}>('Page.captureScreenshot', {format:'png'}, sessionId);
     await writeFile(`${dir}/session-pending-${width}.png`, Buffer.from(shot.data,'base64'));
     await navigate(() => evaluate('window.releaseSession()'));
-    const saved = await sessions(); assert.equal(saved.length, 1);
+    const saved = await journeySessions(); assert.equal(saved.length, 1);
     assert.equal(saved[0].native_runtime_session_id, 'fixture-existing-session');
     assert.equal(saved[0].current_goal_id, 'CORE'); assert.equal(saved[0].title, '跨页面关联验收');
     await waitFor("document.querySelector('[data-operation-row=session]')");
@@ -65,7 +65,7 @@ for (const [width, height] of [[1440, 900], [390, 640]]) {
     await waitFor("document.body.classList.contains('project-preferences-page')");
     await navigate(() => click('.settings-nav-back'));
     await waitFor("document.querySelector('[data-operation-row=session]')");
-    assert.equal((await sessions()).length,1);
+    assert.equal((await journeySessions()).length,1);
     assert.equal(await evaluate('document.scrollingElement.scrollHeight<=innerHeight+1'),true);
   });
 }

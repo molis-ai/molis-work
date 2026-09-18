@@ -66,6 +66,14 @@ export { initializeCatalog, assertOwnedCatalog, migrateCatalog, type CatalogDesk
 
 export * from "./project-catalog.js";
 export { seedDemoBoard, DEMO_BOARD_ID } from "./demo-seed.js";
+export {
+  seedDemoPluginSurfaces,
+  seedDemoProjectExtras,
+  enableDemoProjectPlugins,
+  DEMO_GITHUB_SOURCE_ID,
+  DEMO_GMAIL_SOURCE_ID,
+  DEMO_CORE_ARTIFACT_ID,
+} from "./demo-plugin-seed.js";
 
 export { hydrateFeedItemContent, hydrateFeedSnapshotContent } from "./feed-content.js";
 

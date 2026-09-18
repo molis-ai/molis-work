@@ -50,7 +50,7 @@ for (const [width,height] of [[1024,400],[390,500]]) test(`Long content keeps ac
   assert.equal((await probe('.inbox-reference-body')).overflow,"auto");
   const entryId=await evaluate<string>("document.querySelector('[data-inbox-detail]:not([hidden])').dataset.inboxDetail");
   await navigate(()=>click('[data-inbox-detail]:not([hidden]) [data-inbox-action="done"]'));
-  await waitFor("document.querySelector('[data-inbox-detail-empty]').hidden===false");
+  await waitFor("!document.querySelector(" + JSON.stringify('[data-inbox-detail="' + entryId + '"]:not([hidden])') + ")");
   const history=await (await fetch(`${origin}/projects/${projectId}/api/inbox?filter=history`)).json() as {entries:Array<{entry_id:string;status:string}>};
   assert.equal(history.entries.find(e=>e.entry_id===entryId)?.status,"done");
   assert.equal(createLocalFeedApplication(b.store.db).getItem(DEMO_BOARD_ID,item.item_id).body,"需要保留原消息。","completing the attention reference retains its Feed item");
@@ -77,20 +77,24 @@ for (const [width,height] of [[1024,400],[390,500]]) test(`Long content keeps ac
   const exported=await (await fetch(exportUrl)).json() as {version:number;payload:{findings:unknown[]}};
   assert.equal(exported.version,1);assert.equal(exported.payload.findings.length,60);
   await capture("artifact-reading");await darkCapture("artifact-reading");
+  const sessionDetail = "[data-operation-detail]:not([hidden])";
   await openPlugin("sessions");
-  if(await evaluate("Boolean(document.querySelector('[data-session-content-load]'))")) await click('[data-session-content-load]');
-  await waitFor("document.querySelector('.session-content-body').textContent.includes('检查记录')");
+  await click('[data-operation-select="' + session.session_id + '"]');
+  await waitFor("document.querySelector('[data-session-stage-shell]')?.dataset.expanded === 'true' && document.querySelector('" + sessionDetail + "')");
+  const loadButton = sessionDetail + " [data-session-content-load]";
+  if(await evaluate("Boolean(document.querySelector(" + JSON.stringify(loadButton) + "))")) await click(loadButton);
+  await waitFor("document.querySelector('" + sessionDetail + " .session-content-body')?.textContent.includes('检查记录')");
   await capture("session");await darkCapture("session");
-  const sessionHeader=await visible('.session-stage-bar');
-  const searchHeader=await visible('.session-execution-toolbar');
-  assert.equal(await evaluate("document.querySelector('.session-execution-toolbar').clientWidth>=document.querySelector('.session-execution').clientWidth-1"),true,"search toolbar spans the reading region");
-  const content=await probe('.session-content-body');
+  const sessionHeader=await visible(sessionDetail + " .session-stage-bar");
+  const searchHeader=await visible(sessionDetail + " .session-execution-toolbar");
+  assert.equal(await evaluate("document.querySelector('" + sessionDetail + " .session-execution-toolbar').clientWidth>=document.querySelector('" + sessionDetail + " .session-execution').clientWidth-1"),true,"search toolbar spans the reading region");
+  const content=await probe(sessionDetail + " .session-content-body");
   assert.ok(content.ch>=90 && content.sh>content.ch*2,"reading retains useful height with real execution history");
-  await wheel('.session-content-body',700);
-  await waitFor("document.querySelector('.session-content-body').scrollTop>200");
-  assert.deepEqual(await visible('.session-stage-bar'),sessionHeader);
-  assert.deepEqual(await visible('.session-execution-toolbar'),searchHeader);
-  await click('[data-session-content-search]');
+  await wheel(sessionDetail + " .session-content-body",700);
+  await waitFor("document.querySelector('" + sessionDetail + " .session-content-body').scrollTop>200");
+  assert.deepEqual(await visible(sessionDetail + " .session-stage-bar"),sessionHeader);
+  assert.deepEqual(await visible(sessionDetail + " .session-execution-toolbar"),searchHeader);
+  await click(sessionDetail + " [data-session-content-search]");
   await command("Input.insertText",{text:"检查记录 35"},sessionId);
   await waitFor("document.querySelectorAll('.session-timeline-event:not([hidden])').length===1");
   assert.match(await evaluate<string>("document.querySelector('.session-timeline-event:not([hidden])').textContent"),/检查记录 35/);
@@ -105,15 +109,26 @@ for (const [width,height] of [[1024,400],[390,500]]) test(`Long content keeps ac
   if(width===1024){
     await command("Emulation.setDeviceMetricsOverride",{width:1280,height:900,deviceScaleFactor:1,mobile:false},sessionId);
     await click('[data-titlebar-tabs] [data-tab-split]');await click('[data-layout-split="bottom"]');
-    const splitDocs="[...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].map(f=>f.contentDocument).filter(d=>d?.querySelector('.project-session-document')?.getBoundingClientRect().height>0)";
+    const splitDocs="[...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].map(f=>f.contentDocument).filter(d=>d?.body?.dataset.desktopSurface==='sessions')";
     await waitFor("document.querySelectorAll('[data-tab-pane]').length===2");
-    await waitFor(splitDocs+".length>=2", 15_000);
+    const visibleBody="[data-operation-detail]:not([hidden]) .session-content-body";
+    try {
+      await waitFor(splitDocs+".length>=2", 15_000);
+    } catch {
+      const splitDebug=await evaluate("(()=>{const frames=[...document.querySelectorAll('iframe.tab-content-frame')];return{panes:document.querySelectorAll('[data-tab-pane]').length,frames:frames.map(f=>({hidden:f.hidden,src:(f.getAttribute('src')||'').slice(-180),ready:f.contentDocument?.readyState||null,surface:f.contentDocument?.body?.dataset.desktopSurface||null,expanded:f.contentDocument?.querySelector('[data-session-stage-shell]')?.dataset.expanded||null,body:(f.contentDocument?.querySelector('[data-operation-detail]:not([hidden]) .session-content-body')?.textContent||'').slice(0,80)}))};})()");
+      assert.fail("split panes did not load Session surface: "+JSON.stringify(splitDebug));
+    }
     await capture("session-split");
-    await evaluate(splitDocs+".forEach(d=>d.querySelector('[data-session-content-load]')?.click())");
-    await waitFor(splitDocs+".every(d=>d.querySelector('.session-content-body').textContent.includes('检查记录'))", 15_000);
-    const paneReady=await evaluate<boolean[]>(splitDocs+".map(d=>{const main=d.querySelector('.session-stage-main');return Boolean(main)&&main.clientWidth>=200})");
+    await evaluate(splitDocs+".forEach(d=>{d.querySelector('[data-operation-select=\"" + session.session_id + "\"]')?.click();d.querySelector('[data-operation-detail]:not([hidden]) [data-session-content-load]')?.click();})");
+    try {
+      await waitFor(splitDocs+".every(d=>d.querySelector("+JSON.stringify(visibleBody)+")?.textContent.includes('检查记录'))", 15_000);
+    } catch {
+      const splitDebug=await evaluate("(()=>{const frames=[...document.querySelectorAll('iframe.tab-content-frame')];return frames.map(f=>({surface:f.contentDocument?.body?.dataset.desktopSurface||null,expanded:f.contentDocument?.querySelector('[data-session-stage-shell]')?.dataset.expanded||null,load:Boolean(f.contentDocument?.querySelector('[data-operation-detail]:not([hidden]) [data-session-content-load]')),body:(f.contentDocument?.querySelector('[data-operation-detail]:not([hidden]) .session-content-body')?.textContent||'').slice(0,120)}));})()");
+      assert.fail("split Session panes did not load execution content: "+JSON.stringify(splitDebug));
+    }
+    const paneReady=await evaluate<boolean[]>(splitDocs+".map(d=>{const main=d.querySelector('[data-operation-detail]:not([hidden]) .session-stage-main');return Boolean(main)&&main.clientWidth>=200})");
     assert.ok(paneReady.every(Boolean),"each split Session pane keeps a usable main column");
-    const panes=await evaluate<{height:number;scroll:boolean}[]>(splitDocs+".map(d=>({height:d.querySelector('.session-content-body').clientHeight,scroll:d.scrollingElement.scrollHeight<=d.defaultView.innerHeight+1}))");
+    const panes=await evaluate<{height:number;scroll:boolean}[]>(splitDocs+".map(d=>({height:d.querySelector("+JSON.stringify(visibleBody)+").clientHeight,scroll:d.scrollingElement.scrollHeight<=d.defaultView.innerHeight+1}))");
     assert.ok(panes.length>=2, JSON.stringify(panes));for(const pane of panes){assert.ok(pane.height>=90, JSON.stringify(panes));assert.equal(pane.scroll,true, JSON.stringify(panes));}
     await capture("session-split");
   }

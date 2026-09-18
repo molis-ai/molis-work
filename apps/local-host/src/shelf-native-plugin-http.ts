@@ -5,7 +5,7 @@ import {
   shelfRouteErrorResponse,
   type ShelfPluginRouteResponse,
 } from "@molis-ai/molis-work-plugin-shelf";
-import { openShelfStore } from "@molis-ai/molis-work-module-shelf";
+import { openShelfStore, type ShelfRuntimeProbe } from "@molis-ai/molis-work-module-shelf";
 
 export async function handleShelfNativePluginHttp(
   request: IncomingMessage,
@@ -17,17 +17,20 @@ export async function handleShelfNativePluginHttp(
   const method = request.method;
   if (!method || !["GET", "POST"].includes(method)) return false;
   const body = method === "GET" ? {} : await readBody(request);
-  const store = openShelfStore(homeDirectory);
+  const store = openShelfStore(homeDirectory, shelfRuntimeProbe());
   const routes = new ShelfPluginRouteTable(createShelfRouteHandlers({
     snapshot: () => store.snapshot(),
     settings: () => store.settings(),
     saveSettings: (patch) => store.saveSettings(patch),
     admit: (input) => store.admit(input),
     admitText: (text, title) => store.admitText(text, title),
+    admitFolder: (input) => store.admitFolder(input),
+    readChild: (itemId, relative) => store.readChild(itemId, relative),
     seedSample: () => store.seedSample(),
     hide: (itemId) => store.hide(itemId),
     deleteCopy: (itemId) => store.deleteCopy(itemId),
-    runJob: (recipe, itemId) => store.runJob({ recipe, item_id: itemId }),
+    runJob: (job) => store.runJob(job),
+    cancelJob: (jobId) => store.cancelJob(jobId),
     useAsMaterial: (itemId) => store.useAsMaterial(itemId),
     addClipboard: (text, extra) => store.addClipboard(text, extra),
     clipboardToMaterial: (clipId) => store.clipboardToMaterial(clipId),
@@ -49,6 +52,20 @@ export async function handleShelfNativePluginHttp(
     writeResponse(response, shelfRouteErrorResponse(error));
     return true;
   }
+}
+
+/**
+ * Agent discovery follows the real PATH. An isolated trial or a test pins it,
+ * the same way `--home` pins the shelf itself.
+ */
+export function shelfRuntimeProbe(): ShelfRuntimeProbe {
+  const search = process.env.MOLIS_WORK_SHELF_AGENT_PATH;
+  const preferred = process.env.MOLIS_WORK_SHELF_AGENT;
+  if (preferred === "off") return { disabled: true };
+  return {
+    ...(search === undefined ? {} : { pathEnvironment: search }),
+    ...(preferred ? { preferred } : {}),
+  };
 }
 
 function writeResponse(response: ServerResponse, result: ShelfPluginRouteResponse): void {

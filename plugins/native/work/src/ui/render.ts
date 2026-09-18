@@ -1,4 +1,4 @@
-import { renderDirectoryPanel, renderDirectoryRow, renderToggleGroup } from "@molis-ai/molis-work-design-system";
+import { renderStatusMark, renderToggleGroup } from "@molis-ai/molis-work-design-system";
 import type { ProjectOperationsData, ProjectOperationsProject, ProjectSessionRecord, ProjectWorkspaceRecord, WorkUiIconName, WorkUiModel, WorkUiSurface } from "./types.js";
 
 /** Render only the requested product surface; shell and slot placement stay with Workbench. */
@@ -43,34 +43,21 @@ export function renderWorkSessionSurface(surface: WorkUiSurface, model: WorkUiMo
       item.updated,
     ].filter(Boolean).join(" ").toLocaleLowerCase();
     const updatedAt = Number.isFinite(Date.parse(item.updatedAt || "")) ? Date.parse(item.updatedAt!) : 0;
-    return renderDirectoryRow({
-      title: item.title,
-      status: sessionStateLabel(item.state),
-      statusTone: item.state === "archived" ? "quiet" : "idle",
-      statusIcon: item.state === "archived" ? "archive" : "ready",
-      density: "compact",
-      selected,
-      draggable: true,
-      className: "mw-dir-row--nested",
-      attrs: {
-        "aria-selected": selected ? "true" : "false",
-        tabindex: selected ? 0 : -1,
-        "data-frame-asset": "session",
-        "data-frame-asset-id": item.id,
-        "data-frame-asset-title": item.title,
-        "data-frame-asset-caption": item.runtime,
-        "data-operation-row": "session",
-        "data-operation-select": item.id,
-        "data-record-id": item.id,
-        "data-record-title": item.title,
-        "data-record-runtime": item.runtimeId || item.runtime,
-        "data-record-runtime-label": item.runtime,
-        "data-record-status": item.state,
-        "data-record-content": item.contentMode,
-        "data-record-updated": updatedAt,
-        "data-record-search": search,
-      },
+    const goalLabel = item.currentGoal || L("未关联");
+    const status = renderStatusMark({
+      label: sessionStateLabel(item.state),
+      tone: item.state === "archived" ? "quiet" : "idle",
+      icon: item.state === "archived" ? "archive" : "ready",
+      plain: true,
+      className: "mw-dir-row__status",
     });
+    return `<button type="button" title="${escapeHtml(item.title)}" class="mw-dir-row mw-dir-row--compact directory-list-row session-stage-row${selected ? " is-selected" : ""}" data-slot="directory-row" aria-selected="${selected ? "true" : "false"}" tabindex="${selected ? 0 : -1}" draggable="true" data-frame-asset="session" data-frame-asset-id="${escapeHtml(item.id)}" data-frame-asset-title="${escapeHtml(item.title)}" data-frame-asset-caption="${escapeHtml(item.runtime)}" data-operation-row="session" data-operation-select="${escapeHtml(item.id)}" data-record-id="${escapeHtml(item.id)}" data-record-title="${escapeHtml(item.title)}" data-record-runtime="${escapeHtml(item.runtimeId || item.runtime)}" data-record-runtime-label="${escapeHtml(item.runtime)}" data-record-status="${escapeHtml(item.state)}" data-record-content="${escapeHtml(item.contentMode)}" data-record-updated="${updatedAt}" data-record-search="${escapeHtml(search)}" data-record-goal="${escapeHtml(item.currentGoalId || "")}">
+      <span class="session-stage-row__copy">
+        <span class="session-stage-row__title"><strong>${escapeHtml(item.title)}</strong></span>
+        <span class="session-stage-row__goal${item.currentGoal ? "" : " is-empty"}">${escapeHtml(goalLabel)}</span>
+        ${status}
+      </span>
+    </button>`;
   }
 
   function groupSessionRecords(records: readonly ProjectSessionRecord[]): readonly {
@@ -109,29 +96,29 @@ export function renderWorkSessionSurface(surface: WorkUiSurface, model: WorkUiMo
     </details>`;
   }
 
-  function renderDirectory(
-    records: readonly ProjectSessionRecord[],
-    hasData: boolean,
-  ): string {
-    const selectedId = hasData ? records[0]!.id : "";
+  function renderFilterMenu(): string {
+    return `<details class="project-record-filter-menu"><summary aria-label="${L("筛选与排序")}" title="${L("筛选与排序")}">${icon("filter")}</summary><div><label>Runtime<select data-session-runtime-filter><option value="all">${L("全部 Runtime")}</option></select></label><label>${L("状态")}<select data-session-status-filter><option value="all">${L("全部状态")}</option><option value="idle">${L("可查看")}</option><option value="archived">${L("已归档")}</option></select></label><label>${L("内容")}<select data-operation-filter="sessions"><option value="all">${L("全部内容")}</option><option value="native">${L("原生内容")}</option><option value="fallback">${L("Molis Work 记录")}</option><option value="unavailable">${L("不可读取")}</option></select></label><label>${L("排序")}<select data-session-sort><option value="updated-desc">${L("最近更新")}</option><option value="updated-asc">${L("最早更新")}</option><option value="title-asc">${L("标题 A–Z")}</option></select></label></div></details>`;
+  }
+
+  function renderStageChrome(): string {
+    return `<div class="session-stage-chrome" data-session-stage-chrome>
+      <header class="tree-chrome" data-directory-list-actions>
+        <div class="tree-tools">
+          <button class="mw-btn mw-btn--ghost tree-create" type="button" data-open-session-add>${icon("plus")}<span>${L("新建 Session")}</span></button>
+          <div class="tree-filter-control">${renderFilterMenu()}</div>
+        </div>
+      </header>
+    </div>`;
+  }
+
+  function renderSessionList(records: readonly ProjectSessionRecord[], hasData: boolean): string {
     const body = hasData
-      ? groupSessionRecords(records).map((group) => renderRuntimeFold(group, selectedId)).join("")
+      ? groupSessionRecords(records).map((group) => renderRuntimeFold(group, "")).join("")
       : "";
-    return renderDirectoryPanel({
-      pluginId: "sessions",
-      className: "project-record-directory",
-      attrs: { "data-operation-directory": "sessions" },
-      listLabel: L("Sessions 列表"),
-      listRole: "none",
-      tools: `<details class="project-record-filter-menu"><summary aria-label="${L("筛选与排序")}">${icon("filter")}<span>${L("筛选")}</span></summary><div><label>Runtime<select data-session-runtime-filter><option value="all">${L("全部 Runtime")}</option></select></label><label>${L("状态")}<select data-session-status-filter><option value="all">${L("全部状态")}</option><option value="idle">${L("可查看")}</option><option value="archived">${L("已归档")}</option></select></label><label>${L("内容")}<select data-operation-filter="sessions"><option value="all">${L("全部内容")}</option><option value="native">${L("原生内容")}</option><option value="fallback">${L("Molis Work 记录")}</option><option value="unavailable">${L("不可读取")}</option></select></label><label>${L("排序")}<select data-session-sort><option value="updated-desc">${L("最近更新")}</option><option value="updated-asc">${L("最早更新")}</option><option value="title-asc">${L("标题 A–Z")}</option></select></label></div></details>`,
-      listAttrs: { "data-operation-list": "sessions" },
-      body,
-      emptyInList: false,
-      empty: `<div class="project-record-empty mw-empty" data-operation-empty="sessions"${hasData ? " hidden" : ""}><strong>${hasData ? L("没有匹配结果") : L("这个项目还没有 Session")}</strong><button class="mw-btn mw-btn--link" type="button" data-operation-clear="sessions"${hasData ? "" : " hidden"}>${L("清除筛选")}</button></div>`,
-      add: { label: L("新建 Session"), attrs: { "data-open-session-add": true } },
-      addPlacement: "start",
-      footer: `<span>${L("共")} <strong data-operation-count="sessions">${hasData ? records.length : 0}</strong> ${L("条")}</span>`,
-    });
+    return `<div class="session-stage-list" data-session-stage-list tabindex="0" aria-label="${L("Sessions 列表")}">
+      <div data-operation-list="sessions">${body}</div>
+      <div class="project-record-empty mw-empty" data-operation-empty="sessions"${hasData ? " hidden" : ""}><strong>${hasData ? L("没有匹配结果") : L("这个项目还没有 Session")}</strong><button class="mw-btn mw-btn--link" type="button" data-operation-clear="sessions"${hasData ? "" : " hidden"}>${L("清除筛选")}</button></div>
+    </div>`;
   }
 
   function renderSessionContent(item: ProjectSessionRecord): string {
@@ -205,6 +192,7 @@ export function renderWorkSessionSurface(surface: WorkUiSurface, model: WorkUiMo
         </div>` : "";
     return `<article class="session-stage project-session-document" data-operation-detail="session" data-session-stage="${readable ? "readable" : "unavailable"}" data-detail-id="${escapeHtml(item.id)}" data-session-runtime-id="${escapeHtml(item.runtimeId)}" data-session-resume-mode="${escapeHtml(item.resumeMode)}" data-session-current-goal-id="${escapeHtml(item.currentGoalId || "")}" data-session-workspace-path="${escapeHtml(item.workspacePath || "")}" data-session-archived="${item.state === "archived"}"${selected ? "" : " hidden"}>
     <header class="session-stage-bar">
+      <button class="session-stage-back" type="button" data-session-collapse aria-label="${L("返回 Session 列表")}" title="${L("返回 Session 列表")}">${icon("chevron-right")}</button>
       <div class="session-stage-identity">
         <p class="session-stage-facts"><span class="session-stage-state session-stage-state--${escapeHtml(item.state)}">${escapeHtml(sessionStateLabel(item.state))}</span><span>${escapeHtml(item.runtime)}</span><span>${L("最近更新 {time}", { time: item.updated })}</span></p>
         <h1 id="session-title-${escapeHtml(item.id)}">${escapeHtml(heading)}</h1>
@@ -261,9 +249,14 @@ export function renderWorkSessionSurface(surface: WorkUiSurface, model: WorkUiMo
   }
 
   function renderSessionSurface(records: readonly ProjectSessionRecord[], hasData: boolean, projectName: string): string {
-    return `<section class="desktop-work-surface project-operation-surface" data-work-surface="sessions" data-work-surface-label="Sessions" hidden>${hasData
-    ? records.map((item, index) => renderSessionDetail(item, index === 0, projectName)).join("")
-    : `<div class="archive-empty project-operation-surface-empty mw-empty">${icon("terminal")}<h1>${L("这个项目还没有 Session")}</h1><p>${L("启动一条新的工作会话，或关联已有的 Runtime 会话。")}</p><button class="mw-btn mw-btn--primary" type="button" data-open-session-add>${icon("plus")}${L("新建 Session")}</button></div>`}</section>`;
+    const details = hasData
+      ? records.map((item) => renderSessionDetail(item, false, projectName)).join("")
+      : "";
+    return `<section class="desktop-work-surface project-operation-surface session-stage-shell" data-work-surface="sessions" data-work-surface-label="Sessions" data-session-stage-shell data-operation-directory="sessions" hidden>
+    ${renderStageChrome()}
+    ${renderSessionList(records, hasData)}
+    <div class="session-stage-workspace" data-session-stage-workspace hidden>${details}</div>
+  </section>`;
   }
 
   function renderOverlays(data: ProjectOperationsData | undefined, project: ProjectOperationsProject | null): string {
@@ -274,8 +267,28 @@ export function renderWorkSessionSurface(surface: WorkUiSurface, model: WorkUiMo
       { runtime_id: "pi-agent", display_name: "Pi Agent", capabilities: null },
       { runtime_id: "grok-build", display_name: "Grok Build", capabilities: null },
     ];
+    const noneGoal = L("暂不关联 Goal");
+    const defaultRuntime = runtimes[0];
     const runtimeOptions = runtimes.map((runtime) => `<option value="${escapeHtml(runtime.runtime_id)}" data-create-mode="${escapeHtml(runtime.capabilities?.create || "registry")}" data-discover-mode="${escapeHtml(runtime.capabilities?.discover || "unsupported")}" data-handoff-mode="${escapeHtml(runtime.capabilities?.handoff || "unsupported")}">${escapeHtml(runtime.display_name)}</option>`).join("");
     const goalOptions = (data?.goals ?? []).map((goal) => `<option value="${escapeHtml(goal.goal_id)}">${escapeHtml(goal.title)}</option>`).join("");
+    const choiceOption = (value: string, text: string, selected: boolean) =>
+      `<button type="button" role="option" class="session-choice-option${selected ? " is-current" : ""}" data-session-choice-option data-value="${escapeHtml(value)}" aria-selected="${selected ? "true" : "false"}">${escapeHtml(text)}</button>`;
+    const renderChoiceField = (options: { label: string; selectAttrs: string; selectHtml: string; triggerLabel: string; choices: string }) =>
+      `<div class="mw-field"><span class="mw-field__label">${options.label}</span><select class="mw-select" ${options.selectAttrs} hidden tabindex="-1" aria-hidden="true">${options.selectHtml}</select><details class="session-choice-picker" data-session-choice-menu><summary aria-haspopup="listbox" aria-expanded="false"><span data-session-choice-label>${escapeHtml(options.triggerLabel)}</span>${icon("chevron-down")}</summary><div class="session-choice-options" role="listbox" aria-label="${escapeHtml(options.label)}">${options.choices}</div></details></div>`;
+    const runtimeField = renderChoiceField({
+      label: "Runtime",
+      selectAttrs: "data-session-add-runtime",
+      selectHtml: runtimeOptions,
+      triggerLabel: defaultRuntime?.display_name || "",
+      choices: runtimes.map((runtime, index) => choiceOption(runtime.runtime_id, runtime.display_name, index === 0)).join(""),
+    });
+    const goalField = renderChoiceField({
+      label: L("当前 Goal"),
+      selectAttrs: "data-session-add-goal",
+      selectHtml: `<option value="">${escapeHtml(noneGoal)}</option>${goalOptions}`,
+      triggerLabel: noneGoal,
+      choices: [choiceOption("", noneGoal, true), ...(data?.goals ?? []).map((goal) => choiceOption(goal.goal_id, goal.title, false))].join(""),
+    });
     const projects = data?.projects ?? (project ? [project] : []);
     const projectOptions = projects.map((item) => `<option value="${escapeHtml(item.project_id)}"${item.project_id === project?.project_id ? " selected" : ""}>${escapeHtml(item.display_name)}</option>`).join("");
     const workspaces = data?.workspaces ?? [];
@@ -296,7 +309,7 @@ export function renderWorkSessionSurface(surface: WorkUiSurface, model: WorkUiMo
   </div>`;
     return `<datalist id="project-workspace-path-options">${workspacePathOptions}</datalist><dialog class="project-operation-dialog session-add-dialog mw-sheet" data-session-add-dialog><form method="dialog" class="mw-form mw-sheet__shell" data-session-add-form><header class="mw-form__header"><div class="session-add-heading"><div class="session-add-heading-row"><h2 data-session-add-dialog-title>${L("新建 Session")}</h2><button class="mw-btn mw-btn--ghost" type="button" data-session-add-toggle>${L("关联已有 Session")}</button></div><p data-session-add-dialog-copy>${L("从当前项目启动一条新的 Runtime Session。")}</p><strong data-session-add-mode hidden>${L("创建新的 Runtime Session")}</strong></div><button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-dialog-close aria-label="${L("关闭")}">${icon("x")}</button></header><section class="mw-form__body">
     <input type="hidden" data-session-add-action value="create">
-    <div class="session-add-field-grid"><label class="mw-field">Runtime<select class="mw-select" data-session-add-runtime>${runtimeOptions}</select></label><label class="mw-field">${L("当前 Goal")}<select class="mw-select" data-session-add-goal><option value="">${L("暂不关联 Goal")}</option>${goalOptions}</select></label></div>
+    <div class="session-add-field-grid">${runtimeField}${goalField}</div>
     <label class="mw-field">${L("Session 标题")}<input class="mw-input" data-session-add-title maxlength="160" placeholder="${L("可选；留空使用 Goal 或 Runtime 标题")}"></label>
     <div class="session-add-native" data-session-add-native hidden><label>${L("Runtime 原生 Session ID")}<input data-session-native-id list="session-discovery-options" autocomplete="off" placeholder="${L("输入 ID，或先同步可发现记录")}"></label><datalist id="session-discovery-options" data-session-discovery-options></datalist><button class="mw-btn mw-btn--secondary" type="button" data-session-discover>${icon("refresh")}<span>${L("同步可发现记录")}</span></button></div>
     ${workspacePicker}
@@ -333,8 +346,8 @@ export function renderWorkSessionSurface(surface: WorkUiSurface, model: WorkUiMo
   const records = data?.sessions ?? [];
   const projectName = project?.display_name || L("当前项目");
   switch (surface) {
-    case "root": return `<button class="desktop-module-item" type="button" data-directory-open="sessions" data-work-surface-open="sessions">${icon("terminal")}<span><strong>Sessions</strong><small>${L("执行内容、运行位置与续跑")}</small></span>${icon("chevron-right")}</button>`;
-    case "directory": return renderDirectory(records, records.length > 0);
+    case "root": return `<button class="desktop-module-item" type="button" data-work-surface-open="sessions">${icon("terminal")}<span><strong>Sessions</strong><small>${L("执行内容、运行位置与续跑")}</small></span>${icon("chevron-right")}</button>`;
+    case "directory": return "";
     case "main": return renderSessionSurface(records, records.length > 0, projectName);
     case "overlay": return renderOverlays(data, project);
   }

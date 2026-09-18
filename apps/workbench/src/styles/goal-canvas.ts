@@ -14,7 +14,7 @@ export const GOAL_CANVAS_STYLES = `
   @media (min-width: 761px) {
     .goal-canvas-shell[data-board-view="list"][data-expanded="true"] {
       display: grid;
-      grid-template-columns: 17.5rem minmax(0, 1fr);
+      grid-template-columns: var(--tree-width, var(--immersive-sidebar-width)) minmax(0, 1fr);
       grid-template-rows: minmax(0, 1fr);
     }
     .goal-canvas-shell[data-board-view="list"][data-expanded="true"] .goal-stage-list {
@@ -74,7 +74,7 @@ export const GOAL_CANVAS_STYLES = `
   .goal-stage-list [data-goal-collection-fold="archive"] .goal-collection-mark { color: var(--tone-quiet, var(--muted)); }
   .goal-stage-list [data-goal-collection-fold="trash"] .goal-collection-mark { color: var(--tone-blocked, var(--red)); }
   .goal-stage-list .goal-collection-fold:not([open]) > summary .goal-collection-caret svg { transform: rotate(-90deg); }
-  .goal-stage-list .goal-collection-empty { margin: 0; padding: 6px 8px 10px 32px; font-size: 12px; color: var(--muted); }
+  .goal-stage-list .goal-collection-empty { margin: 0; padding: 6px 8px 10px 24px; font-size: 12px; color: var(--muted); }
   .goal-stage-list .goal-tree { margin: 0; padding: 0; list-style: none; }
   .goal-stage-list .tree-item { margin: 0; padding: 0; }
   body.immersive-workbench .goal-stage-list .tree-row { display: block; min-height: 28px; padding: 0; }
@@ -111,7 +111,7 @@ export const GOAL_CANVAS_STYLES = `
     width: 100%;
     grid-column: 1;
     grid-row: 1;
-    padding-left: calc(var(--tree-depth, 0) * 16px);
+    padding-left: calc((var(--tree-depth, 0) + 1) * 16px);
   }
   body.immersive-workbench .goal-stage-list .tree-copy { display: grid; grid-template-columns: minmax(0, 1fr); align-items: center; min-width: 0; flex: 1; width: 100%; overflow: hidden; }
   .goal-stage-list .tree-created-meta {

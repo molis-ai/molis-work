@@ -9,6 +9,11 @@ rust-version = "1.77"
 name = "molis-work-desktop"
 path = "../adapters/tauri/src/main.rs"
 
+# On-device text recognition, spawned by the shelf for image materials.
+[[bin]]
+name = "molis-work-ocr"
+path = "../adapters/tauri/src/ocr_main.rs"
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
@@ -29,6 +34,8 @@ objc2-app-kit = { version = "0.3", default-features = false, features = [
   "NSBezierPath",
   "NSColor",
   "NSDragging",
+  "NSDraggingItem",
+  "NSDraggingSession",
   "NSEvent",
   "NSFont",
   "NSGraphics",
@@ -50,11 +57,14 @@ objc2-foundation = { version = "0.3", default-features = false, features = [
   "std",
   "NSArray",
   "NSAttributedString",
+  "NSData",
   "NSDictionary",
   "NSEnumerator",
   "NSGeometry",
+  "NSError",
   "NSObject",
   "NSString",
+  "NSURL",
   "objc2-core-foundation",
 ] }
 

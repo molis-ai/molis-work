@@ -52,23 +52,26 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   }
   body.immersive-workbench .immersive-titlebar > .workspace-chrome {
     display: flex; flex-direction: row; align-items: center;
-    flex: 0 0 calc(var(--plugin-rail-width) + var(--tree-width, var(--immersive-sidebar-width)));
-    width: calc(var(--plugin-rail-width) + var(--tree-width, var(--immersive-sidebar-width)));
+    flex: 0 0 var(--tree-width, var(--immersive-sidebar-width));
+    width: var(--tree-width, var(--immersive-sidebar-width));
     height: var(--desktop-titlebar-height); min-height: var(--desktop-titlebar-height);
-    padding: 0 4px 0 6px; margin: 0; gap: 2px; min-width: 0; overflow: visible; z-index: 12;
+    padding: 0 4px 0 6px; margin: 0 0 0 var(--plugin-rail-width); gap: 2px; min-width: 0; overflow: visible; z-index: 12;
     box-sizing: border-box; align-self: stretch;
     background: transparent; border: 0; border-right: 1px solid var(--line);
     grid-template-rows: none !important; grid-template-columns: none !important; pointer-events: none;
   }
   body.immersive-workbench[data-native-desktop="true"] .immersive-titlebar > .workspace-chrome {
+    margin-left: 0;
     flex-basis: calc(var(--plugin-rail-width) + var(--tree-width, var(--immersive-sidebar-width)) - var(--desktop-window-safe-inline-start, 88px));
     width: calc(var(--plugin-rail-width) + var(--tree-width, var(--immersive-sidebar-width)) - var(--desktop-window-safe-inline-start, 88px));
   }
   body.immersive-workbench .immersive-workspace.is-directory-collapsed .immersive-titlebar > .workspace-chrome,
-  body.immersive-workbench .immersive-workspace.is-plugin-directory-empty .immersive-titlebar > .workspace-chrome,
+  body.immersive-workbench[data-desktop-surface="home"] .immersive-workspace.is-plugin-directory-empty .immersive-titlebar > .workspace-chrome,
+  body.immersive-workbench[data-desktop-surface="market"] .immersive-workspace.is-plugin-directory-empty .immersive-titlebar > .workspace-chrome,
   body.immersive-workbench[data-native-desktop="true"] .immersive-workspace.is-directory-collapsed .immersive-titlebar > .workspace-chrome,
-  body.immersive-workbench[data-native-desktop="true"] .immersive-workspace.is-plugin-directory-empty .immersive-titlebar > .workspace-chrome {
-    flex: 0 1 auto; width: auto; max-width: min(420px, 48vw); border-right: 0;
+  body.immersive-workbench[data-native-desktop="true"][data-desktop-surface="home"] .immersive-workspace.is-plugin-directory-empty .immersive-titlebar > .workspace-chrome,
+  body.immersive-workbench[data-native-desktop="true"][data-desktop-surface="market"] .immersive-workspace.is-plugin-directory-empty .immersive-titlebar > .workspace-chrome {
+    flex: 0 1 auto; width: auto; max-width: min(420px, 48vw); margin-left: 0; border-right: 0;
   }
   body.immersive-workbench .desktop-titlebar-drag { align-self: stretch; height: auto; min-height: 0; min-width: 12px; }
   body.immersive-workbench .titlebar-chrome .desktop-titlebar-drag--left { display: none; }
@@ -78,7 +81,8 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
     grid-template-columns: none !important; pointer-events: auto;
   }
   body.immersive-workbench .immersive-workspace.is-directory-collapsed .workspace-chrome .navigator-project-primary,
-  body.immersive-workbench .immersive-workspace.is-plugin-directory-empty .workspace-chrome .navigator-project-primary {
+  body.immersive-workbench[data-desktop-surface="home"] .immersive-workspace.is-plugin-directory-empty .workspace-chrome .navigator-project-primary,
+  body.immersive-workbench[data-desktop-surface="market"] .immersive-workspace.is-plugin-directory-empty .workspace-chrome .navigator-project-primary {
     flex: none;
   }
   body.immersive-workbench .workspace-chrome .navigator-project-menu { flex: 0 1 auto; width: auto; max-width: none; min-width: 0; position: relative; }
@@ -249,7 +253,8 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench .immersive-plugin-stage { grid-column: 3; grid-row: 2 / -1; position: relative; min-width: 0; min-height: 0; overflow: hidden; container: plugin-stage / inline-size; }
   body.immersive-workbench .immersive-plugin-stage > * { position: absolute; inset: 0; min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; }
   body.immersive-workbench .desktop-work-surface { min-height: 0; }
-  body.immersive-workbench .immersive-plugin-stage > .desktop-work-surface { min-height: 0; background: var(--paper); padding: 32px clamp(18px, 4%, 56px); }
+  body.immersive-workbench .immersive-plugin-stage > .desktop-work-surface:not(.session-stage-shell) { min-height: 0; background: var(--paper); padding: 32px clamp(18px, 4%, 56px); }
+  body.immersive-workbench .immersive-plugin-stage > .session-stage-shell { padding: 0; overflow: hidden; }
   body.immersive-workbench .immersive-plugin-stage > .desktop-work-surface > [data-operation-detail] { max-width: 980px; margin: auto; }
   body.immersive-workbench .immersive-plugin-stage > .document-pane { padding: 0; }
   body.immersive-workbench .immersive-plugin-stage > .goal-canvas-shell, body.immersive-workbench .tab-pane-body > .goal-canvas-shell { overflow: hidden; background: var(--canvas); }
@@ -400,7 +405,7 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
     body.immersive-workbench .immersive-sidebar-scrim:not([hidden]) { display: block; position: fixed; inset: calc(var(--desktop-titlebar-height) + var(--workspace-chrome-height) + var(--tab-strip-h)) 0 0; z-index: 35; border: 0; padding: 0; background: #08091080; }
     body.immersive-workbench .immersive-titlebar { height: auto; min-height: calc(var(--desktop-titlebar-height) + var(--workspace-chrome-height) + var(--tab-strip-h)); padding: 0 12px; gap: 8px; flex-wrap: wrap; }
     body.immersive-workbench .immersive-titlebar > .workspace-chrome {
-      flex: 1 0 100%; order: 5; width: auto; max-width: none; height: var(--workspace-chrome-height); min-height: var(--workspace-chrome-height); border-right: 0;
+      flex: 1 0 100%; order: 5; width: auto; max-width: none; margin-left: 0; height: var(--workspace-chrome-height); min-height: var(--workspace-chrome-height); border-right: 0;
     }
     body.immersive-workbench .immersive-plugin-stage { grid-row: 2 !important; }
     body.immersive-workbench .workspace-history-button { width: 44px; height: 44px; min-height: 44px; }

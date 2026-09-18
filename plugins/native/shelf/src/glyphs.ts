@@ -19,6 +19,12 @@ export const SHELF_GLYPH = {
   tray: icon("download"),
   talk: icon("message"),
   lines: icon("list"),
+  shield: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v6c0 4.4-2.9 8.3-7 9.5C7.9 20.3 5 16.4 5 12V6z"/><path d="m9 12 2 2 4-4"/></svg>`,
+  bolt: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 3 5 13h5l-1 8 8-10h-5z"/></svg>`,
+  keyboard: `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h.01M11 10h.01M15 10h.01M8 14h8"/></svg>`,
+  book: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5a2 2 0 0 1 2-2h11v16H7a2 2 0 0 0-2 2z"/><path d="M9 7h6"/></svg>`,
+  terminal: `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m7 10 3 2-3 2M13 14h4"/></svg>`,
+  sun: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4"/></svg>`,
 } as const;
 
 export function toneForKind(kind: string, group = "material"): "slate" | "blue" | "ochre" | "plum" | "clay" {

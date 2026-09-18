@@ -114,12 +114,19 @@ test("tree contribution retains nesting, sibling order, selected row, progress, 
   assert.equal((html.match(/<time class="tree-created"/g) ?? []).length, 7);
   assert.match(html, />Sep 5</);
   assert.doesNotMatch(html, /class="tree-ref"/);
-  assert.match(html, /tree-progress is-empty/);
+  assert.doesNotMatch(html, /tree-progress is-empty/);
   assert.ok(html.indexOf('data-goal-id="ready"') < html.indexOf('data-goal-id="blocked"'));
   assert.ok(html.indexOf('data-goal-id="blocked"') < html.indexOf('data-goal-id="done"'));
   assert.match(html, /data-select-goal="ready" aria-pressed="true"/);
   assert.match(html, /aria-label="1\/3 完成，1 个阻塞"/);
   assert.match(html, /--tree-progress:33%/);
+  const leafChunk = html.split('data-goal-id="leaf"')[1]?.split("data-goal-id=")[0] ?? "";
+  const doneChunk = html.split('data-goal-id="done"')[1]?.split("data-goal-id=")[0] ?? "";
+  const blockedChunk = html.split('data-goal-id="blocked"')[1]?.split("data-goal-id=")[0] ?? "";
+  assert.match(leafChunk, /aria-label="0\/1 完成"/);
+  assert.match(doneChunk, /aria-label="1\/1 完成"/);
+  assert.match(blockedChunk, /tree-progress is-blocked/);
+  assert.match(blockedChunk, /aria-label="0\/1 完成，1 个阻塞"/);
   for (const id of ["parent", "ready", "blocked", "done", "leaf", "cycle-a", "cycle-b"]) assert.equal(html.split(`data-goal-id="${id}"`).length - 1, 1);
 });
 

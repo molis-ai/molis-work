@@ -568,6 +568,11 @@ fn ax_trusted() -> bool {
     unsafe { AXIsProcessTrusted() != 0 }
 }
 
+/// Settings asks this to say whether front-app file capture will work.
+pub fn accessibility_trusted() -> bool {
+    ax_trusted()
+}
+
 fn host() -> Option<&'static Host> {
     let ptr = HOST.load(Ordering::SeqCst);
     if ptr.is_null() {

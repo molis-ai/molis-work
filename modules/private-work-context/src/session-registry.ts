@@ -74,8 +74,8 @@ export class MolisWorkSessionRegistry implements WorkSessionApi {
       db.pragma("busy_timeout = 5000");
       const now = options.now ?? (() => new Date());
       const contentStore = createSessionContentStore(path.join(sessionsDirectory, "content"));
+      initializeOrValidateSessionSchema(db);
       const { associations, handoffAssociations } = db.transaction(() => {
-        initializeOrValidateSessionSchema(db);
         const ledger = options.createLedger(db);
         const owner = new SessionAssociationRepository(ledger);
         owner.migrate(db);

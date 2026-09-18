@@ -9,7 +9,10 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
   const stage = document.querySelector("[data-plugin-stage]");
   const header = document.querySelector(".immersive-titlebar");
   const scrim = document.querySelector("[data-directory-dismiss]");
-  const directoryFilterMenus = () => [...treePane.querySelectorAll(".project-record-filter-menu, .source-filter-menu")];
+  const directoryFilterMenus = () => [
+    ...treePane.querySelectorAll(".project-record-filter-menu, .source-filter-menu"),
+    ...document.querySelectorAll("[data-session-stage-chrome] .project-record-filter-menu"),
+  ];
   const frame = document.querySelector("[data-goal-node-workspace]");
   const workMain = document.querySelector("[data-goal-work-main]");
   const modesScope = getState().project?.project_id || getState().snapshot.board.board_id;

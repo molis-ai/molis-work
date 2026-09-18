@@ -8,7 +8,7 @@ import { sendLocalWebJson as sendJson } from "./web-http.js";
 import { L } from "./web-locale.js";
 import type { WebProjectNavigation, WebSettingsSection } from "@molis-ai/molis-work-app-workbench";
 import { findPluginSettingsNavItem, renderMolisWorkPrimitiveCatalog, renderPluginSettingsContribution } from "@molis-ai/molis-work-app-workbench";
-import { handleShelfNativePluginHttp } from "./shelf-native-plugin-http.js";
+import { handleShelfNativePluginHttp, shelfRuntimeProbe } from "./shelf-native-plugin-http.js";
 import { SHELF_SETTINGS_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-shelf";
 import { openShelfStore } from "@molis-ai/molis-work-module-shelf";
 import { handleLocalRuntimeSettingsHttp, serviceProcessId } from "./web-runtime-settings.js";
@@ -90,8 +90,11 @@ export async function handleLocalCatalogWebRequest(
     const contextProject = contextProjectId
       ? projects.find((project) => project.project_id === contextProjectId) ?? null
       : null;
+    const shelfStore = openShelfStore(serverOptions.homeDirectory, shelfRuntimeProbe());
     const plugin_settings_html = renderPluginSettingsContribution(pluginSettings.contribution_id, {
-      settings: openShelfStore(serverOptions.homeDirectory).settings(),
+      settings: shelfStore.settings(),
+      runtime: shelfStore.runtime(),
+      storage_path: shelfStore.root,
       primitives: { escape: escapeSettingsHtml, text: L },
     });
     response.writeHead(200, {

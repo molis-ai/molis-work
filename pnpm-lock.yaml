@@ -587,6 +587,12 @@ importers:
       '@molis-ai/molis-work-module-shelf':
         specifier: workspace:*
         version: link:../../../modules/shelf
+      '@xterm/addon-fit':
+        specifier: ^0.11.0
+        version: 0.11.0
+      '@xterm/xterm':
+        specifier: ^6.0.0
+        version: 6.0.0
 
   plugins/native/work:
     dependencies:

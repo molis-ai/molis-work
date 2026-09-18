@@ -16,7 +16,7 @@ import { createMolisWorkWebServer } from "../../apps/desktop/launchers/web/serve
 
 
 /** One isolated project and Chrome profile; no user services or Runtime bindings. */
-export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "empty" | "seeded" = false, seed = seedDemoBoard) {
+export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "empty" | "seeded" | "user" = false, seed = seedDemoBoard) {
   const chrome = [process.env.MOLIS_WORK_TEST_CHROME, "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
     "/usr/bin/google-chrome", "/usr/bin/chromium", "/usr/bin/chromium-browser"]
     .find((path): path is string => Boolean(path && existsSync(path)));
@@ -24,14 +24,16 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   const directory = await mkdtemp(join(tmpdir(), "molis-work-goals-browser-"));
   let databasePath = join(directory, "fixture.db");
   let projectId: string | null = null;
-  if (catalogMode === true || catalogMode === "seeded") {
+  if (catalogMode === true || catalogMode === "seeded" || catalogMode === "user") {
     const catalog = await openMolisWorkProjectCatalog({ homeDirectory: directory });
     let catalogDatabasePath: string | undefined;
     try {
-      if (catalogMode === "seeded") {
+      if (catalogMode === "seeded" || catalogMode === "user") {
         const project = await catalog.createProject({ display_name: "目录交互验证", actor_id: "browser-test" });
-        for (const plugin_id of BUILTIN_PROJECT_PLUGIN_IDS) {
-          catalog.addProjectPlugin({ project_id: project.project_id, plugin_id, actor_id: "browser-test" });
+        if (catalogMode === "seeded") {
+          for (const plugin_id of BUILTIN_PROJECT_PLUGIN_IDS) {
+            catalog.addProjectPlugin({ project_id: project.project_id, plugin_id, actor_id: "browser-test" });
+          }
         }
         databasePath = project.database_path;
         projectId = project.project_id;
@@ -42,7 +44,7 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
         projectId = project.project_id;
       }
     } finally { catalog.close(); }
-    if (catalogMode === "seeded" && catalogDatabasePath && projectId) {
+    if ((catalogMode === "seeded" || catalogMode === "user") && catalogDatabasePath && projectId) {
       await rm(databasePath, { force: true });
       await rm(`${databasePath}-wal`, { force: true });
       await rm(`${databasePath}-shm`, { force: true });

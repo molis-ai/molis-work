@@ -1,7 +1,11 @@
 mod capsule_window;
 mod drop_wheel;
 #[cfg(target_os = "macos")]
+mod clipboard_watch_macos;
+#[cfg(target_os = "macos")]
 mod drop_wheel_macos;
+#[cfg(target_os = "macos")]
+mod shelf_drag_macos;
 mod external_links;
 mod pty;
 mod runtime_env;
@@ -567,6 +571,113 @@ struct ShelfHotkeyStatus {
     files_label: String,
 }
 
+#[derive(serde::Serialize)]
+struct ShelfFoundFile {
+    name: String,
+    path: String,
+}
+
+/// Spotlight, the same way the Finder does it: type two characters and the
+/// shelf can add a local file without leaving the panel.
+#[tauri::command]
+fn shelf_find_files(query: String) -> Vec<ShelfFoundFile> {
+    let needle = query.trim();
+    if needle.chars().count() < 2 {
+        return Vec::new();
+    }
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/".into());
+    let output = std::process::Command::new("/usr/bin/mdfind")
+        .args(["-onlyin", &home, "-name", needle])
+        .output();
+    let Ok(output) = output else { return Vec::new() };
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter(|line| !line.is_empty())
+        .filter(|line| std::path::Path::new(line).is_file())
+        .take(12)
+        .map(|line| ShelfFoundFile {
+            name: std::path::Path::new(line)
+                .file_name()
+                .map(|value| value.to_string_lossy().to_string())
+                .unwrap_or_default(),
+            path: line.to_string(),
+        })
+        .collect()
+}
+
+/// Add local files by path; the bytes never travel through the WebView.
+#[tauri::command]
+fn shelf_admit_paths(paths: Vec<String>) -> Result<usize, String> {
+    let mut added = 0;
+    for path in paths {
+        let candidate = std::path::Path::new(&path);
+        if candidate.is_dir() {
+            return Err("这是一个文件夹，请把它拖进 Shelf 工作面".into());
+        }
+        shelf_http::admit_file(candidate)?;
+        added += 1;
+    }
+    Ok(added)
+}
+
+/// Double-click opens the copy with whatever the system uses for it.
+#[tauri::command]
+fn shelf_open_path(path: String) -> Result<(), String> {
+    let status = std::process::Command::new("/usr/bin/open")
+        .arg(&path)
+        .status()
+        .map_err(|error| format!("打不开这份文件：{error}"))?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err("系统没能打开这份文件".into())
+    }
+}
+
+/// What the shelf needs to tell the person about this Mac's permissions.
+#[derive(serde::Serialize)]
+struct ShelfSetupStatus {
+    accessibility: bool,
+    browsers: Vec<String>,
+    clipboard_readable: bool,
+}
+
+#[tauri::command]
+fn shelf_setup_status() -> ShelfSetupStatus {
+    #[cfg(target_os = "macos")]
+    let accessibility = shelf_hotkeys_macos::accessibility_trusted();
+    #[cfg(not(target_os = "macos"))]
+    let accessibility = false;
+    let browsers = ["Safari", "Google Chrome", "Microsoft Edge"]
+        .into_iter()
+        .filter(|name| std::path::Path::new(&format!("/Applications/{name}.app")).exists())
+        .map(|name| name.to_string())
+        .collect();
+    #[cfg(target_os = "macos")]
+    let clipboard_readable = clipboard_watch_macos::clipboard_readable();
+    #[cfg(not(target_os = "macos"))]
+    let clipboard_readable = false;
+    ShelfSetupStatus {
+        accessibility,
+        browsers,
+        clipboard_readable,
+    }
+}
+
+/// Drag a shelf file out to Finder, the Desktop, an upload field or a composer.
+#[tauri::command]
+fn shelf_drag_out(app: tauri::AppHandle, paths: Vec<String>) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        return shelf_drag_macos::begin(&app, &paths);
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (app, paths);
+        Err("这个平台还不支持拖出".into())
+    }
+}
+
 #[tauri::command]
 fn shelf_hotkey_status() -> ShelfHotkeyStatus {
     let available = shelf_hotkeys::availability();
@@ -686,6 +797,11 @@ fn main() {
       capsule_open_main,
       external_links::open_external_url,
       shelf_surface_changed,
+      shelf_drag_out,
+      shelf_find_files,
+      shelf_admit_paths,
+      shelf_open_path,
+      shelf_setup_status,
       shelf_hotkey_status,
       shelf_apply_hotkeys
     ])
@@ -695,6 +811,8 @@ fn main() {
       if let Err(error) = drop_wheel_macos::install(app.handle()) {
         eprintln!("Molis Work 轮盘未装上：{error}");
       }
+      #[cfg(target_os = "macos")]
+      clipboard_watch_macos::install(app.handle().clone());
       #[cfg(target_os = "macos")]
       if let Err(error) = shelf_hotkeys_macos::install(app.handle()) {
         eprintln!("Molis Work 热键未装上：{error}");

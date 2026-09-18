@@ -19,7 +19,7 @@
 - 默认 Home 只落 `~/.molis-work`；项目库文件只认 `molis-work.db`。
 - 安装只写 `molis-work` / `molis-work-mcp` / `molis-work-web`。
 - Catalog / Session Registry / 安装清单 / Runtime 接入 / Web 服务只认现行 owner 与 label。
-- Feed origin、Session source 只使用 `molis_work` / `molis_work_tui`，打开时不改写旧值。
+- Feed origin、Session source 只使用 `molis_work` / `molis_work_tui`。catalog / session owner 打开时仍不改写。`feed_sources.origin` 的旧 CHECK 必须重建，否则现行写入会被 SQLite 拒绝；详见 `specs/feed-sources-origin-check/spec.md`。
 - Runtime 接入只读写 `mcp_servers.molis-work` / `mcpServers["molis-work"]`。
 - 演示 `board_id` 改为 `molis-work-v1-demo`。
 - 桌面 App 不读 `GOALBOARD_*`，不找旧启动器。
@@ -49,7 +49,7 @@
 
 1. `readProductEnv` 与桌面 App 不读 `GOALBOARD_*`。
 2. 不 rename `~/.goalboard` / `goalboard.db`，不建 symlink。
-3. 不改写旧 catalog/session owner、Feed origin、Session source。
+3. 不改写旧 catalog/session owner、Session source。`feed_sources` 旧 origin CHECK 按 `specs/feed-sources-origin-check/spec.md` 重建为 `molis_work`。
 4. 不删、不认 `mcp_servers.goalboard` 和旧启动器名。
 5. 新演示 `board_id` 为 `molis-work-v1-demo`。
 6. 安装和打开 App 不查找、不移动 `GoalBoard.app`。

@@ -17,7 +17,55 @@ export const WORK_SESSION_ADD_CLIENT = `
   const sessionAddWorkspaceMenu = sessionAddForm?.querySelector("[data-session-workspace-menu]");
   const sessionAddWorkspaceCustomPanel = sessionAddForm?.querySelector("[data-session-workspace-custom-panel]");
   const sessionAddWorkspaceCustomInput = sessionAddForm?.querySelector("[data-session-workspace-custom-input]");
+  const sessionAddGoal = sessionAddForm?.querySelector("[data-session-add-goal]");
   let savingSession = false;
+  const syncChoicePicker = (select) => {
+    const menu = select?.closest(".mw-field")?.querySelector("[data-session-choice-menu]");
+    if (!select || !menu) return;
+    const label = menu.querySelector("[data-session-choice-label]");
+    const option = select.selectedOptions?.[0];
+    if (label) label.textContent = option?.textContent?.trim() || "";
+    menu.querySelectorAll("[data-session-choice-option]").forEach((button) => {
+      const selected = (button.dataset.value || "") === select.value;
+      button.classList.toggle("is-current", selected);
+      button.setAttribute("aria-selected", selected ? "true" : "false");
+    });
+  };
+  const bindChoicePicker = (select) => {
+    const menu = select?.closest(".mw-field")?.querySelector("[data-session-choice-menu]");
+    if (!select || !menu) return;
+    menu.querySelectorAll("[data-session-choice-option]").forEach((button) => button.addEventListener("click", () => {
+      select.value = button.dataset.value || "";
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+      menu.open = false;
+    }));
+    menu.addEventListener("toggle", () => {
+      menu.querySelector("summary")?.setAttribute("aria-expanded", menu.open ? "true" : "false");
+    });
+    menu.addEventListener("keydown", (event) => {
+      if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+      const summary = menu.querySelector("summary");
+      const buttons = [...menu.querySelectorAll("[data-session-choice-option]")];
+      if (document.activeElement === summary && event.key === "ArrowDown") {
+        event.preventDefault();
+        menu.open = true;
+        buttons[0]?.focus();
+        return;
+      }
+      const index = buttons.indexOf(document.activeElement);
+      const next = event.key === "ArrowDown" ? index + 1 : index - 1;
+      const target = buttons[Math.max(0, Math.min(buttons.length - 1, next < 0 ? 0 : next))];
+      if (target) { event.preventDefault(); target.focus(); }
+    });
+    select.addEventListener("change", () => syncChoicePicker(select));
+    syncChoicePicker(select);
+  };
+  sessionAddForm?.querySelectorAll("details").forEach((menu) => menu.addEventListener("toggle", () => {
+    if (!menu.open) return;
+    sessionAddForm.querySelectorAll("details").forEach((other) => { if (other !== menu) other.open = false; });
+  }));
+  bindChoicePicker(sessionAddRuntime);
+  bindChoicePicker(sessionAddGoal);
   sessionAddDialog?.addEventListener("cancel", (event) => { if (savingSession) event.preventDefault(); });
   const initialSessionWorkspace = {
     id: sessionAddWorkspaceId?.defaultValue || "",
@@ -71,6 +119,8 @@ export const WORK_SESSION_ADD_CLIENT = `
     if (sessionAddAction) sessionAddAction.value = "create";
     setSessionWorkspace(initialSessionWorkspace);
     if (sessionAddStatus) sessionAddStatus.hidden = true;
+    syncChoicePicker(sessionAddRuntime);
+    syncChoicePicker(sessionAddGoal);
     updateSessionAddForm();
     sessionAddDialog?.showModal();
   }));
@@ -148,7 +198,7 @@ export const WORK_SESSION_ADD_CLIENT = `
           runtime_id: sessionAddRuntime.value,
           native_runtime_session_id: sessionAddNativeInput?.value.trim() || null,
           title: sessionAddForm.querySelector("[data-session-add-title]")?.value.trim() || null,
-          current_goal_id: sessionAddForm.querySelector("[data-session-add-goal]")?.value || null,
+          current_goal_id: sessionAddGoal?.value || null,
           workspace_id: sessionAddWorkspaceId?.value || null,
           workspace_path: sessionAddForm.querySelector("[data-session-add-workspace]")?.value.trim() || null,
           user_confirmed: true,

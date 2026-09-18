@@ -50,15 +50,52 @@ pub fn admit_website(title: &str, url: &str, markdown: &str) -> Result<String, S
     post_json("/api/shelf/items", &body).and_then(parse_item_id)
 }
 
-#[allow(dead_code)]
-pub fn run_extract(item_id: &str) -> Result<(), String> {
+/// Record a system clipboard entry. Concealed types never get this far.
+pub fn record_clip(text: &str, types: &[String]) -> Result<(), String> {
+    let body = serde_json::json!({ "text": text, "types": types });
+    post_json("/api/shelf/clipboard", &body).map(|_| ())
+}
+
+/// Appearance can turn the wheel off. Read straight from the catalog so the
+/// answer is right even before the web service is up, and cache it briefly so a
+/// drag does not hit the disk on every mouse move.
+pub fn drop_wheel_enabled() -> bool {
+    use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+    static CACHED: AtomicBool = AtomicBool::new(true);
+    static READ_AT: AtomicU64 = AtomicU64::new(0);
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|value| value.as_millis() as u64)
+        .unwrap_or(0);
+    let last = READ_AT.load(Ordering::Relaxed);
+    if last != 0 && now.saturating_sub(last) < 1_500 {
+        return CACHED.load(Ordering::Relaxed);
+    }
+    let path = molis_work_home().join("shelf").join("catalog.json");
+    let enabled = match fs::read_to_string(path) {
+        Ok(text) => serde_json::from_str::<serde_json::Value>(&text)
+            .ok()
+            .and_then(|value| value.get("settings")?.get("drop_wheel_enabled")?.as_bool())
+            .unwrap_or(true),
+        Err(_) => true,
+    };
+    CACHED.store(enabled, Ordering::Relaxed);
+    READ_AT.store(now, Ordering::Relaxed);
+    enabled
+}
+
+/// A wheel petal runs its recipe with the default option, no confirmation page.
+pub fn run_recipe(recipe: &str, item_ids: &[String]) -> Result<(), String> {
+    if item_ids.is_empty() {
+        return Err("没有可处理的材料".into());
+    }
     let body = serde_json::json!({
-        "recipe": "extract_text",
-        "item_id": item_id,
+        "recipe": recipe,
+        "item_ids": item_ids,
     });
     let payload = post_json("/api/shelf/jobs", &body)?;
     if payload.contains("\"error\"") {
-        return Err(json_error(&payload).unwrap_or_else(|| "提取失败".into()));
+        return Err(json_error(&payload).unwrap_or_else(|| "这次动作没跑成".into()));
     }
     Ok(())
 }

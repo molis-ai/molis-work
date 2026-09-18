@@ -6,7 +6,7 @@
 
 ## 一次典型调用
 
-Host 把架子快照交给 UI contribution；HTTP 路由表拥有 `/api/shelf` 匹配，Host 注入 admit / job / file。插件不写项目 Goal，也不发布 Artifact。
+Host 把架子快照交给 UI contribution；HTTP 路由表拥有 `/api/shelf` 匹配，Host 注入 admit / job / file。快照带上本机 Agent 状态和整张 Recipe 表，动作栏按选中材料挑该用的动作。插件不写项目 Goal，也不发布 Artifact。
 
 ## 从哪里读代码
 
@@ -16,8 +16,10 @@ Host 把架子快照交给 UI contribution；HTTP 路由表拥有 `/api/shelf` �
 | --- | --- |
 | [src/ui.ts](src/ui.ts) | 目录与工作面 HTML |
 | [src/styles.ts](src/styles.ts) | DropAgent 表面样式 |
-| [src/client.ts](src/client.ts) | 选择、抽字、拖入 |
+| [src/client.ts](src/client.ts) | 选择、多选、动作栏、确认与运行 |
 | [src/routes.ts](src/routes.ts) | HTTP 路由表 |
+| [src/settings-ui.ts](src/settings-ui.ts) | 六段用途导航的设置页 |
+| [src/terminal-client.ts](src/terminal-client.ts) | 「对话」的终端井，接 `/pty` |
 
 可对照 [apps/workbench/src/goals-page-renderer.ts](../../../apps/workbench/src/goals-page-renderer.ts) 与 [apps/local-host/src/shelf-native-plugin-http.ts](../../../apps/local-host/src/shelf-native-plugin-http.ts)。
 

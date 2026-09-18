@@ -83,10 +83,10 @@ test("kanban CSS shares six columns on desktop and stacks groups when the pane i
   assert.match(GOAL_CANVAS_STYLES, /\[data-board-view="kanban"\] > \[data-goal-kanban\] \{ display: block;/);
   assert.doesNotMatch(GOAL_CANVAS_STYLES, /@container goal-board \(max-width: 839px\)[\s\S]*\.goal-canvas-shell \.goal-kanban,/);
   assert.match(GOAL_CANVAS_STYLES, /data-board-view="list"/);
-  assert.match(GOAL_CANVAS_STYLES, /grid-template-columns: 17\.5rem minmax\(0, 1fr\)/);
+  assert.match(GOAL_CANVAS_STYLES, /grid-template-columns: var\(--tree-width, var\(--immersive-sidebar-width\)\) minmax\(0, 1fr\)/);
   assert.match(GOAL_CANVAS_STYLES, /grid-template-columns: minmax\(12rem, 1fr\) 6\.25rem 4\.75rem 8\.5rem auto/);
   assert.match(GOAL_CANVAS_STYLES, /body\.immersive-workbench \.goal-canvas-shell \.goal-stage-list \.tree-children/);
-  assert.match(GOAL_CANVAS_STYLES, /padding-left: calc\(var\(--tree-depth, 0\) \* 16px\)/);
+  assert.match(GOAL_CANVAS_STYLES, /padding-left: calc\(\(var\(--tree-depth, 0\) \+ 1\) \* 16px\)/);
   assert.match(GOAL_CANVAS_STYLES, /tree-created-meta \{/);
   assert.match(GOAL_CANVAS_STYLES, /\[data-expanded="true"\] \.tree-created-meta,/);
   assert.match(GOAL_CANVAS_STYLES, /tree-created\.is-empty \{ visibility: hidden; \}/);

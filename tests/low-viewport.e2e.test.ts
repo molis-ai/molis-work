@@ -28,7 +28,7 @@ for (const [width, height] of [[1024, 400], [390, 500]]) {
     await waitFor("!document.querySelector('[data-feed-sources-dialog]').open");
     if (width < 760 && await evaluate("document.querySelector('[data-workspace]').dataset.mobileView!=='tree'")) await click('[data-directory-show]');
     await click('[data-plugin-id="sessions"]');
-    await click(width < 760 ? '[data-directory-panel="sessions"] [data-open-session-add]' : '[data-work-surface="sessions"] [data-open-session-add]');
+    await click('[data-work-surface="sessions"] [data-open-session-add]');
     await waitFor("document.querySelector('[data-session-add-dialog]').open");
     await click('[data-session-add-toggle]');
     await evaluate("Promise.all(document.querySelector('[data-session-add-dialog]').getAnimations({subtree:true}).map(a=>a.finished.catch(()=>{})))");
@@ -51,7 +51,7 @@ for (const [width, height] of [[1024, 400], [390, 500]]) {
     await click('[data-session-add-form] > footer [data-dialog-close]');
     await waitFor("!document.querySelector('[data-session-add-dialog]').open");
     await b.reloadPage();
-    assert.equal(await evaluate("document.querySelectorAll('[data-operation-row=session]').length"),0,"cancelled draft does not become a persisted Session");
+    assert.equal(await evaluate("[...document.querySelectorAll('[data-operation-row=session]')].some((row)=>row.textContent.includes('取消时不能创建的草稿'))"), false, "cancelled draft does not become a persisted Session");
     assert.equal(await evaluate("document.scrollingElement.scrollHeight<=innerHeight+1 && document.scrollingElement.scrollTop===0"),true);
   });
 }

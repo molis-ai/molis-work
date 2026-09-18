@@ -1,6 +1,16 @@
-import type { ShelfAdmitInput, ShelfDeviceSettings, ShelfRecipeId, ShelfSettingsPatch, ShelfSnapshot } from "@molis-ai/molis-work-contracts/modules/shelf";
+import type {
+  ShelfAdmitFolderInput,
+  ShelfAdmitInput,
+  ShelfDeviceSettings,
+  ShelfJobOutcome,
+  ShelfRecipeId,
+  ShelfRunJobInput,
+  ShelfSettingsPatch,
+  ShelfSnapshot,
+} from "@molis-ai/molis-work-contracts/modules/shelf";
 import { parseSettingsWriteBody } from "@molis-ai/molis-work-module-shelf";
-import type { ShelfItemRecord, ShelfJobRecord, ShelfClipboardRecord } from "@molis-ai/molis-work-contracts/modules/shelf";
+import type { ShelfItemRecord, ShelfClipboardRecord, ShelfJobRecord } from "@molis-ai/molis-work-contracts/modules/shelf";
+import { shelfRouteErrorResponse } from "./route-error.js";
 import type { ShelfPluginRouteHandler } from "./routes.js";
 
 export interface ShelfRouteHandlerPorts {
@@ -8,14 +18,17 @@ export interface ShelfRouteHandlerPorts {
   settings(): ShelfDeviceSettings;
   saveSettings(patch: ShelfSettingsPatch): ShelfDeviceSettings;
   admit(input: ShelfAdmitInput): ShelfItemRecord;
-  admitText(body: string, title?: string): ShelfItemRecord;
+  admitText(body: string, title?: string): Promise<ShelfItemRecord>;
+  admitFolder(input: ShelfAdmitFolderInput): ShelfItemRecord;
+  readChild(itemId: string, relative: string): { name: string; mime: string; bytes: Buffer };
   seedSample(): ShelfItemRecord;
   hide(itemId: string): void;
   deleteCopy(itemId: string): void;
-  runJob(recipe: ShelfRecipeId, itemId: string): { job: ShelfJobRecord; result: ShelfItemRecord | null; origin_hash: string };
+  runJob(input: ShelfRunJobInput): Promise<ShelfJobOutcome>;
+  cancelJob(jobId: string): ShelfJobRecord;
   useAsMaterial(itemId: string): ShelfItemRecord;
   addClipboard(body: string, extra?: { concealed?: boolean; types?: readonly string[] }): ShelfClipboardRecord | null;
-  clipboardToMaterial(clipId: string): ShelfItemRecord;
+  clipboardToMaterial(clipId: string): Promise<ShelfItemRecord>;
   deleteClipboard(clipId: string): void;
   writeCopy(itemId: string, text: string): ShelfItemRecord;
   readFile(itemId: string): { item: ShelfItemRecord; bytes: Buffer };
@@ -31,9 +44,12 @@ export function createShelfRouteHandlers(options: ShelfRouteHandlerPorts): Recor
       return { status: 200, body: options.saveSettings(parsed.ok) };
     },
     "shelf.sample": () => ({ status: 200, body: { item: options.seedSample(), snapshot: options.snapshot() } }),
-    "shelf.admit": ({ request }) => {
+    "shelf.admit": async ({ request }) => {
       const text = stringValue(request.body.text);
-      if (text) return { status: 200, body: { item: options.admitText(text, stringValue(request.body.title) || undefined), snapshot: options.snapshot() } };
+      if (text) {
+        const item = await options.admitText(text, stringValue(request.body.title) || undefined);
+        return { status: 200, body: { item, snapshot: options.snapshot() } };
+      }
       const filename = stringValue(request.body.filename);
       const encoded = stringValue(request.body.bytes_base64);
       if (!filename || !encoded) return { status: 400, body: { error: "请选择要加入的文件" } };
@@ -49,6 +65,22 @@ export function createShelfRouteHandlers(options: ShelfRouteHandlerPorts): Recor
         mime: stringValue(request.body.mime) || undefined,
         origin_realpath: stringValue(request.body.origin_realpath) || null,
       });
+      return { status: 200, body: { item, snapshot: options.snapshot() } };
+    },
+    "shelf.folder": ({ request }) => {
+      const name = stringValue(request.body.name);
+      const raw = Array.isArray(request.body.entries) ? request.body.entries : [];
+      if (!name || !raw.length) return { status: 400, body: { error: "请选择要加入的文件夹" } };
+      const entries = raw.flatMap((entry) => {
+        if (!entry || typeof entry !== "object") return [];
+        const record = entry as Record<string, unknown>;
+        const relative = stringValue(record.relative);
+        const encoded = stringValue(record.bytes_base64);
+        if (!relative || !encoded) return [];
+        return [{ relative, bytes: Buffer.from(encoded, "base64"), mime: stringValue(record.mime) || undefined }];
+      });
+      if (!entries.length) return { status: 400, body: { error: "这个文件夹里没有可以加入的文件" } };
+      const item = options.admitFolder({ name, entries });
       return { status: 200, body: { item, snapshot: options.snapshot() } };
     },
     "shelf.hide": ({ params }) => {
@@ -72,12 +104,31 @@ export function createShelfRouteHandlers(options: ShelfRouteHandlerPorts): Recor
       const item = options.writeCopy(params.item_id, request.body.text);
       return { status: 200, body: { item, snapshot: options.snapshot() } };
     },
-    "shelf.job": ({ request }) => {
+    "shelf.job": async ({ request }) => {
       const recipe = stringValue(request.body.recipe) as ShelfRecipeId;
+      const itemIds = Array.isArray(request.body.item_ids)
+        ? request.body.item_ids.map((value) => String(value).trim()).filter(Boolean)
+        : [];
       const itemId = stringValue(request.body.item_id);
-      if (!recipe || !itemId) return { status: 400, body: { error: "请选择动作和材料" } };
-      const result = options.runJob(recipe, itemId);
-      return { status: 200, body: { ...result, snapshot: options.snapshot() } };
+      if (!recipe || (!itemIds.length && !itemId)) return { status: 400, body: { error: "请选择动作和材料" } };
+      try {
+        const outcome = await options.runJob({
+          recipe,
+          item_id: itemId || undefined,
+          item_ids: itemIds.length ? itemIds : undefined,
+          option_id: stringValue(request.body.option_id) || null,
+          shortcut_id: stringValue(request.body.shortcut_id) || null,
+        });
+        return { status: 200, body: { ...outcome, snapshot: options.snapshot() } };
+      } catch (error) {
+        // A failed run leaves a row saying why, so the caller gets the shelf back too.
+        const failure = shelfRouteErrorResponse(error);
+        return { ...failure, body: { ...(failure.body as object), snapshot: options.snapshot() } };
+      }
+    },
+    "shelf.job.cancel": ({ params }) => {
+      if (!params.job_id) return { status: 404, body: { error: "这个任务不存在" } };
+      return { status: 200, body: { job: options.cancelJob(params.job_id), snapshot: options.snapshot() } };
     },
     "shelf.clipboard": ({ request }) => {
       const text = stringValue(request.body.text);
@@ -96,13 +147,18 @@ export function createShelfRouteHandlers(options: ShelfRouteHandlerPorts): Recor
       options.deleteClipboard(params.clip_id);
       return { status: 200, body: { snapshot: options.snapshot() } };
     },
-    "shelf.clipboard.join": ({ params }) => {
+    "shelf.clipboard.join": async ({ params }) => {
       if (!params.clip_id) return { status: 404, body: { error: "这条剪贴板不存在" } };
-      const item = options.clipboardToMaterial(params.clip_id);
+      const item = await options.clipboardToMaterial(params.clip_id);
       return { status: 200, body: { item, snapshot: options.snapshot() } };
     },
-    "shelf.file": ({ params }) => {
+    "shelf.file": ({ params, request }) => {
       if (!params.item_id) return { status: 404, body: { error: "这份材料不在架子上" } };
+      const child = request.query.get("child")?.trim();
+      if (child) {
+        const inside = options.readChild(params.item_id, child);
+        return { status: 200, bytes: inside.bytes, filename: inside.name, mime: inside.mime };
+      }
       const file = options.readFile(params.item_id);
       return {
         status: 200,

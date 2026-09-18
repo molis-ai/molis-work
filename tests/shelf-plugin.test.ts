@@ -52,6 +52,9 @@ function model(overrides: Partial<ShelfUiModel> = {}): ShelfUiModel {
   };
 }
 
+/** No terminal Agent: these tests describe the shelf, not this Mac's CLI. */
+const NO_AGENT = { disabled: true } as const;
+
 async function withHome<T>(run: (home: string) => Promise<T>): Promise<T> {
   const home = await mkdtemp(join(tmpdir(), "molis-work-shelf-"));
   try {
@@ -63,7 +66,7 @@ async function withHome<T>(run: (home: string) => Promise<T>): Promise<T> {
 
 test("empty shelf seeds a real extractable sample PDF and keeps origin hash", async () => {
   await withHome(async (home) => {
-    const store = openShelfStore(home);
+    const store = openShelfStore(home, NO_AGENT);
     const snapshot = store.snapshot();
     assert.equal(snapshot.materials.length, 1);
     assert.equal(snapshot.materials[0]?.name, "试用示例.pdf");
@@ -73,7 +76,7 @@ test("empty shelf seeds a real extractable sample PDF and keeps origin hash", as
     assert.equal(snapshot.recipes.find((item) => item.recipe === "summarize")?.available, false);
     const origin = snapshot.materials[0]!;
     assert.equal("origin_realpath" in origin, false);
-    const { job, result, origin_hash } = store.runJob({ recipe: "extract_text", item_id: origin.item_id });
+    const { job, result, origin_hash } = await store.runJob({ recipe: "extract_text", item_id: origin.item_id });
     assert.equal(job.status, "succeeded");
     assert.equal(origin_hash, origin.origin_hash);
     assert.equal(result?.name, "pdf.md");
@@ -91,30 +94,32 @@ test("empty shelf seeds a real extractable sample PDF and keeps origin hash", as
 
 test("admitting a local file copies bytes and refuses to write if the original hash changes", async () => {
   await withHome(async (home) => {
-    const store = openShelfStore(home);
+    const store = openShelfStore(home, NO_AGENT);
     const originPath = join(home, "quote.pdf");
     const bytes = createExtractablePdf("Quote for the shelf copy.");
     await writeFile(originPath, bytes);
     const item = store.admit({ filename: "quote.pdf", bytes, mime: "application/pdf", origin_realpath: originPath });
     assert.equal(item.origin_hash, hashBytes(bytes));
-    store.runJob({ recipe: "extract_text", item_id: item.item_id });
+    await store.runJob({ recipe: "extract_text", item_id: item.item_id });
     assert.equal(hashBytes(readFileSync(originPath)), item.origin_hash);
     await writeFile(originPath, createExtractablePdf("changed original"));
-    assert.throws(
-      () => store.runJob({ recipe: "extract_text", item_id: item.item_id }),
+    await assert.rejects(
+      store.runJob({ recipe: "extract_text", item_id: item.item_id }),
       (error: unknown) => error instanceof ShelfError && error.code === "shelf.origin_changed",
     );
-    assert.throws(
-      () => store.runJob({ recipe: "summarize", item_id: item.item_id }),
-      (error: unknown) => error instanceof ShelfError && error.code === "shelf.recipe_unavailable",
+    await assert.rejects(
+      store.runJob({ recipe: "summarize", item_id: item.item_id }),
+      (error: unknown) => error instanceof ShelfError
+        && error.code === "shelf.no_agent"
+        && error.message === "未发现终端 Agent。",
     );
   });
 });
 
 test("hide, delete, clipboard, and use-as-material keep copies off the original path", async () => {
   await withHome(async (home) => {
-    const store = openShelfStore(home);
-    const item = store.admitText("clipboard body for the shelf", "note");
+    const store = openShelfStore(home, NO_AGENT);
+    const item = await store.admitText("clipboard body for the shelf", "note");
     store.addClipboard("https://example.com/page");
     store.addClipboard("plain clip");
     const snapshot = store.snapshot();
@@ -123,19 +128,20 @@ test("hide, delete, clipboard, and use-as-material keep copies off the original 
     assert.equal(snapshot.clipboard[1]?.kind, "url");
     assert.equal(snapshot.clipboard[1]?.title, "example.com");
     assert.equal(snapshot.current_clip_id, snapshot.clipboard[0]?.clip_id);
-    const joined = store.clipboardToMaterial(snapshot.clipboard[0]!.clip_id);
+    const joined = await store.clipboardToMaterial(snapshot.clipboard[0]!.clip_id);
     assert.equal(joined.group, "material");
     store.hide(item.item_id);
     assert.equal(store.snapshot().materials.some((entry) => entry.item_id === item.item_id), false);
     assert.equal(store.snapshot().materials.some((entry) => entry.name === "试用示例.pdf"), false);
-    const extracted = store.runJob({ recipe: "extract_text", item_id: joined.item_id });
+    const extracted = await store.runJob({ recipe: "extract_text", item_id: joined.item_id });
     const reused = store.useAsMaterial(extracted.result!.item_id);
     assert.equal(reused.group, "material");
     store.deleteCopy(joined.item_id);
     assert.equal(existsSync(join(home, "shelf", joined.relative_path)), false);
-    const urlItem = store.clipboardToMaterial(snapshot.clipboard[1]!.clip_id);
-    assert.equal(urlItem.kind, "url");
-    assert.equal(urlItem.name, "example.com.url");
+    const urlItem = await store.clipboardToMaterial(snapshot.clipboard[1]!.clip_id);
+    // A link is captured as a page: the fetch fails offline, the link still lands.
+    assert.equal(urlItem.kind, "website");
+    assert.match(urlItem.preview_text ?? "", /https:\/\/example\.com\/page/);
     const site = store.admit({
       filename: "Example Domain.md",
       bytes: Buffer.from("# Example Domain\n\nhttps://example.com/\n\nHello\n", "utf8"),
@@ -149,7 +155,7 @@ test("hide, delete, clipboard, and use-as-material keep copies off the original 
 
 test("clipboard history dedupes, caps at 10, skips concealed types, and deletes records", async () => {
   await withHome(async (home) => {
-    const store = openShelfStore(home);
+    const store = openShelfStore(home, NO_AGENT);
     const first = store.addClipboard("https://example.com/page");
     const again = store.addClipboard("https://example.com/page");
     assert.equal(again?.clip_id, first?.clip_id);
@@ -176,7 +182,7 @@ test("clipboard history dedupes, caps at 10, skips concealed types, and deletes 
 
 test("writeCopy edits the shelf copy and leaves the original file hash untouched", async () => {
   await withHome(async (home) => {
-    const store = openShelfStore(home);
+    const store = openShelfStore(home, NO_AGENT);
     const originPath = join(home, "note.md");
     await writeFile(originPath, "# keep\n");
     const item = store.admit({
@@ -191,11 +197,11 @@ test("writeCopy edits the shelf copy and leaves the original file hash untouched
     assert.equal(edited.origin_hash, item.origin_hash);
     assert.equal(readFileSync(originPath, "utf8"), "# keep\n");
     assert.equal(store.readFile(item.item_id).bytes.toString("utf8"), "# edited\n");
-    const extracted = store.runJob({ recipe: "extract_text", item_id: item.item_id });
+    const extracted = await store.runJob({ recipe: "extract_text", item_id: item.item_id });
     assert.match(extracted.result?.preview_text ?? "", /# edited/);
     await writeFile(originPath, "# changed original\n");
-    assert.throws(
-      () => store.runJob({ recipe: "extract_text", item_id: item.item_id }),
+    await assert.rejects(
+      store.runJob({ recipe: "extract_text", item_id: item.item_id }),
       (error: unknown) => error instanceof ShelfError && error.code === "shelf.origin_changed",
     );
     const pdfBytes = createExtractablePdf("PDF stays read-only on the shelf.");
@@ -210,7 +216,7 @@ test("writeCopy edits the shelf copy and leaves the original file hash untouched
 
 test("hide keeps the copy; delete removes the copy and job folder, not the original", async () => {
   await withHome(async (home) => {
-    const store = openShelfStore(home);
+    const store = openShelfStore(home, NO_AGENT);
     const originPath = join(home, "keep-me.md");
     await writeFile(originPath, "# original stays\n");
     const item = store.admit({
@@ -220,7 +226,7 @@ test("hide keeps the copy; delete removes the copy and job folder, not the origi
       origin_realpath: originPath,
     });
     const copyPath = join(home, "shelf", item.relative_path);
-    const extracted = store.runJob({ recipe: "extract_text", item_id: item.item_id });
+    const extracted = await store.runJob({ recipe: "extract_text", item_id: item.item_id });
     const jobRoot = join(home, "shelf", "jobs", extracted.job.job_id);
     assert.equal(existsSync(jobRoot), true);
     store.hide(extracted.result!.item_id);
@@ -395,6 +401,12 @@ test("Shelf route table owns matching while Host handlers admit and extract", as
 
 test("local host /api/shelf admits, extracts, and does not expose origin paths", async (t) => {
   const homeDirectory = await mkdtemp(join(tmpdir(), "molis-work-shelf-http-"));
+  const agentSetting = process.env.MOLIS_WORK_SHELF_AGENT;
+  process.env.MOLIS_WORK_SHELF_AGENT = "off";
+  t.after(() => {
+    if (agentSetting === undefined) delete process.env.MOLIS_WORK_SHELF_AGENT;
+    else process.env.MOLIS_WORK_SHELF_AGENT = agentSetting;
+  });
   const token = "shelf-plugin-http-token-01234567890123";
   const server = createMolisWorkWebServer({ homeDirectory, controlToken: token });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));

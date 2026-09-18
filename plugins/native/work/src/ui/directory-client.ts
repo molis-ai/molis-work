@@ -3,7 +3,28 @@ export const WORK_DIRECTORY_CLIENT = `
 ({ loadSessionContent }) => {
   const directoryFor = (kind) => document.querySelector('[data-operation-directory="' + kind + '"]');
   const surfaceFor = (kind) => document.querySelector('[data-work-surface="' + kind + '"]');
+  const stageShell = () => document.querySelector("[data-session-stage-shell]");
+  const stageWorkspace = () => document.querySelector("[data-session-stage-workspace]");
   const visibleRows = (kind) => [...(directoryFor(kind)?.querySelectorAll("[data-operation-row]") || [])].filter((row) => !row.hidden && row.closest("[data-session-runtime-fold]")?.open !== false);
+  const expandStage = (expanded) => {
+    const shell = stageShell();
+    const workspace = stageWorkspace();
+    if (!shell) return;
+    shell.dataset.expanded = expanded ? "true" : "false";
+    if (workspace) workspace.hidden = !expanded;
+  };
+  const collapseStage = () => {
+    const directory = directoryFor("sessions");
+    const surface = surfaceFor("sessions");
+    expandStage(false);
+    directory?.querySelectorAll("[data-operation-row]").forEach((row) => {
+      row.classList.remove("is-selected");
+      row.setAttribute("aria-selected", "false");
+      const button = row.matches("[data-operation-select]") ? row : row.querySelector("[data-operation-select]");
+      if (button) button.tabIndex = -1;
+    });
+    surface?.querySelectorAll("[data-operation-detail]").forEach((detail) => { detail.hidden = true; });
+  };
   const selectRecord = (kind, id, moveToDetail = false) => {
     const directory = directoryFor(kind);
     const surface = surfaceFor(kind);
@@ -17,7 +38,10 @@ export const WORK_DIRECTORY_CLIENT = `
       if (button) button.tabIndex = active ? 0 : -1;
     });
     surface.querySelectorAll("[data-operation-detail]").forEach((detail) => { detail.hidden = detail.dataset.detailId !== id; });
-    if (kind === "sessions") void loadSessionContent(surface.querySelector('[data-operation-detail]:not([hidden])'));
+    if (kind === "sessions") {
+      expandStage(true);
+      void loadSessionContent(surface.querySelector('[data-operation-detail]:not([hidden])'));
+    }
     if (moveToDetail && matchMedia("(max-width: 760px)").matches) document.querySelector('[data-mobile-target="document"]')?.click();
   };
   const filterRecords = (kind) => {
@@ -64,25 +88,26 @@ export const WORK_DIRECTORY_CLIENT = `
     }
     const count = directory.querySelector("[data-operation-count]");
     if (count) count.textContent = String(visible.length);
-    if (!visible.length) surface.querySelectorAll("[data-operation-detail]").forEach((detail) => { detail.hidden = true; });
-    else if (!visible.some((row) => row.classList.contains("is-selected"))) selectRecord(kind, visible[0].dataset.recordId);
+    const expanded = stageShell()?.dataset.expanded === "true";
+    if (!visible.length) {
+      surface.querySelectorAll("[data-operation-detail]").forEach((detail) => { detail.hidden = true; });
+      if (kind === "sessions") expandStage(false);
+    } else if (expanded && !visible.some((row) => row.classList.contains("is-selected"))) {
+      selectRecord(kind, visible[0].dataset.recordId);
+    }
   };
   document.querySelectorAll("[data-operation-directory]").forEach((directory) => {
     const kind = directory.dataset.operationDirectory;
     directory.addEventListener("click", (event) => {
+      if (event.target.closest("[data-session-collapse]")) {
+        event.preventDefault();
+        collapseStage();
+        return;
+      }
       const select = event.target.closest("[data-operation-select]");
       if (select) {
         selectRecord(kind, select.dataset.operationSelect, true);
-        return;
       }
-      const groupToggle = event.target.closest("[data-session-runtime-select]");
-      if (!groupToggle) return;
-      if (event.target.closest(".goal-collection-caret")) return;
-      event.preventDefault();
-      const fold = groupToggle.closest("[data-session-runtime-fold]");
-      if (fold) fold.open = true;
-      const first = [...(fold?.querySelectorAll("[data-operation-row]") || [])].find((row) => !row.hidden);
-      if (first) selectRecord(kind, first.dataset.recordId, true);
     });
     directory.addEventListener("keydown", (event) => {
       if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;

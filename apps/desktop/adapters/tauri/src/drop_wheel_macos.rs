@@ -306,6 +306,11 @@ fn on_drag() {
     let Some(host) = host() else {
         return;
     };
+    // Appearance can turn the wheel off; the menu bar icon and the panel still take drops.
+    if !shelf_http::drop_wheel_enabled() {
+        conceal(&host);
+        return;
+    }
     let mouse = mouse_point();
     let now = Instant::now();
     let live = read_cargo();
@@ -409,19 +414,27 @@ fn admit_now(action: WheelAction) -> bool {
 
 fn spawn_admit(action: WheelAction, cargo: Cargo) {
     thread::spawn(move || {
-        let _ = action;
-        admit_cargo(&cargo);
+        let admitted = admit_cargo(&cargo);
+        // A recipe petal runs on the copy right away, with the recipe's own default option.
+        let Some(recipe) = action.recipe_id() else { return };
+        if let Err(error) = shelf_http::run_recipe(recipe, &admitted) {
+            eprintln!("Molis Work 轮盘未能跑这个动作：{error}");
+        }
     });
 }
 
-fn admit_cargo(cargo: &Cargo) {
+
+/// Returns the shelf item ids the drop produced, in drop order.
+fn admit_cargo(cargo: &Cargo) -> Vec<String> {
+    let mut admitted = Vec::new();
     if !cargo.files.is_empty() {
         for path in &cargo.files {
-            if let Err(error) = shelf_http::admit_file(path) {
-                eprintln!("Molis Work 轮盘未能收下文件：{error}");
+            match shelf_http::admit_file(path) {
+                Ok(item_id) => admitted.push(item_id),
+                Err(error) => eprintln!("Molis Work 轮盘未能收下文件：{error}"),
             }
         }
-        return;
+        return admitted;
     }
     if let Some(text) = cargo
         .text
@@ -429,10 +442,11 @@ fn admit_cargo(cargo: &Cargo) {
         .map(str::trim)
         .filter(|value| !value.is_empty())
     {
-        if let Err(error) = shelf_http::admit_text(text) {
-            eprintln!("Molis Work 轮盘未能收下文字：{error}");
+        match shelf_http::admit_text(text) {
+            Ok(item_id) => admitted.push(item_id),
+            Err(error) => eprintln!("Molis Work 轮盘未能收下文字：{error}"),
         }
-        return;
+        return admitted;
     }
     if let Some(url) = cargo
         .url
@@ -440,10 +454,12 @@ fn admit_cargo(cargo: &Cargo) {
         .map(str::trim)
         .filter(|value| !value.is_empty())
     {
-        if let Err(error) = shelf_http::admit_text(url) {
-            eprintln!("Molis Work 轮盘未能收下链接：{error}");
+        match shelf_http::admit_text(url) {
+            Ok(item_id) => admitted.push(item_id),
+            Err(error) => eprintln!("Molis Work 轮盘未能收下链接：{error}"),
         }
     }
+    admitted
 }
 
 fn apply_frame(host: &Host, frame: WheelFrame) {

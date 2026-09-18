@@ -97,8 +97,7 @@ for (const [width,height] of [[1440,900],[390,640]]) {
     await evaluate("localStorage.setItem('molis-work:theme','light');dispatchEvent(new StorageEvent('storage',{key:'molis-work:theme',newValue:'light'}))");
     await click('[data-feed-sources-dialog] footer [data-feed-sources-close]');
     await openPlugin('sessions');
-    if(width<760)await showDirectory();
-    await click(width<760?'[data-directory-panel=sessions] [data-open-session-add]':'[data-work-surface=sessions] [data-open-session-add]');
+    await click('[data-work-surface=sessions] [data-open-session-add]');
     await checkEditor('[data-session-add-dialog]');await click('[data-session-add-toggle]');await capture('session-editor');
     await click('[data-session-add-form] > footer [data-dialog-close]');
     await navigate(()=>command('Page.navigate',{url:prefix+'/settings/general'},sessionId));await capture('settings');

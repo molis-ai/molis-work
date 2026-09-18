@@ -5,6 +5,12 @@ import { SAMPLE_PDF_TEXT } from "@molis-ai/molis-work-module-shelf";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 test("Shelf opens in the workbench, extracts the sample PDF, and keeps DropAgent tokens", { timeout: 120_000 }, async (t) => {
+  const agentSetting = process.env.MOLIS_WORK_SHELF_AGENT;
+  process.env.MOLIS_WORK_SHELF_AGENT = "off";
+  t.after(() => {
+    if (agentSetting === undefined) delete process.env.MOLIS_WORK_SHELF_AGENT;
+    else process.env.MOLIS_WORK_SHELF_AGENT = agentSetting;
+  });
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId } = browser;
@@ -25,27 +31,36 @@ test("Shelf opens in the workbench, extracts the sample PDF, and keeps DropAgent
   assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--hue-slate').trim()"), "#66709e");
   assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--mark-clay').trim()"), "#B27460");
   assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--da-accent').trim()"), "#66709e");
-  assert.equal(await evaluate("document.querySelector('[data-shelf-act=summarize]')"), null);
+  assert.equal(await evaluate("document.querySelector('[data-shelf-act=summarize]')?.getAttribute('aria-disabled')"), "true");
+  assert.equal(await evaluate("document.querySelector('[data-shelf-act=summarize]')?.getAttribute('title')"), "未发现终端 Agent。");
+  assert.equal(await evaluate("document.querySelector('[data-shelf-act=combine]')"), null);
   assert.equal(await evaluate("Boolean(document.querySelector('[data-shelf-act-rule]'))"), true);
   assert.equal(await evaluate("document.querySelector('[data-shelf-bar-hint]')?.hidden"), false);
   await click("[data-shelf-more]");
   await waitFor("document.querySelector('[data-shelf-more-menu]') && !document.querySelector('[data-shelf-more-menu]').hidden");
   await click("[data-shelf-arrange]");
-  await waitFor("document.querySelector('[data-shelf-hide-act=extract]')");
-  await click("[data-shelf-hide-act=extract]");
-  await waitFor("!document.querySelector('[data-shelf-act=extract]') && document.querySelector('[data-shelf-restore-act=extract]')");
-  await click("[data-shelf-restore-act=extract]");
+  await waitFor("document.querySelector('[data-shelf-hide-act=extract_text]')");
+  await click("[data-shelf-hide-act=extract_text]");
+  await waitFor("!document.querySelector('[data-shelf-act=extract]') && document.querySelector('[data-shelf-restore-act=extract_text]')");
+  await click("[data-shelf-restore-act=extract_text]");
   await waitFor("document.querySelector('[data-shelf-act=extract]')");
   await click("[data-shelf-more]");
   await waitFor("document.querySelector('[data-shelf-more-menu]') && !document.querySelector('[data-shelf-more-menu]').hidden");
   await click("[data-shelf-arrange]");
-  await waitFor("!document.querySelector('[data-shelf-hide-act=extract]') && document.querySelector('[data-shelf-act=extract]')");
+  await waitFor("!document.querySelector('[data-shelf-hide-act=extract_text]') && document.querySelector('[data-shelf-act=extract]')");
   await click('[data-shelf-act="talk"]');
   await waitFor("document.querySelector('[data-shelf-stage]')?.classList.contains('is-talk')");
+  await waitFor("document.querySelector('[data-shelf-tty-screen] .xterm')", 8_000);
+  assert.match(await evaluate<string>("document.querySelector('[data-shelf-tty-actor]')?.textContent || ''"), /未发现终端 Agent|发给终端不是副本沙箱/);
   await click('[data-shelf-act="extract"]');
   await waitFor("document.querySelector('[data-shelf-stage]')?.classList.contains('is-confirm')");
   assert.match(await evaluate<string>("document.querySelector('[data-shelf-confirm-title]')?.textContent || ''"), /提取 PDF 文字/);
   assert.match(await evaluate<string>("document.querySelector('[data-shelf-confirm-out]')?.textContent || ''"), /pdf\.md/);
+  assert.equal(await evaluate("document.querySelector('[data-shelf-fact=read]')?.textContent"), "1 份材料的副本");
+  assert.equal(await evaluate("document.querySelector('[data-shelf-fact=write]')?.textContent"), "仅任务目录");
+  assert.equal(await evaluate("document.querySelector('[data-shelf-fact=isolation]')?.textContent"), "本机提取，不发送");
+  assert.equal(await evaluate("document.querySelector('[data-shelf-actor]')?.textContent"), "本机提取，不发送。");
+  assert.equal(await evaluate("document.querySelector('[data-shelf-choice]')?.hidden"), true);
   assert.equal(await evaluate("getComputedStyle(document.querySelector('.shelf-tty')).height"), "72px");
   const dir = ".impeccable/review/shelf-plugin";
   await mkdir(dir, { recursive: true });
@@ -182,4 +197,23 @@ test("Shelf opens in the workbench, extracts the sample PDF, and keeps DropAgent
   await waitFor("!document.querySelector('[data-shelf-item][data-shelf-name=\"gone.md\"]')", 8_000);
   const deleted = await evaluate<number>(`fetch("/api/shelf/items/" + encodeURIComponent(${JSON.stringify(goneId)}) + "/file").then(response => response.status)`);
   assert.equal(deleted, 404);
+
+  // The settings page is part of the Shelf surface, so it gets the same review
+  // shots. Each theme renders from a fresh load: switching mid-page leaves the
+  // shot half-way between two palettes.
+  for (const theme of ["light", "dark"] as const) {
+    await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: theme }] }, sessionId);
+    await navigate(() => command("Page.navigate", { url: `${origin}/settings/shelf` }, sessionId));
+    await waitFor(`document.documentElement.dataset.resolvedTheme === '${theme}'`);
+    await waitFor("document.querySelector('[data-shelf-settings-tab=machine]')", 8_000);
+    assert.equal(await evaluate("document.querySelectorAll('[data-shelf-settings-tab]').length"), 6);
+    assert.equal(await evaluate("document.querySelectorAll('[data-shelf-panel-slot]').length"), 4);
+    // The settings surface carries DropAgent's own tokens, not the Coss ones.
+    const press = await evaluate<string>("getComputedStyle(document.querySelector('[data-shelf=settings]')).getPropertyValue('--da-press').trim()");
+    assert.equal(press, theme === "light" ? "#E8E9EE" : "#28282F");
+    // Let the compositor land on the new palette before the shot is taken.
+    await evaluate("new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true))))");
+    const shot = await command<{ data: string }>("Page.captureScreenshot", { format: "png", captureBeyondViewport: false }, sessionId);
+    await writeFile(`${dir}/settings-${theme}.png`, Buffer.from(shot.data, "base64"));
+  }
 });

@@ -8,7 +8,7 @@ import Database from "better-sqlite3";
 import { createLocalFeedApplication } from "@molis-ai/molis-work-app-local-host";
 import { DEMO_BOARD_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import { migrateSources } from "@molis-ai/molis-work-module-sources";
+import { migrateSources, SourcesModule } from "@molis-ai/molis-work-module-sources";
 
 function insertRssFeedItem(store: LocalProjectDatabase, itemId: string): void {
   const now = "2026-08-29T08:00:00.000Z";
@@ -95,6 +95,121 @@ test("opening sources disconnects leftover imported status", () => {
     const row = db.prepare("SELECT origin, status FROM feed_sources WHERE source_id = 'legacy-source'").get() as { origin: string; status: string };
     assert.equal(row.origin, "molis_work");
     assert.equal(row.status, "disconnected");
+  } finally {
+    db.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("opening sources rebuilds leftover origin CHECK so current writes can land", () => {
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-source-origin-check-"));
+  const databasePath = join(directory, "molis-work.sqlite");
+  const db = new Database(databasePath);
+  try {
+    db.pragma("foreign_keys = ON");
+    db.exec(`
+      CREATE TABLE boards (board_id TEXT PRIMARY KEY);
+      INSERT INTO boards VALUES ('${DEMO_BOARD_ID}');
+      CREATE TABLE feed_sources (
+        board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+        source_id TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        definition_id TEXT,
+        sync_kind TEXT NOT NULL DEFAULT 'manual' CHECK (sync_kind IN ('public_source', 'github', 'gmail', 'manual')),
+        name TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        item_count INTEGER NOT NULL DEFAULT 0,
+        origin TEXT NOT NULL CHECK (origin IN ('relay', 'goalboard')),
+        config_json TEXT NOT NULL DEFAULT '{}',
+        schedule_json TEXT NOT NULL DEFAULT '{"mode":"manual"}',
+        cursor_json TEXT NOT NULL DEFAULT '{}',
+        credential_ref TEXT,
+        account_label TEXT,
+        last_sync_at TEXT,
+        last_outcome TEXT,
+        last_error_code TEXT,
+        imported_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (board_id, source_id)
+      );
+      INSERT INTO feed_sources (
+        board_id, source_id, kind, name, status, enabled, item_count, origin,
+        imported_at, updated_at
+      ) VALUES
+        ('${DEMO_BOARD_ID}', 'legacy-rss', 'rss', '少数派', 'active', 1, 0, 'goalboard',
+          '2026-08-29T08:00:00.000Z', '2026-08-29T08:00:00.000Z'),
+        ('${DEMO_BOARD_ID}', 'legacy-relay', 'rss', '旧 Relay', 'active', 1, 0, 'relay',
+          '2026-08-29T08:00:00.000Z', '2026-08-29T08:00:00.000Z');
+      CREATE TABLE feed_source_runs (
+        board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+        run_id TEXT NOT NULL,
+        operation_id TEXT NOT NULL,
+        source_id TEXT NOT NULL,
+        phase TEXT NOT NULL CHECK (phase IN ('running', 'terminal', 'interrupted')),
+        started_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (board_id, run_id),
+        FOREIGN KEY (board_id, source_id) REFERENCES feed_sources(board_id, source_id) ON DELETE CASCADE
+      );
+      INSERT INTO feed_source_runs VALUES (
+        '${DEMO_BOARD_ID}', 'run-1', 'op-1', 'legacy-rss', 'terminal',
+        '2026-08-29T08:00:00.000Z', '2026-08-29T08:00:00.000Z'
+      );
+    `);
+    assert.throws(
+      () => db.prepare(`
+        INSERT INTO feed_sources (
+          board_id, source_id, kind, name, status, enabled, item_count, origin,
+          imported_at, updated_at
+        ) VALUES (?, 'blocked-write', 'rss', '新来源', 'active', 1, 0, 'molis_work', ?, ?)
+      `).run(DEMO_BOARD_ID, "2026-08-29T08:00:00.000Z", "2026-08-29T08:00:00.000Z"),
+      /CHECK constraint failed: origin IN \('relay', 'goalboard'\)/,
+    );
+
+    const sources = new SourcesModule(db);
+    const sql = String(
+      (db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'feed_sources'").get() as { sql: string }).sql,
+    );
+    assert.ok(sql.includes("CHECK (origin = 'molis_work')"));
+    assert.equal(sql.includes("origin IN ('relay', 'goalboard')"), false);
+    const origins = (db.prepare("SELECT origin FROM feed_sources ORDER BY source_id").all() as Array<{ origin: string }>)
+      .map((row) => row.origin);
+    assert.deepEqual(origins, ["molis_work", "molis_work"]);
+    assert.equal(
+      (db.prepare("SELECT COUNT(*) AS count FROM feed_source_runs").get() as { count: number }).count,
+      1,
+    );
+
+    const now = "2026-09-18T00:00:00.000Z";
+    const saved = sources.commands.save({
+      project_id: DEMO_BOARD_ID,
+      source_id: "new-rss",
+      kind: "rss",
+      definition_id: "rss",
+      sync_kind: "public_source",
+      name: "新来源",
+      description: "",
+      status: "active",
+      enabled: true,
+      origin: "molis_work",
+      config: {},
+      schedule: { mode: "manual" },
+      connection_ref: null,
+      account_label: null,
+      last_sync_at: null,
+      last_outcome: null,
+      last_error_code: null,
+      imported_at: now,
+      updated_at: now,
+    });
+    assert.equal(saved.origin, "molis_work");
+    assert.equal(saved.source_id, "new-rss");
+    assert.equal(
+      (db.prepare("SELECT COUNT(*) AS count FROM feed_source_runs").get() as { count: number }).count,
+      1,
+    );
   } finally {
     db.close();
     rmSync(directory, { recursive: true, force: true });

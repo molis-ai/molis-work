@@ -17,5 +17,6 @@ export function markdownFromExtract(sourceName: string, text: string): string {
 }
 
 export function resultNameForExtract(kind: string): string {
-  return kind === "pdf" ? "pdf.md" : "extract.md";
+  if (kind === "pdf") return "pdf.md";
+  return kind === "image" ? "ocr.md" : "extract.md";
 }

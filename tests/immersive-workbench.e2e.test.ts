@@ -32,17 +32,13 @@ test("Project navigation preserves the fixed Goal workspace, terminal instance, 
   await evaluate("window.__terminalInstance=document.querySelector('[data-tui-terminal]')");
   assert.equal(await evaluate("document.querySelector('[data-tui-pane]').hidden"), false);
   await click('[data-plugin-strip] [data-plugin-id="sessions"]');
-  assert.equal(await evaluate("document.body.dataset.desktopSurface"), "sessions");
-  assert.equal(await evaluate("document.querySelector('[data-directory-panel=sessions]').hidden"), false);
-  assert.equal(await evaluate("document.querySelector('[data-work-surface=sessions]').hidden"), false);
+  await waitFor("document.body.dataset.desktopSurface === 'sessions' && document.querySelector('[data-work-surface=sessions]:not([hidden])') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
+  assert.equal(await evaluate("document.querySelector('[data-directory-panel=sessions]')"), null);
+  assert.equal(await evaluate("document.querySelector('[data-session-stage-list]') != null"), true);
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
-  assert.equal(await evaluate("document.body.dataset.desktopSurface"), "goal");
+  await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('[data-goal-node-workspace]')?.dataset.expandedGoal === " + JSON.stringify(goalId) + " && document.querySelector('[data-goal-node-workspace]')?.hidden === false");
   assert.equal(await evaluate("document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')"), true);
   assert.equal(await evaluate("document.querySelector('#goal-tree-pane').dataset.desktopDirectory"), "root");
-  assert.equal(await evaluate("document.querySelector('[data-goal-node-workspace]').dataset.expandedGoal"), "");
-  assert.equal(await evaluate("document.querySelector('[data-goal-node-workspace]').hidden"), true);
-  await click('[data-graph-node][data-goal-id="' + goalId + '"] [data-graph-open]');
-  await waitFor("document.querySelector('[data-goal-node-workspace]')?.dataset.expandedGoal === " + JSON.stringify(goalId));
   assert.equal(await evaluate("document.querySelector('[data-tui-pane]').hidden"), false);
   assert.equal(await evaluate("window.__terminalInstance===document.querySelector('[data-tui-terminal]')"), true);
   assert.equal(await evaluate("document.querySelector('[data-plugin-heading]').hidden"), false);
@@ -65,7 +61,7 @@ test("Project navigation preserves the fixed Goal workspace, terminal instance, 
 });
 
 test("Bundled market adds to the selected project and Artifact versions stay in the current workbench", { timeout: 60_000 }, async t => {
-  const browser = await openGoalBrowser(t, true);
+  const browser = await openGoalBrowser(t, "user");
   if (!browser) return;
   const { store, projectId, command, sessionId, evaluate, waitFor, navigate, click, origin } = browser;
   const app = new GoalProjectApplication(store);
@@ -129,18 +125,17 @@ test("Project entry lands at home, while refresh preserves work and Goal links r
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor("document.body.dataset.desktopSurface === 'goal'");
   await waitFor("document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true'");
-  await click("[data-board-view-tab=canvas]");
-  await waitFor("document.querySelector('[data-goal-canvas-shell]')?.dataset.boardView === 'canvas'");
+  await evaluate("document.querySelector('[data-goal-collapse]')?.click(); document.querySelector('[data-board-view-tab=canvas]')?.click()");
+  await waitFor("document.querySelector('[data-goal-canvas-shell]')?.dataset.boardView === 'canvas' && document.querySelector('[data-goal-node-workspace]')?.hidden !== false");
   const goalId = await evaluate<string>("document.querySelector('[data-select-goal]').dataset.selectGoal");
   await waitFor("Boolean(document.querySelector(" + JSON.stringify('[data-graph-node][data-goal-id="' + goalId + '"] [data-graph-open]') + "))");
   await click('[data-graph-node][data-goal-id="' + goalId + '"] [data-graph-open]');
   await waitFor("!document.querySelector('[data-goal-node-workspace]').hidden");
   await reloadPage();
-  await waitFor("document.body.dataset.desktopSurface === 'goal'");
-  assert.equal(await evaluate("document.querySelector('[data-goal-node-workspace]').hidden"), true);
+  await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('[data-goal-node-workspace]')?.hidden === false");
   await navigate(() => command("Page.navigate", { url: origin + "/goals/" + encodeURIComponent(goalId) }, sessionId));
-  await waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal === " + JSON.stringify(goalId) + " && document.querySelector('[data-goal-frame-surface]')?.hidden === false");
-  assert.equal(await evaluate("document.querySelector('[data-goal-node-workspace]').hidden"), true);
+  await waitFor("document.querySelector('[data-goal-node-workspace]')?.dataset.expandedGoal === " + JSON.stringify(goalId) + " && document.querySelector('[data-goal-node-workspace]')?.hidden === false");
+  assert.equal(await evaluate("document.querySelector('[data-goal-frame-surface]')?.hidden !== false || document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal !== " + JSON.stringify(goalId)), true);
   await click('[data-plugin-strip] [data-plugin-id="home"]');
   assert.equal(await evaluate("document.body.dataset.desktopSurface"), "home");
 });

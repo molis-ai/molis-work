@@ -18,21 +18,29 @@ test("Workbench mounts Work surfaces with real Session data and escapes user con
     workspaces: [],
   };
   const rendered = renderProjectOperations(project, data, icon);
-  assert.match(rendered.directories, /data-record-id="session-a"/);
-  assert.match(rendered.directories, /mw-dir-row/);
-  assert.match(rendered.directories, /mw-dir-row--compact/);
-  assert.match(rendered.directories, /data-session-runtime-fold="codex"/);
-  assert.doesNotMatch(rendered.directories, /project-record-row/);
-  assert.match(rendered.directories, /可查看/);
-  assert.doesNotMatch(rendered.directories, /goal-status--idle/);
+  assert.equal(rendered.directories, "");
+  assert.match(rendered.surfaces, /data-session-stage-shell/);
+  assert.match(rendered.surfaces, /data-session-stage-list/);
+  assert.match(rendered.surfaces, /data-session-stage-chrome/);
+  assert.match(rendered.surfaces, /data-record-id="session-a"/);
+  assert.match(rendered.surfaces, /session-stage-row/);
+  assert.match(rendered.surfaces, /session-stage-row__goal/);
+  assert.match(rendered.surfaces, />Goal A</);
+  assert.match(rendered.surfaces, /data-session-runtime-fold="codex"/);
+  assert.doesNotMatch(rendered.surfaces, /data-directory-panel="sessions"|project-record-row/);
+  assert.match(rendered.surfaces, /可查看/);
+  assert.doesNotMatch(rendered.surfaces, /goal-status--idle/);
   assert.match(rendered.surfaces, /data-detail-id="session-a"/);
+  assert.match(rendered.surfaces, /data-session-stage-workspace hidden/);
   assert.match(rendered.surfaces, /session-stage/);
   assert.match(rendered.surfaces, /<h1 id="session-title-session-a">Goal A<\/h1>/);
+  assert.doesNotMatch(rendered.surfaces, /is-selected/);
+  assert.match(rendered.surfaces, /data-session-collapse/);
   assert.match(rendered.surfaces, /mw-btn--primary[^>]*data-session-load="native"/);
   assert.match(rendered.surfaces, /mw-btn--secondary[^>]*data-open-session-handoff/);
   assert.match(rendered.surfaces, /session-rail/);
   assert.doesNotMatch(rendered.surfaces, /session-context-disclosure|goal-hero|goal-document/);
-  assert.match(rendered.directories, /&lt;script&gt;session&lt;\/script&gt;/);
+  assert.match(rendered.surfaces, /&lt;script&gt;session&lt;\/script&gt;/);
   assert.doesNotMatch(rendered.surfaces, /<script>session/);
   assert.match(rendered.overlays, /data-session-handoff-form/);
   const host = createWorkbenchUiHost();
@@ -65,7 +73,7 @@ test("unread archived Session uses Goal title, Handoff primary, and no execution
   assert.match(rendered.surfaces, /data-session-stage="unavailable"/);
 });
 
-test("Sessions directory groups by runtime and puts New Session above the folds", () => {
+test("Sessions stage list groups by runtime and puts New Session above the folds", () => {
   const rendered = renderProjectOperations({ project_id: "project-a", display_name: "Work project" }, {
     sessions: [
       {
@@ -92,24 +100,27 @@ test("Sessions directory groups by runtime and puts New Session above the folds"
     ],
     workspaces: [],
   }, icon);
-  const directory = rendered.directories;
-  assert.match(directory, /data-session-runtime-fold="codex"/);
-  assert.match(directory, /data-session-runtime-fold="generic"/);
-  assert.match(directory, /data-session-runtime-fold="claude-code"/);
-  assert.match(directory, /mw-dir-row--nested/);
-  assert.match(directory, /data-session-runtime-select="codex"/);
-  assert.ok(directory.indexOf("data-open-session-add") < directory.indexOf("data-session-runtime-fold"));
-  assert.ok(directory.indexOf('data-session-runtime-fold="codex"') < directory.indexOf('data-session-runtime-fold="generic"'));
-  assert.ok(directory.indexOf('data-session-runtime-fold="generic"') < directory.indexOf('data-session-runtime-fold="claude-code"'));
-  const codexFold = directory.slice(
-    directory.indexOf('data-session-runtime-fold="codex"'),
-    directory.indexOf('data-session-runtime-fold="generic"'),
+  const list = rendered.surfaces;
+  assert.equal(rendered.directories, "");
+  assert.match(list, /data-session-stage-chrome[\s\S]*data-open-session-add[\s\S]*data-session-stage-list/);
+  assert.match(list, /data-session-runtime-fold="codex"/);
+  assert.match(list, /data-session-runtime-fold="generic"/);
+  assert.match(list, /data-session-runtime-fold="claude-code"/);
+  assert.match(list, /session-stage-row__goal is-empty">未关联</);
+  assert.match(list, /data-session-runtime-select="codex"/);
+  assert.ok(list.indexOf("data-open-session-add") < list.indexOf("data-session-runtime-fold"));
+  assert.ok(list.indexOf('data-session-runtime-fold="codex"') < list.indexOf('data-session-runtime-fold="generic"'));
+  assert.ok(list.indexOf('data-session-runtime-fold="generic"') < list.indexOf('data-session-runtime-fold="claude-code"'));
+  const codexFold = list.slice(
+    list.indexOf('data-session-runtime-fold="codex"'),
+    list.indexOf('data-session-runtime-fold="generic"'),
   );
   assert.match(codexFold, /data-record-id="session-codex"/);
   assert.doesNotMatch(codexFold, /data-record-id="session-bash"/);
-  assert.match(directory, /data-open-session-add/);
   assert.match(PROJECT_OPERATIONS_CLIENT_SCRIPT, /data-session-runtime-fold/);
   assert.match(PROJECT_OPERATIONS_CLIENT_SCRIPT, /fold\.append\(row\)/);
+  assert.match(PROJECT_OPERATIONS_CLIENT_SCRIPT, /expandStage\(true\)/);
+  assert.match(PROJECT_OPERATIONS_CLIENT_SCRIPT, /data-session-collapse/);
 });
 
 test("Session heading uses the Session title when the current Goal has no resolved name", () => {
@@ -124,7 +135,23 @@ test("Session heading uses the Session title when the current Goal has no resolv
     workspaces: [],
   }, icon);
   assert.match(rendered.surfaces, /<h1 id="session-title-session-unresolved-goal">真实 Session A<\/h1>/);
-  assert.match(rendered.directories, /真实 Session A/);
+  assert.match(rendered.surfaces, /真实 Session A/);
+});
+
+test("session add Goal and Runtime use a paper picker, not a visible system select", () => {
+  const rendered = renderProjectOperations({ project_id: "project-a", display_name: "Work project" }, {
+    sessions: [],
+    workspaces: [],
+    goals: [{ goal_id: "CORE", title: "Core outcome" }],
+  }, icon);
+  assert.match(rendered.overlays, /data-session-add-goal\b[^>]*\bhidden\b/);
+  assert.match(rendered.overlays, /data-session-add-runtime\b[^>]*\bhidden\b/);
+  assert.match(rendered.overlays, /data-session-choice-menu/);
+  assert.match(rendered.overlays, /data-session-choice-option[^>]*data-value="CORE"/);
+  assert.match(rendered.overlays, /data-session-choice-label>暂不关联 Goal/);
+  assert.match(rendered.overlays, /Core outcome/);
+  assert.doesNotMatch(rendered.overlays, /<label class="mw-field">当前 Goal<select class="mw-select" data-session-add-goal>/);
+  assert.match(PROJECT_OPERATIONS_CLIENT_SCRIPT, /data-session-choice-option/);
 });
 
 test("Session without a current Goal makes choosing the Goal the primary continue action", () => {
@@ -140,6 +167,7 @@ test("Session without a current Goal makes choosing the Goal the primary continu
   }, icon);
   assert.match(rendered.surfaces, /mw-btn--primary[^>]*data-open-session-relations/);
   assert.match(rendered.surfaces, /选择当前 Goal/);
+  assert.match(rendered.surfaces, /session-stage-row__goal is-empty">未关联</);
   assert.doesNotMatch(rendered.surfaces, /mw-btn--primary[^>]*data-open-session-handoff/);
 });
 

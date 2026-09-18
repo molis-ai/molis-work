@@ -13,6 +13,66 @@ export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export { ShelfError, isShelfError } from "./errors.js";
 export { extractLocalText, markdownFromExtract, resultNameForExtract } from "./extract.js";
+export {
+  SHELF_JOB_TIMEOUT_MS,
+  agentEnvironment,
+  collectRecipeOutput,
+  hasDeliverable,
+  runAgentProcess,
+} from "./job-runner.js";
+export {
+  WEBSITE_MIME,
+  captureWebsite,
+  documentTitle,
+  htmlToMarkdown,
+  websiteFilename,
+  websiteMarkdown,
+} from "./website.js";
+export type { ShelfWebsiteCapture } from "./website.js";
+export {
+  OCR_LOW_CONFIDENCE,
+  OCR_MISSING,
+  imageTextAvailable,
+  ocrHelperPath,
+  ocrLanguages,
+  ocrMarkdown,
+  recognizeImageText,
+} from "./ocr.js";
+export type { ShelfOcrLine } from "./ocr.js";
+export {
+  SHELF_RECIPES,
+  SHELF_RECIPE_ORDER,
+  SHELF_SHORTCUT_RECIPE,
+  fileGuardrail,
+  finalizeOutput,
+  looksLikeDeliverable,
+  recipeAvailability,
+  recipePrompt,
+  resolvedChoiceId,
+  shelfRecipeAccepts,
+  shelfRecipeOutputName,
+  shelfRecipeSpec,
+  shelfRecipeTitle,
+} from "./recipes.js";
+export type { ShelfRecipeSpec } from "./recipes.js";
+export {
+  NO_AGENT_REASON,
+  SHELF_ENGINES,
+  canRunJob,
+  clearShelfRuntimeCache,
+  detectShelfRuntime,
+  emptyShelfRuntime,
+  headlessArguments,
+  installedShelfEngines,
+  isolationFact,
+  shelfRuntimeCatalog,
+  missingJobReason,
+  readCliHelp,
+  shelfRuntimeCandidates,
+  shelfSearchDirectories,
+  supportsWorkspaceSandbox,
+} from "./runtimes.js";
+export type { ShelfAgentRunRequest, ShelfEngine, ShelfRuntimeProbe } from "./runtimes.js";
 export { SAMPLE_PDF_TEXT, createExtractablePdf, extractPdfSelectableText } from "./pdf.js";
 export {
   CLIPBOARD_LIMIT,
@@ -45,16 +105,33 @@ export {
   chordLabel,
   chordsEqual,
   defaultHotKey,
-  defaultShelfDeviceSettings,
   defaultShelfHotKeys,
   hasHotKeyModifier,
-  mergeShelfSettings,
   normalizeChord,
   normalizeHotKeys,
-  normalizeShelfSettings,
   parseChord,
   parseGlobalChord,
   parseHotkeysPatch,
-  parseSettingsWriteBody,
 } from "./hotkeys.js";
 export type { HotKeyKeyboardEvent } from "./hotkeys.js";
+export {
+  RUNTIME_PATH_REQUIRED,
+  RUNTIME_TITLE_REQUIRED,
+  SETTINGS_EMPTY,
+  SHORTCUT_NAME_REQUIRED,
+  SHORTCUT_PREFIX,
+  SHELF_PANEL_KEY_SLOTS,
+  SHORTCUT_PROMPT_REQUIRED,
+  defaultActionOrder,
+  defaultPanelKey,
+  defaultPanelKeys,
+  panelKeyLabel,
+  panelKeysEqual,
+  defaultShelfDeviceSettings,
+  mergeShelfSettings,
+  normalizeShelfSettings,
+  parseSettingsWriteBody,
+  shortcutIdFromSlot,
+  shortcutOutputName,
+  shortcutSlotId,
+} from "./settings.js";

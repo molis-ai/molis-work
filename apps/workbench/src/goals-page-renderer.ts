@@ -198,7 +198,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
         <div class="mw-scroll directory-content-scroll">
         ${renderDirectoryPluginSections(primitives, enabledPlugins, {
           goals: "",
-          sessions: pluginEnabled("sessions") ? projectOperations.directories : "",
+          sessions: "",
           inbox: pluginEnabled("inbox") ? renderInboxNativePluginSurface(view, "directory") : "",
           feed: pluginEnabled("feed")
             ? `${renderFeedNativePluginSurface(view, "directory", initialFeedPreset)}${renderFeedNativePluginSurface(view, "source-directory", initialFeedPreset)}`

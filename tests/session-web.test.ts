@@ -74,8 +74,11 @@ test("plugin rail lists enabled plugins; directory sections stay in the second c
   assert.match(html, /data-plugin-id="market"/);
   assert.doesNotMatch(html, /data-plugin-section="home"|data-plugin-section="market"/);
   assert.match(html, /data-plugin-id="goals"/);
-  assert.doesNotMatch(html, /data-plugin-section="goals"/);
-  for (const plugin of ["sessions", "inbox", "feed", "shelf", "artifacts"]) {
+  assert.match(html, /data-plugin-id="sessions"/);
+  assert.doesNotMatch(html, /data-plugin-section="goals"|data-plugin-section="sessions"/);
+  assert.doesNotMatch(html, /data-directory-panel="sessions"|data-directory-open="sessions"/);
+  assert.match(html, /data-session-stage-shell[\s\S]*data-session-stage-chrome[\s\S]*data-session-stage-list/);
+  for (const plugin of ["inbox", "feed", "shelf", "artifacts"]) {
     assert.match(html, new RegExp(`data-plugin-section="${plugin}"[^>]*data-plugin-expanded="true"`));
     assert.match(html, new RegExp(`data-plugin-id="${plugin}"`));
   }
@@ -100,12 +103,17 @@ test("project operation renderer uses real records or an honest empty state with
   assert.doesNotMatch(html, /session-add-mode-row/);
   assert.match(html, /data-session-workspace-menu/);
   assert.match(html, /data-session-workspace-custom/);
+  assert.match(html, /data-session-choice-menu/);
+  assert.match(html, /data-session-add-goal\b[^>]*\bhidden\b/);
+  assert.match(html, /data-session-add-runtime\b[^>]*\bhidden\b/);
   assert.match(html, /OpenCode/);
   assert.match(html, /Pi Agent/);
   assert.doesNotMatch(html, /option value="running"|option value="failed"/);
   assert.doesNotMatch(html, /codex-0193f6c2|\/Users\/demo|可交互原型|data-live-session|data-operation-archive/);
   assert.doesNotMatch(PROJECT_OPERATIONS_CLIENT_SCRIPT, /dataset\.liveSession|data-operation-archive/);
-  assert.match(PROJECT_OPERATIONS_STYLES, /\.session-stage \{/);
+  assert.match(PROJECT_OPERATIONS_STYLES, /\.session-stage-list \.goal-collection-fold > \.session-stage-row \{ padding-left: 24px; \}/);
+  assert.match(PROJECT_OPERATIONS_STYLES, /body\.immersive-workbench \.session-stage-shell\[data-expanded="true"\] \{[\s\S]*grid-template-columns: var\(--tree-width, var\(--immersive-sidebar-width\)\) minmax\(0, 1fr\)/);
+  assert.match(PROJECT_OPERATIONS_STYLES, /width: var\(--tree-width, var\(--immersive-sidebar-width\)\); height: auto; overflow: auto;/);
   assert.match(PROJECT_OPERATIONS_STYLES, /\.session-rail \{/);
   assert.match(PROJECT_OPERATIONS_STYLES, /@container session-stage \(max-width: 719px\)/);
   assert.doesNotMatch(PROJECT_OPERATIONS_STYLES, /\.project-session-document \.goal-focus-aside \{ display: contents; \}/);

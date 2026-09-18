@@ -88,9 +88,10 @@ test("Window chrome stays put while project index, settings, Feed, Sessions and 
   await expectContained(".plugin-rail", ".directory-content-scroll");
 
   await click('[data-plugin-strip] [data-plugin-id="sessions"]');
-  await waitFor("document.body.dataset.desktopSurface === 'sessions' && document.querySelector('[data-directory-panel=sessions]:not([hidden])')");
-  await expectContained(".immersive-titlebar", ".directory-content-scroll");
-  await expectContained(".plugin-rail", ".directory-content-scroll");
+  await waitFor("document.body.dataset.desktopSurface === 'sessions' && document.querySelector('[data-session-stage-list]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
+  await expectContained(".immersive-titlebar", "[data-session-stage-list]");
+  await expectContained("[data-workspace-chrome]", "[data-session-stage-list]");
+  await expectContained(".plugin-rail", "[data-session-stage-list]");
 
   await click('[data-plugin-strip] [data-plugin-id="artifacts"]');
   await waitFor("document.body.dataset.desktopSurface === 'artifacts' && document.querySelector('[data-directory-panel=artifacts]:not([hidden])')");

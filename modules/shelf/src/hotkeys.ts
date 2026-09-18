@@ -1,9 +1,7 @@
 import type {
-  ShelfDeviceSettings,
   ShelfHotKeyChord,
   ShelfHotKeys,
   ShelfHotKeySlot,
-  ShelfSettingsPatch,
 } from "@molis-ai/molis-work-contracts/modules/shelf";
 
 export const CARBON_CMD_KEY = 1 << 8;
@@ -130,13 +128,6 @@ export function defaultShelfHotKeys(): ShelfHotKeys {
   };
 }
 
-export function defaultShelfDeviceSettings(): ShelfDeviceSettings {
-  return {
-    drop_wheel_enabled: true,
-    hotkeys: defaultShelfHotKeys(),
-  };
-}
-
 export function hasHotKeyModifier(chord: ShelfHotKeyChord): boolean {
   return chord.carbon_modifiers !== 0;
 }
@@ -188,27 +179,6 @@ export function normalizeHotKeys(raw: unknown): ShelfHotKeys {
   };
 }
 
-export function normalizeShelfSettings(raw: unknown): ShelfDeviceSettings {
-  const record = raw && typeof raw === "object" && !Array.isArray(raw)
-    ? raw as Record<string, unknown>
-    : {};
-  return {
-    drop_wheel_enabled: record.drop_wheel_enabled !== false,
-    hotkeys: normalizeHotKeys(record.hotkeys),
-  };
-}
-
-export function mergeShelfSettings(current: ShelfDeviceSettings, patch: ShelfSettingsPatch): ShelfDeviceSettings {
-  return {
-    drop_wheel_enabled: patch.drop_wheel_enabled ?? current.drop_wheel_enabled,
-    hotkeys: {
-      toggle: patch.hotkeys?.toggle ?? current.hotkeys.toggle,
-      capture: patch.hotkeys?.capture ?? current.hotkeys.capture,
-      files: patch.hotkeys?.files ?? current.hotkeys.files,
-    },
-  };
-}
-
 export function parseHotkeysPatch(raw: unknown): { ok: Partial<ShelfHotKeys> } | { error: string } {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     return { error: "hotkeys 无效" };
@@ -226,30 +196,6 @@ export function parseHotkeysPatch(raw: unknown): { ok: Partial<ShelfHotKeys> } |
     patch[slot] = parsed.ok;
   }
   return { ok: patch };
-}
-
-export function parseSettingsWriteBody(body: unknown): { ok: ShelfSettingsPatch } | { error: string } {
-  if (!body || typeof body !== "object" || Array.isArray(body)) {
-    return { error: HOTKEY_SETTINGS_EMPTY };
-  }
-  const record = body as Record<string, unknown>;
-  let drop_wheel_enabled: boolean | undefined;
-  let hotkeys: Partial<ShelfHotKeys> | undefined;
-  if ("drop_wheel_enabled" in record) {
-    if (typeof record.drop_wheel_enabled !== "boolean") {
-      return { error: "drop_wheel_enabled 必须是布尔值" };
-    }
-    drop_wheel_enabled = record.drop_wheel_enabled;
-  }
-  if ("hotkeys" in record) {
-    const parsed = parseHotkeysPatch(record.hotkeys);
-    if ("error" in parsed) return parsed;
-    hotkeys = parsed.ok;
-  }
-  if (drop_wheel_enabled === undefined && hotkeys === undefined) {
-    return { error: HOTKEY_SETTINGS_EMPTY };
-  }
-  return { ok: { drop_wheel_enabled, hotkeys } };
 }
 
 export interface HotKeyKeyboardEvent {

@@ -53,6 +53,20 @@ pub enum WheelAction {
     ToMarkdown,
 }
 
+impl WheelAction {
+    /// The recipe a petal runs straight away, with that recipe's default option.
+    /// Shelf only stages; Send goes to the terminal, never to a job.
+    pub fn recipe_id(self) -> Option<&'static str> {
+        match self {
+            WheelAction::Summarize => Some("summarize"),
+            WheelAction::Extract => Some("extract_structure"),
+            WheelAction::Translate => Some("translate"),
+            WheelAction::ToMarkdown => Some("to_markdown"),
+            WheelAction::Shelf | WheelAction::Send => None,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct WheelSlice {
     pub action: WheelAction,
@@ -405,6 +419,16 @@ impl DropWheelSession {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn recipe_petals_name_a_recipe_and_the_other_two_do_not() {
+        assert_eq!(WheelAction::Summarize.recipe_id(), Some("summarize"));
+        assert_eq!(WheelAction::Extract.recipe_id(), Some("extract_structure"));
+        assert_eq!(WheelAction::Translate.recipe_id(), Some("translate"));
+        assert_eq!(WheelAction::ToMarkdown.recipe_id(), Some("to_markdown"));
+        assert_eq!(WheelAction::Shelf.recipe_id(), None);
+        assert_eq!(WheelAction::Send.recipe_id(), None);
+    }
 
     #[test]
     fn center_is_a_hole_and_top_mid_ring_is_shelf() {

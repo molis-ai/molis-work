@@ -36,6 +36,8 @@ export const IMMERSIVE_DIRECTORY_STYLES = `
   body.immersive-workbench .tree-pane .goal-collection-fold > summary strong { font-size: 11px; font-weight: 400; }
   body.immersive-workbench .tree-pane .feed-source-directory .goal-collection-empty { padding: 4px 8px 8px 22px; font-size: 11px; }
   body.immersive-workbench .tree-pane .goal-collection-empty { padding: 4px 8px 8px 22px; font-size: 11px; }
+  body.immersive-workbench .tree-pane .goal-collection-fold .goal-tree { padding-inline-start: 16px; }
+  body.immersive-workbench .tree-pane .goal-collection-fold > .goal-collection-empty { padding: 4px 8px 8px 24px; }
   body.immersive-workbench .tree-pane .project-record-directory:not([hidden]) {
     display: flex; flex-direction: column;
   }

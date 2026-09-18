@@ -19,7 +19,7 @@ Goal 列表要留着，但不能再点一行就进 Frame。单击进画布节点
 做：
 
 - 列表视图未选 Goal：列表仍铺满舞台，四列不变。
-- 列表视图单击一行：`selectGoal` + `setWorkspaceMode("focus")`。宽屏（≥761px）列表收成左栏约 `17.5rem`，右侧是 `.goal-node-workspace`；列表和切换条不藏。窄屏仍是工作区铺满。
+- 列表视图单击一行：`selectGoal` + `setWorkspaceMode("focus")`。宽屏（≥761px）列表收成左栏，宽度与目录列相同（`--tree-width`，未拖过默认 240px），右侧是 `.goal-node-workspace`；列表和切换条不藏。窄屏仍是工作区铺满。
 - 列表 / 画布节点 / 看板卡片双击（`click.detail > 1`）开该 Goal 的 Frame。画布空白处仍平移缩放。节点上的 Frame 按钮仍直接开 Frame；maximize 仍开工作区。
 - 全局搜索、时间线关系行等不在舞台列表里的 `[data-select-goal]` 仍开 Frame。
 - `/goals/:id` 深链停在母页列表+工作区，不自动开 Frame；双击或节点 Frame 按钮才开 Frame。
@@ -57,7 +57,7 @@ Goal 列表要留着，但不能再点一行就进 Frame。单击进画布节点
 
 ## 验收标准
 
-1. 宽屏列表单击后，列表仍可见且宽度约 `17.5rem`，`.goal-node-workspace` 在右侧且 `hidden === false`；母页标签仍是 current；不出现该 Goal 的 Frame 标签。
+1. 宽屏列表单击后，列表仍可见且宽度等于目录列（`--tree-width`），右缘与 titlebar 项目条右缘对齐；`.goal-node-workspace` 在右侧且 `hidden === false`；母页标签仍是 current；不出现该 Goal 的 Frame 标签。
 2. 同一行双击后出现 Frame 标签，`[data-goal-frame-surface]` 对应该 Goal。
 3. 画布节点、看板卡片单击进工作区；双击或节点 Frame 按钮进 Frame。画布空白不打开 Goal。
 4. 未展开时列表仍是四列 28px 行，跨层状态对齐合同不变。

@@ -60,16 +60,16 @@ function renderTreeDependencies(item: GoalsTreeItem, view: GoalsTreeView): strin
   </details>`;
 }
 
-function renderTreeChildProgress(children: readonly GoalsTreeItem[]): string {
-  if (!children.length) return `<span class="tree-progress is-empty" aria-hidden="true"></span>`;
-  const done = children.filter(goalWorkSatisfied).length;
-  const blocked = children.filter((child) => isBlockedWorkStatus(child.status)).length;
-  const progress = Math.round((done / children.length) * 100);
+function renderTreeProgress(item: GoalsTreeItem, children: readonly GoalsTreeItem[]): string {
+  const units = children.length ? children : [item];
+  const done = units.filter(goalWorkSatisfied).length;
+  const blocked = units.filter((unit) => isBlockedWorkStatus(unit.status)).length;
+  const progress = Math.round((done / units.length) * 100);
   const label = blocked
-    ? L("{done}/{total} 完成，{blocked} 个阻塞", { done, total: children.length, blocked })
-    : L("{done}/{total} 完成", { done, total: children.length });
+    ? L("{done}/{total} 完成，{blocked} 个阻塞", { done, total: units.length, blocked })
+    : L("{done}/{total} 完成", { done, total: units.length });
   return `<span class="tree-progress${blocked ? " is-blocked" : ""}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">
-    <span>${done}/${children.length}</span><i aria-hidden="true"><b style="--tree-progress:${progress}%"></b></i>
+    <span>${done}/${units.length}</span><i aria-hidden="true"><b style="--tree-progress:${progress}%"></b></i>
   </span>`;
 }
 
@@ -126,7 +126,7 @@ function renderGoalTree(
             </button>
           </span>
           <span class="directory-row-state">${renderVisibleGoalStatus(item)}</span>
-          ${renderTreeChildProgress(nodeChildren)}
+          ${renderTreeProgress(item, nodeChildren)}
           ${renderTreeDependencies(item, view)}
           <span class="tree-created-meta" data-select-goal="${escapeHtml(item.goal.goal_id)}">${created}${avatar}</span>
         </div>

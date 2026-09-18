@@ -57,7 +57,15 @@ test("project index, settings, and workbench keep titles pinned and scroll only 
   assert.match(workbench, /\.plugin-rail \{\n    grid-column: 1; grid-row: 2 \/ -1;/);
   assert.match(workbench, /\.immersive-titlebar > \.workspace-chrome \{/);
   assert.match(workbench, /grid-template-rows: var\(--desktop-titlebar-height\) minmax\(0, 1fr\)/);
-  assert.match(workbench, /width: calc\(var\(--plugin-rail-width\) \+ var\(--tree-width, var\(--immersive-sidebar-width\)\)\);/);
+  assert.match(workbench, /flex: 0 0 var\(--tree-width, var\(--immersive-sidebar-width\)\);/);
+  assert.match(workbench, /\[data-board-view="list"\]\[data-expanded="true"\] \{[\s\S]*grid-template-columns: var\(--tree-width, var\(--immersive-sidebar-width\)\) minmax\(0, 1fr\)/);
+  assert.match(workbench, /\.session-stage-shell\[data-expanded="true"\] \{[\s\S]*grid-template-columns: var\(--tree-width, var\(--immersive-sidebar-width\)\) minmax\(0, 1fr\)/);
+  assert.match(workbench, /immersive-plugin-stage > \.session-stage-shell \{ padding: 0;/);
+  assert.match(workbench, /margin: 0 0 0 var\(--plugin-rail-width\);/);
+  assert.match(workbench, /width: calc\(var\(--plugin-rail-width\) \+ var\(--tree-width, var\(--immersive-sidebar-width\)\) - var\(--desktop-window-safe-inline-start, 88px\)\);/);
+  assert.match(workbench, /body\.immersive-workbench\[data-desktop-surface="home"\] \.immersive-workspace\.is-plugin-directory-empty \.immersive-titlebar > \.workspace-chrome/);
+  assert.doesNotMatch(workbench, /body\.immersive-workbench \.immersive-workspace\.is-plugin-directory-empty \.immersive-titlebar > \.workspace-chrome,/);
+  assert.match(workbench, /is-plugin-directory-empty:not\(\.is-directory-collapsed\) \.immersive-titlebar > \.workspace-chrome/);
   assert.match(workbench, /body\.immersive-workbench \{[\s\S]*--control-h: 28px;/);
   assert.match(workbench, /:is\(body\.project-preferences-page, \.settings-stage\), body\.settings-page \{ --control-h: 32px; \}/);
   assert.doesNotMatch(workbench, /:is\(body\.project-preferences-page, \.settings-stage\) \{ --control-h: 28px; \}/);

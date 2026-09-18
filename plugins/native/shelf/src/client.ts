@@ -10,8 +10,15 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
   const fileInput = directory.querySelector("[data-shelf-file]");
   const search = directory.querySelector("[data-shelf-search]");
   const CLIP_PREVIEW = 3;
-  let snapshot = { materials: [], results: [], clipboard: [], recipes: [], current_clip_id: null };
+  let snapshot = { materials: [], results: [], clipboard: [], recipes: [], current_clip_id: null, runtime: null };
   let selected = null;
+  let selection = new Set();
+  let pending = null;
+  let choices = {};
+  let runningJob = null;
+  let selectedChild = null;
+  let openFolders = new Set();
+  let runWatch = 0;
   let selectedClip = null;
   let clipSelection = new Set();
   let clipExpanded = false;
@@ -20,7 +27,6 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
   let editing = false;
   let editTimer = 0;
   let arranging = false;
-  let hiddenActs = new Set();
   let lastBarKind = "empty";
   let stickyHint = "";
   const fileUrl = (id) => "/api/shelf/items/" + encodeURIComponent(id) + "/file";
@@ -39,14 +45,50 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     const headers = typeof molisWorkControlHeaders === "function" ? molisWorkControlHeaders() : { "content-type": "application/json" };
     const response = await fetch(path, { method: "POST", headers, body: JSON.stringify(body || {}) });
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(payload.error || L("Shelf 请求失败"));
+    if (!response.ok) {
+      const failure = new Error(payload.error || L("Shelf 请求失败"));
+      failure.code = payload.code || "";
+      failure.snapshot = payload.snapshot;
+      throw failure;
+    }
     return payload;
   };
 
-  const cap = (kind) => kind === "pdf" ? "PDF" : kind === "markdown" ? "MD" : kind === "image" ? "IMG" : kind === "website" ? "WEB" : kind === "url" ? "URL" : "FILE";
+  const cap = (kind) => kind === "pdf" ? "PDF" : kind === "markdown" ? "MD" : kind === "image" ? "IMG" : kind === "website" ? "WEB" : kind === "url" ? "URL" : kind === "folder" ? "DIR" : "FILE";
   const tone = (kind, group) => group === "clipboard" ? (kind === "url" ? "blue" : "slate") : kind === "pdf" ? "clay" : kind === "image" ? "plum" : kind === "url" || kind === "website" ? "blue" : kind === "markdown" || kind === "text" ? "slate" : "ochre";
   const items = () => [...(snapshot.materials || []), ...(snapshot.results || [])];
   const stageBusy = () => stage.classList.contains("is-confirm") || stage.classList.contains("is-run") || stage.classList.contains("is-fail");
+  const runtime = () => snapshot.runtime || { runtime_key: "", title: L("Agent"), can_run_job: false, isolation: "none", isolation_fact: "" };
+  const deviceSettings = () => snapshot.settings || {};
+  const actionOrder = () => {
+    const order = deviceSettings().action_order;
+    return Array.isArray(order) && order.length ? order : recipeList().map((entry) => entry.recipe);
+  };
+  const hiddenActions = () => new Set(deviceSettings().hidden_actions || []);
+  const shortcutActions = () => deviceSettings().shortcuts || [];
+  const shortcutFor = (slot) => shortcutActions().find((action) => "shortcut:" + action.id === slot) || null;
+  const panelKeys = () => deviceSettings().panel_keys || {};
+  const matchesPanelKey = (event, slot) => {
+    const chord = panelKeys()[slot];
+    if (!chord) return false;
+    return event.code === chord.code
+      && event.metaKey === Boolean(chord.meta)
+      && event.ctrlKey === Boolean(chord.ctrl)
+      && event.altKey === Boolean(chord.alt)
+      && event.shiftKey === Boolean(chord.shift);
+  };
+  const saveSettings = async (patch) => {
+    const body = await post("/api/shelf/settings", patch);
+    snapshot = { ...snapshot, settings: body };
+    return body;
+  };
+  const recipeList = () => snapshot.recipes || [];
+  const recipeFor = (id) => recipeList().find((entry) => entry.recipe === id) || null;
+  const actIdFor = (recipe) => recipe === "extract_text" ? "extract" : recipe;
+  const recipeForAct = (actId) => recipeFor(actId === "extract" ? "extract_text" : actId);
+  const batch = () => selectedClip ? [] : items().filter((item) => selection.has(item.item_id));
+  const chosenOption = (recipe) => choices[recipe.recipe] || recipe.default_choice || null;
+  const isLocalRecipe = (recipe) => Boolean(recipe) && recipe.requires_agent === false;
 
   const paintLists = () => {
     const query = (search?.value || "").trim().toLowerCase();
@@ -55,12 +97,24 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
       const list = directory.querySelector('[data-shelf-list="' + group + '"]');
       if (!list) return;
       const visible = entries.filter((item) => !query || String(item.name || item.title || "").toLowerCase().includes(query));
+      const withChildren = [];
+      for (const entry of visible) {
+        withChildren.push({ row: entry, child: null });
+        if (entry.kind === "folder" && openFolders.has(entry.item_id)) {
+          for (const child of entry.children || []) withChildren.push({ row: entry, child });
+        }
+      }
       if (!visible.length) {
         list.innerHTML = '<li class="shelf-empty-line" data-shelf-empty>' + escapeText(group === "clipboard" ? L("剪贴板是空的") : group === "results" ? L("还没有生成结果") : L("还没有材料")) + "</li>";
       } else {
-        list.replaceChildren(...visible.map((item) => {
+        const rows = group === "clipboard"
+          ? visible.map((item) => clipHtml(item))
+          : withChildren.map((entry) => entry.child
+            ? childHtml(entry.row, entry.child)
+            : itemHtml(entry.row, selection.has(entry.row.item_id) && !selectedChild, busyId() === entry.row.item_id));
+        list.replaceChildren(...rows.map((html) => {
           const node = document.createElement("template");
-          node.innerHTML = group === "clipboard" ? clipHtml(item) : itemHtml(item, selected?.item_id === item.item_id, busyId() === item.item_id);
+          node.innerHTML = html;
           return node.content.firstElementChild;
         }));
       }
@@ -83,13 +137,27 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (hint) hint.hidden = clips.length === 0;
   };
 
+  const hasFile = (item) => Boolean(item && item.relative_path);
+  const isFailed = (item) => Boolean(item && item.status === "failed");
   const itemHtml = (item, on, locked) => {
     const lock = locked ? ' aria-disabled="true"' : "";
-    return '<li class="shelf-row' + (on ? " is-on" : "") + '" data-shelf-item="' + escapeAttr(item.item_id) + '" data-shelf-kind="' + escapeAttr(item.kind) + '" data-shelf-group="' + escapeAttr(item.group) + '" data-shelf-name="' + escapeAttr(item.name) + '" role="option" aria-selected="' + String(on) + '" draggable="true">' +
-      '<span class="shelf-glyph tone-' + tone(item.kind, item.group) + '">' + glyphSvg(item.kind) + "</span>" +
+    const failed = isFailed(item);
+    const takeaway = hasFile(item);
+    const copyOp = takeaway
+      ? '<span class="shelf-op" role="button" tabindex="0" data-shelf-row-action="copy" aria-label="' + L("复制") + '">' + opSvg("copy") + "</span>"
+      : "";
+    return '<li class="shelf-row' + (on ? " is-on" : "") + (failed ? " is-failed" : "") + '" data-shelf-item="' + escapeAttr(item.item_id) + '" data-shelf-kind="' + escapeAttr(item.kind) + '" data-shelf-group="' + escapeAttr(item.group) + '" data-shelf-name="' + escapeAttr(item.name) + '" role="option" aria-selected="' + String(on) + '" draggable="' + String(takeaway) + '">' +
+      '<span class="shelf-glyph tone-' + (failed ? "clay" : tone(item.kind, item.group)) + '">' + (failed ? opSvg("alert") : glyphSvg(item.kind)) + "</span>" +
       '<span class="shelf-name">' + escapeText(item.name) + "</span>" +
-      '<span class="shelf-cap">' + cap(item.kind) + "</span>" +
-      '<span class="shelf-ops"><span class="shelf-op" role="button" tabindex="0" data-shelf-row-action="copy" aria-label="' + L("复制") + '">' + opSvg("copy") + '</span><span class="shelf-op" role="button" tabindex="0" data-shelf-row-action="hide" aria-label="' + L("隐藏（列表拿掉，副本还在）") + '" title="' + L("隐藏（列表拿掉，副本还在）") + '"' + lock + '>' + opSvg("hide") + '</span><span class="shelf-op is-danger" role="button" tabindex="0" data-shelf-row-action="delete" aria-label="' + L("删除副本") + '" title="' + L("删除副本") + '"' + lock + '>' + opSvg("trash") + "</span></span></li>";
+      '<span class="shelf-cap">' + (failed ? escapeText(L("失败")) : cap(item.kind)) + "</span>" +
+      '<span class="shelf-ops">' + copyOp + '<span class="shelf-op" role="button" tabindex="0" data-shelf-row-action="hide" aria-label="' + L("隐藏（列表拿掉，副本还在）") + '" title="' + L("隐藏（列表拿掉，副本还在）") + '"' + lock + '>' + opSvg("hide") + '</span><span class="shelf-op is-danger" role="button" tabindex="0" data-shelf-row-action="delete" aria-label="' + L("删除副本") + '" title="' + L("删除副本") + '"' + lock + '>' + opSvg("trash") + "</span></span></li>";
+  };
+  const childHtml = (folder, child) => {
+    const on = selectedChild && selectedChild.item_id === folder.item_id && selectedChild.relative === child.relative;
+    return '<li class="shelf-row is-child' + (on ? " is-on" : "") + '" data-shelf-item="' + escapeAttr(folder.item_id) + '" data-shelf-child="' + escapeAttr(child.relative) + '" data-shelf-kind="' + escapeAttr(child.kind) + '" data-shelf-group="material" data-shelf-name="' + escapeAttr(child.name) + '" role="option" aria-selected="' + String(on) + '">' +
+      '<span class="shelf-glyph tone-' + tone(child.kind, "material") + '">' + glyphSvg(child.kind) + "</span>" +
+      '<span class="shelf-name">' + escapeText(child.name) + "</span>" +
+      '<span class="shelf-cap">' + cap(child.kind) + "</span></li>";
   };
   const clipHtml = (clip) => {
     const kind = clip.kind === "url" ? "url" : "text";
@@ -110,14 +178,41 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     return '<svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M14 3v6h6"/></svg>';
   };
   const opSvg = (name) => {
-    const map = { copy: "copy", hide: "x", down: "download", trash: "trash" };
+    const map = { copy: "copy", hide: "x", down: "download", trash: "trash", alert: "alert" };
     return '<svg aria-hidden="true"><use href="#icon-' + (map[name] || "file") + '"></use></svg>';
   };
 
   const welcome = () => '<div class="shelf-welcome"><h2>' + L("材料放进来，结果拿出去") + "</h2><p>" + L("先放下，再决定要不要跑。原件不动。没有 Agent 也可以先提取 PDF 里的字。") + '</p><div class="shelf-cta"><span class="shelf-primary" role="button" tabindex="0" data-shelf-sample>' + L("试用示例 PDF") + '</span><span class="shelf-paper" role="button" tabindex="0" data-shelf-pick>' + L("选择我的文件") + "</span></div></div>";
   const idle = () => '<div class="shelf-idle"><p style="font-size:17px;font-weight: 400;color:var(--da-text)">' + L("选择一份材料") + "</p><p>" + L("在这里预览，使用下方指令处理副本。") + "</p></div>";
   const docHtml = (kicker, title, body) => '<div class="shelf-preview-inner shelf-doc"><p class="shelf-kicker">' + escapeText(kicker) + '</p><h1 class="shelf-title">' + escapeText(title) + "</h1>" + String(body || "").split(/\\n+/).map((line) => "<p>" + escapeText(line) + "</p>").join("") + "</div>";
+  const failedPane = (item) => {
+    const back = (item.source_item_ids || []).length
+      ? '<div class="shelf-cta"><span class="shelf-primary" role="button" tabindex="0" data-shelf-retry>' + escapeText(L("返回材料重试")) + "</span></div>"
+      : "";
+    return '<div class="shelf-preview-inner shelf-doc"><p class="shelf-kicker tone-clay">' + escapeText(L("这次动作没成")) + '</p><h1 class="shelf-title">' + escapeText(item.name) + "</h1><p>" + escapeText(item.failure_reason || L("任务失败")) + '</p><p class="muted">' + escapeText(L("材料还在架子上。原文件没有被改动。")) + "</p>" + back + "</div>";
+  };
+  const childUrl = (itemId, relative) => fileUrl(itemId) + "?child=" + encodeURIComponent(relative);
+  const folderPane = (item) => {
+    const child = selectedChild && selectedChild.item_id === item.item_id
+      ? (item.children || []).find((entry) => entry.relative === selectedChild.relative)
+      : null;
+    if (child) {
+      const url = childUrl(item.item_id, child.relative);
+      if (child.kind === "image") {
+        return '<div class="shelf-preview-inner"><p class="shelf-kicker">' + escapeText(item.name + " / " + child.relative) + '</p><img class="shelf-image" alt="" src="' + url + '"></div>';
+      }
+      if (child.kind === "pdf") {
+        return '<div class="shelf-preview-inner"><p class="shelf-kicker">' + escapeText(item.name + " / " + child.relative) + '</p><iframe class="shelf-pdf-frame" title="' + escapeAttr(child.name) + '" src="' + url + '"></iframe></div>';
+      }
+      return '<div class="shelf-preview-inner shelf-doc" data-shelf-child-doc="' + escapeAttr(child.relative) + '"><p class="shelf-kicker">' + escapeText(item.name + " / " + child.relative) + '</p><h1 class="shelf-title">' + escapeText(child.name) + '</h1><p class="muted">' + escapeText(L("正在读这份文件…")) + "</p></div>";
+    }
+    const rows = (item.children || []).map((entry) => "<p>" + escapeText(entry.relative) + "</p>").join("");
+    return '<div class="shelf-preview-inner shelf-doc"><p class="shelf-kicker">' + escapeText(L("文件夹")) + '</p><h1 class="shelf-title">' + escapeText(item.name) + '</h1><p class="muted">' +
+      escapeText(L("{count} 个文件。点左边展开，选一份看内容。", { count: String((item.children || []).length) })) + "</p>" + rows + "</div>";
+  };
   const previewPane = (item, kicker) => {
+    if (item && isFailed(item) && !hasFile(item)) return failedPane(item);
+    if (item && item.kind === "folder") return folderPane(item);
     if (!item) {
       return '<div class="shelf-preview-inner shelf-doc"><p class="shelf-kicker">' + escapeText(kicker || L("原文")) + '</p><p class="muted">' + escapeText(L("原材料已不在工作区，无法对照。")) + "</p></div>";
     }
@@ -156,8 +251,12 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
       const group = selected?.group === "result" ? L("结果") : L("材料");
       tag.textContent = selected && !selectedClip ? group + " · " + cap(selected.kind) : "";
     }
+    const copyBtn = workbench.querySelector("[data-shelf-copy-file]");
+    const useBtn = workbench.querySelector("[data-shelf-use-material]");
+    if (copyBtn) copyBtn.hidden = !hasFile(selected) || Boolean(selectedClip);
+    if (useBtn) useBtn.hidden = !(selected?.group === "result" && hasFile(selected)) || Boolean(selectedClip);
     if (editBtn) {
-      const allow = Boolean(selected && !selectedClip && isEditable(selected) && !busy);
+      const allow = Boolean(selected && !selectedClip && hasFile(selected) && isEditable(selected) && !busy);
       editBtn.hidden = !allow;
       editBtn.textContent = editing ? L("完成编辑") : L("编辑副本");
       editBtn.classList.toggle("is-on", editing);
@@ -207,8 +306,24 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     preview.innerHTML = editing && isEditable(selected) ? editorHtml(selected) : previewPane(selected);
     renderBar(selected.group === "result" ? "result" : selected.kind);
     focusEditor();
+    fillChildDoc();
   };
 
+  const fillChildDoc = () => {
+    const doc = preview.querySelector("[data-shelf-child-doc]");
+    if (!doc || !selectedChild) return;
+    fetch(childUrl(selectedChild.item_id, selectedChild.relative))
+      .then((response) => response.ok ? response.text() : "")
+      .then((text) => {
+        if (!text) return;
+        const body = text.slice(0, 20000).split(/\\n+/).map((line) => "<p>" + escapeText(line) + "</p>").join("");
+        const holder = document.createElement("div");
+        holder.innerHTML = body;
+        doc.querySelectorAll("p.muted").forEach((node) => node.remove());
+        doc.append(...holder.childNodes);
+      })
+      .catch(() => {});
+  };
   const showPreview = () => {
     compare = false;
     compareSourceId = null;
@@ -246,12 +361,13 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     paintPreview();
   };
 
-  const recipeSvg = (id) => {
-    const icon = id === "extract" ? "file" : id === "use" || id === "join" ? "download" : id === "talk" ? "message" : id === "pick" ? "plus" : "list";
-    const tone = id === "extract" ? "clay" : id === "use" || id === "join" ? "ochre" : id === "talk" ? "plum" : "slate";
-    return '<svg class="tone-' + tone + '" aria-hidden="true"><use href="#icon-' + icon + '"></use></svg>';
+  const RECIPE_ICON = { extract: "file", summarize: "rows", extract_structure: "code", translate: "globe", redact: "shield", to_markdown: "note", combine: "impact" };
+  const recipeSvg = (id, tone) => {
+    const icon = RECIPE_ICON[id] || (id === "use" || id === "join" ? "download" : id === "talk" ? "message" : id === "pick" ? "plus" : "list");
+    const mark = tone || (id === "extract" ? "clay" : id === "use" || id === "join" ? "ochre" : id === "talk" ? "plum" : "slate");
+    return '<svg class="tone-' + mark + '" aria-hidden="true"><use href="#icon-' + icon + '"></use></svg>';
   };
-  const agentMissing = () => (snapshot.recipes || []).some((item) => item.recipe !== "extract_text" && item.available === false);
+  const agentMissing = () => runtime().can_run_job !== true;
   const renderBar = (kind) => {
     lastBarKind = kind;
     const hint = workbench.querySelector("[data-shelf-bar-hint]");
@@ -267,49 +383,170 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
       bar.innerHTML = actButton(L("新建"), "pick", true);
       return;
     }
-    const extract = (snapshot.recipes || []).find((item) => item.recipe === "extract_text");
-    const extractOn = extract && extract.available !== false;
-    const canExtract = (kind === "pdf" || kind === "text" || kind === "markdown") && extractOn;
     const recipes = [];
-    if (canExtract && !hiddenActs.has("extract")) {
-      recipes.push(actChip("extract", extract.label || L("提取文字"), true));
-    } else if (arranging && canExtract && hiddenActs.has("extract")) {
-      recipes.push('<span class="shelf-act" role="button" tabindex="0" data-shelf-restore-act="extract">' + recipeSvg("extract") + escapeText(L("加回动作栏")) + "</span>");
-    }
-    if (kind === "result") recipes.push(actButton(L("用作材料"), "use", true));
-    if (kind === "clipboard") {
+    if (kind === "result") recipes.push(actButton(L("用作材料"), "use", hasFile(selected)));
+    else if (kind === "clipboard") {
       const count = Math.max(clipSelection.size, selectedClip ? 1 : 0);
       recipes.push(actButton(count > 1 ? L("加入材料") + " · " + count : L("加入材料"), "join", true));
+    } else {
+      const picked = batch();
+      const hidden = hiddenActions();
+      const ready = runtime().can_run_job === true;
+      for (const slot of actionOrder()) {
+        const action = shortcutFor(slot);
+        const recipe = action ? null : recipeFor(slot);
+        if (!action && !recipe) continue;
+        const id = action ? slot : actIdFor(recipe.recipe);
+        const accepts = action ? (action.kinds || []) : (recipe.accepts || []);
+        const minimum = action ? 1 : (recipe.minimum_count || 1);
+        const fits = picked.length >= minimum && picked.every((item) => accepts.includes(item.kind));
+        if (!fits) continue;
+        if (hidden.has(slot)) {
+          if (arranging) {
+            recipes.push('<span class="shelf-act" role="button" tabindex="0" data-shelf-restore-act="' + escapeAttr(slot) + '">' + recipeSvg(id, action ? "ochre" : recipe.tone) + escapeText(L("加回动作栏")) + "</span>");
+          }
+          continue;
+        }
+        const imageOnly = !action && recipe.recipe === "extract_text" && picked.every((item) => item.kind === "image");
+        const needsVision = imageOnly && runtime().image_text === false;
+        const available = action ? ready : recipe.available !== false && !needsVision;
+        const enabled = available && !stageBusy();
+        const title = needsVision ? L("这台机器还没有本机文字识别") : action
+          ? (ready ? L("在副本里跑，写出新的 Markdown") : L(runtime().runtime_key ? "{agent} 没有无界面执行入口，动作不能跑。" : "未发现终端 Agent。", { agent: runtime().title }))
+          : recipe.available === false ? L(recipe.reason || "") : L(recipe.blurb || "");
+        recipes.push(actChip(id, action ? action.name : L(recipe.short_title || recipe.label), enabled, title, action ? "ochre" : recipe.tone, slot));
+      }
     }
     bar.innerHTML = '<div class="shelf-bar-scroll">' + recipes.join("") + '</div>' +
       '<span class="shelf-act-rule" data-shelf-act-rule aria-hidden="true"></span>' +
       actButton(L("对话"), "talk", true, L("打开终端会话。不会生成新文件。发给终端请用轮盘。")) +
       moreButton();
   };
-  const fillConfirm = () => {
-    if (!selected) return;
-    const pdf = selected.kind === "pdf";
-    const outName = pdf ? "pdf.md" : "extract.md";
-    const title = pdf ? L("提取 PDF 文字") : L("提取文字");
-    const setText = (selector, value) => {
-      const node = workbench.querySelector(selector);
-      if (node) node.textContent = value;
+  const setText = (selector, value) => {
+    const node = workbench.querySelector(selector);
+    if (node) node.textContent = value;
+  };
+  const shortcutOutput = (sourceName, actionName) => {
+    const base = String(sourceName || "").replace(/\.[^.]+$/, "") || "output";
+    const action = String(actionName || "").replace(/[\\/:*?"<>|]/g, "").trim() || "动作";
+    return base + "-" + action + ".md";
+  };
+  const confirmRecipe = () => {
+    if (!pending) return null;
+    if (pending.shortcut) {
+      return {
+        recipe: "shortcut",
+        label: pending.shortcut.name,
+        short_title: pending.shortcut.name,
+        blurb: L("在副本里跑，写出新的 Markdown"),
+        tone: "ochre",
+        accepts: pending.shortcut.kinds || [],
+        output_file: "",
+        needs_network: false,
+        requires_agent: true,
+        minimum_count: 1,
+        choices: [],
+        default_choice: "",
+      };
+    }
+    return recipeFor(pending.recipe);
+  };
+  const facts = (recipe, count) => {
+    const live = runtime();
+    const local = isLocalRecipe(recipe);
+    const ready = live.can_run_job === true;
+    const workspace = live.isolation === "workspace";
+    return {
+      read: L("{count} 份材料的副本", { count: String(count) }),
+      write: local ? L("仅任务目录") : !ready ? L("无执行入口") : workspace ? L("仅任务目录") : L("未确认仅任务目录"),
+      network: local ? L("关") : !ready ? L("无执行入口") : !workspace ? L("未确认") : recipe.needs_network ? L("开") : L("关"),
+      isolation: local
+        ? (selected?.kind === "image" ? L("本机识别，不发送") : L("本机提取，不发送"))
+        : !ready ? L("无执行入口") : L(live.isolation_fact || ""),
     };
-    setText("[data-shelf-confirm-title]", title);
-    setText("[data-shelf-confirm-out]", pdf ? L("将生成 pdf.md。原文件保持不变。") : L("将生成 extract.md。原文件保持不变。"));
-    setText('[data-shelf-fact="action"]', title + " → " + outName);
-    setText('[data-shelf-fact="read"]', L("任务副本") + " work/" + selected.name);
-    setText('[data-shelf-fact="write"]', "output/" + outName);
   };
-  const actButton = (label, id, enabled, title) => {
-    return '<span class="shelf-act' + (id === "talk" && stage.classList.contains("is-talk") ? " is-on" : "") + '" role="button" tabindex="' + (enabled ? "0" : "-1") + '" data-shelf-act="' + id + '"' + (enabled ? "" : ' aria-disabled="true"') + (title ? ' title="' + escapeAttr(title) + '"' : "") + ">" + recipeSvg(id) + escapeText(label) + "</span>";
+  const actorLine = (recipe) => {
+    const live = runtime();
+    if (isLocalRecipe(recipe)) {
+      return selected?.kind === "image" ? L("本机识别，不发送。") : L("本机提取，不发送。");
+    }
+    if (live.can_run_job === true) return L("{agent} 在任务副本里跑。", { agent: live.title });
+    if (live.runtime_key) return L("{agent} 没有无界面执行入口，动作不能跑。", { agent: live.title });
+    return L("未发现终端 Agent。");
   };
-  const actChip = (id, label, enabled) => {
+  const paintChoices = (recipe) => {
+    const wrap = workbench.querySelector("[data-shelf-choice]");
+    const seg = workbench.querySelector("[data-shelf-seg]");
+    if (!wrap || !seg) return;
+    const imageText = recipe.recipe === "extract_text" && selected?.kind === "image";
+    const list = recipe.recipe === "extract_text" && !imageText ? [] : (recipe.choices || []);
+    wrap.hidden = list.length === 0;
+    if (!list.length) { seg.innerHTML = ""; return; }
+    setText("[data-shelf-choice-label]", L(recipe.choice_label || ""));
+    setText("[data-shelf-choice-hint]", L(recipe.choice_hint || ""));
+    const current = pending ? pending.option : recipe.default_choice;
+    const rebuild = seg.dataset.shelfRecipe !== recipe.recipe;
+    if (rebuild) {
+      seg.dataset.shelfRecipe = recipe.recipe;
+      seg.innerHTML = '<span class="shelf-seg-plate" data-shelf-seg-plate aria-hidden="true"></span>' + list.map((choice) => (
+        '<span class="shelf-seg-item" role="radio" tabindex="0" data-shelf-choice-id="' + escapeAttr(choice.id) + '">' + escapeText(L(choice.title)) + "</span>"
+      )).join("");
+    }
+    // The plate is the same node across choices, so it springs across instead of blinking.
+    seg.querySelectorAll("[data-shelf-choice-id]").forEach((item) => {
+      item.setAttribute("aria-checked", String(item.dataset.shelfChoiceId === current));
+    });
+    movePlate(seg, rebuild);
+  };
+  const movePlate = (seg, instant) => {
+    const plate = seg.querySelector("[data-shelf-seg-plate]");
+    const active = seg.querySelector('[aria-checked="true"]');
+    if (!plate) return;
+    if (instant) plate.style.transition = "none";
+    if (!active) plate.style.width = "0px";
+    else {
+      plate.style.width = active.offsetWidth + "px";
+      plate.style.transform = "translateX(" + (active.offsetLeft - seg.clientLeft) + "px)";
+    }
+    if (instant) requestAnimationFrame(() => { plate.style.transition = ""; });
+  };
+  const fillConfirm = () => {
+    const recipe = confirmRecipe();
+    if (!recipe || !selected) return;
+    const picked = batch();
+    const pdf = selected.kind === "pdf";
+    const image = selected.kind === "image";
+    const localName = pdf ? "pdf.md" : image ? "ocr.md" : "extract.md";
+    const outName = recipe.recipe === "shortcut"
+      ? shortcutOutput(selected.name, recipe.label)
+      : recipe.recipe === "extract_text" ? localName : recipe.output_file;
+    const title = recipe.recipe === "extract_text"
+      ? (pdf ? L("提取 PDF 文字") : image ? L("提取图片文字") : L("提取文字"))
+      : L(recipe.label);
+    const option = (recipe.choices || []).find((choice) => choice.id === pending.option);
+    setText("[data-shelf-confirm-title]", option ? title + " · " + L(option.title) : title);
+    setText("[data-shelf-confirm-count]", L("{count} 份材料", { count: String(picked.length) }));
+    setText("[data-shelf-confirm-out]", L("将生成 {name}。原文件保持不变。", { name: outName }));
+    const fact = facts(recipe, picked.length);
+    setText('[data-shelf-fact="read"]', fact.read);
+    setText('[data-shelf-fact="write"]', fact.write);
+    setText('[data-shelf-fact="network"]', fact.network);
+    setText('[data-shelf-fact="isolation"]', fact.isolation);
+    setText("[data-shelf-actor]", actorLine(recipe));
+    setText("[data-shelf-run]", isLocalRecipe(recipe) ? L("开始提取") : L("开始处理"));
+    setText("[data-shelf-back]", L("返回"));
+    paintChoices(recipe);
+  };
+  const actButton = (label, id, enabled, title, tone) => {
+    return '<span class="shelf-act' + (id === "talk" && stage.classList.contains("is-talk") ? " is-on" : "") + '" role="button" tabindex="' + (enabled ? "0" : "-1") + '" data-shelf-act="' + escapeAttr(id) + '"' + (enabled ? "" : ' aria-disabled="true"') + (title ? ' title="' + escapeAttr(title) + '"' : "") + ">" + recipeSvg(id, tone) + escapeText(label) + "</span>";
+  };
+  const actChip = (id, label, enabled, title, tone, slot) => {
+    const key = slot || id;
     const hide = arranging
-      ? '<span class="shelf-act-hide" role="button" tabindex="0" data-shelf-hide-act="' + id + '" title="' + escapeAttr(L("从栏上拿掉")) + '">' + opSvg("hide") + "</span>"
+      ? '<span class="shelf-act-hide" role="button" tabindex="0" data-shelf-hide-act="' + escapeAttr(key) + '" title="' + escapeAttr(L("从栏上拿掉")) + '">' + opSvg("hide") + "</span>"
       : "";
     const grip = arranging ? '<span class="shelf-act-grip" aria-hidden="true"></span>' : "";
-    return '<span class="shelf-act-wrap">' + grip + actButton(label, id, enabled) + hide + "</span>";
+    return '<span class="shelf-act-wrap" data-shelf-act-slot="' + escapeAttr(key) + '"' + (arranging ? ' draggable="true"' : "") + ">" + grip + actButton(label, id, enabled, title, tone) + hide + "</span>";
   };
   const moreButton = () => {
     return '<span class="shelf-more"><span class="shelf-act" role="button" tabindex="0" data-shelf-more title="' + escapeAttr(L("管理动作")) + '" aria-haspopup="menu">···</span><div class="shelf-more-menu" data-shelf-more-menu hidden><span class="shelf-more-item" role="menuitem" tabindex="0" data-shelf-arrange>' + escapeText(arranging ? L("完成整理") : L("整理动作")) + '</span><span class="shelf-more-item" role="menuitem" tabindex="0" data-shelf-pick>' + escapeText(L("新建")) + "</span></div></span>";
@@ -322,10 +559,14 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
       selectedClip = null;
       clipSelection = new Set();
       selected = items().find((item) => item.item_id === selectId) || null;
+      selection = selected ? new Set([selected.item_id]) : new Set();
+      pending = null;
       compare = false;
       compareSourceId = null;
     } else {
       if (selected) selected = items().find((item) => item.item_id === selected.item_id) || null;
+      selection = new Set([...selection].filter((id) => items().some((item) => item.item_id === id)));
+      if (selected && !selection.has(selected.item_id)) selection.add(selected.item_id);
       if (selectedClip) selectedClip = (snapshot.clipboard || []).find((clip) => clip.clip_id === selectedClip.clip_id) || null;
       clipSelection = new Set([...clipSelection].filter((id) => (snapshot.clipboard || []).some((clip) => clip.clip_id === id)));
       if (selectedClip && !clipSelection.has(selectedClip.clip_id)) clipSelection.add(selectedClip.clip_id);
@@ -344,6 +585,39 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     applySnapshot(await response.json(), selectId);
   };
 
+  const readEntries = (reader) => new Promise((resolve) => {
+    const found = [];
+    const step = () => reader.readEntries((batch) => {
+      if (!batch.length) { resolve(found); return; }
+      found.push(...batch);
+      step();
+    }, () => resolve(found));
+    step();
+  });
+  const walkEntry = async (entry, prefix, into) => {
+    if (entry.isFile) {
+      const file = await new Promise((resolve, reject) => entry.file(resolve, reject));
+      into.push({ relative: prefix + entry.name, file });
+      return;
+    }
+    if (!entry.isDirectory) return;
+    for (const child of await readEntries(entry.createReader())) {
+      await walkEntry(child, prefix + entry.name + "/", into);
+    }
+  };
+  const admitFolderEntry = async (entry) => {
+    const found = [];
+    for (const child of await readEntries(entry.createReader())) await walkEntry(child, "", found);
+    if (!found.length) return null;
+    const entries = [];
+    for (const file of found.slice(0, 200)) {
+      const bytes = new Uint8Array(await file.file.arrayBuffer());
+      entries.push({ relative: file.relative, bytes_base64: bufferToBase64(bytes), mime: file.file.type || "" });
+    }
+    const payload = await post("/api/shelf/folders", { name: entry.name, entries });
+    applySnapshot(payload.snapshot, payload.item?.item_id);
+    return payload.item;
+  };
   const admitFiles = async (files) => {
     let lastId = "";
     for (const file of files) {
@@ -355,13 +629,42 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     applySnapshot(snapshot, lastId);
   };
 
-  const selectItem = async (id) => {
+  const selectChild = async (itemId, relative) => {
+    await flushEdit();
+    editing = false;
+    selectedClip = null;
+    const folder = items().find((entry) => entry.item_id === itemId);
+    if (!folder) return;
+    selected = folder;
+    selection = new Set([itemId]);
+    selectedChild = { item_id: itemId, relative };
+    pending = null;
+    compare = false;
+    paintLists();
+    paintPreview();
+  };
+  const selectItem = async (id, command) => {
     stickyHint = "";
     await flushEdit();
     editing = false;
     selectedClip = null;
     clipSelection = new Set();
-    selected = items().find((item) => item.item_id === id) || null;
+    const item = items().find((entry) => entry.item_id === id);
+    if (!item) return;
+    selectedChild = null;
+    if (command && selected && selected.group === item.group) {
+      if (selection.has(id) && selection.size > 1) {
+        selection.delete(id);
+        if (selected.item_id === id) selected = items().find((entry) => selection.has(entry.item_id)) || null;
+      } else {
+        selection.add(id);
+        selected = item;
+      }
+    } else {
+      selected = item;
+      selection = new Set([id]);
+    }
+    pending = null;
     compare = false;
     compareSourceId = null;
     paintLists();
@@ -372,6 +675,8 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     void flushEdit();
     editing = false;
     selected = null;
+    selection = new Set();
+    pending = null;
     compare = false;
     compareSourceId = null;
     if (command) {
@@ -460,13 +765,36 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
       } catch (error) { preview.innerHTML = docHtml("Shelf", L("无法读取置物架"), error.message); }
       return;
     }
-    if (row?.dataset.shelfItem) await selectItem(row.dataset.shelfItem);
+    if (row?.dataset.shelfChild) {
+      await selectChild(row.dataset.shelfItem, row.dataset.shelfChild);
+      return;
+    }
+    if (row?.dataset.shelfItem) {
+      const item = items().find((entry) => entry.item_id === row.dataset.shelfItem);
+      if (item?.kind === "folder" && event.target.closest(".shelf-glyph")) {
+        if (openFolders.has(item.item_id)) openFolders.delete(item.item_id);
+        else openFolders.add(item.item_id);
+        paintLists();
+        return;
+      }
+      await selectItem(row.dataset.shelfItem, event.metaKey || event.ctrlKey);
+    }
     if (row?.dataset.shelfClip) {
       if (event.detail > 1) return;
       selectClip(row.dataset.shelfClip, event.metaKey || event.ctrlKey);
     }
   });
   directory.addEventListener("dblclick", async (event) => {
+    const itemRow = event.target.closest("[data-shelf-item]");
+    if (itemRow?.dataset.shelfItem && !event.target.closest("[data-shelf-row-action]")) {
+      event.preventDefault();
+      const item = items().find((entry) => entry.item_id === itemRow.dataset.shelfItem);
+      if (!hasFile(item)) return;
+      const opened = invokeNative("shelf_open_path", { path: filePathOf(item) });
+      if (opened) { opened.catch(() => {}); return; }
+      window.open(fileUrl(item.item_id), "_blank", "noopener");
+      return;
+    }
     const row = event.target.closest("[data-shelf-clip]");
     if (!row?.dataset.shelfClip || event.target.closest("[data-shelf-row-action]")) return;
     event.preventDefault();
@@ -474,7 +802,40 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
       preview.innerHTML = docHtml("Shelf", L("无法读取置物架"), error.message);
     }
   });
-  directory.addEventListener("input", () => paintLists());
+  const findList = directory.querySelector("[data-shelf-find]");
+  let findTimer = 0;
+  const paintFound = (rows) => {
+    if (!findList) return;
+    findList.hidden = !rows.length;
+    findList.innerHTML = rows.map((row) => (
+      '<li role="button" tabindex="0" data-shelf-add-path="' + escapeAttr(row.path) + '">' + glyphSvg("file") +
+      escapeText(row.name) + "<small>" + escapeText(L("添加本机文件")) + "</small></li>"
+    )).join("");
+  };
+  const findLocalFiles = () => {
+    const query = (search?.value || "").trim();
+    if (query.length < 2) { paintFound([]); return; }
+    const found = invokeNative("shelf_find_files", { query });
+    if (!found) { paintFound([]); return; }
+    found.then((rows) => paintFound(Array.isArray(rows) ? rows : [])).catch(() => paintFound([]));
+  };
+  findList?.addEventListener("click", async (event) => {
+    const row = event.target.closest("[data-shelf-add-path]");
+    if (!row) return;
+    const added = invokeNative("shelf_admit_paths", { paths: [row.dataset.shelfAddPath] });
+    if (!added) return;
+    try {
+      await added;
+      paintFound([]);
+      if (search) search.value = "";
+      await load();
+    } catch {}
+  });
+  directory.addEventListener("input", () => {
+    paintLists();
+    if (findTimer) clearTimeout(findTimer);
+    findTimer = setTimeout(findLocalFiles, 220);
+  });
   directory.querySelectorAll("[data-shelf-fold]").forEach((button) => button.addEventListener("click", () => {
     button.classList.toggle("is-shut");
     const list = directory.querySelector('[data-shelf-list="' + button.dataset.shelfFold + '"]');
@@ -495,6 +856,18 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
   workbench.addEventListener("keydown", activatePaper);
   directory.addEventListener("keydown", activatePaper);
   workbench.addEventListener("click", async (event) => {
+    if (event.target.closest("[data-shelf-retry]") && selected) {
+      const back = (selected.source_item_ids || []).filter((id) => items().some((item) => item.item_id === id));
+      if (back.length) {
+        selected = items().find((item) => item.item_id === back[0]) || null;
+        selection = new Set(back);
+        selectedClip = null;
+        pending = null;
+        paintLists();
+        paintPreview();
+      }
+      return;
+    }
     const sourceBtn = event.target.closest("[data-shelf-source]");
     if (sourceBtn && compare) {
       compareSourceId = sourceBtn.dataset.shelfSource;
@@ -514,13 +887,17 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     }
     const hideAct = event.target.closest("[data-shelf-hide-act]");
     if (hideAct?.dataset.shelfHideAct) {
-      hiddenActs.add(hideAct.dataset.shelfHideAct);
+      const next = new Set(hiddenActions());
+      next.add(hideAct.dataset.shelfHideAct);
+      try { await saveSettings({ hidden_actions: [...next] }); } catch {}
       renderBar(lastBarKind);
       return;
     }
     const restoreAct = event.target.closest("[data-shelf-restore-act]");
     if (restoreAct?.dataset.shelfRestoreAct) {
-      hiddenActs.delete(restoreAct.dataset.shelfRestoreAct);
+      const next = new Set(hiddenActions());
+      next.delete(restoreAct.dataset.shelfRestoreAct);
+      try { await saveSettings({ hidden_actions: [...next] }); } catch {}
       renderBar(lastBarKind);
       return;
     }
@@ -530,17 +907,30 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
       applySnapshot(payload.snapshot, payload.item.item_id);
       return;
     }
+    const segItem = event.target.closest("[data-shelf-choice-id]");
+    if (segItem && pending) {
+      pending = { recipe: pending.recipe, option: segItem.dataset.shelfChoiceId };
+      choices[pending.recipe] = pending.option;
+      fillConfirm();
+      return;
+    }
     const act = event.target.closest("[data-shelf-act]");
     if (act?.getAttribute("aria-disabled") === "true") return;
-    if (act?.dataset.shelfAct === "extract" && selected) {
+    const slot = act?.dataset.shelfAct || "";
+    const action = slot.startsWith("shortcut:") ? shortcutFor(slot) : null;
+    const picked = action ? recipeFor("shortcut") || { recipe: "shortcut", choices: [], requires_agent: true } : (act ? recipeForAct(slot) : null);
+    if (picked && selected && !selectedClip) {
       if (editing) await stopEdit();
-      fillConfirm();
+      pending = { recipe: action ? "shortcut" : picked.recipe, option: action ? null : chosenOption(picked), shortcut: action || null };
       stage.classList.add("is-confirm");
+      fillConfirm();
       paintLists();
+      renderBar(lastBarKind);
       return;
     }
     if (act?.dataset.shelfAct === "talk") {
       stage.classList.toggle("is-talk");
+      if (stage.classList.contains("is-talk")) openTui();
       renderBar(lastBarKind);
       return;
     }
@@ -554,27 +944,124 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (ids.length) await joinClips(ids);
     }
   });
+  const watchRun = () => {
+    if (runWatch) clearInterval(runWatch);
+    runWatch = setInterval(async () => {
+      if (!stage.classList.contains("is-run")) { clearInterval(runWatch); runWatch = 0; return; }
+      try {
+        const response = await fetch("/api/shelf", { cache: "no-store" });
+        if (!response.ok) return;
+        const next = await response.json();
+        const live = (next.running_jobs || [])[0];
+        runningJob = live ? live.job_id : null;
+        const cancel = workbench.querySelector("[data-shelf-cancel]");
+        if (cancel) cancel.hidden = !runningJob;
+      } catch {}
+    }, 700);
+  };
   workbench.querySelector("[data-shelf-run]")?.addEventListener("click", async () => {
-    if (!selected) return;
+    const recipe = confirmRecipe();
+    if (!recipe || !selected) return;
+    const picked = batch();
+    if (!picked.length) return;
+    const ran = picked.map((item) => item.item_id);
+    const anchor = selected.item_id;
     stage.classList.remove("is-fail");
     stage.classList.add("is-run");
     paintLists();
     const line = workbench.querySelector("[data-shelf-run-line]");
     if (line) {
       line.hidden = false;
-      line.textContent = L("正在从副本抽取可选中文字…");
+      line.textContent = isLocalRecipe(recipe)
+        ? (selected.kind === "image" ? L("正在本机识别图片里的文字…") : L("正在从副本抽取可选中文字…"))
+        : L("{agent} 正在副本里跑「{recipe}」…", { agent: runtime().title, recipe: L(recipe.short_title || recipe.label) });
     }
+    watchRun();
     try {
-      const payload = await post("/api/shelf/jobs", { recipe: "extract_text", item_id: selected.item_id });
-      applySnapshot(payload.snapshot, payload.result?.item_id);
+      const payload = await post("/api/shelf/jobs", {
+        recipe: recipe.recipe,
+        item_ids: ran,
+        option_id: pending.option || "",
+        shortcut_id: pending.shortcut ? pending.shortcut.id : "",
+      });
+      pending = null;
+      // Only follow the result when the person is still standing on this job's materials.
+      const stayed = !editing && !selectedClip && selected?.item_id === anchor && ran.includes(anchor);
+      applySnapshot(payload.snapshot, stayed ? payload.result?.item_id : undefined);
     } catch (error) {
+      if (error.snapshot) snapshot = error.snapshot;
+      if (error.code === "shelf.cancelled") {
+        pending = null;
+        paintLists();
+        paintPreview();
+        return;
+      }
       stage.classList.remove("is-run");
       stage.classList.add("is-fail");
       if (line) { line.hidden = false; line.textContent = error.message; }
+      setText("[data-shelf-back]", L("返回材料重试"));
       paintLists();
+      renderBar(lastBarKind);
+    } finally {
+      runningJob = null;
+      const cancel = workbench.querySelector("[data-shelf-cancel]");
+      if (cancel) cancel.hidden = true;
+      if (runWatch) { clearInterval(runWatch); runWatch = 0; }
     }
   });
-  workbench.querySelector("[data-shelf-back]")?.addEventListener("click", () => paintPreview());
+  workbench.querySelector("[data-shelf-cancel]")?.addEventListener("click", async () => {
+    if (!runningJob) return;
+    try { await post("/api/shelf/jobs/" + encodeURIComponent(runningJob) + "/cancel"); } catch {}
+  });
+  workbench.querySelector("[data-shelf-tty-input]")?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || event.isComposing) return;
+    event.preventDefault();
+    const field = event.currentTarget;
+    const text = field.value.trim();
+    if (!text) return;
+    field.value = "";
+    sendToTui(text);
+  });
+  const tty = workbench.querySelector("[data-shelf-tty]");
+  tty?.addEventListener("dragover", (event) => {
+    const types = [...(event.dataTransfer?.types || [])];
+    if (!types.includes("application/x-molis-shelf") && !types.includes("Files")) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = "copy";
+    tty.classList.add("is-drop");
+  });
+  tty?.addEventListener("dragleave", () => tty.classList.remove("is-drop"));
+  tty?.addEventListener("drop", async (event) => {
+    const types = [...(event.dataTransfer?.types || [])];
+    const internal = event.dataTransfer?.getData("application/x-molis-shelf") || "";
+    const files = [...(event.dataTransfer?.files || [])];
+    if (!internal && !files.length) return;
+    // Dropping on the AI pane sends it to the terminal, with whatever is typed.
+    event.preventDefault();
+    event.stopPropagation();
+    tty.classList.remove("is-drop");
+    const field = workbench.querySelector("[data-shelf-tty-input]");
+    const typed = field?.value?.trim() || "";
+    if (field) field.value = "";
+    let paths = [];
+    if (internal) {
+      const picked = selection.has(internal) && selection.size > 1
+        ? items().filter((item) => selection.has(item.item_id))
+        : items().filter((item) => item.item_id === internal);
+      paths = picked.filter(hasFile).map(filePathOf).filter(Boolean);
+    } else if (files.length) {
+      // A file from outside is shelved first, then its copy's path goes over.
+      await admitFiles(files);
+      paths = items().filter((item) => selection.has(item.item_id)).map(filePathOf).filter(Boolean);
+    }
+    const line = [typed, ...paths].filter(Boolean).join(" ");
+    if (line) sendToTui(line);
+  });
+  workbench.querySelector("[data-shelf-back]")?.addEventListener("click", () => {
+    pending = null;
+    paintPreview();
+  });
   workbench.querySelector("[data-shelf-fold-talk]")?.addEventListener("click", () => {
     stage.classList.remove("is-talk");
     renderBar(lastBarKind);
@@ -625,10 +1112,93 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     directory.classList.toggle("is-drop", on);
     document.querySelectorAll("[data-shelf-drop]").forEach((node) => node.setAttribute("aria-hidden", on ? "false" : "true"));
   };
+  let dragSlot = "";
+  bar.addEventListener("dragstart", (event) => {
+    const wrap = event.target.closest("[data-shelf-act-slot]");
+    if (!arranging || !wrap) return;
+    dragSlot = wrap.dataset.shelfActSlot || "";
+    wrap.dataset.dragging = "1";
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", dragSlot);
+  });
+  bar.addEventListener("dragover", (event) => {
+    if (!arranging || !dragSlot) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+  });
+  bar.addEventListener("drop", async (event) => {
+    const wrap = event.target.closest("[data-shelf-act-slot]");
+    if (!arranging || !dragSlot || !wrap) return;
+    event.preventDefault();
+    const target = wrap.dataset.shelfActSlot || "";
+    const order = [...actionOrder()];
+    const from = order.indexOf(dragSlot);
+    const to = order.indexOf(target);
+    dragSlot = "";
+    bar.querySelectorAll("[data-dragging]").forEach((node) => node.removeAttribute("data-dragging"));
+    if (from < 0 || to < 0 || from === to) return;
+    order.splice(to, 0, order.splice(from, 1)[0]);
+    try { await saveSettings({ action_order: order }); } catch {}
+    renderBar(lastBarKind);
+  });
+  bar.addEventListener("dragend", () => {
+    dragSlot = "";
+    bar.querySelectorAll("[data-dragging]").forEach((node) => node.removeAttribute("data-dragging"));
+  });
+  const tui = () => globalThis.molisWorkShelfTui || null;
+  const openTui = () => {
+    const live = runtime();
+    const actor = workbench.querySelector("[data-shelf-tty-actor]");
+    if (actor) {
+      actor.textContent = live.runtime_key
+        ? L("{agent} · 发给终端不是副本沙箱", { agent: live.title })
+        : L("未发现终端 Agent。");
+    }
+    tui()?.open({ command: live.executable || "", cwd: snapshot.root || "", title: live.title || "Agent" });
+  };
+  const sendToTui = (text) => {
+    const line = String(text || "").trim();
+    if (!line) return;
+    if (!stage.classList.contains("is-talk")) {
+      stage.classList.add("is-talk");
+      openTui();
+      renderBar(lastBarKind);
+    }
+    tui()?.send(line);
+  };
+  const invokeNative = (name, payload) => {
+    const fn = globalThis.__TAURI__?.core?.invoke;
+    return typeof fn === "function" ? fn(name, payload) : null;
+  };
+  const filePathOf = (item) => {
+    const root = snapshot.root || "";
+    return root && item?.relative_path ? root + "/" + item.relative_path : "";
+  };
   directory.addEventListener("dragstart", (event) => {
     const row = event.target.closest("[data-shelf-item]");
     if (!row || !event.dataTransfer) return;
-    event.dataTransfer.setData("application/x-molis-shelf", row.dataset.shelfItem || "1");
+    const id = row.dataset.shelfItem || "";
+    const dragged = selection.has(id) && selection.size > 1
+      ? items().filter((item) => selection.has(item.item_id))
+      : items().filter((item) => item.item_id === id);
+    const takeaway = dragged.filter(hasFile);
+    if (!takeaway.length) {
+      // A failed run has nothing to hand over; springing back beats a broken drop.
+      event.preventDefault();
+      return;
+    }
+    // On the desktop this becomes a real AppKit drag, so Finder and upload
+    // fields take the file itself. In a browser the row still drags inside Molis.
+    const paths = takeaway.map(filePathOf).filter(Boolean);
+    if (paths.length) {
+      const native = invokeNative("shelf_drag_out", { paths });
+      if (native) {
+        event.preventDefault();
+        native.catch(() => {});
+        return;
+      }
+    }
+    event.dataTransfer.setData("application/x-molis-shelf", id || "1");
     event.dataTransfer.effectAllowed = "copy";
   });
   document.addEventListener("dragenter", (event) => {
@@ -654,6 +1224,13 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (!isExternalFileDrag(event) || !insideShelfDrop(event.target)) return;
     event.preventDefault();
     markDrop(false);
+    const dirs = [...(event.dataTransfer?.items || [])]
+      .map((item) => (item.webkitGetAsEntry ? item.webkitGetAsEntry() : null))
+      .filter((entry) => entry && entry.isDirectory);
+    if (dirs.length) {
+      for (const entry of dirs) await admitFolderEntry(entry).catch(() => null);
+      return;
+    }
     const files = [...(event.dataTransfer?.files || [])];
     if (files.length) await admitFiles(files);
   });
@@ -682,15 +1259,43 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     }
   });
 
+  const copySelection = async () => {
+    if (selectedClip) {
+      try { await navigator.clipboard.writeText(selectedClip.body); } catch {}
+      return;
+    }
+    if (selected && hasFile(selected)) await copyShelfItem(selected.item_id, selected.name);
+  };
+  const shelveClipboard = async () => {
+    let text = "";
+    try { text = (await navigator.clipboard.readText()).trim(); } catch { return; }
+    if (!text || /^file:/i.test(text)) return;
+    const recorded = await post("/api/shelf/clipboard", { text });
+    snapshot = recorded.snapshot;
+    const admitted = await post("/api/shelf/items", { text });
+    applySnapshot(admitted.snapshot, admitted.item.item_id);
+  };
   document.addEventListener("keydown", async (event) => {
     if (document.body.dataset.desktopSurface !== "shelf") return;
-    if (event.key === "Escape" && editing) {
+    if (matchesPanelKey(event, "hide") && editing) {
       event.preventDefault();
       await stopEdit();
       return;
     }
     if (event.target.closest("input, textarea, [contenteditable=true]")) return;
-    if (event.key !== "Backspace" && event.key !== "Delete") return;
+    if (matchesPanelKey(event, "copy")) {
+      event.preventDefault();
+      try { await copySelection(); } catch {}
+      return;
+    }
+    if (matchesPanelKey(event, "paste")) {
+      // ⌘V still arrives as a paste event; anything else has to read the clipboard itself.
+      if (event.code === "KeyV" && event.metaKey) return;
+      event.preventDefault();
+      try { await shelveClipboard(); } catch {}
+      return;
+    }
+    if (!matchesPanelKey(event, "delete")) return;
     event.preventDefault();
     try {
       if (clipSelection.size) {
@@ -710,6 +1315,11 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     }
   });
 
+  if (typeof ResizeObserver === "function") {
+    new ResizeObserver((entries) => {
+      for (const entry of entries) stage.classList.toggle("is-narrow", entry.contentRect.width < 640);
+    }).observe(stage);
+  }
   const boot = () => { if (document.body.dataset.desktopSurface === "shelf") load().catch(() => {}); };
   document.addEventListener("molis-work:surface", boot);
   window.addEventListener("molis-shelf-notice", (event) => {

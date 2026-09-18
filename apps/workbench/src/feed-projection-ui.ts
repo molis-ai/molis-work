@@ -116,7 +116,7 @@ function feedEntries(view: MolisWorkWebView): FeedUiEntry[] {
       read: Boolean(item.read_at),
       attention_rank: 0,
     })),
-    ...(view.demo ? demoFeedEntries(view) : []),
+    ...(view.demo && view.feed.feed_items.length === 0 ? demoFeedEntries(view) : []),
   ];
 }
 

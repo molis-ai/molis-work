@@ -62,6 +62,7 @@ export function renderShelfDirectory(model: ShelfUiModel): string {
   return `<section class="desktop-directory-panel" data-slot="directory" data-directory-panel="shelf" data-shelf="directory">
     <label class="shelf-search">${SHELF_GLYPH.search}<input type="search" data-shelf-search placeholder="${p.text("搜索材料")}" aria-label="${p.text("搜索材料")}" autocomplete="off"></label>
     <input data-shelf-file hidden type="file" multiple>
+    <ul class="shelf-find" data-shelf-find hidden></ul>
     ${renderDropOverlay(p)}
     <div class="shelf-side-scroll">
       ${fold(p.text("材料"), "ochre", model.materials.length, "materials")}
@@ -94,25 +95,33 @@ export function renderShelfWorkbench(model: ShelfUiModel): string {
         <span class="shelf-paper" role="button" tabindex="0" data-shelf-edit hidden>${p.text("编辑副本")}</span>
       </div>
       <div class="shelf-preview" data-shelf-preview></div>
-      <div class="shelf-tty">
-        <div class="shelf-tty-bar"><span class="tone-plum">${p.text("对话")}</span> · ${p.text("发给终端不是副本沙箱")}<span style="margin-left:auto"><span class="shelf-paper quiet" role="button" tabindex="0" data-shelf-fold-talk>${p.text("收起")}</span></span></div>
-        <pre>dropagent job · work/  · isolation: workspace sandbox
-${p.text("材料不会写回原路径。")}</pre>
-        <div class="shelf-tty-in"><input placeholder="${p.text("发给当前终端，不会生成新文件")}"></div>
+      <div class="shelf-tty" data-shelf-tty>
+        <div class="shelf-tty-bar"><span class="tone-plum">${p.text("对话")}</span> · <span data-shelf-tty-actor>${p.text("发给终端不是副本沙箱")}</span><span style="margin-left:auto"><span class="shelf-paper quiet" role="button" tabindex="0" data-shelf-fold-talk>${p.text("收起")}</span></span></div>
+        <div class="shelf-tty-screen" data-shelf-tty-screen></div>
+        <div class="shelf-tty-in"><input data-shelf-tty-input placeholder="${p.text("发给当前终端，不会生成新文件")}"></div>
       </div>
       <div class="shelf-drawer" data-shelf-drawer>
-        <p class="shelf-confirm-title" data-shelf-confirm-title>${p.text("提取 PDF 文字")}</p>
+        <p class="shelf-confirm-head">
+          <span class="shelf-confirm-title" data-shelf-confirm-title>${p.text("提取 PDF 文字")}</span>
+          <span class="shelf-confirm-count" data-shelf-confirm-count></span>
+        </p>
         <p class="shelf-confirm-out" data-shelf-confirm-out>${p.text("将生成 pdf.md。原文件保持不变。")}</p>
+        <div class="shelf-choice" data-shelf-choice hidden>
+          <span class="shelf-choice-label" data-shelf-choice-label></span>
+          <span class="shelf-seg" role="radiogroup" data-shelf-seg><span class="shelf-seg-plate" data-shelf-seg-plate aria-hidden="true"></span></span>
+          <span class="shelf-choice-hint" data-shelf-choice-hint></span>
+        </div>
         <dl class="shelf-facts">
-          <dt>${p.text("动作")}</dt><dd data-shelf-fact="action">${p.text("提取 PDF 文字 → pdf.md")}</dd>
-          <dt>${p.text("读取")}</dt><dd data-shelf-fact="read">${p.text("任务副本")}</dd>
-          <dt>${p.text("写入")}</dt><dd data-shelf-fact="write">output/pdf.md</dd>
-          <dt>${p.text("网络")}</dt><dd>${p.text("关")}</dd>
-          <dt>${p.text("隔离")}</dt><dd>${p.text("本机抽字，不调用 Agent")}</dd>
+          <div class="shelf-fact"><dt>${p.text("读取")}</dt><dd data-shelf-fact="read">${p.text("1 份材料的副本")}</dd></div>
+          <div class="shelf-fact"><dt>${p.text("写入")}</dt><dd data-shelf-fact="write">${p.text("仅任务目录")}</dd></div>
+          <div class="shelf-fact"><dt>${p.text("网络")}</dt><dd data-shelf-fact="network">${p.text("关")}</dd></div>
+          <div class="shelf-fact"><dt>${p.text("隔离")}</dt><dd data-shelf-fact="isolation">${p.text("本机提取，不发送")}</dd></div>
         </dl>
+        <p class="shelf-actor" data-shelf-actor>${p.text("本机提取，不发送。")}</p>
         <div class="shelf-drawer-actions">
           <span class="shelf-primary" role="button" tabindex="0" data-shelf-run>${p.text("开始提取")}</span>
           <span class="shelf-paper" role="button" tabindex="0" data-shelf-back>${p.text("返回")}</span>
+          <span class="shelf-paper" role="button" tabindex="0" data-shelf-cancel hidden>${p.text("取消")}</span>
         </div>
         <p class="shelf-run-line" data-shelf-run-line hidden>${p.text("正在从副本抽取可选中文字…")}</p>
       </div>
@@ -168,6 +177,7 @@ function renderClip(clip: ShelfClipboardRecord, current: boolean, selected: bool
 }
 
 function capFor(kind: string): string {
+  if (kind === "folder") return "DIR";
   if (kind === "pdf") return "PDF";
   if (kind === "markdown") return "MD";
   if (kind === "image") return "IMG";

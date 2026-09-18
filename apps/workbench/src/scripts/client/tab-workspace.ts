@@ -123,14 +123,22 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     if (tab.plugin === "inbox" && tab.kind === "item" && tab.itemId) selectInboxEntry?.(tab.itemId, false);
     if (tab.plugin === "sessions" && tab.kind === "item" && tab.itemId) {
       const surface = topLevelSurface("sessions");
-      surface?.querySelectorAll("[data-operation-detail]").forEach((detail) => {
-        detail.hidden = detail.dataset.detailId !== tab.itemId;
-      });
-      document.querySelectorAll('[data-operation-directory="sessions"] [data-operation-row]').forEach((row) => {
-        const active = row.dataset.recordId === tab.itemId;
-        row.classList.toggle("is-selected", active);
-        row.setAttribute("aria-selected", String(active));
-      });
+      const row = document.querySelector('[data-operation-directory="sessions"] [data-record-id="' + CSS.escape(tab.itemId) + '"]');
+      if (row && !row.classList.contains("is-selected")) row.click();
+      else {
+        surface?.setAttribute("data-expanded", "true");
+        const workspace = surface?.querySelector("[data-session-stage-workspace]");
+        if (workspace) workspace.hidden = false;
+        surface?.querySelectorAll("[data-operation-detail]").forEach((detail) => {
+          detail.hidden = detail.dataset.detailId !== tab.itemId;
+        });
+        document.querySelectorAll('[data-operation-directory="sessions"] [data-operation-row]').forEach((row) => {
+          const active = row.dataset.recordId === tab.itemId;
+          row.classList.toggle("is-selected", active);
+          row.setAttribute("aria-selected", String(active));
+        });
+        surface?.querySelector('[data-operation-detail]:not([hidden]) [data-session-content-load]')?.click();
+      }
     }
   };
   const mount = (pane, node) => {

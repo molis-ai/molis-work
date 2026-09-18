@@ -25,6 +25,7 @@ export const SURFACE_LANGUAGE_STYLES = `
   ${EDITOR_PANEL} header p { color: var(--muted); font-size: 13px; line-height: 1.6; }
   ${EDITOR_PANEL} label:not(.operation-confirm-check) { font-size: 13px; color: var(--ink-soft); align-content: start; gap: 5px; }
   ${EDITOR_PANEL} :is(input:not([type=checkbox]), select, textarea) { font-size: 14px; }
+  ${EDITOR_PANEL} :is(.session-choice-picker > summary, .session-choice-option) { min-height: 36px; font-size: 14px; }
   ${EDITOR_PANEL} :is(.operation-capability-note, .operation-dialog-status, .operation-field-label, .session-workspace-picker small) { font: inherit; font-size: 12px; line-height: 1.6; }
   ${EDITOR_PANEL} .operation-field-label small { font-size: 11px; }
   ${EDITOR_PANEL} .session-workspace-picker strong { font-size: 13px; }

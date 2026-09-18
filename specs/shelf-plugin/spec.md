@@ -1,6 +1,22 @@
 # Shelf：复刻 DropAgent 的功能、交互与视觉
 
-状态：执行中。完成等级目标 **4：内部完整**。当前垂直切片：**全局热键改键**（走已落地的插件全局设置页，不另做设置系统、不塞进 Molis「外观」）。点格子再按新组合，必须带 ⌃⌥⇧⌘ 之一；`/api/shelf/settings` 部分保存 `hotkeys`；立刻 Unregister + Register；占用文案「这个组合被占用。」；非默认出现「默认」。面板内 Esc / ⌘V / ⌘C / ⌫ 改键、Vision OCR、CLI Recipe 真跑、发给终端 PTY、真实拖出、系统剪贴板轮询、轮盘 native 读开关仍待后续切片。不发布、不改用户真实库。
+状态：执行中，DropAgent 的功能面已全部落到 Molis。完成等级目标 **4：内部完整**。
+
+已落地的整块：
+
+- **进货**：文件、文件夹（整棵树一次上架，左栏展开子项）、PDF、图片、文字 / Markdown、链接（真抓页，抓不到也留链接并写明）、网站抓取、多份一起；菜单栏图标、六瓣轮盘、工作面任意处、⌘V、全局热键、Spotlight 找本机文件、别处复制的文件自动进材料。
+- **动作**：九个引擎的探测（PATH 与已知目录 → `--help` 判断有没有可收口的 Job 入口 → Codex 再查 `--sandbox workspace-write`），自定义 Runtime（TUI / CLI），六个 CLI Recipe 在任务副本里真跑，本机文字提取（PDF 用内嵌文字、图片走 Vision 写 `ocr.md`，都不调用 Agent、不上网），用户快捷动作（类型 + 一句话，产出 `原名-动作.md`），动作栏显隐与换序。
+- **任务**：`jobs/<id>/{input,work,output}`，跑的时候 `input/` 只读，`prompt.txt` 只写 work 里的相对名，结果按 DropAgent 的顺序收口，跑完校验副本与原件 Hash，可中途取消，失败留一行带原因的结果、不提供复制或拖出。
+- **出货**：行拖出走 AppKit 拖动会话，交系统认的文件；多选一次拖走；默认复制，架子上的还在；双击用系统打开。
+- **对话**：只有「对话」开终端井，真 PTY（与 Sessions 同一条通道，自己的 panel），收起、切预览、进设置都不销毁；拖到 AI 区连同输入打进当前 TUI，并写明不是副本沙箱。
+- **设置**：权限与连接、快捷动作、快捷键（三条全局 + 面板内 Esc / ⌘V / ⌘C / ⌫ 可改，上下键只读）、使用指南、Agent 与存储、外观六段用途导航。
+- **视觉与质感**：DropAgent 的色、行高、纸面按钮、按压加深、分段选择底片弹簧位移、五色图标组、拖入罩、轮盘。
+
+真机验证（隔离 home，2026-09-18）：App 自己拉起 Web 服务、架子读写、九引擎探测（本机识别到 Grok 可跑动作）、图片 Vision 抽字写出 `ocr.md` 全部走通。**这台 macOS 不让后台程序读系统剪贴板**：变化计数看得到，`stringForType` / `dataForType` 拿回空，连文件复制的类型都读不到。所以剪贴板轮询按「读不到就说出来」处理：设置 → 权限与连接写明「这台 Mac 不让后台程序读剪贴板。打开 Shelf 面板按 ⌘V 仍可把当前剪贴板上架」。全局热键在装了 DropAgent 的机器上会被它先占住同一组合，这正是设置页「这个组合被占用。」要说的事。拖出与轮盘需要真实鼠标拖动，机器上无法脚本化验证。
+
+仍受设备条件限制的两点（不是待办，是事实）：图片文字识别要求随桌面 App 一起分发的 `molis-work-ocr` 小程序（源码运行时用 `cargo build` 产出，App 里放在可执行文件旁）；拖出、轮盘、全局热键、剪贴板轮询只在 macOS 桌面壳里生效，纯网页里退回浏览器内拖动与 ⌘V。
+
+不发布、不改用户真实库。
 
 高保真切片（可点，对齐 DropAgent 现行表面）：`.impeccable/review/shelf-plugin/index.html`。外壳是 Molis 标题栏和插件轨，工作面是 DropAgent 的色、行、纸钮和底栏。
 
@@ -172,7 +188,8 @@ DropAgent README 与 `01-requirements.md` 里的成功标准都要能在 Molis �
 2. **插件 id `shelf`，栏名 Shelf。** 默认启用，目录顺序在 Artifacts 之上。
 3. **DropAgent 是验收原文。** 行为与视觉冲突时改实现，不改成 Molis 习惯。
 4. **没有「先做子集」。** 工程可以按垂直切片提交，但完成定义是功能、交互、图标色彩、样式、质感全部复刻。不能把轮盘、剪贴板、对照原文、抓页、发给终端、动作整理，或雾蓝/五色图标/纸面按压标成 later 来结案。
-5. **改键走插件全局设置。** 三条 Carbon 全局热键的录制、保存、占用和「默认」画在全局设置目录里的 Shelf 页，走现有 `/api/shelf/settings` 部分保存。不另做设置窗口，不塞进 Molis「外观」。面板内 Esc / ⌘V / ⌘C / ⌫ 仍待后续切片。
+5. **Agent 探测有一个可钉死的口子。** 生产走真实 PATH；隔离试用与测试用 `MOLIS_WORK_SHELF_AGENT=off`（完全不找）、`MOLIS_WORK_SHELF_AGENT_PATH`（只找这里）、`MOLIS_WORK_SHELF_AGENT=<引擎>`（指定一个）。测试不能靠这台 Mac 上恰好装了什么。
+6. **改键走插件全局设置。** 三条 Carbon 全局热键的录制、保存、占用和「默认」画在全局设置目录里的 Shelf 页，走现有 `/api/shelf/settings` 部分保存。不另做设置窗口，不塞进 Molis「外观」。面板内 Esc / ⌘V / ⌘C / ⌫ 仍待后续切片。
 
 ## 输入输出与依赖
 
@@ -203,9 +220,12 @@ DropAgent README 与 `01-requirements.md` 里的成功标准都要能在 Molis �
 ## 验证命令
 
 ```
+pnpm --filter @molis-ai/molis-work-module-shelf typecheck
 pnpm --filter @molis-ai/molis-work-plugin-shelf typecheck
 pnpm --filter @molis-ai/molis-work-app-workbench typecheck
-node --import tsx --test --test-concurrency=1 tests/shelf-plugin.test.ts tests/plugin-global-settings.test.ts
+node --import tsx --test --test-concurrency=1 tests/shelf-plugin.test.ts tests/shelf-recipes.test.ts tests/shelf-settings.test.ts tests/plugin-global-settings.test.ts
+node --import tsx --test --test-concurrency=1 tests/shelf-plugin.e2e.test.ts tests/desktop-tui.test.ts
+cargo build --manifest-path apps/desktop/src-tauri/Cargo.toml   # 含 molis-work-ocr
 cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --bin molis-work-desktop
 ```
 

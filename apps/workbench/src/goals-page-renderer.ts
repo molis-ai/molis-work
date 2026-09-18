@@ -109,7 +109,7 @@ function renderMolisWorkWeb(
   const collection = buildGoalCollectionModel(view, requestedGoalId, archiveView, trashView, decisionView, L);
   const { selected, title, collectionTitle } = collection;
   const initialFeedPreset = "feed" as const;
-  const initialDesktopDirectory = decisionView ? "inbox" : "root";
+  const initialDesktopDirectory = "root";
   const initialDesktopSurface = decisionView ? "inbox" : requestedGoalId || archiveView || trashView ? "goal" : "home";
   const projectOptions = view.projects.length ? view.projects : view.project ? [view.project] : [];
   const primitives = { L, escapeHtml, icon, htmlLang };
@@ -199,14 +199,12 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
         ${renderDirectoryPluginSections(primitives, enabledPlugins, {
           goals: "",
           sessions: "",
-          inbox: pluginEnabled("inbox") ? renderInboxNativePluginSurface(view, "directory") : "",
+          inbox: "",
           feed: pluginEnabled("feed")
-            ? `${renderFeedNativePluginSurface(view, "directory", initialFeedPreset)}${renderFeedNativePluginSurface(view, "source-directory", initialFeedPreset)}`
+            ? renderFeedNativePluginSurface(view, "source-directory", initialFeedPreset)
             : "",
           shelf: renderShelfNativePluginSurface("directory"),
-          artifacts: pluginEnabled("artifacts")
-            ? `<section class="mw-dir desktop-directory-panel" data-slot="directory" data-directory-panel="artifacts"><div class="mw-dir__body" data-artifact-directory></div></section>`
-            : "",
+          artifacts: "",
         }, initialDesktopDirectory, settingsDirectory)}
         </div>
       </aside>
@@ -225,7 +223,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
             ${renderShelfNativePluginSurface("workbench")}
             ${renderFeedNativePluginSurface(view, "workbench", initialFeedPreset, [], false)}
             ${renderFeedNativePluginSurface(view, "source-workbench", initialFeedPreset)}
-            <section class="desktop-work-surface immersive-artifact-surface" data-work-surface="artifacts" data-work-surface-label="Artifacts" hidden><div data-artifact-detail></div></section>
+            <section class="desktop-work-surface immersive-artifact-surface plugin-stage-shell" data-work-surface="artifacts" data-work-surface-label="Artifacts" data-artifact-stage-shell data-expanded="false" hidden><div class="plugin-stage-list feed-stage-tree" data-artifact-directory></div><div class="plugin-stage-workspace" data-artifact-stage-workspace hidden><div data-artifact-detail></div></div></section>
             <section class="desktop-work-surface immersive-market" data-work-surface="market" data-work-surface-label="${L("插件市场")}" hidden>${renderPluginMarket(primitives)}</section>
             ${settingsSurfaces}
           </div>

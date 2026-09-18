@@ -10,8 +10,10 @@ export const DETAIL_READING_STYLES = `
   body.immersive-workbench .inbox-reference-footer .feed-action-status { margin: 8px 0 0; }
   body.immersive-workbench .inbox-reference-detail .inbox-attention-context { margin-top: 0; }
 
-  body.immersive-workbench .immersive-artifact-surface > [data-artifact-detail] { height: 100%; min-height: 0; }
+  body.immersive-workbench .immersive-artifact-surface > [data-artifact-detail],
+  body.immersive-workbench .plugin-stage-workspace > [data-artifact-detail] { height: 100%; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
   body.immersive-workbench .immersive-artifact-surface .artifact-detail { display: flex; flex-direction: column; height: 100%; min-height: 0; max-width: 960px; margin: 0 auto; }
+  body.immersive-workbench .plugin-stage-workspace .artifact-detail { max-width: none; margin: 0; }
   body.immersive-workbench .immersive-artifact-surface .artifact-detail > header { flex: none; gap: 12px; margin: 0; padding: 12px 20px; border-bottom: 1px solid var(--line); max-height: 35%; overflow: auto; }
   body.immersive-workbench .immersive-artifact-surface .artifact-detail h1 { font-size: 20px; line-height: 1.35; }
   body.immersive-workbench .immersive-artifact-surface .artifact-detail header > span { flex: none; color: var(--muted); }

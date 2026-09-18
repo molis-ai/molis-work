@@ -4,17 +4,37 @@ export const CLIENT_NAVIGATION_INBOX_SCRIPT = `
     const inboxList = document.querySelector("[data-inbox-list]");
     const inboxWorkbench = document.querySelector("[data-inbox-workbench]");
 
-    const inboxRowVisible = (row) => {
-      const status = row.dataset.inboxStatus;
-      const active = status === "open" || status === "in_progress";
-      const filter = inboxDirectory?.dataset.inboxCurrentFilter || "active";
-      return filter === "history" ? !active : active;
+    const expandInboxStage = (expanded) => {
+      const shell = document.querySelector("[data-inbox-stage-shell]");
+      const workspace = document.querySelector("[data-inbox-stage-workspace]");
+      if (!shell) return;
+      shell.dataset.expanded = expanded ? "true" : "false";
+      if (workspace) workspace.hidden = !expanded;
     };
 
+    const collapseInboxStage = () => {
+      expandInboxStage(false);
+      inboxList?.querySelectorAll("[data-inbox-row]").forEach((row) => {
+        row.classList.remove("is-selected");
+        row.setAttribute("aria-selected", "false");
+        row.tabIndex = -1;
+      });
+      inboxWorkbench?.querySelectorAll("[data-inbox-detail]").forEach((detail) => { detail.hidden = true; });
+      const empty = inboxWorkbench?.querySelector("[data-inbox-detail-empty]");
+      if (empty) empty.hidden = true;
+    };
+
+    const inboxRowVisible = (row) => !row.hidden && !row.closest("[data-inbox-item-wrap]")?.hidden;
+
     const selectInboxEntry = (entryId, persist = true) => {
+      if (!entryId) {
+        collapseInboxStage();
+        if (persist) queueSave();
+        return;
+      }
       const rows = [...(inboxList?.querySelectorAll("[data-inbox-row]") || [])];
       rows.forEach((row) => {
-        const selected = Boolean(entryId) && row.dataset.inboxEntryId === entryId && inboxRowVisible(row);
+        const selected = row.dataset.inboxEntryId === entryId && inboxRowVisible(row);
         row.classList.toggle("is-selected", selected);
         row.setAttribute("aria-selected", String(selected));
         row.tabIndex = selected ? 0 : -1;
@@ -23,7 +43,8 @@ export const CLIENT_NAVIGATION_INBOX_SCRIPT = `
         detail.hidden = detail.dataset.inboxDetail !== entryId;
       });
       const empty = inboxWorkbench?.querySelector("[data-inbox-detail-empty]");
-      if (empty) empty.hidden = Boolean(entryId);
+      if (empty) empty.hidden = true;
+      expandInboxStage(true);
       if (persist) queueSave();
     };
 
@@ -31,16 +52,8 @@ export const CLIENT_NAVIGATION_INBOX_SCRIPT = `
       if (!inboxDirectory) return;
       const next = filter === "history" ? "history" : "active";
       inboxDirectory.dataset.inboxCurrentFilter = next;
-      inboxDirectory.querySelectorAll("[data-inbox-filter]").forEach((button) => {
-        button.classList.toggle("is-active", button.dataset.inboxFilter === next);
-      });
-      const rows = [...(inboxList?.querySelectorAll("[data-inbox-row]") || [])];
-      rows.forEach((row) => { row.hidden = !inboxRowVisible(row); });
-      const visible = rows.find((row) => !row.hidden);
-      const empty = inboxList?.querySelector("[data-inbox-empty]");
-      const emptyTitle = empty?.querySelector("[data-inbox-empty-title]");
-      if (empty) empty.hidden = Boolean(visible);
-      if (emptyTitle) emptyTitle.textContent = next === "history" ? L("没有已完成或已忽略的事项") : L("现在没有需要你介入的事项");
-      selectInboxEntry(visible?.dataset.inboxEntryId || "", persist);
+      const fold = inboxList?.querySelector('[data-inbox-stage-group="' + next + '"]');
+      if (fold) fold.open = true;
+      if (persist) queueSave();
     };
 `;

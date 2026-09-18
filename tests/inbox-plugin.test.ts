@@ -102,7 +102,8 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
 
   const after = await (await webFetch(`${origin}${prefix}/`)).text();
   const afterInbox = after.match(/data-inbox-directory[\s\S]*?<\/section>/)?.[0] ?? "";
-  assert.match(afterInbox, /data-inbox-status="done"[^>]* hidden/);
+  assert.match(afterInbox, /data-inbox-status="done"/);
+  assert.match(afterInbox, /data-inbox-stage-group="history"/);
   assert.match(afterInbox, /现在没有需要你介入的事项/);
   assert.match(after, /data-feed-entry-id="inbox-plugin-item"/);
 
@@ -126,7 +127,8 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
   assert.equal((await dismissed.json() as { entry: { status: string } }).entry.status, "dismissed");
   const afterDismiss = await (await webFetch(`${origin}${prefix}/`)).text();
   const afterDismissInbox = afterDismiss.match(/data-inbox-directory[\s\S]*?<\/section>/)?.[0] ?? "";
-  assert.match(afterDismissInbox, /data-inbox-status="dismissed"[^>]* hidden/);
+  assert.match(afterDismissInbox, /data-inbox-status="dismissed"/);
+  assert.match(afterDismissInbox, /data-inbox-stage-group="history"/);
   assert.match(afterDismiss, /data-feed-entry-id="inbox-plugin-item-2"/);
 
   const missing = await webFetch(`${origin}${prefix}/api/inbox/entries/missing-entry/status`, {

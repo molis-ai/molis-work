@@ -104,13 +104,13 @@ test("Bundled market adds to the selected project and Artifact versions stay in 
   assert.ok(await evaluate("Boolean(document.querySelector('[data-plugin-strip] [data-plugin-id=feed]'))"));
   assert.ok(await evaluate("Boolean(document.querySelector('[data-plugin-strip] [data-plugin-id=inbox]'))"));
   await click('[data-plugin-strip] [data-plugin-id="inbox"]');
-  await waitFor("document.body.dataset.desktopSurface === 'inbox' && document.querySelector('[data-directory-panel=inbox]:not([hidden])')");
-  assert.match(await evaluate<string>("document.querySelector('[data-inbox-empty]')?.textContent || ''"), /现在没有需要你介入的事项/);
+  await waitFor("document.body.dataset.desktopSurface === 'inbox' && document.querySelector('[data-inbox-stage-shell]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
+  assert.match(await evaluate<string>("document.querySelector('[data-inbox-stage-group-empty]')?.textContent || document.querySelector('[data-inbox-detail-empty]')?.textContent || ''"), /现在没有需要你介入的事项/);
   assert.equal(await evaluate("document.querySelector('[data-feed-views]')"), null);
   await click('[data-plugin-strip] [data-plugin-id="feed"]');
   await waitFor("document.body.dataset.desktopSurface === 'feed' && Boolean(document.querySelector('[data-feed-stage-directory]'))");
   assert.equal(await evaluate("document.querySelector('[data-feed-views]')"), null);
-  assert.equal(await evaluate("document.querySelector('#goal-tree-pane')?.dataset.desktopDirectory"), "feed");
+  assert.equal(await evaluate("document.querySelector('#goal-tree-pane')?.dataset.desktopDirectory"), "root");
   assert.ok(await evaluate("Boolean(document.querySelector('[data-feed-add-toggle]'))"));
   assert.equal(await evaluate("document.querySelector('#goal-tree-pane [data-feed-task=all]')"), null);
   assert.equal(await evaluate("document.querySelector('[data-feed-list]')?.closest('#goal-tree-pane')"), null);

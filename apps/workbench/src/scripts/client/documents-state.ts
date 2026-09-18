@@ -215,8 +215,8 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
       setDirectoryCollapsed(ui?.directoryCollapsed === true, false);
       if (desktopDirectoryPanels.length) {
         const restoredDirectoryRaw = ui?.navigationVersion === desktopNavigationStateVersion
-          ? ui?.directory || (decisionView ? "inbox" : "root")
-          : decisionView ? "inbox" : "root";
+          ? ui?.directory || "root"
+          : "root";
         const restoredDirectory = directoryPanelFor(restoredDirectoryRaw);
         setDesktopDirectory(restoredDirectory, false, false);
         const collapsedSections = new Set(Array.isArray(ui?.directoryCollapsedSections) ? ui.directoryCollapsedSections : []);

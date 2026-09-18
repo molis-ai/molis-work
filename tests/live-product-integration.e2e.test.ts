@@ -22,7 +22,7 @@ test('Live public RSS uses production fetch, deduplicates, and opens retained co
   assert.equal(second.run.outcome,'completed',JSON.stringify(second.run));
   assert.equal(second.created,0,'unchanged remote entries are not duplicated');
   await b.navigate(()=>b.command('Page.navigate',{url:`${b.origin}/projects/${b.projectId}/`},b.sessionId));
-  await b.click('[data-plugin-id=feed]');await b.click(`[data-feed-task-toggle="${source.source_id}"]`);
+  await b.click('[data-plugin-id=feed]');
   const itemId=await b.evaluate<string>("document.querySelector('[data-feed-entry-id]').dataset.feedEntryId");
   await b.click(`[data-feed-entry-id="${itemId}"]`);
   await b.waitFor(`document.querySelector('[data-feed-detail="${itemId}"] [data-feed-action=inbox]')`);

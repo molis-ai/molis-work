@@ -18,7 +18,7 @@ test('Dense workspace keeps many long tabs, nested panes and long Feed content i
   await click('[data-plugin-id=goals]');
   for(const id of ids)await openGoalFrame(`[data-goal-stage-list] [data-select-goal="${id}"]`);
   assert.ok(await evaluate("document.querySelectorAll('.tab-item').length>=12"));
-  await click('[data-plugin-id=feed]');await click(`[data-feed-task-toggle="${source.source_id}"]`);
+  await click('[data-plugin-id=feed]');
   for(const direction of ['right','bottom']) {
     await click('[data-titlebar-tabs]:not([hidden]) [data-tab-split], .tab-pane.is-focused [data-tab-split]');await click(`[data-layout-split=${direction}]`);
     await waitFor(`document.querySelectorAll('iframe.tab-content-frame').length>=${direction==='right'?2:3}`);

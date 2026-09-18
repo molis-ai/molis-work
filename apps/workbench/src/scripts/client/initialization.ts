@@ -128,7 +128,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       if (initialFactor) setGoalFactor(initialFactor, false);
       if (feedDirectory) setFeedPreset("feed", false);
       if (desktopDirectoryPanels.length) {
-        setDesktopDirectory(decisionView ? "inbox" : treePane?.dataset.desktopDirectory || "root", false, false);
+        setDesktopDirectory(treePane?.dataset.desktopDirectory || "root", false, false);
       }
       if (desktopWorkSurfaces.length) setDesktopWorkSurface(activeDesktopSurface, false, false);
     }
@@ -230,6 +230,9 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     immersiveNavigation?.sync();
     frameContainer?.restore();
     tabWorkspace?.restore();
+    if (directGoalRequested && selected && !restoredNavigation && tabWorkspace) {
+      tabWorkspace.openItem("goals", selected);
+    }
     if (restoredUi) {
       try {
         const restored = JSON.parse(sessionStorage.getItem(storageKey) || "null");

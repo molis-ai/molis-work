@@ -1,6 +1,8 @@
 # Feed：左边只留目的地，右边是可展开目录
 
-状态：方向已锁定（2026-09-15 视觉稿确认）。完成等级目标 **3：功能可用**。不宣称可发布。不改用户真实库、不提交、不发布。
+状态：已被 `specs/plugin-stage-master-detail/spec.md` 覆盖。主区改为 Goals 同源的列表主从；分类进集合 fold，不再行内展开详情。
+
+原状态：方向已锁定（2026-09-15 视觉稿确认）。完成等级目标 **3：功能可用**。不宣称可发布。不改用户真实库、不提交、不发布。
 
 本文件是本次体验变更的唯一需求书。它补在 `specs/directory-plugin-switcher/spec.md`、`specs/inbox-feed-plugin-split/spec.md`、`specs/home-directory-visual-unify/spec.md` 之上：不改目的地一层、不改 Inbox 边界、不把来源升成顶栏插件。只改 **Feed 选中后，工作发生在哪一栏、如何展开**。
 

@@ -192,6 +192,11 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
       if (controller !== artifactRequest) return;
       directory.replaceChildren(...nextDirectory.childNodes); detail.replaceChildren(...nextDetail.childNodes);
       artifactPath = path;
+      const shell = document.querySelector("[data-artifact-stage-shell]");
+      const workspace = document.querySelector("[data-artifact-stage-workspace]");
+      const selected = detail.querySelector("[data-artifact-id]");
+      if (shell) shell.dataset.expanded = selected ? "true" : "false";
+      if (workspace) workspace.hidden = !selected;
       try { sessionStorage.setItem(artifactKey, path); } catch {}
     } catch (error) {
       if (controller.signal.aborted) return;
@@ -203,6 +208,13 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
   document.addEventListener("click", event => {
     const retryButton = event.target.closest("[data-artifact-retry]");
     if (retryButton) { void loadArtifacts(retryButton.dataset.artifactRetry); return; }
+    const collapse = event.target.closest("[data-artifact-collapse]");
+    if (collapse) {
+      event.preventDefault();
+      setSurface("artifacts");
+      void loadArtifacts(route("/artifacts"));
+      return;
+    }
     const link = event.target.closest("a[href]");
     if (!link || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || link.download || link.target) return;
     const url = new URL(link.href);

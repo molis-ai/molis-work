@@ -8,8 +8,6 @@ import type {
 import type { SourceRecord } from "@molis-ai/molis-work-contracts/modules/sources";
 import {
   renderButton,
-  renderDirectoryPanel,
-  renderDirectoryRow,
   renderStatusMark,
 } from "@molis-ai/molis-work-design-system";
 import type {
@@ -207,57 +205,15 @@ function entrySourceId(entry: FeedUiEntry, model: FeedUiModel): string {
   return model.sources.find((source) => source.ui_kind === entry.provider)?.source_id || id;
 }
 
-export function renderFeedDirectory(model: FeedUiModel): string {
-  const p = model.primitives;
-  const feedStatusTone = (kind?: FeedUiSource["status_kind"]) =>
-    kind === "attention" ? "attention" as const
-    : kind === "syncing" ? "progress" as const
-    : kind === "paused" ? "quiet" as const
-    : kind === "active" ? "done" as const
-    : undefined;
-  const feedStatusIcon = (kind?: FeedUiSource["status_kind"]) =>
-    kind === "attention" ? "alert" as const
-    : kind === "syncing" ? "refresh" as const
-    : kind === "paused" ? "waiting" as const
-    : kind === "active" ? "check" as const
-    : undefined;
-  const task = (source: FeedUiSource) => renderDirectoryRow({
-    title: source.name,
-    icon: sourceIconName(source.ui_kind),
-    status: source.status_label,
-    statusTone: feedStatusTone(source.status_kind),
-    statusIcon: feedStatusIcon(source.status_kind),
-    density: "compact",
-    wrapperAttrs: { "data-feed-task": source.source_id },
-    attrs: { "data-feed-task-toggle": source.source_id },
-    trailing: renderButton({
-      label: `${p.text("任务配置")} · ${source.name}`,
-      variant: "ghost",
-      size: "icon",
-      icon: "more",
-      iconOnly: true,
-      className: "feed-task-config-trigger",
-      attrs: { "data-feed-task-config-open": source.source_id, title: `${p.text("任务配置")} · ${source.name}` },
-    }),
-  });
-  const sources = model.sources.map(task).join("");
-  return renderDirectoryPanel({
-    pluginId: "feed",
-    className: "feed-source-directory",
-    listLabel: p.text("拉取任务"),
-    listRole: "none",
-    body: sources || `<p class="goal-collection-empty">${p.text("还没有拉取任务")}</p>`,
-    add: { label: p.text("添加任务"), className: "feed-directory-add", attrs: { "data-feed-add-toggle": true } },
-    addPlacement: "start",
-  });
+export function renderFeedDirectory(_model: FeedUiModel): string {
+  return "";
 }
 
 export function renderFeedWorkbench(model: FeedUiModel): string {
   const p = model.primitives;
-  return `<section class="desktop-work-surface feed-workbench" data-work-surface="feed" data-work-surface-label="Feed" data-feed-workbench data-feed-directory data-feed-preset="feed" data-feed-stage-directory="true" data-loaded="true" data-loaded-preset="feed"${model.active ? "" : " hidden"}>
+  return `<section class="desktop-work-surface feed-workbench plugin-stage-shell" data-work-surface="feed" data-work-surface-label="Feed" data-feed-workbench data-feed-directory data-feed-preset="feed" data-feed-stage-shell data-feed-stage-directory="true" data-expanded="false" data-loaded="true" data-loaded-preset="feed"${model.active ? "" : " hidden"}>
     ${model.error ? `<div class="feed-error-state" role="alert"><strong>${p.text("Feed 暂时无法载入")}</strong><p>${p.escape(model.error)}</p><button class="mw-btn mw-btn--secondary" type="button" data-retry-feed-detail>${p.text("重试")}</button></div>` : ""}
     ${renderFeedStageDirectory(model)}
-    <div class="feed-detail-empty mw-empty" data-feed-detail-empty hidden>${p.icon("rss")}<h1 data-feed-detail-empty-title>${p.text("正在载入 Item…")}</h1><p data-feed-detail-empty-copy hidden></p><button class="mw-btn mw-btn--secondary" type="button" data-retry-feed-detail hidden>${p.text("重试")}</button></div>
   </section>`;
 }
 
@@ -273,20 +229,17 @@ function renderFeedStageDirectory(model: FeedUiModel): string {
   const groups = groupedFeedStageEntries(model);
   const total = groups.reduce((count, group) => count + group.entries.length, 0);
   const body = groups.map((group) => renderFeedStageGroup(group, model)).join("");
-  return `<div class="feed-stage-directory">
-    ${renderFeedStageToolbar(model, total)}
-    <div class="feed-stage-tree">
-          <div class="feed-stage-list" data-feed-list>${body}<div class="feed-list-empty mw-empty" data-feed-empty${total ? " hidden" : ""}><strong data-feed-empty-title>${p.text("这里还没有 Item")}</strong><button class="mw-btn mw-btn--ghost" type="button" data-feed-clear-filters hidden>${p.text("清除筛选")}</button>${model.demo ? `<button class="mw-btn mw-btn--ghost" type="button" data-prototype-feed-restore hidden>${p.text("恢复列表")}</button>` : ""}<button class="mw-btn mw-btn--link" type="button" data-feed-add-toggle>${p.text("添加任务")}</button></div></div>
-
-    </div>
-
-  </div>`;
+  const details = sortedFeedEntries(model).map((entry) => renderFeedStageDetailPane(entry, model)).join("");
+  return `${renderFeedStageToolbar(model, total)}
+    <div class="plugin-stage-list feed-stage-list feed-stage-tree" data-feed-list>${body}<div class="feed-list-empty mw-empty" data-feed-empty${groups.length ? " hidden" : ""}><strong data-feed-empty-title>${p.text(total ? "这里还没有 Item" : "还没有拉取任务")}</strong><button class="mw-btn mw-btn--ghost" type="button" data-feed-clear-filters hidden>${p.text("清除筛选")}</button>${model.demo ? `<button class="mw-btn mw-btn--ghost" type="button" data-prototype-feed-restore hidden>${p.text("恢复列表")}</button>` : ""}<button class="mw-btn mw-btn--link" type="button" data-feed-add-toggle>${p.text("添加任务")}</button></div></div>
+    <div class="plugin-stage-workspace feed-stage-workspace" data-feed-stage-workspace hidden>${details}<div class="feed-detail-empty mw-empty" data-feed-detail-empty hidden>${p.icon("rss")}<h1 data-feed-detail-empty-title>${p.text("正在载入 Item…")}</h1><p data-feed-detail-empty-copy hidden></p><button class="mw-btn mw-btn--secondary" type="button" data-retry-feed-detail hidden>${p.text("重试")}</button></div></div>`;
 }
 
 interface FeedStageGroup {
   readonly sourceId: string;
   readonly label: string;
   readonly provider: FeedUiProvider;
+  readonly statusKind: FeedUiSource["status_kind"];
   readonly entries: readonly FeedUiEntry[];
 }
 
@@ -301,13 +254,12 @@ function groupedFeedStageEntries(model: FeedUiModel): FeedStageGroup[] {
   }
   const groups: FeedStageGroup[] = [];
   for (const source of model.sources) {
-    const grouped = bySource.get(source.source_id);
-    if (!grouped?.length) continue;
     groups.push({
       sourceId: source.source_id,
       label: source.name,
       provider: source.ui_kind,
-      entries: grouped,
+      statusKind: source.status_kind,
+      entries: bySource.get(source.source_id) ?? [],
     });
     bySource.delete(source.source_id);
   }
@@ -317,25 +269,41 @@ function groupedFeedStageEntries(model: FeedUiModel): FeedStageGroup[] {
       sourceId: "other",
       label: model.primitives.text("其他"),
       provider: leftovers[0]?.provider || "other",
+      statusKind: "active",
       entries: leftovers,
     });
   }
   return groups;
 }
 
+function feedTaskStatusMark(kind: FeedUiSource["status_kind"]): { icon: "check" | "alert"; tone: "ready" | "attention" } {
+  return kind === "active" ? { icon: "check", tone: "ready" } : { icon: "alert", tone: "attention" };
+}
+
 function renderFeedStageGroup(group: FeedStageGroup, model: FeedUiModel): string {
   const p = model.primitives;
   const id = p.escape(group.sourceId);
   const name = p.escape(group.label);
+  const mark = feedTaskStatusMark(group.statusKind);
   const rows = group.entries.map((entry) => renderFeedStageItem(entry, model)).join("");
-  return `<details class="goal-collection-fold" data-feed-stage-group="${id}" open>
+  const config = group.sourceId === "other" ? "" : renderButton({
+    label: `${p.text("任务配置")} · ${group.label}`,
+    variant: "ghost",
+    size: "icon",
+    icon: "more",
+    iconOnly: true,
+    className: "feed-task-config-trigger",
+    attrs: { "data-feed-task-config-open": group.sourceId, title: `${p.text("任务配置")} · ${group.label}` },
+  });
+  return `<details class="goal-collection-fold" data-feed-stage-group="${id}" data-feed-task="${id}" data-feed-task-status="${p.escape(group.statusKind)}" open>
     <summary>
       <span class="goal-collection-caret" aria-hidden="true">${p.icon("chevron-down")}</span>
-      <span class="goal-collection-mark" aria-hidden="true">${p.icon(sourceIconName(group.provider))}</span>
+      <span class="goal-collection-mark is-${mark.tone}" aria-hidden="true">${p.icon(mark.icon)}</span>
       <strong>${name}</strong>
       <small data-feed-stage-group-count>${group.entries.length}</small>
+      ${config}
     </summary>
-    <div class="feed-stage-group-body" role="list" aria-label="${name}">${rows}<p class="goal-collection-empty" data-feed-stage-group-empty hidden>${p.text("这个任务还没有 Item")}</p></div>
+    <div class="feed-stage-group-body" role="list" aria-label="${name}">${rows}<p class="goal-collection-empty" data-feed-stage-group-empty${group.entries.length ? " hidden" : ""}>${p.text("这个任务还没有 Item")}</p></div>
   </details>`;
 }
 
@@ -351,8 +319,9 @@ function renderFeedStageToolbar(model: FeedUiModel, count: number): string {
   const filterOptions = (kind: string, options: readonly (readonly [string, string])[], selected: string) =>
     options.map(([value, label]) => `<button class="feed-filter-option" type="button" role="radio" aria-checked="${value === selected}" data-feed-filter-option="${kind}" data-feed-filter-value="${p.escape(value)}"><span>${p.escape(label)}</span>${p.icon("check")}</button>`).join("");
   const selectOptions = (options: readonly (readonly [string, string])[]) => options.map(([value, label]) => `<option value="${p.escape(value)}">${p.escape(label)}</option>`).join("");
-  return `<header class="feed-stage-toolbar">
-    <div class="feed-stage-heading"><h1 data-feed-task-title>${p.text("全部")}</h1></div><label class="feed-stage-search">${p.icon("search")}<input data-feed-search type="search" placeholder="${p.text("搜索 Item")}" aria-label="${p.text("搜索 Item")}"></label>
+  return `<header class="plugin-stage-chrome feed-stage-toolbar" data-feed-stage-chrome>
+    <button class="mw-btn mw-btn--ghost tree-create" type="button" data-feed-add-toggle>${p.icon("plus")}<span>${p.text("添加任务")}</span></button>
+    <div class="feed-stage-heading" hidden><h1 data-feed-task-title>${p.text("全部")}</h1></div><label class="feed-stage-search">${p.icon("search")}<input data-feed-search type="search" placeholder="${p.text("搜索 Item")}" aria-label="${p.text("搜索 Item")}"></label>
     <div class="feed-directory-tools"><div class="feed-directory-toolbar"><div class="feed-filter-control"><button class="feed-filter-trigger" type="button" data-feed-filter-trigger aria-expanded="false" aria-haspopup="true" aria-controls="feed-filter-panel" aria-label="${p.text("筛选与排序")}">${p.icon("filter")}<span data-feed-filter-badge hidden>0</span></button><section class="feed-filter-panel" id="feed-filter-panel" data-feed-filter-panel hidden aria-label="${p.text("筛选与排序")}"><header><strong>${p.text("筛选与排序")}</strong><button class="mw-btn mw-btn--link" type="button" data-feed-filter-reset>${p.text("清除筛选")}</button></header><div class="feed-filter-section"><span>${p.text("来源")}</span><div class="feed-filter-options">${filterOptions("source", sourceOptions, "all")}</div></div><div class="feed-filter-section"><span>${p.text("类型")}</span><div class="feed-filter-options">${filterOptions("type", typeOptions, "all")}</div></div><div class="feed-filter-section"><span>${p.text("时间")}</span><div class="feed-filter-options">${filterOptions("time", timeOptions, "all")}</div></div><div class="feed-filter-section"><span>${p.text("状态")}</span><div class="feed-filter-options">${filterOptions("status", statusOptions, "active")}</div></div><div class="feed-filter-section"><span>${p.text("排序")}</span><div class="feed-filter-options">${filterOptions("sort", sortOptions, "newest")}</div></div></section></div></div><select data-feed-source-filter hidden tabindex="-1" aria-hidden="true">${selectOptions(sourceOptions)}</select><select data-feed-type-filter hidden tabindex="-1" aria-hidden="true">${selectOptions(typeOptions)}</select><select data-feed-time-filter hidden tabindex="-1" aria-hidden="true">${selectOptions(timeOptions)}</select><select data-feed-status-filter hidden tabindex="-1" aria-hidden="true">${selectOptions(statusOptions)}</select><select data-feed-sort hidden tabindex="-1" aria-hidden="true">${selectOptions(sortOptions)}</select></div>
     <span class="feed-stage-count" data-feed-result-count>${p.text("{count} 个 Item", { count })}</span>
   </header>`;
@@ -361,15 +330,22 @@ function renderFeedStageToolbar(model: FeedUiModel, count: number): string {
 function renderFeedStageItem(entry: FeedUiEntry, model: FeedUiModel): string {
   const p = model.primitives;
   const sourceId = entrySourceId(entry, model);
-  const detail = entry.prototype && entry.item
-    ? renderPrototypeFeedDetail(entry, true, model)
-    : entry.detail_slot_html || "";
   const visible = entry.preset === model.preset;
   return `<article class="feed-stage-item" role="listitem" data-feed-item-wrap="${p.escape(entry.entry_id)}"${visible ? "" : " hidden"}>
     <div class="feed-stage-item-line">
       <button class="feed-stage-entry directory-list-row" type="button" aria-expanded="false" aria-controls="feed-reading-${p.escape(entry.entry_id)}" tabindex="-1" draggable="true" data-frame-asset="feed" data-frame-asset-id="${p.escape(entry.entry_id)}" data-frame-asset-title="${p.escape(entry.title)}" data-frame-asset-caption="${p.escape(entry.summary)}" data-feed-entry-id="${p.escape(entry.entry_id)}"${entry.item_id ? ` data-feed-item-id="${p.escape(entry.item_id)}"` : ""}${entry.inbox_entry ? ` data-inbox-entry-id="${p.escape(entry.inbox_entry.entry_id)}" data-inbox-entry-revision="${entry.inbox_entry.revision}" data-inbox-subject-type="${entry.inbox_entry.subject_type}" data-inbox-reason="${entry.inbox_entry.reason}"` : ""} data-feed-entry-type="${entry.preset}" data-feed-entry-provider="${entry.provider}" data-feed-entry-attention-rank="${entry.attention_rank}" data-feed-entry-persisted="${entry.item && !entry.prototype ? "true" : "false"}"${entry.prototype ? ` data-feed-entry-prototype="true"` : ""} data-feed-entry-read="${entry.read ? "read" : "unread"}" data-feed-entry-source="${p.escape(entry.source_label)}" data-feed-entry-source-id="${p.escape(sourceId)}" data-feed-entry-status="${p.escape(entry.disposition)}" data-feed-entry-time="${p.escape(entry.updated_at)}" data-feed-entry-title="${p.escape(entry.title)}" data-feed-entry-search="${p.escape(`${entry.title} ${entry.summary} ${entry.source_label}`.toLocaleLowerCase())}"><span class="feed-stage-leading"><span class="feed-entry-provider" aria-hidden="true">${p.icon(sourceIconName(entry.provider))}</span><strong title="${p.escape(entry.title)}">${p.escape(entry.title)}</strong></span><span class="feed-entry-source">${p.escape(entry.source_label)}</span><time datetime="${p.escape(entry.updated_at)}">${p.formatDate(entry.updated_at)}</time>${renderFeedEntryStatus(entry, p)}</button>
     </div>
-    <div class="feed-stage-item-detail" id="feed-reading-${p.escape(entry.entry_id)}" data-feed-item-slot hidden>${detail}</div>
+  </article>`;
+}
+
+function renderFeedStageDetailPane(entry: FeedUiEntry, model: FeedUiModel): string {
+  const p = model.primitives;
+  const detail = entry.prototype && entry.item
+    ? renderPrototypeFeedDetail(entry, true, model)
+    : entry.detail_slot_html || "";
+  return `<article class="feed-stage-detail" data-feed-entry-detail="${p.escape(entry.entry_id)}" hidden>
+    <header class="plugin-stage-detail-bar"><button class="plugin-stage-back" type="button" data-feed-collapse aria-label="${p.text("返回 Feed 列表")}" title="${p.text("返回 Feed 列表")}">${p.icon("chevron-right")}</button></header>
+    <div class="feed-stage-item-detail" id="feed-reading-${p.escape(entry.entry_id)}" data-feed-item-slot>${detail}</div>
   </article>`;
 }
 

@@ -83,9 +83,10 @@ test("Window chrome stays put while project index, settings, Feed, Sessions and 
   await expectContained(".plugin-rail", "[data-work-surface=home]");
 
   await click('[data-plugin-strip] [data-plugin-id="feed"]');
-  await waitFor("document.body.dataset.desktopSurface === 'feed' && document.querySelector('[data-feed-stage-directory]') && document.querySelector('[data-work-surface=feed]:not([hidden])')");
+  await waitFor("document.body.dataset.desktopSurface === 'feed' && document.querySelector('[data-feed-stage-directory]') && document.querySelector('[data-work-surface=feed]:not([hidden])') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
   await expectContained(".immersive-titlebar", ".feed-stage-tree");
-  await expectContained(".plugin-rail", ".directory-content-scroll");
+  await expectContained("[data-workspace-chrome]", ".feed-stage-tree");
+  await expectContained(".plugin-rail", ".feed-stage-tree");
 
   await click('[data-plugin-strip] [data-plugin-id="sessions"]');
   await waitFor("document.body.dataset.desktopSurface === 'sessions' && document.querySelector('[data-session-stage-list]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
@@ -94,9 +95,10 @@ test("Window chrome stays put while project index, settings, Feed, Sessions and 
   await expectContained(".plugin-rail", "[data-session-stage-list]");
 
   await click('[data-plugin-strip] [data-plugin-id="artifacts"]');
-  await waitFor("document.body.dataset.desktopSurface === 'artifacts' && document.querySelector('[data-directory-panel=artifacts]:not([hidden])')");
-  await expectContained(".immersive-titlebar", ".directory-content-scroll");
-  await expectContained(".plugin-rail", ".directory-content-scroll");
+  await waitFor("document.body.dataset.desktopSurface === 'artifacts' && document.querySelector('[data-artifact-stage-shell]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
+  await expectContained(".immersive-titlebar", "[data-artifact-directory]");
+  await expectContained("[data-workspace-chrome]", "[data-artifact-directory]");
+  await expectContained(".plugin-rail", "[data-artifact-directory]");
 
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('[data-goal-stage-list]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");

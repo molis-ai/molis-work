@@ -192,7 +192,7 @@ export const IMMERSIVE_DIRECTORY_STYLES = `
   body.immersive-workbench .feed-stage-item-detail .feed-detail-body { margin-top: 16px; padding-top: 12px; max-width: none; }
   body.immersive-workbench .feed-stage-item-detail .feed-materials { margin-top: 16px; }
   body.immersive-workbench .feed-stage-loading { margin: 8px 0; color: var(--muted); font-size: 12px; }
-  body.immersive-workbench .feed-workbench .feed-detail-empty { display: none; }
+  body.immersive-workbench .feed-workbench > .feed-detail-empty { display: none; }
   body.immersive-workbench .feed-stage-add { margin-top: 4px; }
   body.immersive-workbench .feed-stage-add-form { display: grid; gap: 10px; max-width: 420px; margin: 4px 0 0 24px; padding: 10px 0 8px; }
   body.immersive-workbench .feed-stage-add-form label { display: grid; gap: 4px; color: var(--muted); font-size: 11px; }

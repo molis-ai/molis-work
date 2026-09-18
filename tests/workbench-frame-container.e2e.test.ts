@@ -96,8 +96,8 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
   await waitFor("document.querySelectorAll('[data-frame-block]').length === 3");
   assert.match(await evaluate<string>("[...document.querySelectorAll('[data-frame-block]')].map(block => block.textContent).join(' ')"), /Frame artifact/);
   assert.equal(await evaluate("document.querySelector('[data-work-surface=artifacts]').hidden"), true);
-  await waitFor("Boolean(document.querySelector('[data-directory-panel=inbox] [data-frame-asset=inbox][data-frame-asset-id=\"" + inbox.entry.entry_id + "\"]'))");
-  await evaluate("document.querySelector('[data-directory-panel=inbox] [data-frame-asset=inbox][data-frame-asset-id=\"" + inbox.entry.entry_id + "\"]').click()");
+  await waitFor("Boolean(document.querySelector('[data-inbox-directory] [data-frame-asset=inbox][data-frame-asset-id=\"" + inbox.entry.entry_id + "\"]'))");
+  await evaluate("document.querySelector('[data-inbox-directory] [data-frame-asset=inbox][data-frame-asset-id=\"" + inbox.entry.entry_id + "\"]').click()");
   await waitFor("document.querySelectorAll('[data-frame-block]').length === 4");
   await click('[data-plugin-strip] [data-plugin-id="feed"]');
   await waitFor("document.body.dataset.desktopSurface === 'feed' && !document.querySelector('[data-work-surface=feed]').hidden");

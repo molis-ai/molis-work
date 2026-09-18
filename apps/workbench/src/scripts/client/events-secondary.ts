@@ -69,10 +69,18 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `        return;
         setFeedTask(sourceId);
         return;
       }
+      if (target.closest("[data-feed-collapse]")) {
+        collapseFeedStage();
+        return;
+      }
+      if (target.closest("[data-inbox-collapse]")) {
+        collapseInboxStage();
+        return;
+      }
       const feedEntry = target.closest("[data-feed-entry-id]");
       if (feedEntry && !target.closest("[data-feed-action], [data-prototype-feed-action]")) {
         const stageDirectory = Boolean(document.querySelector("[data-feed-stage-directory]"));
-        selectFeedItem(feedEntry.dataset.feedEntryId, !stageDirectory, true, true);
+        selectFeedItem(feedEntry.dataset.feedEntryId, !stageDirectory, true, false);
         if (!stageDirectory && !frameContainer?.isFrameTabActive()) {
           if (!openDirectorySurface("feed", feedEntry.dataset.feedEntryId, feedEntry.querySelector("strong")?.textContent?.trim(), event)) {
             setDesktopWorkSurface("feed", true, true);

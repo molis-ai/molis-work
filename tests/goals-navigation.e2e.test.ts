@@ -162,7 +162,7 @@ test("Sources mutation and Feed reload preserve utility state while fresh Goal l
   await waitFor("document.body.dataset.desktopSurface === 'goal' && Boolean(document.querySelector('[data-plugin-strip] [data-plugin-id=\"feed\"]'))");
   await click('[data-plugin-strip] [data-plugin-id="feed"]');
   await waitFor("document.body.dataset.desktopSurface === 'feed' && Boolean(document.querySelector('[data-feed-stage-directory]'))");
-  await click('[data-directory-panel="feed"] [data-feed-add-toggle]');
+  await click('[data-feed-add-toggle]');
   await waitFor("document.querySelector('[data-feed-sources-dialog]')?.open");
   await click('[data-feed-choose-kind="rss"]');
   await waitFor("document.querySelector('[data-feed-source-register]')?.dataset.feedSourceRegister === 'rss' && Boolean(document.querySelector('[data-feed-rss-definition]')?.value)");

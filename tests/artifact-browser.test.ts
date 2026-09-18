@@ -76,6 +76,8 @@ test("Artifact HTTP links exact versions, exports opaque records and preserves e
   const directory = await index.text();
   assert.ok(directory.includes(`href="${exactPath(1)}"`));
   assert.ok(directory.includes(`href="${exactPath(2)}"`));
+  assert.match(directory, /data-artifact-type-fold="io.example.report"/);
+  assert.match(directory, /goal-collection-mark is-ready/);
   assert.match(directory, /<strong>Original report<\/strong>/);
   assert.match(directory, /<strong>Later report<\/strong>/);
   const detail = await get(exactPath(1));

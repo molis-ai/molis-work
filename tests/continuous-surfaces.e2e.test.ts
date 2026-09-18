@@ -76,7 +76,7 @@ for (const [width,height] of [[1440,900],[390,640]]) {
     assert.ok(await evaluate<number>("document.querySelector('[data-titlebar-tabs]').getBoundingClientRect().height")>0);
     await evaluate("localStorage.setItem('molis-work:theme','light');dispatchEvent(new StorageEvent('storage',{key:'molis-work:theme',newValue:'light'}))");
     await openPlugin('feed');await capture('feed');
-    await showDirectory();await click('[data-directory-panel=feed] [data-feed-add-toggle]');
+    await click('[data-feed-add-toggle]');
     await checkEditor('[data-feed-sources-dialog]');await click('[data-feed-choose-kind=custom_rss]');await capture('feed-editor');
     const focusEvidence=[];
     for(const theme of ['light','dark']){

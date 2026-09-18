@@ -60,7 +60,9 @@ test("project index, settings, and workbench keep titles pinned and scroll only 
   assert.match(workbench, /flex: 0 0 var\(--tree-width, var\(--immersive-sidebar-width\)\);/);
   assert.match(workbench, /\[data-board-view="list"\]\[data-expanded="true"\] \{[\s\S]*grid-template-columns: var\(--tree-width, var\(--immersive-sidebar-width\)\) minmax\(0, 1fr\)/);
   assert.match(workbench, /\.session-stage-shell\[data-expanded="true"\] \{[\s\S]*grid-template-columns: var\(--tree-width, var\(--immersive-sidebar-width\)\) minmax\(0, 1fr\)/);
-  assert.match(workbench, /immersive-plugin-stage > \.session-stage-shell \{ padding: 0;/);
+  assert.match(workbench, /\.plugin-stage-shell\[data-expanded="true"\] \{[\s\S]*grid-template-columns: var\(--tree-width, var\(--immersive-sidebar-width\)\) minmax\(0, 1fr\)/);
+  assert.match(workbench, /\.plugin-stage-list \.mw-dir-row-wrap:has\(\.is-selected\)::before,[\s\S]*content: none; display: none; width: 0;/);
+  assert.match(workbench, /immersive-plugin-stage > \.session-stage-shell[\s\S]*?padding: 0;/);
   assert.match(workbench, /margin: 0 0 0 var\(--plugin-rail-width\);/);
   assert.match(workbench, /width: calc\(var\(--plugin-rail-width\) \+ var\(--tree-width, var\(--immersive-sidebar-width\)\) - var\(--desktop-window-safe-inline-start, 88px\)\);/);
   assert.match(workbench, /body\.immersive-workbench\[data-desktop-surface="home"\] \.immersive-workspace\.is-plugin-directory-empty \.immersive-titlebar > \.workspace-chrome/);

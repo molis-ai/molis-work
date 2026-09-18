@@ -93,8 +93,8 @@ export const LINEAR_DENSITY_STYLES = `
   body.immersive-workbench .tab-workspace[data-split] .tab-drop-edges [data-tab-edge="right"] { top: var(--tab-strip-h); }
   body.immersive-workbench .tab-workspace[data-split] .tab-drop-edges [data-tab-edge="top"] { top: var(--tab-strip-h); }
   body.immersive-workbench .tab-pane[data-drop-preview]::after { inset: 32px 4px 4px; }
-  body.immersive-workbench .immersive-plugin-stage > .desktop-work-surface:not(.session-stage-shell) { padding: 16px clamp(14px, 3%, 28px); }
-  body.immersive-workbench .immersive-plugin-stage > .session-stage-shell { padding: 0; overflow: hidden; }
+  body.immersive-workbench .immersive-plugin-stage > .desktop-work-surface:not(.session-stage-shell, .plugin-stage-shell) { padding: 16px clamp(14px, 3%, 28px); }
+  body.immersive-workbench .immersive-plugin-stage > :is(.session-stage-shell, .plugin-stage-shell) { padding: 0; overflow: hidden; }
   body.immersive-workbench .tab-pane-body > .project-operation-surface { padding: 0; overflow: hidden; }
   body.immersive-workbench .session-stage-bar { min-height: 48px; padding: 8px 16px; }
   body.immersive-workbench .session-stage-bar h1 { font-size: 14px; }
@@ -112,6 +112,51 @@ export const LINEAR_DENSITY_STYLES = `
   body.immersive-workbench .feed-stage-toolbar > h1 { font-size: 13px; font-weight: 400; letter-spacing: 0; margin: 0; }
   body.immersive-workbench .feed-stage-search { height: 26px; border-radius: 6px; }
   body.immersive-workbench .feed-stage-tree { padding: 4px 12px 16px; gap: 2px; }
+  body.immersive-workbench .plugin-stage-shell > .plugin-stage-chrome.feed-stage-toolbar {
+    position: absolute; top: 16px; left: 20px; z-index: 20;
+    height: auto; min-height: 0; width: max-content; max-width: calc(100% - 40px);
+    padding: 0; margin: 0; border: 0; background: transparent;
+  }
+  body.immersive-workbench .plugin-stage-shell > .plugin-stage-list.feed-stage-tree {
+    padding: 52px 20px 28px;
+  }
+  @media (max-width: 760px) {
+    body.immersive-workbench .plugin-stage-shell > .plugin-stage-list.feed-stage-tree,
+    body.immersive-workbench .plugin-stage-shell[data-expanded="true"] > .plugin-stage-list.feed-stage-tree {
+      padding-top: 72px;
+    }
+    body.immersive-workbench .plugin-stage-shell .feed-stage-search { display: none; }
+  }
+  body.immersive-workbench .plugin-stage-shell[data-expanded="true"] > .plugin-stage-list.feed-stage-tree {
+    padding: 52px 8px 20px;
+  }
+  body.immersive-workbench .plugin-stage-workspace .feed-stage-item-detail {
+    padding: 0 24px 24px;
+  }
+  body.immersive-workbench .tab-pane-body > .plugin-stage-shell,
+  body.immersive-workbench .tab-pane-body > .immersive-artifact-surface.plugin-stage-shell {
+    overflow: hidden;
+    padding: 0;
+  }
+  body.immersive-workbench .plugin-stage-shell[data-expanded="true"] > .plugin-stage-workspace {
+    overflow: hidden;
+    height: 100%;
+    min-height: 0;
+  }
+  body.immersive-workbench .plugin-stage-workspace > [data-artifact-detail],
+  body.immersive-workbench .plugin-stage-workspace > [data-artifact-detail] .artifact-detail {
+    flex: 1;
+    min-height: 0;
+    height: 100%;
+    overflow: hidden;
+  }
+  body.immersive-workbench .plugin-stage-workspace .feed-stage-item-detail .feed-detail-header :is(h1, .feed-detail-kicker, p, time) { display: revert; }
+  body.immersive-workbench .plugin-stage-shell .feed-filter-panel {
+    left: 0;
+    right: auto;
+    width: min(360px, calc(100vw - 96px));
+    max-height: min(320px, calc(100dvh - 120px));
+  }
   body.immersive-workbench .feed-stage-task-head,
   body.immersive-workbench .feed-stage-add-toggle { height: 32px; min-height: 32px; padding: 4px 8px; }
   body.immersive-workbench .tree-pane .mw-dir-row--meta { height: var(--dir-row-2h); min-height: var(--dir-row-2h); overflow: hidden; }
@@ -234,5 +279,20 @@ export const LINEAR_DENSITY_STYLES = `
     body.immersive-workbench .immersive-titlebar [data-titlebar-tabs] {
       flex: 1 1 100%; min-width: 0; width: auto; order: 2;
     }
+  }
+  body.immersive-workbench .tab-pane-body > .immersive-artifact-surface.plugin-stage-shell,
+  body.immersive-workbench .tab-pane-body > .plugin-stage-shell {
+    overflow: hidden !important;
+    padding: 0 !important;
+  }
+  body.immersive-workbench .plugin-stage-shell[data-expanded="true"] > .plugin-stage-workspace,
+  body.immersive-workbench .plugin-stage-shell[data-expanded="true"] > .plugin-stage-workspace > [data-artifact-detail],
+  body.immersive-workbench .plugin-stage-shell[data-expanded="true"] > .plugin-stage-workspace .artifact-detail {
+    overflow: hidden !important;
+    min-height: 0 !important;
+    height: 100% !important;
+    max-height: 100%;
+    display: flex;
+    flex-direction: column;
   }
 `;

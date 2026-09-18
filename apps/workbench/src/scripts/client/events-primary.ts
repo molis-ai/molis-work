@@ -182,11 +182,11 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
       const feedFilterOption = target.closest("[data-feed-filter-option]");
       if (feedFilterOption) {
         const control = {
-          source: feedSourceFilter,
-          type: feedTypeFilter,
-          time: feedTimeFilter,
-          status: feedStatusFilter,
-          sort: feedSort,
+          source: document.querySelector("[data-feed-source-filter]"),
+          type: document.querySelector("[data-feed-type-filter]"),
+          time: document.querySelector("[data-feed-time-filter]"),
+          status: document.querySelector("[data-feed-status-filter]"),
+          sort: document.querySelector("[data-feed-sort]"),
         }[feedFilterOption.dataset.feedFilterOption];
         if (control) control.value = feedFilterOption.dataset.feedFilterValue || "";
         syncFeedFilterUi();
@@ -194,11 +194,16 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
         return;
       }
       if (target.closest("[data-feed-filter-reset]")) {
-        if (feedSourceFilter) feedSourceFilter.value = "all";
-        if (feedTypeFilter) feedTypeFilter.value = "all";
-        if (feedTimeFilter) feedTimeFilter.value = "all";
-        if (feedStatusFilter) feedStatusFilter.value = "active";
-        if (feedSort) feedSort.value = "newest";
+        const source = document.querySelector("[data-feed-source-filter]");
+        const type = document.querySelector("[data-feed-type-filter]");
+        const time = document.querySelector("[data-feed-time-filter]");
+        const status = document.querySelector("[data-feed-status-filter]");
+        const sort = document.querySelector("[data-feed-sort]");
+        if (source) source.value = "all";
+        if (type) type.value = "all";
+        if (time) time.value = "all";
+        if (status) status.value = "active";
+        if (sort) sort.value = "newest";
         syncFeedFilterUi();
         filterFeedItems(false);
         return;
@@ -502,7 +507,11 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
       const feedChoice = target.closest("[data-feed-choose-kind], [data-feed-connect-kind]");
       if (feedChoice) { showFeedSetup("setup", feedChoice.dataset.feedChooseKind || feedChoice.dataset.feedConnectKind); return; }
       const feedConfig = target.closest("[data-feed-task-config-open]");
-      if (feedConfig) { showFeedSetup("config", feedConfig.dataset.feedTaskConfigOpen); return; }
+      if (feedConfig) {
+        event.stopPropagation();
+        showFeedSetup("config", feedConfig.dataset.feedTaskConfigOpen);
+        return;
+      }
       if (target.closest("[data-feed-sources-open], [data-feed-setup-back]")) { showFeedSetup(); return; }
       if (target.closest("[data-feed-sources-close]")) {
         const config = feedSourcesDialog?.querySelector("[data-feed-task-config]:not([hidden])");

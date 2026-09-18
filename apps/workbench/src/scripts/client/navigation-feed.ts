@@ -351,7 +351,11 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
         const selected = task.dataset.feedTask === next;
         if (task.matches("details")) {
           const summary = task.querySelector(":scope > summary");
-          if (selected) summary?.setAttribute("aria-current", "page"); else summary?.removeAttribute("aria-current");
+          if (selected) {
+            task.open = true;
+            summary?.setAttribute("aria-current", "page");
+            task.scrollIntoView({ block: "nearest" });
+          } else summary?.removeAttribute("aria-current");
           return;
         }
         const button = task.querySelector("[data-feed-task-toggle]");
@@ -361,7 +365,6 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
       const title = document.querySelector("[data-feed-task-title]");
       if (title) title.textContent = available?.querySelector("strong")?.textContent || L("全部");
       if (persist) document.dispatchEvent(new CustomEvent("workbench-feed-task", { detail: { taskId: next } }));
-      filterFeedItems(true, persist);
       return true;
     };
 
@@ -427,8 +430,8 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
 
     const loadFeedItemDetail = async (row, entryId) => {
       if (!feedWorkbench || !row || row.dataset.feedEntryPersisted !== "true") return;
-      const wrap = row.closest("[data-feed-item-wrap]") || row;
-      const slot = wrap.querySelector("[data-feed-item-slot]");
+      const pane = document.querySelector('[data-feed-entry-detail="' + CSS.escape(entryId) + '"]');
+      const slot = pane?.querySelector("[data-feed-item-slot]") || pane;
       const itemId = row.dataset.feedItemId || entryId;
       const existing = (slot || feedWorkbench).querySelector('[data-feed-detail="' + CSS.escape(entryId) + '"]');
       if (existing) {
@@ -503,28 +506,41 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
       }
     };
 
+    const expandFeedStage = (expanded) => {
+      const shell = document.querySelector("[data-feed-stage-shell]");
+      const workspace = document.querySelector("[data-feed-stage-workspace]");
+      if (!shell) return;
+      shell.dataset.expanded = expanded ? "true" : "false";
+      if (workspace) workspace.hidden = !expanded;
+    };
+
+    const collapseFeedStage = () => {
+      expandFeedStage(false);
+      selectedFeedItem = "";
+      feedList?.querySelectorAll("[data-feed-entry-id]").forEach((row) => {
+        collapseFeedItemDetail(row);
+      });
+      document.querySelectorAll("[data-feed-entry-detail]").forEach((pane) => { pane.hidden = true; });
+      if (feedDetailEmpty) feedDetailEmpty.hidden = true;
+    };
+
     const collapseFeedItemDetail = (row) => {
       const wrap = row?.closest?.("[data-feed-item-wrap]") || row;
       wrap?.classList.remove("is-open");
-      const slot = wrap?.querySelector?.("[data-feed-item-slot]");
-      if (slot) slot.hidden = true;
       row?.classList.remove("is-selected", "is-open");
       row?.setAttribute("aria-selected", "false");
       row?.setAttribute("aria-expanded", "false");
       if (row) row.tabIndex = 0;
     };
 
-    const selectFeedItem = (itemId, moveToDetail = false, recordRead = false, allowToggle = true) => {
+    const selectFeedItem = (itemId, moveToDetail = false, recordRead = false, allowToggle = false) => {
       if (!feedList || !feedWorkbench) return false;
       const selectedRow = [...feedList.querySelectorAll("[data-feed-entry-id]")]
         .find((row) => row.dataset.feedEntryId === itemId && feedEntryVisible(row));
       if (!selectedRow) return false;
-      const wrap = selectedRow.closest("[data-feed-item-wrap]") || selectedRow;
-      const slot = wrap.querySelector("[data-feed-item-slot]");
-      const alreadyOpen = selectedFeedItem === itemId && slot && !slot.hidden;
+      const alreadyOpen = selectedFeedItem === itemId && document.querySelector("[data-feed-stage-shell]")?.dataset.expanded === "true";
       if (allowToggle && alreadyOpen) {
-        selectedFeedItem = "";
-        collapseFeedItemDetail(selectedRow);
+        collapseFeedStage();
         queueSave();
         return true;
       }
@@ -538,8 +554,12 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
         row.tabIndex = active ? 0 : -1;
         if (!active) collapseFeedItemDetail(row);
       });
-      wrap.classList.add("is-open");
-      if (slot) slot.hidden = false;
+      selectedRow.classList.add("is-open");
+      expandFeedStage(true);
+      document.querySelectorAll("[data-feed-entry-detail]").forEach((pane) => {
+        pane.hidden = pane.dataset.feedEntryDetail !== itemId;
+      });
+      const slot = document.querySelector('[data-feed-entry-detail="' + CSS.escape(itemId) + '"] [data-feed-item-slot]');
       if (feedWorkbench.dataset.loaded !== "true" || feedWorkbench.dataset.loadedPreset !== activeFeedPreset) {
         if (recordRead) void markFeedItemRead(selectedRow, itemId);
         setFeedDetailPlaceholder(L("正在打开 Item 工作区…"), "");
@@ -564,20 +584,19 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
     };
 
     const filterFeedItems = (preserveSelection = true, persist = true) => {
-      if (!feedList) return;
-      const query = String(feedSearch?.value || "").trim().toLocaleLowerCase();
+      const list = document.querySelector("[data-feed-stage-shell] [data-feed-list]") || document.querySelector("[data-feed-list]") || feedList;
+      if (!list) return;
+      const query = String((document.querySelector("[data-feed-stage-shell] [data-feed-search]") || document.querySelector("[data-feed-search]") || feedSearch)?.value || "").trim().toLocaleLowerCase();
       const type = activeFeedPreset;
-      const source = feedSourceFilter?.value || "all";
-      const providerType = feedTypeFilter?.value || "all";
-      const time = feedTimeFilter?.value || "all";
-      const status = feedStatusFilter?.value || "active";
-      const sort = feedSort?.value || "newest";
-      const task = selectedFeedTask || "all";
-      const rows = [...feedList.querySelectorAll("[data-feed-entry-id]")];
+      const source = (document.querySelector("[data-feed-stage-shell] [data-feed-source-filter]") || document.querySelector("[data-feed-source-filter]"))?.value || "all";
+      const providerType = (document.querySelector("[data-feed-stage-shell] [data-feed-type-filter]") || document.querySelector("[data-feed-type-filter]"))?.value || "all";
+      const time = (document.querySelector("[data-feed-stage-shell] [data-feed-time-filter]") || document.querySelector("[data-feed-time-filter]"))?.value || "all";
+      const status = (document.querySelector("[data-feed-stage-shell] [data-feed-status-filter]") || document.querySelector("[data-feed-status-filter]"))?.value || "active";
+      const sort = document.querySelector("[data-feed-sort]")?.value || "newest";
+      const rows = [...list.querySelectorAll("[data-feed-entry-id]")];
       const presetRows = rows.filter((row) => row.dataset.feedEntryType === type);
       const matchesRow = (row) => {
         const matchesType = type === "all" || row.dataset.feedEntryType === type;
-        const matchesTask = task === "all" || row.dataset.feedEntrySourceId === task;
         const matchesSource = source === "all" || row.dataset.feedEntrySource === source;
         const matchesProvider = providerType === "all" || row.dataset.feedEntryProvider === providerType;
         const occurredAt = Date.parse(row.dataset.feedEntryTime || "");
@@ -592,7 +611,7 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
             ? row.dataset.feedEntryStatus !== "archived"
             : row.dataset.feedEntryStatus === status;
         const matchesQuery = !query || String(row.dataset.feedEntrySearch || "").includes(query);
-        return matchesType && matchesTask && matchesSource && matchesProvider && matchesTime && matchesStatus && matchesQuery;
+        return matchesType && matchesSource && matchesProvider && matchesTime && matchesStatus && matchesQuery;
       };
       const compare = (left, right) => {
         if (sort === "oldest") return String(left.dataset.feedEntryTime || "").localeCompare(String(right.dataset.feedEntryTime || ""));
@@ -601,7 +620,7 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
         return String(right.dataset.feedEntryTime || "").localeCompare(String(left.dataset.feedEntryTime || ""));
       };
       const visible = [];
-      const groups = [...feedList.querySelectorAll("[data-feed-stage-group]")];
+      const groups = [...list.querySelectorAll("[data-feed-stage-group]")];
       for (const group of groups) {
         const groupRows = [...group.querySelectorAll("[data-feed-entry-id]")];
         const groupVisible = [];
@@ -611,7 +630,9 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
           wrap.hidden = !match;
           if (match) groupVisible.push(row);
         }
-        group.hidden = groupVisible.length === 0;
+        const filtersIdle = source === "all" && providerType === "all" && time === "all" && !query && (status === "active" || status === "all");
+        const configured = group.dataset.feedStageGroup !== "other";
+        group.hidden = groupVisible.length === 0 && !(configured && filtersIdle);
         const count = group.querySelector("[data-feed-stage-group-count]");
         if (count) count.textContent = String(groupVisible.length);
         const empty = group.querySelector("[data-feed-stage-group-empty]");
@@ -625,21 +646,23 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
       }
       if (feedResultCount) feedResultCount.textContent = L("{count} 个 Item", { count: visible.length });
       const filteredEmpty = visible.length === 0 && presetRows.length > 0;
-      if (feedEmpty) {
-        const emptyTitle = feedEmpty.querySelector("[data-feed-empty-title]");
-        const clearFilters = feedEmpty.querySelector("[data-feed-clear-filters]");
-        const addTask = feedEmpty.querySelector("[data-feed-add-toggle]");
-        if (emptyTitle) emptyTitle.textContent = filteredEmpty ? L("没有符合当前条件的 Item") : L("这里还没有 Item");
+      const liveEmpty = list.querySelector("[data-feed-empty]") || feedEmpty;
+      if (liveEmpty) {
+        const emptyTitle = liveEmpty.querySelector("[data-feed-empty-title]");
+        const clearFilters = liveEmpty.querySelector("[data-feed-clear-filters]");
+        const addTask = liveEmpty.querySelector("[data-feed-add-toggle]");
+        if (emptyTitle) emptyTitle.textContent = filteredEmpty
+          ? L("没有符合当前条件的 Item")
+          : groups.length
+            ? L("这里还没有 Item")
+            : L("还没有拉取任务");
         if (clearFilters) clearFilters.hidden = !filteredEmpty;
         if (addTask) addTask.hidden = filteredEmpty;
-        feedEmpty.hidden = visible.length > 0;
+        liveEmpty.hidden = visible.length > 0 || groups.some((group) => !group.hidden);
       }
       const selectionVisible = visible.some((row) => row.dataset.feedEntryId === selectedFeedItem);
       if (!preserveSelection || !selectionVisible) {
-        if (selectedFeedItem) {
-          const current = rows.find((row) => row.dataset.feedEntryId === selectedFeedItem);
-          if (current) collapseFeedItemDetail(current);
-        }
+        if (selectedFeedItem) collapseFeedStage();
         selectedFeedItem = "";
       }
       const keyboardEntry = visible.find(row => row.dataset.feedEntryId === selectedFeedItem) || visible[0];
@@ -648,15 +671,16 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
     };
 
     const syncFeedFilterUi = () => {
-      if (!feedFilterPanel) return;
+      const panel = document.querySelector("[data-feed-filter-panel]") || feedFilterPanel;
+      if (!panel) return;
       const values = {
-        source: feedSourceFilter?.value || "all",
-        type: feedTypeFilter?.value || "all",
-        time: feedTimeFilter?.value || "all",
-        status: feedStatusFilter?.value || "active",
-        sort: feedSort?.value || "newest",
+        source: document.querySelector("[data-feed-source-filter]")?.value || "all",
+        type: document.querySelector("[data-feed-type-filter]")?.value || "all",
+        time: document.querySelector("[data-feed-time-filter]")?.value || "all",
+        status: document.querySelector("[data-feed-status-filter]")?.value || "active",
+        sort: document.querySelector("[data-feed-sort]")?.value || "newest",
       };
-      feedFilterPanel.querySelectorAll("[data-feed-filter-option]").forEach((option) => {
+      panel.querySelectorAll("[data-feed-filter-option]").forEach((option) => {
         const kind = option.dataset.feedFilterOption;
         const selected = values[kind] === option.dataset.feedFilterValue;
         option.setAttribute("aria-checked", String(selected));
@@ -678,6 +702,19 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
       feedFilterTrigger?.setAttribute("aria-label", label);
       feedFilterTrigger?.setAttribute("title", label);
     };
+
+    document.addEventListener("change", (event) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (!target?.matches("[data-feed-source-filter], [data-feed-type-filter], [data-feed-time-filter], [data-feed-status-filter], [data-feed-sort]")) return;
+      syncFeedFilterUi();
+      filterFeedItems();
+    }, true);
+    document.addEventListener("input", (event) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (!target?.closest("[data-feed-search]")) return;
+      noteSearchActivity();
+      filterFeedItems();
+    });
 
     const setFeedFilterOpen = (open, focusFirst = false) => {
       if (!feedFilterPanel || !feedFilterTrigger) return;

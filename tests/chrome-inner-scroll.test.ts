@@ -21,7 +21,7 @@ test("project index, settings, and workbench keep titles pinned and scroll only 
   assert.match(index, /body\.project-index-page > \.topbar > \.brand \{[^}]*display: flex;/);
   assert.doesNotMatch(index, /\.project-card footer svg \{[^}]*rotate\(180deg\)/);
   assert.ok(
-    index.lastIndexOf("body.project-index-page > .topbar > .brand")
+    index.lastIndexOf("body.project-index-page[data-desktop-shell=\"true\"]:not(.settings-page) > .topbar > .brand")
       > index.lastIndexOf("body[data-desktop-shell=\"true\"]:not(.settings-page) .topbar > .brand"),
     "project-index chrome must win over workbench topbar hiding",
   );
@@ -54,20 +54,19 @@ test("project index, settings, and workbench keep titles pinned and scroll only 
   assert.match(workbench, /--dir-row-h: 28px;/);
   assert.match(workbench, /--plugin-rail-width: 48px;/);
   assert.ok(workbench.includes("grid-template-columns: var(--plugin-rail-width) var(--tree-width, var(--immersive-sidebar-width)) minmax(0, 1fr)"));
-  assert.match(workbench, /\.plugin-rail \{\n    grid-column: 1; grid-row: 2 \/ -1;/);
-  assert.match(workbench, /\.immersive-titlebar > \.workspace-chrome \{/);
+  assert.match(workbench, /\.plugin-rail \{\n    grid-column: 1; grid-row: 2;/);
+  assert.match(workbench, /\.workspace-chrome\.project-island \{/);
   assert.match(workbench, /grid-template-rows: var\(--desktop-titlebar-height\) minmax\(0, 1fr\)/);
-  assert.match(workbench, /flex: 0 0 var\(--tree-width, var\(--immersive-sidebar-width\)\);/);
+  assert.doesNotMatch(workbench, /\.immersive-titlebar > \.workspace-chrome \{/);
   assert.match(workbench, /\[data-board-view="list"\]\[data-expanded="true"\] \{[\s\S]*grid-template-columns: var\(--tree-width, var\(--immersive-sidebar-width\)\) minmax\(0, 1fr\)/);
   assert.match(workbench, /\.session-stage-shell\[data-expanded="true"\] \{[\s\S]*grid-template-columns: var\(--tree-width, var\(--immersive-sidebar-width\)\) minmax\(0, 1fr\)/);
   assert.match(workbench, /\.plugin-stage-shell\[data-expanded="true"\] \{[\s\S]*grid-template-columns: var\(--tree-width, var\(--immersive-sidebar-width\)\) minmax\(0, 1fr\)/);
   assert.match(workbench, /\.plugin-stage-list \.mw-dir-row-wrap:has\(\.is-selected\)::before,[\s\S]*content: none; display: none; width: 0;/);
   assert.match(workbench, /immersive-plugin-stage > \.session-stage-shell[\s\S]*?padding: 0;/);
-  assert.match(workbench, /margin: 0 0 0 var\(--plugin-rail-width\);/);
-  assert.match(workbench, /width: calc\(var\(--plugin-rail-width\) \+ var\(--tree-width, var\(--immersive-sidebar-width\)\) - var\(--desktop-window-safe-inline-start, 88px\)\);/);
-  assert.match(workbench, /body\.immersive-workbench\[data-desktop-surface="home"\] \.immersive-workspace\.is-plugin-directory-empty \.immersive-titlebar > \.workspace-chrome/);
-  assert.doesNotMatch(workbench, /body\.immersive-workbench \.immersive-workspace\.is-plugin-directory-empty \.immersive-titlebar > \.workspace-chrome,/);
-  assert.match(workbench, /is-plugin-directory-empty:not\(\.is-directory-collapsed\) \.immersive-titlebar > \.workspace-chrome/);
+  assert.match(workbench, /body\.immersive-workbench\[data-native-desktop="true"\] \[data-titlebar-tabs\] \.tab-scroll \{ flex: 0 1 auto; width: max-content; \}/);
+  assert.match(workbench, /body\.immersive-workbench\[data-native-desktop="true"\] \.tab-strip \.tab-strip-spacer \{ flex: 1 1 48px; min-width: 48px;/);
+  assert.match(workbench, /body\.immersive-workbench \.immersive-workspace\.is-plugin-directory-empty > \.workspace-chrome\.project-island/);
+  assert.doesNotMatch(workbench, /\.immersive-titlebar > \.workspace-chrome,/);
   assert.match(workbench, /body\.immersive-workbench \{[\s\S]*--control-h: 28px;/);
   assert.match(workbench, /:is\(body\.project-preferences-page, \.settings-stage\), body\.settings-page \{ --control-h: 32px; \}/);
   assert.doesNotMatch(workbench, /:is\(body\.project-preferences-page, \.settings-stage\) \{ --control-h: 28px; \}/);

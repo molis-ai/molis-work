@@ -121,7 +121,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       }
     } catch {}
     if (!restoredUi) {
-      setWorkspaceMode("focus", false);
+      setWorkspaceMode("graph", false);
       bindGoalEventDocument();
       openEventReaderFromHash();
       const initialFactor = goalFactorFromHash();

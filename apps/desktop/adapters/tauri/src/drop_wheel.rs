@@ -15,10 +15,21 @@ pub const PETAL_GAP: f64 = 8.0;
 pub const TAB_SAFE: f64 = 80.0;
 pub const WINDOW_PADDING: f64 = 44.0;
 pub const REVEAL_DELAY: Duration = Duration::from_millis(180);
-#[allow(dead_code)]
+pub const REVEAL_FADE: Duration = Duration::from_millis(200);
 pub const CONCEAL_DURATION: Duration = Duration::from_millis(120);
-#[allow(dead_code)]
+pub const BOUNCE_DURATION: Duration = Duration::from_millis(220);
 pub const BOUNCE_SCALE: f64 = 1.06;
+pub const PETAL_PAD: f64 = 14.0;
+pub const LABEL_MAX_WIDTH: f64 = 72.0;
+pub const LABEL_INSET: f64 = 6.0;
+pub const ICON_LIFT: f64 = 10.0;
+pub const LABEL_DROP: f64 = 13.0;
+pub const SHADOW_OFFSET_Y: f64 = -5.0;
+pub const SHADOW_RADIUS: f64 = 7.0;
+pub const SHADOW_RADIUS_HOT: f64 = 12.0;
+pub const SHADOW_OPACITY: f32 = 0.14;
+pub const SHADOW_OPACITY_HOT: f32 = 0.24;
+pub const SHADOW_OPACITY_DISABLED: f32 = 0.08;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Point {
@@ -99,6 +110,11 @@ pub fn tile_thickness() -> f64 {
     OUTER_RADIUS - INNER_RADIUS
 }
 
+/// Upright label box width for a petal of this horizontal AABB width.
+pub fn label_box_width(petal_width: f64) -> f64 {
+    (petal_width - LABEL_INSET * 2.0).clamp(0.0, LABEL_MAX_WIDTH)
+}
+
 pub fn window_frame(center: Point) -> (Point, f64) {
     let size = window_size();
     (
@@ -124,20 +140,6 @@ pub fn slice_index(mouse: Point, center: Point) -> Option<usize> {
         WheelBand::Slice(index) => Some(index),
         _ => None,
     }
-}
-
-#[allow(dead_code)]
-pub fn tile_center(index: usize, center: Point) -> Point {
-    point_on_ring(index, center, mid_radius())
-}
-
-pub fn point_on_ring(index: usize, center: Point, radius: f64) -> Point {
-    let mid = 90.0 - index as f64 * SLICE_DEGREES;
-    let radians = mid.to_radians();
-    Point::new(
-        center.x + radius * radians.cos(),
-        center.y + radius * radians.sin(),
-    )
 }
 
 pub fn slices(has_agent: bool, has_recipe: bool) -> [WheelSlice; SLICE_COUNT] {
@@ -237,7 +239,19 @@ fn hypot(dx: f64, dy: f64) -> f64 {
     dx.hypot(dy)
 }
 
-const DUMMY_ONLY: &[&str] = &["org.chromium.drag-dummy-type"];
+const IMAGE: &[&str] = &[
+    "public.tiff",
+    "public.png",
+    "public.jpeg",
+    "public.jpeg-2000",
+    "public.gif",
+    "com.compuserve.gif",
+    "public.heic",
+    "public.heif",
+    "NSPasteboardTypeTIFF",
+    "NSPasteboardTypePNG",
+];
+const RICH: &[&str] = &["public.rtf", "NSRTFPboardType"];
 const PROMISED: &[&str] = &[
     "WebURLsWithTitlesPboardType",
     "com.apple.webkit.WebURLsWithTitles",
@@ -248,29 +262,23 @@ const PROMISED: &[&str] = &[
     "NSPromiseContentsPboardType",
 ];
 
-pub fn has_drag_cargo(
-    types: &[&str],
-    has_files: bool,
-    has_text: bool,
-    has_http_url: bool,
-) -> bool {
+pub fn has_drag_cargo(types: &[&str], has_files: bool, has_text: bool, has_http_url: bool) -> bool {
     if has_files || has_text || has_http_url {
         return true;
     }
-    if types.iter().any(|item| PROMISED.iter().any(|name| item == name)) {
-        return true;
-    }
-    if types.is_empty() {
-        return false;
-    }
-    types.iter().all(|item| DUMMY_ONLY.iter().any(|name| item == name)) == false
-        && types.iter().any(|item| {
-            *item != "org.chromium.drag-dummy-type" && *item != "public.item"
-        })
+    types.iter().any(|item| {
+        PROMISED.iter().any(|name| item == name)
+            || IMAGE.iter().any(|name| item == name)
+            || RICH.iter().any(|name| item == name)
+    })
 }
 
 pub fn dummy_drag_is_empty(types: &[&str]) -> bool {
     !has_drag_cargo(types, false, false, false)
+}
+
+pub fn new_drag_has_payload(change: isize, consumed: isize, has_cargo: bool) -> bool {
+    change != consumed && has_cargo
 }
 
 pub fn panel_takes_drop(over_panel: bool, wheel_owns_drop: bool) -> bool {
@@ -319,10 +327,12 @@ impl DropWheelSession {
         mouse: Point,
         now: Instant,
         has_cargo: bool,
+        change: isize,
+        consumed: isize,
         over_panel: bool,
         screen_max_y: f64,
     ) -> WheelFrame {
-        if !has_cargo && self.drag_origin.is_none() {
+        if self.drag_origin.is_none() && !new_drag_has_payload(change, consumed, has_cargo) {
             return WheelFrame::Hidden;
         }
         if self.drag_origin.is_none() {
@@ -373,7 +383,7 @@ impl DropWheelSession {
             self.reset();
             return outcome;
         }
-        if self.revealed {
+        if self.revealed && !self.dismissed {
             if let Some(center) = self.center {
                 if let WheelBand::Slice(index) = band(mouse, center) {
                     let slice = self.slices()[index];
@@ -464,14 +474,36 @@ mod tests {
     #[test]
     fn dummy_chromium_type_is_not_cargo_and_url_text_is() {
         assert!(dummy_drag_is_empty(&["org.chromium.drag-dummy-type"]));
-        assert!(has_drag_cargo(&["public.utf8-plain-text"], false, true, false));
+        assert!(!has_drag_cargo(&["public.item"], false, false, false));
+        assert!(!has_drag_cargo(
+            &["org.chromium.drag-dummy-type", "public.item"],
+            false,
+            false,
+            false
+        ));
+        assert!(!has_drag_cargo(
+            &["public.html", "public.item"],
+            false,
+            false,
+            false
+        ));
+        assert!(has_drag_cargo(
+            &["public.utf8-plain-text"],
+            false,
+            true,
+            false
+        ));
         assert!(has_drag_cargo(
             &["com.apple.pasteboard.promised-file-url"],
             false,
             false,
             false
         ));
+        assert!(has_drag_cargo(&["public.tiff"], false, false, false));
         assert!(!has_drag_cargo(&[], false, false, false));
+        assert!(!new_drag_has_payload(5, 5, true));
+        assert!(new_drag_has_payload(6, 5, true));
+        assert!(!new_drag_has_payload(6, 5, false));
     }
 
     #[test]
@@ -480,20 +512,22 @@ mod tests {
         let start = Instant::now();
         let center = Point::new(500.0, 500.0);
         assert_eq!(
-            session.on_drag(center, start, true, false, 1120.0),
+            session.on_drag(center, start, true, 1, 0, false, 1120.0),
             WheelFrame::Hidden
         );
         let later = start + REVEAL_DELAY;
-        let frame = session.on_drag(center, later, true, false, 1120.0);
-        assert_eq!(
-            frame,
-            WheelFrame::Visible {
-                center,
-                hot: None
-            }
-        );
+        let frame = session.on_drag(center, later, true, 1, 0, false, 1120.0);
+        assert_eq!(frame, WheelFrame::Visible { center, hot: None });
         let petal = Point::new(center.x, center.y + mid_radius());
-        let hot = session.on_drag(petal, later + Duration::from_millis(20), true, false, 1120.0);
+        let hot = session.on_drag(
+            petal,
+            later + Duration::from_millis(20),
+            true,
+            1,
+            0,
+            false,
+            1120.0,
+        );
         assert_eq!(
             hot,
             WheelFrame::Visible {
@@ -514,12 +548,12 @@ mod tests {
         let mouse = Point::new(400.0, 1100.0);
         let later = start + REVEAL_DELAY;
         assert_eq!(
-            session.on_drag(mouse, later, true, false, 1120.0),
+            session.on_drag(mouse, later, true, 1, 0, false, 1120.0),
             WheelFrame::Hidden
         );
         session.reset();
         assert_eq!(
-            session.on_drag(Point::new(400.0, 400.0), later, true, true, 1120.0),
+            session.on_drag(Point::new(400.0, 400.0), later, true, 1, 0, true, 1120.0),
             WheelFrame::Hidden
         );
     }
@@ -530,15 +564,38 @@ mod tests {
         let start = Instant::now();
         let center = Point::new(500.0, 500.0);
         let later = start + REVEAL_DELAY;
-        session.on_drag(center, later, true, false, 1120.0);
+        session.on_drag(center, start, true, 1, 0, false, 1120.0);
+        assert_eq!(
+            session.on_drag(center, later, true, 1, 0, false, 1120.0),
+            WheelFrame::Visible {
+                center,
+                hot: None
+            }
+        );
         let far = Point::new(center.x, center.y + OUTER_RADIUS + LEAVE_SLOP + 8.0);
         assert_eq!(
-            session.on_drag(far, later + Duration::from_millis(10), true, false, 1120.0),
+            session.on_drag(
+                far,
+                later + Duration::from_millis(10),
+                true,
+                1,
+                0,
+                false,
+                1120.0
+            ),
             WheelFrame::Hidden
         );
         let petal = Point::new(center.x, center.y + mid_radius());
         assert_eq!(
-            session.on_drag(petal, later + Duration::from_millis(20), true, false, 1120.0),
+            session.on_drag(
+                petal,
+                later + Duration::from_millis(20),
+                true,
+                1,
+                0,
+                false,
+                1120.0
+            ),
             WheelFrame::Hidden
         );
         assert_eq!(session.on_up(petal, false), MouseUpOutcome::Hide);
@@ -557,7 +614,88 @@ mod tests {
         let start = Instant::now();
         let center = Point::new(500.0, 500.0);
         let later = start + REVEAL_DELAY;
-        session.on_drag(center, later, true, false, 1120.0);
+        session.on_drag(center, start, true, 1, 0, false, 1120.0);
+        assert_eq!(
+            session.on_drag(center, later, true, 1, 0, false, 1120.0),
+            WheelFrame::Visible {
+                center,
+                hot: None
+            }
+        );
         assert_eq!(session.on_up(center, false), MouseUpOutcome::Hide);
+    }
+
+    #[test]
+    fn leftover_cargo_with_the_same_change_count_does_not_rearm() {
+        let mut session = DropWheelSession::default();
+        let start = Instant::now();
+        let later = start + REVEAL_DELAY;
+        let center = Point::new(500.0, 500.0);
+        assert_eq!(
+            session.on_drag(center, later, true, 5, 5, false, 1120.0),
+            WheelFrame::Hidden
+        );
+        assert!(!session.has_origin());
+        assert_eq!(
+            session.on_drag(center, start, true, 6, 5, false, 1120.0),
+            WheelFrame::Hidden
+        );
+        assert!(session.has_origin());
+        assert_eq!(
+            session.on_drag(center, later, true, 6, 5, false, 1120.0),
+            WheelFrame::Visible {
+                center,
+                hot: None
+            }
+        );
+    }
+
+    #[test]
+    fn an_armed_drag_keeps_the_wheel_if_the_board_goes_empty() {
+        let mut session = DropWheelSession::default();
+        let start = Instant::now();
+        let later = start + REVEAL_DELAY;
+        let center = Point::new(500.0, 500.0);
+        session.on_drag(center, start, true, 1, 0, false, 1120.0);
+        session.on_drag(center, later, true, 1, 0, false, 1120.0);
+        let still = session.on_drag(
+            center,
+            later + Duration::from_millis(20),
+            false,
+            2,
+            0,
+            false,
+            1120.0,
+        );
+        assert_eq!(still, WheelFrame::Visible { center, hot: None });
+    }
+
+    #[test]
+    fn motion_matches_dropagent_edge_placement() {
+        assert_eq!(REVEAL_DELAY, Duration::from_millis(180));
+        assert_eq!(REVEAL_FADE, Duration::from_millis(200));
+        assert_eq!(CONCEAL_DURATION, Duration::from_millis(120));
+        assert_eq!(BOUNCE_DURATION, Duration::from_millis(220));
+        assert!((BOUNCE_SCALE - 1.06).abs() < f64::EPSILON);
+        assert_eq!(LEAVE_SLOP, 18.0);
+        assert_eq!(PETAL_GAP, 8.0);
+        assert_eq!(WINDOW_PADDING, 44.0);
+    }
+
+    #[test]
+    fn label_fits_the_petal_box_not_the_padded_view() {
+        assert_eq!(label_box_width(tile_thickness()), 52.0);
+        assert_eq!(label_box_width(90.0), LABEL_MAX_WIDTH);
+        assert!(label_box_width(tile_thickness()) < tile_thickness());
+        assert!(label_box_width(tile_thickness() + PETAL_PAD * 2.0) > label_box_width(tile_thickness()));
+    }
+
+    #[test]
+    fn agent_and_recipe_open_the_other_five_petals() {
+        let open = slices(true, true);
+        assert!(open.iter().all(|slice| slice.enabled));
+        let closed = slices(false, false);
+        assert!(closed[0].enabled);
+        assert!(closed[1..].iter().all(|slice| !slice.enabled));
     }
 }

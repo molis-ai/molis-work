@@ -9,7 +9,7 @@ export const PROJECT_INDEX_STYLES = `
   body.project-index-page ::selection { background: color-mix(in srgb, var(--blue) 28%, transparent); color: var(--ink); }
   body.project-index-page > .topbar,
   body.project-index-page > .project-directory-topbar {
-    grid-column: 1;
+    grid-column: 1 / -1;
     grid-row: 1;
     display: flex;
     align-items: center;
@@ -76,17 +76,20 @@ export const PROJECT_INDEX_STYLES = `
   }
   body.project-index-page > .topbar > .top-action span { display: inline; }
   body.project-index-page > .project-index {
-    grid-column: 1;
+    grid-column: 1 / -1;
     grid-row: 2;
     min-height: 0;
     overflow: hidden;
     overscroll-behavior: contain;
     padding: 28px clamp(20px, 4vw, 56px) 20px;
-    display: grid;
-    place-items: start center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
   }
   .project-index-panel {
     width: min(100%, 960px);
+    margin-inline: auto;
     height: auto;
     max-height: 100%;
     min-height: 0;
@@ -151,7 +154,7 @@ export const PROJECT_INDEX_STYLES = `
     text-align: center;
   }
   .project-index-actions .mw-btn { font-size: 12px; }
-  .project-card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; align-content: start; justify-items: start; }
+  .project-card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; align-content: start; justify-content: center; }
   .project-card {
     width: 100%;
     max-width: 360px;
@@ -219,6 +222,27 @@ export const PROJECT_INDEX_STYLES = `
     outline-offset: 2px;
   }
   .project-index-note { flex: none; margin: 12px 0 0; padding: 0 2px; border: 0; color: var(--ink-soft); font-size: 12px; line-height: 1.5; background: transparent; }
+  body.project-index-page[data-desktop-shell="true"]:not(.settings-page) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  body.project-index-page[data-desktop-shell="true"]:not(.settings-page) > .topbar,
+  body.project-index-page[data-desktop-shell="true"]:not(.settings-page) > .project-directory-topbar {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    width: 100%;
+    display: flex;
+  }
+  body.project-index-page[data-desktop-shell="true"]:not(.settings-page) > .project-index {
+    grid-column: 1 / -1;
+  }
+  body.project-index-page[data-desktop-shell="true"]:not(.settings-page) > .topbar > .brand {
+    display: flex;
+  }
+  body.project-index-page[data-desktop-shell="true"]:not(.settings-page) > .topbar > .top-action {
+    display: inline-flex;
+    width: auto;
+  }
+  body.project-index-page[data-desktop-shell="true"]:not(.settings-page) > .topbar > .top-action span { display: inline; }
   @media (max-width: 760px) {
     body.project-index-page:not([data-native-desktop="true"]) > .topbar { height: 52px; min-height: 52px; }
     .project-index { min-height: 0; }
@@ -235,7 +259,7 @@ export const PROJECT_INDEX_STYLES = `
       height: 44px;
       min-width: 44px;
     }
-    body.project-index-page > .project-index { padding: 20px 16px 16px; place-items: start stretch; }
+    body.project-index-page > .project-index { padding: 20px 16px 16px; align-items: stretch; }
     .project-index-panel { width: 100%; }
     .project-index-heading, .project-index-empty { padding-inline: 0; }
     .project-index-note { padding-inline: 0; }

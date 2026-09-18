@@ -17,19 +17,15 @@ export const LINEAR_DENSITY_STYLES = `
     grid-template-rows: var(--desktop-titlebar-height) minmax(0, 1fr);
   }
   body.immersive-workbench .workspace-chrome {
-    height: var(--desktop-titlebar-height); min-height: var(--desktop-titlebar-height); padding: 0 4px 0 6px; gap: 2px;
-  }
-  body.immersive-workbench:not([data-desktop-surface="home"]):not([data-desktop-surface="market"]) .immersive-workspace.is-plugin-directory-empty:not(.is-directory-collapsed) .immersive-titlebar > .workspace-chrome {
-    box-shadow: inset -1px 0 0 var(--line);
+    height: auto; min-height: 0; padding: 8px; gap: 0;
   }
   body.immersive-workbench .workspace-chrome .navigator-project-primary {
-    display: flex; flex: 1; min-width: 0; align-items: center; gap: 2px;
-    height: var(--desktop-titlebar-height); min-height: var(--desktop-titlebar-height); margin: 0; padding: 0;
+    display: flex; flex: none; width: max-content; max-width: 100%; min-width: 0; align-items: center; gap: 2px;
+    height: 36px; min-height: 36px; margin: 0; padding: 3px 4px 3px 5px;
   }
   body.immersive-workbench .immersive-workspace.is-directory-collapsed .workspace-chrome .navigator-project-primary,
-  body.immersive-workbench[data-desktop-surface="home"] .immersive-workspace.is-plugin-directory-empty .workspace-chrome .navigator-project-primary,
-  body.immersive-workbench[data-desktop-surface="market"] .immersive-workspace.is-plugin-directory-empty .workspace-chrome .navigator-project-primary {
-    flex: none;
+  body.immersive-workbench .immersive-workspace.is-plugin-directory-empty .workspace-chrome .navigator-project-primary {
+    flex: none; height: auto; min-height: 0; flex-direction: column;
   }
   body.immersive-workbench .immersive-workspace .navigator-project-selector {
     height: 28px; min-height: 28px; padding: 0 4px; gap: 6px;
@@ -224,15 +220,18 @@ export const LINEAR_DENSITY_STYLES = `
       --desktop-project-header-height: 44px; --dir-row-h: 44px; --dir-row-2h: 44px;
     }
     :is(body.project-preferences-page, .settings-stage), body.settings-page { --control-h: 44px; }
-    body.immersive-workbench .workspace-chrome,
     body.immersive-workbench .workspace-chrome .navigator-project-primary {
       height: 44px; min-height: 44px;
+    }
+    body.immersive-workbench .immersive-workspace.is-directory-collapsed .workspace-chrome .navigator-project-primary,
+    body.immersive-workbench .immersive-workspace.is-plugin-directory-empty .workspace-chrome .navigator-project-primary {
+      height: auto; min-height: 0;
     }
     body.immersive-workbench .workspace-history-button,
     body.immersive-workbench .immersive-workspace .navigator-project-settings,
     body.immersive-workbench .immersive-workspace .navigator-project-search,
     body.immersive-workbench .navigator-directory-toggle,
-    body.immersive-workbench .titlebar-chrome .immersive-show-directory { width: 44px; height: 44px; min-height: 44px; }
+    body.immersive-workbench .project-island .immersive-show-directory { width: 44px; height: 44px; min-height: 44px; }
     body.immersive-workbench .tab-strip,
     body.immersive-workbench .tab-group,
     body.immersive-workbench .tab-item { height: 44px; min-height: 44px; }
@@ -267,14 +266,14 @@ export const LINEAR_DENSITY_STYLES = `
     body.immersive-workbench .immersive-workspace,
     body.immersive-workbench .immersive-workspace.is-directory-collapsed,
     body.immersive-workbench .immersive-workspace.is-plugin-directory-empty {
-      grid-template-rows: auto minmax(0, 1fr);
+      grid-template-rows: auto auto minmax(0, 1fr);
     }
     body.immersive-workbench .immersive-titlebar {
-      height: auto; min-height: calc(var(--desktop-titlebar-height) + var(--workspace-chrome-height) + var(--tab-strip-h));
+      height: auto; min-height: calc(var(--desktop-titlebar-height) + var(--tab-strip-h));
       flex-wrap: wrap; overflow: visible;
     }
-    body.immersive-workbench .immersive-titlebar > .workspace-chrome {
-      flex: 1 1 100%; width: 100%; max-width: none; margin-left: 0; order: 5;
+    body.immersive-workbench .workspace-chrome.project-island {
+      grid-column: 1 / -1; width: 100%; max-width: none; margin: 0; padding: 8px 12px;
     }
     body.immersive-workbench .immersive-titlebar [data-titlebar-tabs] {
       flex: 1 1 100%; min-width: 0; width: auto; order: 2;

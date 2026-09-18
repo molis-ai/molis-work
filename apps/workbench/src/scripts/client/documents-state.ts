@@ -143,7 +143,8 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
     };
 
     const setDirectoryCollapsed = (collapsed, persist = true) => {
-      const nextCollapsed = Boolean(collapsed);
+      const immersiveDesktop = document.body.classList.contains("immersive-workbench") && !matchMedia("(max-width: 600px)").matches;
+      const nextCollapsed = immersiveDesktop ? false : Boolean(collapsed);
       if (nextCollapsed && !workspace.classList.contains("is-directory-collapsed")) {
         const currentWidth = Math.round(treePane?.getBoundingClientRect().width || 0);
         if (currentWidth > 44) workspace.style.setProperty("--tree-width", currentWidth + "px");
@@ -178,7 +179,7 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
       statuses: getSelectedStatuses(),
       mobileView: workspace.dataset.mobileView || "tree",
       navigatorView,
-      workspaceMode: activeDesktopSurface === "goal" ? workspace.dataset.workspaceMode || "focus" : goalWorkspaceMode,
+      workspaceMode: activeDesktopSurface === "goal" ? workspace.dataset.workspaceMode || "graph" : goalWorkspaceMode,
       ...readMomentumState(),
       navigationVersion: desktopNavigationStateVersion,
       directory: treePane?.dataset.desktopDirectory || "root",
@@ -205,7 +206,7 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
     const applyUiState = (ui) => {
       desktopSurfaceScroll = ui?.surfaceScroll && typeof ui.surfaceScroll === "object" ? { ...ui.surfaceScroll } : {};
       if (ui?.documentTop != null && desktopSurfaceScroll.goal == null) desktopSurfaceScroll.goal = Number(ui.documentTop || 0);
-      goalWorkspaceMode = ui?.workspaceMode || "focus";
+      goalWorkspaceMode = ui?.workspaceMode || "graph";
       const requestedDesktopSurface = ui?.workSurface === "sources" ? "feed" : (ui?.workSurface || (decisionView ? "inbox" : "goal"));
       let nextDesktopSurface = desktopWorkSurfaces.some((candidate) => candidate.dataset.workSurface === requestedDesktopSurface)
         ? requestedDesktopSurface
@@ -290,7 +291,7 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
         filterSources(true);
         if (selectedSource) selectSource(selectedSource, false);
       }
-      setWorkspaceMode(ui?.workspaceMode || (ui?.navigatorView === "graph" ? "graph" : "focus"), false, true);
+      setWorkspaceMode(ui?.workspaceMode || "graph", false, true);
       if (desktopWorkSurfaces.length) setDesktopWorkSurface(nextDesktopSurface, false, false);
       if (nextDesktopSurface === "feed" && selectedFeedItem) {
         selectFeedItem(selectedFeedItem, false, true, false);

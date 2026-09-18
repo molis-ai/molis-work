@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createWorkbenchGoalsTreeRenderer, createWorkbenchUiHost } from "@molis-ai/molis-work-app-workbench";
-import { buildGoalCollectionModel, GOALS_TREE_CLIENT_FACTORY_SCRIPT, GOALS_TREE_EN, GOALS_TREE_UI_CONTRIBUTION_ID, goalTreeCreatedLabel, goalTreeCreatorHue, goalTreeCreatorInitial, type GoalsTreeItem, type GoalsTreeView } from "@molis-ai/molis-work-plugin-goals";
+import { buildGoalCollectionModel, GOALS_NAVIGATION_CLIENT_FACTORY_SCRIPT, GOALS_REFRESH_CLIENT_FACTORY_SCRIPT, GOALS_TREE_CLIENT_FACTORY_SCRIPT, GOALS_TREE_EN, GOALS_TREE_UI_CONTRIBUTION_ID, goalTreeCreatedLabel, goalTreeCreatorHue, goalTreeCreatorInitial, type GoalsTreeItem, type GoalsTreeView } from "@molis-ai/molis-work-plugin-goals";
 import type { GoalRelationRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 import { icon } from "@molis-ai/molis-work-design-system";
 import { L, currentLocale, listJoin, runWithLocale } from "@molis-ai/molis-work-app-local-host";
@@ -31,7 +31,7 @@ test("Goals root directory contribution keeps its count, selection and navigatio
   assert.match(inactive, /<small>0 个 Goal<\/small>/);
 });
 
-test("collection selection preserves requested/active/first precedence and archive, trash, decision and empty boundaries", () => {
+test("collection selection preserves requested/active precedence without defaulting the current list to the first Goal", () => {
   const first = item("first"), active = item("active"), requested = item("requested");
   const model = { ...view([first, active, requested]), archived_goals: [requested, active], trashed_goals: [first],
     active_goal_id: "active", counts: { waiting_for_human: 1, executing: 2, execution_pending: 0,
@@ -41,10 +41,17 @@ test("collection selection preserves requested/active/first precedence and archi
     buildGoalCollectionModel(model, id, archive, trash, decision, L);
   assert.equal(select("requested").selected, requested);
   assert.equal(select("missing").selected, active);
+  assert.equal(select().selected, active);
   assert.equal(select(undefined, true).selected, requested, "Archive does not use the current active Goal");
   assert.equal(select("active", true).selected, active);
   assert.equal(select("active", false, true).selected, first);
   assert.equal(select("requested", false, false, true).selected, undefined);
+  const noDefault = buildGoalCollectionModel({ ...model, active_goal_id: null }, undefined, false, false, false, L);
+  assert.equal(noDefault.selected, undefined, "Current list does not open the first Goal by default");
+  assert.doesNotMatch(
+    renderer.renderGoalStageList({ ...model, active_goal_id: null }, noDefault),
+    /aria-pressed="true"/,
+  );
   const current = select();
   assert.equal(current.collectionNote, "需要你决定 1 · 正在推进 2 · 受阻 8");
   const full = renderer.renderGoalDirectory(model, current, true);
@@ -172,6 +179,8 @@ test("tree chrome keeps status counts, localized copy, and empty states", () => 
   assert.doesNotMatch(GOALS_TREE_CLIENT_FACTORY_SCRIPT, /data-collapse-all|handleTreeCollapseAllClick/);
   assert.match(GOALS_TREE_CLIENT_FACTORY_SCRIPT, /\[data-tree-root\] \[data-tree-item\]/);
   assert.match(GOALS_TREE_CLIENT_FACTORY_SCRIPT, /syncGoalCollectionFolds/);
+  assert.doesNotMatch(GOALS_NAVIGATION_CLIENT_FACTORY_SCRIPT, /visibleGoals\(\)\[0\]|getActiveGoalId\(\)/);
+  assert.doesNotMatch(GOALS_REFRESH_CLIENT_FACTORY_SCRIPT, /currentGoals\[0\]/);
   assert.match(renderer.renderTreeChrome(view([])), /当前没有可筛选的 Goal/);
   assert.equal(renderer.renderGoalTree(view([]), ""), '<ul class="goal-tree" data-tree-root></ul>');
 });

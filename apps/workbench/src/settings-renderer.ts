@@ -207,7 +207,7 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${controlTokenMeta(controlToken)}<title>${title} · ${L("Molis Work 设置")}</title><script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-settings.css"></head>
 <body class="settings-page project-preferences-page global-preferences-page" data-settings-section="${view.section}" data-desktop-shell="false"${desktopShell ? ' data-native-desktop="true"' : ""}>
   ${renderIconSprite()}
-  <header class="project-preferences-chrome"${desktopShell ? " data-tauri-drag-region" : ""}><span>${projectManager ? L("项目管理") : L("全局设置")}</span><a href="${returnHref}" aria-label="${L("关闭全局设置")}">${icon("x")}</a></header>
+  <header class="project-preferences-chrome"${desktopShell ? ' data-tauri-drag-region="deep"' : ""}><span>${projectManager ? L("项目管理") : L("全局设置")}</span><a href="${returnHref}" aria-label="${L("关闭全局设置")}">${icon("x")}</a></header>
   <main class="settings-shell${projectManager ? " settings-shell--standalone" : ""}">
     ${projectManager ? "" : renderSettingsNavigation(view.section, contextProject, desktopShell, view.projects)}
     <div class="settings-content">${content}</div>

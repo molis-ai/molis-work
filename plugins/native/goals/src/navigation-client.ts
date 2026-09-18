@@ -43,7 +43,7 @@ const GOALS_HISTORY_SCRIPT = `    const handleGoalPopState = (event) => {
       );
       const collectionRoot = trashView ? "/trash" : archiveView ? "/archive" : "/";
       const rootGoalId = pathname === collectionRoot
-        ? String(event.state?.goalId || getActiveGoalId() || visibleGoals()[0]?.goal.goal_id || "")
+        ? String(event.state?.goalId || "")
         : "";
       const goalId = match ? decodeURIComponent(match[1]) : rootGoalId;
       if (goalId) void selectGoal(goalId, false);
@@ -62,10 +62,10 @@ const GOALS_HISTORY_SCRIPT = `    const handleGoalPopState = (event) => {
 /** Bind Goal navigation without owning the shared Workbench selection or listeners. */
 export const GOALS_NAVIGATION_CLIENT_FACTORY_SCRIPT = `(host) => {
     const {
-      decisionView, trashView, archiveView, documentPane, getSelected, getActiveGoalId,
+      decisionView, trashView, archiveView, documentPane, getSelected,
       navigateToGoal, applySelection, loadGoalDocument,
       goalPageUrl, setWorkspaceMode, saveUiState, localPathname,
-      visibleGoals, openEventReaderFromHash, goalFactorFromHash,
+      openEventReaderFromHash, goalFactorFromHash,
       setGoalFactor, revealDeepLinkFromId,
     } = host;
 ${GOALS_SELECT_SCRIPT}${GOALS_HISTORY_SCRIPT}

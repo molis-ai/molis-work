@@ -2,7 +2,7 @@
 export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench {
     --desktop-titlebar-height: 32px; --desktop-titlebar-control-height: 26px; --workspace-chrome-height: 32px;
-    --desktop-project-header-height: 36px; --immersive-sidebar-width: 240px; --plugin-rail-width: 48px; --tab-strip-h: 32px;
+    --desktop-project-header-height: 36px; --project-island-offset: 54px; --immersive-sidebar-width: 240px; --plugin-rail-width: 48px; --tab-strip-h: 32px;
     background: var(--canvas); color: var(--ink); height: 100dvh; overflow: hidden; overscroll-behavior: none;
     font: 13px/1.5 var(--font);
   }
@@ -16,13 +16,17 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench .immersive-workspace.is-directory-collapsed,
   body.immersive-workbench .immersive-workspace.is-plugin-directory-empty {
     grid-template-columns: var(--plugin-rail-width) 0 minmax(0, 1fr);
+    --project-island-offset: 126px;
+  }
+  body.immersive-workbench .immersive-workspace.is-directory-collapsed:not(.is-plugin-directory-empty) {
+    --project-island-offset: 160px;
   }
   body.immersive-workbench .immersive-workspace.is-directory-collapsed > .tree-pane,
   body.immersive-workbench .immersive-workspace.is-plugin-directory-empty > .tree-pane { display: none; }
   body.immersive-workbench .plugin-rail {
-    grid-column: 1; grid-row: 2 / -1; min-width: 0; min-height: 0; width: auto;
+    grid-column: 1; grid-row: 2; min-width: 0; min-height: 0; width: auto;
     display: flex; flex-direction: column; align-items: stretch; overflow: hidden;
-    padding: 6px 0 8px; background: var(--nav-bg); border-right: 1px solid var(--line); z-index: 8;
+    padding: var(--project-island-offset) 0 8px; background: var(--nav-bg); border-right: 1px solid var(--line); z-index: 8;
   }
   body.immersive-workbench .plugin-rail-items {
     display: flex; flex: 1; flex-direction: column; align-items: center; gap: 2px; min-height: 0;
@@ -47,65 +51,83 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench .plugin-rail .personal-account-avatar { width: 28px; height: 28px; }
   body.immersive-workbench .immersive-workspace > .tree-pane {
     grid-column: 2; grid-row: 2; position: relative; inset: auto; width: auto; min-width: 0; min-height: 0;
-    padding: 0 !important; display: flex; flex-direction: column; overflow: hidden;
+    padding: var(--project-island-offset) 0 0 !important; display: flex; flex-direction: column; overflow: hidden;
     background: var(--nav-bg); border: 0; border-right: 1px solid var(--line); border-radius: 0;
   }
-  body.immersive-workbench .immersive-titlebar > .workspace-chrome {
-    display: flex; flex-direction: row; align-items: center;
-    flex: 0 0 var(--tree-width, var(--immersive-sidebar-width));
-    width: var(--tree-width, var(--immersive-sidebar-width));
-    height: var(--desktop-titlebar-height); min-height: var(--desktop-titlebar-height);
-    padding: 0 4px 0 6px; margin: 0 0 0 var(--plugin-rail-width); gap: 2px; min-width: 0; overflow: visible; z-index: 12;
-    box-sizing: border-box; align-self: stretch;
-    background: transparent; border: 0; border-right: 1px solid var(--line);
-    grid-template-rows: none !important; grid-template-columns: none !important; pointer-events: none;
+  body.immersive-workbench .workspace-chrome.project-island {
+    grid-column: 1 / 3; grid-row: 2; justify-self: start; align-self: start; z-index: 12; min-width: 0; overflow: visible;
+    display: flex; flex-direction: row; align-items: stretch;
+    width: max-content; max-width: calc(var(--plugin-rail-width) + var(--tree-width, var(--immersive-sidebar-width)));
+    height: auto; min-height: 0; margin: 0; padding: 8px 8px 10px; gap: 0; box-sizing: border-box;
+    background: transparent; border: 0; pointer-events: none;
   }
-  body.immersive-workbench[data-native-desktop="true"] .immersive-titlebar > .workspace-chrome {
-    margin-left: 0;
-    flex-basis: calc(var(--plugin-rail-width) + var(--tree-width, var(--immersive-sidebar-width)) - var(--desktop-window-safe-inline-start, 88px));
-    width: calc(var(--plugin-rail-width) + var(--tree-width, var(--immersive-sidebar-width)) - var(--desktop-window-safe-inline-start, 88px));
-  }
-  body.immersive-workbench .immersive-workspace.is-directory-collapsed .immersive-titlebar > .workspace-chrome,
-  body.immersive-workbench[data-desktop-surface="home"] .immersive-workspace.is-plugin-directory-empty .immersive-titlebar > .workspace-chrome,
-  body.immersive-workbench[data-desktop-surface="market"] .immersive-workspace.is-plugin-directory-empty .immersive-titlebar > .workspace-chrome,
-  body.immersive-workbench[data-native-desktop="true"] .immersive-workspace.is-directory-collapsed .immersive-titlebar > .workspace-chrome,
-  body.immersive-workbench[data-native-desktop="true"][data-desktop-surface="home"] .immersive-workspace.is-plugin-directory-empty .immersive-titlebar > .workspace-chrome,
-  body.immersive-workbench[data-native-desktop="true"][data-desktop-surface="market"] .immersive-workspace.is-plugin-directory-empty .immersive-titlebar > .workspace-chrome {
-    flex: 0 1 auto; width: auto; max-width: min(420px, 48vw); margin-left: 0; border-right: 0;
+  body.immersive-workbench .workspace-chrome.project-island > * { pointer-events: auto; }
+  body.immersive-workbench .immersive-workspace.is-directory-collapsed > .workspace-chrome.project-island,
+  body.immersive-workbench .immersive-workspace.is-plugin-directory-empty > .workspace-chrome.project-island {
+    grid-column: 1; justify-self: stretch; width: 100%; max-width: none; padding: 8px 6px 10px;
   }
   body.immersive-workbench .desktop-titlebar-drag { align-self: stretch; height: auto; min-height: 0; min-width: 12px; }
   body.immersive-workbench .titlebar-chrome .desktop-titlebar-drag--left { display: none; }
   body.immersive-workbench .workspace-chrome .navigator-project-primary {
-    display: flex; flex: 1; min-width: 0; align-items: center; gap: 2px;
-    height: var(--desktop-titlebar-height); min-height: var(--desktop-titlebar-height); margin: 0; padding: 0; border: 0; box-sizing: border-box;
+    display: flex; flex: none; width: max-content; max-width: 100%; min-width: 0; align-items: center; gap: 2px;
+    height: 36px; min-height: 36px; margin: 0; padding: 3px 4px 3px 5px; border: 0; box-sizing: border-box;
+    border-radius: var(--radius-surface, 12px); background: var(--nav-raised);
+    box-shadow: var(--surface-shadow), inset 0 0 0 1px var(--hairline, var(--line));
     grid-template-columns: none !important; pointer-events: auto;
   }
   body.immersive-workbench .immersive-workspace.is-directory-collapsed .workspace-chrome .navigator-project-primary,
-  body.immersive-workbench[data-desktop-surface="home"] .immersive-workspace.is-plugin-directory-empty .workspace-chrome .navigator-project-primary,
-  body.immersive-workbench[data-desktop-surface="market"] .immersive-workspace.is-plugin-directory-empty .workspace-chrome .navigator-project-primary {
-    flex: none;
+  body.immersive-workbench .immersive-workspace.is-plugin-directory-empty .workspace-chrome .navigator-project-primary {
+    flex: none; width: 100%; height: auto; min-height: 0; flex-direction: column; align-items: center; gap: 2px; padding: 4px;
   }
-  body.immersive-workbench .workspace-chrome .navigator-project-menu { flex: 0 1 auto; width: auto; max-width: none; min-width: 0; position: relative; }
-  body.immersive-workbench .workspace-chrome .navigator-project-search { margin-left: auto; }
+  body.immersive-workbench .workspace-chrome .navigator-project-menu {
+    flex: 0 1 auto; width: auto; max-width: 18ch; min-width: 0; position: relative;
+    padding-right: 6px; margin-right: 2px; box-shadow: 1px 0 0 var(--hairline, var(--line));
+  }
+  body.immersive-workbench .immersive-workspace.is-directory-collapsed .workspace-chrome .navigator-project-menu,
+  body.immersive-workbench .immersive-workspace.is-plugin-directory-empty .workspace-chrome .navigator-project-menu {
+    max-width: none; padding-right: 0; margin-right: 0; box-shadow: none;
+  }
+  body.immersive-workbench .workspace-chrome .navigator-project-search { margin-left: 0; }
   body.immersive-workbench .immersive-workspace .navigator-project-selector {
-    width: auto; min-width: 0; flex: 1; height: 28px; min-height: 28px; padding: 0 4px; display: flex; align-items: center;
-    gap: 6px; border: 0; border-radius: 6px; color: var(--ink); background: transparent;
+    width: auto; min-width: 0; flex: 0 1 auto; height: 28px; min-height: 28px; padding: 0 4px; display: flex; align-items: center;
+    gap: 6px; border: 0; border-radius: 8px; color: var(--ink); background: transparent;
+  }
+  body.immersive-workbench .immersive-workspace.is-directory-collapsed .navigator-project-selector,
+  body.immersive-workbench .immersive-workspace.is-plugin-directory-empty .navigator-project-selector {
+    flex: none; width: 36px; height: 32px; min-height: 32px; padding: 0; justify-content: center; gap: 0;
   }
   body.immersive-workbench .navigator-project-selector > svg:first-child { height: 16px; width: 16px; padding: 2px; border-radius: 4px; background: var(--action); color: var(--action-ink); flex: none; }
-  body.immersive-workbench .navigator-project-selector > svg:last-child { width: 11px; height: 11px; margin-left: auto; flex: none; }
+  body.immersive-workbench .navigator-project-selector > svg:last-child { width: 11px; height: 11px; margin-left: 2px; flex: none; }
   body.immersive-workbench .navigator-project-selector strong { font-size: 13px; font-weight: 400; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  body.immersive-workbench .immersive-workspace.is-directory-collapsed .navigator-project-selector strong,
+  body.immersive-workbench .immersive-workspace.is-directory-collapsed .navigator-project-selector > svg:last-child,
+  body.immersive-workbench .immersive-workspace.is-plugin-directory-empty .navigator-project-selector strong,
+  body.immersive-workbench .immersive-workspace.is-plugin-directory-empty .navigator-project-selector > svg:last-child {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
+  body.immersive-workbench .immersive-workspace.is-directory-collapsed .workspace-chrome :is(.navigator-project-settings, .navigator-project-search, .navigator-directory-toggle, .immersive-show-directory),
+  body.immersive-workbench .immersive-workspace.is-plugin-directory-empty .workspace-chrome :is(.navigator-project-settings, .navigator-project-search, .navigator-directory-toggle, .immersive-show-directory) {
+    width: 36px; height: 32px; min-height: 32px;
+  }
+  body.immersive-workbench .immersive-workspace.is-directory-collapsed .navigator-project-menu-popover,
+  body.immersive-workbench .immersive-workspace.is-plugin-directory-empty .navigator-project-menu-popover {
+    top: 0; left: calc(100% + 8px); right: auto;
+  }
   body.immersive-workbench .immersive-workspace .navigator-project-settings,
   body.immersive-workbench .immersive-workspace .navigator-project-search,
   body.immersive-workbench .immersive-workspace .navigator-project-notifications,
-  body.immersive-workbench .titlebar-chrome .navigator-directory-toggle { width: 27px; height: 29px; min-height: 29px; border: 0; border-radius: 5px; background: none; flex: none; color: var(--muted); display: grid; place-items: center; padding: 0; }
+  body.immersive-workbench .project-island .navigator-directory-toggle { width: 28px; height: 28px; min-height: 28px; border: 0; border-radius: 8px; background: none; flex: none; color: var(--muted); display: grid; place-items: center; padding: 0; }
   body.immersive-workbench .navigator-project-settings svg, body.immersive-workbench .navigator-project-search svg, body.immersive-workbench .navigator-project-notifications svg,
-  body.immersive-workbench .titlebar-chrome .navigator-directory-toggle svg,
-  body.immersive-workbench .titlebar-chrome .immersive-show-directory svg { width: 15px; height: 15px; }
+  body.immersive-workbench .project-island .navigator-directory-toggle svg,
+  body.immersive-workbench .project-island .immersive-show-directory svg { width: 15px; height: 15px; }
   body.immersive-workbench .navigator-project-menu-popover { position: absolute; top: calc(100% + 4px); left: 0; right: auto; width: min(280px, calc(100vw - 24px)); max-height: min(500px, calc(100dvh - 100px)); overflow: auto; padding: 6px; background: var(--paper); color: var(--ink); border: 0; border-radius: 9px; box-shadow: 0 8px 32px #00000035; z-index: 30; }
   body.immersive-workbench .navigator-project-option { padding: 9px 8px; border-radius: 5px; color: var(--ink); }
   body.immersive-workbench .navigator-project-option strong { font-size: 12px; font-weight: 400; }
   body.immersive-workbench .navigator-project-menu-popover > span { padding: 6px 8px; font-size: 10px; color: var(--muted); }
   body.immersive-workbench .navigator-project-manage { font-size: 11px; color: var(--muted); }
+  html[data-resolved-theme="dark"] body.immersive-workbench .workspace-chrome .navigator-project-primary {
+    box-shadow: var(--surface-shadow), inset 0 0 0 1px var(--hairline, var(--line)), inset 0 1px 0 var(--edge-highlight, transparent);
+  }
   body.immersive-workbench .immersive-directory-heading { display: none; }
   body.immersive-workbench .plugin-section { position: relative; display: flex; flex-direction: column; align-items: stretch; gap: 0; min-width: 0; }
   body.immersive-workbench .plugin-section.is-expanded { display: flex; flex-direction: column; align-items: stretch; min-width: 0; }
@@ -127,7 +149,7 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench .plugin-rail .immersive-plugin-link[aria-current] svg { color: var(--ink); }
   body.immersive-workbench .plugin-rail .immersive-plugin-link[aria-current]:hover { background: var(--nav-hover); }
   @media (prefers-reduced-motion: reduce) {
-    body.immersive-workbench .titlebar-chrome .navigator-directory-toggle svg { transition: none; }
+    body.immersive-workbench .project-island .navigator-directory-toggle svg { transition: none; }
   }
   body.immersive-workbench .directory-content-scroll {
     display: flex; flex: 1; flex-direction: column; min-height: 0; overflow: auto; overscroll-behavior: contain;
@@ -230,7 +252,10 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
     padding-left: var(--desktop-window-safe-inline-start, 88px);
   }
   body.immersive-workbench .tab-strip .tab-strip-spacer { flex: 0 1 0; min-width: 0; align-self: stretch; }
-  body.immersive-workbench[data-native-desktop="true"] .tab-strip .tab-strip-spacer { flex: 1 0 24px; min-width: 24px; -webkit-app-region: drag; }
+  html[data-native-desktop="true"] body.immersive-workbench [data-titlebar-tabs] .tab-scroll,
+  body.immersive-workbench[data-native-desktop="true"] [data-titlebar-tabs] .tab-scroll { flex: 0 1 auto; width: max-content; }
+  html[data-native-desktop="true"] body.immersive-workbench .tab-strip .tab-strip-spacer,
+  body.immersive-workbench[data-native-desktop="true"] .tab-strip .tab-strip-spacer { flex: 1 1 48px; min-width: 48px; -webkit-app-region: drag; }
   body.immersive-workbench .immersive-titlebar > strong { font-size: 11px; font-weight: 400; }
   body.immersive-workbench .container-tabs { min-width: 0; flex: 1; height: 44px; padding-block: 6px; display: flex; align-items: stretch; overflow: auto; scrollbar-width: none; gap: 4px; }
   body.immersive-workbench .container-tabs::-webkit-scrollbar { display: none; }
@@ -247,9 +272,7 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench .immersive-icon-button { width: 28px; height: 28px; padding: 0; flex: none; display: inline-grid; place-items: center; border: 0; border-radius: 5px; background: transparent; color: var(--muted); cursor: pointer; }
   body.immersive-workbench .immersive-icon-button svg { height: 16px; width: 16px; }
   body.immersive-workbench .immersive-show-directory { display: none; }
-  body.immersive-workbench .is-directory-collapsed .immersive-show-directory { display: inline-grid; }
-  body.immersive-workbench .is-directory-collapsed .titlebar-chrome .navigator-directory-toggle,
-  body.immersive-workbench .is-plugin-directory-empty .titlebar-chrome .navigator-directory-toggle { display: none; }
+  body.immersive-workbench .project-island .navigator-directory-toggle { display: none; }
   body.immersive-workbench .immersive-plugin-stage { grid-column: 3; grid-row: 2 / -1; position: relative; min-width: 0; min-height: 0; overflow: hidden; container: plugin-stage / inline-size; }
   body.immersive-workbench .immersive-plugin-stage > * { position: absolute; inset: 0; min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; }
   body.immersive-workbench .desktop-work-surface { min-height: 0; }
@@ -389,29 +412,48 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
     body.immersive-workbench .immersive-workspace.is-directory-collapsed,
     body.immersive-workbench .immersive-workspace.is-plugin-directory-empty {
       grid-template-columns: 0 0 minmax(0, 1fr);
-      grid-template-rows: auto minmax(0, 1fr);
+      grid-template-rows: auto auto minmax(0, 1fr);
     }
     body.immersive-workbench .plugin-rail {
-      display: none; position: fixed; top: calc(var(--desktop-titlebar-height) + var(--workspace-chrome-height) + var(--tab-strip-h)); left: 0; bottom: 0; width: var(--plugin-rail-width);
-      z-index: 40; border-right: 1px solid var(--line); box-shadow: none;
+      display: none; position: fixed; top: calc(var(--desktop-titlebar-height) + var(--tab-strip-h) + var(--workspace-chrome-height)); left: 0; bottom: 0; width: var(--plugin-rail-width);
+      z-index: 40; border-right: 1px solid var(--line); box-shadow: none; padding: 6px 0 8px;
     }
     body.immersive-workbench .immersive-workspace > .tree-pane {
-      display: none; position: fixed; top: calc(var(--desktop-titlebar-height) + var(--workspace-chrome-height) + var(--tab-strip-h)); left: var(--plugin-rail-width); bottom: 0; width: 216px;
-      z-index: 40; box-shadow: 12px 0 40px #00000035;
+      display: none; position: fixed; top: calc(var(--desktop-titlebar-height) + var(--tab-strip-h) + var(--workspace-chrome-height)); left: var(--plugin-rail-width); bottom: 0; width: 216px;
+      z-index: 40; box-shadow: 12px 0 40px #00000035; padding: 0 !important;
     }
     body.immersive-workbench .immersive-workspace.is-directory-drawer-open > .plugin-rail { display: flex; }
     body.immersive-workbench .immersive-workspace.is-directory-drawer-open > .tree-pane { display: flex; }
     body.immersive-workbench .immersive-workspace.is-directory-drawer-open.is-plugin-directory-empty > .tree-pane { display: none; }
-    body.immersive-workbench .immersive-sidebar-scrim:not([hidden]) { display: block; position: fixed; inset: calc(var(--desktop-titlebar-height) + var(--workspace-chrome-height) + var(--tab-strip-h)) 0 0; z-index: 35; border: 0; padding: 0; background: #08091080; }
-    body.immersive-workbench .immersive-titlebar { height: auto; min-height: calc(var(--desktop-titlebar-height) + var(--workspace-chrome-height) + var(--tab-strip-h)); padding: 0 12px; gap: 8px; flex-wrap: wrap; }
-    body.immersive-workbench .immersive-titlebar > .workspace-chrome {
-      flex: 1 0 100%; order: 5; width: auto; max-width: none; margin-left: 0; height: var(--workspace-chrome-height); min-height: var(--workspace-chrome-height); border-right: 0;
+    body.immersive-workbench .immersive-sidebar-scrim:not([hidden]) { display: block; position: fixed; inset: calc(var(--desktop-titlebar-height) + var(--tab-strip-h) + var(--workspace-chrome-height)) 0 0; z-index: 35; border: 0; padding: 0; background: #08091080; }
+    body.immersive-workbench .immersive-titlebar { height: auto; min-height: calc(var(--desktop-titlebar-height) + var(--tab-strip-h)); padding: 0 12px; gap: 8px; flex-wrap: wrap; }
+    body.immersive-workbench .workspace-chrome.project-island {
+      grid-column: 1 / -1; grid-row: 2; justify-self: stretch; width: auto; max-width: none; margin: 0;
+      padding: 8px 12px; height: auto; min-height: var(--workspace-chrome-height); border: 0; background: var(--nav-bg); pointer-events: auto;
     }
-    body.immersive-workbench .immersive-plugin-stage { grid-row: 2 !important; }
+    body.immersive-workbench .immersive-workspace.is-directory-collapsed > .workspace-chrome.project-island,
+    body.immersive-workbench .immersive-workspace.is-plugin-directory-empty > .workspace-chrome.project-island {
+      grid-column: 1 / -1; padding: 8px 12px;
+    }
+    body.immersive-workbench .immersive-workspace.is-directory-collapsed .workspace-chrome .navigator-project-primary,
+    body.immersive-workbench .immersive-workspace.is-plugin-directory-empty .workspace-chrome .navigator-project-primary {
+      flex-direction: row; height: 36px; width: auto; flex: 1; max-width: none;
+    }
+    body.immersive-workbench .immersive-workspace.is-directory-collapsed .navigator-project-selector,
+    body.immersive-workbench .immersive-workspace.is-plugin-directory-empty .navigator-project-selector {
+      flex: 1; width: auto; height: 28px; min-height: 28px; padding: 0 4px; justify-content: flex-start; gap: 6px;
+    }
+    body.immersive-workbench .immersive-workspace.is-directory-collapsed .navigator-project-selector strong,
+    body.immersive-workbench .immersive-workspace.is-directory-collapsed .navigator-project-selector > svg:last-child,
+    body.immersive-workbench .immersive-workspace.is-plugin-directory-empty .navigator-project-selector strong,
+    body.immersive-workbench .immersive-workspace.is-plugin-directory-empty .navigator-project-selector > svg:last-child {
+      position: static; width: auto; height: auto; margin: 0; clip: unset; overflow: hidden;
+    }
+    body.immersive-workbench .immersive-plugin-stage { grid-column: 3; grid-row: 3 !important; }
     body.immersive-workbench .workspace-history-button { width: 44px; height: 44px; min-height: 44px; }
     body.immersive-workbench .immersive-show-directory { display: inline-grid; }
-    body.immersive-workbench .titlebar-chrome .navigator-directory-toggle { display: none; }
-    body.immersive-workbench .is-directory-drawer-open .titlebar-chrome .navigator-directory-toggle { display: grid; }
+    body.immersive-workbench .project-island .navigator-directory-toggle { display: none; }
+    body.immersive-workbench .is-directory-drawer-open .project-island .navigator-directory-toggle { display: grid; }
     body.immersive-workbench .is-directory-drawer-open .immersive-show-directory { display: none; }
     body.immersive-workbench .immersive-goal-tools > span { display: none; }
     body.immersive-workbench .plugin-rail .plugin-rail-item,

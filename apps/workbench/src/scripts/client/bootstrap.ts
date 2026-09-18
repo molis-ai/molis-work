@@ -161,8 +161,8 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
       feed: defaultFeedPresetState(),
     };
     let desktopSurfaceScroll = {};
-    let goalWorkspaceMode = "focus";
-    let selected = decisionView ? "" : document.querySelector("[data-goal-view]:not([hidden])")?.dataset.goalView || (collectionView ? "" : state.active_goal_id || visibleGoals()[0]?.goal.goal_id) || "";
+    let goalWorkspaceMode = "graph";
+    let selected = decisionView ? "" : document.querySelector("[data-goal-view]:not([hidden])")?.dataset.goalView || (collectionView ? "" : state.active_goal_id) || "";
     if (!decisionView) {
       const initialHistoryState = history.state && typeof history.state === "object" ? history.state : {};
       history.replaceState({ ...initialHistoryState, goalId: selected }, "", location.href);

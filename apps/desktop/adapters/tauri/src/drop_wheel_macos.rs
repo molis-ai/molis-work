@@ -1,25 +1,43 @@
 //! Native AppKit drop wheel. Geometry lives in `drop_wheel`; this file is the
 //! NSPanel, hit-tested petals, global drag monitors, menu-bar drop, and Shelf admit.
+//! Petal chrome, frost, fade and bounce follow DropAgent `EdgeDropView` /
+//! `EdgeDropController`.
 
 use crate::drop_wheel::{
-    self, arc_angles, mid_radius, point_on_ring, slice_index, tile_thickness, window_frame,
-    window_size, DropWheelSession, MouseUpOutcome, Point, WheelAction, WheelFrame, INNER_RADIUS,
-    OUTER_RADIUS, REVEAL_DELAY, SLICE_COUNT,
+    self, arc_angles, label_box_width, mid_radius, slice_index, tile_thickness, window_frame,
+    window_size, DropWheelSession, MouseUpOutcome, Point, WheelAction, WheelFrame, WheelSlice,
+    BOUNCE_DURATION, BOUNCE_SCALE, CONCEAL_DURATION, ICON_LIFT, LABEL_DROP, PETAL_PAD,
+    REVEAL_DELAY, REVEAL_FADE, SHADOW_OFFSET_Y, SHADOW_OPACITY, SHADOW_OPACITY_DISABLED,
+    SHADOW_OPACITY_HOT, SHADOW_RADIUS, SHADOW_RADIUS_HOT, SLICE_COUNT,
 };
 use crate::shelf_http;
 use block2::RcBlock;
 use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, Bool, ProtocolObject};
-use objc2::{define_class, msg_send, DefinedClass, MainThreadOnly, Message};
+use objc2::{define_class, msg_send, AnyThread, ClassType, DefinedClass, MainThreadOnly, Message};
 use objc2_app_kit::{
-    NSBezierPath, NSColor, NSCompositingOperation, NSDragOperation, NSDraggingInfo, NSEvent,
-    NSEventMask, NSEventType, NSFont, NSImage, NSLineCapStyle, NSPanel, NSPasteboard, NSScreen,
-    NSView, NSWindow, NSWindowCollectionBehavior, NSWindowSharingType, NSWindowStyleMask,
+    NSAnimatablePropertyContainer, NSAnimationContext, NSAppearance, NSAppearanceCustomization,
+    NSAppearanceNameAqua, NSAppearanceNameDarkAqua, NSAppearanceNameVibrantDark,
+    NSAppearanceNameVibrantLight, NSAttributedStringNSExtendedStringDrawing,
+    NSAttributedStringNSStringDrawing, NSBezierPath, NSColor, NSCompositingOperation,
+    NSDragOperation, NSDraggingInfo, NSEvent, NSEventMask, NSEventType, NSFont,
+    NSFontAttributeName, NSFontWeightMedium, NSFontWeightRegular, NSForegroundColorAttributeName,
+    NSGraphicsContext, NSImage, NSImageSymbolConfiguration, NSLineBreakMode,
+    NSMutableParagraphStyle, NSPanel,
+    NSParagraphStyleAttributeName, NSPasteboard, NSScreen, NSStringDrawingOptions, NSTextAlignment,
+    NSView, NSViewLayerContentsRedrawPolicy, NSVisualEffectBlendingMode, NSVisualEffectMaterial,
+    NSVisualEffectState, NSVisualEffectView, NSWindow, NSWindowAnimationBehavior,
+    NSWindowCollectionBehavior, NSWindowSharingType, NSWindowStyleMask, NSWorkspace,
 };
+use objc2_core_graphics::{CGLineCap, CGLineJoin, CGPath};
 use objc2_foundation::{
-    ns_string, MainThreadMarker, NSArray, NSObjectProtocol, NSPoint, NSRect, NSSize, NSString,
+    ns_string, MainThreadMarker, NSArray, NSAttributedString, NSNumber, NSObjectNSKeyValueCoding,
+    NSObjectProtocol, NSPoint, NSRect, NSSize, NSString,
 };
-use std::cell::Cell;
+use objc2_quartz_core::{
+    CALayer, CAMediaTiming, CAMediaTimingFunction, CAShapeLayer, CASpringAnimation, CATransaction,
+};
+use std::cell::{Cell, RefCell};
 use std::path::PathBuf;
 use std::ptr::{self, NonNull};
 use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU64, Ordering};
@@ -35,6 +53,7 @@ static SHELF_SURFACE: AtomicBool = AtomicBool::new(false);
 static HOST: AtomicPtr<Host> = AtomicPtr::new(ptr::null_mut());
 static REVEAL_GEN: AtomicU64 = AtomicU64::new(0);
 static WATCHDOG_GEN: AtomicU64 = AtomicU64::new(0);
+static CATCHER: AtomicBool = AtomicBool::new(false);
 
 struct Host {
     session: Mutex<DropWheelSession>,
@@ -57,8 +76,14 @@ struct Cargo {
 impl Cargo {
     fn has_content(&self) -> bool {
         !self.files.is_empty()
-            || self.text.as_ref().is_some_and(|value| !value.trim().is_empty())
-            || self.url.as_ref().is_some_and(|value| !value.trim().is_empty())
+            || self
+                .text
+                .as_ref()
+                .is_some_and(|value| !value.trim().is_empty())
+            || self
+                .url
+                .as_ref()
+                .is_some_and(|value| !value.trim().is_empty())
     }
 
     fn is_http_url(&self) -> bool {
@@ -75,15 +100,264 @@ impl Cargo {
         drop_wheel::has_drag_cargo(
             &self.types.iter().map(String::as_str).collect::<Vec<_>>(),
             !self.files.is_empty(),
-            self.text.as_ref().is_some_and(|value| !value.trim().is_empty()),
+            self.text
+                .as_ref()
+                .is_some_and(|value| !value.trim().is_empty()),
             self.is_http_url(),
         )
+    }
+}
+
+struct ChromeIvars {
+    index: Cell<usize>,
+    hot: Cell<bool>,
+    enabled: Cell<bool>,
+    local_x: Cell<f64>,
+    local_y: Cell<f64>,
+}
+
+define_class!(
+    #[unsafe(super(NSView))]
+    #[thread_kind = MainThreadOnly]
+    #[name = "MolisWorkDropWheelChromeView"]
+    #[ivars = ChromeIvars]
+    struct DropWheelChromeView;
+
+    unsafe impl NSObjectProtocol for DropWheelChromeView {}
+
+    impl DropWheelChromeView {
+        #[unsafe(method(isOpaque))]
+        fn is_opaque(&self) -> bool {
+            false
+        }
+
+        #[unsafe(method_id(hitTest:))]
+        fn hit_test(&self, _point: NSPoint) -> Option<Retained<NSView>> {
+            None
+        }
+
+        #[unsafe(method(drawRect:))]
+        fn draw_rect(&self, _dirty: NSRect) {
+            draw_chrome(self);
+        }
+    }
+);
+
+impl DropWheelChromeView {
+    fn new(mtm: MainThreadMarker) -> Retained<Self> {
+        let this = Self::alloc(mtm).set_ivars(ChromeIvars {
+            index: Cell::new(0),
+            hot: Cell::new(false),
+            enabled: Cell::new(true),
+            local_x: Cell::new(0.0),
+            local_y: Cell::new(0.0),
+        });
+        let view: Retained<Self> = unsafe { msg_send![super(this), initWithFrame: NSRect::ZERO] };
+        view.setWantsLayer(true);
+        view.setLayerContentsRedrawPolicy(NSViewLayerContentsRedrawPolicy::OnSetNeedsDisplay);
+        if let Some(layer) = view.layer() {
+            layer.setOpaque(false);
+            layer.setBackgroundColor(Some(&NSColor::clearColor().CGColor()));
+        }
+        view
+    }
+}
+
+struct SliceIvars {
+    index: Cell<usize>,
+    hot: Cell<bool>,
+    enabled: Cell<bool>,
+    local_x: Cell<f64>,
+    local_y: Cell<f64>,
+    frost: Retained<NSVisualEffectView>,
+    chrome: Retained<DropWheelChromeView>,
+    mask: Retained<CAShapeLayer>,
+}
+
+define_class!(
+    #[unsafe(super(NSView))]
+    #[thread_kind = MainThreadOnly]
+    #[name = "MolisWorkDropWheelSliceView"]
+    #[ivars = SliceIvars]
+    struct DropWheelSliceView;
+
+    unsafe impl NSObjectProtocol for DropWheelSliceView {}
+
+    impl DropWheelSliceView {
+        #[unsafe(method(isOpaque))]
+        fn is_opaque(&self) -> bool {
+            false
+        }
+
+        #[unsafe(method_id(hitTest:))]
+        fn hit_test(&self, _point: NSPoint) -> Option<Retained<NSView>> {
+            None
+        }
+    }
+);
+
+impl DropWheelSliceView {
+    fn new(mtm: MainThreadMarker, index: usize) -> Retained<Self> {
+        let frost = NSVisualEffectView::initWithFrame(NSVisualEffectView::alloc(mtm), NSRect::ZERO);
+        frost.setMaterial(NSVisualEffectMaterial::Popover);
+        frost.setBlendingMode(NSVisualEffectBlendingMode::BehindWindow);
+        frost.setState(NSVisualEffectState::Active);
+        frost.setWantsLayer(true);
+        let mask: Retained<CAShapeLayer> = unsafe { msg_send![CAShapeLayer::class(), layer] };
+        mask.setFillColor(Some(&NSColor::blackColor().CGColor()));
+        if let Some(layer) = frost.layer() {
+            unsafe {
+                layer.setMask(Some(&mask));
+            }
+        }
+        let chrome = DropWheelChromeView::new(mtm);
+        chrome.ivars().index.set(index);
+        let this = Self::alloc(mtm).set_ivars(SliceIvars {
+            index: Cell::new(index),
+            hot: Cell::new(false),
+            enabled: Cell::new(true),
+            local_x: Cell::new(0.0),
+            local_y: Cell::new(0.0),
+            frost,
+            chrome,
+            mask,
+        });
+        let view: Retained<Self> = unsafe { msg_send![super(this), initWithFrame: NSRect::ZERO] };
+        view.setWantsLayer(true);
+        if let Some(layer) = view.layer() {
+            layer.setOpaque(false);
+            unsafe {
+                let _: () = msg_send![&layer, setAnchorPoint: NSPoint::new(0.5, 0.5)];
+            }
+            layer.setBackgroundColor(Some(&NSColor::clearColor().CGColor()));
+        }
+        let frost = Retained::clone(&view.ivars().frost);
+        let chrome = Retained::clone(&view.ivars().chrome);
+        view.addSubview(&frost);
+        view.addSubview(&chrome);
+        view
+    }
+
+    fn place(&self, wheel_center: NSPoint) {
+        let index = self.ivars().index.get();
+        let path = tile_path(index, wheel_center);
+        let bounds = path.bounds();
+        if bounds.size.width < 1.0 || bounds.size.height < 1.0 {
+            self.setHidden(true);
+            return;
+        }
+        self.setHidden(false);
+        let frame_box = NSRect::new(
+            NSPoint::new(bounds.origin.x - PETAL_PAD, bounds.origin.y - PETAL_PAD),
+            NSSize::new(
+                bounds.size.width + PETAL_PAD * 2.0,
+                bounds.size.height + PETAL_PAD * 2.0,
+            ),
+        );
+        self.setFrame(frame_box);
+        let local_center = NSPoint::new(
+            wheel_center.x - frame_box.origin.x,
+            wheel_center.y - frame_box.origin.y,
+        );
+        self.ivars().local_x.set(local_center.x);
+        self.ivars().local_y.set(local_center.y);
+        self.ivars().chrome.ivars().local_x.set(local_center.x);
+        self.ivars().chrome.ivars().local_y.set(local_center.y);
+        let local = tile_path(index, local_center);
+        self.ivars().frost.setFrame(self.bounds());
+        self.ivars().chrome.setFrame(self.bounds());
+        self.ivars().mask.setFrame(self.bounds());
+        self.ivars().mask.setPath(Some(&local.CGPath()));
+        if let Some(layer) = self.layer() {
+            layer.setShadowPath(Some(&local.CGPath()));
+            layer.setShadowColor(Some(&NSColor::blackColor().CGColor()));
+            unsafe {
+                let _: () = msg_send![&layer, setShadowOffset: NSSize::new(0.0, SHADOW_OFFSET_Y)];
+            }
+        }
+        self.paint_shadow();
+    }
+
+    fn apply(&self, slice: &WheelSlice, hot: bool, animated: bool, dark: bool) {
+        self.ivars().enabled.set(slice.enabled);
+        let frost_name = if dark {
+            unsafe { NSAppearanceNameVibrantDark }
+        } else {
+            unsafe { NSAppearanceNameVibrantLight }
+        };
+        let chrome_name = if dark {
+            unsafe { NSAppearanceNameDarkAqua }
+        } else {
+            unsafe { NSAppearanceNameAqua }
+        };
+        self.ivars()
+            .frost
+            .setAppearance(NSAppearance::appearanceNamed(frost_name).as_deref());
+        let chrome = &self.ivars().chrome;
+        chrome.setAppearance(NSAppearance::appearanceNamed(chrome_name).as_deref());
+        chrome.ivars().index.set(self.ivars().index.get());
+        chrome.ivars().enabled.set(slice.enabled);
+        chrome.ivars().hot.set(hot && slice.enabled);
+        chrome.ivars().local_x.set(self.ivars().local_x.get());
+        chrome.ivars().local_y.set(self.ivars().local_y.get());
+        chrome.setNeedsDisplay(true);
+        self.set_hot(hot && slice.enabled, animated);
+    }
+
+    fn set_hot(&self, hot: bool, animated: bool) {
+        let changed = self.ivars().hot.get() != hot;
+        self.ivars().hot.set(hot);
+        self.ivars().chrome.ivars().hot.set(hot);
+        self.ivars().chrome.setNeedsDisplay(true);
+        self.paint_shadow();
+        if !changed {
+            return;
+        }
+        let enabled = self.ivars().enabled.get();
+        let scale = if hot && enabled { BOUNCE_SCALE } else { 1.0 };
+        let Some(layer) = self.layer() else {
+            return;
+        };
+        if animated {
+            bounce_layer(&layer, scale);
+        } else {
+            CATransaction::begin();
+            CATransaction::setDisableActions(true);
+            unsafe {
+                layer.setValue_forKeyPath(
+                    Some(&*NSNumber::new_f64(scale)),
+                    ns_string!("transform.scale"),
+                );
+            }
+            CATransaction::commit();
+        }
+    }
+
+    fn paint_shadow(&self) {
+        let Some(layer) = self.layer() else {
+            return;
+        };
+        let enabled = self.ivars().enabled.get();
+        let hot = self.ivars().hot.get() && enabled;
+        layer.setShadowRadius(if hot {
+            SHADOW_RADIUS_HOT
+        } else {
+            SHADOW_RADIUS
+        } as _);
+        layer.setShadowOpacity(if !enabled {
+            SHADOW_OPACITY_DISABLED
+        } else if hot {
+            SHADOW_OPACITY_HOT
+        } else {
+            SHADOW_OPACITY
+        });
     }
 }
 
 struct Ivars {
     hot: Cell<Option<usize>>,
     enabled: Cell<u8>,
+    tiles: RefCell<Vec<Retained<DropWheelSliceView>>>,
 }
 
 define_class!(
@@ -115,11 +389,6 @@ define_class!(
             }
         }
 
-        #[unsafe(method(drawRect:))]
-        fn draw_rect(&self, _dirty: NSRect) {
-            draw_wheel(self);
-        }
-
         #[unsafe(method(draggingEntered:))]
         fn dragging_entered(&self, sender: &ProtocolObject<dyn NSDraggingInfo>) -> NSDragOperation {
             drag_operation(self, sender)
@@ -132,8 +401,7 @@ define_class!(
 
         #[unsafe(method(draggingExited:))]
         fn dragging_exited(&self, _sender: Option<&ProtocolObject<dyn NSDraggingInfo>>) {
-            self.ivars().hot.set(None);
-            self.setNeedsDisplay(true);
+            self.clear_hot();
         }
 
         #[unsafe(method(prepareForDragOperation:))]
@@ -172,8 +440,53 @@ impl DropWheelView {
         let this = Self::alloc(mtm).set_ivars(Ivars {
             hot: Cell::new(None),
             enabled: Cell::new(1),
+            tiles: RefCell::new(Vec::new()),
         });
-        unsafe { msg_send![super(this), initWithFrame: frame] }
+        let view: Retained<Self> = unsafe { msg_send![super(this), initWithFrame: frame] };
+        view.setWantsLayer(true);
+        if let Some(layer) = view.layer() {
+            layer.setOpaque(false);
+            layer.setBackgroundColor(Some(&NSColor::clearColor().CGColor()));
+        }
+        for index in 0..SLICE_COUNT {
+            let tile = DropWheelSliceView::new(mtm, index);
+            view.addSubview(&tile);
+            view.ivars().tiles.borrow_mut().push(tile);
+        }
+        view.place_tiles();
+        view
+    }
+
+    fn place_tiles(&self) {
+        let bounds = self.bounds();
+        let center = NSPoint::new(bounds.size.width / 2.0, bounds.size.height / 2.0);
+        for tile in self.ivars().tiles.borrow().iter() {
+            tile.place(center);
+        }
+    }
+
+    fn apply(&self, slices: &[WheelSlice; SLICE_COUNT], hot: Option<usize>) {
+        let mut mask = 0_u8;
+        for (index, slice) in slices.iter().enumerate() {
+            if slice.enabled {
+                mask |= 1 << index;
+            }
+        }
+        let next = hot.filter(|&index| mask & (1 << index) != 0);
+        self.ivars().enabled.set(mask);
+        self.ivars().hot.set(next);
+        let reduce = skip_wheel_motion();
+        let dark = is_dark();
+        for (index, tile) in self.ivars().tiles.borrow().iter().enumerate() {
+            tile.apply(&slices[index], next == Some(index), !reduce, dark);
+        }
+    }
+
+    fn clear_hot(&self) {
+        self.ivars().hot.set(None);
+        for tile in self.ivars().tiles.borrow().iter() {
+            tile.set_hot(false, false);
+        }
     }
 }
 
@@ -220,6 +533,7 @@ pub fn install(app: &AppHandle) -> Result<(), String> {
     panel.setHasShadow(false);
     panel.setIgnoresMouseEvents(false);
     panel.setMovable(false);
+    panel.setAnimationBehavior(NSWindowAnimationBehavior::None);
     panel.setCollectionBehavior(
         NSWindowCollectionBehavior::CanJoinAllSpaces
             | NSWindowCollectionBehavior::FullScreenAuxiliary,
@@ -262,6 +576,7 @@ pub fn install(app: &AppHandle) -> Result<(), String> {
     }));
     HOST.store(host as *mut Host, Ordering::SeqCst);
     let _ = EdgePlacementConsume::clear_drag_board(false);
+    shelf_http::refresh_wheel_gates();
     Ok(())
 }
 
@@ -308,39 +623,53 @@ fn on_drag() {
     };
     // Appearance can turn the wheel off; the menu bar icon and the panel still take drops.
     if !shelf_http::drop_wheel_enabled() {
-        conceal(&host);
+        disarm(host);
         return;
     }
     let mouse = mouse_point();
     let now = Instant::now();
     let live = read_cargo();
-    if live.has_content() {
-        if let Ok(mut snapshot) = host.snapshot.lock() {
-            *snapshot = live.clone();
-        }
-    }
-    let snapshot = host.snapshot.lock().ok().map(|value| value.clone()).unwrap_or_default();
-    let consumed = host.consumed_change.lock().ok().map(|value| *value).unwrap_or(-1);
+    let consumed = host
+        .consumed_change
+        .lock()
+        .ok()
+        .map(|value| *value)
+        .unwrap_or(-1);
     let change = drag_board().map(|board| board.changeCount()).unwrap_or(-1);
-    if change == consumed && !snapshot.has_content() && !live.has_content() {
-        return;
-    }
-    let cargo = if live.has_content() { &live } else { &snapshot };
-    let has_cargo = live.has_cargo() || snapshot.has_cargo() || cargo.has_content();
+    let live_cargo = live.has_cargo();
     let mut session = match host.session.lock() {
         Ok(session) => session,
         Err(_) => return,
     };
     let starting = !session.has_origin();
+    if starting && !drop_wheel::new_drag_has_payload(change, consumed, live_cargo) {
+        drop(session);
+        if CATCHER.load(Ordering::SeqCst) {
+            disarm(host);
+        }
+        return;
+    }
+    if live.has_content() {
+        if let Ok(mut snapshot) = host.snapshot.lock() {
+            *snapshot = live.clone();
+        }
+    }
+    if starting {
+        let (has_agent, has_recipe) = shelf_http::wheel_gates();
+        session.has_agent = has_agent;
+        session.has_recipe = has_recipe;
+    }
     let over_panel = over_shelf_panel(&host.app, mouse);
     let screen_max = screen_max_y(mouse);
-    let frame = session.on_drag(mouse, now, has_cargo, over_panel, screen_max);
+    let frame = session.on_drag(
+        mouse, now, live_cargo, change, consumed, over_panel, screen_max,
+    );
     drop(session);
-    if starting && has_cargo {
+    if starting {
         schedule_reveal(host.app.clone());
     }
     poke_watchdog(host.app.clone());
-    apply_frame(&host, frame);
+    apply_frame(host, frame);
 }
 
 fn finish_from_mouse_up() {
@@ -351,8 +680,17 @@ fn finish_from_mouse_up() {
     };
     let mouse = mouse_point();
     let live = read_cargo();
-    let snapshot = host.snapshot.lock().ok().map(|value| value.clone()).unwrap_or_default();
-    let cargo = if live.has_content() { live } else { snapshot.clone() };
+    let snapshot = host
+        .snapshot
+        .lock()
+        .ok()
+        .map(|value| value.clone())
+        .unwrap_or_default();
+    let cargo = if live.has_content() {
+        live
+    } else {
+        snapshot.clone()
+    };
     let over_panel = over_shelf_panel(&host.app, mouse);
     let over_tray = tray_contains(&host.app, mouse, screen_max_y(mouse));
     let mut session = match host.session.lock() {
@@ -370,7 +708,7 @@ fn finish_from_mouse_up() {
         session.reset();
     }
     drop(session);
-    conceal(&host);
+    disarm(host);
     let did_admit = match outcome {
         MouseUpOutcome::Admit(action) => {
             spawn_admit(action, cargo.clone());
@@ -403,7 +741,12 @@ fn admit_now(action: WheelAction) -> bool {
         session.mark_admitted();
     }
     let live = read_cargo();
-    let snapshot = host.snapshot.lock().ok().map(|value| value.clone()).unwrap_or_default();
+    let snapshot = host
+        .snapshot
+        .lock()
+        .ok()
+        .map(|value| value.clone())
+        .unwrap_or_default();
     let cargo = if live.has_content() { live } else { snapshot };
     if !cargo.has_content() {
         return false;
@@ -416,13 +759,14 @@ fn spawn_admit(action: WheelAction, cargo: Cargo) {
     thread::spawn(move || {
         let admitted = admit_cargo(&cargo);
         // A recipe petal runs on the copy right away, with the recipe's own default option.
-        let Some(recipe) = action.recipe_id() else { return };
+        let Some(recipe) = action.recipe_id() else {
+            return;
+        };
         if let Err(error) = shelf_http::run_recipe(recipe, &admitted) {
             eprintln!("Molis Work 轮盘未能跑这个动作：{error}");
         }
     });
 }
-
 
 /// Returns the shelf item ids the drop produced, in drop order.
 fn admit_cargo(cargo: &Cargo) -> Vec<String> {
@@ -440,7 +784,7 @@ fn admit_cargo(cargo: &Cargo) -> Vec<String> {
         .text
         .as_deref()
         .map(str::trim)
-        .filter(|value| !value.is_empty())
+        .filter(|value| !value.trim().is_empty())
     {
         match shelf_http::admit_text(text) {
             Ok(item_id) => admitted.push(item_id),
@@ -452,7 +796,7 @@ fn admit_cargo(cargo: &Cargo) -> Vec<String> {
         .url
         .as_deref()
         .map(str::trim)
-        .filter(|value| !value.is_empty())
+        .filter(|value| !value.trim().is_empty())
     {
         match shelf_http::admit_text(url) {
             Ok(item_id) => admitted.push(item_id),
@@ -464,40 +808,131 @@ fn admit_cargo(cargo: &Cargo) -> Vec<String> {
 
 fn apply_frame(host: &Host, frame: WheelFrame) {
     match frame {
-        WheelFrame::Hidden => conceal(host),
-        WheelFrame::Visible { center, hot } => {
-            let slices = host
-                .session
-                .lock()
-                .map(|session| session.slices())
-                .unwrap_or_else(|_| drop_wheel::slices(false, false));
-            let mut mask = 0_u8;
-            for (index, slice) in slices.iter().enumerate() {
-                if slice.enabled {
-                    mask |= 1 << index;
-                }
+        WheelFrame::Hidden => {
+            if CATCHER.swap(false, Ordering::SeqCst) {
+                conceal(host);
             }
-            host.view.ivars().hot.set(hot.filter(|&index| mask & (1 << index) != 0));
-            host.view.ivars().enabled.set(mask);
-            let (origin, size) = window_frame(center);
-            host.panel.setFrame_display(
-                NSRect::new(NSPoint::new(origin.x, origin.y), NSSize::new(size, size)),
-                true,
-            );
-            unsafe {
-                let _: () = msg_send![&host.panel, setLevel: 33isize];
-            }
-            host.panel.setAlphaValue(1.0);
-            host.panel.orderFrontRegardless();
-            host.view.setNeedsDisplay(true);
         }
+        WheelFrame::Visible { center, hot } => reveal(host, center, hot),
     }
 }
 
+fn reveal(host: &Host, center: Point, hot: Option<usize>) {
+    CATCHER.store(true, Ordering::SeqCst);
+    let slices = host
+        .session
+        .lock()
+        .map(|session| session.slices())
+        .unwrap_or_else(|_| drop_wheel::slices(false, false));
+    host.view.apply(&slices, hot);
+    let (origin, size) = window_frame(center);
+    host.panel.setFrame_display(
+        NSRect::new(NSPoint::new(origin.x, origin.y), NSSize::new(size, size)),
+        true,
+    );
+    unsafe {
+        let _: () = msg_send![&host.panel, setLevel: 33isize];
+    }
+    if host.panel.isVisible() {
+        host.panel.setAlphaValue(1.0);
+        return;
+    }
+    if skip_wheel_motion() {
+        host.panel.setAlphaValue(1.0);
+        host.panel.orderFrontRegardless();
+        return;
+    }
+    host.panel.setAlphaValue(0.0);
+    host.panel.orderFrontRegardless();
+    fade_panel(&host.panel, 1.0, REVEAL_FADE.as_secs_f64(), None);
+}
+
+fn disarm(host: &Host) {
+    CATCHER.store(false, Ordering::SeqCst);
+    conceal(host);
+}
+
 fn conceal(host: &Host) {
-    host.view.ivars().hot.set(None);
-    host.panel.orderOut(None::<&AnyObject>);
-    host.panel.setAlphaValue(1.0);
+    host.view.clear_hot();
+    if !host.panel.isVisible() {
+        return;
+    }
+    if skip_wheel_motion() {
+        host.panel.orderOut(None::<&AnyObject>);
+        host.panel.setAlphaValue(1.0);
+        return;
+    }
+    fade_panel(
+        &host.panel,
+        0.0,
+        CONCEAL_DURATION.as_secs_f64(),
+        Some(finish_conceal),
+    );
+}
+
+fn finish_conceal() {
+    if CATCHER.load(Ordering::SeqCst) {
+        return;
+    }
+    if let Some(live) = host() {
+        live.panel.orderOut(None::<&AnyObject>);
+        live.panel.setAlphaValue(1.0);
+    }
+}
+
+fn fade_panel(panel: &NSPanel, alpha: f64, duration: f64, on_done: Option<fn()>) {
+    let panel = panel.retain();
+    let changes = RcBlock::new(move |ctx: NonNull<NSAnimationContext>| {
+        let ctx = unsafe { ctx.as_ref() };
+        ctx.setDuration(duration);
+        ctx.setTimingFunction(Some(&CAMediaTimingFunction::functionWithControlPoints(
+            0.16, 1.0, 0.3, 1.0,
+        )));
+        NSAnimatablePropertyContainer::animator(&*panel).setAlphaValue(alpha);
+    });
+    if let Some(done) = on_done {
+        let completion = RcBlock::new(move || done());
+        NSAnimationContext::runAnimationGroup_completionHandler(&changes, Some(&completion));
+    } else {
+        NSAnimationContext::runAnimationGroup(&changes);
+    }
+}
+
+fn bounce_layer(layer: &CALayer, scale: f64) {
+    let current = unsafe { layer.presentationLayer() }
+        .and_then(|presentation| presentation.valueForKeyPath(ns_string!("transform.scale")))
+        .and_then(|value| {
+            value
+                .downcast_ref::<NSNumber>()
+                .map(|number| number.doubleValue())
+        })
+        .unwrap_or(1.0);
+    let spring = CASpringAnimation::animationWithKeyPath(Some(ns_string!("transform.scale")));
+    spring.setMass(0.45);
+    spring.setStiffness(420.0);
+    spring.setDamping(22.0);
+    unsafe {
+        spring.setFromValue(Some(&*NSNumber::new_f64(current)));
+        spring.setToValue(Some(&*NSNumber::new_f64(scale)));
+    }
+    CAMediaTiming::setDuration(
+        &*spring,
+        spring.settlingDuration().min(BOUNCE_DURATION.as_secs_f64()),
+    );
+    layer.addAnimation_forKey(&spring, Some(ns_string!("bounce")));
+    CATransaction::begin();
+    CATransaction::setDisableActions(true);
+    unsafe {
+        layer.setValue_forKeyPath(
+            Some(&*NSNumber::new_f64(scale)),
+            ns_string!("transform.scale"),
+        );
+    }
+    CATransaction::commit();
+}
+
+fn skip_wheel_motion() -> bool {
+    NSWorkspace::sharedWorkspace().accessibilityDisplayShouldReduceMotion()
 }
 
 fn schedule_reveal(app: AppHandle) {
@@ -597,9 +1032,8 @@ fn tray_contains(app: &AppHandle, mouse: Point, screen_max_y: f64) -> bool {
         Size::Logical(size) => size,
         Size::Physical(size) => LogicalSize::new(size.width as f64, size.height as f64),
     };
-    let contains = |y0: f64| {
-        mouse.x >= x && mouse.x < x + width && mouse.y >= y0 && mouse.y < y0 + height
-    };
+    let contains =
+        |y0: f64| mouse.x >= x && mouse.x < x + width && mouse.y >= y0 && mouse.y < y0 + height;
     contains(y) || contains(screen_max_y - y - height)
 }
 
@@ -655,7 +1089,10 @@ fn drop_point(view: &DropWheelView, sender: &ProtocolObject<dyn NSDraggingInfo>)
     let local = view.convertPoint_fromView(location, None);
     if slice_index(
         Point::new(local.x, local.y),
-        Point::new(view.bounds().size.width / 2.0, view.bounds().size.height / 2.0),
+        Point::new(
+            view.bounds().size.width / 2.0,
+            view.bounds().size.height / 2.0,
+        ),
     )
     .is_some()
     {
@@ -670,20 +1107,24 @@ fn drop_point(view: &DropWheelView, sender: &ProtocolObject<dyn NSDraggingInfo>)
     Point::new(in_view.x, in_view.y)
 }
 
-fn drag_operation(view: &DropWheelView, sender: &ProtocolObject<dyn NSDraggingInfo>) -> NSDragOperation {
+fn drag_operation(
+    view: &DropWheelView,
+    sender: &ProtocolObject<dyn NSDraggingInfo>,
+) -> NSDragOperation {
     let point = drop_point(view, sender);
     let bounds = view.bounds();
     let center = Point::new(bounds.size.width / 2.0, bounds.size.height / 2.0);
     let enabled = view.ivars().enabled.get();
     match slice_index(point, center) {
         Some(index) if enabled & (1 << index) != 0 => {
-            view.ivars().hot.set(Some(index));
-            view.setNeedsDisplay(true);
+            let slices = host()
+                .and_then(|host| host.session.lock().ok().map(|session| session.slices()))
+                .unwrap_or_else(|| drop_wheel::slices(false, false));
+            view.apply(&slices, Some(index));
             NSDragOperation::Copy
         }
         _ => {
-            view.ivars().hot.set(None);
-            view.setNeedsDisplay(true);
+            view.clear_hot();
             NSDragOperation::empty()
         }
     }
@@ -731,114 +1172,161 @@ fn symbol_name(action: WheelAction) -> &'static str {
     }
 }
 
-fn draw_wheel(view: &DropWheelView) {
-    let bounds = view.bounds();
-    let center = NSPoint::new(bounds.size.width / 2.0, bounds.size.height / 2.0);
+fn tile_path(index: usize, center: NSPoint) -> Retained<NSBezierPath> {
+    let (start, end) = arc_angles(index);
+    let arc = NSBezierPath::bezierPath();
+    arc.appendBezierPathWithArcWithCenter_radius_startAngle_endAngle_clockwise(
+        center,
+        mid_radius(),
+        start,
+        end,
+        true,
+    );
+    let stroked = unsafe {
+        CGPath::new_copy_by_stroking_path(
+            Some(&arc.CGPath()),
+            ptr::null(),
+            tile_thickness(),
+            CGLineCap::Round,
+            CGLineJoin::Round,
+            0.0,
+        )
+    };
+    match stroked {
+        Some(path) => NSBezierPath::bezierPathWithCGPath(&path),
+        None => arc,
+    }
+}
+
+fn draw_chrome(view: &DropWheelChromeView) {
+    let index = view.ivars().index.get();
+    let enabled = view.ivars().enabled.get();
+    let hot = view.ivars().hot.get() && enabled;
     let dark = is_dark();
     let paper = if dark { 0x19191B } else { 0xFCFCFB };
     let hair = if dark { 0x2B2B2F } else { 0xE8E8E6 };
     let text = if dark { 0xE9E9ED } else { 0x292A2E };
     let muted = if dark { 0x96969F } else { 0x74757D };
-    let hover = if dark { 0x242427 } else { 0xEEEEEE };
-    let slices = drop_wheel::slices(false, false);
-    let hot = view.ivars().hot.get();
-    let enabled_mask = view.ivars().enabled.get();
-    let thickness = tile_thickness();
-    let mid = mid_radius();
-    for index in 0..SLICE_COUNT {
-        let enabled = enabled_mask & (1 << index) != 0;
-        let is_hot = hot == Some(index) && enabled;
-        let (start, end) = arc_angles(index);
-        let path = NSBezierPath::bezierPath();
-        path.appendBezierPathWithArcWithCenter_radius_startAngle_endAngle_clockwise(
-            center, mid, start, end, true,
-        );
-        path.setLineWidth(thickness);
-        path.setLineCapStyle(NSLineCapStyle::Round);
-        srgb(paper, if enabled { 0.96 } else { 0.45 }).setStroke();
-        path.stroke();
-        if is_hot {
-            srgb(hover, 1.0).setStroke();
-            path.stroke();
-            srgb(tone_hex(slices[index].action, dark), if dark { 0.18 } else { 0.10 }).setStroke();
-            path.stroke();
-        }
-        let stroke_hex = if is_hot {
-            tone_hex(slices[index].action, dark)
-        } else {
-            hair
-        };
-        srgb(stroke_hex, if is_hot { 0.7 } else { 1.0 }).setStroke();
-        path.setLineWidth(if is_hot { 1.4 } else { 0.8 });
-        let outline = NSBezierPath::bezierPath();
-        outline.appendBezierPathWithArcWithCenter_radius_startAngle_endAngle_clockwise(
-            center, mid, start, end, true,
-        );
-        outline.setLineWidth(if is_hot { 1.4 } else { 0.8 });
-        outline.setLineCapStyle(NSLineCapStyle::Round);
-        outline.stroke();
-        path.setLineWidth(thickness);
-
-        let tile = point_on_ring(index, Point::new(center.x, center.y), mid);
-        let ink = if enabled { text } else { muted };
-        let tone = if enabled {
-            tone_hex(slices[index].action, dark)
-        } else {
-            muted
-        };
-        draw_symbol(
-            slices[index].action,
-            NSPoint::new(tile.x, tile.y + 10.0),
-            tone,
-        );
-        draw_label(
-            slices[index].title,
-            NSPoint::new(tile.x, tile.y - 13.0),
-            if enabled { ink } else { muted },
-        );
-        let _ = INNER_RADIUS;
-        let _ = OUTER_RADIUS;
+    let slices = drop_wheel::slices(true, true);
+    let action = slices[index].action;
+    let local_center = NSPoint::new(view.ivars().local_x.get(), view.ivars().local_y.get());
+    let bounds = view.bounds();
+    if bounds.size.width < 1.0 || bounds.size.height < 1.0 {
+        return;
     }
+    if local_center.x == 0.0 && local_center.y == 0.0 {
+        return;
+    }
+    let path = tile_path(index, local_center);
+    srgb(paper, 0.96).setFill();
+    path.fill();
+    if hot {
+        srgb(tone_hex(action, dark), if dark { 0.18 } else { 0.10 }).setFill();
+        path.fill();
+    }
+    let stroke_hex = if hot { tone_hex(action, dark) } else { hair };
+    srgb(stroke_hex, if hot { 0.7 } else { 1.0 }).setStroke();
+    path.setLineWidth(if hot { 1.4 } else { 0.8 });
+    path.stroke();
+    let ink = if enabled {
+        srgb(text, 1.0)
+    } else {
+        srgb(muted, 0.5)
+    };
+    let glyph = if enabled {
+        srgb(tone_hex(action, dark), 1.0)
+    } else {
+        srgb(muted, 0.5)
+    };
+    let box_bounds = path.bounds();
+    let center = NSPoint::new(
+        box_bounds.origin.x + box_bounds.size.width / 2.0,
+        box_bounds.origin.y + box_bounds.size.height / 2.0,
+    );
+    NSGraphicsContext::saveGraphicsState_class();
+    path.addClip();
+    draw_symbol(
+        action,
+        NSPoint::new(center.x, center.y + ICON_LIFT),
+        &glyph,
+    );
+    draw_label(
+        slices[index].title,
+        NSPoint::new(center.x, center.y - LABEL_DROP),
+        &ink,
+        label_box_width(box_bounds.size.width),
+    );
+    NSGraphicsContext::restoreGraphicsState_class();
 }
 
-fn draw_symbol(action: WheelAction, point: NSPoint, hex: u32) {
+fn draw_symbol(action: WheelAction, point: NSPoint, color: &NSColor) {
     let name = NSString::from_str(symbol_name(action));
-    let Some(image) = NSImage::imageWithSystemSymbolName_accessibilityDescription(&name, None)
-    else {
+    let Some(raw) = NSImage::imageWithSystemSymbolName_accessibilityDescription(&name, None) else {
         return;
     };
-    let color = srgb(hex, 1.0);
-    let size = 16.0;
-    let rect = NSRect::new(
-        NSPoint::new(point.x - size / 2.0, point.y - size / 2.0),
-        NSSize::new(size, size),
-    );
-    image.setTemplate(true);
-    color.set();
-    image.drawInRect_fromRect_operation_fraction(
-        rect,
-        NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(0.0, 0.0)),
-        NSCompositingOperation::SourceOver,
-        1.0,
-    );
-}
-
-fn draw_label(title: &str, point: NSPoint, hex: u32) {
-    let text = NSString::from_str(title);
-    let font = NSFont::systemFontOfSize(10.5);
-    let color = srgb(hex, 1.0);
-    let font_ref: &AnyObject = font.as_ref();
-    let color_ref: &AnyObject = color.as_ref();
-    let attributes = objc2_foundation::NSDictionary::<NSString, AnyObject>::from_slices(
-        &[ns_string!("NSFont"), ns_string!("NSColor")],
-        &[font_ref, color_ref],
-    );
-    let size = NSSize::new(72.0, 28.0);
+    let sized = NSImageSymbolConfiguration::configurationWithPointSize_weight(16.0, unsafe {
+        NSFontWeightRegular
+    });
+    let tinted =
+        NSImageSymbolConfiguration::configurationWithPaletteColors(&NSArray::from_slice(&[color]));
+    let config = sized.configurationByApplyingConfiguration(&tinted);
+    let Some(image) = raw.imageWithSymbolConfiguration(&config) else {
+        return;
+    };
+    image.setTemplate(false);
+    let size = image.size();
     let rect = NSRect::new(
         NSPoint::new(point.x - size.width / 2.0, point.y - size.height / 2.0),
         size,
     );
     unsafe {
-        let _: () = msg_send![&*text, drawInRect: rect, withAttributes: &*attributes];
+        image.drawInRect_fromRect_operation_fraction_respectFlipped_hints(
+            rect,
+            NSRect::ZERO,
+            NSCompositingOperation::SourceOver,
+            1.0,
+            true,
+            None,
+        );
     }
+}
+
+fn draw_label(title: &str, point: NSPoint, color: &NSColor, width: f64) {
+    let paragraph = NSMutableParagraphStyle::new();
+    paragraph.setAlignment(NSTextAlignment(2));
+    paragraph.setLineBreakMode(NSLineBreakMode::ByTruncatingTail);
+    let font = NSFont::systemFontOfSize_weight(10.5, unsafe { NSFontWeightMedium });
+    let font_ref: &AnyObject = font.as_ref();
+    let color_ref: &AnyObject = color.as_ref();
+    let paragraph_ref: &AnyObject = paragraph.as_ref();
+    let attributes = objc2_foundation::NSDictionary::<NSString, AnyObject>::from_slices(
+        &[
+            unsafe { NSFontAttributeName },
+            unsafe { NSForegroundColorAttributeName },
+            unsafe { NSParagraphStyleAttributeName },
+        ],
+        &[font_ref, color_ref, paragraph_ref],
+    );
+    let text = unsafe {
+        NSAttributedString::initWithString_attributes(
+            NSAttributedString::alloc(),
+            &NSString::from_str(title),
+            Some(&attributes),
+        )
+    };
+    let size = NSSize::new(width, 28.0);
+    let height = text
+        .boundingRectWithSize_options_context(
+            size,
+            NSStringDrawingOptions::UsesLineFragmentOrigin
+                .union(NSStringDrawingOptions::TruncatesLastVisibleLine),
+            None,
+        )
+        .size
+        .height;
+    let rect = NSRect::new(
+        NSPoint::new(point.x - width / 2.0, point.y - height / 2.0),
+        NSSize::new(width, height.max(14.0)),
+    );
+    text.drawInRect(rect);
 }

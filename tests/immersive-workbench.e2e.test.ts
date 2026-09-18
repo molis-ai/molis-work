@@ -21,10 +21,18 @@ test("Project navigation preserves the fixed Goal workspace, terminal instance, 
   await waitFor("document.querySelector('[data-plugin-strip] [data-plugin-id=goals]').getAttribute('aria-current') === 'page'");
   await click("[data-board-view-tab=canvas]");
   await waitFor("document.querySelector('[data-goal-canvas-shell]')?.dataset.boardView === 'canvas'");
-  const goalId = await evaluate<string>("document.querySelector('[data-select-goal]').dataset.selectGoal");
+  await waitFor("document.querySelector('[data-graph-node][data-goal-id] [data-graph-open]')");
   const camera = await evaluate("document.querySelector('[data-graph-stage]').getAttribute('style')");
-  await waitFor("Boolean(document.querySelector(" + JSON.stringify('[data-graph-node][data-goal-id="' + goalId + '"] [data-graph-open]') + "))");
-  await click('[data-graph-node][data-goal-id="' + goalId + '"] [data-graph-open]');
+  const goalId = await evaluate<string>(`(() => {
+    const visible = [...document.querySelectorAll('[data-graph-node][data-goal-id]')].find((node) => {
+      const rect = node.getBoundingClientRect();
+      return node.querySelector('[data-graph-open]') && rect.width > 8 && rect.height > 8
+        && rect.top >= 0 && rect.left >= 0 && rect.bottom <= innerHeight && rect.right <= innerWidth;
+    });
+    const node = visible || document.querySelector('[data-graph-node].is-selected') || document.querySelector('[data-graph-node][data-goal-id]');
+    node.querySelector('[data-graph-open]').click();
+    return node.dataset.goalId;
+  })()`);
   await waitFor("document.querySelector('[data-goal-node-workspace]')?.dataset.expandedGoal === " + JSON.stringify(goalId));
   assert.equal(await evaluate("document.querySelector('[data-goal-node-workspace]').dataset.workMode"), "terminal");
   assert.equal(await evaluate("document.querySelector('[data-goal-work-mode=conversation]').disabled"), true);
@@ -127,9 +135,17 @@ test("Project entry lands at home, while refresh preserves work and Goal links r
   await waitFor("document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true'");
   await evaluate("document.querySelector('[data-goal-collapse]')?.click(); document.querySelector('[data-board-view-tab=canvas]')?.click()");
   await waitFor("document.querySelector('[data-goal-canvas-shell]')?.dataset.boardView === 'canvas' && document.querySelector('[data-goal-node-workspace]')?.hidden !== false");
-  const goalId = await evaluate<string>("document.querySelector('[data-select-goal]').dataset.selectGoal");
-  await waitFor("Boolean(document.querySelector(" + JSON.stringify('[data-graph-node][data-goal-id="' + goalId + '"] [data-graph-open]') + "))");
-  await click('[data-graph-node][data-goal-id="' + goalId + '"] [data-graph-open]');
+  await waitFor("document.querySelector('[data-graph-node][data-goal-id] [data-graph-open]')");
+  const goalId = await evaluate<string>(`(() => {
+    const visible = [...document.querySelectorAll('[data-graph-node][data-goal-id]')].find((node) => {
+      const rect = node.getBoundingClientRect();
+      return node.querySelector('[data-graph-open]') && rect.width > 8 && rect.height > 8
+        && rect.top >= 0 && rect.left >= 0 && rect.bottom <= innerHeight && rect.right <= innerWidth;
+    });
+    const node = visible || document.querySelector('[data-graph-node].is-selected') || document.querySelector('[data-graph-node][data-goal-id]');
+    node.querySelector('[data-graph-open]').click();
+    return node.dataset.goalId;
+  })()`);
   await waitFor("!document.querySelector('[data-goal-node-workspace]').hidden");
   await reloadPage();
   await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('[data-goal-node-workspace]')?.hidden === false");

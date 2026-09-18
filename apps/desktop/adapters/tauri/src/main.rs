@@ -13,6 +13,7 @@ mod shelf_hotkeys;
 #[cfg(target_os = "macos")]
 mod shelf_hotkeys_macos;
 mod shelf_http;
+mod traffic_lights;
 mod web_service;
 
 #[cfg(test)]
@@ -830,6 +831,7 @@ fn main() {
             if let Ok(url) = Url::parse("http://127.0.0.1:4173/?desktop=1") {
               let _ = window.navigate(url);
             }
+            traffic_lights::pin_main_traffic_lights(&window);
             if let Some(capsule) = app.get_webview_window("capsule") {
               let capsule_state = app.state::<CapsuleStatusState>();
               let locale = current_capsule_locale(capsule_state.inner()).unwrap_or_default();
@@ -855,6 +857,7 @@ fn main() {
     .on_page_load(|window, payload| {
       if payload.event() == PageLoadEvent::Finished {
         if window.label() == "main" {
+          traffic_lights::pin_from_handle(window.app_handle());
           let _ = window.eval(
             r#"(() => {
               const locale = String(document.documentElement.lang || "zh").toLowerCase().startsWith("en") ? "en" : "zh";
@@ -865,6 +868,14 @@ fn main() {
       }
     })
     .on_window_event(|window, event| {
+      if window.label() == "main"
+        && matches!(
+          event,
+          WindowEvent::Resized(_) | WindowEvent::ScaleFactorChanged { .. }
+        )
+      {
+        traffic_lights::pin_from_handle(window.app_handle());
+      }
       if window.label() == "capsule" && matches!(event, WindowEvent::Focused(false)) {
         let app = window.app_handle();
         let state = app.state::<CapsuleStatusState>();

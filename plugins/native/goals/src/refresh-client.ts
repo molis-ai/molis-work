@@ -7,7 +7,7 @@ export const GOALS_REFRESH_CLIENT_FACTORY_SCRIPT = `(host) => {
       const renderedGoalId = parsed.querySelector("[data-goal-view]")?.dataset.goalView || "";
       const goalStillExists = currentGoals.some((item) => item.goal.goal_id === goalId);
       const nextSelected = renderedGoalId ||
-        (goalStillExists ? goalId : navigation.active_goal_id || currentGoals[0]?.goal.goal_id || "");
+        (goalStillExists ? goalId : navigation.active_goal_id || "");
       const nextTree = parsed.querySelector("[data-tree-scroll]");
       const nextDocument = parsed.querySelector("[data-document-pane]");
       const nextFooter = parsed.querySelector("[data-tree-footer]");

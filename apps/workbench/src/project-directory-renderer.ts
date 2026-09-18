@@ -47,9 +47,9 @@ function renderMolisWorkProjectIndex(
 </head>
 <body class="project-index-page" data-desktop-shell="true"${desktopShell ? ' data-native-desktop="true"' : ""}>
   ${renderIconSprite()}
-  <header class="topbar project-directory-topbar">
+  <header class="topbar project-directory-topbar"${desktopShell ? ' data-tauri-drag-region="deep"' : ""}>
     <a class="brand" href="${href("/")}" aria-label="${L("Molis Work 项目目录")}">${icon("brand")}<strong>Molis Work</strong></a>
-    <div class="top-spacer"${desktopShell ? " data-tauri-drag-region" : ""}></div>
+    <div class="top-spacer"${desktopShell ? ' data-tauri-drag-region="deep"' : ""}></div>
     <a class="top-action" href="${href("/settings/appearance")}" aria-label="${L("打开系统设置")}">${icon("settings")}<span>${L("系统设置")}</span></a>
   </header>
   <main class="project-index">

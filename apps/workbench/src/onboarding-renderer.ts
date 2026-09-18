@@ -114,7 +114,7 @@ export function createWorkbenchOnboardingRenderer(primitives: OnboardingRenderPr
 <body class="onboarding-page" data-onboarding-mode="${options.mode}" data-onboarding-tone="0"${desktopShell ? ' data-native-desktop="true"' : ""}>
   ${renderIconSprite()}
   ${ONBOARDING_ATMOSPHERE}
-  <header class="onboarding-topbar">
+  <header class="onboarding-topbar"${desktopShell ? ' data-tauri-drag-region="deep"' : ""}>
     <a class="onboarding-brand" href="${href("/")}">Molis Work</a>
     <div class="onboarding-topbar-actions"><button class="mw-btn mw-btn--ghost" type="button" data-onboarding-dismiss="first_run">${options.mode === "first_run" ? L("跳过") : L("返回项目目录")}</button></div>
   </header>

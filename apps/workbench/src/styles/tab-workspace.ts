@@ -107,7 +107,10 @@ export const TAB_WORKSPACE_STYLES = `
   body.immersive-workbench .tab-item-close { border-radius: 50%; }
   body.immersive-workbench :is(.tab-split-button, .tab-add-button) { flex: none; align-self: center; display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 6px; color: var(--muted); background: transparent; cursor: pointer; }
   body.immersive-workbench .tab-strip .tab-strip-spacer { flex: 0 1 0; min-width: 0; align-self: stretch; }
-  body.immersive-workbench[data-native-desktop="true"] .tab-strip .tab-strip-spacer { flex: 1 0 24px; min-width: 24px; -webkit-app-region: drag; }
+  html[data-native-desktop="true"] body.immersive-workbench [data-titlebar-tabs] .tab-scroll,
+  body.immersive-workbench[data-native-desktop="true"] [data-titlebar-tabs] .tab-scroll { flex: 0 1 auto; width: max-content; }
+  html[data-native-desktop="true"] body.immersive-workbench .tab-strip .tab-strip-spacer,
+  body.immersive-workbench[data-native-desktop="true"] .tab-strip .tab-strip-spacer { flex: 1 1 48px; min-width: 48px; -webkit-app-region: drag; }
   body.immersive-workbench :is(.tab-split-button, .tab-add-button):hover { background: var(--nav-hover); color: var(--ink); }
   body.immersive-workbench :is(.tab-split-button, .tab-add-button) svg { width: 15px; height: 15px; }
   body.immersive-workbench .tab-workspace-panes { display: flex; gap: 0; background: var(--paper); }

@@ -71,10 +71,9 @@ export function renderDirectoryPluginSections(
   return `${plugins}${settingsSection}`;
 }
 
-export function renderImmersiveHeader(primitives: ImmersiveShellPrimitives, desktop: boolean, chromeHtml = ""): string {
+export function renderImmersiveHeader(primitives: ImmersiveShellPrimitives, desktop: boolean): string {
   const { L, icon } = primitives;
-  return `<header class="workbench-header immersive-titlebar">
-    ${chromeHtml ? renderWorkspaceChrome(primitives, chromeHtml) : ""}
+  return `<header class="workbench-header immersive-titlebar"${desktop ? ' data-tauri-drag-region="deep"' : ""}>
     <div class="mw-group workspace-history">
       <button class="mw-btn mw-btn--ghost mw-btn--icon-only workspace-history-button" type="button" data-workspace-history="back" aria-label="${L("上一步")}" title="${L("上一步")}" disabled>${icon("back")}</button>
       <button class="mw-btn mw-btn--ghost mw-btn--icon-only workspace-history-button" type="button" data-workspace-history="forward" aria-label="${L("下一步")}" title="${L("下一步")}" disabled>${icon("arrow")}</button>
@@ -89,7 +88,7 @@ export function renderImmersiveHeader(primitives: ImmersiveShellPrimitives, desk
 
 export function renderWorkspaceChrome(primitives: ImmersiveShellPrimitives, chromeHtml: string): string {
   const { L } = primitives;
-  return `<section class="workspace-chrome titlebar-chrome navigator-project" data-workspace-chrome data-titlebar-chrome aria-label="${L("当前项目")}">${chromeHtml}</section>`;
+  return `<section class="workspace-chrome project-island titlebar-chrome navigator-project" data-workspace-chrome data-titlebar-chrome data-project-island aria-label="${L("当前项目")}">${chromeHtml}</section>`;
 }
 
 export function renderImmersiveGoalHeader(title: string, primitives: ImmersiveShellPrimitives): string {

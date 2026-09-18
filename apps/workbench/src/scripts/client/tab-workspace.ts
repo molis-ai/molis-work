@@ -285,16 +285,18 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       scrollArea.append(empty);
     }
     if (!embedded) {
-      const add = document.createElement("button"); add.type = "button"; add.className = "tab-add-button"; add.dataset.tabAdd = pane.id;
-      add.setAttribute("aria-label", L("打开标签")); add.title = L("打开标签"); add.setAttribute("aria-haspopup", "menu");
-      add.innerHTML = '<svg aria-hidden="true"><use href="#icon-plus"></use></svg>'; fragment.append(add);
       if (strip.hasAttribute("data-titlebar-tabs")) {
         const spacer = document.createElement("div");
         spacer.className = "tab-strip-spacer";
         spacer.setAttribute("aria-hidden", "true");
-        if (document.body.dataset.nativeDesktop === "true") spacer.dataset.tauriDragRegion = "";
+        if (document.documentElement.dataset.nativeDesktop === "true" || document.body.dataset.nativeDesktop === "true") {
+          spacer.dataset.tauriDragRegion = "";
+        }
         fragment.append(spacer);
       }
+      const add = document.createElement("button"); add.type = "button"; add.className = "tab-add-button"; add.dataset.tabAdd = pane.id;
+      add.setAttribute("aria-label", L("打开标签")); add.title = L("打开标签"); add.setAttribute("aria-haspopup", "menu");
+      add.innerHTML = '<svg aria-hidden="true"><use href="#icon-plus"></use></svg>'; fragment.append(add);
       const split = document.createElement("button");
       split.type = "button"; split.className = "tab-split-button"; split.dataset.tabSplit = pane.id;
       split.title = L("布局与分屏"); split.setAttribute("aria-label", split.title);

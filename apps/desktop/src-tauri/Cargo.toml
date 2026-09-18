@@ -29,18 +29,25 @@ objc2 = "0.6"
 block2 = { version = "0.6", default-features = false, features = ["alloc", "std"] }
 objc2-app-kit = { version = "0.3", default-features = false, features = [
   "std",
+  "NSAnimation",
+  "NSAnimationContext",
   "NSAppearance",
   "NSApplication",
   "NSBezierPath",
+  "NSButton",
   "NSColor",
   "NSDragging",
   "NSDraggingItem",
   "NSDraggingSession",
   "NSEvent",
   "NSFont",
+  "NSFontDescriptor",
   "NSGraphics",
+  "NSGraphicsContext",
   "NSImage",
+  "NSImageRep",
   "NSPanel",
+  "NSParagraphStyle",
   "NSPasteboard",
   "NSResponder",
   "NSRunningApplication",
@@ -48,10 +55,16 @@ objc2-app-kit = { version = "0.3", default-features = false, features = [
   "NSStatusBar",
   "NSStatusItem",
   "NSStringDrawing",
+  "NSText",
+  "NSAccessibility",
+  "NSAttributedString",
   "NSView",
+  "NSVisualEffectView",
   "NSWindow",
   "NSWorkspace",
   "objc2-core-foundation",
+  "objc2-core-graphics",
+  "objc2-quartz-core",
 ] }
 objc2-foundation = { version = "0.3", default-features = false, features = [
   "std",
@@ -65,7 +78,24 @@ objc2-foundation = { version = "0.3", default-features = false, features = [
   "NSObject",
   "NSString",
   "NSURL",
+  "NSValue",
   "objc2-core-foundation",
+] }
+objc2-core-graphics = { version = "0.3", default-features = false, features = [
+  "std",
+  "CGColor",
+  "CGPath",
+] }
+objc2-quartz-core = { version = "0.3", default-features = false, features = [
+  "std",
+  "CAAnimation",
+  "CALayer",
+  "CAMediaTiming",
+  "CAMediaTimingFunction",
+  "CAShapeLayer",
+  "CATransaction",
+  "objc2-core-foundation",
+  "objc2-core-graphics",
 ] }
 
 [profile.release]

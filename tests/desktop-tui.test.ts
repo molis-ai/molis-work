@@ -743,13 +743,22 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.match(desktop, /data-workspace-chrome/);
     assert.match(desktop, /data-workspace-history="back"/);
     assert.match(desktop, /data-workspace-history="forward"/);
-    const titlebarMarkup = desktop.match(/<header class="workbench-header immersive-titlebar">[\s\S]*?<\/header>/)?.[0] ?? "";
+    const titlebarMarkup = desktop.match(/<header class="workbench-header immersive-titlebar"[^>]*>[\s\S]*?<\/header>/)?.[0] ?? "";
+    assert.match(titlebarMarkup, /data-tauri-drag-region="deep"/);
     assert.match(titlebarMarkup, /data-workspace-history="back"/);
     assert.match(titlebarMarkup, /data-titlebar-tabs/);
-    assert.match(titlebarMarkup, /navigator-project-selector/);
-    assert.match(titlebarMarkup, /data-global-search-open/);
+    assert.doesNotMatch(titlebarMarkup, /navigator-project-selector/);
+    assert.doesNotMatch(titlebarMarkup, /data-global-search-open/);
+    assert.match(desktop, /data-project-island[\s\S]*navigator-project-selector/);
+    assert.match(desktop, /data-project-island[\s\S]*data-global-search-open/);
     assert.match(renderMolisWorkWorkbenchStylesheet(), /\.workspace-chrome \{/);
-    assert.match(renderMolisWorkWorkbenchStylesheet(), /\.immersive-titlebar > \.workspace-chrome \{/);
+    assert.match(renderMolisWorkWorkbenchStylesheet(), /\.workspace-chrome\.project-island \{/);
+    assert.doesNotMatch(renderMolisWorkWorkbenchStylesheet(), /\.immersive-titlebar > \.workspace-chrome \{/);
+    assert.match(renderMolisWorkWorkbenchStylesheet(), /html\[data-native-desktop="true"\] body\.immersive-workbench \[data-titlebar-tabs\] \.tab-scroll/);
+    assert.match(renderMolisWorkWorkbenchStylesheet(), /\[data-native-desktop="true"\] \[data-titlebar-tabs\] \.tab-scroll \{ flex: 0 1 auto; width: max-content; \}/);
+    const tabWorkspaceClient = readFileSync(new URL("../apps/workbench/src/scripts/client/tab-workspace.ts", import.meta.url), "utf8");
+    assert.match(tabWorkspaceClient, /documentElement\.dataset\.nativeDesktop === "true"/);
+    assert.match(tabWorkspaceClient, /spacer\.dataset\.tauriDragRegion = ""/);
     assert.match(renderMolisWorkWorkbenchStylesheet(), /grid-template-columns: var\(--plugin-rail-width\) var\(--tree-width/);
     assert.doesNotMatch(renderMolisWorkWorkbenchStylesheet(), /data-native-desktop="true"\] \.titlebar-chrome \{ order: 4;/);
     assert.match(desktop, /class="[^"]*plugin-rail immersive-plugin-strip"/);
@@ -1065,6 +1074,13 @@ test("TUI client rejects cross-Goal and parent writes before touching the PTY ch
     client,
     /molis-work:goal-document-loaded[\s\S]{0,360}detail\.goalId !== goalId\(\)[\s\S]{0,120}void loadPanels\(\)/,
   );
+});
+
+test("Goals plugin starts on the board instead of opening a Goal", () => {
+  assert.match(CLIENT_SCRIPT, /let goalWorkspaceMode = "graph"/);
+  assert.match(CLIENT_SCRIPT, /if \(!restoredUi\) \{\n      setWorkspaceMode\("graph", false\)/);
+  assert.doesNotMatch(CLIENT_SCRIPT, /visibleGoals\(\)\[0\]/);
+  assert.doesNotMatch(CLIENT_SCRIPT, /state\.active_goal_id \|\| visibleGoals/);
 });
 
 test("Feed processing opens Runtime and fills context without sending it", () => {

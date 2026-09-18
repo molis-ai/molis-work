@@ -18,7 +18,7 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
         }
       } catch {}
       const available = new Set(visibleGoals().map((item) => item.goal.goal_id));
-      if (!available.has(goalId)) goalId = state.active_goal_id || visibleGoals()[0]?.goal.goal_id || "";
+      if (!available.has(goalId)) goalId = state.active_goal_id || "";
       location.assign(globalThis.molisWorkNavigationUrl(goalId ? route("/goals/" + encodeURIComponent(goalId)) : route("/")));
     };
 
@@ -58,7 +58,7 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
       const surfaceChanged = activeDesktopSurface !== surface;
       if (activeDesktopSurface && surfaceChanged) {
         desktopSurfaceScroll[activeDesktopSurface] = (activeDesktopSurface === "goal" ? documentPane : activeDesktopSurface === "feed" ? feedWorkbench?.querySelector(".feed-stage-tree") : desktopWorkSurfaces.find(item => item.dataset.workSurface === activeDesktopSurface))?.scrollTop || 0;
-        if (activeDesktopSurface === "goal") goalWorkspaceMode = workspace.dataset.workspaceMode || "focus";
+        if (activeDesktopSurface === "goal") goalWorkspaceMode = workspace.dataset.workspaceMode || "graph";
       }
       activeDesktopSurface = surface;
       document.body.dataset.desktopSurface = surface;

@@ -123,7 +123,6 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
   };
   const hideDirectory = () => {
     if (narrow()) setMobileView("document");
-    else setDirectoryCollapsed(true);
     sync();
     document.querySelector("[data-directory-show]")?.focus();
   };

@@ -61,7 +61,7 @@ test("project index, settings, and workbench keep titles pinned and scroll only 
   assert.ok(workbench.includes(".directory-content-scroll::-webkit-scrollbar { width: 0; height: 0; }"));
   assert.ok(workbench.includes(":is(.tree-scroll, .project-record-scroll, .feed-directory-list, .source-directory-list, .feed-item-scroll, .source-list) { flex: none; height: auto; min-height: 0; overflow: visible;"));
   assert.doesNotMatch(workbench, /\.directory-shortcuts/);
-  assert.ok(workbench.includes(".immersive-home .home-shortcuts { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: flex-start; gap: 18px; list-style: none; margin: 0 0 16px; padding: 0; }"));
+  assert.ok(workbench.includes(".immersive-home .home-shortcuts { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: flex-start; gap: 18px; list-style: none; margin: 0; padding: 0; }"));
   assert.doesNotMatch(workbench, /\.directory-list-stage > \.desktop-directory-root:not\(\[hidden\]\) \{ display: block;/);
   assert.match(workbench, /--dir-row-h: 28px;/);
   assert.match(workbench, /--plugin-rail-width: 48px;/);

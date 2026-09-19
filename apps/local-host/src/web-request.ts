@@ -23,6 +23,8 @@ import { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
 import { serviceProcessId } from "./web-runtime-settings.js";
 import { resolveWebRequest } from "./web-routing.js";
 import { handleLocalCatalogWebRequest } from "./web-catalog.js";
+import { handleAgentReviewHttp } from "./agent-review-http.js";
+import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 
 export async function handleMolisWorkWebRequest(
   request: IncomingMessage,
@@ -39,6 +41,7 @@ export async function handleMolisWorkWebRequest(
   sessionResources: Promise<SessionRuntimeResources>,
   localHost: MolisWorkLocalHost,
   composition: LocalWebComposition,
+  agentHost: AgentHost,
 ): Promise<void> {
   const { PAGE_CSP, handleSessions, handleDesktopPanelApi, goalsReadHttp, planningHttp, desktopRuntimeAvailability, servePtyClient, workbenchRenderer, buildCapsuleSnapshot, handleArtifactNativePluginHttp, isDesktopShellRequest } = composition;
   const resolved = await resolveWebRequest(serverOptions, url.pathname, composition.withCatalog);
@@ -151,6 +154,15 @@ export async function handleMolisWorkWebRequest(
           return;
         }
         if (goalsReadHttp.fragments(request, response, url, options.boardId, store, coordinator, readWebView)) return;
+        // The Host's review queue. Deciding sits under /api/, so the local
+        // control guard already required same-origin, the token and a one-time
+        // key before anything here runs.
+        if (await handleAgentReviewHttp(request, response, url, {
+          boardId: options.boardId,
+          agentHost,
+          // 与本地 Web 其它写操作一致的操作者标识
+          actorId: "web-user",
+        })) return;
         if (request.method === "GET" && url.pathname === "/api/board") {
           sendJson(response, 200, readWebView());
           return;

@@ -614,7 +614,8 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.doesNotMatch(browser, /data-directory-shortcuts|directory-shortcuts-title/);
     const homeStart = browser.indexOf('data-work-surface="home"');
     assert.ok(homeStart >= 0);
-    assert.match(browser.slice(homeStart), /class="home-shortcuts"[\s\S]*data-home-shortcut-add[\s\S]*home-composer/);
+    assert.match(browser.slice(homeStart), /class="home-flow"[\s\S]*data-home-dates[\s\S]*class="home-shortcuts"[\s\S]*data-home-shortcut-add/);
+    assert.doesNotMatch(browser.slice(homeStart, homeStart + 8000), /home-composer|home-calendar|data-home-agent-input/);
     assert.match(browser, /scrollbar-width: none/);
     assert.match(renderMolisWorkWorkbenchStylesheet(), /tree-footer[\s\S]*display: none !important/);
     assert.match(directGoal, /data-desktop-directory="root"/);

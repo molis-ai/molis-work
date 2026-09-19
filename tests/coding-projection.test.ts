@@ -38,23 +38,33 @@ test("「需要我」是对同一份列表的筛选，不是第二个收件箱",
   assert.equal(needsYou(SESSIONS[1]!), true);
 });
 
-test("命令未接审批时终端页真实不可用，并给出理由", () => {
+test("运行时不提供命令回执时，终端页真实不可用并给出理由", () => {
   const pages = toolAvailability({ capabilities: emptyCapabilityMatrix(), embedded_browser: true });
   const terminal = pages.find((page) => page.page === "terminal");
   assert.equal(terminal?.available, false);
-  assert.match(terminal?.reason ?? "", /审批/);
+  assert.match(terminal?.reason ?? "", /命令回执/);
   // 结果页与 Canvas 不依赖运行时能力，始终可用
   assert.equal(pages.find((page) => page.page === "result")?.available, true);
   assert.equal(pages.find((page) => page.page === "canvas")?.available, true);
 });
 
-test("命令接通后终端页才变成可用", () => {
+test("能读回执就够了——终端页不要求这个运行时还能跑命令", () => {
   const capabilities = emptyCapabilityMatrix();
-  capabilities.command = "supported";
+  capabilities["command.receipts"] = "supported";
   const pages = toolAvailability({ capabilities, embedded_browser: true });
   const terminal = pages.find((page) => page.page === "terminal");
   assert.equal(terminal?.available, true);
   assert.equal(terminal?.reason, undefined);
+  // 这正是 CLI 今天的处境：说得清跑过什么，但不能在宿主审批下跑新的
+  assert.equal(capabilities.command, "unsupported");
+});
+
+test("反过来不成立：能跑命令但读不回执，终端页仍然不可用", () => {
+  const capabilities = emptyCapabilityMatrix();
+  capabilities.command = "supported";
+  const pages = toolAvailability({ capabilities, embedded_browser: true });
+  assert.equal(pages.find((page) => page.page === "terminal")?.available, false,
+    "终端页显示的是回执，不是执行权限");
 });
 
 test("没有内嵌浏览器的构建里，浏览器页如实不可用而不是画个空壳", () => {

@@ -265,7 +265,7 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench .immersive-plugin-stage { grid-column: 3; grid-row: 2 / -1; position: relative; z-index: 0; min-width: 0; min-height: 0; overflow: hidden; container: plugin-stage / inline-size; }
   body.immersive-workbench .immersive-plugin-stage > * { position: absolute; inset: 0; min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; }
   body.immersive-workbench .desktop-work-surface { min-height: 0; }
-  body.immersive-workbench .immersive-plugin-stage > .desktop-work-surface:not(.session-stage-shell, .plugin-stage-shell) { min-height: 0; background: var(--paper); padding: 32px clamp(18px, 4%, 56px); }
+  body.immersive-workbench .immersive-plugin-stage > .desktop-work-surface:not(.session-stage-shell, .plugin-stage-shell, .immersive-home) { min-height: 0; background: var(--paper); padding: 32px clamp(18px, 4%, 56px); }
   body.immersive-workbench .immersive-plugin-stage > :is(.session-stage-shell, .plugin-stage-shell) { padding: 0; overflow: hidden; }
   body.immersive-workbench .immersive-plugin-stage > .desktop-work-surface > [data-operation-detail] { max-width: 980px; margin: auto; }
   body.immersive-workbench .immersive-plugin-stage > .document-pane { padding: 0; }

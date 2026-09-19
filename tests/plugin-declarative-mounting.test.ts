@@ -312,10 +312,14 @@ test("the bundled catalog reproduces the shell's navigation exactly", async () =
     "设置目录同样由 Manifest 决定",
   );
 
-  // Coding joined the catalog; it is project scoped like the rest, and Shelf
-  // stays personal. The six migrated Plugins above still derive unchanged.
+  // Coding and the workspace family joined the catalog; all of them are project
+  // scoped like the rest, and Shelf stays personal. The six migrated Plugins
+  // above still derive unchanged. The roster is asserted rather than derived on
+  // purpose: adding a Plugin gives every project a new navigation entry, which
+  // should be a decision somebody made, not something that arrives with a merge.
   assert.deepEqual([...PROJECT_SCOPED_PLUGIN_IDS].sort(),
-    ["artifacts", "coding", "feed", "goals", "inbox", "sessions"]);
+    ["artifacts", "coding", "diff", "feed", "files", "git", "goals", "inbox", "sessions",
+      "text-stats", "workspace"]);
   assert.deepEqual(
     railEntries(["coding"]).map((entry) => [entry.id, entry.label, entry.glyph]),
     [["coding", "Coding", "code"]],

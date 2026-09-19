@@ -98,9 +98,18 @@ importers:
       '@molis-ai/molis-work-plugin-coding':
         specifier: workspace:*
         version: link:plugins/native/coding
+      '@molis-ai/molis-work-plugin-diff':
+        specifier: workspace:*
+        version: link:plugins/native/diff
       '@molis-ai/molis-work-plugin-feed':
         specifier: workspace:*
         version: link:plugins/native/feed
+      '@molis-ai/molis-work-plugin-files':
+        specifier: workspace:*
+        version: link:plugins/native/files
+      '@molis-ai/molis-work-plugin-git':
+        specifier: workspace:*
+        version: link:plugins/native/git
       '@molis-ai/molis-work-plugin-goals':
         specifier: workspace:*
         version: link:plugins/native/goals
@@ -113,9 +122,15 @@ importers:
       '@molis-ai/molis-work-plugin-shelf':
         specifier: workspace:*
         version: link:plugins/native/shelf
+      '@molis-ai/molis-work-plugin-text-stats':
+        specifier: workspace:*
+        version: link:plugins/native/text-stats
       '@molis-ai/molis-work-plugin-work':
         specifier: workspace:*
         version: link:plugins/native/work
+      '@molis-ai/molis-work-plugin-workspace':
+        specifier: workspace:*
+        version: link:plugins/native/workspace
       '@molis-ai/molis-work-service-agent-host':
         specifier: workspace:*
         version: link:horizontal/agent-host
@@ -216,6 +231,9 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@molis-ai/molis-work-design-system':
+        specifier: workspace:*
+        version: link:../../packages/design-system
       '@molis-ai/molis-work-integration-github':
         specifier: workspace:*
         version: link:../../plugins/official-integrations/github
@@ -273,9 +291,21 @@ importers:
       '@molis-ai/molis-work-plugin-artifacts':
         specifier: workspace:*
         version: link:../../plugins/native/artifacts
+      '@molis-ai/molis-work-plugin-coding':
+        specifier: workspace:*
+        version: link:../../plugins/native/coding
+      '@molis-ai/molis-work-plugin-diff':
+        specifier: workspace:*
+        version: link:../../plugins/native/diff
       '@molis-ai/molis-work-plugin-feed':
         specifier: workspace:*
         version: link:../../plugins/native/feed
+      '@molis-ai/molis-work-plugin-files':
+        specifier: workspace:*
+        version: link:../../plugins/native/files
+      '@molis-ai/molis-work-plugin-git':
+        specifier: workspace:*
+        version: link:../../plugins/native/git
       '@molis-ai/molis-work-plugin-goals':
         specifier: workspace:*
         version: link:../../plugins/native/goals
@@ -288,9 +318,18 @@ importers:
       '@molis-ai/molis-work-plugin-shelf':
         specifier: workspace:*
         version: link:../../plugins/native/shelf
+      '@molis-ai/molis-work-plugin-text-stats':
+        specifier: workspace:*
+        version: link:../../plugins/native/text-stats
       '@molis-ai/molis-work-plugin-work':
         specifier: workspace:*
         version: link:../../plugins/native/work
+      '@molis-ai/molis-work-plugin-workspace':
+        specifier: workspace:*
+        version: link:../../plugins/native/workspace
+      '@molis-ai/molis-work-service-agent-host':
+        specifier: workspace:*
+        version: link:../../horizontal/agent-host
       '@molis-ai/molis-work-service-connector-host':
         specifier: workspace:*
         version: link:../../horizontal/connector-host
@@ -343,9 +382,18 @@ importers:
       '@molis-ai/molis-work-plugin-coding':
         specifier: workspace:*
         version: link:../../plugins/native/coding
+      '@molis-ai/molis-work-plugin-diff':
+        specifier: workspace:*
+        version: link:../../plugins/native/diff
       '@molis-ai/molis-work-plugin-feed':
         specifier: workspace:*
         version: link:../../plugins/native/feed
+      '@molis-ai/molis-work-plugin-files':
+        specifier: workspace:*
+        version: link:../../plugins/native/files
+      '@molis-ai/molis-work-plugin-git':
+        specifier: workspace:*
+        version: link:../../plugins/native/git
       '@molis-ai/molis-work-plugin-goals':
         specifier: workspace:*
         version: link:../../plugins/native/goals
@@ -355,9 +403,15 @@ importers:
       '@molis-ai/molis-work-plugin-shelf':
         specifier: workspace:*
         version: link:../../plugins/native/shelf
+      '@molis-ai/molis-work-plugin-text-stats':
+        specifier: workspace:*
+        version: link:../../plugins/native/text-stats
       '@molis-ai/molis-work-plugin-work':
         specifier: workspace:*
         version: link:../../plugins/native/work
+      '@molis-ai/molis-work-plugin-workspace':
+        specifier: workspace:*
+        version: link:../../plugins/native/workspace
       '@molis-ai/molis-work-ui-host':
         specifier: workspace:*
         version: link:../../packages/ui-host
@@ -554,6 +608,12 @@ importers:
         specifier: workspace:*
         version: link:../../../packages/contracts
 
+  plugins/native/diff:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../../packages/contracts
+
   plugins/native/feed:
     dependencies:
       '@adeptify/intelligence-client':
@@ -578,6 +638,18 @@ importers:
       '@types/sanitize-html':
         specifier: ^2.16.1
         version: 2.16.1
+
+  plugins/native/files:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../../packages/contracts
+
+  plugins/native/git:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../../packages/contracts
 
   plugins/native/goals:
     dependencies:
@@ -618,6 +690,12 @@ importers:
         specifier: ^6.0.0
         version: 6.0.0
 
+  plugins/native/text-stats:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../../packages/contracts
+
   plugins/native/work:
     dependencies:
       '@molis-ai/molis-work-contracts':
@@ -632,6 +710,12 @@ importers:
       '@xterm/xterm':
         specifier: ^6.0.0
         version: 6.0.0
+
+  plugins/native/workspace:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../../packages/contracts
 
   plugins/official-integrations/github:
     dependencies:

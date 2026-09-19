@@ -1,4 +1,5 @@
 import type {
+  AgentCommandOutput,
   AgentRunUsage,
   AgentToolActivity,
   AgentTurnView,
@@ -12,9 +13,37 @@ import type {
  * a zero would read as "this run was free", which is a different claim.
  */
 
+/** Per receipt. Beyond this the body is cut and the receipt says so. */
+export const CLI_RECEIPT_MAX_BYTES = 16_384;
+
+function cut(value: string): { body: string; truncated: boolean } {
+  if (Buffer.byteLength(value, "utf8") <= CLI_RECEIPT_MAX_BYTES) {
+    return { body: value, truncated: false };
+  }
+  return {
+    body: Buffer.from(value, "utf8").subarray(0, CLI_RECEIPT_MAX_BYTES).toString("utf8"),
+    truncated: true,
+  };
+}
+
+/** The text a tool_result carries, whether it arrived as a string or as blocks. */
+function resultText(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content
+    .map((item) => {
+      const block = asRecord(item);
+      return block && text(block.type) === "text" ? text(block.text) : "";
+    })
+    .filter((part) => part !== "")
+    .join("\n");
+}
+
 export interface CliStreamState {
   turns: AgentTurnView[];
   activity: AgentToolActivity[];
+  /** What each command this Run ran produced. Only commands, not every tool. */
+  receipts: AgentCommandOutput[];
   usage: AgentRunUsage;
   /** Set once the runtime reports a terminal result. */
   result?: { ok: boolean; text: string; reason?: string };
@@ -26,6 +55,7 @@ export function emptyStreamState(): CliStreamState {
   return {
     turns: [],
     activity: [],
+    receipts: [],
     usage: { tokens: { input: 0, output: 0 }, unavailable_reason: "运行时尚未报告用量" },
   };
 }
@@ -103,14 +133,30 @@ export function applyCliStreamLine(state: CliStreamState, line: string, at: stri
       if (blockType === "tool_use") {
         const callId = text(block.id);
         if (callId === "") continue;
+        const input = asRecord(block.input);
         state.activity.push({
           call_id: callId,
           name: text(block.name),
-          target: toolTarget(asRecord(block.input)),
+          target: toolTarget(input),
           state: "started",
           summary: text(block.name),
           at,
         });
+        // Only a tool that actually names a command leaves a receipt. A file
+        // read is a tool call, not something a terminal page should show.
+        const command = text(input?.command);
+        if (command !== "") {
+          state.receipts.push({
+            ref: { call_id: callId },
+            command,
+            // The CLI reports success or failure, never a status code. Null is
+            // "unknown", and showing 0 here would be inventing a result.
+            exit_code: null,
+            stdout: "",
+            stderr: "",
+            truncated: false,
+          });
+        }
         changed = true;
       }
     }
@@ -128,6 +174,17 @@ export function applyCliStreamLine(state: CliStreamState, line: string, at: stri
       const index = state.activity.findIndex((entry) => entry.call_id === callId);
       if (index < 0) continue;
       const failed = block.is_error === true;
+      const receipt = state.receipts.findIndex((entry) => entry.ref.call_id === callId);
+      if (receipt >= 0) {
+        const { body, truncated } = cut(resultText(block.content));
+        state.receipts[receipt] = {
+          ...state.receipts[receipt]!,
+          // Failure output goes to stderr: the CLI's own split is the only one
+          // available, and merging them would lose which is which.
+          ...(failed ? { stderr: body } : { stdout: body }),
+          truncated,
+        };
+      }
       state.activity[index] = {
         ...state.activity[index]!,
         state: failed ? "failed" : "completed",

@@ -4,6 +4,7 @@ import type {
   AgentRoleDeclaration,
   AgentRoleExecution,
 } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
+import { orderPromptsByLayer } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import type {
   AgentHostApi,
   AgentHostErrorCode,
@@ -19,6 +20,19 @@ import { AgentReviewQueue } from "./reviews.js";
 
 export { AgentReviewQueue, AgentReviewError } from "./reviews.js";
 export { emptyCapabilityMatrix } from "./capabilities.js";
+export {
+  PrologueCredentialBridge,
+  prologueAcceptsProtocol,
+  prologueProtocolFacts,
+  type PrologueCredentialHost,
+} from "./adapters/prologue-node.js";
+export {
+  createModelConfigurationPort,
+  prologueModelConfiguration,
+  prologueProtocolFor,
+  type ModelSelectionPort,
+  type ResolvedModelSelection,
+} from "./model-configuration.js";
 export { registerAgentHostCapabilities } from "./capability-registration.js";
 export type {
   AgentCapabilityPorts,
@@ -47,7 +61,8 @@ export type {
   CliProcessHandle,
   CliProcessPort,
 } from "./adapters/cli-runtime.js";
-export { applyCliStreamLine, emptyStreamState } from "./adapters/cli-stream.js";
+export {
+  CLI_RECEIPT_MAX_BYTES, applyCliStreamLine, emptyStreamState } from "./adapters/cli-stream.js";
 export type { CliStreamState } from "./adapters/cli-stream.js";
 export { createNodeCliProcessPort } from "./adapters/cli-node-process.js";
 export type {
@@ -111,12 +126,21 @@ const EXECUTION_CAPABILITIES: Readonly<Record<AgentRoleExecution, AgentRuntimeCa
 };
 
 /**
- * The prompt bodies this role runs with, in the order the role names them.
+ * The prompt bodies this role runs with, layer by layer.
  *
  * A role that names its prompts gets exactly those. A role that names none
  * falls back to every declared prompt, which is right only when all of them are
  * shared — an earlier version did that unconditionally, so a read-only role was
  * handed the writer's prompt.
+ *
+ * The project layer is appended from what the **Host** supplies, not from the
+ * Plugin package: a project's conventions belong to the project, and a Plugin
+ * that could ship them would be speaking for every project it is installed in.
+ * Layers are then ordered base → role → project, stably, so the order inside a
+ * layer stays the one the role meant.
+ *
+ * The task is not here. It travels as its own argument, because it is what the
+ * user typed this time and nothing in a package may stand in for it.
  */
 function composeRolePrompts(
   role: AgentRoleDeclaration,
@@ -124,14 +148,22 @@ function composeRolePrompts(
 ): AgentPromptText[] {
   const available = authority.prompts ?? [];
   const named = role.prompts;
-  if (named === undefined) {
-    const declared = new Set((authority.manifest.prompts ?? []).map((item) => item.prompt_id));
-    return available.filter((prompt) => declared.has(prompt.prompt_id));
-  }
-  return named.flatMap((promptId) => {
-    const found = available.find((prompt) => prompt.prompt_id === promptId);
-    return found === undefined ? [] : [found];
-  });
+  const own = named === undefined
+    ? (() => {
+      const declared = new Set((authority.manifest.prompts ?? []).map((item) => item.prompt_id));
+      return available.filter((prompt) => declared.has(prompt.prompt_id));
+    })()
+    : named.flatMap((promptId) => {
+      const found = available.find((prompt) => prompt.prompt_id === promptId);
+      return found === undefined ? [] : [found];
+    });
+  const project = (authority.project_prompts ?? []).map((prompt) => ({
+    ...prompt,
+    // Forced rather than trusted: whatever the Host called it, a prompt that
+    // arrives on the project channel is the project layer.
+    layer: "project" as const,
+  }));
+  return orderPromptsByLayer([...own, ...project]);
 }
 
 /** Omitting `execution` means read-only. Callers must not reimplement this default. */
@@ -149,6 +181,12 @@ export interface AgentStartAuthority {
    * prompts from these; an adapter never invents one.
    */
   prompts?: readonly AgentPromptText[];
+  /**
+   * The project's own instructions, from a source the Host owns — today the
+   * confirmed project guidance. Absent means this project has stated none,
+   * which is different from stating an empty one and is shown differently.
+   */
+  project_prompts?: readonly AgentPromptText[];
 }
 
 /**

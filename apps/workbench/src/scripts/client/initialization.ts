@@ -33,7 +33,18 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       openTabItem: (plugin, id, title, mode) => tabWorkspace?.openItem(plugin, id, title, undefined, mode),
       expandDirectory: (id) => setPluginSectionExpanded(id === "sources" ? "feed" : id, true, true),
     });
-    projectHome = (${PROJECT_HOME_FACTORY_SCRIPT})({ getState: () => state, translate: L });
+    projectHome = (${PROJECT_HOME_FACTORY_SCRIPT})({
+      getState: () => state, translate: L, route,
+      feedApi,
+      openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title),
+      openPlugin: (plugin) => tabWorkspace?.openPlugin(plugin),
+      openFeedSource: (sourceId) => {
+        setDesktopDirectory("feed", true, false);
+        tabWorkspace?.openPlugin("feed");
+        setFeedTask(sourceId);
+        setMobileView("document");
+      },
+    });
     (${SHELF_CLIENT_FACTORY_SCRIPT})({ translate: L });
     ${SHELF_SETTINGS_CLIENT_SCRIPT}
     const settingsDirectory = (${SETTINGS_DIRECTORY_FACTORY_SCRIPT})({

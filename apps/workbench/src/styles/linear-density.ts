@@ -84,7 +84,7 @@ export const LINEAR_DENSITY_STYLES = `
   body.immersive-workbench .tab-item[data-pinned] { width: 28px; min-width: 28px; max-width: 28px; }
   body.immersive-workbench :is(.tab-split-button, .tab-add-button) { width: 26px; height: 26px; }
   body.immersive-workbench .tab-pane-close { top: 4px; width: 22px; height: 26px; }
-  body.immersive-workbench .immersive-plugin-stage > .desktop-work-surface:not(.session-stage-shell, .plugin-stage-shell) { padding: 16px clamp(14px, 3%, 28px); }
+  body.immersive-workbench .immersive-plugin-stage > .desktop-work-surface:not(.session-stage-shell, .plugin-stage-shell, .immersive-home) { padding: 16px clamp(14px, 3%, 28px); }
   body.immersive-workbench .immersive-plugin-stage > :is(.session-stage-shell, .plugin-stage-shell) { padding: 0; overflow: hidden; }
   body.immersive-workbench .tab-pane-body > .project-operation-surface { padding: 0; overflow: hidden; }
   body.immersive-workbench .session-stage-bar { min-height: 48px; padding: 8px 16px; }

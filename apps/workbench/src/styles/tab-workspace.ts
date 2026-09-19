@@ -52,14 +52,13 @@ export const TAB_WORKSPACE_STYLES = `
   body.immersive-workbench .tab-pane-body > * { position: absolute; inset: 0; min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; }
   body.immersive-workbench .tab-pane-body > .goal-canvas-shell { overflow: hidden; background: var(--canvas); }
   body.immersive-workbench .tab-pane-body > .goal-canvas-shell[data-board-view="list"] { background: var(--paper); }
-  body.immersive-workbench .tab-pane-body > .desktop-work-surface { background: var(--paper); padding: 0; }
+  body.immersive-workbench .tab-pane-body > .desktop-work-surface:not(.immersive-home) { background: var(--paper); padding: 0; }
   body.immersive-workbench .tab-pane-body > .feed-workbench { background: var(--canvas); }
   body.immersive-workbench .tab-pane-body > .project-operation-surface { overflow: hidden; padding: 0; }
   body.immersive-workbench .tab-pane-body > .project-operation-surface .session-stage { height: 100%; max-width: none; margin: 0; }
   body.immersive-workbench .tab-pane-body > .project-operation-surface-empty,
   body.immersive-workbench .tab-pane-body > .project-operation-surface > .project-operation-surface-empty { height: 100%; display: grid; place-content: center; }
   body.immersive-workbench .tab-pane-body > .immersive-artifact-surface { padding: 8px 24px 36px; }
-  body.immersive-workbench .tab-pane-body > .immersive-home { padding: 54px 40px 36px; }
   body.immersive-workbench .tab-pane-body [data-work-surface="inbox"] .feed-detail-empty { display: grid; place-items: center; align-content: center; width: 100%; min-height: 100%; margin: 0; padding: 48px 24px; border-radius: 0; background: transparent; box-shadow: none; color: var(--muted); text-align: center; }
   body.immersive-workbench .tab-pane-body [data-work-surface="inbox"] .feed-detail-empty svg { width: 22px; height: 22px; color: var(--faint); }
   body.immersive-workbench .tab-pane-body [data-work-surface="inbox"] .feed-detail-empty h1 { margin: 8px 0 0; color: var(--ink-soft); font-size: 14px; font-weight: 400; letter-spacing: 0; }
@@ -77,7 +76,6 @@ export const TAB_WORKSPACE_STYLES = `
   @media (max-width: 760px) {
     body.immersive-workbench .tab-drop-edges { display: none !important; }
     body.immersive-workbench .tab-item { min-width: 0; max-width: 156px; padding: 0 4px 0 8px; }
-    body.immersive-workbench .tab-pane-body > .immersive-home { padding: 30px 20px 26px; }
   }
 
   body.immersive-workbench .tab-strip { align-items: center; gap: 8px; padding-block: 4px; overflow: hidden; }

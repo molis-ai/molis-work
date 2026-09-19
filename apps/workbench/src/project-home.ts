@@ -1,24 +1,44 @@
 import type { ImmersiveShellPrimitives } from "./immersive-shell.js";
 
 export function renderProjectHome(name: string, { L, escapeHtml: e, icon }: ImmersiveShellPrimitives): string {
-  return `<section class="desktop-work-surface immersive-home" data-work-surface="home" data-work-surface-label="${L("项目首页")}" aria-label="${e(name)} · ${L("项目首页")}" hidden>
-    <div class="project-home-content">
-      <section class="home-context" aria-label="${L("今天与日历")}">
-        <div class="home-date-panel">
-          <p class="home-date-year" data-home-year></p>
-          <h1 class="home-today"><time data-home-date></time><span data-home-weekday></span></h1>
+  return `<section class="desktop-work-surface immersive-home" data-work-surface="home" data-work-surface-label="${L("项目首页")}" data-event="off" data-dock="closed" aria-label="${e(name)} · ${L("项目首页")}" hidden>
+    <div class="home-flow">
+      <nav class="home-dates" aria-label="${L("日期")}">
+        <p class="home-dates__label" data-home-month></p>
+        <div class="home-dates__list" data-home-dates></div>
+      </nav>
+      <section class="home-dayview" aria-label="${L("当天")}">
+        <article class="home-hero" data-home-hero>
+          <time data-home-date></time>
+        </article>
+        <div class="home-tl">
+          <div class="home-tl__head">${icon("clock")}${L("当天的事件")}<span data-home-list-count></span></div>
+          <div class="home-tl__rows" data-home-list></div>
         </div>
-        <section class="home-calendar mw-calendar mw-calendar--compact" data-slot="calendar" aria-label="${L("月历")}">
-          <header class="mw-calendar__header"><span data-home-month data-calendar-title></span><div class="mw-group home-month-actions"><button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-home-month-step="-1" aria-label="${L("上个月")}">${icon("back")}</button><button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-home-month-step="1" aria-label="${L("下个月")}">${icon("chevron-right")}</button></div></header>
-          <table class="mw-calendar__grid"><thead><tr data-home-weekdays></tr></thead><tbody data-home-calendar></tbody></table>
+        <section class="home-launch" aria-label="${L("快捷方式")}">
+          <ul class="home-shortcuts" data-home-shortcuts aria-label="${L("快捷方式")}"><li class="mw-card mw-card--tile home-shortcut home-shortcut-add" data-slot="card"><button type="button" class="home-shortcut-main" data-home-shortcut-add><span class="home-shortcut-icon">${icon("plus")}</span><span>${L("添加快捷方式")}</span></button></li></ul>
+          <p class="home-shortcut-error" data-home-shortcut-error role="alert" hidden></p>
         </section>
       </section>
-      <section class="home-launch" aria-label="${L("快捷方式与 Agent 输入")}">
-        <ul class="home-shortcuts" data-home-shortcuts aria-label="${L("快捷方式")}"><li class="mw-card mw-card--tile home-shortcut home-shortcut-add" data-slot="card"><button type="button" class="home-shortcut-main" data-home-shortcut-add><span class="home-shortcut-icon">${icon("plus")}</span><span>${L("添加快捷方式")}</span></button></li></ul>
-        <div class="home-composer"><span class="home-agent-icon" aria-hidden="true">${icon("sparkles")}</span><input class="mw-input" type="text" data-home-agent-input placeholder="${L("你想推进什么？")}" aria-label="${L("Agent 尚未开放，暂不可输入")}" aria-describedby="home-agent-status" disabled><button type="button" class="mw-btn mw-btn--ghost mw-btn--icon-only home-send" disabled aria-label="${L("Agent 即将接入，暂不可发送")}">${icon("arrow")}</button></div>
-        <p class="home-agent-note" id="home-agent-status">${icon("lock")}<span>${L("Agent 尚未开放")}</span></p>
-        <p class="home-shortcut-error" data-home-shortcut-error role="alert" hidden></p>
-      </section>
+      <div class="home-eventcol">
+        <aside class="home-detail" data-home-detail aria-label="${L("这件事")}">
+          <div class="home-detail__head" data-home-detail-head></div>
+          <div class="home-detail__body" data-home-detail-body></div>
+          <div class="home-detail__act" data-home-detail-act></div>
+        </aside>
+      </div>
+    </div>
+    <div class="home-talk paper" data-home-talk role="dialog" aria-label="${L("对着这件事说一句")}" hidden>
+      <div class="home-talk__head">
+        <b>${L("说一句")}</b>
+        <span data-home-talk-ctx></span>
+        <button class="mw-btn mw-btn--ghost mw-btn--icon-only mw-btn--sm" type="button" data-home-close-talk aria-label="${L("收起对话")}">${icon("x")}</button>
+      </div>
+      <div class="home-talk__body" data-home-talk-body></div>
+      <form class="home-talk__compose" data-home-talk-form>
+        <textarea class="mw-textarea" name="say" rows="1" placeholder="${L("带着这件事说一句")}"></textarea>
+        <button class="mw-btn mw-btn--primary mw-btn--icon-only" type="submit" aria-label="${L("打开 Session")}">${icon("send")}</button>
+      </form>
     </div>
     <template data-home-shortcut-template><li class="mw-card mw-card--tile home-shortcut" data-slot="card"><a class="home-shortcut-main" target="_blank" rel="noopener noreferrer" data-home-shortcut-link data-home-external><span class="home-shortcut-icon">${icon("link")}</span><span data-home-shortcut-name></span></a><button type="button" class="mw-btn mw-btn--ghost mw-btn--icon-only home-shortcut-edit" data-home-shortcut-edit>${icon("more")}</button></li></template>
     <dialog class="mw-dialog home-shortcut-dialog" data-slot="dialog" data-home-shortcut-dialog aria-labelledby="home-shortcut-title">

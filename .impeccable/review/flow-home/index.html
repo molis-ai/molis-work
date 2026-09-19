@@ -510,21 +510,9 @@
 
     .eventcol {
       min-width: 0; min-height: 0;
-      display: none; flex-direction: column; gap: 8px;
+      display: none; flex-direction: column;
     }
     html[data-event="on"] .eventcol { display: flex; }
-
-    .detail__act {
-      flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
-      width: 100%; padding: 8px 10px;
-      border-radius: 14px; background: var(--paper);
-      box-shadow: inset 0 0 0 1px var(--hairline);
-    }
-    html[data-theme="dark"] .detail__act {
-      box-shadow: inset 0 0 0 1px var(--hairline), inset 0 1px 0 var(--edge-highlight);
-    }
-    .detail__act .mw-btn { transition: transform var(--motion-fast) var(--ease); }
-    .detail__act .mw-btn:active { transform: translateY(.5px); }
 
     .detail {
       --node: var(--muted);
@@ -566,6 +554,22 @@
     .detail__facts > div:last-child { border-bottom: 0; }
     .detail__facts dt { color: var(--faint); }
     .detail__facts dd { margin: 0; color: var(--ink-soft); }
+    .detail__act {
+      flex: none; display: flex; flex-wrap: nowrap; align-items: center;
+      justify-content: space-between; gap: 8px;
+      width: 100%; padding: 8px 10px 9px;
+      border-top: 1px solid var(--line);
+    }
+    .detail__act-left {
+      display: flex; flex-wrap: nowrap; align-items: center; gap: 6px;
+      min-width: 0;
+    }
+    .detail__act .mw-btn {
+      --control-h: 28px; --control-pad-x: 9px; font-size: 12px;
+      transition: transform var(--motion-fast) var(--ease);
+    }
+    .detail__act .mw-btn:active { transform: translateY(.5px); }
+    .detail__act [data-open-talk] { flex: none; margin-left: auto; }
     .talk-pop {
       position: absolute; z-index: 28; display: none;
       width: 320px; max-height: min(420px, calc(100% - 24px));
@@ -744,10 +748,10 @@
               </div>
             </section>
             <div class="eventcol">
-              <div class="detail__act" data-detail-act></div>
               <aside class="detail" data-detail aria-label="这件事">
                 <div class="detail__head" data-detail-head></div>
                 <div class="detail__body" data-detail-body data-quotable></div>
+                <div class="detail__act" data-detail-act></div>
               </aside>
             </div>
           </div>
@@ -910,9 +914,12 @@
       const ar = app.getBoundingClientRect();
       pop.style.width = Math.round(r.width) + "px";
       pop.style.left = Math.round(r.left - ar.left) + "px";
+      const gap = 8;
+      const maxH = Math.max(160, r.top - ar.top - gap - 8);
+      pop.style.maxHeight = Math.round(maxH) + "px";
       const h = pop.offsetHeight || 280;
-      let top = r.bottom - ar.top + 8;
-      if (top + h > ar.height - 8) top = Math.max(8, ar.height - h - 8);
+      let top = r.top - ar.top - h - gap;
+      if (top < 8) top = 8;
       pop.style.top = Math.round(top) + "px";
     }
 
@@ -1068,7 +1075,8 @@
           '<button class="mw-btn mw-btn--secondary" type="button" data-ask>问问怎么回事</button>'
         : '<button class="mw-btn mw-btn--primary" type="button" data-ask>' + ico("i-arrow") + "接着做</button>" +
           '<button class="mw-btn mw-btn--secondary" type="button" data-done>' + ico("i-check") + "做完了</button>";
-      act.innerHTML = primary +
+      act.innerHTML =
+        '<div class="detail__act-left">' + primary + "</div>" +
         '<button class="mw-btn mw-btn--ghost" type="button" data-open-talk data-talk="event:' + esc(ev.id) + '"' +
         ' aria-pressed="' + String(talkOn) + '">' + ico("i-message") + "说一句</button>";
     }

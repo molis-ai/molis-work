@@ -50,9 +50,13 @@ Coding 插件要起一次 Run，按当时的代码**无路可走**。
 按本文自己的判据补一句：**这些能力目前只有测试在注册，生产装配没有调用这个入口**
 （和 2.1 同一个原因）。说"路通了"是对的，说"已经在跑"就不对。
 
-2026-09-19 补充：能力增至 9 个（加了 `agent.command-output.v1`），`local-host` 也暴露了
-`registerCapability` 接缝，`tests/agent-host-wiring.test.ts` 证明组合根照这条路接得通。
-**产品装配根仍然没有构造 Agent Host**，所以上面那句话原样成立。
+2026-09-19 补充：能力增至 9 个（加了 `agent.command-output.v1`），`local-host` 暴露了
+`registerCapability` 接缝。**当晚这句话不再成立**：`composeAgentHost` 已经在
+`apps/local-host/src/web-server.ts` 里被调用，CLI 运行时真的注册进去了，
+插件经 Capability 拿得到运行时列表、角色可用性与启动授权
+（`tests/agent-host-composition.test.ts` 5 项，含目录授权那道闸的两条反例）。
+
+仍然没有接的是**审查面的挂载**：渲染器写好了，但还没有页面挂它。
 
 ### 1.6 契约缺口：adapter 拿不到角色 Prompt
 
@@ -125,7 +129,10 @@ blob）和 `shelf/`（用户上传的文件）——`purgeDataPaths` 是一张�
 隔离与生命周期里。前提是先把它们各自依赖的 Module 能力注册进 Kernel Capability Registry
 （Shelf 要 shelf store，Feed 要 connector，等等），否则 `start()` 拿不到依赖。
 
-**标成 `app` 会让 Manifest 说谎**，所以现在标 `native`。这条链路由 Coding 打通后再回头迁移。
+**标成 `app` 会让 Manifest 说谎**，所以它们现在标 `native`。
+
+2026-09-20：**Coding 已经走通这条链路并标成 `app`**——产品经 `coding-surface.ts` 起平台、
+启动它、用它的 contribution 渲染目录。六个存量插件仍是 `native`，迁移可以照 Coding 这条路逐个做。
 
 ### 2.3 只有 Goals 把能力注册进了 Kernel
 

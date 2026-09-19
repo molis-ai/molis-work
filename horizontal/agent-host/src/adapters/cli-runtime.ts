@@ -1,3 +1,4 @@
+import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { randomUUID } from "node:crypto";
 
 import type {
@@ -105,6 +106,9 @@ function capabilities(): AgentRuntimeCapabilityMatrix {
   matrix["run.observe"] = "supported";
   // Stop works by ending the process; pause and resume have no CLI equivalent.
   matrix["run.control"] = "partial";
+  // It can say what a command produced, but not run one under Host approval —
+  // `command` stays unsupported right below.
+  matrix["command.receipts"] = "supported";
   matrix.usage = "supported";
   return matrix;
 }
@@ -211,6 +215,7 @@ export class CliAgentAdapter implements AgentRuntimeAdapter {
         prompts: role.prompts.map((prompt) => ({
           prompt_id: prompt.prompt_id,
           version: prompt.version,
+          layer: promptLayerOf(prompt),
         })),
         skills: [],
         mcp_tools: [],
@@ -226,6 +231,9 @@ export class CliAgentAdapter implements AgentRuntimeAdapter {
       turns: [...state.turns],
       activity: [],
       usage: state.usage,
+      // This CLI's stream carries no structured question, so there is never
+      // one to show. Empty is the true answer, not a placeholder.
+      awaiting_input: [],
       started_at: at,
       ended_at: null,
     };
@@ -275,13 +283,26 @@ export class CliAgentAdapter implements AgentRuntimeAdapter {
     });
   }
 
+  /**
+   * What one command this Run ran produced.
+   *
+   * Reading a receipt is not running a command: this Runtime still reports
+   * `command` as unsupported, because its execution is gated by the CLI's own
+   * permission model rather than the Host's approval queue. What it can do
+   * honestly is say what already happened.
+   */
   async readCommandOutput(
-    _session: AgentSessionRef,
-    _ref: AgentCommandOutputRef,
+    session: AgentSessionRef,
+    ref: AgentCommandOutputRef,
   ): Promise<AgentCommandOutput> {
+    for (const record of this.#runs.values()) {
+      if (record.view.ref.session_id !== session.session_id) continue;
+      const receipt = record.state.receipts.find((entry) => entry.ref.call_id === ref.call_id);
+      if (receipt) return structuredClone(receipt);
+    }
     throw new CliAgentError(
-      "agent.capability_unavailable",
-      "这个运行时的命令执行没有经过宿主审查，因此不提供命令回执",
+      "agent.run_unknown",
+      `这条会话里没有 ${ref.call_id} 这次命令的回执`,
     );
   }
 

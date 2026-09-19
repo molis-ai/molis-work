@@ -22,7 +22,7 @@ Sessions 宽列表按 Runtime 分组后，分类 summary（caret + 图标 + 名�
 - 同一组里标题 / Goal / 状态列仍彼此对齐；宽屏展开藏 Goal 列后，缩进仍在。
 - 空列表（没有 Session）不必跟 fold 缩进。
 
-不做：不改 Feed 分组、Goals 缩进合同、Session 与 Goal 关系、用户库。
+不做：不改 Goals 缩进合同、Session 与 Goal 关系、用户库。Feed / Inbox 见 `specs/plugin-stage-collection-indent/spec.md`。
 
 ## 使用场景
 

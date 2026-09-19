@@ -35,10 +35,10 @@ test("Graph separates lineage selection from opening and starts centered at 100 
   const targetId = await evaluate<string>("document.querySelector('[data-graph-edge]').dataset.edgeTo");
   const node = '[data-graph-node][data-goal-id="' + targetId + '"]';
   await evaluate("window.__documentFetches=[];window.__goalChanges=[];const f=window.fetch;window.fetch=(...a)=>{if(String(a[0]).includes('/goals/'))window.__documentFetches.push(String(a[0]));return f(...a)};document.addEventListener('molis-work:goal-changed',e=>window.__goalChanges.push(e.detail.goalId));");
-  await click(node);
+  await browser.openGoalFrame(node);
   await waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal === " + JSON.stringify(targetId));
   assert.equal(await evaluate("document.querySelector('[data-goal-node-workspace]').hidden"), true);
-  await click('.tab-item[data-tab-kind=mother] [role=tab]');
+  await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor("document.querySelector('[data-goal-canvas-shell]')?.dataset.boardView === 'canvas' && document.querySelector(" + JSON.stringify(node) + ").classList.contains('is-selected')");
   assert.ok(await evaluate<number>("document.querySelectorAll('[data-graph-edge].is-selected-path').length") > 0);
   const camera = await evaluate("document.querySelector('[data-graph-stage]').getAttribute('style')");

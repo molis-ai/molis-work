@@ -3,12 +3,13 @@ export {
   MOLIS_WORK_TERMINAL_THEME_STORAGE_KEY,
   MOLIS_WORK_THEME_STORAGE_KEY,
   THEME_BOOTSTRAP_SCRIPT,
-  VISUAL_FOUNDATION_CLIENT_SCRIPT,
   type MolisWorkDensity,
   type MolisWorkTerminalTheme,
   type MolisWorkTheme,
 } from "./preferences.js";
 
+import { VISUAL_FOUNDATION_CLIENT_SCRIPT as PREFERENCE_CLIENT_SCRIPT } from "./preferences.js";
+import { MICRO_INTERACTION_CLIENT_SCRIPT } from "./styles/micro-interactions.js";
 import { CALM_DESKTOP_STYLES } from "./styles/calm-desktop.js";
 import { DESKTOP_TITLEBAR_STYLES } from "./styles/desktop-titlebar.js";
 import { DIRECTORY_LEDGER_STYLES } from "./styles/directory-ledger.js";
@@ -44,6 +45,10 @@ export const VISUAL_FOUNDATION_STYLES = [
   PRIMITIVE_STYLES,
 ].join("");
 
+/** Theme preferences plus the measured micro-interactions; every page renderer inlines this. */
+export const VISUAL_FOUNDATION_CLIENT_SCRIPT = `${PREFERENCE_CLIENT_SCRIPT}${MICRO_INTERACTION_CLIENT_SCRIPT}`;
+
 export { COSS_CONTROL_STYLES } from "./styles/coss-controls.js";
 export { PRIMITIVE_STYLES } from "./styles/primitives.js";
 export { INTERACTION_TEXTURE_STYLES } from "./styles/interaction-texture.js";
+export { MICRO_INTERACTION_STYLES, MICRO_INTERACTION_CLIENT_SCRIPT } from "./styles/micro-interactions.js";

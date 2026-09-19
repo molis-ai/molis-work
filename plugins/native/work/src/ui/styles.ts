@@ -102,7 +102,7 @@ export const PROJECT_OPERATIONS_STYLES = `
   .session-stage-workspace > .session-stage { flex: 1; min-width: 0; min-height: 0; height: 100%; }
   .session-stage-back {
     display: grid; place-items: center; width: 30px; height: 30px; padding: 0;
-    border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer;
+    margin-left: -6px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer;
   }
   .session-stage-back:hover { background: var(--rail); color: var(--ink); }
   .session-stage-back svg { width: 16px; height: 16px; transform: rotate(180deg); }
@@ -178,7 +178,7 @@ export const PROJECT_OPERATIONS_STYLES = `
 
   .project-operation-surface { min-height: 0; height: 100%; }
   .session-stage { position: relative; display: flex; flex-direction: column; width: 100%; height: 100%; min-height: 0; overflow: hidden; container-type: inline-size; container-name: session-stage; background: var(--paper); }
-  .session-stage-bar { flex: none; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px 16px; align-items: center; min-height: 48px; padding: 8px 16px; border-bottom: 1px solid var(--line); }
+  .session-stage-bar { flex: none; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px 16px; align-items: center; min-height: 48px; padding: 8px 16px 8px 20px; border-bottom: 1px solid var(--line); }
   .session-stage-identity { min-width: 0; }
   .session-stage-facts { margin: 0; color: var(--muted); display: flex; flex-wrap: wrap; gap: 0 8px; font-size: 11px; line-height: 1.3; }
   .session-stage-facts span + span::before { content: "·"; margin-right: 8px; color: var(--faint); }

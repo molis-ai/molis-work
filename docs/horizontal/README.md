@@ -6,5 +6,6 @@ Horizontal Service 是多种业务都会复用的可靠运行能力。它保存 
 - [Listener Host](listener-host.md)：持续接收 Raw Event，并可靠投递 Signal Draft。
 - [Scheduler](scheduler.md)：到点唤醒一个已注册 Capability。
 - [Runtime Host](runtime-host.md)：启动、恢复、停止和观察 Runtime。
+- [Agent Host](agent-host.md)：注册 Agent Runtime、申报能力矩阵、授权一次 Run，并持有副作用审批队列。
 
 完整逐包 Contract 见架构 Spec 第 21 节。Module 可直接通过 service capability contract 调用这些能力，不必把所有正常调用绕成事件。

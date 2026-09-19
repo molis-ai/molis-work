@@ -561,7 +561,7 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
   html[data-resolved-theme="dark"] .evidence-record p,
   html[data-resolved-theme="dark"] .relation-copy .relation-path,
   html[data-resolved-theme="dark"] .relation-authority small { color: var(--ink-soft); }
-  html[data-resolved-theme="dark"] input:not([type="range"]):not(.mw-slider),
+  html[data-resolved-theme="dark"] input:not([type="range"]):not(.mw-slider):not(.global-search-query),
   html[data-resolved-theme="dark"] textarea,
   html[data-resolved-theme="dark"] select,
   html[data-resolved-theme="dark"] .tree-filter,

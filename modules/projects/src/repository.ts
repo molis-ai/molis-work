@@ -1,5 +1,5 @@
 import type {
-  BuiltinProjectPluginId,
+  ProjectPluginId,
   ProjectDeletionRecord,
   ProjectRecord,
   ProjectSelection,
@@ -70,12 +70,12 @@ export class ProjectsRepository {
     return Number(this.db.prepare("DELETE FROM projects WHERE project_id = ?").run(projectId).changes);
   }
 
-  listProjectPlugins(projectId: string): BuiltinProjectPluginId[] {
+  listProjectPlugins(projectId: string): ProjectPluginId[] {
     return (this.db.prepare("SELECT plugin_id FROM project_plugins WHERE project_id = ? ORDER BY plugin_id")
-      .all(projectId) as { plugin_id: BuiltinProjectPluginId }[]).map(row => row.plugin_id);
+      .all(projectId) as { plugin_id: ProjectPluginId }[]).map(row => row.plugin_id);
   }
 
-  addProjectPlugin(projectId: string, pluginId: BuiltinProjectPluginId, at: string): boolean {
+  addProjectPlugin(projectId: string, pluginId: ProjectPluginId, at: string): boolean {
     return Number(this.db.prepare("INSERT INTO project_plugins (project_id, plugin_id, added_at) VALUES (?, ?, ?) ON CONFLICT DO NOTHING")
       .run(projectId, pluginId, at).changes) > 0;
   }
@@ -317,7 +317,7 @@ export function createProjectsSchema(db: ProjectsSqliteDatabase): void {
       ON projects(display_name COLLATE NOCASE, project_id);
     CREATE TABLE IF NOT EXISTS project_plugins (
       project_id TEXT NOT NULL REFERENCES projects(project_id) ON DELETE CASCADE,
-      plugin_id TEXT NOT NULL CHECK (plugin_id IN ('goals', 'sessions', 'inbox', 'feed', 'artifacts')),
+      plugin_id TEXT NOT NULL,
       added_at TEXT NOT NULL,
       PRIMARY KEY (project_id, plugin_id)
     );
@@ -371,6 +371,25 @@ export function createProjectsSchema(db: ProjectsSqliteDatabase): void {
     );
     CREATE INDEX IF NOT EXISTS project_deletions_project_idx
       ON project_deletions(project_id, deleted_at, deletion_id);
+  `);
+}
+
+/**
+ * Drop the closed plugin-id CHECK. Which Plugins exist is a runtime registry
+ * question, so installing one must never require another table rebuild.
+ * Existing rows are carried over unchanged.
+ */
+export function migrateProjectOpenPluginSchema(db: ProjectsSqliteDatabase): void {
+  db.exec(`
+    CREATE TABLE project_plugins_open_next (
+      project_id TEXT NOT NULL REFERENCES projects(project_id) ON DELETE CASCADE,
+      plugin_id TEXT NOT NULL,
+      added_at TEXT NOT NULL,
+      PRIMARY KEY (project_id, plugin_id)
+    );
+    INSERT INTO project_plugins_open_next SELECT project_id, plugin_id, added_at FROM project_plugins;
+    DROP TABLE project_plugins;
+    ALTER TABLE project_plugins_open_next RENAME TO project_plugins;
   `);
 }
 

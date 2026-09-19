@@ -1,4 +1,4 @@
-import { BUILTIN_PROJECT_PLUGIN_IDS } from "@molis-ai/molis-work-contracts/modules/projects";
+import { PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-workbench";
 import type { FeedSourceRecord } from "@molis-ai/molis-work-plugin-feed";
 import { openShelfStore } from "@molis-ai/molis-work-module-shelf";
 import type { ProjectsModule } from "@molis-ai/molis-work-module-projects";
@@ -222,7 +222,7 @@ export function enableDemoProjectPlugins(
   projectId: string,
   actorId: string,
 ): void {
-  for (const plugin_id of BUILTIN_PROJECT_PLUGIN_IDS) {
+  for (const plugin_id of PROJECT_SCOPED_PLUGIN_IDS) {
     if (projects.query.listProjectPlugins(projectId).includes(plugin_id)) continue;
     projects.commands.addProjectPlugin({ project_id: projectId, plugin_id, actor_id: actorId });
   }

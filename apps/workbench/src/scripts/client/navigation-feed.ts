@@ -113,7 +113,7 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
     };
     const openDirectorySurface = (surface, itemId, title, clickEvent) => {
       const plugin = pluginForSurface(surface);
-      const key = itemId ? plugin + ":item:" + itemId : plugin + ":mother";
+      const key = itemId ? plugin + ":item:" + itemId : plugin + ":view";
       const detail = Number(clickEvent?.detail || 0);
       if (detail > 1 && lastDirectoryOpen.key === key) return true;
       lastDirectoryOpen = { key, at: Date.now() };

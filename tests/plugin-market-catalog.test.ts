@@ -9,6 +9,7 @@ test("plugin market is a catalog directory, not a centered landing form", () => 
   const html = renderPluginMarket({ L: (value) => value, escapeHtml: String, icon });
   assert.match(html, /<h1>插件<\/h1>/);
   assert.doesNotMatch(html, /把需要的工作方式添加到项目|这里提供随 Molis Work/);
+  assert.match(html, /class="plugin-market-search mw-input-group"/);
   assert.match(html, /data-market-search/);
   assert.match(html, /data-market-project/);
   assert.match(html, /data-market-project-trigger/);

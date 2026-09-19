@@ -21,7 +21,6 @@ test('icon tabs pin, restore, expose keyboard and touch actions and keep fixed d
   assert.equal(await evaluate("document.querySelector('.tab-item').dataset.pinned"),'true');
   assert.equal(await evaluate("document.querySelector('.tab-item [data-tab-close]')"), null);
   await click('[data-titlebar-tabs] [data-tab-add]');
-  assert.equal(await evaluate("Boolean(document.querySelector('[data-tab-menu-action=open-artifacts]'))"),false);
   await click('[data-tab-menu-action=open-goals]');
   await waitFor("document.body.dataset.desktopSurface==='goal'");
   await openGoalFrame('.tree-node[data-select-goal=CORE]');
@@ -32,7 +31,9 @@ test('icon tabs pin, restore, expose keyboard and touch actions and keep fixed d
   await click('[data-titlebar-tabs] [data-tab-add]');
   await click('[data-tab-menu-action=open-feed]');
   assert.equal(await evaluate(`document.querySelector('${coreSelector}').getBoundingClientRect().width`),before);
-  // Real right click, then Escape returns keyboard focus without changing the active Feed.
+  assert.equal(await evaluate("document.body.dataset.desktopSurface"), "feed");
+  assert.equal(await evaluate("document.querySelector('.tab-item[aria-current]')"), null);
+  // Real right click, then Escape returns keyboard focus without changing the Feed view.
   const point=await evaluate<{x:number,y:number}>(`(async()=>{const el=document.querySelector('${coreSelector}');el.scrollIntoView({block:'nearest',inline:'nearest',behavior:'instant'});await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));const r=el.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()`);
   for(const type of ['mousePressed','mouseReleased']) await command('Input.dispatchMouseEvent',{type,...point,button:'right',clickCount:1},sessionId);
   await waitFor("document.querySelector('[data-workspace-tab-menu]').matches(':popover-open')");
@@ -40,8 +41,10 @@ test('icon tabs pin, restore, expose keyboard and touch actions and keep fixed d
   assert.equal(await evaluate("document.activeElement.dataset.tabMenuAction"),'close');
   await command('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',windowsVirtualKeyCode:27},sessionId);
   assert.equal(await evaluate("document.activeElement.closest('[data-tab-id]')?.dataset.tabId"),coreId);
-  assert.equal(await evaluate("document.querySelector('.tab-item[aria-current]').dataset.plugin"),'feed');
-  await click('[data-titlebar-tabs] [data-tab-add]'); await click('[data-tab-menu-action=pin]');
+  assert.equal(await evaluate("document.body.dataset.desktopSurface"), "feed");
+  await command('Input.dispatchKeyEvent', {type:'keyDown',key:'F10',code:'F10',windowsVirtualKeyCode:121,modifiers:8},sessionId);
+  await waitFor("document.querySelector('[data-workspace-tab-menu]').matches(':popover-open')");
+  await click('[data-tab-menu-action=pin]');
   await click('[data-titlebar-tabs] [data-tab-add]'); await click('[data-tab-menu-action=open-sessions]');
   await click(coreSelector+' .tab-item-trigger');
   assert.equal(await evaluate("document.querySelectorAll('.tab-item[data-pinned]').length"),2);

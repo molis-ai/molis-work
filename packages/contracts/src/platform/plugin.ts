@@ -1,12 +1,40 @@
+import type { ArtifactReference } from "../modules/artifacts.js";
 import type { ConnectorDriver } from "../services/connector-host.js";
 import type { RawEventAdapter } from "../services/listener-host.js";
+import type { HostCapabilityDefinition } from "./app-host.js";
 import type { ContractDescriptor } from "./package.js";
-import type { UiContribution } from "./ui.js";
+import type {
+  UiCommandAvailability,
+  UiCommandDeclaration,
+  UiCommandInputKind,
+  UiContribution,
+  UiOpenedObjectView,
+  UiViewDeclaration,
+  UiViewObjectRef,
+} from "./ui.js";
 import type { PluginArtifactClient } from "./plugin-artifacts.js";
+import type {
+  PluginEventRecord,
+  PluginEventDeliveryContext,
+  PluginEventsClient,
+  PluginEventsDeclaration,
+  PluginEventType,
+} from "./plugin-events.js";
+import type {
+  PluginInputsClient,
+  PluginOutputsClient,
+  PluginPortsDeclaration,
+  PluginUpstreamReadyInputs,
+  PluginUpstreamUnavailableReason,
+} from "./plugin-wiring.js";
+import type { AgentManifest, AgentPromptText, AgentSkillDefinition } from "./plugin-agent.js";
 
 export { parsePluginManifest, PluginManifestError, canonicalPluginId } from "./plugin-manifest.js";
 export type { PluginArtifactClient, PluginArtifactPublishInput } from "./plugin-artifacts.js";
 export type { PluginPackageFile, PluginPackagePayload, PluginPackageBundle, PluginPackageSigner } from "./plugin-package.js";
+export * from "./plugin-events.js";
+export * from "./plugin-wiring.js";
+export * from "./plugin-agent.js";
 
 /** Opaque, personal installation data. The author owns serialization, not storage paths or SQL. */
 export interface PluginPrivateStorage {
@@ -20,11 +48,27 @@ export interface PluginUiClient {
   unregister(contributionId: string): void;
 }
 
+/** Narrow, grant-checked access to Capabilities the Manifest declared as consumed. */
+export interface PluginCapabilityClient {
+  invoke<Input, Output>(
+    capability: HostCapabilityDefinition<Input, Output>,
+    input: Input,
+  ): Promise<Output>;
+}
+
 export interface PluginHostServices {
   /** Present only when the Manifest declares private storage. Actual grant is checked on each operation. */
   readonly storage?: PluginPrivateStorage;
   readonly artifacts: PluginArtifactClient;
   readonly ui: PluginUiClient;
+  /** Present when the Manifest declares published events. */
+  readonly events?: PluginEventsClient;
+  /** Present when the Manifest declares input ports. */
+  readonly inputs?: PluginInputsClient;
+  /** Present when the Manifest declares output ports. */
+  readonly outputs?: PluginOutputsClient;
+  /** Present when the Manifest declares consumed Capabilities. */
+  readonly capabilities?: PluginCapabilityClient;
 }
 
 export const platformPluginContract = {
@@ -36,7 +80,12 @@ export const platformPluginContract = {
 } as const satisfies ContractDescriptor;
 
 export type PluginDeployment = "local" | "server";
-export type PluginKind = "native" | "integration";
+/**
+ * `app` is a v2 Plugin that contributes views, commands, routes, ports and
+ * events. `native` stays the v1 first-party entry; `integration` stays the
+ * Provider shape. The kind selects the contribution, never the trust level.
+ */
+export type PluginKind = "native" | "integration" | "app";
 export type PluginLifecycleState =
   | "installed"
   | "running"
@@ -56,8 +105,35 @@ export interface PluginEntrypointManifest {
   entrypoint: string;
 }
 
+/**
+ * A contract dependency, never an implementation dependency. Any registered
+ * provider of `capability_id@version` satisfies it.
+ */
+export interface PluginRequirementDeclaration {
+  capability_id: string;
+  version: number;
+  /** An unsatisfied optional requirement degrades the Plugin; it does not block it. */
+  optional?: boolean;
+  reason: string;
+}
+
+export type PluginRouteMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+
+/**
+ * One HTTP route the Host mounts under `/api/plugins/<plugin_id>/`. `path` is a
+ * pattern with `:name` segments; the Plugin never owns the prefix or the router.
+ */
+export interface PluginRouteDeclaration {
+  route_id: string;
+  method: PluginRouteMethod;
+  path: string;
+  /** Permission the caller's session must hold. Omitted means the Plugin's own grants suffice. */
+  permission?: string;
+}
+
 export interface PluginManifest {
-  schema_version: 1;
+  /** 1 is the original shape. 2 adds ports, events, views, commands, routes and agent. */
+  schema_version: 1 | 2;
   plugin_id: string;
   version: string;
   name: string;
@@ -67,7 +143,7 @@ export interface PluginManifest {
     /** Signature identity. A changed value creates a different Plugin identity. */
     signature: string;
   };
-  host_api_version: 1;
+  host_api_version: 1 | 2;
   entrypoints: PluginEntrypointManifest[];
   permissions: PluginPermissionDeclaration[];
   capabilities: {
@@ -80,7 +156,21 @@ export interface PluginManifest {
   };
   ui: {
     contributions: string[];
+    /** v2: where each contribution is placed. Absent means the Host places nothing. */
+    views?: UiViewDeclaration[];
+    /** v2: commands offered to the command menu and content actions. */
+    commands?: UiCommandDeclaration[];
   };
+  /** v2: named, typed connection points wired by the user inside a project. */
+  ports?: PluginPortsDeclaration;
+  /** v2: events this Plugin publishes and the exact sources it listens to. */
+  events?: PluginEventsDeclaration;
+  /** v2: HTTP routes the Host mounts on the Plugin's behalf. */
+  routes?: PluginRouteDeclaration[];
+  /** v2: Capability contracts required before activation. */
+  requires?: PluginRequirementDeclaration[];
+  /** v2: roles, prompts, skills and subagents for an Agent-backed Plugin. */
+  agent?: AgentManifest;
 }
 
 export interface PluginInstanceRecord {
@@ -108,7 +198,68 @@ export interface PluginIntegrationContribution {
   signal_adapter: RawEventAdapter;
 }
 
-export type PluginContribution = PluginIntegrationContribution;
+/** Each variant's `kind` must stay a declared UI command input kind. */
+type PluginCommandInputOf<Kind extends UiCommandInputKind, Payload = unknown> =
+  { kind: Kind } & Payload;
+
+export type PluginCommandInput =
+  | PluginCommandInputOf<"current">
+  | PluginCommandInputOf<"object", { ref: UiViewObjectRef }>
+  | PluginCommandInputOf<"agent-session", { session_id: string }>
+  | PluginCommandInputOf<"artifacts", { references: readonly ArtifactReference[] }>;
+
+export interface PluginRouteRequest {
+  method: PluginRouteMethod;
+  pathname: string;
+  params: Readonly<Record<string, string>>;
+  query: Readonly<Record<string, string>>;
+  body: unknown;
+  actor_id: string;
+}
+
+export interface PluginRouteResponse {
+  status: number;
+  body?: unknown;
+  headers?: Readonly<Record<string, string>>;
+  bytes?: Uint8Array;
+  filename?: string;
+  mime?: string;
+}
+
+export interface PluginRouteBinding {
+  route_id: string;
+  handle(request: PluginRouteRequest): PluginRouteResponse | Promise<PluginRouteResponse>;
+}
+
+/**
+ * A v2 application Plugin. Every member is optional except `kind`: the Host
+ * calls only what the Manifest declared, and an undeclared handler is refused
+ * before the Plugin runs.
+ */
+export interface PluginAppContribution {
+  kind: "app";
+  /** Renderers for the views the Manifest declares. */
+  views?: readonly UiContribution[];
+  /** Handlers for the routes the Manifest declares. */
+  routes?: readonly PluginRouteBinding[];
+  commandAvailability?(commandId: string): UiCommandAvailability;
+  executeCommand?(
+    commandId: string,
+    input: PluginCommandInput,
+  ): UiOpenedObjectView | Promise<UiOpenedObjectView>;
+  /** Complete, fixed input set. The Host never delivers a partial change. */
+  onUpstreamReady?(
+    inputs: PluginUpstreamReadyInputs,
+    context: { signal: AbortSignal },
+  ): void | Promise<void>;
+  onUpstreamUnavailable?(reason: PluginUpstreamUnavailableReason): void | Promise<void>;
+  onEvent?(
+    event: PluginEventRecord,
+    context: PluginEventDeliveryContext,
+  ): void | Promise<void>;
+}
+
+export type PluginContribution = PluginIntegrationContribution | PluginAppContribution;
 
 export interface PluginStartContext {
   install_id: string;
@@ -116,6 +267,10 @@ export interface PluginStartContext {
   version: string;
   deployment: PluginDeployment;
   grants: readonly string[];
+  /** Project scope this activation belongs to. Absent for project-less reference runs. */
+  board_id?: string;
+  /** Input group the Host validated at activation. Undefined means no selection; never the first group. */
+  input_group?: string;
   /** Available when running through the application Host, not a bare reference executor. */
   readonly services?: PluginHostServices;
   requireGrant(permission: string): void;
@@ -123,6 +278,12 @@ export interface PluginStartContext {
 
 export interface PluginDefinition {
   manifest: PluginManifest;
+  /** v2: validators for the event types this Plugin publishes. */
+  event_types?: readonly PluginEventType[];
+  /** v2: Prompt bodies for the Agent block. */
+  agent_prompts?: readonly AgentPromptText[];
+  /** v2: Skill bodies for the Agent block. */
+  agent_skills?: readonly AgentSkillDefinition[];
   start(context: PluginStartContext): Promise<PluginContribution>;
   stop?(context: PluginStartContext): Promise<void>;
   health?(context: PluginStartContext): Promise<{ ok: boolean; message: string }>;
@@ -145,7 +306,7 @@ export interface PluginRuntimeRepository {
 
 export interface PluginLifecycleReceipt {
   receipt_id: string;
-  operation: "install" | "grant" | "start" | "crash" | "recover" | "uninstall";
+  operation: "install" | "grant" | "start" | "stop" | "crash" | "recover" | "uninstall";
   install: PluginInstanceRecord;
   at: string;
   replayed: boolean;
@@ -161,6 +322,8 @@ export interface PluginRuntimeApi {
   }): PluginLifecycleReceipt;
   grant(installId: string, permissions: string[]): PluginLifecycleReceipt;
   start(installId: string): Promise<PluginLifecycleReceipt>;
+  /** Stop a running Plugin without uninstalling it. Restart goes back through `start`. */
+  stop(installId: string): Promise<PluginLifecycleReceipt>;
   reportCrash(installId: string, errorCode?: string): Promise<PluginLifecycleReceipt>;
   recover(installId: string): Promise<PluginLifecycleReceipt>;
   uninstall(installId: string, options?: { retain_private_data?: boolean }): Promise<PluginLifecycleReceipt>;

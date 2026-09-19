@@ -1,0 +1,54 @@
+# Agent Host
+
+Agent Runtime 的注册、能力矩阵、启动授权，以及宿主拥有的副作用 Review 队列。
+
+包名：`@molis-ai/molis-work-service-agent-host`。工作区内部包，由 Host 装配使用。
+
+## 它拥有什么
+
+- **哪些 Runtime 可用，以及它们真实支持什么**。能力矩阵由 adapter 如实申报；不支持的能力显示为真实不可用，不伪造成功。
+- **一次 Run 允许在什么权限下开始**。角色必须是插件 Manifest 声明过的；角色需要的能力 Runtime 必须真的支持；目录必须是宿主授权且已核过 realpath 的。三条都过了才会把请求交给 Runtime。
+- **Runtime 不能自己扩权**。启动后返回的冻结角色权限若与 Manifest 不一致，该 Run 会被立刻取消。
+- **副作用的批准与回执**。批准是一次性的：消费过就不能再授权第二次写入；拒绝和过期都不能换个入口变成许可；停止一个 Run 会撤回它名下仍在等待的条目。
+
+## 它不拥有什么
+
+编码任务的业务含义、模型选择、凭据，以及批准决定本身——那是用户在宿主审查面里做的。
+adapter 只报告事实并执行已批准的工作。
+
+## 插件怎么够到它
+
+插件不持有 Agent Host，只能通过注册的 Capability 调用：运行时列表、角色可用性、会话创建与读取、
+Run 的启动/读取/控制、审查队列读取。调用前宿主会检查插件是否在 Manifest 里声明消费了该 Capability。
+
+注册入口是 `registerAgentHostCapabilities`。**目前只有测试调用它**——生产装配还没有把
+Agent Host 接进去，所以这些能力今天在运行中的产品里还拿不到。
+
+**批准动作刻意不是 Capability**：那是用户在宿主审查面里的动作；开成插件可调的能力，
+就等于让插件批准自己的副作用。
+
+## 从哪里读代码
+
+- `src/index.ts`：`AgentHost` 的注册、能力矩阵与启动授权。
+- `src/reviews.ts`：`AgentReviewQueue` 的请求、决定、一次性消费与回执。
+- `src/capability-registration.ts`：对外暴露的 Capability 与它们的授权边界。
+- `tests/agent-host.test.ts`：授权与批准各条边界的断言。
+
+## 进一步阅读
+
+- [Plugin Platform v2 需求书](../../specs/plugin-platform-v2/spec.md) 的 D5
+- [Coding 插件 UI 与交互设计](../../specs/coding-plugin/design.md)
+- [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
+
+- Status: `partial`
+- Contract entrypoint: `@molis-ai/molis-work-contracts/services/agent-host`
+- Migration Goals: `goal-reorg-f2`, `goal-plugin-platform-v2`.
+
+上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
+两个 adapter 已落地。CLI（`src/adapters/cli-runtime.ts`）真实拉起子进程执行，只读档位，
+写入与命令如实报成 `unsupported`——它的审批在自己的权限模型里，不经宿主队列。
+
+Prologue（`src/adapters/prologue.ts`）接通了会话、Run、事件流投影，并且**可以挂上审批桥**：
+不挂时写入报 `unsupported`，挂上之后才申报支持，且 Run 停下等的每一笔副作用都先进宿主审查队列。
+命令始终报 `unsupported`——这个 adapter 没有命令回执的来源，读不回来，报成支持就会让调用方看到一个
+读一次失败一次的能力。尚未对真实模型端到端验证。

@@ -1,4 +1,5 @@
 import { ManagedProjectFiles } from "./managed-project-files.js";
+import { BUILTIN_PLUGIN_REGISTRY } from "@molis-ai/molis-work-app-workbench";
 import { ManagedProjectDeletion } from "./managed-project-deletion.js";
 import { DemoProjectLifecycle } from "./demo-project-lifecycle.js";
 import { exists } from "./project-file-paths.js";
@@ -32,7 +33,7 @@ import {
 } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type {
   AddProjectPluginInput,
-  BuiltinProjectPluginId,
+  ProjectPluginId,
   AddWorkspaceProjectInput,
   ChangeWorkspaceProjectInput,
   DeleteProjectInput,
@@ -171,6 +172,9 @@ export class MolisWorkProjectCatalog {
       db,
       errorFactory: (code, message) =>
         new MolisWorkProjectCatalogError(code as MolisWorkProjectCatalogError["code"], message),
+      // Which Plugins a project may enable comes from what this build ships, not
+      // from a list compiled into Projects.
+      plugins: BUILTIN_PLUGIN_REGISTRY,
     });
     this.workContexts = new RuntimeContextBindingRepository(db, {
       ledger, assertProject: (projectId) => { this.projects.query.getProject(projectId); },
@@ -254,11 +258,11 @@ export class MolisWorkProjectCatalog {
     return this.projects.query.listProjects();
   }
 
-  listProjectPlugins(projectId: string): BuiltinProjectPluginId[] {
+  listProjectPlugins(projectId: string): ProjectPluginId[] {
     return this.projects.query.listProjectPlugins(projectId);
   }
 
-  addProjectPlugin(input: AddProjectPluginInput): BuiltinProjectPluginId[] {
+  addProjectPlugin(input: AddProjectPluginInput): ProjectPluginId[] {
     return this.projects.commands.addProjectPlugin(input);
   }
 

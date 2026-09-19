@@ -102,6 +102,35 @@ test("directory row escapes title and preserves plugin attributes", () => {
   assert.doesNotMatch(html, /<\/span><\/span><span class="mw-dir-row__count"/);
 });
 
+test("directory rows can yield trailing actions and keep a file extension", () => {
+  const html = renderDirectoryRow({
+    title: "试用示例.pdf",
+    icon: "file",
+    density: "compact",
+    fileName: true,
+    yield: true,
+    trailing: renderButton({ label: "复制", variant: "ghost", size: "icon", icon: "copy", iconOnly: true }),
+  });
+  assert.match(html, /mw-dir-row-wrap is-yield/);
+  assert.match(html, /mw-dir-row__ops/);
+  assert.match(html, /mw-dir-row__stem">试用示例<\/span><span class="mw-dir-row__ext">\.pdf/);
+  const url = renderDirectoryRow({
+    title: "https://cdn.example.com/file.pdf",
+    fileName: true,
+    yield: true,
+    trailing: renderButton({ label: "复制", variant: "ghost", size: "icon", icon: "copy", iconOnly: true }),
+  });
+  assert.match(url, /https:\/\/cdn\.example\.com\/file\.pdf/);
+  assert.doesNotMatch(url, /mw-dir-row__ext/);
+  const reserved = renderDirectoryRow({
+    title: "设计观察",
+    trailing: renderButton({ label: "任务配置", variant: "ghost", size: "icon", icon: "more", iconOnly: true }),
+  });
+  assert.match(reserved, /mw-dir-row-wrap"/);
+  assert.doesNotMatch(reserved, /is-yield/);
+  assert.doesNotMatch(reserved, /mw-dir-row__ops/);
+});
+
 test("directory rows show status marks on compact and meta densities", () => {
   const meta = renderDirectoryRow({
     title: "确认对象边界",
@@ -174,6 +203,12 @@ test("catalog renders every Coss primitive id", () => {
   assert.match(html, /data-slot="calendar"/);
   assert.match(html, /data-slot="sidebar"/);
   assert.match(html, /data-slot="frame"/);
+  assert.match(html, /mw-dir-row-wrap is-yield/);
+  assert.match(html, /mw-dir-row__stem">试用示例/);
+  assert.match(html, /mw-dir-row__ext">\.pdf/);
+  assert.match(html, /quarterly-planning-notes-and-a-very-long-working-copy-filename/);
+  assert.match(html, /figcaption>行让位<\/figcaption>/);
+  assert.match(html, /\.mw-catalog \[data-slot=toggle-group\]/);
 });
 
 test("visual foundation ships primitive classes after the Coss control layer", () => {
@@ -198,6 +233,11 @@ test("visual foundation ships primitive classes after the Coss control layer", (
   assert.match(PRIMITIVE_STYLES, /\.mw-dir-row--compact \.mw-dir-row__headline \{ display: contents/);
   assert.match(PRIMITIVE_STYLES, /\.mw-dir > \[data-slot="directory-add"\]:first-child,[\s\S]*\.mw-dir__tools \+ \[data-slot="directory-add"\]/);
   assert.match(PRIMITIVE_STYLES, /\.mw-dir-row-wrap:has\(\.is-selected\) \.mw-dir-row,[\s\S]*tree-pane \.mw-dir-row-wrap \.mw-dir-row:is\(:hover, :active, \.is-selected, \[aria-current="page"\]\) \{ background: transparent; \}/);
+  assert.match(PRIMITIVE_STYLES, /\.mw-dir-row \{[\s\S]*background-color 180ms var\(--ease-out/);
+  assert.match(PRIMITIVE_STYLES, /\.mw-dir-row__copy strong \{[\s\S]*mask-image: linear-gradient\(to right, #000 0%, #000 calc\(100% - 12px\)/);
+  assert.match(PRIMITIVE_STYLES, /\.mw-dir-row, \.mw-dir-row-wrap, \.mw-dir-row-wrap\.is-yield \.mw-dir-row, \.mw-dir-row-wrap\.is-yield \.mw-dir-row__ops \{ transition: none; \}/);
+  assert.match(PRIMITIVE_STYLES, /\.mw-dir-row-wrap\.is-yield:is\(:hover, :has\(\.is-selected\), :has\(\[aria-current="page"\]\)\) \.mw-dir-row \{[\s\S]*padding-right: var\(--dir-yield, 72px\)/);
+  assert.match(PRIMITIVE_STYLES, /\.mw-catalog-dir-stage\.is-yield \{ width: 213px; \}/);
   const cossIndex = VISUAL_FOUNDATION_STYLES.indexOf(".mw-btn {");
   const primitiveIndex = VISUAL_FOUNDATION_STYLES.lastIndexOf(".mw-btn");
   assert.ok(cossIndex >= 0);
@@ -262,6 +302,9 @@ test("catalog ships a Linear-referenced palette and complete icon library", () =
   assert.match(INTERACTION_TEXTURE_STYLES, /--hue-indigo: #5e6ad2;/);
   assert.match(INTERACTION_TEXTURE_STYLES, /--plugin-goals: var\(--hue-blue\)/);
   assert.match(INTERACTION_TEXTURE_STYLES, /--plugin-tint: var\(--plugin-feed\)/);
+  assert.match(INTERACTION_TEXTURE_STYLES, /\.plugin-rail \.immersive-plugin-link svg \{ color: var\(--plugin-tint, var\(--faint\)\)/);
+  assert.doesNotMatch(INTERACTION_TEXTURE_STYLES, /\.plugin-rail \.immersive-plugin-link svg \{ color: var\(--faint\)/);
+  assert.doesNotMatch(INTERACTION_TEXTURE_STYLES, /\.plugin-rail \.immersive-plugin-link:hover svg \{ color: var\(--ink-soft\)/);
   assert.deepEqual([...listedIconNames()].sort(), [...registeredIconNames()].sort());
   assert.match(html, /<span>inbox<\/span>/);
   assert.match(html, /Indigo/);

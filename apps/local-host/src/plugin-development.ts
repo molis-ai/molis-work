@@ -17,6 +17,9 @@ export async function runPluginDevelopment(input: PluginDevelopmentInput, option
     await runtime.start(id);
     const contribution = runtime.contribution(id);
     if (!contribution) throw new Error("Plugin 启动后没有返回 contribution");
+    if (contribution.kind !== "integration") {
+      throw new Error("本开发入口只运行 Integration Plugin，app Plugin 请用项目 Host 装配");
+    }
     const health = await contribution.connector_driver.health();
     const poll = await contribution.connector_driver.poll({ cursor: null });
     const rendered_ui = options.ui.list().filter(value => value.plugin_id === definition.manifest.plugin_id)

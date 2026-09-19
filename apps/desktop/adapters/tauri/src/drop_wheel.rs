@@ -431,6 +431,20 @@ mod tests {
     use super::*;
 
     #[test]
+    fn the_wheel_reads_left_to_right_the_way_dropagent_lays_it_out() {
+        let petals = slices(true, true);
+        assert_eq!(
+            petals.map(|petal| petal.title),
+            ["加入材料", "发给终端", "总结", "提取信息", "翻译", "转 MD"]
+        );
+        // No agent: only 加入材料 stays live. No job entry: the four recipes go dead.
+        let none = slices(false, false);
+        assert_eq!(none.map(|petal| petal.enabled), [true, false, false, false, false, false]);
+        let chat_only = slices(true, false);
+        assert_eq!(chat_only.map(|petal| petal.enabled), [true, true, false, false, false, false]);
+    }
+
+    #[test]
     fn recipe_petals_name_a_recipe_and_the_other_two_do_not() {
         assert_eq!(WheelAction::Summarize.recipe_id(), Some("summarize"));
         assert_eq!(WheelAction::Extract.recipe_id(), Some("extract_structure"));

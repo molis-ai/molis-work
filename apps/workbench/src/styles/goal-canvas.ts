@@ -350,6 +350,11 @@ export const GOAL_CANVAS_STYLES = `
   .goal-canvas-shell[data-expanded="true"] [data-goal-stage-chrome] { visibility: hidden; }
   .goal-board-switch { position: static; }
   .goal-canvas-shell[data-expanded="true"] .goal-canvas-integrity, .goal-canvas-shell[data-expanded="true"] .goal-canvas-tools, .goal-canvas-shell[data-expanded="true"] .goal-board-switch { visibility: hidden; }
+  /* The canvas toolbar hides because an opened Goal covers the canvas — so ask whether it actually
+   * does. Returning to Goals from a Goal tab leaves data-expanded set while nothing is expanded,
+   * and keying on the flag alone stranded New Goal, the filters, the zoom and the board switch. */
+  .goal-canvas-shell[data-expanded="true"]:not(:has([data-goal-node-workspace]:not([hidden])))
+    :is([data-goal-stage-chrome], .goal-canvas-integrity, .goal-canvas-tools, .goal-board-switch) { visibility: visible; }
   .goal-canvas-empty.mw-empty {
     position: absolute; inset: 0; z-index: 1; pointer-events: none;
     display: grid; place-content: center; justify-items: center; align-content: center;

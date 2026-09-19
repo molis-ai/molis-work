@@ -18,7 +18,7 @@ export interface ShelfRouteHandlerPorts {
   settings(): ShelfDeviceSettings;
   saveSettings(patch: ShelfSettingsPatch): ShelfDeviceSettings;
   admit(input: ShelfAdmitInput): ShelfItemRecord;
-  admitText(body: string, title?: string): Promise<ShelfItemRecord>;
+  admitText(body: string, title?: string, capture?: boolean): Promise<ShelfItemRecord>;
   admitFolder(input: ShelfAdmitFolderInput): ShelfItemRecord;
   readChild(itemId: string, relative: string): { name: string; mime: string; bytes: Buffer };
   seedSample(): ShelfItemRecord;
@@ -47,7 +47,11 @@ export function createShelfRouteHandlers(options: ShelfRouteHandlerPorts): Recor
     "shelf.admit": async ({ request }) => {
       const text = stringValue(request.body.text);
       if (text) {
-        const item = await options.admitText(text, stringValue(request.body.title) || undefined);
+        const item = await options.admitText(
+          text,
+          stringValue(request.body.title) || undefined,
+          request.body.capture_pages !== false,
+        );
         return { status: 200, body: { item, snapshot: options.snapshot() } };
       }
       const filename = stringValue(request.body.filename);

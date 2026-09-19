@@ -322,6 +322,12 @@ export function renderPrimitiveCatalog(): string {
       statusTone: "attention",
       statusIcon: "bell",
       density: "compact",
+    }) + renderDirectoryRow({
+      title: "quarterly-planning-notes-and-a-very-long-session-name",
+      status: "可查看",
+      statusTone: "idle",
+      statusIcon: "ready",
+      density: "compact",
     }),
     add: { label: "新建 Session" },
   });
@@ -337,6 +343,31 @@ export function renderPrimitiveCatalog(): string {
       body: "添加一个来源后，新内容会出现在这里。",
     }),
     add: { label: "添加任务" },
+  });
+  const yieldOps = renderButton({ label: "复制", variant: "ghost", size: "icon", icon: "copy", iconOnly: true })
+    + renderButton({ label: "隐藏", variant: "ghost", size: "icon", icon: "x", iconOnly: true })
+    + renderButton({ label: "删除副本", variant: "ghost", size: "icon", icon: "trash", iconOnly: true });
+  const catalogYield = renderDirectoryPanel({
+    pluginId: "catalog-yield",
+    label: "材料",
+    listLabel: "行让位",
+    listRole: "none",
+    body: renderDirectoryRow({
+      title: "试用示例.pdf",
+      icon: "file",
+      density: "compact",
+      fileName: true,
+      yield: true,
+      trailing: yieldOps,
+    }) + renderDirectoryRow({
+      title: "quarterly-planning-notes-and-a-very-long-working-copy-filename.pdf",
+      icon: "file",
+      density: "compact",
+      current: true,
+      fileName: true,
+      yield: true,
+      trailing: yieldOps,
+    }),
   });
   const catalogShellDirectory = renderDirectoryPanel({
     pluginId: "catalog-shell",
@@ -485,7 +516,8 @@ export function renderPrimitiveCatalog(): string {
     })))}${mark("pagination", specimen("分页", renderPagination({ page: 2, pages: 5 })))}${mark("breadcrumb", specimen("路径", renderBreadcrumb({
       items: [{ label: "规划方法", href: "#" }, { label: "工作类型" }, { label: "当前方法" }],
     })))}</div>`)}
-    ${section("directory", "Directory Panel / Row", `<div class="mw-catalog__specimens">${specimen("目录栏", `<div class="mw-catalog-dir-stage"><div class="mw-catalog-dir">${catalogDirectory}</div></div>`)}${specimen("单行", `<div class="mw-catalog-dir-stage"><div class="mw-catalog-dir">${catalogCompact}</div></div>`)}${specimen("空态", `<div class="mw-catalog-dir-stage"><div class="mw-catalog-dir">${catalogDirectoryEmpty}</div></div>`)}</div>`)}
+    ${section("directory", "Directory Panel / Row", `<p class="mw-catalog__hint">目录行 hover 是 180ms 让位，不是一块跟着鼠标走的底片。长标题贴到状态标时右缘淡出；带行尾动作的行用 <code>yield</code>，静止不预留动作槽。</p>
+      <div class="mw-catalog__specimens">${specimen("目录栏", `<div class="mw-catalog-dir-stage"><div class="mw-catalog-dir">${catalogDirectory}</div></div>`)}${specimen("单行", `<div class="mw-catalog-dir-stage"><div class="mw-catalog-dir">${catalogCompact}</div></div>`)}${specimen("行让位", `<div class="mw-catalog-dir-stage is-yield"><div class="mw-catalog-dir">${catalogYield}</div></div>`)}${specimen("空态", `<div class="mw-catalog-dir-stage"><div class="mw-catalog-dir">${catalogDirectoryEmpty}</div></div>`)}</div>`)}
     ${section("layout", "Sidebar / Frame / Group / Card / Scroll Area / Table", `<div class="mw-catalog__specimens">${specimen("栏与内容框", catalogShell)}${mark("group", specimen("成组工具", renderGroup({
       label: "历史",
       body: renderButton({ label: "上一步", variant: "ghost", size: "icon", icon: "back", iconOnly: true })
@@ -561,6 +593,27 @@ export function renderPrimitiveCatalog(): string {
           const cell = day.closest("td");
           if (input && cell) input.value = cell.getAttribute("data-date") || "";
           popup.classList.remove("is-open");
+        });
+      });
+    });
+    document.querySelectorAll(".mw-catalog [data-slot=toggle-group]").forEach((group) => {
+      group.querySelectorAll(":scope > button").forEach((button) => {
+        button.addEventListener("click", () => {
+          group.querySelectorAll(":scope > button").forEach((item) => {
+            const on = item === button;
+            item.classList.toggle("is-current", on);
+            item.setAttribute("aria-pressed", String(on));
+          });
+        });
+      });
+    });
+    document.querySelectorAll(".mw-catalog .is-yield [data-slot=directory-row]").forEach((row) => {
+      row.addEventListener("click", () => {
+        const list = row.closest(".mw-dir");
+        list?.querySelectorAll("[data-slot=directory-row]").forEach((item) => {
+          item.classList.toggle("is-selected", item === row);
+          if (item === row) item.setAttribute("aria-current", "page");
+          else item.removeAttribute("aria-current");
         });
       });
     });

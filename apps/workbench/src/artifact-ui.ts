@@ -37,10 +37,11 @@ export const ARTIFACT_WORKBENCH_STYLES = `
   .artifact-back { display:inline-flex; align-items:center; gap:8px; min-height:38px; text-decoration:none; }
   .artifact-back svg { width:16px; height:16px; transform:rotate(180deg); }
   .artifact-version-list { display:flex; flex-direction:column; gap:2px; }
-  .artifact-version-list .mw-dir-row { width:100%; }
+  .artifact-version-list .mw-dir-row,
+  .artifact-version-list .feed-stage-entry { width:100%; }
   .artifact-stage { min-width:0; padding:24px clamp(20px,4vw,56px); background:var(--paper); }
   .artifact-detail, .artifact-empty { max-width:72ch; overflow-wrap:anywhere; }
-  .artifact-detail header { display:flex; gap:16px; align-items:baseline; margin:20px 0; }
+  .artifact-detail header:not(.plugin-stage-detail-bar) { display:flex; gap:16px; align-items:baseline; margin:20px 0; }
   .artifact-detail h1 { font-size:clamp(22px,2.25vw,28px); margin:0; line-height:1.25; }
   .artifact-detail h2 { font-size:15px; margin:24px 0 8px; }
   .artifact-notice { color:var(--muted); margin:0 0 24px; }

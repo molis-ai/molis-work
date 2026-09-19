@@ -756,20 +756,72 @@ fn admit_now(action: WheelAction) -> bool {
 }
 
 fn spawn_admit(action: WheelAction, cargo: Cargo) {
+    // A row dragged off the shelf is already staged: act on it, never copy it twice.
+    let staged = crate::shelf_drag_macos::dragging_item_ids();
+    if !staged.is_empty() {
+        thread::spawn(move || {
+            match action {
+                WheelAction::Shelf => {}
+                WheelAction::Send => send_to_terminal(&staged),
+                _ => {
+                    let Some(recipe) = action.recipe_id() else { return };
+                    if let Err(error) = shelf_http::run_recipe(recipe, &staged) {
+                        quiet_notice(&error);
+                    }
+                }
+            }
+        });
+        return;
+    }
     thread::spawn(move || {
-        let admitted = admit_cargo(&cargo);
-        // A recipe petal runs on the copy right away, with the recipe's own default option.
-        let Some(recipe) = action.recipe_id() else {
+        // 发给终端 hands the link over as a link; every other petal captures pages.
+        let admitted = admit_cargo(&cargo, action != WheelAction::Send);
+        if admitted.is_empty() {
             return;
-        };
-        if let Err(error) = shelf_http::run_recipe(recipe, &admitted) {
-            eprintln!("Molis Work 轮盘未能跑这个动作：{error}");
+        }
+        match action {
+            WheelAction::Shelf => {}
+            WheelAction::Send => send_to_terminal(&admitted),
+            _ => {
+                let Some(recipe) = action.recipe_id() else { return };
+                if let Err(error) = shelf_http::run_recipe(recipe, &admitted) {
+                    // The materials stay on the shelf; the panel says why next time it opens.
+                    quiet_notice(&error);
+                }
+            }
         }
     });
 }
 
+/// Hand the copies to the terminal session without opening the panel.
+fn send_to_terminal(items: &[String]) {
+    let Some(host) = host() else { return };
+    let Some(window) = host.app.get_webview_window("main") else { return };
+    let encoded = serde_json::to_string(items).unwrap_or_else(|_| "[]".into());
+    let script = format!(
+        r#"(() => {{
+          window.dispatchEvent(new CustomEvent("molis-shelf-send-tui", {{ detail: {{ item_ids: {encoded} }} }}));
+        }})();"#
+    );
+    let _ = window.eval(&script);
+}
+
+/// A wheel notice never opens or closes the panel; it only leaves the reason.
+fn quiet_notice(message: &str) {
+    let Some(host) = host() else { return };
+    let Some(window) = host.app.get_webview_window("main") else { return };
+    let encoded = serde_json::to_string(message).unwrap_or_else(|_| "\"\"".into());
+    let script = format!(
+        r#"(() => {{
+          const notice = globalThis.molisWorkShelfNotice;
+          if (typeof notice === "function") notice({encoded});
+        }})();"#
+    );
+    let _ = window.eval(&script);
+}
+
 /// Returns the shelf item ids the drop produced, in drop order.
-fn admit_cargo(cargo: &Cargo) -> Vec<String> {
+fn admit_cargo(cargo: &Cargo, capture_pages: bool) -> Vec<String> {
     let mut admitted = Vec::new();
     if !cargo.files.is_empty() {
         for path in &cargo.files {
@@ -786,7 +838,7 @@ fn admit_cargo(cargo: &Cargo) -> Vec<String> {
         .map(str::trim)
         .filter(|value| !value.trim().is_empty())
     {
-        match shelf_http::admit_text(text) {
+        match shelf_http::admit_text_capturing(text, capture_pages) {
             Ok(item_id) => admitted.push(item_id),
             Err(error) => eprintln!("Molis Work 轮盘未能收下文字：{error}"),
         }
@@ -798,7 +850,7 @@ fn admit_cargo(cargo: &Cargo) -> Vec<String> {
         .map(str::trim)
         .filter(|value| !value.trim().is_empty())
     {
-        match shelf_http::admit_text(url) {
+        match shelf_http::admit_text_capturing(url, capture_pages) {
             Ok(item_id) => admitted.push(item_id),
             Err(error) => eprintln!("Molis Work 轮盘未能收下链接：{error}"),
         }
@@ -1294,7 +1346,8 @@ fn draw_symbol(action: WheelAction, point: NSPoint, color: &NSColor) {
 fn draw_label(title: &str, point: NSPoint, color: &NSColor, width: f64) {
     let paragraph = NSMutableParagraphStyle::new();
     paragraph.setAlignment(NSTextAlignment(2));
-    paragraph.setLineBreakMode(NSLineBreakMode::ByTruncatingTail);
+    // A long petal label wraps onto a second line; DropAgent never truncates it.
+    paragraph.setLineBreakMode(NSLineBreakMode::ByWordWrapping);
     let font = NSFont::systemFontOfSize_weight(10.5, unsafe { NSFontWeightMedium });
     let font_ref: &AnyObject = font.as_ref();
     let color_ref: &AnyObject = color.as_ref();
@@ -1318,8 +1371,7 @@ fn draw_label(title: &str, point: NSPoint, color: &NSColor, width: f64) {
     let height = text
         .boundingRectWithSize_options_context(
             size,
-            NSStringDrawingOptions::UsesLineFragmentOrigin
-                .union(NSStringDrawingOptions::TruncatesLastVisibleLine),
+            NSStringDrawingOptions::UsesLineFragmentOrigin,
             None,
         )
         .size

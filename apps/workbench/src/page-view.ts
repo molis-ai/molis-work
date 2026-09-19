@@ -2,7 +2,7 @@ import type { BoardSnapshot, GoalPresentationState as WebGoalStatus, GoalsDocume
 import type { FeedSnapshot, FeedSourceCatalogView, FeedUiModel } from "@molis-ai/molis-work-plugin-feed";
 import type { WebProjectNavigation } from "./settings-navigation.js";
 export interface MolisWorkWebView {
-  enabled_plugins?: import("@molis-ai/molis-work-contracts/modules/projects").BuiltinProjectPluginId[];
+  enabled_plugins?: import("@molis-ai/molis-work-contracts/modules/projects").ProjectPluginId[];
   snapshot: BoardSnapshot;
   project: WebProjectNavigation | null;
   projects: WebProjectNavigation[];

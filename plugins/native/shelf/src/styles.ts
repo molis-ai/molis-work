@@ -27,7 +27,8 @@ export const SHELF_STYLES = `
     --da-ease: cubic-bezier(.16, 1, .3, 1);
     --da-spring: cubic-bezier(.22, 1.2, .36, 1);
     --da-t: 180ms;
-    --da-danger: var(--mark-clay);
+    --da-danger: var(--content-danger);
+    --da-field: var(--content-field);
     color: var(--da-text);
     font-family: var(--da-font);
     -webkit-font-smoothing: antialiased;
@@ -61,6 +62,52 @@ export const SHELF_STYLES = `
     position: relative;
     flex: 1; min-height: 0; display: flex; flex-direction: column;
     padding: 0 10px 16px; background: var(--da-side); color: var(--da-text);
+  }
+  .plugin-stage-list[data-shelf="directory"] {
+    position: absolute; inset: 0; flex: none;
+    padding: 52px 20px 28px; background: var(--paper);
+  }
+  body.immersive-workbench [data-work-surface="shelf"].plugin-stage-shell {
+    padding: 0; background: var(--paper);
+  }
+  [data-shelf-stage-shell] .plugin-stage-workspace {
+    background: var(--da-panel); overflow: hidden;
+  }
+  [data-shelf-stage-shell] .plugin-stage-workspace > .shelf-stage {
+    flex: 1; min-height: 0; border: 0; border-radius: 0;
+  }
+  .plugin-stage-chrome .shelf-search { margin: 0; }
+  /* DropAgent's directory chrome: search pill, add, more — paper, never Coss. */
+  [data-shelf] .shelf-side-op {
+    position: relative; display: grid; place-items: center; width: 30px; height: 30px; flex: none;
+    border: 1px solid var(--da-line); border-radius: 8px; background: var(--da-side);
+    color: var(--da-muted); cursor: pointer; transition: background var(--da-t) ease;
+  }
+  [data-shelf] .shelf-side-op:hover { background: var(--da-hover); color: var(--da-text); }
+  [data-shelf] .shelf-side-op:active { background: var(--da-press); }
+  [data-shelf] .shelf-side-op svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.7; }
+  [data-shelf] .shelf-side-menu {
+    position: absolute; top: 34px; right: 0; z-index: 30; min-width: 150px; padding: 4px;
+    border: 1px solid var(--da-line); border-radius: 10px; background: var(--da-panel);
+    box-shadow: 0 8px 24px #0002;
+  }
+  [data-shelf] .shelf-side-menu[hidden] { display: none; }
+  /* The group head carries a coloured type mark and a neutral label; no green. */
+  [data-shelf] .plugin-stage-list .goal-collection-fold > summary { color: var(--da-muted); }
+  [data-shelf] .plugin-stage-list .goal-collection-fold > summary:hover { background: var(--da-hover); color: var(--da-text); }
+  [data-shelf] .plugin-stage-list .goal-collection-fold > summary strong { color: inherit; }
+  [data-shelf] .plugin-stage-list .goal-collection-fold > summary small { color: var(--da-faint); }
+  [data-shelf] .shelf-group-mark { color: currentColor; }
+  [data-shelf] .shelf-group-mark svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 1.7; }
+  [data-shelf] .shelf-side-foot {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-top: 12px; padding: 10px 8px 0; border-top: 1px solid var(--da-line);
+    font-size: 10.5px; color: var(--da-faint);
+  }
+  /* DropAgent's directory is 213pt; the preview takes what is left. */
+  body.immersive-workbench .plugin-stage-shell[data-shelf-stage-shell][data-expanded="true"] { --tree-width: 213px; }
+  body.immersive-workbench .plugin-stage-shell[data-shelf-stage-shell][data-expanded="true"] .plugin-stage-list {
+    border-right-color: var(--da-line); background: var(--da-side);
   }
   [data-shelf] .shelf-search {
     display: flex; align-items: center; gap: 6px; height: 30px;
@@ -113,10 +160,11 @@ export const SHELF_STYLES = `
   [data-shelf] .shelf-tree { margin: 0; padding: 0; list-style: none; }
   [data-shelf] .shelf-row {
     display: flex; align-items: center; gap: 8px; height: 31px;
-    padding: 0 4px 0 21px; border-radius: 6px; cursor: pointer; position: relative;
-    transition: background var(--da-t) ease; color: var(--da-muted);
+    padding: 0 8px 0 21px; border-radius: 6px; cursor: pointer; position: relative;
+    transition: background var(--da-t) var(--da-ease), padding-right var(--da-t) var(--da-ease); color: var(--da-muted);
   }
   [data-shelf] .shelf-row:hover { background: var(--da-hover); }
+  [data-shelf] .shelf-row:is(:hover, .is-on):not(.is-child) { padding-right: 72px; }
   [data-shelf] .shelf-row.is-on {
     background: var(--da-select);
     color: var(--da-text);
@@ -124,15 +172,41 @@ export const SHELF_STYLES = `
   }
   [data-shelf] .shelf-row .shelf-glyph { width: 16px; height: 16px; flex: none; display: grid; place-items: center; }
   [data-shelf] .shelf-row .shelf-glyph svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
-  [data-shelf] .shelf-row .shelf-name { flex: 1; min-width: 0; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  [data-shelf] .shelf-row .shelf-name {
+    min-width: 0; flex: 0 1 auto; overflow: hidden; font-size: 12px; white-space: nowrap;
+  }
+  [data-shelf] .shelf-row .shelf-name:not(:has(.shelf-name__stem)) {
+    display: block; text-overflow: ellipsis;
+  }
+  [data-shelf] .shelf-row .shelf-name:has(.shelf-name__stem) { display: flex; }
+  [data-shelf] .shelf-row .shelf-name__stem {
+    min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  [data-shelf] .shelf-row .shelf-name__ext { flex: none; }
   [data-shelf] .shelf-row.is-on .shelf-name { color: var(--da-text); }
-  [data-shelf] .shelf-row .shelf-cap { font-size: 10px; color: var(--da-faint); flex: none; }
+  /* DropAgent stamps a result H:mm and marks a failure; the row actions replace both on hover. */
+  [data-shelf] .shelf-row .shelf-when {
+    flex: none; max-width: 8rem; overflow: hidden; opacity: 1;
+    font-size: 10px; color: var(--da-faint); font-variant-numeric: tabular-nums;
+    transition: max-width var(--da-t) var(--da-ease), opacity var(--da-t) var(--da-ease), margin var(--da-t) var(--da-ease);
+  }
+  [data-shelf] .shelf-row .shelf-status {
+    flex: none; margin-left: auto; display: grid; place-items: center; width: 16px; height: 16px; color: var(--mark-clay);
+    max-width: 16px; overflow: hidden; opacity: 1;
+    transition: max-width var(--da-t) var(--da-ease), opacity var(--da-t) var(--da-ease), margin var(--da-t) var(--da-ease);
+  }
+  [data-shelf] .shelf-row .shelf-status svg { width: 14px; height: 14px; }
+  [data-shelf] .shelf-row:is(:hover, .is-on):not(.is-child) :is(.shelf-when, .shelf-status, .shelf-now) {
+    max-width: 0; margin: 0; opacity: 0; pointer-events: none;
+  }
   [data-shelf] .shelf-row .shelf-ops {
     position: absolute; right: 2px; top: 0; bottom: 0;
-    display: none; align-items: center; gap: 0; background: inherit;
+    display: flex; align-items: center; gap: 0;
+    opacity: 0; pointer-events: none; background: var(--da-hover);
+    transition: opacity var(--da-t) var(--da-ease);
   }
-  [data-shelf] .shelf-row:hover .shelf-ops, [data-shelf] .shelf-row.is-on .shelf-ops { display: flex; }
-  [data-shelf] .shelf-row:hover .shelf-cap, [data-shelf] .shelf-row.is-on .shelf-cap { visibility: hidden; }
+  [data-shelf] .shelf-row.is-on .shelf-ops { background: var(--da-select); }
+  [data-shelf] .shelf-row:is(:hover, .is-on):not(.is-child) .shelf-ops { opacity: 1; pointer-events: auto; }
   [data-shelf] .shelf-row .shelf-op {
     box-sizing: border-box;
     width: 22px; height: 22px; border: 0; border-radius: 5px; background: transparent;
@@ -146,10 +220,16 @@ export const SHELF_STYLES = `
   [data-shelf] .shelf-row .shelf-ops svg { width: 11px; height: 11px; stroke: currentColor; fill: none; stroke-width: 1.7; }
   [data-shelf] .shelf-empty-line { padding: 8px 8px 8px 21px; font-size: 11px; color: var(--da-faint); }
   [data-shelf] .shelf-now {
-    flex: none; font-size: 10px; letter-spacing: .02em; color: var(--da-accent); padding: 1px 6px;
+    flex: none; max-width: 8rem; overflow: hidden; opacity: 1;
+    font-size: 10px; letter-spacing: .02em; color: var(--da-accent); padding: 1px 6px;
     border: 1px solid var(--da-line); border-radius: 999px;
+    transition: max-width var(--da-t) var(--da-ease), opacity var(--da-t) var(--da-ease), margin var(--da-t) var(--da-ease);
   }
-  [data-shelf] .shelf-row:hover .shelf-now, [data-shelf] .shelf-row.is-on .shelf-now { visibility: hidden; }
+  @media (prefers-reduced-motion: reduce) {
+    [data-shelf] .shelf-row,
+    [data-shelf] .shelf-row .shelf-ops,
+    [data-shelf] .shelf-row :is(.shelf-when, .shelf-status, .shelf-now) { transition: none; }
+  }
   [data-shelf] .shelf-clip-hint {
     margin: 0 12px 6px; font-size: 11px; line-height: 1.45; color: var(--da-muted);
   }
@@ -315,7 +395,7 @@ export const SHELF_STYLES = `
   [data-shelf] .shelf-tty-in { display: flex; gap: 8px; padding: 8px 12px; border-top: 1px solid var(--da-line); }
   [data-shelf] .shelf-tty-in input {
     flex: 1; height: 32px; border: 1px solid var(--da-text); border-radius: 8px;
-    background: var(--da-panel); color: var(--da-text); padding: 0 10px; font-size: 12px; box-shadow: none;
+    background: var(--da-field); color: var(--da-text); padding: 0 10px; font-size: 12px; box-shadow: none;
   }
   [data-shelf] .shelf-drawer {
     display: none; padding: 12px 16px 8px; border-top: 1px solid var(--da-line); background: var(--da-panel);
@@ -359,7 +439,6 @@ export const SHELF_STYLES = `
   [data-shelf] .shelf-facts dt { flex: none; min-width: 34px; color: var(--da-muted); }
   [data-shelf] .shelf-facts dd { margin: 0; color: var(--da-text); }
   [data-shelf] .shelf-actor { margin: 10px 0 0; font-size: 12px; color: var(--da-muted); }
-  [data-shelf] .shelf-row.is-failed .shelf-cap { color: var(--clay); }
   [data-shelf] .shelf-row.is-child { padding-left: 26px; }
   [data-shelf] .shelf-stage.is-run [data-shelf-back] { display: none; }
   [data-shelf] .shelf-drawer-actions { display: flex; gap: 8px; margin-top: 12px; }
@@ -509,7 +588,7 @@ export const SHELF_STYLES = `
   [data-shelf] .shelf-shortcut-form { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; max-width: 520px; }
   [data-shelf] .shelf-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--da-muted); }
   [data-shelf] .shelf-field input, [data-shelf] .shelf-field textarea, [data-shelf] .shelf-field select {
-    border: 1px solid var(--da-line); border-radius: 8px; background: var(--da-panel);
+    border: 1px solid var(--da-line); border-radius: 8px; background: var(--da-field);
     color: var(--da-text); font: inherit; font-size: 12px; padding: 7px 10px;
   }
   [data-shelf] .shelf-field input:focus, [data-shelf] .shelf-field textarea:focus, [data-shelf] .shelf-field select:focus {

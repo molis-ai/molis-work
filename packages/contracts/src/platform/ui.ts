@@ -10,6 +10,71 @@ export const platformUiContract = {
 
 export type UiContributionKind = "primary-page" | "embedded" | "overlay" | "settings-page";
 
+/**
+ * Where a Plugin view is placed. The Host owns the shell; a view declares the
+ * region it belongs to and never positions itself.
+ *
+ * These are exactly the regions the Workbench has today: the directory column,
+ * the tabbed work area, and the global settings directory. A new region is a
+ * shell change first and a slot second, never a slot a Plugin can target before
+ * anywhere exists to put it.
+ */
+export const UI_VIEW_SLOTS = ["navigator", "stage", "settings"] as const;
+
+export type UiViewSlot = (typeof UI_VIEW_SLOTS)[number];
+
+/** Placement declaration. Rendering stays with `UiContribution.render`. */
+export interface UiViewDeclaration {
+  readonly view_id: string;
+  readonly slot: UiViewSlot;
+  readonly title: string;
+  /** Contribution that renders this view. Defaults to `<plugin_id>.<view_id>`. */
+  readonly contribution_id?: string;
+  /**
+   * Icon name from the Host's own catalog. The Host resolves it and falls back
+   * to a default when it does not know the name; a Plugin never ships artwork
+   * into the shell.
+   */
+  readonly icon?: string;
+  /** The view can host bounded objects opened from elsewhere. */
+  readonly accepts_objects?: boolean;
+  /** Lower sorts earlier inside its slot. Ties fall back to view_id order. */
+  readonly order?: number;
+}
+
+export const UI_COMMAND_INPUT_KINDS = ["current", "object", "agent-session", "artifacts"] as const;
+
+export type UiCommandInputKind = (typeof UI_COMMAND_INPUT_KINDS)[number];
+
+export interface UiCommandDeclaration {
+  readonly command_id: string;
+  readonly title: string;
+  readonly input_kinds: readonly UiCommandInputKind[];
+  readonly opens_view_id: string;
+}
+
+export type UiCommandAvailability =
+  | { readonly available: true }
+  | { readonly available: false; readonly reason: string };
+
+export interface UiViewObjectRef {
+  readonly view_id: string;
+  readonly object_id: string;
+}
+
+export interface UiOpenedObjectView {
+  readonly ref: UiViewObjectRef;
+  readonly title: string;
+}
+
+/** One command as the Host presents it, with the owning Plugin resolved. */
+export interface UiWorkspaceCommand {
+  readonly plugin_id: string;
+  readonly plugin_title: string;
+  readonly declaration: UiCommandDeclaration;
+  readonly availability: UiCommandAvailability;
+}
+
 export interface UiSlotDescriptor {
   readonly slot_id: string;
   readonly version: number;

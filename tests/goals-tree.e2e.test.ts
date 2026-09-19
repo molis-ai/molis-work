@@ -37,6 +37,26 @@ test("Goals tree supports real collapse, search, status filtering and detail sel
   await command("Input.dispatchKeyEvent", { type: "keyUp", key: "f", code: "KeyF", modifiers: 4, windowsVirtualKeyCode: 70 }, sessionId);
   await waitFor("document.querySelector('[data-global-search-dialog]')?.open === true");
   assert.equal(await evaluate("document.activeElement.matches('[data-global-search]')"), true);
+  const searchField = await evaluate<{ ok: boolean; appearance: string; bg: string; kbdRight: number; dialogRight: number; hasIcon: boolean }>(`(()=>{
+    const dialog=document.querySelector('[data-global-search-dialog]');
+    const field=dialog?.querySelector('.global-search-field');
+    const input=dialog?.querySelector('[data-global-search]');
+    const kbd=field?.querySelector('kbd');
+    const paint=input?getComputedStyle(input):null;
+    const dialogPaint=dialog?getComputedStyle(dialog):null;
+    const box=dialog?.getBoundingClientRect();
+    const key=kbd?.getBoundingClientRect();
+    const hasIcon=Boolean(field?.querySelector('svg'));
+    const appearance=paint?.appearance||'';
+    const bg=paint?.backgroundColor||'';
+    const flush=bg==='rgba(0, 0, 0, 0)'||bg==='transparent'||bg===dialogPaint?.backgroundColor;
+    const chrome=paint?.borderTopWidth==='0px' && (paint?.boxShadow==='none'||paint?.boxShadow==='');
+    return {
+      ok: Boolean(dialog&&field&&input&&kbd&&hasIcon&&appearance==='none'&&flush&&chrome&&key&&box&&key.right<=box.right-8&&key.top>=box.top&&key.bottom<=box.bottom),
+      appearance, bg, kbdRight: Math.round(key?.right||0), dialogRight: Math.round(box?.right||0), hasIcon, border: paint?.borderTopWidth, shadow: paint?.boxShadow
+    };
+  })()`);
+  assert.ok(searchField.ok, "Global search field sits on the palette, with ⌘K inside the dialog " + JSON.stringify(searchField));
   await command("Input.insertText", { text: "zz-no-goal-e2e" }, sessionId);
   await waitFor(dom("[data-global-search-results] .global-search-empty") + " && document.querySelectorAll('[data-global-search-hit]').length === 0");
   await command("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);

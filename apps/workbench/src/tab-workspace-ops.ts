@@ -5,9 +5,21 @@ export function createTabWorkspaceOps() {
   const GROUP_COLORS = ["grey", "blue", "red", "yellow", "green", "pink", "purple", "cyan"];
   const uid = () => "t" + Math.random().toString(36).slice(2, 10);
   const homeTab = () => ({ id: uid(), plugin: "home", kind: "home", title: "项目首页" });
-  const motherTab = (plugin, title) => ({ id: uid(), plugin, kind: "mother", title });
   const itemTab = (plugin, itemId, title) => ({ id: uid(), plugin, kind: "item", itemId, title });
+  const pluginViewKey = (plugin) => "plugin:" + plugin;
   const tabKey = (tab) => tab.kind === "item" ? tab.plugin + ":item:" + tab.itemId : tab.plugin + ":" + tab.kind;
+  const dropMotherTabs = (pane) => {
+    if (!pane || !Array.isArray(pane.tabs)) return;
+    const activeMother = pane.tabs.find((tab) => tab.kind === "mother" && tab.id === pane.activeTabId);
+    if (activeMother) {
+      pane.viewPlugin = activeMother.plugin;
+      pane.activeTabId = null;
+    }
+    pane.tabs = pane.tabs.filter((tab) => tab.kind !== "mother");
+    if (pane.activeTabId && !pane.tabs.some((tab) => tab.id === pane.activeTabId)) {
+      pane.activeTabId = pane.viewPlugin ? null : pane.tabs[0]?.id || null;
+    }
+  };
   const pluginTitle = (plugin) => ({
     home: "项目首页",
     goals: "Goals",
@@ -46,6 +58,7 @@ export function createTabWorkspaceOps() {
   };
   const normalizeLayout = (state) => {
     state.panes.forEach((pane) => {
+      dropMotherTabs(pane);
       emptyGroups(pane);
       orderPinned(pane);
     });
@@ -65,29 +78,31 @@ export function createTabWorkspaceOps() {
     return state;
   };
   const ensureHome = (state) => {
-    if (countTabs(state) === 0) {
-      const pane = focused(state) || state.panes[0];
-      if (!pane) {
-        const next = homeTab();
-        return normalizeLayout({
-          panes: [{ id: uid(), tabs: [next], activeTabId: next.id, groups: [] }],
-          layout: { direction: "row", sizes: [1] },
-          focusedPaneId: "",
-          exclusive: state.exclusive ?? null,
-        });
-      }
+    (state.panes || []).forEach(dropMotherTabs);
+    if (countTabs(state) > 0) return normalizeLayout(state);
+    if ((state.panes || []).some((pane) => pane.viewPlugin)) return normalizeLayout(state);
+    const pane = focused(state) || state.panes[0];
+    if (!pane) {
       const next = homeTab();
-      pane.tabs = [next];
-      pane.activeTabId = next.id;
-      pane.groups = [];
+      return normalizeLayout({
+        panes: [{ id: uid(), tabs: [next], activeTabId: next.id, groups: [], viewPlugin: null }],
+        layout: { direction: "row", sizes: [1] },
+        focusedPaneId: "",
+        exclusive: state.exclusive ?? null,
+      });
     }
+    const next = homeTab();
+    pane.tabs = [next];
+    pane.activeTabId = next.id;
+    pane.groups = [];
+    pane.viewPlugin = null;
     return normalizeLayout(state);
   };
   const create = () => {
     const tab = homeTab();
     const paneId = uid();
     return {
-      panes: [{ id: paneId, tabs: [tab], activeTabId: tab.id, groups: [] }],
+      panes: [{ id: paneId, tabs: [tab], activeTabId: tab.id, groups: [], viewPlugin: null }],
       layout: { direction: "row", sizes: [1] },
       focusedPaneId: paneId,
       exclusive: null,
@@ -124,12 +139,19 @@ export function createTabWorkspaceOps() {
   const openPlugin = (state, plugin) => {
     state.exclusive = null;
     const pane = focused(state);
-    if (plugin === "home") return openInPane(state, pane, homeTab());
-    return openInPane(state, pane, motherTab(plugin, pluginTitle(plugin)));
+    dropMotherTabs(pane);
+    if (plugin === "home") {
+      pane.viewPlugin = null;
+      return openInPane(state, pane, homeTab());
+    }
+    pane.viewPlugin = plugin;
+    pane.activeTabId = null;
+    return { id: pluginViewKey(plugin), plugin, kind: "view" };
   };
   const openItem = (state, plugin, itemId, title) => {
     state.exclusive = null;
     const pane = focused(state);
+    pane.viewPlugin = plugin;
     return openInPane(state, pane, itemTab(plugin, itemId, title || itemId));
   };
   const nextGroupColor = (pane) => {
@@ -207,7 +229,12 @@ export function createTabWorkspaceOps() {
     if (index < 0) return state;
     pane.tabs.splice(index, 1);
     pruneEmptyGroups(pane);
-    if (pane.activeTabId === tabId) pane.activeTabId = pane.tabs[index]?.id || pane.tabs[index - 1]?.id || null;
+    if (pane.activeTabId === tabId) {
+      const neighbor = pane.tabs[index] || pane.tabs[index - 1] || null;
+      if (neighbor && neighbor.kind !== "home") pane.activeTabId = neighbor.id;
+      else if (pane.viewPlugin) pane.activeTabId = null;
+      else pane.activeTabId = neighbor?.id || null;
+    }
     if (!pane.tabs.length && state.panes.length > 1) return closePane(state, paneId);
     return ensureHome(state);
   };
@@ -217,6 +244,7 @@ export function createTabWorkspaceOps() {
       pane.tabs = [];
       pane.activeTabId = null;
       pane.groups = [];
+      pane.viewPlugin = null;
       return ensureHome(state);
     }
     const index = state.panes.findIndex((pane) => pane.id === paneId);
@@ -250,7 +278,10 @@ export function createTabWorkspaceOps() {
     if (copy || from !== to) delete next.groupId;
     if (!copy) {
       from.tabs = from.tabs.filter((item) => item.id !== tabId);
-      if (from.activeTabId === tabId) from.activeTabId = from.tabs[0]?.id || null;
+      if (from.activeTabId === tabId) {
+        const nextActive = from.tabs.find((item) => item.kind !== "home") || (from.viewPlugin ? null : from.tabs[0]);
+        from.activeTabId = nextActive?.id || null;
+      }
       pruneEmptyGroups(from);
     }
     if (!next.pinned) {
@@ -264,7 +295,7 @@ export function createTabWorkspaceOps() {
     else orderPinned(to);
     to.activeTabId = next.id;
     state.focusedPaneId = to.id;
-    if (!from.tabs.length && from !== to) closePane(state, from.id);
+    if (!from.tabs.length && from !== to && !from.viewPlugin) closePane(state, from.id);
     pruneEmptyGroups(to);
     return ensureHome(state);
   };
@@ -272,22 +303,32 @@ export function createTabWorkspaceOps() {
     const pane = state.panes.find((candidate) => candidate.id === paneId);
     const source = state.panes.find((candidate) => candidate.id === sourcePaneId);
     const active = source?.tabs.find((tab) => tab.id === (sourceTabId || source.activeTabId));
-    if (!pane || !active) return state;
-    if (mode === "move" && pane === source && pane.tabs.length === 1) return state;
+    if (!pane || (!active && !source?.viewPlugin)) return state;
+    if (mode === "move" && pane === source && !source.viewPlugin && (active ? pane.tabs.length === 1 : !source.tabs.length)) return state;
     normalizeLayout(state);
+    const before = edge === "left" || edge === "top";
+    const place = (nextPane) => {
+      state.layout.tree = mapTree(state.layout.tree, (node) => node.paneId === paneId
+        ? { id: uid(), direction: edge === "left" || edge === "right" ? "row" : "column", ratio: .5, children: before ? [{ paneId: nextPane.id }, node] : [node, { paneId: nextPane.id }] } : node);
+      state.panes.splice(state.panes.indexOf(pane) + (before ? 0 : 1), 0, nextPane);
+      state.focusedPaneId = nextPane.id;
+    };
+    if (!active) {
+      place({ id: uid(), tabs: [], activeTabId: null, groups: [], viewPlugin: source.viewPlugin });
+      if (mode === "move") {
+        source.viewPlugin = null;
+        if (!source.tabs.length) closePane(state, source.id);
+      }
+      return ensureHome(state);
+    }
     const next = { ...active, id: mode === "move" ? active.id : uid() };
     delete next.groupId;
-    const nextPane = { id: uid(), tabs: [next], activeTabId: next.id, groups: [] };
-    const before = edge === "left" || edge === "top";
-    state.layout.tree = mapTree(state.layout.tree, (node) => node.paneId === paneId
-      ? { id: uid(), direction: edge === "left" || edge === "right" ? "row" : "column", ratio: .5, children: before ? [{ paneId: nextPane.id }, node] : [node, { paneId: nextPane.id }] } : node);
-    state.panes.splice(state.panes.indexOf(pane) + (before ? 0 : 1), 0, nextPane);
-    state.focusedPaneId = nextPane.id;
+    place({ id: uid(), tabs: [next], activeTabId: next.id, groups: [], viewPlugin: source.viewPlugin || (active.plugin !== "home" ? active.plugin : null) });
     if (mode === "move") {
       source.tabs = source.tabs.filter((tab) => tab.id !== active.id);
       if (source.activeTabId === active.id) source.activeTabId = source.tabs[0]?.id || null;
       pruneEmptyGroups(source);
-      if (!source.tabs.length) closePane(state, source.id);
+      if (!source.tabs.length && !source.viewPlugin) closePane(state, source.id);
     }
     return ensureHome(state);
   };

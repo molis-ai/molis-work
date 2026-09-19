@@ -171,8 +171,9 @@ test("visual foundation defines one wide workbench and one narrow companion", ()
   assert.doesNotMatch(VISUAL_FOUNDATION_STYLES, /\.goal-workspace-nav/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.mw-btn--primary[\s\S]*background: var\(--action\)/);
   assert.doesNotMatch(VISUAL_FOUNDATION_STYLES, /\.goal-now-body \.goal-primary-action/);
-  assert.equal(VISUAL_FOUNDATION_STYLES.match(/linear-gradient/g)?.length, 3);
+  assert.equal(VISUAL_FOUNDATION_STYLES.match(/linear-gradient/g)?.length, 5);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.momentum-map\.graph-stage \{[\s\S]*linear-gradient\(to right,[\s\S]*linear-gradient\(to bottom,/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /\.mw-dir-row__copy strong \{[\s\S]*mask-image: linear-gradient\(to right, #000 0%, #000 calc\(100% - 12px\)/);
 });
 
 test("Light desktop work tabs stay flat, separated, and use a compact selection marker", () => {
@@ -444,6 +445,35 @@ test("final interaction texture keeps Light and Dark type readable on distinct s
   assert.match(workbench, /\.frame-empty\.mw-empty \{[\s\S]*justify-content: center;[\s\S]*gap: 12px/);
   assert.match(index, /\.project-index-panel \{[\s\S]*height: auto;[\s\S]*max-height: 100%;/);
   assert.match(index, /\.project-card p \{[\s\S]*color: var\(--ink-soft\)/);
+});
+
+test("plugin list titles yield at the squeeze edge", () => {
+  const workbench = renderMolisWorkWorkbenchStylesheet();
+  assert.match(workbench, /\.mw-dir-row \{[\s\S]*background-color 180ms var\(--ease-out/);
+  assert.match(workbench, /\.mw-dir-row__copy strong \{[\s\S]*mask-image: linear-gradient\(to right, #000 0%, #000 calc\(100% - 12px\)/);
+  assert.match(workbench, /\.tree-pane \.tree-title-line strong,[\s\S]*mask-image: linear-gradient/);
+  assert.match(workbench, /\.mw-dir-row-wrap\.is-yield:is\(:hover, :has\(\.is-selected\), :has\(\[aria-current="page"\]\)\) \.mw-dir-row \{[\s\S]*padding-right: var\(--dir-yield, 72px\)/);
+  assert.match(workbench, /goal-board-switch, \.settings-segmented, \.locale-switch, \.mw-toggle-group/);
+  assert.match(
+    workbench,
+    /body\.immersive-workbench :is\(\.tree-entry, \.feed-stage-entry, \.source-list-item, \.goal-collection-fold > summary, \.mw-dir-row, \.mw-dir-row-wrap\) \{ transition: none; \}/,
+  );
+});
+
+test("global search glide is a single pill aligned to the selected hit", () => {
+  const workbench = renderMolisWorkWorkbenchStylesheet();
+  assert.match(workbench, /\[data-search-glide\] \.global-search-hit \{ position: relative; z-index: 1; \}/);
+  assert.doesNotMatch(workbench, /\[data-search-glide\] > \* \{ position: relative/);
+  assert.match(
+    workbench,
+    /\[data-search-glide\] \.global-search-hit\[aria-selected="true"\]:hover \{ background: transparent; \}/,
+  );
+  assert.match(workbench, /\[data-search-glide\]::before \{[\s\S]*border-radius: 8px;/);
+  assert.match(
+    VISUAL_FOUNDATION_CLIENT_SCRIPT,
+    /"--hit-x": slot\.left - box\.left - parseFloat\(style\.borderLeftWidth\) \+ list\.scrollLeft/,
+  );
+  assert.doesNotMatch(VISUAL_FOUNDATION_CLIENT_SCRIPT, /"--hit-y": current\.offsetTop/);
 });
 
 test("desktop Goal tabs preserve readable titles instead of shrinking to status dots", () => {

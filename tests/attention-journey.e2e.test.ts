@@ -112,9 +112,7 @@ test("Frame picker adds a persistent reference in place; current tab, directory 
   await click('[data-tui-menu-cancel]');
   assert.equal(await evaluate("document.activeElement.matches('[data-tui-empty-add]')"),true);
   await click('[data-plugin-id="goals"]');
-  await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item[data-tab-kind=mother] [role=tab]')");
-  await click('[data-titlebar-tabs] .tab-item[data-tab-kind=mother] [role=tab]');
-  await waitFor("document.querySelector('[data-goal-momentum]')?.dataset.loaded==='true'");
+  await waitFor("document.body.dataset.desktopSurface==='goal' && document.querySelector('[data-goal-momentum]')?.dataset.loaded==='true'");
   await evaluate(`document.querySelector('[data-momentum-node][data-goal-id="${goal.goal_id}"] [data-graph-frame]').click()`);
   await waitFor("!document.querySelector('[data-goal-frame-surface]').hidden");
   assert.equal(await evaluate("document.querySelector('[data-frame-goal-title]').textContent"),"整理设计反馈", "explicit Frame entry overrides the saved work view");

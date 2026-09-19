@@ -296,10 +296,20 @@ export class ShelfStore {
     return { name: child.name, mime: mimeFor(child.kind, child.name), bytes: readFileSync(file) };
   }
 
-  /** A link is captured as a page; everything else lands as text. */
-  async admitText(body: string, title = "粘贴文字"): Promise<ShelfItemRecord> {
+  /**
+   * A link is captured as a page; everything else lands as text. The wheel's
+   * 发给终端 asks for `capture: false`, the way DropAgent sends the link itself.
+   */
+  async admitText(body: string, title = "粘贴文字", capture = true): Promise<ShelfItemRecord> {
     const text = body.trim();
     if (!text) throw new ShelfError("shelf.empty_file", "剪贴板是空的");
+    if (isHttpUrl(text) && !capture) {
+      return this.admit({
+        filename: `${safeFilename(clipTitleFor("url", text))}.url`,
+        bytes: Buffer.from(text, "utf8"),
+        mime: "text/uri-list",
+      });
+    }
     if (isHttpUrl(text)) return this.admitUrl(text);
     const filename = `${safeFilename(title.slice(0, 40) || "paste")}.md`;
     return this.admit({ filename, bytes: Buffer.from(text, "utf8"), mime: "text/markdown" });

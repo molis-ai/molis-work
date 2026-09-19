@@ -23,7 +23,7 @@ export async function handleShelfNativePluginHttp(
     settings: () => store.settings(),
     saveSettings: (patch) => store.saveSettings(patch),
     admit: (input) => store.admit(input),
-    admitText: (text, title) => store.admitText(text, title),
+    admitText: (text, title, capture) => store.admitText(text, title, capture),
     admitFolder: (input) => store.admitFolder(input),
     readChild: (itemId, relative) => store.readChild(itemId, relative),
     seedSample: () => store.seedSample(),

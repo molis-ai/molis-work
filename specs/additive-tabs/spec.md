@@ -16,8 +16,9 @@
 
 ### 做
 
-- 打开插件母页或 item：只看**焦点栏**。栏里已有同身份（同一母页，或同一 plugin+item）就激活那张，不新增、不改别的标签身份。
-- 焦点栏没有这张身份：在焦点栏插入一张新的普通标签并激活。已有首页、画布、别的 Goal 都留着。
+- 打开 item：只看**焦点栏**。栏里已有同身份（同一 plugin+item）就激活那张，不新增、不改别的标签身份。
+- 打开插件默认面：不新增标签，见 `specs/plugin-default-no-tab/spec.md`。
+- 焦点栏没有这张 item：在焦点栏插入一张新的普通标签并激活。已有首页、别的 Goal 都留着。
 - 分屏、拖到另一栏、复制到另一栏：即使目标栏已有同身份，也允许两栏各有一份，不把另一栏那张吞掉。
 - 同一目标的第二次 click（`detail > 1`，即双击）不另加标签。
 
@@ -30,18 +31,18 @@
 
 ## 使用场景
 
-1. 进项目只有首页。点 Goals：多一张「画布」，首页还在。
-2. 再点某个 Goal：多一张 Goal 标签，「画布」还在。
+1. 进项目只有首页。点 Goals：工作区是画布，条上仍只有首页。
+2. 再点某个 Goal：多一张 Goal 标签。
 3. 再点同一个 Goal：还是那一张，不叠第二张。
-4. 再点另一个 Goal：再多一张，画布和前一个 Goal 都在。
-5. 再点 Goals：切回已有「画布」，不新开第二张画布，Goal 标签还在。
-6. 点 Sessions：多一张 Sessions，Goals 那些还在。再点 Sessions 只激活。
-7. 向右分屏后，在另一栏再点 Goals：那一栏可以再有一张画布，左边那张还在。
+4. 再点另一个 Goal：再多一张，前一个 Goal 还在。
+5. 再点 Goals：回到画布默认面，不新开标签，Goal 标签还在。
+6. 点 Sessions：切到 Sessions 列表，不新开标签。Goals 那些还在。
+7. 向右分屏后，在另一栏再点 Goals：那一栏也可以是画布默认面，左边那张还在。
 
 ## 方案与关键决策
 
-- `openPlugin` / `openItem` 在焦点栏按 `tabKey` 查找：有则激活，无则 `insertNew`。忽略 preview/commit 模式。
-- `tabKey`：母页是 `plugin:mother`（首页是 `home:home`），item 是 `plugin:item:itemId`。画布和某个 Goal 不是同一身份。
+- `openPlugin` 非 home 不插入标签，只切默认面。`openItem` 在焦点栏按 `tabKey` 查找：有则激活，无则 `insertNew`。
+- `tabKey`：首页是 `home:home`，item 是 `plugin:item:itemId`。插件默认面不是标签身份。
 - 查找范围只限焦点栏，不跳到另一栏去激活。
 - 拖拽 / 分屏复制不走这条打开规则，允许栏间重复。
 
@@ -53,12 +54,12 @@
 
 ## 验收
 
-1. 点 Goals 后条上同时有首页和画布；画布不是斜体预览。
-2. 再点一个 Goal：条上同时有画布和该 Goal。
+1. 点 Goals 后条上仍是首页，没有画布标签。
+2. 再点一个 Goal：条上同时有首页和该 Goal。
 3. 再点同一个 Goal：Goal 标签还是一张。
-4. 再点 Goals：画布仍是一张并被激活，已有 Goal 还在。
+4. 再点 Goals：没有画布标签，已有 Goal 还在，当前不是这张 Goal。
 5. 点另一个 Goal：两张 Goal 都在。
-6. 分屏后两栏可以同时有同一 Goal 或同一张画布；空栏、刷新恢复仍可用。
+6. 分屏后两栏可以同时有同一 Goal 或同一插件默认面；空栏、刷新恢复仍可用。
 
 ## 验证
 
@@ -69,7 +70,7 @@ node --import tsx --test --test-concurrency=1 \
   tests/compact-icon-tabs.e2e.test.ts
 ```
 
-浏览器：进项目 → 点 Goals → 点一个 Goal → 再点同一个 Goal → 再点 Goals → 点 Sessions。条上应留下首页、一张画布、那张 Goal、一张 Sessions，再点已打开的不会变多。
+浏览器：进项目 → 点 Goals → 点一个 Goal → 再点同一个 Goal → 再点 Goals → 点 Sessions。条上应留下首页、那张 Goal，没有画布/Sessions 母标签，再点已打开的不会变多。
 
 ## 假设
 

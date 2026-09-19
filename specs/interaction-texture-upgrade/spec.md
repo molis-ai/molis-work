@@ -92,8 +92,155 @@ node --import tsx --test --test-concurrency=1 tests/visual-foundation.test.ts te
 
 第二轮证据图同样在 `.impeccable/review/interaction-texture/`，新增 `board-1440-dark`、`settings-1440-dark`、`home-1440-dark`、`sessions-1440-light`。
 
+## 第三轮：三处微交互（参考 React Bits / reactbits.dev/c/micro）
+
+用户提出参考 React Bits 的 micro 分类。那 30 个组件是 React + `motion` 的实现，本产品没有 React 也没有动画运行时，所以**借的是行为，不是代码**：每条用 CSS 加几个自定义属性实现，`packages/design-system/src/styles/micro-interactions.ts` 一个文件装样式与测量脚本。
+
+选取标准只有一条：**这个动作是否在传递信息**。传递信息的做了，纯装饰的没做。
+
+### 做了的三条
+
+- **Rubber Segment → 分段控件的滑块行进。** 原先当前片是在新槽位上直接出现。现在一个滑块在轨道内行进并微微过冲落位（`cubic-bezier(.32, 1.22, .52, 1)`，240ms），槽位宽度不等时宽度一起过渡。覆盖画布/看板、主题、界面语言、界面密度、终端外观与项目设置的分段控件。
+- **Glide Select → 全局搜索的高亮行进。** 原先 `.global-search-hit[aria-selected="true"]` 与 `:hover` 用的是同一个 `--nav-hover`，鼠标停在别处时看不出回车会打开哪一条。现在键盘选中是一块行进的药丸（`--nav-active`），hover 退回更浅的一档——这条不只是动效，它修掉了一个真实的歧义。
+- **Status Mark → 焦点 Goal 的不定进度弧。** 正在推进的状态（clarifying / executing / reviewing / revalidating / in_progress）在**焦点位置**（`.goal-node-toolbar`、`.frame-goal-heading`、`.tui-owner-actions`、`.reader-header`、`.goal-info-popover`）把静态字形换成一段旋转弧。只在"一条 Goal 一个状态"的地方生效；目录、画布节点与看板卡片保持静态标记，不做满屏转圈。
+
+三条都在客户端脚本不执行时退回当前的静态表现（滑块与药丸靠 `data-*` 开关，弧靠 CSS），`prefers-reduced-motion` 下取消行进与旋转（弧直接换回原字形），已用 `Emulation.setEmulatedMedia` 实测：`arcContent: "none"`、`arcAnim: "none"`、过渡时长归零。
+
+### 没做的，以及为什么
+
+- **Hold Button / Slide Commit（按住或滑动确认）。** 本产品对不可逆领域操作用的是显式确认弹层，这是既有产品决定；用"按住 800ms"替换它会把一次明确的确认换成一次可能误触的手势。不做。
+- **Warm Tooltip。** 本产品目前一律用原生 `title`。换成自绘 tooltip 是新增组件加一整套可访问性工作，不属于"微交互"这一轮。
+- **Swipe Toast。** 已有 toast，且已有位移与淡入。
+- **Jelly Radio / Squish Switch / Pulse Heart / Peek Rating / Comet Dial / Voice Pill / Call Chip / Bell Toggle / Sling Button / Fuse Button / Folder Float / Dodge Field / Code Slots / Scrub Field / Wake Slider / Slosh Gauge / Prompt Bar / Branched Menu / Refine Frame / Thought Line / Lattice Loader / Swipe Row。** 要么属于别的产品类别（通话、评分、语音、验证码），要么是纯装饰。一个长时工作台记账本里，弹跳和果冻会让每次普通操作都像在庆祝。不做。
+
+### 第三轮验证
+
+同一套定向回归：123 项中 122 通过。唯一失败仍是 `tests/i18n.test.ts` 的静态文案英文翻译——本轮不新增任何用户可见文案，与本轮无关。
+
+实测确认：分段滑块从 `--seg-x: 3px` 行进到 `99px`、宽度 46→70；搜索高亮随方向键从 `--hit-y: 89px` 到 `141px`；焦点状态强制为 `executing` 后 `animationName: mw-status-arc`、原字形 `display: none`。证据图 `.impeccable/review/micro-interactions/`：`segment-thumb-1440-light`、`search-glide-1440-dark`、`status-arc-1440-light`（弧的截图用脚本临时把焦点状态置为执行中，因为演示数据里没有正在推进的 Goal）。
+
+## 第四轮：创建改为居中弹窗
+
+用户指出：在任何插件里创建新 item 都是右侧滑入窗，希望改成居中弹窗，并把弹窗内的内容、UI、交互与引导一起优化。这推翻了 [product-interaction-redesign](../product-interaction-redesign/spec.md) v11 的"临时编辑器贴工作区边缘"决定——**是用户的决定，按新规则记入 DESIGN.md，而不是偷偷改掉**。
+
+### 分界
+
+按"是否在创建/选取一个 item"分：
+
+- **改为居中弹窗**：新建 Goal（`data-create-dialog`）、Feed 任务配置（`data-feed-sources-dialog`）、启动 Session（`data-session-add-dialog`）、Frame 内容选取（`data-frame-picker`）。
+- **保留右侧边栏**：Session 关系编辑（`data-session-relations-dialog`）与 Handoff 编辑器。前者是改既有记录不是创建，后者是双栏长文编辑，贴边更合适。若也要改，说一声即可。
+
+### 几何
+
+`mw-dialog--form`：`min(560px, 100vw - 48px)` 宽，高度随内容、上限 `min(100dvh - 96px, 720px)`，表面圆角 + 发丝边 + 共享投影 + 共享 `--scrim`；头尾固定、中间一条滚动；≤760px 时四边内缩 12px。
+
+一个实现坑值得记：**`inset: 0` + `margin: auto` 只能居中"尺寸确定"的盒子**。高度 auto 时绝对定位会被上下 inset 拉满，再被 `max-height` 夹成 720px——表现就是弹窗居中了但底下空一大片。改用 `top/left: 50%` + `translate: -50% -50%`（用独立的 `translate` 属性，把 `transform` 留给入场动画）。
+
+另一个坑是我自己引入的：给可选分组加了 `overflow: hidden` 做圆角裁切，结果它作为 grid item 被夹到 389px，展开的内容既被裁掉又不计入滚动容器的 `scrollHeight`，于是**后两个分组完全够不到**。改成不裁切、首尾子元素各自圆角。
+
+### 内容与引导
+
+新建 Goal 原来是：两个字段 + 三个并排的折叠面板，在一个 900px 高的贴边栏里，下面空掉一大半。三个折叠面板并排读起来像"还有很多没填"，跟产品自己写的"先记录你的想法，再补全"正好相反。
+
+改为：名称与结果保持可见；三个可选分组收进**一个**带边框的组，组头一行灰字「以下都可选，创建后随时能补」，每行 38px。另外给主操作加了键盘通路 `⌘↵`（提示放在footer左侧），并在共享客户端脚本里实现 `⌘/Ctrl+Enter` 提交当前打开的弹窗表单（走 `requestSubmit()`，保留原有校验与提交处理）。
+
+### 第四轮验证
+
+- `pnpm workspace:build` 通过；定向回归 130 项中 129 通过，唯一失败仍是既有的 `tests/i18n.test.ts` 文案缺英文——本轮新增的一条文案已补上英文，不在缺失列表里。
+- 实测：新建 Goal 弹窗 560×484、双轴居中、12px 圆角；三个分组全部展开后高度到上限 720px，头尾固定、正文可滚、最后一个分组可达；启动 Session（560×445）、Feed 任务配置（560×357）、Frame 选取均居中；Session 关系编辑仍为 x=880 的贴边栏。390px 下居中且不溢出。⌘↵ 实测直接创建成功并跳转到新 Goal。
+- `tests/continuous-surfaces.e2e.test.ts` 的编辑器几何契约已改写为居中断言（水平/垂直居中、在视口内、非满高、有圆角有投影）。该测试中 Frame 选取这一段在 1440 与 390 均通过；再往后 `[data-open-create]` 点击失败——深链进 Goal 后该按钮 `offsetParent` 为 null，属于另一条线进行中的目录改动，**与本轮无关**（已在浏览器中复现确认）。
+- 证据图 `.impeccable/review/create-modal/`：`create-1440-{light,dark}`、`create-390-light`、`create-expanded-1440-light`。
+
+## 第五轮：创建不是填表，是写下你想要什么
+
+用户的进一步要求：不要做成填表单；希望低功耗、沉浸，用户不用花脑力想"这一格该填什么"，而是直接写"我想创建一个什么东西"。
+
+### 判断
+
+原来的默认状态是：两个带标签的字段 + 一组可选分组。哪怕已经收成一组，看到的仍然是"标签—输入框"的结构——人先读标签，再决定往里放什么。这就是"填表"的认知成本来源。
+
+参照 Linear 的 New issue 与各类快速捕获：**默认状态只有书写面**。标签变成占位提示，边框消失，其余全部收进一次可选展开。
+
+### 做法
+
+- **两行书写面。** 标题 19px 无边框，占位问「你想让什么变成现实？」；下面是无边框的结果行，占位问「完成后会有什么不一样？可以先空着」。两者都不带标签、不带框，`aria-label` 保留给读屏。
+- **一次性的例子。** 标题下一行 11px 灰字给一个真实形状的例子；**敲下第一个字就淡出**，不再占位置。引导只出现在需要的时刻。
+- **焦点是一条笔线，不是一个框。** 书写面用 `data-plain-field` 从共享输入框焦点环里退出，改为底部 2px 强调色下划线 + 一档背景。既不像表单，也仍是可见的焦点指示（下划线自身对比度达标）。`interaction-texture` 里的共享环相应加了 `:not([data-plain-field])`——这是一个可复用的退出口，不是给 Goals 开的特例。
+- **其余全部收进一次展开。** 原来三个并排折叠面板变成一行安静的「补充说明、归属与优先级」；展开后内部是四个分组，不再嵌套手风琴。
+- **结果行随写随长。** 输入时自动增高（上限 260px），弹窗跟着长，不出现两层滚动条。
+- **回车即创建。** 标题是 `input`，敲完直接回车就建；`⌘↵` 在任何位置提交。最低功耗的路径是：打开 → 打字 → 回车。
+
+### 第五轮验证
+
+- `pnpm workspace:build` 通过；定向回归 121 项中 120 通过，唯一失败仍是既有的 `tests/i18n.test.ts` 文案缺英文积压；本轮新增四条文案（标题占位、例子、结果占位、展开标题）都已补英文，不在缺失列表里。
+- 实测：默认弹窗 560×299，只有两行书写面与一行展开；输入标题后例子 `hidden` 为 true；结果行随内容 62→104px 且弹窗跟着从 299→319；展开后正文可滚、头尾固定。
+- 证据图 `.impeccable/review/create-modal/`：`compose-1440-{light,dark}`、`compose-390-light`、`compose-open-more-1440-light`、`compose-typed-1440-light`。
+
+## 第六轮：把前几轮欠的账还了
+
+前几轮一直在报告"这三项失败是既有的、不是本轮引起的"。用户要求填坑，逐条处理：
+
+### i18n 文案积压（57 条）
+
+`tests/i18n.test.ts` 扫描渲染源里的 `L("…")` 并要求每条都有英文。缺 57 条：37 条来自 Feed 任务配置、9 条 Goal 事件表单、5 条事件历史、2 条完成要求、其余零散。
+
+按归属补齐：Goal 相关进 `plugins/native/goals/src/document-en.ts`，Artifact 进 `plugins/native/artifacts/src/en.ts`，Feed/Inbox/设置（没有独立 EN 表）进 `apps/workbench/src/i18n/en.ts`。现在 `missing: 0`，`tests/i18n.test.ts` 8/8 通过。
+
+### 连续界面 e2e（两档宽度）
+
+一直卡在点不到 `[data-open-create]`。查清楚是三个独立问题叠在一起：
+
+1. **测试路径过时。** 深链进 Goal 后，Goals 的目录 chrome 被放进 `.tab-workspace-pool`（`display: none`），页面上唯一的 `[data-open-create]` 是这个池里的副本。测试改为先 `openPlugin('goals')` 回到 Goals 面，再点创建；查完再导航回 Goal 继续原有断言。
+2. **焦点环特异度是我第二轮留下的坑。** 共享输入框焦点环写成了 `input:not([type=checkbox]):not([type=radio]):not([type=range]):not(.mw-slider):not(.mw-input):not(.mw-textarea):not(.mw-select)`——七个 `:not()` 把特异度堆到 (0,9,2)，把 Feed 弹窗自己那条"保留 2px 描边、不要光晕"的规则 (0,3,3) 压死了。改成 `:is(input, select, textarea):not(…列表形式…)`，特异度降到 (0,2,2)，组件重新能覆盖它。**通用层不该靠堆特异度取胜**，这是这轮的教训。
+3. **焦点环对比度不达标。** `--control-ring` 是 `color-mix(--focus 72%, transparent)`，在浅色纸面上实测只有 2.86:1，低于 3:1。改为 `var(--focus)` 全不透明，两个主题都稳过。
+
+1440 全通过；390 见下。
+
+### 发现的产品缺陷：390px 下无法新建 Goal
+
+填坑过程中查出来的，**不是本轮改动引起的**：390px 打开 Goals 面后，抽屉关着时 `.goal-stage-chrome` 整体被平移到 `x = -176`（在屏幕外），抽屉开着时 `.immersive-sidebar-scrim`（z-index 35、fixed、覆盖标题栏以下整屏）盖在按钮上。全局搜索的「新建目标」快捷动作在 390 下也没能打开弹窗。即手机宽度下没有任何可用的新建入口——弹窗本身没问题，程序化 `.click()` 能正常打开并正确渲染。
+
+这属于另一条线进行中的窄屏抽屉/导航改造。已单独记录待修。e2e 在 390 这一档暂时直接调用打开处理器，并在代码里注释了原因与恢复条件（入口可达后改回真实 `click`）。
+
+### 第六轮验证
+
+`pnpm workspace:build` 通过；`tests/continuous-surfaces.e2e.test.ts` 两档宽度全过；13 个定向测试文件 **139 项全部通过，0 失败**——本会话首次全绿。
+
+## 第七轮：修掉第六轮查出的窄屏缺陷
+
+第六轮报告了"390px 下无法新建 Goal"并挂了待办。这一轮直接修，并在修的过程中又查出一个更严重的同区域缺陷。
+
+### 缺陷一：返回 Goals 后整条画布工具栏消失
+
+先纠正第六轮的描述——当时说按钮被平移到 `x = -176`，那是量在过渡中间态。真实情况是 `visibility: hidden`。
+
+链路：`.goal-canvas-shell[data-expanded="true"]` 会隐藏 `[data-goal-stage-chrome]`、`.goal-canvas-integrity`、`.goal-canvas-tools` 和 `.goal-board-switch`——意图正确，展开的 Goal 盖住画布时工具栏本就该让位。但打开一条 Goal 再切回 Goals 插件时，`syncGoalWorkspace` 在 `showBoard` 为假的分支里提前 return，没有重算 `data-expanded`；于是画布回到前台时旗标仍是 `"true"`，而 `[data-goal-node-workspace]` 实际是 `hidden`。结果：用户看着画布，**新建 Goal、筛选、缩放、画布/看板切换四样全部不可见**。这不是窄屏专有，390 只是更容易走到这条路径。
+
+修法不是去改那台状态机（它正在另一条线上迭代），而是让规则问真实状态而不是问旗标：
+
+```css
+.goal-canvas-shell[data-expanded="true"]:not(:has([data-goal-node-workspace]:not([hidden])))
+  :is([data-goal-stage-chrome], .goal-canvas-integrity, .goal-canvas-tools, .goal-board-switch) { visibility: visible; }
+```
+
+这样谁忘了清旗标都不会再把工具栏弄丢，而真正展开时（实测 `[data-goal-node-workspace]` 390×484）四样仍然正确隐藏。`tests/continuous-surfaces.e2e.test.ts` 的 390 档已改回**真实指针点击** `[data-open-create]`，两档全过。
+
+### 缺陷二：390px 下项目选择器的箭头是 300×150
+
+顺带查出来的，比第一个更显眼。桌面端把项目名和箭头做了视觉隐藏（`position: absolute; width: 1px; …`），`@media (max-width: 600px)` 再用 `position: static; width: auto; height: auto` 还原。`width: auto` 对文字是对的，**对 SVG 等于交还它的固有尺寸 300×150**。后果不只是一个巨大的箭头：选择器被撑到 448px（视口才 390），把搜索、设置、分栏三个入口整个挤出屏幕。
+
+修法：在同一段媒体查询里把箭头显式还原成 11×11。实测选择器从 448px 收回 159px，三个入口重新出现。
+
+### 一条自己的教训
+
+第一次改完没生效，查下来是我在模板字符串里的注释写了反引号，`tsc` 报 `Cannot find name 'auto'` 直接编译失败——而我那行命令用 `>/dev/null 2>&1` 吞掉了输出，后面用 `;` 串联的启动步骤照常执行，于是服务器拿旧 dist 继续跑，看起来像"改了没用"。**构建输出不该被吞掉**。
+
+### 第七轮验证
+
+`pnpm workspace:build` 通过；15 个定向测试文件 **142 项全部通过**。实测：390 下返回 Goals 后新建 Goal `visibility: visible`、`elementFromPoint` 命中按钮本体、真实点击可打开弹窗；真正展开 Goal 时工具栏仍正确隐藏；项目选择器箭头 11×11、选择器宽 159px、无横向溢出。
+
 ## 假设与开放项
 
-- 工作树上另有进行中的目录/设置改动。本轮起点包含它们；`tests/i18n.test.ts`、`tests/project-settings-accordion.test.ts`、`tests/project-settings-stage.test.ts` 各有 1 项在**本次改动之前**即为失败（已在回退本层后复现确认），属于那条线，不在本轮范围。
+- 工作树上另有进行中的目录/设置改动。前几轮报告的三项既有失败已在第六轮全部处理完毕（i18n 补齐、另两项由那条线自行修好）。
 - 原生 macOS 安装包、终端配色、首次引导页与全部低频领域表单未在本轮穷举。
 - 未提交、未发布、未替换用户运行中的服务。

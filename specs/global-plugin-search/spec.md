@@ -41,7 +41,7 @@ Goals 目录工具栏里有一条「在当前 Goal Tree 内搜索」。它只过
 - 工作台拥有入口和浮层；各插件仍拥有自己的对象与打开行为。索引来自已有 DOM（`data-goal-search`、`data-record-search`、Feed/Inbox/来源/Artifact 行）。
 - 用 `<dialog>` + `showModal()`，避免被侧栏 `overflow` / `inert` 裁剪。
 - ⌘F 从「聚焦 Goal 树搜索框」改为打开此浮层。终端内不拦截，避免和 TUI 抢快捷键。
-- 视觉跟现有石墨工作台：`--paper` 面板、`--nav-hover` 选中、`--muted` 分组名与插件标签，不用第二套设计语言。
+- 视觉跟现有石墨工作台：`--paper` 面板、`--nav-hover` 选中、`--muted` 分组名与插件标签，不用第二套设计语言。输入贴在面板顶，不套系统 search 凹槽；见 `specs/global-search-field-flush/spec.md`。
 
 ## 文件边界
 

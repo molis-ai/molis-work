@@ -133,7 +133,12 @@ test("hide, delete, clipboard, and use-as-material keep copies off the original 
     store.hide(item.item_id);
     assert.equal(store.snapshot().materials.some((entry) => entry.item_id === item.item_id), false);
     assert.equal(store.snapshot().materials.some((entry) => entry.name === "试用示例.pdf"), false);
-    const extracted = await store.runJob({ recipe: "extract_text", item_id: joined.item_id });
+    const quote = store.admit({
+      filename: "quote.pdf",
+      bytes: createExtractablePdf("Clipboard follow-up quote."),
+      mime: "application/pdf",
+    });
+    const extracted = await store.runJob({ recipe: "extract_text", item_id: quote.item_id });
     const reused = store.useAsMaterial(extracted.result!.item_id);
     assert.equal(reused.group, "material");
     store.deleteCopy(joined.item_id);
@@ -197,13 +202,12 @@ test("writeCopy edits the shelf copy and leaves the original file hash untouched
     assert.equal(edited.origin_hash, item.origin_hash);
     assert.equal(readFileSync(originPath, "utf8"), "# keep\n");
     assert.equal(store.readFile(item.item_id).bytes.toString("utf8"), "# edited\n");
-    const extracted = await store.runJob({ recipe: "extract_text", item_id: item.item_id });
-    assert.match(extracted.result?.preview_text ?? "", /# edited/);
-    await writeFile(originPath, "# changed original\n");
+    // 提取文字 is for PDFs and images; a Markdown copy is already text.
     await assert.rejects(
       store.runJob({ recipe: "extract_text", item_id: item.item_id }),
-      (error: unknown) => error instanceof ShelfError && error.code === "shelf.origin_changed",
+      (error: unknown) => error instanceof ShelfError && error.code === "shelf.recipe_unavailable",
     );
+    await writeFile(originPath, "# changed original\n");
     const pdfBytes = createExtractablePdf("PDF stays read-only on the shelf.");
     const pdf = store.admit({ filename: "locked.pdf", bytes: pdfBytes, mime: "application/pdf" });
     assert.equal(isEditableShelfItem(pdf), false);
@@ -226,12 +230,17 @@ test("hide keeps the copy; delete removes the copy and job folder, not the origi
       origin_realpath: originPath,
     });
     const copyPath = join(home, "shelf", item.relative_path);
-    const extracted = await store.runJob({ recipe: "extract_text", item_id: item.item_id });
+    const source = store.admit({
+      filename: "keep-me.pdf",
+      bytes: createExtractablePdf("Keep the original where it is."),
+      mime: "application/pdf",
+    });
+    const extracted = await store.runJob({ recipe: "extract_text", item_id: source.item_id });
     const jobRoot = join(home, "shelf", "jobs", extracted.job.job_id);
     assert.equal(existsSync(jobRoot), true);
     store.hide(extracted.result!.item_id);
     assert.equal(store.snapshot().results.some((entry) => entry.item_id === extracted.result!.item_id), false);
-    assert.match(store.readFile(extracted.result!.item_id).bytes.toString("utf8"), /original stays/);
+    assert.match(store.readFile(extracted.result!.item_id).bytes.toString("utf8"), /Keep the original where it is/);
     store.deleteCopy(extracted.result!.item_id);
     assert.equal(existsSync(join(home, "shelf", extracted.result!.relative_path)), false);
     assert.equal(existsSync(jobRoot), false);
@@ -246,13 +255,18 @@ test("hide keeps the copy; delete removes the copy and job folder, not the origi
   });
 });
 
-test("Shelf UI contribution paints DropAgent directory groups and command chrome", () => {
+test("Shelf UI contribution paints stage folds and DropAgent command chrome", () => {
   const host = new UiHost();
   host.register(shelfUiContribution);
   assert.equal(host.list()[0]?.contribution_id, SHELF_UI_CONTRIBUTION_ID);
-  const directory = host.render({
+  assert.equal(host.render({
     contribution_id: SHELF_UI_CONTRIBUTION_ID,
     surface: "directory",
+    model: model(),
+  }), "");
+  const workbench = host.render({
+    contribution_id: SHELF_UI_CONTRIBUTION_ID,
+    surface: "workbench",
     model: model({
       materials: [{
         item_id: "item_pdf",
@@ -272,20 +286,51 @@ test("Shelf UI contribution paints DropAgent directory groups and command chrome
       selected_id: "item_pdf",
     }),
   });
-  assert.match(directory, /data-directory-panel="shelf"/);
-  assert.match(directory, /data-shelf="directory"/);
-  assert.match(directory, /#icon-search/);
-  assert.match(directory, /#icon-copy/);
-  assert.match(directory, /data-shelf-drop/);
-  assert.match(directory, /隐藏（列表拿掉，副本还在）/);
-  assert.match(directory, /试用示例\.pdf/);
-  assert.match(directory, /tone-clay/);
-  assert.match(directory, /剪贴板历史/);
-  assert.match(directory, /显示全部/);
-  assert.match(directory, /单击选择，双击复制为当前/);
+  assert.doesNotMatch(workbench, /data-directory-panel="shelf"/);
+  assert.match(workbench, /data-shelf-stage-shell/);
+  assert.match(workbench, /data-shelf="directory"/);
+  assert.match(workbench, /data-shelf-stage-group="materials"/);
+  assert.match(workbench, /data-shelf-stage-group="results"/);
+  assert.match(workbench, /data-shelf-stage-group="clipboard"/);
+  assert.match(workbench, /#icon-search/);
+  assert.match(workbench, /#icon-copy/);
+  assert.match(workbench, /data-shelf-drop/);
+  assert.match(workbench, /隐藏（列表拿掉，副本还在）/);
+  assert.match(workbench, /试用示例\.pdf/);
+  assert.match(workbench, /shelf-name__stem">试用示例<\/span><span class="shelf-name__ext">\.pdf/);
+  assert.match(workbench, /aria-label="试用示例\.pdf"/);
+  assert.match(workbench, /shelf-glyph tone-clay/);
+  assert.doesNotMatch(workbench, /shelf-cap/);
+  assert.match(workbench, /剪贴板历史/);
+  assert.match(workbench, /显示全部/);
+  assert.match(workbench, /单击选择，双击复制为当前/);
+  assert.match(workbench, /data-work-surface="shelf"/);
+  assert.match(workbench, /对照原文/);
+  assert.match(workbench, /编辑副本/);
+  assert.match(workbench, /data-shelf-edit/);
+  assert.match(workbench, /data-shelf-chrome/);
+  assert.match(workbench, /开始提取/);
+  assert.match(workbench, /加入材料/);
+  assert.match(workbench, /发给终端请拖到轮盘/);
+  assert.match(workbench, /data-shelf-bar-hint/);
+  assert.match(workbench, /data-shelf-confirm-title/);
+  assert.match(workbench, /#icon-columns/);
+  assert.match(workbench, /data-shelf-collapse/);
+  // DropAgent's sidebar header: a + that picks files, and a ··· menu of paste / multi-select.
+  assert.match(workbench, /data-shelf-pick aria-label="添加材料"/);
+  assert.match(workbench, /data-shelf-paste-clip>粘贴当前剪贴板/);
+  assert.match(workbench, /data-shelf-multi aria-pressed="false">多选材料/);
+  assert.match(workbench, /shelf-side-foot[\s\S]*副本工作区[\s\S]*⌘V 粘贴当前/);
+  assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /已选 \{count\} 份材料/);
+  assert.equal(SHELF_EN["副本工作区"], "Working copies");
+  assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /结束多选/);
+  assert.match(SHELF_STYLES, /\[data-shelf-stage-shell\]\[data-expanded="true"\] \{ --tree-width: 213px/);
+  // The group mark is a neutral label beside a coloured type glyph, never a green tick.
+  assert.match(workbench, /goal-collection-mark shelf-group-mark tone-ochre/);
+  assert.doesNotMatch(SHELF_CLIENT_FACTORY_SCRIPT, /is-ready|icon-check/);
   const withClip = host.render({
     contribution_id: SHELF_UI_CONTRIBUTION_ID,
-    surface: "directory",
+    surface: "workbench",
     model: model({
       clipboard: [{
         clip_id: "clip_now",
@@ -294,6 +339,13 @@ test("Shelf UI contribution paints DropAgent directory groups and command chrome
         body: "本周待办：完善文件预览与结果对照。",
         created_at: "2026-09-17T00:00:00.000Z",
         fingerprint: "t:demo",
+      }, {
+        clip_id: "clip_url",
+        kind: "url",
+        title: "https://cdn.example.com/file.pdf",
+        body: "https://cdn.example.com/file.pdf",
+        created_at: "2026-09-17T00:00:00.000Z",
+        fingerprint: "u:demo",
       }],
       current_clip_id: "clip_now",
       selected_id: "clip_now",
@@ -302,25 +354,12 @@ test("Shelf UI contribution paints DropAgent directory groups and command chrome
   assert.match(withClip, /data-shelf-current/);
   assert.match(withClip, /删除记录/);
   assert.match(withClip, /本周待办/);
-  const workbench = host.render({
-    contribution_id: SHELF_UI_CONTRIBUTION_ID,
-    surface: "workbench",
-    model: model(),
-  });
-  assert.match(workbench, /data-work-surface="shelf"/);
-  assert.match(workbench, /对照原文/);
-  assert.match(workbench, /编辑副本/);
-  assert.match(workbench, /data-shelf-edit/);
-  assert.match(workbench, /data-shelf-chrome/);
-  assert.match(workbench, /开始提取/);
-  assert.match(workbench, /加入材料/);
-  assert.match(workbench, /data-shelf-drop/);
-  assert.match(workbench, /发给终端请拖到轮盘/);
-  assert.match(workbench, /data-shelf-bar-hint/);
-  assert.match(workbench, /data-shelf-confirm-title/);
-  assert.match(workbench, /#icon-copy/);
-  assert.match(workbench, /#icon-columns/);
+  assert.match(withClip, /class="shelf-name">本周待办<\/span>/);
+  assert.match(withClip, /class="shelf-name">https:\/\/cdn\.example\.com\/file\.pdf<\/span>/);
+  assert.doesNotMatch(withClip, /shelf-name__ext/);
   assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /href="#icon-'\s*\+/);
+  assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /expandShelfStage/);
+  assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /data-shelf-collapse/);
   assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /copy: "copy", hide: "x", down: "download", trash: "trash"/);
   assert.match(SHELF_STYLES, /shelf-confirm-title \{[\s\S]*font-weight: 400/);
   assert.match(workbench, /data-shelf-confirm-out/);
@@ -357,6 +396,17 @@ test("Shelf UI contribution paints DropAgent directory groups and command chrome
   assert.match(SHELF_STYLES, /--clay: var\(--mark-clay\)/);
   assert.match(SHELF_STYLES, /--da-panel: var\(--content-paper\)/);
   assert.match(SHELF_STYLES, /\.shelf-row\.is-on \{[\s\S]*background: var\(--da-select\)/);
+  assert.match(SHELF_STYLES, /\.shelf-name \{[\s\S]*flex: 0 1 auto;/);
+  assert.match(SHELF_STYLES, /\.shelf-row:is\(:hover, \.is-on\):not\(\.is-child\) \{ padding-right: 72px; \}/);
+  assert.match(SHELF_STYLES, /\.shelf-row \.shelf-ops \{[\s\S]*display: flex;[\s\S]*opacity: 0/);
+  assert.match(SHELF_STYLES, /\.shelf-row:is\(:hover, \.is-on\):not\(\.is-child\) \.shelf-ops \{ opacity: 1/);
+  assert.doesNotMatch(SHELF_STYLES, /\.shelf-ops \{[^}]*display: none/);
+  assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /yieldName/);
+  assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /includes\(":\/\/"\)/);
+  assert.doesNotMatch(SHELF_STYLES, /shelf-cap/);
+  assert.doesNotMatch(SHELF_CLIENT_FACTORY_SCRIPT, /shelf-cap/);
+  assert.match(SHELF_STYLES, /\.shelf-row \.shelf-when \{[\s\S]*color: var\(--da-faint\)/);
+  assert.match(SHELF_STYLES, /\.shelf-row:is\(:hover, \.is-on\):not\(\.is-child\) :is\(\.shelf-when, \.shelf-status, \.shelf-now\)/);
   assert.match(SHELF_STYLES, /html\[data-resolved-theme="dark"\] \[data-shelf\] \.shelf-paper \{[\s\S]*background: var\(--da-panel\)/);
   assert.match(SHELF_STYLES, /\.shelf-paper:active \{ background: var\(--da-press\); \}/);
   assert.match(SHELF_STYLES, /plugin-section\[data-plugin-section="shelf"\] > \.immersive-plugin-link \{[\s\S]*display: none !important;/);

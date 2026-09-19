@@ -697,14 +697,17 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.doesNotMatch(desktopMarkup, /data-directory-panel="feed"/);
     assert.doesNotMatch(desktopMarkup, /data-directory-panel="goals"/);
     assert.doesNotMatch(desktopMarkup, /data-directory-panel="sessions"/);
+    assert.doesNotMatch(desktopMarkup, /data-directory-panel="shelf"/);
     assert.doesNotMatch(desktopMarkup, /data-plugin-section="sessions"/);
     assert.match(desktopMarkup, /data-session-stage-shell/);
+    assert.doesNotMatch(desktopMarkup, /data-plugin-section="shelf"/);
+    assert.match(desktopMarkup, /data-shelf-stage-shell/);
     assert.match(desktop, /data-plugin-section="feed"/);
     assert.match(desktop, /data-directory-panel="sources"[^>]*data-source-directory hidden/);
     assert.doesNotMatch(desktop, /data-directory-open="inbox"/);
     assert.match(desktop, /data-plugin-id="goals"[^>]*data-work-surface-open="goal"/);
     assert.match(desktop, /data-plugin-id="feed"[^>]*data-work-surface-open="feed" data-feed-preset="feed"/);
-    assert.doesNotMatch(desktop, /data-directory-open="goals"|data-directory-open="feed"|data-directory-open="sources"|data-directory-open="sessions"|data-directory-open="inbox"|data-directory-open="artifacts"|data-feed-views/);
+    assert.doesNotMatch(desktop, /data-directory-open="goals"|data-directory-open="feed"|data-directory-open="sources"|data-directory-open="sessions"|data-directory-open="inbox"|data-directory-open="artifacts"|data-directory-open="shelf"|data-feed-views/);
     assert.doesNotMatch(desktop, /data-work-surface-open="promotion"|data-work-surface-open="visual"/);
     assert.match(desktop, /data-work-surface="goal" data-work-surface-label="Goals"/);
     assert.match(desktop, /data-work-surface="inbox" data-work-surface-label="Inbox"[^>]*hidden/);

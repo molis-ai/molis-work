@@ -10,6 +10,8 @@ import { importV3Capability, projectResumeFactsCapability, trashedGoalsCapabilit
   submitGoalEventClosureCapability, resumeGoalEventWorkCapability,
   recordGoalNoteCapability } from "@molis-ai/molis-work-plugin-goals";
 import { pluginDevelopmentCapability } from "@molis-ai/molis-work-contracts/platform/tooling";
+import { projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { SqlitePluginRuntimeRepository, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { runPluginDevelopment } from "./plugin-development.js";
@@ -17,7 +19,23 @@ import { importV3Board } from "./board-v3-import.js";
 import type { LocalHost } from "./local-host.js";
 import type { MolisWorkProjectRuntime } from "./project-host.js";
 
-export function registerProjectCapabilities(host: LocalHost<MolisWorkProjectRuntime>): void {
+export interface ProjectCapabilityPorts {
+  /** Resolves the workspace a project is bound to. See `MolisWorkLocalHostOptions`. */
+  workspaceFor?: (projectId: string) => ProjectWorkspaceRef | null;
+}
+
+export function registerProjectCapabilities(
+  host: LocalHost<MolisWorkProjectRuntime>,
+  ports: ProjectCapabilityPorts = {},
+): void {
+  const { workspaceFor } = ports;
+  if (workspaceFor !== undefined) {
+    // Scoped to the runtime's own project: the Capability takes no project id,
+    // so a Plugin cannot ask about another project. The answer carries the
+    // verified path and nothing a Plugin could widen into a write.
+    host.register(projectsCapabilities.readWorkspace, (runtime) =>
+      workspaceFor(runtime.project_id));
+  }
   host.register(pluginDevelopmentCapability, async (runtime, input) => {
     runtime.coordinator.initializeBoard({ board_id: input.board_id, title: "Plugin Development",
       actor_id: input.actor_id, idempotency_key: "plugin-development-board" });

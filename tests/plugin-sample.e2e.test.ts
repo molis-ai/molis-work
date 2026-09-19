@@ -35,7 +35,7 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
       execFileSync("pnpm", ["--dir", join(root, "packages", name), "pack", "--pack-destination", directory, "--json"], { encoding: "utf8" });
     }
     execFileSync("npm", ["install", "--offline", "--ignore-scripts", "--no-audit", "--no-fund", "--cache", join(directory, "npm-cache"),
-      join(directory, "adeptify-molis-work-contracts-0.0.0.tgz"), join(directory, "adeptify-molis-work-plugin-sdk-0.0.0.tgz")],
+      join(directory, "molis-ai-molis-work-contracts-0.0.0.tgz"), join(directory, "molis-ai-molis-work-plugin-sdk-0.0.0.tgz")],
     { cwd: project, encoding: "utf8" });
     const definition = (await import(pathToFileURL(join(project, "index.mjs")).href)).default as PluginDefinition;
     assert.equal(definition.manifest.plugin_id, validated.plugin_id);
@@ -44,8 +44,14 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
     const appCli = join(root, "dist/cli/main.js");
     const state = join(directory, "development-state");
     const grants = definition.manifest.permissions.map(permission => permission.permission).join(",");
+    // Node prints an ExperimentalWarning for node:sqlite on stderr; silence it so the
+    // assertions read the CLI's own JSON contract rather than the runtime's chatter.
     const dev = (target: string, permissions: string, flag = "--allow-unsigned-development", source = project) =>
-      spawnSync(process.execPath, [appCli, "plugin", "dev", source, target, permissions, flag], { encoding: "utf8" });
+      spawnSync(
+        process.execPath,
+        ["--disable-warning=ExperimentalWarning", appCli, "plugin", "dev", source, target, permissions, flag],
+        { encoding: "utf8" },
+      );
     const unauthorized = dev(state, grants, "--not-authorized");
     assert.equal(unauthorized.status, 1, unauthorized.stderr);
     assert.equal(existsSync(state), false, "missing execution authority must not create development data");
@@ -90,7 +96,7 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
       writeFileSync(join(repositorySample, file), readFileSync(join(root, "examples/plugin-sample", file)));
     }
     execFileSync("npm", ["install", "--offline", "--ignore-scripts", "--no-audit", "--no-fund", "--cache", join(directory, "npm-cache"),
-      join(directory, "adeptify-molis-work-contracts-0.0.0.tgz"), join(directory, "adeptify-molis-work-plugin-sdk-0.0.0.tgz")],
+      join(directory, "molis-ai-molis-work-contracts-0.0.0.tgz"), join(directory, "molis-ai-molis-work-plugin-sdk-0.0.0.tgz")],
     { cwd: repositorySample, encoding: "utf8" });
     const repositoryRun = dev(join(directory, "repository-state"), grants, "--allow-unsigned-development", repositorySample);
     assert.equal(repositoryRun.status, 0, repositoryRun.stderr);

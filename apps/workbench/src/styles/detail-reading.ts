@@ -14,7 +14,7 @@ export const DETAIL_READING_STYLES = `
   body.immersive-workbench .plugin-stage-workspace > [data-artifact-detail] { height: 100%; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
   body.immersive-workbench .immersive-artifact-surface .artifact-detail { display: flex; flex-direction: column; height: 100%; min-height: 0; max-width: 960px; margin: 0 auto; }
   body.immersive-workbench .plugin-stage-workspace .artifact-detail { max-width: none; margin: 0; }
-  body.immersive-workbench .immersive-artifact-surface .artifact-detail > header { flex: none; gap: 12px; margin: 0; padding: 12px 20px; border-bottom: 1px solid var(--line); max-height: 35%; overflow: auto; }
+  body.immersive-workbench .immersive-artifact-surface .artifact-detail > header:not(.plugin-stage-detail-bar) { flex: none; gap: 12px; margin: 0; padding: 12px 20px; border-bottom: 1px solid var(--line); max-height: 35%; overflow: auto; }
   body.immersive-workbench .immersive-artifact-surface .artifact-detail h1 { font-size: 20px; line-height: 1.35; }
   body.immersive-workbench .immersive-artifact-surface .artifact-detail header > span { flex: none; color: var(--muted); }
   body.immersive-workbench .immersive-artifact-surface .artifact-detail-content { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 16px 20px 20px; }
@@ -33,7 +33,7 @@ export const DETAIL_READING_STYLES = `
     body.immersive-workbench .inbox-reference-footer { padding: 4px 16px 10px; }
     body.immersive-workbench .inbox-reference-footer .feed-detail-actions { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr) auto; }
     body.immersive-workbench .inbox-reference-footer .feed-detail-actions > :is(button,a) { min-height: 44px; padding-inline: 8px; }
-    body.immersive-workbench .immersive-artifact-surface .artifact-detail > header { padding: 12px 16px; }
+    body.immersive-workbench .immersive-artifact-surface .artifact-detail > header:not(.plugin-stage-detail-bar) { padding: 12px 16px; }
     body.immersive-workbench .immersive-artifact-surface .artifact-detail h1 { font-size: 20px; }
     body.immersive-workbench .immersive-artifact-surface .artifact-detail-content { padding: 16px; }
     body.immersive-workbench .immersive-artifact-surface .artifact-actions { padding: 10px 16px; }

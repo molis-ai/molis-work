@@ -5,7 +5,6 @@ import { type MolisWorkProjectCatalog, type MolisWorkProjectCatalogOptions, Moli
 import { sendLocalWebJson as sendJson, readLocalWebBody as readBody } from "./web-http.js";
 import { settingsProject, installationDiagnostics } from "./web-project-presentation.js";
 import { L } from "./web-locale.js";
-import { BUILTIN_PROJECT_PLUGIN_IDS, type BuiltinProjectPluginId } from "@molis-ai/molis-work-contracts/modules/projects";
 
 export type LocalWebCatalogRunner = <T>(options: MolisWorkProjectCatalogOptions, operation: (catalog: MolisWorkProjectCatalog) => T | Promise<T>) => Promise<T>;
 
@@ -30,14 +29,17 @@ export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: Loca
     const pluginMatch = url.pathname.match(/^\/api\/settings\/projects\/([^/]+)\/plugins$/);
     if (request.method === "POST" && pluginMatch) {
       const body = await readBody(request);
-      if (typeof body.plugin_id !== "string" || !BUILTIN_PROJECT_PLUGIN_IDS.includes(body.plugin_id as BuiltinProjectPluginId)) {
+      // Which Plugins exist is a Module fact; HTTP only checks the wire shape and
+      // lets the registry reject an unknown id with its own reason.
+      const pluginId = typeof body.plugin_id === "string" ? body.plugin_id.trim() : "";
+      if (pluginId === "") {
         sendJson(response, 400, { error: L("找不到这个内置插件") });
         return true;
       }
       try {
         const projectId = decodeURIComponent(pluginMatch[1]);
         const plugins = await withMolisWorkProjectCatalog({ homeDirectory }, catalog => catalog.addProjectPlugin({
-          project_id: projectId, plugin_id: body.plugin_id as BuiltinProjectPluginId, actor_id: "web-user",
+          project_id: projectId, plugin_id: pluginId, actor_id: "web-user",
         }));
         sendJson(response, 200, { project_id: projectId, plugins });
       } catch (error) {

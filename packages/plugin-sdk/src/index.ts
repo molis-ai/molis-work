@@ -32,7 +32,8 @@ export class PluginDefinitionError extends Error {
     readonly code:
       | "plugin_manifest_invalid"
       | "plugin_entrypoint_missing"
-      | "plugin_permission_invalid",
+      | "plugin_permission_invalid"
+      | "plugin_declaration_invalid",
     message: string,
   ) {
     super(message);

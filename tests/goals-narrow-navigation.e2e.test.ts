@@ -194,7 +194,7 @@ test("narrow list, graph return and desktop side-by-side keep usable geometry", 
     const collapse = document.querySelector("[data-goal-collapse]");
     const box = collapse?.getBoundingClientRect();
     if (collapse && box && box.width && box.height) collapse.click();
-    else document.querySelector(".tab-item[data-tab-kind=mother] [role=tab]")?.click();
+    else document.querySelector('[data-plugin-strip] [data-plugin-id="goals"]')?.click();
     document.querySelector("[data-board-view-tab=canvas]")?.click();
   })()`);
   await waitGraph();
@@ -203,7 +203,7 @@ test("narrow list, graph return and desktop side-by-side keep usable geometry", 
   assert.equal(isShown(state.graph), true);
   assert.equal(isHiddenFromUse(state.tree), true);
   assert.equal(state.hit, "graph");
-  assert.equal(state.containerTab, "mother");
+  assert.equal(state.containerTab, "");
 
   await click("[data-directory-show]");
   await waitFor(`document.querySelector("[data-workspace]").classList.contains("is-directory-drawer-open") && document.querySelector(".plugin-rail").getBoundingClientRect().width > 40`);

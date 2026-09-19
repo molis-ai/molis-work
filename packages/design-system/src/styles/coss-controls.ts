@@ -282,13 +282,10 @@ export const COSS_CONTROL_STYLES = `
   :is(.form-disclosure, .feed-task-extra) summary { transition: color 120ms ease; }
   :is(.form-disclosure, .feed-task-extra) summary:hover { color: var(--ink); }
   body.immersive-workbench .tab-item[aria-current] { box-shadow: inset 0 1px 0 color-mix(in srgb,var(--ink) 6%,transparent); }
-  body.immersive-workbench .tab-pane[data-drop-preview]::after { animation: split-target-reveal 120ms ease-out; }
-  body.immersive-workbench .tab-sash:is(:hover,:active) { background: var(--blue); }
   @keyframes feedback-reveal { from { opacity: .35; } to { opacity: 1; } }
-  @keyframes split-target-reveal { from { opacity: .35; } to { opacity: 1; } }
   @media (prefers-reduced-motion: reduce) {
     :where(dialog), :where(dialog)::backdrop { transform: none; transition: none; animation: none; }
-    [popover]:popover-open, body.immersive-workbench .tab-pane[data-drop-preview]::after { animation: none; }
+    [popover]:popover-open { animation: none; }
   }
 
   .policy-form footer.form-actions, .project-preferences-page .settings-save-footer.form-actions, .feed-plan-actions { display: flex; flex-direction: row; align-items: center; justify-content: flex-end; gap: 8px; }

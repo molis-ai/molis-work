@@ -22,7 +22,7 @@ Goals 列表里，「当前」这类分类标题和下面的根 Goal caret 在�
 - 子 Goal 仍按 `part_of` 深度再缩 16px；状态 / 进度 / 前置列彼此对齐，不改列合同。
 - 空分类文案跟有 Goal 时的树起点一致。
 
-不做：不改画布、看板、Feed 分组、Goal 关系语义、用户库。
+不做：不改画布、看板、Goal 关系语义、用户库。Feed / Inbox 条目缩进见 `specs/plugin-stage-collection-indent/spec.md`。
 
 ## 使用场景
 

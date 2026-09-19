@@ -4,6 +4,7 @@ import { PROJECT_OPERATIONS_STYLES, PROJECT_OPERATIONS_CLIENT_SCRIPT } from "@mo
 import {
   COSS_CONTROL_STYLES,
   INTERACTION_TEXTURE_STYLES,
+  MICRO_INTERACTION_STYLES,
   ONBOARDING_STYLES,
   PRIMITIVE_STYLES,
   TYPEFACE_STYLES,
@@ -41,7 +42,7 @@ import { TAB_WORKSPACE_STYLES } from "./styles/tab-workspace.js";
 
 /** Coss/texture/primitive/typeface overlay. Appended after page CSS so mw-* wins. */
 const PAGE_CHROME_OVERLAY = `${COSS_CONTROL_STYLES}${SURFACE_LANGUAGE_STYLES}`;
-const PAGE_PRIMITIVE_TAIL = `${INTERACTION_TEXTURE_STYLES}${PRIMITIVE_STYLES}`;
+const PAGE_PRIMITIVE_TAIL = `${INTERACTION_TEXTURE_STYLES}${PRIMITIVE_STYLES}${MICRO_INTERACTION_STYLES}`;
 
 /** Shared workbench presentation. Kept outside project HTML so the browser can reuse it. */
 export function renderMolisWorkWorkbenchStylesheet(): string {

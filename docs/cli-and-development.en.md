@@ -120,6 +120,12 @@ specs/molis-work-architecture-reorganization/spec.md
 - Every migration slice updates its package README, `docs/system/MIGRATION.md`, and the affected Module/Service document.
 - See the [Huge Class responsibility map](system/HUGE-CLASS-MIGRATION.md) for ownership and removal gates.
 
+## Frontend and the control catalog
+
+When changing the workbench, plugin lists, forms, or shared controls, **prefer** opening `/__ui/catalog` and matching an existing specimen before inventing another look. This is not a gate: one-off pages, drafts, and unstable experiments can stay in product UI first.
+
+Once a shared control, state variant, or micro-interaction meets the product’s visual bar, **add it** to that board (Catalog specimens in `packages/design-system`) so later work can see and reuse it. Product-specific composition does not need a specimen. Usage and isolated preview: [design-system README](../packages/design-system/README.md). Platform split: [UI Platform](platform/UI-PLATFORM.md).
+
 ## Development verification
 
 ```bash

@@ -228,5 +228,5 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     void loadArtifacts(url.pathname);
     if (matchMedia("(max-width: 600px)").matches) setMobileView(url.pathname === base ? "tree" : "document");
   });
-  return { open: surface => { if (surface === "market") void loadMarket(); if (surface === "artifacts" && !artifactRequest) void loadArtifacts(); } };
+  return { open: surface => { if (surface === "market") void loadMarket(); if (surface === "artifacts" && !artifactRequest) void loadArtifacts(route("/artifacts")); } };
 }`;

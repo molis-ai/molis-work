@@ -59,7 +59,7 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
   await waitFor("document.body.dataset.desktopSurface === 'home'");
   await waitFor("Boolean(document.querySelector('[data-titlebar-tabs] .tab-item[data-tab-kind=home], [data-tab-workspace] .tab-item[data-tab-kind=home]'))");
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
-  await waitFor("document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true' && document.querySelector('.tab-item[data-tab-kind=mother][aria-current]')");
+  await waitFor("document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true' && document.body.dataset.desktopSurface === 'goal' && !document.querySelector('.tab-item[data-tab-kind=mother]')");
   await evaluate("document.querySelector('[data-board-view-tab=canvas]')?.click()");
   await waitFor("document.querySelector('[data-goal-canvas-shell]')?.dataset.boardView === 'canvas' && Boolean(document.querySelector('[data-graph-node][data-goal-id=CORE] [data-graph-frame]'))");
   assert.equal(await evaluate("document.querySelector('[data-directory-open=frame],[data-plugin-id=frame]')"), null);
@@ -70,8 +70,8 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
   assert.equal(await evaluate("document.querySelector('[data-goal-frame-surface]').hidden"), false);
   assert.equal(await evaluate("document.querySelector('[data-goal-node-workspace]').hidden"), true);
   assert.doesNotMatch(await evaluate<string>("document.querySelector('[data-goal-frame-surface]')?.textContent || ''"), /把会话、Feed|这些内容只为完成|从目录把会话/);
-  await evaluate("document.querySelector('[data-titlebar-tabs] .tab-item[data-tab-kind=mother] [role=tab]').click()");
-  await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item[data-tab-kind=mother][aria-current]') && !document.querySelector('[data-goal-canvas-shell]').hidden");
+  await click('[data-plugin-strip] [data-plugin-id="goals"]');
+  await waitFor("document.body.dataset.desktopSurface === 'goal' && !document.querySelector('[data-goal-canvas-shell]').hidden");
   await evaluate("document.querySelector('[data-graph-node][data-goal-id=\"CORE\"] [data-graph-frame]').click()");
   await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item[data-plugin=goals][data-item-id=CORE][aria-current]')");
   assert.equal(await evaluate("document.querySelectorAll('[data-titlebar-tabs] .tab-item[data-item-id=CORE]').length"), 1);
@@ -103,7 +103,7 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
   await waitFor("document.body.dataset.desktopSurface === 'feed' && !document.querySelector('[data-work-surface=feed]').hidden");
   assert.equal(await evaluate("document.querySelector('[data-goal-frame-surface]').hidden"), true);
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
-  await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('.tab-item[data-tab-kind=mother][aria-current]')");
+  await waitFor("document.body.dataset.desktopSurface === 'goal' && !document.querySelector('.tab-item[aria-current]')");
   await evaluate("document.querySelector('[data-titlebar-tabs] .tab-item[data-item-id=CORE]').click()");
   await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item[data-plugin=goals][data-item-id=CORE][aria-current]') && !document.querySelector('[data-goal-frame-surface]').hidden");
   assert.equal(await evaluate("document.querySelectorAll('[data-frame-block]').length"), 4);
@@ -154,7 +154,7 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + otherId + "/" }, sessionId));
   await waitFor("document.body.dataset.desktopSurface === 'home'");
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
-  await waitFor("document.querySelector('.tab-item[data-tab-kind=mother]')");
+  await waitFor("document.body.dataset.desktopSurface === 'goal' && !document.querySelector('.tab-item[data-tab-kind=mother]')");
   assert.equal(await evaluate("document.querySelector('[data-titlebar-tabs] .tab-item[data-item-id=CORE]')"), null);
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
   await waitFor("Boolean(document.querySelector('[data-titlebar-tabs] .tab-item, [data-tab-workspace] .tab-item'))");

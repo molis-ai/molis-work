@@ -128,7 +128,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     gap: 7px;
   }
   .tree-search input,
-  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(.mw-slider):not(.mw-input):not(.mw-textarea):not(.mw-select),
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(.mw-slider):not(.mw-input):not(.mw-textarea):not(.mw-select):not(.global-search-query),
   textarea:not(.mw-textarea),
   select:not(.mw-select) {
     border: 1px solid var(--line-strong);

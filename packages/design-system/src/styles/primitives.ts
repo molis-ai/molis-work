@@ -416,6 +416,16 @@ export const PRIMITIVE_STYLES = `
   }
   .mw-command__list [role="option"]:hover { background: var(--nav-hover); }
 
+  /** Creation and picking happen in a centred modal sized to its content, not an edge sheet. */
+  dialog.mw-dialog--form {
+    position: fixed; inset: auto; top: 50%; left: 50%; translate: -50% -50%; margin: 0;
+    width: min(560px, calc(100vw - 48px));
+    max-height: min(calc(100dvh - 96px), 720px);
+    overflow: hidden;
+  }
+  dialog.mw-dialog--form > .mw-form { height: auto; max-height: min(calc(100dvh - 96px), 720px); }
+  dialog.mw-dialog--form .mw-form__body { overflow: auto; overscroll-behavior: contain; }
+
   dialog.mw-sheet {
     position: fixed; inset: var(--tab-strip-h, 32px) 0 0 auto; margin: 0;
     width: min(560px, 100vw); max-width: 100vw;
@@ -963,6 +973,7 @@ export const PRIMITIVE_STYLES = `
     position: relative; min-width: 0;
     display: grid; grid-template-columns: minmax(0, 1fr);
     align-items: stretch; border-radius: var(--radius-item, 8px);
+    transition: background-color 180ms var(--ease-out, cubic-bezier(.16, 1, .3, 1));
   }
   body[data-desktop-shell="true"] .mw-dir-row,
   body.immersive-workbench .tree-pane .mw-dir-row,
@@ -988,8 +999,8 @@ export const PRIMITIVE_STYLES = `
     appearance: none;
     -webkit-appearance: none;
     transition:
-      background-color var(--motion-instant, 90ms) var(--ease-standard, ease),
-      color var(--motion-instant, 90ms) var(--ease-standard, ease);
+      background-color 180ms var(--ease-out, cubic-bezier(.16, 1, .3, 1)),
+      color 180ms var(--ease-out, cubic-bezier(.16, 1, .3, 1));
   }
   body[data-desktop-shell="true"] .mw-dir-row:has(.mw-dir-row__icon),
   body.immersive-workbench .tree-pane .mw-dir-row:has(.mw-dir-row__icon),
@@ -1051,7 +1062,17 @@ export const PRIMITIVE_STYLES = `
     min-width: 0; overflow: hidden;
     color: inherit; font-size: 13px; font-weight: 400; line-height: 18px;
     text-overflow: ellipsis; white-space: nowrap;
+    mask-image: linear-gradient(to right, #000 0%, #000 calc(100% - 12px), transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, #000 0%, #000 calc(100% - 12px), transparent 100%);
   }
+  .mw-dir-row__copy strong:has(.mw-dir-row__stem) {
+    display: flex; text-overflow: clip;
+    mask-image: none; -webkit-mask-image: none;
+  }
+  .mw-dir-row__stem {
+    min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .mw-dir-row__ext { flex: none; }
   .mw-dir-row--meta .mw-dir-row__copy small {
     min-width: 0; max-width: 100%; overflow: hidden;
     color: var(--faint); font-size: 12px; font-weight: 400; line-height: 14px;
@@ -1090,11 +1111,35 @@ export const PRIMITIVE_STYLES = `
   }
   .mw-dir-row-wrap:has(.is-selected) .mw-dir-row::before,
   .mw-dir-row-wrap:has([aria-current="page"]) .mw-dir-row::before { content: none; }
-  .mw-dir-row-wrap:has(> :not(.mw-dir-row)) { grid-template-columns: minmax(0, 1fr) 28px; }
+  .mw-dir-row-wrap:has(> :not(.mw-dir-row)):not(.is-yield) { grid-template-columns: minmax(0, 1fr) 28px; }
   .mw-dir-row-wrap .mw-dir-row { width: 100%; min-width: 0; }
   .mw-dir-row-wrap > :not(.mw-dir-row) {
     position: static; transform: none; align-self: center; justify-self: center;
     display: grid; place-items: center;
+  }
+  .mw-dir-row-wrap.is-yield .mw-dir-row {
+    transition:
+      background-color 180ms var(--ease-out, cubic-bezier(.16, 1, .3, 1)),
+      color 180ms var(--ease-out, cubic-bezier(.16, 1, .3, 1)),
+      padding-right 180ms var(--ease-out, cubic-bezier(.16, 1, .3, 1));
+  }
+  .mw-dir-row-wrap.is-yield:is(:hover, :has(.is-selected), :has([aria-current="page"])) .mw-dir-row {
+    padding-right: var(--dir-yield, 72px);
+  }
+  .mw-dir-row-wrap.is-yield .mw-dir-row__ops {
+    position: absolute; right: 2px; top: 0; bottom: 0;
+    display: flex; align-items: center; gap: 0;
+    opacity: 0; pointer-events: none;
+    background: var(--nav-hover);
+    transition: opacity 180ms var(--ease-out, cubic-bezier(.16, 1, .3, 1));
+  }
+  .mw-dir-row-wrap.is-yield:has(.is-selected) .mw-dir-row__ops,
+  .mw-dir-row-wrap.is-yield:has([aria-current="page"]) .mw-dir-row__ops { background: var(--nav-active); }
+  .mw-dir-row-wrap.is-yield:is(:hover, :has(.is-selected), :has([aria-current="page"])) .mw-dir-row__ops {
+    opacity: 1; pointer-events: auto;
+  }
+  .mw-dir-row-wrap.is-yield .mw-dir-row__ops .mw-btn {
+    width: 22px; min-width: 22px; min-height: 22px;
   }
   .mw-dir-row-wrap > :not(.mw-dir-row).mw-btn,
   .mw-dir-row-wrap > :not(.mw-dir-row) .mw-btn {
@@ -1124,6 +1169,7 @@ export const PRIMITIVE_STYLES = `
     background: var(--nav-bg, var(--rail)); border: 1px solid var(--hairline, var(--line));
     border-radius: var(--radius-surface, 12px);
   }
+  .mw-catalog-dir-stage.is-yield { width: 213px; }
   .mw-catalog-dir {
     min-height: 280px; padding: 8px;
     border: 0; background: transparent;
@@ -1138,6 +1184,8 @@ export const PRIMITIVE_STYLES = `
     .mw-form__footer .mw-btn:not(.mw-btn--icon-only), .mw-btn--lg { min-height: 44px; }
     .mw-input, .mw-textarea, .mw-select { font-size: 16px; }
     dialog.mw-sheet { inset: 0; width: 100vw; height: 100dvh; max-height: 100dvh; }
+    dialog.mw-dialog--form { width: calc(100vw - 24px); max-height: calc(100dvh - 32px); }
+    dialog.mw-dialog--form > .mw-form { max-height: calc(100dvh - 32px); }
     .mw-catalog { padding: 24px 16px 80px; gap: 40px; }
     .mw-catalog-top { padding: 12px 16px; }
     .mw-catalog-shell { grid-template-columns: 1fr; height: auto; min-height: 0; }
@@ -1154,5 +1202,6 @@ export const PRIMITIVE_STYLES = `
   }
   @media (prefers-reduced-motion: reduce) {
     .mw-spinner, .mw-switch__track, .mw-switch__track::after { animation: none; transition: none; }
+    .mw-dir-row, .mw-dir-row-wrap, .mw-dir-row-wrap.is-yield .mw-dir-row, .mw-dir-row-wrap.is-yield .mw-dir-row__ops { transition: none; }
   }
 `;

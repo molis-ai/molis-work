@@ -25,6 +25,8 @@ export {
   COSS_CONTROL_STYLES,
   PRIMITIVE_STYLES,
   INTERACTION_TEXTURE_STYLES,
+  MICRO_INTERACTION_CLIENT_SCRIPT,
+  MICRO_INTERACTION_STYLES,
   type MolisWorkDensity,
   type MolisWorkTerminalTheme,
   type MolisWorkTheme,

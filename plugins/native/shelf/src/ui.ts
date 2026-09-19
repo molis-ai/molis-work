@@ -9,6 +9,7 @@ import type {
   ShelfItemRecord,
   ShelfRecipeAvailability,
 } from "@molis-ai/molis-work-contracts/modules/shelf";
+import { icon } from "@molis-ai/molis-work-design-system";
 import { SHELF_GLYPH, glyphForKind, toneForKind } from "./glyphs.js";
 
 export const SHELF_UI_CONTRIBUTION_ID = "io.molis.work.native.shelf.ui.v1";
@@ -57,32 +58,34 @@ export const shelfUiContribution: UiContribution<ShelfUiModel> = {
   },
 };
 
-export function renderShelfDirectory(model: ShelfUiModel): string {
-  const { primitives: p } = model;
-  return `<section class="desktop-directory-panel" data-slot="directory" data-directory-panel="shelf" data-shelf="directory">
-    <label class="shelf-search">${SHELF_GLYPH.search}<input type="search" data-shelf-search placeholder="${p.text("搜索材料")}" aria-label="${p.text("搜索材料")}" autocomplete="off"></label>
-    <input data-shelf-file hidden type="file" multiple>
-    <ul class="shelf-find" data-shelf-find hidden></ul>
-    ${renderDropOverlay(p)}
-    <div class="shelf-side-scroll">
-      ${fold(p.text("材料"), "ochre", model.materials.length, "materials")}
-      <ul class="shelf-tree" data-shelf-list="materials">${model.materials.map((item) => renderRow(item, item.item_id === model.selected_id, p)).join("") || emptyLine(p.text("还没有材料"))}</ul>
-      <div data-shelf-results ${model.results.length ? "" : "hidden"}>
-        ${fold(p.text("生成结果"), "slate", model.results.length, "results", true)}
-        <ul class="shelf-tree" data-shelf-list="results">${model.results.map((item) => renderRow(item, item.item_id === model.selected_id, p)).join("")}</ul>
-      </div>
-      ${fold(p.text("剪贴板历史"), "ochre", model.clipboard.length, "clipboard", true)}
-      <p class="shelf-clip-hint" data-shelf-clip-hint ${model.clipboard.length ? "" : "hidden"}>${p.text("单击选择，双击复制为当前。⌘V 仍直接上架当前剪贴板。")}</p>
-      <ul class="shelf-tree" data-shelf-list="clipboard">${model.clipboard.map((clip) => renderClip(clip, clip.clip_id === model.current_clip_id, clip.clip_id === model.selected_id, p)).join("") || emptyLine(p.text("剪贴板是空的"))}</ul>
-      <button class="shelf-clip-more" type="button" data-shelf-clip-more hidden>${p.text("显示全部")}</button>
-    </div>
-  </section>`;
+export function renderShelfDirectory(_model: ShelfUiModel): string {
+  return "";
 }
 
 export function renderShelfWorkbench(model: ShelfUiModel): string {
   const { primitives: p } = model;
-  return `<section class="desktop-work-surface" data-work-surface="shelf" data-work-surface-label="Shelf" hidden data-shelf="workbench">
-    <div class="shelf-stage" data-shelf-stage>
+  return `<section class="desktop-work-surface plugin-stage-shell" data-work-surface="shelf" data-work-surface-label="Shelf" hidden data-shelf="workbench" data-shelf-stage-shell data-expanded="false">
+    <header class="plugin-stage-chrome shelf-stage-chrome">
+      <label class="shelf-search shelf-stage-search">${SHELF_GLYPH.search}<input type="search" data-shelf-search placeholder="${p.text("搜索材料")}" aria-label="${p.text("搜索材料")}" autocomplete="off"></label>
+      <span class="shelf-side-op" role="button" tabindex="0" data-shelf-pick aria-label="${p.text("添加材料")}" title="${p.text("添加材料")}">${SHELF_GLYPH.plus}</span>
+      <span class="shelf-side-op" role="button" tabindex="0" data-shelf-side-more aria-label="${p.text("更多")}" title="${p.text("更多")}" aria-haspopup="menu">${SHELF_GLYPH.more}</span>
+      <div class="shelf-side-menu" data-shelf-side-menu role="menu" hidden>
+        <span class="shelf-more-item" role="menuitem" tabindex="0" data-shelf-paste-clip>${p.text("粘贴当前剪贴板")}</span>
+        <span class="shelf-more-item" role="menuitem" tabindex="0" data-shelf-multi aria-pressed="false">${p.text("多选材料")}</span>
+      </div>
+      <input data-shelf-file hidden type="file" multiple>
+      <ul class="shelf-find" data-shelf-find hidden></ul>
+    </header>
+    <div class="plugin-stage-list" data-shelf="directory">
+      ${stageFold(p.text("材料"), "materials", model.materials.length, `<ul class="shelf-tree" data-shelf-list="materials">${model.materials.map((item) => renderRow(item, item.item_id === model.selected_id, p)).join("") || emptyLine(p.text("还没有材料"))}</ul>`)}
+      ${stageFold(p.text("生成结果"), "results", model.results.length, `<ul class="shelf-tree" data-shelf-list="results">${model.results.map((item) => renderRow(item, item.item_id === model.selected_id, p)).join("") || emptyLine(p.text("还没有生成结果"))}</ul>`)}
+      ${stageFold(p.text("剪贴板历史"), "clipboard", model.clipboard.length, `<p class="shelf-clip-hint" data-shelf-clip-hint ${model.clipboard.length ? "" : "hidden"}>${p.text("单击选择，双击复制为当前。⌘V 仍直接上架当前剪贴板。")}</p><ul class="shelf-tree" data-shelf-list="clipboard">${model.clipboard.map((clip) => renderClip(clip, clip.clip_id === model.current_clip_id, clip.clip_id === model.selected_id, p)).join("") || emptyLine(p.text("剪贴板是空的"))}</ul><button class="shelf-clip-more" type="button" data-shelf-clip-more hidden>${p.text("显示全部")}</button>`)}
+      ${renderDropOverlay(p)}
+      <footer class="shelf-side-foot"><span data-shelf-foot-left>${p.text("副本工作区")}</span><span>${p.text("⌘V 粘贴当前")}</span></footer>
+    </div>
+    <div class="plugin-stage-workspace" data-shelf-stage-workspace hidden>
+      <header class="plugin-stage-detail-bar"><button class="plugin-stage-back" type="button" data-shelf-collapse aria-label="${p.text("返回材料列表")}" title="${p.text("返回材料列表")}">${icon("chevron-right")}</button></header>
+      <div class="shelf-stage" data-shelf-stage>
       <div class="shelf-tools">
         <span class="shelf-paper" role="button" tabindex="0" data-shelf-compare aria-pressed="false">${SHELF_GLYPH.compare}${p.text("对照原文")}</span>
         <span style="flex:1"></span>
@@ -130,7 +133,9 @@ export function renderShelfWorkbench(model: ShelfUiModel): string {
         <div class="shelf-bar" data-shelf-bar></div>
       </div>
       ${renderDropOverlay(p)}
+      </div>
     </div>
+    ${renderDropOverlay(p)}
   </section>`;
 }
 
@@ -138,21 +143,51 @@ function renderDropOverlay(p: ShelfUiPrimitives): string {
   return `<div class="shelf-drop" data-shelf-drop aria-hidden="true"><div class="shelf-drop-veil"></div><div class="shelf-drop-frame"></div><div class="shelf-drop-card">${SHELF_GLYPH.tray}<b>${p.text("加入材料")}</b><p>${p.text("发给终端请拖到轮盘")}</p></div></div>`;
 }
 
-function fold(label: string, tone: string, count: number, id: string, gap = false): string {
-  return `<button class="shelf-fold${gap ? " shelf-fold-gap" : ""}" type="button" data-shelf-fold="${id}">${SHELF_GLYPH.chevron}<span class="tone-${tone}">${label}</span><span class="shelf-count" data-shelf-count="${id}">${count}</span></button>`;
+/** DropAgent colours the group's type mark and keeps the label neutral. */
+function stageFold(label: string, id: "materials" | "results" | "clipboard", count: number, body: string): string {
+  const mark = id === "clipboard"
+    ? { glyph: SHELF_GLYPH.clipboard, tone: "ochre" }
+    : id === "results"
+      ? { glyph: SHELF_GLYPH.markdown, tone: "slate" }
+      : { glyph: SHELF_GLYPH.folder, tone: "ochre" };
+  return `<details class="goal-collection-fold shelf-group" data-shelf-stage-group="${id}" open>
+    <summary>
+      <span class="goal-collection-caret" aria-hidden="true">${icon("chevron-down")}</span>
+      <span class="goal-collection-mark shelf-group-mark tone-${mark.tone}" aria-hidden="true">${mark.glyph}</span>
+      <strong>${label}</strong>
+      <small data-shelf-count="${id}">${count}</small>
+    </summary>
+    ${body}
+  </details>`;
 }
 
 function emptyLine(text: string): string {
   return `<li class="shelf-empty-line" data-shelf-empty>${text}</li>`;
 }
 
+/** DropAgent stamps results H:mm and marks a failed row, both hidden while the row actions show. */
+function clockLabel(stamp: string): string {
+  const when = new Date(stamp);
+  if (Number.isNaN(when.getTime())) return "";
+  return `${when.getHours()}:${String(when.getMinutes()).padStart(2, "0")}`;
+}
+
+/** Keep a file extension visible while the stem yields. URLs stay one run of text. */
+function renderShelfName(name: string, escape: (value: unknown) => string): string {
+  const match = name.includes("://") ? null : name.match(/^(.+?)(\.[A-Za-z0-9]{1,8})$/);
+  if (!match || match[1].length < 2) return `<span class="shelf-name">${escape(name)}</span>`;
+  return `<span class="shelf-name"><span class="shelf-name__stem">${escape(match[1])}</span><span class="shelf-name__ext">${escape(match[2])}</span></span>`;
+}
+
 function renderRow(item: ShelfItemRecord, selected: boolean, p: ShelfUiPrimitives): string {
   const tone = toneForKind(item.kind, item.group);
-  const cap = capFor(item.kind);
-  return `<li class="shelf-row${selected ? " is-on" : ""}" data-shelf-item="${p.escape(item.item_id)}" data-shelf-kind="${item.kind}" data-shelf-group="${item.group}" data-shelf-name="${p.escape(item.name)}" role="option" aria-selected="${selected ? "true" : "false"}" draggable="true">
+  const failed = item.status === "failed";
+  const when = item.group === "result" && !failed ? clockLabel(item.created_at) : "";
+  return `<li class="shelf-row${selected ? " is-on" : ""}${failed ? " is-failed" : ""}" data-shelf-item="${p.escape(item.item_id)}" data-shelf-kind="${item.kind}" data-shelf-group="${item.group}" data-shelf-name="${p.escape(item.name)}" role="option" aria-label="${p.escape(item.name)}" aria-selected="${selected ? "true" : "false"}" draggable="${failed && !item.relative_path ? "false" : "true"}">
     <span class="shelf-glyph tone-${tone}">${glyphForKind(item.kind)}</span>
-    <span class="shelf-name">${p.escape(item.name)}</span>
-    <span class="shelf-cap">${cap}</span>
+    ${renderShelfName(item.name, p.escape)}
+    ${when ? `<span class="shelf-when">${when}</span>` : ""}
+    ${failed ? `<span class="shelf-status" title="${p.text("失败")}" aria-label="${p.text("失败")}">${SHELF_GLYPH.alert}</span>` : ""}
     <span class="shelf-ops">
       <span class="shelf-op" role="button" tabindex="0" data-shelf-row-action="copy" aria-label="${p.text("复制")}">${SHELF_GLYPH.copy}</span>
       <span class="shelf-op" role="button" tabindex="0" data-shelf-row-action="hide" aria-label="${p.text("隐藏（列表拿掉，副本还在）")}" title="${p.text("隐藏（列表拿掉，副本还在）")}">${SHELF_GLYPH.hide}</span>
@@ -164,9 +199,9 @@ function renderRow(item: ShelfItemRecord, selected: boolean, p: ShelfUiPrimitive
 function renderClip(clip: ShelfClipboardRecord, current: boolean, selected: boolean, p: ShelfUiPrimitives): string {
   const kind: ShelfItemKind = clip.kind === "url" ? "url" : "text";
   const tone = toneForKind(kind, "clipboard");
-  return `<li class="shelf-row${selected ? " is-on" : ""}" data-shelf-clip="${p.escape(clip.clip_id)}" data-shelf-kind="${kind}" data-shelf-group="clipboard" data-shelf-name="${p.escape(clip.title)}" role="option" aria-selected="${selected ? "true" : "false"}">
+  return `<li class="shelf-row${selected ? " is-on" : ""}" data-shelf-clip="${p.escape(clip.clip_id)}" data-shelf-kind="${kind}" data-shelf-group="clipboard" data-shelf-name="${p.escape(clip.title)}" role="option" aria-label="${p.escape(clip.title)}" aria-selected="${selected ? "true" : "false"}">
     <span class="shelf-glyph tone-${tone}">${glyphForKind(kind)}</span>
-    <span class="shelf-name">${p.escape(clip.title)}</span>
+    ${renderShelfName(clip.title, p.escape)}
     ${current ? `<span class="shelf-now" data-shelf-current>${p.text("当前")}</span>` : ""}
     <span class="shelf-ops">
       <span class="shelf-op" role="button" tabindex="0" data-shelf-row-action="copy" aria-label="${p.text("复制")}">${SHELF_GLYPH.copy}</span>
@@ -176,12 +211,3 @@ function renderClip(clip: ShelfClipboardRecord, current: boolean, selected: bool
   </li>`;
 }
 
-function capFor(kind: string): string {
-  if (kind === "folder") return "DIR";
-  if (kind === "pdf") return "PDF";
-  if (kind === "markdown") return "MD";
-  if (kind === "image") return "IMG";
-  if (kind === "website") return "WEB";
-  if (kind === "url") return "URL";
-  return "FILE";
-}

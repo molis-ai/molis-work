@@ -20,20 +20,47 @@ test("Shelf opens in the workbench, extracts the sample PDF, and keeps DropAgent
   await waitFor("document.documentElement.dataset.resolvedTheme === 'light'");
   await waitFor("document.querySelector('[data-plugin-strip] [data-plugin-id=shelf]')");
   await click('[data-plugin-strip] [data-plugin-id="shelf"]');
-  await waitFor("document.body.dataset.desktopSurface === 'shelf' && document.querySelector('[data-plugin-section=shelf]') && !document.querySelector('[data-plugin-section=shelf]').hidden", 8_000);
-  assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-plugin-section=shelf] > .immersive-plugin-link')).display"), "none");
-  assert.equal(await evaluate("getComputedStyle(document.querySelector('.tree-pane')).backgroundColor"), "rgb(245, 245, 244)");
+  await waitFor("document.body.dataset.desktopSurface === 'shelf' && document.querySelector('[data-shelf-stage-shell]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')", 8_000);
+  assert.equal(await evaluate("document.querySelector('[data-plugin-section=shelf]')"), null);
+  assert.equal(await evaluate("document.querySelector('[data-directory-panel=shelf]')"), null);
   await waitFor("[...document.querySelectorAll('[data-shelf-list=materials] [data-shelf-item]')].some(row => row.dataset.shelfName === '试用示例.pdf')", 8_000);
   await click('[data-shelf-list="materials"] [data-shelf-item][data-shelf-name="试用示例.pdf"]');
-  await waitFor("document.querySelector('[data-shelf-act=extract]') && document.querySelector('[data-shelf-act=extract]').getAttribute('aria-disabled') !== 'true'");
+  await waitFor("document.querySelector('[data-shelf-stage-shell]')?.dataset.expanded === 'true' && document.querySelector('[data-shelf-act=extract]') && document.querySelector('[data-shelf-act=extract]').getAttribute('aria-disabled') !== 'true'");
   assert.equal(await evaluate("document.querySelector('[data-shelf-item][data-shelf-name=\"试用示例.pdf\"]')?.classList.contains('is-on')"), true);
+  // DropAgent's row is a tinted kind glyph and the name; the kind itself rides in the preview header.
+  const row = await evaluate<{
+    glyphColor: string; glyphWidth: number; gap: number; caps: number; name: string; tag: string;
+  }>(`(() => {
+    const row = document.querySelector('[data-shelf-list=materials] [data-shelf-item][data-shelf-name="试用示例.pdf"]');
+    const glyph = row?.querySelector(".shelf-glyph");
+    const name = row?.querySelector(".shelf-name");
+    if (!row || !glyph || !name) return { glyphColor: "", glyphWidth: -1, gap: -1, caps: -1, name: "", tag: "" };
+    const glyphBox = glyph.getBoundingClientRect();
+    const nameBox = name.getBoundingClientRect();
+    return {
+      glyphColor: getComputedStyle(glyph).color,
+      glyphWidth: Math.round(glyphBox.width),
+      gap: Math.round(nameBox.left - glyphBox.right),
+      caps: document.querySelectorAll("[data-shelf=directory] .shelf-cap").length,
+      name: name.textContent.trim(),
+      tag: document.querySelector("[data-shelf-chrome-tag]")?.textContent.trim() || "",
+    };
+  })()`);
+  assert.equal(row.name, "试用示例.pdf");
+  assert.equal(row.caps, 0, JSON.stringify(row));
+  assert.equal(row.glyphColor, "rgb(178, 116, 96)");
+  assert.equal(row.glyphWidth, 16, JSON.stringify(row));
+  assert.ok(row.gap >= 6 && row.gap <= 10, JSON.stringify(row));
+  assert.match(row.tag, /PDF/);
   assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--content-side').trim()"), "#F5F5F4");
   assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--hue-slate').trim()"), "#66709e");
   assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--mark-clay').trim()"), "#B27460");
   assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--da-accent').trim()"), "#66709e");
   assert.equal(await evaluate("document.querySelector('[data-shelf-act=summarize]')?.getAttribute('aria-disabled')"), "true");
   assert.equal(await evaluate("document.querySelector('[data-shelf-act=summarize]')?.getAttribute('title')"), "未发现终端 Agent。");
-  assert.equal(await evaluate("document.querySelector('[data-shelf-act=combine]')"), null);
+  // 整合 stays on the bar and greys out until a second material joins.
+  assert.equal(await evaluate("document.querySelector('[data-shelf-act=combine]')?.getAttribute('aria-disabled')"), "true");
+  assert.equal(await evaluate("document.querySelector('[data-shelf-act=combine]')?.getAttribute('title')"), "「整合」至少要两份材料");
   assert.equal(await evaluate("Boolean(document.querySelector('[data-shelf-act-rule]'))"), true);
   assert.equal(await evaluate("document.querySelector('[data-shelf-bar-hint]')?.hidden"), false);
   await click("[data-shelf-more]");
@@ -161,7 +188,6 @@ test("Shelf opens in the workbench, extracts the sample PDF, and keeps DropAgent
     for (const node of document.querySelectorAll("[data-shelf=workbench], [data-shelf-stage], [data-shelf=directory]")) node.classList.remove("is-drop");
     document.querySelectorAll("[data-shelf-drop]").forEach((node) => node.setAttribute("aria-hidden", "true"));
   })()`);
-  assert.equal(await evaluate("getComputedStyle(document.querySelector('.tree-pane')).backgroundColor"), "rgb(17, 17, 18)");
   assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-shelf=workbench]')).getPropertyValue('--content-paper').trim()"), "#19191B");
   assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-shelf-search]')).backgroundColor === 'rgb(255, 255, 255)'"), false);
   const dark = await command<{ data: string }>("Page.captureScreenshot", { format: "png", captureBeyondViewport: false }, sessionId);

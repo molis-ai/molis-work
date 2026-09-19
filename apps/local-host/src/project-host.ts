@@ -3,12 +3,17 @@ import { LocalHost } from "./local-host.js";
 import { GoalProjectApplication } from "./goal-project-application.js";
 import { LocalProjectDatabase } from "./project-database.js";
 import { registerProjectCapabilities } from "./project-capabilities.js";
-import type { LocalHostProjectClient, LocalHostProjectReference, LocalHostStatus } from "@molis-ai/molis-work-contracts/platform/app-host";
+import type { HostCapabilityDefinition, LocalHostProjectClient, LocalHostProjectReference, LocalHostStatus } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PlanningMethodPack } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 
 export interface MolisWorkProjectRuntime {
   store: LocalProjectDatabase;
   coordinator: GoalProjectApplication;
+  /** Which project this runtime serves. Capabilities scope their answers to it. */
+  project_id: string;
+  /** The board behind this project. Review queues and events are board scoped. */
+  board_id: string;
 }
 
 export interface MolisWorkLocalHostOptions {
@@ -17,6 +22,15 @@ export interface MolisWorkLocalHostOptions {
   instanceId?: string;
   onRuntimeOpen?: (reference: LocalHostProjectReference) => void;
   onRuntimeClose?: (reference: LocalHostProjectReference) => void;
+  /**
+   * Resolves the workspace a project is bound to. The catalog lives at the Home
+   * level, above a single project's database, so the composition supplies it.
+   *
+   * Left out, the workspace Capability is **not registered at all**: a Plugin
+   * then sees it as unavailable, which is true, instead of an answer of "no
+   * workspace", which would not be.
+   */
+  workspaceFor?: (projectId: string) => ProjectWorkspaceRef | null;
 }
 
 export function molisWorkHostProjectReference(input: {
@@ -54,6 +68,8 @@ export class MolisWorkLocalHost {
           return {
             store,
             coordinator,
+            project_id: reference.project_id,
+            board_id: reference.board_id,
           };
         },
         close: (runtime, reference) => {
@@ -62,7 +78,26 @@ export class MolisWorkLocalHost {
         },
       },
     });
-    registerProjectCapabilities(this.host);
+    registerProjectCapabilities(
+      this.host,
+      options.workspaceFor === undefined ? {} : { workspaceFor: options.workspaceFor },
+    );
+  }
+
+  /**
+   * Register one more Capability against this Host.
+   *
+   * The seam exists so a composition root can wire in services this package
+   * must not depend on — the Agent Host above all, which drags a vendored SDK
+   * behind it. Whoever owns that service registers it; `local-host` stays free
+   * of the dependency, and a service nobody wired is simply not registered,
+   * which is what a Plugin should then see.
+   */
+  registerCapability<Input, Output>(
+    definition: HostCapabilityDefinition<Input, Output>,
+    handler: (runtime: MolisWorkProjectRuntime, input: Input) => Output | Promise<Output>,
+  ): () => void {
+    return this.host.register(definition, handler);
   }
 
   client(reference: LocalHostProjectReference): LocalHostProjectClient {

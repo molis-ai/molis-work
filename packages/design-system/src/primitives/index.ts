@@ -74,6 +74,7 @@ export {
   renderDirectoryRow,
   renderDirectoryAdd,
   renderDirectoryHeading,
+  renderDirectoryTitle,
   type DirectoryPanelOptions,
   type DirectoryRow,
   type DirectoryRowDensity,

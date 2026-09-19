@@ -15,7 +15,7 @@ renderButton({ label: "保存", variant: "primary" });
 icon("copy"); // 页面已注入 sprite 时也可以 <svg><use href="#icon-copy"></use></svg>
 ```
 
-控件标本：开发预览打开 `/__ui/catalog`（不进用户导航）。变体、状态、浅深色以 Catalog 为准，不要在业务 CSS 里重画一套。
+控件标本：开发预览打开 `/__ui/catalog`（不进用户导航）。变体、状态、浅深色以 Catalog 为准，不要在业务 CSS 里重画一套。前端开发建议先看这块板，不强制。已经达到产品美学要求的共享控件、状态变体或微动效要补进 `src/primitives/catalog.ts`；草稿和产品专属编排不必塞进去。
 
 页面仍注入 `THEME_BOOTSTRAP_SCRIPT`、`VISUAL_FOUNDATION_STYLES`（含 `PRIMITIVE_STYLES`）、`TYPEFACE_STYLES` 和 `renderIconSprite()`。三张产品表在 [apps/workbench/src/page-assets.ts](../../apps/workbench/src/page-assets.ts) 再把 Coss / Primitive / Typeface 挂到页面 CSS 之后，让 `mw-*` 盖住中间插入的产品规则。对照装配入口 [apps/workbench/src/renderer.ts](../../apps/workbench/src/renderer.ts)。
 

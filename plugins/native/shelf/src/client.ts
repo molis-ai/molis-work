@@ -7,8 +7,9 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
   const stage = workbench.querySelector("[data-shelf-stage]");
   const preview = workbench.querySelector("[data-shelf-preview]");
   const bar = workbench.querySelector("[data-shelf-bar]");
-  const fileInput = directory.querySelector("[data-shelf-file]");
-  const search = directory.querySelector("[data-shelf-search]");
+  const stageWorkspace = workbench.querySelector("[data-shelf-stage-workspace]");
+  const fileInput = workbench.querySelector("[data-shelf-file]");
+  const search = workbench.querySelector("[data-shelf-search]");
   const CLIP_PREVIEW = 3;
   let snapshot = { materials: [], results: [], clipboard: [], recipes: [], current_clip_id: null, runtime: null };
   let selected = null;
@@ -54,7 +55,13 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     return payload;
   };
 
-  const cap = (kind) => kind === "pdf" ? "PDF" : kind === "markdown" ? "MD" : kind === "image" ? "IMG" : kind === "website" ? "WEB" : kind === "url" ? "URL" : kind === "folder" ? "DIR" : "FILE";
+  // The kind rides in the preview header the way DropAgent shows it, never as a chip on the row.
+  const cap = (kind) => kind === "pdf" ? "PDF" : kind === "markdown" ? "MD" : kind === "text" ? "TXT" : kind === "image" ? "IMG" : kind === "website" ? "WEB" : kind === "url" ? "URL" : kind === "folder" ? "DIR" : "FILE";
+  const clockLabel = (stamp) => {
+    const when = new Date(stamp || "");
+    if (Number.isNaN(when.getTime())) return "";
+    return when.getHours() + ":" + String(when.getMinutes()).padStart(2, "0");
+  };
   const tone = (kind, group) => group === "clipboard" ? (kind === "url" ? "blue" : "slate") : kind === "pdf" ? "clay" : kind === "image" ? "plum" : kind === "url" || kind === "website" ? "blue" : kind === "markdown" || kind === "text" ? "slate" : "ochre";
   const items = () => [...(snapshot.materials || []), ...(snapshot.results || [])];
   const stageBusy = () => stage.classList.contains("is-confirm") || stage.classList.contains("is-run") || stage.classList.contains("is-fail");
@@ -87,9 +94,25 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
   const actIdFor = (recipe) => recipe === "extract_text" ? "extract" : recipe;
   const recipeForAct = (actId) => recipeFor(actId === "extract" ? "extract_text" : actId);
   const batch = () => selectedClip ? [] : items().filter((item) => selection.has(item.item_id));
+  /** DropAgent's 多选材料: plain clicks extend the selection until the mode is turned off. */
+  let multiMode = false;
+  const setMultiMode = (on) => {
+    multiMode = on;
+    const entry = directory.querySelector("[data-shelf-multi]");
+    if (entry) {
+      entry.textContent = L(on ? "结束多选" : "多选材料");
+      entry.setAttribute("aria-pressed", String(on));
+    }
+  };
   const chosenOption = (recipe) => choices[recipe.recipe] || recipe.default_choice || null;
   const isLocalRecipe = (recipe) => Boolean(recipe) && recipe.requires_agent === false;
 
+  const isFailed = (item) => Boolean(item && item.status === "failed");
+  const expandShelfStage = (expanded) => {
+    workbench.dataset.expanded = expanded ? "true" : "false";
+    if (stageWorkspace) stageWorkspace.hidden = !expanded;
+  };
+  const syncShelfStage = () => expandShelfStage(Boolean(selected || selectedClip));
   const paintLists = () => {
     const query = (search?.value || "").trim().toLowerCase();
     const busyId = () => stageBusy() && selected && !selectedClip ? selected.item_id : "";
@@ -126,8 +149,6 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     fill("materials", snapshot.materials || []);
     fill("results", snapshot.results || []);
     fill("clipboard", shown, clips.length);
-    const resultsWrap = directory.querySelector("[data-shelf-results]");
-    if (resultsWrap) resultsWrap.hidden = (snapshot.results || []).length === 0;
     const more = directory.querySelector("[data-shelf-clip-more]");
     if (more) {
       more.hidden = clips.length <= CLIP_PREVIEW;
@@ -135,10 +156,19 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     }
     const hint = directory.querySelector("[data-shelf-clip-hint]");
     if (hint) hint.hidden = clips.length === 0;
+    const foot = directory.querySelector("[data-shelf-foot-left]");
+    if (foot) {
+      const picked = batch().length;
+      foot.textContent = picked > 1 ? L("已选 {count} 份材料", { count: picked }) : L("副本工作区");
+    }
   };
 
   const hasFile = (item) => Boolean(item && item.relative_path);
-  const isFailed = (item) => Boolean(item && item.status === "failed");
+  const yieldName = (name) => {
+    const match = String(name).includes("://") ? null : String(name).match(/^(.+?)(\\.[A-Za-z0-9]{1,8})$/);
+    if (!match || match[1].length < 2) return '<span class="shelf-name">' + escapeText(name) + "</span>";
+    return '<span class="shelf-name"><span class="shelf-name__stem">' + escapeText(match[1]) + '</span><span class="shelf-name__ext">' + escapeText(match[2]) + "</span></span>";
+  };
   const itemHtml = (item, on, locked) => {
     const lock = locked ? ' aria-disabled="true"' : "";
     const failed = isFailed(item);
@@ -146,26 +176,26 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     const copyOp = takeaway
       ? '<span class="shelf-op" role="button" tabindex="0" data-shelf-row-action="copy" aria-label="' + L("复制") + '">' + opSvg("copy") + "</span>"
       : "";
-    return '<li class="shelf-row' + (on ? " is-on" : "") + (failed ? " is-failed" : "") + '" data-shelf-item="' + escapeAttr(item.item_id) + '" data-shelf-kind="' + escapeAttr(item.kind) + '" data-shelf-group="' + escapeAttr(item.group) + '" data-shelf-name="' + escapeAttr(item.name) + '" role="option" aria-selected="' + String(on) + '" draggable="' + String(takeaway) + '">' +
-      '<span class="shelf-glyph tone-' + (failed ? "clay" : tone(item.kind, item.group)) + '">' + (failed ? opSvg("alert") : glyphSvg(item.kind)) + "</span>" +
-      '<span class="shelf-name">' + escapeText(item.name) + "</span>" +
-      '<span class="shelf-cap">' + (failed ? escapeText(L("失败")) : cap(item.kind)) + "</span>" +
+    return '<li class="shelf-row' + (on ? " is-on" : "") + (failed ? " is-failed" : "") + '" data-shelf-item="' + escapeAttr(item.item_id) + '" data-shelf-kind="' + escapeAttr(item.kind) + '" data-shelf-group="' + escapeAttr(item.group) + '" data-shelf-name="' + escapeAttr(item.name) + '" role="option" aria-label="' + escapeAttr(item.name) + '" aria-selected="' + String(on) + '" draggable="' + String(takeaway) + '">' +
+      '<span class="shelf-glyph tone-' + tone(item.kind, item.group) + '">' + glyphSvg(item.kind) + "</span>" +
+      yieldName(item.name) +
+      (item.group === "result" && !failed ? '<span class="shelf-when">' + escapeText(clockLabel(item.created_at)) + "</span>" : "") +
+      (failed ? '<span class="shelf-status" title="' + L("失败") + '" aria-label="' + L("失败") + '">' + opSvg("alert") + "</span>" : "") +
       '<span class="shelf-ops">' + copyOp + '<span class="shelf-op" role="button" tabindex="0" data-shelf-row-action="hide" aria-label="' + L("隐藏（列表拿掉，副本还在）") + '" title="' + L("隐藏（列表拿掉，副本还在）") + '"' + lock + '>' + opSvg("hide") + '</span><span class="shelf-op is-danger" role="button" tabindex="0" data-shelf-row-action="delete" aria-label="' + L("删除副本") + '" title="' + L("删除副本") + '"' + lock + '>' + opSvg("trash") + "</span></span></li>";
   };
   const childHtml = (folder, child) => {
     const on = selectedChild && selectedChild.item_id === folder.item_id && selectedChild.relative === child.relative;
-    return '<li class="shelf-row is-child' + (on ? " is-on" : "") + '" data-shelf-item="' + escapeAttr(folder.item_id) + '" data-shelf-child="' + escapeAttr(child.relative) + '" data-shelf-kind="' + escapeAttr(child.kind) + '" data-shelf-group="material" data-shelf-name="' + escapeAttr(child.name) + '" role="option" aria-selected="' + String(on) + '">' +
+    return '<li class="shelf-row is-child' + (on ? " is-on" : "") + '" data-shelf-item="' + escapeAttr(folder.item_id) + '" data-shelf-child="' + escapeAttr(child.relative) + '" data-shelf-kind="' + escapeAttr(child.kind) + '" data-shelf-group="material" data-shelf-name="' + escapeAttr(child.name) + '" role="option" aria-label="' + escapeAttr(child.name) + '" aria-selected="' + String(on) + '">' +
       '<span class="shelf-glyph tone-' + tone(child.kind, "material") + '">' + glyphSvg(child.kind) + "</span>" +
-      '<span class="shelf-name">' + escapeText(child.name) + "</span>" +
-      '<span class="shelf-cap">' + cap(child.kind) + "</span></li>";
+      yieldName(child.name) + "</li>";
   };
   const clipHtml = (clip) => {
     const kind = clip.kind === "url" ? "url" : "text";
     const on = clipSelection.has(clip.clip_id);
     const current = snapshot.current_clip_id === clip.clip_id;
-    return '<li class="shelf-row' + (on ? " is-on" : "") + '" data-shelf-clip="' + escapeAttr(clip.clip_id) + '" data-shelf-kind="' + kind + '" data-shelf-group="clipboard" data-shelf-name="' + escapeAttr(clip.title) + '" role="option" aria-selected="' + String(on) + '">' +
+    return '<li class="shelf-row' + (on ? " is-on" : "") + '" data-shelf-clip="' + escapeAttr(clip.clip_id) + '" data-shelf-kind="' + kind + '" data-shelf-group="clipboard" data-shelf-name="' + escapeAttr(clip.title) + '" role="option" aria-label="' + escapeAttr(clip.title) + '" aria-selected="' + String(on) + '">' +
       '<span class="shelf-glyph tone-' + tone(kind, "clipboard") + '">' + glyphSvg(kind) + "</span>" +
-      '<span class="shelf-name">' + escapeText(clip.title) + "</span>" +
+      yieldName(clip.title) +
       (current ? '<span class="shelf-now" data-shelf-current>' + escapeText(L("当前")) + "</span>" : "") +
       '<span class="shelf-ops"><span class="shelf-op" role="button" tabindex="0" data-shelf-row-action="copy" aria-label="' + L("复制") + '">' + opSvg("copy") + '</span><span class="shelf-op" role="button" tabindex="0" data-shelf-row-action="join" aria-label="' + L("加入材料") + '">' + opSvg("down") + '</span><span class="shelf-op is-danger" role="button" tabindex="0" data-shelf-row-action="delete" aria-label="' + L("删除记录") + '" title="' + L("删除记录") + '">' + opSvg("trash") + "</span></span></li>";
   };
@@ -399,8 +429,11 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
         const id = action ? slot : actIdFor(recipe.recipe);
         const accepts = action ? (action.kinds || []) : (recipe.accepts || []);
         const minimum = action ? 1 : (recipe.minimum_count || 1);
-        const fits = picked.length >= minimum && picked.every((item) => accepts.includes(item.kind));
+        // The kind decides whether an action belongs here at all; too few
+        // materials only greys it out, the way DropAgent shows 整合.
+        const fits = picked.length > 0 && picked.every((item) => accepts.includes(item.kind));
         if (!fits) continue;
+        const enough = picked.length >= minimum;
         if (hidden.has(slot)) {
           if (arranging) {
             recipes.push('<span class="shelf-act" role="button" tabindex="0" data-shelf-restore-act="' + escapeAttr(slot) + '">' + recipeSvg(id, action ? "ochre" : recipe.tone) + escapeText(L("加回动作栏")) + "</span>");
@@ -410,8 +443,10 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
         const imageOnly = !action && recipe.recipe === "extract_text" && picked.every((item) => item.kind === "image");
         const needsVision = imageOnly && runtime().image_text === false;
         const available = action ? ready : recipe.available !== false && !needsVision;
-        const enabled = available && !stageBusy();
-        const title = needsVision ? L("这台机器还没有本机文字识别") : action
+        const enabled = available && enough && !stageBusy();
+        const title = !enough
+          ? L("「{name}」至少要两份材料", { name: L(action ? action.name : recipe.short_title || recipe.label) })
+          : needsVision ? L("这台机器还没有本机文字识别") : action
           ? (ready ? L("在副本里跑，写出新的 Markdown") : L(runtime().runtime_key ? "{agent} 没有无界面执行入口，动作不能跑。" : "未发现终端 Agent。", { agent: runtime().title }))
           : recipe.available === false ? L(recipe.reason || "") : L(recipe.blurb || "");
         recipes.push(actChip(id, action ? action.name : L(recipe.short_title || recipe.label), enabled, title, action ? "ochre" : recipe.tone, slot));
@@ -575,8 +610,10 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
         compareSourceId = null;
       }
     }
+    if (multiMode && !items().length) setMultiMode(false);
     paintLists();
     paintPreview();
+    syncShelfStage();
   };
 
   const load = async (selectId) => {
@@ -642,6 +679,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     compare = false;
     paintLists();
     paintPreview();
+    syncShelfStage();
   };
   const selectItem = async (id, command) => {
     stickyHint = "";
@@ -652,7 +690,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     const item = items().find((entry) => entry.item_id === id);
     if (!item) return;
     selectedChild = null;
-    if (command && selected && selected.group === item.group) {
+    if ((command || multiMode) && selected && selected.group === item.group) {
       if (selection.has(id) && selection.size > 1) {
         selection.delete(id);
         if (selected.item_id === id) selected = items().find((entry) => selection.has(entry.item_id)) || null;
@@ -669,6 +707,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     compareSourceId = null;
     paintLists();
     paintPreview();
+    syncShelfStage();
   };
 
   const selectClip = (clipId, command) => {
@@ -687,15 +726,13 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
         selectedClip = (snapshot.clipboard || []).find((clip) => clipSelection.has(clip.clip_id)) || null;
       }
       if (!clipSelection.size) selectedClip = null;
-    } else if (selectedClip?.clip_id === clipId && clipSelection.size <= 1) {
-      selectedClip = null;
-      clipSelection = new Set();
     } else {
       selectedClip = (snapshot.clipboard || []).find((clip) => clip.clip_id === clipId) || null;
       clipSelection = selectedClip ? new Set([selectedClip.clip_id]) : new Set();
     }
     paintLists();
     paintPreview();
+    syncShelfStage();
   };
 
   const makeClipCurrent = async (clipId) => {
@@ -736,6 +773,40 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
 
   directory.addEventListener("click", async (event) => {
+    const sideMenu = directory.querySelector("[data-shelf-side-menu]");
+    if (sideMenu && !event.target.closest("[data-shelf-side-more], [data-shelf-side-menu]")) sideMenu.hidden = true;
+    if (event.target.closest("[data-shelf-side-more]")) {
+      event.preventDefault();
+      if (sideMenu) sideMenu.hidden = !sideMenu.hidden;
+      return;
+    }
+    if (event.target.closest("[data-shelf-pick]")) {
+      event.preventDefault();
+      if (sideMenu) sideMenu.hidden = true;
+      fileInput?.click();
+      return;
+    }
+    if (event.target.closest("[data-shelf-paste-clip]")) {
+      event.preventDefault();
+      if (sideMenu) sideMenu.hidden = true;
+      try { await shelveClipboard(); } catch {}
+      return;
+    }
+    if (event.target.closest("[data-shelf-multi]")) {
+      event.preventDefault();
+      if (sideMenu) sideMenu.hidden = true;
+      setMultiMode(!multiMode);
+      return;
+    }
+    if (event.target.closest("[data-shelf-sample]")) {
+      event.preventDefault();
+      if (sideMenu) sideMenu.hidden = true;
+      try {
+        const payload = await post("/api/shelf/sample");
+        applySnapshot(payload.snapshot, payload.item.item_id);
+      } catch {}
+      return;
+    }
     if (event.target.closest("[data-shelf-clip-more]")) {
       event.preventDefault();
       clipExpanded = !clipExpanded;
@@ -802,7 +873,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
       preview.innerHTML = docHtml("Shelf", L("无法读取置物架"), error.message);
     }
   });
-  const findList = directory.querySelector("[data-shelf-find]");
+  const findList = workbench.querySelector("[data-shelf-find]");
   let findTimer = 0;
   const paintFound = (rows) => {
     if (!findList) return;
@@ -831,20 +902,11 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
       await load();
     } catch {}
   });
-  directory.addEventListener("input", () => {
+  search?.addEventListener("input", () => {
     paintLists();
     if (findTimer) clearTimeout(findTimer);
     findTimer = setTimeout(findLocalFiles, 220);
   });
-  directory.querySelectorAll("[data-shelf-fold]").forEach((button) => button.addEventListener("click", () => {
-    button.classList.toggle("is-shut");
-    const list = directory.querySelector('[data-shelf-list="' + button.dataset.shelfFold + '"]');
-    if (list) list.hidden = button.classList.contains("is-shut");
-    if (button.dataset.shelfFold === "clipboard") {
-      const extra = directory.querySelectorAll("[data-shelf-clip-hint], [data-shelf-clip-more]");
-      extra.forEach((node) => { if (!node.hidden) node.style.display = list?.hidden ? "none" : ""; });
-    }
-  }));
 
   const activatePaper = (event) => {
     if (event.key !== "Enter" && event.key !== " ") return;
@@ -856,6 +918,21 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
   workbench.addEventListener("keydown", activatePaper);
   directory.addEventListener("keydown", activatePaper);
   workbench.addEventListener("click", async (event) => {
+    if (event.target.closest("[data-shelf-collapse]")) {
+      event.preventDefault();
+      selected = null;
+      selection = new Set();
+      selectedClip = null;
+      clipSelection = new Set();
+      selectedChild = null;
+      pending = null;
+      compare = false;
+      editing = false;
+      expandShelfStage(false);
+      paintLists();
+      paintPreview();
+      return;
+    }
     if (event.target.closest("[data-shelf-retry]") && selected) {
       const back = (selected.source_item_ids || []).filter((id) => items().some((item) => item.item_id === id));
       if (back.length) {
@@ -865,6 +942,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
         pending = null;
         paintLists();
         paintPreview();
+        syncShelfStage();
       }
       return;
     }
@@ -1191,7 +1269,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     // fields take the file itself. In a browser the row still drags inside Molis.
     const paths = takeaway.map(filePathOf).filter(Boolean);
     if (paths.length) {
-      const native = invokeNative("shelf_drag_out", { paths });
+      const native = invokeNative("shelf_drag_out", { paths, itemIds: takeaway.map((item) => item.item_id) });
       if (native) {
         event.preventDefault();
         native.catch(() => {});
@@ -1283,6 +1361,26 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
       return;
     }
     if (event.target.closest("input, textarea, [contenteditable=true]")) return;
+    // ↑↓ walk the group you are standing in; focus never jumps to another group.
+    if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+      const step = event.key === "ArrowUp" ? -1 : 1;
+      const query = (search?.value || "").trim().toLowerCase();
+      const visible = (entries) => entries.filter((entry) => !query
+        || String(entry.name || entry.title || "").toLowerCase().includes(query));
+      if (selectedClip) {
+        const clips = visible(snapshot.clipboard || []);
+        const index = clips.findIndex((clip) => clip.clip_id === selectedClip.clip_id);
+        const next = clips[Math.min(Math.max(index + step, 0), clips.length - 1)];
+        if (next) { event.preventDefault(); selectClip(next.clip_id); }
+        return;
+      }
+      const group = selected?.group === "result" ? (snapshot.results || []) : (snapshot.materials || []);
+      const rows = visible(group);
+      const index = rows.findIndex((item) => item.item_id === selected?.item_id);
+      const next = rows[index < 0 ? 0 : Math.min(Math.max(index + step, 0), rows.length - 1)];
+      if (next) { event.preventDefault(); await selectItem(next.item_id); }
+      return;
+    }
     if (matchesPanelKey(event, "copy")) {
       event.preventDefault();
       try { await copySelection(); } catch {}
@@ -1327,6 +1425,20 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     paintPreview();
   });
   window.addEventListener("molis-shelf-refresh", () => { load().catch(() => {}); });
+  // The wheel's 发给终端 lands here: the copies go to the terminal, never to a job.
+  window.addEventListener("molis-shelf-send-tui", async (event) => {
+    const ids = (event.detail && event.detail.item_ids) || [];
+    if (!ids.length) return;
+    try { await load(); } catch { return; }
+    const live = runtime();
+    if (live.runtime_key === "" || !live.executable) {
+      stickyHint = L("未发现终端 Agent。文件已留在架子上。");
+      paintPreview();
+      return;
+    }
+    const paths = items().filter((item) => ids.includes(item.item_id)).map(filePathOf).filter(Boolean);
+    if (paths.length) sendToTui(paths.join(" "));
+  });
   new MutationObserver(boot).observe(document.body, { attributes: true, attributeFilter: ["data-desktop-surface"] });
   boot();
 

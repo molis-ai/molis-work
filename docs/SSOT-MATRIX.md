@@ -17,7 +17,7 @@
 | 旧路径、迁移状态、兼容出口 | [`docs/system/MIGRATION.md`](system/MIGRATION.md) |
 | Huge Class 每块职责的唯一迁移 Goal | [`docs/system/HUGE-CLASS-MIGRATION.md`](system/HUGE-CLASS-MIGRATION.md) |
 | 16 个业务事实 owner | [`docs/modules/`](modules/README.md) |
-| 4 个横向运行服务 | [`docs/horizontal/`](horizontal/README.md) |
+| 5 个横向运行服务 | [`docs/horizontal/`](horizontal/README.md) |
 | Plugin、存储、交换、UI 等平台机制 | [`docs/platform/`](platform/README.md) |
 | 某次实现具体改什么、如何验收 | 对应 `specs/<task>/spec.md` 或已接受 Goal Contract |
 | 可执行类型、Schema 和兼容测试 | `packages/contracts` 的 public subpath；F3 自动门禁与 `packages/test-kit` 边界测试 |
@@ -98,6 +98,7 @@
 | `horizontal/listener-host` | cursor、lease、重试、Raw Event 到 Signal Draft 投递 | Listener 技术 lease/cursor/去重/接收回执；Host 管 timer 生命周期 | `partial` | FD1/FD3/Cutover |
 | `horizontal/scheduler` | Durable one-shot wakeup | 目标为通用 Durable one-shot wakeup；现有 Feed timer 不冒充该能力 | `absent` | 未来独立功能 Spec |
 | `horizontal/runtime-host` | Runtime 启动、恢复、中断、stream 与技术 Receipt | Runtime router、Codex app-server 与 PTY server host 已迁；浏览器 transport/reconnect 由 Work 消费 | `partial` | WK2 已迁 Host/Adapter；WK3 已迁产品编排 |
+| `horizontal/agent-host` | Agent Runtime 注册、能力矩阵、启动授权与副作用 Review 队列 | 宿主侧与两个 adapter 的会话/只读执行已实现；Prologue 执行接线待补 | `partial` | Plugin Platform v2；见 `specs/plugin-platform-v2/spec.md` |
 
 Horizontal Service 只保存可恢复的技术状态，不拥有 Goal、Signal、Action、Session 或 Run 等业务事实。
 

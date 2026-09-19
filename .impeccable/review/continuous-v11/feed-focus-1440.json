@@ -4,35 +4,35 @@
     "kind": "input",
     "tag": "INPUT",
     "visible": true,
-    "outline": "color(srgb 0.12549 0.12549 0.137255 / 0.55) solid 2px",
+    "outline": "rgb(94, 106, 210) solid 2px",
     "shadow": "none",
-    "contrast": 3.686430987120698
+    "contrast": 4.699901244313427
   },
   {
     "theme": "light",
     "kind": "select",
     "tag": "SELECT",
     "visible": true,
-    "outline": "color(srgb 0.12549 0.12549 0.137255 / 0.55) solid 2px",
+    "outline": "rgb(94, 106, 210) solid 2px",
     "shadow": "none",
-    "contrast": 3.686430987120698
+    "contrast": 4.699901244313427
   },
   {
     "theme": "dark",
     "kind": "input",
     "tag": "INPUT",
     "visible": true,
-    "outline": "color(srgb 1 1 1 / 0.6) solid 2px",
+    "outline": "rgb(139, 147, 241) solid 2px",
     "shadow": "none",
-    "contrast": 6.826085970120123
+    "contrast": 6.446445232190731
   },
   {
     "theme": "dark",
     "kind": "select",
     "tag": "SELECT",
     "visible": true,
-    "outline": "color(srgb 1 1 1 / 0.6) solid 2px",
+    "outline": "rgb(139, 147, 241) solid 2px",
     "shadow": "none",
-    "contrast": 6.826085970120123
+    "contrast": 6.446445232190731
   }
 ]

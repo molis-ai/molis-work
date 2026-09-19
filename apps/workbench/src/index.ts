@@ -128,3 +128,14 @@ export { createWorkbenchRenderer, type WorkbenchRendererPorts, type WorkbenchRen
 export { renderMolisWorkPrimitiveCatalog } from "./primitive-catalog.js";
 export { createCapsuleWorkbench, type CapsuleRendererPorts } from "./capsule.js";
 export type * from "./capsule-view.js";
+export { BUILTIN_PLUGIN_CATALOG, BUILTIN_PLUGIN_REGISTRY, PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, manifestFor, railEntries, settingsEntries } from "./plugin-catalog.js";
+export type { BuiltinPluginEntry, RailEntry } from "./plugin-catalog.js";
+export {
+  isDecidable,
+  renderAgentReviewSurface,
+  reviewPhase,
+  type AgentReviewPhase,
+  type AgentReviewPrimitives,
+  type AgentReviewRow,
+  type AgentReviewSurfaceModel,
+} from "./agent-review-surface.js";

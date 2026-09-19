@@ -10,7 +10,7 @@ import type { TestContext } from "node:test";
 import { WebSocket } from "ws";
 import { DEMO_BOARD_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import { BUILTIN_PROJECT_PLUGIN_IDS } from "@molis-ai/molis-work-contracts/modules/projects";
+import { PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-workbench";
 import Database from "better-sqlite3";
 import { createMolisWorkWebServer } from "../../apps/desktop/launchers/web/server.js";
 
@@ -31,7 +31,7 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
       if (catalogMode === "seeded" || catalogMode === "user") {
         const project = await catalog.createProject({ display_name: "目录交互验证", actor_id: "browser-test" });
         if (catalogMode === "seeded") {
-          for (const plugin_id of BUILTIN_PROJECT_PLUGIN_IDS) {
+          for (const plugin_id of PROJECT_SCOPED_PLUGIN_IDS) {
             catalog.addProjectPlugin({ project_id: project.project_id, plugin_id, actor_id: "browser-test" });
           }
         }
@@ -177,9 +177,7 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   }
   async function showGoalStageList() {
     await evaluate(`(() => {
-      const mother = document.querySelector(".tab-item[data-tab-kind=mother] [role=tab]");
-      if (mother) mother.click();
-      else document.querySelector('[data-plugin-strip] [data-plugin-id="goals"]')?.click();
+      document.querySelector('[data-plugin-strip] [data-plugin-id="goals"]')?.click();
       document.querySelector("[data-board-view-tab=list]")?.click();
     })()`);
     await waitFor("document.querySelector('[data-goal-canvas-shell]') && !document.querySelector('[data-goal-canvas-shell]').hidden && document.querySelector('[data-goal-stage-chrome] [data-open-create]')?.getBoundingClientRect().width > 0");

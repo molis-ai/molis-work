@@ -26,10 +26,15 @@ for (const [width,height] of [[1440,900],[390,640]]) {
     };
     const showDirectory=async()=>{if(width<760&&await evaluate("!document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')"))await click('[data-directory-show]');};
     const openPlugin=async(plugin:string)=>{await showDirectory();await click(`[data-plugin-id="${plugin}"]`);if(width<760&&await evaluate("document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')"))await click('[data-directory-toggle]');};
+    /** Creating or picking an item is a centred modal sized to its content, not an edge sheet. */
     const checkEditor=async(selector:string)=>{
       await waitFor(`document.querySelector('${selector}').open`);
-      const r=await evaluate<any>(`(()=>{const e=document.querySelector('${selector}'),r=e.getBoundingClientRect(),s=getComputedStyle(e);return {top:r.top,right:r.right,bottom:r.bottom,radius:s.borderRadius,shadow:s.boxShadow}})()`);
-      assert.equal(r.top,44);assert.equal(r.right,width);assert.equal(r.bottom,height);assert.equal(r.radius,'0px');assert.equal(r.shadow,'none');
+      const r=await evaluate<any>(`(()=>{const e=document.querySelector('${selector}'),r=e.getBoundingClientRect(),s=getComputedStyle(e);return {top:r.top,left:r.left,right:r.right,bottom:r.bottom,w:r.width,h:r.height,radius:s.borderRadius,shadow:s.boxShadow}})()`);
+      assert.ok(Math.abs((r.left+r.w/2)-width/2)<2,'horizontally centred');
+      assert.ok(Math.abs((r.top+r.h/2)-height/2)<2,'vertically centred');
+      assert.ok(r.top>=0&&r.bottom<=height,'inside the viewport');
+      assert.ok(r.h<height,'sized to content, not the full viewport');
+      assert.notEqual(r.radius,'0px');assert.notEqual(r.shadow,'none');
     };
     await navigate(()=>command('Page.navigate',{url:prefix+'/goals/'+id},sessionId));
     await waitFor("document.querySelector('[data-frame-goal-work]')?.getBoundingClientRect().width>0");
@@ -37,10 +42,15 @@ for (const [width,height] of [[1440,900],[390,640]]) {
     await click('[data-frame-empty] [data-frame-add-content]');
     await checkEditor('[data-frame-picker]');await capture('frame-picker');
     await click('[data-frame-picker] footer [data-frame-picker-close]');
+    // Creating a Goal starts from the Goals surface: an open Goal pools that directory chrome away.
+    await openPlugin('goals');
+    // Returning from a Goal used to leave data-expanded set with nothing expanded, which hid this
+    // whole toolbar; the canvas now asks whether a Goal actually covers it.
+    await waitFor("(()=>{const b=document.querySelector('[data-open-create]');return b && getComputedStyle(b).visibility === 'visible' && b.getBoundingClientRect().width > 0})()");
     await click('[data-open-create]');
     await checkEditor('[data-create-dialog]');await capture('goal-create');
     const inner=await evaluate<any>("(()=>{const s=getComputedStyle(document.querySelector('[data-create-form]'));return {radius:s.borderRadius,shadow:s.boxShadow,border:s.borderTopWidth}})()");
-    assert.deepEqual(inner,{radius:'0px',shadow:'none',border:'0px'},'creation is one continuous surface');
+    assert.deepEqual(inner,{radius:'0px',shadow:'none',border:'0px'},'the modal carries the frame; its form stays one continuous surface');
     const compactHeight=width>760?400:500;
     await command('Emulation.setDeviceMetricsOverride',{width,height:compactHeight,deviceScaleFactor:1,mobile:false},sessionId);
     await click('[data-create-dialog] .form-disclosure > summary');
@@ -53,6 +63,8 @@ for (const [width,height] of [[1440,900],[390,640]]) {
     await command('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:false},sessionId);
     await click('[data-create-dialog] footer [data-close-create]');
     if(width<760&&await evaluate("document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')"))await click('[data-directory-toggle]');
+    await navigate(()=>command('Page.navigate',{url:prefix+'/goals/'+id},sessionId));
+    await waitFor("document.querySelector('[data-frame-goal-work]')?.getBoundingClientRect().width>0");
     await click('[data-frame-goal-work]');
     await waitFor("!document.querySelector('[data-goal-node-workspace]').hidden");
     const fillsPane=await evaluate<any>(`(()=>{const e=document.querySelector('[data-goal-node-workspace]'),r=e.getBoundingClientRect(),p=e.parentElement.getBoundingClientRect(),s=getComputedStyle(e),list=document.querySelector('[data-goal-stage-list]'),listBox=list?.getBoundingClientRect(),listShown=${width}>=761 && getComputedStyle(list||document.body).display==='block' && listBox && listBox.width>0;return {gap:[r.top-p.top,p.bottom-r.bottom,r.left-p.left,p.right-r.right],radius:s.borderRadius,shadow:s.boxShadow,listWidth:listShown?Math.round(listBox.width):0}})()`);

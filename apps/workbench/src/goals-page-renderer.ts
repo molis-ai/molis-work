@@ -193,8 +193,10 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
   <div class="app">
     <main class="immersive-workspace${showTui ? " is-desktop-tui" : ""}${directoryEmpty ? " is-plugin-directory-empty" : ""}" data-workspace data-mobile-view="document" data-workspace-mode="graph">
       ${renderImmersiveHeader(primitives, desktopShell)}
+      <div class="plugin-stack">
       ${renderWorkspaceChrome(primitives, projectTitlebarChrome)}
       ${renderPluginRail(primitives, enabledPlugins, desktopAccountFooter)}
+      </div>
       <aside class="mw-sidebar mw-sidebar--directory mw-drawer mw-drawer--left tree-pane" id="goal-tree-pane" data-desktop-directory="${initialDesktopDirectory}" data-slot="sidebar" aria-label="${L("应用目录")}">
         <div class="mw-scroll directory-content-scroll">
         ${renderDirectoryPluginSections(primitives, enabledPlugins, {
@@ -204,7 +206,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
           feed: pluginEnabled("feed")
             ? renderFeedNativePluginSurface(view, "source-directory", initialFeedPreset)
             : "",
-          shelf: renderShelfNativePluginSurface("directory"),
+          shelf: "",
           artifacts: "",
         }, initialDesktopDirectory, settingsDirectory)}
         </div>

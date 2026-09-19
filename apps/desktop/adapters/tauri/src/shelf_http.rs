@@ -38,7 +38,12 @@ pub fn admit_file(path: &Path) -> Result<String, String> {
 }
 
 pub fn admit_text(text: &str) -> Result<String, String> {
-    let body = serde_json::json!({ "text": text });
+    admit_text_capturing(text, true)
+}
+
+/// The wheel's 发给终端 hands the link itself over; it does not fetch the page.
+pub fn admit_text_capturing(text: &str, capture_pages: bool) -> Result<String, String> {
+    let body = serde_json::json!({ "text": text, "capture_pages": capture_pages });
     post_json("/api/shelf/items", &body).and_then(parse_item_id)
 }
 

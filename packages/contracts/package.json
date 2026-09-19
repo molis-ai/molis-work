@@ -106,6 +106,18 @@
       "types": "./dist/platform/plugin.d.ts",
       "import": "./dist/platform/plugin.js"
     },
+    "./platform/plugin-agent": {
+      "types": "./dist/platform/plugin-agent.d.ts",
+      "import": "./dist/platform/plugin-agent.js"
+    },
+    "./platform/plugin-events": {
+      "types": "./dist/platform/plugin-events.d.ts",
+      "import": "./dist/platform/plugin-events.js"
+    },
+    "./platform/plugin-wiring": {
+      "types": "./dist/platform/plugin-wiring.d.ts",
+      "import": "./dist/platform/plugin-wiring.js"
+    },
     "./platform/storage": {
       "types": "./dist/platform/storage.d.ts",
       "import": "./dist/platform/storage.js"
@@ -121,6 +133,10 @@
     "./platform/ui": {
       "types": "./dist/platform/ui.d.ts",
       "import": "./dist/platform/ui.js"
+    },
+    "./services/agent-host": {
+      "types": "./dist/services/agent-host.d.ts",
+      "import": "./dist/services/agent-host.js"
     },
     "./services/connector-host": {
       "types": "./dist/services/connector-host.d.ts",

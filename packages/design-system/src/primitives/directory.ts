@@ -21,6 +21,10 @@ export interface DirectoryRow {
   href?: string;
   draggable?: boolean;
   trailing?: string;
+  /** Overlay trailing actions on hover/selected instead of reserving a trailing column. */
+  yield?: boolean;
+  /** Split a filename so the stem yields and the extension stays. */
+  fileName?: boolean;
   className?: string;
   attrs?: Record<string, AttrValue>;
   wrapperAttrs?: Record<string, AttrValue>;
@@ -55,6 +59,14 @@ export function renderDirectoryHeading(label: string): string {
   return `<h2 class="mw-dir__heading" data-slot="directory-heading">${escapeHtml(label)}</h2>`;
 }
 
+/** Keep a file extension visible while the stem yields. URLs stay one run of text. */
+export function renderDirectoryTitle(title: string, fileName = false): string {
+  if (!fileName || title.includes("://")) return escapeHtml(title);
+  const match = title.match(/^(.+?)(\.[A-Za-z0-9]{1,8})$/);
+  if (!match || match[1].length < 2) return escapeHtml(title);
+  return `<span class="mw-dir-row__stem">${escapeHtml(match[1])}</span><span class="mw-dir-row__ext">${escapeHtml(match[2])}</span>`;
+}
+
 export function renderDirectoryAdd(options: DirectoryAddOptions): string {
   return `<button type="button" class="${cx("mw-dir__add", options.className)}" data-slot="directory-add"${renderAttrs(options.attrs)}>${
     icon(options.icon ?? "plus")
@@ -76,7 +88,7 @@ export function renderDirectoryRow(options: DirectoryRow): string {
       })
     : "";
   const resolvedCaption = density === "meta" ? (options.caption || "") : "";
-  const copy = `<span class="mw-dir-row__copy"><span class="mw-dir-row__headline"><strong>${escapeHtml(options.title)}</strong>${count}${status}</span>${
+  const copy = `<span class="mw-dir-row__copy"><span class="mw-dir-row__headline"><strong>${renderDirectoryTitle(options.title, options.fileName)}</strong>${count}${status}</span>${
     resolvedCaption ? `<small>${escapeHtml(resolvedCaption)}</small>` : ""
   }</span>`;
   const mark = options.icon ? `<span class="mw-dir-row__icon">${icon(options.icon)}</span>` : "";
@@ -92,7 +104,10 @@ export function renderDirectoryRow(options: DirectoryRow): string {
     options.draggable ? ` draggable="true"` : ""
   }${options.hidden ? " hidden" : ""}${options.disabled ? " disabled" : ""}>${mark}${copy}</${tag}>`;
   if (!options.trailing && !options.wrapperAttrs) return row;
-  return `<div class="mw-dir-row-wrap"${renderAttrs(options.wrapperAttrs)}>${row}${options.trailing ?? ""}</div>`;
+  const ops = options.trailing
+    ? (options.yield ? `<span class="mw-dir-row__ops">${options.trailing}</span>` : options.trailing)
+    : "";
+  return `<div class="${cx("mw-dir-row-wrap", options.yield && "is-yield")}"${renderAttrs(options.wrapperAttrs)}>${row}${ops}</div>`;
 }
 
 export function renderDirectoryPanel(options: DirectoryPanelOptions): string {

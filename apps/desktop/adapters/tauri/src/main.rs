@@ -667,14 +667,18 @@ fn shelf_setup_status() -> ShelfSetupStatus {
 
 /// Drag a shelf file out to Finder, the Desktop, an upload field or a composer.
 #[tauri::command]
-fn shelf_drag_out(app: tauri::AppHandle, paths: Vec<String>) -> Result<(), String> {
+fn shelf_drag_out(
+    app: tauri::AppHandle,
+    paths: Vec<String>,
+    item_ids: Option<Vec<String>>,
+) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        return shelf_drag_macos::begin(&app, &paths);
+        return shelf_drag_macos::begin(&app, &paths, &item_ids.unwrap_or_default());
     }
     #[cfg(not(target_os = "macos"))]
     {
-        let _ = (app, paths);
+        let _ = (app, paths, item_ids);
         Err("这个平台还不支持拖出".into())
     }
 }

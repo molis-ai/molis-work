@@ -1,0 +1,1151 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light" data-frame="desktop" data-life="marked" data-phase="arrive" data-return="round" data-skip="0" data-save="ok" data-drawer="none" data-note="off" data-due="off" data-stash="0">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Molis Work · 开页切片</title>
+  <style>
+    @font-face {
+      font-family: "Inter Variable";
+      src: url("../../../packages/design-system/fonts/inter-latin-variable.woff2") format("woff2");
+      font-weight: 100 900;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: "Noto Sans SC";
+      src: url("../../../packages/design-system/fonts/noto-sans-sc-400.woff2") format("woff2");
+      font-weight: 400;
+      font-display: swap;
+    }
+    :root {
+      color-scheme: light;
+      --page: #f3f4f5; --canvas: #f3f4f5; --rail: #eceef0;
+      --paper: #ffffff; --nav-bg: #f3f4f5; --nav-raised: #ffffff;
+      --ink: #222326; --ink-soft: #3c3f44; --muted: #6b6f76; --faint: #737882;
+      --line: #e2e4e7; --line-strong: #d0d6e0;
+      --nav-hover: color-mix(in srgb, var(--ink) 6%, transparent);
+      --nav-active: color-mix(in srgb, var(--ink) 10%, transparent);
+      --nav-press: color-mix(in srgb, var(--ink) 14%, transparent);
+      --hairline: color-mix(in srgb, var(--ink) 12%, transparent);
+      --edge-highlight: transparent;
+      --accent: #5e6ad2; --accent-strong: #4c56c4; --accent-wash: #eef0fb;
+      --focus: #5e6ad2; --blue: #5e6ad2;
+      --action: #222326; --action-ink: #ffffff;
+      --red: #b03d45; --inverse-ink: #fff;
+      --plugin-home: #5c6570; --plugin-goals: #5e6ad2; --plugin-sessions: #7a5af8;
+      --plugin-inbox: #3d9a8f; --plugin-feed: #9c5f1a; --plugin-artifacts: #c44d6a; --plugin-shelf: #66709e;
+      --surface-shadow: 0 1px 2px rgba(19, 21, 32, .05), 0 2px 5px rgba(19, 21, 32, .04);
+      --control-shadow: 0 1px 1px rgba(19, 21, 32, .04), 0 6px 14px rgba(19, 21, 32, .07), 0 18px 38px rgba(19, 21, 32, .09);
+      --shadow: var(--control-shadow);
+      --selection: #eef0fb; --scrollbar: #6b6f7661;
+      --radius-item: 8px; --radius-control: 10px; --radius-surface: 12px;
+      --control-h: 32px; --control-pad-x: 12px;
+      --control-border: color-mix(in srgb, var(--ink) 8%, transparent);
+      --control-input: color-mix(in srgb, var(--ink) 10%, transparent);
+      --control-fill: color-mix(in srgb, var(--ink) 4.5%, transparent);
+      --control-fill-hover: color-mix(in srgb, var(--ink) 7.5%, transparent);
+      --scrim: rgba(19, 21, 32, .3);
+      --motion-instant: 90ms; --motion-fast: 130ms; --motion-normal: 190ms;
+      --ease: cubic-bezier(.16, 1, .3, 1);
+      --ease-standard: cubic-bezier(.32, .72, 0, 1);
+      --font: "Inter Variable", Inter, "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+      --title: 32px; --rail-w: 48px;
+    }
+    html[data-theme="dark"] {
+      color-scheme: dark;
+      --page: #0f1011; --canvas: #0f1011; --rail: #0f1011;
+      --paper: #161718; --nav-bg: #0f1011; --nav-raised: #1c1c1f;
+      --ink: #f7f8f8; --ink-soft: #d0d1d3; --muted: #8a8f98; --faint: #737880;
+      --line: #23252a; --line-strong: #2e3036;
+      --nav-hover: color-mix(in srgb, var(--ink) 8%, transparent);
+      --nav-active: color-mix(in srgb, var(--ink) 12%, transparent);
+      --nav-press: color-mix(in srgb, var(--ink) 16%, transparent);
+      --hairline: color-mix(in srgb, var(--ink) 14%, transparent);
+      --edge-highlight: rgba(255, 255, 255, .07);
+      --accent: #8b93f1; --accent-strong: #a8aef5; --accent-wash: #262848;
+      --focus: #8b93f1; --blue: #8b93f1;
+      --action: #f7f8f8; --action-ink: #0f1011;
+      --red: #ee858c; --inverse-ink: #0f1011;
+      --plugin-home: #b3b8c2; --plugin-goals: #8b93f1; --plugin-sessions: #a78bfa;
+      --plugin-inbox: #6bc4b8; --plugin-feed: #dcab6d; --plugin-artifacts: #ee858c; --plugin-shelf: #a6afd5;
+      --surface-shadow: 0 1px 2px rgba(0, 0, 0, .45), 0 2px 6px rgba(0, 0, 0, .3);
+      --control-shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 8px 20px rgba(0, 0, 0, .45), 0 24px 52px rgba(0, 0, 0, .4);
+      --shadow: var(--control-shadow);
+      --control-border: color-mix(in srgb, #fff 8%, transparent);
+      --control-input: color-mix(in srgb, #fff 10%, transparent);
+      --control-fill: color-mix(in srgb, #fff 5.5%, transparent);
+      --control-fill-hover: color-mix(in srgb, #fff 9%, transparent);
+      --scrim: rgba(0, 0, 0, .55);
+      --selection: #262848; --scrollbar: #8a8f9861;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; overflow: hidden; }
+    body {
+      display: flex; flex-direction: column;
+      font: 13px/1.5 var(--font);
+      font-feature-settings: "cv01", "ss03", "calt";
+      font-optical-sizing: auto;
+      font-weight: 400;
+      letter-spacing: -.011em;
+      color: var(--ink);
+      background: #111216;
+      -webkit-font-smoothing: antialiased;
+    }
+    button, input, textarea {
+      font: inherit; color: inherit; letter-spacing: inherit;
+      appearance: none; -webkit-appearance: none;
+      background: transparent;
+    }
+    textarea { resize: none; }
+    svg { display: block; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .ico { width: 16px; height: 16px; flex: none; }
+    .ico-sm { width: 14px; height: 14px; }
+    .icon-sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+    ::selection { color: var(--ink); background: var(--selection); }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+    .mw-btn:focus-visible, .mw-input:focus-visible, .mw-textarea:focus-visible, .mw-check:focus-visible { outline: none; }
+    * { scrollbar-width: thin; scrollbar-color: var(--scrollbar) transparent; }
+    [hidden] { display: none !important; }
+    .visually-hidden {
+      position: absolute !important; width: 1px !important; height: 1px !important;
+      padding: 0 !important; margin: -1px !important; overflow: hidden !important;
+      clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; border: 0 !important;
+    }
+
+    .mw-btn {
+      position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      min-height: var(--control-h); padding: 0 var(--control-pad-x);
+      border: 1px solid var(--control-border); border-radius: var(--radius-control);
+      background: var(--control-fill); color: var(--ink);
+      font: inherit; font-size: 13px; font-weight: 400; line-height: 1; letter-spacing: -.01em;
+      box-shadow: none; cursor: pointer; text-decoration: none; white-space: nowrap;
+    }
+    .mw-btn svg { width: 14px; height: 14px; flex: none; }
+    .mw-btn--md { min-height: 32px; }
+    .mw-btn--icon-only { width: var(--control-h); min-width: var(--control-h); padding: 0; }
+    .mw-btn:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--focus) 72%, transparent), 0 0 0 3.5px color-mix(in srgb, var(--focus) 15%, transparent);
+    }
+    .mw-btn--primary { border-color: var(--action); background: var(--action); color: var(--action-ink); }
+    .mw-btn--primary:hover:not(:disabled) { background: color-mix(in srgb, var(--action) 90%, var(--action-ink)); }
+    .mw-btn--secondary { background: var(--control-fill); color: var(--ink); }
+    .mw-btn--secondary:hover:not(:disabled) { border-color: var(--control-input); background: var(--control-fill-hover); }
+    .mw-btn--ghost { border-color: transparent; background: transparent; color: var(--ink-soft); }
+    .mw-btn--ghost:hover:not(:disabled) { background: var(--nav-hover); color: var(--ink); }
+    .mw-btn--link { min-height: auto; padding: 0; border: 0; background: transparent; color: var(--ink-soft); }
+    .mw-btn--link:hover:not(:disabled) { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; background: transparent; }
+    .mw-btn:disabled { cursor: not-allowed; opacity: .42; }
+
+    .mw-input, .mw-textarea {
+      width: 100%; min-height: var(--control-h); padding: 0 10px;
+      border: 1px solid var(--control-input); border-radius: var(--radius-control);
+      color: var(--ink); background-color: var(--paper); font: inherit; font-size: 13px; box-shadow: none;
+    }
+    .mw-textarea { min-height: 72px; padding: 8px 10px; resize: vertical; height: auto; }
+    .mw-input::placeholder, .mw-textarea::placeholder { color: var(--faint); }
+    .mw-input:focus-visible, .mw-textarea:focus-visible {
+      outline: 0; border-color: color-mix(in srgb, var(--focus) 62%, transparent);
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--focus) 72%, transparent), 0 0 0 3.5px color-mix(in srgb, var(--focus) 15%, transparent);
+    }
+    .mw-field { display: grid; gap: 5px; font-size: 13px; color: var(--ink-soft); }
+    .mw-field__label { color: var(--ink); font-weight: 400; }
+    .mw-field__hint { color: var(--muted); font-size: 12px; line-height: 1.6; }
+    .mw-check-row { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: var(--ink); cursor: pointer; }
+    .mw-check {
+      appearance: none; width: 14px; height: 14px; margin: 3px 0 0; padding: 0; flex: none;
+      border: 1px solid var(--control-input); border-radius: 4px; background: var(--paper);
+      display: inline-grid; place-items: center; color: var(--action-ink);
+    }
+    .mw-check:checked { border-color: var(--action); background: var(--action); }
+    .mw-check:checked::after {
+      content: ""; width: 7px; height: 4px; border: 1.5px solid currentColor; border-top: 0; border-right: 0;
+      transform: translateY(-1px) rotate(-45deg);
+    }
+    .mw-card {
+      display: flex; flex-direction: column;
+      border: 1px solid var(--hairline); border-radius: var(--radius-surface);
+      background: var(--paper); overflow: hidden;
+    }
+    .mw-card__header { display: flex; justify-content: space-between; gap: 12px; padding: 16px 16px 0; }
+    .mw-card__title { margin: 0; font-size: 14px; font-weight: 400; color: var(--ink); }
+    .mw-card__panel { padding: 10px 16px 16px; color: var(--ink-soft); font-size: 13px; line-height: 1.6; }
+    .mw-card__footer { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0 16px 16px; }
+    .mw-menu__item {
+      display: flex; align-items: center; gap: 8px; width: 100%; min-height: 32px;
+      padding: 0 10px; border: 0; border-radius: 8px; background: transparent;
+      color: var(--ink); font: inherit; font-size: 13px; text-align: left; cursor: pointer;
+    }
+    .mw-menu__item:hover, .mw-menu__item:focus-visible { background: var(--nav-hover); outline: none; }
+    .mw-menu__item small { display: block; margin-top: 2px; color: var(--muted); font-size: 11px; }
+    dialog.mw-drawer { padding: 0; border: 0; background: var(--paper); color: var(--ink); box-shadow: none; max-height: none; }
+    dialog.mw-drawer::backdrop { background: var(--scrim); }
+    dialog.mw-drawer--left { position: fixed; inset: 0 auto 0 0; margin: 0; width: min(320px, 100vw); height: 100dvh; border-right: 1px solid var(--line); border-radius: 0; }
+    dialog.mw-drawer--right { position: fixed; inset: 0 0 0 auto; margin: 0; width: min(320px, 100vw); height: 100dvh; border-left: 1px solid var(--line); border-radius: 0; }
+    html[data-frame="narrow"] dialog.mw-drawer--left,
+    html[data-frame="narrow"] dialog.mw-drawer--right {
+      inset: auto 0 0; width: 100vw; height: min(70dvh, 480px);
+      border-left: 0; border-right: 0; border-top: 1px solid var(--hairline); border-radius: 16px 16px 0 0;
+    }
+    .mw-drawer__shell { height: 100%; display: flex; flex-direction: column; gap: 12px; padding: 22px 18px 18px; }
+    .mw-drawer__shell h2 { margin: 0; font-size: 15px; font-weight: 400; }
+    .mw-drawer__shell p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+
+    .studio { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: stretch; }
+    .slice-bar {
+      flex: none; width: 100%; z-index: 40;
+      min-height: 40px; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px;
+      padding: 6px 16px; background: #111216; color: #e8e9ee; font-size: 12px;
+    }
+    .slice-bar strong { font-weight: 400; margin-right: 6px; }
+    .slice-bar .note { color: #9498a7; margin-left: auto; }
+    .slice-bar button {
+      height: 24px; padding: 0 8px; border: 0; border-radius: 6px;
+      background: transparent; color: #a4a7b3; cursor: pointer;
+    }
+    .slice-bar button.is-on { background: #e8e9ee; color: #111216; }
+    .slice-bar button:focus-visible { outline: 2px solid #a7a6f5; outline-offset: 2px; }
+    .slice-bar .sep { width: 1px; height: 14px; background: #2a2c35; margin: 0 4px; }
+
+    .app {
+      flex: 1; width: 100%; min-height: 0;
+      display: grid;
+      grid-template-columns: var(--rail-w) minmax(0, 1fr);
+      grid-template-rows: var(--title) minmax(0, 1fr);
+      background: var(--canvas);
+      color: var(--ink);
+      overflow: hidden;
+    }
+    html[data-frame="narrow"] .studio { background: #111216; }
+    html[data-frame="narrow"] .app {
+      width: 390px; margin: 0 auto;
+      grid-template-columns: 0 minmax(0, 1fr);
+      grid-template-rows: auto auto minmax(0, 1fr);
+      border-inline: 1px solid var(--line);
+    }
+
+    .titlebar {
+      grid-column: 1 / -1; grid-row: 1;
+      display: flex; align-items: center; gap: 6px;
+      height: var(--title); min-height: var(--title);
+      padding: 0 8px 0 6px; background: var(--nav-bg);
+      box-shadow: inset 0 -1px 0 var(--line);
+    }
+    .history { display: flex; gap: 2px; }
+    .icon-btn {
+      width: 26px; height: 26px; min-height: 26px; padding: 0; border: 0; border-radius: 8px;
+      display: grid; place-items: center; background: transparent; color: var(--muted); cursor: pointer;
+    }
+    .icon-btn:hover { background: var(--nav-hover); color: var(--ink); }
+    .icon-btn:disabled { opacity: .45; cursor: default; }
+    .icon-btn svg, .icon-btn .ico { width: 15px; height: 15px; }
+    .tabs { display: flex; align-items: center; gap: 2px; min-width: 0; flex: 1; }
+    .tab {
+      height: 26px; max-width: 172px; padding: 0 10px; border: 0; border-radius: 6px;
+      display: flex; align-items: center; gap: 6px; background: transparent;
+      color: var(--muted); cursor: default; font-size: 12px;
+    }
+    .tab svg, .tab .ico { width: 14px; height: 14px; color: var(--plugin, var(--faint)); }
+    .tab.is-current { background: var(--nav-raised); color: var(--ink); box-shadow: var(--surface-shadow); }
+    .tab.is-current svg, .tab.is-current .ico { color: var(--plugin, var(--ink)); }
+    .tab-tools { margin-left: auto; display: flex; gap: 2px; }
+    html[data-frame="narrow"] .titlebar { padding: 8px 12px; min-height: 44px; height: auto; }
+    html[data-phase="working"] .tabs,
+    html[data-phase="leaving"] .tabs { opacity: .42; }
+
+    .island {
+      grid-column: 1; grid-row: 2; align-self: start; z-index: 12;
+      display: flex; padding: 8px 6px 10px; pointer-events: none;
+    }
+    .island > * { pointer-events: auto; }
+    .chip {
+      display: flex; flex-direction: column; align-items: center; gap: 2px;
+      width: 100%; padding: 4px; border-radius: var(--radius-surface); background: var(--nav-raised);
+      box-shadow: var(--surface-shadow), inset 0 0 0 1px var(--hairline);
+    }
+    html[data-theme="dark"] .chip { box-shadow: var(--surface-shadow), inset 0 0 0 1px var(--hairline), inset 0 1px 0 var(--edge-highlight); }
+    .chip-btn {
+      width: 36px; height: 32px; min-height: 32px; padding: 0; border: 0; border-radius: 8px;
+      display: grid; place-items: center; background: transparent; color: var(--muted); cursor: pointer;
+    }
+    .chip-btn:hover { background: var(--nav-hover); color: var(--ink); }
+    .chip-btn svg, .chip-btn .ico { width: 16px; height: 16px; }
+    .project-mark { width: 16px; height: 16px; padding: 2px; border-radius: 4px; background: var(--action); color: var(--action-ink); }
+    .project-mark svg, .project-mark .ico { width: 12px; height: 12px; }
+    html[data-frame="narrow"] .island {
+      grid-column: 1 / -1; grid-row: 2; padding: 8px 12px; background: var(--nav-bg);
+    }
+    html[data-frame="narrow"] .chip { flex-direction: row; height: 36px; padding: 3px 4px 3px 5px; }
+    html[data-frame="narrow"] .chip-btn { width: 28px; height: 28px; min-height: 28px; }
+    html[data-frame="narrow"] .project-switch { flex: 1; width: auto; display: flex; justify-content: flex-start; gap: 6px; padding: 0 4px; }
+    html[data-frame="narrow"] .project-switch strong { position: static; width: auto; height: auto; margin: 0; clip: unset; overflow: hidden; font-size: 13px; font-weight: 400; }
+    html[data-frame="desktop"] .project-switch strong { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+    html[data-frame="narrow"] .show-dir { display: grid; }
+    html[data-frame="desktop"] .show-dir { display: none; }
+
+    .rail {
+      grid-column: 1; grid-row: 2;
+      display: flex; flex-direction: column; gap: 8px;
+      padding: 126px 0 8px; background: var(--nav-bg); border-right: 1px solid var(--line); min-height: 0;
+    }
+    .rail-items, .rail-foot {
+      width: 100%; padding: 4px; border-radius: var(--radius-surface); background: var(--nav-raised);
+      box-shadow: var(--surface-shadow), inset 0 0 0 1px var(--hairline);
+    }
+    html[data-theme="dark"] :is(.rail-items, .rail-foot) {
+      box-shadow: var(--surface-shadow), inset 0 0 0 1px var(--hairline), inset 0 1px 0 var(--edge-highlight);
+    }
+    .rail-items { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; min-height: 0; overflow: auto; scrollbar-width: none; }
+    .rail-items::-webkit-scrollbar { width: 0; height: 0; }
+    .rail-item {
+      width: 36px; height: 32px; min-height: 32px; padding: 0; border: 0; border-radius: 8px;
+      display: grid; place-items: center; background: transparent; color: var(--faint); cursor: default;
+    }
+    .rail-item svg, .rail-item .ico { width: 18px; height: 18px; color: var(--plugin, var(--faint)); }
+    .rail-item:hover { background: var(--nav-hover); }
+    .rail-item.is-current { background: var(--nav-active); }
+    .rail-item.is-current svg, .rail-item.is-current .ico { color: var(--plugin, var(--ink)); }
+    .rail-foot { flex: none; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+    html[data-frame="narrow"] .rail { display: none; }
+
+    .workspace { grid-column: 2; grid-row: 2; min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--canvas); }
+    html[data-frame="narrow"] .workspace { grid-column: 1 / -1; grid-row: 3; }
+
+    .stage {
+      position: relative;
+      flex: 1; min-height: 0;
+      overflow: hidden;
+      background: var(--canvas);
+    }
+
+    .day {
+      position: absolute;
+      top: 18px; left: 28px;
+      z-index: 2;
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+      pointer-events: none;
+    }
+    html[data-frame="narrow"] .day { left: 16px; top: 12px; }
+
+    .due.mw-btn {
+      position: absolute;
+      top: 14px; right: 20px;
+      z-index: 3;
+      max-width: min(240px, calc(50% - 24px));
+      height: auto; min-height: 32px;
+      flex-direction: column; align-items: flex-end; gap: 2px;
+      padding: 6px 10px;
+      white-space: normal; text-align: right;
+      font-size: 12px; line-height: 1.4;
+    }
+    .due strong { display: block; font-weight: 400; color: inherit; }
+    .due small {
+      display: none;
+      color: var(--faint);
+      font-size: 11px;
+      font-weight: 400;
+    }
+    html[data-due="on"] .due small { display: block; }
+    html[data-phase="working"] .due,
+    html[data-phase="leaving"] .due { opacity: 0; visibility: hidden; pointer-events: none; }
+    html[data-life="fresh"] .due { display: none; }
+    html[data-frame="narrow"] .due { right: 12px; top: 10px; }
+
+    .stash-edge.mw-btn {
+      position: absolute;
+      left: 8px; top: 42%;
+      z-index: 4;
+      transition: opacity 280ms var(--ease);
+    }
+    html[data-stash="0"] .stash-edge { opacity: .55; }
+    html[data-stash="1"] .stash-edge { color: var(--ink); }
+    html[data-stash="1"] .stash-edge::after {
+      content: "";
+      position: absolute; top: 6px; right: 6px;
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+    html[data-phase="working"] .stash-edge,
+    html[data-phase="leaving"] .stash-edge { opacity: .28; }
+    html[data-frame="narrow"] .stash-edge { top: auto; bottom: 56px; }
+
+    dialog.mw-drawer .mw-drawer__list {
+      list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 2px;
+    }
+    .mw-menu__item[aria-current="true"] { background: var(--nav-active); }
+    .mw-menu__item small { display: block; margin-top: 2px; color: var(--muted); font-size: 11px; font-weight: 400; }
+    .mw-drawer .mw-menu__item {
+      flex-direction: column; align-items: flex-start; justify-content: center;
+      height: auto; min-height: 40px; padding: 8px 10px;
+      white-space: normal; gap: 2px; line-height: 1.4;
+    }
+    .mw-drawer__head {
+      display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+    }
+
+    .leaf.mw-card {
+      position: absolute;
+      left: 50%;
+      top: 48%;
+      z-index: 2;
+      width: min(460px, calc(100% - 88px));
+      transform: translate(-50%, -52%);
+      padding: 28px 32px 22px;
+      box-shadow: var(--control-shadow);
+      overflow: visible;
+      animation: page-ready 460ms var(--ease) both;
+      transition:
+        width 280ms var(--ease),
+        height 280ms var(--ease),
+        top 280ms var(--ease),
+        transform 280ms var(--ease),
+        padding 280ms var(--ease),
+        box-shadow 280ms var(--ease),
+        border-radius 280ms var(--ease),
+        border-color 280ms var(--ease);
+    }
+    html[data-phase="working"] .leaf.mw-card,
+    html[data-phase="leaving"] .leaf.mw-card {
+      top: 44px;
+      transform: translate(-50%, 0);
+      width: min(720px, calc(100% - 96px));
+      height: calc(100% - 108px);
+      padding: 26px 36px 18px;
+      border-radius: 0;
+      border-color: transparent;
+      box-shadow: none;
+      overflow: hidden;
+    }
+    html[data-phase="closed"] .leaf {
+      width: min(340px, calc(100% - 88px));
+      padding: 30px 28px 24px;
+    }
+    html[data-frame="narrow"] .leaf {
+      width: calc(100% - 28px);
+      top: 46%;
+    }
+    html[data-frame="narrow"][data-phase="working"] .leaf,
+    html[data-frame="narrow"][data-phase="leaving"] .leaf {
+      top: 36px;
+      width: calc(100% - 16px);
+      height: calc(100% - 92px);
+      padding: 22px 18px 14px;
+    }
+
+    .mark {
+      position: absolute;
+      top: -1px; right: 32px;
+      width: 11px; height: 28px;
+      background: var(--accent);
+      border-radius: 0 0 2px 2px;
+      pointer-events: none;
+      transition: height 280ms var(--ease), opacity 180ms ease;
+    }
+    html[data-life="fresh"] .mark { opacity: 0; }
+    html[data-life="fresh"] .leaf-title { display: none; }
+    html[data-phase="closed"] .mark { height: 38px; }
+    html[data-save="fail"][data-phase="closed"] .mark { background: var(--red); }
+
+    .leaf-title {
+      margin: 0 0 18px;
+      color: var(--ink);
+      font-size: 16px;
+      font-weight: 400;
+      letter-spacing: -.02em;
+      line-height: 1.35;
+    }
+    html[data-phase="closed"] .leaf-title { margin-bottom: 12px; }
+
+    .faces {
+      position: relative;
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    .face {
+      display: flex; flex-direction: column;
+      min-height: 0;
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transform: translateY(6px);
+      transition: opacity 220ms var(--ease), transform 280ms var(--ease), visibility 0s linear 220ms;
+    }
+    .face-arrive, .face-closed { position: relative; }
+    .face-work, .face-leave {
+      position: absolute;
+      inset: 0;
+    }
+    html[data-phase="arrive"] .face-arrive,
+    html[data-phase="working"] .face-work,
+    html[data-phase="leaving"] .face-leave,
+    html[data-phase="closed"] .face-closed {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+      transform: none;
+      transition: opacity 220ms var(--ease), transform 280ms var(--ease);
+    }
+    html[data-phase="working"] .face-work,
+    html[data-phase="leaving"] .face-leave {
+      position: relative;
+      inset: auto;
+      flex: 1;
+      min-height: 0;
+    }
+    html[data-phase="working"] .face-arrive,
+    html[data-phase="leaving"] .face-arrive,
+    html[data-phase="closed"] .face-arrive,
+    html[data-phase="working"] .face-closed,
+    html[data-phase="leaving"] .face-closed {
+      position: absolute;
+      width: 100%;
+      height: 0;
+      overflow: hidden;
+    }
+
+    .face h1, .face h2 {
+      margin: 0 0 10px;
+      font-size: 20px;
+      font-weight: 400;
+      letter-spacing: -.028em;
+      line-height: 1.3;
+    }
+    .resume, .now, .closed-copy, .leave-hint {
+      margin: 0 0 18px;
+      max-width: 36em;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .now { color: var(--ink); }
+
+    [data-open-page] { align-self: flex-start; margin: 0 0 12px; }
+    .gates {
+      display: flex; flex-wrap: wrap; gap: 8px;
+      margin: 0;
+    }
+    .fresh-line { display: none; margin: 0 0 16px; }
+    html[data-life="fresh"] .fresh-line { display: block; }
+    html[data-life="fresh"] .resume { display: none; }
+
+    .note {
+      display: grid;
+      grid-template-rows: 0fr;
+      margin-top: 14px;
+      transition: grid-template-rows 280ms var(--ease);
+    }
+    .note > div { overflow: hidden; }
+    html[data-note="on"] .note { grid-template-rows: 1fr; }
+    .note-card { padding: 12px 0 2px; border-top: 1px solid var(--line); display: grid; gap: 10px; }
+    .note-card p { margin: 0; color: var(--muted); font-size: 13px; }
+    .note-actions {
+      display: flex; align-items: center; flex-wrap: wrap; gap: 10px;
+    }
+
+    .work-body {
+      flex: 1; min-height: 0;
+      display: flex; flex-direction: column; gap: 12px;
+    }
+    .work-body .mw-textarea {
+      flex: 1; min-height: 160px; resize: none;
+      font-size: 14px; line-height: 1.65;
+      border-color: transparent; background: transparent;
+    }
+    .work-body .mw-textarea:focus-visible { border-color: color-mix(in srgb, var(--focus) 62%, transparent); }
+    .materials {
+      flex: none;
+      padding-top: 8px;
+      border-top: 1px solid var(--line);
+      display: grid; gap: 2px;
+    }
+    .materials span { display: block; margin: 0 10px 6px; color: var(--muted); font-size: 12px; }
+
+    .leave-actions, .closed-actions, .retry-row {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+      margin-top: 18px;
+    }
+
+    html[data-save="ok"] .fail-copy,
+    html[data-save="fail"] .ok-copy { display: none; }
+    .fail-copy { color: var(--red); }
+
+    .leave-day.mw-btn {
+      position: absolute;
+      left: 50%; bottom: 14px;
+      z-index: 3;
+      transform: translateX(-50%);
+      transition: opacity 220ms var(--ease);
+    }
+    html[data-phase="closed"] .leave-day,
+    html[data-phase="leaving"] .leave-day { opacity: 0; pointer-events: none; }
+
+    @keyframes page-ready {
+      from { opacity: .01; transform: translate(-50%, calc(-52% + 10px)); }
+      to { opacity: 1; transform: translate(-50%, -52%); }
+    }
+    html[data-phase="working"] .leaf { animation: none; }
+    html[data-phase="leaving"] .leaf { animation: none; }
+    html[data-phase="closed"] .leaf { animation: page-ready 460ms var(--ease) both; }
+
+    html[data-skip="1"] .leaf,
+    html[data-skip="1"] .face,
+    html[data-skip="1"] dialog.mw-drawer,
+    html[data-skip="1"] .note,
+    html[data-skip="1"] .tabs,
+    html[data-skip="1"] .stash-edge {
+      animation: none !important;
+      transition: none !important;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: .01ms !important;
+        animation-delay: 0ms !important;
+        transition-duration: .01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <svg class="icon-sprite" aria-hidden="true">
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+    <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></symbol>
+    <symbol id="i-inbox" viewBox="0 0 24 24"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></symbol>
+    <symbol id="i-activity" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></symbol>
+    <symbol id="i-terminal" viewBox="0 0 24 24"><path d="m7 11 2-2-2-2"/><path d="M11 13h4"/><rect width="18" height="18" x="3" y="3" rx="2"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1 2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+    <symbol id="i-left" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></symbol>
+    <symbol id="i-right" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></symbol>
+    <symbol id="i-layout" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/></symbol>
+    <symbol id="i-db" viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6"/><path d="M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/></symbol>
+    <symbol id="i-shelf" viewBox="0 0 24 24"><path d="M4 19V5h16v14"/><path d="M4 19h16"/><path d="M8 8h8v6H8z"/></symbol>
+    <symbol id="i-panels" viewBox="0 0 24 24"><rect x="3" y="4" width="7" height="16" rx="1"/><rect x="12" y="4" width="9" height="16" rx="1"/></symbol>
+  </svg>
+
+  <div class="slice-bar">
+    <strong>开页切片</strong>
+    <button type="button" data-set="life" data-value="marked" class="is-on">有书签</button>
+    <button type="button" data-set="life" data-value="fresh">第一次</button>
+    <span class="sep" aria-hidden="true"></span>
+    <button type="button" data-set="theme" data-value="light" class="is-on">浅色</button>
+    <button type="button" data-set="theme" data-value="dark">深色</button>
+    <button type="button" data-set="frame" data-value="desktop" class="is-on">桌面</button>
+    <button type="button" data-set="frame" data-value="narrow">390</button>
+    <span class="sep" aria-hidden="true"></span>
+    <button type="button" data-set="return" data-value="round" class="is-on">新一轮</button>
+    <button type="button" data-set="return" data-value="session">当天回来</button>
+    <button type="button" data-set="skip" data-value="0" class="is-on">仪式</button>
+    <button type="button" data-set="skip" data-value="1">赶时间</button>
+    <button type="button" data-set="save" data-value="ok" class="is-on">保存成功</button>
+    <button type="button" data-set="save" data-value="fail">保存失败</button>
+    <button type="button" data-reset>重置</button>
+    <span class="note">中间一张纸 · 当前组件 · 不改生产</span>
+  </div>
+
+  <div class="studio">
+    <div class="app" role="application" aria-label="Molis Work 开页切片">
+      <header class="titlebar">
+        <div class="history">
+          <button class="icon-btn" type="button" disabled aria-label="上一步"><svg class="ico ico-sm"><use href="#i-left"></use></svg></button>
+          <button class="icon-btn" type="button" disabled aria-label="下一步"><svg class="ico ico-sm"><use href="#i-right"></use></svg></button>
+        </div>
+        <div class="tabs" role="tablist" aria-label="工作标签">
+          <button class="tab is-current" type="button" role="tab" aria-selected="true" style="--plugin: var(--plugin-home)"><svg class="ico ico-sm"><use href="#i-home"></use></svg><span>项目首页</span></button>
+          <button class="tab" type="button" role="tab" aria-selected="false" tabindex="-1" style="--plugin: var(--plugin-goals)"><svg class="ico ico-sm"><use href="#i-target"></use></svg><span>画布</span></button>
+        </div>
+        <div class="tab-tools">
+          <button class="icon-btn" type="button" aria-label="打开标签"><svg class="ico ico-sm"><use href="#i-plus"></use></svg></button>
+          <button class="icon-btn" type="button" aria-label="布局与分屏"><svg class="ico ico-sm"><use href="#i-layout"></use></svg></button>
+        </div>
+      </header>
+      <section class="island" aria-label="当前项目">
+        <div class="chip">
+          <button class="chip-btn project-switch" type="button" aria-label="切换项目 Molis Work 示例项目" title="Molis Work 示例项目">
+            <span class="project-mark"><svg class="ico"><use href="#i-db"></use></svg></span>
+            <strong>Molis Work 示例项目</strong>
+          </button>
+          <button class="chip-btn" type="button" aria-label="打开搜索"><svg class="ico"><use href="#i-search"></use></svg></button>
+          <a class="chip-btn" href="#settings" aria-label="打开当前项目设置" title="项目设置"><svg class="ico"><use href="#i-settings"></use></svg></a>
+          <button class="chip-btn show-dir" type="button" aria-label="展开目录"><svg class="ico"><use href="#i-panels"></use></svg></button>
+        </div>
+      </section>
+      <nav class="rail" aria-label="插件">
+        <div class="rail-items">
+          <button class="rail-item is-current" type="button" style="--plugin: var(--plugin-home)" aria-current="page" aria-label="项目首页"><svg class="ico"><use href="#i-home"></use></svg></button>
+          <button class="rail-item" type="button" style="--plugin: var(--plugin-goals)" aria-label="Goals" tabindex="-1"><svg class="ico"><use href="#i-target"></use></svg></button>
+          <button class="rail-item" type="button" style="--plugin: var(--plugin-sessions)" aria-label="Sessions" tabindex="-1"><svg class="ico"><use href="#i-terminal"></use></svg></button>
+          <button class="rail-item" type="button" style="--plugin: var(--plugin-inbox)" aria-label="Inbox" tabindex="-1"><svg class="ico"><use href="#i-inbox"></use></svg></button>
+          <button class="rail-item" type="button" style="--plugin: var(--plugin-feed)" aria-label="Feed" tabindex="-1"><svg class="ico"><use href="#i-activity"></use></svg></button>
+          <button class="rail-item" type="button" style="--plugin: var(--plugin-shelf)" aria-label="Shelf" tabindex="-1"><svg class="ico"><use href="#i-shelf"></use></svg></button>
+          <button class="rail-item" type="button" style="--plugin: var(--plugin-artifacts)" aria-label="Artifacts" tabindex="-1"><svg class="ico"><use href="#i-file"></use></svg></button>
+          <button class="rail-item" type="button" aria-label="插件市场" tabindex="-1"><svg class="ico"><use href="#i-plus"></use></svg></button>
+        </div>
+        <div class="rail-foot">
+          <button class="chip-btn" type="button" aria-label="打开全局设置" tabindex="-1"><svg class="ico"><use href="#i-settings"></use></svg></button>
+          <button class="chip-btn" type="button" aria-label="账号管理" tabindex="-1"><svg class="ico"><use href="#i-user"></use></svg></button>
+        </div>
+      </nav>
+      <div class="workspace">
+          <main class="stage">
+            <p class="day">9月18日 星期五</p>
+            <button class="mw-btn mw-btn--ghost due" type="button" data-due>
+              <strong>14:00 对方案</strong>
+              <small>和合作方过首页动线。</small>
+            </button>
+
+            <button class="mw-btn mw-btn--ghost mw-btn--icon-only stash-edge" type="button" data-open-stash aria-expanded="false" aria-controls="drawer-stash" aria-label="暂存">
+              <svg class="ico ico-sm" aria-hidden="true"><use href="#i-inbox"></use></svg>
+              <span class="visually-hidden" data-stash-count>暂存</span>
+            </button>
+
+            <article class="mw-card leaf" aria-label="当前这一页">
+              <i class="mark" aria-hidden="true"></i>
+              <h2 class="leaf-title" data-object-title>工作台首页方案</h2>
+              <div class="faces">
+                <section class="face face-arrive">
+                  <h1 data-arrive-heading>这一页，从这里继续。</h1>
+                  <p class="resume" data-resume>上次留下：先想清楚，用户打开后的第一个动作。</p>
+                  <label class="mw-field fresh-line">
+                    <span class="visually-hidden">写下眼前这一件事</span>
+                    <input class="mw-input" data-fresh-input type="text" placeholder="写下眼前这一件事" />
+                  </label>
+                  <button class="mw-btn mw-btn--primary mw-btn--md" type="button" data-open-page>
+                    <span data-open-label>打开草稿，接着想</span>
+                  </button>
+                  <p class="gates">
+                    <button class="mw-btn mw-btn--ghost" type="button" data-open-pick>换一件事</button>
+                    <button class="mw-btn mw-btn--ghost" type="button" data-open-note>先放下一些想法</button>
+                  </p>
+                  <form class="note" data-note-form>
+                    <div>
+                      <div class="note-card">
+                        <p>有件事暂时不想忘？</p>
+                        <label class="mw-field">
+                          <span class="visually-hidden">想法</span>
+                          <textarea class="mw-textarea" data-note-input placeholder="下午记得回复合作方案……"></textarea>
+                        </label>
+                        <div class="note-actions">
+                          <button class="mw-btn mw-btn--primary mw-btn--md" type="submit">先收好</button>
+                          <label class="mw-check-row"><input class="mw-check" data-note-when type="checkbox" /> 这一轮结束后看</label>
+                        </div>
+                      </div>
+                    </div>
+                  </form>
+                </section>
+
+                <section class="face face-work">
+                  <p class="now" data-now>现在先写：用户打开后的第一个动作。</p>
+                  <div class="work-body">
+                    <label class="visually-hidden" for="work-draft">草稿</label>
+                    <textarea class="mw-textarea" id="work-draft" data-draft>用户打开后的第一个动作，不应该是浏览仪表板。
+
+中央是一张还没展开的纸。标题还在原来的位置。上次留下的那句话露出来。
+
+点「打开草稿，接着想」，这一页自己变成工作区。不必现在完成整份方案。</textarea>
+                    <aside class="materials">
+                      <span>用得上的材料</span>
+                      <button class="mw-menu__item" type="button">specs/home-open-page/spec.md</button>
+                      <button class="mw-menu__item" type="button">上次草稿 · 用户打开后的第一个动作</button>
+                    </aside>
+                  </div>
+                </section>
+
+                <section class="face face-leave">
+                  <h2>给下次留一个起点。</h2>
+                  <p class="leave-hint">系统已经知道这份草稿和位置。下一步可以改，也可以不写。</p>
+                  <label class="mw-field leave-field">
+                    <span class="mw-field__label" id="bookmark-next-label">下次打开时，先……</span>
+                    <textarea class="mw-textarea" id="bookmark-next" data-bookmark aria-labelledby="bookmark-next-label">比较两个首页动线，先看进入工作前是否有多余步骤。</textarea>
+                  </label>
+                  <div class="leave-actions">
+                    <button class="mw-btn mw-btn--primary mw-btn--md" type="button" data-keep-mark>留好书签，合上</button>
+                    <button class="mw-btn mw-btn--ghost" type="button" data-close-plain>不补充，直接合上</button>
+                  </div>
+                </section>
+
+                <section class="face face-closed" aria-live="polite">
+                  <p class="closed-copy ok-copy">这一页已保存。<br />下次，从书签处继续。</p>
+                  <p class="closed-copy fail-copy">这一页没有保存成功。<br />草稿还在纸上，书签没有写上。不是“已保存”。</p>
+                  <div class="closed-actions ok-copy">
+                    <button class="mw-btn mw-btn--primary mw-btn--md" type="button" data-reopen>打开这一页</button>
+                  </div>
+                  <div class="retry-row fail-copy">
+                    <button class="mw-btn mw-btn--primary mw-btn--md" type="button" data-retry>再试一次</button>
+                    <button class="mw-btn mw-btn--ghost" type="button" data-stay>先留在这一页</button>
+                  </div>
+                </section>
+              </div>
+            </article>
+
+            <button class="mw-btn mw-btn--ghost leave-day" type="button" data-leave>今天先到这里</button>
+          </main>
+        </div>
+    </div>
+  </div>
+
+  <dialog class="mw-drawer mw-drawer--left" id="drawer-stash" aria-labelledby="stash-title">
+    <div class="mw-drawer__shell">
+      <div class="mw-drawer__head">
+        <div>
+          <h2 id="stash-title">先放在这里</h2>
+          <p>保存过的想法。需要时再拿出来，不排优先级。</p>
+        </div>
+        <button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-close-drawer aria-label="收起">
+          <svg class="ico ico-sm" aria-hidden="true"><use href="#i-x"></use></svg>
+        </button>
+      </div>
+      <ul class="mw-drawer__list" data-stash-list></ul>
+    </div>
+  </dialog>
+  <dialog class="mw-drawer mw-drawer--right" id="drawer-pick" aria-labelledby="pick-title">
+    <div class="mw-drawer__shell">
+      <div class="mw-drawer__head">
+        <div>
+          <h2 id="pick-title">接下来想先推进哪一件？</h2>
+          <p>这是你上次留下的事项，不是今天最该做的事。</p>
+        </div>
+        <button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-close-drawer aria-label="收起">
+          <svg class="ico ico-sm" aria-hidden="true"><use href="#i-x"></use></svg>
+        </button>
+      </div>
+      <div class="mw-drawer__list" data-pick-list></div>
+    </div>
+  </dialog>
+
+  <script>
+    const root = document.documentElement;
+    const PAGES = {
+      home: {
+        title: "工作台首页方案",
+        resume: "上次留下：先想清楚，用户打开后的第一个动作。",
+        open: "打开草稿，接着想",
+        now: "现在先写：用户打开后的第一个动作。",
+        draft: "用户打开后的第一个动作，不应该是浏览仪表板。\n\n中央是一张还没展开的纸。标题还在原来的位置。上次留下的那句话露出来。\n\n点「打开草稿，接着想」，这一页自己变成工作区。不必现在完成整份方案。",
+        next: "比较两个首页动线，先看进入工作前是否有多余步骤。"
+      },
+      inbox: {
+        title: "GitHub 授权已失效",
+        resume: "上次留下：拉取停在失败收据。",
+        open: "打开 Inbox，处理授权",
+        now: "这次先做：重新连接 GitHub。",
+        draft: "授权已失效。上次拉取停在失败收据。\n\n不必现在清完整条 Inbox。先把 GitHub 连上，再跑一次同步。",
+        next: "授权通过后，确认 Feed 能继续拉。"
+      },
+      feed: {
+        title: "把 Feed 目录行改成可读的三列",
+        resume: "上次留下：停在目录行密度。",
+        open: "打开 Feed，接着改这一行",
+        now: "这次先做：让目录行一眼能读完。",
+        draft: "目录行现在还在用卡片的语言说话。\n\n先改这一行的密度和三列信息，不要重做整个 Feed。",
+        next: "对照 Goals 目录行，看三列是否同一套。"
+      }
+    };
+
+    const titleEl = document.querySelector("[data-object-title]");
+    const headingEl = document.querySelector("[data-arrive-heading]");
+    const resumeEl = document.querySelector("[data-resume]");
+    const openLabel = document.querySelector("[data-open-label]");
+    const nowEl = document.querySelector("[data-now]");
+    const draftEl = document.querySelector("[data-draft]");
+    const bookmarkEl = document.querySelector("[data-bookmark]");
+    const freshInput = document.querySelector("[data-fresh-input]");
+    const stashList = document.querySelector("[data-stash-list]");
+    const pickList = document.querySelector("[data-pick-list]");
+    const stashCount = document.querySelector("[data-stash-count]");
+    const noteInput = document.querySelector("[data-note-input]");
+    const noteWhen = document.querySelector("[data-note-when]");
+    const stashDialog = document.querySelector("#drawer-stash");
+    const pickDialog = document.querySelector("#drawer-pick");
+    const stashBtn = document.querySelector("[data-open-stash]");
+
+    let current = "home";
+    const stash = [];
+    let leftResume = "";
+
+    function syncDrawerState() {
+      const drawer = stashDialog.open ? "stash" : pickDialog.open ? "pick" : "none";
+      root.dataset.drawer = drawer;
+      stashBtn.setAttribute("aria-expanded", String(drawer === "stash"));
+    }
+
+    function closeDialog(dialog) {
+      if (dialog.open) dialog.close();
+    }
+
+    function closeDrawers() {
+      closeDialog(stashDialog);
+      closeDialog(pickDialog);
+      syncDrawerState();
+    }
+
+    function bindDrawer(dialog) {
+      dialog.addEventListener("click", (event) => {
+        const rect = dialog.getBoundingClientRect();
+        const inside = event.clientX >= rect.left && event.clientX <= rect.right
+          && event.clientY >= rect.top && event.clientY <= rect.bottom;
+        if (!inside) dialog.close();
+      });
+      dialog.addEventListener("close", syncDrawerState);
+    }
+    bindDrawer(stashDialog);
+    bindDrawer(pickDialog);
+
+    function setPhase(phase) {
+      root.dataset.phase = phase;
+      if (phase !== "arrive") root.dataset.note = "off";
+      if (phase === "working" || phase === "leaving" || phase === "closed") {
+        closeDrawers();
+      }
+      const faceName = { arrive: "arrive", working: "work", leaving: "leave", closed: "closed" }[phase];
+      document.querySelectorAll(".face").forEach((face) => {
+        face.toggleAttribute("inert", !face.classList.contains(`face-${faceName}`));
+      });
+    }
+
+    function applyPage(key) {
+      current = key;
+      const page = PAGES[key];
+      titleEl.textContent = page.title;
+      resumeEl.textContent = leftResume || page.resume;
+      openLabel.textContent = page.open;
+      nowEl.textContent = page.now;
+      draftEl.value = page.draft;
+      bookmarkEl.value = page.next;
+      pickList.querySelectorAll(".pick-item").forEach((item) => {
+        if (item.dataset.page === key) item.setAttribute("aria-current", "true");
+        else item.removeAttribute("aria-current");
+      });
+    }
+
+    function applyLife() {
+      const fresh = root.dataset.life === "fresh";
+      headingEl.textContent = fresh ? "接下来，想先推进哪一件？" : "这一页，从这里继续。";
+      openLabel.textContent = fresh ? "放到眼前，开始" : PAGES[current].open;
+      document.querySelector("[data-open-pick]").hidden = fresh;
+      if (fresh) {
+        titleEl.textContent = "还没有打开的一页";
+        nowEl.textContent = "这次先做：把眼前这一件事放到纸上。";
+      } else {
+        applyPage(current);
+      }
+    }
+
+    function applyReturn() {
+      if (root.dataset.return === "session" && root.dataset.life === "marked") {
+        setPhase("working");
+        return;
+      }
+      if (root.dataset.phase === "working" && root.dataset.return === "round") {
+        setPhase("arrive");
+      }
+    }
+
+    function renderStash() {
+      stashList.replaceChildren();
+      root.dataset.stash = stash.length ? "1" : "0";
+      stashCount.textContent = stash.length ? `暂存 ${stash.length}` : "暂存";
+      if (!stash.length) {
+        const empty = document.createElement("li");
+        empty.innerHTML = "<small>还没有放下的想法。</small>";
+        stashList.append(empty);
+        return;
+      }
+      stash.forEach((item) => {
+        const li = document.createElement("li");
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "mw-menu__item";
+        button.innerHTML = `${item.text}${item.when ? "<small>这一轮结束后看</small>" : "<small>先放着</small>"}`;
+        li.append(button);
+        stashList.append(li);
+      });
+    }
+
+    function renderPick() {
+      pickList.replaceChildren();
+      Object.entries(PAGES).forEach(([key, page]) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "mw-menu__item pick-item";
+        button.dataset.page = key;
+        if (key === current) button.setAttribute("aria-current", "true");
+        button.innerHTML = `${page.title}<small>${page.resume.replace("上次留下：", "")}</small>`;
+        button.addEventListener("click", () => {
+          leftResume = "";
+          applyPage(key);
+          root.dataset.life = "marked";
+          document.querySelectorAll('[data-set="life"]').forEach((peer) => {
+            peer.classList.toggle("is-on", peer.dataset.value === "marked");
+          });
+          applyLife();
+          closeDrawers();
+        });
+        pickList.append(button);
+      });
+    }
+
+    function openPage() {
+      if (root.dataset.life === "fresh") {
+        const text = freshInput.value.trim();
+        if (!text) {
+          freshInput.focus();
+          return;
+        }
+        titleEl.textContent = text;
+        nowEl.textContent = "这次先做：写下现在能推进的第一步。";
+        draftEl.value = `${text}\n\n不必现在完成。先写眼前这一步。`;
+        bookmarkEl.value = "从刚才写下的那一步继续。";
+        openLabel.textContent = "打开草稿，接着想";
+      }
+      closeDrawers();
+      root.dataset.note = "off";
+      setPhase("working");
+      draftEl.focus();
+    }
+
+    document.querySelector("[data-open-page]").addEventListener("click", openPage);
+    document.querySelector("[data-open-note]").addEventListener("click", () => {
+      closeDrawers();
+      root.dataset.note = root.dataset.note === "on" ? "off" : "on";
+      if (root.dataset.note === "on") noteInput.focus();
+    });
+    document.querySelector("[data-open-pick]").addEventListener("click", () => {
+      root.dataset.note = "off";
+      closeDialog(stashDialog);
+      if (pickDialog.open) pickDialog.close();
+      else pickDialog.showModal();
+      syncDrawerState();
+    });
+    stashBtn.addEventListener("click", () => {
+      closeDialog(pickDialog);
+      if (stashDialog.open) stashDialog.close();
+      else stashDialog.showModal();
+      syncDrawerState();
+    });
+    document.querySelectorAll("[data-close-drawer]").forEach((button) => {
+      button.addEventListener("click", closeDrawers);
+    });
+    document.querySelector("[data-due]").addEventListener("click", () => {
+      root.dataset.due = root.dataset.due === "on" ? "off" : "on";
+    });
+    document.querySelector("[data-note-form]").addEventListener("submit", (event) => {
+      event.preventDefault();
+      const text = noteInput.value.trim();
+      if (!text) {
+        noteInput.focus();
+        return;
+      }
+      stash.unshift({ text, when: noteWhen.checked });
+      noteInput.value = "";
+      noteWhen.checked = false;
+      root.dataset.note = "off";
+      renderStash();
+    });
+    document.querySelector("[data-leave]").addEventListener("click", () => {
+      closeDrawers();
+      setPhase("leaving");
+      bookmarkEl.focus();
+    });
+    function closePage() {
+      if (root.dataset.save === "fail") {
+        setPhase("closed");
+        return;
+      }
+      root.dataset.life = "marked";
+      document.querySelectorAll('[data-set="life"]').forEach((peer) => {
+        peer.classList.toggle("is-on", peer.dataset.value === "marked");
+      });
+      applyLife();
+      leftResume = `上次留下：${bookmarkEl.value.trim() || "从书签处继续。"}`;
+      resumeEl.textContent = leftResume;
+      setPhase("closed");
+    }
+    document.querySelector("[data-keep-mark]").addEventListener("click", closePage);
+    document.querySelector("[data-close-plain]").addEventListener("click", closePage);
+    document.querySelector("[data-reopen]").addEventListener("click", () => {
+      applyLife();
+      setPhase("arrive");
+    });
+    document.querySelector("[data-retry]").addEventListener("click", () => {
+      if (root.dataset.save === "ok") closePage();
+    });
+    document.querySelector("[data-stay]").addEventListener("click", () => setPhase("working"));
+
+      document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      if (root.dataset.note === "on") {
+        root.dataset.note = "off";
+        return;
+      }
+      if (root.dataset.phase === "leaving") setPhase("working");
+    });
+
+    document.querySelectorAll(".slice-bar [data-set]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const key = button.dataset.set;
+        const value = button.dataset.value;
+        document.querySelectorAll(`.slice-bar [data-set="${key}"]`).forEach((peer) => {
+          peer.classList.toggle("is-on", peer === button);
+        });
+        root.dataset[key] = value;
+        closeDrawers();
+        if (key === "life") {
+          if (value === "fresh") setPhase("arrive");
+          applyLife();
+        }
+        if (key === "return") applyReturn();
+        if (key === "save" && root.dataset.phase === "closed") {
+          /* keep closed face honest if the save outcome flips */
+        }
+      });
+    });
+
+    document.querySelector("[data-reset]").addEventListener("click", () => {
+      current = "home";
+      stash.length = 0;
+      leftResume = "";
+      freshInput.value = "";
+      noteInput.value = "";
+      root.dataset.life = "marked";
+      root.dataset.return = "round";
+      root.dataset.skip = "0";
+      root.dataset.save = "ok";
+      closeDrawers();
+      root.dataset.note = "off";
+      root.dataset.due = "off";
+      document.querySelectorAll(".slice-bar [data-set]").forEach((button) => {
+        const on = (
+          (button.dataset.set === "life" && button.dataset.value === "marked") ||
+          (button.dataset.set === "theme" && button.dataset.value === root.dataset.theme) ||
+          (button.dataset.set === "frame" && button.dataset.value === root.dataset.frame) ||
+          (button.dataset.set === "return" && button.dataset.value === "round") ||
+          (button.dataset.set === "skip" && button.dataset.value === "0") ||
+          (button.dataset.set === "save" && button.dataset.value === "ok")
+        );
+        button.classList.toggle("is-on", on);
+      });
+      applyPage("home");
+      applyLife();
+      renderStash();
+      setPhase("arrive");
+    });
+
+    renderPick();
+    renderStash();
+    applyLife();
+    setPhase("arrive");
+  </script>
+</body>
+</html>

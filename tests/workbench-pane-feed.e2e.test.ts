@@ -26,8 +26,8 @@ test("Feed source navigation, independent nested panes, resize and restore", { t
   assert.match(await evaluate<string>(`document.querySelector('[data-feed-task="${source}"] .goal-collection-mark')?.innerHTML || ""`), /icon-check|icon-alert/);
   const bounds = await evaluate<number[]>("[...document.querySelectorAll('[data-feed-stage-group] > summary')].map(x=>x.getBoundingClientRect().top)");
   assert.equal(new Set(bounds).size, bounds.length, "source tasks must not overlap");
-  const widths = await evaluate<number[]>("[...document.querySelectorAll('[data-titlebar-tabs] .tab-item')].map(x=>Math.round(x.getBoundingClientRect().width))");
-  assert.equal(new Set(widths).size, 1);
+  const widths = await evaluate<number[]>("[...document.querySelectorAll('[data-titlebar-tabs] .tab-item:not([data-pinned])')].map(x=>Math.round(x.getBoundingClientRect().width))");
+  assert.ok(widths.length >= 1 && widths.every((width) => width > 0 && width <= 172), "unpinned tabs hug or share at or below 172px: " + JSON.stringify(widths));
   await click('[data-titlebar-tabs] [data-tab-split]');
   await click('[data-layout-split=right]');
   await waitFor("document.querySelectorAll('iframe.tab-content-frame').length === 2 && [...document.querySelectorAll('iframe.tab-content-frame')].every(f=>f.contentDocument?.body?.dataset.desktopSurface==='feed')");

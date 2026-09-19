@@ -102,7 +102,8 @@ export const IMMERSIVE_DIRECTORY_STYLES = `
   body.immersive-workbench .tree-pane .source-list-copy strong { font-size: 13px; font-weight: 400; line-height: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   body.immersive-workbench .tree-pane .source-list-copy :is(p, small, em) { font-size: 11px; font-weight: 400; line-height: 16px; }
   body.immersive-workbench .tree-pane .source-list-copy p { display: none; }
-  body.immersive-workbench .tree-pane .artifact-version-list .mw-dir-row { width: 100%; }
+  body.immersive-workbench .tree-pane .artifact-version-list .mw-dir-row,
+  body.immersive-workbench .plugin-stage-list .artifact-version-list .feed-stage-entry { width: 100%; }
 
   body.immersive-workbench .feed-workbench { padding: 0; background: var(--canvas); overflow: auto; overscroll-behavior: contain; }
   body.immersive-workbench .feed-stage-directory { display: flex; flex-direction: column; width: 100%; min-width: 0; min-height: 100%; max-width: 1120px; margin-inline: auto; padding: 16px 28px 40px; box-sizing: border-box; }
@@ -148,7 +149,7 @@ export const IMMERSIVE_DIRECTORY_STYLES = `
   body.immersive-workbench .feed-stage-list .goal-collection-fold > summary:hover { color: var(--ink); background: var(--nav-hover); }
   body.immersive-workbench .feed-stage-list .goal-collection-fold > summary strong { font-size: 12px; font-weight: 400; }
   body.immersive-workbench .feed-stage-list .goal-collection-fold > summary small { font-size: 11px; font-variant-numeric: tabular-nums; color: var(--faint); }
-  body.immersive-workbench .feed-stage-list .goal-collection-empty { margin: 0; padding: 6px 8px 10px 32px; font-size: 12px; color: var(--muted); }
+  body.immersive-workbench .feed-stage-list .goal-collection-empty { margin: 0; padding: 6px 8px 10px 24px; font-size: 12px; color: var(--muted); }
   body.immersive-workbench .feed-stage-group-body { width: 100%; min-width: 0; }
   body.immersive-workbench .feed-stage-item { width: 100%; min-width: 0; border: 0; }
   body.immersive-workbench .feed-stage-item-line { display: block; width: 100%; min-width: 0; }

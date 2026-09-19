@@ -92,6 +92,7 @@ export const MW_PLUGINS = [
   { id: "inbox", label: "Inbox", hue: "mint" as const },
   { id: "shelf", label: "Shelf", hue: "slate" as const },
   { id: "artifacts", label: "Artifacts", hue: "pink" as const },
+  { id: "coding", label: "Coding", hue: "cyan" as const },
   { id: "settings", label: "Settings", hue: "steel" as const },
 ] as const;
 
@@ -110,6 +111,8 @@ export const MW_CONTENT_THEME = {
     select: "#D6DCEB",
     tty: "#F8F7F4",
     ttyInk: "#383A43",
+    danger: "#8C594B",
+    field: "#EEEEED",
   },
   dark: {
     side: "#111112",
@@ -124,6 +127,8 @@ export const MW_CONTENT_THEME = {
     select: "#4D5874",
     tty: "#222329",
     ttyInk: "#E2E3E9",
+    danger: "#E0B5A5",
+    field: "#202023",
   },
 } as const;
 
@@ -169,6 +174,8 @@ function contentCustomProperties(theme: "light" | "dark"): string {
     `--content-select: ${surface.select}`,
     `--content-tty: ${surface.tty}`,
     `--content-tty-ink: ${surface.ttyInk}`,
+    `--content-danger: ${surface.danger}`,
+    `--content-field: ${surface.field}`,
   ].join("; ");
   const marks = MW_CONTENT_MARKS.map((mark) => {
     const step = mark[theme];

@@ -8,6 +8,8 @@ import type {
 } from "@molis-ai/molis-work-contracts/platform/ui";
 
 export { createPluginUiClient, PluginUiAccessError } from "./plugin-client.js";
+export { UiViewRegistry } from "./view-registry.js";
+export type { UiPlacedView, UiViewRegistryInput } from "./view-registry.js";
 
 export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-ui-host",

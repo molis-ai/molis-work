@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Coding App · 开一条会话 · 插件接线</title>
+<style>
+body{margin:0;font-family:"Inter Variable",Inter,"Noto Sans SC","PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;background:#f3f4f5;-webkit-font-smoothing:antialiased}
+a{color:#3d6f78}a:hover{color:#2c5259}
+.rail-btn{width:32px;height:32px;display:flex;align-items:center;justify-content:center;border:0;background:transparent;border-radius:8px;cursor:pointer;color:#6b6f76;padding:0}
+.row{display:flex;align-items:center;gap:8px}
+.pick{display:flex;align-items:center;gap:8px;height:34px;padding:0 10px;border:1px solid #e2e4e7;border-radius:10px;background:#ffffff;width:100%;box-sizing:border-box;cursor:pointer;font-size:12px;color:#222326;text-align:left;font-family:inherit}
+.lbl{font-size:11px;color:#6b6f76;display:block;margin-bottom:5px}
+.port{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid #e2e4e7;border-radius:8px;background:#ffffff}
+html,body{background:#e9eaec}
+.board{margin:24px auto;box-shadow:0 3px 7px rgba(0,0,0,.10),0 13px 32px rgba(0,0,0,.10);border-radius:4px;overflow:hidden;width:1440px}
+.caption{width:1440px;margin:0 auto;font-size:12px;color:#6b6f76;padding-top:20px}
+</style>
+</head>
+<body>
+<p class="caption">Coding App 设计稿 · 开一条会话 · 插件接线 · 1440×900 · 用 Molis Work 现行 token</p>
+<div class="board">
+<div style="width:1440px;height:900px;box-sizing:border-box;display:flex;flex-direction:column;background:#f3f4f5;color:#222326;overflow:hidden;position:relative">
+
+  <div style="height:32px;flex-shrink:0;display:flex;align-items:center;gap:10px;padding:0 12px;border-bottom:1px solid #e2e4e7">
+    <div style="display:flex;gap:6px"><span style="width:10px;height:10px;border-radius:50%;background:#d0d6e0;display:block"></span><span style="width:10px;height:10px;border-radius:50%;background:#d0d6e0;display:block"></span><span style="width:10px;height:10px;border-radius:50%;background:#d0d6e0;display:block"></span></div>
+    <span style="font-size:12px;color:#6b6f76;margin-left:4px">goalboard</span><span style="font-size:12px;color:#d0d6e0">/</span><span style="font-size:12px;color:#222326">Coding</span>
+  </div>
+
+  <div style="flex-grow:1;display:flex;min-height:0">
+    <div style="width:48px;flex-shrink:0;background:#eceef0;border-right:1px solid #e2e4e7;display:flex;flex-direction:column;align-items:center;padding:8px 0;gap:2px">
+      <button class="rail-btn" aria-label="项目首页"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><path d="M9 22V12h6v10"></path></svg></button>
+      <div style="width:24px;height:1px;background:#d0d6e0;margin:6px 0"></div>
+      <button class="rail-btn" aria-label="Goals" style="color:#3c6fc6"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="2"></circle></svg></button>
+      <button class="rail-btn" aria-label="Sessions" style="color:#7f5eb0"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 17 6-6-6-6"></path><path d="M12 19h8"></path></svg></button>
+      <button class="rail-btn" aria-label="Inbox" style="color:#26785f"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2"></path><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg></button>
+      <button class="rail-btn" aria-label="Feed" style="color:#9c5f1a"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11a9 9 0 0 1 9 9"></path><path d="M4 4a16 16 0 0 1 16 16"></path><circle cx="5" cy="19" r="1"></circle></svg></button>
+      <button class="rail-btn" aria-label="Shelf" style="color:#66709e"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 6 4 14"></path><path d="M12 6v14"></path><path d="M8 8v12"></path><path d="M4 4v16"></path></svg></button>
+      <button class="rail-btn" aria-label="Artifacts" style="color:#a15571"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"></path><path d="m3.3 7 8.7 5 8.7-5"></path><path d="M12 22V12"></path></svg></button>
+      <button class="rail-btn" aria-label="Coding" aria-current="page" style="background:#e7f2f3;color:#3d6f78;position:relative"><span style="position:absolute;left:-8px;top:6px;width:2px;height:20px;border-radius:1px;background:#4db7c9"></span><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5a2 2 0 0 0 2 2h1"></path><path d="M16 21h1a2 2 0 0 0 2-2v-5a2 2 0 0 1 2-2 2 2 0 0 1-2-2V5a2 2 0 0 0-2-2h-1"></path></svg></button>
+    </div>
+    <div style="width:240px;flex-shrink:0;background:#f3f4f5;border-right:1px solid #e2e4e7"></div>
+    <div style="flex-grow:1;background:#f3f4f5"></div>
+  </div>
+
+  <div style="position:absolute;inset:0;background:rgba(15,16,17,.28)"></div>
+
+  <div style="position:absolute;left:340px;top:96px;width:760px;background:#ffffff;border:1px solid #d0d6e0;border-radius:12px;box-shadow:0 3px 7px rgba(0,0,0,.08), 0 13px 32px rgba(0,0,0,.10);overflow:hidden;display:flex;flex-direction:column">
+    <div style="height:44px;flex-shrink:0;display:flex;align-items:center;gap:8px;padding:0 18px;border-bottom:1px solid #e2e4e7">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#3d6f78" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5a2 2 0 0 0 2 2h1"></path><path d="M16 21h1a2 2 0 0 0 2-2v-5a2 2 0 0 1 2-2 2 2 0 0 1-2-2V5a2 2 0 0 0-2-2h-1"></path></svg>
+      <span style="font-size:13px;font-weight:500;color:#222326;flex-grow:1">开一条编码会话</span>
+      <button class="rail-btn" style="width:24px;height:24px" aria-label="关闭"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></button>
+    </div>
+
+    <div style="display:flex;min-height:0">
+      <div style="width:440px;flex-shrink:0;padding:18px;display:flex;flex-direction:column;gap:14px;border-right:1px solid #e2e4e7">
+        <div>
+          <label class="lbl" for="task">要做什么</label>
+          <textarea id="task" style="width:100%;box-sizing:border-box;height:62px;border:1px solid #d0d6e0;border-radius:10px;padding:9px 10px;font-size:13px;line-height:1.5;color:#222326;font-family:inherit;resize:none;outline:0">runtime 连不上时只有一句「连接失败」，看一下错误路径，给出能落地的修法。</textarea>
+        </div>
+
+        <div>
+          <span class="lbl">关联目标（可不选）</span>
+          <button class="pick"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3c6fc6" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="2"></circle></svg><span style="flex-grow:1">让首次使用不再卡在连接</span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b6f76" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg></button>
+        </div>
+
+        <div>
+          <span class="lbl">带上的材料</span>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <button class="pick"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#66709e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 6 4 14"></path><path d="M12 6v14"></path><path d="M8 8v12"></path><path d="M4 4v16"></path></svg><span style="flex-grow:1">连接失败的用户反馈.pdf</span><span style="font-size:11px;color:#6b6f76">Shelf</span></button>
+            <button class="pick" style="border-style:dashed;color:#6b6f76"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg><span>再加一份材料</span></button>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:10px">
+          <div style="flex-grow:1">
+            <span class="lbl">角色</span>
+            <button class="pick"><span style="flex-grow:1">阅读者 v2</span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b6f76" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg></button>
+          </div>
+          <div style="flex-grow:1">
+            <span class="lbl">运行时</span>
+            <button class="pick"><span style="flex-grow:1">Prologue</span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b6f76" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg></button>
+          </div>
+        </div>
+
+        <div>
+          <span class="lbl">执行档位</span>
+          <div style="display:flex;background:#eceef0;border-radius:10px;padding:2px;gap:2px">
+            <button style="flex-grow:1;height:26px;border:0;border-radius:8px;background:#ffffff;color:#222326;font-size:12px;cursor:pointer">只读 · 出建议</button>
+            <button style="flex-grow:1;height:26px;border:0;border-radius:8px;background:transparent;color:#737882;font-size:12px;cursor:not-allowed">可写 · 未接审批</button>
+          </div>
+          <div style="font-size:11px;color:#6b6f76;line-height:1.5;margin-top:7px">这个运行时还没接上宿主的副作用审批，所以可写档不可用——不是暂时藏起来，是真的不能用。</div>
+        </div>
+      </div>
+
+      <div style="flex-grow:1;padding:18px;display:flex;flex-direction:column;gap:12px;background:#f3f4f5">
+        <span style="font-size:12px;font-weight:500;color:#222326">这条会话会接到哪里</span>
+
+        <div>
+          <span class="lbl">输入端口</span>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div class="port"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#66709e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 6 4 14"></path><path d="M12 6v14"></path><path d="M8 8v12"></path><path d="M4 4v16"></path></svg><span style="font-size:12px;color:#222326;flex-grow:1">材料</span><span style="font-size:11px;color:#6b6f76">Shelf · v7</span></div>
+            <div class="port"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#3c6fc6" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="2"></circle></svg><span style="font-size:12px;color:#222326;flex-grow:1">目标上下文</span><span style="font-size:11px;color:#6b6f76">Goals · v12</span></div>
+          </div>
+        </div>
+
+        <div>
+          <span class="lbl">输出端口</span>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div class="port"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#a15571" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"></path><path d="m3.3 7 8.7 5 8.7-5"></path><path d="M12 22V12"></path></svg><span style="font-size:12px;color:#222326;flex-grow:1">变更集</span><span style="font-size:11px;color:#6b6f76">Artifacts</span></div>
+            <div class="port"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#a15571" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"></path><path d="m3.3 7 8.7 5 8.7-5"></path><path d="M12 22V12"></path></svg><span style="font-size:12px;color:#222326;flex-grow:1">报告</span><span style="font-size:11px;color:#6b6f76">Artifacts</span></div>
+          </div>
+        </div>
+
+        <div>
+          <span class="lbl">会通知谁</span>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div class="port"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#26785f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2"></path><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg><span style="font-size:12px;color:#222326;flex-grow:1">轮到你时进 Inbox</span></div>
+            <div class="port"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#7f5eb0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 17 6-6-6-6"></path><path d="M12 19h8"></path></svg><span style="font-size:12px;color:#222326;flex-grow:1">命令回执投影到 Sessions</span></div>
+          </div>
+        </div>
+
+        <div style="margin-top:auto;font-size:11px;color:#6b6f76;line-height:1.55">端口由 Manifest 声明，绑定由你确认。Coding 不直接读别的插件的库，只收它们发布的 Artifact 版本。</div>
+      </div>
+    </div>
+
+    <div style="flex-shrink:0;border-top:1px solid #e2e4e7;padding:12px 18px;display:flex;align-items:center;gap:10px">
+      <span style="font-size:11px;color:#6b6f76;flex-grow:1">工作区 ~/code/goalboard 已由宿主授权</span>
+      <button style="height:28px;padding:0 12px;border-radius:10px;border:1px solid #e2e4e7;background:#ffffff;color:#3c3f44;font-size:12px;cursor:pointer">取消</button>
+      <button style="height:28px;padding:0 16px;border-radius:10px;border:0;background:#222326;color:#ffffff;font-size:12px;cursor:pointer">开始</button>
+    </div>
+  </div>
+</div></div>
+</body>
+</html>

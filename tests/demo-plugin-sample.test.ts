@@ -175,7 +175,7 @@ test("creating the demo project seeds every built-in plugin surface", async () =
       assert.equal(created.status, "created");
       assert.deepEqual(
         catalog.listProjectPlugins(created.project.project_id),
-        ["artifacts", "feed", "goals", "inbox", "sessions"],
+        ["artifacts", "coding", "feed", "goals", "inbox", "sessions"],
       );
       await assertDemoPluginFacts({
         databasePath: created.project.database_path,
@@ -193,7 +193,7 @@ test("creating the demo project seeds every built-in plugin surface", async () =
       assert.equal(reset.status, "reset");
       assert.deepEqual(
         catalog.listProjectPlugins(reset.project.project_id),
-        ["artifacts", "feed", "goals", "inbox", "sessions"],
+        ["artifacts", "coding", "feed", "goals", "inbox", "sessions"],
       );
       await assertDemoPluginFacts({
         databasePath: reset.project.database_path,

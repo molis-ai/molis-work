@@ -1,6 +1,18 @@
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
-import { icon, renderDirectoryRow } from "@molis-ai/molis-work-design-system";
+import { icon } from "@molis-ai/molis-work-design-system";
 import { artifactDisplayTitle, artifactVersionPath, type ArtifactBrowserView } from "./browser.js";
+
+const ARTIFACT_TYPE_LABELS: Record<string, string> = {
+  "io.molis.work.goal.delivery": "Goal 交付",
+  "io.molis.work.feed.capture": "Feed 捕获",
+};
+
+function artifactTypeFoldLabel(typeId: string, p: ArtifactBrowserUiModel["primitives"]): string {
+  const known = ARTIFACT_TYPE_LABELS[typeId];
+  if (known) return p.text(known);
+  const last = typeId.split(".").filter(Boolean).at(-1);
+  return last || typeId;
+}
 
 export const ARTIFACT_BROWSER_UI_CONTRIBUTION_ID = "io.molis.work.native.artifacts.browser.v1";
 
@@ -40,33 +52,22 @@ function directory({ view, routePrefix, primitives: p }: ArtifactBrowserUiModel)
         : artifact.availability === "unavailable"
           ? "blocked"
           : "done";
-      const statusIcon = statusTone === "quiet" ? "archive" : statusTone === "blocked" ? "alert" : "check";
-      return renderDirectoryRow({
-        title,
-        caption: `v${artifact.version} · ${artifact.artifact_type_id}`,
-        status,
-        statusTone,
-        statusIcon,
-        density: "meta",
-        href: routePrefix + artifactVersionPath(artifact),
-        current: selected,
-        draggable: true,
-        attrs: {
-          "data-frame-asset": "artifact",
-          "data-frame-asset-id": `${artifact.artifact_id}#${artifact.version}`,
-          "data-frame-asset-title": title,
-          "data-frame-asset-caption": `v${artifact.version} · ${artifact.artifact_type_id}`,
-        },
-      });
+      return `<article class="feed-stage-item">
+        <a class="feed-stage-entry directory-list-row${selected ? " is-selected" : ""}" href="${p.escape(routePrefix + artifactVersionPath(artifact))}" draggable="true" data-frame-asset="artifact" data-frame-asset-id="${p.escape(`${artifact.artifact_id}#${artifact.version}`)}" data-frame-asset-title="${p.escape(title)}" data-frame-asset-caption="${p.escape(`v${artifact.version}`)}">
+          <span class="feed-stage-leading"><strong>${p.escape(title)}</strong></span>
+          <span class="feed-entry-source">v${artifact.version}</span>
+          <span class="mw-status mw-status--${statusTone} mw-status--plain feed-entry-status">${status}</span>
+        </a>
+      </article>`;
     }).join("");
     return `<details class="goal-collection-fold" data-artifact-type-fold="${p.escape(typeId)}" open>
       <summary>
         <span class="goal-collection-caret" aria-hidden="true">${icon("chevron-down")}</span>
         <span class="goal-collection-mark is-${tone}" aria-hidden="true">${icon(mark)}</span>
-        <strong>${p.escape(typeId)}</strong>
+        <strong>${p.escape(artifactTypeFoldLabel(typeId, p))}</strong>
         <small>${versions.length}</small>
       </summary>
-      ${rows}
+      <div class="artifact-stage-group-body" role="list">${rows}</div>
     </details>`;
   }).join("");
   return `<nav aria-label="${p.text("Artifact 版本")}" class="mw-dir__list artifact-version-list">${folds}</nav>`;

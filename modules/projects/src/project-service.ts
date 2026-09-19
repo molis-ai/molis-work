@@ -2,12 +2,13 @@ import path from "node:path";
 
 import type {
   AddProjectPluginInput,
-  BuiltinProjectPluginId,
   ProjectDeletionRecord,
+  ProjectPluginId,
+  ProjectPluginRegistry,
   ProjectRecord,
   ProjectSelection,
 } from "@molis-ai/molis-work-contracts/modules/projects";
-import { BUILTIN_PROJECT_PLUGIN_IDS, PROJECT_PLUGIN_COMPANIONS } from "@molis-ai/molis-work-contracts/modules/projects";
+import { BUILTIN_PROJECT_PLUGIN_REGISTRY } from "@molis-ai/molis-work-contracts/modules/projects";
 
 import { ProjectsRepository, type StoredProjectDeletion } from "./repository.js";
 
@@ -27,6 +28,8 @@ export class ProjectService {
     private readonly error: ProjectsErrorFactory,
     private readonly now: () => string,
     private readonly id: (prefix: string) => string,
+    /** Which Plugins exist is a Host fact. Projects only validates against it. */
+    private readonly plugins: ProjectPluginRegistry = BUILTIN_PROJECT_PLUGIN_REGISTRY,
   ) {}
 
   list(): ProjectRecord[] {
@@ -78,19 +81,19 @@ export class ProjectService {
     this.repository.removeProject(this.requiredProjectId(projectId));
   }
 
-  listPlugins(projectId: string): BuiltinProjectPluginId[] {
+  listPlugins(projectId: string): ProjectPluginId[] {
     return this.repository.listProjectPlugins(this.get(projectId).project_id);
   }
 
-  addPlugin(input: AddProjectPluginInput): BuiltinProjectPluginId[] {
+  addPlugin(input: AddProjectPluginInput): ProjectPluginId[] {
     const project = this.get(input.project_id);
     const actor = this.requiredActorId(input.actor_id);
-    if (!BUILTIN_PROJECT_PLUGIN_IDS.includes(input.plugin_id)) {
-      throw this.error("catalog.plugin_not_found", "找不到这个内置插件");
+    if (!this.plugins.has(input.plugin_id)) {
+      throw this.error("catalog.plugin_not_found", "找不到这个插件");
     }
     return this.repository.transaction(() => {
       const at = this.now();
-      for (const pluginId of [input.plugin_id, ...PROJECT_PLUGIN_COMPANIONS[input.plugin_id]]) {
+      for (const pluginId of [input.plugin_id, ...this.plugins.companions(input.plugin_id)]) {
         if (this.repository.addProjectPlugin(project.project_id, pluginId, at)) {
           this.appendEvent(project.project_id, "project.plugin_added", actor, { plugin_id: pluginId });
         }

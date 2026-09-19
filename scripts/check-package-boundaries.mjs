@@ -754,7 +754,10 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
       errors.push(`${commandHandlerPath}: command handlers must not own Module implementations, Store, or copied business rules`);
     }
   }
-  for (const file of ["create", "policy-guidance", "lifecycle", "decisions", "events"]) {
+  // `relations` left the retired list when the workbench redesign brought Goal
+  // relation editing back as a product feature. It stays here so it still has to
+  // consume public operation ports instead of owning Store, SQL or Module rules.
+  for (const file of ["create", "policy-guidance", "lifecycle", "decisions", "events", "relations"]) {
     const nativePath = `plugins/native/goals/src/http/${file}.ts`;
     const source = read(nativePath);
     errors.push(...checkGoalStorageOwnership(source).map(error => `${nativePath}: ${error}`));
@@ -762,7 +765,7 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
       errors.push(`${nativePath}: Native Goal requests must consume public operation ports without Host or Module implementations`);
     }
   }
-  for (const file of ["draft", "relations", "risk-impact", "verification", "input"]) {
+  for (const file of ["draft", "risk-impact", "verification", "input"]) {
     const nativePath = `plugins/native/goals/src/http/${file}.ts`;
     if (fs.existsSync(path.join(repositoryRoot, nativePath))) {
       errors.push(`${nativePath}: retired old protocol HTTP write adapter must stay removed`);

@@ -1,4 +1,5 @@
 import type { MolisWorkIcon } from "@molis-ai/molis-work-design-system";
+import { railEntries } from "./plugin-catalog.js";
 
 export interface ImmersiveShellPrimitives {
   L(value: string): string;
@@ -6,21 +7,30 @@ export interface ImmersiveShellPrimitives {
   icon(name: MolisWorkIcon): string;
 }
 
-const DIRECTORY_PLUGINS = [
-  { id: "goals", surface: "goal", label: "Goals", glyph: "target" as const },
-  { id: "sessions", surface: "sessions", label: "Sessions", glyph: "terminal" as const },
-  { id: "inbox", surface: "inbox", label: "Inbox", glyph: "inbox" as const },
-  { id: "feed", surface: "feed", label: "Feed", glyph: "rss" as const },
-  { id: "shelf", surface: "shelf", label: "Shelf", glyph: "library" as const },
-  { id: "artifacts", surface: "artifacts", label: "Artifacts", glyph: "package" as const },
-] as const;
+/**
+ * Navigation comes from the Plugin catalog's Manifests, not from a list kept
+ * here. Adding a Plugin must never mean editing the shell.
+ *
+ * `surface` keeps the historical Goals value: the URL surface predates the
+ * Manifest id and changing it would break existing links and saved tabs.
+ */
+const SURFACE_OVERRIDES: Readonly<Record<string, string>> = { goals: "goal" };
+
+function directoryPlugins(enabled: readonly string[]) {
+  return railEntries(enabled).map(entry => ({
+    id: entry.id,
+    surface: SURFACE_OVERRIDES[entry.id] ?? entry.surface,
+    label: entry.label,
+    glyph: entry.glyph as MolisWorkIcon,
+  }));
+}
 
 function pluginLink(
   { L, icon }: ImmersiveShellPrimitives,
   plugin: { id: string; surface: string; label: string; glyph: MolisWorkIcon },
   extraClass = "",
 ): string {
-  const directory = plugin.id === "home" || plugin.id === "market" || plugin.id === "feed" || plugin.id === "goals" || plugin.id === "sessions" || plugin.id === "inbox" || plugin.id === "artifacts" ? "" : ` data-directory-open="${plugin.id}"`;
+  const directory = plugin.id === "home" || plugin.id === "market" || plugin.id === "feed" || plugin.id === "goals" || plugin.id === "sessions" || plugin.id === "inbox" || plugin.id === "artifacts" || plugin.id === "shelf" ? "" : ` data-directory-open="${plugin.id}"`;
   const feedPreset = plugin.id === "feed" ? ' data-feed-preset="feed"' : "";
   const aria = plugin.id === "home" || plugin.id === "market"
     ? ` aria-label="${plugin.label}"`
@@ -43,7 +53,7 @@ export function renderPluginRail(
 ): string {
   const { L } = primitives;
   const home = pluginLink(primitives, { id: "home", surface: "home", label: L("项目首页"), glyph: "home" }, "plugin-rail-item");
-  const plugins = DIRECTORY_PLUGINS.filter(plugin => enabled.includes(plugin.id))
+  const plugins = directoryPlugins(enabled)
     .map(plugin => pluginLink(primitives, plugin, "plugin-rail-item"))
     .join("");
   const market = pluginLink(primitives, { id: "market", surface: "market", label: L("插件市场"), glyph: "grid" }, "plugin-rail-item");
@@ -62,7 +72,7 @@ export function renderDirectoryPluginSections(
   settingsSection = "",
 ): string {
   const current = currentListPlugin(activeDirectory);
-  const plugins = DIRECTORY_PLUGINS.filter(plugin => enabled.includes(plugin.id)).flatMap((plugin) => {
+  const plugins = directoryPlugins(enabled).flatMap((plugin) => {
     const panel = panels[plugin.id] || "";
     if (!panel) return [];
     const visible = plugin.id === current;
@@ -111,10 +121,10 @@ export function renderImmersiveWorkTabs({ L, icon }: ImmersiveShellPrimitives): 
 
 export { renderProjectHome } from "./project-home.js";
 
-export function renderGlobalSearchOverlay({ L }: ImmersiveShellPrimitives): string {
+export function renderGlobalSearchOverlay({ L, icon }: ImmersiveShellPrimitives): string {
   return `<dialog class="global-search-dialog" data-global-search-dialog aria-label="${L("搜索项目内的内容")}">
     <form class="global-search-shell" data-global-search-form>
-      <label class="global-search-field"><input type="search" data-global-search placeholder="${L("搜索")}" aria-label="${L("搜索项目内的内容")}" autocomplete="off" enterkeyhint="search"><kbd>⌘K</kbd></label>
+      <label class="global-search-field">${icon("search")}<input class="global-search-query" type="search" data-global-search placeholder="${L("搜索")}" aria-label="${L("搜索项目内的内容")}" autocomplete="off" enterkeyhint="search"><kbd>⌘K</kbd></label>
       <div class="global-search-body" data-global-search-results role="listbox" aria-label="${L("搜索结果")}"></div>
     </form>
   </dialog>`;

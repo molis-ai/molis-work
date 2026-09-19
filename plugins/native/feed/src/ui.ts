@@ -456,7 +456,7 @@ export function renderFeedOverlays(model: FeedUiModel): string {
       <details class="feed-task-extra"><summary>${p.text("最近拉取")}</summary>${renderSourceRuns(source, p)}</details><details class="feed-task-extra"><summary>${p.text("移除任务")}</summary><p>${p.text("停止拉取，已收集的消息与历史仍会保留。")}</p><button class="mw-btn mw-btn--danger-outline" type="button" data-source-delete="retain_history" data-source-id="${id}"${source.prototype?' disabled':''}>${p.text("移除任务并保留历史")}</button></details><p data-source-action-status role="status" hidden></p>
     </section>`;
   }).join("");
-  return `<dialog class="feed-source-dialog feed-task-dialog mw-sheet" data-feed-sources-dialog aria-labelledby="feed-source-dialog-title"><div class="feed-task-dialog-shell mw-form mw-sheet__shell">
+  return `<dialog class="feed-source-dialog feed-task-dialog mw-dialog mw-dialog--form" data-feed-sources-dialog aria-labelledby="feed-source-dialog-title"><div class="feed-task-dialog-shell mw-form mw-dialog__shell">
     <header class="mw-form__header"><div><h2 id="feed-source-dialog-title">${p.text("添加任务")}</h2><p data-feed-setup-description>${p.text("选一种来源。")}</p></div><button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-feed-sources-close aria-label="${p.text("关闭")}">${p.icon("x")}</button></header>
     <div class="feed-task-dialog-body mw-form__body">
       <section data-feed-source-choices>${sourceChoiceRows}</section>

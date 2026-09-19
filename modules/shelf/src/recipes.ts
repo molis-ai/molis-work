@@ -79,7 +79,8 @@ export const SHELF_RECIPES: readonly ShelfRecipeSpec[] = [
     short_title: "提取文字",
     blurb: "在本机提取 PDF 中可选择的文字",
     tone: "clay",
-    accepts: ["pdf", "image", ...TEXTY],
+    // DropAgent extracts from a PDF or an image; a text file is already text.
+    accepts: ["pdf", "image"],
     output_file: "pdf.md",
     needs_network: false,
     requires_agent: false,

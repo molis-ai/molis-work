@@ -25,7 +25,7 @@
  *   - secrets / provider body / stack / arbitrary URL query text never appear
  *     in failure messages or activities.
  *   - No automatic resync on partial failure; the caller re-runs with no cursor.
- *   - Existing Relay Items are never deleted from mailbox history (deletions
+ *   - Existing Feed items are never deleted from mailbox history (deletions
  *     and label churn are intentionally ignored).
  */
 import type {
@@ -119,8 +119,8 @@ const MESSAGES_PATH = `${GMAIL_BASE_PATH}/messages`;
  * HistoryType enum values for the `historyTypes` query parameter (singular).
  * The response object's `history` rows expose the plural array fields
  * `messagesAdded` / `labelsAdded`, which the integrated reducer parses.
- * We deliberately request only added/inbox-relevant types so Relay never
- * deletes Relay Items on label churn or message deletion.
+ * We deliberately request only added/inbox-relevant types so Feed never
+ * deletes items on label churn or message deletion.
  */
 const HISTORY_TYPES = ["messageAdded", "labelAdded"] as const;
 

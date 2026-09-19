@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Coding App · 会话 · 对话与结果预览</title>
+<style>
+body{margin:0;font-family:"Inter Variable",Inter,"Noto Sans SC","PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;background:#f3f4f5;-webkit-font-smoothing:antialiased}
+a{color:#3d6f78}a:hover{color:#2c5259}
+.rail-btn{width:32px;height:32px;display:flex;align-items:center;justify-content:center;border:0;background:transparent;border-radius:8px;cursor:pointer;color:#6b6f76;padding:0}
+.row{display:flex;align-items:center;gap:8px}
+.dtab{width:30px;height:26px;display:flex;align-items:center;justify-content:center;border:0;background:transparent;border-radius:7px;cursor:pointer;color:#6b6f76;padding:0}
+.dtab[aria-selected="true"]{background:#ffffff;color:#3d6f78;box-shadow:0 1px 2px rgba(19,21,32,.05)}
+.stab{height:32px;display:flex;align-items:center;gap:6px;padding:0 12px;font-size:12px;color:#6b6f76;background:transparent;border:0;border-radius:8px 8px 0 0;cursor:pointer;max-width:200px}
+.stab[aria-selected="true"]{background:#ffffff;color:#222326}
+.ttab{height:24px;display:flex;align-items:center;gap:5px;padding:0 9px;font-size:11px;color:#6b6f76;background:transparent;border:0;border-radius:7px;cursor:pointer}
+.ttab[aria-selected="true"]{background:#ffffff;color:#222326;box-shadow:0 1px 2px rgba(19,21,32,.05)}
+.code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px;line-height:18px;white-space:pre}
+.ln{display:inline-block;width:30px;text-align:right;padding-right:10px;color:#737882}
+.f{display:flex;align-items:center;gap:6px;padding:4px 8px;border-radius:6px;font-size:12px;color:#3c3f44}
+html,body{background:#e9eaec}
+.board{margin:24px auto;box-shadow:0 3px 7px rgba(0,0,0,.10),0 13px 32px rgba(0,0,0,.10);border-radius:4px;overflow:hidden;width:1440px}
+.caption{width:1440px;margin:0 auto;font-size:12px;color:#6b6f76;padding-top:20px}
+</style>
+</head>
+<body>
+<p class="caption">Coding App 设计稿 · 会话 · 对话与结果预览 · 1440×900 · 用 Molis Work 现行 token</p>
+<div class="board">
+<div style="width:1440px;height:900px;box-sizing:border-box;display:flex;flex-direction:column;background:#f3f4f5;color:#222326;overflow:hidden">
+  <div style="height:32px;flex-shrink:0;display:flex;align-items:center;gap:10px;padding:0 12px;border-bottom:1px solid #e2e4e7">
+    <div style="display:flex;gap:6px"><span style="width:10px;height:10px;border-radius:50%;background:#d0d6e0;display:block"></span><span style="width:10px;height:10px;border-radius:50%;background:#d0d6e0;display:block"></span><span style="width:10px;height:10px;border-radius:50%;background:#d0d6e0;display:block"></span></div>
+    <span style="font-size:12px;color:#6b6f76;margin-left:4px">goalboard</span>
+    <span style="font-size:12px;color:#d0d6e0">/</span>
+    <span style="font-size:12px;color:#222326">Coding · 会话</span>
+  </div>
+  <div style="flex-grow:1;display:flex;min-height:0">
+    <div style="width:48px;flex-shrink:0;background:#eceef0;border-right:1px solid #e2e4e7;display:flex;flex-direction:column;align-items:center;padding:8px 0;gap:2px">
+      <button class="rail-btn" aria-label="项目首页"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><path d="M9 22V12h6v10"></path></svg></button>
+      <div style="width:24px;height:1px;background:#d0d6e0;margin:6px 0"></div>
+      <button class="rail-btn" aria-label="Goals" style="color:#3c6fc6"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="2"></circle></svg></button>
+      <button class="rail-btn" aria-label="Sessions" style="color:#7f5eb0"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 17 6-6-6-6"></path><path d="M12 19h8"></path></svg></button>
+      <button class="rail-btn" aria-label="Inbox" style="color:#26785f"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2"></path><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg></button>
+      <button class="rail-btn" aria-label="Feed" style="color:#9c5f1a"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11a9 9 0 0 1 9 9"></path><path d="M4 4a16 16 0 0 1 16 16"></path><circle cx="5" cy="19" r="1"></circle></svg></button>
+      <button class="rail-btn" aria-label="Shelf" style="color:#66709e"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 6 4 14"></path><path d="M12 6v14"></path><path d="M8 8v12"></path><path d="M4 4v16"></path></svg></button>
+      <button class="rail-btn" aria-label="Artifacts" style="color:#a15571"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"></path><path d="m3.3 7 8.7 5 8.7-5"></path><path d="M12 22V12"></path></svg></button>
+      <button class="rail-btn" aria-label="Coding" aria-current="page" style="background:#e7f2f3;color:#3d6f78;position:relative"><span style="position:absolute;left:-8px;top:6px;width:2px;height:20px;border-radius:1px;background:#4db7c9"></span><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5a2 2 0 0 0 2 2h1"></path><path d="M16 21h1a2 2 0 0 0 2-2v-5a2 2 0 0 1 2-2 2 2 0 0 1-2-2V5a2 2 0 0 0-2-2h-1"></path></svg></button>
+      <div style="flex-grow:1"></div>
+      <button class="rail-btn" aria-label="设置" style="color:#4f6470"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06A1.65 1.65 0 0 0 15 19.4a1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09A1.65 1.65 0 0 0 15 4.6a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.24.38.6.66 1.02.78"></path></svg></button>
+    </div>
+
+    <div style="width:240px;flex-shrink:0;background:#f3f4f5;border-right:1px solid #e2e4e7;display:flex;flex-direction:column">
+      <div style="height:34px;flex-shrink:0;display:flex;align-items:center;gap:2px;padding:4px 6px 0">
+        <button class="dtab" aria-selected="true" aria-label="会话"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20a8 8 0 1 0-6.9-4L4 20l4-1.1A8 8 0 0 0 12 20"></path></svg></button>
+        <button class="dtab"  aria-label="TaskBoard"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect></svg></button>
+        <button class="dtab"  aria-label="目标"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="2"></circle></svg></button>
+        <button class="dtab"  aria-label="产物"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"></path><path d="m3.3 7 8.7 5 8.7-5"></path><path d="M12 22V12"></path></svg></button>
+        <button class="dtab"  aria-label="文件"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"></path></svg></button>
+      </div>
+      <div style="height:28px;flex-shrink:0;display:flex;align-items:center;gap:6px;padding:0 8px 0 12px">
+        <span style="font-size:13px;font-weight:500;color:#222326;flex-grow:1">会话</span>
+        <button class="rail-btn" style="width:22px;height:22px" aria-label="新建会话"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg></button>
+        <button class="rail-btn" style="width:22px;height:22px" aria-label="搜索"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m21 21-4.3-4.3"></path></svg></button>
+      </div>
+      <div style="padding:2px 10px 8px;display:flex">
+        <div style="display:flex;background:#eceef0;border-radius:8px;padding:2px;gap:2px;width:100%">
+          <button style="flex-grow:1;height:22px;border:0;border-radius:6px;background:#ffffff;color:#222326;font-size:12px;cursor:pointer;box-shadow:0 1px 2px rgba(19,21,32,.05)">全部</button>
+          <button style="flex-grow:1;height:22px;border:0;border-radius:6px;background:transparent;color:#6b6f76;font-size:12px;cursor:pointer">进行中</button>
+          <button style="flex-grow:1;height:22px;border:0;border-radius:6px;background:transparent;color:#6b6f76;font-size:12px;cursor:pointer">需要我</button>
+        </div>
+      </div>
+      <div style="flex-grow:1;padding:0 6px;overflow:hidden">
+        <div style="display:flex;align-items:center;gap:5px;padding:6px 6px 4px">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#6b6f76" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#3c6fc6" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="2"></circle></svg>
+          <span style="font-size:12px;color:#3c6fc6">让首次使用不再卡在连接</span>
+        </div>
+        <div style="height:36px;display:flex;flex-direction:column;justify-content:center;padding:0 8px 0 24px;border-radius:8px;background:#e7f2f3">
+          <div class="row"><span style="font-size:13px;color:#222326;flex-grow:1">修好 runtime 连接提示</span><span style="font-size:11px;color:#6b6f76">2h</span></div>
+          <div class="row" style="gap:4px;margin-top:1px"><span style="font-size:11px;color:#5e6ad2">执行中 · 第 3 轮</span></div>
+        </div>
+        <div style="height:36px;display:flex;flex-direction:column;justify-content:center;padding:0 8px 0 24px">
+          <div class="row"><span style="font-size:13px;color:#222326;flex-grow:1">补充失败时的下一步文案</span><span style="font-size:11px;color:#6b6f76">昨天</span></div>
+          <div class="row" style="gap:4px;margin-top:1px"><span style="font-size:11px;color:#8a5c18">等你审查 2 处写入</span></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:5px;padding:10px 6px 4px">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#6b6f76" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg>
+          <span style="font-size:12px;color:#6b6f76">未关联目标</span>
+        </div>
+        <div style="height:36px;display:flex;flex-direction:column;justify-content:center;padding:0 8px 0 24px">
+          <div class="row"><span style="font-size:13px;color:#222326;flex-grow:1">看看 shelf 的抽取为什么慢</span><span style="font-size:11px;color:#6b6f76">3天</span></div>
+          <div class="row" style="gap:4px;margin-top:1px"><span style="font-size:11px;color:#2d7a5a">已完成 · 1 份报告</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="flex-grow:1;display:flex;flex-direction:column;min-width:0">
+      <div style="height:32px;flex-shrink:0;display:flex;align-items:flex-end;padding:0 8px;gap:2px">
+        <button class="stab" aria-selected="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#3d6f78" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20a8 8 0 1 0-6.9-4L4 20l4-1.1A8 8 0 0 0 12 20"></path></svg><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">修好 runtime 连接提示</span></button>
+        <button class="stab"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">补充失败时的下一步文案</span></button>
+      </div>
+
+      <div style="flex-grow:1;display:flex;gap:10px;padding:0 10px 10px;min-height:0">
+        <div style="flex-grow:1;background:#ffffff;border:1px solid #e2e4e7;border-radius:12px;display:flex;flex-direction:column;min-width:0;overflow:hidden">
+          <div style="height:40px;flex-shrink:0;display:flex;align-items:center;gap:8px;padding:0 16px;border-bottom:1px solid #e2e4e7">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#5e6ad2" stroke-width="2.5" stroke-linecap="round"><path d="M12 2v4"></path><path d="m16.2 7.8 2.9-2.9"></path><path d="M18 12h4"></path></svg>
+            <span style="font-size:12px;color:#5e6ad2">执行中</span><span style="font-size:12px;color:#d0d6e0">·</span>
+            <span style="font-size:12px;color:#6b6f76">Prologue · 阅读者 v2 · 只读</span>
+            <div style="flex-grow:1"></div>
+            <button style="height:28px;padding:0 12px;border-radius:10px;border:1px solid #e2e4e7;background:#ffffff;color:#3c3f44;font-size:12px;cursor:pointer">暂停</button>
+            <button style="height:28px;padding:0 12px;border-radius:10px;border:0;background:#222326;color:#ffffff;font-size:12px;cursor:pointer">转向</button>
+          </div>
+          <div style="flex-grow:1;overflow:hidden;padding:18px 20px;display:flex;flex-direction:column;gap:15px">
+            <div style="max-width:70ch">
+              <div style="font-size:11px;color:#6b6f76;margin-bottom:5px">你 · 14:02</div>
+              <div style="font-size:13px;line-height:1.6;color:#222326">runtime 连不上的时候提示只有一句「连接失败」，用户不知道下一步做什么。看一下 local-host 那边的错误路径，给出能落地的修法。</div>
+            </div>
+            <div style="max-width:70ch">
+              <div style="font-size:11px;color:#6b6f76;margin-bottom:5px">Coding · 本轮执行</div>
+              <div style="font-size:13px;line-height:1.6;color:#222326">我把失败路径拆成三种，分别对应不同的下一步。三个子任务已经跑完两个，变更集在右边。</div>
+            </div>
+            <div style="max-width:70ch;border-left:2px solid #4db7c9;padding-left:12px">
+              <div class="row" style="gap:6px;margin-bottom:4px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#3d6f78" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"></path><rect width="16" height="12" x="4" y="8" rx="2"></rect><path d="M2 14h2"></path><path d="M20 14h2"></path></svg><span style="font-size:12px;color:#3d6f78">子代理 · 归类错误码</span></div>
+              <div style="font-size:12px;line-height:1.6;color:#3c3f44">三种失败里有两种目前走同一条文案分支。</div>
+            </div>
+            <div style="max-width:70ch">
+              <div style="font-size:11px;color:#6b6f76;margin-bottom:5px">你 · 14:31</div>
+              <div style="font-size:13px;line-height:1.6;color:#222326">nextStep 别写成整句文案，留结构化 id。</div>
+            </div>
+          </div>
+          <div style="flex-shrink:0;padding:0 20px 16px">
+            <div style="border:1px solid #d0d6e0;border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:8px">
+              <label for="ask" style="font-size:12px;color:#6b6f76">继续这条会话</label>
+              <input id="ask" type="text" placeholder="补充说明，或直接转向" style="border:0;outline:0;font-size:13px;color:#222326;font-family:inherit;padding:0">
+              <div class="row"><button style="height:24px;padding:0 9px;border-radius:8px;border:1px solid #e2e4e7;background:#ffffff;color:#6b6f76;font-size:11px;cursor:pointer">plan</button><button style="height:24px;padding:0 9px;border-radius:8px;border:1px solid #e2e4e7;background:#f3f4f5;color:#737882;font-size:11px;cursor:not-allowed">build · 未接审批</button><div style="flex-grow:1"></div><span style="font-size:11px;color:#6b6f76">18.2k tokens</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div style="width:392px;flex-shrink:0;background:#ffffff;border:1px solid #e2e4e7;border-radius:12px;display:flex;flex-direction:column;overflow:hidden">
+          <div style="height:34px;flex-shrink:0;display:flex;align-items:center;gap:2px;padding:0 6px;border-bottom:1px solid #e2e4e7;background:#f3f4f5">
+            <button class="ttab" aria-selected="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v14"></path><path d="M5 10h14"></path></svg>结果</button>
+            <button class="ttab"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18"></path><path d="M12 3a15 15 0 0 1 0 18"></path></svg>浏览器</button>
+            <button class="ttab"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 17 6-6-6-6"></path><path d="M12 19h8"></path></svg>终端</button>
+            <button class="ttab"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"></path><path d="m18 13-1.5-7.5L2 2l3.5 14.5L13 18z"></path></svg>Canvas</button>
+            <div style="flex-grow:1"></div>
+            <button class="rail-btn" style="width:22px;height:22px" aria-label="分屏"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="M12 3v18"></path></svg></button>
+          </div>
+          <div style="height:38px;flex-shrink:0;display:flex;align-items:center;gap:7px;padding:0 14px;border-bottom:1px solid #e2e4e7">
+            <span style="font-size:12px;color:#222326;font-weight:500;flex-grow:1">变更集 v3</span>
+            <span style="font-size:11px;color:#2d7a5a">+49</span><span style="font-size:11px;color:#b03d45">−4</span>
+          </div>
+          <div style="flex-grow:1;overflow:hidden;display:flex;flex-direction:column">
+            <div style="padding:8px 8px 6px;display:flex;flex-direction:column;gap:1px;border-bottom:1px solid #e2e4e7">
+              <div class="f" style="background:#e7f2f3;color:#222326"><span style="flex-grow:1;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px">local-host/connect.ts</span><span style="font-size:10px;color:#2d7a5a">+12</span><span style="font-size:10px;color:#b03d45">−3</span></div>
+              <div class="f"><span style="flex-grow:1;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px">local-host/messages.ts</span><span style="font-size:10px;color:#2d7a5a">+24</span></div>
+              <div class="f"><span style="flex-grow:1;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px">runtime-host/health.ts</span><span style="font-size:10px;color:#2d7a5a">+8</span><span style="font-size:10px;color:#b03d45">−1</span></div>
+              <div class="f"><span style="flex-grow:1;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px">runtime-host/probe.ts</span><span style="font-size:10px;color:#2d7a5a">+5</span></div>
+            </div>
+            <div style="flex-grow:1;overflow:hidden;padding:8px 0">
+              <div class="code"><span class="ln">41</span><span style="color:#3c3f44">  if (!probe.ok) {</span></div>
+              <div class="code" style="background:#fbecec"><span class="ln" style="color:#b03d45">42</span><span style="color:#b03d45">-   throw new RuntimeError("连接失败");</span></div>
+              <div class="code" style="background:#e8f4ee"><span class="ln" style="color:#2d7a5a">42</span><span style="color:#2d7a5a">+   const reason = classify(probe);</span></div>
+              <div class="code" style="background:#e8f4ee"><span class="ln" style="color:#2d7a5a">43</span><span style="color:#2d7a5a">+   throw new RuntimeError(reason.message, {</span></div>
+              <div class="code" style="background:#e8f4ee"><span class="ln" style="color:#2d7a5a">44</span><span style="color:#2d7a5a">+     code: reason.code,</span></div>
+              <div class="code" style="background:#e8f4ee"><span class="ln" style="color:#2d7a5a">45</span><span style="color:#2d7a5a">+     nextStep: reason.nextStep,</span></div>
+              <div class="code" style="background:#e8f4ee"><span class="ln" style="color:#2d7a5a">46</span><span style="color:#2d7a5a">+   });</span></div>
+              <div style="margin:7px 10px 7px 40px;border:1px solid #cfe4e7;border-radius:8px;background:#f8fbfb;padding:8px 10px">
+                <div class="row" style="gap:6px;margin-bottom:5px"><span style="width:16px;height:16px;border-radius:50%;background:#4db7c9;color:#ffffff;font-size:9px;display:flex;align-items:center;justify-content:center">你</span><span style="font-size:11px;color:#6b6f76;flex-grow:1">第 44 行</span><span style="font-size:11px;color:#3d6f78">未发送</span></div>
+                <div style="font-size:12px;line-height:1.55;color:#222326">nextStep 留结构化 id，文案放 i18n。</div>
+              </div>
+              <div class="code"><span class="ln">47</span><span style="color:#3c3f44">  }</span></div>
+            </div>
+          </div>
+          <div style="flex-shrink:0;border-top:1px solid #e2e4e7;padding:10px 14px;display:flex;align-items:center;gap:8px">
+            <span style="font-size:11px;color:#8a5c18;flex-grow:1">2 条意见 · 未写入磁盘</span>
+            <button style="height:28px;padding:0 11px;border-radius:10px;border:1px solid #e2e4e7;background:#ffffff;color:#3c3f44;font-size:12px;cursor:pointer">发回意见</button>
+            <button style="height:28px;padding:0 11px;border-radius:10px;border:1px solid #e2e4e7;background:#f3f4f5;color:#737882;font-size:12px;cursor:not-allowed">应用</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div></div>
+</body>
+</html>

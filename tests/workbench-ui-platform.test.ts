@@ -11,6 +11,7 @@ import {
 import {
   WORKBENCH_UI_SLOTS,
   createWorkbenchUiHost,
+  renderMolisWorkPrimitiveCatalog,
   renderWorkbenchDocument,
 } from "@molis-ai/molis-work-app-workbench";
 import { UiContributionError, UiHost } from "@molis-ai/molis-work-ui-host";
@@ -100,6 +101,28 @@ test("Workbench registers Native Plugin surfaces against stable slots", () => {
     new Set(feed.surfaces?.map((surface) => surface.target_slot_id)),
     new Set(["workbench.directory", "workbench.main", "workbench.overlay"]),
   );
+  const shelf = descriptors.find((item) => item.contribution_id === "io.molis.work.native.shelf.ui.v1");
+  assert.ok(shelf);
+  assert.deepEqual(
+    new Set(shelf.surfaces?.map((surface) => surface.target_slot_id)),
+    new Set(["workbench.directory", "workbench.main"]),
+  );
+  const shelfSettings = descriptors.find((item) => item.contribution_id === "io.molis.work.native.shelf.settings.v1");
+  assert.ok(shelfSettings);
+  assert.equal(shelfSettings.kind, "settings-page");
+  assert.deepEqual(
+    new Set(shelfSettings.surfaces?.map((surface) => surface.target_slot_id)),
+    new Set(["workbench.settings"]),
+  );
+});
+
+test("primitive catalog page is a local document with theme controls", () => {
+  const html = renderMolisWorkPrimitiveCatalog();
+  assert.match(html, /<title>控件原语/);
+  assert.match(html, /class="mw-catalog"/);
+  assert.match(html, /href="\/assets\/molis-work-settings.css"/);
+  assert.match(html, /data-theme-option="dark"/);
+  assert.match(html, /data-primitive="button"/);
 });
 
 test("Design System and Workbench responsibilities have left legacy huge files", () => {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, lstatSync, mkdirSync, readdirSync, realpathSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -8,18 +8,11 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import Database from "better-sqlite3";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { CATALOG_OWNER, LEGACY_CATALOG_OWNER, openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
-import {
-  LEGACY_SESSION_REGISTRY_OWNER,
-  SESSION_REGISTRY_OWNER,
-} from "@molis-ai/molis-work-module-private-work-context";
+import { DEMO_BOARD_ID, openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
 import { canonicalMcpToolName, isRuntimeMcpTool } from "@molis-ai/molis-work-app-mcp";
-import { parsePluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { parsePluginManifest, PluginManifestError } from "@molis-ai/molis-work-contracts/platform/plugin";
 import {
-  LEGACY_HOME_DIRNAME,
-  LEGACY_PROJECT_DATABASE_FILENAME,
   PROJECT_DATABASE_FILENAME,
-  migrateLegacyHomeDirectory,
   readProductEnv,
   resolveMolisWorkHome,
   resolveProjectDatabaseFile,
@@ -57,26 +50,13 @@ function restoreEnv(name: string, previous: string | undefined): void {
   else process.env[name] = previous;
 }
 
-test("legacy Home directory is renamed onto the current product Home", async () => {
-  await withTemporaryDirectory(async (directory) => {
-    const next = join(directory, ".molis-work");
-    const legacy = join(directory, LEGACY_HOME_DIRNAME);
-    mkdirSync(legacy);
-    writeFileSync(join(legacy, "kept.txt"), "projects");
-    assert.equal(migrateLegacyHomeDirectory(next, legacy), next);
-    assert.equal(await readFile(join(next, "kept.txt"), "utf8"), "projects");
-    assert.equal(lstatSync(legacy).isSymbolicLink(), true);
-    assert.equal(realpathSync(legacy), realpathSync(next));
-  });
-});
-
-test("MOLIS_WORK environment wins, then GOALBOARD fallback", () => {
+test("MOLIS_WORK environment is the only product env prefix", () => {
   const previousNext = process.env.MOLIS_WORK_HOME;
   const previousLegacy = process.env.GOALBOARD_HOME;
   try {
     delete process.env.MOLIS_WORK_HOME;
     process.env.GOALBOARD_HOME = "/tmp/legacy-goalboard-home";
-    assert.equal(readProductEnv("HOME"), "/tmp/legacy-goalboard-home");
+    assert.equal(readProductEnv("HOME"), undefined);
     process.env.MOLIS_WORK_HOME = "/tmp/molis-work-home";
     assert.equal(readProductEnv("HOME"), "/tmp/molis-work-home");
     assert.equal(resolveMolisWorkHome(), "/tmp/molis-work-home");
@@ -86,157 +66,69 @@ test("MOLIS_WORK environment wins, then GOALBOARD fallback", () => {
   }
 });
 
-test("project database files named goalboard.db are renamed to molis-work.db", async () => {
+test("project database path does not rename leftover goalboard.db", async () => {
   await withTemporaryDirectory(async (directory) => {
-    const legacy = join(directory, LEGACY_PROJECT_DATABASE_FILENAME);
-    writeFileSync(legacy, "fixture");
+    const leftover = join(directory, "goalboard.db");
+    writeFileSync(leftover, "fixture");
     assert.equal(resolveProjectDatabaseFile(directory), join(directory, PROJECT_DATABASE_FILENAME));
-    assert.equal(await readFile(join(directory, PROJECT_DATABASE_FILENAME), "utf8"), "fixture");
+    assert.equal(existsSync(leftover), true);
+    assert.equal(existsSync(join(directory, PROJECT_DATABASE_FILENAME)), false);
   });
 });
 
-test("Session Registry rewrites GoalBoard owner and keeps existing sessions", async () => {
+test("Session Registry rejects GoalBoard owner", async () => {
   await withTemporaryDirectory(async (directory) => {
     const home = join(directory, "home");
     const registry = await openWorkSessionRegistry({ homeDirectory: home });
-    let sessionId = "";
-    try {
-      sessionId = registry.createSession({
-        runtime_id: "codex",
-        actor_id: "user",
-        user_confirmed: true,
-        project_id: "project-keep",
-      }).session_id;
-    } finally {
-      registry.close();
-    }
-
+    registry.close();
     const db = new Database(join(home, "sessions", "sessions.db"));
     try {
-      db.prepare("UPDATE session_meta SET value = ? WHERE key = 'owner'").run(LEGACY_SESSION_REGISTRY_OWNER);
+      db.prepare("UPDATE session_meta SET value = ? WHERE key = 'owner'").run("goalboard-session-registry-v1");
     } finally {
       db.close();
     }
-
-    const reopened = await openWorkSessionRegistry({ homeDirectory: home });
-    try {
-      assert.deepEqual(reopened.list({ project_id: "project-keep" }).map((item) => item.session_id), [sessionId]);
-    } finally {
-      reopened.close();
-    }
-
-    const ownerDb = new Database(join(home, "sessions", "sessions.db"));
-    try {
-      const owner = ownerDb.prepare("SELECT value FROM session_meta WHERE key = 'owner'").get() as { value: string };
-      assert.equal(owner.value, SESSION_REGISTRY_OWNER);
-    } finally {
-      ownerDb.close();
-    }
-
-    const unknownHome = join(directory, "unknown-home");
-    const unknownRegistry = await openWorkSessionRegistry({ homeDirectory: unknownHome });
-    unknownRegistry.close();
-    const unknownDb = new Database(join(unknownHome, "sessions", "sessions.db"));
-    try {
-      unknownDb.prepare("UPDATE session_meta SET value = ? WHERE key = 'owner'").run("not-a-molis-work-registry");
-    } finally {
-      unknownDb.close();
-    }
     await assert.rejects(
-      () => openWorkSessionRegistry({ homeDirectory: unknownHome }),
+      () => openWorkSessionRegistry({ homeDirectory: home }),
       (error: unknown) => error instanceof Error && error.message.includes("不会复用未知 Session Registry 数据库"),
     );
   });
 });
 
-test("catalog rewrites GoalBoard owner and project database filenames", async () => {
+test("catalog rejects GoalBoard owner", async () => {
   await withTemporaryDirectory(async (directory) => {
     const home = join(directory, "home");
     const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
-    let projectId = "";
+    catalog.close();
+    const db = new Database(join(home, "projects", "catalog.db"));
     try {
-      const project = await catalog.createProject({ display_name: "迁移项目", actor_id: "user" });
-      projectId = project.project_id;
-      assert.equal(project.database_path.endsWith(PROJECT_DATABASE_FILENAME), true);
-    } finally {
-      catalog.close();
-    }
-
-    const catalogPath = join(home, "projects", "catalog.db");
-    const projectDirectory = join(home, "projects", projectId);
-    const nextDatabase = join(projectDirectory, PROJECT_DATABASE_FILENAME);
-    const legacyDatabase = join(projectDirectory, LEGACY_PROJECT_DATABASE_FILENAME);
-    renameSync(nextDatabase, legacyDatabase);
-    const db = new Database(catalogPath);
-    try {
-      db.prepare("UPDATE catalog_meta SET value = ? WHERE key = 'owner'").run(LEGACY_CATALOG_OWNER);
-      db.prepare("UPDATE projects SET database_path = ? WHERE project_id = ?").run(legacyDatabase, projectId);
+      db.prepare("UPDATE catalog_meta SET value = ? WHERE key = 'owner'").run("goalboard-project-catalog-v1");
     } finally {
       db.close();
     }
-
-    const reopened = await openMolisWorkProjectCatalog({ homeDirectory: home });
-    let databasePath = "";
-    try {
-      databasePath = reopened.getProject(projectId).database_path;
-    } finally {
-      reopened.close();
-    }
-    const ownerDb = new Database(catalogPath);
-    try {
-      const owner = ownerDb.prepare("SELECT value FROM catalog_meta WHERE key = 'owner'").get() as { value: string };
-      assert.equal(owner.value, CATALOG_OWNER);
-    } finally {
-      ownerDb.close();
-    }
-    assert.equal(databasePath, nextDatabase);
-    assert.equal(existsSync(nextDatabase), true);
-    assert.equal(existsSync(legacyDatabase), false);
+    await assert.rejects(
+      () => openMolisWorkProjectCatalog({ homeDirectory: home }),
+      (error: unknown) => error instanceof Error && error.message.includes("不会复用未知项目目录数据库"),
+    );
   });
 });
 
-test("legacy MCP tool names map onto the current tools", () => {
-  assert.equal(canonicalMcpToolName("goalboard_v1_goal_list"), "molis_work_v1_goal_list");
+test("demo board id is the current product id", () => {
+  assert.equal(DEMO_BOARD_ID, "molis-work-v1-demo");
+});
+
+test("legacy MCP tool names are not mapped onto current tools", () => {
+  assert.equal(canonicalMcpToolName("goalboard_v1_goal_list"), "goalboard_v1_goal_list");
   assert.equal(canonicalMcpToolName("molis_work_v1_goal_list"), "molis_work_v1_goal_list");
-  assert.equal(isRuntimeMcpTool("goalboard_v1_goal_list"), true);
+  assert.equal(isRuntimeMcpTool("goalboard_v1_goal_list"), false);
   assert.equal(isRuntimeMcpTool("molis_work_v1_goal_list"), true);
 });
 
-test("owned GoalBoard.app is retired and foreign bundles stay", {
+test("macOS App install copies Molis Work and does not look for GoalBoard.app", {
   skip: process.platform !== "darwin",
 }, async () => {
   await withTemporaryDirectory(async (directory) => {
     const home = join(directory, "home");
     const appDir = join(directory, "apps");
-    const systemDir = join(directory, "system");
-    const trash = join(directory, "trash");
-    writeMacosApp(join(appDir, "GoalBoard.app"), "com.adeptify.goalboard");
-    writeMacosApp(join(home, "Applications", "GoalBoard.app"), "com.adeptify.goalboard");
-    writeMacosApp(join(systemDir, "GoalBoard.app"), "com.example.not-ours");
-    const result = spawnSync("bash", [join(repoRoot, "apps/desktop/tooling/retire-legacy-macos-app.sh"), appDir], {
-      env: {
-        ...process.env,
-        HOME: home,
-        MOLIS_WORK_SYSTEM_APP_DIR: systemDir,
-        MOLIS_WORK_TRASH_DIR: trash,
-      },
-      encoding: "utf8",
-    });
-    assert.equal(result.status, 0, result.stderr);
-    assert.equal(existsSync(join(appDir, "GoalBoard.app")), false);
-    assert.equal(existsSync(join(home, "Applications", "GoalBoard.app")), false);
-    assert.equal(existsSync(join(systemDir, "GoalBoard.app")), true);
-    assert.equal(readdirSync(trash).filter((name) => name.startsWith("GoalBoard.app.")).length, 2);
-  });
-});
-
-test("macOS App install copies Molis Work and retires owned GoalBoard.app", {
-  skip: process.platform !== "darwin",
-}, async () => {
-  await withTemporaryDirectory(async (directory) => {
-    const home = join(directory, "home");
-    const appDir = join(directory, "apps");
-    const systemDir = join(directory, "system");
     const source = join(directory, "Molis Work.app");
     writeMacosApp(source, "com.molis.work");
     writeMacosApp(join(appDir, "GoalBoard.app"), "com.adeptify.goalboard");
@@ -245,23 +137,19 @@ test("macOS App install copies Molis Work and retires owned GoalBoard.app", {
         ...process.env,
         HOME: home,
         MOLIS_WORK_APP_DIR: appDir,
-        MOLIS_WORK_SYSTEM_APP_DIR: systemDir,
         MOLIS_WORK_SKIP_OPEN: "1",
       },
       encoding: "utf8",
     });
     assert.equal(result.status, 0, result.stderr + result.stdout);
     assert.equal(existsSync(join(appDir, "Molis Work.app", "Contents", "Info.plist")), true);
-    assert.equal(existsSync(join(appDir, "GoalBoard.app")), false);
-    assert.equal(
-      readdirSync(join(home, ".Trash")).some((name) => name.startsWith("GoalBoard.app.")),
-      true,
-    );
+    assert.equal(existsSync(join(appDir, "GoalBoard.app")), true);
+    assert.equal(existsSync(join(home, ".Trash")), false);
   });
 });
 
-test("legacy plugin IDs are accepted and normalized", () => {
-  const parsed = parsePluginManifest({
+test("legacy plugin IDs are rejected", () => {
+  const manifest = {
     schema_version: 1,
     host_api_version: 1,
     plugin_id: "io.goalboard.example.notes",
@@ -274,31 +162,12 @@ test("legacy plugin IDs are accepted and normalized", () => {
     capabilities: { provides: [], consumes: [] },
     artifacts: { produces: [], consumes: [] },
     ui: { contributions: [] },
-  });
-  assert.equal(parsed.plugin_id, "io.molis.work.example.notes");
-});
-
-test("official demo titles drop GoalBoard on catalog open, user names stay", async () => {
-  await withTemporaryDirectory(async (directory) => {
-    const home = join(directory, "home");
-    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
-    try {
-      const demo = await catalog.ensureDemoProject({ actor_id: "user", user_confirmed: true });
-      catalog.renameProject(demo.project.project_id, "GoalBoard 示例项目", "user");
-      await catalog.createProject({ display_name: "GoalBoard 示例项目", actor_id: "user" });
-    } finally {
-      catalog.close();
-    }
-    const reopened = await openMolisWorkProjectCatalog({ homeDirectory: home });
-    try {
-      const demo = reopened.listProjects().find((project) => project.data_class === "regenerable_demo");
-      const user = reopened.listProjects().find((project) => project.data_class !== "regenerable_demo");
-      assert.equal(demo?.display_name, "Molis Work 示例项目");
-      assert.equal(user?.display_name, "GoalBoard 示例项目");
-    } finally {
-      reopened.close();
-    }
-  });
+  };
+  assert.throws(
+    () => parsePluginManifest(manifest),
+    (error: unknown) => error instanceof PluginManifestError && error.code === "plugin_manifest_invalid",
+  );
+  assert.equal(parsePluginManifest({ ...manifest, plugin_id: "io.molis.work.example.notes" }).plugin_id, "io.molis.work.example.notes");
 });
 
 test("GitHub Releases links point at molis-ai/molis-work", async () => {
@@ -309,9 +178,25 @@ test("GitHub Releases links point at molis-ai/molis-work", async () => {
   }
 });
 
-test("workbench storage reads legacy goalboard keys", async () => {
+test("workbench storage does not read legacy goalboard keys", async () => {
   const navigation = await readFile(join(repoRoot, "apps/workbench/src/scripts/client/immersive-navigation.ts"), "utf8");
   const momentum = await readFile(join(repoRoot, "plugins/native/goals/src/momentum-client.ts"), "utf8");
-  assert.match(navigation, /goalboard-goal-work-modes:/);
-  assert.match(momentum, /goalboard-goal-workspace-split:/);
+  assert.doesNotMatch(navigation, /goalboard-goal-work-modes:/);
+  assert.doesNotMatch(momentum, /goalboard-goal-workspace-split:/);
+});
+
+test("desktop host does not keep GoalBoard env, launchers, Home aliases, or old App retirement", async () => {
+  const rust = await readFile(join(repoRoot, "apps/desktop/adapters/tauri/src/web_service.rs"), "utf8");
+  const main = await readFile(join(repoRoot, "apps/desktop/adapters/tauri/src/main.rs"), "utf8");
+  const install = await readFile(join(repoRoot, "apps/desktop/tooling/install-macos-app.sh"), "utf8");
+  const home = await readFile(join(repoRoot, "packages/storage/src/adapters/local-security-paths.ts"), "utf8");
+  const secrets = await readFile(join(repoRoot, "packages/storage/src/adapters/file-secret-store.ts"), "utf8");
+  assert.doesNotMatch(rust, /GOALBOARD_/);
+  assert.doesNotMatch(rust, /goalboard/);
+  assert.doesNotMatch(main, /legacy_app|GoalBoard\.app|com\.adeptify\.goalboard/);
+  assert.doesNotMatch(install, /GoalBoard\.app|retire-legacy|com\.adeptify\.goalboard/);
+  assert.equal(existsSync(join(repoRoot, "apps/desktop/tooling/retire-legacy-macos-app.sh")), false);
+  assert.equal(existsSync(join(repoRoot, "apps/desktop/adapters/tauri/src/legacy_app.rs")), false);
+  assert.doesNotMatch(home, /goalboard/);
+  assert.doesNotMatch(secrets, /com\.adeptify\.goalboard/);
 });

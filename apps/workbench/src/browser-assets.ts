@@ -16,7 +16,9 @@ export {
 export {
   PROJECT_GUIDANCE_CLIENT_SCRIPT,
   SETTINGS_CLIENT_SCRIPT,
+  RUNTIME_PLAN_CLIENT_SCRIPT,
 } from "./scripts/settings.js";
+export { WEB_SERVICE_SETTINGS_SCRIPT } from "./scripts/settings-web-service.js";
 export { WORK_TAB_VISIBILITY_CLIENT_SCRIPT } from "./scripts/work-tabs.js";
 
 import { CLIENT_BOOTSTRAP_SCRIPT } from "./scripts/client/bootstrap.js";

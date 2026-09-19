@@ -31,7 +31,7 @@ test("Private Work Context public entrypoint preserves private Session facts acr
     });
     const event = registry.appendEvent({
       session_id: session.session_id,
-      source: "goalboard",
+      source: "molis_work",
       kind: "status",
       source_id: "private-owner-event",
       content: "local-only-content",

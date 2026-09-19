@@ -87,10 +87,10 @@ function renderWorkTerminal(model: WorkTerminalUiModel): string {
           </section>
           <div class="tui-chrome">
             <div class="tui-chrome-actions">
-              <button class="tui-advance" type="button" data-tui-advance disabled>${icon("play")}<span>${L("推进这个 Goal")}</span></button>
-              <button type="button" data-tui-copy>${icon("copy")}<span>${L("复制命令")}</span></button>
-              <button type="button" data-tui-fill disabled>${L("填入不发送")}</button>
-              <button type="button" data-tui-reopen hidden>${icon("refresh")}<span>${L("重新打开")}</span></button>
+              <button class="mw-btn mw-btn--primary tui-advance" type="button" data-tui-advance disabled>${icon("play")}<span>${L("推进这个 Goal")}</span></button>
+              <button class="mw-btn mw-btn--secondary" type="button" data-tui-copy>${icon("copy")}<span>${L("复制命令")}</span></button>
+              <button class="mw-btn mw-btn--ghost" type="button" data-tui-fill disabled>${L("填入不发送")}</button>
+              <button class="mw-btn mw-btn--ghost" type="button" data-tui-reopen hidden>${icon("refresh")}<span>${L("重新打开")}</span></button>
             </div>
             <p class="tui-status" data-tui-status role="status"></p>
           </div>
@@ -99,7 +99,7 @@ function renderWorkTerminal(model: WorkTerminalUiModel): string {
               <span class="tui-empty-mark" aria-hidden="true">${icon("terminal")}</span>
               <p><strong>${compoundParent ? L("这个上层 Goal 不直接使用终端") : L("还没有终端")}</strong></p>
               <p>${compoundParent ? L("请从上方进入一个具体的子 Goal。") : L("选择常用 Runtime 或自定义命令，在这个 Goal 上开始工作。")}</p>
-              <button type="button" class="button primary" data-tui-empty-add aria-haspopup="true" aria-controls="tui-open-menu" aria-expanded="false"${compoundParent ? " hidden" : ""}>${icon("plus")}${L("添加终端")}</button>
+              <button type="button" class="mw-btn mw-btn--primary" data-tui-empty-add aria-haspopup="true" aria-controls="tui-open-menu" aria-expanded="false"${compoundParent ? " hidden" : ""}>${icon("plus")}${L("添加终端")}</button>
             </div>
           </div>
         </div>
@@ -114,8 +114,8 @@ function renderWorkTerminal(model: WorkTerminalUiModel): string {
           <label data-tui-generic-fields hidden>${L("命令")}<input name="command" type="text" autocomplete="off" placeholder="opencode"></label>
           <details class="form-disclosure"><summary>${L("继续已有会话（可选）")}</summary><label>${L("会话 ID")}<input name="resume_session_id" type="text" autocomplete="off"></label><small>${L("先填入对应 Runtime 的会话 ID，再选择上方的 Runtime。")}</small></details>
           <div class="tui-menu-actions">
-            <button type="button" data-tui-menu-cancel>${L("取消")}</button>
-            <button type="submit" data-tui-generic-open hidden>${L("打开")}</button>
+            <button class="mw-btn mw-btn--secondary" type="button" data-tui-menu-cancel>${L("取消")}</button>
+            <button class="mw-btn mw-btn--primary" type="submit" data-tui-generic-open hidden>${L("打开")}</button>
           </div>
         </form>
       </aside>

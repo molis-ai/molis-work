@@ -54,7 +54,7 @@ goal-tree-propose | goal-tree-read | goal-tree-check | goal-tree-decide
 apps/                        6 个产品入口与 composition root 边界
 packages/                    10 个 Foundation package；contracts 暴露 30 个公开 subpath
 modules/                     16 个业务事实 owner 边界
-horizontal/                  4 个横向运行服务边界
+horizontal/                  5 个横向运行服务边界
 plugins/                     6 个 Native Plugin 与 5 个官方 Integration Plugin 边界
 packages/plugin-runtime/     FD3 本地 Plugin 生命周期参考实现
 packages/plugin-sdk/         FD3 Manifest 与 Integration Plugin 定义 API
@@ -106,7 +106,7 @@ DESIGN.md                    shipped UI 设计系统
 docs/SSOT-MATRIX.md          架构、包状态和迁移 owner 的权威索引
 docs/system/                 分层、依赖、迁移与 Huge Class 退出规则
 docs/modules/                16 个 Module 的事实 owner 与 API 边界
-docs/horizontal/             4 个横向运行服务的技术边界
+docs/horizontal/             5 个横向运行服务的技术边界
 docs/platform/               Plugin、Storage、Exchange 与 UI 平台机制
 specs/molis-work-architecture-reorganization/spec.md
                              本次重组的完整已确认 Contract
@@ -119,6 +119,12 @@ specs/molis-work-architecture-reorganization/spec.md
 - `contract-only` 只表示边界存在，不得注册假 Provider、假 Store、UI 入口或伪成功 API。
 - 每个迁移切片同时更新目标 package README、`docs/system/MIGRATION.md` 和对应 Module/Service 文档。
 - Huge Class 的职责归属和删除门见 [Huge Class 职责迁移图](system/HUGE-CLASS-MIGRATION.md)。
+
+## 前端与控件板
+
+改工作台、插件列表、表单或共享控件时，**建议**先打开 `/__ui/catalog`，对照已有标本再动手。这不是门禁：一次性页面、草稿、还没站稳的实验可以先在业务里做。
+
+已经达到产品美学要求的共享控件、状态变体或微动效，**要**补进这块板（`packages/design-system` 的 Catalog 标本），让后人能看见、复用。产品专属编排不必做成标本。用法和隔离预览见 [design-system README](../packages/design-system/README.md)；平台分工见 [UI Platform](platform/UI-PLATFORM.md)。
 
 ## 开发验证
 

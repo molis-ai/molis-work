@@ -431,7 +431,6 @@ function renderHome(node) {
       <div class="home-date-panel">
         <p class="home-date-year">2026年</p>
         <h1 class="home-today"><time datetime="2026-09-15">9月15日</time><span>星期二</span></h1>
-        <figure class="home-reflection"><blockquote>千里之行，始于足下。</blockquote><figcaption>老子 ·《道德经》第六十四章</figcaption></figure>
       </div>
       <section class="home-calendar" aria-label="月历">
         <header><span>${year}年${month + 1}月</span><div class="home-month-actions">

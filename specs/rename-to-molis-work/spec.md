@@ -1,6 +1,6 @@
 # 产品重命名：GoalBoard → Molis Work
 
-状态：已执行。完成等级 3（功能可用）。GitHub 已改为 `molis-ai/molis-work`。代码未提交、未发布 npm。
+状态：已执行。完成等级 3（功能可用）。GitHub 已改为 `molis-ai/molis-work`。代码未提交、未发布 npm。后续活身份兼容已拆除，见 `specs/drop-goalboard-identity/spec.md`。
 
 ## 目标
 

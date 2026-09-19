@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light" data-life="work" data-frame="desktop">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Molis Work · 首页切片</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --page: #f3f4f5; --canvas: #f3f4f5; --rail: #eceef0;
+      --paper: #ffffff; --nav-bg: #f3f4f5;
+      --onboarding-canvas: var(--page); --onboarding-paper: var(--paper);
+      --onboarding-ink: #272932; --onboarding-muted: #60636f; --onboarding-faint: #6b6e79;
+      --onboarding-line: #e4e5ea; --onboarding-line-strong: #d6d8e0; --onboarding-line-hover: #9498a7;
+      --onboarding-hover: #e9eaf0; --onboarding-active: #e9eaf0;
+      --onboarding-accent: #6262d6; --onboarding-accent-strong: #5050bb;
+      --onboarding-accent-wash: #6262d615; --onboarding-selection: #dcdcf8;
+      --onboarding-inverse-ink: #fff;
+      --onboarding-shadow: #20243424; --onboarding-focus-shadow: #20243412;
+      --onboarding-scrollbar: #60636f61;
+      --ink: var(--onboarding-ink); --ink-soft: var(--onboarding-muted);
+      --muted: var(--onboarding-muted); --faint: var(--onboarding-faint);
+      --line: var(--onboarding-line); --line-strong: var(--onboarding-line-strong);
+      --nav-hover: var(--onboarding-hover); --nav-active: var(--onboarding-active);
+      --accent: var(--onboarding-accent); --accent-strong: var(--onboarding-accent-strong);
+      --ease: cubic-bezier(.16, 1, .3, 1);
+      --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", system-ui, sans-serif;
+      --title: 32px; --rail-w: 48px;
+    }
+    html[data-theme="dark"] {
+      color-scheme: dark;
+      --page: #0f1011; --canvas: #0f1011; --rail: #0f1011;
+      --paper: #161718; --nav-bg: #0f1011;
+      --onboarding-canvas: var(--page); --onboarding-paper: var(--paper);
+      --onboarding-ink: #e8e9ee; --onboarding-muted: #a4a7b3; --onboarding-faint: #9498a7;
+      --onboarding-line: #2a2c35; --onboarding-line-strong: #373a46; --onboarding-line-hover: #60636f;
+      --onboarding-hover: #282a33; --onboarding-active: #282a33;
+      --onboarding-accent: #a7a6f5; --onboarding-accent-strong: #b9b7ff;
+      --onboarding-accent-wash: #a7a6f517; --onboarding-selection: #39375f;
+      --onboarding-inverse-ink: #191a20;
+      --onboarding-shadow: #00000038; --onboarding-focus-shadow: #00000030;
+      --onboarding-scrollbar: #a4a7b361;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; overflow: hidden; }
+    body {
+      font: 13px/1.55 var(--font);
+      color: var(--ink);
+      background: var(--page);
+      -webkit-font-smoothing: antialiased;
+    }
+    button, input {
+      font: inherit; color: inherit;
+      appearance: none; -webkit-appearance: none;
+      background: transparent;
+    }
+    svg { display: block; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; }
+    .ico { width: 16px; height: 16px; flex: none; }
+    .ico-sm { width: 14px; height: 14px; }
+    .icon-sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+    ::selection { color: var(--ink); background: var(--onboarding-selection); }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+    * { scrollbar-width: thin; scrollbar-color: var(--onboarding-scrollbar) transparent; }
+    [hidden] { display: none !important; }
+    .visually-hidden {
+      position: absolute !important; width: 1px !important; height: 1px !important;
+      padding: 0 !important; margin: -1px !important; overflow: hidden !important;
+      clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; border: 0 !important;
+    }
+
+    .studio { height: 100%; padding: 40px 0 0; display: flex; flex-direction: column; }
+    .slice-bar {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 40;
+      height: 40px; display: flex; align-items: center; gap: 8px;
+      padding: 0 16px; background: #111216; color: #e8e9ee;
+      font-size: 12px;
+    }
+    .slice-bar strong { font-weight: 550; margin-right: 8px; }
+    .slice-bar .note { color: #9498a7; margin-left: auto; }
+    .slice-bar button {
+      height: 24px; padding: 0 9px; border: 0; border-radius: 6px;
+      background: transparent; color: #a4a7b3; cursor: pointer;
+    }
+    .slice-bar button.is-on { background: #e8e9ee; color: #111216; }
+    .slice-bar button:focus-visible { outline: 2px solid #a7a6f5; outline-offset: 2px; }
+
+    .app {
+      flex: 1; width: 100%; min-height: 0;
+      display: flex; flex-direction: column;
+      background: var(--onboarding-canvas);
+      color: var(--ink);
+      overflow: hidden;
+    }
+    html[data-frame="narrow"] .studio { align-items: center; background: var(--page); }
+    html[data-frame="narrow"] .app {
+      width: 390px;
+      border-left: 1px solid var(--line);
+      border-right: 1px solid var(--line);
+    }
+
+    .titlebar {
+      height: var(--title); flex: none;
+      display: flex; align-items: center; gap: 10px;
+      padding: 0 12px;
+      background: var(--nav-bg);
+      border-bottom: 1px solid var(--line);
+    }
+    .traffic { display: flex; gap: 6px; }
+    .traffic i { width: 10px; height: 10px; border-radius: 50%; background: color-mix(in srgb, var(--ink) 16%, transparent); }
+    .project-chip { color: var(--ink-soft); }
+    .title-tools { margin-left: auto; display: flex; gap: 2px; color: var(--muted); }
+    .icon-btn {
+      width: 26px; height: 26px; display: grid; place-items: center;
+      border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer;
+    }
+    .icon-btn:hover { background: var(--nav-hover); color: var(--ink); }
+
+    .shell { flex: 1; min-height: 0; display: flex; }
+    .rail {
+      width: var(--rail-w); flex: none;
+      display: flex; flex-direction: column; align-items: center;
+      padding: 8px 0;
+      background: var(--rail);
+      border-right: 1px solid var(--line);
+    }
+    .rail button {
+      width: 32px; height: 32px; margin: 2px 0; padding: 0;
+      display: grid; place-items: center;
+      border: 0; border-radius: 8px; background: transparent; color: var(--muted); cursor: default;
+    }
+    .rail button.is-current { background: var(--nav-active); color: var(--ink); }
+    .rail .spacer { flex: 1; }
+    html[data-frame="narrow"] .rail { display: none; }
+
+    .workspace { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--onboarding-canvas); }
+    .tabs {
+      height: 36px; flex: none;
+      display: flex; align-items: flex-end; gap: 4px;
+      padding: 4px 8px 0;
+      background: var(--nav-bg);
+      border-bottom: 1px solid var(--line);
+    }
+    .tab {
+      height: 28px; min-width: 120px; max-width: 172px;
+      display: flex; align-items: center; gap: 6px;
+      padding: 0 10px; border: 0; border-radius: 8px 8px 0 0;
+      background: transparent; color: var(--muted); cursor: default;
+    }
+    .tab.is-current { background: var(--onboarding-canvas); color: var(--ink); }
+    .tab-plus { margin-left: auto; min-width: 0; width: 28px; padding: 0; }
+
+    .stage {
+      position: relative; flex: 1; min-height: 0;
+      overflow: hidden;
+      background: var(--onboarding-canvas);
+    }
+    .stage::before { content: none; }
+
+    .home {
+      position: relative;
+      z-index: 1;
+      height: 100%;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .home-flow {
+      position: absolute;
+      inset: clamp(36px, calc(18% - 8px), 88px) clamp(28px, 5vw, 64px) 24px clamp(40px, 7vw, 96px);
+      animation: onboarding-session-ready 460ms var(--ease) both;
+    }
+    .home-step {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      grid-template-columns: minmax(280px, 480px) minmax(0, 1fr);
+      align-items: start;
+      align-content: start;
+      column-gap: clamp(32px, 6vw, 72px);
+    }
+    .home-step[data-life-step="empty"] { grid-template-columns: minmax(280px, 480px); }
+    .home-step.is-current { z-index: 2; }
+    .home-step.is-leaving { z-index: 1; pointer-events: none; }
+    .home-flow[data-step-direction="forward"] .home-step.is-entering { animation: onboarding-step-in-forward 300ms var(--ease) both; }
+    .home-flow[data-step-direction="forward"] .home-step.is-leaving { animation: onboarding-step-out-forward 260ms cubic-bezier(.4, 0, 1, 1) both; }
+    .home-flow[data-step-direction="backward"] .home-step.is-entering { animation: onboarding-step-in-backward 300ms var(--ease) both; }
+    .home-flow[data-step-direction="backward"] .home-step.is-leaving { animation: onboarding-step-out-backward 260ms cubic-bezier(.4, 0, 1, 1) both; }
+    .home-step.is-entering, .home-step.is-leaving { will-change: clip-path, transform, opacity; }
+
+    .home-main { min-width: 0; max-width: 480px; }
+    .home-calendar {
+      width: 224px;
+      margin: 0 0 18px;
+      display: grid;
+      gap: 8px;
+    }
+    .home-calendar header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      min-height: 28px;
+      color: var(--ink);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: -.015em;
+    }
+    .home-month-actions { display: flex; gap: 2px; }
+    .home-month-actions button {
+      width: 26px; height: 26px; padding: 0;
+      display: grid; place-items: center;
+      border: 0; border-radius: 6px;
+      color: var(--muted); cursor: pointer;
+      transition: background 130ms ease, color 130ms ease;
+    }
+    .home-month-actions button:hover { background: var(--nav-hover); color: var(--ink); }
+    .home-month-actions svg { width: 13px; height: 13px; }
+    .home-month-actions .is-prev svg { transform: rotate(180deg); }
+    .home-calendar table {
+      width: 100%;
+      table-layout: fixed;
+      border-collapse: collapse;
+      text-align: center;
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+    }
+    .home-calendar th {
+      height: 22px; padding: 0; border: 0;
+      color: var(--faint); font-weight: 500;
+    }
+    .home-calendar td { height: 28px; padding: 0; border: 0; color: var(--ink-soft); }
+    .home-calendar td.is-out { color: var(--faint); }
+    .home-calendar td span {
+      width: 26px; height: 26px; margin: 0 auto;
+      display: grid; place-items: center;
+      border-radius: 50%;
+    }
+    .home-calendar td[aria-current="date"] span {
+      background: var(--accent);
+      color: var(--onboarding-inverse-ink);
+      font-weight: 600;
+    }
+    .intro {
+      max-width: 28em;
+      margin: 0 0 18px;
+      color: var(--muted);
+      font-size: 11.5px;
+      line-height: 1.65;
+    }
+
+    .continue {
+      position: relative;
+      overflow: hidden;
+      margin: 0 0 14px;
+      padding: 8px 2px;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      width: fit-content;
+      max-width: 100%;
+      border: 0;
+      color: var(--ink);
+      font-size: 13px;
+      font-weight: 560;
+      text-align: left;
+      cursor: pointer;
+      transition: color 130ms ease, transform 130ms ease;
+    }
+    .continue::before {
+      content: "";
+      position: absolute; inset: 0; z-index: 0;
+      background: var(--onboarding-accent-wash);
+      opacity: 0; transform: scaleX(0); transform-origin: left center;
+      pointer-events: none;
+    }
+    .home-step.is-current .continue::before,
+    .home-step.is-entering .continue::before {
+      animation: onboarding-control-ready 420ms 80ms var(--ease) both;
+    }
+    .continue i {
+      position: relative; z-index: 1;
+      width: 7px; height: 7px; flex: none;
+      border: 1.5px solid var(--accent);
+      border-radius: 50%;
+    }
+    .continue span { position: relative; z-index: 1; min-width: 0; }
+    .continue b {
+      color: var(--accent-strong);
+      font-weight: 600;
+      text-decoration: underline;
+      text-decoration-thickness: 1px;
+      text-underline-offset: 4px;
+    }
+    .continue svg {
+      position: relative; z-index: 1;
+      width: 14px; height: 14px; flex: none;
+      color: var(--accent);
+      stroke-width: 1.45;
+      transition: transform 140ms var(--ease);
+    }
+    .continue:hover { transform: translateY(-1px); color: var(--ink); }
+    .continue:hover svg { transform: translateX(2px); }
+
+    .side-lines { margin: 0 0 28px; display: grid; gap: 2px; }
+    .side-line {
+      min-height: 28px;
+      padding: 4px 2px;
+      display: flex; align-items: baseline; gap: 8px;
+      border: 0; color: var(--muted); font-size: 11px; text-align: left; cursor: pointer;
+      transition: color 130ms ease, transform 130ms ease;
+    }
+    .side-line strong { color: var(--ink); font-size: 11.5px; font-weight: 560; }
+    .side-line:hover { color: var(--ink); transform: translateY(-1px); }
+
+    .composer {
+      width: min(100%, 480px);
+      display: grid;
+      grid-template-columns: max-content minmax(0, 1fr) 22px;
+      align-items: end;
+      gap: 12px;
+    }
+    .composer .intent,
+    .composer .answer {
+      position: relative;
+      min-height: 46px;
+      display: flex; align-items: center;
+      box-shadow: inset 0 -1px var(--onboarding-line-strong);
+    }
+    .composer .intent {
+      min-width: 48px;
+      padding: 0 2px 0 0;
+      color: var(--ink);
+      font-size: 12px;
+      font-weight: 660;
+    }
+    .composer .answer input {
+      width: 100%;
+      padding: 7px 0;
+      border: 0; outline: 0;
+      background: transparent;
+      color: var(--muted);
+      caret-color: var(--accent);
+      cursor: not-allowed;
+      -webkit-text-fill-color: var(--muted);
+    }
+    .composer .answer input::placeholder { color: var(--muted); opacity: 1; }
+    .composer .send {
+      width: 22px; height: 46px;
+      display: grid; place-items: center;
+      border: 0; color: var(--faint); cursor: not-allowed;
+    }
+    .composer .send svg { width: 14px; height: 14px; }
+    .hint {
+      max-width: 360px;
+      margin: 8px 0 0;
+      color: var(--faint);
+      font-size: 9.5px;
+      line-height: 1.45;
+    }
+    .links {
+      margin: 16px 0 0;
+      display: flex; flex-wrap: wrap; gap: 14px;
+    }
+    .links button {
+      padding: 0; border: 0;
+      color: var(--faint); font-size: 11px; cursor: pointer;
+      text-underline-offset: 3px;
+      transition: color 130ms ease;
+    }
+    .links button:hover { color: var(--ink); text-decoration: underline; }
+
+    .home-stream {
+      justify-self: end;
+      width: min(100%, 252px);
+      padding-top: 4px;
+      display: grid;
+      align-content: start;
+      gap: 16px;
+    }
+    .stream-card {
+      position: relative;
+      overflow: hidden;
+      display: grid;
+      gap: 5px;
+      width: 100%;
+      padding: 12px 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--paper);
+      color: var(--muted);
+      text-align: left;
+      cursor: pointer;
+      animation: onboarding-receipt-lock 320ms 80ms var(--ease) both;
+      transition: transform 140ms var(--ease), border-color 140ms ease, box-shadow 140ms ease;
+    }
+    .stream-card::before {
+      content: "";
+      position: absolute; inset: 0; z-index: 0;
+      background: var(--onboarding-accent-wash);
+      opacity: 0; transform: scaleX(0); transform-origin: left center;
+      pointer-events: none;
+    }
+    .home-step.is-current .stream-card::before,
+    .home-step.is-entering .stream-card::before {
+      animation: onboarding-control-ready 420ms 80ms var(--ease) both;
+    }
+    .stream-card > * { position: relative; z-index: 1; }
+    .stream-card time {
+      display: flex; align-items: center; gap: 7px;
+      font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+      font-size: 9px; font-variant-numeric: tabular-nums; font-weight: 620;
+      letter-spacing: .06em; text-transform: uppercase;
+      color: var(--faint);
+    }
+    .stream-card time::before {
+      content: ""; width: 5px; height: 5px; flex: none;
+      border-radius: 1px; background: var(--accent);
+      animation: onboarding-receipt-confirm 360ms 140ms var(--ease) both;
+    }
+    .stream-card strong {
+      color: var(--ink);
+      font-size: 12.5px; font-weight: 600;
+      letter-spacing: -.015em; line-height: 1.4;
+    }
+    .stream-card em {
+      font-style: normal;
+      color: var(--muted);
+      font-size: 11px; line-height: 1.45;
+    }
+    .stream-card:hover {
+      transform: translateY(-1px);
+      border-color: var(--onboarding-line-hover);
+      box-shadow: 0 8px 22px var(--onboarding-focus-shadow);
+    }
+    .stream-rail {
+      display: grid;
+    }
+    .stream-moment {
+      display: grid;
+      grid-template-columns: 40px 16px minmax(0, 1fr);
+      align-items: start;
+      width: 100%;
+      min-height: 40px;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      text-align: left;
+      cursor: pointer;
+      animation: onboarding-receipt-lock 320ms calc(140ms + var(--i, 0) * 70ms) var(--ease) both;
+    }
+    .stream-moment time {
+      padding: 3px 6px 0 0;
+      font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+      font-size: 9px; font-variant-numeric: tabular-nums; font-weight: 620;
+      letter-spacing: .06em; text-transform: uppercase;
+      color: var(--faint); text-align: right;
+    }
+    .stream-moment .dot { position: relative; }
+    .stream-moment .dot::before {
+      content: "";
+      position: absolute; left: 7px; top: 0; bottom: 0; width: 1px;
+      background: var(--line);
+    }
+    .stream-rail .stream-moment:first-child .dot::before { top: 8px; }
+    .stream-rail .stream-moment:last-child .dot::before { bottom: calc(100% - 10px); }
+    .stream-moment .dot i {
+      position: absolute; left: 4px; top: 6px;
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--onboarding-canvas);
+      box-shadow: inset 0 0 0 1px var(--onboarding-line-strong);
+    }
+    .stream-moment[data-kind="goal"] .dot i { box-shadow: inset 0 0 0 1px var(--accent); }
+    .stream-moment .copy { min-width: 0; padding: 1px 0 10px; }
+    .stream-moment strong {
+      display: block;
+      color: var(--ink);
+      font-size: 11.5px; font-weight: 560; line-height: 1.4;
+    }
+    .stream-moment small {
+      display: block; margin-top: 3px;
+      color: var(--faint); font-size: 10.5px;
+    }
+    .stream-moment:hover strong { color: var(--accent-strong); }
+    .echo-empty {
+      margin: 0 0 22px;
+      display: flex; align-items: baseline; gap: 7px;
+      color: var(--muted); font-size: 11px; line-height: 1.5;
+      animation: onboarding-receipt-lock 320ms 60ms var(--ease) both;
+    }
+    .echo-empty::before {
+      content: ""; width: 5px; height: 5px; flex: none; align-self: center;
+      border-radius: 1px; background: var(--accent);
+    }
+
+    .sheet {
+      position: absolute; top: 0; right: 0; bottom: 0; z-index: 5;
+      width: min(360px, 100%);
+      display: none; flex-direction: column;
+      background: var(--paper);
+      border-left: 1px solid var(--line);
+      padding: 20px 22px;
+    }
+    .sheet.is-open { display: flex; }
+    .sheet h2 { margin: 0 0 8px; font-size: 16px; font-weight: 550; letter-spacing: -.015em; }
+    .sheet p { margin: 0; color: var(--ink-soft); font-size: 13px; line-height: 1.6; }
+    .sheet .hint { margin-top: 14px; max-width: none; font-size: 12px; }
+    .sheet .close { align-self: flex-end; margin-bottom: 18px; }
+    .backdrop {
+      position: absolute; inset: 0; z-index: 4;
+      display: none; border: 0; padding: 0;
+      background: color-mix(in srgb, var(--ink) 10%, transparent);
+      cursor: pointer;
+    }
+    .backdrop.is-open { display: block; }
+
+    html[data-frame="narrow"] .home-flow { inset: 28px 20px 18px; }
+    html[data-frame="narrow"] .home-step,
+    html[data-frame="narrow"] .home-step[data-life-step="empty"] {
+      grid-template-columns: 1fr;
+      gap: 24px;
+    }
+    html[data-frame="narrow"] .home-stream { justify-self: start; width: 100%; padding-top: 0; }
+    html[data-frame="narrow"] .home-calendar { width: min(224px, 100%); }
+    html[data-frame="narrow"] .stream-rail .stream-moment:nth-child(n+3) { display: none; }
+
+    @keyframes onboarding-session-ready {
+      from { opacity: .62; }
+      to { opacity: 1; }
+    }
+    @keyframes onboarding-step-in-forward {
+      from { opacity: .12; clip-path: inset(0 12% 0 0); transform: translateX(16px); }
+      to { opacity: 1; clip-path: inset(0); transform: translateX(0); }
+    }
+    @keyframes onboarding-step-out-forward {
+      from { opacity: 1; clip-path: inset(0); transform: translateX(0); }
+      to { opacity: 0; clip-path: inset(0 0 0 8%); transform: translateX(-8px); }
+    }
+    @keyframes onboarding-step-in-backward {
+      from { opacity: .12; clip-path: inset(0 0 0 12%); transform: translateX(-16px); }
+      to { opacity: 1; clip-path: inset(0); transform: translateX(0); }
+    }
+    @keyframes onboarding-step-out-backward {
+      from { opacity: 1; clip-path: inset(0); transform: translateX(0); }
+      to { opacity: 0; clip-path: inset(0 8% 0 0); transform: translateX(8px); }
+    }
+    @keyframes onboarding-control-ready {
+      0% { opacity: 0; transform: scaleX(0); }
+      42% { opacity: 1; }
+      100% { opacity: 0; transform: scaleX(1); }
+    }
+    @keyframes onboarding-receipt-lock {
+      from { opacity: .35; clip-path: inset(0 16% 0 0); }
+      to { opacity: 1; clip-path: inset(0); }
+    }
+    @keyframes onboarding-receipt-confirm {
+      from { opacity: .2; transform: scale(.4); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: .01ms !important;
+        animation-delay: 0ms !important;
+        transition-duration: .01ms !important;
+      }
+      .home-step.is-entering, .home-step.is-leaving { will-change: auto; }
+    }
+  </style>
+</head>
+<body>
+  <svg class="icon-sprite" aria-hidden="true">
+    <symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+    </symbol>
+    <symbol id="i-target" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>
+    </symbol>
+    <symbol id="i-inbox" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>
+    </symbol>
+    <symbol id="i-activity" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+    </symbol>
+    <symbol id="i-terminal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+      <path d="m7 11 2-2-2-2"/><path d="M11 13h4"/><rect width="18" height="18" x="3" y="3" rx="2"/>
+    </symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M5 12h14"/><path d="M12 5v14"/>
+    </symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1 2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>
+    </symbol>
+    <symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+    </symbol>
+    <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+    </symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
+    </symbol>
+    <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M18 6 6 18"/><path d="m6 6 12 12"/>
+    </symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1 2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>
+    </symbol>
+  </svg>
+
+  <div class="slice-bar">
+    <strong>首页切片</strong>
+    <button type="button" data-set="life" data-value="work" class="is-on">有工作</button>
+    <button type="button" data-set="life" data-value="empty">空项目</button>
+    <button type="button" data-set="theme" data-value="light" class="is-on">浅色</button>
+    <button type="button" data-set="theme" data-value="dark">深色</button>
+    <button type="button" data-set="frame" data-value="desktop" class="is-on">桌面</button>
+    <button type="button" data-set="frame" data-value="narrow">390</button>
+    <span class="note">Onboarding 房间 · 不改生产首页</span>
+  </div>
+
+  <div class="studio">
+    <div class="app" role="application" aria-label="Molis Work 工作台切片">
+      <header class="titlebar">
+        <span class="traffic" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span class="project-chip">目录交互验证</span>
+        <span class="title-tools">
+          <span class="icon-btn" aria-hidden="true"><svg class="ico ico-sm"><use href="#i-search"></use></svg></span>
+          <span class="icon-btn" aria-hidden="true"><svg class="ico ico-sm"><use href="#i-gear"></use></svg></span>
+        </span>
+      </header>
+      <div class="shell">
+        <nav class="rail" aria-label="插件">
+          <button type="button" class="is-current" aria-current="page" aria-label="首页"><svg class="ico"><use href="#i-home"></use></svg></button>
+          <button type="button" aria-label="Goals" tabindex="-1"><svg class="ico"><use href="#i-target"></use></svg></button>
+          <button type="button" aria-label="Inbox" tabindex="-1"><svg class="ico"><use href="#i-inbox"></use></svg></button>
+          <button type="button" aria-label="Feed" tabindex="-1"><svg class="ico"><use href="#i-activity"></use></svg></button>
+          <button type="button" aria-label="Sessions" tabindex="-1"><svg class="ico"><use href="#i-terminal"></use></svg></button>
+          <button type="button" aria-label="添加插件" tabindex="-1"><svg class="ico"><use href="#i-plus"></use></svg></button>
+          <span class="spacer"></span>
+          <button type="button" aria-label="设置" tabindex="-1"><svg class="ico"><use href="#i-settings"></use></svg></button>
+          <button type="button" aria-label="账号" tabindex="-1"><svg class="ico"><use href="#i-user"></use></svg></button>
+        </nav>
+        <div class="workspace">
+          <div class="tabs" role="tablist" aria-label="工作标签">
+            <button class="tab is-current" type="button" role="tab" aria-selected="true"><svg class="ico ico-sm"><use href="#i-home"></use></svg><span>项目首页</span></button>
+            <button class="tab" type="button" role="tab" aria-selected="false" tabindex="-1"><svg class="ico ico-sm"><use href="#i-target"></use></svg><span>画布</span></button>
+            <span class="tab tab-plus icon-btn" aria-hidden="true"><svg class="ico ico-sm"><use href="#i-plus"></use></svg></span>
+          </div>
+          <main class="stage">
+            <section class="home" aria-label="项目首页">
+              <div class="home-flow" data-step-direction="forward">
+                <div class="home-step is-current" data-life-step="work">
+                  <div class="home-main">
+                    <section class="home-calendar" aria-label="月历">
+                      <header>
+                        <span data-home-month>2026年9月</span>
+                        <div class="home-month-actions">
+                          <button class="is-prev" type="button" data-home-month-step="-1" aria-label="上个月"><svg class="ico ico-sm" aria-hidden="true"><use href="#i-arrow"></use></svg></button>
+                          <button type="button" data-home-month-step="1" aria-label="下个月"><svg class="ico ico-sm" aria-hidden="true"><use href="#i-arrow"></use></svg></button>
+                        </div>
+                      </header>
+                      <table>
+                        <thead>
+                          <tr>
+                            <th scope="col">一</th>
+                            <th scope="col">二</th>
+                            <th scope="col">三</th>
+                            <th scope="col">四</th>
+                            <th scope="col">五</th>
+                            <th scope="col">六</th>
+                            <th scope="col">日</th>
+                          </tr>
+                        </thead>
+                        <tbody data-home-calendar></tbody>
+                      </table>
+                    </section>
+                    <button class="continue" type="button" data-open="goal" data-title="让人能在同一工作台看清并推进 Goal">
+                      <i aria-hidden="true"></i>
+                      <span>从这里继续 <b>让人能在同一工作台看清并推进 Goal</b></span>
+                      <svg class="ico ico-sm" aria-hidden="true"><use href="#i-arrow"></use></svg>
+                    </button>
+                    <div class="side-lines">
+                      <button class="side-line" type="button" data-open="inbox" data-title="GitHub 授权已失效">
+                        <span>2 件 Inbox</span>
+                        <strong>GitHub 授权已失效</strong>
+                      </button>
+                      <button class="side-line" type="button" data-open="session" data-title="Cursor · WORKSPACE">
+                        <span>Session</span>
+                        <strong>Cursor 昨晚还开着</strong>
+                      </button>
+                    </div>
+                    <div class="composer">
+                      <span class="intent">我想</span>
+                      <label class="answer">
+                        <span class="visually-hidden">Agent 尚未开放</span>
+                        <input type="text" placeholder="说说你想看到的变化…" disabled />
+                      </label>
+                      <button class="send" type="button" disabled aria-label="Agent 尚未开放，暂不可发送">
+                        <svg class="ico ico-sm" aria-hidden="true"><use href="#i-arrow"></use></svg>
+                      </button>
+                    </div>
+                    <p class="hint">Agent 尚未开放</p>
+                    <p class="links">
+                      <button type="button" data-open="link" data-title="项目文档">项目文档</button>
+                      <button type="button" data-open="link" data-title="GitHub">GitHub</button>
+                      <button type="button" data-open="shortcut" data-title="添加快捷方式">添加快捷方式</button>
+                    </p>
+                  </div>
+                  <aside class="home-stream" aria-label="时间流">
+                    <button class="stream-card" type="button" data-open="inbox" data-title="GitHub 授权已失效">
+                      <time datetime="2026-09-17T14:20">14:20</time>
+                      <strong>GitHub 授权已失效</strong>
+                      <em>Inbox · 拉取停在上次失败</em>
+                    </button>
+                    <div class="stream-rail">
+                      <button class="stream-moment" type="button" style="--i:1" data-kind="goal" data-open="goal" data-title="让人能在同一工作台看清并推进 Goal">
+                        <time datetime="2026-09-17T11:08">11:08</time>
+                        <span class="dot" aria-hidden="true"><i></i></span>
+                        <span class="copy"><strong>记录了首页空态居中</strong><small>Goal</small></span>
+                      </button>
+                      <button class="stream-moment" type="button" style="--i:2" data-kind="session" data-open="session" data-title="Cursor · WORKSPACE">
+                        <time datetime="2026-09-16T22:14">昨晚</time>
+                        <span class="dot" aria-hidden="true"><i></i></span>
+                        <span class="copy"><strong>Cursor · WORKSPACE</strong><small>Session</small></span>
+                      </button>
+                      <button class="stream-moment" type="button" style="--i:3" data-kind="goal" data-open="goal" data-title="让人能在同一工作台看清并推进 Goal">
+                        <time datetime="2026-09-16T16:02">昨天</time>
+                        <span class="dot" aria-hidden="true"><i></i></span>
+                        <span class="copy"><strong>把 Feed 目录行改成可读的三列</strong><small>Goal</small></span>
+                      </button>
+                    </div>
+                  </aside>
+                </div>
+                <div class="home-step" data-life-step="empty" hidden>
+                  <div class="home-main">
+                    <section class="home-calendar" aria-label="月历">
+                      <header>
+                        <span data-home-month>2026年9月</span>
+                        <div class="home-month-actions">
+                          <button class="is-prev" type="button" data-home-month-step="-1" aria-label="上个月"><svg class="ico ico-sm" aria-hidden="true"><use href="#i-arrow"></use></svg></button>
+                          <button type="button" data-home-month-step="1" aria-label="下个月"><svg class="ico ico-sm" aria-hidden="true"><use href="#i-arrow"></use></svg></button>
+                        </div>
+                      </header>
+                      <table>
+                        <thead>
+                          <tr>
+                            <th scope="col">一</th>
+                            <th scope="col">二</th>
+                            <th scope="col">三</th>
+                            <th scope="col">四</th>
+                            <th scope="col">五</th>
+                            <th scope="col">六</th>
+                            <th scope="col">日</th>
+                          </tr>
+                        </thead>
+                        <tbody data-home-calendar></tbody>
+                      </table>
+                    </section>
+                    <p class="intro">目标和依赖会作为节点出现在画布上。</p>
+                    <button class="continue" type="button" data-open="create" data-title="创建第一条 Goal">
+                      <i aria-hidden="true"></i>
+                      <span>创建第一条 <b>Goal</b></span>
+                      <svg class="ico ico-sm" aria-hidden="true"><use href="#i-arrow"></use></svg>
+                    </button>
+                    <p class="echo-empty">还没有留下足迹。</p>
+                    <div class="composer">
+                      <span class="intent">我想</span>
+                      <label class="answer">
+                        <span class="visually-hidden">Agent 尚未开放</span>
+                        <input type="text" placeholder="说说你想看到的变化…" disabled />
+                      </label>
+                      <button class="send" type="button" disabled aria-label="Agent 尚未开放，暂不可发送">
+                        <svg class="ico ico-sm" aria-hidden="true"><use href="#i-arrow"></use></svg>
+                      </button>
+                    </div>
+                    <p class="hint">Agent 尚未开放</p>
+                  </div>
+                </div>
+              </div>
+            </section>
+            <button class="backdrop" type="button" aria-label="关闭"></button>
+            <aside class="sheet" aria-live="polite">
+              <button class="icon-btn close" type="button" aria-label="关闭"><svg class="ico"><use href="#i-x"></use></svg></button>
+              <h2 data-sheet-title></h2>
+              <p data-sheet-body></p>
+              <p class="hint">切片只演示去向，不会改项目事实，也不会打开生产页面。</p>
+            </aside>
+          </main>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const DEST = {
+      goal: "这里会打开 Goals，定位到这条 Goal。",
+      create: "这里会打开新建 Goal。创建后它会出现在画布上，并成为时间流的第一条足迹。",
+      inbox: "这里会打开 Inbox，处理需要你介入的事项。",
+      session: "这里会打开这条 Session，从上次停下的地方继续。",
+      link: "这里会用现有外链通道打开这个快捷方式。",
+      shortcut: "这里会打开添加快捷方式。名称和地址按项目记在本机，不写 Goal。"
+    };
+    const sheet = document.querySelector(".sheet");
+    const backdrop = document.querySelector(".backdrop");
+    const titleEl = document.querySelector("[data-sheet-title]");
+    const bodyEl = document.querySelector("[data-sheet-body]");
+    const flow = document.querySelector(".home-flow");
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let lifeBusy = false;
+
+    function closeSheet() {
+      sheet.classList.remove("is-open");
+      backdrop.classList.remove("is-open");
+    }
+    function openSheet(kind, title) {
+      titleEl.textContent = title;
+      bodyEl.textContent = DEST[kind] || "这里会打开对应页面。";
+      sheet.classList.add("is-open");
+      backdrop.classList.add("is-open");
+      sheet.querySelector(".close").focus();
+    }
+
+    document.querySelectorAll("[data-open]").forEach((el) => {
+      el.addEventListener("click", () => openSheet(el.dataset.open, el.dataset.title));
+    });
+    document.querySelector(".close").addEventListener("click", closeSheet);
+    backdrop.addEventListener("click", closeSheet);
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") closeSheet();
+    });
+
+    function setLife(value) {
+      const root = document.documentElement;
+      if (root.dataset.life === value || lifeBusy) return;
+      const from = flow.querySelector(".home-step.is-current");
+      const to = flow.querySelector(`[data-life-step="${value}"]`);
+      root.dataset.life = value;
+      flow.dataset.stepDirection = value === "empty" ? "forward" : "backward";
+      if (reduceMotion.matches) {
+        from.classList.remove("is-current");
+        from.hidden = true;
+        to.hidden = false;
+        to.classList.add("is-current");
+        return;
+      }
+      lifeBusy = true;
+      from.classList.remove("is-entering");
+      from.classList.add("is-leaving");
+      from.classList.remove("is-current");
+      to.classList.remove("is-leaving", "is-entering");
+      to.hidden = false;
+      void to.offsetWidth;
+      to.classList.add("is-entering", "is-current");
+      const finish = () => {
+        from.hidden = true;
+        from.classList.remove("is-leaving");
+        to.classList.remove("is-entering");
+        lifeBusy = false;
+      };
+      const onStepIn = (event) => {
+        if (event.target !== to || !String(event.animationName).includes("step-in")) return;
+        to.removeEventListener("animationend", onStepIn);
+        clearTimeout(failSafe);
+        finish();
+      };
+      const failSafe = setTimeout(() => {
+        to.removeEventListener("animationend", onStepIn);
+        finish();
+      }, 420);
+      to.addEventListener("animationend", onStepIn);
+    }
+
+    const calendarCursor = new Date(2026, 8, 1);
+    function civilKey(day) {
+      return `${day.getFullYear()}-${day.getMonth()}-${day.getDate()}`;
+    }
+    function renderCalendars(now = new Date(2026, 8, 17)) {
+      const year = calendarCursor.getFullYear();
+      const month = calendarCursor.getMonth();
+      const title = `${year}年${month + 1}月`;
+      document.querySelectorAll("[data-home-month]").forEach((el) => {
+        el.textContent = title;
+      });
+      const start = new Date(year, month, 1);
+      const offset = (start.getDay() + 6) % 7;
+      start.setDate(1 - offset);
+      const rows = Math.ceil((offset + new Date(year, month + 1, 0).getDate()) / 7);
+      const today = civilKey(now);
+      document.querySelectorAll("[data-home-calendar]").forEach((body) => {
+        body.replaceChildren();
+        for (let row = 0; row < rows; row++) {
+          const tr = document.createElement("tr");
+          for (let column = 0; column < 7; column++) {
+            const day = new Date(start);
+            day.setDate(start.getDate() + row * 7 + column);
+            const td = document.createElement("td");
+            const number = document.createElement("span");
+            number.textContent = String(day.getDate());
+            if (day.getMonth() !== month) td.className = "is-out";
+            if (civilKey(day) === today) td.setAttribute("aria-current", "date");
+            td.append(number);
+            tr.append(td);
+          }
+          body.append(tr);
+        }
+      });
+    }
+    document.querySelectorAll("[data-home-month-step]").forEach((button) => {
+      button.addEventListener("click", () => {
+        calendarCursor.setMonth(calendarCursor.getMonth() + Number(button.dataset.homeMonthStep));
+        renderCalendars();
+      });
+    });
+    renderCalendars();
+
+    document.querySelectorAll(".slice-bar [data-set]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const key = button.dataset.set;
+        const value = button.dataset.value;
+        document.querySelectorAll(`.slice-bar [data-set="${key}"]`).forEach((peer) => {
+          peer.classList.toggle("is-on", peer === button);
+        });
+        closeSheet();
+        if (key === "life") {
+          setLife(value);
+          return;
+        }
+        document.documentElement.dataset[key] = value;
+      });
+    });
+  </script>
+</body>
+</html>

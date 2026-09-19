@@ -18,12 +18,12 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
         }
       } catch {}
       const available = new Set(visibleGoals().map((item) => item.goal.goal_id));
-      if (!available.has(goalId)) goalId = state.active_goal_id || visibleGoals()[0]?.goal.goal_id || "";
+      if (!available.has(goalId)) goalId = state.active_goal_id || "";
       location.assign(globalThis.molisWorkNavigationUrl(goalId ? route("/goals/" + encodeURIComponent(goalId)) : route("/")));
     };
 
     const syncMobilePluginLabels = (surface, directory) => {
-      const plugin = directory === "sources" || directory === "feed" || directory === "inbox" || directory === "sessions" || directory === "artifacts"
+      const plugin = directory === "sources" || directory === "feed" || directory === "inbox" || directory === "sessions" || directory === "artifacts" || directory === "shelf"
         ? directory
         : surface;
       if (mobileTreeTab) mobileTreeTab.textContent = plugin === "feed"
@@ -36,8 +36,10 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
             ? "Sessions"
             : plugin === "artifacts"
               ? "Artifacts"
+              : plugin === "shelf"
+                ? "Shelf"
               : defaultMobileTreeLabel;
-      if (mobileDocumentTab) mobileDocumentTab.textContent = plugin === "feed" || plugin === "sources" || plugin === "sessions" || plugin === "inbox" || plugin === "artifacts"
+      if (mobileDocumentTab) mobileDocumentTab.textContent = plugin === "feed" || plugin === "sources" || plugin === "sessions" || plugin === "inbox" || plugin === "artifacts" || plugin === "shelf"
         ? L("详情")
         : defaultMobileDocumentLabel;
     };
@@ -56,7 +58,7 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
       const surfaceChanged = activeDesktopSurface !== surface;
       if (activeDesktopSurface && surfaceChanged) {
         desktopSurfaceScroll[activeDesktopSurface] = (activeDesktopSurface === "goal" ? documentPane : activeDesktopSurface === "feed" ? feedWorkbench?.querySelector(".feed-stage-tree") : desktopWorkSurfaces.find(item => item.dataset.workSurface === activeDesktopSurface))?.scrollTop || 0;
-        if (activeDesktopSurface === "goal") goalWorkspaceMode = workspace.dataset.workspaceMode || "focus";
+        if (activeDesktopSurface === "goal") goalWorkspaceMode = workspace.dataset.workspaceMode || "graph";
       }
       activeDesktopSurface = surface;
       document.body.dataset.desktopSurface = surface;
@@ -93,22 +95,32 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
     };
 
     const pluginForSurface = (surface) => surface === "goal" ? "goals" : surface === "home" ? "home" : surface;
-    const openWorkbenchSurface = (surface, itemId, title) => {
+    const directoryTabMode = () => "commit";
+    let lastDirectoryOpen = { key: "", at: 0 };
+    const openWorkbenchSurface = (surface, itemId, title, mode = "commit") => {
       if (!tabWorkspace) return false;
       if (surface === "market") {
         tabWorkspace.setExclusive(surface);
         return true;
       }
       if (surface === "sources") {
-        tabWorkspace.openPlugin("feed");
+        tabWorkspace.openPlugin("feed", mode);
         return true;
       }
-      if (itemId) tabWorkspace.openItem(pluginForSurface(surface), itemId, title);
-      else tabWorkspace.openPlugin(pluginForSurface(surface));
+      if (itemId) tabWorkspace.openItem(pluginForSurface(surface), itemId, title, undefined, mode);
+      else tabWorkspace.openPlugin(pluginForSurface(surface), mode);
       return true;
     };
+    const openDirectorySurface = (surface, itemId, title, clickEvent) => {
+      const plugin = pluginForSurface(surface);
+      const key = itemId ? plugin + ":item:" + itemId : plugin + ":view";
+      const detail = Number(clickEvent?.detail || 0);
+      if (detail > 1 && lastDirectoryOpen.key === key) return true;
+      lastDirectoryOpen = { key, at: Date.now() };
+      return openWorkbenchSurface(surface, itemId, title, directoryTabMode());
+    };
 
-    const currentModuleDirectory = () => activeDesktopSurface === "feed" || activeDesktopSurface === "sources" || activeDesktopSurface === "sessions" || activeDesktopSurface === "artifacts" || activeDesktopSurface === "inbox"
+    const currentModuleDirectory = () => activeDesktopSurface === "feed" || activeDesktopSurface === "sources" || activeDesktopSurface === "sessions" || activeDesktopSurface === "artifacts" || activeDesktopSurface === "inbox" || activeDesktopSurface === "shelf"
       ? activeDesktopSurface
       : "goals";
 
@@ -133,40 +145,60 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
       });
     };
 
+    const LIST_PLUGIN_SECTIONS = ["goals", "sessions", "inbox", "feed", "shelf", "artifacts"];
+
+    const syncPluginDirectory = (directory) => {
+      const empty = directory === "root";
+      workspace.classList.toggle("is-plugin-directory-empty", empty);
+      const currentSection = directory === "sources" ? "feed" : directory;
+      document.querySelectorAll("[data-plugin-section]").forEach((section) => {
+        const show = !empty && section.dataset.pluginSection === currentSection;
+        section.hidden = !show;
+        if (show) {
+          section.classList.add("is-expanded");
+          section.dataset.pluginExpanded = "true";
+        }
+      });
+    };
+
+    const setPluginSectionExpanded = (id, expanded, persist = true) => {
+      const sectionId = id === "sources" ? "feed" : id;
+      if (!LIST_PLUGIN_SECTIONS.includes(sectionId) || !expanded) return;
+      setDirectoryCollapsed?.(false, false);
+      setDesktopDirectory(id === "sources" ? "sources" : sectionId, persist, false);
+    };
+
     const setDesktopDirectory = (directory, persist = true, focusTarget = true, origin = null) => {
       if (!desktopDirectoryPanels.length || !treePane?.dataset.desktopDirectory) return;
       directory = directoryPanelFor(directory);
       const available = new Set(desktopDirectoryPanels.map((panel) => panel.dataset.directoryPanel));
-      const next = available.has(directory) ? directory : "root";
+      const next = available.has(directory) || directory === "root" ? directory : "root";
       const current = treePane.dataset.desktopDirectory;
       if (current === "root" && next !== "root" && origin?.closest?.('[data-directory-panel="root"]')) {
         desktopDirectoryOrigin = origin;
       }
       treePane.dataset.desktopDirectory = next;
-      desktopDirectoryPanels.forEach((panel) => {
-        panel.classList.remove("is-directory-enter");
-        panel.hidden = panel.dataset.directoryPanel !== next;
-      });
-      if (persist && current !== next && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
-        const incoming = desktopDirectoryPanels.find((panel) => panel.dataset.directoryPanel === next);
-        if (incoming) {
-          void incoming.offsetWidth;
-          incoming.classList.add("is-directory-enter");
-          incoming.addEventListener("animationend", () => incoming.classList.remove("is-directory-enter"), { once: true });
-        }
+      const feedPanel = desktopDirectoryPanels.find((panel) => panel.dataset.directoryPanel === "feed");
+      const sourcesPanel = desktopDirectoryPanels.find((panel) => panel.dataset.directoryPanel === "sources");
+      if (feedPanel) feedPanel.hidden = next === "sources";
+      if (sourcesPanel) sourcesPanel.hidden = next !== "sources";
+      syncPluginDirectory(next);
+      if (next === "settings" || next === "project-settings" || (persist && origin?.closest?.("[data-plugin-strip]") && next !== "root")) {
+        setDirectoryCollapsed?.(false, false);
+        const storedWidth = parseFloat(workspace.style.getPropertyValue("--tree-width")) || 0;
+        if (storedWidth > 0 && storedWidth < 200) workspace.style.setProperty("--tree-width", "240px");
       }
       syncMobilePluginLabels(activeDesktopSurface, next);
       syncMobileNavigationChrome();
       immersiveNavigation?.sync();
       if (focusTarget) {
         requestAnimationFrame(() => {
-          const nextPanel = desktopDirectoryPanels.find((panel) => panel.dataset.directoryPanel === next);
           const nextFocus = origin?.closest?.("[data-plugin-strip]")
             ? origin
             : next === "root" && desktopDirectoryOrigin?.isConnected
             ? desktopDirectoryOrigin
-            : nextPanel?.querySelector('[data-directory-back], [data-directory-open], a[href], button:not([disabled])');
-          nextFocus?.focus();
+            : origin;
+          nextFocus?.focus?.();
         });
       }
       if (persist) queueSave();
@@ -277,13 +309,13 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
       configSave.dataset.sourceId = value;
       configSave.disabled = feedSourcesDialog.querySelector('[data-feed-task-config="' + CSS.escape(value) + '"]')?.dataset.prototype === "true";
 
-      const headings = { custom_rss: "订阅网站与博客", rss: "选择推荐订阅", web_query: "追踪关键词", youtube_channel: "关注 YouTube 频道", github: "连接 GitHub", gmail: "连接 Gmail" };
-      const title = stage === "config" ? "任务配置" : stage === "advanced" ? "捕捉规则与迁移" : setup ? headings[value] : "添加拉取任务";
+      const headings = { custom_rss: "RSS / Atom", rss: "目录订阅", web_query: "网页搜索", youtube_channel: "YouTube", github: "GitHub", gmail: "Gmail" };
+      const title = stage === "config" ? "任务配置" : setup ? headings[value] : "添加任务";
       feedSourcesDialog.querySelector("h2").textContent = L(title);
-      feedSourcesDialog.querySelector('footer [data-feed-sources-close]').textContent = L(stage === "advanced" ? "关闭" : "取消");
+      feedSourcesDialog.querySelector('footer [data-feed-sources-close]').textContent = L("取消");
       const description = feedSourcesDialog.querySelector("[data-feed-setup-description]");
-      description.textContent = L(stage === "choose" ? "先选择你想关注的来源。" : setup ? "完成配置后，内容会出现在左侧的独立任务中。" : stage === "config" ? "管理这个任务的内容范围与拉取方式。" : "为新内容设置捕捉规则，或导入已有历史。");
-      for (const [selector, visible] of [["[data-feed-source-choices]", stage === "choose"], ["[data-feed-source-setup]", setup], ["[data-feed-task-configs]", stage === "config"], ["[data-feed-advanced]", stage === "advanced"]]) feedSourcesDialog.querySelector(selector).hidden = !visible;
+      description.textContent = L(stage === "choose" ? "选一种来源。" : setup ? "填完后会出现在 Feed 目录。" : "范围、计划和捕捉规则。");
+      for (const [selector, visible] of [["[data-feed-source-choices]", stage === "choose"], ["[data-feed-source-setup]", setup], ["[data-feed-task-configs]", stage === "config"]]) feedSourcesDialog.querySelector(selector).hidden = !visible;
       feedSourcesDialog.querySelectorAll("[data-feed-task-config]").forEach(panel => panel.hidden = panel.dataset.feedTaskConfig !== value);
       feedSourcesDialog.querySelectorAll("[data-feed-setup-kind]").forEach(panel => {
         panel.hidden = !setup || panel.dataset.feedSetupKind !== value;
@@ -302,6 +334,14 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
     const setFeedAddOpen = (open) => {
       if (open) showFeedSetup(); else feedSourcesDialog?.close();
     };
+    const saveFeedAddOutRule = async (form, sourceId) => {
+      if (!form || form.dataset.createdOutRuleId) return;
+      const contains = String(form.querySelector("[data-feed-add-out-rule-contains]")?.value || "").trim();
+      const name = String(form.querySelector("[data-feed-add-out-rule-name]")?.value || "").trim();
+      if (!contains && !name) return;
+      const result = await feedApi("/api/feed/out-rules", "POST", { name: name || contains, contains, source_id: sourceId });
+      form.dataset.createdOutRuleId = result.rule.rule_id;
+    };
 
     const setFeedTask = (taskId, persist = true) => {
       const available = document.querySelector('[data-feed-task="' + CSS.escape(taskId || "") + '"]');
@@ -309,13 +349,22 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
       selectedFeedTask = next;
       document.querySelectorAll("[data-feed-task]").forEach((task) => {
         const selected = task.dataset.feedTask === next;
+        if (task.matches("details")) {
+          const summary = task.querySelector(":scope > summary");
+          if (selected) {
+            task.open = true;
+            summary?.setAttribute("aria-current", "page");
+            task.scrollIntoView({ block: "nearest" });
+          } else summary?.removeAttribute("aria-current");
+          return;
+        }
         const button = task.querySelector("[data-feed-task-toggle]");
+        button?.classList.toggle("is-selected", selected);
         if (selected) button?.setAttribute("aria-current", "page"); else button?.removeAttribute("aria-current");
       });
       const title = document.querySelector("[data-feed-task-title]");
       if (title) title.textContent = available?.querySelector("strong")?.textContent || L("全部");
       if (persist) document.dispatchEvent(new CustomEvent("workbench-feed-task", { detail: { taskId: next } }));
-      filterFeedItems(true, persist);
       return true;
     };
 
@@ -381,8 +430,8 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
 
     const loadFeedItemDetail = async (row, entryId) => {
       if (!feedWorkbench || !row || row.dataset.feedEntryPersisted !== "true") return;
-      const wrap = row.closest("[data-feed-item-wrap]") || row;
-      const slot = wrap.querySelector("[data-feed-item-slot]");
+      const pane = document.querySelector('[data-feed-entry-detail="' + CSS.escape(entryId) + '"]');
+      const slot = pane?.querySelector("[data-feed-item-slot]") || pane;
       const itemId = row.dataset.feedItemId || entryId;
       const existing = (slot || feedWorkbench).querySelector('[data-feed-detail="' + CSS.escape(entryId) + '"]');
       if (existing) {
@@ -457,28 +506,41 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
       }
     };
 
+    const expandFeedStage = (expanded) => {
+      const shell = document.querySelector("[data-feed-stage-shell]");
+      const workspace = document.querySelector("[data-feed-stage-workspace]");
+      if (!shell) return;
+      shell.dataset.expanded = expanded ? "true" : "false";
+      if (workspace) workspace.hidden = !expanded;
+    };
+
+    const collapseFeedStage = () => {
+      expandFeedStage(false);
+      selectedFeedItem = "";
+      feedList?.querySelectorAll("[data-feed-entry-id]").forEach((row) => {
+        collapseFeedItemDetail(row);
+      });
+      document.querySelectorAll("[data-feed-entry-detail]").forEach((pane) => { pane.hidden = true; });
+      if (feedDetailEmpty) feedDetailEmpty.hidden = true;
+    };
+
     const collapseFeedItemDetail = (row) => {
       const wrap = row?.closest?.("[data-feed-item-wrap]") || row;
       wrap?.classList.remove("is-open");
-      const slot = wrap?.querySelector?.("[data-feed-item-slot]");
-      if (slot) slot.hidden = true;
       row?.classList.remove("is-selected", "is-open");
       row?.setAttribute("aria-selected", "false");
       row?.setAttribute("aria-expanded", "false");
       if (row) row.tabIndex = 0;
     };
 
-    const selectFeedItem = (itemId, moveToDetail = false, recordRead = false, allowToggle = true) => {
+    const selectFeedItem = (itemId, moveToDetail = false, recordRead = false, allowToggle = false) => {
       if (!feedList || !feedWorkbench) return false;
       const selectedRow = [...feedList.querySelectorAll("[data-feed-entry-id]")]
         .find((row) => row.dataset.feedEntryId === itemId && feedEntryVisible(row));
       if (!selectedRow) return false;
-      const wrap = selectedRow.closest("[data-feed-item-wrap]") || selectedRow;
-      const slot = wrap.querySelector("[data-feed-item-slot]");
-      const alreadyOpen = selectedFeedItem === itemId && slot && !slot.hidden;
+      const alreadyOpen = selectedFeedItem === itemId && document.querySelector("[data-feed-stage-shell]")?.dataset.expanded === "true";
       if (allowToggle && alreadyOpen) {
-        selectedFeedItem = "";
-        collapseFeedItemDetail(selectedRow);
+        collapseFeedStage();
         queueSave();
         return true;
       }
@@ -492,8 +554,12 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
         row.tabIndex = active ? 0 : -1;
         if (!active) collapseFeedItemDetail(row);
       });
-      wrap.classList.add("is-open");
-      if (slot) slot.hidden = false;
+      selectedRow.classList.add("is-open");
+      expandFeedStage(true);
+      document.querySelectorAll("[data-feed-entry-detail]").forEach((pane) => {
+        pane.hidden = pane.dataset.feedEntryDetail !== itemId;
+      });
+      const slot = document.querySelector('[data-feed-entry-detail="' + CSS.escape(itemId) + '"] [data-feed-item-slot]');
       if (feedWorkbench.dataset.loaded !== "true" || feedWorkbench.dataset.loadedPreset !== activeFeedPreset) {
         if (recordRead) void markFeedItemRead(selectedRow, itemId);
         setFeedDetailPlaceholder(L("正在打开 Item 工作区…"), "");
@@ -518,21 +584,19 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
     };
 
     const filterFeedItems = (preserveSelection = true, persist = true) => {
-      if (!feedList) return;
-      const query = String(feedSearch?.value || "").trim().toLocaleLowerCase();
+      const list = document.querySelector("[data-feed-stage-shell] [data-feed-list]") || document.querySelector("[data-feed-list]") || feedList;
+      if (!list) return;
+      const query = String((document.querySelector("[data-feed-stage-shell] [data-feed-search]") || document.querySelector("[data-feed-search]") || feedSearch)?.value || "").trim().toLocaleLowerCase();
       const type = activeFeedPreset;
-      const source = feedSourceFilter?.value || "all";
-      const providerType = feedTypeFilter?.value || "all";
-      const time = feedTimeFilter?.value || "all";
-      const status = feedStatusFilter?.value || "active";
-      const sort = feedSort?.value || "newest";
-      const task = selectedFeedTask || "all";
-      const rows = [...feedList.querySelectorAll("[data-feed-entry-id]")];
+      const source = (document.querySelector("[data-feed-stage-shell] [data-feed-source-filter]") || document.querySelector("[data-feed-source-filter]"))?.value || "all";
+      const providerType = (document.querySelector("[data-feed-stage-shell] [data-feed-type-filter]") || document.querySelector("[data-feed-type-filter]"))?.value || "all";
+      const time = (document.querySelector("[data-feed-stage-shell] [data-feed-time-filter]") || document.querySelector("[data-feed-time-filter]"))?.value || "all";
+      const status = (document.querySelector("[data-feed-stage-shell] [data-feed-status-filter]") || document.querySelector("[data-feed-status-filter]"))?.value || "active";
+      const sort = document.querySelector("[data-feed-sort]")?.value || "newest";
+      const rows = [...list.querySelectorAll("[data-feed-entry-id]")];
       const presetRows = rows.filter((row) => row.dataset.feedEntryType === type);
-      const visible = rows.filter((row) => {
-        const wrap = row.closest("[data-feed-item-wrap]") || row;
+      const matchesRow = (row) => {
         const matchesType = type === "all" || row.dataset.feedEntryType === type;
-        const matchesTask = task === "all" || row.dataset.feedEntrySourceId === task;
         const matchesSource = source === "all" || row.dataset.feedEntrySource === source;
         const matchesProvider = providerType === "all" || row.dataset.feedEntryProvider === providerType;
         const occurredAt = Date.parse(row.dataset.feedEntryTime || "");
@@ -547,37 +611,58 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
             ? row.dataset.feedEntryStatus !== "archived"
             : row.dataset.feedEntryStatus === status;
         const matchesQuery = !query || String(row.dataset.feedEntrySearch || "").includes(query);
-        const match = matchesType && matchesTask && matchesSource && matchesProvider && matchesTime && matchesStatus && matchesQuery;
-        wrap.hidden = !match;
-        return match;
-      });
+        return matchesType && matchesSource && matchesProvider && matchesTime && matchesStatus && matchesQuery;
+      };
       const compare = (left, right) => {
         if (sort === "oldest") return String(left.dataset.feedEntryTime || "").localeCompare(String(right.dataset.feedEntryTime || ""));
         if (sort === "source") return String(left.dataset.feedEntrySource || "").localeCompare(String(right.dataset.feedEntrySource || ""));
         if (sort === "title") return String(left.dataset.feedEntryTitle || "").localeCompare(String(right.dataset.feedEntryTitle || ""));
         return String(right.dataset.feedEntryTime || "").localeCompare(String(left.dataset.feedEntryTime || ""));
       };
-      rows.sort(compare).forEach((row) => {
-        const wrap = row.closest("[data-feed-item-wrap]") || row;
-        feedList.insertBefore(wrap, feedEmpty);
-      });
+      const visible = [];
+      const groups = [...list.querySelectorAll("[data-feed-stage-group]")];
+      for (const group of groups) {
+        const groupRows = [...group.querySelectorAll("[data-feed-entry-id]")];
+        const groupVisible = [];
+        for (const row of groupRows) {
+          const wrap = row.closest("[data-feed-item-wrap]") || row;
+          const match = matchesRow(row);
+          wrap.hidden = !match;
+          if (match) groupVisible.push(row);
+        }
+        const filtersIdle = source === "all" && providerType === "all" && time === "all" && !query && (status === "active" || status === "all");
+        const configured = group.dataset.feedStageGroup !== "other";
+        group.hidden = groupVisible.length === 0 && !(configured && filtersIdle);
+        const count = group.querySelector("[data-feed-stage-group-count]");
+        if (count) count.textContent = String(groupVisible.length);
+        const empty = group.querySelector("[data-feed-stage-group-empty]");
+        if (empty) empty.hidden = groupVisible.length > 0;
+        const body = group.querySelector(".feed-stage-group-body") || group;
+        groupRows.sort(compare).forEach((row) => {
+          const wrap = row.closest("[data-feed-item-wrap]") || row;
+          body.insertBefore(wrap, empty);
+        });
+        visible.push(...groupVisible);
+      }
       if (feedResultCount) feedResultCount.textContent = L("{count} 个 Item", { count: visible.length });
       const filteredEmpty = visible.length === 0 && presetRows.length > 0;
-      if (feedEmpty) {
-        const emptyTitle = feedEmpty.querySelector("[data-feed-empty-title]");
-        const clearFilters = feedEmpty.querySelector("[data-feed-clear-filters]");
-        const addTask = feedEmpty.querySelector("[data-feed-add-toggle]");
-        if (emptyTitle) emptyTitle.textContent = filteredEmpty ? L("没有符合当前条件的 Item") : L("这里还没有 Item");
+      const liveEmpty = list.querySelector("[data-feed-empty]") || feedEmpty;
+      if (liveEmpty) {
+        const emptyTitle = liveEmpty.querySelector("[data-feed-empty-title]");
+        const clearFilters = liveEmpty.querySelector("[data-feed-clear-filters]");
+        const addTask = liveEmpty.querySelector("[data-feed-add-toggle]");
+        if (emptyTitle) emptyTitle.textContent = filteredEmpty
+          ? L("没有符合当前条件的 Item")
+          : groups.length
+            ? L("这里还没有 Item")
+            : L("还没有拉取任务");
         if (clearFilters) clearFilters.hidden = !filteredEmpty;
         if (addTask) addTask.hidden = filteredEmpty;
-        feedEmpty.hidden = visible.length > 0;
+        liveEmpty.hidden = visible.length > 0 || groups.some((group) => !group.hidden);
       }
       const selectionVisible = visible.some((row) => row.dataset.feedEntryId === selectedFeedItem);
       if (!preserveSelection || !selectionVisible) {
-        if (selectedFeedItem) {
-          const current = rows.find((row) => row.dataset.feedEntryId === selectedFeedItem);
-          if (current) collapseFeedItemDetail(current);
-        }
+        if (selectedFeedItem) collapseFeedStage();
         selectedFeedItem = "";
       }
       const keyboardEntry = visible.find(row => row.dataset.feedEntryId === selectedFeedItem) || visible[0];
@@ -586,15 +671,16 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
     };
 
     const syncFeedFilterUi = () => {
-      if (!feedFilterPanel) return;
+      const panel = document.querySelector("[data-feed-filter-panel]") || feedFilterPanel;
+      if (!panel) return;
       const values = {
-        source: feedSourceFilter?.value || "all",
-        type: feedTypeFilter?.value || "all",
-        time: feedTimeFilter?.value || "all",
-        status: feedStatusFilter?.value || "active",
-        sort: feedSort?.value || "newest",
+        source: document.querySelector("[data-feed-source-filter]")?.value || "all",
+        type: document.querySelector("[data-feed-type-filter]")?.value || "all",
+        time: document.querySelector("[data-feed-time-filter]")?.value || "all",
+        status: document.querySelector("[data-feed-status-filter]")?.value || "active",
+        sort: document.querySelector("[data-feed-sort]")?.value || "newest",
       };
-      feedFilterPanel.querySelectorAll("[data-feed-filter-option]").forEach((option) => {
+      panel.querySelectorAll("[data-feed-filter-option]").forEach((option) => {
         const kind = option.dataset.feedFilterOption;
         const selected = values[kind] === option.dataset.feedFilterValue;
         option.setAttribute("aria-checked", String(selected));
@@ -616,6 +702,19 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
       feedFilterTrigger?.setAttribute("aria-label", label);
       feedFilterTrigger?.setAttribute("title", label);
     };
+
+    document.addEventListener("change", (event) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (!target?.matches("[data-feed-source-filter], [data-feed-type-filter], [data-feed-time-filter], [data-feed-status-filter], [data-feed-sort]")) return;
+      syncFeedFilterUi();
+      filterFeedItems();
+    }, true);
+    document.addEventListener("input", (event) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (!target?.closest("[data-feed-search]")) return;
+      noteSearchActivity();
+      filterFeedItems();
+    });
 
     const setFeedFilterOpen = (open, focusFirst = false) => {
       if (!feedFilterPanel || !feedFilterTrigger) return;

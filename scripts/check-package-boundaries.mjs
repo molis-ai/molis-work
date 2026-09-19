@@ -196,13 +196,18 @@ function checkCompatibilityAllowlist(repositoryRoot) {
 
 function checkMigratedFeedOwnership(repositoryRoot) {
   const errors = [];
-  if (fs.existsSync(path.join(repositoryRoot, "src/feed/relay-import.ts"))) {
-    errors.push("src/feed/relay-import.ts: migrated Relay compatibility implementation must stay deleted");
-  }
-  for (const relativePath of ["plugins/native/feed/src/relay-import.ts", "plugins/native/feed/src/relay-import-sources.ts"]) {
-    const source = fs.readFileSync(path.join(repositoryRoot, relativePath), "utf8");
-    if (/\b(?:FROM|INTO|UPDATE)\s+(?:inbox_sources|items|evidence_refs|connectors|connector_cursors)\b/iu.test(source)) {
-      errors.push(`${relativePath}: legacy database access belongs to the isolated Relay reader adapter`);
+  for (const relativePath of [
+    "src/feed/relay-import.ts",
+    "plugins/native/feed/src/relay-import.ts",
+    "plugins/native/feed/src/relay-import-sources.ts",
+    "plugins/native/feed/src/relay-import-types.ts",
+    "plugins/native/feed/src/relay-import-values.ts",
+    "apps/local-host/src/relay-import.ts",
+    "apps/local-host/src/adapters/relay-reader.ts",
+    "packages/storage/src/adapters/relay-security.ts",
+  ]) {
+    if (fs.existsSync(path.join(repositoryRoot, relativePath))) {
+      errors.push(`${relativePath}: Relay import/compat must stay deleted`);
     }
   }
   const legacyCallers = [
@@ -215,9 +220,6 @@ function checkMigratedFeedOwnership(repositoryRoot) {
     "plugins/native/feed/src/connector-source-registration.ts",
     "plugins/native/feed/src/connector-sync.ts",
     "plugins/native/feed/src/source-scheduler.ts",
-    "apps/local-host/src/relay-import.ts",
-    "plugins/native/feed/src/relay-import.ts",
-    "plugins/native/feed/src/relay-import-sources.ts",
     "apps/local-host/src/web-request.ts",
   ];
   const directFactSql = /\b(?:CREATE TABLE IF NOT EXISTS|FROM|INTO|UPDATE|DELETE FROM)\s+(feed_items|feed_materials|inbox_entries)\b/giu;
@@ -752,7 +754,10 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
       errors.push(`${commandHandlerPath}: command handlers must not own Module implementations, Store, or copied business rules`);
     }
   }
-  for (const file of ["create", "policy-guidance", "lifecycle", "decisions", "events"]) {
+  // `relations` left the retired list when the workbench redesign brought Goal
+  // relation editing back as a product feature. It stays here so it still has to
+  // consume public operation ports instead of owning Store, SQL or Module rules.
+  for (const file of ["create", "policy-guidance", "lifecycle", "decisions", "events", "relations"]) {
     const nativePath = `plugins/native/goals/src/http/${file}.ts`;
     const source = read(nativePath);
     errors.push(...checkGoalStorageOwnership(source).map(error => `${nativePath}: ${error}`));
@@ -760,7 +765,7 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
       errors.push(`${nativePath}: Native Goal requests must consume public operation ports without Host or Module implementations`);
     }
   }
-  for (const file of ["draft", "relations", "risk-impact", "verification", "input"]) {
+  for (const file of ["draft", "risk-impact", "verification", "input"]) {
     const nativePath = `plugins/native/goals/src/http/${file}.ts`;
     if (fs.existsSync(path.join(repositoryRoot, nativePath))) {
       errors.push(`${nativePath}: retired old protocol HTTP write adapter must stay removed`);

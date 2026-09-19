@@ -18,6 +18,7 @@ import { createLocalFeedSourceScheduler } from "./feed-source-scheduler.js";
 import { createLocalFeedConnectorService } from "./feed-connector-service.js";
 import { handleFeedNativePluginHttp } from "./feed-native-plugin-http.js";
 import { handleInboxNativePluginHttp } from "./inbox-native-plugin-http.js";
+import { handleShelfNativePluginHttp } from "./shelf-native-plugin-http.js";
 import { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
 import { serviceProcessId } from "./web-runtime-settings.js";
 import { resolveWebRequest } from "./web-routing.js";
@@ -154,6 +155,7 @@ export async function handleMolisWorkWebRequest(
           sendJson(response, 200, readWebView());
           return;
         }
+        if (serverOptions.homeDirectory && await handleShelfNativePluginHttp(request, response, url, serverOptions.homeDirectory)) return;
         if (await handleInboxNativePluginHttp(request, response, url, {
           boardId: options.boardId,
           store,
@@ -200,7 +202,7 @@ export async function handleMolisWorkWebRequest(
         if (await handleGoalsWebHttp({
           method: request.method, pathname: url.pathname, search: url.searchParams,
           readBody: () => readBody(request), respond: (status, body) => sendJson(response, status, body),
-          options, idempotencyHeader: requestHeader(request, "x-molis-work-idempotency-key", "x-goalboard-idempotency-key"),
+          options, idempotencyHeader: requestHeader(request, "x-molis-work-idempotency-key"),
           snapshot: () => store.snapshot(options.boardId), changed: () => { webViewCache.delete(options.databasePath); },
           commands: goalsAdapter.commands, lifecycle: goalsAdapter.lifecycle,
           query: coordinator.goalQueries,

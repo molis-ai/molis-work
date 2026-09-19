@@ -152,6 +152,7 @@ export function migrateLocalProjectDatabase(storage: LocalSqliteStorage): void {
       schema.recordMigration(34, new Date().toISOString());
       schema.recordMigration(35, new Date().toISOString());
       schema.recordMigration(36, new Date().toISOString());
+      schema.recordMigration(38, new Date().toISOString());
       });
       migrateGoalEventTrustedDecisions(storage.db as unknown as GovernanceSqliteDatabase);
       return;
@@ -323,6 +324,14 @@ export function migrateLocalProjectDatabase(storage: LocalSqliteStorage): void {
       migrateGoalEventWorkflow(storage.db as unknown as GoalLifecycleMigrationDatabase);
     }
     migrateGoalEventTrustedDecisions(storage.db as unknown as GovernanceSqliteDatabase);
+    if (schema.hasTable("tasks")) {
+      storage.immediate(() => {
+        storage.db.exec("DROP TABLE IF EXISTS tasks");
+      });
+    }
+    if (!schema.hasMigration(38)) {
+      schema.recordMigration(38, new Date().toISOString());
+    }
   }
 
 function migrateContinuousActionModel(storage: LocalSqliteStorage): void {

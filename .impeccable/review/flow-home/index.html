@@ -1,0 +1,1290 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light" data-frame="desktop" data-event="off" data-dock="closed" data-ai="ok" data-skip="0">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Molis Work · 首页切片</title>
+  <style>
+    @font-face {
+      font-family: "Inter Variable";
+      src: url("../../../packages/design-system/fonts/inter-latin-variable.woff2") format("woff2");
+      font-weight: 100 900;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: "Noto Sans SC";
+      src: url("../../../packages/design-system/fonts/noto-sans-sc-400.woff2") format("woff2");
+      font-weight: 400;
+      font-display: swap;
+    }
+    :root {
+      color-scheme: light;
+      --page: #f3f4f5; --canvas: #f3f4f5; --rail: #eceef0;
+      --paper: #ffffff; --nav-bg: #f3f4f5; --nav-raised: #ffffff;
+      --ink: #222326; --ink-soft: #3c3f44; --muted: #6b6f76; --faint: #737882;
+      --line: #e2e4e7; --line-strong: #d0d6e0;
+      --nav-hover: color-mix(in srgb, var(--ink) 6%, transparent);
+      --nav-active: color-mix(in srgb, var(--ink) 10%, transparent);
+      --nav-press: color-mix(in srgb, var(--ink) 14%, transparent);
+      --hairline: color-mix(in srgb, var(--ink) 12%, transparent);
+      --edge-highlight: transparent;
+      --accent: #5e6ad2; --accent-strong: #4c56c4; --accent-wash: #eef0fb;
+      --focus: #5e6ad2; --blue: #5e6ad2;
+      --action: #222326; --action-ink: #ffffff;
+      --red: #b03d45; --red-soft: #fbeced; --green: #3f8f6a; --amber: #9a6a1a;
+      --plugin-home: #5c6570; --plugin-goals: #5e6ad2; --plugin-sessions: #7a5af8;
+      --plugin-inbox: #3d9a8f; --plugin-feed: #9c5f1a; --plugin-artifacts: #c44d6a;
+      --plugin-shelf: #66709e; --plugin-calendar: #3f7fb0;
+      --surface-shadow: 0 1px 2px rgba(19, 21, 32, .05), 0 2px 5px rgba(19, 21, 32, .04);
+      --control-shadow: 0 1px 1px rgba(19, 21, 32, .04), 0 6px 14px rgba(19, 21, 32, .07), 0 18px 38px rgba(19, 21, 32, .09);
+      --selection: #eef0fb; --scrollbar: #6b6f7661;
+      --radius-item: 8px; --radius-control: 10px; --radius-surface: 12px;
+      --control-h: 32px; --control-pad-x: 12px;
+      --control-border: color-mix(in srgb, var(--ink) 8%, transparent);
+      --control-input: color-mix(in srgb, var(--ink) 10%, transparent);
+      --control-fill: color-mix(in srgb, var(--ink) 4.5%, transparent);
+      --control-fill-hover: color-mix(in srgb, var(--ink) 7.5%, transparent);
+      --scrim: rgba(19, 21, 32, .3);
+      --motion-fast: 130ms; --motion-normal: 190ms;
+      --ease: cubic-bezier(.16, 1, .3, 1);
+      --font: "Inter Variable", Inter, "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+      --title: 32px; --rail-w: 48px; --gutter-w: 78px; --stream-w: 780px; --focus-w: 620px; --spine-w: 56px; --tide-h: 880px;
+    }
+    html[data-theme="dark"] {
+      color-scheme: dark;
+      --page: #0f1011; --canvas: #0f1011; --rail: #0f1011;
+      --paper: #161718; --nav-bg: #0f1011; --nav-raised: #1c1c1f;
+      --ink: #f7f8f8; --ink-soft: #d0d1d3; --muted: #8a8f98; --faint: #737880;
+      --line: #23252a; --line-strong: #2e3036;
+      --nav-hover: color-mix(in srgb, var(--ink) 8%, transparent);
+      --nav-active: color-mix(in srgb, var(--ink) 12%, transparent);
+      --nav-press: color-mix(in srgb, var(--ink) 16%, transparent);
+      --hairline: color-mix(in srgb, var(--ink) 14%, transparent);
+      --edge-highlight: rgba(255, 255, 255, .07);
+      --accent: #8b93f1; --accent-strong: #a8aef5; --accent-wash: #262848;
+      --focus: #8b93f1; --blue: #8b93f1;
+      --action: #f7f8f8; --action-ink: #0f1011;
+      --red: #ee858c; --red-soft: #3a1f22; --green: #6bc4a0; --amber: #dcab6d;
+      --plugin-home: #b3b8c2; --plugin-goals: #8b93f1; --plugin-sessions: #a78bfa;
+      --plugin-inbox: #6bc4b8; --plugin-feed: #dcab6d; --plugin-artifacts: #ee858c;
+      --plugin-shelf: #a6afd5; --plugin-calendar: #7db4dd;
+      --surface-shadow: 0 1px 2px rgba(0, 0, 0, .45), 0 2px 6px rgba(0, 0, 0, .3);
+      --control-shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 8px 20px rgba(0, 0, 0, .45), 0 24px 52px rgba(0, 0, 0, .4);
+      --control-border: color-mix(in srgb, #fff 8%, transparent);
+      --control-input: color-mix(in srgb, #fff 10%, transparent);
+      --control-fill: color-mix(in srgb, #fff 5.5%, transparent);
+      --control-fill-hover: color-mix(in srgb, #fff 9%, transparent);
+      --scrim: rgba(0, 0, 0, .55);
+      --selection: #262848; --scrollbar: #8a8f9861;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; overflow: hidden; }
+    body {
+      display: flex; flex-direction: column;
+      font: 13px/1.5 var(--font);
+      font-feature-settings: "cv01", "ss03", "calt";
+      font-optical-sizing: auto;
+      letter-spacing: -.011em;
+      color: var(--ink);
+      background: #111216;
+      -webkit-font-smoothing: antialiased;
+    }
+    button, input, textarea {
+      font: inherit; color: inherit; letter-spacing: inherit;
+      appearance: none; -webkit-appearance: none; background: transparent;
+    }
+    svg { display: block; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .ico { width: 16px; height: 16px; flex: none; }
+    .ico-sm { width: 14px; height: 14px; }
+    .icon-sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+    ::selection { color: var(--ink); background: var(--selection); }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+    * { scrollbar-width: thin; scrollbar-color: var(--scrollbar) transparent; }
+    [hidden] { display: none !important; }
+    .visually-hidden {
+      position: absolute !important; width: 1px !important; height: 1px !important;
+      padding: 0 !important; margin: -1px !important; overflow: hidden !important;
+      clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; border: 0 !important;
+    }
+
+    /* ---- 标准件：mw-* ---- */
+    .mw-btn {
+      position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      min-height: var(--control-h); padding: 0 var(--control-pad-x);
+      border: 1px solid var(--control-border); border-radius: var(--radius-control);
+      background: var(--control-fill); color: var(--ink);
+      font: inherit; font-size: 13px; line-height: 1; letter-spacing: -.01em;
+      cursor: pointer; text-decoration: none; white-space: nowrap;
+    }
+    .mw-btn svg { width: 14px; height: 14px; flex: none; }
+    .mw-btn--sm { --control-h: 26px; --control-pad-x: 9px; font-size: 12px; }
+    .mw-btn--icon-only { width: var(--control-h); min-width: var(--control-h); padding: 0; }
+    .mw-btn:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--focus) 72%, transparent), 0 0 0 3.5px color-mix(in srgb, var(--focus) 15%, transparent);
+    }
+    .mw-btn--primary { border-color: var(--action); background: var(--action); color: var(--action-ink); }
+    .mw-btn--primary:hover:not(:disabled) { background: color-mix(in srgb, var(--action) 90%, var(--action-ink)); }
+    .mw-btn--secondary:hover:not(:disabled) { border-color: var(--control-input); background: var(--control-fill-hover); }
+    .mw-btn--ghost { border-color: transparent; background: transparent; color: var(--ink-soft); }
+    .mw-btn--ghost:hover:not(:disabled) { background: var(--nav-hover); color: var(--ink); }
+    .mw-btn--ghost[aria-pressed="true"] { background: var(--nav-active); color: var(--ink); }
+    .mw-btn:disabled { cursor: not-allowed; opacity: .42; }
+
+    .mw-input, .mw-textarea {
+      width: 100%; min-height: var(--control-h); padding: 0 10px;
+      border: 1px solid var(--control-input); border-radius: var(--radius-control);
+      color: var(--ink); background-color: var(--paper); font: inherit; font-size: 13px;
+    }
+    .mw-textarea { min-height: 60px; padding: 8px 10px; resize: none; line-height: 1.6; }
+    .mw-input::placeholder, .mw-textarea::placeholder { color: var(--faint); }
+    .mw-input:focus-visible, .mw-textarea:focus-visible {
+      outline: 0; border-color: color-mix(in srgb, var(--focus) 62%, transparent);
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--focus) 72%, transparent), 0 0 0 3.5px color-mix(in srgb, var(--focus) 15%, transparent);
+    }
+    .mw-field { display: grid; gap: 5px; font-size: 13px; color: var(--ink-soft); }
+    .mw-card {
+      display: flex; flex-direction: column;
+      border: 1px solid var(--hairline); border-radius: var(--radius-surface);
+      background: var(--paper);
+    }
+    .mw-menu, .mw-popover {
+      display: flex; padding: 4px; border: 1px solid var(--hairline);
+      border-radius: var(--radius-surface); background: var(--paper);
+      box-shadow: var(--control-shadow), inset 0 1px 0 var(--edge-highlight); color: var(--ink);
+    }
+    .mw-menu { flex-direction: column; min-width: 190px; }
+    .mw-menu__item {
+      display: flex; align-items: center; gap: 8px; width: 100%; min-height: 32px;
+      padding: 0 10px; border: 0; border-radius: 8px; background: transparent;
+      color: var(--ink); font: inherit; font-size: 13px; text-align: left; cursor: pointer;
+    }
+    .mw-menu__item:hover, .mw-menu__item:focus-visible { background: var(--nav-hover); outline: none; }
+    .mw-menu__item svg { width: 14px; height: 14px; color: var(--muted); flex: none; }
+    .mw-badge {
+      display: inline-flex; align-items: center; gap: 5px; min-height: 20px; padding: 0 8px;
+      border-radius: 999px; background: var(--control-fill); color: var(--ink-soft); font-size: 11px;
+    }
+    .mw-badge svg { width: 11px; height: 11px; }
+    .mw-badge--danger { background: color-mix(in srgb, var(--red) 12%, transparent); color: var(--red); }
+
+    /* ---- 切片工具条 ---- */
+    .studio { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: stretch; }
+    .slice-bar {
+      flex: none; width: 100%; z-index: 40;
+      min-height: 40px; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px;
+      padding: 6px 16px; background: #111216; color: #e8e9ee; font-size: 12px;
+    }
+    .slice-bar strong { font-weight: 400; margin-right: 6px; }
+    .slice-bar .note { color: #9498a7; margin-left: auto; }
+    .slice-bar button {
+      height: 24px; padding: 0 8px; border: 0; border-radius: 6px;
+      background: transparent; color: #a4a7b3; cursor: pointer;
+    }
+    .slice-bar button.is-on { background: #e8e9ee; color: #111216; }
+    .slice-bar button:focus-visible { outline: 2px solid #a7a6f5; outline-offset: 2px; }
+    .slice-bar .sep { width: 1px; height: 14px; background: #2a2c35; margin: 0 4px; }
+
+    /* ---- 工作台外壳 ---- */
+    .app {
+      position: relative;
+      flex: 1; width: 100%; min-height: 0;
+      display: grid;
+      grid-template-columns: var(--rail-w) minmax(0, 1fr);
+      grid-template-rows: var(--title) minmax(0, 1fr);
+      background: var(--canvas); color: var(--ink); overflow: hidden;
+    }
+    html[data-frame="narrow"] .studio { background: #111216; }
+    html[data-frame="narrow"] .app {
+      width: 390px; margin: 0 auto;
+      grid-template-columns: 0 minmax(0, 1fr);
+      grid-template-rows: auto auto minmax(0, 1fr);
+      border-inline: 1px solid var(--line);
+    }
+    .titlebar {
+      grid-column: 1 / -1; grid-row: 1;
+      display: flex; align-items: center; gap: 6px;
+      height: var(--title); min-height: var(--title);
+      padding: 0 8px 0 6px; background: var(--nav-bg);
+      box-shadow: inset 0 -1px 0 var(--line);
+    }
+    .history { display: flex; gap: 2px; }
+    .icon-btn {
+      width: 26px; height: 26px; min-height: 26px; padding: 0; border: 0; border-radius: 8px;
+      display: grid; place-items: center; background: transparent; color: var(--muted); cursor: pointer;
+    }
+    .icon-btn:hover { background: var(--nav-hover); color: var(--ink); }
+    .icon-btn:disabled { opacity: .45; cursor: default; }
+    .icon-btn svg { width: 15px; height: 15px; }
+    .tabs { display: flex; align-items: center; gap: 2px; min-width: 0; flex: 1; }
+    .tab {
+      height: 26px; max-width: 172px; padding: 0 10px; border: 0; border-radius: 6px;
+      display: flex; align-items: center; gap: 6px; background: transparent;
+      color: var(--muted); cursor: default; font-size: 12px;
+    }
+    .tab svg { width: 14px; height: 14px; color: var(--plugin, var(--faint)); }
+    .tab.is-current { background: var(--nav-raised); color: var(--ink); box-shadow: var(--surface-shadow); }
+    .tab.is-current svg { color: var(--plugin, var(--ink)); }
+    .tab-tools { margin-left: auto; display: flex; gap: 2px; }
+    html[data-frame="narrow"] .titlebar { padding: 8px 12px; min-height: 44px; height: auto; }
+
+    .island {
+      grid-column: 1; grid-row: 2; align-self: start; z-index: 12;
+      display: flex; padding: 8px 6px 10px; pointer-events: none;
+    }
+    .island > * { pointer-events: auto; }
+    .chip {
+      display: flex; flex-direction: column; align-items: center; gap: 2px;
+      width: 100%; padding: 4px; border-radius: var(--radius-surface); background: var(--nav-raised);
+      box-shadow: var(--surface-shadow), inset 0 0 0 1px var(--hairline);
+    }
+    html[data-theme="dark"] .chip { box-shadow: var(--surface-shadow), inset 0 0 0 1px var(--hairline), inset 0 1px 0 var(--edge-highlight); }
+    .chip-btn {
+      width: 36px; height: 32px; min-height: 32px; padding: 0; border: 0; border-radius: 8px;
+      display: grid; place-items: center; background: transparent; color: var(--muted); cursor: pointer;
+    }
+    .chip-btn:hover { background: var(--nav-hover); color: var(--ink); }
+    .chip-btn svg { width: 16px; height: 16px; }
+    .project-mark { width: 16px; height: 16px; padding: 2px; border-radius: 4px; background: var(--action); color: var(--action-ink); }
+    .project-mark svg { width: 12px; height: 12px; }
+    html[data-frame="narrow"] .island { grid-column: 1 / -1; grid-row: 2; padding: 8px 12px; background: var(--nav-bg); }
+    html[data-frame="narrow"] .chip { flex-direction: row; height: 36px; padding: 3px 4px 3px 5px; }
+    html[data-frame="narrow"] .chip-btn { width: 28px; height: 28px; min-height: 28px; }
+    html[data-frame="narrow"] .project-switch { flex: 1; width: auto; display: flex; justify-content: flex-start; gap: 6px; padding: 0 4px; }
+    html[data-frame="narrow"] .project-switch strong { position: static; width: auto; height: auto; margin: 0; clip: unset; overflow: hidden; font-size: 13px; font-weight: 400; }
+    html[data-frame="desktop"] .project-switch strong { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+    html[data-frame="narrow"] .show-dir { display: grid; }
+    html[data-frame="desktop"] .show-dir { display: none; }
+
+    .rail {
+      grid-column: 1; grid-row: 2;
+      display: flex; flex-direction: column; gap: 8px;
+      padding: 126px 0 8px; background: var(--nav-bg); border-right: 1px solid var(--line); min-height: 0;
+    }
+    .rail-items, .rail-foot {
+      width: 100%; padding: 4px; border-radius: var(--radius-surface); background: var(--nav-raised);
+      box-shadow: var(--surface-shadow), inset 0 0 0 1px var(--hairline);
+    }
+    html[data-theme="dark"] :is(.rail-items, .rail-foot) {
+      box-shadow: var(--surface-shadow), inset 0 0 0 1px var(--hairline), inset 0 1px 0 var(--edge-highlight);
+    }
+    .rail-items { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; min-height: 0; overflow: auto; scrollbar-width: none; }
+    .rail-items::-webkit-scrollbar { width: 0; height: 0; }
+    .rail-item {
+      width: 36px; height: 32px; min-height: 32px; padding: 0; border: 0; border-radius: 8px;
+      display: grid; place-items: center; background: transparent; color: var(--faint); cursor: default;
+    }
+    .rail-item svg { width: 18px; height: 18px; color: var(--plugin, var(--faint)); }
+    .rail-item:hover { background: var(--nav-hover); }
+    .rail-item.is-current { background: var(--nav-active); }
+    .rail-item.is-current svg { color: var(--plugin, var(--ink)); }
+    .rail-foot { flex: none; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+    html[data-frame="narrow"] .rail { display: none; }
+
+    .workspace { grid-column: 2; grid-row: 2; min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--canvas); }
+    html[data-frame="narrow"] .workspace { grid-column: 1 / -1; grid-row: 3; }
+    .stage { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+
+    /* ---- 三栏舞台 ---- */
+    .home {
+      --dot-me: color-mix(in srgb, var(--ink) 30%, transparent);
+      --dot-org: var(--accent);
+      flex: 1; min-height: 0; min-width: 0;
+      display: grid;
+      grid-template-columns: 104px minmax(0, 1fr) 0px;
+      column-gap: 12px; padding: 10px 4px 14px 8px;
+      transition: padding-right var(--motion-normal) var(--ease);
+    }
+    html[data-event="on"] .home {
+      grid-template-columns: 104px minmax(0, 1fr) clamp(300px, 26vw, 372px);
+      padding-right: 16px;
+    }
+
+    .paper {
+      border-radius: var(--radius-surface); background: var(--paper);
+      box-shadow: inset 0 0 0 1px var(--hairline);
+    }
+    html[data-theme="dark"] .paper { box-shadow: inset 0 0 0 1px var(--hairline), inset 0 1px 0 var(--edge-highlight); }
+
+    .enter { opacity: 0; }
+    .enter--up { transform: translateY(7px); }
+    .enter--side { transform: translateX(12px); }
+    .enter.is-in {
+      opacity: 1; transform: none;
+      transition: opacity var(--motion-normal) var(--ease), transform var(--motion-normal) var(--ease);
+    }
+
+    @keyframes nowPulse {
+      0%, 100% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+      50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 5%, transparent); }
+    }
+
+    .dates { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+    .dates__label {
+      flex: none; padding: 8px 10px 10px; color: var(--faint);
+      font-size: 11px; letter-spacing: .04em;
+    }
+    .dates__list {
+      flex: 1; min-height: 0; overflow: auto; scrollbar-width: none;
+      display: flex; flex-direction: column; gap: 2px; padding-bottom: 8px;
+    }
+    .dates__list::-webkit-scrollbar { width: 0; }
+    .day {
+      flex: none; display: flex; flex-direction: column; gap: 6px;
+      width: 100%; padding: 9px 10px 10px;
+      border: 0; border-radius: 11px; background: transparent;
+      color: var(--muted); font: inherit; text-align: left; cursor: pointer;
+      transition:
+        background var(--motion-fast) var(--ease),
+        color var(--motion-fast) var(--ease),
+        box-shadow var(--motion-fast) var(--ease);
+    }
+    .day:hover { background: var(--nav-hover); color: var(--ink-soft); }
+    .day.is-on {
+      color: var(--ink); background: var(--nav-raised);
+      box-shadow: var(--surface-shadow), inset 0 0 0 1px var(--hairline);
+    }
+    html[data-theme="dark"] .day.is-on {
+      box-shadow: var(--surface-shadow), inset 0 0 0 1px var(--hairline), inset 0 1px 0 var(--edge-highlight);
+    }
+    .day__n { display: flex; align-items: baseline; gap: 5px; }
+    .day__n b {
+      font-size: 21px; font-weight: 400; line-height: 1;
+      letter-spacing: -.035em; font-variant-numeric: tabular-nums; color: inherit;
+    }
+    .day__n em { font-style: normal; font-size: 11px; color: var(--faint); }
+    .day.is-on .day__n em { color: var(--muted); }
+    .day__n s {
+      width: 5px; height: 5px; margin-left: 1px; border-radius: 50%;
+      background: var(--accent); text-decoration: none;
+    }
+    .day__dots { display: flex; align-items: center; gap: 3px; height: 6px; }
+    .day__dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--dot-me); }
+    .day__dots i[data-k="org"] { background: var(--dot-org); }
+    .day__dots u { width: 11px; height: 1px; background: var(--line-strong); text-decoration: none; }
+
+    .dayview {
+      min-width: 0; min-height: 0; overflow: auto;
+      border-radius: 14px; background: var(--paper);
+      box-shadow: inset 0 0 0 1px var(--hairline);
+    }
+    html[data-theme="dark"] .dayview {
+      box-shadow: inset 0 0 0 1px var(--hairline), inset 0 1px 0 var(--edge-highlight);
+    }
+
+    .hero { max-width: 880px; padding: 26px 28px 22px; }
+    .hero__eyebrow {
+      display: flex; align-items: center; gap: 6px;
+      margin: 0 0 12px; color: var(--faint); font-size: 12px;
+      font-variant-numeric: tabular-nums;
+    }
+    .hero__eyebrow svg { width: 13px; height: 13px; }
+    .hero__date { margin: 0; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+    .hero__date time {
+      font-size: 34px; font-weight: 400; letter-spacing: -.04em; line-height: 1.04;
+      font-variant-numeric: tabular-nums;
+    }
+    .hero__date span { color: var(--muted); font-size: 14px; }
+    .hero__today {
+      align-self: center; height: 20px; padding: 0 9px; border-radius: 999px;
+      background: var(--accent-wash); color: var(--accent-strong);
+      font-size: 11px; line-height: 20px;
+    }
+    .hero__sum {
+      margin: 18px 0 0; max-width: 32ch;
+      font-size: 19px; font-weight: 400; letter-spacing: -.025em; line-height: 1.45;
+    }
+    .hero__lead { margin: 9px 0 0; max-width: 56ch; color: var(--muted); line-height: 1.72; }
+    .hero__stats {
+      display: flex; align-items: center; gap: 16px;
+      margin: 20px 0 0; color: var(--faint); font-size: 12px;
+    }
+    .hero__stats span { display: inline-flex; align-items: center; gap: 6px; }
+    .hero__stats i { width: 5px; height: 5px; border-radius: 50%; background: var(--dot-me); }
+    .hero__stats i[data-k="org"] { background: var(--dot-org); }
+    .hero__stats b { font-weight: 400; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+
+    .tl { max-width: 880px; padding: 0 16px 18px; border-top: 1px solid var(--line); }
+    .tl__head {
+      display: flex; align-items: center; gap: 7px;
+      padding: 15px 8px 9px; color: var(--faint); font-size: 12px;
+    }
+    .tl__head svg { width: 13px; height: 13px; }
+    .tl__head span { margin-left: auto; font-variant-numeric: tabular-nums; }
+
+    .erow {
+      --node: var(--muted);
+      position: relative; display: grid;
+      grid-template-columns: 44px 20px minmax(0, 1fr) auto;
+      align-items: center; gap: 0 10px;
+      width: 100%; padding: 9px 10px 9px 6px;
+      border: 0; border-radius: 10px; background: transparent;
+      color: inherit; font: inherit; text-align: left; cursor: pointer;
+      opacity: 0; transform: translateY(5px);
+      transition: background var(--motion-fast) var(--ease);
+    }
+    .tl__rows.is-in :is(.erow, .tl__now) {
+      opacity: 1; transform: none;
+      transition:
+        opacity var(--motion-normal) var(--ease) calc(var(--i, 0) * 34ms),
+        transform var(--motion-normal) var(--ease) calc(var(--i, 0) * 34ms),
+        background var(--motion-fast) var(--ease);
+    }
+    .erow:hover { background: var(--nav-hover); }
+    .erow.is-on { background: color-mix(in srgb, var(--accent) 11%, transparent); }
+    .erow__when {
+      text-align: right; color: var(--faint); font-size: 12px;
+      font-variant-numeric: tabular-nums;
+      transition: color var(--motion-fast) var(--ease);
+    }
+    .erow.is-on .erow__when { color: var(--accent-strong); }
+    .erow__node { position: relative; align-self: stretch; display: grid; place-items: center; }
+    .erow__node::before {
+      content: ""; position: absolute; top: -5px; bottom: -5px; width: 1px; background: var(--line);
+    }
+    .erow.is-first .erow__node::before { top: 50%; }
+    .erow.is-last .erow__node::before { bottom: 50%; }
+    .erow__dot {
+      position: relative; width: 9px; height: 9px; border-radius: 50%;
+      background: var(--paper); box-shadow: inset 0 0 0 1.5px var(--node);
+      transition: transform var(--motion-fast) var(--ease);
+    }
+    .erow[data-k="me"] .erow__dot { box-shadow: inset 0 0 0 5px var(--node); }
+    .erow:hover .erow__dot, .erow.is-on .erow__dot { transform: scale(1.22); }
+    .erow__main { min-width: 0; padding: 1px 0; }
+    .erow__main strong {
+      display: block; font-weight: 400; color: var(--ink-soft);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      transition: color var(--motion-fast) var(--ease);
+    }
+    .erow.is-on .erow__main strong, .erow:hover .erow__main strong { color: var(--ink); }
+    .erow__main small {
+      display: flex; align-items: center; gap: 5px; margin-top: 3px;
+      color: var(--faint); font-size: 12px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .erow__main small svg { width: 11px; height: 11px; flex: none; }
+    .erow__src {
+      display: inline-flex; align-items: center; gap: 5px; height: 21px; padding: 0 8px;
+      border-radius: 6px; color: var(--muted); font-size: 11px;
+      background: color-mix(in srgb, var(--node) 10%, transparent);
+    }
+    .erow__src svg { width: 12px; height: 12px; color: var(--node); }
+
+    .tl__now {
+      display: grid; grid-template-columns: 44px 20px minmax(0, 1fr);
+      align-items: center; gap: 0 10px; padding: 5px 10px 5px 6px;
+      opacity: 0; transform: translateY(5px);
+    }
+    .tl__now i { position: relative; display: grid; place-items: center; }
+    .tl__now i::after {
+      content: ""; position: absolute; top: -10px; bottom: -10px; width: 1px; background: var(--line);
+    }
+    .tl__now i::before {
+      content: ""; position: relative; z-index: 1;
+      width: 7px; height: 7px; border-radius: 50%; background: var(--accent);
+      animation: nowPulse 2.6s var(--ease) infinite;
+    }
+    .tl__now em { display: flex; align-items: center; gap: 9px; font-style: normal; }
+    .tl__now u {
+      flex: 1; height: 1px; text-decoration: none;
+      background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 40%, transparent), transparent);
+    }
+    .tl__now span {
+      flex: none; color: var(--accent); font-size: 11px; font-variant-numeric: tabular-nums;
+    }
+
+    .tl__empty {
+      display: flex; align-items: center; gap: 9px;
+      padding: 14px 10px 20px; color: var(--muted);
+    }
+    .tl__empty svg { width: 15px; height: 15px; color: var(--faint); }
+
+    .pending {
+      margin: 10px 4px 0; padding: 12px 14px; border-radius: 10px;
+      background: var(--control-fill);
+    }
+    .pending p { margin: 0 0 10px; color: var(--ink-soft); }
+    .pending--fail { background: var(--red-soft); color: var(--red); }
+    .pending--fail p { color: inherit; }
+
+    .eventcol {
+      min-width: 0; min-height: 0;
+      display: none; flex-direction: column; gap: 8px;
+    }
+    html[data-event="on"] .eventcol { display: flex; }
+
+    .detail__act {
+      flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+      width: 100%; padding: 8px 10px;
+      border-radius: 14px; background: var(--paper);
+      box-shadow: inset 0 0 0 1px var(--hairline);
+    }
+    html[data-theme="dark"] .detail__act {
+      box-shadow: inset 0 0 0 1px var(--hairline), inset 0 1px 0 var(--edge-highlight);
+    }
+    .detail__act .mw-btn { transition: transform var(--motion-fast) var(--ease); }
+    .detail__act .mw-btn:active { transform: translateY(.5px); }
+
+    .detail {
+      --node: var(--muted);
+      flex: 1; min-width: 0; min-height: 0;
+      display: flex; flex-direction: column; overflow: hidden;
+      border-radius: 14px; background: var(--paper);
+      box-shadow: inset 0 0 0 1px var(--hairline);
+    }
+    html[data-theme="dark"] .detail {
+      box-shadow: inset 0 0 0 1px var(--hairline), inset 0 1px 0 var(--edge-highlight);
+    }
+    .detail__head {
+      flex: none; display: flex; align-items: center; gap: 8px;
+      padding: 11px 10px 9px 14px;
+    }
+    .detail__src {
+      display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px;
+      border-radius: 6px; color: var(--ink-soft); font-size: 11px;
+      background: color-mix(in srgb, var(--node) 11%, transparent);
+    }
+    .detail__src svg { width: 12px; height: 12px; color: var(--node); }
+    .detail__head time { color: var(--faint); font-size: 12px; font-variant-numeric: tabular-nums; }
+    .detail__head .mw-btn { margin-left: auto; }
+    .detail__body { flex: 1; min-height: 0; overflow: auto; padding: 6px 18px 18px; }
+    .detail__body h2 {
+      margin: 0; font-size: 20px; font-weight: 400; letter-spacing: -.025em; line-height: 1.32;
+    }
+    .detail__kind {
+      display: inline-flex; align-items: center; gap: 5px;
+      margin: 10px 0 0; color: var(--muted); font-size: 12px;
+    }
+    .detail__kind svg { width: 12px; height: 12px; }
+    .detail__text { margin: 14px 0 0; color: var(--ink-soft); line-height: 1.75; }
+    .detail__facts { margin: 18px 0 0; border-top: 1px solid var(--line); }
+    .detail__facts > div {
+      display: grid; grid-template-columns: 54px minmax(0, 1fr); gap: 10px;
+      padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 12px;
+    }
+    .detail__facts > div:last-child { border-bottom: 0; }
+    .detail__facts dt { color: var(--faint); }
+    .detail__facts dd { margin: 0; color: var(--ink-soft); }
+    .talk-pop {
+      position: absolute; z-index: 28; display: none;
+      width: 320px; max-height: min(420px, calc(100% - 24px));
+      flex-direction: column; overflow: hidden;
+      box-shadow: var(--control-shadow);
+    }
+    .talk-pop.is-on { display: flex; }
+    .talk-pop[hidden] { display: none !important; }
+    .talk-head {
+      flex: none; display: flex; align-items: center; gap: 8px;
+      padding: 11px 10px 11px 14px; border-bottom: 1px solid var(--line);
+    }
+    .talk-head b { font-weight: 400; }
+    .talk-head span { color: var(--faint); font-size: 12px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .talk-head .mw-btn { margin-left: auto; }
+    .talk-body { flex: 1; min-height: 0; overflow: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+    .bubble {
+      max-width: 90%; padding: 9px 11px; border-radius: 10px;
+      background: var(--control-fill); color: var(--ink-soft); line-height: 1.6;
+    }
+    .bubble b { font-weight: 400; color: var(--ink); }
+    .bubble--you { align-self: flex-end; background: var(--action); color: var(--action-ink); }
+    .talk-fail { margin: 0 14px 10px; padding: 11px 12px; border-radius: 10px; background: var(--red-soft); color: var(--red); }
+    .talk-fail p { margin: 0 0 9px; }
+    html[data-ai="ok"] .talk-fail { display: none; }
+    .talk-compose {
+      flex: none; display: flex; gap: 8px; align-items: flex-end;
+      padding: 10px; border-top: 1px solid var(--line);
+    }
+    .talk-compose .mw-textarea { min-height: 36px; max-height: 96px; }
+
+    .quote-pop { position: fixed; z-index: 30; display: none; }
+    .quote-pop.is-on { display: flex; }
+
+    html[data-frame="narrow"] .home,
+    html[data-frame="narrow"][data-event="on"] .home {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: auto minmax(0, 1fr);
+      row-gap: 8px; padding: 6px 12px 12px;
+    }
+    html[data-frame="narrow"] .dates { grid-row: 1; }
+    html[data-frame="narrow"] :is(.dayview, .eventcol) { grid-column: 1; grid-row: 2; }
+    html[data-frame="narrow"] .dates__label { display: none; }
+    html[data-frame="narrow"] .dates__list {
+      flex-direction: row; gap: 4px; padding: 2px 0 4px;
+      overscroll-behavior-x: contain;
+    }
+    html[data-frame="narrow"] .day { width: 58px; padding: 8px 8px 9px; }
+    html[data-frame="narrow"] .day__dots { justify-content: flex-start; }
+    html[data-frame="narrow"][data-event="on"] .dayview { display: none; }
+    html[data-frame="narrow"] .hero { padding: 18px 16px 16px; }
+    html[data-frame="narrow"] .hero__date time { font-size: 27px; }
+    html[data-frame="narrow"] .hero__sum { font-size: 17px; }
+    html[data-frame="narrow"] .tl { padding: 0 10px 14px; }
+    html[data-frame="narrow"] .erow { grid-template-columns: 42px 20px minmax(0, 1fr); }
+    html[data-frame="narrow"] .erow__src { display: none; }
+    html[data-frame="narrow"] .talk-pop { width: auto; }
+
+    html[data-skip="1"] * { animation: none !important; transition: none !important; }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <svg class="icon-sprite" aria-hidden="true">
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+    <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></symbol>
+    <symbol id="i-inbox" viewBox="0 0 24 24"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></symbol>
+    <symbol id="i-activity" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></symbol>
+    <symbol id="i-terminal" viewBox="0 0 24 24"><path d="m7 11 2-2-2-2"/><path d="M11 13h4"/><rect width="18" height="18" x="3" y="3" rx="2"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1 2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+    <symbol id="i-left" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></symbol>
+    <symbol id="i-right" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></symbol>
+    <symbol id="i-layout" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/></symbol>
+    <symbol id="i-db" viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6"/><path d="M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/></symbol>
+    <symbol id="i-shelf" viewBox="0 0 24 24"><path d="M4 19V5h16v14"/><path d="M4 19h16"/><path d="M8 8h8v6H8z"/></symbol>
+    <symbol id="i-panels" viewBox="0 0 24 24"><rect x="3" y="4" width="7" height="16" rx="1"/><rect x="12" y="4" width="9" height="16" rx="1"/></symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24"><path d="m11 3 1.9 4.6L17.5 9.5 12.9 11.4 11 16l-1.9-4.6L4.5 9.5l4.6-1.9z"/><path d="m18 14.5.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z"/></symbol>
+    <symbol id="i-dots" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.5" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-message" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></symbol>
+    <symbol id="i-send" viewBox="0 0 24 24"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.36 3.23a2 2 0 0 1 3.28 0l7.36 12.28A2 2 0 0 1 19.36 19H4.64a2 2 0 0 1-1.64-3.49z"/><path d="M12 9v4"/><path d="M12 16.5h.01"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></symbol>
+  </svg>
+
+  <div class="slice-bar">
+    <strong>首页切片</strong>
+    <button type="button" data-set="theme" data-value="light" class="is-on">浅色</button>
+    <button type="button" data-set="theme" data-value="dark">深色</button>
+    <button type="button" data-set="frame" data-value="desktop" class="is-on">桌面</button>
+    <button type="button" data-set="frame" data-value="narrow">390</button>
+    <span class="sep" aria-hidden="true"></span>
+    <button type="button" data-set="event" data-value="off" class="is-on">两栏</button>
+    <button type="button" data-set="event" data-value="on">第三栏</button>
+    <button type="button" data-set="dock" data-value="closed" class="is-on">对话收起</button>
+    <button type="button" data-set="dock" data-value="open">对话展开</button>
+    <button type="button" data-set="ai" data-value="ok" class="is-on">AI 正常</button>
+    <button type="button" data-set="ai" data-value="fail">AI 失败</button>
+    <button type="button" data-set="skip" data-value="0" class="is-on">完整动效</button>
+    <button type="button" data-set="skip" data-value="1">赶时间</button>
+    <button type="button" data-reset>重置</button>
+    <span class="note">日期卡 · 当天 · 点开才出第三栏 · 不改生产</span>
+  </div>
+
+  <div class="studio">
+    <div class="app" role="application" aria-label="Molis Work 今日切片">
+      <header class="titlebar">
+        <div class="history">
+          <button class="icon-btn" type="button" disabled aria-label="上一步"><svg class="ico ico-sm"><use href="#i-left"></use></svg></button>
+          <button class="icon-btn" type="button" disabled aria-label="下一步"><svg class="ico ico-sm"><use href="#i-right"></use></svg></button>
+        </div>
+        <div class="tabs" role="tablist" aria-label="工作标签">
+          <button class="tab is-current" type="button" role="tab" aria-selected="true" style="--plugin: var(--plugin-home)"><svg class="ico ico-sm"><use href="#i-home"></use></svg><span>项目首页</span></button>
+          <button class="tab" type="button" role="tab" aria-selected="false" tabindex="-1" style="--plugin: var(--plugin-goals)"><svg class="ico ico-sm"><use href="#i-target"></use></svg><span>画布</span></button>
+        </div>
+        <div class="tab-tools">
+          <button class="icon-btn" type="button" aria-label="打开标签"><svg class="ico ico-sm"><use href="#i-plus"></use></svg></button>
+          <button class="icon-btn" type="button" aria-label="布局与分屏"><svg class="ico ico-sm"><use href="#i-layout"></use></svg></button>
+        </div>
+      </header>
+      <section class="island" aria-label="当前项目">
+        <div class="chip">
+          <button class="chip-btn project-switch" type="button" aria-label="切换项目 Molis Work 示例项目" title="Molis Work 示例项目">
+            <span class="project-mark"><svg class="ico"><use href="#i-db"></use></svg></span>
+            <strong>Molis Work 示例项目</strong>
+          </button>
+          <button class="chip-btn" type="button" aria-label="打开搜索"><svg class="ico"><use href="#i-search"></use></svg></button>
+          <a class="chip-btn" href="#settings" aria-label="打开当前项目设置" title="项目设置"><svg class="ico"><use href="#i-settings"></use></svg></a>
+          <button class="chip-btn show-dir" type="button" aria-label="展开目录"><svg class="ico"><use href="#i-panels"></use></svg></button>
+        </div>
+      </section>
+      <nav class="rail" aria-label="插件">
+        <div class="rail-items">
+          <button class="rail-item is-current" type="button" style="--plugin: var(--plugin-home)" aria-current="page" aria-label="项目首页"><svg class="ico"><use href="#i-home"></use></svg></button>
+          <button class="rail-item" type="button" style="--plugin: var(--plugin-goals)" aria-label="Goals" tabindex="-1"><svg class="ico"><use href="#i-target"></use></svg></button>
+          <button class="rail-item" type="button" style="--plugin: var(--plugin-sessions)" aria-label="Sessions" tabindex="-1"><svg class="ico"><use href="#i-terminal"></use></svg></button>
+          <button class="rail-item" type="button" style="--plugin: var(--plugin-inbox)" aria-label="Inbox" tabindex="-1"><svg class="ico"><use href="#i-inbox"></use></svg></button>
+          <button class="rail-item" type="button" style="--plugin: var(--plugin-feed)" aria-label="Feed" tabindex="-1"><svg class="ico"><use href="#i-activity"></use></svg></button>
+          <button class="rail-item" type="button" style="--plugin: var(--plugin-shelf)" aria-label="Shelf" tabindex="-1"><svg class="ico"><use href="#i-shelf"></use></svg></button>
+          <button class="rail-item" type="button" style="--plugin: var(--plugin-artifacts)" aria-label="Artifacts" tabindex="-1"><svg class="ico"><use href="#i-file"></use></svg></button>
+          <button class="rail-item" type="button" aria-label="插件市场" tabindex="-1"><svg class="ico"><use href="#i-plus"></use></svg></button>
+        </div>
+        <div class="rail-foot">
+          <button class="chip-btn" type="button" aria-label="打开全局设置" tabindex="-1"><svg class="ico"><use href="#i-settings"></use></svg></button>
+          <button class="chip-btn" type="button" aria-label="账号管理" tabindex="-1"><svg class="ico"><use href="#i-user"></use></svg></button>
+        </div>
+      </nav>
+      <div class="workspace">
+        <main class="stage">
+          <div class="home">
+            <nav class="dates" aria-label="日期">
+              <p class="dates__label">九月</p>
+              <div class="dates__list" data-dates></div>
+            </nav>
+            <section class="dayview" aria-label="当天">
+              <article class="hero" data-hero></article>
+              <div class="tl">
+                <div class="tl__head">
+                  <svg aria-hidden="true"><use href="#i-clock"></use></svg>
+                  当天的事件<span data-list-count></span>
+                </div>
+                <div class="tl__rows" data-list></div>
+                <div data-pending-slot></div>
+              </div>
+            </section>
+            <div class="eventcol">
+              <div class="detail__act" data-detail-act></div>
+              <aside class="detail" data-detail aria-label="这件事">
+                <div class="detail__head" data-detail-head></div>
+                <div class="detail__body" data-detail-body data-quotable></div>
+              </aside>
+            </div>
+          </div>
+        </main>
+      </div>
+      <div class="talk-pop paper" data-talk-pop role="dialog" aria-label="对着这件事说一句" hidden>
+        <div class="talk-head">
+          <b>说一句</b>
+          <span data-talk-ctx></span>
+          <button class="mw-btn mw-btn--ghost mw-btn--icon-only mw-btn--sm" type="button" data-close-talk aria-label="收起对话"><svg><use href="#i-x"></use></svg></button>
+        </div>
+        <div class="talk-body" data-thread></div>
+        <div class="talk-fail">
+          <p>这一句没送出去。这件事还在，输入没丢。</p>
+          <button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-retry>重试</button>
+        </div>
+        <form class="talk-compose" data-talk-form>
+          <textarea class="mw-textarea" name="say" rows="1" placeholder="带着这件事说一句"></textarea>
+          <button class="mw-btn mw-btn--primary mw-btn--icon-only" type="submit" aria-label="发送"><svg><use href="#i-send"></use></svg></button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="mw-popover quote-pop" data-quote-pop role="menu">
+    <button class="mw-menu__item" type="button" data-quote="ask">问 AI</button>
+    <button class="mw-menu__item" type="button" data-quote="note">记一笔</button>
+  </div>
+
+  <script>
+    const SRC = {
+      goals: { label: "Goals", icon: "i-target", tone: "var(--plugin-goals)" },
+      inbox: { label: "Inbox", icon: "i-inbox", tone: "var(--plugin-inbox)" },
+      sessions: { label: "Sessions", icon: "i-terminal", tone: "var(--plugin-sessions)" },
+      shelf: { label: "Shelf", icon: "i-shelf", tone: "var(--plugin-shelf)" },
+      feed: { label: "Feed", icon: "i-activity", tone: "var(--plugin-feed)" },
+      calendar: { label: "日历", icon: "i-calendar", tone: "var(--plugin-calendar)" }
+    };
+
+    const NOW = "13:20";
+
+    const DAYS = [
+      { id: "2026-09-15", n: 15, w: "二", week: "星期二",
+        sum: "那天只收了两件组织上的事",
+        lead: "Feed 例行拉了一次，下午有一场短会纪要。自己的工作几乎没落在这一天。" },
+      { id: "2026-09-16", n: 16, w: "三", week: "星期三",
+        sum: "空的一天",
+        lead: "没开 Session，Feed 也没拉到要处理的东西。这一天就这么过去了。" },
+      { id: "2026-09-17", n: 17, w: "四", week: "星期四",
+        sum: "自己改了一轮目录，Inbox 还空着",
+        lead: "午前把 Goals 目录缩进又看了一遍。组织侧只有早上那次 Feed。" },
+      { id: "2026-09-18", n: 18, w: "五", week: "星期五",
+        sum: "周会纪要进了 Shelf，傍晚自己写了缩进",
+        lead: "组织上的周会落成一份纪要。个人这边把目录缩进改完，没有再开 Session。" },
+      { id: "2026-09-19", n: 19, w: "六", week: "星期六", today: true,
+        sum: "今天接到四件事，GitHub 还空着",
+        lead: "授权 09:12 断了，Inbox 就停在那儿。午前那场 Session 把桌面工作台写完，稿子收进了 Shelf。首页方案正在写，14:00 要拿去对。" },
+      { id: "2026-09-20", n: 20, w: "日", week: "星期日",
+        sum: "明天还没有事走进来",
+        lead: "没有已经到达的事件。发布前那次安装还没排进这一天。" },
+      { id: "2026-09-21", n: 21, w: "一", week: "星期一",
+        sum: "周报还在任务里，没进这一天",
+        lead: "组织日历是空的。个人也还没把周报写进来。" }
+    ];
+
+    const EVENTS = {
+      "2026-09-15": [
+        { id: "f15", day: "2026-09-15", kind: "org", src: "feed", when: "09:00", title: "例行拉了一次 Feed", lead: "没有需要处理的", text: "来源都在线，没有新的要介入的条目。" },
+        { id: "m15", day: "2026-09-15", kind: "org", src: "calendar", when: "16:30", title: "短会对了一下首页口径", lead: "20 分钟", text: "只对了「今天接到什么」这一句怎么说。没有形成新的 Goal。" }
+      ],
+      "2026-09-16": [],
+      "2026-09-17": [
+        { id: "f17", day: "2026-09-17", kind: "org", src: "feed", when: "09:00", title: "拉一次 Feed", lead: "例行", text: "没有新的组织事项。" },
+        { id: "g17", day: "2026-09-17", kind: "me", src: "goals", when: "15:00", title: "目录缩进又看了一遍", lead: "Goals 之外那几个插件", text: "缩进对齐了，没有写成完成。Inbox 空态还是白的。" }
+      ],
+      "2026-09-18": [
+        { id: "meet18", day: "2026-09-18", kind: "org", src: "calendar", when: "11:20", title: "周会纪要进了 Shelf", lead: "组织会议", text: "纪要挂在首页方案这条 Goal 上，会后动作还没拆。" },
+        { id: "ind18", day: "2026-09-18", kind: "me", src: "goals", when: "16:40", title: "自己把目录缩进改了一轮", lead: "个人", text: "没有开 Session。改完直接收工。" }
+      ],
+      "2026-09-19": [
+        { id: "gh", day: "2026-09-19", kind: "org", src: "inbox", when: "09:12", title: "GitHub 授权失败", lead: "Inbox 停在这里", text: "重新授权之前，GitHub 不会再往今天送东西。失败收据还在 Inbox，上下文没丢。", act: "gh",
+          facts: [["来自", "GitHub 应用 · 组织连接"], ["状态", "已停止投递"], ["挂在", "首页方案"]] },
+        { id: "doc", day: "2026-09-19", kind: "me", src: "shelf", when: "09:40", title: "收了一份首页参考稿", lead: "四张截图进了 Shelf", text: "左右分栏、今天的信息卡。已经挂在首页方案这条 Goal 上。",
+          facts: [["来自", "自己拖进来的"], ["内容", "4 张截图"], ["挂在", "首页方案"]] },
+        { id: "session", day: "2026-09-19", kind: "me", src: "sessions", when: "10:05", title: "桌面工作台那一段写完了", lead: "Session 1 小时 35 分", text: "顶栏、插件岛、纸面阴影按标准件收了尾。产物在 Shelf，首页这条还没换过来。",
+          facts: [["来自", "Session · 1 小时 35 分"], ["产物", "工作台外壳切片"], ["挂在", "首页方案"]] },
+        { id: "home", day: "2026-09-19", kind: "me", src: "goals", when: "13:20", title: "首页方案正在写", lead: "当前这件", text: "点开这件事才出第三栏。正文在上，动作贴在栏底，说一句仍对着这一条。",
+          facts: [["来自", "自己开的"], ["状态", "正在写"], ["要交", "14:00 那场会"]] },
+        { id: "meet", day: "2026-09-19", kind: "org", src: "calendar", when: "14:00", title: "对首页方案", lead: "还没到", text: "带着已经接到的事去谈：授权、午前写下的桌面、还没写进今天的 Feed 三列。",
+          facts: [["来自", "组织日历"], ["还有", "40 分钟"], ["挂在", "首页方案"]] }
+      ],
+      "2026-09-20": [],
+      "2026-09-21": []
+    };
+
+    const root = document.documentElement;
+    const $ = (s, el = document) => el.querySelector(s);
+    const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+    const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+    let dayId, eventId, pending, thread, talkKey, ghOn;
+
+    const SEED_DAYS = JSON.parse(JSON.stringify(DAYS));
+    const SEED_EVENTS = JSON.parse(JSON.stringify(EVENTS));
+
+    function seed() {
+      DAYS.forEach((d, i) => Object.assign(d, SEED_DAYS[i]));
+      Object.keys(EVENTS).forEach((k) => delete EVENTS[k]);
+      Object.assign(EVENTS, JSON.parse(JSON.stringify(SEED_EVENTS)));
+      dayId = "2026-09-19";
+      eventId = "";
+      pending = null;
+      thread = [];
+      talkKey = "";
+      ghOn = false;
+    }
+
+    const dayOf = () => DAYS.find((d) => d.id === dayId) || DAYS[4];
+    const listOf = () => (EVENTS[dayId] || []).slice().sort((a, b) => a.when.localeCompare(b.when));
+    const current = () => listOf().find((e) => e.id === eventId) || null;
+
+    function setAttr(key, value) {
+      root.setAttribute("data-" + key, value);
+      $$(".slice-bar [data-set='" + key + "']").forEach((b) => b.classList.toggle("is-on", b.dataset.value === value));
+    }
+
+    function kindLabel(k) { return k === "org" ? "组织" : "个人"; }
+
+    function closeEvent() {
+      eventId = "";
+      setAttr("event", "off");
+      closeTalk();
+    }
+
+    function openEvent(id) {
+      if (!listOf().some((e) => e.id === id)) return;
+      eventId = id;
+      setAttr("event", "on");
+      render();
+    }
+
+    function closeTalk() {
+      talkKey = "";
+      const pop = $("[data-talk-pop]");
+      pop.classList.remove("is-on");
+      pop.setAttribute("hidden", "");
+      setAttr("dock", "closed");
+    }
+
+    function placeTalk(anchor) {
+      const pop = $("[data-talk-pop]");
+      const app = $(".app");
+      const btn = anchor && document.contains(anchor) ? anchor : $("[data-open-talk]");
+      if (!pop || !app || !btn) return;
+      if (root.getAttribute("data-dock") !== "open") return;
+      pop.classList.add("is-on");
+      pop.removeAttribute("hidden");
+      const bar = $("[data-detail-act]");
+      const r = (bar || btn).getBoundingClientRect();
+      const ar = app.getBoundingClientRect();
+      pop.style.width = Math.round(r.width) + "px";
+      pop.style.left = Math.round(r.left - ar.left) + "px";
+      const h = pop.offsetHeight || 280;
+      let top = r.bottom - ar.top + 8;
+      if (top + h > ar.height - 8) top = Math.max(8, ar.height - h - 8);
+      pop.style.top = Math.round(top) + "px";
+    }
+
+    function openTalk(anchor, force) {
+      const ev = current();
+      if (!ev) return;
+      const key = "event:" + ev.id;
+      if (!force && talkKey === key && root.getAttribute("data-dock") === "open") { closeTalk(); return; }
+      talkKey = key;
+      thread = [];
+      setAttr("dock", "open");
+      render();
+      requestAnimationFrame(() => {
+        placeTalk(anchor);
+        $("[data-talk-form] textarea").focus();
+      });
+    }
+
+    const ico = (id, cls) => '<svg class="' + (cls || "") + '" aria-hidden="true"><use href="#' + id + '"></use></svg>';
+    const kindIcon = (k) => (k === "org" ? "i-users" : "i-user");
+
+    /* 用 class 触发进场过渡：后台标签里 rAF 与 animation 会暂停，
+       class 驱动的 transition 在那种情况下也能停在终态。 */
+    function enter(el) {
+      if (!el) return;
+      el.classList.remove("is-in");
+      void el.offsetWidth;
+      el.classList.add("is-in");
+    }
+
+    const dotsHTML = (list) => list.length
+      ? list.slice(0, 4).map((e) => '<i data-k="' + e.kind + '"></i>').join("") +
+        (list.length > 4 ? '<u style="width:6px"></u>' : "")
+      : "<u></u>";
+    const dayLabel = (d, n) => "9月" + d.n + "日 " + d.week + " · " + (n ? n + " 件" : "没有事件");
+
+    function buildDates() {
+      $("[data-dates]").innerHTML = DAYS.map((d) =>
+        '<button class="day" type="button" data-day="' + d.id + '">' +
+        '<span class="day__n"><b>' + d.n + "</b><em>" + d.w + "</em>" + (d.today ? "<s></s>" : "") + "</span>" +
+        '<span class="day__dots"></span></button>'
+      ).join("");
+    }
+
+    function syncDates() {
+      $$("[data-day]").forEach((btn) => {
+        const d = DAYS.find((x) => x.id === btn.dataset.day);
+        const list = EVENTS[btn.dataset.day] || [];
+        const on = btn.dataset.day === dayId;
+        btn.classList.toggle("is-on", on);
+        btn.setAttribute("aria-pressed", String(on));
+        btn.setAttribute("aria-label", dayLabel(d, list.length));
+        const dots = $(".day__dots", btn);
+        const html = dotsHTML(list);
+        if (dots.innerHTML !== html) dots.innerHTML = html;
+      });
+    }
+
+    function renderHero() {
+      const d = dayOf();
+      const list = listOf();
+      const me = list.filter((e) => e.kind === "me").length;
+      const org = list.filter((e) => e.kind === "org").length;
+      const hero = $("[data-hero]");
+      hero.className = "hero enter enter--up";
+      hero.innerHTML =
+        '<p class="hero__eyebrow">' + ico(d.today ? "i-sun" : "i-calendar") +
+          "2026 年九月" + (d.today ? " · 此刻 " + NOW : "") + "</p>" +
+        '<h1 class="hero__date"><time>9月' + d.n + "日</time><span>" + d.week + "</span>" +
+          (d.today ? '<b class="hero__today">今天</b>' : "") + "</h1>" +
+        '<h2 class="hero__sum">' + esc(d.sum) + "</h2>" +
+        '<p class="hero__lead">' + esc(d.lead) + "</p>" +
+        '<div class="hero__stats">' +
+          (list.length
+            ? '<span><b>' + list.length + "</b> 件</span>" +
+              '<span><i></i>个人 <b>' + me + "</b></span>" +
+              '<span><i data-k="org"></i>组织 <b>' + org + "</b></span>"
+            : "<span>没有事件走进来</span>") +
+        "</div>";
+      enter(hero);
+    }
+
+    function rowHTML(e, i, last) {
+      const src = SRC[e.src];
+      return '<button class="erow' + (i === 0 ? " is-first" : "") + (last ? " is-last" : "") + '"' +
+        ' type="button" data-open-event="' + esc(e.id) + '" data-k="' + e.kind + '"' +
+        ' style="--i:' + i + ';--node:' + src.tone + '">' +
+        '<span class="erow__when">' + esc(e.when) + "</span>" +
+        '<span class="erow__node"><i class="erow__dot"></i></span>' +
+        '<span class="erow__main"><strong>' + esc(e.title) + "</strong>" +
+          "<small>" + ico(kindIcon(e.kind)) + kindLabel(e.kind) + " · " + esc(e.lead) + "</small></span>" +
+        '<span class="erow__src">' + ico(src.icon) + esc(src.label) + "</span>" +
+        "</button>";
+    }
+
+    function renderList() {
+      const list = listOf();
+      const rows = $("[data-list]");
+      $("[data-list-count]").textContent = list.length ? String(list.length) : "";
+      if (!list.length) {
+        rows.innerHTML =
+          '<p class="tl__empty enter enter--up">' + ico("i-calendar") + "这一天还空着。</p>";
+        enter($(".tl__empty", rows));
+        return;
+      }
+      const d = dayOf();
+      let html = "";
+      let nowDrawn = false;
+      list.forEach((e, i) => {
+        if (d.today && !nowDrawn && e.when > NOW) {
+          html += '<div class="tl__now"><b></b><i></i><em><u></u><span>此刻 ' + NOW + "</span></em></div>";
+          nowDrawn = true;
+        }
+        html += rowHTML(e, i, i === list.length - 1);
+      });
+      rows.innerHTML = html;
+      enter(rows);
+    }
+
+    function syncRows() {
+      $$("[data-open-event]").forEach((btn) => {
+        btn.classList.toggle("is-on", btn.dataset.openEvent === eventId);
+      });
+    }
+
+    function renderDetail() {
+      const ev = current();
+      if (!ev) return;
+      const head = $("[data-detail-head]");
+      const body = $("[data-detail-body]");
+      const act = $("[data-detail-act]");
+      const src = SRC[ev.src];
+      $("[data-detail]").style.setProperty("--node", src.tone);
+      head.innerHTML =
+        '<span class="detail__src">' + ico(src.icon) + esc(src.label) + "</span>" +
+        "<time>" + esc(ev.when) + "</time>" +
+        '<button class="mw-btn mw-btn--ghost mw-btn--icon-only mw-btn--sm" type="button" data-close-event aria-label="收起">' +
+        ico("i-x") + "</button>";
+      body.innerHTML =
+        '<div class="detail__pane enter enter--side">' +
+        "<h2>" + esc(ev.title) + "</h2>" +
+        '<p class="detail__kind">' + ico(kindIcon(ev.kind)) + kindLabel(ev.kind) + "事件</p>" +
+        '<p class="detail__text">' + esc(ev.text) + "</p>" +
+        (ev.facts
+          ? '<dl class="detail__facts">' + ev.facts.map((f) =>
+              "<div><dt>" + esc(f[0]) + "</dt><dd>" + esc(f[1]) + "</dd></div>").join("") + "</dl>"
+          : "") +
+        "</div>";
+      enter($(".detail__pane", body));
+      const talkOn = talkKey === "event:" + ev.id && root.getAttribute("data-dock") === "open";
+      const primary = ev.act === "gh" && !ghOn
+        ? '<button class="mw-btn mw-btn--primary" type="button" data-reauth>' + ico("i-link") + "重新授权</button>" +
+          '<button class="mw-btn mw-btn--secondary" type="button" data-ask>问问怎么回事</button>'
+        : '<button class="mw-btn mw-btn--primary" type="button" data-ask>' + ico("i-arrow") + "接着做</button>" +
+          '<button class="mw-btn mw-btn--secondary" type="button" data-done>' + ico("i-check") + "做完了</button>";
+      act.innerHTML = primary +
+        '<button class="mw-btn mw-btn--ghost" type="button" data-open-talk data-talk="event:' + esc(ev.id) + '"' +
+        ' aria-pressed="' + String(talkOn) + '">' + ico("i-message") + "说一句</button>";
+    }
+
+    function renderThread() {
+      const ev = current();
+      const title = ev ? ev.title : "";
+      $("[data-talk-ctx]").textContent = title ? "· " + title : "";
+      $("[data-thread]").innerHTML =
+        (ev ? '<div class="bubble">现在对着 <b>' + esc(ev.title) + "</b>，" + esc(SRC[ev.src].label) + " · " + esc(ev.when) + "。</div>" : "") +
+        thread.map((m) => '<div class="bubble' + (m.who === "you" ? " bubble--you" : "") + '">' + esc(m.text) + "</div>").join("");
+      $("[data-thread]").scrollTop = $("[data-thread]").scrollHeight;
+    }
+
+    function renderPending() {
+      const slot = $("[data-pending-slot]");
+      if (!pending) { slot.innerHTML = ""; return; }
+      slot.innerHTML = pending.fail
+        ? '<article class="pending pending--fail"><p>没写进去。当前这件事还在。</p><button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-retry>重试</button></article>'
+        : '<article class="pending"><p>待确认 · ' + esc(pending.text) + "</p>" +
+          '<button class="mw-btn mw-btn--primary mw-btn--sm" type="button" data-confirm>写进今天</button> ' +
+          '<button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-drop>不要了</button></article>';
+    }
+
+    let shownDay = "", shownEvent = null;
+
+    function render() {
+      syncDates();
+      if (shownDay !== dayId) {
+        renderHero();
+        renderList();
+        shownDay = dayId;
+      }
+      syncRows();
+      if (shownEvent !== eventId) {
+        renderDetail();
+        shownEvent = eventId;
+      }
+      const talkBtn = $("[data-open-talk]");
+      if (talkBtn) {
+        talkBtn.setAttribute("aria-pressed",
+          String(talkKey === "event:" + eventId && root.getAttribute("data-dock") === "open"));
+      }
+      renderThread();
+      renderPending();
+      if (root.getAttribute("data-dock") === "open") requestAnimationFrame(() => placeTalk());
+    }
+
+    function redraw() {
+      shownDay = "";
+      shownEvent = null;
+      render();
+    }
+
+    function ask(text) {
+      const ev = current();
+      const say = text || ("接着做：" + (ev ? ev.title : ""));
+      thread.push({ who: "you", text: say });
+      if (root.getAttribute("data-ai") === "fail") {
+        pending = { fail: true, text: say };
+      } else {
+        pending = { fail: false, text: say };
+        thread.push({ who: "ai", text: "写成一条待确认，放在当天列表下面了。" });
+      }
+      setAttr("dock", "open");
+      render();
+    }
+
+    function done() {
+      const list = listOf();
+      const i = list.findIndex((e) => e.id === eventId);
+      const next = list[i + 1] || list[i - 1];
+      if (next) openEvent(next.id);
+      else closeEvent();
+      render();
+    }
+
+    function pushEvent(title, lead) {
+      const id = "new-" + Date.now();
+      const ev = {
+        id, day: dayId, kind: "me", src: "goals", when: "现在",
+        title, lead: lead || "刚写的", text: "从对话确认后写进这一天。",
+        facts: [["来自", "对话里确认的"], ["状态", "刚写进今天"]]
+      };
+      EVENTS[dayId] = EVENTS[dayId] || [];
+      EVENTS[dayId].push(ev);
+      eventId = id;
+      setAttr("event", "on");
+      redraw();
+    }
+
+    document.addEventListener("click", (e) => {
+      const set = e.target.closest("[data-set]");
+      if (set) {
+        setAttr(set.dataset.set, set.dataset.value);
+        if (set.dataset.set === "event") {
+          if (set.dataset.value === "on") {
+            const first = listOf()[0];
+            if (first) eventId = first.id;
+          } else {
+            eventId = "";
+            closeTalk();
+          }
+          render();
+        }
+        if (set.dataset.set === "dock") {
+          if (set.dataset.value === "open") {
+            if (!eventId && listOf()[0]) { eventId = listOf()[0].id; setAttr("event", "on"); }
+            openTalk(null, true);
+          } else closeTalk();
+        }
+        if (set.dataset.set === "frame") render();
+        return;
+      }
+      if (e.target.closest("[data-reset]")) {
+        seed();
+        ["theme:light", "frame:desktop", "event:off", "dock:closed", "ai:ok", "skip:0"].forEach((p) => setAttr(p.split(":")[0], p.split(":")[1]));
+        closeTalk();
+        redraw();
+        return;
+      }
+      const dayBtn = e.target.closest("[data-day]");
+      if (dayBtn) {
+        dayId = dayBtn.dataset.day;
+        eventId = "";
+        setAttr("event", "off");
+        closeTalk();
+        render();
+        return;
+      }
+      const openEv = e.target.closest("[data-open-event]");
+      if (openEv) { openEvent(openEv.dataset.openEvent); return; }
+      if (e.target.closest("[data-close-event]")) { closeEvent(); render(); return; }
+      if (e.target.closest("[data-open-talk]")) { openTalk(e.target.closest("[data-open-talk]")); return; }
+      if (e.target.closest("[data-close-talk]")) { closeTalk(); return; }
+      if (e.target.closest("[data-done]")) { done(); return; }
+      if (e.target.closest("[data-ask]")) { ask(); return; }
+      if (e.target.closest("[data-reauth]")) {
+        ghOn = true;
+        const ev = (EVENTS["2026-09-19"] || []).find((x) => x.id === "gh");
+        if (ev) {
+          ev.title = "GitHub 接回来了";
+          ev.lead = "新的事件会进今天";
+          ev.text = "授权好了。接下来的 commit、PR、Issue 会按到达顺序进来。";
+          ev.act = null;
+          ev.facts = [["来自", "GitHub 应用 · 组织连接"], ["状态", "已恢复投递"], ["挂在", "首页方案"]];
+        }
+        const today = DAYS.find((d) => d.today);
+        if (today) {
+          today.sum = "今天这条上有几件事，GitHub 刚接回来";
+          today.lead = "午前那场 Session 把桌面工作台写完，稿子收进了 Shelf。授权补上了。首页方案正在写，14:00 要拿去对。";
+        }
+        redraw();
+        return;
+      }
+      if (e.target.closest("[data-confirm]")) { const t = pending.text; pending = null; pushEvent(t, "对话里确认后写入"); return; }
+      if (e.target.closest("[data-drop]")) { pending = null; render(); return; }
+      if (e.target.closest("[data-retry]")) { setAttr("ai", "ok"); pending = { fail: false, text: pending ? pending.text : "" }; render(); return; }
+
+      $("[data-quote-pop]").classList.remove("is-on");
+      if (!e.target.closest("[data-talk-pop], [data-open-talk]")) {
+        if (root.getAttribute("data-dock") === "open" && !e.target.closest("[data-detail-act]")) closeTalk();
+      }
+    });
+
+    $("[data-talk-form]").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const area = e.target.elements.say;
+      const v = area.value.trim();
+      if (!v) return;
+      area.value = "";
+      ask(v);
+    });
+
+    document.addEventListener("mouseup", () => {
+      const sel = window.getSelection();
+      const pop = $("[data-quote-pop]");
+      if (!sel || sel.isCollapsed || !sel.anchorNode) { pop.classList.remove("is-on"); return; }
+      const host = sel.anchorNode.parentElement && sel.anchorNode.parentElement.closest("[data-quotable]");
+      if (!host) { pop.classList.remove("is-on"); return; }
+      const r = sel.getRangeAt(0).getBoundingClientRect();
+      pop.style.top = r.bottom + 8 + "px";
+      pop.style.left = Math.min(window.innerWidth - 210, Math.max(12, r.left)) + "px";
+      pop.dataset.text = sel.toString();
+      pop.classList.add("is-on");
+    });
+
+    $$("[data-quote]").forEach((btn) => btn.addEventListener("click", () => {
+      const pop = $("[data-quote-pop]");
+      const text = pop.dataset.text || "";
+      pop.classList.remove("is-on");
+      if (btn.dataset.quote === "ask") ask("就这一段：" + text.slice(0, 48));
+      else pushEvent("记一笔：" + text.slice(0, 28), "从当前这件事划下来");
+    }));
+
+    document.addEventListener("keydown", (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        if (!eventId && listOf()[0]) { eventId = listOf()[0].id; setAttr("event", "on"); render(); }
+        openTalk(null, true);
+      }
+      if (e.key === "Escape") {
+        $("[data-quote-pop]").classList.remove("is-on");
+        if (root.getAttribute("data-dock") === "open") closeTalk();
+        else if (eventId) { closeEvent(); render(); }
+      }
+    });
+
+    window.addEventListener("resize", () => {
+      if (root.getAttribute("data-dock") === "open") placeTalk();
+    });
+
+    buildDates();
+    seed();
+    redraw();
+  </script>
+
+</body>
+</html>

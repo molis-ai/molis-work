@@ -75,18 +75,19 @@ test("Workbench registers the Inbox UI Contribution through the generic UI Host"
     surface: "directory",
     model: model(),
   });
-  assert.match(directory, /data-directory-panel="inbox"/);
-  assert.match(directory, /data-inbox-directory/);
-  assert.match(directory, /data-inbox-list/);
-  assert.match(directory, /现在没有需要你介入的事项/);
-  assert.doesNotMatch(directory, /Goal 待判断、来源故障|会出现在这里/);
-  assert.doesNotMatch(directory, /data-feed-directory|data-feed-list|data-feed-entry-id/);
+  assert.equal(directory, "");
+  assert.doesNotMatch(directory, /data-directory-panel="inbox"/);
   const workbench = host.render({
     contribution_id: INBOX_UI_CONTRIBUTION_ID,
     surface: "workbench",
     model: model(),
   });
+  assert.match(workbench, /data-inbox-directory/);
+  assert.match(workbench, /data-inbox-list/);
+  assert.match(workbench, /data-inbox-stage-shell/);
   assert.match(workbench, /现在没有需要你介入的事项/);
+  assert.doesNotMatch(workbench, /Goal 待判断、来源故障|会出现在这里/);
+  assert.doesNotMatch(workbench, /data-feed-directory|data-feed-list|data-feed-entry-id/);
   assert.doesNotMatch(workbench, /选择一条需要处理的事项/);
 });
 
@@ -141,11 +142,17 @@ test("Inbox directory lists Attention reason, related object, and next step with
       model: model({ entries: [open, done, goal, source] }),
     }),
   };
-  assert.match(rendered.directory, /data-inbox-filter="history"/);
-  assert.match(rendered.directory, /data-inbox-row[^>]*data-inbox-entry-id="entry-open"/);
-  assert.match(rendered.directory, /data-inbox-subject-type="goal_decision"[^>]*data-inbox-subject-id="goal-1"/);
-  assert.match(rendered.directory, /你手工加入/);
-  assert.match(rendered.directory, /data-inbox-status="done"[^>]* hidden/);
+  assert.match(rendered.workbench, /data-inbox-stage-group="active"/);
+  assert.match(rendered.workbench, /data-inbox-stage-group="history"/);
+  assert.match(rendered.workbench, /href="#icon-alert"|data-icon="alert"/);
+  assert.match(rendered.workbench, /href="#icon-check"|data-icon="check"/);
+  assert.match(rendered.workbench, /data-inbox-detail="entry-open"[^>]*hidden|data-inbox-detail="entry-open" hidden/);
+  assert.match(rendered.workbench, /data-inbox-row[^>]*data-inbox-entry-id="entry-open"/);
+  assert.doesNotMatch(rendered.workbench, /feed-list-item/);
+  assert.match(rendered.workbench, /data-inbox-subject-type="goal_decision"[^>]*data-inbox-subject-id="goal-1"/);
+  assert.match(rendered.workbench, /你手工加入/);
+  assert.match(rendered.workbench, /mw-status--done/);
+  assert.match(rendered.workbench, /data-inbox-status="done"/);
   assert.doesNotMatch(rendered.directory, /这条消息的完整正文不应该出现/);
   assert.match(rendered.workbench, /data-inbox-detail="entry-open"/);
   assert.match(rendered.workbench, /data-inbox-open-feed="item-1"/);
@@ -154,6 +161,12 @@ test("Inbox directory lists Attention reason, related object, and next step with
   assert.match(rendered.workbench, /到 Goals 完成判断，Inbox 不内嵌决定表单。/);
   assert.match(rendered.workbench, /data-inbox-action="done"/);
   assert.match(rendered.workbench, /data-inbox-action="dismissed"/);
+  assert.ok(
+    rendered.workbench.indexOf("data-inbox-collapse") < rendered.workbench.indexOf("feed-detail-header")
+    && rendered.workbench.indexOf("feed-detail-header") < rendered.workbench.indexOf("inbox-reference-footer")
+    && rendered.workbench.indexOf("inbox-reference-footer") < rendered.workbench.indexOf("inbox-reference-body"),
+    "Inbox back sits in the shared stage bar before the title; actions sit under the title, above the scrolling context",
+  );
   assert.doesNotMatch(rendered.workbench, /Inbox 只保存这条引用和进入原因/);
   assert.doesNotMatch(rendered.workbench, /data-feed-workbench|data-feed-detail=/);
 });

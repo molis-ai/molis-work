@@ -1,10 +1,9 @@
 /** App-owned installation API and release-format types. No project facts. */
 
 export const INSTALLER_ID = "molis-work-home-install-v1";
-export const LEGACY_INSTALLER_ID = "goalboard-home-install-v1";
 
 export function isOwnedInstaller(installer: unknown): boolean {
-  return installer === INSTALLER_ID || installer === LEGACY_INSTALLER_ID;
+  return installer === INSTALLER_ID;
 }
 
 export const SCHEMA_VERSION = 4;
@@ -13,19 +12,12 @@ export const LEGACY_LAUNCHER_HEADER = "#!/usr/bin/env node\n// molis-work-home-l
 
 export const BUNDLED_NODE_LAUNCHER_HEADER = "#!/bin/sh\n# molis-work-home-launcher-v2";
 
-export const GOALBOARD_LAUNCHER_HEADER = "#!/usr/bin/env node\n// goalboard-home-launcher-v1";
-
-export const GOALBOARD_BUNDLED_LAUNCHER_HEADER = "#!/bin/sh\n# goalboard-home-launcher-v2";
-
 export const OWNED_LAUNCHER_HEADERS = [
   LEGACY_LAUNCHER_HEADER,
   BUNDLED_NODE_LAUNCHER_HEADER,
-  GOALBOARD_LAUNCHER_HEADER,
-  GOALBOARD_BUNDLED_LAUNCHER_HEADER,
 ] as const;
 
 export const CURRENT_LAUNCHER_NAMES = ["molis-work", "molis-work-mcp", "molis-work-web"] as const;
-export const LEGACY_LAUNCHER_NAMES = ["goalboard", "goalboard-mcp", "goalboard-web"] as const;
 
 export function isOwnedLauncherText(text: string): boolean {
   return OWNED_LAUNCHER_HEADERS.some((header) => text.startsWith(header));

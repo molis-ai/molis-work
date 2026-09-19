@@ -120,6 +120,7 @@ test("project Session directory APIs discover, link, create, transfer, archive a
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const first = await catalog.createProject({ display_name: "Project A", actor_id: "user" });
   const second = await catalog.createProject({ display_name: "Project B", actor_id: "user" });
+  catalog.addProjectPlugin({ project_id: first.project_id, plugin_id: "sessions", actor_id: "user" });
   catalog.close();
 
   const methods: string[] = [];

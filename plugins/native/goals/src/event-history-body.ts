@@ -50,7 +50,7 @@ export function renderWorkEventBody(
     const judgments = event.judgments.length
       ? `<div class="proof">${event.judgments.map((item) => {
         const name = requirementNames[item.requirement_id] || item.requirement_id;
-        return `<p><button type="button" class="text-button" data-locate-event="${escapeHtml(event.event_id)}">${escapeHtml(name)}</button>：${escapeHtml(verdictLabel(item.verdict, L))}</p>`;
+        return `<p><button type="button" class="mw-btn mw-btn--link" data-locate-event="${escapeHtml(event.event_id)}">${escapeHtml(name)}</button>：${escapeHtml(verdictLabel(item.verdict, L))}</p>`;
       }).join("")}</div>`
       : "";
     return `<article class="event"><h2>${escapeHtml(event.title)}</h2><p class="event-meta">${escapeHtml(meta)}</p>${fields}${judgments}</article>`;
@@ -137,7 +137,7 @@ function renderScope(
   requirementNames: Readonly<Record<string, string>> = {},
 ): string {
   const requirements = scope.requirement_ids.map((id) => escapeHtml(requirementNames[id] || id)).join("、");
-  const events = scope.event_ids.map((id) => `<button type="button" class="text-button" data-locate-event="${escapeHtml(id)}">${L("相关事件")}</button>`).join(" ");
+  const events = scope.event_ids.map((id) => `<button type="button" class="mw-btn mw-btn--link" data-locate-event="${escapeHtml(id)}">${L("相关事件")}</button>`).join(" ");
   const parts = [
     requirements ? `${L("要求")} ${requirements}` : "",
     events ? `${L("事件")} ${events}` : "",

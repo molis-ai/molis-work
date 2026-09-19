@@ -40,7 +40,7 @@ function relationRow(
     ${editable && relation.state === "active" && !item.goal.archived_at ? `<form class="relation-deactivate-form" id="${escapeHtml(deactivateId)}" data-relation-deactivate-form data-live-form="relation-deactivate-${escapeHtml(relation.relation_id)}" data-relation-id="${escapeHtml(relation.relation_id)}" hidden>
       <label><span>${L("解除原因")}</span><textarea name="reason" rows="2" required placeholder="${L("说明为什么这条关系不再成立；历史记录会保留")}"></textarea></label>
       <p class="form-error" data-relation-deactivate-error role="alert" hidden></p>
-      <footer><button type="button" data-relation-deactivate-cancel>${L("取消")}</button><button class="button-danger" type="submit">${L("确认解除")}</button></footer>
+      <footer class="mw-form__footer"><button class="mw-btn mw-btn--secondary" type="button" data-relation-deactivate-cancel>${L("取消")}</button><button class="mw-btn mw-btn--danger" type="submit">${L("确认解除")}</button></footer>
     </form>` : ""}
   </div>`;
 }
@@ -118,7 +118,7 @@ function renderRelationForm(item: GoalsRelationItem, view: GoalsRelationView): s
         </div>
       </details>
       <p class="form-error" data-relation-error role="alert" hidden></p>
-      <footer><p>${L("提交后直接生效并写入事件历史；不会创建或启动 Runtime。")}</p><button class="button-primary" type="submit">${L("建立关系")}</button></footer>
+      <footer><p>${L("提交后直接生效并写入事件历史；不会创建或启动 Runtime。")}</p><button class="mw-btn mw-btn--primary" type="submit">${L("建立关系")}</button></footer>
     </form>`;
 }
 

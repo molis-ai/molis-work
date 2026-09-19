@@ -3,35 +3,14 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { WebSettingsProject } from "@molis-ai/molis-work-app-workbench";
 import { type MolisWorkProjectCatalog, type MolisWorkProjectCatalogOptions, MolisWorkProjectCatalogError } from "./project-catalog.js";
 import { sendLocalWebJson as sendJson, readLocalWebBody as readBody } from "./web-http.js";
-import { projectNavigation, settingsProject, installationDiagnostics } from "./web-project-presentation.js";
+import { settingsProject, installationDiagnostics } from "./web-project-presentation.js";
 import { L } from "./web-locale.js";
-import { BUILTIN_PROJECT_PLUGIN_IDS, type BuiltinProjectPluginId } from "@molis-ai/molis-work-contracts/modules/projects";
 
 export type LocalWebCatalogRunner = <T>(options: MolisWorkProjectCatalogOptions, operation: (catalog: MolisWorkProjectCatalog) => T | Promise<T>) => Promise<T>;
 
 export interface ProjectDeletionWebPorts {
   isPanelAlive(panelId: string): boolean;
   releaseProject(databasePath: string): Promise<void>;
-}
-
-function webMigrationRequest(body: Record<string, unknown>): {
-  legacyDatabasePath: string;
-  displayName?: string;
-} {
-  if (body.user_confirmed !== true) {
-    throw new Error(L("请先明确确认要迁移这份已有 Molis Work 数据"));
-  }
-  const legacyDatabasePath = typeof body.legacy_database_path === "string"
-    ? body.legacy_database_path.trim()
-    : "";
-  if (!legacyDatabasePath) throw new Error(L("请选择要迁移的已有 Molis Work DB"));
-  if (legacyDatabasePath.length > 4_000) throw new Error(L("来源 DB 路径过长"));
-  const displayName = typeof body.display_name === "string" ? body.display_name.trim() : "";
-  if (displayName.length > 160) throw new Error(L("迁移后项目名称过长"));
-  return {
-    legacyDatabasePath,
-    ...(displayName ? { displayName } : {}),
-  };
 }
 
 export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: LocalWebCatalogRunner) {
@@ -50,14 +29,17 @@ export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: Loca
     const pluginMatch = url.pathname.match(/^\/api\/settings\/projects\/([^/]+)\/plugins$/);
     if (request.method === "POST" && pluginMatch) {
       const body = await readBody(request);
-      if (typeof body.plugin_id !== "string" || !BUILTIN_PROJECT_PLUGIN_IDS.includes(body.plugin_id as BuiltinProjectPluginId)) {
+      // Which Plugins exist is a Module fact; HTTP only checks the wire shape and
+      // lets the registry reject an unknown id with its own reason.
+      const pluginId = typeof body.plugin_id === "string" ? body.plugin_id.trim() : "";
+      if (pluginId === "") {
         sendJson(response, 400, { error: L("找不到这个内置插件") });
         return true;
       }
       try {
         const projectId = decodeURIComponent(pluginMatch[1]);
         const plugins = await withMolisWorkProjectCatalog({ homeDirectory }, catalog => catalog.addProjectPlugin({
-          project_id: projectId, plugin_id: body.plugin_id as BuiltinProjectPluginId, actor_id: "web-user",
+          project_id: projectId, plugin_id: pluginId, actor_id: "web-user",
         }));
         sendJson(response, 200, { project_id: projectId, plugins });
       } catch (error) {
@@ -194,30 +176,6 @@ export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: Loca
     }
     if (request.method === "GET" && url.pathname === "/api/settings/diagnostics") {
       sendJson(response, 200, installationDiagnostics(homeDirectory, projectCount));
-      return true;
-    }
-    if (request.method === "POST" && url.pathname === "/api/projects/migrate") {
-      try {
-        const requestInput = webMigrationRequest(await readBody(request));
-        await withMolisWorkProjectCatalog({ homeDirectory }, async (catalog) => {
-          const project = await catalog.migrateLegacyDatabase({
-            legacy_database_path: requestInput.legacyDatabasePath,
-            ...(requestInput.displayName ? { display_name: requestInput.displayName } : {}),
-            actor_id: "web-user",
-          });
-          sendJson(response, 201, {
-            project: projectNavigation(project),
-            project_path: `/projects/${encodeURIComponent(project.project_id)}/`,
-          });
-        });
-      } catch (error) {
-        const message = error instanceof MolisWorkProjectCatalogError
-          ? error.message
-          : error instanceof Error
-            ? `${L("迁移失败：")}${error.message}`
-            : L("迁移失败，请检查来源 DB 后重试");
-        sendJson(response, 400, { error: message });
-      }
       return true;
     }
     return false;

@@ -63,7 +63,7 @@ function createSource(store: LocalProjectDatabase): string {
     description: "Provider-neutral receive-chain fixture",
     status: "active",
     enabled: true,
-    origin: "goalboard",
+    origin: "molis_work",
     config: {},
     schedule: { mode: "manual" },
     connection_ref: "fixture-connection",

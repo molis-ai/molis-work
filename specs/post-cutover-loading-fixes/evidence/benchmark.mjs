@@ -5,7 +5,7 @@ import {performance} from 'node:perf_hooks';
 const {LocalProjectDatabase,GoalProjectApplication,seedDemoBoard,DEMO_BOARD_ID,buildMolisWorkWebView,cachedMolisWorkWebView}=await import('../../../apps/local-host/dist/index.js');
 const {runWithMolisWorkHome}=await import('../../../packages/storage/dist/index.js');
 const home=fs.mkdtempSync(join(tmpdir(),'molis-work-loading-benchmark-'));
-process.env.MOLIS_WORK_SECRET_BACKEND='file';process.env.NODE_ENV='test';process.env.RELAY_DB_PATH=home+'/absent-relay.sqlite';
+process.env.MOLIS_WORK_SECRET_BACKEND='file';process.env.NODE_ENV='test';
 delete process.env.MOLIS_WORK_GITHUB_TOKEN;delete process.env.MOLIS_WORK_GMAIL_ACCESS_TOKEN;
 const dbFile=home+'/fixture.sqlite';if(!fs.existsSync(dbFile))seedDemoBoard(dbFile);
 const db=new LocalProjectDatabase(dbFile);const app=new GoalProjectApplication(db);

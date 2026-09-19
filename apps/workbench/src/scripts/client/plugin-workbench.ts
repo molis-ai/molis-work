@@ -76,7 +76,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     market.querySelector("[data-market-installed]").hidden = installed.childElementCount === 0 || Boolean(query);
     let count = 0;
     market.querySelectorAll("[data-market-plugin]").forEach(card => {
-      const added = addedIds.includes(card.dataset.marketPlugin);
+      const added = addedIds.includes(card.dataset.marketPlugin) || card.dataset.marketPlugin === "shelf";
       card.hidden = (onlyAdded && !added) || !((card.querySelector("h2").textContent + " " + card.querySelector("p").textContent).toLocaleLowerCase().includes(query));
       if (!card.hidden) count++;
       const button = card.querySelector("[data-market-add]");
@@ -136,7 +136,10 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     if (event.target.closest("[data-market-retry]")) { void loadMarket(); return; }
     const scope = event.target.closest("[data-market-scope]");
     if (scope) {
-      market.querySelectorAll("[data-market-scope]").forEach(button => button.setAttribute("aria-pressed", String(button === scope)));
+      market.querySelectorAll("[data-market-scope]").forEach(button => {
+        button.setAttribute("aria-pressed", String(button === scope));
+        button.classList.toggle("is-current", button === scope);
+      });
       filter();
       return;
     }
@@ -189,6 +192,11 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
       if (controller !== artifactRequest) return;
       directory.replaceChildren(...nextDirectory.childNodes); detail.replaceChildren(...nextDetail.childNodes);
       artifactPath = path;
+      const shell = document.querySelector("[data-artifact-stage-shell]");
+      const workspace = document.querySelector("[data-artifact-stage-workspace]");
+      const selected = detail.querySelector("[data-artifact-id]");
+      if (shell) shell.dataset.expanded = selected ? "true" : "false";
+      if (workspace) workspace.hidden = !selected;
       try { sessionStorage.setItem(artifactKey, path); } catch {}
     } catch (error) {
       if (controller.signal.aborted) return;
@@ -200,6 +208,13 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
   document.addEventListener("click", event => {
     const retryButton = event.target.closest("[data-artifact-retry]");
     if (retryButton) { void loadArtifacts(retryButton.dataset.artifactRetry); return; }
+    const collapse = event.target.closest("[data-artifact-collapse]");
+    if (collapse) {
+      event.preventDefault();
+      setSurface("artifacts");
+      void loadArtifacts(route("/artifacts"));
+      return;
+    }
     const link = event.target.closest("a[href]");
     if (!link || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || link.download || link.target) return;
     const url = new URL(link.href);
@@ -207,10 +222,11 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     if (url.origin !== location.origin || !(url.pathname === base || url.pathname.startsWith(base + "/"))) return;
     event.preventDefault();
     if (link.closest("[data-frame-block]")) { event.preventDefault(); return; }
+    if (event.detail > 1) return;
     setSurface("artifacts");
     openTabItem?.("artifacts", url.pathname, link.textContent?.trim());
     void loadArtifacts(url.pathname);
     if (matchMedia("(max-width: 600px)").matches) setMobileView(url.pathname === base ? "tree" : "document");
   });
-  return { open: surface => { if (surface === "market") void loadMarket(); if (surface === "artifacts" && !artifactRequest) void loadArtifacts(); } };
+  return { open: surface => { if (surface === "market") void loadMarket(); if (surface === "artifacts" && !artifactRequest) void loadArtifacts(route("/artifacts")); } };
 }`;

@@ -23,11 +23,36 @@ export {
   VISUAL_FOUNDATION_CLIENT_SCRIPT,
   VISUAL_FOUNDATION_STYLES,
   COSS_CONTROL_STYLES,
+  PRIMITIVE_STYLES,
+  INTERACTION_TEXTURE_STYLES,
+  MICRO_INTERACTION_CLIENT_SCRIPT,
+  MICRO_INTERACTION_STYLES,
   type MolisWorkDensity,
   type MolisWorkTerminalTheme,
   type MolisWorkTheme,
 } from "./visual-foundation.js";
 
 export { ONBOARDING_STYLES } from "./onboarding-styles.js";
+export {
+  TYPEFACE_STYLES,
+  INTER_VARIABLE_ASSET_PATH,
+  NOTO_SANS_SC_ASSET_PATH,
+  INTER_FONT_STACK,
+  interVariableFontFilePath,
+  notoSansScFontFilePath,
+} from "./typeface.js";
 
-export { icon, renderIconSprite, type MolisWorkIcon } from "./icons.js";
+export { icon, renderIconSprite, ICON_LIBRARY, listedIconNames, registeredIconNames, type MolisWorkIcon } from "./icons.js";
+export {
+  MW_CONTENT_MARKS,
+  MW_CONTENT_SURFACES,
+  MW_CONTENT_THEME,
+  MW_HUES,
+  MW_PLUGINS,
+  MW_SURFACES,
+  renderLinearShellTokens,
+  renderPaletteTokens,
+  type MwContentMarkId,
+  type MwHueId,
+} from "./palette.js";
+export * from "./primitives/index.js";

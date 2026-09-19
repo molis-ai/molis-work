@@ -19,9 +19,9 @@ export const THEME_BOOTSTRAP_SCRIPT = `
   let density = "standard";
   let terminalTheme = "auto";
   try {
-    const storedTheme = localStorage.getItem(themeKey) || localStorage.getItem("goalboard:theme");
-    const storedDensity = localStorage.getItem(densityKey) || localStorage.getItem("goalboard:density");
-    const storedTerminalTheme = localStorage.getItem(terminalThemeKey) || localStorage.getItem("goalboard:terminal-theme");
+    const storedTheme = localStorage.getItem(themeKey);
+    const storedDensity = localStorage.getItem(densityKey);
+    const storedTerminalTheme = localStorage.getItem(terminalThemeKey);
     if (storedTheme && validThemes.has(storedTheme)) theme = storedTheme;
     if (storedDensity && validDensities.has(storedDensity)) density = storedDensity;
     if (storedTerminalTheme && validTerminalThemes.has(storedTerminalTheme)) terminalTheme = storedTerminalTheme;
@@ -46,7 +46,7 @@ export const VISUAL_FOUNDATION_CLIENT_SCRIPT = `
   const media = window.matchMedia("(prefers-color-scheme: dark)");
   const readTheme = () => {
     try {
-      const value = localStorage.getItem(themeKey) || localStorage.getItem("goalboard:theme");
+      const value = localStorage.getItem(themeKey);
       return themeOptions.includes(value) ? value : "system";
     } catch {
       return "system";
@@ -54,7 +54,7 @@ export const VISUAL_FOUNDATION_CLIENT_SCRIPT = `
   };
   const readDensity = () => {
     try {
-      const value = localStorage.getItem(densityKey) || localStorage.getItem("goalboard:density");
+      const value = localStorage.getItem(densityKey);
       return densityOptions.includes(value) ? value : "standard";
     } catch {
       return "standard";
@@ -62,7 +62,7 @@ export const VISUAL_FOUNDATION_CLIENT_SCRIPT = `
   };
   const readTerminalTheme = () => {
     try {
-      const value = localStorage.getItem(terminalThemeKey) || localStorage.getItem("goalboard:terminal-theme");
+      const value = localStorage.getItem(terminalThemeKey);
       return terminalThemeOptions.includes(value) ? value : "auto";
     } catch {
       return "auto";
@@ -145,7 +145,7 @@ export const VISUAL_FOUNDATION_CLIENT_SCRIPT = `
     if (destination.pathname === location.pathname && destination.search === location.search && destination.hash) return;
     document.body.dataset.navigationPending = "true";
     anchor.setAttribute("aria-busy", "true");
-  }, true);
+  });
   window.addEventListener("pageshow", () => {
     delete document.body.dataset.navigationPending;
     document.querySelectorAll('a[aria-busy="true"]').forEach((anchor) => anchor.removeAttribute("aria-busy"));

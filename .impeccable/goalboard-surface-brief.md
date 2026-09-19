@@ -44,4 +44,3 @@ border. Generated content, counts, dates, and provider state are not product fac
 Information ownership remains: Connector is the provider capability, Source is
 the concrete configured origin, and `inbox_message` / `feed` are the two Item
 responsibility modes. The user-facing management surface is named “来源与连接”.
-Relay is migration-only and never a runtime dependency.

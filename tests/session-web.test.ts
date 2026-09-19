@@ -18,7 +18,7 @@ import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.j
 
 const TOKEN = "molis-work-session-web-token-0123456789abcdef";
 
-test("project root directory uses one chevron affordance for every navigable module", () => {
+test("plugin rail lists enabled plugins; directory sections stay in the second column", () => {
   const view = {
     snapshot: {
       board: {
@@ -64,31 +64,26 @@ test("project root directory uses one chevron affordance for every navigable mod
       feed_items: [],
       inbox_entries: [],
       runs: [],
-      import_receipts: [],
       contract_migrations: [],
       out_rules: [],
     },
-    relay_import: {
-      path: "",
-      available: false,
-      source_count: 0,
-      item_count: 0,
-      material_count: 0,
-      error: null,
-    },
   } as MolisWorkWebView;
   const html = renderMolisWorkWeb(view);
-  const rootDirectory = html.match(/<section class="desktop-directory-panel desktop-directory-root"[\s\S]*?<\/section>/)?.[0];
-  assert.ok(rootDirectory);
-  for (const label of ["Inbox", "Goals", "Sessions", "Feed", "Artifacts"]) {
-    assert.match(
-      rootDirectory,
-      new RegExp(`<strong>${label}</strong><small>[^<]*</small></span><svg aria-hidden="true"><use href="#icon-chevron-right"></use></svg></button>`),
-    );
+  assert.match(html, /class="[^"]*plugin-rail immersive-plugin-strip"/);
+  assert.match(html, /data-plugin-id="home"/);
+  assert.match(html, /data-plugin-id="market"/);
+  assert.doesNotMatch(html, /data-plugin-section="home"|data-plugin-section="market"/);
+  assert.match(html, /data-plugin-id="goals"/);
+  assert.match(html, /data-plugin-id="sessions"/);
+  assert.doesNotMatch(html, /data-plugin-section="goals"|data-plugin-section="sessions"/);
+  assert.doesNotMatch(html, /data-directory-panel="sessions"|data-directory-open="sessions"/);
+  assert.match(html, /data-session-stage-shell[\s\S]*data-session-stage-chrome[\s\S]*data-session-stage-list/);
+  for (const plugin of ["inbox", "feed", "shelf", "artifacts"]) {
+    assert.match(html, new RegExp(`data-plugin-section="${plugin}"[^>]*data-plugin-expanded="true"`));
+    assert.match(html, new RegExp(`data-plugin-id="${plugin}"`));
   }
-  assert.doesNotMatch(rootDirectory, /<strong>工作目录<\/strong>|data-directory-open="workspaces"/);
-  assert.doesNotMatch(rootDirectory, /<em>\d+<\/em>/);
-  assert.doesNotMatch(rootDirectory, /<em>规划中<\/em>/);
+  assert.doesNotMatch(html, /data-plugin-expand=/);
+  assert.doesNotMatch(html, /desktop-directory-root|data-directory-open="workspaces"/);
 });
 
 test("project operation renderer uses real records or an honest empty state without prototype branches", () => {
@@ -108,15 +103,20 @@ test("project operation renderer uses real records or an honest empty state with
   assert.doesNotMatch(html, /session-add-mode-row/);
   assert.match(html, /data-session-workspace-menu/);
   assert.match(html, /data-session-workspace-custom/);
+  assert.match(html, /data-session-choice-menu/);
+  assert.match(html, /data-session-add-goal\b[^>]*\bhidden\b/);
+  assert.match(html, /data-session-add-runtime\b[^>]*\bhidden\b/);
   assert.match(html, /OpenCode/);
   assert.match(html, /Pi Agent/);
   assert.doesNotMatch(html, /option value="running"|option value="failed"/);
   assert.doesNotMatch(html, /codex-0193f6c2|\/Users\/demo|可交互原型|data-live-session|data-operation-archive/);
   assert.doesNotMatch(PROJECT_OPERATIONS_CLIENT_SCRIPT, /dataset\.liveSession|data-operation-archive/);
-  assert.match(PROJECT_OPERATIONS_STYLES, /\.project-session-document \.goal-focus-aside \{ display: contents; \}/);
-  assert.match(PROJECT_OPERATIONS_STYLES, /\.project-session-document \.goal-focus-main \{ order: 1; \}/);
-  assert.match(PROJECT_OPERATIONS_STYLES, /\.project-session-document \.operation-current-context \{ order: 2; \}/);
-  assert.match(PROJECT_OPERATIONS_STYLES, /\.project-session-document \.operation-goal-history \{ order: 3; \}/);
+  assert.match(PROJECT_OPERATIONS_STYLES, /\.session-stage-list \.goal-collection-fold > \.session-stage-row \{ padding-left: 24px; \}/);
+  assert.match(PROJECT_OPERATIONS_STYLES, /body\.immersive-workbench \.session-stage-shell\[data-expanded="true"\] \{[\s\S]*grid-template-columns: var\(--tree-width, var\(--immersive-sidebar-width\)\) minmax\(0, 1fr\)/);
+  assert.match(PROJECT_OPERATIONS_STYLES, /width: var\(--tree-width, var\(--immersive-sidebar-width\)\); height: auto; overflow: auto;/);
+  assert.match(PROJECT_OPERATIONS_STYLES, /\.session-rail \{/);
+  assert.match(PROJECT_OPERATIONS_STYLES, /@container session-stage \(max-width: 719px\)/);
+  assert.doesNotMatch(PROJECT_OPERATIONS_STYLES, /\.project-session-document \.goal-focus-aside \{ display: contents; \}/);
   assert.match(PROJECT_OPERATIONS_STYLES, /\.session-content-state > div:only-child \{ grid-column: 1 \/ -1;/);
   assert.match(PROJECT_OPERATIONS_STYLES, /\.session-timeline-event \{[^}]*grid-template-columns:/);
   assert.match(PROJECT_OPERATIONS_STYLES, /data-desktop-surface="sessions"[^}]*--desktop-project-header-height: var\(--desktop-titlebar-height\)/);
@@ -139,6 +139,8 @@ test("project Sessions render real Registry records and content/resume APIs stay
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const first = await catalog.createProject({ display_name: "Session 项目 A", actor_id: "user" });
   const second = await catalog.createProject({ display_name: "Session 项目 B", actor_id: "user" });
+  catalog.addProjectPlugin({ project_id: first.project_id, plugin_id: "sessions", actor_id: "user" });
+  catalog.addProjectPlugin({ project_id: second.project_id, plugin_id: "sessions", actor_id: "user" });
   catalog.close();
 
   const registry = await openWorkSessionRegistry({ homeDirectory: home });
@@ -162,7 +164,7 @@ test("project Sessions render real Registry records and content/resume APIs stay
   });
   registry.appendEvent({
     session_id: sessionA.session_id,
-    source: "goalboard_tui",
+    source: "molis_work_tui",
     kind: "terminal_output",
     source_id: "panel-web-a:output:0",
     occurred_at: "2026-08-30T10:01:00.000Z",
@@ -223,7 +225,7 @@ test("project Sessions render real Registry records and content/resume APIs stay
     assert.equal(contentResponse.status, 200);
     const content = await contentResponse.json() as { content_mode: string; events: Array<{ content: string; source: string }> };
     assert.equal(content.content_mode, "native");
-    assert.deepEqual(content.events.map((event) => event.source), ["runtime_native", "goalboard_tui"]);
+    assert.deepEqual(content.events.map((event) => event.source), ["runtime_native", "molis_work_tui"]);
     assert.match(content.events.map((event) => event.content).join("\n"), /NATIVE-WEB-CONTENT-MARKER[\s\S]*TUI-WEB-CONTENT-MARKER/);
 
     const crossProject = await fetch(`${origin}${secondPrefix}/api/sessions/${encodeURIComponent(sessionA.session_id)}/content`);

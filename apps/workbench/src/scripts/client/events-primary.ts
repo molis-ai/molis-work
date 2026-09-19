@@ -16,27 +16,50 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
         if (factorError) factorError.hidden = true;
       }
     });
-    treeResizer?.addEventListener("pointerdown", (event) => {
-      if (event.button !== 0) return;
-      if (document.body.classList.contains("immersive-workbench") ? matchMedia("(max-width: 600px)").matches : matchMedia("(max-width: 760px)").matches && !workspace.classList.contains("is-desktop-tui")) return;
-      resizeStartX = event.clientX;
+    const treeResizeBlocked = () => document.body.classList.contains("immersive-workbench")
+      ? matchMedia("(max-width: 600px)").matches
+      : matchMedia("(max-width: 760px)").matches && !workspace.classList.contains("is-desktop-tui");
+    const beginTreeResize = (clientX) => {
+      resizeStartX = clientX;
       resizeStartWidth = treePane.getBoundingClientRect().width;
       treeResizer.classList.add("is-dragging");
-      treeResizer.setPointerCapture(event.pointerId);
-      event.preventDefault();
-    });
-    treeResizer?.addEventListener("pointermove", (event) => {
-      if (!treeResizer.hasPointerCapture(event.pointerId)) return;
-      setTreeWidth(resizeStartWidth + event.clientX - resizeStartX);
-    });
-    const finishTreeResize = (event) => {
-      if (treeResizer?.hasPointerCapture(event.pointerId)) treeResizer.releasePointerCapture(event.pointerId);
+    };
+    const stopTreeResize = () => {
       treeResizer?.classList.remove("is-dragging");
       saveUiState();
     };
-    treeResizer?.addEventListener("pointerup", finishTreeResize);
-    treeResizer?.addEventListener("pointercancel", finishTreeResize);
-    treeResizer?.addEventListener("dblclick", () => setTreeWidth(innerWidth <= 1050 ? 256 : 280));
+    treeResizer?.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0 || treeResizeBlocked()) return;
+      beginTreeResize(event.clientX);
+      const pointerId = event.pointerId;
+      const move = (moveEvent) => {
+        if (moveEvent.pointerId !== pointerId) return;
+        setTreeWidth(resizeStartWidth + moveEvent.clientX - resizeStartX);
+      };
+      const end = (endEvent) => {
+        if (endEvent.pointerId !== pointerId) return;
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", end);
+        window.removeEventListener("pointercancel", end);
+        stopTreeResize();
+      };
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", end);
+      window.addEventListener("pointercancel", end);
+    });
+    treeResizer?.addEventListener("mousedown", (event) => {
+      if (event.button !== 0 || treeResizeBlocked()) return;
+      if (!treeResizer.classList.contains("is-dragging")) beginTreeResize(event.clientX);
+      const move = (moveEvent) => setTreeWidth(resizeStartWidth + moveEvent.clientX - resizeStartX);
+      const end = () => {
+        window.removeEventListener("mousemove", move);
+        window.removeEventListener("mouseup", end);
+        if (treeResizer.classList.contains("is-dragging")) stopTreeResize();
+      };
+      window.addEventListener("mousemove", move);
+      window.addEventListener("mouseup", end);
+    });
+    treeResizer?.addEventListener("dblclick", () => setTreeWidth(innerWidth <= 1050 ? 220 : 240));
     treeResizer?.addEventListener("keydown", (event) => {
       if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
       event.preventDefault();
@@ -159,11 +182,11 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
       const feedFilterOption = target.closest("[data-feed-filter-option]");
       if (feedFilterOption) {
         const control = {
-          source: feedSourceFilter,
-          type: feedTypeFilter,
-          time: feedTimeFilter,
-          status: feedStatusFilter,
-          sort: feedSort,
+          source: document.querySelector("[data-feed-source-filter]"),
+          type: document.querySelector("[data-feed-type-filter]"),
+          time: document.querySelector("[data-feed-time-filter]"),
+          status: document.querySelector("[data-feed-status-filter]"),
+          sort: document.querySelector("[data-feed-sort]"),
         }[feedFilterOption.dataset.feedFilterOption];
         if (control) control.value = feedFilterOption.dataset.feedFilterValue || "";
         syncFeedFilterUi();
@@ -171,11 +194,16 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
         return;
       }
       if (target.closest("[data-feed-filter-reset]")) {
-        if (feedSourceFilter) feedSourceFilter.value = "all";
-        if (feedTypeFilter) feedTypeFilter.value = "all";
-        if (feedTimeFilter) feedTimeFilter.value = "all";
-        if (feedStatusFilter) feedStatusFilter.value = "active";
-        if (feedSort) feedSort.value = "newest";
+        const source = document.querySelector("[data-feed-source-filter]");
+        const type = document.querySelector("[data-feed-type-filter]");
+        const time = document.querySelector("[data-feed-time-filter]");
+        const status = document.querySelector("[data-feed-status-filter]");
+        const sort = document.querySelector("[data-feed-sort]");
+        if (source) source.value = "all";
+        if (type) type.value = "all";
+        if (time) time.value = "all";
+        if (status) status.value = "active";
+        if (sort) sort.value = "newest";
         syncFeedFilterUi();
         filterFeedItems(false);
         return;
@@ -391,7 +419,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
           ? requestedSource
           : document.querySelector('[data-source-kind="' + CSS.escape(openPrototypeSource.dataset.openSourceKind || "") + '"]')?.dataset.feedTask || document.querySelector('[data-source-kind="' + CSS.escape(openPrototypeSource.dataset.openSourceKind || "") + '"]')?.dataset.sourceEntryId;
         setDesktopDirectory("feed", true, false, openPrototypeSource);
-        if (!openWorkbenchSurface("feed")) setDesktopWorkSurface("feed", true, false);
+        if (!openDirectorySurface("feed", undefined, undefined, event)) setDesktopWorkSurface("feed", true, false);
         setFeedTask(fallbackSource || requestedSource || "all");
         return;
       }
@@ -479,8 +507,11 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
       const feedChoice = target.closest("[data-feed-choose-kind], [data-feed-connect-kind]");
       if (feedChoice) { showFeedSetup("setup", feedChoice.dataset.feedChooseKind || feedChoice.dataset.feedConnectKind); return; }
       const feedConfig = target.closest("[data-feed-task-config-open]");
-      if (feedConfig) { showFeedSetup("config", feedConfig.dataset.feedTaskConfigOpen); return; }
-      if (target.closest("[data-feed-advanced-open]")) { showFeedSetup("advanced"); return; }
+      if (feedConfig) {
+        event.stopPropagation();
+        showFeedSetup("config", feedConfig.dataset.feedTaskConfigOpen);
+        return;
+      }
       if (target.closest("[data-feed-sources-open], [data-feed-setup-back]")) { showFeedSetup(); return; }
       if (target.closest("[data-feed-sources-close]")) {
         const config = feedSourcesDialog?.querySelector("[data-feed-task-config]:not([hidden])");
@@ -509,6 +540,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
           inlineError.textContent = "";
         }
         setFeedSourceFeedback(L("正在添加来源…"));
+        let phase = "source";
         try {
           let sourceId = form?.dataset.createdSourceId;
           if (!sourceId) {
@@ -517,19 +549,28 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
             if (form) form.dataset.createdSourceId = sourceId;
           }
           const minutes = Number(form?.querySelector("[data-feed-create-frequency]")?.value || 0);
+          phase = "schedule";
           if (minutes) await feedApi("/api/feed/sources/" + encodeURIComponent(sourceId) + "/schedule", "PUT", { mode: "interval", enabled: true, interval_minutes: minutes });
+          phase = "out-rule";
+          await saveFeedAddOutRule(form, sourceId);
           selectedFeedTask = sourceId;
           document.dispatchEvent(new CustomEvent("workbench-feed-task", { detail: { taskId: sourceId } }));
           saveUiState();
           location.reload();
         } catch (error) {
-          const message = form?.dataset.createdSourceId
-            ? L("任务已创建，拉取计划未保存。请重试，不会重复创建任务。") + " " + error.message
+          const retryCopy = phase === "out-rule"
+            ? L("任务已创建，捕捉规则未保存。请重试，不会重复创建任务。")
+            : form?.dataset.createdSourceId
+              ? L("任务已创建，拉取计划未保存。请重试，不会重复创建任务。")
+              : "";
+          const message = retryCopy
+            ? retryCopy + " " + error.message
             : error.message || L("添加来源失败");
           if (form?.dataset.createdSourceId) {
             form.querySelectorAll("input, [data-feed-rss-definition]").forEach(input => input.disabled = true);
             feedSourcesDialog.querySelector("[data-feed-setup-back]").hidden = true;
-            sourceRegister.textContent = L("重试保存计划");
+            sourceRegister.textContent = phase === "out-rule" ? L("重试保存捕捉规则") : L("重试保存计划");
+            form.querySelectorAll("[data-feed-add-out-rule-name], [data-feed-add-out-rule-contains]").forEach(input => input.disabled = false);
           }
           if (inlineError) {
             inlineError.textContent = message;
@@ -542,12 +583,19 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
       }
       const createOutRule = target.closest("[data-feed-out-rule-create]");
       if (createOutRule) {
-        const name = feedSourcesDialog?.querySelector("[data-feed-out-rule-name]")?.value;
-        const contains = feedSourcesDialog?.querySelector("[data-feed-out-rule-contains]")?.value;
+        const section = createOutRule.closest("[data-feed-out-rules]");
+        const sourceId = section?.dataset.feedOutRules;
+        const name = section?.querySelector("[data-feed-out-rule-name]")?.value?.trim();
+        const contains = section?.querySelector("[data-feed-out-rule-contains]")?.value?.trim();
+        if (!sourceId) return;
+        if (!name && !contains) {
+          setFeedSourceFeedback(L("请填写规则名称或包含关键字"), true);
+          return;
+        }
         createOutRule.disabled = true;
         setFeedSourceFeedback(L("正在添加捕捉规则…"));
         try {
-          await feedApi("/api/feed/out-rules", "POST", { name, contains });
+          await feedApi("/api/feed/out-rules", "POST", { name: name || contains, contains, source_id: sourceId });
           saveUiState();
           location.reload();
         } catch (error) {

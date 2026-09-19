@@ -16,35 +16,54 @@ test("Project navigation preserves the fixed Goal workspace, terminal instance, 
   assert.equal(await evaluate("document.querySelector('[data-goal-canvas-shell]').hidden"), true);
   assert.deepEqual(await evaluate("window.__uiErrors"), []);
   assert.equal(await evaluate("document.querySelector('#goal-tree-pane').dataset.desktopDirectory"), "root");
+  const homeRail = await evaluate<Record<string, string>>(`(() => {
+    const out = {};
+    for (const node of document.querySelectorAll('.plugin-rail-items [data-plugin-id]')) {
+      const svg = node.querySelector('svg');
+      out[node.dataset.pluginId] = svg ? getComputedStyle(svg).color : '';
+    }
+    return out;
+  })()`);
+  assert.ok(homeRail.goals && homeRail.feed && homeRail.sessions && homeRail.inbox && homeRail.market, "demo rail has work plugins and market: " + JSON.stringify(homeRail));
+  assert.notEqual(homeRail.goals, homeRail.home);
+  assert.notEqual(homeRail.goals, homeRail.feed);
+  assert.notEqual(homeRail.sessions, homeRail.inbox);
+  assert.notEqual(homeRail.goals, homeRail.market);
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor("document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true'");
   await waitFor("document.querySelector('[data-plugin-strip] [data-plugin-id=goals]').getAttribute('aria-current') === 'page'");
-  const goalId = await evaluate<string>("document.querySelector('[data-select-goal]').dataset.selectGoal");
+  await click("[data-board-view-tab=canvas]");
+  await waitFor("document.querySelector('[data-goal-canvas-shell]')?.dataset.boardView === 'canvas'");
+  await waitFor("document.querySelector('[data-graph-node][data-goal-id] [data-graph-open]')");
   const camera = await evaluate("document.querySelector('[data-graph-stage]').getAttribute('style')");
-  await waitFor("Boolean(document.querySelector(" + JSON.stringify('[data-graph-node][data-goal-id="' + goalId + '"] [data-graph-open]') + "))");
-  await click('[data-graph-node][data-goal-id="' + goalId + '"] [data-graph-open]');
+  const goalId = await evaluate<string>(`(() => {
+    const visible = [...document.querySelectorAll('[data-graph-node][data-goal-id]')].find((node) => {
+      const rect = node.getBoundingClientRect();
+      return node.querySelector('[data-graph-open]') && rect.width > 8 && rect.height > 8
+        && rect.top >= 0 && rect.left >= 0 && rect.bottom <= innerHeight && rect.right <= innerWidth;
+    });
+    const node = visible || document.querySelector('[data-graph-node].is-selected') || document.querySelector('[data-graph-node][data-goal-id]');
+    node.querySelector('[data-graph-open]').click();
+    return node.dataset.goalId;
+  })()`);
   await waitFor("document.querySelector('[data-goal-node-workspace]')?.dataset.expandedGoal === " + JSON.stringify(goalId));
   assert.equal(await evaluate("document.querySelector('[data-goal-node-workspace]').dataset.workMode"), "terminal");
   assert.equal(await evaluate("document.querySelector('[data-goal-work-mode=conversation]').disabled"), true);
-  await click('[data-goal-work-mode="conversation"]');
   assert.equal(await evaluate("document.querySelector('[data-goal-node-workspace]').dataset.workMode"), "terminal");
   await evaluate("window.__terminalInstance=document.querySelector('[data-tui-terminal]')");
-  await click('[data-goal-work-mode="terminal"]');
   assert.equal(await evaluate("document.querySelector('[data-tui-pane]').hidden"), false);
   await click('[data-plugin-strip] [data-plugin-id="sessions"]');
-  assert.equal(await evaluate("document.body.dataset.desktopSurface"), "sessions");
-  assert.equal(await evaluate("document.querySelector('[data-directory-panel=sessions]').hidden"), false);
-  assert.equal(await evaluate("document.querySelector('[data-work-surface=sessions]').hidden"), false);
+  await waitFor("document.body.dataset.desktopSurface === 'sessions' && document.querySelector('[data-work-surface=sessions]:not([hidden])') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
+  assert.equal(await evaluate("document.querySelector('[data-directory-panel=sessions]')"), null);
+  assert.equal(await evaluate("document.querySelector('[data-session-stage-list]') != null"), true);
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
-  assert.equal(await evaluate("document.body.dataset.desktopSurface"), "goal");
-  assert.equal(await evaluate("document.querySelector('[data-goal-node-workspace]').dataset.expandedGoal"), "");
-  assert.equal(await evaluate("document.querySelector('[data-goal-node-workspace]').hidden"), true);
-  await click('[data-graph-node][data-goal-id="' + goalId + '"] [data-graph-open]');
-  await waitFor("document.querySelector('[data-goal-node-workspace]')?.dataset.expandedGoal === " + JSON.stringify(goalId));
+  await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('[data-goal-node-workspace]')?.dataset.expandedGoal === " + JSON.stringify(goalId) + " && document.querySelector('[data-goal-node-workspace]')?.hidden === false");
+  assert.equal(await evaluate("document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')"), true);
+  assert.equal(await evaluate("document.querySelector('#goal-tree-pane').dataset.desktopDirectory"), "root");
   assert.equal(await evaluate("document.querySelector('[data-tui-pane]').hidden"), false);
   assert.equal(await evaluate("window.__terminalInstance===document.querySelector('[data-tui-terminal]')"), true);
   assert.equal(await evaluate("document.querySelector('[data-plugin-heading]').hidden"), false);
-  assert.equal(await evaluate("document.querySelector('#goal-tree-pane').dataset.desktopDirectory"), "goals");
+  assert.equal(await evaluate("document.querySelector('#goal-tree-pane').dataset.desktopDirectory"), "root");
   assert.equal(await evaluate("document.querySelector('[data-goal-node-workspace]').hidden"), false);
   await click('[data-goal-collapse]');
   assert.equal(await evaluate("document.querySelector('[data-graph-stage]').getAttribute('style')"), camera);
@@ -53,8 +72,9 @@ test("Project navigation preserves the fixed Goal workspace, terminal instance, 
   await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
   await click('[data-directory-show]');
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
-  assert.equal(await evaluate("document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')"), true);
-  assert.equal(await evaluate("document.querySelector('[data-plugin-stage]').inert"), true);
+  await waitFor("!document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
+  await evaluate("document.querySelector('[data-board-view-tab=list]')?.click()");
+  await waitFor("document.querySelector('[data-goal-canvas-shell]')?.dataset.boardView === 'list'");
   await click('[data-select-goal="' + goalId + '"]');
   await waitFor("!document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')");
   assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
@@ -62,7 +82,7 @@ test("Project navigation preserves the fixed Goal workspace, terminal instance, 
 });
 
 test("Bundled market adds to the selected project and Artifact versions stay in the current workbench", { timeout: 60_000 }, async t => {
-  const browser = await openGoalBrowser(t, true);
+  const browser = await openGoalBrowser(t, "user");
   if (!browser) return;
   const { store, projectId, command, sessionId, evaluate, waitFor, navigate, click, origin } = browser;
   const app = new GoalProjectApplication(store);
@@ -76,8 +96,22 @@ test("Bundled market adds to the selected project and Artifact versions stay in 
   const prefix = "/projects/" + projectId;
   await navigate(() => command("Page.navigate", { url: origin + prefix + "/" }, sessionId));
   assert.equal(await evaluate("document.querySelector('[data-plugin-strip] [data-plugin-id=artifacts]')"), null);
-  assert.equal(await evaluate("document.querySelector('[data-plugin-strip] [data-plugin-id]:last-child')?.dataset.pluginId"), "market");
+  assert.equal(await evaluate("[...document.querySelectorAll('.plugin-rail-items [data-plugin-id]')].at(-1)?.dataset.pluginId"), "market");
   assert.equal(await evaluate("document.querySelector('.personal-sidebar-footer [data-work-surface-open=market]')"), null);
+  const railColors = await evaluate<{ current: string; idle: string; market: string; idleId: string }>(`(() => {
+    const items = [...document.querySelectorAll('.plugin-rail-items [data-plugin-id]')].map((node) => ({
+      id: node.dataset.pluginId,
+      current: node.getAttribute('aria-current') === 'page',
+      color: getComputedStyle(node.querySelector('svg')).color,
+    }));
+    const current = items.find((item) => item.current);
+    const idle = items.find((item) => !item.current && item.id !== 'market');
+    const market = items.find((item) => item.id === 'market');
+    return { current: current?.color || '', idle: idle?.color || '', idleId: idle?.id || '', market: market?.color || '' };
+  })()`);
+  assert.ok(railColors.idle && railColors.current && railColors.market, "rail has current, idle and market icons: " + JSON.stringify(railColors));
+  assert.notEqual(railColors.idle, railColors.current, "idle " + railColors.idleId + " keeps a different identity colour from the current plugin");
+  assert.notEqual(railColors.idle, railColors.market, "the market plus stays faint, not a work-plugin hue");
   const otherId = await evaluate<string>(`(async()=>{const r=await fetch('/api/settings/projects',{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({display_name:'另一个项目',user_confirmed:true})});if(!r.ok)throw new Error(await r.text());return (await r.json()).project.project_id;})()`);
   await click('[data-work-surface-open="market"]');
   await waitFor("!document.querySelector('[data-market-project]').disabled");
@@ -105,14 +139,15 @@ test("Bundled market adds to the selected project and Artifact versions stay in 
   assert.ok(await evaluate("Boolean(document.querySelector('[data-plugin-strip] [data-plugin-id=feed]'))"));
   assert.ok(await evaluate("Boolean(document.querySelector('[data-plugin-strip] [data-plugin-id=inbox]'))"));
   await click('[data-plugin-strip] [data-plugin-id="inbox"]');
-  await waitFor("document.body.dataset.desktopSurface === 'inbox' && document.querySelector('[data-directory-panel=inbox]:not([hidden])')");
-  assert.match(await evaluate<string>("document.querySelector('[data-inbox-empty]')?.textContent || ''"), /现在没有需要你介入的事项/);
+  await waitFor("document.body.dataset.desktopSurface === 'inbox' && document.querySelector('[data-inbox-stage-shell]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
+  assert.match(await evaluate<string>("document.querySelector('[data-inbox-stage-group-empty]')?.textContent || document.querySelector('[data-inbox-detail-empty]')?.textContent || ''"), /现在没有需要你介入的事项/);
   assert.equal(await evaluate("document.querySelector('[data-feed-views]')"), null);
   await click('[data-plugin-strip] [data-plugin-id="feed"]');
   await waitFor("document.body.dataset.desktopSurface === 'feed' && Boolean(document.querySelector('[data-feed-stage-directory]'))");
   assert.equal(await evaluate("document.querySelector('[data-feed-views]')"), null);
   assert.equal(await evaluate("document.querySelector('#goal-tree-pane')?.dataset.desktopDirectory"), "root");
-  assert.ok(await evaluate("Boolean(document.querySelector('[data-feed-task=all]'))"));
+  assert.ok(await evaluate("Boolean(document.querySelector('[data-feed-add-toggle]'))"));
+  assert.equal(await evaluate("document.querySelector('#goal-tree-pane [data-feed-task=all]')"), null);
   assert.equal(await evaluate("document.querySelector('[data-feed-list]')?.closest('#goal-tree-pane')"), null);
 });
 
@@ -125,16 +160,25 @@ test("Project entry lands at home, while refresh preserves work and Goal links r
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor("document.body.dataset.desktopSurface === 'goal'");
   await waitFor("document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true'");
-  const goalId = await evaluate<string>("document.querySelector('[data-select-goal]').dataset.selectGoal");
-  await waitFor("Boolean(document.querySelector(" + JSON.stringify('[data-graph-node][data-goal-id="' + goalId + '"] [data-graph-open]') + "))");
-  await click('[data-graph-node][data-goal-id="' + goalId + '"] [data-graph-open]');
+  await evaluate("document.querySelector('[data-goal-collapse]')?.click(); document.querySelector('[data-board-view-tab=canvas]')?.click()");
+  await waitFor("document.querySelector('[data-goal-canvas-shell]')?.dataset.boardView === 'canvas' && document.querySelector('[data-goal-node-workspace]')?.hidden !== false");
+  await waitFor("document.querySelector('[data-graph-node][data-goal-id] [data-graph-open]')");
+  const goalId = await evaluate<string>(`(() => {
+    const visible = [...document.querySelectorAll('[data-graph-node][data-goal-id]')].find((node) => {
+      const rect = node.getBoundingClientRect();
+      return node.querySelector('[data-graph-open]') && rect.width > 8 && rect.height > 8
+        && rect.top >= 0 && rect.left >= 0 && rect.bottom <= innerHeight && rect.right <= innerWidth;
+    });
+    const node = visible || document.querySelector('[data-graph-node].is-selected') || document.querySelector('[data-graph-node][data-goal-id]');
+    node.querySelector('[data-graph-open]').click();
+    return node.dataset.goalId;
+  })()`);
   await waitFor("!document.querySelector('[data-goal-node-workspace]').hidden");
   await reloadPage();
-  await waitFor("document.body.dataset.desktopSurface === 'goal'");
-  assert.equal(await evaluate("document.querySelector('[data-goal-node-workspace]').hidden"), true);
+  await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('[data-goal-node-workspace]')?.hidden === false");
   await navigate(() => command("Page.navigate", { url: origin + "/goals/" + encodeURIComponent(goalId) }, sessionId));
-  await waitFor("document.querySelector('[data-goal-node-workspace]').dataset.expandedGoal === " + JSON.stringify(goalId));
-  assert.equal(await evaluate("document.querySelector('[data-goal-node-workspace]').hidden"), false);
+  await waitFor("document.querySelector('[data-goal-node-workspace]')?.dataset.expandedGoal === " + JSON.stringify(goalId) + " && document.querySelector('[data-goal-node-workspace]')?.hidden === false");
+  assert.equal(await evaluate("document.querySelector('[data-goal-frame-surface]')?.hidden !== false || document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal !== " + JSON.stringify(goalId)), true);
   await click('[data-plugin-strip] [data-plugin-id="home"]');
   assert.equal(await evaluate("document.body.dataset.desktopSurface"), "home");
 });

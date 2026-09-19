@@ -9,10 +9,12 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 test("refreshing create choices preserves the unsaved draft, selected relations and text cursor without creating a Goal", { timeout: 60_000 }, async t => {
   const browser = await openGoalBrowser(t);
   if (!browser) return;
-  const { store, origin, sessionId, command, evaluate, waitFor, click, navigate } = browser;
+  const { store, origin, sessionId, command, evaluate, waitFor, click, navigate, showGoalStageList } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/goals/RELEASE" }, sessionId));
-  await click("[data-open-create]");
+  await waitFor("document.querySelector('[data-goal-canvas-shell]')");
+  await showGoalStageList();
+  await click("[data-goal-stage-chrome] [data-open-create]");
   await waitFor("document.activeElement.name === 'title'");
   await evaluate(`(() => {
     const form = document.querySelector('[data-create-form]');
@@ -55,7 +57,7 @@ test("refreshing create choices preserves the unsaved draft, selected relations 
 test("Goal dialogs create once after retry, cancel without writes, and trash/restore the same Goal with history", { timeout: 60_000 }, async t => {
   const browser = await openGoalBrowser(t);
   if (!browser) return;
-  const { store, origin, before, sessionId, command, evaluate, waitFor, click, navigate, reloadPage } = browser;
+  const { store, origin, before, sessionId, command, evaluate, waitFor, click, navigate, reloadPage, showGoalStageList } = browser;
   const dom = (selector: string) => "document.querySelector(" + JSON.stringify(selector) + ")";
   const goalId = "DIALOG-BROWSER";
   const current = () => store.snapshot(DEMO_BOARD_ID);
@@ -65,7 +67,8 @@ test("Goal dialogs create once after retry, cancel without writes, and trash/res
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/goals/RELEASE" }, sessionId));
   await waitFor(dom("[data-open-create]"));
-  await click("[data-open-create]");
+  await showGoalStageList();
+  await evaluate("document.querySelector('[data-goal-stage-chrome] [data-open-create]')?.click()");
   await waitFor(dom("[data-create-dialog]") + ".open");
   await waitFor("document.activeElement.name === 'title'");
   const values = { goal_id: goalId, title: '新建 "<safe>', priority: "67", outcome: "A recoverable result", why: "Keep user history",
@@ -136,9 +139,9 @@ test("Goal dialogs create once after retry, cancel without writes, and trash/res
   assert.equal(goal().title, saved.title);
   assert.equal(goal().created_at, saved.created_at);
   await reloadPage();
-  await waitFor(dom("[data-open-goal-restore]"));
-  await click("[data-open-goal-restore]");
-  assert.equal(await evaluate(dom("[data-goal-trash-title]") + ".textContent"), "恢复 Goal");
+  await waitFor("document.querySelector('.trash-goal-panel--restore [data-open-goal-restore]')");
+  await evaluate("document.querySelector('.trash-goal-panel--restore [data-open-goal-restore]')?.click()");
+  await waitFor("document.querySelector('[data-goal-trash-dialog]')?.open === true && document.querySelector('[data-goal-trash-title]')?.textContent === '恢复 Goal'");
   await evaluate(dom(reason) + ".value='Restore the same Goal'");
   await navigate(() => click(trashSubmit));
   await waitFor(dom('[data-goal-view="' + goalId + '"]'));

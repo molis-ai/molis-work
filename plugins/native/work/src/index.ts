@@ -31,3 +31,4 @@ export { buildWorkSessionView, type WorkSessionViewInput } from "./ui/read-model
 export { PROJECT_OPERATIONS_STYLES } from "./ui/styles.js";
 export { PROJECT_OPERATIONS_CLIENT_SCRIPT } from "./ui/browser.js";
 export type { WorkUiModel, WorkUiSurface, ProjectOperationsProject, ProjectOperationsSlice, ProjectOperationsData, ProjectSessionRecord, ProjectWorkspaceRecord } from "./ui/types.js";
+export { WORK_PLUGIN_ID, WORK_PROJECT_PLUGIN_ID, workManifest } from "./manifest.js";

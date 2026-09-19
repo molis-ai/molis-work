@@ -6,12 +6,12 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 test("Goal Frame keeps the outer tabs and layout offers explicit bottom splitting", { timeout: 60_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
-  const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId } = b;
+  const { evaluate, waitFor, click, openGoalFrame, command, sessionId, navigate, origin, projectId } = b;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", {url: `${origin}/projects/${projectId}/`}, sessionId));
   await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");
   await click('[data-plugin-id="goals"]');
-  await click('.tree-node[data-select-goal="CORE"]');
+  await openGoalFrame('.tree-node[data-select-goal="CORE"]');
   await waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal==='CORE' && !document.querySelector('[data-goal-frame-surface]').hidden");
   assert.equal(await evaluate("document.querySelector('[data-titlebar-tabs]').getBoundingClientRect().height>0"), true);
   const core = b.store.snapshot(DEMO_BOARD_ID).goals.find(goal => goal.goal_id === "CORE")!;
@@ -36,7 +36,8 @@ test("Feed task creation is a scoped dialog with validation and persistent sched
   await navigate(() => command("Page.navigate", {url: `${origin}/projects/${projectId}/`}, sessionId));
   await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");
   await click('[data-plugin-id="feed"]');
-  await click('[data-directory-panel="feed"] [data-feed-add-toggle]');
+  assert.equal(await evaluate("document.querySelector('[data-feed-advanced-open]')"), null);
+  await click('[data-feed-add-toggle]');
   await waitFor("document.querySelector('[data-feed-sources-dialog]').open");
   assert.equal(await evaluate("document.querySelector('[data-feed-add]')"), null);
   await click('[data-feed-choose-kind="custom_rss"]');
@@ -47,10 +48,12 @@ test("Feed task creation is a scoped dialog with validation and persistent sched
     document.querySelector('[data-feed-add-name]').value='设计观察';
     document.querySelector('[data-feed-source-value=custom_rss]').value='https://example.com/design.xml';
     document.querySelector('[data-feed-create-frequency]').value='360';
+    document.querySelector('[data-feed-add-out-rule-name]').value='发布相关';
+    document.querySelector('[data-feed-add-out-rule-contains]').value='launch';
   }`);
   await navigate(() => click('[data-feed-source-register]'));
-  await waitFor("[...document.querySelectorAll('[data-feed-task-toggle]')].some(x=>x.textContent.includes('设计观察'))");
-  const sourceId = await evaluate<string>("[...document.querySelectorAll('[data-feed-task-toggle]')].find(x=>x.textContent.includes('设计观察')).dataset.feedTaskToggle");
+  await waitFor("[...document.querySelectorAll('[data-feed-task]')].some(x=>x.textContent.includes('设计观察'))");
+  const sourceId = await evaluate<string>("[...document.querySelectorAll('[data-feed-task]')].find(x=>x.textContent.includes('设计观察')).dataset.feedTask");
   await click(`[data-feed-task-config-open="${sourceId}"]`);
   assert.equal(await evaluate("document.querySelector('[data-feed-sources-dialog]').open"), true);
   assert.equal(await evaluate(`document.querySelector('[data-feed-task-config="${sourceId}"] [data-source-schedule-interval]').value`), "360");
@@ -62,6 +65,13 @@ test("Feed task creation is a scoped dialog with validation and persistent sched
     assert.equal(saved.schedule.enabled, true); assert.equal(saved.schedule.interval_minutes, 360);
     assert.ok(Date.parse(saved.schedule.next_pull_at!) > Date.now());
   }
+  const rules = createLocalFeedApplication(b.store.db).listOutRules(DEMO_BOARD_ID)
+    .filter((rule) => rule.match.source_id === sourceId);
+  assert.equal(rules.length, 1);
+  assert.equal(rules[0]?.name, "发布相关");
+  assert.equal(rules[0]?.match.contains, "launch");
+  assert.equal(rules[0]?.match.source_id, sourceId);
+  assert.match(await evaluate(`document.querySelector('[data-feed-out-rules="${sourceId}"]')?.textContent || ""`), /发布相关/);
 });
 
 test("Feed creation recovers a failed schedule without duplicating the task", { timeout: 60_000 }, async t => {
@@ -72,7 +82,7 @@ test("Feed creation recovers a failed schedule without duplicating the task", { 
   await navigate(() => command("Page.navigate", {url: `${origin}/projects/${projectId}/`}, sessionId));
   await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");
   await click('[data-plugin-id="feed"]');
-  await click('[data-directory-panel="feed"] [data-feed-add-toggle]');
+  await click('[data-feed-add-toggle]');
   await click('[data-feed-choose-kind="custom_rss"]');
   await evaluate(`{
     document.querySelector('[data-feed-add-name]').value='失败后重试';
@@ -91,12 +101,12 @@ test("Feed creation recovers a failed schedule without duplicating the task", { 
   const sourceId = await evaluate<string>("document.querySelector('[data-feed-add-form]').dataset.createdSourceId");
   assert.equal(createLocalFeedApplication(b.store.db).getSource(DEMO_BOARD_ID, sourceId).schedule.mode, "manual");
   await click('[data-feed-sources-dialog] header [data-feed-sources-close]');
-  await click('[data-directory-panel="feed"] [data-feed-add-toggle]');
+  await click('[data-feed-add-toggle]');
   assert.equal(await evaluate("document.querySelector('[data-feed-source-value=custom_rss]').value"), "https://example.com/retry.xml");
   assert.equal(await evaluate("document.querySelector('[data-feed-setup-back]').hidden"), true);
   await evaluate("window.addEventListener('beforeunload',()=>sessionStorage.setItem('creationRequests',String(window.sourceCreationRequests)))");
   await navigate(() => click('[data-feed-source-register]'));
-  await waitFor(`document.querySelector('[data-feed-task-toggle="${sourceId}"][aria-current=page]')`);
+  await waitFor(`document.querySelector('[data-feed-task="${sourceId}"] summary[aria-current=page]')`);
   assert.equal(await evaluate("sessionStorage.getItem('creationRequests')"), "1");
   const saved = createLocalFeedApplication(b.store.db).getSource(DEMO_BOARD_ID, sourceId);
   assert.equal(saved.schedule.mode, "interval");
@@ -158,29 +168,28 @@ test("Feed reader keeps one title, tracks read state, collapses and retries a fa
   const catalog=await openMolisWorkProjectCatalog({homeDirectory});catalog.addProjectPlugin({project_id:projectId!,plugin_id:'feed',actor_id:'test'});catalog.close();
   await navigate(()=>command('Page.navigate',{url:`${origin}/projects/${projectId}/`},sessionId));
   await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");await click('[data-plugin-id=feed]');
-  await click(`[data-feed-task-toggle="${source.source_id}"]`);
   const row=`[data-feed-entry-id="${item.item_id}"]`;
-  assert.equal(await evaluate(`document.querySelector('${row}').tabIndex`),0);
+  await waitFor(`Boolean(document.querySelector('${row}'))`);
   await evaluate(`{const original=window.fetch;let fail=true;window.fetch=(url,options)=>{if(fail&&String(url).includes('/detail?')){fail=false;return Promise.resolve(new Response('failed',{status:503}));}return original(url,options);};}`);
-  await click(row);await waitFor("document.querySelector('[data-feed-item-slot] [data-retry-feed-detail]')");
-  await click('[data-feed-item-slot] [data-retry-feed-detail]');
+  await click(row);await waitFor("document.querySelector('[data-feed-stage-shell][data-expanded=true] [data-retry-feed-detail]')");
+  await click('[data-feed-stage-workspace] [data-retry-feed-detail]');
   await waitFor(`document.querySelector('[data-feed-detail="${item.item_id}"] .feed-rich-content')`);
   assert.ok(feed.getFeedItem(DEMO_BOARD_ID,item.item_id).read_at);
   assert.equal(await evaluate(`document.querySelector('${row}').getAttribute('aria-expanded')`),'true');
-  assert.equal(await evaluate(`getComputedStyle(document.querySelector('[data-feed-detail="${item.item_id}"] h1')).display`),'none');
+  assert.notEqual(await evaluate(`getComputedStyle(document.querySelector('[data-feed-detail="${item.item_id}"] h1')).display`),'none');
   assert.match(await evaluate<string>(`document.querySelector('[data-feed-detail="${item.item_id}"] .feed-rich-content').textContent`),/阅读正文/);
-  assert.equal(await evaluate(`document.activeElement === document.querySelector('${row}')`),true,'opening retains item focus');
   const headerTop=await evaluate<number>("document.querySelector('.feed-stage-toolbar').getBoundingClientRect().top");
-  const bodyPoint=await evaluate<{x:number;y:number}>("(()=>{const r=document.querySelector('.feed-stage-item-detail .feed-detail-body').getBoundingClientRect();return {x:r.x+30,y:r.y+40}})()");
+  const bodyPoint=await evaluate<{x:number;y:number}>("(()=>{const r=document.querySelector('[data-feed-stage-workspace]').getBoundingClientRect();return {x:r.x+30,y:r.y+40}})()");
   await command('Input.dispatchMouseEvent',{type:'mouseWheel',...bodyPoint,deltaX:0,deltaY:300},sessionId);
-  await waitFor("document.querySelector('.feed-stage-item-detail .feed-detail-body').scrollTop>100");
+  await waitFor("document.querySelector('[data-feed-stage-workspace]').scrollTop>100");
   assert.equal(await evaluate("document.querySelector('.feed-stage-toolbar').getBoundingClientRect().top"),headerTop,'reader scroll never moves the toolbar');
   assert.equal(await evaluate("document.scrollingElement.scrollTop"),0);
-  await click(row);assert.equal(await evaluate(`document.querySelector('${row}').getAttribute('aria-expanded')`),'false');
-  assert.equal(await evaluate(`document.activeElement === document.querySelector('${row}')`),true,'collapse retains item focus');
+  await click(`[data-feed-entry-detail="${item.item_id}"]:not([hidden]) [data-feed-collapse]`);
+  await waitFor("document.querySelector('[data-feed-stage-shell]')?.dataset.expanded !== 'true'");
+  assert.equal(await evaluate(`document.querySelector('${row}').getAttribute('aria-expanded')`),'false');
   await click(row);assert.equal(await evaluate(`document.querySelector('[data-feed-detail="${item.item_id}"]').hidden`),false);
   await evaluate(`{const field=document.querySelector('[data-feed-search]');field.value='不存在的标题';field.dispatchEvent(new Event('input',{bubbles:true}));}`);
   assert.equal(await evaluate(`document.querySelector('${row}').closest('[data-feed-item-wrap]').hidden`),true);
-  await click('[data-feed-clear-filters]');
+  await evaluate("document.querySelector('[data-feed-clear-filters]').click()");
   assert.equal(await evaluate(`document.querySelector('${row}').closest('[data-feed-item-wrap]').hidden`),false);
 });

@@ -20,7 +20,7 @@ test("Session event bodies are encrypted and sensitive metadata is not persisted
     });
     registry.appendEvent({
       session_id: session.session_id,
-      source: "goalboard_tui",
+      source: "molis_work_tui",
       kind: "terminal_output",
       source_id: "privacy-output-a",
       content: marker,

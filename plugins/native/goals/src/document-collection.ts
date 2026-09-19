@@ -28,16 +28,11 @@ export function buildGoalsDocumentCollection(ports: GoalsDocumentReadPorts, boar
   const trashedGoals = allGoals.filter((item) => trashedGoalIds.has(item.goal.goal_id));
   const counts = Object.fromEntries(GOALS_PRESENTATION_STATES.map((status) => [status, 0])) as Record<GoalPresentationState, number>;
   for (const goal of goals) counts[goal.status]++;
-  const fallback =
-    goals.find((item) => item.display_status === "in_progress") ??
-    goals.find((item) => item.display_status === "waiting_user") ??
-    goals.find((item) => item.display_status === "continue") ??
-    goals[0];
   const activeGoalId = goals.some((item) => item.goal.goal_id === snapshot.board.active_goal_id)
     ? snapshot.board.active_goal_id
     : null;
   return {
-    snapshot, active_goal_id: activeGoalId ?? fallback?.goal.goal_id ?? null,
+    snapshot, active_goal_id: activeGoalId,
     goals, archived_goals: archivedGoals, trashed_goals: trashedGoals,
     counts, coverage, input_bindings: inputBindings, policy_bindings: policyBindings, events,
   };

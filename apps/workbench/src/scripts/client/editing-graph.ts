@@ -141,6 +141,7 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
         projectId: state.project?.project_id || state.snapshot.board.board_id,
         selectGoal: (...args) => selectGoal(...args),
         openFrame: (id) => frameContainer?.openFrame(id),
+        applySelection: (id) => applySelection(id, false),
         isFrameTabActive: () => frameContainer?.isFrameTabActive() === true,
         isKanbanTabActive: () => frameContainer?.isKanbanTabActive() === true,
         getSelected: () => selected, getSelectedStatuses: () => getSelectedStatuses(),
@@ -224,32 +225,44 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
         const current = tabWorkspace?.state?.();
         const pane = current?.panes?.find((item) => item.id === current.focusedPaneId);
         const tab = pane?.tabs?.find((item) => item.id === pane.activeTabId);
+        if (!tab && pane?.viewPlugin === "goals") return;
         if (tab?.plugin === "goals" && tab.kind === "mother") return;
         tabWorkspace?.openPlugin("goals");
       },
     });
-    tabWorkspace = (${TAB_WORKSPACE_FACTORY_SCRIPT})({
-      setFeedTask, setFeedAddOpen,
-      showGoalFrame: (id) => frameContainer?.showGoalFrame(id),
-      translate: L,
-      getSurface: () => activeDesktopSurface,
-      setWorkSurface: (...args) => setDesktopWorkSurface(...args),
-      setDirectory: (...args) => setDesktopDirectory(...args),
-      setWorkspaceMode: (...args) => setWorkspaceMode(...args),
-      setMobileView: (...args) => setMobileView(...args),
-      applySelection: (goalId) => applySelection(goalId, false),
-      loadGoalDocument: (goalId) => loadGoalDocument(goalId),
-      getDocumentGoalId: () => documentPane.querySelector("[data-goal-view]")?.dataset.goalView,
-      locateGraphNode: (id) => locateGraphNode(id),
-      selectFeedItem: (...args) => selectFeedItem(...args),
-      selectInboxEntry: (...args) => selectInboxEntry(...args),
-      getProjectId: () => state.project?.project_id || state.snapshot.board.board_id,
-      visibleGoals: () => visibleGoals(),
-      showCanvas: () => frameContainer?.showCanvas(),
-      restoreBoard: () => frameContainer?.restoreBoard(),
-      releaseFrame: () => frameContainer?.releaseFrame(),
-      isFrameTabActive: () => frameContainer?.isFrameTabActive() === true,
-    });
-
+    try {
+      tabWorkspace = (${TAB_WORKSPACE_FACTORY_SCRIPT})({
+        setFeedTask, setFeedAddOpen,
+        showGoalFrame: (id) => frameContainer?.showGoalFrame(id),
+        translate: L,
+        getSurface: () => activeDesktopSurface,
+        setWorkSurface: (...args) => setDesktopWorkSurface(...args),
+        setDirectory: (...args) => setDesktopDirectory(...args),
+        setWorkspaceMode: (...args) => setWorkspaceMode(...args),
+        setMobileView: (...args) => setMobileView(...args),
+        applySelection: (goalId) => applySelection(goalId, false),
+        loadGoalDocument: (goalId) => loadGoalDocument(goalId),
+        getDocumentGoalId: () => documentPane.querySelector("[data-goal-view]")?.dataset.goalView,
+        locateGraphNode: (id) => locateGraphNode(id),
+        selectFeedItem: (...args) => selectFeedItem(...args),
+        selectInboxEntry: (...args) => selectInboxEntry(...args),
+        getProjectId: () => state.project?.project_id || state.snapshot.board.board_id,
+        visibleGoals: () => visibleGoals(),
+        showCanvas: () => frameContainer?.showCanvas(),
+        restoreBoard: () => frameContainer?.restoreBoard(),
+        releaseFrame: () => frameContainer?.releaseFrame(),
+        isFrameTabActive: () => frameContainer?.isFrameTabActive() === true,
+      });
+    } catch (error) {
+      console.warn("Molis Work tab workspace failed to start", error);
+    }
+    document.addEventListener("click", (event) => {
+      if (frameContainer?.isFrameTabActive()) return;
+      const target = event.target instanceof Element ? event.target : event.target?.parentElement;
+      const select = target?.closest("[data-operation-select]");
+      const directory = select?.closest("[data-operation-directory]");
+      if (!select || !directory) return;
+      openDirectorySurface(directory.dataset.operationDirectory, select.dataset.operationSelect, select.getAttribute("data-frame-asset-title"), event);
+    }, true);
 
 `;

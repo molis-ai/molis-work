@@ -1,12 +1,15 @@
-import { CONTROL_CLIENT_SCRIPT, PROJECT_INDEX_CLIENT_SCRIPT, SETTINGS_CLIENT_SCRIPT } from "./browser-assets.js";
+import { renderHint } from "@molis-ai/molis-work-design-system";
+import { CONTROL_CLIENT_SCRIPT, SETTINGS_CLIENT_SCRIPT } from "./browser-assets.js";
 import type { RuntimeIntegrationDetection } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { MolisWorkSettingsView, WebSettingsProject } from "./settings-view.js";
 import type { createWorkbenchSettingsNavigation } from "./settings-navigation.js";
 import { createProjectSettingsFolds } from "./project-settings-folds.js";
+import { renderAppearanceSettingsDocument, renderRuntimePlanDialog } from "./settings-appearance.js";
+import { findPluginSettingsNavItem } from "./plugin-settings-catalog.js";
 export interface SettingsRenderPrimitives {
   L(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;
-  icon(name: "check" | "sun" | "moon" | "system" | "workflow" | "folder" | "settings" | "chevron-down" | "chevron-right" | "database" | "refresh" | "x" | "brand" | "blocked" | "tree" | "plus" | "book" | "shield", className?: string): string;
+  icon(name: "check" | "sun" | "moon" | "system" | "workflow" | "settings" | "chevron-down" | "chevron-right" | "database" | "refresh" | "x" | "brand" | "blocked" | "tree" | "plus" | "book" | "shield", className?: string): string;
   currentLocale(): string;
   localeSwitchHref(locale: "zh" | "en", nextPath: string): string;
   htmlLang(): string;
@@ -18,11 +21,10 @@ export interface SettingsRenderPrimitives {
   visualFoundationClientScript: string;
   settingsContextHref: ReturnType<typeof createWorkbenchSettingsNavigation>["settingsContextHref"];
   renderSettingsNavigation: ReturnType<typeof createWorkbenchSettingsNavigation>["renderSettingsNavigation"];
-  renderProjectMigrationDialog(): string;
 }
 export function createWorkbenchSettingsRenderer(primitives: SettingsRenderPrimitives) {
   const { L, escapeHtml, icon, currentLocale, localeSwitchHref, htmlLang, controlTokenMeta, clientI18nScript, renderIconSprite,
-    withDesktopQuery, settingsContextHref, renderSettingsNavigation, renderProjectMigrationDialog,
+    withDesktopQuery, settingsContextHref, renderSettingsNavigation,
     themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT, visualFoundationClientScript: VISUAL_FOUNDATION_CLIENT_SCRIPT } = primitives;
   const folds = createProjectSettingsFolds({ L, escapeHtml, icon, withDesktopQuery });
 function runtimeStatePresentation(state: RuntimeIntegrationDetection["connection_state"]): {
@@ -39,16 +41,11 @@ function runtimeStatePresentation(state: RuntimeIntegrationDetection["connection
 }
 
 function renderAppearanceSettings(nextPath: string): string {
-  const locale = currentLocale();
-  const options = (attribute: string, values: [string, string][]) => `<div class="settings-segmented" role="group">${values.map(([value, label]) => `<button type="button" ${attribute}="${value}" aria-pressed="false">${L(label)}</button>`).join("")}</div>`;
-  const row = (title: string, description: string, control: string) => `<section class="settings-setting-row"><div class="setting-copy"><strong>${L(title)}</strong><span>${L(description)}</span></div><div class="setting-value" aria-label="${L(title)}">${control}</div></section>`;
-  return `<section class="settings-document appearance-document" aria-labelledby="settings-title"><header class="settings-heading"><h1 id="settings-title">${L("界面与语言")}</h1><p>${L("设置这台设备上的阅读和工作习惯。")}</p></header><div class="settings-body">
-    ${row("主题", "选择固定主题，或跟随系统外观。", options("data-theme-option", [["light", "浅色"], ["dark", "深色"], ["system", "跟随系统"]]))}
-    ${row("界面语言", "只改变界面文案，保留项目内容的原始语言。", `<div class="settings-segmented">${(["zh", "en"] as const).map((value) => `<a href="${localeSwitchHref(value, nextPath)}" lang="${value}" aria-current="${locale === value}">${value === "zh" ? "中文" : "English"}</a>`).join("")}</div>`)}
-    ${row("界面密度", "调整 Goal 导航和正文的间距。", options("data-density-option", [["standard", "标准"], ["compact", "紧凑"]]))}
-    ${row("终端外观", "为终端内容单独选择明暗配色。", options("data-terminal-theme-option", [["auto", "跟随界面"], ["light", "浅色"], ["dark", "深色"]]))}
-    <p class="settings-footnote">${L("更改即时生效，保存在当前设备。")}</p>
-  </div></section>`;
+  return renderAppearanceSettingsDocument({ L, currentLocale, localeSwitchHref }, nextPath);
+}
+
+function settingRow(title: string, description: string, value: string): string {
+  return `<section class="settings-setting-row"><div class="setting-copy"><strong>${title}</strong><span>${description}</span></div><div class="setting-value">${value}</div></section>`;
 }
 
 function renderRuntimeSettings(view: MolisWorkSettingsView): string {
@@ -57,24 +54,19 @@ function renderRuntimeSettings(view: MolisWorkSettingsView): string {
     const unavailable = runtime.connection_state === "not_detected" || runtime.connection_state === "molis_work_unavailable";
     const action = runtime.connection_state === "connected" ? "remove" : "connect";
     const actionLabel = action === "remove" ? L("预览移除") : runtime.connection_state === "needs_repair" ? L("预览修复") : L("查看并接入");
-    return `<article class="settings-record runtime-record" data-runtime-row="${escapeHtml(runtime.runtime_id)}">
-      <header>
-        <div class="settings-record-title"><span class="record-icon">${icon("workflow")}</span><div><h2>${escapeHtml(runtime.display_name)}</h2><p>${escapeHtml(state.description)}</p></div></div>
-        <div class="settings-record-action"><span class="settings-state settings-state--${state.tone}">${escapeHtml(state.label)}</span><button type="button" data-runtime-plan="${escapeHtml(runtime.runtime_id)}" data-runtime-action="${action}"${unavailable ? " disabled" : ""}>${escapeHtml(actionLabel)}</button></div>
-      </header>
-      <details class="settings-data-disclosure"><summary><span>${L("本机路径")}</span>${icon("chevron-down")}</summary><dl class="settings-paths"><div><dt>Runtime</dt><dd>${runtime.executable_path ? escapeHtml(runtime.executable_path) : L("未找到可执行文件")}</dd></div><div><dt>${L("配置")}</dt><dd>${escapeHtml(runtime.config_path)}</dd></div><div><dt>Skill</dt><dd>${escapeHtml(runtime.skill_path)}</dd></div></dl></details>
+    return `<article data-runtime-row="${escapeHtml(runtime.runtime_id)}">
+      ${settingRow(escapeHtml(runtime.display_name), escapeHtml(state.description), `<span class="settings-state settings-state--${state.tone}">${escapeHtml(state.label)}</span><button class="mw-btn mw-btn--secondary" type="button" data-runtime-plan="${escapeHtml(runtime.runtime_id)}" data-runtime-action="${action}"${unavailable ? " disabled" : ""}>${escapeHtml(actionLabel)}</button>`)}
+      <details class="settings-data-disclosure"><summary><span class="setting-copy"><strong>${L("本机路径")}</strong><span>${L("查看可执行文件、配置和 Skill 位置。")}</span></span>${icon("chevron-down")}</summary><dl class="settings-data-list"><div><dt>Runtime</dt><dd>${runtime.executable_path ? escapeHtml(runtime.executable_path) : L("未找到可执行文件")}</dd></div><div><dt>${L("配置")}</dt><dd>${escapeHtml(runtime.config_path)}</dd></div><div><dt>Skill</dt><dd>${escapeHtml(runtime.skill_path)}</dd></div></dl></details>
     </article>`;
   }).join("");
   return `<section class="settings-document" aria-labelledby="settings-title">
-    <header class="settings-heading"><h1 id="settings-title">${L("AI 与执行工具")}</h1><p>${L("不接入也能正常使用 Goal Tree、待决定和记录。只有想让 AI 工具直接读取或推进 Goal 时才需要连接；每次修改前都会先展示变化并由你确认。")}</p></header>
-    <div class="settings-body"><div class="settings-record-list">${rows || `<div class="settings-empty"><h2>${L("没有可探测的 Runtime")}</h2><p>${L("Molis Work 本体仍可使用；稍后安装 Runtime 后再回来检查。")}</p></div>`}</div>
-    <p class="settings-footnote">${L("当前自动适配 Codex、Claude Code、OpenCode、Pi Agent 和 Grok Build。每次确认只对应当前 Runtime 和当前预览；配置在预览后变化时会要求重新生成。Session 与运行位置请进入对应项目的 Sessions 管理。")}</p></div>
+    <header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title">${L("AI 与执行工具")}</h1>${renderHint({ id: "settings-hint-runtimes", label: L("如何生效"), text: L("当前自动适配 Codex、Claude Code、OpenCode、Pi Agent 和 Grok Build。每次确认只对应当前 Runtime 和当前预览；配置在预览后变化时会要求重新生成。Session 与运行位置请进入对应项目的 Sessions 管理。") })}</div><p>${L("不接入也能正常使用 Goal Tree、待决定和记录。只有想让 AI 工具直接读取或推进 Goal 时才需要连接；每次修改前都会先展示变化并由你确认。")}</p></header>
+    <section class="settings-section" aria-label="${L("AI 与执行工具")}">${rows || `<div class="settings-empty"><strong>${L("没有可探测的 Runtime")}</strong><span>${L("Molis Work 本体仍可使用；稍后安装 Runtime 后再回来检查。")}</span></div>`}</section>
   </section>`;
 }
 
 function projectKindShort(project: WebSettingsProject): string {
   if (project.data_class === "regenerable_demo") return L("演示数据");
-  if (project.data_class === "migrated_user") return L("已迁移");
   return L("本地项目");
 }
 
@@ -83,8 +75,7 @@ function renderProjectDetail(project: WebSettingsProject, selected: boolean, des
   const safe = escapeHtml(id);
   const href = `/projects/${encodeURIComponent(id)}`;
   return `<article class="project-manager-detail" data-project-pane="${safe}" data-route-prefix="${href}"${selected ? "" : " hidden"} aria-labelledby="project-pane-title-${safe}">
-    ${folds.renderProjectSettingsHero(project, { headingTag: "h2", showOpenTree: true })}
-    <p class="settings-footnote">${L("项目说明、工作规则和工作规划在项目设置中维护。")}</p>
+    ${folds.renderProjectSettingsHero(project, { headingTag: "h2", showOpenTree: true, hint: renderHint({ id: `settings-hint-project-${project.project_id}`, label: L("如何生效"), text: L("项目说明、工作规则和工作规划在项目设置中维护。") }) })}
     ${folds.renderGeneralBody(project)}
     ${folds.renderDanger(project)}
     ${folds.renderProjectDeleteDialog(project, desktopShell)}
@@ -116,7 +107,6 @@ function renderProjectSettings(view: MolisWorkSettingsView, desktopShell: boolea
       </div>
       <footer class="project-manager-index-actions">
         <label class="project-manager-ghost" for="project-focus-create">${icon("plus")}<span>${L("新建项目")}</span></label>
-        <button type="button" data-open-project-migration>${icon("folder")}<span>${L("导入")}</span></button>
       </footer>
     </aside>
     <div class="project-manager-stage">
@@ -124,7 +114,7 @@ function renderProjectSettings(view: MolisWorkSettingsView, desktopShell: boolea
       <article class="project-manager-detail" data-project-pane="create"${selectedId === "create" ? "" : " hidden"} aria-labelledby="create-project-title">
         <header class="project-manager-hero">
           <div>
-            <h2 id="create-project-title">${L("创建项目")}</h2>
+            <div class="settings-heading-title"><h2 id="create-project-title">${L("创建项目")}</h2>${view.projects.length ? renderHint({ id: "settings-hint-create-project", label: L("如何生效"), text: L("普通用户项目不会被示例操作或普通卸载删除；永久清除用户数据需要单独确认精确数据目录和项目数量。") }) : ""}</div>
             <p>${L("创建一个空项目，随后进入工作台。")}</p>
           </div>
         </header>
@@ -132,15 +122,9 @@ function renderProjectSettings(view: MolisWorkSettingsView, desktopShell: boolea
           <label>${L("项目名称")}<input name="display_name" required maxlength="160" placeholder="${L("例如：新产品发布")}"></label>
           <label class="inline-confirm"><input type="checkbox" name="user_confirmed"><span>${L("确认创建这个项目")}</span></label>
           <p class="settings-form-error" role="alert" hidden></p>
-          <button type="submit">${L("创建并打开")}</button>
+          <button class="mw-btn mw-btn--primary" type="submit">${L("创建并打开")}</button>
         </form>
-        <section class="project-manager-section" aria-labelledby="import-project-title">
-          <h3 id="import-project-title">${L("导入已有 Molis Work 数据")}</h3>
-          <p>${L("选择并确认数据文件后，Molis Work 会把它作为一个独立项目保存。")}</p>
-          <button type="button" data-open-project-migration>${L("导入已有数据")}</button>
-        </section>
-        ${demo ? "" : `<section class="project-manager-section" aria-labelledby="demo-project-title"><h3 id="demo-project-title">${L("产品示例")}</h3><p>${L("创建一份明确标记为可重建的示例数据；普通卸载会清理它，但保留用户项目。")}</p><button type="button" data-demo-action="create">${L("创建示例项目")}</button><p class="settings-form-error" data-demo-error role="alert" hidden></p></section>`}
-        <p class="settings-footnote">${view.projects.length ? L("普通用户项目不会被示例操作或普通卸载删除；永久清除用户数据需要单独确认精确数据目录和项目数量。") : L("创建第一个项目，或导入已有 Molis Work 数据。")}</p>
+        ${demo ? "" : `<section class="project-manager-section" aria-labelledby="demo-project-title"><h3 id="demo-project-title">${L("产品示例")}</h3><p>${L("创建一份明确标记为可重建的示例数据；普通卸载会清理它，但保留用户项目。")}</p><button class="mw-btn mw-btn--secondary" type="button" data-demo-action="create">${L("创建示例项目")}</button><p class="settings-form-error" data-demo-error role="alert" hidden></p></section>`}
       </article>
     </div>
   </section>`;
@@ -154,7 +138,7 @@ function renderDiagnosticsSettings(view: MolisWorkSettingsView): string {
     : diagnostics.installation_state === "missing"
       ? { label: L("尚未安装本体"), tone: "warning" }
       : { label: L("安装清单无效"), tone: "danger" };
-  const launchers = diagnostics.launchers.map((launcher) => `<li><span>${icon(launcher.state === "ready" ? "check" : "blocked")}<strong>${launcher.name}</strong><small>${escapeHtml(launcher.path)}</small></span><span class="settings-state settings-state--${launcher.state === "ready" ? "success" : "danger"}">${launcher.state === "ready" ? L("可用") : L("缺失")}</span></li>`).join("");
+  const launchers = diagnostics.launchers.map((launcher) => settingRow(escapeHtml(launcher.name), escapeHtml(launcher.path), `<span class="settings-state settings-state--${launcher.state === "ready" ? "success" : "danger"}">${launcher.state === "ready" ? L("可用") : L("缺失")}</span>`)).join("");
   const serviceTone = service.state === "running" ? "success" : service.state === "stopped" || service.state === "absent" || service.state === "unhealthy" ? "warning" : "danger";
   const serviceLabel = service.state === "running" ? L("运行中") : service.state === "stopped" ? L("已安装，未运行") : service.state === "unhealthy" ? L("进程运行中，页面不可用") : service.state === "absent" ? L("未启用") : service.state === "unsupported" ? L("当前系统不支持") : service.state === "conflict" ? L("配置冲突") : L("需要修复");
   const serviceActions = service.state === "running"
@@ -168,60 +152,69 @@ function renderDiagnosticsSettings(view: MolisWorkSettingsView): string {
         : service.state === "needs_repair"
           ? [["install", L("修复常驻服务")]]
         : [];
-  const serviceButtons = serviceActions.map(([action, label]) => `<button type="button" data-web-service-action="${action}">${label}</button>`).join("");
+  const serviceButtons = serviceActions.map(([action, label]) => `<button class="mw-btn mw-btn--secondary" type="button" data-web-service-action="${action}">${label}</button>`).join("");
+  const serviceMessage = service.message ? escapeHtml(L(service.message)) : "";
   return `<section class="settings-document" aria-labelledby="settings-title">
-    <header class="settings-heading"><h1 id="settings-title">${L("诊断")}</h1><p>${L("这里只读取 Molis Work 自己的安装状态，不扫描项目内容，也不会自动修复或修改 Runtime。")}</p></header>
-    <div class="settings-body"><section class="diagnostics-summary"><div><h2>${L("Molis Work 本体")}</h2><span class="settings-state settings-state--${installation.tone}">${installation.label}</span></div><dl><div><dt>${L("版本")}</dt><dd>${escapeHtml(diagnostics.version ?? L("未识别"))}</dd></div><div><dt>${L("项目数")}</dt><dd>${diagnostics.project_count}</dd></div></dl><details class="settings-data-disclosure"><summary><span>${L("本机路径")}</span>${icon("chevron-down")}</summary><dl class="settings-paths"><div><dt>Home</dt><dd>${escapeHtml(diagnostics.home_directory)}</dd></div><div><dt>Release</dt><dd>${escapeHtml(diagnostics.release_directory ?? L("未找到"))}</dd></div></dl></details></section>
-    <section class="launcher-section" aria-labelledby="launcher-title"><h2 id="launcher-title">${L("启动入口")}</h2><ul>${launchers}</ul></section>
-    <section class="diagnostics-summary" aria-labelledby="web-service-title"><div><div><h2 id="web-service-title">${L("Web 常驻服务")}</h2><p>${escapeHtml(L(service.message))}</p></div><span class="settings-state settings-state--${serviceTone}">${serviceLabel}</span></div><div class="service-action-row">${serviceButtons}</div><details class="settings-data-disclosure"><summary><span>${L("服务配置与日志")}</span>${icon("chevron-down")}</summary><dl><div><dt>${L("方式")}</dt><dd>${service.provider === "macos-launchagent" ? L("macOS 用户级 LaunchAgent") : L("尚未提供")}</dd></div><div><dt>${L("命令")}</dt><dd>${escapeHtml(service.command.join(" "))}</dd></div><div><dt>${L("配置")}</dt><dd>${escapeHtml(service.plist_path)}</dd></div><div><dt>${L("日志")}</dt><dd>${escapeHtml(service.stdout_log)}<br>${escapeHtml(service.stderr_log)}</dd></div></dl></details><p class="settings-form-error" data-web-service-error role="alert" hidden></p></section>
-    <p class="settings-footnote">${L("如果本体不完整，请在终端重新运行 ")}<code>molis-work install</code>${L("。常驻服务操作会先展示预览并要求确认；不会在后台使用 nohup。")}</p></div>
+    <header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title">${L("诊断")}</h1>${renderHint({ id: "settings-hint-diagnostics", label: L("如何生效"), html: `${escapeHtml(L("如果本体不完整，请在终端重新运行 "))}<code>molis-work install</code>${escapeHtml(L("。常驻服务操作会先展示预览并要求确认；不会在后台使用 nohup。"))}` })}</div><p>${L("这里只读取 Molis Work 自己的安装状态，不扫描项目内容，也不会自动修复或修改 Runtime。")}</p></header>
+    <section class="settings-section" aria-label="${L("Molis Work 本体")}">
+      ${settingRow(L("安装状态"), L("只检查本机安装清单，不扫描项目内容。"), `<span class="settings-state settings-state--${installation.tone}">${installation.label}</span>`)}
+      ${settingRow(L("版本"), L("当前安装的产品版本。"), `<span class="setting-number">${escapeHtml(diagnostics.version ?? L("未识别"))}</span>`)}
+      ${settingRow(L("项目数"), L("本机已经创建的项目数量。"), `<span class="setting-number">${diagnostics.project_count}</span>`)}
+      <details class="settings-data-disclosure"><summary><span class="setting-copy"><strong>${L("本机路径")}</strong><span>${L("查看安装目录与发布位置。")}</span></span>${icon("chevron-down")}</summary><dl class="settings-data-list"><div><dt>Home</dt><dd>${escapeHtml(diagnostics.home_directory)}</dd></div><div><dt>Release</dt><dd>${escapeHtml(diagnostics.release_directory ?? L("未找到"))}</dd></div></dl></details>
+    </section>
+    <section class="settings-section" aria-labelledby="launcher-title"><h2 id="launcher-title">${L("启动入口")}</h2>${launchers}</section>
+    <section class="settings-section settings-project-maintenance" aria-labelledby="web-service-title">
+      <h2 id="web-service-title">${L("Web 常驻服务")}</h2>
+      <section class="project-manager-danger" aria-labelledby="web-service-state">
+        <h3 id="web-service-state"><span class="settings-state settings-state--${serviceTone}">${serviceLabel}</span></h3>
+        ${serviceMessage ? `<p>${serviceMessage}</p>` : ""}
+        ${serviceButtons ? `<div class="project-manager-danger-actions">${serviceButtons}</div>` : ""}
+        <p class="settings-form-error" data-web-service-error role="alert" hidden></p>
+      </section>
+      <details class="settings-data-disclosure"><summary><span class="setting-copy"><strong>${L("服务配置与日志")}</strong><span>${L("查看方式、命令、配置和日志路径。")}</span></span>${icon("chevron-down")}</summary><dl class="settings-data-list"><div><dt>${L("方式")}</dt><dd>${service.provider === "macos-launchagent" ? L("macOS 用户级 LaunchAgent") : L("尚未提供")}</dd></div><div><dt>${L("命令")}</dt><dd>${escapeHtml(service.command.join(" "))}</dd></div><div><dt>${L("配置")}</dt><dd>${escapeHtml(service.plist_path)}</dd></div><div><dt>${L("日志")}</dt><dd>${escapeHtml(service.stdout_log)}<br>${escapeHtml(service.stderr_log)}</dd></div></dl></details>
+    </section>
   </section>`;
 }
 
-function renderRuntimePlanDialog(): string {
-  return `<dialog class="runtime-plan-dialog" data-runtime-plan-dialog aria-labelledby="runtime-plan-title">
-    <div class="runtime-plan-shell">
-      <header><div><h2 id="runtime-plan-title" data-runtime-plan-title>${L("Runtime 接入预览")}</h2><p data-runtime-plan-message>${L("正在读取变更计划…")}</p></div><button class="icon-button" type="button" data-runtime-plan-close aria-label="${L("关闭预览")}">${icon("x")}</button></header>
-      <div class="runtime-plan-body"><ul class="runtime-change-list" data-runtime-change-list></ul><dl class="runtime-plan-meta"><div><dt>${L("备份")}</dt><dd data-runtime-plan-backup>${L("无须备份")}</dd></div><div><dt>${L("完成后")}</dt><dd data-runtime-plan-restart>${L("按页面提示重启 Runtime")}</dd></div></dl><label class="runtime-plan-confirm" data-runtime-confirm-row><input type="checkbox" data-runtime-confirm><span data-runtime-confirm-label>${L("我已查看并确认这份变更")}</span></label><p class="settings-form-error" data-runtime-plan-error role="alert" hidden></p></div>
-      <footer><button type="button" data-runtime-plan-close>${L("取消")}</button><button class="runtime-plan-apply" type="button" data-runtime-plan-apply disabled>${L("确认应用")}</button></footer>
-    </div>
-  </dialog>`;
-}
-
 function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "", desktopShell = false): string {
+  const pluginPage = findPluginSettingsNavItem(view.section);
   const title = view.section === "appearance"
     ? L("界面与语言")
     : view.section === "runtimes"
       ? L("AI 与执行工具")
       : view.section === "projects"
         ? L("项目设置")
-        : L("诊断");
+        : view.section === "diagnostics"
+          ? L("诊断")
+          : L(pluginPage?.label ?? view.section);
   const contextProject = view.context_project ?? null;
   const settingsPath = settingsContextHref(`/settings/${view.section}`, contextProject, desktopShell);
   const rawReturnHref = contextProject ? `/projects/${encodeURIComponent(contextProject.project_id)}/` : "/";
   const returnHref = desktopShell ? withDesktopQuery(rawReturnHref) : rawReturnHref;
   const projectManager = view.section === "projects";
-  const content = view.section === "appearance"
-    ? renderAppearanceSettings(settingsPath)
-    : view.section === "runtimes"
-      ? renderRuntimeSettings(view)
-      : view.section === "projects"
-        ? renderProjectSettings(view, desktopShell)
-        : renderDiagnosticsSettings(view);
+  const content = view.plugin_settings_html
+    || (view.section === "appearance"
+      ? renderAppearanceSettings(settingsPath)
+      : view.section === "runtimes"
+        ? renderRuntimeSettings(view)
+        : view.section === "projects"
+          ? renderProjectSettings(view, desktopShell)
+          : view.section === "diagnostics"
+            ? renderDiagnosticsSettings(view)
+            : "");
   return `<!doctype html>
 <html lang="${htmlLang()}">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${controlTokenMeta(controlToken)}<title>${title} · ${L("Molis Work 设置")}</title><script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-settings.css"></head>
 <body class="settings-page project-preferences-page global-preferences-page" data-settings-section="${view.section}" data-desktop-shell="false"${desktopShell ? ' data-native-desktop="true"' : ""}>
   ${renderIconSprite()}
-  <header class="project-preferences-chrome"${desktopShell ? " data-tauri-drag-region" : ""}><span>${projectManager ? L("项目管理") : L("全局设置")}</span><a href="${returnHref}" aria-label="${L("关闭全局设置")}">${icon("x")}</a></header>
+  <header class="project-preferences-chrome"${desktopShell ? ' data-tauri-drag-region="deep"' : ""}><span>${projectManager ? L("项目管理") : L("全局设置")}</span><a href="${returnHref}" aria-label="${L("关闭全局设置")}">${icon("x")}</a></header>
   <main class="settings-shell${projectManager ? " settings-shell--standalone" : ""}">
     ${projectManager ? "" : renderSettingsNavigation(view.section, contextProject, desktopShell, view.projects)}
     <div class="settings-content">${content}</div>
   </main>
-  ${renderRuntimePlanDialog()}
-  ${renderProjectMigrationDialog()}
+  ${renderRuntimePlanDialog({ L, icon })}
   <div class="toast" data-settings-toast role="status" aria-live="polite"></div>
-  <script>${clientI18nScript()}${CONTROL_CLIENT_SCRIPT}${PROJECT_INDEX_CLIENT_SCRIPT}${SETTINGS_CLIENT_SCRIPT}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>
+  <script>${clientI18nScript()}${CONTROL_CLIENT_SCRIPT}${SETTINGS_CLIENT_SCRIPT}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>
 </body></html>`;
 }
 

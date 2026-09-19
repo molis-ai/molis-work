@@ -41,7 +41,6 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     const feedSourcesDialog = document.querySelector("[data-feed-sources-dialog]");
     const feedSourceError = feedSourcesDialog?.querySelector("[data-feed-source-error]");
     const feedSourceProgress = feedSourcesDialog?.querySelector("[data-feed-source-progress]");
-    const relayImportDialog = document.querySelector("[data-relay-import-dialog]");
     const mobileTreeTab = document.querySelector('[data-mobile-target="tree"]');
     const mobileDocumentTab = document.querySelector('[data-mobile-target="document"]');
     const mobileDirectoryTab = document.querySelector("[data-mobile-directory-root]");
@@ -83,6 +82,11 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
         row.dataset.feedEntryRead = "read";
         if (detail) detail.dataset.feedDetailRead = "read";
         row.querySelectorAll("[data-feed-read-state]").forEach((label) => { label.textContent = L("已读"); });
+        const readMark = row.querySelector(".feed-entry-status:has([data-feed-read-state])");
+        if (readMark) {
+          readMark.classList.remove("mw-status--attention");
+          readMark.classList.add("mw-status--quiet");
+        }
         detail?.querySelectorAll("[data-feed-read-state]").forEach((label) => { label.textContent = L("已读"); });
         if (status?.dataset.feedReadError === "true") {
           status.hidden = true;
@@ -157,8 +161,8 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
       feed: defaultFeedPresetState(),
     };
     let desktopSurfaceScroll = {};
-    let goalWorkspaceMode = "focus";
-    let selected = decisionView ? "" : document.querySelector("[data-goal-view]:not([hidden])")?.dataset.goalView || (collectionView ? "" : state.active_goal_id || visibleGoals()[0]?.goal.goal_id) || "";
+    let goalWorkspaceMode = "graph";
+    let selected = decisionView ? "" : document.querySelector("[data-goal-view]:not([hidden])")?.dataset.goalView || (collectionView ? "" : state.active_goal_id) || "";
     if (!decisionView) {
       const initialHistoryState = history.state && typeof history.state === "object" ? history.state : {};
       history.replaceState({ ...initialHistoryState, goalId: selected }, "", location.href);
@@ -178,6 +182,7 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     let feedDetailRequest = null;
     let searchBusyUntil = 0;
     let deferredRefreshTimer;
+    let stageListGestureTimer;
     let navigatorView = "list";
     let desktopCompanionActive = document.body.dataset.desktopShell === "true" && matchMedia("(max-width: 760px)").matches;
 

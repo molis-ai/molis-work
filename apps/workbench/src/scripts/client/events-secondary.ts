@@ -19,42 +19,11 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `        return;
         }
         return;
       }
-      if (target.closest("[data-relay-import-open]")) {
-        feedSourcesDialog?.close();
-        relayImportDialog?.showModal();
-        return;
-      }
-      if (target.closest("[data-relay-import-confirm]")) {
-        const button = target.closest("[data-relay-import-confirm]");
-        const errorBox = relayImportDialog?.querySelector("[data-relay-import-error]");
-        const original = button.textContent;
-        button.disabled = true;
-        button.textContent = L("正在迁移…");
-        if (errorBox) errorBox.hidden = true;
-        try {
-          const response = await fetch(route("/api/feed/import"), {
-            method: "POST",
-            headers: molisWorkControlHeaders(),
-            body: JSON.stringify({ user_confirmed: true }),
-          });
-          const result = await response.json();
-          if (!response.ok) throw new Error(result.error || L("Relay 迁移失败"));
-          saveUiState();
-          location.reload();
-        } catch (error) {
-          if (errorBox) {
-            errorBox.textContent = error.message || L("Relay 迁移失败");
-            errorBox.hidden = false;
-          }
-          button.disabled = false;
-          button.textContent = original;
-        }
-        return;
-      }
       const feedTaskToggle = target.closest("[data-feed-task-toggle]");
       if (feedTaskToggle) {
         tabWorkspace?.openPlugin("feed");
-        setFeedTask(feedTaskToggle.dataset.feedTaskToggle || "all");
+        const taskId = feedTaskToggle.dataset.feedTaskToggle || "all";
+        setFeedTask(selectedFeedTask === taskId ? "all" : taskId);
         setMobileView("document");
         return;
       }
@@ -96,16 +65,24 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `        return;
           return;
         }
         setDesktopDirectory("feed", true, false, openSourceRecord);
-        if (!openWorkbenchSurface("feed")) setDesktopWorkSurface("feed", true, false);
+        if (!openDirectorySurface("feed", undefined, undefined, event)) setDesktopWorkSurface("feed", true, false);
         setFeedTask(sourceId);
+        return;
+      }
+      if (target.closest("[data-feed-collapse]")) {
+        collapseFeedStage();
+        return;
+      }
+      if (target.closest("[data-inbox-collapse]")) {
+        collapseInboxStage();
         return;
       }
       const feedEntry = target.closest("[data-feed-entry-id]");
       if (feedEntry && !target.closest("[data-feed-action], [data-prototype-feed-action]")) {
         const stageDirectory = Boolean(document.querySelector("[data-feed-stage-directory]"));
-        selectFeedItem(feedEntry.dataset.feedEntryId, !stageDirectory, true, true);
+        selectFeedItem(feedEntry.dataset.feedEntryId, !stageDirectory, true, false);
         if (!stageDirectory && !frameContainer?.isFrameTabActive()) {
-          if (!openWorkbenchSurface("feed", feedEntry.dataset.feedEntryId, feedEntry.querySelector("strong")?.textContent?.trim())) {
+          if (!openDirectorySurface("feed", feedEntry.dataset.feedEntryId, feedEntry.querySelector("strong")?.textContent?.trim(), event)) {
             setDesktopWorkSurface("feed", true, true);
           }
         }
@@ -115,16 +92,9 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `        return;
       if (inboxRow) {
         selectInboxEntry(inboxRow.dataset.inboxEntryId, true);
         if (!frameContainer?.isFrameTabActive()) {
-          if (!openWorkbenchSurface("inbox", inboxRow.dataset.inboxEntryId)) {
+          if (!openDirectorySurface("inbox", inboxRow.dataset.inboxEntryId, undefined, event)) {
             setDesktopWorkSurface("inbox", true, true);
           }
-        }
-        return;
-      }
-      const sessionSelect = target.closest("[data-operation-select]");
-      if (sessionSelect && !frameContainer?.isFrameTabActive()) {
-        if (!openWorkbenchSurface("sessions", sessionSelect.dataset.operationSelect, sessionSelect.getAttribute("data-frame-asset-title"))) {
-          setDesktopWorkSurface("sessions", true, true);
         }
         return;
       }
@@ -139,7 +109,7 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `        return;
         if (!itemId) return;
         setFeedPreset("feed", true);
         setDesktopDirectory("feed", true, false, inboxOpenFeed);
-        if (!openWorkbenchSurface("feed", itemId)) setDesktopWorkSurface("feed", true, false);
+        if (!openDirectorySurface("feed", itemId, undefined, event)) setDesktopWorkSurface("feed", true, false);
         selectFeedItem(itemId, true, true, false);
         return;
       }
@@ -233,9 +203,17 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `        return;
         if (desktopWorkSurfaces.some((candidate) => candidate.dataset.workSurface === surface)) {
           event.preventDefault();
           setDesktopDirectory("root", true, false, surfaceLink);
-          if (!openWorkbenchSurface(surface)) setDesktopWorkSurface(surface, true, true);
+          if (!openDirectorySurface(surface, undefined, undefined, event)) setDesktopWorkSurface(surface, true, true);
           if (surface === "feed" && selectedFeedItem) selectFeedItem(selectedFeedItem, false, true, false);
         }
+        return;
+      }
+      const expandToggle = target.closest("[data-plugin-expand]");
+      if (expandToggle) {
+        event.preventDefault();
+        const section = expandToggle.closest("[data-plugin-section]");
+        const expanded = section?.dataset.pluginExpanded === "true";
+        setPluginSectionExpanded(expandToggle.dataset.pluginExpand, !expanded, true);
         return;
       }
       const surfaceOpen = target.closest("[data-work-surface-open]");
@@ -264,23 +242,34 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `        return;
           restoreLastGoal(true);
           return;
         }
-        setDesktopDirectory(surface === "goal"
+        const directory = surface === "goal"
           ? "goals"
-          : surface === "feed" || surface === "sources" || surface === "sessions" || surface === "artifacts" || surface === "inbox"
+          : surface === "feed" || surface === "sources" || surface === "sessions" || surface === "artifacts" || surface === "inbox" || surface === "shelf"
             ? surface
-            : "root", true, true, surfaceOpen);
-        if (!openWorkbenchSurface(surface)) setDesktopWorkSurface(surface, true, true);
+            : "root";
+        const nextDirectory = directory !== "root" && document.querySelector('[data-directory-panel="' + directory + '"]')
+          ? directory
+          : "root";
+        setDesktopDirectory(nextDirectory, true, true, surfaceOpen);
+        const pluginId = surfaceOpen.dataset.pluginId;
+        if (pluginId && pluginId !== "home" && pluginId !== "market" && nextDirectory !== "root") setDirectoryCollapsed?.(false, false);
+        if (!openDirectorySurface(surface, undefined, undefined, event)) setDesktopWorkSurface(surface, true, true);
+        if (surface === "feed" && surfaceOpen.dataset.pluginId === "feed" && !surfaceOpen.dataset.feedSource) setFeedTask("all");
         if (surface === "home" && !decisionView && !collectionView && localPathname() !== "/") {
           history.pushState({ workSurface: "home" }, "", route("/"));
         }
         if (surface === "feed" && selectedFeedItem) selectFeedItem(selectedFeedItem, false, true, false);
-        if (matchMedia("(max-width: 760px)").matches) setMobileView(surface === "home" || surface === "market" ? "document" : "tree");
+        if (matchMedia("(max-width: 760px)").matches) setMobileView(nextDirectory === "root" || surface === "home" || surface === "market" ? "document" : "tree");
         return;
       }
       const directoryOpen = target.closest("[data-directory-open]");
       if (directoryOpen && desktopDirectoryPanels.length) {
+        if (directoryOpen.tagName === "A" && (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button === 1)) return;
+        event.preventDefault();
         if (directoryOpen.matches("[data-mobile-directory-root]")) setMobileView("tree");
-        setDesktopDirectory(directoryOpen.dataset.directoryOpen || "root", true, true, directoryOpen);
+        const nextDirectory = directoryOpen.dataset.directoryOpen || "root";
+        setDesktopDirectory(nextDirectory, true, true, directoryOpen);
+        if (nextDirectory === "settings" || nextDirectory === "project-settings") tabWorkspace?.setExclusive(nextDirectory);
         if (directoryOpen.closest(".immersive-titlebar")) immersiveNavigation?.showDirectory();
         return;
       }
@@ -306,15 +295,21 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `        return;
         setDirectoryCollapsed(!workspace.classList.contains("is-directory-collapsed"));
         return;
       }
-      if (handleMomentumSelectionClick(target)) return;
+      if (handleMomentumSelectionClick(target, event)) return;
       if (handleMomentumZoomClick(target)) return;
       const goalLink = target.closest("[data-select-goal]");
       if (goalLink) {
-        openWorkbenchSurface("goal", goalLink.dataset.selectGoal, goalLink.textContent?.trim());
+        if (goalLink.closest("[data-goal-stage-list]")) {
+          const goalId = goalLink.dataset.selectGoal;
+          if (stageListGestureTimer) { clearTimeout(stageListGestureTimer); stageListGestureTimer = null; }
+          if (Number(event.detail) > 1) frameContainer?.openFrame(goalId);
+          else stageListGestureTimer = setTimeout(() => { stageListGestureTimer = null; void selectGoal(goalId); }, 220);
+          return;
+        }
+        openDirectorySurface("goal", goalLink.dataset.selectGoal, goalLink.textContent?.trim(), event);
         return;
       }
       if (handleGoalDialogClick(target)) return;
-      if (handleTreeCollapseAllClick(target)) return;
       const mobileTarget = target.closest("[data-mobile-target]");
       if (mobileTarget) {
         const mobileView = mobileTarget.dataset.mobileTarget;

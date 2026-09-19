@@ -22,10 +22,13 @@ export function buildGoalCollectionModel<T extends GoalCollectionItem>(
   const collectionView = archiveView || trashView;
   const collectionTitle = trashView ? L("回收站") : archiveView ? L("已归档") : L("Goal Tree");
   const collectionSuffix = trashView ? L("回收站") : archiveView ? L("归档") : "";
+  // Current Goals stay unselected until the user opens one or the Board has a real active Goal.
+  // Archive and trash still land on the first item in that collection when none was requested.
   const selected = decisionView ? undefined :
     visibleGoals.find(item => item.goal.goal_id === requestedGoalId) ??
-    (collectionView ? undefined : visibleGoals.find(item => item.goal.goal_id === view.active_goal_id)) ??
-    visibleGoals[0];
+    (collectionView
+      ? visibleGoals[0]
+      : visibleGoals.find(item => item.goal.goal_id === view.active_goal_id));
   const selectedId = selected?.goal.goal_id ?? "";
   const title = decisionView ? L("Inbox · Molis Work") :
     selected ? selected.goal.title + " · Molis Work" :

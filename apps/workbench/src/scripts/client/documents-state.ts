@@ -131,9 +131,9 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
       const immersive = document.body.classList.contains("immersive-workbench");
       if (immersive ? matchMedia("(max-width: 600px)").matches : matchMedia("(max-width: 760px)").matches && !workspace.classList.contains("is-desktop-tui")) return;
       if (!treeResizer) return;
-      const minimum = immersive ? 236 : 260;
+      const minimum = immersive ? 200 : 260;
       const maximum = immersive ? Math.min(520, innerWidth - 360) : Math.min(520, Math.max(320, innerWidth * 0.48));
-      const width = Math.round(Math.min(maximum, Math.max(minimum, Number(value) || 264)));
+      const width = Math.round(Math.min(maximum, Math.max(minimum, Number(value) || 240)));
       workspace.style.setProperty("--tree-width", width + "px");
       treeResizer.setAttribute("aria-valuemin", String(minimum));
       treeResizer.setAttribute("aria-valuemax", String(maximum));
@@ -143,7 +143,8 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
     };
 
     const setDirectoryCollapsed = (collapsed, persist = true) => {
-      const nextCollapsed = Boolean(collapsed);
+      const immersiveDesktop = document.body.classList.contains("immersive-workbench") && !matchMedia("(max-width: 600px)").matches;
+      const nextCollapsed = immersiveDesktop ? false : Boolean(collapsed);
       if (nextCollapsed && !workspace.classList.contains("is-directory-collapsed")) {
         const currentWidth = Math.round(treePane?.getBoundingClientRect().width || 0);
         if (currentWidth > 44) workspace.style.setProperty("--tree-width", currentWidth + "px");
@@ -166,11 +167,11 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
       selected,
       collapsed: getCollapsedTreeGoals(),
       disclosures: [...document.querySelectorAll("[data-persist-open][open]")].map((item) => item.dataset.persistOpen),
-      treeTop: treeScroll.scrollTop,
+      treeTop: treeScroll?.scrollTop || 0,
       documentTop: activeDesktopSurface === "goal" ? documentPane.scrollTop : Number(desktopSurfaceScroll.goal || 0),
       workSurface: activeDesktopSurface,
       surfaceScroll: { ...desktopSurfaceScroll, [activeDesktopSurface]: (activeDesktopSurface === "goal" ? documentPane : desktopWorkSurfaces.find(item => item.dataset.workSurface === activeDesktopSurface))?.scrollTop || 0 },
-      treeWidth: parseFloat(workspace.style.getPropertyValue("--tree-width")) || treePane.getBoundingClientRect().width,
+      treeWidth: parseFloat(workspace.style.getPropertyValue("--tree-width")) || (treePane.getBoundingClientRect().width > 44 ? treePane.getBoundingClientRect().width : 240),
       tuiWidth: workspace.classList.contains("is-tui-collapsed")
         ? parseFloat(workspace.style.getPropertyValue("--tui-width")) || undefined
         : tuiPane?.getBoundingClientRect().width,
@@ -178,11 +179,12 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
       statuses: getSelectedStatuses(),
       mobileView: workspace.dataset.mobileView || "tree",
       navigatorView,
-      workspaceMode: activeDesktopSurface === "goal" ? workspace.dataset.workspaceMode || "focus" : goalWorkspaceMode,
+      workspaceMode: activeDesktopSurface === "goal" ? workspace.dataset.workspaceMode || "graph" : goalWorkspaceMode,
       ...readMomentumState(),
       navigationVersion: desktopNavigationStateVersion,
       directory: treePane?.dataset.desktopDirectory || "root",
       directoryCollapsed: workspace.classList.contains("is-directory-collapsed"),
+      directoryCollapsedSections: [...document.querySelectorAll("[data-plugin-section][data-plugin-expanded='false']")].map((section) => section.dataset.pluginSection).filter(Boolean),
       feedPreset: activeFeedPreset,
       feedSelected: selectedFeedItem,
       feedTask: selectedFeedTask || "all",
@@ -204,7 +206,7 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
     const applyUiState = (ui) => {
       desktopSurfaceScroll = ui?.surfaceScroll && typeof ui.surfaceScroll === "object" ? { ...ui.surfaceScroll } : {};
       if (ui?.documentTop != null && desktopSurfaceScroll.goal == null) desktopSurfaceScroll.goal = Number(ui.documentTop || 0);
-      goalWorkspaceMode = ui?.workspaceMode || "focus";
+      goalWorkspaceMode = ui?.workspaceMode || "graph";
       const requestedDesktopSurface = ui?.workSurface === "sources" ? "feed" : (ui?.workSurface || (decisionView ? "inbox" : "goal"));
       let nextDesktopSurface = desktopWorkSurfaces.some((candidate) => candidate.dataset.workSurface === requestedDesktopSurface)
         ? requestedDesktopSurface
@@ -214,16 +216,22 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
       setDirectoryCollapsed(ui?.directoryCollapsed === true, false);
       if (desktopDirectoryPanels.length) {
         const restoredDirectoryRaw = ui?.navigationVersion === desktopNavigationStateVersion
-          ? ui?.directory || (decisionView ? "inbox" : "root")
-          : decisionView ? "inbox" : "root";
+          ? ui?.directory || "root"
+          : "root";
         const restoredDirectory = directoryPanelFor(restoredDirectoryRaw);
         setDesktopDirectory(restoredDirectory, false, false);
+        const collapsedSections = new Set(Array.isArray(ui?.directoryCollapsedSections) ? ui.directoryCollapsedSections : []);
+        document.querySelectorAll("[data-plugin-expand]").forEach((toggle) => {
+          const id = toggle.dataset.pluginExpand;
+          if (id) setPluginSectionExpanded(id, !collapsedSections.has(id), false);
+        });
       }
       restoreTreeCollapsed(ui?.collapsed);
       const disclosures = new Set(ui?.disclosures || []);
       document.querySelectorAll("[data-persist-open]").forEach((item) => {
         item.open = disclosures.has(item.dataset.persistOpen);
       });
+      syncGoalCollectionFolds();
       if (treeSearch) treeSearch.value = "";
       setSelectedStatuses(ui?.statuses || []);
       restoreMomentumState({
@@ -283,7 +291,7 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
         filterSources(true);
         if (selectedSource) selectSource(selectedSource, false);
       }
-      setWorkspaceMode(ui?.workspaceMode || (ui?.navigatorView === "graph" ? "graph" : "focus"), false, true);
+      setWorkspaceMode(ui?.workspaceMode || "graph", false, true);
       if (desktopWorkSurfaces.length) setDesktopWorkSurface(nextDesktopSurface, false, false);
       if (nextDesktopSurface === "feed" && selectedFeedItem) {
         selectFeedItem(selectedFeedItem, false, true, false);
@@ -294,7 +302,7 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
       setGoalFactor(goalFactorFromHash() || (ui?.selected === selected ? ui?.goalFactor : "relations"), false);
       const hashTargetId = decodeURIComponent(location.hash.slice(1));
       const hashTarget = hashTargetId ? document.getElementById(hashTargetId) : null;
-      treeScroll.scrollTop = Number(ui?.treeTop || 0);
+      if (treeScroll) treeScroll.scrollTop = Number(ui?.treeTop || 0);
       documentPane.scrollTop = hashTarget?.closest?.("[data-event-panel], [data-goal-factor-panel]") && activeDesktopSurface === "goal"
         ? 0
         : activeDesktopSurface === "goal" && ui?.selected === selected

@@ -2,8 +2,8 @@ import type { RuntimeIntegrationDetection, MolisWorkWebServiceDetection } from "
 import type { WebProjectNavigation, WebSettingsSection } from "./settings-navigation.js";
 export interface WebSettingsProject extends WebProjectNavigation {
   database_path: string;
-  source: "created" | "migrated";
-  data_class: "user" | "migrated_user" | "regenerable_demo";
+  source: "created";
+  data_class: "user" | "regenerable_demo";
   created_at: string;
 }
 
@@ -21,7 +21,8 @@ export interface WebInstallationDiagnostics {
 }
 
 export interface MolisWorkSettingsView {
-  section: WebSettingsSection;
+  section: WebSettingsSection | string;
+  plugin_settings_html?: string;
   context_project?: WebProjectNavigation | null;
   runtimes: RuntimeIntegrationDetection[];
   projects: WebSettingsProject[];

@@ -65,8 +65,8 @@ export function createWorkbenchOnboardingRenderer(primitives: OnboardingRenderPr
       </ul>
     </div>
     <div class="onboarding-update-actions">
-      <button type="button" data-onboarding-dismiss="update">${L("继续使用 Molis Work")}</button>
-      <a href="${href("/?migration=1")}">${L("查看项目设置")}</a>
+      <button class="mw-btn mw-btn--primary" type="button" data-onboarding-dismiss="update">${L("继续使用 Molis Work")}</button>
+      <a href="${href("/settings/projects")}">${L("查看项目设置")}</a>
     </div>
     <p class="onboarding-error" data-onboarding-error role="alert" hidden></p>
   </main>
@@ -114,18 +114,18 @@ export function createWorkbenchOnboardingRenderer(primitives: OnboardingRenderPr
 <body class="onboarding-page" data-onboarding-mode="${options.mode}" data-onboarding-tone="0"${desktopShell ? ' data-native-desktop="true"' : ""}>
   ${renderIconSprite()}
   ${ONBOARDING_ATMOSPHERE}
-  <header class="onboarding-topbar">
+  <header class="onboarding-topbar"${desktopShell ? ' data-tauri-drag-region="deep"' : ""}>
     <a class="onboarding-brand" href="${href("/")}">Molis Work</a>
-    <div class="onboarding-topbar-actions"><a href="${href("/?migration=1")}">${L("迁移已有数据")}</a><button type="button" data-onboarding-dismiss="first_run">${options.mode === "first_run" ? L("跳过") : L("返回项目目录")}</button></div>
+    <div class="onboarding-topbar-actions"><button class="mw-btn mw-btn--ghost" type="button" data-onboarding-dismiss="first_run">${options.mode === "first_run" ? L("跳过") : L("返回项目目录")}</button></div>
   </header>
   <main class="onboarding-room">
     <form class="onboarding-flow" data-onboarding-form novalidate>
       <div class="onboarding-flow-header">
         <p class="onboarding-progress" data-onboarding-progress aria-live="polite">01 / 04 · ${L("说说想法")}</p>
         <nav class="onboarding-actions" aria-label="${L("引导步骤导航")}">
-          <button class="onboarding-back" type="button" data-onboarding-back hidden>${icon("back")}<span>${L("上一步")}</span></button>
-          <button class="onboarding-next" type="button" data-onboarding-next><span data-onboarding-next-label>${L("下一步")}</span>${icon("arrow")}</button>
-          <button class="onboarding-submit" type="submit" data-onboarding-submit hidden><span data-onboarding-submit-label>${L("创建项目")}</span>${icon("arrow")}</button>
+          <button class="mw-btn mw-btn--ghost onboarding-back" type="button" data-onboarding-back hidden>${icon("back")}<span>${L("上一步")}</span></button>
+          <button class="mw-btn mw-btn--primary onboarding-next" type="button" data-onboarding-next><span data-onboarding-next-label>${L("下一步")}</span>${icon("arrow")}</button>
+          <button class="mw-btn mw-btn--primary onboarding-submit" type="submit" data-onboarding-submit hidden><span data-onboarding-submit-label>${L("创建项目")}</span>${icon("arrow")}</button>
         </nav>
       </div>
       <div class="onboarding-stage">
@@ -178,7 +178,7 @@ export function createWorkbenchOnboardingRenderer(primitives: OnboardingRenderPr
         </div>
         <div class="onboarding-runtime-state">
           <p data-onboarding-runtime-status data-state="busy" role="status">${L("正在打开 Runtime…")}</p>
-          <button type="button" data-onboarding-runtime-retry hidden>${icon("refresh")}<span>${L("重新打开")}</span></button>
+          <button class="mw-btn mw-btn--secondary" type="button" data-onboarding-runtime-retry hidden>${icon("refresh")}<span>${L("重新打开")}</span></button>
         </div>
       </section>
       </div>

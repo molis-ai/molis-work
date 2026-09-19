@@ -51,7 +51,7 @@ export function projectGoalDocument(goal: GoalRecord, input: {
     reviewsByGoal, impactsByGoal, contractProposalsByGoal, clarificationSessionsByGoal,
     clarificationTurnsByGoal, coverageByGoal, inputBindingsByGoal, policyBindingsByGoal,
     projectPolicyBindings, eventsByObject, relationsByGoal, candidatesByRun,
-    goalTreeProposalsByGoal, rewiresByGoal, rewiresByCandidate,
+    goalTreeProposalsByGoal, rewiresByGoal, rewiresByCandidate, createdByGoal,
   } = input.index;
   const event = ports.eventWork.readState(boardId, goal.goal_id);
   const eventOwned = Boolean(event.owner);
@@ -155,5 +155,6 @@ export function projectGoalDocument(goal: GoalRecord, input: {
     resolved_policy: resolvedPolicy,
     passed_criteria: [...passedCriteria],
     pending_reviews: pendingReviews,
+    created_by: createdByGoal.get(goal.goal_id) ?? goal.accepted_by,
   };
 }

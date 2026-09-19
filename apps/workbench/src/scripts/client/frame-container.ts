@@ -1,24 +1,25 @@
-/** Goals board view (canvas | kanban) and Frame canvas. Cross-plugin tabs and split panes live in tab-workspace. */
+/** Goals board view (list | canvas | kanban) and Frame canvas. Cross-plugin tabs and split panes live in tab-workspace. */
 export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
   const { translate: L, showToast, visibleGoals, getSurface, setWorkSurface, setDirectory,
     setWorkspaceMode, setMobileView, applySelection, locateGraphNode, getProjectId, route } = host;
+  const LIST_TAB = "list";
   const CANVAS_TAB = "canvas";
   const KANBAN_TAB = "kanban";
-  const isBoardTab = (tab) => tab === CANVAS_TAB || tab === KANBAN_TAB;
+  const isBoardTab = (tab) => tab === LIST_TAB || tab === CANVAS_TAB || tab === KANBAN_TAB;
   const tabsEl = document.querySelector(".immersive-titlebar [data-container-tabs]") || document.querySelector("[data-container-tabs]");
   const surfaceEl = document.querySelector("[data-goal-frame-surface]");
   const canvasEl = document.querySelector("[data-frame-canvas]");
   const worldEl = document.querySelector("[data-frame-world]");
   const zoomValue = document.querySelector("[data-frame-zoom-value]");
   const shell = document.querySelector("[data-goal-canvas-shell]");
-  const noop = { releaseFrame: () => {}, isFrameTabActive: () => false, isKanbanTabActive: () => false, openFrame: () => {}, locateGoal: () => {}, showCanvas: () => {}, showKanban: () => {}, restoreBoard: () => {}, restore: () => {}, sync: () => {} };
+  const noop = { releaseFrame: () => {}, isFrameTabActive: () => false, isKanbanTabActive: () => false, openFrame: () => {}, showGoalFrame: () => {}, locateGoal: () => {}, showList: () => {}, showCanvas: () => {}, showKanban: () => {}, restoreBoard: () => {}, restore: () => {}, sync: () => {} };
   if (!tabsEl || !shell || !surfaceEl || !canvasEl || !worldEl) return noop;
   const toRoute = typeof route === "function" ? route : (pathname) => pathname;
   const storageKey = () => "molis-work-frame-container:" + (getProjectId() || "board");
   const kindLabel = (kind) => ({ session: L("会话"), feed: "Feed", inbox: "Inbox", artifact: L("交付物") }[kind] || kind);
   let openFrames = [];
-  let activeTab = CANVAS_TAB;
-  let lastBoardView = CANVAS_TAB;
+  let activeTab = LIST_TAB;
+  let lastBoardView = LIST_TAB;
   let frames = {};
   let blockSeq = 1;
   let suppressClick = false;
@@ -71,11 +72,11 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
   const applySurface = () => {
     const onGoal = getSurface() === "goal";
     const showFrame = onGoal && !isBoardTab(activeTab);
-    if (!shell.closest("[data-tab-pane-body]")) shell.hidden = !onGoal || showFrame;
+    shell.hidden = !onGoal || showFrame;
     const tabRoot = document.querySelector("[data-tab-workspace]");
     if (tabRoot) tabRoot.hidden = false;
     surfaceEl.hidden = !showFrame;
-    if (onGoal && !showFrame) shell.dataset.boardView = activeTab === KANBAN_TAB ? KANBAN_TAB : CANVAS_TAB;
+    if (onGoal && !showFrame) shell.dataset.boardView = isBoardTab(activeTab) ? activeTab : LIST_TAB;
     if (showFrame) renderFrame();
   };
   const applyCamera = () => {
@@ -215,10 +216,22 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     const workspaceTabs = document.querySelector("[data-titlebar-tabs]");
     if (workspaceTabs) workspaceTabs.hidden = false;
     shell.querySelectorAll("[data-board-view-tab]").forEach((button) => {
-      if (isBoardTab(activeTab) && button.dataset.boardViewTab === activeTab) button.setAttribute("aria-current", "page");
+      const current = isBoardTab(activeTab) && button.dataset.boardViewTab === activeTab;
+      button.classList.toggle("is-current", current);
+      button.setAttribute("aria-pressed", String(current));
+      if (current) button.setAttribute("aria-current", "page");
       else button.removeAttribute("aria-current");
     });
     const fragment = document.createDocumentFragment();
+    const list = document.createElement("button");
+    list.type = "button";
+    list.className = "container-tab is-pinned";
+    list.dataset.containerTab = LIST_TAB;
+    if (activeTab === LIST_TAB) list.setAttribute("aria-current", "page");
+    const listLabel = document.createElement("span");
+    listLabel.textContent = L("列表");
+    list.append(listLabel);
+    fragment.append(list);
     const canvas = document.createElement("button");
     canvas.type = "button";
     canvas.className = "container-tab is-pinned";
@@ -275,7 +288,11 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     surfaceEl.querySelector('[data-frame-goal-title]').textContent = goalTitle(activeTab);
     const status = item?.display_status || item?.status || "";
     const statusEl = surfaceEl.querySelector('[data-frame-goal-status]');
-    statusEl.textContent = item?.status_label || L(status);
+    const source = document.querySelector('[data-goal-id="' + CSS.escape(activeTab) + '"] .goal-status');
+    statusEl.className = source?.className || ("goal-status" + (status ? " goal-status--" + status : ""));
+    statusEl.setAttribute("data-frame-goal-status", "");
+    if (source) statusEl.innerHTML = source.innerHTML;
+    else statusEl.textContent = item?.status_label || L(status);
     statusEl.dataset.status = status;
     surfaceEl.querySelector('[data-frame-goal-outcome]').textContent = item?.goal.outcome || L("还没有写明预期结果，可在工作区补充。");
     surfaceEl.querySelector('[data-frame-empty]').hidden = frame.blocks.length > 0;
@@ -325,10 +342,11 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     activeTab = view;
     setWorkSurface("goal");
     host.activateGoalsMother?.();
-    if (!already) setWorkspaceMode("graph");
     sync();
+    if (!already) setWorkspaceMode("graph");
     persist();
   };
+  const showList = () => showBoard(LIST_TAB);
   const showCanvas = () => showBoard(CANVAS_TAB);
   const showKanban = () => showBoard(KANBAN_TAB);
   const openFrame = (goalId) => host.openGoalTab?.(goalId);
@@ -355,7 +373,6 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     const previous = activeTab;
     if (!isBoardTab(activeTab)) activeTab = lastBoardView;
     setWorkSurface("goal");
-    setWorkspaceMode("graph", false, true);
     sync();
     if (previous !== activeTab) persist();
   };
@@ -371,7 +388,8 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
   };
   const locateGoal = (goalId) => {
     if (!containerEnabled() || !goalId) return;
-    if (!isBoardTab(activeTab)) activeTab = lastBoardView;
+    lastBoardView = CANVAS_TAB;
+    activeTab = CANVAS_TAB;
     host.activateGoalsMother?.();
     setDirectory("goals", true, false);
     setWorkSurface("goal");
@@ -509,11 +527,11 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
       const stored = JSON.parse(localStorage.getItem(storageKey()) || "null");
       if (stored && typeof stored === "object") {
         openFrames = Array.isArray(stored.openFrames) ? stored.openFrames.map(String) : [];
-        lastBoardView = stored.lastBoardView === KANBAN_TAB ? KANBAN_TAB : CANVAS_TAB;
+        lastBoardView = isBoardTab(stored.lastBoardView) ? stored.lastBoardView : LIST_TAB;
         activeTab = isBoardTab(stored.activeTab) || openFrames.includes(stored.activeTab) ? stored.activeTab : lastBoardView;
         frames = stored.frames && typeof stored.frames === "object" ? stored.frames : {};
       }
-    } catch { openFrames = []; activeTab = CANVAS_TAB; lastBoardView = CANVAS_TAB; frames = {}; }
+    } catch { openFrames = []; activeTab = LIST_TAB; lastBoardView = LIST_TAB; frames = {}; }
     prune();
     ready = true;
     sync();
@@ -523,7 +541,8 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     if (close) { event.preventDefault(); event.stopPropagation(); closeFrame(close.dataset.containerTabClose); return; }
     const tab = event.target.closest("[data-container-tab]");
     if (!tab) return;
-    if (tab.dataset.containerTab === CANVAS_TAB) showCanvas();
+    if (tab.dataset.containerTab === LIST_TAB) showList();
+    else if (tab.dataset.containerTab === CANVAS_TAB) showCanvas();
     else if (tab.dataset.containerTab === KANBAN_TAB) showKanban();
     else openFrame(tab.dataset.containerTab);
   });
@@ -531,15 +550,15 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     const tab = event.target.closest("[data-board-view-tab]");
     if (!tab) return;
     event.preventDefault();
-    if (tab.dataset.boardViewTab === KANBAN_TAB) showKanban();
+    if (tab.dataset.boardViewTab === LIST_TAB) showList();
+    else if (tab.dataset.boardViewTab === KANBAN_TAB) showKanban();
     else showCanvas();
   });
   document.addEventListener("click", (event) => {
-    if (!containerEnabled() || getSurface() !== "goal") return;
+    if (!isFrameTabActive()) return;
     const asset = readAsset(event.target);
     if (!asset?.kind) return;
     if (asset.kind === "goal") return;
-    if (isBoardTab(activeTab) && asset.kind !== "goal") return;
     event.preventDefault();
     event.stopPropagation();
     routeAsset(asset);
@@ -692,5 +711,5 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     persist();
   });
   restore();
-  return { isFrameTabActive, isKanbanTabActive, openFrame, showGoalFrame, locateGoal, showCanvas, showKanban, restoreBoard, closeFrame, releaseFrame, restore, sync };
+  return { isFrameTabActive, isKanbanTabActive, openFrame, showGoalFrame, locateGoal, showList, showCanvas, showKanban, restoreBoard, closeFrame, releaseFrame, restore, sync };
 }`;

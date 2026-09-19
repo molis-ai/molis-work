@@ -1,7 +1,9 @@
 import { PROJECT_HOME_FACTORY_SCRIPT } from "./project-home.js";
 import { PLUGIN_WORKBENCH_FACTORY_SCRIPT } from "./plugin-workbench.js";
+import { SHELF_CLIENT_FACTORY_SCRIPT, SHELF_SETTINGS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-shelf";
 import { IMMERSIVE_NAVIGATION_FACTORY_SCRIPT } from "./immersive-navigation.js";
 import { GLOBAL_SEARCH_FACTORY_SCRIPT } from "./global-search.js";
+import { SETTINGS_DIRECTORY_FACTORY_SCRIPT } from "./settings-directory.js";
 /** AP3 Workbench client segment: initialization. */
 export const CLIENT_INITIALIZATION_SCRIPT = `    });
 
@@ -18,7 +20,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     pluginWorkbench = (${PLUGIN_WORKBENCH_FACTORY_SCRIPT})({
       route, translate: L, projectId: state.project?.project_id,
       setSurface: surface => { setDesktopDirectory("artifacts", false, false); setDesktopWorkSurface(surface); },
-      openTabItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title),
+      openTabItem: (plugin, id, title, mode) => tabWorkspace?.openItem(plugin, id, title, undefined, mode),
       saveUiState, setMobileView,
     });
     globalSearchPalette = (${GLOBAL_SEARCH_FACTORY_SCRIPT})({
@@ -28,9 +30,18 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       selectGoal: (...args) => selectGoal(...args),
       setMobileView: (...args) => setMobileView(...args),
       noteSearchActivity: (...args) => noteSearchActivity(...args),
-      openTabItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title),
+      openTabItem: (plugin, id, title, mode) => tabWorkspace?.openItem(plugin, id, title, undefined, mode),
+      expandDirectory: (id) => setPluginSectionExpanded(id === "sources" ? "feed" : id, true, true),
     });
     projectHome = (${PROJECT_HOME_FACTORY_SCRIPT})({ getState: () => state, translate: L });
+    (${SHELF_CLIENT_FACTORY_SCRIPT})({ translate: L });
+    ${SHELF_SETTINGS_CLIENT_SCRIPT}
+    const settingsDirectory = (${SETTINGS_DIRECTORY_FACTORY_SCRIPT})({
+      translate: L,
+      setDirectory: (...args) => setDesktopDirectory(...args),
+      setExclusive: (surface) => tabWorkspace?.setExclusive(surface),
+      projectId: state.project?.project_id || "",
+    });
     bindGoalCreateEvents();
     addEventListener("popstate", (event) => {
       if (localPathname() === "/" && !decisionView && !collectionView) {
@@ -110,25 +121,38 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       }
     } catch {}
     if (!restoredUi) {
-      setWorkspaceMode("focus", false);
+      setWorkspaceMode("graph", false);
       bindGoalEventDocument();
       openEventReaderFromHash();
       const initialFactor = goalFactorFromHash();
       if (initialFactor) setGoalFactor(initialFactor, false);
       if (feedDirectory) setFeedPreset("feed", false);
       if (desktopDirectoryPanels.length) {
-        setDesktopDirectory(decisionView ? "inbox" : treePane?.dataset.desktopDirectory || "root", false, false);
+        setDesktopDirectory(treePane?.dataset.desktopDirectory || "root", false, false);
       }
       if (desktopWorkSurfaces.length) setDesktopWorkSurface(activeDesktopSurface, false, false);
     }
     immersiveNavigation?.sync();
+    tabWorkspace?.restore();
+    const restoredExclusive = tabWorkspace?.state?.()?.exclusive;
+    const settingsKind = restoredExclusive === "settings" || restoredExclusive === "project-settings"
+      ? restoredExclusive
+      : treePane?.dataset.desktopDirectory === "settings" || treePane?.dataset.desktopDirectory === "project-settings"
+        ? treePane.dataset.desktopDirectory
+        : "";
+    if (settingsKind) {
+      setDesktopDirectory(settingsKind, false, false);
+      tabWorkspace?.setExclusive(settingsKind);
+      if (settingsKind === "project-settings") void settingsDirectory?.loadProjectSection?.(settingsDirectory?.getProjectActive?.() || "general");
+      else void settingsDirectory?.loadSection?.(settingsDirectory?.getActive?.() || "appearance");
+    }
     const directGoalRequested = /^\\/(?:archive\\/|trash\\/)?goals\\/[^\\/]+\\/?$/.test(localPathname());
     const restoredNavigation = restoredUi && ["reload", "back_forward"].includes(
       performance.getEntriesByType("navigation")[0]?.type,
     );
     if (tabWorkspace) {
       if (directGoalRequested && selected && !restoredNavigation) {
-        tabWorkspace.openItem("goals", selected);
+        tabWorkspace.openPlugin("goals");
       }
     } else if (!directGoalRequested && !restoredNavigation && !decisionView && !collectionView) {
       goalWorkspaceMode = "graph";
@@ -146,6 +170,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     }
     if (directGoalRequested && selected && !restoredNavigation && tabWorkspace) {
       setDesktopDirectory("goals", false, false);
+      applySelection(selected, false);
       setWorkspaceMode("focus", false);
       if (matchMedia("(max-width: 760px)").matches) setMobileView("document");
       saveUiState();
@@ -187,22 +212,36 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       sessionStorage.removeItem("molis-work-decision-receipt");
     }
     if (selected && tuiPane) {
-      tuiPane.setAttribute("data-goal-id", selected);
-      const selectedItem = visibleGoals().find((entry) => entry.goal.goal_id === selected);
-      document.dispatchEvent(new CustomEvent("molis-work:goal-changed", { detail: {
-        goalId: selected,
-        goalTitle: selectedItem?.goal.title || selected,
-        status: selectedItem?.status || "",
-        statusLabel: selectedItem?.status_label || "",
-        statusMeaning: selectedItem?.status_meaning || "",
-        statusIconMarkup: selectedItem?.status_icon || "",
-        parentReadOnly: Boolean(selectedItem?.is_compound_parent),
-        children: selectedItem?.children || [],
-      } }));
+      try {
+        tuiPane.setAttribute("data-goal-id", selected);
+        const selectedItem = visibleGoals().find((entry) => entry.goal.goal_id === selected);
+        document.dispatchEvent(new CustomEvent("molis-work:goal-changed", { detail: {
+          goalId: selected,
+          goalTitle: selectedItem?.goal.title || selected,
+          status: selectedItem?.status || "",
+          statusLabel: selectedItem?.status_label || "",
+          statusMeaning: selectedItem?.status_meaning || "",
+          statusIconMarkup: selectedItem?.status_icon || "",
+          parentReadOnly: Boolean(selectedItem?.is_compound_parent),
+          children: selectedItem?.children || [],
+        } }));
+      } catch {}
     }
     immersiveNavigation?.sync();
     frameContainer?.restore();
-    tabWorkspace?.apply();
+    tabWorkspace?.restore();
+    if (directGoalRequested && selected && !restoredNavigation && tabWorkspace) {
+      tabWorkspace.openItem("goals", selected);
+    }
+    if (restoredUi) {
+      try {
+        const restored = JSON.parse(sessionStorage.getItem(storageKey) || "null");
+        if (Array.isArray(restored?.statuses) && restored.statuses.length) {
+          setSelectedStatuses(restored.statuses);
+          filterTree("");
+        }
+      } catch {}
+    }
     if (!(directGoalRequested && !restoredNavigation) && matchMedia("(max-width: 760px)").matches && (restoredMobileView === "tree" || restoredMobileView === "document" || restoredMobileView === "tui")) {
       setMobileView(restoredMobileView);
     }

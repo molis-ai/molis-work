@@ -18,6 +18,9 @@ release/macos/
 
 # Secrets and local env
 .env
+# Local model credentials for real-model verification. Never commit these.
+.secrets/
+*.local.json
 .env.*
 !.env.example
 

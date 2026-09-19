@@ -9,6 +9,11 @@ rust-version = "1.77"
 name = "molis-work-desktop"
 path = "../adapters/tauri/src/main.rs"
 
+# On-device text recognition, spawned by the shelf for image materials.
+[[bin]]
+name = "molis-work-ocr"
+path = "../adapters/tauri/src/ocr_main.rs"
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
@@ -21,20 +26,76 @@ tauri = { version = "2", features = ["tray-icon", "macos-private-api"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
+block2 = { version = "0.6", default-features = false, features = ["alloc", "std"] }
 objc2-app-kit = { version = "0.3", default-features = false, features = [
   "std",
+  "NSAnimation",
+  "NSAnimationContext",
+  "NSAppearance",
+  "NSApplication",
+  "NSBezierPath",
+  "NSButton",
+  "NSColor",
+  "NSDragging",
+  "NSDraggingItem",
+  "NSDraggingSession",
   "NSEvent",
+  "NSFont",
+  "NSFontDescriptor",
+  "NSGraphics",
+  "NSGraphicsContext",
+  "NSImage",
+  "NSImageRep",
+  "NSPanel",
+  "NSParagraphStyle",
+  "NSPasteboard",
   "NSResponder",
+  "NSRunningApplication",
   "NSScreen",
+  "NSStatusBar",
+  "NSStatusItem",
+  "NSStringDrawing",
+  "NSText",
+  "NSAccessibility",
+  "NSAttributedString",
+  "NSView",
+  "NSVisualEffectView",
   "NSWindow",
+  "NSWorkspace",
   "objc2-core-foundation",
+  "objc2-core-graphics",
+  "objc2-quartz-core",
 ] }
 objc2-foundation = { version = "0.3", default-features = false, features = [
   "std",
   "NSArray",
+  "NSAttributedString",
+  "NSData",
+  "NSDictionary",
   "NSEnumerator",
   "NSGeometry",
+  "NSError",
+  "NSObject",
+  "NSString",
+  "NSURL",
+  "NSValue",
   "objc2-core-foundation",
+] }
+objc2-core-graphics = { version = "0.3", default-features = false, features = [
+  "std",
+  "CGColor",
+  "CGPath",
+] }
+objc2-quartz-core = { version = "0.3", default-features = false, features = [
+  "std",
+  "CAAnimation",
+  "CALayer",
+  "CAMediaTiming",
+  "CAMediaTimingFunction",
+  "CAShapeLayer",
+  "CATransaction",
+  "objc2-core-foundation",
+  "objc2-core-graphics",
 ] }
 
 [profile.release]

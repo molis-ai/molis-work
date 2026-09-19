@@ -46,7 +46,7 @@ export const PROJECT_OPERATIONS_CLIENT_SCRIPT = `
   const deepLink = location.hash.replace(/^#/, "");
   if (deepLink === "sessions" || deepLink === "workspaces") {
     if (deepLink === "workspaces") history.replaceState(null, "", location.pathname + location.search + "#sessions");
-    document.querySelector('[data-work-surface-open="sessions"][data-directory-open="sessions"]')?.click();
+    document.querySelector('[data-plugin-id="sessions"][data-work-surface-open="sessions"]')?.click();
   }
 
 })();

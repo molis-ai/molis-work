@@ -6,7 +6,14 @@ export const GOALS_POLICY_UI_CONTRIBUTION_ID = "io.molis.work.native.goals.polic
 
 function createPolicyRenderer(primitives: GoalsPolicyUiPrimitives) {
   const { translate: L, escapeHtml, formatDate, icon, currentLocale, defaultPolicy: DEFAULT_GOAL_POLICY } = primitives;
-function activePolicyBinding(
+
+  function renderHeadingHint(id: string, label: string, text: string): string {
+    const ident = id.replace(/[^a-zA-Z0-9_-]+/g, "-") || "hint";
+    const anchor = `--${ident}`;
+    return `<span class="mw-hint"><button type="button" class="mw-hint__trigger" popovertarget="${escapeHtml(ident)}" aria-label="${escapeHtml(label)}" style="anchor-name: ${anchor}">${icon("circle-alert")}</button><div id="${escapeHtml(ident)}" class="mw-tooltip mw-hint__tooltip" data-slot="tooltip" role="tooltip" popover="auto" style="position-anchor: ${anchor}">${escapeHtml(text)}</div></span>`;
+  }
+
+  function activePolicyBinding(
   item: GoalsPolicyItem,
   scope: "project_default" | "goal",
 ): GoalsPolicyBinding | undefined {
@@ -140,7 +147,7 @@ function renderPolicyForm(
       </div></details>
       <section class="policy-form-group policy-form-group--reason"><header><span>${icon("history")}</span><div><h3>${L("变更说明")}</h3><p>${L("工作规则会进入完整记录，请说明为什么现在需要调整。")}</p></div></header><label class="policy-reason"><span>${L("修改原因")}</span><textarea name="reason" rows="2" required placeholder="${L("例如：这个 Goal 涉及用户数据，需要独立检查和最终确认")}"></textarea></label></section>
       <p class="form-error" data-policy-error role="alert" hidden></p>
-      <p class="settings-footnote">${goalScope ? L("保存后会与项目默认合并，并立即成为这条 Goal 的领取门槛。") : L("旧规则会标记为已替换，历史仍保留。")}</p><footer class="form-actions"><button class="button" type="reset" data-policy-cancel>${L("取消")}</button><button class="button-primary" type="submit">${L("保存")}${scopeLabel}</button></footer>
+      <p class="settings-footnote">${goalScope ? L("保存后会与项目默认合并，并立即成为这条 Goal 的领取门槛。") : L("旧规则会标记为已替换，历史仍保留。")}</p><footer class="form-actions mw-form__footer"><button class="mw-btn mw-btn--secondary" type="reset" data-policy-cancel>${L("取消")}</button><button class="mw-btn mw-btn--primary mw-btn--lg" type="submit">${L("保存")}${scopeLabel}</button></footer>
     </form>
   </details>`;
 }
@@ -174,24 +181,24 @@ function renderPolicyEditor(
     const projectPolicy = mergeGoalPolicyFormValues(DEFAULT_GOAL_POLICY, projectBinding);
     const toggle = (name: string, checked: boolean, title: string, description: string) => `<label class="settings-setting-row settings-toggle-row"><span class="setting-copy"><strong>${L(title)}</strong><span>${L(description)}</span></span><input class="settings-switch" type="checkbox" name="${name}"${checked ? " checked" : ""} role="switch"></label>`;
     return `<section class="settings-document project-rules-document" aria-labelledby="project-rules-title">
-      <header class="settings-heading"><h1 id="project-rules-title">${L("项目工作规则")}</h1><p>${L("设置这个项目里所有 Goal 共同遵守的最低要求。单个 Goal 可以增加要求，但不能降低这里的规则。")}</p></header>
-      <div class="settings-body"><form class="settings-rules-form" data-policy-form data-live-form="policy-project_default-${escapeHtml(projectId ?? "current-project")}" novalidate><div class="settings-rules-fields"><aside class="project-rules-receipt" data-project-rules-receipt role="status" tabindex="-1" hidden><strong data-project-rules-receipt-title></strong><span data-project-rules-receipt-detail></span></aside>
-      <p class="settings-state-note">${projectBinding ? L("已保存 · ") + escapeHtml(formatDate(projectBinding.created_at)) : L("当前使用系统默认")}</p>
-      ${projectBinding ? `<details class="settings-advanced settings-last-change"><summary><span class="setting-copy"><strong>${L("上次修改原因")}</strong></span>${icon("chevron-down")}</summary><p>${escapeHtml(projectBinding.reason)}</p></details>` : ""}
+      <header class="settings-heading"><div class="settings-heading-title"><h1 id="project-rules-title">${L("项目工作规则")}</h1>${renderHeadingHint("settings-hint-rules", L("这些规则什么时候生效"), L("这些规则只约束之后开始或重新领取的工作。"))}</div><p>${L("设置这个项目里所有 Goal 共同遵守的最低要求。单个 Goal 可以增加要求，但不能降低这里的规则。")}</p></header>
+      <div class="settings-body"><form class="settings-rules-form" data-policy-form data-live-form="policy-project_default-${escapeHtml(projectId ?? "current-project")}" novalidate>
+        <aside class="project-rules-receipt" data-project-rules-receipt role="status" tabindex="-1" hidden><strong data-project-rules-receipt-title></strong><span data-project-rules-receipt-detail></span></aside>
+        <p class="settings-state-note">${projectBinding ? L("已保存 · ") + escapeHtml(formatDate(projectBinding.created_at)) : L("当前使用系统默认")}</p>
         <input type="hidden" name="scope" value="project_default">
         <section class="settings-section"><h2>${L("开始与完成要求")}</h2>
           <div class="settings-setting-row"><label class="setting-copy" for="project-goal-mode"><strong>${L("按 Goal 工作")}</strong><span>${L("执行工具是否需要声明遵守当前目标、边界和完成标准。")}</span></label><select id="project-goal-mode" name="goal_mode">${Object.entries(GOAL_MODE_COPY).map(([value, copy]) => `<option value="${value}"${value === projectPolicy.goal_mode ? " selected" : ""}>${L(copy.label)}</option>`).join("")}</select></div>
           ${toggle("self_verification", projectPolicy.self_verification, "执行者自我验证", "执行者提交结果前先验证自己的完成依据")}
           ${toggle("human_approval", projectPolicy.human_approval, "用户最终确认", "完成前必须由用户确认工作结果")}
-        </section>
-        <details class="settings-advanced"><summary><span class="setting-copy"><strong>${L("高级执行与检查规则")}</strong><span>${L("设置能力要求、领取时长和独立检查人数。")}</span></span>${icon("chevron-down")}</summary><div>
+          <details class="settings-data-disclosure" data-rules-advanced><summary><span class="setting-copy"><strong>${L("高级执行与检查规则")}</strong><span>${L("设置能力要求、领取时长和独立检查人数。")}</span></span>${icon("chevron-down")}</summary><div>
           <label class="settings-setting-row"><span class="setting-copy"><strong>${L("执行工具需要的能力")}</strong><span>${L("所有能力都满足后才能开始；用逗号分隔。")}</span></span><input name="required_capabilities" value="${escapeHtml(projectPolicy.required_capabilities.join(", "))}" placeholder="${L("例如：浏览器操作、图像处理、数据分析")}"></label>
           <label class="settings-setting-row"><span class="setting-copy"><strong>${L("一次领取最长多久")}</strong><span>${L("到期后其他执行工具可以重新领取")}</span></span><span class="setting-number"><input name="max_lease_seconds" type="number" min="1" step="1" value="${projectPolicy.max_lease_seconds}"><span>${L("秒")}</span></span></label>
           <label class="settings-setting-row"><span class="setting-copy"><strong>${L("独立复核")}</strong><span>${L("由其他执行者检查结果与依据")}</span></span><span class="setting-number"><input name="cross_reviewers" aria-label="${L("独立复核人数")}" type="number" min="0" step="1" value="${projectPolicy.cross_reviewers}"><span>${L("人")}</span></span></label>
           <label class="settings-setting-row"><span class="setting-copy"><strong>${L("反例检查")}</strong><span>${L("主动寻找遗漏、反例和错误假设")}</span></span><span class="setting-number"><input name="adversarial_reviewers" aria-label="${L("反例检查人数")}" type="number" min="0" step="1" value="${projectPolicy.adversarial_reviewers}"><span>${L("人")}</span></span></label>
         </div></details>
-        <section class="settings-section settings-change-reason"><label class="setting-copy" for="project-rule-reason"><strong>${L("修改原因")}</strong><span>${L("说明这次调整的原因，保存后会保留在版本记录中。")}</span></label><textarea id="project-rule-reason" name="reason" rows="2" required></textarea></section>
-        <p class="settings-footnote">${L("这些规则只约束之后开始或重新领取的工作。")}</p></div><div class="settings-rules-actions"><p class="form-error" data-policy-error role="alert" hidden></p><footer class="settings-save-footer form-actions"><button class="button" type="reset" data-policy-cancel>${L("取消")}</button><button class="button-primary" type="submit">${L("保存项目默认规则")}</button></footer></div>
+          ${projectBinding ? `<details class="settings-data-disclosure settings-last-change"><summary><span class="setting-copy"><strong>${L("上次修改原因")}</strong></span>${icon("chevron-down")}</summary><p>${escapeHtml(projectBinding.reason)}</p></details>` : ""}
+        </section>
+        <section class="settings-section settings-change-reason"><label class="setting-copy" for="project-rule-reason"><strong>${L("修改原因")}</strong><span>${L("说明这次调整的原因，保存后会保留在版本记录中。")}</span></label><textarea id="project-rule-reason" name="reason" rows="2" required></textarea><p class="form-error" data-policy-error role="alert" hidden></p><footer class="settings-save-footer form-actions mw-form__footer"><button class="mw-btn mw-btn--secondary" type="reset" data-policy-cancel>${L("取消")}</button><button class="mw-btn mw-btn--primary" type="submit">${L("保存项目默认规则")}</button></footer></section>
       </form></div>
     </section>`;
   }

@@ -38,4 +38,6 @@ Goal schema、事件 schema 和本模块的历史升级由 Goals 维护。Host �
 
 真实 Runtime Session、终端进程和文件服务由 Work/Host 负责；切换 Goal 不会自动发送消息或改变终端绑定。Planning 不自行批准树变化；可信用户决定由 Governance 保存，Goals 只在相应应用事务中修改自己的事实。
 
+真正干活的无限画布是 GoalFrame：挂在 Goals 组，按 `goal_id` 记构图。点 Goal 打开这条 Goal 的 Frame；树、关系画布、看板和记录页仍归 Goals。
+
 当前调用示例见 [Runtime](../runtime.md)、[MCP](../mcp.md) 与[仓库 Skill](../../skills/goal-advance/SKILL.md)。本轮行为和历史兼容的验收范围见[事件工作流需求书](../../specs/goal-event-workflow-cleanup/spec.md)；早期 GW/DD/EX 迁移报告保留当时事实，不作为当前旧协议的使用指南。

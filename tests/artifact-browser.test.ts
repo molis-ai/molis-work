@@ -76,6 +76,11 @@ test("Artifact HTTP links exact versions, exports opaque records and preserves e
   const directory = await index.text();
   assert.ok(directory.includes(`href="${exactPath(1)}"`));
   assert.ok(directory.includes(`href="${exactPath(2)}"`));
+  assert.match(directory, /data-artifact-type-fold="io.example.report"/);
+  assert.match(directory, /<strong>report<\/strong>/);
+  assert.match(directory, /feed-stage-entry directory-list-row/);
+  assert.match(directory, /artifact-version-list/);
+  assert.match(directory, /goal-collection-mark is-ready/);
   assert.match(directory, /<strong>Original report<\/strong>/);
   assert.match(directory, /<strong>Later report<\/strong>/);
   const detail = await get(exactPath(1));
@@ -262,6 +267,25 @@ test("Goal context embeds explicit exact Artifact relations and refreshes owner 
   assert.doesNotMatch(await unknown.text(), /artifact-embed|report/);
 });
 
+
+test("Artifact type folds use spoken labels for known types", async t => {
+  const { coordinator, get } = await fixture(t);
+  coordinator.artifacts.commands.registerVersion(registration({
+    artifact_id: "goal-delivery",
+    artifact_type_id: "io.molis.work.goal.delivery",
+  }));
+  coordinator.artifacts.commands.registerVersion(registration({
+    artifact_id: "feed-capture",
+    version: 1,
+    artifact_type_id: "io.molis.work.feed.capture",
+    content: { kind: "inline", payload: { title: "Captured item" } },
+  }));
+  const html = await (await get("/artifacts")).text();
+  assert.match(html, /<strong>Goal 交付<\/strong>/);
+  assert.match(html, /<strong>Feed 捕获<\/strong>/);
+  assert.doesNotMatch(html, /<strong>io\.molis\.work\.goal\.delivery<\/strong>/);
+  assert.doesNotMatch(html, /<strong>io\.molis\.work\.feed\.capture<\/strong>/);
+});
 
 test("Artifact browser distinguishes no results, unselected versions and missing references", async t => {
   const {coordinator,get}=await fixture(t);

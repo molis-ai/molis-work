@@ -100,8 +100,6 @@ export interface GmailOAuthPorts {
     MOLIS_WORK_PUBLIC_BASE_URL?: string;
     MOLIS_WORK_GMAIL_CLIENT_ID?: string;
     MOLIS_WORK_GMAIL_CLIENT_SECRET?: string;
-    GOALBOARD_GMAIL_CLIENT_ID?: string;
-    GOALBOARD_GMAIL_CLIENT_SECRET?: string;
   };
   legacyAuthRef: string;
   resolveLegacyToken(): string | null;

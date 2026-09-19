@@ -9,7 +9,13 @@
 
 Workbench 不直接访问 SQLite、Module implementation、Node-only API 或 Tauri command；用户操作转换为强类型 Capability 调用。
 
-## 2. 嵌入
+## 2. 控件原语
+
+产品控件、色板、图标、字体的用法和文件表在 [`packages/design-system/README.md`](../../packages/design-system/README.md)。视觉意图在 [`DESIGN.md`](../../DESIGN.md)。开发预览标本是 `/__ui/catalog`。前端开发**建议**对照这块板，不强制每次都开；已经达到产品美学要求的共享控件、状态或微动效**要**补进 Catalog。过程说明见 [CLI 与开发](../cli-and-development.md#前端与控件板)。
+
+合同是 HTML Slot：从 `@molis-ai/molis-work-design-system` 导入 `render*` / `icon`，产出 `mw-*` + `data-slot`。不迁 React，不另起 class 填充。壳层选中走 `--nav-*`；靛只做链接、焦点、选区和进行中。
+
+## 3. 嵌入
 
 被插入内容的 Plugin 必须显式开放 Slot，声明接受的 Contribution Contract。贡献方声明自己提供的 view/command 与权限；UI Host 决定是否装载、放在哪里、何时销毁，并隔离错误和权限。
 
@@ -20,7 +26,7 @@ Workbench 不直接访问 SQLite、Module implementation、Node-only API 或 Tau
 - Plugin 修改宿主导航/页面而没有 Slot Contract；
 - 页面组合字段反写成新的中央事实。
 
-## 3. 迁移
+## 4. 迁移
 
 DD2 的原生/历史提案与最近结果现在是 Goals Native Plugin 的三个正式 Contribution，Workbench 经 UiHost 挂载。`apps/workbench/src/decision-center.ts` 只组合各 owner 已生成的内容；`decision-groups.ts` / `decision-results.ts` 归 Goals Plugin。客户端确认/退回/风险修订归 `proposal-client.ts`，Workbench 保留跨 Feed/Goal 的刷新、receipt 和共享状态。提案 CSS 在原层叠位置与 media query 内插入，英文文案由共享 catalog 组合。调用清单与 209 项验收见 `specs/molis-work-architecture-reorganization/dd2-caller-audit.md` 和 `dd2-validation.md`；不是整个 root renderer 已退休。
 
@@ -28,7 +34,7 @@ DD2 的原生/历史提案与最近结果现在是 Goals Native Plugin 的三个
 
 ### AP3 当前实现
 
-- `apps/workbench` 已拥有稳定 HTML 文档 Shell 和 `workbench.directory`、`workbench.main`、`workbench.overlay` 三个命名 Slot；旧 Web renderer 只提供尚未迁出的产品页面 body。
+- `apps/workbench` 已拥有稳定 HTML 文档 Shell 和 `workbench.directory`、`workbench.main`、`workbench.overlay`、`workbench.settings` 四个命名 Slot。`settings-page` contribution 只能挂到 `workbench.settings`，由全局设置目录列出；插件工作台仍走 directory/main/overlay。
 - `packages/ui-host` 在 mount 时校验 contribution、surface、目标 Slot 与 format；Plugin 不能向未声明或不兼容的 Slot 插入内容。
 - Feed Native Plugin 已按 surface 显式声明可装载位置，Workbench 通过 UI Host mount，不直接调用 Plugin renderer。
 - `packages/design-system` 已接管主题、密度、browser bootstrap 和分层视觉样式；`src/web/visual-foundation.ts` 只保留 15 行 public compatibility re-export。

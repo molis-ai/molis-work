@@ -59,7 +59,7 @@ export class SessionTuiRecorder {
     try {
       this.registry.appendEvent({
         session_id: sessionId,
-        source: "goalboard_tui",
+        source: "molis_work_tui",
         kind: "status",
         source_id: `${panelId}:${this.recordingId}:exit`,
         source_order: Number.MAX_SAFE_INTEGER,
@@ -100,7 +100,7 @@ export class SessionTuiRecorder {
     try {
       this.registry.appendEvent({
         session_id: buffer.sessionId,
-        source: "goalboard_tui",
+        source: "molis_work_tui",
         kind: "terminal_output",
         source_id: `${buffer.panelId}:${this.recordingId}:output:${sequence}`,
         source_order: sequence,

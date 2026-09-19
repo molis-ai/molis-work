@@ -55,9 +55,15 @@ test("canvas retains completed Goals and incomplete relationship diagnostics wit
 
 test("canvas has an honest empty state and localizes controls without translating user titles", () => {
   const empty = view([]);
-  assert.match(renderer.renderGoalMomentum(empty, "", []), /还没有目标/);
-  assert.doesNotMatch(renderer.renderGoalMomentum(empty, "", []), /从想要的结果开始|创建第一条 Goal/);
-  assert.match(renderer.renderGoalMomentum(empty, "", []), /data-open-create/);
+  const emptyHtml = renderer.renderGoalMomentum(empty, "", []);
+  const emptyBlock = emptyHtml.match(/<div class="goal-canvas-empty mw-empty"[^>]*>[\s\S]*?<\/div>/)?.[0] ?? "";
+  assert.match(emptyBlock, /还没有 Goal/);
+  assert.match(emptyBlock, /目标和依赖会作为节点出现在这里/);
+  assert.doesNotMatch(emptyBlock, /还没有目标|data-open-create|mw-btn|<h2>|<button/);
+  assert.doesNotMatch(emptyHtml, /从想要的结果开始|创建第一条 Goal/);
+  const emptyEnglish = runWithLocale("en", () => renderer.renderGoalMomentum(empty, "", []));
+  assert.match(emptyEnglish, /No Goals yet/);
+  assert.match(emptyEnglish, /Goals and dependencies will appear here as nodes\./);
   const user = item("USER", "目标关系");
   const model = view([user]);
   const html = runWithLocale("en", () => renderer.renderGoalMomentum(model, "USER", model.goals));

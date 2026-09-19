@@ -22,45 +22,21 @@ pub(crate) struct WebServiceState {
 
 fn product_env(suffix: &str) -> Option<String> {
     let next = format!("MOLIS_WORK_{suffix}");
-    if let Ok(value) = std::env::var(&next) {
-        let trimmed = value.trim();
-        if !trimmed.is_empty() {
-            return Some(trimmed.to_string());
-        }
-    }
-    let legacy = format!("GOALBOARD_{suffix}");
-    std::env::var(legacy)
+    std::env::var(&next)
         .ok()
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
 }
 
-fn molis_work_home() -> PathBuf {
+pub(crate) fn molis_work_home() -> PathBuf {
     if let Some(home) = product_env("HOME") {
         return PathBuf::from(home);
     }
-    let user_home = PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| "/".into()));
-    let next = user_home.join(".molis-work");
-    let legacy = user_home.join(".goalboard");
-    if !next.exists() && legacy.exists() {
-        let _ = fs::rename(&legacy, &next);
-    }
-    if next.exists() && !legacy.exists() {
-        let _ = std::os::unix::fs::symlink(&next, &legacy);
-    }
-    if next.exists() || !legacy.exists() {
-        next
-    } else {
-        legacy
-    }
+    PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| "/".into())).join(".molis-work")
 }
 
 fn web_launcher(home: &Path) -> PathBuf {
-    ["molis-work-web", "goalboard-web"]
-        .into_iter()
-        .map(|name| home.join("bin").join(name))
-        .find(|path| path.is_file())
-        .unwrap_or_else(|| home.join("bin").join("molis-work-web"))
+    home.join("bin").join("molis-work-web")
 }
 
 pub(crate) fn web_healthy() -> bool {
@@ -219,14 +195,33 @@ fn install_embedded_molis_work(resource_dir: &Path, home: &Path) -> Result<(), S
     })
 }
 
+/// The on-device text recognizer ships beside the App binary, or sits in the
+/// Cargo target folder when running from source.
+fn ocr_helper(resource_dir: Option<&Path>) -> Option<PathBuf> {
+    if let Ok(configured) = std::env::var("MOLIS_WORK_OCR_BIN") {
+        let path = PathBuf::from(configured);
+        if path.is_file() {
+            return Some(path);
+        }
+    }
+    let mut candidates: Vec<PathBuf> = Vec::new();
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            candidates.push(dir.join("molis-work-ocr"));
+        }
+    }
+    if let Some(dir) = resource_dir {
+        candidates.push(dir.join("molis-work-ocr"));
+        candidates.push(dir.join("resources").join("molis-work-ocr"));
+    }
+    candidates.into_iter().find(|path| path.is_file())
+}
+
 fn sync_managed_web_service_after_upgrade(home: &Path) -> bool {
-    let cli = ["molis-work", "goalboard"]
-        .into_iter()
-        .map(|name| home.join("bin").join(name))
-        .find(|path| path.is_file());
-    let Some(cli) = cli else {
+    let cli = home.join("bin").join("molis-work");
+    if !cli.is_file() {
         return false;
-    };
+    }
     Command::new(cli)
         .args(["service", "install", "--home"])
         .arg(home)
@@ -342,9 +337,15 @@ pub(crate) fn ensure_molis_work_web(
         ));
     }
     let path = login_shell_path();
-    let child = Command::new(&bin)
+    let mut command = Command::new(&bin);
+    command
         .args(["--home", home.to_str().unwrap_or_default()])
-        .env("PATH", &path)
+        .env("PATH", &path);
+    // The shelf reads image text through this helper; no helper, no image OCR.
+    if let Some(helper) = ocr_helper(resource_dir) {
+        command.env("MOLIS_WORK_OCR_BIN", helper);
+    }
+    let child = command
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())

@@ -2,12 +2,13 @@ import path from "node:path";
 
 import type {
   AddProjectPluginInput,
-  BuiltinProjectPluginId,
   ProjectDeletionRecord,
+  ProjectPluginId,
+  ProjectPluginRegistry,
   ProjectRecord,
   ProjectSelection,
 } from "@molis-ai/molis-work-contracts/modules/projects";
-import { BUILTIN_PROJECT_PLUGIN_IDS, PROJECT_PLUGIN_COMPANIONS } from "@molis-ai/molis-work-contracts/modules/projects";
+import { BUILTIN_PROJECT_PLUGIN_REGISTRY } from "@molis-ai/molis-work-contracts/modules/projects";
 
 import { ProjectsRepository, type StoredProjectDeletion } from "./repository.js";
 
@@ -18,9 +19,7 @@ export interface ProjectRecordDraftInput {
   display_name: string;
   board_id?: string;
   projects_directory: string;
-  source: ProjectRecord["source"];
   data_class: ProjectRecord["data_class"];
-  migrated_from_path: string | null;
 }
 
 export class ProjectService {
@@ -29,6 +28,8 @@ export class ProjectService {
     private readonly error: ProjectsErrorFactory,
     private readonly now: () => string,
     private readonly id: (prefix: string) => string,
+    /** Which Plugins exist is a Host fact. Projects only validates against it. */
+    private readonly plugins: ProjectPluginRegistry = BUILTIN_PROJECT_PLUGIN_REGISTRY,
   ) {}
 
   list(): ProjectRecord[] {
@@ -58,9 +59,8 @@ export class ProjectService {
       display_name: displayName,
       board_id: input.board_id?.trim() || projectId,
       database_path: path.join(input.projects_directory, projectId, "molis-work.db"),
-      source: input.source,
+      source: "created",
       data_class: input.data_class,
-      migrated_from_path: input.migrated_from_path,
       created_at: at,
       updated_at: at,
     };
@@ -69,14 +69,10 @@ export class ProjectService {
   register(record: ProjectRecord, eventType: string, actorId: string): void {
     this.repository.transaction(() => {
       this.repository.insertProject(record);
-      // Imported projects retain their existing entry points; new projects start with Goals.
-      const plugins = record.source === "migrated" ? BUILTIN_PROJECT_PLUGIN_IDS : ["goals"] as const;
-      for (const plugin of plugins) this.repository.addProjectPlugin(record.project_id, plugin, record.created_at);
+      this.repository.addProjectPlugin(record.project_id, "goals", record.created_at);
       this.appendEvent(record.project_id, eventType, this.requiredActorId(actorId), {
         board_id: record.board_id,
         database_path: record.database_path,
-        source: record.source,
-        migrated_from_path: record.migrated_from_path,
       });
     });
   }
@@ -85,19 +81,19 @@ export class ProjectService {
     this.repository.removeProject(this.requiredProjectId(projectId));
   }
 
-  listPlugins(projectId: string): BuiltinProjectPluginId[] {
+  listPlugins(projectId: string): ProjectPluginId[] {
     return this.repository.listProjectPlugins(this.get(projectId).project_id);
   }
 
-  addPlugin(input: AddProjectPluginInput): BuiltinProjectPluginId[] {
+  addPlugin(input: AddProjectPluginInput): ProjectPluginId[] {
     const project = this.get(input.project_id);
     const actor = this.requiredActorId(input.actor_id);
-    if (!BUILTIN_PROJECT_PLUGIN_IDS.includes(input.plugin_id)) {
-      throw this.error("catalog.plugin_not_found", "找不到这个内置插件");
+    if (!this.plugins.has(input.plugin_id)) {
+      throw this.error("catalog.plugin_not_found", "找不到这个插件");
     }
     return this.repository.transaction(() => {
       const at = this.now();
-      for (const pluginId of [input.plugin_id, ...PROJECT_PLUGIN_COMPANIONS[input.plugin_id]]) {
+      for (const pluginId of [input.plugin_id, ...this.plugins.companions(input.plugin_id)]) {
         if (this.repository.addProjectPlugin(project.project_id, pluginId, at)) {
           this.appendEvent(project.project_id, "project.plugin_added", actor, { plugin_id: pluginId });
         }

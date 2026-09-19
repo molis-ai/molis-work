@@ -17,7 +17,6 @@ export {
 } from "./session-registry.js";
 export {
   SESSION_REGISTRY_OWNER,
-  LEGACY_SESSION_REGISTRY_OWNER,
 } from "./session-schema.js";
 
 export const packageDescriptor = {

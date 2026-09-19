@@ -86,29 +86,6 @@ export interface IngestFeedItemInput {
   material?: Omit<FeedMaterialRecord, "project_id" | "item_id" | "imported_at" | "updated_at">;
 }
 
-export interface ImportedFeedItemInput {
-  project_id: string;
-  item_id: string;
-  source_id: string | null;
-  kind: string;
-  title: string;
-  summary: string;
-  body: string | null;
-  source_kind: string;
-  source_label: string;
-  external_id: string | null;
-  url: string | null;
-  origin_status: string;
-  priority: string;
-  tags: string[];
-  author: string | null;
-  disposition: FeedItemDisposition;
-  source_created_at: string;
-  source_updated_at: string;
-  imported_at: string;
-  updated_at: string;
-}
-
 export interface FeedQuery {
   list(projectId: string): FeedItemRecord[];
   get(projectId: string, itemId: string): FeedItemRecord;
@@ -119,7 +96,6 @@ export interface FeedQuery {
 
 export interface FeedCommands {
   ingest(input: IngestFeedItemInput): { item: FeedItemRecord; created: boolean; updated: boolean };
-  upsertImportedItem(input: ImportedFeedItemInput): FeedItemRecord;
   upsertMaterial(material: FeedMaterialRecord): FeedMaterialRecord;
   setDisposition(
     projectId: string,
@@ -183,16 +159,6 @@ export interface InfoflowContractMigrationReport {
 
 export interface FeedModuleDependencies {
   attention: AttentionApi;
-}
-
-export interface FeedImportReceiptRecord {
-  board_id: string;
-  receipt_id: string;
-  source_fingerprint: string;
-  summary: Record<string, unknown>;
-  credentials_status: "migrated" | "unavailable" | "not_requested";
-  content_status: "migrated" | "partial" | "unavailable" | "not_requested";
-  completed_at: string;
 }
 
 export interface FeedContractMigrationReceiptRecord {

@@ -14,10 +14,10 @@ export const WEB_LOCALES = ["zh", "en"] as const;
 
 
 export const LOCALE_SWITCH_STYLES = `
-  .locale-switch { height: 28px; margin-right: 10px; padding: 2px; border: 1px solid var(--line); border-radius: 5px; background: #fff; display: inline-flex; align-items: center; flex: 0 0 auto; }
-  .locale-switch a { min-width: 36px; height: 24px; padding: 0 8px; border-radius: 3px; display: grid; place-items: center; color: var(--muted); font-size: 12px; font-weight: 650; text-decoration: none; }
-  .locale-switch a:hover { color: var(--blue-dark); background: var(--blue-soft); }
-  .locale-switch a[aria-current=true] { color: var(--blue-dark); background: var(--blue-soft); }
+  .locale-switch { height: 28px; margin-right: 10px; padding: 2px; border: 1px solid var(--line); border-radius: 5px; background: var(--paper); display: inline-flex; align-items: center; flex: 0 0 auto; }
+  .locale-switch a { min-width: 36px; height: 24px; padding: 0 8px; border-radius: 3px; display: grid; place-items: center; color: var(--muted); font-size: 12px; font-weight: 400; text-decoration: none; }
+  .locale-switch a:hover { color: var(--ink); background: var(--nav-hover); }
+  .locale-switch a[aria-current=true] { color: var(--ink); background: var(--nav-active); }
   @media (max-width: 760px) {
     .locale-switch { margin-right: 6px; }
     .locale-switch a { min-width: 32px; padding: 0 6px; }

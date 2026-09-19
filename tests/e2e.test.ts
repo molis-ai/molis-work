@@ -190,7 +190,10 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
       dependencies?: Record<string, string>;
     };
     for (const dependency of Object.keys(packageMetadata.dependencies ?? {})) {
-      await symlink(await realpath(join(repository, "node_modules", dependency)), join(runtimeRoot, "node_modules", dependency), "dir");
+      const target = join(runtimeRoot, "node_modules", dependency);
+      // A scoped dependency needs its `@scope` directory to exist before the link.
+      if (dependency.startsWith("@")) await mkdir(dirname(target), { recursive: true });
+      await symlink(await realpath(join(repository, "node_modules", dependency)), target, "dir");
     }
     const fakeCodex = join(fakeBin, "codex");
     const fakeClaude = join(fakeBin, "claude");

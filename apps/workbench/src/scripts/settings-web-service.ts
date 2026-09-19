@@ -1,21 +1,28 @@
 /** HTML dialog works in both browsers and the desktop WKWebView. */
 export const WEB_SERVICE_SETTINGS_SCRIPT = `
   (() => {
-    const buttons = [...document.querySelectorAll("[data-web-service-action]")];
-    if (!buttons.length) return;
-    const error = document.querySelector("[data-web-service-error]");
-    const dialog = document.createElement("dialog");
-    dialog.className = "runtime-plan-dialog";
-    dialog.setAttribute("aria-labelledby", "web-service-plan-title");
-    dialog.innerHTML = '<div class="runtime-plan-shell"><header><div><h2 id="web-service-plan-title"></h2><p data-service-message></p></div></header><div class="runtime-plan-body"><ul class="runtime-change-list" data-service-changes></ul><p data-service-confirmation></p></div><footer><button type="button" data-service-cancel></button><button type="button" class="runtime-plan-apply" data-service-apply></button></footer></div>';
-    document.body.append(dialog);
-    const cancel = dialog.querySelector("[data-service-cancel]");
-    const apply = dialog.querySelector("[data-service-apply]");
-    cancel.textContent = L("取消");
+    let dialog;
     let busy = false;
     let settle = null;
+    const ensureDialog = () => {
+      if (dialog) return dialog;
+      dialog = document.createElement("dialog");
+      dialog.className = "runtime-plan-dialog";
+      dialog.setAttribute("aria-labelledby", "web-service-plan-title");
+      dialog.innerHTML = '<div class="runtime-plan-shell"><header><div><h2 id="web-service-plan-title"></h2><p data-service-message></p></div></header><div class="runtime-plan-body"><ul class="runtime-change-list" data-service-changes></ul><p data-service-confirmation></p></div><footer><button class="mw-btn mw-btn--secondary" type="button" data-service-cancel></button><button class="mw-btn mw-btn--primary runtime-plan-apply" type="button" data-service-apply></button></footer></div>';
+      document.body.append(dialog);
+      const cancel = dialog.querySelector("[data-service-cancel]");
+      const apply = dialog.querySelector("[data-service-apply]");
+      cancel.textContent = L("取消");
+      const choose = (decision) => { if (settle) { const resolve = settle; settle = null; dialog.close(); resolve(decision); } };
+      cancel.addEventListener("click", () => choose("declined"));
+      apply.addEventListener("click", () => choose("confirmed"));
+      dialog.addEventListener("cancel", (event) => { event.preventDefault(); choose("declined"); });
+      dialog.addEventListener("close", () => choose("declined"));
+      return dialog;
+    };
     const showStatus = (message) => {
-      const toast = document.querySelector("[data-settings-toast]");
+      const toast = document.querySelector("[data-settings-toast], [data-toast]");
       if (toast) { toast.textContent = message; toast.classList.add("is-visible"); }
     };
     const waitForRestart = async (previousProcessId) => {
@@ -35,19 +42,20 @@ export const WEB_SERVICE_SETTINGS_SCRIPT = `
       }
       throw new Error(L("尚未确认服务重启成功，请刷新诊断页检查状态；不要连续重复重启。"));
     };
-    const choose = (decision) => { if (settle) { const resolve = settle; settle = null; dialog.close(); resolve(decision); } };
-    cancel.addEventListener("click", () => choose("declined"));
-    apply.addEventListener("click", () => choose("confirmed"));
-    dialog.addEventListener("cancel", (event) => { event.preventDefault(); choose("declined"); });
-    dialog.addEventListener("close", () => choose("declined"));
     const post = async (suffix, body) => {
       const response = await fetch("/api/settings/web-service/" + suffix, { method: "POST", headers: molisWorkControlHeaders(), body: JSON.stringify(body) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || L("常驻服务操作失败"));
       return result;
     };
-    buttons.forEach((button) => button.addEventListener("click", async () => {
-      if (busy) return;
+    document.addEventListener("click", async (event) => {
+      const button = event.target.closest("[data-web-service-action]");
+      if (!button || busy) return;
+      ensureDialog();
+      const cancel = dialog.querySelector("[data-service-cancel]");
+      const apply = dialog.querySelector("[data-service-apply]");
+      const error = document.querySelector("[data-web-service-error]");
+      const buttons = [...document.querySelectorAll("[data-web-service-action]")];
       busy = true;
       const disabled = buttons.map((item) => item.disabled);
       buttons.forEach((item) => { item.disabled = true; });
@@ -82,7 +90,7 @@ export const WEB_SERVICE_SETTINGS_SCRIPT = `
           setTimeout(() => location.reload(), 450);
         }
       } catch (caught) {
-        const toast = document.querySelector("[data-settings-toast]");
+        const toast = document.querySelector("[data-settings-toast], [data-toast]");
         if (toast) toast.classList.remove("is-visible");
         if (error) { error.textContent = caught.message || L("常驻服务操作失败"); error.hidden = false; }
       } finally {
@@ -90,6 +98,6 @@ export const WEB_SERVICE_SETTINGS_SCRIPT = `
         busy = false;
         button.focus();
       }
-    }));
+    });
   })();
 `;

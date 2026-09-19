@@ -16,7 +16,7 @@
 - 目的地仍是一层：项目首页 + 已启用插件；「+ 插件市场」留在目的地最底下，与工作插件略分开。
 - 统一目录列表语法，使 Goals / Sessions / Inbox / Feed / 来源 / Artifacts / 首页列表区与首页次要文字同一家族：
   - 标题 13px / 450，单行省略；
-  - Goals 保持 32px 单行；需要次要事实的列表 44px 两行（标题 + 一条 11px muted 说明）；
+  - Goals / Sessions 保持 36px 单行（标题 + 状态）；需要次要事实的列表 44px 两行（标题 + 一条 11px muted 说明）；
   - 圆角 6px；选中/悬停为平面 `nav-active`，不浮起、不用蓝色底芯片；
   - 列表区标题 12px / 500 / muted，与首页年、月标签同级；
   - 次要文字不低于 11px（修复来源筛选 8.5px）；
@@ -34,8 +34,8 @@
 ## 使用场景
 
 1. 打开项目：左边上面是目的地，下面标题「项目首页」、无条目提示；右边仍是诗意首页。
-2. 点 Goals：下面 32px 单行 Goal 树，右边画布或上次 Frame。
-3. 点 Feed / Inbox / Sessions：下面 44px 两行列表，标题和次要事实可读，选中态与 Goal 树相同。
+2. 点 Goals：下面 36px 单行 Goal 树，右边画布或上次 Frame。
+3. 点 Feed / Inbox：下面 44px 两行列表，标题和次要事实可读，选中态与 Goal 树相同。点 Sessions：下面 36px 单行，语法与 Goals 相同。
 4. 从任意插件点回项目首页：主区回到诗意页，列表区再次留白。
 
 ## 文件边界
@@ -49,8 +49,8 @@
 
 1. 首页构图与现网一致：日期、引语、月历、快捷方式、禁用输入仍在；浅色/深色/窄屏可用。**通过**（隔离 4188：浅色桌面、深色首页、390 抽屉）。
 2. 首页列表区没有「点上面的插件」类说明。目的地与列表之间的横线已由 `specs/directory-list-divider/spec.md` 去掉。**通过**（隔离 4188：浅色桌面、深色首页、390 抽屉）。
-3. Goal 行高仍为 32px，标题不换行，状态不被挤掉。**通过**（e2e + 浅色 Goals 截图）。
-4. Feed / Sessions 目录行高约 44px，标题 13px，次要文字 11px，选中为 `nav-active`。**通过**（e2e；Inbox / Artifacts 空态同目录语法）。
+3. Goal 行高仍为 36px，标题不换行，状态不被挤掉。**通过**（e2e + 浅色 Goals 截图）。Sessions 随后由 `specs/session-directory-goal-row/spec.md` 对齐为同一单行语法。
+4. Feed 目录行高约 44px，标题 13px，次要文字 11px，选中为 `nav-active`。**通过**（e2e；Inbox / Artifacts 空态同目录语法）。
 5. 来源筛选按钮字号 ≥ 10px。**通过**（目录 CSS 11px）。
 6. 定向测试通过；隔离浏览器可走 首页 → Goals → Feed → Sessions → 回首页。**通过**（另验 Inbox / Artifacts / 390 抽屉）。
 

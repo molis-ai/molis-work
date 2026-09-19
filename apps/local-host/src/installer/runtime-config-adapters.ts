@@ -134,32 +134,28 @@ export function desiredCodexFamily(desired: DesiredConnection): string {
 
 export function inspectCodexConfig(contents: string | null, desired: DesiredConnection): ConfigInspection {
   if (contents == null) return { state: "absent", summary: "未配置 Molis Work MCP", entryFingerprint: null };
-  const family = extractTomlFamily(contents, "mcp_servers.molis-work")
-    ?? extractTomlFamily(contents, "mcp_servers.goalboard");
-  if (!family) return { state: "absent", summary: "未配置 Molis Work MCP", entryFingerprint: null };
+  const family = extractTomlFamily(contents, "mcp_servers.molis-work");
+  if (!family) {
+    return { state: "absent", summary: "未配置 Molis Work MCP", entryFingerprint: null };
+  }
   const expected = desiredCodexFamily(desired);
   if (normalizeBlock(family.text) === normalizeBlock(expected)) {
     return { state: "current", summary: "当前 Molis Work MCP 配置", entryFingerprint: digest(normalizeBlock(expected)) };
   }
   const familyBody = family.text.replace(/^\s*\[[^\]\r\n]+\]\s*(?:#.*)?$/gm, "");
-  if (/MOLIS_WORK_|GOALBOARD_|(?:command|args)\s*=.*(?:molis-work|goalboard)/i.test(familyBody)) {
+  if (/MOLIS_WORK_|(?:command|args)\s*=.*molis-work/i.test(familyBody)) {
     return { state: "legacy", summary: "旧版 Molis Work MCP 配置", entryFingerprint: digest(normalizeBlock(family.text)) };
   }
   return { state: "conflict", summary: "同名 MCP entry 不属于 Molis Work", entryFingerprint: digest(normalizeBlock(family.text)) };
 }
 
 export function connectCodexConfig(contents: string | null, desired: DesiredConnection): string {
-  const withoutLegacy = replaceTomlFamily(contents ?? "", "mcp_servers.goalboard", null) ?? "";
-  return replaceTomlFamily(withoutLegacy, "mcp_servers.molis-work", desiredCodexFamily(desired));
+  return replaceTomlFamily(contents ?? "", "mcp_servers.molis-work", desiredCodexFamily(desired));
 }
 
 export function removeCodexConfig(contents: string | null): string | null {
   if (contents == null) return null;
-  return replaceTomlFamily(
-    replaceTomlFamily(contents, "mcp_servers.molis-work", null) ?? "",
-    "mcp_servers.goalboard",
-    null,
-  );
+  return replaceTomlFamily(contents, "mcp_servers.molis-work", null);
 }
 
 export function desiredClaudeEntry(desired: DesiredConnection): Record<string, unknown> {
@@ -179,13 +175,15 @@ export function inspectClaudeConfig(contents: string | null, desired: DesiredCon
   if (contents == null) return { state: "absent", summary: "未配置 Molis Work MCP", entryFingerprint: null };
   const root = parseJsonObject(contents, "Claude Code 用户配置");
   const servers = objectOrEmpty(root.mcpServers);
-  const entry = servers["molis-work"] ?? servers["goalboard"];
-  if (entry == null) return { state: "absent", summary: "未配置 Molis Work MCP", entryFingerprint: null };
+  const entry = servers["molis-work"];
+  if (entry == null) {
+    return { state: "absent", summary: "未配置 Molis Work MCP", entryFingerprint: null };
+  }
   const expected = desiredClaudeEntry(desired);
   if (canonicalJson(entry) === canonicalJson(expected)) {
     return { state: "current", summary: "当前 Molis Work MCP 配置", entryFingerprint: digest(canonicalJson(expected)) };
   }
-  if (/molis-work|MOLIS_WORK_|goalboard|GOALBOARD_/i.test(canonicalJson(entry))) {
+  if (/molis-work|MOLIS_WORK_/i.test(canonicalJson(entry))) {
     return { state: "legacy", summary: "旧版 Molis Work MCP 配置", entryFingerprint: digest(canonicalJson(entry)) };
   }
   return { state: "conflict", summary: "同名 MCP entry 不属于 Molis Work", entryFingerprint: digest(canonicalJson(entry)) };
@@ -194,7 +192,6 @@ export function inspectClaudeConfig(contents: string | null, desired: DesiredCon
 export function connectClaudeConfig(contents: string | null, desired: DesiredConnection): string {
   const root = contents == null ? {} : parseJsonObject(contents, "Claude Code 用户配置");
   const servers: Record<string, unknown> = { ...objectOrEmpty(root.mcpServers), "molis-work": desiredClaudeEntry(desired) };
-  delete servers["goalboard"];
   return replaceTopLevelJsonProperty(contents, root, "mcpServers", servers);
 }
 
@@ -203,7 +200,6 @@ export function removeClaudeConfig(contents: string | null): string | null {
   const root = parseJsonObject(contents, "Claude Code 用户配置");
   const servers = { ...objectOrEmpty(root.mcpServers) };
   delete servers["molis-work"];
-  delete servers["goalboard"];
   return replaceTopLevelJsonProperty(contents, root, "mcpServers", servers);
 }
 
@@ -224,13 +220,15 @@ export function inspectOpenCodeConfig(contents: string | null, desired: DesiredC
   if (contents == null) return { state: "absent", summary: "未配置 Molis Work MCP", entryFingerprint: null };
   const root = parseJsoncObject(contents, "OpenCode 用户配置");
   const mcpServers = objectOrEmpty(root.mcp);
-  const entry = mcpServers["molis-work"] ?? mcpServers["goalboard"];
-  if (entry == null) return { state: "absent", summary: "未配置 Molis Work MCP", entryFingerprint: null };
+  const entry = mcpServers["molis-work"];
+  if (entry == null) {
+    return { state: "absent", summary: "未配置 Molis Work MCP", entryFingerprint: null };
+  }
   const expected = desiredOpenCodeEntry(desired);
   if (canonicalJson(entry) === canonicalJson(expected)) {
     return { state: "current", summary: "当前 Molis Work MCP 配置", entryFingerprint: digest(canonicalJson(expected)) };
   }
-  if (/molis-work|MOLIS_WORK_|goalboard|GOALBOARD_/i.test(canonicalJson(entry))) {
+  if (/molis-work|MOLIS_WORK_/i.test(canonicalJson(entry))) {
     return { state: "legacy", summary: "旧版 Molis Work MCP 配置", entryFingerprint: digest(canonicalJson(entry)) };
   }
   return { state: "conflict", summary: "同名 MCP entry 不属于 Molis Work", entryFingerprint: digest(canonicalJson(entry)) };
@@ -241,7 +239,6 @@ export function connectOpenCodeConfig(contents: string | null, desired: DesiredC
     ? { $schema: "https://opencode.ai/config.json" }
     : parseJsoncObject(contents, "OpenCode 用户配置");
   const mcp: Record<string, unknown> = { ...objectOrEmpty(root.mcp), "molis-work": desiredOpenCodeEntry(desired) };
-  delete mcp["goalboard"];
   return replaceTopLevelJsonProperty(contents, root, "mcp", mcp);
 }
 
@@ -250,7 +247,6 @@ export function removeOpenCodeConfig(contents: string | null): string | null {
   const root = parseJsoncObject(contents, "OpenCode 用户配置");
   const mcp = { ...objectOrEmpty(root.mcp) };
   delete mcp["molis-work"];
-  delete mcp["goalboard"];
   return replaceTopLevelJsonProperty(contents, root, "mcp", mcp);
 }
 
@@ -271,13 +267,15 @@ export function inspectPiConfig(contents: string | null, desired: DesiredConnect
   if (contents == null) return { state: "absent", summary: "未配置 Molis Work MCP", entryFingerprint: null };
   const root = parseJsonObject(contents, "Pi Agent MCP 配置");
   const servers = objectOrEmpty(root.mcpServers);
-  const entry = servers["molis-work"] ?? servers["goalboard"];
-  if (entry == null) return { state: "absent", summary: "未配置 Molis Work MCP", entryFingerprint: null };
+  const entry = servers["molis-work"];
+  if (entry == null) {
+    return { state: "absent", summary: "未配置 Molis Work MCP", entryFingerprint: null };
+  }
   const expected = desiredPiEntry(desired);
   if (canonicalJson(entry) === canonicalJson(expected)) {
     return { state: "current", summary: "当前 Molis Work MCP 配置", entryFingerprint: digest(canonicalJson(expected)) };
   }
-  if (/molis-work|MOLIS_WORK_|goalboard|GOALBOARD_/i.test(canonicalJson(entry))) {
+  if (/molis-work|MOLIS_WORK_/i.test(canonicalJson(entry))) {
     return { state: "legacy", summary: "旧版 Molis Work MCP 配置", entryFingerprint: digest(canonicalJson(entry)) };
   }
   return { state: "conflict", summary: "同名 MCP entry 不属于 Molis Work", entryFingerprint: digest(canonicalJson(entry)) };
@@ -286,7 +284,6 @@ export function inspectPiConfig(contents: string | null, desired: DesiredConnect
 export function connectPiConfig(contents: string | null, desired: DesiredConnection): string {
   const root = contents == null ? {} : parseJsonObject(contents, "Pi Agent MCP 配置");
   const servers: Record<string, unknown> = { ...objectOrEmpty(root.mcpServers), "molis-work": desiredPiEntry(desired) };
-  delete servers["goalboard"];
   return replaceTopLevelJsonProperty(contents, root, "mcpServers", servers);
 }
 
@@ -295,7 +292,6 @@ export function removePiConfig(contents: string | null): string | null {
   const root = parseJsonObject(contents, "Pi Agent MCP 配置");
   const servers = { ...objectOrEmpty(root.mcpServers) };
   delete servers["molis-work"];
-  delete servers["goalboard"];
   return replaceTopLevelJsonProperty(contents, root, "mcpServers", servers);
 }
 

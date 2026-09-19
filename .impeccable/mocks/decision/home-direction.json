@@ -1,0 +1,53 @@
+{
+  "title": "首页的工作台风格",
+  "question": "上一副是器物展，作废。只要工作台界面的各类风格：能扫、能点、能继续干。骰子这轮暂停，三张都是熟悉的干活桌面。",
+  "options": [
+    {
+      "id": "ide-workbench",
+      "label": "编辑器工作台",
+      "kicker": "THE DESK",
+      "lineage": "VS Code / JetBrains / Cursor：活动栏、侧栏列表、中间编辑器、问题面板",
+      "thesis": "今天的事件是侧栏里的文件树，当前这件事占编辑器，任务是下面的 Problems。",
+      "palette": ["#1f1f1f", "#2b2b2b", "#cccccc", "#007acc"],
+      "materials": ["editor chrome", "sidebar list", "status bar"],
+      "viewport": "左 48px 图标栏。紧挨着一列今日事件。中间整块是当前这件事的正文和接着做 / 做完了。底栏或右侧是任务列表。",
+      "risk": "首页看起来像又开了一个 IDE，事件被读成文件而不是接到的事。",
+      "comp": ".impeccable/mocks/decision/ide-workbench.png"
+    },
+    {
+      "id": "mail-triage",
+      "label": "收件工作台",
+      "lineage": "Outlook / Superhuman：左列表、中阅读、侧栏标签",
+      "thesis": "今天是收件箱。点开哪封，哪封就是当前这件事；任务是旁边的标签和待办。",
+      "palette": ["#f6f6f4", "#ffffff", "#111111", "#5b4cff"],
+      "materials": ["message list", "reading pane", "unread marks"],
+      "viewport": "左列今日事件密排，中间是打开的那件带正文和动作，右列是任务。顶栏只有日期和此刻。",
+      "risk": "GitHub 失败会看起来像一封邮件，来源被收件箱语法吃掉。",
+      "comp": ".impeccable/mocks/decision/mail-triage.png"
+    },
+    {
+      "id": "column-desk",
+      "label": "三栏工作台",
+      "lineage": "Finder Miller columns / Path Finder：一列选，一列看，一列待办",
+      "thesis": "三列同级：今日事件、当前这件事、任务。没有舞台，没有抽屉。",
+      "palette": ["#ececec", "#ffffff", "#1d1d1f", "#007aff"],
+      "materials": ["column rules", "selected row", "macOS toolbar"],
+      "viewport": "三列铺满主区。左列事件可上下滚，中列是选中的当前纸，右列任务。选中行一条实底，不是浮卡。",
+      "risk": "三列一空，中间会像 Finder 的空白预览，密度掉下去。",
+      "comp": ".impeccable/mocks/decision/column-desk.png"
+    }
+  ],
+  "reroll": { "registers": ["safer", "bolder"] },
+  "buildPath": { "value": "comp", "toggle": true },
+  "canon": true,
+  "canonCard": {
+    "label": "Linear × Cursor 工作台",
+    "thesis": "按 Linear 的内容面和 Cursor 的编辑器桌面，把今天铺平：发丝、中性色、统一控件。",
+    "palette": ["#f3f4f5", "#ffffff", "#222326", "#5e6ad2"],
+    "materials": ["hairline", "raised paper", "Inter 13/400"],
+    "viewport": "问候、事件列表、当前件、任务面板，对照 Linear、Cursor、Things 的完成度。",
+    "risk": "干净，但材料仍是现在这版已经走过的路。",
+    "comp": ".impeccable/mocks/decision/canon.png"
+  },
+  "steer": true
+}

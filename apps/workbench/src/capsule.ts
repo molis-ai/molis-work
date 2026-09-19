@@ -1,5 +1,5 @@
 import { countGoalDecisions } from "@molis-ai/molis-work-plugin-goals";
-import { THEME_BOOTSTRAP_SCRIPT } from "@molis-ai/molis-work-design-system";
+import { THEME_BOOTSTRAP_SCRIPT, TYPEFACE_STYLES } from "@molis-ai/molis-work-design-system";
 import type { MolisWorkWebView } from "./page-view.js";
 import type { WebProjectNavigation } from "./settings-navigation.js";
 import type { WorkbenchRendererPorts } from "./renderer.js";
@@ -151,10 +151,11 @@ export function createCapsuleWorkbench(ports: CapsuleRendererPorts) {
   }
 
   function renderCapsuleShell(projects: WebProjectNavigation[]): string {
-    return ports.renderDesktopShell(projects, {
+    const html = ports.renderDesktopShell(projects, {
       translate: L, htmlLang: htmlLang(), clientI18nScript: clientI18nScript(),
       themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT,
     });
+    return html.replace("</style>", `${TYPEFACE_STYLES}</style>`);
   }
   return { buildCapsuleSnapshot, renderCapsuleShell };
 }

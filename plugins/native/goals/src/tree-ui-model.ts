@@ -2,7 +2,8 @@ import type { GoalRecord, GoalRelationRecord } from "@molis-ai/molis-work-contra
 import type { GoalDisplayStatus, GoalPresentationState } from "./tree-order.js";
 
 export interface GoalsTreeItem {
-  goal: Pick<GoalRecord, "goal_id" | "title" | "priority" | "created_at" | "fulfillment_state" | "acceptance_criteria">;
+  goal: Pick<GoalRecord, "goal_id" | "title" | "priority" | "created_at" | "fulfillment_state" | "acceptance_criteria"> & Partial<Pick<GoalRecord, "accepted_by">>;
+  created_by?: string | null;
   status: GoalPresentationState;
   display_status: GoalDisplayStatus;
   passed_criteria: string[];

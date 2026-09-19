@@ -24,16 +24,11 @@ export {
   resolveMolisWorkHome,
   resolveFeedSecurityDirectory,
   readProductEnv,
-  migrateLegacyHomeDirectory,
   resolveProjectDatabaseFile,
   DEFAULT_HOME_DIRNAME,
-  LEGACY_HOME_DIRNAME,
   PROJECT_DATABASE_FILENAME,
-  LEGACY_PROJECT_DATABASE_FILENAME,
 } from "./adapters/local-security-paths.js";
 
 export { type SecretStore, type SecretStoreBackendKind, type SecretStoreBackendInfo, type SecretStoreMigrationResult, holdSecretsLockForTest, isLegacyEnvelope, sealLegacyForTest, assertNotReversibleBase64Only, safeEqualString, createFileSecretStore, resetSecretStoreCache, peekSealedEntry, readSecretsFileMeta } from "./adapters/file-secret-store.js";
 
 export * from "./adapters/search-storage.js";
-
-export { openRelaySecurity, readRelayContent, type RelaySecuritySnapshot } from "./adapters/relay-security.js";

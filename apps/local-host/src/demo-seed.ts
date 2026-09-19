@@ -3,7 +3,84 @@ import path from "node:path";
 import { GoalProjectApplication } from "./goal-project-application.js";
 import { LocalProjectDatabase } from "./project-database.js";
 
-export const DEMO_BOARD_ID = "goalboard-v1-demo";
+export const DEMO_BOARD_ID = "molis-work-v1-demo";
+
+const DEMO_ACTOR = "demo-user";
+const DELIVERY_TYPE = {
+  type_id: "lifecycle",
+  version: 1,
+  name: "生命周期交付",
+  purpose: "可核对的工作结果",
+  semantic_family: "delivery" as const,
+  source: { kind: "local" as const, label: "演示项目" },
+  fields: [
+    { field_id: "result", name: "结果", purpose: "当前交付", format: "text" as const, required: true },
+  ],
+};
+
+type DemoCoordinator = GoalProjectApplication;
+
+function versions(coordinator: DemoCoordinator, goalId: string) {
+  const state = coordinator.goalEvents.readState(DEMO_BOARD_ID, goalId);
+  return {
+    expected_config_version: state.config.version,
+    expected_agreement_version: state.agreement.version,
+  };
+}
+
+function writeContext(goalId: string, key: string) {
+  return {
+    board_id: DEMO_BOARD_ID,
+    goal_id: goalId,
+    actor_id: DEMO_ACTOR,
+    actor_kind: "user" as const,
+    idempotency_key: key,
+  };
+}
+
+function ensureConfigured(coordinator: DemoCoordinator, goalId: string, key: string) {
+  coordinator.goalEvents.configure({
+    ...writeContext(goalId, `${key}-configure`),
+    expected_version: 0,
+    types: [DELIVERY_TYPE],
+  });
+}
+
+function reportProgress(
+  coordinator: DemoCoordinator,
+  goalId: string,
+  key: string,
+  title: string,
+  result: string,
+  nextStep: string,
+  requirementId?: string,
+) {
+  coordinator.goalEvents.report({
+    ...writeContext(goalId, `${key}-report`),
+    events: [{
+      type_id: "lifecycle",
+      type_version: 1,
+      title,
+      fields: { result },
+      judgments: requirementId ? [{ requirement_id: requirementId, verdict: "supports" as const }] : [],
+    }],
+    progress: {
+      summary: result,
+      next_step: nextStep,
+      next_actor: "当前用户",
+    },
+  });
+}
+
+function closeComplete(coordinator: DemoCoordinator, goalId: string, key: string, result: string, reason: string) {
+  coordinator.goalEvents.submitClosure({
+    ...writeContext(goalId, `${key}-close`),
+    kind: "complete",
+    result,
+    reason,
+    ...versions(coordinator, goalId),
+  });
+}
 
 export function seedDemoBoard(databasePath: string): void {
   fs.mkdirSync(path.dirname(databasePath), { recursive: true });
@@ -15,7 +92,7 @@ export function seedDemoBoard(databasePath: string): void {
     coordinator.initializeBoard({
       board_id: DEMO_BOARD_ID,
       title: "让第一次使用 Molis Work 的人顺利完成一次目标协作",
-      actor_id: "demo-user",
+      actor_id: DEMO_ACTOR,
       idempotency_key: "demo-board",
     });
     const goals = [
@@ -128,13 +205,31 @@ export function seedDemoBoard(databasePath: string): void {
         ],
       },
       {
+        goal_id: "RISK",
+        title: "安装文档和真实接入步骤对不上",
+        outcome: "接入说明与当前产品步骤一致，用户不会按过期文档操作",
+        why: "文档仍写旧入口时，用户会以为产品坏了",
+        business_logic: "对照当前安装、Runtime 接入和首次会话步骤，标出对不上的句子并改到同一条路径。",
+        definition_state: "accepted" as const,
+        decomposition_state: "closed_leaf" as const,
+        priority: 78,
+        acceptance_criteria: [
+          {
+            criterion_id: "RISK-C1",
+            statement: "公开步骤与当前产品入口一致",
+            decision_method: "inspection" as const,
+            pass_condition: "按文档走完不出现失踪入口",
+          },
+        ],
+      },
+      {
         goal_id: "WEB",
         title: "让用户打开页面就看懂目标和下一步",
         outcome: "用户不用理解内部协议，也能看出项目要解决什么、当前进展、谁该做什么和为什么被阻塞",
         why: "底层规则正确并不代表产品容易理解；信息组织混乱会让用户放弃继续使用",
         business_logic: "用户打开项目后先看到目标树和当前目标，再按结果、完成标准、推进情况、风险和历史阅读；搜索、状态筛选和待决定事项都放在统一导航中。",
         definition_state: "accepted" as const,
-        decomposition_state: "closed_leaf" as const,
+        decomposition_state: "closed_compound" as const,
         priority: 70,
         acceptance_criteria: [
           {
@@ -178,6 +273,24 @@ export function seedDemoBoard(databasePath: string): void {
             statement: "桌面端三栏在宽屏下形成完整工作闭环",
             decision_method: "inspection" as const,
             pass_condition: "Goal 选择、Focus 与 Runtime 归属保持同步",
+          },
+        ],
+      },
+      {
+        goal_id: "DECIDE",
+        title: "决定首页先展示目标还是先展示 Runtime",
+        outcome: "首次打开项目时，用户知道自己该先看目标树还是先开一条会话",
+        why: "两个入口同时强调时，新用户会停在选择上",
+        business_logic: "产品决定一个默认落点，另一个入口仍可从同一工作台到达。",
+        definition_state: "accepted" as const,
+        decomposition_state: "closed_leaf" as const,
+        priority: 72,
+        acceptance_criteria: [
+          {
+            criterion_id: "DECIDE-C1",
+            statement: "首次打开有唯一默认落点",
+            decision_method: "inspection" as const,
+            pass_condition: "走查时不会同时出现两个主入口争夺注意",
           },
         ],
       },
@@ -236,6 +349,78 @@ export function seedDemoBoard(databasePath: string): void {
         ],
       },
       {
+        goal_id: "DROPPED",
+        title: "在旧会话里自动启用 MCP",
+        outcome: "接入后不必新开对话也能立刻调用工具",
+        why: "早期希望减少一次重启，但旧会话读不到新接入",
+        business_logic: "安装完成后在当前对话直接启用 MCP。这个方案会让人误以为安装失败，因此已经取消。",
+        definition_state: "accepted" as const,
+        decomposition_state: "closed_leaf" as const,
+        priority: 20,
+        acceptance_criteria: [
+          {
+            criterion_id: "DROPPED-C1",
+            statement: "当前会话立即出现 Molis Work 工具",
+            decision_method: "inspection" as const,
+            pass_condition: "接入后无需新开对话",
+          },
+        ],
+      },
+      {
+        goal_id: "WEB-SCAN",
+        title: "打开项目后三秒内认出当前目标和阻塞",
+        outcome: "用户不用点进详情，也能从列表看出现在该看哪条 Goal、它卡在哪里",
+        why: "首屏如果只堆标题，用户仍然要逐条点开才能判断下一步",
+        business_logic: "列表把当前目标、状态和阻塞放在同一行；多层子 Goal 用缩进表达归属，不把状态列推歪。",
+        definition_state: "accepted" as const,
+        decomposition_state: "closed_compound" as const,
+        priority: 68,
+        acceptance_criteria: [
+          {
+            criterion_id: "WEB-SCAN-C1",
+            statement: "首屏列表能同时看到当前目标、状态和阻塞",
+            decision_method: "inspection" as const,
+            pass_condition: "首次打开项目后无需点进详情即可复述当前目标和阻塞",
+          },
+        ],
+      },
+      {
+        goal_id: "WEB-SCAN-ROW",
+        title: "子 Goal 标题比父 Goal 更靠右，状态仍对齐",
+        outcome: "四层 Goal 树扫一眼就能分清父子，状态列仍在同一条竖线上",
+        why: "只有折叠箭头、标题却和父行齐平，多层树会读成平铺清单",
+        business_logic: "标题簇按归属深度每次右移 16px；没有短码的子行仍给编号留位，避免标题跑到父行左边。",
+        definition_state: "accepted" as const,
+        decomposition_state: "closed_compound" as const,
+        priority: 66,
+        acceptance_criteria: [
+          {
+            criterion_id: "WEB-SCAN-ROW-C1",
+            statement: "子标题随深度右移，状态列不随深度移动",
+            decision_method: "inspection" as const,
+            pass_condition: "四层示例树在桌面宽度下列表层级可读",
+          },
+        ],
+      },
+      {
+        goal_id: "WEB-SCAN-NEST",
+        title: "再下一层仍能看出归属",
+        outcome: "五层树里最深的一行仍然明显属于上一层，不和旁边的叶子抢位置",
+        why: "只演示到四层时，更深的真实项目树仍然可能挤成一团",
+        business_logic: "继续用同一套缩进，不另做编号体系。",
+        definition_state: "accepted" as const,
+        decomposition_state: "closed_leaf" as const,
+        priority: 64,
+        acceptance_criteria: [
+          {
+            criterion_id: "WEB-SCAN-NEST-C1",
+            statement: "第五层标题比第四层更靠右",
+            decision_method: "inspection" as const,
+            pass_condition: "五层示例树在桌面宽度下仍可读",
+          },
+        ],
+      },
+      {
         goal_id: "AUTO-CONNECT",
         title: "自动替用户选择最近使用的项目",
         outcome: "新对话少做一次项目确认",
@@ -256,15 +441,18 @@ export function seedDemoBoard(databasePath: string): void {
     ];
     const parents: Record<string, string> = {
       PLATFORM: "V1", WORKSPACE: "V1", ADOPTION: "V1",
-      CORE: "PLATFORM", INTERFACES: "PLATFORM",
-      WEB: "WORKSPACE", GRAPH: "WORKSPACE", DESKTOP: "WORKSPACE",
-      RELEASE: "ADOPTION", ONBOARDING: "ADOPTION", DOCS: "ADOPTION",
+      CORE: "PLATFORM", INTERFACES: "PLATFORM", RISK: "PLATFORM",
+      WEB: "WORKSPACE", GRAPH: "WORKSPACE", DESKTOP: "WORKSPACE", DECIDE: "WORKSPACE",
+      "WEB-SCAN": "WEB", "WEB-SCAN-ROW": "WEB-SCAN", "WEB-SCAN-NEST": "WEB-SCAN-ROW",
+      RELEASE: "ADOPTION", ONBOARDING: "ADOPTION", DOCS: "ADOPTION", DROPPED: "ADOPTION",
     };
     const dependencies: Record<string, string[]> = {
       INTERFACES: ["CORE"],
+      RISK: ["INTERFACES"],
       WEB: ["INTERFACES"],
-      GRAPH: ["INTERFACES"],
+      GRAPH: ["CORE"],
       DESKTOP: ["CORE"],
+      DECIDE: ["DESKTOP"],
       ONBOARDING: ["RELEASE"],
       DOCS: ["ONBOARDING"],
     };
@@ -285,7 +473,7 @@ export function seedDemoBoard(databasePath: string): void {
               requirement_id: item.criterion_id,
               statement: item.statement,
             })),
-        actor_id: "demo-user",
+        actor_id: DEMO_ACTOR,
         actor_kind: "user",
         source_kind: "onboarding",
         idempotency_key: `demo-goal-${goal.goal_id}`,
@@ -295,7 +483,7 @@ export function seedDemoBoard(databasePath: string): void {
     coordinator.goalEvents.recordNote({
       board_id: DEMO_BOARD_ID,
       goal_id: "RELEASE",
-      actor_id: "demo-user",
+      actor_id: DEMO_ACTOR,
       actor_kind: "user",
       body: "接入 Runtime 后必须新开会话；继续使用接入前的会话会让人误以为安装失败。",
       idempotency_key: "demo-release-note",
@@ -308,49 +496,26 @@ export function seedDemoBoard(databasePath: string): void {
         trashed: true,
         reason: "这会替用户猜项目；当前方案只展示历史候选，并再次询问用户",
       },
-      { actor_id: "demo-user", idempotency_key: "demo-trash-auto-connect" },
+      { actor_id: DEMO_ACTOR, idempotency_key: "demo-trash-auto-connect" },
     );
 
     coordinator.goalEvents.configure({
-      board_id: DEMO_BOARD_ID,
-      goal_id: "CORE",
-      actor_id: "demo-user",
-      actor_kind: "user",
+      ...writeContext("CORE", "demo-core-configure"),
       expected_version: 0,
-      types: [{
-        type_id: "lifecycle",
-        version: 1,
-        name: "生命周期交付",
-        purpose: "可核对的工作结果",
-        semantic_family: "delivery",
-        source: { kind: "local", label: "演示项目" },
-        fields: [
-          { field_id: "result", name: "结果", purpose: "当前交付", format: "text", required: true },
-        ],
-      }],
-      idempotency_key: "demo-core-configure",
+      types: [DELIVERY_TYPE],
     });
-    const configured = coordinator.goalEvents.readState(DEMO_BOARD_ID, "CORE");
     coordinator.goalEvents.setAgreement({
-      board_id: DEMO_BOARD_ID,
-      goal_id: "CORE",
-      actor_id: "demo-user",
-      actor_kind: "user",
-      expected_config_version: configured.config.version,
-      expected_agreement_version: configured.agreement.version,
+      ...writeContext("CORE", "demo-core-agree"),
+      ...versions(coordinator, "CORE"),
       outcome: "用户能看到一项工作何时开始、做出了什么，以及为什么可以算完成",
       new_requirements: [{
         requirement_id: "CORE-C1",
         statement: "工作从开始到证据和复核形成完整记录",
         bound_type_id: "lifecycle",
       }],
-      idempotency_key: "demo-core-agree",
     });
     coordinator.goalEvents.report({
-      board_id: DEMO_BOARD_ID,
-      goal_id: "CORE",
-      actor_id: "demo-user",
-      actor_kind: "user",
+      ...writeContext("CORE", "demo-core-report"),
       events: [{
         type_id: "lifecycle",
         type_version: 1,
@@ -363,37 +528,94 @@ export function seedDemoBoard(databasePath: string): void {
         next_step: "明确收尾",
         next_actor: "当前用户",
       },
-      idempotency_key: "demo-core-report",
     });
     coordinator.goalEvents.recordNote({
       board_id: DEMO_BOARD_ID,
       goal_id: "CORE",
-      actor_id: "demo-user",
+      actor_id: DEMO_ACTOR,
       actor_kind: "user",
       body: "演示项目用当前事件记录说明这项工作为什么可以算完成，不再领取角色或提交旧 Evidence。",
       idempotency_key: "demo-core-note",
     });
-    const readyToClose = coordinator.goalEvents.readState(DEMO_BOARD_ID, "CORE");
-    coordinator.goalEvents.submitClosure({
-      board_id: DEMO_BOARD_ID,
-      goal_id: "CORE",
-      actor_id: "demo-user",
-      actor_kind: "user",
-      kind: "complete",
-      result: "可用的生命周期记录",
-      reason: "约定要求已有支持事实，演示收尾",
-      expected_config_version: readyToClose.config.version,
-      expected_agreement_version: readyToClose.agreement.version,
-      idempotency_key: "demo-core-close",
-    });
+    closeComplete(coordinator, "CORE", "demo-core", "可用的生命周期记录", "约定要求已有支持事实，演示收尾");
     coordinator.goalEvents.recordNote({
       board_id: DEMO_BOARD_ID,
       goal_id: "INTERFACES",
-      actor_id: "demo-user",
+      actor_id: DEMO_ACTOR,
       actor_kind: "user",
       body: "升级前应先看到安全说明：能保留的旧数据明确列出，不能可靠迁移的内容提示重新整理。",
       idempotency_key: "demo-interfaces-note",
     });
+
+    ensureConfigured(coordinator, "V1", "demo-v1");
+    reportProgress(
+      coordinator,
+      "V1",
+      "demo-v1",
+      "目标树已经能看出下一步",
+      "列表、画布和看板都有真实内容可扫。",
+      "先处理需要决定和受阻的 Goal",
+      "V1-C1",
+    );
+
+    ensureConfigured(coordinator, "DESKTOP", "demo-desktop");
+    reportProgress(
+      coordinator,
+      "DESKTOP",
+      "demo-desktop",
+      "工作台主栏已经对齐",
+      "目录、舞台和标签已经能在同一窗口里切换。",
+      "核对分屏后 Goal 绑定仍保持",
+      "DESKTOP-C1",
+    );
+
+    ensureConfigured(coordinator, "DECIDE", "demo-decide");
+    coordinator.goalEvents.requestDecision({
+      ...writeContext("DECIDE", "demo-decide-ask"),
+      question: "第一次打开项目时，默认落在 Goal 列表还是默认打开一条 Session？",
+      options: [
+        { option_id: "goals", label: "先看目标树", impact: "用户先理解现在做什么，再决定开哪条会话" },
+        { option_id: "session", label: "先开 Session", impact: "用户立刻回到对话，但可能还没看清目标" },
+      ],
+      purpose: "suggestion",
+      scope: { requirement_ids: ["DECIDE-C1"] },
+    });
+
+    ensureConfigured(coordinator, "RISK", "demo-risk");
+    coordinator.goalEvents.applyConcern({
+      ...writeContext("RISK", "demo-risk-open"),
+      action: "open",
+      title: "README 仍指向已撤掉的启动命令",
+      statement: "按文档复制的命令会启动旧入口，用户会以为安装失败。",
+      scope: { requirement_ids: ["RISK-C1"] },
+      blocks_closure: true,
+    });
+
+    ensureConfigured(coordinator, "GRAPH", "demo-graph");
+    reportProgress(
+      coordinator,
+      "GRAPH",
+      "demo-graph",
+      "画布已能读出依赖方向",
+      "父子和前置关系都来自真实记录。",
+      "退出日常列表，需要时再打开归档",
+      "GRAPH-C1",
+    );
+    closeComplete(coordinator, "GRAPH", "demo-graph", "画布关系已经可扫", "演示收尾，把已完成关系图移出日常列表");
+    coordinator.goals.lifecycle.setArchived(
+      DEMO_BOARD_ID,
+      { goal_id: "GRAPH", archived: true, reason: "画布关系已经可扫，退出日常工作列表" },
+      { actor_id: DEMO_ACTOR, idempotency_key: "demo-archive-graph" },
+    );
+
+    ensureConfigured(coordinator, "DROPPED", "demo-dropped");
+    coordinator.goalEvents.submitClosure({
+      ...writeContext("DROPPED", "demo-dropped-cancel"),
+      kind: "cancel",
+      reason: "旧会话读不到新接入，会让人误以为安装失败",
+      ...versions(coordinator, "DROPPED"),
+    });
+
     store.db
       .prepare("UPDATE boards SET active_goal_id = ?, updated_at = ? WHERE board_id = ?")
       .run("V1", new Date().toISOString(), DEMO_BOARD_ID);

@@ -3,7 +3,28 @@ export const WORK_DIRECTORY_CLIENT = `
 ({ loadSessionContent }) => {
   const directoryFor = (kind) => document.querySelector('[data-operation-directory="' + kind + '"]');
   const surfaceFor = (kind) => document.querySelector('[data-work-surface="' + kind + '"]');
-  const visibleRows = (kind) => [...(directoryFor(kind)?.querySelectorAll("[data-operation-row]") || [])].filter((row) => !row.hidden);
+  const stageShell = () => document.querySelector("[data-session-stage-shell]");
+  const stageWorkspace = () => document.querySelector("[data-session-stage-workspace]");
+  const visibleRows = (kind) => [...(directoryFor(kind)?.querySelectorAll("[data-operation-row]") || [])].filter((row) => !row.hidden && row.closest("[data-session-runtime-fold]")?.open !== false);
+  const expandStage = (expanded) => {
+    const shell = stageShell();
+    const workspace = stageWorkspace();
+    if (!shell) return;
+    shell.dataset.expanded = expanded ? "true" : "false";
+    if (workspace) workspace.hidden = !expanded;
+  };
+  const collapseStage = () => {
+    const directory = directoryFor("sessions");
+    const surface = surfaceFor("sessions");
+    expandStage(false);
+    directory?.querySelectorAll("[data-operation-row]").forEach((row) => {
+      row.classList.remove("is-selected");
+      row.setAttribute("aria-selected", "false");
+      const button = row.matches("[data-operation-select]") ? row : row.querySelector("[data-operation-select]");
+      if (button) button.tabIndex = -1;
+    });
+    surface?.querySelectorAll("[data-operation-detail]").forEach((detail) => { detail.hidden = true; });
+  };
   const selectRecord = (kind, id, moveToDetail = false) => {
     const directory = directoryFor(kind);
     const surface = surfaceFor(kind);
@@ -17,7 +38,10 @@ export const WORK_DIRECTORY_CLIENT = `
       if (button) button.tabIndex = active ? 0 : -1;
     });
     surface.querySelectorAll("[data-operation-detail]").forEach((detail) => { detail.hidden = detail.dataset.detailId !== id; });
-    if (kind === "sessions") void loadSessionContent(surface.querySelector('[data-operation-detail]:not([hidden])'));
+    if (kind === "sessions") {
+      expandStage(true);
+      void loadSessionContent(surface.querySelector('[data-operation-detail]:not([hidden])'));
+    }
     if (moveToDetail && matchMedia("(max-width: 760px)").matches) document.querySelector('[data-mobile-target="document"]')?.click();
   };
   const filterRecords = (kind) => {
@@ -39,13 +63,24 @@ export const WORK_DIRECTORY_CLIENT = `
       row.hidden = !shown;
       return shown;
     });
-    rows.sort((left, right) => sort === "title-asc"
+    const compare = (left, right) => sort === "title-asc"
       ? String(left.dataset.recordTitle || left.dataset.recordSearch || "").localeCompare(String(right.dataset.recordTitle || right.dataset.recordSearch || ""))
       : sort === "updated-asc"
         ? Number(left.dataset.recordUpdated || 0) - Number(right.dataset.recordUpdated || 0)
-        : Number(right.dataset.recordUpdated || 0) - Number(left.dataset.recordUpdated || 0));
-    const list = directory.querySelector("[data-operation-list]");
-    rows.forEach((row) => list?.append(row));
+        : Number(right.dataset.recordUpdated || 0) - Number(left.dataset.recordUpdated || 0);
+    rows.sort(compare);
+    const folds = [...directory.querySelectorAll("[data-session-runtime-fold]")];
+    if (folds.length) {
+      folds.forEach((fold) => {
+        const foldRows = rows.filter((row) => fold.contains(row));
+        foldRows.sort(compare);
+        foldRows.forEach((row) => fold.append(row));
+        fold.hidden = !foldRows.some((row) => !row.hidden);
+      });
+    } else {
+      const list = directory.querySelector("[data-operation-list]");
+      rows.forEach((row) => list?.append(row));
+    }
     const empty = directory.querySelector("[data-operation-empty]");
     if (empty) {
       empty.hidden = visible.length > 0;
@@ -53,14 +88,26 @@ export const WORK_DIRECTORY_CLIENT = `
     }
     const count = directory.querySelector("[data-operation-count]");
     if (count) count.textContent = String(visible.length);
-    if (!visible.length) surface.querySelectorAll("[data-operation-detail]").forEach((detail) => { detail.hidden = true; });
-    else if (!visible.some((row) => row.classList.contains("is-selected"))) selectRecord(kind, visible[0].dataset.recordId);
+    const expanded = stageShell()?.dataset.expanded === "true";
+    if (!visible.length) {
+      surface.querySelectorAll("[data-operation-detail]").forEach((detail) => { detail.hidden = true; });
+      if (kind === "sessions") expandStage(false);
+    } else if (expanded && !visible.some((row) => row.classList.contains("is-selected"))) {
+      selectRecord(kind, visible[0].dataset.recordId);
+    }
   };
   document.querySelectorAll("[data-operation-directory]").forEach((directory) => {
     const kind = directory.dataset.operationDirectory;
     directory.addEventListener("click", (event) => {
+      if (event.target.closest("[data-session-collapse]")) {
+        event.preventDefault();
+        collapseStage();
+        return;
+      }
       const select = event.target.closest("[data-operation-select]");
-      if (select) selectRecord(kind, select.dataset.operationSelect, true);
+      if (select) {
+        selectRecord(kind, select.dataset.operationSelect, true);
+      }
     });
     directory.addEventListener("keydown", (event) => {
       if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
@@ -93,7 +140,7 @@ export const WORK_DIRECTORY_CLIENT = `
   const sessionDirectory = directoryFor("sessions");
   const sessionRuntimeFilter = sessionDirectory?.querySelector("[data-session-runtime-filter]");
   if (sessionRuntimeFilter) {
-    [...new Map([...sessionDirectory.querySelectorAll('[data-operation-row="session"]')].map((row) => [row.dataset.recordRuntime, row.querySelector(".project-record-select small")?.textContent?.split(" / ")[0] || row.dataset.recordRuntime])).entries()]
+    [...new Map([...sessionDirectory.querySelectorAll('[data-operation-row="session"]')].map((row) => [row.dataset.recordRuntime, row.dataset.recordRuntimeLabel || row.dataset.recordRuntime])).entries()]
       .filter(([value]) => value)
       .sort((left, right) => String(left[1]).localeCompare(String(right[1])))
       .forEach(([value, label]) => {

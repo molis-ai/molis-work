@@ -17,7 +17,7 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
   const feed = createLocalFeedApplication(store.db);
   const source = feed.upsertSource({
     board_id: DEMO_BOARD_ID, source_id: "frame-rss", kind: "rss", definition_id: "rss", sync_kind: "manual",
-    name: "产品观察", description: "Frame 验证", status: "active", enabled: true, item_count: 0, origin: "goalboard",
+    name: "产品观察", description: "Frame 验证", status: "active", enabled: true, item_count: 0, origin: "molis_work",
     config: {}, schedule: { mode: "manual" }, cursor: null, credential_ref: null, account_label: null,
     last_sync_at: null, last_outcome: null, last_error_code: null, imported_at: now, updated_at: now,
   });
@@ -43,7 +43,7 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
   });
   registry.appendEvent({
     session_id: session.session_id,
-    source: "goalboard_tui",
+    source: "molis_work_tui",
     kind: "user_message",
     source_id: "frame-session-note",
     source_order: 1,
@@ -59,20 +59,21 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
   await waitFor("document.body.dataset.desktopSurface === 'home'");
   await waitFor("Boolean(document.querySelector('[data-titlebar-tabs] .tab-item[data-tab-kind=home], [data-tab-workspace] .tab-item[data-tab-kind=home]'))");
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
-  await waitFor("document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true' && document.querySelector('.tab-item[data-tab-kind=mother][aria-current]')");
-  await waitFor("Boolean(document.querySelector('[data-graph-node][data-goal-id=CORE] [data-graph-frame]'))");
+  await waitFor("document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true' && document.body.dataset.desktopSurface === 'goal' && !document.querySelector('.tab-item[data-tab-kind=mother]')");
+  await evaluate("document.querySelector('[data-board-view-tab=canvas]')?.click()");
+  await waitFor("document.querySelector('[data-goal-canvas-shell]')?.dataset.boardView === 'canvas' && Boolean(document.querySelector('[data-graph-node][data-goal-id=CORE] [data-graph-frame]'))");
   assert.equal(await evaluate("document.querySelector('[data-directory-open=frame],[data-plugin-id=frame]')"), null);
   assert.doesNotMatch(await evaluate<string>("document.querySelector('[data-goal-momentum]')?.textContent || ''"), /箭头从前置成果指向后续工作|单击看血缘/);
   await evaluate("document.querySelector('[data-graph-node][data-goal-id=\"CORE\"] [data-graph-frame]').click()");
-  await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item[data-item-id=\"CORE\"][aria-current]')");
+  await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item[data-plugin=goals][data-item-id=CORE][aria-current]')");
   assert.equal(await evaluate("document.querySelector('[data-goal-canvas-shell]').hidden"), true);
   assert.equal(await evaluate("document.querySelector('[data-goal-frame-surface]').hidden"), false);
   assert.equal(await evaluate("document.querySelector('[data-goal-node-workspace]').hidden"), true);
   assert.doesNotMatch(await evaluate<string>("document.querySelector('[data-goal-frame-surface]')?.textContent || ''"), /把会话、Feed|这些内容只为完成|从目录把会话/);
-  await evaluate("document.querySelector('[data-titlebar-tabs] .tab-item[data-tab-kind=mother] [role=tab]').click()");
-  await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item[data-tab-kind=mother][aria-current]') && !document.querySelector('[data-goal-canvas-shell]').hidden");
+  await click('[data-plugin-strip] [data-plugin-id="goals"]');
+  await waitFor("document.body.dataset.desktopSurface === 'goal' && !document.querySelector('[data-goal-canvas-shell]').hidden");
   await evaluate("document.querySelector('[data-graph-node][data-goal-id=\"CORE\"] [data-graph-frame]').click()");
-  await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item[data-item-id=\"CORE\"][aria-current]')");
+  await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item[data-plugin=goals][data-item-id=CORE][aria-current]')");
   assert.equal(await evaluate("document.querySelectorAll('[data-titlebar-tabs] .tab-item[data-item-id=CORE]').length"), 1);
   await waitFor("Boolean(document.querySelector('[data-operation-select=\"" + session.session_id + "\"]'))");
   await evaluate("document.querySelector('[data-operation-select=\"" + session.session_id + "\"]').click()");
@@ -95,16 +96,16 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
   await waitFor("document.querySelectorAll('[data-frame-block]').length === 3");
   assert.match(await evaluate<string>("[...document.querySelectorAll('[data-frame-block]')].map(block => block.textContent).join(' ')"), /Frame artifact/);
   assert.equal(await evaluate("document.querySelector('[data-work-surface=artifacts]').hidden"), true);
-  await waitFor("Boolean(document.querySelector('[data-directory-panel=inbox] [data-frame-asset=inbox][data-frame-asset-id=\"" + inbox.entry.entry_id + "\"]'))");
-  await evaluate("document.querySelector('[data-directory-panel=inbox] [data-frame-asset=inbox][data-frame-asset-id=\"" + inbox.entry.entry_id + "\"]').click()");
+  await waitFor("Boolean(document.querySelector('[data-inbox-directory] [data-frame-asset=inbox][data-frame-asset-id=\"" + inbox.entry.entry_id + "\"]'))");
+  await evaluate("document.querySelector('[data-inbox-directory] [data-frame-asset=inbox][data-frame-asset-id=\"" + inbox.entry.entry_id + "\"]').click()");
   await waitFor("document.querySelectorAll('[data-frame-block]').length === 4");
   await click('[data-plugin-strip] [data-plugin-id="feed"]');
   await waitFor("document.body.dataset.desktopSurface === 'feed' && !document.querySelector('[data-work-surface=feed]').hidden");
   assert.equal(await evaluate("document.querySelector('[data-goal-frame-surface]').hidden"), true);
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
-  await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('.tab-item[data-tab-kind=mother][aria-current]')");
-  await evaluate("document.querySelector('[data-titlebar-tabs] .tab-item[data-item-id=\"CORE\"]').click()");
-  await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item[data-item-id=\"CORE\"][aria-current]') && !document.querySelector('[data-goal-frame-surface]').hidden");
+  await waitFor("document.body.dataset.desktopSurface === 'goal' && !document.querySelector('.tab-item[aria-current]')");
+  await evaluate("document.querySelector('[data-titlebar-tabs] .tab-item[data-item-id=CORE]').click()");
+  await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item[data-plugin=goals][data-item-id=CORE][aria-current]') && !document.querySelector('[data-goal-frame-surface]').hidden");
   assert.equal(await evaluate("document.querySelectorAll('[data-frame-block]').length"), 4);
   await evaluate("document.querySelector('[data-frame-block][data-frame-block-kind=feed] > p').click()");
   await waitFor("document.querySelector('[data-frame-block].is-expanded .frame-reading .feed-rich-content')");
@@ -133,31 +134,33 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
   })()`);
   await waitFor("document.querySelector('[data-toast]').classList.contains('is-visible') && document.querySelector('[data-toast]').textContent.includes('Goal 留在主画布')");
   assert.equal(await evaluate("document.querySelectorAll('[data-frame-block]').length"), 4);
-  await evaluate("document.querySelector('.tree-node[data-select-goal=CORE]').click()");
-  await waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal === 'CORE' && !document.querySelector('[data-goal-frame-surface]').hidden && document.querySelector('.tab-item[data-item-id=CORE][aria-current]')");
-  assert.equal(await evaluate("document.querySelector('[data-titlebar-tabs] .tab-item[data-item-id=\"CORE\"]') != null"), true);
+  await evaluate("document.querySelector('.tree-node[data-select-goal=CORE]').dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true,view:window,detail:1}));document.querySelector('.tree-node[data-select-goal=CORE]').dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true,view:window,detail:2}))");
+  await waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal === 'CORE' && !document.querySelector('[data-goal-frame-surface]').hidden && document.querySelector('.tab-item[data-plugin=goals][data-item-id=CORE][aria-current]')");
+  assert.equal(await evaluate("document.querySelector('[data-titlebar-tabs] .tab-item[data-item-id=CORE]') != null"), true);
   await click('[data-plugin-strip] [data-plugin-id="sessions"]');
   await waitFor("document.body.dataset.desktopSurface === 'sessions' && !document.querySelector('[data-work-surface=sessions]').hidden");
   await click('[data-operation-select="' + session.session_id + '"]');
   assert.equal(await evaluate("document.querySelector('[data-work-surface=sessions]').hidden"), false);
   assert.equal(await evaluate("document.body.dataset.desktopSurface"), "sessions");
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
-  await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('[data-titlebar-tabs] .tab-item[data-item-id=\"CORE\"]')");
-  await evaluate("document.querySelector('[data-titlebar-tabs] .tab-item[data-item-id=\"CORE\"] [data-tab-close]').click()");
-  await waitFor("!document.querySelector('[data-titlebar-tabs] .tab-item[data-item-id=\"CORE\"]')");
+  await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('[data-titlebar-tabs] .tab-item[data-item-id=CORE]')");
+  await evaluate("document.querySelector('[data-titlebar-tabs] .tab-item[data-item-id=CORE] [data-tab-close]').click()");
+  await waitFor("!document.querySelector('[data-titlebar-tabs] .tab-item[data-item-id=CORE]')");
+  await evaluate("document.querySelector('[data-board-view-tab=canvas]')?.click()");
+  await waitFor("document.querySelector('[data-goal-canvas-shell]')?.dataset.boardView === 'canvas' && !document.querySelector('[data-goal-canvas-shell]')?.hidden");
   await evaluate("document.querySelector('[data-graph-node][data-goal-id=\"CORE\"] [data-graph-frame]').click()");
   await waitFor("document.querySelector('[data-frame-block]')");
   const otherId = await evaluate<string>(`(async()=>{const r=await fetch('/api/settings/projects',{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({display_name:'Frame 隔离',user_confirmed:true})});if(!r.ok)throw new Error(await r.text());return (await r.json()).project.project_id;})()`);
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + otherId + "/" }, sessionId));
   await waitFor("document.body.dataset.desktopSurface === 'home'");
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
-  await waitFor("document.querySelector('.tab-item[data-tab-kind=mother]')");
-  assert.equal(await evaluate("document.querySelector('[data-titlebar-tabs] .tab-item[data-item-id=\"CORE\"]')"), null);
+  await waitFor("document.body.dataset.desktopSurface === 'goal' && !document.querySelector('.tab-item[data-tab-kind=mother]')");
+  assert.equal(await evaluate("document.querySelector('[data-titlebar-tabs] .tab-item[data-item-id=CORE]')"), null);
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
   await waitFor("Boolean(document.querySelector('[data-titlebar-tabs] .tab-item, [data-tab-workspace] .tab-item'))");
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
-  await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('[data-titlebar-tabs] .tab-item[data-item-id=\"CORE\"]')");
-  await evaluate("document.querySelector('[data-titlebar-tabs] .tab-item[data-item-id=\"CORE\"]').click()");
+  await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('[data-titlebar-tabs] .tab-item[data-item-id=CORE]')");
+  await evaluate("document.querySelector('[data-titlebar-tabs] .tab-item[data-item-id=CORE]').click()");
   await waitFor("document.querySelectorAll('[data-frame-block]').length === 4");
   assert.deepEqual(store.snapshot(DEMO_BOARD_ID).goals, before.goals);
   assert.deepEqual(store.snapshot(DEMO_BOARD_ID).runs, before.runs);

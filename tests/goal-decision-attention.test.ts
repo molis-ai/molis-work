@@ -134,7 +134,7 @@ test("Goal pending decisions appear in Inbox and on the Goal document, not in Fe
     const decisions = renderMolisWorkWeb(view, undefined, false, true);
     const home = renderMolisWorkWeb(view);
     const goalPage = renderMolisWorkWeb(view, "root");
-    assert.match(decisions, /data-desktop-directory="inbox"/);
+    assert.match(decisions, /data-desktop-directory="root"/);
     assert.match(decisions, /data-desktop-surface="inbox"/);
     assert.match(decisions, /data-inbox-directory/);
     assert.match(decisions, /data-inbox-workbench/);

@@ -37,6 +37,7 @@ export async function resolveWebRequest(
       || pathname === "/health"
       || pathname === "/api"
       || pathname.startsWith("/api/")
+      || pathname === "/__ui/catalog"
       || pathname === "/settings"
       || pathname.startsWith("/settings/")
       || pathname === "/sessions"

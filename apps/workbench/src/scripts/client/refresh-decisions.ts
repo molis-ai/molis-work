@@ -67,10 +67,10 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
         goalPageUrl, setWorkspaceMode, saveUiState, localPathname, visibleGoals,
         openEventReaderFromHash, goalFactorFromHash, setGoalFactor, revealDeepLinkFromId,
       });
-    const { selectTreeGoal, getCollapsedTreeGoals, restoreTreeCollapsed, setSelectedStatuses, getSelectedStatuses, isTreeSearchComposing,
+    const { selectTreeGoal, syncGoalCollectionFolds, getCollapsedTreeGoals, restoreTreeCollapsed, setSelectedStatuses, getSelectedStatuses, isTreeSearchComposing,
       setTreeFilterOpen, filterTree, bindTreeSearchEvents, bindTreeFilterTrigger,
       handleTreeStatusChange, handleTreeSearchFocus, handleTreeDisclosureClick,
-      handleTreeCollapseAllClick, handleTreeKeyboard } = (${GOALS_TREE_CLIENT_FACTORY_SCRIPT})({
+      handleTreeKeyboard } = (${GOALS_TREE_CLIENT_FACTORY_SCRIPT})({
         treeFilter, treeFilterTrigger, treeSearch, treeScroll, globalSearch, translate: L,
         updateGraphVisibility, queueSave, saveUiState,
         noteSearchActivity: (...args) => noteSearchActivity(...args),
@@ -168,23 +168,19 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
         }
         if (decisionView) {
           const nextInboxList = parsed.querySelector("[data-inbox-list]");
-          const nextInboxWorkbench = parsed.querySelector("[data-inbox-workbench]");
-          const nextInboxEmpty = nextInboxList?.querySelector("[data-inbox-empty]");
-          const nextInboxDetailEmpty = nextInboxWorkbench?.querySelector("[data-inbox-detail-empty]");
-          const inboxEmpty = inboxList?.querySelector("[data-inbox-empty]");
-          const inboxDetailEmpty = inboxWorkbench?.querySelector("[data-inbox-detail-empty]");
-          if (!inboxList || !inboxWorkbench || !inboxEmpty || !inboxDetailEmpty || !nextInboxList || !nextInboxWorkbench || !nextInboxEmpty || !nextInboxDetailEmpty) {
+          const nextWorkspace = parsed.querySelector("[data-inbox-stage-workspace]");
+          const workspace = document.querySelector("[data-inbox-stage-workspace]");
+          const nextInboxDetailEmpty = nextWorkspace?.querySelector("[data-inbox-detail-empty]");
+          const inboxDetailEmpty = workspace?.querySelector("[data-inbox-detail-empty]");
+          if (!inboxList || !workspace || !inboxDetailEmpty || !nextInboxList || !nextWorkspace || !nextInboxDetailEmpty) {
             throw new Error("Inbox 页面数据不完整");
           }
           const scrollTop = window.scrollY;
           const selectedInboxId = inboxList.querySelector("[data-inbox-row].is-selected")?.dataset.inboxEntryId || "";
-          inboxList.querySelectorAll("[data-inbox-row]").forEach((row) => row.remove());
-          [...nextInboxList.querySelectorAll("[data-inbox-row]")].forEach((row) => inboxList.insertBefore(row, inboxEmpty));
-          inboxEmpty.innerHTML = nextInboxEmpty.innerHTML;
-          inboxEmpty.hidden = nextInboxEmpty.hidden;
-          inboxWorkbench.querySelectorAll("[data-inbox-detail]").forEach((detail) => detail.remove());
-          [...nextInboxWorkbench.querySelectorAll("[data-inbox-detail]")]
-            .forEach((detail) => inboxWorkbench.insertBefore(detail, inboxDetailEmpty));
+          inboxList.replaceChildren(...nextInboxList.childNodes);
+          workspace.querySelectorAll("[data-inbox-detail]").forEach((detail) => detail.remove());
+          [...nextWorkspace.querySelectorAll("[data-inbox-detail]")]
+            .forEach((detail) => workspace.insertBefore(detail, inboxDetailEmpty));
           inboxDetailEmpty.innerHTML = nextInboxDetailEmpty.innerHTML;
           inboxDetailEmpty.hidden = nextInboxDetailEmpty.hidden;
           state = nextState;
@@ -194,6 +190,8 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
           setInboxFilter(inboxFilter, false);
           if (selectedInboxId && inboxList.querySelector('[data-inbox-entry-id="' + CSS.escape(selectedInboxId) + '"]')) {
             selectInboxEntry(selectedInboxId, false);
+          } else {
+            collapseInboxStage();
           }
           window.scrollTo({ top: scrollTop, behavior: "instant" });
           return;
@@ -238,7 +236,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
         });
         state = nextState;
         projectHome?.sync();
-        document.querySelector("#molis-work-data").textContent = JSON.stringify(nextState).replaceAll("<", "\\u003c");
+        document.querySelector("#molis-work-data").textContent = JSON.stringify(state).replaceAll("<", "\\u003c");
         selected = goalRefresh.nextSelected;
         if (!decisionView && selected) applySelection(selected, false);
         applyUiState(ui);

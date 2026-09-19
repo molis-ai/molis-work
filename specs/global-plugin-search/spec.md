@@ -17,7 +17,7 @@ Goals 目录工具栏里有一条「在当前 Goal Tree 内搜索」。它只过
 - 浮层按插件分组：Goals、Sessions、Inbox、Feed、来源、Artifacts。无关键词时每组最多 8 条；有关键词时每组最多 12 条匹配项。空组不出现。
 - 选中一项即关闭浮层，并打开对应插件目录与对象（Goal 走现有 `selectGoal`；其余点击已有目录行）。
 - 底部「快捷操作」：新建目标、项目首页、插件市场。无关键词时始终出现；有关键词时仅标题匹配才出现。
-- 去掉 Goals 目录 `tree-chrome` 里的搜索框。状态筛选、新建、归档、回收站、折叠全部保留。关键词不再过滤 Goal 树；旧 sessionStorage 里的树搜索词不再恢复。
+- 去掉 Goals 目录 `tree-chrome` 里的搜索框。状态筛选、新建、归档、回收站保留。「折叠全部」已由 `specs/goals-directory-remove-collapse-all/spec.md` 删除。关键词不再过滤 Goal 树；旧 sessionStorage 里的树搜索词不再恢复。
 - Sessions / Feed / 来源目录里的列表内搜索框去掉；筛选菜单保留。关键词跳转走全局搜索。
 
 ### 非目标
@@ -41,7 +41,7 @@ Goals 目录工具栏里有一条「在当前 Goal Tree 内搜索」。它只过
 - 工作台拥有入口和浮层；各插件仍拥有自己的对象与打开行为。索引来自已有 DOM（`data-goal-search`、`data-record-search`、Feed/Inbox/来源/Artifact 行）。
 - 用 `<dialog>` + `showModal()`，避免被侧栏 `overflow` / `inert` 裁剪。
 - ⌘F 从「聚焦 Goal 树搜索框」改为打开此浮层。终端内不拦截，避免和 TUI 抢快捷键。
-- 视觉跟现有石墨工作台：`--paper` 面板、`--nav-hover` 选中、`--muted` 分组名与插件标签，不用第二套设计语言。
+- 视觉跟现有石墨工作台：`--paper` 面板、`--nav-hover` 选中、`--muted` 分组名与插件标签，不用第二套设计语言。输入贴在面板顶，不套系统 search 凹槽；见 `specs/global-search-field-flush/spec.md`。
 
 ## 文件边界
 

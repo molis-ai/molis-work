@@ -1,12 +1,20 @@
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { createWorkbenchRenderer } from "@molis-ai/molis-work-app-workbench";
+import { fileURLToPath } from "node:url";
+import type { WorkbenchRenderer } from "@molis-ai/molis-work-app-workbench";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
+
+const INTER_VARIABLE_FONT_PATH = fileURLToPath(
+  new URL("../../../packages/design-system/fonts/inter-latin-variable.woff2", import.meta.url),
+);
+const NOTO_SANS_SC_FONT_PATH = fileURLToPath(
+  new URL("../../../packages/design-system/fonts/noto-sans-sc-400.woff2", import.meta.url),
+);
 
 export function createLocalWebAssets(ports: {
   ptyClientFilePath(): string;
-  renderer: Pick<ReturnType<typeof createWorkbenchRenderer>, "renderMolisWorkWorkbenchStylesheet" | "renderMolisWorkWorkbenchClientScript" | "renderMolisWorkProjectIndexStylesheet" | "renderMolisWorkOnboardingStylesheet" | "renderMolisWorkSettingsStylesheet">;
+  renderer: Pick<WorkbenchRenderer, "renderMolisWorkWorkbenchStylesheet" | "renderMolisWorkWorkbenchClientScript" | "renderMolisWorkProjectIndexStylesheet" | "renderMolisWorkOnboardingStylesheet" | "renderMolisWorkSettingsStylesheet">;
 }) {
   const { ptyClientFilePath } = ports;
   const { renderMolisWorkWorkbenchStylesheet, renderMolisWorkWorkbenchClientScript, renderMolisWorkProjectIndexStylesheet, renderMolisWorkOnboardingStylesheet, renderMolisWorkSettingsStylesheet } = ports.renderer;
@@ -50,6 +58,10 @@ export function createLocalWebAssets(ports: {
             ? { body: renderMolisWorkOnboardingStylesheet(), contentType: "text/css; charset=utf-8" }
           : pathname === "/assets/molis-work-settings.css"
             ? { body: renderMolisWorkSettingsStylesheet(), contentType: "text/css; charset=utf-8" }
+          : pathname === "/assets/inter-latin-variable.woff2" && fs.existsSync(INTER_VARIABLE_FONT_PATH)
+            ? { body: fs.readFileSync(INTER_VARIABLE_FONT_PATH), contentType: "font/woff2" }
+          : pathname === "/assets/noto-sans-sc-400.woff2" && fs.existsSync(NOTO_SANS_SC_FONT_PATH)
+            ? { body: fs.readFileSync(NOTO_SANS_SC_FONT_PATH), contentType: "font/woff2" }
         : null;
     if (!asset) return false;
     const etag = `"${createHash("sha256").update(asset.body).digest("base64url")}"`;

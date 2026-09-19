@@ -102,7 +102,8 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
 
   const after = await (await webFetch(`${origin}${prefix}/`)).text();
   const afterInbox = after.match(/data-inbox-directory[\s\S]*?<\/section>/)?.[0] ?? "";
-  assert.match(afterInbox, /data-inbox-status="done"[^>]* hidden/);
+  assert.match(afterInbox, /data-inbox-status="done"/);
+  assert.match(afterInbox, /data-inbox-stage-group="history"/);
   assert.match(afterInbox, /现在没有需要你介入的事项/);
   assert.match(after, /data-feed-entry-id="inbox-plugin-item"/);
 
@@ -126,7 +127,8 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
   assert.equal((await dismissed.json() as { entry: { status: string } }).entry.status, "dismissed");
   const afterDismiss = await (await webFetch(`${origin}${prefix}/`)).text();
   const afterDismissInbox = afterDismiss.match(/data-inbox-directory[\s\S]*?<\/section>/)?.[0] ?? "";
-  assert.match(afterDismissInbox, /data-inbox-status="dismissed"[^>]* hidden/);
+  assert.match(afterDismissInbox, /data-inbox-status="dismissed"/);
+  assert.match(afterDismissInbox, /data-inbox-stage-group="history"/);
   assert.match(afterDismiss, /data-feed-entry-id="inbox-plugin-item-2"/);
 
   const missing = await webFetch(`${origin}${prefix}/api/inbox/entries/missing-entry/status`, {
@@ -158,8 +160,8 @@ function insertFeedItem(project: { database_path: string; board_id: string }, it
       INSERT OR IGNORE INTO feed_sources (
         board_id, source_id, kind, name, description, status, enabled, item_count,
         origin, last_sync_at, last_outcome, last_error_code, imported_at, updated_at
-      ) VALUES (@board_id, 'source-inbox-plugin', 'rss', 'Relay RSS', '测试来源', 'active', 1, 1,
-        'relay', @now, 'completed', NULL, @now, @now)
+      ) VALUES (@board_id, 'source-inbox-plugin', 'rss', '测试 RSS', '测试来源', 'active', 1, 1,
+        'molis_work', @now, 'completed', NULL, @now, @now)
     `).run({ board_id: project.board_id, now });
     store.db.prepare(`
       INSERT INTO feed_items (
@@ -170,7 +172,7 @@ function insertFeedItem(project: { database_path: string; board_id: string }, it
       ) VALUES (
         @board_id, @item_id, 'source-inbox-plugin', 'feed', 'article',
         '确认对象边界', '摘要不应被 Inbox 复制', '正文里包含需要核对的事实',
-        'rss', 'Relay RSS', @external_id, 'https://example.com/item',
+        'rss', '测试 RSS', @external_id, 'https://example.com/item',
         'inbox', 'normal', '[]', '测试作者', 'inbox', NULL, 1, @now, @now, @now, @now
       )
     `).run({ board_id: project.board_id, item_id: itemId, external_id: `external-${itemId}`, now });

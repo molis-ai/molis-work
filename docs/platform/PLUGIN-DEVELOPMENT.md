@@ -13,7 +13,7 @@ plugin_dev_dir="$(mktemp -d)"
 node dist/cli/main.js plugin create "$plugin_dev_dir/sample" io.molis.work.example.notes local-developer local-development-binding
 pnpm --dir packages/contracts pack --pack-destination "$plugin_dev_dir"
 pnpm --dir packages/plugin-sdk pack --pack-destination "$plugin_dev_dir"
-npm --prefix "$plugin_dev_dir/sample" install --offline --ignore-scripts --no-audit --no-fund "$plugin_dev_dir/adeptify-molis-work-contracts-0.0.0.tgz" "$plugin_dev_dir/adeptify-molis-work-plugin-sdk-0.0.0.tgz"
+npm --prefix "$plugin_dev_dir/sample" install --offline --ignore-scripts --no-audit --no-fund "$plugin_dev_dir/molis-ai-molis-work-contracts-0.0.0.tgz" "$plugin_dev_dir/molis-ai-molis-work-plugin-sdk-0.0.0.tgz"
 node dist/cli/main.js plugin validate "$plugin_dev_dir/sample/manifest.json"
 node dist/cli/main.js plugin dev "$plugin_dev_dir/sample" "$plugin_dev_dir/state" storage:private,artifact:write,artifact:read,ui:register --allow-unsigned-development
 ```

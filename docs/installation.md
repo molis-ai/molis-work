@@ -12,7 +12,7 @@
 
 ```bash
 pnpm desktop:build:macos    # release/macos 中生成 DMG、App zip 与 SHA256
-pnpm desktop:install:macos  # 安装到 ~/Applications；旧 Molis Work / 已确认归属的 GoalBoard.app 先移入废纸篓
+pnpm desktop:install:macos  # 安装到 ~/Applications；旧 Molis Work / 已确认归属的旧版桌面 App 先移入废纸篓
 pnpm desktop:start:macos    # 启动已安装 App
 ```
 
@@ -86,7 +86,7 @@ pnpm install:local
 "$HOME/.molis-work/bin/molis-work" demo remove --confirm
 ```
 
-这份项目在 catalog 中明确标记为 `regenerable_demo`，与 `user`、`migrated_user` 用户数据分开。重复创建会打开已有 demo；重建会清除 demo 内的改动；删除和普通卸载都只清理可再生 demo，不会碰用户项目。仓库开发和截图也可以继续使用 `examples/seed-demo.mts`，它调用的是同一套分类和重建逻辑。
+这份项目在 catalog 中明确标记为 `regenerable_demo`，与 `user` 用户数据分开。重复创建会打开已有 demo；重建会清除 demo 内的改动；删除和普通卸载都只清理可再生 demo，不会碰用户项目。仓库开发和截图也可以继续使用 `examples/seed-demo.mts`，它调用的是同一套分类和重建逻辑。
 
 ## 启动 Web：常驻或临时
 
@@ -113,7 +113,7 @@ Runtime 会先只读检查 `molis-work service status`，不会替用户猜运�
 "$HOME/.molis-work/bin/molis-work-web" --home "$HOME/.molis-work"
 ```
 
-打开 `http://127.0.0.1:4173` 后，可以在设置中创建、导入、改名和打开项目，也可以先配置 Runtime 接入。选择一个项目只改变网页浏览位置，不会自动绑定或切换当前 Runtime Session；已有旧 DB 只有明确选择并确认后才会迁入项目。macOS 上也可运行 Desktop 安装包，或从仓库执行 `pnpm desktop`；二者都是同一套页面与本地数据的窗口壳。
+打开 `http://127.0.0.1:4173` 后，可以在设置中创建、改名和打开项目，也可以先配置 Runtime 接入。选择一个项目只改变网页浏览位置，不会自动绑定或切换当前 Runtime Session。macOS 上也可运行 Desktop 安装包，或从仓库执行 `pnpm desktop`；二者都是同一套页面与本地数据的窗口壳。
 
 直接运行 `molis-work-web` 仍是前台模式，适合临时调试；关闭终端会同时关闭页面。macOS 上可改用用户级 LaunchAgent 常驻服务，先预览再确认：
 
@@ -156,6 +156,6 @@ Runtime 会先只读检查 `molis-work service status`，不会替用户猜运�
 
 接入确认完成后，**必须新开 Codex / Claude Code Session**才会生效：Runtime 只在 Session 启动时读取 MCP 与 Skill 清单，当前对话不会动态出现刚写入的工具。新 Session 可直接复制「继续用 Molis Work」续接；Molis Work 会展示当前目录以前使用过的项目并请你确认。若希望以后自动进入某个项目，需要另外明确把它设为目录默认。接入预览界面会逐条展示改动内容和这段续接说明。
 
-项目创建和当前 Session 关联是独立操作：用户在当前 Runtime 调用统一 Skill 后，Skill 使用 `context-list-projects`、`context-bind` 或 `context-create-and-bind`，并且只在用户明确选择后写入 Molis Work 自己的数据目录。Web 可创建、导入、改名和打开项目，也可管理已经确认过的 Session 与 workspace 关联；网页中的项目选择本身不会改变 Runtime 连接，新 Session 默认仍要先询问，除非用户明确设置了目录默认项目。
+项目创建和当前 Session 关联是独立操作：用户在当前 Runtime 调用统一 Skill 后，Skill 使用 `context-list-projects`、`context-bind` 或 `context-create-and-bind`，并且只在用户明确选择后写入 Molis Work 自己的数据目录。Web 可创建、改名和打开项目，也可管理已经确认过的 Session 与 workspace 关联；网页中的项目选择本身不会改变 Runtime 连接，新 Session 默认仍要先询问，除非用户明确设置了目录默认项目。
 
 Web 只监听 loopback 地址。控制令牌保存在 Molis Work home 的 `config/web-control-token`，并写入本机页面；所有 Web API 写请求还必须通过同源 Origin、控制令牌和一次性操作键校验。非本机 Host、第三方页面盲发、缺少凭据或重复请求都会在进入项目 catalog、Runtime 配置服务或 Goal Coordinator 前被拒绝。这个浏览器门禁不替代各领域流程原有的用户确认和幂等规则。

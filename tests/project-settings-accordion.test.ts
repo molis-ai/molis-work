@@ -31,7 +31,7 @@ test("project manager right pane only edits identity and deletion", () => {
     runtimes: [],
     projects: [{
       project_id: "project-1",
-      display_name: "goalboard",
+      display_name: "工作台",
       database_path: "/tmp/molis-work.db",
       source: "created",
       data_class: "user",
@@ -42,12 +42,13 @@ test("project manager right pane only edits identity and deletion", () => {
   });
   assert.match(html, /class="project-settings-identity"/);
   assert.match(html, /data-settings-fold="general"/);
-  assert.match(html, /打开 Goal Tree/);
-  assert.match(html, /项目说明、工作规则和工作规划请在项目工作台的齿轮里打开。/);
+  assert.match(html, /打开工作台/);
+  assert.match(html, /项目说明、工作规则和工作规划在项目设置中维护。/);
   assert.match(html, /data-project-delete-dialog/);
   assert.doesNotMatch(html, /class="project-settings-fold"/);
   assert.doesNotMatch(html, /data-settings-embed=/);
   assert.doesNotMatch(html, /class="project-manager-settings"/);
+  assert.doesNotMatch(html, /data-open-project-migration|导入已有|project-migration-dialog/);
 
   const css = renderMolisWorkSettingsStylesheet();
   assert.match(css, /\.project-manager-detail \{[^}]*width: 100%;/);
@@ -59,7 +60,7 @@ test("workbench project gear links to the standalone settings path", () => {
     snapshot: {
       board: {
         board_id: "board-1",
-        title: "goalboard",
+        title: "工作台",
         active_goal_id: null,
         created_at: "2026-01-01T00:00:00.000Z",
         updated_at: "2026-01-01T00:00:00.000Z",
@@ -82,8 +83,8 @@ test("workbench project gear links to the standalone settings path", () => {
       goal_tree_proposals: [],
       planning_method_packs: [],
     },
-    project: { project_id: "project-1", display_name: "goalboard" },
-    projects: [{ project_id: "project-1", display_name: "goalboard" }],
+    project: { project_id: "project-1", display_name: "工作台" },
+    projects: [{ project_id: "project-1", display_name: "工作台" }],
     route_prefix: "/projects/project-1",
     demo: false,
     active_goal_id: null,
@@ -100,20 +101,12 @@ test("workbench project gear links to the standalone settings path", () => {
       feed_items: [],
       inbox_entries: [],
       runs: [],
-      import_receipts: [],
       contract_migrations: [],
       out_rules: [],
     },
-    relay_import: {
-      path: "",
-      available: false,
-      source_count: 0,
-      item_count: 0,
-      material_count: 0,
-      error: null,
-    },
   } as MolisWorkWebView);
   assert.match(html, /class="navigator-project-settings" href="\/projects\/project-1\/settings"/);
-  assert.doesNotMatch(html, /data-work-surface="project-settings"/);
+  assert.match(html, /data-directory-open="project-settings"/);
+  assert.match(html, /data-work-surface="project-settings"/);
   assert.doesNotMatch(html, /navigator-project-settings" href="[^"]*\/settings\/guidance/);
 });

@@ -58,11 +58,11 @@ export const TRASH_GOAL_STYLES = String.raw`
     margin-bottom: 3px;
     color: var(--muted);
     font-size: 10.5px;
-    font-weight: 680;
+    font-weight: 400;
   }
   .trash-goal-panel .business-copy .outcome { color: var(--ink-soft); }
   .trash-goal-panel .trash-restore-row { display: grid; align-content: start; justify-items: start; gap: 18px; }
-  .trash-goal-panel .trash-restore-row .button-primary { min-height: 40px; margin: 0; }
+  .trash-goal-panel .trash-restore-row .mw-btn--primary { min-height: 40px; margin: 0; }
 
   @media (min-width: 761px) {
     body[data-desktop-shell="true"] .trash-goal-document .trash-goal-hero,
@@ -87,10 +87,10 @@ export const TRASH_GOAL_STYLES = String.raw`
     .trash-goal-facts { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr); gap: 5px; }
     .trash-goal-document .goal-title-row { display: grid; gap: 12px; }
     .trash-goal-document .goal-title-actions { justify-content: flex-start; }
-    .trash-goal-document .goal-title-actions .document-action { min-height: 44px; }
+    .trash-goal-document .goal-title-actions .mw-btn { min-height: 44px; }
     .trash-goal-workspace { padding: 14px; grid-template-columns: minmax(0, 1fr); gap: 10px; }
     .trash-goal-panel,
     .trash-goal-panel--state { grid-column: 1; padding: 17px; }
-    .trash-goal-panel .trash-restore-row .button-primary { min-height: 44px; white-space: normal; }
+    .trash-goal-panel .trash-restore-row .mw-btn--primary { min-height: 44px; white-space: normal; }
   }
 `;

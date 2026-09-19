@@ -1,4 +1,5 @@
 import { ManagedProjectFiles } from "./managed-project-files.js";
+import { BUILTIN_PLUGIN_REGISTRY } from "@molis-ai/molis-work-app-workbench";
 import { ManagedProjectDeletion } from "./managed-project-deletion.js";
 import { DemoProjectLifecycle } from "./demo-project-lifecycle.js";
 import { exists } from "./project-file-paths.js";
@@ -18,7 +19,7 @@ export { type MolisWorkProjectCatalogErrorDetails } from "./project-catalog-cont
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { resolveConfiguredHome } from "./product-home.js";
-import { LocalSqliteStorage, resolveProjectDatabaseFile, type SqliteDatabase } from "@molis-ai/molis-work-storage";
+import { LocalSqliteStorage, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import type { ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { PersonalPlanningMethods } from "@molis-ai/molis-work-module-goals";
@@ -32,14 +33,12 @@ import {
 } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type {
   AddProjectPluginInput,
-  BuiltinProjectPluginId,
+  ProjectPluginId,
   AddWorkspaceProjectInput,
   ChangeWorkspaceProjectInput,
   DeleteProjectInput,
-  MigrateProjectInput,
   ProjectDeletionRecord,
   ProjectDeletionResult,
-  ProjectMigrationStep,
   ProjectRecord,
   ProjectSelection,
   ProjectWorkspaceDirectoryRecord,
@@ -135,9 +134,6 @@ export type MolisWorkProjectDeletionResult = ProjectDeletionResult;
  */
 export type CreateAndBindRuntimeContextInput = import("@molis-ai/molis-work-contracts/modules/private-work-context").CreateAndBindRuntimeContextInput;
 
-export type MolisWorkProjectMigrationStep = ProjectMigrationStep;
-export type MigrateMolisWorkProjectInput = MigrateProjectInput;
-
 export interface LocalCatalogPlatform {
   createPanelSchema(db: SqliteDatabase): void;
   createPanels(db: SqliteDatabase, ports: {
@@ -176,6 +172,9 @@ export class MolisWorkProjectCatalog {
       db,
       errorFactory: (code, message) =>
         new MolisWorkProjectCatalogError(code as MolisWorkProjectCatalogError["code"], message),
+      // Which Plugins a project may enable comes from what this build ships, not
+      // from a list compiled into Projects.
+      plugins: BUILTIN_PLUGIN_REGISTRY,
     });
     this.workContexts = new RuntimeContextBindingRepository(db, {
       ledger, assertProject: (projectId) => { this.projects.query.getProject(projectId); },
@@ -186,12 +185,19 @@ export class MolisWorkProjectCatalog {
       (code, message) => new MolisWorkProjectCatalogError(code, message),
       operation => db.transaction(operation)(),
     );
-    this.projectFiles = new ManagedProjectFiles(this.projects, this.projectsDirectory, this.databasePath, contextBindingValidation);
+    this.projectFiles = new ManagedProjectFiles(this.projects, this.projectsDirectory, contextBindingValidation);
     this.projectDeletion = new ManagedProjectDeletion(this.projects, this.projectsDirectory, {
       removeBindings: (projectId, actorId, at) => this.workContexts.removeProjectFacts(projectId, actorId, at),
       removePanels: projectId => this.desktopPanels.deleteForProject(projectId),
     }, contextBindingValidation);
-    this.demoProjects = new DemoProjectLifecycle(this.projects, this.projectsDirectory, { boardId: DEMO_BOARD_ID, seed: seedDemoBoard }, this.projectDeletion, contextBindingValidation);
+    this.demoProjects = new DemoProjectLifecycle(
+      this.projects,
+      this.homeDirectory,
+      this.projectsDirectory,
+      { boardId: DEMO_BOARD_ID, seed: seedDemoBoard },
+      this.projectDeletion,
+      contextBindingValidation,
+    );
     this.desktopPanels = platform.createPanels(db, {
       errorFactory: (code, message) => new MolisWorkProjectCatalogError(code, message),
       context: {
@@ -237,8 +243,6 @@ export class MolisWorkProjectCatalog {
         else initializeCatalog(storage, platform.createPanelSchema);
         return new MolisWorkProjectCatalog(storage, homeDirectory, ledger, platform);
       }).immediate();
-      catalog.migrateManagedProjectDatabaseFilenames();
-      catalog.migrateOfficialDemoDisplayName();
       return catalog;
     } catch (error) {
       storage.close();
@@ -250,32 +254,15 @@ export class MolisWorkProjectCatalog {
     this.storage.close();
   }
 
-  private migrateManagedProjectDatabaseFilenames(): void {
-    for (const project of this.listProjects()) {
-      const next = resolveProjectDatabaseFile(path.dirname(project.database_path));
-      if (path.resolve(project.database_path) === path.resolve(next)) continue;
-      this.projects.lifecycle.updateDatabasePath(project.project_id, next);
-    }
-  }
-
-  private migrateOfficialDemoDisplayName(): void {
-    const nextName = "Molis Work 示例项目";
-    const legacyNames = new Set(["GoalBoard 示例项目", "GoalBoard Demo"]);
-    for (const project of this.listProjects()) {
-      if (project.data_class !== "regenerable_demo" || !legacyNames.has(project.display_name)) continue;
-      this.renameProject(project.project_id, nextName, "molis-work");
-    }
-  }
-
   listProjects(): MolisWorkProjectRecord[] {
     return this.projects.query.listProjects();
   }
 
-  listProjectPlugins(projectId: string): BuiltinProjectPluginId[] {
+  listProjectPlugins(projectId: string): ProjectPluginId[] {
     return this.projects.query.listProjectPlugins(projectId);
   }
 
-  addProjectPlugin(input: AddProjectPluginInput): BuiltinProjectPluginId[] {
+  addProjectPlugin(input: AddProjectPluginInput): ProjectPluginId[] {
     return this.projects.commands.addProjectPlugin(input);
   }
 
@@ -383,7 +370,6 @@ export class MolisWorkProjectCatalog {
   renameProject(projectId: string, displayName: string, actorId: string): MolisWorkProjectRecord {
     return this.projects.commands.renameProject(projectId, displayName, actorId);
   }
-  async migrateLegacyDatabase(input: MigrateMolisWorkProjectInput): Promise<MolisWorkProjectRecord> { return this.projectFiles.migrateLegacyDatabase(input); }
 
   private insertProjectInTransaction(record: MolisWorkProjectRecord, eventType: string, actorId: string): void {
     this.projects.lifecycle.register(record, eventType, actorId);

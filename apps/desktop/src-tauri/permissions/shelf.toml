@@ -1,0 +1,13 @@
+[[permission]]
+identifier = "allow-shelf-desktop"
+description = "Allow the main window to report Shelf surface state, drag files out, find and add local files, open a copy, read setup state, and manage global hotkeys."
+commands.allow = [
+  "shelf_surface_changed",
+  "shelf_hotkey_status",
+  "shelf_apply_hotkeys",
+  "shelf_drag_out",
+  "shelf_find_files",
+  "shelf_admit_paths",
+  "shelf_open_path",
+  "shelf_setup_status",
+]

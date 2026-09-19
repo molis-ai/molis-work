@@ -21,7 +21,7 @@ export const HOME_SHORTCUTS_FACTORY_SCRIPT = `({ root, translate: L, projectKey 
   const report = message => { status.textContent = L(message); status.hidden = !message; };
   const load = () => {
     try {
-      const stored = JSON.parse(localStorage.getItem(key) || localStorage.getItem("goalboard:home-shortcuts:" + projectKey) || "[]");
+      const stored = JSON.parse(localStorage.getItem(key) || "[]");
       if (!Array.isArray(stored)) throw new Error("Invalid shortcuts");
       const ids = new Set();
       items = stored.filter(item => {
@@ -82,7 +82,7 @@ export const HOME_SHORTCUTS_FACTORY_SCRIPT = `({ root, translate: L, projectKey 
     const trigger = returnFocus?.isConnected ? returnFocus : add;
     trigger?.focus();
   });
-  window.addEventListener("storage", event => { if (event.key === key || event.key === "goalboard:home-shortcuts:" + projectKey || event.key === null) { load(); render(); } });
+  window.addEventListener("storage", event => { if (event.key === key || event.key === null) { load(); render(); } });
   document.addEventListener("click", async event => {
     const link = event.target.closest("a[data-home-external]");
     if (!link || !globalThis.molisWorkOpenExternalUrl) return;

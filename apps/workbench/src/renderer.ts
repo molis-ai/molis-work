@@ -1,87 +1,64 @@
-import { countGoalDecisions } from "@molis-ai/molis-work-plugin-goals";
-import { createWorkbenchProjectSettingsPages } from "./project-settings-pages.js";
-import { createWorkbenchFocusSections } from "./focus-sections.js";
-import type { MolisWorkWebView } from "./page-view.js";
-import { createWorkbenchSettingsRenderer } from "./settings-renderer.js";
-import { type GoalsDocumentView as WebGoalView } from "@molis-ai/molis-work-plugin-goals";
-import { createWorkbenchDecisionCenterRenderer } from "./decision-center.js";
-import { decisionTypeCounts } from "@molis-ai/molis-work-plugin-goals";
-import { type WorkbenchDecisionGroup } from "./decision-center.js";
-import { buildDecisionGroups } from "@molis-ai/molis-work-plugin-goals";
-import { pendingDecisionCount } from "@molis-ai/molis-work-plugin-goals";
-import { createWorkbenchGoalsDecisionResultsRenderer } from "./ui-composition.js";
-import { type GoalsDecisionGroup } from "@molis-ai/molis-work-plugin-goals";
-import { createWorkbenchGoalsFragmentRenderer } from "./goals-fragment-renderer.js";
-import { createWorkbenchGoalsPageRenderer } from "./goals-page-renderer.js";
-import { buildGoalsNavigationItems } from "@molis-ai/molis-work-plugin-goals";
-import { ARTIFACT_EMBED_STYLES, ARTIFACT_WORKBENCH_STYLES } from "./artifact-ui.js";
-import { icon, renderIconSprite } from "@molis-ai/molis-work-design-system";
-import { createWorkbenchOnboardingRenderer } from "./onboarding-renderer.js";
-import { TRASH_GOAL_STYLES } from "@molis-ai/molis-work-plugin-goals";
-import { ONBOARDING_STYLES } from "@molis-ai/molis-work-design-system";
 import {
+  icon,
+  renderIconSprite,
   THEME_BOOTSTRAP_SCRIPT as BASE_THEME_BOOTSTRAP_SCRIPT,
   VISUAL_FOUNDATION_CLIENT_SCRIPT,
-  VISUAL_FOUNDATION_STYLES,
-  COSS_CONTROL_STYLES,
 } from "@molis-ai/molis-work-design-system";
-import { CLIENT_SCRIPT } from "./browser-assets.js";
-import { CONTROL_CLIENT_SCRIPT } from "./browser-assets.js";
-import { PROJECT_GUIDANCE_CLIENT_SCRIPT } from "./browser-assets.js";
-import { PROJECT_RULES_CLIENT_SCRIPT } from "./browser-assets.js";
-import { PROJECT_SETTINGS_CLIENT_SCRIPT } from "./scripts/project-settings.js";
-import { PLANNING_ADOPTION_CLIENT_SCRIPT, PLANNING_SETTINGS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-goals";
-import { IMMERSIVE_NAVIGATION_STYLES } from "./styles/immersive-navigation.js";
-import { PROJECT_HOME_STYLES } from "./styles/project-home.js";
-import { IMMERSIVE_DIRECTORY_STYLES } from "./styles/immersive-directory.js";
-import { GOAL_CANVAS_STYLES } from "./styles/goal-canvas.js";
-import { SURFACE_LANGUAGE_STYLES } from "./styles/surface-language.js";
-import { DETAIL_READING_STYLES } from "./styles/detail-reading.js";
-import { TAB_WORKSPACE_STYLES } from "./styles/tab-workspace.js";
-import { PROJECT_SETTINGS_PAGE_STYLES } from "./styles/project-settings-page.js";
-import { MORE_STYLES } from "./browser-assets.js";
-import { PROJECT_GUIDANCE_SETTINGS_STYLES } from "./browser-assets.js";
-import { PROJECT_INDEX_STYLES } from "./browser-assets.js";
-import { PROJECT_RULES_SETTINGS_STYLES } from "./browser-assets.js";
-import { RESPONSIVE_STYLES } from "./browser-assets.js";
-import { SETTINGS_STYLES } from "./browser-assets.js";
-import { SETTINGS_IA_NAV_STYLES } from "./browser-assets.js";
-import { STYLES } from "./browser-assets.js";
-
-import { createWorkbenchGoalsPolicyRenderer } from "./ui-composition.js";
-import { createWorkbenchGoalsSafetyRenderer } from "./ui-composition.js";
-import { createWorkbenchGoalsRelationRenderer } from "./ui-composition.js";
-import { createWorkbenchGoalsTreeRenderer } from "./ui-composition.js";
-import { createWorkbenchGoalsMomentumRenderer } from "./ui-composition.js";
-import { createWorkbenchGoalsDocumentRenderer } from "./ui-composition.js";
-import { createWorkbenchGoalsContextRenderer } from "./ui-composition.js";
-import { createWorkbenchGoalsStatusRenderer } from "./ui-composition.js";
-import { createGoalStateExplainer } from "@molis-ai/molis-work-plugin-goals";
-import { createWorkbenchGoalsFactorsRenderer } from "./ui-composition.js";
-import { createWorkbenchGoalsDialogsRenderer } from "./ui-composition.js";
-import { GOAL_DISPLAY_STATUSES } from "@molis-ai/molis-work-plugin-goals";
-import { PLANNING_SETTINGS_STYLES } from "@molis-ai/molis-work-plugin-goals";
-import { partOfChildViews } from "@molis-ai/molis-work-plugin-goals";
-import { sortGoalTreeItems } from "@molis-ai/molis-work-plugin-goals";
-import { createArtifactReferenceRenderer } from "./ui-composition.js";
-import { renderWorkbenchDocument } from "./ui-composition.js";
-import { createGoalsDecisionPresentation } from "@molis-ai/molis-work-plugin-goals";
-import { createWorkbenchGoalsProposalRenderer } from "./ui-composition.js";
-import type {
-  FeedItemRecord,
-  InboxEntryRecord,
-} from "@molis-ai/molis-work-plugin-feed";
-import { PROJECT_OPERATIONS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-work";
-import { PROJECT_OPERATIONS_STYLES } from "@molis-ai/molis-work-plugin-work";
-import { renderProjectOperations } from "./ui-composition.js";
-import { renderWorkTerminal } from "./ui-composition.js";
-import { createWorkbenchFeedProjectionRenderer } from "./feed-projection-ui.js";
-import { createWorkbenchInboxProjectionRenderer } from "./inbox-projection-ui.js";
-import { type FeedSupplementalEntry } from "./feed-projection-ui.js";
-import { createWorkbenchSettingsNavigation } from "./settings-navigation.js";
-import { createWorkbenchProjectDirectoryRenderer } from "./project-directory-renderer.js";
-import type { GoalPolicy, PlanningMethodPack, PlanningMethodComposition } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalPolicy, PlanningMethodComposition, PlanningMethodPack } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { FeedItemRecord, InboxEntryRecord } from "@molis-ai/molis-work-plugin-feed";
+import {
+  buildDecisionGroups,
+  buildGoalsNavigationItems,
+  countGoalDecisions,
+  createGoalStateExplainer,
+  createGoalsDecisionPresentation,
+  decisionTypeCounts,
+  GOAL_DISPLAY_STATUSES,
+  type GoalsDecisionGroup,
+  type GoalsDocumentView as WebGoalView,
+  partOfChildViews,
+  pendingDecisionCount,
+  sortGoalTreeItems,
+} from "@molis-ai/molis-work-plugin-goals";
+import { createWorkbenchDecisionCenterRenderer, type WorkbenchDecisionGroup } from "./decision-center.js";
+import { createWorkbenchFeedProjectionRenderer, type FeedSupplementalEntry } from "./feed-projection-ui.js";
+import { createWorkbenchFocusSections } from "./focus-sections.js";
+import { createWorkbenchGoalsFragmentRenderer } from "./goals-fragment-renderer.js";
+import { createWorkbenchGoalsPageRenderer } from "./goals-page-renderer.js";
 import type { createWorkbenchLocale, WebLocale } from "./i18n.js";
+import { createWorkbenchInboxProjectionRenderer } from "./inbox-projection-ui.js";
+import { createWorkbenchOnboardingRenderer } from "./onboarding-renderer.js";
+import {
+  renderMolisWorkOnboardingStylesheet as renderOnboardingCss,
+  renderMolisWorkProjectIndexStylesheet as renderProjectIndexCss,
+  renderMolisWorkSettingsStylesheet as renderSettingsCss,
+  renderMolisWorkWorkbenchClientScript as renderWorkbenchClient,
+  renderMolisWorkWorkbenchStylesheet as renderWorkbenchCss,
+} from "./page-assets.js";
+import type { MolisWorkWebView } from "./page-view.js";
+import { createWorkbenchProjectDirectoryRenderer } from "./project-directory-renderer.js";
+import { createWorkbenchProjectSettingsPages } from "./project-settings-pages.js";
+import { createWorkbenchSettingsNavigation } from "./settings-navigation.js";
+import { createWorkbenchSettingsRenderer } from "./settings-renderer.js";
+import {
+  createArtifactReferenceRenderer,
+  createWorkbenchGoalsContextRenderer,
+  createWorkbenchGoalsDecisionResultsRenderer,
+  createWorkbenchGoalsDialogsRenderer,
+  createWorkbenchGoalsDocumentRenderer,
+  createWorkbenchGoalsFactorsRenderer,
+  createWorkbenchGoalsMomentumRenderer,
+  createWorkbenchGoalsPolicyRenderer,
+  createWorkbenchGoalsProposalRenderer,
+  createWorkbenchGoalsRelationRenderer,
+  createWorkbenchGoalsSafetyRenderer,
+  createWorkbenchGoalsStatusRenderer,
+  createWorkbenchGoalsTreeRenderer,
+  renderProjectOperations,
+  renderShelfContribution,
+  renderWorkbenchDocument,
+  renderWorkTerminal,
+} from "./ui-composition.js";
 export interface WorkbenchRendererPorts {
   locale: Pick<ReturnType<typeof createWorkbenchLocale>, "L" | "htmlLang" | "dateTimeLocale" | "listJoin" | "localeSwitchHref" | "clientI18nScript"> & { currentLocale(): WebLocale };
   desktop: { appendDesktopQueryToLocalHrefs(html: string): string; withDesktopQuery(path: string): string; bootstrapScript: string };
@@ -108,6 +85,16 @@ const { renderGoalTreeProposalDecision } = createWorkbenchGoalsProposalRenderer(
 
 const { renderFeedNativePluginPersistedDetail, renderFeedNativePluginSurface } = createWorkbenchFeedProjectionRenderer({ L, dateTimeLocale });
 const { renderInboxNativePluginSurface } = createWorkbenchInboxProjectionRenderer({ L, dateTimeLocale });
+function renderShelfNativePluginSurface(surface: "directory" | "workbench"): string {
+  return renderShelfContribution(surface, {
+    materials: [],
+    results: [],
+    clipboard: [],
+    recipes: [],
+    selected_id: null,
+    primitives: { escape: escapeHtml, text: L },
+  });
+}
 
 const { explainWorkState, explainParentCompletion } = createGoalStateExplainer(L);
 
@@ -119,11 +106,9 @@ const projectDirectoryRenderer = createWorkbenchProjectDirectoryRenderer({ L, es
 
 const { renderMolisWorkProjectIndex } = projectDirectoryRenderer;
 
-const { renderProjectMigrationDialog } = projectDirectoryRenderer;
-
 const renderMolisWorkSettings = createWorkbenchSettingsRenderer({
   L, escapeHtml, icon, currentLocale, localeSwitchHref, htmlLang, controlTokenMeta, clientI18nScript, renderIconSprite,
-  withDesktopQuery, settingsContextHref, renderSettingsNavigation, renderProjectMigrationDialog,
+  withDesktopQuery, settingsContextHref, renderSettingsNavigation,
   themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT, visualFoundationClientScript: VISUAL_FOUNDATION_CLIENT_SCRIPT,
 });
 
@@ -365,31 +350,6 @@ function prefixLocalLinks(html: string, routePrefix: string, desktopShell = fals
   return desktopShell ? appendDesktopQueryToLocalHrefs(resolved) : resolved;
 }
 
-/** Shared workbench presentation. Kept outside project HTML so the browser can reuse it. */
-function renderMolisWorkWorkbenchStylesheet(): string {
-  return `${STYLES}${MORE_STYLES}${RESPONSIVE_STYLES}${VISUAL_FOUNDATION_STYLES}${TRASH_GOAL_STYLES}${PROJECT_OPERATIONS_STYLES}${ARTIFACT_EMBED_STYLES}${ARTIFACT_WORKBENCH_STYLES}${IMMERSIVE_NAVIGATION_STYLES}${IMMERSIVE_DIRECTORY_STYLES}${PROJECT_HOME_STYLES}${GOAL_CANVAS_STYLES}${TAB_WORKSPACE_STYLES}${DETAIL_READING_STYLES}${PROJECT_GUIDANCE_SETTINGS_STYLES}${PROJECT_RULES_SETTINGS_STYLES}${PLANNING_SETTINGS_STYLES}.document-pane.is-syncing .goal-document { animation: none; }${COSS_CONTROL_STYLES}${SURFACE_LANGUAGE_STYLES}`;
-}
-
-/** Full-screen first-run and update journey. */
-function renderMolisWorkOnboardingStylesheet(): string {
-  return ONBOARDING_STYLES;
-}
-
-/** Shared project index presentation. */
-function renderMolisWorkProjectIndexStylesheet(): string {
-  return `${STYLES}${VISUAL_FOUNDATION_STYLES}${PROJECT_INDEX_STYLES}${COSS_CONTROL_STYLES}${SURFACE_LANGUAGE_STYLES}`;
-}
-
-/** Shared settings presentation, reused across project and global settings routes. */
-function renderMolisWorkSettingsStylesheet(): string {
-  return `${STYLES}${MORE_STYLES}${RESPONSIVE_STYLES}${SETTINGS_STYLES}${PROJECT_GUIDANCE_SETTINGS_STYLES}${PROJECT_RULES_SETTINGS_STYLES}${PLANNING_SETTINGS_STYLES}${VISUAL_FOUNDATION_STYLES}${PROJECT_INDEX_STYLES}${SETTINGS_IA_NAV_STYLES}${COSS_CONTROL_STYLES}${PROJECT_SETTINGS_PAGE_STYLES}${SURFACE_LANGUAGE_STYLES}`;
-}
-
-/** Shared workbench behavior. Locale strings and project facts remain page-local. */
-function renderMolisWorkWorkbenchClientScript(): string {
-  return `${CONTROL_CLIENT_SCRIPT}${CLIENT_SCRIPT}${PROJECT_SETTINGS_CLIENT_SCRIPT}${PROJECT_GUIDANCE_CLIENT_SCRIPT}${PROJECT_RULES_CLIENT_SCRIPT}${PLANNING_SETTINGS_CLIENT_SCRIPT}${PLANNING_ADOPTION_CLIENT_SCRIPT}${VISUAL_FOUNDATION_CLIENT_SCRIPT}${PROJECT_OPERATIONS_CLIENT_SCRIPT}`;
-}
-
 const { renderMolisWorkWeb, renderMolisWorkRefreshFragment } =
   createWorkbenchGoalsPageRenderer<WebGoalView, MolisWorkWebView, FeedSupplementalEntry>({
     L, escapeHtml, icon, htmlLang, controlTokenMeta, themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT,
@@ -398,9 +358,32 @@ const { renderMolisWorkWeb, renderMolisWorkRefreshFragment } =
     renderCreateDialog, renderGoalTrashDialog, renderMomentumPlaceholder, renderGoalKanban, renderTuiPane,
     renderProjectOperations: (project, data) => renderProjectOperations(project, data, icon, L),
     renderDesktopProjectChrome, renderProjectSwitcher,
-    renderFeedNativePluginSurface, renderInboxNativePluginSurface,
+    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderShelfNativePluginSurface,
   });
-  return { renderMolisWorkProjectIndex, renderMolisWorkSettings, renderDecisionCenter, renderPersistedFeedItemDetail, renderFeedWorkbenchFragment, renderGoalDocumentFragment, renderMolisWorkMomentumFragment, renderMolisWorkOnboarding, renderMolisWorkProjectSettingsHub, renderMolisWorkProjectGeneralSettings, renderMolisWorkProjectSettings, renderMolisWorkProjectGuidanceSettings, renderMolisWorkPlanningLibrary, renderMolisWorkPlanningMethodPage, renderMolisWorkPlanningSettings, renderMolisWorkWorkbenchStylesheet, renderMolisWorkOnboardingStylesheet, renderMolisWorkProjectIndexStylesheet, renderMolisWorkSettingsStylesheet, renderMolisWorkWorkbenchClientScript, renderMolisWorkWeb, renderMolisWorkRefreshFragment };
+  return {
+    renderMolisWorkProjectIndex,
+    renderMolisWorkSettings,
+    renderDecisionCenter,
+    renderPersistedFeedItemDetail,
+    renderFeedWorkbenchFragment,
+    renderGoalDocumentFragment,
+    renderMolisWorkMomentumFragment,
+    renderMolisWorkOnboarding,
+    renderMolisWorkProjectSettingsHub,
+    renderMolisWorkProjectGeneralSettings,
+    renderMolisWorkProjectSettings,
+    renderMolisWorkProjectGuidanceSettings,
+    renderMolisWorkPlanningLibrary,
+    renderMolisWorkPlanningMethodPage,
+    renderMolisWorkPlanningSettings,
+    renderMolisWorkWorkbenchStylesheet: (): string => renderWorkbenchCss(),
+    renderMolisWorkOnboardingStylesheet: (): string => renderOnboardingCss(),
+    renderMolisWorkProjectIndexStylesheet: (): string => renderProjectIndexCss(),
+    renderMolisWorkSettingsStylesheet: (): string => renderSettingsCss(),
+    renderMolisWorkWorkbenchClientScript: (): string => renderWorkbenchClient(),
+    renderMolisWorkWeb,
+    renderMolisWorkRefreshFragment,
+  };
 }
 
 export type WorkbenchRenderer = ReturnType<typeof createWorkbenchRenderer>;

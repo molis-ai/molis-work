@@ -37,14 +37,7 @@ export interface SourcesSqliteDatabase {
 
 export { SourcesError } from "@molis-ai/molis-work-contracts/modules/sources";
 
-/**
- * Owns Source desired state in the existing `feed_sources` table while FD1
- * callers are migrated. `cursor_json` remains only as a legacy migration input;
- * all active cursor reads and writes belong to Listener Host.
- */
-export function migrateSources(db: SourcesSqliteDatabase): void {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS feed_sources (
+const FEED_SOURCES_COLUMNS = `
       board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
       source_id TEXT NOT NULL,
       kind TEXT NOT NULL,
@@ -55,7 +48,7 @@ export function migrateSources(db: SourcesSqliteDatabase): void {
       status TEXT NOT NULL,
       enabled INTEGER NOT NULL DEFAULT 1,
       item_count INTEGER NOT NULL DEFAULT 0,
-      origin TEXT NOT NULL CHECK (origin IN ('relay', 'goalboard')),
+      origin TEXT NOT NULL CHECK (origin = 'molis_work'),
       config_json TEXT NOT NULL DEFAULT '{}',
       schedule_json TEXT NOT NULL DEFAULT '{"mode":"manual"}',
       cursor_json TEXT NOT NULL DEFAULT '{}',
@@ -67,9 +60,26 @@ export function migrateSources(db: SourcesSqliteDatabase): void {
       imported_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       PRIMARY KEY (board_id, source_id)
-    );
-    CREATE INDEX IF NOT EXISTS feed_sources_board_updated_idx
-      ON feed_sources(board_id, updated_at DESC, source_id);
+`;
+
+function feedSourcesTableSql(tableName: string, ifNotExists: boolean): string {
+  return `CREATE TABLE ${ifNotExists ? "IF NOT EXISTS " : ""}${tableName} (${FEED_SOURCES_COLUMNS});`;
+}
+
+function feedSourcesIndexSql(): string {
+  return `CREATE INDEX IF NOT EXISTS feed_sources_board_updated_idx
+      ON feed_sources(board_id, updated_at DESC, source_id);`;
+}
+
+/**
+ * Owns Source desired state in the existing `feed_sources` table while FD1
+ * callers are migrated. `cursor_json` remains only as a legacy migration input;
+ * all active cursor reads and writes belong to Listener Host.
+ */
+export function migrateSources(db: SourcesSqliteDatabase): void {
+  db.exec(`
+    ${feedSourcesTableSql("feed_sources", true)}
+    ${feedSourcesIndexSql()}
 
     CREATE TABLE IF NOT EXISTS source_events (
       event_id TEXT PRIMARY KEY,
@@ -89,6 +99,42 @@ export function migrateSources(db: SourcesSqliteDatabase): void {
   ensureColumn(db, "feed_sources", "cursor_json", "TEXT NOT NULL DEFAULT '{}'");
   ensureColumn(db, "feed_sources", "credential_ref", "TEXT");
   ensureColumn(db, "feed_sources", "account_label", "TEXT");
+  ensureColumn(db, "feed_sources", "last_sync_at", "TEXT");
+  ensureColumn(db, "feed_sources", "last_outcome", "TEXT");
+  ensureColumn(db, "feed_sources", "last_error_code", "TEXT");
+  rebuildFeedSourcesOriginCheck(db);
+  db.exec("UPDATE feed_sources SET status = 'disconnected' WHERE status = 'imported'");
+}
+
+function rebuildFeedSourcesOriginCheck(db: SourcesSqliteDatabase): void {
+  const sql = String(
+    (db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'feed_sources'").get() as { sql?: string } | undefined)?.sql ?? "",
+  );
+  if (!sql || sql.includes("CHECK (origin = 'molis_work')")) return;
+  db.pragma("foreign_keys = OFF");
+  try {
+    db.exec(`
+      ${feedSourcesTableSql("feed_sources__origin_v2", false)}
+      INSERT INTO feed_sources__origin_v2 (
+        board_id, source_id, kind, definition_id, sync_kind, name, description,
+        status, enabled, item_count, origin, config_json, schedule_json, cursor_json,
+        credential_ref, account_label, last_sync_at, last_outcome, last_error_code,
+        imported_at, updated_at
+      )
+      SELECT
+        board_id, source_id, kind, definition_id, sync_kind, name, description,
+        CASE status WHEN 'imported' THEN 'disconnected' ELSE status END,
+        enabled, item_count, 'molis_work', config_json, schedule_json, cursor_json,
+        credential_ref, account_label, last_sync_at, last_outcome, last_error_code,
+        imported_at, updated_at
+      FROM feed_sources;
+      DROP TABLE feed_sources;
+      ALTER TABLE feed_sources__origin_v2 RENAME TO feed_sources;
+      ${feedSourcesIndexSql()}
+    `);
+  } finally {
+    db.pragma("foreign_keys = ON");
+  }
 }
 
 export class SourcesModule implements SourcesApi {
@@ -196,7 +242,7 @@ export class SourcesModule implements SourcesApi {
         source.description,
         source.status,
         source.enabled ? 1 : 0,
-        source.origin,
+        "molis_work",
         JSON.stringify(source.config),
         JSON.stringify(source.schedule),
         source.connection_ref,
@@ -304,7 +350,7 @@ function mapSource(row: Row): SourceRecord {
     description: asText(row.description),
     status: asText(row.status) as SourceStatus,
     enabled: Number(row.enabled ?? 0) === 1,
-    origin: asText(row.origin) as SourceRecord["origin"],
+    origin: "molis_work",
     config: parseJson<Record<string, unknown>>(row.config_json, {}),
     schedule,
     connection_ref: optionalText(row.credential_ref),
@@ -338,7 +384,6 @@ function assertStatusTransition(current: SourceStatus, next: SourceStatus): void
     paused: ["active", "error", "disconnected"],
     error: ["active", "paused", "disconnected"],
     disconnected: ["active", "paused", "error"],
-    imported: ["active", "paused", "error", "disconnected"],
   };
   if (!allowed[current]?.includes(next)) {
     throw new SourcesError("source_invalid_transition", `来源不能从 ${current} 变成 ${next}`);

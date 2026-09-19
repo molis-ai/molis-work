@@ -81,7 +81,11 @@ test("project policy document selects the last active project binding, preserves
   const html = renderer.renderProjectPolicyDocument(view);
   assert.match(html, /id="project-rules-title">项目工作规则/);
   assert.match(html, /data-project-rules-receipt role="status" tabindex="-1" hidden/);
-  assert.match(html, /这些规则只约束之后开始或重新领取的工作/);
+  assert.match(html, /class="mw-hint"/);
+  assert.match(html, /data-rules-advanced/);
+  assert.match(html, /settings-change-reason[\s\S]*settings-save-footer/);
+  assert.doesNotMatch(html, /class="settings-footnote"/);
+  assert.doesNotMatch(html, /settings-rules-fields/);
   assert.match(html, /<select id="project-goal-mode" name="goal_mode">/);
   assert.match(html, /<option value="required" selected>/);
   assert.match(html, /name="cross_reviewers"[^>]*value="4"/);

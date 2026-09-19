@@ -4,8 +4,6 @@ import { EVENT_TOOLS } from "./goal-event-tools.js";
 import { CONTEXT_TOOLS } from "./context-tools.js";
 
 const SERVER_INFO = { name: "molis-work-mcp", version: "1.0.0" };
-const LEGACY_MCP_PREFIX = "goalboard_v1_";
-const MCP_PREFIX = "molis_work_v1_";
 
 const TOOLS: McpToolDefinition[] = [...V1_TOOLS, ...EVENT_TOOLS, ...CONTEXT_TOOLS];
 
@@ -81,19 +79,19 @@ const RUNTIME_TOOLS = TOOLS
   .filter((tool) => RUNTIME_TOOL_NAMES.has(tool.name))
   .map(runtimeToolDefinition);
 
-/** Map a GoalBoard-era tool name onto the current Molis Work tool name. */
+/** Current MCP tool names are already canonical. */
 export function canonicalMcpToolName(name: string): string {
-  return name.startsWith(LEGACY_MCP_PREFIX) ? MCP_PREFIX + name.slice(LEGACY_MCP_PREFIX.length) : name;
+  return name;
 }
 
 /** Classify the same tool audience used by discovery before host execution. */
 export function isRuntimeMcpTool(name: string): boolean {
-  return RUNTIME_TOOL_NAMES.has(canonicalMcpToolName(name));
+  return RUNTIME_TOOL_NAMES.has(name);
 }
 
 /** Connection tools run before a project has been resolved. */
 export function isRuntimeContextMcpTool(name: string): boolean {
-  return RUNTIME_CONTEXT_TOOL_NAMES.has(canonicalMcpToolName(name));
+  return RUNTIME_CONTEXT_TOOL_NAMES.has(name);
 }
 
 export { TOOLS as MCP_TOOLS, RUNTIME_TOOLS as RUNTIME_MCP_TOOLS, SERVER_INFO as MCP_SERVER_INFO };

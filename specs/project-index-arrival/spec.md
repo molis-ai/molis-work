@@ -56,4 +56,4 @@ pnpm exec tsx --test --test-concurrency=1 \
 2. 通过：主区 1028px 填满顶栏以下；卡片区 `overflow: auto`。
 3. 通过：3 卡 `312px × 3`，无第四空列；箭头 `transform: none`。
 4. 通过：「演示」只留下示例项目；Escape 清空；对话框可点遮罩关闭。
-5. 通过：Light / Dark token 切换；390 顶栏保留「系统设置」文案，搜索与创建纵向铺满；卡片少时中间留白是固定顶栏合同，不是回归。
+5. 通过：Light / Dark token 切换；390 顶栏保留「系统设置」文案，搜索与创建纵向铺满。选择块左右居中、垂直贴顶，见 `specs/project-index-center/spec.md`。

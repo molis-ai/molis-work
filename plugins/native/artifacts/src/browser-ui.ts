@@ -1,5 +1,18 @@
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
+import { icon } from "@molis-ai/molis-work-design-system";
 import { artifactDisplayTitle, artifactVersionPath, type ArtifactBrowserView } from "./browser.js";
+
+const ARTIFACT_TYPE_LABELS: Record<string, string> = {
+  "io.molis.work.goal.delivery": "Goal 交付",
+  "io.molis.work.feed.capture": "Feed 捕获",
+};
+
+function artifactTypeFoldLabel(typeId: string, p: ArtifactBrowserUiModel["primitives"]): string {
+  const known = ARTIFACT_TYPE_LABELS[typeId];
+  if (known) return p.text(known);
+  const last = typeId.split(".").filter(Boolean).at(-1);
+  return last || typeId;
+}
 
 export const ARTIFACT_BROWSER_UI_CONTRIBUTION_ID = "io.molis.work.native.artifacts.browser.v1";
 
@@ -15,15 +28,49 @@ export interface ArtifactBrowserUiModel {
 }
 
 function directory({ view, routePrefix, primitives: p }: ArtifactBrowserUiModel): string {
-  if (!view.versions.length) return `<p class="artifact-empty">${p.text("还没有 Artifact")}</p>`;
-  return `<nav aria-label="${p.text("Artifact 版本")}" class="artifact-version-list">${view.versions.map((artifact) => {
-    const selected = view.selected?.artifact_id === artifact.artifact_id && view.selected.version === artifact.version;
-    const title = artifactDisplayTitle(artifact);
-    return `<a href="${p.escape(routePrefix + artifactVersionPath(artifact))}" draggable="true" data-frame-asset="artifact" data-frame-asset-id="${p.escape(artifact.artifact_id + "#" + artifact.version)}" data-frame-asset-title="${p.escape(title)}" data-frame-asset-caption="${p.escape("v" + artifact.version + " · " + artifact.artifact_type_id)}"${selected ? ' aria-current="page"' : ""}>
-      <strong>${p.escape(title)}</strong><span>v${artifact.version} · ${p.escape(artifact.artifact_type_id)}</span>
-      <small>${p.escape(p.formatDate(artifact.created_at))} · ${p.text(artifact.lifecycle_state === "archived" ? "已归档" : artifact.availability === "unavailable" ? "内容不可用" : "可用")}</small>
-    </a>`;
-  }).join("")}</nav>`;
+  if (!view.versions.length) return `<p class="artifact-empty mw-empty">${p.text("还没有 Artifact")}</p>`;
+  const groups = new Map<string, Array<(typeof view.versions)[number]>>();
+  for (const artifact of view.versions) {
+    const list = groups.get(artifact.artifact_type_id);
+    if (list) list.push(artifact);
+    else groups.set(artifact.artifact_type_id, [artifact]);
+  }
+  const folds = [...groups.entries()].map(([typeId, versions]) => {
+    const attention = versions.some((artifact) => artifact.availability === "unavailable" || artifact.lifecycle_state === "archived");
+    const mark = attention ? "alert" : "check";
+    const tone = attention ? "attention" : "ready";
+    const rows = versions.map((artifact) => {
+      const selected = view.selected?.artifact_id === artifact.artifact_id && view.selected.version === artifact.version;
+      const title = artifactDisplayTitle(artifact);
+      const status = artifact.lifecycle_state === "archived"
+        ? p.text("已归档")
+        : artifact.availability === "unavailable"
+          ? p.text("内容不可用")
+          : p.text("可用");
+      const statusTone = artifact.lifecycle_state === "archived"
+        ? "quiet"
+        : artifact.availability === "unavailable"
+          ? "blocked"
+          : "done";
+      return `<article class="feed-stage-item">
+        <a class="feed-stage-entry directory-list-row${selected ? " is-selected" : ""}" href="${p.escape(routePrefix + artifactVersionPath(artifact))}" draggable="true" data-frame-asset="artifact" data-frame-asset-id="${p.escape(`${artifact.artifact_id}#${artifact.version}`)}" data-frame-asset-title="${p.escape(title)}" data-frame-asset-caption="${p.escape(`v${artifact.version}`)}">
+          <span class="feed-stage-leading"><strong>${p.escape(title)}</strong></span>
+          <span class="feed-entry-source">v${artifact.version}</span>
+          <span class="mw-status mw-status--${statusTone} mw-status--plain feed-entry-status">${status}</span>
+        </a>
+      </article>`;
+    }).join("");
+    return `<details class="goal-collection-fold" data-artifact-type-fold="${p.escape(typeId)}" open>
+      <summary>
+        <span class="goal-collection-caret" aria-hidden="true">${icon("chevron-down")}</span>
+        <span class="goal-collection-mark is-${tone}" aria-hidden="true">${icon(mark)}</span>
+        <strong>${p.escape(artifactTypeFoldLabel(typeId, p))}</strong>
+        <small>${versions.length}</small>
+      </summary>
+      <div class="artifact-stage-group-body" role="list">${rows}</div>
+    </details>`;
+  }).join("");
+  return `<nav aria-label="${p.text("Artifact 版本")}" class="mw-dir__list artifact-version-list">${folds}</nav>`;
 }
 
 function detail(model: ArtifactBrowserUiModel, embedded: boolean): string {
@@ -49,6 +96,7 @@ function detail(model: ArtifactBrowserUiModel, embedded: boolean): string {
         : "已有兼容的类型声明；具体操作由消费插件提供。";
   const reference = JSON.stringify({ artifact_id: artifact.artifact_id, version: artifact.version });
   return `<article class="artifact-detail${embedded ? " artifact-embed" : ""}" data-artifact-id="${p.escape(artifact.artifact_id)}" data-artifact-version="${artifact.version}">
+    ${embedded ? "" : `<header class="plugin-stage-detail-bar"><button class="plugin-stage-back" type="button" data-artifact-collapse aria-label="${p.text("返回 Artifact 列表")}" title="${p.text("返回 Artifact 列表")}">${icon("chevron-right")}</button></header>`}
     <header>${embedded ? `<h3><a href="${p.escape(href)}">${p.escape(title)}</a></h3>` : `<h1>${p.escape(title)}</h1>`}<span>v${artifact.version}${model.relationship ? ` · ${p.text(model.relationship === "input" ? "输入结果" : "产出结果")}` : ""}</span></header>
     ${embedded ? "" : `<div class="artifact-detail-content">`}<p class="artifact-notice">${p.text(embedded && view.compatibility?.reason === "consumer_missing" ? "没有兼容插件。可打开这个版本查看信息或导出本地副本。" : notice)}</p>
     ${artifact.unavailable_reason ? `<p>${p.escape(artifact.unavailable_reason)}</p>` : ""}

@@ -45,7 +45,7 @@ export class FeedSourceService {
       status: "active",
       enabled: true,
       item_count: 0,
-      origin: "goalboard",
+      origin: "molis_work",
       config: { ...normalized.config, config_fingerprint: normalized.configFingerprint },
       schedule: { mode: "manual" },
       cursor: {},

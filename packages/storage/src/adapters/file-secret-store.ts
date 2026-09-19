@@ -70,8 +70,8 @@ export interface SecretStoreMigrationResult {
 const FORMAT_VERSION = 2;
 const ALG = "aes-256-gcm" as const;
 const KEYCHAIN_SERVICE = "com.molis.work.feed.secretstore";
-const LEGACY_KEYCHAIN_SERVICE = "com.adeptify.goalboard.feed.secretstore";
 const KEYCHAIN_ACCOUNT = "install-master-key";
+/** Historical key-derivation constant. Changing the string would invalidate existing ciphertext. */
 const ENV_KEY_SALT = "goalboard-feed-secretstore-v1";
 
 /** On-disk sealed entry (v2). */
@@ -202,14 +202,7 @@ function readKeychainService(service: string): string | null {
 }
 
 function readKeychain(): string | null {
-  const current = readKeychainService(KEYCHAIN_SERVICE);
-  if (current) return current;
-  const legacy = readKeychainService(LEGACY_KEYCHAIN_SERVICE);
-  if (legacy) {
-    writeKeychain(legacy);
-    return legacy;
-  }
-  return null;
+  return readKeychainService(KEYCHAIN_SERVICE);
 }
 
 function writeKeychain(keyB64: string): boolean {

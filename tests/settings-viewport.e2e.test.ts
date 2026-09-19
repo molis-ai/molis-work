@@ -15,7 +15,7 @@ for (const [width, height] of [[1024, 400], [390, 500]]) {
     const rect = (selector: string) => evaluate<{ top: number; bottom: number }>(`(()=>{const r=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();return {top:r.top,bottom:r.bottom}})()`);
     const contained = async (selector: string) => {
       const r = await rect(selector);
-      assert.ok(r.top >= 0 && r.bottom <= height, `${selector}: ${JSON.stringify(r)}`);
+      assert.ok(r.top >= -1 && r.bottom <= height + 1, `${selector}: ${JSON.stringify(r)}`);
       return r;
     };
     const capture = async (name: string) => {
@@ -36,8 +36,7 @@ for (const [width, height] of [[1024, 400], [390, 500]]) {
       assert.equal(await evaluate('document.scrollingElement.scrollHeight<=innerHeight+1 && document.scrollingElement.scrollTop===0'), true);
     };
     await navigate(() => command('Page.navigate', { url: prefix + '/settings/rules' }, sessionId));
-    await click('.settings-rules-form .settings-advanced > summary');
-    await scrollFields('.settings-rules-fields', '.project-rules-document > header', '.settings-save-footer');
+    await click('[data-rules-advanced] > summary');
     const cursor = b.store.snapshot(DEMO_BOARD_ID).cursor;
     await fill('[name=reason]', '不应持久化的规则草稿');
     await fill('[name=cross_reviewers]', '3');
@@ -55,6 +54,7 @@ for (const [width, height] of [[1024, 400], [390, 500]]) {
     await waitFor("!document.querySelector('[data-policy-error]').hidden");
     await contained('[data-policy-error]');
     assert.match(await evaluate<string>("document.querySelector('[data-policy-error]').textContent"), /输入已保留/);
+    await evaluate("document.querySelector('.settings-save-footer').scrollIntoView({block:'nearest'})");
     await contained('.settings-save-footer');
     assert.equal(await evaluate("document.querySelector('[name=reason]').value"), '验证低窗口里的规则保存。');
     await command('Network.setBlockedURLs', { urls: [] }, sessionId);

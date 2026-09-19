@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { WEB_CONTROL_TOKEN_RELATIVE_PATH } from "../web-control-token.js";
-import { CURRENT_LAUNCHER_NAMES, LEGACY_LAUNCHER_NAMES, isOwnedInstaller, isOwnedLauncherText } from "./home-contract.js";
+import { CURRENT_LAUNCHER_NAMES, isOwnedInstaller, isOwnedLauncherText } from "./home-contract.js";
 import type { MolisWorkUninstallChange } from "./uninstall-contract.js";
 export async function inspectOwnedHomeAssets(homeDirectory: string): Promise<{
   ownedPaths: string[];
@@ -28,7 +28,7 @@ export async function inspectOwnedHomeAssets(homeDirectory: string): Promise<{
     if (token.length >= 32 && token.length <= 512 && !/[\r\n]/.test(token)) ownedPaths.push(controlTokenPath);
     else conflicts.push(`Web 控制令牌文件已被修改，不会删除：${controlTokenPath}`);
   }
-  for (const launcher of [...CURRENT_LAUNCHER_NAMES, ...LEGACY_LAUNCHER_NAMES].map((name) => path.join(homeDirectory, "bin", name))) {
+  for (const launcher of CURRENT_LAUNCHER_NAMES.map((name) => path.join(homeDirectory, "bin", name))) {
     const text = await readText(launcher);
     snapshotPaths.push(launcher);
     if (text == null) continue;

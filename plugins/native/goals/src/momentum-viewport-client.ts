@@ -139,7 +139,7 @@ export const GOALS_MOMENTUM_VIEWPORT_FACTORY_SCRIPT = `(host) => {
       view.addEventListener("click", (event) => { if (suppressClick) { event.preventDefault(); event.stopPropagation(); } }, true);
       view.addEventListener("dblclick", (event) => {
         const node = event.target.closest("[data-graph-node]");
-        if (!isExpanded() && node && !event.target.closest("[data-graph-open], [data-graph-frame]") && !suppressClick) { event.preventDefault(); host.openGoal(node.dataset.goalId); }
+        if (!isExpanded() && node && !event.target.closest("[data-graph-open], [data-graph-frame]") && !suppressClick) { event.preventDefault(); (host.openFrame || host.openGoal)(node.dataset.goalId); }
       });
       view.addEventListener("wheel", (event) => {
         if (isExpanded()) return;

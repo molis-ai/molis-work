@@ -16,6 +16,7 @@
     "allow-pty-write",
     "allow-pty-resize",
     "allow-pty-kill",
-    "allow-capsule-window"
+    "allow-capsule-window",
+    "allow-shelf-desktop"
   ]
 }

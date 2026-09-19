@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 
+import type { ProjectPluginRegistry } from "@molis-ai/molis-work-contracts/modules/projects";
+
 import type {
   ProjectsApplicationApi,
   ProjectsCommandApi,
@@ -14,7 +16,11 @@ import {
 import {
   createProjectsSchema,
   migrateProjectDataClassSchema,
+  migrateProjectDropLegacyImportSchema,
   migrateProjectInboxPluginSchema,
+  migrateProjectOpenPluginSchema,
+  migrateProjectTaskPluginSchema,
+  migrateProjectDropTaskPluginSchema,
   ProjectsRepository,
   type ProjectsSqliteDatabase,
   type StoredProjectDeletion,
@@ -44,6 +50,8 @@ export interface ProjectsModuleOptions {
   errorFactory: ProjectsErrorFactory;
   now?: () => string;
   id?: (prefix: string) => string;
+  /** Installed Plugins. Defaults to the ids this build bundles. */
+  plugins?: ProjectPluginRegistry;
 }
 
 /**
@@ -90,7 +98,7 @@ export class ProjectsModule implements ProjectsApplicationApi {
     const now = options.now ?? (() => new Date().toISOString());
     const id = options.id ?? ((prefix: string) => `${prefix}-${randomUUID()}`);
     this.repository = new ProjectsRepository(options.db);
-    this.records = new ProjectService(this.repository, options.errorFactory, now, id);
+    this.records = new ProjectService(this.repository, options.errorFactory, now, id, options.plugins);
     this.workspaces = new ProjectWorkspaceService(this.repository, options.errorFactory, now, id);
     this.query = {
       listProjectPlugins: (projectId) => this.records.listPlugins(projectId),
@@ -140,7 +148,11 @@ export class ProjectsModule implements ProjectsApplicationApi {
 export {
   createProjectsSchema,
   migrateProjectDataClassSchema,
+  migrateProjectDropLegacyImportSchema,
   migrateProjectInboxPluginSchema,
+  migrateProjectOpenPluginSchema,
+  migrateProjectTaskPluginSchema,
+  migrateProjectDropTaskPluginSchema,
   normalizeProjectWorkspace,
   ProjectService,
   ProjectsRepository,

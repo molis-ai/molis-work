@@ -26,6 +26,7 @@
   },
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*",
+    "@molis-ai/molis-work-design-system": "workspace:*",
     "marked": "^18.0.11",
     "sanitize-html": "^2.17.7",
     "@adeptify/search-evidence-layer": "file:../../../vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz",

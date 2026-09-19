@@ -63,13 +63,13 @@ function createMomentumRenderer(primitives: GoalsMomentumUiPrimitives) {
       <div class="goal-canvas-viewport" data-graph-viewport tabindex="0" aria-label="${L("拖动空白处移动画布，方向键平移，加减键缩放")}">
         <div class="goal-canvas-world" data-graph-stage data-graph-scale="1"><svg class="goal-canvas-edges" data-graph-edges aria-hidden="true"><defs><marker id="momentum-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z"></path></marker></defs>${edges}</svg>${nodes}</div>
       </div>
-      ${nodes ? "" : `<div class="goal-canvas-empty"><h2>${L("还没有目标")}</h2><button type="button" data-open-create>${L("创建 Goal")}</button></div>`}
+      ${nodes ? "" : `<div class="goal-canvas-empty mw-empty" role="status"><strong>${L("还没有 Goal")}</strong><p>${L("目标和依赖会作为节点出现在这里")}</p></div>`}
       <footer class="goal-canvas-tools"><div role="group" aria-label="${L("画布缩放")}"><button type="button" data-graph-zoom="out" aria-label="${L("缩小")}">−</button><output data-graph-zoom-value>100%</output><button type="button" data-graph-zoom="in" aria-label="${L("放大")}">+</button><button type="button" data-graph-zoom="fit" aria-label="${L("适应全部目标")}">${icon("maximize")}</button></div></footer>
-      <p data-goal-momentum-status role="status" hidden></p><button type="button" data-retry-goal-momentum hidden>${L("重试")}</button>
+      <p data-goal-momentum-status role="status" hidden></p><button class="mw-btn mw-btn--secondary" type="button" data-retry-goal-momentum hidden>${L("重试")}</button>
     </section>`;
   }
   function renderMomentumPlaceholder(): string {
-    return `<section class="goal-momentum goal-canvas-map" id="goal-momentum-pane" data-goal-momentum data-loaded="false" aria-label="${L("Goal 关系画布")}"><p class="goal-canvas-loading" data-goal-momentum-status role="status">${L("正在读取目标关系…")}</p><button type="button" data-retry-goal-momentum hidden>${L("重试")}</button></section>`;
+    return `<section class="goal-momentum goal-canvas-map" id="goal-momentum-pane" data-goal-momentum data-loaded="false" aria-label="${L("Goal 关系画布")}"><p class="goal-canvas-loading" data-goal-momentum-status role="status">${L("正在读取目标关系…")}</p><button class="mw-btn mw-btn--secondary" type="button" data-retry-goal-momentum hidden>${L("重试")}</button></section>`;
   }
   const { renderGoalKanban } = createKanbanRenderer(primitives);
   return { renderGoalMomentum, renderMomentumPlaceholder, renderGoalKanban };

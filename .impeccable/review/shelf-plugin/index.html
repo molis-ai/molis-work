@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Shelf · DropAgent 质感切片</title>
+  <style>
+    :root {
+      --mw-title: 32px;
+      --mw-rail: 48px;
+      --mw-page: #f3f3f5;
+      --mw-nav: #f1f1f3;
+      --mw-ink: #1a1a1f;
+      --mw-muted: #5a5a63;
+      --mw-faint: #6d6d76;
+      --mw-line: #e3e3e8;
+      --mw-accent: #5e6ad2;
+      --da-side: #F5F5F4;
+      --da-panel: #FCFCFB;
+      --da-hover: #EEEEEE;
+      --da-press: #E8E9EE;
+      --da-text: #292A2E;
+      --da-muted: #74757D;
+      --da-faint: #74757D;
+      --da-line: #E8E8E6;
+      --da-accent: #66709E;
+      --da-accent-press: #4B5874;
+      --da-on-accent: #FAF9F6;
+      --da-select: #D6DCEB;
+      --da-tty: #F8F7F4;
+      --da-tty-ink: #383A43;
+      --slate: #647DB5;
+      --slate-fill: #E7EAF2;
+      --blue: #5684AA;
+      --blue-fill: #E6ECF3;
+      --ochre: #A7803E;
+      --ochre-fill: #F2EBDF;
+      --plum: #9270B1;
+      --plum-fill: #EFE6EF;
+      --clay: #B27460;
+      --clay-fill: #F2E7E1;
+      --danger: #8C594B;
+      --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Noto Sans CJK SC", system-ui, sans-serif;
+      --ease: cubic-bezier(.16, 1, .3, 1);
+      --spring: cubic-bezier(.22, 1.2, .36, 1);
+      --t: 180ms;
+    }
+    html[data-theme="dark"] {
+      --mw-page: #0e0f12;
+      --mw-nav: #121316;
+      --mw-ink: #f4f4f6;
+      --mw-muted: #a9a9b1;
+      --mw-faint: #94949c;
+      --mw-line: #2e2e34;
+      --da-side: #111112;
+      --da-panel: #19191B;
+      --da-hover: #242427;
+      --da-press: #28282F;
+      --da-text: #E9E9ED;
+      --da-muted: #96969F;
+      --da-faint: #96969F;
+      --da-line: #2B2B2F;
+      --da-accent: #A6AFD5;
+      --da-accent-press: #C5CDE6;
+      --da-on-accent: #2B3142;
+      --da-select: #4D5874;
+      --da-tty: #222329;
+      --da-tty-ink: #E2E3E9;
+      --slate: #91A8DC;
+      --slate-fill: #3A4155;
+      --blue: #8AB2D5;
+      --blue-fill: #354454;
+      --ochre: #C9A566;
+      --ochre-fill: #4B4133;
+      --plum: #BC9ADA;
+      --plum-fill: #4C3C4D;
+      --clay: #D29C87;
+      --clay-fill: #4D3D37;
+      --danger: #E0B5A5;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      font: 13px/1.4 var(--font);
+      background: var(--mw-page);
+      color: var(--mw-ink);
+      min-height: 100dvh;
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+    button { font: inherit; color: inherit; }
+    ::selection { background: var(--da-select); color: var(--da-text); }
+    :focus-visible { outline: 2px solid var(--da-accent); outline-offset: 2px; }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+    }
+
+    .app {
+      height: 100dvh;
+      display: grid;
+      grid-template-rows: var(--mw-title) minmax(0, 1fr);
+    }
+    .titlebar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 12px 0 80px;
+      background: var(--mw-nav);
+      border-bottom: 1px solid var(--mw-line);
+      -webkit-app-region: drag;
+    }
+    .lights {
+      position: absolute; top: 10px; left: 16px; display: flex; gap: 8px;
+    }
+    .lights i { width: 12px; height: 12px; border-radius: 50%; display: block; }
+    .lights i:nth-child(1) { background: #ff5f57; }
+    .lights i:nth-child(2) { background: #febc2e; }
+    .lights i:nth-child(3) { background: #28c840; }
+    .project {
+      font-size: 12px; font-weight: 650; letter-spacing: -.01em; color: var(--mw-ink);
+    }
+    .review {
+      margin-left: auto;
+      display: flex; align-items: center; gap: 6px;
+      -webkit-app-region: no-drag;
+    }
+    .review span {
+      font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--mw-faint); margin-right: 4px;
+    }
+    .chip {
+      min-height: 24px; padding: 0 9px; border: 0; border-radius: 6px;
+      background: transparent; color: var(--mw-muted); font-size: 11px; cursor: pointer;
+    }
+    .chip:hover { background: color-mix(in srgb, var(--mw-ink) 6%, transparent); color: var(--mw-ink); }
+    .chip.on { background: color-mix(in srgb, var(--mw-ink) 10%, transparent); color: var(--mw-ink); font-weight: 600; }
+
+    .body {
+      display: grid;
+      grid-template-columns: var(--mw-rail) minmax(0, 1fr);
+      min-height: 0;
+    }
+    .rail {
+      display: flex; flex-direction: column; align-items: center; gap: 2px;
+      padding: 8px 0;
+      background: var(--mw-nav);
+      border-right: 1px solid var(--mw-line);
+    }
+    .rail button {
+      width: 36px; height: 36px; border: 0; border-radius: 8px;
+      background: transparent; color: var(--mw-faint); cursor: default;
+      display: grid; place-items: center;
+    }
+    .rail button svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .rail button.current { color: var(--da-accent); background: color-mix(in srgb, var(--da-accent) 14%, transparent); }
+
+    .shelf {
+      min-width: 0; min-height: 0;
+      display: flex; flex-direction: column;
+      background: var(--da-side);
+      color: var(--da-text);
+    }
+    .da-head {
+      flex: none; height: 48px; display: flex; align-items: center;
+      padding: 0 10px 0 0;
+    }
+    .brand {
+      width: 213px; flex: none; display: flex; align-items: center; gap: 9px; padding-left: 19px;
+    }
+    .mark {
+      width: 20px; height: 20px; border-radius: 5px; background: var(--da-accent);
+      color: var(--da-side); font-size: 12px; font-weight: 650; display: grid; place-items: center;
+    }
+    .brand strong { font-size: 13px; font-weight: 600; letter-spacing: -.3px; }
+    .crumb {
+      display: flex; align-items: center; gap: 12px; padding-left: 20px;
+      font-size: 12px; color: var(--da-muted); min-width: 0;
+    }
+    .crumb b { color: var(--da-text); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .head-tools { margin-left: auto; display: flex; gap: 4px; align-items: center; }
+    .agent {
+      display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 8px;
+      border: 0; background: transparent; color: var(--da-text); font-size: 12px; font-weight: 620;
+      box-shadow: inset 0 -1px var(--da-line); cursor: default;
+    }
+    .ico-btn {
+      width: 30px; height: 30px; border: 0; border-radius: 8px;
+      background: transparent; color: var(--da-muted); display: grid; place-items: center; cursor: pointer;
+      transition: background var(--t) ease, color var(--t) ease;
+    }
+    .ico-btn svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 1.7; stroke-linecap: round; }
+    .ico-btn:hover { background: var(--da-hover); color: var(--da-text); }
+    .ico-btn:active { background: var(--da-press); }
+
+    .da-main {
+      flex: 1; min-height: 0; display: grid;
+      grid-template-columns: 213px minmax(0, 1fr);
+    }
+    .side {
+      min-width: 0; min-height: 0; display: flex; flex-direction: column;
+      padding: 0 10px 16px;
+    }
+    .search {
+      display: flex; align-items: center; gap: 6px; height: 30px;
+      margin: 12px 0 6px; padding: 0 8px; border-radius: 8px;
+      background: color-mix(in srgb, var(--da-panel) 70%, var(--da-side));
+      border: 1px solid var(--da-line);
+    }
+    .search svg { width: 13px; height: 13px; stroke: var(--da-faint); fill: none; stroke-width: 1.7; }
+    .search input {
+      flex: 1; min-width: 0; border: 0; background: transparent; color: var(--da-text);
+      font-size: 12px; outline: none;
+    }
+    .search input::placeholder { color: var(--da-faint); }
+    .side-scroll { flex: 1; min-height: 0; overflow: auto; padding-bottom: 8px; }
+    .side-scroll::-webkit-scrollbar { width: 0; height: 0; }
+    .fold {
+      display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 4px;
+      border: 0; background: transparent; color: var(--da-muted); font-size: 12px; font-weight: 600;
+      width: 100%; text-align: left; cursor: pointer; border-radius: 6px;
+    }
+    .fold:hover { background: var(--da-hover); }
+    .fold .chev { width: 10px; transition: transform var(--t) var(--ease); }
+    .fold.shut .chev { transform: rotate(-90deg); }
+    .fold .count { margin-left: auto; font-size: 10px; font-weight: 500; color: var(--da-faint); }
+    .fold-gap { margin-top: 16px; }
+    .tree { margin: 0; padding: 0; list-style: none; }
+    .row {
+      display: flex; align-items: center; gap: 8px; height: 31px;
+      padding: 0 4px 0 21px; border-radius: 6px; cursor: pointer; position: relative;
+      transition: background var(--t) ease;
+    }
+    .row:hover { background: var(--da-hover); }
+    .row.is-on { background: var(--da-press); }
+    .row .glyph { width: 16px; height: 16px; flex: none; display: grid; place-items: center; }
+    .row .glyph svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+    .row .name { flex: 1; min-width: 0; font-size: 12px; color: var(--da-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .row.is-on .name { color: var(--da-text); }
+    .row .cap { font-size: 10px; color: var(--da-faint); flex: none; }
+    .row .ops {
+      position: absolute; right: 2px; top: 0; bottom: 0;
+      display: none; align-items: center; gap: 0; background: inherit;
+    }
+    .row:hover .ops, .row.is-on .ops { display: flex; }
+    .row:hover .cap, .row.is-on .cap { visibility: hidden; }
+    .row .ops button {
+      width: 22px; height: 22px; border: 0; border-radius: 5px; background: transparent;
+      color: var(--da-muted); display: grid; place-items: center; cursor: pointer;
+    }
+    .row .ops button:hover { color: var(--da-text); background: var(--da-hover); }
+    .row .ops svg { width: 11px; height: 11px; stroke: currentColor; fill: none; stroke-width: 1.7; }
+    .empty-line { padding: 8px 8px 8px 21px; font-size: 11px; color: var(--da-faint); }
+    .more { margin: 4px 0 0 21px; border: 0; background: transparent; color: var(--da-muted); font-size: 11px; cursor: pointer; padding: 8px 0; }
+
+    .stage-wrap {
+      min-width: 0; min-height: 0; padding: 0 7px 7px 0;
+      display: flex;
+    }
+    .stage {
+      position: relative;
+      flex: 1; min-width: 0; min-height: 0;
+      display: flex; flex-direction: column;
+      background: var(--da-panel);
+      border: 1px solid var(--da-line);
+      border-radius: 9px;
+      overflow: hidden;
+    }
+    .tools {
+      flex: none; height: 42px; display: none; align-items: center; gap: 6px;
+      padding: 0 10px; border-bottom: 1px solid var(--da-line);
+    }
+    .stage.is-result .tools { display: flex; }
+    .paper {
+      height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--da-line);
+      background: var(--da-panel); color: var(--da-text); font-size: 12px; cursor: pointer;
+      display: inline-flex; align-items: center; gap: 6px;
+      transition: background var(--t) ease, border-color var(--t) ease;
+    }
+    .paper svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 1.6; }
+    .paper:hover { background: var(--da-hover); }
+    .paper:active { background: var(--da-press); }
+    .paper.on { background: var(--da-press); border-color: color-mix(in srgb, var(--da-accent) 45%, transparent); color: var(--da-accent); font-weight: 600; }
+    .paper.quiet { border-color: transparent; background: transparent; }
+    .paper.quiet:hover { background: var(--da-hover); border-color: transparent; }
+    .primary {
+      height: 34px; padding: 0 14px; border: 0; border-radius: 8px;
+      background: var(--da-accent); color: var(--da-on-accent); font-size: 12px; font-weight: 600;
+      cursor: pointer; box-shadow: 0 1px 2px #0002;
+      transition: background var(--t) ease, transform 130ms var(--spring);
+    }
+    .primary:hover { background: var(--da-accent-press); }
+    .primary:active { transform: scale(.97); }
+    .primary:disabled, .paper:disabled { opacity: .45; cursor: default; transform: none; box-shadow: none; }
+
+    .preview { flex: 1; min-height: 0; overflow: auto; background: var(--da-panel); }
+    .preview-inner { padding: 35px 42px 48px; max-width: 76ch; }
+    .doc-kicker { font-size: 11px; color: var(--da-muted); margin: 0 0 10px; }
+    .doc-title { margin: 0 0 16px; font-size: 22px; font-weight: 600; letter-spacing: -.03em; line-height: 1.3; }
+    .doc p { margin: 0 0 14px; font-size: 13px; line-height: 1.8; color: var(--da-text); }
+    .doc .muted { color: var(--da-muted); }
+    .pdf-page { max-width: 42em; }
+    .pdf-break { height: 1px; background: var(--da-line); margin: 28px 0; }
+    .idle, .welcome {
+      height: 100%; display: flex; flex-direction: column; align-items: flex-start; justify-content: center;
+      padding: 48px 56px;
+    }
+    .welcome h2 { margin: 0 0 12px; font-size: 26px; font-weight: 600; letter-spacing: -.025em; }
+    .welcome p, .idle p { margin: 0; font-size: 13px; line-height: 1.8; color: var(--da-muted); max-width: 440px; }
+    .welcome .cta { display: flex; gap: 10px; margin-top: 22px; }
+    .idle { align-items: center; text-align: center; }
+    .idle svg { width: 32px; height: 32px; stroke: var(--da-muted); fill: none; stroke-width: 1.2; margin-bottom: 12px; }
+
+    .compare { height: 100%; display: grid; grid-template-columns: 1fr 1px 1fr; min-height: 0; }
+    .compare > div { min-width: 0; overflow: auto; }
+    .rule { background: var(--da-line); }
+    @media (max-width: 900px) {
+      .compare { grid-template-columns: 1fr; grid-template-rows: 44% 1px 1fr; }
+    }
+
+    .tty {
+      display: none; flex-direction: column; height: 168px; border-top: 1px solid var(--da-line);
+      background: var(--da-tty); color: var(--da-tty-ink);
+    }
+    .stage.is-talk .tty { display: flex; }
+    .stage.is-talk.is-confirm .tty,
+    .stage.is-talk.is-run .tty { height: 72px; }
+    .tty-bar {
+      height: 32px; display: flex; align-items: center; gap: 8px; padding: 0 12px;
+      font-size: 11px; color: var(--da-muted); border-bottom: 1px solid var(--da-line);
+    }
+    .tty pre {
+      flex: 1; margin: 0; padding: 10px 14px; overflow: auto;
+      font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    .tty-in {
+      display: flex; gap: 8px; padding: 8px 12px; border-top: 1px solid var(--da-line);
+    }
+    .tty-in input {
+      flex: 1; height: 32px; border: 1px solid var(--da-text); border-radius: 8px;
+      background: var(--da-panel); color: var(--da-text); padding: 0 10px; font-size: 12px;
+    }
+
+    .drawer {
+      display: none; padding: 12px 16px 8px; border-top: 1px solid var(--da-line); background: var(--da-panel);
+    }
+    .stage.is-confirm .drawer, .stage.is-run .drawer { display: block; }
+    .confirm-title { margin: 0 0 4px; font-size: 15px; font-weight: 600; color: var(--da-text); }
+    .confirm-out { margin: 0 0 12px; font-size: 12px; color: var(--da-muted); }
+    .facts { display: grid; grid-template-columns: 72px 1fr; gap: 6px 12px; font-size: 12px; }
+    .facts dt { color: var(--da-muted); }
+    .facts dd { margin: 0; }
+    .drawer-actions { display: flex; gap: 8px; margin-top: 12px; }
+    .run-line { font-size: 12px; color: var(--da-muted); }
+    .stage.is-run #runBtn { display: none; }
+
+    .bar-wrap { flex: none; border-top: 1px solid var(--da-line); }
+    .bar-hint { margin: 0; padding: 8px 16px 0; font-size: 11.5px; line-height: 1.45; color: var(--da-muted); }
+    .bar-hint[hidden] { display: none; }
+    .bar {
+      display: flex; align-items: center; gap: 4px;
+      padding: 8px 13px; overflow: visible;
+    }
+    .bar-scroll { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; overflow-x: auto; }
+    .act-rule { flex: none; width: 1px; height: 18px; margin: 0 2px; background: var(--da-line); }
+    .act {
+      flex: none; height: 30px; padding: 0 8px; border: 0; border-radius: 8px;
+      background: transparent; color: var(--da-text); font-size: 12px; cursor: pointer;
+      display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+      transition: background var(--t) ease;
+    }
+    .act svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.7; flex: none; }
+    .act:hover { background: var(--da-hover); }
+    .act:active { background: var(--da-press); }
+    .act.is-on { background: var(--da-press); }
+    .more { position: relative; flex: none; }
+    .more-menu {
+      position: absolute; right: 0; bottom: calc(100% + 6px); z-index: 8;
+      min-width: 148px; padding: 4px;
+      background: var(--da-panel); border: 1px solid var(--da-line); border-radius: 8px;
+    }
+    .more-menu[hidden] { display: none; }
+    .more-item {
+      display: flex; align-items: center; height: 30px; padding: 0 10px; border-radius: 6px;
+      font-size: 12px; color: var(--da-text); cursor: pointer;
+    }
+    .more-item:hover { background: var(--da-hover); }
+    .tone-slate { color: var(--slate); }
+    .tone-blue { color: var(--blue); }
+    .tone-ochre { color: var(--ochre); }
+    .tone-plum { color: var(--plum); }
+    .tone-clay { color: var(--clay); }
+
+    .drop {
+      position: absolute; inset: 0; display: none; place-items: center;
+      z-index: 4; pointer-events: none;
+    }
+    .shelf.is-drop .drop { display: grid; }
+    .drop-veil {
+      position: absolute; inset: 0;
+      background: color-mix(in srgb, var(--da-panel) 42%, transparent);
+      border-radius: 9px;
+    }
+    .drop-frame {
+      position: absolute; inset: 10px;
+      border: 1.5px dashed color-mix(in srgb, var(--da-text) 38%, transparent);
+      border-radius: 9px;
+    }
+    .drop-card {
+      position: relative; z-index: 1;
+      display: flex; flex-direction: column; align-items: center; gap: 8px;
+      color: var(--da-text);
+    }
+    .drop-card svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.4; }
+    .drop b { font-size: 13px; font-weight: 600; }
+    .drop p { margin: 0; font-size: 11.5px; color: var(--da-muted); }
+
+    .clip-now { font-size: 10px; color: var(--da-accent); margin-left: 6px; }
+
+    .wheel-scene {
+      position: fixed; inset: 0; z-index: 40; display: none;
+      background: color-mix(in srgb, var(--mw-page) 28%, transparent);
+    }
+    .wheel-scene.on { display: block; }
+    .wheel-svg {
+      position: absolute; left: 50%; top: 50%;
+      width: 344px; height: 344px; margin: -172px 0 0 -172px;
+      overflow: visible;
+    }
+    .wheel-svg .slice {
+      fill: none;
+      stroke: color-mix(in srgb, var(--da-panel) 96%, transparent);
+      stroke-width: 64;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      filter: drop-shadow(0 5px 10px rgba(0,0,0,.14));
+    }
+    .wheel-svg g[data-slice].hot .slice {
+      stroke: color-mix(in srgb, var(--da-hover) 82%, var(--ochre-fill));
+      filter: drop-shadow(0 6px 12px rgba(0,0,0,.22));
+    }
+    .wheel-svg g[data-slice].off { opacity: .45; }
+    .wheel-svg .slice-edge {
+      fill: none;
+      stroke: var(--da-line);
+      stroke-width: 0.8;
+      stroke-linecap: round;
+      pointer-events: none;
+    }
+    .wheel-svg g[data-slice].hot .slice-edge { stroke: color-mix(in srgb, var(--ochre) 70%, transparent); stroke-width: 1.4; }
+    .wheel-svg .slice-label {
+      font-size: 10.5px; font-weight: 500; fill: var(--da-text);
+      text-anchor: middle; dominant-baseline: middle; pointer-events: none;
+    }
+    .wheel-svg .slice-icon {
+      fill: none; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; pointer-events: none;
+    }
+    .wheel-caption {
+      position: absolute; left: 50%; top: calc(50% + 188px);
+      transform: translateX(-50%);
+      font-size: 12px; color: var(--da-muted); text-align: center; white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="titlebar">
+      <div class="lights" aria-hidden="true"><i></i><i></i><i></i></div>
+      <div class="project">Adeptify</div>
+      <div class="review">
+        <span>状态</span>
+        <button class="chip on" data-scene="idle" type="button">材料</button>
+        <button class="chip" data-scene="empty" type="button">空</button>
+        <button class="chip" data-scene="confirm" type="button">确认</button>
+        <button class="chip" data-scene="result" type="button">结果</button>
+        <button class="chip" data-scene="compare" type="button">对照</button>
+        <button class="chip" data-scene="talk" type="button">对话</button>
+        <button class="chip" data-scene="wheel" type="button">轮盘</button>
+        <span>外观</span>
+        <button class="chip on" data-theme="light" type="button">浅</button>
+        <button class="chip" data-theme="dark" type="button">深</button>
+      </div>
+    </header>
+    <div class="body">
+      <nav class="rail" aria-label="插件">
+        <button type="button" aria-label="Goals"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/></svg></button>
+        <button type="button" aria-label="Sessions"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="2"/><path d="M8 9h8M8 13h5"/></svg></button>
+        <button type="button" aria-label="Inbox"><svg viewBox="0 0 24 24"><path d="M4 8l8 5 8-5"/><rect x="4" y="6" width="16" height="12" rx="2"/></svg></button>
+        <button type="button" aria-label="Feed"><svg viewBox="0 0 24 24"><path d="M5 19a2 2 0 0 1 2-2"/><path d="M5 13a8 8 0 0 1 8-8"/><circle cx="6" cy="18" r="1"/></svg></button>
+        <button class="current" type="button" aria-current="page" aria-label="Shelf"><svg viewBox="0 0 24 24"><path d="M4 7h16v4H4zM4 13h16v4H4z"/></svg></button>
+        <button type="button" aria-label="Artifacts"><svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg></button>
+      </nav>
+      <section class="shelf" id="shelf">
+        <header class="da-head">
+          <div class="brand"><span class="mark">S</span><strong>Shelf</strong></div>
+          <div class="crumb"><span id="loc">材料</span> › <b id="selTitle">Q3-报价.pdf</b></div>
+          <div class="head-tools">
+            <button class="agent" type="button">Grok</button>
+            <button class="ico-btn" type="button" aria-label="设置"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H8a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V8c.3.6.9 1 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+          </div>
+        </header>
+        <div class="da-main">
+          <aside class="side">
+            <label class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3-3"/></svg><input placeholder="搜索材料" /></label>
+            <div class="side-scroll">
+              <button class="fold" type="button" data-fold="materials"><svg class="chev" viewBox="0 0 12 12"><path d="M3 4.5 6 8l3-3.5" fill="none" stroke="currentColor" stroke-width="1.4"/></svg><span class="tone-ochre">材料</span><span class="count">3</span></button>
+              <ul class="tree" id="materials">
+                <li class="row is-on" data-id="pdf" data-kind="pdf" data-title="Q3-报价.pdf">
+                  <span class="glyph tone-clay"><svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M14 3v6h6"/></svg></span>
+                  <span class="name">Q3-报价.pdf</span><span class="cap">PDF</span>
+                  <span class="ops"><button type="button" aria-label="复制"><svg viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M4 16V6a2 2 0 0 1 2-2h10"/></svg></button><button type="button" aria-label="隐藏"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button><button type="button" aria-label="删除副本"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V5h6v2M8 7l1 12h6l1-12"/></svg></button></span>
+                </li>
+                <li class="row" data-id="png" data-kind="image" data-title="白板-截图.png">
+                  <span class="glyph tone-plum"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="2"/><circle cx="9" cy="10" r="1.5"/><path d="m4 16 4-4 3 3 3-4 6 5"/></svg></span>
+                  <span class="name">白板-截图.png</span><span class="cap">PNG</span>
+                  <span class="ops"><button type="button" aria-label="复制"><svg viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M4 16V6a2 2 0 0 1 2-2h10"/></svg></button><button type="button" aria-label="隐藏"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button><button type="button" aria-label="删除副本"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V5h6v2M8 7l1 12h6l1-12"/></svg></button></span>
+                </li>
+                <li class="row" data-id="web" data-kind="web" data-title="Dropover 官网">
+                  <span class="glyph tone-blue"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg></span>
+                  <span class="name">Dropover 官网</span><span class="cap">WEB</span>
+                  <span class="ops"><button type="button" aria-label="复制"><svg viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M4 16V6a2 2 0 0 1 2-2h10"/></svg></button><button type="button" aria-label="隐藏"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button><button type="button" aria-label="删除副本"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V5h6v2M8 7l1 12h6l1-12"/></svg></button></span>
+                </li>
+              </ul>
+              <div id="resultsBlock" hidden>
+                <button class="fold fold-gap" type="button"><svg class="chev" viewBox="0 0 12 12"><path d="M3 4.5 6 8l3-3.5" fill="none" stroke="currentColor" stroke-width="1.4"/></svg><span class="tone-slate">生成结果</span><span class="count">1</span></button>
+                <ul class="tree">
+                  <li class="row" data-id="md" data-kind="result" data-title="pdf.md">
+                    <span class="glyph tone-slate"><svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg></span>
+                    <span class="name">pdf.md</span><span class="cap">刚刚</span>
+                    <span class="ops"><button type="button" aria-label="复制"><svg viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M4 16V6a2 2 0 0 1 2-2h10"/></svg></button><button type="button" aria-label="隐藏"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button><button type="button" aria-label="删除副本"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V5h6v2M8 7l1 12h6l1-12"/></svg></button></span>
+                  </li>
+                </ul>
+              </div>
+              <button class="fold fold-gap" type="button" data-fold="clips"><svg class="chev" viewBox="0 0 12 12"><path d="M3 4.5 6 8l3-3.5" fill="none" stroke="currentColor" stroke-width="1.4"/></svg><span class="tone-ochre">剪贴板历史</span><span class="count">3</span></button>
+              <ul class="tree" id="clips">
+                <li class="row" data-id="clip1" data-kind="clip" data-title="付款条款草稿">
+                  <span class="glyph tone-slate"><svg viewBox="0 0 24 24"><rect x="7" y="4" width="10" height="16" rx="2"/><path d="M9 8h6M9 12h4"/></svg></span>
+                  <span class="name">净 30 天，逾期按日万分之三计息…</span><span class="clip-now">当前</span>
+                </li>
+                <li class="row" data-id="clip2" data-kind="clip" data-title="会议纪要一句">
+                  <span class="glyph tone-slate"><svg viewBox="0 0 24 24"><rect x="7" y="4" width="10" height="16" rx="2"/><path d="M9 8h6M9 12h4"/></svg></span>
+                  <span class="name">下周一对齐报价里的实施费</span>
+                </li>
+                <li class="row" data-id="clip3" data-kind="clip" data-title="链接">
+                  <span class="glyph tone-blue"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1"/></svg></span>
+                  <span class="name">https://dropoverapp.com</span>
+                </li>
+              </ul>
+            </div>
+          </aside>
+          <div class="stage-wrap">
+            <div class="stage" id="stage">
+              <div class="tools">
+                <button class="paper" id="compareBtn" type="button"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="7" height="14" rx="1"/><rect x="14" y="5" width="7" height="14" rx="1"/></svg>对照原文</button>
+                <span style="flex:1"></span>
+                <button class="paper" type="button"><svg viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M4 16V6a2 2 0 0 1 2-2h10"/></svg>复制文件</button>
+                <button class="paper" type="button"><svg viewBox="0 0 24 24"><path d="M12 4v10M8 10l4 4 4-4"/><path d="M5 18h14"/></svg>用作材料</button>
+              </div>
+              <div class="preview" id="preview"></div>
+              <div class="tty">
+                <div class="tty-bar"><span class="tone-plum">对话</span> · 发给终端不是副本沙箱 · Grok<div style="margin-left:auto"><button class="paper quiet" type="button" id="foldTalk">收起</button></div></div>
+                <pre>dropagent job · work/  · isolation: workspace sandbox
+ready. 材料不会写回原路径。</pre>
+                <div class="tty-in"><input placeholder="发给 Grok，不会生成新文件" /></div>
+              </div>
+              <div class="drawer" id="drawer">
+                <p class="confirm-title">提取 PDF 文字</p>
+                <p class="confirm-out">将生成 pdf.md。原文件保持不变。</p>
+                <dl class="facts">
+                  <dt>动作</dt><dd>提取 PDF 文字 → pdf.md</dd>
+                  <dt>读取</dt><dd>任务副本 work/Q3-报价.pdf</dd>
+                  <dt>写入</dt><dd>output/pdf.md</dd>
+                  <dt>网络</dt><dd>关</dd>
+                  <dt>隔离</dt><dd>本机抽字，不调用 Agent</dd>
+                </dl>
+                <div class="drawer-actions">
+                  <button class="primary" id="runBtn" type="button">开始提取</button>
+                  <button class="paper" id="backBtn" type="button">返回</button>
+                </div>
+                <p class="run-line" id="runLine" hidden>正在从副本抽取可选中文字…</p>
+              </div>
+              <div class="bar-wrap">
+                <p class="bar-hint" id="barHint" hidden>总结、翻译等动作需要本机 Agent。图片与 PDF 可直接提取文字。</p>
+                <div class="bar" id="bar"></div>
+              </div>
+              <div class="drop" aria-hidden="true"><div class="drop-veil"></div><div class="drop-frame"></div><div class="drop-card"><svg viewBox="0 0 24 24"><path d="M12 3v10M8 9l4 4 4-4"/><path d="M4 15h16v5H4z"/></svg><b>加入材料</b><p>发给终端请拖到轮盘</p></div></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+  <div class="wheel-scene" id="wheelScene">
+    <svg class="wheel-svg" id="wheelSvg" viewBox="0 0 344 344" aria-label="DropAgent 轮盘"></svg>
+    <p class="wheel-caption">拖文件约 0.18 秒钉在指针上。圆心空洞。出圈消失。</p>
+  </div>
+  <script>
+    const preview = document.getElementById("preview");
+    const stage = document.getElementById("stage");
+    const loc = document.getElementById("loc");
+    const selTitle = document.getElementById("selTitle");
+    const resultsBlock = document.getElementById("resultsBlock");
+    const compareBtn = document.getElementById("compareBtn");
+    const bar = document.getElementById("bar");
+
+    const copy = {
+      pdf: `<div class="preview-inner doc pdf-page"><p class="doc-kicker">Q3-报价.pdf · 第 1 / 3 页</p><h1 class="doc-title">Adeptify 第三季度实施报价</h1><p>致：采购部</p><p>本期工作台插件与桌面壳的实施范围包括：个人置物架、副本任务、本机文字提取。原件保留在贵司文件柜，处理只发生在一次性工作副本上。</p><p>实施费人民币 86,000，净 30 天。扫描件附件不含可选中文字，正文页可选择。</p><div class="pdf-break"></div><p>交付物为新文件，可拖回贵司目录。不覆盖原 PDF，也不把 Prompt 写成原路径。</p><p class="muted">机密 · 副本预览，不可改原件</p></div>`,
+      png: `<div class="preview-inner"><div style="height:min(52vh,420px);border:1px solid var(--da-line);border-radius:8px;background:var(--plum-fill);color:var(--plum);display:grid;place-items:center"><div><p style="margin:0 0 6px;font-size:13px;font-weight:600">白板-截图.png</p><p class="muted" style="margin:0">预览位 · 真实产品走本机图片</p></div></div></div>`,
+      web: `<div class="preview-inner doc"><p class="doc-kicker">WEB · dropoverapp.com</p><h1 class="doc-title">Dropover</h1><p>把文件先放在菜单栏上。正文已转成 Markdown；截图在同组材料里。</p><p class="muted">链接仍在。抓页要联网，不带登录态。</p></div>`,
+      md: `<div class="preview-inner doc"><p class="doc-kicker">pdf.md · 新文件</p><h1 class="doc-title">Adeptify 第三季度实施报价</h1><p>致：采购部</p><p>本期工作台插件与桌面壳的实施范围包括：个人置物架、副本任务、本机文字提取。原件保留在贵司文件柜，处理只发生在一次性工作副本上。</p><p>实施费人民币 86,000，净 30 天。</p></div>`,
+      clip: `<div class="preview-inner doc"><p class="doc-kicker">剪贴板 · 点选只预览</p><h1 class="doc-title">付款条款草稿</h1><p>净 30 天，逾期按日万分之三计息。发票开出后五个工作日内寄出扫描件。</p><p class="muted">加入材料后才能跑动作。⌘V 仍直接上架当前剪贴板。</p></div>`,
+      empty: `<div class="welcome"><h2>材料放进来，结果拿出去</h2><p>先放下，再决定要不要跑。原件不动。没有 Agent 也可以先提取 PDF 里的字。</p><div class="cta"><button class="primary" type="button" id="sample">试用示例 PDF</button><button class="paper" type="button">选择我的文件</button></div></div>`,
+      none: `<div class="idle"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3-3"/></svg><p style="font-size:17px;font-weight:500;color:var(--da-text)">选择一份材料</p><p>在这里预览，使用下方指令处理副本。</p></div>`
+    };
+
+    const hint = document.getElementById("barHint");
+    function actSvg(id) {
+      if (id === "extract") return '<svg class="tone-clay" viewBox="0 0 24 24"><path d="M7 3h7l5 5v13a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg>';
+      if (id === "use" || id === "join") return '<svg class="tone-ochre" viewBox="0 0 24 24"><path d="M12 4v10M8 10l4 4 4-4"/><path d="M5 18h14"/></svg>';
+      if (id === "talk") return '<svg class="tone-plum" viewBox="0 0 24 24"><path d="M5 6h14v9H8l-3 3z"/></svg>';
+      return '<svg class="tone-slate" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>';
+    }
+    function renderBar(kind) {
+      hint.hidden = !(kind === "pdf" || kind === "png" || kind === "web");
+      if (kind === "empty") {
+        bar.innerHTML = `<span class="act" role="button" tabindex="0" data-id="pick">${actSvg("pick")}新建</span>`;
+        return;
+      }
+      const recipes = [];
+      if (kind === "pdf") recipes.push(["提取文字", "extract"]);
+      if (kind === "result") recipes.push(["用作材料", "use"]);
+      if (kind === "clip") recipes.push(["加入材料", "join"]);
+      bar.innerHTML = `<div class="bar-scroll">${recipes.map(([label, id]) =>
+        `<span class="act" role="button" tabindex="0" data-id="${id}">${actSvg(id)}${label}</span>`
+      ).join("")}</div><span class="act-rule" aria-hidden="true"></span><span class="act${stage.classList.contains("is-talk") ? " is-on" : ""}" role="button" tabindex="0" data-id="talk" title="打开终端会话。不会生成新文件。发给终端请用轮盘。">${actSvg("talk")}对话</span><span class="more"><span class="act" role="button" tabindex="0" data-id="more">···</span><div class="more-menu" hidden><span class="more-item" data-id="arrange">整理动作</span><span class="more-item" data-id="pick">新建</span></div></span>`;
+    }
+
+    function polar(deg, r, cx, cy) {
+      const a = (deg * Math.PI) / 180;
+      return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+    }
+    function buildWheel() {
+      const svg = document.getElementById("wheelSvg");
+      const cx = 172, cy = 172, inner = 64, outer = 128;
+      const midR = (inner + outer) / 2;
+      const thick = outer - inner;
+      const cap = Math.atan((thick / 2) / midR) * 180 / Math.PI;
+      const inset = cap + 4;
+      const labels = ["加入材料", "发给终端", "总结", "提取信息", "翻译", "转 MD"];
+      const tones = ["var(--ochre)", "var(--plum)", "var(--slate)", "var(--blue)", "var(--blue)", "var(--plum)"];
+      const icons = [
+        '<path d="M2 4.2h10v2L7 10.2 2 6.2V4.2Z"/><path d="M4.2 12h5.6"/>',
+        '<path d="M2.2 7h9.2"/><path d="M8.2 3.6 12.2 7 8.2 10.4"/>',
+        '<path d="M3 4.2h8"/><path d="M3 7h8"/><path d="M3 9.8h5"/>',
+        '<path d="M5.6 3.4c-2 0-2.4 1.6-2.4 3.6s.4 3.6 2.4 3.6"/><path d="M8.4 3.4c2 0 2.4 1.6 2.4 3.6s-.4 3.6-2.4 3.6"/>',
+        '<circle cx="7" cy="7" r="4.1"/><path d="M3 7h8"/><path d="M7 3c-1.3 1.5-1.3 6.5 0 8"/><path d="M7 3c1.3 1.5 1.3 6.5 0 8"/>',
+        '<path d="M4 2.8h4.2L10.6 5.2v6H4Z"/><path d="M8.2 2.8V5.2h2.4"/>'
+      ];
+      let html = "";
+      for (let i = 0; i < 6; i++) {
+        const mid = -90 + i * 60;
+        const a0 = mid - 30 + inset;
+        const a1 = mid + 30 - inset;
+        const [x0, y0] = polar(a0, midR, cx, cy);
+        const [x1, y1] = polar(a1, midR, cx, cy);
+        const d = `M ${x0} ${y0} A ${midR} ${midR} 0 0 1 ${x1} ${y1}`;
+        const [ix, iy] = polar(mid, midR + 8, cx, cy);
+        const [lx, ly] = polar(mid, midR - 12, cx, cy);
+        const off = i === 0 ? "" : " off";
+        const hot = i === 0 ? " hot" : "";
+        html += `<g data-slice="${i}" class="${hot}${off}"><path class="slice" d="${d}"></path><path class="slice-edge" d="${d}"></path><g class="slice-icon" stroke="${tones[i]}" transform="translate(${ix - 7} ${iy - 7})">${icons[i]}</g><text class="slice-label" x="${lx}" y="${ly}">${labels[i]}</text></g>`;
+      }
+      svg.innerHTML = html;
+    }
+    buildWheel();
+
+    function setScene(name) {
+      document.querySelectorAll("[data-scene]").forEach((b) => b.classList.toggle("on", b.dataset.scene === name));
+      const wheelScene = document.getElementById("wheelScene");
+      wheelScene.classList.toggle("on", name === "wheel");
+      stage.classList.remove("is-result", "is-confirm", "is-run", "is-talk");
+      document.getElementById("runLine").hidden = true;
+      document.getElementById("runBtn").hidden = false;
+      resultsBlock.hidden = name === "empty";
+      document.querySelectorAll(".row").forEach((r) => r.classList.remove("is-on"));
+      if (name === "empty") {
+        loc.textContent = "材料"; selTitle.textContent = "架子";
+        preview.innerHTML = copy.empty; renderBar("empty"); return;
+      }
+      if (name === "talk") {
+        document.querySelector('[data-id="pdf"]').classList.add("is-on");
+        loc.textContent = "材料"; selTitle.textContent = "Q3-报价.pdf";
+        preview.innerHTML = copy.pdf; stage.classList.add("is-talk"); renderBar("pdf"); return;
+      }
+      if (name === "result" || name === "compare") {
+        document.querySelector('[data-id="md"]').classList.add("is-on");
+        loc.textContent = "生成结果"; selTitle.textContent = "pdf.md";
+        stage.classList.add("is-result");
+        if (name === "compare") {
+          compareBtn.classList.add("on");
+          preview.innerHTML = `<div class="compare"><div>${copy.pdf}</div><div class="rule"></div><div>${copy.md}</div></div>`;
+        } else {
+          compareBtn.classList.remove("on");
+          preview.innerHTML = copy.md;
+        }
+        renderBar("result");
+        return;
+      }
+      document.querySelector('[data-id="pdf"]').classList.add("is-on");
+      loc.textContent = "材料"; selTitle.textContent = "Q3-报价.pdf";
+      preview.innerHTML = copy.pdf;
+      if (name === "confirm") stage.classList.add("is-confirm", "is-talk");
+      renderBar("pdf");
+    }
+
+    document.querySelectorAll("[data-scene]").forEach((b) => b.addEventListener("click", () => setScene(b.dataset.scene)));
+    document.querySelectorAll("[data-theme]").forEach((b) => b.addEventListener("click", () => {
+      document.documentElement.dataset.theme = b.dataset.theme;
+      document.querySelectorAll("[data-theme]").forEach((x) => x.classList.toggle("on", x === b));
+    }));
+
+    document.getElementById("materials").addEventListener("click", (e) => {
+      const row = e.target.closest(".row"); if (!row) return;
+      setScene("idle");
+      document.querySelectorAll(".row").forEach((r) => r.classList.remove("is-on"));
+      row.classList.add("is-on");
+      loc.textContent = "材料"; selTitle.textContent = row.dataset.title;
+      preview.innerHTML = copy[row.dataset.id] || copy.pdf;
+      renderBar(row.dataset.kind);
+    });
+    document.getElementById("clips").addEventListener("click", (e) => {
+      const row = e.target.closest(".row"); if (!row) return;
+      setScene("idle");
+      document.querySelectorAll(".row").forEach((r) => r.classList.remove("is-on"));
+      row.classList.add("is-on");
+      loc.textContent = "剪贴板"; selTitle.textContent = row.dataset.title;
+      preview.innerHTML = copy.clip; renderBar("clip");
+      stage.classList.remove("is-result", "is-confirm", "is-talk");
+    });
+    resultsBlock.addEventListener("click", (e) => {
+      if (e.target.closest(".row")) setScene("result");
+    });
+    bar.addEventListener("click", (e) => {
+      const moreBtn = e.target.closest("[data-id=more]");
+      const menu = bar.querySelector(".more-menu");
+      if (moreBtn && menu && !e.target.closest(".more-menu")) {
+        menu.hidden = !menu.hidden;
+        return;
+      }
+      if (e.target.closest("[data-id=arrange]")) {
+        if (menu) menu.hidden = true;
+        return;
+      }
+      const btn = e.target.closest(".act"); if (!btn) return;
+      if (btn.dataset.id === "extract") setScene("confirm");
+      if (btn.dataset.id === "talk") {
+        stage.classList.toggle("is-talk");
+        renderBar("pdf");
+      }
+    });
+    document.getElementById("runBtn").addEventListener("click", () => {
+      stage.classList.add("is-run");
+      document.getElementById("runLine").hidden = false;
+      document.getElementById("runBtn").hidden = true;
+      setTimeout(() => setScene("result"), 700);
+    });
+    document.getElementById("backBtn").addEventListener("click", () => setScene("idle"));
+    compareBtn.addEventListener("click", () => {
+      setScene(compareBtn.classList.contains("on") ? "result" : "compare");
+    });
+    document.getElementById("foldTalk").addEventListener("click", () => setScene("idle"));
+    preview.addEventListener("click", (e) => {
+      if (e.target.id === "sample") setScene("idle");
+    });
+    document.getElementById("shelf").addEventListener("dragenter", (e) => { e.preventDefault(); document.getElementById("shelf").classList.add("is-drop"); });
+    document.getElementById("shelf").addEventListener("dragover", (e) => e.preventDefault());
+    document.getElementById("shelf").addEventListener("dragleave", (e) => {
+      if (!document.getElementById("shelf").contains(e.relatedTarget)) document.getElementById("shelf").classList.remove("is-drop");
+    });
+    document.getElementById("shelf").addEventListener("drop", (e) => { e.preventDefault(); document.getElementById("shelf").classList.remove("is-drop"); });
+
+    const hash = location.hash.replace("#", "");
+    if (hash.includes("dark")) document.documentElement.dataset.theme = "dark";
+    document.querySelectorAll("[data-theme]").forEach((x) => x.classList.toggle("on", x.dataset.theme === (hash.includes("dark") ? "dark" : "light")));
+    setScene(hash.startsWith("wheel") ? "wheel" : "idle");
+  </script>
+</body>
+</html>

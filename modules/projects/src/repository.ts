@@ -1,5 +1,5 @@
 import type {
-  BuiltinProjectPluginId,
+  ProjectPluginId,
   ProjectDeletionRecord,
   ProjectRecord,
   ProjectSelection,
@@ -58,9 +58,9 @@ export class ProjectsRepository {
       record.display_name,
       record.board_id,
       record.database_path,
-      record.source,
+      "created",
       record.data_class,
-      record.migrated_from_path,
+      null,
       record.created_at,
       record.updated_at,
     );
@@ -70,12 +70,12 @@ export class ProjectsRepository {
     return Number(this.db.prepare("DELETE FROM projects WHERE project_id = ?").run(projectId).changes);
   }
 
-  listProjectPlugins(projectId: string): BuiltinProjectPluginId[] {
+  listProjectPlugins(projectId: string): ProjectPluginId[] {
     return (this.db.prepare("SELECT plugin_id FROM project_plugins WHERE project_id = ? ORDER BY plugin_id")
-      .all(projectId) as { plugin_id: BuiltinProjectPluginId }[]).map(row => row.plugin_id);
+      .all(projectId) as { plugin_id: ProjectPluginId }[]).map(row => row.plugin_id);
   }
 
-  addProjectPlugin(projectId: string, pluginId: BuiltinProjectPluginId, at: string): boolean {
+  addProjectPlugin(projectId: string, pluginId: ProjectPluginId, at: string): boolean {
     return Number(this.db.prepare("INSERT INTO project_plugins (project_id, plugin_id, added_at) VALUES (?, ?, ?) ON CONFLICT DO NOTHING")
       .run(projectId, pluginId, at).changes) > 0;
   }
@@ -307,8 +307,8 @@ export function createProjectsSchema(db: ProjectsSqliteDatabase): void {
       display_name TEXT NOT NULL,
       board_id TEXT NOT NULL,
       database_path TEXT NOT NULL UNIQUE,
-      source TEXT NOT NULL CHECK (source IN ('created', 'migrated')),
-      data_class TEXT NOT NULL CHECK (data_class IN ('user', 'migrated_user', 'regenerable_demo')),
+      source TEXT NOT NULL CHECK (source IN ('created')),
+      data_class TEXT NOT NULL CHECK (data_class IN ('user', 'regenerable_demo')),
       migrated_from_path TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
@@ -317,7 +317,7 @@ export function createProjectsSchema(db: ProjectsSqliteDatabase): void {
       ON projects(display_name COLLATE NOCASE, project_id);
     CREATE TABLE IF NOT EXISTS project_plugins (
       project_id TEXT NOT NULL REFERENCES projects(project_id) ON DELETE CASCADE,
-      plugin_id TEXT NOT NULL CHECK (plugin_id IN ('goals', 'sessions', 'inbox', 'feed', 'artifacts')),
+      plugin_id TEXT NOT NULL,
       added_at TEXT NOT NULL,
       PRIMARY KEY (project_id, plugin_id)
     );
@@ -374,11 +374,30 @@ export function createProjectsSchema(db: ProjectsSqliteDatabase): void {
   `);
 }
 
+/**
+ * Drop the closed plugin-id CHECK. Which Plugins exist is a runtime registry
+ * question, so installing one must never require another table rebuild.
+ * Existing rows are carried over unchanged.
+ */
+export function migrateProjectOpenPluginSchema(db: ProjectsSqliteDatabase): void {
+  db.exec(`
+    CREATE TABLE project_plugins_open_next (
+      project_id TEXT NOT NULL REFERENCES projects(project_id) ON DELETE CASCADE,
+      plugin_id TEXT NOT NULL,
+      added_at TEXT NOT NULL,
+      PRIMARY KEY (project_id, plugin_id)
+    );
+    INSERT INTO project_plugins_open_next SELECT project_id, plugin_id, added_at FROM project_plugins;
+    DROP TABLE project_plugins;
+    ALTER TABLE project_plugins_open_next RENAME TO project_plugins;
+  `);
+}
+
 export function migrateProjectInboxPluginSchema(db: ProjectsSqliteDatabase): void {
   db.exec(`
     CREATE TABLE project_plugins_inbox_next (
       project_id TEXT NOT NULL REFERENCES projects(project_id) ON DELETE CASCADE,
-      plugin_id TEXT NOT NULL CHECK (plugin_id IN ('goals', 'sessions', 'inbox', 'feed', 'artifacts')),
+      plugin_id TEXT NOT NULL CHECK (plugin_id IN ('goals', 'task', 'sessions', 'inbox', 'feed', 'artifacts')),
       added_at TEXT NOT NULL,
       PRIMARY KEY (project_id, plugin_id)
     );
@@ -387,6 +406,37 @@ export function migrateProjectInboxPluginSchema(db: ProjectsSqliteDatabase): voi
     ALTER TABLE project_plugins_inbox_next RENAME TO project_plugins;
     INSERT OR IGNORE INTO project_plugins (project_id, plugin_id, added_at)
     SELECT project_id, 'inbox', added_at FROM project_plugins WHERE plugin_id = 'feed';
+  `);
+}
+
+export function migrateProjectTaskPluginSchema(db: ProjectsSqliteDatabase): void {
+  db.exec(`
+    CREATE TABLE project_plugins_task_next (
+      project_id TEXT NOT NULL REFERENCES projects(project_id) ON DELETE CASCADE,
+      plugin_id TEXT NOT NULL CHECK (plugin_id IN ('goals', 'task', 'sessions', 'inbox', 'feed', 'artifacts')),
+      added_at TEXT NOT NULL,
+      PRIMARY KEY (project_id, plugin_id)
+    );
+    INSERT INTO project_plugins_task_next SELECT project_id, plugin_id, added_at FROM project_plugins;
+    DROP TABLE project_plugins;
+    ALTER TABLE project_plugins_task_next RENAME TO project_plugins;
+    INSERT OR IGNORE INTO project_plugins (project_id, plugin_id, added_at)
+    SELECT project_id, 'task', added_at FROM project_plugins WHERE plugin_id = 'goals';
+  `);
+}
+
+export function migrateProjectDropTaskPluginSchema(db: ProjectsSqliteDatabase): void {
+  db.exec(`
+    CREATE TABLE project_plugins_drop_task (
+      project_id TEXT NOT NULL REFERENCES projects(project_id) ON DELETE CASCADE,
+      plugin_id TEXT NOT NULL CHECK (plugin_id IN ('goals', 'sessions', 'inbox', 'feed', 'artifacts')),
+      added_at TEXT NOT NULL,
+      PRIMARY KEY (project_id, plugin_id)
+    );
+    INSERT INTO project_plugins_drop_task
+      SELECT project_id, plugin_id, added_at FROM project_plugins WHERE plugin_id != 'task';
+    DROP TABLE project_plugins;
+    ALTER TABLE project_plugins_drop_task RENAME TO project_plugins;
   `);
 }
 
@@ -405,15 +455,25 @@ export function migrateProjectDataClassSchema(db: ProjectsSqliteDatabase): void 
   `);
 }
 
+export function migrateProjectDropLegacyImportSchema(db: ProjectsSqliteDatabase): void {
+  db.exec(`
+    UPDATE projects SET data_class = 'user' WHERE data_class = 'migrated_user';
+    UPDATE projects SET source = 'created', migrated_from_path = NULL WHERE source = 'migrated';
+  `);
+}
+
+function projectDataClass(value: unknown): ProjectRecord["data_class"] {
+  return text(value) === "regenerable_demo" ? "regenerable_demo" : "user";
+}
+
 function mapProject(row: Row): ProjectRecord {
   return {
     project_id: text(row.project_id),
     display_name: text(row.display_name),
     board_id: text(row.board_id),
     database_path: text(row.database_path),
-    source: text(row.source) as ProjectRecord["source"],
-    data_class: text(row.data_class) as ProjectRecord["data_class"],
-    migrated_from_path: nullableText(row.migrated_from_path),
+    source: "created",
+    data_class: projectDataClass(row.data_class),
     created_at: text(row.created_at),
     updated_at: text(row.updated_at),
   };

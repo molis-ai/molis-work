@@ -1,17 +1,15 @@
 import type { McpLauncherValidationContext } from "@molis-ai/molis-work-app-mcp";
 
 export const INTEGRATION_OWNER = "molis-work-runtime-integration-v1";
-export const LEGACY_INTEGRATION_OWNER = "goalboard-runtime-integration-v1";
 
 export const INSTALLER_OWNER = "molis-work-home-install-v1";
-export const LEGACY_INSTALLER_OWNER = "goalboard-home-install-v1";
 
 export function isOwnedInstallerOwner(installer: unknown): boolean {
-  return installer === INSTALLER_OWNER || installer === LEGACY_INSTALLER_OWNER;
+  return installer === INSTALLER_OWNER;
 }
 
 export function isOwnedIntegrationOwner(owner: unknown): boolean {
-  return owner === INTEGRATION_OWNER || owner === LEGACY_INTEGRATION_OWNER;
+  return owner === INTEGRATION_OWNER;
 }
 
 import { SUPPORTED_RUNTIME_IDS } from "@molis-ai/molis-work-contracts/platform/app-host";

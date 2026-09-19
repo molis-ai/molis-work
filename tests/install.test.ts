@@ -211,9 +211,9 @@ test("home install is scoped, idempotent, and produces an owned release layout",
     assert.ok((await stat(join(first.release_directory, "dist", "mcp", "server.js"))).isFile());
     assert.ok((await stat(join(first.skill_directory, "goal-advance", "SKILL.md"))).isFile());
     assert.ok((await stat(first.launchers.mcp)).isFile());
-    assert.ok((await stat(join(home, "bin", "goalboard"))).isFile());
-    assert.ok((await stat(join(home, "bin", "goalboard-mcp"))).isFile());
-    assert.ok((await stat(join(home, "bin", "goalboard-web"))).isFile());
+    await assert.rejects(stat(join(home, "bin", "goalboard")));
+    await assert.rejects(stat(join(home, "bin", "goalboard-mcp")));
+    await assert.rejects(stat(join(home, "bin", "goalboard-web")));
 
     const second = await installMolisWorkHome({ homeDirectory: home, sourceDirectory: source });
     assert.equal(second.status, "unchanged");

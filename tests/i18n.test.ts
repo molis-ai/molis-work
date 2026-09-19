@@ -50,6 +50,8 @@ test("every static renderer label has an English translation", () => {
     "../apps/workbench/src/human-review-renderer.ts",
     "../apps/workbench/src/focus-sections.ts", "../apps/workbench/src/project-settings-pages.ts",
     "../apps/workbench/src/immersive-shell.ts", "../apps/workbench/src/project-home.ts",
+    "../apps/workbench/src/settings-directory.ts",
+    "../apps/workbench/src/settings-appearance.ts",
     "../apps/workbench/src/feed-projection-ui.ts",
     "../apps/workbench/src/inbox-projection-ui.ts",
     "../apps/workbench/src/scripts/client/navigation-inbox.ts",
@@ -57,6 +59,7 @@ test("every static renderer label has an English translation", () => {
     "../apps/workbench/src/scripts/client/immersive-navigation.ts",
     "../apps/workbench/src/scripts/client/global-search.ts",
     "../apps/workbench/src/scripts/client/tab-workspace.ts",
+    "../apps/workbench/src/scripts/client/settings-directory.ts",
     "../apps/workbench/src/scripts/client/project-home-shortcuts.ts",
     "../apps/workbench/src/scripts/client/events-secondary.ts",
     "../plugins/native/goals/src/event-document-ui.ts",
@@ -75,6 +78,10 @@ test("every static renderer label has an English translation", () => {
     "../plugins/native/feed/src/ui.ts",
     "../plugins/native/inbox/src/ui.ts",
     "../plugins/native/inbox/src/projection.ts",
+    "../plugins/native/shelf/src/ui.ts",
+    "../plugins/native/shelf/src/settings-ui.ts",
+    "../plugins/native/shelf/src/settings-client.ts",
+    "../plugins/native/shelf/src/client.ts",
     "../plugins/native/artifacts/src/browser-ui.ts",
     "../plugins/native/artifacts/src/reference-ui.ts"]
     .map(path => readFileSync(new URL(path, import.meta.url), "utf8")).join("\n");

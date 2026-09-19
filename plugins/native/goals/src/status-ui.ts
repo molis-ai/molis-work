@@ -5,7 +5,7 @@ import type { GoalsTreeItem } from "./tree-ui-model.js";
 import { visibleGoalStatus } from "./tree-presentation.js";
 import { createGoalStateExplainer, type GoalStatusTranslate } from "./goal-state-explanation.js";
 import { createGoalActionPresenter } from "./action-presentation.js";
-export type GoalStatusIcon = "waiting" | "user" | "tree" | "play" | "blocked" | "ready" | "completed" | "review" | "refresh" | "alert" | "archive";
+export type GoalStatusIcon = "waiting" | "user" | "tree" | "play" | "blocked" | "ready" | "completed" | "review" | "refresh" | "alert" | "archive" | "trash";
 export interface GoalsStatusPrimitives {
     translate: GoalStatusTranslate;
     escapeHtml(value: string): string;
@@ -18,7 +18,7 @@ const STATUS_ICONS: Record<GoalPresentationState, GoalStatusIcon> = {
     execution_pending: "ready",
     satisfied: "completed",
     invalidated: "alert",
-    trashed: "archive",
+    trashed: "trash",
     archived: "archive",
 };
 const DISPLAY_STATUS_ICONS: Record<GoalDisplayStatus, GoalStatusIcon> = {

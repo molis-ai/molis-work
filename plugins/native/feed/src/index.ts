@@ -68,11 +68,9 @@ export type { FeedConnectorAccountPorts, FeedConnectorKind, ConnectorCredentialS
 
 export { FeedSourceScheduler, type FeedSourceSchedulerDispatch, type FeedSourceSchedulerResult } from "./source-scheduler.js";
 
-export { prepareRelayFeedImport } from "./relay-import.js";
-export type { RelayImportData, RelayImportPorts, RelayImportResult, RelaySourceRow, RelayItemRow, RelayMaterialRow, RelayRunRow, RelayConnectorRow, RelayCursorRow } from "./relay-import-types.js";
-
 export { promoteFeedItemToGoal, type FeedGoalPromotionPorts, type FeedGoalPromotionInput } from "./goal-promotion.js";
 
 export { createFeedRouteHandlers } from "./route-handlers.js";
 export { feedRouteErrorResponse } from "./route-error.js";
 export type { FeedRouteHandlerPorts } from "./route-handler-ports.js";
+export { FEED_PLUGIN_ID, FEED_PROJECT_PLUGIN_ID, feedManifest } from "./manifest.js";

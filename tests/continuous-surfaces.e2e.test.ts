@@ -26,10 +26,15 @@ for (const [width,height] of [[1440,900],[390,640]]) {
     };
     const showDirectory=async()=>{if(width<760&&await evaluate("!document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')"))await click('[data-directory-show]');};
     const openPlugin=async(plugin:string)=>{await showDirectory();await click(`[data-plugin-id="${plugin}"]`);if(width<760&&await evaluate("document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')"))await click('[data-directory-toggle]');};
+    /** Creating or picking an item is a centred modal sized to its content, not an edge sheet. */
     const checkEditor=async(selector:string)=>{
       await waitFor(`document.querySelector('${selector}').open`);
-      const r=await evaluate<any>(`(()=>{const e=document.querySelector('${selector}'),r=e.getBoundingClientRect(),s=getComputedStyle(e);return {top:r.top,right:r.right,bottom:r.bottom,radius:s.borderRadius,shadow:s.boxShadow}})()`);
-      assert.equal(r.top,44);assert.equal(r.right,width);assert.equal(r.bottom,height);assert.equal(r.radius,'0px');assert.equal(r.shadow,'none');
+      const r=await evaluate<any>(`(()=>{const e=document.querySelector('${selector}'),r=e.getBoundingClientRect(),s=getComputedStyle(e);return {top:r.top,left:r.left,right:r.right,bottom:r.bottom,w:r.width,h:r.height,radius:s.borderRadius,shadow:s.boxShadow}})()`);
+      assert.ok(Math.abs((r.left+r.w/2)-width/2)<2,'horizontally centred');
+      assert.ok(Math.abs((r.top+r.h/2)-height/2)<2,'vertically centred');
+      assert.ok(r.top>=0&&r.bottom<=height,'inside the viewport');
+      assert.ok(r.h<height,'sized to content, not the full viewport');
+      assert.notEqual(r.radius,'0px');assert.notEqual(r.shadow,'none');
     };
     await navigate(()=>command('Page.navigate',{url:prefix+'/goals/'+id},sessionId));
     await waitFor("document.querySelector('[data-frame-goal-work]')?.getBoundingClientRect().width>0");
@@ -37,10 +42,15 @@ for (const [width,height] of [[1440,900],[390,640]]) {
     await click('[data-frame-empty] [data-frame-add-content]');
     await checkEditor('[data-frame-picker]');await capture('frame-picker');
     await click('[data-frame-picker] footer [data-frame-picker-close]');
-    await showDirectory();await click('[data-open-create]');
+    // Creating a Goal starts from the Goals surface: an open Goal pools that directory chrome away.
+    await openPlugin('goals');
+    // Returning from a Goal used to leave data-expanded set with nothing expanded, which hid this
+    // whole toolbar; the canvas now asks whether a Goal actually covers it.
+    await waitFor("(()=>{const b=document.querySelector('[data-open-create]');return b && getComputedStyle(b).visibility === 'visible' && b.getBoundingClientRect().width > 0})()");
+    await click('[data-open-create]');
     await checkEditor('[data-create-dialog]');await capture('goal-create');
     const inner=await evaluate<any>("(()=>{const s=getComputedStyle(document.querySelector('[data-create-form]'));return {radius:s.borderRadius,shadow:s.boxShadow,border:s.borderTopWidth}})()");
-    assert.deepEqual(inner,{radius:'0px',shadow:'none',border:'0px'},'creation is one continuous surface');
+    assert.deepEqual(inner,{radius:'0px',shadow:'none',border:'0px'},'the modal carries the frame; its form stays one continuous surface');
     const compactHeight=width>760?400:500;
     await command('Emulation.setDeviceMetricsOverride',{width,height:compactHeight,deviceScaleFactor:1,mobile:false},sessionId);
     await click('[data-create-dialog] .form-disclosure > summary');
@@ -53,10 +63,18 @@ for (const [width,height] of [[1440,900],[390,640]]) {
     await command('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:false},sessionId);
     await click('[data-create-dialog] footer [data-close-create]');
     if(width<760&&await evaluate("document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')"))await click('[data-directory-toggle]');
+    await navigate(()=>command('Page.navigate',{url:prefix+'/goals/'+id},sessionId));
+    await waitFor("document.querySelector('[data-frame-goal-work]')?.getBoundingClientRect().width>0");
     await click('[data-frame-goal-work]');
     await waitFor("!document.querySelector('[data-goal-node-workspace]').hidden");
-    const fillsPane=await evaluate<any>("(()=>{const e=document.querySelector('[data-goal-node-workspace]'),r=e.getBoundingClientRect(),p=e.parentElement.getBoundingClientRect(),s=getComputedStyle(e);return {gap:[r.top-p.top,p.bottom-r.bottom,r.left-p.left,p.right-r.right],radius:s.borderRadius,shadow:s.boxShadow}})()");
-    assert.deepEqual(fillsPane.gap,[0,0,0,0]);assert.equal(fillsPane.radius,'0px');assert.equal(fillsPane.shadow,'none');
+    const fillsPane=await evaluate<any>(`(()=>{const e=document.querySelector('[data-goal-node-workspace]'),r=e.getBoundingClientRect(),p=e.parentElement.getBoundingClientRect(),s=getComputedStyle(e),list=document.querySelector('[data-goal-stage-list]'),listBox=list?.getBoundingClientRect(),listShown=${width}>=761 && getComputedStyle(list||document.body).display==='block' && listBox && listBox.width>0;return {gap:[r.top-p.top,p.bottom-r.bottom,r.left-p.left,p.right-r.right],radius:s.borderRadius,shadow:s.boxShadow,listWidth:listShown?Math.round(listBox.width):0}})()`);
+    if (width >= 761) {
+      assert.ok(Math.abs(fillsPane.gap[0]) < 1 && Math.abs(fillsPane.gap[1]) < 1 && Math.abs(fillsPane.gap[3]) < 1);
+      assert.ok(Math.abs(fillsPane.gap[2] - fillsPane.listWidth) <= 2, "Workspace sits beside the list rail " + JSON.stringify(fillsPane));
+    } else {
+      assert.deepEqual(fillsPane.gap,[0,0,0,0]);
+    }
+    assert.equal(fillsPane.radius,'0px');assert.equal(fillsPane.shadow,'none');
     if(await evaluate("document.querySelector('[data-goal-details-toggle]').getAttribute('aria-expanded')==='false'"))await click('[data-goal-details-toggle]');
     await click('[data-record-menu] > summary');await click('[data-record-menu] [data-event-form-open=note]');
     await waitFor("document.activeElement.name==='note'");
@@ -70,7 +88,7 @@ for (const [width,height] of [[1440,900],[390,640]]) {
     assert.ok(await evaluate<number>("document.querySelector('[data-titlebar-tabs]').getBoundingClientRect().height")>0);
     await evaluate("localStorage.setItem('molis-work:theme','light');dispatchEvent(new StorageEvent('storage',{key:'molis-work:theme',newValue:'light'}))");
     await openPlugin('feed');await capture('feed');
-    await showDirectory();await click('[data-directory-panel=feed] [data-feed-add-toggle]');
+    await click('[data-feed-add-toggle]');
     await checkEditor('[data-feed-sources-dialog]');await click('[data-feed-choose-kind=custom_rss]');await capture('feed-editor');
     const focusEvidence=[];
     for(const theme of ['light','dark']){
@@ -91,8 +109,7 @@ for (const [width,height] of [[1440,900],[390,640]]) {
     await evaluate("localStorage.setItem('molis-work:theme','light');dispatchEvent(new StorageEvent('storage',{key:'molis-work:theme',newValue:'light'}))");
     await click('[data-feed-sources-dialog] footer [data-feed-sources-close]');
     await openPlugin('sessions');
-    if(width<760)await showDirectory();
-    await click(width<760?'[data-directory-panel=sessions] .project-record-add-compact':'[data-work-surface=sessions] [data-open-session-add]');
+    await click('[data-work-surface=sessions] [data-open-session-add]');
     await checkEditor('[data-session-add-dialog]');await click('[data-session-add-toggle]');await capture('session-editor');
     await click('[data-session-add-form] > footer [data-dialog-close]');
     await navigate(()=>command('Page.navigate',{url:prefix+'/settings/general'},sessionId));await capture('settings');

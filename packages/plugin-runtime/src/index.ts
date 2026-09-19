@@ -1,10 +1,49 @@
 import { createHash, randomUUID } from "node:crypto";
 
+import { assertContributionMatchesManifest, PluginContributionError } from "./contribution.js";
+
 export { SqlitePluginPrivateStorage, PluginPrivateStorageError } from "./private-storage.js";
 export type { PluginPrivateStorageDatabase } from "./private-storage.js";
 export { SqlitePluginRuntimeRepository } from "./repository.js";
 export type { PluginRuntimeDatabase } from "./repository.js";
 export { loadDevelopmentPlugin } from "./development-loader.js";
+export { assertContributionMatchesManifest, PluginContributionError, viewContributionId } from "./contribution.js";
+export { resolvePluginActivation } from "./resolution.js";
+export { PluginEventBus } from "./events.js";
+export type { PluginActiveInstance, PluginHostLifecycle } from "./lifecycle.js";
+export { buildEventContract, PluginEventContractError } from "./event-contract.js";
+export type { PluginEventContract, PluginEventSubscription } from "./event-contract.js";
+export { MemoryPluginEventsRepository, SqlitePluginEventsRepository } from "./event-repository.js";
+export type { PluginEventsDatabase } from "./event-repository.js";
+export { PLUGIN_ROUTE_PREFIX, PluginRouteRouter } from "./routes.js";
+export type { PluginRouteDispatchInput, PluginRouteMatch } from "./routes.js";
+export {
+  createPluginCapabilityClient,
+  createPluginInputsClient,
+  createPluginOutputsClient,
+  pluginRequiredPorts,
+  portArtifactId,
+  PluginCapabilityAccessError,
+} from "./services.js";
+export type { PluginCapabilityPort, PluginWiringServicesInput } from "./services.js";
+export { PluginInputGraph } from "./wiring.js";
+export type { PluginArtifactReaderPort, PluginInputFailure } from "./wiring.js";
+export { MemoryPluginWiringRepository, SqlitePluginWiringRepository } from "./wiring-repository.js";
+export type { PluginWiringDatabase } from "./wiring-repository.js";
+export { PluginSupervisor } from "./supervisor.js";
+export type {
+  PluginSupervisorEntry,
+  PluginSupervisorReport,
+  PluginSupervisorState,
+  PluginSupervisorStatus,
+} from "./supervisor.js";
+export type {
+  PluginCapabilityProvider,
+  PluginResolution,
+  PluginResolutionDiagnostic,
+  PluginResolutionDiagnosticCode,
+  PluginResolutionInput,
+} from "./resolution.js";
 export { PluginPackageError, pluginPublisherIdentity, assertPluginPackagePath, parsePluginPackage,
   pluginPackageSigningBytes, signPluginPackage, verifyPluginPackage } from "./package-verification.js";
 
@@ -42,6 +81,8 @@ export class PluginRuntimeError extends Error {
       | "plugin_grant_denied"
       | "plugin_state_invalid"
       | "plugin_executor_failed"
+      | "plugin_contribution_kind_invalid"
+      | "plugin_contribution_unredeemed"
       | "plugin_quarantined",
     message: string,
   ) {
@@ -183,6 +224,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     assertRequiredGrants(definition.manifest, current.grants);
     try {
       const handle = await this.executor.start(definition, this.activateContext(current));
+      await this.redeem(definition, current, handle.contribution);
       this.contributions.set(installId, handle.contribution);
       const updated = {
         ...current,
@@ -201,8 +243,45 @@ export class PluginRuntime implements PluginRuntimeApi {
         updated_at: this.now(),
       };
       this.repository.save(updated);
+      // A structured contract failure already says what the author must fix; only an
+      // opaque entrypoint error is reduced to a safe generic message.
+      if (error instanceof PluginRuntimeError) throw error;
       throw new PluginRuntimeError("plugin_executor_failed", "Plugin entrypoint 启动失败，已记录为 crashed");
     }
+  }
+
+  /** Deliberate stop. It keeps the install and its grants, and never spends the recovery budget. */
+  async stop(installId: string): Promise<PluginLifecycleReceipt> {
+    const current = this.requireInstall(installId);
+    if (current.state === "disabled") return this.receipt("stop", current, true);
+    if (current.state !== "running") {
+      throw new PluginRuntimeError("plugin_state_invalid", `Plugin 当前状态 ${current.state} 不能停止`);
+    }
+    const definition = this.requireDefinition(current);
+    try {
+      await this.executor.stop(definition, this.context(current));
+    } catch (error) {
+      this.revokeContext(installId);
+      this.contributions.delete(installId);
+      const crashed = {
+        ...current,
+        state: "crashed" as const,
+        last_error_code: safeErrorCode(error),
+        updated_at: this.now(),
+      };
+      this.repository.save(crashed);
+      throw new PluginRuntimeError("plugin_executor_failed", "Plugin 停止失败，已记录为 crashed");
+    }
+    this.revokeContext(installId);
+    this.contributions.delete(installId);
+    const updated = {
+      ...current,
+      state: "disabled" as const,
+      last_error_code: null,
+      updated_at: this.now(),
+    };
+    this.repository.save(updated);
+    return this.receipt("stop", updated, false);
   }
 
   async reportCrash(installId: string, errorCode = "plugin_process_crashed"): Promise<PluginLifecycleReceipt> {
@@ -248,6 +327,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     const recoveryCount = current.recovery_count + 1;
     try {
       const handle = await this.executor.start(definition, this.activateContext(current));
+      await this.redeem(definition, current, handle.contribution);
       this.contributions.set(installId, handle.contribution);
       const updated = {
         ...current,
@@ -318,6 +398,27 @@ export class PluginRuntime implements PluginRuntimeApi {
 
   contribution(installId: string): PluginContribution | null {
     return this.contributions.get(installId) ?? null;
+  }
+
+  /** A started Plugin must deliver exactly what its Manifest declared, or it does not run. */
+  private async redeem(
+    definition: PluginDefinition,
+    record: PluginInstanceRecord,
+    contribution: PluginContribution,
+  ): Promise<void> {
+    try {
+      assertContributionMatchesManifest(definition.manifest, contribution);
+    } catch (error) {
+      try {
+        await this.executor.stop(definition, this.context(record));
+      } catch {
+        // The Plugin already failed its contract; lifecycle state stays authoritative.
+      }
+      if (error instanceof PluginContributionError) {
+        throw new PluginRuntimeError(error.code, error.message);
+      }
+      throw error;
+    }
   }
 
   private requireInstall(installId: string): PluginInstanceRecord {
@@ -391,8 +492,8 @@ export class PluginRuntime implements PluginRuntimeApi {
 
 function validateManifest(manifest: PluginManifest): void {
   if (
-    manifest.schema_version !== 1
-    || manifest.host_api_version !== 1
+    (manifest.schema_version !== 1 && manifest.schema_version !== 2)
+    || manifest.host_api_version !== manifest.schema_version
     || !manifest.plugin_id.trim()
     || !manifest.version.trim()
     || !manifest.publisher.publisher_id.trim()

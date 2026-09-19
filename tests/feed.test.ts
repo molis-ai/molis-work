@@ -5,51 +5,30 @@ import { join } from "node:path";
 import test from "node:test";
 import Database from "better-sqlite3";
 
-import { importRelayData } from "@molis-ai/molis-work-app-local-host";
 import { createLocalFeedApplication } from "@molis-ai/molis-work-app-local-host";
 import { DEMO_BOARD_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { migrateSources, SourcesModule } from "@molis-ai/molis-work-module-sources";
 
-function relayFixture(databasePath: string): Database.Database {
-  const db = new Database(databasePath);
-  db.exec(`
-    CREATE TABLE inbox_sources (
-      id TEXT PRIMARY KEY, definition_id TEXT, kind TEXT, name TEXT, description TEXT,
-      status TEXT, enabled INTEGER, item_count INTEGER, last_sync_at TEXT,
-      last_outcome TEXT, last_error_code TEXT, updated_at TEXT
-    );
-    CREATE TABLE items (
-      id TEXT PRIMARY KEY, kind TEXT, title TEXT, summary TEXT, body TEXT, source TEXT,
-      source_label TEXT, external_id TEXT, url TEXT, status TEXT, priority TEXT,
-      tags_json TEXT, author TEXT, created_at TEXT, updated_at TEXT
-    );
-    CREATE TABLE evidence_refs (
-      id TEXT PRIMARY KEY, item_id TEXT, canonical_url TEXT, title TEXT, source_name TEXT,
-      published_at TEXT, preview TEXT, content_hash TEXT, provenance_json TEXT,
-      selected_for_context INTEGER, last_seen_at TEXT
-    );
-  `);
-  db.prepare(`
-    INSERT INTO inbox_sources VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    "relay-source-1", "sspai", "rss", "少数派", "公开 RSS", "active", 1, 1,
-    "2026-08-29T08:00:00.000Z", "completed", null, "2026-08-29T08:00:00.000Z",
-  );
-  db.prepare(`
-    INSERT INTO items VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    "relay-item-1", "update", "第一条 Feed", "一个真实摘要", "一段正文", "rss", "少数派",
-    "external-1", "https://example.com/item", "inbox", "medium",
-    JSON.stringify(["rss", "inbox-source:sspai"]), "作者", "2026-08-29T08:00:00.000Z", "2026-08-29T08:00:00.000Z",
-  );
-  db.prepare(`
-    INSERT INTO evidence_refs VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    "material-1", "relay-item-1", "https://example.com/material", "来源材料", "少数派",
-    "2026-08-29T07:00:00.000Z", "材料预览", "sha256:abc", JSON.stringify({ provider: "rss" }), 1,
-    "2026-08-29T08:00:00.000Z",
-  );
-  return db;
+function insertRssFeedItem(store: LocalProjectDatabase, itemId: string): void {
+  const now = "2026-08-29T08:00:00.000Z";
+  store.db.prepare(`
+    INSERT OR IGNORE INTO feed_sources (
+      board_id, source_id, kind, name, description, status, enabled, item_count,
+      origin, last_sync_at, last_outcome, last_error_code, imported_at, updated_at
+    ) VALUES (?, 'source-rss', 'rss', '少数派', '公开 RSS', 'active', 1, 1,
+      'molis_work', ?, 'completed', NULL, ?, ?)
+  `).run(DEMO_BOARD_ID, now, now, now);
+  store.db.prepare(`
+    INSERT INTO feed_items (
+      board_id, item_id, source_id, item_type, kind, title, summary, body,
+      source_kind, source_label, external_id, url, origin_status, priority,
+      tags_json, author, disposition, linked_goal_id, read_at, revision,
+      source_created_at, source_updated_at, imported_at, updated_at
+    ) VALUES (?, ?, 'source-rss', 'feed', 'update', '第一条 Feed', '一个真实摘要', '一段正文',
+      'rss', '少数派', 'external-1', 'https://example.com/item', 'inbox', 'medium',
+      '[]', '作者', 'inbox', NULL, NULL, 1, ?, ?, ?, ?)
+  `).run(DEMO_BOARD_ID, itemId, now, now, now, now);
 }
 
 test("migration 29 creates separated Feed and Inbox contracts with persisted read state", () => {
@@ -73,7 +52,6 @@ test("migration 29 creates separated Feed and Inbox contracts with persisted rea
       assert.ok(feedItemColumns.has("read_at"));
       assert.ok(tables.has("feed_source_runs"));
       assert.ok(tables.has("feed_runtime_blobs"));
-      assert.ok(tables.has("feed_import_receipts"));
       assert.ok(tables.has("inbox_entries"));
       assert.ok(tables.has("feed_contract_migration_receipts"));
       const sourceColumns = new Set((store.db.pragma("table_info(feed_sources)") as Array<{ name: string }>).map((row) => row.name));
@@ -86,18 +64,168 @@ test("migration 29 creates separated Feed and Inbox contracts with persisted rea
   }
 });
 
+test("opening sources disconnects leftover imported status", () => {
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-source-origin-"));
+  const databasePath = join(directory, "molis-work.sqlite");
+  const db = new Database(databasePath);
+  try {
+    db.exec(`
+      CREATE TABLE boards (board_id TEXT PRIMARY KEY);
+      INSERT INTO boards VALUES ('${DEMO_BOARD_ID}');
+      CREATE TABLE feed_sources (
+        board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+        source_id TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        item_count INTEGER NOT NULL DEFAULT 0,
+        origin TEXT NOT NULL CHECK (origin = 'molis_work'),
+        imported_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (board_id, source_id)
+      );
+      INSERT INTO feed_sources VALUES (
+        '${DEMO_BOARD_ID}', 'legacy-source', 'rss', '少数派', '', 'imported', 1, 0,
+        'molis_work', '2026-08-29T08:00:00.000Z', '2026-08-29T08:00:00.000Z'
+      );
+    `);
+    migrateSources(db);
+    const row = db.prepare("SELECT origin, status FROM feed_sources WHERE source_id = 'legacy-source'").get() as { origin: string; status: string };
+    assert.equal(row.origin, "molis_work");
+    assert.equal(row.status, "disconnected");
+  } finally {
+    db.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("opening sources rebuilds leftover origin CHECK so current writes can land", () => {
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-source-origin-check-"));
+  const databasePath = join(directory, "molis-work.sqlite");
+  const db = new Database(databasePath);
+  try {
+    db.pragma("foreign_keys = ON");
+    db.exec(`
+      CREATE TABLE boards (board_id TEXT PRIMARY KEY);
+      INSERT INTO boards VALUES ('${DEMO_BOARD_ID}');
+      CREATE TABLE feed_sources (
+        board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+        source_id TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        definition_id TEXT,
+        sync_kind TEXT NOT NULL DEFAULT 'manual' CHECK (sync_kind IN ('public_source', 'github', 'gmail', 'manual')),
+        name TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        item_count INTEGER NOT NULL DEFAULT 0,
+        origin TEXT NOT NULL CHECK (origin IN ('relay', 'goalboard')),
+        config_json TEXT NOT NULL DEFAULT '{}',
+        schedule_json TEXT NOT NULL DEFAULT '{"mode":"manual"}',
+        cursor_json TEXT NOT NULL DEFAULT '{}',
+        credential_ref TEXT,
+        account_label TEXT,
+        last_sync_at TEXT,
+        last_outcome TEXT,
+        last_error_code TEXT,
+        imported_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (board_id, source_id)
+      );
+      INSERT INTO feed_sources (
+        board_id, source_id, kind, name, status, enabled, item_count, origin,
+        imported_at, updated_at
+      ) VALUES
+        ('${DEMO_BOARD_ID}', 'legacy-rss', 'rss', '少数派', 'active', 1, 0, 'goalboard',
+          '2026-08-29T08:00:00.000Z', '2026-08-29T08:00:00.000Z'),
+        ('${DEMO_BOARD_ID}', 'legacy-relay', 'rss', '旧 Relay', 'active', 1, 0, 'relay',
+          '2026-08-29T08:00:00.000Z', '2026-08-29T08:00:00.000Z');
+      CREATE TABLE feed_source_runs (
+        board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+        run_id TEXT NOT NULL,
+        operation_id TEXT NOT NULL,
+        source_id TEXT NOT NULL,
+        phase TEXT NOT NULL CHECK (phase IN ('running', 'terminal', 'interrupted')),
+        started_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (board_id, run_id),
+        FOREIGN KEY (board_id, source_id) REFERENCES feed_sources(board_id, source_id) ON DELETE CASCADE
+      );
+      INSERT INTO feed_source_runs VALUES (
+        '${DEMO_BOARD_ID}', 'run-1', 'op-1', 'legacy-rss', 'terminal',
+        '2026-08-29T08:00:00.000Z', '2026-08-29T08:00:00.000Z'
+      );
+    `);
+    assert.throws(
+      () => db.prepare(`
+        INSERT INTO feed_sources (
+          board_id, source_id, kind, name, status, enabled, item_count, origin,
+          imported_at, updated_at
+        ) VALUES (?, 'blocked-write', 'rss', '新来源', 'active', 1, 0, 'molis_work', ?, ?)
+      `).run(DEMO_BOARD_ID, "2026-08-29T08:00:00.000Z", "2026-08-29T08:00:00.000Z"),
+      /CHECK constraint failed: origin IN \('relay', 'goalboard'\)/,
+    );
+
+    const sources = new SourcesModule(db);
+    const sql = String(
+      (db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'feed_sources'").get() as { sql: string }).sql,
+    );
+    assert.ok(sql.includes("CHECK (origin = 'molis_work')"));
+    assert.equal(sql.includes("origin IN ('relay', 'goalboard')"), false);
+    const origins = (db.prepare("SELECT origin FROM feed_sources ORDER BY source_id").all() as Array<{ origin: string }>)
+      .map((row) => row.origin);
+    assert.deepEqual(origins, ["molis_work", "molis_work"]);
+    assert.equal(
+      (db.prepare("SELECT COUNT(*) AS count FROM feed_source_runs").get() as { count: number }).count,
+      1,
+    );
+
+    const now = "2026-09-18T00:00:00.000Z";
+    const saved = sources.commands.save({
+      project_id: DEMO_BOARD_ID,
+      source_id: "new-rss",
+      kind: "rss",
+      definition_id: "rss",
+      sync_kind: "public_source",
+      name: "新来源",
+      description: "",
+      status: "active",
+      enabled: true,
+      origin: "molis_work",
+      config: {},
+      schedule: { mode: "manual" },
+      connection_ref: null,
+      account_label: null,
+      last_sync_at: null,
+      last_outcome: null,
+      last_error_code: null,
+      imported_at: now,
+      updated_at: now,
+    });
+    assert.equal(saved.origin, "molis_work");
+    assert.equal(saved.source_id, "new-rss");
+    assert.equal(
+      (db.prepare("SELECT COUNT(*) AS count FROM feed_source_runs").get() as { count: number }).count,
+      1,
+    );
+  } finally {
+    db.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test("opening a Feed item persists read state without invalidating its action revision", () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-feed-read-state-"));
   const molisWorkPath = join(directory, "molis-work.sqlite");
-  const relayPath = join(directory, "relay.sqlite");
-  const relay = relayFixture(relayPath);
   try {
     seedDemoBoard(molisWorkPath);
     const store = new LocalProjectDatabase(molisWorkPath);
     try {
+      insertRssFeedItem(store, "feed-item-1");
       const feed = createLocalFeedApplication(store.db);
-      importRelayData(feed, DEMO_BOARD_ID, relayPath);
-      const item = feed.getItem(DEMO_BOARD_ID, "relay-item-1");
+      const item = feed.getItem(DEMO_BOARD_ID, "feed-item-1");
       assert.equal(item.read_at, null);
 
       const opened = feed.markRead(DEMO_BOARD_ID, item.item_id);
@@ -116,7 +244,6 @@ test("opening a Feed item persists read state without invalidating its action re
       store.close();
     }
   } finally {
-    relay.close();
     rmSync(directory, { recursive: true, force: true });
   }
 });
@@ -164,123 +291,16 @@ test("Attention overlay no longer changes Feed Item type or blocks markRead", ()
   }
 });
 
-test("Relay import is idempotent and preserves Molis Work disposition", () => {
-  const directory = mkdtempSync(join(tmpdir(), "molis-work-relay-import-"));
-  const molisWorkPath = join(directory, "molis-work.sqlite");
-  const relayPath = join(directory, "relay.sqlite");
-  const relay = relayFixture(relayPath);
-  try {
-    seedDemoBoard(molisWorkPath);
-    const store = new LocalProjectDatabase(molisWorkPath);
-    try {
-      const feed = createLocalFeedApplication(store.db);
-      const beforeImport = feed.snapshot(DEMO_BOARD_ID);
-      store.db.exec(`CREATE TEMP TRIGGER fail_relay_import_event BEFORE INSERT ON events
-        WHEN NEW.type = 'feed.relay_ownership_migrated'
-        BEGIN SELECT RAISE(ABORT, 'injected_relay_import_failure'); END`);
-      assert.throws(() => importRelayData(feed, DEMO_BOARD_ID, relayPath), /injected_relay_import_failure/);
-      assert.deepEqual(feed.snapshot(DEMO_BOARD_ID), beforeImport, "failed import event rolls back Sources, Items, Materials and the import receipt together");
-      store.db.exec("DROP TRIGGER fail_relay_import_event");
-      const first = importRelayData(feed, DEMO_BOARD_ID, relayPath);
-      assert.deepEqual(first.sources, { created: 1, updated: 0 });
-      assert.deepEqual(first.items, { created: 1, updated: 0 });
-      assert.deepEqual(first.materials, { created: 1, updated: 0 });
-      const imported = feed.getItem(DEMO_BOARD_ID, "relay-item-1");
-      assert.equal(imported.item_type, "feed");
-      assert.equal(imported.disposition, "inbox");
-      assert.equal(imported.materials.length, 1);
-      assert.equal(imported.materials[0]?.selected_for_context, true);
-
-      const saved = feed.setDisposition(DEMO_BOARD_ID, imported.item_id, "saved", imported.revision);
-      assert.equal(saved.disposition, "saved");
-      const read = feed.markRead(DEMO_BOARD_ID, imported.item_id);
-      assert.ok(read.read_at);
-      const importedSource = feed.getSource(DEMO_BOARD_ID, "relay-source-1");
-      feed.upsertSource({
-        ...importedSource,
-        status: "paused",
-        enabled: false,
-        cursor: { local_cursor: "molis-work-cursor" },
-        last_sync_at: "2026-08-30T01:00:00.000Z",
-        last_outcome: "completed",
-        last_error_code: null,
-        updated_at: "2026-08-30T01:00:00.000Z",
-      });
-      relay.prepare(`
-        UPDATE inbox_sources
-        SET status = ?, enabled = ?, item_count = ?, last_sync_at = ?, last_outcome = ?, updated_at = ?
-        WHERE id = ?
-      `).run(
-        "active", 1, 99, "2026-08-29T08:00:00.000Z", "completed",
-        "2026-08-29T09:00:00.000Z", "relay-source-1",
-      );
-      relay.prepare("UPDATE items SET title = ?, updated_at = ? WHERE id = ?").run(
-        "更新后的 Feed", "2026-08-29T09:00:00.000Z", "relay-item-1",
-      );
-      const second = importRelayData(feed, DEMO_BOARD_ID, relayPath);
-      assert.deepEqual(second.sources, { created: 0, updated: 1 });
-      assert.deepEqual(second.items, { created: 0, updated: 1 });
-      assert.deepEqual(second.materials, { created: 0, updated: 1 });
-      const refreshed = feed.getItem(DEMO_BOARD_ID, "relay-item-1");
-      assert.equal(refreshed.title, "更新后的 Feed");
-      assert.equal(refreshed.disposition, "saved", "source refresh must preserve the local decision");
-      assert.equal(refreshed.read_at, read.read_at, "source refresh must preserve local read state");
-      const refreshedSource = feed.getSource(DEMO_BOARD_ID, "relay-source-1");
-      assert.equal(refreshedSource.status, "paused", "repeat import must preserve local source state");
-      assert.equal(refreshedSource.enabled, false);
-      assert.deepEqual(refreshedSource.cursor, { local_cursor: "molis-work-cursor" });
-      assert.equal(refreshedSource.last_sync_at, "2026-08-30T01:00:00.000Z");
-      assert.equal(refreshedSource.item_count, 1, "item count must reconcile from Molis Work items");
-      assert.equal(feed.snapshot(DEMO_BOARD_ID).feed_items.length, 1);
-      assert.equal(feed.snapshot(DEMO_BOARD_ID).feed_items[0]?.materials.length, 1);
-    } finally {
-      store.close();
-    }
-  } finally {
-    relay.close();
-    rmSync(directory, { recursive: true, force: true });
-  }
-});
-
-test("Relay schema drift fails before it can overwrite imported Feed facts", () => {
-  const directory = mkdtempSync(join(tmpdir(), "molis-work-relay-schema-drift-"));
-  const molisWorkPath = join(directory, "molis-work.sqlite");
-  const relayPath = join(directory, "relay.sqlite");
-  const relay = relayFixture(relayPath);
-  try {
-    seedDemoBoard(molisWorkPath);
-    const store = new LocalProjectDatabase(molisWorkPath);
-    try {
-      const feed = createLocalFeedApplication(store.db);
-      importRelayData(feed, DEMO_BOARD_ID, relayPath);
-      relay.prepare("UPDATE items SET title = ? WHERE id = ?").run("不应被导入", "relay-item-1");
-      relay.exec("ALTER TABLE items DROP COLUMN body");
-      assert.throws(
-        () => importRelayData(feed, DEMO_BOARD_ID, relayPath),
-        /Relay 数据库缺少列：items\.body/,
-      );
-      assert.equal(feed.getItem(DEMO_BOARD_ID, "relay-item-1").title, "第一条 Feed");
-    } finally {
-      store.close();
-    }
-  } finally {
-    relay.close();
-    rmSync(directory, { recursive: true, force: true });
-  }
-});
-
 test("Feed disposition updates reject stale revisions and archived shortcuts", () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-feed-transition-"));
   const molisWorkPath = join(directory, "molis-work.sqlite");
-  const relayPath = join(directory, "relay.sqlite");
-  const relay = relayFixture(relayPath);
   try {
     seedDemoBoard(molisWorkPath);
     const store = new LocalProjectDatabase(molisWorkPath);
     try {
+      insertRssFeedItem(store, "feed-item-1");
       const feed = createLocalFeedApplication(store.db);
-      importRelayData(feed, DEMO_BOARD_ID, relayPath);
-      const item = feed.getItem(DEMO_BOARD_ID, "relay-item-1");
+      const item = feed.getItem(DEMO_BOARD_ID, "feed-item-1");
       const archived = feed.setDisposition(DEMO_BOARD_ID, item.item_id, "archived", item.revision);
       assert.throws(
         () => feed.setDisposition(DEMO_BOARD_ID, item.item_id, "saved", archived.revision),
@@ -344,7 +364,6 @@ test("Feed disposition updates reject stale revisions and archived shortcuts", (
       store.close();
     }
   } finally {
-    relay.close();
     rmSync(directory, { recursive: true, force: true });
   }
 });

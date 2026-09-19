@@ -15,6 +15,8 @@ export { runtimeContextHostFromEnvironment, runtimeSessionHostSignalsFromEnviron
 export type { MolisWorkRuntimeContextHost } from "./runtime-context.js";
 export { prepareLocalProjectStorage } from "./project-storage.js";
 export { PluginHostExecutor } from "./plugin-executor.js";
+export { createPluginPlatform } from "./plugin-platform.js";
+export type { PluginPlatform, PluginPlatformDatabase, PluginPlatformOptions } from "./plugin-platform.js";
 export type { PluginHostExecutorOptions } from "./plugin-executor.js";
 export { runPluginDevelopment } from "./plugin-development.js";
 export type { LocalProjectStoragePreparation } from "./project-storage.js";
@@ -53,7 +55,7 @@ export * from "./web-locale.js";
 
 export { createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
 
-export { CATALOG_SCHEMA_VERSION, CATALOG_OWNER, LEGACY_CATALOG_OWNER, isOwnedCatalogOwner, MolisWorkProjectCatalogError, catalogSchemaCompatibilityError, type MolisWorkProjectCatalogErrorDetails } from "./project-catalog-contract.js";
+export { CATALOG_SCHEMA_VERSION, CATALOG_OWNER, isOwnedCatalogOwner, MolisWorkProjectCatalogError, catalogSchemaCompatibilityError, type MolisWorkProjectCatalogErrorDetails } from "./project-catalog-contract.js";
 export { initializeProjectDatabase, readManagedBoard, validateManagedBoard, assertProjectHasNoActiveWork } from "./managed-project-database.js";
 
 export { ManagedProjectFiles } from "./managed-project-files.js";
@@ -66,6 +68,14 @@ export { initializeCatalog, assertOwnedCatalog, migrateCatalog, type CatalogDesk
 
 export * from "./project-catalog.js";
 export { seedDemoBoard, DEMO_BOARD_ID } from "./demo-seed.js";
+export {
+  seedDemoPluginSurfaces,
+  seedDemoProjectExtras,
+  enableDemoProjectPlugins,
+  DEMO_GITHUB_SOURCE_ID,
+  DEMO_GMAIL_SOURCE_ID,
+  DEMO_CORE_ARTIFACT_ID,
+} from "./demo-plugin-seed.js";
 
 export { hydrateFeedItemContent, hydrateFeedSnapshotContent } from "./feed-content.js";
 
@@ -92,12 +102,11 @@ export { createLocalFeedConnectorService } from "./feed-connector-service.js";
 
 export { createLocalFeedSourceScheduler } from "./feed-source-scheduler.js";
 
-export { defaultRelayDatabasePath, detectRelayImport, importRelayData } from "./relay-import.js";
-
 export { createLocalFeedGoalPromotion } from "./feed-goal-promotion.js";
 
 export { handleFeedNativePluginHttp, type FeedNativePluginHttpOptions } from "./feed-native-plugin-http.js";
 export { handleInboxNativePluginHttp, type InboxNativePluginHttpOptions } from "./inbox-native-plugin-http.js";
+export { handleShelfNativePluginHttp } from "./shelf-native-plugin-http.js";
 
 export { createLocalArtifactHttp, renderGoalArtifactContext } from "./artifact-native-plugin-http.js";
 

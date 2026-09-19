@@ -46,7 +46,7 @@ test("Project plugin HTTP persists only the selected project, rejects unauthoriz
     assert.equal(db.prepare("SELECT count(*) AS n FROM project_events WHERE project_id = ? AND type = 'project.plugin_added'").get(second.project_id).n, 1);
   } finally { db.close(); }
   const index = await (await fetch(origin + "/api/settings/project-plugins")).json();
-  assert.deepEqual(index.projects.find((item: { project_id: string }) => item.project_id === second.project_id).plugins, ["goals", "sessions"]);
+    assert.deepEqual(index.projects.find((item: { project_id: string }) => item.project_id === second.project_id).plugins, ["goals", "sessions"]);
 });
 
 test("Adding Feed also enables Inbox, Inbox can be added alone, and repeats stay idempotent", async t => {
@@ -76,8 +76,9 @@ test("Adding Feed also enables Inbox, Inbox can be added alone, and repeats stay
   }
   assert.deepEqual((await (await add(inboxOnly.project_id, "inbox")).json()).plugins, ["goals", "inbox"]);
   const feedPage = await (await fetch(`${origin}/projects/${project.project_id}/`)).text();
-  assert.match(feedPage, /data-plugin-id="inbox"[^>]*data-directory-open="inbox"[^>]*data-work-surface-open="inbox"/);
-  assert.match(feedPage, /data-directory-panel="inbox"/);
+  assert.match(feedPage, /data-plugin-id="inbox"[^>]*data-work-surface-open="inbox"/);
+  assert.doesNotMatch(feedPage, /data-directory-open="inbox"/);
+  assert.doesNotMatch(feedPage, /data-directory-panel="inbox"/);
   assert.match(feedPage, /data-work-surface="inbox" data-work-surface-label="Inbox"/);
   assert.doesNotMatch(feedPage, /data-feed-views|data-directory-open="sources"/);
   const inboxOnlyPage = await (await fetch(`${origin}/projects/${inboxOnly.project_id}/`)).text();

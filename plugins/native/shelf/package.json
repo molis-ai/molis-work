@@ -1,0 +1,52 @@
+{
+  "name": "@molis-ai/molis-work-plugin-shelf",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Protected first-party Shelf directory, preview, and copy-job surface.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=24"
+  },
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./terminal-client": {
+      "types": "./dist/terminal-client.d.ts",
+      "import": "./dist/terminal-client.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@molis-ai/molis-work-contracts": "workspace:*",
+    "@molis-ai/molis-work-design-system": "workspace:*",
+    "@molis-ai/molis-work-module-shelf": "workspace:*",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0"
+  },
+  "molis-work": {
+    "path": "plugins/native/shelf",
+    "kind": "native-plugin",
+    "maturity": "partial",
+    "contract": "@molis-ai/molis-work-contracts/platform/plugin",
+    "migrationGoals": [
+      "goal-reorg-f2"
+    ],
+    "ssot": "docs/SSOT-MATRIX.md",
+    "capabilities": [
+      "shelf.ui-contribution.v1",
+      "shelf.http-routes.v1"
+    ]
+  }
+}

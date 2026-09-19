@@ -14,6 +14,31 @@ export const NATIVE_DESKTOP_BOOTSTRAP_SCRIPT = `(()=>{
   };
   if(!native)return;
   globalThis.molisWorkOpenExternalUrl=(url)=>globalThis.__TAURI__.core.invoke("open_external_url",{url});
+  globalThis.molisWorkOpenShelf=()=>{
+    const button=document.querySelector&&document.querySelector('[data-plugin-strip] [data-plugin-id="shelf"]');
+    if(button) button.click();
+  };
+  globalThis.molisWorkShelfNotice=(message)=>{
+    if(typeof CustomEvent!=="function"||typeof window==="undefined"||typeof window.dispatchEvent!=="function")return;
+    window.dispatchEvent(new CustomEvent("molis-shelf-notice",{detail:{message:String(message||"")}}));
+  };
+  globalThis.molisWorkShelfRefresh=()=>{
+    if(typeof CustomEvent!=="function"||typeof window==="undefined"||typeof window.dispatchEvent!=="function")return;
+    window.dispatchEvent(new CustomEvent("molis-shelf-refresh"));
+  };
+  const notifyShelfSurface=()=>{
+    try{
+      const on=document.body&&document.body.dataset.desktopSurface==="shelf";
+      globalThis.__TAURI__?.core?.invoke("shelf_surface_changed",{active:Boolean(on)}).catch(()=>{});
+    }catch{}
+  };
+  const watchShelfSurface=()=>{
+    if(!document.body)return;
+    new MutationObserver(notifyShelfSurface).observe(document.body,{attributes:true,attributeFilter:["data-desktop-surface"]});
+    notifyShelfSurface();
+  };
+  if(document.body)watchShelfSurface();
+  else if(typeof document.addEventListener==="function")document.addEventListener("DOMContentLoaded",watchShelfSurface);
   document.documentElement.dataset.nativeDesktop="true";
   const root=document.documentElement;
   root.style.setProperty("--desktop-window-safe-inline-start","88px");
@@ -35,7 +60,7 @@ export const NATIVE_DESKTOP_BOOTSTRAP_SCRIPT = `(()=>{
 })();`;
 
 export function isDesktopShellRequest(request: IncomingMessage, url: URL): boolean {
-  const header = request.headers["x-molis-work-desktop"] ?? request.headers["x-goalboard-desktop"];
+  const header = request.headers["x-molis-work-desktop"];
   if (header === "1" || (Array.isArray(header) && header.includes("1"))) return true;
   return url.searchParams.get("desktop") === "1";
 }

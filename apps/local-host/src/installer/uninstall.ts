@@ -45,6 +45,10 @@ export class MolisWorkUninstallService {
         path.join(this.homeDirectory, "projects"),
         path.join(this.homeDirectory, "backups"),
         path.join(this.homeDirectory, "logs"),
+        // Session content and Shelf files are user data living beside the
+        // project databases; leaving them behind made "purged" untrue.
+        path.join(this.homeDirectory, "sessions"),
+        path.join(this.homeDirectory, "shelf"),
         path.join(this.homeDirectory, "runtime-config-backups"),
         path.join(this.homeDirectory, "runtime-integrations"),
       ])

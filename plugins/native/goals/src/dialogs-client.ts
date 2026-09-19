@@ -21,8 +21,8 @@ const GOALS_TRASH_DIALOG_SCRIPT = `    const openGoalTrashDialog = (trigger, tra
       trashForm.elements.reason.placeholder = trashed
         ? L("说明为什么暂时不再保留这条 Goal")
         : L("说明为什么现在要恢复这条 Goal");
-      trashSubmit.classList.toggle("button-danger", trashed);
-      trashSubmit.classList.toggle("button-primary", !trashed);
+      trashSubmit.classList.toggle("mw-btn--danger", trashed);
+      trashSubmit.classList.toggle("mw-btn--primary", !trashed);
       trashSubmit.textContent = trashed ? L("移入回收站") : L("恢复到 Goal Tree");
       trashDialog.showModal();
       if (!matchMedia("(max-width: 760px)").matches) {
@@ -96,10 +96,32 @@ const GOALS_TRASH_DIALOG_SCRIPT = `    const openGoalTrashDialog = (trigger, tra
 
 `;
 
+/** The composer stays a writing surface: the example retires on the first keystroke and the
+ * outcome grows with what is written, so neither line ever needs a scrollbar of its own. */
+const GOALS_CREATE_COMPOSE_SCRIPT = `    const composeExample = dialog?.querySelector("[data-create-example]");
+    const composeOutcome = dialog?.querySelector(".create-compose-outcome");
+    const growOutcome = () => {
+      if (!composeOutcome) return;
+      composeOutcome.style.height = "auto";
+      composeOutcome.style.height = Math.min(composeOutcome.scrollHeight, 260) + "px";
+    };
+    const syncExample = () => {
+      if (composeExample) composeExample.hidden = Boolean(form?.elements.title.value.trim());
+    };
+    const prepareCompose = () => {
+      if (composeOutcome) composeOutcome.style.height = "";
+      syncExample();
+    };
+    form?.elements.title?.addEventListener("input", syncExample);
+    composeOutcome?.addEventListener("input", growOutcome);
+
+`
+
 const GOALS_DIALOG_CLICK_SCRIPT = `      if (target.closest("[data-open-create]")) {
         formError.hidden = true;
         dialog.showModal();
         updateRelationPreviews();
+        prepareCompose();
         requestAnimationFrame(() => form.elements.title.focus());
         return true;
       }
@@ -184,6 +206,7 @@ export const GOALS_DIALOGS_CLIENT_FACTORY_SCRIPT = `(host) => {
     const trashSubmit = document.querySelector("[data-goal-trash-submit]");
     let trashIntent = null;
 ${GOALS_TRASH_DIALOG_SCRIPT}
+${GOALS_CREATE_COMPOSE_SCRIPT}
     const readCreateDraft = () => {
       if (!form) return null;
       const values = {};

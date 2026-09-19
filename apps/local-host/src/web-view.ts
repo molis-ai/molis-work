@@ -6,7 +6,6 @@ import type { LocalProjectDatabase } from "./project-database.js";
 import type { GoalProjectApplication } from "./goal-project-application.js";
 import { currentLocale, L } from "./web-locale.js";
 import { createLocalFeedApplication } from "./feed-application.js";
-import { detectRelayImport } from "./relay-import.js";
 import { listFeedSourceCatalog } from "./feed-source-service.js";
 import { createLocalFeedConnectorService } from "./feed-connector-service.js";
 
@@ -54,7 +53,7 @@ export function buildMolisWorkWebView(store: LocalProjectDatabase, coordinator: 
     counts: collection.counts, coverage: collection.coverage, input_bindings: collection.input_bindings,
     policy_bindings: collection.policy_bindings, events: collection.events,
     feed: feedDirectorySnapshot(createLocalFeedApplication(store.db), options.boardId),
-    relay_import: detectRelayImport(), feed_source_catalog: listFeedSourceCatalog(),
+    feed_source_catalog: listFeedSourceCatalog(),
     feed_connector_auth: createLocalFeedConnectorService(store.db, options.boardId).authStatus(),
   };
 }

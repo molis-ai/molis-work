@@ -55,7 +55,6 @@ export const FEED_NATIVE_PLUGIN_ROUTES = [
   route("feed.connector.gmail.client", "POST", /^\/api\/feed\/connectors\/gmail\/client$/u),
   route("feed.connector.gmail.oauth.start", "POST", /^\/api\/feed\/connectors\/gmail\/oauth\/start$/u),
   route("feed.connector.gmail.oauth.callback", "GET", /^\/api\/feed\/connectors\/gmail\/oauth\/callback$/u),
-  route("feed.relay.import", "POST", /^\/api\/feed\/import$/u),
   route("feed.item.detail", "GET", /^\/api\/feed\/items\/([^/]+)\/detail$/u, ["item_id"]),
   route("feed.item.action", "POST", /^\/api\/feed\/items\/([^/]+)\/(read|inbox|save|archive|restore|promote|start)$/u, ["item_id", "action"]),
 ] as const satisfies readonly FeedPluginRouteDefinition[];

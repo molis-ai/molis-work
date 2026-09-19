@@ -20,7 +20,7 @@ test("Web resolves environment Home once for Catalog, Sessions, control token an
   const defaultHome = join(root, "default-user");
   const originalEnv = { ...process.env };
   t.mock.method(os, "homedir", () => defaultHome);
-  Object.assign(process.env, { MOLIS_WORK_HOME: envHome, MOLIS_WORK_SECRET_BACKEND: "file", NODE_ENV: "test", RELAY_DB_PATH: join(root, "missing-relay.sqlite") });
+  Object.assign(process.env, { MOLIS_WORK_HOME: envHome, MOLIS_WORK_SECRET_BACKEND: "file", NODE_ENV: "test" });
   delete process.env.MOLIS_WORK_GITHUB_TOKEN;
   delete process.env.MOLIS_WORK_GMAIL_ACCESS_TOKEN;
   let server: Server | undefined;
@@ -70,7 +70,7 @@ test("explicit Web homes isolate connector writes and survive service recreation
   const servers: Server[] = [];
   Object.assign(process.env, {
     MOLIS_WORK_HOME: join(root, "default"), MOLIS_WORK_SECRET_BACKEND: "file",
-    NODE_ENV: "test", RELAY_DB_PATH: join(root, "missing-relay.sqlite"),
+    NODE_ENV: "test",
   });
   delete process.env.MOLIS_WORK_GITHUB_TOKEN;
   delete process.env.MOLIS_WORK_GMAIL_ACCESS_TOKEN;

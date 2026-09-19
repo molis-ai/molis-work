@@ -8,6 +8,8 @@ export const ARTIFACT_EN: Record<string, string> = {
   "没有兼容插件。可打开这个版本查看信息或导出本地副本。": "No compatible plugin. Open this version to inspect its information or export a local copy.",
   "插件发布的结果与版本": "Results and versions published by plugins",
   "还没有 Artifact": "No Artifacts yet",
+  "Goal 交付": "Goal delivery",
+  "Feed 捕获": "Feed capture",
   "Artifact 版本": "Artifact versions",
   "内容不可用": "Content unavailable",
   "找不到这个 Artifact 版本": "Artifact version not found",
@@ -35,4 +37,5 @@ export const ARTIFACT_EN: Record<string, string> = {
   "Artifact version 必须是正整数": "Artifact version must be a positive integer",
   "Artifact ID 编码无效": "Invalid Artifact ID encoding",
   "当前项目中找不到这个 Artifact 版本": "This Artifact version was not found in the current project",
+  "引用这个版本": "Cite this version",
 };

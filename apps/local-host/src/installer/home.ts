@@ -61,28 +61,20 @@ export async function installMolisWorkHome(
       }
     }
 
-    const launcherFiles = {
-      cli: ["molis-work", "goalboard"],
-      mcp: ["molis-work-mcp", "goalboard-mcp"],
-      web: ["molis-work-web", "goalboard-web"],
-    } as const;
     const launchers = {
       cli: path.join(binDirectory, "molis-work"),
       mcp: path.join(binDirectory, "molis-work-mcp"),
       web: path.join(binDirectory, "molis-work-web"),
     };
-    for (const [name, names] of Object.entries(launcherFiles)) {
+    for (const [name, launcherPath] of Object.entries(launchers)) {
       const sourceText = launcherSource(
         name as keyof typeof launchers,
         releaseDirectory,
         source.bundledNodePath != null,
       );
-      for (const fileName of names) {
-        const launcherPath = path.join(binDirectory, fileName);
-        const changed = await writeOwnedText(launcherPath, sourceText, mutations);
-        if (changed) writtenPaths.push(launcherPath);
-        else preservedPaths.push(launcherPath);
-      }
+      const changed = await writeOwnedText(launcherPath, sourceText, mutations);
+      if (changed) writtenPaths.push(launcherPath);
+      else preservedPaths.push(launcherPath);
     }
 
     const previousInstall = await readOwnedJson<InstallManifest>(installManifestPath);

@@ -29,7 +29,7 @@ const scrollProbe = (chromeSelector: string, scrollerSelector: string) => `(() =
 })()`;
 
 test("Window chrome stays put while project index, settings, Feed, Sessions and Goals scroll inside their containers", { timeout: 90_000 }, async t => {
-  const browser = await openGoalBrowser(t, "migrated");
+  const browser = await openGoalBrowser(t, "seeded");
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
@@ -67,44 +67,91 @@ test("Window chrome stays put while project index, settings, Feed, Sessions and 
 
   await navigate(() => command("Page.navigate", { url: origin + "/settings/appearance?desktop=1" }, sessionId));
   await waitFor("document.body.classList.contains('settings-page')");
-  await expectContained(".topbar", ".settings-body");
-  await expectContained(".settings-heading", ".settings-body");
+  await expectContained(".project-preferences-chrome", ".settings-content");
 
   await navigate(() => command("Page.navigate", { url: origin + "/settings/projects?desktop=1" }, sessionId));
   await waitFor("document.body.classList.contains('settings-page')");
-  await expectContained(".topbar", ".project-manager-list");
+  await expectContained(".project-preferences-chrome", ".project-manager-list");
   await expectContained(".project-manager-index-chrome", ".project-manager-list");
-  await expectContained(".topbar", ".project-manager-stage");
 
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/?desktop=1" }, sessionId));
   await waitFor("document.body.classList.contains('immersive-workbench') && document.body.dataset.desktopSurface === 'home'");
-  assert.equal(await evaluate("document.querySelector('[data-directory-list-title]')?.textContent"), "项目首页");
+  const trafficLightClearance = await evaluate<{
+    titlebarLeft: number; backLeft: number; hit: string | null; webTitlebarLeft: number;
+  }>(`(() => {
+    const titlebar = document.querySelector(".immersive-titlebar");
+    const back = document.querySelector("[data-workspace-history=back]");
+    if (!titlebar || !back) return { titlebarLeft: -1, backLeft: -1, hit: null, webTitlebarLeft: -1 };
+    const native = titlebar.getBoundingClientRect();
+    const backBox = back.getBoundingClientRect();
+    const hit = document.elementFromPoint(22, 16);
+    const covered = hit?.closest(".workspace-history-button, .immersive-titlebar");
+    document.body.removeAttribute("data-native-desktop");
+    const webLeft = titlebar.getBoundingClientRect().left;
+    document.body.dataset.nativeDesktop = "true";
+    return {
+      titlebarLeft: Math.round(native.left),
+      backLeft: Math.round(backBox.left),
+      hit: covered ? covered.className : null,
+      webTitlebarLeft: Math.round(webLeft),
+    };
+  })()`);
+  assert.ok(trafficLightClearance.titlebarLeft >= 87, JSON.stringify(trafficLightClearance));
+  assert.ok(trafficLightClearance.backLeft >= trafficLightClearance.titlebarLeft, JSON.stringify(trafficLightClearance));
+  assert.equal(trafficLightClearance.hit, null, JSON.stringify(trafficLightClearance));
+  assert.ok(trafficLightClearance.webTitlebarLeft <= 2, JSON.stringify(trafficLightClearance));
+  assert.equal(await evaluate("document.querySelector('[data-directory-list-title]')"), null);
+  assert.equal(await evaluate("document.querySelector('[data-plugin-section=goals]')"), null);
   await expectContained(".immersive-titlebar", "[data-work-surface=home]");
-  await expectContained(".navigator-project", "[data-directory-panel=root]");
-  await expectContained("[data-directory-list-chrome]", "[data-directory-panel=root]");
+  await expectContained("[data-workspace-chrome]", "[data-work-surface=home]");
+  await expectContained(".plugin-rail", "[data-work-surface=home]");
 
   await click('[data-plugin-strip] [data-plugin-id="feed"]');
-  await waitFor("document.body.dataset.desktopSurface === 'feed' && document.querySelector('[data-feed-stage-directory]') && document.querySelector('[data-work-surface=feed]:not([hidden])')");
-  await expectContained(".immersive-titlebar", "[data-work-surface=feed]");
+  await waitFor("document.body.dataset.desktopSurface === 'feed' && document.querySelector('[data-feed-stage-directory]') && document.querySelector('[data-work-surface=feed]:not([hidden])') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
+  const projectMenuHit = await evaluate<{ overAdd: boolean; islandZ: string; addAfterClose: boolean }>(`(() => {
+    const menu = document.querySelector("[data-project-menu]");
+    const add = document.querySelector("[data-feed-add-toggle]");
+    const island = document.querySelector("[data-project-island]");
+    if (!menu || !add || !island) return { overAdd: false, islandZ: "", addAfterClose: false };
+    menu.open = true;
+    const box = add.getBoundingClientRect();
+    const hit = document.elementFromPoint(box.left + Math.min(24, box.width / 2), box.top + box.height / 2);
+    const overAdd = Boolean(hit?.closest(".navigator-project-menu-popover"));
+    const islandZ = getComputedStyle(island).zIndex;
+    menu.open = false;
+    const after = document.elementFromPoint(box.left + Math.min(24, box.width / 2), box.top + box.height / 2);
+    return { overAdd, islandZ, addAfterClose: Boolean(after?.closest("[data-feed-add-toggle]")) };
+  })()`);
+  assert.equal(projectMenuHit.islandZ, "50");
+  assert.ok(projectMenuHit.overAdd, "Open project menu covers the Feed add-task control");
+  assert.ok(projectMenuHit.addAfterClose, "Closing the project menu restores the Feed add-task hit target");
+  await expectContained(".immersive-titlebar", ".feed-stage-tree");
+  await expectContained("[data-workspace-chrome]", ".feed-stage-tree");
+  await expectContained(".plugin-rail", ".feed-stage-tree");
 
   await click('[data-plugin-strip] [data-plugin-id="sessions"]');
-  await waitFor("document.body.dataset.desktopSurface === 'sessions' && document.querySelector('[data-directory-panel=sessions]:not([hidden])')");
-  await expectContained(".immersive-titlebar", "[data-operation-list=sessions]");
-  await expectContained(".navigator-project", "[data-operation-list=sessions]");
-  await expectContained("[data-directory-list-chrome]", "[data-operation-list=sessions]");
-  await expectContained(".project-record-tools", "[data-operation-list=sessions]");
+  await waitFor("document.body.dataset.desktopSurface === 'sessions' && document.querySelector('[data-session-stage-list]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
+  await expectContained(".immersive-titlebar", "[data-session-stage-list]");
+  await expectContained("[data-workspace-chrome]", "[data-session-stage-list]");
+  await expectContained(".plugin-rail", "[data-session-stage-list]");
 
   await click('[data-plugin-strip] [data-plugin-id="artifacts"]');
-  await waitFor("document.body.dataset.desktopSurface === 'artifacts' && document.querySelector('[data-directory-panel=artifacts]:not([hidden])')");
+  await waitFor("document.body.dataset.desktopSurface === 'artifacts' && document.querySelector('[data-artifact-stage-shell]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
   await expectContained(".immersive-titlebar", "[data-artifact-directory]");
-  await expectContained(".navigator-project", "[data-artifact-directory]");
+  await expectContained("[data-workspace-chrome]", "[data-artifact-directory]");
+  await expectContained(".plugin-rail", "[data-artifact-directory]");
+
+  await click('[data-plugin-strip] [data-plugin-id="shelf"]');
+  await waitFor("document.body.dataset.desktopSurface === 'shelf' && document.querySelector('[data-shelf-stage-shell]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
+  await expectContained(".immersive-titlebar", "[data-shelf=directory]");
+  await expectContained("[data-workspace-chrome]", "[data-shelf=directory]");
+  await expectContained(".plugin-rail", "[data-shelf=directory]");
 
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
-  await waitFor("document.querySelector('[data-directory-panel=goals]:not([hidden])') && document.querySelector('[data-tree-scroll]')");
-  await expectContained(".immersive-titlebar", "[data-tree-scroll]");
-  await expectContained(".navigator-project", "[data-tree-scroll]");
-  await expectContained("[data-directory-list-chrome]", "[data-tree-scroll]");
-  await expectContained(".tree-chrome", "[data-tree-scroll]");
+  await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('[data-goal-stage-list]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
+  await expectContained(".immersive-titlebar", "[data-goal-stage-list]");
+  await expectContained("[data-workspace-chrome]", "[data-goal-stage-list]");
+  await expectContained(".plugin-rail", "[data-goal-stage-list]");
 
   await click('[data-work-surface-open="market"]');
   await waitFor("document.querySelector('[data-work-surface=market]:not([hidden])')");

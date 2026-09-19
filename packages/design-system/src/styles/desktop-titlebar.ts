@@ -197,7 +197,7 @@ export const DESKTOP_TITLEBAR_STYLES = `  /* One Codex-style desktop titlebar co
       justify-content: center;
       gap: 7px;
       font-size: 11px;
-      font-weight: 680;
+      font-weight: 400;
       cursor: pointer;
     }
     body[data-desktop-shell="true"] .source-mobile-add svg { width: 13px; height: 13px; }
@@ -262,7 +262,7 @@ export const DESKTOP_TITLEBAR_STYLES = `  /* One Codex-style desktop titlebar co
     height: 100%;
     min-height: 0;
     overflow: hidden;
-    background: #17191c;
+    background: #0f1011;
   }
   html[data-onboarding-embed="true"] body > .icon-sprite,
   html[data-onboarding-embed="true"] body > dialog,
@@ -279,7 +279,7 @@ export const DESKTOP_TITLEBAR_STYLES = `  /* One Codex-style desktop titlebar co
     min-height: 0 !important;
     display: block !important;
     overflow: hidden !important;
-    background: #17191c !important;
+    background: #0f1011 !important;
   }
   html[data-onboarding-embed="true"] .workspace {
     position: relative !important;
@@ -290,7 +290,7 @@ export const DESKTOP_TITLEBAR_STYLES = `  /* One Codex-style desktop titlebar co
     padding: 0 !important;
     display: block !important;
     overflow: hidden !important;
-    background: #17191c !important;
+    background: #0f1011 !important;
   }
   html[data-onboarding-embed="true"] .workspace > :not(.tui-pane) { display: none !important; }
   html[data-onboarding-embed="true"] .workspace > .tui-pane {

@@ -34,7 +34,7 @@ export const GOALS_WORKSPACE_EN: Record<string, string> = {
   "属于：{title}": "Part of: {title}",
   "部分关系不完整，已保留可读取的目标。": "Some relationships are incomplete. Available Goals are still shown.",
   "拖动空白处移动画布，方向键平移，加减键缩放": "Drag the background or use arrow keys to pan; use plus and minus to zoom",
-  "还没有目标": "No Goals yet",
+  "目标和依赖会作为节点出现在这里": "Goals and dependencies will appear here as nodes.",
   "画布缩放": "Canvas zoom",
   "适应全部目标": "Fit all Goals",
   "正在读取目标关系…": "Loading Goal relationships…",

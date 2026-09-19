@@ -6,7 +6,7 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 const captures = new URL("../.impeccable/review/", import.meta.url);
 
-test("Fixed Goal frame preserves camera and draft; details stay beside desktop work and overlay on narrow screens", { timeout: 90_000 }, async t => {
+test("Goal workspace keeps details in a sidebar rail; camera and draft survive reopen", { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t);
   if (!browser) return;
   const { store, origin, command, sessionId, evaluate, waitFor, click, navigate, reloadPage } = browser;
@@ -34,16 +34,21 @@ test("Fixed Goal frame preserves camera and draft; details stay beside desktop w
   await screenshot("home-light");
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor("document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true'");
+  await click("[data-board-view-tab=canvas]");
+  await waitFor("document.querySelector('[data-goal-canvas-shell]')?.dataset.boardView === 'canvas'");
   const camera = () => evaluate("JSON.stringify(document.querySelector('[data-graph-stage]').dataset)");
   await click('[data-graph-zoom="in"]');
   const beforeOpen = await camera();
   await waitFor("Boolean(document.querySelector(" + JSON.stringify('[data-graph-node][data-goal-id="' + goalId + '"] [data-graph-open]') + "))");
   await evaluate("document.querySelector(" + JSON.stringify('[data-graph-node][data-goal-id="' + goalId + '"] [data-graph-open]') + ").click()");
   await waitFor("!document.querySelector('[data-goal-node-workspace]').hidden && document.querySelector('[data-goal-node-workspace]').dataset.expandedGoal === " + JSON.stringify(goalId));
-  await waitFor("document.querySelector('[data-event-timeline] [data-event-sheet] .event')");
-  const stage = await rect("[data-plugin-stage]"), frame = await rect("[data-goal-node-workspace]"), terminal = await rect("[data-tui-pane]"), info = await rect("[data-document-pane]");
-  assert.ok(Math.abs(frame.x - stage.x - 24) < 1 && Math.abs(stage.width - frame.width - 48) < 1);
-  assert.ok(Math.abs(info.width - 300) < 1 && terminal.x + terminal.width <= info.x + 1);
+  await waitFor("document.querySelector('[data-event-timeline] [data-timeline-item]')");
+  await waitFor("document.querySelector('[data-goal-node-workspace]')?.dataset.detailsOpen === 'true' && document.querySelector('[data-goal-details-aside]')?.getBoundingClientRect().width > 280");
+  const stage = await rect("[data-plugin-stage]"), frame = await rect("[data-goal-node-workspace]"), terminal = await rect("[data-tui-pane]"), info = await rect("[data-goal-details-aside]");
+  assert.ok(Math.abs(frame.x - stage.x) < 2 && Math.abs(stage.width - frame.width) < 2);
+  assert.equal(await evaluate("document.querySelector('.goal-node-toolbar [data-goal-details-toggle]')"), null);
+  assert.equal(await evaluate("Boolean(document.querySelector('[data-goal-details-aside] [data-goal-details-toggle]'))"), true);
+  assert.ok(info.width >= 280 && info.width <= 330 && terminal.x + terminal.width <= info.x + 2);
   assert.ok(terminal.height > 700 && terminal.y >= frame.y);
   assert.equal(await evaluate("document.querySelector('[data-goal-work-mode=conversation]').disabled"), true);
   await screenshot("goal-light");
@@ -57,7 +62,8 @@ test("Fixed Goal frame preserves camera and draft; details stay beside desktop w
   assert.equal(await camera(), expandedCamera);
   await click('[data-goal-details-toggle]');
   assert.equal(await evaluate("document.querySelector('[data-document-pane]').hidden"), true);
-  assert.ok((await rect('[data-tui-pane]')).width > terminal.width + 250);
+  assert.ok((await rect("[data-goal-details-aside]")).width <= 40, "Collapsed details keep a slim rail");
+  assert.ok((await rect("[data-tui-pane]")).width >= terminal.width - 1);
   await reloadPage();
   await waitFor("document.querySelector('[data-goal-node-workspace]').dataset.detailsOpen === 'false'");
   await click('[data-goal-details-toggle]');
@@ -67,15 +73,16 @@ test("Fixed Goal frame preserves camera and draft; details stay beside desktop w
   await click('[data-goal-collapse]');
   assert.equal(await camera(), beforeOpen);
   await evaluate("document.querySelector(" + JSON.stringify('[data-graph-node][data-goal-id="' + goalId + '"] [data-graph-open]') + ").click()");
+  await waitFor("!document.querySelector('[data-goal-node-workspace]').hidden && document.querySelector('[data-goal-node-workspace]')?.dataset.detailsOpen === 'true' && document.querySelector('[data-event-form=note] footer [data-event-back]')?.getBoundingClientRect().width > 0");
   assert.equal(await evaluate("document.querySelector('[data-event-form=note] textarea').value"), "保留在本地输入框里的备注");
   assert.equal(await evaluate("document.querySelector('[data-goal-work-main]').inert"), true);
-  await click('.detail-toolbar [data-event-back]');
+  await click('[data-event-form=note] footer [data-event-back]');
   assert.deepEqual(store.snapshot(DEMO_BOARD_ID).goals, before.goals);
   assert.deepEqual(store.snapshot(DEMO_BOARD_ID).runs, before.runs);
-  await click('[data-immersive-theme]');
+  await evaluate("localStorage.setItem('molis-work:theme','dark');window.dispatchEvent(new StorageEvent('storage',{key:'molis-work:theme',newValue:'dark'}))");
   await waitFor("document.documentElement.dataset.resolvedTheme === 'dark'");
   await screenshot("goal-dark");
-  await command("Emulation.setDeviceMetricsOverride", { width: 1024, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await command("Emulation.setDeviceMetricsOverride", { width: 800, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
   await waitFor("document.querySelector('[data-goal-work-main]').inert");
   const overlay = await rect('[data-document-pane]'), mediumTerminal = await rect('[data-tui-pane]');
   assert.ok(overlay.x < mediumTerminal.x + mediumTerminal.width, "Narrow details overlay the work area");
@@ -84,11 +91,11 @@ test("Fixed Goal frame preserves camera and draft; details stay beside desktop w
   await waitFor("document.activeElement.hasAttribute('data-reader-title')");
   await key("Tab", 9);
   assert.equal(await evaluate("Boolean(document.activeElement.closest('[inert]'))"), false);
-  await screenshot("reader-1024");
+  await screenshot("reader-800");
   await click('.detail-toolbar [data-event-back]');
   await click('[data-goal-details-toggle]');
   await waitFor("!document.querySelector('[data-goal-work-main]').inert");
-  await screenshot("goal-1024");
+  await screenshot("goal-800");
   await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
   await waitFor("document.querySelector('[data-goal-node-workspace]').getBoundingClientRect().width < 390");
   await screenshot("goal-mobile");

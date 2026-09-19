@@ -34,7 +34,7 @@ test("MCP invokes the application once with unchanged arguments and host-only me
   const input = { board_id: "selected", _meta: { threadId: "model-input-not-host" }, idempotency_key: "unchanged-key" };
   const cases: Array<[unknown, McpToolCallContext]> = [
     [{ "molis-work/sessionId": " dedicated ", threadId: "thread", sessionId: "session" }, { runtimeSessionId: "dedicated", runtimeSessionIdSource: "molis-work/sessionId" }],
-    [{ "goalboard/sessionId": " legacy-session ", threadId: "thread", sessionId: "session" }, { runtimeSessionId: "legacy-session", runtimeSessionIdSource: "goalboard/sessionId" }],
+    [{ "goalboard/sessionId": " legacy-session ", threadId: "thread", sessionId: "session" }, { runtimeSessionId: "thread", runtimeSessionIdSource: "threadId" }],
     [{ "molis-work/sessionId": " ", threadId: " thread ", sessionId: "session" }, { runtimeSessionId: "thread", runtimeSessionIdSource: "threadId" }],
     [{ threadId: 123, sessionId: " session " }, { runtimeSessionId: "session", runtimeSessionIdSource: "sessionId" }],
     [undefined, { runtimeSessionId: null, runtimeSessionIdSource: null }],

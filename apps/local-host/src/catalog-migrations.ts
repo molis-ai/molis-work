@@ -1,9 +1,9 @@
 import { LocalCatalogMetadata, type LocalSqliteStorage, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import type { ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
-import { createProjectsSchema, migrateProjectDataClassSchema, migrateProjectInboxPluginSchema } from "@molis-ai/molis-work-module-projects";
+import { createProjectsSchema, migrateProjectDataClassSchema, migrateProjectDropLegacyImportSchema, migrateProjectInboxPluginSchema, migrateProjectOpenPluginSchema, migrateProjectTaskPluginSchema, migrateProjectDropTaskPluginSchema } from "@molis-ai/molis-work-module-projects";
 import { createPersonalPlanningMethodSchema } from "@molis-ai/molis-work-module-goals";
 import { createRuntimeContextBindingTables, createRuntimeContextSetupRequestTable, createRuntimeContextSuggestionRejectionTable, migrateRuntimeContextBindingEventsForUnbind, migrateRuntimeContextProjectReferences } from "@molis-ai/molis-work-module-private-work-context";
-import { CATALOG_OWNER, CATALOG_SCHEMA_VERSION, MolisWorkProjectCatalogError, catalogSchemaCompatibilityError, isOwnedCatalogOwner, LEGACY_CATALOG_OWNER } from "./project-catalog-contract.js";
+import { CATALOG_OWNER, CATALOG_SCHEMA_VERSION, MolisWorkProjectCatalogError, catalogSchemaCompatibilityError, isOwnedCatalogOwner } from "./project-catalog-contract.js";
 
 export type CatalogDesktopSchema = (db: SqliteDatabase) => void;
 
@@ -30,7 +30,6 @@ export function assertOwnedCatalog(storage: LocalSqliteStorage, databasePath: st
 export function migrateCatalog(storage: LocalSqliteStorage, databasePath: string, ledger: ContextLedgerApi, createDesktopPanelTables: CatalogDesktopSchema): void {
   const db = storage.db;
   const metadata = new LocalCatalogMetadata(db);
-  if (metadata.owner() === LEGACY_CATALOG_OWNER) metadata.setOwner(CATALOG_OWNER);
   const version = metadata.version();
   const compatibilityError = catalogSchemaCompatibilityError(version);
   if (compatibilityError) throw compatibilityError;
@@ -96,6 +95,26 @@ export function migrateCatalog(storage: LocalSqliteStorage, databasePath: string
       migrateProjectInboxPluginSchema(db);
       metadata.setVersion(12);
       current = 12;
+    }
+    if (current === 12) {
+      migrateProjectTaskPluginSchema(db);
+      metadata.setVersion(13);
+      current = 13;
+    }
+    if (current === 13) {
+      migrateProjectDropTaskPluginSchema(db);
+      metadata.setVersion(14);
+      current = 14;
+    }
+    if (current === 14) {
+      migrateProjectDropLegacyImportSchema(db);
+      metadata.setVersion(15);
+      current = 15;
+    }
+    if (current === 15) {
+      migrateProjectOpenPluginSchema(db);
+      metadata.setVersion(16);
+      current = 16;
     }
     if (current !== CATALOG_SCHEMA_VERSION) {
       throw new MolisWorkProjectCatalogError(

@@ -50,9 +50,9 @@ export function createLocalArtifactHttp(ports: { nativeDesktopBootstrapScript: s
         return true;
       }
       const view = readArtifactBrowser(context.query, context.boardId, route.reference);
-      if (requestHeader(request, "x-molis-work-fragment", "x-goalboard-fragment") === "artifact-workbench"
-        || requestHeader(request, "x-molis-work-fragment", "x-goalboard-fragment") === "frame-block") {
-        const compact = requestHeader(request, "x-molis-work-fragment", "x-goalboard-fragment") === "frame-block";
+      const fragment = requestHeader(request, "x-molis-work-fragment");
+      if (fragment === "artifact-workbench" || fragment === "frame-block") {
+        const compact = fragment === "frame-block";
         response.writeHead(view.requested && !view.selected ? 404 : 200, {
           "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "vary": "x-molis-work-fragment",
         });

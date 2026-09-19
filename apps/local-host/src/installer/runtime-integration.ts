@@ -239,17 +239,13 @@ export class RuntimeIntegrationService {
       const releasePath = path.resolve(this.homeDirectory, manifest.release_path);
       if (!isInside(this.homeDirectory, releasePath)) return null;
       const nextLauncher = path.join(this.homeDirectory, "bin", "molis-work-mcp");
-      const legacyLauncher = path.join(this.homeDirectory, "bin", "goalboard-mcp");
       const skillSourcePath = path.join(releasePath, "skills", "goal-advance");
-      const [nextState, legacyState, skill] = await Promise.all([
+      const [nextState, skill] = await Promise.all([
         pathState(nextLauncher),
-        pathState(legacyLauncher),
         pathState(skillSourcePath),
       ]);
-      const launcherPath = nextState?.isFile() ? nextLauncher : legacyState?.isFile() ? legacyLauncher : nextLauncher;
-      const launcher = nextState?.isFile() ? nextState : legacyState;
-      if (!launcher?.isFile() || !skill?.isDirectory()) return null;
-      return { launcherPath, skillSourcePath };
+      if (!nextState?.isFile() || !skill?.isDirectory()) return null;
+      return { launcherPath: nextLauncher, skillSourcePath };
     } catch {
       return null;
     }

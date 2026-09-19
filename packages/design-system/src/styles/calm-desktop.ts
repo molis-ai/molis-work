@@ -31,7 +31,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
   body[data-desktop-shell="true"] .brand svg,
   .brand svg { width: 17px; height: 17px; color: var(--ink); }
   body[data-desktop-shell="true"] .brand strong,
-  .brand strong { font-size: 14px; font-weight: 720; letter-spacing: -.025em; }
+  .brand strong { font-size: 14px; font-weight: 400; letter-spacing: -.025em; }
   body[data-desktop-shell="true"] .project-context { display: none; }
   body[data-desktop-shell="true"] .top-action,
   body[data-desktop-shell="true"] .theme-picker > summary,
@@ -101,7 +101,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     min-width: 0;
     overflow: hidden;
     font-size: 14px;
-    font-weight: 700;
+    font-weight: 400;
     letter-spacing: -.015em;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -115,7 +115,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
   body[data-desktop-shell="true"] .desktop-pane-header--navigator strong {
     color: var(--muted);
     font-size: 10px;
-    font-weight: 650;
+    font-weight: 400;
     letter-spacing: .03em;
   }
 
@@ -128,9 +128,9 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     gap: 7px;
   }
   .tree-search input,
-  input:not([type="checkbox"]):not([type="radio"]),
-  textarea,
-  select {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(.mw-slider):not(.mw-input):not(.mw-textarea):not(.mw-select):not(.global-search-query),
+  textarea:not(.mw-textarea),
+  select:not(.mw-select) {
     border: 1px solid var(--line-strong);
     border-radius: 8px;
     background: var(--paper);
@@ -209,13 +209,13 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
   .tree-node.is-selected,
   .navigator-goal-row.is-selected {
     color: var(--ink);
-    background: var(--paper);
-    box-shadow: 0 1px 2px rgba(24, 24, 30, .08), inset 0 0 0 1px var(--line);
+    background: var(--nav-active);
+    box-shadow: none;
   }
   .tree-copy strong,
-  .navigator-goal-copy strong { font-size: 13px; font-weight: 620; line-height: 1.35; letter-spacing: -.008em; }
+  .navigator-goal-copy strong { font-size: 13px; font-weight: 400; line-height: 1.35; letter-spacing: -.008em; }
   .tree-node.is-selected .tree-copy strong,
-  .navigator-goal-row.is-selected .navigator-goal-copy strong { font-weight: 700; }
+  .navigator-goal-row.is-selected .navigator-goal-copy strong { font-weight: 400; }
   .tree-node.is-selected .tree-copy small { color: var(--muted); }
   .tree-progress { height: auto; background: transparent; }
   .tree-progress > span { color: var(--muted); background: transparent; font-size: 10px; }
@@ -232,7 +232,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     color: var(--goal-status-tone);
     background: color-mix(in srgb, var(--goal-status-tone) 7%, var(--paper));
     font-size: 10.5px;
-    font-weight: 680;
+    font-weight: 400;
     line-height: 1.2;
   }
   .goal-status > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
@@ -240,30 +240,30 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
   .goal-status--executing,
   .goal-status--reviewing,
   .goal-status--revalidating,
-  .goal-status--in_progress { --goal-status-tone: var(--blue); }
+  .goal-status--in_progress { --goal-status-tone: var(--tone-progress, var(--blue)); }
   .goal-status--clarification_pending,
   .goal-status--clarification_decision_pending,
   .goal-status--compound_closure_pending,
   .goal-status--execution_pending,
+  .goal-status--continue { --goal-status-tone: var(--tone-idle, var(--ink-soft)); }
   .goal-status--completion_pending,
   .goal-status--review_pending,
   .goal-status--waiting_for_human,
   .goal-status--revalidation_pending,
-  .goal-status--continue,
-  .goal-status--waiting_user { --goal-status-tone: var(--blue-dark); }
+  .goal-status--waiting_user { --goal-status-tone: var(--tone-attention, var(--amber)); }
   .goal-status--clarification_blocked,
   .goal-status--execution_blocked,
   .goal-status--completion_blocked,
   .goal-status--review_blocked,
   .goal-status--revalidation_blocked,
   .goal-status--invalidated,
-  .goal-status--blocked { --goal-status-tone: var(--red); }
+  .goal-status--blocked { --goal-status-tone: var(--tone-blocked, var(--red)); }
   .goal-status--waiting_children,
-  .goal-status--waiting { --goal-status-tone: var(--ink-soft); }
+  .goal-status--waiting { --goal-status-tone: var(--tone-hold, var(--ink-soft)); }
   .goal-status--satisfied,
-  .goal-status--completed { --goal-status-tone: var(--green); }
+  .goal-status--completed { --goal-status-tone: var(--tone-done, var(--green)); }
   .goal-status--trashed,
-  .goal-status--archived { --goal-status-tone: var(--muted); }
+  .goal-status--archived { --goal-status-tone: var(--tone-quiet, var(--muted)); }
   .tree-node.is-selected .goal-status { color: var(--goal-status-tone); }
   .tree-relations > summary strong { font-size: 10.5px; }
   .tree-relations > summary em {
@@ -275,7 +275,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     display: inline-flex;
     align-items: center;
     font-size: 10px;
-    font-weight: 620;
+    font-weight: 400;
   }
   .tree-relations > summary { color: var(--muted); }
   .tree-footer {
@@ -313,7 +313,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     font-size: clamp(27px, 2.25vw, 34px);
     line-height: 1.2;
     letter-spacing: -.035em;
-    font-weight: 710;
+    font-weight: 400;
   }
   .goal-title-outcome {
     max-width: 68ch;
@@ -322,14 +322,12 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     font-size: 13.5px;
     line-height: 1.65;
   }
-  .document-action,
   .goal-more > summary {
     border: 0;
     border-radius: 7px;
     background: transparent;
     color: var(--muted);
   }
-  .document-action:hover,
   .goal-more > summary:hover { color: var(--ink); background: var(--rail); }
 
   .goal-focus-outcome,
@@ -365,7 +363,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     margin: 0;
     color: var(--ink);
     font-size: 13px;
-    font-weight: 700;
+    font-weight: 400;
     letter-spacing: -.01em;
   }
   .goal-now-body {
@@ -380,11 +378,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
   .goal-now-body > div > strong { font-size: 17px; line-height: 1.35; letter-spacing: -.015em; }
   .goal-now-body p { max-width: 62ch; color: var(--ink-soft); }
   .goal-now-body small { max-width: 68ch; color: var(--muted); line-height: 1.55; }
-  .goal-primary-action,
-  .button-primary,
-  .planning-primary-action,
-  .project-migration-submit,
-  .runtime-plan-apply {
+  .mw-btn--primary {
     min-height: var(--control-h);
     padding-inline: var(--control-pad-x);
     border: 1px solid var(--action) !important;
@@ -392,11 +386,9 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     background: var(--action) !important;
     color: var(--action-ink) !important;
     box-shadow: none !important;
-    font-weight: 680;
+    font-weight: 400;
   }
-  .goal-primary-action:hover,
-  .button-primary:hover,
-  .planning-primary-action:hover {
+  .mw-btn--primary:hover:not(:disabled) {
     background: color-mix(in srgb, var(--action) 90%, var(--action-ink)) !important;
     color: var(--action-ink) !important;
     opacity: 1;
@@ -430,7 +422,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
   .goal-focus-criteria > ul { margin: 0; }
   .goal-focus-criteria li { padding: 12px 0; border-top: 1px solid var(--line); }
   .goal-focus-criteria li:first-child { border-top: 0; padding-top: 0; }
-  .goal-focus-criteria > a { width: fit-content; margin-top: 14px; color: var(--blue-dark); font-size: 11px; font-weight: 650; }
+  .goal-focus-criteria > a { width: fit-content; margin-top: 14px; color: var(--blue-dark); font-size: 11px; font-weight: 400; }
   .goal-focus-context { border-bottom: 0; }
   .goal-focus-context dl {
     margin: 0;
@@ -448,7 +440,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
   }
   .goal-focus-context dl > div:nth-child(-n+2) { border-top: 0; padding-top: 0; }
   .goal-focus-context dt { color: var(--muted); font-size: 10px; }
-  .goal-focus-context dd { color: var(--ink); font-size: 12px; font-weight: 610; }
+  .goal-focus-context dd { color: var(--ink); font-size: 12px; font-weight: 400; }
 
   .tui-pane,
   body[data-board-view] .tui-pane {
@@ -491,13 +483,13 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     color: var(--ink);
   }
   .tui-child-choice:hover { border-color: var(--line-strong); background: var(--rail); }
-  .tui-chrome button {
+  .tui-chrome button:not(.mw-btn) {
     border-color: var(--line-strong);
     background: var(--paper);
     color: var(--ink-soft);
   }
-  .tui-chrome button:hover:not(:disabled) { border-color: var(--line-strong); background: var(--rail); color: var(--ink); }
-  .tui-chrome button:disabled { border-color: var(--line); background: transparent; color: var(--faint); }
+  .tui-chrome button:not(.mw-btn):hover:not(:disabled) { border-color: var(--line-strong); background: var(--rail); color: var(--ink); }
+  .tui-chrome button:not(.mw-btn):disabled { border-color: var(--line); background: transparent; color: var(--faint); }
   .tui-pane[data-tui-read-only="true"] .tui-chrome { opacity: 1; }
   .tui-chrome button:disabled,
   .tui-chrome .tui-advance:disabled {
@@ -518,8 +510,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
   .theme-menu,
   .tui-menu,
   .dialog-shell,
-  .runtime-plan-dialog,
-  .project-migration-dialog {
+  .runtime-plan-dialog {
     border: 1px solid var(--line-strong);
     border-radius: 10px;
     background: var(--paper);
@@ -542,8 +533,8 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
   .settings-navigation a:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); }
   .settings-navigation a[aria-current="page"] {
     color: var(--ink);
-    background: var(--paper);
-    box-shadow: inset 0 0 0 1px var(--line);
+    background: var(--nav-active);
+    box-shadow: none;
   }
   .settings-content,
   .settings-shell--standalone .settings-content {
@@ -568,7 +559,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     color: var(--ink);
     background: var(--rail);
   }
-  .preference-option .preference-check { color: var(--blue-dark); }
+  .preference-option .preference-check { color: var(--ink); }
 
   .project-index-page { background: var(--page); }
   .project-index-panel {
@@ -580,14 +571,13 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
   html[data-resolved-theme="dark"] .project-index-panel { background: transparent; }
   .project-index-heading { border: 0; }
   .project-index-desktop-note { border: 0; background: transparent; }
-  .project-index-migration { border: 0; background: color-mix(in srgb, var(--rail) 78%, var(--page)); }
   .project-index-note { border: 0; background: transparent; }
 
   html[data-resolved-theme="dark"] .tree-node.is-selected,
   html[data-resolved-theme="dark"] .navigator-goal-row.is-selected,
   html[data-resolved-theme="dark"] .settings-navigation a[aria-current="page"] {
-    background: #232327;
-    box-shadow: inset 0 0 0 1px var(--line-strong);
+    background: var(--nav-active);
+    box-shadow: none;
   }
 
   @media (min-width: 761px) and (max-width: 1080px) {
@@ -806,7 +796,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     gap: 10px;
   }
   .goal-focus-context dt { font-size: 10px; }
-  .goal-focus-context dd { font-size: 11px; font-weight: 620; text-align: right; }
+  .goal-focus-context dd { font-size: 11px; font-weight: 400; text-align: right; }
   body[data-desktop-shell="true"] .goal-focus-aside .companion-runtime,
   .goal-focus-aside .companion-runtime {
     margin-top: 24px;
@@ -823,7 +813,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     justify-content: space-between;
     gap: 10px;
   }
-  .goal-focus-aside .companion-runtime header small { color: var(--muted); font-size: 9.5px; font-weight: 650; }
+  .goal-focus-aside .companion-runtime header small { color: var(--muted); font-size: 9.5px; font-weight: 400; }
   .goal-focus-aside .companion-runtime h2 { margin: 2px 0 0; font-size: 14px; letter-spacing: -.015em; }
   .goal-focus-aside .companion-runtime-state {
     color: var(--muted);
@@ -831,7 +821,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     align-items: center;
     gap: 5px;
     font-size: 9.5px;
-    font-weight: 650;
+    font-weight: 400;
     white-space: nowrap;
   }
   .goal-focus-aside .companion-runtime-state i { width: 6px; height: 6px; border-radius: 50%; background: var(--faint); }
@@ -852,18 +842,18 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
   }
   .goal-focus-aside .companion-runtime dl div { display: grid; gap: 2px; }
   .goal-focus-aside .companion-runtime dt { color: var(--muted); font-size: 9px; }
-  .goal-focus-aside .companion-runtime dd { margin: 0; color: var(--ink); font-size: 10.5px; font-weight: 650; }
+  .goal-focus-aside .companion-runtime dd { margin: 0; color: var(--ink); font-size: 10.5px; font-weight: 400; }
   .goal-focus-aside .companion-runtime > button {
     width: fit-content;
     min-height: 26px;
     padding: 0;
     border: 0;
     background: transparent;
-    color: var(--blue-dark);
+    color: var(--ink);
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    font: 650 10px/1.2 var(--font);
+    font: 400 10px/1.2 var(--font);
     cursor: pointer;
   }
   .goal-focus-aside .companion-runtime > button svg { width: 11px; height: 11px; }
@@ -1049,14 +1039,14 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     display: grid;
     place-items: center;
   }
-  .focus-section-card.is-active .focus-section-card-icon { color: var(--blue-dark); }
+  .focus-section-card.is-active .focus-section-card-icon { color: var(--ink); }
   .focus-section-card-icon svg { width: 15px; height: 15px; }
   .focus-section-card-copy { min-width: 0; display: grid; gap: 4px; }
   .focus-section-card-copy strong {
     color: var(--ink);
     font-size: 12px;
     line-height: 1.35;
-    font-weight: 690;
+    font-weight: 400;
     overflow-wrap: anywhere;
     text-wrap: pretty;
   }
@@ -1115,7 +1105,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     transition: transform .34s cubic-bezier(.16, 1, .3, 1), color .2s ease;
   }
   .focus-section-card-caret svg { width: 13px; height: 13px; }
-  .focus-section-card.is-active .focus-section-card-caret { color: var(--blue-dark); transform: rotate(90deg); }
+  .focus-section-card.is-active .focus-section-card-caret { color: var(--ink); transform: rotate(90deg); }
 
   /* Relations read as records, not a pile of pills. */
   .focus-section-card-reveal .relation-layout {
@@ -1181,7 +1171,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     white-space: normal;
   }
   .focus-section-card-reveal .relation-row:hover {
-    background: color-mix(in srgb, var(--blue-soft) 44%, transparent);
+    background: var(--nav-hover);
   }
   .focus-section-card-reveal .relation-kind {
     width: fit-content;
@@ -1214,7 +1204,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     color: var(--ink);
     font-size: 12px;
     line-height: 1.45;
-    font-weight: 680;
+    font-weight: 400;
     overflow-wrap: anywhere;
   }
   .focus-section-card-reveal .relation-copy :is(.relation-goal-id, .relation-path, .relation-reason) {
@@ -1409,7 +1399,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     .impact-deactivate textarea
   ) { border-color: var(--line-strong); background: var(--page); color: var(--ink); }
   html[data-resolved-theme="dark"] .focus-section-card-reveal :is(.risk-effect, .risk-state-preview, .impact-effect) {
-    background: color-mix(in srgb, var(--blue-soft) 72%, var(--paper));
+    background: var(--nav-hover);
     color: var(--ink-soft);
   }
   html[data-resolved-theme="dark"] .focus-section-card-reveal :is(.risk-actions, .impact-actions, .risk-create, .impact-create, .impact-history) summary:hover {

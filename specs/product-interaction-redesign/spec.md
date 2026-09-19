@@ -133,3 +133,10 @@ pnpm build；node --import tsx --test --test-concurrency=1 对应 workbench/Feed
 - 关系断点扩展边界：旧页面调用POST /api/goals/:id/relations和/api/relations/:id/deactivate，Goals HTTP模块未路由这两项；已有addRelation/deactivateRelation领域命令继续保留，含方向、环路、原因、状态和幂等校验。新增薄HTTP适配，复用宿主控制令牌/项目scope，不改领域规则；新增非法类型/方向、跨项目及重复请求/最终状态验证。
 - 关系幂等恢复补充宿主边界：持久命令已有重放校验，但web-http的一次性键缓存未将关系写入列为可重放路径；仅为上述两条已有持久幂等命令加入同类路径判定，保留Origin/控制令牌校验和in-flight冲突。非法输入/跨项目不得产生关系，重复成功请求返回原结果、历史只一条。
 - 真实账号结果：公开RSS和Codex执行/读回/关联成功；GitHub生产同步成功50条。Gmail刷新授权被Google拒绝，须用户重新授权，已请求必要输入；继续所有独立工作。其恢复提示仍指向旧Settings→Connectors，改为实际Feed任务设置“管理账号连接”；保留底层错误码/历史诊断，不把失效授权当成功。
+
+## v15 Linear 默认密度（2026-09-16）
+- 目标：对照 Linear，把桌面默认从消费级留白收到工具级密度。不另做紧凑开关；v12 只收了空档，chrome/行高/Feed 卡片/标题仍松。
+- 方案：目录头单行 36px；侧栏 240/220；Goal/Session/插件入口 28px；两行对象 36px；关闭 Feed 行 40px（来源+标题，摘要展开后才出现）；标签 32/26；共享控件 28px；阅读标题 14–16px。窄屏/触控仍 44px。首页诗意构图、画布节点、终端字体、领域契约不动。
+- 边界：工作台末尾 `linear-density.ts` 覆盖 Coss `--control-h`；已保存目录宽度继续有效。不像素临摹 Linear 品牌。
+- 验收：1440 目录头 ≤36、Goal/Session 28、Feed 关闭行 ≤40；双击分隔条 240/220；390/coarse 关键控件 ≥44。完成等级本地功能可用。
+- 验证：`pnpm --filter @molis-ai/molis-work-app-workbench build`；`tests/chrome-inner-scroll.test.ts`、`tests/desktop-tui.test.ts`、`tests/immersive-directory.e2e.test.ts`、`tests/attention-journey.e2e.test.ts`。完整合同见 `specs/linear-workbench-density/spec.md`。

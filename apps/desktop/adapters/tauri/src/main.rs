@@ -1,8 +1,19 @@
 mod capsule_window;
+mod drop_wheel;
+#[cfg(target_os = "macos")]
+mod clipboard_watch_macos;
+#[cfg(target_os = "macos")]
+mod drop_wheel_macos;
+#[cfg(target_os = "macos")]
+mod shelf_drag_macos;
 mod external_links;
-mod legacy_app;
 mod pty;
 mod runtime_env;
+mod shelf_hotkeys;
+#[cfg(target_os = "macos")]
+mod shelf_hotkeys_macos;
+mod shelf_http;
+mod traffic_lights;
 mod web_service;
 
 #[cfg(test)]
@@ -545,6 +556,172 @@ fn capsule_open_main(
     open_main_window(&app, &path)
 }
 
+#[tauri::command]
+fn shelf_surface_changed(active: bool) {
+    #[cfg(target_os = "macos")]
+    drop_wheel_macos::set_shelf_surface(active);
+}
+
+#[derive(serde::Serialize)]
+struct ShelfHotkeyStatus {
+    toggle: bool,
+    capture: bool,
+    files: bool,
+    toggle_label: String,
+    capture_label: String,
+    files_label: String,
+}
+
+#[derive(serde::Serialize)]
+struct ShelfFoundFile {
+    name: String,
+    path: String,
+}
+
+/// Spotlight, the same way the Finder does it: type two characters and the
+/// shelf can add a local file without leaving the panel.
+#[tauri::command]
+fn shelf_find_files(query: String) -> Vec<ShelfFoundFile> {
+    let needle = query.trim();
+    if needle.chars().count() < 2 {
+        return Vec::new();
+    }
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/".into());
+    let output = std::process::Command::new("/usr/bin/mdfind")
+        .args(["-onlyin", &home, "-name", needle])
+        .output();
+    let Ok(output) = output else { return Vec::new() };
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter(|line| !line.is_empty())
+        .filter(|line| std::path::Path::new(line).is_file())
+        .take(12)
+        .map(|line| ShelfFoundFile {
+            name: std::path::Path::new(line)
+                .file_name()
+                .map(|value| value.to_string_lossy().to_string())
+                .unwrap_or_default(),
+            path: line.to_string(),
+        })
+        .collect()
+}
+
+/// Add local files by path; the bytes never travel through the WebView.
+#[tauri::command]
+fn shelf_admit_paths(paths: Vec<String>) -> Result<usize, String> {
+    let mut added = 0;
+    for path in paths {
+        let candidate = std::path::Path::new(&path);
+        if candidate.is_dir() {
+            return Err("这是一个文件夹，请把它拖进 Shelf 工作面".into());
+        }
+        shelf_http::admit_file(candidate)?;
+        added += 1;
+    }
+    Ok(added)
+}
+
+/// Double-click opens the copy with whatever the system uses for it.
+#[tauri::command]
+fn shelf_open_path(path: String) -> Result<(), String> {
+    let status = std::process::Command::new("/usr/bin/open")
+        .arg(&path)
+        .status()
+        .map_err(|error| format!("打不开这份文件：{error}"))?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err("系统没能打开这份文件".into())
+    }
+}
+
+/// What the shelf needs to tell the person about this Mac's permissions.
+#[derive(serde::Serialize)]
+struct ShelfSetupStatus {
+    accessibility: bool,
+    browsers: Vec<String>,
+    clipboard_readable: bool,
+}
+
+#[tauri::command]
+fn shelf_setup_status() -> ShelfSetupStatus {
+    #[cfg(target_os = "macos")]
+    let accessibility = shelf_hotkeys_macos::accessibility_trusted();
+    #[cfg(not(target_os = "macos"))]
+    let accessibility = false;
+    let browsers = ["Safari", "Google Chrome", "Microsoft Edge"]
+        .into_iter()
+        .filter(|name| std::path::Path::new(&format!("/Applications/{name}.app")).exists())
+        .map(|name| name.to_string())
+        .collect();
+    #[cfg(target_os = "macos")]
+    let clipboard_readable = clipboard_watch_macos::clipboard_readable();
+    #[cfg(not(target_os = "macos"))]
+    let clipboard_readable = false;
+    ShelfSetupStatus {
+        accessibility,
+        browsers,
+        clipboard_readable,
+    }
+}
+
+/// Drag a shelf file out to Finder, the Desktop, an upload field or a composer.
+#[tauri::command]
+fn shelf_drag_out(
+    app: tauri::AppHandle,
+    paths: Vec<String>,
+    item_ids: Option<Vec<String>>,
+) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        return shelf_drag_macos::begin(&app, &paths, &item_ids.unwrap_or_default());
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (app, paths, item_ids);
+        Err("这个平台还不支持拖出".into())
+    }
+}
+
+#[tauri::command]
+fn shelf_hotkey_status() -> ShelfHotkeyStatus {
+    let available = shelf_hotkeys::availability();
+    ShelfHotkeyStatus {
+        toggle: available.toggle,
+        capture: available.capture,
+        files: available.files,
+        toggle_label: shelf_hotkeys::current_toggle().label(),
+        capture_label: shelf_hotkeys::current_capture().label(),
+        files_label: shelf_hotkeys::current_files().label(),
+    }
+}
+
+#[tauri::command]
+fn shelf_apply_hotkeys(
+    toggle: shelf_hotkeys::HotKeyChordDto,
+    capture: shelf_hotkeys::HotKeyChordDto,
+    files: shelf_hotkeys::HotKeyChordDto,
+) -> Result<ShelfHotkeyStatus, String> {
+    let toggle = shelf_hotkeys::HotKeyChord::from(toggle);
+    let capture = shelf_hotkeys::HotKeyChord::from(capture);
+    let files = shelf_hotkeys::HotKeyChord::from(files);
+    #[cfg(target_os = "macos")]
+    shelf_hotkeys_macos::apply(toggle, capture, files)?;
+    #[cfg(not(target_os = "macos"))]
+    {
+        if !toggle.has_modifier() || !capture.has_modifier() || !files.has_modifier() {
+            return Err("全局快捷键必须带 ⌃ ⌥ ⇧ 或 ⌘。".into());
+        }
+        shelf_hotkeys::adopt_chords(toggle, capture, files);
+        shelf_hotkeys::set_availability(shelf_hotkeys::HotKeyAvailability {
+            toggle: false,
+            capture: false,
+            files: false,
+        });
+    }
+    Ok(shelf_hotkey_status())
+}
+
 fn install_molis_work_tray(app: &tauri::App) -> tauri::Result<()> {
     let state = app.state::<CapsuleStatusState>();
     let locale = current_capsule_locale(state.inner()).unwrap_or_default();
@@ -623,11 +800,28 @@ fn main() {
       capsule_update_menu_bar,
       capsule_set_locale,
       capsule_open_main,
-      external_links::open_external_url
+      external_links::open_external_url,
+      shelf_surface_changed,
+      shelf_drag_out,
+      shelf_find_files,
+      shelf_admit_paths,
+      shelf_open_path,
+      shelf_setup_status,
+      shelf_hotkey_status,
+      shelf_apply_hotkeys
     ])
     .setup(|app| {
-      legacy_app::retire_legacy_desktop_apps();
       install_molis_work_tray(app)?;
+      #[cfg(target_os = "macos")]
+      if let Err(error) = drop_wheel_macos::install(app.handle()) {
+        eprintln!("Molis Work 轮盘未装上：{error}");
+      }
+      #[cfg(target_os = "macos")]
+      clipboard_watch_macos::install(app.handle().clone());
+      #[cfg(target_os = "macos")]
+      if let Err(error) = shelf_hotkeys_macos::install(app.handle()) {
+        eprintln!("Molis Work 热键未装上：{error}");
+      }
       #[cfg(target_os = "macos")]
       if let Some(capsule) = app.get_webview_window("capsule") {
         let _ = capsule_window::macos::prepare_capsule_native_window(&capsule);
@@ -641,6 +835,7 @@ fn main() {
             if let Ok(url) = Url::parse("http://127.0.0.1:4173/?desktop=1") {
               let _ = window.navigate(url);
             }
+            traffic_lights::pin_main_traffic_lights(&window);
             if let Some(capsule) = app.get_webview_window("capsule") {
               let capsule_state = app.state::<CapsuleStatusState>();
               let locale = current_capsule_locale(capsule_state.inner()).unwrap_or_default();
@@ -666,6 +861,7 @@ fn main() {
     .on_page_load(|window, payload| {
       if payload.event() == PageLoadEvent::Finished {
         if window.label() == "main" {
+          traffic_lights::pin_from_handle(window.app_handle());
           let _ = window.eval(
             r#"(() => {
               const locale = String(document.documentElement.lang || "zh").toLowerCase().startsWith("en") ? "en" : "zh";
@@ -676,6 +872,14 @@ fn main() {
       }
     })
     .on_window_event(|window, event| {
+      if window.label() == "main"
+        && matches!(
+          event,
+          WindowEvent::Resized(_) | WindowEvent::ScaleFactorChanged { .. }
+        )
+      {
+        traffic_lights::pin_from_handle(window.app_handle());
+      }
       if window.label() == "capsule" && matches!(event, WindowEvent::Focused(false)) {
         let app = window.app_handle();
         let state = app.state::<CapsuleStatusState>();

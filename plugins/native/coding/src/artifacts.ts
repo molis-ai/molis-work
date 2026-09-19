@@ -6,7 +6,23 @@
  * a consumer reads fields, never parses a document.
  */
 
-export const CODING_CHANGESET_TYPE = "coding.changeset.v1";
+/**
+ * The change set is defined in Contracts, not here.
+ *
+ * Diff renders it and Git decides whether to take it, and a Plugin may not
+ * import another Plugin — so the shape has to be an agreement all three can
+ * read. Report and diagram stay local: nothing outside Coding consumes them.
+ */
+export {
+  CODING_CHANGESET_TYPE,
+  type CodingChangeScope,
+  type CodingChangeSet,
+  type CodingFileChange,
+  type CodingFileChangeKind,
+} from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+
+import { CODING_CHANGESET_TYPE } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+
 export const CODING_REPORT_TYPE = "coding.report.v1";
 export const CODING_DIAGRAM_TYPE = "coding.diagram.v1";
 
@@ -17,41 +33,6 @@ export const CODING_ARTIFACT_TYPES = [
 ] as const;
 
 export type CodingArtifactType = (typeof CODING_ARTIFACT_TYPES)[number];
-
-/**
- * Which facts a change set describes.
- *
- * These are different things and the UI must never merge them: one is what this
- * run proposed and is frozen, the other is what the working tree looks like now
- * and moves under your feet.
- */
-export type CodingChangeScope = "run-frozen" | "workspace-current";
-
-export type CodingFileChangeKind = "added" | "modified" | "deleted";
-
-export interface CodingFileChange {
-  /** Workspace-relative. Never absolute: the path outside the root is a Host fact. */
-  path: string;
-  kind: CodingFileChangeKind;
-  added_lines: number;
-  removed_lines: number;
-  /** Unified diff for this file alone. */
-  diff: string;
-}
-
-export interface CodingChangeSet {
-  scope: CodingChangeScope;
-  run_id: string;
-  files: CodingFileChange[];
-  /**
-   * Whether these changes are on disk.
-   *
-   * False until a Host-approved write actually happened. A run that finished,
-   * or an approval that was granted, does not make this true on its own —
-   * approval is not the same event as the write.
-   */
-  applied: boolean;
-}
 
 export interface CodingReport {
   title: string;

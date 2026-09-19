@@ -217,12 +217,32 @@ export function seedDemoPluginSurfaces(databasePath: string, boardId = DEMO_BOAR
   }
 }
 
+/**
+ * Plugins the demo project does **not** turn on.
+ *
+ * The demo exists to show what the product does, so a Plugin belongs in it only
+ * once it has something to show. The workspace family starts and its ports are
+ * real, but only Workspace's panel is mounted today — seeding the others would
+ * give a first-time user navigation entries that open to nothing, which reads
+ * as a broken product rather than as an unfinished one.
+ *
+ * Remove an id from here when its panel lands, not before.
+ */
+const DEMO_WITHHELD_PLUGIN_IDS: readonly string[] = [
+  "workspace",
+  "files",
+  "git",
+  "diff",
+  "text-stats",
+];
+
 export function enableDemoProjectPlugins(
   projects: Pick<ProjectsModule, "commands" | "query">,
   projectId: string,
   actorId: string,
 ): void {
   for (const plugin_id of PROJECT_SCOPED_PLUGIN_IDS) {
+    if (DEMO_WITHHELD_PLUGIN_IDS.includes(plugin_id)) continue;
     if (projects.query.listProjectPlugins(projectId).includes(plugin_id)) continue;
     projects.commands.addProjectPlugin({ project_id: projectId, plugin_id, actor_id: actorId });
   }

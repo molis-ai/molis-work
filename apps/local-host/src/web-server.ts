@@ -3,6 +3,7 @@ import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host";
+import { composeAgentHost, workspaceRefFor } from "./agent-host-composition.js";
 import { createMolisWorkLocalHost } from "./project-host.js";
 import { RuntimeIntegrationService } from "./installer/runtime-integration.js";
 import { MolisWorkWebServiceManager } from "./installer/web-service.js";
@@ -42,6 +43,18 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       planningMethods: () => readPersonalPlanningMethodPacks(serverOptions.homeDirectory),
     });
     const ownsLocalHost = !serverOptions.localHost;
+    // The Agent Host is constructed here, where the catalog is reachable, so a
+    // Plugin that declared it can actually reach it. Only read-only CLI
+    // Runtimes are registered: everything that writes still needs the approval
+    // bridge, and registering it without one would list a Runtime that cannot
+    // honestly run a writing role.
+    const agents = composeAgentHost({
+      localHost,
+      workspaceFor: (projectId) => platform.withCatalog(
+        { homeDirectory: serverOptions.homeDirectory },
+        (catalog) => workspaceRefFor(catalog, projectId),
+      ),
+    });
     const controlToken = resolveWebControlToken(serverOptions);
     const mutationKeys = new Map<string, LocalMutationState>();
     const webViewCache: MolisWorkWebViewCache = new Map();
@@ -94,6 +107,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
             sessionResources,
             localHost,
             composition,
+            agents.agentHost,
           );
         });
       } catch (error) {

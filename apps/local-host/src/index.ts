@@ -147,3 +147,28 @@ export { runV1Cli } from "./cli-project.js";
 export type { V1CliOptions } from "./cli-project.js";
 export { runLocalCli } from "./cli-host.js";
 export type { LocalCliOptions } from "./cli-host.js";
+export {
+  ModelProviderError,
+  ModelProviderStore,
+  addPromptCacheColumn,
+  createModelProviderTables,
+  modelCredentialRef,
+  type ModelProviderSqlite,
+  type ModelProviderStoreOptions,
+  type ModelSecretPort,
+} from "./model-provider-store.js";
+export {
+  composeAgentHost,
+  workspaceRefFor,
+  type WorkspaceLookupPorts,
+  type AgentHostComposition,
+  type AgentHostCompositionOptions,
+} from "./agent-host-composition.js";
+export { handleAgentReviewHttp, type AgentReviewHttpPorts } from "./agent-review-http.js";
+export {
+  codingDirectoryPanel,
+  releaseCodingSurface,
+  workspaceDirectoryPanel,
+  type CodingSurfacePorts,
+} from "./coding-surface.js";
+export { createGitWorktreePort, GitWorktreeError, type GitWorktreePort } from "./git-worktrees.js";

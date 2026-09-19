@@ -1,3 +1,4 @@
+import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import type {
   AgentCommandOutput,
   AgentCommandOutputRef,
@@ -62,6 +63,11 @@ export interface PrologueModelConfiguration {
   model: string;
   /** Opaque credential reference. The adapter never sees the secret itself. */
   credential_ref: string;
+  /**
+   * Prompt cache mode for this Run. Absent is `off`, and `off` must behave
+   * exactly as if caching did not exist — no field is sent at all.
+   */
+  prompt_cache?: "off" | "best-effort" | "required";
 }
 
 export interface PrologueAdapterPorts {
@@ -126,6 +132,8 @@ export interface PrologueAdapterOptions extends PrologueAdapterPorts {
    * otherwise write with no recorded approval.
    */
   approvals?: PrologueApprovalBridge;
+  /** Delivers an answer to one pending question the Run is stopped on. */
+  answerPending?(pendingId: string, text: string): Promise<void>;
   /**
    * Narrows the matrix further. Writes and commands stay off until the
    * approval bridge is attached for this Runtime.
@@ -177,12 +185,14 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   readonly #sessions = new Map<string, { title: string; runs: AgentRunRef[] }>();
   readonly #runs = new Map<string, RunRecord>();
   readonly #approvals: PrologueApprovalBridge | undefined;
+  readonly #answerPending: PrologueAdapterOptions["answerPending"];
 
   constructor(options: PrologueAdapterOptions) {
     this.#runtime = options.runtime;
     this.#ports = options;
     this.#now = options.now ?? (() => new Date());
     this.#approvals = options.approvals;
+    this.#answerPending = options.answerPending;
     this.descriptor = {
       runtime_id: PROLOGUE_RUNTIME_ID,
       display_name: "Prologue",
@@ -257,6 +267,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       prompts: role.prompts.map((prompt) => ({
         prompt_id: prompt.prompt_id,
         version: prompt.version,
+        layer: promptLayerOf(prompt),
       })),
       skills: [],
       mcp_tools: request.mcp_tools ?? [],
@@ -296,6 +307,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       turns: [{ turn_id: "user-1", kind: "user", text: request.task, at }],
       activity: [],
       usage: state.usage,
+      awaiting_input: [],
       started_at: at,
       ended_at: null,
     };
@@ -354,6 +366,21 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       case "steer":
         record.control.steer({ text: control.text });
         break;
+      case "answer": {
+        const answer = this.#answerPending;
+        if (answer === undefined) {
+          throw new PrologueAdapterError(
+            "agent.capability_unavailable",
+            "没有接上回答通道，这条问题回答不了",
+          );
+        }
+        await answer(control.pending_id, control.text);
+        // The Run owns whether the question is closed; drop it from the view
+        // only after the execution owner accepted the answer.
+        record.state.awaiting_input = record.state.awaiting_input
+          .filter((question) => question.pending_id !== control.pending_id);
+        break;
+      }
     }
     this.#publish(run.run_id);
   }
@@ -390,6 +417,16 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       turns: [...record.state.turns],
       activity: [...record.state.activity],
       usage: record.state.usage,
+      // Prologue's event names the pending and phrases the question but offers
+      // no option list, so the surface gets free text only. Inventing options
+      // here would put words in the Runtime's mouth.
+      awaiting_input: record.state.awaiting_input.map((question) => ({
+        pending_id: question.pending_id,
+        kind: question.kind,
+        prompt: question.why,
+        options: [],
+        allows_free_text: true,
+      })),
       ...(record.state.stop_reason === undefined
         ? {}
         : { stop_reason: record.state.stop_reason }),

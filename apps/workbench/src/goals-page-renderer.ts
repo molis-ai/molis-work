@@ -10,6 +10,18 @@ type Translate = (text: string, values?: Record<string, string | number>) => str
 type FeedPageSurface = "workbench" | "source-workbench" | "directory" | "source-directory" | "overlays";
 export interface WorkbenchGoalsPageView<TItem extends GoalCollectionItem> extends GoalCollectionView<TItem> {
   enabled_plugins?: readonly string[];
+  /**
+   * Directory panels rendered by Plugins the Host is actually running, keyed by
+   * project plugin id.
+   *
+   * This is the seam between a Plugin composed at build time and one started by
+   * Plugin Runtime: a Plugin that is running supplies its own panel here, and
+   * the shell stops knowing how to draw it. Absent — which is every caller
+   * today — the shell renders exactly what it rendered before.
+   *
+   * The HTML is trusted product output, same as the other panel sources.
+   */
+  plugin_panels?: Readonly<Record<string, string>>;
   project: ProjectOperationsProject | null;
   projects: ProjectOperationsProject[];
   route_prefix: string;
@@ -208,6 +220,8 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
             : "",
           shelf: "",
           artifacts: "",
+          // A running Plugin's own panel wins over the built-in blank.
+          ...(view.plugin_panels ?? {}),
         }, initialDesktopDirectory, settingsDirectory)}
         </div>
       </aside>

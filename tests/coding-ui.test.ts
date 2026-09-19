@@ -58,7 +58,7 @@ test("不可用的工具页保留标签但禁用，并带上理由", () => {
   // 终端：命令未接审批；浏览器：这个构建没有内嵌浏览器
   assert.match(html, /data-coding-tool="terminal"[^>]*disabled/);
   assert.match(html, /data-coding-tool="browser"[^>]*disabled/);
-  assert.match(html, /data-coding-tool-panel="terminal"[^>]*>[\s\S]*?审批/);
+  assert.match(html, /data-coding-tool-panel="terminal"[^>]*>[\s\S]*?命令回执/);
   assert.match(html, /is-unavailable/);
   // 结果页与 Canvas 不该被禁用
   assert.doesNotMatch(html, /data-coding-tool="result"[^>]*disabled/);

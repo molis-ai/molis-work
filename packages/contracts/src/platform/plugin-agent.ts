@@ -48,9 +48,31 @@ export interface AgentSubagentsDeclaration {
 }
 
 /** Prompt bodies live in the Plugin package, never in the Manifest. */
+/**
+ * Which layer a prompt belongs to.
+ *
+ * A Run's instructions come from four different owners, and they answer to
+ * different people: the product decides `base`, the Plugin's role decides
+ * `role`, the project decides `project`, and the user decides `task`. Flattening
+ * them into one string made the order the only thing distinguishing them — so
+ * nothing could be replaced, shown or tested on its own.
+ *
+ * `task` is never a **declared** prompt. The task is what the user typed this
+ * time; a package shipping one would be putting words in their mouth, and
+ * `inspectAgentManifest` refuses it.
+ */
+export type AgentPromptLayer = "base" | "role" | "project" | "task";
+
+/** Composition order. Later layers speak about the situation earlier ones set up. */
+export const AGENT_PROMPT_LAYERS: readonly AgentPromptLayer[] = [
+  "base", "role", "project", "task",
+];
+
 export interface AgentPromptDeclaration {
   prompt_id: string;
   version: number;
+  /** Omitted means `role`, which is what a Plugin's own prompt almost always is. */
+  layer?: AgentPromptLayer;
 }
 
 export interface AgentCompactionDeclaration {
@@ -74,6 +96,26 @@ export interface AgentPromptText {
   prompt_id: string;
   version: number;
   body: string;
+  /** Omitted means `role`. The Host orders a composed role by this. */
+  layer?: AgentPromptLayer;
+}
+
+export function promptLayerOf(prompt: { layer?: AgentPromptLayer }): AgentPromptLayer {
+  return prompt.layer ?? "role";
+}
+
+/**
+ * Order prompts by layer, keeping the caller's order inside each layer.
+ *
+ * Stable on purpose: a role names its prompts in an order it meant, and
+ * layering must not shuffle that — it only decides which group comes first.
+ */
+export function orderPromptsByLayer<T extends { layer?: AgentPromptLayer }>(
+  prompts: readonly T[],
+): T[] {
+  return AGENT_PROMPT_LAYERS.flatMap(
+    (layer) => prompts.filter((prompt) => promptLayerOf(prompt) === layer),
+  );
 }
 
 /** A text material the Agent may read, taken from one of the Plugin's inputs. */
@@ -155,6 +197,15 @@ export function inspectAgentDeclaration(
       continue;
     }
     if (prompts.has(prompt.prompt_id)) problems.push(`Agent Prompt 重复：${prompt.prompt_id}`);
+    if (prompt.layer !== undefined && !AGENT_PROMPT_LAYERS.includes(prompt.layer)) {
+      problems.push(`Agent Prompt ${prompt.prompt_id} 的层级不合法：${String(prompt.layer)}`);
+    }
+    if (prompt.layer === "task") {
+      // The task is what the user typed this time. A package that ships one is
+      // putting words in their mouth, and the surface that shows "your task"
+      // would be showing somebody else's.
+      problems.push(`Agent Prompt ${prompt.prompt_id} 不能声明为 task 层：任务是用户这一次写的`);
+    }
     prompts.add(prompt.prompt_id);
   }
 

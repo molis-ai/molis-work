@@ -60,6 +60,7 @@ test("every static renderer label has an English translation", () => {
     "../apps/workbench/src/scripts/client/global-search.ts",
     "../apps/workbench/src/scripts/client/tab-workspace.ts",
     "../apps/workbench/src/scripts/client/settings-directory.ts",
+    "../apps/workbench/src/scripts/client/project-home.ts",
     "../apps/workbench/src/scripts/client/project-home-shortcuts.ts",
     "../apps/workbench/src/scripts/client/events-secondary.ts",
     "../plugins/native/goals/src/event-document-ui.ts",

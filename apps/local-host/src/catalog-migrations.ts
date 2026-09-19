@@ -3,6 +3,7 @@ import type { ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/co
 import { createProjectsSchema, migrateProjectDataClassSchema, migrateProjectDropLegacyImportSchema, migrateProjectInboxPluginSchema, migrateProjectOpenPluginSchema, migrateProjectTaskPluginSchema, migrateProjectDropTaskPluginSchema } from "@molis-ai/molis-work-module-projects";
 import { createPersonalPlanningMethodSchema } from "@molis-ai/molis-work-module-goals";
 import { createRuntimeContextBindingTables, createRuntimeContextSetupRequestTable, createRuntimeContextSuggestionRejectionTable, migrateRuntimeContextBindingEventsForUnbind, migrateRuntimeContextProjectReferences } from "@molis-ai/molis-work-module-private-work-context";
+import { addPromptCacheColumn, createModelProviderTables } from "./model-provider-store.js";
 import { CATALOG_OWNER, CATALOG_SCHEMA_VERSION, MolisWorkProjectCatalogError, catalogSchemaCompatibilityError, isOwnedCatalogOwner } from "./project-catalog-contract.js";
 
 export type CatalogDesktopSchema = (db: SqliteDatabase) => void;
@@ -18,6 +19,7 @@ export function initializeCatalog(storage: LocalSqliteStorage, createDesktopPane
   createRuntimeContextSuggestionRejectionTable(db);
   createDesktopPanelTables(db);
   createPersonalPlanningMethodSchema(db);
+  createModelProviderTables(db);
   metadata.initialize(CATALOG_OWNER, CATALOG_SCHEMA_VERSION);
 }
 
@@ -115,6 +117,22 @@ export function migrateCatalog(storage: LocalSqliteStorage, databasePath: string
       migrateProjectOpenPluginSchema(db);
       metadata.setVersion(16);
       current = 16;
+    }
+    if (current === 16) {
+      // Model providers are an installation-level fact, so they live beside
+      // projects rather than inside one. Keys never land here; the row only
+      // names the secret store reference.
+      createModelProviderTables(db);
+      metadata.setVersion(17);
+      current = 17;
+    }
+    if (current === 17) {
+      // Prompt caching became a per-provider choice. Existing providers stay
+      // `off`: turning it on for somebody is a request they never made, and
+      // `required` would start failing Runs that used to work.
+      addPromptCacheColumn(db);
+      metadata.setVersion(18);
+      current = 18;
     }
     if (current !== CATALOG_SCHEMA_VERSION) {
       throw new MolisWorkProjectCatalogError(

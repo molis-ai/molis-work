@@ -21,7 +21,7 @@ import type { MolisWorkProjectRuntime } from "./project-host.js";
 
 export interface ProjectCapabilityPorts {
   /** Resolves the workspace a project is bound to. See `MolisWorkLocalHostOptions`. */
-  workspaceFor?: (projectId: string) => ProjectWorkspaceRef | null;
+  workspaceFor?: (projectId: string) => ProjectWorkspaceRef | null | Promise<ProjectWorkspaceRef | null>;
 }
 
 export function registerProjectCapabilities(

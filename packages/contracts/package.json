@@ -58,6 +58,10 @@
       "types": "./dist/modules/identity-team-access.d.ts",
       "import": "./dist/modules/identity-team-access.js"
     },
+    "./modules/model-providers": {
+      "types": "./dist/modules/model-providers.d.ts",
+      "import": "./dist/modules/model-providers.js"
+    },
     "./modules/private-work-context": {
       "types": "./dist/modules/private-work-context.d.ts",
       "import": "./dist/modules/private-work-context.js"
@@ -81,6 +85,10 @@
     "./modules/sync-replication": {
       "types": "./dist/modules/sync-replication.d.ts",
       "import": "./dist/modules/sync-replication.js"
+    },
+    "./modules/workspace-artifacts": {
+      "types": "./dist/modules/workspace-artifacts.d.ts",
+      "import": "./dist/modules/workspace-artifacts.js"
     },
     "./platform/app-host": {
       "types": "./dist/platform/app-host.d.ts",

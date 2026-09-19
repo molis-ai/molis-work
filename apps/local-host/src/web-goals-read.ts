@@ -9,6 +9,8 @@ import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import type { createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
 import type { SessionRuntimeResources, createSessionProjectOperations } from "./web-session.js";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
+import { escapeHtml } from "@molis-ai/molis-work-design-system";
+import { codingDirectoryPanel, workspaceDirectoryPanel } from "./coding-surface.js";
 
 export function createLocalGoalsReadHttp(ports: {
   withCatalog: LocalWebCatalogRunner;
@@ -101,6 +103,34 @@ export function createLocalGoalsReadHttp(ports: {
           workspaces: catalog.listWorkspaceDirectory(options.project!.project_id),
         })) : null;
         if (projectConfiguration) view = { ...view, enabled_plugins: projectConfiguration.plugins };
+        // Ask the running Coding Plugin for its own directory panel. A Plugin
+        // that is not running, or that fails, simply contributes nothing and the
+        // shell renders exactly as before.
+        if (store && projectConfiguration !== null) {
+          const surfacePorts = {
+            store,
+            boardId: options.boardId,
+            actorId: "web-user",
+            goalTitle: (goalId: string) => coordinator?.goalQueries.getGoal(options.boardId, goalId)?.title,
+            escapeHtml,
+            translate: (value: string) => value,
+            workspaces: projectConfiguration.workspaces,
+          };
+          // Each Plugin contributes its own panel, and only the ones this
+          // project enabled. A Plugin that is not running, or that fails,
+          // contributes nothing and the shell renders exactly as before.
+          const panels: Record<string, string> = {};
+          for (const [pluginId, surface] of [
+            ["coding", projectConfiguration.plugins.includes("coding")
+              ? await codingDirectoryPanel(surfacePorts) : null],
+            ["workspace", projectConfiguration.plugins.includes("workspace")
+              ? await workspaceDirectoryPanel(surfacePorts) : null],
+          ] as const) {
+            void pluginId;
+            if (surface) panels[surface.plugin_id] = surface.panel;
+          }
+          if (Object.keys(panels).length > 0) view = { ...view, plugin_panels: panels };
+        }
         const operations = options.project
           ? sessionProjectOperationsData(
               await sessionResources,

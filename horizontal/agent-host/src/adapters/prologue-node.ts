@@ -1,4 +1,4 @@
-import { createRuntime } from "@prologue/sdk";
+import { BUILT_IN_ADAPTERS, createAdapterRegistry, createRuntime } from "@prologue/sdk";
 import { createNodeHost } from "@prologue/sdk/node";
 
 import {
@@ -21,11 +21,52 @@ import type { PrologueEvent } from "./prologue-stream.js";
  * has not been performed.
  */
 
+/**
+ * What Prologue's own adapter table says: which protocol keys exist, and which
+ * of them lets us set a cache breakpoint.
+ *
+ * Read from the SDK rather than copied into a list of our own, so a rename over
+ * there reaches our tests instead of quietly diverging. It lives in this file
+ * because this is the one file allowed to import the SDK — that boundary is
+ * what keeps the rest of the adapter testable without a model, a network or a
+ * disk, and it is worth more than the convenience of importing twice.
+ */
+export function prologueProtocolFacts(): ReadonlyArray<{
+  readonly protocol: string;
+  readonly prompt_cache: boolean;
+}> {
+  return BUILT_IN_ADAPTERS.map((adapter) => ({
+    protocol: adapter.protocol,
+    prompt_cache: adapter.supportsPromptCache === true,
+  }));
+}
+
+/** Whether Prologue would accept this protocol name. Throwing is its own answer. */
+export function prologueAcceptsProtocol(protocol: string): boolean {
+  const select = createAdapterRegistry(BUILT_IN_ADAPTERS);
+  try {
+    select(protocol);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export interface PrologueNodeAdapterOptions extends PrologueAdapterPorts {
   /** App identity Prologue records against this Runtime's work. */
   app: { readonly appId: string; readonly appVersion: string };
   /** Where the Node host keeps its own storage. A Host fact, never surfaced to Plugins. */
   storageRoot?: string;
+  /**
+   * Turns a Molis Work credential reference into the actual key.
+   *
+   * The two systems keep separate credential stores, so a reference minted by
+   * Molis Work means nothing to Prologue. The key crosses here, once per
+   * reference, and is handed straight to Prologue's own store in exchange for a
+   * reference it can resolve. Without this, a Run reaches the provider with a
+   * reference that resolves to nothing.
+   */
+  resolveCredential?: (credentialRef: string) => string | null | Promise<string | null>;
 }
 
 /**
@@ -51,6 +92,10 @@ export async function createPrologueNodeAdapter(
   });
 
   const sdk = runtime as unknown as PrologueSdkSurface;
+  const credentials = new PrologueCredentialBridge({
+    host: host as unknown as PrologueCredentialHost,
+    resolve: options.resolveCredential,
+  });
   const port: PrologueRuntimePort = {
     sessions: {
       create: () => sdk.sessions.create(),
@@ -72,6 +117,9 @@ export async function createPrologueNodeAdapter(
       });
       const character = sdk.characters.publish(created.ref);
 
+      // Exchange our reference for one Prologue can resolve, before the Run
+      // is started rather than when it first calls out.
+      const credentialId = await credentials.prologueRefFor(input.model.credential_ref);
       const started = await sdk.startAgentRun({
         session,
         rootRef: root.ref,
@@ -79,8 +127,13 @@ export async function createPrologueNodeAdapter(
           protocol: input.model.protocol,
           endpoint: input.model.endpoint,
           model: input.model.model,
-          credentialRef: { id: input.model.credential_ref },
+          credentialRef: { id: credentialId },
           messages: [{ role: "user", text: input.task }],
+          // `off` sends no field, so a Run with caching turned off is byte for
+          // byte the request it would have been before caching existed.
+          ...(input.model.prompt_cache === undefined || input.model.prompt_cache === "off"
+            ? {}
+            : { promptCache: input.model.prompt_cache }),
         },
         agent: {
           idempotencyKey: `molis-work-${input.session_id}-${Date.now()}`,
@@ -106,6 +159,62 @@ export async function createPrologueNodeAdapter(
     runtime: port,
     modelConfiguration: options.modelConfiguration,
   });
+}
+
+/** Prologue's own credential store, as much of it as this bridge needs. */
+export interface PrologueCredentialHost {
+  writeCredential(input: {
+    label: string;
+    secret: { plaintext: Uint8Array };
+  }): Promise<{ ref: { id: string } }>;
+}
+
+/**
+ * Hands a key across from Molis Work's secret store to Prologue's.
+ *
+ * Each reference crosses at most once per process: the exchange is cached by
+ * the Molis Work reference, so a key is not rewritten on every Run. The
+ * plaintext bytes are zeroed right after the handover — the string itself
+ * cannot be scrubbed in JavaScript, but the buffer that reached Prologue can.
+ */
+export class PrologueCredentialBridge {
+  readonly #host: PrologueCredentialHost;
+  readonly #resolve: PrologueNodeAdapterOptions["resolveCredential"];
+  readonly #exchanged = new Map<string, string>();
+
+  constructor(input: {
+    host: PrologueCredentialHost;
+    resolve: PrologueNodeAdapterOptions["resolveCredential"];
+  }) {
+    this.#host = input.host;
+    this.#resolve = input.resolve;
+  }
+
+  async prologueRefFor(credentialRef: string): Promise<string> {
+    const cached = this.#exchanged.get(credentialRef);
+    if (cached !== undefined) return cached;
+    if (this.#resolve === undefined) {
+      throw new Error(
+        `没有配置凭据解析，${credentialRef} 在 Prologue 那边解析不了：`
+        + "两边的密钥库是分开的，密钥必须交接一次",
+      );
+    }
+    const plaintext = await this.#resolve(credentialRef);
+    if (plaintext === null || plaintext.trim() === "") {
+      throw new Error(`密钥库里没有 ${credentialRef} 对应的密钥`);
+    }
+    const bytes = new TextEncoder().encode(plaintext);
+    try {
+      const snapshot = await this.#host.writeCredential({
+        label: credentialRef,
+        secret: { plaintext: bytes },
+      });
+      this.#exchanged.set(credentialRef, snapshot.ref.id);
+      return snapshot.ref.id;
+    } finally {
+      bytes.fill(0);
+    }
+  }
 }
 
 /**

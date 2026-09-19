@@ -1,4 +1,5 @@
 import type {
+  AgentPromptLayer,
   AgentPromptText,
   AgentRoleExecution,
   AgentSkillDeclaration,
@@ -23,6 +24,15 @@ export const AGENT_RUNTIME_CAPABILITIES = [
   "run.control",
   "text-edit",
   "command",
+  /**
+   * Can report what a command it already ran produced.
+   *
+   * Separate from `command` on purpose: a Runtime may be unable to execute a
+   * command under Host approval while still being able to say what it did run.
+   * Folding the two together forced a surface that shows receipts to gate on
+   * execution, which is a different question.
+   */
+  "command.receipts",
   "checkpoint",
   "rewind",
   "skills",
@@ -134,7 +144,14 @@ export interface AgentFrozenStart {
   role_version: number;
   execution: AgentRoleExecution;
   model_id: string;
-  prompts: Array<{ prompt_id: string; version: number }>;
+  /**
+   * Exactly the prompts this Run was frozen with, layer included.
+   *
+   * The layer travels so a surface can show *who* said each part — product,
+   * Plugin role, or project. Without it the list is a flat set of ids that
+   * nobody can attribute, which is the state this used to be in.
+   */
+  prompts: Array<{ prompt_id: string; version: number; layer: AgentPromptLayer }>;
   skills: AgentSkillDeclaration[];
   mcp_tools: AgentMcpToolRef[];
   host_tools: string[];
@@ -201,7 +218,15 @@ export type AgentRunControl =
   | { kind: "stop" }
   | { kind: "cancel" }
   /** Append an instruction to the running task. Never a new Run. */
-  | { kind: "steer"; text: string };
+  | { kind: "steer"; text: string }
+  /**
+   * Answer one question the Run is stopped on.
+   *
+   * Deliberately not `steer`: an answer is addressed to a specific pending
+   * question and closes it. Sending it as a free instruction would leave the
+   * question open while the Run reads the text as unrelated guidance.
+   */
+  | { kind: "answer"; pending_id: string; text: string };
 
 export type AgentTurnKind = "user" | "assistant" | "system";
 
@@ -251,6 +276,24 @@ export interface AgentCommandOutput {
   truncated: boolean;
 }
 
+/**
+ * A question the Run stopped on and is waiting for a person to answer.
+ *
+ * Options are what the Runtime offered. An empty list means free text only —
+ * never a hidden default, because answering on the user's behalf is the one
+ * thing a question surface must not do.
+ */
+export interface AgentPendingQuestion {
+  pending_id: string;
+  /** The Runtime's own category, e.g. a plan choice or a clarification. */
+  kind: string;
+  /** The question as the Runtime phrased it. Shown as-is. */
+  prompt: string;
+  options: ReadonlyArray<{ value: string; label: string }>;
+  /** Whether a written answer is accepted alongside, or instead of, the options. */
+  allows_free_text: boolean;
+}
+
 export interface AgentRunView {
   ref: AgentRunRef;
   phase: AgentRunPhase;
@@ -258,6 +301,14 @@ export interface AgentRunView {
   turns: AgentTurnView[];
   activity: AgentToolActivity[];
   usage: AgentRunUsage;
+  /**
+   * Questions this Run is stopped on. Empty while it is running.
+   *
+   * The phase alone was not enough: a surface could see `awaiting-input` but
+   * had no way to show what was being asked, so the Run stalled with the user
+   * unable to act.
+   */
+  awaiting_input: readonly AgentPendingQuestion[];
   /** Content-free reason when the Run stopped, failed or needs reconciliation. */
   stop_reason?: string;
   started_at: string;

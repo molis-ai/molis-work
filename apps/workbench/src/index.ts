@@ -139,3 +139,10 @@ export {
   type AgentReviewRow,
   type AgentReviewSurfaceModel,
 } from "./agent-review-surface.js";
+export {
+  formatContext,
+  renderModelSettingsDocument,
+  type ModelSettingsModel,
+  type ModelSettingsPrimitives,
+} from "./settings-models.js";
+export { BUILTIN_PLUGIN_AGENTS } from "./plugin-catalog.js";

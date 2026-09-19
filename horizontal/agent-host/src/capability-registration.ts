@@ -27,8 +27,11 @@ export interface AgentCapabilityPorts<Context> {
   /**
    * Start authority for the Plugin making this call: its own Agent Manifest,
    * the directories the Host authorized for it, and its Prompt bodies.
+   *
+   * May be async: the authorized directory comes from the project catalog,
+   * which is opened per call rather than held open.
    */
-  authority(context: Context, pluginId: string): AgentStartAuthority;
+  authority(context: Context, pluginId: string): AgentStartAuthority | Promise<AgentStartAuthority>;
   /** The board this context belongs to, used to scope the review queue. */
   boardId(context: Context): string;
 }
@@ -41,12 +44,12 @@ export function registerAgentHostCapabilities<Context>(
     registrar.register(agentHostCapabilities.listRuntimes, (context) =>
       ports.agentHost(context).descriptors()),
 
-    registrar.register(agentHostCapabilities.availableRoles, (context, [runtimeId, pluginId]) =>
+    registrar.register(agentHostCapabilities.availableRoles, async (context, [runtimeId, pluginId]) =>
       // Role availability is read from that Plugin's own declarations, which are
       // public Manifest data; naming the Plugin keeps the answer unambiguous.
       ports.agentHost(context).availableRoles(
         runtimeId,
-        ports.authority(context, pluginId).manifest,
+        (await ports.authority(context, pluginId)).manifest,
       )),
 
     registrar.register(agentHostCapabilities.createSession, async (context, [runtimeId, input]) =>
@@ -59,7 +62,7 @@ export function registerAgentHostCapabilities<Context>(
       await ports.agentHost(context).start(
         runtimeId,
         request,
-        ports.authority(context, request.plugin_id),
+        await ports.authority(context, request.plugin_id),
       )),
 
     registrar.register(agentHostCapabilities.readRun, async (context, [session, run]) =>

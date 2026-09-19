@@ -69,7 +69,7 @@ test("Settings gear sits above the account avatar and opens settings in the stag
   assert.equal(await evaluate("document.querySelector('.navigator-project-settings').hasAttribute('aria-current')"), false);
 });
 
-test("Home keeps local calendar current without enabling Agent input or moving the layout", { timeout: 90_000 }, async t => {
+test("Home shows a seven-day strip and keeps a chosen day across midnight", { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded");
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, store } = browser;
@@ -85,26 +85,21 @@ test("Home keeps local calendar current without enabling Agent input or moving t
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
   await waitFor("document.body.dataset.desktopSurface === 'home'");
-  await waitFor("document.querySelector('[data-home-month-step=\"1\"]').getBoundingClientRect().height>0");
+  await waitFor("document.querySelectorAll('[data-home-day]').length===7 && document.querySelector('[data-home-date]')?.dateTime==='2028-02-29'");
   assert.equal(await evaluate("document.querySelector('[data-home-date]').dateTime"), "2028-02-29");
-  assert.equal(await evaluate("document.querySelector('.home-calendar [aria-current=date]').textContent"), "29");
-  assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-home-calendar] tr:first-child td')].map(x=>x.textContent)"), ["31","1","2","3","4","5","6"]);
-  await click('[data-home-month-step="1"]');
-  assert.equal(await evaluate("document.querySelector('[data-home-month]').textContent"), "2028年3月");
+  assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-home-day]')].map(x=>x.dataset.homeDay)"), [
+    "2028-02-26", "2028-02-27", "2028-02-28", "2028-02-29", "2028-03-01", "2028-03-02", "2028-03-03",
+  ]);
+  assert.equal(await evaluate("document.querySelector('[data-home-day].is-on').dataset.homeDay"), "2028-02-29");
+  assert.equal(await evaluate("document.querySelector('.home-calendar, .home-composer, [data-home-agent-input]')"), null);
   await evaluate("window.__homeTimers[30000]()");
-  assert.equal(await evaluate("document.querySelector('[data-home-month]').textContent"), "2028年3月");
-  await click('[data-home-month-step="-1"]');
+  assert.equal(await evaluate("document.querySelector('[data-home-date]').dateTime"), "2028-02-29");
   await evaluate("window.__clock=new Date(2028,2,1,0,1).getTime();window.__homeTimers[30000]()");
-  assert.equal(await evaluate("document.querySelector('[data-home-date]').dateTime"), "2028-03-01");
-  assert.equal(await evaluate("document.querySelector('[data-home-month]').textContent"), "2028年3月");
-  await click('[data-home-month-step="-1"]');
+  assert.equal(await evaluate("document.querySelector('[data-home-date]').dateTime"), "2028-03-01", "unpinned home follows midnight");
+  await click('[data-home-day="2028-02-28"]');
+  assert.equal(await evaluate("document.querySelector('[data-home-date]').dateTime"), "2028-02-28");
   await evaluate("window.__clock=new Date(2028,2,2).getTime();window.__homeTimers[30000]()");
-  assert.equal(await evaluate("document.querySelector('[data-home-month]').textContent"), "2028年2月", "user-browsed month survives midnight");
-  await click('[data-home-month-step="1"]');
-  assert.deepEqual(await evaluate("[document.querySelector('[data-home-agent-input]').disabled,document.querySelector('.home-send').disabled]"), [true,true]);
-  await click('[data-home-agent-input]');
-  await command("Input.insertText", { text: "不能保存的输入" }, sessionId);
-  assert.equal(await evaluate("document.querySelector('[data-home-agent-input]').value"), "");
+  assert.equal(await evaluate("document.querySelector('[data-home-date]').dateTime"), "2028-02-28", "chosen day survives midnight while still in the week");
   assert.equal(await evaluate("document.querySelector('[data-quote-step], [data-quote-pause], [data-home-draft], [data-home-activity], [data-home-quote-next], .home-goals-entry')"), null);
   assert.equal(await evaluate(homeHasQuotes), false, "home has no quotation carousel or famous-quote copy");
   assert.equal(await evaluate("window.__homeTimers[8000]"), undefined, "no quote autoplay timer");
@@ -112,41 +107,127 @@ test("Home keeps local calendar current without enabling Agent input or moving t
   await waitFor("document.body.dataset.desktopSurface === 'goal'");
   await click('[data-plugin-strip] [data-plugin-id="home"]');
   await waitFor("document.body.dataset.desktopSurface === 'home'");
-  const homeStack=await evaluate<{gap:number;composer:number}>("(()=>{const c=document.querySelector('.home-context').getBoundingClientRect();const l=document.querySelector('.home-launch').getBoundingClientRect();return {gap:Math.round(l.top-c.bottom),composer:Math.round(document.querySelector('.home-composer').getBoundingClientRect().height)}})()");
-  assert.ok(homeStack.gap>=28 && homeStack.gap<=48, "launch follows the date block: "+homeStack.gap);
-  assert.ok(homeStack.composer<=56, "composer stays a tool row: "+homeStack.composer);
+  const homeStack = await evaluate<{ gap: number; dates: number }>("(()=>{const d=document.querySelector('.home-dates').getBoundingClientRect();const v=document.querySelector('.home-dayview').getBoundingClientRect();const l=document.querySelector('.home-launch').getBoundingClientRect();return {gap:Math.round(v.left-d.right),dates:Math.round(d.width)}})()");
+  assert.ok(homeStack.gap >= 8 && homeStack.gap <= 24, "day column sits beside the date cards: " + homeStack.gap);
+  assert.ok(homeStack.dates >= 90 && homeStack.dates <= 130, "date cards stay a narrow rail: " + homeStack.dates);
   await mkdir(captures, { recursive: true });
-  for (const [name,width,height,dark] of [["desktop",1440,1000,false],["desktop-dark",1440,1000,true],["user-1024",1024,768,false],["user-1024-dark",1024,768,true],["mobile",390,844,false],["mobile-dark",390,844,true]] as const) {
-    await command("Emulation.setDeviceMetricsOverride", { width,height,deviceScaleFactor:1,mobile:width<600 }, sessionId);
-    await evaluate(`document.documentElement.dataset.resolvedTheme=${JSON.stringify(dark?"dark":"light")};document.activeElement.blur()`);
-    await command("Input.dispatchMouseEvent", { type:"mouseMoved", x:1,y:1 }, sessionId);
-    assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"),true,name);
-    assert.equal(await evaluate(homeHasQuotes), false, name+": no quotes after viewport change");
+  for (const [name, width, height, dark] of [["desktop", 1440, 1000, false], ["desktop-dark", 1440, 1000, true], ["user-1024", 1024, 768, false], ["user-1024-dark", 1024, 768, true], ["mobile", 390, 844, false], ["mobile-dark", 390, 844, true]] as const) {
+    await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: width < 600 }, sessionId);
+    await evaluate(`document.documentElement.dataset.resolvedTheme=${JSON.stringify(dark ? "dark" : "light")};document.activeElement.blur()`);
+    await command("Input.dispatchMouseEvent", { type: "mouseMoved", x: 1, y: 1 }, sessionId);
+    assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true, name);
+    assert.equal(await evaluate(homeHasQuotes), false, name + ": no quotes after viewport change");
     await evaluate("document.querySelector('[data-work-surface=home]').scrollTop=0;new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))");
-    const shot=await command<{data:string}>("Page.captureScreenshot",{format:"png",captureBeyondViewport:false},sessionId);
-    await writeFile(new URL(name+".png",captures),Buffer.from(shot.data,"base64"));
+    const shot = await command<{ data: string }>("Page.captureScreenshot", { format: "png", captureBeyondViewport: false }, sessionId);
+    await writeFile(new URL(name + ".png", captures), Buffer.from(shot.data, "base64"));
   }
   await evaluate("document.cookie='molis_work_locale=en;path=/'");
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
   await waitFor("document.body.dataset.desktopSurface === 'home'");
   assert.equal(await evaluate(homeHasQuotes), false, "english locale still has no quotations");
-  for (const [name,width,height] of [["english-1024",1024,768],["english-760",760,844],["english-mobile",390,844]] as const) {
-    await command("Emulation.setDeviceMetricsOverride",{width,height,deviceScaleFactor:1,mobile:width<600},sessionId);
+  for (const [name, width, height] of [["english-1024", 1024, 768], ["english-760", 760, 844], ["english-mobile", 390, 844]] as const) {
+    await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: width < 600 }, sessionId);
     await evaluate("document.documentElement.dataset.resolvedTheme='light';document.activeElement.blur()");
-    await command("Input.dispatchMouseEvent",{type:"mouseMoved",x:1,y:1},sessionId);
+    await command("Input.dispatchMouseEvent", { type: "mouseMoved", x: 1, y: 1 }, sessionId);
     await evaluate("document.fonts.ready.then(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))");
     assert.equal(await evaluate(homeHasQuotes), false, name);
-    const shot=await command<{data:string}>("Page.captureScreenshot",{format:"png",captureBeyondViewport:false},sessionId);
-    await writeFile(new URL(name+".png",captures),Buffer.from(shot.data,"base64"));
+    const shot = await command<{ data: string }>("Page.captureScreenshot", { format: "png", captureBeyondViewport: false }, sessionId);
+    await writeFile(new URL(name + ".png", captures), Buffer.from(shot.data, "base64"));
   }
   await waitFor("document.querySelector('.immersive-home [data-home-shortcut-add]').getBoundingClientRect().height>0");
-  await click('.immersive-home [data-home-shortcut-add]');
-  await click('.home-shortcut-save');
-  const dialog=await command<{data:string}>("Page.captureScreenshot",{format:"png",captureBeyondViewport:false},sessionId);
-  await writeFile(new URL("dialog-mobile.png",captures),Buffer.from(dialog.data,"base64"));
-  assert.deepEqual(await evaluate("window.__homeErrors"),[]);
-  assert.deepEqual(store.snapshot(DEMO_BOARD_ID).goals,before.goals);
-  assert.deepEqual(store.snapshot(DEMO_BOARD_ID).runs,before.runs);
+  await click(".immersive-home [data-home-shortcut-add]");
+  await click(".home-shortcut-save");
+  const dialog = await command<{ data: string }>("Page.captureScreenshot", { format: "png", captureBeyondViewport: false }, sessionId);
+  await writeFile(new URL("dialog-mobile.png", captures), Buffer.from(dialog.data, "base64"));
+  assert.deepEqual(await evaluate("window.__homeErrors"), []);
+  assert.deepEqual(store.snapshot(DEMO_BOARD_ID).goals, before.goals);
+  assert.deepEqual(store.snapshot(DEMO_BOARD_ID).runs, before.runs);
+});
+
+test("Home stream opens real Inbox, Feed reconnect, and Sessions", { timeout: 90_000 }, async t => {
+  const browser = await openGoalBrowser(t, true);
+  if (!browser) return;
+  const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId } = browser;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
+  await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
+  await waitFor("document.body.dataset.desktopSurface === 'home'");
+  await waitFor("document.querySelectorAll('[data-home-day]').length===7");
+  await waitFor('document.querySelector("[data-home-open-event^=\\"inbox:\\"], [data-home-open-event^=\\"auth:\\"]")', 8_000);
+  const visitHomeDays = `(visit) => {
+    const ids = [...document.querySelectorAll("[data-home-day]")].map((day) => day.dataset.homeDay);
+    for (const id of ids) {
+      document.querySelector('[data-home-day="' + CSS.escape(id) + '"]')?.click();
+      const found = visit(id);
+      if (found) return found;
+    }
+    return null;
+  }`;
+  const dumpHome = `(async () => {
+    const days = [];
+    const ids = [...document.querySelectorAll("[data-home-day]")].map((day) => day.dataset.homeDay);
+    for (const id of ids) {
+      document.querySelector('[data-home-day="' + CSS.escape(id) + '"]')?.click();
+      days.push({ id, events: [...document.querySelectorAll("[data-home-open-event]")].map((row) => row.dataset.homeOpenEvent) });
+    }
+    const response = await fetch((document.body.dataset.routePrefix || "") + "/api/feed", {
+      cache: "no-store",
+      headers: globalThis.molisWorkControlHeaders?.() || {},
+    });
+    const snapshot = await response.json();
+    return JSON.stringify({
+      status: response.status,
+      days,
+      inbox: (snapshot.inbox_entries || []).map((entry) => [entry.status, entry.created_at, entry.subject_type]),
+      sources: (snapshot.sources || []).map((source) => [source.status, source.last_error_code]),
+    });
+  })()`;
+  const inboxId = await evaluate<string | null>(`(${visitHomeDays})(() => {
+    const ids = [...document.querySelectorAll('[data-home-open-event^="inbox:"]')].map((row) => row.dataset.homeOpenEvent);
+    for (const id of ids) {
+      document.querySelector('[data-home-open-event="' + CSS.escape(id) + '"]')?.click();
+      if (document.querySelector("[data-home-continue]") && document.querySelector("[data-home-done]")) return id;
+    }
+    return null;
+  })`);
+  if (!inboxId) assert.fail(await evaluate(dumpHome));
+  await waitFor("document.querySelector('[data-work-surface=home]').dataset.event==='on' && document.querySelector('[data-home-continue]') && document.querySelector('[data-home-done]')");
+  const dock = await evaluate<{ wrap: boolean; talkRight: boolean }>("(()=>{const act=document.querySelector('[data-home-detail-act]');const buttons=[...act.querySelectorAll('.mw-btn')];const tops=buttons.map(b=>Math.round(b.getBoundingClientRect().y));const talk=act.querySelector('[data-home-open-talk]');const last=buttons.at(-1);return {wrap:new Set(tops).size!==1,talkRight:last===talk && talk.getBoundingClientRect().left>buttons[0].getBoundingClientRect().left}})()");
+  assert.equal(dock.wrap, false, "dock actions stay on one row");
+  assert.equal(dock.talkRight, true, "say-something sits on the right");
+  await click("[data-home-continue]");
+  await waitFor("document.body.dataset.desktopSurface === 'feed'");
+  await click('[data-plugin-strip] [data-plugin-id="home"]');
+  await waitFor("document.body.dataset.desktopSurface === 'home'");
+  await evaluate(`document.querySelector('[data-home-open-event="${inboxId}"]')?.click()`);
+  await waitFor("document.querySelector('[data-home-done]')");
+  const beforeCount = await evaluate<number>("document.querySelectorAll('[data-home-open-event]').length");
+  await click("[data-home-done]");
+  await waitFor(`!document.querySelector('[data-home-open-event="${inboxId}"]')`, 8_000);
+  assert.ok(await evaluate<number>("document.querySelectorAll('[data-home-open-event]').length") < beforeCount);
+  const openedAuth = await evaluate<boolean>(`(() => {
+    if (document.querySelector("[data-home-reauth]")) return true;
+    return Boolean((${visitHomeDays})(() => {
+      const ids = [...document.querySelectorAll('[data-home-open-event^="auth:"], [data-home-open-event^="inbox:"]')]
+        .map((row) => row.dataset.homeOpenEvent);
+      for (const id of ids) {
+        document.querySelector('[data-home-open-event="' + CSS.escape(id) + '"]')?.click();
+        if (document.querySelector("[data-home-reauth]")) return true;
+      }
+      return null;
+    }));
+  })()`);
+  assert.equal(openedAuth, true, "demo home still has a reconnect action");
+  await click("[data-home-reauth]");
+  await waitFor("document.body.dataset.desktopSurface === 'feed'");
+  await click('[data-plugin-strip] [data-plugin-id="home"]');
+  await waitFor("document.body.dataset.desktopSurface === 'home'");
+  await evaluate("document.querySelector('[data-home-open-event]')?.click()");
+  await waitFor("document.querySelector('[data-home-open-talk]')");
+  await click("[data-home-open-talk]");
+  await waitFor("document.querySelector('[data-work-surface=home]').dataset.dock==='open'");
+  await evaluate("document.querySelector('[data-home-talk-form]').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}))");
+  await waitFor("document.body.dataset.desktopSurface === 'sessions'");
 });
 
 test("Home shortcuts persist per project, open a new browser page, and preserve edits on failure", { timeout: 90_000 }, async t => {

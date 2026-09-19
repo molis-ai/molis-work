@@ -1,0 +1,45 @@
+{
+  "name": "@molis-ai/molis-work-plugin-diff",
+  "version": "0.0.0",
+  "private": true,
+  "description": "First-party comparison surface over captured snapshots, prepared changes and Git changes.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=24"
+  },
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@molis-ai/molis-work-contracts": "workspace:*"
+  },
+  "molis-work": {
+    "path": "plugins/native/diff",
+    "kind": "native-plugin",
+    "maturity": "partial",
+    "contract": "@molis-ai/molis-work-contracts/platform/plugin",
+    "migrationGoals": [
+      "goal-reorg-f2",
+      "goal-plugin-platform-v2"
+    ],
+    "ssot": "docs/SSOT-MATRIX.md",
+    "capabilities": [
+      "diff.artifact-type.v1",
+      "diff.ui-contribution.v1"
+    ]
+  }
+}

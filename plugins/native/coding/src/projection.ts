@@ -13,6 +13,15 @@ export type CodingSessionState =
   | "waiting-answer"
   | "waiting-approval"
   | "failed"
+  /** The user stopped it. Distinct from failing: nothing went wrong. */
+  | "stopped"
+  | "cancelled"
+  /**
+   * The Runtime and the Host disagree about what happened and a person has to
+   * settle it. Folding this into `failed` would hide that the work may have
+   * partly landed.
+   */
+  | "reconcile-required"
   | "done";
 
 export interface CodingSessionEntry {
@@ -37,7 +46,10 @@ export type CodingDirectoryFilter = "all" | "running" | "needs-you";
 export function needsYou(entry: CodingSessionEntry): boolean {
   return entry.state === "waiting-answer"
     || entry.state === "waiting-approval"
-    || entry.state === "failed";
+    || entry.state === "failed"
+    // Reconciliation is exactly the case that needs a person: nobody else can
+    // decide what really happened.
+    || entry.state === "reconcile-required";
 }
 
 export function filterSessions(
@@ -110,21 +122,25 @@ export interface CodingToolInput {
  * shell renders it that way rather than drawing an empty frame. Two of them are
  * unavailable today for reasons that are true, not temporary oversights:
  *
- * - the terminal shows receipts of commands a Run executed, and command
- *   execution is unsupported until it goes through the Host's approval queue;
+ * - the terminal shows receipts of commands a Run executed, so it needs
+ *   `command.receipts`, which is a separate question from whether this Runtime
+ *   may run a command at all;
  * - the browser needs a real web view, which the desktop shell has and the web
  *   build does not.
  */
 export function toolAvailability(input: CodingToolInput): CodingToolAvailability[] {
-  const commandSupported = input.capabilities.command === "supported";
+  // The terminal page shows receipts, so it asks whether receipts are readable
+  // — not whether this Runtime may run a command. A Runtime can honestly report
+  // what it already ran while being unable to run anything new under approval.
+  const receiptsReadable = input.capabilities["command.receipts"] === "supported";
   return [
     { page: "result", available: true },
     input.embedded_browser
       ? { page: "browser", available: true }
       : { page: "browser", available: false, reason: "这个版本没有内嵌浏览器，桌面版才有" },
-    commandSupported
+    receiptsReadable
       ? { page: "terminal", available: true }
-      : { page: "terminal", available: false, reason: "这个运行时的命令执行尚未接通宿主审批" },
+      : { page: "terminal", available: false, reason: "这个运行时不提供命令回执" },
     { page: "canvas", available: true },
   ];
 }

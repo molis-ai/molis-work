@@ -422,8 +422,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/contracts
       '@prologue/sdk':
-        specifier: file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-command-feedback.tgz
-        version: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-command-feedback.tgz
+        specifier: file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-approved-receipts.tgz
+        version: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-approved-receipts.tgz
       '@tauri-apps/api':
         specifier: 2.11.1
         version: 2.11.1
@@ -947,8 +947,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-command-feedback.tgz':
-    resolution: {integrity: sha512-P/Fd7PYgHGRsJckKrMqcLBuNq7yMIznojJgI4GkmWwmwQRlnVSKorG0QrYp40FClewwCtZ8zrlqS3HhNcHbZsQ==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-command-feedback.tgz}
+  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-approved-receipts.tgz':
+    resolution: {integrity: sha512-diLUk3iU3nWzTTheYH4i/BZSYDiKx02QrIC0GvWWVgcJrJDx40QXBiCoYrovFyypHo4OPWyerz4aPquE9Zel1g==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-approved-receipts.tgz}
     version: 0.0.0-rc.1
 
   '@tauri-apps/api@2.11.1':
@@ -1402,7 +1402,7 @@ snapshots:
   '@esbuild/win32-x64@0.28.2':
     optional: true
 
-  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-command-feedback.tgz':
+  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-approved-receipts.tgz':
     dependencies:
       '@tauri-apps/api': 2.11.1
 

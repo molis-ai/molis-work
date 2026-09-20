@@ -7,6 +7,8 @@ import type {
 
 import { filesManifest } from "./manifest.js";
 import { filesUiContribution } from "./ui.js";
+import { filesRoutes } from "./routes.js";
+import { parseWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 
 /**
  * Files as Plugin Runtime starts it.
@@ -42,9 +44,12 @@ export function createFilesPlugin(ports: FilesPluginPorts = {}): PluginDefinitio
       for (const permission of filesManifest.permissions) {
         if (permission.required) context.requireGrant(permission.permission);
       }
+      const storage = context.grants.includes("storage:private") ? context.services?.storage : undefined;
+      let selectedWorkspace = storage?.get("last-workspace") ?? null;
       return {
         kind: "app",
         views: [filesUiContribution],
+        routes: filesRoutes(context),
         commandAvailability: (commandId) => {
           if (commandId !== "files.open-file") {
             return { available: false, reason: `未知命令：${commandId}` };
@@ -59,7 +64,13 @@ export function createFilesPlugin(ports: FilesPluginPorts = {}): PluginDefinitio
           if (objectId === null) throw new Error("没有可打开的文件");
           return { ref: { view_id: "tree", object_id: objectId }, title: objectId };
         },
-        onUpstreamReady: async () => {
+        onUpstreamReady: async (inputs) => {
+          const selected = inputs.workspace?.availability === "available" ? parseWorkspaceRef(inputs.workspace.payload).workspace_id : null;
+          if (selected !== selectedWorkspace) {
+            selectedWorkspace = selected;
+            if (selected) storage?.set("last-workspace", selected);
+            for (const port of ["files", "before", "after", "selection"]) context.services?.outputs?.invalidate(port, "工作目录已切换，请在当前目录重新固定快照");
+          }
           await ports.onWorkspaceChanged?.(true);
         },
         onUpstreamUnavailable: async () => {

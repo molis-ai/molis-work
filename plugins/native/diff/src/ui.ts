@@ -51,8 +51,9 @@ export function renderDiff(model: DiffUiModel): string {
   const view = model.view;
   const header = view.before === undefined || view.after === undefined
     ? ""
-    : `<header class="diff-sides"><span class="diff-path">${escape(view.after.path)}</span>`
-      + `<span class="diff-source">${escape(view.after.source_plugin_id)} · v${escape(view.after.content_version)}</span></header>`;
+    : `<header class="diff-sides"><span class="diff-path">对比前：${escape(view.before.path)} · v${escape(view.before.content_version)}</span>`
+      + `<span class="diff-source">对比后：${escape(view.after.path)} · v${escape(view.after.content_version)}</span>`
+      + `<span class="diff-source">${escape(view.after.workspace_name)} · 固定内容</span></header>`;
   const notices = [
     view.mismatch ? "两侧来自不同的工作目录" : "",
     view.partial ? "这里只有改动的片段，不是整份文件" : "",
@@ -91,7 +92,7 @@ function renderUnified(rows: readonly TextDiffRow[], model: DiffUiModel): string
     `<li data-kind="${escape(row.kind)}">`
     + `<span class="diff-before">${row.before_number === undefined ? "" : escape(row.before_number)}</span>`
     + `<span class="diff-after">${row.after_number === undefined ? "" : escape(row.after_number)}</span>`
-    + `<code>${escape(row.text)}</code></li>`).join("")}</ol>`;
+    + `<code><span class="diff-sign" aria-label="${row.kind === "insert" ? "新增" : row.kind === "delete" ? "删除" : "未改变"}">${row.kind === "insert" ? "+" : row.kind === "delete" ? "−" : " "}</span>${escape(row.text)}</code></li>`).join("")}</ol>`;
 }
 
 function renderSplit(rows: readonly TextDiffRow[], model: DiffUiModel): string {

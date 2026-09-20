@@ -91,7 +91,7 @@ export async function handleMolisWorkWebRequest(
             }),
           },
         };
-        if (url.pathname.startsWith("/api/plugins/io.molis.work.coding/")) {
+        if (/^\/api\/plugins\/io\.molis\.work\.(coding|workspace|files|diff|text-stats)\//.test(url.pathname)) {
           const enabled = options.project && await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory },
             (catalog) => catalog.listProjectPlugins(options.project!.project_id).includes("coding"));
           if (!enabled) { sendJson(response, 404, { error: "这个项目未启用 Coding" }); return; }

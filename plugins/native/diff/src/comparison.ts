@@ -78,13 +78,13 @@ export interface DiffInputSnapshot {
 export function waitingMessage(group: DiffInputGroup): string {
   if (group === "git-change-set") return "在 Git 里选一处改动，这里就会显示";
   if (group === "change-set") return "Coding 准备好一轮变更后，这里会显示";
-  return "在 Files 里设定 before 和 after，这里就会显示对比";
+  return "先在文件阅读区固定“对比前”和“对比后”，这里会显示两份快照的差异";
 }
 
 export function recoveryMessage(group: DiffInputGroup): string {
   if (group === "git-change-set") return "回到 Git 重新选一处改动";
   if (group === "change-set") return "让 Coding 再跑一轮";
-  return "回到 Files 重新捕获 before 和 after";
+  return "回到文件阅读区，重新固定对比前和对比后";
 }
 
 export function emptyDiff(

@@ -13,10 +13,10 @@ import {
   type CodingUiModel,
   type CodingExecutionPorts,
 } from "@molis-ai/molis-work-plugin-coding";
-import { createDiffPlugin } from "@molis-ai/molis-work-plugin-diff";
-import { createFilesPlugin } from "@molis-ai/molis-work-plugin-files";
+import { createDiffPlugin, renderDiff, type DiffView } from "@molis-ai/molis-work-plugin-diff";
+import { createFilesPlugin, renderFilesBrowserDirectory, renderFilesBrowserResult } from "@molis-ai/molis-work-plugin-files";
 import { createGitPlugin } from "@molis-ai/molis-work-plugin-git";
-import { createTextStatsPlugin } from "@molis-ai/molis-work-plugin-text-stats";
+import { createTextStatsPlugin, renderTextStats, type TextStatsView } from "@molis-ai/molis-work-plugin-text-stats";
 import {
   WORKSPACE_PLUGIN_ID,
   WORKSPACE_PROJECT_PLUGIN_ID,
@@ -34,6 +34,7 @@ import { SqlitePluginPrivateStorage, type PluginCapabilityPort } from "@molis-ai
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { renderFeedRichText } from "@molis-ai/molis-work-plugin-feed";
+import { bindWorkspaceCompanions } from "./workspace-plugin-bindings.js";
 
 /**
  * Coding's directory panel, rendered by the Plugin the Host is running.
@@ -125,12 +126,13 @@ async function startPlatform(ports: CodingSurfacePorts): Promise<Started> {
       { definition: createCodingPlugin(ports.execution ? { execution: {
         ...ports.execution, sessions: new CodingSessionStore(ports.store.db), goalTitle: ports.goalTitle,
       } } : {}), replace_version: true },
-      { definition: createWorkspacePlugin({ currentWorkspaceId: () => currentWorkspaceId(ports) }) },
-      { definition: createFilesPlugin({ readable: () => currentWorkspaceId(ports) !== null }) },
-      { definition: createDiffPlugin() },
+      { definition: createWorkspacePlugin({ currentWorkspaceId: () => currentWorkspaceId(ports) }), replace_version: true },
+      { definition: createFilesPlugin({ readable: () => currentWorkspaceId(ports) !== null }), replace_version: true },
+      { definition: createDiffPlugin(), replace_version: true },
       { definition: createGitPlugin({ ready: () => currentWorkspaceId(ports) !== null }) },
-      { definition: createTextStatsPlugin() },
+      { definition: createTextStatsPlugin(), replace_version: true },
     ]);
+    bindWorkspaceCompanions(platform, ports.boardId, ports.actorId);
     record.platform = platform;
     record.running = report.running.includes(CODING_PLUGIN_ID);
     record.error = [...report.failed, ...report.blocked].find(entry => entry.plugin_id === CODING_PLUGIN_ID)?.message ?? undefined;
@@ -182,6 +184,8 @@ async function codingPanel(ports: CodingSurfacePorts, surface: "directory" | "wo
       sessions,
       tools: [],
       workspace_path: null,
+      companion_directory: renderFilesBrowserDirectory(),
+      companion_result: renderFilesBrowserResult(),
       primitives: {
         escape: ports.escapeHtml,
         icon: (name) => icon(name as Parameters<typeof icon>[0]),
@@ -201,7 +205,7 @@ async function codingPanel(ports: CodingSurfacePorts, surface: "directory" | "wo
 
 /** Host dispatches only declared plugin routes, after the normal control guard. */
 export async function handleCodingPluginHttp(request: IncomingMessage, response: ServerResponse, url: URL, ports: CodingSurfacePorts): Promise<boolean> {
-  if (!url.pathname.startsWith(`/api/plugins/${CODING_PLUGIN_ID}/`)) return false;
+  if (!/^\/api\/plugins\/io\.molis\.work\.(coding|workspace|files|diff|text-stats)\//.test(url.pathname)) return false;
   const record = await ensureStarted(ports);
   if (!record.running) { sendLocalWebJson(response, 503, { error: record.error ?? "Coding 插件未能启动" }); return true; }
   const result = await record.platform.router().dispatch({
@@ -210,6 +214,17 @@ export async function handleCodingPluginHttp(request: IncomingMessage, response:
     ...(["GET", "HEAD"].includes(request.method ?? "GET") ? {} : { body: await readLocalWebBody(request) }),
   });
   if (!result) return false;
+  await record.platform.wiring.drain();
+  if (result.status === 200 && url.pathname.endsWith("/state")) {
+    const content = result.body as { view?: unknown; html?: string };
+    if (content?.view && url.pathname.includes("/io.molis.work.diff/")) content.html = renderDiff({
+      route_prefix: ports.routePrefix ?? "", view: content.view as DiffView,
+      primitives: { escape: value => escapeHtml(String(value)), icon: name => icon(name as Parameters<typeof icon>[0]) },
+    });
+    if (content?.view && url.pathname.includes("/io.molis.work.text-stats/")) content.html = renderTextStats({
+      view: content.view as TextStatsView, primitives: { escape: value => escapeHtml(String(value)) },
+    });
+  }
   // The existing sanitized rich-text renderer is supplied by the composition;
   // Coding neither imports another plugin nor trusts model-produced HTML.
   const body = result.body as { runs?: Array<{ turns: Array<{ text: string; kind: string }>; awaiting_input: AgentPendingQuestion[] }> } | undefined;

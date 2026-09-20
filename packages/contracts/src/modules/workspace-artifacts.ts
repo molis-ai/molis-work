@@ -1,4 +1,21 @@
 import type { ContractDescriptor } from "../platform/package.js";
+import type { HostCapabilityDefinition } from "../platform/app-host.js";
+
+/** Host reads are always scoped to a currently linked workspace, never an absolute path. */
+export interface WorkspaceFileQuery {
+  workspace_id: string;
+  path: readonly string[];
+  kind: "directory" | "text";
+}
+export type WorkspaceFileResult =
+  | { outcome: "directory"; entries: readonly { name: string; path: readonly string[]; kind: "file" | "directory" | "other" }[]; truncated: boolean }
+  | { outcome: "text"; text: string; fingerprint: string }
+  | { outcome: "too-large"; bytes: number; limit: number }
+  | { outcome: "binary" | "unsupported" | "missing" | "denied" | "changed" };
+
+export const readWorkspaceFileCapability = {
+  capability_id: "projects.workspace.file.read.v1", version: 1, operation: "query",
+} as HostCapabilityDefinition<WorkspaceFileQuery, WorkspaceFileResult>;
 
 /**
  * What Plugins working on one workspace exchange.

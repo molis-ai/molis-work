@@ -20,7 +20,7 @@ export const textStatsManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: TEXT_STATS_PLUGIN_ID,
-  version: "1.0.0",
+  version: "1.1.0",
   name: "Text stats",
   kind: "app",
   publisher: { publisher_id: "molis", signature: "official-text-stats-binding" },
@@ -43,6 +43,7 @@ export const textStatsManifest: PluginManifest = {
     ],
     outputs: [],
   },
+  routes: [{ route_id: "text-stats.state", method: "GET", path: "/state" }],
   ui: {
     contributions: [TEXT_STATS_UI_CONTRIBUTION_ID],
     views: [

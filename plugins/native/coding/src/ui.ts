@@ -50,6 +50,9 @@ export interface CodingUiModel {
   readonly tools: readonly CodingToolAvailability[];
   /** Host-authorized workspace, or null when this project has none bound. */
   readonly workspace_path: string | null;
+  /** Trusted HTML contributed by companion plugins through the Host. */
+  readonly companion_directory?: string;
+  readonly companion_result?: string;
   readonly primitives: CodingUiPrimitives;
 }
 
@@ -106,6 +109,7 @@ export function renderCodingDirectory(model: CodingUiModel): string {
     <label class="coding-search"><span>搜索标题</span><input class="mw-input" data-coding-search aria-label="搜索会话标题" placeholder="搜索会话标题"></label>
     <div class="coding-filters" role="group" aria-label="${p.escape("会话筛选")}">${filters}</div>
     <div class="coding-session-list" data-coding-sessions>${groups || renderEmpty(p)}</div>
+    ${model.companion_directory ?? ""}
   </section>`;
 }
 
@@ -186,6 +190,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
       </div>
       <aside class="coding-tools" data-coding-tools>
         <nav class="coding-tool-tabs" aria-label="${p.escape("结果与工具")}">${tools || '<span>结果</span>'}</nav>
+        ${model.companion_result ?? ""}
         <section class="coding-result" data-coding-recovery hidden aria-label="中断恢复">
           <h3>核对中断结果</h3>
           <p>先核对已发生的操作，再结束中断轮次。不会自动重跑任务或撤销操作；未保存的过程和用量无法补回。</p>

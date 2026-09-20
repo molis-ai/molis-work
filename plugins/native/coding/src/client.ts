@@ -555,7 +555,14 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(target.matches('[data-coding-new]')) { event.preventDefault(); target.disabled=true; try { await create(); } finally { target.disabled=false; } }
       if(target.matches('[data-coding-session]')) { event.preventDefault(); const session=state.sessions.find(item=>item.session_id===target.dataset.codingSession);host.openItem('coding',session.session_id,session.title);await select(session.session_id); }
       if(target.matches('[data-coding-filter]')) { directory.querySelectorAll('[data-coding-filter]').forEach(item=>item.setAttribute('aria-selected',String(item===target))); renderDirectory(); }
-      if(target.matches('[data-coding-face]') && target.dataset.codingFace!=='sessions') status('这个导航面尚未装配，现阶段可使用会话入口。');
+      if(target.matches('[data-coding-face]')) {
+        const face=target.dataset.codingFace;
+        if(host.onDirectoryFace?.(face) || face==='sessions') {
+          directory.dataset.codingCurrentFace=face;
+          directory.querySelectorAll('[data-coding-face]').forEach(button=>button.setAttribute('aria-selected',String(button===target)));
+          directory.querySelector('.coding-directory-head h2').textContent=face==='files'?'文件':'会话';
+        } else status('这个导航面尚未装配，现阶段可使用会话和文件入口。');
+      }
       if(target.matches('[data-coding-latest]')) { pinned=true;turns.scrollTop=turns.scrollHeight;target.hidden=true; }
       if(target.matches('[data-coding-stop]') && lastRun) { target.disabled=true;await api('/sessions/'+encodeURIComponent(current)+'/control','POST',{run_id:lastRun.ref.run_id,kind:'stop'});status('停止请求已收到，正在确认执行结果。');await readCurrent(); }
       if(target.matches('[data-coding-rename]') && current) {

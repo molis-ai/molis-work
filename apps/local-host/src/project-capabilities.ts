@@ -12,6 +12,8 @@ import { importV3Capability, projectResumeFactsCapability, trashedGoalsCapabilit
 import { pluginDevelopmentCapability } from "@molis-ai/molis-work-contracts/platform/tooling";
 import { projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
+import { readWorkspaceFileCapability } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { readWorkspaceFile } from "./workspace-files.js";
 import { SqlitePluginRuntimeRepository, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { runPluginDevelopment } from "./plugin-development.js";
@@ -30,6 +32,10 @@ export function registerProjectCapabilities(
   ports: ProjectCapabilityPorts = {},
 ): void {
   const { workspaceFor } = ports;
+  if (ports.workspacesFor || workspaceFor) host.register(readWorkspaceFileCapability, async (runtime, query) => {
+    const selected = ports.workspacesFor ? await ports.workspacesFor(runtime.project_id) : [await workspaceFor!(runtime.project_id)].filter((item): item is ProjectWorkspaceRef => item !== null);
+    return readWorkspaceFile(query, selected);
+  });
   if (ports.workspacesFor) host.register(projectsCapabilities.listWorkspaces, runtime => ports.workspacesFor!(runtime.project_id));
   if (workspaceFor !== undefined) {
     // Scoped to the runtime's own project: the Capability takes no project id,

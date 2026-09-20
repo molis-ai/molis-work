@@ -6,6 +6,7 @@ import type {
 
 import { diffManifest } from "./manifest.js";
 import { diffUiContribution } from "./ui.js";
+import { compareSnapshots, emptyDiff } from "./comparison.js";
 
 /**
  * Diff as Plugin Runtime starts it.
@@ -35,6 +36,15 @@ export function createDiffPlugin(ports: DiffPluginPorts = {}): PluginDefinition 
       return {
         kind: "app",
         views: [diffUiContribution],
+        routes: [{ route_id: "diff.state", handle: () => {
+          const inputs = context.services?.inputs;
+          if (inputs?.selectedGroup() !== "snapshots") return { status: 200, body: { view: emptyDiff("snapshots", "请选择两份文件快照进行对比") } };
+          const records = [inputs.read("before"), inputs.read("after")];
+          const snapshots = records.filter(record => record?.availability === "available").map(record => ({
+            content: record!.payload, source_plugin_id: record!.producer_plugin_id, content_version: record!.version,
+          }));
+          return { status: 200, body: { view: compareSnapshots(snapshots) } };
+        } }],
         commandAvailability: (commandId) => {
           if (commandId !== "diff.open-comparison") {
             return { available: false, reason: `未知命令：${commandId}` };

@@ -97,7 +97,7 @@ test("读不了的快照报 unavailable，并给出下一步", () => {
     snapshotInput("a\n"),
   ]);
   assert.equal(view.phase, "unavailable");
-  assert.match(view.recovery ?? "", /重新捕获/);
+  assert.match(view.recovery ?? "", /重新固定对比前和对比后/);
 });
 
 test("新建与删除各自标出来，缺的一侧文本被当成空", () => {

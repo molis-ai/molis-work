@@ -1,4 +1,6 @@
 import { CODING_CLIENT_FACTORY_SCRIPT, CODING_SETTINGS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-coding";
+import { FILES_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-files";
+import { icon } from "@molis-ai/molis-work-design-system";
 import { AGENT_REVIEW_CLIENT_FACTORY_SCRIPT } from "./agent-review.js";
 import { PROJECT_HOME_FACTORY_SCRIPT } from "./project-home.js";
 import { PLUGIN_WORKBENCH_FACTORY_SCRIPT } from "./plugin-workbench.js";
@@ -47,7 +49,20 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
         setMobileView("document");
       },
     });
+    const filesBrowser = (${FILES_CLIENT_FACTORY_SCRIPT})({
+      icons: ${JSON.stringify({ folder: icon("folder"), file: icon("file") })},
+      request: async (plugin, path, method = "GET", body) => {
+        const response = await fetch(route('/api/plugins/io.molis.work.' + plugin + path), {method,cache:'no-store',
+          ...(method==='GET'?{}:{headers:molisWorkControlHeaders(),body:JSON.stringify(body ?? {})})});
+        const result = await response.json();
+        if(!response.ok)throw new Error(result.error || '无法读取文件工作区');
+        return result;
+      },
+      openResult: () => document.querySelector('[data-coding-tools]')?.setAttribute('data-companion-open','true'),
+      closeResult: () => document.querySelector('[data-coding-tools]')?.removeAttribute('data-companion-open'),
+    });
     (${CODING_CLIENT_FACTORY_SCRIPT})({
+      onDirectoryFace: face => filesBrowser?.show(face) ?? false,
       showReviews: (${AGENT_REVIEW_CLIENT_FACTORY_SCRIPT})({route,headers:()=>molisWorkControlHeaders()}),
       addWorkspace: async (workspace_path) => {
         const response = await fetch(route("/api/workspaces"), { method:"POST", headers:molisWorkControlHeaders(), body:JSON.stringify({workspace_path,user_confirmed:true}) });

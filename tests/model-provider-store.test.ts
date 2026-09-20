@@ -191,7 +191,7 @@ test("设置里配好的模型，能变成 Runtime 的启动配置", async () =>
     // 我们自己的写法——所以它只证明了我们和自己一致，而对面从来不认这个名字。
     // 一一对应关系由 `tests/model-protocol-mapping.test.ts` 钉在 Prologue 的适配器表上。
     assert.equal(configuration?.protocol, "anthropic-compatible");
-    assert.equal(configuration?.endpoint, "https://api.minimaxi.com/anthropic");
+    assert.equal(configuration?.endpoint, "https://api.minimaxi.com/anthropic/v1/messages");
     assert.equal(configuration?.model, "MiniMax-M3");
     // 传出去的是引用，不是密钥本身
     assert.equal(configuration?.credential_ref, "model-provider:minimax");
@@ -203,4 +203,19 @@ test("设置里配好的模型，能变成 Runtime 的启动配置", async () =>
     item.db.close();
     await rm(item.directory, { recursive: true, force: true });
   }
+});
+
+
+test("密钥库不可访问时保留供应商并明确不可用，移除失败不丢记录", async () => {
+  const item = await fixture();
+  try {
+    item.store.upsert({ provider_id: "locked", display_name: "Locked provider", base_url: "https://example.test", api_format: "anthropic-messages" });
+    const unavailable = new ModelProviderStore({ db: item.db, secrets: {
+      get() { throw new Error("keychain locked"); }, put() { throw new Error("keychain locked"); }, delete() { throw new Error("keychain locked"); },
+    } });
+    assert.equal(unavailable.health()[0]?.status, "credential-unavailable");
+    assert.equal(unavailable.health()[0]?.credential_status, "unavailable");
+    assert.throws(() => unavailable.remove("locked"), /keychain locked/);
+    assert.equal(unavailable.get("locked")?.display_name, "Locked provider");
+  } finally { item.db.close(); await rm(item.directory, { recursive: true, force: true }); }
 });

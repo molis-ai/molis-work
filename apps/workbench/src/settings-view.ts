@@ -1,3 +1,4 @@
+import type { ModelSettingsModel } from "./settings-models.js";
 import type { RuntimeIntegrationDetection, MolisWorkWebServiceDetection } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { WebProjectNavigation, WebSettingsSection } from "./settings-navigation.js";
 export interface WebSettingsProject extends WebProjectNavigation {
@@ -23,6 +24,7 @@ export interface WebInstallationDiagnostics {
 export interface MolisWorkSettingsView {
   section: WebSettingsSection | string;
   plugin_settings_html?: string;
+  model_settings?: Omit<ModelSettingsModel, "primitives">;
   context_project?: WebProjectNavigation | null;
   runtimes: RuntimeIntegrationDetection[];
   projects: WebSettingsProject[];

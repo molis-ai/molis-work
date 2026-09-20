@@ -1,4 +1,5 @@
-import { renderHint } from "@molis-ai/molis-work-design-system";
+import { renderModelSettingsDocument } from "./settings-models.js";
+import { renderHint, icon as modelIcon } from "@molis-ai/molis-work-design-system";
 import { CONTROL_CLIENT_SCRIPT, SETTINGS_CLIENT_SCRIPT } from "./browser-assets.js";
 import type { RuntimeIntegrationDetection } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { MolisWorkSettingsView, WebSettingsProject } from "./settings-view.js";
@@ -180,6 +181,7 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
   const pluginPage = findPluginSettingsNavItem(view.section);
   const title = view.section === "appearance"
     ? L("界面与语言")
+    : view.section === "models" ? L("模型设置")
     : view.section === "runtimes"
       ? L("AI 与执行工具")
       : view.section === "projects"
@@ -192,7 +194,9 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
   const rawReturnHref = contextProject ? `/projects/${encodeURIComponent(contextProject.project_id)}/` : "/";
   const returnHref = desktopShell ? withDesktopQuery(rawReturnHref) : rawReturnHref;
   const projectManager = view.section === "projects";
-  const content = view.plugin_settings_html
+  const content = (view.section === "models" && view.model_settings ? renderModelSettingsDocument({
+    ...view.model_settings, primitives: { L, escape: escapeHtml, icon: modelIcon },
+  }) : view.plugin_settings_html)
     || (view.section === "appearance"
       ? renderAppearanceSettings(settingsPath)
       : view.section === "runtimes"

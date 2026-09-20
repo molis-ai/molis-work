@@ -167,8 +167,18 @@ export class ModelProviderStore {
     if (!API_FORMATS.includes(input.api_format)) {
       throw new ModelProviderError("model-provider.invalid", `不认识的 API 格式：${input.api_format}`);
     }
-    if (input.base_url.trim() === "") {
-      throw new ModelProviderError("model-provider.invalid", "Base URL 不能为空");
+    let endpoint: URL;
+    try { endpoint = new URL(input.base_url); }
+    catch { throw new ModelProviderError("model-provider.invalid", "Base URL 必须是完整的 HTTPS 地址"); }
+    if (endpoint.protocol !== "https:" || endpoint.username || endpoint.password || endpoint.hash || endpoint.search) {
+      throw new ModelProviderError("model-provider.invalid", "Base URL 必须使用 HTTPS，不能包含密码、查询参数或片段");
+    }
+    if (input.models !== undefined && (input.models.length > 200 || input.models.some((model) =>
+      typeof model.model_id !== "string" || !model.model_id.trim() || model.model_id.length > 200
+      || typeof model.enabled !== "boolean"
+      || (model.context_tokens !== undefined && (!Number.isSafeInteger(model.context_tokens) || model.context_tokens <= 0)))
+      || new Set(input.models.map((model) => model.model_id)).size !== input.models.length)) {
+      throw new ModelProviderError("model-provider.invalid", "模型 ID 必须非空且不重复，上下文长度必须是正整数");
     }
     const at = this.#now().toISOString();
     const existing = this.get(input.provider_id);
@@ -227,8 +237,9 @@ export class ModelProviderStore {
   remove(providerId: string): boolean {
     const existing = this.get(providerId);
     if (existing === null) return false;
-    this.#db.prepare("DELETE FROM model_providers WHERE provider_id = ?").run(providerId);
+    // If secret deletion fails, retain the visible row so the user can retry.
     this.#secrets.delete(existing.credential_ref);
+    this.#db.prepare("DELETE FROM model_providers WHERE provider_id = ?").run(providerId);
     return true;
   }
 
@@ -252,8 +263,16 @@ export class ModelProviderStore {
   }
 
   health(): ModelProviderHealth[] {
-    return this.list().map((provider) =>
-      providerHealth(provider, this.hasCredential(provider.provider_id)));
+    return this.list().map((provider) => {
+      try {
+        const present = this.hasCredential(provider.provider_id);
+        return { ...providerHealth(provider, present), credential_status: present ? "present" as const : "missing" as const };
+      } catch {
+        return { provider_id: provider.provider_id, status: "credential-unavailable" as const,
+          credential_status: "unavailable" as const,
+          detail: "密钥库暂不可用，请恢复本机密钥库访问后重试。已保存的密钥没有被替换。" };
+      }
+    });
   }
 
   /**

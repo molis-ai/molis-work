@@ -1,3 +1,6 @@
+import { randomUUID } from "node:crypto";
+import { handleModelSettingsHttp } from "./web-model-settings.js";
+import type { ModelProviderRecord } from "@molis-ai/molis-work-contracts/modules/model-providers";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import type { RuntimeIntegrationService } from "./installer/runtime-integration.js";
@@ -54,7 +57,8 @@ export async function handleLocalCatalogWebRequest(
     return;
   }
   if (await planningHttp.personal(request, response, url, serverOptions.homeDirectory, projects, controlToken, localHost, () => feedSchedulers.clear())) return;
-  const settingsPageMatch = url.pathname.match(/^\/settings\/(appearance|runtimes|projects|diagnostics)$/);
+  if (await handleModelSettingsHttp(request, response, url, composition.withCatalog, serverOptions.homeDirectory)) return;
+  const settingsPageMatch = url.pathname.match(/^\/settings\/(appearance|models|runtimes|projects|diagnostics)$/);
   if (request.method === "GET" && settingsPageMatch) {
     const section = settingsPageMatch[1] as WebSettingsSection;
     const projects = await settingsProjects(serverOptions.homeDirectory);
@@ -63,6 +67,14 @@ export async function handleLocalCatalogWebRequest(
       ? projects.find((project) => project.project_id === contextProjectId) ?? null
       : null;
     const runtimes = section === "runtimes" ? await runtimeIntegrations.detectAll() : [];
+    const model_settings = section === "models" ? await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, (catalog) => ({
+      providers: catalog.models.list(), health: catalog.models.health(),
+      selected_provider_id: url.searchParams.get("provider"),
+      ...(url.searchParams.get("new") === "1" ? { draft_provider: {
+        provider_id: `custom-${randomUUID()}`, display_name: "新供应商", base_url: "",
+        api_format: "anthropic-messages", credential_ref: "", enabled: true, prompt_cache: "off", models: [], created_at: "", updated_at: "",
+      } satisfies ModelProviderRecord } : {}),
+    })) : undefined;
     response.writeHead(200, {
       "content-type": "text/html; charset=utf-8",
       "cache-control": "no-store",
@@ -70,6 +82,7 @@ export async function handleLocalCatalogWebRequest(
     });
     response.end(renderMolisWorkSettings({
       section,
+      ...(model_settings === undefined ? {} : { model_settings }),
       context_project: contextProject,
       runtimes,
       projects,

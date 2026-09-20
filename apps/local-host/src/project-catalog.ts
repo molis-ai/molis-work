@@ -1,3 +1,5 @@
+import { ModelProviderStore } from "./model-provider-store.js";
+import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { ManagedProjectFiles } from "./managed-project-files.js";
 import { BUILTIN_PLUGIN_REGISTRY } from "@molis-ai/molis-work-app-workbench";
 import { ManagedProjectDeletion } from "./managed-project-deletion.js";
@@ -156,6 +158,7 @@ export class MolisWorkProjectCatalog {
   private readonly contextResolution: RuntimeProjectResolution;
   readonly desktopPanels: DesktopPanelCatalogApi;
   readonly personalPlanningMethods: PersonalPlanningMethods;
+  readonly models: ModelProviderStore;
 
   private constructor(
     private readonly storage: LocalSqliteStorage,
@@ -165,6 +168,11 @@ export class MolisWorkProjectCatalog {
   ) {
     const db = storage.db;
     this.personalPlanningMethods = new PersonalPlanningMethods(db);
+    this.models = new ModelProviderStore({ db, secrets: {
+      put: (ref, value) => runWithMolisWorkHome(homeDirectory, () => createFileSecretStore().put(ref, value)),
+      get: (ref) => runWithMolisWorkHome(homeDirectory, () => createFileSecretStore().get(ref)),
+      delete: (ref) => runWithMolisWorkHome(homeDirectory, () => createFileSecretStore().delete(ref)),
+    } });
     this.homeDirectory = homeDirectory;
     this.projectsDirectory = path.join(homeDirectory, "projects");
     this.databasePath = path.join(this.projectsDirectory, "catalog.db");

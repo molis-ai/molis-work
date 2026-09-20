@@ -23,6 +23,8 @@ Local Host 提供页面模型和操作端口；Workbench renderer 组合公共�
 
 ## 接入与边界
 
+页面型插件可通过公共子路径 `@molis-ai/molis-work-app-workbench/plugin-pages` 的 `renderPluginPageWorkspace` 组合声明视图与宿主 UiHost。调用者负责受信身份、活动安装及权限、数据模型、请求路由和字体静态资源；本函数不注册内置插件、不打开数据库，也不使未安装插件自动出现在日用导航。`development: true` 用于明确标注隔离身份与数据的开发预览，不能作为真实团队接通证明。对应回归为 `tests/plugin-page-workspace.test.ts`。
+
 本包处理页面结构和交互装配，不打开数据库。目标状态解释、关系/规划等专属界面由 Goals Plugin 提供；通用主题和图标由 Design System 提供。
 
 本包的装配依赖见 [package.json](package.json)；包之间的允许方向由仓库边界检查约束。

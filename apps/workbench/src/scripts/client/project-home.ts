@@ -46,6 +46,7 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
         source_id: item.source_id, source_kind: item.source_kind, source_label: item.source_label,
         imported_at: item.imported_at, source_created_at: item.source_created_at,
         author: item.author || null, url: item.url || null, linked_goal_id: item.linked_goal_id || null,
+        suggested_behavior_ids: item.suggested_behavior_ids || [],
       })),
       sources: (feed.sources || []).map((source) => ({
         source_id: source.source_id, name: source.name, kind: source.kind, status: source.status,
@@ -184,20 +185,41 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
         (event.kind === "org" ? L("组织事件") : L("个人事件")) + "</p>" +
       '<p class="home-detail__text">' + esc(event.text) + "</p>" +
       '<dl class="home-detail__facts">' + event.facts.map((fact) =>
-        "<div><dt>" + esc(fact[0]) + "</dt><dd>" + esc(fact[1]) + "</dd></div>").join("") + "</dl>";
+        "<div><dt>" + esc(fact[0]) + "</dt><dd>" + esc(fact[1]) + "</dd></div>").join("") + "</dl>" +
+      sceneBinder();
     const talkOn = home.dataset.dock === "open";
     const canDone = event.inbox && (event.inbox.status === "open" || event.inbox.status === "in_progress");
-    const left = event.act === "reauth"
-      ? '<button class="mw-btn mw-btn--primary" type="button" data-home-reauth>' + ico("link") + L("重新授权") + "</button>" +
-        '<button class="mw-btn mw-btn--secondary" type="button" data-home-ask>' + L("问问怎么回事") + "</button>"
-      : '<button class="mw-btn mw-btn--primary" type="button" data-home-continue>' + ico("arrow") + L("接着做") + "</button>" +
-        (canDone ? '<button class="mw-btn mw-btn--secondary" type="button" data-home-done>' + ico("check") + L("做完了") + "</button>" : "");
+    const defaults = event.act === "reauth"
+      ? ["feed.reauth", "home.ask"]
+      : (canDone ? ["home.continue", "inbox.done"] : ["home.continue"]);
+    const suggested = (event.suggested_behavior_ids || []).filter((id) => defaults.includes(id) && id !== "home.talk");
+    const shown = suggested.length ? suggested : defaults;
+    const button = (id) => {
+      if (id === "feed.reauth") return '<button class="mw-btn mw-btn--primary" type="button" data-home-reauth>' + ico("link") + L("重新授权") + "</button>";
+      if (id === "home.ask") return '<button class="mw-btn mw-btn--secondary" type="button" data-home-ask>' + L("问问怎么回事") + "</button>";
+      if (id === "inbox.done") return '<button class="mw-btn mw-btn--secondary" type="button" data-home-done>' + ico("check") + L("做完了") + "</button>";
+      return '<button class="mw-btn mw-btn--primary" type="button" data-home-continue>' + ico("arrow") + L("接着做") + "</button>";
+    };
+    const left = shown.map(button).join("");
     $("[data-home-detail-act]").innerHTML =
       '<div class="home-detail__act-left">' + left + "</div>" +
       '<button class="mw-btn mw-btn--ghost" type="button" data-home-open-talk aria-pressed="' + String(talkOn) + '">' +
       ico("message") + L("说一句") + "</button>";
     $("[data-home-talk-ctx]").textContent = event.title ? "· " + event.title : "";
     $("[data-home-talk-body]").textContent = L("说一句会打开这条工作对应的 Session。首页不另开一套聊天。");
+  };
+  const sceneBinder = () => {
+    const scenes = getState().function_scenes;
+    if (!scenes) return "";
+    const selected = scenes.home_dock || "";
+    const options = ['<option value="">' + L("不判断，用默认按钮") + "</option>"].concat(
+      (scenes.published || []).map((fn) =>
+        '<option value="' + esc(fn.function_key) + '"' + (fn.function_key === selected ? " selected" : "") + ">" +
+        esc(fn.name) + "</option>",
+      ),
+    );
+    return '<label class="home-detail__judgment"><span>' + L("卡底判断") + "</span>" +
+      '<select data-home-dock-judgment>' + options.join("") + "</select></label>";
   };
   const render = () => {
     collect();
@@ -284,9 +306,32 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
       }
       return;
     }
-    if (!event.target.closest("[data-home-talk], [data-home-open-talk]") && home.dataset.dock === "open") {
+    if (!event.target.closest("[data-home-talk], [data-home-open-talk], [data-home-dock-judgment]") && home.dataset.dock === "open") {
       closeTalk();
       if (eventId) renderDetail();
+    }
+  });
+  home.addEventListener("change", async (event) => {
+    const select = event.target.closest("[data-home-dock-judgment]");
+    if (!select || !feedApi) return;
+    const scenes = getState().function_scenes;
+    const previous = scenes?.home_dock || "";
+    try {
+      const result = await feedApi("/api/home/dock-judgment", "POST", { function_key: select.value || null });
+      if (scenes) scenes.home_dock = result.function_key ?? null;
+      const note = $("[data-home-detail-error]");
+      if (note) note.remove();
+    } catch (error) {
+      select.value = previous;
+      const act = $("[data-home-detail-act]");
+      let note = $("[data-home-detail-error]");
+      if (!note) {
+        note = document.createElement("p");
+        note.className = "home-detail__error";
+        note.dataset.homeDetailError = "";
+        act?.before(note);
+      }
+      note.textContent = error.message || L("保存判断函数失败");
     }
   });
   $("[data-home-talk-form]")?.addEventListener("submit", (event) => {

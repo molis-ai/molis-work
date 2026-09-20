@@ -56,6 +56,7 @@ export function findPluginSettingsNavItem(sectionId: string): PluginSettingsNavI
 export function isHostGlobalSettingsSection(section: string): boolean {
   return section === "appearance"
     || section === "runtimes"
+    || section === "mcp"
     || section === "projects"
     || section === "diagnostics"
     || section === "planning";

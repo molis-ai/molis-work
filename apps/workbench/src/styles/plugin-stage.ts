@@ -143,4 +143,14 @@ export const PLUGIN_STAGE_STYLES = `
   body.immersive-workbench .plugin-stage-workspace .feed-stage-item-detail .feed-detail-body {
     max-height: none; overflow: visible; padding: 0;
   }
+  .inbox-scene-bind {
+    display: flex; flex-direction: column; gap: 6px;
+    margin: 0 8px 12px; padding: 0 0 12px; border-bottom: 1px solid var(--line);
+  }
+  .inbox-scene-bind span { color: var(--faint); font-size: 12px; }
+  .inbox-scene-bind select {
+    height: 32px; width: 100%; border: 1px solid var(--line); border-radius: 6px;
+    background: var(--paper); color: var(--ink); font-size: 12px; padding: 0 8px;
+  }
+  .inbox-scene-bind__status { margin: 0; color: var(--red); font-size: 12px; }
 `;

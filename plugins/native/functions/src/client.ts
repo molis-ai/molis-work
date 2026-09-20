@@ -23,6 +23,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
   const publishBtn = workbench.querySelector("[data-functions-publish]");
   const note = workbench.querySelector("[data-functions-note]");
   const lastPreview = workbench.querySelector("[data-functions-last-preview]");
+  const usagesEl = workbench.querySelector("[data-functions-usages]");
   const createDialog = workbench.querySelector("[data-functions-create-dialog]");
   const createForm = workbench.querySelector("[data-functions-create-form]");
   let records = [];
@@ -200,6 +201,39 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
       lastPreview.append(legend);
     }
   };
+  const sceneTitle = (sceneId) => {
+    if (sceneId === "home.dock") return L("首页卡底");
+    if (sceneId === "feed.capture") return L("Feed 捕捉规则");
+    if (sceneId === "inbox.next") return L("Inbox 下一步");
+    return sceneId;
+  };
+  const renderUsages = async (record) => {
+    if (!usagesEl) return;
+    usagesEl.replaceChildren();
+    if (!record || record.status !== "published") {
+      usagesEl.hidden = true;
+      return;
+    }
+    try {
+      const payload = await request("GET", "/api/functions/" + encodeURIComponent(record.id) + "/usages");
+      const usages = payload.usages || [];
+      if (!usages.length) {
+        usagesEl.hidden = true;
+        return;
+      }
+      usagesEl.hidden = false;
+      const head = document.createElement("strong");
+      head.textContent = L("被用在哪");
+      usagesEl.append(head);
+      usages.forEach((row) => {
+        const item = document.createElement("p");
+        item.textContent = sceneTitle(row.scene_id) + (row.board_id ? " · " + row.board_id : "");
+        usagesEl.append(item);
+      });
+    } catch {
+      usagesEl.hidden = true;
+    }
+  };
   const fillEditor = (record) => {
     const switching = selected?.id !== record.id;
     selected = record;
@@ -221,6 +255,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     renderCriteria(record);
     renderSamples(record);
     renderPreview(record);
+    void renderUsages(record);
     showNote(locked ? L("已发布，配置不能再改。") : "", false);
     list.querySelectorAll(".functions-row").forEach((row) => {
       const on = row.dataset.functionId === record.id;

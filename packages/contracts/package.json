@@ -42,17 +42,33 @@
       "types": "./dist/modules/execution.d.ts",
       "import": "./dist/modules/execution.js"
     },
+    "./modules/dataset": {
+      "types": "./dist/modules/dataset.d.ts",
+      "import": "./dist/modules/dataset.js"
+    },
     "./modules/feed": {
       "types": "./dist/modules/feed.d.ts",
       "import": "./dist/modules/feed.js"
+    },
+    "./modules/form": {
+      "types": "./dist/modules/form.d.ts",
+      "import": "./dist/modules/form.js"
     },
     "./modules/functions": {
       "types": "./dist/modules/functions.d.ts",
       "import": "./dist/modules/functions.js"
     },
+    "./modules/ppt": {
+      "types": "./dist/modules/ppt.d.ts",
+      "import": "./dist/modules/ppt.js"
+    },
     "./modules/goals": {
       "types": "./dist/modules/goals.d.ts",
       "import": "./dist/modules/goals.js"
+    },
+    "./modules/lingguang": {
+      "types": "./dist/modules/lingguang.d.ts",
+      "import": "./dist/modules/lingguang.js"
     },
     "./modules/governance-collaboration": {
       "types": "./dist/modules/governance-collaboration.d.ts",

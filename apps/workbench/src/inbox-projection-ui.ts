@@ -28,6 +28,12 @@ export function createWorkbenchInboxProjectionRenderer(primitives: {
       entries: buildInboxUiEntries(records, (entry) => resolveSubject(entry, view, L), L),
       filter: "active",
       primitives: inboxUiPrimitives,
+      judgment: view.function_scenes
+        ? {
+            function_key: view.function_scenes.inbox_next,
+            functions: view.function_scenes.published,
+          }
+        : undefined,
     };
   }
 

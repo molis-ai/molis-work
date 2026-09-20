@@ -35,6 +35,8 @@ export interface InboxPluginRouteBinding extends InboxPluginRouteDefinition {
 
 export const INBOX_NATIVE_PLUGIN_ROUTES = [
   route("inbox.list", "GET", /^\/api\/inbox$/u),
+  route("inbox.judgment.read", "GET", /^\/api\/inbox\/judgment$/u),
+  route("inbox.judgment.write", "POST", /^\/api\/inbox\/judgment$/u),
   route("inbox.entry.status", "POST", /^\/api\/inbox\/entries\/([^/]+)\/status$/u, ["entry_id"]),
 ] as const satisfies readonly InboxPluginRouteDefinition[];
 

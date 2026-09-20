@@ -10,6 +10,8 @@ import { renderMolisWorkSettings, renderMolisWorkWorkbenchClientScript } from ".
 import { renderSettingsDirectorySection } from "../apps/workbench/src/settings-directory.ts";
 import {
   FUNCTIONS_CREDENTIAL_REF,
+  SYSTEM_HOME_DOCK_FUNCTION_KEY,
+  SYSTEM_INBOX_ADMIT_FUNCTION_KEY,
 } from "@molis-ai/molis-work-contracts/modules/functions";
 import {
   FunctionsError,
@@ -420,8 +422,11 @@ test("catalog HTTP saves a TypeSafe key without echoing it and keeps Functions o
   assert.equal(body.api_key, undefined);
   resetSecretStoreCache();
   assert.equal(createFileSecretStore().get(FUNCTIONS_CREDENTIAL_REF), "sk-live-secret");
-  const listed = await (await fetch(`${origin}/api/functions`)).json() as { functions: unknown[] };
-  assert.deepEqual(listed.functions, []);
+  const listed = await (await fetch(`${origin}/api/functions`)).json() as { functions: Array<{ function_key: string }> };
+  assert.deepEqual(
+    listed.functions.map((row) => row.function_key).sort(),
+    [SYSTEM_INBOX_ADMIT_FUNCTION_KEY, SYSTEM_HOME_DOCK_FUNCTION_KEY].sort(),
+  );
   const created = await fetch(`${origin}/api/functions`, {
     method: "POST",
     headers: headers(),
@@ -619,8 +624,8 @@ test("HTTP invoke by key and MCP list hide drafts", async () => {
     });
     assert.equal(invoked?.status, 200);
     assert.equal((invoked?.body as { data: { choice: string } }).data.choice, "no");
-    const { createMcpFunctionsHandlers } = await import("../apps/local-host/src/mcp-functions-tools.ts");
-    const handlers = createMcpFunctionsHandlers({
+    const { createFunctionsMcpAdapter } = await import("../apps/local-host/src/mcp-functions-tools.ts");
+    const adapter = createFunctionsMcpAdapter({
       requireHost: () => ({
         homeDirectory: home,
         runtimeContext: { runtime_id: "codex", stable_work_context_id: "fn", host_declares_stable: true },
@@ -629,17 +634,21 @@ test("HTTP invoke by key and MCP list hide drafts", async () => {
       provider: fixtureProvider({ choice: "no" }),
       env: {},
     });
-    const listedMcp = JSON.parse(await handlers.molis_work_v1_functions_list({}, { runtimeSessionId: null, runtimeSessionIdSource: null })) as {
+    const listedMcp = JSON.parse(await adapter.handle({ tool_id: "list", arguments: {} }, { runtimeSessionId: null, runtimeSessionIdSource: null })) as {
       functions: Array<{ function_key: string }>;
     };
-    assert.deepEqual(listedMcp.functions.map((item) => item.function_key), [live.function_key]);
+    assert.ok(listedMcp.functions.some((item) => item.function_key === live.function_key));
+    assert.equal(listedMcp.functions.some((item) => item.function_key === draft.function_key), false);
     await assert.rejects(
-      () => handlers.molis_work_v1_functions_describe({ function_key: draft.function_key }, { runtimeSessionId: null, runtimeSessionIdSource: null }),
+      () => adapter.handle({ tool_id: "describe", arguments: { function_key: draft.function_key } }, { runtimeSessionId: null, runtimeSessionIdSource: null }),
       /函数不存在/,
     );
-    const invokedMcp = JSON.parse(await handlers.molis_work_v1_functions_invoke({
-      function_key: live.function_key,
-      input: "MCP 调用",
+    const invokedMcp = JSON.parse(await adapter.handle({
+      tool_id: "invoke",
+      arguments: {
+        function_key: live.function_key,
+        input: "MCP 调用",
+      },
     }, { runtimeSessionId: null, runtimeSessionIdSource: null })) as { status: string; data: { choice: string } };
     assert.equal(invokedMcp.status, "ok");
     assert.equal(invokedMcp.data.choice, "no");

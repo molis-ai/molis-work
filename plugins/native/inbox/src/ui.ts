@@ -16,11 +16,17 @@ export interface InboxUiPrimitives {
   formatDate(value: string): string;
 }
 
+export interface InboxUiJudgment {
+  readonly function_key: string | null;
+  readonly functions: readonly { readonly function_key: string; readonly name: string }[];
+}
+
 export interface InboxUiModel {
   readonly route_prefix: string;
   readonly entries: readonly InboxUiEntry[];
   readonly filter: InboxUiFilter;
   readonly primitives: InboxUiPrimitives;
+  readonly judgment?: InboxUiJudgment;
 }
 
 export const inboxUiDescriptor: UiContributionDescriptor = {
@@ -61,6 +67,7 @@ export function renderInboxWorkbench(model: InboxUiModel): string {
   const details = model.entries.map((entry) => renderInboxDetail(entry, false, p)).join("");
   return `<section class="desktop-work-surface plugin-stage-shell" data-work-surface="inbox" data-work-surface-label="Inbox" hidden data-inbox-workbench data-inbox-directory data-inbox-stage-shell data-expanded="false" data-inbox-current-filter="active">
     <div class="plugin-stage-list feed-stage-list feed-stage-tree" data-inbox-list>
+      ${renderInboxJudgmentBinder(model)}
       ${renderInboxFold("active", p.text("待处理"), "alert", active, p)}
       ${renderInboxFold("history", p.text("历史"), "check", history, p)}
     </div>
@@ -69,6 +76,22 @@ export function renderInboxWorkbench(model: InboxUiModel): string {
       <div class="feed-detail-empty mw-empty" data-inbox-detail-empty>${p.icon("inbox")}<h1>${p.text("现在没有需要你介入的事项")}</h1></div>
     </div>
   </section>`;
+}
+
+function renderInboxJudgmentBinder(model: InboxUiModel): string {
+  const judgment = model.judgment;
+  if (!judgment) return "";
+  const { primitives: p } = model;
+  const selected = judgment.function_key ?? "";
+  const emptySelected = selected === "" ? " selected" : "";
+  const options = [
+    `<option value=""${emptySelected}>${p.text("不判断，用默认下一步")}</option>`,
+    ...judgment.functions.map((fn) => {
+      const isOn = fn.function_key === selected ? " selected" : "";
+      return `<option value="${p.escape(fn.function_key)}"${isOn}>${p.escape(fn.name)}</option>`;
+    }),
+  ].join("");
+  return `<label class="inbox-scene-bind"><span>${p.text("下一步判断")}</span><select data-inbox-judgment>${options}</select><p class="inbox-scene-bind__status" data-inbox-judgment-status hidden></p></label>`;
 }
 
 function renderInboxFold(

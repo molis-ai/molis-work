@@ -6,12 +6,17 @@ import { GMAIL_DEFAULT_SCOPE, normalizeGmailScope } from "@molis-ai/molis-work-i
 import { authRefFor, bindConnectorToken, connectorCredentialStatus, unbindConnectorToken } from "./connector-credentials.js";
 import { completeGmailOAuthFlow, defaultGmailRedirectUri, gmailOAuthConfigured, startGmailOAuthFlow, storeGmailOAuthClient } from "./gmail-oauth.js";
 import { pollGithubDeviceFlow, startGithubDeviceFlow, storeGithubClientId } from "./github-oauth.js";
-import { createLocalFeedApplication } from "./feed-application.js";
+import { createLocalFeedApplication, withLocalFeedJudgments } from "./feed-application.js";
 import { createLocalFeedConnectorSync } from "./feed-connector-sync.js";
 import type { OfficialProviderFactory } from "./official-integrations.js";
 
-export function createLocalFeedConnectorService(db: SqliteDatabase, boardId: string, providerFactory?: OfficialProviderFactory): FeedConnectorService {
-  const feed = createLocalFeedApplication(db);
+export function createLocalFeedConnectorService(
+  db: SqliteDatabase,
+  boardId: string,
+  providerFactory?: OfficialProviderFactory,
+  homeDirectory?: string,
+): FeedConnectorService {
+  const feed = createLocalFeedApplication(db, withLocalFeedJudgments(homeDirectory));
   return new FeedConnectorService(feed, boardId, {
     credentialRef: authRefFor,
     credentialStatus: connectorCredentialStatus,

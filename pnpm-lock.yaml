@@ -68,6 +68,9 @@ importers:
       '@molis-ai/molis-work-module-feed':
         specifier: workspace:*
         version: link:modules/feed
+      '@molis-ai/molis-work-module-functions':
+        specifier: workspace:*
+        version: link:modules/functions
       '@molis-ai/molis-work-module-goals':
         specifier: workspace:*
         version: link:modules/goals
@@ -98,6 +101,9 @@ importers:
       '@molis-ai/molis-work-plugin-coding':
         specifier: workspace:*
         version: link:plugins/native/coding
+      '@molis-ai/molis-work-plugin-dataset':
+        specifier: workspace:*
+        version: link:plugins/native/dataset
       '@molis-ai/molis-work-plugin-diff':
         specifier: workspace:*
         version: link:plugins/native/diff
@@ -107,6 +113,9 @@ importers:
       '@molis-ai/molis-work-plugin-files':
         specifier: workspace:*
         version: link:plugins/native/files
+      '@molis-ai/molis-work-plugin-form':
+        specifier: workspace:*
+        version: link:plugins/native/form
       '@molis-ai/molis-work-plugin-functions':
         specifier: workspace:*
         version: link:plugins/native/functions
@@ -119,6 +128,12 @@ importers:
       '@molis-ai/molis-work-plugin-inbox':
         specifier: workspace:*
         version: link:plugins/native/inbox
+      '@molis-ai/molis-work-plugin-lingguang':
+        specifier: workspace:*
+        version: link:plugins/native/lingguang
+      '@molis-ai/molis-work-plugin-ppt':
+        specifier: workspace:*
+        version: link:plugins/native/ppt
       '@molis-ai/molis-work-plugin-runtime':
         specifier: workspace:*
         version: link:packages/plugin-runtime
@@ -276,6 +291,9 @@ importers:
       '@molis-ai/molis-work-module-feed':
         specifier: workspace:*
         version: link:../../modules/feed
+      '@molis-ai/molis-work-module-functions':
+        specifier: workspace:*
+        version: link:../../modules/functions
       '@molis-ai/molis-work-module-goals':
         specifier: workspace:*
         version: link:../../modules/goals
@@ -303,6 +321,9 @@ importers:
       '@molis-ai/molis-work-plugin-coding':
         specifier: workspace:*
         version: link:../../plugins/native/coding
+      '@molis-ai/molis-work-plugin-dataset':
+        specifier: workspace:*
+        version: link:../../plugins/native/dataset
       '@molis-ai/molis-work-plugin-diff':
         specifier: workspace:*
         version: link:../../plugins/native/diff
@@ -312,6 +333,9 @@ importers:
       '@molis-ai/molis-work-plugin-files':
         specifier: workspace:*
         version: link:../../plugins/native/files
+      '@molis-ai/molis-work-plugin-form':
+        specifier: workspace:*
+        version: link:../../plugins/native/form
       '@molis-ai/molis-work-plugin-functions':
         specifier: workspace:*
         version: link:../../plugins/native/functions
@@ -324,6 +348,12 @@ importers:
       '@molis-ai/molis-work-plugin-inbox':
         specifier: workspace:*
         version: link:../../plugins/native/inbox
+      '@molis-ai/molis-work-plugin-lingguang':
+        specifier: workspace:*
+        version: link:../../plugins/native/lingguang
+      '@molis-ai/molis-work-plugin-ppt':
+        specifier: workspace:*
+        version: link:../../plugins/native/ppt
       '@molis-ai/molis-work-plugin-runtime':
         specifier: workspace:*
         version: link:../../packages/plugin-runtime
@@ -400,6 +430,9 @@ importers:
       '@molis-ai/molis-work-plugin-coding':
         specifier: workspace:*
         version: link:../../plugins/native/coding
+      '@molis-ai/molis-work-plugin-dataset':
+        specifier: workspace:*
+        version: link:../../plugins/native/dataset
       '@molis-ai/molis-work-plugin-diff':
         specifier: workspace:*
         version: link:../../plugins/native/diff
@@ -409,6 +442,9 @@ importers:
       '@molis-ai/molis-work-plugin-files':
         specifier: workspace:*
         version: link:../../plugins/native/files
+      '@molis-ai/molis-work-plugin-form':
+        specifier: workspace:*
+        version: link:../../plugins/native/form
       '@molis-ai/molis-work-plugin-functions':
         specifier: workspace:*
         version: link:../../plugins/native/functions
@@ -421,6 +457,12 @@ importers:
       '@molis-ai/molis-work-plugin-inbox':
         specifier: workspace:*
         version: link:../../plugins/native/inbox
+      '@molis-ai/molis-work-plugin-lingguang':
+        specifier: workspace:*
+        version: link:../../plugins/native/lingguang
+      '@molis-ai/molis-work-plugin-ppt':
+        specifier: workspace:*
+        version: link:../../plugins/native/ppt
       '@molis-ai/molis-work-plugin-schedule':
         specifier: workspace:*
         version: link:../../plugins/native/schedule
@@ -517,6 +559,12 @@ importers:
       '@molis-ai/molis-work-storage':
         specifier: workspace:*
         version: link:../../packages/storage
+
+  modules/functions:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
 
   modules/goals:
     dependencies:
@@ -638,6 +686,15 @@ importers:
         specifier: workspace:*
         version: link:../../../packages/contracts
 
+  plugins/native/dataset:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../../packages/contracts
+      '@molis-ai/molis-work-design-system':
+        specifier: workspace:*
+        version: link:../../../packages/design-system
+
   plugins/native/diff:
     dependencies:
       '@molis-ai/molis-work-contracts':
@@ -675,6 +732,15 @@ importers:
         specifier: workspace:*
         version: link:../../../packages/contracts
 
+  plugins/native/form:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../../packages/contracts
+      '@molis-ai/molis-work-design-system':
+        specifier: workspace:*
+        version: link:../../../packages/design-system
+
   plugins/native/functions:
     dependencies:
       '@molis-ai/molis-work-contracts':
@@ -683,6 +749,9 @@ importers:
       '@molis-ai/molis-work-design-system':
         specifier: workspace:*
         version: link:../../../packages/design-system
+      '@molis-ai/molis-work-module-functions':
+        specifier: workspace:*
+        version: link:../../../modules/functions
 
   plugins/native/git:
     dependencies:
@@ -710,6 +779,24 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
+
+  plugins/native/lingguang:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../../packages/contracts
+      '@molis-ai/molis-work-design-system':
+        specifier: workspace:*
+        version: link:../../../packages/design-system
+
+  plugins/native/ppt:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../../packages/contracts
+      '@molis-ai/molis-work-design-system':
+        specifier: workspace:*
+        version: link:../../../packages/design-system
 
   plugins/native/schedule:
     dependencies:

@@ -15,6 +15,6 @@ export * from "./ui.js";
 export * from "./projection.js";
 export * from "./routes.js";
 export { createInboxRouteHandlers } from "./route-handlers.js";
-export type { InboxRouteHandlerPorts } from "./route-handlers.js";
+export type { InboxRouteHandlerPorts, InboxJudgmentState, InboxJudgmentChoice } from "./route-handlers.js";
 export { inboxRouteErrorResponse } from "./route-error.js";
 export { INBOX_PLUGIN_ID, INBOX_PROJECT_PLUGIN_ID, inboxManifest } from "./manifest.js";

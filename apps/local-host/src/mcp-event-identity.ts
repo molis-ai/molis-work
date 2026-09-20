@@ -70,8 +70,9 @@ const RUNTIME_READ_TOOLS = new Set([
 export function assertRuntimeOrdinaryToolInput(
   name: string,
   arguments_: Record<string, unknown>,
+  homeScopedNames: ReadonlySet<string> = new Set(),
 ): void {
-  if (isRuntimeContextMcpTool(name)) return;
+  if (isRuntimeContextMcpTool(name) || homeScopedNames.has(name)) return;
   const connection = RUNTIME_CONNECTION_OVERRIDE_FIELDS.filter((field) => Object.hasOwn(arguments_, field));
   const actor = RUNTIME_ACTOR_OVERRIDE_FIELDS.filter((field) => Object.hasOwn(arguments_, field));
   const forged: string[] = RUNTIME_FORGED_AUTHORITY_FIELDS.filter((field) => Object.hasOwn(arguments_, field));
@@ -152,8 +153,9 @@ export function injectRuntimeIdentity(
   host: MolisWorkRuntimeContextHost | null,
   callContext: McpToolCallContext,
   connection: MolisWorkRuntimeConnection,
+  homeScopedNames: ReadonlySet<string> = new Set(),
 ): Record<string, unknown> {
-  if (isRuntimeContextMcpTool(name)) return arguments_;
+  if (isRuntimeContextMcpTool(name) || homeScopedNames.has(name)) return arguments_;
   const withBoard = { ...arguments_, board_id: connection.boardId };
   if (RUNTIME_READ_TOOLS.has(name)) return withBoard;
   const actor = runtimeEventActor(host, callContext);

@@ -58,6 +58,30 @@ import {
   type FunctionsUiSurface,
   type FunctionsSettingsUiModel,
 } from "@molis-ai/molis-work-plugin-functions";
+import {
+  FORM_UI_CONTRIBUTION_ID,
+  formUiContribution,
+  type FormUiModel,
+  type FormUiSurface,
+} from "@molis-ai/molis-work-plugin-form";
+import {
+  DATASET_UI_CONTRIBUTION_ID,
+  datasetUiContribution,
+  type DatasetUiModel,
+  type DatasetUiSurface,
+} from "@molis-ai/molis-work-plugin-dataset";
+import {
+  PPT_UI_CONTRIBUTION_ID,
+  pptUiContribution,
+  type PptUiModel,
+  type PptUiSurface,
+} from "@molis-ai/molis-work-plugin-ppt";
+import {
+  LINGGUANG_UI_CONTRIBUTION_ID,
+  lingguangUiContribution,
+  type LingguangUiModel,
+  type LingguangUiSurface,
+} from "@molis-ai/molis-work-plugin-lingguang";
 import { workUiContribution, workTerminalUiContribution, WORK_TERMINAL_UI_CONTRIBUTION_ID, type WorkTerminalUiModel } from "@molis-ai/molis-work-plugin-work";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { createArtifactWorkbenchRenderer, type ArtifactWorkbenchRequest } from "./artifact-ui.js";
@@ -101,6 +125,26 @@ const SHELF_SURFACE_SLOTS: Readonly<Record<ShelfUiSurface, UiSlotDescriptor>> = 
 };
 
 const FUNCTIONS_SURFACE_SLOTS: Readonly<Record<FunctionsUiSurface, UiSlotDescriptor>> = {
+  directory: WORKBENCH_UI_SLOTS.directory,
+  workbench: WORKBENCH_UI_SLOTS.main,
+};
+
+const FORM_SURFACE_SLOTS: Readonly<Record<FormUiSurface, UiSlotDescriptor>> = {
+  directory: WORKBENCH_UI_SLOTS.directory,
+  workbench: WORKBENCH_UI_SLOTS.main,
+};
+
+const DATASET_SURFACE_SLOTS: Readonly<Record<DatasetUiSurface, UiSlotDescriptor>> = {
+  directory: WORKBENCH_UI_SLOTS.directory,
+  workbench: WORKBENCH_UI_SLOTS.main,
+};
+
+const PPT_SURFACE_SLOTS: Readonly<Record<PptUiSurface, UiSlotDescriptor>> = {
+  directory: WORKBENCH_UI_SLOTS.directory,
+  workbench: WORKBENCH_UI_SLOTS.main,
+};
+
+const LINGGUANG_SURFACE_SLOTS: Readonly<Record<LingguangUiSurface, UiSlotDescriptor>> = {
   directory: WORKBENCH_UI_SLOTS.directory,
   workbench: WORKBENCH_UI_SLOTS.main,
 };
@@ -170,6 +214,10 @@ export function createWorkbenchUiHost(): UiHost {
   host.register(shelfSettingsUiContribution);
   host.register(functionsUiContribution);
   host.register(functionsSettingsUiContribution);
+  host.register(formUiContribution);
+  host.register(datasetUiContribution);
+  host.register(pptUiContribution);
+  host.register(lingguangUiContribution);
   host.register(workUiContribution);
   host.register(workTerminalUiContribution);
   host.register(artifactReferenceUiContribution);
@@ -302,6 +350,62 @@ export function renderFunctionsContribution(
     slot: FUNCTIONS_SURFACE_SLOTS[surface],
     contribution: {
       contribution_id: FUNCTIONS_UI_CONTRIBUTION_ID,
+      surface,
+      model,
+    },
+  }).html;
+}
+
+export function renderFormContribution(
+  surface: FormUiSurface,
+  model: FormUiModel,
+): string {
+  return workbenchUiHost.mount({
+    slot: FORM_SURFACE_SLOTS[surface],
+    contribution: {
+      contribution_id: FORM_UI_CONTRIBUTION_ID,
+      surface,
+      model,
+    },
+  }).html;
+}
+
+export function renderDatasetContribution(
+  surface: DatasetUiSurface,
+  model: DatasetUiModel,
+): string {
+  return workbenchUiHost.mount({
+    slot: DATASET_SURFACE_SLOTS[surface],
+    contribution: {
+      contribution_id: DATASET_UI_CONTRIBUTION_ID,
+      surface,
+      model,
+    },
+  }).html;
+}
+
+export function renderPptContribution(
+  surface: PptUiSurface,
+  model: PptUiModel,
+): string {
+  return workbenchUiHost.mount({
+    slot: PPT_SURFACE_SLOTS[surface],
+    contribution: {
+      contribution_id: PPT_UI_CONTRIBUTION_ID,
+      surface,
+      model,
+    },
+  }).html;
+}
+
+export function renderLingguangContribution(
+  surface: LingguangUiSurface,
+  model: LingguangUiModel,
+): string {
+  return workbenchUiHost.mount({
+    slot: LINGGUANG_SURFACE_SLOTS[surface],
+    contribution: {
+      contribution_id: LINGGUANG_UI_CONTRIBUTION_ID,
       surface,
       model,
     },

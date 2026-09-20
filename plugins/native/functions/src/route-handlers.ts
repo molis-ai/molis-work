@@ -61,6 +61,10 @@ export function createFunctionsRouteHandlers(service: FunctionsService): Record<
       status: 200,
       body: { function: service.removeSample(params.id ?? "", stringField(request.body.sample_id) ?? "") },
     }),
+    "functions.usages": ({ params }) => {
+      const record = service.get(params.id ?? "");
+      return { status: 200, body: { usages: service.listSceneBindings(record.function_key) } };
+    },
   };
 }
 

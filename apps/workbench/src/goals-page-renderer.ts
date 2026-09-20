@@ -4,6 +4,7 @@ import type { ProjectOperationsData, ProjectOperationsProject, ProjectOperations
 
 import type { MolisWorkIcon as PageIcon } from "@molis-ai/molis-work-design-system";
 import { renderDirectoryPluginSections, renderImmersiveHeader, renderImmersiveGoalHeader, renderGoalDetailsAside, renderImmersiveWorkTabs, renderPluginRail, renderProjectHome, renderPluginMarket, renderGlobalSearchOverlay, renderWorkspaceChrome } from "./immersive-shell.js";
+import { PERSONAL_PLUGIN_IDS } from "./plugin-catalog.js";
 import { renderPluginRailAccountFooter, renderProjectSettingsDirectorySection, renderProjectSettingsWorkSurface, renderSettingsDirectorySection, renderSettingsWorkSurface } from "./settings-directory.js";
 import { renderRuntimePlanDialog } from "./settings-appearance.js";
 type Translate = (text: string, values?: Record<string, string | number>) => string;
@@ -72,6 +73,10 @@ export interface WorkbenchGoalsPageOwners<TItem extends GoalCollectionItem, TVie
   renderScheduleNativePluginSurface(view: TView, surface: "directory" | "workbench"): string;
   renderShelfNativePluginSurface(surface: "directory" | "workbench"): string;
   renderFunctionsNativePluginSurface(surface: "directory" | "workbench"): string;
+  renderFormNativePluginSurface(surface: "directory" | "workbench"): string;
+  renderDatasetNativePluginSurface(surface: "directory" | "workbench"): string;
+  renderPptNativePluginSurface(surface: "directory" | "workbench"): string;
+  renderLingguangNativePluginSurface(surface: "directory" | "workbench"): string;
 }
 
 /** Workbench owns placement; Goals/Feed/Work owners retain their actual UI and facts. */
@@ -84,7 +89,7 @@ export function createWorkbenchGoalsPageRenderer<TItem extends GoalCollectionIte
     renderGoalDocument, renderTrashGoalDocument, goalsDocumentRenderer, goalsTreeRenderer,
     renderCreateDialog, renderGoalTrashDialog, renderMomentumPlaceholder, renderGoalKanban, renderTuiPane,
     renderProjectOperations, renderDesktopProjectChrome,
-    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderShelfNativePluginSurface, renderFunctionsNativePluginSurface } = owners;
+    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderShelfNativePluginSurface, renderFunctionsNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderLingguangNativePluginSurface } = owners;
 
 function renderMolisWorkRefreshFragment(
   view: TView,
@@ -198,6 +203,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
       class: "immersive-workbench",
       "data-board-view": decisionView ? "decisions" : trashView ? "trash" : archiveView ? "archive" : "current",
       "data-route-prefix": view.route_prefix,
+      "data-project-id": view.project?.project_id || "",
       "data-desktop-shell": "true",
       "data-desktop-surface": initialDesktopSurface,
       "data-native-desktop": desktopShell ? "true" : null,
@@ -221,7 +227,11 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
             ? renderFeedNativePluginSurface(view, "source-directory", initialFeedPreset)
             : "",
           shelf: "",
+          lingguang: "",
           functions: "",
+          form: "",
+          dataset: "",
+          ppt: "",
           artifacts: "",
           // A running Plugin's own panel wins over the built-in blank.
           ...(view.plugin_panels ?? {}),
@@ -243,6 +253,10 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
             ${renderScheduleNativePluginSurface(view, "workbench")}
             ${renderShelfNativePluginSurface("workbench")}
             ${renderFunctionsNativePluginSurface("workbench")}
+            ${renderFormNativePluginSurface("workbench")}
+            ${renderDatasetNativePluginSurface("workbench")}
+            ${renderPptNativePluginSurface("workbench")}
+            ${renderLingguangNativePluginSurface("workbench")}
             ${renderFeedNativePluginSurface(view, "workbench", initialFeedPreset, [], false)}
             ${renderFeedNativePluginSurface(view, "source-workbench", initialFeedPreset)}
             <section class="desktop-work-surface immersive-artifact-surface plugin-stage-shell" data-work-surface="artifacts" data-work-surface-label="Artifacts" data-artifact-stage-shell data-expanded="false" hidden><div class="plugin-stage-list feed-stage-tree" data-artifact-directory></div><div class="plugin-stage-workspace" data-artifact-stage-workspace hidden><div data-artifact-detail></div></div></section>
@@ -272,7 +286,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
 
 function withPersonalPlugins(enabled: readonly string[]): string[] {
   const next = [...enabled];
-  for (const personal of ["shelf", "functions"] as const) {
+  for (const personal of PERSONAL_PLUGIN_IDS) {
     if (next.includes(personal)) continue;
     const artifactsAt = next.indexOf("artifacts");
     if (artifactsAt >= 0) next.splice(artifactsAt, 0, personal);

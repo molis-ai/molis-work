@@ -6,6 +6,7 @@ import {
   INBOX_UI_CONTRIBUTION_ID,
   InboxPluginRouteTable,
   buildInboxUiEntries,
+  createInboxRouteHandlers,
   inboxUiContribution,
   type InboxPluginRouteHandler,
   type InboxUiEntry,
@@ -86,6 +87,7 @@ test("Workbench registers the Inbox UI Contribution through the generic UI Host"
   assert.match(workbench, /data-inbox-list/);
   assert.match(workbench, /data-inbox-stage-shell/);
   assert.match(workbench, /现在没有需要你介入的事项/);
+  assert.doesNotMatch(workbench, /data-inbox-judgment/);
   assert.doesNotMatch(workbench, /Goal 待判断、来源故障|会出现在这里/);
   assert.doesNotMatch(workbench, /data-feed-directory|data-feed-list|data-feed-entry-id/);
   assert.doesNotMatch(workbench, /选择一条需要处理的事项/);
@@ -171,6 +173,82 @@ test("Inbox directory lists Attention reason, related object, and next step with
   assert.match(rendered.workbench, /plugin-stage-detail-bar[\s\S]*feed-detail-kicker[\s\S]*feed-detail-header/);
   assert.doesNotMatch(rendered.workbench, /Inbox 只保存这条引用和进入原因/);
   assert.doesNotMatch(rendered.workbench, /data-feed-workbench|data-feed-detail=/);
+});
+
+test("Inbox list shows a board-level judgment binder when Host injects published functions", () => {
+  const host = new UiHost();
+  host.register(inboxUiContribution);
+  const workbench = host.render({
+    contribution_id: INBOX_UI_CONTRIBUTION_ID,
+    surface: "workbench",
+    model: model({
+      judgment: {
+        function_key: "system_admit_inbox",
+        functions: [
+          { function_key: "system_admit_inbox", name: "是否进 Inbox" },
+          { function_key: "system_pick_home_dock", name: "挑首页按钮" },
+        ],
+      },
+    }),
+  });
+  assert.match(workbench, /data-inbox-judgment/);
+  assert.match(workbench, /value="system_admit_inbox" selected/);
+  assert.match(workbench, /下一步判断/);
+});
+
+test("Inbox judgment routes bind and unbind through Host ports", async () => {
+  let key: string | null = null;
+  let changed = 0;
+  const routes = new InboxPluginRouteTable(createInboxRouteHandlers({
+    listEntries: () => [],
+    setStatus: () => {
+      throw new Error("unused");
+    },
+    changed() { changed += 1; },
+    readJudgment: () => ({
+      function_key: key,
+      functions: [{ function_key: "system_admit_inbox", name: "是否进 Inbox" }],
+    }),
+    writeJudgment: (next) => {
+      key = next;
+      return { function_key: next };
+    },
+  }));
+  const listed = await routes.handle({
+    method: "GET",
+    pathname: "/api/inbox/judgment",
+    query: new URLSearchParams(),
+    body: {},
+  });
+  assert.equal(listed?.status, 200);
+  assert.equal((listed?.body as { function_key: string | null }).function_key, null);
+
+  const bound = await routes.handle({
+    method: "POST",
+    pathname: "/api/inbox/judgment",
+    query: new URLSearchParams(),
+    body: { function_key: "system_admit_inbox" },
+  });
+  assert.equal(bound?.status, 200);
+  assert.equal((bound?.body as { function_key: string }).function_key, "system_admit_inbox");
+  assert.equal(changed, 1);
+
+  const reread = await routes.handle({
+    method: "GET",
+    pathname: "/api/inbox/judgment",
+    query: new URLSearchParams(),
+    body: {},
+  });
+  assert.equal((reread?.body as { function_key: string }).function_key, "system_admit_inbox");
+
+  const unbound = await routes.handle({
+    method: "POST",
+    pathname: "/api/inbox/judgment",
+    query: new URLSearchParams(),
+    body: { function_key: null },
+  });
+  assert.equal((unbound?.body as { function_key: string | null }).function_key, null);
+  assert.equal(changed, 2);
 });
 
 test("Inbox projection keeps references and ranks active entries first", () => {

@@ -30,6 +30,7 @@ import {
 import {
   listPluginSettingsNavItems,
   pluginSettingsNavItemsFrom,
+  isHostGlobalSettingsSection,
 } from "../apps/workbench/src/plugin-settings-catalog.ts";
 import { renderAppearanceSettingsDocument } from "../apps/workbench/src/settings-appearance.ts";
 import { renderSettingsDirectorySection } from "../apps/workbench/src/settings-directory.ts";
@@ -117,9 +118,18 @@ test("old Shelf catalogs without settings keep the drop wheel on", async () => {
 });
 
 test("settings catalog lists registered settings-pages and ignores Feed, Inbox, and host slugs", () => {
+  assert.equal(isHostGlobalSettingsSection("mcp"), true);
+  assert.equal(isHostGlobalSettingsSection("runtimes"), true);
+  assert.equal(isHostGlobalSettingsSection("functions"), false);
   assert.deepEqual(pluginSettingsNavItemsFrom([]), []);
   assert.deepEqual(
     pluginSettingsNavItemsFrom([feedUiContribution.descriptor, inboxUiContribution.descriptor]),
+    [],
+  );
+  assert.deepEqual(
+    pluginSettingsNavItemsFrom([
+      settingsPage({ navigation_id: "mcp", label: "Should not steal MCP" }),
+    ]),
     [],
   );
   assert.deepEqual(
@@ -146,6 +156,7 @@ test("settings catalog lists registered settings-pages and ignores Feed, Inbox, 
   assert.deepEqual(listed.map((item) => item.section_id), ["shelf", "example"]);
   const live = listPluginSettingsNavItems();
   assert.deepEqual(live.map((item) => item.section_id), ["shelf", "functions"]);
+  assert.equal(live.some((item) => item.section_id === "mcp"), false);
   assert.equal(live[0]?.contribution_id, SHELF_SETTINGS_UI_CONTRIBUTION_ID);
   assert.equal(live[0]?.label, "Shelf");
   assert.equal(live[1]?.section_id, "functions");
@@ -206,6 +217,7 @@ test("workbench settings directory and standalone settings both show Shelf after
   const directory = renderSettingsDirectorySection(directoryPrimitives);
   assert.match(directory, /data-settings-section="appearance"/);
   assert.match(directory, /data-settings-section="runtimes"/);
+  assert.match(directory, /data-settings-section="mcp"/);
   assert.match(directory, /data-settings-section="planning"/);
   assert.match(directory, /data-settings-section="diagnostics"/);
   assert.match(directory, /data-settings-section="shelf"/);
@@ -235,8 +247,34 @@ test("workbench settings directory and standalone settings both show Shelf after
     diagnostics,
   });
   assert.match(appearance, /href="\/settings\/shelf"/);
+  assert.match(appearance, /href="\/settings\/mcp"/);
   assert.match(appearance, /class="settings-document appearance-document"/);
   assert.doesNotMatch(appearance, /data-settings-panel="shelf"|name="drop_wheel_enabled"|class="shelf-settings-document"/);
+});
+
+test("MCP settings page is a Host global section, not a Functions settings-page", () => {
+  const html = renderMolisWorkSettings({
+    section: "mcp",
+    runtimes: [],
+    mcp_tools: [{
+      name: "molis_work_v1_functions_invoke",
+      description: "调用一个已发布判断函数。",
+      group_id: "functions",
+      group_title: "Functions",
+      enabled: true,
+      effect: "write",
+    }],
+    projects: [],
+    web_service: webService,
+    diagnostics,
+  });
+  assert.match(html, /data-settings-section="mcp"/);
+  assert.match(html, /data-mcp-settings/);
+  assert.match(html, /data-mcp-group="functions"/);
+  assert.match(html, /data-mcp-tool="molis_work_v1_functions_invoke"/);
+  assert.match(html, /href="\/settings\/mcp"/);
+  assert.match(html, /href="\/settings\/functions"/);
+  assert.doesNotMatch(html, /data-settings-panel="functions"/);
 });
 
 test("Shelf drop-wheel preference persists through the store and HTTP settings page", async (t) => {

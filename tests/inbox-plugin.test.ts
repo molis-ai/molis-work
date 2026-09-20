@@ -66,6 +66,8 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
   assert.doesNotMatch(inboxDirectory, /data-feed-directory|data-feed-list|data-feed-entry-id/);
   assert.match(page, /data-inbox-open-feed="inbox-plugin-item"/);
   assert.match(page, /data-feed-entry-id="inbox-plugin-item"/);
+  assert.match(inboxDirectory, /data-inbox-judgment/);
+  assert.match(inboxDirectory, /system_admit_inbox/);
   assert.doesNotMatch(page, /data-feed-entry-type="inbox_message"|data-feed-entry-id="inbox:/);
 
   const missingRevision = await webFetch(`${origin}${prefix}/api/inbox/entries/${entryId}/status`, {
@@ -137,6 +139,44 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
     body: JSON.stringify({ status: "done", expected_revision: 1 }),
   });
   assert.equal(missing.status, 404);
+
+  const judgment = await webFetch(`${origin}${prefix}/api/inbox/judgment`);
+  assert.equal(judgment.status, 200);
+  const judgmentBody = await judgment.json() as {
+    function_key: string | null;
+    functions: Array<{ function_key: string; name: string }>;
+  };
+  assert.equal(judgmentBody.function_key, null);
+  assert.ok(judgmentBody.functions.some((row) => row.function_key === "system_admit_inbox"));
+
+  const bound = await webFetch(`${origin}${prefix}/api/inbox/judgment`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ function_key: "system_admit_inbox" }),
+  });
+  assert.equal(bound.status, 200);
+  assert.equal((await bound.json() as { function_key: string }).function_key, "system_admit_inbox");
+
+  const rebound = await webFetch(`${origin}${prefix}/api/inbox/judgment`);
+  assert.equal((await rebound.json() as { function_key: string }).function_key, "system_admit_inbox");
+
+  const afterBind = await (await webFetch(`${origin}${prefix}/`)).text();
+  assert.match(afterBind, /value="system_admit_inbox" selected/);
+
+  const unpublished = await webFetch(`${origin}${prefix}/api/inbox/judgment`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ function_key: "not_a_published_function" }),
+  });
+  assert.equal(unpublished.status, 400);
+
+  const unbound = await webFetch(`${origin}${prefix}/api/inbox/judgment`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ function_key: null }),
+  });
+  assert.equal(unbound.status, 200);
+  assert.equal((await unbound.json() as { function_key: string | null }).function_key, null);
 
   function webFetch(input: string, init: RequestInit = {}): Promise<Response> {
     const method = (init.method ?? "GET").toUpperCase();

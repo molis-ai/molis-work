@@ -54,4 +54,8 @@ export const FUNCTIONS_EN: Record<string, string> = {
   "确定删除这个草稿？": "Delete this draft?",
   "模型概率不是正确率。": "Model probability is not accuracy.",
   "判断完成": "Judged",
+  "被用在哪": "Used in",
+  "首页卡底": "Home dock",
+  "Feed 捕捉规则": "Feed capture rules",
+  "Inbox 下一步": "Inbox next step",
 };

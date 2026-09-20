@@ -207,6 +207,15 @@ export const PROJECT_HOME_STYLES = `
   .immersive-home .home-detail__facts > div:last-child { border-bottom: 0; }
   .immersive-home .home-detail__facts dt { color: var(--faint); }
   .immersive-home .home-detail__facts dd { margin: 0; color: var(--ink-soft); }
+  .immersive-home .home-detail__judgment {
+    display: flex; flex-direction: column; gap: 6px;
+    margin: 16px 0 0; padding-top: 14px; border-top: 1px solid var(--line);
+  }
+  .immersive-home .home-detail__judgment span { color: var(--faint); font-size: 12px; }
+  .immersive-home .home-detail__judgment select {
+    height: 32px; max-width: 100%; border: 1px solid var(--line); border-radius: 6px;
+    background: var(--paper); color: var(--ink); font-size: 12px; padding: 0 8px;
+  }
   .immersive-home .home-detail__act {
     flex: none; display: flex; flex-wrap: nowrap; align-items: center;
     justify-content: space-between; gap: 8px;

@@ -42,7 +42,8 @@ Manifest 内部的一致性由解析器保证，而不是留到运行时才炸�
 - **输入图**：端口连线、输入组、固定 Artifact 版本投递、失效先撤权再通知、跨作用域一致性检查。
   连线和端口当前版本都落库，重启后恢复。
 - **声明式装配**：导航位置、命令、HTTP 路由全部由 Manifest 推导；路由统一挂在
-  `/api/plugins/<plugin_id>/` 下，未声明的路径到不了插件。
+  `/api/plugins/<plugin_id>/` 下，未声明的路径到不了插件。对外 MCP 同样由 Manifest
+  `mcp_exports` 登记本地 `tool_id`，Host 盖名并合成唯一 `molis-work-mcp` 目录；插件不自己开 MCP 进程。`agent.mcp` 是插件内 Agent 调外部 MCP，不是对外贡献。作者步骤见 [Plugin 开发 · 对外 MCP](PLUGIN-DEVELOPMENT.md#对外-mcp)。
 - **隔离与重启**：一个插件启动失败只影响自己；显式 `stop` 不消耗崩溃恢复额度；
   启动后必须**兑现** Manifest 声明的视图与路由，否则判为启动失败并撤权。
 

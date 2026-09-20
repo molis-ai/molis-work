@@ -19,6 +19,10 @@ import { INBOX_PROJECT_PLUGIN_ID, inboxManifest } from "@molis-ai/molis-work-plu
 import { SCHEDULE_PROJECT_PLUGIN_ID, scheduleManifest, schedulePrompts } from "@molis-ai/molis-work-plugin-schedule";
 import { SHELF_PROJECT_PLUGIN_ID, shelfManifest } from "@molis-ai/molis-work-plugin-shelf";
 import { FUNCTIONS_PROJECT_PLUGIN_ID, functionsManifest } from "@molis-ai/molis-work-plugin-functions";
+import { FORM_PROJECT_PLUGIN_ID, formManifest } from "@molis-ai/molis-work-plugin-form";
+import { DATASET_PROJECT_PLUGIN_ID, datasetManifest } from "@molis-ai/molis-work-plugin-dataset";
+import { PPT_PROJECT_PLUGIN_ID, pptManifest } from "@molis-ai/molis-work-plugin-ppt";
+import { LINGGUANG_PROJECT_PLUGIN_ID, lingguangManifest } from "@molis-ai/molis-work-plugin-lingguang";
 import { WORK_PROJECT_PLUGIN_ID, workManifest } from "@molis-ai/molis-work-plugin-work";
 
 /**
@@ -32,17 +36,31 @@ export interface BuiltinPluginEntry {
   manifest: PluginManifest;
   /** Always available rather than per-project. Shelf and Functions are personal, not project scoped. */
   personal?: boolean;
+  /** Market card copy. Presence means this Plugin is listed in the built-in market. */
+  summary?: string;
+}
+
+export interface PluginMarketCard {
+  readonly id: ProjectPluginId;
+  readonly label: string;
+  readonly glyph: string;
+  readonly copy: string;
+  readonly personal: boolean;
 }
 
 export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
-  { project_plugin_id: GOALS_PROJECT_PLUGIN_ID, manifest: goalsManifest },
-  { project_plugin_id: WORK_PROJECT_PLUGIN_ID, manifest: workManifest },
-  { project_plugin_id: INBOX_PROJECT_PLUGIN_ID, manifest: inboxManifest },
-  { project_plugin_id: SCHEDULE_PROJECT_PLUGIN_ID, manifest: scheduleManifest },
-  { project_plugin_id: FEED_PROJECT_PLUGIN_ID, manifest: feedManifest },
-  { project_plugin_id: SHELF_PROJECT_PLUGIN_ID, manifest: shelfManifest, personal: true },
-  { project_plugin_id: FUNCTIONS_PROJECT_PLUGIN_ID, manifest: functionsManifest, personal: true },
-  { project_plugin_id: ARTIFACTS_PROJECT_PLUGIN_ID, manifest: artifactsManifest },
+  { project_plugin_id: GOALS_PROJECT_PLUGIN_ID, manifest: goalsManifest, summary: "确定目标，推进工作，留下结果。" },
+  { project_plugin_id: WORK_PROJECT_PLUGIN_ID, manifest: workManifest, summary: "回到你的会话，继续正在做的事。" },
+  { project_plugin_id: INBOX_PROJECT_PLUGIN_ID, manifest: inboxManifest, summary: "只看需要你介入的事项。" },
+  { project_plugin_id: SCHEDULE_PROJECT_PLUGIN_ID, manifest: scheduleManifest, summary: "到点跑自己的对话任务，也叫醒其他插件的闹钟。" },
+  { project_plugin_id: FEED_PROJECT_PLUGIN_ID, manifest: feedManifest, summary: "查看来源消息和完整流水。" },
+  { project_plugin_id: SHELF_PROJECT_PLUGIN_ID, manifest: shelfManifest, personal: true, summary: "把文件放到置物架，处理副本，原件不动。" },
+  { project_plugin_id: LINGGUANG_PROJECT_PLUGIN_ID, manifest: lingguangManifest, personal: true, summary: "先记下还没想清楚的想法，再决定留下或丢掉。" },
+  { project_plugin_id: FUNCTIONS_PROJECT_PLUGIN_ID, manifest: functionsManifest, personal: true, summary: "把一段输入交给 Jev，得到一个有版本的判断。" },
+  { project_plugin_id: FORM_PROJECT_PLUGIN_ID, manifest: formManifest, personal: true, summary: "建问卷，预览填写，看结果。" },
+  { project_plugin_id: DATASET_PROJECT_PLUGIN_ID, manifest: datasetManifest, personal: true, summary: "改表格，导入 CSV，留下版本。" },
+  { project_plugin_id: PPT_PROJECT_PLUGIN_ID, manifest: pptManifest, personal: true, summary: "写幻灯片大纲，预览并导出 JSON。" },
+  { project_plugin_id: ARTIFACTS_PROJECT_PLUGIN_ID, manifest: artifactsManifest, summary: "打开项目成果，查看保留下来的版本。" },
   { project_plugin_id: CODING_PROJECT_PLUGIN_ID, manifest: codingManifest },
   { project_plugin_id: WORKSPACE_PROJECT_PLUGIN_ID, manifest: workspaceManifest },
   { project_plugin_id: FILES_PROJECT_PLUGIN_ID, manifest: filesManifest },
@@ -60,6 +78,33 @@ export const PROJECT_SCOPED_PLUGIN_IDS: readonly ProjectPluginId[] = BUILTIN_PLU
 export const PERSONAL_PLUGIN_IDS: readonly ProjectPluginId[] = BUILTIN_PLUGIN_CATALOG
   .filter((entry) => entry.personal === true)
   .map((entry) => entry.project_plugin_id);
+
+/**
+ * Host chrome that opens a Plugin's own stage instead of a nested directory.
+ * Personal Plugins join this set automatically.
+ */
+export const DIRECT_WORK_SURFACE_IDS: ReadonlySet<string> = new Set([
+  "home",
+  "market",
+  "feed",
+  "goals",
+  "sessions",
+  "inbox",
+  "schedule",
+  "artifacts",
+  ...PERSONAL_PLUGIN_IDS,
+]);
+
+/** Directory panels owned by a Plugin stage, including Feed's sources alias. */
+export const OWN_DIRECTORY_SURFACES: readonly string[] = [
+  "feed",
+  "sources",
+  "sessions",
+  "inbox",
+  "schedule",
+  "artifacts",
+  ...PERSONAL_PLUGIN_IDS,
+];
 
 /**
  * Plugins that must come along, worked out from the Manifests.
@@ -150,6 +195,34 @@ export function settingsEntries(enabled: readonly ProjectPluginId[]): UiPlacedVi
 
 export function manifestFor(projectPluginId: ProjectPluginId): PluginManifest | undefined {
   return entryFor(projectPluginId)?.manifest;
+}
+
+export function pluginMarketCards(): readonly PluginMarketCard[] {
+  return BUILTIN_PLUGIN_CATALOG.flatMap((entry) => {
+    if (!entry.summary) return [];
+    const nav = entry.manifest.ui?.views?.find((view) => view.slot === "navigator");
+    return [{
+      id: entry.project_plugin_id,
+      label: nav?.title ?? entry.manifest.name,
+      glyph: nav?.icon ?? "package",
+      copy: entry.summary,
+      personal: entry.personal === true,
+    }];
+  });
+}
+
+export function pluginTabGlyphs(): Record<string, string> {
+  return Object.fromEntries([
+    ["home", "home"],
+    ["market", "grid"],
+    ...railEntries([...PROJECT_SCOPED_PLUGIN_IDS, ...PERSONAL_PLUGIN_IDS]).map((entry) => [entry.id, entry.glyph]),
+  ]);
+}
+
+export function pluginTabTitles(): Record<string, string> {
+  return Object.fromEntries(
+    railEntries([...PROJECT_SCOPED_PLUGIN_IDS, ...PERSONAL_PLUGIN_IDS]).map((entry) => [entry.id, entry.label]),
+  );
 }
 
 /**

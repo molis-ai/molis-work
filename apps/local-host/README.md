@@ -18,13 +18,17 @@ createMolisWorkLocalHost 为项目创建运行实例与 Host Client；同一项�
 | [src/local-host.ts](src/local-host.ts) | Host Client 与调用生命周期 |
 | [src/project-capabilities.ts](src/project-capabilities.ts) | 能力绑定 |
 | [src/web-server.ts](src/web-server.ts) | Web 请求与 Home 装配 |
+| [src/mcp-server.ts](src/mcp-server.ts) | 唯一对外 MCP 进程装配；按目录条目分发 |
+| [src/mcp-catalog.ts](src/mcp-catalog.ts) | 平台 schema + 插件 `mcp_exports` 合成目录 |
+| [src/mcp-native-plugins.ts](src/mcp-native-plugins.ts) | Native 插件 MCP 适配表；新产品加一条 |
+| [src/mcp-store-plugin-adapter.ts](src/mcp-store-plugin-adapter.ts) | Forms / Dataset / PPT：打开本机 store，注入绑定项目 |
 | [src/goal-project-application.ts](src/goal-project-application.ts) | 跨 Module 应用组合 |
 
 可对照现有调用方 [apps/desktop/src/web-host.ts](../desktop/src/web-host.ts) 阅读装配方式。
 
 ## 接入与边界
 
-本包负责连接、事务装配、文件与 HTTP/进程 IO，不复制 Module 的业务规则。withScope 保持响应组合期间的资源存活，内部 invoke 仍进入正常队列。当前 Host Client 是进程内实现，不代表已有独立守护进程协议。
+本包负责连接、事务装配、文件与 HTTP/进程 IO，不复制 Module 的业务规则。withScope 保持响应组合期间的资源存活，内部 invoke 仍进入正常队列。当前 Host Client 是进程内实现，不代表已有独立守护进程协议。对外 MCP 由本包装配：目录合成、闸门、native 适配表见 [CLI 与开发 · 对外 MCP](../../docs/cli-and-development.md#对外-mcp)。
 
 本包的装配依赖见 [package.json](package.json)；包之间的允许方向由仓库边界检查约束。
 

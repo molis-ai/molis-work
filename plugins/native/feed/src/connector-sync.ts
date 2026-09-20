@@ -57,6 +57,7 @@ export class FeedConnectorSync {
         });
       });
       listenerResult = await listener.run(operationId, input.mode ?? "normal");
+      await this.feed.flushPendingJudgments();
     } catch (error) {
       const updatedAt = new Date().toISOString();
       const errorCode = error instanceof ListenerHostError ? error.code : safeConnectorErrorCode(error);
@@ -114,6 +115,7 @@ export class FeedConnectorSync {
         ? `${source.name} 授权已失效或不可用，请打开任务设置中的“管理账号连接”重新授权。`
         : action ? `${message} — ${action}` : message;
       this.recordActionableSourceFault(source, listenerResult.error_code!, publicMessage, completedAt);
+      await this.feed.flushPendingJudgments();
       throw new FeedDomainError(publicMessage, listenerResult.error_code!);
     }
     const mode = connectorReceipt.mode === "fixture" ? "fixture" : "live";

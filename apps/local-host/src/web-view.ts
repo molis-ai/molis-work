@@ -10,10 +10,12 @@ import { listFeedSourceCatalog } from "./feed-source-service.js";
 import { createLocalFeedConnectorService } from "./feed-connector-service.js";
 import { scheduleServiceFor, scheduleViewFingerprint } from "./schedule-runtime.js";
 import { createScheduleRouteHandlerPorts } from "@molis-ai/molis-work-plugin-schedule";
+import { createFunctionsJudgmentPort, readFunctionScenesView } from "./functions-host.js";
 
 export interface WebViewOptions {
   databasePath: string; boardId: string; demo?: boolean; projectRoot?: string;
   project?: WebProjectNavigation | null; projects?: WebProjectNavigation[]; routePrefix?: string;
+  homeDirectory?: string;
 }
 
 interface MolisWorkWebViewCacheEntry {
@@ -24,13 +26,19 @@ interface MolisWorkWebViewCacheEntry {
 
 export type MolisWorkWebViewCache = Map<string, MolisWorkWebViewCacheEntry>;
 
-function feedDirectorySnapshot(feed: FeedApplication, boardId: string): FeedSnapshot {
+function feedDirectorySnapshot(feed: FeedApplication, boardId: string, homeDirectory?: string): FeedSnapshot {
   const snapshot = feed.snapshot(boardId);
+  const judgments = homeDirectory ? createFunctionsJudgmentPort(homeDirectory) : null;
   return {
     ...snapshot,
+    inbox_entries: snapshot.inbox_entries.map((entry) => ({
+      ...entry,
+      suggested_behavior_ids: judgments?.latest("inbox_entry", entry.entry_id, boardId)?.suggested_behavior_ids ?? [],
+    })),
     feed_items: snapshot.feed_items.map((item) => ({
       ...item,
       body: null,
+      suggested_behavior_ids: judgments?.latest("feed_item", item.item_id, boardId)?.suggested_behavior_ids ?? [],
       materials: item.materials.map((material) => ({ ...material, content: undefined })),
     })),
   };
@@ -62,10 +70,13 @@ export function buildMolisWorkWebView(store: LocalProjectDatabase, coordinator: 
     archived_goals: collection.archived_goals, trashed_goals: collection.trashed_goals,
     counts: collection.counts, coverage: collection.coverage, input_bindings: collection.input_bindings,
     policy_bindings: collection.policy_bindings, events: collection.events,
-    feed: feedDirectorySnapshot(createLocalFeedApplication(store.db), options.boardId),
+    feed: feedDirectorySnapshot(createLocalFeedApplication(store.db), options.boardId, options.homeDirectory),
     feed_source_catalog: listFeedSourceCatalog(),
     feed_connector_auth: createLocalFeedConnectorService(store.db, options.boardId).authStatus(),
     ...scheduleProjection(store.db),
+    function_scenes: options.homeDirectory
+      ? readFunctionScenesView(options.homeDirectory, options.boardId)
+      : undefined,
   };
 }
 
@@ -85,6 +96,7 @@ export function cachedMolisWorkWebView(
     projects: options.projects ?? [],
     route_prefix: options.routePrefix ?? "",
     schedule: scheduleViewFingerprint(store.db),
+    home_directory: options.homeDirectory ?? "",
   });
   const cached = cache.get(options.databasePath);
   if (

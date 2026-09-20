@@ -62,6 +62,7 @@ function buildFeedNativePluginModel(
       contains: rule.match.contains ?? null,
       source_id: rule.match.source_id ?? null,
       source_kind: rule.match.source_kind ?? null,
+      function_key: rule.function_key ?? null,
     })),
     primitives: feedUiPrimitives,
     demo: view.demo,

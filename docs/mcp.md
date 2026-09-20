@@ -48,6 +48,11 @@ Web 是可选查看和用户确认界面，不是连接项目或推进 Goal 的�
 | 按需规划 | `planning_methods`、`planning_method_save`、`planning_analyze_change`、`planning_graph_check` |
 | 项目指导 | `project_guidance_get`、`project_guidance_add`、`project_guidance_update` |
 | 回收站 | `goal_trash`、`goal_trash_list`、`goal_restore` |
+| 判断函数 | `functions_list`、`functions_describe`、`functions_invoke` |
+
+对外只有 `molis-work-mcp`。平台工具（连接 / Goals / 事件）的 schema 留在本包；插件用 Manifest `mcp_exports` 登记本地 `tool_id`、说明、输入 schema 和读或写。Host 盖正式名 `molis_work_v1_<plugin>_<tool>`，再按全局开关（`~/.molis-work/config/mcp-tools.json`）、audience、项目启用和 grant 合成清单。Functions 三项默认开；Forms / Dataset / PPT 已登记、默认关，且要已绑项目。关了的方法不出现在 `tools/list`，点名 `tools/call` 也会拒绝。开关在用户设置「MCP」页，与「AI 与执行工具」分开；已打开的连接不会因改开关热刷新。`agent.mcp` 是插件里的 Agent 能不能去调外部 MCP，不是对外贡献。
+
+插件作者怎么登记、Host 改哪里，见 [Plugin 开发 · 对外 MCP](platform/PLUGIN-DEVELOPMENT.md#对外-mcp) 和 [CLI 与开发 · 对外 MCP](cli-and-development.md#对外-mcp)。
 
 普通Runtime工具不接受 `board_id`、数据库路径、Web URL或 `actor_id` / `actor_kind` / `runtime_actor_id` 覆盖，即使值与当前连接相同也会拒绝。回收站同样使用有限顶层字段，不接受旧 `payload` 信封。项目选择工具与 `project_delete` 保留各自明确的项目选择和确认参数；这些确认不能被复用为约定或树变化的批准。
 

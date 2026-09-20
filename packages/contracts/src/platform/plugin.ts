@@ -28,6 +28,10 @@ import type {
   PluginUpstreamUnavailableReason,
 } from "./plugin-wiring.js";
 import type { AgentManifest, AgentPromptText, AgentSkillDefinition } from "./plugin-agent.js";
+import type {
+  PluginMcpExportDeclaration,
+  PluginMcpHandlerBinding,
+} from "./plugin-mcp.js";
 
 export { parsePluginManifest, PluginManifestError, canonicalPluginId } from "./plugin-manifest.js";
 export type { PluginArtifactClient, PluginArtifactPublishInput } from "./plugin-artifacts.js";
@@ -35,6 +39,8 @@ export type { PluginPackageFile, PluginPackagePayload, PluginPackageBundle, Plug
 export * from "./plugin-events.js";
 export * from "./plugin-wiring.js";
 export * from "./plugin-agent.js";
+export * from "./plugin-mcp.js";
+export * from "./plugin-behaviors.js";
 
 /** Opaque, personal installation data. The author owns serialization, not storage paths or SQL. */
 export interface PluginPrivateStorage {
@@ -171,6 +177,18 @@ export interface PluginManifest {
   requires?: PluginRequirementDeclaration[];
   /** v2: roles, prompts, skills and subagents for an Agent-backed Plugin. */
   agent?: AgentManifest;
+  /**
+   * Tools this Plugin contributes to the Host's unified MCP catalog.
+   * Public names and enablement stay with the Host; `agent.mcp` is the
+   * opposite direction and must not be reused here.
+   */
+  mcp_exports?: PluginMcpExportDeclaration[];
+  /** Local actions the Host may offer on objects; not MCP and not events. */
+  behaviors?: import("./plugin-behaviors.js").PluginBehaviorDeclaration[];
+  /** Places where a user can bind a function. Binding values are not in the Manifest. */
+  function_scenes?: import("./plugin-behaviors.js").PluginFunctionSceneDeclaration[];
+  /** Object kinds this Plugin can project into a judgment input. */
+  judgment_subjects?: import("./plugin-behaviors.js").PluginJudgmentSubjectDeclaration[];
 }
 
 export interface PluginInstanceRecord {
@@ -242,6 +260,10 @@ export interface PluginAppContribution {
   views?: readonly UiContribution[];
   /** Handlers for the routes the Manifest declares. */
   routes?: readonly PluginRouteBinding[];
+  /** Handlers for the MCP tools the Manifest registers. */
+  mcp?: readonly PluginMcpHandlerBinding[];
+  /** Handlers for Manifest `behaviors`. Native plugins composed at build time may omit these. */
+  behaviors?: readonly { behavior_id: string; handle(input: Record<string, unknown>): unknown | Promise<unknown> }[];
   commandAvailability?(commandId: string): UiCommandAvailability;
   executeCommand?(
     commandId: string,

@@ -113,6 +113,7 @@ export interface FeedUiOutRule {
   readonly contains: string | null;
   readonly source_id: string | null;
   readonly source_kind: string | null;
+  readonly function_key: string | null;
 }
 
 export interface FeedUiModel {
@@ -479,7 +480,7 @@ export function renderFeedOverlays(model: FeedUiModel): string {
 }
 
 function renderOutRuleDraft(p: FeedUiPrimitives): string {
-  return `<details class="feed-task-extra"><summary>${p.text("捕捉规则（可选）")}</summary><p>${p.text("命中后立刻出现在 Artifacts。也可稍后在任务配置里添加。")}</p><label><span>${p.text("规则名称")} <small>${p.text("可选")}</small></span><input data-feed-add-out-rule-name maxlength="80" placeholder="${p.text("例如：发布相关")}"></label><label><span>${p.text("标题、摘要、标签或正文包含")}</span><input data-feed-add-out-rule-contains maxlength="200" placeholder="launch"></label></details>`;
+  return `<details class="feed-task-extra"><summary>${p.text("捕捉规则（可选）")}</summary><p>${p.text("命中后立刻出现在 Artifacts。也可稍后在任务配置里添加。")}</p><label><span>${p.text("规则名称")} <small>${p.text("可选")}</small></span><input data-feed-add-out-rule-name maxlength="80" placeholder="${p.text("例如：发布相关")}"></label><label><span>${p.text("标题、摘要、标签或正文包含")}</span><input data-feed-add-out-rule-contains maxlength="200" placeholder="launch"></label><label><span>${p.text("判断函数 key")} <small>${p.text("可选")}</small></span><input data-feed-add-out-rule-function-key maxlength="64" placeholder="system_admit_inbox" spellcheck="false"></label></details>`;
 }
 
 function renderOutRulesSection(model: FeedUiModel, source: FeedUiSource): string {
@@ -490,6 +491,7 @@ function renderOutRulesSection(model: FeedUiModel, source: FeedUiSource): string
     ? rules.map((rule) => {
       const filter = [
         rule.contains ? p.text("包含 “{contains}”", { contains: rule.contains }) : p.text("该任务的全部新消息"),
+        rule.function_key ? p.text("判断 {key}", { key: rule.function_key }) : "",
         rule.source_kind ? p.text("来源类型 {kind}", { kind: rule.source_kind }) : "",
       ].filter(Boolean).join(" · ");
       return `<article class="feed-source-row directory-list-row" data-feed-out-rule-row="${p.escape(rule.rule_id)}"><div class="feed-source-copy"><strong>${p.escape(rule.name)}</strong><p>${p.escape(filter)}</p><small>${rule.enabled ? p.text("已启用") : p.text("已停用")}</small></div><div class="feed-source-actions"><button class="mw-btn mw-btn--ghost" type="button" data-feed-out-rule-toggle="${p.escape(rule.rule_id)}" data-enabled="${rule.enabled ? "true" : "false"}"${source.prototype ? " disabled" : ""}>${rule.enabled ? p.text("停用") : p.text("启用")}</button><button class="mw-btn mw-btn--danger-outline" type="button" data-feed-out-rule-delete="${p.escape(rule.rule_id)}"${source.prototype ? " disabled" : ""}>${p.text("删除")}</button></div></article>`;
@@ -497,7 +499,7 @@ function renderOutRulesSection(model: FeedUiModel, source: FeedUiSource): string
     : `<p class="feed-source-empty">${p.text("这个任务还没有捕捉规则。新消息命中后会立刻出现在 Artifacts。")}</p>`;
   const form = source.prototype
     ? ""
-    : `<div class="feed-source-form"><label><span>${p.text("规则名称")}</span><input data-feed-out-rule-name maxlength="80" placeholder="${p.text("例如：发布相关")}"></label><label><span>${p.text("标题、摘要、标签或正文包含")}</span><input data-feed-out-rule-contains maxlength="200" placeholder="launch"></label><button class="mw-btn mw-btn--primary" type="button" data-feed-out-rule-create>${p.text("添加规则")}</button></div>`;
+    : `<div class="feed-source-form"><label><span>${p.text("规则名称")}</span><input data-feed-out-rule-name maxlength="80" placeholder="${p.text("例如：发布相关")}"></label><label><span>${p.text("标题、摘要、标签或正文包含")}</span><input data-feed-out-rule-contains maxlength="200" placeholder="launch"></label><label><span>${p.text("判断函数 key")} <small>${p.text("可选")}</small></span><input data-feed-out-rule-function-key maxlength="64" placeholder="system_admit_inbox" spellcheck="false"></label><button class="mw-btn mw-btn--primary" type="button" data-feed-out-rule-create>${p.text("添加规则")}</button></div>`;
   return `<details class="feed-task-extra" data-feed-out-rules="${id}"><summary>${p.text("捕捉规则")}${rules.length ? `<small>${p.text("{count} 条规则", { count: rules.length })}</small>` : ""}</summary><p>${p.text("只对规则生效之后新写入或更新的消息求值；命中后立刻留下精确版本，失败才进 Inbox。")}</p><div class="feed-source-list">${rows}</div>${form}</details>`;
 }
 

@@ -227,9 +227,9 @@ test("Feed capture rules belong to a task, not the directory", () => {
   const uiModel = model({
     sources: [sourceA, sourceB],
     out_rules: [
-      { rule_id: "rule-a", name: "A launch", enabled: true, contains: "launch", source_id: "source-a", source_kind: null },
-      { rule_id: "rule-b", name: "B release", enabled: true, contains: "release", source_id: "source-b", source_kind: null },
-      { rule_id: "rule-global", name: "Global", enabled: true, contains: "global", source_id: null, source_kind: null },
+      { rule_id: "rule-a", name: "A launch", enabled: true, contains: "launch", source_id: "source-a", source_kind: null, function_key: null },
+      { rule_id: "rule-b", name: "B release", enabled: true, contains: "release", source_id: "source-b", source_kind: null, function_key: null },
+      { rule_id: "rule-global", name: "Global", enabled: true, contains: "global", source_id: null, source_kind: null, function_key: null },
     ],
   });
   const directory = host.render({

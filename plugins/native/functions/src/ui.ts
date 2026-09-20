@@ -99,6 +99,7 @@ export function renderFunctionsWorkbench(model: FunctionsUiModel): string {
           </div>
           <p class="functions-note" data-functions-note hidden></p>
           <div class="functions-preview" data-functions-last-preview hidden></div>
+          <div class="functions-usages" data-functions-usages hidden></div>
         </section>
       </form>
     </div>

@@ -65,3 +65,62 @@ test("Plugin private storage persists opaque values, isolates signatures and rej
     assert.equal(cleared.storage.get("../../outside"), null);
   } finally { db.close(); rmSync(directory, { recursive: true, force: true }); }
 });
+
+test("Host explicitly replaces an inactive plugin version without losing private drafts", async () => {
+  const { MemoryPluginRuntimeRepository } = await import("@molis-ai/molis-work-plugin-runtime");
+  const repository = new MemoryPluginRuntimeRepository();
+  const db = new Database(":memory:");
+  const owner = new SqlitePluginPrivateStorage(db);
+  const base = createGithubIntegrationPlugin({ provider: {
+    type: "fixture", async health() { return { ok: true, status: "connected", message: "ready" }; },
+    async sync() { return { ok: true, mode: "fixture", items: [], cursor: null }; },
+  } });
+  let storage!: PluginPrivateStorage;
+  const make = (version: string): PluginDefinition => {
+    const manifest = { ...base.manifest, version, permissions: [...base.manifest.permissions,
+      { permission: "storage:private", required: true, reason: "Save drafts" }] };
+    return { manifest, async start(context) { storage = owner.forPlugin(context, manifest); return base.start(context); } };
+  };
+  const old = make("1.0.0"), next = make("1.1.0");
+  const grants = ["network:github.com", "secret:github", "storage:private"];
+  try {
+    const runtime = new PluginRuntime(repository);
+    const first = runtime.install({ definition: old, deployment: "local", grants });
+    await runtime.start(first.install.install_id);
+    storage.set("draft:one", "未发送的需求");
+    assert.throws(() => runtime.install({ definition: next, deployment: "local", grants, replace_version: true }), /先停止/);
+    await runtime.stop(first.install.install_id);
+    const restarted = new PluginRuntime(repository);
+    assert.throws(() => restarted.install({ definition: next, deployment: "local", grants }), /递增版本/);
+    const changed = restarted.install({ definition: next, deployment: "local", grants, replace_version: true });
+    assert.equal(changed.install.install_id, first.install.install_id);
+    assert.equal(changed.install.version, "1.1.0");
+    await restarted.start(changed.install.install_id);
+    assert.equal(storage.get("draft:one"), "未发送的需求");
+    const freshRuntime = new PluginRuntime(repository);
+    const sameVersionChanged = { ...next, manifest: { ...next.manifest, name: "Different same-version manifest" } };
+    assert.throws(() => freshRuntime.install({ definition: sameVersionChanged, deployment: "local", grants, replace_version: true }), /递增版本/);
+    await restarted.stop(changed.install.install_id);
+  } finally { db.close(); }
+});
+
+
+test("persisted running state rehydrates a plugin contribution after process restart", async () => {
+  const { MemoryPluginRuntimeRepository } = await import("@molis-ai/molis-work-plugin-runtime");
+  const repository = new MemoryPluginRuntimeRepository();
+  const { createCodingPlugin } = await import("@molis-ai/molis-work-plugin-coding");
+  const definition = createCodingPlugin();
+  const first = new PluginRuntime(repository);
+  const installed = first.install({definition,deployment:"local",grants:["artifact:write","storage:private"]});
+  await first.start(installed.install.install_id);
+  // A new Runtime models a new process; the database still records running.
+  const reopened = new PluginRuntime(repository);
+  const replayedInstall = reopened.install({definition,deployment:"local",grants:["artifact:write","storage:private"]});
+  assert.equal(replayedInstall.replayed,true);
+  assert.equal(reopened.contribution(installed.install.install_id),null);
+  const started = await reopened.start(installed.install.install_id);
+  assert.equal(started.replayed,false);
+  assert.equal(reopened.contribution(installed.install.install_id)?.kind,"app");
+  assert.equal((await reopened.start(installed.install.install_id)).replayed,true);
+  await reopened.stop(installed.install.install_id);
+});

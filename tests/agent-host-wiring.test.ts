@@ -33,7 +33,7 @@ function readOnlyAdapter(runtimeId: string): AgentRuntimeAdapter {
     descriptor: { runtime_id: runtimeId, display_name: runtimeId, provider_version: "1.0.0", capabilities },
     async health() { return { ok: true, status: "ready", message: "就绪" }; },
     async createSession() { return { session_id: "session-1", runtime_id: runtimeId }; },
-    async readSession() { throw new Error("未使用"); },
+    async readSession(session) { return {session, owner:{board_id:"board-a",plugin_id:"io.molis.work.coding",install_id:"install-1"},title:"任务",runs:[],latest_run:null}; },
     async start() { throw new Error("未使用"); },
     async read() { throw new Error("未使用"); },
     observe() { return () => {}; },

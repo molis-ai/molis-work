@@ -16,13 +16,13 @@ function apply(state: PrologueStreamState, ...events: PrologueEvent[]): void {
   for (const event of events) applyPrologueEvent(state, event, AT);
 }
 
-function receipt(basis: "provider-reported" | "conservative-estimate"): PrologueUsageReceipt {
+function receipt(source: "reported" | "estimated"): PrologueUsageReceipt {
   return {
-    input: { tokens: 1200, basis },
-    output: { tokens: 340, basis },
-    cacheRead: { tokens: 800, basis },
-    cacheWrite: { tokens: 0, basis },
-    cost: { source: "provider", amount: 0.019, currency: "USD" },
+    input: { tokens: 1200, source },
+    output: { tokens: 340, source },
+    cacheRead: { tokens: 800, source },
+    cacheWrite: { tokens: 0, source },
+    cost: { source: "reported", amount: 0.019, currency: "USD" },
   };
 }
 
@@ -52,7 +52,7 @@ test("a tool result completes exactly its own call", () => {
     state,
     { type: "tool-call", call: { id: "call-1", name: "read", input: { path: "a.ts" } } },
     { type: "tool-call", call: { id: "call-2", name: "grep", input: { pattern: "retry" } } },
-    { type: "tool-result", callId: "call-2", name: "grep", text: "3 hits" },
+    { type: "tool-result", callId: "call-2", name: "grep", text: "3 hits", outcome: "returned" },
   );
   assert.deepEqual(state.activity.map((entry) => [entry.call_id, entry.state]), [
     ["call-1", "started"],
@@ -67,13 +67,13 @@ test("a tool result completes exactly its own call", () => {
 
 test("an estimated usage number is never presented as the provider's own", () => {
   const reported = emptyPrologueStreamState();
-  apply(reported, { type: "usage", receipt: receipt("provider-reported") });
+  apply(reported, { type: "usage", receipt: receipt("reported") });
   assert.deepEqual(reported.usage.tokens, { input: 1200, output: 340, cached_input: 800 });
   assert.equal(reported.usage.cost_usd, 0.019);
   assert.equal(reported.usage.unavailable_reason, undefined);
 
   const estimated = emptyPrologueStreamState();
-  apply(estimated, { type: "usage", receipt: receipt("conservative-estimate") });
+  apply(estimated, { type: "usage", receipt: receipt("estimated") });
   assert.match(estimated.usage.unavailable_reason ?? "", /保守估算/u);
 });
 
@@ -165,4 +165,55 @@ test("pausing is reported as still running until the runtime really pauses", () 
   assert.equal(prologuePhaseOf("paused"), "paused");
   assert.equal(prologuePhaseOf("reconcile-required"), "reconcile-required");
   assert.equal(prologuePhaseOf("completed"), "completed");
+});
+
+
+test("用量按网络调用累加，流式快照与最终账单不重复计费", () => {
+  const state = emptyPrologueStreamState();
+  const first = receipt("reported");
+  apply(state, { type: "usage", receipt: first }, { type: "usage", receipt: first },
+    { type: "usage-recorded", callId: "a", receipt: first },
+    { type: "usage-recorded", callId: "a", receipt: first });
+  assert.equal(state.usage.tokens.input, 1200);
+  apply(state, { type: "usage-recorded", callId: "b", receipt: receipt("estimated") });
+  assert.equal(state.usage.tokens.input, 2400);
+  assert.equal(state.usage.tokens.output, 680);
+  assert.equal(state.usage.cost_usd, 0.038);
+  assert.match(state.usage.unavailable_reason!, /估算/);
+});
+
+test("未知用量和非美元费用不被呈现为完整的零或美元", () => {
+  const state = emptyPrologueStreamState();
+  const unknown = { ...receipt("reported"), input: { source: "unknown" as const, tokens: undefined },
+    cacheRead: { source: "unknown" as const, tokens: undefined },
+    cost: { source: "reported", amount: 3, currency: "CNY" } };
+  apply(state, { type: "usage-recorded", callId: "a", receipt: unknown });
+  assert.match(state.usage.unavailable_reason!, /未知/);
+  assert.equal(state.usage.cost_usd, undefined);
+  assert.equal(state.usage.tokens.cached_input, undefined);
+});
+
+test("失败保留已有回答和工具证据，错误使用 SDK 的安全说明", () => {
+  const state = emptyPrologueStreamState();
+  apply(state,
+    { type: "text-delta", text: "已经定位到问题" },
+    { type: "tool-call", call: { id: "a", name: "read", input: { path: "a.ts" } } },
+    { type: "tool-result", callId: "a", name: "read", text: "x".repeat(20000) },
+    { type: "failed", error: { code: "network-denied", safeMessage: "域名未通过检查" } });
+  assert.equal(state.turns.at(-1)?.text, "已经定位到问题");
+  assert.equal(state.activity[0]?.output?.length, 16384);
+  assert.equal(state.activity[0]?.output_truncated, true);
+  assert.equal(state.stop_reason, "network-denied: 域名未通过检查");
+});
+
+
+test("工具状态来自明确回执，不从可读文本猜成功或失败", () => {
+  const state = emptyPrologueStreamState();
+  for (const id of ["returned", "failed", "old"]) apply(state, { type: "tool-call", call: { id, name: "read" } });
+  apply(state,
+    { type: "tool-result", callId: "returned", name: "read", text: "ERROR: this is file content", outcome: "returned" },
+    { type: "tool-result", callId: "failed", name: "read", text: "human safe explanation", outcome: "failed", errorCode: "PATH_DENIED" },
+    { type: "tool-result", callId: "old", name: "read", text: "looks successful" });
+  assert.deepEqual(state.activity.map(item => item.state), ["completed", "failed", "unknown"]);
+  assert.match(state.activity[1]!.summary, /PATH_DENIED/);
 });

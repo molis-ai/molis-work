@@ -105,6 +105,8 @@ export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 export class AgentHostError extends Error {
   constructor(
     readonly code: Extract<AgentHostErrorCode,
+      | "agent.session_unknown"
+      | "agent.run_unknown"
       | "agent.runtime_unknown"
       | "agent.runtime_duplicate"
       | "agent.capability_unavailable"

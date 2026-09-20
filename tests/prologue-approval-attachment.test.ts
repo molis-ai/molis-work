@@ -39,14 +39,17 @@ const MANIFEST: AgentManifest = {
 function pendingLedger() {
   const answers: Array<"allow" | "deny" | "later"> = [];
   const pending: ProloguePending = {
-    ref: { id: "pending-1" },
+    ref: { kind: "pending", id: "pending-1", revision: 1 },
     kind: "effect-approval",
     state: "open",
     why: "要把 src/login.ts 的重试次数从 0 改成 3",
-    effectRef: { id: "effect-1" },
-    expiresAtMs: Date.parse("2026-09-19T01:00:00.000Z"),
+    effectRef: { kind: "effect", id: "effect-1", revision: 1 },
+    origin: { session: "session-1", run: "run-1" },
+    expiresAtWallMs: Date.parse("2026-09-19T01:00:00.000Z"),
   };
   const port: ProloguePendingPort = {
+    async canAnswer() { return true; },
+    async document() { return { kind: "text-edit", target_path: "src/login.ts", exists: true, before_text: "const retries = 0;", after_text: "const retries = 3;" }; },
     async read() { return pending; },
     async answer(_ref, answer) {
       answers.push(answer.answer);
@@ -103,8 +106,6 @@ function bridgeFor(pendings = pendingLedger().port): PrologueApprovalBridge {
   return new PrologueApprovalBridge({
     queue: new AgentReviewQueue({ now: () => new Date("2026-09-19T00:00:00.000Z") }),
     pendings,
-    boardId: BOARD,
-    pluginId: PLUGIN,
   });
 }
 
@@ -130,7 +131,7 @@ test("没挂审批桥时，写入如实申报为不支持", () => {
 test("挂上审批桥之后写入才算支持；命令不跟着变，因为回执没有来源", () => {
   const queue = new AgentReviewQueue({ now: () => new Date("2026-09-19T00:00:00.000Z") });
   const bridge = new PrologueApprovalBridge({
-    queue, pendings: pendingLedger().port, boardId: BOARD, pluginId: PLUGIN,
+    queue, pendings: pendingLedger().port,
   });
   const { adapter } = adapterFor(bridge);
   assert.equal(adapter.descriptor.capabilities["text-edit"], "supported");
@@ -141,7 +142,7 @@ test("挂上审批桥之后写入才算支持；命令不跟着变，因为回�
 
 test("没挂桥时改文件的角色被拒；挂上之后它才能起跑", async () => {
   const bare = adapterFor();
-  await bare.adapter.createSession({ title: "改重试次数" });
+  await bare.adapter.createSession({ board_id: BOARD, plugin_id: PLUGIN, install_id: "install", actor_id: "user", title: "改重试次数" });
   const withoutBridge = new AgentHost();
   withoutBridge.register(bare.adapter);
   await assert.rejects(
@@ -151,7 +152,7 @@ test("没挂桥时改文件的角色被拒；挂上之后它才能起跑", async
   );
 
   const wired = adapterFor(bridgeFor());
-  await wired.adapter.createSession({ title: "改重试次数" });
+  await wired.adapter.createSession({ board_id: BOARD, plugin_id: PLUGIN, install_id: "install", actor_id: "user", title: "改重试次数" });
   const host = new AgentHost();
   host.register(wired.adapter);
   const handle = await host.start("prologue", startRequest("writer"), AUTHORITY);
@@ -160,7 +161,7 @@ test("没挂桥时改文件的角色被拒；挂上之后它才能起跑", async
 
 test("要跑命令的角色，挂了桥也照样被拒——命令回执没有来源", async () => {
   const wired = adapterFor(bridgeFor());
-  await wired.adapter.createSession({ title: "改重试次数" });
+  await wired.adapter.createSession({ board_id: BOARD, plugin_id: PLUGIN, install_id: "install", actor_id: "user", title: "改重试次数" });
   const host = new AgentHost();
   host.register(wired.adapter);
   await assert.rejects(
@@ -174,10 +175,10 @@ test("Run 停下来等的副作用，会先出现在宿主审查队列里", asyn
   const ledger = pendingLedger();
   const queue = new AgentReviewQueue({ now: () => new Date("2026-09-19T00:00:00.000Z") });
   const bridge = new PrologueApprovalBridge({
-    queue, pendings: ledger.port, boardId: BOARD, pluginId: PLUGIN,
+    queue, pendings: ledger.port,
   });
   const { adapter, emit } = adapterFor(bridge);
-  await adapter.createSession({ title: "改重试次数" });
+  await adapter.createSession({ board_id: BOARD, plugin_id: PLUGIN, install_id: "install", actor_id: "user", title: "改重试次数" });
   const host = new AgentHost();
   host.register(adapter);
   // 经宿主起跑，角色才是冻结过的——adapter 自己不发明角色
@@ -187,8 +188,8 @@ test("Run 停下来等的副作用，会先出现在宿主审查队列里", asyn
 
   emit({
     type: "awaiting-approval",
-    effectRef: { id: "effect-1" },
-    pendingRef: { id: "pending-1" },
+    effectRef: { kind: "effect", id: "effect-1", revision: 1 },
+    pendingRef: { kind: "pending", id: "pending-1", revision: 1 },
     why: "要把 src/login.ts 的重试次数从 0 改成 3",
   });
   await new Promise((resolve) => setTimeout(resolve, 20));
@@ -196,7 +197,7 @@ test("Run 停下来等的副作用，会先出现在宿主审查队列里", asyn
   const pendingReviews = queue.list(BOARD, "pending");
   assert.equal(pendingReviews.length, 1, "副作用必须先摆到用户面前");
   assert.equal(pendingReviews[0]?.plugin_id, PLUGIN);
-  assert.match(pendingReviews[0]?.document.kind ?? "", /tool-operation/);
+  assert.match(pendingReviews[0]?.document.kind ?? "", /text-edit/);
   // 此刻还没有人批准，执行主人那边不该收到任何答复
   assert.deepEqual(ledger.answers, []);
 
@@ -206,4 +207,57 @@ test("Run 停下来等的副作用，会先出现在宿主审查队列里", asyn
   });
   assert.equal(receipt.status, "approved");
   assert.deepEqual(ledger.answers, ["allow"]);
+});
+
+test("command requires both review and receipts; capability overrides cannot widen authority", async () => {
+  const double = runtimeDouble();
+  let reads = 0;
+  double.runtime.readCommandOutput = async (_session, ref) => {
+    reads++;
+    return { ref, command: 'node "--test"', exit_code: 7, stdout: "kept", stderr: "failed check", truncated: false, timed_out: false, cancelled: false };
+  };
+  const make = (approvals?: PrologueApprovalBridge) => new PrologueAgentAdapter({ runtime: double.runtime, approvals,
+    capabilities: { command: "supported", "text-edit": "supported", subagents: "supported" },
+    modelConfiguration: async () => ({ protocol: "anthropic", endpoint: "https://example.invalid", model: "test", credential_ref: "test" }) });
+  const bare = make();
+  assert.equal(bare.descriptor.capabilities.command, "unsupported");
+  assert.equal(bare.descriptor.capabilities["text-edit"], "unsupported");
+  assert.equal(bare.descriptor.capabilities.subagents, "unsupported");
+  assert.equal(bare.descriptor.capabilities["command.receipts"], "supported");
+  const adapter = make(bridgeFor());
+  const session = await adapter.createSession({ board_id: BOARD, plugin_id: PLUGIN, install_id: "install", actor_id: "user", title: "执行检查" });
+  const host = new AgentHost();host.register(adapter);
+  const handle = await host.start("prologue", startRequest("builder"), AUTHORITY);
+  double.emit({ type: "command-receipt", callId: "check", commandId: "command", effectRef: { kind: "effect", id: "e", revision: 1 }, receiptRef: { kind: "resource", id: "r", revision: 1 } });
+  assert.deepEqual((await adapter.read(handle.ref)).command_outputs, [{ run_id: "run-1", call_id: "check" }]);
+  const result = await adapter.readCommandOutput(session, { run_id: "run-1", call_id: "check" });
+  assert.equal(result.exit_code, 7);
+  assert.equal(result.stderr, "failed check");
+  await assert.rejects(adapter.readCommandOutput(session, { run_id: "other-run", call_id: "check" }), /不属于/);
+  assert.equal(reads, 1, "foreign run must not reach the receipt owner");
+});
+
+test("a long command stops saying awaiting-review only after SDK accepts the decision", async () => {
+  for (const deliveryFails of [false, true]) {
+    const ledger = pendingLedger();
+    let release!: () => void;
+    const accepted = new Promise<void>(resolve => { release = resolve; });
+    ledger.port.answer = async () => { await accepted; if (deliveryFails) throw new Error("delivery unknown"); return { authorized: true }; };
+    const queue = new AgentReviewQueue({ now: () => new Date("2026-09-19T00:00:00Z") });
+    const bridge = new PrologueApprovalBridge({ queue, pendings: ledger.port });
+    const { adapter, emit } = adapterFor(bridge);
+    await adapter.createSession({ board_id: BOARD, plugin_id: PLUGIN, install_id: "install", actor_id: "user", title: "long command" });
+    const host = new AgentHost();host.register(adapter);
+    const handle = await host.start("prologue", startRequest("writer"), AUTHORITY);
+    emit({ type: "awaiting-approval", effectRef: ledger.pending.effectRef!, pendingRef: ledger.pending.ref, why: "waiting" });
+    await new Promise<void>(resolve => setImmediate(resolve));
+    assert.equal((await adapter.read(handle.ref)).phase, "awaiting-review");
+    const delivery = bridge.decide({ review_id: "prologue:pending-1", decision: "approve", actor_id: "user" });
+    await new Promise<void>(resolve => setImmediate(resolve));
+    assert.equal((await adapter.read(handle.ref)).phase, "awaiting-review", "Host decision alone does not release the waiting state");
+    release();await delivery;
+    assert.equal((await adapter.read(handle.ref)).phase, deliveryFails ? "awaiting-review" : "running");
+    assert.equal(queue.receipt("prologue:pending-1")?.effect_settled, false, "accepted approval is not execution completion");
+    await adapter.close();
+  }
 });

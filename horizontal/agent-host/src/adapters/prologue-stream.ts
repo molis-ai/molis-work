@@ -25,8 +25,8 @@ export type PrologueControlState =
   | "reconcile-required";
 
 export interface PrologueTokenCount {
-  tokens: number;
-  basis: "provider-reported" | "conservative-estimate";
+  tokens: number | undefined;
+  source: "reported" | "estimated" | "unknown";
 }
 
 export interface PrologueUsageReceipt {
@@ -42,8 +42,8 @@ export type PrologueEvent =
   | { type: "prompt"; role: "system" | "user"; text: string }
   | { type: "text-delta"; text: string }
   | { type: "tool-call"; call: { id: string; name: string; input?: Record<string, unknown> } }
-  | { type: "tool-result"; callId: string; name: string; text: string }
-  | { type: "awaiting-approval"; effectRef: { id: string }; pendingRef: { id: string }; why: string; character?: string }
+  | { type: "tool-result"; callId: string; name: string; text: string; outcome?: "returned" | "failed"; errorCode?: string }
+  | { type: "awaiting-approval"; effectRef: { kind: "effect"; id: string; revision: number }; pendingRef: { kind: "pending"; id: string; revision: number }; why: string; character?: string }
   | { type: "awaiting-input"; pendingRef: { id: string }; kind: string; why: string }
   | { type: "usage"; receipt: PrologueUsageReceipt }
   | { type: "usage-recorded"; callId: string; receipt: PrologueUsageReceipt }
@@ -52,7 +52,7 @@ export type PrologueEvent =
   | { type: "compaction-failed"; why?: string }
   | { type: "tripped"; stage: "input" | "output"; rail: string; why: string; failed?: boolean }
   | { type: "completed" }
-  | { type: "failed"; why?: string }
+  | { type: "failed"; why?: string; error?: { code: string; safeMessage: string } }
   | { type: "cancelled" }
   | { type: string; [key: string]: unknown };
 
@@ -64,10 +64,14 @@ export interface PrologueApprovalWaiting {
 }
 
 export interface PrologueStreamState {
+  command_calls: string[];
   turns: AgentTurnView[];
   activity: AgentToolActivity[];
   usage: AgentRunUsage;
   phase: AgentRunPhase;
+  /** Final receipts keyed by network call, never counted again on replay. */
+  usage_receipts: Map<string, PrologueUsageReceipt>;
+  usage_preview: PrologueUsageReceipt | undefined;
   stop_reason?: string;
   /** Approvals the Run is stopped on. The bridge mirrors these to the Host queue. */
   awaiting_approval: PrologueApprovalWaiting[];
@@ -81,10 +85,13 @@ export interface PrologueStreamState {
 
 export function emptyPrologueStreamState(): PrologueStreamState {
   return {
+    command_calls: [],
     turns: [],
     activity: [],
     usage: { tokens: { input: 0, output: 0 }, unavailable_reason: "运行时尚未报告用量" },
     phase: "starting",
+    usage_receipts: new Map(),
+    usage_preview: undefined,
     awaiting_approval: [],
     awaiting_input: [],
     unknown_frames: 0,
@@ -111,19 +118,33 @@ function target(input: Record<string, unknown> | undefined): string {
   return "";
 }
 
-function tokensOf(receipt: PrologueUsageReceipt): AgentRunUsage {
-  const estimated = receipt.input.basis !== "provider-reported"
-    || receipt.output.basis !== "provider-reported";
-  return {
+function updateUsage(state: PrologueStreamState): void {
+  const receipts = [...state.usage_receipts.values(), ...(state.usage_preview ? [state.usage_preview] : [])];
+  const unknown = receipts.some((r) => [r.input, r.output].some((c) => c.source === "unknown" || c.tokens === undefined));
+  const estimated = receipts.some((r) => [r.input, r.output].some((c) => c.source === "estimated"));
+  const sum = (field: "input" | "output" | "cacheRead") => receipts.reduce((total, r) => total + (r[field].tokens ?? 0), 0);
+  const cacheKnown = receipts.every((r) => r.cacheRead.source !== "unknown" && r.cacheRead.tokens !== undefined);
+  const costKnown = receipts.every((r) => r.cost.source !== "unknown" && r.cost.amount !== undefined && r.cost.currency === "USD");
+  state.usage = {
     tokens: {
-      input: receipt.input.tokens,
-      output: receipt.output.tokens,
-      ...(receipt.cacheRead.tokens > 0 ? { cached_input: receipt.cacheRead.tokens } : {}),
+      input: sum("input"), output: sum("output"),
+      ...(cacheKnown ? { cached_input: sum("cacheRead") } : {}),
     },
-    ...(receipt.cost.amount === undefined ? {} : { cost_usd: receipt.cost.amount }),
-    // An estimate is reported as an estimate. Presenting it as the provider's
-    // own number would let a budget decision rest on our arithmetic.
-    ...(estimated ? { unavailable_reason: "用量为保守估算，不是服务方报的数" } : {}),
+    ...(costKnown ? { cost_usd: receipts.reduce((total, r) => total + r.cost.amount!, 0) } : {}),
+    ...(unknown ? { unavailable_reason: "部分调用用量未知，已知小计不代表完整用量" }
+      : estimated ? { unavailable_reason: "用量含保守估算，不全是服务方报的数" } : {}),
+  };
+}
+
+/** A provider may stream partial cumulative snapshots for a single call. */
+function mergeUsage(previous: PrologueUsageReceipt | undefined, next: PrologueUsageReceipt): PrologueUsageReceipt {
+  if (!previous) return next;
+  const known = (before: PrologueTokenCount, after: PrologueTokenCount) =>
+    after.source === "unknown" || after.tokens === undefined ? before : after;
+  return {
+    input: known(previous.input, next.input), output: known(previous.output, next.output),
+    cacheRead: known(previous.cacheRead, next.cacheRead), cacheWrite: known(previous.cacheWrite, next.cacheWrite),
+    cost: next.cost.source === "unknown" || next.cost.amount === undefined ? previous.cost : next.cost,
   };
 }
 
@@ -165,6 +186,11 @@ export function applyPrologueEvent(
       return true;
     }
 
+    case "command-receipt": {
+      if (typeof event.callId !== "string") return false;
+      if (!state.command_calls.includes(event.callId)) state.command_calls.push(event.callId);
+      return true;
+    }
     case "tool-call": {
       const call = (event as Extract<PrologueEvent, { type: "tool-call" }>).call;
       closeStreaming(state, at);
@@ -185,8 +211,10 @@ export function applyPrologueEvent(
       if (index < 0) return false;
       state.activity[index] = {
         ...state.activity[index]!,
-        state: "completed",
-        summary: result.name,
+        state: result.outcome === "failed" ? "failed" : result.outcome === "returned" ? "completed" : "unknown",
+        summary: result.errorCode ? `${result.name} · ${result.errorCode}` : result.name,
+        output: result.text.slice(0, 16_384),
+        output_truncated: result.text.length > 16_384,
         at,
       };
       return true;
@@ -218,10 +246,18 @@ export function applyPrologueEvent(
       return true;
     }
 
-    case "usage":
+    case "usage": {
+      const usage = event as Extract<PrologueEvent, { type: "usage" }>;
+      state.usage_preview = mergeUsage(state.usage_preview, usage.receipt);
+      updateUsage(state);
+      return true;
+    }
     case "usage-recorded": {
-      const usage = event as Extract<PrologueEvent, { type: "usage" | "usage-recorded" }>;
-      state.usage = tokensOf(usage.receipt);
+      const usage = event as Extract<PrologueEvent, { type: "usage-recorded" }>;
+      if (state.usage_receipts.has(usage.callId)) return false;
+      state.usage_receipts.set(usage.callId, usage.receipt);
+      state.usage_preview = undefined;
+      updateUsage(state);
       return true;
     }
 
@@ -263,7 +299,9 @@ export function applyPrologueEvent(
       const failed = event as Extract<PrologueEvent, { type: "failed"; why?: string }>;
       closeStreaming(state, at);
       state.phase = "failed";
-      state.stop_reason = failed.why ?? "运行时报告失败";
+      state.stop_reason = failed.error === undefined
+        ? failed.why ?? "运行时报告失败"
+        : `${failed.error.code}: ${failed.error.safeMessage}`;
       return true;
     }
 

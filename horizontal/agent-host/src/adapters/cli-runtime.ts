@@ -125,7 +125,7 @@ export class CliAgentAdapter implements AgentRuntimeAdapter {
   readonly descriptor: AgentRuntimeDescriptor;
   readonly #options: CliAgentAdapterOptions;
   readonly #now: () => Date;
-  readonly #sessions = new Map<string, { title: string; cwd: string; runs: AgentRunRef[] }>();
+  readonly #sessions = new Map<string, { title: string; cwd: string; runs: AgentRunRef[]; owner: AgentSessionView["owner"] }>();
   readonly #runs = new Map<string, RunRecord>();
 
   constructor(options: CliAgentAdapterOptions) {
@@ -164,6 +164,7 @@ export class CliAgentAdapter implements AgentRuntimeAdapter {
     const sessionId = randomUUID();
     this.#sessions.set(sessionId, {
       title: input.title,
+      owner: { board_id: input.board_id, plugin_id: input.plugin_id, install_id: input.install_id },
       cwd: input.directory.canonical_path,
       runs: [],
     });
@@ -175,6 +176,7 @@ export class CliAgentAdapter implements AgentRuntimeAdapter {
     const latest = record.runs.at(-1);
     return {
       session: { ...session },
+      owner: { ...record.owner },
       title: record.title,
       runs: record.runs.map((ref) => ({ ...ref })),
       latest_run: latest ? structuredClone(this.#requireRun(latest.run_id).view) : null,
@@ -295,11 +297,15 @@ export class CliAgentAdapter implements AgentRuntimeAdapter {
     session: AgentSessionRef,
     ref: AgentCommandOutputRef,
   ): Promise<AgentCommandOutput> {
+    const matches: AgentCommandOutput[] = [];
     for (const record of this.#runs.values()) {
-      if (record.view.ref.session_id !== session.session_id) continue;
-      const receipt = record.state.receipts.find((entry) => entry.ref.call_id === ref.call_id);
-      if (receipt) return structuredClone(receipt);
+      if (record.view.ref.session_id !== session.session_id || ref.run_id && ref.run_id !== record.view.ref.run_id) continue;
+      for (const receipt of record.state.receipts) if (receipt.ref.call_id === ref.call_id) {
+        matches.push({ ...structuredClone(receipt), ref: { ...receipt.ref, run_id: record.view.ref.run_id } });
+      }
     }
+    if (matches.length === 1) return matches[0]!;
+    if (matches.length > 1) throw new CliAgentError("agent.run_unknown", "命令引用对应多次执行，请指定轮次");
     throw new CliAgentError(
       "agent.run_unknown",
       `这条会话里没有 ${ref.call_id} 这次命令的回执`,

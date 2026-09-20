@@ -23,6 +23,7 @@ import {
   applyPrologueEvent,
   emptyPrologueStreamState,
   prologuePhaseOf,
+  settleProloguePending,
   type PrologueControlState,
   type PrologueEvent,
   type PrologueStreamState,
@@ -47,6 +48,7 @@ export class PrologueAdapterError extends Error {
       | "agent.model_not_configured"
       | "agent.role_not_frozen"
       | "agent.session_unknown"
+      | "agent.session_busy"
       | "agent.run_unknown"
       | "agent.capability_unavailable">,
     message: string,
@@ -72,7 +74,7 @@ export interface PrologueModelConfiguration {
 
 export interface PrologueAdapterPorts {
   /** The current model configuration, or null when the user has not set one. */
-  modelConfiguration(): Promise<PrologueModelConfiguration | null>;
+  modelConfiguration(selection?: AgentStartRequest["model_selection"]): Promise<PrologueModelConfiguration | null>;
 }
 
 export interface PrologueRunPort {
@@ -83,7 +85,7 @@ export interface PrologueRunPort {
 
 export interface PrologueControlPort {
   state: PrologueControlState;
-  stop(reason: "stopped" | "cancelled"): void;
+  stop(reason: "stopped" | "cancelled"): void | Promise<void>;
   pause(): void;
   resume(): void;
   steer(input: { text: string }): void;
@@ -91,6 +93,8 @@ export interface PrologueControlPort {
 }
 
 export interface PrologueStartInput {
+  /** Host provenance, persisted before execution; never credentials or event history. */
+  provenance: { frozen: AgentRunView["frozen"]; started_at: string };
   session_id: string;
   /** Authorized root this Run may touch, already resolved by the Host. */
   root_path: string;
@@ -110,14 +114,38 @@ export interface PrologueStartInput {
 }
 
 export interface PrologueRuntimePort {
+  readCommandOutput?(sessionId: string, ref: AgentCommandOutputRef): Promise<AgentCommandOutput>;
   sessions: {
-    create(): Promise<{ ref: { id: string } }>;
+    create(input: AgentCreateSessionInput): Promise<{ ref: { id: string } }>;
+    restore?(sessionId: string): Promise<PrologueRestoredSession | undefined>;
   };
   startAgentRun(input: PrologueStartInput): Promise<{
     run: PrologueRunPort;
     control: PrologueControlPort;
   }>;
   shutdown(): Promise<unknown>;
+}
+
+export interface PrologueRestoredSession {
+  title: string;
+  owner: AgentSessionView["owner"];
+  recovery?: AgentSessionView["recovery"];
+  runs: Array<{
+    ref: AgentRunRef;
+    frozen: AgentRunView["frozen"];
+    started_at: string;
+    task: string;
+    stop_intent?: "stopped" | "cancelled";
+    /** Undefined means the ledger is not committed, not an empty successful run. */
+    events?: readonly PrologueEvent[];
+  }>;
+}
+
+interface SessionRecord {
+  title: string;
+  runs: AgentRunRef[];
+  owner: AgentSessionView["owner"];
+  recovery?: AgentSessionView["recovery"];
 }
 
 export interface PrologueAdapterOptions extends PrologueAdapterPorts {
@@ -142,29 +170,19 @@ export interface PrologueAdapterOptions extends PrologueAdapterPorts {
   now?: () => Date;
 }
 
-/**
- * What is wired.
- *
- * `text-edit` becomes supported **only when the approval bridge is attached**.
- * Prologue can write either way; the difference is whether the Host recorded a
- * decision first, and that difference is the one rule the platform must not
- * bend.
- *
- * `command` stays unsupported even with the bridge. Running a command is only
- * half of it — a caller then reads the receipt, and this adapter's port has no
- * source for one, so `readCommandOutput` cannot answer. Reporting `command` as
- * supported would make Coding's terminal page render as usable while every read
- * fails, which is the same lie in the other direction.
- */
-function currentCapabilities(approvalsAttached: boolean): AgentRuntimeCapabilityMatrix {
+/** Writes require the Host approval owner; commands additionally require durable receipts. */
+function currentCapabilities(approvalsAttached: boolean, receiptsAttached: boolean): AgentRuntimeCapabilityMatrix {
   const matrix = emptyCapabilityMatrix();
   if (approvalsAttached) matrix["text-edit"] = "supported";
+  if (receiptsAttached) matrix["command.receipts"] = "supported";
+  if (approvalsAttached && receiptsAttached) matrix.command = "supported";
   matrix["session.create"] = "supported";
   matrix["session.read"] = "supported";
   matrix["run.start"] = "supported";
   matrix["run.observe"] = "supported";
   matrix["run.control"] = "supported";
-  matrix.compaction = "supported";
+  // A compactor must be installed before advertising context compaction.
+  matrix.compaction = "unsupported";
   matrix.usage = "supported";
   return matrix;
 }
@@ -182,10 +200,13 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   readonly #runtime: PrologueRuntimePort;
   readonly #ports: PrologueAdapterPorts;
   readonly #now: () => Date;
-  readonly #sessions = new Map<string, { title: string; runs: AgentRunRef[] }>();
+  readonly #sessions = new Map<string, SessionRecord>();
+  readonly #restoring = new Map<string, Promise<SessionRecord>>();
   readonly #runs = new Map<string, RunRecord>();
+  readonly #startingSessions = new Set<string>();
   readonly #approvals: PrologueApprovalBridge | undefined;
   readonly #answerPending: PrologueAdapterOptions["answerPending"];
+  readonly #detachApprovalAnswers: (() => void) | undefined;
 
   constructor(options: PrologueAdapterOptions) {
     this.#runtime = options.runtime;
@@ -193,14 +214,22 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     this.#now = options.now ?? (() => new Date());
     this.#approvals = options.approvals;
     this.#answerPending = options.answerPending;
+    this.#detachApprovalAnswers = options.approvals?.subscribeAnswered((run, pendingId) => {
+      const record = this.#runs.get(run.run_id);
+      if (record?.view.ref.session_id === run.session_id && settleProloguePending(record.state, pendingId)) this.#publish(run.run_id);
+    });
+    const capabilities = currentCapabilities(options.approvals !== undefined, options.runtime.readCommandOutput !== undefined);
+    if (options.runtime.sessions.restore) capabilities["session.resume"] = "partial";
+    const rank = { unsupported: 0, partial: 1, supported: 2 };
+    for (const key of Object.keys(options.capabilities ?? {}) as Array<keyof AgentRuntimeCapabilityMatrix>) {
+      const requested = options.capabilities![key];
+      if (requested && rank[requested] < rank[capabilities[key]]) capabilities[key] = requested;
+    }
     this.descriptor = {
       runtime_id: PROLOGUE_RUNTIME_ID,
       display_name: "Prologue",
       provider_version: options.providerVersion ?? "0.0.0-rc.1",
-      capabilities: {
-        ...currentCapabilities(options.approvals !== undefined),
-        ...options.capabilities,
-      },
+      capabilities,
     };
   }
 
@@ -214,29 +243,48 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
         action: "在全局设置里选择模型并填写凭据",
       };
     }
-    return { ok: true, status: "ready", message: `已连接 ${configuration.model}` };
+    return { ok: true, status: "ready", message: `已配置 ${configuration.model}` };
   }
 
   async createSession(input: AgentCreateSessionInput): Promise<AgentSessionRef> {
-    const session = await this.#runtime.sessions.create();
-    this.#sessions.set(session.ref.id, { title: input.title, runs: [] });
+    const session = await this.#runtime.sessions.create(input);
+    this.#sessions.set(session.ref.id, { title: input.title, runs: [], owner: { board_id: input.board_id, plugin_id: input.plugin_id, install_id: input.install_id } });
     return { session_id: session.ref.id, runtime_id: PROLOGUE_RUNTIME_ID };
   }
 
   async readSession(session: AgentSessionRef): Promise<AgentSessionView> {
-    const record = this.#requireSession(session.session_id);
+    const record = await this.#loadSession(session.session_id);
     const latest = record.runs.at(-1);
     return {
       session: { ...session },
+      owner: { ...record.owner },
       title: record.title,
       runs: record.runs.map((ref) => ({ ...ref })),
       latest_run: latest ? structuredClone(this.#requireRun(latest.run_id).view) : null,
+      ...(record.recovery ? { recovery: { ...record.recovery } } : {}),
     };
   }
 
   async start(request: AgentStartRequest): Promise<AgentRunHandle> {
-    const session = this.#requireSession(request.session.session_id);
-    const model = await this.#ports.modelConfiguration();
+    const session = await this.#loadSession(request.session.session_id);
+    if (session.recovery) throw new PrologueAdapterError("agent.session_busy", session.recovery.reason);
+    const latest = session.runs.at(-1);
+    if (this.#startingSessions.has(request.session.session_id)
+      || (latest !== undefined && !isEnded(this.#requireRun(latest.run_id).view.phase))) {
+      throw new PrologueAdapterError("agent.session_busy", "这个会话仍在执行或保存上一轮；可以补充要求，结束后再开新一轮");
+    }
+    this.#startingSessions.add(request.session.session_id);
+    try { return await this.#start(request, session); }
+    catch (error) {
+      // A durable start intent may exist even when no handle was returned.
+      if (this.#runtime.sessions.restore) this.#sessions.delete(request.session.session_id);
+      throw error;
+    }
+    finally { this.#startingSessions.delete(request.session.session_id); }
+  }
+
+  async #start(request: AgentStartRequest, session: SessionRecord): Promise<AgentRunHandle> {
+    const model = await this.#ports.modelConfiguration(request.model_selection);
     if (model === null) {
       throw new PrologueAdapterError("agent.model_not_configured", "还没有配置可用的模型");
     }
@@ -282,6 +330,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     };
 
     const started = await this.#runtime.startAgentRun({
+      provenance: { frozen, started_at: at },
       session_id: request.session.session_id,
       root_path: request.directory.canonical_path,
       model,
@@ -323,7 +372,13 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     this.#runs.set(ref.run_id, record);
     session.runs.push(ref);
 
-    record.unsubscribe = started.run.subscribe((event) => {
+    let initialPromptPending = true;
+    const unsubscribeEvents = started.run.subscribe((event) => {
+      // The Host already displays the submitted task before SDK replay starts.
+      if (event.type === "prompt" && event.role === "user" && initialPromptPending) {
+        initialPromptPending = false;
+        if (event.text === request.task) return;
+      }
       if (!applyPrologueEvent(record.state, event, this.#now().toISOString())) return;
       // An effect the Run is stopped on goes in front of the user before
       // anything else happens. Failing to mirror it must not look like the
@@ -331,11 +386,15 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       if (isAwaitingApproval(event)) void this.#mirror(ref, event);
       this.#publish(ref.run_id);
     });
+    const unsubscribeControl = started.control.subscribe(() => this.#publish(ref.run_id));
+    record.unsubscribe = () => { unsubscribeEvents(); unsubscribeControl(); };
     this.#publish(ref.run_id);
     return { ref, frozen };
   }
 
   async read(run: AgentRunRef): Promise<AgentRunView> {
+    const session = await this.#loadSession(run.session_id);
+    if (!session.runs.some(item => item.run_id === run.run_id)) throw new PrologueAdapterError("agent.run_unknown", "这次执行不属于此会话");
     return structuredClone(this.#requireRun(run.run_id).view);
   }
 
@@ -349,13 +408,14 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   }
 
   async control(run: AgentRunRef, control: AgentRunControl): Promise<void> {
+    await this.read(run);
     const record = this.#requireRun(run.run_id);
     switch (control.kind) {
       case "stop":
-        record.control.stop("stopped");
+        await record.control.stop("stopped");
         break;
       case "cancel":
-        record.control.stop("cancelled");
+        await record.control.stop("cancelled");
         break;
       case "pause":
         record.control.pause();
@@ -386,36 +446,49 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   }
 
   async readCommandOutput(
-    _session: AgentSessionRef,
-    _ref: AgentCommandOutputRef,
+    session: AgentSessionRef,
+    ref: AgentCommandOutputRef,
   ): Promise<AgentCommandOutput> {
-    throw new PrologueAdapterError(
-      "agent.capability_unavailable",
-      "这个 Runtime 没有命令回执的来源，所以读不到；这与是否挂了审批桥无关",
-    );
+    const record = await this.#loadSession(session.session_id);
+    if (ref.run_id && !record.runs.some(run => run.run_id === ref.run_id)) throw new PrologueAdapterError("agent.run_unknown", "这轮执行不属于所选会话");
+    if (!this.#runtime.readCommandOutput) throw new PrologueAdapterError("agent.capability_unavailable", "这个 Runtime 没有接通命令回执");
+    return this.#runtime.readCommandOutput(session.session_id, ref);
   }
 
   /** Release the underlying Runtime. The Host owns when this happens. */
   async close(): Promise<void> {
+    this.#detachApprovalAnswers?.();
     for (const record of this.#runs.values()) record.unsubscribe();
     await this.#runtime.shutdown();
   }
 
   /**
-   * The control surface owns the run state; the event stream owns the content.
-   * Where they disagree about the phase, the control surface wins — it is the
-   * one that knows a stop was requested.
+   * Control owns pause/stop intent. A terminal event is published only after
+   * Prologue has committed the session ledger. Never expose a terminal control
+   * state before that event: the next Run would read incomplete history.
    */
-  #publish(runId: string): void {
+  #publish(runId: string, stampTerminal = true): void {
     const record = this.#runs.get(runId);
     if (!record) return;
     const controlPhase = prologuePhaseOf(record.control.state);
-    const phase = controlPhase === "running" ? record.state.phase : controlPhase;
+    const awaitingCommit = isEnded(controlPhase) && !isEnded(record.state.phase);
+    const phase = controlPhase === "running" || awaitingCommit ? record.state.phase : controlPhase;
+    const stopReason = awaitingCommit
+      ? controlPhase === "stopped" || controlPhase === "cancelled"
+        ? "已请求停止，正在收尾并保存执行记录"
+        : "正在保存本轮执行记录"
+      : phase === "stopped" ? "已停止" : record.state.stop_reason;
     record.view = {
       ...record.view,
       phase: phase === "starting" ? "running" : phase,
-      turns: [...record.state.turns],
+      turns: [...record.state.turns, ...(record.state.streaming === "" ? [] : [{
+        turn_id: `assistant-${record.state.turns.length + 1}`,
+        kind: "assistant" as const,
+        text: record.state.streaming,
+        at: record.view.started_at,
+      }])],
       activity: [...record.state.activity],
+      command_outputs: record.state.command_calls.map(call_id => ({ call_id, run_id: runId })),
       usage: record.state.usage,
       // Prologue's event names the pending and phrases the question but offers
       // no option list, so the surface gets free text only. Inventing options
@@ -427,10 +500,8 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
         options: [],
         allows_free_text: true,
       })),
-      ...(record.state.stop_reason === undefined
-        ? {}
-        : { stop_reason: record.state.stop_reason }),
-      ...(isEnded(phase) && record.view.ended_at === null
+      stop_reason: stopReason,
+      ...(stampTerminal && isEnded(phase) && record.view.ended_at === null
         ? { ended_at: this.#now().toISOString() }
         : {}),
     };
@@ -444,14 +515,8 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     try {
       await bridge.mirrorPending({
         pendingRef: event.pendingRef,
+        owner: this.#requireSession(run.session_id).owner,
         run: { ...run },
-        kind: "tool-operation",
-        document: {
-          kind: "tool-operation",
-          tool: event.character ?? "prologue",
-          summary: event.why,
-          fields: [{ label: "副作用", value: event.effectRef.id }],
-        },
       });
     } catch (error) {
       const record = this.#runs.get(run.run_id);
@@ -473,6 +538,60 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     const record = this.#sessions.get(sessionId);
     if (!record) throw new PrologueAdapterError("agent.session_unknown", "找不到这条会话");
     return record;
+  }
+
+  async #loadSession(sessionId: string): Promise<SessionRecord> {
+    const existing = this.#sessions.get(sessionId);
+    if (existing) return existing;
+    const held = this.#restoring.get(sessionId);
+    if (held) return held;
+    const loading = this.#restoreSession(sessionId);
+    this.#restoring.set(sessionId, loading);
+    try { return await loading; }
+    finally { this.#restoring.delete(sessionId); }
+  }
+
+  async #restoreSession(sessionId: string): Promise<SessionRecord> {
+    const restored = await this.#runtime.sessions.restore?.(sessionId);
+    if (!restored) return this.#requireSession(sessionId);
+    const session: SessionRecord = { title: restored.title, owner: restored.owner, runs: [],
+      ...(restored.recovery ? { recovery: restored.recovery } : {}) };
+    for (const saved of restored.runs) {
+      const state = emptyPrologueStreamState();
+      state.turns.push({ turn_id: "user-1", kind: "user", text: saved.task, at: saved.started_at });
+      let firstPrompt = true;
+      let endedAt: string | null = null;
+      for (const event of saved.events ?? []) {
+        if (event.type === "prompt" && event.role === "user" && firstPrompt) {
+          firstPrompt = false;
+          if (event.text === saved.task) continue;
+        }
+        const atMs = (event as { atMs?: unknown }).atMs;
+        const at = typeof atMs === "number" && Number.isFinite(atMs) ? new Date(atMs).toISOString() : saved.started_at;
+        applyPrologueEvent(state, event, at);
+        if (isEnded(state.phase) && typeof atMs === "number") endedAt = at;
+      }
+      if (!saved.events || !isEnded(state.phase)) {
+        state.phase = "reconcile-required";
+        state.stop_reason = "这轮执行在中断前没有提交完整事件账，已发生的操作需要核对；不会自动重跑。";
+      }
+      if (state.phase === "cancelled" && saved.stop_intent === "stopped") {
+        state.phase = "stopped";
+        state.stop_reason = "已停止";
+      }
+      // Replayed records are immutable observations. A new Run continues the
+      // same SDK session; old control handles cannot be resurrected.
+      const unavailable = (): never => { throw new PrologueAdapterError("agent.capability_unavailable", "历史执行没有活动控制句柄，不能重放停止、回答或继续指令"); };
+      const control: PrologueControlPort = { state: state.phase === "reconcile-required" ? "reconcile-required" : "running",
+        stop: unavailable, pause: unavailable, resume: unavailable, steer: unavailable, subscribe: () => () => {} };
+      const view: AgentRunView = { ref: saved.ref, frozen: saved.frozen, started_at: saved.started_at, ended_at: endedAt,
+        phase: state.phase, turns: [], activity: [], usage: state.usage, awaiting_input: [] };
+      this.#runs.set(saved.ref.run_id, { view, state, control, unsubscribe: () => {}, listeners: new Set() });
+      session.runs.push(saved.ref);
+      this.#publish(saved.ref.run_id, false);
+    }
+    this.#sessions.set(sessionId, session);
+    return session;
   }
 
   #requireRun(runId: string): RunRecord {

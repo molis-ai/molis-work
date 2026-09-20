@@ -1,7 +1,7 @@
 import type { HostCapabilityDefinition } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentHostCapabilities, type AgentSessionRef, type AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 
-import type { AgentHost, AgentStartAuthority } from "./index.js";
+import { AgentHostError, type AgentHost, type AgentStartAuthority } from "./index.js";
 
 /**
  * Registers the Agent Host's Capabilities with a Host registry.
@@ -40,6 +40,17 @@ export function registerAgentHostCapabilities<Context>(
   registrar: AgentCapabilityRegistrar<Context>,
   ports: AgentCapabilityPorts<Context>,
 ): () => void {
+  const readScopedSession = async (context: Context, session: AgentSessionRef) => {
+    const view = await ports.agentHost(context).adapter(session.runtime_id).readSession(session);
+    if (view.owner?.board_id !== ports.boardId(context)) throw new AgentHostError("agent.session_unknown", "当前项目找不到这条会话");
+    return view;
+  };
+  const requireRun = async (context: Context, session: AgentSessionRef, run: AgentRunRef) => {
+    const view = await readScopedSession(context, session);
+    if (run.session_id !== session.session_id || !view.runs.some(entry => entry.run_id === run.run_id && entry.session_id === session.session_id)) {
+      throw new AgentHostError("agent.run_unknown", "当前会话找不到这一轮执行");
+    }
+  };
   const disposers = [
     registrar.register(agentHostCapabilities.listRuntimes, (context) =>
       ports.agentHost(context).descriptors()),
@@ -52,31 +63,51 @@ export function registerAgentHostCapabilities<Context>(
         (await ports.authority(context, pluginId)).manifest,
       )),
 
-    registrar.register(agentHostCapabilities.createSession, async (context, [runtimeId, input]) =>
-      await ports.agentHost(context).adapter(runtimeId).createSession(input)),
+    registrar.register(agentHostCapabilities.createSession, async (context, [runtimeId, input]) => {
+      if (input.board_id !== ports.boardId(context)) throw new AgentHostError("agent.session_unknown", "不能为其他项目创建会话");
+      const authority = await ports.authority(context, input.plugin_id);
+      if (!input.directory.realpath_verified || !authority.authorizedDirectories.includes(input.directory.canonical_path)) {
+        throw new AgentHostError("agent.directory_unauthorized", "这个目录没有被授权给当前项目");
+      }
+      return ports.agentHost(context).adapter(runtimeId).createSession(input);
+    }),
 
     registrar.register(agentHostCapabilities.readSession, async (context, [session]) =>
-      await ports.agentHost(context).adapter(session.runtime_id).readSession(session)),
+      await readScopedSession(context, session)),
 
-    registrar.register(agentHostCapabilities.startRun, async (context, [runtimeId, request]) =>
-      await ports.agentHost(context).start(
+    registrar.register(agentHostCapabilities.startRun, async (context, [runtimeId, request]) => {
+      const authority = await ports.authority(context, request.plugin_id);
+      if (!request.directory.realpath_verified || !authority.authorizedDirectories.includes(request.directory.canonical_path)) {
+        throw new AgentHostError("agent.directory_unauthorized", "这个目录没有被授权给当前项目");
+      }
+      const view = await readScopedSession(context, request.session);
+      if (request.board_id !== ports.boardId(context) || runtimeId !== request.session.runtime_id || request.plugin_id !== view.owner.plugin_id || request.install_id !== view.owner.install_id) {
+        throw new AgentHostError("agent.session_unknown", "执行请求与会话归属不一致");
+      }
+      return ports.agentHost(context).start(
         runtimeId,
         request,
-        await ports.authority(context, request.plugin_id),
-      )),
+        authority,
+      );
+    }),
 
-    registrar.register(agentHostCapabilities.readRun, async (context, [session, run]) =>
-      await ports.agentHost(context).adapter(session.runtime_id).read(run)),
+    registrar.register(agentHostCapabilities.readRun, async (context, [session, run]) => {
+      await requireRun(context, session, run);
+      return ports.agentHost(context).adapter(session.runtime_id).read(run);
+    }),
 
     registrar.register(agentHostCapabilities.controlRun, async (context, [session, run, control]) => {
+      await requireRun(context, session, run);
       await ports.agentHost(context).adapter(session.runtime_id).control(run, control);
     }),
 
     // A receipt of a command already run, never a way to run one. When the
     // Runtime reports `command` as unsupported the adapter throws, which is the
     // honest answer: the Plugin sees unavailable, not an empty transcript.
-    registrar.register(agentHostCapabilities.readCommandOutput, async (context, [session, ref]) =>
-      await ports.agentHost(context).adapter(session.runtime_id).readCommandOutput(session, ref)),
+    registrar.register(agentHostCapabilities.readCommandOutput, async (context, [session, ref]) => {
+      await readScopedSession(context, session);
+      return ports.agentHost(context).adapter(session.runtime_id).readCommandOutput(session, ref);
+    }),
 
     registrar.register(agentHostCapabilities.listReviews, (context, [boardId, status]) => {
       const scoped = ports.boardId(context);

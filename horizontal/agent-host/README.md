@@ -50,5 +50,6 @@ Agent Host 接进去，所以这些能力今天在运行中的产品里还拿不
 
 Prologue（`src/adapters/prologue.ts`）接通了会话、Run、事件流投影，并且**可以挂上审批桥**：
 不挂时写入报 `unsupported`，挂上之后才申报支持，且 Run 停下等的每一笔副作用都先进宿主审查队列。
-命令始终报 `unsupported`——这个 adapter 没有命令回执的来源，读不回来，报成支持就会让调用方看到一个
-读一次失败一次的能力。尚未对真实模型端到端验证。
+命令只有同时接通宿主审批桥和持久回执读取端口才申报支持。Node 装配读取 SDK 固定命令审查资源，
+并按 Session、Run、call 精确读取 SDK 回执；非零退出、取消和超时不伪装成功。
+正式 Coding 入口已用 MiniMax 跑过仓库测试，范围与剩余验证见 Coding spec。

@@ -60,6 +60,7 @@ function adapterFor(input: {
     async readSession(): Promise<AgentSessionView> {
       return {
         session: { session_id: "session-1", runtime_id: input.runtimeId },
+        owner: { board_id: BOARD, plugin_id: PLUGIN, install_id: "install-1" },
         title: "任务",
         runs: [],
         latest_run: null,
@@ -129,6 +130,7 @@ function prologueRig() {
   let state = "running";
   let closed = false;
   let started: { mode: string; character: { instructions: string } } | undefined;
+  const controlListeners = new Set<() => void>();
   const control = {
     get state() {
       return state as never;
@@ -146,7 +148,11 @@ function prologueRig() {
     steer(input: { text: string }) {
       steers.push(input.text);
     },
-    subscribe: () => () => {},
+    subscribe(fn: () => void) {
+      controlListeners.add(fn);
+      fn();
+      return () => controlListeners.delete(fn);
+    },
   };
   return {
     stops,
@@ -157,6 +163,7 @@ function prologueRig() {
     },
     settle(next: string) {
       state = next;
+      for (const notify of controlListeners) notify();
     },
     emit(event: unknown) {
       listener?.(event);
@@ -417,12 +424,24 @@ test("the Prologue adapter runs a read-only role and refuses a writing one", asy
   assert.equal(handle.frozen.execution, "read-only");
   assert.equal(handle.frozen.model_id, "claude-opus-5");
 
+  rig.emit({ type: "prompt", role: "user", text: startRequest("reader").task });
+  assert.equal((await adapter.read(handle.ref)).turns.filter((turn) => turn.kind === "user").length, 1);
   rig.emit({ type: "text-delta", text: "看过了。" });
+  const streaming = await adapter.read(handle.ref);
+  assert.equal(streaming.turns.at(-1)?.text, "看过了。", "输出不等待模型结束才可见");
+  rig.settle("paused");
+  assert.equal((await adapter.read(handle.ref)).phase, "paused", "无内容事件时控制状态也要刷新");
+  rig.settle("running");
+  rig.settle("completed");
+  assert.equal((await adapter.read(handle.ref)).phase, "running", "控制先完成，但会话账尚未提交，不能开始下一轮");
+  assert.equal((await adapter.read(handle.ref)).ended_at, null);
   rig.emit({ type: "completed" });
   rig.settle("completed");
   const view = await adapter.read(handle.ref);
   assert.equal(view.phase, "completed");
   assert.equal(view.turns.at(-1)?.text, "看过了。");
+  assert.equal(view.turns.at(-1)?.turn_id, streaming.turns.at(-1)?.turn_id);
+  assert.equal(view.turns.filter((turn) => turn.kind === "assistant").length, 1);
 
   await assert.rejects(
     () => adapter.start({
@@ -479,7 +498,9 @@ test("the control surface owns the run state, not the event stream", async () =>
 
   await adapter.control(handle.ref, { kind: "stop" });
   assert.deepEqual(rig.stops, ["stopped"]);
-  assert.equal((await adapter.read(handle.ref)).phase, "stopped");
+  assert.equal((await adapter.read(handle.ref)).phase, "running", "停止请求不能冒充已落账的终态");
+  assert.equal((await adapter.read(handle.ref)).ended_at, null);
+  assert.match((await adapter.read(handle.ref)).stop_reason ?? "", /正在收尾/);
 
   // A late `completed` on the stream must not turn a stopped run into a success.
   rig.emit({ type: "completed" });
@@ -501,7 +522,7 @@ test("an unconfigured model is reported as needing setup, not as a failure", asy
   assert.ok(health.action, "需要配置时必须给出一条具体的下一步");
 });
 
-test("the Host refuses every declared role on the Prologue adapter's current capabilities", async () => {
+test("the Host offers read-only roles and refuses unsupported writing roles", async () => {
   const { AgentHost: Host, PrologueAgentAdapter } =
     await import("@molis-ai/molis-work-service-agent-host");
   const host = new Host();
@@ -546,6 +567,18 @@ test("Plugins reach the Agent Host only through registered Capabilities", async 
     ],
   );
 
+  const ownedSession = {session_id:"session-1",runtime_id:"prologue"};
+  const otherContext = {board_id:"another-board"};
+  for(const operation of [
+    () => registry.invoke(otherContext, agentHostCapabilities.readSession, [ownedSession]),
+    () => registry.invoke(otherContext, agentHostCapabilities.startRun, ["prologue",startRequest("reader")]),
+    () => registry.invoke(otherContext, agentHostCapabilities.readRun, [ownedSession,{run_id:"run-1",session_id:"session-1"}]),
+    () => registry.invoke(otherContext, agentHostCapabilities.controlRun, [ownedSession,{run_id:"run-1",session_id:"session-1"},{kind:"stop"}]),
+    () => registry.invoke(otherContext, agentHostCapabilities.readCommandOutput, [ownedSession,{call_id:"c1"}]),
+  ]) await assert.rejects(operation, (error: unknown) => (error as {code?:string}).code === "agent.session_unknown");
+  await assert.rejects(() => registry.invoke(context, agentHostCapabilities.controlRun, [ownedSession,{run_id:"other-run",session_id:"other-session"},{kind:"stop"}]),
+    (error:unknown) => (error as {code?:string}).code === "agent.run_unknown");
+
   // Starting through the Capability still goes through the Host's own authority.
   const handle = await registry.invoke(context, agentHostCapabilities.startRun, [
     "prologue",
@@ -556,7 +589,7 @@ test("Plugins reach the Agent Host only through registered Capabilities", async 
   await assert.rejects(
     () => registry.invoke(context, agentHostCapabilities.startRun, [
       "cli-readonly",
-      startRequest("builder"),
+      { ...startRequest("builder"), session: { session_id: "session-1", runtime_id: "cli-readonly" } },
     ]),
     (error: unknown) => error instanceof AgentHostError
       && error.code === "agent.capability_unavailable",
@@ -600,4 +633,22 @@ test("Plugins reach the Agent Host only through registered Capabilities", async 
     (error: unknown) => (error as { code?: string }).code === "kernel.capability_missing",
     "注销之后不应还能调用",
   );
+});
+
+
+test("review replay preserves consumed approval and refuses changed content under the same id", () => {
+  const queue = new AgentReviewQueue();
+  const request = reviewRequest("stable-review");
+  queue.request(request);
+  queue.decide({ review_id: request.review_id, decision: "approve", actor_id: "user" });
+  queue.consumeApproval(request.review_id);
+  queue.settle(request.review_id, { ok: true });
+  queue.request(structuredClone(request));
+  assert.equal(queue.receipt(request.review_id)?.effect_settled, true);
+  assert.throws(() => queue.settle(request.review_id, { ok: false, error: "late wrong result" }), /不能用另一结果覆盖/);
+  assert.throws(() => queue.consumeApproval(request.review_id), /没有可用的批准/);
+  const changed = structuredClone(request);
+  changed.board_id = "another-board";
+  assert.throws(() => queue.request(changed), /不能替换/);
+  assert.equal(queue.get(request.review_id)?.board_id, request.board_id);
 });

@@ -195,6 +195,8 @@ export interface AgentStartRequest {
   /** The user's instruction for this Run. */
   task: string;
   role_id: string;
+  /** A configured provider/model selected for this run, resolved by the Host. */
+  model_selection?: { provider_id: string; model_id: string };
   /**
    * Filled in by the Host before the adapter is called. Absent only on a direct
    * adapter call, which an adapter must refuse rather than guess around.
@@ -237,7 +239,7 @@ export interface AgentTurnView {
   at: string;
 }
 
-export type AgentToolActivityState = "started" | "completed" | "failed";
+export type AgentToolActivityState = "started" | "completed" | "failed" | "unknown";
 
 export interface AgentToolActivity {
   call_id: string;
@@ -246,6 +248,9 @@ export interface AgentToolActivity {
   target: string;
   state: AgentToolActivityState;
   summary: string;
+  /** Bounded execution evidence, shown only when the user expands the activity. */
+  output?: string;
+  output_truncated?: boolean;
   at: string;
 }
 
@@ -265,6 +270,8 @@ export interface AgentRunUsage {
 
 export interface AgentCommandOutputRef {
   call_id: string;
+  /** Required for unambiguous product links; legacy callers may omit it. */
+  run_id?: string;
 }
 
 export interface AgentCommandOutput {
@@ -274,6 +281,9 @@ export interface AgentCommandOutput {
   stdout: string;
   stderr: string;
   truncated: boolean;
+  timed_out?: boolean;
+  cancelled?: boolean;
+  stop_reason?: "cancelled" | "timed-out";
 }
 
 /**
@@ -300,6 +310,8 @@ export interface AgentRunView {
   frozen: AgentFrozenStart;
   turns: AgentTurnView[];
   activity: AgentToolActivity[];
+  /** References to durable command facts, not inferred from assistant text. */
+  command_outputs?: AgentCommandOutputRef[];
   usage: AgentRunUsage;
   /**
    * Questions this Run is stopped on. Empty while it is running.
@@ -316,6 +328,9 @@ export interface AgentRunView {
 }
 
 export interface AgentSessionView {
+  /** Persisted work exists but is not safe to continue automatically. */
+  recovery?: { required: true; reason: string };
+  owner: Pick<AgentCreateSessionInput, "board_id" | "plugin_id" | "install_id">;
   session: AgentSessionRef;
   title: string;
   runs: AgentRunRef[];
@@ -338,6 +353,8 @@ export interface AgentCommandReviewDocument {
   args: string[];
   cwd: string;
   timeout_ms: number;
+  env_allowlist?: string[];
+  escalate?: boolean;
 }
 
 export interface AgentToolOperationReviewDocument {
@@ -396,6 +413,8 @@ export interface AgentReviewReceipt {
   /** True once the approved effect really happened and the Runtime returned a receipt. */
   effect_settled: boolean;
   effect_error: string | null;
+  /** Host recorded a decision, but the execution owner did not confirm receiving it. */
+  delivery_error?: string;
 }
 
 /**
@@ -505,6 +524,7 @@ export type AgentHostErrorCode =
   | "agent.model_not_configured"
   // Session and run lookup
   | "agent.session_unknown"
+  | "agent.session_busy"
   | "agent.run_unknown"
   // Host-owned review queue
   | "agent.review_unknown"

@@ -67,7 +67,8 @@ test("不可用的工具页保留标签但禁用，并带上理由", () => {
 test("项目没绑定工作区时如实说明，不显示一个猜出来的路径", () => {
   const html = renderCodingWorkbench(model({ workspace_path: null }));
   assert.match(html, /还没有绑定工作区目录/);
-  assert.doesNotMatch(html, /data-coding-workspace/);
+  assert.doesNotMatch(html, /data-coding-workspace="/);
+  assert.match(html, /data-coding-workspace-open/);
 });
 
 test("会话按 Goal 分组渲染，未关联目标是一个真实分组", () => {

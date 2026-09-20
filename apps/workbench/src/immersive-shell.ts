@@ -1,5 +1,5 @@
 import type { MolisWorkIcon } from "@molis-ai/molis-work-design-system";
-import { railEntries } from "./plugin-catalog.js";
+import { railEntries, BUILTIN_PLUGIN_CATALOG } from "./plugin-catalog.js";
 
 export interface ImmersiveShellPrimitives {
   L(value: string): string;
@@ -76,7 +76,7 @@ export function renderDirectoryPluginSections(
     const panel = panels[plugin.id] || "";
     if (!panel) return [];
     const visible = plugin.id === current;
-    return [`<section class="plugin-section is-expanded" data-plugin-section="${plugin.id}" data-plugin-expanded="true"${visible ? "" : " hidden"}>${pluginLink(primitives, plugin)}<div class="plugin-section-body" id="plugin-section-body-${plugin.id}">${panel}</div></section>`];
+    return [`<section class="plugin-section is-expanded" data-plugin-section="${plugin.id}"${panel.includes('data-directory-panel=') ? "" : ` data-directory-panel="${plugin.id}"`} data-plugin-expanded="true"${visible ? "" : " hidden"}>${pluginLink(primitives, plugin)}<div class="plugin-section-body" id="plugin-section-body-${plugin.id}">${panel}</div></section>`];
   }).join("");
   return `${plugins}${settingsSection}`;
 }
@@ -131,14 +131,12 @@ export function renderGlobalSearchOverlay({ L, icon }: ImmersiveShellPrimitives)
 }
 
 export function renderPluginMarket({ L, icon }: ImmersiveShellPrimitives): string {
-  const plugins = [
-    { id: "goals", label: "Goals", glyph: "target" as const, copy: "确定目标，推进工作，留下结果。" },
-    { id: "sessions", label: "Sessions", glyph: "terminal" as const, copy: "回到你的会话，继续正在做的事。" },
-    { id: "inbox", label: "Inbox", glyph: "inbox" as const, copy: "只看需要你介入的事项。" },
-    { id: "feed", label: "Feed", glyph: "rss" as const, copy: "查看来源消息和完整流水。" },
-    { id: "shelf", label: "Shelf", glyph: "library" as const, copy: "把文件放到置物架，处理副本，原件不动。" },
-    { id: "artifacts", label: "Artifacts", glyph: "package" as const, copy: "打开项目成果，查看保留下来的版本。" },
-  ];
+  const plugins = BUILTIN_PLUGIN_CATALOG.map(entry => ({
+    id: entry.project_plugin_id,
+    label: entry.manifest.name,
+    glyph: (entry.manifest.ui.views?.find(view => view.slot === "navigator")?.icon ?? "package") as MolisWorkIcon,
+    copy: entry.description,
+  }));
   const rows = plugins.map(plugin => `<article class="mw-card" data-market-plugin="${plugin.id}"><div class="plugin-market-icon">${icon(plugin.glyph)}</div><div class="plugin-market-copy"><h2>${plugin.label}</h2><p>${L(plugin.copy)}</p></div><button class="mw-btn mw-btn--secondary" type="button" data-market-add="${plugin.id}" disabled>${L("添加")}</button></article>`).join("");
   return `<div class="plugin-market-body">
     <header class="plugin-market-heading"><div><h1>${L("插件")}</h1></div><div class="plugin-market-destination"><label id="plugin-market-destination-label" for="plugin-market-project-trigger">${L("添加到")}</label><button type="button" class="plugin-market-project-trigger" id="plugin-market-project-trigger" data-market-project-trigger popovertarget="plugin-market-project-menu" aria-labelledby="plugin-market-destination-label plugin-market-project-label" aria-haspopup="listbox" aria-expanded="false" disabled><strong id="plugin-market-project-label" data-market-project-label></strong>${icon("chevron-down")}</button><div id="plugin-market-project-menu" popover="auto" class="plugin-market-project-popover" data-market-project-popover role="listbox" aria-labelledby="plugin-market-destination-label"><nav data-market-project-options></nav></div><select data-market-project hidden tabindex="-1" aria-hidden="true" disabled></select><template data-market-project-check>${icon("check")}</template></div></header>

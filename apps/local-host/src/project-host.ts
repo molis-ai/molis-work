@@ -3,6 +3,7 @@ import { LocalHost } from "./local-host.js";
 import { GoalProjectApplication } from "./goal-project-application.js";
 import { LocalProjectDatabase } from "./project-database.js";
 import { registerProjectCapabilities } from "./project-capabilities.js";
+import { releaseCodingSurface } from "./coding-surface.js";
 import type { HostCapabilityDefinition, LocalHostProjectClient, LocalHostProjectReference, LocalHostStatus } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PlanningMethodPack } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -30,7 +31,8 @@ export interface MolisWorkLocalHostOptions {
    * then sees it as unavailable, which is true, instead of an answer of "no
    * workspace", which would not be.
    */
-  workspaceFor?: (projectId: string) => ProjectWorkspaceRef | null;
+  workspacesFor?: (projectId: string) => readonly ProjectWorkspaceRef[] | Promise<readonly ProjectWorkspaceRef[]>;
+  workspaceFor?: (projectId: string) => ProjectWorkspaceRef | null | Promise<ProjectWorkspaceRef | null>;
 }
 
 export function molisWorkHostProjectReference(input: {
@@ -72,7 +74,8 @@ export class MolisWorkLocalHost {
             board_id: reference.board_id,
           };
         },
-        close: (runtime, reference) => {
+        close: async (runtime, reference) => {
+          await releaseCodingSurface(runtime.store, runtime.board_id);
           runtime.store.close();
           options.onRuntimeClose?.(reference);
         },
@@ -80,7 +83,7 @@ export class MolisWorkLocalHost {
     });
     registerProjectCapabilities(
       this.host,
-      options.workspaceFor === undefined ? {} : { workspaceFor: options.workspaceFor },
+      { workspaceFor: options.workspaceFor, workspacesFor: options.workspacesFor },
     );
   }
 

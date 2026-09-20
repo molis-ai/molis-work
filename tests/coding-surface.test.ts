@@ -59,7 +59,7 @@ test("面板来自运行中的插件，会话来自它自己的库", async () =>
     // Goal 标题是读时解析的，不是存在 Coding 自己表里的
     assert.match(surface!.panel, /让首次使用不再卡住/);
 
-    releaseCodingSurface(DEMO_BOARD_ID);
+    await releaseCodingSurface(store, DEMO_BOARD_ID);
     store.close();
   } finally {
     rmSync(directory, { recursive: true, force: true });
@@ -82,7 +82,7 @@ test("会话标题里的标记不会原样进页面", async () => {
     assert.equal(surface?.panel.includes("<img src=x"), false);
     assert.match(surface!.panel, /&lt;img src=x/);
 
-    releaseCodingSurface(DEMO_BOARD_ID);
+    await releaseCodingSurface(store, DEMO_BOARD_ID);
     store.close();
   } finally {
     rmSync(directory, { recursive: true, force: true });
@@ -96,7 +96,7 @@ test("没有会话时给出插件自己的空状态，而不是一段空白", as
     const surface = await codingDirectoryPanel(ports(store));
     assert.notEqual(surface, null);
     assert.match(surface!.panel, /还没有编码会话/);
-    releaseCodingSurface(DEMO_BOARD_ID);
+    await releaseCodingSurface(store, DEMO_BOARD_ID);
     store.close();
   } finally {
     rmSync(directory, { recursive: true, force: true });

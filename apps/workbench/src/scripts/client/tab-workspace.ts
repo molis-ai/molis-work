@@ -143,6 +143,9 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   };
   const applyTabContent = (tab, keepFrame) => {
     if (!tab) return;
+    document.dispatchEvent(new CustomEvent("molis-work:plugin-item-selected", {
+      detail: { plugin: tab.plugin, itemId: tab.kind === "item" ? tab.itemId : null },
+    }));
     if (tab.plugin === "goals" && tab.kind === "item" && tab.itemId) {
       if (supportsGoalFrames() && tab.goalView !== "work") { applySelection?.(tab.itemId); showGoalFrame?.(tab.itemId); return; }
       releaseFrame?.();
@@ -264,6 +267,10 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     if (!scroll) return;
     const strip = scroll.parentElement;
     if (!strip || strip.clientWidth < 1) return;
+    // Scroll padding aligns a clipped active tab; it is not reserved content
+    // for the next layout. Reusing it can alternate between sharing and hug.
+    const scrollPad = scroll.querySelector("[data-tab-scroll-pad]");
+    if (scrollPad) scrollPad.style.width = "0px";
     const flexTabs = [...scroll.querySelectorAll(".tab-item:not([data-pinned]):not(.is-tab-drag-source)")].filter((tab) => !tab.closest('.tab-group[data-collapsed="true"]'));
     const slot = scroll.querySelector("[data-tab-reorder-slot]");
     const flexNodes = slot ? flexTabs.concat(slot) : flexTabs;
@@ -305,7 +312,9 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       }
       siblingChrome += child.getBoundingClientRect().width;
     }
-    const allotted = tabScrollAllotment(strip.clientWidth, siblingChrome, gapOf(strip), stripKids.length);
+    const stripStyle = getComputedStyle(strip);
+    const innerWidth = strip.clientWidth - (Number.parseFloat(stripStyle.paddingLeft) || 0) - (Number.parseFloat(stripStyle.paddingRight) || 0);
+    const allotted = tabScrollAllotment(innerWidth, siblingChrome, gapOf(strip), stripKids.length);
     const share = tabShareWidth(allotted - reserved, flexNodes.map(tabHugWidth), tabShareMin(window.matchMedia("(max-width: 760px), (pointer: coarse)").matches));
     if (share == null) {
       if (!(scroll.style.getPropertyValue("--tab-share-width") || scroll.style.width)) return;
@@ -744,8 +753,11 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   const activate = (paneId, tabId) => {
     const pane = state.panes.find((candidate) => candidate.id === paneId);
     if (!pane) return;
+    state.exclusive = null;
     state.focusedPaneId = paneId;
     if (tabId) pane.activeTabId = tabId;
+    const selected = pane.tabs.find(tab => tab.id === pane.activeTabId);
+    if (selected) setDirectory(directoryOf(selected.plugin), false, false);
     apply();
     persist();
   };
@@ -983,7 +995,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     if (tab) {
       const pane = state.panes.find((candidate) => candidate.id === paneId);
       const alreadyActive = pane?.activeTabId === tab.dataset.tabId && state.focusedPaneId === paneId;
-      if (!alreadyActive) {
+      if (!alreadyActive || state.exclusive) {
         activate(paneId, tab.dataset.tabId);
       }
       focusActiveTab();

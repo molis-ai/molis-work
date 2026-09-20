@@ -8,6 +8,7 @@ export interface MolisWorkWebView {
    * plugin id. Absent means the shell renders what it always rendered.
    */
   plugin_panels?: Readonly<Record<string, string>>;
+  plugin_stages?: readonly string[];
   snapshot: BoardSnapshot;
   project: WebProjectNavigation | null;
   projects: WebProjectNavigation[];

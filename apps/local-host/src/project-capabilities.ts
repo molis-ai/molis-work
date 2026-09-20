@@ -21,6 +21,7 @@ import type { MolisWorkProjectRuntime } from "./project-host.js";
 
 export interface ProjectCapabilityPorts {
   /** Resolves the workspace a project is bound to. See `MolisWorkLocalHostOptions`. */
+  workspacesFor?: (projectId: string) => readonly ProjectWorkspaceRef[] | Promise<readonly ProjectWorkspaceRef[]>;
   workspaceFor?: (projectId: string) => ProjectWorkspaceRef | null | Promise<ProjectWorkspaceRef | null>;
 }
 
@@ -29,6 +30,7 @@ export function registerProjectCapabilities(
   ports: ProjectCapabilityPorts = {},
 ): void {
   const { workspaceFor } = ports;
+  if (ports.workspacesFor) host.register(projectsCapabilities.listWorkspaces, runtime => ports.workspacesFor!(runtime.project_id));
   if (workspaceFor !== undefined) {
     // Scoped to the runtime's own project: the Capability takes no project id,
     // so a Plugin cannot ask about another project. The answer carries the

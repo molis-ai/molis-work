@@ -36,12 +36,13 @@ export const codingManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: CODING_PLUGIN_ID,
-  version: "1.0.0",
+  version: "1.3.3",
   name: "Coding",
   kind: "app",
   publisher: { publisher_id: "molis", signature: "official-coding-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
+    { permission: "storage:private", required: true, reason: "保存编码会话的未发送草稿" },
     {
       permission: "artifact:write",
       required: true,
@@ -53,6 +54,7 @@ export const codingManifest: PluginManifest = {
     consumes: [
       ...Object.values(agentHostCapabilities).map((entry) => entry.capability_id),
       projectsCapabilities.readWorkspace.capability_id,
+      projectsCapabilities.listWorkspaces.capability_id,
     ],
   },
   artifacts: {
@@ -82,6 +84,15 @@ export const codingManifest: PluginManifest = {
     subscribes: [],
   },
   agent: codingAgentManifest,
+  routes: [
+    { route_id: "coding.state", method: "GET", path: "/state" },
+    { route_id: "coding.create-session", method: "POST", path: "/sessions" },
+    { route_id: "coding.read-session", method: "GET", path: "/sessions/:sessionId" },
+    { route_id: "coding.command-output", method: "GET", path: "/sessions/:sessionId/runs/:runId/commands/:callId" },
+    { route_id: "coding.update-session", method: "PATCH", path: "/sessions/:sessionId" },
+    { route_id: "coding.start-run", method: "POST", path: "/sessions/:sessionId/runs" },
+    { route_id: "coding.control-run", method: "POST", path: "/sessions/:sessionId/control" },
+  ],
   ui: {
     contributions: [CODING_UI_CONTRIBUTION_ID, CODING_SETTINGS_UI_CONTRIBUTION_ID],
     /**
@@ -112,6 +123,7 @@ export const codingManifest: PluginManifest = {
       },
     ],
     views: [
+      { view_id: "conversation", slot: "stage", title: "Coding", contribution_id: CODING_UI_CONTRIBUTION_ID },
       {
         view_id: "directory",
         slot: "navigator",

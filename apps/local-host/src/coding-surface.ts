@@ -9,6 +9,7 @@ import {
   createCodingPlugin,
   toDirectoryEntries,
   type CodingUiModel,
+  type CodingExecutionPorts,
 } from "@molis-ai/molis-work-plugin-coding";
 import { createDiffPlugin } from "@molis-ai/molis-work-plugin-diff";
 import { createFilesPlugin } from "@molis-ai/molis-work-plugin-files";
@@ -26,6 +27,10 @@ import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules
 
 import { createPluginPlatform, type PluginPlatform } from "./plugin-platform.js";
 import type { LocalProjectDatabase } from "./project-database.js";
+import { SqlitePluginPrivateStorage, type PluginCapabilityPort } from "@molis-ai/molis-work-plugin-runtime";
+import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
+import type { IncomingMessage, ServerResponse } from "node:http";
+import { renderFeedRichText } from "@molis-ai/molis-work-plugin-feed";
 
 /**
  * Coding's directory panel, rendered by the Plugin the Host is running.
@@ -47,26 +52,49 @@ export interface CodingSurfacePorts {
   translate(value: string): string;
   /** Directories bound to this project. Empty means none is bound yet. */
   workspaces?: readonly ProjectWorkspaceRef[];
+  capabilities?: PluginCapabilityPort;
+  execution?: Omit<CodingExecutionPorts, "sessions" | "goalTitle">;
+  routePrefix?: string;
 }
 
 interface Started {
   platform: PluginPlatform;
   running: boolean;
   workspaceRunning: boolean;
+  error?: string;
 }
 
-const started = new Map<string, Started>();
+const started = new WeakMap<LocalProjectDatabase, Map<string, Promise<Started>>>();
 
 /** Drops a project's platform, so a closed project does not keep one alive. */
-export function releaseCodingSurface(boardId: string): void {
-  started.delete(boardId);
+export async function releaseCodingSurface(store: LocalProjectDatabase, boardId: string): Promise<void> {
+  const boards = started.get(store);
+  const opening = boards?.get(boardId);
+  if (!opening) return;
+  boards!.delete(boardId);
+  const record = await opening;
+  if (!record.platform) return;
+  for (const pluginId of record.platform.supervisor.enabledPluginIds()) {
+    const active = record.platform.supervisor.state(pluginId);
+    record.platform.supervisor.revoke(pluginId);
+    if (active?.status === "running" && active.install_id) await record.platform.runtime.stop(active.install_id);
+  }
 }
 
 async function ensureStarted(ports: CodingSurfacePorts): Promise<Started> {
-  const existing = started.get(ports.boardId);
+  let boards = started.get(ports.store);
+  if (!boards) { boards = new Map(); started.set(ports.store, boards); }
+  const existing = boards.get(ports.boardId);
   if (existing) return existing;
+  const opening = startPlatform(ports);
+  boards.set(ports.boardId, opening);
+  return opening;
+}
+
+async function startPlatform(ports: CodingSurfacePorts): Promise<Started> {
   const record: Started = { platform: null as unknown as PluginPlatform, running: false, workspaceRunning: false };
   try {
+    const storage = new SqlitePluginPrivateStorage(ports.store.db);
     const platform = createPluginPlatform({
       board_id: ports.boardId,
       actor_id: ports.actorId,
@@ -76,7 +104,8 @@ async function ensureStarted(ports: CodingSurfacePorts): Promise<Started> {
         appendEvent: (event) => ports.store.appendEvent(event),
       }),
       ui: new UiHost(),
-      privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
+      privateStorageFor: (context, manifest) => storage.forPlugin(context, manifest),
+      ...(ports.capabilities ? { capabilities: ports.capabilities } : {}),
     });
     /**
      * The whole workspace family starts together.
@@ -90,7 +119,9 @@ async function ensureStarted(ports: CodingSurfacePorts): Promise<Started> {
      * Each still starts in isolation: one failing leaves its siblings running.
      */
     const report = await platform.start([
-      { definition: createCodingPlugin() },
+      { definition: createCodingPlugin(ports.execution ? { execution: {
+        ...ports.execution, sessions: new CodingSessionStore(ports.store.db), goalTitle: ports.goalTitle,
+      } } : {}), replace_version: true },
       { definition: createWorkspacePlugin({ currentWorkspaceId: () => currentWorkspaceId(ports) }) },
       { definition: createFilesPlugin({ readable: () => currentWorkspaceId(ports) !== null }) },
       { definition: createDiffPlugin() },
@@ -99,20 +130,35 @@ async function ensureStarted(ports: CodingSurfacePorts): Promise<Started> {
     ]);
     record.platform = platform;
     record.running = report.running.includes(CODING_PLUGIN_ID);
+    record.error = [...report.failed, ...report.blocked].find(entry => entry.plugin_id === CODING_PLUGIN_ID)?.message ?? undefined;
     record.workspaceRunning = report.running.includes(WORKSPACE_PLUGIN_ID);
-  } catch {
+  } catch (error) {
+    record.error = error instanceof Error ? error.message : "Coding 启动失败";
     record.running = false;
     record.workspaceRunning = false;
   }
-  started.set(ports.boardId, record);
   return record;
 }
 
 export async function codingDirectoryPanel(
   ports: CodingSurfacePorts,
 ): Promise<{ panel: string; plugin_id: string } | null> {
+  return codingPanel(ports, "directory");
+}
+
+export async function codingWorkbenchPanel(ports: CodingSurfacePorts) {
+  return codingPanel(ports, "workbench");
+}
+
+async function codingPanel(ports: CodingSurfacePorts, surface: "directory" | "workbench") {
   const record = await ensureStarted(ports);
-  if (!record.running) return null;
+  if (!record.running) {
+    const message = ports.escapeHtml(record.error ?? "Coding 插件未能启动");
+    const panel = surface === "directory"
+      ? `<section class="mw-empty" role="alert"><p>${message}</p></section>`
+      : `<section class="desktop-work-surface" data-work-surface="coding" data-work-surface-label="Coding" hidden><div class="mw-empty" role="alert"><p>${message}</p><p>请检查插件状态后重新打开。</p></div></section>`;
+    return { panel, plugin_id: CODING_PROJECT_PLUGIN_ID };
+  }
   const contribution = record.platform.supervisor.contribution(CODING_PLUGIN_ID);
   const views = (contribution as { views?: ReadonlyArray<{
     descriptor: { contribution_id: string };
@@ -127,7 +173,7 @@ export async function codingDirectoryPanel(
       ports.goalTitle,
     );
     const model: CodingUiModel = {
-      route_prefix: "",
+      route_prefix: ports.routePrefix ?? "",
       face: "sessions",
       filter: "all",
       sessions,
@@ -141,13 +187,34 @@ export async function codingDirectoryPanel(
       },
     };
     return {
-      panel: view.render({ surface: "directory", model }),
+      panel: view.render({ surface, model }),
       plugin_id: CODING_PROJECT_PLUGIN_ID,
     };
   } catch {
     // A Plugin that throws while rendering does not take the page with it.
     return null;
   }
+}
+
+/** Host dispatches only declared plugin routes, after the normal control guard. */
+export async function handleCodingPluginHttp(request: IncomingMessage, response: ServerResponse, url: URL, ports: CodingSurfacePorts): Promise<boolean> {
+  if (!url.pathname.startsWith(`/api/plugins/${CODING_PLUGIN_ID}/`)) return false;
+  const record = await ensureStarted(ports);
+  if (!record.running) { sendLocalWebJson(response, 503, { error: record.error ?? "Coding 插件未能启动" }); return true; }
+  const result = await record.platform.router().dispatch({
+    method: request.method ?? "GET", pathname: url.pathname, actor_id: ports.actorId,
+    query: Object.fromEntries(url.searchParams),
+    ...(["GET", "HEAD"].includes(request.method ?? "GET") ? {} : { body: await readLocalWebBody(request) }),
+  });
+  if (!result) return false;
+  // The existing sanitized rich-text renderer is supplied by the composition;
+  // Coding neither imports another plugin nor trusts model-produced HTML.
+  const body = result.body as { runs?: Array<{ turns: Array<{ text: string; kind: string }> }> } | undefined;
+  if (body?.runs) for (const run of body.runs) for (const turn of run.turns) {
+    Object.assign(turn, { html: renderFeedRichText(turn.text) });
+  }
+  sendLocalWebJson(response, result.status, result.body);
+  return true;
 }
 
 /**

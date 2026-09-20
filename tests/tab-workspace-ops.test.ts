@@ -192,8 +192,9 @@ test("opening another plugin or item adds a tab without replacing existing ones"
   assert.equal(goal.kind, "item");
   assert.equal("preview" in goal, false);
   assert.equal(ops.focused(state).tabs.some((tab) => tab.kind === "mother"), false);
-  const again = ops.openItem(state, "goals", "goal-1", "发布");
+  const again = ops.openItem(state, "goals", "goal-1", "发布（已改名）");
   assert.equal(again.id, goal.id);
+  assert.equal(again.title, "发布（已改名）");
   const other = ops.openItem(state, "goals", "goal-2", "下一个");
   assert.notEqual(other.id, goal.id);
   assert.equal(ops.focused(state).tabs.filter((tab) => tab.plugin === "goals").length, 2);

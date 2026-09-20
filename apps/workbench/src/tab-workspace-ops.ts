@@ -133,7 +133,10 @@ export function createTabWorkspaceOps() {
   const openInPane = (state, pane, tab) => {
     state.exclusive = null;
     const existing = pane.tabs.find((candidate) => tabKey(candidate) === tabKey(tab));
-    if (existing) return activateInPane(pane, existing);
+    if (existing) {
+      if (tab.title) existing.title = tab.title;
+      return activateInPane(pane, existing);
+    }
     return insertNew(pane, tab);
   };
   const openPlugin = (state, plugin) => {

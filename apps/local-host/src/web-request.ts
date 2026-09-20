@@ -25,6 +25,7 @@ import { resolveWebRequest } from "./web-routing.js";
 import { handleLocalCatalogWebRequest } from "./web-catalog.js";
 import { handleAgentReviewHttp } from "./agent-review-http.js";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
+import { handleCodingPluginHttp, type CodingSurfacePorts } from "./coding-surface.js";
 
 export async function handleMolisWorkWebRequest(
   request: IncomingMessage,
@@ -42,6 +43,7 @@ export async function handleMolisWorkWebRequest(
   localHost: MolisWorkLocalHost,
   composition: LocalWebComposition,
   agentHost: AgentHost,
+  agentReady: () => Promise<void>,
 ): Promise<void> {
   const { PAGE_CSP, handleSessions, handleDesktopPanelApi, goalsReadHttp, planningHttp, desktopRuntimeAvailability, servePtyClient, workbenchRenderer, buildCapsuleSnapshot, handleArtifactNativePluginHttp, isDesktopShellRequest } = composition;
   const resolved = await resolveWebRequest(serverOptions, url.pathname, composition.withCatalog);
@@ -77,6 +79,26 @@ export async function handleMolisWorkWebRequest(
         projectId: options.project?.project_id,
       });
       await localHost.withProject(hostReference, async ({ store, coordinator }) => {
+        const codingServices: Pick<CodingSurfacePorts, "capabilities" | "execution"> = {
+          capabilities: localHost.client(hostReference),
+          execution: {
+            ready: agentReady,
+            models: () => composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, (catalog) => {
+              const healthy = new Set(catalog.models.health().filter((entry) => entry.status === "ready").map((entry) => entry.provider_id));
+              return catalog.models.list().filter((entry) => healthy.has(entry.provider_id)).flatMap((provider) =>
+                provider.models.filter((model) => model.enabled).map((model) => ({ provider_id: provider.provider_id,
+                  model_id: model.model_id, label: `${provider.display_name} · ${model.display_name ?? model.model_id}` })));
+            }),
+          },
+        };
+        if (url.pathname.startsWith("/api/plugins/io.molis.work.coding/")) {
+          const enabled = options.project && await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory },
+            (catalog) => catalog.listProjectPlugins(options.project!.project_id).includes("coding"));
+          if (!enabled) { sendJson(response, 404, { error: "这个项目未启用 Coding" }); return; }
+          if (await handleCodingPluginHttp(request, response, url, { ...codingServices, store, boardId: options.boardId,
+            actorId: "web-user", goalTitle: (id) => coordinator.goalQueries.getGoal(options.boardId, id)?.title,
+            escapeHtml: (value) => String(value), translate: (value) => value })) return;
+        }
         if (!feedSchedulers.has(options.databasePath)) {
         const feed = createLocalFeedApplication(store.db);
         feed.recoverInterruptedSourceRuns(options.boardId);
@@ -228,7 +250,7 @@ export async function handleMolisWorkWebRequest(
           projectTitle: options.project?.display_name ?? "Molis Work",
           query: coordinator.artifacts.query, desktopShell: isDesktopShellRequest(request, url), pageCsp: PAGE_CSP,
         })) return;
-        if (await goalsReadHttp.page(request, response, url, options, serverOptions.homeDirectory, readWebView, sessionResources, controlToken, coordinator, store)) return;
+        if (await goalsReadHttp.page(request, response, url, options, serverOptions.homeDirectory, readWebView, sessionResources, controlToken, coordinator, store, codingServices)) return;
         sendJson(response, 404, { error: L("页面或接口不存在") });
       }
       });

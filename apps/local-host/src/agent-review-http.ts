@@ -2,6 +2,8 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentReviewStatus } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { renderAgentReviewSurface } from "@molis-ai/molis-work-app-workbench";
+import { icon } from "@molis-ai/molis-work-design-system";
 
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
 
@@ -32,17 +34,24 @@ export async function handleAgentReviewHttp(
   ports: AgentReviewHttpPorts,
 ): Promise<boolean> {
   if (request.method === "GET" && url.pathname === "/api/agent/reviews") {
+    await ports.agentHost.reviews.refresh(ports.boardId);
     const requested = url.searchParams.get("status");
     const status = STATUSES.find((entry) => entry === requested);
+    const runIds = url.searchParams.getAll("run_id");
     const rows = ports.agentHost.reviews.list(ports.boardId, status)
+      .filter(review => runIds.length === 0 || runIds.includes(review.run.run_id))
       .map((review) => ({
         request: review,
         // The receipt carries whether the effect really happened. A pending
         // item has none, and an approved one keeps `effect_settled: false`
         // until the Runtime returns a real result.
-        receipt: ports.agentHost.reviews.receipt(review.review_id),
+        receipt: ports.agentHost.reviews.receipt(review.review_id) ?? undefined,
       }));
-    sendLocalWebJson(response, 200, { reviews: rows });
+    const html = renderAgentReviewSurface({ rows, primitives: {
+      escape: value => String(value).replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!),
+      icon, formatDate: value => new Date(value).toLocaleString("zh-CN"),
+    } });
+    sendLocalWebJson(response, 200, { reviews: rows, html });
     return true;
   }
 
@@ -56,12 +65,12 @@ export async function handleAgentReviewHttp(
       sendLocalWebJson(response, 400, { error: "请求缺少 review_id 或 decision" });
       return true;
     }
-    if (ports.agentHost.reviews.get(reviewId) === null) {
+    if (ports.agentHost.reviews.get(reviewId)?.board_id !== ports.boardId) {
       sendLocalWebJson(response, 404, { error: "找不到这条待审操作" });
       return true;
     }
     try {
-      const receipt = ports.agentHost.reviews.decide({
+      const receipt = await ports.agentHost.reviews.respond({
         review_id: reviewId,
         decision,
         actor_id: ports.actorId,

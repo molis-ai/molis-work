@@ -28,23 +28,24 @@ export interface BuiltinPluginEntry {
   /** Identity the project database stores. Distinct from the Manifest's global id. */
   project_plugin_id: ProjectPluginId;
   manifest: PluginManifest;
+  description: string;
   /** Always available rather than per-project. Shelf is personal, not project scoped. */
   personal?: boolean;
 }
 
 export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
-  { project_plugin_id: GOALS_PROJECT_PLUGIN_ID, manifest: goalsManifest },
-  { project_plugin_id: WORK_PROJECT_PLUGIN_ID, manifest: workManifest },
-  { project_plugin_id: INBOX_PROJECT_PLUGIN_ID, manifest: inboxManifest },
-  { project_plugin_id: FEED_PROJECT_PLUGIN_ID, manifest: feedManifest },
-  { project_plugin_id: SHELF_PROJECT_PLUGIN_ID, manifest: shelfManifest, personal: true },
-  { project_plugin_id: ARTIFACTS_PROJECT_PLUGIN_ID, manifest: artifactsManifest },
-  { project_plugin_id: CODING_PROJECT_PLUGIN_ID, manifest: codingManifest },
-  { project_plugin_id: WORKSPACE_PROJECT_PLUGIN_ID, manifest: workspaceManifest },
-  { project_plugin_id: FILES_PROJECT_PLUGIN_ID, manifest: filesManifest },
-  { project_plugin_id: GIT_PROJECT_PLUGIN_ID, manifest: gitManifest },
-  { project_plugin_id: DIFF_PROJECT_PLUGIN_ID, manifest: diffManifest },
-  { project_plugin_id: TEXT_STATS_PROJECT_PLUGIN_ID, manifest: textStatsManifest },
+  { description: "确定目标，推进工作，留下结果。", project_plugin_id: GOALS_PROJECT_PLUGIN_ID, manifest: goalsManifest },
+  { description: "回到你的会话，继续正在做的事。", project_plugin_id: WORK_PROJECT_PLUGIN_ID, manifest: workManifest },
+  { description: "只看需要你介入的事项。", project_plugin_id: INBOX_PROJECT_PLUGIN_ID, manifest: inboxManifest },
+  { description: "查看来源消息和完整流水。", project_plugin_id: FEED_PROJECT_PLUGIN_ID, manifest: feedManifest },
+  { description: "把文件放到置物架，处理副本，原件不动。", project_plugin_id: SHELF_PROJECT_PLUGIN_ID, manifest: shelfManifest, personal: true },
+  { description: "打开项目成果，查看保留下来的版本。", project_plugin_id: ARTIFACTS_PROJECT_PLUGIN_ID, manifest: artifactsManifest },
+  { description: "围绕代码讨论、执行和审查，保留连续的任务记录。", project_plugin_id: CODING_PROJECT_PLUGIN_ID, manifest: codingManifest },
+  { description: "查看当前项目的工作区。", project_plugin_id: WORKSPACE_PROJECT_PLUGIN_ID, manifest: workspaceManifest },
+  { description: "查看工作区文件与保留的内容。", project_plugin_id: FILES_PROJECT_PLUGIN_ID, manifest: filesManifest },
+  { description: "查看工作区的版本与变更。", project_plugin_id: GIT_PROJECT_PLUGIN_ID, manifest: gitManifest },
+  { description: "比较固定版本，逐项阅读差异。", project_plugin_id: DIFF_PROJECT_PLUGIN_ID, manifest: diffManifest },
+  { description: "查看材料与成果的文本统计。", project_plugin_id: TEXT_STATS_PROJECT_PLUGIN_ID, manifest: textStatsManifest },
 ];
 
 /** Plugins a project can enable. Personal Plugins are always on and not listed. */

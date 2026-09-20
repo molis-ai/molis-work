@@ -24,7 +24,7 @@ export type CodingUiSurface = "directory" | "workbench";
 
 /** The five navigation faces the directory column switches between. */
 export const CODING_DIRECTORY_FACES = [
-  { face: "sessions", label: "会话", icon: "message-circle" },
+  { face: "sessions", label: "会话", icon: "message" },
   { face: "taskboard", label: "TaskBoard", icon: "grid" },
   { face: "goals", label: "目标", icon: "target" },
   { face: "artifacts", label: "产物", icon: "package" },
@@ -66,6 +66,7 @@ export const codingUiDescriptor: UiContributionDescriptor = {
 
 /** How a session's state reads. Status is an icon plus family-coloured text, never a pill. */
 const STATE_MARK: Record<CodingSessionState, { icon: string; tone: string; label: string }> = {
+  "idle": { icon: "message", tone: "idle", label: "尚未执行" },
   "running": { icon: "loader", tone: "progress", label: "执行中" },
   "waiting-answer": { icon: "help-circle", tone: "attention", label: "等你回答" },
   "waiting-approval": { icon: "alert-circle", tone: "attention", label: "等你审查" },
@@ -73,7 +74,7 @@ const STATE_MARK: Record<CodingSessionState, { icon: string; tone: string; label
   "stopped": { icon: "slash", tone: "idle", label: "你停下的" },
   "cancelled": { icon: "x", tone: "idle", label: "已取消" },
   "reconcile-required": { icon: "alert-circle", tone: "attention", label: "需要你核对结果" },
-  "done": { icon: "check", tone: "done", label: "已完成" },
+  "done": { icon: "check", tone: "done", label: "本轮结束" },
 };
 
 export const codingUiContribution: UiContribution<CodingUiModel> = {
@@ -92,14 +93,15 @@ export const codingUiContribution: UiContribution<CodingUiModel> = {
 
 export function renderCodingDirectory(model: CodingUiModel): string {
   const { primitives: p } = model;
-  const faces = CODING_DIRECTORY_FACES.map((face) => `<button type="button" class="coding-face" data-coding-face="${face.face}"${face.face === model.face ? ' aria-selected="true"' : ""} aria-label="${p.escape(face.label)}">${p.icon(face.icon)}</button>`).join("");
-  const filters = (["all", "running", "needs-you"] as const).map((filter) => `<button type="button" class="coding-filter" data-coding-filter="${filter}"${filter === model.filter ? ' aria-selected="true"' : ""}>${p.escape(filterLabel(filter))}</button>`).join("");
+  const faces = CODING_DIRECTORY_FACES.map((face) => `<button type="button" class="mw-toggle coding-face" data-coding-face="${face.face}"${face.face === model.face ? ' aria-selected="true"' : ""} aria-label="${p.escape(face.label)}">${p.icon(face.icon)}</button>`).join("");
+  const filters = (["all", "running", "needs-you"] as const).map((filter) => `<button type="button" class="mw-toggle coding-filter" data-coding-filter="${filter}"${filter === model.filter ? ' aria-selected="true"' : ""}>${p.escape(filterLabel(filter))}</button>`).join("");
   const groups = groupByGoal(filterSessions(model.sessions, model.filter))
     .map((group) => renderGroup(group.goal_id, group.title, group.entries, p))
     .join("");
   return `<section class="coding-directory" data-coding-directory data-coding-current-face="${model.face}">
     <nav class="coding-faces" aria-label="${p.escape("Coding 导航面")}">${faces}</nav>
-    <header class="coding-directory-head"><h2>${p.escape(faceLabel(model.face))}</h2></header>
+    <header class="coding-directory-head"><h2>${p.escape(faceLabel(model.face))}</h2><button type="button" class="mw-btn mw-btn--icon-only" data-coding-new aria-label="新建编码会话">${p.icon("plus")}</button></header>
+    <label class="coding-search"><span>搜索标题</span><input class="mw-input" data-coding-search aria-label="搜索会话标题" placeholder="搜索会话标题"></label>
     <div class="coding-filters" role="group" aria-label="${p.escape("会话筛选")}">${filters}</div>
     <div class="coding-session-list" data-coding-sessions>${groups || renderEmpty(p)}</div>
   </section>`;
@@ -133,17 +135,36 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
   const { primitives: p } = model;
   const tools = model.tools.map((tool) => renderToolTab(tool, p)).join("");
   const panels = model.tools.map((tool) => renderToolPanel(tool, p)).join("");
-  return `<section class="desktop-work-surface plugin-stage-shell" data-work-surface="coding" data-work-surface-label="Coding" hidden data-coding-workbench>
+  return `<section class="desktop-work-surface plugin-stage-shell" data-work-surface="coding" data-work-surface-label="Coding" hidden data-coding-workbench data-coding-prefix="${p.escape(model.route_prefix)}">
+    <dialog class="mw-dialog mw-dialog--form" data-coding-workspace-dialog aria-label="选择工作区"><form class="mw-form mw-dialog__shell" data-coding-workspace-form>
+      <header class="mw-form__header"><h2>选择工作区</h2><button class="mw-btn" type="button" data-coding-workspace-close>关闭</button></header>
+      <section class="mw-form__body"><label class="mw-field">已关联的目录<select class="mw-select" data-coding-workspace-choice></select></label>
+      <label class="mw-field">或者关联新目录<input class="mw-input" data-coding-workspace-path placeholder="这台电脑上的绝对路径" autocomplete="off"></label>
+      <label class="mw-field"><span><input type="checkbox" data-coding-workspace-confirm> 确认把新目录关联到当前项目，作为任务工作区。</span></label>
+      <p>选择用于下一轮；正在执行的任务继续使用原工作区。</p><p data-coding-workspace-error role="alert"></p></section>
+      <footer class="mw-form__footer"><button class="mw-btn mw-btn--primary" type="submit">使用这个工作区</button></footer>
+    </form></dialog>
     <div class="coding-stage" data-coding-stage>
       <div class="coding-dialogue" data-coding-dialogue>
         <header class="coding-dialogue-head" data-coding-dialogue-head>
-          ${renderWorkspaceLine(model.workspace_path, p)}
+          <div><span data-coding-title>选择或新建编码会话</span><small data-coding-workspace-label>${renderWorkspaceLine(model.workspace_path, p)}</small></div>
+          <button class="mw-btn" type="button" data-coding-workspace-open>工作区</button>
+          <button class="mw-btn" type="button" data-coding-rename hidden>重命名</button><button class="mw-btn" type="button" data-coding-stop hidden>停止</button>
         </header>
-        <div class="coding-turns" data-coding-turns></div>
+        <div class="coding-turns" data-coding-turns tabindex="0" aria-label="编码对话"><div class="mw-empty" data-coding-welcome><p>从一个具体问题开始</p><p>选择已授权工作区和模型后，讨论代码或开始任务。</p><button class="mw-btn" type="button" data-coding-new>新建编码会话</button></div></div>
+        <button class="mw-btn coding-jump" type="button" data-coding-latest hidden>回到最新</button>
+        <p class="coding-status" data-coding-status role="status" aria-live="polite"></p>
+        <form class="coding-composer" data-coding-composer>
+          <label class="coding-task-label" for="coding-task">任务或补充要求</label>
+          <textarea class="mw-input" id="coding-task" data-coding-task rows="3" placeholder="描述要完成的任务…" disabled></textarea>
+          <div class="coding-composer-actions"><select class="mw-select" data-coding-intent aria-label="任务方式"><option value="discuss">讨论</option><option value="edit" disabled>修改文件（待接通审批）</option><option value="execute" disabled>执行（待接通审批）</option><option value="review">评审</option></select>
+          <select class="mw-select" data-coding-model aria-label="下一轮使用的模型"></select><button class="mw-btn mw-btn--primary" type="submit" data-coding-send disabled>发送</button></div>
+          <small data-coding-draft-status>模型与方式的选择用于下一轮。</small>
+        </form>
       </div>
       <aside class="coding-tools" data-coding-tools>
-        <nav class="coding-tool-tabs" aria-label="${p.escape("结果与工具")}">${tools}</nav>
-        ${panels}
+        <nav class="coding-tool-tabs" aria-label="${p.escape("结果与工具")}">${tools || '<span>结果</span>'}</nav>
+        <div data-coding-host-reviews hidden></div><div class="coding-result" data-coding-result><p>任务成果与执行记录会留在这里，方便审查和继续。</p></div><section class="coding-result" data-coding-commands aria-label="命令与检查回执" hidden></section>${panels}
       </aside>
     </div>
   </section>`;

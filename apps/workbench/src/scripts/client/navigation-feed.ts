@@ -145,7 +145,7 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
       });
     };
 
-    const LIST_PLUGIN_SECTIONS = ["goals", "sessions", "inbox", "feed", "shelf", "artifacts"];
+    const LIST_PLUGIN_SECTIONS = [...document.querySelectorAll("[data-plugin-section]")].map(section => section.dataset.pluginSection);
 
     const syncPluginDirectory = (directory) => {
       const empty = directory === "root";

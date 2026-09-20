@@ -2,8 +2,10 @@ import {
   AgentHost,
   CliAgentAdapter,
   createNodeCliProcessPort,
+  createPrologueNodeAdapter,
   registerAgentHostCapabilities,
   type AgentStartAuthority,
+  type PrologueNodeAdapterOptions,
 } from "@molis-ai/molis-work-service-agent-host";
 import { BUILTIN_PLUGIN_AGENTS } from "@molis-ai/molis-work-app-workbench";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -26,17 +28,21 @@ import type { ModelProviderStore } from "./model-provider-store.js";
 export interface AgentHostCompositionOptions {
   localHost: MolisWorkLocalHost;
   /** Resolves the workspace a project is bound to, for directory authority. */
+  workspacesFor?(projectId: string): readonly ProjectWorkspaceRef[] | Promise<readonly ProjectWorkspaceRef[]>;
   workspaceFor(projectId: string): ProjectWorkspaceRef | null | Promise<ProjectWorkspaceRef | null>;
   /** Configured providers, used to decide whether a CLI Runtime has a model. */
   models?: ModelProviderStore;
   /** CLI executables to register. Absent ones are simply not registered. */
   cliRuntimes?: ReadonlyArray<{ runtime_id: string; display_name: string; command: string }>;
+  /** The owning server supplies storage and credential access for this Home. */
+  prologue?: Omit<PrologueNodeAdapterOptions, "app">;
 }
 
 export interface AgentHostComposition {
   readonly agentHost: AgentHost;
+  readonly ready: Promise<void>;
   /** Unregisters the Capabilities this composition added. */
-  dispose(): void;
+  dispose(): Promise<void>;
 }
 
 const DEFAULT_CLI_RUNTIMES = [
@@ -46,10 +52,8 @@ const DEFAULT_CLI_RUNTIMES = [
 /**
  * Build the Agent Host and register its Capabilities against `localHost`.
  *
- * Only read-only CLI Runtimes are registered here. The Prologue Runtime needs a
- * credential handover and an approval bridge, which belong to the composition
- * that owns those; registering it here without them would put a Runtime in the
- * list that cannot honestly run anything that writes.
+ * Prologue is registered when its owning server supplies storage and secrets.
+ * Its capability matrix stays read-only until effect approval is connected.
  */
 export function composeAgentHost(options: AgentHostCompositionOptions): AgentHostComposition {
   const agentHost = new AgentHost();
@@ -66,18 +70,29 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     }));
   }
 
-  const dispose = registerAgentHostCapabilities<MolisWorkProjectRuntime>(
+  let prologue: Awaited<ReturnType<typeof createPrologueNodeAdapter>> | undefined;
+  let ready: Promise<void> | undefined;
+  const initialize = () => ready ??= options.prologue === undefined ? Promise.resolve() : createPrologueNodeAdapter({
+      ...options.prologue,
+      reviewQueue: agentHost.reviews,
+      app: { appId: "io.molis.work", appVersion: "0.0.0" },
+    }).then((adapter) => { prologue = adapter; agentHost.register(adapter); });
+  const unregister = registerAgentHostCapabilities<MolisWorkProjectRuntime>(
     {
       register: (definition, handler) => options.localHost.registerCapability(definition, handler),
     },
     {
       agentHost: () => agentHost,
-      authority: (runtime, pluginId) => startAuthority(runtime, pluginId, options.workspaceFor),
+      authority: (runtime, pluginId) => startAuthority(runtime, pluginId, options.workspaceFor, options.workspacesFor),
       boardId: (runtime) => runtime.board_id,
     },
   );
 
-  return { agentHost, dispose };
+  return { agentHost, get ready() { return initialize(); }, async dispose() {
+    unregister();
+    await ready?.catch(() => undefined);
+    await prologue?.close();
+  } };
 }
 
 /**
@@ -92,14 +107,14 @@ async function startAuthority(
   runtime: MolisWorkProjectRuntime,
   pluginId: string,
   workspaceFor: AgentHostCompositionOptions["workspaceFor"],
+  workspacesFor?: AgentHostCompositionOptions["workspacesFor"],
 ): Promise<AgentStartAuthority> {
   const declared = BUILTIN_PLUGIN_AGENTS.get(pluginId);
   const workspace = await workspaceFor(runtime.project_id);
+  const workspaces = workspacesFor ? await workspacesFor(runtime.project_id) : workspace ? [workspace] : [];
   return {
     manifest: declared?.manifest ?? { roles: [], prompts: [] },
-    authorizedDirectories: workspace === null || !workspace.realpath_verified
-      ? []
-      : [workspace.canonical_path],
+    authorizedDirectories: workspaces.filter(entry => entry.realpath_verified).map(entry => entry.canonical_path),
     prompts: declared?.prompts ?? [],
     project_prompts: projectPrompts(runtime),
   };

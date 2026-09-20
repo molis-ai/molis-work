@@ -46,6 +46,7 @@ test("待审列表读得到，批准之后回执说「还没发生」", async ()
   const item = await fixture();
   try {
     item.agentHost.reviews.request(pending("r1"));
+    item.agentHost.reviews.registerDecisionHandler("r1", async input => item.agentHost.reviews.decide(input));
 
     const listed = await (await fetch(`${item.base}/api/agent/reviews?status=pending`)).json() as
       { reviews: Array<{ request: { review_id: string }; receipt: { status: string; decided_by: string | null; effect_settled: boolean } }> };
@@ -74,6 +75,7 @@ test("同一条不能决定两次——换个入口重放也不行", async () =>
   const item = await fixture();
   try {
     item.agentHost.reviews.request(pending("r1"));
+    item.agentHost.reviews.registerDecisionHandler("r1", async input => item.agentHost.reviews.decide(input));
     const body = JSON.stringify({ review_id: "r1", decision: "reject" });
     const headers = { "content-type": "application/json" };
 
@@ -117,4 +119,50 @@ test("缺字段的请求被挡下", async () => {
   } finally {
     item.server.close();
   }
+});
+
+
+test("another project's review cannot be decided even with a known review id", async () => {
+  const item = await fixture();
+  try {
+    item.agentHost.reviews.request({ ...pending("foreign"), board_id: "board-b" });
+    let calls = 0;
+    item.agentHost.reviews.registerDecisionHandler("foreign", async input => { calls++; return item.agentHost.reviews.decide(input); });
+    const response = await fetch(`${item.base}/api/agent/reviews/decide`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ review_id: "foreign", decision: "approve" }) });
+    assert.equal(response.status, 404);
+    assert.equal(calls, 0);
+    assert.equal(item.agentHost.reviews.receipt("foreign")?.status, "pending");
+  } finally { item.server.close(); }
+});
+
+test("an unconnected review owner cannot turn an HTTP approval into a false success", async () => {
+  const item = await fixture();
+  try {
+    item.agentHost.reviews.request(pending("orphan"));
+    const response = await fetch(`${item.base}/api/agent/reviews/decide`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ review_id: "orphan", decision: "approve" }) });
+    assert.equal(response.status, 409);
+    assert.equal(item.agentHost.reviews.receipt("orphan")?.status, "pending");
+  } finally { item.server.close(); }
+});
+
+test("Host review refresh reads owner receipts and renders only the requested run with escaped content", async () => {
+  const item = await fixture();
+  try {
+    const first = pending("scoped"); first.document = { kind: "text-edit", target_path: "src/<unsafe>.js", exists: true, before_text: "old", after_text: "<script>attack()</script>" };
+    item.agentHost.reviews.request(first);
+    item.agentHost.reviews.request({ ...pending("other"), run: { session_id: "s-2", run_id: "run-2" } });
+    item.agentHost.reviews.decide({ review_id: "scoped", decision: "approve", actor_id: "user" });
+    item.agentHost.reviews.consumeApproval("scoped");
+    const detach = item.agentHost.reviews.registerRefresh(async board => {
+      assert.equal(board, BOARD);
+      item.agentHost.reviews.settle("scoped", { ok: true });
+    });
+    const data = await (await fetch(`${item.base}/api/agent/reviews?run_id=run-1`)).json() as { html: string; reviews: Array<{request: {review_id:string};receipt:{effect_settled:boolean}}> };
+    assert.deepEqual(data.reviews.map(row=>row.request.review_id), ["scoped"]);
+    assert.equal(data.reviews[0]?.receipt.effect_settled, true);
+    assert.ok(data.html.includes("&lt;script&gt;attack()&lt;/script&gt;"));
+    assert.ok(!data.html.includes("<script>"));
+    assert.ok(!data.html.includes('data-agent-review-approve='));
+    detach();
+  } finally { await new Promise<void>(resolve => item.server.close(() => resolve())); }
 });

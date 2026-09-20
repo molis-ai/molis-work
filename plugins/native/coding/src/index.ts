@@ -102,6 +102,7 @@ export {
   type CodingRoleId,
 } from "./roles.js";
 export { createCodingPlugin, type CodingPluginPorts } from "./plugin.js";
+export type { CodingExecutionPorts, CodingModelChoice } from "./routes.js";
 export {
   projectMcp,
   projectSkills,
@@ -167,3 +168,6 @@ export {
   type ScrollPosition,
   type StickDecision,
 } from "./reading.js";
+
+export { CODING_STYLES } from "./styles.js";
+export { CODING_CLIENT_FACTORY_SCRIPT } from "./client.js";

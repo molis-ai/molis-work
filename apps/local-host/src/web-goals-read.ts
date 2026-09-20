@@ -10,7 +10,7 @@ import type { createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
 import type { SessionRuntimeResources, createSessionProjectOperations } from "./web-session.js";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
 import { escapeHtml } from "@molis-ai/molis-work-design-system";
-import { codingDirectoryPanel, workspaceDirectoryPanel } from "./coding-surface.js";
+import { codingDirectoryPanel, codingWorkbenchPanel, workspaceDirectoryPanel, type CodingSurfacePorts } from "./coding-surface.js";
 
 export function createLocalGoalsReadHttp(ports: {
   withCatalog: LocalWebCatalogRunner;
@@ -93,6 +93,7 @@ export function createLocalGoalsReadHttp(ports: {
   async function page(request: IncomingMessage, response: ServerResponse, url: URL, options: WebViewOptions,
     homeDirectory: string | undefined, readWebView: () => MolisWorkWebView, sessionResources: Promise<SessionRuntimeResources>, controlToken: string,
     coordinator?: GoalProjectApplication, store?: LocalProjectDatabase,
+    codingServices?: Pick<CodingSurfacePorts, "capabilities" | "execution">,
   ): Promise<boolean> {
     const renderedGoalsPage = await renderWorkbenchGoalsPageRequest(
       request.method, url.pathname, readWebView,
@@ -108,6 +109,7 @@ export function createLocalGoalsReadHttp(ports: {
         // shell renders exactly as before.
         if (store && projectConfiguration !== null) {
           const surfacePorts = {
+            ...codingServices,
             store,
             boardId: options.boardId,
             actorId: "web-user",
@@ -115,6 +117,7 @@ export function createLocalGoalsReadHttp(ports: {
             escapeHtml,
             translate: (value: string) => value,
             workspaces: projectConfiguration.workspaces,
+            routePrefix: view.route_prefix,
           };
           // Each Plugin contributes its own panel, and only the ones this
           // project enabled. A Plugin that is not running, or that fails,
@@ -130,6 +133,10 @@ export function createLocalGoalsReadHttp(ports: {
             if (surface) panels[surface.plugin_id] = surface.panel;
           }
           if (Object.keys(panels).length > 0) view = { ...view, plugin_panels: panels };
+          if (projectConfiguration.plugins.includes("coding")) {
+            const stage = await codingWorkbenchPanel(surfacePorts);
+            if (stage) view = { ...view, plugin_stages: [stage.panel] };
+          }
         }
         const operations = options.project
           ? sessionProjectOperationsData(

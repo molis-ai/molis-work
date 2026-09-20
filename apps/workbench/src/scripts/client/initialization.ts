@@ -1,3 +1,5 @@
+import { CODING_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-coding";
+import { AGENT_REVIEW_CLIENT_FACTORY_SCRIPT } from "./agent-review.js";
 import { PROJECT_HOME_FACTORY_SCRIPT } from "./project-home.js";
 import { PLUGIN_WORKBENCH_FACTORY_SCRIPT } from "./plugin-workbench.js";
 import { SHELF_CLIENT_FACTORY_SCRIPT, SHELF_SETTINGS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-shelf";
@@ -44,6 +46,16 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
         setFeedTask(sourceId);
         setMobileView("document");
       },
+    });
+    (${CODING_CLIENT_FACTORY_SCRIPT})({
+      showReviews: (${AGENT_REVIEW_CLIENT_FACTORY_SCRIPT})({route,headers:()=>molisWorkControlHeaders()}),
+      addWorkspace: async (workspace_path) => {
+        const response = await fetch(route("/api/workspaces"), { method:"POST", headers:molisWorkControlHeaders(), body:JSON.stringify({workspace_path,user_confirmed:true}) });
+        const result = await response.json();
+        if(!response.ok) throw new Error(result.error || "无法关联工作区");
+        return result.workspace;
+      },
+      openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title),
     });
     (${SHELF_CLIENT_FACTORY_SCRIPT})({ translate: L });
     ${SHELF_SETTINGS_CLIENT_SCRIPT}

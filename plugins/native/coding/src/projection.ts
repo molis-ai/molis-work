@@ -9,6 +9,7 @@ import type { AgentRuntimeCapabilityMatrix } from "@molis-ai/molis-work-contract
  */
 
 export type CodingSessionState =
+  | "idle"
   | "running"
   | "waiting-answer"
   | "waiting-approval"

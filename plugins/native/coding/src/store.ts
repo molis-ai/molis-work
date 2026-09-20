@@ -100,7 +100,7 @@ export class CodingSessionStore {
     this.db.prepare(`
       INSERT INTO coding_sessions
         (board_id, session_id, title, state, goal_id, runtime_id, runtime_session_id, created_at, updated_at)
-      VALUES (?, ?, ?, 'running', ?, ?, NULL, ?, ?)
+      VALUES (?, ?, ?, 'idle', ?, ?, NULL, ?, ?)
     `).run(
       input.board_id,
       input.session_id,
@@ -133,6 +133,13 @@ export class CodingSessionStore {
     this.db.prepare(
       "UPDATE coding_sessions SET state = ?, updated_at = ? WHERE board_id = ? AND session_id = ?",
     ).run(state, at, boardId, sessionId);
+    return this.get(boardId, sessionId);
+  }
+
+  rename(boardId: string, sessionId: string, title: string, at: string): CodingSessionRecord {
+    this.get(boardId, sessionId);
+    this.db.prepare("UPDATE coding_sessions SET title = ?, updated_at = ? WHERE board_id = ? AND session_id = ?")
+      .run(title, at, boardId, sessionId);
     return this.get(boardId, sessionId);
   }
 

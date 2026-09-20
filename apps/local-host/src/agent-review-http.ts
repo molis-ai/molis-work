@@ -38,8 +38,10 @@ export async function handleAgentReviewHttp(
     const requested = url.searchParams.get("status");
     const status = STATUSES.find((entry) => entry === requested);
     const runIds = url.searchParams.getAll("run_id");
+    const sessionId = url.searchParams.get("session_id");
     const rows = ports.agentHost.reviews.list(ports.boardId, status)
-      .filter(review => runIds.length === 0 || runIds.includes(review.run.run_id))
+      .filter(review => runIds.length === 0 && !sessionId || review.run && runIds.includes(review.run.run_id)
+        || sessionId && review.operation?.session_id === sessionId)
       .map((review) => ({
         request: review,
         // The receipt carries whether the effect really happened. A pending

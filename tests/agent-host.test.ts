@@ -652,3 +652,76 @@ test("review replay preserves consumed approval and refuses changed content unde
   assert.throws(() => queue.request(changed), /不能替换/);
   assert.equal(queue.get(request.review_id)?.board_id, request.board_id);
 });
+
+
+test("selected methods freeze only declared exact bodies and reject stale, duplicate, wider or ignored selections", async () => {
+  const host = new AgentHost();
+  const definition = { skill_id: "read-method", version: 1, name: "Read", summary: "Read evidence", tools: ["read-file"], body: "Use actual source evidence." };
+  const granted = { ...authority, manifest: { ...manifest, roles: [{role_id: "reader", version: 1, name: "Reader", host_tools: ["read-file"]}], skills: [definition] }, skills: [definition] };
+  let received: AgentStartRequest | undefined;
+  let starts = 0;
+  const adapter = adapterFor({ runtimeId: "prologue", supported: ["skills"] });
+  const start = adapter.start.bind(adapter);
+  adapter.start = async request => { starts++; received = request; const handle = await start(request);
+    handle.frozen.skills = (request.role?.skills ?? []).map(({body: _body, ...declaration})=>declaration);return handle; };
+  host.register(adapter);
+  const request = {...startRequest("reader"), skills: [{skill_id: definition.skill_id, version: 1}], role: {role_id: "reader", version: 1, execution: "read-only" as const, host_tools: [], prompts: [], skills: [{...definition, body: "malicious replacement"}]} };
+  const run = await host.start("prologue", request, granted);
+  assert.equal(received?.role?.skills?.[0]?.body, definition.body);
+  assert.equal(run.frozen.skills[0]?.version, 1);
+  definition.body = "changed after start";
+  assert.equal(received?.role?.skills?.[0]?.body, "Use actual source evidence.");
+  await assert.rejects(host.start("prologue", {...request,skills:[{skill_id:"read-method",version:2}]},granted),/方法版本不可用/);
+  await assert.rejects(host.start("prologue", {...request,skills:[...request.skills,...request.skills]},granted),/重复/);
+  const wider = {...definition,tools:["run-command"]};
+  await assert.rejects(host.start("prologue",request,{...granted,manifest:{...granted.manifest,skills:[wider]},skills:[wider]}),/未开放的工具/);
+  assert.equal(starts,1,"invalid methods never reach a runtime");
+  adapter.start = start;
+  await assert.rejects(host.start("prologue",request,granted),/已取消/);
+});
+
+test("MCP selections require declared authority, canonical provenance and exact runtime freezing", async () => {
+  const host=new AgentHost();let starts=0,cancels=0;
+  const adapter=adapterFor({runtimeId:'prologue',supported:['mcp','text-edit','command'],onCancel:()=>cancels++});
+  const selected={server:'configured-server',tool:'write-note',version:'shape-1',configuration_version:3};
+  const granted={...authority,manifest:{...manifest,mcp:true},method_owner:{board_id:BOARD,plugin_id:PLUGIN}};
+  adapter.mcpLibrary={
+    list:async()=>[],save:async()=>{throw new Error('unused');},control:async()=>{},
+    validateSources:async(_owner,refs)=>[...refs],
+    validate:async(owner,refs)=>{assert.deepEqual(owner,granted.method_owner);assert.deepEqual(refs,[{...selected,server_label:'forged label'}]);return [{...selected,server_label:'Canonical service'}];},
+  };
+  const original=adapter.start.bind(adapter);
+  adapter.start=async request=>{starts++;assert.equal(request.mcp_tools?.[0]?.server_label,'Canonical service');const run=await original(request);run.frozen.mcp_tools=structuredClone(request.mcp_tools!);return run;};
+  host.register(adapter);
+  const request={...startRequest('builder'),mcp_tools:[{...selected,server_label:'forged label'}]};
+  await assert.rejects(host.start('prologue',request,authority),/未接通 MCP/);
+  await assert.rejects(host.start('prologue',{...request,role_id:'reader'},granted),/执行/);
+  await assert.rejects(host.start('prologue',{...request,mcp_tools:[...request.mcp_tools,...request.mcp_tools]},granted),/重复/);
+  assert.equal(starts,0);
+  const run=await host.start('prologue',request,granted);assert.equal(run.frozen.mcp_tools[0]?.configuration_version,3);
+  adapter.start=original;
+  await assert.rejects(host.start('prologue',request,granted),/已取消/);assert.equal(cancels,1);
+});
+
+test("Host resolves compaction separately from role prompts and rejects missing versions or false frozen policy", async () => {
+  const host = new AgentHost();
+  const adapter = adapterFor({ runtimeId: "compact", supported: ["compaction"] });
+  let observed: AgentStartRequest | undefined, lie = false;
+  const start = adapter.start.bind(adapter);
+  adapter.start = async request => {
+    observed = request; const handle = await start(request);
+    const policy = request.role?.compaction;
+    if (policy && !lie) handle.frozen.compaction = { prompt_id: policy.prompt.prompt_id, version: policy.prompt.version, above_tokens: policy.above_tokens };
+    return handle;
+  };
+  host.register(adapter);
+  const granted = { ...authority, manifest: { ...manifest, compaction: { prompt_id: "select", above_tokens: 12000 }, prompts: [...manifest.prompts!, { prompt_id: "select", version: 2 }] },
+    prompts: [{ prompt_id: "reader", version: 1, body: "Read only" }, { prompt_id: "select", version: 2, body: "Select originals" }] };
+  const request = { ...startRequest("reader"), role: { role_id: "reader", version: 1, execution: "read-only" as const, prompts: [], host_tools: [], compaction: { prompt: { prompt_id: "fake", version: 9, body: "Override" }, above_tokens: 1 } } };
+  const run = await host.start("compact", request, granted);
+  assert.deepEqual(run.frozen.compaction, { prompt_id: "select", version: 2, above_tokens: 12000 });
+  assert.equal(observed?.role?.compaction?.prompt.body, "Select originals");
+  assert.deepEqual(observed?.role?.prompts.map(p => p.body), ["Read only"]);
+  await assert.rejects(host.start("compact", request, { ...granted, prompts: granted.prompts.map(p => ({ ...p, version: 1 })) }), /对应版本/);
+  lie = true; await assert.rejects(host.start("compact", request, granted), /已取消/);
+});

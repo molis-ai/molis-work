@@ -3,6 +3,7 @@ import type {
   AgentPromptText,
   AgentRoleExecution,
   AgentSkillDeclaration,
+  AgentSkillDefinition,
 } from "../platform/plugin-agent.js";
 import type { HostCapabilityDefinition } from "../platform/app-host.js";
 import type { ContractDescriptor } from "../platform/package.js";
@@ -127,7 +128,15 @@ export interface AgentSkillRef {
 export interface AgentMcpToolRef {
   server: string;
   tool: string;
+  /** Required for execution; older unversioned selections must be reselected. */
+  version?: string;
+  server_label?: string;
+  /** Pins the endpoint, credentials and launch configuration, independently of tool schema. */
+  configuration_version?: number;
 }
+
+/** Explicit access to the documents of a configured MCP service, without its external tools. */
+export type AgentMcpSourceRef = Pick<AgentMcpToolRef, "server" | "configuration_version" | "server_label">;
 
 export interface AgentRunBudget {
   max_output_tokens?: number;
@@ -144,6 +153,8 @@ export interface AgentFrozenStart {
   role_version: number;
   execution: AgentRoleExecution;
   model_id: string;
+  /** Host-frozen context selection policy, absent when not wired for this runtime. */
+  compaction?: { prompt_id: string; version: number; above_tokens: number };
   /**
    * Exactly the prompts this Run was frozen with, layer included.
    *
@@ -154,6 +165,7 @@ export interface AgentFrozenStart {
   prompts: Array<{ prompt_id: string; version: number; layer: AgentPromptLayer }>;
   skills: AgentSkillDeclaration[];
   mcp_tools: AgentMcpToolRef[];
+  mcp_sources?: AgentMcpSourceRef[];
   host_tools: string[];
   text_materials: Array<{ material_id: string; source_artifact_id: string; source_version: number }>;
   budget: AgentRunBudget | null;
@@ -180,8 +192,12 @@ export interface AgentFrozenRole {
   role_id: string;
   version: number;
   execution: AgentRoleExecution;
+  /** Separate selection prompt: never composed into the executing role. */
+  compaction?: { prompt: AgentPromptText; above_tokens: number };
   /** Prompt bodies in composition order. */
   prompts: AgentPromptText[];
+  /** Exact method bodies resolved by the Host, never accepted from the request. */
+  skills?: AgentSkillDefinition[];
   /** Host tool names this role may call. */
   host_tools: string[];
 }
@@ -206,6 +222,7 @@ export interface AgentStartRequest {
   text_materials?: AgentTextMaterial[];
   skills?: AgentSkillRef[];
   mcp_tools?: AgentMcpToolRef[];
+  mcp_sources?: AgentMcpSourceRef[];
   budget?: AgentRunBudget;
 }
 
@@ -228,7 +245,8 @@ export type AgentRunControl =
    * question and closes it. Sending it as a free instruction would leave the
    * question open while the Run reads the text as unrelated guidance.
    */
-  | { kind: "answer"; pending_id: string; text: string };
+  | { kind: "answer"; pending_id: string; pending_revision?: number; text?: string;
+      answers?: ReadonlyArray<{ question: number; indexes: readonly number[]; other?: string }> };
 
 export type AgentTurnKind = "user" | "assistant" | "system";
 
@@ -236,7 +254,10 @@ export interface AgentTurnView {
   turn_id: string;
   kind: AgentTurnKind;
   text: string;
-  at: string;
+  /** Observation time; null when the original replay has no recorded time. */
+  at: string | null;
+  /** Relative presentation order within this Run, reconstructed from its events. */
+  sequence?: number;
 }
 
 export type AgentToolActivityState = "started" | "completed" | "failed" | "unknown";
@@ -251,7 +272,10 @@ export interface AgentToolActivity {
   /** Bounded execution evidence, shown only when the user expands the activity. */
   output?: string;
   output_truncated?: boolean;
-  at: string;
+  /** Last observation time; null when absent from the original replay. */
+  at: string | null;
+  /** Position of the original call; a result updates it without moving it. */
+  sequence?: number;
 }
 
 export interface AgentTokenCount {
@@ -295,6 +319,9 @@ export interface AgentCommandOutput {
  */
 export interface AgentPendingQuestion {
   pending_id: string;
+  pending_revision?: number;
+  /** Position of the original waiting event among this Run's visible entries. */
+  sequence?: number;
   /** The Runtime's own category, e.g. a plan choice or a clarification. */
   kind: string;
   /** The question as the Runtime phrased it. Shown as-is. */
@@ -302,6 +329,11 @@ export interface AgentPendingQuestion {
   options: ReadonlyArray<{ value: string; label: string }>;
   /** Whether a written answer is accepted alongside, or instead of, the options. */
   allows_free_text: boolean;
+  /** Frozen questionnaire read from its execution owner, never reconstructed from prose. */
+  questions?: ReadonlyArray<{ index: number; prompt: string;
+    options: ReadonlyArray<{ index: number; label: string }>; multiple: boolean; allow_other: boolean }>;
+  answerable?: boolean;
+  unavailable_reason?: string;
 }
 
 export interface AgentRunView {
@@ -328,6 +360,8 @@ export interface AgentRunView {
 }
 
 export interface AgentSessionView {
+  /** A manual rewind is in progress or has an unresolved execution outcome. */
+  checkpoint_busy?: boolean;
   /** Persisted work exists but is not safe to continue automatically. */
   recovery?: { required: true; reason: string };
   owner: Pick<AgentCreateSessionInput, "board_id" | "plugin_id" | "install_id">;
@@ -374,7 +408,7 @@ export interface AgentMcpReviewDocument {
 export interface AgentRewindReviewDocument {
   kind: "rewind";
   checkpoint_id: string;
-  files: Array<{ path: string; change: "restore" | "delete" | "create" }>;
+  files: Array<{ path: string; change: "restore" | "delete" | "create"; before_text: string | null; after_text: string | null }>;
 }
 
 export type AgentReviewDocument =
@@ -388,7 +422,9 @@ export type AgentReviewStatus = "pending" | "approved" | "rejected" | "cancelled
 
 export interface AgentReviewRequest {
   review_id: string;
-  run: AgentRunRef;
+  /** Null for a manual operation; never fabricate an Agent Run. */
+  run: AgentRunRef | null;
+  operation?: { operation_id: string; session_id: string; kind: "checkpoint-rewind" };
   board_id: string;
   plugin_id: string;
   kind: AgentReviewKind;
@@ -413,6 +449,8 @@ export interface AgentReviewReceipt {
   /** True once the approved effect really happened and the Runtime returned a receipt. */
   effect_settled: boolean;
   effect_error: string | null;
+  /** The effect owner cannot yet determine what happened; never safe to retry automatically. */
+  effect_uncertain?: string;
   /** Host recorded a decision, but the execution owner did not confirm receiving it. */
   delivery_error?: string;
 }
@@ -431,12 +469,16 @@ export interface AgentReviewQueueApi {
 
 export interface AgentCheckpoint {
   checkpoint_id: string;
+  origin_run_id?: string;
+  paths?: string[];
+  directory?: AgentWorkingDirectory;
   session_id: string;
   label: string;
   created_at: string;
 }
 
 export interface AgentCheckpointsCapability {
+  busy?(session: AgentSessionRef): boolean;
   list(session: AgentSessionRef): Promise<AgentCheckpoint[]>;
   prepareRewind(session: AgentSessionRef, checkpointId: string): Promise<AgentReviewRequest>;
 }
@@ -446,6 +488,22 @@ export interface AgentSkillCatalogEntry extends AgentSkillDeclaration {
   enabled: boolean;
 }
 
+export interface AgentSkillOwner { board_id: string; plugin_id: string }
+export interface AgentSkillCandidate {
+  candidate_id: string;
+  name: string;
+  summary: string;
+  source_label: string;
+  files: string[];
+  body: string;
+}
+export interface AgentSkillLibrary {
+  list(owner: AgentSkillOwner): Promise<AgentSkillCatalogEntry[]>;
+  read(owner: AgentSkillOwner, ref: AgentSkillRef): Promise<AgentSkillDefinition>;
+  discover(owner: AgentSkillOwner, directory: AgentWorkingDirectory, path: string): Promise<AgentSkillCandidate[]>;
+  install(owner: AgentSkillOwner, candidateId: string): Promise<AgentSkillCatalogEntry>;
+}
+
 export interface AgentSkillsCapability {
   catalog(session: AgentSessionRef): Promise<AgentSkillCatalogEntry[]>;
 }
@@ -453,6 +511,37 @@ export interface AgentSkillsCapability {
 export interface AgentMcpServerHealth {
   server: string;
   status: "ready" | "failed" | "unknown";
+}
+
+export interface AgentMcpServerInput {
+  id?: string;
+  expected_version: number;
+  label: string;
+  enabled: boolean;
+  timeout_ms: number;
+  transport: "stdio" | "http";
+  directory?: AgentWorkingDirectory;
+  executable?: string;
+  argv?: string[];
+  endpoint?: string;
+  auth?: { kind: "none" | "keep-existing" | "replace-secret"; secret?: string };
+}
+export interface AgentMcpServerView {
+  id: string; version: number; label: string; enabled: boolean;
+  transport: "stdio" | "http"; timeout_ms: number;
+  directory?: AgentWorkingDirectory; executable?: string; argv?: string[]; endpoint?: string;
+  credential: "none" | "present";
+  health: "connected" | "disconnected" | "unavailable" | "not-reattached";
+  busy?: string; error?: string;
+  tools: Array<AgentMcpToolRef & { description: string }>;
+  resources: string[];
+}
+export interface AgentMcpLibrary {
+  list(owner: AgentSkillOwner): Promise<AgentMcpServerView[]>;
+  save(owner: AgentSkillOwner, input: AgentMcpServerInput): Promise<AgentMcpServerView>;
+  control(owner: AgentSkillOwner, id: string, action: "connect" | "disconnect" | "cancel" | "remove"): Promise<void>;
+  validateSources(owner: AgentSkillOwner, selected: readonly AgentMcpSourceRef[]): Promise<AgentMcpSourceRef[]>;
+  validate(owner: AgentSkillOwner, selected: readonly AgentMcpToolRef[]): Promise<AgentMcpToolRef[]>;
 }
 
 export interface AgentMcpCapability {
@@ -498,6 +587,8 @@ export interface AgentRuntimeAdapter {
   ): Promise<AgentCommandOutput>;
   readonly checkpoints?: AgentCheckpointsCapability;
   readonly skills?: AgentSkillsCapability;
+  readonly skillLibrary?: AgentSkillLibrary;
+  readonly mcpLibrary?: AgentMcpLibrary;
   readonly mcp?: AgentMcpCapability;
   readonly subagents?: AgentSubagentsCapability;
 }
@@ -583,6 +674,27 @@ export const agentHostCapabilities = {
     version: 1,
     operation: "query",
   } as HostCapabilityDefinition<[session: AgentSessionRef], AgentSessionView>,
+  listSkills: {
+    capability_id: "agent.skills.list.v1", version: 1, operation: "query",
+  } as HostCapabilityDefinition<[runtimeId: string, pluginId: string], AgentSkillCatalogEntry[]>,
+  readSkill: {
+    capability_id: "agent.skills.read.v1", version: 1, operation: "query",
+  } as HostCapabilityDefinition<[runtimeId: string, pluginId: string, ref: AgentSkillRef], AgentSkillDefinition>,
+  discoverSkills: {
+    capability_id: "agent.skills.discover.v1", version: 1, operation: "query",
+  } as HostCapabilityDefinition<[runtimeId: string, pluginId: string, directory: AgentWorkingDirectory, path: string], AgentSkillCandidate[]>,
+  installSkill: {
+    capability_id: "agent.skills.install.v1", version: 1, operation: "command",
+  } as HostCapabilityDefinition<[runtimeId: string, pluginId: string, candidateId: string], AgentSkillCatalogEntry>,
+  listMcp: {
+    capability_id: "agent.mcp.list.v1", version: 1, operation: "query",
+  } as HostCapabilityDefinition<[runtimeId: string, pluginId: string], AgentMcpServerView[]>,
+  saveMcp: {
+    capability_id: "agent.mcp.save.v1", version: 1, operation: "command",
+  } as HostCapabilityDefinition<[runtimeId: string, pluginId: string, input: AgentMcpServerInput], AgentMcpServerView>,
+  controlMcp: {
+    capability_id: "agent.mcp.control.v1", version: 1, operation: "command",
+  } as HostCapabilityDefinition<[runtimeId: string, pluginId: string, id: string, action: "connect" | "disconnect" | "cancel" | "remove"], void>,
   /** Start a Run. The Host checks role, capability and directory before the Runtime is asked. */
   startRun: {
     capability_id: "agent.run.start.v1",
@@ -622,6 +734,12 @@ export const agentHostCapabilities = {
     [session: AgentSessionRef, ref: AgentCommandOutputRef],
     AgentCommandOutput
   >,
+  listCheckpoints: {
+    capability_id: "agent.checkpoints.list.v1", version: 1, operation: "query",
+  } as HostCapabilityDefinition<[session: AgentSessionRef], AgentCheckpoint[]>,
+  prepareRewind: {
+    capability_id: "agent.checkpoints.prepare-rewind.v1", version: 1, operation: "command",
+  } as HostCapabilityDefinition<[session: AgentSessionRef, checkpointId: string, roleId: string], AgentReviewRequest>,
   /** Read the approval queue. Deciding is a user action and is not exposed to Plugins. */
   listReviews: {
     capability_id: "agent.reviews.list.v1",

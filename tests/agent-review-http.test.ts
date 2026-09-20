@@ -166,3 +166,15 @@ test("Host review refresh reads owner receipts and renders only the requested ru
     detach();
   } finally { await new Promise<void>(resolve => item.server.close(() => resolve())); }
 });
+
+test("manual rewind reviews are scoped to the selected runtime session and current project", async () => {
+  const item=await fixture();try {
+    for(const [id,session,board] of [['mine','sdk-a',BOARD],['other-session','sdk-b',BOARD],['other-board','sdk-a','foreign']]) {
+      item.agentHost.reviews.request({...pending(id),board_id:board,run:null,operation:{operation_id:id,session_id:session,kind:'checkpoint-rewind'},kind:'rewind',document:{kind:'rewind',checkpoint_id:'cp',files:[{path:'a',change:'restore',before_text:'now',after_text:'old'}]}});
+    }
+    item.agentHost.reviews.request(pending('run-review'));
+    const manual=await (await fetch(`${item.base}/api/agent/reviews?session_id=sdk-a`)).json();assert.deepEqual(manual.reviews.map((row:any)=>row.request.review_id),['mine']);
+    const combined=await (await fetch(`${item.base}/api/agent/reviews?session_id=sdk-a&run_id=run-1`)).json();assert.deepEqual(combined.reviews.map((row:any)=>row.request.review_id).sort(),['mine','run-review']);
+    const runs=await (await fetch(`${item.base}/api/agent/reviews?run_id=run-1`)).json();assert.deepEqual(runs.reviews.map((row:any)=>row.request.review_id),['run-review']);
+  } finally {item.server.close();}
+});

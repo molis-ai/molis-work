@@ -44,12 +44,14 @@ export type PrologueEvent =
   | { type: "tool-call"; call: { id: string; name: string; input?: Record<string, unknown> } }
   | { type: "tool-result"; callId: string; name: string; text: string; outcome?: "returned" | "failed"; errorCode?: string }
   | { type: "awaiting-approval"; effectRef: { kind: "effect"; id: string; revision: number }; pendingRef: { kind: "pending"; id: string; revision: number }; why: string; character?: string }
-  | { type: "awaiting-input"; pendingRef: { id: string }; kind: string; why: string }
+  | { type: "awaiting-input"; pendingRef: { id: string; revision?: number }; kind: string; why: string }
   | { type: "usage"; receipt: PrologueUsageReceipt }
   | { type: "usage-recorded"; callId: string; receipt: PrologueUsageReceipt }
+  | { type: "model-response-repair"; reason: "tool-not-declared" }
   | { type: "compaction-started" }
-  | { type: "compacted" }
+  | { type: "compacted"; replaced?: number }
   | { type: "compaction-failed"; why?: string }
+  | { type: "compaction-cancelled" }
   | { type: "tripped"; stage: "input" | "output"; rail: string; why: string; failed?: boolean }
   | { type: "completed" }
   | { type: "failed"; why?: string; error?: { code: string; safeMessage: string } }
@@ -64,6 +66,8 @@ export interface PrologueApprovalWaiting {
 }
 
 export interface PrologueStreamState {
+  /** Derived presentation order, not another execution ledger. */
+  next_sequence: number;
   command_calls: string[];
   turns: AgentTurnView[];
   activity: AgentToolActivity[];
@@ -76,15 +80,18 @@ export interface PrologueStreamState {
   /** Approvals the Run is stopped on. The bridge mirrors these to the Host queue. */
   awaiting_approval: PrologueApprovalWaiting[];
   /** Questions the Run is stopped on, other than approvals. */
-  awaiting_input: Array<{ pending_id: string; kind: string; why: string }>;
+  awaiting_input: Array<{ pending_id: string; pending_revision?: number; kind: string; why: string; sequence: number }>;
   /** Frames the contract does not recognize. Kept, never counted as progress. */
   unknown_frames: number;
   /** Open assistant text being streamed in deltas. */
   streaming: string;
+  streaming_at: string | null;
+  streaming_sequence?: number;
 }
 
 export function emptyPrologueStreamState(): PrologueStreamState {
   return {
+    next_sequence: 1,
     command_calls: [],
     turns: [],
     activity: [],
@@ -96,6 +103,7 @@ export function emptyPrologueStreamState(): PrologueStreamState {
     awaiting_input: [],
     unknown_frames: 0,
     streaming: "",
+    streaming_at: null,
   };
 }
 
@@ -148,33 +156,37 @@ function mergeUsage(previous: PrologueUsageReceipt | undefined, next: PrologueUs
   };
 }
 
-function closeStreaming(state: PrologueStreamState, at: string): void {
+function closeStreaming(state: PrologueStreamState): void {
   if (state.streaming === "") return;
   state.turns.push({
     turn_id: `assistant-${state.turns.length + 1}`,
     kind: "assistant",
     text: state.streaming,
-    at,
+    at: state.streaming_at,
+    sequence: state.streaming_sequence,
   });
   state.streaming = "";
+  state.streaming_at = null;
+  delete state.streaming_sequence;
 }
 
 /** Apply one event. Returns true when the projection changed. */
 export function applyPrologueEvent(
   state: PrologueStreamState,
   event: PrologueEvent,
-  at: string,
+  at: string | null,
 ): boolean {
   switch (event.type) {
     case "prompt": {
       const prompt = event as Extract<PrologueEvent, { type: "prompt" }>;
       if (prompt.text === "") return false;
-      closeStreaming(state, at);
+      closeStreaming(state);
       state.turns.push({
         turn_id: `${prompt.role}-${state.turns.length + 1}`,
         kind: prompt.role === "system" ? "system" : "user",
         text: prompt.text,
         at,
+        sequence: state.next_sequence++,
       });
       return true;
     }
@@ -182,6 +194,10 @@ export function applyPrologueEvent(
     case "text-delta": {
       const delta = event as Extract<PrologueEvent, { type: "text-delta" }>;
       if (delta.text === "") return false;
+      if (state.streaming === "") {
+        state.streaming_at = at;
+        state.streaming_sequence = state.next_sequence++;
+      }
       state.streaming += delta.text;
       return true;
     }
@@ -193,7 +209,7 @@ export function applyPrologueEvent(
     }
     case "tool-call": {
       const call = (event as Extract<PrologueEvent, { type: "tool-call" }>).call;
-      closeStreaming(state, at);
+      closeStreaming(state);
       state.activity.push({
         call_id: call.id,
         name: call.name,
@@ -201,6 +217,7 @@ export function applyPrologueEvent(
         state: "started",
         summary: call.name,
         at,
+        sequence: state.next_sequence++,
       });
       return true;
     }
@@ -222,7 +239,7 @@ export function applyPrologueEvent(
 
     case "awaiting-approval": {
       const waiting = event as Extract<PrologueEvent, { type: "awaiting-approval" }>;
-      closeStreaming(state, at);
+      closeStreaming(state);
       state.awaiting_approval.push({
         pending_id: waiting.pendingRef.id,
         effect_id: waiting.effectRef.id,
@@ -236,11 +253,13 @@ export function applyPrologueEvent(
     case "awaiting-input": {
       const waiting = event as Extract<PrologueEvent, { type: "awaiting-input" }>;
       if (waiting.kind === "effect-approval") return false;
-      closeStreaming(state, at);
+      closeStreaming(state);
       state.awaiting_input.push({
         pending_id: waiting.pendingRef.id,
+        pending_revision: waiting.pendingRef.revision,
         kind: waiting.kind,
         why: waiting.why,
+        sequence: state.next_sequence++,
       });
       state.phase = "awaiting-input";
       return true;
@@ -261,26 +280,44 @@ export function applyPrologueEvent(
       return true;
     }
 
+    case "model-response-repair": {
+      if (event.reason !== "tool-not-declared") return false;
+      closeStreaming(state);
+      const sequence = state.next_sequence++;
+      state.activity.push({ call_id: `model-repair-${sequence}`, name: "工具调用纠正", target: "未开放的工具",
+        state: "completed", summary: "已拦下这批调用并加入纠正要求",
+        output: "这批工具请求均未执行，纠正要求已加入本轮上下文；已有结果保留。后续仍受预算与停止控制，是否恢复成功以实际执行结果为准。", at, sequence });
+      state.phase = "running";
+      return true;
+    }
+
     case "compaction-started": {
+      closeStreaming(state);
+      const sequence = state.next_sequence++;
+      state.activity.push({ call_id: `context-compaction-${sequence}`, name: "上下文整理", target: "保留历史原文",
+        state: "started", summary: "正在选择继续任务所需的原文片段", output: "正在整理较早上下文；原始会话与执行记录保留。", at, sequence });
       state.phase = "compacting";
       return true;
     }
 
-    case "compacted": {
+    case "compacted":
+    case "compaction-failed":
+    case "compaction-cancelled": {
+      const activity = [...state.activity].reverse().find(item => item.name === "上下文整理" && item.state === "started");
+      const succeeded = event.type === "compacted";
+      const replaced = (event as { replaced?: number }).replaced;
+      const message = succeeded
+        ? `已整理较早上下文${Number.isSafeInteger(replaced) ? `（替换 ${replaced} 条模型可见记录）` : ""}；当前要求与保留原文继续生效，原始会话未删除。`
+        : event.type === "compaction-cancelled" ? "上下文整理已取消，原上下文未被替换。" : "上下文压缩失败，原上下文未被替换。";
+      if (activity) Object.assign(activity, { state: succeeded ? "completed" : "failed", summary: message, output: message, at });
       state.phase = "running";
-      return true;
-    }
-
-    case "compaction-failed": {
-      // Compaction failing does not end the Run; the context simply was not replaced.
-      state.phase = "running";
-      state.stop_reason = "上下文压缩失败，原上下文未被替换";
+      if (!succeeded) state.stop_reason = message;
       return true;
     }
 
     case "tripped": {
       const tripped = event as Extract<PrologueEvent, { type: "tripped" }>;
-      closeStreaming(state, at);
+      closeStreaming(state);
       // A guardrail stop is terminal but is not a failure of the work.
       state.phase = "stopped";
       state.stop_reason = tripped.failed === true
@@ -290,14 +327,14 @@ export function applyPrologueEvent(
     }
 
     case "completed": {
-      closeStreaming(state, at);
+      closeStreaming(state);
       state.phase = "completed";
       return true;
     }
 
     case "failed": {
       const failed = event as Extract<PrologueEvent, { type: "failed"; why?: string }>;
-      closeStreaming(state, at);
+      closeStreaming(state);
       state.phase = "failed";
       state.stop_reason = failed.error === undefined
         ? failed.why ?? "运行时报告失败"
@@ -306,7 +343,7 @@ export function applyPrologueEvent(
     }
 
     case "cancelled": {
-      closeStreaming(state, at);
+      closeStreaming(state);
       state.phase = "cancelled";
       state.stop_reason = "已取消";
       return true;

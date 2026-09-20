@@ -195,7 +195,7 @@ export class PrologueApprovalBridge {
     }
 
     const request = this.#queue.get(input.review_id);
-    if (!request || pending.ref.kind !== pendingRef.kind || pending.ref.revision !== pendingRef.revision || pending.ref.id !== pendingRef.id
+    if (!request || !request.run || pending.ref.kind !== pendingRef.kind || pending.ref.revision !== pendingRef.revision || pending.ref.id !== pendingRef.id
       || pending.kind !== "effect-approval" || pending.origin?.session !== request?.run.session_id || pending.origin?.run !== request?.run.run_id) {
       throw new PrologueApprovalError("agent.pending_unknown", "执行方返回的待批与原审查不一致");
     }

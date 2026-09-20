@@ -72,6 +72,10 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
 
   /** An adapter asks for permission. This never grants anything by itself. */
   request(request: AgentReviewRequest): AgentReviewRequest {
+    if ((request.run === null) !== Boolean(request.operation) || request.operation &&
+        (!request.operation.operation_id || !request.operation.session_id || request.operation.kind !== "checkpoint-rewind" || request.kind !== "rewind")) {
+      throw new AgentReviewError("agent.review_unknown", "审查必须属于实际轮次或明确的手动回退操作");
+    }
     const existing = this.#rows.get(request.review_id);
     if (existing) {
       if (!isDeepStrictEqual(existing.request, request)) {
@@ -210,6 +214,7 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
       return structuredClone(row.receipt);
     }
     delete row.receipt.delivery_error;
+    delete row.receipt.effect_uncertain;
     row.receipt = {
       ...row.receipt,
       effect_settled: outcome.ok,
@@ -218,11 +223,17 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
     return structuredClone(row.receipt);
   }
 
+  uncertain(reviewId: string, reason: string): void {
+    const row = this.#rows.get(reviewId);
+    if (!row || row.receipt.effect_settled || row.receipt.effect_error !== null) return;
+    row.receipt.effect_uncertain = reason;
+  }
+
   /** Withdraw everything still pending for one run, e.g. when the user stops it. */
   cancelPending(runId: string, reason = "已取消"): number {
     let cancelled = 0;
     for (const row of this.#rows.values()) {
-      if (row.request.run.run_id !== runId || this.#status(row) !== "pending") continue;
+      if (row.request.run?.run_id !== runId || this.#status(row) !== "pending") continue;
       row.receipt = {
         ...row.receipt,
         status: "cancelled",

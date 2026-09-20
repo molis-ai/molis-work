@@ -36,6 +36,8 @@ export const AGENT_REVIEW_STYLES = `
 .agent-review-row { min-width:0; margin-bottom:20px; font-size:12px; line-height:1.6; }
 .agent-review-head { display:flex; flex-wrap:wrap; gap:4px 10px; color:var(--muted); }
 .agent-review-head svg { width:14px; height:14px; }
+.agent-review-row > details > summary { cursor:pointer; }
+.agent-review-row > details > summary .agent-review-head { display:inline-flex; vertical-align:top; }
 .agent-review-plugin { display:none; }
 .agent-review-doc { margin:10px 0; overflow-wrap:anywhere; }
 .agent-review-doc pre { max-height:360px; overflow:auto; white-space:pre; padding:8px; background:var(--rail); border-radius:var(--radius-control); font-size:12px; }
@@ -52,6 +54,7 @@ export const AGENT_REVIEW_STYLES = `
  * happening. A row stays `approved` until the Runtime returns a real receipt.
  */
 export type AgentReviewPhase =
+  | "reconcile"
   | "pending"
   | "approved"
   | "done"
@@ -61,6 +64,7 @@ export type AgentReviewPhase =
   | "expired";
 
 export function reviewPhase(row: AgentReviewRow): AgentReviewPhase {
+  if (row.receipt?.effect_uncertain) return "reconcile";
   const status: AgentReviewStatus = row.receipt?.status ?? "pending";
   if (status !== "approved") return status;
   if (row.receipt?.effect_error !== null && row.receipt?.effect_error !== undefined) return "failed";
@@ -82,12 +86,18 @@ function readable(document: AgentReviewDocument): boolean {
       && (document.escalate === undefined || typeof document.escalate === "boolean");
     case "tool-operation": return typeof document.summary === "string" && Array.isArray(document.fields);
     case "mcp": return typeof document.server === "string" && typeof document.tool === "string" && typeof document.arguments_json === "string";
-    case "rewind": return typeof document.checkpoint_id === "string" && Array.isArray(document.files);
+    case "rewind": return typeof document.checkpoint_id === "string" && Array.isArray(document.files) && document.files.length > 0
+      && document.files.every(file => typeof file.path === "string" && (file.before_text === null || typeof file.before_text === "string")
+        && (file.after_text === null || typeof file.after_text === "string")
+        && (file.change === "create" ? file.before_text === null && typeof file.after_text === "string"
+          : file.change === "delete" ? typeof file.before_text === "string" && file.after_text === null
+          : file.change === "restore" && typeof file.before_text === "string" && typeof file.after_text === "string"));
     default: return false;
   }
 }
 
 const PHASE_MARK: Record<AgentReviewPhase, { icon: string; tone: string; label: string }> = {
+  reconcile: { icon: "alert-triangle", tone: "blocked", label: "结果待核对，不能重复执行" },
   pending: { icon: "alert-circle", tone: "attention", label: "等你决定" },
   approved: { icon: "clock", tone: "progress", label: "已批准，执行结果待确认" },
   done: { icon: "check", tone: "done", label: "已完成" },
@@ -105,8 +115,12 @@ export function renderAgentReviewSurface(model: AgentReviewSurfaceModel): string
     </section>`;
   }
   return `<section class="agent-review" data-agent-review>
-    ${model.rows.map((row) => renderRow(row, p)).join("")}
+    ${[...model.rows].sort((a, b) => reviewPriority(a) - reviewPriority(b) || b.request.requested_at.localeCompare(a.request.requested_at)).map((row) => renderRow(row, p)).join("")}
   </section>`;
+}
+
+function reviewPriority(row: AgentReviewRow): number {
+  return ["pending", "approved", "reconcile"].includes(reviewPhase(row)) ? 0 : reviewPhase(row) === "failed" ? 1 : 2;
 }
 
 function renderRow(row: AgentReviewRow, p: AgentReviewPrimitives): string {
@@ -114,14 +128,17 @@ function renderRow(row: AgentReviewRow, p: AgentReviewPrimitives): string {
   const mark = phase === "done" && row.request.kind === "command"
     ? { ...PHASE_MARK.done, label: "已执行，检查结果见命令回执" } : PHASE_MARK[phase];
   const decidable = isDecidable(row);
+  const history = ["done", "rejected", "cancelled", "expired"].includes(phase);
+  const label = row.request.document.kind === "text-edit" ? row.request.document.target_path
+    : row.request.document.kind === "rewind" ? "文件回退" : row.request.kind === "command" ? "命令执行" : "工具操作";
   return `<article class="agent-review-row" data-agent-review-item="${p.escape(row.request.review_id)}" data-agent-review-phase="${phase}">
-    <header class="agent-review-head">
+    ${history ? '<details data-review-detail="history"><summary>' : ""}<header class="agent-review-head">
       <span class="mw-status" data-tone="${mark.tone}">${p.icon(mark.icon)}${p.escape(mark.label)}</span>
-      <span class="agent-review-plugin">${p.escape(row.request.plugin_id)}</span>
+      <span>${p.escape(label)}</span><span class="agent-review-plugin">${p.escape(row.request.plugin_id)}</span>
       <time>${p.escape(p.formatDate(row.request.requested_at))}</time>
-    </header>
+    </header>${history ? "</summary>" : ""}
     ${renderDocument(row.request.document, p)}
-    ${renderFooter(row, decidable, p)}
+    ${renderFooter(row, decidable, p)}${history ? "</details>" : ""}
   </article>`;
 }
 
@@ -143,6 +160,7 @@ function renderFooter(row: AgentReviewRow, decidable: boolean, p: AgentReviewPri
       : `<span>${p.escape(row.receipt.decided_by)}</span>`}
     ${note === null || note === undefined ? "" : `<p>${p.escape(note)}</p>`}
     ${error === null || error === undefined ? "" : `<p class="agent-review-error">${p.escape(error)}</p>`}
+    ${row.receipt?.effect_uncertain ? `<p class="agent-review-error">${p.escape(row.receipt.effect_uncertain)}</p>` : ""}
     ${row.receipt?.delivery_error ? `<p class="agent-review-error">${p.escape("决定已记录，但执行方尚未确认收到：" + row.receipt.delivery_error)}</p>` : ""}
   </footer>`;
 }
@@ -153,7 +171,7 @@ function renderDocument(document: AgentReviewDocument, p: AgentReviewPrimitives)
     case "text-edit":
       return `<div class="agent-review-doc" data-agent-review-kind="text-edit">
         <p class="agent-review-target">${p.escape(document.target_path)}${document.exists ? "" : ` · ${p.escape("新建文件")}`}</p>
-        <details class="agent-review-before"><summary>${p.escape("修改前")}</summary><pre>${p.escape(document.before_text ?? "文件尚不存在")}</pre></details>
+        <details class="agent-review-before" data-review-detail="before"><summary>${p.escape("修改前")}</summary><pre>${p.escape(document.before_text ?? "文件尚不存在")}</pre></details>
         <p>${p.escape("修改后")}</p>
         <pre class="agent-review-after">${p.escape(document.after_text)}</pre>
       </div>`;
@@ -167,7 +185,12 @@ function renderDocument(document: AgentReviewDocument, p: AgentReviewPrimitives)
       </div>`;
     case "tool-operation": return `<div class="agent-review-doc" data-agent-review-kind="tool-operation"><p>${p.escape(document.tool)}</p><p>${p.escape(document.summary)}</p><dl>${document.fields.map(field => `<dt>${p.escape(field.label)}</dt><dd>${p.escape(field.value)}</dd>`).join("")}</dl></div>`;
     case "mcp": return `<div class="agent-review-doc" data-agent-review-kind="mcp"><p>${p.escape(document.server + " · " + document.tool)}</p><pre>${p.escape(document.arguments_json)}</pre></div>`;
-    case "rewind": return `<div class="agent-review-doc" data-agent-review-kind="rewind"><p>${p.escape("检查点：" + document.checkpoint_id)}</p><ul>${document.files.map(file => `<li>${p.escape(file.path)} · ${p.escape(file.change)}</li>`).join("")}</ul></div>`;
+    case "rewind": return `<div class="agent-review-doc" data-agent-review-kind="rewind">
+      <p>${p.escape("回到检查点记录的修改前 · " + document.checkpoint_id)}</p>
+      <p>只回退所列文件，不撤销命令、网络或 MCP 操作；对话记录会保留。</p>
+      ${document.files.map(file => `<section><p class="agent-review-target">${p.escape(file.path)} · ${{create:"重新创建",delete:"删除",restore:"恢复内容"}[file.change]}</p>
+        <details data-review-detail="${p.escape("before:" + file.path)}"><summary>当前内容</summary><pre>${p.escape(file.before_text === null ? "文件不存在" : file.before_text === "" ? "（空文件）" : file.before_text)}</pre></details>
+        <p>回退后</p><pre>${p.escape(file.after_text === null ? "文件将不存在" : file.after_text === "" ? "（空文件）" : file.after_text)}</pre></section>`).join("")}</div>`;
     default:
       // An unknown document kind is shown as its kind, never silently dropped:
       // a user must not approve something the surface refused to describe.

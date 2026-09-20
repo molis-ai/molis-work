@@ -89,3 +89,20 @@ test("组合根把 Agent Host 接进宿主之后，插件经 Capability 够得�
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test('checkpoint capability enforces current project, authorized roots and declared writable roles', async () => {
+  const agentHost=new AgentHost(),adapter=readOnlyAdapter('checkpoints');let prepared=0;
+  const cp={checkpoint_id:'cp',session_id:'session-1',created_at:'2026-09-20T00:00:00Z',label:'a',directory:{canonical_path:'/allowed',realpath_verified:true}};
+  Object.assign(adapter,{checkpoints:{list:async()=>[cp,{...cp,checkpoint_id:'foreign-root',directory:{...cp.directory,canonical_path:'/other'}}],prepareRewind:async()=>{prepared++;return {review_id:'pending'};}}});
+  agentHost.register(adapter);
+  const handlers=new Map<string,Function>();let allowed=['/allowed'];
+  registerAgentHostCapabilities({register:(definition,handler)=>{handlers.set(definition.capability_id,handler);return ()=>{};}},{agentHost:()=>agentHost,boardId:(ctx:{board_id:string})=>ctx.board_id,authority:()=>({manifest:{...AGENT,roles:[...AGENT.roles,{role_id:'writer',version:1,execution:'text-edit',prompts:[],host_tools:[]}]},authorizedDirectories:allowed})});
+  const session={runtime_id:'checkpoints',session_id:'session-1'},context={board_id:'board-a'};
+  const list=handlers.get(agentHostCapabilities.listCheckpoints.capability_id)!,prepare=handlers.get(agentHostCapabilities.prepareRewind.capability_id)!;
+  assert.deepEqual(await list(context,[session]),[cp]);
+  await assert.rejects(list({board_id:'foreign'},[session]));
+  await assert.rejects(prepare(context,[session,'cp','reader']),/当前方式不能回退/);
+  await assert.rejects(prepare(context,[session,'foreign-root','writer']),/授权工作区/);assert.equal(prepared,0);
+  await prepare(context,[session,'cp','writer']);assert.equal(prepared,1);
+  allowed=[];await assert.rejects(prepare(context,[session,'cp','writer']),/授权工作区/);assert.deepEqual(await list(context,[session]),[]);assert.equal(prepared,1);
+});

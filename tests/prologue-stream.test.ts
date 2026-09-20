@@ -217,3 +217,81 @@ test("工具状态来自明确回执，不从可读文本猜成功或失败", ()
   assert.deepEqual(state.activity.map(item => item.state), ["completed", "failed", "unknown"]);
   assert.match(state.activity[1]!.summary, /PATH_DENIED/);
 });
+
+test("text, tool calls and original questions keep their first visible order through streaming and replay", () => {
+  const events: PrologueEvent[] = [
+    { type: "text-delta", text: "先确认" },
+    { type: "text-delta", text: "名称。" },
+    { type: "tool-call", call: { id: "ask", name: "ask-user" } },
+    { type: "awaiting-input", pendingRef: { id: "question", revision: 1 }, kind: "text", why: "名称是什么？" },
+    { type: "tool-result", callId: "ask", name: "ask-user", text: "问题已过期", outcome: "failed" },
+    { type: "text-delta", text: "未收到答案。" },
+    { type: "completed" },
+  ];
+  const live = emptyPrologueStreamState();
+  const replay = emptyPrologueStreamState();
+  for (const event of events) {
+    applyPrologueEvent(live, event, AT);
+    applyPrologueEvent(replay, event, null);
+  }
+  const order = (state: typeof live) => [
+    ...state.turns.map(turn => [turn.sequence, turn.text]),
+    ...state.activity.map(activity => [activity.sequence, activity.call_id]),
+    ...state.awaiting_input.map(question => [question.sequence, question.pending_id]),
+  ].sort((a, b) => Number(a[0]) - Number(b[0]));
+  assert.deepEqual(order(live), [[1, "先确认名称。"], [2, "ask"], [3, "question"], [4, "未收到答案。"]]);
+  assert.deepEqual(order(replay), order(live));
+  assert.equal(replay.turns[0]?.at, null, "missing replay times remain unknown");
+  assert.equal(replay.activity[0]?.at, null);
+  assert.equal(live.activity[0]?.state, "failed", "result updates the original call without moving it");
+});
+
+test("streaming text retains its first observed time and position when a later event closes it", () => {
+  const state = emptyPrologueStreamState();
+  applyPrologueEvent(state, { type: "text-delta", text: "保留已读内容" }, AT);
+  const sequence = state.streaming_sequence;
+  applyPrologueEvent(state, { type: "text-delta", text: "，随后停止" }, "2026-09-20T01:00:00Z");
+  assert.equal(state.streaming_sequence, sequence);
+  applyPrologueEvent(state, { type: "cancelled" }, "2026-09-20T02:00:00Z");
+  assert.equal(state.turns[0]?.sequence, sequence);
+  assert.equal(state.turns[0]?.at, AT);
+});
+
+test("compaction evidence survives event replay and does not replace task or completed tools", () => {
+  const events: PrologueEvent[] = [
+    { type: "text-delta", text: "原建议不是已修改" },
+    { type: "compaction-started" }, { type: "compacted", replaced: 7 },
+    { type: "compaction-started" }, { type: "compaction-cancelled" }, { type: "cancelled" },
+  ];
+  const live = emptyPrologueStreamState(), replay = emptyPrologueStreamState();
+  for (const event of events) { applyPrologueEvent(live, event, null); applyPrologueEvent(replay, event, null); }
+  assert.deepEqual(live, replay);
+  assert.equal(live.turns[0]?.text, "原建议不是已修改");
+  assert.equal(live.activity[0]?.state, "completed"); assert.match(live.activity[0]?.output ?? "", /7 条/);
+  assert.equal(live.activity[1]?.state, "failed"); assert.match(live.activity[1]?.output ?? "", /原上下文未被替换/);
+  assert.equal(live.phase, "cancelled");
+});
+
+
+test("tool correction closes text, preserves completed actions and replays without claiming Run success", () => {
+  const events: PrologueEvent[] = [
+    { type: "tool-call", call: { id: "read-before", name: "read", input: { path: "cart.mjs" } } },
+    { type: "tool-result", callId: "read-before", name: "read", text: "original file", outcome: "returned" },
+    { type: "text-delta", text: "接下来读取其他文件" },
+    { type: "model-response-repair", reason: "tool-not-declared" },
+    { type: "text-delta", text: "改用已开放工具" },
+  ];
+  const live = emptyPrologueStreamState(), restored = emptyPrologueStreamState();
+  apply(live, ...events); apply(restored, ...events);
+  assert.deepEqual(live, restored);
+  assert.equal(live.phase, "running");
+  assert.equal(live.activity.length, 2);
+  assert.equal(live.activity[0]?.output, "original file");
+  assert.equal(live.activity[1]?.name, "工具调用纠正");
+  assert.match(live.activity[1]?.output ?? "", /均未执行/);
+  assert.match(live.activity[1]?.output ?? "", /是否恢复成功以实际执行结果为准/);
+  apply(live, { type: "failed", error: { code: "MODEL_TOOL_NOT_DECLARED", safeMessage: "Again unavailable" } });
+  assert.equal(live.phase, "failed");
+  assert.deepEqual(live.turns.map(turn => turn.text), ["接下来读取其他文件", "改用已开放工具"]);
+  assert.equal(live.activity[0]?.state, "completed");
+});

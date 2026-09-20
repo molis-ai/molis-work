@@ -132,3 +132,27 @@ test("review renders both file versions and exact command arguments, never only 
   assert.match(deliveryHtml, /执行方尚未确认收到/);
   assert.doesNotMatch(deliveryHtml, /尚未发生|执行未完成/);
 });
+
+test("manual rewind shows both full versions, distinguishes empty/deleted files and refuses incomplete previews", () => {
+  const item=row();item.request.run=null;item.request.operation={operation_id:'op',session_id:'s',kind:'checkpoint-rewind'};
+  item.request.kind='rewind';item.request.document={kind:'rewind',checkpoint_id:'cp',files:[
+    {path:'a.ts',change:'restore',before_text:'<old>',after_text:'<new>'},
+    {path:'empty',change:'delete',before_text:'',after_text:null},
+  ]};
+  const html=renderAgentReviewSurface({rows:[item],primitives:p});
+  assert.match(html,/&lt;old&gt;/);assert.match(html,/&lt;new&gt;/);assert.match(html,/（空文件）/);assert.match(html,/文件将不存在/);assert.match(html,/不撤销命令/);assert.equal(isDecidable(item),true);
+  item.receipt=receipt({effect_uncertain:'执行回执暂不可读'});assert.equal(reviewPhase(item),'reconcile');assert.equal(isDecidable(item),false);
+  assert.match(renderAgentReviewSurface({rows:[item],primitives:p}),/执行回执暂不可读/);
+  item.receipt=undefined;delete (item.request.document.files[0] as any).before_text;assert.equal(isDecidable(item),false);
+});
+
+test('current decisions precede collapsed history without hiding execution failures', () => {
+  const done=row({receipt:receipt({effect_settled:true})});done.request.review_id='older';
+  const pending=row();pending.request.review_id='action';
+  const failed=row({receipt:receipt({effect_error:'changed after preview'})});failed.request.review_id='conflict';
+  const html=renderAgentReviewSurface({rows:[done,failed,pending],primitives:p});
+  assert.ok(html.indexOf('data-agent-review-item="action"')<html.indexOf('data-agent-review-item="conflict"'));
+  assert.ok(html.indexOf('data-agent-review-item="conflict"')<html.indexOf('data-agent-review-item="older"'));
+  assert.match(html,/<details data-review-detail="history"><summary>/);assert.doesNotMatch(html,/<details data-review-detail="history" open/);
+  assert.match(html,/changed after preview/);
+});

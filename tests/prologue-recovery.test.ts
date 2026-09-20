@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { createPrologueNodeAdapter, PrologueAgentAdapter, type PrologueRuntimePort } from "@molis-ai/molis-work-service-agent-host";
+import { createPrologueNodeAdapter, PrologueAgentAdapter, type PrologueRuntimePort, type PrologueEvent, type PrologueRunTiming } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 const owner = { board_id: "recovery-board", plugin_id: "io.molis.work.coding", install_id: "recovery-install" };
@@ -40,6 +40,10 @@ test("packed SDK: failed terminal ledger and frozen ownership survive restart wi
     assert.deepEqual(restored.latest_run?.frozen, handle.frozen);
     assert.deepEqual(restored.latest_run?.turns.map(t => [t.kind, t.text]), before.turns.map(t => [t.kind, t.text]));
     assert.equal(restored.latest_run?.stop_reason, before.stop_reason);
+    assert.ok(before.ended_at);
+    assert.equal(restored.latest_run?.ended_at, before.ended_at);
+    assert.deepEqual(restored.latest_run?.turns, before.turns);
+    assert.deepEqual(restored.latest_run?.activity, before.activity);
     await assert.rejects(adapter.control(handle.ref, { kind: "resume" }), /历史执行没有活动控制句柄/);
     const next = await adapter.start({ ...request, task: "这是明确的新一轮" });
     assert.notEqual(next.ref.run_id, handle.ref.run_id);
@@ -117,3 +121,100 @@ test("packed SDK: a late stop on an ended live handle preserves later attempts a
     assert.equal(restored.latest_run?.turns[0]?.text, "第二轮不能被旧控制抹掉");
   } finally { await adapter.close(); await rm(root, { recursive: true, force: true }); }
 });
+
+test("replay keeps original question order and does not invent missing event timestamps", async () => {
+  const ref = { run_id: "ordered-run", session_id: "ordered-session" };
+  const started = "2026-09-20T00:00:00.000Z";
+  const runtime: PrologueRuntimePort = {
+    sessions: { create: async () => { throw new Error("unused"); }, restore: async () => ({ title: "过期问题", owner, runs: [{
+      ref, task: "请提问", started_at: started,
+      frozen: { role_id: "reader", role_version: 1, execution: "read-only", model_id: "m", prompts: [], skills: [], mcp_tools: [], host_tools: [], text_materials: [], budget: null, directory: { canonical_path: "/tmp/original", realpath_verified: true } },
+      events: [
+        { type: "prompt", role: "user", text: "请提问", atMs: Date.parse(started) },
+        { type: "tool-call", call: { id: "ask", name: "ask-user" } },
+        { type: "awaiting-input", pendingRef: { id: "question", revision: 1 }, kind: "text", why: "名称是什么？" },
+        { type: "tool-result", callId: "ask", name: "ask-user", outcome: "failed", text: "expired" },
+        { type: "text-delta", text: "未收到答案。" },
+        { type: "completed" },
+      ],
+    }] }) },
+    readPendingQuestion: async () => ({ pending_id: "question", pending_revision: 1, kind: "text", prompt: "名称是什么？", options: [], allows_free_text: true, answerable: false, unavailable_reason: "已过期" }),
+    startAgentRun: async () => { throw new Error("must not execute history"); }, shutdown: async () => {},
+  };
+  const adapter = new PrologueAgentAdapter({ runtime, modelConfiguration: async () => model });
+  const view = await adapter.read(ref);
+  assert.deepEqual(view.turns.map(turn => [turn.sequence, turn.at]), [[0, started], [3, null]]);
+  assert.equal(view.activity[0]?.sequence, 1);
+  assert.equal(view.activity[0]?.at, null);
+  assert.equal(view.awaiting_input[0]?.sequence, 2, "reading the original Pending must preserve its event position");
+  assert.equal(view.ended_at, null, "the recovery clock is not the original completion time");
+});
+
+for (const persistence of ["delayed", "failed"] as const) {
+  test(`observation timing ${persistence}: keep SDK outcome and commit once before exposing completion`, async () => {
+    let emit: (event: PrologueEvent) => void = () => {};
+    let finish!: () => void;
+    let fail!: (error: Error) => void;
+    const commit = new Promise<void>((resolve, reject) => { finish = resolve; fail = reject; });
+    let attempts = 0;
+    let timing: PrologueRunTiming | undefined;
+    let savedStart = "";
+    const events: PrologueEvent[] = [];
+    const ref = { run_id: "timed-run", session_id: "timed-session" };
+    let frozenView: Awaited<ReturnType<PrologueAgentAdapter["start"]>>["frozen"];
+    const runtime: PrologueRuntimePort = {
+      sessions: { create: async () => ({ ref: { id: ref.session_id } }), restore: async () => ({ title: "timing", owner,
+        runs: [{ ref, frozen: frozenView, started_at: savedStart, task: "read the actual result", events,
+          ...(persistence === "delayed" ? { timing } : {}) }] }) },
+      saveRunTiming: async (run, value) => { assert.deepEqual(run, ref); attempts++; timing = structuredClone(value); await commit; },
+      startAgentRun: async input => {
+        savedStart = input.provenance.started_at;
+        return { run: { ref: { id: ref.run_id }, subscribe: listener => { emit = event => { events.push(event); listener(event); }; return () => {}; }, cancel: async () => {} },
+          control: { state: "running", stop: () => {}, pause: () => {}, resume: () => {}, steer: () => {}, subscribe: () => () => {} } };
+      }, shutdown: async () => {},
+    };
+    let clock = Date.parse("2026-09-20T00:00:00Z");
+    const adapter = new PrologueAgentAdapter({ runtime, modelConfiguration: async () => model, now: () => new Date(clock += 1000) });
+    const directory = { canonical_path: "/tmp/timing", realpath_verified: true };
+    const session = await adapter.createSession({ ...owner, actor_id: "user", title: "timing", directory });
+    const handle = await adapter.start({ ...owner, actor_id: "user", session, directory, task: "read the actual result", role_id: "reader",
+      role: { role_id: "reader", version: 1, execution: "read-only", host_tools: [], prompts: [] } });
+    frozenView = handle.frozen;
+    emit({ type: "text-delta", text: "Reading " });
+    emit({ type: "text-delta", text: "now." });
+    emit({ type: "tool-call", call: { id: "read-1", name: "read-file", input: { path: "src/cart.ts" } } });
+    emit({ type: "tool-result", callId: "read-1", name: "read-file", text: "actual source", outcome: "returned" });
+    emit({ type: "text-delta", text: "Here is the result." });
+    emit({ type: "completed" });
+    const holding = await adapter.read(handle.ref);
+    assert.equal(holding.phase, "running");
+    assert.equal(holding.ended_at, null);
+    assert.match(holding.stop_reason!, /正在保存显示时间/);
+    assert.equal(holding.activity[0]?.output, "actual source");
+    if (persistence === "delayed") finish(); else fail(new Error("private storage details must not escape"));
+    const final = await new Promise<Awaited<ReturnType<typeof adapter.read>>>(resolve => {
+      let off = () => {};
+      off = adapter.observe(handle.ref, view => { if (view.phase === "completed") { queueMicrotask(() => off()); resolve(view); } });
+    });
+    assert.equal(attempts, 1);
+    assert.ok(final.ended_at);
+    assert.equal(final.turns[1]?.at, holding.turns[1]?.at);
+    assert.deepEqual(timing?.turns, final.turns.map(({ turn_id, at }) => ({ turn_id, at })));
+    if (persistence === "failed") {
+      assert.match(final.stop_reason!, /显示时间未能保存/);
+      assert.doesNotMatch(final.stop_reason!, /private storage/);
+    }
+    await adapter.close();
+    const restoredAdapter = new PrologueAgentAdapter({ runtime, modelConfiguration: async () => model });
+    const restored = (await restoredAdapter.readSession(session)).latest_run!;
+    assert.equal(restored.phase, "completed");
+    assert.deepEqual(restored.turns.map(t => t.text), final.turns.map(t => t.text));
+    assert.equal(restored.ended_at, persistence === "delayed" ? final.ended_at : null);
+    if (persistence === "delayed") {
+      assert.deepEqual(restored.turns, final.turns);
+      assert.deepEqual(restored.activity, final.activity);
+    }
+    assert.equal(attempts, 1, "replay must not save new observation times");
+    await restoredAdapter.close();
+  });
+}

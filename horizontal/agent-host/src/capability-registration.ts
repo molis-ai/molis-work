@@ -63,6 +63,35 @@ export function registerAgentHostCapabilities<Context>(
         (await ports.authority(context, pluginId)).manifest,
       )),
 
+    registrar.register(agentHostCapabilities.listSkills, async (context, [runtimeId, pluginId]) =>
+      ports.agentHost(context).skillCatalog(runtimeId, await ports.authority(context, pluginId))),
+    registrar.register(agentHostCapabilities.readSkill, async (context, [runtimeId, pluginId, ref]) =>
+      ports.agentHost(context).readSkill(runtimeId, await ports.authority(context, pluginId), ref)),
+    registrar.register(agentHostCapabilities.discoverSkills, async (context, [runtimeId, pluginId, directory, path]) =>
+      ports.agentHost(context).discoverSkills(runtimeId, await ports.authority(context, pluginId), directory, path)),
+    registrar.register(agentHostCapabilities.installSkill, async (context, [runtimeId, pluginId, candidateId]) =>
+      ports.agentHost(context).installSkill(runtimeId, await ports.authority(context, pluginId), candidateId)),
+
+    registrar.register(agentHostCapabilities.listMcp, async (context, [runtimeId, pluginId]) => {
+      const { library, owner } = ports.agentHost(context).mcpLibrary(runtimeId, await ports.authority(context, pluginId));
+      return library.list(owner);
+    }),
+    registrar.register(agentHostCapabilities.saveMcp, async (context, [runtimeId, pluginId, input]) => {
+      const authority = await ports.authority(context, pluginId);
+      if (input.transport === "stdio" && (!input.directory?.realpath_verified || !authority.authorizedDirectories.includes(input.directory.canonical_path))) throw new AgentHostError("agent.directory_unauthorized", "MCP 进程目录必须是当前项目的授权工作区");
+      const { library, owner } = ports.agentHost(context).mcpLibrary(runtimeId, authority);
+      return library.save(owner, input);
+    }),
+    registrar.register(agentHostCapabilities.controlMcp, async (context, [runtimeId, pluginId, id, action]) => {
+      const authority = await ports.authority(context, pluginId);
+      const { library, owner } = ports.agentHost(context).mcpLibrary(runtimeId, authority);
+      if (action === "connect") {
+        const server = (await library.list(owner)).find(item => item.id === id);
+        if (server?.transport === "stdio" && !authority.authorizedDirectories.includes(server.directory?.canonical_path ?? "")) throw new AgentHostError("agent.directory_unauthorized", "MCP 的原工作区已不可用，请重新配置");
+      }
+      return library.control(owner, id, action);
+    }),
+
     registrar.register(agentHostCapabilities.createSession, async (context, [runtimeId, input]) => {
       if (input.board_id !== ports.boardId(context)) throw new AgentHostError("agent.session_unknown", "不能为其他项目创建会话");
       const authority = await ports.authority(context, input.plugin_id);
@@ -107,6 +136,25 @@ export function registerAgentHostCapabilities<Context>(
     registrar.register(agentHostCapabilities.readCommandOutput, async (context, [session, ref]) => {
       await readScopedSession(context, session);
       return ports.agentHost(context).adapter(session.runtime_id).readCommandOutput(session, ref);
+    }),
+
+    registrar.register(agentHostCapabilities.listCheckpoints, async (context, [session]) => {
+      const view = await readScopedSession(context, session);
+      const authority = await ports.authority(context, view.owner.plugin_id);
+      const checkpoints = ports.agentHost(context).adapter(session.runtime_id).checkpoints;
+      if (!checkpoints) throw new AgentHostError("agent.capability_unavailable", "当前运行时未接通检查点");
+      return (await checkpoints.list(session)).filter(item => item.directory?.realpath_verified && authority.authorizedDirectories.includes(item.directory.canonical_path));
+    }),
+    registrar.register(agentHostCapabilities.prepareRewind, async (context, [session, checkpointId, roleId]) => {
+      const view = await readScopedSession(context, session);
+      const authority = await ports.authority(context, view.owner.plugin_id);
+      const role = authority.manifest.roles.find(role => role.role_id === roleId);
+      if (!role || !["text-edit", "workspace-write"].includes(role.execution ?? "read-only")) throw new AgentHostError("agent.capability_unavailable", "当前方式不能回退文件，请选择修改文件或执行");
+      const checkpoints = ports.agentHost(context).adapter(session.runtime_id).checkpoints;
+      if (!checkpoints) throw new AgentHostError("agent.capability_unavailable", "当前运行时未接通检查点回退");
+      const checkpoint = (await checkpoints.list(session)).find(item => item.checkpoint_id === checkpointId);
+      if (!checkpoint?.directory?.realpath_verified || !authority.authorizedDirectories.includes(checkpoint.directory.canonical_path)) throw new AgentHostError("agent.directory_unauthorized", "检查点不属于当前授权工作区");
+      return checkpoints.prepareRewind(session, checkpointId);
     }),
 
     registrar.register(agentHostCapabilities.listReviews, (context, [boardId, status]) => {

@@ -1,22 +1,28 @@
 import { createHash, randomUUID } from "node:crypto";
-import { BUILT_IN_ADAPTERS, SYSTEM_TOOL_NAMES, createAdapterRegistry, createRuntime, type ExactRef, type Runtime, type ModelEvent } from "@prologue/sdk";
+import { BUILT_IN_ADAPTERS, SYSTEM_TOOL_NAMES, createAdapterRegistry, createRuntime, prepareSkillIntent, fillSkillBody, type Skill, type ExactRef, type Runtime, type ModelEvent } from "@prologue/sdk";
 import { createNodeHost } from "@prologue/sdk/node";
 
 import {
   PrologueAgentAdapter,
+  PrologueAdapterError,
   type PrologueAdapterPorts,
   type PrologueRuntimePort,
   type PrologueStartInput,
   type PrologueRestoredSession,
+  type PrologueRunTiming,
 } from "./prologue.js";
 import type { PrologueEvent, PrologueUsageReceipt } from "./prologue-stream.js";
+import { createPrologueMcpLibrary, mcpConnectionId } from "./prologue-mcp.js";
+import { createPrologueCheckpoints, type PrologueRewindIntent } from "./prologue-checkpoints.js";
+import { createPrologueCompactor } from "./prologue-compaction.js";
+import { createPrologueSkillLibrary } from "./prologue-methods.js";
 import { resolveModelHostname } from "./node-model-dns.js";
-import type { AgentReviewReceipt } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentReviewReceipt, AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { PrologueApprovalBridge, type ProloguePendingPort } from "./prologue-approvals.js";
 import type { AgentReviewQueue } from "../reviews.js";
 
 /**
- * The one file that imports the Prologue SDK.
+ * The SDK-specific Node composition, with colocated SDK helpers.
  *
  * It adapts the SDK's shapes to the narrow port the adapter needs, so the
  * adapter's behavior stays testable without a model, a network or a disk.
@@ -31,10 +37,8 @@ import type { AgentReviewQueue } from "../reviews.js";
  * of them lets us set a cache breakpoint.
  *
  * Read from the SDK rather than copied into a list of our own, so a rename over
- * there reaches our tests instead of quietly diverging. It lives in this file
- * because this is the one file allowed to import the SDK — that boundary is
- * what keeps the rest of the adapter testable without a model, a network or a
- * disk, and it is worth more than the convenience of importing twice.
+ * there reaches our tests instead of quietly diverging. SDK imports stay within the Node composition and its colocated helpers;
+ * the runtime port and plugin remain independent of SDK implementation types.
  */
 export function prologueProtocolFacts(): ReadonlyArray<{
   readonly protocol: string;
@@ -94,7 +98,8 @@ export async function createPrologueNodeAdapter(
     app: options.app,
     host,
     preset: "local-agent",
-    network: { model: true },
+    config: { tool: { deferToolSchemasBeyond: 20 } },
+    network: { model: true, mcp: true, loopback: true },
     posture: options.reviewQueue
       ? { sandbox: "workspace-write", approval: "untrusted" }
       : { sandbox: "read-only", approval: "on-request" },
@@ -102,6 +107,8 @@ export async function createPrologueNodeAdapter(
     require: ["secrets", "network", "clock", "workspace.read", "storage"],
   });
 
+  const mcpLibrary = createPrologueMcpLibrary(runtime);
+  const registeredMethods = new Map<string, Skill>();
   const sessions = new Map<string, ExactRef<"session">>();
   const runRoots = new Map<string, ExactRef<"authorized-root">>();
   const activeRuns = new Map<string, () => boolean>();
@@ -151,8 +158,21 @@ export async function createPrologueNodeAdapter(
       async document(pending) {
         const effect = pending.effectRef && runtime.effects.get(pending.effectRef);
         const ref = effect?.proposal.reviewRef;
-        if (!effect || !ref || effect.proposal.origin?.session !== pending.origin?.session
+        if (!effect || effect.proposal.origin?.session !== pending.origin?.session
           || effect.proposal.origin?.run !== pending.origin?.run) throw new Error("原始审查或执行归属不可用，不能批准");
+        const subject = effect.proposal.subject;
+        if (subject.what === "tool" && subject.name.startsWith("mcp:")) {
+          if (typeof subject.input !== "string") throw new Error("MCP 原始参数不可读，不能批准");
+          const index = await readIndex(pending.origin!.session!);
+          const attempt = index?.attempts.find(item => item.run_id === pending.origin!.run);
+          const selected = attempt?.frozen.mcp_tools.find(item => `mcp:${mcpConnectionId(item)}/${item.tool}` === subject.name);
+          if (!selected?.version) throw new Error("MCP 操作不属于本轮固定工具，不能批准");
+          const args = JSON.parse(subject.input);
+          if (!args || typeof args !== "object" || Array.isArray(args)) throw new Error("MCP 原始参数格式无效");
+          reviewEffects.set(`prologue:${pending.ref.id}`, effect.ref);
+          return { kind: "mcp", server: selected.server_label ?? selected.server, tool: selected.tool, arguments_json: subject.input };
+        }
+        if (!ref) throw new Error("原始审查资源不可用，不能批准");
         const review = await readResource(ref);
         const root = pending.origin?.run && runRoots.get(pending.origin.run);
         if (!root || review.rootRef?.kind !== root.kind || review.rootRef?.id !== root.id || review.rootRef?.revision !== root.revision) throw new Error("审查工作区与本轮授权不一致");
@@ -250,6 +270,9 @@ export async function createPrologueNodeAdapter(
         || ![value.owner?.board_id, value.owner?.plugin_id, value.owner?.install_id].every(v => typeof v === "string" && v.length > 0)) {
         throw new Error("Coding 会话归属索引损坏，不能当作空会话继续");
       }
+      if (value.attempts.some(attempt => attempt.timing !== undefined && !validRunTiming(attempt.timing))) {
+        throw new Error("Coding 显示时间索引损坏，不能猜测历史时间");
+      }
       indexes.set(id, { value, version: record.version });
       return structuredClone(value);
     } finally { bytes.fill(0); }
@@ -269,11 +292,56 @@ export async function createPrologueNodeAdapter(
     try { await next; }
     finally { if (indexUpdates.get(id) === next) indexUpdates.delete(id); }
   };
+  const checkpoints = options.reviewQueue ? createPrologueCheckpoints({ runtime, queue: options.reviewQueue, readIndex, readResource,
+    remember: (id, intent) => updateIndex(id, index => { (index.rewinds ??= []).push(intent); }),
+    decision: (id, pendingId, receipt) => updateIndex(id, index => {
+      (index.review_decisions ??= {})[pendingId] = { status: receipt.status, decided_by: receipt.decided_by, decided_at: receipt.decided_at, note: receipt.note };
+    }),
+  }) : undefined;
   const credentials = new PrologueCredentialBridge({
     host: { writeCredential: (input) => runtime.credentials.write(input) },
     resolve: options.resolveCredential,
   });
+  const readQuestion = async (run: AgentRunRef, id: string, revision: number) => {
+    const pending = await runtime.effects.pendings.read({ kind: "pending", id, revision });
+    if (!pending || pending.origin?.session !== run.session_id || pending.origin.run !== run.run_id
+      || !["text", "questionnaire"].includes(pending.kind)) {
+      throw new PrologueAdapterError("agent.pending_not_open", "原问题不属于本轮执行，不能提交答案");
+    }
+    return pending;
+  };
+  const questionUnavailable = (run: AgentRunRef, pending: Awaited<ReturnType<typeof readQuestion>>, now: number) =>
+    pending.state !== "open" ? "这条问题已经结束，不能再次回答"
+      : now >= pending.expiresAtMs ? "这条问题已过期，不能提交原答案"
+      : !activeRuns.get(run.run_id)?.() || !runtime.effects.pendings.hasLiveWaiter(pending.ref)
+        ? "原执行者已经停止或离线，不能通过回答重新启动" : undefined;
   const port: PrologueRuntimePort = {
+    inlineMethods: true,
+    compaction: true,
+    ...(checkpoints ? { checkpoints } : {}),
+    async saveRunTiming(run, timing) {
+      await updateIndex(run.session_id, index => {
+        const attempt = index.attempts.find(item => item.run_id === run.run_id);
+        if (!attempt) throw new Error("这轮执行不属于宿主会话索引，不能保存显示时间");
+        attempt.timing = structuredClone(timing);
+      });
+    },
+    skillLibrary: createPrologueSkillLibrary(runtime),
+    mcpLibrary,
+    async readPendingQuestion(run, id, revision) {
+      const pending = await readQuestion(run, id, revision);
+      // The original persisted answer owns this fact, including after restart.
+      // Do not turn an answered question back into an empty disabled form.
+      if (pending.state === "settled") return null;
+      const unavailable = questionUnavailable(run, pending, (await host.readClock()).monotonicMs);
+      return { pending_id: pending.ref.id, pending_revision: pending.ref.revision, kind: pending.kind,
+        prompt: pending.why, options: [], allows_free_text: pending.kind === "text",
+        ...(pending.kind === "questionnaire" ? { questions: pending.questions.map(question => ({
+          index: question.index, prompt: question.prompt, options: question.options,
+          multiple: question.multiple === true, allow_other: question.allowOther === true,
+        })) } : {}), answerable: unavailable === undefined,
+        ...(unavailable ? { unavailable_reason: unavailable } : {}) };
+    },
     async readCommandOutput(sessionId, ref) {
       const index = await readIndex(sessionId);
       if (!index) throw new Error("会话执行索引不可用");
@@ -317,6 +385,7 @@ export async function createPrologueNodeAdapter(
         if (!index) return undefined;
         const session = await runtime.sessions.open(index.ref);
         if (!session) throw new Error("SDK 会话已不可读，保留原引用，不能创建新会话替代");
+        await checkpoints?.restore(id);
         const terminal = await session.terminalRuns();
         const open = await runtime.listOpenWork();
         const reasons: string[] = [];
@@ -331,6 +400,7 @@ export async function createPrologueNodeAdapter(
           runs.push({ ref: { run_id: attempt.run_id, session_id: id }, frozen: attempt.frozen,
             started_at: attempt.started_at, task: attempt.task,
             ...(attempt.stop_intent ? { stop_intent: attempt.stop_intent } : {}),
+            ...(attempt.timing ? { timing: attempt.timing } : {}),
             ...(ref ? { events: await session.replay(ref) } : {}) });
         }
         sessions.set(id, index.ref);
@@ -344,8 +414,34 @@ export async function createPrologueNodeAdapter(
       if (session === undefined) throw new Error("agent.session_unknown");
       const root = await runtime.workspace.authorize({ path: input.root_path });
       // Long instructions travel as a resource reference, not inline in the profile.
-      const instructions = await stageInstructions(runtime, input.character.instructions);
-      const tools = input.character.tools.map(prologueToolName);
+      const methods: string[] = [];
+      for (const definition of input.skills ?? []) {
+        const key = `${definition.skill_id}@${definition.version}`;
+        const manifest = { id: definition.skill_id, version: definition.version, label: definition.name,
+          shape: "bounded" as const, tools: definition.tools.map(prologueToolName), body: definition.body, humanInvocable: true };
+        let skill = registeredMethods.get(key);
+        if (skill && (skill.manifest.body !== manifest.body || skill.manifest.label !== manifest.label || JSON.stringify(skill.manifest.tools) !== JSON.stringify(manifest.tools))) throw new Error("方法同版本正文发生变化，请发布新版本");
+        if (!skill) { skill = runtime.skills.register(manifest); registeredMethods.set(key, skill); }
+        prepareSkillIntent({ registry: runtime.skills, skillRef: skill.ref, parameters: {}, mode: "inline",
+          parentTools: input.character.tools.map(prologueToolName), hostTools: input.character.tools.map(prologueToolName) });
+        const body = fillSkillBody({ body: skill.manifest.body!, parameters: {} });
+        methods.push(`用户为本轮选择的方法：${definition.name}（${key}）\n${body}`);
+      }
+      const instructions = await stageInstructions(runtime, [input.character.instructions, ...methods, await checkpoints?.context(input.session_id) ?? ""].join("\n\n"));
+      const index = await readIndex(input.session_id);
+      if (!index) throw new Error("执行归属不可读");
+      await mcpLibrary.validate(index.owner, input.mcp_tools ?? []);
+      await mcpLibrary.validateSources(index.owner,input.mcp_sources ?? []);
+      const mcpTools: string[] = [];
+      for (const selected of input.mcp_tools ?? []) {
+        const conn = runtime.mcp.list().find(item => item.id === mcpConnectionId(selected))!;
+        const snapshot = runtime.mcp.snapshotOf(conn.ref);
+        const at = snapshot.tools.findIndex(tool => tool.name === selected.tool && tool.shapeFingerprint === selected.version);
+        const adopted = runtime.adoptMcpTools(conn.ref);
+        if (at < 0 || !adopted[at]) throw new Error("MCP 工具已变化，请重新选择");
+        mcpTools.push(adopted[at]!);
+      }
+      const tools = [...input.character.tools.map(prologueToolName), ...mcpTools];
       const created = runtime.characters.create({
         // This is a projection of the frozen role, not a user-managed Character.
         // A project prompt may change without changing the package role version.
@@ -373,6 +469,13 @@ export async function createPrologueNodeAdapter(
         session,
         rootRef: root.ref,
         history: "session",
+        ...(input.compaction ? {
+          context: { compactAboveTokens: input.compaction.above_tokens },
+          compactor: createPrologueCompactor({ runtime, prompt: input.compaction.prompt, connection: {
+            protocol: input.model.protocol, endpoint: input.model.endpoint, model: input.model.model, credentialRef,
+            ...(input.model.prompt_cache === undefined || input.model.prompt_cache === "off" ? {} : { promptCache: input.model.prompt_cache }),
+          } }),
+        } : {}),
         start: {
           protocol: input.model.protocol,
           endpoint: input.model.endpoint,
@@ -389,6 +492,7 @@ export async function createPrologueNodeAdapter(
           idempotencyKey: `molis-work-${input.session_id}-${randomUUID()}`,
           mode: input.mode,
           toolNames: tools,
+          mcpConnections: [...new Set([...(input.mcp_tools ?? []),...(input.mcp_sources ?? [])].map(mcpConnectionId))],
           characterRef: character.ref,
         },
       });
@@ -431,14 +535,45 @@ export async function createPrologueNodeAdapter(
         },
       };
     },
-    shutdown: () => { detachReviews?.(); return runtime.shutdown(); },
+    shutdown: async () => { detachReviews?.(); await checkpoints?.close(); return runtime.shutdown(); },
   };
 
   return new PrologueAgentAdapter({
     runtime: port,
     modelConfiguration: options.modelConfiguration,
     approvals,
+    async answerPending(run, answer) {
+      if (!Number.isInteger(answer.pending_revision) || answer.pending_revision! < 1) {
+        throw new PrologueAdapterError("agent.pending_not_open", "原问题缺少精确版本，不能提交答案");
+      }
+      const pending = await readQuestion(run, answer.pending_id, answer.pending_revision!);
+      const now = await host.readClock();
+      const unavailable = questionUnavailable(run, pending, now.monotonicMs);
+      if (unavailable) throw new PrologueAdapterError("agent.pending_not_open", unavailable);
+      if (pending.kind === "text") {
+        if (typeof answer.text !== "string" || !answer.text.trim() || answer.answers !== undefined) throw new Error("请填写原问题的文字回答");
+        await runtime.effects.pendings.answer(pending.ref, { kind: "text", text: answer.text }, now);
+      } else {
+        if (!answer.answers || answer.text !== undefined) throw new Error("请按原问卷逐题回答");
+        await runtime.effects.pendings.answer(pending.ref, { kind: "questionnaire", answers: answer.answers }, now);
+      }
+    },
   });
+}
+
+function validRunTiming(value: unknown): value is PrologueRunTiming {
+  if (!value || typeof value !== "object") return false;
+  const timing = value as PrologueRunTiming;
+  const at = (value: unknown) => value === null || typeof value === "string" && Number.isFinite(Date.parse(value));
+  const rows = (value: unknown, key: "turn_id" | "call_id") => {
+    if (!Array.isArray(value)) return false;
+    const ids = new Set<string>();
+    return value.every(item => {
+      if (!item || typeof item[key] !== "string" || !item[key] || ids.has(item[key]) || !at(item.at)) return false;
+      ids.add(item[key]); return true;
+    });
+  };
+  return at(timing.ended_at) && rows(timing.turns, "turn_id") && rows(timing.activity, "call_id");
 }
 
 interface SessionIndex {
@@ -446,8 +581,9 @@ interface SessionIndex {
   ref: ExactRef<"session">;
   title: string;
   owner: PrologueRestoredSession["owner"];
-  /** Frozen user intent, not streamed output or a second execution ledger. */
-  attempts: Array<PrologueStartInput["provenance"] & { task: string; run_id?: string; stop_intent?: "stopped" | "cancelled"; root_ref?: ExactRef<"authorized-root"> }>;
+  /** Frozen intent and display times only; streamed output stays in the SDK ledger. */
+  attempts: Array<PrologueStartInput["provenance"] & { task: string; run_id?: string; stop_intent?: "stopped" | "cancelled"; root_ref?: ExactRef<"authorized-root">; timing?: PrologueRunTiming }>;
+  rewinds?: PrologueRewindIntent[];
   review_decisions?: Record<string, Pick<AgentReviewReceipt, "status" | "decided_by" | "decided_at" | "note">>;
 }
 

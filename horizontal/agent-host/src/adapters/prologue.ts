@@ -1,7 +1,13 @@
+import type { AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import type {
+  AgentSkillLibrary,
+  AgentMcpLibrary,
+  AgentMcpToolRef,
+  AgentMcpSourceRef,
   AgentCommandOutput,
   AgentCommandOutputRef,
+  AgentPendingQuestion,
   AgentCreateSessionInput,
   AgentHostErrorCode,
   AgentRunControl,
@@ -50,6 +56,7 @@ export class PrologueAdapterError extends Error {
       | "agent.session_unknown"
       | "agent.session_busy"
       | "agent.run_unknown"
+      | "agent.pending_not_open"
       | "agent.capability_unavailable">,
     message: string,
   ) {
@@ -108,12 +115,33 @@ export interface PrologueStartInput {
     instructions: string;
     tools: string[];
   };
+  compaction?: { prompt: string; above_tokens: number };
   task: string;
+  skills?: readonly AgentSkillDefinition[];
+  mcp_tools?: readonly AgentMcpToolRef[];
+  mcp_sources?: readonly AgentMcpSourceRef[];
   /** Read-only work never asks to write; the Host decides this, not the model. */
   mode: "plan" | "build";
 }
 
+/** Host observation times only; the SDK ledger owns content and execution state. */
+export interface PrologueRunTiming {
+  turns: Array<{ turn_id: string; at: string | null }>;
+  activity: Array<{ call_id: string; at: string | null }>;
+  ended_at: string | null;
+}
+
 export interface PrologueRuntimePort {
+  checkpoints?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentCheckpointsCapability;
+  skillLibrary?: AgentSkillLibrary;
+  mcpLibrary?: AgentMcpLibrary;
+  saveRunTiming?(run: AgentRunRef, timing: PrologueRunTiming): Promise<void>;
+  /** This runtime prepares selected bounded text methods through SDK public APIs. */
+  inlineMethods?: boolean;
+  /** Node composition actually supplies a cancellable SDK ContextCompactor. */
+  compaction?: boolean;
+  /** null only when the original owner confirms the question was answered. */
+  readPendingQuestion?(run: AgentRunRef, pendingId: string, revision: number): Promise<AgentPendingQuestion | null>;
   readCommandOutput?(sessionId: string, ref: AgentCommandOutputRef): Promise<AgentCommandOutput>;
   sessions: {
     create(input: AgentCreateSessionInput): Promise<{ ref: { id: string } }>;
@@ -136,6 +164,7 @@ export interface PrologueRestoredSession {
     started_at: string;
     task: string;
     stop_intent?: "stopped" | "cancelled";
+    timing?: PrologueRunTiming;
     /** Undefined means the ledger is not committed, not an empty successful run. */
     events?: readonly PrologueEvent[];
   }>;
@@ -161,7 +190,7 @@ export interface PrologueAdapterOptions extends PrologueAdapterPorts {
    */
   approvals?: PrologueApprovalBridge;
   /** Delivers an answer to one pending question the Run is stopped on. */
-  answerPending?(pendingId: string, text: string): Promise<void>;
+  answerPending?(run: AgentRunRef, answer: Extract<AgentRunControl, { kind: "answer" }>): Promise<void>;
   /**
    * Narrows the matrix further. Writes and commands stay off until the
    * approval bridge is attached for this Runtime.
@@ -193,10 +222,16 @@ interface RunRecord {
   control: PrologueControlPort;
   unsubscribe: () => void;
   listeners: Set<(view: AgentRunView) => void>;
+  timingCommit?: Promise<void>;
+  timingReady?: boolean;
+  timingError?: string;
+  observedEndAt?: string;
 }
 
 export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   readonly descriptor: AgentRuntimeDescriptor;
+  readonly skillLibrary?: AgentSkillLibrary;
+  readonly mcpLibrary?: AgentMcpLibrary;
   readonly #runtime: PrologueRuntimePort;
   readonly #ports: PrologueAdapterPorts;
   readonly #now: () => Date;
@@ -204,12 +239,28 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   readonly #restoring = new Map<string, Promise<SessionRecord>>();
   readonly #runs = new Map<string, RunRecord>();
   readonly #startingSessions = new Set<string>();
+  readonly checkpoints?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentCheckpointsCapability;
   readonly #approvals: PrologueApprovalBridge | undefined;
   readonly #answerPending: PrologueAdapterOptions["answerPending"];
   readonly #detachApprovalAnswers: (() => void) | undefined;
 
   constructor(options: PrologueAdapterOptions) {
     this.#runtime = options.runtime;
+    if (options.runtime.checkpoints) this.checkpoints = {
+      busy: session => options.runtime.checkpoints!.busy?.(session) ?? false,
+      list: async session => { await this.#loadSession(session.session_id); return options.runtime.checkpoints!.list(session); },
+      prepareRewind: async (session, checkpointId) => {
+        const held = await this.#loadSession(session.session_id);
+        const latest = held.runs.at(-1);
+        if (held.recovery || this.#startingSessions.has(session.session_id) || options.runtime.checkpoints!.busy?.(session)
+          || latest && !isEnded(this.#requireRun(latest.run_id).view.phase)) throw new PrologueAdapterError("agent.session_busy", "会话仍有执行、回退或待核对结果，不能回退文件");
+        this.#startingSessions.add(session.session_id);
+        try { return await options.runtime.checkpoints!.prepareRewind(session, checkpointId); }
+        finally { this.#startingSessions.delete(session.session_id); }
+      },
+    };
+    this.skillLibrary = options.runtime.skillLibrary;
+    this.mcpLibrary = options.runtime.mcpLibrary;
     this.#ports = options;
     this.#now = options.now ?? (() => new Date());
     this.#approvals = options.approvals;
@@ -219,6 +270,10 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       if (record?.view.ref.session_id === run.session_id && settleProloguePending(record.state, pendingId)) this.#publish(run.run_id);
     });
     const capabilities = currentCapabilities(options.approvals !== undefined, options.runtime.readCommandOutput !== undefined);
+    if (options.runtime.mcpLibrary && options.approvals) capabilities.mcp = "partial";
+    if (options.runtime.checkpoints) capabilities.checkpoint = "supported";
+    if (options.runtime.compaction) capabilities.compaction = "supported";
+    if (options.runtime.inlineMethods) capabilities.skills = "partial";
     if (options.runtime.sessions.restore) capabilities["session.resume"] = "partial";
     const rank = { unsupported: 0, partial: 1, supported: 2 };
     for (const key of Object.keys(options.capabilities ?? {}) as Array<keyof AgentRuntimeCapabilityMatrix>) {
@@ -260,6 +315,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       owner: { ...record.owner },
       title: record.title,
       runs: record.runs.map((ref) => ({ ...ref })),
+      checkpoint_busy: this.#runtime.checkpoints?.busy?.(session) ?? false,
       latest_run: latest ? structuredClone(this.#requireRun(latest.run_id).view) : null,
       ...(record.recovery ? { recovery: { ...record.recovery } } : {}),
     };
@@ -269,7 +325,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     const session = await this.#loadSession(request.session.session_id);
     if (session.recovery) throw new PrologueAdapterError("agent.session_busy", session.recovery.reason);
     const latest = session.runs.at(-1);
-    if (this.#startingSessions.has(request.session.session_id)
+    if (this.#runtime.checkpoints?.busy?.(request.session) || this.#startingSessions.has(request.session.session_id)
       || (latest !== undefined && !isEnded(this.#requireRun(latest.run_id).view.phase))) {
       throw new PrologueAdapterError("agent.session_busy", "这个会话仍在执行或保存上一轮；可以补充要求，结束后再开新一轮");
     }
@@ -305,6 +361,13 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       );
     }
 
+    if ((request.skills?.length ?? 0) !== (role.skills?.length ?? 0)
+      || role.skills?.some(skill => !request.skills?.some(ref => ref.skill_id === skill.skill_id && ref.version === skill.version))
+      || ((role.skills?.length ?? 0) > 0 && !this.#runtime.inlineMethods)) {
+      throw new PrologueAdapterError("agent.capability_unavailable", "方法未由宿主解析或当前运行时不能展开方法");
+    }
+    if ((request.mcp_tools?.length || request.mcp_sources?.length) && this.descriptor.capabilities.mcp === "unsupported") throw new PrologueAdapterError("agent.capability_unavailable", "此运行时尚未接通 MCP 审查");
+    if (role.compaction && !this.#runtime.compaction) throw new PrologueAdapterError("agent.capability_unavailable", "上下文整理尚未接通");
     const at = this.#now().toISOString();
     const state = emptyPrologueStreamState();
     const frozen = {
@@ -312,13 +375,15 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       role_version: role.version,
       execution: role.execution,
       model_id: model.model,
+      ...(role.compaction ? { compaction: { prompt_id: role.compaction.prompt.prompt_id, version: role.compaction.prompt.version, above_tokens: role.compaction.above_tokens } } : {}),
       prompts: role.prompts.map((prompt) => ({
         prompt_id: prompt.prompt_id,
         version: prompt.version,
         layer: promptLayerOf(prompt),
       })),
-      skills: [],
+      skills: (role.skills ?? []).map(({ body: _body, ...definition }) => ({ ...definition, tools: [...definition.tools] })),
       mcp_tools: request.mcp_tools ?? [],
+      mcp_sources: request.mcp_sources ?? [],
       host_tools: [...role.host_tools],
       text_materials: (request.text_materials ?? []).map((material) => ({
         material_id: material.material_id,
@@ -341,7 +406,11 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
         instructions: role.prompts.map((prompt) => prompt.body).join("\n\n"),
         tools: [...role.host_tools],
       },
+      ...(role.compaction ? { compaction: { prompt: role.compaction.prompt.body, above_tokens: role.compaction.above_tokens } } : {}),
       task: request.task,
+      skills: role.skills ?? [],
+      mcp_tools: request.mcp_tools ?? [],
+      mcp_sources: request.mcp_sources ?? [],
       mode,
     });
 
@@ -353,7 +422,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       ref,
       phase: "starting",
       frozen,
-      turns: [{ turn_id: "user-1", kind: "user", text: request.task, at }],
+      turns: [{ turn_id: "user-1", kind: "user", text: request.task, at, sequence: 0 }],
       activity: [],
       usage: state.usage,
       awaiting_input: [],
@@ -395,7 +464,20 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   async read(run: AgentRunRef): Promise<AgentRunView> {
     const session = await this.#loadSession(run.session_id);
     if (!session.runs.some(item => item.run_id === run.run_id)) throw new PrologueAdapterError("agent.run_unknown", "这次执行不属于此会话");
-    return structuredClone(this.#requireRun(run.run_id).view);
+    const record = this.#requireRun(run.run_id);
+    const view = structuredClone(record.view);
+    if (this.#runtime.readPendingQuestion) {
+      view.awaiting_input = (await Promise.all(view.awaiting_input.map(async (question): Promise<AgentPendingQuestion | null> => {
+        try {
+          if (question.pending_revision === undefined) throw new Error("旧问题缺少精确版本，不能提交答案");
+          const original = await this.#runtime.readPendingQuestion!(run, question.pending_id, question.pending_revision);
+          return original === null ? null : { ...original, sequence: question.sequence };
+        } catch (error) {
+          return { ...question, answerable: false, unavailable_reason: error instanceof Error ? error.message : "原问题暂时不可读取" };
+        }
+      }))).filter((question): question is AgentPendingQuestion => question !== null);
+    }
+    return view;
   }
 
   observe(run: AgentRunRef, listener: (view: AgentRunView) => void): () => void {
@@ -434,11 +516,14 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
             "没有接上回答通道，这条问题回答不了",
           );
         }
-        await answer(control.pending_id, control.text);
+        const question = record.state.awaiting_input.find(item => item.pending_id === control.pending_id);
+        if (!question || isEnded(record.view.phase) || question.pending_revision !== control.pending_revision) {
+          throw new PrologueAdapterError("agent.pending_not_open", "这条问题不属于本轮当前等待，不能提交答案");
+        }
+        await answer(run, control);
         // The Run owns whether the question is closed; drop it from the view
         // only after the execution owner accepted the answer.
-        record.state.awaiting_input = record.state.awaiting_input
-          .filter((question) => question.pending_id !== control.pending_id);
+        settleProloguePending(record.state, control.pending_id);
         break;
       }
     }
@@ -459,6 +544,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   async close(): Promise<void> {
     this.#detachApprovalAnswers?.();
     for (const record of this.#runs.values()) record.unsubscribe();
+    await Promise.all([...this.#runs.values()].map(record => record.timingCommit));
     await this.#runtime.shutdown();
   }
 
@@ -472,12 +558,29 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     if (!record) return;
     const controlPhase = prologuePhaseOf(record.control.state);
     const awaitingCommit = isEnded(controlPhase) && !isEnded(record.state.phase);
-    const phase = controlPhase === "running" || awaitingCommit ? record.state.phase : controlPhase;
-    const stopReason = awaitingCommit
+    let phase = controlPhase === "running" || awaitingCommit ? record.state.phase : controlPhase;
+    let stopReason = awaitingCommit
       ? controlPhase === "stopped" || controlPhase === "cancelled"
         ? "已请求停止，正在收尾并保存执行记录"
         : "正在保存本轮执行记录"
       : phase === "stopped" ? "已停止" : record.state.stop_reason;
+    if (stampTerminal && isEnded(phase) && this.#runtime.saveRunTiming && !record.timingReady) {
+      if (!record.timingCommit) {
+        record.observedEndAt = record.view.ended_at ?? this.#now().toISOString();
+        const timing: PrologueRunTiming = {
+          turns: record.state.turns.map(({ turn_id, at }) => ({ turn_id, at })),
+          activity: record.state.activity.map(({ call_id, at }) => ({ call_id, at })),
+          ended_at: record.observedEndAt,
+        };
+        record.timingCommit = Promise.resolve()
+          .then(() => this.#runtime.saveRunTiming!(record.view.ref, timing))
+          .catch(() => { record.timingError = "显示时间未能保存；执行结果已保存在运行时，重启后部分时间可能未知。"; })
+          .then(() => { record.timingReady = true; this.#publish(runId); });
+      }
+      phase = "running";
+      stopReason = "执行已结束，正在保存显示时间";
+    }
+    if (record.timingError) stopReason = [stopReason, record.timingError].filter(Boolean).join("；");
     record.view = {
       ...record.view,
       phase: phase === "starting" ? "running" : phase,
@@ -485,24 +588,26 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
         turn_id: `assistant-${record.state.turns.length + 1}`,
         kind: "assistant" as const,
         text: record.state.streaming,
-        at: record.view.started_at,
+        at: record.state.streaming_at,
+        sequence: record.state.streaming_sequence,
       }])],
       activity: [...record.state.activity],
       command_outputs: record.state.command_calls.map(call_id => ({ call_id, run_id: runId })),
       usage: record.state.usage,
-      // Prologue's event names the pending and phrases the question but offers
-      // no option list, so the surface gets free text only. Inventing options
-      // here would put words in the Runtime's mouth.
+      // read() resolves frozen questions through the original Pending owner.
       awaiting_input: record.state.awaiting_input.map((question) => ({
         pending_id: question.pending_id,
+        pending_revision: question.pending_revision,
+        sequence: question.sequence,
         kind: question.kind,
         prompt: question.why,
         options: [],
-        allows_free_text: true,
+        allows_free_text: question.kind === "text",
+        ...(this.#runtime.readPendingQuestion ? { answerable: false, unavailable_reason: "正在读取原问题" } : {}),
       })),
       stop_reason: stopReason,
       ...(stampTerminal && isEnded(phase) && record.view.ended_at === null
-        ? { ended_at: this.#now().toISOString() }
+        ? { ended_at: record.observedEndAt ?? this.#now().toISOString() }
         : {}),
     };
     const snapshot = structuredClone(record.view);
@@ -523,6 +628,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       if (record) {
         record.state.activity.push({
           call_id: `approval-mirror-${event.pendingRef.id}`,
+          sequence: record.state.next_sequence++,
           name: "approval",
           target: event.effectRef.id,
           state: "failed",
@@ -558,7 +664,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       ...(restored.recovery ? { recovery: restored.recovery } : {}) };
     for (const saved of restored.runs) {
       const state = emptyPrologueStreamState();
-      state.turns.push({ turn_id: "user-1", kind: "user", text: saved.task, at: saved.started_at });
+      state.turns.push({ turn_id: "user-1", kind: "user", text: saved.task, at: saved.started_at, sequence: 0 });
       let firstPrompt = true;
       let endedAt: string | null = null;
       for (const event of saved.events ?? []) {
@@ -567,9 +673,16 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
           if (event.text === saved.task) continue;
         }
         const atMs = (event as { atMs?: unknown }).atMs;
-        const at = typeof atMs === "number" && Number.isFinite(atMs) ? new Date(atMs).toISOString() : saved.started_at;
+        const at = typeof atMs === "number" && Number.isFinite(atMs) ? new Date(atMs).toISOString() : null;
         applyPrologueEvent(state, event, at);
         if (isEnded(state.phase) && typeof atMs === "number") endedAt = at;
+      }
+      if (saved.timing) {
+        const turns = new Map(saved.timing.turns.map(item => [item.turn_id, item.at]));
+        const activity = new Map(saved.timing.activity.map(item => [item.call_id, item.at]));
+        state.turns = state.turns.map(item => turns.has(item.turn_id) ? { ...item, at: turns.get(item.turn_id)! } : item);
+        state.activity = state.activity.map(item => activity.has(item.call_id) ? { ...item, at: activity.get(item.call_id)! } : item);
+        if (isEnded(state.phase)) endedAt = saved.timing.ended_at;
       }
       if (!saved.events || !isEnded(state.phase)) {
         state.phase = "reconcile-required";
@@ -586,7 +699,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
         stop: unavailable, pause: unavailable, resume: unavailable, steer: unavailable, subscribe: () => () => {} };
       const view: AgentRunView = { ref: saved.ref, frozen: saved.frozen, started_at: saved.started_at, ended_at: endedAt,
         phase: state.phase, turns: [], activity: [], usage: state.usage, awaiting_input: [] };
-      this.#runs.set(saved.ref.run_id, { view, state, control, unsubscribe: () => {}, listeners: new Set() });
+      this.#runs.set(saved.ref.run_id, { view, state, control, unsubscribe: () => {}, listeners: new Set(), timingReady: true });
       session.runs.push(saved.ref);
       this.#publish(saved.ref.run_id, false);
     }

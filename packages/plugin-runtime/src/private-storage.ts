@@ -57,6 +57,20 @@ export class SqlitePluginPrivateStorage {
         return Number(this.db.prepare("DELETE FROM plugin_private_values WHERE install_id = ? AND item_key = ?")
           .run(installId, key).changes) > 0;
       },
+      compareAndSet: (key, expected, value) => {
+        authorize(key);
+        if ((expected !== null && typeof expected !== "string") || typeof value !== "string") {
+          throw new PluginPrivateStorageError("plugin_storage_input_invalid", "比较值必须为字符串或 null，新值必须为字符串");
+        }
+        // One conditional statement, including across separate DB connections.
+        // Never emulate compare-and-set with a read followed by an unconditional write.
+        const result = expected === null
+          ? this.db.prepare(`INSERT INTO plugin_private_values (install_id, item_key, item_value) VALUES (?, ?, ?)
+              ON CONFLICT (install_id, item_key) DO NOTHING`).run(installId, key, value)
+          : this.db.prepare(`UPDATE plugin_private_values SET item_value = ?
+              WHERE install_id = ? AND item_key = ? AND item_value = ?`).run(value, installId, key, expected);
+        return Number(result.changes) === 1;
+      },
     };
   }
 

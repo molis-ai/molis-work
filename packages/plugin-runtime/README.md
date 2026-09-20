@@ -25,6 +25,10 @@ PluginRuntime 使用注入的 repository 和 executor；启动或恢复产生新
 
 这是受信任的进程内执行，不是 OS sandbox。包签名验证认证 bytes 与受信公钥，不代表官方审核。普通卸载保留私人数据；成功执行不保留数据的卸载后，Host 还须调用 deleteInstallationData，不能顺手删除交换出的 Artifacts。
 
+私人存储增加可选的 `compareAndSet(key, expected, value)`：仅当当前值与 expected 完全相同才原子替换；expected 为 null 表示仅在 key 不存在时创建。返回 false 表示冲突，未修改数据。SQLite 实现使用单条条件写入，检查当前安装权限，支持不同连接间的冲突检测。旧 `get/set/delete` 不变；第三方 Host 未提供该可选方法时，需要原子更新的插件必须明确拒绝，不能用先读后写冒充原子操作。
+
+这是单 key 的条件写入，不是任意多 key 事务，也不提供跨设备团队同步。消费者可把同一次原子提交的状态放在一个带修订标记的值中；不要在冲突后盲目重跑含外部副作用的逻辑。
+
 工作区依赖：`@molis-ai/molis-work-contracts`。其他运行依赖见 [package.json](package.json)。
 
 ## 本地开发

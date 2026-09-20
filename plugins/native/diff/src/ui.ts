@@ -68,11 +68,11 @@ export function renderDiff(model: DiffUiModel): string {
     const recovery = view.recovery === undefined
       ? ""
       : `<span class="diff-recovery">${escape(view.recovery)}</span>`;
-    return `<section class="diff" data-phase="${escape(view.phase)}" data-group="${escape(view.group)}">`
+    return `<section class="diff" data-phase="${escape(view.phase)}" data-group="${escape(view.group ?? "none")}">`
       + `${header}${noticeHtml}<p class="diff-empty">${escape(view.message)}${recovery}</p></section>`;
   }
   const body = view.mode === "split" ? renderSplit(view.rows, model) : renderUnified(view.rows, model);
-  return `<section class="diff" data-phase="ready" data-group="${escape(view.group)}" data-mode="${escape(view.mode)}"`
+  return `<section class="diff" data-phase="ready" data-group="${escape(view.group ?? "none")}" data-mode="${escape(view.mode)}"`
     + ` data-route="${escape(model.route_prefix)}">${header}${noticeHtml}${renderFileList(model)}${body}</section>`;
 }
 

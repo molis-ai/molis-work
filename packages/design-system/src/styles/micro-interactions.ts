@@ -72,24 +72,11 @@ export const MICRO_INTERACTION_STYLES = `
   body.immersive-workbench .global-search-body[data-search-glide] .global-search-hit[aria-selected="true"]:hover { background: transparent; }
   body .global-search-body[data-search-glide] .global-search-hit:hover:not([aria-selected="true"]) { background: var(--nav-hover); }
 
-  /* Row Yield: list hover is a 180ms tone step; squeezed titles fade at the edge instead of snapping. */
+  /* Row Yield: list hover is a 180ms tone step. Squeezed titles ellipsize in the title slot; do not mask the row, or trailing status gets cut. */
   body.immersive-workbench :is(.tree-entry, .feed-stage-entry, .source-list-item, .goal-collection-fold > summary) {
     transition:
       background-color 180ms var(--ease-out, cubic-bezier(.16, 1, .3, 1)),
       color 180ms var(--ease-out, cubic-bezier(.16, 1, .3, 1));
-  }
-  body.immersive-workbench :is(
-    .tree-pane .tree-title-line strong,
-    .goal-stage-list .tree-title-line strong,
-    .feed-stage-leading strong,
-    .source-list-copy strong,
-    .plugin-stage-list .goal-collection-fold > summary strong,
-    .session-stage-list .goal-collection-fold > summary strong
-  ) {
-    min-width: 0;
-    overflow: hidden;
-    mask-image: linear-gradient(to right, #000 0%, #000 calc(100% - 12px), transparent 100%);
-    -webkit-mask-image: linear-gradient(to right, #000 0%, #000 calc(100% - 12px), transparent 100%);
   }
 
 

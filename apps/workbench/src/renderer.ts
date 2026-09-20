@@ -27,6 +27,7 @@ import { createWorkbenchGoalsFragmentRenderer } from "./goals-fragment-renderer.
 import { createWorkbenchGoalsPageRenderer } from "./goals-page-renderer.js";
 import type { createWorkbenchLocale, WebLocale } from "./i18n.js";
 import { createWorkbenchInboxProjectionRenderer } from "./inbox-projection-ui.js";
+import { createWorkbenchScheduleProjectionRenderer } from "./schedule-projection-ui.js";
 import { createWorkbenchOnboardingRenderer } from "./onboarding-renderer.js";
 import {
   renderMolisWorkOnboardingStylesheet as renderOnboardingCss,
@@ -56,6 +57,7 @@ import {
   createWorkbenchGoalsTreeRenderer,
   renderProjectOperations,
   renderShelfContribution,
+  renderFunctionsContribution,
   renderWorkbenchDocument,
   renderWorkTerminal,
 } from "./ui-composition.js";
@@ -85,6 +87,7 @@ const { renderGoalTreeProposalDecision } = createWorkbenchGoalsProposalRenderer(
 
 const { renderFeedNativePluginPersistedDetail, renderFeedNativePluginSurface } = createWorkbenchFeedProjectionRenderer({ L, dateTimeLocale });
 const { renderInboxNativePluginSurface } = createWorkbenchInboxProjectionRenderer({ L, dateTimeLocale });
+const { renderScheduleNativePluginSurface } = createWorkbenchScheduleProjectionRenderer({ L, dateTimeLocale });
 function renderShelfNativePluginSurface(surface: "directory" | "workbench"): string {
   return renderShelfContribution(surface, {
     materials: [],
@@ -92,6 +95,13 @@ function renderShelfNativePluginSurface(surface: "directory" | "workbench"): str
     clipboard: [],
     recipes: [],
     selected_id: null,
+    primitives: { escape: escapeHtml, text: L },
+  });
+}
+
+function renderFunctionsNativePluginSurface(surface: "directory" | "workbench"): string {
+  return renderFunctionsContribution(surface, {
+    functions: [],
     primitives: { escape: escapeHtml, text: L },
   });
 }
@@ -358,7 +368,7 @@ const { renderMolisWorkWeb, renderMolisWorkRefreshFragment } =
     renderCreateDialog, renderGoalTrashDialog, renderMomentumPlaceholder, renderGoalKanban, renderTuiPane,
     renderProjectOperations: (project, data) => renderProjectOperations(project, data, icon, L),
     renderDesktopProjectChrome, renderProjectSwitcher,
-    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderShelfNativePluginSurface,
+    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderShelfNativePluginSurface, renderFunctionsNativePluginSurface,
   });
   return {
     renderMolisWorkProjectIndex,

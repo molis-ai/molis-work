@@ -16,15 +16,20 @@ import { molisWorkHostProjectReference } from "./project-host.js";
 import { createLocalFeedApplication } from "./feed-application.js";
 import { createLocalFeedSourceScheduler } from "./feed-source-scheduler.js";
 import { createLocalFeedConnectorService } from "./feed-connector-service.js";
+import { bindScheduledTaskRunner, scheduleServiceFor } from "./schedule-runtime.js";
+import { createHostScheduledTaskRunner } from "./schedule-task-runner.js";
+import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
+import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { handleFeedNativePluginHttp } from "./feed-native-plugin-http.js";
 import { handleInboxNativePluginHttp } from "./inbox-native-plugin-http.js";
+import { handleScheduleNativePluginHttp } from "./schedule-native-plugin-http.js";
 import { handleShelfNativePluginHttp } from "./shelf-native-plugin-http.js";
+import { handleFunctionsNativePluginHttp } from "./functions-native-plugin-http.js";
 import { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
 import { serviceProcessId } from "./web-runtime-settings.js";
 import { resolveWebRequest } from "./web-routing.js";
 import { handleLocalCatalogWebRequest } from "./web-catalog.js";
 import { handleAgentReviewHttp } from "./agent-review-http.js";
-import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 
 export async function handleMolisWorkWebRequest(
   request: IncomingMessage,
@@ -42,6 +47,7 @@ export async function handleMolisWorkWebRequest(
   localHost: MolisWorkLocalHost,
   composition: LocalWebComposition,
   agentHost: AgentHost,
+  workspaceFor: (projectId: string) => ProjectWorkspaceRef | null | Promise<ProjectWorkspaceRef | null>,
 ): Promise<void> {
   const { PAGE_CSP, handleSessions, handleDesktopPanelApi, goalsReadHttp, planningHttp, desktopRuntimeAvailability, servePtyClient, workbenchRenderer, buildCapsuleSnapshot, handleArtifactNativePluginHttp, isDesktopShellRequest } = composition;
   const resolved = await resolveWebRequest(serverOptions, url.pathname, composition.withCatalog);
@@ -82,7 +88,17 @@ export async function handleMolisWorkWebRequest(
         feed.recoverInterruptedSourceRuns(options.boardId);
         createLocalFeedConnectorService(store.db, options.boardId).ensureSources();
         const scheduler = createLocalFeedSourceScheduler(store.db, options.boardId);
-        feedSchedulers.set(options.databasePath, { scheduler });
+        const schedule = scheduleServiceFor(store.db);
+        bindScheduledTaskRunner(store.db, createHostScheduledTaskRunner({
+          agentHost,
+          boardId: options.boardId,
+          projectId: options.project?.project_id ?? "",
+          workspaceFor,
+        }));
+        feedSchedulers.set(options.databasePath, {
+          scheduler,
+          schedule,
+        });
         void scheduler.tick().then((result) => {
           if (result.completed || result.failed) webViewCache.delete(options.databasePath);
         }).catch(() => undefined);
@@ -168,11 +184,17 @@ export async function handleMolisWorkWebRequest(
           return;
         }
         if (serverOptions.homeDirectory && await handleShelfNativePluginHttp(request, response, url, serverOptions.homeDirectory)) return;
+        if (serverOptions.homeDirectory && await handleFunctionsNativePluginHttp(request, response, url, serverOptions.homeDirectory)) return;
         if (await handleInboxNativePluginHttp(request, response, url, {
           boardId: options.boardId,
           store,
           invalidateWebView: () => webViewCache.delete(options.databasePath),
           reconcileGoalDecisions: () => coordinator.goalDecisionAttention.reconcile(options.boardId),
+        })) return;
+        if (await handleScheduleNativePluginHttp(request, response, url, {
+          db: store.db,
+          schedule: feedSchedulers.get(options.databasePath)?.schedule ?? scheduleServiceFor(store.db),
+          invalidateWebView: () => webViewCache.delete(options.databasePath),
         })) return;
         if (await handleFeedNativePluginHttp(request, response, url, {
           renderer: workbenchRenderer,

@@ -95,9 +95,12 @@ function detail(model: ArtifactBrowserUiModel, embedded: boolean): string {
           : "没有兼容插件。当前可查看版本信息和内容引用，或导出本地副本。"
         : "已有兼容的类型声明；具体操作由消费插件提供。";
   const reference = JSON.stringify({ artifact_id: artifact.artifact_id, version: artifact.version });
+  const versionLabel = `v${artifact.version}${model.relationship ? ` · ${p.text(model.relationship === "input" ? "输入结果" : "产出结果")}` : ""}`;
+  const heading = embedded
+    ? `<header><h3><a href="${p.escape(href)}">${p.escape(title)}</a></h3><span>${versionLabel}</span></header>`
+    : `<header class="plugin-stage-detail-bar"><button class="plugin-stage-back" type="button" data-artifact-collapse aria-label="${p.text("返回 Artifact 列表")}" title="${p.text("返回 Artifact 列表")}">${icon("chevron-right")}</button><h1>${p.escape(title)}</h1><span>${versionLabel}</span></header>`;
   return `<article class="artifact-detail${embedded ? " artifact-embed" : ""}" data-artifact-id="${p.escape(artifact.artifact_id)}" data-artifact-version="${artifact.version}">
-    ${embedded ? "" : `<header class="plugin-stage-detail-bar"><button class="plugin-stage-back" type="button" data-artifact-collapse aria-label="${p.text("返回 Artifact 列表")}" title="${p.text("返回 Artifact 列表")}">${icon("chevron-right")}</button></header>`}
-    <header>${embedded ? `<h3><a href="${p.escape(href)}">${p.escape(title)}</a></h3>` : `<h1>${p.escape(title)}</h1>`}<span>v${artifact.version}${model.relationship ? ` · ${p.text(model.relationship === "input" ? "输入结果" : "产出结果")}` : ""}</span></header>
+    ${heading}
     ${embedded ? "" : `<div class="artifact-detail-content">`}<p class="artifact-notice">${p.text(embedded && view.compatibility?.reason === "consumer_missing" ? "没有兼容插件。可打开这个版本查看信息或导出本地副本。" : notice)}</p>
     ${artifact.unavailable_reason ? `<p>${p.escape(artifact.unavailable_reason)}</p>` : ""}
     <dl class="artifact-facts">

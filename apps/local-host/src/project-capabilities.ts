@@ -18,6 +18,7 @@ import { runPluginDevelopment } from "./plugin-development.js";
 import { importV3Board } from "./board-v3-import.js";
 import type { LocalHost } from "./local-host.js";
 import type { MolisWorkProjectRuntime } from "./project-host.js";
+import { registerHostScheduleCapabilities } from "./schedule-runtime.js";
 
 export interface ProjectCapabilityPorts {
   /** Resolves the workspace a project is bound to. See `MolisWorkLocalHostOptions`. */
@@ -152,6 +153,7 @@ export function registerProjectCapabilities(
     runtime.coordinator.goalEvents.resumeWork(input));
   host.register(recordGoalNoteCapability, (runtime, input) =>
     runtime.coordinator.goalEvents.recordNote(input));
+  registerHostScheduleCapabilities(host, (runtime) => runtime.store.db);
 }
 
 function uniqueFocusGoalIds(ids: string[] | undefined): string[] {

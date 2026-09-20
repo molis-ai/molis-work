@@ -156,13 +156,13 @@ export const LINEAR_DENSITY_STYLES = `
   body.immersive-workbench .feed-stage-item.is-open { margin-block: 0; height: auto; }
   body.immersive-workbench .feed-stage-entry {
     height: 28px; min-height: 28px; padding: 0 8px; overflow: visible;
-    grid-template-columns: minmax(12rem, 1fr) minmax(7rem, 12rem) 6.25rem 5.5rem;
+    grid-template-columns: minmax(0, 1fr) minmax(7rem, 12rem) max-content max-content;
     grid-template-rows: 28px; column-gap: 12px; align-items: center; border-radius: 6px;
   }
   body.immersive-workbench .feed-entry-provider { width: 16px; height: 16px; border: 0; border-radius: 0; background: transparent; }
   body.immersive-workbench .feed-entry-provider svg { width: 14px; height: 14px; }
   body.immersive-workbench .feed-stage-leading { display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; }
-  body.immersive-workbench .feed-stage-leading strong { font-size: 13px; font-weight: 400; line-height: 18px; white-space: nowrap; }
+  body.immersive-workbench .feed-stage-leading strong { flex: 1; min-width: 0; font-size: 13px; font-weight: 400; line-height: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   body.immersive-workbench .feed-stage-item.is-open .feed-stage-entry { height: 28px; min-height: 28px; overflow: visible; }
   body.immersive-workbench .feed-stage-item-detail { padding: 0 12px 12px 32px; }
   body.immersive-workbench .feed-stage-item-detail .feed-rich-content { font-size: 13px; line-height: 1.6; }
@@ -182,9 +182,11 @@ export const LINEAR_DENSITY_STYLES = `
   body.immersive-workbench .session-stage-back { height: 26px; width: 26px; }
   body.immersive-workbench .goal-workspace-hero { padding: 8px 12px; }
   body.immersive-workbench .goal-info-popover > summary { min-height: 28px; padding: 4px 10px; }
-  body.immersive-workbench .inbox-reference-detail h1,
-  body.immersive-workbench .immersive-artifact-surface .artifact-detail h1 { font-size: 16px; line-height: 1.3; }
-  body.immersive-workbench .inbox-reference-detail > .feed-detail-header { padding: 12px 16px 6px; }
+  body.immersive-workbench .inbox-reference-detail h1 { font-size: 16px; line-height: 1.3; }
+  body.immersive-workbench .plugin-stage-detail-bar > h1 { font-size: 13px; line-height: 1.3; }
+  body.immersive-workbench .inbox-reference-detail > .plugin-stage-detail-bar { min-height: 32px; }
+  body.immersive-workbench .inbox-reference-detail > .feed-detail-header { padding: 4px 16px 6px; }
+  body.immersive-workbench .plugin-stage-detail-bar[data-stage-back-only] { min-height: 32px; height: 32px; padding: 4px 10px; }
   body.immersive-workbench .inbox-reference-body { padding: 12px 16px; }
   body.immersive-workbench .inbox-reference-footer { padding: 2px 16px 10px; }
   body.immersive-workbench .immersive-artifact-surface .artifact-detail > header:not(.plugin-stage-detail-bar) { padding: 8px 16px; }
@@ -246,7 +248,7 @@ export const LINEAR_DENSITY_STYLES = `
     body.immersive-workbench .session-stage-back { width: 44px; height: 44px; min-height: 44px; }
     body.immersive-workbench .feed-stage-entry {
       height: auto; min-height: 44px;
-      grid-template-columns: minmax(0, 1fr) 5.5rem;
+      grid-template-columns: minmax(0, 1fr) max-content;
       grid-template-rows: auto;
     }
     body.immersive-workbench .feed-entry-source,

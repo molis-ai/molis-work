@@ -2,10 +2,11 @@ import type { McpToolDefinition } from "./protocol.js";
 import { V1_TOOLS } from "./goal-tools.js";
 import { EVENT_TOOLS } from "./goal-event-tools.js";
 import { CONTEXT_TOOLS } from "./context-tools.js";
+import { FUNCTIONS_TOOLS } from "./functions-tools.js";
 
 const SERVER_INFO = { name: "molis-work-mcp", version: "1.0.0" };
 
-const TOOLS: McpToolDefinition[] = [...V1_TOOLS, ...EVENT_TOOLS, ...CONTEXT_TOOLS];
+const TOOLS: McpToolDefinition[] = [...V1_TOOLS, ...EVENT_TOOLS, ...CONTEXT_TOOLS, ...FUNCTIONS_TOOLS];
 
 const RUNTIME_V1_TOOL_NAMES = new Set([
   "molis_work_v1_project_guidance_get",
@@ -46,6 +47,9 @@ const RUNTIME_CONTEXT_TOOL_NAMES = new Set([
   "molis_work_v1_context_unbind",
   "molis_work_v1_context_create_and_bind",
   "molis_work_v1_project_delete",
+  "molis_work_v1_functions_list",
+  "molis_work_v1_functions_describe",
+  "molis_work_v1_functions_invoke",
 ]);
 
 const RUNTIME_TOOL_NAMES = new Set([...RUNTIME_V1_TOOL_NAMES, ...RUNTIME_CONTEXT_TOOL_NAMES]);

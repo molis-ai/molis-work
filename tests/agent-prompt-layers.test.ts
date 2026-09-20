@@ -11,6 +11,7 @@ import {
 } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { AgentHost, emptyCapabilityMatrix } from "@molis-ai/molis-work-service-agent-host";
 import { codingAgentManifest, codingPrompts, projectCodingIdentity, renderCodingIdentity } from "@molis-ai/molis-work-plugin-coding";
+import { scheduleAgentManifest } from "@molis-ai/molis-work-plugin-schedule";
 
 /**
  * 一轮执行的指令来自四个不同的主人：产品、角色、项目、用户。
@@ -58,6 +59,7 @@ test("不认识的层级被拒，而不是当成默认值收下", () => {
 
 test("Coding 自己的声明是合法的，且 base 那一段独立成层", () => {
   assert.deepEqual(inspectAgentDeclaration(codingAgentManifest, []), []);
+  assert.deepEqual(inspectAgentDeclaration(scheduleAgentManifest, []), []);
   const base = codingPrompts.find((prompt) => prompt.prompt_id === "coding-base");
   assert.equal(base?.layer, "base", "产品约束不能被角色的措辞悄悄顶替");
   const roleOnly = codingPrompts.filter((prompt) => prompt.prompt_id !== "coding-base");

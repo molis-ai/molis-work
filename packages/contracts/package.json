@@ -46,6 +46,10 @@
       "types": "./dist/modules/feed.d.ts",
       "import": "./dist/modules/feed.js"
     },
+    "./modules/functions": {
+      "types": "./dist/modules/functions.d.ts",
+      "import": "./dist/modules/functions.js"
+    },
     "./modules/goals": {
       "types": "./dist/modules/goals.d.ts",
       "import": "./dist/modules/goals.js"

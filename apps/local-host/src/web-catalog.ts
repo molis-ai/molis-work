@@ -9,7 +9,10 @@ import { L } from "./web-locale.js";
 import type { WebProjectNavigation, WebSettingsSection } from "@molis-ai/molis-work-app-workbench";
 import { findPluginSettingsNavItem, renderMolisWorkPrimitiveCatalog, renderPluginSettingsContribution } from "@molis-ai/molis-work-app-workbench";
 import { handleShelfNativePluginHttp, shelfRuntimeProbe } from "./shelf-native-plugin-http.js";
+import { handleFunctionsNativePluginHttp } from "./functions-native-plugin-http.js";
 import { SHELF_SETTINGS_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-shelf";
+import { FUNCTIONS_SETTINGS_UI_CONTRIBUTION_ID, createFunctionsService, openFunctionsStore } from "@molis-ai/molis-work-plugin-functions";
+import { createFileSecretStore } from "@molis-ai/molis-work-storage";
 import { openShelfStore } from "@molis-ai/molis-work-module-shelf";
 import { handleLocalRuntimeSettingsHttp, serviceProcessId } from "./web-runtime-settings.js";
 import { installationDiagnostics } from "./web-project-presentation.js";
@@ -26,6 +29,7 @@ export async function handleLocalCatalogWebRequest(
   const { renderMolisWorkSettings, renderMolisWorkProjectIndex } = composition.workbenchRenderer;
   const { settingsProjects } = projectSettings;
   if (serverOptions.homeDirectory && await handleShelfNativePluginHttp(request, response, url, serverOptions.homeDirectory)) return;
+  if (serverOptions.homeDirectory && await handleFunctionsNativePluginHttp(request, response, url, serverOptions.homeDirectory)) return;
   if (await handleOnboarding(request, response, url, serverOptions.homeDirectory, projects.length, localHost, controlToken)) return;
   if (request.method === "GET" && url.pathname === "/desktop/capsule") {
     response.writeHead(200, {
@@ -81,7 +85,8 @@ export async function handleLocalCatalogWebRequest(
   const pluginSettingsSlug = url.pathname.match(/^\/settings\/([^/]+)$/)?.[1];
   const pluginSettings = pluginSettingsSlug ? findPluginSettingsNavItem(pluginSettingsSlug) : null;
   if (request.method === "GET" && pluginSettings && serverOptions.homeDirectory) {
-    if (pluginSettings.contribution_id !== SHELF_SETTINGS_UI_CONTRIBUTION_ID) {
+    const plugin_settings_html = renderCatalogPluginSettings(pluginSettings.contribution_id, serverOptions.homeDirectory);
+    if (!plugin_settings_html) {
       sendJson(response, 404, { error: L("页面不存在") });
       return;
     }
@@ -90,13 +95,6 @@ export async function handleLocalCatalogWebRequest(
     const contextProject = contextProjectId
       ? projects.find((project) => project.project_id === contextProjectId) ?? null
       : null;
-    const shelfStore = openShelfStore(serverOptions.homeDirectory, shelfRuntimeProbe());
-    const plugin_settings_html = renderPluginSettingsContribution(pluginSettings.contribution_id, {
-      settings: shelfStore.settings(),
-      runtime: shelfStore.runtime(),
-      storage_path: shelfStore.root,
-      primitives: { escape: escapeSettingsHtml, text: L },
-    });
     response.writeHead(200, {
       "content-type": "text/html; charset=utf-8",
       "cache-control": "no-store",
@@ -172,4 +170,34 @@ function escapeSettingsHtml(value: unknown): string {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
+}
+
+function renderCatalogPluginSettings(contributionId: string, homeDirectory: string): string | null {
+  const primitives = { escape: escapeSettingsHtml, text: L };
+  if (contributionId === SHELF_SETTINGS_UI_CONTRIBUTION_ID) {
+    const shelfStore = openShelfStore(homeDirectory, shelfRuntimeProbe());
+    return renderPluginSettingsContribution(contributionId, {
+      settings: shelfStore.settings(),
+      runtime: shelfStore.runtime(),
+      storage_path: shelfStore.root,
+      primitives,
+    });
+  }
+  if (contributionId === FUNCTIONS_SETTINGS_UI_CONTRIBUTION_ID) {
+    const store = openFunctionsStore(homeDirectory);
+    try {
+      const service = createFunctionsService({
+        store,
+        secrets: createFileSecretStore(),
+        env: process.env,
+      });
+      return renderPluginSettingsContribution(contributionId, {
+        settings: service.settingsStatus(),
+        primitives,
+      });
+    } finally {
+      store.close();
+    }
+  }
+  return null;
 }

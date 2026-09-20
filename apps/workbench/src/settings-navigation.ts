@@ -17,7 +17,7 @@ type ProjectSettingsNavigationActive = "general" | "guidance" | "rules" | "plann
 export interface SettingsNavigationPrimitives {
   L(text: string): string;
   escapeHtml(value: unknown): string;
-  icon(name: "database" | "chevron-down" | "check" | "settings" | "panel" | "bell" | "search" | "arrow" | "user" | "system" | "workflow" | "tree" | "activity" | "bug" | "book" | "shield" | "sun" | "terminal" | "tune" | "library"): string;
+  icon(name: "database" | "chevron-down" | "check" | "settings" | "panel" | "bell" | "search" | "arrow" | "user" | "system" | "workflow" | "tree" | "activity" | "bug" | "book" | "shield" | "sun" | "terminal" | "tune" | "library" | "sparkles"): string;
   withDesktopQuery(path: string): string;
 }
 export function createWorkbenchSettingsNavigation(primitives: SettingsNavigationPrimitives) {

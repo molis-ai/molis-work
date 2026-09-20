@@ -63,3 +63,34 @@ test("command receipt route binds the selected app session and exact runtime run
     assert.deepEqual(reads, [[{runtime_id:"prologue",session_id:"sdk-session"},{run_id:"owned",call_id:"call"}]]);
   } finally { db.close(); }
 });
+
+test("answer route preserves the original run and questionnaire, rejects foreign runs and malformed selections",async()=>{
+  const db=new DatabaseSync(':memory:');db.exec("CREATE TABLE boards (board_id TEXT PRIMARY KEY); INSERT INTO boards VALUES ('board')");
+  const sessions=new CodingSessionStore(db),at='2026-09-20T00:00:00Z';
+  sessions.create({board_id:'board',session_id:'app',title:'问卷',runtime_id:'prologue',at});sessions.setRuntimeSession('board','app','sdk',at);
+  let phase='awaiting-input';const delivered:unknown[]=[];
+  const context={board_id:'board',plugin_id:'io.molis.work.coding',services:{capabilities:{invoke:async(definition:{capability_id:string},args:unknown[])=>{
+    if(definition.capability_id===agent.readSession.capability_id)return {runs:[{session_id:'sdk',run_id:'owned'}]};
+    if(definition.capability_id===agent.readRun.capability_id)return {phase};
+    if(definition.capability_id===agent.controlRun.capability_id){delivered.push(args);return;}
+    throw new Error('unexpected capability');
+  }}}} as unknown as PluginStartContext;
+  const route=codingRoutes(context,{sessions,goalTitle:()=>undefined,ready:async()=>{},models:async()=>[]}).find(item=>item.route_id==='coding.control-run')!;
+  const call=(body:unknown)=>route.handle({params:{sessionId:'app'},body} as PluginRouteRequest);
+  const answer={kind:'answer',run_id:'owned',pending_id:'original',pending_revision:7,answers:[{question:1,indexes:[2,4],other:'保留原文'}]};
+  try {
+    assert.equal((await call({...answer,run_id:'foreign'})).status,400);
+    assert.equal((await call({...answer,pending_revision:0})).status,400);
+    assert.equal((await call({...answer,answers:[{question:1,indexes:['invented']}]})).status,400);
+    assert.equal(delivered.length,0);
+    assert.equal((await call(answer)).status,200);
+    assert.deepEqual(delivered,[[{runtime_id:'prologue',session_id:'sdk'},{session_id:'sdk',run_id:'owned'},
+      {kind:'answer',pending_id:'original',pending_revision:7,answers:answer.answers}]]);
+    const verbatim='  星河购物车 <保留原文>\n';
+    assert.equal((await call({...answer,answers:undefined,text:verbatim})).status,200);
+    assert.deepEqual(delivered[1],[{runtime_id:'prologue',session_id:'sdk'},{session_id:'sdk',run_id:'owned'},
+      {kind:'answer',pending_id:'original',pending_revision:7,text:verbatim}]);
+    assert.equal((await call({...answer,answers:undefined,text:' \n '})).status,400);
+    phase='stopped';assert.equal((await call(answer)).status,400);assert.equal(delivered.length,2);
+  }finally{db.close();}
+});

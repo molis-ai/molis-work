@@ -29,3 +29,7 @@
 - Migration Goals: `goal-reorg-f2`, `goal-plugin-platform-v2`.
 - Contract entrypoint: `@molis-ai/molis-work-contracts/platform/plugin`
 - 需求书：[`specs/coding-plugin/spec.md`](../../../specs/coding-plugin/spec.md)
+
+## 当前执行入口
+
+会话输入区可以选择方法、MCP 工具与只读资料来源，并固定下一轮使用的版本。只读资料可用于讨论/评审，外部工具仍走宿主逐笔审查。模型和凭据、工作区授权、连接与执行账各归现有宿主能力；具体已验证路径和未完成部分以需求书 §0 为准。

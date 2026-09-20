@@ -82,6 +82,15 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
         persist();
       }
     } catch {}
+    // A standalone settings page returns to the previously focused workspace,
+    // rather than restoring the persisted exclusive settings surface again.
+    if (paneParams.get("returnToWorkbench") === "1") {
+      ops.setExclusive(state, null);
+      setDirectory("root", true, false);
+      const returnedUrl = new URL(location.href);
+      returnedUrl.searchParams.delete("returnToWorkbench");
+      history.replaceState(history.state, "", returnedUrl);
+    }
     rewriteRetiredTaskTabs();
     apply();
     persist();

@@ -6,13 +6,13 @@ import { PROJECT_PLUGIN_COMPANIONS } from "@molis-ai/molis-work-contracts/module
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { UiViewRegistry, type UiPlacedView } from "@molis-ai/molis-work-ui-host";
 import { ARTIFACTS_PROJECT_PLUGIN_ID, artifactsManifest } from "@molis-ai/molis-work-plugin-artifacts";
-import { CODING_PROJECT_PLUGIN_ID, codingManifest, codingPrompts } from "@molis-ai/molis-work-plugin-coding";
+import { CODING_PROJECT_PLUGIN_ID, codingManifest, codingPrompts, codingMethods } from "@molis-ai/molis-work-plugin-coding";
 import { DIFF_PROJECT_PLUGIN_ID, diffManifest } from "@molis-ai/molis-work-plugin-diff";
 import { FILES_PROJECT_PLUGIN_ID, filesManifest } from "@molis-ai/molis-work-plugin-files";
 import { GIT_PROJECT_PLUGIN_ID, gitManifest } from "@molis-ai/molis-work-plugin-git";
 import { TEXT_STATS_PROJECT_PLUGIN_ID, textStatsManifest } from "@molis-ai/molis-work-plugin-text-stats";
 import { WORKSPACE_PROJECT_PLUGIN_ID, workspaceManifest } from "@molis-ai/molis-work-plugin-workspace";
-import type { AgentManifest, AgentPromptText } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
+import type { AgentManifest, AgentPromptText, AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { FEED_PROJECT_PLUGIN_ID, feedManifest } from "@molis-ai/molis-work-plugin-feed";
 import { GOALS_PROJECT_PLUGIN_ID, goalsManifest } from "@molis-ai/molis-work-plugin-goals";
 import { INBOX_PROJECT_PLUGIN_ID, inboxManifest } from "@molis-ai/molis-work-plugin-inbox";
@@ -159,11 +159,13 @@ export function manifestFor(projectPluginId: ProjectPluginId): PluginManifest | 
 export const BUILTIN_PLUGIN_AGENTS: ReadonlyMap<string, {
   readonly manifest: AgentManifest;
   readonly prompts: readonly AgentPromptText[];
+  readonly skills: readonly AgentSkillDefinition[];
 }> = new Map(
   BUILTIN_PLUGIN_CATALOG.flatMap((entry) => {
     const agent = entry.manifest.agent;
     if (agent === undefined) return [];
     const prompts = entry.project_plugin_id === CODING_PROJECT_PLUGIN_ID ? codingPrompts : [];
-    return [[entry.manifest.plugin_id, { manifest: agent, prompts }] as const];
+    const skills = entry.project_plugin_id === CODING_PROJECT_PLUGIN_ID ? codingMethods : [];
+    return [[entry.manifest.plugin_id, { manifest: agent, prompts, skills }] as const];
   }),
 );

@@ -116,6 +116,8 @@ async function startAuthority(
     manifest: declared?.manifest ?? { roles: [], prompts: [] },
     authorizedDirectories: workspaces.filter(entry => entry.realpath_verified).map(entry => entry.canonical_path),
     prompts: declared?.prompts ?? [],
+    skills: declared?.skills ?? [],
+    method_owner: { board_id: runtime.board_id, plugin_id: pluginId },
     project_prompts: projectPrompts(runtime),
   };
 }

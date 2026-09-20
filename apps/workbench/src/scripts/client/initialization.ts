@@ -1,4 +1,4 @@
-import { CODING_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-coding";
+import { CODING_CLIENT_FACTORY_SCRIPT, CODING_SETTINGS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-coding";
 import { AGENT_REVIEW_CLIENT_FACTORY_SCRIPT } from "./agent-review.js";
 import { PROJECT_HOME_FACTORY_SCRIPT } from "./project-home.js";
 import { PLUGIN_WORKBENCH_FACTORY_SCRIPT } from "./plugin-workbench.js";
@@ -59,6 +59,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     });
     (${SHELF_CLIENT_FACTORY_SCRIPT})({ translate: L });
     ${SHELF_SETTINGS_CLIENT_SCRIPT}
+    ${CODING_SETTINGS_CLIENT_SCRIPT}
     const settingsDirectory = (${SETTINGS_DIRECTORY_FACTORY_SCRIPT})({
       translate: L,
       setDirectory: (...args) => setDesktopDirectory(...args),

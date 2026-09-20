@@ -145,9 +145,10 @@ test("settings catalog lists registered settings-pages and ignores Feed, Inbox, 
   ]);
   assert.deepEqual(listed.map((item) => item.section_id), ["shelf", "example"]);
   const live = listPluginSettingsNavItems();
-  assert.deepEqual(live.map((item) => item.section_id), ["shelf"]);
-  assert.equal(live[0]?.contribution_id, SHELF_SETTINGS_UI_CONTRIBUTION_ID);
-  assert.equal(live[0]?.label, "Shelf");
+  assert.deepEqual(live.map((item) => item.section_id), ["coding-settings", "shelf"]);
+  assert.equal(live[0]?.plugin_id, "io.molis.work.coding");
+  assert.equal(live[1]?.contribution_id, SHELF_SETTINGS_UI_CONTRIBUTION_ID);
+  assert.equal(live[1]?.label, "Shelf");
 });
 
 test("Shelf settings page has the drop wheel and Molis appearance does not", () => {

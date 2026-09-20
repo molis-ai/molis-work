@@ -171,3 +171,7 @@ export {
 
 export { CODING_STYLES } from "./styles.js";
 export { CODING_CLIENT_FACTORY_SCRIPT } from "./client.js";
+
+export { codingMethods } from "./methods.js";
+
+export { CODING_SETTINGS_CLIENT_SCRIPT } from "./settings-client.js";

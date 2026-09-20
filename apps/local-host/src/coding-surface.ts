@@ -1,6 +1,6 @@
 import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
-import { icon } from "@molis-ai/molis-work-design-system";
+import { icon, escapeHtml } from "@molis-ai/molis-work-design-system";
 import {
   CODING_PLUGIN_ID,
   CODING_PROJECT_PLUGIN_ID,
@@ -8,6 +8,7 @@ import {
   CodingSessionStore,
   createCodingPlugin,
   toDirectoryEntries,
+  renderPendingQuestionCard,
   type CodingUiModel,
   type CodingExecutionPorts,
 } from "@molis-ai/molis-work-plugin-coding";
@@ -24,6 +25,7 @@ import {
   type WorkspaceUiModel,
 } from "@molis-ai/molis-work-plugin-workspace";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
+import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 import { createPluginPlatform, type PluginPlatform } from "./plugin-platform.js";
 import type { LocalProjectDatabase } from "./project-database.js";
@@ -209,9 +211,13 @@ export async function handleCodingPluginHttp(request: IncomingMessage, response:
   if (!result) return false;
   // The existing sanitized rich-text renderer is supplied by the composition;
   // Coding neither imports another plugin nor trusts model-produced HTML.
-  const body = result.body as { runs?: Array<{ turns: Array<{ text: string; kind: string }> }> } | undefined;
-  if (body?.runs) for (const run of body.runs) for (const turn of run.turns) {
-    Object.assign(turn, { html: renderFeedRichText(turn.text) });
+  const body = result.body as { runs?: Array<{ turns: Array<{ text: string; kind: string }>; awaiting_input: AgentPendingQuestion[] }> } | undefined;
+  if (body?.runs) for (const run of body.runs) {
+    for (const turn of run.turns) Object.assign(turn, { html: renderFeedRichText(turn.text) });
+    for (const question of run.awaiting_input) Object.assign(question, { html: renderPendingQuestionCard({
+      questions: [question], primitives: { escape: value => escapeHtml(String(value)), icon: name => icon(name as Parameters<typeof icon>[0]),
+        text: value => value, formatDate: value => value },
+    }) });
   }
   sendLocalWebJson(response, result.status, result.body);
   return true;

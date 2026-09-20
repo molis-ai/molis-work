@@ -1,4 +1,5 @@
 import { THEME_BOOTSTRAP_SCRIPT, icon, renderIconSprite } from "@molis-ai/molis-work-design-system";
+import { codingSettingsContribution } from "@molis-ai/molis-work-plugin-coding";
 import type { GoalsApplicationApi } from "@molis-ai/molis-work-contracts/modules/goals";
 import type {
   UiRenderRequest,
@@ -142,6 +143,7 @@ export function createWorkbenchUiHost(): UiHost {
   host.register(inboxUiContribution);
   host.register(shelfUiContribution);
   host.register(shelfSettingsUiContribution);
+  host.register(codingSettingsContribution);
   host.register(workUiContribution);
   host.register(workTerminalUiContribution);
   host.register(artifactReferenceUiContribution);

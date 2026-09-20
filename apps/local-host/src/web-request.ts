@@ -55,7 +55,7 @@ export async function handleMolisWorkWebRequest(
         webViewCache.delete(databasePath);
         await localHost.closeProject(databasePath);
       },
-    });
+    }, async () => { await agentReady(); return agentHost.descriptors(); });
     return;
   }
       if (resolved.kind === "project_not_found") {

@@ -1,5 +1,5 @@
 import type { PluginRouteBinding, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { agentHostCapabilities as agent, isTerminalAgentPhase, type AgentRunControl, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentHostCapabilities as agent, isTerminalAgentPhase, type AgentRunControl, type AgentRunView, type AgentSkillRef, type AgentMcpToolRef, type AgentMcpSourceRef, type AgentMcpServerInput } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { CodingSessionStore } from "./store.js";
 import type { CodingSessionState } from "./projection.js";
@@ -19,6 +19,68 @@ function bodyOf(request: PluginRouteRequest): Record<string, unknown> {
 function text(value: unknown, label: string, maximum = 200): string {
   if (typeof value !== "string" || !value.trim() || value.length > maximum) throw new Error(`${label}不能为空，且不能超过 ${maximum} 字符`);
   return value.trim();
+}
+function methodSelection(value: unknown): AgentSkillRef[] {
+  if (!Array.isArray(value) || value.length > 20) throw new Error("方法选择格式无效");
+  const refs = value.map(item => {
+    if (!item || typeof item !== "object") throw new Error("方法引用无效");
+    const {skill_id, version} = item as Record<string, unknown>;
+    if (typeof skill_id !== "string" || !/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,159}$/.test(skill_id)
+      || typeof version !== "number" || !Number.isInteger(version) || version < 1) throw new Error("方法版本无效");
+    return {skill_id, version};
+  });
+  if (new Set(refs.map(ref=>ref.skill_id)).size !== refs.length) throw new Error("方法选择重复");
+  return refs;
+}
+function mcpSelection(value: unknown): AgentMcpToolRef[] {
+  if (!Array.isArray(value) || value.length > 100) throw new Error("MCP 选择格式无效");
+  const refs = value.map(item => {
+    if (!item || typeof item !== "object") throw new Error("MCP 工具引用无效");
+    const entry = item as Record<string, unknown>;
+    if (entry.configuration_version !== undefined && (!Number.isInteger(entry.configuration_version) || Number(entry.configuration_version) < 1)) throw new Error("MCP 配置版本无效");
+    return { ...(entry.configuration_version === undefined ? {} : {configuration_version: entry.configuration_version as number}), server: text(entry.server, "MCP 服务"), tool: text(entry.tool, "MCP 工具"), version: text(entry.version, "MCP 版本") };
+  });
+  if (new Set(refs.map(ref=>JSON.stringify([ref.server,ref.tool]))).size !== refs.length) throw new Error("MCP 工具选择重复");
+  return refs;
+}
+function mcpSources(value: unknown): AgentMcpSourceRef[] {
+  if(!Array.isArray(value) || value.length>100) throw new Error("MCP 资料选择格式无效");
+  const refs=value.map(item=>{
+    if(!item || typeof item!=="object" || !Number.isInteger(item.configuration_version) || item.configuration_version<1) throw new Error("MCP 资料配置版本无效");
+    return {server:text(item.server,"MCP 资料服务"),configuration_version:item.configuration_version as number};
+  });
+  if(new Set(refs.map(ref=>ref.server)).size!==refs.length) throw new Error("MCP 资料来源重复");
+  return refs;
+}
+function nextConfiguration(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("下一轮配置格式无效");
+  const config = value as Record<string, unknown>;
+  if (!["discuss", "edit", "execute", "review"].includes(String(config.intent))) throw new Error("执行方式无效");
+  for (const key of ["provider_id", "model_id", "workspace_id"]) {
+    if (typeof config[key] !== "string" || (config[key] as string).length > 1000) throw new Error("模型或工作区配置无效");
+  }
+  return { intent: config.intent as string, provider_id: config.provider_id as string,
+    model_id: config.model_id as string, workspace_id: config.workspace_id as string };
+}
+function questionAnswer(body: Record<string, unknown>): Extract<AgentRunControl, { kind: "answer" }> {
+  const pending_id = text(body.pending_id, "问题引用");
+  const pending_revision = body.pending_revision;
+  if (typeof pending_revision !== "number" || !Number.isInteger(pending_revision) || pending_revision < 1) throw new Error("问题版本无效，请重新读取原问题");
+  if (body.answers === undefined) {
+    text(body.text, "回答", 100_000);
+    // Validate blank/oversized input without rewriting the user's answer.
+    return { kind: "answer", pending_id, pending_revision, text: body.text as string };
+  }
+  if (body.text !== undefined || !Array.isArray(body.answers) || body.answers.length < 1 || body.answers.length > 10) throw new Error("问卷回答格式无效");
+  const answers = body.answers.map(value => {
+    if (!value || typeof value !== "object") throw new Error("问卷回答格式无效");
+    const { question, indexes, other } = value as Record<string, unknown>;
+    if (typeof question !== "number" || !Number.isInteger(question) || !Array.isArray(indexes) || indexes.length > 20
+      || !indexes.every(index => typeof index === "number" && Number.isInteger(index))
+      || other !== undefined && (typeof other !== "string" || other.length > 500)) throw new Error("问题或选项编号无效");
+    return { question, indexes: indexes as number[], ...(other === undefined ? {} : { other: other as string }) };
+  });
+  return { kind: "answer", pending_id, pending_revision, answers };
 }
 function sessionState(run: AgentRunView): CodingSessionState {
   if (run.phase === "completed") return "done";
@@ -53,9 +115,11 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
     route("coding.state", async (_request, api, execution) => {
       const runtimes = await api!.invoke(agent.listRuntimes, []);
       const sessions = await Promise.all(execution.sessions.list(boardId).map(async record => {
+        let checkpointBusy = false;
         if (record.runtime_session_id) {
           try {
             const snapshot = await api!.invoke(agent.readSession, [{ runtime_id: record.runtime_id, session_id: record.runtime_session_id }]);
+            checkpointBusy = snapshot.checkpoint_busy === true;
             const next = snapshot.recovery ? "reconcile-required" : snapshot.latest_run ? sessionState(snapshot.latest_run) : "idle";
             if (next !== record.state) record = execution.sessions.setState(boardId, record.session_id, next, record.updated_at);
           } catch {
@@ -64,15 +128,49 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
             if (record.state !== "reconcile-required") record = execution.sessions.setState(boardId, record.session_id, "reconcile-required", record.updated_at);
           }
         }
-        return { ...record, goal_title: record.goal_id ? execution.goalTitle(record.goal_id) ?? null : null };
+        return { ...record, checkpoint_busy: checkpointBusy, goal_title: record.goal_id ? execution.goalTitle(record.goal_id) ?? null : null };
       }));
-      return { sessions, models: await execution.models(),
+      const methods = runtimes.some(runtime=>runtime.runtime_id === "prologue") ? await api!.invoke(agent.listSkills, ["prologue", context.plugin_id]) : [];
+      const mcp = runtimes.some(runtime=>runtime.runtime_id === "prologue" && runtime.capabilities.mcp !== "unsupported") ? await api!.invoke(agent.listMcp, ["prologue", context.plugin_id]) : [];
+      return { sessions, methods, mcp, models: await execution.models(),
         workspace: await api!.invoke(projectsCapabilities.readWorkspace, []),
         workspaces: await api!.invoke(projectsCapabilities.listWorkspaces, []),
         runtimes: await Promise.all(runtimes.map(async (runtime) => ({ ...runtime,
           roles: await api!.invoke(agent.availableRoles, [runtime.runtime_id, context.plugin_id]),
         }))),
       };
+    }),
+    route("coding.save-mcp", async (request, api) => {
+      const body = bodyOf(request);
+      const input = { id: body.id, expected_version: body.expected_version, label: body.label, enabled: body.enabled, timeout_ms: body.timeout_ms,
+        transport: body.transport, executable: body.executable, argv: body.argv, endpoint: body.endpoint, auth: body.auth } as AgentMcpServerInput;
+      if (input.transport === "stdio") {
+        const workspaces = await api!.invoke(projectsCapabilities.listWorkspaces, []);
+        const workspace = workspaces.find(item=>item.workspace_id === body.workspace_id);
+        if (!workspace?.realpath_verified) throw new Error("请选择当前项目已授权的 MCP 工作区");
+        input.directory = { canonical_path: workspace.canonical_path, realpath_verified: true };
+      }
+      return { server: await api!.invoke(agent.saveMcp, ["prologue", context.plugin_id, input]) };
+    }),
+    route("coding.control-mcp", async (request, api) => {
+      const action = bodyOf(request).action;
+      if (!["connect","disconnect","cancel","remove"].includes(String(action))) throw new Error("MCP 操作无效");
+      await api!.invoke(agent.controlMcp, ["prologue", context.plugin_id, text(request.params.serverId,"MCP 服务"), action as "connect" | "disconnect" | "cancel" | "remove"]);
+      return { accepted: true };
+    }),
+    route("coding.discover-methods", async (request, api) => {
+      const body = bodyOf(request);
+      const workspaces = await api!.invoke(projectsCapabilities.listWorkspaces, []);
+      const workspace = workspaces.find(item => item.workspace_id === body.workspace_id);
+      if (!workspace?.realpath_verified) throw new Error("请先选择这个项目已授权的工作区");
+      return { candidates: await api!.invoke(agent.discoverSkills, ["prologue", context.plugin_id,
+        { canonical_path: workspace.canonical_path, realpath_verified: true }, text(body.path, "方法目录", 1000)]) };
+    }),
+    route("coding.install-method", async (request, api) => ({ method: await api!.invoke(agent.installSkill,
+      ["prologue", context.plugin_id, text(bodyOf(request).candidate_id, "候选方法")]) })),
+    route("coding.read-method", async (request, api) => {
+      const ref = methodSelection([{skill_id: request.params.skillId, version: Number(request.params.version)}])[0]!;
+      return { method: await api!.invoke(agent.readSkill, ["prologue", context.plugin_id, ref]) };
     }),
     route("coding.create-session", async (request, _api, execution) => {
       const body = bodyOf(request);
@@ -83,7 +181,17 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
     route("coding.read-session", async (request, api, execution) => {
       const record = selected(request, execution);
       const draft = context.services?.storage?.get(`draft:${record.session_id}`) ?? "";
-      if (!record.runtime_session_id) return { session: record, runs: [], draft };
+      const savedConfiguration = context.services?.storage?.get(`configuration:${record.session_id}`);
+      const configuration = typeof savedConfiguration === "string" ? nextConfiguration(JSON.parse(savedConfiguration)) : null;
+      const savedMcp = context.services?.storage?.get(`mcp:${record.session_id}`);
+      const mcp_tools = typeof savedMcp === "string" ? mcpSelection(JSON.parse(savedMcp)) : [];
+      const savedSources = context.services?.storage?.get(`mcp-sources:${record.session_id}`);
+      const mcp_sources = typeof savedSources === "string" ? mcpSources(JSON.parse(savedSources)) : [];
+      const savedMethods = context.services?.storage?.get(`methods:${record.session_id}`);
+      const methods = typeof savedMethods === "string" ? methodSelection(JSON.parse(savedMethods)) : [];
+      const questionDrafts = context.services?.storage?.get(`question-drafts:${record.session_id}`);
+      const question_drafts = typeof questionDrafts === "string" ? JSON.parse(questionDrafts) : {};
+      if (!record.runtime_session_id) return { session: record, runs: [], draft, question_drafts, methods, configuration, mcp_tools, mcp_sources };
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
       try {
         const snapshot = await api!.invoke(agent.readSession, [session]);
@@ -91,17 +199,30 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         const last = runs.at(-1);
         const state = snapshot.recovery ? "reconcile-required" : last ? sessionState(last) : "idle";
         const updated = state === record.state ? record : execution.sessions.setState(boardId, record.session_id, state, record.updated_at);
-        return { session: { ...updated, goal_title: updated.goal_id ? execution.goalTitle(updated.goal_id) ?? null : null }, runs, draft,
+        return { session: { ...updated, checkpoint_busy: snapshot.checkpoint_busy === true, goal_title: updated.goal_id ? execution.goalTitle(updated.goal_id) ?? null : null }, runs, draft, question_drafts, methods, configuration, mcp_tools, mcp_sources, checkpoint_busy: snapshot.checkpoint_busy === true,
           ...(snapshot.recovery ? { recovery_required: true, error: snapshot.recovery.reason } : {}) };
       } catch (error) {
         // Never replace a lost runtime reference with a new session: that would
         // silently lose history and could repeat effects after a restart.
         const session = execution.sessions.setState(boardId, record.session_id, "reconcile-required", record.updated_at);
-        return { session, runs: [], draft, recovery_required: true,
+        return { session, runs: [], draft, question_drafts, methods, configuration, mcp_tools, mcp_sources, recovery_required: true,
           error: (error as { code?: string }).code === "agent.session_unknown"
             ? "此会话的执行记录尚未恢复，不能把它当新任务重跑。原会话与草稿已保留。"
             : "此会话的执行记录暂时无法读取，不能将未知结果当作已完成。原会话与草稿已保留，请稍后重试。" };
       }
+    }),
+    route("coding.checkpoints", async (request, api, execution) => {
+      const record = selected(request, execution);
+      if (!record.runtime_session_id) return { checkpoints: [] };
+      return { checkpoints: await api!.invoke(agent.listCheckpoints, [{ runtime_id: record.runtime_id, session_id: record.runtime_session_id }]) };
+    }),
+    route("coding.prepare-rewind", async (request, api, execution) => {
+      const record = selected(request, execution);
+      if (!record.runtime_session_id) throw new Error("这个会话尚未执行");
+      const intent = bodyOf(request).intent;
+      const role = intent === "edit" ? "writer" : intent === "execute" ? "builder" : null;
+      if (!role) throw new Error("回退会修改文件，请先选择修改文件或执行方式");
+      return { review: await api!.invoke(agent.prepareRewind, [{ runtime_id: record.runtime_id, session_id: record.runtime_session_id }, text(request.params.checkpointId, "检查点引用"), role]) };
     }),
     route("coding.command-output", async (request, api, execution) => {
       const record = selected(request, execution);
@@ -115,6 +236,18 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
     route("coding.update-session", async (request, _api, execution) => {
       const record = selected(request, execution);
       const body = bodyOf(request);
+      const configuration = body.configuration === undefined ? undefined : nextConfiguration(body.configuration);
+      if (configuration) context.services!.storage!.set(`configuration:${record.session_id}`, JSON.stringify(configuration));
+      if (body.mcp_sources !== undefined) context.services!.storage!.set(`mcp-sources:${record.session_id}`,JSON.stringify(mcpSources(body.mcp_sources)));
+      if (body.mcp_tools !== undefined) context.services!.storage!.set(`mcp:${record.session_id}`, JSON.stringify(mcpSelection(body.mcp_tools)));
+      if (body.methods !== undefined) context.services!.storage!.set(`methods:${record.session_id}`, JSON.stringify(methodSelection(body.methods)));
+      if (body.question_drafts !== undefined) {
+        if (!body.question_drafts || typeof body.question_drafts !== "object" || Array.isArray(body.question_drafts)
+          || Object.keys(body.question_drafts).length > 20) throw new Error("待答草稿格式无效");
+        const encoded = JSON.stringify(body.question_drafts);
+        if (encoded.length > 100_000) throw new Error("待答草稿超过长度限制");
+        context.services!.storage!.set(`question-drafts:${record.session_id}`, encoded);
+      }
       if (body.draft !== undefined) {
         if (typeof body.draft !== "string" || body.draft.length > 100_000) throw new Error("草稿格式无效或超过长度限制");
         context.services!.storage!.set(`draft:${record.session_id}`, body.draft);
@@ -145,7 +278,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
           : await api!.invoke(agent.createSession, [record.runtime_id, { ...identity, directory, title: record.title }]);
         if (!record.runtime_session_id) execution.sessions.setRuntimeSession(boardId, record.session_id, session.session_id, new Date().toISOString());
         const run = await api!.invoke(agent.startRun, [record.runtime_id, { ...identity, session, directory, task, role_id: role,
-          model_selection: { provider_id: model.provider_id, model_id: model.model_id } }]);
+          model_selection: { provider_id: model.provider_id, model_id: model.model_id }, skills: methodSelection(body.methods ?? []), mcp_tools: mcpSelection(body.mcp_tools ?? []), mcp_sources: mcpSources(body.mcp_sources ?? []) }]);
         context.services!.storage!.delete(`draft:${record.session_id}`);
         execution.sessions.setState(boardId, record.session_id, "running", new Date().toISOString());
         return { run };
@@ -161,7 +294,8 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       if (!run) throw new Error("找不到属于这个会话的执行");
       const current = await api!.invoke(agent.readRun, [session, run]);
       if (isTerminalAgentPhase(current.phase)) throw new Error("这一轮已经结束，请开始新一轮");
-      const control: AgentRunControl = body.kind === "steer" ? { kind: "steer", text: text(body.text, "补充要求", 100_000) }
+      const control: AgentRunControl = body.kind === "answer" ? questionAnswer(body)
+        : body.kind === "steer" ? { kind: "steer", text: text(body.text, "补充要求", 100_000) }
         : body.kind === "stop" ? { kind: "stop" } : body.kind === "pause" ? { kind: "pause" }
         : body.kind === "resume" ? { kind: "resume" } : (() => { throw new Error("不支持的控制动作"); })();
       await api!.invoke(agent.controlRun, [session, run, control]);

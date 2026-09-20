@@ -7,6 +7,7 @@ import type {
 
 import { codingEventTypes } from "./events.js";
 import { codingManifest } from "./manifest.js";
+import { codingMethods } from "./methods.js";
 import { codingPrompts } from "./roles.js";
 import { codingSettingsContribution, codingUiContribution } from "./ui.js";
 import { codingRoutes, type CodingExecutionPorts } from "./routes.js";
@@ -58,6 +59,7 @@ export function createCodingPlugin(ports: CodingPluginPorts = {}): PluginDefinit
     manifest: codingManifest,
     event_types: codingEventTypes,
     agent_prompts: codingPrompts,
+    agent_skills: codingMethods,
     async start(context: PluginStartContext): Promise<PluginAppContribution> {
       for (const permission of codingManifest.permissions) {
         if (permission.required) context.requireGrant(permission.permission);

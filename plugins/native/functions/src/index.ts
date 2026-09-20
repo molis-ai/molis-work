@@ -32,7 +32,7 @@ export { FUNCTIONS_PLUGIN_ID, FUNCTIONS_PROJECT_PLUGIN_ID, functionsManifest } f
 export { openFunctionsStore, FunctionsStore } from "./store.js";
 export { createFunctionsService, FunctionsService } from "./service.js";
 export type { FunctionsSecretPort } from "./service.js";
-export { createHttpTypeSafeProvider, readChoiceAnswer, TYPESAFE_SYSTEMONE_URL } from "./provider.js";
+export { createHttpTypeSafeProvider, readAnswer, readChoiceAnswer, TYPESAFE_SYSTEMONE_URL } from "./provider.js";
 export type { TypeSafeProvider, TypeSafeEvaluateResult } from "./provider.js";
-export { hashChoiceConfig } from "./hash.js";
+export { hashChoiceConfig, hashFunctionConfig } from "./hash.js";
 export { FunctionsError, suggestFunctionKey } from "./keys.js";

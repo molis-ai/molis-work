@@ -2,7 +2,7 @@
   "name": "@molis-ai/molis-work-plugin-functions",
   "version": "0.0.0",
   "private": true,
-  "description": "Protected first-party Functions directory, Choice drafts, and TypeSafe preview.",
+  "description": "Protected first-party Functions directory, Noul/Choice/Score drafts, TypeSafe preview, and published invoke.",
   "type": "module",
   "license": "MIT",
   "engines": {

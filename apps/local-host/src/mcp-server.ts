@@ -16,6 +16,7 @@ import { RuntimeProjectConnection } from "./runtime-project-connection.js";
 import { runtimeContextHostFromEnvironment } from "./runtime-context.js";
 import { assertMcpToolAllowed, requireMcpRuntimeContextHost } from "./mcp-authority.js";
 import { injectRuntimeIdentity } from "./mcp-event-identity.js";
+import { createMcpFunctionsHandlers } from "./mcp-functions-tools.js";
 import { readProductEnv } from "@molis-ai/molis-work-storage";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 
@@ -31,6 +32,7 @@ export class LocalMcpServer {
   set runtimeConnection(connection: MolisWorkRuntimeConnection | null) { this.connectionState.connection = connection; }
   runtimeContextHost: MolisWorkRuntimeContextHost | null;
   private readonly contextTools: ReturnType<typeof createMcpRuntimeContextHandlers>;
+  private readonly functionsTools: ReturnType<typeof createMcpFunctionsHandlers>;
   private readonly sessionFoundationReady: Promise<void>;
   private readonly runtimeSessions: RuntimeSessionHost;
   private readonly linkPanelSession: ReturnType<typeof createRuntimePanelSessionLinker>;
@@ -64,6 +66,9 @@ export class LocalMcpServer {
         })).invoke(projectResumeFactsCapability, { board_id: connection.board_id, focus_goal_ids: [...focusGoalIds] }),
         readSession: (host, reconcileLegacy) => this.runtimeSessions.read(host, reconcileLegacy),
       }),
+    });
+    this.functionsTools = createMcpFunctionsHandlers({
+      requireHost: (context) => this.requireRuntimeContextHost(context),
     });
     this.runtimeContextHost =
       runtimeContextHost ?? (this.runtimeConnection ? null : runtimeContextHostFromEnvironment());
@@ -112,6 +117,9 @@ export class LocalMcpServer {
     if (name === "molis_work_v1_context_unbind") return this.contextTools[name](arguments_, callContext);
     if (name === "molis_work_v1_context_create_and_bind") return this.contextTools[name](arguments_, callContext);
     if (name === "molis_work_v1_project_delete") return this.contextTools[name](arguments_, callContext);
+    if (name === "molis_work_v1_functions_list") return this.functionsTools[name](arguments_, callContext);
+    if (name === "molis_work_v1_functions_describe") return this.functionsTools[name](arguments_, callContext);
+    if (name === "molis_work_v1_functions_invoke") return this.functionsTools[name](arguments_, callContext);
     const response = await this.callV1Tool(
       name,
       arguments_,

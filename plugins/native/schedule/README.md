@@ -1,12 +1,12 @@
-# Schedule 闹钟入口
+# Schedule 定时任务入口
 
-列出已登记的定时任务、下次叫醒时间和上次收据，并提供暂停 / 恢复。插件自己不执行业务。
+列出人手创建的对话态定时任务、其他插件登记的闹钟，以及下次叫醒时间和上次收据。对话任务到点后在自己的对话里跑一轮只读 Agent。
 
 包名：`@molis-ai/molis-work-plugin-schedule`。工作区内部包，通过仓库构建和 Host 装配使用。
 
 ## 一次典型调用
 
-Host 把 job 记录交给 UI contribution；HTTP 路由表拥有 `/api/schedule` 匹配，Host 注入 list / setEnabled。登记走 Host Capability `schedule.register`，不走这个插件的 HTTP。
+Host 把任务和 job 记录交给 UI contribution；HTTP 路由表拥有 `/api/schedule` 匹配，Host 注入 list / create / setEnabled。其他插件登记仍走 Host Capability `schedule.register`。
 
 ## 从哪里读代码
 
@@ -14,16 +14,18 @@ Host 把 job 记录交给 UI contribution；HTTP 路由表拥有 `/api/schedule`
 
 | 文件 | 用途 |
 | --- | --- |
-| [src/ui.ts](src/ui.ts) | 列表与详情 HTML |
+| [src/ui.ts](src/ui.ts) | 列表、对话详情、创建对话框 |
+| [src/tasks.ts](src/tasks.ts) | 对话任务 sqlite |
+| [src/wakeup.ts](src/wakeup.ts) | 到点执行与次日重排 |
 | [src/routes.ts](src/routes.ts) | HTTP 路由表 |
-| [src/route-handlers.ts](src/route-handlers.ts) | 列表与暂停用例 |
-| [src/client.ts](src/client.ts) | 工作台选择与暂停 |
+| [src/route-handlers.ts](src/route-handlers.ts) | 创建、打开、暂停用例 |
+| [src/client.ts](src/client.ts) | 工作台选择、创建与暂停 |
 
 可对照现有调用方 [apps/workbench/src/schedule-projection-ui.ts](../../../apps/workbench/src/schedule-projection-ui.ts) 与 [apps/local-host/src/schedule-native-plugin-http.ts](../../../apps/local-host/src/schedule-native-plugin-http.ts)。
 
 ## 接入与边界
 
-不消费 Feed / Goals 事实。不接受用户手写任务。叫醒由横向 Scheduler 完成。
+不消费 Feed / Goals 事实。人手任务走本插件 HTTP；其他插件的闹钟仍由 Scheduler 叫醒它们自己的 Capability。本地 Web 没开时闹钟不响。
 
 工作区依赖：`@molis-ai/molis-work-contracts`。
 
@@ -36,16 +38,17 @@ pnpm --filter @molis-ai/molis-work-plugin-schedule typecheck
 pnpm --filter @molis-ai/molis-work-plugin-schedule build
 ```
 
-已有行为示例与回归：[schedule-plugin.test.ts](../../../tests/schedule-plugin.test.ts)。完成上述构建后运行：
+已有行为示例与回归：[schedule-plugin.test.ts](../../../tests/schedule-plugin.test.ts)、[schedule-conversation-tasks.test.ts](../../../tests/schedule-conversation-tasks.test.ts)。完成上述构建后运行：
 
 ```bash
-node --import tsx --test tests/schedule-plugin.test.ts
+node --import tsx --test tests/schedule-plugin.test.ts tests/schedule-conversation-tasks.test.ts
 ```
 
 ## 进一步阅读
 
 - [架构与当前实现索引](../../../docs/SSOT-MATRIX.md)
-- [定时任务插件需求](../../../specs/schedule-plugin/spec.md)
+- [对话态定时任务需求](../../../specs/schedule-conversation-tasks/spec.md)
+- [闹钟层需求](../../../specs/schedule-plugin/spec.md)
 
 - Status: `partial`
 - SSOT: `docs/SSOT-MATRIX.md`

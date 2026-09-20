@@ -16,7 +16,7 @@ import type { AgentManifest, AgentPromptText } from "@molis-ai/molis-work-contra
 import { FEED_PROJECT_PLUGIN_ID, feedManifest } from "@molis-ai/molis-work-plugin-feed";
 import { GOALS_PROJECT_PLUGIN_ID, goalsManifest } from "@molis-ai/molis-work-plugin-goals";
 import { INBOX_PROJECT_PLUGIN_ID, inboxManifest } from "@molis-ai/molis-work-plugin-inbox";
-import { SCHEDULE_PROJECT_PLUGIN_ID, scheduleManifest } from "@molis-ai/molis-work-plugin-schedule";
+import { SCHEDULE_PROJECT_PLUGIN_ID, scheduleManifest, schedulePrompts } from "@molis-ai/molis-work-plugin-schedule";
 import { SHELF_PROJECT_PLUGIN_ID, shelfManifest } from "@molis-ai/molis-work-plugin-shelf";
 import { FUNCTIONS_PROJECT_PLUGIN_ID, functionsManifest } from "@molis-ai/molis-work-plugin-functions";
 import { WORK_PROJECT_PLUGIN_ID, workManifest } from "@molis-ai/molis-work-plugin-work";
@@ -166,7 +166,11 @@ export const BUILTIN_PLUGIN_AGENTS: ReadonlyMap<string, {
   BUILTIN_PLUGIN_CATALOG.flatMap((entry) => {
     const agent = entry.manifest.agent;
     if (agent === undefined) return [];
-    const prompts = entry.project_plugin_id === CODING_PROJECT_PLUGIN_ID ? codingPrompts : [];
+    const prompts = entry.project_plugin_id === CODING_PROJECT_PLUGIN_ID
+      ? codingPrompts
+      : entry.project_plugin_id === SCHEDULE_PROJECT_PLUGIN_ID
+        ? schedulePrompts
+        : [];
     return [[entry.manifest.plugin_id, { manifest: agent, prompts }] as const];
   }),
 );

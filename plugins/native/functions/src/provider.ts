@@ -1,31 +1,32 @@
-import type { ChoiceCriterion } from "@molis-ai/molis-work-contracts/modules/functions";
+import type {
+  ChoiceCriterion,
+  FunctionRecord,
+  FunctionsPrimitive,
+  NoulCriteria,
+} from "@molis-ai/molis-work-contracts/modules/functions";
 import { FunctionsError } from "./keys.js";
 
 export const TYPESAFE_SYSTEMONE_URL = "https://api.typesafe.ai/v1/systemone";
 const PREVIEW_TIMEOUT_MS = 30_000;
 
-export interface TypeSafeEvaluateInput {
-  readonly model: string;
-  readonly state: string;
-  readonly question_key: string;
-  readonly instructions: string;
-  readonly criteria: readonly ChoiceCriterion[];
-}
-
 export interface TypeSafeEvaluateResult {
+  readonly primitive: FunctionsPrimitive;
   readonly choice: string | null;
+  readonly noul: number | null;
+  readonly score: number | null;
+  readonly legend: readonly string[] | null;
   readonly probabilities: Readonly<Record<string, number>>;
   readonly confidence: number | null;
   readonly model: string;
 }
 
 export interface TypeSafeProvider {
-  evaluate(apiKey: string, input: TypeSafeEvaluateInput, signal?: AbortSignal): Promise<TypeSafeEvaluateResult>;
+  evaluate(apiKey: string, record: FunctionRecord, state: string, signal?: AbortSignal): Promise<TypeSafeEvaluateResult>;
 }
 
 export function createHttpTypeSafeProvider(fetchImpl: typeof fetch = fetch): TypeSafeProvider {
   return {
-    async evaluate(apiKey, input, signal) {
+    async evaluate(apiKey, record, state, signal) {
       const timeout = AbortSignal.timeout(PREVIEW_TIMEOUT_MS);
       const combined = signal ? AbortSignal.any([signal, timeout]) : timeout;
       let response: Response;
@@ -37,14 +38,10 @@ export function createHttpTypeSafeProvider(fetchImpl: typeof fetch = fetch): Typ
             "content-type": "application/json",
           },
           body: JSON.stringify({
-            model: input.model,
-            state: input.state,
+            model: record.model,
+            state,
             questions: {
-              [input.question_key]: {
-                type: "choice",
-                instructions: input.instructions,
-                criteria: Object.fromEntries(input.criteria.map((item) => [item.key, item.description])),
-              },
+              [record.function_key]: questionBody(record),
             },
           }),
           signal: combined,
@@ -62,24 +59,99 @@ export function createHttpTypeSafeProvider(fetchImpl: typeof fetch = fetch): Typ
         throw new FunctionsError("functions.provider_failed", `TypeSafe 返回 ${response.status}`);
       }
       const body = await response.json().catch(() => null);
-      return readChoiceAnswer(body, input.question_key);
+      return readAnswer(body, record);
     },
   };
 }
 
 export function readChoiceAnswer(body: unknown, questionKey: string): TypeSafeEvaluateResult {
-  const record = isRecord(body) ? body : {};
-  const answers = isRecord(record.answers) ? record.answers[questionKey] : undefined;
+  return readAnswer(body, {
+    primitive: "choice",
+    function_key: questionKey,
+    criteria: [],
+  });
+}
+
+export function readAnswer(
+  body: unknown,
+  record: { primitive: FunctionsPrimitive; function_key: string; criteria: FunctionRecord["criteria"] },
+): TypeSafeEvaluateResult {
+  const payload = isRecord(body) ? body : {};
+  const answers = isRecord(payload.answers) ? payload.answers[record.function_key] : undefined;
   const answer = isRecord(answers) ? answers : {};
-  const choice = typeof answer.choice === "string" && answer.choice ? answer.choice : null;
+  const model = typeof payload.model === "string" ? payload.model : "";
   const probabilities = isRecord(answer.probabilities)
     ? Object.fromEntries(Object.entries(answer.probabilities).filter((entry): entry is [string, number] => typeof entry[1] === "number"))
     : {};
+  if (record.primitive === "noul") {
+    if (typeof answer.noul !== "number" || !Number.isFinite(answer.noul)) {
+      throw new FunctionsError("functions.provider_failed", "TypeSafe 没有返回成立概率");
+    }
+    return {
+      primitive: "noul",
+      choice: null,
+      noul: answer.noul,
+      score: null,
+      legend: null,
+      probabilities: {},
+      confidence: null,
+      model,
+    };
+  }
+  if (record.primitive === "score") {
+    if (typeof answer.score !== "number" || !Number.isFinite(answer.score)) {
+      throw new FunctionsError("functions.provider_failed", "TypeSafe 没有返回评分");
+    }
+    const levels = Array.isArray(record.criteria) && record.criteria.every((item) => typeof item === "string")
+      ? record.criteria as readonly string[]
+      : [];
+    return {
+      primitive: "score",
+      choice: null,
+      noul: null,
+      score: answer.score,
+      legend: levels,
+      probabilities,
+      confidence: typeof answer.confidence === "number" ? answer.confidence : null,
+      model,
+    };
+  }
+  const choice = typeof answer.choice === "string" && answer.choice ? answer.choice : null;
   return {
+    primitive: "choice",
     choice,
+    noul: null,
+    score: null,
+    legend: null,
     probabilities,
     confidence: typeof answer.confidence === "number" ? answer.confidence : null,
-    model: typeof record.model === "string" ? record.model : "",
+    model,
+  };
+}
+
+function questionBody(record: FunctionRecord): Record<string, unknown> {
+  if (record.primitive === "noul") {
+    const criteria = record.criteria as NoulCriteria;
+    const mapped: Record<string, string> = {};
+    if (criteria.true_description) mapped.true = criteria.true_description;
+    if (criteria.false_description) mapped.false = criteria.false_description;
+    return {
+      type: "noul",
+      instructions: record.instructions,
+      ...(Object.keys(mapped).length > 0 ? { criteria: mapped } : {}),
+    };
+  }
+  if (record.primitive === "score") {
+    return {
+      type: "score",
+      instructions: record.instructions,
+      criteria: [...record.criteria],
+    };
+  }
+  return {
+    type: "choice",
+    instructions: record.instructions,
+    criteria: Object.fromEntries((record.criteria as readonly ChoiceCriterion[]).map((item) => [item.key, item.description])),
   };
 }
 

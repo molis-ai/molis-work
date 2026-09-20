@@ -14,6 +14,7 @@ export type { McpPresentationErrorFactory } from "./query-presentation.js";
 export { createMcpGoalToolHandlers } from "./goal-commands.js";
 export { createMcpGoalEventHandlers } from "./goal-event-commands.js";
 export { EVENT_TOOLS } from "./goal-event-tools.js";
+export { FUNCTIONS_TOOLS } from "./functions-tools.js";
 export { mcpBoardPayload } from "./payload.js";
 export { buildMcpResumeView } from "./resume-view.js";
 export type { McpResumeFacts } from "./resume-view.js";

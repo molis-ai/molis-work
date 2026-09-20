@@ -1,13 +1,18 @@
 import {
   FUNCTIONS_CREDENTIAL_REF,
+  type FunctionDescribe,
   type FunctionDraftPatch,
+  type FunctionInvokeResult,
   type FunctionRecord,
+  type FunctionSummary,
+  type FunctionsOutcome,
   type FunctionsPreviewRecord,
+  type FunctionsPrimitive,
   type FunctionsSettingsStatus,
 } from "@molis-ai/molis-work-contracts/modules/functions";
 import { FunctionsError } from "./keys.js";
-import { createHttpTypeSafeProvider, type TypeSafeProvider } from "./provider.js";
-import { FunctionsStore, assertReadyToPublish } from "./store.js";
+import { createHttpTypeSafeProvider, type TypeSafeEvaluateResult, type TypeSafeProvider } from "./provider.js";
+import { FunctionsStore, assertReadyToEvaluate, assertReadyToPublish } from "./store.js";
 
 export interface FunctionsSecretPort {
   put(ref: string, plaintext: string): void;
@@ -39,8 +44,38 @@ export class FunctionsService {
     return this.store.list();
   }
 
+  listPublished(): FunctionSummary[] {
+    return this.store.list()
+      .filter((record) => record.status === "published" && record.version != null)
+      .map((record) => ({
+        function_key: record.function_key,
+        name: record.name,
+        primitive: record.primitive,
+        version: record.version!,
+        model: record.model,
+      }));
+  }
+
   get(id: string): FunctionRecord {
     return this.store.require(id);
+  }
+
+  describePublished(functionKey: string): FunctionDescribe {
+    const record = this.store.requirePublishedByKey(functionKey);
+    return {
+      function_key: record.function_key,
+      name: record.name,
+      primitive: record.primitive,
+      version: record.version!,
+      model: record.model,
+      instructions: record.instructions,
+      input: { content: "string" },
+      criteria: record.criteria,
+    };
+  }
+
+  create(input?: { primitive?: FunctionsPrimitive; name?: string; function_key?: string }): FunctionRecord {
+    return this.store.create(input);
   }
 
   createChoice(input?: { name?: string; function_key?: string }): FunctionRecord {
@@ -49,6 +84,18 @@ export class FunctionsService {
 
   updateDraft(id: string, patch: FunctionDraftPatch): FunctionRecord {
     return this.store.updateDraft(id, patch);
+  }
+
+  addSample(id: string, input: { label?: string; input: string }): FunctionRecord {
+    return this.store.addSample(id, input);
+  }
+
+  removeSample(id: string, sampleId: string): FunctionRecord {
+    return this.store.removeSample(id, sampleId);
+  }
+
+  deleteDraft(id: string): void {
+    this.store.deleteDraft(id);
   }
 
   settingsStatus(): FunctionsSettingsStatus {
@@ -70,24 +117,16 @@ export class FunctionsService {
   }
 
   async preview(id: string, input: string): Promise<FunctionRecord> {
-    const state = input.trim();
-    if (!state || state.length > 8000) {
-      throw new FunctionsError("functions.invalid", "试跑输入须为 1 到 8000 个字");
-    }
     const current = this.store.require(id);
-    assertReadyToEvaluate(current);
-    const apiKey = this.resolveApiKey();
-    const result = await this.provider.evaluate(apiKey, {
-      model: current.model,
-      state,
-      question_key: current.function_key,
-      instructions: current.instructions,
-      criteria: current.criteria,
-    });
+    const result = await this.evaluate(current, input);
     const preview: FunctionsPreviewRecord = {
-      input: state,
-      outcome: result.choice ? "selected" : "needs_review",
+      input: input.trim(),
+      outcome: outcomeOf(result),
+      primitive: result.primitive,
       choice: result.choice,
+      noul: result.noul,
+      score: result.score,
+      legend: result.legend,
       probabilities: result.probabilities,
       confidence: result.confidence,
       model: result.model || current.model,
@@ -97,8 +136,33 @@ export class FunctionsService {
     return this.store.savePreview(id, preview);
   }
 
+  async invokePublished(functionKey: string, input: string): Promise<FunctionInvokeResult> {
+    const current = this.store.requirePublishedByKey(functionKey);
+    const result = await this.evaluate(current, input);
+    return {
+      status: outcomeOf(result),
+      function_key: current.function_key,
+      version: current.version!,
+      model: result.model || current.model,
+      config_hash: current.config_hash,
+      primitive: current.primitive,
+      data: invokeData(result),
+      probabilities: result.probabilities,
+      confidence: result.confidence,
+    };
+  }
+
   publish(id: string): FunctionRecord {
     return this.store.publish(id);
+  }
+
+  private async evaluate(record: FunctionRecord, input: string): Promise<TypeSafeEvaluateResult> {
+    const state = input.trim();
+    if (!state || state.length > 8000) {
+      throw new FunctionsError("functions.invalid", "试跑输入须为 1 到 8000 个字");
+    }
+    assertReadyToEvaluate(record);
+    return this.provider.evaluate(this.resolveApiKey(), record, state);
   }
 
   private resolveApiKey(): string {
@@ -118,13 +182,15 @@ function envKey(env: NodeJS.Dict<string>): string {
   return env.TYPESAFE_API_KEY?.trim() ?? "";
 }
 
-function assertReadyToEvaluate(record: FunctionRecord): void {
-  if (!record.instructions.trim()) {
-    throw new FunctionsError("functions.invalid", "判断说明须为 1 到 8000 个字");
-  }
-  if (record.criteria.some((item) => !item.description.trim()) || record.criteria.length < 2) {
-    throw new FunctionsError("functions.invalid", "Choice 至少需要两个写了说明的选项");
-  }
+function outcomeOf(result: TypeSafeEvaluateResult): FunctionsOutcome {
+  if (result.primitive === "choice" && !result.choice) return "needs_review";
+  return "ok";
+}
+
+function invokeData(result: TypeSafeEvaluateResult): FunctionInvokeResult["data"] {
+  if (result.primitive === "noul") return { noul: result.noul ?? 0 };
+  if (result.primitive === "score") return { score: result.score ?? 0, legend: result.legend ?? [] };
+  return { choice: result.choice };
 }
 
 export { assertReadyToPublish };

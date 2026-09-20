@@ -2,7 +2,7 @@
   "name": "@molis-ai/molis-work-plugin-schedule",
   "version": "0.0.0",
   "private": true,
-  "description": "Protected first-party Schedule alarm list, receipts, and pause.",
+  "description": "Protected first-party Schedule conversation tasks, alarm list, and pause.",
   "type": "module",
   "license": "MIT",
   "engines": {
@@ -38,7 +38,8 @@
     "ssot": "docs/SSOT-MATRIX.md",
     "capabilities": [
       "schedule.ui-contribution.v1",
-      "schedule.http-routes.v1"
+      "schedule.http-routes.v1",
+      "schedule.conversation-tasks.v1"
     ]
   }
 }

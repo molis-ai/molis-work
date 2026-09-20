@@ -23,9 +23,11 @@ GoalBoard 没有判断函数。TypeSafe Key 也不该进「AI 与执行工具」
 - v1 UI 只做 Choice。草稿须对同一 `config_hash` 成功试跑后才能发布。已发布版本字段不可改。
 - HTTP：catalog 级 `/api/functions*`，与 `/api/shelf` 相同防护。
 
+后续切片：[可写可调](../functions-write-and-invoke/spec.md)（三种原语、对开试跑、样例、草稿删除、Agent invoke）。本文件仍描述第一刀已落地的 Choice 切片。
+
 ## 非目标
 
-归档 / 回收站、外部客户端 Token、九个 Agent MCP 安装器、iframe 整站、独立 demo 进程、Noul / Score、把 TypeSafe 登记成聊天供应商、扩 `PluginHostServices.secrets`。
+归档 / 回收站、外部客户端 Token、九个 Agent MCP 安装器、iframe 整站、独立 demo 进程、把 TypeSafe 登记成聊天供应商、扩 `PluginHostServices.secrets`。Noul / Score 与 Agent 调用见后续切片，不再作为本文件的非目标。
 
 ## 使用场景
 
@@ -74,6 +76,6 @@ node --import tsx --test --test-concurrency=1 tests/functions-plugin.test.ts tes
 
 ## 假设与开放问题
 
-- 本切片不把已发布函数暴露给 Inbox / Agent 调用。那是下一刀。
+- Inbox 引用已发布函数仍是 later。Agent MCP 调用见 [可写可调](../functions-write-and-invoke/spec.md)。
 - 本切片不迁 `~/.jev-workbench`。
 - Key 探测做成可选「测试连接」留 later；保存不探测。

@@ -119,7 +119,8 @@ export { createLocalHostCapsule } from "./capsule.js";
 export { attachMolisWorkPtySocket, type MolisWorkPtySocketHandlers } from "./pty-socket.js";
 
 export { buildMolisWorkWebView, cachedMolisWorkWebView, type MolisWorkWebViewCache, type WebViewOptions } from "./web-view.js";
-export { hostWakeupIndex, scheduleServiceFor, scheduleViewFingerprint } from "./schedule-runtime.js";
+export { bindScheduledTaskRunner, scheduleServiceFor, scheduleViewFingerprint } from "./schedule-runtime.js";
+export { createHostScheduledTaskRunner } from "./schedule-task-runner.js";
 
 export { sendLocalWebJson, readLocalWebBody, authorizeLocalWebRequest, type LocalMutationState } from "./web-http.js";
 export { createLocalWebAssets } from "./web-assets.js";

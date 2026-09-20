@@ -26,7 +26,7 @@
 不做：
 
 - 不迁 Feed 调度、不加 cron 表达式、不写 function Artifact、不做事件总线 Automation。
-- 不让用户在 UI 里手写任意任务。
+- 人手创建的对话态定时任务见 `specs/schedule-conversation-tasks/spec.md`。本文件仍描述闹钟层：其他插件登记、once/interval、列表收据。
 - 不实现 Plugin Runtime `providedCapabilities` 通用反向注册（v1 用 Host 装配的 `PluginWakeupIndex`）。
 - 不改 Settings 模型管理、不做 Files 产品插件。
 
@@ -78,7 +78,7 @@
 4. 未注册 handler 不能登记；tick 时缺失 handler 留下 `plugin_unavailable`。
 5. 绝对路径 / `..` 的 `object_ref` 被拒。
 6. 插件 invoke `schedule.register` 时，即便输入里写了别人的 `plugin_id`，也绑到调用方。
-7. Schedule 工作面能列出下次时间与上次收据；空态说明「只负责闹钟」。
+7. Schedule 工作面能列出下次时间与上次收据；空态与人手创建入口见对话任务 spec。
 8. 暂停后不再到点叫醒；恢复后按 `next_due_at` 继续。
 9. 导航出现 Schedule，且没有第二列目录。
 

@@ -60,7 +60,7 @@ export function renderFunctionsWorkbench(model: FunctionsUiModel): string {
       </header>
       <div class="mw-empty" data-functions-empty>
         <strong>${p.text("还没有判断函数")}</strong>
-        <p>${p.text("写一条 Choice：给一段输入，从你定的选项里选出一项。试跑成功后再发布 v1。")}</p>
+        <p>${p.text("选 Noul、Choice 或 Score，用真实输入试跑，再发布给 Agent 调用。")}</p>
       </div>
       <div data-functions-rows></div>
     </div>
@@ -69,26 +69,48 @@ export function renderFunctionsWorkbench(model: FunctionsUiModel): string {
         <button class="plugin-stage-back" type="button" data-functions-back aria-label="${p.text("返回函数列表")}" title="${p.text("返回函数列表")}">${icon("arrow")}</button>
         <h1 data-functions-editor-title>${p.text("函数")}</h1>
         <span data-functions-editor-status></span>
+        <button class="mw-btn mw-btn--ghost" type="button" data-functions-delete hidden>${p.text("删除草稿")}</button>
       </div>
       <form class="functions-editor" data-functions-editor>
-        <label class="functions-field">${p.text("名称")}<input class="mw-input" data-functions-name autocomplete="off"></label>
-        <label class="functions-field">${p.text("函数 key")}<input class="mw-input" data-functions-key spellcheck="false" autocomplete="off"><small>${p.text("发布后不能改。给调用方看的稳定名字。")}</small></label>
-        <label class="functions-field">${p.text("判断说明")}<textarea class="mw-input" data-functions-instructions rows="5"></textarea></label>
-        <div class="functions-criteria">
-          <div class="functions-criteria-head">
-            <strong>${p.text("选项")}</strong>
-            <button class="mw-btn mw-btn--ghost" type="button" data-functions-add-criterion>${p.text("添加选项")}</button>
+        <section class="functions-define">
+          <label class="functions-field">${p.text("名称")}<input class="mw-input" data-functions-name autocomplete="off"></label>
+          <label class="functions-field">${p.text("函数 key")}<input class="mw-input" data-functions-key spellcheck="false" autocomplete="off"><small>${p.text("发布后不能改。给调用方看的稳定名字。")}</small></label>
+          <label class="functions-field">${p.text("判断说明")}<textarea class="mw-input" data-functions-instructions rows="6"></textarea></label>
+          <div class="functions-criteria" data-functions-criteria-panel>
+            <div class="functions-criteria-head" data-functions-criteria-head>
+              <strong data-functions-criteria-label>${p.text("选项")}</strong>
+              <button class="mw-btn mw-btn--ghost" type="button" data-functions-add-criterion>${p.text("添加")}</button>
+            </div>
+            <div data-functions-criteria></div>
           </div>
-          <div data-functions-criteria></div>
-        </div>
-        <label class="functions-field">${p.text("试跑输入")}<textarea class="mw-input" data-functions-preview-input rows="4"></textarea></label>
-        <div class="functions-actions">
-          <button class="mw-btn mw-btn--secondary" type="button" data-functions-preview>${p.text("试跑")}</button>
-          <button class="mw-btn mw-btn--primary" type="button" data-functions-publish>${p.text("发布 v1")}</button>
-        </div>
-        <p class="functions-note" data-functions-note hidden></p>
-        <pre class="functions-preview" data-functions-last-preview hidden></pre>
+        </section>
+        <section class="functions-try">
+          <div class="functions-samples">
+            <div class="functions-criteria-head">
+              <strong>${p.text("样例")}</strong>
+              <button class="mw-btn mw-btn--ghost" type="button" data-functions-save-sample>${p.text("保存当前输入")}</button>
+            </div>
+            <div data-functions-samples></div>
+          </div>
+          <label class="functions-field">${p.text("试跑输入")}<textarea class="mw-input" data-functions-preview-input rows="6"></textarea></label>
+          <div class="functions-actions">
+            <button class="mw-btn mw-btn--secondary" type="button" data-functions-preview>${p.text("试跑")}</button>
+            <button class="mw-btn mw-btn--primary" type="button" data-functions-publish>${p.text("发布 v1")}</button>
+          </div>
+          <p class="functions-note" data-functions-note hidden></p>
+          <div class="functions-preview" data-functions-last-preview hidden></div>
+        </section>
       </form>
     </div>
+    <dialog class="mw-dialog mw-dialog--form" data-functions-create-dialog aria-labelledby="functions-create-title">
+      <form class="mw-form mw-dialog__shell" data-functions-create-form>
+        <header class="mw-form__header"><div><h2 id="functions-create-title">${p.text("新建函数")}</h2><p>${p.text("一函数一题。试跑成功后再发布，Agent 才能调用。")}</p></div><button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-functions-create-close aria-label="${p.text("关闭")}">${icon("x")}</button></header>
+        <div class="mw-form__body functions-create-choices">
+          <button class="mw-btn mw-btn--secondary" type="submit" name="primitive" value="noul">${p.text("Noul")}<small>${p.text("这是否成立")}</small></button>
+          <button class="mw-btn mw-btn--secondary" type="submit" name="primitive" value="choice">${p.text("Choice")}<small>${p.text("属于哪一类")}</small></button>
+          <button class="mw-btn mw-btn--secondary" type="submit" name="primitive" value="score">${p.text("Score")}<small>${p.text("在有序档位上打分")}</small></button>
+        </div>
+      </form>
+    </dialog>
   </section>`;
 }

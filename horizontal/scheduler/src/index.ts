@@ -266,12 +266,21 @@ export function createScheduleService(db: ScheduleSqliteDatabase, options: Sched
   async function fire(job: JobRow, at: Date): Promise<ScheduleWakeupRecord> {
     const started = iso(at);
     const wakeupId = `wakeup_${randomUUID()}`;
+    const dueAt = job.next_due_at;
+    const nextDue = nextDueAfter(job, at);
+    const stillEnabled = job.recurrence_kind === "interval" ? 1 : 0;
+    // Advance before invoke so a long handler cannot be claimed again after the 30s lease.
+    db.prepare(`
+      UPDATE schedule_jobs
+      SET next_due_at = ?, enabled = ?, updated_at = ?
+      WHERE job_id = ?
+    `).run(nextDue, stillEnabled, started, job.job_id);
     const input: ScheduleWakeupInput = {
       job_id: job.job_id,
       plugin_id: job.plugin_id,
       capability_id: job.capability_id,
       object_ref: job.object_ref,
-      due_at: job.next_due_at,
+      due_at: dueAt,
     };
     let status: ScheduleWakeupStatus = "ok";
     let detail: string | null = null;
@@ -287,17 +296,15 @@ export function createScheduleService(db: ScheduleSqliteDatabase, options: Sched
       detail = (error instanceof Error ? error.message : String(error)).slice(0, 500);
     }
     const finishedAt = iso(now());
-    const nextDue = nextDueAfter(job, at);
-    const stillEnabled = job.recurrence_kind === "interval" ? 1 : 0;
     db.prepare(`
       INSERT INTO schedule_wakeups (wakeup_id, job_id, due_at, started_at, finished_at, status, detail)
       VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(wakeupId, job.job_id, job.next_due_at, started, finishedAt, status, detail);
+    `).run(wakeupId, job.job_id, dueAt, started, finishedAt, status, detail);
     db.prepare(`
       UPDATE schedule_jobs
-      SET next_due_at = ?, enabled = ?, lease_until = NULL, last_wakeup_id = ?, updated_at = ?
+      SET lease_until = NULL, last_wakeup_id = ?, updated_at = ?
       WHERE job_id = ?
-    `).run(nextDue, stillEnabled, wakeupId, finishedAt, job.job_id);
+    `).run(wakeupId, finishedAt, job.job_id);
     return {
       wakeup_id: wakeupId,
       job_id: job.job_id,

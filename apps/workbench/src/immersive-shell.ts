@@ -135,7 +135,7 @@ export function renderPluginMarket({ L, icon }: ImmersiveShellPrimitives): strin
     { id: "goals", label: "Goals", glyph: "target" as const, copy: "确定目标，推进工作，留下结果。" },
     { id: "sessions", label: "Sessions", glyph: "terminal" as const, copy: "回到你的会话，继续正在做的事。" },
     { id: "inbox", label: "Inbox", glyph: "inbox" as const, copy: "只看需要你介入的事项。" },
-    { id: "schedule", label: "Schedule", glyph: "timer" as const, copy: "到点叫醒其他插件，自己不执行。" },
+    { id: "schedule", label: "Schedule", glyph: "timer" as const, copy: "到点跑自己的对话任务，也叫醒其他插件的闹钟。" },
     { id: "feed", label: "Feed", glyph: "rss" as const, copy: "查看来源消息和完整流水。" },
     { id: "shelf", label: "Shelf", glyph: "library" as const, copy: "把文件放到置物架，处理副本，原件不动。" },
     { id: "functions", label: "Functions", glyph: "sparkles" as const, copy: "把一段输入交给 Jev，得到一个有版本的判断。" },

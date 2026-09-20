@@ -1,6 +1,6 @@
 # Functions 判断函数入口
 
-用 TypeSafe 的 Jev 写本机 Choice 判断：草稿、试跑、发布 v1。TypeSafe Key 留在这台机器。
+用 TypeSafe 的 Jev 写本机判断函数：Noul / Choice / Score，试跑后发布，工作台 Agent 可调用。TypeSafe Key 留在这台机器。
 
 包名：`@molis-ai/molis-work-plugin-functions`。工作区内部包，通过仓库构建和 Host 装配使用。
 
@@ -24,7 +24,7 @@ Host 把空舞台交给 UI contribution；HTTP 路由表拥有 `/api/functions` 
 
 ## 接入与边界
 
-不依赖 Goals / Artifacts 写入。Key 不进聊天供应商页。v1 只做 Choice。
+不依赖 Goals / Artifacts 写入。Key 不进聊天供应商页。一函数一题。已发布函数经 MCP `functions_list` / `describe` / `invoke` 调用。
 
 工作区依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`。
 
@@ -40,6 +40,7 @@ node --import tsx --test --test-concurrency=1 tests/functions-plugin.test.ts
 
 - [架构与当前实现索引](../../../docs/SSOT-MATRIX.md)
 - [Functions 垂直切片](../../../specs/functions-plugin/spec.md)
+- [可写可调](../../../specs/functions-write-and-invoke/spec.md)
 
 - Status: `partial`
 - Contract: `@molis-ai/molis-work-contracts/platform/plugin`

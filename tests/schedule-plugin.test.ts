@@ -4,11 +4,13 @@ import test from "node:test";
 import { UiContributionError, UiHost } from "@molis-ai/molis-work-ui-host";
 import type { ScheduleJobRecord } from "@molis-ai/molis-work-contracts/services/scheduler";
 import {
+  SCHEDULE_CLIENT_FACTORY_SCRIPT,
   SCHEDULE_NATIVE_PLUGIN_ROUTES,
   SCHEDULE_UI_CONTRIBUTION_ID,
   SchedulePluginRouteTable,
   createScheduleRouteHandlers,
   scheduleUiContribution,
+  type ScheduleConversationTaskView,
   type ScheduleUiModel,
 } from "@molis-ai/molis-work-plugin-schedule";
 import { railEntries } from "@molis-ai/molis-work-app-workbench";
@@ -53,10 +55,40 @@ function job(overrides: Partial<ScheduleJobRecord> = {}): ScheduleJobRecord {
   };
 }
 
+function task(overrides: Partial<ScheduleConversationTaskView> = {}): ScheduleConversationTaskView {
+  return {
+    task_id: "sct_test",
+    title: "每天汇总",
+    instructions: "把未读收成三条",
+    hour: 9,
+    minute: 0,
+    notify_important: true,
+    enabled: true,
+    unread: false,
+    job_id: "job-task",
+    last_run_at: null,
+    last_error: null,
+    created_at: "2026-09-20T02:00:00.000Z",
+    updated_at: "2026-09-20T02:00:00.000Z",
+    clock_label: "09:00",
+    next_due_at: "2026-09-20T01:00:00.000Z",
+    turns: [{
+      turn_id: "scturn_1",
+      task_id: "sct_test",
+      kind: "user",
+      text: "把未读收成三条",
+      important: false,
+      created_at: "2026-09-20T02:00:00.000Z",
+    }],
+    ...overrides,
+  };
+}
+
 function model(overrides: Partial<ScheduleUiModel> = {}): ScheduleUiModel {
   return {
     route_prefix: "/projects/project-test",
     jobs: [],
+    tasks: [],
     primitives,
     ...overrides,
   };
@@ -83,7 +115,10 @@ test("Workbench registers the Schedule UI Contribution through the generic UI Ho
     model: model(),
   });
   assert.match(empty, /还没有定时任务/);
-  assert.match(empty, /这里只负责闹钟/);
+  assert.match(empty, /新建定时任务/);
+  assert.match(empty, /到点会在它自己的对话里跑一轮只读 Agent/);
+  assert.match(empty, /data-schedule-create-dialog/);
+  assert.doesNotMatch(empty, /这里只负责闹钟/);
   assert.doesNotMatch(empty, /data-directory-panel="schedule"/);
   const populated = host.render({
     contribution_id: SCHEDULE_UI_CONTRIBUTION_ID,
@@ -92,7 +127,18 @@ test("Workbench registers the Schedule UI Contribution through the generic UI Ho
   });
   assert.match(populated, /data-schedule-row/);
   assert.match(populated, /叫醒成功/);
+  assert.match(populated, /其他插件的闹钟/);
   assert.match(populated, /data-work-surface="schedule"/);
+  const conversation = host.render({
+    contribution_id: SCHEDULE_UI_CONTRIBUTION_ID,
+    surface: "workbench",
+    model: model({ tasks: [task()] }),
+  });
+  assert.match(conversation, /每天汇总/);
+  assert.match(conversation, /data-schedule-kind="task"/);
+  assert.match(conversation, /把未读收成三条/);
+  assert.doesNotMatch(conversation, /其他插件的闹钟/);
+  assert.match(SCHEDULE_CLIENT_FACTORY_SCRIPT, /queueMicrotask\(\(\) => select\(pending, "task"\)\)/);
 });
 
 test("Schedule HTTP 能列出任务并暂停", async () => {
@@ -105,6 +151,16 @@ test("Schedule HTTP 能列出任务并暂停", async () => {
       const next = { ...current, enabled };
       jobs[0] = next;
       return next;
+    },
+    listTasks: () => [],
+    createTask: () => {
+      throw new Error("unused");
+    },
+    setTaskEnabled: () => {
+      throw new Error("unused");
+    },
+    openTask: () => {
+      throw new Error("unused");
     },
     changed: () => undefined,
   }));
@@ -124,7 +180,7 @@ test("Schedule HTTP 能列出任务并暂停", async () => {
   });
   assert.equal(paused?.status, 200);
   assert.equal((paused?.body as { job: ScheduleJobRecord }).job.enabled, false);
-  assert.equal(SCHEDULE_NATIVE_PLUGIN_ROUTES.length, 2);
+  assert.equal(SCHEDULE_NATIVE_PLUGIN_ROUTES.length, 5);
 });
 
 test("启用 Schedule 后导航出现且没有第二列目录", () => {
@@ -185,6 +241,7 @@ test("启用 Schedule 后导航出现且没有第二列目录", () => {
     },
     enabled_plugins: ["goals", "inbox", "schedule", "feed", "artifacts"],
     schedule_jobs: [job()],
+    schedule_tasks: [],
   } as MolisWorkWebView;
   const html = renderMolisWorkWeb(view);
   assert.match(html, /data-plugin-id="schedule"[^>]*data-work-surface-open="schedule"/);

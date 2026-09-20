@@ -1,13 +1,16 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import {
   SchedulePluginRouteTable,
+  createScheduleRouteHandlerPorts,
   createScheduleRouteHandlers,
   scheduleRouteErrorResponse,
   type SchedulePluginRouteResponse,
+  type ScheduleTaskDatabase,
 } from "@molis-ai/molis-work-plugin-schedule";
 import type { ScheduleService } from "@molis-ai/molis-work-service-scheduler";
 
 export interface ScheduleNativePluginHttpOptions {
+  readonly db: ScheduleTaskDatabase;
   readonly schedule: ScheduleService;
   readonly invalidateWebView: () => void;
 }
@@ -22,9 +25,12 @@ export async function handleScheduleNativePluginHttp(
   const method = request.method;
   if (!method || !["GET", "POST"].includes(method)) return false;
   const body = method === "GET" ? await readOptionalBody(request) : await readBody(request);
+  const ports = createScheduleRouteHandlerPorts({
+    db: options.db,
+    schedule: options.schedule,
+  });
   const routes = new SchedulePluginRouteTable(createScheduleRouteHandlers({
-    listJobs: () => options.schedule.list(),
-    setEnabled: (jobId, enabled) => options.schedule.setEnabled(jobId, enabled),
+    ...ports,
     changed: () => options.invalidateWebView(),
   }));
   try {

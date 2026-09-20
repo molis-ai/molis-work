@@ -17,9 +17,11 @@ import {
   createFunctionsRouteHandlers,
   createFunctionsService,
   functionsRouteErrorResponse,
+  FUNCTIONS_CLIENT_FACTORY_SCRIPT,
   functionsSettingsUiContribution,
   functionsUiContribution,
   hashChoiceConfig,
+  hashFunctionConfig,
   openFunctionsStore,
   readChoiceAnswer,
   renderFunctionsSettings,
@@ -48,11 +50,44 @@ function memorySecrets(initial: Record<string, string> = {}): FunctionsSecretPor
   };
 }
 
-function fixtureProvider(result: { choice: string | null } = { choice: "yes" }, calls: { count: number } = { count: 0 }): TypeSafeProvider {
+function fixtureProvider(result: { choice?: string | null; noul?: number; score?: number } = { choice: "yes" }, calls: { count: number } = { count: 0 }): TypeSafeProvider {
   return {
-    async evaluate() {
+    async evaluate(_apiKey, record) {
       calls.count += 1;
-      return { choice: result.choice, probabilities: { yes: 0.9, no: 0.1 }, confidence: 0.8, model: "jev-1.13.0" };
+      if (record.primitive === "noul") {
+        return {
+          primitive: "noul",
+          choice: null,
+          noul: result.noul ?? 0.82,
+          score: null,
+          legend: null,
+          probabilities: {},
+          confidence: null,
+          model: "jev-1.13.0",
+        };
+      }
+      if (record.primitive === "score") {
+        return {
+          primitive: "score",
+          choice: null,
+          noul: null,
+          score: result.score ?? 1,
+          legend: [...record.criteria] as string[],
+          probabilities: { "0": 0.2, "1": 0.8 },
+          confidence: 0.7,
+          model: "jev-1.13.0",
+        };
+      }
+      return {
+        primitive: "choice",
+        choice: result.choice === undefined ? "yes" : result.choice,
+        noul: null,
+        score: null,
+        legend: null,
+        probabilities: { yes: 0.9, no: 0.1 },
+        confidence: 0.8,
+        model: "jev-1.13.0",
+      };
     },
   };
 }
@@ -103,10 +138,14 @@ test("a draft Choice can be saved with empty instructions, then published only a
     ));
     const previewed = store.savePreview(created.id, {
       input: "请退款",
-      outcome: "selected",
+      outcome: "ok",
+      primitive: "choice",
       choice: "billing",
       probabilities: { billing: 0.9, other: 0.1 },
       confidence: 0.8,
+      noul: null,
+      score: null,
+      legend: null,
       model: "jev-1.13.0",
       config_hash: updated.config_hash,
       at: "2026-09-20T00:00:00.000Z",
@@ -151,7 +190,7 @@ test("preview uses the injected provider once, stores last_preview, and does not
       });
       const previewed = await service.preview(created.id, "三天没人回");
       assert.equal(calls.count, 1);
-      assert.equal(previewed.last_preview?.outcome, "selected");
+      assert.equal(previewed.last_preview?.outcome, "ok");
       assert.equal(previewed.last_preview?.choice, "yes");
       assert.equal(previewed.last_preview?.input, "三天没人回");
       const published = service.publish(created.id);
@@ -283,6 +322,13 @@ test("workbench client script with the Functions factory is valid JavaScript", (
   assert.doesNotThrow(() => new Function(renderMolisWorkWorkbenchClientScript()));
 });
 
+test("Functions client clears leftover preview text when switching records and hides Noul section chrome", () => {
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /const switching = selected\?\.id !== record\.id/);
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /if \(switching\) previewInput\.value = record\.last_preview\?\.input \|\| ""/);
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /criteriaHead\.hidden = kind === "noul"/);
+  assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /selected = record;\s*records = records\.some/);
+});
+
 test("Functions workbench and settings contributions mount on the declared slots", () => {
   const host = new UiHost();
   host.register(functionsUiContribution);
@@ -297,6 +343,9 @@ test("Functions workbench and settings contributions mount on the declared slots
   }).html;
   assert.match(stage, /data-functions="workbench"/);
   assert.match(stage, /data-functions-new/);
+  assert.match(stage, /functions-define/);
+  assert.match(stage, /data-functions-criteria-head/);
+  assert.match(stage, /data-functions-create-dialog/);
   assert.match(renderFunctionsWorkbench({ functions: [], primitives }), /还没有判断函数/);
   const settings = host.mount({
     slot: WORKBENCH_UI_SLOTS.settings,
@@ -421,3 +470,179 @@ test("catalog HTTP saves a TypeSafe key without echoing it and keeps Functions o
   assert.match(settingsHtml, /data-functions-settings/);
   assert.match(settingsHtml, /href="\/settings\/functions"/);
 });
+
+test("config hash changes across primitives with the same instructions", () => {
+  const choice = hashFunctionConfig({
+    primitive: "choice",
+    instructions: "判断",
+    criteria: [{ key: "yes", description: "是" }, { key: "no", description: "否" }],
+  });
+  const noul = hashFunctionConfig({
+    primitive: "noul",
+    instructions: "判断",
+    criteria: { true_description: "是", false_description: "否" },
+  });
+  assert.notEqual(choice, noul);
+});
+
+test("Noul preview stores probability without confidence, and publish pins the resolved model", async () => {
+  await withHome(async (home) => {
+    const store = openFunctionsStore(home);
+    const service = createFunctionsService({
+      store,
+      secrets: memorySecrets({ [FUNCTIONS_CREDENTIAL_REF]: "sk-test" }),
+      provider: fixtureProvider({ noul: 0.91 }),
+    });
+    const created = service.create({ primitive: "noul", name: "材料是否够" });
+    assert.equal(created.primitive, "noul");
+    assert.equal(created.model, "jev-latest");
+    service.updateDraft(created.id, {
+      instructions: "这些材料能否支持这个结论？",
+      criteria: { true_description: "证据充分", false_description: "证据不够" },
+    });
+    const previewed = await service.preview(created.id, "只有一句口号");
+    assert.equal(previewed.last_preview?.outcome, "ok");
+    assert.equal(previewed.last_preview?.noul, 0.91);
+    assert.equal(previewed.last_preview?.confidence, null);
+    const published = service.publish(created.id);
+    assert.equal(published.status, "published");
+    assert.equal(published.model, "jev-1.13.0");
+    assert.equal(published.version, 1);
+  });
+});
+
+test("samples do not change config_hash, drafts can be deleted, published cannot", async () => {
+  await withHome(async (home) => {
+    const store = openFunctionsStore(home);
+    const created = store.create({ primitive: "score", name: "相关程度" });
+    const updated = store.updateDraft(created.id, {
+      instructions: "材料与主题有多相关",
+      criteria: ["无关", "相关"],
+    });
+    const hash = updated.config_hash;
+    const withSample = store.addSample(updated.id, { label: "清楚", input: "完全对题" });
+    assert.equal(withSample.samples.length, 1);
+    assert.equal(withSample.config_hash, hash);
+    store.deleteDraft(updated.id);
+    assert.equal(store.get(updated.id), null);
+    const again = store.createChoice({ name: "可发布" });
+    store.updateDraft(again.id, {
+      instructions: "急吗？",
+      criteria: [{ key: "yes", description: "急" }, { key: "no", description: "不急" }],
+    });
+    const ready = store.require(again.id);
+    store.savePreview(again.id, {
+      input: "三天没人回",
+      outcome: "ok",
+      primitive: "choice",
+      choice: "yes",
+      noul: null,
+      score: null,
+      legend: null,
+      probabilities: { yes: 0.9, no: 0.1 },
+      confidence: 0.8,
+      model: "jev-1.13.0",
+      config_hash: ready.config_hash,
+      at: "2026-09-20T00:00:00.000Z",
+    });
+    store.publish(again.id);
+    assert.throws(() => store.deleteDraft(again.id), (error: unknown) => (
+      error instanceof FunctionsError && error.code === "functions.published_immutable"
+    ));
+    assert.equal(store.get(again.id)?.status, "published");
+  });
+});
+
+test("invoke uses published config once and does not overwrite last_preview", async () => {
+  await withHome(async (home) => {
+    const calls = { count: 0 };
+    const service = createFunctionsService({
+      store: openFunctionsStore(home),
+      secrets: memorySecrets({ [FUNCTIONS_CREDENTIAL_REF]: "sk-test" }),
+      provider: fixtureProvider({ choice: "yes" }, calls),
+    });
+    const created = service.createChoice({ name: "急单" });
+    service.updateDraft(created.id, {
+      instructions: "急吗？",
+      criteria: [{ key: "yes", description: "急" }, { key: "no", description: "不急" }],
+    });
+    await assert.rejects(() => service.invokePublished(created.function_key, "三天没人回"), (error: unknown) => (
+      error instanceof FunctionsError && error.code === "functions.not_found"
+    ));
+    const previewed = await service.preview(created.id, "预览输入");
+    const published = service.publish(created.id);
+    const invoked = await service.invokePublished(published.function_key, "调用输入");
+    assert.equal(calls.count, 2);
+    assert.equal(invoked.status, "ok");
+    assert.equal(invoked.data.choice, "yes");
+    assert.equal(invoked.model, "jev-1.13.0");
+    const after = service.get(published.id);
+    assert.equal(after.last_preview?.input, previewed.last_preview?.input);
+  });
+});
+
+test("HTTP invoke by key and MCP list hide drafts", async () => {
+  await withHome(async (home) => {
+    const service = createFunctionsService({
+      store: openFunctionsStore(home),
+      secrets: memorySecrets({ [FUNCTIONS_CREDENTIAL_REF]: "sk-test" }),
+      provider: fixtureProvider({ choice: "no" }),
+    });
+    const draft = service.createChoice({ name: "草稿" });
+    service.updateDraft(draft.id, {
+      instructions: "要不要？",
+      criteria: [{ key: "yes", description: "要" }, { key: "no", description: "不要" }],
+    });
+    const live = service.createChoice({ name: "已发" });
+    service.updateDraft(live.id, {
+      instructions: "要不要？",
+      criteria: [{ key: "yes", description: "要" }, { key: "no", description: "不要" }],
+    });
+    await service.preview(live.id, "input");
+    service.publish(live.id);
+    const routes = new FunctionsPluginRouteTable(createFunctionsRouteHandlers(service));
+    const listed = await routes.handle({
+      method: "GET",
+      pathname: "/api/functions/published",
+      query: new URLSearchParams(),
+      body: {},
+    });
+    const publishedKeys = ((listed?.body as { functions: Array<{ function_key: string }> }).functions ?? [])
+      .map((item) => item.function_key);
+    assert.ok(publishedKeys.includes(live.function_key));
+    assert.equal(publishedKeys.includes(draft.function_key), false);
+    const invoked = await routes.handle({
+      method: "POST",
+      pathname: `/api/functions/by-key/${live.function_key}/invoke`,
+      query: new URLSearchParams(),
+      body: { input: "调用" },
+    });
+    assert.equal(invoked?.status, 200);
+    assert.equal((invoked?.body as { data: { choice: string } }).data.choice, "no");
+    const { createMcpFunctionsHandlers } = await import("../apps/local-host/src/mcp-functions-tools.ts");
+    const handlers = createMcpFunctionsHandlers({
+      requireHost: () => ({
+        homeDirectory: home,
+        runtimeContext: { runtime_id: "codex", stable_work_context_id: "fn", host_declares_stable: true },
+      }),
+      secrets: memorySecrets({ [FUNCTIONS_CREDENTIAL_REF]: "sk-test" }),
+      provider: fixtureProvider({ choice: "no" }),
+      env: {},
+    });
+    const listedMcp = JSON.parse(await handlers.molis_work_v1_functions_list({}, { runtimeSessionId: null, runtimeSessionIdSource: null })) as {
+      functions: Array<{ function_key: string }>;
+    };
+    assert.deepEqual(listedMcp.functions.map((item) => item.function_key), [live.function_key]);
+    await assert.rejects(
+      () => handlers.molis_work_v1_functions_describe({ function_key: draft.function_key }, { runtimeSessionId: null, runtimeSessionIdSource: null }),
+      /函数不存在/,
+    );
+    const invokedMcp = JSON.parse(await handlers.molis_work_v1_functions_invoke({
+      function_key: live.function_key,
+      input: "MCP 调用",
+    }, { runtimeSessionId: null, runtimeSessionIdSource: null })) as { status: string; data: { choice: string } };
+    assert.equal(invokedMcp.status, "ok");
+    assert.equal(invokedMcp.data.choice, "no");
+  });
+});
+

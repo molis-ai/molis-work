@@ -16,6 +16,11 @@ test('installed app views mount through declared slots without adding to builtin
   assert.match(result,/aria-current="page"/);
   assert.match(result,/开发预览/);
   assert.doesNotMatch(result,/Test <unsafe>/);
+  const single = pages.renderPluginPageWorkspace({ui,manifest:{...manifest,ui:{...manifest.ui,views:[{view_id:'test',slot:'stage',title:manifest.name,contribution_id:'test.page'}]}},viewId:'test',model:{},surface:'page',basePath:'/app'});
+  const sidebar = single.match(/<aside>([\s\S]*?)<\/aside>/)![1];
+  assert.equal((sidebar.match(/<a /g)??[]).length,1);
+  assert.doesNotMatch(sidebar,/<h1>/);
+  assert.match(sidebar,/Test &lt;unsafe&gt;/);
   assert.throws(()=>pages.renderPluginPageWorkspace({ui,manifest,viewId:'other',model:{},surface:'page',basePath:'/app'}));
   ui.unregister('test.page');
   assert.throws(()=>pages.renderPluginPageWorkspace({ui,manifest,viewId:'suspicions',model:{},surface:'page',basePath:'/app'}));

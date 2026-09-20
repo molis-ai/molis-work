@@ -19,9 +19,10 @@ export function renderPluginPageWorkspace(input: {
   const content = input.ui.mount({slot:current.slot === 'settings' ? WORKBENCH_UI_SLOTS.settings : WORKBENCH_UI_SLOTS.main,
     contribution:{contribution_id:current.contribution_id,surface:input.surface,model:input.model}}).html;
   const nav = views.map(view => `<a class="plugin-page-nav" href="${escape(input.basePath)}?view=${encodeURIComponent(view.view_id)}"${view.view_id === current.view_id ? ' aria-current="page"' : ''}>${escape(view.title)}</a>`).join('');
+  const heading = views.length === 1 && views[0].title === input.manifest.name ? '' : `<h1>${escape(input.manifest.name)}</h1>`;
   return renderWorkbenchDocument({lang:'zh-CN',title:`${input.manifest.name} · Molis Work`,
     head_html:`<script>${THEME_BOOTSTRAP_SCRIPT}</script><style>${TYPEFACE_STYLES}\n${VISUAL_FOUNDATION_STYLES}\n${STYLES}</style>`,
-    body_html:`${renderIconSprite()}<div class="plugin-page-workspace"><aside><p class="plugin-page-brand">Molis Work</p><h1>${escape(input.manifest.name)}</h1><nav aria-label="插件页面">${nav}</nav>${input.development ? '<p class="plugin-page-development">开发预览<br>测试身份与隔离数据<br>不代表真实团队已接通</p>' : ''}</aside><main id="plugin-main">${content}</main></div>`});
+    body_html:`${renderIconSprite()}<div class="plugin-page-workspace"><aside><p class="plugin-page-brand">Molis Work</p>${heading}<nav aria-label="插件页面">${nav}</nav>${input.development ? '<p class="plugin-page-development">开发预览<br>测试身份与隔离数据<br>不代表真实团队已接通</p>' : ''}</aside><main id="plugin-main">${content}</main></div>`});
 }
 
 const STYLES = `

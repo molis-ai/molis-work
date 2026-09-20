@@ -41,6 +41,13 @@ export interface PluginPrivateStorage {
   get(key: string): string | null;
   set(key: string, value: string): void;
   delete(key: string): boolean;
+  /**
+   * Optional atomic replacement within this installation. null expects an absent
+   * key; a string expects that exact stored value. false means nothing changed.
+   * Authors needing conflict detection must reject a Host without this method;
+   * get followed by set is not an equivalent implementation.
+   */
+  compareAndSet?(key: string, expected: string | null, value: string): boolean;
 }
 
 export interface PluginUiClient {

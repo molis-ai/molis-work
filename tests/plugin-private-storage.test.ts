@@ -6,7 +6,7 @@ import test from "node:test";
 import Database from "better-sqlite3";
 import { PluginRuntime, PluginRuntimeError, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { createGithubIntegrationPlugin } from "@molis-ai/molis-work-integration-github";
-import type { PluginPrivateStorage, PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginPrivateStorage, PluginDefinition, PluginManifest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 test("Plugin private storage persists opaque values, isolates signatures and rejects revoked or missing grants", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-plugin-private-"));
@@ -64,4 +64,39 @@ test("Plugin private storage persists opaque values, isolates signatures and rej
     const cleared = await install("publisher-two");
     assert.equal(cleared.storage.get("../../outside"), null);
   } finally { db.close(); rmSync(directory, { recursive: true, force: true }); }
+});
+
+test("atomic private storage rejects stale writers across connections without overwriting the winner", () => {
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-plugin-cas-"));
+  const file = join(directory, "private.db");
+  const firstDb = new Database(file), secondDb = new Database(file);
+  let permitted = true;
+  const manifest = {plugin_id:"io.molis.work.storage-test",version:"1.0.0",
+    permissions:[{permission:"storage:private",required:true,reason:"test"}]} as PluginManifest;
+  const context = {plugin_id:manifest.plugin_id,version:manifest.version,install_id:"one",
+    requireGrant(){if(!permitted)throw new Error("revoked");}} as unknown as PluginStartContext;
+  try {
+    const owner = new SqlitePluginPrivateStorage(firstDb);
+    const first = owner.forPlugin(context, manifest);
+    const second = new SqlitePluginPrivateStorage(secondDb).forPlugin(context, manifest);
+    const other = owner.forPlugin({...context,install_id:"another"}, manifest);
+    assert.equal(typeof first.compareAndSet, "function", "host must provide atomic comparison, not get then set");
+    assert.equal(first.compareAndSet!("state", null, "revision-one"), true);
+    assert.equal(second.compareAndSet!("state", null, "overwrite"), false);
+    const stale = second.get("state");
+    assert.equal(first.compareAndSet!("state", "revision-one", "revision-two"), true);
+    assert.equal(second.compareAndSet!("state", stale, "lost-update"), false);
+    assert.equal(second.get("state"), "revision-two");
+    assert.equal(other.compareAndSet!("state", null, "another-install"), true);
+    assert.equal(first.get("state"), "revision-two");
+    assert.throws(() => first.compareAndSet!("", null, "invalid"));
+    assert.throws(() => first.compareAndSet!("state", undefined as unknown as string, "invalid"));
+    assert.throws(() => first.compareAndSet!("state", "revision-two", null as unknown as string));
+    permitted = false;
+    assert.throws(() => first.compareAndSet!("state", "revision-two", "revoked-write"), /revoked/);
+    permitted = true;
+    assert.equal(second.get("state"), "revision-two");
+    assert.equal(first.compareAndSet!("empty-string", null, ""), true);
+    assert.equal(second.compareAndSet!("empty-string", "", "updated"), true);
+  } finally { firstDb.close(); secondDb.close(); rmSync(directory, {recursive:true,force:true}); }
 });

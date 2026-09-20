@@ -3,7 +3,6 @@ import type { GoalsApplicationApi } from "@molis-ai/molis-work-contracts/modules
 import type {
   UiRenderRequest,
   UiSlotDescriptor,
-  WorkbenchDocumentRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
 import { artifactReferenceUiContribution, artifactBrowserUiContribution, ARTIFACT_REFERENCE_UI_CONTRIBUTION_ID, type ArtifactReferenceUiPrimitives } from "@molis-ai/molis-work-plugin-artifacts";
 import {
@@ -77,13 +76,9 @@ import { createGoalsTreeWorkbenchRenderer } from "./goals-tree-ui.js";
 import { createWorkSessionRenderer } from "./work-ui.js";
 
 export type WorkbenchGoalsAdapter = GoalsApplicationApi;
+export { WORKBENCH_UI_SLOTS, renderWorkbenchDocument } from "./document-shell.js";
+import { WORKBENCH_UI_SLOTS, renderWorkbenchDocument } from "./document-shell.js";
 
-export const WORKBENCH_UI_SLOTS = {
-  directory: { slot_id: "workbench.directory", version: 1, accepts: ["declarative-html"] },
-  main: { slot_id: "workbench.main", version: 1, accepts: ["declarative-html"] },
-  overlay: { slot_id: "workbench.overlay", version: 1, accepts: ["declarative-html"] },
-  settings: { slot_id: "workbench.settings", version: 1, accepts: ["declarative-html"] },
-} as const satisfies Record<string, UiSlotDescriptor>;
 
 const INBOX_SURFACE_SLOTS: Readonly<Record<InboxUiSurface, UiSlotDescriptor>> = {
   directory: WORKBENCH_UI_SLOTS.directory,
@@ -116,37 +111,6 @@ const FEED_SURFACE_SLOTS: Readonly<Record<FeedUiSurface, UiSlotDescriptor>> = {
   "frame-block": WORKBENCH_UI_SLOTS.main,
 };
 
-function escapeHtml(value: string): string {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
-}
-
-function renderAttributes(attributes: WorkbenchDocumentRenderRequest["body_attributes"]): string {
-  return Object.entries(attributes ?? {})
-    .filter((entry): entry is [string, string | boolean] => entry[1] !== null && entry[1] !== undefined && entry[1] !== false)
-    .map(([name, value]) => value === true ? ` ${name}` : ` ${name}="${escapeHtml(String(value))}"`)
-    .join("");
-}
-
-/** Own the stable HTML document shell while product Plugins own their rendered surfaces. */
-export function renderWorkbenchDocument(request: WorkbenchDocumentRenderRequest): string {
-  return `${request.preamble_html ?? ""}<!doctype html>
-<html lang="${escapeHtml(request.lang)}">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  ${request.head_before_title_html ?? ""}
-  <title>${escapeHtml(request.title)}</title>
-  ${request.head_html ?? ""}
-</head>
-  <body${renderAttributes(request.body_attributes)}>
-${request.body_html}
-</body>
-</html>`;
-}
 
 /** Bind Workbench routes to the public Goals Contract without copying Module rules. */
 export function createWorkbenchGoalsAdapter(

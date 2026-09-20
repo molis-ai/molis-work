@@ -138,6 +138,18 @@ export function registerAgentHostCapabilities<Context>(
       return ports.agentHost(context).adapter(session.runtime_id).readCommandOutput(session, ref);
     }),
 
+    registrar.register(agentHostCapabilities.inspectRecovery, async (context, [session]) => {
+      await readScopedSession(context, session);
+      const recovery = ports.agentHost(context).adapter(session.runtime_id).recovery;
+      if (!recovery) throw new AgentHostError("agent.capability_unavailable", "当前运行时未接通中断核对");
+      return recovery.inspect(session);
+    }),
+    registrar.register(agentHostCapabilities.recoverRun, async (context, [session, run, expectedVersion]) => {
+      await requireRun(context, session, run);
+      const recovery = ports.agentHost(context).adapter(session.runtime_id).recovery;
+      if (!recovery) throw new AgentHostError("agent.capability_unavailable", "当前运行时未接通中断恢复");
+      return recovery.close(session, run.run_id, expectedVersion);
+    }),
     registrar.register(agentHostCapabilities.listCheckpoints, async (context, [session]) => {
       const view = await readScopedSession(context, session);
       const authority = await ports.authority(context, view.owner.plugin_id);

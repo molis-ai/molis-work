@@ -72,3 +72,20 @@ test("replayed JSON tool output has exact selectable parts instead of a single o
   const last = compactionSelection(JSON.stringify({ selections: [{ record: 0, startPart: row.partCount, endPart: row.partCount }] }), [{ role: "user", text: original }]);
   assert.match(last.excerpts[0].text, /尾部证据/); assert.ok(original.includes(last.excerpts[0].text));
 });
+
+test("compaction awaits parent receipt persistence before returning; failed selection keeps prior charges", async () => {
+  const receipt = { input: { source: 'reported', tokens: 13 }, output: { source: 'reported', tokens: 7 },
+    cacheRead: { source: 'reported', tokens: 2 }, cacheWrite: { source: 'unknown', tokens: undefined }, cost: { source: 'unknown', amount: undefined, currency: undefined } };
+  let release!: () => void, saved = false, resolved = false;
+  const gate = new Promise<void>(r => { release = r; });
+  const f = fixture([{ type: 'usage-recorded', callId: 'c1', receipt }, { type: 'text-delta', text: '{"selections":[]}' }, { type: 'completed' }]);
+  const run = f.compact({ older, reportUsage: async event => { assert.equal(event.callId, 'c1'); assert.deepEqual(event.receipt, receipt); await gate; saved = true; } }).then(value => { resolved = true; return value; });
+  await new Promise(resolve => setImmediate(resolve)); assert.equal(resolved, false); release();
+  await run; assert.equal(saved, true);
+  const invalid = fixture([{ type: 'usage-recorded', callId: 'failed', receipt }, { type: 'text-delta', text: 'bad selection' }, { type: 'completed' }]);
+  let captured = 0;
+  await assert.rejects(invalid.compact({ older, reportUsage: async () => { captured++; } }), /有效/);
+  assert.equal(captured, 1);
+  const failed = fixture([{ type: 'usage-recorded', callId: 'c1', receipt }, { type: 'text-delta', text: '{"selections":[]}' }, { type: 'completed' }]);
+  await assert.rejects(failed.compact({ older, reportUsage: async () => { throw new Error('ledger not saved'); } }), /ledger not saved/);
+});

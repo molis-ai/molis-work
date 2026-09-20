@@ -3,6 +3,8 @@ import { agentHostCapabilities as agent, isTerminalAgentPhase, type AgentRunCont
 import { projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { CodingSessionStore } from "./store.js";
 import type { CodingSessionState } from "./projection.js";
+import { CODING_REPORT_TYPE } from "./artifacts.js";
+import { codingReportReference, createCodingExecutionReport, readCodingExecutionReport } from "./report.js";
 
 export interface CodingModelChoice { provider_id: string; model_id: string; label: string }
 export interface CodingExecutionPorts {
@@ -111,7 +113,39 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
   });
   const selected = (request: PluginRouteRequest, execution: CodingExecutionPorts) =>
     execution.sessions.get(boardId, request.params.sessionId ?? "");
+  const reportRoute = (save: boolean) => route(save ? "coding.save-report" : "coding.read-report", async (request, api, execution) => {
+    const record = selected(request, execution);
+    const runId = text(request.params.runId, "执行引用");
+    const artifacts = context.services!.artifacts;
+    const existing = readCodingExecutionReport(artifacts, record.session_id, runId);
+    if (existing) return existing;
+    if (!record.runtime_session_id) throw new Error("这个会话尚未执行");
+    const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
+    const snapshot = await api!.invoke(agent.readSession, [session]);
+    const ref = snapshot.runs.find(entry => entry.run_id === runId);
+    if (!ref) throw new Error("这轮执行不属于当前会话");
+    const run = await api!.invoke(agent.readRun, [session, ref]);
+    if (!isTerminalAgentPhase(run.phase)) throw new Error("这一轮尚未结束或仍需核对结果，暂不能保存报告");
+    const commands = await Promise.all((run.command_outputs ?? []).map(async command => {
+      try {
+        const output = await api!.invoke(agent.readCommandOutput, [session, { run_id: runId, call_id: command.call_id }]);
+        return { call_id: command.call_id, output };
+      } catch { return { call_id: command.call_id, output: null }; }
+    }));
+    const report = createCodingExecutionReport({ session_id: record.session_id, runtime_id: record.runtime_id, title: record.title, run, commands });
+    if (!save) return { report, reference: null, saved_at: null };
+    // No asynchronous gap between recheck and publish: concurrent clicks share
+    // the existing fixed version, even if their evidence reads finished later.
+    const saved = readCodingExecutionReport(artifacts, record.session_id, runId);
+    if (saved) return saved;
+    const reference = codingReportReference(record.session_id, runId);
+    const result = artifacts.publish({ ...reference, artifact_type_id: CODING_REPORT_TYPE, schema_version: 1,
+      content: { kind: "inline", payload: JSON.parse(JSON.stringify(report)) },
+      metadata: { title: report.title, session_id: record.session_id, run_id: runId } });
+    return { report, reference, saved_at: result.artifact.created_at };
+  });
   return [
+    reportRoute(false), reportRoute(true),
     route("coding.state", async (_request, api, execution) => {
       const runtimes = await api!.invoke(agent.listRuntimes, []);
       const sessions = await Promise.all(execution.sessions.list(boardId).map(async record => {
@@ -210,6 +244,19 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
             ? "此会话的执行记录尚未恢复，不能把它当新任务重跑。原会话与草稿已保留。"
             : "此会话的执行记录暂时无法读取，不能将未知结果当作已完成。原会话与草稿已保留，请稍后重试。" };
       }
+    }),
+    route("coding.recovery", async (request, api, execution) => {
+      const record = selected(request, execution);
+      if (!record.runtime_session_id) throw new Error("这个会话尚无可核对的运行记录");
+      return api!.invoke(agent.inspectRecovery, [{ runtime_id: record.runtime_id, session_id: record.runtime_session_id }]);
+    }),
+    route("coding.recover-run", async (request, api, execution) => {
+      const record = selected(request, execution);
+      if (!record.runtime_session_id) throw new Error("这个会话尚无可核对的运行记录");
+      const expectedVersion = bodyOf(request).expected_version;
+      if (typeof expectedVersion !== "number" || !Number.isSafeInteger(expectedVersion) || expectedVersion < 1) throw new Error("核对版本已失效，请重新核对");
+      const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
+      return api!.invoke(agent.recoverRun, [session, { session_id: session.session_id, run_id: text(request.params.runId, "执行引用") }, expectedVersion]);
     }),
     route("coding.checkpoints", async (request, api, execution) => {
       const record = selected(request, execution);

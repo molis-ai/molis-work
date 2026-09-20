@@ -9,6 +9,7 @@ import {
   createCodingPlugin,
   toDirectoryEntries,
   renderPendingQuestionCard,
+  renderCodingReport,
   type CodingUiModel,
   type CodingExecutionPorts,
 } from "@molis-ai/molis-work-plugin-coding";
@@ -213,10 +214,20 @@ export async function handleCodingPluginHttp(request: IncomingMessage, response:
   // Coding neither imports another plugin nor trusts model-produced HTML.
   const body = result.body as { runs?: Array<{ turns: Array<{ text: string; kind: string }>; awaiting_input: AgentPendingQuestion[] }> } | undefined;
   if (body?.runs) for (const run of body.runs) {
+    // Recovery reports also list runs, but carry receipt facts rather than turns.
+    if (!Array.isArray(run.turns) || !Array.isArray(run.awaiting_input)) continue;
     for (const turn of run.turns) Object.assign(turn, { html: renderFeedRichText(turn.text) });
     for (const question of run.awaiting_input) Object.assign(question, { html: renderPendingQuestionCard({
       questions: [question], primitives: { escape: value => escapeHtml(String(value)), icon: name => icon(name as Parameters<typeof icon>[0]),
         text: value => value, formatDate: value => value },
+    }) });
+  }
+  const reportBody = result.body as { report?: { title: string; body_markdown: string; run_id: string } } | undefined;
+  if (result.status === 200 && reportBody?.report) {
+    const report = reportBody.report;
+    Object.assign(reportBody, { html: renderCodingReport({ title: report.title, run_id: report.run_id,
+      body_html: renderFeedRichText(report.body_markdown), primitives: { escape: value => escapeHtml(String(value)),
+        icon: name => icon(name as Parameters<typeof icon>[0]), text: value => value, formatDate: value => value },
     }) });
   }
   sendLocalWebJson(response, result.status, result.body);

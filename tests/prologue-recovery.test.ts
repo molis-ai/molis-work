@@ -9,6 +9,33 @@ import type { AgentStartRequest } from "@molis-ai/molis-work-contracts/services/
 const owner = { board_id: "recovery-board", plugin_id: "io.molis.work.coding", install_id: "recovery-install" };
 const model = { protocol: "anthropic-compatible", endpoint: "https://127.0.0.1:1/v1/messages", model: "offline-fixture", credential_ref: "fixture" };
 
+for (const result of ["saved", "failed"] as const) {
+  test(`steer ${result}: control route waits for the SDK receipt and propagates failure`, async () => {
+    const receipt = Promise.withResolvers<void>();
+    const entered = Promise.withResolvers<void>();
+    const runtime: PrologueRuntimePort = {
+      sessions: { create: async () => ({ ref: { id: "steer-session" } }) },
+      startAgentRun: async () => ({
+        run: { ref: { id: "steer-run" }, subscribe: () => () => {}, cancel: async () => {} },
+        control: { state: "running", stop() {}, pause() {}, resume() {}, subscribe: () => () => {},
+          steer: async ({ text }) => { assert.equal(text, "不要改测试"); entered.resolve(); await receipt.promise; } },
+      }), shutdown: async () => {},
+    };
+    const adapter = new PrologueAgentAdapter({ runtime, modelConfiguration: async () => model });
+    const directory = { canonical_path: "/tmp/steer", realpath_verified: true };
+    const session = await adapter.createSession({ ...owner, actor_id: "user", title: "steer", directory });
+    const handle = await adapter.start({ ...owner, actor_id: "user", session, directory, task: "read", role_id: "reader",
+      role: { role_id: "reader", version: 1, execution: "read-only", host_tools: [], prompts: [] } });
+    let accepted = false;
+    const submission = adapter.control(handle.ref, { kind: "steer", text: "不要改测试" }).then(() => { accepted = true; });
+    await entered.promise;
+    assert.equal(accepted, false);
+    if (result === "saved") { receipt.resolve(); await submission; assert.equal(accepted, true); }
+    else { receipt.reject(new Error("receipt failed")); await assert.rejects(submission, /receipt failed/); assert.equal(accepted, false); }
+    await adapter.close();
+  });
+}
+
 test("packed SDK: failed terminal ledger and frozen ownership survive restart without provider calls", { timeout: 30_000 }, async () => {
   const root = await mkdtemp(join(tmpdir(), "molis-sdk-recovery-"));
   const make = () => createPrologueNodeAdapter({ app: { appId: "io.molis.work.recovery-test", appVersion: "0.1.0" },
@@ -76,6 +103,49 @@ test("incomplete SDK recovery remains readable but refuses a blind restart or st
   await assert.rejects(adapter.start({ session } as AgentStartRequest), /结果未知/);
   await assert.rejects(adapter.control(ref, { kind: "stop" }), /历史执行没有活动控制句柄/);
   assert.equal(starts, 0);
+});
+
+test("durable interrupted prefix retains content, settled tools and one closed question without claiming a live stream", async () => {
+  const ref = { run_id: "prefix-run", session_id: "prefix-session" };
+  const frozen = { role_id: "builder", role_version: 1, execution: "workspace-write" as const, model_id: "m", prompts: [], skills: [], mcp_tools: [], host_tools: [], text_materials: [], budget: null, directory: { canonical_path: "/tmp/original", realpath_verified: true } };
+  const prefix: PrologueEvent[] = [
+    { type: "prompt", role: "user", text: "原要求" },
+    { type: "text-delta", text: "读取文件后再问你。" },
+    { type: "tool-call", call: { id: "read-1", name: "read", input: { path: "README.md" } } },
+    { type: "tool-result", callId: "read-1", name: "read", text: "真实文件内容", outcome: "returned" },
+    { type: "tool-call", call: { id: "ask-1", name: "ask-user", input: { why: "是否执行测试？" } } },
+    { type: "awaiting-input", pendingRef: { id: "question", revision: 1 }, kind: "text", why: "是否执行测试？" },
+    { type: "text-delta", text: "已显示但尚未收尾的正文。" },
+    { type: "prompt", role: "user", text: "不要改动测试", steerId: "steer-1" },
+  ];
+  for (const closed of [false, true]) {
+    const runtime: PrologueRuntimePort = {
+      readPendingQuestion: async () => ({ pending_id: "question", pending_revision: 1, kind: "text", prompt: "是否执行测试？", options: [], allows_free_text: true, answerable: false, unavailable_reason: "等待已关闭" }),
+      sessions: { create: async () => { throw new Error("unused"); }, restore: async () => ({ title: "原会话", owner,
+        ...(closed ? {} : { recovery: { required: true as const, reason: "中断需核对" } }),
+        runs: [{ ref, frozen, task: "原要求", started_at: "2026-09-20T00:00:00Z",
+          original_questions: [{ pending_id: "question", pending_revision: 1, kind: "text", why: "是否执行测试？" }],
+          events: [...prefix, ...(closed ? [
+            { type: "run-recovered", atMs: 1789900000000, transcript: "durable-prefix", operations: [], questions: [{ ref: { id: "question", revision: 1 }, kind: "text", prompt: "是否执行测试？" }] },
+            { type: "failed", error: { code: "RUN_INTERRUPTED", safeMessage: "Interrupted" } },
+          ] as PrologueEvent[] : [])] }] }) },
+      startAgentRun: async () => { throw new Error("must not replay"); }, shutdown: async () => {},
+    };
+    const adapter = new PrologueAgentAdapter({ runtime, modelConfiguration: async () => model });
+    try {
+      const { latest_run: view } = await adapter.readSession({ session_id: ref.session_id, runtime_id: "prologue" });
+      assert.equal(view?.phase, closed ? "failed" : "reconcile-required");
+      assert.deepEqual(view?.turns.find(turn => turn.text === "不要改动测试")?.steer, { id: "steer-1", state: "unconfirmed" });
+      assert.deepEqual(view?.turns.filter(turn => turn.kind === "assistant").map(turn => turn.text), ["读取文件后再问你。", "已显示但尚未收尾的正文。"]);
+      assert.equal(view?.activity.find(activity => activity.call_id === "read-1")?.state, "completed");
+      assert.equal(view?.activity.find(activity => activity.call_id === "ask-1")?.state, "unknown");
+      assert.equal(view?.awaiting_input.length, 1);
+      assert.equal(view?.awaiting_input[0]?.answerable, false);
+      assert.match(view!.usage.unavailable_reason!, /未完整/);
+      if (closed) assert.match(view!.turns.at(-1)!.text, /已保存的正文/);
+      await assert.rejects(adapter.control(ref, { kind: "resume" }), /历史执行没有活动控制句柄/);
+    } finally { await adapter.close(); }
+  }
 });
 
 
@@ -218,3 +288,50 @@ for (const persistence of ["delayed", "failed"] as const) {
     await restoredAdapter.close();
   });
 }
+
+test("closing an inspected interruption refreshes the same session, excludes concurrent work and preserves failure", async () => {
+  const ref = { run_id: "interrupted-close", session_id: "same-session" };
+  let closed = false, calls = 0;
+  let release!: () => void, entered!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  const atClose = new Promise<void>(resolve => { entered = resolve; });
+  const frozen = { role_id: "builder", role_version: 1, execution: "workspace-write" as const, model_id: "m", prompts: [], skills: [], mcp_tools: [], host_tools: [], text_materials: [], budget: null, directory: { canonical_path: "/tmp/original", realpath_verified: true } };
+  const report = { session_id: ref.session_id, blockers: [], runs: [{ run_id: ref.run_id, version: 1, live: false, waiting: 0, can_close: true, blockers: [], operations: [] }] };
+  const runtime: PrologueRuntimePort = {
+    readPendingQuestion: async () => ({ pending_id: "question", pending_revision: 1, kind: "text", prompt: "是否执行测试？", options: [], allows_free_text: true, answerable: false, unavailable_reason: "原执行者已离线" }),
+    recovery: { inspect: async () => report, close: async (_session, id, version) => {
+      calls++; assert.equal(id, ref.run_id); assert.equal(version, 1); entered(); await held; closed = true;
+      return { ...report, runs: [] };
+    } },
+    sessions: { create: async () => { throw new Error("unused"); }, restore: async () => ({ title: "原会话", owner,
+      ...(closed ? {} : { recovery: { required: true as const, reason: "需要核对" } }),
+      runs: [{ ref, frozen, original_questions: [{ pending_id: "question", pending_revision: 1, kind: "text", why: "是否执行测试？" }], task: "原要求", started_at: "2026-09-20T00:00:00Z", ...(closed ? { events: [
+        { type: "run-recovered", atMs: 1789900000000, transcript: "opening-only", operations: [{ summary: "修改 cart.mjs", outcome: "completed" }] },
+        { type: "failed", error: { code: "RUN_INTERRUPTED", safeMessage: "Interrupted" } },
+      ] as PrologueEvent[] } : {}) }] }) },
+    startAgentRun: async () => { throw new Error("must not replay"); }, shutdown: async () => {},
+  };
+  const adapter = new PrologueAgentAdapter({ runtime, modelConfiguration: async () => model });
+  const session = { session_id: ref.session_id, runtime_id: "prologue" };
+  try {
+    assert.equal((await adapter.readSession(session)).latest_run?.phase, "reconcile-required");
+    assert.equal((await adapter.read(ref)).awaiting_input[0]?.answerable, false);
+    assert.equal((await adapter.read(ref)).awaiting_input[0]?.prompt, "是否执行测试？");
+    await assert.rejects(adapter.recovery!.close(session, "another-run", 1), /不属于/);
+    const closing = adapter.recovery!.close(session, ref.run_id, 1);
+    await atClose;
+    await assert.rejects(adapter.recovery!.close(session, ref.run_id, 1), /仍在执行/);
+    await assert.rejects(adapter.start({ session } as AgentStartRequest), /需要核对/);
+    release(); await closing;
+    const view = await adapter.readSession(session);
+    assert.equal(view.recovery, undefined);
+    assert.equal(view.latest_run?.phase, "failed");
+    assert.equal(view.latest_run?.turns[0]?.text, "原要求");
+    assert.match(view.latest_run!.turns[1]!.text, /已执行：修改 cart.mjs/);
+    assert.equal(view.latest_run!.turns[1]!.kind, "notice");
+    assert.match(view.latest_run!.usage.unavailable_reason!, /中断/);
+    assert.equal(view.latest_run?.ended_at, null, "恢复时刻不能冒充原执行结束时刻");
+    assert.equal((await adapter.read(ref)).awaiting_input[0]?.prompt, "是否执行测试？");
+    assert.equal(calls, 1);
+  } finally { release(); await adapter.close(); }
+});

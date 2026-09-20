@@ -315,7 +315,38 @@ export async function createPrologueNodeAdapter(
       : now >= pending.expiresAtMs ? "这条问题已过期，不能提交原答案"
       : !activeRuns.get(run.run_id)?.() || !runtime.effects.pendings.hasLiveWaiter(pending.ref)
         ? "原执行者已经停止或离线，不能通过回答重新启动" : undefined;
+  const inspectRecovery = async (sessionId: string): Promise<import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecoveryReport> => {
+    const index = await readIndex(sessionId);
+    if (!index) throw new Error("会话执行索引不可用");
+    const report = await runtime.sessions.inspectRecovery(index.ref);
+    const open = await runtime.listOpenWork();
+    const blockers: string[] = [];
+    if (index.attempts.some(attempt => !attempt.run_id)) blockers.push("一次启动未保存完整引用，暂不能确认它对应的操作。");
+    if (report.runs.some(run => !index.attempts.some(attempt => attempt.run_id === run.ref.id))) blockers.push("存在未关联到此会话启动记录的轮次，需要核对来源。");
+    if (open.unavailable.length) blockers.push("部分运行记录不可读取，请恢复存储访问后重新核对。");
+    if (open.items.some(item => item.origin.session === sessionId && !report.runs.some(run => run.ref.id === item.origin.run || run.ref.id === item.id))) blockers.push("还有未关联到中断轮次的等待或操作，暂不能安全继续。");
+    return { session_id: sessionId, blockers, runs: report.runs.map(run => {
+      const reasons: string[] = [];
+      if (run.live) reasons.push("此会话仍有活动执行，请通过执行控件停止。");
+      if (run.operations.some(operation => operation.outcome === "unknown")) reasons.push("有操作缺少可核实的结果；不会自动重复执行，也不能将它标记为成功。");
+      if (run.blockers.length && !reasons.length) reasons.push("执行或操作记录尚未核实，请稍后重新核对。");
+      return { run_id: run.ref.id, version: run.version, live: run.live, waiting: run.waiting,
+        operations: run.operations.map(operation => ({ ...operation })), blockers: reasons,
+        can_close: run.canClose && blockers.length === 0 };
+    }) };
+  };
   const port: PrologueRuntimePort = {
+    recovery: {
+      inspect: session => inspectRecovery(session.session_id),
+      close: async (session, runId, expectedVersion) => {
+        const index = await readIndex(session.session_id);
+        if (!index?.attempts.some(attempt => attempt.run_id === runId)) throw new Error("这轮执行不属于当前会话");
+        const before = await inspectRecovery(session.session_id);
+        if (before.blockers.length || before.runs.some(run => run.run_id === runId && !run.can_close)) throw new Error("仍有待核实的操作，不能关闭中断轮次");
+        await runtime.sessions.recoverRun(index.ref, { kind: "run", id: runId, revision: 1 }, expectedVersion);
+        return inspectRecovery(session.session_id);
+      },
+    },
     inlineMethods: true,
     compaction: true,
     ...(checkpoints ? { checkpoints } : {}),
@@ -388,6 +419,7 @@ export async function createPrologueNodeAdapter(
         await checkpoints?.restore(id);
         const terminal = await session.terminalRuns();
         const open = await runtime.listOpenWork();
+
         const reasons: string[] = [];
         if (open.unavailable.length) reasons.push("未能查清运行时的未结束工作，暂不能安全继续");
         if (open.items.some(item => item.origin.session === id)) reasons.push("此会话仍有中断的执行、等待或结果未知的操作，需要核对");
@@ -396,12 +428,14 @@ export async function createPrologueNodeAdapter(
         for (const attempt of index.attempts) {
           if (!attempt.run_id) { reasons.push("一次启动没有完整保存执行引用，不能判断是否发生过操作"); continue; }
           const ref = terminal.find(ref => ref.id === attempt.run_id);
-          if (!ref) reasons.push("中断轮次尚未提交事件账，不会自动重复执行");
+          const pendingQuestions = !ref ? (await runtime.effects.pendings.readByOrigin({ session: id, run: attempt.run_id })).filter(pending => pending.state !== "settled" && ["text", "questionnaire"].includes(pending.kind)) : [];
+          if (!ref) reasons.push("中断轮次仅有已保存的过程，结束状态与操作仍需核对，不会自动重复执行");
           runs.push({ ref: { run_id: attempt.run_id, session_id: id }, frozen: attempt.frozen,
             started_at: attempt.started_at, task: attempt.task,
             ...(attempt.stop_intent ? { stop_intent: attempt.stop_intent } : {}),
             ...(attempt.timing ? { timing: attempt.timing } : {}),
-            ...(ref ? { events: await session.replay(ref) } : {}) });
+            ...(!ref ? { original_questions: pendingQuestions.filter(pending => pending.origin?.run === attempt.run_id).map(pending => ({ pending_id: pending.ref.id, pending_revision: pending.ref.revision, kind: pending.kind, why: pending.why })) } : {}),
+            events: ref ? await session.replay(ref) : await session.readRunProgress({ kind: "run", id: attempt.run_id, revision: 1 }) });
         }
         sessions.set(id, index.ref);
         return { title: index.title, owner: index.owner, runs,

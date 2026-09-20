@@ -106,3 +106,23 @@ test('checkpoint capability enforces current project, authorized roots and decla
   await prepare(context,[session,'cp','writer']);assert.equal(prepared,1);
   allowed=[];await assert.rejects(prepare(context,[session,'cp','writer']),/授权工作区/);assert.deepEqual(await list(context,[session]),[]);assert.equal(prepared,1);
 });
+
+test("recovery capabilities bind project and exact session/run before allowing closure", async () => {
+  const agentHost = new AgentHost(), adapter = readOnlyAdapter("recovery");
+  let closes = 0;
+  const session = { runtime_id: "recovery", session_id: "session-1" }, run = { session_id: "session-1", run_id: "owned" };
+  const readSession = adapter.readSession.bind(adapter);
+  Object.assign(adapter, { readSession: async () => ({ ...await readSession(session), runs: [run] }),
+    recovery: { inspect: async () => ({ session_id: session.session_id, runs: [], blockers: [] }), close: async () => { closes++; return { session_id: session.session_id, runs: [], blockers: [] }; } } });
+  agentHost.register(adapter);
+  const handlers = new Map<string, Function>();
+  registerAgentHostCapabilities({ register: (definition, handler) => { handlers.set(definition.capability_id, handler); return () => {}; } },
+    { agentHost: () => agentHost, boardId: (ctx: { board_id: string }) => ctx.board_id, authority: () => ({ manifest: AGENT, authorizedDirectories: [] }) });
+  const inspect = handlers.get(agentHostCapabilities.inspectRecovery.capability_id)!, close = handlers.get(agentHostCapabilities.recoverRun.capability_id)!;
+  await assert.rejects(inspect({ board_id: "other" }, [session]));
+  await assert.rejects(close({ board_id: "other" }, [session, run, 1]));
+  await assert.rejects(close({ board_id: "board-a" }, [session, { ...run, session_id: "other" }, 1]));
+  await assert.rejects(close({ board_id: "board-a" }, [session, { ...run, run_id: "foreign" }, 1]));
+  assert.equal(closes, 0);
+  await close({ board_id: "board-a" }, [session, run, 1]); assert.equal(closes, 1);
+});

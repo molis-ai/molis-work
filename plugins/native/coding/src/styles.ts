@@ -26,8 +26,16 @@ export const CODING_STYLES = `
 .coding-dialogue-head small { display:block; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px; }
 .coding-workspace svg { width:12px; height:12px; margin-right:4px; }
 .coding-turns { flex:1; min-height:0; overflow:auto; overscroll-behavior:contain; overflow-anchor:none; padding:24px clamp(16px,4vw,48px); }
+.coding-report { max-width:76ch; margin:16px auto; overflow-wrap:anywhere; color:var(--ink); font-size:13px; line-height:1.7; }
+.coding-report h1,.coding-report h2,.coding-report h3 { font-weight:400; line-height:1.4; }
+.coding-report h1 { font-size:22px; }.coding-report h2 { font-size:18px; }
+.coding-report pre { position:relative; overflow:auto; padding:40px 12px 12px; background:var(--rail); border:1px solid var(--line); border-radius:var(--radius-control); }
+.coding-report .coding-code-copy { position:absolute; top:4px; right:4px; }
+.coding-report-source,[data-coding-report-status] { font-size:12px; color:var(--muted); }
+[data-coding-report-list] { display:grid; gap:8px; }
 .coding-turn { max-width:76ch; margin:0 auto 24px; font-size:14px; line-height:1.7; overflow-wrap:anywhere; }
 .coding-turn[data-kind=user] { background:var(--rail); border-radius:var(--radius-control); padding:10px 14px; }
+.coding-turn-receipt { display:block; margin-top:6px; color:var(--muted); font-size:12px; }
 .coding-turn pre { position:relative; max-width:100%; overflow:auto; background:var(--rail); padding:44px 14px 14px; border:1px solid var(--line); border-radius:var(--radius-control); }
 .coding-turn pre code { font-size:12px; }.coding-turn table { display:block; overflow:auto; border-collapse:collapse; }.coding-turn td,.coding-turn th { padding:5px 8px; border:1px solid var(--line); font-weight:400; }
 .coding-turn h1,.coding-turn h2,.coding-turn h3 { font-weight:400; line-height:1.4; }.coding-turn h1 {font-size:22px}.coding-turn h2 {font-size:19px}.coding-turn h3 {font-size:16px}

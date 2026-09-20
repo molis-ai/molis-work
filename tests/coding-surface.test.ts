@@ -102,3 +102,37 @@ test("没有会话时给出插件自己的空状态，而不是一段空白", as
     rmSync(directory, { recursive: true, force: true });
   }
 });
+
+test("recovery receipt lists cross the formal HTTP surface without being rendered as conversation turns", async () => {
+  const { createServer } = await import("node:http");
+  const { handleCodingPluginHttp } = await import("../apps/local-host/src/coding-surface.js");
+  const { agentHostCapabilities } = await import("@molis-ai/molis-work-contracts/services/agent-host");
+  const directory = mkdtempSync(join(tmpdir(), "coding-recovery-http-"));
+  const store = project(directory), sessions = new CodingSessionStore(store.db);
+  sessions.create({ board_id: DEMO_BOARD_ID, session_id: "app", title: "中断", runtime_id: "prologue", at: "2026-09-20T00:00:00Z" });
+  sessions.setRuntimeSession(DEMO_BOARD_ID, "app", "sdk", "2026-09-20T00:00:00Z");
+  const report = { session_id: "sdk", blockers: [], runs: [{ run_id: "run", version: 1, live: false, waiting: 0,
+    can_close: true, blockers: [], operations: [{ effect_id: "effect", kind: "edit", summary: "cart.mjs", outcome: "not-dispatched" }] }] };
+  const host = { ...ports(store), execution: { ready: async () => {}, models: async () => [] }, capabilities: {
+    async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
+      assert.equal(definition.capability_id, agentHostCapabilities.inspectRecovery.capability_id);
+      assert.deepEqual(args, [{ runtime_id: "prologue", session_id: "sdk" }]);
+      return structuredClone(report) as Output;
+    },
+  } };
+  const server = createServer((request, response) => {
+    void handleCodingPluginHttp(request, response, new URL(request.url!, "http://localhost"), host).catch(error => {
+      response.writeHead(500); response.end(String(error));
+    });
+  });
+  try {
+    await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address(); assert.ok(address && typeof address === "object");
+    const response = await fetch(`http://127.0.0.1:${address.port}/api/plugins/io.molis.work.coding/sessions/app/recovery`);
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), report);
+  } finally {
+    await new Promise<void>(resolve => server.close(() => resolve()));
+    await releaseCodingSurface(store, DEMO_BOARD_ID); store.close(); rmSync(directory, { recursive: true, force: true });
+  }
+});

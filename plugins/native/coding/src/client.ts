@@ -1,3 +1,4 @@
+import { codingUsageSummary } from "./usage.js";
 import { atBottom, STICK_THRESHOLD_PX } from "./reading.js";
 
 /** Host supplies navigation; this client only handles Coding's own surface. */
@@ -10,6 +11,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const prefix = root.dataset.codingPrefix + '/api/plugins/io.molis.work.coding';
   const STICK_THRESHOLD_PX = ${STICK_THRESHOLD_PX};
   const atBottom = ${atBottom.toString()};
+  const codingUsageSummary = ${codingUsageSummary.toString()};
   const position = () => ({ offset: turns.scrollTop, viewport: turns.clientHeight, content: turns.scrollHeight });
   const renderedText = new WeakMap();
   const directoryRows = new Map(), directoryGroups = new Map();
@@ -23,6 +25,8 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const terminal = (phase) => ['completed','failed','stopped','cancelled','reconcile-required'].includes(phase);
   const phases = { starting:'正在准备', running:'执行中', compacting:'正在整理上下文', pausing:'正在暂停', paused:'已暂停', 'awaiting-input':'等待回答', 'awaiting-review':'等待审查', completed:'本轮结束', failed:'执行失败', stopped:'已停止', cancelled:'已取消', 'reconcile-required':'需要核对结果' };
   let state = { sessions:[], models:[], runtimes:[] }, current = '', workspaceId = '', lastRun = null, generation = 0, sending = false, loading = false, pinned = true, recovery = false, checkpointBusy = false, checkpointLoading = false, checkpointKey = "", draftTimer, selectionTask, statusKey = '';
+  let recoveryLoading = false, recoveryBusy = false, recoveryKey = '';
+  let reportRun = '', reportTicket = 0, reportSaving = false, reportTrigger, dialogueOffset = 0;
   const status = (message, error = false) => { q('[data-coding-status]').textContent = message; q('[data-coding-status]').dataset.error = String(error); };
   const api = async (path, method = 'GET', body) => {
     const response = await fetch(prefix + path, { method, cache:'no-store',
@@ -307,8 +311,37 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
     }
   };
+  const closeReport = (restoreFocus = false) => {
+    const wasOpen=Boolean(reportRun);
+    reportTicket++;reportRun='';reportSaving=false;
+    q('[data-coding-report-reader]').hidden=true;turns.hidden=false;
+    if(wasOpen) turns.scrollTop=dialogueOffset;
+    if(restoreFocus && reportTrigger?.isConnected) reportTrigger.focus({preventScroll:true});
+  };
+  const showReport = async (runId, save = false) => {
+    const id=current,generationAtStart=generation,ticket=++reportTicket;
+    if(!reportRun) dialogueOffset=turns.scrollTop;
+    reportRun=runId;reportSaving=save;
+    turns.hidden=true;q('[data-coding-report-reader]').hidden=false;q('[data-coding-latest]').hidden=true;
+    q('[data-coding-report-save]').disabled=true;
+    q('[data-coding-report-status]').textContent=save?'正在保存固定报告…':'正在读取执行报告…';
+    if(!save) q('[data-coding-report-body]').replaceChildren();
+    try {
+      const result=await api('/sessions/'+encodeURIComponent(id)+'/runs/'+encodeURIComponent(runId)+'/report',save?'POST':'GET');
+      if(current!==id || generation!==generationAtStart || ticket!==reportTicket) return;
+      q('[data-coding-report-body]').innerHTML=result.html;enrichCode(q('[data-coding-report-body]'));
+      q('[data-coding-report-status]').textContent=result.reference?'已保存固定版本 v'+result.reference.version+' · '+result.saved_at:'尚未保存；保存后保留这轮证据，不代表任务验收。';
+      q('[data-coding-report-save]').disabled=Boolean(result.reference);
+      if(!save) {q('[data-coding-report-reader]').scrollTop=0;q('[data-coding-report-close]').focus({preventScroll:true});}
+    } catch(error) {
+      if(current===id && ticket===reportTicket) {
+        q('[data-coding-report-status]').textContent=error.message;
+        q('[data-coding-report-save]').disabled=!save;
+      }
+    } finally {if(ticket===reportTicket)reportSaving=false;}
+  };
   const renderRuns = (runs) => {
-    const follow = pinned && atBottom(position());
+    const follow = !reportRun && pinned && atBottom(position());
     q('[data-coding-welcome]')?.remove();
     for (const run of runs) {
       let block=[...turns.children].find(node=>node.dataset.run===run.ref.run_id);
@@ -332,7 +365,17 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
           const turn=entry.value;
           let node=[...block.children].find(node=>node.dataset.turn===turn.turn_id);
           if(!node) { node=document.createElement('article'); node.className='coding-turn'; node.dataset.turn=turn.turn_id; node.dataset.kind=turn.kind; }
-          if(renderedText.get(node)!==turn.text) { node.innerHTML=turn.html || ''; if(!turn.html) node.textContent=turn.text; renderedText.set(node,turn.text); enrichCode(node); }
+          const renderKey=turn.text+'|'+(turn.steer?.state || '');
+          if(renderedText.get(node)!==renderKey) {
+            node.innerHTML=turn.html || ''; if(!turn.html) node.textContent=turn.text;
+            if(turn.steer) {
+              const receipt=document.createElement('small'); receipt.className='coding-turn-receipt';
+              receipt.textContent=turn.steer.state==='applied'?'已加入后续模型上下文':turn.steer.state==='unconfirmed'?'已保存，未确认应用':'已收到，等待后续处理';
+              receipt.title='加入上下文不代表模型已遵循，也不会撤销先前操作；补充要求不代替问题回答。';
+              node.append(receipt);
+            }
+            renderedText.set(node,renderKey); enrichCode(node);
+          }
           ordered.push(node);
         } else if(entry.kind==='activity') {
           const activities=entry.values,key=activities[0].call_id;
@@ -359,19 +402,52 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
     }
     renderCommands(runs);
+    const reportRuns=runs.filter(run=>['completed','failed','stopped','cancelled'].includes(run.phase));
+    q('[data-coding-reports]').hidden=!reportRuns.length;
+    const reportList=q('[data-coding-report-list]');
+    for(const run of reportRuns) {
+      let button=[...reportList.children].find(node=>node.dataset.codingReportOpen===run.ref.run_id);
+      if(!button) {button=document.createElement('button');button.type='button';button.className='mw-btn';button.dataset.codingReportOpen=run.ref.run_id;reportList.append(button);}
+      button.textContent='第 '+(runs.indexOf(run)+1)+' 轮 · '+(phases[run.phase] || run.phase)+' · 查看报告';
+    }
     lastRun=runs.at(-1)||null;
     const result=q('[data-coding-result]');
     if(!lastRun) { result.textContent="本轮的成果、检查与执行记录会显示在这里。"; delete result.dataset.content; if(statusKey!=='idle'){statusKey='idle';status("输入任务后开始；本轮方式与模型在发送时固定。");} }
     if(lastRun) {
-      const values=[['这一轮',phases[lastRun.phase]||lastRun.phase],['模型',lastRun.frozen.model_id],['工作范围',lastRun.frozen.directory.canonical_path],['身份',lastRun.frozen.role_id+' · v'+lastRun.frozen.role_version],['本轮方法',lastRun.frozen.skills.length ? lastRun.frozen.skills.map(method=>method.name+' · v'+method.version).join('、') : '未使用方法'],['本轮 MCP',lastRun.frozen.mcp_tools?.length ? lastRun.frozen.mcp_tools.map(tool=>(tool.server_label || tool.server)+' / '+tool.tool+' · 配置 '+(tool.configuration_version ?? '未记录')+' · '+tool.version).join('、') : '未使用 MCP'],['本轮 MCP 资料',(lastRun.frozen.mcp_sources || []).length ? lastRun.frozen.mcp_sources.map(source=>(source.server_label || source.server)+' · 配置 '+source.configuration_version).join('、') : '未单独选择资料来源'],['用量',lastRun.usage.unavailable_reason || ('输入 '+lastRun.usage.tokens.input+' · 输出 '+lastRun.usage.tokens.output)]];
+      const values=[['最新执行（第 '+runs.length+' 轮）',phases[lastRun.phase]||lastRun.phase],['模型',lastRun.frozen.model_id],['工作范围',lastRun.frozen.directory.canonical_path],['身份',lastRun.frozen.role_id+' · v'+lastRun.frozen.role_version],['本轮方法',lastRun.frozen.skills.length ? lastRun.frozen.skills.map(method=>method.name+' · v'+method.version).join('、') : '未使用方法'],['本轮 MCP',lastRun.frozen.mcp_tools?.length ? lastRun.frozen.mcp_tools.map(tool=>(tool.server_label || tool.server)+' / '+tool.tool+' · 配置 '+(tool.configuration_version ?? '未记录')+' · '+tool.version).join('、') : '未使用 MCP'],['本轮 MCP 资料',(lastRun.frozen.mcp_sources || []).length ? lastRun.frozen.mcp_sources.map(source=>(source.server_label || source.server)+' · 配置 '+source.configuration_version).join('、') : '未单独选择资料来源'],['用量',codingUsageSummary(lastRun.usage)]];
       if(lastRun.frozen.compaction) values.push(['上下文整理','自动 · 估计超过 '+lastRun.frozen.compaction.above_tokens+' tokens 时选择较早原文 · v'+lastRun.frozen.compaction.version]);
-      if(lastRun.activity.some(item=>item.name==='上下文整理')) values.push(['用量范围','以上仅主执行；上下文整理的额外模型请求尚未计入此小计。']);
+      if(!lastRun.usage.compaction && lastRun.activity.some(item=>item.name==='上下文整理')) values.push(['用量范围','以上仅主执行；上下文整理的额外模型请求尚未计入此小计。']);
       const key=JSON.stringify(values); if(result.dataset.content!==key) { const dl=document.createElement('dl'); values.forEach(([label,value])=>{const dt=document.createElement('dt');dt.textContent=label;const dd=document.createElement('dd');dd.textContent=value;dl.append(dt,dd);}); result.replaceChildren(dl);result.dataset.content=key; }
       const nextStatus=lastRun.ref.run_id+':'+lastRun.phase+':'+lastRun.stop_reason;
       if(statusKey!==nextStatus){statusKey=nextStatus;status(lastRun.stop_reason || phases[lastRun.phase] || lastRun.phase,lastRun.phase==='failed');}
     }
     if(follow) turns.scrollTop=turns.scrollHeight;
-    q('[data-coding-latest]').hidden=follow || atBottom(position()); controls();
+    q('[data-coding-latest]').hidden=Boolean(reportRun) || follow || atBottom(position()); controls();
+  };
+  const readRecovery = async () => {
+    if (!current || recoveryLoading || recoveryBusy) return;
+    const id=current, ticket=generation; recoveryLoading=true;
+    const area=q('[data-coding-recovery]');area.hidden=false;
+    q('[data-coding-recovery-status]').textContent='正在读取执行记录与宿主回执…';
+    q('[data-coding-recovery-refresh]').disabled=true;
+    try {
+      const report=await api('/sessions/'+encodeURIComponent(id)+'/recovery');
+      if(current!==id || ticket!==generation) return;
+      const list=q('[data-coding-recovery-list]');list.replaceChildren();
+      const labels={completed:'已执行',failed:'执行失败（可能部分生效）','not-dispatched':'未执行',unknown:'结果未知'};
+      report.runs.forEach((run,index)=>{
+        const section=document.createElement('section');
+        const heading=document.createElement('h4');heading.textContent='中断轮次 '+(index+1);section.append(heading);
+        run.operations.forEach(operation=>{const row=document.createElement('p');row.textContent=labels[operation.outcome]+'：'+operation.summary;section.append(row);});
+        if(!run.operations.length){const row=document.createElement('p');row.textContent='未发现持久记录的副作用操作；这不代表原任务已完成。';section.append(row);}
+        if(run.waiting){const row=document.createElement('p');row.textContent='结束时将关闭 '+run.waiting+' 项遗留等待，旧问题与审批不能继续回答。';section.append(row);}
+        run.blockers.forEach(message=>{const row=document.createElement('p');row.textContent=message;section.append(row);});
+        const button=document.createElement('button');button.type='button';button.className='mw-btn';button.textContent='结束中断轮次';
+        button.dataset.codingRecover=run.run_id;button.dataset.version=String(run.version);button.disabled=!run.can_close;section.append(button);list.append(section);
+      });
+      q('[data-coding-recovery-status]').textContent=report.blockers.length?report.blockers.join('；'):report.runs.length?'核对完成。操作结果明确的轮次可以结束；之后由你发送下一轮要求。':'没有可关闭的中断轮次。如仍显示待核对，请检查下方审查或运行记录。';
+    } catch(error) {if(current===id && ticket===generation){recoveryKey='';q('[data-coding-recovery-list]').replaceChildren();q('[data-coding-recovery-status]').textContent='核对失败：'+error.message;}}
+    finally {if(ticket===generation){recoveryLoading=false;q('[data-coding-recovery-refresh]').disabled=false;}}
   };
   const readCheckpoints = async () => {
     if(!current || checkpointLoading) return;
@@ -398,6 +474,8 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       const data=await api('/sessions/'+encodeURIComponent(id));
       if(current!==id || ticket!==generation) return;
       recovery=Boolean(data.recovery_required);checkpointBusy=Boolean(data.checkpoint_busy);
+      q('[data-coding-recovery]').hidden=!recovery;
+      if(recovery && recoveryKey!==id){recoveryKey=id;void readRecovery();}
       if(!q('[data-coding-title] input')) q('[data-coding-title]').textContent=data.session.title;
       state.sessions=state.sessions.map(record=>record.session_id===id ? data.session : record);
       if(!configurations.has(id)) configurations.set(id,data.configuration);
@@ -430,8 +508,10 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const select = async(id) => {
     if(id===current) return selectionTask;
+    closeReport();q('[data-coding-report-list]').replaceChildren();q('[data-coding-reports]').hidden=true;
     if(current) { offsets.set(current,turns.scrollTop); void flushDraft().catch(error=>status(error.message,true)); }
     void host.showReviews?.(q('[data-coding-host-reviews]'), []);
+    recoveryLoading=false;recoveryBusy=false;recoveryKey='';q('[data-coding-recovery-list]').replaceChildren();q('[data-coding-recovery]').hidden=true;
     current=id; generation++; loading=false; lastRun=null; recovery=false;checkpointBusy=false;checkpointLoading=false;checkpointKey='';statusKey='';
     q('[data-coding-checkpoints-list]').replaceChildren();q('[data-coding-checkpoints-status]').textContent='正在读取检查点…';
     q('[data-coding-commands]').replaceChildren();q('[data-coding-commands]').hidden=true;
@@ -442,6 +522,20 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const click = async(event) => {
     const target=event.target.closest('button,a'); if(!target) return;
     try {
+      if(target.matches('[data-coding-report-open]')) {reportTrigger=target;await showReport(target.dataset.codingReportOpen);}
+      if(target.matches('[data-coding-report-close]')) closeReport(true);
+      if(target.matches('[data-coding-report-save]') && reportRun && !reportSaving) await showReport(reportRun,true);
+      if(target.matches('[data-coding-recovery-refresh]')) await readRecovery();
+      if(target.matches('[data-coding-recover]')) {
+        if(recoveryBusy || target.disabled) return;
+        const id=current,ticket=generation;recoveryBusy=true;
+        q('[data-coding-recovery]').querySelectorAll('button').forEach(button=>button.disabled=true);
+        try {
+          await api('/sessions/'+encodeURIComponent(id)+'/runs/'+encodeURIComponent(target.dataset.codingRecover)+'/recover','POST',{expected_version:Number(target.dataset.version)});
+          if(current===id && generation===ticket){status('中断轮次已结束，原任务和核实结果已保留。请输入下一轮要求继续。');await readCurrent();}
+        } catch(error) {if(current===id && generation===ticket) status('未能结束中断轮次：'+error.message,true);}
+        finally {if(current===id && generation===ticket){recoveryBusy=false;if(recovery)await readRecovery();controls();}}
+      }
       if(target.matches('[data-coding-checkpoints-refresh]')) await readCheckpoints();
       if(target.matches('[data-coding-rewind]')) {
         const id=current,ticket=generation;checkpointBusy=true;controls();
@@ -475,7 +569,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   root.addEventListener('click',click);directory.addEventListener('click',click);
   directory.querySelector('[data-coding-search]').addEventListener('input',renderDirectory);
-  turns.addEventListener('scroll',()=>{pinned=atBottom(position());q('[data-coding-latest]').hidden=pinned;},{passive:true});
+  turns.addEventListener('scroll',()=>{if(reportRun)return;pinned=atBottom(position());q('[data-coding-latest]').hidden=pinned;},{passive:true});
   input.addEventListener('input',()=>{rememberDraft(current,input.value);q('[data-coding-draft-status]').textContent='正在保存草稿…';clearTimeout(draftTimer);const id=current,value=input.value;draftTimer=setTimeout(()=>{void saveDraft(id,value).catch(error=>status('草稿暂未写入服务，当前窗口仍保留：'+error.message,true));},400);});
   for(const field of [q('[data-coding-intent]'),q('[data-coding-model]')])field.addEventListener('change',()=>{
     rememberConfiguration();controls();void flushDraft().catch(error=>status('配置暂未保存：'+error.message,true));

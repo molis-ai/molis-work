@@ -36,12 +36,13 @@ export const codingManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: CODING_PLUGIN_ID,
-  version: "1.9.3",
+  version: "1.9.10",
   name: "Coding",
   kind: "app",
   publisher: { publisher_id: "molis", signature: "official-coding-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
+    { permission: "artifact:read", required: true, reason: "重新打开本项目已保存的执行报告" },
     { permission: "storage:private", required: true, reason: "保存编码会话的未发送草稿" },
     {
       permission: "artifact:write",
@@ -63,7 +64,7 @@ export const codingManifest: PluginManifest = {
       { artifact_type_id: CODING_REPORT_TYPE, schema_version: 1 },
       { artifact_type_id: CODING_DIAGRAM_TYPE, schema_version: 1 },
     ],
-    consumes: [],
+    consumes: [{ artifact_type_id: CODING_REPORT_TYPE, schema_version: 1 }],
   },
   ports: {
     inputs: [],
@@ -85,6 +86,10 @@ export const codingManifest: PluginManifest = {
   },
   agent: codingAgentManifest,
   routes: [
+    { route_id: "coding.read-report", method: "GET", path: "/sessions/:sessionId/runs/:runId/report" },
+    { route_id: "coding.save-report", method: "POST", path: "/sessions/:sessionId/runs/:runId/report" },
+    { route_id: "coding.recovery", method: "GET", path: "/sessions/:sessionId/recovery" },
+    { route_id: "coding.recover-run", method: "POST", path: "/sessions/:sessionId/runs/:runId/recover" },
     { route_id: "coding.checkpoints", method: "GET", path: "/sessions/:sessionId/checkpoints" },
     { route_id: "coding.prepare-rewind", method: "POST", path: "/sessions/:sessionId/checkpoints/:checkpointId/rewind" },
     { route_id: "coding.save-mcp", method: "POST", path: "/mcp" },

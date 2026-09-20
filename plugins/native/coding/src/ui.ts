@@ -1,3 +1,4 @@
+import { codingUsageSummary } from "./usage.js";
 import type {
   UiContribution,
   UiContributionDescriptor,
@@ -169,6 +170,10 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
           <button class="mw-btn" type="button" data-coding-rename hidden>重命名</button><button class="mw-btn" type="button" data-coding-stop hidden>停止</button>
         </header>
         <div class="coding-turns" data-coding-turns tabindex="0" aria-label="编码对话"><div class="mw-empty" data-coding-welcome><p>从一个具体问题开始</p><p>选择已授权工作区和模型后，讨论代码或开始任务。</p><button class="mw-btn" type="button" data-coding-new>新建编码会话</button></div></div>
+        <section class="coding-turns" data-coding-report-reader aria-label="执行报告" tabindex="0" hidden>
+          <header><button class="mw-btn" type="button" data-coding-report-close>返回对话</button><button class="mw-btn" type="button" data-coding-report-save>保存固定报告</button></header>
+          <p data-coding-report-status role="status"></p><div data-coding-report-body></div>
+        </section>
         <button class="mw-btn coding-jump" type="button" data-coding-latest hidden>回到最新</button>
         <p class="coding-status" data-coding-status role="status" aria-live="polite"></p>
         <form class="coding-composer" data-coding-composer>
@@ -181,11 +186,19 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
       </div>
       <aside class="coding-tools" data-coding-tools>
         <nav class="coding-tool-tabs" aria-label="${p.escape("结果与工具")}">${tools || '<span>结果</span>'}</nav>
+        <section class="coding-result" data-coding-recovery hidden aria-label="中断恢复">
+          <h3>核对中断结果</h3>
+          <p>先核对已发生的操作，再结束中断轮次。不会自动重跑任务或撤销操作；未保存的过程和用量无法补回。</p>
+          <button class="mw-btn" type="button" data-coding-recovery-refresh>重新核对</button>
+          <p data-coding-recovery-status role="status"></p><div data-coding-recovery-list></div>
+        </section>
         <section class="coding-result" data-coding-checkpoints aria-label="文件检查点">
           <details><summary>文件检查点</summary><p>回到所列文件的一次修改前；不会撤销命令和外部操作，也不会删除对话。</p>
           <button class="mw-btn" type="button" data-coding-checkpoints-refresh>刷新检查点</button>
           <p data-coding-checkpoints-status role="status">选择会话后查看。</p><div data-coding-checkpoints-list></div></details>
-        </section><div data-coding-host-reviews hidden></div><div class="coding-result" data-coding-result><p>任务成果与执行记录会留在这里，方便审查和继续。</p></div><section class="coding-result" data-coding-commands aria-label="命令与检查回执" hidden></section>${panels}
+        </section><div data-coding-host-reviews hidden></div><div class="coding-result" data-coding-result><p>任务成果与执行记录会留在这里，方便审查和继续。</p></div>
+        <section class="coding-result" data-coding-reports hidden aria-label="执行报告"><h3>执行报告</h3><p>选择已结束的一轮，查看证据并保存固定版本。</p><div data-coding-report-list></div></section>
+        <section class="coding-result" data-coding-commands aria-label="命令与检查回执" hidden></section>${panels}
       </aside>
     </div>
   </section>`;
@@ -525,21 +538,12 @@ export interface CodingUsageModel {
  */
 export function renderCodingUsage(model: CodingUsageModel): string {
   const { primitives: p, usage } = model;
-  if (usage.unavailable_reason !== undefined) {
-    return `<div class="coding-usage" data-coding-usage="unknown">
-      <span class="mw-status" data-tone="idle">${p.icon("help-circle")}${p.escape("用量未知")}</span>
-      <span class="coding-usage-why">${p.escape(usage.unavailable_reason)}</span>
-    </div>`;
-  }
-  const rows = [
-    ["输入", usage.tokens.input],
-    ["输出", usage.tokens.output],
-  ] as const;
-  const cost = usage.cost_usd === undefined
-    ? ""
-    : `<span class="coding-usage-cost">${p.escape(`$${usage.cost_usd.toFixed(4)}`)}</span>`;
-  return `<div class="coding-usage" data-coding-usage="known">
-    ${rows.map(([label, value]) => `<span class="coding-usage-row"><span>${p.escape(label)}</span><span>${p.escape(String(value))}</span></span>`).join("")}
-    ${cost}
+  const hasKnown = usage.coverage
+    ? Object.values(usage.coverage).some(value => value !== "unknown")
+    : usage.unavailable_reason === undefined;
+  const state = !hasKnown ? "unknown" : usage.unavailable_reason ? "partial" : "known";
+  return `<div class="coding-usage" data-coding-usage="${state}">
+    ${hasKnown ? "" : `<span class="mw-status" data-tone="idle">${p.icon("help-circle")}${p.escape("用量未知")}</span>`}
+    <span class="coding-usage-why">${p.escape(codingUsageSummary(usage))}</span>
   </div>`;
 }

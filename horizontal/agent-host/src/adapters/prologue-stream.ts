@@ -1,6 +1,7 @@
 import type {
   AgentRunPhase,
   AgentRunUsage,
+  AgentUsageCoverage,
   AgentToolActivity,
   AgentTurnView,
 } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -39,7 +40,8 @@ export interface PrologueUsageReceipt {
 
 /** The event shapes this projection reads. Anything else is left alone. */
 export type PrologueEvent =
-  | { type: "prompt"; role: "system" | "user"; text: string }
+  | { type: "prompt"; role: "system" | "user"; text: string; steerId?: string }
+  | { type: "steer-applied"; steerId: string }
   | { type: "text-delta"; text: string }
   | { type: "tool-call"; call: { id: string; name: string; input?: Record<string, unknown> } }
   | { type: "tool-result"; callId: string; name: string; text: string; outcome?: "returned" | "failed"; errorCode?: string }
@@ -47,12 +49,15 @@ export type PrologueEvent =
   | { type: "awaiting-input"; pendingRef: { id: string; revision?: number }; kind: string; why: string }
   | { type: "usage"; receipt: PrologueUsageReceipt }
   | { type: "usage-recorded"; callId: string; receipt: PrologueUsageReceipt }
+  | { type: "compaction-usage-recorded"; callId: string; receipt: PrologueUsageReceipt }
+  | { type: "compaction-skipped"; usageRecorded?: boolean }
   | { type: "model-response-repair"; reason: "tool-not-declared" }
   | { type: "compaction-started" }
-  | { type: "compacted"; replaced?: number }
+  | { type: "compacted"; replaced?: number; usageRecorded?: boolean }
   | { type: "compaction-failed"; why?: string }
   | { type: "compaction-cancelled" }
   | { type: "tripped"; stage: "input" | "output"; rail: string; why: string; failed?: boolean }
+  | { type: "run-recovered"; atMs: number; transcript: "opening-only" | "durable-prefix"; questions?: ReadonlyArray<{ ref: { id: string; revision: number }; kind: string; prompt: string }>; operations: Array<{ summary: string; outcome: "completed" | "failed" | "not-dispatched" | "unknown" }> }
   | { type: "completed" }
   | { type: "failed"; why?: string; error?: { code: string; safeMessage: string } }
   | { type: "cancelled" }
@@ -75,6 +80,8 @@ export interface PrologueStreamState {
   phase: AgentRunPhase;
   /** Final receipts keyed by network call, never counted again on replay. */
   usage_receipts: Map<string, PrologueUsageReceipt>;
+  compaction_receipts: Map<string, PrologueUsageReceipt>;
+  compaction_unaccounted: number;
   usage_preview: PrologueUsageReceipt | undefined;
   stop_reason?: string;
   /** Approvals the Run is stopped on. The bridge mirrors these to the Host queue. */
@@ -98,6 +105,8 @@ export function emptyPrologueStreamState(): PrologueStreamState {
     usage: { tokens: { input: 0, output: 0 }, unavailable_reason: "运行时尚未报告用量" },
     phase: "starting",
     usage_receipts: new Map(),
+    compaction_receipts: new Map(),
+    compaction_unaccounted: 0,
     usage_preview: undefined,
     awaiting_approval: [],
     awaiting_input: [],
@@ -127,18 +136,35 @@ function target(input: Record<string, unknown> | undefined): string {
 }
 
 function updateUsage(state: PrologueStreamState): void {
-  const receipts = [...state.usage_receipts.values(), ...(state.usage_preview ? [state.usage_preview] : [])];
-  const unknown = receipts.some((r) => [r.input, r.output].some((c) => c.source === "unknown" || c.tokens === undefined));
-  const estimated = receipts.some((r) => [r.input, r.output].some((c) => c.source === "estimated"));
-  const sum = (field: "input" | "output" | "cacheRead") => receipts.reduce((total, r) => total + (r[field].tokens ?? 0), 0);
-  const cacheKnown = receipts.every((r) => r.cacheRead.source !== "unknown" && r.cacheRead.tokens !== undefined);
-  const costKnown = receipts.every((r) => r.cost.source !== "unknown" && r.cost.amount !== undefined && r.cost.currency === "USD");
+  const compaction = state.compaction_receipts.size || state.compaction_unaccounted
+    ? { recorded_calls: state.compaction_receipts.size, incomplete: state.compaction_unaccounted > 0 } : undefined;
+  const receipts = [...state.compaction_receipts.values(), ...state.usage_receipts.values(), ...(state.usage_preview ? [state.usage_preview] : [])];
+  if (!receipts.length) {
+    if (compaction) state.usage = { ...state.usage, compaction };
+    return;
+  }
+  const aggregate = (values: Array<{ source: string; value: number | undefined }>) => {
+    const known = values.filter(item => item.source !== "unknown" && item.value !== undefined && Number.isFinite(item.value) && item.value >= 0);
+    const estimated = known.some(item => item.source !== "reported");
+    const partial = known.length !== values.length;
+    const coverage: AgentUsageCoverage = !known.length ? "unknown" : partial
+      ? estimated ? "partial-estimated" : "partial" : estimated ? "estimated" : "reported";
+    return { value: known.length ? known.reduce((sum, item) => sum + item.value!, 0) : undefined, coverage };
+  };
+  const token = (field: "input" | "output" | "cacheRead" | "cacheWrite") => aggregate(receipts.map(r => ({ source: r[field].source, value: r[field].tokens })));
+  const input = token("input"), output = token("output"), read = token("cacheRead"), write = token("cacheWrite");
+  const cost = aggregate(receipts.map(r => ({ source: r.cost.currency === "USD" ? r.cost.source : "unknown", value: r.cost.amount })));
+  const unknown = [input, output].some(item => ["unknown", "partial", "partial-estimated"].includes(item.coverage));
+  const estimated = [input, output].some(item => item.coverage.includes("estimated"));
   state.usage = {
+    ...(compaction ? { compaction } : {}),
     tokens: {
-      input: sum("input"), output: sum("output"),
-      ...(cacheKnown ? { cached_input: sum("cacheRead") } : {}),
+      input: input.value ?? 0, output: output.value ?? 0,
+      ...(read.value === undefined ? {} : { cached_input: read.value }),
+      ...(write.value === undefined ? {} : { cache_creation: write.value }),
     },
-    ...(costKnown ? { cost_usd: receipts.reduce((total, r) => total + r.cost.amount!, 0) } : {}),
+    ...(cost.value === undefined ? {} : { cost_usd: cost.value }),
+    coverage: { input: input.coverage, output: output.coverage, cached_input: read.coverage, cache_creation: write.coverage, cost_usd: cost.coverage },
     ...(unknown ? { unavailable_reason: "部分调用用量未知，已知小计不代表完整用量" }
       : estimated ? { unavailable_reason: "用量含保守估算，不全是服务方报的数" } : {}),
   };
@@ -170,6 +196,24 @@ function closeStreaming(state: PrologueStreamState): void {
   delete state.streaming_sequence;
 }
 
+/** A restored prefix is readable history, not a live stream or a tool receipt. */
+export function closeInterruptedPrologueStream(state: PrologueStreamState): void {
+  closeStreaming(state);
+  closeUnappliedSteers(state);
+  for (const activity of state.activity) {
+    if (activity.state === "started") {
+      activity.state = "unknown";
+      activity.summary = "运行已中断，未保存此活动的结束结果；请结合核对事实判断。";
+    }
+  }
+  state.usage.unavailable_reason = "中断前用量未完整保存，已报告部分仍保留";
+}
+
+function closeUnappliedSteers(state: PrologueStreamState): void {
+  state.turns = state.turns.map(turn => turn.steer?.state === "received"
+    ? { ...turn, steer: { ...turn.steer, state: "unconfirmed" } } : turn);
+}
+
 /** Apply one event. Returns true when the projection changed. */
 export function applyPrologueEvent(
   state: PrologueStreamState,
@@ -187,7 +231,18 @@ export function applyPrologueEvent(
         text: prompt.text,
         at,
         sequence: state.next_sequence++,
+        ...(prompt.role === "user" && prompt.steerId !== undefined
+          ? { steer: { id: prompt.steerId, state: "received" as const } } : {}),
       });
+      return true;
+    }
+
+    case "steer-applied": {
+      const applied = event as Extract<PrologueEvent, { type: "steer-applied" }>;
+      const index = state.turns.findIndex(turn => turn.steer?.id === applied.steerId);
+      const turn = state.turns[index];
+      if (!turn?.steer) return false;
+      state.turns[index] = { ...turn, steer: { ...turn.steer, state: "applied" } };
       return true;
     }
 
@@ -280,6 +335,14 @@ export function applyPrologueEvent(
       return true;
     }
 
+    case "compaction-usage-recorded": {
+      const usage = event as Extract<PrologueEvent, { type: "compaction-usage-recorded" }>;
+      if (state.compaction_receipts.has(usage.callId)) return false;
+      state.compaction_receipts.set(usage.callId, usage.receipt);
+      updateUsage(state);
+      return true;
+    }
+
     case "model-response-repair": {
       if (event.reason !== "tool-not-declared") return false;
       closeStreaming(state);
@@ -292,6 +355,8 @@ export function applyPrologueEvent(
     }
 
     case "compaction-started": {
+      state.compaction_unaccounted++;
+      updateUsage(state);
       closeStreaming(state);
       const sequence = state.next_sequence++;
       state.activity.push({ call_id: `context-compaction-${sequence}`, name: "上下文整理", target: "保留历史原文",
@@ -301,23 +366,28 @@ export function applyPrologueEvent(
     }
 
     case "compacted":
+    case "compaction-skipped":
     case "compaction-failed":
     case "compaction-cancelled": {
       const activity = [...state.activity].reverse().find(item => item.name === "上下文整理" && item.state === "started");
       const succeeded = event.type === "compacted";
+      const skipped = event.type === "compaction-skipped";
+      if (activity && (succeeded || skipped) && event.usageRecorded === true) state.compaction_unaccounted = Math.max(0, state.compaction_unaccounted - 1);
+      updateUsage(state);
       const replaced = (event as { replaced?: number }).replaced;
       const message = succeeded
         ? `已整理较早上下文${Number.isSafeInteger(replaced) ? `（替换 ${replaced} 条模型可见记录）` : ""}；当前要求与保留原文继续生效，原始会话未删除。`
-        : event.type === "compaction-cancelled" ? "上下文整理已取消，原上下文未被替换。" : "上下文压缩失败，原上下文未被替换。";
-      if (activity) Object.assign(activity, { state: succeeded ? "completed" : "failed", summary: message, output: message, at });
+        : skipped ? "整理结果未缩短上下文，原上下文继续保留。" : event.type === "compaction-cancelled" ? "上下文整理已取消，原上下文未被替换。" : "上下文压缩失败，原上下文未被替换。";
+      if (activity) Object.assign(activity, { state: succeeded || skipped ? "completed" : "failed", summary: message, output: message, at });
       state.phase = "running";
-      if (!succeeded) state.stop_reason = message;
+      if (!succeeded && !skipped) state.stop_reason = message;
       return true;
     }
 
     case "tripped": {
       const tripped = event as Extract<PrologueEvent, { type: "tripped" }>;
       closeStreaming(state);
+      closeUnappliedSteers(state);
       // A guardrail stop is terminal but is not a failure of the work.
       state.phase = "stopped";
       state.stop_reason = tripped.failed === true
@@ -326,8 +396,26 @@ export function applyPrologueEvent(
       return true;
     }
 
+    case "run-recovered": {
+      const recovered = event as Extract<PrologueEvent, { type: "run-recovered" }>;
+      closeInterruptedPrologueStream(state);
+      const labels = { completed: "已执行", failed: "执行失败（可能部分生效）", "not-dispatched": "未执行", unknown: "结果未知" };
+      state.turns.push({ turn_id: `recovery-${state.turns.length + 1}`, kind: "notice", at,
+        sequence: state.next_sequence++, text: [recovered.transcript === "durable-prefix"
+          ? "中断轮次已结束，已保存的正文、工具过程和核实结果已保留，没有重复执行操作。未记录的末尾过程和完整用量仍未知；继续时需重新核对当前文件。"
+          : "中断轮次已结束，原任务与核实结果已保留，没有重复执行操作。流式过程与用量不完整；继续时需重新核对当前文件。",
+          ...recovered.operations.map(operation => `${labels[operation.outcome]}：${operation.summary}`)].join("\n") });
+      for (const question of recovered.questions ?? []) {
+        if (!state.awaiting_input.some(held => held.pending_id === question.ref.id && held.pending_revision === question.ref.revision)) {
+          state.awaiting_input.push({ pending_id: question.ref.id, pending_revision: question.ref.revision,
+            kind: question.kind, why: question.prompt, sequence: state.next_sequence++ });
+        }
+      }
+      return true;
+    }
     case "completed": {
       closeStreaming(state);
+      closeUnappliedSteers(state);
       state.phase = "completed";
       return true;
     }
@@ -335,8 +423,9 @@ export function applyPrologueEvent(
     case "failed": {
       const failed = event as Extract<PrologueEvent, { type: "failed"; why?: string }>;
       closeStreaming(state);
+      closeUnappliedSteers(state);
       state.phase = "failed";
-      state.stop_reason = failed.error === undefined
+      state.stop_reason = failed.error?.code === "RUN_INTERRUPTED" ? "本轮因中断结束。已核实的操作已保留，可输入新要求继续。" : failed.error === undefined
         ? failed.why ?? "运行时报告失败"
         : `${failed.error.code}: ${failed.error.safeMessage}`;
       return true;
@@ -344,6 +433,7 @@ export function applyPrologueEvent(
 
     case "cancelled": {
       closeStreaming(state);
+      closeUnappliedSteers(state);
       state.phase = "cancelled";
       state.stop_reason = "已取消";
       return true;

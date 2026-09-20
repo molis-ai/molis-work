@@ -55,3 +55,19 @@ test("报了用量就如实显示，有费用才显示费用", () => {
   const noCost = renderCodingUsage({ usage: { tokens: { input: 5, output: 1 } }, primitives: p });
   assert.doesNotMatch(noCost, /\$/, "不知道费用就不显示费用");
 });
+
+test("中断后已知字段仍可读，缺失字段不把占位零当消耗", () => {
+  const html = renderCodingUsage({ primitives: p, usage: {
+    tokens: { input: 1234, output: 0, cached_input: 0, cache_creation: 42 }, cost_usd: 0.019,
+    coverage: { input: "partial", output: "unknown", cached_input: "reported", cache_creation: "estimated", cost_usd: "partial" },
+    unavailable_reason: "中断，后续用量未保存",
+  } });
+  assert.match(html, /输入 1234（已知小计）/);
+  assert.match(html, /输出未知/);
+  assert.doesNotMatch(html, /输出 0/);
+  assert.match(html, /缓存读取 0（已记录）/);
+  assert.match(html, /缓存写入 42（估算）/);
+  assert.match(html, /费用 \$0\.0190（已知小计）/);
+  assert.match(html, /中断，后续用量未保存/);
+  assert.match(html, /data-coding-usage="partial"/);
+});

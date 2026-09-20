@@ -27,6 +27,7 @@ import { emptyCapabilityMatrix } from "../capabilities.js";
 import type { PrologueApprovalBridge } from "./prologue-approvals.js";
 import {
   applyPrologueEvent,
+  closeInterruptedPrologueStream,
   emptyPrologueStreamState,
   prologuePhaseOf,
   settleProloguePending,
@@ -95,7 +96,7 @@ export interface PrologueControlPort {
   stop(reason: "stopped" | "cancelled"): void | Promise<void>;
   pause(): void;
   resume(): void;
-  steer(input: { text: string }): void;
+  steer(input: { text: string }): void | Promise<void>;
   subscribe(listener: () => void): () => void;
 }
 
@@ -132,6 +133,7 @@ export interface PrologueRunTiming {
 }
 
 export interface PrologueRuntimePort {
+  recovery?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecoveryCapability;
   checkpoints?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentCheckpointsCapability;
   skillLibrary?: AgentSkillLibrary;
   mcpLibrary?: AgentMcpLibrary;
@@ -165,7 +167,8 @@ export interface PrologueRestoredSession {
     task: string;
     stop_intent?: "stopped" | "cancelled";
     timing?: PrologueRunTiming;
-    /** Undefined means the ledger is not committed, not an empty successful run. */
+    original_questions?: Array<{ pending_id: string; pending_revision: number; kind: string; why: string }>;
+    /** May be a durable incomplete prefix. Only an actual terminal event proves an ended Run. */
     events?: readonly PrologueEvent[];
   }>;
 }
@@ -232,6 +235,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   readonly descriptor: AgentRuntimeDescriptor;
   readonly skillLibrary?: AgentSkillLibrary;
   readonly mcpLibrary?: AgentMcpLibrary;
+  readonly recovery?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecoveryCapability;
   readonly #runtime: PrologueRuntimePort;
   readonly #ports: PrologueAdapterPorts;
   readonly #now: () => Date;
@@ -246,6 +250,24 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
 
   constructor(options: PrologueAdapterOptions) {
     this.#runtime = options.runtime;
+    if (options.runtime.recovery) this.recovery = {
+      inspect: async session => { await this.#loadSession(session.session_id); return options.runtime.recovery!.inspect(session); },
+      close: async (session, runId, expectedVersion) => {
+        const held = await this.#loadSession(session.session_id);
+        if (!held.runs.some(run => run.run_id === runId)) throw new PrologueAdapterError("agent.run_unknown", "这轮执行不属于当前会话");
+        const latest = held.runs.at(-1);
+        const phase = latest && this.#requireRun(latest.run_id).view.phase;
+        if (this.#startingSessions.has(session.session_id) || options.runtime.checkpoints?.busy?.(session)
+          || phase && phase !== "reconcile-required" && !isEnded(phase)) throw new PrologueAdapterError("agent.session_busy", "会话仍在执行或回退，不能关闭中断轮次");
+        this.#startingSessions.add(session.session_id);
+        try {
+          const report = await options.runtime.recovery!.close(session, runId, expectedVersion);
+          this.#sessions.delete(session.session_id);
+          await this.#loadSession(session.session_id);
+          return report;
+        } finally { this.#startingSessions.delete(session.session_id); }
+      },
+    };
     if (options.runtime.checkpoints) this.checkpoints = {
       busy: session => options.runtime.checkpoints!.busy?.(session) ?? false,
       list: async session => { await this.#loadSession(session.session_id); return options.runtime.checkpoints!.list(session); },
@@ -506,7 +528,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
         record.control.resume();
         break;
       case "steer":
-        record.control.steer({ text: control.text });
+        await record.control.steer({ text: control.text });
         break;
       case "answer": {
         const answer = this.#answerPending;
@@ -684,7 +706,11 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
         state.activity = state.activity.map(item => activity.has(item.call_id) ? { ...item, at: activity.get(item.call_id)! } : item);
         if (isEnded(state.phase)) endedAt = saved.timing.ended_at;
       }
+      for (const question of saved.original_questions ?? []) {
+        if (!state.awaiting_input.some(held => held.pending_id === question.pending_id)) state.awaiting_input.push({ ...question, sequence: state.next_sequence++ });
+      }
       if (!saved.events || !isEnded(state.phase)) {
+        closeInterruptedPrologueStream(state);
         state.phase = "reconcile-required";
         state.stop_reason = "这轮执行在中断前没有提交完整事件账，已发生的操作需要核对；不会自动重跑。";
       }

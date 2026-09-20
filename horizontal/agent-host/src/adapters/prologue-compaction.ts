@@ -62,28 +62,33 @@ export function createPrologueCompactor(input: {
             partCount: parts(record.text).length, parts: parts(record.text).map((text, index) => ({ part: index + 1, text })) })) }) },
       ] });
       if (cancelled()) { await cancel(); throw invalid("上下文整理已取消"); }
-      const output = await collectSelection(run, request.signal, cancel);
+      const output = await collectSelection(run, request.signal, cancel, request.reportUsage);
       if (cancelled()) throw invalid("上下文整理已取消");
       return compactionSelection(output, request.older);
     } finally { request.signal?.removeEventListener("abort", onAbort); }
   };
 }
 
-function collectSelection(run: Run, signal: AbortSignal | undefined, cancel: () => Promise<void>): Promise<string> {
+function collectSelection(run: Run, signal: AbortSignal | undefined, cancel: () => Promise<void>, reportUsage: Parameters<ContextCompactor>[0]["reportUsage"]): Promise<string> {
   return new Promise((resolve, reject) => {
     let text = "", bytes = 0, done = false, off = () => {};
     const encoder = new TextEncoder();
+    let recorded: Promise<void> = Promise.resolve();
     const finish = (error?: Error) => {
       if (done) return;
       done = true; off(); signal?.removeEventListener("abort", abort);
-      if (error) { void cancel().catch(() => {}).then(() => reject(error)); } else resolve(text);
+      void (error ? cancel().catch(() => {}) : Promise.resolve()).then(() => recorded)
+        .then(() => error ? reject(error) : resolve(text), reject);
     };
     const abort = () => finish(invalid("上下文整理已取消"));
     signal?.addEventListener("abort", abort);
     off = run.subscribe(event => {
       if (done) return;
       if (signal?.aborted) { abort(); return; }
-      if (event.type === "text-delta") {
+      if (event.type === "usage-recorded") {
+        recorded = recorded.then(() => reportUsage?.({ callId: event.callId, receipt: event.receipt }));
+        void recorded.catch(error => finish(error instanceof Error ? error : invalid("整理用量无法保存")));
+      } else if (event.type === "text-delta") {
         bytes += encoder.encode(event.text).byteLength;
         if (bytes > 64 * 1024) finish(invalid("整理输出超过大小限制"));
         else text += event.text;

@@ -49,6 +49,11 @@ test("Coding formal routes preserve drafts and isolate projects across server re
     const question_drafts={ '["run-1","question-1",1]': { answers: [{question:1,indexes:[2],other:'保留原输入'}] } };
     assert.equal((await request(a+'/sessions/'+session,'PATCH',{draft,question_drafts,configuration,mcp_sources:[{server:'docs-service',configuration_version:3}],mcp_tools:[{server:'retained-server',tool:'retained-tool',version:'schema-1',configuration_version:2}],methods:[{skill_id:'coding-review-change',version:1}]})).status,200);
     assert.equal((await request(b+'/sessions/'+session)).status,404);
+    assert.equal((await request(b+'/sessions/'+session+'/recovery')).status,404);
+    assert.equal((await request(b+'/sessions/'+session+'/runs/other/recover','POST',{expected_version:1})).status,404);
+    assert.equal((await request(a+'/sessions/'+session+'/runs/other/recover','POST',{expected_version:1},false)).status,403);
+    assert.equal((await request(a+'/sessions/'+session+'/recovery')).status,400);
+
     assert.equal((await request(b+'/sessions/'+session,'PATCH',{draft:'wrong project'})).status,404);
     assert.equal((await request(b+'/sessions/'+session,'PATCH',{question_drafts:{wrong:'project'}})).status,404);
     assert.equal((await request(a+'/sessions/'+session,'PATCH',{question_drafts:[]})).status,400);

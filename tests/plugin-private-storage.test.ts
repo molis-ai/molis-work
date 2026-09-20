@@ -111,11 +111,11 @@ test("persisted running state rehydrates a plugin contribution after process res
   const { createCodingPlugin } = await import("@molis-ai/molis-work-plugin-coding");
   const definition = createCodingPlugin();
   const first = new PluginRuntime(repository);
-  const installed = first.install({definition,deployment:"local",grants:["artifact:write","storage:private"]});
+  const installed = first.install({definition,deployment:"local",grants:["artifact:read","artifact:write","storage:private"]});
   await first.start(installed.install.install_id);
   // A new Runtime models a new process; the database still records running.
   const reopened = new PluginRuntime(repository);
-  const replayedInstall = reopened.install({definition,deployment:"local",grants:["artifact:write","storage:private"]});
+  const replayedInstall = reopened.install({definition,deployment:"local",grants:["artifact:read","artifact:write","storage:private"]});
   assert.equal(replayedInstall.replayed,true);
   assert.equal(reopened.contribution(installed.install.install_id),null);
   const started = await reopened.start(installed.install.install_id);

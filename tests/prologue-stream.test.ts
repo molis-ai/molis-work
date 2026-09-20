@@ -12,6 +12,18 @@ import {
 
 const AT = "2026-09-19T00:00:00.000Z";
 
+test("supplements retain user wording and distinguish receipt, context inclusion and unconfirmed completion", () => {
+  const state = emptyPrologueStreamState();
+  apply(state, { type: "prompt", role: "user", text: "保留测试", steerId: "steer-1" },
+    { type: "prompt", role: "user", text: "只看当前文件", steerId: "steer-2" });
+  const received = state.turns[0];
+  assert.deepEqual(received?.steer, { id: "steer-1", state: "received" });
+  apply(state, { type: "steer-applied", steerId: "steer-1" }, { type: "cancelled" });
+  assert.deepEqual(state.turns.map(turn => [turn.text, turn.steer?.state]), [["保留测试", "applied"], ["只看当前文件", "unconfirmed"]]);
+  assert.equal(received?.steer?.state, "received", "later projection must not rewrite a prior view");
+  assert.equal(state.unknown_frames, 0);
+});
+
 function apply(state: PrologueStreamState, ...events: PrologueEvent[]): void {
   for (const event of events) applyPrologueEvent(state, event, AT);
 }
@@ -68,7 +80,7 @@ test("a tool result completes exactly its own call", () => {
 test("an estimated usage number is never presented as the provider's own", () => {
   const reported = emptyPrologueStreamState();
   apply(reported, { type: "usage", receipt: receipt("reported") });
-  assert.deepEqual(reported.usage.tokens, { input: 1200, output: 340, cached_input: 800 });
+  assert.deepEqual(reported.usage.tokens, { input: 1200, output: 340, cached_input: 800, cache_creation: 0 });
   assert.equal(reported.usage.cost_usd, 0.019);
   assert.equal(reported.usage.unavailable_reason, undefined);
 
@@ -294,4 +306,56 @@ test("tool correction closes text, preserves completed actions and replays witho
   assert.equal(live.phase, "failed");
   assert.deepEqual(live.turns.map(turn => turn.text), ["接下来读取其他文件", "改用已开放工具"]);
   assert.equal(live.activity[0]?.state, "completed");
+});
+
+test("字段级用量保留部分回执和缓存写入，未知不混成零，重放不重复", () => {
+  const state = emptyPrologueStreamState();
+  const a = { ...receipt("reported"), cacheWrite: { source: "reported" as const, tokens: 42 } };
+  const b = { ...receipt("reported"), input: { source: "unknown" as const, tokens: undefined },
+    output: { source: "estimated" as const, tokens: 10 }, cacheRead: { source: "unknown" as const, tokens: undefined },
+    cacheWrite: { source: "reported" as const, tokens: 0 }, cost: { source: "reported", amount: 12, currency: "CNY" } };
+  apply(state, { type: "usage-recorded", callId: "one", receipt: a }, { type: "usage-recorded", callId: "two", receipt: b });
+  assert.deepEqual(state.usage.tokens, { input: 1200, output: 350, cached_input: 800, cache_creation: 42 });
+  assert.deepEqual(state.usage.coverage, { input: "partial", output: "estimated", cached_input: "partial", cache_creation: "reported", cost_usd: "partial" });
+  assert.equal(state.usage.cost_usd, 0.019, "外币不能加入美元小计");
+  const before = structuredClone(state.usage);
+  apply(state, { type: "usage-recorded", callId: "two", receipt: b });
+  assert.deepEqual(state.usage, before);
+  apply(state, { type: "run-recovered", atMs: 1789900000000, transcript: "durable-prefix", operations: [] });
+  assert.deepEqual(state.usage.tokens, before.tokens);
+  assert.deepEqual(state.usage.coverage, before.coverage);
+  assert.match(state.usage.unavailable_reason!, /中断/);
+});
+
+test("未知来源即使带占位数字也不加入已知用量", () => {
+  const state = emptyPrologueStreamState();
+  apply(state, { type: "usage-recorded", callId: "unknown", receipt: {
+    ...receipt("reported"), input: { source: "unknown", tokens: 999 }, output: { source: "reported", tokens: 0 },
+    cacheWrite: { source: "reported", tokens: NaN },
+  } });
+  assert.equal(state.usage.coverage?.input, "unknown");
+  assert.equal(state.usage.tokens.input, 0);
+  assert.equal(state.usage.coverage?.output, "reported");
+  assert.equal(state.usage.tokens.output, 0);
+  assert.equal(state.usage.coverage?.cache_creation, "unknown");
+  assert.equal(state.usage.tokens.cache_creation, undefined);
+});
+
+test("整理请求计入同一小计但不覆盖主调用快照，旧记录与取消仍标不完整", () => {
+  const state = emptyPrologueStreamState(), r = receipt("reported");
+  apply(state, { type: "usage", receipt: r }, { type: "compaction-started" },
+    { type: "compaction-usage-recorded", callId: "child", receipt: r },
+    { type: "compaction-usage-recorded", callId: "child", receipt: r },
+    { type: "compacted", replaced: 4, usageRecorded: true });
+  assert.equal(state.usage.tokens.input, 2400);
+  assert.deepEqual(state.usage.compaction, { recorded_calls: 1, incomplete: false });
+  apply(state, { type: "usage-recorded", callId: "main", receipt: r });
+  assert.equal(state.usage.tokens.input, 2400);
+  apply(state, { type: "compaction-started" }, { type: "compaction-cancelled" });
+  assert.deepEqual(state.usage.compaction, { recorded_calls: 1, incomplete: true });
+  assert.equal(state.usage.tokens.input, 2400);
+  const legacy = emptyPrologueStreamState();
+  apply(legacy, { type: "compaction-started" }, { type: "compacted", replaced: 2 });
+  assert.deepEqual(legacy.usage.compaction, { recorded_calls: 0, incomplete: true });
+  assert.match(legacy.usage.unavailable_reason!, /尚未报告/);
 });

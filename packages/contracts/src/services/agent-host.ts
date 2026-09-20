@@ -248,7 +248,7 @@ export type AgentRunControl =
   | { kind: "answer"; pending_id: string; pending_revision?: number; text?: string;
       answers?: ReadonlyArray<{ question: number; indexes: readonly number[]; other?: string }> };
 
-export type AgentTurnKind = "user" | "assistant" | "system";
+export type AgentTurnKind = "user" | "assistant" | "system" | "notice";
 
 export interface AgentTurnView {
   turn_id: string;
@@ -258,6 +258,8 @@ export interface AgentTurnView {
   at: string | null;
   /** Relative presentation order within this Run, reconstructed from its events. */
   sequence?: number;
+  /** Run-owned supplemental input; applied means context inclusion, not compliance. */
+  steer?: { id: string; state: "received" | "applied" | "unconfirmed" };
 }
 
 export type AgentToolActivityState = "started" | "completed" | "failed" | "unknown";
@@ -282,13 +284,21 @@ export interface AgentTokenCount {
   input: number;
   output: number;
   cached_input?: number;
+  cache_creation?: number;
   reasoning?: number;
 }
 
+/** Partial values are known subtotals; estimated values are not provider bills. */
+export type AgentUsageCoverage = "unknown" | "reported" | "estimated" | "partial" | "partial-estimated";
+
 export interface AgentRunUsage {
+  /** These totals include attributed calls; incomplete operations may lack final receipts. */
+  compaction?: { recorded_calls: number; incomplete: boolean };
   tokens: AgentTokenCount;
   cost_usd?: number;
-  /** Set when the Runtime did not report usage. The product shows unavailable, never zero. */
+  /** Per-field provenance; absent on legacy runtimes. Unknown numeric placeholders must not be displayed. */
+  coverage?: Record<"input" | "output" | "cached_input" | "cache_creation" | "cost_usd", AgentUsageCoverage>;
+  /** Missing, interrupted or estimated scope; known subtotals remain readable with this warning. */
   unavailable_reason?: string;
 }
 
@@ -572,7 +582,28 @@ export interface AgentSubagentsCapability {
  * One Agent Runtime. An adapter reports facts and executes approved work; it
  * never owns approval, business meaning or durable product state.
  */
+export interface AgentRecoveryReport {
+  session_id: string;
+  blockers: string[];
+  runs: Array<{
+    run_id: string;
+    version: number;
+    live: boolean;
+    waiting: number;
+    can_close: boolean;
+    blockers: string[];
+    operations: Array<{ effect_id: string; kind: string; summary: string; outcome: "completed" | "failed" | "not-dispatched" | "unknown" }>;
+  }>;
+}
+
+/** Inspect authoritative receipts; closing records an interruption and never replays work. */
+export interface AgentRecoveryCapability {
+  inspect(session: AgentSessionRef): Promise<AgentRecoveryReport>;
+  close(session: AgentSessionRef, runId: string, expectedVersion: number): Promise<AgentRecoveryReport>;
+}
+
 export interface AgentRuntimeAdapter {
+  readonly recovery?: AgentRecoveryCapability;
   readonly descriptor: AgentRuntimeDescriptor;
   health(): Promise<AgentRuntimeHealth>;
   createSession(input: AgentCreateSessionInput): Promise<AgentSessionRef>;
@@ -734,6 +765,12 @@ export const agentHostCapabilities = {
     [session: AgentSessionRef, ref: AgentCommandOutputRef],
     AgentCommandOutput
   >,
+  inspectRecovery: {
+    capability_id: "agent.session.recovery.v1", version: 1, operation: "query",
+  } as HostCapabilityDefinition<[session: AgentSessionRef], AgentRecoveryReport>,
+  recoverRun: {
+    capability_id: "agent.session.recover.v1", version: 1, operation: "command",
+  } as HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef, expectedVersion: number], AgentRecoveryReport>,
   listCheckpoints: {
     capability_id: "agent.checkpoints.list.v1", version: 1, operation: "query",
   } as HostCapabilityDefinition<[session: AgentSessionRef], AgentCheckpoint[]>,

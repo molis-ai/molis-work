@@ -16,9 +16,12 @@ import { molisWorkHostProjectReference } from "./project-host.js";
 import { createLocalFeedApplication } from "./feed-application.js";
 import { createLocalFeedSourceScheduler } from "./feed-source-scheduler.js";
 import { createLocalFeedConnectorService } from "./feed-connector-service.js";
+import { scheduleServiceFor } from "./schedule-runtime.js";
 import { handleFeedNativePluginHttp } from "./feed-native-plugin-http.js";
 import { handleInboxNativePluginHttp } from "./inbox-native-plugin-http.js";
+import { handleScheduleNativePluginHttp } from "./schedule-native-plugin-http.js";
 import { handleShelfNativePluginHttp } from "./shelf-native-plugin-http.js";
+import { handleFunctionsNativePluginHttp } from "./functions-native-plugin-http.js";
 import { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
 import { serviceProcessId } from "./web-runtime-settings.js";
 import { resolveWebRequest } from "./web-routing.js";
@@ -82,7 +85,10 @@ export async function handleMolisWorkWebRequest(
         feed.recoverInterruptedSourceRuns(options.boardId);
         createLocalFeedConnectorService(store.db, options.boardId).ensureSources();
         const scheduler = createLocalFeedSourceScheduler(store.db, options.boardId);
-        feedSchedulers.set(options.databasePath, { scheduler });
+        feedSchedulers.set(options.databasePath, {
+          scheduler,
+          schedule: scheduleServiceFor(store.db),
+        });
         void scheduler.tick().then((result) => {
           if (result.completed || result.failed) webViewCache.delete(options.databasePath);
         }).catch(() => undefined);
@@ -168,11 +174,16 @@ export async function handleMolisWorkWebRequest(
           return;
         }
         if (serverOptions.homeDirectory && await handleShelfNativePluginHttp(request, response, url, serverOptions.homeDirectory)) return;
+        if (serverOptions.homeDirectory && await handleFunctionsNativePluginHttp(request, response, url, serverOptions.homeDirectory)) return;
         if (await handleInboxNativePluginHttp(request, response, url, {
           boardId: options.boardId,
           store,
           invalidateWebView: () => webViewCache.delete(options.databasePath),
           reconcileGoalDecisions: () => coordinator.goalDecisionAttention.reconcile(options.boardId),
+        })) return;
+        if (await handleScheduleNativePluginHttp(request, response, url, {
+          schedule: feedSchedulers.get(options.databasePath)?.schedule ?? scheduleServiceFor(store.db),
+          invalidateWebView: () => webViewCache.delete(options.databasePath),
         })) return;
         if (await handleFeedNativePluginHttp(request, response, url, {
           renderer: workbenchRenderer,

@@ -344,7 +344,7 @@ function renderFeedStageDetailPane(entry: FeedUiEntry, model: FeedUiModel): stri
     ? renderPrototypeFeedDetail(entry, true, model)
     : entry.detail_slot_html || "";
   return `<article class="feed-stage-detail" data-feed-entry-detail="${p.escape(entry.entry_id)}" hidden>
-    <header class="plugin-stage-detail-bar"><button class="plugin-stage-back" type="button" data-feed-collapse aria-label="${p.text("返回 Feed 列表")}" title="${p.text("返回 Feed 列表")}">${p.icon("chevron-right")}</button></header>
+    <header class="plugin-stage-detail-bar" data-stage-back-only><button class="plugin-stage-back" type="button" data-feed-collapse aria-label="${p.text("返回 Feed 列表")}" title="${p.text("返回 Feed 列表")}">${p.icon("chevron-right")}</button></header>
     <div class="feed-stage-item-detail" id="feed-reading-${p.escape(entry.entry_id)}" data-feed-item-slot>${detail}</div>
   </article>`;
 }

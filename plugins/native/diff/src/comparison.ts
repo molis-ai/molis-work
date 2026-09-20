@@ -44,7 +44,14 @@ export interface DiffFileEntry {
 export interface DiffView {
   phase: DiffPhase;
   mode: DiffMode;
-  group: DiffInputGroup;
+  /**
+   * Null when the user has not chosen a group yet.
+   *
+   * A real state, not a placeholder: the Host deliberately never picks the
+   * first group on somebody's behalf, so "nothing selected" has to be
+   * something this view can say.
+   */
+  group: DiffInputGroup | null;
   message: string;
   /** What to do about it. Present exactly when there is nothing to show. */
   recovery?: string;
@@ -75,20 +82,22 @@ export interface DiffInputSnapshot {
   content_version: number;
 }
 
-export function waitingMessage(group: DiffInputGroup): string {
+export function waitingMessage(group: DiffInputGroup | null): string {
+  if (group === null) return "先选一组输入：两份快照、Coding 准备的变更，或 Git 的工作区改动";
   if (group === "git-change-set") return "在 Git 里选一处改动，这里就会显示";
   if (group === "change-set") return "Coding 准备好一轮变更后，这里会显示";
   return "在 Files 里设定 before 和 after，这里就会显示对比";
 }
 
-export function recoveryMessage(group: DiffInputGroup): string {
+export function recoveryMessage(group: DiffInputGroup | null): string {
+  if (group === null) return "在 Sources 里选一组输入";
   if (group === "git-change-set") return "回到 Git 重新选一处改动";
   if (group === "change-set") return "让 Coding 再跑一轮";
   return "回到 Files 重新捕获 before 和 after";
 }
 
 export function emptyDiff(
-  group: DiffInputGroup,
+  group: DiffInputGroup | null,
   message: string = waitingMessage(group),
   phase: DiffPhase = "waiting",
   recovery?: string,

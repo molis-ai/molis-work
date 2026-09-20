@@ -162,11 +162,13 @@ test("Inbox directory lists Attention reason, related object, and next step with
   assert.match(rendered.workbench, /data-inbox-action="done"/);
   assert.match(rendered.workbench, /data-inbox-action="dismissed"/);
   assert.ok(
-    rendered.workbench.indexOf("data-inbox-collapse") < rendered.workbench.indexOf("feed-detail-header")
+    rendered.workbench.indexOf("plugin-stage-detail-bar") < rendered.workbench.indexOf("feed-detail-kicker")
+    && rendered.workbench.indexOf("feed-detail-kicker") < rendered.workbench.indexOf("feed-detail-header")
     && rendered.workbench.indexOf("feed-detail-header") < rendered.workbench.indexOf("inbox-reference-footer")
     && rendered.workbench.indexOf("inbox-reference-footer") < rendered.workbench.indexOf("inbox-reference-body"),
-    "Inbox back sits in the shared stage bar before the title; actions sit under the title, above the scrolling context",
+    "Inbox kicker sits on the shared stage bar with back; title then actions then scrolling context",
   );
+  assert.match(rendered.workbench, /plugin-stage-detail-bar[\s\S]*feed-detail-kicker[\s\S]*feed-detail-header/);
   assert.doesNotMatch(rendered.workbench, /Inbox 只保存这条引用和进入原因/);
   assert.doesNotMatch(rendered.workbench, /data-feed-workbench|data-feed-detail=/);
 });

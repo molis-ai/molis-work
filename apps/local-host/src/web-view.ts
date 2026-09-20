@@ -8,6 +8,7 @@ import { currentLocale, L } from "./web-locale.js";
 import { createLocalFeedApplication } from "./feed-application.js";
 import { listFeedSourceCatalog } from "./feed-source-service.js";
 import { createLocalFeedConnectorService } from "./feed-connector-service.js";
+import { scheduleServiceFor, scheduleViewFingerprint } from "./schedule-runtime.js";
 
 export interface WebViewOptions {
   databasePath: string; boardId: string; demo?: boolean; projectRoot?: string;
@@ -55,6 +56,7 @@ export function buildMolisWorkWebView(store: LocalProjectDatabase, coordinator: 
     feed: feedDirectorySnapshot(createLocalFeedApplication(store.db), options.boardId),
     feed_source_catalog: listFeedSourceCatalog(),
     feed_connector_auth: createLocalFeedConnectorService(store.db, options.boardId).authStatus(),
+    schedule_jobs: scheduleServiceFor(store.db).list(),
   };
 }
 
@@ -73,6 +75,7 @@ export function cachedMolisWorkWebView(
     project: options.project ?? null,
     projects: options.projects ?? [],
     route_prefix: options.routePrefix ?? "",
+    schedule: scheduleViewFingerprint(store.db),
   });
   const cached = cache.get(options.databasePath);
   if (

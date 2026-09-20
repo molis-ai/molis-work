@@ -69,7 +69,9 @@ export interface WorkbenchGoalsPageOwners<TItem extends GoalCollectionItem, TVie
   renderFeedNativePluginSurface(view: TView, surface: FeedPageSurface, preset: "feed",
     entries?: TFeedEntry[], active?: boolean): string;
   renderInboxNativePluginSurface(view: TView, surface: "directory" | "workbench"): string;
+  renderScheduleNativePluginSurface(view: TView, surface: "directory" | "workbench"): string;
   renderShelfNativePluginSurface(surface: "directory" | "workbench"): string;
+  renderFunctionsNativePluginSurface(surface: "directory" | "workbench"): string;
 }
 
 /** Workbench owns placement; Goals/Feed/Work owners retain their actual UI and facts. */
@@ -82,7 +84,7 @@ export function createWorkbenchGoalsPageRenderer<TItem extends GoalCollectionIte
     renderGoalDocument, renderTrashGoalDocument, goalsDocumentRenderer, goalsTreeRenderer,
     renderCreateDialog, renderGoalTrashDialog, renderMomentumPlaceholder, renderGoalKanban, renderTuiPane,
     renderProjectOperations, renderDesktopProjectChrome,
-    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderShelfNativePluginSurface } = owners;
+    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderShelfNativePluginSurface, renderFunctionsNativePluginSurface } = owners;
 
 function renderMolisWorkRefreshFragment(
   view: TView,
@@ -125,7 +127,7 @@ function renderMolisWorkWeb(
   const initialDesktopSurface = decisionView ? "inbox" : requestedGoalId || archiveView || trashView ? "goal" : "home";
   const projectOptions = view.projects.length ? view.projects : view.project ? [view.project] : [];
   const primitives = { L, escapeHtml, icon, htmlLang };
-  const enabledPlugins = withPersonalShelf(view.enabled_plugins ?? ["goals", "sessions", "inbox", "feed", "artifacts"]);
+  const enabledPlugins = withPersonalPlugins(view.enabled_plugins ?? ["goals", "sessions", "inbox", "feed", "artifacts"]);
   const projectOperations = renderProjectOperations(view.project
     ? { project_id: view.project.project_id, display_name: view.project.display_name }
     : null, projectOperationsData);
@@ -219,6 +221,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
             ? renderFeedNativePluginSurface(view, "source-directory", initialFeedPreset)
             : "",
           shelf: "",
+          functions: "",
           artifacts: "",
           // A running Plugin's own panel wins over the built-in blank.
           ...(view.plugin_panels ?? {}),
@@ -237,7 +240,9 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
             ${frameStage}
             ${projectOperations.surfaces}
             ${renderInboxNativePluginSurface(view, "workbench")}
+            ${renderScheduleNativePluginSurface(view, "workbench")}
             ${renderShelfNativePluginSurface("workbench")}
+            ${renderFunctionsNativePluginSurface("workbench")}
             ${renderFeedNativePluginSurface(view, "workbench", initialFeedPreset, [], false)}
             ${renderFeedNativePluginSurface(view, "source-workbench", initialFeedPreset)}
             <section class="desktop-work-surface immersive-artifact-surface plugin-stage-shell" data-work-surface="artifacts" data-work-surface-label="Artifacts" data-artifact-stage-shell data-expanded="false" hidden><div class="plugin-stage-list feed-stage-tree" data-artifact-directory></div><div class="plugin-stage-workspace" data-artifact-stage-workspace hidden><div data-artifact-detail></div></div></section>
@@ -265,12 +270,14 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
   return { renderMolisWorkWeb, renderMolisWorkRefreshFragment };
 }
 
-function withPersonalShelf(enabled: readonly string[]): string[] {
-  if (enabled.includes("shelf")) return [...enabled];
+function withPersonalPlugins(enabled: readonly string[]): string[] {
   const next = [...enabled];
-  const artifactsAt = next.indexOf("artifacts");
-  if (artifactsAt >= 0) next.splice(artifactsAt, 0, "shelf");
-  else next.push("shelf");
+  for (const personal of ["shelf", "functions"] as const) {
+    if (next.includes(personal)) continue;
+    const artifactsAt = next.indexOf("artifacts");
+    if (artifactsAt >= 0) next.splice(artifactsAt, 0, personal);
+    else next.push(personal);
+  }
   return next;
 }
 

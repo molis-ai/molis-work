@@ -30,7 +30,7 @@ function pluginLink(
   plugin: { id: string; surface: string; label: string; glyph: MolisWorkIcon },
   extraClass = "",
 ): string {
-  const directory = plugin.id === "home" || plugin.id === "market" || plugin.id === "feed" || plugin.id === "goals" || plugin.id === "sessions" || plugin.id === "inbox" || plugin.id === "artifacts" || plugin.id === "shelf" ? "" : ` data-directory-open="${plugin.id}"`;
+  const directory = plugin.id === "home" || plugin.id === "market" || plugin.id === "feed" || plugin.id === "goals" || plugin.id === "sessions" || plugin.id === "inbox" || plugin.id === "schedule" || plugin.id === "artifacts" || plugin.id === "shelf" || plugin.id === "functions" ? "" : ` data-directory-open="${plugin.id}"`;
   const feedPreset = plugin.id === "feed" ? ' data-feed-preset="feed"' : "";
   const aria = plugin.id === "home" || plugin.id === "market"
     ? ` aria-label="${plugin.label}"`
@@ -135,8 +135,10 @@ export function renderPluginMarket({ L, icon }: ImmersiveShellPrimitives): strin
     { id: "goals", label: "Goals", glyph: "target" as const, copy: "确定目标，推进工作，留下结果。" },
     { id: "sessions", label: "Sessions", glyph: "terminal" as const, copy: "回到你的会话，继续正在做的事。" },
     { id: "inbox", label: "Inbox", glyph: "inbox" as const, copy: "只看需要你介入的事项。" },
+    { id: "schedule", label: "Schedule", glyph: "timer" as const, copy: "到点叫醒其他插件，自己不执行。" },
     { id: "feed", label: "Feed", glyph: "rss" as const, copy: "查看来源消息和完整流水。" },
     { id: "shelf", label: "Shelf", glyph: "library" as const, copy: "把文件放到置物架，处理副本，原件不动。" },
+    { id: "functions", label: "Functions", glyph: "sparkles" as const, copy: "把一段输入交给 Jev，得到一个有版本的判断。" },
     { id: "artifacts", label: "Artifacts", glyph: "package" as const, copy: "打开项目成果，查看保留下来的版本。" },
   ];
   const rows = plugins.map(plugin => `<article class="mw-card" data-market-plugin="${plugin.id}"><div class="plugin-market-icon">${icon(plugin.glyph)}</div><div class="plugin-market-copy"><h2>${plugin.label}</h2><p>${L(plugin.copy)}</p></div><button class="mw-btn mw-btn--secondary" type="button" data-market-add="${plugin.id}" disabled>${L("添加")}</button></article>`).join("");

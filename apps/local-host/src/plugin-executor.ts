@@ -97,7 +97,7 @@ export class PluginHostExecutor implements PluginExecutor {
           ? { outputs: createPluginOutputsClient(wiringInput) }
           : {}),
         ...(declaresCapabilities && this.options.capabilities !== undefined
-          ? { capabilities: createPluginCapabilityClient(manifest, this.options.capabilities) }
+          ? { capabilities: createPluginCapabilityClient(manifest, withScheduleCaller(manifest.plugin_id, this.options.capabilities)) }
           : {}),
       }) });
     try {
@@ -119,4 +119,20 @@ export class PluginHostExecutor implements PluginExecutor {
       this.sessions.delete(context.install_id);
     }
   }
+}
+
+function withScheduleCaller(pluginId: string, port: PluginCapabilityPort): PluginCapabilityPort {
+  return {
+    invoke(capability, input) {
+      if (
+        capability.capability_id.startsWith("schedule.")
+        && input !== null
+        && typeof input === "object"
+        && !Array.isArray(input)
+      ) {
+        return port.invoke(capability, { ...input, plugin_id: pluginId });
+      }
+      return port.invoke(capability, input);
+    },
+  };
 }

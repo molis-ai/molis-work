@@ -2,6 +2,8 @@ import { GOALS_PROPOSAL_EN } from "@molis-ai/molis-work-plugin-goals";
 import { WORK_EN } from "@molis-ai/molis-work-plugin-work";
 import { ARTIFACT_EN } from "@molis-ai/molis-work-plugin-artifacts";
 import { SHELF_EN } from "@molis-ai/molis-work-plugin-shelf";
+import { FUNCTIONS_EN } from "@molis-ai/molis-work-plugin-functions";
+import { SCHEDULE_EN } from "@molis-ai/molis-work-plugin-schedule";
 import { GOALS_POLICY_EN, GOALS_SAFETY_EN } from "@molis-ai/molis-work-plugin-goals";
 import { GOALS_RELATION_EN } from "@molis-ai/molis-work-plugin-goals";
 import { GOALS_TREE_EN } from "@molis-ai/molis-work-plugin-goals";
@@ -237,6 +239,8 @@ export const EN: Record<string, string> = {
   "这个分组还没有事项": "Nothing in this group yet",
   ...ARTIFACT_EN,
   ...SHELF_EN,
+  ...FUNCTIONS_EN,
+  ...SCHEDULE_EN,
   ...GOALS_POLICY_EN,
   ...GOALS_SAFETY_EN,
   ...GOALS_RELATION_EN,

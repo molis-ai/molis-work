@@ -516,7 +516,7 @@ export function renderPrimitiveCatalog(): string {
     })))}${mark("pagination", specimen("分页", renderPagination({ page: 2, pages: 5 })))}${mark("breadcrumb", specimen("路径", renderBreadcrumb({
       items: [{ label: "规划方法", href: "#" }, { label: "工作类型" }, { label: "当前方法" }],
     })))}</div>`)}
-    ${section("directory", "Directory Panel / Row", `<p class="mw-catalog__hint">目录行 hover 是 180ms 让位，不是一块跟着鼠标走的底片。长标题贴到状态标时右缘淡出；带行尾动作的行用 <code>yield</code>，静止不预留动作槽。</p>
+    ${section("directory", "Directory Panel / Row", `<p class="mw-catalog__hint">目录行 hover 是 180ms 让位，不是一块跟着鼠标走的底片。长标题在标题槽里省略，行尾状态完整留下；带行尾动作的行用 <code>yield</code>，静止不预留动作槽。</p>
       <div class="mw-catalog__specimens">${specimen("目录栏", `<div class="mw-catalog-dir-stage"><div class="mw-catalog-dir">${catalogDirectory}</div></div>`)}${specimen("单行", `<div class="mw-catalog-dir-stage"><div class="mw-catalog-dir">${catalogCompact}</div></div>`)}${specimen("行让位", `<div class="mw-catalog-dir-stage is-yield"><div class="mw-catalog-dir">${catalogYield}</div></div>`)}${specimen("空态", `<div class="mw-catalog-dir-stage"><div class="mw-catalog-dir">${catalogDirectoryEmpty}</div></div>`)}</div>`)}
     ${section("layout", "Sidebar / Frame / Group / Card / Scroll Area / Table", `<div class="mw-catalog__specimens">${specimen("栏与内容框", catalogShell)}${mark("group", specimen("成组工具", renderGroup({
       label: "历史",

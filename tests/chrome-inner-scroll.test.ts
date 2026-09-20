@@ -54,7 +54,8 @@ test("project index, settings, and workbench keep titles pinned and scroll only 
   assert.match(workbench, /plugin-stage-list \.goal-collection-fold \.feed-stage-entry \{ padding-left: 24px; \}/);
   assert.match(workbench, /plugin-stage-list \.goal-collection-fold > :is\(\.mw-dir-row, a\.mw-dir-row\) \{ padding-left: 24px; \}/);
   assert.match(workbench, /plugin-stage-list \.goal-collection-fold \.shelf-row \{ padding-left: 24px; \}/);
-  assert.match(workbench, /plugin-stage-shell\[data-expanded="true"\] \.shelf-stage-chrome \{ display: none; \}/);
+  assert.doesNotMatch(workbench, /plugin-stage-shell\[data-expanded="true"\] \.shelf-stage-chrome \{ display: none; \}/);
+  assert.match(workbench, /\[data-shelf-stage-shell\]\[data-expanded="true"\] \{ --tree-width: 213px/);
   assert.match(workbench, /plugin-stage-list \.artifact-empty \{ max-width: 32ch;/);
   assert.match(workbench, /feed-stage-list \.goal-collection-empty \{ margin: 0; padding: 6px 8px 10px 24px;/);
   assert.ok(workbench.includes("scrollbar-width: none"));
@@ -91,6 +92,9 @@ test("project index, settings, and workbench keep titles pinned and scroll only 
   assert.match(workbench, /\.plugin-stage-shell\[data-expanded="true"\] \{[\s\S]*grid-template-columns: var\(--tree-width, var\(--immersive-sidebar-width\)\) minmax\(0, 1fr\)/);
   assert.match(workbench, /\.plugin-stage-list \.mw-dir-row-wrap:has\(\.is-selected\)::before,[\s\S]*content: none; display: none; width: 0;/);
   assert.match(workbench, /\.plugin-stage-detail-bar \{[\s\S]*padding: 8px 16px 8px 20px;/);
+  assert.match(workbench, /\.plugin-stage-detail-bar\[data-stage-back-only\] \{[\s\S]*position: absolute;/);
+  assert.match(workbench, /\.plugin-stage-detail-bar > \.feed-detail-kicker \{[\s\S]*margin: 0;/);
+  assert.match(workbench, /\.plugin-stage-detail-bar > h1 \{[\s\S]*font-size: 13px;/);
   assert.match(workbench, /\.plugin-stage-back \{[\s\S]*margin-left: -6px;/);
   assert.match(workbench, /\.session-stage-bar \{[\s\S]*padding: 8px 16px 8px 20px;/);
   assert.match(workbench, /\.session-stage-back \{[\s\S]*margin-left: -6px;/);

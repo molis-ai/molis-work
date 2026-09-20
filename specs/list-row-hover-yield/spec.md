@@ -17,7 +17,7 @@ Shelf `.shelf-row`：`padding-right: 72px` 常驻；`.shelf-ops { display: none 
 做：
 
 1. Shelf 材料 / 结果 / 剪贴板行复刻让位：静止文件名尽量展开；hover 或选中时右侧让出动作槽，长文件名被挤短，动作与时间/状态交叉淡入淡出。
-2. 其他插件目录/舞台列表行：hover 底色 180ms 缓出；标题被挤到边缘时用淡出而不是硬切省略号。
+2. 其他插件目录/舞台列表行：hover 底色 180ms 缓出；长标题只在标题槽里省略号，不要给整行或标题做右缘 mask，以免切掉没溢出的字和行尾状态。
 3. Directory 原语可选 `yield`：行尾动作 overlay，不预留死 padding；`fileName` 时茎/扩展名拆开。默认 trailing 仍常驻（Feed 配置）。
 4. `/__ui/catalog` Directory 标本可 hover 验证短名几乎不动、长文件名被挤、选中保持让位。Catalog 分段开关走同一套 180ms rubber thumb。
 5. `prefers-reduced-motion` 下取消位移时长，状态仍切换。
@@ -29,13 +29,13 @@ Shelf `.shelf-row`：`padding-right: 72px` 常驻；`.shelf-ops { display: none 
 1. Shelf 短文件名：hover 底色与动作出现，文件名宽度几乎不变。
 2. Shelf 长文件名：静止能看到更多字；hover 时文件名从右缘被挤短，扩展名尽量留下。
 3. 选中行保持让位（动作一直在），移开鼠标不收回。
-4. Goals / Feed 等长标题在窄目录里贴到状态标时，右缘淡出。
+4. Goals / Feed 等长标题在窄目录里贴到状态标时，标题槽省略，状态完整可见。
 5. 减少动态效果：动作仍出现，文件名仍让位，但没有 180ms 过渡。
 
 ## 方案与关键决策
 
 - 让位的是行内布局，不是一块跟鼠标走的底片。
-- 文件名挤压用宽度变化 + 右缘淡出（Web 无法平滑做 Swift 的中段省略号）；有扩展名时茎用省略、扩展名不挤掉。含 `://` 的标题不当成文件名拆。
+- 文件名挤压用宽度变化 + 标题槽省略号（Web 无法平滑做 Swift 的中段省略号）；有扩展名时茎用省略、扩展名不挤掉。含 `://` 的标题不当成文件名拆。不在标题或整行上做右缘 mask。
 - 行尾动作用 opacity，不用 `display` 切换。
 - 时间/失败标/「当前」在让位时收掉占位，避免和动作叠两层挤。
 
@@ -54,7 +54,7 @@ Shelf `.shelf-row`：`padding-right: 72px` 常驻；`.shelf-ops { display: none 
 1. Shelf 行静止 `padding-right` 不是 72px；`:hover` / `.is-on` 且非子项时才让到约 72px。
 2. `.shelf-ops` 默认可见结构为 flex + opacity 0；hover/选中 opacity 1。不再靠 `display: none`。
 3. 带扩展名的文件名拆成 `__stem` + `__ext`；URL 标题不拆。
-4. 目录/舞台列表行 hover 过渡 180ms；`mw-dir-row__copy strong` 被挤时右缘有 mask 淡出。
+4. 目录/舞台列表行 hover 过渡 180ms；`mw-dir-row__copy strong` 被挤时用省略号，没有右缘 mask。行尾状态完整可见。
 5. `prefers-reduced-motion` 下上述过渡为 none。
 6. Catalog Directory 有 `is-yield` 标本：短名 + 长 `.pdf`；`yield` 行静止不留 72px 动作槽。
 7. Catalog 的 `mw-toggle-group` 使用与产品分段相同的 travelling thumb。

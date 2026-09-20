@@ -10,7 +10,13 @@ import type { createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
 import type { SessionRuntimeResources, createSessionProjectOperations } from "./web-session.js";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
 import { escapeHtml } from "@molis-ai/molis-work-design-system";
-import { codingDirectoryPanel, workspaceDirectoryPanel } from "./coding-surface.js";
+import {
+  codingDirectoryPanel,
+  diffStagePanel,
+  filesDirectoryPanel,
+  gitDirectoryPanel,
+  workspaceDirectoryPanel,
+} from "./coding-surface.js";
 
 export function createLocalGoalsReadHttp(ports: {
   withCatalog: LocalWebCatalogRunner;
@@ -125,6 +131,12 @@ export function createLocalGoalsReadHttp(ports: {
               ? await codingDirectoryPanel(surfacePorts) : null],
             ["workspace", projectConfiguration.plugins.includes("workspace")
               ? await workspaceDirectoryPanel(surfacePorts) : null],
+            ["files", projectConfiguration.plugins.includes("files")
+              ? await filesDirectoryPanel(surfacePorts) : null],
+            ["git", projectConfiguration.plugins.includes("git")
+              ? await gitDirectoryPanel(surfacePorts) : null],
+            ["diff", projectConfiguration.plugins.includes("diff")
+              ? await diffStagePanel(surfacePorts) : null],
           ] as const) {
             void pluginId;
             if (surface) panels[surface.plugin_id] = surface.panel;

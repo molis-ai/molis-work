@@ -107,6 +107,9 @@ importers:
       '@molis-ai/molis-work-plugin-files':
         specifier: workspace:*
         version: link:plugins/native/files
+      '@molis-ai/molis-work-plugin-functions':
+        specifier: workspace:*
+        version: link:plugins/native/functions
       '@molis-ai/molis-work-plugin-git':
         specifier: workspace:*
         version: link:plugins/native/git
@@ -119,6 +122,9 @@ importers:
       '@molis-ai/molis-work-plugin-runtime':
         specifier: workspace:*
         version: link:packages/plugin-runtime
+      '@molis-ai/molis-work-plugin-schedule':
+        specifier: workspace:*
+        version: link:plugins/native/schedule
       '@molis-ai/molis-work-plugin-shelf':
         specifier: workspace:*
         version: link:plugins/native/shelf
@@ -143,6 +149,9 @@ importers:
       '@molis-ai/molis-work-service-runtime-host':
         specifier: workspace:*
         version: link:horizontal/runtime-host
+      '@molis-ai/molis-work-service-scheduler':
+        specifier: workspace:*
+        version: link:horizontal/scheduler
       '@molis-ai/molis-work-storage':
         specifier: workspace:*
         version: link:packages/storage
@@ -303,6 +312,9 @@ importers:
       '@molis-ai/molis-work-plugin-files':
         specifier: workspace:*
         version: link:../../plugins/native/files
+      '@molis-ai/molis-work-plugin-functions':
+        specifier: workspace:*
+        version: link:../../plugins/native/functions
       '@molis-ai/molis-work-plugin-git':
         specifier: workspace:*
         version: link:../../plugins/native/git
@@ -315,6 +327,9 @@ importers:
       '@molis-ai/molis-work-plugin-runtime':
         specifier: workspace:*
         version: link:../../packages/plugin-runtime
+      '@molis-ai/molis-work-plugin-schedule':
+        specifier: workspace:*
+        version: link:../../plugins/native/schedule
       '@molis-ai/molis-work-plugin-shelf':
         specifier: workspace:*
         version: link:../../plugins/native/shelf
@@ -339,6 +354,9 @@ importers:
       '@molis-ai/molis-work-service-runtime-host':
         specifier: workspace:*
         version: link:../../horizontal/runtime-host
+      '@molis-ai/molis-work-service-scheduler':
+        specifier: workspace:*
+        version: link:../../horizontal/scheduler
       '@molis-ai/molis-work-storage':
         specifier: workspace:*
         version: link:../../packages/storage
@@ -391,6 +409,9 @@ importers:
       '@molis-ai/molis-work-plugin-files':
         specifier: workspace:*
         version: link:../../plugins/native/files
+      '@molis-ai/molis-work-plugin-functions':
+        specifier: workspace:*
+        version: link:../../plugins/native/functions
       '@molis-ai/molis-work-plugin-git':
         specifier: workspace:*
         version: link:../../plugins/native/git
@@ -400,6 +421,9 @@ importers:
       '@molis-ai/molis-work-plugin-inbox':
         specifier: workspace:*
         version: link:../../plugins/native/inbox
+      '@molis-ai/molis-work-plugin-schedule':
+        specifier: workspace:*
+        version: link:../../plugins/native/schedule
       '@molis-ai/molis-work-plugin-shelf':
         specifier: workspace:*
         version: link:../../plugins/native/shelf
@@ -448,6 +472,12 @@ importers:
       node-pty:
         specifier: 1.1.0
         version: 1.1.0
+
+  horizontal/scheduler:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
 
   modules/artifacts:
     dependencies:
@@ -645,6 +675,15 @@ importers:
         specifier: workspace:*
         version: link:../../../packages/contracts
 
+  plugins/native/functions:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../../packages/contracts
+      '@molis-ai/molis-work-design-system':
+        specifier: workspace:*
+        version: link:../../../packages/design-system
+
   plugins/native/git:
     dependencies:
       '@molis-ai/molis-work-contracts':
@@ -667,6 +706,12 @@ importers:
         version: link:../../../modules/goals
 
   plugins/native/inbox:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../../packages/contracts
+
+  plugins/native/schedule:
     dependencies:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*

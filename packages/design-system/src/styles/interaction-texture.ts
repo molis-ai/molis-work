@@ -256,6 +256,7 @@ export const INTERACTION_TEXTURE_STYLES = `
   .mw-dir-row[data-settings-section="planning"] { --plugin-tint: var(--tone-hold); }
   .mw-dir-row[data-settings-section="diagnostics"] { --plugin-tint: var(--tone-blocked); }
   .mw-dir-row[data-settings-section="shelf"] { --plugin-tint: var(--plugin-shelf); }
+  .mw-dir-row[data-settings-section="functions"] { --plugin-tint: var(--plugin-functions); }
   .mw-dir-row[data-settings-section="general"] { --plugin-tint: var(--tone-idle); }
   .mw-dir-row[data-settings-section="guidance"] { --plugin-tint: var(--tone-progress); }
   .mw-dir-row[data-settings-section="rules"] { --plugin-tint: var(--tone-done); }

@@ -1062,12 +1062,9 @@ export const PRIMITIVE_STYLES = `
     min-width: 0; overflow: hidden;
     color: inherit; font-size: 13px; font-weight: 400; line-height: 18px;
     text-overflow: ellipsis; white-space: nowrap;
-    mask-image: linear-gradient(to right, #000 0%, #000 calc(100% - 12px), transparent 100%);
-    -webkit-mask-image: linear-gradient(to right, #000 0%, #000 calc(100% - 12px), transparent 100%);
   }
   .mw-dir-row__copy strong:has(.mw-dir-row__stem) {
     display: flex; text-overflow: clip;
-    mask-image: none; -webkit-mask-image: none;
   }
   .mw-dir-row__stem {
     min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;

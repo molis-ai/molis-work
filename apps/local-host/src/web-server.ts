@@ -133,6 +133,11 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
             if (result.completed || result.failed) webViewCache.delete(databasePath);
           })
           .catch(() => undefined);
+        void runtime.schedule.tick()
+          .then((result) => {
+            if (result.invoked) webViewCache.delete(databasePath);
+          })
+          .catch(() => undefined);
       }
     }), 30_000);
     schedulerTimer.unref();

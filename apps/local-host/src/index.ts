@@ -106,7 +106,9 @@ export { createLocalFeedGoalPromotion } from "./feed-goal-promotion.js";
 
 export { handleFeedNativePluginHttp, type FeedNativePluginHttpOptions } from "./feed-native-plugin-http.js";
 export { handleInboxNativePluginHttp, type InboxNativePluginHttpOptions } from "./inbox-native-plugin-http.js";
+export { handleScheduleNativePluginHttp, type ScheduleNativePluginHttpOptions } from "./schedule-native-plugin-http.js";
 export { handleShelfNativePluginHttp } from "./shelf-native-plugin-http.js";
+export { handleFunctionsNativePluginHttp } from "./functions-native-plugin-http.js";
 
 export { createLocalArtifactHttp, renderGoalArtifactContext } from "./artifact-native-plugin-http.js";
 
@@ -117,6 +119,7 @@ export { createLocalHostCapsule } from "./capsule.js";
 export { attachMolisWorkPtySocket, type MolisWorkPtySocketHandlers } from "./pty-socket.js";
 
 export { buildMolisWorkWebView, cachedMolisWorkWebView, type MolisWorkWebViewCache, type WebViewOptions } from "./web-view.js";
+export { hostWakeupIndex, scheduleServiceFor, scheduleViewFingerprint } from "./schedule-runtime.js";
 
 export { sendLocalWebJson, readLocalWebBody, authorizeLocalWebRequest, type LocalMutationState } from "./web-http.js";
 export { createLocalWebAssets } from "./web-assets.js";
@@ -148,6 +151,19 @@ export type { V1CliOptions } from "./cli-project.js";
 export { runLocalCli } from "./cli-host.js";
 export type { LocalCliOptions } from "./cli-host.js";
 export {
+  DIRECTORY_ENTRY_LIMIT,
+  TEXT_FILE_MAX_BYTES,
+  listWorkspaceDirectory,
+  readWorkspaceTextFile,
+  type WorkspaceReadPorts,
+} from "./workspace-files.js";
+export {
+  GIT_STATUS_MAX_BUFFER,
+  isGitRepository,
+  readGitStatus,
+  type GitStatusResult,
+} from "./git-status.js";
+export {
   ModelProviderError,
   ModelProviderStore,
   addPromptCacheColumn,
@@ -167,6 +183,9 @@ export {
 export { handleAgentReviewHttp, type AgentReviewHttpPorts } from "./agent-review-http.js";
 export {
   codingDirectoryPanel,
+  diffStagePanel,
+  filesDirectoryPanel,
+  gitDirectoryPanel,
   releaseCodingSurface,
   workspaceDirectoryPanel,
   type CodingSurfacePorts,

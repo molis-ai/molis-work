@@ -5,6 +5,7 @@ export const SHELF_EN: Record<string, string> = {
   "材料": "Materials",
   "生成结果": "Results",
   "剪贴板历史": "Clipboard history",
+  "剪贴板": "Clipboard",
   "还没有材料": "No materials yet",
   "还没有生成结果": "No results yet",
   "剪贴板是空的": "Clipboard is empty",

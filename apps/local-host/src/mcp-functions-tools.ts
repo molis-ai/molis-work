@@ -1,14 +1,16 @@
 import { createFileSecretStore } from "@molis-ai/molis-work-storage";
-import { MolisWorkV1Error } from "@molis-ai/molis-work-plugin-goals";
+import { MolisWorkV1Error } from "@molis-ai/molis-work-contracts/platform/errors";
 import {
   FunctionsError,
   createFunctionsService,
   createHttpTypeSafeProvider,
-  functionsManifest,
   openFunctionsStore,
-  runFunctionsMcpTool,
   type FunctionsSecretPort,
   type TypeSafeProvider,
+} from "@molis-ai/molis-work-module-functions";
+import {
+  functionsManifest,
+  runFunctionsMcpTool,
 } from "@molis-ai/molis-work-plugin-functions";
 import type { PluginMcpHandleRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { McpToolCallContext } from "@molis-ai/molis-work-app-mcp";

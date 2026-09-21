@@ -24,7 +24,7 @@ import {
 export const FEED_UI_CONTRIBUTION_ID = "io.molis.work.native.feed.ui.v1";
 
 export type FeedUiPreset = "feed";
-export type FeedUiProvider = "github" | "gmail" | "rss" | "other";
+export type FeedUiProvider = "github" | "gmail" | "rss" | "connector" | "other";
 
 export interface FeedUiMaterial extends FeedMaterialRecord {
   readonly content?: string | null;
@@ -63,7 +63,7 @@ export interface FeedUiEntry {
 export interface FeedUiSource extends SourceRecord {
   readonly prototype: boolean;
   readonly item_count: number;
-  readonly ui_kind: "github" | "gmail" | "rss" | "other";
+  readonly ui_kind: "github" | "gmail" | "rss" | "connector" | "other";
   readonly type_label: string;
   readonly status_kind: "active" | "attention" | "syncing" | "paused";
   readonly status_label: string;
@@ -461,7 +461,7 @@ export function renderFeedOverlays(model: FeedUiModel): string {
       <label><span>${p.text("来源地址或账号")}</span><input ${source.editable_endpoint ? 'data-source-config-field="feed_url"' : 'readonly'} value="${p.escape(source.configured_endpoint || source.account_label || source.name)}"></label>
       <details class="feed-task-extra"><summary>${p.text("内容范围与说明")}</summary><label><span>${p.text("说明")}</span><textarea data-source-config-field="description" rows="2">${p.escape(source.description)}</textarea></label><label><span>${p.text("拉取范围")}</span>${source.ui_kind === "gmail" ? `<select data-source-config-field="scope">${source.scope_options.map(option=>`<option value="${p.escape(option.value)}"${option.value===scope?' selected':''}>${p.escape(option.label)}</option>`).join('')}</select>` : `<input readonly value="${p.escape(scope)}">`}</label></details>
       ${renderOutRulesSection(model, source)}
-      <div class="feed-config-actions">${source.ui_kind === "gmail" || source.ui_kind === "github" ? `<a class="mw-btn mw-btn--secondary" href="/settings/connectors?connector=${source.ui_kind}">${p.text("在 Connectors 管理账号")}</a>` : ''}</div>
+      <div class="feed-config-actions">${source.ui_kind === "gmail" || source.ui_kind === "github" || source.ui_kind === "connector" ? `<a class="mw-btn mw-btn--secondary" href="/settings/connectors?connector=${source.ui_kind === "connector" ? p.escape(source.kind) : source.ui_kind}">${p.text("在 Connectors 管理账号")}</a>` : ''}</div>
       <details class="feed-task-extra" data-feed-plan-region><summary>${p.text("拉取计划")}</summary><p>${p.text("此处单独保存拉取计划，不会保存上方的任务资料。")}</p><label><span>${p.text("拉取方式")}</span><select data-source-schedule-mode><option value="manual"${source.schedule.mode==='manual'?' selected':''}>${p.text("手动拉取")}</option><option value="interval"${source.schedule.mode==='interval'?' selected':''}>${p.text("定时拉取")}</option></select></label><label${source.schedule.mode==='manual'?' hidden':''}><span>${p.text("间隔（分钟）")}</span><input type="number" min="5" max="10080" value="${interval}" data-source-schedule-interval></label><label class="check-row"${source.schedule.mode==='manual'?' hidden':''}><input type="checkbox" data-source-schedule-enabled${source.schedule.mode==='interval'&&source.schedule.enabled?' checked':''}><span>${p.text("启用定时拉取")}</span></label><div class="feed-plan-actions"><button class="mw-btn mw-btn--secondary" type="button" data-source-schedule-reset>${p.text("撤销修改")}</button><button class="mw-btn mw-btn--primary" type="button" data-source-schedule-save data-source-id="${id}"${source.prototype?' disabled':''}>${p.text("保存拉取计划")}</button></div></details>
       <div class="feed-task-controls"><button class="mw-btn mw-btn--primary" type="button" data-feed-source-sync="${id}"${source.prototype||!source.enabled||source.status==='disconnected'?' disabled':''}>${p.text("立即拉取")}</button><button class="mw-btn mw-btn--secondary" type="button" data-feed-source-toggle="${id}" data-feed-source-enabled="${source.enabled}"${source.prototype?' disabled':''}>${source.enabled?p.text("暂停任务"):p.text("恢复任务")}</button></div>
       ${source.prototype?`<p class="feed-setup-hint">${p.text("这是演示任务。添加一个真实来源后即可保存配置和拉取内容。")}</p>`:''}
@@ -541,7 +541,7 @@ function renderSourceDetail(source: FeedUiSource, selected: boolean, model: Feed
   const scheduleEnabled = scheduleMode === "interval" && source.schedule.enabled;
   const intervalMinutes = scheduleMode === "interval" ? source.schedule.interval_minutes : 60;
   const canSync = source.enabled && source.status !== "paused" && source.status !== "disconnected";
-  const connector = source.sync_kind === "github" || source.sync_kind === "gmail";
+  const connector = source.sync_kind === "github" || source.sync_kind === "gmail" || source.sync_kind === "connector";
   const scope = typeof source.config.scope === "string" ? source.config.scope : source.scope_label;
   const scopeField = source.ui_kind === "gmail"
     ? `<label><span>${p.text("拉取范围")}</span><select data-source-config-field="scope">${source.scope_options.map((option) => `<option value="${p.escape(option.value)}"${scope === option.value ? " selected" : ""}>${p.escape(option.label)} · ${p.escape(option.value)}</option>`).join("")}</select><small class="source-config-help">${p.text("首次同步和增量同步都会执行同一范围；不做完整邮箱回填。")}</small></label>`
@@ -641,5 +641,5 @@ function destinationCopy(value: string, p: FeedUiPrimitives): readonly [string, 
 }
 
 function sourceIconName(kind: FeedUiSource["ui_kind"]) {
-  return kind === "github" ? "tree" : kind === "gmail" ? "mail" : kind === "rss" ? "rss" : "link";
+  return kind === "github" ? "tree" : kind === "gmail" ? "mail" : kind === "rss" ? "rss" : kind === "connector" ? "link" : "link";
 }

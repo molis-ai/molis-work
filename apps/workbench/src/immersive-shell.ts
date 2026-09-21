@@ -1,5 +1,5 @@
 import type { MolisWorkIcon } from "@molis-ai/molis-work-design-system";
-import { DIRECT_WORK_SURFACE_IDS, pluginMarketCards, railEntries } from "./plugin-catalog.js";
+import { DIRECT_WORK_SURFACE_IDS, islandEntries, pluginMarketCards, railEntries } from "./plugin-catalog.js";
 
 export interface ImmersiveShellPrimitives {
   L(value: string): string;
@@ -45,7 +45,14 @@ function currentListPlugin(directory: string): string {
   return directory;
 }
 
-const RAIL_PERSONAL_ISLAND_IDS = new Set(["lingguang"]);
+function islandPlugins(enabled: readonly string[]) {
+  return islandEntries(enabled).map(entry => ({
+    id: entry.id,
+    surface: SURFACE_OVERRIDES[entry.id] ?? entry.surface,
+    label: entry.label,
+    glyph: entry.glyph as MolisWorkIcon,
+  }));
+}
 
 /** Icon rail: home, enabled plugins, market. Account stays at the bottom. */
 export function renderPluginRail(
@@ -56,7 +63,6 @@ export function renderPluginRail(
   const { L } = primitives;
   const home = pluginLink(primitives, { id: "home", surface: "home", label: L("项目首页"), glyph: "home" }, "plugin-rail-item");
   const plugins = directoryPlugins(enabled)
-    .filter(plugin => !RAIL_PERSONAL_ISLAND_IDS.has(plugin.id))
     .map(plugin => pluginLink(primitives, plugin, "plugin-rail-item"))
     .join("");
   const market = pluginLink(primitives, { id: "market", surface: "market", label: L("插件市场"), glyph: "grid" }, "plugin-rail-item");
@@ -72,13 +78,12 @@ export function renderAssistantIsland(
   enabled: readonly string[],
 ): string {
   const { L, icon } = primitives;
-  const lingguang = directoryPlugins(enabled).find(plugin => plugin.id === "lingguang");
-  const lingguangButton = lingguang
-    ? pluginLink(primitives, lingguang, "plugin-rail-item")
-    : "";
+  const islandButtons = islandPlugins(enabled)
+    .map(plugin => pluginLink(primitives, plugin, "plugin-rail-item"))
+    .join("");
   return `<nav class="assistant-island" data-assistant-island aria-label="${L("灵光与对话")}">
     <div class="assistant-island-card">
-      ${lingguangButton}
+      ${islandButtons}
       <button class="immersive-plugin-link plugin-rail-item" type="button" data-assistant-toggle popovertarget="assistant-composer" aria-expanded="false" aria-controls="assistant-composer" aria-haspopup="dialog" aria-label="${L("打开对话")}" title="${L("对话")}">${icon("message")}<span>${L("对话")}</span></button>
     </div>
     <form class="assistant-composer" id="assistant-composer" data-assistant-composer popover="auto" aria-label="Molis Work Assistant">

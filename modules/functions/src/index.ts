@@ -16,4 +16,5 @@ export { hashChoiceConfig, hashFunctionConfig } from "./hash.js";
 export { openFunctionsStore, FunctionsStore, assertReadyToPublish, assertReadyToEvaluate } from "./store.js";
 export { createFunctionsService, FunctionsService } from "./service.js";
 export type { FunctionsSecretPort, TypeSafeProvider, TypeSafeEvaluateResult } from "./service.js";
+export { createHttpTypeSafeProvider, readAnswer, readChoiceAnswer, TYPESAFE_SYSTEMONE_URL } from "./provider.js";
 export { seedBuiltinFunctions } from "./builtin.js";

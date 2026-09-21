@@ -1,11 +1,3 @@
-import { SHELF_STYLES } from "@molis-ai/molis-work-plugin-shelf";
-import { FUNCTIONS_STYLES } from "@molis-ai/molis-work-plugin-functions";
-import { FORM_STYLES } from "@molis-ai/molis-work-plugin-form";
-import { PAGES_STYLES } from "@molis-ai/molis-work-plugin-pages";
-import { DATASET_STYLES } from "@molis-ai/molis-work-plugin-dataset";
-import { PPT_STYLES } from "@molis-ai/molis-work-plugin-ppt";
-import { LINGGUANG_STYLES } from "@molis-ai/molis-work-plugin-lingguang";
-import { SCHEDULE_STYLES } from "@molis-ai/molis-work-plugin-schedule";
 import { TRASH_GOAL_STYLES, PLANNING_SETTINGS_STYLES, PLANNING_ADOPTION_CLIENT_SCRIPT, PLANNING_SETTINGS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-goals";
 import { PROJECT_OPERATIONS_STYLES, PROJECT_OPERATIONS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-work";
 import {
@@ -46,6 +38,7 @@ import { PROJECT_HOME_STYLES } from "./styles/project-home.js";
 import { PROJECT_SETTINGS_PAGE_STYLES } from "./styles/project-settings-page.js";
 import { SURFACE_LANGUAGE_STYLES } from "./styles/surface-language.js";
 import { TAB_WORKSPACE_STYLES } from "./styles/tab-workspace.js";
+import { pluginWorkbenchSettingsStyles, pluginWorkbenchStyles } from "./plugin-workbench.js";
 
 /** Coss/texture/primitive/typeface overlay. Appended after page CSS so mw-* wins. */
 const PAGE_CHROME_OVERLAY = `${COSS_CONTROL_STYLES}${SURFACE_LANGUAGE_STYLES}`;
@@ -53,7 +46,7 @@ const PAGE_PRIMITIVE_TAIL = `${INTERACTION_TEXTURE_STYLES}${PRIMITIVE_STYLES}${M
 
 /** Shared workbench presentation. Kept outside project HTML so the browser can reuse it. */
 export function renderMolisWorkWorkbenchStylesheet(): string {
-  return `${STYLES}${MORE_STYLES}${RESPONSIVE_STYLES}${VISUAL_FOUNDATION_STYLES}${TRASH_GOAL_STYLES}${PROJECT_OPERATIONS_STYLES}${ARTIFACT_EMBED_STYLES}${ARTIFACT_WORKBENCH_STYLES}${IMMERSIVE_NAVIGATION_STYLES}${IMMERSIVE_DIRECTORY_STYLES}${PROJECT_HOME_STYLES}${GOAL_CANVAS_STYLES}${PLUGIN_STAGE_STYLES}${TAB_WORKSPACE_STYLES}${DETAIL_READING_STYLES}${PROJECT_GUIDANCE_SETTINGS_STYLES}${PROJECT_RULES_SETTINGS_STYLES}${PLANNING_SETTINGS_STYLES}${SETTINGS_STYLES}${PROJECT_SETTINGS_PAGE_STYLES}.document-pane.is-syncing .goal-document { animation: none; }${PAGE_CHROME_OVERLAY}${LINEAR_DENSITY_STYLES}${PAGE_PRIMITIVE_TAIL}${SHELF_STYLES}${FUNCTIONS_STYLES}${PAGES_STYLES}${FORM_STYLES}${DATASET_STYLES}${PPT_STYLES}${LINGGUANG_STYLES}${SCHEDULE_STYLES}${TYPEFACE_STYLES}`;
+  return `${STYLES}${MORE_STYLES}${RESPONSIVE_STYLES}${VISUAL_FOUNDATION_STYLES}${TRASH_GOAL_STYLES}${PROJECT_OPERATIONS_STYLES}${ARTIFACT_EMBED_STYLES}${ARTIFACT_WORKBENCH_STYLES}${IMMERSIVE_NAVIGATION_STYLES}${IMMERSIVE_DIRECTORY_STYLES}${PROJECT_HOME_STYLES}${GOAL_CANVAS_STYLES}${PLUGIN_STAGE_STYLES}${TAB_WORKSPACE_STYLES}${DETAIL_READING_STYLES}${PROJECT_GUIDANCE_SETTINGS_STYLES}${PROJECT_RULES_SETTINGS_STYLES}${PLANNING_SETTINGS_STYLES}${SETTINGS_STYLES}${PROJECT_SETTINGS_PAGE_STYLES}.document-pane.is-syncing .goal-document { animation: none; }${PAGE_CHROME_OVERLAY}${LINEAR_DENSITY_STYLES}${PAGE_PRIMITIVE_TAIL}${pluginWorkbenchStyles()}${TYPEFACE_STYLES}`;
 }
 
 /** Full-screen first-run and update journey. */
@@ -68,7 +61,7 @@ export function renderMolisWorkProjectIndexStylesheet(): string {
 
 /** Shared settings presentation, reused across project and global settings routes. */
 export function renderMolisWorkSettingsStylesheet(): string {
-  return `${STYLES}${MORE_STYLES}${RESPONSIVE_STYLES}${SETTINGS_STYLES}${PROJECT_GUIDANCE_SETTINGS_STYLES}${PROJECT_RULES_SETTINGS_STYLES}${PLANNING_SETTINGS_STYLES}${VISUAL_FOUNDATION_STYLES}${PROJECT_INDEX_STYLES}${SETTINGS_IA_NAV_STYLES}${COSS_CONTROL_STYLES}${PROJECT_SETTINGS_PAGE_STYLES}${SURFACE_LANGUAGE_STYLES}${LINEAR_DENSITY_STYLES}${PAGE_PRIMITIVE_TAIL}${TYPEFACE_STYLES}${SHELF_STYLES}${FUNCTIONS_STYLES}`;
+  return `${STYLES}${MORE_STYLES}${RESPONSIVE_STYLES}${SETTINGS_STYLES}${PROJECT_GUIDANCE_SETTINGS_STYLES}${PROJECT_RULES_SETTINGS_STYLES}${PLANNING_SETTINGS_STYLES}${VISUAL_FOUNDATION_STYLES}${PROJECT_INDEX_STYLES}${SETTINGS_IA_NAV_STYLES}${COSS_CONTROL_STYLES}${PROJECT_SETTINGS_PAGE_STYLES}${SURFACE_LANGUAGE_STYLES}${LINEAR_DENSITY_STYLES}${PAGE_PRIMITIVE_TAIL}${TYPEFACE_STYLES}${pluginWorkbenchSettingsStyles()}`;
 }
 
 /** Shared workbench behavior. Locale strings and project facts remain page-local. */

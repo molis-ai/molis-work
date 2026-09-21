@@ -149,6 +149,8 @@ test("工作台 HTML 挂上三个创作入口，确认与工具条不在 label �
   assert.match(html, /data-form="workbench"/);
   assert.match(html, /data-dataset="workbench"/);
   assert.match(html, /data-ppt="workbench"/);
+  assert.match(html, /data-ppt-swatch/);
+  assert.doesNotMatch(html, /type="color"/);
   assert.match(html, /data-project-id="project-creative-tools"/);
   assert.match(html, /data-form-confirm/);
   assert.match(html, /data-dataset-confirm/);
@@ -407,6 +409,8 @@ test("Dataset：行列、CSV、导出、版本回滚，重开还在；加列是�
     assert.equal(parsed.rows.length, 2);
     assert.equal(parseCsv("日期\n2026-09-21\n2026-09-22").columns[0]?.type, "date");
     assert.equal(parseCsv("备注\n1\n待定").columns[0]?.type, "text");
+    const quoted = parseCsv('备注\n"a""b"');
+    assert.equal(Object.values(quoted.rows[0]?.cells ?? {})[0], 'a"b');
     assert.match(toCsv(store.get(id)), /95/);
     store.close();
 

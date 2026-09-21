@@ -1,6 +1,5 @@
-import { chmodSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
+import { ensureSqliteColumn, openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import type { DatabaseSync } from "node:sqlite";
 import type { PptRecord, PptSlide } from "@molis-ai/molis-work-contracts/modules/ppt";
 import { PptError } from "./error.js";
 
@@ -115,11 +114,7 @@ export class PptStore {
 }
 
 export function openPptStore(homeDirectory: string): PptStore {
-  const dir = join(homeDirectory, "ppt");
-  mkdirSync(dir, { recursive: true, mode: 0o700 });
-  const dbPath = join(dir, "ppt.db");
-  const db = new DatabaseSync(dbPath);
-  try { chmodSync(dbPath, 0o600); } catch { /* best-effort */ }
+  const db = openHomeSqliteDatabase(homeDirectory, "ppt");
   db.exec(`
     CREATE TABLE IF NOT EXISTS presentations (
       id TEXT PRIMARY KEY,
@@ -135,15 +130,8 @@ export function openPptStore(homeDirectory: string): PptStore {
       version INTEGER NOT NULL
     );
   `);
-  ensureProjectIdColumn(db, "presentations");
+  ensureSqliteColumn(db, "presentations", "project_id", "TEXT NOT NULL DEFAULT ''");
   return new PptStore(db);
-}
-
-function ensureProjectIdColumn(db: DatabaseSync, table: string): void {
-  const columns = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
-  if (!columns.some((column) => column.name === "project_id")) {
-    db.exec(`ALTER TABLE ${table} ADD COLUMN project_id TEXT NOT NULL DEFAULT ''`);
-  }
 }
 
 function fromRow(row: PptRow): PptRecord {

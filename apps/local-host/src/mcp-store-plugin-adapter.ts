@@ -1,4 +1,4 @@
-import { MolisWorkV1Error } from "@molis-ai/molis-work-plugin-goals";
+import { MolisWorkV1Error } from "@molis-ai/molis-work-contracts/platform/errors";
 import type { PluginMcpHandleRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { McpToolCallContext } from "@molis-ai/molis-work-app-mcp";
 import {
@@ -37,7 +37,9 @@ export function createPagesMcpAdapter(ports: NativeMcpAdapterPorts): NativeMcpPl
     plugin_id: pagesManifest.plugin_id,
     missingHome: "MCP 宿主没有提供本机目录，无法读取文档",
     openStore: openPagesStore,
-    run: runPagesMcpTool,
+    run: (store, request, projectId) => runPagesMcpTool(store, request, projectId, {
+      publishArtifact: ports.publishPagesArtifact,
+    }),
     mapError: (error) => error instanceof PagesError ? new MolisWorkV1Error(error.code, error.message) : error,
     ports,
   });

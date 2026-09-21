@@ -26,3 +26,5 @@ export { emptyDoc, nodeFromUnknown, pagesSchema } from "./schema.js";
 export { extractFromPagesBody } from "./extract.js";
 export { PAGES_AI_COMMANDS, runPagesAi, stubPagesAi } from "./ai.js";
 export type { PagesRoutePorts } from "./route-handlers.js";
+export { requirePromoteArtifactPort } from "./promote.js";
+export type { PagesPublishArtifactPort } from "./promote.js";

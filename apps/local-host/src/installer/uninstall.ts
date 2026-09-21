@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { resolveConfiguredHome } from "../product-home.js";
+import { PERSONAL_HOME_SQLITE_STORES } from "@molis-ai/molis-work-storage";
 import { RuntimeIntegrationService } from "./runtime-integration.js";
 import { SUPPORTED_RUNTIME_IDS } from "./runtime-integration-contract.js";
 import { MolisWorkWebServiceManager } from "./web-service.js";
@@ -49,6 +50,7 @@ export class MolisWorkUninstallService {
         // project databases; leaving them behind made "purged" untrue.
         path.join(this.homeDirectory, "sessions"),
         path.join(this.homeDirectory, "shelf"),
+        ...PERSONAL_HOME_SQLITE_STORES.map((storeName) => path.join(this.homeDirectory, storeName)),
         path.join(this.homeDirectory, "runtime-config-backups"),
         path.join(this.homeDirectory, "runtime-integrations"),
       ])

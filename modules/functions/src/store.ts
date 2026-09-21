@@ -1,17 +1,19 @@
-import { chmodSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
+import { openHomeSqliteDatabase, ensureSqliteColumn } from "@molis-ai/molis-work-storage";
+import type { DatabaseSync } from "node:sqlite";
 import {
   AGENT_MCP_DESTINATION_ID,
   FUNCTIONS_DEFAULT_MODEL,
   FUNCTIONS_MAX_SAMPLES,
+  functionOutputKeys,
   isFunctionDestinationId,
+  sceneBehaviorIds,
   type ChoiceCriterion,
   type FunctionCriteria,
   type FunctionDraftPatch,
   type FunctionRecord,
   type FunctionSample,
   type FunctionSceneBinding,
+  type FunctionSceneMap,
   type FunctionsPreviewRecord,
   type FunctionsPrimitive,
   type JudgmentRecord,
@@ -34,6 +36,7 @@ interface FunctionRow {
   criteria_json: string;
   scene_id: string | null;
   subject_kinds_json: string | null;
+  scene_map_json: string | null;
   config_hash: string;
   last_preview_json: string | null;
   samples_json: string | null;
@@ -92,8 +95,9 @@ export class FunctionsStore {
       model: FUNCTIONS_DEFAULT_MODEL,
       instructions: "",
       criteria,
-      scene_id: primitive === "choice" ? null : AGENT_MCP_DESTINATION_ID,
-      subject_kinds: primitive === "choice" ? [] : ["mcp_invoke"],
+      scene_id: null,
+      subject_kinds: [],
+      scene_map: {},
       last_preview: null,
       samples: [],
       published_at: null,
@@ -108,7 +112,7 @@ export class FunctionsStore {
     return this.create({ ...input, primitive: "choice" });
   }
 
-  updateDraft(id: string, patch: FunctionDraftPatch): FunctionRecord {
+  updateDraft(id: string, patch: FunctionDraftPatch, expectedUpdatedAt?: string): FunctionRecord {
     const current = this.require(id);
     if (current.status === "published") {
       throw new FunctionsError("functions.published_immutable", "已发布的函数不能再改配置");
@@ -130,12 +134,15 @@ export class FunctionsStore {
     const last_preview = current.last_preview?.config_hash === config_hash ? current.last_preview : null;
     const scene_id = patch.scene_id === undefined ? current.scene_id : normalizeSceneId(patch.scene_id, current.primitive);
     const subject_kinds = patch.subject_kinds === undefined ? current.subject_kinds : normalizeSubjectKinds(patch.subject_kinds);
+    const scene_map = patch.scene_map === undefined
+      ? pruneSceneMap(current.scene_map, current.primitive, criteria, scene_id)
+      : normalizeSceneMap(patch.scene_map, current.primitive, criteria, scene_id);
     const now = new Date().toISOString();
-    this.db.prepare(`
+    const written = this.db.prepare(`
       UPDATE functions
       SET name = ?, function_key = ?, instructions = ?, criteria_json = ?, scene_id = ?, subject_kinds_json = ?,
-          config_hash = ?, last_preview_json = ?, updated_at = ?
-      WHERE id = ?
+          scene_map_json = ?, config_hash = ?, last_preview_json = ?, updated_at = ?
+      WHERE id = ? AND status = 'draft' AND updated_at = ?
     `).run(
       name,
       function_key,
@@ -143,26 +150,29 @@ export class FunctionsStore {
       JSON.stringify(criteria),
       scene_id,
       JSON.stringify(subject_kinds),
+      JSON.stringify(scene_map),
       config_hash,
       last_preview ? JSON.stringify(last_preview) : null,
       now,
       id,
+      expectedUpdatedAt ?? current.updated_at,
     );
-    return this.require(id);
+    return this.requireCas(id, written.changes);
   }
 
-  savePreview(id: string, preview: FunctionsPreviewRecord): FunctionRecord {
+  savePreview(id: string, preview: FunctionsPreviewRecord, expectedUpdatedAt?: string): FunctionRecord {
     const current = this.require(id);
     if (preview.config_hash !== current.config_hash) {
       throw new FunctionsError("functions.stale_preview", "预览结果对不上当前配置，请再试一次");
     }
     const now = new Date().toISOString();
-    this.db.prepare("UPDATE functions SET last_preview_json = ?, updated_at = ? WHERE id = ?")
-      .run(JSON.stringify(preview), now, id);
-    return this.require(id);
+    const written = this.db.prepare(
+      "UPDATE functions SET last_preview_json = ?, updated_at = ? WHERE id = ? AND updated_at = ?",
+    ).run(JSON.stringify(preview), now, id, expectedUpdatedAt ?? current.updated_at);
+    return this.requireCas(id, written.changes);
   }
 
-  addSample(id: string, input: { label?: string; input: string }): FunctionRecord {
+  addSample(id: string, input: { label?: string; input: string }, expectedUpdatedAt?: string): FunctionRecord {
     const current = this.require(id);
     if (current.samples.length >= FUNCTIONS_MAX_SAMPLES) {
       throw new FunctionsError("functions.invalid", `每个函数最多 ${FUNCTIONS_MAX_SAMPLES} 条样例`);
@@ -172,19 +182,19 @@ export class FunctionsStore {
       label: normalizeSampleLabel(input.label, current.samples.length),
       input: normalizeSampleInput(input.input),
     };
-    return this.writeSamples(current.id, [...current.samples, sample]);
+    return this.writeSamples(current.id, [...current.samples, sample], expectedUpdatedAt ?? current.updated_at);
   }
 
-  removeSample(id: string, sampleId: string): FunctionRecord {
+  removeSample(id: string, sampleId: string, expectedUpdatedAt?: string): FunctionRecord {
     const current = this.require(id);
     const samples = current.samples.filter((item) => item.id !== sampleId);
     if (samples.length === current.samples.length) {
       throw new FunctionsError("functions.not_found", "样例不存在");
     }
-    return this.writeSamples(current.id, samples);
+    return this.writeSamples(current.id, samples, expectedUpdatedAt ?? current.updated_at);
   }
 
-  publish(id: string): FunctionRecord {
+  publish(id: string, expectedUpdatedAt?: string): FunctionRecord {
     const current = this.require(id);
     if (current.status === "published") return current;
     assertReadyToPublish(current);
@@ -199,26 +209,43 @@ export class FunctionsStore {
     const last_preview = current.last_preview && current.last_preview.config_hash === current.config_hash
       ? { ...current.last_preview, config_hash, model: current.last_preview.model || model }
       : current.last_preview;
-    this.db.prepare(`
+    const written = this.db.prepare(`
       UPDATE functions
       SET status = 'published', version = 1, model = ?, config_hash = ?, last_preview_json = ?, published_at = ?, updated_at = ?
-      WHERE id = ?
-    `).run(model, config_hash, last_preview ? JSON.stringify(last_preview) : null, now, now, id);
+      WHERE id = ? AND status = 'draft' AND updated_at = ?
+    `).run(model, config_hash, last_preview ? JSON.stringify(last_preview) : null, now, now, id, expectedUpdatedAt ?? current.updated_at);
+    if (written.changes !== 1) {
+      const latest = this.require(id);
+      if (latest.status === "published") return latest;
+      throw new FunctionsError("functions.conflict", "草稿已被更新，请刷新后再试");
+    }
     return this.require(id);
   }
 
-  deleteDraft(id: string): void {
+  deleteDraft(id: string, expectedUpdatedAt?: string): void {
     const current = this.require(id);
     if (current.status === "published") {
       throw new FunctionsError("functions.published_immutable", "已发布的函数不能删除");
     }
-    this.db.prepare("DELETE FROM functions WHERE id = ?").run(id);
+    const written = this.db.prepare(
+      "DELETE FROM functions WHERE id = ? AND status = 'draft' AND updated_at = ?",
+    ).run(id, expectedUpdatedAt ?? current.updated_at);
+    if (written.changes !== 1) {
+      throw new FunctionsError("functions.conflict", "草稿已被更新，请刷新后再试");
+    }
   }
 
   require(id: string): FunctionRecord {
     const record = this.get(id);
     if (!record) throw new FunctionsError("functions.not_found", "函数不存在");
     return record;
+  }
+
+  private requireCas(id: string, changes: number | bigint): FunctionRecord {
+    if (changes !== 1 && changes !== 1n) {
+      throw new FunctionsError("functions.conflict", "草稿已被更新，请刷新后再试");
+    }
+    return this.require(id);
   }
 
   requirePublishedByKey(functionKey: string): FunctionRecord {
@@ -330,24 +357,21 @@ export class FunctionsStore {
     return row ? mapJudgment(row) : null;
   }
 
-  private writeSamples(id: string, samples: readonly FunctionSample[]): FunctionRecord {
+  private writeSamples(
+    id: string,
+    samples: readonly FunctionSample[],
+    expectedUpdatedAt: string,
+  ): FunctionRecord {
     const now = new Date().toISOString();
-    this.db.prepare("UPDATE functions SET samples_json = ?, updated_at = ? WHERE id = ?")
-      .run(JSON.stringify(samples), now, id);
-    return this.require(id);
+    const written = this.db.prepare(
+      "UPDATE functions SET samples_json = ?, updated_at = ? WHERE id = ? AND updated_at = ?",
+    ).run(JSON.stringify(samples), now, id, expectedUpdatedAt);
+    return this.requireCas(id, written.changes);
   }
 }
 
 export function openFunctionsStore(homeDirectory: string): FunctionsStore {
-  const dir = join(homeDirectory, "functions");
-  mkdirSync(dir, { recursive: true, mode: 0o700 });
-  const dbPath = join(dir, "functions.db");
-  const db = new DatabaseSync(dbPath);
-  try {
-    chmodSync(dbPath, 0o600);
-  } catch {
-    // The file exists; mode is best-effort on this volume.
-  }
+  const db = openHomeSqliteDatabase(homeDirectory, "functions");
   db.exec(`
     CREATE TABLE IF NOT EXISTS functions (
       id TEXT PRIMARY KEY,
@@ -367,16 +391,10 @@ export function openFunctionsStore(homeDirectory: string): FunctionsStore {
       updated_at TEXT NOT NULL
     );
   `);
-  const columns = db.prepare("PRAGMA table_info(functions)").all() as Array<{ name: string }>;
-  if (!columns.some((column) => column.name === "samples_json")) {
-    db.exec("ALTER TABLE functions ADD COLUMN samples_json TEXT NOT NULL DEFAULT '[]'");
-  }
-  if (!columns.some((column) => column.name === "scene_id")) {
-    db.exec("ALTER TABLE functions ADD COLUMN scene_id TEXT");
-  }
-  if (!columns.some((column) => column.name === "subject_kinds_json")) {
-    db.exec("ALTER TABLE functions ADD COLUMN subject_kinds_json TEXT NOT NULL DEFAULT '[]'");
-  }
+  ensureSqliteColumn(db, "functions", "samples_json", "TEXT NOT NULL DEFAULT '[]'");
+  ensureSqliteColumn(db, "functions", "scene_id", "TEXT");
+  ensureSqliteColumn(db, "functions", "subject_kinds_json", "TEXT NOT NULL DEFAULT '[]'");
+  ensureSqliteColumn(db, "functions", "scene_map_json", "TEXT NOT NULL DEFAULT '{}'");
   db.exec(`
     CREATE TABLE IF NOT EXISTS function_judgments (
       judgment_id TEXT PRIMARY KEY,
@@ -461,8 +479,8 @@ function insert(db: DatabaseSync, record: FunctionRecord): void {
   db.prepare(`
     INSERT INTO functions (
       id, name, function_key, primitive, status, version, model, instructions, criteria_json,
-      scene_id, subject_kinds_json, config_hash, last_preview_json, samples_json, published_at, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      scene_id, subject_kinds_json, scene_map_json, config_hash, last_preview_json, samples_json, published_at, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     record.id,
     record.name,
@@ -475,6 +493,7 @@ function insert(db: DatabaseSync, record: FunctionRecord): void {
     JSON.stringify(record.criteria),
     record.scene_id,
     JSON.stringify(record.subject_kinds),
+    JSON.stringify(record.scene_map),
     record.config_hash,
     record.last_preview ? JSON.stringify(record.last_preview) : null,
     JSON.stringify(record.samples),
@@ -497,6 +516,7 @@ function fromRow(row: FunctionRow): FunctionRecord {
     model: row.model,
     scene_id: parseSceneId(row.scene_id),
     subject_kinds: parseSubjectKinds(row.subject_kinds_json),
+    scene_map: parseSceneMap(row.scene_map_json),
     instructions: row.instructions,
     criteria,
     last_preview: parsePreview(row.last_preview_json, primitive),
@@ -519,6 +539,7 @@ function buildRecord(input: {
   criteria: FunctionCriteria;
   scene_id: string | null;
   subject_kinds: readonly string[];
+  scene_map: FunctionSceneMap;
   last_preview: FunctionsPreviewRecord | null;
   samples: readonly FunctionSample[];
   published_at: string | null;
@@ -535,6 +556,7 @@ function buildRecord(input: {
     instructions: input.instructions,
     scene_id: input.scene_id,
     subject_kinds: input.subject_kinds,
+    scene_map: input.scene_map,
     config_hash: hashFunctionConfig({
       primitive: input.primitive,
       instructions: input.instructions,
@@ -668,15 +690,31 @@ function parseSubjectKinds(raw: string | null | undefined): string[] {
   }
 }
 
-function normalizeSceneId(value: string | null, primitive: FunctionsPrimitive): string | null {
-  if (value == null || value === "") {
-    return primitive === "choice" ? null : AGENT_MCP_DESTINATION_ID;
+function parseSceneMap(raw: string | null | undefined): FunctionSceneMap {
+  if (!raw) return {};
+  try {
+    const value = JSON.parse(raw) as unknown;
+    if (!isRecord(value)) return {};
+    const mapped: Record<string, string> = {};
+    for (const [rawKey, rawTarget] of Object.entries(value)) {
+      const key = rawKey.trim();
+      const target = typeof rawTarget === "string" ? rawTarget.trim() : "";
+      if (!key || !target) continue;
+      mapped[key] = target;
+    }
+    return mapped;
+  } catch {
+    return {};
   }
+}
+
+function normalizeSceneId(value: string | null, primitive: FunctionsPrimitive): string | null {
+  if (value == null || value === "") return null;
   if (!isFunctionDestinationId(value)) {
     throw new FunctionsError("functions.invalid", "这个用法不在可选范围里");
   }
-  if (primitive !== "choice" && value !== AGENT_MCP_DESTINATION_ID) {
-    throw new FunctionsError("functions.invalid", "首页、Inbox、Feed 要用 Choice。");
+  if (primitive === "score" && value !== AGENT_MCP_DESTINATION_ID) {
+    throw new FunctionsError("functions.invalid", "Score 不能绑 Inbox、首页、Feed。");
   }
   return value;
 }
@@ -693,6 +731,51 @@ function normalizeSubjectKinds(value: unknown): string[] {
     kinds.push(kind);
   }
   return kinds;
+}
+
+function normalizeSceneMap(
+  value: unknown,
+  primitive?: FunctionsPrimitive,
+  criteria?: FunctionCriteria,
+  sceneId?: string | null,
+): FunctionSceneMap {
+  if (value == null) return {};
+  if (!isRecord(value) || Array.isArray(value)) {
+    throw new FunctionsError("functions.invalid", "映射格式不对");
+  }
+  const allowed = primitive && criteria
+    ? new Set(functionOutputKeys({ primitive, criteria }))
+    : null;
+  const mapped: Record<string, string> = {};
+  for (const [rawKey, rawTarget] of Object.entries(value)) {
+    const key = rawKey.trim();
+    const target = typeof rawTarget === "string" ? rawTarget.trim() : "";
+    if (!key || !target) continue;
+    if (allowed && !allowed.has(key)) continue;
+    mapped[key] = target;
+  }
+  return pruneSceneMap(mapped, primitive, criteria, sceneId);
+}
+
+function pruneSceneMap(
+  value: FunctionSceneMap,
+  primitive?: FunctionsPrimitive,
+  criteria?: FunctionCriteria,
+  sceneId?: string | null,
+): FunctionSceneMap {
+  if (sceneId === AGENT_MCP_DESTINATION_ID || sceneId === "") return {};
+  if (sceneId === null) return {};
+  if (sceneId === undefined) return { ...value };
+  if (!primitive || !criteria) return { ...value };
+  const allowed = new Set(functionOutputKeys({ primitive, criteria }));
+  const pool = new Set(sceneBehaviorIds(sceneId));
+  const mapped: Record<string, string> = {};
+  for (const [key, target] of Object.entries(value)) {
+    if (!allowed.has(key) || !target) continue;
+    if (pool.size > 0 && !pool.has(target)) continue;
+    mapped[key] = target;
+  }
+  return mapped;
 }
 
 function normalizeName(value: string): string {

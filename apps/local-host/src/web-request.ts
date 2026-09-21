@@ -24,18 +24,8 @@ import { handleFeedNativePluginHttp } from "./feed-native-plugin-http.js";
 import { handleInboxNativePluginHttp } from "./inbox-native-plugin-http.js";
 import { handleHomeDockJudgmentHttp } from "./home-dock-http.js";
 import { handleScheduleNativePluginHttp } from "./schedule-native-plugin-http.js";
-import { handleShelfNativePluginHttp } from "./shelf-native-plugin-http.js";
-import { handleFunctionsNativePluginHttp } from "./functions-native-plugin-http.js";
-import { handleFormNativePluginHttp } from "./form-native-plugin-http.js";
-import { handlePagesNativePluginHttp } from "./pages-native-plugin-http.js";
-import {
-  PAGES_ARTIFACT_SCHEMA_VERSION,
-  PAGES_ARTIFACT_TYPE_ID,
-} from "@molis-ai/molis-work-contracts/modules/pages";
-import { pagesManifest } from "@molis-ai/molis-work-plugin-pages";
-import { handleDatasetNativePluginHttp } from "./dataset-native-plugin-http.js";
-import { handlePptNativePluginHttp } from "./ppt-native-plugin-http.js";
-import { handleLingguangNativePluginHttp } from "./lingguang-native-plugin-http.js";
+import { handlePersonalNativePluginHttp } from "./personal-native-plugin-http.js";
+import { registerPagesArtifactVersion } from "./pages-artifact.js";
 import { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
 import { serviceProcessId } from "./web-runtime-settings.js";
 import { resolveWebRequest } from "./web-routing.js";
@@ -194,42 +184,13 @@ export async function handleMolisWorkWebRequest(
           sendJson(response, 200, readWebView());
           return;
         }
-        if (serverOptions.homeDirectory && await handleShelfNativePluginHttp(request, response, url, serverOptions.homeDirectory)) return;
-        if (serverOptions.homeDirectory && await handleFunctionsNativePluginHttp(request, response, url, serverOptions.homeDirectory)) return;
-        if (serverOptions.homeDirectory && await handlePagesNativePluginHttp(request, response, url, serverOptions.homeDirectory, {
-          publishArtifact: (input) => {
-            const result = coordinator.artifacts.commands.registerVersion({
-              board_id: options.boardId,
-              actor_id: "web-user",
-              artifact_id: "pages-" + input.page_id,
-              version: input.version,
-              artifact_type_id: PAGES_ARTIFACT_TYPE_ID,
-              schema_version: PAGES_ARTIFACT_SCHEMA_VERSION,
-              producer: {
-                plugin_id: pagesManifest.plugin_id,
-                plugin_version: pagesManifest.version,
-                binding_signature: pagesManifest.publisher.signature,
-              },
-              content: {
-                kind: "inline",
-                payload: JSON.parse(JSON.stringify({
-                  title: input.title,
-                  page_id: input.page_id,
-                  goal_id: input.goal_id,
-                  body: input.body,
-                })),
-              },
-              metadata: { page_id: input.page_id, goal_id: input.goal_id, title: input.title },
-              scope: "personal",
-              supersedes_version: input.version > 1 ? input.version - 1 : null,
-            });
-            return { artifact_id: result.artifact.artifact_id, version: result.artifact.version };
-          },
-        })) return;
-        if (serverOptions.homeDirectory && await handleFormNativePluginHttp(request, response, url, serverOptions.homeDirectory)) return;
-        if (serverOptions.homeDirectory && await handleDatasetNativePluginHttp(request, response, url, serverOptions.homeDirectory)) return;
-        if (serverOptions.homeDirectory && await handlePptNativePluginHttp(request, response, url, serverOptions.homeDirectory)) return;
-        if (serverOptions.homeDirectory && await handleLingguangNativePluginHttp(request, response, url, serverOptions.homeDirectory)) return;
+        if (serverOptions.homeDirectory && await handlePersonalNativePluginHttp(
+          request,
+          response,
+          url,
+          serverOptions.homeDirectory,
+          { publishArtifact: registerPagesArtifactVersion(coordinator, options.boardId) },
+        )) return;
         if (await handleInboxNativePluginHttp(request, response, url, {
           boardId: options.boardId,
           store,

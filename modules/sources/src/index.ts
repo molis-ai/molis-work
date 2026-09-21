@@ -42,7 +42,7 @@ const FEED_SOURCES_COLUMNS = `
       source_id TEXT NOT NULL,
       kind TEXT NOT NULL,
       definition_id TEXT,
-      sync_kind TEXT NOT NULL DEFAULT 'manual' CHECK (sync_kind IN ('public_source', 'github', 'gmail', 'manual')),
+      sync_kind TEXT NOT NULL DEFAULT 'manual' CHECK (sync_kind IN ('public_source', 'github', 'gmail', 'connector', 'manual')),
       name TEXT NOT NULL,
       description TEXT NOT NULL DEFAULT '',
       status TEXT NOT NULL,
@@ -103,19 +103,32 @@ export function migrateSources(db: SourcesSqliteDatabase): void {
   ensureColumn(db, "feed_sources", "last_outcome", "TEXT");
   ensureColumn(db, "feed_sources", "last_error_code", "TEXT");
   rebuildFeedSourcesOriginCheck(db);
+  rebuildFeedSourcesSyncKindCheck(db);
   db.exec("UPDATE feed_sources SET status = 'disconnected' WHERE status = 'imported'");
 }
 
 function rebuildFeedSourcesOriginCheck(db: SourcesSqliteDatabase): void {
+  rebuildFeedSourcesTable(db, "feed_sources__origin_v2", (sql) => !sql.includes("CHECK (origin = 'molis_work')"));
+}
+
+function rebuildFeedSourcesSyncKindCheck(db: SourcesSqliteDatabase): void {
+  rebuildFeedSourcesTable(db, "feed_sources__sync_kind_v2", (sql) => !sql.includes("'connector'"));
+}
+
+function rebuildFeedSourcesTable(
+  db: SourcesSqliteDatabase,
+  stagingTable: string,
+  needed: (sql: string) => boolean,
+): void {
   const sql = String(
     (db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'feed_sources'").get() as { sql?: string } | undefined)?.sql ?? "",
   );
-  if (!sql || sql.includes("CHECK (origin = 'molis_work')")) return;
+  if (!sql || !needed(sql)) return;
   db.pragma("foreign_keys = OFF");
   try {
     db.exec(`
-      ${feedSourcesTableSql("feed_sources__origin_v2", false)}
-      INSERT INTO feed_sources__origin_v2 (
+      ${feedSourcesTableSql(stagingTable, false)}
+      INSERT INTO ${stagingTable} (
         board_id, source_id, kind, definition_id, sync_kind, name, description,
         status, enabled, item_count, origin, config_json, schedule_json, cursor_json,
         credential_ref, account_label, last_sync_at, last_outcome, last_error_code,
@@ -129,7 +142,7 @@ function rebuildFeedSourcesOriginCheck(db: SourcesSqliteDatabase): void {
         imported_at, updated_at
       FROM feed_sources;
       DROP TABLE feed_sources;
-      ALTER TABLE feed_sources__origin_v2 RENAME TO feed_sources;
+      ALTER TABLE ${stagingTable} RENAME TO feed_sources;
       ${feedSourcesIndexSql()}
     `);
   } finally {

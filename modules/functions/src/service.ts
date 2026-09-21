@@ -2,6 +2,7 @@ import {
   FUNCTIONS_CREDENTIAL_REF,
   filterSuggestedBehaviorIds,
   functionFitsScene,
+  mapJudgmentChoice,
   type FunctionDescribe,
   type FunctionDraftPatch,
   type FunctionInvokeResult,
@@ -94,20 +95,20 @@ export class FunctionsService {
     return this.store.createChoice(input);
   }
 
-  updateDraft(id: string, patch: FunctionDraftPatch): FunctionRecord {
-    return this.store.updateDraft(id, patch);
+  updateDraft(id: string, patch: FunctionDraftPatch, expectedUpdatedAt?: string): FunctionRecord {
+    return this.store.updateDraft(id, patch, expectedUpdatedAt);
   }
 
-  addSample(id: string, input: { label?: string; input: string }): FunctionRecord {
-    return this.store.addSample(id, input);
+  addSample(id: string, input: { label?: string; input: string }, expectedUpdatedAt?: string): FunctionRecord {
+    return this.store.addSample(id, input, expectedUpdatedAt);
   }
 
-  removeSample(id: string, sampleId: string): FunctionRecord {
-    return this.store.removeSample(id, sampleId);
+  removeSample(id: string, sampleId: string, expectedUpdatedAt?: string): FunctionRecord {
+    return this.store.removeSample(id, sampleId, expectedUpdatedAt);
   }
 
-  deleteDraft(id: string): void {
-    this.store.deleteDraft(id);
+  deleteDraft(id: string, expectedUpdatedAt?: string): void {
+    this.store.deleteDraft(id, expectedUpdatedAt);
   }
 
   settingsStatus(): FunctionsSettingsStatus {
@@ -128,7 +129,7 @@ export class FunctionsService {
     return this.settingsStatus();
   }
 
-  async preview(id: string, input: string): Promise<FunctionRecord> {
+  async preview(id: string, input: string, expectedUpdatedAt?: string): Promise<FunctionRecord> {
     const current = this.store.require(id);
     const result = await this.evaluate(current, input);
     const preview: FunctionsPreviewRecord = {
@@ -145,7 +146,7 @@ export class FunctionsService {
       config_hash: current.config_hash,
       at: new Date().toISOString(),
     };
-    return this.store.savePreview(id, preview);
+    return this.store.savePreview(id, preview, expectedUpdatedAt);
   }
 
   async invokePublished(functionKey: string, input: string): Promise<FunctionInvokeResult> {
@@ -159,7 +160,7 @@ export class FunctionsService {
       scene_id: null,
       outcome,
       suggested_behavior_ids: outcome === "ok"
-        ? filterSuggestedBehaviorIds(this.allowedBehaviorIds, this.allowedBehaviorIds, result.choice)
+        ? filterSuggestedBehaviorIds(this.allowedBehaviorIds, this.allowedBehaviorIds, mapJudgmentChoice(current, result))
         : [],
       error_code: null,
     });
@@ -212,7 +213,7 @@ export class FunctionsService {
       const result = await this.evaluate(current, input.input);
       const outcome = outcomeOf(result);
       const suggested = outcome === "ok"
-        ? filterSuggestedBehaviorIds(offered, allowed, result.choice)
+        ? filterSuggestedBehaviorIds(offered, allowed, mapJudgmentChoice(current, result))
         : [];
       return this.store.recordJudgment({
         function_key: current.function_key,
@@ -237,8 +238,8 @@ export class FunctionsService {
     }
   }
 
-  publish(id: string): FunctionRecord {
-    return this.store.publish(id);
+  publish(id: string, expectedUpdatedAt?: string): FunctionRecord {
+    return this.store.publish(id, expectedUpdatedAt);
   }
 
   private async evaluate(record: FunctionRecord, input: string): Promise<TypeSafeEvaluateResult> {

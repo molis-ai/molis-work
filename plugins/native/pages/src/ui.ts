@@ -3,7 +3,7 @@ import type {
   UiContributionDescriptor,
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
-import { icon } from "@molis-ai/molis-work-design-system";
+import { icon, renderPluginStageShell } from "@molis-ai/molis-work-design-system";
 import { PAGES_TEMPLATES } from "./templates.js";
 
 export const PAGES_UI_CONTRIBUTION_ID = "io.molis.work.native.pages.ui.v1";
@@ -54,7 +54,11 @@ export function renderPagesWorkbench(model: PagesUiModel): string {
       <span><strong>${p.text(item.title)}</strong><em>${p.text(item.summary)}</em></span>
     </button>`
   )).join("");
-  return `<section class="desktop-work-surface plugin-stage-shell" data-work-surface="pages" data-work-surface-label="Pages" hidden data-pages="workbench" data-pages-stage-shell data-expanded="false">
+  return renderPluginStageShell({
+    surface: "pages",
+    label: "Pages",
+    dataset: "pages",
+    body: `
     <div class="plugin-stage-list feed-stage-list feed-stage-tree" data-pages="directory">
       <header class="plugin-stage-chrome pages-stage-chrome">
         <div class="pages-create">
@@ -136,5 +140,5 @@ export function renderPagesWorkbench(model: PagesUiModel): string {
         </div>
       </form>
     </dialog>
-  </section>`;
+  ` });
 }

@@ -75,7 +75,8 @@ function seedChoice(db: DatabaseSync, input: {
   scene_id: string;
   subject_kinds: readonly string[];
 }): void {
-  const existing = db.prepare("SELECT id, config_hash FROM functions WHERE function_key = ?").get(input.function_key) as { id: string; config_hash: string } | undefined;
+  const existing = db.prepare("SELECT id FROM functions WHERE function_key = ?").get(input.function_key) as { id: string } | undefined;
+  if (existing) return;
   const now = new Date().toISOString();
   const config_hash = hashFunctionConfig({
     primitive: "choice",
@@ -84,19 +85,6 @@ function seedChoice(db: DatabaseSync, input: {
     model: FUNCTIONS_DEFAULT_MODEL,
   });
   const kindsJson = JSON.stringify(input.subject_kinds);
-  if (existing) {
-    if (existing.config_hash === config_hash) {
-      db.prepare("UPDATE functions SET name = ?, scene_id = ?, subject_kinds_json = ? WHERE function_key = ?")
-        .run(input.name, input.scene_id, kindsJson, input.function_key);
-      return;
-    }
-    db.prepare(`
-      UPDATE functions
-      SET name = ?, instructions = ?, criteria_json = ?, scene_id = ?, subject_kinds_json = ?, config_hash = ?, updated_at = ?
-      WHERE function_key = ?
-    `).run(input.name, input.instructions, JSON.stringify(input.criteria), input.scene_id, kindsJson, config_hash, now, input.function_key);
-    return;
-  }
   const preview = {
     input: "builtin",
     outcome: "ok",

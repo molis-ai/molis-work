@@ -10,9 +10,13 @@ import { renderMolisWorkSettings, renderMolisWorkWorkbenchClientScript } from ".
 import { renderSettingsDirectorySection } from "../apps/workbench/src/settings-directory.ts";
 import {
   FUNCTIONS_CREDENTIAL_REF,
+  INBOX_DISMISS_BEHAVIOR_ID,
+  INBOX_DONE_BEHAVIOR_ID,
+  INBOX_NEXT_SCENE_ID,
   SYSTEM_HOME_DOCK_FUNCTION_KEY,
   SYSTEM_INBOX_ADMIT_FUNCTION_KEY,
   SYSTEM_INBOX_NEXT_FUNCTION_KEY,
+  functionFitsScene,
 } from "@molis-ai/molis-work-contracts/modules/functions";
 import {
   FunctionsError,
@@ -125,6 +129,8 @@ test("a draft Choice can be saved with empty instructions, then published only a
     const store = openFunctionsStore(home);
     const created = store.createChoice({ name: "账单分流" });
     assert.equal(created.status, "draft");
+    assert.equal(created.scene_id, null);
+    assert.deepEqual({ ...created.scene_map }, {});
     assert.equal(created.version, null);
     assert.match(created.function_key, /^fn_|[a-z]/);
     const updated = store.updateDraft(created.id, {
@@ -172,6 +178,49 @@ test("a draft Choice can be saved with empty instructions, then published only a
     } finally {
       reopenedStore.close();
     }
+  });
+});
+
+test("custom Choice options survive an Inbox destination and bind through a scene map", async () => {
+  await withHome(async (home) => {
+    const store = openFunctionsStore(home);
+    const created = store.createChoice({ name: "急不急" });
+    const drafted = store.updateDraft(created.id, {
+      instructions: "这封邮件急吗？",
+      criteria: [
+        { key: "urgent", description: "急" },
+        { key: "later", description: "不急" },
+      ],
+      subject_kinds: ["inbox_entry"],
+    });
+    const hash = drafted.config_hash;
+    const mapped = store.updateDraft(created.id, {
+      scene_id: INBOX_NEXT_SCENE_ID,
+      scene_map: {
+        urgent: INBOX_DONE_BEHAVIOR_ID,
+        later: INBOX_DISMISS_BEHAVIOR_ID,
+      },
+    });
+    assert.equal(mapped.scene_id, INBOX_NEXT_SCENE_ID);
+    assert.equal(mapped.config_hash, hash);
+    assert.deepEqual(mapped.criteria, drafted.criteria);
+    assert.deepEqual({ ...mapped.scene_map }, {
+      urgent: INBOX_DONE_BEHAVIOR_ID,
+      later: INBOX_DISMISS_BEHAVIOR_ID,
+    });
+    assert.equal(functionFitsScene(mapped, INBOX_NEXT_SCENE_ID), true);
+    const noul = store.create({ primitive: "noul", name: "材料够不够" });
+    assert.equal(noul.scene_id, null);
+    const noulMapped = store.updateDraft(noul.id, {
+      scene_id: INBOX_NEXT_SCENE_ID,
+      scene_map: { true: INBOX_DONE_BEHAVIOR_ID, false: INBOX_DISMISS_BEHAVIOR_ID },
+    });
+    assert.equal(noulMapped.scene_id, INBOX_NEXT_SCENE_ID);
+    const score = store.create({ primitive: "score", name: "相关程度" });
+    assert.throws(() => store.updateDraft(score.id, { scene_id: INBOX_NEXT_SCENE_ID }), (error: unknown) => (
+      error instanceof FunctionsError && error.code === "functions.invalid"
+    ));
+    store.close();
   });
 });
 
@@ -331,12 +380,17 @@ test("workbench client script with the Functions factory is valid JavaScript", (
 
 test("Functions client clears leftover preview text when switching records and hides Noul section chrome", () => {
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /const switching = selected\?\.id !== record\.id/);
-  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /\/api\/functions\/catalog/);
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /\/api\/plugins\/functions\/catalog/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /data-functions-destination/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /data-functions-source/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /agent\.mcp/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /if \(switching\) previewInput\.value = record\.last_preview\?\.input \|\| ""/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /criteriaHead\.hidden = kind === "noul"/);
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /addChoiceRow/);
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /scene_map/);
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /data-functions-map/);
+  assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /criteriaForDestination/);
+  assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /subject_kinds: dest\?\.subject_kinds/);
   assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /selected = record;\s*records = records\.some/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /item\.textContent = destTitle\(row\.scene_id\)/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /\/api\/inbox\/judgment/);
@@ -371,7 +425,14 @@ test("Functions workbench and settings contributions mount on the declared slots
   assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /className = "functions-row/);
   assert.match(stage, /data-functions-destinations/);
   assert.match(stage, /data-functions-sources/);
+  assert.match(stage, /data-functions-columns/);
+  assert.match(stage, /data-functions-col="look"/);
+  assert.match(stage, /data-functions-col="fn"/);
+  assert.match(stage, /data-functions-col="use"/);
+  assert.match(stage, /data-functions-map/);
   assert.match(stage, /data-functions-criteria-head/);
+  assert.match(stage, /先不落地/);
+  assert.match(stage, /对到现场按钮/);
   assert.match(stage, /data-functions-create-dialog/);
   assert.match(renderFunctionsWorkbench({ functions: [], primitives }), /还没有判断/);
   assert.match(renderFunctionsWorkbench({ functions: [], primitives }), /mw-empty__mark[\s\S]*#icon-zap/);

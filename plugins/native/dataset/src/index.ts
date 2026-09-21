@@ -16,6 +16,7 @@ export { DATASET_CLIENT_FACTORY_SCRIPT } from "./client.js";
 export { DATASET_NATIVE_PLUGIN_ROUTES, DatasetPluginRouteTable } from "./routes.js";
 export type { DatasetPluginRouteHandler, DatasetPluginRouteRequest, DatasetPluginRouteResponse } from "./routes.js";
 export { createDatasetRouteHandlers, datasetRouteErrorResponse } from "./route-handlers.js";
+export type { DatasetRoutePorts } from "./route-handlers.js";
 export { DATASET_PLUGIN_ID, DATASET_PROJECT_PLUGIN_ID, datasetManifest } from "./manifest.js";
 export { DATASET_MCP_EXPORTS, runDatasetMcpTool } from "./mcp.js";
 export { openDatasetStore, DatasetStore, parseCsv, toCsv } from "./store.js";

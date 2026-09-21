@@ -10,6 +10,7 @@ import {
   createGmailIntegrationPlugin,
   isGmailTokenRefs,
 } from "@molis-ai/molis-work-integration-gmail";
+import { createCatalogIntegrationPlugin } from "@molis-ai/molis-work-integration-catalog";
 import { normalizeGmailScope } from "@molis-ai/molis-work-integration-gmail/scope";
 import {
   MemoryPluginRuntimeRepository,
@@ -19,6 +20,7 @@ import {
 import type { FeedSourceRecord } from "@molis-ai/molis-work-plugin-feed";
 import { createGithubConnector } from "./github-connector.js";
 import { createGmailConnector } from "./gmail-connector.js";
+import { createCatalogConnector } from "./catalog-connector.js";
 
 export type OfficialProviderFactory = (source: FeedSourceRecord) => IntegrationProviderPort;
 
@@ -115,6 +117,9 @@ function definitionFor(
   if (source.sync_kind === "gmail") {
     return createGmailIntegrationPlugin({ provider, now });
   }
+  if (source.sync_kind === "connector") {
+    return createCatalogIntegrationPlugin({ connectorId: source.kind, provider, now });
+  }
   throw new Error(`unsupported_official_integration:${source.sync_kind}`);
 }
 
@@ -127,6 +132,9 @@ function defaultProviderFor(source: FeedSourceRecord): IntegrationProviderPort {
       scope: normalizeGmailScope(source.config.scope),
       ...(isGmailTokenRefs(tokenRefs) ? { tokenRefs } : {}),
     });
+  }
+  if (source.sync_kind === "connector") {
+    return createCatalogConnector({ connectorId: source.kind });
   }
   throw new Error(`unsupported_official_integration:${source.sync_kind}`);
 }

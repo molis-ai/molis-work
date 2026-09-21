@@ -20,6 +20,14 @@ export { LocalCatalogMetadata } from "./catalog-metadata.js";
 export { atomicWriteFileSync } from "./adapters/atomic-write.js";
 
 export {
+  PERSONAL_HOME_SQLITE_STORES,
+  ensureSqliteColumn,
+  homeSqlitePath,
+  openHomeSqliteDatabase,
+  type PersonalHomeSqliteStore,
+} from "./home-sqlite.js";
+
+export {
   runWithMolisWorkHome,
   resolveMolisWorkHome,
   resolveFeedSecurityDirectory,

@@ -39,6 +39,8 @@ node --import tsx --test --test-concurrency=1 tests/functions-plugin.test.ts tes
 
 - [架构与当前实现索引](../../../docs/SSOT-MATRIX.md)
 - [判断成为系统能力](../../../specs/functions-system-capability/spec.md)
+- [来源、去向与动作总表](../../../specs/functions-product-authoring/spec.md)
+- [三栏解耦](../../../specs/functions-independent-authoring/spec.md)
 - [Functions 垂直切片](../../../specs/functions-plugin/spec.md)
 
 - Status: `partial`

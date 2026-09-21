@@ -2,11 +2,13 @@
 
 完成等级：**3 功能可用**。不宣称可发布。
 
+编辑器里选项与去向的关系已改为三栏解耦，见 [functions-independent-authoring](../functions-independent-authoring/spec.md)。本文件仍管来源、去向名单和行为总表。
+
 ## 背景目标
 
 底层已有判断、行为总表、现场绑定。函数页仍是给 Agent 用的双栏表单：Choice 手填 key，没有来源/去向，空态还写「发布给 Agent」。用户配不明白，页面也丑。
 
-要把写函数做成系统判断的产品面：看什么、何时跑、在哪开开关、能挑哪些已登记动作、挑中后有什么效果。动作名单来自 Host 行为总表：系统处置、插件 Manifest `behaviors`、MCP `mcp_exports`。
+把写函数做成系统判断的产品面：看什么、函数、用在哪分别配置。动作名单来自 Host 行为总表，可加入选项；事件去向用映射，不覆盖函数本身。
 
 ## 当前行为与问题证据
 
@@ -20,13 +22,11 @@
 1. 函数记录持久化 `scene_id`（去向）和 `subject_kinds`（来源）。内置三个系统函数写入对应去向与对象类型。
 2. Host 提供 `GET /api/functions/catalog`：subjects、destinations（事件去向 + Agent/MCP）、behaviors（系统 / 插件 / MCP，带 effect 与是否可摆到现场按钮）。
 3. 新建/编辑 Choice：勾选看什么；点选用在哪。每个去向用一两句话说明什么时候用、会改什么。不堆「何时 / 哪里配 / 效果」标签，不用「这道题」。
-4. 去向分两类：
-   - **事件**：首页、Inbox、Feed。选项只能勾该处已接线的系统/插件动作。
-   - **Agent**：发布后走 MCP `functions.invoke`。选项勾行为总表里的 MCP 工具和未接到按钮的插件动作。
-5. Noul / Score 不能绑 Inbox / 首页 / Feed；页面写明这三处要用 Choice。
+4. 去向分两类：事件（首页、Inbox、Feed）与 Agent。选项与去向的耦合改为映射，见 [functions-independent-authoring](../functions-independent-authoring/spec.md)。
+5. Score 不能绑 Inbox / 首页 / Feed。Choice / Noul 可以；事件去向用映射对到现场按钮。
 6. Inbox / 首页：已发布函数在「用在哪」打开或停用当前项目。Feed：未绑时说明去捕捉规则选它；已绑时列出场景名。不另做总控台。
-7. 函数页视觉改成单栏工作台（对齐 Form）：空态教用法，编辑器能扫清来源/去向/动作/试跑。
-8. `functionFitsScene`：已写 `scene_id` 的函数只能绑到该去向；`agent.mcp` 不能绑现场。
+7. 函数页是三栏工作台：看什么 / 函数 / 用在哪。
+8. `functionFitsScene`：已写 `scene_id` 的函数只能绑到该去向；`agent.mcp` 不能绑现场。自定义选项经 `scene_map` 对上按钮池后可以绑。
 
 ## 非目标
 

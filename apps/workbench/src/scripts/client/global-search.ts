@@ -1,4 +1,7 @@
 /** Workbench-owned jump palette. Plugin owners keep their own open/select behavior. */
+import { PERSONAL_PLUGIN_IDS, pluginTabTitles } from "../../plugin-catalog.js";
+import { pluginSearchRows } from "../../plugin-workbench.js";
+
 export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
   const { translate: L, setDirectory, setWorkSurface, selectGoal, setMobileView, noteSearchActivity, openTabItem, expandDirectory } = host;
   const dialog = document.querySelector("[data-global-search-dialog]");
@@ -17,6 +20,9 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
   const isOpen = () => dialog.open;
   const isBusy = () => composing || isOpen();
   const pluginEnabled = (id) => Boolean(document.querySelector('[data-plugin-strip] [data-plugin-id="' + id + '"], [data-assistant-island] [data-plugin-id="' + id + '"]'));
+  const PERSONAL_PLUGIN_IDS = ${JSON.stringify([...PERSONAL_PLUGIN_IDS])};
+  const PLUGIN_TAB_TITLES = ${JSON.stringify(pluginTabTitles())};
+  const PERSONAL_SEARCH_ROWS = ${JSON.stringify(pluginSearchRows())};
   const collect = (query) => {
     const q = query.trim().toLowerCase();
     const limit = q ? 12 : 8;
@@ -100,6 +106,20 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
       })));
       if (items.length) groups.push({ label: "Artifacts", items });
     }
+    PERSONAL_SEARCH_ROWS.forEach(([plugin, selector, idKey]) => {
+      if (!pluginEnabled(plugin) || !PERSONAL_PLUGIN_IDS.includes(plugin)) return;
+      const items = take([...document.querySelectorAll(selector)].map((row) => ({
+        kind: plugin,
+        id: row.dataset[idKey],
+        title: row.querySelector("strong")?.textContent?.trim() || row.dataset[idKey],
+        plugin: PLUGIN_TAB_TITLES[plugin] || plugin,
+        search: String(row.textContent || "").toLowerCase(),
+        directory: plugin,
+        surface: plugin,
+        element: row,
+      })));
+      if (items.length) groups.push({ label: PLUGIN_TAB_TITLES[plugin] || plugin, items });
+    });
     const actions = [
       { kind: "action", id: "create", title: L("新建目标"), plugin: L("快捷操作"), search: "新建目标 create goal", selector: "[data-open-create]" },
       { kind: "action", id: "home", title: L("项目首页"), plugin: L("快捷操作"), search: "项目首页 home", selector: '[data-plugin-id="home"]' },
@@ -152,7 +172,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
           document.querySelector('[data-tree-item][data-goal-id="' + CSS.escape(hit.id) + '"]')?.scrollIntoView({ block: "nearest" });
         });
       } else {
-        const plugin = { session: "sessions", inbox: "inbox", feed: "feed", artifact: "artifacts", source: "feed" }[hit.kind];
+        const plugin = { session: "sessions", inbox: "inbox", feed: "feed", artifact: "artifacts", source: "feed" }[hit.kind] || (PERSONAL_PLUGIN_IDS.includes(hit.kind) ? hit.kind : "");
         if (plugin) {
           expandDirectory?.(plugin);
           openTabItem?.(plugin, hit.id, hit.title);

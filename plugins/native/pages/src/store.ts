@@ -1,6 +1,5 @@
-import { chmodSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
+import { ensureSqliteColumn, openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import type { DatabaseSync } from "node:sqlite";
 import type { PagesBody, PagesFolder, PagesRecord } from "@molis-ai/molis-work-contracts/modules/pages";
 import { EMPTY_PAGES_BODY, parsePagesBody } from "./document.js";
 import { PagesError } from "./error.js";
@@ -182,15 +181,7 @@ export class PagesStore {
 }
 
 export function openPagesStore(homeDirectory: string): PagesStore {
-  const dir = join(homeDirectory, "pages");
-  mkdirSync(dir, { recursive: true, mode: 0o700 });
-  const dbPath = join(dir, "pages.db");
-  const db = new DatabaseSync(dbPath);
-  try {
-    chmodSync(dbPath, 0o600);
-  } catch {
-    // best-effort
-  }
+  const db = openHomeSqliteDatabase(homeDirectory, "pages");
   db.exec(`
     CREATE TABLE IF NOT EXISTS pages (
       id TEXT PRIMARY KEY,
@@ -214,18 +205,12 @@ export function openPagesStore(homeDirectory: string): PagesStore {
       updated_at TEXT NOT NULL
     );
   `);
-  ensureColumn(db, "pages", "folder_id", "TEXT NOT NULL DEFAULT ''");
-  ensureColumn(db, "pages", "starred", "INTEGER NOT NULL DEFAULT 0");
-  ensureColumn(db, "pages", "goal_id", "TEXT NOT NULL DEFAULT ''");
-  ensureColumn(db, "pages", "artifact_id", "TEXT NOT NULL DEFAULT ''");
-  ensureColumn(db, "pages", "artifact_version", "INTEGER NOT NULL DEFAULT 0");
+  ensureSqliteColumn(db, "pages", "folder_id", "TEXT NOT NULL DEFAULT ''");
+  ensureSqliteColumn(db, "pages", "starred", "INTEGER NOT NULL DEFAULT 0");
+  ensureSqliteColumn(db, "pages", "goal_id", "TEXT NOT NULL DEFAULT ''");
+  ensureSqliteColumn(db, "pages", "artifact_id", "TEXT NOT NULL DEFAULT ''");
+  ensureSqliteColumn(db, "pages", "artifact_version", "INTEGER NOT NULL DEFAULT 0");
   return new PagesStore(db);
-}
-
-function ensureColumn(db: DatabaseSync, table: string, column: string, definition: string): void {
-  const rows = db.prepare(`PRAGMA table_info(${table})`).all() as unknown as Array<{ name: string }>;
-  if (rows.some((row) => row.name === column)) return;
-  db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
 }
 
 function fromPageRow(row: PagesRow): PagesRecord {

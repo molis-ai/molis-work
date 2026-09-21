@@ -130,6 +130,10 @@ Horizontal Service 只保存可恢复的技术状态，不拥有 Goal、Signal�
 
 Goals 与 Artifacts 是官方签名保护的一等 Plugin。Plugin 之间不依赖 implementation；可保存、同步和重放的内容用 Goal / Artifact Contract 交换。
 
+### 正在接入的独立插件
+
+- [Casebook：产品流程与宿主前置能力](../specs/casebook-plugin/spec.md)：系统疑点与成员主动反馈进入改进 Backlog，经模块主 R 评审、系统准备方案和人确认后，交接正式 Goal 并回验。插件业务与详细实施清单由独立的 `molis-ai/goalboard-casebook` 仓库维护；本文档入口便于宿主各模块查阅依赖，不新增 workspace package，也不表示插件已注册、团队协作已接通或功能已验收。
+
 ## 8. Tooling、入口和发布面
 
 | 入口 | 当前 owner / 状态 | 交付边界 |

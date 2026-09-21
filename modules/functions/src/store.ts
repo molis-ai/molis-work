@@ -673,10 +673,10 @@ function normalizeSceneId(value: string | null, primitive: FunctionsPrimitive): 
     return primitive === "choice" ? null : AGENT_MCP_DESTINATION_ID;
   }
   if (!isFunctionDestinationId(value)) {
-    throw new FunctionsError("functions.invalid", "去向不在已登记的事件或 Agent 调用里");
+    throw new FunctionsError("functions.invalid", "这个用法不在可选范围里");
   }
   if (primitive !== "choice" && value !== AGENT_MCP_DESTINATION_ID) {
-    throw new FunctionsError("functions.invalid", "现场判断要用 Choice。Noul 和 Score 只给 Agent 用");
+    throw new FunctionsError("functions.invalid", "首页、Inbox、Feed 要用 Choice。");
   }
   return value;
 }
@@ -703,13 +703,13 @@ function normalizeName(value: string): string {
 
 function normalizeDraftInstructions(value: string): string {
   const instructions = value.trim();
-  if (instructions.length > 8000) throw new FunctionsError("functions.invalid", "判断说明须为 1 到 8000 个字");
+  if (instructions.length > 8000) throw new FunctionsError("functions.invalid", "说明须为 1 到 8000 个字");
   return instructions;
 }
 
 function normalizeInstructions(value: string): string {
   const instructions = normalizeDraftInstructions(value);
-  if (!instructions) throw new FunctionsError("functions.invalid", "判断说明须为 1 到 8000 个字");
+  if (!instructions) throw new FunctionsError("functions.invalid", "说明须为 1 到 8000 个字");
   return instructions;
 }
 

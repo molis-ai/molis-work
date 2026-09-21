@@ -40,16 +40,16 @@ export function renderFunctionsSettings(model: FunctionsSettingsUiModel): string
   const fromEnv = settings.source === "env";
   const configured = settings.has_credential;
   const status = fromEnv
-    ? p.text("由环境变量 TYPESAFE_API_KEY 提供，输入框不可改。")
+    ? p.text("来自 TYPESAFE_API_KEY。")
     : configured
-      ? p.text("已配置。页面不会再显示明文。")
-      : p.text("还没有 Key。没有它也能写草稿，试跑时会停住。");
+      ? p.text("已保存。")
+      : p.text("还没填。");
   return `<section class="settings-document functions-settings-document" data-functions-settings data-settings-panel="functions" aria-labelledby="functions-settings-title">
     <header class="settings-heading">
       <div class="settings-heading-title">
         <h1 id="functions-settings-title">${p.text("Functions")}</h1>
       </div>
-      <p>${p.text("TypeSafe 的 Jev 用来跑这些判断。Key 留在这台机器，保存后页面不会再显示明文。")}</p>
+      <p>${p.text("试跑用 TypeSafe 的 Jev。")}</p>
     </header>
     <form class="functions-settings-form" data-functions-settings-form>
       <label class="settings-field">${p.text("TypeSafe API Key")}
@@ -60,7 +60,7 @@ export function renderFunctionsSettings(model: FunctionsSettingsUiModel): string
         <button class="mw-btn mw-btn--primary" type="submit" data-functions-key-save ${fromEnv ? "disabled" : ""}>${p.text("保存")}</button>
         <button class="mw-btn mw-btn--ghost" type="button" data-functions-key-clear ${fromEnv || !configured ? "hidden" : ""}>${p.text("清除")}</button>
       </div>
-      <p class="functions-settings-hint">${p.text("保存只记下已配置，不会向 TypeSafe 发探测。试跑成功才算连通。")}</p>
+      <p class="functions-settings-hint">${p.text("保存后不再显示。")}</p>
     </form>
   </section>`;
 }

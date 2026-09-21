@@ -188,8 +188,7 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
         (event.kind === "org" ? L("组织事件") : L("个人事件")) + "</p>" +
       '<p class="home-detail__text">' + esc(event.text) + "</p>" +
       '<dl class="home-detail__facts">' + event.facts.map((fact) =>
-        "<div><dt>" + esc(fact[0]) + "</dt><dd>" + esc(fact[1]) + "</dd></div>").join("") + "</dl>" +
-      sceneBinder();
+        "<div><dt>" + esc(fact[0]) + "</dt><dd>" + esc(fact[1]) + "</dd></div>").join("") + "</dl>";
     const talkOn = home.dataset.dock === "open";
     const canDone = event.inbox && (event.inbox.status === "open" || event.inbox.status === "in_progress");
     const defaults = event.act === "reauth"
@@ -235,19 +234,6 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
       ico("message") + L("说一句") + "</button>";
     $("[data-home-talk-ctx]").textContent = event.title ? "· " + event.title : "";
     $("[data-home-talk-body]").textContent = L("说一句会打开这条工作对应的 Session。首页不另开一套聊天。");
-  };
-  const sceneBinder = () => {
-    const scenes = getState().function_scenes;
-    if (!scenes) return "";
-    const selected = scenes.home_dock || "";
-    const options = ['<option value="">' + L("不判断，用默认按钮") + "</option>"].concat(
-      (scenes.home_dock_functions || []).map((fn) =>
-        '<option value="' + esc(fn.function_key) + '"' + (fn.function_key === selected ? " selected" : "") + ">" +
-        esc(fn.name) + "</option>",
-      ),
-    );
-    return '<label class="home-detail__judgment"><span>' + L("卡底判断") + "</span>" +
-      '<select data-home-dock-judgment>' + options.join("") + "</select></label>";
   };
   const render = () => {
     collect();
@@ -336,32 +322,9 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
       }
       return;
     }
-    if (!event.target.closest("[data-home-talk], [data-home-open-talk], [data-home-dock-judgment]") && home.dataset.dock === "open") {
+    if (!event.target.closest("[data-home-talk], [data-home-open-talk]") && home.dataset.dock === "open") {
       closeTalk();
       if (eventId) renderDetail();
-    }
-  });
-  home.addEventListener("change", async (event) => {
-    const select = event.target.closest("[data-home-dock-judgment]");
-    if (!select || !feedApi) return;
-    const scenes = getState().function_scenes;
-    const previous = scenes?.home_dock || "";
-    try {
-      const result = await feedApi("/api/home/dock-judgment", "POST", { function_key: select.value || null });
-      if (scenes) scenes.home_dock = result.function_key ?? null;
-      const note = $("[data-home-detail-error]");
-      if (note) note.remove();
-    } catch (error) {
-      select.value = previous;
-      const act = $("[data-home-detail-act]");
-      let note = $("[data-home-detail-error]");
-      if (!note) {
-        note = document.createElement("p");
-        note.className = "home-detail__error";
-        note.dataset.homeDetailError = "";
-        act?.before(note);
-      }
-      note.textContent = error.message || L("保存判断函数失败");
     }
   });
   $("[data-home-talk-form]")?.addEventListener("submit", (event) => {

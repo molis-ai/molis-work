@@ -122,6 +122,22 @@ test("灵光是个人插件，不进项目启用名单，侧栏叫灵光、图�
 test("工作台挂上灵光空态、确认框和快记区", () => {
   const html = renderMolisWorkWeb(emptyView());
   assert.match(html, /data-plugin-id="lingguang"/);
+  const stackStart = html.indexOf('class="plugin-stack"');
+  const stackEnd = html.indexOf('id="goal-tree-pane"');
+  const stack = html.slice(stackStart, stackEnd);
+  const islandAt = stack.indexOf("data-assistant-island");
+  const projectAt = stack.indexOf("data-project-island");
+  const railAt = stack.indexOf("data-plugin-strip");
+  assert.ok(islandAt >= 0 && projectAt > islandAt && railAt > projectAt, "个人岛在项目岛上面");
+  const items = stack.slice(stack.indexOf("plugin-rail-items"), stack.indexOf("personal-sidebar-footer"));
+  assert.doesNotMatch(items, /data-plugin-id="lingguang"/);
+  assert.match(stack, /data-assistant-toggle/);
+  assert.match(stack, /data-assistant-composer/);
+  assert.match(stack, /<input class="assistant-composer-input"/);
+  assert.doesNotMatch(stack, /assistant-composer-toolbar/);
+  assert.doesNotMatch(stack, /<textarea class="assistant-composer-input"/);
+  assert.match(stack, /data-assistant-model/);
+  assert.match(stack, /data-assistant-send/);
   assert.match(html, /data-lingguang="workbench"/);
   assert.match(html, /data-lingguang-confirm/);
   assert.match(html, /dialog class="mw-dialog/);
@@ -134,6 +150,7 @@ test("工作台挂上灵光空态、确认框和快记区", () => {
   assert.match(lingguang, /plugin-stage-list feed-stage-list feed-stage-tree/);
   assert.match(lingguang, /tree-create/);
   assert.match(lingguang, /class="mw-empty"/);
+  assert.match(lingguang, /mw-empty__mark[\s\S]*#icon-idea/);
   assert.doesNotMatch(lingguang, /lingguang-field/);
 });
 
@@ -141,6 +158,10 @@ test("工作台客户端脚本挂上灵光后仍能解析，保存不重绘编�
   const script = renderMolisWorkWorkbenchClientScript();
   assert.doesNotThrow(() => new Function(script));
   assert.match(script, /\["shelf","lingguang","functions","pages","form","dataset","ppt"\]/);
+  assert.match(script, /data-assistant-composer/);
+  assert.match(script, /offsetHeight \|\| 32/);
+  assert.match(script, /rect\.height - height/);
+  assert.match(script, /对话尚未接入/);
   assert.doesNotMatch(saveFunctionSource(LINGGUANG_CLIENT_FACTORY_SCRIPT), /fillEditor/);
   assert.match(LINGGUANG_CLIENT_FACTORY_SCRIPT, /feed-stage-entry directory-list-row/);
   assert.doesNotMatch(LINGGUANG_CLIENT_FACTORY_SCRIPT, /window\.confirm/);

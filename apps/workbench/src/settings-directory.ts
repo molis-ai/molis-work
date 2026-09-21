@@ -15,6 +15,7 @@ const SETTINGS_SECTIONS = [
   { id: "appearance", label: "外观", icon: "sun" },
   { id: "runtimes", label: "AI 与执行工具", icon: "terminal" },
   { id: "mcp", label: "MCP", icon: "settings" },
+  { id: "connectors", label: "Connectors", icon: "link" },
   { id: "planning", label: "规划方法", icon: "workflow" },
   { id: "diagnostics", label: "诊断", icon: "bug" },
 ] as const satisfies readonly { id: string; label: string; icon: MolisWorkIcon }[];

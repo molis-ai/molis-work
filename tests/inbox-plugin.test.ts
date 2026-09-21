@@ -66,8 +66,9 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
   assert.doesNotMatch(inboxDirectory, /data-feed-directory|data-feed-list|data-feed-entry-id/);
   assert.match(page, /data-inbox-open-feed="inbox-plugin-item"/);
   assert.match(page, /data-feed-entry-id="inbox-plugin-item"/);
-  assert.match(inboxDirectory, /data-inbox-judgment/);
-  assert.match(inboxDirectory, /system_pick_inbox_next/);
+  assert.doesNotMatch(inboxDirectory, /data-inbox-judgment/);
+  assert.doesNotMatch(inboxDirectory, /system_pick_inbox_next/);
+  assert.doesNotMatch(inboxDirectory, /inbox-scene-bind/);
   assert.doesNotMatch(inboxDirectory, /system_admit_inbox/);
   assert.doesNotMatch(page, /data-feed-entry-type="inbox_message"|data-feed-entry-id="inbox:/);
 
@@ -171,7 +172,8 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
   assert.equal((await rebound.json() as { function_key: string }).function_key, "system_pick_inbox_next");
 
   const afterBind = await (await webFetch(`${origin}${prefix}/`)).text();
-  assert.match(afterBind, /value="system_pick_inbox_next" selected/);
+  assert.doesNotMatch(afterBind, /data-inbox-judgment/);
+  assert.doesNotMatch(afterBind, /value="system_pick_inbox_next" selected/);
 
   const unpublished = await webFetch(`${origin}${prefix}/api/inbox/judgment`, {
     method: "POST",

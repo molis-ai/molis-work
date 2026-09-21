@@ -96,7 +96,7 @@ function readDraftPatch(body: Readonly<Record<string, unknown>>): FunctionDraftP
 function readSceneId(value: unknown): string | null {
   if (value === null || value === "") return null;
   if (typeof value !== "string" || !isFunctionDestinationId(value)) {
-    throw new FunctionsError("functions.invalid", "去向不在已登记的事件或 Agent 调用里");
+    throw new FunctionsError("functions.invalid", "这个用法不在可选范围里");
   }
   return value;
 }

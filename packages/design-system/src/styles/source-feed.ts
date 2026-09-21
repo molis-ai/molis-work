@@ -21,7 +21,7 @@ export const SOURCE_FEED_STYLES = `  /* Source → Feed → Inbox high-fidelity 
     cursor: pointer;
   }
   body[data-desktop-shell="true"] .source-add-trigger:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 6%, transparent); }
-  body[data-desktop-shell="true"] .source-add-trigger:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+  body[data-desktop-shell="true"] .source-add-trigger:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
   body[data-desktop-shell="true"] .source-add-trigger svg { width: 13px; height: 13px; }
   body[data-desktop-shell="true"] .source-mobile-add { display: none; }
   body[data-desktop-shell="true"] .source-directory-tools { padding: 2px 6px 8px; display: grid; gap: 6px; }
@@ -44,7 +44,7 @@ export const SOURCE_FEED_STYLES = `  /* Source → Feed → Inbox high-fidelity 
   }
   body[data-desktop-shell="true"] .source-filter-row button:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 5%, transparent); }
   body[data-desktop-shell="true"] .source-filter-row button.is-active { color: var(--blue-dark); background: color-mix(in srgb, var(--blue) 10%, transparent); }
-  body[data-desktop-shell="true"] .source-filter-row button:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+  body[data-desktop-shell="true"] .source-filter-row button:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
   body[data-desktop-shell="true"] .source-list { min-height: 0; padding: 1px 3px 8px; overflow-y: auto; }
   body[data-desktop-shell="true"] .source-list-item {
     width: 100%;
@@ -68,7 +68,7 @@ export const SOURCE_FEED_STYLES = `  /* Source → Feed → Inbox high-fidelity 
     background: color-mix(in srgb, var(--blue) 10%, transparent);
     box-shadow: none;
   }
-  body[data-desktop-shell="true"] .source-list-item:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; box-shadow: none; }
+  body[data-desktop-shell="true"] .source-list-item:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); box-shadow: none; }
   body[data-desktop-shell="true"] .source-list-icon {
     width: 22px;
     height: 22px;
@@ -154,7 +154,7 @@ export const SOURCE_FEED_STYLES = `  /* Source → Feed → Inbox high-fidelity 
   }
   body[data-desktop-shell="true"] .source-detail-tabs button:hover { color: var(--ink); }
   body[data-desktop-shell="true"] .source-detail-tabs button.is-active { color: var(--ink); background: var(--paper); box-shadow: var(--shadow-soft); }
-  body[data-desktop-shell="true"] .source-detail-tabs button:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+  body[data-desktop-shell="true"] .source-detail-tabs button:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
   body[data-desktop-shell="true"] .source-detail-panels { min-height: 400px; }
   body[data-desktop-shell="true"] .source-detail-panel {
     min-height: 360px;
@@ -237,7 +237,7 @@ export const SOURCE_FEED_STYLES = `  /* Source → Feed → Inbox high-fidelity 
   body[data-desktop-shell="true"] .source-config-sheet input:focus,
   body[data-desktop-shell="true"] .source-config-sheet textarea:focus,
   body[data-desktop-shell="true"] .source-config-sheet select:focus,
-  body[data-desktop-shell="true"] .source-schedule-sheet select:focus { border-color: color-mix(in srgb, var(--blue) 55%, var(--line)); box-shadow: 0 0 0 2px color-mix(in srgb, var(--blue) 10%, transparent); }
+  body[data-desktop-shell="true"] .source-schedule-sheet select:focus { border-color: var(--ink); outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); box-shadow: none; }
   body[data-desktop-shell="true"] .source-config-help { color: var(--faint); font-size: 9px; line-height: 1.5; }
   body[data-desktop-shell="true"] .source-config-actions,
   body[data-desktop-shell="true"] .source-schedule-actions { display: flex; align-items: center; gap: 10px; }
@@ -346,7 +346,7 @@ export const SOURCE_FEED_STYLES = `  /* Source → Feed → Inbox high-fidelity 
     text-underline-offset: 3px;
   }
   body[data-desktop-shell="true"] .feed-rich-content a:hover { text-decoration-color: currentColor; }
-  body[data-desktop-shell="true"] .feed-rich-content a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 3px; }
+  body[data-desktop-shell="true"] .feed-rich-content a:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; border-radius: 3px; }
   body[data-desktop-shell="true"] .feed-rich-content ul,
   body[data-desktop-shell="true"] .feed-rich-content ol { margin: 0 0 1.1em; padding-inline-start: 1.45em; }
   body[data-desktop-shell="true"] .feed-rich-content li + li { margin-top: .38em; }
@@ -392,7 +392,7 @@ export const SOURCE_FEED_STYLES = `  /* Source → Feed → Inbox high-fidelity 
   body[data-desktop-shell="true"] .feed-rich-content th { color: var(--ink); font-size: 12px; font-weight: 400; background: color-mix(in srgb, var(--ink) 4%, transparent); }
   body[data-desktop-shell="true"] .feed-rich-content details { margin: 1.35em 0; padding-block: 10px; border-block: 1px solid color-mix(in srgb, var(--line) 78%, transparent); }
   body[data-desktop-shell="true"] .feed-rich-content summary { color: var(--ink); font-weight: 400; cursor: pointer; }
-  body[data-desktop-shell="true"] .feed-rich-content summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 3px; }
+  body[data-desktop-shell="true"] .feed-rich-content summary:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; border-radius: 3px; }
   body[data-desktop-shell="true"] .feed-rich-content details[open] summary { margin-bottom: 12px; }
   body[data-desktop-shell="true"] .feed-rich-content hr { margin: 1.8em 0; border: 0; border-top: 1px solid var(--line); }
   body[data-desktop-shell="true"] .feed-materials { max-width: 76ch; margin-top: 34px; padding-top: 22px; border-top: 1px solid color-mix(in srgb, var(--line) 68%, transparent); }

@@ -45,6 +45,8 @@ function currentListPlugin(directory: string): string {
   return directory;
 }
 
+const RAIL_PERSONAL_ISLAND_IDS = new Set(["lingguang"]);
+
 /** Icon rail: home, enabled plugins, market. Account stays at the bottom. */
 export function renderPluginRail(
   primitives: ImmersiveShellPrimitives,
@@ -54,12 +56,38 @@ export function renderPluginRail(
   const { L } = primitives;
   const home = pluginLink(primitives, { id: "home", surface: "home", label: L("项目首页"), glyph: "home" }, "plugin-rail-item");
   const plugins = directoryPlugins(enabled)
+    .filter(plugin => !RAIL_PERSONAL_ISLAND_IDS.has(plugin.id))
     .map(plugin => pluginLink(primitives, plugin, "plugin-rail-item"))
     .join("");
   const market = pluginLink(primitives, { id: "market", surface: "market", label: L("插件市场"), glyph: "grid" }, "plugin-rail-item");
   return `<nav class="mw-sidebar mw-sidebar--rail plugin-rail immersive-plugin-strip" data-plugin-strip data-plugin-heading aria-label="${L("项目入口")}">
     <div class="plugin-rail-items">${home}${plugins}${market}</div>
     ${accountFooter}
+  </nav>`;
+}
+
+/** Personal capture + Assistant entry, above the project island. */
+export function renderAssistantIsland(
+  primitives: ImmersiveShellPrimitives,
+  enabled: readonly string[],
+): string {
+  const { L, icon } = primitives;
+  const lingguang = directoryPlugins(enabled).find(plugin => plugin.id === "lingguang");
+  const lingguangButton = lingguang
+    ? pluginLink(primitives, lingguang, "plugin-rail-item")
+    : "";
+  return `<nav class="assistant-island" data-assistant-island aria-label="${L("灵光与对话")}">
+    <div class="assistant-island-card">
+      ${lingguangButton}
+      <button class="immersive-plugin-link plugin-rail-item" type="button" data-assistant-toggle popovertarget="assistant-composer" aria-expanded="false" aria-controls="assistant-composer" aria-haspopup="dialog" aria-label="${L("打开对话")}" title="${L("对话")}">${icon("message")}<span>${L("对话")}</span></button>
+    </div>
+    <form class="assistant-composer" id="assistant-composer" data-assistant-composer popover="auto" aria-label="Molis Work Assistant">
+      <input class="assistant-composer-input" data-assistant-input type="text" autocomplete="off" placeholder="${L("发给 Assistant")}" aria-label="${L("发给 Assistant")}">
+      <select class="mw-select" data-assistant-model aria-label="${L("模型")}" disabled>
+        <option value="">${L("还没有可用模型")}</option>
+      </select>
+      <button class="mw-btn mw-btn--primary mw-btn--icon-only mw-btn--sm" type="submit" data-assistant-send aria-label="${L("发送")}" title="${L("发送")}" disabled>${icon("send")}</button>
+    </form>
   </nav>`;
 }
 

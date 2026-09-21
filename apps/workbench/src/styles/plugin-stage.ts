@@ -43,20 +43,30 @@ export const PLUGIN_STAGE_STYLES = `
   body.immersive-workbench .plugin-stage-list .goal-collection-fold > :is(.mw-dir-row, a.mw-dir-row) { padding-left: 24px; }
   body.immersive-workbench .plugin-stage-list .goal-collection-fold .shelf-row { padding-left: 24px; }
   body.immersive-workbench .plugin-stage-list .goal-collection-fold .shelf-row.is-child { padding-left: 40px; }
-  body.immersive-workbench .plugin-stage-list :is(.mw-dir-row.is-selected, .mw-dir-row[aria-current="page"], .directory-list-row.is-selected) {
-    background: var(--nav-active); color: var(--ink);
+  body.immersive-workbench .plugin-stage-list :is(.mw-dir-row.is-selected, .mw-dir-row[aria-current="page"], .directory-list-row.is-selected, .feed-stage-entry:is(.is-selected, .is-open, [aria-selected="true"])) {
+    background: color-mix(in srgb, var(--plugin-tint, var(--ink)) 10%, transparent); color: var(--ink);
   }
   body.immersive-workbench .plugin-stage-list .mw-dir-row-wrap:has(.is-selected),
-  body.immersive-workbench .plugin-stage-list .mw-dir-row-wrap:has([aria-current="page"]) { background: var(--nav-active); }
+  body.immersive-workbench .plugin-stage-list .mw-dir-row-wrap:has([aria-current="page"]) {
+    background: color-mix(in srgb, var(--plugin-tint, var(--ink)) 10%, transparent);
+  }
   body.immersive-workbench .plugin-stage-list :is(.mw-dir-row.is-selected, .mw-dir-row[aria-current="page"], .directory-list-row.is-selected)::before,
   body.immersive-workbench .plugin-stage-list .mw-dir-row-wrap:has(.is-selected)::before,
   body.immersive-workbench .plugin-stage-list .mw-dir-row-wrap:has([aria-current="page"])::before {
     content: none; display: none; width: 0;
   }
   body.immersive-workbench .plugin-stage-list .feed-stage-entry:has(.plugin-stage-kind) {
-    grid-template-columns: minmax(10rem, 1.2fr) 4.75rem minmax(8rem, 0.9fr) minmax(10rem, 1.1fr) 4.5rem;
+    grid-template-columns: minmax(12rem, 1.2fr) 4.75rem 7.5rem minmax(10rem, 1fr) 4.5rem;
   }
-  .plugin-stage-kind { justify-self: start; max-width: 100%; }
+  .plugin-stage-kind,
+  .plugin-stage-fact,
+  .plugin-stage-meta,
+  body.immersive-workbench .plugin-stage-list .feed-stage-entry:has(.plugin-stage-kind) .feed-entry-status {
+    justify-self: start; max-width: 100%;
+  }
+  body.immersive-workbench .plugin-stage-list .feed-stage-entry:has(.plugin-stage-kind) .feed-entry-status {
+    min-height: 0; padding: 0; background: transparent; border-radius: 0;
+  }
   .plugin-stage-kind[data-kind="choice"] { --status-tone: var(--hue-indigo); }
   .plugin-stage-kind[data-kind="score"] { --status-tone: var(--hue-orange); }
   .plugin-stage-kind[data-kind="noul"] { --status-tone: var(--hue-cyan); }
@@ -102,6 +112,19 @@ export const PLUGIN_STAGE_STYLES = `
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   .plugin-stage-detail-bar > span { flex: none; color: var(--muted); font-size: 12px; }
+  .plugin-stage-detail-bar > .form-tabs { margin-left: auto; }
+  .plugin-stage-detail-bar > .mw-btn:not(.plugin-stage-back) { flex: none; }
+  .plugin-stage-detail-bar > h1 + .mw-btn,
+  .plugin-stage-detail-bar > span + .mw-btn { margin-left: auto; }
+  .plugin-stage-detail-bar > .form-tabs + .mw-btn { margin-left: 0; }
+  .plugin-stage-detail-bar :is([data-dataset-delete], [data-form-delete], [data-pages-delete], [data-ppt-delete], [data-functions-delete], [data-lingguang-discard-current]) {
+    color: var(--red);
+  }
+  .plugin-stage-detail-bar :is([data-dataset-delete], [data-form-delete], [data-pages-delete], [data-ppt-delete], [data-functions-delete], [data-lingguang-discard-current]):hover {
+    background: color-mix(in srgb, var(--red) 8%, transparent); color: var(--red);
+  }
+  .plugin-stage-list .mw-empty { max-width: 32ch; padding: 8px 8px 16px; }
+  .plugin-stage-chrome .tree-create svg { width: 14px; height: 14px; }
   .artifact-detail > .plugin-stage-detail-bar { border-bottom: 1px solid var(--line); }
   body.immersive-workbench .plugin-stage-detail-bar > .feed-detail-kicker { margin: 0; }
   .feed-stage-detail,
@@ -172,14 +195,4 @@ export const PLUGIN_STAGE_STYLES = `
   body.immersive-workbench .plugin-stage-workspace .feed-stage-item-detail .feed-detail-body {
     max-height: none; overflow: visible; padding: 0;
   }
-  .inbox-scene-bind {
-    display: flex; flex-direction: column; gap: 6px;
-    margin: 0 8px 12px; padding: 0 0 12px; border-bottom: 1px solid var(--line);
-  }
-  .inbox-scene-bind span { color: var(--faint); font-size: 12px; }
-  .inbox-scene-bind select {
-    height: 32px; width: 100%; border: 1px solid var(--line); border-radius: 6px;
-    background: var(--paper); color: var(--ink); font-size: 12px; padding: 0 8px;
-  }
-  .inbox-scene-bind__status { margin: 0; color: var(--red); font-size: 12px; }
 `;

@@ -510,6 +510,8 @@ test("capsule shows a real completion briefly, then the authoritative next actio
 test("capsule shell is one menu-bar popover with horizontal state tabs and inline Goal details", () => {
   const html = renderCapsuleShell([PROJECT]);
   assert.match(html, /capsule-shell/);
+  assert.match(html, /mw-select-picker/);
+  assert.match(html, /data-mw-select-picker/);
   assert.match(html, /capsule__arrow/);
   assert.match(html, /data-capsule-project/);
   assert.match(html, /data-loading="true"/);

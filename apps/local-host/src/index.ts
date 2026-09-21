@@ -80,7 +80,7 @@ export {
 export { hydrateFeedItemContent, hydrateFeedSnapshotContent } from "./feed-content.js";
 
 export { createLocalFeedApplication, withLocalFeedJudgments } from "./feed-application.js";
-export { assembleHostBehaviorCatalog, hostAllowedBehaviorIds, SYSTEM_BEHAVIORS } from "./behavior-catalog.js";
+export { assembleHostBehaviorCatalog, hostAllowedBehaviorIds, liveHostAllowedBehaviorIds, liveHostBehaviorCatalog, liveHostFunctionAuthoringCatalog, SYSTEM_BEHAVIORS } from "./behavior-catalog.js";
 export { createFunctionsJudgmentPort, withFunctionsService, readFunctionScenesView } from "./functions-host.js";
 
 export { createFeedSourceRuntime, type FeedSourceRuntime } from "./feed-source-runtime.js";

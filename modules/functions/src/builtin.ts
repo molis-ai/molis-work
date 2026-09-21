@@ -41,7 +41,7 @@ export function seedBuiltinFunctions(db: DatabaseSync): void {
     id: "builtin-system_pick_home_dock",
     name: "挑首页按钮",
     function_key: SYSTEM_HOME_DOCK_FUNCTION_KEY,
-    instructions: "看这件事该显示哪个按钮。选项 key 必须是已登记行为，不能发明名单外的动作。",
+    instructions: "看这件事该显示哪个按钮。",
     criteria: HOME_DOCK_CRITERIA,
     scene_id: HOME_DOCK_SCENE_ID,
     subject_kinds: ["inbox_entry", "feed_item", "source", "session", "home_event"],
@@ -50,7 +50,7 @@ export function seedBuiltinFunctions(db: DatabaseSync): void {
     id: "builtin-system_admit_inbox",
     name: "是否进 Inbox",
     function_key: SYSTEM_INBOX_ADMIT_FUNCTION_KEY,
-    instructions: "看这条消息要不要进 Inbox。选项 key 必须是已登记行为。",
+    instructions: "看这条消息要不要进 Inbox。",
     criteria: INBOX_ADMIT_CRITERIA,
     scene_id: FEED_CAPTURE_SCENE_ID,
     subject_kinds: ["feed_item"],
@@ -59,7 +59,7 @@ export function seedBuiltinFunctions(db: DatabaseSync): void {
     id: "builtin-system_pick_inbox_next",
     name: "挑 Inbox 下一步",
     function_key: SYSTEM_INBOX_NEXT_FUNCTION_KEY,
-    instructions: "看这条 Inbox 下一步该显示哪个按钮。选项 key 必须是已登记行为。",
+    instructions: "看这条 Inbox 该显示哪个按钮。",
     criteria: INBOX_NEXT_CRITERIA,
     scene_id: INBOX_NEXT_SCENE_ID,
     subject_kinds: ["inbox_entry"],
@@ -86,15 +86,15 @@ function seedChoice(db: DatabaseSync, input: {
   const kindsJson = JSON.stringify(input.subject_kinds);
   if (existing) {
     if (existing.config_hash === config_hash) {
-      db.prepare("UPDATE functions SET scene_id = ?, subject_kinds_json = ? WHERE function_key = ?")
-        .run(input.scene_id, kindsJson, input.function_key);
+      db.prepare("UPDATE functions SET name = ?, scene_id = ?, subject_kinds_json = ? WHERE function_key = ?")
+        .run(input.name, input.scene_id, kindsJson, input.function_key);
       return;
     }
     db.prepare(`
       UPDATE functions
-      SET instructions = ?, criteria_json = ?, scene_id = ?, subject_kinds_json = ?, config_hash = ?, updated_at = ?
+      SET name = ?, instructions = ?, criteria_json = ?, scene_id = ?, subject_kinds_json = ?, config_hash = ?, updated_at = ?
       WHERE function_key = ?
-    `).run(input.instructions, JSON.stringify(input.criteria), input.scene_id, kindsJson, config_hash, now, input.function_key);
+    `).run(input.name, input.instructions, JSON.stringify(input.criteria), input.scene_id, kindsJson, config_hash, now, input.function_key);
     return;
   }
   const preview = {

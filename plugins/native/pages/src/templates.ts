@@ -4,6 +4,7 @@ export interface PagesTemplate {
   readonly id: string;
   readonly title: string;
   readonly summary: string;
+  readonly icon: "calendar" | "rows" | "flag" | "file" | "refresh" | "user" | "target" | "alert" | "code" | "eye";
   readonly body: PagesBody;
 }
 
@@ -108,6 +109,7 @@ export const PAGES_TEMPLATES: readonly PagesTemplate[] = [
     id: "meeting-notes",
     title: "会议纪要",
     summary: "信息、出席、议程、结论、行动项",
+    icon: "calendar",
     body: doc([
       toc(),
       heading(2, "信息"),
@@ -127,6 +129,7 @@ export const PAGES_TEMPLATES: readonly PagesTemplate[] = [
     id: "weekly-report",
     title: "周报",
     summary: "完成、进行中、下周、风险",
+    icon: "rows",
     body: doc([
       heading(2, "完成"),
       tasks(["做成了什么"]),
@@ -142,6 +145,7 @@ export const PAGES_TEMPLATES: readonly PagesTemplate[] = [
     id: "project-plan",
     title: "项目计划",
     summary: "目标、团队、里程碑、范围",
+    icon: "flag",
     body: doc([
       heading(2, "目标"),
       callout("info", paragraph("做成之后，外面会看见什么。")),
@@ -157,6 +161,7 @@ export const PAGES_TEMPLATES: readonly PagesTemplate[] = [
     id: "prd",
     title: "PRD",
     summary: "背景、用户故事、验收",
+    icon: "file",
     body: doc([
       heading(2, "背景"),
       callout("plain", paragraph("为什么现在做。")),
@@ -170,6 +175,7 @@ export const PAGES_TEMPLATES: readonly PagesTemplate[] = [
     id: "sprint-retro",
     title: "迭代回顾",
     summary: "做得好、改进、行动",
+    icon: "refresh",
     body: doc([
       heading(2, "做得好"),
       bullets(["值得留下的"]),
@@ -183,6 +189,7 @@ export const PAGES_TEMPLATES: readonly PagesTemplate[] = [
     id: "user-interview",
     title: "用户访谈",
     summary: "问题、洞察、原话",
+    icon: "user",
     body: doc([
       heading(2, "对象"),
       callout("info", paragraph("先写清对方是谁，再问。")),
@@ -199,6 +206,7 @@ export const PAGES_TEMPLATES: readonly PagesTemplate[] = [
     id: "okr",
     title: "OKR",
     summary: "目标与关键结果",
+    icon: "target",
     body: doc([
       heading(2, "目标"),
       paragraph("这周期要抵达的方向。"),
@@ -210,6 +218,7 @@ export const PAGES_TEMPLATES: readonly PagesTemplate[] = [
     id: "postmortem",
     title: "复盘",
     summary: "经过、根因、改进",
+    icon: "alert",
     body: doc([
       heading(2, "经过"),
       callout("warn", paragraph("按时间写下发生了什么。")),
@@ -223,6 +232,7 @@ export const PAGES_TEMPLATES: readonly PagesTemplate[] = [
     id: "tech-design",
     title: "技术方案",
     summary: "架构、取舍、计划",
+    icon: "code",
     body: doc([
       heading(2, "问题"),
       paragraph("要解什么。"),
@@ -239,6 +249,7 @@ export const PAGES_TEMPLATES: readonly PagesTemplate[] = [
     id: "competitor",
     title: "竞品分析",
     summary: "档案、对比、SWOT",
+    icon: "eye",
     body: doc([
       heading(2, "档案"),
       bullets(["产品：", "谁在用：", "他们怎么讲自己："]),

@@ -11,14 +11,14 @@ test("灵光主路径：记下、刷新还在、改字不丢光标、丢掉、�
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId, 20_000));
-  await waitFor("document.querySelector('[data-plugin-strip] [data-plugin-id=lingguang]')");
+  await waitFor("document.querySelector('[data-assistant-island] [data-plugin-id=lingguang]')");
 
   await click('[data-plugin-strip] [data-plugin-id="market"]');
   await waitFor("[...document.querySelectorAll('[data-market-plugin=lingguang] [data-market-add]')].some((button) => button.textContent.trim() === '已添加')", 8_000);
   assert.equal(await evaluate("document.querySelector('[data-market-plugin=lingguang] h2')?.textContent"), "灵光");
   assert.match(await evaluate("document.querySelector('[data-market-plugin=lingguang] p')?.textContent || ''"), /先记下还没想清楚的想法/);
 
-  await click('[data-plugin-strip] [data-plugin-id="lingguang"]');
+  await click('[data-assistant-island] [data-plugin-id="lingguang"]');
   await waitFor("document.body.dataset.desktopSurface === 'lingguang' && document.querySelector('[data-lingguang=workbench]:not([hidden]) [data-lingguang-empty]:not([hidden])')", 8_000);
   assert.match(await evaluate("document.querySelector('[data-lingguang-empty]')?.textContent || ''"), /还没有灵光/);
   assert.equal(await evaluate("document.querySelector('[data-lingguang-confirm]')?.classList.contains('mw-dialog')"), true);
@@ -49,9 +49,9 @@ test("灵光主路径：记下、刷新还在、改字不丢光标、丢掉、�
   ]);
 
   await reloadPage();
-  await waitFor("document.querySelector('[data-plugin-strip] [data-plugin-id=lingguang]')");
+  await waitFor("document.querySelector('[data-assistant-island] [data-plugin-id=lingguang]')");
   if (await evaluate("document.body.dataset.desktopSurface") !== "lingguang") {
-    await click('[data-plugin-strip] [data-plugin-id="lingguang"]');
+    await click('[data-assistant-island] [data-plugin-id="lingguang"]');
   }
   await waitFor("document.body.dataset.desktopSurface === 'lingguang' && document.querySelectorAll('[data-lingguang-id]').length === 3", 8_000);
   assert.equal(await evaluate("document.querySelectorAll('[data-lingguang-id]').length"), 3);

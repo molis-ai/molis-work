@@ -21,6 +21,8 @@ import { createFileSecretStore } from "@molis-ai/molis-work-storage";
 import { openShelfStore } from "@molis-ai/molis-work-module-shelf";
 import { handleLocalRuntimeSettingsHttp, serviceProcessId } from "./web-runtime-settings.js";
 import { handleLocalMcpSettingsHttp } from "./web-mcp-settings.js";
+import { handleLocalConnectorsSettingsHttp } from "./web-connectors-settings.js";
+import { listConnectorSettingsCards } from "./connector-directory.js";
 import { listMcpSettingsEntries } from "./mcp-catalog.js";
 import { readMcpToolPreference } from "./mcp-settings-store.js";
 import { installationDiagnostics } from "./web-project-presentation.js";
@@ -71,7 +73,7 @@ export async function handleLocalCatalogWebRequest(
     return;
   }
   if (await planningHttp.personal(request, response, url, serverOptions.homeDirectory, projects, controlToken, localHost, () => feedSchedulers.clear())) return;
-  const settingsPageMatch = url.pathname.match(/^\/settings\/(appearance|runtimes|mcp|projects|diagnostics)$/);
+  const settingsPageMatch = url.pathname.match(/^\/settings\/(appearance|runtimes|mcp|connectors|projects|diagnostics)$/);
   if (request.method === "GET" && settingsPageMatch) {
     const section = settingsPageMatch[1] as WebSettingsSection;
     const projects = await settingsProjects(serverOptions.homeDirectory);
@@ -100,6 +102,7 @@ export async function handleLocalCatalogWebRequest(
       context_project: contextProject,
       runtimes,
       mcp_tools,
+      connectors: section === "connectors" ? listConnectorSettingsCards() : [],
       projects,
       web_service: await webService.detect(),
       diagnostics: installationDiagnostics(serverOptions.homeDirectory, projects.length),
@@ -135,6 +138,7 @@ export async function handleLocalCatalogWebRequest(
     }, controlToken, isDesktopShellRequest(request, url)));
     return;
   }
+  if (await handleLocalConnectorsSettingsHttp(request, response, url, serverOptions.homeDirectory)) return;
   if (await handleLocalMcpSettingsHttp(request, response, url, serverOptions.homeDirectory)) return;
   if (await handleLocalRuntimeSettingsHttp(request, response, url, runtimeIntegrations, webService)) return;
   if (await projectSettings.handle(request, response, url, serverOptions.homeDirectory, projects.length, deletionPorts)) return;

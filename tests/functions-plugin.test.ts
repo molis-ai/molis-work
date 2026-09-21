@@ -339,6 +339,10 @@ test("Functions client clears leftover preview text when switching records and h
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /criteriaHead\.hidden = kind === "noul"/);
   assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /selected = record;\s*records = records\.some/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /item\.textContent = destTitle\(row\.scene_id\)/);
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /\/api\/inbox\/judgment/);
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /\/api\/home\/dock-judgment/);
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /用在 Inbox/);
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /用在首页/);
   assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /row\.board_id \? " · " \+ row\.board_id/);
 });
 
@@ -367,13 +371,18 @@ test("Functions workbench and settings contributions mount on the declared slots
   assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /className = "functions-row/);
   assert.match(stage, /data-functions-destinations/);
   assert.match(stage, /data-functions-sources/);
-  assert.match(stage, /functions-lede/);
   assert.match(stage, /data-functions-criteria-head/);
   assert.match(stage, /data-functions-create-dialog/);
-  assert.match(renderFunctionsWorkbench({ functions: [], primitives }), /还没有判断函数/);
-  assert.match(renderFunctionsWorkbench({ functions: [], primitives }), /写一道题：看哪类内容/);
-  assert.match(renderFunctionsWorkbench({ functions: [], primitives }), /给 Agent 调用/);
-  assert.match(renderFunctionsWorkbench({ functions: [], primitives }), /molis_work_v1_functions_invoke/);
+  assert.match(renderFunctionsWorkbench({ functions: [], primitives }), /还没有判断/);
+  assert.match(renderFunctionsWorkbench({ functions: [], primitives }), /mw-empty__mark[\s\S]*#icon-zap/);
+  assert.match(renderFunctionsWorkbench({ functions: [], primitives }), /点「新建判断」/);
+  assert.doesNotMatch(renderFunctionsWorkbench({ functions: [], primitives }), /这道题/);
+  assert.doesNotMatch(renderFunctionsWorkbench({ functions: [], primitives }), /何时 ·/);
+  assert.doesNotMatch(renderFunctionsWorkbench({ functions: [], primitives }), /哪里配/);
+  assert.doesNotMatch(renderFunctionsWorkbench({ functions: [], primitives }), /Inbox 列表的「下一步判断」/);
+  assert.doesNotMatch(renderFunctionsWorkbench({ functions: [], primitives }), /开关仍在现场/);
+  assert.match(renderFunctionsWorkbench({ functions: [], primitives }), /给 Agent 选动作/);
+  assert.doesNotMatch(renderFunctionsWorkbench({ functions: [], primitives }), /molis_work_v1_functions_invoke/);
   assert.doesNotMatch(renderFunctionsWorkbench({ functions: [], primitives }), /functions-define/);
   assert.doesNotMatch(renderFunctionsWorkbench({ functions: [], primitives }), /发布给 Agent 调用/);
   const settings = host.mount({
@@ -467,7 +476,7 @@ test("catalog HTTP saves a TypeSafe key without echoing it and keeps Functions o
   assert.ok(destIds.includes("feed.capture"));
   assert.ok(destIds.includes("agent.mcp"));
   assert.equal(catalog.catalog.destinations.find((row) => row.destination_id === "home.dock")?.kind, "event");
-  assert.match(catalog.catalog.destinations.find((row) => row.destination_id === "home.dock")?.configure_at ?? "", /卡底判断/);
+  assert.match(catalog.catalog.destinations.find((row) => row.destination_id === "home.dock")?.configure_at ?? "", /发布后打开/);
   const behaviorIds = catalog.catalog.behaviors.map((row) => row.behavior_id);
   assert.ok(behaviorIds.includes("home.continue"));
   assert.ok(behaviorIds.includes("molis_work_v1_functions_invoke"));

@@ -13,7 +13,7 @@ import {
   type FunctionsSecretPort,
   type TypeSafeProvider,
 } from "@molis-ai/molis-work-plugin-functions";
-import { hostAllowedBehaviorIds, hostHomeDockBehaviors } from "./behavior-catalog.js";
+import { hostHomeDockBehaviors, liveHostAllowedBehaviorIds } from "./behavior-catalog.js";
 
 export interface FunctionSceneChoice {
   readonly function_key: string;
@@ -57,7 +57,7 @@ export function withFunctionsService<T>(
       secrets: options.secrets ?? createFileSecretStore(),
       env: options.env ?? process.env,
       provider: options.provider ?? createHttpTypeSafeProvider(),
-      allowed_behavior_ids: options.allowed_behavior_ids ?? hostAllowedBehaviorIds(),
+      allowed_behavior_ids: options.allowed_behavior_ids ?? liveHostAllowedBehaviorIds(),
     }));
   } finally {
     store.close();
@@ -76,7 +76,7 @@ export async function withFunctionsServiceAsync<T>(
       secrets: options.secrets ?? createFileSecretStore(),
       env: options.env ?? process.env,
       provider: options.provider ?? createHttpTypeSafeProvider(),
-      allowed_behavior_ids: options.allowed_behavior_ids ?? hostAllowedBehaviorIds(),
+      allowed_behavior_ids: options.allowed_behavior_ids ?? liveHostAllowedBehaviorIds(),
     }));
   } finally {
     store.close();

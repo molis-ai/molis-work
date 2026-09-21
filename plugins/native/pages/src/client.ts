@@ -11,7 +11,6 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   const titleEl = workbench.querySelector("[data-pages-editor-title]");
   const statusEl = workbench.querySelector("[data-pages-editor-status]");
   const titleInput = workbench.querySelector("[data-pages-title]");
-  const folderSelect = workbench.querySelector("[data-pages-folder]");
   const goalSelect = workbench.querySelector("[data-pages-goal]");
   const starEditor = workbench.querySelector("[data-pages-star-editor]");
   const editorHost = workbench.querySelector("[data-pages-editor]");
@@ -20,7 +19,12 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   const nameDialog = workbench.querySelector("[data-pages-name]");
   const templateDialog = workbench.querySelector("[data-pages-template-dialog]");
   const Editor = window.MolisWorkPagesEditor;
-  const CARET = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2"></path></svg>';
+  const ICON = (name) => '<svg aria-hidden="true"><use href="#icon-' + name + '"></use></svg>';
+  const moreMenu = workbench.querySelector("[data-pages-more-menu]");
+  const moreButton = workbench.querySelector("[data-pages-more]");
+  const createMenu = workbench.querySelector("[data-pages-create-menu]");
+  const createMore = workbench.querySelector("[data-pages-create-more]");
+  const moveMenu = workbench.querySelector("[data-pages-move-menu]");
   let records = [];
   let folders = [];
   let selected = null;
@@ -30,6 +34,8 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   let query = "";
   let templateFolderId = "";
   let goals = [];
+  let movingId = "";
+  let suppressFoldToggleUntil = 0;
 
   const projectId = () => (typeof host.projectId === "function" ? host.projectId() : host.projectId) || "";
   const routePrefix = () => document.body.dataset.routePrefix || "";
@@ -100,6 +106,71 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (!needle) return records;
     return records.filter((record) => String(record.title || "").toLowerCase().includes(needle));
   };
+  const closeMore = () => {
+    if (!moreMenu || !moreButton) return;
+    moreMenu.hidden = true;
+    moreButton.setAttribute("aria-expanded", "false");
+  };
+  const toggleMore = () => {
+    if (!moreMenu || !moreButton) return;
+    const open = moreMenu.hidden;
+    moreMenu.hidden = !open;
+    moreButton.setAttribute("aria-expanded", String(open));
+    if (open) closeCreate();
+  };
+  const closeCreate = () => {
+    if (!createMenu || !createMore) return;
+    createMenu.hidden = true;
+    createMore.setAttribute("aria-expanded", "false");
+  };
+  const toggleCreate = () => {
+    if (!createMenu || !createMore) return;
+    const open = createMenu.hidden;
+    createMenu.hidden = !open;
+    createMore.setAttribute("aria-expanded", String(open));
+    if (open) closeMore();
+  };
+  const closeMove = () => {
+    if (!moveMenu) return;
+    moveMenu.hidden = true;
+    movingId = "";
+    workbench.querySelectorAll("[data-pages-move][aria-expanded=true]").forEach((node) => {
+      node.setAttribute("aria-expanded", "false");
+    });
+  };
+  const openMove = (trigger, id) => {
+    if (!moveMenu) return;
+    const record = records.find((item) => item.id === id);
+    if (!record) return;
+    movingId = id;
+    moveMenu.replaceChildren();
+    const addItem = (folderId, label) => {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = "mw-menu__item";
+      item.setAttribute("role", "menuitem");
+      item.dataset.pagesMoveTo = folderId;
+      const on = (record.folder_id || "") === folderId;
+      item.classList.toggle("is-current", on);
+      item.setAttribute("aria-selected", String(on));
+      item.textContent = label;
+      moveMenu.append(item);
+    };
+    addItem("", L("未分类"));
+    folders.forEach((folder) => addItem(folder.id, folder.title));
+    workbench.querySelectorAll("[data-pages-move]").forEach((node) => {
+      node.setAttribute("aria-expanded", node === trigger ? "true" : "false");
+    });
+    moveMenu.hidden = false;
+    const box = trigger.getBoundingClientRect();
+    const width = Math.max(180, moveMenu.offsetWidth);
+    const left = Math.min(Math.max(8, box.right - width), window.innerWidth - width - 8);
+    const below = box.bottom + 4;
+    const height = moveMenu.offsetHeight;
+    const top = below + height > window.innerHeight - 8 ? Math.max(8, box.top - height - 4) : below;
+    moveMenu.style.left = left + "px";
+    moveMenu.style.top = top + "px";
+  };
   const fillGoalSelect = () => {
     if (!goalSelect) return;
     const current = selected?.goal_id || "";
@@ -129,30 +200,13 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     }
     fillGoalSelect();
   };
-  const fillFolderSelect = () => {
-    if (!folderSelect) return;
-    const current = selected?.folder_id || "";
-    folderSelect.replaceChildren();
-    const none = document.createElement("option");
-    none.value = "";
-    none.textContent = L("未分类");
-    folderSelect.append(none);
-    folders.forEach((folder) => {
-      const option = document.createElement("option");
-      option.value = folder.id;
-      option.textContent = folder.title;
-      folderSelect.append(option);
-    });
-    folderSelect.value = folders.some((folder) => folder.id === current) ? current : "";
-  };
   const syncEditorChrome = () => {
     if (!selected) return;
     if (starEditor) {
       starEditor.classList.toggle("is-on", Boolean(selected.starred));
-      starEditor.textContent = selected.starred ? L("取消收藏") : L("收藏");
       starEditor.setAttribute("aria-label", selected.starred ? L("取消收藏") : L("收藏"));
+      starEditor.title = selected.starred ? L("取消收藏") : L("收藏");
     }
-    fillFolderSelect();
     fillGoalSelect();
   };
   const markSelected = (id) => {
@@ -165,38 +219,50 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   const renderRow = (record) => {
     const item = document.createElement("article");
     item.className = "feed-stage-item pages-doc-row";
-    const star = document.createElement("button");
-    star.type = "button";
-    star.className = "pages-star" + (record.starred ? " is-on" : "");
-    star.dataset.pagesStar = record.id;
-    star.setAttribute("aria-label", record.starred ? L("取消收藏") : L("收藏"));
-    star.textContent = "★";
+    item.draggable = folders.length > 0;
+    item.dataset.pageId = record.id;
     const row = document.createElement("button");
     row.type = "button";
+    row.draggable = folders.length > 0;
     row.className = "feed-stage-entry directory-list-row" + (selected?.id === record.id ? " is-selected" : "");
     row.dataset.pageId = record.id;
     row.setAttribute("aria-selected", String(selected?.id === record.id));
     const leading = document.createElement("span");
     leading.className = "feed-stage-leading";
+    const mark = document.createElement("span");
+    mark.className = "pages-doc-mark";
+    mark.setAttribute("aria-hidden", "true");
+    mark.innerHTML = ICON("note");
     const title = document.createElement("strong");
     title.title = record.title;
     title.textContent = record.title;
-    leading.append(title);
-    const kind = document.createElement("span");
-    kind.className = "mw-status plugin-stage-kind";
-    kind.dataset.kind = "page";
-    kind.textContent = L("文档");
-    const folder = folders.find((item) => item.id === record.folder_id);
-    const fact = document.createElement("span");
-    fact.className = "plugin-stage-fact";
-    fact.textContent = folder ? folder.title : L("未分类");
+    leading.append(mark, title);
     const meta = document.createElement("span");
     meta.className = "plugin-stage-meta";
     meta.textContent = formatTime(record.updated_at);
-    const status = document.createElement("span");
-    status.className = "feed-entry-status";
-    row.append(leading, kind, fact, meta, status);
-    item.append(row, star);
+    row.append(leading, meta);
+    const actions = document.createElement("span");
+    actions.className = "pages-row-actions";
+    if (folders.length) {
+      const move = document.createElement("button");
+      move.type = "button";
+      move.className = "pages-row-act";
+      move.dataset.pagesMove = record.id;
+      move.setAttribute("aria-label", L("移到文件夹"));
+      move.setAttribute("title", L("移到文件夹"));
+      move.setAttribute("aria-haspopup", "true");
+      move.setAttribute("aria-expanded", "false");
+      move.innerHTML = ICON("folder");
+      actions.append(move);
+    }
+    const star = document.createElement("button");
+    star.type = "button";
+    star.className = "pages-row-act pages-star" + (record.starred ? " is-on" : "");
+    star.dataset.pagesStar = record.id;
+    star.setAttribute("aria-label", record.starred ? L("取消收藏") : L("收藏"));
+    star.innerHTML = ICON("star");
+    actions.append(star);
+    item.append(row, actions);
     return item;
   };
   const renderFold = (key, label, items, actions) => {
@@ -208,13 +274,14 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     const caret = document.createElement("span");
     caret.className = "goal-collection-caret";
     caret.setAttribute("aria-hidden", "true");
-    caret.innerHTML = CARET;
+    caret.innerHTML = ICON("chevron-down");
     const strong = document.createElement("strong");
     strong.textContent = label;
     const small = document.createElement("small");
     small.textContent = String(items.length);
     summary.append(caret, strong, small);
     if (actions) summary.append(actions);
+    if (key !== "starred") fold.dataset.pagesDrop = "folder";
     fold.append(summary);
     if (!items.length) {
       const vacant = document.createElement("p");
@@ -231,21 +298,22 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     add.type = "button";
     add.dataset.pagesFolderNew = folder.id;
     add.setAttribute("aria-label", L("在此新建"));
-    add.textContent = "+";
+    add.innerHTML = ICON("plus");
     const rename = document.createElement("button");
     rename.type = "button";
     rename.dataset.pagesFolderRename = folder.id;
     rename.setAttribute("aria-label", L("重命名文件夹"));
-    rename.textContent = "✎";
+    rename.innerHTML = ICON("edit");
     const remove = document.createElement("button");
     remove.type = "button";
     remove.dataset.pagesFolderDelete = folder.id;
     remove.setAttribute("aria-label", L("删除文件夹"));
-    remove.textContent = "×";
+    remove.innerHTML = ICON("x");
     wrap.append(add, rename, remove);
     return wrap;
   };
   const renderList = () => {
+    closeMove();
     const shown = visibleRecords();
     const searching = Boolean(query.trim());
     empty.hidden = records.length > 0 || searching || folders.length > 0;
@@ -331,7 +399,10 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     selected = null;
     workbench.setAttribute("data-expanded", "false");
     workspace.hidden = true;
-    document.querySelectorAll(".pages-format-bar").forEach((bar) => { bar.hidden = true; });
+    closeMore();
+    closeCreate();
+    closeMove();
+    workbench.querySelectorAll(".pages-format-bar, .pages-slash, .pages-pop, .pages-block-handle, .pages-block-menu").forEach((node) => { node.hidden = true; });
   };
   const loadList = async () => {
     const payload = await request("GET", "/api/pages");
@@ -342,7 +413,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       const next = records.find((item) => item.id === selected.id);
       if (next) remember(next, false);
       else closeEditor();
-    } else fillFolderSelect();
+    }
   };
   const save = async () => {
     if (!selected) return selected;
@@ -394,6 +465,20 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       renderList();
     }
   };
+  const movePage = async (id, folderId) => {
+    const record = records.find((item) => item.id === id);
+    if (!record || (record.folder_id || "") === folderId) return;
+    const payload = await request("POST", "/api/pages/" + encodeURIComponent(id), { folder_id: folderId });
+    if (selected?.id === id) remember(payload.document, false);
+    else {
+      const index = records.findIndex((item) => item.id === id);
+      if (index >= 0) records[index] = payload.document;
+      renderList();
+    }
+  };
+  const clearDrop = () => {
+    workbench.querySelectorAll("[data-pages-drop].is-drop").forEach((node) => node.classList.remove("is-drop"));
+  };
 
   titleInput.addEventListener("input", () => {
     if (titleEl) titleEl.textContent = titleInput.value || L("文档");
@@ -403,12 +488,6 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     query = searchInput.value || "";
     renderList();
   });
-  folderSelect?.addEventListener("change", () => {
-    if (!selected) return;
-    void request("POST", "/api/pages/" + encodeURIComponent(selected.id), { folder_id: folderSelect.value })
-      .then((payload) => remember(payload.document, false))
-      .catch((error) => showNote(error.message || L("保存失败"), true));
-  });
   goalSelect?.addEventListener("change", () => {
     if (!selected) return;
     void request("POST", "/api/pages/" + encodeURIComponent(selected.id), { goal_id: goalSelect.value })
@@ -417,6 +496,45 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   });
   workbench.addEventListener("click", async (event) => {
     try {
+      if (Date.now() < suppressFoldToggleUntil && event.target.closest("summary")) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+      if (event.target.closest("[data-pages-more]")) {
+        event.preventDefault();
+        event.stopPropagation();
+        closeMove();
+        closeCreate();
+        toggleMore();
+        return;
+      }
+      if (event.target.closest("[data-pages-create-more]")) {
+        event.preventDefault();
+        event.stopPropagation();
+        closeMove();
+        toggleCreate();
+        return;
+      }
+      const moveTo = event.target.closest("[data-pages-move-to]");
+      if (moveTo) {
+        event.preventDefault();
+        event.stopPropagation();
+        const id = movingId;
+        const folderId = moveTo.dataset.pagesMoveTo || "";
+        closeMove();
+        if (id) await movePage(id, folderId);
+        return;
+      }
+      const move = event.target.closest("[data-pages-move]");
+      if (move) {
+        event.preventDefault();
+        event.stopPropagation();
+        closeMore();
+        if (move.getAttribute("aria-expanded") === "true") closeMove();
+        else openMove(move, move.dataset.pagesMove);
+        return;
+      }
       const star = event.target.closest("[data-pages-star]");
       if (star) {
         event.preventDefault();
@@ -442,7 +560,6 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
         const payload = await request("POST", "/api/pages/folders/" + encodeURIComponent(folder.id), { title });
         folders = folders.map((item) => item.id === payload.folder.id ? payload.folder : item);
         renderList();
-        fillFolderSelect();
         return;
       }
       const folderDelete = event.target.closest("[data-pages-folder-delete]");
@@ -457,7 +574,6 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
         records = records.map((item) => item.folder_id === id ? { ...item, folder_id: "" } : item);
         if (selected?.folder_id === id) selected = { ...selected, folder_id: "" };
         renderList();
-        fillFolderSelect();
         return;
       }
       const template = event.target.closest("[data-pages-template]");
@@ -468,24 +584,26 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
         return;
       }
       if (event.target.closest("[data-pages-templates]")) {
+        closeCreate();
         templateFolderId = "";
         templateDialog?.showModal();
         return;
       }
       if (event.target.closest("[data-pages-new-folder]")) {
+        closeCreate();
         const title = await askName(L("文件夹名称"), "");
         if (title == null) return;
         const payload = await request("POST", "/api/pages/folders", { title });
         folders = [...folders, payload.folder].sort((a, b) => a.title.localeCompare(b.title, "zh"));
         renderList();
-        fillFolderSelect();
         return;
       }
       if (event.target.closest("[data-pages-new]")) {
+        closeCreate();
         await createPage({});
         return;
       }
-      const row = event.target.closest("[data-page-id]");
+      const row = event.target.closest("button[data-page-id]");
       if (row) {
         const record = records.find((item) => item.id === row.dataset.pageId);
         if (record) fillEditor(record);
@@ -501,6 +619,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
         return;
       }
       if (event.target.closest("[data-pages-extract]") && selected) {
+        closeMore();
         await save().catch((error) => showNote(error.message || L("保存失败"), true));
         const payload = await request("POST", "/api/pages/" + encodeURIComponent(selected.id) + "/extract", {});
         await loadList();
@@ -508,6 +627,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
         return;
       }
       if (event.target.closest("[data-pages-promote]") && selected) {
+        closeMore();
         await save().catch((error) => showNote(error.message || L("保存失败"), true));
         const response = await fetch(route(withProject("/api/pages/" + encodeURIComponent(selected.id) + "/promote")), {
           method: "POST",
@@ -521,10 +641,12 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
         return;
       }
       if (event.target.closest("[data-pages-export]") && selected) {
+        closeMore();
         exportHtml();
         return;
       }
       if (event.target.closest("[data-pages-delete]") && selected) {
+        closeMore();
         const ok = await ask(L("要删除这篇文档吗？删除后无法恢复。"), L("删除"));
         if (!ok) return;
         const id = selected.id;
@@ -535,6 +657,65 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
     } catch (error) {
       showNote(error.message || L("文档请求失败"), true);
+    }
+  });
+  workbench.addEventListener("dragstart", (event) => {
+    if (event.target.closest(".pages-row-act, .pages-folder-actions")) {
+      event.preventDefault();
+      return;
+    }
+    const row = event.target.closest(".pages-doc-row[data-page-id]");
+    if (!row || !event.dataTransfer) return;
+    event.dataTransfer.setData("text/plain", row.dataset.pageId);
+    event.dataTransfer.effectAllowed = "move";
+    row.classList.add("is-dragging");
+  });
+  workbench.addEventListener("dragover", (event) => {
+    const fold = event.target.closest("[data-pages-drop=folder]");
+    if (!fold) return;
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+    clearDrop();
+    fold.classList.add("is-drop");
+  });
+  workbench.addEventListener("dragleave", (event) => {
+    const fold = event.target.closest("[data-pages-drop=folder]");
+    if (!fold) return;
+    const next = event.relatedTarget;
+    if (next && fold.contains(next)) return;
+    fold.classList.remove("is-drop");
+  });
+  workbench.addEventListener("drop", (event) => {
+    const fold = event.target.closest("[data-pages-drop=folder]");
+    clearDrop();
+    workbench.querySelectorAll(".pages-doc-row.is-dragging").forEach((node) => node.classList.remove("is-dragging"));
+    if (!fold || !event.dataTransfer) return;
+    event.preventDefault();
+    event.stopPropagation();
+    suppressFoldToggleUntil = Date.now() + 400;
+    const id = event.dataTransfer.getData("text/plain");
+    void movePage(id, fold.dataset.folderId || "").catch((error) => showNote(error.message || L("保存失败"), true));
+  });
+  workbench.addEventListener("dragend", () => {
+    clearDrop();
+    workbench.querySelectorAll(".pages-doc-row.is-dragging").forEach((node) => node.classList.remove("is-dragging"));
+  });
+  document.addEventListener("pointerdown", (event) => {
+    const target = event.target && event.target.nodeType === 1 ? event.target : event.target && event.target.parentElement;
+    if (!target) return;
+    if (moreMenu && !moreMenu.hidden && !moreMenu.contains(target) && !moreButton?.contains(target)) closeMore();
+    if (createMenu && !createMenu.hidden && !createMenu.contains(target) && !createMore?.contains(target)) closeCreate();
+    if (moveMenu && !moveMenu.hidden && !moveMenu.contains(target) && !target.closest("[data-pages-move]")) closeMove();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    if (moveMenu && !moveMenu.hidden) {
+      event.preventDefault();
+      closeMove();
+    }
+    if (createMenu && !createMenu.hidden) {
+      event.preventDefault();
+      closeCreate();
     }
   });
   void loadList().catch((error) => showNote(error.message || L("文档请求失败"), true));

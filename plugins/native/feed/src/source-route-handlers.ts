@@ -35,8 +35,6 @@ export function createFeedSourceRouteHandlers(options: FeedRouteHandlerPorts): R
       if (historyDecision !== "retain_history" && historyDecision !== "delete_local_history") {
         return { status: 400, body: { error: "删除来源前必须选择保留或删除本地历史" } };
       }
-      const current = feed().getSource(options.boardId, sourceId);
-      if (current.sync_kind === "github" || current.sync_kind === "gmail") connectors().unbind(current.sync_kind);
       const deleted = sources().delete(sourceId, historyDecision);
       changed();
       return { status: 200, body: { source: deleted, history_decision: historyDecision } };
@@ -71,7 +69,6 @@ export function createFeedSourceRouteHandlers(options: FeedRouteHandlerPorts): R
         if (current.sync_kind !== "github" && current.sync_kind !== "gmail") {
           throw new FeedDomainError("公开来源不需要断开账号；可以暂停或删除", "feed_source_invalid_state");
         }
-        connectors().unbind(current.sync_kind);
         const source = sources().disconnect(sourceId);
         changed();
         return { status: 200, body: { source } };
@@ -148,7 +145,7 @@ export function createFeedSourceRouteHandlers(options: FeedRouteHandlerPorts): R
         state: request.query.get("state") ?? undefined,
       });
       changed();
-      return { status: 302, redirect: `${options.routePrefix || ""}/?feed-auth=gmail` };
+      return { status: 302, redirect: "/settings/connectors?connected=gmail" };
     },
   };
 }

@@ -10,6 +10,7 @@ export const PPT_STYLES = `
     gap: 12px 16px; align-items: end;
   }
   .ppt-field { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--muted); }
+  .ppt-meta [data-ppt-title] { font-size: 16px; letter-spacing: -0.02em; color: var(--ink); }
   .ppt-slide-editor textarea.mw-textarea { field-sizing: content; min-height: 72px; max-height: 220px; resize: vertical; }
   .ppt-slide-editor textarea[data-ppt-slide-notes] { min-height: 48px; max-height: 120px; }
   .ppt-colors { display: flex; flex-wrap: wrap; gap: 12px 16px; padding-bottom: 2px; font-size: 12px; color: var(--muted); }
@@ -77,7 +78,6 @@ export const PPT_STYLES = `
   .plugin-stage-detail-bar [data-ppt-editor-status].mw-status {
     flex: none; color: var(--status-tone, var(--muted)); font-size: 11px;
   }
-  .plugin-stage-detail-bar [data-ppt-delete] { margin-left: auto; }
   .plugin-stage-list .mw-empty { max-width: 32ch; padding: 8px 8px 16px; }
   dialog.mw-dialog.creative-confirm { width: min(360px, calc(100vw - 32px)); }
   .creative-confirm-form { display: flex; flex-direction: column; gap: 16px; padding: 18px 20px 16px; }

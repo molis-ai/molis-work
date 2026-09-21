@@ -326,11 +326,11 @@ test("Feed task capture rules pick a published function instead of typing a key"
   });
   const panel = taskConfigPanel(overlays, "source-a");
   assert.match(panel, /data-feed-out-rule-function-key/);
-  assert.match(panel, /捕捉判断/);
+  assert.match(panel, /不用判断/);
   assert.match(panel, /value="system_admit_inbox"/);
   assert.doesNotMatch(panel, /placeholder="system_admit_inbox"/);
   assert.match(overlays, /data-feed-add-out-rule-function-key/);
-  assert.match(overlays, /不判断，用默认分流/);
+  assert.match(overlays, /不用判断/);
 });
 
 test("Feed detail keeps Add to Inbox until a legal stay-in-Feed suggestion arrives", () => {

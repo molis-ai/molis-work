@@ -5,7 +5,10 @@ import type {
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { definePollingIntegrationPlugin } from "@molis-ai/molis-work-plugin-sdk";
 
-export { createGithubProvider, type GithubFetch } from "./provider.js";
+export { createGithubProvider, githubWhoami, type GithubFetch, type GithubWhoamiResult } from "./provider.js";
+
+export const GITHUB_WHOAMI_BEHAVIOR_ID = "whoami";
+export const GITHUB_WHOAMI_PUBLIC_BEHAVIOR_ID = "github.whoami";
 
 export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-integration-github",
@@ -19,16 +22,16 @@ export const packageDescriptor = {
 } as const;
 
 export const githubIntegrationManifest = {
-  schema_version: 1,
+  schema_version: 2,
   plugin_id: "io.molis.work.integration.github",
-  version: "1.0.0",
+  version: "1.1.0",
   name: "GitHub",
   kind: "integration",
   publisher: {
     publisher_id: "io.adeptify",
     signature: "adeptify-official-signature-v1",
   },
-  host_api_version: 1,
+  host_api_version: 2,
   entrypoints: [{ deployment: "local", entrypoint: "./dist/index.js" }],
   permissions: [
     { permission: "network:github.com", required: true, reason: "读取 GitHub 身份与通知" },
@@ -40,6 +43,14 @@ export const githubIntegrationManifest = {
   },
   artifacts: { produces: [], consumes: [] },
   ui: { contributions: ["settings.integration.github"] },
+  behaviors: [
+    {
+      behavior_id: GITHUB_WHOAMI_BEHAVIOR_ID,
+      title: "查看当前 GitHub 账号",
+      effect: "read",
+      subject_kinds: ["mcp_invoke", "session"],
+    },
+  ],
 } as const satisfies PluginManifest;
 
 export function createGithubIntegrationPlugin(input: {

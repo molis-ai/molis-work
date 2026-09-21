@@ -156,3 +156,18 @@ test('current decisions precede collapsed history without hiding execution failu
   assert.match(html,/<details data-review-detail="history"><summary>/);assert.doesNotMatch(html,/<details data-review-detail="history" open/);
   assert.match(html,/changed after preview/);
 });
+
+test('Git unknown results show a separate recovery entry, and content equality never reads as successful execution', async () => {
+  const { renderAgentReviewRecovery } = await import('@molis-ai/molis-work-app-workbench');
+  const item = row({ receipt: receipt({ effect_uncertain: '回执不可读' }) });
+  item.request.kind = 'git-index'; item.request.run = null;
+  item.request.operation = { kind: 'git-index', operation_id: 'op', workspace_id: 'w' };
+  item.request.document = { kind: 'git-index', action: 'stage', workspace_name: 'workspace', files: [{ path: 'note', before_text: 'before', after_text: 'after', before_mode: '100644', after_mode: '100644' }] };
+  const html = renderAgentReviewSurface({ rows: [item], primitives: p });
+  assert.match(html, /data-agent-review-inspect/); assert.doesNotMatch(html, /data-agent-review-approve/);
+  const recovery = renderAgentReviewRecovery({ review_id: 'r1', receipt: item.receipt!, observation: { revision: 'v1', observed_at: 'now', matches_before: false, matches_after: true, files: [{ path: '<note>', text: '<img src=x>', mode: '100644' }] }, can_confirm_not_happened: false, message: '仍需原执行回执' }, p.escape);
+  assert.match(recovery, /data-review-confirm-not disabled/); assert.match(recovery, /&lt;img src=x&gt;/); assert.doesNotMatch(recovery, /<img src=x>/);
+  item.receipt = receipt({ effect_error: '原操作未发生', reconciliation: { actor_id: 'user', at: '2026-09-22', reason: '<evidence>' } });
+  const settled = renderAgentReviewSurface({ rows: [item], primitives: p });
+  assert.match(settled, /已核对：原操作未发生/); assert.match(settled, /&lt;evidence&gt;/); assert.doesNotMatch(settled, /data-agent-review-inspect|已完成/);
+});

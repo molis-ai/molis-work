@@ -1,3 +1,4 @@
+import { agentTextMaterialContent, type AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import type {
@@ -118,6 +119,7 @@ export interface PrologueStartInput {
   };
   compaction?: { prompt: string; above_tokens: number };
   task: string;
+  text_materials?: readonly AgentTextMaterial[];
   skills?: readonly AgentSkillDefinition[];
   mcp_tools?: readonly AgentMcpToolRef[];
   mcp_sources?: readonly AgentMcpSourceRef[];
@@ -344,6 +346,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   }
 
   async start(request: AgentStartRequest): Promise<AgentRunHandle> {
+    request = { ...request, text_materials: structuredClone(request.text_materials ?? []) };
     const session = await this.#loadSession(request.session.session_id);
     if (session.recovery) throw new PrologueAdapterError("agent.session_busy", session.recovery.reason);
     const latest = session.runs.at(-1);
@@ -362,6 +365,9 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   }
 
   async #start(request: AgentStartRequest, session: SessionRecord): Promise<AgentRunHandle> {
+    const textMaterials = request.text_materials ?? [];
+    if (textMaterials.length > 30 || new Set(textMaterials.map(item => item.material_id)).size !== textMaterials.length) throw new Error("材料过多或选择重复");
+    textMaterials.forEach(agentTextMaterialContent);
     const model = await this.#ports.modelConfiguration(request.model_selection);
     if (model === null) {
       throw new PrologueAdapterError("agent.model_not_configured", "还没有配置可用的模型");
@@ -407,8 +413,9 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       mcp_tools: request.mcp_tools ?? [],
       mcp_sources: request.mcp_sources ?? [],
       host_tools: [...role.host_tools],
-      text_materials: (request.text_materials ?? []).map((material) => ({
+      text_materials: textMaterials.map((material) => ({
         material_id: material.material_id,
+        title: material.title,
         source_artifact_id: material.source_artifact_id,
         source_version: material.source_version,
       })),
@@ -430,6 +437,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       },
       ...(role.compaction ? { compaction: { prompt: role.compaction.prompt.body, above_tokens: role.compaction.above_tokens } } : {}),
       task: request.task,
+      text_materials: textMaterials,
       skills: role.skills ?? [],
       mcp_tools: request.mcp_tools ?? [],
       mcp_sources: request.mcp_sources ?? [],

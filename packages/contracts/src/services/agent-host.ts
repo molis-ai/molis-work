@@ -120,6 +120,21 @@ export interface AgentTextMaterial {
   source_version: number;
 }
 
+/** Metadata and verbatim body share one data resource, never a role/system prompt. */
+export function agentTextMaterialContent(material: AgentTextMaterial): string {
+  if (!material || typeof material.title !== "string" || material.title.length > 2000
+    || typeof material.material_id !== "string" || !material.material_id || material.material_id.length > 240
+    || typeof material.source_artifact_id !== "string" || !material.source_artifact_id || material.source_artifact_id.length > 200
+    || !Number.isSafeInteger(material.source_version) || material.source_version < 1 || typeof material.text !== "string") {
+    throw new Error("固定材料的标题、来源或版本无效");
+  }
+  const header = JSON.stringify({ title: material.title, artifact_id: material.source_artifact_id, version: material.source_version });
+  const content = `${header}\n\n${material.text}`;
+  // Prologue's required text resources reject more than 20,000 UTF-16 units.
+  if (content.length > 20_000) throw new Error("材料连同来源超过 20,000 字符，请在文件中选择较小片段后重新保存");
+  return content;
+}
+
 export interface AgentSkillRef {
   skill_id: string;
   version: number;
@@ -167,7 +182,7 @@ export interface AgentFrozenStart {
   mcp_tools: AgentMcpToolRef[];
   mcp_sources?: AgentMcpSourceRef[];
   host_tools: string[];
-  text_materials: Array<{ material_id: string; source_artifact_id: string; source_version: number }>;
+  text_materials: Array<{ material_id: string; title?: string; source_artifact_id: string; source_version: number }>;
   budget: AgentRunBudget | null;
   directory: AgentWorkingDirectory;
 }
@@ -381,7 +396,7 @@ export interface AgentSessionView {
   latest_run: AgentRunView | null;
 }
 
-export type AgentReviewKind = "text-edit" | "command" | "tool-operation" | "mcp" | "rewind";
+export type AgentReviewKind = "text-edit" | "command" | "tool-operation" | "mcp" | "rewind" | "git-index";
 
 export interface AgentTextReviewDocument {
   kind: "text-edit";
@@ -420,12 +435,19 @@ export interface AgentRewindReviewDocument {
   checkpoint_id: string;
   files: Array<{ path: string; change: "restore" | "delete" | "create"; before_text: string | null; after_text: string | null }>;
 }
+export interface AgentGitIndexReviewDocument {
+  kind: "git-index";
+  action: "stage" | "unstage";
+  workspace_name: string;
+  files: Array<{ path: string; before_text: string | null; after_text: string | null; before_mode: "100644" | "100755" | null; after_mode: "100644" | "100755" | null }>;
+}
 
 export type AgentReviewDocument =
   | AgentTextReviewDocument
   | AgentCommandReviewDocument
   | AgentToolOperationReviewDocument
   | AgentMcpReviewDocument
+  | AgentGitIndexReviewDocument
   | AgentRewindReviewDocument;
 
 export type AgentReviewStatus = "pending" | "approved" | "rejected" | "cancelled" | "expired";
@@ -434,7 +456,8 @@ export interface AgentReviewRequest {
   review_id: string;
   /** Null for a manual operation; never fabricate an Agent Run. */
   run: AgentRunRef | null;
-  operation?: { operation_id: string; session_id: string; kind: "checkpoint-rewind" };
+  operation?: { operation_id: string; session_id: string; kind: "checkpoint-rewind"; workspace_id?: never }
+    | { operation_id: string; workspace_id: string; kind: "git-index"; session_id?: never };
   board_id: string;
   plugin_id: string;
   kind: AgentReviewKind;
@@ -463,6 +486,32 @@ export interface AgentReviewReceipt {
   effect_uncertain?: string;
   /** Host recorded a decision, but the execution owner did not confirm receiving it. */
   delivery_error?: string;
+  /** Human evidence, projected only after the execution owner has settled the original effect. */
+  reconciliation?: { actor_id: string; at: string; reason: string };
+}
+
+export interface AgentGitIndexObservation {
+  revision: string;
+  observed_at: string;
+  files: Array<{ path: string; text: string | null; mode: "100644" | "100755" | null }>;
+  matches_before: boolean;
+  matches_after: boolean;
+}
+
+export interface AgentReviewRecoveryView {
+  review_id: string;
+  receipt: AgentReviewReceipt;
+  observation: AgentGitIndexObservation | null;
+  can_confirm_not_happened: boolean;
+  message: string;
+}
+
+export interface AgentReviewRecoveryInput {
+  review_id: string;
+  action: "refresh" | "not-happened";
+  actor_id: string;
+  revision?: string;
+  reason?: string;
 }
 
 /**

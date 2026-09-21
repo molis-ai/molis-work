@@ -41,6 +41,7 @@ import { serviceProcessId } from "./web-runtime-settings.js";
 import { resolveWebRequest } from "./web-routing.js";
 import { handleLocalCatalogWebRequest } from "./web-catalog.js";
 import { handleAgentReviewHttp } from "./agent-review-http.js";
+import { inspectGitIndex } from "./workspace-git-index.js";
 import { handleCodingPluginHttp, type CodingSurfacePorts } from "./coding-surface.js";
 
 export async function handleMolisWorkWebRequest(
@@ -108,7 +109,7 @@ export async function handleMolisWorkWebRequest(
             }),
           },
         };
-        if (/^\/api\/plugins\/io\.molis\.work\.(coding|workspace|files|diff|text-stats)\//.test(url.pathname)) {
+        if (/^\/api\/plugins\/io\.molis\.work\.(coding|workspace|files|git|diff|text-stats)\//.test(url.pathname)) {
           const enabled = options.project && await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory },
             (catalog) => catalog.listProjectPlugins(options.project!.project_id).includes("coding"));
           if (!enabled) { sendJson(response, 404, { error: "这个项目未启用 Coding" }); return; }
@@ -206,11 +207,17 @@ export async function handleMolisWorkWebRequest(
         // The Host's review queue. Deciding sits under /api/, so the local
         // control guard already required same-origin, the token and a one-time
         // key before anything here runs.
+        if (url.pathname === "/api/agent/reviews" || url.pathname.startsWith("/api/agent/reviews/")) await agentReady();
         if (await handleAgentReviewHttp(request, response, url, {
           boardId: options.boardId,
           agentHost,
           // 与本地 Web 其它写操作一致的操作者标识
           actorId: "web-user",
+          observeGitIndex: review => {
+            if (review.board_id !== options.boardId || review.operation?.kind !== "git-index" || review.document.kind !== "git-index" || !options.project) throw new Error("原操作没有可核对的项目工作区");
+            return inspectGitIndex(review.operation.workspace_id, review.document, async () => composition.withCatalog(
+              { homeDirectory: serverOptions.homeDirectory }, catalog => catalog.listWorkspaceDirectory(options.project!.project_id)));
+          },
         })) return;
         if (request.method === "GET" && url.pathname === "/api/board") {
           sendJson(response, 200, readWebView());

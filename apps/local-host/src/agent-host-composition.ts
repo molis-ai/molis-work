@@ -14,6 +14,8 @@ import type { AgentPromptText } from "@molis-ai/molis-work-contracts/platform/pl
 
 import type { MolisWorkLocalHost, MolisWorkProjectRuntime } from "./project-host.js";
 import type { ModelProviderStore } from "./model-provider-store.js";
+import { prepareGitIndexCapability, readGitResultsCapability, type GitReviewedResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { prepareGitIndex } from "./workspace-git-index.js";
 
 /**
  * Wires the Agent Host into a running Host.
@@ -87,9 +89,50 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
       boardId: (runtime) => runtime.board_id,
     },
   );
+  const unregisterGit = options.localHost.registerCapability(prepareGitIndexCapability, async (project, input) => {
+    await initialize();
+    if (!prologue?.gitReviews) throw new Error("Git 宿主审查执行方尚未接通");
+    const current = async () => options.workspacesFor ? await options.workspacesFor(project.project_id)
+      : [await options.workspaceFor(project.project_id)].filter((item): item is ProjectWorkspaceRef => item !== null);
+    const prepared = await prepareGitIndex(input, current);
+    const workspace = (await current()).find(item => item.workspace_id === input.workspace_id);
+    if (!workspace) throw new Error("工作区已取消授权");
+    const request = await prologue.gitReviews.prepare({ board_id: project.board_id, workspace_id: input.workspace_id, operation_id: input.operation_id,
+      document: { kind: "git-index", action: input.action, workspace_name: workspace.display_name ?? "当前仓库", files: prepared.files } }, prepared);
+    return { review_id: request.review_id };
+  });
+
+
+  const unregisterGitResults = options.localHost.registerCapability(readGitResultsCapability, async (project, input) => {
+    await initialize();
+    const grants = options.workspacesFor ? await options.workspacesFor(project.project_id)
+      : [await options.workspaceFor(project.project_id)].filter((item): item is ProjectWorkspaceRef => item !== null);
+    if (!grants.some(item => item.workspace_id === input.workspace_id && item.realpath_verified)) throw new Error("工作区已取消授权，不能读取操作结果");
+    await agentHost.reviews.refresh(project.board_id);
+    const results: GitReviewedResult[] = [];
+    for (const request of agentHost.reviews.list(project.board_id)) {
+      if (request.operation?.kind !== "git-index" || request.operation.workspace_id !== input.workspace_id || request.document.kind !== "git-index") continue;
+      const receipt = agentHost.reviews.receipt(request.review_id);
+      if (!receipt || receipt.effect_uncertain || receipt.delivery_error || receipt.status === "pending") continue;
+      if (receipt.status === "approved" && !receipt.effect_settled && !receipt.effect_error) continue;
+      const outcome = receipt.status === "rejected" ? "denied" : receipt.status === "cancelled" ? "cancelled"
+        : receipt.status === "expired" ? "expired" : receipt.effect_settled ? "succeeded" : "failed";
+      const summary = outcome === "succeeded" ? (request.document.action === "stage" ? "已将审查版本放入暂存区；磁盘文件未改写。" : "已取消所选版本的暂存；磁盘文件未改写。")
+        : outcome === "denied" ? "用户拒绝，原操作未执行。" : outcome === "cancelled" ? "原等待已撤回，没有重新执行。"
+        : outcome === "expired" ? "原等待已过期，没有重新执行。" : receipt.reconciliation ? "已核对原操作未发生；不会自动重试。" : "原操作未完成；具体说明保留在宿主审查记录中。";
+      results.push({ workspace_id: input.workspace_id, operation_id: request.operation.operation_id, outcome, summary,
+        review: { review_id: request.review_id, action: request.document.action, paths: request.document.files.map(file => file.path),
+          requested_at: request.requested_at, decided_by: receipt.decided_by, decided_at: receipt.decided_at,
+          ...(receipt.effect_error ? { failure_reason: receipt.effect_error } : {}),
+          ...(receipt.reconciliation ? { reconciliation: receipt.reconciliation } : {}) } });
+    }
+    return results.reverse();
+  });
 
   return { agentHost, get ready() { return initialize(); }, async dispose() {
     unregister();
+    unregisterGit();
+    unregisterGitResults();
     await ready?.catch(() => undefined);
     await prologue?.close();
   } };

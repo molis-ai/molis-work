@@ -6,6 +6,7 @@ export function bindWorkspaceCompanions(platform: PluginPlatform, boardId: strin
   for (const [target, targetPort, source, sourcePort] of [
     ["files", "workspace", "workspace", "workspace"],
     ["git", "workspace", "workspace", "workspace"],
+    ["diff", "git_changeset", "git", "changeset"],
     ["diff", "before", "files", "before"],
     ["diff", "after", "files", "after"],
     ["text-stats", "text", "files", "before"],

@@ -66,7 +66,8 @@ export async function readWorkspaceFile(
       let text: string;
       try { text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(content); }
       catch { return { outcome: "unsupported" }; }
-      return { outcome: "text", text, fingerprint: createHash("sha256").update(content).digest("hex") };
+      return { outcome: "text", text, fingerprint: createHash("sha256").update(content).digest("hex"),
+        mode: after.mode & 0o100 ? "100755" : "100644" };
     } finally { await file.close(); }
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;

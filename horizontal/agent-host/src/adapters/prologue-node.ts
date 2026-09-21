@@ -14,9 +14,11 @@ import {
 import type { PrologueEvent, PrologueUsageReceipt } from "./prologue-stream.js";
 import { createPrologueMcpLibrary, mcpConnectionId } from "./prologue-mcp.js";
 import { createPrologueCheckpoints, type PrologueRewindIntent } from "./prologue-checkpoints.js";
+import { createPrologueGitReviews, type PrologueGitReviewPort } from "./prologue-git.js";
 import { createPrologueCompactor } from "./prologue-compaction.js";
 import { createPrologueSkillLibrary } from "./prologue-methods.js";
 import { resolveModelHostname } from "./node-model-dns.js";
+import { agentTextMaterialContent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentReviewReceipt, AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { PrologueApprovalBridge, type ProloguePendingPort } from "./prologue-approvals.js";
 import type { AgentReviewQueue } from "../reviews.js";
@@ -89,7 +91,7 @@ export interface PrologueNodeAdapterOptions extends PrologueAdapterPorts {
  */
 export async function createPrologueNodeAdapter(
   options: PrologueNodeAdapterOptions,
-): Promise<PrologueAgentAdapter> {
+): Promise<PrologueAgentAdapter & { gitReviews?: PrologueGitReviewPort }> {
   const host = createNodeHost({
     ...(options.storageRoot === undefined ? {} : { storageRoot: options.storageRoot }),
     resolveHost: resolveModelHostname,
@@ -129,6 +131,36 @@ export async function createPrologueNodeAdapter(
     }
     return JSON.parse(new TextDecoder().decode(bytes));
   };
+  const gitDecisionKind = `molis-git-review-${createHash("sha256").update(options.app.appId).digest("hex").slice(0, 24)}`;
+  const updateGitDecision = async (id: string, patch: { failure_reason?: string; reconciliation?: NonNullable<AgentReviewReceipt["reconciliation"]> }) => {
+    const record = await host.storage.get({ kind: gitDecisionKind, id });
+    if (!record || record.tombstoned) throw new Error("原 Git 审查记录不可读取");
+    const original = await host.storage.readSecure({ kind: gitDecisionKind, id });
+    let bytes: Uint8Array | undefined;
+    try {
+      const decision = JSON.parse(new TextDecoder().decode(original));
+      bytes = new TextEncoder().encode(JSON.stringify({ ...decision, ...patch }));
+      await host.storage.commit({ kind: gitDecisionKind, id, expectedVersion: record.version, metadata: { schema: 1 }, secureBody: bytes });
+    } finally { original.fill(0); bytes?.fill(0); }
+  };
+  const gitReviews = options.reviewQueue ? createPrologueGitReviews({ runtime, queue: options.reviewQueue,
+    publish: value => stageTextResource(runtime, JSON.stringify(value), "git-index-review"), read: readResource,
+    async saveDecision(id, value) {
+      const bytes = new TextEncoder().encode(JSON.stringify(value));
+      try { await host.storage.commit({ kind: gitDecisionKind, id, expectedVersion: 0, metadata: { schema: 1 }, secureBody: bytes }); }
+      finally { bytes.fill(0); }
+    },
+    async saveFailure(id, reason) {
+      await updateGitDecision(id, { failure_reason: reason });
+    },
+    saveReconciliation: (id, reconciliation) => updateGitDecision(id, { reconciliation }),
+    async readDecision(id) {
+      const record = await host.storage.get({ kind: gitDecisionKind, id });
+      if (!record || record.tombstoned) return undefined;
+      const bytes = await host.storage.readSecure({ kind: gitDecisionKind, id });
+      try { return JSON.parse(new TextDecoder().decode(bytes)); } finally { bytes.fill(0); }
+    },
+  }) : undefined;
   const sameRef = (a: { kind?: unknown; id?: unknown; revision?: unknown } | undefined, b: { kind: string; id: string; revision: number }) =>
     a?.kind === b.kind && a.id === b.id && a.revision === b.revision;
   const pendingPort: ProloguePendingPort = {
@@ -461,6 +493,11 @@ export async function createPrologueNodeAdapter(
         const body = fillSkillBody({ body: skill.manifest.body!, parameters: {} });
         methods.push(`用户为本轮选择的方法：${definition.name}（${key}）\n${body}`);
       }
+      const textResources: Array<{ ref: ExactRef<"resource">; as: "original" }> = [];
+      for (const material of input.text_materials ?? []) {
+        const ref = await stageTextResource(runtime, agentTextMaterialContent(material), "coding-material");
+        textResources.push({ ref, as: "original" });
+      }
       const instructions = await stageInstructions(runtime, [input.character.instructions, ...methods, await checkpoints?.context(input.session_id) ?? ""].join("\n\n"));
       const index = await readIndex(input.session_id);
       if (!index) throw new Error("执行归属不可读");
@@ -528,6 +565,7 @@ export async function createPrologueNodeAdapter(
           toolNames: tools,
           mcpConnections: [...new Set([...(input.mcp_tools ?? []),...(input.mcp_sources ?? [])].map(mcpConnectionId))],
           characterRef: character.ref,
+          ...(textResources.length ? { mount: { textResources } } : {}),
         },
       });
       runRoots.set(started.run.ref.id, root.ref);
@@ -569,10 +607,10 @@ export async function createPrologueNodeAdapter(
         },
       };
     },
-    shutdown: async () => { detachReviews?.(); await checkpoints?.close(); return runtime.shutdown(); },
+    shutdown: async () => { detachReviews?.(); await checkpoints?.close(); await gitReviews?.close(); return runtime.shutdown(); },
   };
 
-  return new PrologueAgentAdapter({
+  return Object.assign(new PrologueAgentAdapter({
     runtime: port,
     modelConfiguration: options.modelConfiguration,
     approvals,
@@ -592,7 +630,7 @@ export async function createPrologueNodeAdapter(
         await runtime.effects.pendings.answer(pending.ref, { kind: "questionnaire", answers: answer.answers }, now);
       }
     },
-  });
+  }), { gitReviews });
 }
 
 function validRunTiming(value: unknown): value is PrologueRunTiming {
@@ -693,11 +731,15 @@ async function stageInstructions(
   instructions: string,
 ): Promise<ExactRef<"resource"> | undefined> {
   if (instructions.trim() === "") return undefined;
-  const bytes = new TextEncoder().encode(instructions);
+  return stageTextResource(sdk, instructions, "role-instructions");
+}
+
+async function stageTextResource(sdk: Pick<Runtime, "resources">, text: string, label: string): Promise<ExactRef<"resource">> {
+  const bytes = new TextEncoder().encode(text);
   const stage = sdk.resources.stage({
     mediaKind: "text",
     byteLength: bytes.byteLength,
-    label: "role-instructions",
+    label,
   });
   try {
     stage.write(bytes);

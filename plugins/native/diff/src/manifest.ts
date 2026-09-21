@@ -36,7 +36,7 @@ export const diffManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: DIFF_PLUGIN_ID,
-  version: "1.1.0",
+  version: "1.2.0",
   name: "Diff",
   kind: "app",
   publisher: { publisher_id: "molis", signature: "official-diff-binding" },

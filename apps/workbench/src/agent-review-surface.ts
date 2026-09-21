@@ -3,6 +3,7 @@ import type {
   AgentReviewReceipt,
   AgentReviewRequest,
   AgentReviewStatus,
+  AgentReviewRecoveryView,
 } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 /**
@@ -78,6 +79,10 @@ export function isDecidable(row: AgentReviewRow): boolean {
 
 function readable(document: AgentReviewDocument): boolean {
   switch (document.kind) {
+    case "git-index": return ["stage", "unstage"].includes(document.action) && typeof document.workspace_name === "string"
+      && Array.isArray(document.files) && document.files.length > 0 && document.files.every(file => typeof file.path === "string"
+        && (file.before_text === null ? file.before_mode === null : typeof file.before_text === "string" && ["100644", "100755"].includes(file.before_mode ?? ""))
+        && (file.after_text === null ? file.after_mode === null : typeof file.after_text === "string" && ["100644", "100755"].includes(file.after_mode ?? "")));
     case "text-edit": return typeof document.target_path === "string" && typeof document.after_text === "string"
       && (document.exists ? typeof document.before_text === "string" : document.before_text === null);
     case "command": return typeof document.command === "string" && Array.isArray(document.args)
@@ -126,10 +131,12 @@ function reviewPriority(row: AgentReviewRow): number {
 function renderRow(row: AgentReviewRow, p: AgentReviewPrimitives): string {
   const phase = reviewPhase(row);
   const mark = phase === "done" && row.request.kind === "command"
-    ? { ...PHASE_MARK.done, label: "已执行，检查结果见命令回执" } : PHASE_MARK[phase];
+    ? { ...PHASE_MARK.done, label: "已执行，检查结果见命令回执" }
+    : phase === "failed" && row.receipt?.reconciliation ? { ...PHASE_MARK.failed, label: "已核对：原操作未发生" } : PHASE_MARK[phase];
   const decidable = isDecidable(row);
   const history = ["done", "rejected", "cancelled", "expired"].includes(phase);
   const label = row.request.document.kind === "text-edit" ? row.request.document.target_path
+    : row.request.document.kind === "git-index" ? (row.request.document.action === "stage" ? "暂存文件" : "取消暂存")
     : row.request.document.kind === "rewind" ? "文件回退" : row.request.kind === "command" ? "命令执行" : "工具操作";
   return `<article class="agent-review-row" data-agent-review-item="${p.escape(row.request.review_id)}" data-agent-review-phase="${phase}">
     ${history ? '<details data-review-detail="history"><summary>' : ""}<header class="agent-review-head">
@@ -161,13 +168,35 @@ function renderFooter(row: AgentReviewRow, decidable: boolean, p: AgentReviewPri
     ${note === null || note === undefined ? "" : `<p>${p.escape(note)}</p>`}
     ${error === null || error === undefined ? "" : `<p class="agent-review-error">${p.escape(error)}</p>`}
     ${row.receipt?.effect_uncertain ? `<p class="agent-review-error">${p.escape(row.receipt.effect_uncertain)}</p>` : ""}
+    ${row.receipt?.effect_uncertain && row.request.kind === "git-index" ? `<button class="mw-btn" type="button" data-agent-review-inspect="${p.escape(row.request.review_id)}">核对暂存区与回执</button><div data-review-recovery></div>` : ""}
+    ${row.receipt?.reconciliation && !row.receipt.effect_uncertain ? `<p>${p.escape(row.receipt.reconciliation.actor_id)} · ${p.escape(p.formatDate(row.receipt.reconciliation.at))}</p><p>${p.escape("核对依据：" + row.receipt.reconciliation.reason)}</p>` : ""}
     ${row.receipt?.delivery_error ? `<p class="agent-review-error">${p.escape("决定已记录，但执行方尚未确认收到：" + row.receipt.delivery_error)}</p>` : ""}
   </footer>`;
+}
+
+export function renderAgentReviewRecovery(view: AgentReviewRecoveryView, escape: (value: string) => string): string {
+  const observation = view.observation;
+  return `<section class="agent-review-doc" aria-label="原操作结果核对" data-review-recovery-view data-review-revision="${escape(observation?.revision ?? "")}">
+    <p role="status">${escape(view.message)}</p>
+    ${observation ? `<p>${escape("当前暂存区读取于 " + observation.observed_at)}</p>${observation.files.map(file => `<details data-review-detail="${escape("recovery:" + file.path)}"><summary>${escape(file.path)} · ${escape(file.mode ?? "不存在")}</summary><pre>${escape(file.text === null ? "暂存区中不存在" : file.text || "（空文件）")}</pre></details>`).join("")}` : ""}
+    <button class="mw-btn" type="button" data-review-recheck>重新核对回执与内容</button>
+    ${view.receipt.effect_uncertain ? `<p>重新核对不会执行原操作。只有可靠依据确认未发生，才能解除这笔操作的阻塞；内容一致本身不是证明。</p>
+      <label class="mw-field"><span class="mw-field__label">确认未发生的依据</span><textarea class="mw-textarea" data-slot="textarea" data-review-recovery-reason aria-label="确认未发生的依据" maxlength="2000" rows="3" ${view.can_confirm_not_happened ? "" : "disabled"}></textarea></label>
+      <label class="mw-check-row"><input class="mw-check" type="checkbox" data-review-recovery-confirm ${view.can_confirm_not_happened ? "" : "disabled"}>我已核对原操作未发生，且并非执行后被其他操作改回</label>
+      <button class="mw-btn" type="button" data-review-confirm-not ${view.can_confirm_not_happened ? "" : "disabled"}>按未发生收口</button>` : ""}
+    <p data-review-recovery-error role="alert"></p>
+  </section>`;
 }
 
 function renderDocument(document: AgentReviewDocument, p: AgentReviewPrimitives): string {
   if (!readable(document)) return `<div class="agent-review-doc" data-agent-review-kind="${p.escape(document.kind)}"><p>${p.escape("审查内容不完整，暂不能批准；原操作仍需核对。")}</p></div>`;
   switch (document.kind) {
+    case "git-index": return `<div class="agent-review-doc" data-agent-review-kind="git-index">
+      <p>${p.escape(document.workspace_name)} · ${document.action === "stage" ? "将以下固定内容放入暂存区" : "将以下暂存项恢复为 HEAD 版本"}</p><p>只更新暂存区，磁盘文件保持原样。批准后会重新核对预览版本；内容、分支或暂存区变化时拒绝执行。</p>
+      ${document.files.map(file => `<section><p class="agent-review-target">${p.escape(file.path)}</p>
+        <p>文件模式：${p.escape(file.before_mode ?? "不存在")} → ${p.escape(file.after_mode ?? "不存在")}</p>
+        <details data-review-detail="${p.escape("before:" + file.path)}"><summary>审查时的暂存内容</summary><pre>${p.escape(file.before_text ?? "暂存区中不存在")}</pre></details>
+        <p>操作后的暂存内容</p><pre>${p.escape(file.after_text === null ? "从暂存区移除，磁盘文件保留" : file.after_text || "（空文件）")}</pre></section>`).join("")}</div>`;
     case "text-edit":
       return `<div class="agent-review-doc" data-agent-review-kind="text-edit">
         <p class="agent-review-target">${p.escape(document.target_path)}${document.exists ? "" : ` · ${p.escape("新建文件")}`}</p>

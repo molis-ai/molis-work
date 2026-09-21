@@ -58,6 +58,7 @@ export interface DiffView {
   /** The LCS budget was exceeded, so the middle is a whole delete plus insert. */
   coarse: boolean;
   identical: boolean;
+  metadata_changes?: readonly string[];
   empty: boolean;
   created: boolean;
   removed: boolean;
@@ -165,15 +166,22 @@ export function compareChangeSet(input: DiffInputSnapshot, group: DiffInputGroup
     source_plugin_id: input.source_plugin_id,
     content_version: input.content_version,
   };
-  return renderComparison(
+  const view = renderComparison(
     group,
-    side,
+    change.git?.previous_path ? { ...side, path: pathLabel(change.git.previous_path) } : side,
     { ...side },
     change.before,
     change.after,
     !change.before_exists,
     !change.after_exists,
   );
+  const metadata: string[] = [];
+  if (change.git?.previous_path && pathLabel(change.git.previous_path) !== pathLabel(change.path)) metadata.push(`重命名：${pathLabel(change.git.previous_path)} → ${pathLabel(change.path)}`);
+  if (change.git?.before_mode && change.git.after_mode && change.git.before_mode !== change.git.after_mode) {
+    metadata.push(change.git.after_mode === "100755" ? "文件权限：新增执行权限（100644 → 100755）" : "文件权限：移除执行权限（100755 → 100644）");
+  }
+  if (metadata.length) return { ...view, identical: false, metadata_changes: [...metadata, ...(view.identical ? ["正文未改变"] : [])] };
+  return view;
 }
 
 /**

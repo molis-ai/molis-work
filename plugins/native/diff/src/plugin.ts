@@ -6,7 +6,8 @@ import type {
 
 import { diffManifest } from "./manifest.js";
 import { diffUiContribution } from "./ui.js";
-import { compareSnapshots, emptyDiff } from "./comparison.js";
+import { compareSnapshots, compareChangeSet, emptyDiff } from "./comparison.js";
+import { DIFF_CHANGESET_TYPE } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 
 /**
  * Diff as Plugin Runtime starts it.
@@ -36,7 +37,17 @@ export function createDiffPlugin(ports: DiffPluginPorts = {}): PluginDefinition 
       return {
         kind: "app",
         views: [diffUiContribution],
-        routes: [{ route_id: "diff.state", handle: () => {
+        routes: [{ route_id: "diff.state", handle: request => {
+          // An explicitly opened fixed result is independent of the live snapshots group.
+          if (request.query.artifact_id !== undefined) {
+            const version = Number(request.query.version);
+            if (!Number.isSafeInteger(version) || version < 1) return { status: 400, body: { error: "差异版本无效" } };
+            try {
+              const record = context.services?.artifacts?.read({ artifact_id: request.query.artifact_id, version });
+              if (!record || record.artifact_type_id !== DIFF_CHANGESET_TYPE || record.availability !== "available" || record.lifecycle_state !== "active") throw new Error("固定差异不可用");
+              return { status: 200, body: { view: compareChangeSet({ content: record.payload, source_plugin_id: record.producer_plugin_id, content_version: record.version }) } };
+            } catch { return { status: 400, body: { error: "固定差异不可用，请重新选择 Git 改动" } }; }
+          }
           const inputs = context.services?.inputs;
           if (inputs?.selectedGroup() !== "snapshots") return { status: 200, body: { view: emptyDiff("snapshots", "请选择两份文件快照进行对比") } };
           const records = [inputs.read("before"), inputs.read("after")];

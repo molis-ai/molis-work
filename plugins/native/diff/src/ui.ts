@@ -55,6 +55,7 @@ export function renderDiff(model: DiffUiModel): string {
       + `<span class="diff-source">对比后：${escape(view.after.path)} · v${escape(view.after.content_version)}</span>`
       + `<span class="diff-source">${escape(view.after.workspace_name)} · 固定内容</span></header>`;
   const notices = [
+    ...(view.metadata_changes ?? []),
     view.mismatch ? "两侧来自不同的工作目录" : "",
     view.partial ? "这里只有改动的片段，不是整份文件" : "",
     view.coarse ? "差异太大，只能整体列出删除和新增" : "",

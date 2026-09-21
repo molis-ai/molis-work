@@ -3,7 +3,7 @@ export const CODING_STYLES = `
 [data-coding-workbench] { container: molis-coding / inline-size; }
 .coding-directory { height:100%; min-height:0; display:flex; flex-direction:column; }
 .coding-directory[data-coding-current-face=files] .coding-search,.coding-directory[data-coding-current-face=files] .coding-filters,.coding-directory[data-coding-current-face=files] [data-coding-sessions],.coding-directory[data-coding-current-face=files] [data-coding-new] { display:none; }
-[data-coding-tools][data-companion-open=true]>:not([data-files-results]):not(.coding-tool-tabs) { display:none; }
+[data-coding-tools][data-companion-open=true]>:not([data-files-results]):not([data-git-results]):not(.coding-tool-tabs) { display:none; }
 .coding-faces { display:flex; height:34px; border-bottom:1px solid var(--line); }
 .coding-face { flex:1; border:0; background:transparent; color:var(--muted); cursor:pointer; }
 .coding-face[aria-selected=true], .coding-filter[aria-selected=true] { background:var(--nav-active); color:var(--ink); }

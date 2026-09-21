@@ -9,13 +9,54 @@ export interface WorkspaceFileQuery {
 }
 export type WorkspaceFileResult =
   | { outcome: "directory"; entries: readonly { name: string; path: readonly string[]; kind: "file" | "directory" | "other" }[]; truncated: boolean }
-  | { outcome: "text"; text: string; fingerprint: string }
+  | { outcome: "text"; text: string; fingerprint: string; mode?: GitFileMode }
   | { outcome: "too-large"; bytes: number; limit: number }
   | { outcome: "binary" | "unsupported" | "missing" | "denied" | "changed" };
 
 export const readWorkspaceFileCapability = {
   capability_id: "projects.workspace.file.read.v1", version: 1, operation: "query",
 } as HostCapabilityDefinition<WorkspaceFileQuery, WorkspaceFileResult>;
+
+/** Git reads are scoped by the current project grant, never by a caller path. */
+export type GitFileMode = "100644" | "100755";
+export type WorkspaceGitQuery = { workspace_id: string } & (
+  | { kind: "status" }
+  | { kind: "diff"; path: readonly string[]; side: "index" | "worktree" }
+);
+export type WorkspaceGitResult =
+  | { outcome: "status"; porcelain: string; head_commit: string | null }
+  | { outcome: "diff"; path: readonly string[]; previous_path?: readonly string[]; side: "index" | "worktree";
+      before_exists: boolean; after_exists: boolean; before: string; after: string;
+      before_mode: GitFileMode | null; after_mode: GitFileMode | null; revision: string }
+  | { outcome: "denied" | "not-a-repository" | "unavailable" | "changed" | "unsupported" | "binary" | "too-large" | "conflict" | "missing" | "error"; message: string };
+export const readWorkspaceGitCapability = {
+  capability_id: "projects.workspace.git.read.v1", version: 1, operation: "query",
+} as HostCapabilityDefinition<WorkspaceGitQuery, WorkspaceGitResult>;
+
+/** Preparing returns a Host review identity, never permission to execute. */
+export const prepareGitIndexCapability = {
+  capability_id: "projects.workspace.git.prepare-index.v1", version: 1, operation: "command",
+} as HostCapabilityDefinition<{ workspace_id: string; path: readonly string[]; action: "stage" | "unstage"; revision: string; operation_id: string }, { review_id: string }>;
+
+/** Read-only, project-scoped projections of terminal SDK-backed Git reviews. */
+export const readGitResultsCapability = {
+  capability_id: "projects.workspace.git.results.v1", version: 1, operation: "query",
+} as HostCapabilityDefinition<{ workspace_id: string }, readonly GitReviewedResult[]>;
+
+export interface GitReviewedResult extends GitOperationResult {
+  review: {
+    review_id: string;
+    action: "stage" | "unstage";
+    paths: readonly string[];
+    requested_at: string;
+    decided_by: string | null;
+    decided_at: string | null;
+    failure_reason?: string;
+    reconciliation?: { actor_id: string; at: string; reason: string };
+    /** Older fixed results may only have the reason; never invent their actor or time. */
+    reconciliation_reason?: string;
+  };
+}
 
 /**
  * What Plugins working on one workspace exchange.
@@ -378,6 +419,8 @@ export interface ChangeSet {
   before: string;
   after: string;
   source: ChangeSetSource;
+  /** Optional for older/text-only producers; absent means metadata is unknown. */
+  git?: { before_mode: GitFileMode | null; after_mode: GitFileMode | null; previous_path?: readonly string[] };
 }
 
 export function parseChangeSet(content: unknown): ChangeSet {
@@ -408,7 +451,21 @@ export function parseChangeSet(content: unknown): ChangeSet {
     before: content.before_exists ? content.before : "",
     after: content.after_exists ? content.after : "",
     source: parseChangeSetSource(content.source),
+    ...(content.git === undefined ? {} : { git: parseGitMetadata(content.git, content.before_exists, content.after_exists) }),
   };
+}
+
+function parseGitMetadata(value: unknown, beforeExists: boolean, afterExists: boolean): NonNullable<ChangeSet["git"]> {
+  if (!isRecord(value)) throw new WorkspaceArtifactError("workspace.invalid_payload", "Git 元数据无效");
+  const mode = (input: unknown, exists: boolean): GitFileMode | null => {
+    if (exists ? input === "100644" || input === "100755" : input === null) return input as GitFileMode | null;
+    throw new WorkspaceArtifactError("workspace.invalid_payload", "文件权限与存在状态不一致");
+  };
+  if (value.previous_path !== undefined && (!beforeExists || !afterExists)) {
+    throw new WorkspaceArtifactError("workspace.invalid_payload", "重命名必须保留两侧文件");
+  }
+  return { before_mode: mode(value.before_mode, beforeExists), after_mode: mode(value.after_mode, afterExists),
+    ...(value.previous_path === undefined ? {} : { previous_path: parseFilePath(value.previous_path) }) };
 }
 
 function parseChangeSetSource(value: unknown): ChangeSetSource {

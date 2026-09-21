@@ -41,10 +41,13 @@ import {
   GIT_UI_CONTRIBUTION_ID,
   createGitPlugin,
   projectGit,
+  parsePorcelainStatus,
+  renderGitBrowserDirectory,
+  renderGitBrowserResult,
   type GitUiModel,
 } from "@molis-ai/molis-work-plugin-git";
 import { listWorkspaceDirectory } from "./workspace-files.js";
-import { readGitStatus } from "./git-status.js";
+import { readWorkspaceGit } from "./workspace-git.js";
 import { createTextStatsPlugin, renderTextStats, type TextStatsView } from "@molis-ai/molis-work-plugin-text-stats";
 import {
   WORKSPACE_PLUGIN_ID,
@@ -158,7 +161,7 @@ async function startPlatform(ports: CodingSurfacePorts): Promise<Started> {
       { definition: createWorkspacePlugin({ currentWorkspaceId: () => currentWorkspaceId(ports) }), replace_version: true },
       { definition: createFilesPlugin({ readable: () => currentWorkspaceId(ports) !== null }), replace_version: true },
       { definition: createDiffPlugin(), replace_version: true },
-      { definition: createGitPlugin({ ready: () => currentWorkspaceId(ports) !== null }) },
+      { definition: createGitPlugin(), replace_version: true },
       { definition: createTextStatsPlugin(), replace_version: true },
     ]);
     bindWorkspaceCompanions(platform, ports.boardId, ports.actorId);
@@ -213,8 +216,8 @@ async function codingPanel(ports: CodingSurfacePorts, surface: "directory" | "wo
       sessions,
       tools: [],
       workspace_path: null,
-      companion_directory: renderFilesBrowserDirectory(),
-      companion_result: renderFilesBrowserResult(),
+      companion_directory: renderFilesBrowserDirectory() + renderGitBrowserDirectory(),
+      companion_result: renderFilesBrowserResult() + renderGitBrowserResult(),
       primitives: {
         escape: ports.escapeHtml,
         icon: (name) => icon(name as Parameters<typeof icon>[0]),
@@ -234,7 +237,7 @@ async function codingPanel(ports: CodingSurfacePorts, surface: "directory" | "wo
 
 /** Host dispatches only declared plugin routes, after the normal control guard. */
 export async function handleCodingPluginHttp(request: IncomingMessage, response: ServerResponse, url: URL, ports: CodingSurfacePorts): Promise<boolean> {
-  if (!/^\/api\/plugins\/io\.molis\.work\.(coding|workspace|files|diff|text-stats)\//.test(url.pathname)) return false;
+  if (!/^\/api\/plugins\/io\.molis\.work\.(coding|workspace|files|git|diff|text-stats)\//.test(url.pathname)) return false;
   const record = await ensureStarted(ports);
   if (!record.running) { sendLocalWebJson(response, 503, { error: record.error ?? "Coding 插件未能启动" }); return true; }
   const result = await record.platform.router().dispatch({
@@ -420,9 +423,12 @@ export async function gitDirectoryPanel(
   if (view === null) return null;
   const root = workspaceRoot(ports);
   try {
-    const result = root === null
-      ? { phase: "waiting" as const, status: null }
-      : await readGitStatus(root);
+    const read = root === null ? null : await readWorkspaceGit({ kind: "status", workspace_id: ports.workspaces![0]!.workspace_id }, ports.workspaces!);
+    const result = read === null ? { phase: "waiting" as const, status: null }
+      : read.outcome === "status" ? { phase: "ready" as const, status: parsePorcelainStatus({ stdout: read.porcelain }) }
+      : { phase: read.outcome === "not-a-repository" ? "not-a-repository" as const : "error" as const, status: null,
+          message: "message" in read ? read.message : "Git 状态不可读" };
+    if (result.status && result.status.head.kind !== "unborn" && read?.outcome === "status" && read.head_commit) result.status.head = { ...result.status.head, commit: read.head_commit };
     const model: GitUiModel = {
       route_prefix: "",
       view: projectGit({

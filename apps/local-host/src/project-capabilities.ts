@@ -12,7 +12,8 @@ import { importV3Capability, projectResumeFactsCapability, trashedGoalsCapabilit
 import { pluginDevelopmentCapability } from "@molis-ai/molis-work-contracts/platform/tooling";
 import { projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
-import { readWorkspaceFileCapability } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { readWorkspaceFileCapability, readWorkspaceGitCapability } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { readWorkspaceGit } from "./workspace-git.js";
 import { readWorkspaceFile } from "./workspace-files.js";
 import { SqlitePluginRuntimeRepository, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
@@ -33,6 +34,13 @@ export function registerProjectCapabilities(
   ports: ProjectCapabilityPorts = {},
 ): void {
   const { workspaceFor } = ports;
+  if (ports.workspacesFor || workspaceFor) host.register(readWorkspaceGitCapability, async (runtime, query) => {
+    const current = async () => ports.workspacesFor ? await ports.workspacesFor(runtime.project_id) : [await workspaceFor!(runtime.project_id)].filter((item): item is ProjectWorkspaceRef => item !== null);
+    const granted = await current(), result = await readWorkspaceGit(query, granted);
+    const accepted = granted.find(item => item.workspace_id === query.workspace_id);
+    if (!(await current()).some(item => item.workspace_id === query.workspace_id && item.realpath_verified && item.canonical_path === accepted?.canonical_path)) return { outcome: "denied", message: "工作区授权已变化，请重新读取" };
+    return result;
+  });
   if (ports.workspacesFor || workspaceFor) host.register(readWorkspaceFileCapability, async (runtime, query) => {
     const selected = ports.workspacesFor ? await ports.workspacesFor(runtime.project_id) : [await workspaceFor!(runtime.project_id)].filter((item): item is ProjectWorkspaceRef => item !== null);
     return readWorkspaceFile(query, selected);

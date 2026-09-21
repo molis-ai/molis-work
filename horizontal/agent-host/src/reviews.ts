@@ -6,6 +6,9 @@ import type {
   AgentReviewReceipt,
   AgentReviewRequest,
   AgentReviewStatus,
+  AgentGitIndexObservation,
+  AgentReviewRecoveryInput,
+  AgentReviewRecoveryView,
 } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 export class AgentReviewError extends Error {
@@ -28,6 +31,12 @@ interface ReviewRow {
   receipt: AgentReviewReceipt;
 }
 
+type RecoveryObserver = (request: AgentReviewRequest) => Promise<AgentGitIndexObservation>;
+interface RecoveryHandler {
+  inspect(observe: () => Promise<AgentGitIndexObservation>): Promise<AgentReviewRecoveryView>;
+  resolve(input: AgentReviewRecoveryInput, observe: () => Promise<AgentGitIndexObservation>): Promise<AgentReviewRecoveryView>;
+}
+
 /**
  * Host-owned approval queue.
  *
@@ -42,6 +51,7 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
   readonly #listeners = new Set<(request: AgentReviewRequest) => void>();
   readonly #deciders = new Map<string, (input: AgentReviewDecisionInput) => Promise<AgentReviewReceipt>>();
   readonly #refreshers = new Set<(boardId: string) => Promise<void>>();
+  readonly #recoverers = new Map<string, RecoveryHandler>();
   readonly #now: () => Date;
 
   constructor(options: { now?: () => Date } = {}) {
@@ -58,6 +68,29 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
     await Promise.all([...this.#refreshers].map(handler => handler(boardId)));
   }
 
+  /** Only a Host caller supplies current facts; Plugins receive no recovery capability. */
+  registerRecoveryHandler(reviewId: string, handler: RecoveryHandler): void {
+    this.#recoverers.set(reviewId, handler);
+  }
+
+  async inspectRecovery(reviewId: string, observe: RecoveryObserver): Promise<AgentReviewRecoveryView> {
+    const request = this.get(reviewId), handler = this.#recoverers.get(reviewId);
+    if (!request || !handler) throw new AgentReviewError("agent.capability_unavailable", "此操作的核对入口尚不可用");
+    return handler.inspect(() => observe(request));
+  }
+
+  async recover(input: AgentReviewRecoveryInput, observe: RecoveryObserver): Promise<AgentReviewRecoveryView> {
+    const request = this.get(input.review_id), handler = this.#recoverers.get(input.review_id);
+    if (!request || !handler) throw new AgentReviewError("agent.capability_unavailable", "此操作的核对入口尚不可用");
+    return handler.resolve(input, () => observe(request));
+  }
+
+  recordReconciliation(reviewId: string, value: NonNullable<AgentReviewReceipt["reconciliation"]>): void {
+    const row = this.#rows.get(reviewId);
+    if (!row || row.receipt.effect_uncertain || !row.receipt.effect_error) return;
+    row.receipt.reconciliation = structuredClone(value);
+  }
+
   /** Restore only the Host decision. Runtime receipts are independently queried afterwards. */
   restoreDecision(request: AgentReviewRequest, decision: Pick<AgentReviewReceipt, "status" | "decided_by" | "decided_at" | "note">): void {
     if (decision.status !== "approved" && decision.status !== "rejected") throw new Error("无效的历史审查决定");
@@ -72,9 +105,11 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
 
   /** An adapter asks for permission. This never grants anything by itself. */
   request(request: AgentReviewRequest): AgentReviewRequest {
-    if ((request.run === null) !== Boolean(request.operation) || request.operation &&
-        (!request.operation.operation_id || !request.operation.session_id || request.operation.kind !== "checkpoint-rewind" || request.kind !== "rewind")) {
-      throw new AgentReviewError("agent.review_unknown", "审查必须属于实际轮次或明确的手动回退操作");
+    const operation = request.operation;
+    const manual = operation?.operation_id && (operation.kind === "checkpoint-rewind" && operation.session_id && request.kind === "rewind"
+      || operation.kind === "git-index" && operation.workspace_id && request.kind === "git-index" && request.document.kind === "git-index" && request.plugin_id === "io.molis.work.git");
+    if ((request.run === null) !== Boolean(operation) || operation && !manual) {
+      throw new AgentReviewError("agent.review_unknown", "审查必须属于实际轮次或明确的宿主操作");
     }
     const existing = this.#rows.get(request.review_id);
     if (existing) {

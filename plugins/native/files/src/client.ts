@@ -54,6 +54,7 @@ export const FILES_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(!id)return;
       await host.request('workspace','/select','POST',{workspace_id:id});
       if(ticket!==generation)return;
+      host.onWorkspaceSelected?.(id);
       await list([],tree,ticket);
       if(ticket!==generation)return;
       notice('');const state=await request('/state');

@@ -109,13 +109,21 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
     };
     return slides;
   };
+  const colorOf = (root) => root?.dataset.value || "";
+  const setColor = (root, value) => {
+    if (!root) return;
+    root.dataset.value = value;
+    root.querySelectorAll("[data-ppt-swatch]").forEach((button) => {
+      button.setAttribute("aria-checked", String(button.dataset.pptSwatch === value));
+    });
+  };
   const liveRecord = () => ({
     ...selected,
     title: titleInput.value,
     description: descriptionInput.value,
-    color_primary: colorPrimary.value,
-    color_background: colorBackground.value,
-    color_text: colorText.value,
+    color_primary: colorOf(colorPrimary),
+    color_background: colorOf(colorBackground),
+    color_text: colorOf(colorText),
     slides: slidesFromEditor(),
   });
   const renderPreview = (record) => {
@@ -240,9 +248,9 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
     paintPages(record);
     titleInput.value = record.title;
     descriptionInput.value = record.description || "";
-    colorPrimary.value = record.color_primary;
-    colorBackground.value = record.color_background;
-    colorText.value = record.color_text;
+    setColor(colorPrimary, record.color_primary);
+    setColor(colorBackground, record.color_background);
+    setColor(colorText, record.color_text);
     fillSlideFields(currentSlide());
     renderSlideList(record);
     renderPreview(record);
@@ -288,7 +296,7 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
     });
   };
   const loadList = async () => {
-    const payload = await request("GET", "/api/ppt");
+    const payload = await request("GET", "/api/plugins/ppt");
     records = payload.presentations || [];
     renderList();
     if (selected) {
@@ -300,7 +308,7 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
   const save = async () => {
     if (!selected) return selected;
     const seq = ++saveSeq;
-    const payload = await request("POST", "/api/ppt/" + encodeURIComponent(selected.id), liveRecord());
+    const payload = await request("POST", "/api/plugins/ppt/" + encodeURIComponent(selected.id), liveRecord());
     if (seq !== saveSeq) return selected;
     remember(payload.presentation, false);
     return selected;
@@ -312,9 +320,16 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
 
   workbench.addEventListener("click", async (event) => {
     try {
+      const swatch = event.target.closest("[data-ppt-swatch]");
+      if (swatch && selected) {
+        setColor(swatch.closest("[role=radiogroup]"), swatch.dataset.pptSwatch);
+        queueSave();
+        renderPreview(liveRecord());
+        return;
+      }
       const create = event.target.closest("[data-ppt-new]");
       if (create) {
-        const payload = await request("POST", "/api/ppt", {});
+        const payload = await request("POST", "/api/plugins/ppt", {});
         currentSlideId = payload.presentation.slides[0]?.id || "";
         fillEditor(payload.presentation);
         remember(payload.presentation, false);
@@ -395,7 +410,7 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
       if (event.target.closest("[data-ppt-delete]") && selected) {
         if (!await ask(L("删除这份演示稿？"), L("删除"))) return;
-        await request("POST", "/api/ppt/" + encodeURIComponent(selected.id) + "/delete");
+        await request("POST", "/api/plugins/ppt/" + encodeURIComponent(selected.id) + "/delete");
         records = records.filter((item) => item.id !== selected.id);
         closeEditor();
         renderList();

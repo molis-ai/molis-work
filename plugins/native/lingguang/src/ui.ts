@@ -3,7 +3,7 @@ import type {
   UiContributionDescriptor,
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
-import { icon } from "@molis-ai/molis-work-design-system";
+import { icon, renderPluginStageShell } from "@molis-ai/molis-work-design-system";
 
 export const LINGGUANG_UI_CONTRIBUTION_ID = "io.molis.work.lingguang.ui.v1";
 
@@ -47,7 +47,11 @@ export const lingguangUiContribution: UiContribution<LingguangUiModel> = {
 
 export function renderLingguangWorkbench(model: LingguangUiModel): string {
   const { primitives: p } = model;
-  return `<section class="desktop-work-surface plugin-stage-shell" data-work-surface="lingguang" data-work-surface-label="${p.text("灵光")}" hidden data-lingguang="workbench" data-lingguang-stage-shell data-expanded="false">
+  return renderPluginStageShell({
+    surface: "lingguang",
+    label: p.text("灵光"),
+    dataset: "lingguang",
+    body: `
     <div class="plugin-stage-list feed-stage-list feed-stage-tree" data-lingguang="directory">
       <header class="plugin-stage-chrome lingguang-stage-chrome">
         <button class="mw-btn mw-btn--ghost tree-create" type="button" data-lingguang-capture>${icon("plus")}<span>${p.text("记下")}</span></button>
@@ -112,5 +116,5 @@ export function renderLingguangWorkbench(model: LingguangUiModel): string {
         </div>
       </form>
     </dialog>
-  </section>`;
+  ` });
 }

@@ -1,0 +1,43 @@
+{
+  "name": "@molis-ai/molis-work-integration-catalog",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Official read-only catalog connectors: token auth, Feed poll, and whoami.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=24"
+  },
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "manifest.json",
+    "README.md"
+  ],
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@molis-ai/molis-work-contracts": "workspace:*",
+    "@molis-ai/molis-work-plugin-sdk": "workspace:*"
+  },
+  "molis-work": {
+    "path": "plugins/official-integrations/catalog",
+    "kind": "integration-plugin",
+    "maturity": "partial",
+    "contract": "@molis-ai/molis-work-contracts/platform/plugin",
+    "migrationGoals": [
+      "goal-reorg-f2",
+      "goal-reorg-fd3"
+    ],
+    "ssot": "docs/SSOT-MATRIX.md"
+  }
+}

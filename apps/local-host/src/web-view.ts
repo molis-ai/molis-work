@@ -5,6 +5,8 @@ import type { MolisWorkWebView, WebProjectNavigation } from "@molis-ai/molis-wor
 import type { LocalProjectDatabase } from "./project-database.js";
 import type { GoalProjectApplication } from "./goal-project-application.js";
 import { currentLocale, L } from "./web-locale.js";
+import { homeSqlitePath } from "@molis-ai/molis-work-storage";
+import { statSync } from "node:fs";
 import { createLocalFeedApplication } from "./feed-application.js";
 import { listFeedSourceCatalog } from "./feed-source-service.js";
 import { createLocalFeedConnectorService } from "./feed-connector-service.js";
@@ -102,6 +104,16 @@ export function buildMolisWorkWebView(store: LocalProjectDatabase, coordinator: 
   };
 }
 
+function functionsViewFingerprint(homeDirectory?: string): string {
+  if (!homeDirectory) return "";
+  try {
+    const stat = statSync(homeSqlitePath(homeDirectory, "functions"));
+    return `${stat.mtimeMs}:${stat.size}`;
+  } catch {
+    return "missing";
+  }
+}
+
 export function cachedMolisWorkWebView(
   cache: MolisWorkWebViewCache,
   store: LocalProjectDatabase,
@@ -118,6 +130,7 @@ export function cachedMolisWorkWebView(
     projects: options.projects ?? [],
     route_prefix: options.routePrefix ?? "",
     schedule: scheduleViewFingerprint(store.db),
+    functions: functionsViewFingerprint(options.homeDirectory),
     home_directory: options.homeDirectory ?? "",
   });
   const cached = cache.get(options.databasePath);

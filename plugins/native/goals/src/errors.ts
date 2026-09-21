@@ -1,10 +1,1 @@
-export class MolisWorkV1Error extends Error {
-  constructor(
-    readonly code: string,
-    message: string,
-    readonly details?: Record<string, unknown>,
-  ) {
-    super(message);
-    this.name = "MolisWorkV1Error";
-  }
-}
+export { MolisWorkV1Error } from "@molis-ai/molis-work-contracts/platform/errors";

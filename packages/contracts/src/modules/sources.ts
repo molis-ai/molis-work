@@ -9,7 +9,13 @@ export const modulesSourcesContract = {
 } as const satisfies ContractDescriptor;
 
 export type SourceStatus = "active" | "paused" | "error" | "disconnected";
-export type SourceSyncKind = "public_source" | "github" | "gmail" | "manual";
+export type SourceSyncKind = "public_source" | "github" | "gmail" | "connector" | "manual";
+
+export function isAccountConnectorSyncKind(
+  kind: string,
+): kind is Extract<SourceSyncKind, "github" | "gmail" | "connector"> {
+  return kind === "github" || kind === "gmail" || kind === "connector";
+}
 export type SourceHistoryDecision = "retain_history" | "delete_local_history";
 export type SourceSchedule =
   | { mode: "manual" }

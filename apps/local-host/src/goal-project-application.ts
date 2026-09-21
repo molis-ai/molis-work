@@ -33,15 +33,15 @@ import {
   GoalReadApplication,
   GoalDecisionAttentionSync,
   projectGoalLifecycle,
-  MolisWorkV1Error,
 } from "@molis-ai/molis-work-plugin-goals";
+import { MolisWorkV1Error } from "@molis-ai/molis-work-contracts/platform/errors";
 import { LocalProjectDatabase } from "./project-database.js";
 import type { BoardSnapshot } from "@molis-ai/molis-work-plugin-goals";
 import type { GoalRecord, ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { ExecutionClaimRecord as ClaimRecord, ExecutionRunRecord as RunRecord } from "@molis-ai/molis-work-contracts/modules/execution";
 
 export { projectGoalLifecycle } from "@molis-ai/molis-work-plugin-goals";
-export { MolisWorkV1Error } from "@molis-ai/molis-work-plugin-goals";
+export { MolisWorkV1Error } from "@molis-ai/molis-work-contracts/platform/errors";
 
 export type GoalTreeProposalListQuery = import("@molis-ai/molis-work-plugin-goals").GoalTreeProposalListQuery;
 export type GoalTreeProposalListResult = import("@molis-ai/molis-work-plugin-goals").GoalTreeProposalListResult;

@@ -1,0 +1,25 @@
+{
+  "schema_version": 2,
+  "plugin_id": "io.molis.work.integration.catalog",
+  "version": "1.0.0",
+  "name": "Connector Catalog",
+  "kind": "integration",
+  "publisher": {
+    "publisher_id": "io.adeptify",
+    "signature": "adeptify-official-signature-v1"
+  },
+  "host_api_version": 2,
+  "entrypoints": [
+    { "deployment": "local", "entrypoint": "./dist/index.js" }
+  ],
+  "permissions": [
+    { "permission": "network:catalog", "required": true, "reason": "读取已连接服务的身份与入站更新" },
+    { "permission": "secret:catalog", "required": true, "reason": "使用按 Connector 隔离的 credential reference" }
+  ],
+  "capabilities": {
+    "provides": ["connector.driver.catalog.v1", "signal.adapter.catalog.v1"],
+    "consumes": ["connector.host.v1", "listener.host.v1", "signals.command.v1"]
+  },
+  "artifacts": { "produces": [], "consumes": [] },
+  "ui": { "contributions": ["settings.integration.catalog"] }
+}

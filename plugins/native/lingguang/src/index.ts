@@ -16,6 +16,7 @@ export { LINGGUANG_CLIENT_FACTORY_SCRIPT } from "./client.js";
 export { LINGGUANG_NATIVE_PLUGIN_ROUTES, LingguangPluginRouteTable } from "./routes.js";
 export type { LingguangPluginRouteHandler, LingguangPluginRouteRequest, LingguangPluginRouteResponse } from "./routes.js";
 export { createLingguangRouteHandlers, lingguangRouteErrorResponse } from "./route-handlers.js";
+export type { LingguangRoutePorts } from "./route-handlers.js";
 export { LINGGUANG_PLUGIN_ID, LINGGUANG_PROJECT_PLUGIN_ID, lingguangManifest } from "./manifest.js";
 export { openLingguangStore, LingguangStore, STUB_PREFIX } from "./store.js";
 export { LingguangError } from "./error.js";

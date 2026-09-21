@@ -12,7 +12,7 @@ import {
   openFunctionsStore,
   type FunctionsSecretPort,
   type TypeSafeProvider,
-} from "@molis-ai/molis-work-plugin-functions";
+} from "@molis-ai/molis-work-module-functions";
 import { hostHomeDockBehaviors, liveHostAllowedBehaviorIds } from "./behavior-catalog.js";
 
 export interface FunctionSceneChoice {

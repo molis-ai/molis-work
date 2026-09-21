@@ -14,7 +14,9 @@ export const pptManifest: PluginManifest = {
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-ppt-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
-  permissions: [],
+  permissions: [
+    { permission: "storage:private", required: true, reason: "本机演示稿库" },
+  ],
   capabilities: { provides: [], consumes: [] },
   artifacts: { produces: [], consumes: [] },
   ui: {

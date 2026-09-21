@@ -112,7 +112,7 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
       return openWorkbenchSurface(surface, itemId, title, directoryTabMode());
     };
 
-    const currentModuleDirectory = () => activeDesktopSurface === "feed" || activeDesktopSurface === "sources" || activeDesktopSurface === "sessions" || activeDesktopSurface === "artifacts" || activeDesktopSurface === "inbox" || activeDesktopSurface === "shelf" || activeDesktopSurface === "functions" || activeDesktopSurface === "pages" || activeDesktopSurface === "form" || activeDesktopSurface === "dataset" || activeDesktopSurface === "ppt" || activeDesktopSurface === "lingguang"
+    const currentModuleDirectory = () => OWN_DIRECTORY_SURFACES.includes(activeDesktopSurface)
       ? activeDesktopSurface
       : "goals";
 
@@ -137,7 +137,7 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
       });
     };
 
-    const LIST_PLUGIN_SECTIONS = ["goals", "sessions", "inbox", "schedule", "feed", "shelf", "lingguang", "functions", "pages", "form", "dataset", "ppt", "artifacts"];
+    const LIST_PLUGIN_SECTIONS = ["goals", ...OWN_DIRECTORY_SURFACES.filter((id) => id !== "sources")];
 
     const syncPluginDirectory = (directory) => {
       const empty = directory === "root";
@@ -240,7 +240,7 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
         const kind = row.dataset.sourceKind;
         const status = row.dataset.sourceStatus;
         const matchesKind = activeSourceFilter === "all" ||
-          (activeSourceFilter === "account" && (kind === "github" || kind === "gmail")) ||
+          (activeSourceFilter === "account" && (kind === "github" || kind === "gmail" || kind === "connector")) ||
           (activeSourceFilter === "public" && kind === "rss") ||
           (activeSourceFilter === "attention" && status === "attention");
         const matchesQuery = !query || String(row.dataset.sourceSearchValue || "").includes(query);

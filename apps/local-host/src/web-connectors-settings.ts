@@ -1,12 +1,13 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { githubWhoami } from "@molis-ai/molis-work-integration-github";
+import { catalogWhoami, isCatalogConnectorId } from "@molis-ai/molis-work-integration-catalog";
 import { sendLocalWebJson as sendJson, readLocalWebBody as readBody } from "./web-http.js";
 import { L } from "./web-locale.js";
-import { listConnectorSettingsCards } from "./connector-directory.js";
+import { listConnectorSettingsCards, liveConnectorIds } from "./connector-directory.js";
 import {
   bindConnectorToken,
   connectorCredentialStatus,
-  resolveGithubToken,
+  resolveConnectorToken,
   unbindConnectorToken,
 } from "./connector-credentials.js";
 import { pollGithubDeviceFlow, startGithubDeviceFlow, storeGithubClientId } from "./github-oauth.js";
@@ -17,6 +18,11 @@ import {
 } from "./gmail-oauth.js";
 
 const TOKEN_PATH = /^\/api\/settings\/connectors\/([a-z][a-z0-9-]*)\/token$/u;
+const WHOAMI_PATH = /^\/api\/settings\/connectors\/([a-z][a-z0-9-]*)\/whoami$/u;
+
+function isLiveConnector(connectorId: string): boolean {
+  return liveConnectorIds().includes(connectorId);
+}
 
 export async function handleLocalConnectorsSettingsHttp(
   request: IncomingMessage,
@@ -46,21 +52,39 @@ export async function handleLocalConnectorsSettingsHttp(
     }
     return true;
   }
-  if (method === "POST" && url.pathname === "/api/settings/connectors/github/whoami") {
-    const token = resolveGithubToken();
+  const whoamiMatch = url.pathname.match(WHOAMI_PATH);
+  if (whoamiMatch && method === "POST") {
+    const connectorId = whoamiMatch[1]!;
+    const token = resolveConnectorToken(connectorId);
     if (!token) {
-      sendJson(response, 409, { error: L("GitHub 未连接"), code: "connector_disconnected" });
+      sendJson(response, 409, { error: L("未连接"), code: "connector_disconnected" });
       return true;
     }
-    const result = await githubWhoami({ token });
+    if (connectorId === "github") {
+      const result = await githubWhoami({ token });
+      if (!result.ok) {
+        sendJson(response, result.failure === "needs_auth" ? 401 : 502, {
+          error: result.failure === "needs_auth" ? L("GitHub 需要重新授权") : (result.message || L("无法读取 GitHub 账号")),
+          failure: result.failure,
+        });
+        return true;
+      }
+      sendJson(response, 200, { login: result.login, scopes: result.scopes });
+      return true;
+    }
+    if (!isCatalogConnectorId(connectorId)) {
+      sendJson(response, 404, { error: L("没有这个 Connector") });
+      return true;
+    }
+    const result = await catalogWhoami({ connectorId, token });
     if (!result.ok) {
-      sendJson(response, result.failure === "needs_auth" ? 401 : 502, {
-        error: result.failure === "needs_auth" ? L("GitHub 需要重新授权") : (result.message || L("无法读取 GitHub 账号")),
+      sendJson(response, result.failure === "needs_auth" ? 401 : result.failure === "configuration" ? 400 : 502, {
+        error: result.message || L("无法读取账号"),
         failure: result.failure,
       });
       return true;
     }
-    sendJson(response, 200, { login: result.login, scopes: result.scopes });
+    sendJson(response, 200, { login: result.login });
     return true;
   }
   if (method === "POST" && url.pathname === "/api/settings/connectors/github/client") {
@@ -128,7 +152,7 @@ export async function handleLocalConnectorsSettingsHttp(
   const tokenMatch = url.pathname.match(TOKEN_PATH);
   if (tokenMatch && (method === "POST" || method === "DELETE")) {
     const connectorId = tokenMatch[1]!;
-    if (connectorId !== "github" && connectorId !== "gmail") {
+    if (!isLiveConnector(connectorId)) {
       sendJson(response, 404, { error: L("没有这个 Connector") });
       return true;
     }

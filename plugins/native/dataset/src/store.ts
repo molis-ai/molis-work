@@ -1,6 +1,5 @@
-import { chmodSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
+import { ensureSqliteColumn, openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import type { DatabaseSync } from "node:sqlite";
 import type {
   DatasetColumn,
   DatasetColumnType,
@@ -178,11 +177,7 @@ export class DatasetStore {
 }
 
 export function openDatasetStore(homeDirectory: string): DatasetStore {
-  const dir = join(homeDirectory, "dataset");
-  mkdirSync(dir, { recursive: true, mode: 0o700 });
-  const dbPath = join(dir, "dataset.db");
-  const db = new DatabaseSync(dbPath);
-  try { chmodSync(dbPath, 0o600); } catch { /* best-effort */ }
+  const db = openHomeSqliteDatabase(homeDirectory, "dataset");
   db.exec(`
     CREATE TABLE IF NOT EXISTS datasets (
       id TEXT PRIMARY KEY,
@@ -204,7 +199,7 @@ export function openDatasetStore(homeDirectory: string): DatasetStore {
       created_at TEXT NOT NULL
     );
   `);
-  ensureProjectIdColumn(db, "datasets");
+  ensureSqliteColumn(db, "datasets", "project_id", "TEXT NOT NULL DEFAULT ''");
   return new DatasetStore(db);
 }
 
@@ -262,6 +257,11 @@ function splitCsvLine(line: string): string[] {
   for (let index = 0; index < line.length; index += 1) {
     const char = line[index];
     if (char === '"') {
+      if (quoted && line[index + 1] === '"') {
+        current += '"';
+        index += 1;
+        continue;
+      }
       quoted = !quoted;
       continue;
     }
@@ -274,13 +274,6 @@ function splitCsvLine(line: string): string[] {
   }
   cells.push(current);
   return cells;
-}
-
-function ensureProjectIdColumn(db: DatabaseSync, table: string): void {
-  const columns = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
-  if (!columns.some((column) => column.name === "project_id")) {
-    db.exec(`ALTER TABLE ${table} ADD COLUMN project_id TEXT NOT NULL DEFAULT ''`);
-  }
 }
 
 function fromRow(row: DatasetRowDb): DatasetRecord {

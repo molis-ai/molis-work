@@ -17,9 +17,11 @@ import {
 } from "@molis-ai/molis-work-contracts/modules/functions";
 import {
   assembleRegisteredBehaviors,
+  type PluginManifest,
   type RegisteredBehavior,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { githubIntegrationManifest } from "@molis-ai/molis-work-integration-github";
+import { CATALOG_CONNECTORS, catalogIntegrationManifest } from "@molis-ai/molis-work-integration-catalog";
 import { feedManifest } from "@molis-ai/molis-work-plugin-feed";
 import { functionsManifest } from "@molis-ai/molis-work-plugin-functions";
 import { inboxManifest } from "@molis-ai/molis-work-plugin-inbox";
@@ -102,8 +104,12 @@ export function nativeBehaviorManifests() {
   return NATIVE_BEHAVIOR_MANIFESTS;
 }
 
-export function connectedIntegrationManifests() {
-  return connectorCredentialStatus("github").bound ? [githubIntegrationManifest] : [];
+export function connectedIntegrationManifests(): PluginManifest[] {
+  const manifests: PluginManifest[] = connectorCredentialStatus("github").bound ? [githubIntegrationManifest] : [];
+  for (const spec of CATALOG_CONNECTORS) {
+    if (connectorCredentialStatus(spec.id).bound) manifests.push(catalogIntegrationManifest(spec.id));
+  }
+  return manifests;
 }
 
 export function liveBehaviorManifests() {

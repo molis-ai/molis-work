@@ -18,6 +18,12 @@ import {
   githubWhoami,
 } from "@molis-ai/molis-work-integration-github";
 import {
+  catalogConnectorIds,
+  catalogIntegrationManifest,
+  catalogPublicBehaviorId,
+  catalogWhoami,
+} from "@molis-ai/molis-work-integration-catalog";
+import {
   createFunctionsService,
   openFunctionsStore,
   type TypeSafeProvider,
@@ -139,30 +145,23 @@ test("connector directory covers common Codex/Claude/Grok accounts without empty
   assert.equal(gmail?.availability, "live");
   assert.match(gmail?.outbound_note ?? "", /出站动作未兑现/);
   assert.deepEqual(
-    HOST_CONNECTOR_DIRECTORY.filter((row) => row.availability === "live").map((row) => row.connector_id),
-    ["github", "gmail"],
+    HOST_CONNECTOR_DIRECTORY.map((row) => row.connector_id),
+    ["github", "gmail", ...catalogConnectorIds()],
   );
-  const placeholders = HOST_CONNECTOR_DIRECTORY.filter((row) => row.availability === "placeholder");
-  assert.deepEqual(
-    placeholders.map((row) => row.connector_id),
-    [
-      "google-calendar", "outlook", "google-drive", "onedrive", "sharepoint", "dropbox", "box", "notion",
-      "slack", "teams", "discord", "feishu", "wechat", "zoom",
-      "gitlab", "bitbucket", "vercel", "cloudflare", "huggingface", "sentry", "supabase",
-      "linear", "jira", "confluence", "asana", "clickup", "monday", "airtable", "loom",
-      "figma", "canva", "adobe",
-      "salesforce", "hubspot", "intercom", "stripe",
-      "x", "linkedin",
-    ],
-  );
+  assert.equal(HOST_CONNECTOR_DIRECTORY.some((row) => row.availability === "placeholder"), false);
   for (const row of HOST_CONNECTOR_DIRECTORY) {
-    assert.ok(CONNECTOR_MARKS[row.connector_id], row.connector_id);
-    assert.ok(CONNECTOR_MARKS[row.connector_id].paths.length > 0, row.connector_id);
+    const icon = CONNECTOR_MARKS[row.connector_id];
+    assert.ok(icon.includes("<svg"), row.connector_id);
+    assert.equal(row.availability, "live", row.connector_id);
+    assert.equal(row.capabilities.length, 2, row.connector_id);
+    assert.ok(row.capabilities.every((item) => item.label.length > 0), row.connector_id);
+    assert.ok(row.capabilities.some((item) => item.fulfillment === "live"), row.connector_id);
+    if (row.connector_id !== "github" && row.connector_id !== "gmail") {
+      assert.equal(row.auth_kind, "token", row.connector_id);
+      assert.equal(existsSync(join(ROOT, "..", "plugins", "official-integrations", row.connector_id)), false, row.connector_id);
+    }
   }
-  for (const row of placeholders) {
-    assert.ok((row.unavailable_reason ?? "").length > 0, row.connector_id);
-    assert.equal(existsSync(join(ROOT, "..", "plugins", "official-integrations", row.connector_id)), false);
-  }
+  assert.equal(existsSync(join(ROOT, "..", "plugins", "official-integrations", "catalog")), true);
   assert.equal(existsSync(join(ROOT, "..", "plugins", "native", "connectors")), false);
   assert.equal(existsSync(join(ROOT, "..", "modules", "connectors")), false);
 });
@@ -180,6 +179,10 @@ test("Connectors settings cards distinguish account states and never echo the se
         account_state: "connected",
         hint: "…ABCD",
         outbound_note: "已兑现动作：查看当前 GitHub 账号（github.whoami）。判断只挑，不会自动调用。",
+        capabilities: [
+          { label: "Feed 拉未读通知", fulfillment: "live" },
+          { label: "Functions 可勾查看当前账号（github.whoami）", fulfillment: "live" },
+        ],
       },
       {
         connector_id: "gmail",
@@ -190,16 +193,26 @@ test("Connectors settings cards distinguish account states and never echo the se
         summary: "本机账号。Feed 只读收信。",
         account_state: "reauth_required",
         outbound_note: "出站动作未兑现：当前只读收信，不发送邮件。",
+        capabilities: [
+          { label: "Feed 只读收信", fulfillment: "live" },
+          { label: "发送邮件", fulfillment: "unfulfilled" },
+        ],
       },
       {
         connector_id: "wechat",
         title: "微信",
-        availability: "placeholder",
-        auth_kind: "none",
+        availability: "live",
+        auth_kind: "token",
         group_id: "chat",
-        summary: "消息。",
+        summary: "企业微信消息。",
         account_state: "disconnected",
-        unavailable_reason: "微信个人号没有稳定官方开放接口，不装官方 MCP。",
+        token_label: "企业微信 CorpID 与 Secret",
+        token_placeholder: "ww…:secret",
+        auth_help: "微信个人号没有稳定官方接口。这里连的是企业微信自建应用，格式 corpid:corpsecret。",
+        capabilities: [
+          { label: "Feed 拉企业微信通讯录", fulfillment: "live" },
+          { label: "Functions 可勾查看当前账号", fulfillment: "live" },
+        ],
       },
     ],
   }, {
@@ -210,19 +223,53 @@ test("Connectors settings cards distinguish account states and never echo the se
   assert.match(html, /data-connectors-settings/);
   assert.match(html, /class="mw-card settings-connector-card"/);
   assert.match(html, /data-connector-group="live"/);
-  assert.match(html, /data-connector-group="placeholder"/);
+  assert.doesNotMatch(html, /data-connector-group="placeholder"/);
   assert.match(html, /可以连接/);
   assert.match(html, /settings-state--success[^>]*>已连接/);
   assert.match(html, /settings-state--warning[^>]*>要重新授权/);
   assert.match(html, /data-connector-open="wechat"/);
   assert.match(html, /data-connector-mark="github"/);
   assert.match(html, /data-connector-mark="wechat"/);
+  assert.match(html, /<svg[\s\S]*viewBox=/);
+  assert.match(html, /data-fulfillment="live"/);
+  assert.match(html, /data-fulfillment="unfulfilled"/);
+  assert.match(html, /Feed 拉未读通知/);
   assert.match(html, /data-connector-subgroup="chat"/);
-  assert.match(html, /微信个人号没有稳定官方开放接口/);
+  assert.match(html, /企业微信自建应用/);
   assert.match(html, /type="password"[^>]*data-connector-token="gmail"/);
+  assert.match(html, /type="password"[^>]*data-connector-token="wechat"/);
   assert.doesNotMatch(html, /data-connector-token="github"/);
   assert.match(html, /…ABCD/);
   assert.match(html, /出站动作未兑现/);
+});
+
+test("every connector detail exposes official https setup links", () => {
+  const primitives = {
+    L: (text: string) => text,
+    escapeHtml: (value: unknown) => String(value ?? ""),
+    icon: () => "",
+  };
+  for (const row of HOST_CONNECTOR_DIRECTORY) {
+    assert.ok((row.setup_links?.length ?? 0) > 0, row.connector_id);
+    for (const link of row.setup_links ?? []) {
+      assert.match(link.url, /^https:\/\//, `${row.connector_id}:${link.label}`);
+      assert.ok(link.label.trim().length > 0, row.connector_id);
+    }
+  }
+  const html = renderConnectorsSettings({
+    connectors: HOST_CONNECTOR_DIRECTORY.map((row) => ({ ...row, account_state: "disconnected" as const })),
+  }, primitives);
+  assert.match(html, /https:\/\/github\.com\/settings\/tokens/);
+  assert.match(html, /https:\/\/console\.cloud\.google\.com\/apis\/library\/gmail\.googleapis\.com/);
+  assert.match(html, /https:\/\/api\.slack\.com\/apps/);
+  assert.match(html, /https:\/\/www\.notion\.so\/my-integrations/);
+  assert.match(html, /https:\/\/work\.weixin\.qq\.com\/wework_admin\/frame#apps/);
+  assert.match(html, /https:\/\/id\.atlassian\.com\/manage-profile\/security\/api-tokens/);
+  assert.match(html, /target="_blank"/);
+  assert.match(html, /rel="noopener noreferrer"/);
+  const rendered = [...html.matchAll(/data-connector-setup-link/g)].length;
+  const expected = HOST_CONNECTOR_DIRECTORY.reduce((count, row) => count + (row.setup_links?.length ?? 0), 0);
+  assert.equal(rendered, expected);
 });
 
 test("Feed add-source overlays send GitHub and Gmail to Connectors instead of a PAT field", () => {
@@ -479,5 +526,33 @@ test("deleting a Feed GitHub source keeps the machine credential", async () => {
     } finally {
       store.close();
     }
+  });
+});
+
+test("catalog Slack whoami hits auth.test and appears in Functions only while bound", async () => {
+  const parsed = parsePluginManifest(catalogIntegrationManifest("slack"));
+  assert.equal(parsed.plugin_id, "io.molis.work.integration.slack");
+  assert.equal(catalogPublicBehaviorId("slack"), "slack.whoami");
+  const urls: string[] = [];
+  const result = await catalogWhoami({
+    connectorId: "slack",
+    token: "xoxb-liveTokenABCD",
+    fetchImpl: async (input) => {
+      urls.push(String(input));
+      return new Response(JSON.stringify({ ok: true, user: "molis", team: "Adeptify" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    },
+  });
+  assert.equal(result.ok, true);
+  if (result.ok) assert.equal(result.login, "molis");
+  assert.deepEqual(urls, ["https://slack.com/api/auth.test"]);
+  await withIsolatedHome(async () => {
+    assert.equal(agentBehaviorIds(liveHostFunctionAuthoringCatalog()).includes("slack.whoami"), false);
+    bindConnectorToken("slack", "xoxb-liveTokenABCD");
+    assert.equal(agentBehaviorIds(liveHostFunctionAuthoringCatalog()).includes("slack.whoami"), true);
+    unbindConnectorToken("slack");
+    assert.equal(agentBehaviorIds(liveHostFunctionAuthoringCatalog()).includes("slack.whoami"), false);
   });
 });

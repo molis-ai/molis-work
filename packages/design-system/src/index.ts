@@ -57,3 +57,5 @@ export {
   type MwHueId,
 } from "./palette.js";
 export * from "./primitives/index.js";
+export { renderPluginStageShell } from "./plugin-stage-shell.js";
+

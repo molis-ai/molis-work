@@ -21,6 +21,7 @@ import {
   SYSTEM_INBOX_NEXT_FUNCTION_KEY,
   filterSuggestedBehaviorIds,
   functionFitsScene,
+  mapJudgmentChoice,
   visibleDockBehaviorIds,
   defaultHomeDockBehaviorIds,
   defaultInboxNextBehaviorIds,
@@ -170,6 +171,50 @@ test("Module persists a judgment and latest query returns it", async () => {
       const latest = service.latestJudgment("inbox_entry", "att-1", "board");
       assert.equal(latest?.judgment_id, judged.judgment_id);
       assert.equal(latest?.function_version, 1);
+    } finally {
+      store.close();
+    }
+  });
+});
+
+test("judge maps a custom Choice onto the Inbox button pool", async () => {
+  await withHome(async (home) => {
+    const store = openFunctionsStore(home);
+    const service = createFunctionsService({
+      store,
+      secrets: memorySecrets(),
+      env: { TYPESAFE_API_KEY: "sk-test" },
+      provider: fixtureProvider("urgent"),
+      allowed_behavior_ids: [INBOX_DONE_BEHAVIOR_ID, INBOX_DISMISS_BEHAVIOR_ID],
+    });
+    try {
+      const created = service.createChoice({ name: "急不急", function_key: "mail_urgency" });
+      service.updateDraft(created.id, {
+        instructions: "这封邮件急吗？",
+        criteria: [
+          { key: "urgent", description: "急" },
+          { key: "later", description: "不急" },
+        ],
+        scene_id: INBOX_NEXT_SCENE_ID,
+        subject_kinds: ["inbox_entry"],
+        scene_map: {
+          urgent: INBOX_DONE_BEHAVIOR_ID,
+          later: INBOX_DISMISS_BEHAVIOR_ID,
+        },
+      });
+      await service.preview(created.id, "三天没人回");
+      service.publish(created.id);
+      const bound = service.bindScene(INBOX_NEXT_SCENE_ID, "mail_urgency", "board");
+      assert.equal(bound.function_key, "mail_urgency");
+      const judged = await service.judge({
+        function_key: "mail_urgency",
+        input: "三天没人回",
+        subject: { kind: "inbox_entry", id: "mail-1", board_id: "board" },
+        scene_id: INBOX_NEXT_SCENE_ID,
+        offered_behavior_ids: [INBOX_DONE_BEHAVIOR_ID, INBOX_DISMISS_BEHAVIOR_ID],
+      });
+      assert.equal(judged.outcome, "ok");
+      assert.deepEqual(judged.suggested_behavior_ids, [INBOX_DONE_BEHAVIOR_ID]);
     } finally {
       store.close();
     }
@@ -532,6 +577,48 @@ test("functionFitsScene keeps every Choice option inside the scene pool", () => 
     ],
     scene_id: "agent.mcp",
   }, "agent.mcp"), true);
+  assert.equal(functionFitsScene({
+    primitive: "choice" as const,
+    criteria: [
+      { key: "urgent", description: "急" },
+      { key: "later", description: "不急" },
+    ],
+    scene_id: INBOX_NEXT_SCENE_ID,
+  }, INBOX_NEXT_SCENE_ID), false);
+  assert.equal(functionFitsScene({
+    primitive: "choice" as const,
+    criteria: [
+      { key: "urgent", description: "急" },
+      { key: "later", description: "不急" },
+    ],
+    scene_id: INBOX_NEXT_SCENE_ID,
+    scene_map: {
+      urgent: INBOX_DONE_BEHAVIOR_ID,
+      later: INBOX_DISMISS_BEHAVIOR_ID,
+    },
+  }, INBOX_NEXT_SCENE_ID), true);
+  assert.equal(functionFitsScene({
+    primitive: "noul" as const,
+    criteria: { true_description: "够", false_description: "不够" },
+    scene_id: INBOX_NEXT_SCENE_ID,
+    scene_map: {
+      true: INBOX_DONE_BEHAVIOR_ID,
+      false: INBOX_DISMISS_BEHAVIOR_ID,
+    },
+  }, INBOX_NEXT_SCENE_ID), true);
+  assert.equal(mapJudgmentChoice({
+    primitive: "choice",
+    criteria: [
+      { key: "urgent", description: "急" },
+      { key: "later", description: "不急" },
+    ],
+    scene_map: { urgent: INBOX_DONE_BEHAVIOR_ID, later: INBOX_DISMISS_BEHAVIOR_ID },
+  }, { choice: "urgent" }), INBOX_DONE_BEHAVIOR_ID);
+  assert.equal(mapJudgmentChoice({
+    primitive: "noul",
+    criteria: { true_description: "够", false_description: "不够" },
+    scene_map: { true: INBOX_DONE_BEHAVIOR_ID, false: INBOX_DISMISS_BEHAVIOR_ID },
+  }, { noul: 0.8 }), INBOX_DONE_BEHAVIOR_ID);
 });
 
 test("bindScene rejects a published function whose options miss the scene pool", async () => {

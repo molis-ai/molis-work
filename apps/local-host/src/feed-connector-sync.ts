@@ -5,6 +5,7 @@ import { ListenerHost } from "@molis-ai/molis-work-service-listener-host";
 import { SignalsModule } from "@molis-ai/molis-work-module-signals";
 import { gmailAccountPresentation } from "@molis-ai/molis-work-integration-gmail";
 import { githubAccountPresentation } from "@molis-ai/molis-work-integration-github";
+import { catalogAccountPresentation } from "@molis-ai/molis-work-integration-catalog";
 import type { IntegrationProviderItem } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { FeedConnectorSync, type FeedApplication, type FeedSourceRecord } from "@molis-ai/molis-work-plugin-feed";
 import { createLocalFeedApplication } from "./feed-application.js";
@@ -41,7 +42,11 @@ export function createLocalFeedConnectorSync(
     sourceMetadata(source, cursor): Pick<FeedSourceRecord, "account_label" | "config"> | Record<string, never> {
       const metadata = source.sync_kind === "gmail"
         ? gmailAccountPresentation(cursor, source.account_label, source.config.scope)
-        : source.sync_kind === "github" ? githubAccountPresentation(cursor, source.account_label) : null;
+        : source.sync_kind === "github"
+          ? githubAccountPresentation(cursor, source.account_label)
+          : source.sync_kind === "connector"
+            ? catalogAccountPresentation(cursor, source.account_label)
+            : null;
       if (!metadata) return {};
       const { account_label, ...configuration } = metadata;
       return { account_label, config: { ...source.config, ...configuration } };

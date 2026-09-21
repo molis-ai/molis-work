@@ -14,17 +14,13 @@ export const PPT_STYLES = `
   .ppt-slide-editor textarea.mw-textarea { field-sizing: content; min-height: 72px; max-height: 220px; resize: vertical; }
   .ppt-slide-editor textarea[data-ppt-slide-notes] { min-height: 48px; max-height: 120px; }
   .ppt-colors { display: flex; flex-wrap: wrap; gap: 12px 16px; padding-bottom: 2px; font-size: 12px; color: var(--muted); }
-  .ppt-colors label { display: flex; align-items: center; gap: 8px; }
-  .ppt-colors input[type="color"] {
-    width: 28px; height: 28px; padding: 0; border: 1px solid var(--control-input);
-    border-radius: 6px; background: transparent; cursor: pointer;
-    appearance: none; -webkit-appearance: none;
-    box-shadow: inset 0 0 0 1px var(--line);
-    transition: box-shadow var(--motion-fast, 130ms) ease;
+  .ppt-color-field { display: flex; flex-direction: column; gap: 6px; }
+  .ppt-swatches { display: flex; flex-wrap: wrap; gap: 6px; }
+  .ppt-swatch {
+    width: 22px; height: 22px; padding: 0; border: 1px solid var(--line); border-radius: 6px;
+    cursor: pointer; box-shadow: inset 0 0 0 1px color-mix(in srgb, #fff 35%, transparent);
   }
-  .ppt-colors input[type="color"]:hover { box-shadow: inset 0 0 0 1px var(--plugin-ppt, var(--line)); }
-  .ppt-colors input[type="color"]::-webkit-color-swatch-wrapper { padding: 3px; }
-  .ppt-colors input[type="color"]::-webkit-color-swatch { border: 0; border-radius: 3px; }
+  .ppt-swatch[aria-checked="true"] { box-shadow: 0 0 0 2px var(--action); }
   .ppt-split { display: grid; grid-template-columns: minmax(240px, 1fr) minmax(280px, 1.2fr); gap: 16px; min-height: 0; }
   .ppt-slides { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
   .ppt-slides-head { display: flex; align-items: center; gap: 8px; }
@@ -93,7 +89,7 @@ export const PPT_STYLES = `
   @media (max-width: 720px) { .ppt-meta { grid-template-columns: 1fr; } }
   @media (prefers-reduced-motion: reduce) {
     .is-arriving, .plugin-stage-workspace.is-arriving { animation: none; }
-    .ppt-slide-row > button:first-child, .ppt-card, .ppt-colors input[type="color"] { transition: none; }
+    .ppt-slide-row > button:first-child, .ppt-card, .ppt-swatch { transition: none; }
   }
   body.immersive-workbench .plugin-stage-workspace > .ppt-workspace { flex: 1; min-height: 0; }
 `;

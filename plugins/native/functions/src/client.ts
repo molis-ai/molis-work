@@ -1,4 +1,4 @@
-/** Functions workbench client: author source/destination, preview, publish. */
+/** Functions workbench client: look / function / destination columns. */
 export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
   const { translate: L, feedApi } = host;
   const workbench = document.querySelector("[data-functions=workbench]");
@@ -17,7 +17,11 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
   const criteriaLabel = workbench.querySelector("[data-functions-criteria-label]");
   const addCriterionBtn = workbench.querySelector("[data-functions-add-criterion]");
   const criteriaHead = workbench.querySelector("[data-functions-criteria-head]");
+  const criteriaHint = workbench.querySelector("[data-functions-criteria-hint]");
   const criteriaEl = workbench.querySelector("[data-functions-criteria]");
+  const paletteEl = workbench.querySelector("[data-functions-palette]");
+  const mapPanel = workbench.querySelector("[data-functions-map-panel]");
+  const mapEl = workbench.querySelector("[data-functions-map]");
   const samplesEl = workbench.querySelector("[data-functions-samples]");
   const previewInput = workbench.querySelector("[data-functions-preview-input]");
   const publishBtn = workbench.querySelector("[data-functions-publish]");
@@ -45,8 +49,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     node.textContent = text;
     return node;
   };
-  const destOf = (id) => catalog.destinations.find((row) => row.destination_id === id)
-    || null;
+  const destOf = (id) => catalog.destinations.find((row) => row.destination_id === id) || null;
   const behaviorOf = (id) => catalog.behaviors.find((row) => row.behavior_id === id) || {
     behavior_id: id,
     title: id,
@@ -64,8 +67,6 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const destTitle = (recordOrId) => {
     const id = recordOrId && typeof recordOrId === "object" ? recordOrId.scene_id : recordOrId;
-    const primitive = recordOrId && typeof recordOrId === "object" ? recordOrId.primitive : "";
-    if (!id && (primitive === "noul" || primitive === "score")) return L("Agent");
     const title = destOf(id)?.title;
     if (title) return L(title);
     return id === "home.dock" ? L("首页") : id === "inbox.next" ? L("Inbox") : id === "feed.capture" ? L("Feed") : id === "agent.mcp" ? L("Agent") : L("还没选");
@@ -111,11 +112,33 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
   const primitiveOf = (record) => record?.primitive || "choice";
   const selectedDestId = () => {
     const current = workbench.querySelector("[data-functions-destination].is-current");
-    return current ? current.dataset.functionsDestination : (selected?.scene_id || "");
+    if (!current) return selected?.scene_id || "";
+    return current.dataset.functionsDestination || "";
   };
   const subjectKindsFromForm = () => [...workbench.querySelectorAll("[data-functions-source]:checked")]
     .map((node) => node.dataset.functionsSource)
     .filter(Boolean);
+  const outputKeysFromForm = () => {
+    const kind = primitiveOf(selected);
+    if (kind === "noul") return ["true", "false"];
+    if (kind === "score") return [];
+    return [...criteriaEl.querySelectorAll("[data-choice-row]")].map((row) => {
+      const key = ((row.querySelector("[data-choice-key]") || {}).value || "").trim();
+      return key;
+    }).filter(Boolean);
+  };
+  const sceneMapFromForm = () => {
+    const destId = selectedDestId();
+    const dest = destOf(destId);
+    if (!destId || destId === "agent.mcp" || dest?.kind !== "event") return {};
+    const mapped = {};
+    mapEl.querySelectorAll("[data-map-key]").forEach((select) => {
+      const key = select.dataset.mapKey;
+      const value = (select.value || "").trim();
+      if (key && value) mapped[key] = value;
+    });
+    return mapped;
+  };
   const criteriaFromForm = () => {
     const kind = primitiveOf(selected);
     if (kind === "noul") {
@@ -127,17 +150,29 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (kind === "score") {
       return [...criteriaEl.querySelectorAll("[data-score-level]")].map((input) => input.value);
     }
-    const picked = [...criteriaEl.querySelectorAll("[data-behavior-id]")].flatMap((row) => {
-      const check = row.querySelector("[data-behavior-check]");
-      if (!check || !check.checked) return [];
-      return [{
-        key: row.dataset.behaviorId,
-        description: (row.querySelector("[data-behavior-description]") || {}).value || "",
-      }];
-    });
+    const picked = [...criteriaEl.querySelectorAll("[data-choice-row]")].map((row) => ({
+      key: ((row.querySelector("[data-choice-key]") || {}).value || "").trim(),
+      description: ((row.querySelector("[data-choice-description]") || {}).value || "").trim(),
+    })).filter((row) => row.key);
     if (picked.length >= 2) return picked;
     if (Array.isArray(selected?.criteria) && selected.criteria.length >= 2) return selected.criteria;
     return picked;
+  };
+  const mappingReady = (record) => {
+    const destId = record.scene_id || "";
+    if (!destId || destId === "agent.mcp") return true;
+    const dest = destOf(destId);
+    const pool = dest?.behavior_ids || [];
+    if (!pool.length) return true;
+    const kind = primitiveOf(record);
+    const keys = kind === "noul"
+      ? ["true", "false"]
+      : kind === "choice" && Array.isArray(record.criteria)
+        ? record.criteria.map((row) => row.key)
+        : [];
+    if (!keys.length) return false;
+    const map = record.scene_map || {};
+    return keys.every((key) => pool.includes(map[key] || key));
   };
   const addScoreRow = (value) => {
     const row = document.createElement("div");
@@ -149,102 +184,153 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     criteriaEl.append(row);
     [...criteriaEl.querySelectorAll("[data-score-index]")].forEach((node, index) => { node.textContent = String(index); });
   };
+  const nextOptionKey = () => {
+    const used = new Set(outputKeysFromForm());
+    let n = 1;
+    while (used.has("option_" + n)) n += 1;
+    return "option_" + n;
+  };
+  const addChoiceRow = (key, description) => {
+    const row = document.createElement("div");
+    row.className = "functions-criterion";
+    row.dataset.choiceRow = "true";
+    const keyInputEl = document.createElement("input");
+    keyInputEl.className = "mw-input";
+    keyInputEl.dataset.choiceKey = "true";
+    keyInputEl.spellcheck = false;
+    keyInputEl.autocomplete = "off";
+    keyInputEl.placeholder = L("选项 key");
+    keyInputEl.value = key || "";
+    const desc = document.createElement("input");
+    desc.className = "mw-input";
+    desc.dataset.choiceDescription = "true";
+    desc.autocomplete = "off";
+    desc.placeholder = L("怎么判断");
+    desc.value = description || "";
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "mw-btn mw-btn--ghost";
+    remove.dataset.choiceRemove = "true";
+    remove.setAttribute("aria-label", L("去掉选项"));
+    remove.textContent = "×";
+    row.append(keyInputEl, desc, remove);
+    criteriaEl.append(row);
+  };
   const sourceLabel = (source) => source === "mcp" ? L("MCP") : source === "plugin" ? L("插件") : L("系统");
-  const appendBehavior = (behavior, checked, description, locked, parent) => {
-    const row = document.createElement("label");
-    row.className = "functions-behavior";
-    row.dataset.behaviorId = behavior.behavior_id;
-    const check = document.createElement("input");
-    check.type = "checkbox";
-    check.className = "mw-check";
-    check.dataset.behaviorCheck = "true";
-    check.checked = Boolean(checked);
-    check.disabled = locked;
+  const appendPaletteRow = (behavior, parent) => {
+    const row = document.createElement("div");
+    row.className = "functions-palette-row";
     const body = document.createElement("span");
     const title = document.createElement("strong");
     title.textContent = behavior.title;
     const meta = document.createElement("small");
-    const grouped = parent && parent !== criteriaEl;
-    const bits = [];
-    if (!grouped) {
-      bits.push(sourceLabel(behavior.source));
-      if (behavior.plugin_title && behavior.source !== "system") bits.push(behavior.plugin_title);
-    }
+    const bits = [sourceLabel(behavior.source)];
+    if (behavior.plugin_title && behavior.source !== "system") bits.push(behavior.plugin_title);
     if (behavior.hint) bits.push(behavior.hint.length > 42 ? behavior.hint.slice(0, 41) + "…" : behavior.hint);
-    else if (!behavior.clickable && !grouped) bits.push(L("给 Agent"));
     meta.textContent = bits.join(" · ");
-    const desc = document.createElement("input");
-    desc.className = "mw-input";
-    desc.dataset.behaviorDescription = "true";
-    desc.placeholder = L("可选");
-    desc.value = description || "";
-    desc.disabled = locked;
-    desc.hidden = !checked;
-    body.append(title, meta, desc);
+    body.append(title, meta);
     const effect = document.createElement("span");
     effect.className = "functions-effect";
     effect.dataset.effect = behavior.effect;
     effect.textContent = behavior.effect === "write" ? L("写") : L("看");
-    row.append(check, body, effect);
-    (parent || criteriaEl).append(row);
+    const add = document.createElement("button");
+    add.type = "button";
+    add.className = "mw-btn mw-btn--ghost";
+    add.dataset.paletteAdd = behavior.behavior_id;
+    add.textContent = L("加入");
+    row.append(body, effect, add);
+    parent.append(row);
   };
-  const appendGroup = (label, items, selectedKeys, descriptions, locked) => {
-    if (!items.length) return;
-    const group = document.createElement("div");
-    group.className = "functions-behavior-group";
-    const head = document.createElement("span");
-    head.textContent = label;
-    group.append(head);
-    items.forEach((behavior) => {
-      appendBehavior(behavior, selectedKeys.has(behavior.behavior_id), descriptions.get(behavior.behavior_id) || behavior.title, locked, group);
-    });
-    criteriaEl.append(group);
-  };
-  const renderChoiceBehaviors = (record) => {
-    const locked = record.status === "published";
+  const renderPalette = (record) => {
+    paletteEl.replaceChildren();
+    if (primitiveOf(record) !== "choice" || record.status === "published") return;
     const destId = record.scene_id || selectedDestId();
     const dest = destOf(destId);
-    const selectedKeys = new Set((Array.isArray(record.criteria) ? record.criteria : []).map((row) => row.key));
-    const descriptions = new Map((Array.isArray(record.criteria) ? record.criteria : []).map((row) => [row.key, row.description || ""]));
-    criteriaLabel.textContent = L("可选动作");
-    if (!destId) {
-      const empty = document.createElement("p");
-      empty.className = "functions-hint";
-      empty.textContent = L("先选「用在哪」。");
-      criteriaEl.append(empty);
-      return;
+    const used = new Set(outputKeysFromForm());
+    const head = document.createElement("strong");
+    head.textContent = L("从动作库加入");
+    const items = [];
+    if (destId === "agent.mcp") items.push(...catalog.behaviors);
+    else if (dest?.behavior_ids?.length) {
+      dest.behavior_ids.forEach((id) => items.push(behaviorOf(id)));
     }
+    const fresh = items.filter((row) => row && !used.has(row.behavior_id));
+    if (!fresh.length) return;
+    paletteEl.append(head);
     if (destId === "agent.mcp") {
-      const system = catalog.behaviors.filter((row) => row.source === "system");
-      appendGroup(L("系统"), system, selectedKeys, descriptions, locked);
-      const pluginGroups = new Map();
-      catalog.behaviors.filter((row) => row.source === "plugin").forEach((row) => {
-        const list = pluginGroups.get(row.plugin_title) || [];
-        list.push(row);
-        pluginGroups.set(row.plugin_title, list);
+      const groups = new Map();
+      fresh.forEach((row) => {
+        const label = row.source === "system" ? L("系统") : sourceLabel(row.source) + " · " + row.plugin_title;
+        const listItems = groups.get(label) || [];
+        listItems.push(row);
+        groups.set(label, listItems);
       });
-      pluginGroups.forEach((items, title) => appendGroup(L("插件") + " · " + title, items, selectedKeys, descriptions, locked));
-      const mcpGroups = new Map();
-      catalog.behaviors.filter((row) => row.source === "mcp").forEach((row) => {
-        const list = mcpGroups.get(row.plugin_title) || [];
-        list.push(row);
-        mcpGroups.set(row.plugin_title, list);
+      groups.forEach((groupItems, label) => {
+        const group = document.createElement("div");
+        group.className = "functions-behavior-group";
+        const name = document.createElement("span");
+        name.textContent = label;
+        group.append(name);
+        groupItems.forEach((behavior) => appendPaletteRow(behavior, group));
+        paletteEl.append(group);
       });
-      mcpGroups.forEach((items, title) => appendGroup(L("MCP") + " · " + title, items, selectedKeys, descriptions, locked));
       return;
     }
-    const ids = dest?.behavior_ids?.length ? dest.behavior_ids : [];
-    ids.forEach((id) => {
-      const behavior = behaviorOf(id);
-      appendBehavior(behavior, selectedKeys.size ? selectedKeys.has(id) : true, descriptions.get(id) || behavior.title, locked, criteriaEl);
+    fresh.forEach((behavior) => appendPaletteRow(behavior, paletteEl));
+  };
+  const renderMap = (record) => {
+    mapEl.replaceChildren();
+    const destId = record.scene_id || "";
+    const dest = destOf(destId);
+    const eventDest = dest && dest.kind === "event";
+    const kind = primitiveOf(record);
+    if (mapPanel) mapPanel.hidden = !eventDest || kind === "score";
+    if (!eventDest || kind === "score") return;
+    const pool = dest.behavior_ids || [];
+    const map = record.scene_map || {};
+    const rows = kind === "noul"
+      ? [
+        { key: "true", label: L("成立") },
+        { key: "false", label: L("不成立") },
+      ]
+      : [...criteriaEl.querySelectorAll("[data-choice-row]")].flatMap((row) => {
+        const key = ((row.querySelector("[data-choice-key]") || {}).value || "").trim();
+        if (!key) return [];
+        const description = ((row.querySelector("[data-choice-description]") || {}).value || "").trim();
+        return [{ key, label: description || key }];
+      });
+    rows.forEach((row) => {
+      const line = document.createElement("label");
+      line.className = "functions-map-row";
+      const title = document.createElement("strong");
+      title.textContent = row.label;
+      const select = document.createElement("select");
+      select.className = "mw-input";
+      select.dataset.mapKey = row.key;
+      const empty = document.createElement("option");
+      empty.value = "";
+      empty.textContent = L("还没对上");
+      select.append(empty);
+      pool.forEach((id) => {
+        const option = document.createElement("option");
+        option.value = id;
+        option.textContent = behaviorOf(id).title;
+        select.append(option);
+      });
+      const current = map[row.key] || (pool.includes(row.key) ? row.key : "");
+      select.value = current;
+      select.disabled = record.status === "published";
+      line.append(title, select);
+      mapEl.append(line);
     });
   };
   const renderCriteria = (record) => {
     const kind = primitiveOf(record);
     const locked = record.status === "published";
     criteriaEl.replaceChildren();
-    addCriterionBtn.hidden = kind !== "score";
+    addCriterionBtn.hidden = kind === "noul";
     if (criteriaHead) criteriaHead.hidden = kind === "noul";
+    if (criteriaHint) criteriaHint.hidden = kind !== "choice";
     if (kind === "noul") {
       criteriaLabel.textContent = L("成立时");
       const wrap = document.createElement("div");
@@ -259,28 +345,37 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
       const levels = Array.isArray(record.criteria) && record.criteria.length ? record.criteria : ["", ""];
       levels.forEach((level) => addScoreRow(level));
     } else {
-      renderChoiceBehaviors(record);
+      criteriaLabel.textContent = L("选项");
+      const rows = Array.isArray(record.criteria) && record.criteria.length
+        ? record.criteria
+        : [{ key: "yes", description: "" }, { key: "no", description: "" }];
+      rows.forEach((row) => addChoiceRow(row.key, row.description || ""));
     }
     criteriaEl.querySelectorAll("input, textarea, button").forEach((node) => { node.disabled = locked; });
     addCriterionBtn.disabled = locked;
+    renderPalette(record);
+    renderMap(record);
   };
   const renderRoute = (record) => {
     const kind = primitiveOf(record);
-    const destId = kind === "choice" ? (record.scene_id || "") : "agent.mcp";
+    const destId = record.scene_id || "";
+    const selectedKinds = new Set((record.subject_kinds && record.subject_kinds.length) ? record.subject_kinds : subjectKindsFromForm());
     workbench.querySelectorAll("[data-functions-destination]").forEach((node) => {
-      const on = node.dataset.functionsDestination === destId;
+      const id = node.dataset.functionsDestination || "";
+      const on = id === destId;
       node.classList.toggle("is-current", on);
-      node.disabled = record.status === "published" || (kind !== "choice" && node.dataset.functionsDestination !== "agent.mcp");
+      const dest = destOf(id);
+      const related = dest && dest.subject_kinds && dest.subject_kinds.some((item) => selectedKinds.has(item));
+      node.classList.toggle("is-related", Boolean(related && !on));
+      node.disabled = record.status === "published" || (kind === "score" && dest && dest.kind === "event");
     });
-    if (choiceOnlyHint) choiceOnlyHint.hidden = kind === "choice";
-    const dest = destOf(destId);
-    const kinds = (record.subject_kinds && record.subject_kinds.length)
-      ? record.subject_kinds
-      : (dest?.subject_kinds || []);
-    const kindSet = new Set(kinds);
+    if (choiceOnlyHint) choiceOnlyHint.hidden = kind !== "score";
     workbench.querySelectorAll("[data-functions-source]").forEach((node) => {
-      node.checked = kindSet.has(node.dataset.functionsSource);
-      node.disabled = record.status === "published" || kind !== "choice";
+      const kindId = node.dataset.functionsSource;
+      node.checked = selectedKinds.has(kindId);
+      node.disabled = record.status === "published";
+      const dest = destOf(destId);
+      node.closest(".functions-chip")?.classList.toggle("is-related", Boolean(dest?.subject_kinds?.includes(kindId)));
     });
   };
   const renderSamples = (record) => {
@@ -371,7 +466,13 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     const head = document.createElement("strong");
     head.textContent = L("用在哪");
     usagesEl.append(head);
-    if (record.scene_id === "agent.mcp" || primitiveOf(record) !== "choice") {
+    if (!record.scene_id) {
+      const line = document.createElement("p");
+      line.textContent = L("先不落地");
+      usagesEl.append(line);
+      return;
+    }
+    if (record.scene_id === "agent.mcp") {
       const line = document.createElement("p");
       line.textContent = L("发布后可用。");
       usagesEl.append(line);
@@ -383,6 +484,11 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
       status.dataset.functionsUsageStatus = "";
       if (record.status !== "published") {
         status.textContent = L("先发布。");
+        usagesEl.append(status);
+        return;
+      }
+      if (!mappingReady(record)) {
+        status.textContent = L("对上之后才能用在这里。");
         usagesEl.append(status);
         return;
       }
@@ -425,7 +531,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     }
     try {
       const payload = record.status === "published"
-        ? await request("GET", "/api/functions/" + encodeURIComponent(record.id) + "/usages")
+        ? await request("GET", "/api/plugins/functions/" + encodeURIComponent(record.id) + "/usages")
         : { usages: [] };
       if (selected?.id !== token) return;
       const usages = payload.usages || [];
@@ -519,11 +625,11 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     });
   };
   const loadCatalog = async () => {
-    const payload = await request("GET", "/api/functions/catalog");
+    const payload = await request("GET", "/api/plugins/functions/catalog");
     if (payload.catalog) catalog = payload.catalog;
   };
   const loadList = async () => {
-    const payload = await request("GET", "/api/functions");
+    const payload = await request("GET", "/api/plugins/functions");
     records = payload.functions || [];
     renderList();
     if (selected) {
@@ -532,32 +638,29 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
       else closeEditor();
     }
   };
-  const criteriaForDestination = (destId, current) => {
-    if (destId === "agent.mcp") return current;
-    const dest = destOf(destId);
-    const ids = dest?.behavior_ids || [];
-    if (ids.length < 2) return current;
-    return ids.map((id) => {
-      const behavior = behaviorOf(id);
-      return { key: id, description: behavior.title };
-    });
-  };
   const draftBody = () => ({
     name: nameInput.value,
     function_key: keyInput.value,
     instructions: instructionsInput.value,
     criteria: criteriaFromForm(),
-    scene_id: primitiveOf(selected) === "choice" ? (selectedDestId() || null) : "agent.mcp",
-    subject_kinds: primitiveOf(selected) === "choice" ? subjectKindsFromForm() : ["mcp_invoke"],
+    scene_id: selectedDestId() || null,
+    subject_kinds: subjectKindsFromForm(),
+    scene_map: sceneMapFromForm(),
+    updated_at: selected.updated_at,
   });
   const saveDraft = async () => {
     if (!selected || selected.status === "published") return selected;
-    const payload = await request("POST", "/api/functions/" + encodeURIComponent(selected.id), draftBody());
-    selected = payload.function;
-    records = records.map((item) => item.id === selected.id ? selected : item);
-    renderList();
-    titleEl.textContent = selected.name;
-    return selected;
+    try {
+      const payload = await request("POST", "/api/plugins/functions/" + encodeURIComponent(selected.id), draftBody());
+      selected = payload.function;
+      records = records.map((item) => item.id === selected.id ? selected : item);
+      renderList();
+      titleEl.textContent = selected.name;
+      return selected;
+    } catch (error) {
+      await loadList().catch(() => {});
+      throw error;
+    }
   };
   const queueSave = () => {
     if (!selected || selected.status === "published") return;
@@ -592,7 +695,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     const submitter = event.submitter;
     const primitive = submitter && submitter.value ? submitter.value : "choice";
     try {
-      const payload = await request("POST", "/api/functions", { primitive });
+      const payload = await request("POST", "/api/plugins/functions", { primitive });
       closeCreate();
       remember(payload.function);
     } catch (error) {
@@ -604,7 +707,9 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (!selected || selected.status === "published") return;
     if (!window.confirm(L("确定删除这个草稿？"))) return;
     try {
-      await request("POST", "/api/functions/" + encodeURIComponent(selected.id) + "/delete", {});
+      await request("POST", "/api/plugins/functions/" + encodeURIComponent(selected.id) + "/delete", {
+        updated_at: selected.updated_at,
+      });
       records = records.filter((item) => item.id !== selected.id);
       closeEditor();
       renderList();
@@ -615,6 +720,9 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
   addCriterionBtn.addEventListener("click", () => {
     if (selected?.status === "published") return;
     if (primitiveOf(selected) === "score") addScoreRow("");
+    else if (primitiveOf(selected) === "choice") addChoiceRow(nextOptionKey(), "");
+    renderPalette(selected);
+    renderMap(selected);
     queueSave();
   });
   usagesEl?.addEventListener("click", async (event) => {
@@ -636,34 +744,61 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
   workbench.querySelector("[data-functions-destinations]").addEventListener("click", (event) => {
     const button = event.target.closest("[data-functions-destination]");
     if (!button || !selected || selected.status === "published" || button.disabled) return;
-    const destId = button.dataset.functionsDestination;
-    if (primitiveOf(selected) !== "choice" && destId !== "agent.mcp") {
-      showNote(L("首页、Inbox、Feed 要用 Choice。"), true);
+    const destId = button.dataset.functionsDestination || "";
+    if (primitiveOf(selected) === "score" && destId && destId !== "agent.mcp") {
+      showNote(L("Score 不能绑 Inbox、首页、Feed。"), true);
       return;
     }
-    const dest = destOf(destId);
     selected = {
       ...selected,
-      scene_id: destId,
-      subject_kinds: dest?.subject_kinds || selected.subject_kinds || [],
-      criteria: primitiveOf(selected) === "choice" ? criteriaForDestination(destId, selected.criteria) : selected.criteria,
+      scene_id: destId || null,
+      scene_map: destId && destId !== "agent.mcp" ? (selected.scene_map || {}) : {},
     };
     renderRoute(selected);
-    renderCriteria(selected);
+    renderPalette(selected);
+    renderMap(selected);
     void renderUsages(selected);
     queueSave();
   });
   form.addEventListener("input", (event) => {
-    if (event.target.matches("[data-behavior-check]")) {
-      const desc = event.target.closest("[data-behavior-id]")?.querySelector("[data-behavior-description]");
-      if (desc) desc.hidden = !event.target.checked;
+    if (event.target.matches("[data-choice-key], [data-choice-description], [data-map-key]")) {
+      if (selected) renderMap({ ...selected, criteria: criteriaFromForm(), scene_map: sceneMapFromForm() });
     }
     queueSave();
   });
   form.addEventListener("change", (event) => {
-    if (event.target.matches("[data-functions-source], [data-behavior-check]")) queueSave();
+    if (event.target.matches("[data-functions-source]")) {
+      if (selected) renderRoute({ ...selected, subject_kinds: subjectKindsFromForm() });
+    }
+    if (event.target.matches("[data-map-key]") && selected) {
+      void renderUsages({ ...selected, scene_map: sceneMapFromForm(), criteria: criteriaFromForm() });
+    }
+    queueSave();
   });
   form.addEventListener("click", (event) => {
+    const paletteAdd = event.target.closest("[data-palette-add]");
+    if (paletteAdd && selected?.status !== "published" && primitiveOf(selected) === "choice") {
+      const behavior = behaviorOf(paletteAdd.dataset.paletteAdd);
+      if (!outputKeysFromForm().includes(behavior.behavior_id)) {
+        addChoiceRow(behavior.behavior_id, behavior.title || "");
+      }
+      renderPalette(selected);
+      renderMap(selected);
+      queueSave();
+      return;
+    }
+    const removeChoice = event.target.closest("[data-choice-remove]");
+    if (removeChoice && selected?.status !== "published") {
+      if (criteriaEl.querySelectorAll("[data-choice-row]").length < 3) {
+        showNote(L("Choice 至少需要两个选项"), true);
+        return;
+      }
+      removeChoice.closest("[data-choice-row]").remove();
+      renderPalette(selected);
+      renderMap(selected);
+      queueSave();
+      return;
+    }
     const removeScore = event.target.closest("[data-score-remove]");
     if (removeScore && selected?.status !== "published") {
       if (criteriaEl.querySelectorAll("[data-score-level]").length < 3) {
@@ -684,8 +819,9 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (load && sample) previewInput.value = sample.input || "";
     if (remove) {
       try {
-        const payload = await request("POST", "/api/functions/" + encodeURIComponent(selected.id) + "/samples/delete", {
+        const payload = await request("POST", "/api/plugins/functions/" + encodeURIComponent(selected.id) + "/samples/delete", {
           sample_id: row.dataset.sampleId,
+          updated_at: selected.updated_at,
         });
         remember(payload.function);
       } catch (error) {
@@ -697,8 +833,9 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (!selected) return;
     try {
       await saveDraft();
-      const payload = await request("POST", "/api/functions/" + encodeURIComponent(selected.id) + "/samples", {
+      const payload = await request("POST", "/api/plugins/functions/" + encodeURIComponent(selected.id) + "/samples", {
         input: previewInput.value,
+        updated_at: selected.updated_at,
       });
       remember(payload.function);
     } catch (error) {
@@ -716,8 +853,9 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     showNote(L("可能计费。"), false);
     try {
       await saveDraft();
-      const payload = await request("POST", "/api/functions/" + encodeURIComponent(selected.id) + "/preview", {
+      const payload = await request("POST", "/api/plugins/functions/" + encodeURIComponent(selected.id) + "/preview", {
         input: previewInput.value,
+        updated_at: selected.updated_at,
       });
       remember(payload.function);
     } catch (error) {
@@ -729,7 +867,9 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     showNote("", false);
     try {
       await saveDraft();
-      const payload = await request("POST", "/api/functions/" + encodeURIComponent(selected.id) + "/publish", {});
+      const payload = await request("POST", "/api/plugins/functions/" + encodeURIComponent(selected.id) + "/publish", {
+        updated_at: selected.updated_at,
+      });
       remember(payload.function);
     } catch (error) {
       showNote(error.message, true);

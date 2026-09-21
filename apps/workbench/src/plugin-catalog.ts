@@ -82,33 +82,6 @@ export const PERSONAL_PLUGIN_IDS: readonly ProjectPluginId[] = BUILTIN_PLUGIN_CA
   .map((entry) => entry.project_plugin_id);
 
 /**
- * Host chrome that opens a Plugin's own stage instead of a nested directory.
- * Personal Plugins join this set automatically.
- */
-export const DIRECT_WORK_SURFACE_IDS: ReadonlySet<string> = new Set([
-  "home",
-  "market",
-  "feed",
-  "goals",
-  "sessions",
-  "inbox",
-  "schedule",
-  "artifacts",
-  ...PERSONAL_PLUGIN_IDS,
-]);
-
-/** Directory panels owned by a Plugin stage, including Feed's sources alias. */
-export const OWN_DIRECTORY_SURFACES: readonly string[] = [
-  "feed",
-  "sources",
-  "sessions",
-  "inbox",
-  "schedule",
-  "artifacts",
-  ...PERSONAL_PLUGIN_IDS,
-];
-
-/**
  * Plugins that must come along, worked out from the Manifests.
  *
  * A Plugin with a **required** input port needs somebody in this project able
@@ -171,11 +144,46 @@ function entryFor(projectPluginId: ProjectPluginId): BuiltinPluginEntry | undefi
 
 /** Navigator entries for the enabled set, in the order the Manifests declare. */
 export function railEntries(enabled: readonly ProjectPluginId[]): RailEntry[] {
+  return placedEntries(enabled, "navigator");
+}
+
+/** Personal island entries above the project card. */
+export function islandEntries(enabled: readonly ProjectPluginId[]): RailEntry[] {
+  return placedEntries(enabled, "island");
+}
+
+function shippedDirectoryIds(): string[] {
+  const shipped = BUILTIN_PLUGIN_CATALOG
+    .filter((entry) => entry.personal === true || Boolean(entry.summary))
+    .map((entry) => entry.project_plugin_id);
+  const ids = [
+    ...railEntries(shipped).map((entry) => entry.id),
+    ...islandEntries(shipped).map((entry) => entry.id),
+  ];
+  const unique = [...new Set(ids)];
+  if (unique.includes("feed") && !unique.includes("sources")) unique.push("sources");
+  return unique;
+}
+
+/**
+ * Host chrome that opens a Plugin's own stage instead of a nested directory.
+ * Derived from catalog navigator/island views of shipped plugins (personal or market summary).
+ */
+export const DIRECT_WORK_SURFACE_IDS: ReadonlySet<string> = new Set([
+  "home",
+  "market",
+  ...shippedDirectoryIds().filter((id) => id !== "sources"),
+]);
+
+/** Directory panels owned by a Plugin stage, including Feed's sources alias. */
+export const OWN_DIRECTORY_SURFACES: readonly string[] = shippedDirectoryIds();
+
+function placedEntries(enabled: readonly ProjectPluginId[], slot: "navigator" | "island"): RailEntry[] {
   const registry = new UiViewRegistry(BUILTIN_PLUGIN_CATALOG.map((entry) => ({
     manifest: entry.manifest,
     enabled: enabled.includes(entry.project_plugin_id),
   })));
-  return registry.slot("navigator").map((view: UiPlacedView) => {
+  return registry.slot(slot).map((view: UiPlacedView) => {
     const entry = BUILTIN_PLUGIN_CATALOG.find((item) => item.manifest.plugin_id === view.plugin_id);
     return {
       id: entry?.project_plugin_id ?? view.plugin_id,
@@ -202,7 +210,7 @@ export function manifestFor(projectPluginId: ProjectPluginId): PluginManifest | 
 export function pluginMarketCards(): readonly PluginMarketCard[] {
   return BUILTIN_PLUGIN_CATALOG.flatMap((entry) => {
     if (!entry.summary) return [];
-    const nav = entry.manifest.ui?.views?.find((view) => view.slot === "navigator");
+    const nav = entry.manifest.ui?.views?.find((view) => view.slot === "navigator" || view.slot === "island");
     return [{
       id: entry.project_plugin_id,
       label: nav?.title ?? entry.manifest.name,
@@ -214,17 +222,21 @@ export function pluginMarketCards(): readonly PluginMarketCard[] {
 }
 
 export function pluginTabGlyphs(): Record<string, string> {
+  const enabled = [...PROJECT_SCOPED_PLUGIN_IDS, ...PERSONAL_PLUGIN_IDS];
   return Object.fromEntries([
     ["home", "home"],
     ["market", "grid"],
-    ...railEntries([...PROJECT_SCOPED_PLUGIN_IDS, ...PERSONAL_PLUGIN_IDS]).map((entry) => [entry.id, entry.glyph]),
+    ...railEntries(enabled).map((entry) => [entry.id, entry.glyph]),
+    ...islandEntries(enabled).map((entry) => [entry.id, entry.glyph]),
   ]);
 }
 
 export function pluginTabTitles(): Record<string, string> {
-  return Object.fromEntries(
-    railEntries([...PROJECT_SCOPED_PLUGIN_IDS, ...PERSONAL_PLUGIN_IDS]).map((entry) => [entry.id, entry.label]),
-  );
+  const enabled = [...PROJECT_SCOPED_PLUGIN_IDS, ...PERSONAL_PLUGIN_IDS];
+  return Object.fromEntries([
+    ...railEntries(enabled).map((entry) => [entry.id, entry.label]),
+    ...islandEntries(enabled).map((entry) => [entry.id, entry.label]),
+  ]);
 }
 
 /**

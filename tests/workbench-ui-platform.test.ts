@@ -95,6 +95,9 @@ test("UI Host mounts only declared Plugin surfaces into compatible Workbench slo
 
 test("Workbench registers Native Plugin surfaces against stable slots", () => {
   const descriptors = createWorkbenchUiHost().list();
+  for (const id of ["io.molis.work.native.goals.proposal", "io.molis.work.native.goals.decision-results"]) {
+    assert.ok(descriptors.some(item => item.contribution_id === id), `${id} must be registered`);
+  }
   const feed = descriptors.find((item) => item.contribution_id === "io.molis.work.native.feed.ui.v1");
   assert.ok(feed);
   assert.deepEqual(

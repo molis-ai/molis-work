@@ -44,7 +44,7 @@
     "build": "pnpm build:migrated-packages && pnpm clean && tsc -p tsconfig.json && tsc -p tsconfig.sdk.json && pnpm build:pty-client && node apps/local-host/tooling/write-build-manifest.mjs .",
     "build:migrated-packages": "pnpm workspace:build",
     "boundary:check": "pnpm --filter @molis-ai/molis-work-test-kit build && node scripts/check-package-boundaries.mjs",
-    "boundary:test": "pnpm --filter @molis-ai/molis-work-test-kit test",
+    "boundary:test": "pnpm --filter @molis-ai/molis-work-test-kit test && node --test tests/workbench-registration-boundaries.test.mjs",
     "build:all": "pnpm build && pnpm boundary:check && pnpm workspace:build",
     "build:pty-client": "esbuild apps/workbench/src/terminal-client.ts --bundle --format=iife --platform=browser --outfile=dist/web/pty-client.js --loader:.css=text",
     "typecheck": "pnpm build:migrated-packages && tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.sdk.json",

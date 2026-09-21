@@ -97,7 +97,8 @@ export async function handleMolisWorkWebRequest(
         projectId: options.project?.project_id,
       });
       await localHost.withProject(hostReference, async ({ store, coordinator }) => {
-        const codingServices: Pick<CodingSurfacePorts, "capabilities" | "execution"> = {
+        const codingServices: Pick<CodingSurfacePorts, "capabilities" | "execution" | "homeDirectory"> = {
+          homeDirectory: serverOptions.homeDirectory,
           capabilities: localHost.client(hostReference),
           execution: {
             ready: agentReady,
@@ -115,6 +116,7 @@ export async function handleMolisWorkWebRequest(
             (catalog) => catalog.listProjectPlugins(options.project!.project_id).includes(plugin)));
           if (!enabled) { sendJson(response, 404, { error: plugin === "shelf" ? "这个项目未启用 Shelf" : "这个项目未启用 Coding" }); return; }
           if (await handleCodingPluginHttp(request, response, url, { ...codingServices, store, boardId: options.boardId,
+            routePrefix: options.project ? `/projects/${encodeURIComponent(options.project.project_id)}` : "",
             actorId: "web-user", goalTitle: (id) => coordinator.goalQueries.getGoal(options.boardId, id)?.title,
             escapeHtml: (value) => String(value), translate: (value) => value })) return;
         }

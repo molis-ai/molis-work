@@ -18,7 +18,7 @@ test("Coding freezes original multi-edit reviews, binds feedback to exact lines 
   const rows = [false, true].map((applied, n) => ({ request: { review_id: `review-${n}`, board_id: DEMO_BOARD_ID, plugin_id: "io.molis.work.coding", run: ref, kind: "text-edit",
     document: { kind: "text-edit", target_path: "cart.mjs", exists: true, before_text: n ? "new\r\n" : "old\r\n", after_text: n ? "latest <script>\n" : "new\r\n" } },
     receipt: { review_id: `review-${n}`, status: "approved", effect_settled: applied, effect_error: null } }));
-  const host = () => ({ store, boardId: DEMO_BOARD_ID, actorId: "web-user", goalTitle: () => undefined, escapeHtml: String, translate: (s: string) => s,
+  const host = () => ({ store, homeDirectory: root, boardId: DEMO_BOARD_ID, actorId: "web-user", goalTitle: () => undefined, escapeHtml: String, translate: (s: string) => s,
     execution: { ready: async () => {}, models: async () => [] }, capabilities: { async invoke<I, O>(definition: { capability_id: string }, args: I): Promise<O> {
       reads++; if (!readable) throw new Error("runtime unavailable");
       if (definition.capability_id === agent.readSession.capability_id) return { runs: (args as any[])[0].session_id === "sdk" ? [ref] : [] } as O;
@@ -52,6 +52,13 @@ test("Coding freezes original multi-edit reviews, binds feedback to exact lines 
     const entry = catalog.body.artifacts[0];
     assert.equal(entry.kind, "changeset"); assert.equal(entry.file_count, 2);
     assert.deepEqual(entry.reference, saved.body.reference); assert.equal(entry.change, undefined);
+    const shelfResults = await request('/api/plugins/io.molis.work.shelf/project-results');
+    assert.equal(shelfResults.status, 200);
+    assert.deepEqual(shelfResults.body.results[0].reference, saved.body.reference);
+    assert.equal(shelfResults.body.results[0].connected, true, "selected Coding output reaches Shelf through its declared input");
+    const shelfPreview = await request('/api/plugins/io.molis.work.shelf/project-result?artifact_id='+encodeURIComponent(saved.body.reference.artifact_id)+'&version=1');
+    assert.equal(shelfPreview.status, 200); assert.match(shelfPreview.body.text, /修改 1/); assert.match(shelfPreview.body.text, /修改 2/);
+    assert.match(shelfPreview.body.text, /保存时执行状态：执行结果未知/); assert.match(shelfPreview.body.text, /保存时执行状态：已执行/);
     readable = false; const priorReads = reads;
     assert.deepEqual((await request(prefix, 'POST')).body.reference, saved.body.reference);
     const before = await request();

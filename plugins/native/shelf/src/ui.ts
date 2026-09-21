@@ -71,6 +71,7 @@ export function renderShelfWorkbench(model: ShelfUiModel): string {
         <span class="shelf-side-op" role="button" tabindex="0" data-shelf-pick aria-label="${p.text("添加材料")}" title="${p.text("添加材料")}">${SHELF_GLYPH.plus}</span>
         <span class="shelf-side-op" role="button" tabindex="0" data-shelf-side-more aria-label="${p.text("更多")}" title="${p.text("更多")}" aria-haspopup="menu">${SHELF_GLYPH.more}</span>
         <div class="shelf-side-menu" data-shelf-side-menu role="menu" hidden>
+          <span class="shelf-more-item" role="menuitem" tabindex="0" data-shelf-receive-open>${p.text("接收项目成果")}</span>
           <span class="shelf-more-item" role="menuitem" tabindex="0" data-shelf-paste-clip>${p.text("粘贴当前剪贴板")}</span>
           <span class="shelf-more-item" role="menuitem" tabindex="0" data-shelf-multi aria-pressed="false">${p.text("多选材料")}</span>
         </div>
@@ -85,6 +86,13 @@ export function renderShelfWorkbench(model: ShelfUiModel): string {
       <footer class="shelf-side-foot"><span data-shelf-foot-left>${p.text("副本工作区")}</span><span>${p.text("⌘V 粘贴当前")}</span></footer>
       ${renderDropOverlay(p)}
     </div>
+    <dialog class="mw-dialog mw-dialog--form" data-shelf-result-dialog aria-label="${p.text("接收项目成果")}">
+      <form class="mw-form mw-dialog__shell" data-shelf-result-form>
+        <header class="mw-form__header"><h2>${p.text("接收项目成果")}</h2>${renderButton({ label: p.text("关闭"), variant: "ghost", attrs: { "data-shelf-result-close": "" } })}</header>
+        <div class="mw-form__body"><label class="mw-form__field">${p.text("选择固定成果")}<select class="mw-select" data-shelf-result-choice aria-label="${p.text("选择固定成果")}"></select></label><pre class="shelf-material-body" data-shelf-result-body></pre><p role="status" data-shelf-result-status></p></div>
+        <footer class="mw-form__footer">${renderButton({ label: p.text("刷新成果"), variant: "secondary", attrs: { "data-shelf-result-refresh": "" } })}${renderButton({ label: p.text("接收并打开副本"), type: "submit", attrs: { "data-shelf-result-receive": "", disabled: true } })}</footer>
+      </form>
+    </dialog>
     <dialog class="mw-dialog mw-dialog--form" data-shelf-material-dialog aria-label="${p.text("保存项目材料")}">
       <form class="mw-form mw-dialog__shell" data-shelf-material-form>
         <header class="mw-form__header"><h2>${p.text("保存到项目材料")}</h2>${renderButton({ label: p.text("关闭"), variant: "ghost", attrs: { "data-shelf-material-close": "" } })}</header>
@@ -98,6 +106,7 @@ export function renderShelfWorkbench(model: ShelfUiModel): string {
         <span class="shelf-chrome-title" data-shelf-chrome-title></span>
         <span class="shelf-chrome-tag" data-shelf-chrome-tag></span>
         ${renderButton({ label: p.text("保存到项目材料"), variant: "ghost", attrs: { "data-shelf-project-material": "", hidden: true } })}
+        <a class="mw-btn mw-btn--ghost" data-shelf-original-artifact hidden>${p.text("查看原固定成果")}</a>
         <span class="shelf-paper" role="button" tabindex="0" data-shelf-edit hidden>${p.text("编辑副本")}</span>
       </header>
       <div class="shelf-stage" data-shelf-stage>

@@ -1,3 +1,6 @@
+import { shelfRuntimeProbe } from "./shelf-native-plugin-http.js";
+import { codingShelfMaterial } from "./coding-shelf-material.js";
+import { openShelfStore } from "@molis-ai/molis-work-module-shelf";
 import { createShelfPlugin } from "@molis-ai/molis-work-plugin-shelf";
 import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
 import { SHELF_TEXT_MATERIAL_TYPE } from "@molis-ai/molis-work-contracts/modules/shelf";
@@ -95,6 +98,7 @@ export interface CodingSurfacePorts {
   capabilities?: PluginCapabilityPort;
   execution?: Omit<CodingExecutionPorts, "sessions" | "goalTitle">;
   routePrefix?: string;
+  homeDirectory?: string;
 }
 
 interface Started {
@@ -157,7 +161,16 @@ async function startPlatform(ports: CodingSurfacePorts): Promise<Started> {
      * Each still starts in isolation: one failing leaves its siblings running.
      */
     const report = await platform.start([
-      { definition: createShelfPlugin(), replace_version: true },
+      { definition: createShelfPlugin(ports.homeDirectory ? {
+        references: () => artifacts.query.listArtifacts(ports.boardId).filter(item => item.producer_plugin_id === CODING_PLUGIN_ID
+          && [CODING_REPORT_TYPE, "coding.changeset.v1"].includes(item.artifact_type_id)).map(({ artifact_id, version }) => ({ artifact_id, version })),
+        preview: record => codingShelfMaterial(record, ports.boardId, ports.routePrefix ?? ""),
+        receive: preview => {
+          const shelf = openShelfStore(ports.homeDirectory!, shelfRuntimeProbe());
+          const item = shelf.admit({ filename: preview.title + ".md", mime: "text/markdown", bytes: Buffer.from(preview.text, "utf8"), artifact_source: preview.source });
+          return { item, snapshot: shelf.snapshot() };
+        },
+      } : undefined), replace_version: true },
       { definition: createCodingPlugin(ports.execution ? { execution: {
         ...ports.execution, sessions: new CodingSessionStore(ports.store.db), goalTitle: ports.goalTitle,
         materialReferences: () => artifacts.query.listArtifacts(ports.boardId, { artifact_type_id: SHELF_TEXT_MATERIAL_TYPE, schema_version: 1 })

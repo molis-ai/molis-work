@@ -27,6 +27,8 @@ Host 把架子快照交给 UI contribution；HTTP 路由表拥有 `/api/shelf` �
 
 不依赖 Goals / Artifacts 实现。项目 Artifact 写入由 Host 注入公开端口，全局 Shelf 未绑定项目时不能发布；个人副本与 UI 仍按 native 方式装配；项目材料输出由 `createShelfPlugin` 在正式 Runtime 中启动，使用原 grants 与持久连线服务。Coding 声明消费该材料类型，经原授权读取精确版本。保存固定版本后可明确「设为材料输出」，默认连到 Coding 的 materials 输入。保存不自动切换输出，输出切换不改已有会话选择；旧确认不能覆盖后来选择，跨项目、归档或非自身材料不能设为输出。样式不吃 Coss `interaction-texture`，新确认入口使用共享控件。
 
+项目内通过「更多 → 接收项目成果」接收 Coding 固定报告或固定变更。`coding-report` / `coding-changeset` 可选输入只提供候选，用户查看完整正文并明确接收后才创建个人副本；项目其他已保存成果也可选择。Host 校验生产者与固定身份，提交时重读原对象并核对预览指纹，浏览器不能提交替代正文。副本保存原项目、精确版本与内容指纹，提供「查看原固定成果」；再次接收同一版本复用已有副本并保留编辑。归档或不可用来源拒绝新接收，已有副本独立保留。之后保存项目材料仍携带原来源，不自动执行或验收 Goal。
+
 工作区依赖：`@molis-ai/molis-work-contracts`。
 
 ## 本地开发
@@ -34,7 +36,7 @@ Host 把架子快照交给 UI contribution；HTTP 路由表拥有 `/api/shelf` �
 ```bash
 pnpm --filter @molis-ai/molis-work-plugin-shelf typecheck
 pnpm --filter @molis-ai/molis-work-plugin-shelf build
-pnpm test:run tests/shelf-plugin.test.ts tests/shelf-coding-materials-http.test.ts tests/shelf-plugin.e2e.test.ts
+pnpm test:run tests/shelf-plugin.test.ts tests/shelf-coding-materials-http.test.ts tests/shelf-project-results-http.test.ts tests/shelf-plugin.e2e.test.ts
 ```
 
 ## 进一步阅读

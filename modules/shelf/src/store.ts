@@ -187,6 +187,21 @@ export class ShelfStore {
   }
 
   admit(input: ShelfAdmitInput): ShelfItemRecord {
+    // A retry returns the existing copy, preserving any user edits. Hidden copies
+    // can be explicitly received again; deleted copies are new admissions.
+    if (input.artifact_source) {
+      const source = input.artifact_source;
+      const original = this.readCatalog().items.find(item => item.artifact_source?.board_id === source.board_id
+        && item.artifact_source.project_path === source.project_path
+        && item.artifact_source.reference.artifact_id === source.reference.artifact_id
+        && item.artifact_source.reference.version === source.reference.version);
+      if (original) {
+        if (original.artifact_source!.content_hash !== source.content_hash) throw new ShelfError("shelf.source_conflict", "同一成果版本的内容不一致，未覆盖已有副本");
+        if (!existsSync(this.absolute(original))) throw new ShelfError("shelf.missing_output", "原接收副本已不可读，请先在 Shelf 核对处理");
+        if (original.hidden) this.update(catalog => { this.requireItem(catalog, original.item_id).hidden = false; });
+        return publicItem({ ...original, hidden: false });
+      }
+    }
     const filename = safeFilename(input.filename);
     const bytes = Buffer.from(input.bytes);
     if (!bytes.byteLength) throw new ShelfError("shelf.empty_file", "没有可加入的文件内容");
@@ -202,6 +217,7 @@ export class ShelfStore {
     const preview = previewFor(kind, bytes);
     const item: StoredItem = {
       item_id: itemId,
+      ...(input.artifact_source ? { artifact_source: structuredClone(input.artifact_source) } : {}),
       group: "material",
       kind,
       name: filename,

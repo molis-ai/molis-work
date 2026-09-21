@@ -6,6 +6,8 @@ export function bindWorkspaceCompanions(platform: PluginPlatform, boardId: strin
   for (const [target, targetPort, source, sourcePort] of [
     ["files", "workspace", "workspace", "workspace"],
     ["coding", "materials", "shelf", "material"],
+    ["shelf", "coding-report", "coding", "report"],
+    ["shelf", "coding-changeset", "coding", "changeset"],
     ["coding", "before", "files", "before"],
     ["coding", "after", "files", "after"],
     ["coding", "selection", "files", "selection"],

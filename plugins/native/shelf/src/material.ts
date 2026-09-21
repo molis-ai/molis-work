@@ -14,7 +14,7 @@ export function shelfTextMaterial(file: { item: ShelfItemRecord; bytes: Buffer }
   if (text.includes("\0")) throw new Error("这份材料包含二进制内容，请先提取为文字");
   const payload: ShelfTextMaterial = { title: item.name, text,
     content_hash: createHash("sha256").update(bytes).digest("hex"),
-    source: { item_id: item.item_id, kind: item.kind, group: item.group, source_item_ids: [...item.source_item_ids], job_id: item.job_id } };
+    source: { item_id: item.item_id, kind: item.kind, group: item.group, source_item_ids: [...item.source_item_ids], job_id: item.job_id, ...(item.artifact_source ? { artifact: structuredClone(item.artifact_source) } : {}) } };
   // Use the same bound as Coding; do not silently truncate the confirmed body.
   agentTextMaterialContent({ material_id: item.item_id, title: item.name, text, source_artifact_id: item.item_id, source_version: 1 });
   const fingerprint = createHash("sha256").update(JSON.stringify(payload)).digest("hex");

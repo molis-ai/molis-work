@@ -101,7 +101,7 @@ export function createLocalGoalsReadHttp(ports: {
   async function page(request: IncomingMessage, response: ServerResponse, url: URL, options: WebViewOptions,
     homeDirectory: string | undefined, readWebView: () => MolisWorkWebView, sessionResources: Promise<SessionRuntimeResources>, controlToken: string,
     coordinator?: GoalProjectApplication, store?: LocalProjectDatabase,
-    codingServices?: Pick<CodingSurfacePorts, "capabilities" | "execution">,
+    codingServices?: Pick<CodingSurfacePorts, "capabilities" | "execution" | "homeDirectory">,
   ): Promise<boolean> {
     const renderedGoalsPage = await renderWorkbenchGoalsPageRequest(
       request.method, url.pathname, readWebView,

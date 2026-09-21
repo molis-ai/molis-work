@@ -1,3 +1,4 @@
+import { SHELF_RESULT_CLIENT_FACTORY_SCRIPT } from "./result-client.js";
 /** Shelf workbench client: select, extract, ingest, DropAgent command bar. */
 export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
   const { translate: L } = host;
@@ -290,6 +291,8 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (useBtn) useBtn.hidden = !(selected?.group === "result" && hasFile(selected)) || Boolean(selectedClip);
     const materialBtn = workbench.querySelector("[data-shelf-project-material]");
     if (materialBtn) materialBtn.hidden = !projectPrefix || !selected || Boolean(selectedClip) || !hasFile(selected) || !isEditable(selected) || busy;
+    const original=workbench.querySelector('[data-shelf-original-artifact]'),source=selected?.artifact_source;
+    if(original){original.hidden=!source || Boolean(selectedClip);if(source)original.href=source.project_path+'/artifacts/'+encodeURIComponent(source.reference.artifact_id)+'/versions/'+source.reference.version;}
     if (editBtn) {
       const allow = Boolean(selected && !selectedClip && hasFile(selected) && isEditable(selected) && !busy);
       editBtn.hidden = !allow;
@@ -1180,6 +1183,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     const payload = await post("/api/shelf/items/" + encodeURIComponent(selected.item_id) + "/use-material");
     applySnapshot(payload.snapshot, payload.item.item_id);
   });
+  (${SHELF_RESULT_CLIENT_FACTORY_SCRIPT})({workbench,projectPrefix,post,L,applySnapshot,flushEdit});
   const materialDialog = workbench.querySelector("[data-shelf-material-dialog]");
   const materialStatus = workbench.querySelector("[data-shelf-material-status]");
   const materialSave = workbench.querySelector("[data-shelf-material-save]");

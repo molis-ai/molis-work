@@ -1,5 +1,16 @@
 /** Shelf application copy; Workbench supplies the request locale. */
 export const SHELF_EN: Record<string, string> = {
+  "接收项目成果": "Receive project results",
+  "选择固定成果": "Choose a saved result",
+  "接收并打开副本": "Receive and open copy",
+  "刷新成果": "Refresh results",
+  "查看原固定成果": "View original saved result",
+  "正在读取项目成果…": "Reading project results…",
+  "正在接收成果…": "Receiving result…",
+  "当前输出": "Current output",
+  "成果读取失败": "Could not read result",
+  "没有可接收的固定报告或固定变更。请先在 Coding 保存成果。": "No saved reports or changes to receive. Save a result in Coding first.",
+  "接收后成为个人 Shelf 副本；重复接收同一版本会打开已有副本，保留你的编辑。": "Receive a personal Shelf copy. Receiving the same version again opens the existing copy and preserves your edits.",
   "设为材料输出": "Use as material output",
   "材料输出读取失败": "Could not read material output",
   "已设为材料输出": "Material output selected",

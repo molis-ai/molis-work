@@ -128,3 +128,25 @@ test("feed stage search keeps a single frame", () => {
   assert.match(workbench, /\.feed-stage-search input:is\(:focus, :focus-visible\) \{[\s\S]*background: transparent;/);
   assert.doesNotMatch(workbench, /\.feed-stage-search input \{[^}]*border: 1px solid/);
 });
+
+test("Functions and Form editors scroll inside the pinned plugin-stage workspace", () => {
+  const workbench = renderMolisWorkWorkbenchStylesheet();
+  const functionsEditor = workbench.match(/\.functions-editor \{[^}]+\}/)?.[0] ?? "";
+  const functionsCol = workbench.match(/\.functions-col \{[^}]+\}/)?.[0] ?? "";
+  const formWorkspace = workbench.match(/\.form-workspace \{[^}]+\}/)?.[0] ?? "";
+  assert.match(functionsEditor, /flex: 1;/);
+  assert.match(functionsEditor, /overflow: hidden;/);
+  assert.doesNotMatch(functionsEditor, /overflow: visible;/);
+  assert.doesNotMatch(functionsEditor, /flex: none;/);
+  assert.match(functionsCol, /overflow: auto;/);
+  assert.match(functionsCol, /overscroll-behavior: contain;/);
+  assert.match(formWorkspace, /flex: 1;/);
+  assert.match(formWorkspace, /overflow: auto;/);
+  assert.match(formWorkspace, /overscroll-behavior: contain;/);
+  assert.doesNotMatch(formWorkspace, /overflow: visible;/);
+  assert.doesNotMatch(formWorkspace, /flex: none;/);
+  assert.match(workbench, /plugin-stage-workspace > \.functions-editor \{\s*flex: 1; min-height: 0;/);
+  assert.match(workbench, /plugin-stage-workspace > \.form-workspace \{ flex: 1; min-height: 0; \}/);
+  assert.doesNotMatch(workbench, /plugin-stage-workspace > \.functions-editor \{ flex: none;/);
+  assert.doesNotMatch(workbench, /plugin-stage-workspace > \.form-workspace \{ flex: none;/);
+});

@@ -35,6 +35,9 @@ importers:
       '@molis-ai/molis-work-design-system':
         specifier: workspace:*
         version: link:packages/design-system
+      '@molis-ai/molis-work-integration-catalog':
+        specifier: workspace:*
+        version: link:plugins/official-integrations/catalog
       '@molis-ai/molis-work-integration-github':
         specifier: workspace:*
         version: link:plugins/official-integrations/github
@@ -264,6 +267,9 @@ importers:
       '@molis-ai/molis-work-design-system':
         specifier: workspace:*
         version: link:../../packages/design-system
+      '@molis-ai/molis-work-integration-catalog':
+        specifier: workspace:*
+        version: link:../../plugins/official-integrations/catalog
       '@molis-ai/molis-work-integration-github':
         specifier: workspace:*
         version: link:../../plugins/official-integrations/github
@@ -577,6 +583,9 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@molis-ai/molis-work-storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
 
   modules/goals:
     dependencies:
@@ -706,6 +715,9 @@ importers:
       '@molis-ai/molis-work-design-system':
         specifier: workspace:*
         version: link:../../../packages/design-system
+      '@molis-ai/molis-work-storage':
+        specifier: workspace:*
+        version: link:../../../packages/storage
 
   plugins/native/diff:
     dependencies:
@@ -752,6 +764,9 @@ importers:
       '@molis-ai/molis-work-design-system':
         specifier: workspace:*
         version: link:../../../packages/design-system
+      '@molis-ai/molis-work-storage':
+        specifier: workspace:*
+        version: link:../../../packages/storage
 
   plugins/native/functions:
     dependencies:
@@ -800,6 +815,9 @@ importers:
       '@molis-ai/molis-work-design-system':
         specifier: workspace:*
         version: link:../../../packages/design-system
+      '@molis-ai/molis-work-storage':
+        specifier: workspace:*
+        version: link:../../../packages/storage
 
   plugins/native/pages:
     dependencies:
@@ -809,6 +827,9 @@ importers:
       '@molis-ai/molis-work-design-system':
         specifier: workspace:*
         version: link:../../../packages/design-system
+      '@molis-ai/molis-work-storage':
+        specifier: workspace:*
+        version: link:../../../packages/storage
       prosemirror-commands:
         specifier: ^1.7.1
         version: 1.7.2
@@ -842,6 +863,9 @@ importers:
       '@molis-ai/molis-work-design-system':
         specifier: workspace:*
         version: link:../../../packages/design-system
+      '@molis-ai/molis-work-storage':
+        specifier: workspace:*
+        version: link:../../../packages/storage
 
   plugins/native/schedule:
     dependencies:
@@ -893,6 +917,15 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
+
+  plugins/official-integrations/catalog:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../../packages/contracts
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../../../packages/plugin-sdk
 
   plugins/official-integrations/github:
     dependencies:

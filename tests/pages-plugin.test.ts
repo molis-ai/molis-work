@@ -500,7 +500,7 @@ test("AI 无模型标明未接模型，Promote 经端口发出 Artifact，也能
       body: projectBody({ goal_id: "GOAL-ONLY" }),
     });
     assert.equal(missing?.status, 409);
-    assert.equal(store.get(page.id, PROJECT).goal_id, "GOAL-ONLY");
+    assert.notEqual(store.get(page.id, PROJECT).goal_id, "GOAL-ONLY");
     store.close();
   });
 });

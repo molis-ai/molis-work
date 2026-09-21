@@ -17,7 +17,9 @@ export const scheduleManifest: PluginManifest = {
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-schedule-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
-  permissions: [],
+  permissions: [
+    { permission: "storage:private", required: true, reason: "项目里的定时任务" },
+  ],
   capabilities: {
     provides: [],
     consumes: Object.values(agentHostCapabilities).map((entry) => entry.capability_id),

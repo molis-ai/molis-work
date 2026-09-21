@@ -1,3 +1,4 @@
+import { isAccountConnectorSyncKind } from "@molis-ai/molis-work-contracts/modules/sources";
 import { FeedDomainError } from "@molis-ai/molis-work-contracts/modules/feed";
 import type { ConfigureFeedSourceScheduleInput, UpdateFeedSourceInput } from "./source-ports.js";
 import type { SourceHistoryDecision } from "./projection.js";
@@ -66,7 +67,7 @@ export function createFeedSourceRouteHandlers(options: FeedRouteHandlerPorts): R
         return { status: 200, body: { source } };
       }
       if (action === "disconnect") {
-        if (current.sync_kind !== "github" && current.sync_kind !== "gmail") {
+        if (!isAccountConnectorSyncKind(current.sync_kind)) {
           throw new FeedDomainError("公开来源不需要断开账号；可以暂停或删除", "feed_source_invalid_state");
         }
         const source = sources().disconnect(sourceId);
@@ -78,7 +79,7 @@ export function createFeedSourceRouteHandlers(options: FeedRouteHandlerPorts): R
         : "";
       const result = current.sync_kind === "public_source"
         ? await sources().sync(sourceId, { idempotencyKey, signal: AbortSignal.timeout(45_000) })
-        : current.sync_kind === "github" || current.sync_kind === "gmail"
+        : isAccountConnectorSyncKind(current.sync_kind)
           ? await connectors().sync(sourceId, {
               idempotencyKey,
               mode: request.body.mode === "rebuild_cursor" ? "rebuild_cursor" : "normal",

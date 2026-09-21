@@ -4,6 +4,8 @@ import { stubPagesAi } from "./ai.js";
 import { parsePagesBody } from "./document.js";
 import { PagesError } from "./error.js";
 import { extractFromPagesBody, unpublishedKnowledgePages } from "./extract.js";
+import type { PagesRoutePorts } from "./route-handlers.js";
+import { promotePagesDocument, requirePromoteArtifactPort } from "./promote.js";
 import type { PagesStore } from "./store.js";
 import { pagesTemplateSummaries } from "./templates.js";
 
@@ -70,7 +72,7 @@ export const PAGES_MCP_EXPORTS: readonly PluginMcpExportDeclaration[] = [
   },
   {
     tool_id: "promote",
-    description: "把一篇文档挂到 Goal。工作台 Promote 才会发出 Artifact；这条 MCP 只写 goal_id。",
+    description: "把一篇文档挂到 Goal，并按工作台 Promote 发出 Artifact。",
     input_schema: {
       type: "object",
       properties: {
@@ -112,6 +114,7 @@ export function runPagesMcpTool(
   store: PagesStore,
   request: PluginMcpHandleRequest,
   projectId: string,
+  ports: PagesRoutePorts = {},
 ): string {
   if (request.tool_id === "list") {
     return dump({
@@ -151,11 +154,14 @@ export function runPagesMcpTool(
     return dump({ ok: true });
   }
   if (request.tool_id === "promote") {
-    return dump({
-      document: store.update(idOf(request), { goal_id: optionalString(request.arguments.goal_id) ?? "" }, projectId),
-      artifact: null,
-      note: "MCP 只挂 Goal。发出 Artifact 请在工作台 Promote。",
-    });
+    const promoted = promotePagesDocument(
+      store,
+      idOf(request),
+      projectId,
+      requirePromoteArtifactPort(ports.publishArtifact),
+      optionalString(request.arguments.goal_id),
+    );
+    return dump({ document: promoted.document, artifact: promoted.artifact });
   }
   if (request.tool_id === "extract") {
     const current = store.get(idOf(request), projectId);

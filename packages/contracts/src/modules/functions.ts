@@ -5,7 +5,7 @@ export const modulesFunctionsContract = {
   kind: "module",
   schemaVersion: 1,
   maturity: "partial",
-  ssot: "specs/functions-system-capability/spec.md",
+  ssot: "specs/functions-independent-authoring/spec.md",
 } as const satisfies ContractDescriptor;
 
 export const FUNCTIONS_EVALUATE_CAPABILITY_ID = "functions.evaluate";
@@ -24,6 +24,9 @@ export const SYSTEM_HOME_DOCK_FUNCTION_KEY = "system_pick_home_dock";
 export const SYSTEM_INBOX_ADMIT_FUNCTION_KEY = "system_admit_inbox";
 export const SYSTEM_INBOX_NEXT_FUNCTION_KEY = "system_pick_inbox_next";
 export const AGENT_MCP_DESTINATION_ID = "agent.mcp";
+export const NOUL_TRUE_MAP_KEY = "true";
+export const NOUL_FALSE_MAP_KEY = "false";
+export const NOUL_POSITIVE_THRESHOLD = 0.5;
 
 export const FUNCTIONS_PLUGIN_ID = "io.molis.work.functions";
 export const FUNCTIONS_PROJECT_PLUGIN_ID = "functions";
@@ -49,6 +52,8 @@ export interface NoulCriteria {
 export type ScoreCriteria = readonly string[];
 
 export type FunctionCriteria = readonly ChoiceCriterion[] | NoulCriteria | ScoreCriteria;
+
+export type FunctionSceneMap = Readonly<Record<string, string>>;
 
 export interface FunctionSample {
   readonly id: string;
@@ -81,6 +86,7 @@ interface FunctionRecordBase {
   readonly instructions: string;
   readonly scene_id: string | null;
   readonly subject_kinds: readonly string[];
+  readonly scene_map: FunctionSceneMap;
   readonly config_hash: string;
   readonly last_preview: FunctionsPreviewRecord | null;
   readonly samples: readonly FunctionSample[];
@@ -101,6 +107,7 @@ export interface FunctionDraftPatch {
   readonly criteria?: FunctionCriteria;
   readonly scene_id?: string | null;
   readonly subject_kinds?: readonly string[];
+  readonly scene_map?: FunctionSceneMap;
 }
 
 export type FunctionAuthoringDestinationKind = "event" | "mcp";
@@ -486,18 +493,55 @@ function mergeAuthoringSubjects(
   return [...byKind.values()];
 }
 
-function choiceKeys(
-  record: { readonly primitive: FunctionsPrimitive; readonly criteria: FunctionCriteria },
-): string[] | null {
-  if (record.primitive !== "choice" || !Array.isArray(record.criteria) || record.criteria.length === 0) return null;
+export function functionOutputKeys(record: {
+  readonly primitive: FunctionsPrimitive;
+  readonly criteria: FunctionCriteria;
+}): string[] {
+  if (record.primitive === "noul") return [NOUL_TRUE_MAP_KEY, NOUL_FALSE_MAP_KEY];
+  if (record.primitive !== "choice" || !Array.isArray(record.criteria)) return [];
   const keys: string[] = [];
   for (const row of record.criteria) {
-    if (!row || typeof row !== "object" || !("key" in row) || typeof (row as ChoiceCriterion).key !== "string") {
-      return null;
-    }
+    if (!row || typeof row !== "object" || !("key" in row) || typeof (row as ChoiceCriterion).key !== "string") continue;
     keys.push((row as ChoiceCriterion).key);
   }
   return keys;
+}
+
+export function resolvedSceneBehaviors(
+  record: {
+    readonly primitive: FunctionsPrimitive;
+    readonly criteria: FunctionCriteria;
+    readonly scene_map?: FunctionSceneMap | null;
+  },
+  pool: readonly string[],
+): string[] | null {
+  const keys = functionOutputKeys(record);
+  if (keys.length === 0) return null;
+  const map = record.scene_map ?? {};
+  const resolved: string[] = [];
+  for (const key of keys) {
+    const target = map[key] || (pool.includes(key) ? key : "");
+    if (!target || !pool.includes(target)) return null;
+    resolved.push(target);
+  }
+  return resolved;
+}
+
+export function mapJudgmentChoice(
+  record: {
+    readonly primitive: FunctionsPrimitive;
+    readonly criteria: FunctionCriteria;
+    readonly scene_map?: FunctionSceneMap | null;
+  },
+  result: { readonly choice?: string | null; readonly noul?: number | null },
+): string | null {
+  const map = record.scene_map ?? {};
+  if (record.primitive === "noul") {
+    const key = (result.noul ?? 0) >= NOUL_POSITIVE_THRESHOLD ? NOUL_TRUE_MAP_KEY : NOUL_FALSE_MAP_KEY;
+    return map[key] ?? null;
+  }
+  if (record.primitive !== "choice" || !result.choice) return null;
+  return map[result.choice] ?? result.choice;
 }
 
 export function functionFitsScene(
@@ -505,6 +549,7 @@ export function functionFitsScene(
     readonly primitive: FunctionsPrimitive;
     readonly criteria: FunctionCriteria;
     readonly scene_id?: string | null;
+    readonly scene_map?: FunctionSceneMap | null;
   },
   sceneId: string,
   pool: readonly string[] = sceneBehaviorIds(sceneId),
@@ -512,12 +557,14 @@ export function functionFitsScene(
   if (record.scene_id === AGENT_MCP_DESTINATION_ID) return sceneId === AGENT_MCP_DESTINATION_ID;
   if (record.scene_id && record.scene_id !== sceneId) return false;
   if (pool.length === 0) return true;
-  const keys = choiceKeys(record);
-  if (!keys) return false;
-  if (!keys.every((key) => pool.includes(key))) return false;
+  const resolved = resolvedSceneBehaviors(record, pool);
+  if (!resolved) return false;
   if (sceneId === HOME_DOCK_SCENE_ID) {
     const inboxPool = sceneBehaviorIds(INBOX_NEXT_SCENE_ID);
-    if (keys.every((key) => inboxPool.includes(key)) && !keys.some((key) => HOME_DOCK_PRIMARY_BEHAVIOR_IDS.includes(key))) {
+    if (
+      resolved.every((id) => inboxPool.includes(id))
+      && !resolved.some((id) => HOME_DOCK_PRIMARY_BEHAVIOR_IDS.includes(id))
+    ) {
       return false;
     }
   }

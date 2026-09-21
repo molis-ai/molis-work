@@ -20,7 +20,7 @@
 4. GitHub / Gmail 账号迁到 Connectors；Feed 继续用同一份凭据拉通知。
 5. GitHub 至少一个已兑现出站动作打进总表；Functions Agent 去向能勾。未连接看不见。
 6. 判断不自动执行。已发布 Choice 还勾着未兑现动作时，按非法建议退回默认按钮。
-7. 常见账号目录对齐 Codex / Claude / Grok 能连的那些：GitHub、Gmail 可连；其余占位，每张卡带自家应用图标。飞书、微信、X、LinkedIn 保留诚实不可用原因。不建空包。
+7. 常见账号目录对齐 Codex / Claude / Grok 能连的那些：GitHub、Gmail 可连；其余占位，每张卡带自家 App 图标。飞书、微信、X、LinkedIn 保留诚实不可用原因。不建空包。
 
 不做：
 
@@ -48,7 +48,7 @@
 - 动作 id 并进 `apps/local-host/src/behavior-catalog.ts`。已连接才把 Integration `behaviors` 并进总表。
 - GitHub 第一刀出站动作：`github.whoami`（官方 `GET /user`，read）。不扩写权限、不自动建 Issue。
 - 判断 `ok` 只通过现有 `filterSuggestedBehaviorIds`；执行只走拥有该行为的 Integration / Host handler（点了或 Agent 另调）。
-- 目录按 Codex / Claude / Grok 常见账号连接铺开；每张卡用该服务应用图标（Simple Icons CC0，飞书 Semi Design MIT，monday.com gilbarbara/logos CC0）。能连的只有 GitHub 和 Gmail。
+- 目录按 Codex / Claude / Grok 常见账号连接铺开；每张卡用该服务真实 App 图标（见 `specs/connectors-catalog-complete/spec.md`）。能连的只有 GitHub 和 Gmail。
 - 分包：协议与动作在 `plugins/official-integrations/github`（Gmail 同理）；连接技术 `horizontal/connector-host`；装配 / 授权 HTTP / 已连接才兑现 `apps/local-host`；设置页 `apps/workbench`；类型 `packages/contracts`；判断库只消费总表。
 
 ## 输入输出与依赖
@@ -80,9 +80,7 @@
 4. 判断 `ok` 不调用 GitHub API；点「查看当前账号」或 `POST .../whoami` 才打 `GET /user`。
 5. 断开后动作未兑现；已发布 Choice 仍勾着它时建议被过滤，退回默认按钮。
 6. Feed 拉 GitHub 通知仍用 `connector:github:token`。Feed 添加来源不再出现 PAT 输入。
-7. Gmail 账号在 Connectors 管理；目录写明出站未兑现。
-8. 占位服务有不可用原因；没有空包；不宣称全绿。
-9. `/settings/connectors` 每张卡和详情标题带对应应用图标；目录覆盖 Codex / Claude / Grok 常见账号连接，不只 GitHub / Gmail / 原 7 个占位。
+7. 占位服务已改为同一套 live 目录；见 `specs/connectors-live-catalog/spec.md`。
 
 ## 验证命令
 

@@ -3,7 +3,14 @@ import { FormError } from "./error.js";
 import type { FormPluginRouteHandler, FormPluginRouteRequest, FormPluginRouteResponse } from "./routes.js";
 import type { FormStore } from "./store.js";
 
-export function createFormRouteHandlers(store: FormStore): Record<string, FormPluginRouteHandler> {
+export interface FormRoutePorts {
+  completeText?: (prompt: string) => Promise<string>;
+}
+
+export function createFormRouteHandlers(
+  store: FormStore,
+  ports: FormRoutePorts = {},
+): Record<string, FormPluginRouteHandler> {
   return {
     "form.list": ({ request }) => ({ status: 200, body: { forms: store.list(projectIdOf(request)) } }),
     "form.create": ({ request }) => ({
@@ -30,10 +37,16 @@ export function createFormRouteHandlers(store: FormStore): Record<string, FormPl
       store.delete(params.id ?? "", projectIdOf(request));
       return { status: 200, body: { ok: true } };
     },
-    "form.generate": ({ params, request }) => ({
-      status: 200,
-      body: { form: store.generateQuestions(params.id ?? "", stringField(request.body.prompt) ?? "", projectIdOf(request)) },
-    }),
+    "form.generate": async ({ params, request }) => {
+      const prompt = stringField(request.body.prompt) ?? "";
+      const title = ports.completeText
+        ? ((await ports.completeText(prompt)).trim() || prompt)
+        : prompt;
+      return {
+        status: 200,
+        body: { form: store.generateQuestions(params.id ?? "", title, projectIdOf(request)) },
+      };
+    },
     "form.submit": ({ params, request }) => ({
       status: 200,
       body: { submission: store.submit(params.id ?? "", readAnswers(request.body.answers), projectIdOf(request)) },

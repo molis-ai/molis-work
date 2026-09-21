@@ -125,22 +125,26 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
           }
         });
       });
-      box.querySelector("[data-connector-whoami]")?.addEventListener("click", async (event) => {
-        const button = event.currentTarget;
-        const resultBox = box.querySelector("[data-connector-whoami-result]");
-        busy(button, true);
+      box.querySelectorAll("[data-connector-whoami]").forEach((button) => {
+        button.addEventListener("click", async (event) => {
+        const target = event.currentTarget;
+        const kind = target.dataset.connectorWhoami || "";
+        const panel = target.closest("[data-connector-detail]") || box;
+        const resultBox = panel.querySelector("[data-connector-whoami-result]");
+        busy(target, true);
         setError("");
         try {
-          const payload = await mutate("/api/settings/connectors/github/whoami", "POST");
+          const payload = await mutate("/api/settings/connectors/" + encodeURIComponent(kind) + "/whoami", "POST");
           if (resultBox) {
             resultBox.hidden = false;
             resultBox.textContent = payload.login ? "@" + payload.login : "";
           }
         } catch (error) {
-          setError(error.message || L("无法读取 GitHub 账号"));
+          setError(error.message || L("无法读取账号"));
         } finally {
-          busy(button, false);
+          busy(target, false);
         }
+      });
       });
       const deviceStatus = box.querySelector("[data-connector-github-device-status]");
       box.querySelector("[data-connector-github-device-start]")?.addEventListener("click", async (event) => {

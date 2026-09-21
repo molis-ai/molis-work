@@ -22,7 +22,9 @@ export const functionsManifest: PluginManifest = {
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-functions-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
-  permissions: [],
+  permissions: [
+    { permission: "storage:private", required: true, reason: "本机函数库" },
+  ],
   capabilities: { provides: ["functions.evaluate"], consumes: [] },
   artifacts: { produces: [], consumes: [] },
   ui: {

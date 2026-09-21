@@ -7,6 +7,7 @@ import test from "node:test";
 import {
   PERSONAL_PLUGIN_IDS,
   PROJECT_SCOPED_PLUGIN_IDS,
+  islandEntries,
   pluginMarketCards,
   railEntries,
 } from "@molis-ai/molis-work-app-workbench";
@@ -105,17 +106,19 @@ async function withHome<T>(run: (home: string) => Promise<T>): Promise<T> {
   }
 }
 
-test("灵光是个人插件，不进项目启用名单，侧栏叫灵光、图标用 idea", () => {
+test("灵光是个人插件，不进项目启用名单，岛上叫灵光、图标用 idea", () => {
   assert.equal(PERSONAL_PLUGIN_IDS.includes(LINGGUANG_PROJECT_PLUGIN_ID), true);
   assert.equal(PROJECT_SCOPED_PLUGIN_IDS.includes("lingguang"), false);
-  const rail = railEntries(["goals", ...PERSONAL_PLUGIN_IDS, "artifacts"]);
-  const entry = rail.find((item) => item.id === "lingguang");
+  const enabled = ["goals", ...PERSONAL_PLUGIN_IDS, "artifacts"] as const;
+  assert.equal(railEntries([...enabled]).some((item) => item.id === "lingguang"), false);
+  const entry = islandEntries([...enabled]).find((item) => item.id === "lingguang");
   assert.equal(entry?.label, "灵光");
   assert.equal(entry?.glyph, "idea");
   const market = pluginMarketCards().find((card) => card.id === "lingguang");
   assert.equal(market?.personal, true);
   assert.equal(market?.copy, "先记下还没想清楚的想法，再决定留下或丢掉。");
   parsePluginManifest(lingguangManifest);
+  assert.equal(lingguangManifest.ui.views?.[0]?.slot, "island");
   assert.equal(lingguangManifest.mcp_exports, undefined);
 });
 

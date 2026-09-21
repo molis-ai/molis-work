@@ -146,21 +146,48 @@ export const SETTINGS_STYLES = `
     border-radius: 8px;
     display: grid;
     place-items: center;
-    background: var(--connector-brand, var(--rail));
-    color: #fff;
+    overflow: hidden;
+    background: #fff;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 10%, transparent);
     flex: 0 0 auto;
   }
-  .settings-connector-mark[data-on="light"] { color: #141414; box-shadow: inset 0 0 0 1px var(--line); }
-  .settings-connector-mark svg { width: 18px; height: 18px; display: block; }
-  .settings-connector-mark[data-connector-mark="monday"] svg { width: 22px; height: 13px; }
-  .settings-connector-mark svg path:not([fill]) { fill: currentColor; }
+  .settings-connector-mark[data-on="dark"] { background: #111; box-shadow: none; }
+  .settings-connector-mark svg { width: 32px; height: 32px; display: block; }
+  .settings-connector-mark[data-pad="1"] svg { width: 22px; height: 22px; }
   .settings-connector-mark--fallback { background: var(--rail); }
+  .settings-connector-capabilities {
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 8px;
+    list-style: none;
+  }
+  .settings-connector-capabilities li {
+    display: grid;
+    grid-template-columns: 4.5em minmax(0, 1fr);
+    gap: 10px;
+    color: var(--ink-soft);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .settings-connector-capabilities span {
+    color: var(--muted);
+    font-size: 11px;
+  }
+  .settings-connector-capabilities [data-fulfillment="live"] span { color: var(--green); }
   .settings-connector-detail { padding: 8px 0 80px; display: grid; gap: 16px; max-width: 36rem; }
+  .settings-connector-detail[hidden], [data-connectors-list][hidden] { display: none !important; }
   .settings-connector-detail__head { display: flex; align-items: center; gap: 12px; }
   .settings-connector-detail__head h2 { margin: 0; font-size: 20px; letter-spacing: -.02em; }
   .settings-connector-back { justify-self: start; }
   .settings-connector-auth { display: grid; gap: 14px; }
   .settings-connector-auth > p, .settings-connector-note { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
+  .settings-connector-setup { display: grid; gap: 8px; }
+  .settings-connector-setup > p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
+  .settings-connector-setup ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+  .settings-connector-setup a { width: fit-content; min-height: 28px; color: var(--blue-dark); font-size: 13px; text-decoration: underline; text-underline-offset: 3px; display: inline-flex; align-items: center; gap: 6px; }
+  .settings-connector-setup a:hover { color: var(--ink); }
+  .settings-connector-setup svg { width: 14px; height: 14px; flex: none; color: var(--muted); }
   .settings-connector-auth code { padding: 1px 4px; border: 1px solid var(--line); border-radius: 3px; color: var(--ink-soft); background: var(--rail); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
   .settings-connector-field { display: grid; gap: 6px; color: var(--ink-soft); font-size: 12px; }
   .settings-connector-actions { display: flex; flex-wrap: wrap; gap: 8px; }

@@ -4,6 +4,7 @@ export function functionsRouteErrorResponse(error: unknown): FunctionsPluginRout
   const code = error instanceof Error && "code" in error ? String((error as { code: unknown }).code) : "";
   const message = error instanceof Error ? error.message : "Functions 请求失败";
   if (code === "functions.not_found") return { status: 404, body: { error: message, code } };
+  if (code === "functions.conflict") return { status: 409, body: { error: message, code } };
   if (code === "functions.provider_not_configured") return { status: 409, body: { error: message, code } };
   if (code === "functions.provider_unauthorized") return { status: 401, body: { error: message, code } };
   if (code === "functions.provider_timeout") return { status: 504, body: { error: message, code } };

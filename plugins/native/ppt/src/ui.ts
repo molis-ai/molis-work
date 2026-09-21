@@ -3,7 +3,8 @@ import type {
   UiContributionDescriptor,
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
-import { icon } from "@molis-ai/molis-work-design-system";
+import { icon, renderPluginStageShell } from "@molis-ai/molis-work-design-system";
+import { PPT_BACKGROUND_SWATCHES, PPT_PRIMARY_SWATCHES, PPT_TEXT_SWATCHES } from "./colors.js";
 
 export const PPT_UI_CONTRIBUTION_ID = "io.molis.work.native.ppt.ui.v1";
 
@@ -45,9 +46,20 @@ export const pptUiContribution: UiContribution<PptUiModel> = {
   },
 };
 
+function pptSwatches(name: string, colors: readonly string[], label: string): string {
+  const chips = colors.map((color) => (
+    `<button class="ppt-swatch" type="button" role="radio" data-ppt-swatch="${color}" style="background:${color}" aria-label="${color}"></button>`
+  )).join("");
+  return `<div class="ppt-color-field"><span>${label}</span><div class="ppt-swatches" data-ppt-color-${name} role="radiogroup" aria-label="${label}">${chips}</div></div>`;
+}
+
 export function renderPptWorkbench(model: PptUiModel): string {
   const { primitives: p } = model;
-  return `<section class="desktop-work-surface plugin-stage-shell" data-work-surface="ppt" data-work-surface-label="PPT" hidden data-ppt="workbench" data-ppt-stage-shell data-expanded="false">
+  return renderPluginStageShell({
+    surface: "ppt",
+    label: "PPT",
+    dataset: "ppt",
+    body: `
     <div class="plugin-stage-list feed-stage-list feed-stage-tree" data-ppt="directory">
       <header class="plugin-stage-chrome ppt-stage-chrome">
         <button class="mw-btn mw-btn--ghost tree-create" type="button" data-ppt-new>${icon("plus")}<span>${p.text("新建演示稿")}</span></button>
@@ -73,9 +85,9 @@ export function renderPptWorkbench(model: PptUiModel): string {
           <label class="ppt-field">${p.text("标题")}<input class="mw-input" data-ppt-title autocomplete="off"></label>
           <label class="ppt-field">${p.text("说明")}<input class="mw-input" data-ppt-description autocomplete="off" placeholder="${p.text("可选")}"></label>
           <div class="ppt-colors">
-            <label>${p.text("主题色")}<input type="color" data-ppt-color-primary></label>
-            <label>${p.text("背景")}<input type="color" data-ppt-color-background></label>
-            <label>${p.text("文字")}<input type="color" data-ppt-color-text></label>
+            ${pptSwatches("primary", PPT_PRIMARY_SWATCHES, p.text("主题色"))}
+            ${pptSwatches("background", PPT_BACKGROUND_SWATCHES, p.text("背景"))}
+            ${pptSwatches("text", PPT_TEXT_SWATCHES, p.text("文字"))}
           </div>
         </div>
         <div class="ppt-split">
@@ -105,5 +117,5 @@ export function renderPptWorkbench(model: PptUiModel): string {
         </div>
       </form>
     </dialog>
-  </section>`;
+  ` });
 }

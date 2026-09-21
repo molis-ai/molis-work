@@ -4,19 +4,14 @@ import { parsePagesBody } from "./document.js";
 import { PagesError } from "./error.js";
 import { extractFromPagesBody, unpublishedKnowledgePages } from "./extract.js";
 import type { PagesPluginRouteHandler, PagesPluginRouteRequest, PagesPluginRouteResponse } from "./routes.js";
+import { promotePagesDocument, requirePromoteArtifactPort } from "./promote.js";
+import type { PagesPublishArtifactPort } from "./promote.js";
 import type { PagesStore } from "./store.js";
 import { pagesTemplateSummaries } from "./templates.js";
 
 export interface PagesRoutePorts {
   completeText?: (prompt: string) => Promise<string>;
-  publishArtifact?: (input: {
-    project_id: string;
-    page_id: string;
-    title: string;
-    body: PagesBody;
-    goal_id: string;
-    version: number;
-  }) => { artifact_id: string; version: number };
+  publishArtifact?: PagesPublishArtifactPort;
 }
 
 export function createPagesRouteHandlers(
@@ -87,38 +82,27 @@ export function createPagesRouteHandlers(
       return { status: 200, body: await runPagesAi({ command, text, style }, ports.completeText) };
     },
     "pages.promote": ({ params, request }) => {
-      const projectId = projectIdOf(request);
-      const current = store.get(params.id ?? "", projectId);
-      const goal_id = stringField(request.body.goal_id) ?? current.goal_id;
-      if (!ports.publishArtifact) {
+      try {
+        const projectId = projectIdOf(request);
+        const current = store.get(params.id ?? "", projectId);
+        const goal_id = stringField(request.body.goal_id) ?? current.goal_id;
+        const promoted = promotePagesDocument(
+          store,
+          current.id,
+          projectId,
+          requirePromoteArtifactPort(ports.publishArtifact),
+          goal_id,
+        );
         return {
-          status: 409,
+          status: 200,
           body: {
-            error: "当前环境不能发出 Artifact",
-            code: "pages.unavailable",
-            document: store.update(current.id, { goal_id }, projectId),
+            document: promoted.document,
+            artifact: promoted.artifact,
           },
         };
+      } catch (error) {
+        return pagesRouteErrorResponse(error);
       }
-      const published = ports.publishArtifact({
-        project_id: projectId,
-        page_id: current.id,
-        title: current.title,
-        body: current.body,
-        goal_id,
-        version: (current.artifact_version || 0) + 1,
-      });
-      return {
-        status: 200,
-        body: {
-          document: store.update(current.id, {
-            goal_id,
-            artifact_id: published.artifact_id,
-            artifact_version: published.version,
-          }, projectId),
-          artifact: published,
-        },
-      };
     },
     "pages.extract": ({ params, request }) => {
       const projectId = projectIdOf(request);

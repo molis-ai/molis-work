@@ -32,9 +32,31 @@ function renderConnectorMark(connectorId: string, escapeHtml: ConnectorsSettings
   if (!mark) {
     return `<span class="settings-connector-mark settings-connector-mark--fallback" data-connector-mark="${escapeHtml(connectorId)}" aria-hidden="true"></span>`;
   }
-  const paths = mark.paths.map((path) => `<path d="${path.d}"${path.fill ? ` fill="${path.fill}"` : ""}></path>`).join("");
-  const rule = mark.fillRule ? ` fill-rule="${mark.fillRule}"` : "";
-  return `<span class="settings-connector-mark" data-connector-mark="${escapeHtml(connectorId)}" data-on="${mark.on}" style="--connector-brand:${mark.tile}" aria-hidden="true"><svg viewBox="${escapeHtml(mark.viewBox)}" focusable="false"${rule}>${paths}${mark.extra ?? ""}</svg></span>`;
+  return `<span class="settings-connector-mark" data-connector-mark="${escapeHtml(connectorId)}" data-on="${mark.on}"${mark.pad ? ` data-pad="1"` : ""} aria-hidden="true">${mark.svg}</span>`;
+}
+
+function renderSetupLinks(card: ConnectorSettingsCardView, p: ConnectorsSettingsPrimitives): string {
+  const { L, escapeHtml, icon } = p;
+  const links = (card.setup_links ?? []).filter((link) => link.url.startsWith("https://") && link.label.trim().length > 0);
+  if (!links.length) return "";
+  return `<nav class="settings-connector-setup" aria-label="${escapeHtml(L("配置入口"))}">
+    <p>${escapeHtml(L("需要先去官方后台拿凭证的，点下面的链接。"))}</p>
+    <ul>
+      ${links.map((link) => `<li><a href="${escapeHtml(link.url)}" target="_blank" rel="noopener noreferrer" data-connector-setup-link>${icon("link")}${escapeHtml(L(link.label))}</a></li>`).join("")}
+    </ul>
+  </nav>`;
+}
+
+function renderCapabilities(card: ConnectorSettingsCardView, p: ConnectorsSettingsPrimitives): string {
+  const rows = card.capabilities ?? [];
+  if (!rows.length) return "";
+  const { L, escapeHtml } = p;
+  return `<ul class="settings-connector-capabilities">
+    ${rows.map((row) => {
+      const live = row.fulfillment === "live";
+      return `<li data-fulfillment="${live ? "live" : "unfulfilled"}"><span>${escapeHtml(L(live ? "已兑现" : "未兑现"))}</span>${escapeHtml(L(row.label))}</li>`;
+    }).join("")}
+  </ul>`;
 }
 
 function renderGithubDetail(card: ConnectorSettingsCardView, p: ConnectorsSettingsPrimitives): string {
@@ -44,6 +66,8 @@ function renderGithubDetail(card: ConnectorSettingsCardView, p: ConnectorsSettin
   const disconnect = `<button class="mw-btn mw-btn--danger-outline" type="button" data-connector-unbind="github">${L("断开")}</button>`;
   return `<form class="settings-connector-auth" data-connector-auth="github">
     <p>${L("账号属于这台电脑上的人，不是某个项目。凭据只进本机 SecretStore，这里不显示明文。")}</p>
+    ${renderSetupLinks(card, p)}
+    ${renderCapabilities(card, p)}
     ${connected ? `${card.hint ? `<p>${L("本机只显示令牌末四位")} <code>${escapeHtml(card.hint)}</code></p>` : ""}
       <div class="settings-connector-actions">
         <button class="mw-btn mw-btn--secondary" type="button" data-connector-whoami="github">${L("查看当前账号")}</button>
@@ -71,6 +95,8 @@ function renderGmailDetail(card: ConnectorSettingsCardView, p: ConnectorsSetting
   const disconnect = `<button class="mw-btn mw-btn--danger-outline" type="button" data-connector-unbind="gmail">${L("断开")}</button>`;
   return `<form class="settings-connector-auth" data-connector-auth="gmail">
     <p>${L("账号属于这台电脑上的人，不是某个项目。Feed 拉信继续用这份连接。")}</p>
+    ${renderSetupLinks(card, p)}
+    ${renderCapabilities(card, p)}
     ${connected ? `${card.hint ? `<p>${L("本机只显示令牌末四位")} <code>${escapeHtml(card.hint)}</code></p>` : ""}
       <div class="settings-connector-actions">${disconnect}</div>` : `${reauth ? `<p>${L("要重新授权")}${card.hint ? ` <code>${escapeHtml(card.hint)}</code>` : ""}</p>` : ""}
       <label class="settings-connector-field"><span>${L("Google 访问令牌")}</span><input class="mw-input" type="password" autocomplete="off" data-connector-token="gmail" placeholder="ya29.…"></label>
@@ -85,11 +111,27 @@ function renderGmailDetail(card: ConnectorSettingsCardView, p: ConnectorsSetting
   </form>`;
 }
 
-function renderPlaceholderDetail(card: ConnectorSettingsCardView, p: ConnectorsSettingsPrimitives): string {
+function renderTokenDetail(card: ConnectorSettingsCardView, p: ConnectorsSettingsPrimitives): string {
   const { L, escapeHtml } = p;
-  return `<div class="settings-connector-auth">
-    <p>${escapeHtml(L(card.unavailable_reason || card.summary))}</p>
-  </div>`;
+  const connected = card.account_state === "connected";
+  const reauth = card.account_state === "reauth_required";
+  const disconnect = `<button class="mw-btn mw-btn--danger-outline" type="button" data-connector-unbind="${escapeHtml(card.connector_id)}">${L("断开")}</button>`;
+  const tokenLabel = card.token_label || L("访问令牌");
+  return `<form class="settings-connector-auth" data-connector-auth="${escapeHtml(card.connector_id)}">
+    <p>${L("账号属于这台电脑上的人，不是某个项目。凭据只进本机 SecretStore，这里不显示明文。")}</p>
+    ${card.auth_help ? `<p>${escapeHtml(card.auth_help)}</p>` : ""}
+    ${renderSetupLinks(card, p)}
+    ${renderCapabilities(card, p)}
+    ${connected ? `${card.hint ? `<p>${L("本机只显示令牌末四位")} <code>${escapeHtml(card.hint)}</code></p>` : ""}
+      <div class="settings-connector-actions">
+        <button class="mw-btn mw-btn--secondary" type="button" data-connector-whoami="${escapeHtml(card.connector_id)}">${L("查看当前账号")}</button>
+        ${disconnect}
+      </div>
+      <p class="settings-connector-whoami" data-connector-whoami-result hidden></p>` : `${reauth ? `<p>${L("要重新授权")}${card.hint ? ` <code>${escapeHtml(card.hint)}</code>` : ""}</p>` : ""}
+    <label class="settings-connector-field"><span>${escapeHtml(tokenLabel)}</span><input class="mw-input" type="password" autocomplete="off" data-connector-token="${escapeHtml(card.connector_id)}" placeholder="${escapeHtml(card.token_placeholder || "")}"></label>
+      <div class="settings-connector-actions"><button class="mw-btn mw-btn--primary" type="submit">${escapeHtml(L("连接 {name}", { name: card.title }))}</button>${reauth ? disconnect : ""}</div>`}
+    ${card.outbound_note ? `<p class="settings-connector-note">${escapeHtml(L(card.outbound_note))}</p>` : ""}
+  </form>`;
 }
 
 function renderCardButton(card: ConnectorSettingsCardView, p: ConnectorsSettingsPrimitives): string {
@@ -103,19 +145,6 @@ function renderCardButton(card: ConnectorSettingsCardView, p: ConnectorsSettings
       <span class="settings-connector-card__copy">${escapeHtml(L(card.summary))}</span>
     </span>
   </button>`;
-}
-
-function renderGroup(
-  id: "live" | "placeholder",
-  title: string,
-  cards: readonly ConnectorSettingsCardView[],
-  p: ConnectorsSettingsPrimitives,
-): string {
-  if (!cards.length) return "";
-  return `<section class="settings-connector-group" data-connector-group="${id}">
-    <h2>${p.L(title)}</h2>
-    <div class="settings-connectors-grid">${cards.map((card) => renderCardButton(card, p)).join("")}</div>
-  </section>`;
 }
 
 export function renderConnectorsSettings(
@@ -132,7 +161,9 @@ export function renderConnectorsSettings(
       ? renderGithubDetail(card, primitives)
       : card.auth_kind === "gmail"
         ? renderGmailDetail(card, primitives)
-        : renderPlaceholderDetail(card, primitives);
+        : card.auth_kind === "token"
+          ? renderTokenDetail(card, primitives)
+          : `<div class="settings-connector-auth">${renderCapabilities(card, primitives)}<p>${escapeHtml(L(card.unavailable_reason || card.summary))}</p></div>`;
     return `<section class="settings-connector-detail" data-connector-detail="${escapeHtml(card.connector_id)}" hidden>
       <button class="mw-btn mw-btn--ghost settings-connector-back" type="button" data-connectors-back>${icon("back")}${L("返回列表")}</button>
       <header class="settings-connector-detail__head">
@@ -143,12 +174,20 @@ export function renderConnectorsSettings(
       ${body}
     </section>`;
   }).join("");
-  const placeholderGroups = (["mail", "files", "chat", "code", "work", "design", "crm", "social"] as const).map((groupId) => {
-    const cards = placeholders.filter((card) => card.group_id === groupId);
-    if (!cards.length) return "";
+  const liveGroups = (["mail", "files", "chat", "code", "work", "design", "crm", "social"] as const).map((groupId) => {
+    const groupCards = live.filter((card) => card.group_id === groupId);
+    if (!groupCards.length) return "";
     return `<section class="settings-connector-subgroup" data-connector-subgroup="${groupId}">
       <h3>${groupTitle(groupId, L)}</h3>
-      <div class="settings-connectors-grid">${cards.map((card) => renderCardButton(card, primitives)).join("")}</div>
+      <div class="settings-connectors-grid">${groupCards.map((card) => renderCardButton(card, primitives)).join("")}</div>
+    </section>`;
+  }).join("");
+  const placeholderGroups = (["mail", "files", "chat", "code", "work", "design", "crm", "social"] as const).map((groupId) => {
+    const groupCards = placeholders.filter((card) => card.group_id === groupId);
+    if (!groupCards.length) return "";
+    return `<section class="settings-connector-subgroup" data-connector-subgroup="${groupId}">
+      <h3>${groupTitle(groupId, L)}</h3>
+      <div class="settings-connectors-grid">${groupCards.map((card) => renderCardButton(card, primitives)).join("")}</div>
     </section>`;
   }).join("");
   return `<section class="settings-document" aria-labelledby="settings-title" data-connectors-settings>
@@ -156,7 +195,10 @@ export function renderConnectorsSettings(
     <div class="settings-body">
       <p class="settings-form-error" data-connectors-error role="alert" hidden></p>
       <div data-connectors-list>
-        ${renderGroup("live", "可以连接", live, primitives)}
+        ${live.length ? `<section class="settings-connector-group" data-connector-group="live">
+    <h2>${L("可以连接")}</h2>
+    ${liveGroups}
+  </section>` : ""}
         ${placeholders.length ? `<section class="settings-connector-group" data-connector-group="placeholder">
     <h2>${L("还不能连")}</h2>
     ${placeholderGroups}

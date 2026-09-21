@@ -118,6 +118,10 @@
       "types": "./dist/platform/app-host.d.ts",
       "import": "./dist/platform/app-host.js"
     },
+    "./platform/errors": {
+      "types": "./dist/platform/errors.d.ts",
+      "import": "./dist/platform/errors.js"
+    },
     "./platform/exchange": {
       "types": "./dist/platform/exchange.d.ts",
       "import": "./dist/platform/exchange.js"

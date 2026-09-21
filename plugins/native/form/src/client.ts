@@ -351,7 +351,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
     });
   };
   const loadList = async () => {
-    const payload = await request("GET", "/api/form");
+    const payload = await request("GET", "/api/plugins/form");
     records = payload.forms || [];
     renderList();
     if (selected) {
@@ -363,7 +363,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
   const save = async () => {
     if (!selected) return selected;
     const seq = ++saveSeq;
-    const payload = await request("POST", "/api/form/" + encodeURIComponent(selected.id), {
+    const payload = await request("POST", "/api/plugins/form/" + encodeURIComponent(selected.id), {
       title: titleInput.value,
       description: descriptionInput.value,
       questions: questionsFromDom(),
@@ -382,7 +382,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
     try {
       const create = event.target.closest("[data-form-new]");
       if (create) {
-        const payload = await request("POST", "/api/form", {});
+        const payload = await request("POST", "/api/plugins/form", {});
         setTab("editor");
         fillEditor(payload.form);
         remember(payload.form, false);
@@ -448,7 +448,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
       if (event.target.closest("[data-form-generate]") && selected) {
         await save();
-        const payload = await request("POST", "/api/form/" + encodeURIComponent(selected.id) + "/generate-questions", {
+        const payload = await request("POST", "/api/plugins/form/" + encodeURIComponent(selected.id) + "/generate-questions", {
           prompt: aiPrompt.value,
         });
         fillEditor(payload.form);
@@ -457,14 +457,14 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
       if (event.target.closest("[data-form-publish]") && selected) {
         await save();
-        const payload = await request("POST", "/api/form/" + encodeURIComponent(selected.id) + "/publish");
+        const payload = await request("POST", "/api/plugins/form/" + encodeURIComponent(selected.id) + "/publish");
         remember(payload.form, false);
         showNote(L("已发布"), false);
         return;
       }
       if (event.target.closest("[data-form-delete]") && selected) {
         if (!await ask(L("删除这份问卷？答卷也会一起删掉。"), L("删除"))) return;
-        await request("POST", "/api/form/" + encodeURIComponent(selected.id) + "/delete");
+        await request("POST", "/api/plugins/form/" + encodeURIComponent(selected.id) + "/delete");
         records = records.filter((item) => item.id !== selected.id);
         closeEditor();
         renderList();
@@ -495,7 +495,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
     summaryEl.textContent = L("载入中…");
     resultListEl.replaceChildren();
     exportEl.textContent = "";
-    const payload = await request("GET", "/api/form/" + encodeURIComponent(id) + "/results");
+    const payload = await request("GET", "/api/plugins/form/" + encodeURIComponent(id) + "/results");
     if (seq !== resultsSeq || selected?.id !== id) return;
     const count = payload.analysis?.submission_count || 0;
     summaryEl.textContent = count ? count + " " + L("份答卷") : L("还没有答卷");
@@ -535,7 +535,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
         (node && node.matches("input, select") ? node : node?.querySelector("input"))?.focus();
         return;
       }
-      await request("POST", "/api/form/" + encodeURIComponent(selected.id) + "/submit", { answers });
+      await request("POST", "/api/plugins/form/" + encodeURIComponent(selected.id) + "/submit", { answers });
       await loadResults();
       setTab("results");
       showNote(L("已提交"), false);

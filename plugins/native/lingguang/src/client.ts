@@ -185,7 +185,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const save = async () => {
     if (!selected) return null;
-    const payload = await request("POST", "/api/lingguang/" + encodeURIComponent(selected.id), {
+    const payload = await request("POST", "/api/plugins/lingguang/" + encodeURIComponent(selected.id), {
       title: titleInput.value,
       body: bodyInput.value,
     });
@@ -199,7 +199,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     saveTimer = setTimeout(() => { void save().catch((error) => showNote(error.message || L("保存失败"), true)); }, 400);
   };
   const loadList = async () => {
-    const payload = await request("GET", "/api/lingguang");
+    const payload = await request("GET", "/api/plugins/lingguang");
     records = payload.sparks || [];
     selectedIds = new Set([...selectedIds].filter((id) => records.some((item) => item.id === id)));
     if (selected && !records.some((item) => item.id === selected.id)) closeWorkspace();
@@ -216,7 +216,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (!ids.length) return;
     const many = ids.length > 1;
     if (!await ask(many ? L("丢掉这几条？它们会离开灵光池。") : L("丢掉这条？它会离开灵光池。"), L("丢掉"))) return;
-    await request("POST", "/api/lingguang/discard", { ids });
+    await request("POST", "/api/plugins/lingguang/discard", { ids });
     records = records.filter((item) => !ids.includes(item.id));
     ids.forEach((id) => selectedIds.delete(id));
     if (selected && ids.includes(selected.id)) closeWorkspace();
@@ -251,7 +251,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     const ids = selectedIds.size ? [...selectedIds] : (selected ? [selected.id] : []);
     if (!ids.length) throw new Error(L("先选至少一条"));
     await save().catch(() => {});
-    const payload = await request("POST", "/api/lingguang/conversations", { spark_ids: ids });
+    const payload = await request("POST", "/api/plugins/lingguang/conversations", { spark_ids: ids });
     conversation = payload.conversation;
     workbench.setAttribute("data-expanded", "true");
     workspace.hidden = false;
@@ -288,7 +288,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
   workbench.addEventListener("click", async (event) => {
     try {
       if (event.target.closest("[data-lingguang-capture]")) {
-        const payload = await request("POST", "/api/lingguang", {});
+        const payload = await request("POST", "/api/plugins/lingguang", {});
         selectedIds = new Set([payload.spark.id]);
         remember(payload.spark);
         fillEditor(payload.spark);
@@ -351,7 +351,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     event.preventDefault();
     if (!conversation) return;
     try {
-      const payload = await request("POST", "/api/lingguang/conversations/" + encodeURIComponent(conversation.id) + "/messages", {
+      const payload = await request("POST", "/api/plugins/lingguang/conversations/" + encodeURIComponent(conversation.id) + "/messages", {
         body: chatInput.value,
       });
       conversation = payload.conversation;

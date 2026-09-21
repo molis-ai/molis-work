@@ -365,7 +365,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       },
       runAi: async (input) => {
         if (!selected) throw new Error(L("文档请求失败"));
-        return request("POST", "/api/pages/" + encodeURIComponent(selected.id) + "/ai", input);
+        return request("POST", "/api/plugins/pages/" + encodeURIComponent(selected.id) + "/ai", input);
       },
       onCreateFromAi: async (input) => {
         const content = String(input.text || "").split(/\\n{2,}/).map((part) => (
@@ -405,7 +405,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     workbench.querySelectorAll(".pages-format-bar, .pages-slash, .pages-pop, .pages-block-handle, .pages-block-menu").forEach((node) => { node.hidden = true; });
   };
   const loadList = async () => {
-    const payload = await request("GET", "/api/pages");
+    const payload = await request("GET", "/api/plugins/pages");
     records = payload.documents || [];
     folders = payload.folders || [];
     renderList();
@@ -418,7 +418,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   const save = async () => {
     if (!selected) return selected;
     const body = editor && Editor ? Editor.getDoc(editor) : selected.body;
-    const payload = await request("POST", "/api/pages/" + encodeURIComponent(selected.id), {
+    const payload = await request("POST", "/api/plugins/pages/" + encodeURIComponent(selected.id), {
       title: titleInput.value,
       body,
     });
@@ -451,13 +451,13 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     fillEditor(record);
   };
   const createPage = async (body) => {
-    const payload = await request("POST", "/api/pages", body || {});
+    const payload = await request("POST", "/api/plugins/pages", body || {});
     openCreated(payload.document);
   };
   const toggleStar = async (id) => {
     const record = records.find((item) => item.id === id);
     if (!record) return;
-    const payload = await request("POST", "/api/pages/" + encodeURIComponent(id), { starred: !record.starred });
+    const payload = await request("POST", "/api/plugins/pages/" + encodeURIComponent(id), { starred: !record.starred });
     if (selected?.id === id) remember(payload.document, false);
     else {
       const index = records.findIndex((item) => item.id === id);
@@ -468,7 +468,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   const movePage = async (id, folderId) => {
     const record = records.find((item) => item.id === id);
     if (!record || (record.folder_id || "") === folderId) return;
-    const payload = await request("POST", "/api/pages/" + encodeURIComponent(id), { folder_id: folderId });
+    const payload = await request("POST", "/api/plugins/pages/" + encodeURIComponent(id), { folder_id: folderId });
     if (selected?.id === id) remember(payload.document, false);
     else {
       const index = records.findIndex((item) => item.id === id);
@@ -490,7 +490,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   });
   goalSelect?.addEventListener("change", () => {
     if (!selected) return;
-    void request("POST", "/api/pages/" + encodeURIComponent(selected.id), { goal_id: goalSelect.value })
+    void request("POST", "/api/plugins/pages/" + encodeURIComponent(selected.id), { goal_id: goalSelect.value })
       .then((payload) => remember(payload.document, false))
       .catch((error) => showNote(error.message || L("保存失败"), true));
   });
@@ -557,7 +557,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
         if (!folder) return;
         const title = await askName(L("文件夹名称"), folder.title);
         if (title == null) return;
-        const payload = await request("POST", "/api/pages/folders/" + encodeURIComponent(folder.id), { title });
+        const payload = await request("POST", "/api/plugins/pages/folders/" + encodeURIComponent(folder.id), { title });
         folders = folders.map((item) => item.id === payload.folder.id ? payload.folder : item);
         renderList();
         return;
@@ -569,7 +569,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
         const ok = await ask(L("要删除这个文件夹吗？里面的文档会回到未分类。"), L("删除"));
         if (!ok) return;
         const id = folderDelete.dataset.pagesFolderDelete;
-        await request("POST", "/api/pages/folders/" + encodeURIComponent(id) + "/delete", {});
+        await request("POST", "/api/plugins/pages/folders/" + encodeURIComponent(id) + "/delete", {});
         folders = folders.filter((item) => item.id !== id);
         records = records.map((item) => item.folder_id === id ? { ...item, folder_id: "" } : item);
         if (selected?.folder_id === id) selected = { ...selected, folder_id: "" };
@@ -593,7 +593,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
         closeCreate();
         const title = await askName(L("文件夹名称"), "");
         if (title == null) return;
-        const payload = await request("POST", "/api/pages/folders", { title });
+        const payload = await request("POST", "/api/plugins/pages/folders", { title });
         folders = [...folders, payload.folder].sort((a, b) => a.title.localeCompare(b.title, "zh"));
         renderList();
         return;
@@ -621,7 +621,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (event.target.closest("[data-pages-extract]") && selected) {
         closeMore();
         await save().catch((error) => showNote(error.message || L("保存失败"), true));
-        const payload = await request("POST", "/api/pages/" + encodeURIComponent(selected.id) + "/extract", {});
+        const payload = await request("POST", "/api/plugins/pages/" + encodeURIComponent(selected.id) + "/extract", {});
         await loadList();
         remember(payload.document, true);
         return;
@@ -629,7 +629,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (event.target.closest("[data-pages-promote]") && selected) {
         closeMore();
         await save().catch((error) => showNote(error.message || L("保存失败"), true));
-        const response = await fetch(route(withProject("/api/pages/" + encodeURIComponent(selected.id) + "/promote")), {
+        const response = await fetch(route(withProject("/api/plugins/pages/" + encodeURIComponent(selected.id) + "/promote")), {
           method: "POST",
           headers: headers(),
           body: JSON.stringify({ project_id: projectId(), goal_id: goalSelect ? goalSelect.value : selected.goal_id }),
@@ -650,7 +650,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
         const ok = await ask(L("要删除这篇文档吗？删除后无法恢复。"), L("删除"));
         if (!ok) return;
         const id = selected.id;
-        await request("POST", "/api/pages/" + encodeURIComponent(id) + "/delete", {});
+        await request("POST", "/api/plugins/pages/" + encodeURIComponent(id) + "/delete", {});
         records = records.filter((item) => item.id !== id);
         closeEditor();
         renderList();

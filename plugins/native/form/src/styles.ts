@@ -12,7 +12,7 @@ export const FORM_STYLES = `
   }
   .form-workspace {
     display: flex; flex-direction: column; gap: 16px;
-    flex: none; min-height: 0; max-width: 52rem; padding: 8px 20px 20px; overflow: visible;
+    flex: 1; min-height: 0; max-width: 52rem; padding: 8px 20px 20px; overflow: auto; overscroll-behavior: contain;
   }
   .form-identity {
     display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 12px 16px;
@@ -118,5 +118,5 @@ export const FORM_STYLES = `
   .creative-confirm-form { display: flex; flex-direction: column; gap: 16px; padding: 18px 20px 16px; }
   .creative-confirm-form p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--ink); }
   .creative-confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
-  body.immersive-workbench .plugin-stage-workspace > .form-workspace { flex: none; }
+  body.immersive-workbench .plugin-stage-workspace > .form-workspace { flex: 1; min-height: 0; }
 `;

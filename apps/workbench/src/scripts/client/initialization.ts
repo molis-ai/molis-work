@@ -1,18 +1,11 @@
 import { PROJECT_HOME_FACTORY_SCRIPT } from "./project-home.js";
 import { PLUGIN_WORKBENCH_FACTORY_SCRIPT } from "./plugin-workbench.js";
-import { SHELF_CLIENT_FACTORY_SCRIPT, SHELF_SETTINGS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-shelf";
-import { FUNCTIONS_CLIENT_FACTORY_SCRIPT, FUNCTIONS_SETTINGS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-functions";
-import { FORM_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-form";
-import { PAGES_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-pages";
-import { DATASET_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-dataset";
-import { PPT_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-ppt";
-import { LINGGUANG_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-lingguang";
-import { SCHEDULE_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-schedule";
 import { IMMERSIVE_NAVIGATION_FACTORY_SCRIPT } from "./immersive-navigation.js";
 import { GLOBAL_SEARCH_FACTORY_SCRIPT } from "./global-search.js";
 import { SETTINGS_DIRECTORY_FACTORY_SCRIPT } from "./settings-directory.js";
 import { CONNECTORS_SETTINGS_CLIENT_SCRIPT } from "../connectors-settings.js";
 import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "./assistant-island.js";
+import { pluginWorkbenchClientBootstrap } from "../../plugin-workbench.js";
 /** AP3 Workbench client segment: initialization. */
 export const CLIENT_INITIALIZATION_SCRIPT = `    });
 
@@ -54,17 +47,8 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
         setMobileView("document");
       },
     });
-    (${SHELF_CLIENT_FACTORY_SCRIPT})({ translate: L });
-    (${FUNCTIONS_CLIENT_FACTORY_SCRIPT})({ translate: L, feedApi });
-    (${PAGES_CLIENT_FACTORY_SCRIPT})({ translate: L, projectId: () => state.project?.project_id || document.body.dataset.projectId || "" });
-    (${FORM_CLIENT_FACTORY_SCRIPT})({ translate: L, projectId: () => state.project?.project_id || document.body.dataset.projectId || "" });
-    (${DATASET_CLIENT_FACTORY_SCRIPT})({ translate: L, projectId: () => state.project?.project_id || document.body.dataset.projectId || "" });
-    (${PPT_CLIENT_FACTORY_SCRIPT})({ translate: L, projectId: () => state.project?.project_id || document.body.dataset.projectId || "" });
-    (${LINGGUANG_CLIENT_FACTORY_SCRIPT})({ translate: L, projectId: () => state.project?.project_id || document.body.dataset.projectId || "" });
-    (${SCHEDULE_CLIENT_FACTORY_SCRIPT})({ translate: L, route });
+    ${pluginWorkbenchClientBootstrap()}
     (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: L, showToast });
-    ${SHELF_SETTINGS_CLIENT_SCRIPT}
-    ${FUNCTIONS_SETTINGS_CLIENT_SCRIPT}
     ${CONNECTORS_SETTINGS_CLIENT_SCRIPT}
     const settingsDirectory = (${SETTINGS_DIRECTORY_FACTORY_SCRIPT})({
       translate: L,
@@ -262,6 +246,9 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     tabWorkspace?.restore();
     if (directGoalRequested && selected && !restoredNavigation && tabWorkspace) {
       tabWorkspace.openItem("goals", selected);
+    } else if (tabWorkspace && !directGoalRequested && !decisionView && !collectionView) {
+      const navigationType = performance.getEntriesByType("navigation")[0]?.type;
+      if (navigationType !== "reload" && navigationType !== "back_forward") tabWorkspace.landAtProjectRoot();
     }
     if (restoredUi) {
       try {

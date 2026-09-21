@@ -64,7 +64,7 @@ export { FeedConnectorSync } from "./connector-sync.js";
 export type { ConnectorSyncMode, FeedConnectorSyncPorts, FeedConnectorListener } from "./connector-sync-ports.js";
 
 export { FeedConnectorService } from "./connector-service.js";
-export type { FeedConnectorAccountPorts, FeedConnectorKind, ConnectorCredentialStatus, ConnectorAuthStatus } from "./connector-account-ports.js";
+export type { FeedConnectorAccountPorts, FeedConnectorKind, CatalogConnectorPort, ConnectorCredentialStatus, ConnectorAuthStatus } from "./connector-account-ports.js";
 
 export { FeedSourceScheduler, type FeedSourceSchedulerDispatch, type FeedSourceSchedulerResult } from "./source-scheduler.js";
 

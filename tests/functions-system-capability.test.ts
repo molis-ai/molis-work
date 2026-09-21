@@ -351,15 +351,16 @@ test("Host behavior catalog includes Functions MCP tools and home/Inbox dock act
   assert.ok(ids.includes(INBOX_ADMIT_BEHAVIOR_ID));
   assert.ok(ids.includes(FEED_OPEN_BEHAVIOR_ID));
   assert.equal(ids.includes(HOME_TALK_BEHAVIOR_ID), false);
+  assert.equal(ids.includes("github.whoami"), false);
 });
 
 test("authoring catalog exposes event destinations, MCP tools, and plugin actions", () => {
   const catalog = hostFunctionAuthoringCatalog();
   const dest = Object.fromEntries(catalog.destinations.map((row) => [row.destination_id, row]));
   assert.equal(dest["home.dock"]?.kind, "event");
-  assert.match(dest["home.dock"]?.when ?? "", /首页/);
-  assert.match(dest["home.dock"]?.configure_at ?? "", /卡底判断/);
-  assert.match(dest["home.dock"]?.effect ?? "", /不会自动/);
+  assert.match(dest["home.dock"]?.when ?? "", /亮哪些按钮/);
+  assert.match(dest["home.dock"]?.configure_at ?? "", /发布后打开/);
+  assert.match(dest["home.dock"]?.effect ?? "", /亮哪些按钮/);
   assert.equal(dest["agent.mcp"]?.kind, "mcp");
   assert.ok(catalog.subjects.some((row) => row.subject_kind === "home_event"));
   const byId = Object.fromEntries(catalog.behaviors.map((row) => [row.behavior_id, row]));
@@ -701,8 +702,12 @@ test("home dock HTTP binds a published function at the scene without executing w
   assert.match(page, /"home_dock":null/);
   assert.match(page, /"home_dock_functions"/);
   const homeClient = await readFile(join(ROOT, "..", "apps/workbench/src/scripts/client/project-home.ts"), "utf8");
-  assert.match(homeClient, /data-home-dock-judgment/);
-  assert.match(homeClient, /home_dock_functions/);
+  const functionsClient = await readFile(join(ROOT, "..", "plugins/native/functions/src/client.ts"), "utf8");
+  assert.doesNotMatch(homeClient, /data-home-dock-judgment/);
+  assert.match(functionsClient, /\/api\/home\/dock-judgment/);
+  assert.match(functionsClient, /\/api\/inbox\/judgment/);
+  assert.match(functionsClient, /用在 Inbox/);
+  assert.match(functionsClient, /用在首页/);
   assert.match(homeClient, /home_dock_suggested_behavior_ids/);
   assert.match(homeClient, /dock_behaviors/);
   assert.match(homeClient, /data-home-behavior/);

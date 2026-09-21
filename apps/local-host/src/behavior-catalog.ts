@@ -19,6 +19,7 @@ import {
   assembleRegisteredBehaviors,
   type RegisteredBehavior,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { githubIntegrationManifest } from "@molis-ai/molis-work-integration-github";
 import { feedManifest } from "@molis-ai/molis-work-plugin-feed";
 import { functionsManifest } from "@molis-ai/molis-work-plugin-functions";
 import { inboxManifest } from "@molis-ai/molis-work-plugin-inbox";
@@ -26,6 +27,7 @@ import { datasetManifest } from "@molis-ai/molis-work-plugin-dataset";
 import { formManifest } from "@molis-ai/molis-work-plugin-form";
 import { pagesManifest } from "@molis-ai/molis-work-plugin-pages";
 import { pptManifest } from "@molis-ai/molis-work-plugin-ppt";
+import { connectorCredentialStatus } from "./connector-credentials.js";
 
 export const SYSTEM_BEHAVIORS: readonly RegisteredBehavior[] = [
   {
@@ -100,10 +102,30 @@ export function nativeBehaviorManifests() {
   return NATIVE_BEHAVIOR_MANIFESTS;
 }
 
+export function connectedIntegrationManifests() {
+  return connectorCredentialStatus("github").bound ? [githubIntegrationManifest] : [];
+}
+
+export function liveBehaviorManifests() {
+  return [...NATIVE_BEHAVIOR_MANIFESTS, ...connectedIntegrationManifests()];
+}
+
 export function assembleHostBehaviorCatalog(
-  manifests: readonly { plugin_id: string; mcp_exports?: typeof functionsManifest.mcp_exports; behaviors?: typeof feedManifest.behaviors }[] = NATIVE_BEHAVIOR_MANIFESTS,
+  manifests: readonly { plugin_id: string; name?: string; mcp_exports?: typeof functionsManifest.mcp_exports; behaviors?: typeof feedManifest.behaviors | typeof githubIntegrationManifest.behaviors }[] = NATIVE_BEHAVIOR_MANIFESTS,
 ): RegisteredBehavior[] {
   return assembleRegisteredBehaviors(manifests, SYSTEM_BEHAVIORS);
+}
+
+export function liveHostBehaviorCatalog(): RegisteredBehavior[] {
+  return assembleHostBehaviorCatalog(liveBehaviorManifests());
+}
+
+export function liveHostAllowedBehaviorIds(): string[] {
+  return hostAllowedBehaviorIds(liveHostBehaviorCatalog());
+}
+
+export function liveHostFunctionAuthoringCatalog() {
+  return hostFunctionAuthoringCatalog(liveHostBehaviorCatalog(), liveBehaviorManifests());
 }
 
 export function hostAllowedBehaviorIds(

@@ -59,6 +59,12 @@ const directoryPrimitives = {
   htmlLang: () => "zh-CN",
 };
 
+function settingsDocument(html: string): string {
+  const start = html.indexOf('class="settings-content"');
+  const end = html.indexOf("</main>");
+  return start >= 0 && end > start ? html.slice(start, end) : "";
+}
+
 const webService = {
   provider: "macos-launchagent" as const,
   state: "absent" as const,
@@ -119,6 +125,7 @@ test("old Shelf catalogs without settings keep the drop wheel on", async () => {
 
 test("settings catalog lists registered settings-pages and ignores Feed, Inbox, and host slugs", () => {
   assert.equal(isHostGlobalSettingsSection("mcp"), true);
+  assert.equal(isHostGlobalSettingsSection("connectors"), true);
   assert.equal(isHostGlobalSettingsSection("runtimes"), true);
   assert.equal(isHostGlobalSettingsSection("functions"), false);
   assert.deepEqual(pluginSettingsNavItemsFrom([]), []);
@@ -129,6 +136,12 @@ test("settings catalog lists registered settings-pages and ignores Feed, Inbox, 
   assert.deepEqual(
     pluginSettingsNavItemsFrom([
       settingsPage({ navigation_id: "mcp", label: "Should not steal MCP" }),
+    ]),
+    [],
+  );
+  assert.deepEqual(
+    pluginSettingsNavItemsFrom([
+      settingsPage({ navigation_id: "connectors", label: "Should not steal Connectors" }),
     ]),
     [],
   );
@@ -252,6 +265,7 @@ test("workbench settings directory and standalone settings both show Shelf after
   assert.match(directory, /data-settings-section="appearance"/);
   assert.match(directory, /data-settings-section="runtimes"/);
   assert.match(directory, /data-settings-section="mcp"/);
+  assert.match(directory, /data-settings-section="connectors"/);
   assert.match(directory, /data-settings-section="planning"/);
   assert.match(directory, /data-settings-section="diagnostics"/);
   assert.match(directory, /data-settings-section="shelf"/);
@@ -272,7 +286,7 @@ test("workbench settings directory and standalone settings both show Shelf after
   assert.match(html, /href="\/settings\/shelf"/);
   assert.match(html, /data-shelf-settings/);
   assert.match(html, /拖放轮盘/);
-  assert.doesNotMatch(html, /Gmail|Inbox/);
+  assert.doesNotMatch(settingsDocument(html), /Gmail|Inbox/);
   const appearance = renderMolisWorkSettings({
     section: "appearance",
     runtimes: [],
@@ -282,6 +296,7 @@ test("workbench settings directory and standalone settings both show Shelf after
   });
   assert.match(appearance, /href="\/settings\/shelf"/);
   assert.match(appearance, /href="\/settings\/mcp"/);
+  assert.match(appearance, /href="\/settings\/connectors"/);
   assert.match(appearance, /class="settings-document appearance-document"/);
   assert.doesNotMatch(appearance, /data-settings-panel="shelf"|name="drop_wheel_enabled"|class="shelf-settings-document"/);
 });
@@ -307,8 +322,35 @@ test("MCP settings page is a Host global section, not a Functions settings-page"
   assert.match(html, /data-mcp-group="functions"/);
   assert.match(html, /data-mcp-tool="molis_work_v1_functions_invoke"/);
   assert.match(html, /href="\/settings\/mcp"/);
+  assert.match(html, /href="\/settings\/connectors"/);
   assert.match(html, /href="\/settings\/functions"/);
   assert.doesNotMatch(html, /data-settings-panel="functions"/);
+  assert.doesNotMatch(settingsDocument(html), /data-connectors-settings|data-connector-token/);
+});
+
+test("Connectors settings page is a Host global section, not a plugin settings-page", () => {
+  const html = renderMolisWorkSettings({
+    section: "connectors",
+    connectors: [{
+      connector_id: "github",
+      title: "GitHub",
+      availability: "live",
+      auth_kind: "github",
+      group_id: "code",
+      summary: "本机账号。Feed 拉未读通知，Functions 可勾已兑现动作。",
+      account_state: "disconnected",
+      outbound_note: "已兑现动作：查看当前 GitHub 账号（github.whoami）。判断只挑，不会自动调用。",
+    }],
+    runtimes: [],
+    projects: [],
+    web_service: webService,
+    diagnostics,
+  });
+  assert.match(html, /data-settings-section="connectors"/);
+  assert.match(html, /data-connectors-settings/);
+  assert.match(html, /href="\/settings\/connectors"/);
+  assert.match(html, /href="\/settings\/mcp"/);
+  assert.doesNotMatch(settingsDocument(html), /data-mcp-settings|data-mcp-tool=/);
 });
 
 test("Shelf drop-wheel preference persists through the store and HTTP settings page", async (t) => {
@@ -343,7 +385,7 @@ test("Shelf drop-wheel preference persists through the store and HTTP settings p
   assert.match(page, /data-settings-panel="shelf"/);
   assert.match(page, /href="\/settings\/shelf"/);
   assert.match(page, /name="drop_wheel_enabled"[^>]*checked/);
-  assert.doesNotMatch(page, /Gmail|Inbox/);
+  assert.doesNotMatch(settingsDocument(page), /Gmail|Inbox/);
 
   const appearancePage = await (await fetch(`${origin}/settings/appearance`)).text();
   assert.match(appearancePage, /href="\/settings\/shelf"/);

@@ -89,6 +89,7 @@ test("Workbench registers the Inbox UI Contribution through the generic UI Host"
   assert.match(workbench, /data-inbox-stage-shell/);
   assert.match(workbench, /现在没有需要你介入的事项/);
   assert.doesNotMatch(workbench, /data-inbox-judgment/);
+  assert.doesNotMatch(workbench, /inbox-scene-bind/);
   assert.doesNotMatch(workbench, /Goal 待判断、来源故障|会出现在这里/);
   assert.doesNotMatch(workbench, /data-feed-directory|data-feed-list|data-feed-entry-id/);
   assert.doesNotMatch(workbench, /选择一条需要处理的事项/);
@@ -215,24 +216,19 @@ test("Inbox detail keeps default write actions until a legal next-step suggestio
   assert.match(fallback, /data-inbox-detail="entry-illegal"[\s\S]*data-inbox-action="dismissed"/);
 });
 
-test("Inbox list shows a board-level judgment binder when Host injects published functions", () => {
+test("Inbox list does not paint a board-level judgment binder", () => {
   const host = new UiHost();
   host.register(inboxUiContribution);
   const workbench = host.render({
     contribution_id: INBOX_UI_CONTRIBUTION_ID,
     surface: "workbench",
     model: model({
-      judgment: {
-        function_key: "system_pick_inbox_next",
-        functions: [
-          { function_key: "system_pick_inbox_next", name: "挑 Inbox 下一步" },
-        ],
-      },
+      entries: [entry()],
     }),
   });
-  assert.match(workbench, /data-inbox-judgment/);
-  assert.match(workbench, /value="system_pick_inbox_next" selected/);
-  assert.match(workbench, /下一步判断/);
+  assert.doesNotMatch(workbench, /data-inbox-judgment/);
+  assert.doesNotMatch(workbench, /下一步判断/);
+  assert.doesNotMatch(workbench, /inbox-scene-bind/);
 });
 
 test("Inbox judgment routes bind and unbind through Host ports", async () => {

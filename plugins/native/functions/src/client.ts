@@ -1,6 +1,6 @@
 /** Functions workbench client: author source/destination, preview, publish. */
 export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
-  const { translate: L } = host;
+  const { translate: L, feedApi } = host;
   const workbench = document.querySelector("[data-functions=workbench]");
   if (!workbench) return;
   const list = workbench.querySelector("[data-functions=directory]");
@@ -18,7 +18,6 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
   const addCriterionBtn = workbench.querySelector("[data-functions-add-criterion]");
   const criteriaHead = workbench.querySelector("[data-functions-criteria-head]");
   const criteriaEl = workbench.querySelector("[data-functions-criteria]");
-  const behaviorHint = workbench.querySelector("[data-functions-behavior-hint]");
   const samplesEl = workbench.querySelector("[data-functions-samples]");
   const previewInput = workbench.querySelector("[data-functions-preview-input]");
   const publishBtn = workbench.querySelector("[data-functions-publish]");
@@ -58,11 +57,18 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     subject_kinds: [],
     clickable: true,
   };
+  const boardScenePath = (sceneId) => {
+    if (sceneId === "inbox.next") return "/api/inbox/judgment";
+    if (sceneId === "home.dock") return "/api/home/dock-judgment";
+    return "";
+  };
   const destTitle = (recordOrId) => {
     const id = recordOrId && typeof recordOrId === "object" ? recordOrId.scene_id : recordOrId;
     const primitive = recordOrId && typeof recordOrId === "object" ? recordOrId.primitive : "";
-    if (!id && (primitive === "noul" || primitive === "score")) return L("给 Agent 调用");
-    return destOf(id)?.title || (id === "home.dock" ? L("首页事件") : id === "inbox.next" ? L("Inbox 落地") : id === "feed.capture" ? L("Feed 捕捉") : id === "agent.mcp" ? L("给 Agent 调用") : L("未选去向"));
+    if (!id && (primitive === "noul" || primitive === "score")) return L("Agent");
+    const title = destOf(id)?.title;
+    if (title) return L(title);
+    return id === "home.dock" ? L("首页") : id === "inbox.next" ? L("Inbox") : id === "feed.capture" ? L("Feed") : id === "agent.mcp" ? L("Agent") : L("还没选");
   };
   const functionMeta = (record) => {
     const bits = [];
@@ -165,12 +171,12 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (behavior.plugin_title && behavior.source !== "system") bits.push(behavior.plugin_title);
     }
     if (behavior.hint) bits.push(behavior.hint.length > 42 ? behavior.hint.slice(0, 41) + "…" : behavior.hint);
-    else if (!behavior.clickable && !grouped) bits.push(L("未接线，给 Agent 用"));
+    else if (!behavior.clickable && !grouped) bits.push(L("给 Agent"));
     meta.textContent = bits.join(" · ");
     const desc = document.createElement("input");
     desc.className = "mw-input";
     desc.dataset.behaviorDescription = "true";
-    desc.placeholder = L("选项说明");
+    desc.placeholder = L("可选");
     desc.value = description || "";
     desc.disabled = locked;
     desc.hidden = !checked;
@@ -178,7 +184,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     const effect = document.createElement("span");
     effect.className = "functions-effect";
     effect.dataset.effect = behavior.effect;
-    effect.textContent = behavior.effect === "write" ? L("写") + " · " + L("判断只建议") : L("看");
+    effect.textContent = behavior.effect === "write" ? L("写") : L("看");
     row.append(check, body, effect);
     (parent || criteriaEl).append(row);
   };
@@ -200,12 +206,11 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     const dest = destOf(destId);
     const selectedKeys = new Set((Array.isArray(record.criteria) ? record.criteria : []).map((row) => row.key));
     const descriptions = new Map((Array.isArray(record.criteria) ? record.criteria : []).map((row) => [row.key, row.description || ""]));
-    criteriaLabel.textContent = L("会在这些动作里挑");
-    if (behaviorHint) behaviorHint.hidden = false;
+    criteriaLabel.textContent = L("可选动作");
     if (!destId) {
       const empty = document.createElement("p");
       empty.className = "functions-hint";
-      empty.textContent = L("判断结果用在哪。开关仍在现场，这里只选定去向。");
+      empty.textContent = L("先选「用在哪」。");
       criteriaEl.append(empty);
       return;
     }
@@ -240,13 +245,12 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     criteriaEl.replaceChildren();
     addCriterionBtn.hidden = kind !== "score";
     if (criteriaHead) criteriaHead.hidden = kind === "noul";
-    if (behaviorHint) behaviorHint.hidden = kind !== "choice";
     if (kind === "noul") {
-      criteriaLabel.textContent = L("是的标准（可选）");
+      criteriaLabel.textContent = L("成立时");
       const wrap = document.createElement("div");
       wrap.className = "functions-noul-fields";
-      wrap.innerHTML = '<label class="functions-field">' + L("是的标准（可选）") + '<textarea class="mw-input" data-noul-true rows="2"></textarea></label>'
-        + '<label class="functions-field">' + L("否的标准（可选）") + '<textarea class="mw-input" data-noul-false rows="2"></textarea></label>';
+      wrap.innerHTML = '<label class="functions-field">' + L("成立时") + '<textarea class="mw-input" data-noul-true rows="2"></textarea></label>'
+        + '<label class="functions-field">' + L("不成立时") + '<textarea class="mw-input" data-noul-false rows="2"></textarea></label>';
       wrap.querySelector("[data-noul-true]").value = record.criteria?.true_description || "";
       wrap.querySelector("[data-noul-false]").value = record.criteria?.false_description || "";
       criteriaEl.append(wrap);
@@ -362,27 +366,74 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const renderUsages = async (record) => {
     if (!usagesEl) return;
+    const token = record.id;
     usagesEl.replaceChildren();
-    const dest = destOf(record.scene_id);
     const head = document.createElement("strong");
-    head.textContent = L("被用在哪");
+    head.textContent = L("用在哪");
     usagesEl.append(head);
     if (record.scene_id === "agent.mcp" || primitiveOf(record) !== "choice") {
       const line = document.createElement("p");
-      line.textContent = L("发布后 Agent 就能调用，不用再去 Inbox 或首页开开关。");
+      line.textContent = L("发布后可用。");
       usagesEl.append(line);
+      return;
+    }
+    const path = boardScenePath(record.scene_id);
+    if (path) {
+      const status = document.createElement("p");
+      status.dataset.functionsUsageStatus = "";
+      if (record.status !== "published") {
+        status.textContent = L("先发布。");
+        usagesEl.append(status);
+        return;
+      }
+      if (!feedApi) {
+        status.textContent = L("先打开项目。");
+        usagesEl.append(status);
+        return;
+      }
+      try {
+        const payload = await feedApi(path, "GET");
+        if (selected?.id !== token) return;
+        const current = payload.function_key || "";
+        const bind = document.createElement("button");
+        bind.type = "button";
+        bind.className = "mw-btn mw-btn--secondary";
+        if (current === record.function_key) {
+          status.textContent = record.scene_id === "inbox.next"
+            ? L("Inbox 在用。")
+            : L("首页在用。");
+          bind.textContent = L("停用");
+          bind.dataset.functionsSceneBind = "off";
+          usagesEl.append(status, bind);
+        } else if (current) {
+          const other = (payload.functions || []).find((row) => row.function_key === current);
+          status.textContent = other && other.name ? L("正在用") + "「" + other.name + "」" : L("正在用另一个。");
+          bind.textContent = L("换成这个");
+          bind.dataset.functionsSceneBind = "on";
+          usagesEl.append(status, bind);
+        } else {
+          bind.textContent = record.scene_id === "inbox.next" ? L("用在 Inbox") : L("用在首页");
+          bind.dataset.functionsSceneBind = "on";
+          usagesEl.append(bind);
+        }
+      } catch (error) {
+        if (selected?.id !== token) return;
+        status.textContent = error.message || L("没读到");
+        usagesEl.append(status);
+      }
       return;
     }
     try {
       const payload = record.status === "published"
         ? await request("GET", "/api/functions/" + encodeURIComponent(record.id) + "/usages")
         : { usages: [] };
+      if (selected?.id !== token) return;
       const usages = payload.usages || [];
       if (usages.length) {
         usages.forEach((row) => {
           const item = document.createElement("p");
           const scene = destOf(row.scene_id);
-          item.textContent = destTitle(row.scene_id) + (scene ? " · " + scene.configure_at : "");
+          item.textContent = destTitle(row.scene_id) + (scene ? " · " + L(scene.configure_at) : "");
           usagesEl.append(item);
         });
         return;
@@ -390,12 +441,10 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     } catch {
       // Fall through to the unbound copy.
     }
+    if (selected?.id !== token) return;
     const line = document.createElement("p");
-    line.textContent = L("还没接到现场。发布后到这里选它：");
+    line.textContent = L("去 Feed 任务里选。");
     usagesEl.append(line);
-    const where = document.createElement("p");
-    where.textContent = dest?.configure_at || L("Inbox 列表的「下一步判断」");
-    usagesEl.append(where);
   };
   const fillEditor = (record) => {
     const switching = selected?.id !== record.id;
@@ -420,7 +469,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     renderSamples(record);
     renderPreview(record);
     void renderUsages(record);
-    showNote(locked ? L("已发布，配置不能再改。") : "", false);
+    showNote(locked ? L("已发布。") : "", false);
     list.querySelectorAll("[data-function-id]").forEach((row) => {
       const on = row.dataset.functionId === record.id;
       row.classList.toggle("is-selected", on);
@@ -568,12 +617,28 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (primitiveOf(selected) === "score") addScoreRow("");
     queueSave();
   });
+  usagesEl?.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-functions-scene-bind]");
+    if (!button || !selected || !feedApi) return;
+    const path = boardScenePath(selected.scene_id);
+    if (!path) return;
+    button.disabled = true;
+    try {
+      const on = button.dataset.functionsSceneBind !== "off";
+      await feedApi(path, "POST", { function_key: on ? selected.function_key : null });
+      await renderUsages(selected);
+    } catch (error) {
+      const status = usagesEl.querySelector("[data-functions-usage-status]");
+      if (status) status.textContent = error.message || L("没打开");
+      button.disabled = false;
+    }
+  });
   workbench.querySelector("[data-functions-destinations]").addEventListener("click", (event) => {
     const button = event.target.closest("[data-functions-destination]");
     if (!button || !selected || selected.status === "published" || button.disabled) return;
     const destId = button.dataset.functionsDestination;
     if (primitiveOf(selected) !== "choice" && destId !== "agent.mcp") {
-      showNote(L("现场判断要用 Choice。Noul 和 Score 只给 Agent 用。"), true);
+      showNote(L("首页、Inbox、Feed 要用 Choice。"), true);
       return;
     }
     const dest = destOf(destId);
@@ -648,7 +713,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
   });
   workbench.querySelector("[data-functions-preview]").addEventListener("click", async () => {
     if (!selected) return;
-    showNote(L("正在请求 TypeSafe，可能计费。"), false);
+    showNote(L("可能计费。"), false);
     try {
       await saveDraft();
       const payload = await request("POST", "/api/functions/" + encodeURIComponent(selected.id) + "/preview", {

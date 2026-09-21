@@ -355,6 +355,42 @@ function throwGithubResponseError(response: Response, at: Date): never {
   throw new GithubLiveError("provider", response.status);
 }
 
+export type GithubWhoamiResult =
+  | { ok: true; login: string; scopes: string[] }
+  | {
+      ok: false;
+      failure: "needs_auth" | "network" | "provider" | "rate_limited";
+      message: string;
+      http_status?: number;
+    };
+
+/** Fulfilled outbound read: GET /user. Judgment must not call this. */
+export async function githubWhoami(input: {
+  token: string;
+  fetchImpl?: GithubFetch;
+  now?: () => Date;
+}): Promise<GithubWhoamiResult> {
+  const fetchImpl = input.fetchImpl ?? globalThis.fetch?.bind(globalThis);
+  if (!fetchImpl) {
+    return { ok: false, failure: "network", message: "GitHub 请求不可用" };
+  }
+  try {
+    const identity = await fetchGithubIdentity(fetchImpl, input.token, input.now?.() ?? new Date());
+    return { ok: true, login: identity.login, scopes: identity.scopes };
+  } catch (error) {
+    const failure = classifyGithubLiveError(error);
+    return {
+      ok: false,
+      failure: failure.failure === "needs_auth" || failure.failure === "network"
+        || failure.failure === "provider" || failure.failure === "rate_limited"
+        ? failure.failure
+        : "provider",
+      message: failure.message,
+      ...(failure.httpStatus != null ? { http_status: failure.httpStatus } : {}),
+    };
+  }
+}
+
 async function fetchGithubIdentity(
   fetchImpl: GithubFetch,
   token: string,

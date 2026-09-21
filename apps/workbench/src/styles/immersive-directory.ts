@@ -230,14 +230,25 @@ export const IMMERSIVE_DIRECTORY_STYLES = `
   body.immersive-workbench .feed-stage-heading h1 { font-size: 13px; line-height: 1.3; font-weight: 400; letter-spacing: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   body.immersive-workbench .feed-stage-search { display: flex; align-items: center; gap: 6px; min-width: 80px; max-width: 200px; height: 34px; padding: 0 8px; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); }
   body.immersive-workbench .feed-stage-search svg { width: 14px; height: 14px; flex: none; }
-  body.immersive-workbench .feed-stage-search input { width: 100%; min-width: 0; padding: 0; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: 12px; }
+  body.immersive-workbench .feed-stage-search input {
+    width: 100%; min-width: 0; margin: 0; padding: 0; border: 0; outline: none;
+    appearance: none; -webkit-appearance: none;
+    background: transparent; color: var(--ink); font: inherit; font-size: 12px; box-shadow: none;
+  }
+  body.immersive-workbench .feed-stage-search input::-webkit-search-decoration,
+  body.immersive-workbench .feed-stage-search input::-webkit-search-cancel-button {
+    appearance: none; -webkit-appearance: none;
+  }
+  body.immersive-workbench .feed-stage-search input:is(:focus, :focus-visible) {
+    outline: none; border: 0; box-shadow: none; background: transparent;
+  }
   body.immersive-workbench .feed-stage-toolbar .feed-filter-panel { left: auto; right: 0; }
   body.immersive-workbench .tab-pane-body > .feed-workbench { background: var(--paper); }
   body.immersive-workbench .feed-stage-list { padding-top: 8px; }
   body.immersive-workbench .feed-stage-item { border: 0; border-radius: 0; }
   body.immersive-workbench .feed-stage-item.is-open { margin-block: 0; border: 0; background: transparent; }
   body.immersive-workbench .feed-stage-item-line { display: block; }
-  body.immersive-workbench .feed-stage-entry:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+  body.immersive-workbench .feed-stage-entry:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
   body.immersive-workbench .feed-stage-item.is-open .feed-stage-entry { height: 28px; min-height: 28px; padding: 0 8px; }
   body.immersive-workbench .feed-stage-item-detail { border-radius: 0; background: transparent; padding: 0 40px 16px 52px; margin: 0; animation: feed-reader-reveal 160ms ease-out; }
   body.immersive-workbench .feed-stage-item-detail .feed-detail { max-width: 76ch; margin: 0; padding: 0; }

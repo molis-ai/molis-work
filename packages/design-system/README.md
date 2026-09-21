@@ -15,7 +15,7 @@ renderButton({ label: "保存", variant: "primary" });
 icon("copy"); // 页面已注入 sprite 时也可以 <svg><use href="#icon-copy"></use></svg>
 ```
 
-控件标本：开发预览打开 `/__ui/catalog`（不进用户导航）。变体、状态、浅深色以 Catalog 为准，不要在业务 CSS 里重画一套。前端开发建议先看这块板，不强制。已经达到产品美学要求的共享控件、状态变体或微动效要补进 `src/primitives/catalog.ts`；草稿和产品专属编排不必塞进去。
+控件标本：开发预览打开 `/__ui/catalog`（不进用户导航）。变体、状态、浅深色、打开后的菜单和动效以 Catalog 为准，不要在业务 CSS 里重画一套。改共享控件必须先看这块板。已经达到产品美学要求的共享控件、状态变体或微动效要补进 `src/primitives/catalog.ts`；草稿和产品专属编排不必塞进去，但进产品主链前不得带着系统下拉等 OS 控件。
 
 页面仍注入 `THEME_BOOTSTRAP_SCRIPT`、`VISUAL_FOUNDATION_STYLES`（含 `PRIMITIVE_STYLES`）、`TYPEFACE_STYLES` 和 `renderIconSprite()`。三张产品表在 [apps/workbench/src/page-assets.ts](../../apps/workbench/src/page-assets.ts) 再把 Coss / Primitive / Typeface 挂到页面 CSS 之后，让 `mw-*` 盖住中间插入的产品规则。对照装配入口 [apps/workbench/src/renderer.ts](../../apps/workbench/src/renderer.ts)。
 
@@ -37,7 +37,10 @@ icon("copy"); // 页面已注入 sprite 时也可以 <svg><use href="#icon-copy"
 
 - 栈保持 HTML Slot。不引入 Coss/shadcn 包，不把 Nova/Mira 做成可切换皮肤；密度按 Mira（桌面控件约 28，表单主操作 36，窄屏/粗指针 44）。
 - 新控件用 `render*` / `mw-*`。不要再发明 `.button-primary`、`document-action`、`text-button` 这类填充。
-- 壳层 hover / 当前走 `--nav-hover` / `--nav-active` / `--ink`。靛（`--blue` / `--focus`）只给链接、焦点、选区和进行中，不是第二套实心按钮。
+- **不准露出操作系统默认控件。** 选择打开后是 `mw-menu`，不是系统下拉。禁止系统色盘、系统日期/时间弹出、`alert` / `confirm` / `prompt`、未换肤的 `range`。原生 `<select>` 只可隐藏当值。原生 `<dialog>` 只留行为，外观走 `mw-*`。
+- 壳层 hover / 当前走 `--nav-hover` / `--nav-active` / `--ink`。靛（`--blue` / `--focus`）只给链接、选区和进行中，不是第二套实心按钮，也**不是焦点描边**。插件身份走 `--plugin-tint`；状态走 status family。图标色必须和所在表面成套，不要灰图标配随机强调色。
+- 键盘焦点只用 `--focus-stroke`：内侧 1px `--ink`。禁止 `outline: 2px solid var(--focus)`、`outline: 2px solid var(--blue)`、`0 0 0 2px var(--focus)` 和把字段边框涂成 `--focus`。危险态用 `--red`，厚度同样 1px。
+- 动效只用 `--motion-*` / `--ease-*` 和已有位移（分段滑块、插件轨、目录 yield、`creative-arrive`）。状态切换要到达或走过去，不要硬切。hover / press 不浮起。`prefers-reduced-motion` 去掉位移。不为动而动。视觉打磨属于本切片，编译通过不等于做完。
 - 色用 token，不要在组件规则里写死 hex。后代选择器不要盖 `mw-*` 的填充和焦点。
 - 图标从库取：`icon("name")` 或 `#icon-name`。不要第二套 emoji/Unicode 图标。Shelf 文件类型 SVG 仍走插件自己的 glyph，动作图标用库。
 - 字重默认 400。层级靠字号和 `--ink` / `--ink-soft` / `--muted` / `--faint`。

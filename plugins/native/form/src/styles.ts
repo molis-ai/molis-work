@@ -17,17 +17,23 @@ export const FORM_STYLES = `
   .form-identity {
     display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 12px 16px;
   }
+  .form-identity [data-form-title] { font-size: 16px; letter-spacing: -0.02em; color: var(--ink); }
   .form-field { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--muted); }
   .form-toolbar, .form-prompt, .form-actions, .form-question-move {
     display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
   }
+  .form-toolbar {
+    padding: 8px 10px; border-radius: 10px;
+    background: color-mix(in srgb, var(--plugin-tint, var(--ink)) 6%, var(--rail));
+  }
   .form-toolbar strong { font-size: 12px; font-weight: 400; color: var(--muted); }
-  .form-toolbar .mw-select { width: 112px; flex: none; }
+  .form-toolbar .mw-select, .form-toolbar .mw-select-picker { width: 112px; flex: none; }
   .form-toolbar .mw-btn, .form-prompt .mw-btn, .form-actions .mw-btn { flex: none; width: auto; align-self: center; }
   .form-actions:has([data-form-submit][hidden]) { display: none; }
   .form-prompt { align-items: flex-end; max-width: 36rem; }
   .form-prompt .form-field { flex: 1; min-width: 0; }
   [data-form-questions] { display: flex; flex-direction: column; gap: 10px; }
+  .form-question .mw-select-picker { width: 100%; min-width: 0; }
   .form-question {
     display: grid; grid-template-columns: minmax(0, 1fr) 112px auto auto auto;
     gap: 8px; align-items: center; width: 100%;
@@ -35,7 +41,7 @@ export const FORM_STYLES = `
     background: color-mix(in srgb, var(--rail) 82%, var(--paper));
     transition: background-color var(--motion-fast, 130ms) ease;
   }
-  .form-question:hover { background: color-mix(in srgb, var(--rail) 68%, var(--paper)); }
+  .form-question:hover { background: color-mix(in srgb, var(--plugin-tint, var(--ink)) 8%, var(--rail)); }
   .form-question > label { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; white-space: nowrap; }
   .form-question-options { grid-column: 1 / -1; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
   .form-option-list { display: flex; flex-direction: column; gap: 6px; width: min(100%, 28rem); }

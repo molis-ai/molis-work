@@ -4,7 +4,7 @@ import { InputRule, inputRules, wrappingInputRule, textblockTypeInputRule } from
 import { keymap } from "prosemirror-keymap";
 import { DOMSerializer, Fragment, Node } from "prosemirror-model";
 import { liftListItem, sinkListItem, splitListItem, wrapInList } from "prosemirror-schema-list";
-import { EditorState, Plugin, PluginKey, TextSelection, Transaction } from "prosemirror-state";
+import { EditorState, NodeSelection, Plugin, PluginKey, TextSelection, Transaction } from "prosemirror-state";
 import { Decoration, DecorationSet, EditorView } from "prosemirror-view";
 import { actionItemsFromText } from "./ai.js";
 import { emptyDoc, nodeFromUnknown, pagesSchema } from "./schema.js";
@@ -54,12 +54,18 @@ function headingCommand(level: number) {
   return setBlockType(pagesSchema.nodes.heading, { level });
 }
 
-function paragraphCommand() {
-  return setBlockType(pagesSchema.nodes.paragraph);
-}
-
 function t(translate: Translate | undefined, value: string): string {
   return translate ? translate(value) : value;
+}
+
+function dsIcon(name: string): string {
+  return `<svg aria-hidden="true"><use href="#icon-${name}"></use></svg>`;
+}
+
+function overlayRoot(): HTMLElement {
+  return document.querySelector("[data-pages-stage-workspace]")
+    ?? document.querySelector("[data-pages=workbench]")
+    ?? document.body;
 }
 
 function paragraphNode(text = ""): Node {
@@ -101,23 +107,23 @@ function blockFor(id: string): Node {
 
 function slashItems(translate: Translate | undefined) {
   return [
-    { id: "paragraph", label: t(translate, "段落"), hint: t(translate, "正文") },
-    { id: "heading1", label: t(translate, "标题 1"), hint: "H1" },
-    { id: "heading2", label: t(translate, "标题 2"), hint: "H2" },
-    { id: "heading3", label: t(translate, "标题 3"), hint: "H3" },
-    { id: "bullet_list", label: t(translate, "无序列表"), hint: "•" },
-    { id: "ordered_list", label: t(translate, "有序列表"), hint: "1." },
-    { id: "task_list", label: t(translate, "清单"), hint: "☑" },
-    { id: "callout", label: t(translate, "Callout"), hint: t(translate, "提示块") },
-    { id: "code_block", label: t(translate, "代码"), hint: "</>" },
-    { id: "table", label: t(translate, "表"), hint: t(translate, "两列表") },
-    { id: "toggle", label: t(translate, "Toggle"), hint: t(translate, "折叠") },
-    { id: "horizontal_rule", label: t(translate, "分隔线"), hint: "—" },
-    { id: "toc", label: t(translate, "目录"), hint: t(translate, "按标题生成") },
-    { id: "page_ref", label: t(translate, "引用文档"), hint: "@" },
-    { id: "task_card", label: t(translate, "任务卡"), hint: t(translate, "待办") },
-    { id: "event_card", label: t(translate, "日程卡"), hint: t(translate, "日期") },
-    { id: "calendar", label: t(translate, "月历"), hint: t(translate, "本篇事件") },
+    { id: "paragraph", icon: "rows", group: "basic", label: t(translate, "段落"), hint: t(translate, "正文") },
+    { id: "heading1", icon: "hash", group: "basic", label: t(translate, "标题 1"), hint: "H1" },
+    { id: "heading2", icon: "hash", group: "basic", label: t(translate, "标题 2"), hint: "H2" },
+    { id: "heading3", icon: "hash", group: "basic", label: t(translate, "标题 3"), hint: "H3" },
+    { id: "bullet_list", icon: "rows", group: "basic", label: t(translate, "无序列表"), hint: t(translate, "圆点") },
+    { id: "ordered_list", icon: "list", group: "basic", label: t(translate, "有序列表"), hint: "1." },
+    { id: "task_list", icon: "check", group: "basic", label: t(translate, "清单"), hint: t(translate, "待办") },
+    { id: "callout", icon: "info", group: "basic", label: t(translate, "Callout"), hint: t(translate, "提示块") },
+    { id: "code_block", icon: "code", group: "basic", label: t(translate, "代码"), hint: t(translate, "等宽") },
+    { id: "table", icon: "grid", group: "basic", label: t(translate, "表"), hint: t(translate, "两列表") },
+    { id: "toggle", icon: "chevron-right", group: "basic", label: t(translate, "Toggle"), hint: t(translate, "折叠") },
+    { id: "horizontal_rule", icon: "minus", group: "basic", label: t(translate, "分隔线"), hint: t(translate, "横线") },
+    { id: "toc", icon: "library", group: "basic", label: t(translate, "目录"), hint: t(translate, "按标题生成") },
+    { id: "page_ref", icon: "link", group: "card", label: t(translate, "引用文档"), hint: "@" },
+    { id: "task_card", icon: "clipboard", group: "card", label: t(translate, "任务卡"), hint: t(translate, "待办") },
+    { id: "event_card", icon: "clock", group: "card", label: t(translate, "日程卡"), hint: t(translate, "日期") },
+    { id: "calendar", icon: "calendar", group: "card", label: t(translate, "月历"), hint: t(translate, "本篇事件") },
   ];
 }
 
@@ -189,6 +195,15 @@ function slashPlugin(translate: Translate | undefined) {
         if (!value?.open) return false;
         const items = slashItems(translate).filter((item) => matchSlash(item, value.query));
         if (event.key === "Escape") {
+          const $from = view.state.selection.$from;
+          const parent = $from.parent;
+          if (parent.type === pagesSchema.nodes.paragraph && parent.textContent.startsWith("/")) {
+            const from = $from.start();
+            view.dispatch(view.state.tr
+              .delete(from, from + parent.content.size)
+              .setMeta(slashKey, { open: false, pos: 0, query: "", index: 0 }));
+            return true;
+          }
           view.dispatch(view.state.tr.setMeta(slashKey, { open: false, pos: 0, query: "", index: 0 }));
           return true;
         }
@@ -212,7 +227,7 @@ function slashPlugin(translate: Translate | undefined) {
       const menu = document.createElement("div");
       menu.className = "pages-slash";
       menu.hidden = true;
-      document.body.append(menu);
+      overlayRoot().append(menu);
       return {
         update(view) {
           const value = slashKey.getState(view.state);
@@ -223,11 +238,19 @@ function slashPlugin(translate: Translate | undefined) {
           const items = slashItems(translate).filter((item) => matchSlash(item, value.query));
           menu.hidden = false;
           menu.replaceChildren();
+          let lastGroup = "";
           items.forEach((item, index) => {
+            if (item.group !== lastGroup) {
+              lastGroup = item.group;
+              const group = document.createElement("p");
+              group.className = "pages-slash-group";
+              group.textContent = t(translate, item.group === "card" ? "卡片" : "基础");
+              menu.append(group);
+            }
             const button = document.createElement("button");
             button.type = "button";
             button.className = "pages-slash-item" + (index === value.index ? " is-on" : "");
-            button.innerHTML = `<strong>${escapeHtml(item.label)}</strong><span>${escapeHtml(item.hint)}</span>`;
+            button.innerHTML = `<span class="pages-slash-icon">${dsIcon(item.icon)}</span><span class="pages-slash-copy"><strong>${escapeHtml(item.label)}</strong><em class="pages-slash-hint">${escapeHtml(item.hint)}</em></span>`;
             button.addEventListener("mousedown", (event) => {
               event.preventDefault();
               replaceTopBlock(view, blockFor(item.id));
@@ -299,7 +322,7 @@ function mentionPlugin(options: PagesEditorMountOptions) {
       const menu = document.createElement("div");
       menu.className = "pages-slash pages-mention-menu";
       menu.hidden = true;
-      document.body.append(menu);
+      overlayRoot().append(menu);
       return {
         update(view) {
           const value = mentionKey.getState(view.state);
@@ -314,7 +337,7 @@ function mentionPlugin(options: PagesEditorMountOptions) {
             const button = document.createElement("button");
             button.type = "button";
             button.className = "pages-slash-item" + (index === value.index ? " is-on" : "");
-            button.innerHTML = `<strong>${escapeHtml(item.title)}</strong>`;
+            button.innerHTML = `<span class="pages-slash-icon">${dsIcon("note")}</span><strong>${escapeHtml(item.title)}</strong>`;
             button.addEventListener("mousedown", (event) => {
               event.preventDefault();
               insertMention(view, value.from, view.state.selection.from, item);
@@ -348,7 +371,7 @@ function insertMention(view: EditorView, from: number, to: number, item: PagesLi
   view.focus();
 }
 
-function chromePlugin(translate: Translate | undefined, onNote: (index: number) => void) {
+function chromePlugin(translate: Translate | undefined) {
   return new Plugin({
     key: chromeKey,
     props: {
@@ -362,16 +385,10 @@ function chromePlugin(translate: Translate | undefined, onNote: (index: number) 
           }));
         }
         state.doc.forEach((node, offset, index) => {
-          widgets.push(Decoration.widget(offset, () => handleWidget(index, Boolean(node.attrs.note), translate), {
-            side: -1,
-            key: "handle-" + offset + (node.attrs.note ? ":note" : ""),
-            ignoreSelection: true,
-          }));
           if (index < state.doc.childCount - 1) {
-            const gapPos = offset + node.nodeSize;
-            widgets.push(Decoration.widget(gapPos, () => gapWidget(index), {
+            widgets.push(Decoration.widget(offset + node.nodeSize, () => gapWidget(index, translate), {
               side: -1,
-              key: "gap-" + gapPos,
+              key: "gap-" + (offset + node.nodeSize),
               ignoreSelection: true,
             }));
           }
@@ -380,51 +397,180 @@ function chromePlugin(translate: Translate | undefined, onNote: (index: number) 
       },
       handleDOMEvents: {
         mousedown(view, event) {
-          const target = event.target as HTMLElement;
-          const gap = target.closest("[data-pages-gap]");
-          if (gap) {
-            event.preventDefault();
-            insertBlockAt(view, blockPos(view.state.doc, Number(gap.getAttribute("data-after") || "0") + 1), paragraphNode());
-            return true;
-          }
-          const plus = target.closest("[data-pages-plus]");
-          if (plus) {
-            event.preventDefault();
-            insertSlashParagraph(view, blockPos(view.state.doc, Number(plus.getAttribute("data-index") || "0")));
-            return true;
-          }
-          const up = target.closest("[data-pages-up]");
-          if (up) {
-            event.preventDefault();
-            moveTopBlock(view, Number(up.getAttribute("data-index") || "0"), -1);
-            return true;
-          }
-          const down = target.closest("[data-pages-down]");
-          if (down) {
-            event.preventDefault();
-            moveTopBlock(view, Number(down.getAttribute("data-index") || "0"), 1);
-            return true;
-          }
-          const note = target.closest("[data-pages-note-btn]");
-          if (note) {
-            event.preventDefault();
-            onNote(Number(note.getAttribute("data-index") || "0"));
-            return true;
-          }
-          return false;
+          const gap = (event.target as HTMLElement).closest("[data-pages-gap]");
+          if (!gap) return false;
+          event.preventDefault();
+          insertBlockAt(view, blockPos(view.state.doc, Number(gap.getAttribute("data-after") || "0") + 1), paragraphNode());
+          return true;
         },
       },
     },
   });
 }
 
-function insertSlashParagraph(view: EditorView, pos: number): void {
-  const node = paragraphNode("/");
-  const tr = view.state.tr.insert(pos, node);
-  const cursor = Math.min(pos + 2, tr.doc.content.size);
-  tr.setSelection(TextSelection.near(tr.doc.resolve(cursor)));
-  view.dispatch(tr.scrollIntoView());
+function selectTopBlock(view: EditorView, index: number): void {
+  const pos = blockPos(view.state.doc, index);
+  try {
+    view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, pos)));
+  } catch {
+    view.dispatch(view.state.tr.setSelection(TextSelection.near(view.state.doc.resolve(Math.min(pos + 1, view.state.doc.content.size)))));
+  }
   view.focus();
+}
+
+function insertSlashParagraph(view: EditorView, index: number): void {
+  const node = view.state.doc.child(index);
+  const pos = blockPos(view.state.doc, index);
+  if (node?.type === pagesSchema.nodes.paragraph && node.content.size === 0) {
+    const tr = view.state.tr.insertText("/", pos + 1);
+    tr.setSelection(TextSelection.near(tr.doc.resolve(pos + 2)));
+    view.dispatch(tr.scrollIntoView());
+    view.focus();
+    return;
+  }
+  const after = pos + (node?.nodeSize ?? 0);
+  insertBlockAt(view, after, paragraphNode("/"));
+}
+
+function hoverHandlePlugin(translate: Translate | undefined, onNote: (index: number) => void) {
+  return new Plugin({
+    view(editorView) {
+      const handle = handleWidget(translate);
+      handle.hidden = true;
+      overlayRoot().append(handle);
+      const menu = document.createElement("div");
+      menu.className = "mw-menu pages-block-menu";
+      menu.hidden = true;
+      menu.setAttribute("role", "menu");
+      overlayRoot().append(menu);
+      let index = 0;
+
+      const clearHover = () => {
+        editorView.dom.querySelectorAll(".is-block-hover").forEach((node) => node.classList.remove("is-block-hover"));
+      };
+      const closeMenu = () => {
+        menu.hidden = true;
+        menu.replaceChildren();
+      };
+      const hideChrome = () => {
+        if (!menu.hidden) return;
+        handle.hidden = true;
+        clearHover();
+      };
+      const placeHandle = (blockIndex: number) => {
+        const node = editorView.state.doc.child(blockIndex);
+        const dom = editorView.nodeDOM(blockPos(editorView.state.doc, blockIndex));
+        if (!node || !(dom instanceof HTMLElement)) {
+          hideChrome();
+          return;
+        }
+        handle.classList.toggle("has-note", Boolean(node.attrs.note));
+        clearHover();
+        dom.classList.add("is-block-hover");
+        const rect = dom.getBoundingClientRect();
+        handle.style.top = Math.round(rect.top + 3) + "px";
+        handle.style.left = Math.round(rect.left + 2) + "px";
+        handle.hidden = false;
+        index = blockIndex;
+      };
+      const blockIndexAt = (clientX: number, clientY: number): number | null => {
+        const found = editorView.posAtCoords({ left: clientX, top: clientY });
+        if (!found || editorView.state.doc.childCount === 0) return null;
+        const $pos = editorView.state.doc.resolve(Math.min(found.pos, editorView.state.doc.content.size));
+        if ($pos.depth >= 1) return $pos.index(0);
+        return Math.min($pos.index(0), editorView.state.doc.childCount - 1);
+      };
+      const openMenu = () => {
+        menu.hidden = false;
+        menu.replaceChildren();
+        ([
+          { id: "up", icon: "chevron-up", label: t(translate, "上移") },
+          { id: "down", icon: "chevron-down", label: t(translate, "下移") },
+          { id: "note", icon: "message", label: t(translate, "备注") },
+        ] as const).forEach((item) => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "mw-menu__item";
+          button.setAttribute("role", "menuitem");
+          button.innerHTML = `${dsIcon(item.icon)}<span>${escapeHtml(item.label)}</span>`;
+          button.addEventListener("mousedown", (event) => {
+            event.preventDefault();
+            if (item.id === "up") moveTopBlock(editorView, index, -1);
+            else if (item.id === "down") moveTopBlock(editorView, index, 1);
+            else onNote(index);
+            closeMenu();
+          });
+          menu.append(button);
+        });
+        const rect = handle.getBoundingClientRect();
+        menu.style.left = Math.round(rect.right + 6) + "px";
+        menu.style.top = Math.round(rect.top) + "px";
+      };
+      const onMove = (event: MouseEvent) => {
+        const target = event.target as HTMLElement | null;
+        if (target?.closest(".pages-slash, .pages-format-bar, .pages-pop, .pages-more-menu, .pages-create-menu")) {
+          hideChrome();
+          return;
+        }
+        if (target && (handle.contains(target) || menu.contains(target))) {
+          handle.hidden = false;
+          return;
+        }
+        const host = editorView.dom.closest(".pages-editor-host") ?? editorView.dom;
+        if (!host.contains(target)) {
+          hideChrome();
+          return;
+        }
+        const next = blockIndexAt(event.clientX, event.clientY);
+        if (next == null) hideChrome();
+        else placeHandle(next);
+      };
+      handle.addEventListener("mousedown", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const target = event.target as HTMLElement;
+        if (target.closest("[data-pages-plus]")) {
+          closeMenu();
+          insertSlashParagraph(editorView, index);
+          return;
+        }
+        if (target.closest("[data-pages-grip]")) {
+          selectTopBlock(editorView, index);
+          openMenu();
+        }
+      });
+      const onPointerDown = (event: PointerEvent) => {
+        const target = event.target as Node | null;
+        if (target && (handle.contains(target) || menu.contains(target))) return;
+        closeMenu();
+      };
+      const onKey = (event: KeyboardEvent) => {
+        if (event.key === "Escape") closeMenu();
+      };
+      const workspace = editorView.dom.closest(".pages-workspace");
+      const onScroll = () => {
+        closeMenu();
+        if (!handle.hidden) placeHandle(index);
+      };
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("pointerdown", onPointerDown, true);
+      document.addEventListener("keydown", onKey);
+      workspace?.addEventListener("scroll", onScroll, { passive: true });
+      return {
+        update() {
+          if (!handle.hidden && editorView.state.doc.childCount > index) placeHandle(index);
+        },
+        destroy() {
+          document.removeEventListener("mousemove", onMove);
+          document.removeEventListener("pointerdown", onPointerDown, true);
+          document.removeEventListener("keydown", onKey);
+          workspace?.removeEventListener("scroll", onScroll);
+          handle.remove();
+          menu.remove();
+        },
+      };
+    },
+  });
 }
 
 function blockPos(doc: Node, index: number): number {
@@ -433,24 +579,22 @@ function blockPos(doc: Node, index: number): number {
   return pos;
 }
 
-function handleWidget(index: number, hasNote: boolean, translate: Translate | undefined): HTMLElement {
-  const wrap = document.createElement("span");
-  wrap.className = "pages-block-handle" + (hasNote ? " has-note" : "");
-  wrap.contentEditable = "false";
+function handleWidget(translate: Translate | undefined): HTMLElement {
+  const wrap = document.createElement("div");
+  wrap.className = "pages-block-handle";
   wrap.innerHTML = `
-    <button type="button" data-pages-plus data-index="${index}" aria-label="${escapeHtml(t(translate, "插入块"))}">+</button>
-    <button type="button" data-pages-up data-index="${index}" aria-label="${escapeHtml(t(translate, "上移"))}">↑</button>
-    <button type="button" data-pages-down data-index="${index}" aria-label="${escapeHtml(t(translate, "下移"))}">↓</button>
-    <button type="button" class="pages-note-btn" data-pages-note-btn data-index="${index}" aria-label="${escapeHtml(t(translate, "备注"))}">${hasNote ? "●" : "○"}</button>`;
+    <button type="button" data-pages-plus aria-label="${escapeHtml(t(translate, "插入块"))}">${dsIcon("plus")}</button>
+    <button type="button" data-pages-grip aria-label="${escapeHtml(t(translate, "块操作"))}">${dsIcon("grip")}</button>`;
   return wrap;
 }
 
-function gapWidget(index: number): HTMLElement {
+function gapWidget(index: number, translate?: Translate): HTMLElement {
   const line = document.createElement("button");
   line.type = "button";
   line.className = "pages-insert-line";
   line.dataset.pagesGap = "1";
   line.dataset.after = String(index);
+  line.setAttribute("aria-label", t(translate, "在此插入"));
   line.contentEditable = "false";
   return line;
 }
@@ -489,6 +633,7 @@ function toggleNodeView(node: Node, view: EditorView, getPos: () => number | und
   const caret = document.createElement("button");
   caret.type = "button";
   caret.className = "pages-toggle-caret";
+  caret.innerHTML = dsIcon("chevron-right");
   caret.addEventListener("mousedown", (event) => {
     event.preventDefault();
     const pos = getPos();
@@ -505,6 +650,39 @@ function toggleNodeView(node: Node, view: EditorView, getPos: () => number | und
       if (next.type !== node.type) return false;
       node = next;
       dom.classList.toggle("is-open", Boolean(next.attrs.open));
+      return true;
+    },
+  };
+}
+
+function calloutIcon(tone: string): string {
+  if (tone === "warn") return "alert";
+  if (tone === "success") return "check";
+  if (tone === "plain") return "idea";
+  return "info";
+}
+
+function calloutNodeView(node: Node) {
+  const dom = document.createElement("aside");
+  const mark = document.createElement("span");
+  mark.className = "pages-callout-mark";
+  mark.setAttribute("aria-hidden", "true");
+  const body = document.createElement("div");
+  body.className = "pages-callout-body";
+  const paint = (current: Node) => {
+    node = current;
+    const tone = String(current.attrs.tone || "info");
+    dom.className = "pages-callout pages-callout--" + tone;
+    mark.innerHTML = dsIcon(calloutIcon(tone));
+  };
+  paint(node);
+  dom.append(mark, body);
+  return {
+    dom,
+    contentDOM: body,
+    update(next: Node) {
+      if (next.type !== node.type) return false;
+      paint(next);
       return true;
     },
   };
@@ -536,17 +714,21 @@ function cardNodeView(kind: "ref" | "task" | "event", node: Node, view: EditorVi
     node = current;
     if (kind === "ref") {
       dom.className = "pages-card pages-card--ref";
-      const title = String(current.attrs.title || t(translate, "选择文档"));
-      dom.innerHTML = `<strong>${escapeHtml(title)}</strong><span>${escapeHtml(t(translate, "文档引用"))}</span>`;
+      const title = String(current.attrs.title || "");
+      const empty = !title;
+      dom.innerHTML = `<span class="pages-card-mark">${dsIcon("link")}</span><span class="pages-card-body"><strong class="${empty ? "is-placeholder" : ""}">${escapeHtml(title || t(translate, "选择文档"))}</strong><span>${escapeHtml(t(translate, "文档引用"))}</span></span>`;
     } else if (kind === "task") {
+      const title = String(current.attrs.title || "");
+      const description = String(current.attrs.description || "");
       dom.className = "pages-card pages-card--task is-" + String(current.attrs.status || "todo");
-      dom.innerHTML = `<strong>${escapeHtml(String(current.attrs.title || t(translate, "任务")))}</strong>
+      dom.innerHTML = `<span class="pages-card-mark">${dsIcon("clipboard")}</span><span class="pages-card-body"><strong class="${title ? "" : "is-placeholder"}">${escapeHtml(title || t(translate, "任务"))}</strong>
         <span>${escapeHtml(statusLabel(String(current.attrs.status), translate))}${current.attrs.due ? " · " + escapeHtml(String(current.attrs.due)) : ""}</span>
-        <p>${escapeHtml(String(current.attrs.description || ""))}</p>`;
+        ${description ? `<p>${escapeHtml(description)}</p>` : ""}</span>`;
     } else {
+      const title = String(current.attrs.title || "");
       dom.className = "pages-card pages-card--event";
-      dom.innerHTML = `<strong>${escapeHtml(String(current.attrs.title || t(translate, "日程")))}</strong>
-        <span>${escapeHtml(String(current.attrs.at || t(translate, "没有日期")))}</span>`;
+      dom.innerHTML = `<span class="pages-card-mark">${dsIcon("calendar")}</span><span class="pages-card-body"><strong class="${title ? "" : "is-placeholder"}">${escapeHtml(title || t(translate, "日程"))}</strong>
+        <span>${escapeHtml(String(current.attrs.at || t(translate, "没有日期")))}</span></span>`;
     }
   };
   paint(node);
@@ -592,7 +774,7 @@ function pickPage(view: EditorView, pos: number, node: Node, options: PagesEdito
     const button = document.createElement("button");
     button.type = "button";
     button.className = "pages-slash-item";
-    button.textContent = item.title;
+    button.innerHTML = `<span class="pages-slash-icon">${dsIcon("note")}</span><strong>${escapeHtml(item.title)}</strong>`;
     button.addEventListener("click", () => {
       view.dispatch(view.state.tr.setNodeMarkup(pos, undefined, { ...node.attrs, page_id: item.id, title: item.title }));
       pop.remove();
@@ -605,7 +787,7 @@ function pickPage(view: EditorView, pos: number, node: Node, options: PagesEdito
   cancel.textContent = t(options.translate, "取消");
   cancel.addEventListener("click", () => pop.remove());
   pop.append(cancel);
-  document.body.append(pop);
+  overlayRoot().append(pop);
   const coords = view.coordsAtPos(pos);
   pop.style.left = Math.max(8, coords.left) + "px";
   pop.style.top = (coords.bottom + 8) + "px";
@@ -656,7 +838,7 @@ function editCard(kind: "task" | "event", view: EditorView, pos: number, node: N
       pop.remove();
     }, () => pop.remove()));
   }
-  document.body.append(pop);
+  overlayRoot().append(pop);
   const coords = view.coordsAtPos(pos);
   pop.style.left = Math.max(8, coords.left) + "px";
   pop.style.top = (coords.bottom + 8) + "px";
@@ -691,15 +873,12 @@ function actions(translate: Translate | undefined, ok: () => void, cancel: () =>
   return row;
 }
 
-function calendarNodeView(_node: Node, view: EditorView) {
+function calendarNodeView() {
   const dom = document.createElement("div");
   dom.className = "pages-calendar";
-  const paint = () => { renderCalendar(dom, view.state.doc); };
-  paint();
   return {
     dom,
     update() {
-      paint();
       return true;
     },
   };
@@ -868,35 +1047,42 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
   const toolbar = document.createElement("div");
   toolbar.className = "pages-format-bar";
   toolbar.hidden = true;
-  const buttons: Array<{ name: string; label: string; run?: (state: EditorState, dispatch?: (tr: Transaction) => void) => boolean; action?: string }> = [
-    { name: "strong", label: "B", run: commandToggle("strong") },
-    { name: "em", label: "I", run: commandToggle("em") },
-    { name: "underline", label: "U", run: commandToggle("underline") },
-    { name: "strike", label: "S", run: commandToggle("strike") },
-    { name: "code", label: "</>", run: commandToggle("code") },
-    { name: "h1", label: "H1", run: headingCommand(1) },
-    { name: "h2", label: "H2", run: headingCommand(2) },
-    { name: "h3", label: "H3", run: headingCommand(3) },
-    { name: "p", label: "P", run: paragraphCommand() },
-    { name: "ul", label: "•", run: wrapInList(pagesSchema.nodes.bullet_list) },
-    { name: "ol", label: "1.", run: wrapInList(pagesSchema.nodes.ordered_list) },
-    { name: "comment", label: t(options.translate, "评"), action: "comment" },
-    { name: "ai", label: "AI", action: "ai" },
+  const buttons: Array<{ name: string; label: string; icon?: string; gap?: boolean; run?: (state: EditorState, dispatch?: (tr: Transaction) => void) => boolean; action?: string }> = [
+    { name: "strong", label: t(options.translate, "加粗"), run: commandToggle("strong") },
+    { name: "em", label: t(options.translate, "斜体"), run: commandToggle("em") },
+    { name: "underline", label: t(options.translate, "下划线"), run: commandToggle("underline") },
+    { name: "strike", label: t(options.translate, "删除线"), run: commandToggle("strike") },
+    { name: "code", label: t(options.translate, "代码"), icon: "code", run: commandToggle("code") },
+    { name: "h1", label: t(options.translate, "标题 1"), gap: true, run: headingCommand(1) },
+    { name: "h2", label: t(options.translate, "标题 2"), run: headingCommand(2) },
+    { name: "h3", label: t(options.translate, "标题 3"), run: headingCommand(3) },
+    { name: "ul", label: t(options.translate, "无序列表"), icon: "rows", gap: true, run: wrapInList(pagesSchema.nodes.bullet_list) },
+    { name: "ol", label: t(options.translate, "有序列表"), icon: "list", run: wrapInList(pagesSchema.nodes.ordered_list) },
+    { name: "comment", label: t(options.translate, "评论"), icon: "message", gap: true, action: "comment" },
+    { name: "ai", label: "AI", icon: "sparkles", action: "ai" },
   ];
   const buttonEls = buttons.map((item) => {
+    if (item.gap) {
+      const gap = document.createElement("span");
+      gap.className = "pages-format-gap";
+      toolbar.append(gap);
+    }
     const button = document.createElement("button");
     button.type = "button";
     button.dataset.mark = item.name;
-    button.textContent = item.label;
+    button.setAttribute("aria-label", item.label);
+    button.title = item.label;
+    if (item.icon) button.innerHTML = dsIcon(item.icon);
+    else button.textContent = ({ strong: "B", em: "I", underline: "U", strike: "S", h1: "H1", h2: "H2", h3: "H3" } as Record<string, string>)[item.name] || item.label;
     toolbar.append(button);
     return { item, button };
   });
-  document.body.append(toolbar);
+  overlayRoot().append(toolbar);
 
   const pop = document.createElement("div");
   pop.className = "pages-pop";
   pop.hidden = true;
-  document.body.append(pop);
+  overlayRoot().append(pop);
 
   const hidePop = () => { pop.hidden = true; pop.replaceChildren(); };
 
@@ -970,8 +1156,8 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
     commands.forEach((item) => {
       const button = document.createElement("button");
       button.type = "button";
-      button.className = "pages-slash-item";
-      button.textContent = t(options.translate, item.label);
+      button.className = "mw-menu__item";
+      button.innerHTML = `<span>${escapeHtml(t(options.translate, item.label))}</span>`;
       button.addEventListener("click", () => { void runAiCommand(view, item.id, item.style); });
       pop.append(button);
     });
@@ -1067,7 +1253,8 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
     }),
     slashPlugin(options.translate),
     mentionPlugin(options),
-    chromePlugin(options.translate, (index) => openNote(view, index)),
+    chromePlugin(options.translate),
+    hoverHandlePlugin(options.translate, (index) => openNote(view, index)),
     tocPlugin(options.translate),
     calendarPlugin(),
   ];
@@ -1098,11 +1285,12 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
     nodeViews: {
       task_item: (node, current, getPos) => taskNodeView(node, current, getPos),
       toggle: (node, current, getPos) => toggleNodeView(node, current, getPos),
+      callout: (node) => calloutNodeView(node),
       page_mention: (node) => mentionNodeView(node, options),
       page_ref: (node, current, getPos) => cardNodeView("ref", node, current, getPos, options),
       task_card: (node, current, getPos) => cardNodeView("task", node, current, getPos, options),
       event_card: (node, current, getPos) => cardNodeView("event", node, current, getPos, options),
-      calendar: (node, current) => calendarNodeView(node, current),
+      calendar: () => calendarNodeView(),
     },
     dispatchTransaction(tr) {
       const next = view.state.apply(tr);

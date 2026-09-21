@@ -1,5 +1,7 @@
 # 焦点环：贴边实线，不要外扩蓝框
 
+> 内侧、不外扩、不光晕仍有效。颜色和厚度已被 [neutral-focus-stroke](../neutral-focus-stroke/spec.md) 替换为 1px `--ink`。不要再把 `--focus` 当描边。
+
 ## 背景与目标
 
 Functions 编辑器里点进「函数 key」一类 `mw-input` 时，焦点是一圈外扩的亮蓝描边：上沿被裁掉，整体像浏览器默认框。工作台大量容器 `overflow: hidden`，任何画在控件外面的环都会被切。同一套外扩 2px / 3.5px 光晕还散落在按钮、目录、画布、弹窗字段上。

@@ -38,7 +38,7 @@ import { FeedApplication, FeedOutRuleStore, type FeedApplicationPorts, type Feed
 import { ArtifactsModule, type ArtifactsSqliteDatabase } from "@molis-ai/molis-work-module-artifacts";
 import type { JudgmentPort } from "@molis-ai/molis-work-contracts/modules/functions";
 import { createFunctionsJudgmentPort } from "./functions-host.js";
-import { hostAllowedBehaviorIds, hostOfferedBehaviorsForScene } from "./behavior-catalog.js";
+import { hostOfferedBehaviorsForScene, liveHostAllowedBehaviorIds } from "./behavior-catalog.js";
 
 export interface LocalFeedApplicationOptions {
   artifacts?: FeedArtifactProducer;
@@ -51,7 +51,7 @@ export function withLocalFeedJudgments(homeDirectory?: string): LocalFeedApplica
   if (!homeDirectory) return {};
   return {
     judgments: createFunctionsJudgmentPort(homeDirectory),
-    offered_behavior_ids: hostAllowedBehaviorIds(),
+    offered_behavior_ids: liveHostAllowedBehaviorIds(),
     offeredBehaviorsForScene: hostOfferedBehaviorsForScene,
   };
 }

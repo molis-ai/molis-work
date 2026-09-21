@@ -267,7 +267,7 @@ export const GOAL_CANVAS_STYLES = `
   body.immersive-workbench .goal-kanban-card .goal-status { display: inline-flex; align-items: center; gap: 5px; width: max-content; max-width: 100%; min-height: 0; padding: 0; border: 0; border-radius: 0; background: transparent; font-size: 11px; font-weight: 400; color: var(--goal-status-tone); }
   body.immersive-workbench .goal-kanban-card .goal-status svg { display: none; }
   body.immersive-workbench .goal-kanban-card .goal-status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
-  .goal-kanban-card:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+  .goal-kanban-card:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
   @container goal-board (max-width: 839px) {
     .goal-canvas-shell[data-board-view="kanban"] > [data-goal-kanban] { display: block; overflow-x: hidden; overflow-y: auto; background: var(--paper); min-width: 0; max-width: 100%; }
     .goal-canvas-shell[data-board-view="kanban"] .goal-kanban-board { flex-direction: column; align-items: stretch; gap: 6px; box-sizing: border-box; min-width: 0; max-width: 100%; flex: none; width: 100%; height: auto; min-height: 100%; margin: 0; padding: 44px 12px 24px; background: transparent; border: 0; border-radius: 0; overflow-x: hidden; }
@@ -281,7 +281,7 @@ export const GOAL_CANVAS_STYLES = `
     .goal-canvas-shell[data-board-view="kanban"] .goal-kanban-column > details > summary { display: flex; width: 100%; max-width: none; height: 32px; min-height: 32px; margin: 0; padding: 0 10px 0 8px; gap: 8px; border: 0; border-radius: 6px; font-size: 13px; font-weight: 400; color: var(--ink-soft); background: transparent; cursor: pointer; pointer-events: auto; }
     .goal-canvas-shell[data-board-view="kanban"] .goal-kanban-column > details[open] > summary { background: color-mix(in srgb, var(--ink) 4.5%, transparent); }
     .goal-canvas-shell[data-board-view="kanban"] .goal-kanban-column > details > summary:hover { background: color-mix(in srgb, var(--ink) 6.5%, transparent); }
-    .goal-canvas-shell[data-board-view="kanban"] .goal-kanban-column > details > summary:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+    .goal-canvas-shell[data-board-view="kanban"] .goal-kanban-column > details > summary:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
     .goal-canvas-shell[data-board-view="kanban"] .goal-kanban-group-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--ink-soft); }
     .goal-canvas-shell[data-board-view="kanban"] .goal-kanban-count { color: var(--faint); font-size: 13px; font-weight: 400; }
     .goal-canvas-shell[data-board-view="kanban"] .goal-kanban-column [data-kanban-cards] { position: static; inset: auto; overflow: visible; gap: 0; padding: 2px 0 0; height: auto; }
@@ -294,7 +294,7 @@ export const GOAL_CANVAS_STYLES = `
     .goal-canvas-shell[data-board-view="kanban"] .goal-kanban-card-outcome,
     .goal-canvas-shell[data-board-view="kanban"] .goal-kanban-card-meta { display: none; }
     .goal-canvas-shell[data-board-view="kanban"] .goal-kanban-card strong { grid-column: 2; grid-row: 1; display: block; font-size: 13px; font-weight: 400; line-height: 20px; letter-spacing: -.011em; color: var(--ink); white-space: nowrap; text-overflow: ellipsis; -webkit-line-clamp: unset; -webkit-box-orient: unset; overflow: hidden; }
-    .goal-canvas-shell[data-board-view="kanban"] .goal-kanban-card:focus-visible { outline-offset: -2px; }
+    .goal-canvas-shell[data-board-view="kanban"] .goal-kanban-card:focus-visible { outline-offset: var(--focus-stroke-inset); }
   }
   @media (max-width: 760px) {
     @container goal-board (max-width: 839px) {
@@ -322,7 +322,7 @@ export const GOAL_CANVAS_STYLES = `
   .goal-canvas-node > .goal-status { display: inline-flex; align-items: center; gap: 6px; grid-row: 3; grid-column: 1; align-self: end; width: max-content; padding: 0; border: 0; background: transparent; max-width: none; font-size: 11px; font-weight: 400; color: var(--goal-status-tone); }
   .goal-canvas-node > .goal-status svg { display: none; }
   .goal-canvas-node > .goal-status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
-  .goal-canvas-node:focus-visible, .goal-canvas-open:focus-visible, .goal-canvas-frame:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+  .goal-canvas-node:focus-visible, .goal-canvas-open:focus-visible, .goal-canvas-frame:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
   .goal-canvas-viewport.is-reject { background-color: color-mix(in srgb, var(--amber) 8%, var(--canvas)); }
   .goal-canvas-node:hover { border-color: color-mix(in srgb, var(--ink) 22%, var(--line)); }
   .goal-canvas-node.is-selected { border-color: var(--blue); }
@@ -380,7 +380,7 @@ export const GOAL_CANVAS_STYLES = `
   .goal-details-toggle { flex: none; align-self: flex-start; z-index: 3; display: grid; place-items: center; height: 26px; width: 26px; margin: 4px 0 0 6px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; }
   .goal-details-toggle:hover { background: var(--rail); color: var(--ink); }
   .goal-details-toggle svg { width: 16px; height: 16px; }
-  .goal-details-toggle:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+  .goal-details-toggle:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
   .goal-node-workspace[data-details-open="false"] .goal-details-toggle { align-self: center; margin: 6px auto 0; }
   .goal-work-main { min-width: 0; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); grid-column: 1; grid-row: 1; overflow: hidden; }
   .goal-work-modebar { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 22px; font-size: 10px; color: var(--muted); }
@@ -463,7 +463,7 @@ export const GOAL_CANVAS_STYLES = `
   .goal-canvas-shell .is-editing-goal .detail-toolbar { flex: none; padding: 12px 20px; }
   .goal-canvas-shell .is-editing-goal .detail-toolbar > :not([data-event-back]), .goal-canvas-shell .is-editing-goal .reader-header [data-event-back] { display: none; }
   .goal-canvas-shell .goal-event-document.is-editing-goal .detail-pane > .event-sheet { display: none; }
-  .goal-canvas-shell :focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+  .goal-canvas-shell :focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
   .goal-canvas-shell ::selection { background: var(--blue-soft); color: var(--ink); }
   .goal-canvas-shell :is(input, textarea) { caret-color: var(--blue); }
   .goal-canvas-shell :is(.goal-info-body, [data-event-timeline], .reader-content, .event-form) { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
@@ -552,7 +552,7 @@ export const GOAL_CANVAS_STYLES = `
   .goal-frame-surface > .goal-frame-canvas { position:relative; inset:auto; flex:1; min-height:0; }
   .frame-empty { position:absolute; inset:0; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:12px; padding:32px; text-align:center; pointer-events:none; }
   .frame-empty .mw-btn { pointer-events:auto; }
-  .frame-block:focus-visible { outline:2px solid var(--focus); outline-offset:-2px; }
+  .frame-block:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
   .frame-picker { width:min(560px, calc(100vw - 32px)); max-height:calc(100dvh - 48px); padding:0; border:1px solid var(--line-strong); border-radius:12px; background:var(--paper); color:var(--ink); box-shadow:var(--surface-shadow); }
   .frame-picker[open] { display:flex; flex-direction:column; }
   .frame-picker::backdrop { background:rgb(0 0 0 / .4); }

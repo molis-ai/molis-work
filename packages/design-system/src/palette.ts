@@ -247,8 +247,11 @@ export function renderPluginTintBindings(): string {
     const extras = plugin.id === "settings"
       ? ", [data-settings-section=\"project-settings\"], [data-directory-panel=\"project-settings\"]"
       : "";
+    const surfaces = plugin.id === "goals"
+      ? `[data-work-surface="${plugin.id}"], [data-work-surface="goal"]`
+      : `[data-work-surface="${plugin.id}"]`;
     return [
-      `body.immersive-workbench :is(.plugin-rail [data-plugin-id="${plugin.id}"], [data-plugin-section="${plugin.id}"], [data-directory-panel="${plugin.id}"]${extras}) { --plugin-tint: var(--plugin-${plugin.id}); }`,
+      `body.immersive-workbench :is(.plugin-rail [data-plugin-id="${plugin.id}"], .assistant-island [data-plugin-id="${plugin.id}"], [data-plugin-section="${plugin.id}"], [data-directory-panel="${plugin.id}"], ${surfaces}, .tab-item[data-plugin="${plugin.id}"]${extras}) { --plugin-tint: var(--plugin-${plugin.id}); }`,
       `.mw-catalog [data-plugin-id="${plugin.id}"] { --plugin-tint: var(--plugin-${plugin.id}); }`,
     ];
   }).join("\n  ");

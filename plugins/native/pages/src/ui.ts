@@ -50,22 +50,28 @@ export function renderPagesWorkbench(model: PagesUiModel): string {
   const { primitives: p } = model;
   const templates = PAGES_TEMPLATES.map((item) => (
     `<button class="mw-btn mw-btn--ghost pages-template-item" type="button" data-pages-template="${p.escape(item.id)}">
-      <strong>${p.text(item.title)}</strong>
-      <span>${p.text(item.summary)}</span>
+      <span class="pages-template-mark">${icon(item.icon)}</span>
+      <span><strong>${p.text(item.title)}</strong><em>${p.text(item.summary)}</em></span>
     </button>`
   )).join("");
   return `<section class="desktop-work-surface plugin-stage-shell" data-work-surface="pages" data-work-surface-label="Pages" hidden data-pages="workbench" data-pages-stage-shell data-expanded="false">
     <div class="plugin-stage-list feed-stage-list feed-stage-tree" data-pages="directory">
       <header class="plugin-stage-chrome pages-stage-chrome">
-        <button class="mw-btn mw-btn--ghost tree-create" type="button" data-pages-new>${icon("plus")}<span>${p.text("新建文档")}</span></button>
-        <button class="mw-btn mw-btn--ghost pages-chrome-icon" type="button" data-pages-new-folder aria-label="${p.text("新建文件夹")}" title="${p.text("新建文件夹")}">${icon("folder")}</button>
-        <button class="mw-btn mw-btn--ghost pages-chrome-icon" type="button" data-pages-templates aria-label="${p.text("从模板新建")}" title="${p.text("从模板新建")}">${icon("note")}</button>
+        <div class="pages-create">
+          <button class="mw-btn mw-btn--ghost tree-create" type="button" data-pages-new>${icon("plus")}<span>${p.text("新建文档")}</span></button>
+          <button class="mw-btn mw-btn--ghost pages-create-more" type="button" data-pages-create-more aria-expanded="false" aria-haspopup="true" aria-label="${p.text("更多新建")}" title="${p.text("更多新建")}">${icon("chevron-down")}</button>
+          <div class="mw-menu pages-create-menu" data-pages-create-menu hidden>
+            <button class="mw-menu__item" type="button" data-pages-templates>${icon("library")}${p.text("从模板新建")}</button>
+            <button class="mw-menu__item" type="button" data-pages-new-folder>${icon("folder")}${p.text("新建文件夹")}</button>
+          </div>
+        </div>
       </header>
-      <label class="tree-search pages-search">
+      <label class="pages-search mw-input-group">
         ${icon("search")}
-        <input data-pages-search type="search" autocomplete="off" placeholder="${p.text("搜索文档")}" aria-label="${p.text("搜索文档")}">
+        <input class="mw-input" data-pages-search type="search" autocomplete="off" placeholder="${p.text("搜索文档")}" aria-label="${p.text("搜索文档")}">
       </label>
       <div class="mw-empty" data-pages-empty>
+        <span class="mw-empty__mark">${icon("note")}</span>
         <strong>${p.text("还没有文档")}</strong>
         <p>${p.text("先建一篇，在纸面上写。刷新之后还在。")}</p>
         <p>${p.text("内容属于当前项目，保存在这台电脑。")}</p>
@@ -79,13 +85,21 @@ export function renderPagesWorkbench(model: PagesUiModel): string {
         <button class="plugin-stage-back" type="button" data-pages-back aria-label="${p.text("返回文档列表")}" title="${p.text("返回文档列表")}">${icon("arrow")}</button>
         <h1 data-pages-editor-title>${p.text("文档")}</h1>
         <span data-pages-editor-status></span>
-        <select class="mw-select pages-folder-select" data-pages-folder aria-label="${p.text("文件夹")}"></select>
-        <select class="mw-select pages-folder-select" data-pages-goal aria-label="${p.text("挂到 Goal")}"></select>
-        <button class="mw-btn mw-btn--ghost" type="button" data-pages-star-editor aria-label="${p.text("收藏")}">${p.text("收藏")}</button>
-        <button class="mw-btn mw-btn--ghost" type="button" data-pages-extract>${p.text("抽取")}</button>
-        <button class="mw-btn mw-btn--ghost" type="button" data-pages-promote>${p.text("Promote")}</button>
-        <button class="mw-btn mw-btn--ghost" type="button" data-pages-export>${p.text("导出 HTML")}</button>
-        <button class="mw-btn mw-btn--ghost" type="button" data-pages-delete>${p.text("删除")}</button>
+        <div class="pages-editor-tools">
+          <button class="mw-btn mw-btn--ghost pages-chrome-icon" type="button" data-pages-star-editor aria-label="${p.text("收藏")}" title="${p.text("收藏")}">${icon("star")}</button>
+          <button class="mw-btn mw-btn--ghost pages-chrome-icon" type="button" data-pages-more aria-expanded="false" aria-haspopup="true" aria-label="${p.text("更多")}" title="${p.text("更多")}">${icon("more")}</button>
+          <div class="mw-menu pages-more-menu" data-pages-more-menu hidden>
+            <label class="pages-more-field">${p.text("挂到 Goal")}
+              <select class="mw-select pages-folder-select" data-pages-goal aria-label="${p.text("挂到 Goal")}"></select>
+            </label>
+            <hr>
+            <button class="mw-menu__item" type="button" data-pages-extract>${icon("sparkles")}${p.text("抽取")}</button>
+            <button class="mw-menu__item" type="button" data-pages-promote>${icon("upload")}${p.text("Promote")}</button>
+            <button class="mw-menu__item" type="button" data-pages-export>${icon("download")}${p.text("导出 HTML")}</button>
+            <hr>
+            <button class="mw-menu__item mw-menu__item--danger" type="button" data-pages-delete>${icon("trash")}${p.text("删除")}</button>
+          </div>
+        </div>
       </div>
       <div class="pages-workspace" data-pages-pane="editor">
         <input class="pages-title" data-pages-title data-plain-field autocomplete="off" placeholder="${p.text("无标题")}">
@@ -112,6 +126,7 @@ export function renderPagesWorkbench(model: PagesUiModel): string {
         </div>
       </form>
     </dialog>
+    <div class="mw-menu pages-move-menu" data-pages-move-menu hidden role="menu"></div>
     <dialog class="mw-dialog pages-template-dialog" data-pages-template-dialog>
       <form class="creative-confirm-form" method="dialog">
         <p>${p.text("从模板新建")}</p>

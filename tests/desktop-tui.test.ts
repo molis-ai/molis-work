@@ -600,6 +600,8 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     }
     assert.match(pluginStrip, /data-plugin-id="goals"[\s\S]*data-plugin-id="sessions"/);
     assert.match(pluginStrip, /data-plugin-id="artifacts"[\s\S]*data-plugin-id="market"[^>]*data-work-surface-open="market"/);
+    assert.doesNotMatch(pluginStrip, /data-plugin-id="lingguang"/);
+    assert.match(browser, /data-assistant-island[\s\S]*data-plugin-id="lingguang"[\s\S]*data-assistant-toggle[\s\S]*data-assistant-composer/);
     assert.doesNotMatch(pluginStrip, /返回项目目录/);
     assert.doesNotMatch(pluginStrip, /data-plugin-section=|data-plugin-expand=/);
     assert.doesNotMatch(browserMarkup, /data-plugin-section="goals"/);
@@ -759,7 +761,7 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.match(renderMolisWorkWorkbenchStylesheet(), /\.workspace-chrome\.project-island \{/);
     assert.doesNotMatch(renderMolisWorkWorkbenchStylesheet(), /\.immersive-titlebar > \.workspace-chrome \{/);
     assert.match(renderMolisWorkWorkbenchStylesheet(), /html\[data-native-desktop="true"\] body\.immersive-workbench \[data-titlebar-tabs\] \.tab-scroll/);
-    assert.match(renderMolisWorkWorkbenchStylesheet(), /\[data-native-desktop="true"\] \[data-titlebar-tabs\] \.tab-scroll \{ flex: 0 1 auto; width: max-content; \}/);
+    assert.match(renderMolisWorkWorkbenchStylesheet(), /\[data-native-desktop="true"\] \[data-titlebar-tabs\] \.tab-scroll \{ flex: 0 1 auto; width: max-content; min-width: 0; \}/);
     const tabWorkspaceClient = readFileSync(new URL("../apps/workbench/src/scripts/client/tab-workspace.ts", import.meta.url), "utf8");
     assert.match(tabWorkspaceClient, /documentElement\.dataset\.nativeDesktop === "true"/);
     assert.match(tabWorkspaceClient, /spacer\.dataset\.tauriDragRegion = ""/);

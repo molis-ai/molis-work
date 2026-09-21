@@ -6,10 +6,6 @@ export const FUNCTIONS_STYLES = `
     flex: none; min-height: 0; max-width: 40rem;
     padding: 4px 20px 32px; overflow: visible;
   }
-  .functions-lede {
-    margin: 2px 0 4px; max-width: 36rem;
-    font-size: 13px; line-height: 1.5; color: var(--ink-soft);
-  }
   .functions-name .mw-input { font-size: 16px; font-weight: 500; letter-spacing: -0.02em; }
   .functions-field { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--muted); }
   .functions-field small { color: var(--muted); font-size: 11px; }
@@ -102,6 +98,7 @@ export const FUNCTIONS_STYLES = `
   .functions-preview-head small { color: var(--muted); }
   .functions-usages strong { font-size: 12px; font-weight: 500; color: var(--ink); }
   .functions-usages p { margin: 0; color: var(--ink-soft); }
+  .functions-usages .mw-btn { align-self: start; }
   .functions-meter { height: 6px; border-radius: 99px; background: var(--line); overflow: hidden; }
   .functions-meter > i { display: block; height: 100%; background: var(--ink); }
   .functions-probability { display: grid; grid-template-columns: minmax(0, 1fr) 1fr 48px; gap: 8px; align-items: center; }
@@ -112,7 +109,6 @@ export const FUNCTIONS_STYLES = `
   .functions-create-choices { display: grid; gap: 8px; }
   .functions-create-choices .mw-btn { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; height: auto; padding: 12px 14px; }
   .functions-create-choices small { color: var(--muted); font-weight: 400; }
-  .plugin-stage-detail-bar [data-functions-delete] { margin-left: auto; }
   body.immersive-workbench .plugin-stage-workspace > .functions-editor {
     flex: none; min-height: 0;
   }

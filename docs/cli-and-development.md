@@ -161,9 +161,16 @@ molis-work-mcp
 
 ## 前端与控件板
 
-改工作台、插件列表、表单或共享控件时，**建议**先打开 `/__ui/catalog`，对照已有标本再动手。这不是门禁：一次性页面、草稿、还没站稳的实验可以先在业务里做。
+改工作台、插件或共享控件时，**视觉、动效、图标与色彩都是本切片的工作**，不是以后再说。编译过、测试绿、能点，都不等于做完。工艺底线见 [ui-craft-floor](../specs/ui-craft-floor/spec.md)；意图见 [DESIGN.md](../DESIGN.md)。
 
-已经达到产品美学要求的共享控件、状态变体或微动效，**要**补进这块板（`packages/design-system` 的 Catalog 标本），让后人能看见、复用。产品专属编排不必做成标本。用法和隔离预览见 [design-system README](../packages/design-system/README.md)；平台分工见 [UI Platform](platform/UI-PLATFORM.md)。
+硬规则：
+
+- **不准把操作系统默认控件当成产品 UI。** 禁止系统下拉菜单、系统颜色选择器、系统日期/时间弹出、`alert` / `confirm` / `prompt`、未换肤的 `range`。选择打开后必须是 `mw-menu`，原生 `<select>` 只可隐藏当表单值。文件选择可隐藏原生 input，按钮必须是 `mw-btn`。原生 `<dialog>` 只留 Escape 和焦点圈，外观走 `mw-*`。详见 [mw-select-custom-menu](../specs/mw-select-custom-menu/spec.md)。
+- **图标与色彩成套。** 动作图标从 Lucide 库取。插件身份走 `--plugin-tint`（轨、目录、空态、当前舞台）。状态走 status family。靛（`--blue` / `--focus`）只给链接、选区和进行中，不是焦点描边，也不是第二套按钮。不要第二套 emoji 图标，不要灰图标配随机强调色。
+- **动效成套，而且要做。** 只用 `--motion-*` / `--ease-*` 和已有位移（分段滑块、插件轨、目录 yield、`creative-arrive`）。状态变了要看得出走过去或到达，不要硬切。hover / press 是色阶，不是浮起。`prefers-reduced-motion` 去掉位移。不为动而动。
+- **键盘焦点**是内侧 1px `--ink`（`--focus-stroke`）。禁止 `outline: 2px solid var(--focus|blue)` 和 `0 0 0 2px var(--focus)`。详见 [neutral-focus-stroke](../specs/neutral-focus-stroke/spec.md)。
+
+改共享控件、状态或微动效，先打开 `/__ui/catalog` 对照标本再动手。一次性草稿可以先写在业务里，**进产品主链前换成 `mw-*`，不得带着系统控件进去**。已经达到产品美学要求的共享控件、状态变体或微动效，**要**补进 `packages/design-system` 的 Catalog。产品专属编排不必做成标本。用法见 [design-system README](../packages/design-system/README.md)；平台分工见 [UI Platform](platform/UI-PLATFORM.md)。
 
 ## 开发验证
 

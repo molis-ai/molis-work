@@ -94,6 +94,11 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
       if (active) button.setAttribute("aria-current", "page");
       else button.removeAttribute("aria-current");
     });
+    document.querySelectorAll("[data-assistant-island] [data-plugin-id]").forEach(button => {
+      const active = button.dataset.pluginId === plugin;
+      if (active) button.setAttribute("aria-current", "page");
+      else button.removeAttribute("aria-current");
+    });
     const projectGear = document.querySelector(".navigator-project-settings");
     if (projectGear) {
       if (plugin === "project-settings") {

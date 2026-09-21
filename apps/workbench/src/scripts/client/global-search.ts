@@ -16,7 +16,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
   let lastTrigger = null;
   const isOpen = () => dialog.open;
   const isBusy = () => composing || isOpen();
-  const pluginEnabled = (id) => Boolean(document.querySelector('[data-plugin-strip] [data-plugin-id="' + id + '"]'));
+  const pluginEnabled = (id) => Boolean(document.querySelector('[data-plugin-strip] [data-plugin-id="' + id + '"], [data-assistant-island] [data-plugin-id="' + id + '"]'));
   const collect = (query) => {
     const q = query.trim().toLowerCase();
     const limit = q ? 12 : 8;

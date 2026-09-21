@@ -401,7 +401,7 @@ test("Feed out-rule HTTP CRUD is owned by Feed plugin routes", async (t) => {
   const prefix = `/projects/${encodeURIComponent(project.project_id)}`;
   const page = await (await webFetch(`${origin}${prefix}/`)).text();
   const addSelect = page.match(/<select data-feed-add-out-rule-function-key>[\s\S]*?<\/select>/)?.[0] ?? "";
-  assert.match(page, /捕捉判断/);
+  assert.match(page, /不用判断/);
   assert.match(addSelect, /value="system_admit_inbox"/);
   assert.doesNotMatch(addSelect, /system_pick_home_dock/);
   assert.doesNotMatch(addSelect, /system_pick_inbox_next/);

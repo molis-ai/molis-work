@@ -128,7 +128,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     gap: 7px;
   }
   .tree-search input,
-  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(.mw-slider):not(.mw-input):not(.mw-textarea):not(.mw-select):not(.global-search-query),
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(.mw-slider):not(.mw-input):not(.mw-textarea):not(.mw-select):not(.global-search-query):not(.assistant-composer-input):not([data-feed-search]),
   textarea:not(.mw-textarea),
   select:not(.mw-select) {
     border: 1px solid var(--line-strong);
@@ -998,9 +998,9 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
       box-shadow .28s cubic-bezier(.16, 1, .3, 1);
   }
   .focus-section-card.is-active {
-    border-color: color-mix(in srgb, var(--blue) 42%, var(--line-strong));
+    border-color: var(--ink);
     background: var(--paper);
-    box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--blue) 72%, transparent);
+    box-shadow: inset 0 -1px 0 var(--ink);
   }
   .focus-section-card-trigger,
   .focus-section-deck.goal-factor-nav .focus-section-card-trigger {
@@ -1029,8 +1029,8 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     background: color-mix(in srgb, var(--ink) 3.5%, transparent);
   }
   .focus-section-card-trigger:focus-visible {
-    outline: 2px solid var(--focus);
-    outline-offset: -2px;
+    outline: var(--focus-stroke);
+    outline-offset: var(--focus-stroke-inset);
   }
   .focus-section-card-icon {
     width: 18px;

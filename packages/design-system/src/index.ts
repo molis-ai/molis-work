@@ -32,6 +32,7 @@ export {
   type MolisWorkTheme,
 } from "./visual-foundation.js";
 
+export { SELECT_MENU_CLIENT_SCRIPT, SELECT_MENU_STYLES } from "./select-menu-client.js";
 export { ONBOARDING_STYLES } from "./onboarding-styles.js";
 export {
   TYPEFACE_STYLES,

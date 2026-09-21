@@ -13,7 +13,7 @@ import {
 import type { PluginMcpHandleRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { McpToolCallContext } from "@molis-ai/molis-work-app-mcp";
 import type { MolisWorkRuntimeContextHost } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { hostAllowedBehaviorIds } from "./behavior-catalog.js";
+import { liveHostAllowedBehaviorIds } from "./behavior-catalog.js";
 
 export interface McpFunctionsPorts {
   requireHost(context: McpToolCallContext): MolisWorkRuntimeContextHost;
@@ -39,7 +39,7 @@ export function createFunctionsMcpAdapter(ports: McpFunctionsPorts) {
         secrets: ports.secrets ?? createFileSecretStore(),
         env: ports.env ?? process.env,
         provider: ports.provider ?? createHttpTypeSafeProvider(),
-        allowed_behavior_ids: hostAllowedBehaviorIds(),
+        allowed_behavior_ids: liveHostAllowedBehaviorIds(),
       });
       return await run(service);
     } catch (error) {

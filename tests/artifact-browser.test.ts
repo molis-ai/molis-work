@@ -299,3 +299,36 @@ test("Artifact browser distinguishes no results, unselected versions and missing
   assert.match(missing,/找不到这个 Artifact 版本/);
   assert.match(missing,/不会自动替换成最新版本/);
 });
+
+
+test("Coding report Artifact reads its fixed body and source, rejects forged ownership and preserves history", async (t) => {
+  const { coordinator, get, origin } = await fixture(t);
+  const fixedId = "coding-report:session-fixed:run-original";
+  const input = registration({ artifact_id: fixedId, artifact_type_id: "coding.report.v1",
+    producer: { plugin_id: "io.molis.work.coding", plugin_version: "1.15.0", binding_signature: "official-coding-binding" },
+    content: { kind: "inline", payload: { title: "已保存的原报告", run_id: "run-original", source: { session_id: "session-fixed" },
+      body_markdown: "## 原任务结果\n固定正文，不能使用后来的会话。\n\n<script>attack()</script>\n\n[危险](javascript:attack())" } } });
+  const original = coordinator.artifacts.commands.registerVersion(input).artifact;
+  const path = `/artifacts/${encodeURIComponent(fixedId)}/versions/1`;
+  for (const headers of [{}, { "x-molis-work-fragment": "artifact-workbench" }]) {
+    const response = await fetch(origin + path, { headers });
+    assert.equal(response.status, 200);
+    const html = await response.text();
+    assert.match(html, /data-artifact-business-preview/);
+    assert.match(html, /原任务结果/);
+    assert.match(html, /在 Coding 打开原报告与会话/);
+    assert.ok(html.includes(`openItem=${encodeURIComponent(fixedId)}`));
+    assert.doesNotMatch(html, /<script>attack\(\)<\/script>|href="javascript:/);
+  }
+  assert.deepEqual(coordinator.artifacts.query.getArtifactVersion(DEMO_BOARD_ID, {artifact_id:fixedId,version:1}), original);
+  coordinator.artifacts.commands.registerVersion({...input, artifact_id:"coding-report:session-forged:run-original"});
+  const forged = await (await get(`/artifacts/${encodeURIComponent("coding-report:session-forged:run-original")}/versions/1`)).text();
+  assert.doesNotMatch(forged, /data-artifact-business-preview|在 Coding 打开原报告与会话/);
+  coordinator.artifacts.commands.archiveVersion({board_id:DEMO_BOARD_ID,artifact_id:fixedId,version:1,actor_id:"report-owner"});
+  const archived = await (await get(path)).text();
+  assert.match(archived, /这个版本已归档/);
+  assert.match(archived, /data-artifact-business-preview/, "archiving preserves historical reading");
+  coordinator.artifacts.commands.markUnavailable({board_id:DEMO_BOARD_ID,artifact_id:fixedId,version:1,actor_id:"report-owner",reason:"正文来源失效"});
+  const unavailable = await (await get(path)).text();
+  assert.doesNotMatch(unavailable, /data-artifact-business-preview|在 Coding 打开原报告与会话/);
+});

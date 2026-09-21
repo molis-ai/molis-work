@@ -1,4 +1,4 @@
-import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import type { ArtifactReference, ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { PluginArtifactClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { AgentCommandOutput, AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { codingUsageSummary } from "./usage.js";
@@ -16,6 +16,21 @@ export interface CodingExecutionReport extends CodingReport {
   frozen: Omit<AgentRunView["frozen"], "directory">;
   usage: AgentRunView["usage"];
   commands: Array<{ call_id: string; output: AgentCommandOutput | null }>;
+}
+
+/** Read only a genuine fixed Coding report; its source identity must agree with the exact Artifact. */
+export function codingReportPreview(artifact: ArtifactVersionRecord | null) {
+  if (!artifact || artifact.artifact_type_id !== CODING_REPORT_TYPE || artifact.schema_version !== 1
+    || artifact.producer_plugin_id !== "io.molis.work.coding" || artifact.producer_binding_signature !== "official-coding-binding"
+    || artifact.content_kind !== "inline" || artifact.availability !== "available") return null;
+  const report = artifact.payload as unknown as Partial<CodingExecutionReport> | null;
+  if (!report || typeof report.title !== "string" || typeof report.body_markdown !== "string"
+    || typeof report.run_id !== "string" || !report.run_id || typeof report.source?.session_id !== "string" || !report.source.session_id) return null;
+  const reference = codingReportReference(report.source.session_id, report.run_id);
+  if (reference.artifact_id !== artifact.artifact_id || reference.version !== artifact.version) return null;
+  return { title: report.title, body_markdown: report.body_markdown, run_id: report.run_id,
+    session_id: report.source.session_id, reference, saved_at: artifact.created_at,
+    archived: artifact.lifecycle_state === "archived" };
 }
 
 /** Stable identity makes a lost save response retryable without a second index. */

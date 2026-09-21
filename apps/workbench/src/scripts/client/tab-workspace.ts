@@ -94,6 +94,14 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       returnedUrl.searchParams.delete("returnToWorkbench");
       history.replaceState(history.state, "", returnedUrl);
     }
+    const requestedPlugin = paneParams.get("openPlugin"), requestedItem = paneParams.get("openItem");
+    if (requestedPlugin && Object.hasOwn(PLUGIN_TAB_ICON, requestedPlugin) && requestedItem) {
+      ops.setExclusive(state, null);
+      ops.openItem(state, requestedPlugin, requestedItem, paneParams.get("openTitle") || undefined);
+      const returnedUrl = new URL(location.href);
+      returnedUrl.searchParams.delete("openPlugin"); returnedUrl.searchParams.delete("openItem"); returnedUrl.searchParams.delete("openTitle");
+      history.replaceState(history.state, "", returnedUrl);
+    }
     rewriteRetiredTaskTabs();
     apply();
     persist();

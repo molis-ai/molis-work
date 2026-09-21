@@ -6,6 +6,11 @@ export const CODING_STYLES = `
 .coding-directory { height:100%; min-height:0; display:flex; flex-direction:column; }
 .coding-directory[data-coding-current-face=files] .coding-search,.coding-directory[data-coding-current-face=files] .coding-filters,.coding-directory[data-coding-current-face=files] [data-coding-sessions],.coding-directory[data-coding-current-face=files] [data-coding-new] { display:none; }
 [data-coding-tools][data-companion-open=true]>:not([data-files-results]):not([data-git-results]):not(.coding-tool-tabs) { display:none; }
+.coding-directory[data-coding-current-face=artifacts] > .coding-search,.coding-directory[data-coding-current-face=artifacts] > .coding-filters,.coding-directory[data-coding-current-face=artifacts] [data-coding-sessions],.coding-directory[data-coding-current-face=artifacts] [data-coding-new] { display:none; }
+[data-coding-artifact-directory] { min-height:0; overflow:auto; }
+[data-coding-artifact-list] .coding-session-row { display:flex; flex-direction:column; align-items:flex-start; gap:4px; width:100%; height:auto; text-align:left; white-space:normal; overflow-wrap:anywhere; }
+[data-coding-artifact-list] strong { font-weight:400; }
+[data-coding-artifact-list] .coding-session-row > span { color:var(--muted); font-size:11px; }
 .coding-faces { display:flex; height:34px; border-bottom:1px solid var(--line); }
 .coding-face { flex:1; border:0; background:transparent; color:var(--muted); cursor:pointer; }
 .coding-face[aria-selected=true], .coding-filter[aria-selected=true] { background:var(--nav-active); color:var(--ink); }

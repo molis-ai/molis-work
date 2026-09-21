@@ -29,7 +29,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const phases = { starting:'正在准备', running:'执行中', compacting:'正在整理上下文', pausing:'正在暂停', paused:'已暂停', 'awaiting-input':'等待回答', 'awaiting-review':'等待审查', completed:'本轮结束', failed:'执行失败', stopped:'已停止', cancelled:'已取消', 'reconcile-required':'需要核对结果' };
   let state = { sessions:[], models:[], runtimes:[] }, current = '', workspaceId = '', lastRun = null, generation = 0, sending = false, loading = false, pinned = true, recovery = false, checkpointBusy = false, checkpointLoading = false, checkpointKey = "", draftTimer, selectionTask, statusKey = '';
   let recoveryLoading = false, recoveryBusy = false, recoveryKey = '';
-  let reportOutput=null;
+  let reportOutput=null, artifactRows=[], artifactTicket=0;
   let reportRun = '', reportTicket = 0, reportSaving = false, reportTrigger, dialogueOffset = 0;
   let progressView=null,progressTicket=0,progressSaving=false,reportItem='',itemTicket=0;
   let goalRows=[],goalCursor=null,goalChoice=null,goalTicket=0,goalReading=0,goalSaving=false;
@@ -146,6 +146,20 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     });
     const count=(methodSelections.get(current) || []).length;
     q('[data-coding-method-open]').textContent='/ 方法'+(count?' · '+count:'');
+  };
+  const renderArtifacts = () => {
+    const list=directory.querySelector('[data-coding-artifact-list]'),needle=directory.querySelector('[data-coding-artifact-search]').value.trim().toLocaleLowerCase();list.replaceChildren();
+    for(const item of artifactRows.filter(item=>item.title.toLocaleLowerCase().includes(needle))) {
+      const row=document.createElement('button');row.type='button';row.className='mw-btn mw-btn--ghost coding-session-row';
+      row.dataset.codingArtifact=item.reference.artifact_id;row.setAttribute('aria-current',String(reportItem===item.reference.artifact_id));
+      const title=document.createElement('strong'),meta=document.createElement('span');title.textContent=item.title;meta.textContent='固定 v'+item.reference.version+' · '+new Date(item.saved_at).toLocaleString()+(item.archived?' · 已归档':'');row.append(title,meta);list.append(row);
+    }
+    if(!list.children.length)list.textContent=artifactRows.length?'没有匹配的报告。':'还没有可读取的固定报告。打开已结束的一轮，选择「保存固定报告」。';
+  };
+  const loadArtifacts = async () => {
+    const ticket=++artifactTicket,notice=directory.querySelector('[data-coding-artifact-status]');notice.textContent='正在读取已保存报告…';
+    try{const value=await api('/reports');if(ticket!==artifactTicket)return;artifactRows=value.reports;renderArtifacts();notice.textContent='只列出已保存的固定报告；打开不会开始新执行。';}
+    catch(error){if(ticket===artifactTicket)notice.textContent=error.message+'；可点击刷新重试。';}
   };
   const renderDirectory = () => {
     const selectedFilter = directory.querySelector('[data-coding-filter][aria-selected=true]')?.dataset.codingFilter || 'all';
@@ -656,14 +670,16 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     if(parts.length!==2)throw new Error('固定报告引用无效');
     const id=decodeURIComponent(parts[0]),runId=decodeURIComponent(parts[1]);
     await select(id);if(ticket!==itemTicket || current!==id)return;
-    reportItem=itemId;await showReport(runId);
+    reportItem=itemId;await showReport(runId);if(ticket===itemTicket)renderArtifacts();
   };
   document.addEventListener('molis-work:plugin-item-selected',(event)=>{ if(event.detail.plugin==='coding' && event.detail.itemId) void openCodingItem(event.detail.itemId).catch(error=>status(error.message,true)); });
   const create = async() => { const result=await api('/sessions','POST',{title:'新编码会话'}); await refreshState(); host.openItem('coding',result.session.session_id,result.session.title); await select(result.session.session_id); input.focus(); };
   const click = async(event) => {
     const target=event.target.closest('button,a'); if(!target) return;
     try {
-      if(target.matches('[data-coding-report-open]')) {reportTrigger=target;await showReport(target.dataset.codingReportOpen);}
+      if(target.matches('[data-coding-artifact-refresh]')) await loadArtifacts();
+      if(target.matches('[data-coding-artifact]')) {event.preventDefault();host.openItem('coding',target.dataset.codingArtifact,target.querySelector('strong').textContent);}
+      if(target.matches('[data-coding-report-open]')) {reportItem='';renderArtifacts();reportTrigger=target;await showReport(target.dataset.codingReportOpen);}
       if(target.matches('[data-coding-report-close]')) {const fromArtifact=reportItem;reportItem='';closeReport(true);if(fromArtifact)host.openItem('coding',current,state.sessions.find(item=>item.session_id===current)?.title);}
       if(target.matches('[data-coding-report-progress]') || target.matches('[data-coding-progress-refresh]'))await openProgress();
       if(target.matches('[data-coding-progress-close]'))closeProgress();
@@ -719,10 +735,13 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(target.matches('[data-coding-filter]')) { directory.querySelectorAll('[data-coding-filter]').forEach(item=>item.setAttribute('aria-selected',String(item===target))); renderDirectory(); }
       if(target.matches('[data-coding-face]')) {
         const face=target.dataset.codingFace;
-        if(host.onDirectoryFace?.(face) || face==='sessions') {
+        if(face==='artifacts' || host.onDirectoryFace?.(face) || face==='sessions') {
+          if(face==='artifacts')host.onDirectoryFace?.('sessions');
           directory.dataset.codingCurrentFace=face;
+          directory.querySelector('[data-coding-artifact-directory]').hidden=face!=='artifacts';
           directory.querySelectorAll('[data-coding-face]').forEach(button=>button.setAttribute('aria-selected',String(button===target)));
-          directory.querySelector('.coding-directory-head h2').textContent=face==='files'?'文件':'会话';
+          directory.querySelector('.coding-directory-head h2').textContent=face==='artifacts'?'产物':face==='files'?'文件':'会话';
+          if(face==='artifacts')await loadArtifacts();
         } else if(face==='goals') await openGoals();
         else status('这个导航面尚未装配，现阶段可使用会话、目标关联和文件入口。');
       }
@@ -803,6 +822,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     } catch(error) { q('[data-coding-workspace-error]').textContent=error.message; }
     finally {submit.disabled=false;}
   });
+  directory.querySelector('[data-coding-artifact-search]').addEventListener('input',renderArtifacts);
   input.addEventListener('keydown',event=>{if(event.key==='/' && !event.isComposing && !input.value.trim()){event.preventDefault();openMethods();}});
   input.addEventListener('keydown' ,event=>{if(event.key==='Enter' && (event.metaKey || event.ctrlKey) && !event.isComposing){event.preventDefault();q('[data-coding-composer]').requestSubmit();}});
   q('[data-coding-composer]').addEventListener('submit',async(event)=>{

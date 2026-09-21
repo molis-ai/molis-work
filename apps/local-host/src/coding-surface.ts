@@ -3,6 +3,7 @@ import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { icon, escapeHtml } from "@molis-ai/molis-work-design-system";
 import {
   CODING_PLUGIN_ID,
+  CODING_REPORT_TYPE,
   CODING_PROJECT_PLUGIN_ID,
   CODING_UI_CONTRIBUTION_ID,
   CodingSessionStore,
@@ -131,14 +132,12 @@ async function startPlatform(ports: CodingSurfacePorts): Promise<Started> {
   const record: Started = { platform: null as unknown as PluginPlatform, running: false, workspaceRunning: false };
   try {
     const storage = new SqlitePluginPrivateStorage(ports.store.db);
+    const artifacts = new ArtifactsModule({ db: ports.store.db, appendEvent: event => ports.store.appendEvent(event) });
     const platform = createPluginPlatform({
       board_id: ports.boardId,
       actor_id: ports.actorId,
       db: ports.store.db,
-      artifacts: new ArtifactsModule({
-        db: ports.store.db,
-        appendEvent: (event) => ports.store.appendEvent(event),
-      }),
+      artifacts,
       ui: new UiHost(),
       privateStorageFor: (context, manifest) => storage.forPlugin(context, manifest),
       ...(ports.capabilities ? { capabilities: ports.capabilities } : {}),
@@ -157,6 +156,9 @@ async function startPlatform(ports: CodingSurfacePorts): Promise<Started> {
     const report = await platform.start([
       { definition: createCodingPlugin(ports.execution ? { execution: {
         ...ports.execution, sessions: new CodingSessionStore(ports.store.db), goalTitle: ports.goalTitle,
+        reportReferences: () => artifacts.query.listArtifacts(ports.boardId, { artifact_type_id: CODING_REPORT_TYPE, schema_version: 1 })
+          .filter(item => item.producer_plugin_id === CODING_PLUGIN_ID)
+          .map(({ artifact_id, version }) => ({ artifact_id, version })),
       } } : {}), replace_version: true },
       { definition: createWorkspacePlugin({ currentWorkspaceId: () => currentWorkspaceId(ports) }), replace_version: true },
       { definition: createFilesPlugin({ readable: () => currentWorkspaceId(ports) !== null }), replace_version: true },

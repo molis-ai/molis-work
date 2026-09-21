@@ -96,6 +96,12 @@ test("Coding freezes the selected real Goal, rejects changed/foreign/unavailable
     assert.deepEqual(report.body.report.goal.reference, original.reference);
     assert.equal(report.body.report.goal.agreement_version, 1, "historical ownership uses the frozen agreement, not current agreement 2");
     assert.match(report.body.report.body_markdown, /工作约定 v1 · 目标合同修订 r1/);
+    const catalog = await request("/reports");
+    assert.equal(catalog.status, 200);
+    assert.equal(catalog.body.reports.length, 1, "only saved reports, not every terminal run");
+    assert.deepEqual(catalog.body.reports[0].reference, report.body.reference);
+    assert.equal(catalog.body.reports[0].session_id, id);
+    assert.equal(catalog.body.reports[0].body_markdown, undefined, "the directory does not download all report bodies");
     const outputPath = `${sessionPath}/runs/run-1/report/output`;
     assert.equal((await request(outputPath)).body.current, null);
     const firstOutput = await request(outputPath, "POST", { expected_reference: null, reference: { artifact_id: "forged", version: 99 } });

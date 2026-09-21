@@ -5,6 +5,8 @@ import {
   ArtifactBrowserError, exportArtifactVersion, matchArtifactBrowserRoute, readArtifactBrowser, readGoalArtifactEmbeds,
 } from "@molis-ai/molis-work-plugin-artifacts";
 import { artifactWorkbench, renderArtifactWorkbenchPage } from "@molis-ai/molis-work-app-workbench";
+import { codingReportPreview } from "@molis-ai/molis-work-plugin-coding";
+import { renderFeedRichText } from "@molis-ai/molis-work-plugin-feed";
 import { dateTimeLocale, htmlLang, L } from "./web-locale.js";
 import { requestHeader } from "./web-http.js";
 
@@ -50,20 +52,24 @@ export function createLocalArtifactHttp(ports: { nativeDesktopBootstrapScript: s
         return true;
       }
       const view = readArtifactBrowser(context.query, context.boardId, route.reference);
+      const report = codingReportPreview(view.selected);
+      const presentation = report ? { body_html: renderFeedRichText(report.body_markdown),
+        source_href: `${context.routePrefix}/?openPlugin=coding&openItem=${encodeURIComponent(report.reference.artifact_id)}&openTitle=${encodeURIComponent(report.title)}`,
+        source_label: "在 Coding 打开原报告与会话", plugin_id: "coding", item_id: report.reference.artifact_id } : undefined;
       const fragment = requestHeader(request, "x-molis-work-fragment");
       if (fragment === "artifact-workbench" || fragment === "frame-block") {
         const compact = fragment === "frame-block";
         response.writeHead(view.requested && !view.selected ? 404 : 200, {
           "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "vary": "x-molis-work-fragment",
         });
-        response.end(artifactWorkbench.fragments({ view, routePrefix: context.routePrefix, primitives }, compact ? "frame-block" : "detail"));
+        response.end(artifactWorkbench.fragments({ view, routePrefix: context.routePrefix, primitives, presentation }, compact ? "frame-block" : "detail"));
         return true;
       }
       const html = renderArtifactWorkbenchPage({
         view, routePrefix: context.routePrefix, projectTitle: context.projectTitle,
         lang: htmlLang(), desktopShell: context.desktopShell,
         nativeDesktopBootstrapScript: ports.nativeDesktopBootstrapScript,
-        primitives,
+        primitives, presentation,
       });
       response.writeHead(view.requested && !view.selected ? 404 : 200, {
         "content-type": "text/html; charset=utf-8", "cache-control": "no-store",

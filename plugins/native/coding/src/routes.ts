@@ -5,13 +5,14 @@ import { projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/pro
 import type { CodingSessionStore } from "./store.js";
 import type { CodingSessionState } from "./projection.js";
 import { CODING_REPORT_TYPE } from "./artifacts.js";
-import { codingReportReference, createCodingExecutionReport, readCodingExecutionReport } from "./report.js";
+import { codingReportPreview, codingReportReference, createCodingExecutionReport, readCodingExecutionReport } from "./report.js";
 import { goalContextCapabilities, goalProgressCapabilities } from "@molis-ai/molis-work-contracts/modules/goals";
 import { currentGoalContext, savedGoalContext, saveGoalContext, resolveGoalContext, runGoalContext } from "./goal-context.js";
 
 export interface CodingModelChoice { provider_id: string; model_id: string; label: string }
 export interface CodingExecutionPorts {
   sessions: CodingSessionStore;
+  reportReferences?(): import("@molis-ai/molis-work-contracts/modules/artifacts").ArtifactReference[];
   goalTitle(goalId: string): string | undefined;
   ready(): Promise<void>;
   models(): Promise<readonly CodingModelChoice[]>;
@@ -220,6 +221,16 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       const session = execution.sessions.setGoal(boardId, record.session_id, goalId, new Date().toISOString());
       if (!goalId) context.services!.storage!.delete(`goal-context:${record.session_id}`);
       return { session, selected: goalId ? savedGoalContext(context, record.session_id) : null };
+    }),
+    route("coding.reports", async (_request, _api, execution) => {
+      if (!execution.reportReferences) throw new Error("报告目录尚未装配");
+      const reports = execution.reportReferences().flatMap(reference => {
+        const value = codingReportPreview(context.services!.artifacts.read(reference));
+        if (!value) return [];
+        const { body_markdown: _body, ...entry } = value;
+        return [entry];
+      });
+      return { reports };
     }),
     route("coding.materials", async (request, _api, execution) => {
       const record = selected(request, execution);

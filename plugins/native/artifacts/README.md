@@ -23,7 +23,7 @@ readArtifactBrowser 读取浏览模型，UI contribution 渲染目录/版本；o
 
 ## 接入与边界
 
-不复制 Artifact Store，不依赖生产者/消费者 Plugin 实现。引用精确版本；自定义 payload 没有兼容 renderer 时保留可读取的数据表达。
+不复制 Artifact Store，不依赖生产者/消费者 Plugin 实现。引用精确版本；自定义 payload 没有兼容 renderer 时保留可读取的数据表达。Host 可提供已净化的业务正文及来源导航；当前已装配 Coding 固定报告，校验类型、来源签名和精确身份后使用原 Markdown 正文，不读取当前会话重新拼接。归档报告仍可历史阅读，内容不可用或来源不符则保留通用信息，不提供业务预览。
 
 工作区依赖：`@molis-ai/molis-work-contracts`。其他运行依赖见 [package.json](package.json)。
 
@@ -39,7 +39,7 @@ pnpm --filter @molis-ai/molis-work-plugin-artifacts build
 已有行为示例与回归：[artifact-browser.test.ts](../../../tests/artifact-browser.test.ts)、[plugin-artifact-client.test.ts](../../../tests/plugin-artifact-client.test.ts)。完成上述构建后运行：
 
 ```bash
-node --import tsx --test --test-concurrency=1 tests/artifact-browser.test.ts tests/plugin-artifact-client.test.ts
+pnpm test:run tests/artifact-browser.test.ts tests/plugin-artifact-client.test.ts
 ```
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。

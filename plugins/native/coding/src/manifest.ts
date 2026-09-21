@@ -35,7 +35,7 @@ export const codingManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: CODING_PLUGIN_ID,
-  version: "1.15.0",
+  version: "1.16.0",
   name: "Coding",
   kind: "app",
   publisher: { publisher_id: "molis", signature: "official-coding-binding" },
@@ -94,6 +94,7 @@ export const codingManifest: PluginManifest = {
   },
   agent: codingAgentManifest,
   routes: [
+    { route_id: "coding.reports", method: "GET", path: "/reports" },
     { route_id: "coding.goals", method: "GET", path: "/goals" },
     { route_id: "coding.goal-context", method: "GET", path: "/goals/:goalId" },
     { route_id: "coding.read-goal", method: "GET", path: "/sessions/:sessionId/goal" },

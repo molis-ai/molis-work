@@ -2,6 +2,13 @@ import { GOALS_PROPOSAL_EN } from "@molis-ai/molis-work-plugin-goals";
 import { WORK_EN } from "@molis-ai/molis-work-plugin-work";
 import { ARTIFACT_EN } from "@molis-ai/molis-work-plugin-artifacts";
 import { SHELF_EN } from "@molis-ai/molis-work-plugin-shelf";
+import { FUNCTIONS_EN } from "@molis-ai/molis-work-plugin-functions";
+import { FORM_EN } from "@molis-ai/molis-work-plugin-form";
+import { PAGES_EN } from "@molis-ai/molis-work-plugin-pages";
+import { DATASET_EN } from "@molis-ai/molis-work-plugin-dataset";
+import { PPT_EN } from "@molis-ai/molis-work-plugin-ppt";
+import { LINGGUANG_EN } from "@molis-ai/molis-work-plugin-lingguang";
+import { SCHEDULE_EN } from "@molis-ai/molis-work-plugin-schedule";
 import { GOALS_POLICY_EN, GOALS_SAFETY_EN } from "@molis-ai/molis-work-plugin-goals";
 import { GOALS_RELATION_EN } from "@molis-ai/molis-work-plugin-goals";
 import { GOALS_TREE_EN } from "@molis-ai/molis-work-plugin-goals";
@@ -237,6 +244,13 @@ export const EN: Record<string, string> = {
   "这个分组还没有事项": "Nothing in this group yet",
   ...ARTIFACT_EN,
   ...SHELF_EN,
+  ...FUNCTIONS_EN,
+  ...PAGES_EN,
+  ...FORM_EN,
+  ...DATASET_EN,
+  ...PPT_EN,
+  ...LINGGUANG_EN,
+  ...SCHEDULE_EN,
   ...GOALS_POLICY_EN,
   ...GOALS_SAFETY_EN,
   ...GOALS_RELATION_EN,
@@ -2068,6 +2082,13 @@ Object.assign(EN, {
   "语言、主题和密度只保存在当前设备。紧凑模式仅影响 760px 以上的 Goal 导航和 Goal 正文；Runtime、决定中心、设置页和窄屏布局保持原来的密度。": "Language, theme, and density are stored only on this device. Compact mode only affects Goal navigation and Goal documents above 760px; Runtime, the Decision Center, settings, and narrow layouts keep their existing density.",
   "语言、主题、终端外观和密度只保存在当前设备。紧凑模式仅影响 760px 以上的 Goal 导航和 Goal 正文；Runtime、决定中心、设置页和窄屏布局保持原来的密度。": "Language, theme, terminal appearance, and density are stored only on this device. Compact mode only affects Goal navigation and Goal documents above 760px; Runtime, the Decision Center, settings, and narrow layouts keep their existing density.",
   "AI 与执行工具": "AI & execution tools",
+  "MCP": "MCP",
+  "连接": "Connection",
+  "Functions": "Functions",
+  "这里打开的方法会出现在 molis-work-mcp 的工具清单里。关掉后新连接看不见，点名调用也会被拒绝。已经打开的 Runtime 连接不会立刻刷新。": "Methods turned on here appear in the molis-work-mcp tool list. After you turn one off, new connections cannot see it and a named call is refused. Open Runtime connections do not refresh immediately.",
+  "选择哪些 MCP 方法对外可用。这与接入 Cursor 或其他 Runtime 不是同一件事。": "Choose which MCP methods are available externally. This is not the same as connecting Cursor or another Runtime.",
+  "还没有可开关的方法": "No methods to toggle yet",
+  "无法保存 MCP 开关": "Could not save the MCP switch",
   "按需把 Molis Work 接入本机的 AI 或执行工具。每次修改配置前都会先展示变化并由你确认。": "Connect Molis Work to AI or execution tools on this machine when needed. Every configuration change is previewed for your approval.",
   "项目设置": "Project settings",
   "Goal Tree": "Goal Tree",
@@ -2967,6 +2988,19 @@ Object.assign(EN, {
   "到 Goals 完成判断，Inbox 不内嵌决定表单。": "Finish the decision in Goals. Inbox does not embed the form.",
   "出 Artifact 失败，原消息仍在 Feed。可重试同步或完成这条注意力。": "Artifact capture failed. The original message stays in Feed. Retry the sync or complete this attention item.",
   "捕捉规则": "Capture rules",
+  "捕捉判断": "Capture judgment",
+  "不判断，用默认分流": "No judgment, keep the default routing",
+  "判断函数 key": "Judgment function key",
+  "判断 {key}": "Judgment {key}",
+  "被用在哪": "Used in",
+  "首页卡底": "Home dock",
+  "Feed 捕捉规则": "Feed capture rules",
+  "Inbox 下一步": "Inbox next step",
+  "下一步判断": "Next-step judgment",
+  "卡底判断": "Dock judgment",
+  "不判断，用默认下一步": "No judgment, use the default next step",
+  "不判断，用默认按钮": "No judgment, use the default buttons",
+  "保存判断函数失败": "Could not save the judgment function",
   "捕捉规则（可选）": "Capture rules (optional)",
   "命中后立刻出现在 Artifacts。也可稍后在任务配置里添加。": "Matching items appear in Artifacts immediately. You can also add rules later in task settings.",
   "该任务的全部新消息": "All new messages from this task",

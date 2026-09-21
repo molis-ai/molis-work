@@ -66,7 +66,7 @@ export const GOALS_EVENT_DOCUMENT_STYLES = `
   .goal-event-document .event-sheet, .goal-event-document .reader, .goal-event-document .event-form { flex: 1 1 0; min-height: 0; }
   .goal-event-document .event-sheet, .goal-event-document .reader-content, .goal-event-document .event-form { overflow: auto; padding: 22px 28px 36px; min-height: 0; overscroll-behavior: contain; }
   .goal-event-document .event-sheet:focus, .goal-event-document .event-sheet:focus-visible { outline: none; }
-  .goal-event-document .timeline-entry:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+  .goal-event-document .timeline-entry:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
   .goal-event-document .event { max-width: 76ch; }
   .goal-event-document .event h2 { font-size: 16px; font-weight: 400; line-height: 1.4; margin: 0 0 6px; }
   .goal-event-document .event-meta { display: flex; flex-wrap: wrap; gap: 7px; color: var(--muted); font-size: 11px; margin: 0 0 18px; }

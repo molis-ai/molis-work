@@ -28,13 +28,45 @@ node dist/cli/main.js plugin dev "$plugin_dev_dir/sample" "$plugin_dev_dir/state
 
 作者从 `@molis-ai/molis-work-plugin-sdk` 导入 `definePlugin` / `definePollingIntegrationPlugin` 及公开类型，在 `start(context)` 中使用 `context.services`：
 
-- `storage`：字符串 get/set/delete，仅自身安装数据，须声明并授予 storage:private。
+- `storage`：字符串 get/set/delete，仅自身安装数据，须声明并授予 storage:private。支持的 Host 还提供可选 `compareAndSet(key, expected, value)`，原子地按旧值更新；null 表示仅在 key 不存在时创建。冲突返回 false 且不写入。需要此能力的插件须检查方法是否存在，不能用 get/set 模拟；它不是跨 key 事务或团队同步。
 - `artifacts`：publish 个人内容、按 id + version read；由 Host 绑定项目、用户、生产者。通过 Artifact type/schema 互通，不要求指定哪个插件生产。
 - `ui`：注册 Manifest 声明的自身 contribution，由 UI Host 检查挂载格式，停止后撤销。
 
 这些是公开 Contract，不向作者开放 Store、SQL 或其他模块内部路径。缺权限、停用的旧上下文和未声明的类型/界面贡献都会被实际 owner 拒绝。本样例不请求网络、不自动 Team 分享；分享仍是用户明确选择的业务操作。
 
 嵌入式测试使用 `@molis-ai/molis-work-app-local-host` 的公共 `runPluginDevelopment(input, options)`：输入是已授权的源码目录、项目/用户、grants；options 注入真实 Artifact owner、UiHost、Plugin Runtime repository 和私有存储工厂。它与应用命令使用同一安装/运行/卸载实现，返回 `PluginDevelopmentResult`，不要求导入仓库测试文件。数据库装配属于应用 Host，不属于 SDK 或 CLI。CLI 的 `PluginCliHost.runDevelopment` 是具名的注入接口，不是任意方法总线。
+
+## 对外 MCP
+
+Molis Work 对外只有一个 MCP 进程：`molis-work-mcp`。插件不要自己开 MCP 端口，也不要新开 MCP 包。你登记「我能贡献哪些方法」；人在用户设置 → MCP 决定打开哪些；Host 合成一份目录、盖正式名、注入身份后再调你。
+
+`agent.mcp` 是反过来的：插件里的 Agent 能不能去调外面的 MCP。不要拿它当对外贡献开关。
+
+### 作者要做的
+
+1. Manifest schema 2 写 `mcp_exports`。每条只要：`tool_id`（插件内唯一，`[a-z0-9][a-z0-9-]*`）、`description`、`input_schema`（`type: "object"`）、`effect`（`read` 或 `write`）。可选 `audience`（省略 = `runtime`）、`scope`（省略 = 当前绑定项目必须启用本插件）。
+2. 不要写 `enabled`、不要写对外正式名、不要在 `input_schema` 里放 `board_id` / `database_path` / `web_base_url` / `actor_*` / `submitted_session_id`。身份由 Host 注入。
+3. 公开名由 Host 盖：`molis_work_v1_<短名>_<tool_id>`。短名是项目插件 id（Functions 是 `functions`），不是你在 Manifest 里拼出来的。
+4. Handler 只认 `{ tool_id, arguments }`。未在 Manifest 登记的 `tool_id` 即使代码里有实现也到不了。
+5. 新贡献默认关。人在设置里打开后，**之后新开的** MCP 连接才看得到；已打开的连接不会热刷新。不要把开关做进插件自己的 `settings-page`。
+6. 个人、不绑项目也能用的方法标 `scope: "home"`（Functions 三项就是这样）。项目能力保持默认 `scope: "project"`。个人插件但内容按当前项目分区的（Pages / Forms / Dataset / PPT）不要标 home；Host 从绑定连接注入 `project_id`，schema 里不要出现它。未绑项目时这些方法不进 list/call。
+
+对照：[`plugins/native/functions/src/mcp.ts`](../../plugins/native/functions/src/mcp.ts)（`scope: home`）和 [`plugins/native/form/src/mcp.ts`](../../plugins/native/form/src/mcp.ts)（个人插件、项目分区）。类型从 `@molis-ai/molis-work-plugin-sdk` 再导出。
+
+### 两种兑现方式
+
+**Native（现在的 Functions / Pages / Forms / Dataset / PPT）**：构建期装配。除了 Manifest 和按 `tool_id` 的 handler，还要在 [`apps/local-host/src/mcp-native-plugins.ts`](../../apps/local-host/src/mcp-native-plugins.ts) 加一条：来源从 Manifest 读，`createAdapter` 接到插件包，`default_enabled` 默认 `false`（只有从旧静态目录迁过来的 Functions 三项是 `true`）。
+
+**运行时托管 app 插件**：`start()` 返回 `contribution.mcp`，`tool_id` 必须和 Manifest 一一对应。Plugin Runtime 启动时会校验，缺一条或多一条都是启动失败。生产 `tools/call` 还没有把这类插件接到 Runtime；在 Host 接上之前，不要给 Coding 等产品插件填 `mcp_exports`。
+
+### 不要做的
+
+- 新开 MCP 进程、MCP 包，或在 `apps/mcp` 的 tool-catalog 里写死插件工具。
+- 在 `LocalMcpServer.callTool` 里按公开名写 `if`。
+- 复用 `agent.mcp`。
+- 把 MCP 开关和「AI 与执行工具」做成一页。
+
+Host 侧改哪里、调用链怎么走，见 [CLI 与开发 · 对外 MCP](../cli-and-development.md#对外-mcp)。协议与 Runtime Skill 仍以 [MCP 接入](../mcp.md) 为准。
 
 ## 打包与签名
 

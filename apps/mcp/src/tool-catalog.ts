@@ -3,6 +3,7 @@ import { V1_TOOLS } from "./goal-tools.js";
 import { EVENT_TOOLS } from "./goal-event-tools.js";
 import { CONTEXT_TOOLS } from "./context-tools.js";
 
+/** Platform MCP tools only. Plugin tools are Manifest `mcp_exports`, assembled by Local Host. */
 const SERVER_INFO = { name: "molis-work-mcp", version: "1.0.0" };
 
 const TOOLS: McpToolDefinition[] = [...V1_TOOLS, ...EVENT_TOOLS, ...CONTEXT_TOOLS];
@@ -87,6 +88,11 @@ export function canonicalMcpToolName(name: string): string {
 /** Classify the same tool audience used by discovery before host execution. */
 export function isRuntimeMcpTool(name: string): boolean {
   return RUNTIME_TOOL_NAMES.has(name);
+}
+
+/** Platform schema names, including management-only tools the Runtime must not treat as unknown. */
+export function isPlatformMcpTool(name: string): boolean {
+  return TOOLS.some((tool) => tool.name === name);
 }
 
 /** Connection tools run before a project has been resolved. */

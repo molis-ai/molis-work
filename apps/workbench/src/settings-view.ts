@@ -27,7 +27,17 @@ export interface MolisWorkSettingsView {
   model_settings?: Omit<ModelSettingsModel, "primitives">;
   context_project?: WebProjectNavigation | null;
   runtimes: RuntimeIntegrationDetection[];
+  mcp_tools?: readonly McpSettingsToolView[];
   projects: WebSettingsProject[];
   web_service: MolisWorkWebServiceDetection;
   diagnostics: WebInstallationDiagnostics;
+}
+
+export interface McpSettingsToolView {
+  name: string;
+  description: string;
+  group_id: string;
+  group_title: string;
+  enabled: boolean;
+  effect: "read" | "write";
 }

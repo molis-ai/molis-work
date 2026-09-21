@@ -1,5 +1,9 @@
+import { OWN_DIRECTORY_SURFACES, pluginTabTitles } from "../../plugin-catalog.js";
+
 /** AP3 Workbench client segment: navigation-feed. */
 export const CLIENT_NAVIGATION_FEED_SCRIPT = `
+    const OWN_DIRECTORY_SURFACES = ${JSON.stringify([...OWN_DIRECTORY_SURFACES])};
+    const PLUGIN_TAB_TITLES = ${JSON.stringify({ goal: "Goals", sources: "Feed", ...pluginTabTitles() })};
     const directoryPanelFor = (directory) => directory;
 
     const restoreLastGoal = (openGoalsDirectory = false) => {
@@ -23,23 +27,11 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
     };
 
     const syncMobilePluginLabels = (surface, directory) => {
-      const plugin = directory === "sources" || directory === "feed" || directory === "inbox" || directory === "sessions" || directory === "artifacts" || directory === "shelf"
-        ? directory
-        : surface;
-      if (mobileTreeTab) mobileTreeTab.textContent = plugin === "feed"
-        ? "Feed"
-        : plugin === "inbox"
-          ? "Inbox"
-          : plugin === "sources"
-          ? L("来源")
-          : plugin === "sessions"
-            ? "Sessions"
-            : plugin === "artifacts"
-              ? "Artifacts"
-              : plugin === "shelf"
-                ? "Shelf"
-              : defaultMobileTreeLabel;
-      if (mobileDocumentTab) mobileDocumentTab.textContent = plugin === "feed" || plugin === "sources" || plugin === "sessions" || plugin === "inbox" || plugin === "artifacts" || plugin === "shelf"
+      const plugin = OWN_DIRECTORY_SURFACES.includes(directory) ? directory : surface;
+      if (mobileTreeTab) mobileTreeTab.textContent = directory === "sources"
+        ? L("来源")
+        : PLUGIN_TAB_TITLES[plugin] || defaultMobileTreeLabel;
+      if (mobileDocumentTab) mobileDocumentTab.textContent = OWN_DIRECTORY_SURFACES.includes(plugin)
         ? L("详情")
         : defaultMobileDocumentLabel;
     };
@@ -120,7 +112,7 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
       return openWorkbenchSurface(surface, itemId, title, directoryTabMode());
     };
 
-    const currentModuleDirectory = () => activeDesktopSurface === "feed" || activeDesktopSurface === "sources" || activeDesktopSurface === "sessions" || activeDesktopSurface === "artifacts" || activeDesktopSurface === "inbox" || activeDesktopSurface === "shelf"
+    const currentModuleDirectory = () => activeDesktopSurface === "feed" || activeDesktopSurface === "sources" || activeDesktopSurface === "sessions" || activeDesktopSurface === "artifacts" || activeDesktopSurface === "inbox" || activeDesktopSurface === "shelf" || activeDesktopSurface === "functions" || activeDesktopSurface === "pages" || activeDesktopSurface === "form" || activeDesktopSurface === "dataset" || activeDesktopSurface === "ppt" || activeDesktopSurface === "lingguang"
       ? activeDesktopSurface
       : "goals";
 
@@ -338,8 +330,9 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
       if (!form || form.dataset.createdOutRuleId) return;
       const contains = String(form.querySelector("[data-feed-add-out-rule-contains]")?.value || "").trim();
       const name = String(form.querySelector("[data-feed-add-out-rule-name]")?.value || "").trim();
+      const functionKey = String(form.querySelector("[data-feed-add-out-rule-function-key]")?.value || "").trim();
       if (!contains && !name) return;
-      const result = await feedApi("/api/feed/out-rules", "POST", { name: name || contains, contains, source_id: sourceId });
+      const result = await feedApi("/api/feed/out-rules", "POST", { name: name || contains, contains, source_id: sourceId, ...(functionKey ? { function_key: functionKey } : {}) });
       form.dataset.createdOutRuleId = result.rule.rule_id;
     };
 

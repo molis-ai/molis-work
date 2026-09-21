@@ -22,8 +22,24 @@ export const inboxManifest: PluginManifest = {
   publisher: { publisher_id: "molis", signature: "official-inbox-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [],
-  capabilities: { provides: [], consumes: [] },
+  capabilities: { provides: [], consumes: ["functions.evaluate"] },
   artifacts: { produces: [], consumes: [] },
+  requires: [{
+    capability_id: "functions.evaluate",
+    version: 1,
+    optional: true,
+    reason: "Inbox 下一步可绑一个判断函数，落地时给出建议",
+  }],
+  behaviors: [
+    { behavior_id: "done", title: "做完了", effect: "write", subject_kinds: ["inbox_entry"] },
+    { behavior_id: "dismiss", title: "忽略", effect: "write", subject_kinds: ["inbox_entry"] },
+  ],
+  function_scenes: [
+    { scene_id: "inbox.next", title: "下一步", subject_kinds: ["inbox_entry"] },
+  ],
+  judgment_subjects: [
+    { subject_kind: "inbox_entry", title: "Inbox 条目" },
+  ],
   ui: {
     contributions: [INBOX_UI_CONTRIBUTION_ID],
     views: [

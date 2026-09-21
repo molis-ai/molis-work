@@ -1029,8 +1029,8 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     background: color-mix(in srgb, var(--ink) 3.5%, transparent);
   }
   .focus-section-card-trigger:focus-visible {
-    outline: 2px solid color-mix(in srgb, var(--blue) 62%, transparent);
-    outline-offset: -3px;
+    outline: 2px solid var(--focus);
+    outline-offset: -2px;
   }
   .focus-section-card-icon {
     width: 18px;

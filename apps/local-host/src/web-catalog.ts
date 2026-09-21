@@ -12,11 +12,22 @@ import { L } from "./web-locale.js";
 import type { WebProjectNavigation, WebSettingsSection } from "@molis-ai/molis-work-app-workbench";
 import { findPluginSettingsNavItem, renderMolisWorkPrimitiveCatalog, renderPluginSettingsContribution } from "@molis-ai/molis-work-app-workbench";
 import { handleShelfNativePluginHttp, shelfRuntimeProbe } from "./shelf-native-plugin-http.js";
+import { handleFunctionsNativePluginHttp } from "./functions-native-plugin-http.js";
+import { handleFormNativePluginHttp } from "./form-native-plugin-http.js";
+import { handlePagesNativePluginHttp } from "./pages-native-plugin-http.js";
+import { handleDatasetNativePluginHttp } from "./dataset-native-plugin-http.js";
+import { handlePptNativePluginHttp } from "./ppt-native-plugin-http.js";
+import { handleLingguangNativePluginHttp } from "./lingguang-native-plugin-http.js";
 import { SHELF_SETTINGS_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-shelf";
 import { CODING_SETTINGS_UI_CONTRIBUTION_ID, codingAgentManifest } from "@molis-ai/molis-work-plugin-coding";
 import type { AgentRuntimeDescriptor } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { FUNCTIONS_SETTINGS_UI_CONTRIBUTION_ID, createFunctionsService, openFunctionsStore } from "@molis-ai/molis-work-plugin-functions";
+import { createFileSecretStore } from "@molis-ai/molis-work-storage";
 import { openShelfStore } from "@molis-ai/molis-work-module-shelf";
 import { handleLocalRuntimeSettingsHttp, serviceProcessId } from "./web-runtime-settings.js";
+import { handleLocalMcpSettingsHttp } from "./web-mcp-settings.js";
+import { listMcpSettingsEntries } from "./mcp-catalog.js";
+import { readMcpToolPreference } from "./mcp-settings-store.js";
 import { installationDiagnostics } from "./web-project-presentation.js";
 import { molisWorkOnboardingStatus } from "./onboarding.js";
 import type { ProjectDeletionWebPorts } from "./web-project-settings.js";
@@ -32,6 +43,12 @@ export async function handleLocalCatalogWebRequest(
   const { renderMolisWorkSettings, renderMolisWorkProjectIndex } = composition.workbenchRenderer;
   const { settingsProjects } = projectSettings;
   if (serverOptions.homeDirectory && await handleShelfNativePluginHttp(request, response, url, serverOptions.homeDirectory)) return;
+  if (serverOptions.homeDirectory && await handleFunctionsNativePluginHttp(request, response, url, serverOptions.homeDirectory)) return;
+  if (serverOptions.homeDirectory && await handlePagesNativePluginHttp(request, response, url, serverOptions.homeDirectory)) return;
+  if (serverOptions.homeDirectory && await handleFormNativePluginHttp(request, response, url, serverOptions.homeDirectory)) return;
+  if (serverOptions.homeDirectory && await handleDatasetNativePluginHttp(request, response, url, serverOptions.homeDirectory)) return;
+  if (serverOptions.homeDirectory && await handlePptNativePluginHttp(request, response, url, serverOptions.homeDirectory)) return;
+  if (serverOptions.homeDirectory && await handleLingguangNativePluginHttp(request, response, url, serverOptions.homeDirectory)) return;
   if (await handleOnboarding(request, response, url, serverOptions.homeDirectory, projects.length, localHost, controlToken)) return;
   if (request.method === "GET" && url.pathname === "/desktop/capsule") {
     response.writeHead(200, {
@@ -61,7 +78,7 @@ export async function handleLocalCatalogWebRequest(
   }
   if (await planningHttp.personal(request, response, url, serverOptions.homeDirectory, projects, controlToken, localHost, () => feedSchedulers.clear())) return;
   if (await handleModelSettingsHttp(request, response, url, composition.withCatalog, serverOptions.homeDirectory)) return;
-  const settingsPageMatch = url.pathname.match(/^\/settings\/(appearance|models|runtimes|projects|diagnostics)$/);
+  const settingsPageMatch = url.pathname.match(/^\/settings\/(appearance|models|runtimes|mcp|projects|diagnostics)$/);
   if (request.method === "GET" && settingsPageMatch) {
     const section = settingsPageMatch[1] as WebSettingsSection;
     const projects = await settingsProjects(serverOptions.homeDirectory);
@@ -78,6 +95,16 @@ export async function handleLocalCatalogWebRequest(
         api_format: "anthropic-messages", credential_ref: "", enabled: true, prompt_cache: "off", models: [], created_at: "", updated_at: "",
       } satisfies ModelProviderRecord } : {}),
     })) : undefined;
+    const mcp_tools = section === "mcp" && serverOptions.homeDirectory
+      ? listMcpSettingsEntries(await readMcpToolPreference(serverOptions.homeDirectory)).map((row) => ({
+        name: row.definition.name,
+        description: row.definition.description,
+        group_id: row.group_id,
+        group_title: row.group_title,
+        enabled: row.enabled,
+        effect: row.effect,
+      }))
+      : [];
     response.writeHead(200, {
       "content-type": "text/html; charset=utf-8",
       "cache-control": "no-store",
@@ -88,6 +115,7 @@ export async function handleLocalCatalogWebRequest(
       ...(model_settings === undefined ? {} : { model_settings }),
       context_project: contextProject,
       runtimes,
+      mcp_tools,
       projects,
       web_service: await webService.detect(),
       diagnostics: installationDiagnostics(serverOptions.homeDirectory, projects.length),
@@ -97,7 +125,8 @@ export async function handleLocalCatalogWebRequest(
   const pluginSettingsSlug = url.pathname.match(/^\/settings\/([^/]+)$/)?.[1];
   const pluginSettings = pluginSettingsSlug ? findPluginSettingsNavItem(pluginSettingsSlug) : null;
   if (request.method === "GET" && pluginSettings && serverOptions.homeDirectory) {
-    if (![SHELF_SETTINGS_UI_CONTRIBUTION_ID, CODING_SETTINGS_UI_CONTRIBUTION_ID].includes(pluginSettings.contribution_id)) {
+    let plugin_settings_html = renderCatalogPluginSettings(pluginSettings.contribution_id, serverOptions.homeDirectory);
+    if (!plugin_settings_html && pluginSettings.contribution_id !== CODING_SETTINGS_UI_CONTRIBUTION_ID) {
       sendJson(response, 404, { error: L("页面不存在") });
       return;
     }
@@ -106,10 +135,9 @@ export async function handleLocalCatalogWebRequest(
     const contextProject = contextProjectId
       ? projects.find((project) => project.project_id === contextProjectId) ?? null
       : null;
-    let model: unknown;
     if (pluginSettings.contribution_id === CODING_SETTINGS_UI_CONTRIBUTION_ID) {
       const runtimes = await codingRuntimes();
-      model = {
+      const model = {
         roles: codingAgentManifest.roles.map(role => ({ ...role, execution: role.execution ?? "read-only" })),
         runtimes: runtimes.map(runtime => ({ ...runtime,
           can_write: runtime.capabilities["text-edit"] !== "unsupported",
@@ -122,12 +150,8 @@ export async function handleLocalCatalogWebRequest(
         project_href: contextProject ? `/projects/${encodeURIComponent(contextProject.project_id)}/` : null,
         primitives: { escape: escapeSettingsHtml, text: L },
       };
-    } else {
-      const shelfStore = openShelfStore(serverOptions.homeDirectory, shelfRuntimeProbe());
-      model = { settings: shelfStore.settings(), runtime: shelfStore.runtime(), storage_path: shelfStore.root,
-        primitives: { escape: escapeSettingsHtml, text: L } };
+      plugin_settings_html = renderPluginSettingsContribution(pluginSettings.contribution_id, model);
     }
-    const plugin_settings_html = renderPluginSettingsContribution(pluginSettings.contribution_id, model);
     response.writeHead(200, {
       "content-type": "text/html; charset=utf-8",
       "cache-control": "no-store",
@@ -135,7 +159,7 @@ export async function handleLocalCatalogWebRequest(
     });
     response.end(renderMolisWorkSettings({
       section: pluginSettings.section_id,
-      plugin_settings_html,
+      plugin_settings_html: plugin_settings_html ?? undefined,
       context_project: contextProject,
       runtimes: [],
       projects,
@@ -144,6 +168,7 @@ export async function handleLocalCatalogWebRequest(
     }, controlToken, isDesktopShellRequest(request, url)));
     return;
   }
+  if (await handleLocalMcpSettingsHttp(request, response, url, serverOptions.homeDirectory)) return;
   if (await handleLocalRuntimeSettingsHttp(request, response, url, runtimeIntegrations, webService)) return;
   if (await projectSettings.handle(request, response, url, serverOptions.homeDirectory, projects.length, deletionPorts)) return;
   if (request.method === "GET" && url.pathname === "/desktop/pty-client.js") {
@@ -203,4 +228,34 @@ function escapeSettingsHtml(value: unknown): string {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
+}
+
+function renderCatalogPluginSettings(contributionId: string, homeDirectory: string): string | null {
+  const primitives = { escape: escapeSettingsHtml, text: L };
+  if (contributionId === SHELF_SETTINGS_UI_CONTRIBUTION_ID) {
+    const shelfStore = openShelfStore(homeDirectory, shelfRuntimeProbe());
+    return renderPluginSettingsContribution(contributionId, {
+      settings: shelfStore.settings(),
+      runtime: shelfStore.runtime(),
+      storage_path: shelfStore.root,
+      primitives,
+    });
+  }
+  if (contributionId === FUNCTIONS_SETTINGS_UI_CONTRIBUTION_ID) {
+    const store = openFunctionsStore(homeDirectory);
+    try {
+      const service = createFunctionsService({
+        store,
+        secrets: createFileSecretStore(),
+        env: process.env,
+      });
+      return renderPluginSettingsContribution(contributionId, {
+        settings: service.settingsStatus(),
+        primitives,
+      });
+    } finally {
+      store.close();
+    }
+  }
+  return null;
 }

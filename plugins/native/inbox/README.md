@@ -6,7 +6,7 @@
 
 ## 一次典型调用
 
-Host 把 Attention 条目和关联对象的展示信息交给 UI contribution；HTTP 路由表拥有 `/api/inbox` 匹配，Host 注入 list / get / setStatus。插件不读 Feed 或 Goals 表，也不复制原文。
+Host 把 Attention 条目和关联对象的展示信息交给 UI contribution；HTTP 路由表拥有 `/api/inbox` 匹配，Host 注入 list / setStatus，以及可选的 board 级 `inbox.next` 判断绑定。插件不读 Feed 或 Goals 表，也不复制原文。不 import Functions 插件实现。
 
 ## 从哪里读代码
 
@@ -17,7 +17,7 @@ Host 把 Attention 条目和关联对象的展示信息交给 UI contribution；
 | [src/ui.ts](src/ui.ts) | 目录与详情 HTML |
 | [src/projection.ts](src/projection.ts) | Attention 记录到展示模型 |
 | [src/routes.ts](src/routes.ts) | HTTP 路由表 |
-| [src/route-handlers.ts](src/route-handlers.ts) | 列表与状态用例 |
+| [src/route-handlers.ts](src/route-handlers.ts) | 列表、状态与现场绑函数用例 |
 
 可对照现有调用方 [apps/workbench/src/inbox-projection-ui.ts](../../../apps/workbench/src/inbox-projection-ui.ts) 与 [apps/local-host/src/inbox-native-plugin-http.ts](../../../apps/local-host/src/inbox-native-plugin-http.ts)。
 

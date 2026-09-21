@@ -587,6 +587,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
         const sourceId = section?.dataset.feedOutRules;
         const name = section?.querySelector("[data-feed-out-rule-name]")?.value?.trim();
         const contains = section?.querySelector("[data-feed-out-rule-contains]")?.value?.trim();
+        const functionKey = section?.querySelector("[data-feed-out-rule-function-key]")?.value?.trim();
         if (!sourceId) return;
         if (!name && !contains) {
           setFeedSourceFeedback(L("请填写规则名称或包含关键字"), true);
@@ -595,7 +596,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
         createOutRule.disabled = true;
         setFeedSourceFeedback(L("正在添加捕捉规则…"));
         try {
-          await feedApi("/api/feed/out-rules", "POST", { name: name || contains, contains, source_id: sourceId });
+          await feedApi("/api/feed/out-rules", "POST", { name: name || contains, contains, source_id: sourceId, ...(functionKey ? { function_key: functionKey } : {}) });
           saveUiState();
           location.reload();
         } catch (error) {

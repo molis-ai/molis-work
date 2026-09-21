@@ -24,26 +24,34 @@ test("Shelf opens in the workbench, extracts the sample PDF, and keeps DropAgent
   assert.equal(await evaluate("document.querySelector('[data-plugin-section=shelf]')"), null);
   assert.equal(await evaluate("document.querySelector('[data-directory-panel=shelf]')"), null);
   await waitFor("[...document.querySelectorAll('[data-shelf-list=materials] [data-shelf-item]')].some(row => row.dataset.shelfName === '试用示例.pdf')", 8_000);
-  await click('[data-shelf-list="materials"] [data-shelf-item][data-shelf-name="试用示例.pdf"]');
-  await waitFor("document.querySelector('[data-shelf-stage-shell]')?.dataset.expanded === 'true' && document.querySelector('[data-shelf-act=extract]') && document.querySelector('[data-shelf-act=extract]').getAttribute('aria-disabled') !== 'true'");
-  assert.equal(await evaluate("document.querySelector('[data-shelf-item][data-shelf-name=\"试用示例.pdf\"]')?.classList.contains('is-on')"), true);
   // DropAgent's row is a tinted kind glyph and the name; the kind itself rides in the preview header.
   const row = await evaluate<{
-    glyphColor: string; glyphWidth: number; gap: number; caps: number; name: string; tag: string;
+    glyphColor: string; glyphWidth: number; gap: number; caps: number; name: string;
+    nameColor: string; ink: string; muted: string; nameSize: string;
   }>(`(() => {
     const row = document.querySelector('[data-shelf-list=materials] [data-shelf-item][data-shelf-name="试用示例.pdf"]');
     const glyph = row?.querySelector(".shelf-glyph");
     const name = row?.querySelector(".shelf-name");
-    if (!row || !glyph || !name) return { glyphColor: "", glyphWidth: -1, gap: -1, caps: -1, name: "", tag: "" };
+    if (!row || !glyph || !name) return { glyphColor: "", glyphWidth: -1, gap: -1, caps: -1, name: "", nameColor: "", ink: "", muted: "", nameSize: "" };
     const glyphBox = glyph.getBoundingClientRect();
     const nameBox = name.getBoundingClientRect();
+    const probe = document.createElement("span");
+    probe.style.color = "var(--ink)";
+    document.body.append(probe);
+    const ink = getComputedStyle(probe).color;
+    probe.style.color = "var(--muted)";
+    const muted = getComputedStyle(probe).color;
+    probe.remove();
     return {
       glyphColor: getComputedStyle(glyph).color,
       glyphWidth: Math.round(glyphBox.width),
       gap: Math.round(nameBox.left - glyphBox.right),
       caps: document.querySelectorAll("[data-shelf=directory] .shelf-cap").length,
       name: name.textContent.trim(),
-      tag: document.querySelector("[data-shelf-chrome-tag]")?.textContent.trim() || "",
+      nameColor: getComputedStyle(name).color,
+      ink,
+      muted,
+      nameSize: getComputedStyle(name).fontSize,
     };
   })()`);
   assert.equal(row.name, "试用示例.pdf");
@@ -51,7 +59,22 @@ test("Shelf opens in the workbench, extracts the sample PDF, and keeps DropAgent
   assert.equal(row.glyphColor, "rgb(178, 116, 96)");
   assert.equal(row.glyphWidth, 16, JSON.stringify(row));
   assert.ok(row.gap >= 6 && row.gap <= 10, JSON.stringify(row));
-  assert.match(row.tag, /PDF/);
+  assert.equal(row.nameColor, row.ink, JSON.stringify(row));
+  assert.notEqual(row.nameColor, row.muted, JSON.stringify(row));
+  assert.equal(row.nameSize, "13px", JSON.stringify(row));
+  await click('[data-shelf-list="materials"] [data-shelf-item][data-shelf-name="试用示例.pdf"]');
+  await waitFor("document.querySelector('[data-shelf-stage-shell]')?.dataset.expanded === 'true' && document.querySelector('[data-shelf-act=extract]') && document.querySelector('[data-shelf-act=extract]').getAttribute('aria-disabled') !== 'true'");
+  assert.equal(await evaluate("document.querySelector('[data-shelf-item][data-shelf-name=\"试用示例.pdf\"]')?.classList.contains('is-on')"), true);
+  assert.equal(await evaluate(`(() => {
+    const name = document.querySelector('[data-shelf-item][data-shelf-name="试用示例.pdf"] .shelf-name');
+    const probe = document.createElement("span");
+    probe.style.color = "var(--ink)";
+    document.body.append(probe);
+    const ink = getComputedStyle(probe).color;
+    probe.remove();
+    return getComputedStyle(name).color === ink;
+  })()`), true);
+  assert.match(await evaluate("document.querySelector('[data-shelf-chrome-tag]')?.textContent.trim() || ''"), /PDF/);
   assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--content-side').trim()"), "#F5F5F4");
   assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--hue-slate').trim()"), "#66709e");
   assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--mark-clay').trim()"), "#B27460");
@@ -231,8 +254,10 @@ test("Shelf opens in the workbench, extracts the sample PDF, and keeps DropAgent
     await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: theme }] }, sessionId);
     await navigate(() => command("Page.navigate", { url: `${origin}/settings/shelf` }, sessionId));
     await waitFor(`document.documentElement.dataset.resolvedTheme === '${theme}'`);
-    await waitFor("document.querySelector('[data-shelf-settings-tab=machine]')", 8_000);
-    assert.equal(await evaluate("document.querySelectorAll('[data-shelf-settings-tab]').length"), 6);
+    await waitFor("document.querySelector('[data-shelf-settings-pane=machine]')", 8_000);
+    assert.equal(await evaluate("document.querySelectorAll('[data-shelf-settings-pane]').length"), 6);
+    assert.equal(await evaluate("document.querySelectorAll('[data-shelf-settings-tab]').length"), 0);
+    assert.equal(await evaluate("[...document.querySelectorAll('[data-shelf-settings-pane]')].every((pane) => !pane.hidden)"), true);
     assert.equal(await evaluate("document.querySelectorAll('[data-shelf-panel-slot]').length"), 4);
     // The settings surface carries DropAgent's own tokens, not the Coss ones.
     const press = await evaluate<string>("getComputedStyle(document.querySelector('[data-shelf=settings]')).getPropertyValue('--da-press').trim()");

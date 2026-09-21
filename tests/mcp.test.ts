@@ -67,6 +67,7 @@ describe("mcp server", () => {
       "molis_work_v1_event_report", "molis_work_v1_event_list", "molis_work_v1_event_read",
       "molis_work_v1_event_resume", "molis_work_v1_goal_tree_propose", "molis_work_v1_goal_tree_read",
       "molis_work_v1_goal_trash", "molis_work_v1_project_delete", "molis_work_v1_context_resolve",
+      "molis_work_v1_functions_list", "molis_work_v1_functions_describe", "molis_work_v1_functions_invoke",
     ]) assert.ok(names.includes(name), name);
     const intentTool = listedTools.find((tool) => tool.name === "molis_work_v1_goal_intent_create");
     assert.ok(!intentTool?.inputSchema.required?.includes("actor_id"));

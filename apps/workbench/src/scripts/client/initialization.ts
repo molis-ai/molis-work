@@ -5,6 +5,13 @@ import { AGENT_REVIEW_CLIENT_FACTORY_SCRIPT } from "./agent-review.js";
 import { PROJECT_HOME_FACTORY_SCRIPT } from "./project-home.js";
 import { PLUGIN_WORKBENCH_FACTORY_SCRIPT } from "./plugin-workbench.js";
 import { SHELF_CLIENT_FACTORY_SCRIPT, SHELF_SETTINGS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-shelf";
+import { FUNCTIONS_CLIENT_FACTORY_SCRIPT, FUNCTIONS_SETTINGS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-functions";
+import { FORM_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-form";
+import { PAGES_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-pages";
+import { DATASET_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-dataset";
+import { PPT_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-ppt";
+import { LINGGUANG_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-lingguang";
+import { SCHEDULE_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-schedule";
 import { IMMERSIVE_NAVIGATION_FACTORY_SCRIPT } from "./immersive-navigation.js";
 import { GLOBAL_SEARCH_FACTORY_SCRIPT } from "./global-search.js";
 import { SETTINGS_DIRECTORY_FACTORY_SCRIPT } from "./settings-directory.js";
@@ -73,8 +80,16 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title),
     });
     (${SHELF_CLIENT_FACTORY_SCRIPT})({ translate: L });
+    (${FUNCTIONS_CLIENT_FACTORY_SCRIPT})({ translate: L });
+    (${PAGES_CLIENT_FACTORY_SCRIPT})({ translate: L, projectId: () => state.project?.project_id || document.body.dataset.projectId || "" });
+    (${FORM_CLIENT_FACTORY_SCRIPT})({ translate: L, projectId: () => state.project?.project_id || document.body.dataset.projectId || "" });
+    (${DATASET_CLIENT_FACTORY_SCRIPT})({ translate: L, projectId: () => state.project?.project_id || document.body.dataset.projectId || "" });
+    (${PPT_CLIENT_FACTORY_SCRIPT})({ translate: L, projectId: () => state.project?.project_id || document.body.dataset.projectId || "" });
+    (${LINGGUANG_CLIENT_FACTORY_SCRIPT})({ translate: L, projectId: () => state.project?.project_id || document.body.dataset.projectId || "" });
+    (${SCHEDULE_CLIENT_FACTORY_SCRIPT})({ translate: L, route });
     ${SHELF_SETTINGS_CLIENT_SCRIPT}
     ${CODING_SETTINGS_CLIENT_SCRIPT}
+    ${FUNCTIONS_SETTINGS_CLIENT_SCRIPT}
     const settingsDirectory = (${SETTINGS_DIRECTORY_FACTORY_SCRIPT})({
       translate: L,
       setDirectory: (...args) => setDesktopDirectory(...args),

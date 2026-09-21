@@ -48,6 +48,9 @@ Names below omit `molis_work_v1_`. The current MCP schema defines each tool's ac
 | Optional planning | `planning_methods`, `planning_method_save`, `planning_analyze_change`, `planning_graph_check` |
 | Project guidance | `project_guidance_get`, `project_guidance_add`, `project_guidance_update` |
 | Trash and restore | `goal_trash`, `goal_trash_list`, `goal_restore` |
+| Judgment functions | `functions_list`, `functions_describe`, `functions_invoke` |
+
+The only outbound process is `molis-work-mcp`. Platform tools (connection / Goals / events) keep their schema in this package. Plugins register local `tool_id`s on Manifest `mcp_exports`; Host stamps `molis_work_v1_<plugin>_<tool>` and composes the catalog. Functions stays on by default. Pages / Forms / Dataset / PPT are registered, off by default, and need a bound project. `agent.mcp` is the opposite direction (a plugin Agent calling external MCP). Plugin authors and Host changes: [Plugin development](platform/PLUGIN-DEVELOPMENT.md#对外-mcp) and [CLI and development](cli-and-development.md#对外-mcp) (Chinese).
 
 Ordinary Runtime tools reject overrides for `board_id`, database paths, Web URLs, or `actor_id` / `actor_kind` / `runtime_actor_id`, even when the supplied value matches the current connection. Trash tools also use finite top-level fields rather than the old `payload` envelope. Project-selection tools and `project_delete` retain their own explicit project and confirmation arguments; those confirmations cannot authorize agreement or tree changes.
 

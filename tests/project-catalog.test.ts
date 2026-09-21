@@ -216,7 +216,7 @@ test("demo data is classified, idempotently opened, reset, and removable without
       assert.equal(created.project.board_id, DEMO_BOARD_ID);
       assert.deepEqual(
         catalog.listProjectPlugins(created.project.project_id),
-        ["artifacts", "coding", "feed", "goals", "inbox", "sessions"],
+        ["artifacts", "coding", "feed", "goals", "inbox", "schedule", "sessions"],
       );
       const existing = await catalog.ensureDemoProject({ actor_id: "user", user_confirmed: true });
       assert.equal(existing.status, "existing");

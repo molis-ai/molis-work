@@ -123,6 +123,10 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
             composition,
             agents.agentHost,
             () => agents.ready,
+            (projectId) => platform.withCatalog(
+              { homeDirectory: serverOptions.homeDirectory },
+              (catalog) => workspaceRefFor(catalog, projectId),
+            ),
           );
         });
       } catch (error) {
@@ -146,6 +150,11 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
         void runtime.scheduler.tick()
           .then((result) => {
             if (result.completed || result.failed) webViewCache.delete(databasePath);
+          })
+          .catch(() => undefined);
+        void runtime.schedule.tick()
+          .then((result) => {
+            if (result.invoked) webViewCache.delete(databasePath);
           })
           .catch(() => undefined);
       }

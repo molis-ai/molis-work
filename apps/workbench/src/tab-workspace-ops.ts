@@ -25,8 +25,13 @@ export function createTabWorkspaceOps() {
     goals: "Goals",
     sessions: "Sessions",
     inbox: "Inbox",
+    schedule: "Schedule",
     feed: "Feed",
     shelf: "Shelf",
+    functions: "Functions",
+    form: "Forms",
+    dataset: "Dataset",
+    ppt: "PPT",
     artifacts: "Artifacts",
   }[plugin] || plugin);
   const pluginOfSurface = (surface) => surface === "goal" ? "goals" : surface === "sources" ? "feed" : surface;

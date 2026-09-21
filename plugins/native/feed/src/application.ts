@@ -4,6 +4,11 @@ import type { FeedItemDisposition, FeedItemRecord, FeedMaterialRecord, FeedOutRu
 import { SourcesError } from "@molis-ai/molis-work-contracts/modules/sources";
 import { FeedError } from "@molis-ai/molis-work-contracts/modules/feed";
 import { AttentionError } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
+import {
+  FEED_CAPTURE_SCENE_ID,
+  HOME_DOCK_SCENE_ID,
+  INBOX_NEXT_SCENE_ID,
+} from "@molis-ai/molis-work-contracts/modules/functions";
 import { FeedStoreError, assertSourceHistoryDecision } from "./application-errors.js";
 import { toLegacyAttentionEntry, toLegacyFeedItem, compatibleRun } from "./application-projection.js";
 import type { FeedApplicationPorts } from "./application-ports.js";
@@ -15,6 +20,9 @@ import {
 
 /** Product operations over module facts; connection and lifecycle are supplied by the host. */
 export class FeedApplication {
+  private pendingFeedJudgments: FeedItemRecord[] = [];
+  private pendingInboxJudgments: InboxEntryRecord[] = [];
+
   constructor(private readonly ports: FeedApplicationPorts) {}
 
   snapshot(boardId: string): FeedSnapshot {
@@ -163,7 +171,9 @@ export class FeedApplication {
       entry_id: input.entryId,
       at: input.at,
     }));
-    return { entry: toLegacyAttentionEntry(result.entry), created: result.created };
+    const entry = toLegacyAttentionEntry(result.entry);
+    if (result.created) this.pendingInboxJudgments.push(entry);
+    return { entry, created: result.created };
   }
 
   ensureInboxEntryForFeedItem(
@@ -175,7 +185,9 @@ export class FeedApplication {
     const result = this.callAttention(
       () => this.ports.attention.commands.ensureFeedItem(boardId, itemId, reason, detail),
     );
-    return { entry: toLegacyAttentionEntry(result.entry), created: result.created };
+    const entry = toLegacyAttentionEntry(result.entry);
+    if (result.created) this.pendingInboxJudgments.push(entry);
+    return { entry, created: result.created };
   }
 
   addToInbox(boardId: string, itemId: string, expectedRevision?: number): FeedItemRecord {
@@ -282,8 +294,66 @@ export class FeedApplication {
       } catch (error) {
         this.recordArtifactOutFailure(item, [], [errorCode(error)]);
       }
+      if (this.ports.judgments) this.pendingFeedJudgments.push(item);
     }
     return { item, created: result.created, updated: result.updated };
+  }
+
+  async flushPendingJudgments(): Promise<void> {
+    const judgments = this.ports.judgments;
+    if (!judgments) {
+      this.pendingFeedJudgments = [];
+      this.pendingInboxJudgments = [];
+      return;
+    }
+    const offered = this.ports.offered_behavior_ids ?? [];
+    const sceneOffered = (sceneId: string, subjects: readonly string[]) =>
+      this.ports.offeredBehaviorsForScene?.(sceneId, subjects) ?? offered;
+    const feedItems = this.pendingFeedJudgments.splice(0);
+    const inboxEntries = this.pendingInboxJudgments.splice(0);
+    for (const item of feedItems) {
+      const rules = (this.ports.outRules?.list(item.board_id) ?? []).filter((rule) =>
+        Boolean(rule.function_key) && feedOutRuleMatches(rule, item),
+      );
+      const input = [item.title, item.summary, item.body ?? ""].filter(Boolean).join("\n");
+      const captureOffered = sceneOffered(FEED_CAPTURE_SCENE_ID, ["feed_item"]);
+      for (const rule of rules) {
+        const judgment = await judgments.judge({
+          function_key: rule.function_key!,
+          input,
+          subject: { kind: "feed_item", id: item.item_id, board_id: item.board_id },
+          scene_id: FEED_CAPTURE_SCENE_ID,
+          offered_behavior_ids: captureOffered,
+        });
+        this.ports.appendEvent(
+          item.board_id,
+          "judgment",
+          judgment.judgment_id,
+          "judgment_completed",
+          judgment.outcome,
+          { judgment_id: judgment.judgment_id },
+          judgment.created_at,
+        );
+      }
+      await this.judgeScene(judgments, HOME_DOCK_SCENE_ID, item.board_id, {
+        kind: "feed_item",
+        id: item.item_id,
+        board_id: item.board_id,
+      }, input, sceneOffered(HOME_DOCK_SCENE_ID, ["feed_item"]));
+    }
+    for (const entry of inboxEntries) {
+      const input = [entry.reason, entry.subject_id].join("\n");
+      await this.judgeScene(judgments, INBOX_NEXT_SCENE_ID, entry.board_id, {
+        kind: "inbox_entry",
+        id: entry.entry_id,
+        board_id: entry.board_id,
+      }, input, sceneOffered(INBOX_NEXT_SCENE_ID, ["inbox_entry"]));
+      await this.judgeScene(judgments, HOME_DOCK_SCENE_ID, entry.board_id, {
+        kind: "inbox_entry",
+        id: entry.entry_id,
+        board_id: entry.board_id,
+      }, input, sceneOffered(HOME_DOCK_SCENE_ID, homeDockSubjectsForInbox(entry)));
+    }
   }
 
   listOutRules(boardId: string): FeedOutRuleRecord[] {
@@ -291,15 +361,32 @@ export class FeedApplication {
   }
 
   createOutRule(boardId: string, input: FeedOutRuleWrite): FeedOutRuleRecord {
-    return this.requireOutRules().create(boardId, input);
+    const rule = this.requireOutRules().create(boardId, input);
+    if (!rule.function_key) return rule;
+    try {
+      this.ports.judgments?.bindScene(FEED_CAPTURE_SCENE_ID, rule.function_key, boardId, rule.rule_id);
+      return rule;
+    } catch (error) {
+      this.requireOutRules().delete(boardId, rule.rule_id);
+      throw error;
+    }
   }
 
   updateOutRule(boardId: string, ruleId: string, patch: Partial<FeedOutRuleWrite>): FeedOutRuleRecord {
-    return this.requireOutRules().update(boardId, ruleId, patch);
+    if (patch.function_key) {
+      this.ports.judgments?.bindScene(FEED_CAPTURE_SCENE_ID, patch.function_key, boardId, ruleId);
+    }
+    const rule = this.requireOutRules().update(boardId, ruleId, patch);
+    if (!rule.function_key) {
+      this.ports.judgments?.unbindScene(FEED_CAPTURE_SCENE_ID, boardId, rule.rule_id);
+    }
+    return rule;
   }
 
   deleteOutRule(boardId: string, ruleId: string): FeedOutRuleRecord {
-    return this.requireOutRules().delete(boardId, ruleId);
+    const rule = this.requireOutRules().delete(boardId, ruleId);
+    this.ports.judgments?.unbindScene(FEED_CAPTURE_SCENE_ID, boardId, rule.rule_id);
+    return rule;
   }
 
   setDisposition(
@@ -370,6 +457,34 @@ export class FeedApplication {
     this.completeArtifactOutFailure(item);
   }
 
+  private async judgeScene(
+    judgments: NonNullable<FeedApplicationPorts["judgments"]>,
+    sceneId: string,
+    boardId: string,
+    subject: { kind: "feed_item" | "inbox_entry"; id: string; board_id: string },
+    input: string,
+    offered: readonly string[],
+  ): Promise<void> {
+    const binding = judgments.sceneBinding(sceneId, boardId);
+    if (!binding) return;
+    const judgment = await judgments.judge({
+      function_key: binding.function_key,
+      input,
+      subject,
+      scene_id: sceneId,
+      offered_behavior_ids: offered,
+    });
+    this.ports.appendEvent(
+      boardId,
+      "judgment",
+      judgment.judgment_id,
+      "judgment_completed",
+      judgment.outcome,
+      { judgment_id: judgment.judgment_id },
+      judgment.created_at,
+    );
+  }
+
   private recordArtifactOutFailure(item: FeedItemRecord, ruleIds: string[], errorCodes: string[]): void {
     try {
       const { entry } = this.callAttention(() => this.ports.attention.commands.create({
@@ -379,6 +494,7 @@ export class FeedApplication {
         reason: "artifact_out_failed",
         detail: { rule_ids: ruleIds, error_codes: errorCodes },
       }));
+      this.pendingInboxJudgments.push(toLegacyAttentionEntry(entry));
       if (entry.status === "done" || entry.status === "dismissed") {
         this.setInboxEntryStatus(item.board_id, entry.entry_id, "open");
       }
@@ -461,4 +577,10 @@ function errorCode(error: unknown): string {
     return error.code;
   }
   return "feed_artifact_register_failed";
+}
+
+function homeDockSubjectsForInbox(entry: InboxEntryRecord): string[] {
+  if (entry.subject_type === "feed_item") return ["inbox_entry", "feed_item"];
+  if (entry.subject_type === "source_fault") return ["inbox_entry", "source"];
+  return ["inbox_entry"];
 }

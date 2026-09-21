@@ -61,11 +61,13 @@ export const SHELF_STYLES = `
   [data-shelf="directory"] {
     position: relative;
     flex: 1; min-height: 0; display: flex; flex-direction: column;
-    padding: 0 10px 16px; background: var(--da-side); color: var(--da-text);
+    padding: 12px 10px 16px; background: var(--paper); color: var(--da-text);
   }
   .plugin-stage-list[data-shelf="directory"] {
     position: absolute; inset: 0; flex: none;
-    padding: 52px 20px 28px; background: var(--paper);
+    display: flex; flex-direction: column;
+    min-height: 0; overflow: hidden;
+    padding: 12px 10px 16px; background: var(--paper);
   }
   body.immersive-workbench [data-work-surface="shelf"].plugin-stage-shell {
     padding: 0; background: var(--paper);
@@ -76,10 +78,24 @@ export const SHELF_STYLES = `
   [data-shelf-stage-shell] .plugin-stage-workspace > .shelf-stage {
     flex: 1; min-height: 0; border: 0; border-radius: 0;
   }
-  .plugin-stage-chrome .shelf-search { margin: 0; }
+  [data-shelf] .shelf-side-head,
+  [data-shelf] .shelf-stage-chrome {
+    position: relative; display: flex; align-items: center; gap: 6px;
+    flex: none; height: 30px; min-height: 30px; margin: 0 0 6px;
+  }
+  [data-shelf] .shelf-stage-chrome .shelf-search {
+    margin: 0; height: 30px; min-height: 30px; box-sizing: border-box; flex: 1; min-width: 0;
+  }
+  [data-shelf] .shelf-stage-chrome .shelf-search input {
+    height: 100%; min-height: 0; padding: 0; line-height: 1;
+  }
+  [data-shelf] .shelf-side-scroll {
+    flex: 1; min-height: 0; overflow: auto; padding-bottom: 8px;
+  }
   /* DropAgent's directory chrome: search pill, add, more — paper, never Coss. */
   [data-shelf] .shelf-side-op {
     position: relative; display: grid; place-items: center; width: 30px; height: 30px; flex: none;
+    box-sizing: border-box; margin: 0;
     border: 1px solid var(--da-line); border-radius: 8px; background: var(--da-side);
     color: var(--da-muted); cursor: pointer; transition: background var(--da-t) ease;
   }
@@ -101,17 +117,26 @@ export const SHELF_STYLES = `
   [data-shelf] .shelf-group-mark svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 1.7; }
   [data-shelf] .shelf-side-foot {
     display: flex; align-items: center; justify-content: space-between;
-    margin-top: 12px; padding: 10px 8px 0; border-top: 1px solid var(--da-line);
+    flex: none; margin-top: auto; padding: 10px 8px 0; border-top: 1px solid var(--da-line);
     font-size: 10.5px; color: var(--da-faint);
   }
-  /* DropAgent's directory is 213pt; the preview takes what is left. */
+  /* DropAgent's directory is 213pt once a file is open; until then the list stays full-width. */
   body.immersive-workbench .plugin-stage-shell[data-shelf-stage-shell][data-expanded="true"] { --tree-width: 213px; }
-  body.immersive-workbench .plugin-stage-shell[data-shelf-stage-shell][data-expanded="true"] .plugin-stage-list {
-    border-right-color: var(--da-line); background: var(--da-side);
+  body.immersive-workbench .plugin-stage-shell[data-shelf-stage-shell] .plugin-stage-list {
+    border-right-color: var(--da-line); background: var(--paper);
+  }
+  @media (max-width: 760px) {
+    body.immersive-workbench .plugin-stage-list[data-shelf="directory"] { padding-top: 12px; }
+  }
+  @media (min-width: 761px) {
+    body.immersive-workbench .plugin-stage-shell[data-shelf-stage-shell][data-expanded="true"] .plugin-stage-list[data-shelf="directory"] {
+      display: flex; flex-direction: column; overflow: hidden;
+      padding: 12px 10px 16px;
+    }
   }
   [data-shelf] .shelf-search {
-    display: flex; align-items: center; gap: 6px; height: 30px;
-    margin: 12px 0 6px; padding: 0 8px; border-radius: 8px;
+    display: flex; align-items: center; gap: 6px; height: 30px; min-height: 30px;
+    margin: 0; padding: 0 8px; border-radius: 8px; box-sizing: border-box;
     background: color-mix(in srgb, var(--da-panel) 70%, var(--da-side));
     border: 1px solid var(--da-line);
   }
@@ -124,15 +149,20 @@ export const SHELF_STYLES = `
   [data-shelf] .shelf-search input:focus { outline: none !important; box-shadow: none !important; }
   [data-shelf] .shelf-search input::placeholder { color: var(--da-faint); }
   [data-shelf="settings"] .settings-heading h1 { margin: 0; }
-  [data-shelf="settings"] .settings-section h2 { margin: 0 0 4px; font-size: 13px; font-weight: 500; color: var(--da-muted); }
+  [data-shelf="settings"] .settings-section > h2 {
+    display: flex; align-items: center; gap: 8px;
+    margin: 10px 0 4px; font-size: 13px; font-weight: 400; color: var(--da-text);
+  }
+  [data-shelf="settings"] .settings-section > h2 .shelf-glyph { width: 16px; height: 16px; flex: none; }
   [data-shelf="settings"] .settings-setting-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin: 0; padding: 10px 0; border-bottom: 1px solid var(--da-line); }
   [data-shelf="settings"] .shelf-hotkey-lead { margin: 0 0 12px; font-size: 11px; color: var(--da-faint); }
   [data-shelf="settings"] .shelf-hotkey-row {
-    display: flex; align-items: center; gap: 8px;
-    padding: 12px; margin: 0 0 8px;
-    background: color-mix(in srgb, var(--da-text) 4.5%, var(--da-panel));
-    border-radius: 12px;
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    min-width: 0; margin: 0; padding: 10px 0;
+    background: transparent; border-radius: 0;
+    border-bottom: 1px solid var(--da-line);
   }
+  [data-shelf="settings"] .shelf-hotkey-row:last-child { border-bottom: 0; }
   [data-shelf="settings"] .shelf-hotkey-row .setting-copy { min-width: 0; flex: 1; }
   [data-shelf="settings"] .shelf-hotkey-row .setting-copy strong { display: block; font-size: 13px; font-weight: 500; }
   [data-shelf="settings"] .shelf-hotkey-row .setting-copy span { display: block; margin-top: 2px; font-size: 12px; color: var(--da-faint); }
@@ -161,19 +191,19 @@ export const SHELF_STYLES = `
   [data-shelf] .shelf-row {
     display: flex; align-items: center; gap: 8px; height: 31px;
     padding: 0 8px 0 21px; border-radius: 6px; cursor: pointer; position: relative;
-    transition: background var(--da-t) var(--da-ease), padding-right var(--da-t) var(--da-ease); color: var(--da-muted);
+    transition: background var(--da-t) var(--da-ease), padding-right var(--da-t) var(--da-ease); color: var(--ink);
   }
   [data-shelf] .shelf-row:hover { background: var(--da-hover); }
   [data-shelf] .shelf-row:is(:hover, .is-on):not(.is-child) { padding-right: 72px; }
   [data-shelf] .shelf-row.is-on {
     background: var(--da-select);
-    color: var(--da-text);
+    color: var(--ink);
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--da-accent) 38%, transparent);
   }
   [data-shelf] .shelf-row .shelf-glyph { width: 16px; height: 16px; flex: none; display: grid; place-items: center; }
   [data-shelf] .shelf-row .shelf-glyph svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
   [data-shelf] .shelf-row .shelf-name {
-    min-width: 0; flex: 0 1 auto; overflow: hidden; font-size: 12px; white-space: nowrap;
+    min-width: 0; flex: 0 1 auto; overflow: hidden; font-size: 13px; line-height: 18px; color: var(--ink); white-space: nowrap;
   }
   [data-shelf] .shelf-row .shelf-name:not(:has(.shelf-name__stem)) {
     display: block; text-overflow: ellipsis;
@@ -183,7 +213,7 @@ export const SHELF_STYLES = `
     min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   [data-shelf] .shelf-row .shelf-name__ext { flex: none; }
-  [data-shelf] .shelf-row.is-on .shelf-name { color: var(--da-text); }
+  [data-shelf] .shelf-row.is-on .shelf-name { color: var(--ink); }
   /* DropAgent stamps a result H:mm and marks a failure; the row actions replace both on hover. */
   [data-shelf] .shelf-row .shelf-when {
     flex: none; max-width: 8rem; overflow: hidden; opacity: 1;
@@ -250,7 +280,7 @@ export const SHELF_STYLES = `
 
   body.immersive-workbench [data-work-surface="shelf"] {
     display: flex; flex-direction: column; min-height: 0; height: 100%;
-    padding: 0 7px 7px 0; background: var(--da-side); color: var(--da-text);
+    padding: 0; background: var(--paper); color: var(--da-text);
     font-family: var(--da-font);
   }
   [data-shelf="workbench"] .shelf-stage {
@@ -266,14 +296,15 @@ export const SHELF_STYLES = `
     padding: 0 10px; border-bottom: 1px solid var(--da-line);
   }
   [data-shelf] .shelf-stage.is-result .shelf-tools { display: flex; }
-  [data-shelf] .shelf-chrome {
-    display: none; flex: none; height: 44px; align-items: center; gap: 8px;
-    padding: 0 20px; border-bottom: 1px solid var(--da-line);
-    font-size: 12px; color: var(--da-text);
+  [data-shelf] .plugin-stage-workspace > .shelf-chrome {
+    display: flex; flex: none; align-items: center; gap: 8px;
+    min-height: 32px; height: 32px; padding: 0 10px 0 6px;
+    border-bottom: 1px solid var(--da-line);
+    font-size: 12px; color: var(--da-text); background: var(--da-panel);
   }
-  [data-shelf] .shelf-stage.is-item .shelf-chrome { display: flex; }
+  [data-shelf] .plugin-stage-workspace > .shelf-chrome[hidden] { display: none; }
   [data-shelf] .shelf-chrome-title {
-    min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   [data-shelf] .shelf-chrome-tag {
     margin-left: auto; flex: none; font-size: 11px; color: var(--da-muted);
@@ -364,7 +395,10 @@ export const SHELF_STYLES = `
   /* Under 640pt of content the comparison stacks, whatever the window is doing. */
   [data-shelf] .shelf-stage.is-narrow .shelf-compare { grid-template-columns: 1fr; grid-template-rows: 44% 1px 1fr; }
   [data-shelf] .shelf-find {
-    margin: 4px 8px 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px;
+    position: absolute; left: 0; right: 0; top: 100%; z-index: 25;
+    margin: 4px 0 0; padding: 4px; list-style: none; display: flex; flex-direction: column; gap: 2px;
+    border: 1px solid var(--da-line); border-radius: 10px; background: var(--da-panel);
+    box-shadow: 0 8px 24px #0002;
   }
   [data-shelf] .shelf-find[hidden] { display: none; }
   [data-shelf] .shelf-find li {
@@ -539,31 +573,17 @@ export const SHELF_STYLES = `
     filter: none !important;
   }
   body.immersive-workbench :is([data-shelf], [data-plugin-section="shelf"]) :focus-visible {
-    outline: 2px solid var(--da-accent); outline-offset: 2px;
+    outline: 2px solid var(--da-accent); outline-offset: -2px;
   }
   [data-plugin-id="shelf"].is-current, [data-plugin-id="shelf"][aria-current="page"] { color: var(--da-accent, var(--hue-slate)); }
-  [data-shelf] .shelf-settings-body { display: flex; gap: 20px; align-items: flex-start; }
-  [data-shelf] .shelf-settings-nav {
-    flex: none; width: 188px; display: flex; flex-direction: column; gap: 4px;
-    padding: 4px 0; border-right: 1px solid var(--da-line);
-  }
-  [data-shelf] .shelf-settings-tab {
-    display: flex; align-items: center; gap: 10px; height: 38px; padding: 0 12px;
-    border: 0; border-radius: 8px; background: transparent; color: var(--da-text);
-    font: inherit; font-size: 12px; text-align: left; cursor: pointer;
-    transition: background var(--da-t) ease;
-  }
-  [data-shelf] .shelf-settings-tab:hover { background: var(--da-hover); }
-  [data-shelf] .shelf-settings-tab:active { background: var(--da-press); }
-  [data-shelf] .shelf-settings-tab.is-on { background: var(--da-press); color: var(--da-accent); }
-  [data-shelf] .shelf-settings-tab .shelf-glyph { width: 16px; height: 16px; }
-  [data-shelf] .shelf-settings-panes { flex: 1; min-width: 0; }
-  [data-shelf] .shelf-settings-pane[hidden] { display: none; }
-  [data-shelf] .shelf-settings-pane h2 { margin: 0 0 6px; font-size: 22px; font-weight: 400; }
-  [data-shelf] .shelf-settings-detail { margin: 0 0 18px; font-size: 12px; color: var(--da-muted); line-height: 1.7; }
-  [data-shelf] .shelf-settings-block { margin: 0 0 22px; }
-  [data-shelf] .shelf-settings-block h3 { margin: 0 0 8px; font-size: 13px; font-weight: 400; color: var(--da-text); }
-  [data-shelf] .shelf-settings-line { margin: 0 0 6px; font-size: 12px; color: var(--da-text); }
+  [data-shelf] .shelf-settings-body { display: flex; flex-direction: column; gap: 0; min-width: 0; }
+  [data-shelf] .shelf-settings-detail { margin: 0 0 10px; font-size: 13px; color: var(--da-muted); line-height: 1.55; }
+  [data-shelf] .shelf-settings-block { margin: 0 0 16px; }
+  [data-shelf] .shelf-settings-block:last-child { margin-bottom: 8px; }
+  [data-shelf] .shelf-settings-block h3 { margin: 10px 0 8px; font-size: 12px; font-weight: 400; color: var(--da-muted); }
+  [data-shelf] .shelf-settings-line { margin: 0 0 8px; font-size: 13px; color: var(--da-text); line-height: 1.55; }
+  [data-shelf="settings"] .settings-hint { margin: 8px 0 12px; font-size: 12px; color: var(--da-muted); line-height: 1.55; }
+  [data-shelf="settings"] .shelf-settings-fact { align-items: flex-start; }
   [data-shelf] .shelf-runtime-list, [data-shelf] .shelf-runtime-custom, [data-shelf] .shelf-action-list {
     margin: 8px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px;
   }
@@ -580,11 +600,23 @@ export const SHELF_STYLES = `
   [data-shelf] .shelf-action-row[data-dragging="1"] { background: var(--da-press); }
   [data-shelf] .shelf-runtime-picks { display: flex; flex-direction: column; gap: 2px; }
   [data-shelf] .shelf-runtime-pick {
-    display: flex; align-items: center; gap: 10px; min-height: 31px; padding: 0 8px;
-    border-radius: 8px; font-size: 12px; cursor: pointer;
+    display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 0 8px;
+    border-radius: 8px; font-size: 12px;
+  }
+  [data-shelf] .shelf-runtime-pick > label {
+    min-width: 0; flex: 1; display: flex; align-items: center; gap: 10px; cursor: pointer;
   }
   [data-shelf] .shelf-runtime-pick:hover { background: var(--da-hover); }
-  [data-shelf] .shelf-runtime-pick.is-missing { color: var(--da-faint); cursor: default; opacity: .45; }
+  [data-shelf] .shelf-runtime-pick:has(input:checked) { background: var(--da-select); }
+  [data-shelf] .shelf-runtime-pick.is-missing { color: var(--da-faint); }
+  [data-shelf] .shelf-runtime-pick.is-missing > label { cursor: default; opacity: .55; }
+  [data-shelf] .shelf-runtime-pick .shelf-paper { margin-left: auto; flex: none; }
+  body.immersive-workbench [data-shelf] .shelf-runtime-pick input[type="radio"],
+  [data-shelf] .shelf-runtime-pick input[type="radio"] {
+    appearance: radio; -webkit-appearance: radio;
+    width: 13px; height: 13px; margin: 0; flex: none;
+    accent-color: var(--da-accent);
+  }
   [data-shelf] .shelf-shortcut-form { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; max-width: 520px; }
   [data-shelf] .shelf-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--da-muted); }
   [data-shelf] .shelf-field input, [data-shelf] .shelf-field textarea, [data-shelf] .shelf-field select {
@@ -602,10 +634,6 @@ export const SHELF_STYLES = `
   [data-shelf] .shelf-guide-row { display: flex; gap: 12px; font-size: 12px; }
   [data-shelf] .shelf-guide-row dt { flex: none; width: 88px; color: var(--da-muted); }
   [data-shelf] .shelf-guide-row dd { margin: 0; color: var(--da-text); line-height: 1.7; }
-  @media (max-width: 760px) {
-    [data-shelf] .shelf-settings-body { flex-direction: column; }
-    [data-shelf] .shelf-settings-nav { width: 100%; flex-direction: row; flex-wrap: wrap; border-right: 0; border-bottom: 1px solid var(--da-line); }
-  }
   @media (prefers-reduced-motion: reduce) {
     [data-shelf] *, [data-plugin-section="shelf"] * { animation: none !important; transition: none !important; }
   }

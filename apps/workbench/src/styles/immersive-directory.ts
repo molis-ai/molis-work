@@ -147,7 +147,10 @@ export const IMMERSIVE_DIRECTORY_STYLES = `
     border-radius: 6px; color: var(--muted); list-style: none; cursor: pointer;
   }
   body.immersive-workbench .feed-stage-list .goal-collection-fold > summary:hover { color: var(--ink); background: var(--nav-hover); }
-  body.immersive-workbench .feed-stage-list .goal-collection-fold > summary strong { font-size: 12px; font-weight: 400; }
+  body.immersive-workbench .feed-stage-list .goal-collection-fold > summary strong {
+    flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-size: 12px; font-weight: 400;
+  }
   body.immersive-workbench .feed-stage-list .goal-collection-fold > summary small { font-size: 11px; font-variant-numeric: tabular-nums; color: var(--faint); }
   body.immersive-workbench .feed-stage-list .goal-collection-empty { margin: 0; padding: 6px 8px 10px 24px; font-size: 12px; color: var(--muted); }
   body.immersive-workbench .feed-stage-group-body { width: 100%; min-width: 0; }
@@ -155,7 +158,7 @@ export const IMMERSIVE_DIRECTORY_STYLES = `
   body.immersive-workbench .feed-stage-item-line { display: block; width: 100%; min-width: 0; }
   body.immersive-workbench .feed-stage-entry {
     display: grid;
-    grid-template-columns: minmax(12rem, 1fr) minmax(7rem, 12rem) 6.25rem 5.5rem;
+    grid-template-columns: minmax(0, 1fr) minmax(7rem, 12rem) max-content max-content;
     grid-template-rows: 28px;
     column-gap: 12px;
     align-items: center;
@@ -165,14 +168,15 @@ export const IMMERSIVE_DIRECTORY_STYLES = `
   body.immersive-workbench .feed-stage-entry:hover { background: var(--nav-hover); }
   body.immersive-workbench .feed-stage-entry:is(.is-selected, .is-open, [aria-expanded="true"]),
   body.immersive-workbench .feed-stage-item.is-open > .feed-stage-item-line .feed-stage-entry { background: var(--nav-active); }
-  body.immersive-workbench .feed-stage-leading { display: flex; align-items: center; gap: 8px; min-width: 0; grid-column: 1; }
+  body.immersive-workbench .feed-stage-leading { display: flex; align-items: center; gap: 8px; min-width: 0; grid-column: 1; overflow: hidden; }
   body.immersive-workbench .feed-entry-provider { display: grid; place-items: center; width: 16px; height: 16px; flex: none; color: var(--plugin-feed, var(--muted)); border: 0; border-radius: 0; background: transparent; }
   body.immersive-workbench .feed-entry-provider svg { width: 14px; height: 14px; }
-  body.immersive-workbench .feed-stage-leading strong { min-width: 0; font-size: 13px; font-weight: 400; line-height: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  body.immersive-workbench .feed-stage-leading strong { flex: 1; min-width: 0; font-size: 13px; font-weight: 400; line-height: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   body.immersive-workbench .feed-entry-source,
   body.immersive-workbench .feed-stage-entry > time { min-width: 0; color: var(--muted); font-size: 11px; line-height: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   body.immersive-workbench .feed-stage-entry > time { font-variant-numeric: tabular-nums; }
-  body.immersive-workbench .feed-stage-entry .feed-entry-status { min-width: 0; justify-self: start; overflow: hidden; }
+  body.immersive-workbench .feed-stage-entry .feed-entry-status { flex: none; min-width: 0; justify-self: end; overflow: visible; }
+  body.immersive-workbench .feed-stage-entry .feed-entry-status > span { overflow: visible; text-overflow: clip; }
   body.immersive-workbench .feed-stage-ignore {
     min-height: 28px; padding: 0 8px; border: 0; border-radius: 5px; background: transparent; color: var(--muted);
     font: inherit; font-size: 11px; cursor: pointer;
@@ -233,7 +237,7 @@ export const IMMERSIVE_DIRECTORY_STYLES = `
   body.immersive-workbench .feed-stage-item { border: 0; border-radius: 0; }
   body.immersive-workbench .feed-stage-item.is-open { margin-block: 0; border: 0; background: transparent; }
   body.immersive-workbench .feed-stage-item-line { display: block; }
-  body.immersive-workbench .feed-stage-entry:focus-visible { outline: 2px solid var(--blue-dark); outline-offset: -2px; }
+  body.immersive-workbench .feed-stage-entry:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
   body.immersive-workbench .feed-stage-item.is-open .feed-stage-entry { height: 28px; min-height: 28px; padding: 0 8px; }
   body.immersive-workbench .feed-stage-item-detail { border-radius: 0; background: transparent; padding: 0 40px 16px 52px; margin: 0; animation: feed-reader-reveal 160ms ease-out; }
   body.immersive-workbench .feed-stage-item-detail .feed-detail { max-width: 76ch; margin: 0; padding: 0; }
@@ -278,7 +282,7 @@ export const IMMERSIVE_DIRECTORY_STYLES = `
     body.immersive-workbench .feed-stage-toolbar .feed-filter-trigger, body.immersive-workbench .feed-stage-ignore { min-width: 44px; min-height: 44px; }
     body.immersive-workbench .feed-stage-entry {
       height: auto; min-height: 44px; padding: 8px 10px;
-      grid-template-columns: minmax(0, 1fr) 5.5rem;
+      grid-template-columns: minmax(0, 1fr) max-content;
       grid-template-rows: auto;
     }
     body.immersive-workbench .feed-entry-source,

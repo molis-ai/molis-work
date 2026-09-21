@@ -1,5 +1,5 @@
 import type { MolisWorkIcon } from "@molis-ai/molis-work-design-system";
-import { railEntries, BUILTIN_PLUGIN_CATALOG } from "./plugin-catalog.js";
+import { DIRECT_WORK_SURFACE_IDS, pluginMarketCards, railEntries } from "./plugin-catalog.js";
 
 export interface ImmersiveShellPrimitives {
   L(value: string): string;
@@ -30,7 +30,7 @@ function pluginLink(
   plugin: { id: string; surface: string; label: string; glyph: MolisWorkIcon },
   extraClass = "",
 ): string {
-  const directory = plugin.id === "home" || plugin.id === "market" || plugin.id === "feed" || plugin.id === "goals" || plugin.id === "sessions" || plugin.id === "inbox" || plugin.id === "artifacts" || plugin.id === "shelf" ? "" : ` data-directory-open="${plugin.id}"`;
+  const directory = DIRECT_WORK_SURFACE_IDS.has(plugin.id) ? "" : ` data-directory-open="${plugin.id}"`;
   const feedPreset = plugin.id === "feed" ? ' data-feed-preset="feed"' : "";
   const aria = plugin.id === "home" || plugin.id === "market"
     ? ` aria-label="${plugin.label}"`
@@ -131,13 +131,7 @@ export function renderGlobalSearchOverlay({ L, icon }: ImmersiveShellPrimitives)
 }
 
 export function renderPluginMarket({ L, icon }: ImmersiveShellPrimitives): string {
-  const plugins = BUILTIN_PLUGIN_CATALOG.map(entry => ({
-    id: entry.project_plugin_id,
-    label: entry.manifest.name,
-    glyph: (entry.manifest.ui.views?.find(view => view.slot === "navigator")?.icon ?? "package") as MolisWorkIcon,
-    copy: entry.description,
-  }));
-  const rows = plugins.map(plugin => `<article class="mw-card" data-market-plugin="${plugin.id}"><div class="plugin-market-icon">${icon(plugin.glyph)}</div><div class="plugin-market-copy"><h2>${plugin.label}</h2><p>${L(plugin.copy)}</p></div><button class="mw-btn mw-btn--secondary" type="button" data-market-add="${plugin.id}" disabled>${L("添加")}</button></article>`).join("");
+  const rows = pluginMarketCards().map(plugin => `<article class="mw-card" data-market-plugin="${plugin.id}"><div class="plugin-market-icon">${icon(plugin.glyph as MolisWorkIcon)}</div><div class="plugin-market-copy"><h2>${plugin.label}</h2><p>${L(plugin.copy)}</p></div><button class="mw-btn mw-btn--secondary" type="button" data-market-add="${plugin.id}" disabled>${L("添加")}</button></article>`).join("");
   return `<div class="plugin-market-body">
     <header class="plugin-market-heading"><div><h1>${L("插件")}</h1></div><div class="plugin-market-destination"><label id="plugin-market-destination-label" for="plugin-market-project-trigger">${L("添加到")}</label><button type="button" class="plugin-market-project-trigger" id="plugin-market-project-trigger" data-market-project-trigger popovertarget="plugin-market-project-menu" aria-labelledby="plugin-market-destination-label plugin-market-project-label" aria-haspopup="listbox" aria-expanded="false" disabled><strong id="plugin-market-project-label" data-market-project-label></strong>${icon("chevron-down")}</button><div id="plugin-market-project-menu" popover="auto" class="plugin-market-project-popover" data-market-project-popover role="listbox" aria-labelledby="plugin-market-destination-label"><nav data-market-project-options></nav></div><select data-market-project hidden tabindex="-1" aria-hidden="true" disabled></select><template data-market-project-check>${icon("check")}</template></div></header>
     <label class="plugin-market-search mw-input-group">${icon("search")}<input class="mw-input" type="search" data-market-search placeholder="${L("搜索插件")}" aria-label="${L("搜索插件")}" autocomplete="off"></label>

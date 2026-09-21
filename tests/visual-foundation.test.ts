@@ -171,9 +171,10 @@ test("visual foundation defines one wide workbench and one narrow companion", ()
   assert.doesNotMatch(VISUAL_FOUNDATION_STYLES, /\.goal-workspace-nav/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.mw-btn--primary[\s\S]*background: var\(--action\)/);
   assert.doesNotMatch(VISUAL_FOUNDATION_STYLES, /\.goal-now-body \.goal-primary-action/);
-  assert.equal(VISUAL_FOUNDATION_STYLES.match(/linear-gradient/g)?.length, 5);
+  assert.equal(VISUAL_FOUNDATION_STYLES.match(/linear-gradient/g)?.length, 3);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.momentum-map\.graph-stage \{[\s\S]*linear-gradient\(to right,[\s\S]*linear-gradient\(to bottom,/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.mw-dir-row__copy strong \{[\s\S]*mask-image: linear-gradient\(to right, #000 0%, #000 calc\(100% - 12px\)/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /\.mw-dir-row__copy strong \{[\s\S]*text-overflow: ellipsis/);
+  assert.doesNotMatch(VISUAL_FOUNDATION_STYLES, /\.mw-dir-row__copy strong \{[\s\S]*mask-image:/);
 });
 
 test("Light desktop work tabs stay flat, separated, and use a compact selection marker", () => {
@@ -450,9 +451,17 @@ test("final interaction texture keeps Light and Dark type readable on distinct s
 test("plugin list titles yield at the squeeze edge", () => {
   const workbench = renderMolisWorkWorkbenchStylesheet();
   assert.match(workbench, /\.mw-dir-row \{[\s\S]*background-color 180ms var\(--ease-out/);
-  assert.match(workbench, /\.mw-dir-row__copy strong \{[\s\S]*mask-image: linear-gradient\(to right, #000 0%, #000 calc\(100% - 12px\)/);
-  assert.match(workbench, /\.tree-pane \.tree-title-line strong,[\s\S]*mask-image: linear-gradient/);
+  assert.match(workbench, /\.mw-dir-row__copy strong \{[\s\S]*text-overflow: ellipsis/);
+  assert.doesNotMatch(workbench, /\.mw-dir-row__copy strong \{[\s\S]*mask-image:/);
+  assert.doesNotMatch(workbench, /\.feed-stage-leading strong[\s\S]*mask-image:/);
   assert.match(workbench, /\.mw-dir-row-wrap\.is-yield:is\(:hover, :has\(\.is-selected\), :has\(\[aria-current="page"\]\)\) \.mw-dir-row \{[\s\S]*padding-right: var\(--dir-yield, 72px\)/);
+  assert.match(workbench, /\.feed-stage-entry \{[\s\S]*grid-template-columns: minmax\(0, 1fr\) minmax\(7rem, 12rem\) max-content max-content/);
+  assert.match(workbench, /\.plugin-stage-list \.feed-stage-entry:has\(\.plugin-stage-kind\) \{[\s\S]*grid-template-columns: minmax\(10rem, 1\.2fr\) 4.75rem minmax\(8rem, 0\.9fr\) minmax\(10rem, 1\.1fr\) 4.5rem/);
+  assert.match(workbench, /\.plugin-stage-kind\[data-kind="choice"\] \{ --status-tone: var\(--hue-indigo\)/);
+  assert.match(workbench, /\.plugin-stage-kind\[data-kind="score"\] \{ --status-tone: var\(--hue-orange\)/);
+  assert.match(workbench, /\.plugin-stage-kind\[data-kind="noul"\] \{ --status-tone: var\(--hue-cyan\)/);
+  assert.match(workbench, /\.feed-stage-entry \.feed-entry-status \{[\s\S]*overflow: visible/);
+  assert.match(workbench, /\.feed-stage-leading strong \{ flex: 1;/);
   assert.match(workbench, /goal-board-switch, \.settings-segmented, \.locale-switch, \.mw-toggle-group/);
   assert.match(
     workbench,

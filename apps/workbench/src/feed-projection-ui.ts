@@ -62,10 +62,14 @@ function buildFeedNativePluginModel(
       contains: rule.match.contains ?? null,
       source_id: rule.match.source_id ?? null,
       source_kind: rule.match.source_kind ?? null,
+      function_key: rule.function_key ?? null,
     })),
     primitives: feedUiPrimitives,
     demo: view.demo,
     active,
+    judgment: view.function_scenes
+      ? { functions: view.function_scenes.feed_capture_functions }
+      : undefined,
   };
 }
 
@@ -231,6 +235,7 @@ function itemModel(item: FeedItemRecord): FeedUiItem {
       ...material,
       project_id: material.board_id,
     })),
+    suggested_behavior_ids: item.suggested_behavior_ids ?? [],
   };
 }
 

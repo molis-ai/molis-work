@@ -5,14 +5,17 @@ import {
   inboxRouteErrorResponse,
   type InboxPluginRouteResponse,
 } from "@molis-ai/molis-work-plugin-inbox";
+import { INBOX_NEXT_SCENE_ID } from "@molis-ai/molis-work-contracts/modules/functions";
 import type { LocalProjectDatabase } from "./project-database.js";
 import { createLocalFeedApplication } from "./feed-application.js";
+import { bindBoardFunctionScene, functionSceneHttpBody } from "./functions-host.js";
 
 export interface InboxNativePluginHttpOptions {
   readonly boardId: string;
   readonly store: LocalProjectDatabase;
   readonly invalidateWebView: () => void;
   readonly reconcileGoalDecisions?: () => void;
+  readonly homeDirectory?: string;
 }
 
 export async function handleInboxNativePluginHttp(
@@ -27,6 +30,7 @@ export async function handleInboxNativePluginHttp(
   const body = method === "GET" ? await readOptionalBody(request) : await readBody(request);
   if (method === "GET") options.reconcileGoalDecisions?.();
   const feed = createLocalFeedApplication(options.store.db);
+  const homeDirectory = options.homeDirectory;
   const routes = new InboxPluginRouteTable(createInboxRouteHandlers({
     listEntries: () => feed.listInboxEntries(options.boardId).map((entry) => ({
       ...entry,
@@ -37,6 +41,12 @@ export async function handleInboxNativePluginHttp(
       return { ...entry, project_id: entry.board_id };
     },
     changed: () => options.invalidateWebView(),
+    readJudgment: homeDirectory
+      ? () => functionSceneHttpBody(homeDirectory, options.boardId, INBOX_NEXT_SCENE_ID)
+      : undefined,
+    writeJudgment: homeDirectory
+      ? (functionKey) => bindBoardFunctionScene(homeDirectory, INBOX_NEXT_SCENE_ID, options.boardId, functionKey)
+      : undefined,
   }));
   try {
     const result = await routes.handle({

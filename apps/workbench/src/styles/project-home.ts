@@ -207,6 +207,15 @@ export const PROJECT_HOME_STYLES = `
   .immersive-home .home-detail__facts > div:last-child { border-bottom: 0; }
   .immersive-home .home-detail__facts dt { color: var(--faint); }
   .immersive-home .home-detail__facts dd { margin: 0; color: var(--ink-soft); }
+  .immersive-home .home-detail__judgment {
+    display: flex; flex-direction: column; gap: 6px;
+    margin: 16px 0 0; padding-top: 14px; border-top: 1px solid var(--line);
+  }
+  .immersive-home .home-detail__judgment span { color: var(--faint); font-size: 12px; }
+  .immersive-home .home-detail__judgment select {
+    height: 32px; max-width: 100%; border: 1px solid var(--line); border-radius: 6px;
+    background: var(--paper); color: var(--ink); font-size: 12px; padding: 0 8px;
+  }
   .immersive-home .home-detail__act {
     flex: none; display: flex; flex-wrap: nowrap; align-items: center;
     justify-content: space-between; gap: 8px;
@@ -267,7 +276,7 @@ export const PROJECT_HOME_STYLES = `
   .immersive-home .home-shortcut-edit svg { width: 14px; height: 14px; }
   .immersive-home .home-shortcut:hover .home-shortcut-edit, .immersive-home .home-shortcut-edit:focus-visible { opacity: 1; }
   .immersive-home .home-shortcut-error { font-size: 11px; color: var(--red); text-align: center; line-height: 1.6; margin: 12px 0 0; }
-  .immersive-home :is(button, a, input, textarea):focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+  .immersive-home :is(button, a, input, textarea):focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
   body.immersive-workbench .home-shortcut-dialog { width: min(360px, calc(100vw - 40px)); max-height: calc(100dvh - 40px); padding: 25px; border: 1px solid var(--control-border); border-radius: var(--radius-surface); background: var(--paper); color: var(--ink); box-shadow: var(--control-shadow); }
   body.immersive-workbench .home-shortcut-dialog::backdrop { background: #11121655; }
   body.immersive-workbench .home-shortcut-dialog header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 22px; }

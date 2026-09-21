@@ -22,6 +22,7 @@ export {
   RUNTIME_MCP_TOOLS,
   MCP_SERVER_INFO,
   isRuntimeMcpTool,
+  isPlatformMcpTool,
   isRuntimeContextMcpTool,
   canonicalMcpToolName,
 } from "./tool-catalog.js";

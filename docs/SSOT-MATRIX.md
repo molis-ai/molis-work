@@ -44,10 +44,10 @@
 | --- | --- | --- | --- | --- |
 | `apps/desktop` | macOS 外壳、生命周期、Native Bridge | Native Bridge、Panel、Capsule 与发布工具；Tauri 配置在 apps/desktop/src-tauri | `partial` | AP4/DV4/Cutover；实际平台安装证据见验证报告 |
 | `apps/workbench` | 本地产品 UI 与页面组合 | Shell、导航、页面组合与注册 UI contribution；通用呈现边界，不拥有 Goal 完成算法；无数据库实现 | `partial` | AP3/FD4/GW5/EX4/AR3/WK3/Cutover |
-| `apps/local-host` | 本地唯一业务 composition root 和 single writer | 唯一项目数据库和业务装配；可信身份、HTTP 与 MCP 装配；Web/CLI/MCP、凭据与本机 IO 适配 | `partial` | AP2/Cutover；同库事务与跨入口恢复已验证 |
+| `apps/local-host` | 本地唯一业务 composition root 和 single writer | 唯一项目数据库和业务装配；可信身份、HTTP 与 MCP 装配（目录合成、闸门、native 适配表）；Web/CLI/MCP、凭据与本机 IO 适配 | `partial` | AP2/Cutover；同库事务与跨入口恢复已验证 |
 | `apps/server` | 轻量交换、Team 控制面、Team Plugin Host | 当前无正式 Server 实现 | `absent` | F2；未来独立功能 Spec |
 | `apps/cli` | 参数、协议和终端展示适配 | 协议参数、命令分发与公开应用 adapter；root bin 仅注入启动环境 | `partial` | DV1/Cutover；CLI 协议和真实进程验证 |
-| `apps/mcp` | MCP schema、audience 和 Capability 适配 | 当前连接、Goal、事件、约定、决定请求、结构和历史工具；Host 注入普通调用的项目与身份；用户决定仅受保护入口可执行 | `partial` | DV1/DV2/Cutover；事件工作流收敛 |
+| `apps/mcp` | MCP schema、audience 和 Capability 适配 | 当前连接、Goal、事件、约定、决定请求、结构与历史；插件贡献由 Host 从 Manifest 合成，不在此写死 Functions 工具；Host 注入普通调用的项目与身份；用户决定仅受保护入口可执行 | `partial` | DV1/DV2/Cutover；事件工作流收敛 |
 
 ## 4. Foundation packages
 
@@ -56,7 +56,7 @@
 | `packages/contracts` | Module、Service、Platform 的可发布类型与 Schema | Module/Service/Platform 公开类型和 Schema；无业务或 IO 实现 | `contract-only` | F2/F3；30 个 public subpath 与兼容门禁 |
 | `packages/kernel` | Capability 注册、选择、权限与生命周期骨架 | AP2 已实现 versioned Capability registry；grant/provider policy 待各平台 Goal | `partial` | F2、F3、AP2 |
 | `packages/plugin-runtime` | Plugin 安装、签名身份、grant、隔离和生命周期 | 本地 Runtime、持久开发状态、可撤销授权和签名校验；不是 OS sandbox | `partial` | F2、FD3、DV3；分发收口见 DV4 |
-| `packages/plugin-sdk` | 外部 Plugin 作者使用的稳定 API 与测试入口 | Manifest/definition/polling、公开 Artifact/UI/private client 类型；fixture 由 Local Host 实现 | `partial` | F2、FD3、DV3 |
+| `packages/plugin-sdk` | 外部 Plugin 作者使用的稳定 API 与测试入口 | Manifest/definition/polling、公开 Artifact/UI/private client 类型、`mcp_exports` 再导出；fixture 由 Local Host 实现 | `partial` | F2、FD3、DV3 |
 | `packages/storage` | SQLite、Filesystem、Blob、事务和 migration 技术能力 | SQLite/事务/文件/密文/搜索缓存 Adapter；业务 schema 归 Module | `partial` | 各事实迁移/Cutover；Web Home 作用域隔离 |
 | `packages/exchange` | Envelope、ACK、Cursor、Replay、CAS 与 Blob 交换 | 当前不存在正式 Server/Exchange | `absent` | F2；未来独立功能 Spec |
 | `packages/ui-host` | UI Contribution、Slot、嵌入、隔离和桥接 | FD4 registry/render 与 AP3 surface/Slot mount 校验已落地；Installed Plugin 隔离与完整安全 bridge 仍待独立实现 | `partial` | F2、FD4、AP3 |
@@ -84,6 +84,7 @@
 | `modules/execution` | 历史 Claim、Run、lease、attempt | 保留查询、schema 和升级；供历史阅读与项目删除的现有活动保护使用；旧执行写入退役 | `partial` | EX1/EX4 历史迁移；事件工作流收敛 |
 | `modules/artifacts` | Artifact、版本、类型、内容引用与 provenance | AR1 已建立唯一正式事实；旧代码仅有各 owner 的字符串引用，没有第二套 Artifact Store | `partial` | AR1 已迁 Core；AR3 切换现有结果入口 |
 | `modules/shelf` | 个人置物架材料、副本任务、Hash 与本机抽字结果 | Home 下 `shelf/` 副本与 Jobs 沙箱；不写项目 Goal / Artifact | `partial` | Shelf 工作台切片；轮盘/热键仍待 Desktop |
+| `modules/functions` | 已发布判断函数与一次判断记录 | 函数库、来源/去向、场景绑定、判断落库；TypeSafe 由 Host 注入 | `partial` | `specs/functions-system-capability/spec.md`；`specs/functions-product-authoring/spec.md` |
 | `modules/evidence-verification` | 历史 Evidence、Correction、验收引用与文件来源 | 保留历史查询、文件读取、schema 和升级；当前报告与完成判断归 Goals 事件；旧写入退役 | `partial` | EX2/EX4 历史迁移；事件工作流收敛 |
 | `modules/governance-collaboration` | 当前用户决定、有限树提案／决定、provenance 与协作历史 | 当前可信用户来源、具体变更授权和决定事务；旧 Review/Clarification/Contract/Candidate/Rewire 仅保留历史职责 | `partial` | EX3/EX4/AR2/DD1/DD2/Cutover；事件工作流收敛 |
 | `modules/automation` | Trigger、Rule、Automation Run 与产生的 Action Request | 占位包已删除；未来功能 | `absent` | F2；未来独立功能 Spec |
@@ -96,7 +97,7 @@
 | --- | --- | --- | --- | --- |
 | `horizontal/connector-host` | Provider 连接、凭据引用和调用 Receipt | Provider-neutral 连接/Receipt；Integration contribution 提供 Driver | `partial` | FD1/FD3/AP2/Cutover |
 | `horizontal/listener-host` | cursor、lease、重试、Raw Event 到 Signal Draft 投递 | Listener 技术 lease/cursor/去重/接收回执；Host 管 timer 生命周期 | `partial` | FD1/FD3/Cutover |
-| `horizontal/scheduler` | Durable one-shot wakeup | 目标为通用 Durable one-shot wakeup；现有 Feed timer 不冒充该能力 | `absent` | 未来独立功能 Spec |
+| `horizontal/scheduler` | Durable one-shot wakeup | sqlite job/lease/收据；Web timer 与 Feed timer 并行；once/interval 由 Schedule 插件拥有 | `partial` | `specs/schedule-plugin/spec.md` |
 | `horizontal/runtime-host` | Runtime 启动、恢复、中断、stream 与技术 Receipt | Runtime router、Codex app-server 与 PTY server host 已迁；浏览器 transport/reconnect 由 Work 消费 | `partial` | WK2 已迁 Host/Adapter；WK3 已迁产品编排 |
 | `horizontal/agent-host` | Agent Runtime 注册、能力矩阵、启动授权与副作用 Review 队列 | 宿主侧与两个 adapter 的会话/只读执行已实现；Prologue 执行接线待补 | `partial` | Plugin Platform v2；见 `specs/plugin-platform-v2/spec.md` |
 
@@ -108,8 +109,15 @@ Horizontal Service 只保存可恢复的技术状态，不拥有 Goal、Signal�
 | --- | --- | --- | --- | --- |
 | `plugins/native/goals` | Goals 一级入口与产品 UI | 当前事件意图、约定、报告、树决定和历史正文组合；目录直接读当前状态；旧执行／草稿／提案写应用退役；Workbench 注册并组合 UI，不另算完成 | `partial` | GW/DD/EX/Cutover；事件工作流收敛 |
 | `plugins/native/artifacts` | Artifacts 一级入口、浏览和嵌入 | 已迁结果链接/项目文件打开；正式版本列表、详情与本地导出已接入 Web；Goal 上下文按明确输入/产出关系嵌入精确版本 | `partial` | AR3 已完成迁移验收；不包含未来安装/Team 同步 |
-| `plugins/native/inbox` | Inbox 一级入口与 Attention 处置 UI | 目录/详情只读 Attention；完成/忽略走 setStatus；Host 注入展示信息与 HTTP | `partial` | Inbox/Feed 拆插件切片 2–3 |
+| `plugins/native/inbox` | Inbox 一级入口与 Attention 处置 UI | 目录/详情只读 Attention；完成/忽略走 setStatus；现场绑 `inbox.next`；Host 注入展示信息与 HTTP | `partial` | Inbox/Feed 拆插件切片 2–3；`specs/functions-system-capability/spec.md` |
+| `plugins/native/schedule` | Schedule 一级入口：对话任务与闹钟列表 | 人手创建日历日对话任务；其他插件 job 仍只展示与暂停 | `partial` | `specs/schedule-conversation-tasks/spec.md` |
 | `plugins/native/shelf` | Shelf 一级入口：材料/结果/剪贴板与本机抽字 | DropAgent 表面挂进目录与工作面；Host 注入 `/api/shelf` 与 Store | `partial` | 工作台进货→抽字切片；轮盘/抓页/CLI Recipe 待 Desktop |
+| `plugins/native/functions` | Functions 一级入口：写、试跑、发布、配 Key | 来源/事件去向/动作总表可配；UI/HTTP/MCP；库和判断记录在 Module | `partial` | `specs/functions-system-capability/spec.md`；`specs/functions-product-authoring/spec.md` |
+| `plugins/native/pages` | Pages 一级入口：本机文档 | 库、ProseMirror 内核、块、评论、卡、AI stub、挂 Goal 与 Promote；对外 MCP 默认关 | `partial` | `specs/pages-plugin/spec.md`；`specs/plugin-outbound-mcp/spec.md` |
+| `plugins/native/form` | Forms 一级入口：本机问卷 | 建题、预览填写、提交与结果；出题为本地 stub；对外 MCP 默认关 | `partial` | `specs/creative-tools-plugins/spec.md`；`specs/plugin-outbound-mcp/spec.md` |
+| `plugins/native/dataset` | Dataset 一级入口：本机数据表 | 行列编辑、CSV 导入导出、版本回滚；加列为本地 stub；对外 MCP 默认关 | `partial` | `specs/creative-tools-plugins/spec.md`；`specs/plugin-outbound-mcp/spec.md` |
+| `plugins/native/ppt` | PPT 一级入口：本机演示稿 | 多页大纲、主题色、预览与 JSON 导出；不做 PPTX；对外 MCP 默认关 | `partial` | `specs/creative-tools-plugins/spec.md`；`specs/plugin-outbound-mcp/spec.md` |
+| `plugins/native/lingguang` | 灵光一级入口：本机临时灵感池 | 快记、流式列表、丢掉确认、本机头脑风暴 stub；不写 Goal/Artifact；无对外 MCP | `partial` | `specs/lingguang-plugin/spec.md` |
 | `plugins/native/feed` | Feed 一级入口和处置 UI | Sources/Feed 流水、同步与 promotion 用例；不再投影 Inbox 面；加入 Inbox 仍走 Feed HTTP，只写 Attention | `partial` | FD/Cutover；Inbox/Feed 拆插件切片 3 |
 | `plugins/native/actions` | Actions 一级入口 | 占位包已删除；未来功能 | `absent` | F2；未来独立功能 Spec |
 | `plugins/native/work` | Session、Runtime、resume、handoff 应用和 UI | WK3 已迁应用编排、Session/Terminal contribution、浏览器控制器、HTTP 用例和工作目录恢复。`GET/POST /api/goals/:id/panels`（无子路径，JSON）仍是 Runtime 终端面板，与已删除的 Goal 五 tab fragment 不同 | `partial` | WK3；边界与证据见 `specs/molis-work-architecture-reorganization/wk3-validation.md` |
@@ -121,6 +129,10 @@ Horizontal Service 只保存可恢复的技术状态，不拥有 Goal、Signal�
 | `plugins/official-integrations/youtube` | YouTube Channel provider adapter | YouTube Channel 标识与 Provider adapter；Host 注入运行端口 | `partial` | FD3/Cutover |
 
 Goals 与 Artifacts 是官方签名保护的一等 Plugin。Plugin 之间不依赖 implementation；可保存、同步和重放的内容用 Goal / Artifact Contract 交换。
+
+### 正在接入的独立插件
+
+- [Casebook：产品流程与宿主前置能力](../specs/casebook-plugin/spec.md)：系统疑点与成员主动反馈进入改进 Backlog，经模块主 R 评审、系统准备方案和人确认后，交接正式 Goal 并回验。插件业务与详细实施清单由独立的 `molis-ai/goalboard-casebook` 仓库维护；本文档入口便于宿主各模块查阅依赖，不新增 workspace package，也不表示插件已注册、团队协作已接通或功能已验收。
 
 ## 8. Tooling、入口和发布面
 

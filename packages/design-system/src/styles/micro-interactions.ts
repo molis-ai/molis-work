@@ -23,6 +23,20 @@ const FOCAL_STATUS = ":is(.tui-owner-actions, .goal-node-toolbar, .reader-header
 export const MICRO_INTERACTION_STYLES = `
   :root, body { --ease-settle: cubic-bezier(.32, 1.22, .52, 1); }
 
+  /* Contained focus sits last in the design-system tail so leftover outer rings cannot win. */
+  body.immersive-workbench :focus-visible,
+  body.settings-page :focus-visible,
+  body.project-index-page :focus-visible,
+  body.project-preferences-page :focus-visible {
+    outline: var(--focus-stroke, 2px solid var(--focus));
+    outline-offset: var(--focus-stroke-inset, -2px);
+  }
+  body.immersive-workbench :is(a:not([class]), .mw-btn--link):focus-visible,
+  body.settings-page :is(a:not([class]), .mw-btn--link):focus-visible,
+  body.project-index-page :is(a:not([class]), .mw-btn--link):focus-visible {
+    outline-offset: 2px;
+  }
+
   /* Rubber Segment: one thumb travels between slots instead of a chip blinking on and off. */
   body ${SEGMENTED}[data-seg-thumb] { position: relative; }
   body ${SEGMENTED}[data-seg-thumb]::before {
@@ -72,28 +86,16 @@ export const MICRO_INTERACTION_STYLES = `
   body.immersive-workbench .global-search-body[data-search-glide] .global-search-hit[aria-selected="true"]:hover { background: transparent; }
   body .global-search-body[data-search-glide] .global-search-hit:hover:not([aria-selected="true"]) { background: var(--nav-hover); }
 
-  /* Row Yield: list hover is a 180ms tone step; squeezed titles fade at the edge instead of snapping. */
+  /* Row Yield: list hover is a 180ms tone step. Squeezed titles ellipsize in the title slot; do not mask the row, or trailing status gets cut. */
   body.immersive-workbench :is(.tree-entry, .feed-stage-entry, .source-list-item, .goal-collection-fold > summary) {
     transition:
       background-color 180ms var(--ease-out, cubic-bezier(.16, 1, .3, 1)),
       color 180ms var(--ease-out, cubic-bezier(.16, 1, .3, 1));
   }
-  body.immersive-workbench :is(
-    .tree-pane .tree-title-line strong,
-    .goal-stage-list .tree-title-line strong,
-    .feed-stage-leading strong,
-    .source-list-copy strong,
-    .plugin-stage-list .goal-collection-fold > summary strong,
-    .session-stage-list .goal-collection-fold > summary strong
-  ) {
-    min-width: 0;
-    overflow: hidden;
-    mask-image: linear-gradient(to right, #000 0%, #000 calc(100% - 12px), transparent 100%);
-    -webkit-mask-image: linear-gradient(to right, #000 0%, #000 calc(100% - 12px), transparent 100%);
-  }
 
 
   /* A writing surface opts out of the field ring: it answers focus with tone, not a box. */
+  body.immersive-workbench [data-plain-field]:focus-visible,
   body [data-plain-field]:focus-visible, body [data-plain-field]:focus {
     outline: none;
     border-color: transparent;

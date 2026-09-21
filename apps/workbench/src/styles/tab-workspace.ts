@@ -187,7 +187,7 @@ export const TAB_WORKSPACE_STYLES = `
     body.immersive-workbench .tab-sash:is(:hover, :focus-visible, .is-dragging) .tab-sash-handle { opacity: 1; }
   }
   body.immersive-workbench .tab-sash:is(:hover, :focus-visible, .is-dragging) { background: transparent; }
-  body.immersive-workbench .tab-sash:focus-visible .tab-sash-handle { outline: 2px solid var(--blue); outline-offset: 2px; }
+  body.immersive-workbench .tab-sash:focus-visible .tab-sash-handle { outline: 2px solid var(--focus); outline-offset: -2px; }
   body.immersive-workbench .tab-window-select { align-self: center; flex: none; max-width: 200px; min-height: 28px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 10px; color: var(--muted); border: 0; border-radius: 6px; background: transparent; font: inherit; font-size: 11px; }
   body.immersive-workbench .tab-window-select[aria-pressed="true"] { color: var(--ink); background: var(--nav-active); }
   @media (max-width: 760px) {

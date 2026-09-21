@@ -65,37 +65,39 @@ export function renderShelfDirectory(_model: ShelfUiModel): string {
 export function renderShelfWorkbench(model: ShelfUiModel): string {
   const { primitives: p } = model;
   return `<section class="desktop-work-surface plugin-stage-shell" data-work-surface="shelf" data-work-surface-label="Shelf" hidden data-shelf="workbench" data-shelf-stage-shell data-expanded="false">
-    <header class="plugin-stage-chrome shelf-stage-chrome">
-      <label class="shelf-search shelf-stage-search">${SHELF_GLYPH.search}<input type="search" data-shelf-search placeholder="${p.text("搜索材料")}" aria-label="${p.text("搜索材料")}" autocomplete="off"></label>
-      <span class="shelf-side-op" role="button" tabindex="0" data-shelf-pick aria-label="${p.text("添加材料")}" title="${p.text("添加材料")}">${SHELF_GLYPH.plus}</span>
-      <span class="shelf-side-op" role="button" tabindex="0" data-shelf-side-more aria-label="${p.text("更多")}" title="${p.text("更多")}" aria-haspopup="menu">${SHELF_GLYPH.more}</span>
-      <div class="shelf-side-menu" data-shelf-side-menu role="menu" hidden>
-        <span class="shelf-more-item" role="menuitem" tabindex="0" data-shelf-paste-clip>${p.text("粘贴当前剪贴板")}</span>
-        <span class="shelf-more-item" role="menuitem" tabindex="0" data-shelf-multi aria-pressed="false">${p.text("多选材料")}</span>
-      </div>
-      <input data-shelf-file hidden type="file" multiple>
-      <ul class="shelf-find" data-shelf-find hidden></ul>
-    </header>
     <div class="plugin-stage-list" data-shelf="directory">
+      <header class="shelf-side-head shelf-stage-chrome">
+        <label class="shelf-search shelf-stage-search">${SHELF_GLYPH.search}<input type="search" data-shelf-search placeholder="${p.text("搜索材料")}" aria-label="${p.text("搜索材料")}" autocomplete="off"></label>
+        <span class="shelf-side-op" role="button" tabindex="0" data-shelf-pick aria-label="${p.text("添加材料")}" title="${p.text("添加材料")}">${SHELF_GLYPH.plus}</span>
+        <span class="shelf-side-op" role="button" tabindex="0" data-shelf-side-more aria-label="${p.text("更多")}" title="${p.text("更多")}" aria-haspopup="menu">${SHELF_GLYPH.more}</span>
+        <div class="shelf-side-menu" data-shelf-side-menu role="menu" hidden>
+          <span class="shelf-more-item" role="menuitem" tabindex="0" data-shelf-paste-clip>${p.text("粘贴当前剪贴板")}</span>
+          <span class="shelf-more-item" role="menuitem" tabindex="0" data-shelf-multi aria-pressed="false">${p.text("多选材料")}</span>
+        </div>
+        <input data-shelf-file hidden type="file" multiple>
+        <ul class="shelf-find" data-shelf-find hidden></ul>
+      </header>
+      <div class="shelf-side-scroll">
       ${stageFold(p.text("材料"), "materials", model.materials.length, `<ul class="shelf-tree" data-shelf-list="materials">${model.materials.map((item) => renderRow(item, item.item_id === model.selected_id, p)).join("") || emptyLine(p.text("还没有材料"))}</ul>`)}
       ${stageFold(p.text("生成结果"), "results", model.results.length, `<ul class="shelf-tree" data-shelf-list="results">${model.results.map((item) => renderRow(item, item.item_id === model.selected_id, p)).join("") || emptyLine(p.text("还没有生成结果"))}</ul>`)}
       ${stageFold(p.text("剪贴板历史"), "clipboard", model.clipboard.length, `<p class="shelf-clip-hint" data-shelf-clip-hint ${model.clipboard.length ? "" : "hidden"}>${p.text("单击选择，双击复制为当前。⌘V 仍直接上架当前剪贴板。")}</p><ul class="shelf-tree" data-shelf-list="clipboard">${model.clipboard.map((clip) => renderClip(clip, clip.clip_id === model.current_clip_id, clip.clip_id === model.selected_id, p)).join("") || emptyLine(p.text("剪贴板是空的"))}</ul><button class="shelf-clip-more" type="button" data-shelf-clip-more hidden>${p.text("显示全部")}</button>`)}
-      ${renderDropOverlay(p)}
+      </div>
       <footer class="shelf-side-foot"><span data-shelf-foot-left>${p.text("副本工作区")}</span><span>${p.text("⌘V 粘贴当前")}</span></footer>
+      ${renderDropOverlay(p)}
     </div>
     <div class="plugin-stage-workspace" data-shelf-stage-workspace hidden>
-      <header class="plugin-stage-detail-bar"><button class="plugin-stage-back" type="button" data-shelf-collapse aria-label="${p.text("返回材料列表")}" title="${p.text("返回材料列表")}">${icon("chevron-right")}</button></header>
+      <header class="plugin-stage-detail-bar shelf-chrome" data-shelf-chrome hidden>
+        <button class="plugin-stage-back" type="button" data-shelf-collapse aria-label="${p.text("返回材料列表")}" title="${p.text("返回材料列表")}">${icon("chevron-right")}</button>
+        <span class="shelf-chrome-title" data-shelf-chrome-title></span>
+        <span class="shelf-chrome-tag" data-shelf-chrome-tag></span>
+        <span class="shelf-paper" role="button" tabindex="0" data-shelf-edit hidden>${p.text("编辑副本")}</span>
+      </header>
       <div class="shelf-stage" data-shelf-stage>
       <div class="shelf-tools">
         <span class="shelf-paper" role="button" tabindex="0" data-shelf-compare aria-pressed="false">${SHELF_GLYPH.compare}${p.text("对照原文")}</span>
         <span style="flex:1"></span>
         <span class="shelf-paper" role="button" tabindex="0" data-shelf-copy-file>${SHELF_GLYPH.copy}${p.text("复制文件")}</span>
         <span class="shelf-paper" role="button" tabindex="0" data-shelf-use-material>${SHELF_GLYPH.download}${p.text("用作材料")}</span>
-      </div>
-      <div class="shelf-chrome" data-shelf-chrome hidden>
-        <span class="shelf-chrome-title" data-shelf-chrome-title></span>
-        <span class="shelf-chrome-tag" data-shelf-chrome-tag></span>
-        <span class="shelf-paper" role="button" tabindex="0" data-shelf-edit hidden>${p.text("编辑副本")}</span>
       </div>
       <div class="shelf-preview" data-shelf-preview></div>
       <div class="shelf-tty" data-shelf-tty>

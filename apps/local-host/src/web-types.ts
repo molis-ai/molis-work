@@ -1,6 +1,7 @@
 import type { RuntimeSessionTransport } from "@molis-ai/molis-work-contracts/services/runtime-host";
 import type { WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
 import type { FeedSourceScheduler } from "@molis-ai/molis-work-plugin-feed";
+import type { ScheduleService } from "@molis-ai/molis-work-service-scheduler";
 import type { RuntimeIntegrationService } from "./installer/runtime-integration.js";
 import type { MolisWorkWebServiceManager } from "./installer/web-service.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
@@ -40,10 +41,12 @@ export interface ResolvedWebBoardOptions {
   project: WebProjectNavigation | null;
   projects: WebProjectNavigation[];
   routePrefix: string;
+  homeDirectory?: string;
 }
 
 export interface FeedSchedulerRuntime {
   scheduler: FeedSourceScheduler;
+  schedule: ScheduleService;
 }
 
 export type ResolvedWebRequest =

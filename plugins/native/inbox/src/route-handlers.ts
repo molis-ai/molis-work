@@ -3,10 +3,22 @@ import type { InboxPluginRouteHandler } from "./routes.js";
 
 const ATTENTION_STATUSES = new Set<AttentionStatus>(["open", "in_progress", "done", "dismissed"]);
 
+export interface InboxJudgmentChoice {
+  readonly function_key: string;
+  readonly name: string;
+}
+
+export interface InboxJudgmentState {
+  readonly function_key: string | null;
+  readonly functions: readonly InboxJudgmentChoice[];
+}
+
 export interface InboxRouteHandlerPorts {
   listEntries(): readonly unknown[];
   setStatus(entryId: string, status: AttentionStatus, expectedRevision: number): unknown;
   changed(): void;
+  readJudgment?(): InboxJudgmentState;
+  writeJudgment?(functionKey: string | null): { function_key: string | null };
 }
 
 export function createInboxRouteHandlers(options: InboxRouteHandlerPorts): Record<string, InboxPluginRouteHandler> {
@@ -15,6 +27,26 @@ export function createInboxRouteHandlers(options: InboxRouteHandlerPorts): Recor
       status: 200,
       body: { entries: options.listEntries() },
     }),
+    "inbox.judgment.read": () => ({
+      status: 200,
+      body: options.readJudgment?.() ?? { function_key: null, functions: [] },
+    }),
+    "inbox.judgment.write": ({ request }) => {
+      if (!options.writeJudgment) {
+        return { status: 400, body: { error: "判断能力不可用" } };
+      }
+      if (!("function_key" in request.body)) {
+        return { status: 400, body: { error: "请选择已发布函数，或留空" } };
+      }
+      const raw = request.body.function_key;
+      if (raw !== null && typeof raw !== "string") {
+        return { status: 400, body: { error: "请选择已发布函数，或留空" } };
+      }
+      const functionKey = typeof raw === "string" && raw.trim() ? raw.trim() : null;
+      const result = options.writeJudgment(functionKey);
+      options.changed();
+      return { status: 200, body: result };
+    },
     "inbox.entry.status": ({ params, request }) => {
       const status = request.body.status;
       const revision = integerRevision(request.body.expected_revision);

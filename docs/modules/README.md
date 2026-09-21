@@ -7,7 +7,7 @@ Module 是正式业务事实的唯一 owner。每个 Module 自己保存状态�
 | 类别 | Modules |
 | --- | --- |
 | 基础 | [Identity, Team & Access](identity-team-access.md)、[Projects](projects.md)、[Context Ledger](context-ledger.md)、[Sync & Replication](sync-replication.md) |
-| 信息与个人工作 | [Sources](sources.md)、[Signals](signals.md)、[Feed](feed.md)、[Actions](actions.md)、[Attention & Resumption](attention-resumption.md)、[Shelf](shelf.md) |
+| 信息与个人工作 | [Sources](sources.md)、[Signals](signals.md)、[Feed](feed.md)、[Actions](actions.md)、[Attention & Resumption](attention-resumption.md)、[Shelf](shelf.md)、[Functions](../../modules/functions/README.md) |
 | 持续工作主链 | [Goals](goals.md)、[Private Work Context](private-work-context.md)、[Artifacts](artifacts.md) |
 | 旧执行事实与历史升级 | [Execution](execution.md)、[Evidence & Verification](evidence-verification.md) |
 | 协作与自动化 | [Governance & Collaboration](governance-collaboration.md)、[Automation](automation.md) |

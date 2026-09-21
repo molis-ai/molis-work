@@ -19,15 +19,22 @@ export function createWorkbenchInboxProjectionRenderer(primitives: {
   const { L, dateTimeLocale } = primitives;
 
   function buildInboxNativePluginModel(view: MolisWorkWebView): InboxUiModel {
-    const records = view.feed.inbox_entries.map((entry): AttentionEntryRecord => ({
+    const records = view.feed.inbox_entries.map((entry) => ({
       ...entry,
       project_id: entry.board_id,
+      suggested_behavior_ids: entry.suggested_behavior_ids ?? [],
     }));
     return {
       route_prefix: view.route_prefix,
       entries: buildInboxUiEntries(records, (entry) => resolveSubject(entry, view, L), L),
       filter: "active",
       primitives: inboxUiPrimitives,
+      judgment: view.function_scenes
+        ? {
+            function_key: view.function_scenes.inbox_next,
+            functions: view.function_scenes.inbox_next_functions,
+          }
+        : undefined,
     };
   }
 

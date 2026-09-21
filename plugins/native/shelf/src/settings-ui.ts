@@ -59,7 +59,7 @@ export const shelfSettingsUiContribution: UiContribution<ShelfSettingsUiModel> =
   },
 };
 
-/** DropAgent's settings nav: by purpose, not by data shape. */
+/** DropAgent's settings sections: by purpose, not by data shape. */
 const SECTIONS = [
   { id: "setup", title: "权限与连接", tone: "slate", glyph: SHELF_GLYPH.shield, detail: "按需要开启功能。暂存文件和本机文字提取无需这些权限。" },
   { id: "actions", title: "快捷动作", tone: "ochre", glyph: SHELF_GLYPH.bolt, detail: "管理动作，设置动作栏的内容与顺序。" },
@@ -90,16 +90,11 @@ export function renderShelfSettings(model: ShelfSettingsUiModel): string {
       <p>${p.text("这些设置只改变 Shelf 在这台设备上的工作方式。")}</p>
     </header>
     <div class="shelf-settings-body">
-      <nav class="shelf-settings-nav" data-shelf-settings-nav aria-label="${p.text("Shelf 设置")}">
-        ${SECTIONS.map((section, index) => `<button class="shelf-settings-tab${index === 0 ? " is-on" : ""}" type="button" role="tab" aria-selected="${index === 0}" data-shelf-settings-tab="${section.id}"><span class="shelf-glyph tone-${section.tone}">${section.glyph}</span>${p.text(section.title)}</button>`).join("")}
-      </nav>
-      <div class="shelf-settings-panes">
-        ${SECTIONS.map((section, index) => `<section class="shelf-settings-pane" data-shelf-settings-pane="${section.id}"${index === 0 ? "" : " hidden"} aria-labelledby="shelf-settings-${section.id}">
-          <h2 id="shelf-settings-${section.id}">${p.text(section.title)}</h2>
+      ${SECTIONS.map((section) => `<section class="settings-section" data-shelf-settings-pane="${section.id}" aria-labelledby="shelf-settings-${section.id}">
+          <h2 id="shelf-settings-${section.id}"><span class="shelf-glyph tone-${section.tone}" aria-hidden="true">${section.glyph}</span>${p.text(section.title)}</h2>
           <p class="shelf-settings-detail">${p.text(section.detail)}</p>
           ${paneBody(section.id, model)}
         </section>`).join("")}
-      </div>
     </div>
   </section>`;
 }
@@ -117,29 +112,14 @@ function paneBody(id: (typeof SECTIONS)[number]["id"], model: ShelfSettingsUiMod
 
 function setupPane(model: ShelfSettingsUiModel): string {
   const { primitives: p } = model;
-  const runtime = model.runtime;
-  const line = !runtime || !runtime.runtime_key
-    ? p.text("未发现终端 Agent。暂存、预览、拖出和本机文字提取仍然可用。")
-    : runtime.can_run_job
-      ? `${p.escape(runtime.title)} · ${p.escape(runtime.isolation_fact)}`
-      : `${p.escape(runtime.title)} · ${p.text("没有无界面执行入口，动作不能跑。")}`;
-  const catalog = (runtime?.catalog ?? []).map((entry) => `<li class="shelf-runtime-row">
-        <span class="shelf-runtime-name">${p.escape(entry.title)}</span>
-        <span class="shelf-runtime-state${entry.executable ? " is-on" : ""}">${entry.executable ? p.text(entry.can_run_job ? "可跑动作" : "已装 · 只能对话") : p.text("未装")}</span>
-        ${entry.install_url ? `<a class="shelf-paper quiet" href="${p.escape(entry.install_url)}" target="_blank" rel="noreferrer">${p.text("安装说明")}</a>` : ""}
-      </li>`).join("");
-  return `<div class="shelf-settings-block">
-      <p class="shelf-settings-line" data-shelf-agent-line>${line}</p>
-      <ul class="shelf-runtime-list">${catalog}</ul>
-    </div>
-    <div class="shelf-settings-block">
-      <h3>${p.text("系统权限")}</h3>
-      <p class="shelf-settings-line" data-shelf-permission="accessibility">${p.text("辅助功能：加入前台选中文件时需要。")}</p>
-      <p class="shelf-settings-line" data-shelf-permission="automation">${p.text("Finder 自动化：抓前台选中文件时系统会询问一次。")}</p>
-      <p class="shelf-settings-line" data-shelf-permission="browsers">${p.text("已装浏览器：抓当前页支持 Safari、Chrome，Edge 尽力而为。")}</p>
-      <p class="shelf-settings-line" data-shelf-permission="clipboard">${p.text("剪贴板：在别处复制会自动记进历史。")}</p>
-      <p class="settings-hint">${p.text("这些权限按需授予。不授权也能上架、预览、拖出和本机抽字。")}</p>
+  const fact = (key: string, copy: string) => `<div class="settings-setting-row shelf-settings-fact">
+      <span class="setting-copy" data-shelf-permission="${key}">${p.text(copy)}</span>
     </div>`;
+  return `${fact("accessibility", "辅助功能：加入前台选中文件时需要。")}
+    ${fact("automation", "Finder 自动化：抓前台选中文件时系统会询问一次。")}
+    ${fact("browsers", "已装浏览器：抓当前页支持 Safari、Chrome，Edge 尽力而为。")}
+    ${fact("clipboard", "剪贴板：在别处复制会自动记进历史。")}
+    <p class="settings-hint">${p.text("这些权限按需授予。不授权也能上架、预览、拖出和本机抽字。")}</p>`;
 }
 
 function actionsPane(model: ShelfSettingsUiModel): string {
@@ -238,19 +218,39 @@ function guidePane(model: ShelfSettingsUiModel): string {
 
 function machinePane(model: ShelfSettingsUiModel): string {
   const { primitives: p, settings } = model;
-  const catalog = model.runtime?.catalog ?? [];
-  const options = [{ runtime_key: "auto", title: "自动", executable: "auto", can_run_job: true }, ...catalog];
+  const runtime = model.runtime;
+  const line = !runtime || !runtime.runtime_key
+    ? p.text("未发现终端 Agent。暂存、预览、拖出和本机文字提取仍然可用。")
+    : runtime.can_run_job
+      ? `${p.escape(runtime.title)} · ${p.escape(runtime.isolation_fact)}`
+      : `${p.escape(runtime.title)} · ${p.text("没有无界面执行入口，动作不能跑。")}`;
+  const catalog = runtime?.catalog ?? [];
+  const options = [{ runtime_key: "auto", title: "自动", executable: "auto", can_run_job: true, install_url: "" }, ...catalog];
   const rows = options.map((entry) => {
     const on = settings.engine === entry.runtime_key;
     const missing = entry.runtime_key !== "auto" && !entry.executable;
-    return `<label class="shelf-runtime-pick${missing ? " is-missing" : ""}">
-        <input type="radio" name="shelf-engine" value="${p.escape(entry.runtime_key)}" data-shelf-engine${on ? " checked" : ""}${missing ? " disabled" : ""}>
-        <span class="shelf-runtime-name">${p.text(entry.title)}</span>
-        <span class="shelf-runtime-state">${entry.runtime_key === "auto" ? p.text("按安装顺序挑一个") : missing ? p.text("未装") : entry.can_run_job ? p.text("可跑动作") : p.text("只能对话")}</span>
-      </label>`;
+    const state = entry.runtime_key === "auto"
+      ? p.text("按安装顺序挑一个")
+      : missing
+        ? p.text("未装")
+        : entry.can_run_job
+          ? p.text("可跑动作")
+          : p.text("只能对话");
+    const install = entry.install_url
+      ? `<a class="shelf-paper quiet" href="${p.escape(entry.install_url)}" target="_blank" rel="noreferrer">${p.text("安装说明")}</a>`
+      : "";
+    return `<div class="shelf-runtime-pick${missing ? " is-missing" : ""}">
+        <label>
+          <input type="radio" name="shelf-engine" value="${p.escape(entry.runtime_key)}" data-shelf-engine${on ? " checked" : ""}${missing ? " disabled" : ""}>
+          <span class="shelf-runtime-name">${entry.runtime_key === "auto" ? p.text("自动") : p.escape(entry.title)}</span>
+          <span class="shelf-runtime-state${entry.executable && entry.can_run_job && entry.runtime_key !== "auto" ? " is-on" : ""}">${state}</span>
+        </label>
+        ${install}
+      </div>`;
   }).join("");
   return `<div class="shelf-settings-block">
       <h3>${p.text("本机 Agent")}</h3>
+      <p class="shelf-settings-line" data-shelf-agent-line>${line}</p>
       <div class="shelf-runtime-picks">${rows}</div>
       <p class="settings-hint">${p.text("快捷动作和 CLI Recipe 都跟这一个。没有无界面执行入口的 Agent 仍可对话。")}</p>
     </div>

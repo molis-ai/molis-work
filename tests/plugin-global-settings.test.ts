@@ -30,6 +30,7 @@ import {
 import {
   listPluginSettingsNavItems,
   pluginSettingsNavItemsFrom,
+  isHostGlobalSettingsSection,
 } from "../apps/workbench/src/plugin-settings-catalog.ts";
 import { renderAppearanceSettingsDocument } from "../apps/workbench/src/settings-appearance.ts";
 import { renderSettingsDirectorySection } from "../apps/workbench/src/settings-directory.ts";
@@ -117,9 +118,18 @@ test("old Shelf catalogs without settings keep the drop wheel on", async () => {
 });
 
 test("settings catalog lists registered settings-pages and ignores Feed, Inbox, and host slugs", () => {
+  assert.equal(isHostGlobalSettingsSection("mcp"), true);
+  assert.equal(isHostGlobalSettingsSection("runtimes"), true);
+  assert.equal(isHostGlobalSettingsSection("functions"), false);
   assert.deepEqual(pluginSettingsNavItemsFrom([]), []);
   assert.deepEqual(
     pluginSettingsNavItemsFrom([feedUiContribution.descriptor, inboxUiContribution.descriptor]),
+    [],
+  );
+  assert.deepEqual(
+    pluginSettingsNavItemsFrom([
+      settingsPage({ navigation_id: "mcp", label: "Should not steal MCP" }),
+    ]),
     [],
   );
   assert.deepEqual(
@@ -145,10 +155,13 @@ test("settings catalog lists registered settings-pages and ignores Feed, Inbox, 
   ]);
   assert.deepEqual(listed.map((item) => item.section_id), ["shelf", "example"]);
   const live = listPluginSettingsNavItems();
-  assert.deepEqual(live.map((item) => item.section_id), ["coding-settings", "shelf"]);
+  assert.deepEqual(live.map((item) => item.section_id), ["coding-settings", "shelf", "functions"]);
   assert.equal(live[0]?.plugin_id, "io.molis.work.coding");
   assert.equal(live[1]?.contribution_id, SHELF_SETTINGS_UI_CONTRIBUTION_ID);
   assert.equal(live[1]?.label, "Shelf");
+  assert.equal(live.some((item) => item.section_id === "mcp"), false);
+  assert.equal(live[2]?.section_id, "functions");
+  assert.equal(live[2]?.label, "Functions");
 });
 
 test("Shelf settings page has the drop wheel and Molis appearance does not", () => {
@@ -165,6 +178,40 @@ test("Shelf settings page has the drop wheel and Molis appearance does not", () 
   assert.match(on, /name="drop_wheel_enabled"[^>]*checked/);
   assert.match(on, /拖放轮盘/);
   assert.match(on, /快捷键/);
+  assert.doesNotMatch(on, /data-shelf-settings-tab|shelf-settings-nav|shelf-settings-pane\[hidden\]/);
+  assert.equal((on.match(/data-shelf-settings-pane="/g) || []).length, 6);
+  assert.doesNotMatch(on, /data-shelf-settings-pane="[^"]+" hidden/);
+  const setup = on.slice(on.indexOf('data-shelf-settings-pane="setup"'), on.indexOf('data-shelf-settings-pane="actions"'));
+  const machine = on.slice(on.indexOf('data-shelf-settings-pane="machine"'), on.indexOf('data-shelf-settings-pane="appearance"'));
+  assert.match(setup, /data-shelf-permission="accessibility"/);
+  assert.doesNotMatch(setup, /data-shelf-engine|data-shelf-agent-line|shelf-runtime-list/);
+  assert.match(machine, /data-shelf-engine/);
+  assert.match(machine, /data-shelf-agent-line/);
+  const withAgents = renderShelfSettings({
+    settings: shelfSettings(),
+    primitives,
+    runtime: {
+      runtime_key: "grok",
+      title: "Grok",
+      executable: "/usr/bin/grok",
+      kind: "tui",
+      isolation: "unknown",
+      isolation_fact: "未确认工作区限制，仍在副本目录跑",
+      can_run_job: true,
+      image_text: false,
+      installed: ["grok"],
+      catalog: [
+        { runtime_key: "grok", title: "Grok", executable: "/usr/bin/grok", kind: "tui", can_run_job: true, install_url: "https://example.com/grok" },
+        { runtime_key: "gemini", title: "Gemini", executable: "", kind: "tui", can_run_job: false, install_url: "https://example.com/gemini" },
+      ],
+    },
+  });
+  const setupWithAgents = withAgents.slice(withAgents.indexOf('data-shelf-settings-pane="setup"'), withAgents.indexOf('data-shelf-settings-pane="actions"'));
+  const machineWithAgents = withAgents.slice(withAgents.indexOf('data-shelf-settings-pane="machine"'), withAgents.indexOf('data-shelf-settings-pane="appearance"'));
+  assert.doesNotMatch(setupWithAgents, /Grok|安装说明|data-shelf-engine/);
+  assert.match(machineWithAgents, /Grok · 未确认工作区限制，仍在副本目录跑/);
+  assert.match(machineWithAgents, /href="https:\/\/example.com\/grok"/);
+  assert.match(machineWithAgents, /href="https:\/\/example.com\/gemini"/);
   assert.match(on, /⌃⌥D/);
   assert.match(on, /⌃⌥W/);
   assert.match(on, /⌃⌥A/);
@@ -205,9 +252,11 @@ test("workbench settings directory and standalone settings both show Shelf after
   const directory = renderSettingsDirectorySection(directoryPrimitives);
   assert.match(directory, /data-settings-section="appearance"/);
   assert.match(directory, /data-settings-section="runtimes"/);
+  assert.match(directory, /data-settings-section="mcp"/);
   assert.match(directory, /data-settings-section="planning"/);
   assert.match(directory, /data-settings-section="diagnostics"/);
   assert.match(directory, /data-settings-section="shelf"/);
+  assert.match(directory, /data-settings-section="functions"/);
   assert.doesNotMatch(directory, /Gmail|Inbox/);
   const html = renderMolisWorkSettings({
     section: "shelf",
@@ -233,8 +282,34 @@ test("workbench settings directory and standalone settings both show Shelf after
     diagnostics,
   });
   assert.match(appearance, /href="\/settings\/shelf"/);
+  assert.match(appearance, /href="\/settings\/mcp"/);
   assert.match(appearance, /class="settings-document appearance-document"/);
   assert.doesNotMatch(appearance, /data-settings-panel="shelf"|name="drop_wheel_enabled"|class="shelf-settings-document"/);
+});
+
+test("MCP settings page is a Host global section, not a Functions settings-page", () => {
+  const html = renderMolisWorkSettings({
+    section: "mcp",
+    runtimes: [],
+    mcp_tools: [{
+      name: "molis_work_v1_functions_invoke",
+      description: "调用一个已发布判断函数。",
+      group_id: "functions",
+      group_title: "Functions",
+      enabled: true,
+      effect: "write",
+    }],
+    projects: [],
+    web_service: webService,
+    diagnostics,
+  });
+  assert.match(html, /data-settings-section="mcp"/);
+  assert.match(html, /data-mcp-settings/);
+  assert.match(html, /data-mcp-group="functions"/);
+  assert.match(html, /data-mcp-tool="molis_work_v1_functions_invoke"/);
+  assert.match(html, /href="\/settings\/mcp"/);
+  assert.match(html, /href="\/settings\/functions"/);
+  assert.doesNotMatch(html, /data-settings-panel="functions"/);
 });
 
 test("Shelf drop-wheel preference persists through the store and HTTP settings page", async (t) => {
@@ -370,6 +445,7 @@ test("Shelf hotkey recording maps KeyboardEvent.code to Carbon and rejects bare 
   assert.match(SHELF_SETTINGS_CLIENT_SCRIPT, /shelf_apply_hotkeys/);
   assert.match(SHELF_SETTINGS_CLIENT_SCRIPT, /按下…/);
   assert.match(SHELF_SETTINGS_CLIENT_SCRIPT, /这个组合被占用。/);
+  assert.doesNotMatch(SHELF_SETTINGS_CLIENT_SCRIPT, /data-shelf-settings-tab/);
   const remapped = renderShelfSettings({
     settings: shelfSettings({
       hotkeys: {

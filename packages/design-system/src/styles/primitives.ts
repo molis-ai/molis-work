@@ -1,4 +1,9 @@
 /** Shared mw-* control language. Loaded with the visual foundation. */
+
+/** 2px --focus stroke inside the control. Outer offset rings clip and look cheap. */
+const CONTAINED_FOCUS = "outline: 2px solid var(--focus); outline-offset: -2px; box-shadow: none";
+const CONTAINED_FOCUS_DANGER = "outline: 2px solid var(--red); outline-offset: -2px; box-shadow: none";
+
 export const PRIMITIVE_STYLES = `
   .mw-sr-only {
     position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
@@ -48,12 +53,7 @@ export const PRIMITIVE_STYLES = `
   .mw-btn--icon.mw-btn--sm, .mw-btn--icon-only.mw-btn--sm {
     width: 28px; min-width: 28px; min-height: 28px;
   }
-  .mw-btn:focus-visible {
-    outline: none;
-    box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--focus) 72%, transparent),
-      0 0 0 3.5px color-mix(in srgb, var(--focus) 15%, transparent);
-  }
+  .mw-btn:focus-visible { ${CONTAINED_FOCUS}; }
   .mw-btn--primary {
     border-color: var(--action);
     background: var(--action);
@@ -121,7 +121,7 @@ export const PRIMITIVE_STYLES = `
     background: transparent;
   }
   .mw-btn--link:active:not(:disabled) { color: var(--ink); }
-  .mw-btn--link:focus-visible { box-shadow: none; outline: 2px solid var(--focus); outline-offset: 3px; }
+  .mw-btn--link:focus-visible { box-shadow: none; outline: 2px solid var(--focus); outline-offset: 2px; }
   .mw-btn:disabled {
     cursor: not-allowed;
     opacity: .42;
@@ -182,11 +182,8 @@ export const PRIMITIVE_STYLES = `
     border-color: color-mix(in srgb, var(--control-input) 72%, var(--ink));
   }
   .mw-input:focus-visible, .mw-textarea:focus-visible, .mw-select:focus-visible {
-    outline: 0;
-    border-color: color-mix(in srgb, var(--focus) 62%, transparent);
-    box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--focus) 72%, transparent),
-      0 0 0 3.5px color-mix(in srgb, var(--focus) 15%, transparent);
+    ${CONTAINED_FOCUS};
+    border-color: var(--focus);
   }
   .mw-input[aria-invalid="true"], .mw-textarea[aria-invalid="true"], .mw-select[aria-invalid="true"] {
     border-color: var(--red);
@@ -194,10 +191,8 @@ export const PRIMITIVE_STYLES = `
   .mw-input[aria-invalid="true"]:focus-visible,
   .mw-textarea[aria-invalid="true"]:focus-visible,
   .mw-select[aria-invalid="true"]:focus-visible {
+    ${CONTAINED_FOCUS_DANGER};
     border-color: var(--red);
-    box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--red) 72%, transparent),
-      0 0 0 3.5px color-mix(in srgb, var(--red) 15%, transparent);
   }
   .mw-input:disabled, .mw-textarea:disabled, .mw-select:disabled {
     color: var(--faint);
@@ -230,10 +225,8 @@ export const PRIMITIVE_STYLES = `
     box-shadow: none;
   }
   .mw-input-group:focus-within {
-    border-color: color-mix(in srgb, var(--focus) 62%, transparent);
-    box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--focus) 72%, transparent),
-      0 0 0 3.5px color-mix(in srgb, var(--focus) 15%, transparent);
+    ${CONTAINED_FOCUS};
+    border-color: var(--focus);
   }
   .mw-input-group svg { width: 14px; height: 14px; color: var(--faint); flex: none; }
 
@@ -256,12 +249,7 @@ export const PRIMITIVE_STYLES = `
   .mw-radio:checked::after {
     content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor;
   }
-  .mw-check:focus-visible, .mw-radio:focus-visible {
-    outline: none;
-    box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--focus) 72%, transparent),
-      0 0 0 3.5px color-mix(in srgb, var(--focus) 15%, transparent);
-  }
+  .mw-check:focus-visible, .mw-radio:focus-visible { ${CONTAINED_FOCUS}; }
   .mw-check:disabled, .mw-radio:disabled { opacity: .42; }
   .mw-switch { position: relative; display: inline-grid; width: 32px; height: 18px; flex: none; }
   .mw-switch input { appearance: none; position: absolute; inset: 0; margin: 0; opacity: 0; z-index: 1; cursor: pointer; }
@@ -277,12 +265,7 @@ export const PRIMITIVE_STYLES = `
   .mw-switch input:hover:not(:disabled) + .mw-switch__track { border-color: var(--control-input); }
   .mw-switch input:checked + .mw-switch__track { background: var(--action); border-color: var(--action); }
   .mw-switch input:checked + .mw-switch__track::after { transform: translateX(14px); background: var(--action-ink); }
-  .mw-switch input:focus-visible + .mw-switch__track {
-    outline: none;
-    box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--focus) 72%, transparent),
-      0 0 0 3.5px color-mix(in srgb, var(--focus) 15%, transparent);
-  }
+  .mw-switch input:focus-visible + .mw-switch__track { ${CONTAINED_FOCUS}; }
   .mw-switch:has(input:disabled) { opacity: .42; }
 
   .mw-field, .mw-form label:not(.mw-check-row):not(.operation-confirm-check) {
@@ -471,12 +454,7 @@ export const PRIMITIVE_STYLES = `
     background: transparent; color: var(--muted); cursor: help;
   }
   .mw-hint__trigger:hover { color: var(--ink); background: var(--nav-hover); }
-  .mw-hint__trigger:focus-visible {
-    outline: none; color: var(--ink);
-    box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--focus) 72%, transparent),
-      0 0 0 3.5px color-mix(in srgb, var(--focus) 15%, transparent);
-  }
+  .mw-hint__trigger:focus-visible { ${CONTAINED_FOCUS}; color: var(--ink); }
   .mw-hint__trigger svg { width: 14px; height: 14px; }
   .mw-hint__tooltip {
     box-sizing: border-box; width: max-content; max-width: min(36ch, calc(100vw - 32px));
@@ -519,12 +497,7 @@ export const PRIMITIVE_STYLES = `
     background: transparent; color: var(--muted); font: inherit; font-weight: 400;
   }
   .mw-tabs__tab:hover { color: var(--ink); background: var(--nav-hover); }
-  .mw-tabs__tab:focus-visible, .mw-toggle:focus-visible, .mw-pagination__page:focus-visible {
-    outline: none;
-    box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--focus) 72%, transparent),
-      0 0 0 3.5px color-mix(in srgb, var(--focus) 15%, transparent);
-  }
+  .mw-tabs__tab:focus-visible, .mw-toggle:focus-visible, .mw-pagination__page:focus-visible { ${CONTAINED_FOCUS}; }
   .mw-tabs__tab.is-active { background: var(--nav-active); color: var(--ink); font-weight: 400; }
   .mw-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .mw-toggle-group {
@@ -571,10 +544,8 @@ export const PRIMITIVE_STYLES = `
   }
   .mw-number .mw-btn:hover:not(:disabled) { background: var(--nav-hover); color: var(--ink); }
   .mw-number:focus-within {
-    border-color: color-mix(in srgb, var(--focus) 62%, transparent);
-    box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--focus) 72%, transparent),
-      0 0 0 3.5px color-mix(in srgb, var(--focus) 15%, transparent);
+    ${CONTAINED_FOCUS};
+    border-color: var(--focus);
   }
   .mw-otp { display: inline-flex; gap: 6px; }
   .mw-otp__cell {
@@ -584,11 +555,8 @@ export const PRIMITIVE_STYLES = `
     font-variant-numeric: tabular-nums;
   }
   .mw-otp__cell:focus-visible {
-    outline: 0;
-    border-color: color-mix(in srgb, var(--focus) 62%, transparent);
-    box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--focus) 72%, transparent),
-      0 0 0 3.5px color-mix(in srgb, var(--focus) 15%, transparent);
+    ${CONTAINED_FOCUS};
+    border-color: var(--focus);
   }
   .mw-slider-field {
     display: grid; gap: 4px; width: min(280px, 100%);
@@ -644,10 +612,8 @@ export const PRIMITIVE_STYLES = `
   input.mw-slider:focus { outline: 0; }
   input.mw-slider:focus-visible::-webkit-slider-thumb,
   input.mw-slider:focus-visible::-moz-range-thumb {
-    border-color: color-mix(in srgb, var(--focus) 62%, transparent);
-    box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--focus) 72%, transparent),
-      0 0 0 3.5px color-mix(in srgb, var(--focus) 15%, transparent);
+    border-color: var(--focus);
+    box-shadow: 0 0 0 2px var(--focus);
   }
   input.mw-slider:disabled { opacity: .42; cursor: not-allowed; }
   html[data-resolved-theme="dark"] input.mw-slider {
@@ -679,12 +645,7 @@ export const PRIMITIVE_STYLES = `
     display: inline-grid; place-items: center;
   }
   .mw-calendar__day:hover, .mw-calendar td span:hover { background: var(--nav-hover); color: var(--ink); }
-  .mw-calendar__day:focus-visible {
-    outline: none;
-    box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--focus) 72%, transparent),
-      0 0 0 3.5px color-mix(in srgb, var(--focus) 15%, transparent);
-  }
+  .mw-calendar__day:focus-visible { ${CONTAINED_FOCUS}; }
   .mw-calendar__outside { color: var(--faint); }
   .mw-calendar td[aria-current="date"]:not(.is-selected) .mw-calendar__day,
   .mw-calendar td[aria-current="date"]:not(.is-selected) span {
@@ -1025,12 +986,7 @@ export const PRIMITIVE_STYLES = `
     position: absolute; left: 0; top: 6px; bottom: 6px; width: 2px;
     border-radius: 1px; background: var(--ink);
   }
-  .mw-dir-row:focus-visible {
-    outline: none;
-    box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--focus) 72%, transparent),
-      0 0 0 3.5px color-mix(in srgb, var(--focus) 15%, transparent);
-  }
+  .mw-dir-row:focus-visible { ${CONTAINED_FOCUS}; }
   .mw-dir-row.is-selected .mw-dir-row__copy strong,
   .mw-dir-row[aria-current="page"] .mw-dir-row__copy strong {
     color: var(--ink); font-weight: 400;
@@ -1062,12 +1018,9 @@ export const PRIMITIVE_STYLES = `
     min-width: 0; overflow: hidden;
     color: inherit; font-size: 13px; font-weight: 400; line-height: 18px;
     text-overflow: ellipsis; white-space: nowrap;
-    mask-image: linear-gradient(to right, #000 0%, #000 calc(100% - 12px), transparent 100%);
-    -webkit-mask-image: linear-gradient(to right, #000 0%, #000 calc(100% - 12px), transparent 100%);
   }
   .mw-dir-row__copy strong:has(.mw-dir-row__stem) {
     display: flex; text-overflow: clip;
-    mask-image: none; -webkit-mask-image: none;
   }
   .mw-dir-row__stem {
     min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;

@@ -280,7 +280,7 @@ export const SETTINGS_STYLES = `
   .project-manager-row:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 4%, var(--rail)); }
   .project-manager-row:has(input:checked) { color: var(--ink); background: var(--nav-active); }
   .project-manager-row:has(input:checked) strong { font-weight: 400; }
-  .project-manager-row:has(input:focus-visible) { outline: 2px solid var(--blue); outline-offset: 2px; }
+  .project-manager-row:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: -2px; }
   .project-manager-create-input { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); border: 0; }
   .project-manager-empty { margin: 18px 10px; color: var(--muted); font-size: 12px; }
   .project-manager-index-actions { flex: none; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 8px 10px 14px; }
@@ -325,7 +325,7 @@ export const SETTINGS_STYLES = `
     text-decoration: none;
   }
   .project-manager-open:hover { background: color-mix(in srgb, var(--action) 88%, var(--action-ink)); }
-  .project-manager-open:focus-visible, .project-settings-fold > summary:focus-visible, .project-manager-index-actions > *:focus-visible, .project-manager-create-form button:focus-visible, .project-delete-quiet:focus-visible, .project-manager-danger-actions button:focus-visible { outline: 2px solid var(--control-ring); outline-offset: 2px; }
+  .project-manager-open:focus-visible, .project-settings-fold > summary:focus-visible, .project-manager-index-actions > *:focus-visible, .project-manager-create-form button:focus-visible, .project-delete-quiet:focus-visible, .project-manager-danger-actions button:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
   .project-settings-identity { margin: 0; min-width: 0; }
   .project-settings-identity .inline-settings-form { margin: 0; width: 100%; min-width: 0; }
   .project-settings-identity .inline-settings-form input[type=text] { min-height: var(--control-h); border-radius: var(--radius-control); }
@@ -493,7 +493,7 @@ export const PROJECT_GUIDANCE_SETTINGS_STYLES = `
   .guidance-editor select { min-height: 39px; padding: 0 10px; }
   .guidance-editor textarea { min-height: 86px; padding: 10px 11px; resize: vertical; line-height: 1.6; }
   .guidance-editor textarea[name=reason] { min-height: 66px; }
-  .guidance-editor select:focus, .guidance-editor textarea:focus { border-color: var(--focus); outline: 2px solid color-mix(in srgb, var(--focus), transparent 80%); outline-offset: 1px; }
+  .guidance-editor select:focus, .guidance-editor textarea:focus { border-color: var(--focus); outline: 2px solid var(--focus); outline-offset: -2px; }
   .guidance-editor-preview { margin: 0; padding: 13px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); color: var(--ink-soft); font-size: 13px; line-height: 1.65; white-space: pre-wrap; }
   .guidance-editor-preview[hidden] { display: none; }
   .guidance-editor-error { margin: 0; padding: 10px 12px; border-radius: 8px; color: var(--red); background: var(--red-soft); font-size: 11px; }

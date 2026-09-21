@@ -79,7 +79,9 @@ export {
 
 export { hydrateFeedItemContent, hydrateFeedSnapshotContent } from "./feed-content.js";
 
-export { createLocalFeedApplication } from "./feed-application.js";
+export { createLocalFeedApplication, withLocalFeedJudgments } from "./feed-application.js";
+export { assembleHostBehaviorCatalog, hostAllowedBehaviorIds, SYSTEM_BEHAVIORS } from "./behavior-catalog.js";
+export { createFunctionsJudgmentPort, withFunctionsService, readFunctionScenesView } from "./functions-host.js";
 
 export { createFeedSourceRuntime, type FeedSourceRuntime } from "./feed-source-runtime.js";
 export { createIntelligenceCollectAdapter, type IntelligenceCollectRequest, type IntelligenceCollectResult, type IntelligenceCollectAdapter } from "./feed-intelligence-client.js";
@@ -106,7 +108,15 @@ export { createLocalFeedGoalPromotion } from "./feed-goal-promotion.js";
 
 export { handleFeedNativePluginHttp, type FeedNativePluginHttpOptions } from "./feed-native-plugin-http.js";
 export { handleInboxNativePluginHttp, type InboxNativePluginHttpOptions } from "./inbox-native-plugin-http.js";
+export { handleHomeDockJudgmentHttp, type HomeDockHttpOptions } from "./home-dock-http.js";
+export { handleScheduleNativePluginHttp, type ScheduleNativePluginHttpOptions } from "./schedule-native-plugin-http.js";
 export { handleShelfNativePluginHttp } from "./shelf-native-plugin-http.js";
+export { handleFunctionsNativePluginHttp } from "./functions-native-plugin-http.js";
+export { handleFormNativePluginHttp } from "./form-native-plugin-http.js";
+export { handlePagesNativePluginHttp } from "./pages-native-plugin-http.js";
+export { handleDatasetNativePluginHttp } from "./dataset-native-plugin-http.js";
+export { handlePptNativePluginHttp } from "./ppt-native-plugin-http.js";
+export { handleLingguangNativePluginHttp } from "./lingguang-native-plugin-http.js";
 
 export { createLocalArtifactHttp, renderGoalArtifactContext } from "./artifact-native-plugin-http.js";
 
@@ -117,6 +127,8 @@ export { createLocalHostCapsule } from "./capsule.js";
 export { attachMolisWorkPtySocket, type MolisWorkPtySocketHandlers } from "./pty-socket.js";
 
 export { buildMolisWorkWebView, cachedMolisWorkWebView, type MolisWorkWebViewCache, type WebViewOptions } from "./web-view.js";
+export { bindScheduledTaskRunner, scheduleServiceFor, scheduleViewFingerprint } from "./schedule-runtime.js";
+export { createHostScheduledTaskRunner } from "./schedule-task-runner.js";
 
 export { sendLocalWebJson, readLocalWebBody, authorizeLocalWebRequest, type LocalMutationState } from "./web-http.js";
 export { createLocalWebAssets } from "./web-assets.js";
@@ -124,6 +136,14 @@ export { createLocalWebAssets } from "./web-assets.js";
 export * from "./web-session.js";
 export { reconcileLegacySessionCatalog } from "./session-migration.js";
 export { handleLocalRuntimeSettingsHttp, serviceProcessId } from "./web-runtime-settings.js";
+export { handleLocalMcpSettingsHttp } from "./web-mcp-settings.js";
+export { assembleMcpCatalog, findAssembledMcpTool, listMcpSettingsEntries } from "./mcp-catalog.js";
+export {
+  createNativeMcpPluginAdapters,
+  dispatchNativeMcpPluginTool,
+  nativeMcpPluginSources,
+} from "./mcp-native-plugins.js";
+export { readMcpToolPreference, writeMcpToolPreference } from "./mcp-settings-store.js";
 export * from "./web-project-settings.js";
 export * from "./web-project-presentation.js";
 export { importV3Board } from "./board-v3-import.js";
@@ -148,6 +168,19 @@ export type { V1CliOptions } from "./cli-project.js";
 export { runLocalCli } from "./cli-host.js";
 export type { LocalCliOptions } from "./cli-host.js";
 export {
+  DIRECTORY_ENTRY_LIMIT,
+  TEXT_FILE_MAX_BYTES,
+  listWorkspaceDirectory,
+  readWorkspaceTextFile,
+  type WorkspaceReadPorts,
+} from "./workspace-files.js";
+export {
+  GIT_STATUS_MAX_BUFFER,
+  isGitRepository,
+  readGitStatus,
+  type GitStatusResult,
+} from "./git-status.js";
+export {
   ModelProviderError,
   ModelProviderStore,
   addPromptCacheColumn,
@@ -167,6 +200,9 @@ export {
 export { handleAgentReviewHttp, type AgentReviewHttpPorts } from "./agent-review-http.js";
 export {
   codingDirectoryPanel,
+  diffStagePanel,
+  filesDirectoryPanel,
+  gitDirectoryPanel,
   releaseCodingSurface,
   workspaceDirectoryPanel,
   type CodingSurfacePorts,

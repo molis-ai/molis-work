@@ -308,7 +308,9 @@ test("Shelf UI contribution paints stage folds and DropAgent command chrome", ()
   assert.match(workbench, /对照原文/);
   assert.match(workbench, /编辑副本/);
   assert.match(workbench, /data-shelf-edit/);
-  assert.match(workbench, /data-shelf-chrome/);
+  assert.match(workbench, /plugin-stage-detail-bar shelf-chrome/);
+  assert.match(workbench, /data-shelf-chrome-title/);
+  assert.doesNotMatch(workbench, /data-stage-back-only/);
   assert.match(workbench, /开始提取/);
   assert.match(workbench, /加入材料/);
   assert.match(workbench, /发给终端请拖到轮盘/);
@@ -320,11 +322,19 @@ test("Shelf UI contribution paints stage folds and DropAgent command chrome", ()
   assert.match(workbench, /data-shelf-pick aria-label="添加材料"/);
   assert.match(workbench, /data-shelf-paste-clip>粘贴当前剪贴板/);
   assert.match(workbench, /data-shelf-multi aria-pressed="false">多选材料/);
+  assert.match(workbench, /data-shelf="directory"[\s\S]*shelf-side-head[\s\S]*shelf-side-scroll[\s\S]*shelf-side-foot/);
   assert.match(workbench, /shelf-side-foot[\s\S]*副本工作区[\s\S]*⌘V 粘贴当前/);
   assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /已选 \{count\} 份材料/);
   assert.equal(SHELF_EN["副本工作区"], "Working copies");
   assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /结束多选/);
+  assert.doesNotMatch(SHELF_CLIENT_FACTORY_SCRIPT, /min-width: 761px/);
   assert.match(SHELF_STYLES, /\[data-shelf-stage-shell\]\[data-expanded="true"\] \{ --tree-width: 213px/);
+  assert.match(SHELF_STYLES, /shelf-side-foot \{[\s\S]*margin-top: auto/);
+  assert.match(SHELF_STYLES, /\[data-shelf\] \.shelf-stage-chrome \{[\s\S]*height: 30px;/);
+  assert.match(SHELF_STYLES, /\[data-shelf\] \.shelf-search \{[\s\S]*height: 30px;[\s\S]*margin: 0;/);
+  assert.match(SHELF_STYLES, /\[data-shelf\] \.shelf-side-op \{[\s\S]*width: 30px; height: 30px;[\s\S]*margin: 0;/);
+  assert.doesNotMatch(workbench, /plugin-stage-chrome shelf-stage-chrome/);
+  assert.doesNotMatch(SHELF_STYLES, /margin: 12px 0 6px/);
   // The group mark is a neutral label beside a coloured type glyph, never a green tick.
   assert.match(workbench, /goal-collection-mark shelf-group-mark tone-ochre/);
   assert.doesNotMatch(SHELF_CLIENT_FACTORY_SCRIPT, /is-ready|icon-check/);
@@ -376,6 +386,11 @@ test("Shelf UI contribution paints stage folds and DropAgent command chrome", ()
   assert.doesNotMatch(SHELF_CLIENT_FACTORY_SCRIPT, /others\.forEach/);
   assert.doesNotMatch(SHELF_CLIENT_FACTORY_SCRIPT, /data-shelf-act=summarize/);
   assert.match(SHELF_STYLES, /--da-side: var\(--content-side\)/);
+  assert.match(SHELF_STYLES, /\.plugin-stage-list\[data-shelf="directory"\] \{[^}]*background: var\(--paper\)/);
+  assert.match(SHELF_STYLES, /\[data-shelf-stage-shell\] \.plugin-stage-list \{[^}]*background: var\(--paper\)/);
+  assert.doesNotMatch(SHELF_STYLES, /\.plugin-stage-list\[data-shelf="directory"\] \{[^}]*background: var\(--da-side\)/);
+  assert.doesNotMatch(SHELF_STYLES, /shelf-settings-nav|shelf-settings-tab/);
+  assert.match(SHELF_STYLES, /shelf-runtime-pick:has\(input:checked\)/);
   assert.match(SHELF_STYLES, /max-width: 640px/);
   assert.equal(SHELF_EN["原材料已不在工作区，无法对照。"], "The source material is no longer in this workspace.");
   assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /data-shelf-editor/);
@@ -396,7 +411,10 @@ test("Shelf UI contribution paints stage folds and DropAgent command chrome", ()
   assert.match(SHELF_STYLES, /--clay: var\(--mark-clay\)/);
   assert.match(SHELF_STYLES, /--da-panel: var\(--content-paper\)/);
   assert.match(SHELF_STYLES, /\.shelf-row\.is-on \{[\s\S]*background: var\(--da-select\)/);
+  assert.match(SHELF_STYLES, /\.shelf-row \{[\s\S]*color: var\(--ink\)/);
   assert.match(SHELF_STYLES, /\.shelf-name \{[\s\S]*flex: 0 1 auto;/);
+  assert.match(SHELF_STYLES, /\.shelf-name \{[\s\S]*font-size: 13px/);
+  assert.match(SHELF_STYLES, /\.shelf-name \{[\s\S]*color: var\(--ink\)/);
   assert.match(SHELF_STYLES, /\.shelf-row:is\(:hover, \.is-on\):not\(\.is-child\) \{ padding-right: 72px; \}/);
   assert.match(SHELF_STYLES, /\.shelf-row \.shelf-ops \{[\s\S]*display: flex;[\s\S]*opacity: 0/);
   assert.match(SHELF_STYLES, /\.shelf-row:is\(:hover, \.is-on\):not\(\.is-child\) \.shelf-ops \{ opacity: 1/);

@@ -1,5 +1,8 @@
+import { PERSONAL_PLUGIN_IDS } from "../../plugin-catalog.js";
+
 /** Workbench composes bundled project entries and exact Artifact contributions. */
 export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
+  const PERSONAL_PLUGIN_IDS = ${JSON.stringify([...PERSONAL_PLUGIN_IDS])};
   const { route, translate: L, projectId, setSurface, saveUiState, setMobileView, openTabItem } = host;
   const market = document.querySelector('[data-work-surface="market"]');
   const selector = market.querySelector("[data-market-project]");
@@ -76,7 +79,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     market.querySelector("[data-market-installed]").hidden = installed.childElementCount === 0 || Boolean(query);
     let count = 0;
     market.querySelectorAll("[data-market-plugin]").forEach(card => {
-      const added = addedIds.includes(card.dataset.marketPlugin) || card.dataset.marketPlugin === "shelf";
+      const added = addedIds.includes(card.dataset.marketPlugin) || PERSONAL_PLUGIN_IDS.includes(card.dataset.marketPlugin);
       card.hidden = (onlyAdded && !added) || !((card.querySelector("h2").textContent + " " + card.querySelector("p").textContent).toLocaleLowerCase().includes(query));
       if (!card.hidden) count++;
       const button = card.querySelector("[data-market-add]");

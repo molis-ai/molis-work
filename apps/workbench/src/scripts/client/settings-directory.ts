@@ -148,6 +148,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
   const globalSectionFromPath = (pathname) => {
     if (pathname.startsWith("/settings/planning")) return "planning";
     if (pathname.startsWith("/settings/runtimes")) return "runtimes";
+    if (pathname.startsWith("/settings/mcp")) return "mcp";
     if (pathname.startsWith("/settings/diagnostics")) return "diagnostics";
     if (pathname.startsWith("/settings/appearance") || pathname === "/settings") return "appearance";
     const slug = pathname.replace(/^\\/settings\\//, "").split("/")[0];

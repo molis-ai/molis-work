@@ -121,12 +121,12 @@ export class PublicSourceSync {
     }
   }
 
-  private commitPublicResult(
+  private async commitPublicResult(
     entrySource: FeedSourceRecord,
     running: FeedSourceRunRecord,
     result: IntelligenceCollectResult,
     runtime: PublicFeedRuntime,
-  ): FeedSourceSyncResult {
+  ): Promise<FeedSourceSyncResult> {
     const completedAt = new Date().toISOString();
     const consumable = result.outcome === "completed" || (result.outcome === "partial" && result.requirementMet);
     const rssSource = this.ports.providers.rss.isSourceKind(entrySource.kind);
@@ -238,6 +238,7 @@ export class PublicSourceSync {
         this.recordRssSourceFault(durableSource, terminal.error_code, actionableRssFailure, completedAt);
       }
     }
+    await this.feed.flushPendingJudgments();
     return { source: durableSource, run: terminal, created, deduped, replayed: false };
   }
 

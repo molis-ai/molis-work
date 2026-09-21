@@ -275,11 +275,11 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     const title = workbench.querySelector("[data-shelf-chrome-title]");
     const tag = workbench.querySelector("[data-shelf-chrome-tag]");
     const editBtn = workbench.querySelector("[data-shelf-edit]");
-    if (chrome) chrome.hidden = !(selected && !selectedClip);
-    if (title) title.textContent = selected && !selectedClip ? selected.name : "";
+    if (chrome) chrome.hidden = !(selected || selectedClip);
+    if (title) title.textContent = selectedClip ? selectedClip.title : (selected ? selected.name : "");
     if (tag) {
       const group = selected?.group === "result" ? L("结果") : L("材料");
-      tag.textContent = selected && !selectedClip ? group + " · " + cap(selected.kind) : "";
+      tag.textContent = selectedClip ? L("剪贴板") : (selected ? group + " · " + cap(selected.kind) : "");
     }
     const copyBtn = workbench.querySelector("[data-shelf-copy-file]");
     const useBtn = workbench.querySelector("[data-shelf-use-material]");

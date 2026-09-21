@@ -2,6 +2,8 @@
 
 其余官方账号连接的只读协议：令牌解析、identity / list API、whoami。Host 按 connector id 装配，不按服务建空包。
 
+Status: `partial`。Contract：`@molis-ai/molis-work-contracts/platform/plugin`。迁移目标：`goal-reorg-f2`、`goal-reorg-fd3`。
+
 包名：`@molis-ai/molis-work-integration-catalog`。
 
 ## 一次典型调用

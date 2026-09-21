@@ -29,6 +29,7 @@ export type { FunctionsPluginRouteHandler, FunctionsPluginRouteRequest, Function
 export { createFunctionsRouteHandlers } from "./route-handlers.js";
 export { functionsRouteErrorResponse } from "./route-error.js";
 export { FUNCTIONS_PLUGIN_ID, FUNCTIONS_PROJECT_PLUGIN_ID, functionsManifest } from "./manifest.js";
+export { FUNCTIONS_MCP_EXPORTS, runFunctionsMcpTool } from "./mcp.js";
 export { openFunctionsStore, FunctionsStore } from "./store.js";
 export { createFunctionsService, FunctionsService } from "./service.js";
 export type { FunctionsSecretPort } from "./service.js";

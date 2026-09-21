@@ -1,15 +1,22 @@
-import type {
-  ChoiceCriterion,
-  FunctionCriteria,
-  FunctionDraftPatch,
-  FunctionsPrimitive,
-  NoulCriteria,
+import {
+  assembleFunctionAuthoringCatalog,
+  isFunctionDestinationId,
+  type ChoiceCriterion,
+  type FunctionAuthoringCatalog,
+  type FunctionCriteria,
+  type FunctionDraftPatch,
+  type FunctionsPrimitive,
+  type NoulCriteria,
 } from "@molis-ai/molis-work-contracts/modules/functions";
 import type { FunctionsPluginRouteHandler } from "./routes.js";
 import type { FunctionsService } from "./service.js";
 import { FunctionsError } from "./keys.js";
 
-export function createFunctionsRouteHandlers(service: FunctionsService): Record<string, FunctionsPluginRouteHandler> {
+export function createFunctionsRouteHandlers(
+  service: FunctionsService,
+  options: { catalog?: () => FunctionAuthoringCatalog } = {},
+): Record<string, FunctionsPluginRouteHandler> {
+  const catalog = options.catalog ?? (() => assembleFunctionAuthoringCatalog());
   return {
     "functions.list": () => ({ status: 200, body: { functions: service.list() } }),
     "functions.create": ({ request }) => ({
@@ -20,6 +27,7 @@ export function createFunctionsRouteHandlers(service: FunctionsService): Record<
         function_key: stringField(request.body.function_key),
       }) },
     }),
+    "functions.catalog": () => ({ status: 200, body: { catalog: catalog() } }),
     "functions.settings.read": () => ({ status: 200, body: service.settingsStatus() }),
     "functions.settings.write": ({ request }) => {
       if (request.body.clear === true) return { status: 200, body: service.clearCredential() };
@@ -61,6 +69,10 @@ export function createFunctionsRouteHandlers(service: FunctionsService): Record<
       status: 200,
       body: { function: service.removeSample(params.id ?? "", stringField(request.body.sample_id) ?? "") },
     }),
+    "functions.usages": ({ params }) => {
+      const record = service.get(params.id ?? "");
+      return { status: 200, body: { usages: service.listSceneBindings(record.function_key) } };
+    },
   };
 }
 
@@ -76,7 +88,22 @@ function readDraftPatch(body: Readonly<Record<string, unknown>>): FunctionDraftP
   if ("function_key" in body) Object.assign(patch, { function_key: stringField(body.function_key) ?? "" });
   if ("instructions" in body) Object.assign(patch, { instructions: stringField(body.instructions) ?? "" });
   if ("criteria" in body) Object.assign(patch, { criteria: readCriteria(body.criteria) });
+  if ("scene_id" in body) Object.assign(patch, { scene_id: readSceneId(body.scene_id) });
+  if ("subject_kinds" in body) Object.assign(patch, { subject_kinds: readSubjectKinds(body.subject_kinds) });
   return patch;
+}
+
+function readSceneId(value: unknown): string | null {
+  if (value === null || value === "") return null;
+  if (typeof value !== "string" || !isFunctionDestinationId(value)) {
+    throw new FunctionsError("functions.invalid", "去向不在已登记的事件或 Agent 调用里");
+  }
+  return value;
+}
+
+function readSubjectKinds(value: unknown): string[] {
+  if (!Array.isArray(value)) throw new FunctionsError("functions.invalid", "来源格式不对");
+  return value.flatMap((item) => typeof item === "string" && item.trim() ? [item.trim()] : []);
 }
 
 function readCriteria(value: unknown): FunctionCriteria {

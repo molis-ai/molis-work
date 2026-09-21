@@ -1,5 +1,9 @@
+import { OWN_DIRECTORY_SURFACES, pluginTabTitles } from "../../plugin-catalog.js";
+
 /** Coordinates application chrome; content and Runtime behavior stay with their Plugin owners. */
 export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
+  const OWN_DIRECTORY_SURFACES = ${JSON.stringify([...OWN_DIRECTORY_SURFACES])};
+  const PLUGIN_TAB_TITLES = ${JSON.stringify({ goal: "Goals", sources: "Feed", ...pluginTabTitles() })};
   const { workspace, treePane, documentPane, getSelected, getState, getSurface, translate: L,
     setDirectoryCollapsed, setWorkspaceMode, setMobileView, saveUiState } = host;
   if (!document.body.classList.contains("immersive-workbench")) return null;
@@ -31,7 +35,7 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
     if (surface === "market") return "market";
     if (surface === "settings") return "settings";
     if (surface === "project-settings") return "project-settings";
-    if (surface === "sessions" || surface === "inbox" || surface === "schedule" || surface === "artifacts" || surface === "shelf" || surface === "functions") return surface;
+    if (OWN_DIRECTORY_SURFACES.includes(surface)) return surface === "sources" ? "feed" : surface;
     return "";
   };
   const syncPresence = () => {
@@ -101,7 +105,7 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
       }
     }
     const surface = getSurface();
-    const labels = { home: L("项目首页"), goal: "Goals", sessions: "Sessions", inbox: "Inbox", feed: "Feed", sources: "Feed", shelf: "Shelf", artifacts: "Artifacts", market: L("插件市场"), "project-settings": L("项目设置") };
+    const labels = { home: L("项目首页"), market: L("插件市场"), "project-settings": L("项目设置"), ...PLUGIN_TAB_TITLES };
     const pluginTitle = document.querySelector("[data-immersive-plugin-title]");
     if (pluginTitle) {
       pluginTitle.hidden = true;

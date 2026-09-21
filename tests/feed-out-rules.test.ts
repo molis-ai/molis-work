@@ -21,6 +21,11 @@ import {
   FEED_CAPTURE_ARTIFACT_TYPE_ID,
   feedCaptureArtifactId,
 } from "@molis-ai/molis-work-plugin-feed";
+import {
+  FEED_CAPTURE_SCENE_ID,
+  INBOX_ADMIT_BEHAVIOR_ID,
+  type JudgmentPort,
+} from "@molis-ai/molis-work-contracts/modules/functions";
 
 const TOKEN = "feed-out-rules-test-token-0123456789012345";
 
@@ -73,6 +78,57 @@ test("new Feed Item matching an out rule leaves an exact Artifact and no success
       0,
     );
     assert.equal(data.feed.getFeedItem(DEMO_BOARD_ID, ingested.item.item_id).item_id, ingested.item.item_id);
+  } finally {
+    close(data);
+  }
+});
+
+test("out-rule judgment records a suggestion without admitting the Feed Item", async () => {
+  const judged: string[] = [];
+  const judgments: JudgmentPort = {
+    async judge(input) {
+      judged.push(input.scene_id ?? "");
+      return {
+        judgment_id: "judgment-admit",
+        function_key: input.function_key,
+        function_version: 1,
+        subject: input.subject,
+        scene_id: input.scene_id ?? null,
+        outcome: "ok",
+        suggested_behavior_ids: [INBOX_ADMIT_BEHAVIOR_ID],
+        error_code: null,
+        created_at: "2026-09-21T00:00:00.000Z",
+      };
+    },
+    bindScene(sceneId, functionKey, boardId, ref) {
+      return { scene_id: sceneId, function_key: functionKey, board_id: boardId ?? null, ref: ref ?? null };
+    },
+    unbindScene() {},
+    sceneBinding() { return null; },
+    latest() { return null; },
+  };
+  const data = harness({ judgments });
+  try {
+    data.feed.createOutRule(DEMO_BOARD_ID, {
+      name: "发布相关",
+      match: { contains: "launch" },
+      function_key: "system_admit_inbox",
+    });
+    const ingested = data.feed.ingestItem({
+      source: data.source,
+      externalId: "launch-judge",
+      title: "Product launch checklist",
+      summary: "Ship the launch notes",
+      tags: ["launch"],
+      occurredAt: "2026-09-15T00:00:00.000Z",
+      attention: false,
+    });
+    await data.feed.flushPendingJudgments();
+    assert.ok(judged.includes(FEED_CAPTURE_SCENE_ID));
+    assert.equal(
+      data.feed.listInboxEntries(DEMO_BOARD_ID).filter((entry) => entry.subject_id === ingested.item.item_id).length,
+      0,
+    );
   } finally {
     close(data);
   }
@@ -343,6 +399,44 @@ test("Feed out-rule HTTP CRUD is owned by Feed plugin routes", async (t) => {
   assert.equal(addFeed.status, 200);
 
   const prefix = `/projects/${encodeURIComponent(project.project_id)}`;
+  const page = await (await webFetch(`${origin}${prefix}/`)).text();
+  const addSelect = page.match(/<select data-feed-add-out-rule-function-key>[\s\S]*?<\/select>/)?.[0] ?? "";
+  assert.match(page, /捕捉判断/);
+  assert.match(addSelect, /value="system_admit_inbox"/);
+  assert.doesNotMatch(addSelect, /system_pick_home_dock/);
+  assert.doesNotMatch(addSelect, /system_pick_inbox_next/);
+
+  const unpublished = await webFetch(`${origin}${prefix}/api/feed/out-rules`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name: "坏判断", contains: "launch", function_key: "not_a_published_function" }),
+  });
+  assert.equal(unpublished.status, 400);
+  const emptyAfterUnpublished = await webFetch(`${origin}${prefix}/api/feed/out-rules`);
+  assert.equal(((await emptyAfterUnpublished.json()) as { rules: unknown[] }).rules.length, 0);
+
+  const mismatched = await webFetch(`${origin}${prefix}/api/feed/out-rules`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name: "首页判断", contains: "launch", function_key: "system_pick_home_dock" }),
+  });
+  assert.equal(mismatched.status, 400);
+  const emptyAfterMismatch = await webFetch(`${origin}${prefix}/api/feed/out-rules`);
+  assert.equal(((await emptyAfterMismatch.json()) as { rules: unknown[] }).rules.length, 0);
+
+  const bound = await webFetch(`${origin}${prefix}/api/feed/out-rules`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name: "发布判断", contains: "launch", function_key: "system_admit_inbox" }),
+  });
+  assert.equal(bound.status, 201);
+  const boundBody = await bound.json() as { rule: { rule_id: string; function_key: string | null } };
+  assert.equal(boundBody.rule.function_key, "system_admit_inbox");
+  const deletedBound = await webFetch(`${origin}${prefix}/api/feed/out-rules/${encodeURIComponent(boundBody.rule.rule_id)}`, {
+    method: "DELETE",
+  });
+  assert.equal(deletedBound.status, 200);
+
   const createdRule = await webFetch(`${origin}${prefix}/api/feed/out-rules`, {
     method: "POST",
     headers: { "content-type": "application/json" },

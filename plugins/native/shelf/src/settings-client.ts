@@ -198,21 +198,6 @@ export const SHELF_SETTINGS_CLIENT_SCRIPT = `(() => {
 
   const bind = (root) => {
     const scope = root && root.querySelector ? root : document;
-    scope.querySelectorAll("[data-shelf-settings-tab]").forEach((tab) => {
-      if (tab.dataset.shelfSettingsBound === "1") return;
-      tab.dataset.shelfSettingsBound = "1";
-      tab.addEventListener("click", () => {
-        const id = tab.dataset.shelfSettingsTab;
-        scope.querySelectorAll("[data-shelf-settings-tab]").forEach((other) => {
-          const on = other === tab;
-          other.classList.toggle("is-on", on);
-          other.setAttribute("aria-selected", String(on));
-        });
-        scope.querySelectorAll("[data-shelf-settings-pane]").forEach((pane) => {
-          pane.hidden = pane.dataset.shelfSettingsPane !== id;
-        });
-      });
-    });
     scope.querySelectorAll("[data-shelf-panel-slot]").forEach((row) => {
       if (row.dataset.shelfSettingsBound === "1") return;
       row.dataset.shelfSettingsBound = "1";

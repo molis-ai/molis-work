@@ -2,6 +2,7 @@ import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plu
 import { FUNCTIONS_PLUGIN_ID, FUNCTIONS_PROJECT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/functions";
 import { FUNCTIONS_UI_CONTRIBUTION_ID } from "./ui.js";
 import { FUNCTIONS_SETTINGS_UI_CONTRIBUTION_ID } from "./settings-ui.js";
+import { FUNCTIONS_MCP_EXPORTS } from "./mcp.js";
 
 export { FUNCTIONS_PLUGIN_ID, FUNCTIONS_PROJECT_PLUGIN_ID };
 
@@ -22,7 +23,7 @@ export const functionsManifest: PluginManifest = {
   publisher: { publisher_id: "molis", signature: "official-functions-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [],
-  capabilities: { provides: [], consumes: [] },
+  capabilities: { provides: ["functions.evaluate"], consumes: [] },
   artifacts: { produces: [], consumes: [] },
   ui: {
     contributions: [FUNCTIONS_UI_CONTRIBUTION_ID, FUNCTIONS_SETTINGS_UI_CONTRIBUTION_ID],
@@ -31,4 +32,5 @@ export const functionsManifest: PluginManifest = {
       { view_id: "settings", slot: "settings", title: "Functions", contribution_id: FUNCTIONS_SETTINGS_UI_CONTRIBUTION_ID, order: 110 },
     ],
   },
+  mcp_exports: [...FUNCTIONS_MCP_EXPORTS],
 };

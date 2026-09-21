@@ -58,6 +58,11 @@ import {
   renderProjectOperations,
   renderShelfContribution,
   renderFunctionsContribution,
+  renderPagesContribution,
+  renderFormContribution,
+  renderDatasetContribution,
+  renderPptContribution,
+  renderLingguangContribution,
   renderWorkbenchDocument,
   renderWorkTerminal,
 } from "./ui-composition.js";
@@ -106,6 +111,36 @@ function renderFunctionsNativePluginSurface(surface: "directory" | "workbench"):
   });
 }
 
+function renderPagesNativePluginSurface(surface: "directory" | "workbench"): string {
+  return renderPagesContribution(surface, {
+    primitives: { escape: escapeHtml, text: L },
+  });
+}
+
+function renderFormNativePluginSurface(surface: "directory" | "workbench"): string {
+  return renderFormContribution(surface, {
+    primitives: { escape: escapeHtml, text: L },
+  });
+}
+
+function renderDatasetNativePluginSurface(surface: "directory" | "workbench"): string {
+  return renderDatasetContribution(surface, {
+    primitives: { escape: escapeHtml, text: L },
+  });
+}
+
+function renderPptNativePluginSurface(surface: "directory" | "workbench"): string {
+  return renderPptContribution(surface, {
+    primitives: { escape: escapeHtml, text: L },
+  });
+}
+
+function renderLingguangNativePluginSurface(surface: "directory" | "workbench"): string {
+  return renderLingguangContribution(surface, {
+    primitives: { escape: escapeHtml, text: L },
+  });
+}
+
 const { explainWorkState, explainParentCompletion } = createGoalStateExplainer(L);
 
 const THEME_BOOTSTRAP_SCRIPT = `${BASE_THEME_BOOTSTRAP_SCRIPT}${NATIVE_DESKTOP_BOOTSTRAP_SCRIPT}`;
@@ -149,6 +184,7 @@ function dataJson(view: MolisWorkWebView): string {
     goals: summarize(view.goals),
     archived_goals: summarize(view.archived_goals),
     trashed_goals: summarize(view.trashed_goals),
+    function_scenes: view.function_scenes ?? null,
   }).replaceAll("<", "\\u003c");
 }
 
@@ -368,7 +404,7 @@ const { renderMolisWorkWeb, renderMolisWorkRefreshFragment } =
     renderCreateDialog, renderGoalTrashDialog, renderMomentumPlaceholder, renderGoalKanban, renderTuiPane,
     renderProjectOperations: (project, data) => renderProjectOperations(project, data, icon, L),
     renderDesktopProjectChrome, renderProjectSwitcher,
-    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderShelfNativePluginSurface, renderFunctionsNativePluginSurface,
+    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderShelfNativePluginSurface, renderFunctionsNativePluginSurface, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderLingguangNativePluginSurface,
   });
   return {
     renderMolisWorkProjectIndex,

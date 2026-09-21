@@ -76,8 +76,8 @@ export const CAPSULE_STYLES = `
   body { width: 420px; height: var(--capsule-height); margin: 0; overflow: hidden; padding: 8px 0 0; background: transparent; color: var(--ink); font: 13px/1.45 var(--font); letter-spacing: -.006em; }
   button, select { font: inherit; }
   button:focus-visible, select:focus-visible {
-    outline: 2px solid color-mix(in srgb, var(--accent), transparent 18%);
-    outline-offset: 2px;
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
   }
   .capsule-shell { position: relative; width: 100%; height: calc(var(--capsule-height) - 8px); padding: 0 4px 4px; }
   .capsule__arrow {

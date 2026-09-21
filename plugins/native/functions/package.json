@@ -26,7 +26,8 @@
   },
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*",
-    "@molis-ai/molis-work-design-system": "workspace:*"
+    "@molis-ai/molis-work-design-system": "workspace:*",
+    "@molis-ai/molis-work-module-functions": "workspace:*"
   },
   "molis-work": {
     "path": "plugins/native/functions",

@@ -386,6 +386,11 @@ test("Shelf UI contribution paints stage folds and DropAgent command chrome", ()
   assert.doesNotMatch(SHELF_CLIENT_FACTORY_SCRIPT, /others\.forEach/);
   assert.doesNotMatch(SHELF_CLIENT_FACTORY_SCRIPT, /data-shelf-act=summarize/);
   assert.match(SHELF_STYLES, /--da-side: var\(--content-side\)/);
+  assert.match(SHELF_STYLES, /\.plugin-stage-list\[data-shelf="directory"\] \{[^}]*background: var\(--paper\)/);
+  assert.match(SHELF_STYLES, /\[data-shelf-stage-shell\] \.plugin-stage-list \{[^}]*background: var\(--paper\)/);
+  assert.doesNotMatch(SHELF_STYLES, /\.plugin-stage-list\[data-shelf="directory"\] \{[^}]*background: var\(--da-side\)/);
+  assert.doesNotMatch(SHELF_STYLES, /shelf-settings-nav|shelf-settings-tab/);
+  assert.match(SHELF_STYLES, /shelf-runtime-pick:has\(input:checked\)/);
   assert.match(SHELF_STYLES, /max-width: 640px/);
   assert.equal(SHELF_EN["原材料已不在工作区，无法对照。"], "The source material is no longer in this workspace.");
   assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /data-shelf-editor/);

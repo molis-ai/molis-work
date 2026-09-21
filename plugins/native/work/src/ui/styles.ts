@@ -167,7 +167,7 @@ export const PROJECT_OPERATIONS_STYLES = `
   body[data-desktop-shell="true"] .project-record-directory :is(.project-record-state--missing, .project-record-state--conflict) { color: var(--red); border-color: color-mix(in srgb, var(--red) 30%, var(--line)); background: var(--red-soft); }
   .project-record-meta { grid-column: 1 / -1; min-width: 0; color: var(--faint); display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; font-size: 9.5px; line-height: 1.35; }
   .project-record-meta time { font-variant-numeric: tabular-nums; white-space: nowrap; }
-  body[data-desktop-shell="true"] .project-record-directory .project-record-row:focus-visible { outline: 2px solid color-mix(in srgb, var(--blue) 72%, transparent); outline-offset: -2px; box-shadow: none; }
+  body[data-desktop-shell="true"] .project-record-directory .project-record-row:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; box-shadow: none; }
   html[data-resolved-theme="light"] body[data-desktop-shell="true"] .project-record-directory .project-record-row.is-selected { background: color-mix(in srgb, var(--blue) 8%, transparent); box-shadow: none; }
   .project-record-empty { min-height: 0; padding: 36px 18px; color: var(--muted); display: grid; align-content: start; justify-items: center; gap: 7px; text-align: center; }
   .project-record-empty > svg { font-size: 24px; }
@@ -197,7 +197,7 @@ export const PROJECT_OPERATIONS_STYLES = `
   .operation-content-search { position: relative; min-width: 160px; flex: 1 1 160px; display: flex; align-items: center; }
   .operation-content-search svg { position: absolute; left: 9px; color: var(--muted); pointer-events: none; }
   .operation-content-search input { width: 100%; height: 28px; padding: 0 9px 0 28px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: var(--page); font-size: 11px; }
-  .operation-content-search input:focus { border-color: var(--blue); outline: none; }
+  .operation-content-search input:focus-visible { border-color: var(--focus); outline: 2px solid var(--focus); outline-offset: -2px; }
   .session-event-filter { flex: none; }
   .session-content-body { min-width: 0; flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 16px 20px; }
   .session-transcript { width: 100%; max-width: none; min-width: 0; margin: 0; }
@@ -321,7 +321,7 @@ export const PROJECT_OPERATIONS_STYLES = `
   .session-handoff-editor header p { max-width: 62ch; margin: 3px 0 0; color: var(--muted); font-size: 9.5px; line-height: 1.45; }
   .session-handoff-editor header > span { flex: none; padding: 3px 7px; border-radius: 999px; color: var(--ink); background: var(--nav-hover); font-size: 9px; font-weight: 400; }
   .session-handoff-editor textarea { width: 100%; min-height: 0; padding: 17px 18px 24px; resize: none; border: 0; outline: 0; color: var(--ink-soft); caret-color: var(--blue); background: transparent; font: 11px/1.62 ui-monospace, SFMono-Regular, Menlo, monospace; tab-size: 2; scrollbar-color: var(--line-strong) transparent; }
-  .session-handoff-editor textarea:focus-visible { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--blue) 68%, transparent); }
+  .session-handoff-editor textarea:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; box-shadow: none; }
   .session-handoff-editor textarea::selection { color: var(--ink); background: color-mix(in srgb, var(--blue) 24%, transparent); }
   .session-handoff-dialog[data-handoff-busy="true"] .session-handoff-editor textarea { opacity: .62; }
   .session-handoff-dialog footer [data-handoff-save]:disabled { opacity: .42; }
@@ -351,11 +351,10 @@ export const PROJECT_OPERATIONS_STYLES = `
   .session-choice-picker > summary:hover { border-color: color-mix(in srgb, var(--control-input) 72%, var(--ink)); }
   .session-choice-picker > summary:focus-visible,
   .session-choice-picker[open] > summary {
-    outline: 0;
-    border-color: color-mix(in srgb, var(--focus) 62%, transparent);
-    box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--focus) 72%, transparent),
-      0 0 0 3.5px color-mix(in srgb, var(--focus) 15%, transparent);
+    outline: 2px solid var(--focus);
+    outline-offset: -2px;
+    border-color: var(--focus);
+    box-shadow: none;
   }
   .session-choice-picker[open] > summary > svg { transform: rotate(180deg); }
   .session-choice-options {

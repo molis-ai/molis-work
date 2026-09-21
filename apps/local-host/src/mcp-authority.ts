@@ -1,8 +1,9 @@
-import { isRuntimeMcpTool, isRuntimeContextMcpTool, type McpToolCallContext } from "@molis-ai/molis-work-app-mcp";
+import { isRuntimeMcpTool, isRuntimeContextMcpTool, MCP_TOOLS, type McpToolCallContext } from "@molis-ai/molis-work-app-mcp";
 import { MolisWorkV1Error } from "@molis-ai/molis-work-plugin-goals";
 import type { MolisWorkRuntimeConnection, MolisWorkRuntimeContextHost } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { RuntimeProjectConnection } from "./runtime-project-connection.js";
 import { assertRuntimeOrdinaryToolInput } from "./mcp-event-identity.js";
+import type { AssembledMcpCatalog } from "./mcp-catalog.js";
 
 type MolisWorkMcpToolCallContext = McpToolCallContext;
 export interface McpAuthorityState {
@@ -13,24 +14,50 @@ export interface McpAuthorityState {
 }
 const EMPTY_TOOL_CALL_CONTEXT: McpToolCallContext = { runtimeSessionId: null, runtimeSessionIdSource: null };
 
+function homeScoped(name: string, catalog: AssembledMcpCatalog | undefined): boolean {
+  return isRuntimeContextMcpTool(name) || (catalog?.home_scoped_names.has(name) ?? false);
+}
+
+function runtimeSurface(name: string, catalog: AssembledMcpCatalog | undefined): boolean {
+  return isRuntimeMcpTool(name) || (catalog?.tools.some((tool) => tool.name === name) ?? false);
+}
+
+function isPlatformMcpTool(name: string): boolean {
+  return MCP_TOOLS.some((tool) => tool.name === name);
+}
+
 export function assertMcpToolAllowed(
   state: McpAuthorityState,
   name: string,
   arguments_: Record<string, unknown>,
   callContext: MolisWorkMcpToolCallContext,
+  catalog?: AssembledMcpCatalog,
 ): void {
+  if (catalog && !catalog.tools.some((tool) => tool.name === name)) {
+    const known = catalog.known_names.has(name) || isPlatformMcpTool(name);
+    if (!known) {
+      throw new MolisWorkV1Error("mcp.tool_unknown", `未知 MCP 方法：${name}`);
+    }
+    if (state.audience === "runtime" && isPlatformMcpTool(name) && !isRuntimeMcpTool(name)) {
+      throw new MolisWorkV1Error(
+        "mcp.authority_denied",
+        `MCP 权限拒绝：${name} 只允许用户或管理入口调用；Runtime 应使用当前事件工具，或把决定交给用户`,
+      );
+    }
+    throw new MolisWorkV1Error("mcp.tool_disabled", `MCP 方法已关闭或当前连接不可用：${name}`);
+  }
   if (state.audience === "management") return;
-  if (!isRuntimeMcpTool(name)) {
+  if (!runtimeSurface(name, catalog)) {
     throw new MolisWorkV1Error(
       "mcp.authority_denied",
       `MCP 权限拒绝：${name} 只允许用户或管理入口调用；Runtime 应使用当前事件工具，或把决定交给用户`,
     );
   }
-  if (isRuntimeContextMcpTool(name)) {
+  if (homeScoped(name, catalog)) {
     requireMcpRuntimeContextHost(state, callContext);
     return;
   }
-  assertRuntimeOrdinaryToolInput(name, arguments_);
+  assertRuntimeOrdinaryToolInput(name, arguments_, catalog?.home_scoped_names ?? new Set());
   if (!state.connectionState.explicit) {
     const host = requireMcpRuntimeContextHost(state, callContext);
     if (state.connectionState.observe(host.runtimeContext) === "refresh_required") {

@@ -106,8 +106,8 @@ export const FOUNDATION_STYLES = `  :root {
   button, input, textarea, select { font-family: var(--font); }
   button:focus-visible, input:focus-visible, textarea:focus-visible,
   select:focus-visible, a:focus-visible, summary:focus-visible {
-    outline: 2px solid color-mix(in srgb, var(--blue), transparent 28%);
-    outline-offset: 2px;
+    outline: 2px solid var(--focus);
+    outline-offset: -2px;
   }
 
   .app { grid-template-rows: 48px minmax(0, 1fr); }

@@ -237,7 +237,7 @@ export const IMMERSIVE_DIRECTORY_STYLES = `
   body.immersive-workbench .feed-stage-item { border: 0; border-radius: 0; }
   body.immersive-workbench .feed-stage-item.is-open { margin-block: 0; border: 0; background: transparent; }
   body.immersive-workbench .feed-stage-item-line { display: block; }
-  body.immersive-workbench .feed-stage-entry:focus-visible { outline: 2px solid var(--blue-dark); outline-offset: -2px; }
+  body.immersive-workbench .feed-stage-entry:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
   body.immersive-workbench .feed-stage-item.is-open .feed-stage-entry { height: 28px; min-height: 28px; padding: 0 8px; }
   body.immersive-workbench .feed-stage-item-detail { border-radius: 0; background: transparent; padding: 0 40px 16px 52px; margin: 0; animation: feed-reader-reveal 160ms ease-out; }
   body.immersive-workbench .feed-stage-item-detail .feed-detail { max-width: 76ch; margin: 0; padding: 0; }

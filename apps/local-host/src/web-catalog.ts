@@ -10,11 +10,19 @@ import type { WebProjectNavigation, WebSettingsSection } from "@molis-ai/molis-w
 import { findPluginSettingsNavItem, renderMolisWorkPrimitiveCatalog, renderPluginSettingsContribution } from "@molis-ai/molis-work-app-workbench";
 import { handleShelfNativePluginHttp, shelfRuntimeProbe } from "./shelf-native-plugin-http.js";
 import { handleFunctionsNativePluginHttp } from "./functions-native-plugin-http.js";
+import { handleFormNativePluginHttp } from "./form-native-plugin-http.js";
+import { handlePagesNativePluginHttp } from "./pages-native-plugin-http.js";
+import { handleDatasetNativePluginHttp } from "./dataset-native-plugin-http.js";
+import { handlePptNativePluginHttp } from "./ppt-native-plugin-http.js";
+import { handleLingguangNativePluginHttp } from "./lingguang-native-plugin-http.js";
 import { SHELF_SETTINGS_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-shelf";
 import { FUNCTIONS_SETTINGS_UI_CONTRIBUTION_ID, createFunctionsService, openFunctionsStore } from "@molis-ai/molis-work-plugin-functions";
 import { createFileSecretStore } from "@molis-ai/molis-work-storage";
 import { openShelfStore } from "@molis-ai/molis-work-module-shelf";
 import { handleLocalRuntimeSettingsHttp, serviceProcessId } from "./web-runtime-settings.js";
+import { handleLocalMcpSettingsHttp } from "./web-mcp-settings.js";
+import { listMcpSettingsEntries } from "./mcp-catalog.js";
+import { readMcpToolPreference } from "./mcp-settings-store.js";
 import { installationDiagnostics } from "./web-project-presentation.js";
 import { molisWorkOnboardingStatus } from "./onboarding.js";
 import type { ProjectDeletionWebPorts } from "./web-project-settings.js";
@@ -30,6 +38,11 @@ export async function handleLocalCatalogWebRequest(
   const { settingsProjects } = projectSettings;
   if (serverOptions.homeDirectory && await handleShelfNativePluginHttp(request, response, url, serverOptions.homeDirectory)) return;
   if (serverOptions.homeDirectory && await handleFunctionsNativePluginHttp(request, response, url, serverOptions.homeDirectory)) return;
+  if (serverOptions.homeDirectory && await handlePagesNativePluginHttp(request, response, url, serverOptions.homeDirectory)) return;
+  if (serverOptions.homeDirectory && await handleFormNativePluginHttp(request, response, url, serverOptions.homeDirectory)) return;
+  if (serverOptions.homeDirectory && await handleDatasetNativePluginHttp(request, response, url, serverOptions.homeDirectory)) return;
+  if (serverOptions.homeDirectory && await handlePptNativePluginHttp(request, response, url, serverOptions.homeDirectory)) return;
+  if (serverOptions.homeDirectory && await handleLingguangNativePluginHttp(request, response, url, serverOptions.homeDirectory)) return;
   if (await handleOnboarding(request, response, url, serverOptions.homeDirectory, projects.length, localHost, controlToken)) return;
   if (request.method === "GET" && url.pathname === "/desktop/capsule") {
     response.writeHead(200, {
@@ -58,7 +71,7 @@ export async function handleLocalCatalogWebRequest(
     return;
   }
   if (await planningHttp.personal(request, response, url, serverOptions.homeDirectory, projects, controlToken, localHost, () => feedSchedulers.clear())) return;
-  const settingsPageMatch = url.pathname.match(/^\/settings\/(appearance|runtimes|projects|diagnostics)$/);
+  const settingsPageMatch = url.pathname.match(/^\/settings\/(appearance|runtimes|mcp|projects|diagnostics)$/);
   if (request.method === "GET" && settingsPageMatch) {
     const section = settingsPageMatch[1] as WebSettingsSection;
     const projects = await settingsProjects(serverOptions.homeDirectory);
@@ -67,6 +80,16 @@ export async function handleLocalCatalogWebRequest(
       ? projects.find((project) => project.project_id === contextProjectId) ?? null
       : null;
     const runtimes = section === "runtimes" ? await runtimeIntegrations.detectAll() : [];
+    const mcp_tools = section === "mcp" && serverOptions.homeDirectory
+      ? listMcpSettingsEntries(await readMcpToolPreference(serverOptions.homeDirectory)).map((row) => ({
+        name: row.definition.name,
+        description: row.definition.description,
+        group_id: row.group_id,
+        group_title: row.group_title,
+        enabled: row.enabled,
+        effect: row.effect,
+      }))
+      : [];
     response.writeHead(200, {
       "content-type": "text/html; charset=utf-8",
       "cache-control": "no-store",
@@ -76,6 +99,7 @@ export async function handleLocalCatalogWebRequest(
       section,
       context_project: contextProject,
       runtimes,
+      mcp_tools,
       projects,
       web_service: await webService.detect(),
       diagnostics: installationDiagnostics(serverOptions.homeDirectory, projects.length),
@@ -111,6 +135,7 @@ export async function handleLocalCatalogWebRequest(
     }, controlToken, isDesktopShellRequest(request, url)));
     return;
   }
+  if (await handleLocalMcpSettingsHttp(request, response, url, serverOptions.homeDirectory)) return;
   if (await handleLocalRuntimeSettingsHttp(request, response, url, runtimeIntegrations, webService)) return;
   if (await projectSettings.handle(request, response, url, serverOptions.homeDirectory, projects.length, deletionPorts)) return;
   if (request.method === "GET" && url.pathname === "/desktop/pty-client.js") {

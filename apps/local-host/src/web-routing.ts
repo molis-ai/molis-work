@@ -13,6 +13,7 @@ export function fixtureWebBoardOptions(options: WebServerOptions): ResolvedWebBo
     project: null,
     projects: [],
     routePrefix: "",
+    homeDirectory: options.homeDirectory,
   };
 }
 
@@ -72,6 +73,7 @@ export async function resolveWebRequest(
         projects,
         routePrefix: `/projects/${encodeURIComponent(project.project_id)}`,
         demo: project.data_class === "regenerable_demo",
+        homeDirectory: serverOptions.homeDirectory,
       },
     };
   });

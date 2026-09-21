@@ -32,6 +32,8 @@ export const INTERACTION_TEXTURE_STYLES = `
     --shadow: 0 2px 4px rgba(19, 21, 32, .05), 0 12px 32px rgba(19, 21, 32, .10);
     --control-shadow: 0 1px 1px rgba(19, 21, 32, .04), 0 6px 14px rgba(19, 21, 32, .07), 0 18px 38px rgba(19, 21, 32, .09);
     --control-ring: var(--focus);
+    --focus-stroke: 2px solid var(--focus);
+    --focus-stroke-inset: -2px;
 
     --motion-instant: 90ms; --motion-fast: 130ms; --motion-normal: 190ms;
     --ease-out: cubic-bezier(.16, 1, .3, 1);
@@ -56,6 +58,8 @@ export const INTERACTION_TEXTURE_STYLES = `
     --shadow: 0 4px 10px rgba(0, 0, 0, .5), 0 20px 48px rgba(0, 0, 0, .46);
     --control-shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 8px 20px rgba(0, 0, 0, .45), 0 24px 52px rgba(0, 0, 0, .4);
     --control-ring: var(--focus);
+    --focus-stroke: 2px solid var(--focus);
+    --focus-stroke-inset: -2px;
     --scrim: rgba(0, 0, 0, .55);
   }
 
@@ -191,14 +195,12 @@ export const INTERACTION_TEXTURE_STYLES = `
   }
   ${SCROLL_REGION}::-webkit-scrollbar-corner { background: transparent; }
 
-  /* Fields answer focus with their own accent ring instead of a detached browser outline. */
-  /* One low-specificity rule so a component (Feed fields, primitives) can still state its own ring. */
+  /* Fields answer focus with a 2px --focus stroke inside the control, never an outer halo. */
   body :is(input, select, textarea):not([type="checkbox"], [type="radio"], [type="range"], .mw-slider, .mw-input, .mw-textarea, .mw-select, [data-plain-field]):focus-visible {
-    outline: none;
-    border-color: color-mix(in srgb, var(--focus) 62%, transparent);
-    box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--focus) 72%, transparent),
-      0 0 0 3.5px color-mix(in srgb, var(--focus) 15%, transparent);
+    outline: var(--focus-stroke, 2px solid var(--focus));
+    outline-offset: var(--focus-stroke-inset, -2px);
+    border-color: var(--focus);
+    box-shadow: none;
   }
   body :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(.mw-slider):not(.mw-input), select:not(.mw-select), textarea:not(.mw-textarea)) {
     transition: border-color var(--motion-fast) var(--ease-standard), box-shadow var(--motion-fast) var(--ease-standard), background-color var(--motion-fast) var(--ease-standard);
@@ -257,6 +259,10 @@ export const INTERACTION_TEXTURE_STYLES = `
   .mw-dir-row[data-settings-section="diagnostics"] { --plugin-tint: var(--tone-blocked); }
   .mw-dir-row[data-settings-section="shelf"] { --plugin-tint: var(--plugin-shelf); }
   .mw-dir-row[data-settings-section="functions"] { --plugin-tint: var(--plugin-functions); }
+  .mw-dir-row[data-settings-section="pages"] { --plugin-tint: var(--plugin-pages); }
+  .mw-dir-row[data-settings-section="form"] { --plugin-tint: var(--plugin-form); }
+  .mw-dir-row[data-settings-section="dataset"] { --plugin-tint: var(--plugin-dataset); }
+  .mw-dir-row[data-settings-section="ppt"] { --plugin-tint: var(--plugin-ppt); }
   .mw-dir-row[data-settings-section="general"] { --plugin-tint: var(--tone-idle); }
   .mw-dir-row[data-settings-section="guidance"] { --plugin-tint: var(--tone-progress); }
   .mw-dir-row[data-settings-section="rules"] { --plugin-tint: var(--tone-done); }
@@ -303,8 +309,8 @@ export const INTERACTION_TEXTURE_STYLES = `
     background: color-mix(in srgb, var(--ink) 1.6%, var(--paper));
   }
   .goal-canvas-node.is-selected {
-    border-color: color-mix(in srgb, var(--focus) 80%, transparent);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 13%, transparent), inset 0 1px 0 var(--edge-highlight);
+    border-color: var(--focus);
+    box-shadow: inset 0 1px 0 var(--edge-highlight);
   }
   .goal-canvas-edges g path { stroke: color-mix(in srgb, var(--ink) 24%, transparent); stroke-width: 1.4; }
   .goal-canvas-edges marker path { fill: color-mix(in srgb, var(--ink) 32%, transparent); }

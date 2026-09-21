@@ -35,6 +35,7 @@ export interface FeedOutRuleWrite {
   name: string;
   match: FeedOutRuleMatch;
   enabled?: boolean;
+  function_key?: string | null;
 }
 
 type Row = Record<string, unknown>;
@@ -54,6 +55,10 @@ export function migrateFeedOutRules(db: FeedPluginSqliteDatabase): void {
     CREATE INDEX IF NOT EXISTS feed_out_rules_board_enabled_idx
       ON feed_out_rules(board_id, enabled, created_at, rule_id);
   `);
+  const columns = db.prepare("PRAGMA table_info(feed_out_rules)").all() as Array<{ name: string }>;
+  if (!columns.some((column) => column.name === "function_key")) {
+    db.exec("ALTER TABLE feed_out_rules ADD COLUMN function_key TEXT");
+  }
 }
 
 export function feedCaptureArtifactId(itemId: string, ruleId: string): string {
@@ -87,19 +92,21 @@ export class FeedOutRuleStore {
       name: normalizeName(input.name),
       enabled: input.enabled !== false,
       match: normalizeMatch(input.match),
+      function_key: normalizeFunctionKey(input.function_key),
       created_at: at,
       updated_at: at,
     };
     this.db.prepare(`
       INSERT INTO feed_out_rules (
-        board_id, rule_id, name, enabled, match_json, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        board_id, rule_id, name, enabled, match_json, function_key, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       record.board_id,
       record.rule_id,
       record.name,
       record.enabled ? 1 : 0,
       JSON.stringify(record.match),
+      record.function_key,
       record.created_at,
       record.updated_at,
     );
@@ -113,16 +120,18 @@ export class FeedOutRuleStore {
       name: patch.name != null ? normalizeName(patch.name) : current.name,
       enabled: patch.enabled != null ? patch.enabled : current.enabled,
       match: patch.match != null ? normalizeMatch({ ...current.match, ...patch.match }) : current.match,
+      function_key: patch.function_key !== undefined ? normalizeFunctionKey(patch.function_key) : current.function_key,
       updated_at: new Date().toISOString(),
     };
     this.db.prepare(`
       UPDATE feed_out_rules
-      SET name = ?, enabled = ?, match_json = ?, updated_at = ?
+      SET name = ?, enabled = ?, match_json = ?, function_key = ?, updated_at = ?
       WHERE board_id = ? AND rule_id = ?
     `).run(
       next.name,
       next.enabled ? 1 : 0,
       JSON.stringify(next.match),
+      next.function_key,
       next.updated_at,
       boardId,
       ruleId,
@@ -205,6 +214,7 @@ export function parseFeedOutRuleWrite(body: Readonly<Record<string, unknown>>): 
   return {
     ...(typeof body.name === "string" ? { name: body.name } : { name: "" }),
     enabled: typeof body.enabled === "boolean" ? body.enabled : undefined,
+    function_key: typeof body.function_key === "string" || body.function_key === null ? body.function_key : undefined,
     match: {
       ...(typeof body.contains === "string" ? { contains: body.contains } : {}),
       ...(typeof body.source_id === "string" ? { source_id: body.source_id } : {}),
@@ -217,6 +227,7 @@ export function parseFeedOutRulePatch(body: Readonly<Record<string, unknown>>): 
   const patch: Partial<FeedOutRuleWrite> = {};
   if (typeof body.name === "string") patch.name = body.name;
   if (typeof body.enabled === "boolean") patch.enabled = body.enabled;
+  if (typeof body.function_key === "string" || body.function_key === null) patch.function_key = body.function_key;
   const match: FeedOutRuleMatch = {};
   let hasMatch = false;
   if (typeof body.contains === "string") {
@@ -233,6 +244,11 @@ export function parseFeedOutRulePatch(body: Readonly<Record<string, unknown>>): 
   }
   if (hasMatch) patch.match = match;
   return patch;
+}
+
+function normalizeFunctionKey(value: string | null | undefined): string | null {
+  const key = value?.trim() ?? "";
+  return key || null;
 }
 
 function normalizeName(value: string): string {
@@ -267,6 +283,7 @@ function mapOutRule(row: Row): FeedOutRuleRecord {
     name: String(row.name ?? ""),
     enabled: Number(row.enabled) === 1,
     match: parseMatch(row.match_json),
+    function_key: typeof row.function_key === "string" && row.function_key.trim() ? row.function_key.trim() : null,
     created_at: String(row.created_at ?? ""),
     updated_at: String(row.updated_at ?? ""),
   };

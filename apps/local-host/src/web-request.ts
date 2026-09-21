@@ -13,7 +13,7 @@ import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host
 import type { SessionRuntimeResources } from "./web-session.js";
 import { cachedMolisWorkWebView, type MolisWorkWebViewCache } from "./web-view.js";
 import { molisWorkHostProjectReference } from "./project-host.js";
-import { createLocalFeedApplication } from "./feed-application.js";
+import { createLocalFeedApplication, withLocalFeedJudgments } from "./feed-application.js";
 import { createLocalFeedSourceScheduler } from "./feed-source-scheduler.js";
 import { createLocalFeedConnectorService } from "./feed-connector-service.js";
 import { bindScheduledTaskRunner, scheduleServiceFor } from "./schedule-runtime.js";
@@ -22,9 +22,20 @@ import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { handleFeedNativePluginHttp } from "./feed-native-plugin-http.js";
 import { handleInboxNativePluginHttp } from "./inbox-native-plugin-http.js";
+import { handleHomeDockJudgmentHttp } from "./home-dock-http.js";
 import { handleScheduleNativePluginHttp } from "./schedule-native-plugin-http.js";
 import { handleShelfNativePluginHttp } from "./shelf-native-plugin-http.js";
 import { handleFunctionsNativePluginHttp } from "./functions-native-plugin-http.js";
+import { handleFormNativePluginHttp } from "./form-native-plugin-http.js";
+import { handlePagesNativePluginHttp } from "./pages-native-plugin-http.js";
+import {
+  PAGES_ARTIFACT_SCHEMA_VERSION,
+  PAGES_ARTIFACT_TYPE_ID,
+} from "@molis-ai/molis-work-contracts/modules/pages";
+import { pagesManifest } from "@molis-ai/molis-work-plugin-pages";
+import { handleDatasetNativePluginHttp } from "./dataset-native-plugin-http.js";
+import { handlePptNativePluginHttp } from "./ppt-native-plugin-http.js";
+import { handleLingguangNativePluginHttp } from "./lingguang-native-plugin-http.js";
 import { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
 import { serviceProcessId } from "./web-runtime-settings.js";
 import { resolveWebRequest } from "./web-routing.js";
@@ -84,10 +95,10 @@ export async function handleMolisWorkWebRequest(
       });
       await localHost.withProject(hostReference, async ({ store, coordinator }) => {
         if (!feedSchedulers.has(options.databasePath)) {
-        const feed = createLocalFeedApplication(store.db);
+        const feed = createLocalFeedApplication(store.db, withLocalFeedJudgments(serverOptions.homeDirectory));
         feed.recoverInterruptedSourceRuns(options.boardId);
-        createLocalFeedConnectorService(store.db, options.boardId).ensureSources();
-        const scheduler = createLocalFeedSourceScheduler(store.db, options.boardId);
+        createLocalFeedConnectorService(store.db, options.boardId, undefined, serverOptions.homeDirectory).ensureSources();
+        const scheduler = createLocalFeedSourceScheduler(store.db, options.boardId, undefined, undefined, serverOptions.homeDirectory);
         const schedule = scheduleServiceFor(store.db);
         bindScheduledTaskRunner(store.db, createHostScheduledTaskRunner({
           agentHost,
@@ -185,11 +196,51 @@ export async function handleMolisWorkWebRequest(
         }
         if (serverOptions.homeDirectory && await handleShelfNativePluginHttp(request, response, url, serverOptions.homeDirectory)) return;
         if (serverOptions.homeDirectory && await handleFunctionsNativePluginHttp(request, response, url, serverOptions.homeDirectory)) return;
+        if (serverOptions.homeDirectory && await handlePagesNativePluginHttp(request, response, url, serverOptions.homeDirectory, {
+          publishArtifact: (input) => {
+            const result = coordinator.artifacts.commands.registerVersion({
+              board_id: options.boardId,
+              actor_id: "web-user",
+              artifact_id: "pages-" + input.page_id,
+              version: input.version,
+              artifact_type_id: PAGES_ARTIFACT_TYPE_ID,
+              schema_version: PAGES_ARTIFACT_SCHEMA_VERSION,
+              producer: {
+                plugin_id: pagesManifest.plugin_id,
+                plugin_version: pagesManifest.version,
+                binding_signature: pagesManifest.publisher.signature,
+              },
+              content: {
+                kind: "inline",
+                payload: JSON.parse(JSON.stringify({
+                  title: input.title,
+                  page_id: input.page_id,
+                  goal_id: input.goal_id,
+                  body: input.body,
+                })),
+              },
+              metadata: { page_id: input.page_id, goal_id: input.goal_id, title: input.title },
+              scope: "personal",
+              supersedes_version: input.version > 1 ? input.version - 1 : null,
+            });
+            return { artifact_id: result.artifact.artifact_id, version: result.artifact.version };
+          },
+        })) return;
+        if (serverOptions.homeDirectory && await handleFormNativePluginHttp(request, response, url, serverOptions.homeDirectory)) return;
+        if (serverOptions.homeDirectory && await handleDatasetNativePluginHttp(request, response, url, serverOptions.homeDirectory)) return;
+        if (serverOptions.homeDirectory && await handlePptNativePluginHttp(request, response, url, serverOptions.homeDirectory)) return;
+        if (serverOptions.homeDirectory && await handleLingguangNativePluginHttp(request, response, url, serverOptions.homeDirectory)) return;
         if (await handleInboxNativePluginHttp(request, response, url, {
           boardId: options.boardId,
           store,
           invalidateWebView: () => webViewCache.delete(options.databasePath),
           reconcileGoalDecisions: () => coordinator.goalDecisionAttention.reconcile(options.boardId),
+          homeDirectory: serverOptions.homeDirectory,
+        })) return;
+        if (await handleHomeDockJudgmentHttp(request, response, url, {
+          boardId: options.boardId,
+          homeDirectory: serverOptions.homeDirectory,
+          invalidateWebView: () => webViewCache.delete(options.databasePath),
         })) return;
         if (await handleScheduleNativePluginHttp(request, response, url, {
           db: store.db,
@@ -205,6 +256,7 @@ export async function handleMolisWorkWebRequest(
           coordinator,
           readWebView,
           invalidateWebView: () => webViewCache.delete(options.databasePath),
+          homeDirectory: serverOptions.homeDirectory,
         })) return;
         if (request.method === "GET" && url.pathname === "/api/capsule") {
           if (!options.project) {

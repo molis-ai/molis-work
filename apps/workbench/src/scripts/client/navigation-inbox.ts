@@ -56,4 +56,30 @@ export const CLIENT_NAVIGATION_INBOX_SCRIPT = `
       if (fold) fold.open = true;
       if (persist) queueSave();
     };
+
+    inboxDirectory?.addEventListener("focusin", (event) => {
+      const select = event.target.closest("[data-inbox-judgment]");
+      if (select) select.dataset.inboxJudgmentSaved = select.value;
+    });
+    inboxDirectory?.addEventListener("change", async (event) => {
+      const select = event.target.closest("[data-inbox-judgment]");
+      if (!select) return;
+      const previous = select.dataset.inboxJudgmentSaved ?? select.value;
+      const status = inboxDirectory.querySelector("[data-inbox-judgment-status]");
+      try {
+        await feedApi("/api/inbox/judgment", "POST", { function_key: select.value || null });
+        select.dataset.inboxJudgmentSaved = select.value;
+        if (status) {
+          status.hidden = true;
+          status.textContent = "";
+        }
+      } catch (error) {
+        select.value = previous;
+        select.dataset.inboxJudgmentSaved = previous;
+        if (status) {
+          status.hidden = false;
+          status.textContent = error.message || L("保存判断函数失败");
+        }
+      }
+    });
 `;

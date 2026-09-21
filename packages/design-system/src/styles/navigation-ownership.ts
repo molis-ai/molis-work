@@ -28,8 +28,9 @@ export const NAVIGATION_OWNERSHIP_STYLES = `  /* Navigation ownership correction
     body[data-desktop-shell="true"] .navigator-directory-toggle:focus-visible,
     body[data-desktop-shell="true"] .goal-mode-switch button:focus-visible,
     body[data-desktop-shell="true"] .tui-focus-return:focus-visible {
-      outline: 0;
-      box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--blue) 62%, transparent);
+      outline: 2px solid var(--focus);
+      outline-offset: -2px;
+      box-shadow: none;
     }
     body[data-desktop-shell="true"] .navigator-directory-toggle svg { width: 14px; height: 14px; }
 
@@ -204,7 +205,7 @@ export const NAVIGATION_OWNERSHIP_STYLES = `  /* Navigation ownership correction
     }
     body[data-desktop-shell="true"] .feed-filter-trigger:hover,
     body[data-desktop-shell="true"] .feed-filter-trigger.is-active { color: var(--ink); background: color-mix(in srgb, var(--ink) 7%, transparent); }
-    body[data-desktop-shell="true"] .feed-filter-trigger:focus-visible { outline: 0; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--blue) 60%, transparent); }
+    body[data-desktop-shell="true"] .feed-filter-trigger:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; box-shadow: none; }
     body[data-desktop-shell="true"] .feed-filter-trigger > svg { width: 16px; height: 16px; }
     body[data-desktop-shell="true"] .feed-filter-trigger > span {
       min-width: 16px;
@@ -269,7 +270,7 @@ export const NAVIGATION_OWNERSHIP_STYLES = `  /* Navigation ownership correction
     }
     body[data-desktop-shell="true"] .feed-filter-option:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 5%, transparent); }
     body[data-desktop-shell="true"] .feed-filter-option[aria-checked="true"] { color: var(--blue-dark); background: color-mix(in srgb, var(--blue) 10%, transparent); font-weight: 400; }
-    body[data-desktop-shell="true"] .feed-filter-option:focus-visible { outline: 0; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--blue) 60%, transparent); }
+    body[data-desktop-shell="true"] .feed-filter-option:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; box-shadow: none; }
     body[data-desktop-shell="true"] .feed-filter-option span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     body[data-desktop-shell="true"] .feed-filter-option svg { width: 11px; height: 11px; opacity: 0; }
     body[data-desktop-shell="true"] .feed-filter-option[aria-checked="true"] svg { opacity: 1; }

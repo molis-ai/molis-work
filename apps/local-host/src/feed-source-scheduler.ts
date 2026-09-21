@@ -5,19 +5,31 @@ import { createLocalFeedConnectorService } from "./feed-connector-service.js";
 
 export function createLocalFeedSourceScheduler(
   db: SqliteDatabase, boardId: string,
-  dispatch: FeedSourceSchedulerDispatch = defaultDispatch(db, boardId),
+  dispatch?: FeedSourceSchedulerDispatch,
   now: () => Date = () => new Date(),
+  homeDirectory?: string,
 ): FeedSourceScheduler {
-  return new FeedSourceScheduler(boardId, () => createLocalFeedSourceService(db, boardId, undefined, now), dispatch, now);
+  return new FeedSourceScheduler(
+    boardId,
+    () => createLocalFeedSourceService(db, boardId, undefined, now, homeDirectory),
+    dispatch ?? defaultDispatch(db, boardId, homeDirectory),
+    now,
+  );
 }
 
-function defaultDispatch(db: SqliteDatabase, boardId: string): FeedSourceSchedulerDispatch {
+function defaultDispatch(
+  db: SqliteDatabase,
+  boardId: string,
+  homeDirectory?: string,
+): FeedSourceSchedulerDispatch {
   return async (source, idempotencyKey) => {
     if (source.sync_kind === "public_source") {
-      return createLocalFeedSourceService(db, boardId).sync(source.source_id, { idempotencyKey });
+      return createLocalFeedSourceService(db, boardId, undefined, undefined, homeDirectory)
+        .sync(source.source_id, { idempotencyKey });
     }
     if (source.sync_kind === "github" || source.sync_kind === "gmail") {
-      return createLocalFeedConnectorService(db, boardId).sync(source.source_id, { idempotencyKey, mode: "normal" });
+      return createLocalFeedConnectorService(db, boardId, undefined, homeDirectory)
+        .sync(source.source_id, { idempotencyKey, mode: "normal" });
     }
     throw Object.assign(new Error("这个来源没有可用的 Provider 适配器"), { code: "feed_source_invalid_configuration" });
   };

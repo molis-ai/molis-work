@@ -4,12 +4,16 @@ import {
   FunctionsError,
   createFunctionsService,
   createHttpTypeSafeProvider,
+  functionsManifest,
   openFunctionsStore,
+  runFunctionsMcpTool,
   type FunctionsSecretPort,
   type TypeSafeProvider,
 } from "@molis-ai/molis-work-plugin-functions";
+import type { PluginMcpHandleRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { McpToolCallContext } from "@molis-ai/molis-work-app-mcp";
 import type { MolisWorkRuntimeContextHost } from "@molis-ai/molis-work-contracts/platform/app-host";
+import { hostAllowedBehaviorIds } from "./behavior-catalog.js";
 
 export interface McpFunctionsPorts {
   requireHost(context: McpToolCallContext): MolisWorkRuntimeContextHost;
@@ -18,8 +22,12 @@ export interface McpFunctionsPorts {
   env?: NodeJS.Dict<string>;
 }
 
-export function createMcpFunctionsHandlers(ports: McpFunctionsPorts) {
-  const withService = async <T>(context: McpToolCallContext, run: (service: ReturnType<typeof createFunctionsService>) => Promise<T> | T): Promise<T> => {
+/** Opens the local Functions store and forwards `{ tool_id, arguments }`. Do not branch on public MCP names. */
+export function createFunctionsMcpAdapter(ports: McpFunctionsPorts) {
+  const withService = async <T>(
+    context: McpToolCallContext,
+    run: (service: ReturnType<typeof createFunctionsService>) => Promise<T> | T,
+  ): Promise<T> => {
     const host = ports.requireHost(context);
     if (!host.homeDirectory) {
       throw new MolisWorkV1Error("mcp.context_host_missing", "MCP 宿主没有提供本机目录，无法读取判断函数");
@@ -31,6 +39,7 @@ export function createMcpFunctionsHandlers(ports: McpFunctionsPorts) {
         secrets: ports.secrets ?? createFileSecretStore(),
         env: ports.env ?? process.env,
         provider: ports.provider ?? createHttpTypeSafeProvider(),
+        allowed_behavior_ids: hostAllowedBehaviorIds(),
       });
       return await run(service);
     } catch (error) {
@@ -41,25 +50,10 @@ export function createMcpFunctionsHandlers(ports: McpFunctionsPorts) {
   };
 
   return {
-    molis_work_v1_functions_list: async (_arguments: Record<string, unknown>, context: McpToolCallContext) => {
-      return withService(context, (service) => JSON.stringify({ functions: service.listPublished() }, null, 2));
-    },
-    molis_work_v1_functions_describe: async (arguments_: Record<string, unknown>, context: McpToolCallContext) => {
-      return withService(context, (service) => JSON.stringify({
-        function: service.describePublished(stringField(arguments_.function_key)),
-      }, null, 2));
-    },
-    molis_work_v1_functions_invoke: async (arguments_: Record<string, unknown>, context: McpToolCallContext) => {
-      return withService(context, (service) => service.invokePublished(
-        stringField(arguments_.function_key),
-        stringField(arguments_.input),
-      ).then((result) => JSON.stringify(result, null, 2)));
-    },
+    plugin_id: functionsManifest.plugin_id,
+    handle: (request: PluginMcpHandleRequest, context: McpToolCallContext) =>
+      withService(context, async (service) => runFunctionsMcpTool(service, request)),
   };
-}
-
-function stringField(value: unknown): string {
-  return typeof value === "string" ? value : "";
 }
 
 function mapFunctionsError(error: unknown): unknown {

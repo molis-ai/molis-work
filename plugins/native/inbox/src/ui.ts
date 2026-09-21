@@ -3,6 +3,12 @@ import type {
   UiContributionDescriptor,
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
+import {
+  INBOX_DISMISS_BEHAVIOR_ID,
+  INBOX_DONE_BEHAVIOR_ID,
+  defaultInboxNextBehaviorIds,
+  visibleDockBehaviorIds,
+} from "@molis-ai/molis-work-contracts/modules/functions";
 import { isActiveInboxStatus, type InboxUiEntry, type InboxUiFilter } from "./projection.js";
 
 export const INBOX_UI_CONTRIBUTION_ID = "io.molis.work.native.inbox.ui.v1";
@@ -16,11 +22,17 @@ export interface InboxUiPrimitives {
   formatDate(value: string): string;
 }
 
+export interface InboxUiJudgment {
+  readonly function_key: string | null;
+  readonly functions: readonly { readonly function_key: string; readonly name: string }[];
+}
+
 export interface InboxUiModel {
   readonly route_prefix: string;
   readonly entries: readonly InboxUiEntry[];
   readonly filter: InboxUiFilter;
   readonly primitives: InboxUiPrimitives;
+  readonly judgment?: InboxUiJudgment;
 }
 
 export const inboxUiDescriptor: UiContributionDescriptor = {
@@ -61,6 +73,7 @@ export function renderInboxWorkbench(model: InboxUiModel): string {
   const details = model.entries.map((entry) => renderInboxDetail(entry, false, p)).join("");
   return `<section class="desktop-work-surface plugin-stage-shell" data-work-surface="inbox" data-work-surface-label="Inbox" hidden data-inbox-workbench data-inbox-directory data-inbox-stage-shell data-expanded="false" data-inbox-current-filter="active">
     <div class="plugin-stage-list feed-stage-list feed-stage-tree" data-inbox-list>
+      ${renderInboxJudgmentBinder(model)}
       ${renderInboxFold("active", p.text("待处理"), "alert", active, p)}
       ${renderInboxFold("history", p.text("历史"), "check", history, p)}
     </div>
@@ -69,6 +82,22 @@ export function renderInboxWorkbench(model: InboxUiModel): string {
       <div class="feed-detail-empty mw-empty" data-inbox-detail-empty>${p.icon("inbox")}<h1>${p.text("现在没有需要你介入的事项")}</h1></div>
     </div>
   </section>`;
+}
+
+function renderInboxJudgmentBinder(model: InboxUiModel): string {
+  const judgment = model.judgment;
+  if (!judgment) return "";
+  const { primitives: p } = model;
+  const selected = judgment.function_key ?? "";
+  const emptySelected = selected === "" ? " selected" : "";
+  const options = [
+    `<option value=""${emptySelected}>${p.text("不判断，用默认下一步")}</option>`,
+    ...judgment.functions.map((fn) => {
+      const isOn = fn.function_key === selected ? " selected" : "";
+      return `<option value="${p.escape(fn.function_key)}"${isOn}>${p.escape(fn.name)}</option>`;
+    }),
+  ].join("");
+  return `<label class="inbox-scene-bind"><span>${p.text("下一步判断")}</span><select data-inbox-judgment>${options}</select><p class="inbox-scene-bind__status" data-inbox-judgment-status hidden></p></label>`;
 }
 
 function renderInboxFold(
@@ -102,17 +131,31 @@ function renderInboxStageRow(entry: InboxUiEntry, p: InboxUiPrimitives): string 
 }
 
 function renderInboxDetail(entry: InboxUiEntry, selected: boolean, p: InboxUiPrimitives): string {
-  const active = isActiveInboxStatus(entry.status);
   const openAction = openButton(entry, p);
-  const resultActions = active
-    ? `<button class="mw-btn mw-btn--primary" type="button" data-inbox-action="done" data-inbox-entry-id="${p.escape(entry.entry_id)}" data-inbox-entry-revision="${entry.revision}">${p.icon("check")}${p.text("标记已处理")}</button><button class="mw-btn mw-btn--ghost feed-action-subtle" type="button" data-inbox-action="dismissed" data-inbox-entry-id="${p.escape(entry.entry_id)}" data-inbox-entry-revision="${entry.revision}">${p.text("忽略")}</button>`
-    : `<button class="mw-btn mw-btn--secondary" type="button" data-inbox-action="open" data-inbox-entry-id="${p.escape(entry.entry_id)}" data-inbox-entry-revision="${entry.revision}">${p.text("重新打开")}</button>`;
   return `<article class="feed-detail feed-detail--attention inbox-reference-detail" data-inbox-detail="${p.escape(entry.entry_id)}" data-inbox-subject-type="${entry.subject_type}"${selected ? "" : " hidden"}>
     <header class="plugin-stage-detail-bar"><button class="plugin-stage-back" type="button" data-inbox-collapse aria-label="${p.text("返回 Inbox 列表")}" title="${p.text("返回 Inbox 列表")}">${p.icon("chevron-right")}</button><div class="feed-detail-kicker"><span class="mw-status mw-status--attention">${p.escape(entry.kind_label)}</span><span class="mw-status mw-status--quiet">${p.escape(entry.source_label)}</span><span class="mw-status mw-status--${entry.status === "open" ? "attention" : entry.status === "in_progress" ? "progress" : entry.status === "done" ? "done" : "quiet"}">${p.escape(entry.status_label)}</span></div></header>
     <header class="feed-detail-header"><h1>${p.escape(entry.title)}</h1></header>
-    <div class="inbox-reference-footer"><div class="feed-detail-actions">${openAction}${resultActions}</div><p class="feed-action-status" data-inbox-action-status role="status" hidden></p></div>
+    <div class="inbox-reference-footer"><div class="feed-detail-actions">${openAction}${resultActions(entry, p)}</div><p class="feed-action-status" data-inbox-action-status role="status" hidden></p></div>
     <div class="inbox-reference-body"><section class="inbox-attention-context" aria-label="${p.text("处理上下文")}"><dl><div><dt>${p.text("为什么进入 Inbox")}</dt><dd>${p.escape(entry.reason_label)}</dd></div><div><dt>${p.text("关联对象")}</dt><dd>${p.escape(entry.relation_label)}</dd></div><div class="inbox-attention-next"><dt>${p.text("下一步")}</dt><dd>${p.escape(entry.next_action)}</dd></div><div><dt>${p.text("当前状态")}</dt><dd>${p.escape(entry.status_label)}</dd></div></dl></section></div>
   </article>`;
+}
+
+function resultActions(entry: InboxUiEntry, p: InboxUiPrimitives): string {
+  if (!isActiveInboxStatus(entry.status)) {
+    return `<button class="mw-btn mw-btn--secondary" type="button" data-inbox-action="open" data-inbox-entry-id="${p.escape(entry.entry_id)}" data-inbox-entry-revision="${entry.revision}">${p.text("重新打开")}</button>`;
+  }
+  const shown = visibleDockBehaviorIds(entry.suggested_behavior_ids, defaultInboxNextBehaviorIds(true));
+  return shown.map((id, index) => writeButton(entry, id, index === 0, p)).join("");
+}
+
+function writeButton(entry: InboxUiEntry, behaviorId: string, primary: boolean, p: InboxUiPrimitives): string {
+  if (behaviorId === INBOX_DISMISS_BEHAVIOR_ID) {
+    const cls = primary ? "mw-btn mw-btn--primary" : "mw-btn mw-btn--ghost feed-action-subtle";
+    return `<button class="${cls}" type="button" data-inbox-action="dismissed" data-inbox-entry-id="${p.escape(entry.entry_id)}" data-inbox-entry-revision="${entry.revision}">${p.text("忽略")}</button>`;
+  }
+  if (behaviorId !== INBOX_DONE_BEHAVIOR_ID) return "";
+  const cls = primary ? "mw-btn mw-btn--primary" : "mw-btn mw-btn--secondary";
+  return `<button class="${cls}" type="button" data-inbox-action="done" data-inbox-entry-id="${p.escape(entry.entry_id)}" data-inbox-entry-revision="${entry.revision}">${p.icon("check")}${p.text("标记已处理")}</button>`;
 }
 
 function openButton(entry: InboxUiEntry, p: InboxUiPrimitives): string {

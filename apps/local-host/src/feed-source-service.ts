@@ -5,7 +5,7 @@ import { FEED_CATEGORY_LABEL, listRegisterableFeeds, CUSTOM_RSS_DEFINITION_ID, c
 import { YOUTUBE_CHANNEL_DEFINITION_ID, YOUTUBE_PUBLIC_FEED_HOST, normalizeYouTubeChannelId, youtubeChannelFeedUrl } from "@molis-ai/molis-work-integration-youtube";
 import { GMAIL_DEFAULT_SCOPE, parseGmailScope } from "@molis-ai/molis-work-integration-gmail/scope";
 import type { FeedSourceRecord } from "@molis-ai/molis-work-plugin-feed";
-import { createLocalFeedApplication } from "./feed-application.js";
+import { createLocalFeedApplication, withLocalFeedJudgments } from "./feed-application.js";
 import { createFeedSourceRuntime, type FeedSourceRuntime } from "./feed-source-runtime.js";
 export function listFeedSourceCatalog(): FeedSourceCatalogView[] {
   return listRegisterableFeeds().filter((source) => source.enabled).map((source) => ({
@@ -26,10 +26,11 @@ export function createLocalFeedSourceService(
   runtimeFactory: (db: SqliteDatabase, source?: FeedSourceRecord) => FeedSourceRuntime =
     (database, source) => createFeedSourceRuntime({ db: database, sourceCursor: source?.cursor }),
   now: () => Date = () => new Date(),
+  homeDirectory?: string,
 ): FeedSourceService {
   const journal = new LocalSqliteJournal(db);
   return new FeedSourceService({
-    feed: createLocalFeedApplication(db),
+    feed: createLocalFeedApplication(db, withLocalFeedJudgments(homeDirectory)),
     providers: {
       listCatalog: listRegisterableFeeds,
       customRss: { definitionId: CUSTOM_RSS_DEFINITION_ID, normalizeUrl: normalizeCustomRssFeedUrl, host: customRssFeedHost },

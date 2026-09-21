@@ -1,3 +1,5 @@
+import { MW_PLUGINS } from "@molis-ai/molis-work-design-system";
+import { pluginTabGlyphs, pluginTabTitles } from "../../plugin-catalog.js";
 import { createTabWorkspaceOps } from "../../tab-workspace-ops.js";
 import { tabIdsAfterMove, TAB_REORDER_EASE, TAB_REORDER_MS } from "../../tab-reorder.js";
 import { tabShareWidth, tabShareMin, tabScrollAllotment, TAB_SHARE_MAX, TAB_SHARE_MIN, TAB_SHARE_MIN_TOUCH } from "../../tab-strip-share.js";
@@ -11,9 +13,11 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   const panesEl = document.querySelector("[data-tab-panes]");
   const pool = document.querySelector("[data-surface-pool]");
   if (!root || !panesEl || !pool) return { apply() {}, openPlugin() {}, openItem() {}, setExclusive() {}, restore() {}, isExclusive() { return false; } };
-  const PLUGIN_COLOR = { home: "var(--plugin-home)", goals: "var(--plugin-goals)", feed: "var(--plugin-feed)", sessions: "var(--plugin-sessions)", inbox: "var(--plugin-inbox)", schedule: "var(--plugin-schedule)", shelf: "var(--plugin-shelf)", functions: "var(--plugin-functions)", experiments: "var(--plugin-functions)", artifacts: "var(--plugin-artifacts)" };
+  const PLUGIN_COLOR = ${JSON.stringify(Object.fromEntries(MW_PLUGINS.map((plugin) => [plugin.id, `var(--plugin-${plugin.id})`])))};
+  const PLUGIN_TAB_ICON = ${JSON.stringify(pluginTabGlyphs())};
+  const PLUGIN_TAB_TITLES = ${JSON.stringify({ home: "项目首页", ...pluginTabTitles() })};
   const GROUP_COLOR = { grey: "var(--hue-gray)", blue: "var(--hue-blue)", red: "var(--hue-red)", yellow: "var(--hue-yellow)", green: "var(--hue-green)", pink: "var(--hue-pink)", purple: "var(--hue-purple)", cyan: "var(--hue-cyan)" };
-  const ops = (${createTabWorkspaceOps.toString()})();
+  const ops = (${createTabWorkspaceOps.toString()})(PLUGIN_TAB_TITLES);
   const TAB_SPLIT_EDGE_X = ${TAB_SPLIT_EDGE_X};
   const TAB_SPLIT_EDGE_Y = ${TAB_SPLIT_EDGE_Y};
   const TAB_SPLIT_RATIO = ${TAB_SPLIT_RATIO};
@@ -124,7 +128,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     const surface = topLevelSurface(plugin);
     if (!surface) return;
     surface.setAttribute("data-expanded", "false");
-    const workspace = surface.querySelector(".plugin-stage-workspace, [data-session-stage-workspace], [data-artifact-stage-workspace], [data-shelf-stage-workspace], [data-functions-stage-workspace], [data-schedule-stage-workspace]");
+    const workspace = surface.querySelector(".plugin-stage-workspace, [data-session-stage-workspace], [data-artifact-stage-workspace], [data-shelf-stage-workspace], [data-schedule-stage-workspace]");
     if (workspace) workspace.hidden = true;
     surface.querySelectorAll(".is-selected").forEach((row) => {
       row.classList.remove("is-selected");
@@ -205,7 +209,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     if (tab.kind === "mother") return tab.plugin === "goals" ? L("画布") : ops.pluginTitle(tab.plugin);
     return tab.title;
   };
-  const tabIcon = (plugin) => ({home: "home", goals: "target", sessions: "terminal", feed: "rss", inbox: "inbox", schedule: "timer", shelf: "library", functions: "sparkles", experiments: "sparkles", artifacts: "package"}[plugin] || "frame");
+  const tabIcon = (plugin) => PLUGIN_TAB_ICON[plugin] || "frame";
   const iconMarkup = (plugin) => '<svg class="tab-item-icon" aria-hidden="true"><use href="#icon-' + tabIcon(plugin) + '"></use></svg>';
   const appendTab = (parent, pane, tab) => {
     const selected = tab.id === pane.activeTabId;
@@ -742,10 +746,17 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     }
   };
   const activate = (paneId, tabId) => {
-    const pane = state.panes.find((candidate) => candidate.id === paneId);
-    if (!pane) return;
-    state.focusedPaneId = paneId;
-    if (tabId) pane.activeTabId = tabId;
+    if (tabId) ops.activate(state, paneId, tabId);
+    else {
+      const pane = state.panes.find((candidate) => candidate.id === paneId);
+      if (!pane) return;
+      state.focusedPaneId = paneId;
+    }
+    apply();
+    persist();
+  };
+  const landAtProjectRoot = () => {
+    ops.landAtProjectRoot(state);
     apply();
     persist();
   };
@@ -850,7 +861,8 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       tabMenu.append(button);
     };
     if (!tabId) {
-      ["home", "goals", "sessions", "feed", "inbox", "schedule", "shelf", "functions", "experiments", "artifacts"].filter(plugin => plugin === "home" || document.querySelector('[data-plugin-strip] [data-plugin-id="' + plugin + '"]')).forEach(plugin => {
+      const mounted = ["home", ...new Set([...document.querySelectorAll('[data-plugin-strip] [data-plugin-id], [data-assistant-island] [data-plugin-id]')].map((el) => el.dataset.pluginId).filter((id) => id && id !== "home" && id !== "market"))];
+      mounted.forEach(plugin => {
         add(L(ops.pluginTitle(plugin)), tabIcon(plugin), "open-" + plugin, () => ops.openPlugin(state, plugin));
       });
       if (tab) tabMenu.append(document.createElement("hr"));
@@ -1292,5 +1304,5 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     if (event.data?.type === "workbench-feed-add") setFeedAddOpen?.(true);
   });
   if (embedded && paneParams.has("paneFeedTask")) requestAnimationFrame(() => setFeedTask?.(paneParams.get("paneFeedTask"), false));
-  return { apply, openPlugin, openItem, openGoalWork, addFeedTask, setExclusive, restore, isExclusive: () => Boolean(state.exclusive), isEmbedded: () => embedded, state: () => state };
+  return { apply, openPlugin, openItem, openGoalWork, addFeedTask, setExclusive, restore, landAtProjectRoot, isExclusive: () => Boolean(state.exclusive), isEmbedded: () => embedded, state: () => state };
 }`;

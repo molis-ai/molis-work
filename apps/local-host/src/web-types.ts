@@ -41,6 +41,7 @@ export interface ResolvedWebBoardOptions {
   project: WebProjectNavigation | null;
   projects: WebProjectNavigation[];
   routePrefix: string;
+  homeDirectory?: string;
 }
 
 export interface FeedSchedulerRuntime {

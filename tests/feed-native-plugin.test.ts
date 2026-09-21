@@ -8,6 +8,7 @@ import {
   feedUiContribution,
   type FeedPluginRouteHandler,
   type FeedUiModel,
+  type PersistedFeedDetailModel,
 } from "@molis-ai/molis-work-plugin-feed";
 import { UiContributionError, UiHost } from "@molis-ai/molis-work-ui-host";
 
@@ -154,6 +155,47 @@ function taskConfigPanel(html: string, sourceId: string): string {
   return match[0];
 }
 
+function persistedDetail(overrides: Partial<PersistedFeedDetailModel["item"]> = {}): PersistedFeedDetailModel {
+  return {
+    route_prefix: "/projects/project-test",
+    entry_id: "item-1",
+    inbox_entry: null,
+    inbox_active: false,
+    primitives,
+    item: {
+      project_id: "project-test",
+      item_id: "item-1",
+      source_id: "source-a",
+      signal_id: null,
+      signal_revision: null,
+      item_type: "feed",
+      kind: "rss",
+      title: "Launch notes",
+      summary: "Ship the launch notes",
+      body: "Body",
+      source_kind: "rss",
+      source_label: "Design",
+      external_id: "item-1",
+      url: "https://example.com/launch",
+      origin_status: "ok",
+      priority: "normal",
+      tags: [],
+      author: null,
+      disposition: "feed",
+      linked_goal_id: null,
+      read_at: null,
+      revision: 1,
+      source_created_at: "2026-08-30T14:18:00+08:00",
+      source_updated_at: "2026-08-30T14:18:00+08:00",
+      imported_at: "2026-08-30T14:18:00+08:00",
+      updated_at: "2026-08-30T14:18:00+08:00",
+      materials: [],
+      suggested_behavior_ids: [],
+      ...overrides,
+    },
+  };
+}
+
 test("Workbench registers the Feed UI Contribution through the generic UI Host", () => {
   const host = new UiHost();
   host.register(feedUiContribution);
@@ -227,9 +269,9 @@ test("Feed capture rules belong to a task, not the directory", () => {
   const uiModel = model({
     sources: [sourceA, sourceB],
     out_rules: [
-      { rule_id: "rule-a", name: "A launch", enabled: true, contains: "launch", source_id: "source-a", source_kind: null },
-      { rule_id: "rule-b", name: "B release", enabled: true, contains: "release", source_id: "source-b", source_kind: null },
-      { rule_id: "rule-global", name: "Global", enabled: true, contains: "global", source_id: null, source_kind: null },
+      { rule_id: "rule-a", name: "A launch", enabled: true, contains: "launch", source_id: "source-a", source_kind: null, function_key: null },
+      { rule_id: "rule-b", name: "B release", enabled: true, contains: "release", source_id: "source-b", source_kind: null, function_key: null },
+      { rule_id: "rule-global", name: "Global", enabled: true, contains: "global", source_id: null, source_kind: null, function_key: null },
     ],
   });
   const directory = host.render({
@@ -265,6 +307,63 @@ test("Feed capture rules belong to a task, not the directory", () => {
   assert.doesNotMatch(panelA, /B release|Global/);
   assert.match(panelB, /B release/);
   assert.doesNotMatch(panelB, /A launch|Global/);
+});
+
+test("Feed task capture rules pick a published function instead of typing a key", () => {
+  const host = new UiHost();
+  host.register(feedUiContribution);
+  const overlays = host.render({
+    contribution_id: FEED_UI_CONTRIBUTION_ID,
+    surface: "overlays",
+    model: model({
+      sources: [source()],
+      judgment: {
+        functions: [
+          { function_key: "system_admit_inbox", name: "是否进 Inbox" },
+        ],
+      },
+    }),
+  });
+  const panel = taskConfigPanel(overlays, "source-a");
+  assert.match(panel, /data-feed-out-rule-function-key/);
+  assert.match(panel, /不用判断/);
+  assert.match(panel, /value="system_admit_inbox"/);
+  assert.doesNotMatch(panel, /placeholder="system_admit_inbox"/);
+  assert.match(overlays, /data-feed-add-out-rule-function-key/);
+  assert.match(overlays, /不用判断/);
+});
+
+test("Feed detail keeps Add to Inbox until a legal stay-in-Feed suggestion arrives", () => {
+  const host = new UiHost();
+  host.register(feedUiContribution);
+  const defaults = host.render({
+    contribution_id: FEED_UI_CONTRIBUTION_ID,
+    surface: "persisted-detail",
+    model: persistedDetail(),
+  });
+  assert.match(defaults, /data-feed-action="inbox"/);
+  assert.match(defaults, /data-feed-action="save"/);
+  assert.match(defaults, /data-feed-action="promote"/);
+  assert.match(defaults, /data-feed-action="archive"/);
+  assert.match(defaults, /打开原文/);
+
+  const stay = host.render({
+    contribution_id: FEED_UI_CONTRIBUTION_ID,
+    surface: "persisted-detail",
+    model: persistedDetail({ suggested_behavior_ids: ["feed.open"] }),
+  });
+  assert.doesNotMatch(stay, /data-feed-action="inbox"/);
+  assert.match(stay, /data-feed-action="save"/);
+  assert.match(stay, /data-feed-action="promote"/);
+  assert.match(stay, /data-feed-action="archive"/);
+  assert.match(stay, /打开原文/);
+
+  const illegal = host.render({
+    contribution_id: FEED_UI_CONTRIBUTION_ID,
+    surface: "persisted-detail",
+    model: persistedDetail({ suggested_behavior_ids: ["invented.behavior", "home.talk"] }),
+  });
+  assert.match(illegal, /data-feed-action="inbox"/);
 });
 
 test("Feed stage list groups items by source task", () => {

@@ -62,10 +62,14 @@ function buildFeedNativePluginModel(
       contains: rule.match.contains ?? null,
       source_id: rule.match.source_id ?? null,
       source_kind: rule.match.source_kind ?? null,
+      function_key: rule.function_key ?? null,
     })),
     primitives: feedUiPrimitives,
     demo: view.demo,
     active,
+    judgment: view.function_scenes
+      ? { functions: view.function_scenes.feed_capture_functions }
+      : undefined,
   };
 }
 
@@ -231,6 +235,7 @@ function itemModel(item: FeedItemRecord): FeedUiItem {
       ...material,
       project_id: material.board_id,
     })),
+    suggested_behavior_ids: item.suggested_behavior_ids ?? [],
   };
 }
 
@@ -244,6 +249,8 @@ function sourceModel(source: FeedSourceRecord, view: MolisWorkWebView): FeedUiSo
     ? "github"
     : source.sync_kind === "gmail"
       ? "gmail"
+      : source.sync_kind === "connector"
+        ? "connector"
       : ["rss", "custom_rss"].includes(source.kind) || source.sync_kind === "public_source"
         ? "rss"
         : "other";
@@ -262,7 +269,7 @@ function sourceModel(source: FeedSourceRecord, view: MolisWorkWebView): FeedUiSo
       : String(source.config.url ?? source.config.feed_url ?? catalogFeedUrl ?? source.config.query ?? source.account_label ?? source.kind);
   const scope = typeof source.config.scope === "string" && source.config.scope
     ? source.config.scope
-    : uiKind === "github" ? L("通知、PR 与 Review 请求") : uiKind === "gmail" ? L("指定标签与未读邮件") : L("公开 Feed 更新");
+    : uiKind === "github" ? L("通知、PR 与 Review 请求") : uiKind === "gmail" ? L("指定标签与未读邮件") : uiKind === "connector" ? L("账号入站更新") : L("公开 Feed 更新");
   return {
     project_id: source.board_id,
     source_id: source.source_id,
@@ -286,7 +293,7 @@ function sourceModel(source: FeedSourceRecord, view: MolisWorkWebView): FeedUiSo
     prototype: false,
     item_count: source.item_count,
     ui_kind: uiKind,
-    type_label: uiKind === "github" ? "GitHub" : uiKind === "gmail" ? "Gmail" : uiKind === "rss" ? "RSS / Atom" : L("其他来源"),
+    type_label: uiKind === "github" ? "GitHub" : uiKind === "gmail" ? "Gmail" : uiKind === "rss" ? "RSS / Atom" : uiKind === "connector" ? source.name : L("其他来源"),
     status_kind: statusKind,
     status_label: running ? L("正在拉取") : sourceStatusLabel(source.status),
     last_fetch_label: source.last_sync_at ? feedUiPrimitives.formatDate(source.last_sync_at) : L("尚未拉取"),

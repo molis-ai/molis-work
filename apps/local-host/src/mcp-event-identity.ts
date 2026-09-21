@@ -1,4 +1,4 @@
-import { MolisWorkV1Error } from "@molis-ai/molis-work-plugin-goals";
+import { MolisWorkV1Error } from "@molis-ai/molis-work-contracts/platform/errors";
 import type { MolisWorkRuntimeConnection, MolisWorkRuntimeContextHost } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { isRuntimeContextMcpTool, type McpToolCallContext } from "@molis-ai/molis-work-app-mcp";
 
@@ -70,8 +70,9 @@ const RUNTIME_READ_TOOLS = new Set([
 export function assertRuntimeOrdinaryToolInput(
   name: string,
   arguments_: Record<string, unknown>,
+  homeScopedNames: ReadonlySet<string> = new Set(),
 ): void {
-  if (isRuntimeContextMcpTool(name)) return;
+  if (isRuntimeContextMcpTool(name) || homeScopedNames.has(name)) return;
   const connection = RUNTIME_CONNECTION_OVERRIDE_FIELDS.filter((field) => Object.hasOwn(arguments_, field));
   const actor = RUNTIME_ACTOR_OVERRIDE_FIELDS.filter((field) => Object.hasOwn(arguments_, field));
   const forged: string[] = RUNTIME_FORGED_AUTHORITY_FIELDS.filter((field) => Object.hasOwn(arguments_, field));
@@ -152,8 +153,9 @@ export function injectRuntimeIdentity(
   host: MolisWorkRuntimeContextHost | null,
   callContext: McpToolCallContext,
   connection: MolisWorkRuntimeConnection,
+  homeScopedNames: ReadonlySet<string> = new Set(),
 ): Record<string, unknown> {
-  if (isRuntimeContextMcpTool(name)) return arguments_;
+  if (isRuntimeContextMcpTool(name) || homeScopedNames.has(name)) return arguments_;
   const withBoard = { ...arguments_, board_id: connection.boardId };
   if (RUNTIME_READ_TOOLS.has(name)) return withBoard;
   const actor = runtimeEventActor(host, callContext);

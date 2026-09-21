@@ -76,3 +76,46 @@ export interface ConnectorHostApi {
   }): Promise<ConnectorReceipt>;
   revoke(connectionId: string): void;
 }
+
+/** Machine-level account card shown on Host Connectors settings. Not a Feed source. */
+export type ConnectorAccountState = "connected" | "disconnected" | "reauth_required";
+export type ConnectorDirectoryAvailability = "live" | "placeholder";
+export type ConnectorAuthKind = "github" | "gmail" | "token" | "none";
+export type ConnectorDirectoryGroupId =
+  | "mail"
+  | "files"
+  | "chat"
+  | "code"
+  | "work"
+  | "design"
+  | "crm"
+  | "social";
+
+export type ConnectorCapabilityFulfillment = "live" | "unfulfilled";
+
+export interface ConnectorCapability {
+  readonly label: string;
+  readonly fulfillment: ConnectorCapabilityFulfillment;
+}
+
+/** Official page where a person creates the credential this Connector asks for. */
+export interface ConnectorSetupLink {
+  readonly label: string;
+  readonly url: string;
+}
+
+export interface ConnectorDirectoryEntry {
+  readonly connector_id: string;
+  readonly title: string;
+  readonly availability: ConnectorDirectoryAvailability;
+  readonly auth_kind: ConnectorAuthKind;
+  readonly group_id: ConnectorDirectoryGroupId;
+  readonly summary: string;
+  readonly capabilities: readonly ConnectorCapability[];
+  readonly unavailable_reason?: string;
+  readonly outbound_note?: string;
+  readonly token_label?: string;
+  readonly token_placeholder?: string;
+  readonly auth_help?: string;
+  readonly setup_links?: readonly ConnectorSetupLink[];
+}

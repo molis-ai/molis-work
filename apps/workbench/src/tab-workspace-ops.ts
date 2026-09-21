@@ -1,6 +1,6 @@
 // @ts-nocheck
 /** Pure tab-workspace rules for additive tabs, user groups, and split panes. Stringified into the browser client; keep it type-annotation-free. */
-export function createTabWorkspaceOps() {
+export function createTabWorkspaceOps(titles) {
   const MAX_PANES = Infinity;
   const GROUP_COLORS = ["grey", "blue", "red", "yellow", "green", "pink", "purple", "cyan"];
   const uid = () => "t" + Math.random().toString(36).slice(2, 10);
@@ -20,7 +20,7 @@ export function createTabWorkspaceOps() {
       pane.activeTabId = pane.viewPlugin ? null : pane.tabs[0]?.id || null;
     }
   };
-  const pluginTitle = (plugin) => ({
+  const pluginTitle = (plugin) => (titles && titles[plugin]) || ({
     home: "项目首页",
     goals: "Goals",
     sessions: "Sessions",
@@ -30,6 +30,11 @@ export function createTabWorkspaceOps() {
     shelf: "Shelf",
     functions: "Functions",
     experiments: "实验",
+    pages: "Pages",
+    form: "Forms",
+    dataset: "Dataset",
+    ppt: "PPT",
+    lingguang: "灵光",
     artifacts: "Artifacts",
   }[plugin] || plugin);
   const pluginOfSurface = (surface) => surface === "goal" ? "goals" : surface === "sources" ? "feed" : surface;
@@ -113,7 +118,33 @@ export function createTabWorkspaceOps() {
   };
   const activateInPane = (pane, tab) => {
     pane.activeTabId = tab.id;
+    if (tab.kind === "home") pane.viewPlugin = null;
     return tab;
+  };
+  const activate = (state, paneId, tabId) => {
+    const pane = state.panes.find((candidate) => candidate.id === paneId);
+    const tab = pane?.tabs.find((candidate) => candidate.id === tabId);
+    if (!pane || !tab) return state;
+    state.focusedPaneId = paneId;
+    activateInPane(pane, tab);
+    return state;
+  };
+  const landAtProjectRoot = (state) => {
+    if (state.exclusive) return state;
+    if (state.panes.some((pane) => pane.tabs.some((tab) => tab.kind === "item"))) return state;
+    if (!state.panes.some((pane) => pane.viewPlugin)) return state;
+    for (const pane of state.panes) {
+      if (!pane.viewPlugin) continue;
+      pane.viewPlugin = null;
+      const home = pane.tabs.find((tab) => tab.kind === "home");
+      if (home) pane.activeTabId = home.id;
+      else {
+        const next = homeTab();
+        pane.tabs = [next, ...pane.tabs];
+        pane.activeTabId = next.id;
+      }
+    }
+    return ensureHome(state);
   };
   const insertIndex = (pane) => {
     const activeIndex = pane.tabs.findIndex((tab) => tab.id === pane.activeTabId);
@@ -359,6 +390,8 @@ export function createTabWorkspaceOps() {
     create,
     openPlugin,
     openItem,
+    activate,
+    landAtProjectRoot,
     closeTab,
     togglePinned,
     closePane,

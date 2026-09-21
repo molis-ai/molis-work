@@ -4,7 +4,7 @@ import { join, resolve } from "node:path";
 import { LocalSqliteStorage, createFileSecretStore } from "@molis-ai/molis-work-storage";
 import { SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { ExperimentsService, experimentsManifest, EXPERIMENTS_PLUGIN_ID, summarize, type ExperimentInput, type Participant } from "@molis-ai/molis-work-plugin-experiments";
-import { openFunctionsStore } from "@molis-ai/molis-work-plugin-functions";
+import { openFunctionsStore } from "@molis-ai/molis-work-module-functions";
 import { FUNCTIONS_CREDENTIAL_REF } from "@molis-ai/molis-work-contracts/modules/functions";
 import { createExperimentExecutor, experimentConnectionStatus, experimentDefaults } from "./experiments-executor.js";
 const services = new Map<string,{service:ExperimentsService; db:LocalSqliteStorage}>();

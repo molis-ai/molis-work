@@ -15,7 +15,7 @@
 | 文件 | 用途 |
 | --- | --- |
 | [src/protocol.ts](src/protocol.ts) | handleMcpMessage：协议处理 |
-| [src/tool-catalog.ts](src/tool-catalog.ts) | 公开工具目录 |
+| [src/tool-catalog.ts](src/tool-catalog.ts) | 平台工具目录（连接 / Goals / 事件）。插件工具不在这里写死 |
 | [src/tool-dispatch.ts](src/tool-dispatch.ts) | 项目工具分发 |
 | [src/launcher-validation.ts](src/launcher-validation.ts) | 启动器验证 |
 
@@ -23,7 +23,7 @@
 
 ## 接入与边界
 
-Session 身份来自 Host 上下文，不能把模型提交的参数直接当作身份。工具 schema 与响应适配属于这里；Goal 事件事实和完成效果属于 Goals，可信用户决定属于 Governance，UI 不另算完成。
+Session 身份来自 Host 上下文，不能把模型提交的参数直接当作身份。工具 schema 与响应适配属于这里；Goal 事件事实和完成效果属于 Goals，可信用户决定属于 Governance，UI 不另算完成。插件对外方法由 Manifest `mcp_exports` 登记、由 Local Host 合成，不进本包静态目录。作者与 Host 改法见 [Plugin 开发 · 对外 MCP](../../docs/platform/PLUGIN-DEVELOPMENT.md#对外-mcp)。
 
 工作区依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-goals`。其他运行依赖见 [package.json](package.json)。
 

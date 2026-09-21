@@ -1,13 +1,15 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { FeedPluginRouteTable, createFeedRouteHandlers, feedRouteErrorResponse, type FeedPluginRouteResponse } from "@molis-ai/molis-work-plugin-feed";
+import { FeedPluginRouteTable, createFeedRouteHandlers, feedRouteErrorResponse, type FeedApplication, type FeedItemRecord, type FeedPluginRouteResponse } from "@molis-ai/molis-work-plugin-feed";
 import type { MolisWorkWebView, WorkbenchRenderer } from "@molis-ai/molis-work-app-workbench";
 import type { GoalProjectApplication } from "./goal-project-application.js";
 import type { LocalProjectDatabase } from "./project-database.js";
-import { createLocalFeedApplication } from "./feed-application.js";
+import { createLocalFeedApplication, withLocalFeedJudgments } from "./feed-application.js";
 import { createLocalFeedConnectorService } from "./feed-connector-service.js";
 import { createLocalFeedSourceService, listFeedSourceCatalog } from "./feed-source-service.js";
 import { createLocalFeedGoalPromotion } from "./feed-goal-promotion.js";
 import { hydrateFeedItemContent, hydrateFeedSnapshotContent } from "./feed-content.js";
+import { createFunctionsJudgmentPort } from "./functions-host.js";
+import { FEED_CAPTURE_SCENE_ID } from "@molis-ai/molis-work-contracts/modules/functions";
 
 export interface FeedNativePluginHttpOptions {
   readonly renderer: Pick<WorkbenchRenderer, "renderFeedWorkbenchFragment" | "renderPersistedFeedItemDetail">;
@@ -18,6 +20,7 @@ export interface FeedNativePluginHttpOptions {
   readonly coordinator: GoalProjectApplication;
   readonly readWebView: () => MolisWorkWebView;
   readonly invalidateWebView: () => void;
+  readonly homeDirectory?: string;
 }
 
 export async function handleFeedNativePluginHttp(
@@ -32,7 +35,8 @@ export async function handleFeedNativePluginHttp(
   const method = request.method;
   if (!method || !["GET", "POST", "PUT", "PATCH", "DELETE"].includes(method)) return false;
   const body = method === "GET" || method === "DELETE" ? await readOptionalBody(request) : await readBody(request);
-  const routes = new FeedPluginRouteTable(createHandlers(options));
+  const session = createHandlers(options);
+  const routes = new FeedPluginRouteTable(session.handlers);
   try {
     const result = await routes.handle({
       method: method as "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
@@ -41,6 +45,7 @@ export async function handleFeedNativePluginHttp(
       body,
     });
     if (!result) return false;
+    await session.feed.flushPendingJudgments();
     writeResponse(response, result);
     return true;
   } catch (error) {
@@ -49,19 +54,28 @@ export async function handleFeedNativePluginHttp(
   }
 }
 
-function createHandlers(options: FeedNativePluginHttpOptions) {
-  return createFeedRouteHandlers({
-    boardId: options.boardId, routePrefix: options.routePrefix,
-    feed: () => createLocalFeedApplication(options.store.db),
-    sources: () => createLocalFeedSourceService(options.store.db, options.boardId),
-    connectors: () => createLocalFeedConnectorService(options.store.db, options.boardId),
-    changed: () => options.invalidateWebView(),
-    hydrateItem: hydrateFeedItemContent, hydrateSnapshot: hydrateFeedSnapshotContent,
-    sourceCatalog: listFeedSourceCatalog,
-    renderWorkbench: () => options.renderer.renderFeedWorkbenchFragment(options.readWebView()),
-    renderDetail: (item, detail) => options.renderer.renderPersistedFeedItemDetail(item, options.routePrefix, detail),
-    promote: (feed, input) => createLocalFeedGoalPromotion(options.store.db, options.coordinator.goalEvents.createIntent.bind(options.coordinator.goalEvents), options.coordinator.goalInputs, feed)(input),
-  });
+function createHandlers(options: FeedNativePluginHttpOptions): { handlers: ReturnType<typeof createFeedRouteHandlers>; feed: FeedApplication } {
+  const feed = createLocalFeedApplication(options.store.db, withLocalFeedJudgments(options.homeDirectory));
+  return {
+    feed,
+    handlers: createFeedRouteHandlers({
+      boardId: options.boardId, routePrefix: options.routePrefix,
+      feed: () => feed,
+      sources: () => createLocalFeedSourceService(options.store.db, options.boardId, undefined, undefined, options.homeDirectory),
+      connectors: () => createLocalFeedConnectorService(options.store.db, options.boardId, undefined, options.homeDirectory),
+      changed: () => options.invalidateWebView(),
+      hydrateItem: (item) => attachFeedItemSuggestions(
+        hydrateFeedItemContent(item),
+        options.homeDirectory,
+        options.boardId,
+      ),
+      hydrateSnapshot: hydrateFeedSnapshotContent,
+      sourceCatalog: listFeedSourceCatalog,
+      renderWorkbench: () => options.renderer.renderFeedWorkbenchFragment(options.readWebView()),
+      renderDetail: (item, detail) => options.renderer.renderPersistedFeedItemDetail(item, options.routePrefix, detail),
+      promote: (feedApp, input) => createLocalFeedGoalPromotion(options.store.db, options.coordinator.goalEvents.createIntent.bind(options.coordinator.goalEvents), options.coordinator.goalInputs, feedApp)(input),
+    }),
+  };
 }
 
 function writeResponse(response: ServerResponse, result: FeedPluginRouteResponse): void {
@@ -101,4 +115,17 @@ function readBody(request: IncomingMessage): Promise<Record<string, unknown>> {
 function readOptionalBody(request: IncomingMessage): Promise<Record<string, unknown>> {
   const contentLength = Number(request.headers["content-length"] ?? 0);
   return contentLength > 0 ? readBody(request) : Promise.resolve({});
+}
+
+function attachFeedItemSuggestions(
+  item: FeedItemRecord,
+  homeDirectory: string | undefined,
+  boardId: string,
+): FeedItemRecord {
+  if (!homeDirectory) return item;
+  return {
+    ...item,
+    suggested_behavior_ids: createFunctionsJudgmentPort(homeDirectory)
+      .latest("feed_item", item.item_id, boardId, FEED_CAPTURE_SCENE_ID)?.suggested_behavior_ids ?? [],
+  };
 }

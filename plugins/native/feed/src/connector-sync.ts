@@ -1,3 +1,4 @@
+import { isAccountConnectorSyncKind } from "@molis-ai/molis-work-contracts/modules/sources";
 import { FeedDomainError } from "@molis-ai/molis-work-contracts/modules/feed";
 import { ListenerHostError, type ListenerRunReceipt } from "@molis-ai/molis-work-contracts/services/listener-host";
 import type { FeedApplication } from "./application.js";
@@ -17,7 +18,7 @@ export class FeedConnectorSync {
     input: { idempotencyKey: string; mode?: ConnectorSyncMode },
   ): Promise<FeedSourceSyncResult> {
     const source = this.feed.getSource(this.boardId, sourceId);
-    if (source.sync_kind !== "github" && source.sync_kind !== "gmail") {
+    if (!isAccountConnectorSyncKind(source.sync_kind)) {
       throw new FeedDomainError("这个来源不是账号连接器", "connector_wrong_sync_kind");
     }
     if (source.status === "disconnected") {
@@ -57,6 +58,7 @@ export class FeedConnectorSync {
         });
       });
       listenerResult = await listener.run(operationId, input.mode ?? "normal");
+      await this.feed.flushPendingJudgments();
     } catch (error) {
       const updatedAt = new Date().toISOString();
       const errorCode = error instanceof ListenerHostError ? error.code : safeConnectorErrorCode(error);
@@ -114,6 +116,7 @@ export class FeedConnectorSync {
         ? `${source.name} 授权已失效或不可用，请打开任务设置中的“管理账号连接”重新授权。`
         : action ? `${message} — ${action}` : message;
       this.recordActionableSourceFault(source, listenerResult.error_code!, publicMessage, completedAt);
+      await this.feed.flushPendingJudgments();
       throw new FeedDomainError(publicMessage, listenerResult.error_code!);
     }
     const mode = connectorReceipt.mode === "fixture" ? "fixture" : "live";

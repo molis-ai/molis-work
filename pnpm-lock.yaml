@@ -35,6 +35,9 @@ importers:
       '@molis-ai/molis-work-design-system':
         specifier: workspace:*
         version: link:packages/design-system
+      '@molis-ai/molis-work-integration-catalog':
+        specifier: workspace:*
+        version: link:plugins/official-integrations/catalog
       '@molis-ai/molis-work-integration-github':
         specifier: workspace:*
         version: link:plugins/official-integrations/github
@@ -68,6 +71,9 @@ importers:
       '@molis-ai/molis-work-module-feed':
         specifier: workspace:*
         version: link:modules/feed
+      '@molis-ai/molis-work-module-functions':
+        specifier: workspace:*
+        version: link:modules/functions
       '@molis-ai/molis-work-module-goals':
         specifier: workspace:*
         version: link:modules/goals
@@ -98,6 +104,9 @@ importers:
       '@molis-ai/molis-work-plugin-coding':
         specifier: workspace:*
         version: link:plugins/native/coding
+      '@molis-ai/molis-work-plugin-dataset':
+        specifier: workspace:*
+        version: link:plugins/native/dataset
       '@molis-ai/molis-work-plugin-diff':
         specifier: workspace:*
         version: link:plugins/native/diff
@@ -110,6 +119,9 @@ importers:
       '@molis-ai/molis-work-plugin-files':
         specifier: workspace:*
         version: link:plugins/native/files
+      '@molis-ai/molis-work-plugin-form':
+        specifier: workspace:*
+        version: link:plugins/native/form
       '@molis-ai/molis-work-plugin-functions':
         specifier: workspace:*
         version: link:plugins/native/functions
@@ -122,6 +134,15 @@ importers:
       '@molis-ai/molis-work-plugin-inbox':
         specifier: workspace:*
         version: link:plugins/native/inbox
+      '@molis-ai/molis-work-plugin-lingguang':
+        specifier: workspace:*
+        version: link:plugins/native/lingguang
+      '@molis-ai/molis-work-plugin-pages':
+        specifier: workspace:*
+        version: link:plugins/native/pages
+      '@molis-ai/molis-work-plugin-ppt':
+        specifier: workspace:*
+        version: link:plugins/native/ppt
       '@molis-ai/molis-work-plugin-runtime':
         specifier: workspace:*
         version: link:packages/plugin-runtime
@@ -213,6 +234,9 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@molis-ai/molis-work-design-system':
+        specifier: workspace:*
+        version: link:../../packages/design-system
       '@molis-ai/molis-work-plugin-feed':
         specifier: workspace:*
         version: link:../../plugins/native/feed
@@ -246,6 +270,9 @@ importers:
       '@molis-ai/molis-work-design-system':
         specifier: workspace:*
         version: link:../../packages/design-system
+      '@molis-ai/molis-work-integration-catalog':
+        specifier: workspace:*
+        version: link:../../plugins/official-integrations/catalog
       '@molis-ai/molis-work-integration-github':
         specifier: workspace:*
         version: link:../../plugins/official-integrations/github
@@ -279,6 +306,9 @@ importers:
       '@molis-ai/molis-work-module-feed':
         specifier: workspace:*
         version: link:../../modules/feed
+      '@molis-ai/molis-work-module-functions':
+        specifier: workspace:*
+        version: link:../../modules/functions
       '@molis-ai/molis-work-module-goals':
         specifier: workspace:*
         version: link:../../modules/goals
@@ -306,6 +336,9 @@ importers:
       '@molis-ai/molis-work-plugin-coding':
         specifier: workspace:*
         version: link:../../plugins/native/coding
+      '@molis-ai/molis-work-plugin-dataset':
+        specifier: workspace:*
+        version: link:../../plugins/native/dataset
       '@molis-ai/molis-work-plugin-diff':
         specifier: workspace:*
         version: link:../../plugins/native/diff
@@ -318,6 +351,9 @@ importers:
       '@molis-ai/molis-work-plugin-files':
         specifier: workspace:*
         version: link:../../plugins/native/files
+      '@molis-ai/molis-work-plugin-form':
+        specifier: workspace:*
+        version: link:../../plugins/native/form
       '@molis-ai/molis-work-plugin-functions':
         specifier: workspace:*
         version: link:../../plugins/native/functions
@@ -330,6 +366,15 @@ importers:
       '@molis-ai/molis-work-plugin-inbox':
         specifier: workspace:*
         version: link:../../plugins/native/inbox
+      '@molis-ai/molis-work-plugin-lingguang':
+        specifier: workspace:*
+        version: link:../../plugins/native/lingguang
+      '@molis-ai/molis-work-plugin-pages':
+        specifier: workspace:*
+        version: link:../../plugins/native/pages
+      '@molis-ai/molis-work-plugin-ppt':
+        specifier: workspace:*
+        version: link:../../plugins/native/ppt
       '@molis-ai/molis-work-plugin-runtime':
         specifier: workspace:*
         version: link:../../packages/plugin-runtime
@@ -406,6 +451,9 @@ importers:
       '@molis-ai/molis-work-plugin-coding':
         specifier: workspace:*
         version: link:../../plugins/native/coding
+      '@molis-ai/molis-work-plugin-dataset':
+        specifier: workspace:*
+        version: link:../../plugins/native/dataset
       '@molis-ai/molis-work-plugin-diff':
         specifier: workspace:*
         version: link:../../plugins/native/diff
@@ -418,6 +466,9 @@ importers:
       '@molis-ai/molis-work-plugin-files':
         specifier: workspace:*
         version: link:../../plugins/native/files
+      '@molis-ai/molis-work-plugin-form':
+        specifier: workspace:*
+        version: link:../../plugins/native/form
       '@molis-ai/molis-work-plugin-functions':
         specifier: workspace:*
         version: link:../../plugins/native/functions
@@ -430,6 +481,15 @@ importers:
       '@molis-ai/molis-work-plugin-inbox':
         specifier: workspace:*
         version: link:../../plugins/native/inbox
+      '@molis-ai/molis-work-plugin-lingguang':
+        specifier: workspace:*
+        version: link:../../plugins/native/lingguang
+      '@molis-ai/molis-work-plugin-pages':
+        specifier: workspace:*
+        version: link:../../plugins/native/pages
+      '@molis-ai/molis-work-plugin-ppt':
+        specifier: workspace:*
+        version: link:../../plugins/native/ppt
       '@molis-ai/molis-work-plugin-schedule':
         specifier: workspace:*
         version: link:../../plugins/native/schedule
@@ -519,6 +579,15 @@ importers:
         version: link:../../packages/contracts
 
   modules/feed:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@molis-ai/molis-work-storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
+
+  modules/functions:
     dependencies:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
@@ -647,6 +716,18 @@ importers:
         specifier: workspace:*
         version: link:../../../packages/contracts
 
+  plugins/native/dataset:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../../packages/contracts
+      '@molis-ai/molis-work-design-system':
+        specifier: workspace:*
+        version: link:../../../packages/design-system
+      '@molis-ai/molis-work-storage':
+        specifier: workspace:*
+        version: link:../../../packages/storage
+
   plugins/native/diff:
     dependencies:
       '@molis-ai/molis-work-contracts':
@@ -690,6 +771,18 @@ importers:
         specifier: workspace:*
         version: link:../../../packages/contracts
 
+  plugins/native/form:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../../packages/contracts
+      '@molis-ai/molis-work-design-system':
+        specifier: workspace:*
+        version: link:../../../packages/design-system
+      '@molis-ai/molis-work-storage':
+        specifier: workspace:*
+        version: link:../../../packages/storage
+
   plugins/native/functions:
     dependencies:
       '@molis-ai/molis-work-contracts':
@@ -698,6 +791,9 @@ importers:
       '@molis-ai/molis-work-design-system':
         specifier: workspace:*
         version: link:../../../packages/design-system
+      '@molis-ai/molis-work-module-functions':
+        specifier: workspace:*
+        version: link:../../../modules/functions
 
   plugins/native/git:
     dependencies:
@@ -725,6 +821,66 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
+
+  plugins/native/lingguang:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../../packages/contracts
+      '@molis-ai/molis-work-design-system':
+        specifier: workspace:*
+        version: link:../../../packages/design-system
+      '@molis-ai/molis-work-storage':
+        specifier: workspace:*
+        version: link:../../../packages/storage
+
+  plugins/native/pages:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../../packages/contracts
+      '@molis-ai/molis-work-design-system':
+        specifier: workspace:*
+        version: link:../../../packages/design-system
+      '@molis-ai/molis-work-storage':
+        specifier: workspace:*
+        version: link:../../../packages/storage
+      prosemirror-commands:
+        specifier: ^1.7.1
+        version: 1.7.2
+      prosemirror-history:
+        specifier: ^1.5.0
+        version: 1.5.0
+      prosemirror-inputrules:
+        specifier: ^1.5.1
+        version: 1.5.1
+      prosemirror-keymap:
+        specifier: ^1.2.3
+        version: 1.2.3
+      prosemirror-model:
+        specifier: ^1.25.4
+        version: 1.25.11
+      prosemirror-schema-list:
+        specifier: ^1.5.1
+        version: 1.5.1
+      prosemirror-state:
+        specifier: ^1.4.4
+        version: 1.4.4
+      prosemirror-view:
+        specifier: ^1.41.4
+        version: 1.42.4
+
+  plugins/native/ppt:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../../packages/contracts
+      '@molis-ai/molis-work-design-system':
+        specifier: workspace:*
+        version: link:../../../packages/design-system
+      '@molis-ai/molis-work-storage':
+        specifier: workspace:*
+        version: link:../../../packages/storage
 
   plugins/native/schedule:
     dependencies:
@@ -776,6 +932,15 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
+
+  plugins/official-integrations/catalog:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../../packages/contracts
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../../../packages/plugin-sdk
 
   plugins/official-integrations/github:
     dependencies:
@@ -1279,6 +1444,9 @@ packages:
   once@1.4.0:
     resolution: {integrity: sha512-lNaJgI+2Q5URQBkccEKHTQOPaXdUxnZZElQTZY0MFUAuaEqe1E+Nyvgdz/aIyNi6Z9MzO5dv1H8n58/GELp3+w==}
 
+  orderedmap@2.1.1:
+    resolution: {integrity: sha512-TvAWxi0nDe1j/rtMcWcIj94+Ffe6n7zhow33h40SKxmsmozs6dz/e+EajymfoFcHd7sxNn8yHM8839uixMOV6g==}
+
   parse-srcset@1.0.2:
     resolution: {integrity: sha512-/2qh0lav6CmI15FzA3i/2Bzk2zCgQhGMkvhOhKNcBVQ1ldgpbfiNTVslmooUmWJcADi1f1kIeynbDRVzNlfR6Q==}
 
@@ -1295,6 +1463,33 @@ packages:
     deprecated: No longer maintained. Please contact the author of the relevant native addon; alternatives are available.
     hasBin: true
 
+  prosemirror-commands@1.7.2:
+    resolution: {integrity: sha512-q6Q6szxqdu9Xd6EcdKsqXghu5nQdZTpB4Q9yd04WRc7/jt763e/rT60Owh0L1GYY+T46o5rD+9lEN36dZS43tw==}
+
+  prosemirror-history@1.5.0:
+    resolution: {integrity: sha512-zlzTiH01eKA55UAf1MEjtssJeHnGxO0j4K4Dpx+gnmX9n+SHNlDqI2oO1Kv1iPN5B1dm5fsljCfqKF9nFL6HRg==}
+
+  prosemirror-inputrules@1.5.1:
+    resolution: {integrity: sha512-7wj4uMjKaXWAQ1CDgxNzNtR9AlsuwzHfdFH1ygEHA2KHF2DOEaXl1CJfNPAKCg9qNEh4rum975QLaCiQPyY6Fw==}
+
+  prosemirror-keymap@1.2.3:
+    resolution: {integrity: sha512-4HucRlpiLd1IPQQXNqeo81BGtkY8Ai5smHhKW9jjPKRc2wQIxksg7Hl1tTI2IfT2B/LgX6bfYvXxEpJl7aKYKw==}
+
+  prosemirror-model@1.25.11:
+    resolution: {integrity: sha512-QWg9RhnpLlogAmp3p96uEFrE5txQpFynd4vhBAELkwgOCWQs/X0yCzB3/hrHqiPwf91RG5KyWq6553zs9JqIOQ==}
+
+  prosemirror-schema-list@1.5.1:
+    resolution: {integrity: sha512-927lFx/uwyQaGwJxLWCZRkjXG0p48KpMj6ueoYiu4JX05GGuGcgzAy62dfiV8eFZftgyBUvLx76RsMe20fJl+Q==}
+
+  prosemirror-state@1.4.4:
+    resolution: {integrity: sha512-6jiYHH2CIGbCfnxdHbXZ12gySFY/fz/ulZE333G6bPqIZ4F+TXo9ifiR86nAHpWnfoNjOb3o5ESi7J8Uz1jXHw==}
+
+  prosemirror-transform@1.12.1:
+    resolution: {integrity: sha512-t4F5615FycnCqsX7ShTUs8+jfnwcf46kuFRvSl/3qFx2QTZ4DjgowesLHQXcFP7G//TjesqZG3WtgL7vdyVJyA==}
+
+  prosemirror-view@1.42.4:
+    resolution: {integrity: sha512-H/LErnE8Vms1GYkvhfj6G3K9rc2p+o5EHGmTwvPOl0f21wPPxlMVRB8ICOseH+COb2oPKFEoufbgY6yet/dR4w==}
+
   pump@3.0.4:
     resolution: {integrity: sha512-VS7sjc6KR7e1ukRFhQSY5LM2uBWAUPiOPa/A3mkKmiMwSmRFUITt0xuj+/lesgnCv+dPIEYlkzrcyXgquIHMcA==}
 
@@ -1305,6 +1500,9 @@ packages:
   readable-stream@3.6.2:
     resolution: {integrity: sha512-9u/sniCrY3D5WdsERHzHE4G2YCXqoG5FTHUiCC4SIbr6XcLZBY05ya9EKjYek9O5xOAwjGq+1JdGBAS7Q9ScoA==}
     engines: {node: '>= 6'}
+
+  rope-sequence@1.3.4:
+    resolution: {integrity: sha512-UT5EDe2cu2E/6O4igUr5PSFs23nvvukicWHx6GnOPlHAiiYbzNuCRQCuiUdHJQcqKalLKlrYJnjY0ySGsXNQXQ==}
 
   safe-buffer@5.2.1:
     resolution: {integrity: sha512-rp3So07KcdmmKbGvgaNxQSJr7bGVSVk5S9Eq1F+ppbRo70+YeaDxkw5Dd8NPN+GD6bjnYm2VuPuCXmpuYvmCXQ==}
@@ -1360,6 +1558,9 @@ packages:
 
   util-deprecate@1.0.2:
     resolution: {integrity: sha512-EPD5q1uXyFxJpCrLnCc1nHnq3gOa6DZBocAIiI2TaSCA7VCJ1UJDMagCzIkXNsUYfD1daK//LTEQ8xiIbrHtcw==}
+
+  w3c-keyname@2.2.8:
+    resolution: {integrity: sha512-dpojBhNsCNN7T82Tm7k26A6G9ML3NkhDsnw9n/eoxSRlVBB4CEtIQ/KTCLI2Fwf3ataSXRhYFkQi3SlnFwPvPQ==}
 
   wrappy@1.0.2:
     resolution: {integrity: sha512-l4Sp/DRseor9wL6EvV2+TuQn63dMkPjZ/sp9XkghTEbV9KlPS1xUsZ3u7/IQO4wxtcFB4bgpQPRcR3QCvezPcQ==}
@@ -1713,6 +1914,8 @@ snapshots:
     dependencies:
       wrappy: 1.0.2
 
+  orderedmap@2.1.1: {}
+
   parse-srcset@1.0.2: {}
 
   picocolors@1.1.1: {}
@@ -1738,6 +1941,55 @@ snapshots:
       tar-fs: 2.1.5
       tunnel-agent: 0.6.0
 
+  prosemirror-commands@1.7.2:
+    dependencies:
+      prosemirror-model: 1.25.11
+      prosemirror-state: 1.4.4
+      prosemirror-transform: 1.12.1
+
+  prosemirror-history@1.5.0:
+    dependencies:
+      prosemirror-state: 1.4.4
+      prosemirror-transform: 1.12.1
+      prosemirror-view: 1.42.4
+      rope-sequence: 1.3.4
+
+  prosemirror-inputrules@1.5.1:
+    dependencies:
+      prosemirror-state: 1.4.4
+      prosemirror-transform: 1.12.1
+
+  prosemirror-keymap@1.2.3:
+    dependencies:
+      prosemirror-state: 1.4.4
+      w3c-keyname: 2.2.8
+
+  prosemirror-model@1.25.11:
+    dependencies:
+      orderedmap: 2.1.1
+
+  prosemirror-schema-list@1.5.1:
+    dependencies:
+      prosemirror-model: 1.25.11
+      prosemirror-state: 1.4.4
+      prosemirror-transform: 1.12.1
+
+  prosemirror-state@1.4.4:
+    dependencies:
+      prosemirror-model: 1.25.11
+      prosemirror-transform: 1.12.1
+      prosemirror-view: 1.42.4
+
+  prosemirror-transform@1.12.1:
+    dependencies:
+      prosemirror-model: 1.25.11
+
+  prosemirror-view@1.42.4:
+    dependencies:
+      prosemirror-model: 1.25.11
+      prosemirror-state: 1.4.4
+      prosemirror-transform: 1.12.1
+
   pump@3.0.4:
     dependencies:
       end-of-stream: 1.4.5
@@ -1755,6 +2007,8 @@ snapshots:
       inherits: 2.0.4
       string_decoder: 1.3.0
       util-deprecate: 1.0.2
+
+  rope-sequence@1.3.4: {}
 
   safe-buffer@5.2.1: {}
 
@@ -1816,6 +2070,8 @@ snapshots:
   undici-types@6.21.0: {}
 
   util-deprecate@1.0.2: {}
+
+  w3c-keyname@2.2.8: {}
 
   wrappy@1.0.2: {}
 

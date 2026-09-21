@@ -173,6 +173,7 @@ test("opening sources rebuilds leftover origin CHECK so current writes can land"
       (db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'feed_sources'").get() as { sql: string }).sql,
     );
     assert.ok(sql.includes("CHECK (origin = 'molis_work')"));
+    assert.ok(sql.includes("'connector'"));
     assert.equal(sql.includes("origin IN ('relay', 'goalboard')"), false);
     const origins = (db.prepare("SELECT origin FROM feed_sources ORDER BY source_id").all() as Array<{ origin: string }>)
       .map((row) => row.origin);

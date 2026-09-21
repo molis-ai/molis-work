@@ -11,7 +11,7 @@ export const FUNCTIONS_SETTINGS_CLIENT_SCRIPT = `(() => {
     ? molisWorkControlHeaders()
     : { "content-type": "application/json" };
   const post = async (body) => {
-    const response = await fetch("/api/functions/settings", {
+    const response = await fetch("/api/plugins/functions/settings", {
       method: "POST",
       headers: headers(),
       body: JSON.stringify(body),

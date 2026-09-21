@@ -1,5 +1,5 @@
 import type { MolisWorkIcon } from "@molis-ai/molis-work-design-system";
-import { railEntries } from "./plugin-catalog.js";
+import { DIRECT_WORK_SURFACE_IDS, islandEntries, pluginMarketCards, railEntries } from "./plugin-catalog.js";
 
 export interface ImmersiveShellPrimitives {
   L(value: string): string;
@@ -30,7 +30,7 @@ function pluginLink(
   plugin: { id: string; surface: string; label: string; glyph: MolisWorkIcon },
   extraClass = "",
 ): string {
-  const directory = plugin.id === "home" || plugin.id === "market" || plugin.id === "feed" || plugin.id === "goals" || plugin.id === "sessions" || plugin.id === "inbox" || plugin.id === "schedule" || plugin.id === "artifacts" || plugin.id === "shelf" || plugin.id === "functions" || plugin.id === "experiments" ? "" : ` data-directory-open="${plugin.id}"`;
+  const directory = DIRECT_WORK_SURFACE_IDS.has(plugin.id) ? "" : ` data-directory-open="${plugin.id}"`;
   const feedPreset = plugin.id === "feed" ? ' data-feed-preset="feed"' : "";
   const aria = plugin.id === "home" || plugin.id === "market"
     ? ` aria-label="${plugin.label}"`
@@ -43,6 +43,15 @@ function currentListPlugin(directory: string): string {
   if (directory === "sources") return "feed";
   if (directory === "root" || directory === "market" || directory === "home") return "";
   return directory;
+}
+
+function islandPlugins(enabled: readonly string[]) {
+  return islandEntries(enabled).map(entry => ({
+    id: entry.id,
+    surface: SURFACE_OVERRIDES[entry.id] ?? entry.surface,
+    label: entry.label,
+    glyph: entry.glyph as MolisWorkIcon,
+  }));
 }
 
 /** Icon rail: home, enabled plugins, market. Account stays at the bottom. */
@@ -60,6 +69,30 @@ export function renderPluginRail(
   return `<nav class="mw-sidebar mw-sidebar--rail plugin-rail immersive-plugin-strip" data-plugin-strip data-plugin-heading aria-label="${L("项目入口")}">
     <div class="plugin-rail-items">${home}${plugins}${market}</div>
     ${accountFooter}
+  </nav>`;
+}
+
+/** Personal capture + Assistant entry, above the project island. */
+export function renderAssistantIsland(
+  primitives: ImmersiveShellPrimitives,
+  enabled: readonly string[],
+): string {
+  const { L, icon } = primitives;
+  const islandButtons = islandPlugins(enabled)
+    .map(plugin => pluginLink(primitives, plugin, "plugin-rail-item"))
+    .join("");
+  return `<nav class="assistant-island" data-assistant-island aria-label="${L("灵光与对话")}">
+    <div class="assistant-island-card">
+      ${islandButtons}
+      <button class="immersive-plugin-link plugin-rail-item" type="button" data-assistant-toggle popovertarget="assistant-composer" aria-expanded="false" aria-controls="assistant-composer" aria-haspopup="dialog" aria-label="${L("打开对话")}" title="${L("对话")}">${icon("message")}<span>${L("对话")}</span></button>
+    </div>
+    <form class="assistant-composer" id="assistant-composer" data-assistant-composer popover="auto" aria-label="Molis Work Assistant">
+      <input class="assistant-composer-input" data-assistant-input type="text" autocomplete="off" placeholder="${L("发给 Assistant")}" aria-label="${L("发给 Assistant")}">
+      <select class="mw-select" data-assistant-model aria-label="${L("模型")}" disabled>
+        <option value="">${L("还没有可用模型")}</option>
+      </select>
+      <button class="mw-btn mw-btn--primary mw-btn--icon-only mw-btn--sm" type="submit" data-assistant-send aria-label="${L("发送")}" title="${L("发送")}" disabled>${icon("send")}</button>
+    </form>
   </nav>`;
 }
 
@@ -131,18 +164,7 @@ export function renderGlobalSearchOverlay({ L, icon }: ImmersiveShellPrimitives)
 }
 
 export function renderPluginMarket({ L, icon }: ImmersiveShellPrimitives): string {
-  const plugins = [
-    { id: "goals", label: "Goals", glyph: "target" as const, copy: "确定目标，推进工作，留下结果。" },
-    { id: "sessions", label: "Sessions", glyph: "terminal" as const, copy: "回到你的会话，继续正在做的事。" },
-    { id: "inbox", label: "Inbox", glyph: "inbox" as const, copy: "只看需要你介入的事项。" },
-    { id: "schedule", label: "Schedule", glyph: "timer" as const, copy: "到点跑自己的对话任务，也叫醒其他插件的闹钟。" },
-    { id: "feed", label: "Feed", glyph: "rss" as const, copy: "查看来源消息和完整流水。" },
-    { id: "shelf", label: "Shelf", glyph: "library" as const, copy: "把文件放到置物架，处理副本，原件不动。" },
-    { id: "experiments", label: "实验", glyph: "sparkles" as const, copy: "同一任务，独立比较模型的判断、耗时与成本。" },
-    { id: "functions", label: "Functions", glyph: "sparkles" as const, copy: "把一段输入交给 Jev，得到一个有版本的判断。" },
-    { id: "artifacts", label: "Artifacts", glyph: "package" as const, copy: "打开项目成果，查看保留下来的版本。" },
-  ];
-  const rows = plugins.map(plugin => `<article class="mw-card" data-market-plugin="${plugin.id}"><div class="plugin-market-icon">${icon(plugin.glyph)}</div><div class="plugin-market-copy"><h2>${plugin.label}</h2><p>${L(plugin.copy)}</p></div><button class="mw-btn mw-btn--secondary" type="button" data-market-add="${plugin.id}" disabled>${L("添加")}</button></article>`).join("");
+  const rows = pluginMarketCards().map(plugin => `<article class="mw-card" data-market-plugin="${plugin.id}"><div class="plugin-market-icon">${icon(plugin.glyph as MolisWorkIcon)}</div><div class="plugin-market-copy"><h2>${plugin.label}</h2><p>${L(plugin.copy)}</p></div><button class="mw-btn mw-btn--secondary" type="button" data-market-add="${plugin.id}" disabled>${L("添加")}</button></article>`).join("");
   return `<div class="plugin-market-body">
     <header class="plugin-market-heading"><div><h1>${L("插件")}</h1></div><div class="plugin-market-destination"><label id="plugin-market-destination-label" for="plugin-market-project-trigger">${L("添加到")}</label><button type="button" class="plugin-market-project-trigger" id="plugin-market-project-trigger" data-market-project-trigger popovertarget="plugin-market-project-menu" aria-labelledby="plugin-market-destination-label plugin-market-project-label" aria-haspopup="listbox" aria-expanded="false" disabled><strong id="plugin-market-project-label" data-market-project-label></strong>${icon("chevron-down")}</button><div id="plugin-market-project-menu" popover="auto" class="plugin-market-project-popover" data-market-project-popover role="listbox" aria-labelledby="plugin-market-destination-label"><nav data-market-project-options></nav></div><select data-market-project hidden tabindex="-1" aria-hidden="true" disabled></select><template data-market-project-check>${icon("check")}</template></div></header>
     <label class="plugin-market-search mw-input-group">${icon("search")}<input class="mw-input" type="search" data-market-search placeholder="${L("搜索插件")}" aria-label="${L("搜索插件")}" autocomplete="off"></label>

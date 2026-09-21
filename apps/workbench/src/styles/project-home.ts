@@ -61,7 +61,7 @@ export const PROJECT_HOME_STYLES = `
     border-radius: 14px; background: var(--paper);
     box-shadow: inset 0 0 0 1px var(--hairline);
   }
-  .immersive-home .home-hero { flex: none; max-width: 880px; padding: 26px 28px 22px; }
+  .immersive-home .home-hero { flex: none; max-width: 40rem; padding: 26px 28px 22px; }
   .immersive-home .home-hero__eyebrow {
     display: flex; align-items: center; gap: 6px;
     margin: 0 0 12px; color: var(--faint); font-size: 12px;
@@ -75,7 +75,7 @@ export const PROJECT_HOME_STYLES = `
   }
   .immersive-home .home-hero__date span { color: var(--muted); font-size: 14px; }
   .immersive-home .home-hero__today {
-    align-self: center; height: 20px; padding: 0 9px; border-radius: 999px;
+    align-self: center; height: 20px; padding: 0 9px; border-radius: 5px;
     background: var(--blue-soft, var(--nav-hover)); color: var(--accent, var(--blue));
     font-size: 11px; line-height: 20px;
   }
@@ -93,7 +93,7 @@ export const PROJECT_HOME_STYLES = `
   .immersive-home .home-hero__stats i[data-k="org"] { background: var(--dot-org); }
   .immersive-home .home-hero__stats b { font-weight: 400; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 
-  .immersive-home .home-tl { flex: 1; min-height: 0; overflow: auto; max-width: 880px; padding: 0 16px 18px; border-top: 1px solid var(--line); }
+  .immersive-home .home-tl { flex: 1; min-height: 0; overflow: auto; max-width: 40rem; padding: 0 16px 18px; border-top: 1px solid var(--line); }
   .immersive-home .home-tl__head {
     display: flex; align-items: center; gap: 7px;
     padding: 15px 8px 9px; color: var(--faint); font-size: 12px;
@@ -105,11 +105,14 @@ export const PROJECT_HOME_STYLES = `
     position: relative; display: grid;
     grid-template-columns: 44px 20px minmax(0, 1fr) auto;
     align-items: center; gap: 0 10px;
-    width: 100%; padding: 9px 10px 9px 6px;
+    width: 100%; max-width: 40rem; padding: 9px 10px 9px 6px;
     border: 0; border-radius: 10px; background: transparent;
     color: inherit; font: inherit; text-align: left; cursor: pointer;
   }
   .immersive-home .home-erow:hover { background: var(--nav-hover); }
+  .immersive-home .home-erow {
+    transition: background-color 180ms var(--ease-out, cubic-bezier(.16, 1, .3, 1)), color 180ms var(--ease-out, cubic-bezier(.16, 1, .3, 1));
+  }
   .immersive-home .home-erow.is-on { background: color-mix(in srgb, var(--accent, var(--blue)) 11%, transparent); }
   .immersive-home .home-erow__when {
     text-align: right; color: var(--faint); font-size: 12px; font-variant-numeric: tabular-nums;
@@ -226,7 +229,11 @@ export const PROJECT_HOME_STYLES = `
     border-radius: var(--radius-surface); background: var(--paper);
     box-shadow: var(--control-shadow); color: var(--ink);
   }
-  .immersive-home[data-dock="open"] .home-talk { display: flex; }
+  .immersive-home[data-dock="open"] .home-talk { display: flex; animation: surface-arrive var(--motion-normal, 190ms) var(--ease-out, cubic-bezier(.16, 1, .3, 1)); }
+  @media (prefers-reduced-motion: reduce) {
+    .immersive-home .home-erow { transition: none; }
+    .immersive-home[data-dock="open"] .home-talk { animation: none; }
+  }
   .immersive-home .home-talk[hidden] { display: none !important; }
   .immersive-home .home-talk__head {
     flex: none; display: flex; align-items: center; gap: 8px;
@@ -267,7 +274,7 @@ export const PROJECT_HOME_STYLES = `
   .immersive-home .home-shortcut-edit svg { width: 14px; height: 14px; }
   .immersive-home .home-shortcut:hover .home-shortcut-edit, .immersive-home .home-shortcut-edit:focus-visible { opacity: 1; }
   .immersive-home .home-shortcut-error { font-size: 11px; color: var(--red); text-align: center; line-height: 1.6; margin: 12px 0 0; }
-  .immersive-home :is(button, a, input, textarea):focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+  .immersive-home :is(button, a, input, textarea):focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
   body.immersive-workbench .home-shortcut-dialog { width: min(360px, calc(100vw - 40px)); max-height: calc(100dvh - 40px); padding: 25px; border: 1px solid var(--control-border); border-radius: var(--radius-surface); background: var(--paper); color: var(--ink); box-shadow: var(--control-shadow); }
   body.immersive-workbench .home-shortcut-dialog::backdrop { background: #11121655; }
   body.immersive-workbench .home-shortcut-dialog header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 22px; }

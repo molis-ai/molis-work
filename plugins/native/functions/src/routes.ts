@@ -36,6 +36,7 @@ export interface FunctionsPluginRouteBinding extends FunctionsPluginRouteDefinit
 export const FUNCTIONS_NATIVE_PLUGIN_ROUTES = [
   route("functions.list", "GET", /^\/api\/functions$/u),
   route("functions.create", "POST", /^\/api\/functions$/u),
+  route("functions.catalog", "GET", /^\/api\/functions\/catalog$/u),
   route("functions.settings.read", "GET", /^\/api\/functions\/settings$/u),
   route("functions.settings.write", "POST", /^\/api\/functions\/settings$/u),
   route("functions.published", "GET", /^\/api\/functions\/published$/u),
@@ -48,6 +49,7 @@ export const FUNCTIONS_NATIVE_PLUGIN_ROUTES = [
   route("functions.delete", "POST", /^\/api\/functions\/([^/]+)\/delete$/u, ["id"]),
   route("functions.sample.add", "POST", /^\/api\/functions\/([^/]+)\/samples$/u, ["id"]),
   route("functions.sample.delete", "POST", /^\/api\/functions\/([^/]+)\/samples\/delete$/u, ["id"]),
+  route("functions.usages", "GET", /^\/api\/functions\/([^/]+)\/usages$/u, ["id"]),
 ] as const satisfies readonly FunctionsPluginRouteDefinition[];
 
 export class FunctionsPluginRouteTable {

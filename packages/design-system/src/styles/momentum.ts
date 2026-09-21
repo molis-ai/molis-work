@@ -244,9 +244,9 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
     cursor: pointer;
   }
   .momentum-node.is-group-first-row { align-self: start; margin-top: 26px; }
-  .momentum-node:hover { border-color: color-mix(in srgb, var(--blue), var(--line) 48%); transform: translateY(-1px); }
-  .momentum-node.is-selected { border-color: var(--blue); box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue), transparent 82%), 0 7px 20px rgba(22, 31, 43, .08); }
-  .momentum-node.is-connected-path:not(.is-selected) { border-color: color-mix(in srgb, var(--blue), var(--line) 54%); }
+  .momentum-node:hover { border-color: var(--line-strong); transform: translateY(-1px); }
+  .momentum-node.is-selected { border-color: var(--ink); box-shadow: 0 7px 20px rgba(22, 31, 43, .08); }
+  .momentum-node.is-connected-path:not(.is-selected) { border-color: color-mix(in srgb, var(--ink) 46%, var(--line)); }
   .momentum-node.is-complete { opacity: .58; box-shadow: none; }
   .momentum-node.is-complete:hover, .momentum-node.is-complete.is-selected { opacity: 1; }
   .momentum-node.is-bottleneck { border-color: color-mix(in srgb, var(--red), var(--line) 44%); }
@@ -261,7 +261,7 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
   .momentum-legend { min-height: 38px; padding: 7px 13px; border-top: 1px solid var(--line); background: var(--rail); color: var(--muted); display: flex; align-items: center; flex-wrap: wrap; gap: 9px 15px; font-size: 9px; }
   .momentum-legend span { display: inline-flex; align-items: center; gap: 6px; }
   .momentum-legend i { width: 18px; border-top: 2px solid var(--line-strong); }
-  .momentum-legend i[data-kind="selected"] { border-color: var(--blue); }
+  .momentum-legend i[data-kind="selected"] { border-color: var(--ink); }
   .momentum-legend i[data-kind="group"] { border-top-style: dashed; }
   .momentum-legend small { margin-left: auto; font-size: 9px; }
   .momentum-queue-panel { display: grid; grid-template-columns: minmax(320px, 420px) minmax(0, 1fr); }
@@ -561,7 +561,7 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
   html[data-resolved-theme="dark"] .evidence-record p,
   html[data-resolved-theme="dark"] .relation-copy .relation-path,
   html[data-resolved-theme="dark"] .relation-authority small { color: var(--ink-soft); }
-  html[data-resolved-theme="dark"] input:not([type="range"]):not(.mw-slider):not(.global-search-query),
+  html[data-resolved-theme="dark"] input:not([type="range"]):not(.mw-slider):not(.global-search-query):not(.assistant-composer-input):not([data-feed-search]),
   html[data-resolved-theme="dark"] textarea,
   html[data-resolved-theme="dark"] select,
   html[data-resolved-theme="dark"] .tree-filter,
@@ -877,8 +877,9 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
       font-weight: 400;
     }
     .mobile-switch button:focus-visible {
-      outline: 0;
-      box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--blue) 62%, transparent);
+      outline: var(--focus-stroke);
+      outline-offset: var(--focus-stroke-inset);
+      box-shadow: none;
     }
     .mobile-switch button::after {
       content: "";

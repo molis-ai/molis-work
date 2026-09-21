@@ -119,7 +119,7 @@ export const RESPONSIVE_STYLES = `
     .mobile-switch { grid-row: 2; display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); padding: 0 5px; min-height: 44px; border-bottom: 1px solid var(--line); background: var(--rail); }
     .mobile-switch button { border: 0; border-radius: 4px; background: transparent; color: var(--muted); min-height: 44px; }
     .mobile-switch button.is-active { color: var(--ink); background: var(--paper); box-shadow: 0 1px 3px color-mix(in srgb, var(--ink) 10%, transparent); }
-    .mobile-switch button:focus-visible { outline: 0; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--blue) 62%, transparent); }
+    .mobile-switch button:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); box-shadow: none; }
     .workspace { grid-row: 3; grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr); }
     .tree-resizer, .tui-resizer { display: none; }
     .workspace.is-desktop-tui { grid-template-columns: 1fr; }

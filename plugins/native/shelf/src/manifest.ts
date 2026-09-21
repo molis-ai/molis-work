@@ -22,7 +22,9 @@ export const shelfManifest: PluginManifest = {
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-shelf-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
-  permissions: [],
+  permissions: [
+    { permission: "storage:private", required: true, reason: "本机置物架文件与摘录" },
+  ],
   capabilities: { provides: [], consumes: [] },
   artifacts: { produces: [], consumes: [] },
   ui: {

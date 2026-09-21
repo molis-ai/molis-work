@@ -1,10 +1,10 @@
-import { PERSONAL_PLUGIN_IDS } from "./plugin-catalog.js";
 import type { WorkbenchDocumentRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import { buildGoalCollectionModel, type GoalCollectionItem, type GoalCollectionView, type GoalCollectionModel } from "@molis-ai/molis-work-plugin-goals";
 import type { ProjectOperationsData, ProjectOperationsProject, ProjectOperationsSlice } from "@molis-ai/molis-work-plugin-work";
 
 import type { MolisWorkIcon as PageIcon } from "@molis-ai/molis-work-design-system";
-import { renderDirectoryPluginSections, renderImmersiveHeader, renderImmersiveGoalHeader, renderGoalDetailsAside, renderImmersiveWorkTabs, renderPluginRail, renderProjectHome, renderPluginMarket, renderGlobalSearchOverlay, renderWorkspaceChrome } from "./immersive-shell.js";
+import { renderDirectoryPluginSections, renderImmersiveHeader, renderImmersiveGoalHeader, renderGoalDetailsAside, renderImmersiveWorkTabs, renderAssistantIsland, renderPluginRail, renderProjectHome, renderPluginMarket, renderGlobalSearchOverlay, renderWorkspaceChrome } from "./immersive-shell.js";
+import { PERSONAL_PLUGIN_IDS } from "./plugin-catalog.js";
 import { renderPluginRailAccountFooter, renderProjectSettingsDirectorySection, renderProjectSettingsWorkSurface, renderSettingsDirectorySection, renderSettingsWorkSurface } from "./settings-directory.js";
 import { renderRuntimePlanDialog } from "./settings-appearance.js";
 type Translate = (text: string, values?: Record<string, string | number>) => string;
@@ -74,6 +74,11 @@ export interface WorkbenchGoalsPageOwners<TItem extends GoalCollectionItem, TVie
   renderShelfNativePluginSurface(surface: "directory" | "workbench"): string;
   renderExperimentsContribution(): string;
   renderFunctionsNativePluginSurface(surface: "directory" | "workbench"): string;
+  renderPagesNativePluginSurface(surface: "directory" | "workbench"): string;
+  renderFormNativePluginSurface(surface: "directory" | "workbench"): string;
+  renderDatasetNativePluginSurface(surface: "directory" | "workbench"): string;
+  renderPptNativePluginSurface(surface: "directory" | "workbench"): string;
+  renderLingguangNativePluginSurface(surface: "directory" | "workbench"): string;
 }
 
 /** Workbench owns placement; Goals/Feed/Work owners retain their actual UI and facts. */
@@ -86,7 +91,7 @@ export function createWorkbenchGoalsPageRenderer<TItem extends GoalCollectionIte
     renderGoalDocument, renderTrashGoalDocument, goalsDocumentRenderer, goalsTreeRenderer,
     renderCreateDialog, renderGoalTrashDialog, renderMomentumPlaceholder, renderGoalKanban, renderTuiPane,
     renderProjectOperations, renderDesktopProjectChrome,
-    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderShelfNativePluginSurface, renderFunctionsNativePluginSurface, renderExperimentsContribution } = owners;
+    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderShelfNativePluginSurface, renderFunctionsNativePluginSurface, renderExperimentsContribution, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderLingguangNativePluginSurface } = owners;
 
 function renderMolisWorkRefreshFragment(
   view: TView,
@@ -200,6 +205,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
       class: "immersive-workbench",
       "data-board-view": decisionView ? "decisions" : trashView ? "trash" : archiveView ? "archive" : "current",
       "data-route-prefix": view.route_prefix,
+      "data-project-id": view.project?.project_id || "",
       "data-desktop-shell": "true",
       "data-desktop-surface": initialDesktopSurface,
       "data-native-desktop": desktopShell ? "true" : null,
@@ -210,6 +216,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
     <main class="immersive-workspace${showTui ? " is-desktop-tui" : ""}${directoryEmpty ? " is-plugin-directory-empty" : ""}" data-workspace data-mobile-view="document" data-workspace-mode="graph">
       ${renderImmersiveHeader(primitives, desktopShell)}
       <div class="plugin-stack">
+      ${renderAssistantIsland(primitives, enabledPlugins)}
       ${renderWorkspaceChrome(primitives, projectTitlebarChrome)}
       ${renderPluginRail(primitives, enabledPlugins, desktopAccountFooter)}
       </div>
@@ -223,8 +230,13 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
             ? renderFeedNativePluginSurface(view, "source-directory", initialFeedPreset)
             : "",
           shelf: "",
+          lingguang: "",
           functions: "",
           experiments: "",
+          pages: "",
+          form: "",
+          dataset: "",
+          ppt: "",
           artifacts: "",
           // A running Plugin's own panel wins over the built-in blank.
           ...(view.plugin_panels ?? {}),
@@ -247,6 +259,11 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
             ${renderShelfNativePluginSurface("workbench")}
             ${renderFunctionsNativePluginSurface("workbench")}
             ${renderExperimentsContribution()}
+            ${renderPagesNativePluginSurface("workbench")}
+            ${renderFormNativePluginSurface("workbench")}
+            ${renderDatasetNativePluginSurface("workbench")}
+            ${renderPptNativePluginSurface("workbench")}
+            ${renderLingguangNativePluginSurface("workbench")}
             ${renderFeedNativePluginSurface(view, "workbench", initialFeedPreset, [], false)}
             ${renderFeedNativePluginSurface(view, "source-workbench", initialFeedPreset)}
             <section class="desktop-work-surface immersive-artifact-surface plugin-stage-shell" data-work-surface="artifacts" data-work-surface-label="Artifacts" data-artifact-stage-shell data-expanded="false" hidden><div class="plugin-stage-list feed-stage-tree" data-artifact-directory></div><div class="plugin-stage-workspace" data-artifact-stage-workspace hidden><div data-artifact-detail></div></div></section>
@@ -266,6 +283,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
   <div class="toast" data-toast data-settings-toast role="status" aria-live="polite"></div>
   <script id="molis-work-data" type="application/json">${dataJson(view)}</script>
   <script>${clientI18nScript()}</script>
+  <script src="/assets/molis-work-pages-editor.js"></script>
   <script src="/assets/molis-work-workbench.js"></script>
   ${showTui ? '<script src="/desktop/pty-client.js"></script>' : ""}`,
   });

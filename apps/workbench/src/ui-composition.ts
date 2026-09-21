@@ -1,4 +1,4 @@
-import { experimentsUiContribution, EXPERIMENTS_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-experiments";
+import { EXPERIMENTS_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-experiments";
 import { THEME_BOOTSTRAP_SCRIPT, icon, renderIconSprite } from "@molis-ai/molis-work-design-system";
 import type { GoalsApplicationApi } from "@molis-ai/molis-work-contracts/modules/goals";
 import type {
@@ -6,46 +6,26 @@ import type {
   UiSlotDescriptor,
   WorkbenchDocumentRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
-import { artifactReferenceUiContribution, artifactBrowserUiContribution, ARTIFACT_REFERENCE_UI_CONTRIBUTION_ID, type ArtifactReferenceUiPrimitives } from "@molis-ai/molis-work-plugin-artifacts";
+import { ARTIFACT_REFERENCE_UI_CONTRIBUTION_ID, type ArtifactReferenceUiPrimitives } from "@molis-ai/molis-work-plugin-artifacts";
 import {
   FEED_UI_CONTRIBUTION_ID,
-  feedUiContribution,
   type FeedUiSurface,
   type FeedUiModel,
   type PersistedFeedDetailModel,
 } from "@molis-ai/molis-work-plugin-feed";
 import {
-  goalsContextUiContribution,
-  goalsDecisionResultsUiContribution,
-  goalsDialogsUiContribution,
-  goalsDocumentUiContribution,
-  goalsFactorsUiContribution,
-  goalsMomentumUiContribution,
-  goalsPlanningUiContribution,
-  goalsPolicyUiContribution,
-  goalsProposalUiContribution,
-  goalsRelationUiContribution,
-  goalsSafetyUiContribution,
-  goalsStatusUiContribution,
-  goalsTreeUiContribution,
-} from "@molis-ai/molis-work-plugin-goals";
-import {
   INBOX_UI_CONTRIBUTION_ID,
-  inboxUiContribution,
   type InboxUiModel,
   type InboxUiSurface,
 } from "@molis-ai/molis-work-plugin-inbox";
 import {
   SCHEDULE_UI_CONTRIBUTION_ID,
-  scheduleUiContribution,
   type ScheduleUiModel,
   type ScheduleUiSurface,
 } from "@molis-ai/molis-work-plugin-schedule";
 import {
   SHELF_UI_CONTRIBUTION_ID,
   SHELF_SETTINGS_UI_CONTRIBUTION_ID,
-  shelfUiContribution,
-  shelfSettingsUiContribution,
   type ShelfUiModel,
   type ShelfUiSurface,
   type ShelfSettingsUiModel,
@@ -53,14 +33,38 @@ import {
 import {
   FUNCTIONS_UI_CONTRIBUTION_ID,
   FUNCTIONS_SETTINGS_UI_CONTRIBUTION_ID,
-  functionsUiContribution,
-  functionsSettingsUiContribution,
   type FunctionsUiModel,
   type FunctionsUiSurface,
   type FunctionsSettingsUiModel,
 } from "@molis-ai/molis-work-plugin-functions";
-import { workUiContribution, workTerminalUiContribution, WORK_TERMINAL_UI_CONTRIBUTION_ID, type WorkTerminalUiModel } from "@molis-ai/molis-work-plugin-work";
+import {
+  PAGES_UI_CONTRIBUTION_ID,
+  type PagesUiModel,
+  type PagesUiSurface,
+} from "@molis-ai/molis-work-plugin-pages";
+import {
+  FORM_UI_CONTRIBUTION_ID,
+  type FormUiModel,
+  type FormUiSurface,
+} from "@molis-ai/molis-work-plugin-form";
+import {
+  DATASET_UI_CONTRIBUTION_ID,
+  type DatasetUiModel,
+  type DatasetUiSurface,
+} from "@molis-ai/molis-work-plugin-dataset";
+import {
+  PPT_UI_CONTRIBUTION_ID,
+  type PptUiModel,
+  type PptUiSurface,
+} from "@molis-ai/molis-work-plugin-ppt";
+import {
+  LINGGUANG_UI_CONTRIBUTION_ID,
+  type LingguangUiModel,
+  type LingguangUiSurface,
+} from "@molis-ai/molis-work-plugin-lingguang";
+import { WORK_TERMINAL_UI_CONTRIBUTION_ID, type WorkTerminalUiModel } from "@molis-ai/molis-work-plugin-work";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
+import { BUILTIN_PLUGIN_WORKBENCH } from "./plugin-workbench.js";
 import { createArtifactWorkbenchRenderer, type ArtifactWorkbenchRequest } from "./artifact-ui.js";
 import { createGoalsContextWorkbenchRenderer } from "./goals-context-ui.js";
 import { createGoalsDecisionResultsWorkbenchRenderer } from "./goals-decision-results-ui.js";
@@ -102,6 +106,31 @@ const SHELF_SURFACE_SLOTS: Readonly<Record<ShelfUiSurface, UiSlotDescriptor>> = 
 };
 
 const FUNCTIONS_SURFACE_SLOTS: Readonly<Record<FunctionsUiSurface, UiSlotDescriptor>> = {
+  directory: WORKBENCH_UI_SLOTS.directory,
+  workbench: WORKBENCH_UI_SLOTS.main,
+};
+
+const PAGES_SURFACE_SLOTS: Readonly<Record<PagesUiSurface, UiSlotDescriptor>> = {
+  directory: WORKBENCH_UI_SLOTS.directory,
+  workbench: WORKBENCH_UI_SLOTS.main,
+};
+
+const FORM_SURFACE_SLOTS: Readonly<Record<FormUiSurface, UiSlotDescriptor>> = {
+  directory: WORKBENCH_UI_SLOTS.directory,
+  workbench: WORKBENCH_UI_SLOTS.main,
+};
+
+const DATASET_SURFACE_SLOTS: Readonly<Record<DatasetUiSurface, UiSlotDescriptor>> = {
+  directory: WORKBENCH_UI_SLOTS.directory,
+  workbench: WORKBENCH_UI_SLOTS.main,
+};
+
+const PPT_SURFACE_SLOTS: Readonly<Record<PptUiSurface, UiSlotDescriptor>> = {
+  directory: WORKBENCH_UI_SLOTS.directory,
+  workbench: WORKBENCH_UI_SLOTS.main,
+};
+
+const LINGGUANG_SURFACE_SLOTS: Readonly<Record<LingguangUiSurface, UiSlotDescriptor>> = {
   directory: WORKBENCH_UI_SLOTS.directory,
   workbench: WORKBENCH_UI_SLOTS.main,
 };
@@ -164,31 +193,9 @@ export function createWorkbenchGoalsAdapter(
 /** Shared Workbench composition root. Product renderers never import a Plugin implementation directly. */
 export function createWorkbenchUiHost(): UiHost {
   const host = new UiHost();
-  host.register(feedUiContribution);
-  host.register(inboxUiContribution);
-  host.register(scheduleUiContribution);
-  host.register(shelfUiContribution);
-  host.register(shelfSettingsUiContribution);
-  host.register(functionsUiContribution);
-  host.register(experimentsUiContribution);
-  host.register(functionsSettingsUiContribution);
-  host.register(workUiContribution);
-  host.register(workTerminalUiContribution);
-  host.register(artifactReferenceUiContribution);
-  host.register(artifactBrowserUiContribution);
-  host.register(goalsPolicyUiContribution);
-  host.register(goalsProposalUiContribution);
-  host.register(goalsDecisionResultsUiContribution);
-  host.register(goalsSafetyUiContribution);
-  host.register(goalsRelationUiContribution);
-  host.register(goalsTreeUiContribution);
-  host.register(goalsMomentumUiContribution);
-  host.register(goalsDocumentUiContribution);
-  host.register(goalsContextUiContribution);
-  host.register(goalsPlanningUiContribution);
-  host.register(goalsStatusUiContribution);
-  host.register(goalsFactorsUiContribution);
-  host.register(goalsDialogsUiContribution);
+  for (const pack of BUILTIN_PLUGIN_WORKBENCH) {
+    for (const contribution of pack.contributions) host.register(contribution);
+  }
   return host;
 }
 
@@ -304,6 +311,76 @@ export function renderFunctionsContribution(
     slot: FUNCTIONS_SURFACE_SLOTS[surface],
     contribution: {
       contribution_id: FUNCTIONS_UI_CONTRIBUTION_ID,
+      surface,
+      model,
+    },
+  }).html;
+}
+
+export function renderPagesContribution(
+  surface: PagesUiSurface,
+  model: PagesUiModel,
+): string {
+  return workbenchUiHost.mount({
+    slot: PAGES_SURFACE_SLOTS[surface],
+    contribution: {
+      contribution_id: PAGES_UI_CONTRIBUTION_ID,
+      surface,
+      model,
+    },
+  }).html;
+}
+
+export function renderFormContribution(
+  surface: FormUiSurface,
+  model: FormUiModel,
+): string {
+  return workbenchUiHost.mount({
+    slot: FORM_SURFACE_SLOTS[surface],
+    contribution: {
+      contribution_id: FORM_UI_CONTRIBUTION_ID,
+      surface,
+      model,
+    },
+  }).html;
+}
+
+export function renderDatasetContribution(
+  surface: DatasetUiSurface,
+  model: DatasetUiModel,
+): string {
+  return workbenchUiHost.mount({
+    slot: DATASET_SURFACE_SLOTS[surface],
+    contribution: {
+      contribution_id: DATASET_UI_CONTRIBUTION_ID,
+      surface,
+      model,
+    },
+  }).html;
+}
+
+export function renderPptContribution(
+  surface: PptUiSurface,
+  model: PptUiModel,
+): string {
+  return workbenchUiHost.mount({
+    slot: PPT_SURFACE_SLOTS[surface],
+    contribution: {
+      contribution_id: PPT_UI_CONTRIBUTION_ID,
+      surface,
+      model,
+    },
+  }).html;
+}
+
+export function renderLingguangContribution(
+  surface: LingguangUiSurface,
+  model: LingguangUiModel,
+): string {
+  return workbenchUiHost.mount({
+    slot: LINGGUANG_SURFACE_SLOTS[surface],
+    contribution: {
+      contribution_id: LINGGUANG_UI_CONTRIBUTION_ID,
       surface,
       model,
     },

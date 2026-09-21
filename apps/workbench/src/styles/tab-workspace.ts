@@ -32,10 +32,10 @@ export const TAB_WORKSPACE_STYLES = `
   body.immersive-workbench .tab-item { appearance: none; position: relative; flex: none; max-width: 208px; min-width: 72px; height: 26px; margin: 0; display: inline-flex; align-items: center; gap: 8px; padding: 0 6px 0 10px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: 12px; font-weight: 400; cursor: pointer; user-select: none; transition: background-color var(--motion-fast), color var(--motion-fast), box-shadow var(--motion-fast); }
   body.immersive-workbench .tab-item:hover { color: var(--ink); background: var(--nav-hover); }
   body.immersive-workbench .tab-item.is-active { background: var(--nav-raised); color: var(--ink); font-weight: 400; border-color: var(--control-border); box-shadow: var(--surface-shadow); }
-  body.immersive-workbench .tab-item:focus-visible, body.immersive-workbench .tab-group-label:focus-visible { outline-offset: -2px; }
+  body.immersive-workbench .tab-item:focus-visible, body.immersive-workbench .tab-group-label:focus-visible { outline-offset: var(--focus-stroke-inset); }
   body.immersive-workbench .tab-item-trigger { flex: 1; min-width: 0; height: 100%; padding: 0; border: 0; border-radius: 4px; color: inherit; background: transparent; font: inherit; cursor: pointer; text-align: left; }
   body.immersive-workbench .tab-item-trigger span { display: block; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-  body.immersive-workbench .tab-item:has(.tab-item-trigger:focus-visible) { outline: 2px solid var(--control-ring); outline-offset: -2px; }
+  body.immersive-workbench .tab-item:has(.tab-item-trigger:focus-visible) { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
   body.immersive-workbench .tab-item-trigger:focus-visible { outline: none; }
   body.immersive-workbench .tab-item-close { width: 22px; height: 22px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--muted); display: grid; place-items: center; flex: none; cursor: pointer; }
   body.immersive-workbench .tab-item-close:hover { background: var(--nav-active); color: var(--ink); }
@@ -133,7 +133,7 @@ export const TAB_WORKSPACE_STYLES = `
   body.immersive-workbench .tab-workspace:is(.is-tab-dragging, .is-resizing) iframe { pointer-events: none; }
   body.immersive-workbench .tab-workspace-panes[data-split-drop-preview]::after { content: ""; position: fixed; left: var(--split-preview-left); top: var(--split-preview-top); width: var(--split-preview-width); height: var(--split-preview-height); box-sizing: border-box; pointer-events: none; z-index: 2147483646; border: 2px solid var(--blue); border-radius: 8px; background: color-mix(in srgb, var(--blue) 14%, transparent); animation: feedback-reveal 120ms ease-out; }
   body.immersive-workbench[data-pane-embedded] .immersive-workspace { grid-template-columns: minmax(0, 1fr) !important; grid-template-rows: minmax(0, 1fr) !important; height: 100%; }
-  body.immersive-workbench[data-pane-embedded] .immersive-workspace > :is(.plugin-stack, .plugin-rail, .tree-pane, .tree-resizer, .immersive-titlebar, .workspace-chrome, .mobile-tabs, .immersive-sidebar-scrim),
+  body.immersive-workbench[data-pane-embedded] .immersive-workspace > :is(.plugin-stack, .plugin-rail, .assistant-island, .tree-pane, .tree-resizer, .immersive-titlebar, .workspace-chrome, .mobile-tabs, .immersive-sidebar-scrim),
   body.immersive-workbench[data-pane-embedded] .tab-pane > .tab-strip { display: none !important; }
   body.immersive-workbench[data-pane-embedded] .immersive-plugin-stage { grid-column: 1 !important; grid-row: 1 / -1 !important; position: relative; width: 100%; height: 100%; min-height: 0; overflow: hidden; display: block !important; }
   @media (max-width: 760px) {
@@ -187,7 +187,7 @@ export const TAB_WORKSPACE_STYLES = `
     body.immersive-workbench .tab-sash:is(:hover, :focus-visible, .is-dragging) .tab-sash-handle { opacity: 1; }
   }
   body.immersive-workbench .tab-sash:is(:hover, :focus-visible, .is-dragging) { background: transparent; }
-  body.immersive-workbench .tab-sash:focus-visible .tab-sash-handle { outline: 2px solid var(--blue); outline-offset: 2px; }
+  body.immersive-workbench .tab-sash:focus-visible .tab-sash-handle { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
   body.immersive-workbench .tab-window-select { align-self: center; flex: none; max-width: 200px; min-height: 28px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 10px; color: var(--muted); border: 0; border-radius: 6px; background: transparent; font: inherit; font-size: 11px; }
   body.immersive-workbench .tab-window-select[aria-pressed="true"] { color: var(--ink); background: var(--nav-active); }
   @media (max-width: 760px) {

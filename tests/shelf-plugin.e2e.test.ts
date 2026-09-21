@@ -254,8 +254,10 @@ test("Shelf opens in the workbench, extracts the sample PDF, and keeps DropAgent
     await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: theme }] }, sessionId);
     await navigate(() => command("Page.navigate", { url: `${origin}/settings/shelf` }, sessionId));
     await waitFor(`document.documentElement.dataset.resolvedTheme === '${theme}'`);
-    await waitFor("document.querySelector('[data-shelf-settings-tab=machine]')", 8_000);
-    assert.equal(await evaluate("document.querySelectorAll('[data-shelf-settings-tab]').length"), 6);
+    await waitFor("document.querySelector('[data-shelf-settings-pane=machine]')", 8_000);
+    assert.equal(await evaluate("document.querySelectorAll('[data-shelf-settings-pane]').length"), 6);
+    assert.equal(await evaluate("document.querySelectorAll('[data-shelf-settings-tab]').length"), 0);
+    assert.equal(await evaluate("[...document.querySelectorAll('[data-shelf-settings-pane]')].every((pane) => !pane.hidden)"), true);
     assert.equal(await evaluate("document.querySelectorAll('[data-shelf-panel-slot]').length"), 4);
     // The settings surface carries DropAgent's own tokens, not the Coss ones.
     const press = await evaluate<string>("getComputedStyle(document.querySelector('[data-shelf=settings]')).getPropertyValue('--da-press').trim()");

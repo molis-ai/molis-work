@@ -244,7 +244,7 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `        return;
         }
         const directory = surface === "goal"
           ? "goals"
-          : surface === "feed" || surface === "sources" || surface === "sessions" || surface === "artifacts" || surface === "inbox" || surface === "schedule" || surface === "shelf" || surface === "functions" || surface === "experiments"
+          : OWN_DIRECTORY_SURFACES.includes(surface)
             ? surface
             : "root";
         const nextDirectory = directory !== "root" && document.querySelector('[data-directory-panel="' + directory + '"]')

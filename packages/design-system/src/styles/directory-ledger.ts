@@ -85,8 +85,8 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Unified directory ledger: Goals est
     box-shadow: none;
   }
   body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-node:focus-visible {
-    outline: 2px solid color-mix(in srgb, var(--blue) 72%, transparent);
-    outline-offset: -2px;
+    outline: var(--focus-stroke);
+    outline-offset: var(--focus-stroke-inset);
     box-shadow: none;
   }
   body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-copy {
@@ -279,8 +279,8 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Unified directory ledger: Goals est
     box-shadow: 0 1px 2px color-mix(in srgb, var(--shadow-color) 28%, transparent);
   }
   body[data-desktop-shell="true"] .feed-list-item:focus-visible {
-    outline: 2px solid color-mix(in srgb, var(--blue) 72%, transparent);
-    outline-offset: -2px;
+    outline: var(--focus-stroke);
+    outline-offset: var(--focus-stroke-inset);
     box-shadow: none;
   }
   body[data-desktop-shell="true"] .feed-list-icon {

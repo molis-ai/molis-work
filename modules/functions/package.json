@@ -1,0 +1,46 @@
+{
+  "name": "@molis-ai/molis-work-module-functions",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Published functions and judgment records.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=24"
+  },
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@molis-ai/molis-work-contracts": "workspace:*",
+    "@molis-ai/molis-work-storage": "workspace:*"
+  },
+  "molis-work": {
+    "path": "modules/functions",
+    "kind": "module",
+    "maturity": "partial",
+    "contract": "@molis-ai/molis-work-contracts/modules/functions",
+    "migrationGoals": [
+      "goal-reorg-f2"
+    ],
+    "ssot": "docs/SSOT-MATRIX.md",
+    "capabilities": [
+      "functions.query.v1",
+      "functions.command.v1",
+      "functions.evaluate"
+    ]
+  }
+}

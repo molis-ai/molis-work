@@ -8,7 +8,7 @@ export const ARTIFACT_EMBED_STYLES = `
   .artifact-embed h3 { margin:0; font-size:16px; line-height:1.4; }
   .artifact-embed header > span, .artifact-embed dt, .artifact-embed .artifact-notice { color:var(--muted); }
   .artifact-embed a { color:var(--blue-dark); text-underline-offset:3px; }
-  .artifact-embed a:focus-visible { outline:2px solid var(--blue); outline-offset:3px; }
+  .artifact-embed a:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; }
   .artifact-embed p { margin:12px 0; }
   .artifact-embed .artifact-facts { display:grid; gap:8px; margin:16px 0; }
   .artifact-embed .artifact-facts div { display:grid; grid-template-columns:84px minmax(0,1fr); gap:12px; }
@@ -66,7 +66,8 @@ export const ARTIFACT_WORKBENCH_STYLES = `
   .artifact-page .artifact-detail > header { flex:none; max-height:30%; overflow:auto; margin:12px 0; }
   .artifact-page .artifact-detail-content { flex:1; min-height:0; overflow:auto; overscroll-behavior:contain; }
   .artifact-page .artifact-actions { flex:none; margin:0; padding:12px 0; border-top:1px solid var(--line); }
-  .artifact-page :focus-visible { outline:2px solid var(--blue); outline-offset:3px; }
+  .artifact-page :focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
+  .artifact-page a:focus-visible { outline-offset:2px; }
   .artifact-page ::selection { background:var(--blue-soft); color:var(--ink); }
   .artifact-page[data-native-desktop] .artifact-directory, .artifact-page[data-native-desktop] .artifact-stage { padding-top:48px; }
   @media(max-width:760px) {

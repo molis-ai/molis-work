@@ -4,17 +4,28 @@ import { FeedConnectorService } from "@molis-ai/molis-work-plugin-feed";
 import { gmailInstallationSecretRefs, isGmailTokenRefs } from "@molis-ai/molis-work-integration-gmail";
 import { GMAIL_DEFAULT_SCOPE, normalizeGmailScope } from "@molis-ai/molis-work-integration-gmail/scope";
 import { authRefFor, bindConnectorToken, connectorCredentialStatus, unbindConnectorToken } from "./connector-credentials.js";
+import { CATALOG_CONNECTORS } from "@molis-ai/molis-work-integration-catalog";
 import { completeGmailOAuthFlow, defaultGmailRedirectUri, gmailOAuthConfigured, startGmailOAuthFlow, storeGmailOAuthClient } from "./gmail-oauth.js";
 import { pollGithubDeviceFlow, startGithubDeviceFlow, storeGithubClientId } from "./github-oauth.js";
-import { createLocalFeedApplication } from "./feed-application.js";
+import { createLocalFeedApplication, withLocalFeedJudgments } from "./feed-application.js";
 import { createLocalFeedConnectorSync } from "./feed-connector-sync.js";
 import type { OfficialProviderFactory } from "./official-integrations.js";
 
-export function createLocalFeedConnectorService(db: SqliteDatabase, boardId: string, providerFactory?: OfficialProviderFactory): FeedConnectorService {
-  const feed = createLocalFeedApplication(db);
+export function createLocalFeedConnectorService(
+  db: SqliteDatabase,
+  boardId: string,
+  providerFactory?: OfficialProviderFactory,
+  homeDirectory?: string,
+): FeedConnectorService {
+  const feed = createLocalFeedApplication(db, withLocalFeedJudgments(homeDirectory));
   return new FeedConnectorService(feed, boardId, {
     credentialRef: authRefFor,
     credentialStatus: connectorCredentialStatus,
+    listCatalogConnectors: () => CATALOG_CONNECTORS.map((spec) => ({
+      connector_id: spec.id,
+      title: spec.title,
+      description: spec.inbound,
+    })),
     authStatus() {
       let githubClientIdBound = false;
       try { githubClientIdBound = Boolean(peekSealedEntry("connector:github:client_id")); } catch { /* Preserve unavailable-store status. */ }

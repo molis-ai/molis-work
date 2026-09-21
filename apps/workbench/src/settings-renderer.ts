@@ -1,15 +1,16 @@
 import { renderHint } from "@molis-ai/molis-work-design-system";
 import { CONTROL_CLIENT_SCRIPT, SETTINGS_CLIENT_SCRIPT } from "./browser-assets.js";
 import type { RuntimeIntegrationDetection } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { MolisWorkSettingsView, WebSettingsProject } from "./settings-view.js";
+import type { MolisWorkSettingsView, WebSettingsProject, McpSettingsToolView } from "./settings-view.js";
 import type { createWorkbenchSettingsNavigation } from "./settings-navigation.js";
 import { createProjectSettingsFolds } from "./project-settings-folds.js";
 import { renderAppearanceSettingsDocument, renderRuntimePlanDialog } from "./settings-appearance.js";
 import { findPluginSettingsNavItem } from "./plugin-settings-catalog.js";
+import { renderConnectorsSettings } from "./settings-connectors.js";
 export interface SettingsRenderPrimitives {
   L(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;
-  icon(name: "check" | "sun" | "moon" | "system" | "workflow" | "settings" | "chevron-down" | "chevron-right" | "database" | "refresh" | "x" | "brand" | "blocked" | "tree" | "plus" | "book" | "shield", className?: string): string;
+  icon(name: "check" | "sun" | "moon" | "system" | "workflow" | "settings" | "chevron-down" | "chevron-right" | "database" | "refresh" | "x" | "brand" | "blocked" | "tree" | "plus" | "book" | "shield" | "link" | "mail" | "back", className?: string): string;
   currentLocale(): string;
   localeSwitchHref(locale: "zh" | "en", nextPath: string): string;
   htmlLang(): string;
@@ -62,6 +63,28 @@ function renderRuntimeSettings(view: MolisWorkSettingsView): string {
   return `<section class="settings-document" aria-labelledby="settings-title">
     <header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title">${L("AI 与执行工具")}</h1>${renderHint({ id: "settings-hint-runtimes", label: L("如何生效"), text: L("当前自动适配 Codex、Claude Code、OpenCode、Pi Agent 和 Grok Build。每次确认只对应当前 Runtime 和当前预览；配置在预览后变化时会要求重新生成。Session 与运行位置请进入对应项目的 Sessions 管理。") })}</div><p>${L("不接入也能正常使用 Goal Tree、待决定和记录。只有想让 AI 工具直接读取或推进 Goal 时才需要连接；每次修改前都会先展示变化并由你确认。")}</p></header>
     <section class="settings-section" aria-label="${L("AI 与执行工具")}">${rows || `<div class="settings-empty"><strong>${L("没有可探测的 Runtime")}</strong><span>${L("Molis Work 本体仍可使用；稍后安装 Runtime 后再回来检查。")}</span></div>`}</section>
+  </section>`;
+}
+
+function renderMcpSettings(view: MolisWorkSettingsView): string {
+  const tools = view.mcp_tools ?? [];
+  const groups = new Map<string, { title: string; tools: McpSettingsToolView[] }>();
+  for (const tool of tools) {
+    const group = groups.get(tool.group_id) ?? { title: tool.group_title, tools: [] };
+    group.tools.push(tool);
+    groups.set(tool.group_id, group);
+  }
+  const sections = [...groups.entries()].map(([id, group]) => {
+    const rows = group.tools.map((tool) => {
+      const checked = tool.enabled ? " checked" : "";
+      return `<label class="settings-setting-row"><div class="setting-copy"><strong>${escapeHtml(tool.name.replace("molis_work_v1_", ""))}</strong><span>${escapeHtml(tool.description)}</span></div><div class="setting-value"><input type="checkbox" data-mcp-tool="${escapeHtml(tool.name)}"${checked}></div></label>`;
+    }).join("");
+    return `<section class="settings-section" data-mcp-group="${escapeHtml(id)}" aria-label="${escapeHtml(group.title)}"><h2>${escapeHtml(L(group.title))}</h2>${rows}</section>`;
+  }).join("");
+  return `<section class="settings-document" aria-labelledby="settings-title" data-mcp-settings>
+    <header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title">${L("MCP")}</h1>${renderHint({ id: "settings-hint-mcp", label: L("如何生效"), text: L("这里打开的方法会出现在 molis-work-mcp 的工具清单里。关掉后新连接看不见，点名调用也会被拒绝。已经打开的 Runtime 连接不会立刻刷新。") })}</div><p>${L("选择哪些 MCP 方法对外可用。这与接入 Cursor 或其他 Runtime 不是同一件事。")}</p></header>
+    ${sections || `<div class="settings-empty"><strong>${L("还没有可开关的方法")}</strong></div>`}
+    <p class="settings-form-error" data-mcp-settings-error role="alert" hidden></p>
   </section>`;
 }
 
@@ -182,7 +205,11 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
     ? L("界面与语言")
     : view.section === "runtimes"
       ? L("AI 与执行工具")
-      : view.section === "projects"
+    : view.section === "mcp"
+      ? L("MCP")
+      : view.section === "connectors"
+        ? L("Connectors")
+        : view.section === "projects"
         ? L("项目设置")
         : view.section === "diagnostics"
           ? L("诊断")
@@ -197,7 +224,11 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
       ? renderAppearanceSettings(settingsPath)
       : view.section === "runtimes"
         ? renderRuntimeSettings(view)
-        : view.section === "projects"
+        : view.section === "mcp"
+          ? renderMcpSettings(view)
+          : view.section === "connectors"
+            ? renderConnectorsSettings(view, { L, escapeHtml, icon })
+          : view.section === "projects"
           ? renderProjectSettings(view, desktopShell)
           : view.section === "diagnostics"
             ? renderDiagnosticsSettings(view)

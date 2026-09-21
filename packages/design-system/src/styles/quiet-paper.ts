@@ -68,7 +68,7 @@ export const QUIET_PAPER_STYLES = `  /* Quiet Paper visual replacement. Persiste
   .tree-chrome { padding: 7px 10px 9px; }
   body[data-desktop-shell="true"] .tree-chrome { padding: 7px 12px 9px; }
   .tree-search input,
-  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(.mw-slider):not(.mw-input):not(.mw-textarea):not(.mw-select):not(.global-search-query),
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(.mw-slider):not(.mw-input):not(.mw-textarea):not(.mw-select):not(.global-search-query):not(.assistant-composer-input):not([data-feed-search]),
   textarea:not(.mw-textarea),
   select:not(.mw-select) {
     border-color: transparent;

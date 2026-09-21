@@ -2,7 +2,7 @@
 
 ## 安装代码的开发边界
 
-`pnpm build` 先清理各 workspace 包的生成目录，再根据声明的依赖顺序构建全部 48 个包，最后生成根入口和 PTY bundle。`build:migrated-packages` 复用同一个 `workspace:build`，因此删除/移动源码后不会把旧 JS 带进 npm/DMG。只清生成目录，不清 node_modules 或用户数据。Plugin CLI 的稳定 bin 启动文件随源码存在，干净 `pnpm install --frozen-lockfile` 后构建即可使用 `pnpm exec molis-work-plugin --help`。包边界扫描覆盖 src、tooling 和 bin 中的 JavaScript/TypeScript 调用。
+`pnpm build` 先清理各 workspace 包的生成目录，再根据声明的依赖顺序构建全部 56 个包，最后生成根入口和 PTY bundle。`build:migrated-packages` 复用同一个 `workspace:build`，因此删除/移动源码后不会把旧 JS 带进 npm/DMG。只清生成目录，不清 node_modules 或用户数据。Plugin CLI 的稳定 bin 启动文件随源码存在，干净 `pnpm install --frozen-lockfile` 后构建即可使用 `pnpm exec molis-work-plugin --help`。包边界扫描覆盖 src、tooling 和 bin 中的 JavaScript/TypeScript 调用。
 
 Desktop 发布脚本归 `apps/desktop/tooling/`，根 `pnpm desktop:*` 命令不变。它调用 Local Host 的 `createMolisWorkRuntimePayload` 生成自包含目录，不在孤立资源目录对 workspace:* manifest 再执行 npm install。失败不覆盖已有资源，vendor 来源、SBOM、许可证随 payload 和 Home 安装保留。
 
@@ -63,7 +63,7 @@ plugins/official-integrations/
 apps/workbench/              Shell/Slot/资产、当前Goal导航与原生Plugin页面接线
 apps/desktop/                AP4 Desktop Shell、Panel、Capsule 与 Tauri native adapter
 apps/cli/                    当前管理命令的解析、Host调用与输出
-apps/mcp/                    当前工具schema、项目连接、事件/结构命令与回执
+apps/mcp/                    平台 MCP schema、协议、项目工具分发；插件贡献由 Host 从 Manifest 合成
 packages/ui-host/            UI Contribution registry、surface render 与 Slot mount 校验
 packages/design-system/      AP3 主题偏好、浏览器视觉基础与分层样式
 plugins/native/feed/         FD4 Feed/Attention/Source UI 和 HTTP route table
@@ -97,6 +97,8 @@ tests/command-entry-chain.test.ts
 tests/host-entry-consistency.test.ts
                              组合调用、并发排队与Host资源生命周期
 tests/mcp.test.ts            MCP audience、权限与连接回归
+tests/plugin-outbound-mcp.test.ts
+                             插件对外 MCP 登记、合成目录、闸门与分发
 tests/web.test.ts            Web 数据与交互回归
 tests/desktop-tui.test.ts    第三栏启动、面板与本机 PTY 回归
 tests/i18n.test.ts           界面语言回归
@@ -120,11 +122,55 @@ specs/molis-work-architecture-reorganization/spec.md
 - 每个迁移切片同时更新目标 package README、`docs/system/MIGRATION.md` 和对应 Module/Service 文档。
 - Huge Class 的职责归属和删除门见 [Huge Class 职责迁移图](system/HUGE-CLASS-MIGRATION.md)。
 
+## 对外 MCP
+
+对外只有 `molis-work-mcp`。插件登记、人开闸、Host 合成目录。插件作者步骤见 [Plugin 开发 · 对外 MCP](platform/PLUGIN-DEVELOPMENT.md#对外-mcp)。Runtime Skill 协议见 [MCP 接入](mcp.md)。
+
+### 调用链
+
+```text
+molis-work-mcp
+  apps/desktop/launchers/mcp/server.ts     进程入口
+  apps/local-host/src/mcp-server.ts        装配、冻结目录、按 catalog entry 分发
+  apps/local-host/src/mcp-catalog.ts       平台 schema + 插件 mcp_exports → 一份目录
+  apps/local-host/src/mcp-settings-store.ts  {home}/config/mcp-tools.json
+  apps/local-host/src/mcp-authority.ts     list/call 同闸
+  apps/local-host/src/mcp-native-plugins.ts Native 插件适配表（新产品加一条）
+  apps/mcp                                 平台 schema、协议、连接工具、项目工具分发
+  plugins/*/src/mcp.ts 或 contribution.mcp 只认 tool_id
+```
+
+`initialize` 时冻结启用集合。改设置只影响之后的新连接，不发 `tools/list_changed`。
+
+`tools/call` 按目录条目的 `source` 分发：
+
+| source | 走到 |
+| --- | --- |
+| `plugin` | `mcp-native-plugins` 按 `plugin_id` 找 adapter，传入 `{ tool_id, arguments }` |
+| `platform` 且是连接工具 | `apps/mcp` 的 runtime-context handlers |
+| 其余 `platform` | Host 注入身份后 `dispatchMcpProjectTool` |
+
+### 改哪里
+
+- **新 native 插件对外贡献**：插件 Manifest `mcp_exports` + 按 `tool_id` 的 handler + `mcp-native-plugins.ts` 加一条，`default_enabled` 默认 `false`。个人 store 且按项目分区的，adapter 从绑定连接取 `project_id`，不要改 `apps/mcp/src/tool-catalog.ts`，不要在 `mcp-server.ts` 点名公开工具名。
+- **新平台工具**（连接 / Goals / 事件）：schema 和分发仍在 `apps/mcp`。
+- **开关与设置页**：偏好在 `mcp-settings-store.ts`；HTTP 在 `web-mcp-settings.ts`；页面在 Workbench 全局设置，不进插件 `settings-page`。
+- **运行时托管 app 插件**：`contribution.mcp` 已校验兑现；生产分发还没接到 Plugin Runtime，接上之前不要给 Coding 填 `mcp_exports`。
+
+`agent.mcp` 是插件内 Agent 调外部 MCP，方向相反，不要复用。
+
 ## 前端与控件板
 
-改工作台、插件列表、表单或共享控件时，**建议**先打开 `/__ui/catalog`，对照已有标本再动手。这不是门禁：一次性页面、草稿、还没站稳的实验可以先在业务里做。
+改工作台、插件或共享控件时，**视觉、动效、图标与色彩都是本切片的工作**，不是以后再说。编译过、测试绿、能点，都不等于做完。工艺底线见 [ui-craft-floor](../specs/ui-craft-floor/spec.md)；意图见 [DESIGN.md](../DESIGN.md)。
 
-已经达到产品美学要求的共享控件、状态变体或微动效，**要**补进这块板（`packages/design-system` 的 Catalog 标本），让后人能看见、复用。产品专属编排不必做成标本。用法和隔离预览见 [design-system README](../packages/design-system/README.md)；平台分工见 [UI Platform](platform/UI-PLATFORM.md)。
+硬规则：
+
+- **不准把操作系统默认控件当成产品 UI。** 禁止系统下拉菜单、系统颜色选择器、系统日期/时间弹出、`alert` / `confirm` / `prompt`、未换肤的 `range`。选择打开后必须是 `mw-menu`，原生 `<select>` 只可隐藏当表单值。文件选择可隐藏原生 input，按钮必须是 `mw-btn`。原生 `<dialog>` 只留 Escape 和焦点圈，外观走 `mw-*`。详见 [mw-select-custom-menu](../specs/mw-select-custom-menu/spec.md)。
+- **图标与色彩成套。** 动作图标从 Lucide 库取。插件身份走 `--plugin-tint`（轨、目录、空态、当前舞台）。状态走 status family。靛（`--blue` / `--focus`）只给链接、选区和进行中，不是焦点描边，也不是第二套按钮。不要第二套 emoji 图标，不要灰图标配随机强调色。
+- **动效成套，而且要做。** 只用 `--motion-*` / `--ease-*` 和已有位移（分段滑块、插件轨、目录 yield、`creative-arrive`）。状态变了要看得出走过去或到达，不要硬切。hover / press 是色阶，不是浮起。`prefers-reduced-motion` 去掉位移。不为动而动。
+- **键盘焦点**是内侧 1px `--ink`（`--focus-stroke`）。禁止 `outline: 2px solid var(--focus|blue)` 和 `0 0 0 2px var(--focus)`。详见 [neutral-focus-stroke](../specs/neutral-focus-stroke/spec.md)。
+
+改共享控件、状态或微动效，先打开 `/__ui/catalog` 对照标本再动手。一次性草稿可以先写在业务里，**进产品主链前换成 `mw-*`，不得带着系统控件进去**。已经达到产品美学要求的共享控件、状态变体或微动效，**要**补进 `packages/design-system` 的 Catalog。产品专属编排不必做成标本。用法见 [design-system README](../packages/design-system/README.md)；平台分工见 [UI Platform](platform/UI-PLATFORM.md)。
 
 ## 开发验证
 

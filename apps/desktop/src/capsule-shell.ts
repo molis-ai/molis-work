@@ -1,3 +1,5 @@
+import { SELECT_MENU_CLIENT_SCRIPT, SELECT_MENU_STYLES } from "@molis-ai/molis-work-design-system";
+
 export interface CapsuleProjectNavigation {
   project_id: string;
   display_name: string;
@@ -76,8 +78,8 @@ export const CAPSULE_STYLES = `
   body { width: 420px; height: var(--capsule-height); margin: 0; overflow: hidden; padding: 8px 0 0; background: transparent; color: var(--ink); font: 13px/1.45 var(--font); letter-spacing: -.006em; }
   button, select { font: inherit; }
   button:focus-visible, select:focus-visible {
-    outline: 2px solid color-mix(in srgb, var(--accent), transparent 18%);
-    outline-offset: 2px;
+    outline: 1px solid var(--ink);
+    outline-offset: -1px;
   }
   .capsule-shell { position: relative; width: 100%; height: calc(var(--capsule-height) - 8px); padding: 0 4px 4px; }
   .capsule__arrow {
@@ -177,6 +179,9 @@ export const CAPSULE_STYLES = `
     .capsule__dot, .capsule__spinner { animation: none !important; }
     .capsule__button, .capsule__chevron { transition: none; }
   }
+  ${SELECT_MENU_STYLES}
+  .capsule__project-wrap .mw-select-picker { min-width: 0; max-width: 202px; }
+  .capsule__project-wrap .mw-select-picker__trigger { height: 30px; }
 `;
 
 export const CAPSULE_CLIENT_SCRIPT = `
@@ -575,6 +580,6 @@ export function renderDesktopCapsuleShell(
       <footer class="capsule__actions"><p class="capsule__hint">Esc ${L("关闭")}</p><div class="capsule__buttons"><button class="capsule__button" type="button" data-capsule-open-board>${L("打开 Molis Work")}</button></div></footer>
       <div class="capsule__error" data-capsule-error role="alert"><strong>${L("暂时无法确认最新状态")}</strong><span data-capsule-error-detail>${L("Molis Work 正在自动重新连接。恢复前，这里不会把旧状态当成正在进行。")}</span><button class="capsule__retry" type="button" data-capsule-retry>${L("立即重试")}</button></div>
     </section>
-  </main><script id="capsule-projects" type="application/json">${safeJson(projects)}</script><script>${environment.clientI18nScript}${CAPSULE_CLIENT_SCRIPT}</script></body></html>`;
+  </main><script id="capsule-projects" type="application/json">${safeJson(projects)}</script><script>${environment.clientI18nScript}${SELECT_MENU_CLIENT_SCRIPT}${CAPSULE_CLIENT_SCRIPT}</script></body></html>`;
 }
 

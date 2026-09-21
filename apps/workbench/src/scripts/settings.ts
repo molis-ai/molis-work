@@ -2,6 +2,7 @@ import { PROJECT_SETTINGS_CLIENT_SCRIPT } from "./project-settings.js";
 import { WEB_SERVICE_SETTINGS_SCRIPT } from "./settings-web-service.js";
 import { SHELF_SETTINGS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-shelf";
 import { FUNCTIONS_SETTINGS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-functions";
+import { CONNECTORS_SETTINGS_CLIENT_SCRIPT } from "./connectors-settings.js";
 
 export const RUNTIME_PLAN_CLIENT_SCRIPT = `
   (() => {
@@ -114,7 +115,7 @@ export const RUNTIME_PLAN_CLIENT_SCRIPT = `
   })();
 `;
 
-export const SETTINGS_CLIENT_SCRIPT = WEB_SERVICE_SETTINGS_SCRIPT + PROJECT_SETTINGS_CLIENT_SCRIPT + RUNTIME_PLAN_CLIENT_SCRIPT + `
+export const SETTINGS_CLIENT_SCRIPT = WEB_SERVICE_SETTINGS_SCRIPT + PROJECT_SETTINGS_CLIENT_SCRIPT + RUNTIME_PLAN_CLIENT_SCRIPT + CONNECTORS_SETTINGS_CLIENT_SCRIPT + `
   (() => {
     const projectManager = document.querySelector("[data-project-manager]");
     if (projectManager) {
@@ -171,7 +172,43 @@ export const SETTINGS_CLIENT_SCRIPT = WEB_SERVICE_SETTINGS_SCRIPT + PROJECT_SETT
     });
     globalThis.molisWorkBindProjectIdentity?.(document);
   })();
-` + SHELF_SETTINGS_CLIENT_SCRIPT + FUNCTIONS_SETTINGS_CLIENT_SCRIPT;
+` + SHELF_SETTINGS_CLIENT_SCRIPT + FUNCTIONS_SETTINGS_CLIENT_SCRIPT + `
+  (() => {
+    const root = document.querySelector("[data-mcp-settings]");
+    if (!root) return;
+    const errorBox = root.querySelector("[data-mcp-settings-error]");
+    const setError = (message) => {
+      if (!errorBox) return;
+      errorBox.textContent = message || "";
+      errorBox.hidden = !message;
+    };
+    root.querySelectorAll("[data-mcp-tool]").forEach((input) => {
+      input.addEventListener("change", async () => {
+        setError("");
+        input.disabled = true;
+        try {
+          const response = await fetch("/api/settings/mcp", {
+            method: "POST",
+            headers: globalThis.molisWorkControlHeaders(),
+            body: JSON.stringify({ name: input.getAttribute("data-mcp-tool"), enabled: input.checked }),
+          });
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            input.checked = !input.checked;
+            setError(payload.error || L("无法保存 MCP 开关"));
+            return;
+          }
+          if (typeof payload.enabled === "boolean") input.checked = payload.enabled;
+        } catch {
+          input.checked = !input.checked;
+          setError(L("无法保存 MCP 开关"));
+        } finally {
+          input.disabled = false;
+        }
+      });
+    });
+  })();
+`;
 
 
 export const PROJECT_GUIDANCE_CLIENT_SCRIPT = `

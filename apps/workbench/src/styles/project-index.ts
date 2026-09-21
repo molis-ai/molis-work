@@ -71,8 +71,8 @@ export const PROJECT_INDEX_STYLES = `
     background: var(--rail);
   }
   body.project-index-page > .topbar > .top-action:focus-visible {
-    outline: 2px solid color-mix(in srgb, var(--blue) 62%, transparent);
-    outline-offset: 2px;
+    outline: var(--focus-stroke);
+    outline-offset: var(--focus-stroke-inset);
   }
   body.project-index-page > .topbar > .top-action span { display: inline; }
   body.project-index-page > .project-index {
@@ -141,9 +141,9 @@ export const PROJECT_INDEX_STYLES = `
   }
   .project-index-search input::placeholder { color: var(--muted); opacity: 1; }
   .project-index-search input:focus-visible {
-    border-color: var(--control-input);
-    outline: 2px solid var(--control-ring);
-    outline-offset: 2px;
+    border-color: var(--ink);
+    outline: var(--focus-stroke);
+    outline-offset: var(--focus-stroke-inset);
   }
   .project-index-search-empty {
     margin: 12px 0 0;
@@ -173,7 +173,7 @@ export const PROJECT_INDEX_STYLES = `
     transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
   }
   .project-card:hover { border-color: var(--line-strong); background: var(--nav-hover); box-shadow: none; }
-  .project-card:focus-visible { outline: 2px solid color-mix(in srgb, var(--blue) 62%, transparent); outline-offset: 3px; }
+  .project-card:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
   .project-card > header, .project-card > footer { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
   .project-card > div { min-width: 0; }
   .project-card-icon { width: 28px; height: 28px; border-radius: 8px; color: var(--ink-soft); background: var(--rail); display: grid; place-items: center; }
@@ -218,8 +218,8 @@ export const PROJECT_INDEX_STYLES = `
   .project-index-start a:hover { border-color: var(--line-strong); background: var(--rail); color: var(--ink); }
   .project-index-start a:first-child:hover { border-color: var(--action); color: var(--action-ink); background: color-mix(in srgb, var(--action) 90%, var(--action-ink)); }
   .project-index-start a:focus-visible {
-    outline: 2px solid color-mix(in srgb, var(--blue) 62%, transparent);
-    outline-offset: 2px;
+    outline: var(--focus-stroke);
+    outline-offset: var(--focus-stroke-inset);
   }
   .project-index-note { flex: none; margin: 12px 0 0; padding: 0 2px; border: 0; color: var(--ink-soft); font-size: 12px; line-height: 1.5; background: transparent; }
   body.project-index-page[data-desktop-shell="true"]:not(.settings-page) {

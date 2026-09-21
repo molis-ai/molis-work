@@ -3,9 +3,11 @@ import test from "node:test";
 
 import {
   INTERACTION_TEXTURE_STYLES,
+  MICRO_INTERACTION_STYLES,
   listedIconNames,
   registeredIconNames,
   PRIMITIVE_STYLES,
+  SELECT_MENU_CLIENT_SCRIPT,
   VISUAL_FOUNDATION_STYLES,
   PRIMITIVE_CATALOG_IDS,
   renderAlertDialog,
@@ -254,7 +256,10 @@ test("primitive controls keep authored states instead of a class dump", () => {
   assert.match(PRIMITIVE_STYLES, /\.mw-btn--primary:disabled,[\s\S]*background: var\(--action\)/);
   assert.match(PRIMITIVE_STYLES, /\.mw-spinner \{[\s\S]*currentColor/);
   assert.doesNotMatch(PRIMITIVE_STYLES, /\.mw-catalog \.mw-btn \{ min-height: 44px/);
-  assert.match(PRIMITIVE_STYLES, /0 0 0 3\.5px color-mix\(in srgb, var\(--focus\) 15%, transparent\)/);
+  assert.match(PRIMITIVE_STYLES, /\.mw-input:focus-visible, \.mw-textarea:focus-visible, \.mw-select:focus-visible \{[\s\S]*outline: var\(--focus-stroke, 1px solid var\(--ink\)\)/);
+  assert.match(PRIMITIVE_STYLES, /\.mw-input:focus-visible, \.mw-textarea:focus-visible, \.mw-select:focus-visible \{[\s\S]*outline-offset: var\(--focus-stroke-inset, -1px\)/);
+  assert.doesNotMatch(PRIMITIVE_STYLES, /outline: 2px solid var\(--focus\)/);
+  assert.doesNotMatch(PRIMITIVE_STYLES, /0 0 0 3\.5px/);
   assert.match(PRIMITIVE_STYLES, /\.mw-check, \.mw-radio \{[\s\S]*appearance: none/);
   assert.match(PRIMITIVE_STYLES, /input\.mw-slider \{[^}]*background: transparent/);
   assert.match(PRIMITIVE_STYLES, /input\.mw-slider::-webkit-slider-thumb \{[^}]*background: var\(--paper\)/);
@@ -302,8 +307,12 @@ test("catalog ships a Linear-referenced palette and complete icon library", () =
   assert.match(html, /Noto Sans SC/);
   assert.match(INTERACTION_TEXTURE_STYLES, /--hue-indigo: #5e6ad2;/);
   assert.match(INTERACTION_TEXTURE_STYLES, /--plugin-goals: var\(--hue-blue\)/);
-  assert.match(INTERACTION_TEXTURE_STYLES, /--plugin-tint: var\(--plugin-feed\)/);
-  assert.match(INTERACTION_TEXTURE_STYLES, /\.plugin-rail \.immersive-plugin-link svg \{ color: var\(--plugin-tint, var\(--faint\)\)/);
+  assert.match(INTERACTION_TEXTURE_STYLES, /\[data-work-surface="feed"\]/);
+  assert.match(INTERACTION_TEXTURE_STYLES, /\[data-work-surface="goal"\]/);
+  assert.match(INTERACTION_TEXTURE_STYLES, /\.tab-item\[data-plugin="feed"\]/);
+  assert.match(INTERACTION_TEXTURE_STYLES, /\.mw-empty__mark/);
+  assert.match(INTERACTION_TEXTURE_STYLES, /\.feed-stage-entry:is\(\.is-selected, \.is-open, \[aria-selected="true"\]\)/);
+  assert.match(INTERACTION_TEXTURE_STYLES, /:is\(\.plugin-rail, \.assistant-island\) \.immersive-plugin-link svg \{ color: var\(--plugin-tint, var\(--faint\)\)/);
   assert.doesNotMatch(INTERACTION_TEXTURE_STYLES, /\.plugin-rail \.immersive-plugin-link svg \{ color: var\(--faint\)/);
   assert.doesNotMatch(INTERACTION_TEXTURE_STYLES, /\.plugin-rail \.immersive-plugin-link:hover svg \{ color: var\(--ink-soft\)/);
   assert.deepEqual([...listedIconNames()].sort(), [...registeredIconNames()].sort());
@@ -317,9 +326,35 @@ test("catalog ships a Linear-referenced palette and complete icon library", () =
   assert.match(INTERACTION_TEXTURE_STYLES, /--mark-clay: #B27460;/);
 });
 
+test("visible single-choice selects open an mw-menu instead of the OS picker", () => {
+  assert.match(PRIMITIVE_STYLES, /\.mw-select-picker \{/);
+  assert.match(PRIMITIVE_STYLES, /\.mw-select-picker__menu/);
+  assert.match(SELECT_MENU_CLIENT_SCRIPT, /data-mw-select-picker/);
+  assert.match(SELECT_MENU_CLIENT_SCRIPT, /dataset\.mwSelectSkip === "true"/);
+  assert.match(SELECT_MENU_CLIENT_SCRIPT, /select\.hidden/);
+  assert.match(SELECT_MENU_CLIENT_SCRIPT, /aria-hidden"\) === "true"/);
+  assert.match(SELECT_MENU_CLIENT_SCRIPT, /className = "mw-menu mw-select-picker__menu"/);
+  assert.match(SELECT_MENU_CLIENT_SCRIPT, /dispatchEvent\(new Event\("change"/);
+  assert.match(SELECT_MENU_CLIENT_SCRIPT, /HTMLSelectElement\.prototype/);
+  assert.match(SELECT_MENU_CLIENT_SCRIPT, /addEventListener\("DOMContentLoaded", start\)/);
+  assert.match(SELECT_MENU_CLIENT_SCRIPT, /addEventListener\("load"/);
+  assert.doesNotMatch(SELECT_MENU_CLIENT_SCRIPT, /select\.multiple \|\| Number\(select\.size\) > 1\) return false/);
+});
+
 test("empty states and calendars keep copy grouped and readable", () => {
   assert.match(PRIMITIVE_STYLES, /\.mw-empty \{[\s\S]*align-content: start;[\s\S]*color: var\(--ink-soft\)/);
+  assert.match(PRIMITIVE_STYLES, /\.mw-empty__mark, \.mw-empty > svg \{ color: var\(--plugin-tint, var\(--muted\)\)/);
   assert.match(PRIMITIVE_STYLES, /\.frame-empty\.mw-empty \{[\s\S]*justify-content: center;[\s\S]*gap: 12px/);
   assert.match(PRIMITIVE_STYLES, /\.mw-calendar__outside \{ color: var\(--faint\); \}/);
   assert.doesNotMatch(PRIMITIVE_STYLES, /\.mw-calendar__outside \{[^}]*opacity:/);
+});
+
+test("plugin rail reuses the segmented thumb and stages share creative-arrive", () => {
+  assert.match(MICRO_INTERACTION_STYLES, /\.plugin-rail-items/);
+  assert.match(MICRO_INTERACTION_STYLES, /--seg-tint/);
+  assert.match(MICRO_INTERACTION_STYLES, /assistant-island-card/);
+  assert.match(MICRO_INTERACTION_STYLES, /aria-expanded="true"/);
+  assert.match(MICRO_INTERACTION_STYLES, /@keyframes creative-arrive/);
+  assert.match(MICRO_INTERACTION_STYLES, /\.assistant-composer\):popover-open/);
+  assert.match(MICRO_INTERACTION_STYLES, /prefers-reduced-motion: reduce[\s\S]*\.is-arriving[\s\S]*animation: none/);
 });

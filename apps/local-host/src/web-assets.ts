@@ -1,9 +1,12 @@
 import { createHash } from "node:crypto";
 import fs from "node:fs";
+import { createRequire } from "node:module";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { fileURLToPath } from "node:url";
 import type { WorkbenchRenderer } from "@molis-ai/molis-work-app-workbench";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
+
+const requireAsset = createRequire(import.meta.url);
 
 const INTER_VARIABLE_FONT_PATH = fileURLToPath(
   new URL("../../../packages/design-system/fonts/inter-latin-variable.woff2", import.meta.url),
@@ -56,8 +59,10 @@ export function createLocalWebAssets(ports: {
           ? { body: renderMolisWorkProjectIndexStylesheet(), contentType: "text/css; charset=utf-8" }
           : pathname === "/assets/molis-work-onboarding.css"
             ? { body: renderMolisWorkOnboardingStylesheet(), contentType: "text/css; charset=utf-8" }
-          : pathname === "/assets/molis-work-settings.css"
-            ? { body: renderMolisWorkSettingsStylesheet(), contentType: "text/css; charset=utf-8" }
+        : pathname === "/assets/molis-work-settings.css"
+          ? { body: renderMolisWorkSettingsStylesheet(), contentType: "text/css; charset=utf-8" }
+          : pathname === "/assets/molis-work-pages-editor.js"
+            ? pagesEditorAsset()
           : pathname === "/assets/inter-latin-variable.woff2" && fs.existsSync(INTER_VARIABLE_FONT_PATH)
             ? { body: fs.readFileSync(INTER_VARIABLE_FONT_PATH), contentType: "font/woff2" }
           : pathname === "/assets/noto-sans-sc-400.woff2" && fs.existsSync(NOTO_SANS_SC_FONT_PATH)
@@ -81,4 +86,14 @@ export function createLocalWebAssets(ports: {
     return true;
   }
   return { servePtyClient, serveWorkbenchAsset };
+}
+
+function pagesEditorAsset(): { body: Buffer; contentType: string } | null {
+  try {
+    const filePath = requireAsset.resolve("@molis-ai/molis-work-plugin-pages/editor");
+    if (!fs.existsSync(filePath)) return null;
+    return { body: fs.readFileSync(filePath), contentType: "text/javascript; charset=utf-8" };
+  } catch {
+    return null;
+  }
 }

@@ -35,6 +35,19 @@ test("Linear zinc shell tokens come from one helper", () => {
   assert.ok(STYLES.includes(light));
 });
 
+test("visual foundation enhances visible selects onto mw-menu", () => {
+  assert.match(VISUAL_FOUNDATION_CLIENT_SCRIPT, /data-mw-select-picker/);
+  assert.match(VISUAL_FOUNDATION_CLIENT_SCRIPT, /className = "mw-menu mw-select-picker__menu"/);
+  assert.match(VISUAL_FOUNDATION_CLIENT_SCRIPT, /dataset\.mwSelectSkip === "true"/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /\.mw-select-picker__menu/);
+  const workbench = renderMolisWorkWorkbenchStylesheet();
+  assert.match(workbench, /\.mw-select-picker \{/);
+  assert.match(workbench, /\.dataset-toolbar \.mw-select, \.dataset-toolbar \.mw-select-picker/);
+  assert.match(workbench, /\[data-work-surface="feed"\]/);
+  assert.match(workbench, /@keyframes creative-arrive/);
+  assert.match(VISUAL_FOUNDATION_CLIENT_SCRIPT, /--seg-tint/);
+});
+
 test("visual foundation keeps Light, Dark, and System as local presentation choices", () => {
   assert.equal(MOLIS_WORK_THEME_STORAGE_KEY, "molis-work:theme");
   assert.match(THEME_BOOTSTRAP_SCRIPT, /localStorage\.getItem/);
@@ -419,6 +432,9 @@ test("final interaction texture keeps Light and Dark type readable on distinct s
   assert.match(INTERACTION_TEXTURE_STYLES, /--page: #f3f4f5;[\s\S]*--paper: #ffffff;[\s\S]*--ink: #222326;[\s\S]*--muted: #6b6f76;[\s\S]*--faint: #737882;/);
   assert.match(INTERACTION_TEXTURE_STYLES, /--hue-indigo: #5e6ad2;/);
   assert.match(INTERACTION_TEXTURE_STYLES, /--blue: var\(--hue-indigo\)/);
+  assert.match(INTERACTION_TEXTURE_STYLES, /--focus-stroke: 1px solid var\(--ink\);/);
+  assert.match(INTERACTION_TEXTURE_STYLES, /--focus-stroke-inset: -1px;/);
+  assert.doesNotMatch(INTERACTION_TEXTURE_STYLES, /--focus-stroke: 2px solid var\(--focus\)/);
   assert.match(INTERACTION_TEXTURE_STYLES, /--content-accent: var\(--hue-slate\)/);
   assert.match(INTERACTION_TEXTURE_STYLES, /--mark-slate: #647DB5;/);
   assert.match(INTERACTION_TEXTURE_STYLES, /\n  \.goal-status \{ --goal-status-tone: var\(--tone-idle\); \}\n  \.goal-status,\n  body\[data-desktop-shell="true"\] \.goal-status \{/);
@@ -456,6 +472,16 @@ test("plugin list titles yield at the squeeze edge", () => {
   assert.doesNotMatch(workbench, /\.feed-stage-leading strong[\s\S]*mask-image:/);
   assert.match(workbench, /\.mw-dir-row-wrap\.is-yield:is\(:hover, :has\(\.is-selected\), :has\(\[aria-current="page"\]\)\) \.mw-dir-row \{[\s\S]*padding-right: var\(--dir-yield, 72px\)/);
   assert.match(workbench, /\.feed-stage-entry \{[\s\S]*grid-template-columns: minmax\(0, 1fr\) minmax\(7rem, 12rem\) max-content max-content/);
+  assert.match(workbench, /grid-template-columns: minmax\(12rem, 1\.2fr\) 4.75rem 7.5rem minmax\(10rem, 1fr\) 4.5rem/);
+  assert.doesNotMatch(workbench, /\.plugin-stage-meta \{ max-width: 18rem/);
+  assert.match(workbench, /\.feed-stage-entry:has\(\.plugin-stage-kind\) \.feed-entry-status \{[\s\S]*background: transparent/);
+  assert.match(workbench, /\.plugin-stage-list[\s\S]*\.feed-stage-entry:is\(\.is-selected[\s\S]*--plugin-tint/);
+  assert.match(workbench, /\.home-hero \{[\s\S]*max-width: 40rem/);
+  assert.match(workbench, /\.home-tl \{[\s\S]*max-width: 40rem/);
+  assert.match(workbench, /\.home-erow \{[\s\S]*max-width: 40rem/);
+  assert.match(workbench, /\.plugin-stage-kind\[data-kind="choice"\] \{ --status-tone: var\(--hue-indigo\)/);
+  assert.match(workbench, /\.plugin-stage-kind\[data-kind="score"\] \{ --status-tone: var\(--hue-orange\)/);
+  assert.match(workbench, /\.plugin-stage-kind\[data-kind="noul"\] \{ --status-tone: var\(--hue-cyan\)/);
   assert.match(workbench, /\.feed-stage-entry \.feed-entry-status \{[\s\S]*overflow: visible/);
   assert.match(workbench, /\.feed-stage-leading strong \{ flex: 1;/);
   assert.match(workbench, /goal-board-switch, \.settings-segmented, \.locale-switch, \.mw-toggle-group/);

@@ -6,6 +6,7 @@ import {
   INBOX_UI_CONTRIBUTION_ID,
   InboxPluginRouteTable,
   buildInboxUiEntries,
+  createInboxRouteHandlers,
   inboxUiContribution,
   type InboxPluginRouteHandler,
   type InboxUiEntry,
@@ -47,6 +48,7 @@ function entry(overrides: Partial<InboxUiEntry> = {}): InboxUiEntry {
     available: true,
     open: { kind: "feed", item_id: "item-1" },
     attention_rank: 2,
+    suggested_behavior_ids: [],
     ...overrides,
   };
 }
@@ -86,6 +88,8 @@ test("Workbench registers the Inbox UI Contribution through the generic UI Host"
   assert.match(workbench, /data-inbox-list/);
   assert.match(workbench, /data-inbox-stage-shell/);
   assert.match(workbench, /现在没有需要你介入的事项/);
+  assert.doesNotMatch(workbench, /data-inbox-judgment/);
+  assert.doesNotMatch(workbench, /inbox-scene-bind/);
   assert.doesNotMatch(workbench, /Goal 待判断、来源故障|会出现在这里/);
   assert.doesNotMatch(workbench, /data-feed-directory|data-feed-list|data-feed-entry-id/);
   assert.doesNotMatch(workbench, /选择一条需要处理的事项/);
@@ -173,6 +177,115 @@ test("Inbox directory lists Attention reason, related object, and next step with
   assert.doesNotMatch(rendered.workbench, /data-feed-workbench|data-feed-detail=/);
 });
 
+test("Inbox detail keeps default write actions until a legal next-step suggestion arrives", () => {
+  const host = new UiHost();
+  host.register(inboxUiContribution);
+  const open = entry();
+  const suggested = entry({
+    entry_id: "entry-suggested",
+    suggested_behavior_ids: ["inbox.done"],
+  });
+  const illegal = entry({
+    entry_id: "entry-illegal",
+    suggested_behavior_ids: ["invented.behavior", "home.talk"],
+  });
+  const defaults = host.render({
+    contribution_id: INBOX_UI_CONTRIBUTION_ID,
+    surface: "workbench",
+    model: model({ entries: [open] }),
+  });
+  assert.match(defaults, /data-inbox-detail="entry-open"[\s\S]*data-inbox-action="done"/);
+  assert.match(defaults, /data-inbox-detail="entry-open"[\s\S]*data-inbox-action="dismissed"/);
+  assert.match(defaults, /data-inbox-open-feed="item-1"/);
+
+  const judged = host.render({
+    contribution_id: INBOX_UI_CONTRIBUTION_ID,
+    surface: "workbench",
+    model: model({ entries: [suggested] }),
+  });
+  assert.match(judged, /data-inbox-detail="entry-suggested"[\s\S]*data-inbox-action="done"/);
+  assert.doesNotMatch(judged, /data-inbox-detail="entry-suggested"[\s\S]*data-inbox-action="dismissed"/);
+  assert.match(judged, /data-inbox-open-feed="item-1"/);
+
+  const fallback = host.render({
+    contribution_id: INBOX_UI_CONTRIBUTION_ID,
+    surface: "workbench",
+    model: model({ entries: [illegal] }),
+  });
+  assert.match(fallback, /data-inbox-detail="entry-illegal"[\s\S]*data-inbox-action="done"/);
+  assert.match(fallback, /data-inbox-detail="entry-illegal"[\s\S]*data-inbox-action="dismissed"/);
+});
+
+test("Inbox list does not paint a board-level judgment binder", () => {
+  const host = new UiHost();
+  host.register(inboxUiContribution);
+  const workbench = host.render({
+    contribution_id: INBOX_UI_CONTRIBUTION_ID,
+    surface: "workbench",
+    model: model({
+      entries: [entry()],
+    }),
+  });
+  assert.doesNotMatch(workbench, /data-inbox-judgment/);
+  assert.doesNotMatch(workbench, /下一步判断/);
+  assert.doesNotMatch(workbench, /inbox-scene-bind/);
+});
+
+test("Inbox judgment routes bind and unbind through Host ports", async () => {
+  let key: string | null = null;
+  let changed = 0;
+  const routes = new InboxPluginRouteTable(createInboxRouteHandlers({
+    listEntries: () => [],
+    setStatus: () => {
+      throw new Error("unused");
+    },
+    changed() { changed += 1; },
+    readJudgment: () => ({
+      function_key: key,
+      functions: [{ function_key: "system_pick_inbox_next", name: "挑 Inbox 下一步" }],
+    }),
+    writeJudgment: (next) => {
+      key = next;
+      return { function_key: next };
+    },
+  }));
+  const listed = await routes.handle({
+    method: "GET",
+    pathname: "/api/inbox/judgment",
+    query: new URLSearchParams(),
+    body: {},
+  });
+  assert.equal(listed?.status, 200);
+  assert.equal((listed?.body as { function_key: string | null }).function_key, null);
+
+  const bound = await routes.handle({
+    method: "POST",
+    pathname: "/api/inbox/judgment",
+    query: new URLSearchParams(),
+    body: { function_key: "system_pick_inbox_next" },
+  });
+  assert.equal(bound?.status, 200);
+  assert.equal((bound?.body as { function_key: string }).function_key, "system_pick_inbox_next");
+  assert.equal(changed, 1);
+
+  const reread = await routes.handle({
+    method: "GET",
+    pathname: "/api/inbox/judgment",
+    query: new URLSearchParams(),
+    body: {},
+  });
+  assert.equal((reread?.body as { function_key: string }).function_key, "system_pick_inbox_next");
+
+  const unbound = await routes.handle({
+    method: "POST",
+    pathname: "/api/inbox/judgment",
+    query: new URLSearchParams(),
+    body: { function_key: null },
+  });
+  assert.equal((unbound?.body as { function_key: string | null }).function_key, null);
+  assert.equal(changed, 2);
+});
+
 test("Inbox projection keeps references and ranks active entries first", () => {
   const records: AttentionEntryRecord[] = [
     {
@@ -200,6 +313,7 @@ test("Inbox projection keeps references and ranks active entries first", () => {
       created_at: "2026-09-14T11:00:00.000Z",
       updated_at: "2026-09-14T11:00:00.000Z",
       completed_at: null,
+      suggested_behavior_ids: ["inbox.done"],
     },
   ];
   const entries = buildInboxUiEntries(records, () => ({
@@ -210,7 +324,9 @@ test("Inbox projection keeps references and ranks active entries first", () => {
   }), (value) => value);
   assert.equal(entries[0]?.entry_id, "open-1");
   assert.equal(entries[0]?.reason_label, "来源规则命中");
+  assert.deepEqual(entries[0]?.suggested_behavior_ids, ["inbox.done"]);
   assert.equal(entries[1]?.status, "done");
+  assert.deepEqual(entries[1]?.suggested_behavior_ids, []);
 });
 
 test("Inbox Plugin route table owns matching while the Host supplies handlers", async () => {

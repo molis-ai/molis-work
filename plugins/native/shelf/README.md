@@ -18,7 +18,7 @@ Host 把架子快照交给 UI contribution；HTTP 路由表拥有 `/api/shelf` �
 | [src/styles.ts](src/styles.ts) | DropAgent 表面样式 |
 | [src/client.ts](src/client.ts) | 选择、多选、动作栏、确认与运行 |
 | [src/routes.ts](src/routes.ts) | HTTP 路由表 |
-| [src/settings-ui.ts](src/settings-ui.ts) | 六段用途导航的设置页 |
+| [src/settings-ui.ts](src/settings-ui.ts) | 六段用途堆叠的设置页 |
 | [src/terminal-client.ts](src/terminal-client.ts) | 「对话」的终端井，接 `/pty` |
 
 可对照 [apps/workbench/src/goals-page-renderer.ts](../../../apps/workbench/src/goals-page-renderer.ts) 与 [apps/local-host/src/shelf-native-plugin-http.ts](../../../apps/local-host/src/shelf-native-plugin-http.ts)。

@@ -28,6 +28,9 @@ test("HTTP enforces host control, imports the actual function snapshot, and reus
   const settings=await (await fetch(origin+'/api/functions/settings')).json();assert.equal(settings.has_credential,true);
   assert.doesNotMatch(await (await fetch(origin+'/api/experiments/models')).text(),/fixture-key/);
   const reopened=await (await fetch(origin+'/api/experiments/'+e.id)).json();assert.equal(reopened.experiment.hash,e.hash);
+  for (const alias of ['experiments','io.molis.work.experiments']) {
+   const routed=await fetch(origin+'/api/plugins/'+alias+'/'+e.id);assert.equal(routed.status,200);assert.deepEqual(await routed.json(),reopened);
+  }
   const exported=await fetch(origin+'/api/experiments/'+e.id+'/export');assert.match(exported.headers.get('content-disposition')!,/attachment; filename=/);assert.deepEqual(await exported.json(),reopened);
  }finally{
   await new Promise<void>(r=>server.close(()=>r()));await closeExperiments(home);resetSecretStoreCache();

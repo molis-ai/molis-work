@@ -39,3 +39,24 @@ test("reject invalid input, changing Grok constraints, duplicate arms and fake r
  const f=fixture(()=>({async evaluate(){return answer();},close(){}}));try{let i=input();i.participants[1]!.effort=undefined;assert.throws(()=>f.service.create(i),/xhigh/);i=input();i.cases[0]!.reference_status='unlabeled';assert.throws(()=>f.service.create(i),/不一致/);i=input();i.participants[1]!.id='a';assert.throws(()=>f.service.create(i),/重复/);i=input();i.cases[0]!.input='x'.repeat(8001);assert.throws(()=>f.service.create(i),/8000/);}finally{f.db.close();}
 });
 test("client script parses without executing browser globals",()=>{assert.equal(typeof new Function('return ('+EXPERIMENTS_CLIENT_FACTORY_SCRIPT+')')(),'function');});
+
+test("experiments survives unified catalog, contribution and navigation registration", async () => {
+ const catalog = await import("@molis-ai/molis-work-app-workbench");
+ const { renderExperimentsContribution } = await import("../apps/workbench/src/ui-composition.ts");
+ const { pluginWorkbenchClientBootstrap, pluginWorkbenchStyles } = await import("../apps/workbench/src/plugin-workbench.ts");
+ assert.ok(catalog.PERSONAL_PLUGIN_IDS.includes("experiments"));
+ assert.ok(catalog.OWN_DIRECTORY_SURFACES.includes("experiments"));
+ assert.ok(catalog.DIRECT_WORK_SURFACE_IDS.has("experiments"));
+ assert.ok(catalog.railEntries(catalog.PERSONAL_PLUGIN_IDS).some(entry => entry.id === "experiments"));
+ assert.match(renderExperimentsContribution(), /data-work-surface="experiments"/);
+ assert.ok(pluginWorkbenchClientBootstrap().includes(EXPERIMENTS_CLIENT_FACTORY_SCRIPT));
+ assert.match(pluginWorkbenchStyles(), /\.experiments/);
+});
+
+test("Functions provider relocation preserves reported tokens and leaves unavailable usage unknown", async () => {
+ const { readChoiceAnswer } = await import("@molis-ai/molis-work-plugin-functions");
+ const body = { model: "fixture", answers: { fixture: { choice: "yes" } } };
+ assert.equal(readChoiceAnswer(body, "fixture").usage, undefined);
+ assert.deepEqual(readChoiceAnswer({ ...body, usage: { input_tokens: 12 } }, "fixture").usage, { input_tokens: 12, output_tokens: null });
+ assert.deepEqual(readChoiceAnswer({ ...body, usage: { input_tokens: 12, output_tokens: 1 } }, "fixture").usage, { input_tokens: 12, output_tokens: 1 });
+});

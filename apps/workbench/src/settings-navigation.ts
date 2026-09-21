@@ -9,7 +9,7 @@ export interface WebProjectNavigation {
 }
 
 
-export type WebSettingsSection = "appearance" | "runtimes" | "projects" | "diagnostics";
+export type WebSettingsSection = "appearance" | "runtimes" | "mcp" | "connectors" | "projects" | "diagnostics";
 type SettingsNavigationActive = string;
 type ProjectSettingsNavigationActive = "general" | "guidance" | "rules" | "planning";
 
@@ -17,7 +17,7 @@ type ProjectSettingsNavigationActive = "general" | "guidance" | "rules" | "plann
 export interface SettingsNavigationPrimitives {
   L(text: string): string;
   escapeHtml(value: unknown): string;
-  icon(name: "database" | "chevron-down" | "check" | "settings" | "panel" | "bell" | "search" | "arrow" | "user" | "system" | "workflow" | "tree" | "activity" | "bug" | "book" | "shield" | "sun" | "terminal" | "tune" | "library" | "sparkles"): string;
+  icon(name: "database" | "chevron-down" | "check" | "settings" | "panel" | "bell" | "search" | "arrow" | "user" | "system" | "workflow" | "tree" | "activity" | "bug" | "book" | "shield" | "sun" | "terminal" | "tune" | "library" | "sparkles" | "link"): string;
   withDesktopQuery(path: string): string;
 }
 export function createWorkbenchSettingsNavigation(primitives: SettingsNavigationPrimitives) {
@@ -88,6 +88,8 @@ function renderSettingsNavigation(
       <a href="${href("/settings/appearance")}"${current("appearance")}>${icon("sun")}${L("外观")}</a>
       <div class="settings-nav-group-label">${L("工具")}</div>
       <a href="${href("/settings/runtimes")}"${current("runtimes")}>${icon("terminal")}${L("AI 与执行工具")}</a>
+      <a href="${href("/settings/mcp")}"${current("mcp")}>${icon("settings")}${L("MCP")}</a>
+      <a href="${href("/settings/connectors")}"${current("connectors")}>${icon("link")}${L("Connectors")}</a>
       <a href="${href("/settings/planning")}"${current("planning")}>${icon("workflow")}${L("规划方法")}</a>
       <div class="settings-nav-group-label">${L("系统")}</div>
       <a href="${href("/settings/diagnostics")}"${current("diagnostics")}>${icon("bug")}${L("诊断")}</a>

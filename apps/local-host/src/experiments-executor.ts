@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createFileSecretStore } from "@molis-ai/molis-work-storage";
-import { createHttpTypeSafeProvider } from "@molis-ai/molis-work-plugin-functions";
+import { createHttpTypeSafeProvider } from "@molis-ai/molis-work-module-functions";
 import { FUNCTIONS_CREDENTIAL_REF } from "@molis-ai/molis-work-contracts/modules/functions";
 import type { ExecutionPort, Participant } from "@molis-ai/molis-work-plugin-experiments";
 import { JsonWorker } from "./experiments-process.js";
@@ -39,6 +39,7 @@ export function createExperimentExecutor(): ExecutionPort {
       const answer = await createHttpTypeSafeProvider().evaluate(key, {
         id:p.id, function_key:"decision", name:p.name, primitive:"choice", status:"draft", version:null,
         model:p.model, instructions:request.task.instructions, criteria:request.task.criteria,
+        scene_id:null, subject_kinds:[], scene_map:{},
         config_hash:"experiment-snapshot", last_preview:null, samples:[], published_at:null, created_at:"", updated_at:"",
       }, request.input, signal);
       if (!answer.choice || !answer.model) throw new Error("Jev 未返回答案或实际模型标识");

@@ -10,7 +10,8 @@
  * and `prefers-reduced-motion` removes the travel and the arc rather than merely shortening them.
  */
 
-const SEGMENTED = ":is(.goal-board-switch, .settings-segmented, .locale-switch, .mw-toggle-group)";
+const SEGMENTED = ":is(.goal-board-switch, .settings-segmented, .locale-switch, .mw-toggle-group, .plugin-rail-items, .assistant-island-card)";
+const RAIL_SEGMENTED = ":is(.plugin-rail-items, .assistant-island-card)";
 const SEGMENT_CURRENT = ':is([aria-current="true"], [aria-current="page"], [aria-pressed="true"], .is-current, .is-active)';
 
 /** Statuses whose Goal is being worked on right now, per the shared status tone map. */
@@ -22,6 +23,20 @@ const FOCAL_STATUS = ":is(.tui-owner-actions, .goal-node-toolbar, .reader-header
 
 export const MICRO_INTERACTION_STYLES = `
   :root, body { --ease-settle: cubic-bezier(.32, 1.22, .52, 1); }
+
+  /* Contained focus sits last in the design-system tail so leftover outer rings cannot win. */
+  body.immersive-workbench :focus-visible,
+  body.settings-page :focus-visible,
+  body.project-index-page :focus-visible,
+  body.project-preferences-page :focus-visible {
+    outline: var(--focus-stroke);
+    outline-offset: var(--focus-stroke-inset);
+  }
+  body.immersive-workbench :is(a:not([class]), .mw-btn--link):focus-visible,
+  body.settings-page :is(a:not([class]), .mw-btn--link):focus-visible,
+  body.project-index-page :is(a:not([class]), .mw-btn--link):focus-visible {
+    outline-offset: 2px;
+  }
 
   /* Rubber Segment: one thumb travels between slots instead of a chip blinking on and off. */
   body ${SEGMENTED}[data-seg-thumb] { position: relative; }
@@ -48,6 +63,18 @@ export const MICRO_INTERACTION_STYLES = `
   body ${SEGMENTED}[data-seg-thumb] > :is(button, a) { position: relative; z-index: 1; }
   body ${SEGMENTED}[data-seg-thumb] > ${SEGMENT_CURRENT},
   body.immersive-workbench .tree-pane .settings-segmented[data-seg-thumb] > ${SEGMENT_CURRENT} { background: transparent; box-shadow: none; }
+
+  /* Plugin rail: the same travelling chip, tinted with the current plugin instead of a raised card. */
+  body ${RAIL_SEGMENTED}[data-seg-thumb]::before {
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--seg-tint, var(--plugin-tint, var(--ink))) 12%, transparent);
+    box-shadow: none;
+  }
+  body.immersive-workbench ${RAIL_SEGMENTED}[data-seg-thumb] > .immersive-plugin-link:is(${SEGMENT_CURRENT}, [aria-expanded="true"]),
+  body.immersive-workbench ${RAIL_SEGMENTED}[data-seg-thumb] > .immersive-plugin-link:is(${SEGMENT_CURRENT}, [aria-expanded="true"]):hover {
+    background: transparent;
+    box-shadow: none;
+  }
 
   /* Glide Select: the keyboard selection is a travelling pill, so hover stops impersonating it. */
   body .global-search-body[data-search-glide] { position: relative; }
@@ -81,11 +108,12 @@ export const MICRO_INTERACTION_STYLES = `
 
 
   /* A writing surface opts out of the field ring: it answers focus with tone, not a box. */
+  body.immersive-workbench [data-plain-field]:focus-visible,
   body [data-plain-field]:focus-visible, body [data-plain-field]:focus {
     outline: none;
     border-color: transparent;
     /* A pen line under the text, not a box around it — and it still clears 3:1 on its own. */
-    box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--focus) 88%, transparent);
+    box-shadow: inset 0 -1px 0 var(--ink);
     background: var(--nav-hover);
   }
 
@@ -104,12 +132,27 @@ export const MICRO_INTERACTION_STYLES = `
   }
   @keyframes mw-status-arc { to { transform: rotate(1turn); } }
 
+  /* Stages, menus and the assistant sheet share one 6px rise. Menus stay on the fast clock. */
+  @keyframes creative-arrive {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: none; }
+  }
+  .plugin-stage-workspace.is-arriving,
+  .is-arriving { animation: creative-arrive var(--motion-normal, 190ms) var(--ease-out, cubic-bezier(.16, 1, .3, 1)) both; }
+  :is(.mw-menu, .mw-select-picker__menu, .assistant-composer):popover-open,
+  .mw-select-picker__menu.is-open {
+    animation: creative-arrive var(--motion-fast, 130ms) var(--ease-out, cubic-bezier(.16, 1, .3, 1)) both;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     body ${SEGMENTED}[data-seg-thumb][data-seg-ready]::before { transition: none; }
     body .global-search-body[data-search-glide][data-search-ready]::before { transition: none; }
     body.immersive-workbench :is(.tree-entry, .feed-stage-entry, .source-list-item, .goal-collection-fold > summary, .mw-dir-row, .mw-dir-row-wrap) { transition: none; }
     body ${FOCAL_STATUS} .goal-status${RUNNING_STATUS} > svg { display: inline; }
     body ${FOCAL_STATUS} .goal-status${RUNNING_STATUS}::before { content: none; animation: none; }
+    .plugin-stage-workspace.is-arriving, .is-arriving,
+    :is(.mw-menu, .mw-select-picker__menu, .assistant-composer):popover-open,
+    .mw-select-picker__menu.is-open { animation: none; }
   }
 `;
 
@@ -126,10 +169,16 @@ export const MICRO_INTERACTION_CLIENT_SCRIPT = `
   };
 
   const syncSegment = (track) => {
-    const current = track.querySelector(":scope > " + SEGMENT_CURRENT);
+    const islandOpen = track.classList.contains("assistant-island-card")
+      ? track.querySelector(':scope > [aria-expanded="true"]')
+      : null;
+    const current = islandOpen || track.querySelector(":scope > " + SEGMENT_CURRENT);
     const box = track.getBoundingClientRect();
     const slot = current && current.getBoundingClientRect();
-    if (!current || !slot.width || !box.width) { track.removeAttribute("data-seg-thumb"); return; }
+    if (!current || !slot.width || !box.width) { track.removeAttribute("data-seg-thumb"); track.style.removeProperty("--seg-tint"); return; }
+    const tint = getComputedStyle(current).getPropertyValue("--plugin-tint").trim();
+    if (tint) track.style.setProperty("--seg-tint", tint);
+    else track.style.removeProperty("--seg-tint");
     const style = getComputedStyle(track);
     place(track, {
       "--seg-x": slot.left - box.left - parseFloat(style.borderLeftWidth),
@@ -171,7 +220,7 @@ export const MICRO_INTERACTION_CLIENT_SCRIPT = `
     queued = true;
     requestAnimationFrame(() => {
       queued = false;
-      for (const track of document.querySelectorAll(SEGMENTED)) watch(track, syncSegment, ["aria-current", "aria-pressed", "class"]);
+      for (const track of document.querySelectorAll(SEGMENTED)) watch(track, syncSegment, ["aria-current", "aria-pressed", "aria-expanded", "class"]);
       for (const dialog of document.querySelectorAll(".global-search-dialog")) watch(dialog, syncSearch, ["aria-selected"]);
       for (const track of document.querySelectorAll(SEGMENTED + "[data-seg-thumb]")) syncSegment(track);
     });

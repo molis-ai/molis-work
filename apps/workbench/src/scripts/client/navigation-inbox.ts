@@ -56,4 +56,5 @@ export const CLIENT_NAVIGATION_INBOX_SCRIPT = `
       if (fold) fold.open = true;
       if (persist) queueSave();
     };
+
 `;

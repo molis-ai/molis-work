@@ -15,7 +15,7 @@ export const STYLES = `
   body { width: 100%; height: 100dvh; min-height: 0; margin: 0; overflow: hidden; overscroll-behavior: none; background: var(--page); color: var(--ink); font: 14px/1.55 var(--font); }
   button, input, textarea, select { font: inherit; }
   button { color: inherit; }
-  button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid color-mix(in srgb, var(--blue), transparent 30%); outline-offset: 2px; }
+  button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, a:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
   svg { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
   [hidden] { display: none !important; }
   .icon-sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
@@ -47,7 +47,8 @@ export const STYLES = `
   .tree-search { position: relative; display: flex; align-items: center; }
   .tree-search svg { position: absolute; left: 10px; color: var(--muted); pointer-events: none; }
   .tree-search input { width: 100%; height: 32px; padding: 0 42px 0 32px; border: 1px solid var(--line); border-radius: 5px; background: var(--paper); }
-  .tree-search input:hover, .tree-search input:focus { border-color: color-mix(in srgb, var(--blue), var(--line-strong) 42%); }
+  .tree-search input:hover { border-color: color-mix(in srgb, var(--control-input) 72%, var(--ink)); }
+  .tree-search input:focus { border-color: var(--ink); }
   .tree-search kbd { position: absolute; right: 8px; color: var(--faint); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; font: 12px/20px var(--font); background: var(--paper); }
   .tree-tools { display: flex; flex-wrap: nowrap; align-items: center; gap: 4px; min-width: 0; width: 100%; }
   .tree-create { flex: 1; min-width: 0; height: 28px; padding: 0 12px; border: 1px solid var(--line); border-radius: var(--radius-control, 8px); background: var(--paper); color: var(--ink); display: inline-flex; align-items: center; justify-content: center; gap: 6px; font: inherit; font-size: 12px; font-weight: 400; cursor: pointer; }
@@ -176,7 +177,7 @@ export const STYLES = `
   .tui-expand { display: none; }
   .workspace.is-tui-collapsed .tui-expand { position: absolute; top: 50%; right: 0; z-index: 8; width: 36px; min-height: 112px; padding: 14px 0; border: 1px solid var(--line-strong); border-right: 0; border-radius: 8px 0 0 8px; background: color-mix(in srgb, var(--rail) 40%, var(--paper)); box-shadow: -4px 2px 16px rgba(26, 38, 52, .1); color: var(--ink); transform: translateY(-50%); cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
   .workspace.is-tui-collapsed .tui-expand:hover { color: var(--ink); background: var(--nav-hover); }
-  .workspace.is-tui-collapsed .tui-expand:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+  .workspace.is-tui-collapsed .tui-expand:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
   .workspace.is-tui-collapsed .tui-expand svg { width: 16px; height: 16px; }
   .tui-expand-label { display: none; }
   .workspace.is-tui-collapsed .tui-expand-label { display: block; writing-mode: vertical-rl; font-size: 12px; font-weight: 400; letter-spacing: .12em; line-height: 1; }
@@ -272,7 +273,7 @@ export const STYLES = `
   .factor-write-receipt { margin: 0 0 14px; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--green), var(--line) 65%); border-radius: 5px; background: var(--green-soft); display: grid; gap: 2px; }
   .factor-write-receipt strong { color: var(--green); font-size: 12px; }
   .factor-write-receipt span { color: var(--muted); font-size: 12px; line-height: 1.5; }
-  .factor-write-receipt:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+  .factor-write-receipt:focus-visible { outline: 2px solid var(--green); outline-offset: -2px; }
   .policy-scope-note { margin: 0; padding: 11px 12px; border: 1px solid var(--line); border-radius: 5px; background: var(--page); display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; }
   .policy-scope-note > svg { color: var(--muted); }
   .policy-scope-note > span { min-width: 0; display: grid; }

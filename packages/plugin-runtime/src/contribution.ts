@@ -6,8 +6,9 @@ import type {
 
 /**
  * Redemption check: what a Plugin returned at start must match what its
- * Manifest declared, in both directions. An undelivered view is a failed start,
- * and an undeclared handler never runs — the Manifest stays the whole contract.
+ * Manifest declared, in both directions. An undelivered view, route, or MCP
+ * tool is a failed start, and an undeclared handler never runs — the Manifest
+ * stays the whole contract.
  */
 
 export class PluginContributionError extends Error {
@@ -90,6 +91,50 @@ function assertRoutes(manifest: PluginManifest, contribution: PluginAppContribut
   return problems;
 }
 
+function assertMcp(manifest: PluginManifest, contribution: PluginAppContribution): string[] {
+  const problems: string[] = [];
+  const declared = new Set((manifest.mcp_exports ?? []).map((entry) => entry.tool_id));
+  const delivered = new Set<string>();
+  for (const binding of contribution.mcp ?? []) {
+    if (!declared.has(binding.tool_id)) {
+      problems.push(`MCP ${binding.tool_id} 没有在 Manifest 里声明`);
+      continue;
+    }
+    if (delivered.has(binding.tool_id)) {
+      problems.push(`MCP ${binding.tool_id} 重复提供`);
+      continue;
+    }
+    delivered.add(binding.tool_id);
+  }
+  for (const toolId of declared) {
+    if (!delivered.has(toolId)) problems.push(`声明的 MCP ${toolId} 没有兑现`);
+  }
+  return problems;
+}
+
+function assertBehaviors(manifest: PluginManifest, contribution: PluginAppContribution): string[] {
+  const problems: string[] = [];
+  const declared = new Set((manifest.behaviors ?? []).map((entry) => entry.behavior_id));
+  const delivered = new Set<string>();
+  for (const binding of contribution.behaviors ?? []) {
+    if (!declared.has(binding.behavior_id)) {
+      problems.push(`行为 ${binding.behavior_id} 没有在 Manifest 里声明`);
+      continue;
+    }
+    if (delivered.has(binding.behavior_id)) {
+      problems.push(`行为 ${binding.behavior_id} 重复提供`);
+      continue;
+    }
+    delivered.add(binding.behavior_id);
+  }
+  if (manifest.kind === "app") {
+    for (const behaviorId of declared) {
+      if (!delivered.has(behaviorId)) problems.push(`声明的行为 ${behaviorId} 没有兑现`);
+    }
+  }
+  return problems;
+}
+
 function assertHandlers(manifest: PluginManifest, contribution: PluginAppContribution): string[] {
   const problems: string[] = [];
   const subscribes = manifest.events?.subscribes ?? [];
@@ -127,6 +172,8 @@ export function assertContributionMatchesManifest(
   const problems = [
     ...assertViews(manifest, contribution),
     ...assertRoutes(manifest, contribution),
+    ...assertMcp(manifest, contribution),
+    ...assertBehaviors(manifest, contribution),
     ...assertHandlers(manifest, contribution),
   ];
   if (problems.length > 0) {

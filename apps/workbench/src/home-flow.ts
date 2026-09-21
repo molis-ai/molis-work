@@ -13,6 +13,7 @@ export interface HomeFlowInbox {
   created_at: string;
   updated_at: string;
   detail?: Record<string, unknown>;
+  suggested_behavior_ids?: readonly string[];
 }
 
 export interface HomeFlowFeedItem {
@@ -28,6 +29,7 @@ export interface HomeFlowFeedItem {
   author: string | null;
   url: string | null;
   linked_goal_id: string | null;
+  suggested_behavior_ids?: readonly string[];
 }
 
 export interface HomeFlowSource {
@@ -86,6 +88,7 @@ export interface HomeFlowEvent {
   act: HomeFlowAct;
   open: HomeFlowOpen | null;
   inbox?: { entry_id: string; revision: number; status: HomeFlowInbox["status"] };
+  suggested_behavior_ids?: readonly string[];
 }
 
 export interface HomeFlowDay {
@@ -218,6 +221,7 @@ export function createHomeFlow() {
             ? { plugin: "feed", itemId: item.item_id, title: item.title }
             : { plugin: "inbox", itemId: entry.entry_id, title },
           inbox: { entry_id: entry.entry_id, revision: entry.revision, status: entry.status },
+          suggested_behavior_ids: entry.suggested_behavior_ids || [],
         });
         continue;
       }
@@ -247,6 +251,7 @@ export function createHomeFlow() {
             ? { plugin: "feed", itemId: source.source_id, title: source.name, sourceId: source.source_id }
             : null,
           inbox: { entry_id: entry.entry_id, revision: entry.revision, status: entry.status },
+          suggested_behavior_ids: entry.suggested_behavior_ids || [],
         });
         continue;
       }
@@ -271,6 +276,7 @@ export function createHomeFlow() {
         act: "continue",
         open: goal ? { plugin: "goals", itemId: goal.goal_id, title: goal.title } : null,
         inbox: { entry_id: entry.entry_id, revision: entry.revision, status: entry.status },
+        suggested_behavior_ids: entry.suggested_behavior_ids || [],
       });
     }
 
@@ -320,6 +326,7 @@ export function createHomeFlow() {
         ],
         act: "continue",
         open: { plugin: "feed", itemId: item.item_id, title: item.title },
+        suggested_behavior_ids: item.suggested_behavior_ids || [],
       });
     }
 

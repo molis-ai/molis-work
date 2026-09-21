@@ -15,11 +15,11 @@ export type UiContributionKind = "primary-page" | "embedded" | "overlay" | "sett
  * region it belongs to and never positions itself.
  *
  * These are exactly the regions the Workbench has today: the directory column,
- * the tabbed work area, and the global settings directory. A new region is a
- * shell change first and a slot second, never a slot a Plugin can target before
- * anywhere exists to put it.
+ * the tabbed work area, the global settings directory, and the personal island
+ * above the project card. A new region is a shell change first and a slot
+ * second, never a slot a Plugin can target before anywhere exists to put it.
  */
-export const UI_VIEW_SLOTS = ["navigator", "stage", "settings"] as const;
+export const UI_VIEW_SLOTS = ["navigator", "stage", "settings", "island"] as const;
 
 export type UiViewSlot = (typeof UI_VIEW_SLOTS)[number];
 

@@ -92,7 +92,13 @@ export const MW_PLUGINS = [
   { id: "inbox", label: "Inbox", hue: "mint" as const },
   { id: "schedule", label: "Schedule", hue: "yellow" as const },
   { id: "shelf", label: "Shelf", hue: "slate" as const },
+  { id: "lingguang", label: "灵光", hue: "yellow" as const },
+  { id: "experiments", label: "实验", hue: "purple" as const },
   { id: "functions", label: "Functions", hue: "indigo" as const },
+  { id: "pages", label: "Pages", hue: "cyan" as const },
+  { id: "form", label: "Forms", hue: "orange" as const },
+  { id: "dataset", label: "Dataset", hue: "green" as const },
+  { id: "ppt", label: "PPT", hue: "red" as const },
   { id: "artifacts", label: "Artifacts", hue: "pink" as const },
   { id: "coding", label: "Coding", hue: "cyan" as const },
   { id: "settings", label: "Settings", hue: "steel" as const },
@@ -242,8 +248,11 @@ export function renderPluginTintBindings(): string {
     const extras = plugin.id === "settings"
       ? ", [data-settings-section=\"project-settings\"], [data-directory-panel=\"project-settings\"]"
       : "";
+    const surfaces = plugin.id === "goals"
+      ? `[data-work-surface="${plugin.id}"], [data-work-surface="goal"]`
+      : `[data-work-surface="${plugin.id}"]`;
     return [
-      `body.immersive-workbench :is(.plugin-rail [data-plugin-id="${plugin.id}"], [data-plugin-section="${plugin.id}"], [data-directory-panel="${plugin.id}"]${extras}) { --plugin-tint: var(--plugin-${plugin.id}); }`,
+      `body.immersive-workbench :is(.plugin-rail [data-plugin-id="${plugin.id}"], .assistant-island [data-plugin-id="${plugin.id}"], [data-plugin-section="${plugin.id}"], [data-directory-panel="${plugin.id}"], ${surfaces}, .tab-item[data-plugin="${plugin.id}"]${extras}) { --plugin-tint: var(--plugin-${plugin.id}); }`,
       `.mw-catalog [data-plugin-id="${plugin.id}"] { --plugin-tint: var(--plugin-${plugin.id}); }`,
     ];
   }).join("\n  ");

@@ -108,6 +108,92 @@ export const SETTINGS_STYLES = `
   .settings-state--warning { color: var(--amber); }
   .settings-state--danger { color: var(--red); }
   .settings-state--neutral { color: var(--muted); }
+  .settings-document[data-connectors-settings] { overflow: hidden; }
+  .settings-document[data-connectors-settings] > .settings-body { padding-top: 24px; }
+  .settings-connector-group { display: grid; gap: 12px; }
+  .settings-connector-group + .settings-connector-group { margin-top: 28px; }
+  .settings-connector-group h2 { margin: 0; color: var(--muted); font-size: 13px; font-weight: 400; letter-spacing: -.01em; }
+  .settings-connector-subgroup + .settings-connector-subgroup { margin-top: 18px; }
+  .settings-connector-subgroup h3 { margin: 0 0 10px; color: var(--muted); font-size: 12px; font-weight: 400; letter-spacing: -.01em; }
+  .settings-connectors-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 12px;
+  }
+  button.settings-connector-card {
+    min-width: 0;
+    padding: 14px;
+    display: grid;
+    grid-template-columns: 32px minmax(0, 1fr);
+    align-items: start;
+    gap: 12px;
+    text-align: left;
+    cursor: pointer;
+    color: inherit;
+    font: inherit;
+  }
+  button.settings-connector-card:hover { background: var(--nav-hover); }
+  button.settings-connector-card:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  button.settings-connector-card--placeholder { color: var(--ink-soft); }
+  button.settings-connector-card--placeholder .settings-connector-card__copy { color: var(--faint, var(--muted)); }
+  .settings-connector-card__body { min-width: 0; display: grid; gap: 6px; }
+  .settings-connector-card__title { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .settings-connector-card__title strong { font-size: 14px; font-weight: 400; }
+  .settings-connector-card__copy { color: var(--muted); font-size: 12px; line-height: 1.5; }
+  .settings-connector-mark {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    background: #fff;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 10%, transparent);
+    flex: 0 0 auto;
+  }
+  .settings-connector-mark[data-on="dark"] { background: #111; box-shadow: none; }
+  .settings-connector-mark svg { width: 32px; height: 32px; display: block; }
+  .settings-connector-mark[data-pad="1"] svg { width: 22px; height: 22px; }
+  .settings-connector-mark--fallback { background: var(--rail); }
+  .settings-connector-capabilities {
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 8px;
+    list-style: none;
+  }
+  .settings-connector-capabilities li {
+    display: grid;
+    grid-template-columns: 4.5em minmax(0, 1fr);
+    gap: 10px;
+    color: var(--ink-soft);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .settings-connector-capabilities span {
+    color: var(--muted);
+    font-size: 11px;
+  }
+  .settings-connector-capabilities [data-fulfillment="live"] span { color: var(--green); }
+  .settings-connector-detail { padding: 8px 0 80px; display: grid; gap: 16px; max-width: 36rem; }
+  .settings-connector-detail[hidden], [data-connectors-list][hidden] { display: none !important; }
+  .settings-connector-detail__head { display: flex; align-items: center; gap: 12px; }
+  .settings-connector-detail__head h2 { margin: 0; font-size: 20px; letter-spacing: -.02em; }
+  .settings-connector-back { justify-self: start; }
+  .settings-connector-auth { display: grid; gap: 14px; }
+  .settings-connector-auth > p, .settings-connector-note { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
+  .settings-connector-setup { display: grid; gap: 8px; }
+  .settings-connector-setup > p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
+  .settings-connector-setup ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+  .settings-connector-setup a { width: fit-content; min-height: 28px; color: var(--blue-dark); font-size: 13px; text-decoration: underline; text-underline-offset: 3px; display: inline-flex; align-items: center; gap: 6px; }
+  .settings-connector-setup a:hover { color: var(--ink); }
+  .settings-connector-setup svg { width: 14px; height: 14px; flex: none; color: var(--muted); }
+  .settings-connector-auth code { padding: 1px 4px; border: 1px solid var(--line); border-radius: 3px; color: var(--ink-soft); background: var(--rail); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .settings-connector-field { display: grid; gap: 6px; color: var(--ink-soft); font-size: 12px; }
+  .settings-connector-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .settings-connector-extra { display: grid; gap: 10px; padding-top: 8px; border-top: 1px solid var(--line); }
+  .settings-connector-extra summary { color: var(--muted); font-size: 12px; cursor: pointer; }
+  .settings-connector-whoami { margin: 0; font-size: 13px; }
   .settings-paths { margin: 0; padding: 0 0 18px 46px; display: grid; gap: 5px; }
   .settings-paths > div { min-width: 0; display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 9px; }
   .settings-paths dt, .project-db-details dt, .diagnostics-summary dt, .runtime-plan-meta dt { color: var(--muted); font-size: 11px; font-weight: 400; }
@@ -280,7 +366,7 @@ export const SETTINGS_STYLES = `
   .project-manager-row:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 4%, var(--rail)); }
   .project-manager-row:has(input:checked) { color: var(--ink); background: var(--nav-active); }
   .project-manager-row:has(input:checked) strong { font-weight: 400; }
-  .project-manager-row:has(input:focus-visible) { outline: 2px solid var(--blue); outline-offset: 2px; }
+  .project-manager-row:has(input:focus-visible) { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
   .project-manager-create-input { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); border: 0; }
   .project-manager-empty { margin: 18px 10px; color: var(--muted); font-size: 12px; }
   .project-manager-index-actions { flex: none; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 8px 10px 14px; }
@@ -325,7 +411,7 @@ export const SETTINGS_STYLES = `
     text-decoration: none;
   }
   .project-manager-open:hover { background: color-mix(in srgb, var(--action) 88%, var(--action-ink)); }
-  .project-manager-open:focus-visible, .project-settings-fold > summary:focus-visible, .project-manager-index-actions > *:focus-visible, .project-manager-create-form button:focus-visible, .project-delete-quiet:focus-visible, .project-manager-danger-actions button:focus-visible { outline: 2px solid var(--control-ring); outline-offset: 2px; }
+  .project-manager-open:focus-visible, .project-settings-fold > summary:focus-visible, .project-manager-index-actions > *:focus-visible, .project-manager-create-form button:focus-visible, .project-delete-quiet:focus-visible, .project-manager-danger-actions button:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
   .project-settings-identity { margin: 0; min-width: 0; }
   .project-settings-identity .inline-settings-form { margin: 0; width: 100%; min-width: 0; }
   .project-settings-identity .inline-settings-form input[type=text] { min-height: var(--control-h); border-radius: var(--radius-control); }
@@ -489,7 +575,7 @@ export const PROJECT_GUIDANCE_SETTINGS_STYLES = `
   .guidance-editor select { min-height: 39px; padding: 0 10px; }
   .guidance-editor textarea { min-height: 86px; padding: 10px 11px; resize: vertical; line-height: 1.6; }
   .guidance-editor textarea[name=reason] { min-height: 66px; }
-  .guidance-editor select:focus, .guidance-editor textarea:focus { border-color: var(--focus); outline: 2px solid color-mix(in srgb, var(--focus), transparent 80%); outline-offset: 1px; }
+  .guidance-editor select:focus, .guidance-editor textarea:focus { border-color: var(--ink); outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
   .guidance-editor-preview { margin: 0; padding: 13px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); color: var(--ink-soft); font-size: 13px; line-height: 1.65; white-space: pre-wrap; }
   .guidance-editor-preview[hidden] { display: none; }
   .guidance-editor-error { margin: 0; padding: 10px 12px; border-radius: 8px; color: var(--red); background: var(--red-soft); font-size: 11px; }

@@ -37,6 +37,7 @@ export interface InboxUiEntry {
   readonly available: boolean;
   readonly open: InboxOpenTarget | null;
   readonly attention_rank: number;
+  readonly suggested_behavior_ids: readonly string[];
 }
 
 export function isActiveInboxStatus(status: AttentionStatus): boolean {
@@ -79,8 +80,12 @@ export function inboxKindLabel(
   return reason === "manual" ? text("Inbox · 手工加入") : text("Inbox · 来源规则");
 }
 
+export type InboxEntryProjectionRecord = AttentionEntryRecord & {
+  suggested_behavior_ids?: readonly string[];
+};
+
 export function buildInboxUiEntries(
-  records: readonly AttentionEntryRecord[],
+  records: readonly InboxEntryProjectionRecord[],
   resolve: (entry: AttentionEntryRecord) => InboxSubjectRef,
   text: (value: string, values?: Record<string, string | number>) => string,
 ): InboxUiEntry[] {
@@ -112,6 +117,7 @@ export function buildInboxUiEntries(
             ? 3
             : 2
           : 1,
+        suggested_behavior_ids: [...(entry.suggested_behavior_ids ?? [])],
       };
     })
     .sort((left, right) => right.attention_rank - left.attention_rank || right.updated_at.localeCompare(left.updated_at));

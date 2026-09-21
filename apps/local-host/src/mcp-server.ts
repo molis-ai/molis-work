@@ -1,7 +1,8 @@
 import type { MolisWorkRuntimeConnection, MolisWorkRuntimeContextHost } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { MolisWorkV1Error, projectResumeFactsCapability, readProjectGuidanceCapability } from "@molis-ai/molis-work-plugin-goals";
+import { projectResumeFactsCapability, readProjectGuidanceCapability } from "@molis-ai/molis-work-plugin-goals";
+import { MolisWorkV1Error } from "@molis-ai/molis-work-contracts/platform/errors";
 import { createMcpRuntimeContextHandlers, createMcpContextPresenter, dispatchMcpProjectTool, handleMcpMessage,
-  mcpRuntimeSessionActivity, MCP_TOOLS as TOOLS, RUNTIME_MCP_TOOLS as RUNTIME_TOOLS, MCP_SERVER_INFO as SERVER_INFO,
+  mcpRuntimeSessionActivity, MCP_SERVER_INFO as SERVER_INFO,
   canonicalMcpToolName,
   type McpToolCallContext, type McpPresentationErrorFactory } from "@molis-ai/molis-work-app-mcp";
 import { readPersonalPlanningMethodPacks } from "./personal-planning-methods.js";
@@ -16,7 +17,12 @@ import { RuntimeProjectConnection } from "./runtime-project-connection.js";
 import { runtimeContextHostFromEnvironment } from "./runtime-context.js";
 import { assertMcpToolAllowed, requireMcpRuntimeContextHost } from "./mcp-authority.js";
 import { injectRuntimeIdentity } from "./mcp-event-identity.js";
-import { createMcpFunctionsHandlers } from "./mcp-functions-tools.js";
+import { assembleMcpCatalog, findAssembledMcpTool, type AssembledMcpCatalog } from "./mcp-catalog.js";
+import { createNativeMcpPluginAdapters, dispatchNativeMcpPluginTool } from "./mcp-native-plugins.js";
+import { registerPagesArtifactVersion } from "./pages-artifact.js";
+import { LocalProjectDatabase } from "./project-database.js";
+import { GoalProjectApplication } from "./goal-project-application.js";
+import { readMcpToolPreference } from "./mcp-settings-store.js";
 import { readProductEnv } from "@molis-ai/molis-work-storage";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 
@@ -25,6 +31,7 @@ export type MolisWorkMcpToolCallContext = McpToolCallContext;
 const createPresentationError: McpPresentationErrorFactory = (code, message, details) => new MolisWorkV1Error(code, message, details);
 const EMPTY_TOOL_CALL_CONTEXT: MolisWorkMcpToolCallContext = { runtimeSessionId: null, runtimeSessionIdSource: null };
 
+/** Sole outbound MCP process. Catalog assembly and gates stay in Host; apps/mcp owns platform schema and project-tool dispatch. */
 export class LocalMcpServer {
   audience: MolisWorkMcpAudience;
   private readonly connectionState: RuntimeProjectConnection;
@@ -32,12 +39,14 @@ export class LocalMcpServer {
   set runtimeConnection(connection: MolisWorkRuntimeConnection | null) { this.connectionState.connection = connection; }
   runtimeContextHost: MolisWorkRuntimeContextHost | null;
   private readonly contextTools: ReturnType<typeof createMcpRuntimeContextHandlers>;
-  private readonly functionsTools: ReturnType<typeof createMcpFunctionsHandlers>;
+  private readonly nativePlugins: ReturnType<typeof createNativeMcpPluginAdapters>;
   private readonly sessionFoundationReady: Promise<void>;
   private readonly runtimeSessions: RuntimeSessionHost;
   private readonly linkPanelSession: ReturnType<typeof createRuntimePanelSessionLinker>;
   private readonly localHost: MolisWorkLocalHost;
   private readonly ownsLocalHost: boolean;
+  private readonly withCatalog: LocalWebCatalogRunner;
+  private catalogSnapshot: AssembledMcpCatalog | null = null;
 
   constructor(
     withMolisWorkProjectCatalog: LocalWebCatalogRunner,
@@ -48,6 +57,7 @@ export class LocalMcpServer {
   ) {
     this.audience =
       audience ?? (readProductEnv("MCP_AUDIENCE") === "management" ? "management" : "runtime");
+    this.withCatalog = withMolisWorkProjectCatalog;
     // Explicit constructor injection is reserved for tests and embedding. A
     // production Runtime never inherits a static project DB from environment.
     this.connectionState = new RuntimeProjectConnection(runtimeConnection ?? null);
@@ -67,8 +77,21 @@ export class LocalMcpServer {
         readSession: (host, reconcileLegacy) => this.runtimeSessions.read(host, reconcileLegacy),
       }),
     });
-    this.functionsTools = createMcpFunctionsHandlers({
+    this.nativePlugins = createNativeMcpPluginAdapters({
       requireHost: (context) => this.requireRuntimeContextHost(context),
+      boundProjectId: () => this.runtimeConnection?.projectId ?? null,
+      publishPagesArtifact: (input) => {
+        const connection = this.runtimeConnection;
+        if (!connection) {
+          throw new MolisWorkV1Error("pages.unavailable", "当前环境不能发出 Artifact");
+        }
+        const store = new LocalProjectDatabase(connection.databasePath);
+        try {
+          return registerPagesArtifactVersion(new GoalProjectApplication(store), connection.boardId)(input);
+        } finally {
+          store.close();
+        }
+      },
     });
     this.runtimeContextHost =
       runtimeContextHost ?? (this.runtimeConnection ? null : runtimeContextHostFromEnvironment());
@@ -100,6 +123,50 @@ export class LocalMcpServer {
       : Promise.resolve();
   }
 
+  private async ensureCatalog(refresh: boolean): Promise<AssembledMcpCatalog> {
+    if (!refresh && this.catalogSnapshot) return this.catalogSnapshot;
+    await this.restoreBoundSessionConnection();
+    const homeDirectory = this.runtimeContextHost?.homeDirectory;
+    const preference = homeDirectory
+      ? await readMcpToolPreference(homeDirectory)
+      : { version: 1 as const, overrides: {} };
+    this.catalogSnapshot = assembleMcpCatalog({
+      audience: this.audience,
+      preference,
+      enabled_project_plugins: await this.loadEnabledProjectPlugins(),
+    });
+    return this.catalogSnapshot;
+  }
+
+  private async restoreBoundSessionConnection(): Promise<void> {
+    if (this.runtimeConnection || this.audience !== "runtime") return;
+    const host = this.runtimeContextHost;
+    if (!host?.homeDirectory) return;
+    await this.sessionFoundationReady;
+    const resolution = await this.withCatalog({ homeDirectory: host.homeDirectory }, (catalog) =>
+      catalog.resolveRuntimeContext(host.runtimeContext, host.projectSuggestionClues ?? []),
+    );
+    if (resolution.status !== "bound" || !resolution.connection) return;
+    this.connectionState.accept({
+      projectId: resolution.connection.project_id,
+      databasePath: resolution.connection.database_path,
+      boardId: resolution.connection.board_id,
+      webBaseUrl: host.webBaseUrl ?? "http://127.0.0.1:4173",
+    }, host.runtimeContext);
+  }
+
+  private async loadEnabledProjectPlugins(): Promise<readonly string[] | null> {
+    if (!this.runtimeConnection) return null;
+    const homeDirectory = this.runtimeContextHost?.homeDirectory;
+    const projectId = this.runtimeConnection.projectId;
+    if (!homeDirectory || !projectId) return [];
+    try {
+      return await this.withCatalog({ homeDirectory }, (catalog) => catalog.listProjectPlugins(projectId));
+    } catch {
+      return [];
+    }
+  }
+
   async callTool(
     name: string,
     arguments_: Record<string, unknown>,
@@ -107,19 +174,19 @@ export class LocalMcpServer {
   ): Promise<string> {
     await this.sessionFoundationReady;
     name = canonicalMcpToolName(name);
+    const catalog = await this.ensureCatalog(false);
     assertMcpToolAllowed({ audience: this.audience, connectionState: this.connectionState,
-      runtimeConnection: this.runtimeConnection, runtimeContextHost: this.runtimeContextHost }, name, arguments_, callContext);
+      runtimeConnection: this.runtimeConnection, runtimeContextHost: this.runtimeContextHost }, name, arguments_, callContext, catalog);
     await this.linkPanelSession(this.runtimeContextHost, callContext.runtimeSessionId);
-    if (name === "molis_work_v1_context_resolve") return this.contextTools[name](arguments_, callContext);
-    if (name === "molis_work_v1_context_list_projects") return this.contextTools[name](arguments_, callContext);
-    if (name === "molis_work_v1_context_reject_suggestion") return this.contextTools[name](arguments_, callContext);
-    if (name === "molis_work_v1_context_bind") return this.contextTools[name](arguments_, callContext);
-    if (name === "molis_work_v1_context_unbind") return this.contextTools[name](arguments_, callContext);
-    if (name === "molis_work_v1_context_create_and_bind") return this.contextTools[name](arguments_, callContext);
-    if (name === "molis_work_v1_project_delete") return this.contextTools[name](arguments_, callContext);
-    if (name === "molis_work_v1_functions_list") return this.functionsTools[name](arguments_, callContext);
-    if (name === "molis_work_v1_functions_describe") return this.functionsTools[name](arguments_, callContext);
-    if (name === "molis_work_v1_functions_invoke") return this.functionsTools[name](arguments_, callContext);
+    const entry = findAssembledMcpTool(catalog, name);
+    if (!entry) {
+      throw new MolisWorkV1Error("mcp.tool_unknown", `未知 MCP 方法：${name}`);
+    }
+    if (entry.source === "plugin") {
+      return dispatchNativeMcpPluginTool(this.nativePlugins, entry, arguments_ ?? {}, callContext);
+    }
+    const contextHandler = lookupContextTool(this.contextTools, name);
+    if (contextHandler) return contextHandler(arguments_ ?? {}, callContext);
     const response = await this.callV1Tool(
       name,
       arguments_,
@@ -178,7 +245,14 @@ export class LocalMcpServer {
     });
     const client = this.localHost.client(reference);
     const trustedArguments = this.audience === "runtime"
-      ? injectRuntimeIdentity(name, arguments_, this.runtimeContextHost, callContext, runtimeConnection!)
+      ? injectRuntimeIdentity(
+        name,
+        arguments_,
+        this.runtimeContextHost,
+        callContext,
+        runtimeConnection!,
+        (await this.ensureCatalog(false)).home_scoped_names,
+      )
       : arguments_;
     return dispatchMcpProjectTool(client, name, trustedArguments, {
       audience: this.audience,
@@ -199,19 +273,30 @@ export class LocalMcpServer {
   async handleMessage(
     message: Record<string, unknown>,
   ): Promise<Record<string, unknown> | null> {
+    const catalog = await this.ensureCatalog(message.method === "initialize");
     return handleMcpMessage(message, {
       serverInfo: SERVER_INFO,
-      tools: this.audience === "management" ? TOOLS : RUNTIME_TOOLS,
+      tools: catalog.tools,
       callTool: (name, arguments_, context) => this.callTool(name, arguments_, context),
       formatToolError: formatMcpToolError,
     });
   }
 }
 
+function lookupContextTool(
+  tools: ReturnType<typeof createMcpRuntimeContextHandlers>,
+  name: string,
+): ((arguments_: Record<string, unknown>, context: McpToolCallContext) => Promise<string>) | undefined {
+  const candidate = (tools as Record<string, unknown>)[name];
+  return typeof candidate === "function"
+    ? candidate as (arguments_: Record<string, unknown>, context: McpToolCallContext) => Promise<string>
+    : undefined;
+}
+
 function formatMcpToolError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
-  if (error instanceof MolisWorkV1Error && error.details) {
-    return `错误: ${message}\n${JSON.stringify({ code: error.code, ...error.details })}`;
+  if (error instanceof MolisWorkV1Error) {
+    return `错误: ${message}\n${JSON.stringify({ code: error.code, ...(error.details ?? {}) })}`;
   }
   if (!(error instanceof MolisWorkProjectCatalogError)) return `错误: ${message}`;
   return `错误: ${message}\n${JSON.stringify({ code: error.code, ...error.details })}`;

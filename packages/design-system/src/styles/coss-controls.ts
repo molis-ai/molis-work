@@ -107,9 +107,9 @@ export const COSS_CONTROL_STYLES = `
   }
   .project-index-search input:focus-visible,
   .project-index-search input[type="search"]:focus-visible {
-    outline: 2px solid var(--control-ring);
-    outline-offset: 2px;
-    border-color: var(--control-input);
+    outline: var(--focus-stroke);
+    outline-offset: var(--focus-stroke-inset);
+    border-color: var(--ink);
   }
   .dialog-body textarea,
   .project-operation-dialog textarea {
@@ -184,8 +184,8 @@ export const COSS_CONTROL_STYLES = `
   body.immersive-workbench :focus-visible:not([class^="mw-"]),
   body.settings-page :focus-visible:not([class^="mw-"]),
   body.project-index-page :focus-visible:not([class^="mw-"]) {
-    outline: 2px solid var(--control-ring);
-    outline-offset: 2px;
+    outline: var(--focus-stroke);
+    outline-offset: var(--focus-stroke-inset);
   }
 
   @media (max-width: 760px) {
@@ -247,7 +247,7 @@ export const COSS_CONTROL_STYLES = `
   .event-form-body > :is(label,fieldset) { margin: 0; }
   .event-form fieldset { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
   .event-form legend { color: var(--ink-soft); font-size: 13px; padding-inline: 5px; }
-  .event-form :is(input,textarea,select):focus-visible:not([class^="mw-"]) { outline: 2px solid var(--ink-soft); outline-offset: 2px; }
+  .event-form :is(input,textarea,select):focus-visible:not([class^="mw-"]) { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
   .event-form-status:not([hidden]), .event-field-error:not([hidden]) { padding: 10px 12px; border-left: 2px solid currentColor; margin-block: 12px; font-size: 13px; line-height: 1.6; }
   body.immersive-workbench .goal-event-document .event-form { width: min(100%, 780px); box-sizing: border-box; align-self: center; gap: 0; padding: 0; overflow: hidden; }
   .event-form-bottom .event-form-status:not([hidden]) { margin: 0 0 10px; border: 0; border-radius: 8px; background: var(--red-soft); }

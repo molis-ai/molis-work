@@ -2,6 +2,7 @@ import type { SourcesApi } from "@molis-ai/molis-work-contracts/modules/sources"
 import type { AttentionApi } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import type { FeedApi } from "@molis-ai/molis-work-contracts/modules/feed";
 import type { FeedContractMigrationReceiptRecord } from "@molis-ai/molis-work-contracts/modules/feed";
+import type { JudgmentPort } from "@molis-ai/molis-work-contracts/modules/functions";
 import type { ListenerCheckpoint, ListenerRunRecord } from "@molis-ai/molis-work-contracts/services/listener-host";
 import type { FeedArtifactProducer, FeedOutRuleStore } from "./out-rules.js";
 
@@ -11,6 +12,9 @@ export interface FeedApplicationPorts {
   readonly feed: FeedApi;
   readonly outRules?: FeedOutRuleStore;
   readonly artifacts?: FeedArtifactProducer;
+  readonly judgments?: JudgmentPort;
+  readonly offered_behavior_ids?: readonly string[];
+  readonly offeredBehaviorsForScene?: (sceneId: string, subjects: readonly string[]) => readonly string[];
   readonly receipts: {
     listContractMigrations(): FeedContractMigrationReceiptRecord[];
   };

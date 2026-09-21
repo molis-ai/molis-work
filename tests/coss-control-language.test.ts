@@ -26,12 +26,53 @@ test("generic focus rings do not cover mw-* primitive halos", () => {
 
 test("keyboard focus sits inside the control instead of an outer halo", () => {
   const workbench = renderMolisWorkWorkbenchStylesheet();
-  assert.match(PRIMITIVE_STYLES, /\.mw-input:focus-visible, \.mw-textarea:focus-visible, \.mw-select:focus-visible \{[\s\S]*outline-offset: -2px/);
+  assert.match(PRIMITIVE_STYLES, /\.mw-input:focus-visible, \.mw-textarea:focus-visible, \.mw-select:focus-visible \{[\s\S]*outline-offset: var\(--focus-stroke-inset, -1px\)/);
   assert.doesNotMatch(PRIMITIVE_STYLES, /0 0 0 3\.5px/);
-  assert.match(workbench, /body\.immersive-workbench :focus-visible \{[\s\S]*outline-offset: -2px/);
-  assert.match(workbench, /dialog\[data-feed-sources-dialog\] :is\(input, select, textarea\):focus-visible \{ outline: 2px solid var\(--focus\); outline-offset: -2px/);
+  assert.match(workbench, /body\.immersive-workbench :focus-visible \{[\s\S]*outline: var\(--focus-stroke\);[\s\S]*outline-offset: var\(--focus-stroke-inset\)/);
+  assert.match(workbench, /dialog\[data-feed-sources-dialog\] :is\(input, select, textarea\):focus-visible \{ outline: var\(--focus-stroke\); outline-offset: var\(--focus-stroke-inset\)/);
   assert.equal(workbench.includes("inset 0 0 0 1.5px color-mix(in srgb, var(--blue)"), false);
   assert.equal(workbench.includes("outline: 2px solid var(--blue)"), false);
+  assert.equal(workbench.includes("outline: 2px solid var(--focus)"), false);
+});
+
+test("production CSS does not paint indigo or blue focus strokes", () => {
+  const banned = [
+    /outline\s*:\s*2px\s+solid\s+var\(--(?:focus|blue)\)/,
+    /outline\s*:\s*2px\s+solid\s+color-mix\(\s*in\s+srgb\s*,\s*var\(--blue/,
+    /0\s+0\s+0\s+2px\s+var\(--(?:focus|blue)\)/,
+    /0\s+0\s+0\s+2px\s+color-mix\(\s*in\s+srgb\s*,\s*var\(--(?:focus|blue)/,
+    /0\s+0\s+0\s+3px\s+color-mix\(\s*in\s+srgb\s*,\s*var\(--blue/,
+    /border-color:\s*var\(--focus\)/,
+  ];
+  const roots = [
+    "apps/workbench/src",
+    "apps/desktop/src",
+    "packages/design-system/src",
+    "plugins/native",
+  ];
+  const hits: string[] = [];
+  const walk = (dir: string) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name === "node_modules" || entry.name === "dist") continue;
+        walk(path);
+        continue;
+      }
+      if (!entry.name.endsWith(".ts") && !entry.name.endsWith(".css")) continue;
+      const text = readFileSync(path, "utf8");
+      if (banned.some((pattern) => pattern.test(text))) hits.push(path.replace(`${process.cwd()}/`, ""));
+    }
+  };
+  for (const root of roots) walk(join(process.cwd(), root));
+  assert.deepEqual(hits, []);
+  const assembled = [
+    renderMolisWorkWorkbenchStylesheet(),
+    renderMolisWorkSettingsStylesheet(),
+    renderMolisWorkProjectIndexStylesheet(),
+    renderMolisWorkOnboardingStylesheet(),
+  ].join("\n");
+  assert.equal(banned.some((pattern) => pattern.test(assembled)), false);
 });
 
 test("legacy input cosmetics leave mw-* fields to the primitive layer", () => {

@@ -201,7 +201,7 @@ export const DESKTOP_TITLEBAR_STYLES = `  /* One Codex-style desktop titlebar co
       cursor: pointer;
     }
     body[data-desktop-shell="true"] .source-mobile-add svg { width: 13px; height: 13px; }
-    body[data-desktop-shell="true"] .source-mobile-add:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+    body[data-desktop-shell="true"] .source-mobile-add:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
     body[data-desktop-shell="true"] .source-list { grid-row: 2; padding: 2px 6px 10px; }
     body[data-desktop-shell="true"] .source-directory .feed-directory-footer { grid-row: 3; }
     body[data-desktop-shell="true"] .source-filter-row { gap: 4px; }

@@ -605,7 +605,9 @@ test("Feed source Web API manages local sources and encrypted connector bindings
     assert.match(page, /id="feed-source-dialog-title">添加任务/);
     assert.match(page, /<select data-source-config-field="scope">[\s\S]*value="in:inbox is:unread" selected[\s\S]*value="is:starred"/);
     assert.match(page, /首次同步和增量同步都会执行同一范围；不做完整邮箱回填。/);
-    assert.match(page, /授权范围：gmail\.readonly、openid、email；Molis Work 不发送、删除或修改 Gmail 邮件。/);
+    assert.match(page, /打开 Connectors/);
+    assert.match(page, /Gmail 账号在全局设置 · Connectors 管理/);
+    assert.doesNotMatch(page, /data-feed-connector-token/);
     assert.doesNotMatch(page, /不会迁移账号凭据/);
 
     const definition = listFeedSourceCatalog()[0]!;

@@ -7,10 +7,11 @@ import type { createWorkbenchSettingsNavigation } from "./settings-navigation.js
 import { createProjectSettingsFolds } from "./project-settings-folds.js";
 import { renderAppearanceSettingsDocument, renderRuntimePlanDialog } from "./settings-appearance.js";
 import { findPluginSettingsNavItem } from "./plugin-settings-catalog.js";
+import { renderConnectorsSettings } from "./settings-connectors.js";
 export interface SettingsRenderPrimitives {
   L(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;
-  icon(name: "check" | "sun" | "moon" | "system" | "workflow" | "settings" | "chevron-down" | "chevron-right" | "database" | "refresh" | "x" | "brand" | "blocked" | "tree" | "plus" | "book" | "shield", className?: string): string;
+  icon(name: "check" | "sun" | "moon" | "system" | "workflow" | "settings" | "chevron-down" | "chevron-right" | "database" | "refresh" | "x" | "brand" | "blocked" | "tree" | "plus" | "book" | "shield" | "link" | "mail" | "back", className?: string): string;
   currentLocale(): string;
   localeSwitchHref(locale: "zh" | "en", nextPath: string): string;
   htmlLang(): string;
@@ -206,8 +207,10 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
     : view.section === "models" ? L("模型设置")
     : view.section === "runtimes"
       ? L("AI 与执行工具")
-      : view.section === "mcp"
-        ? L("MCP")
+    : view.section === "mcp"
+      ? L("MCP")
+      : view.section === "connectors"
+        ? L("Connectors")
         : view.section === "projects"
         ? L("项目设置")
         : view.section === "diagnostics"
@@ -227,6 +230,8 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
         ? renderRuntimeSettings(view)
         : view.section === "mcp"
           ? renderMcpSettings(view)
+          : view.section === "connectors"
+            ? renderConnectorsSettings(view, { L, escapeHtml, icon })
           : view.section === "projects"
           ? renderProjectSettings(view, desktopShell)
           : view.section === "diagnostics"

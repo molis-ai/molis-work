@@ -27,6 +27,7 @@
   "dependencies": {
     "@molis-ai/molis-work-app-local-host": "workspace:*",
     "@molis-ai/molis-work-contracts": "workspace:*",
+    "@molis-ai/molis-work-design-system": "workspace:*",
     "@molis-ai/molis-work-plugin-feed": "workspace:*",
     "@molis-ai/molis-work-storage": "workspace:*",
     "@molis-ai/molis-work-service-runtime-host": "workspace:*"

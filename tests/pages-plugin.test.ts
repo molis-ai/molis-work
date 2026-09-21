@@ -15,6 +15,7 @@ import {
 import {
   PAGES_CLIENT_FACTORY_SCRIPT,
   PAGES_PROJECT_PLUGIN_ID,
+  PAGES_STYLES,
   PAGES_TEMPLATES,
   PagesPluginRouteTable,
   createPagesRouteHandlers,
@@ -134,16 +135,25 @@ test("工作台 HTML 挂上 Pages 舞台和编辑器内核脚本", () => {
   assert.match(html, /data-pages-editor/);
   assert.match(html, /data-pages-confirm/);
   assert.match(html, /molis-work-pages-editor\.js/);
-  assert.match(html, /还没有文档/);
+  const pages = html.slice(html.indexOf('data-pages="workbench"'), html.indexOf("data-pages-confirm"));
+  assert.match(pages, /还没有文档/);
+  assert.match(pages, /mw-empty__mark[\s\S]*#icon-note/);
   assert.match(html, /data-pages-title data-plain-field/);
-  assert.match(html, /data-pages-search/);
+  assert.match(html, /class="pages-search mw-input-group"/);
+  assert.match(html, /class="mw-input"[^>]*data-pages-search/);
+  assert.doesNotMatch(html, /tree-search pages-search/);
   assert.match(html, /data-pages-new-folder/);
+  assert.match(html, /data-pages-move-menu/);
   assert.match(html, /data-pages-templates/);
   assert.match(html, /data-pages-template="meeting-notes"/);
   assert.match(html, /会议纪要/);
   assert.match(html, /data-pages-goal/);
   assert.match(html, /data-pages-promote/);
   assert.match(html, /data-pages-extract/);
+  assert.match(html, /data-pages-more/);
+  assert.match(html, /data-pages-create-more/);
+  assert.match(html, /pages-template-mark/);
+  assert.doesNotMatch(html, /select[^>]*data-pages-folder/);
   assert.match(html, /plugin-stage-list feed-stage-list feed-stage-tree" data-pages="directory"/);
   assert.match(html, /class="mw-btn mw-btn--ghost tree-create"[^>]*data-pages-new/);
   assert.doesNotMatch(html, /mw-btn--secondary"[^>]*data-pages-new/);
@@ -153,7 +163,24 @@ test("编辑器内核是 IIFE，不是 tsc 的 ESM", () => {
   const source = readFileSync(createRequire(import.meta.url).resolve("@molis-ai/molis-work-plugin-pages/editor"), "utf8");
   assert.match(source, /\bMolisWorkPagesEditor\b/);
   assert.match(source, /\bmount\b/);
+  assert.match(source, /hoverHandlePlugin/);
+  assert.match(source, /NodeSelection/);
+  assert.match(source, /href="#icon-/);
   assert.doesNotMatch(source.slice(0, 80), /^import /);
+});
+
+test("阅读面没有粗左边线和后台表单顶栏", () => {
+  assert.doesNotMatch(PAGES_STYLES, /border-left:\s*3px/);
+  assert.doesNotMatch(PAGES_STYLES, /pages-search:focus-within/);
+  assert.doesNotMatch(PAGES_STYLES, /tree-search\.pages-search/);
+  assert.match(PAGES_STYLES, /pages-more-menu/);
+  assert.match(PAGES_STYLES, /pages-block-menu/);
+  assert.match(PAGES_STYLES, /ProseMirror-selectednode/);
+  assert.match(PAGES_STYLES, /is-block-hover/);
+  assert.match(PAGES_STYLES, /--content-select/);
+  assert.match(PAGES_STYLES, /outline:\s*none !important/);
+  assert.doesNotMatch(PAGES_STYLES, /pages-handle-tray/);
+  assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /data-pages-more/);
 });
 
 test("工作台客户端保存不重挂内核", () => {
@@ -164,13 +191,18 @@ test("工作台客户端保存不重挂内核", () => {
   assert.doesNotMatch(saveFunctionSource(PAGES_CLIENT_FACTORY_SCRIPT), /setDoc/);
   assert.match(fillEditorSource(PAGES_CLIENT_FACTORY_SCRIPT), /clearTimeout\(saveTimer\)/);
   assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /feed-stage-entry directory-list-row/);
-  assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /plugin-stage-kind/);
-  assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /dataset\.kind = "page"/);
+  assert.doesNotMatch(PAGES_CLIENT_FACTORY_SCRIPT, /plugin-stage-kind/);
+  assert.doesNotMatch(PAGES_CLIENT_FACTORY_SCRIPT, /dataset\.kind = "page"/);
+  assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /ICON\("star"\)/);
+  assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /ICON\("note"\)/);
+  assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /data-pages-move/);
+  assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /data-pages-drop/);
+  assert.doesNotMatch(PAGES_CLIENT_FACTORY_SCRIPT, /data-pages-folder[^\-]/);
   assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /data-pages-promote/);
   assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /runAi/);
   assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /dataset\.routePrefix/);
   assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /route\(withProject\(/);
-  assert.doesNotMatch(PAGES_CLIENT_FACTORY_SCRIPT, /className = "pages-row/);
+  assert.doesNotMatch(PAGES_CLIENT_FACTORY_SCRIPT, /className = "pages-row"/);
   assert.doesNotMatch(PAGES_CLIENT_FACTORY_SCRIPT, /window\.prompt|window\.confirm/);
 });
 

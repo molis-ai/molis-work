@@ -15,6 +15,8 @@ import { SCHEDULE_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-sche
 import { IMMERSIVE_NAVIGATION_FACTORY_SCRIPT } from "./immersive-navigation.js";
 import { GLOBAL_SEARCH_FACTORY_SCRIPT } from "./global-search.js";
 import { SETTINGS_DIRECTORY_FACTORY_SCRIPT } from "./settings-directory.js";
+import { CONNECTORS_SETTINGS_CLIENT_SCRIPT } from "../connectors-settings.js";
+import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "./assistant-island.js";
 /** AP3 Workbench client segment: initialization. */
 export const CLIENT_INITIALIZATION_SCRIPT = `    });
 
@@ -80,16 +82,18 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title),
     });
     (${SHELF_CLIENT_FACTORY_SCRIPT})({ translate: L });
-    (${FUNCTIONS_CLIENT_FACTORY_SCRIPT})({ translate: L });
+    (${FUNCTIONS_CLIENT_FACTORY_SCRIPT})({ translate: L, feedApi });
     (${PAGES_CLIENT_FACTORY_SCRIPT})({ translate: L, projectId: () => state.project?.project_id || document.body.dataset.projectId || "" });
     (${FORM_CLIENT_FACTORY_SCRIPT})({ translate: L, projectId: () => state.project?.project_id || document.body.dataset.projectId || "" });
     (${DATASET_CLIENT_FACTORY_SCRIPT})({ translate: L, projectId: () => state.project?.project_id || document.body.dataset.projectId || "" });
     (${PPT_CLIENT_FACTORY_SCRIPT})({ translate: L, projectId: () => state.project?.project_id || document.body.dataset.projectId || "" });
     (${LINGGUANG_CLIENT_FACTORY_SCRIPT})({ translate: L, projectId: () => state.project?.project_id || document.body.dataset.projectId || "" });
     (${SCHEDULE_CLIENT_FACTORY_SCRIPT})({ translate: L, route });
+    (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: L, showToast });
     ${SHELF_SETTINGS_CLIENT_SCRIPT}
     ${CODING_SETTINGS_CLIENT_SCRIPT}
     ${FUNCTIONS_SETTINGS_CLIENT_SCRIPT}
+    ${CONNECTORS_SETTINGS_CLIENT_SCRIPT}
     const settingsDirectory = (${SETTINGS_DIRECTORY_FACTORY_SCRIPT})({
       translate: L,
       setDirectory: (...args) => setDesktopDirectory(...args),

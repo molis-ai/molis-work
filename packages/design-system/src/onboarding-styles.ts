@@ -34,7 +34,7 @@ export const ONBOARDING_STYLES = `
   button, input, textarea { font: inherit; }
   button, a { -webkit-tap-highlight-color: transparent; }
   ::selection { background: var(--onboarding-selection); color: var(--onboarding-ink); }
-  :focus-visible { outline: 2px solid var(--onboarding-accent); outline-offset: 4px; }
+  :focus-visible { outline: 1px solid var(--onboarding-ink); outline-offset: -1px; }
   * { scrollbar-width: thin; scrollbar-color: var(--onboarding-scrollbar) transparent; }
   *::-webkit-scrollbar { width: 8px; height: 8px; }
   *::-webkit-scrollbar-track { background: transparent; }
@@ -286,7 +286,7 @@ export const ONBOARDING_STYLES = `
   .onboarding-runtime-choice:hover > span { background: var(--onboarding-hover); color: var(--onboarding-ink); }
   .onboarding-runtime-choice input:checked + span { background: var(--onboarding-active); color: var(--onboarding-ink); }
   .onboarding-runtime-choice input:checked + span i { background: var(--onboarding-accent); }
-  .onboarding-runtime-choice input:focus-visible + span { outline: 2px solid var(--onboarding-accent); outline-offset: 3px; }
+  .onboarding-runtime-choice input:focus-visible + span { outline: 1px solid var(--onboarding-ink); outline-offset: -1px; }
   .onboarding-hint { max-width: 360px; margin: 5px 0 0; color: var(--onboarding-faint); font-size: 9px; line-height: 1.4; }
   .onboarding-review { max-width: 480px; margin: 1px 0 0; display: grid; gap: 2px; }
   .onboarding-review div { min-height: 34px; padding: 6px 0; display: grid; grid-template-columns: 92px minmax(0, 1fr); align-items: baseline; gap: 14px; }

@@ -57,7 +57,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
   { project_plugin_id: FEED_PROJECT_PLUGIN_ID, manifest: feedManifest, summary: "查看来源消息和完整流水。" },
   { project_plugin_id: SHELF_PROJECT_PLUGIN_ID, manifest: shelfManifest, personal: true, summary: "把文件放到置物架，处理副本，原件不动。" },
   { project_plugin_id: LINGGUANG_PROJECT_PLUGIN_ID, manifest: lingguangManifest, personal: true, summary: "先记下还没想清楚的想法，再决定留下或丢掉。" },
-  { project_plugin_id: FUNCTIONS_PROJECT_PLUGIN_ID, manifest: functionsManifest, personal: true, summary: "把一段输入交给 Jev，得到一个有版本的判断。" },
+  { project_plugin_id: FUNCTIONS_PROJECT_PLUGIN_ID, manifest: functionsManifest, personal: true, summary: "Inbox、首页、Feed 显示哪个按钮。" },
   { project_plugin_id: PAGES_PROJECT_PLUGIN_ID, manifest: pagesManifest, personal: true, summary: "写文档，用块和格式，保存在这台电脑。" },
   { project_plugin_id: FORM_PROJECT_PLUGIN_ID, manifest: formManifest, personal: true, summary: "建问卷，预览填写，看结果。" },
   { project_plugin_id: DATASET_PROJECT_PLUGIN_ID, manifest: datasetManifest, personal: true, summary: "改表格，导入 CSV，留下版本。" },

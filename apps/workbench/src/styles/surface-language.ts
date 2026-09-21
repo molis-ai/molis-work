@@ -25,7 +25,7 @@ export const SURFACE_LANGUAGE_STYLES = `
   ${EDITOR_PANEL} > .dialog-shell { border: 0; border-radius: 0; box-shadow: none; }
   ${EDITOR_PANEL} :is(.dialog-body, .feed-task-dialog-body) { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; align-content: start; }
   ${EDITOR_PANEL} .dialog-body { gap: 12px; padding: 16px 20px; }
-  body.immersive-workbench dialog[data-feed-sources-dialog] :is(input, select, textarea):focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; box-shadow: none; }
+  body.immersive-workbench dialog[data-feed-sources-dialog] :is(input, select, textarea):focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); box-shadow: none; }
   ${EDITOR_PANEL} > form > section { flex: 1; min-height: 0; overflow: auto; align-content: start; gap: 12px; padding: 16px 20px; }
   ${EDITOR_PANEL} > form > header { border-bottom: 1px solid var(--line); }
   ${EDITOR_PANEL} header p { color: var(--muted); font-size: 13px; line-height: 1.6; }
@@ -75,7 +75,7 @@ export const SURFACE_LANGUAGE_STYLES = `
   ${CENTERED_EDITOR} .create-compose :is(.create-compose-title, .create-compose-outcome):focus-visible {
     outline: none;
     background: var(--nav-hover);
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--focus) 20%, transparent);
+    box-shadow: inset 0 0 0 1px var(--ink);
   }
   ${CENTERED_EDITOR} .create-compose-example {
     margin: 0 0 2px;

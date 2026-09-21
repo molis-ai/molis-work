@@ -53,6 +53,7 @@ export function renderDatasetWorkbench(model: DatasetUiModel): string {
         <button class="mw-btn mw-btn--ghost tree-create" type="button" data-dataset-new>${icon("plus")}<span>${p.text("新建数据表")}</span></button>
       </header>
       <div class="mw-empty" data-dataset-empty>
+        <span class="mw-empty__mark">${icon("database")}</span>
         <strong>${p.text("还没有数据表")}</strong>
         <p>${p.text("先建一张表，再加列和行。可以粘贴 CSV，也能存一版再回滚。")}</p>
         <p>${p.text("内容属于当前项目，保存在这台电脑。")}</p>

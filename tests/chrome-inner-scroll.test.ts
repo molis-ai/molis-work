@@ -38,7 +38,7 @@ test("project index, settings, and workbench keep titles pinned and scroll only 
   assert.ok(workbench.includes("immersive-plugin-stage > .goal-canvas-shell"));
   assert.ok(workbench.includes("tab-pane-body > .goal-canvas-shell"));
   assert.ok(workbench.includes("tab-workspace { position: absolute; inset: 0"));
-  assert.ok(workbench.includes("[data-pane-embedded] .immersive-workspace > :is(.plugin-stack, .plugin-rail, .tree-pane, .tree-resizer, .immersive-titlebar, .workspace-chrome, .mobile-tabs, .immersive-sidebar-scrim)"));
+  assert.ok(workbench.includes("[data-pane-embedded] .immersive-workspace > :is(.plugin-stack, .plugin-rail, .assistant-island, .tree-pane, .tree-resizer, .immersive-titlebar, .workspace-chrome, .mobile-tabs, .immersive-sidebar-scrim)"));
   assert.ok(workbench.includes("immersive-plugin-stage > .immersive-market { overflow: hidden; display: flex; flex-direction: column;"));
   assert.ok(workbench.includes("plugin-market-body { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain;"));
   assert.match(workbench, /\.plugin-market-search \{[\s\S]*min-height: 40px/);
@@ -73,12 +73,17 @@ test("project index, settings, and workbench keep titles pinned and scroll only 
   assert.doesNotMatch(workbench, /padding: 8px 6px 10px/);
   assert.match(workbench, /\.plugin-stack \{\n    grid-column: 1; grid-row: 2;/);
   assert.match(workbench, /\.plugin-rail \{\n    flex: 1;/);
-  assert.match(workbench, /\.plugin-rail-items,[\s\S]*\.plugin-rail \.personal-sidebar-footer \{[\s\S]*background: var\(--nav-raised\);/);
+  assert.match(workbench, /\.plugin-rail-items,[\s\S]*\.plugin-rail \.personal-sidebar-footer,[\s\S]*\.assistant-island-card \{[\s\S]*background: var\(--nav-raised\);/);
   assert.match(workbench, /\.plugin-rail-items \{[\s\S]*flex: 1;/);
   assert.match(workbench, /\.plugin-rail-items \[data-plugin-id="market"\] \{ margin-top: auto; \}/);
-  assert.match(workbench, /\.plugin-rail \.immersive-plugin-link svg \{ color: var\(--plugin-tint, var\(--faint\)\)/);
+  assert.match(workbench, /:is\(\.plugin-rail, \.assistant-island\) \.immersive-plugin-link svg \{ color: var\(--plugin-tint, var\(--faint\)\)/);
   assert.doesNotMatch(workbench, /\.plugin-rail \.immersive-plugin-link:hover svg \{ color: var\(--ink\)/);
   assert.doesNotMatch(workbench, /\.plugin-rail \.immersive-plugin-link\[aria-current\] svg \{ color: var\(--ink\)/);
+  assert.match(workbench, /\.assistant-island \{/);
+  assert.match(workbench, /\.assistant-composer \{[\s\S]*width: min\(300px, calc\(100vw - 88px\)\);[\s\S]*height: 32px;[\s\S]*border-radius: 16px;[\s\S]*flex-direction: row;/);
+  assert.match(workbench, /:not\(\.assistant-composer-input\)/);
+  assert.match(workbench, /input\.assistant-composer-input:is\(:hover, :focus, :focus-visible\) \{[\s\S]*outline: none;[\s\S]*border: 0;/);
+  assert.match(workbench, /\.assistant-composer:popover-open \{ display: flex; inset: auto; margin: 0; \}/);
   assert.match(workbench, /\.workspace-chrome\.project-island \{/);
   assert.match(workbench, /\.workspace-chrome\.project-island \{[\s\S]*flex: none;/);
   assert.match(workbench, /\.plugin-stack:has\(\[data-project-menu\]\[open\]\) \{ z-index: 50; \}/);
@@ -102,7 +107,7 @@ test("project index, settings, and workbench keep titles pinned and scroll only 
   assert.match(workbench, /plugin-stage-workspace \.artifact-detail,[\s\S]*plugin-stage-workspace \.artifact-empty \{ max-width: none; margin: 0; \}/);
   assert.doesNotMatch(workbench, /plugin-stage-workspace \.artifact-empty \{ max-width: 800px; margin: 24px auto; \}/);
   assert.match(workbench, /immersive-plugin-stage > \.session-stage-shell[\s\S]*?padding: 0;/);
-  assert.match(workbench, /body\.immersive-workbench\[data-native-desktop="true"\] \[data-titlebar-tabs\] \.tab-scroll \{ flex: 0 1 auto; width: max-content; \}/);
+  assert.match(workbench, /body\.immersive-workbench\[data-native-desktop="true"\] \[data-titlebar-tabs\] \.tab-scroll \{ flex: 0 1 auto; width: max-content; min-width: 0; \}/);
   assert.match(workbench, /body\.immersive-workbench\[data-native-desktop="true"\] \.tab-strip \.tab-strip-spacer \{ flex: 1 1 48px; min-width: 48px;/);
   assert.match(workbench, /html\[data-native-desktop="true"\] body\.immersive-workbench \.immersive-titlebar/);
   assert.match(workbench, /\[data-native-desktop="true"\] \.immersive-titlebar \{[^}]*margin-inline-start: var\(--desktop-window-safe-inline-start, 88px\)/);
@@ -113,4 +118,13 @@ test("project index, settings, and workbench keep titles pinned and scroll only 
   assert.match(workbench, /body\.immersive-workbench \{[\s\S]*--control-h: 28px;/);
   assert.match(workbench, /:is\(body\.project-preferences-page, \.settings-stage\), body\.settings-page \{ --control-h: 32px; \}/);
   assert.doesNotMatch(workbench, /:is\(body\.project-preferences-page, \.settings-stage\) \{ --control-h: 28px; \}/);
+});
+
+test("feed stage search keeps a single frame", () => {
+  const workbench = renderMolisWorkWorkbenchStylesheet();
+  assert.match(workbench, /:not\(\[data-feed-search\]\)/);
+  assert.match(workbench, /body\.immersive-workbench \.feed-stage-search \{[^}]*border: 1px solid var\(--line\)/);
+  assert.match(workbench, /\.feed-stage-search input \{[\s\S]*appearance: none; -webkit-appearance: none;/);
+  assert.match(workbench, /\.feed-stage-search input:is\(:focus, :focus-visible\) \{[\s\S]*background: transparent;/);
+  assert.doesNotMatch(workbench, /\.feed-stage-search input \{[^}]*border: 1px solid/);
 });

@@ -23,7 +23,7 @@ Host 把空舞台交给 UI contribution；HTTP 路由表拥有 `/api/functions` 
 
 ## 接入与边界
 
-不依赖 Goals / Artifacts 写入。Key 不进聊天供应商页。一函数一题。已发布函数经 Host 合成的 MCP 调用；插件只认 `tool_id`。函数页可列出「被用在哪」，开关仍在那个场景。
+不依赖 Goals / Artifacts 写入。Key 不进聊天供应商页。一函数一题。已发布函数经 Host 合成的 MCP 调用；插件只认 `tool_id`。函数页可列出「用在哪」；Inbox / 首页在已发布函数上打开当前项目，Feed 开关仍在捕捉规则。
 
 工作区依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-module-functions`。
 

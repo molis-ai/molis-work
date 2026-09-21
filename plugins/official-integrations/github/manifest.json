@@ -1,14 +1,14 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "plugin_id": "io.molis.work.integration.github",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "name": "GitHub",
   "kind": "integration",
   "publisher": {
     "publisher_id": "io.adeptify",
     "signature": "adeptify-official-signature-v1"
   },
-  "host_api_version": 1,
+  "host_api_version": 2,
   "entrypoints": [
     { "deployment": "local", "entrypoint": "./dist/index.js" }
   ],
@@ -21,5 +21,13 @@
     "consumes": ["connector.host.v1", "listener.host.v1", "signals.command.v1"]
   },
   "artifacts": { "produces": [], "consumes": [] },
-  "ui": { "contributions": ["settings.integration.github"] }
+  "ui": { "contributions": ["settings.integration.github"] },
+  "behaviors": [
+    {
+      "behavior_id": "whoami",
+      "title": "查看当前 GitHub 账号",
+      "effect": "read",
+      "subject_kinds": ["mcp_invoke", "session"]
+    }
+  ]
 }

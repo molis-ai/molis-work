@@ -9,6 +9,7 @@ export {
 } from "./preferences.js";
 
 import { VISUAL_FOUNDATION_CLIENT_SCRIPT as PREFERENCE_CLIENT_SCRIPT } from "./preferences.js";
+import { SELECT_MENU_CLIENT_SCRIPT } from "./select-menu-client.js";
 import { MICRO_INTERACTION_CLIENT_SCRIPT } from "./styles/micro-interactions.js";
 import { CALM_DESKTOP_STYLES } from "./styles/calm-desktop.js";
 import { DESKTOP_TITLEBAR_STYLES } from "./styles/desktop-titlebar.js";
@@ -46,7 +47,7 @@ export const VISUAL_FOUNDATION_STYLES = [
 ].join("");
 
 /** Theme preferences plus the measured micro-interactions; every page renderer inlines this. */
-export const VISUAL_FOUNDATION_CLIENT_SCRIPT = `${PREFERENCE_CLIENT_SCRIPT}${MICRO_INTERACTION_CLIENT_SCRIPT}`;
+export const VISUAL_FOUNDATION_CLIENT_SCRIPT = `${PREFERENCE_CLIENT_SCRIPT}${MICRO_INTERACTION_CLIENT_SCRIPT}${SELECT_MENU_CLIENT_SCRIPT}`;
 
 export { COSS_CONTROL_STYLES } from "./styles/coss-controls.js";
 export { PRIMITIVE_STYLES } from "./styles/primitives.js";

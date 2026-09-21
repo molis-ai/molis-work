@@ -4,6 +4,7 @@ import { PROJECT_SETTINGS_CLIENT_SCRIPT } from "./project-settings.js";
 import { WEB_SERVICE_SETTINGS_SCRIPT } from "./settings-web-service.js";
 import { SHELF_SETTINGS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-shelf";
 import { FUNCTIONS_SETTINGS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-functions";
+import { CONNECTORS_SETTINGS_CLIENT_SCRIPT } from "./connectors-settings.js";
 
 export const RUNTIME_PLAN_CLIENT_SCRIPT = `
   (() => {
@@ -116,7 +117,7 @@ export const RUNTIME_PLAN_CLIENT_SCRIPT = `
   })();
 `;
 
-export const SETTINGS_CLIENT_SCRIPT = MODEL_SETTINGS_CLIENT_SCRIPT + WEB_SERVICE_SETTINGS_SCRIPT + PROJECT_SETTINGS_CLIENT_SCRIPT + RUNTIME_PLAN_CLIENT_SCRIPT + `
+export const SETTINGS_CLIENT_SCRIPT = MODEL_SETTINGS_CLIENT_SCRIPT + WEB_SERVICE_SETTINGS_SCRIPT + PROJECT_SETTINGS_CLIENT_SCRIPT + RUNTIME_PLAN_CLIENT_SCRIPT + CONNECTORS_SETTINGS_CLIENT_SCRIPT + `
   (() => {
     const projectManager = document.querySelector("[data-project-manager]");
     if (projectManager) {

@@ -235,7 +235,7 @@ export const LINEAR_DENSITY_STYLES = `
     body.immersive-workbench [data-tab-reorder-slot] { height: 44px; min-height: 44px; }
     body.immersive-workbench .tab-item[data-pinned] { width: 44px; min-width: 44px; max-width: 44px; }
     body.immersive-workbench :is(.tab-item-close, .tab-split-button, .tab-add-button) { width: 44px; height: 44px; }
-    body.immersive-workbench .plugin-rail .plugin-rail-item { min-height: 44px; height: 44px; width: 40px; }
+    body.immersive-workbench :is(.plugin-rail, .assistant-island) .plugin-rail-item { min-height: 44px; height: 44px; width: 40px; }
     body.immersive-workbench .tree-pane .immersive-plugin-link { min-height: 44px; }
     body.immersive-workbench .tree-pane .tree-node,
     body.immersive-workbench .tree-pane .tree-toggle,
@@ -266,15 +266,16 @@ export const LINEAR_DENSITY_STYLES = `
     body.immersive-workbench .immersive-workspace,
     body.immersive-workbench .immersive-workspace.is-directory-collapsed,
     body.immersive-workbench .immersive-workspace.is-plugin-directory-empty {
-      grid-template-rows: auto auto minmax(0, 1fr);
+      grid-template-rows: auto auto auto minmax(0, 1fr);
     }
     body.immersive-workbench .immersive-titlebar {
       height: auto; min-height: calc(var(--desktop-titlebar-height) + var(--tab-strip-h));
       flex-wrap: wrap; overflow: visible;
     }
     body.immersive-workbench .workspace-chrome.project-island {
-      grid-column: 1 / -1; width: 100%; max-width: none; margin: 0; padding: 8px 12px;
+      grid-column: 1 / -1; grid-row: 3; width: 100%; max-width: none; margin: 0; padding: 8px 12px;
     }
+    body.immersive-workbench .assistant-island .plugin-rail-item { width: 36px; height: 28px; min-height: 28px; }
     body.immersive-workbench .workspace-chrome .navigator-project-primary {
       flex-direction: row; height: 36px; min-height: 36px; width: auto; flex: 1; max-width: none;
     }

@@ -53,6 +53,7 @@ export function renderFormWorkbench(model: FormUiModel): string {
         <button class="mw-btn mw-btn--ghost tree-create" type="button" data-form-new>${icon("plus")}<span>${p.text("新建问卷")}</span></button>
       </header>
       <div class="mw-empty" data-form-empty>
+        <span class="mw-empty__mark">${icon("list")}</span>
         <strong>${p.text("还没有问卷")}</strong>
         <p>${p.text("先建一份，再加题目。预览里可以自己填一遍，看结果。")}</p>
         <p>${p.text("内容属于当前项目，保存在这台电脑。")}</p>

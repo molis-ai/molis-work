@@ -1,8 +1,10 @@
 /** Shared mw-* control language. Loaded with the visual foundation. */
 
-/** 2px --focus stroke inside the control. Outer offset rings clip and look cheap. */
-const CONTAINED_FOCUS = "outline: 2px solid var(--focus); outline-offset: -2px; box-shadow: none";
-const CONTAINED_FOCUS_DANGER = "outline: 2px solid var(--red); outline-offset: -2px; box-shadow: none";
+import { SELECT_MENU_STYLES } from "../select-menu-client.js";
+
+/** 1px --ink stroke inside the control. Outer rings clip; indigo boxes are banned. */
+const CONTAINED_FOCUS = "outline: var(--focus-stroke, 1px solid var(--ink)); outline-offset: var(--focus-stroke-inset, -1px); box-shadow: none";
+const CONTAINED_FOCUS_DANGER = "outline: 1px solid var(--red); outline-offset: -1px; box-shadow: none";
 
 export const PRIMITIVE_STYLES = `
   .mw-sr-only {
@@ -121,7 +123,7 @@ export const PRIMITIVE_STYLES = `
     background: transparent;
   }
   .mw-btn--link:active:not(:disabled) { color: var(--ink); }
-  .mw-btn--link:focus-visible { box-shadow: none; outline: 2px solid var(--focus); outline-offset: 2px; }
+  .mw-btn--link:focus-visible { box-shadow: none; outline: var(--focus-stroke); outline-offset: 2px; }
   .mw-btn:disabled {
     cursor: not-allowed;
     opacity: .42;
@@ -183,7 +185,7 @@ export const PRIMITIVE_STYLES = `
   }
   .mw-input:focus-visible, .mw-textarea:focus-visible, .mw-select:focus-visible {
     ${CONTAINED_FOCUS};
-    border-color: var(--focus);
+    border-color: var(--ink);
   }
   .mw-input[aria-invalid="true"], .mw-textarea[aria-invalid="true"], .mw-select[aria-invalid="true"] {
     border-color: var(--red);
@@ -198,6 +200,7 @@ export const PRIMITIVE_STYLES = `
     color: var(--faint);
     background-color: var(--control-fill);
   }
+  ${SELECT_MENU_STYLES}
   .mw-input-group {
     display: flex; align-items: center; gap: 8px;
     min-height: var(--control-h, 28px);
@@ -226,7 +229,7 @@ export const PRIMITIVE_STYLES = `
   }
   .mw-input-group:focus-within {
     ${CONTAINED_FOCUS};
-    border-color: var(--focus);
+    border-color: var(--ink);
   }
   .mw-input-group svg { width: 14px; height: 14px; color: var(--faint); flex: none; }
 
@@ -341,8 +344,8 @@ export const PRIMITIVE_STYLES = `
   .mw-empty {
     display: grid; justify-items: start; align-content: start; gap: 8px; padding: 18px 10px; color: var(--ink-soft);
   }
-  .mw-empty__mark { color: var(--muted); }
-  .mw-empty__mark svg { width: 16px; height: 16px; }
+  .mw-empty__mark, .mw-empty > svg { color: var(--plugin-tint, var(--muted)); }
+  .mw-empty__mark svg, .mw-empty > svg { width: 16px; height: 16px; stroke-width: 1.6; }
   .mw-empty h1, .mw-empty h2, .mw-empty strong { margin: 0; font-size: 14px; font-weight: 400; color: var(--ink); }
   .mw-empty p { margin: 0; font-size: 13px; line-height: 1.6; color: var(--ink-soft); }
   .frame-empty.mw-empty {
@@ -545,7 +548,7 @@ export const PRIMITIVE_STYLES = `
   .mw-number .mw-btn:hover:not(:disabled) { background: var(--nav-hover); color: var(--ink); }
   .mw-number:focus-within {
     ${CONTAINED_FOCUS};
-    border-color: var(--focus);
+    border-color: var(--ink);
   }
   .mw-otp { display: inline-flex; gap: 6px; }
   .mw-otp__cell {
@@ -556,7 +559,7 @@ export const PRIMITIVE_STYLES = `
   }
   .mw-otp__cell:focus-visible {
     ${CONTAINED_FOCUS};
-    border-color: var(--focus);
+    border-color: var(--ink);
   }
   .mw-slider-field {
     display: grid; gap: 4px; width: min(280px, 100%);
@@ -612,8 +615,8 @@ export const PRIMITIVE_STYLES = `
   input.mw-slider:focus { outline: 0; }
   input.mw-slider:focus-visible::-webkit-slider-thumb,
   input.mw-slider:focus-visible::-moz-range-thumb {
-    border-color: var(--focus);
-    box-shadow: 0 0 0 2px var(--focus);
+    border-color: var(--ink);
+    box-shadow: 0 0 0 1px var(--ink);
   }
   input.mw-slider:disabled { opacity: .42; cursor: not-allowed; }
   html[data-resolved-theme="dark"] input.mw-slider {

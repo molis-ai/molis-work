@@ -13,6 +13,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     globalThis.molisWorkBindPlanningSettings?.(root);
     globalThis.molisWorkBindPlanningAdoption?.(root);
     globalThis.molisWorkBindShelfSettings?.(root);
+    globalThis.molisWorkBindConnectorsSettings?.(root);
     document.dispatchEvent(new CustomEvent("molis-work:settings-embed", { detail: { root } }));
   };
   const extractContent = (html) => {
@@ -149,6 +150,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     if (pathname.startsWith("/settings/planning")) return "planning";
     if (pathname.startsWith("/settings/runtimes")) return "runtimes";
     if (pathname.startsWith("/settings/mcp")) return "mcp";
+    if (pathname.startsWith("/settings/connectors")) return "connectors";
     if (pathname.startsWith("/settings/diagnostics")) return "diagnostics";
     if (pathname.startsWith("/settings/appearance") || pathname === "/settings") return "appearance";
     const slug = pathname.replace(/^\\/settings\\//, "").split("/")[0];

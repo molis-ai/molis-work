@@ -14,7 +14,6 @@ export const LINGGUANG_STYLES = `
     width: 100%;
     grid-template-columns: minmax(0, 1.2fr) 4.75rem minmax(0, 1fr) max-content;
   }
-  .plugin-stage-detail-bar [data-lingguang-discard-current] { margin-left: auto; }
   .lingguang-editor {
     display: flex; flex-direction: column; gap: 12px;
     flex: 1; min-height: 0; max-width: 52rem; padding: 8px 20px 20px; overflow: auto;

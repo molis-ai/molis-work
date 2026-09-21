@@ -11,9 +11,9 @@ Workbench 不直接访问 SQLite、Module implementation、Node-only API 或 Tau
 
 ## 2. 控件原语
 
-产品控件、色板、图标、字体的用法和文件表在 [`packages/design-system/README.md`](../../packages/design-system/README.md)。视觉意图在 [`DESIGN.md`](../../DESIGN.md)。开发预览标本是 `/__ui/catalog`。前端开发**建议**对照这块板，不强制每次都开；已经达到产品美学要求的共享控件、状态或微动效**要**补进 Catalog。过程说明见 [CLI 与开发](../cli-and-development.md#前端与控件板)。
+产品控件、色板、图标、字体的用法和文件表在 [`packages/design-system/README.md`](../../packages/design-system/README.md)。视觉意图在 [`DESIGN.md`](../../DESIGN.md)。开发预览标本是 `/__ui/catalog`。改共享控件、状态或微动效**要**对照这块板；达标标本**要**补进 Catalog。不准把系统下拉、系统色盘、系统确认框当产品控件。动效、图标色是切片内工作。过程说明见 [CLI 与开发](../cli-and-development.md#前端与控件板) 与 [ui-craft-floor](../../specs/ui-craft-floor/spec.md)。
 
-合同是 HTML Slot：从 `@molis-ai/molis-work-design-system` 导入 `render*` / `icon`，产出 `mw-*` + `data-slot`。不迁 React，不另起 class 填充。壳层选中走 `--nav-*`；靛只做链接、焦点、选区和进行中。
+合同是 HTML Slot：从 `@molis-ai/molis-work-design-system` 导入 `render*` / `icon`，产出 `mw-*` + `data-slot`。不迁 React，不另起 class 填充。壳层选中走 `--nav-*`；靛只做链接、选区和进行中，不是焦点描边。
 
 ## 3. 嵌入
 

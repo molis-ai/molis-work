@@ -874,7 +874,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       tabMenu.append(button);
     };
     if (!tabId) {
-      ["home", "goals", "sessions", "feed", "inbox", "schedule", "shelf", "lingguang", "functions", "pages", "form", "dataset", "ppt", "artifacts"].filter(plugin => plugin === "home" || document.querySelector('[data-plugin-strip] [data-plugin-id="' + plugin + '"]')).forEach(plugin => {
+      ["home", "goals", "sessions", "feed", "inbox", "schedule", "shelf", "lingguang", "functions", "pages", "form", "dataset", "ppt", "artifacts"].filter(plugin => plugin === "home" || document.querySelector('[data-plugin-strip] [data-plugin-id="' + plugin + '"], [data-assistant-island] [data-plugin-id="' + plugin + '"]')).forEach(plugin => {
         add(L(ops.pluginTitle(plugin)), tabIcon(plugin), "open-" + plugin, () => ops.openPlugin(state, plugin));
       });
       if (tab) tabMenu.append(document.createElement("hr"));

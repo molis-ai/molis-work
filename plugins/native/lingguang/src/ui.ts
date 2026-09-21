@@ -60,6 +60,7 @@ export function renderLingguangWorkbench(model: LingguangUiModel): string {
         </div>
       </header>
       <div class="mw-empty" data-lingguang-empty>
+        <span class="mw-empty__mark">${icon("idea")}</span>
         <strong>${p.text("还没有灵光")}</strong>
         <p>${p.text("想法还没想清楚时先扔进来，再决定留下或丢掉。")}</p>
         <p>${p.text("内容属于当前项目，保存在这台电脑。")}</p>

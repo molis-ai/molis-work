@@ -1,3 +1,4 @@
+import { KeychainUnavailableError } from "@molis-ai/molis-work-storage";
 import type {
   ModelApiFormat,
   ModelProviderHealth,
@@ -267,10 +268,12 @@ export class ModelProviderStore {
       try {
         const present = this.hasCredential(provider.provider_id);
         return { ...providerHealth(provider, present), credential_status: present ? "present" as const : "missing" as const };
-      } catch {
+      } catch (error) {
         return { provider_id: provider.provider_id, status: "credential-unavailable" as const,
           credential_status: "unavailable" as const,
-          detail: "密钥库暂不可用，请恢复本机密钥库访问后重试。已保存的密钥没有被替换。" };
+          detail: error instanceof KeychainUnavailableError
+            ? "钥匙串访问失败，已停止自动重试。请恢复本机钥匙串访问后重启 Molis Work；MCP 连接需重新启动。已保存的密钥没有被替换。"
+            : "密钥库暂不可用，请恢复本机密钥库访问后重试。已保存的密钥没有被替换。" };
       }
     });
   }

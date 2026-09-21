@@ -262,6 +262,13 @@ interface ResolvedMaster {
   masterKeyExternal: boolean;
 }
 
+export class KeychainUnavailableError extends Error {
+  constructor() {
+    super("macOS Keychain master key is unavailable; refusing to rotate existing secrets. Automatic retries are stopped for this process. Restore Keychain access, then restart Molis Work or the affected MCP connection to retry.");
+    this.name = "KeychainUnavailableError";
+  }
+}
+
 function resolveMasterKey(): ResolvedMaster {
   const persisted = loadFile();
   const hasPersistedEntries = Object.keys(persisted.entries).length > 0;
@@ -294,7 +301,7 @@ function resolveMasterKey(): ResolvedMaster {
     let b64 = readKeychain();
     if (!b64) {
       if (hasPersistedEntries && persisted.backend === "keychain+aes-gcm") {
-        throw new Error("macOS Keychain master key is unavailable; refusing to rotate existing secrets");
+        throw new KeychainUnavailableError();
       }
       const generated = randomBytes(32).toString("base64");
       if (writeKeychain(generated)) {
@@ -315,6 +322,7 @@ function resolveMasterKey(): ResolvedMaster {
   }
 
   if (hasPersistedEntries) {
+    if (persisted.backend === "keychain+aes-gcm") throw new KeychainUnavailableError();
     throw new Error(`SecretStore backend ${persisted.backend} is unavailable; refusing to rotate existing secrets`);
   }
 
@@ -490,6 +498,10 @@ export function safeEqualString(a: string, b: string): boolean {
 
 /** Per data-dir store instances so put/get share one master resolution. */
 const storeCache = new Map<string, SecretStore>();
+// A cancelled, denied, timed-out or invalid Keychain read must not open another
+// authorization dialog on every status poll. Keep the failure until process
+// restart, scoped exactly like successful stores; never fall back or rotate keys.
+const keychainFailures = new Map<string, KeychainUnavailableError>();
 
 function cacheKey(): string {
   const dataDir = resolveFeedSecurityDirectory();
@@ -610,7 +622,15 @@ export function createFileSecretStore(): SecretStore {
   const key = cacheKey();
   const hit = storeCache.get(key);
   if (hit) return hit;
-  const master = withSecretsLock(() => resolveMasterKey());
+  const failure = keychainFailures.get(key);
+  if (failure) throw failure;
+  let master: ResolvedMaster;
+  try {
+    master = withSecretsLock(() => resolveMasterKey());
+  } catch (error) {
+    if (error instanceof KeychainUnavailableError) keychainFailures.set(key, error);
+    throw error;
+  }
   const home = resolveMolisWorkHome();
   const implementation = buildStore(master);
   // Cached instances may outlive the request that created them.
@@ -630,6 +650,7 @@ export function createFileSecretStore(): SecretStore {
 /** Test helper: drop cached store instances (e.g. after changing env). */
 export function resetSecretStoreCache(): void {
   storeCache.clear();
+  keychainFailures.clear();
 }
 
 /** Peek on-disk sealed blob for a ref (tests / diagnostics; not plaintext). */

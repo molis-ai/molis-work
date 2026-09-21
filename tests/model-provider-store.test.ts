@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
+import { KeychainUnavailableError } from "@molis-ai/molis-work-storage";
 
 import {
   ModelProviderError,
@@ -217,5 +218,11 @@ test("密钥库不可访问时保留供应商并明确不可用，移除失败�
     assert.equal(unavailable.health()[0]?.credential_status, "unavailable");
     assert.throws(() => unavailable.remove("locked"), /keychain locked/);
     assert.equal(unavailable.get("locked")?.display_name, "Locked provider");
+    const stopped = new ModelProviderStore({ db: item.db, secrets: {
+      get() { throw new KeychainUnavailableError(); }, put() {}, delete() {},
+    } });
+    assert.equal(stopped.health()[0]?.status, "credential-unavailable");
+    assert.match(stopped.health()[0]!.detail, /已停止自动重试.*重启 Molis Work/u);
+    assert.equal(stopped.get("locked")?.credential_ref, item.store.get("locked")?.credential_ref);
   } finally { item.db.close(); await rm(item.directory, { recursive: true, force: true }); }
 });

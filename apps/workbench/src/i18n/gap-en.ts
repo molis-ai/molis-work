@@ -1,6 +1,7 @@
 /** User-visible copy that already goes through L() but was missing from the English catalog. */
 export const GAP_EN: Record<string, string> = {
   "密钥库暂不可用，请恢复本机密钥库访问后重试。已保存的密钥没有被替换。": "The local secret store is unavailable. Restore access and retry. Saved keys have not been replaced.",
+  "钥匙串访问失败，已停止自动重试。请恢复本机钥匙串访问后重启 Molis Work；MCP 连接需重新启动。已保存的密钥没有被替换。": "Keychain access failed. Automatic retries have stopped. Restore Keychain access, then restart Molis Work or the affected MCP connection. Saved keys have not been replaced.",
   "模型设置": "Models",
   "API 格式": "API format",
   "供应商": "Providers",

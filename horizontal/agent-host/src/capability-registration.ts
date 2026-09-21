@@ -169,6 +169,16 @@ export function registerAgentHostCapabilities<Context>(
       return checkpoints.prepareRewind(session, checkpointId);
     }),
 
+    registrar.register(agentHostCapabilities.readRunReviews, async (context, [session, run]) => {
+      await requireRun(context, session, run);
+      const view = await readScopedSession(context, session);
+      const queue = ports.agentHost(context).reviews, boardId = ports.boardId(context);
+      await queue.refresh(boardId);
+      return queue.list(boardId).filter(request => request.run?.session_id === run.session_id
+        && request.run.run_id === run.run_id && request.plugin_id === view.owner.plugin_id)
+        .map(request => ({ request, receipt: queue.receipt(request.review_id) }));
+    }),
+
     registrar.register(agentHostCapabilities.listReviews, (context, [boardId, status]) => {
       const scoped = ports.boardId(context);
       // A Plugin reads the queue of the project it is running in, not another's.

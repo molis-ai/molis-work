@@ -827,6 +827,9 @@ export const agentHostCapabilities = {
     capability_id: "agent.checkpoints.prepare-rewind.v1", version: 1, operation: "command",
   } as HostCapabilityDefinition<[session: AgentSessionRef, checkpointId: string, roleId: string], AgentReviewRequest>,
   /** Read the approval queue. Deciding is a user action and is not exposed to Plugins. */
+  readRunReviews: {
+    capability_id: "agent.run.reviews.v1", version: 1, operation: "query",
+  } as HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef], Array<{ request: AgentReviewRequest; receipt: AgentReviewReceipt | null }>>,
   listReviews: {
     capability_id: "agent.reviews.list.v1",
     version: 1,

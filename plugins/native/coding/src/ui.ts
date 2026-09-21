@@ -236,7 +236,14 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
           <button class="mw-btn" type="button" data-coding-checkpoints-refresh>刷新检查点</button>
           <p data-coding-checkpoints-status role="status">选择会话后查看。</p><div data-coding-checkpoints-list></div></details>
         </section><div data-coding-host-reviews hidden></div><div class="coding-result" data-coding-result><p>任务成果与执行记录会留在这里，方便审查和继续。</p></div>
+        <section class="coding-result" data-coding-changes hidden aria-label="固定变更入口"><h3>本轮固定变更</h3><div data-coding-changes-list></div></section>
         <section class="coding-result" data-coding-reports hidden aria-label="执行报告"><h3>执行报告</h3><p>选择已结束的一轮，查看证据并保存固定版本。</p><div data-coding-report-list></div></section>
+        <section class="coding-result" data-coding-change-reader aria-label="本轮固定变更" hidden>
+          <header><button class="mw-btn" type="button" data-coding-change-close>收起变更</button><button class="mw-btn" type="button" data-coding-change-save>保存固定变更</button><button class="mw-btn" type="button" data-coding-change-output disabled>设为变更输出</button></header>
+          <p data-coding-change-status role="status"></p><nav data-coding-change-files aria-label="本轮文件修改"></nav><div data-coding-change-body></div>
+          <h3>行级意见</h3><p>保存后点击前后行号添加意见；加入原任务草稿后，由你选择方式并发送。意见不代表批准写入。</p>
+          <div data-coding-feedback-list></div><button class="mw-btn" type="button" data-coding-feedback-return disabled>加入原任务草稿</button>
+        </section>
         <section class="coding-result" data-coding-commands aria-label="命令与检查回执" hidden></section>${panels}
       </aside>
     </div>

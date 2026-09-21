@@ -13,6 +13,7 @@ export function bindWorkspaceCompanions(platform: PluginPlatform, boardId: strin
     ["coding", "git-result", "git", "result"],
     ["git", "workspace", "workspace", "workspace"],
     ["diff", "git_changeset", "git", "changeset"],
+    ["diff", "changeset", "coding", "changeset"],
     ["diff", "before", "files", "before"],
     ["diff", "after", "files", "after"],
     ["text-stats", "text", "files", "before"],

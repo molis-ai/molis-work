@@ -26,6 +26,31 @@ const AGENT: AgentManifest = {
   prompts: [{ prompt_id: "read", version: 1 }],
 };
 
+test("Run review reads refresh original receipts and isolate project, session, run and producer without granting approval", async () => {
+  const host = new AgentHost(), adapter = readOnlyAdapter("reviews"), session = { runtime_id: "reviews", session_id: "session-1" }, run = { session_id: "session-1", run_id: "r" };
+  const original = adapter.readSession.bind(adapter);
+  adapter.readSession = async () => ({ ...await original(session), runs: [run] }); host.register(adapter);
+  const handlers = new Map<string, Function>(); let refreshes = 0, unavailable = false;
+  host.reviews.registerRefresh(async () => { refreshes++; if (unavailable) throw new Error("original ledger unavailable"); });
+  registerAgentHostCapabilities({ register: (definition, handler) => { handlers.set(definition.capability_id, handler); return () => {}; } },
+    { agentHost: () => host, boardId: (context: { board_id: string }) => context.board_id, authority: () => ({ manifest: AGENT, authorizedDirectories: [] }) });
+  const read = handlers.get(agentHostCapabilities.readRunReviews.capability_id)!, context = { board_id: "board-a" };
+  const base = { review_id: "owned", board_id: "board-a", plugin_id: "io.molis.work.coding", run,
+    kind: "text-edit" as const, document: { kind: "text-edit" as const, target_path: "a.txt", exists: true, before_text: "before", after_text: "after" }, requested_at: "2026-09-22T00:00:00Z", expires_at: null };
+  for (const request of [base, { ...base, review_id: "other-session", run: { ...run, session_id: "elsewhere" } },
+    { ...base, review_id: "other-run", run: { ...run, run_id: "elsewhere" } }, { ...base, review_id: "other-plugin", plugin_id: "foreign" }, { ...base, review_id: "other-board", board_id: "foreign" }]) host.reviews.request(request);
+  await assert.rejects(read({ board_id: "foreign" }, [session, run]));
+  await assert.rejects(read(context, [session, { ...run, session_id: "foreign" }]));
+  assert.equal(refreshes, 0);
+  let rows = await read(context, [session, run]); assert.equal(rows.length, 1); assert.equal(rows[0].receipt.status, "pending");
+  rows[0].request.document.after_text = "forged";
+  host.reviews.decide({ review_id: "owned", actor_id: "user", decision: "approve" });
+  rows = await read(context, [session, run]); assert.equal(rows[0].request.document.after_text, "after"); assert.equal(rows[0].receipt.effect_settled, false);
+  host.reviews.consumeApproval("owned"); host.reviews.settle("owned", { ok: true });
+  assert.equal((await read(context, [session, run]))[0].receipt.effect_settled, true);
+  unavailable = true; await assert.rejects(read(context, [session, run]), /original ledger unavailable/);
+});
+
 function readOnlyAdapter(runtimeId: string): AgentRuntimeAdapter {
   const capabilities = emptyCapabilityMatrix();
   capabilities["session.create"] = "supported";

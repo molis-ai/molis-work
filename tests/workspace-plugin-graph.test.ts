@@ -14,6 +14,7 @@ import {
   seedDemoBoard,
 } from "@molis-ai/molis-work-app-local-host";
 import { createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
+import { bindWorkspaceCompanions } from "../apps/local-host/src/workspace-plugin-bindings.js";
 import { DIFF_PLUGIN_ID, createDiffPlugin } from "@molis-ai/molis-work-plugin-diff";
 import { FILES_PLUGIN_ID, createFilesPlugin } from "@molis-ai/molis-work-plugin-files";
 import { GIT_PLUGIN_ID, createGitPlugin } from "@molis-ai/molis-work-plugin-git";
@@ -194,6 +195,34 @@ test("Files 捕获的快照到得了 Text stats，数出来的是那一份", asy
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
+});
+
+test("Coding fixed output reaches Diff through the production default binding without replacing the selected group", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "coding-diff-graph-"));
+  const { store, platform } = project(directory);
+  let coding: PluginStartContext | undefined;
+  try {
+    await platform.start([
+      { definition: capturing(createCodingPlugin(), context => { coding = context; }) },
+      { definition: createShelfPlugin() }, { definition: createWorkspacePlugin() },
+      { definition: createFilesPlugin() }, { definition: createGitPlugin() },
+      { definition: createTextStatsPlugin() }, { definition: createDiffPlugin() },
+    ]);
+    bindWorkspaceCompanions(platform, DEMO_BOARD_ID, "tester");
+    assert.equal(platform.wiring.selectedGroup(DIFF_PLUGIN_ID), "snapshots", "publishing must not change the user's comparison group");
+    const saved = coding!.services!.artifacts.publish({ artifact_id: "fixed-coding", version: 1, artifact_type_id: "coding.changeset.v1", schema_version: 1,
+      content: { kind: "inline", payload: { scope: "run-frozen", run_id: "run", applied: true, coverage: "text-reviews", files: [{ path: "a.ts", kind: "modified", diff: "", added_lines: 1, removed_lines: 1,
+        review: { review_id: "review", before_text: "original\r\n", after_text: "fixed\n", decision: "approved", execution: "applied" } }] } } });
+    coding!.services!.outputs.select({ port: "changeset", reference: { artifact_id: saved.artifact.artifact_id, version: 1 }, expected_reference: null });
+    await platform.wiring.drain();
+    platform.wiring.selectInputGroup(DIFF_PLUGIN_ID, "change-set");
+    await platform.wiring.drain();
+    const response = await platform.router().dispatch({ method: "GET", pathname: "/api/plugins/io.molis.work.diff/state", actor_id: "tester", query: {} });
+    assert.equal(response?.status, 200);
+    const view = (response?.body as { view: { rows: Array<{ text: string }>; group: string; partial: boolean } }).view;
+    assert.equal(view.group, "change-set"); assert.equal(view.partial, false);
+    assert.deepEqual(view.rows.map(row => row.text), ["original", "fixed"]);
+  } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
 });
 
 test("端口声明里的类型两两对得上，连线才可能是合法的", () => {

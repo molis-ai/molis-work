@@ -36,7 +36,7 @@ export const codingManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: CODING_PLUGIN_ID,
-  version: "1.18.0",
+  version: "1.19.0",
   name: "Coding",
   kind: "app",
   publisher: { publisher_id: "molis", signature: "official-coding-binding" },
@@ -67,7 +67,7 @@ export const codingManifest: PluginManifest = {
       { artifact_type_id: CODING_REPORT_TYPE, schema_version: 1 },
       { artifact_type_id: CODING_DIAGRAM_TYPE, schema_version: 1 },
     ],
-    consumes: [SHELF_TEXT_MATERIAL_TYPE, CODING_GOAL_CONTEXT_TYPE, CODING_REPORT_TYPE, FILE_SNAPSHOT_TYPE, FILE_TEXT_SELECTION_TYPE, DIFF_CHANGESET_TYPE, GIT_RESULT_TYPE].map(artifact_type_id => ({ artifact_type_id, schema_version: 1 })),
+    consumes: [SHELF_TEXT_MATERIAL_TYPE, CODING_GOAL_CONTEXT_TYPE, CODING_REPORT_TYPE, CODING_CHANGESET_TYPE, FILE_SNAPSHOT_TYPE, FILE_TEXT_SELECTION_TYPE, DIFF_CHANGESET_TYPE, GIT_RESULT_TYPE].map(artifact_type_id => ({ artifact_type_id, schema_version: 1 })),
   },
   ports: {
     inputs: [
@@ -96,6 +96,10 @@ export const codingManifest: PluginManifest = {
   },
   agent: codingAgentManifest,
   routes: [
+    { route_id: "coding.read-changeset", method: "GET", path: "/sessions/:sessionId/runs/:runId/changeset" },
+    { route_id: "coding.save-changeset", method: "POST", path: "/sessions/:sessionId/runs/:runId/changeset" },
+    { route_id: "coding.changeset-feedback", method: "POST", path: "/sessions/:sessionId/runs/:runId/changeset/feedback" },
+    { route_id: "coding.changeset-output", method: "POST", path: "/sessions/:sessionId/runs/:runId/changeset/output" },
     { route_id: "coding.reports", method: "GET", path: "/reports" },
     { route_id: "coding.goals", method: "GET", path: "/goals" },
     { route_id: "coding.goal-context", method: "GET", path: "/goals/:goalId" },

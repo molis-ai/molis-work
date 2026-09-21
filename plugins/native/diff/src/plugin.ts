@@ -6,8 +6,8 @@ import type {
 
 import { diffManifest } from "./manifest.js";
 import { diffUiContribution } from "./ui.js";
-import { compareSnapshots, compareChangeSet, emptyDiff } from "./comparison.js";
-import { DIFF_CHANGESET_TYPE } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { compareSnapshots, compareChangeSet, compareRunChangeSet, emptyDiff } from "./comparison.js";
+import { DIFF_CHANGESET_TYPE, CODING_CHANGESET_TYPE, parseCodingChangeSet } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 
 /**
  * Diff as Plugin Runtime starts it.
@@ -44,11 +44,23 @@ export function createDiffPlugin(ports: DiffPluginPorts = {}): PluginDefinition 
             if (!Number.isSafeInteger(version) || version < 1) return { status: 400, body: { error: "差异版本无效" } };
             try {
               const record = context.services?.artifacts?.read({ artifact_id: request.query.artifact_id, version });
-              if (!record || record.artifact_type_id !== DIFF_CHANGESET_TYPE || record.availability !== "available" || record.lifecycle_state !== "active") throw new Error("固定差异不可用");
+              if (!record || ![DIFF_CHANGESET_TYPE, CODING_CHANGESET_TYPE].includes(record.artifact_type_id) || record.schema_version !== 1 || record.availability !== "available" || record.lifecycle_state !== "active") throw new Error("固定差异不可用");
+              if (record.artifact_type_id === CODING_CHANGESET_TYPE) {
+                const changeIndex = request.query.change_index === undefined ? 0 : Number(request.query.change_index);
+                if (!Number.isSafeInteger(changeIndex) || changeIndex < 0) throw new Error("固定修改序号无效");
+                return { status: 200, body: { view: compareRunChangeSet({ content: parseCodingChangeSet(record.payload), source_plugin_id: record.producer_plugin_id, content_version: record.version }, undefined, changeIndex) } };
+              }
               return { status: 200, body: { view: compareChangeSet({ content: record.payload, source_plugin_id: record.producer_plugin_id, content_version: record.version }) } };
-            } catch { return { status: 400, body: { error: "固定差异不可用，请重新选择 Git 改动" } }; }
+            } catch { return { status: 400, body: { error: "固定差异不可用，请重新选择原变更" } }; }
           }
           const inputs = context.services?.inputs;
+          if (inputs?.selectedGroup() === "change-set") {
+            try {
+              const record = inputs.read("changeset");
+              if (!record || record.availability !== "available") return { status: 200, body: { view: emptyDiff("change-set") } };
+              return { status: 200, body: { view: compareRunChangeSet({ content: parseCodingChangeSet(record.payload), source_plugin_id: record.producer_plugin_id, content_version: record.version }) } };
+            } catch { return { status: 400, body: { error: "Coding 固定变更当前不可读，请保留原会话后重试" } }; }
+          }
           if (inputs?.selectedGroup() !== "snapshots") return { status: 200, body: { view: emptyDiff("snapshots", "请选择两份文件快照进行对比") } };
           const records = [inputs.read("before"), inputs.read("after")];
           const snapshots = records.filter(record => record?.availability === "available").map(record => ({

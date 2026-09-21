@@ -22,6 +22,7 @@ import {
   DIFF_UI_CONTRIBUTION_ID,
   createDiffPlugin,
   renderDiff,
+  compareRunChangeSet,
   type DiffView,
   emptyDiff,
   type DiffUiModel,
@@ -279,6 +280,14 @@ export async function handleCodingPluginHttp(request: IncomingMessage, response:
     }) });
   }
   const reportBody = result.body as { report?: { title: string; body_markdown: string; run_id: string } } | undefined;
+  const changeBody = result.body as { change?: import("@molis-ai/molis-work-contracts/modules/workspace-artifacts").CodingChangeSet; reference?: { version: number }; html?: string } | undefined;
+  if (result.status === 200 && changeBody?.change) {
+    const changeIndex = Number(url.searchParams.get("change_index") ?? 0);
+    const view = compareRunChangeSet({ content: changeBody.change, source_plugin_id: CODING_PLUGIN_ID, content_version: changeBody.reference?.version ?? 1 }, undefined,
+      Number.isSafeInteger(changeIndex) && changeIndex >= 0 ? changeIndex : -1);
+    changeBody.html = renderDiff({ view, route_prefix: ports.routePrefix ?? "", line_feedback: Boolean(changeBody.reference),
+      primitives: { escape: value => escapeHtml(String(value)), icon: name => icon(name as Parameters<typeof icon>[0]) } });
+  }
   if (result.status === 200 && reportBody?.report) {
     const report = reportBody.report;
     Object.assign(reportBody, { html: renderCodingReport({ title: report.title, run_id: report.run_id,

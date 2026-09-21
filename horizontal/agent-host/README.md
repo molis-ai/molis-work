@@ -21,8 +21,9 @@ adapter 只报告事实并执行已批准的工作。
 插件不持有 Agent Host，只能通过注册的 Capability 调用：运行时列表、角色可用性、会话创建与读取、
 Run 的启动/读取/控制、审查队列读取。调用前宿主会检查插件是否在 Manifest 里声明消费了该 Capability。
 
-注册入口是 `registerAgentHostCapabilities`。**目前只有测试调用它**——生产装配还没有把
-Agent Host 接进去，所以这些能力今天在运行中的产品里还拿不到。
+注册入口是 `registerAgentHostCapabilities`，已由 Local Host 的生产装配调用，Coding 通过声明的 Capability 使用。
+`agent.run.reviews.v1` 按当前项目、原 Session、Run 和生产者读取文本审查与原回执；读取先刷新 SDK 原恢复事实，失败明确报不可用。
+它不会批准、派出或结算副作用。固定成果的保存与阅读由消费插件通过原 Artifact 服务完成，批准仍属于宿主审查面。
 
 **批准动作刻意不是 Capability**：那是用户在宿主审查面里的动作；开成插件可调的能力，
 就等于让插件批准自己的副作用。

@@ -18,6 +18,7 @@ export interface DiffUiModel {
   readonly route_prefix: string;
   readonly view: DiffView;
   readonly primitives: DiffUiPrimitives;
+  readonly line_feedback?: boolean;
 }
 
 export const diffUiDescriptor: UiContributionDescriptor = {
@@ -89,10 +90,12 @@ function renderFileList(model: DiffUiModel): string {
 
 function renderUnified(rows: readonly TextDiffRow[], model: DiffUiModel): string {
   const { escape } = model.primitives;
+  const lineNumber = (side: "before" | "after", number: number | undefined) => number === undefined ? ""
+    : model.line_feedback ? `<button type="button" class="mw-btn mw-btn--ghost" data-coding-line-side="${side}" data-coding-line="${number}" aria-label="评论${side === "before" ? "修改前" : "修改后"}第 ${number} 行">${number}</button>` : escape(number);
   return `<ol class="diff-rows">${rows.map((row) =>
     `<li data-kind="${escape(row.kind)}">`
-    + `<span class="diff-before">${row.before_number === undefined ? "" : escape(row.before_number)}</span>`
-    + `<span class="diff-after">${row.after_number === undefined ? "" : escape(row.after_number)}</span>`
+    + `<span class="diff-before">${lineNumber("before", row.before_number)}</span>`
+    + `<span class="diff-after">${lineNumber("after", row.after_number)}</span>`
     + `<code><span class="diff-sign" aria-label="${row.kind === "insert" ? "新增" : row.kind === "delete" ? "删除" : "未改变"}">${row.kind === "insert" ? "+" : row.kind === "delete" ? "−" : " "}</span>${escape(row.text)}</code></li>`).join("")}</ol>`;
 }
 

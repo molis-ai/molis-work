@@ -194,6 +194,7 @@ export function compareChangeSet(input: DiffInputSnapshot, group: DiffInputGroup
 export function compareRunChangeSet(
   input: DiffInputSnapshot & { content: CodingChangeSet },
   path?: string,
+  changeIndex?: number,
 ): DiffView {
   const group: DiffInputGroup = "change-set";
   const change = input.content;
@@ -204,13 +205,19 @@ export function compareRunChangeSet(
     removed_lines: file.removed_lines,
   }));
   if (files.length === 0) {
-    return emptyDiff(group, "这一轮没有改动任何文件", "ready", recoveryMessage(group));
+    return emptyDiff(group, change.coverage === "text-reviews" ? "这一轮没有可读取的文本审查；命令及外部操作请查看原回执" : "这一轮没有改动任何文件", "ready", recoveryMessage(group));
   }
-  const chosen = path === undefined
+  const chosen = changeIndex !== undefined ? change.files[changeIndex] : path === undefined
     ? change.files[0]!
     : change.files.find((file) => file.path === path);
   if (chosen === undefined) {
     return { ...emptyDiff(group, `这一轮没有改动 ${path}`, "unavailable", recoveryMessage(group)), files };
+  }
+  if (chosen.review) {
+    const side: DiffSide = { workspace_id: change.origin?.workspace_id ?? change.run_id, workspace_name: change.origin?.workspace_name ?? change.run_id,
+      path: chosen.path, source_plugin_id: input.source_plugin_id, content_version: input.content_version };
+    return { ...renderComparison(group, side, { ...side }, chosen.review.before_text ?? "", chosen.review.after_text,
+      chosen.review.before_text === null, false), files: [] };
   }
   let rows: readonly TextDiffRow[];
   try {

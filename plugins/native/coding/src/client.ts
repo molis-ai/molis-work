@@ -1,4 +1,5 @@
 import { codingGoalVersionLabel } from "./goal-versions.js";
+import { CODING_CHANGESET_CLIENT_FACTORY_SCRIPT } from "./changeset-client.js";
 import { codingUsageSummary } from "./usage.js";
 import { atBottom, STICK_THRESHOLD_PX } from "./reading.js";
 
@@ -94,6 +95,9 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     return next.then(() => { if (current === id && input.value === value) q('[data-coding-draft-status]').textContent = '草稿已保存；模型与方式用于下一轮。'; });
   };
   const flushDraft = () => { clearTimeout(draftTimer); return current ? saveDraft(current,input.value) : Promise.resolve(); };
+  const changeReview = (${CODING_CHANGESET_CLIENT_FACTORY_SCRIPT})({root,q,api,turns,current:()=>current,closeReport:()=>closeReport(),
+    appendDraft:async(task)=>{const id=current,next=input.value.endsWith(task)?input.value:(input.value?input.value+'\\n\\n':'')+task;if(next.length>100000)throw new Error('意见与现有草稿合计过长，请减少意见或先处理现有草稿；意见仍然保留。');clearTimeout(draftTimer);input.value=next;rememberDraft(id,input.value);await saveDraft(id,input.value);},
+    focusDraft:()=>{input.focus();status('行级意见已加入原任务草稿；请确认执行方式后发送。');}});
   const materialKey = ref => ref.artifact_id+'@'+ref.version;
   let materialRows=[], materialTicket=0;
   const openMaterials = async () => {
@@ -458,6 +462,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     } catch(error) {if(ticket===reportTicket && id===current){message.hidden=false;message.textContent='无法读取当前报告输出：'+error.message;button.textContent='重试读取输出';button.disabled=false;}}
   };
   const showReport = async (runId, save = false) => {
+    if(changeReview.active())changeReview.close();
     const id=current,generationAtStart=generation,ticket=++reportTicket;
     if(!reportRun) dialogueOffset=turns.scrollTop;
     reportRun=runId;reportSaving=save;
@@ -483,7 +488,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     } finally {if(ticket===reportTicket)reportSaving=false;}
   };
   const renderRuns = (runs) => {
-    const follow = !reportRun && pinned && atBottom(position());
+    const follow = !reportRun && !changeReview.active() && pinned && atBottom(position());
     q('[data-coding-welcome]')?.remove();
     for (const run of runs) {
       let block=[...turns.children].find(node=>node.dataset.run===run.ref.run_id);
@@ -544,6 +549,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
     }
     renderCommands(runs);
+    changeReview.render(runs);
     const reportRuns=runs.filter(run=>['completed','failed','stopped','cancelled'].includes(run.phase));
     q('[data-coding-reports]').hidden=!reportRuns.length;
     const reportList=q('[data-coding-report-list]');
@@ -653,6 +659,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const select = async(id) => {
     if(id===current) return selectionTask;
+    if(changeReview.active())changeReview.close();q('[data-coding-changes-list]').replaceChildren();q('[data-coding-changes]').hidden=true;
     materialTicket++;q('[data-coding-material-dialog]').close();
     closeReport();q('[data-coding-report-list]').replaceChildren();q('[data-coding-reports]').hidden=true;
     if(current) { offsets.set(current,turns.scrollTop); void flushDraft().catch(error=>status(error.message,true)); }
@@ -758,7 +765,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   root.addEventListener('click',click);directory.addEventListener('click',click);
   directory.querySelector('[data-coding-search]').addEventListener('input',renderDirectory);
-  turns.addEventListener('scroll',()=>{if(reportRun)return;pinned=atBottom(position());q('[data-coding-latest]').hidden=pinned;},{passive:true});
+  turns.addEventListener('scroll',()=>{if(reportRun || changeReview.active())return;pinned=atBottom(position());q('[data-coding-latest]').hidden=pinned;},{passive:true});
   input.addEventListener('input',()=>{rememberDraft(current,input.value);q('[data-coding-draft-status]').textContent='正在保存草稿…';clearTimeout(draftTimer);const id=current,value=input.value;draftTimer=setTimeout(()=>{void saveDraft(id,value).catch(error=>status('草稿暂未写入服务，当前窗口仍保留：'+error.message,true));},400);});
   for(const field of [q('[data-coding-intent]'),q('[data-coding-model]')])field.addEventListener('change',()=>{
     rememberConfiguration();controls();void flushDraft().catch(error=>status('配置暂未保存：'+error.message,true));

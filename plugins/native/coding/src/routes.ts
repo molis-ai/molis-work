@@ -8,6 +8,8 @@ import { CODING_REPORT_TYPE } from "./artifacts.js";
 import { codingReportPreview, codingReportReference, createCodingExecutionReport, readCodingExecutionReport } from "./report.js";
 import { goalContextCapabilities, goalProgressCapabilities } from "@molis-ai/molis-work-contracts/modules/goals";
 import { currentGoalContext, savedGoalContext, saveGoalContext, resolveGoalContext, runGoalContext } from "./goal-context.js";
+import { codingChangeSetReference, readCodingChangeSet, createCodingChangeSet, codingChangeFeedback } from "./changeset.js";
+import { CODING_CHANGESET_TYPE } from "./artifacts.js";
 
 export interface CodingModelChoice { provider_id: string; model_id: string; label: string }
 export interface CodingExecutionPorts {
@@ -195,6 +197,40 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
     });
   });
   return [
+    ...[false, true].map(save => route(save ? "coding.save-changeset" : "coding.read-changeset", async (request, api, execution) => {
+      const record = selected(request, execution), runId = text(request.params.runId, "执行引用");
+      const artifacts = context.services!.artifacts;
+      const existing = readCodingChangeSet(artifacts, record.session_id, runId);
+      if (existing) return { ...existing, output: context.services!.outputs!.reference("changeset") };
+      if (request.query?.fixed === "1") throw new Error("原固定变更不可读，不能替换成当前工作区");
+      if (!record.runtime_session_id) throw new Error("这个会话尚未执行");
+      const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
+      const snapshot = await api!.invoke(agent.readSession, [session]), ref = snapshot.runs.find(run => run.run_id === runId);
+      if (!ref) throw new Error("这轮执行不属于当前会话");
+      const run = await api!.invoke(agent.readRun, [session, ref]);
+      const change = createCodingChangeSet(record.session_id, run, await api!.invoke(agent.readRunReviews, [session, ref]));
+      if (!save) return { change, reference: null, saved_at: null, output: context.services!.outputs!.reference("changeset") };
+      const saved = readCodingChangeSet(artifacts, record.session_id, runId);
+      if (saved) return { ...saved, output: context.services!.outputs!.reference("changeset") };
+      const reference = codingChangeSetReference(record.session_id, runId);
+      const result = artifacts.publish({ ...reference, artifact_type_id: CODING_CHANGESET_TYPE, schema_version: 1,
+        content: { kind: "inline", payload: JSON.parse(JSON.stringify(change)) },
+        metadata: { title: record.title + " · 本轮固定变更", session_id: record.session_id, run_id: runId } });
+      return { change, reference, saved_at: result.artifact.created_at, output: context.services!.outputs!.reference("changeset") };
+    })),
+    route("coding.changeset-output", async (request, _api, execution) => {
+      const record = selected(request, execution), saved = readCodingChangeSet(context.services!.artifacts, record.session_id, text(request.params.runId, "执行引用"));
+      if (!saved) throw new Error("请先保存固定变更");
+      const body = bodyOf(request), expected = body.expected_reference === null ? null : materialSelection([body.expected_reference])[0]!;
+      context.services!.outputs!.select({ port: "changeset", reference: saved.reference, expected_reference: expected });
+      return { ...saved, output: context.services!.outputs!.reference("changeset") };
+    }),
+    route("coding.changeset-feedback", async (request, _api, execution) => {
+      const record = selected(request, execution), runId = text(request.params.runId, "执行引用");
+      const saved = readCodingChangeSet(context.services!.artifacts, record.session_id, runId);
+      if (!saved) throw new Error("请先保存固定变更，再填写行级意见");
+      return { task: codingChangeFeedback(saved.change, bodyOf(request).comments), reference: saved.reference };
+    }),
     reportRoute(false), reportRoute(true), reportOutput(false), reportOutput(true), reportProgress(false), reportProgress(true),
     route("coding.goals", async (request, api) => api!.invoke(goalContextCapabilities.list, {
       ...(request.query?.after_cursor ? { after_cursor: String(request.query.after_cursor) } : {}),

@@ -70,6 +70,10 @@ test("Coding formal routes preserve drafts and isolate projects across server re
     assert.equal((await request(b+'/sessions/'+session+'/recovery')).status,404);
     assert.equal((await request(b+'/sessions/'+session+'/runs/other/recover','POST',{expected_version:1})).status,404);
     assert.equal((await request(a+'/sessions/'+session+'/runs/other/recover','POST',{expected_version:1},false)).status,403);
+    for (const suffix of ['/changeset', '/changeset/output', '/changeset/feedback']) {
+      assert.equal((await request(a+'/sessions/'+session+'/runs/other'+suffix,'POST',{},false)).status,403);
+      assert.equal((await request(b+'/sessions/'+session+'/runs/other'+suffix,'POST',{})).status,404);
+    }
     assert.equal((await request(a+'/sessions/'+session+'/recovery')).status,400);
 
     assert.equal((await request(b+'/sessions/'+session,'PATCH',{draft:'wrong project'})).status,404);

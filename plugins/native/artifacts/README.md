@@ -23,7 +23,7 @@ readArtifactBrowser 读取浏览模型，UI contribution 渲染目录/版本；o
 
 ## 接入与边界
 
-不复制 Artifact Store，不依赖生产者/消费者 Plugin 实现。引用精确版本；自定义 payload 没有兼容 renderer 时保留可读取的数据表达。Host 可提供已净化的业务正文及来源导航；当前已装配 Coding 固定报告，校验类型、来源签名和精确身份后使用原 Markdown 正文，不读取当前会话重新拼接。归档报告仍可历史阅读，内容不可用或来源不符则保留通用信息，不提供业务预览。
+不复制 Artifact Store，不依赖生产者/消费者 Plugin 实现。引用精确版本；自定义 payload 没有兼容 renderer 时保留可读取的数据表达。Host 可提供已净化的业务正文及来源导航；当前已装配 Coding 固定报告与固定变更，校验类型、来源签名、原任务身份和精确版本后使用原 Markdown 或逐条提案正文；变更沿用 Diff 渲染器显示原前后文本、批准决定及保存时执行状态，不读取当前会话或磁盘重新拼接。原生折叠按修改序号区分同一路径的多次提案，返回入口打开 Coding 原固定成果并可继续原任务。归档仍可历史阅读，内容不可用或来源不符则保留通用信息，不提供业务预览。标题优先使用 payload，缺失时使用 metadata.title，最后显示 Artifact ID；不改变原版本。
 
 工作区依赖：`@molis-ai/molis-work-contracts`。其他运行依赖见 [package.json](package.json)。
 

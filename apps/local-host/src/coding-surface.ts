@@ -166,6 +166,9 @@ async function startPlatform(ports: CodingSurfacePorts): Promise<Started> {
         reportReferences: () => artifacts.query.listArtifacts(ports.boardId, { artifact_type_id: CODING_REPORT_TYPE, schema_version: 1 })
           .filter(item => item.producer_plugin_id === CODING_PLUGIN_ID)
           .map(({ artifact_id, version }) => ({ artifact_id, version })),
+        changeSetReferences: () => artifacts.query.listArtifacts(ports.boardId, { artifact_type_id: "coding.changeset.v1", schema_version: 1 })
+          .filter(item => item.producer_plugin_id === CODING_PLUGIN_ID)
+          .map(({ artifact_id, version }) => ({ artifact_id, version })),
       } } : {}), replace_version: true },
       { definition: createWorkspacePlugin({ currentWorkspaceId: () => currentWorkspaceId(ports) }), replace_version: true },
       { definition: createFilesPlugin({ readable: () => currentWorkspaceId(ports) !== null }), replace_version: true },

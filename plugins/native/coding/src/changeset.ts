@@ -1,17 +1,32 @@
 import type { PluginArtifactClient } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { AgentReviewRequest, AgentReviewReceipt, AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { CODING_CHANGESET_TYPE, compareTexts, parseCodingChangeSet, parseFilePath, splitLines, type CodingChangeSet } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 
 export const codingChangeSetReference = (sessionId: string, runId: string) => ({ artifact_id: `coding-changeset:${encodeURIComponent(sessionId)}:${encodeURIComponent(runId)}`, version: 1 });
 
+/** Only a genuine fixed source may offer a return to its original Coding task. */
+export function codingChangeSetPreview(artifact: ArtifactVersionRecord | null) {
+  if (!artifact || artifact.artifact_type_id !== CODING_CHANGESET_TYPE || artifact.schema_version !== 1
+    || artifact.availability !== "available" || artifact.content_kind !== "inline"
+    || artifact.producer_plugin_id !== "io.molis.work.coding" || artifact.producer_binding_signature !== "official-coding-binding") return null;
+  try {
+    const change = parseCodingChangeSet(artifact.payload);
+    if (!change.origin?.session_id || change.scope !== "run-frozen") return null;
+    const reference = codingChangeSetReference(change.origin.session_id, change.run_id);
+    if (artifact.artifact_id !== reference.artifact_id || artifact.version !== reference.version) return null;
+    return { change, reference, title: typeof artifact.metadata.title === "string" ? artifact.metadata.title : "本轮固定变更",
+      session_id: change.origin.session_id, run_id: change.run_id, saved_at: artifact.created_at,
+      archived: artifact.lifecycle_state === "archived" };
+  } catch { return null; }
+}
+
 export function readCodingChangeSet(artifacts: PluginArtifactClient, sessionId: string, runId: string) {
   const reference = codingChangeSetReference(sessionId, runId), artifact = artifacts.read(reference);
   if (!artifact) return null;
-  if (artifact.artifact_type_id !== CODING_CHANGESET_TYPE || artifact.schema_version !== 1 || artifact.availability !== "available"
-    || artifact.producer_plugin_id !== "io.molis.work.coding" || artifact.producer_binding_signature !== "official-coding-binding") throw new Error("原固定变更不可用");
-  const change = parseCodingChangeSet(artifact.payload);
-  if (change.origin?.session_id !== sessionId || change.run_id !== runId || change.scope !== "run-frozen") throw new Error("固定变更与原会话不匹配");
-  return { change, reference, saved_at: artifact.created_at };
+  const saved = codingChangeSetPreview(artifact);
+  if (!saved) throw new Error("原固定变更不可用或与原会话不匹配");
+  return { change: saved.change, reference, saved_at: artifact.created_at };
 }
 
 export function createCodingChangeSet(sessionId: string, run: AgentRunView, rows: Array<{ request: AgentReviewRequest; receipt: AgentReviewReceipt | null }>): CodingChangeSet {

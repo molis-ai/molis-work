@@ -109,9 +109,9 @@ export function renderCodingDirectory(model: CodingUiModel): string {
     <label class="coding-search"><span>搜索标题</span><input class="mw-input" data-coding-search aria-label="搜索会话标题" placeholder="搜索会话标题"></label>
     <div class="coding-filters" role="group" aria-label="${p.escape("会话筛选")}">${filters}</div>
     <div class="coding-session-list" data-coding-sessions>${groups || renderEmpty(p)}</div>
-    <section data-coding-artifact-directory hidden aria-label="已保存的 Coding 报告">
-      <label class="coding-search"><span>搜索报告</span><input class="mw-input" data-coding-artifact-search aria-label="搜索固定报告" placeholder="搜索固定报告"></label>
-      <button class="mw-btn mw-btn--ghost" type="button" data-coding-artifact-refresh>刷新报告</button>
+    <section data-coding-artifact-directory hidden aria-label="已保存的 Coding 成果">
+      <label class="coding-search"><span>搜索成果</span><input class="mw-input" data-coding-artifact-search aria-label="搜索固定成果" placeholder="搜索固定成果"></label>
+      <button class="mw-btn mw-btn--ghost" type="button" data-coding-artifact-refresh>刷新成果</button>
       <p data-coding-artifact-status role="status"></p><div data-coding-artifact-list></div>
     </section>
     ${model.companion_directory ?? ""}

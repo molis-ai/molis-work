@@ -34,6 +34,9 @@ test("Coding freezes original multi-edit reviews, binds feedback to exact lines 
   try {
     const preview = await request(); assert.equal(preview.status, 200, JSON.stringify(preview.body)); assert.equal(preview.body.reference, null);
     assert.equal(preview.body.change.files.length, 2); assert.equal(preview.body.change.files[0].review.execution, "unknown"); assert.equal(preview.body.change.files[1].review.execution, "applied");
+    const priorMissing = reads;
+    assert.equal((await request(prefix+'?fixed=1')).status, 400);
+    assert.equal(reads, priorMissing, "missing fixed artifacts must not read runtime to rebuild");
     const saved = await request(prefix, "POST"); assert.equal(saved.status, 200); assert.equal(saved.body.output, null);
     assert.equal((await request(prefix.replace('/app/', '/foreign/'))).status, 400);
     const reading = await request(prefix+'?change_index=1'); assert.match(reading.body.html, /latest &lt;script&gt;/); assert.doesNotMatch(reading.body.html, /latest <script>/);
@@ -43,11 +46,18 @@ test("Coding freezes original multi-edit reviews, binds feedback to exact lines 
     assert.equal((await request(prefix+'/feedback', 'POST', { comments: [{ ...comments[0], line: 3 }] })).status, 400);
     assert.equal((await request(prefix+'/feedback', 'POST', { comments: [{ ...comments[0], change_index: 200 }] })).status, 400);
     assert.equal((await request(prefix+'/output', 'POST', { expected_reference: null })).status, 200);
+    const catalogPath = '/api/plugins/io.molis.work.coding/artifacts';
+    const catalog = await request(catalogPath);
+    assert.equal(catalog.status, 200); assert.equal(catalog.body.artifacts.length, 1);
+    const entry = catalog.body.artifacts[0];
+    assert.equal(entry.kind, "changeset"); assert.equal(entry.file_count, 2);
+    assert.deepEqual(entry.reference, saved.body.reference); assert.equal(entry.change, undefined);
     readable = false; const priorReads = reads;
     assert.deepEqual((await request(prefix, 'POST')).body.reference, saved.body.reference);
     const before = await request();
     await releaseCodingSurface(store, DEMO_BOARD_ID);
     assert.deepEqual((await request()).body, before.body); assert.equal(reads, priorReads);
+    assert.deepEqual((await request(catalogPath)).body, catalog.body);
     assert.equal((await request(prefix+'/feedback', 'POST', { comments })).status, 200);
     assert.equal(reads, priorReads);
     const diff = await request(`/api/plugins/io.molis.work.diff/state?artifact_id=${encodeURIComponent(saved.body.reference.artifact_id)}&version=1&change_index=1`);

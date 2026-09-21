@@ -32,7 +32,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   let recoveryLoading = false, recoveryBusy = false, recoveryKey = '';
   let reportOutput=null, artifactRows=[], artifactTicket=0;
   let reportRun = '', reportTicket = 0, reportSaving = false, reportTrigger, dialogueOffset = 0;
-  let progressView=null,progressTicket=0,progressSaving=false,reportItem='',itemTicket=0;
+  let progressView=null,progressTicket=0,progressSaving=false,reportItem='',changeItem='',itemTicket=0;
   let goalRows=[],goalCursor=null,goalChoice=null,goalTicket=0,goalReading=0,goalSaving=false;
   const status = (message, error = false) => { q('[data-coding-status]').textContent = message; q('[data-coding-status]').dataset.error = String(error); };
   const api = async (path, method = 'GET', body) => {
@@ -95,9 +95,11 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     return next.then(() => { if (current === id && input.value === value) q('[data-coding-draft-status]').textContent = '草稿已保存；模型与方式用于下一轮。'; });
   };
   const flushDraft = () => { clearTimeout(draftTimer); return current ? saveDraft(current,input.value) : Promise.resolve(); };
+  const returnFromChange = () => {const fromArtifact=changeItem;changeItem='';renderArtifacts();if(fromArtifact)host.openItem('coding',current,state.sessions.find(item=>item.session_id===current)?.title);};
   const changeReview = (${CODING_CHANGESET_CLIENT_FACTORY_SCRIPT})({root,q,api,turns,current:()=>current,closeReport:()=>closeReport(),
+    returnToTask:returnFromChange,onRunOpen:()=>{changeItem='';reportItem='';renderArtifacts();},
     appendDraft:async(task)=>{const id=current,next=input.value.endsWith(task)?input.value:(input.value?input.value+'\\n\\n':'')+task;if(next.length>100000)throw new Error('意见与现有草稿合计过长，请减少意见或先处理现有草稿；意见仍然保留。');clearTimeout(draftTimer);input.value=next;rememberDraft(id,input.value);await saveDraft(id,input.value);},
-    focusDraft:()=>{input.focus();status('行级意见已加入原任务草稿；请确认执行方式后发送。');}});
+    focusDraft:()=>{returnFromChange();input.focus();status('行级意见已加入原任务草稿；请确认执行方式后发送。');}});
   const materialKey = ref => ref.artifact_id+'@'+ref.version;
   let materialRows=[], materialTicket=0;
   const openMaterials = async () => {
@@ -155,14 +157,14 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     const list=directory.querySelector('[data-coding-artifact-list]'),needle=directory.querySelector('[data-coding-artifact-search]').value.trim().toLocaleLowerCase();list.replaceChildren();
     for(const item of artifactRows.filter(item=>item.title.toLocaleLowerCase().includes(needle))) {
       const row=document.createElement('button');row.type='button';row.className='mw-btn mw-btn--ghost coding-session-row';
-      row.dataset.codingArtifact=item.reference.artifact_id;row.setAttribute('aria-current',String(reportItem===item.reference.artifact_id));
-      const title=document.createElement('strong'),meta=document.createElement('span');title.textContent=item.title;meta.textContent='固定 v'+item.reference.version+' · '+new Date(item.saved_at).toLocaleString()+(item.archived?' · 已归档':'');row.append(title,meta);list.append(row);
+      row.dataset.codingArtifact=item.reference.artifact_id;row.setAttribute('aria-current',String((reportItem || changeItem)===item.reference.artifact_id));
+      const title=document.createElement('strong'),meta=document.createElement('span');title.textContent=item.title;meta.textContent=(item.kind==='changeset'?'固定变更 · '+item.file_count+' 个修改':'执行报告')+' · v'+item.reference.version+' · '+new Date(item.saved_at).toLocaleString()+(item.archived?' · 已归档':'');row.append(title,meta);list.append(row);
     }
-    if(!list.children.length)list.textContent=artifactRows.length?'没有匹配的报告。':'还没有可读取的固定报告。打开已结束的一轮，选择「保存固定报告」。';
+    if(!list.children.length)list.textContent=artifactRows.length?'没有匹配的成果。':'还没有可读取的固定成果。打开已结束的一轮，保存报告或固定变更。';
   };
   const loadArtifacts = async () => {
-    const ticket=++artifactTicket,notice=directory.querySelector('[data-coding-artifact-status]');notice.textContent='正在读取已保存报告…';
-    try{const value=await api('/reports');if(ticket!==artifactTicket)return;artifactRows=value.reports;renderArtifacts();notice.textContent='只列出已保存的固定报告；打开不会开始新执行。';}
+    const ticket=++artifactTicket,notice=directory.querySelector('[data-coding-artifact-status]');notice.textContent='正在读取已保存成果…';
+    try{const value=await api('/artifacts');if(ticket!==artifactTicket)return;artifactRows=value.artifacts;renderArtifacts();notice.textContent='只列出已保存的报告与固定变更；打开不会开始新执行。';}
     catch(error){if(ticket===artifactTicket)notice.textContent=error.message+'；可点击刷新重试。';}
   };
   const renderDirectory = () => {
@@ -671,13 +673,14 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     input.disabled=true; selectionTask=readCurrent(true);await selectionTask;
   };
   const openCodingItem = async(itemId) => {
-    const ticket=++itemTicket;reportItem='';
-    if(!itemId.startsWith('coding-report:')){await select(itemId);if(ticket===itemTicket)closeReport();return;}
-    const parts=itemId.slice('coding-report:'.length).split(':');
-    if(parts.length!==2)throw new Error('固定报告引用无效');
+    const ticket=++itemTicket;reportItem='';changeItem='';
+    const prefix=itemId.startsWith('coding-changeset:')?'coding-changeset:':itemId.startsWith('coding-report:')?'coding-report:':'';
+    if(!prefix){await select(itemId);if(ticket===itemTicket){closeReport();changeReview.close();renderArtifacts();}return;}
+    const parts=itemId.slice(prefix.length).split(':');
+    if(parts.length!==2)throw new Error('固定成果引用无效');
     const id=decodeURIComponent(parts[0]),runId=decodeURIComponent(parts[1]);
     await select(id);if(ticket!==itemTicket || current!==id)return;
-    reportItem=itemId;await showReport(runId);if(ticket===itemTicket)renderArtifacts();
+    if(prefix==='coding-changeset:'){changeItem=itemId;await changeReview.openFixed(runId);}else{reportItem=itemId;await showReport(runId);}if(ticket===itemTicket)renderArtifacts();
   };
   document.addEventListener('molis-work:plugin-item-selected',(event)=>{ if(event.detail.plugin==='coding' && event.detail.itemId) void openCodingItem(event.detail.itemId).catch(error=>status(error.message,true)); });
   const create = async() => { const result=await api('/sessions','POST',{title:'新编码会话'}); await refreshState(); host.openItem('coding',result.session.session_id,result.session.title); await select(result.session.session_id); input.focus(); };
@@ -686,7 +689,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     try {
       if(target.matches('[data-coding-artifact-refresh]')) await loadArtifacts();
       if(target.matches('[data-coding-artifact]')) {event.preventDefault();host.openItem('coding',target.dataset.codingArtifact,target.querySelector('strong').textContent);}
-      if(target.matches('[data-coding-report-open]')) {reportItem='';renderArtifacts();reportTrigger=target;await showReport(target.dataset.codingReportOpen);}
+      if(target.matches('[data-coding-report-open]')) {reportItem='';changeItem='';renderArtifacts();reportTrigger=target;await showReport(target.dataset.codingReportOpen);}
       if(target.matches('[data-coding-report-close]')) {const fromArtifact=reportItem;reportItem='';closeReport(true);if(fromArtifact)host.openItem('coding',current,state.sessions.find(item=>item.session_id===current)?.title);}
       if(target.matches('[data-coding-report-progress]') || target.matches('[data-coding-progress-refresh]'))await openProgress();
       if(target.matches('[data-coding-progress-close]'))closeProgress();

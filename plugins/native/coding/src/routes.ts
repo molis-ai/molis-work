@@ -8,7 +8,7 @@ import { CODING_REPORT_TYPE } from "./artifacts.js";
 import { codingReportPreview, codingReportReference, createCodingExecutionReport, readCodingExecutionReport } from "./report.js";
 import { goalContextCapabilities, goalProgressCapabilities } from "@molis-ai/molis-work-contracts/modules/goals";
 import { currentGoalContext, savedGoalContext, saveGoalContext, resolveGoalContext, runGoalContext } from "./goal-context.js";
-import { codingChangeSetReference, readCodingChangeSet, createCodingChangeSet, codingChangeFeedback } from "./changeset.js";
+import { codingChangeSetReference, codingChangeSetPreview, readCodingChangeSet, createCodingChangeSet, codingChangeFeedback } from "./changeset.js";
 import { CODING_CHANGESET_TYPE } from "./artifacts.js";
 
 export interface CodingModelChoice { provider_id: string; model_id: string; label: string }
@@ -16,6 +16,7 @@ export interface CodingExecutionPorts {
   sessions: CodingSessionStore;
   materialReferences?(): import("@molis-ai/molis-work-contracts/modules/artifacts").ArtifactReference[];
   reportReferences?(): import("@molis-ai/molis-work-contracts/modules/artifacts").ArtifactReference[];
+  changeSetReferences?(): import("@molis-ai/molis-work-contracts/modules/artifacts").ArtifactReference[];
   goalTitle(goalId: string): string | undefined;
   ready(): Promise<void>;
   models(): Promise<readonly CodingModelChoice[]>;
@@ -268,6 +269,19 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         return [entry];
       });
       return { reports };
+    }),
+    route("coding.artifacts", async (_request, _api, execution) => {
+      if (!execution.reportReferences || !execution.changeSetReferences) throw new Error("成果目录尚未装配");
+      const artifacts = [...execution.reportReferences(), ...execution.changeSetReferences()].flatMap(reference => {
+        const record = context.services!.artifacts.read(reference);
+        const report = codingReportPreview(record);
+        if (report) { const { body_markdown: _body, ...entry } = report; return [{ ...entry, kind: "report", file_count: 0 }]; }
+        const saved = codingChangeSetPreview(record);
+        if (!saved) return [];
+        const { change, ...entry } = saved;
+        return [{ ...entry, kind: "changeset", file_count: change.files.length }];
+      }).sort((a, b) => b.saved_at.localeCompare(a.saved_at) || a.reference.artifact_id.localeCompare(b.reference.artifact_id));
+      return { artifacts };
     }),
     route("coding.materials", async (request, _api, execution) => {
       const record = selected(request, execution);

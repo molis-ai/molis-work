@@ -1,11 +1,11 @@
 /** Fixed review reader; only the existing composer can submit model work. */
 export const CODING_CHANGESET_CLIENT_FACTORY_SCRIPT = `(ports) => {
   const {root,q,api}=ports;
-  let runId='',ticket=0,index=0,value=null,comments=[];
+  let runId='',ticket=0,index=0,value=null,comments=[],fixed=false;
   const reader=q('[data-coding-change-reader]'),message=q('[data-coding-change-status]');
   const key=()=> 'molis-coding-feedback:'+root.dataset.codingPrefix+':'+ports.current()+':'+runId;
   const remember=()=>{try{localStorage.setItem(key(),JSON.stringify(comments));}catch{message.textContent='意见暂未保存到本机，请保留当前窗口。';}};
-  const close=()=>{ticket++;runId='';value=null;reader.hidden=true;};
+  const close=()=>{ticket++;runId='';value=null;fixed=false;reader.hidden=true;};
   const renderComments=()=>{
     const list=q('[data-coding-feedback-list]');list.replaceChildren();
     comments.forEach((comment,n)=>{
@@ -19,20 +19,20 @@ export const CODING_CHANGESET_CLIENT_FACTORY_SCRIPT = `(ports) => {
     });
     q('[data-coding-feedback-return]').disabled=!comments.length || !value?.reference;
   };
-  const open=async(nextRun,save=false,nextIndex=0)=>{
+  const open=async(nextRun,save=false,nextIndex=0,requireFixed=false)=>{
     const id=ports.current(),token=++ticket,scrollToStart=!runId || runId!==nextRun || index!==nextIndex;
     if(!runId)ports.closeReport();
     if(runId!==nextRun){comments=[];runId=nextRun;try{const saved=JSON.parse(localStorage.getItem(key()) || '[]');if(Array.isArray(saved))comments=saved;}catch{}}
-    index=nextIndex;value=null;reader.hidden=false;
+    index=nextIndex;fixed=requireFixed;value=null;reader.hidden=false;
     q('[data-coding-change-save]').disabled=true;q('[data-coding-feedback-return]').disabled=true;
     message.textContent=save?'正在保存原审查的固定版本…':'正在读取本轮审查…';
     try{
-      const result=await api('/sessions/'+encodeURIComponent(id)+'/runs/'+encodeURIComponent(nextRun)+'/changeset?change_index='+index,save?'POST':'GET');
+      const result=await api('/sessions/'+encodeURIComponent(id)+'/runs/'+encodeURIComponent(nextRun)+'/changeset?change_index='+index+(requireFixed?'&fixed=1':''),save?'POST':'GET');
       if(ticket!==token || id!==ports.current())return;
       value=result;q('[data-coding-change-body]').innerHTML=result.html;
       const statuses={applied:'已执行',failed:'执行失败',unknown:'执行结果未知','not-applied':'未执行'}, decisions={pending:'待审',approved:'已批准',rejected:'已拒绝',cancelled:'已取消',expired:'已过期'};
       const list=q('[data-coding-change-files]');list.replaceChildren();
-      result.change.files.forEach((file,n)=>{const button=document.createElement('button');button.type='button';button.className='mw-btn mw-btn--ghost';button.textContent='修改 '+(n+1)+' · '+file.path+' · '+(decisions[file.review?.decision] || '旧版记录')+' / '+(statuses[file.review?.execution] || '未知');button.setAttribute('aria-pressed',String(n===index));button.addEventListener('click',()=>{void open(nextRun,false,n);});list.append(button);});
+      result.change.files.forEach((file,n)=>{const button=document.createElement('button');button.type='button';button.className='mw-btn mw-btn--ghost';button.textContent='修改 '+(n+1)+' · '+file.path+' · '+(decisions[file.review?.decision] || '旧版记录')+' / '+(statuses[file.review?.execution] || '未知');button.setAttribute('aria-pressed',String(n===index));button.addEventListener('click',()=>{void open(nextRun,false,n,fixed);});list.append(button);});
       message.textContent=(result.reference?'固定 v'+result.reference.version+' · '+new Date(result.saved_at).toLocaleString('zh-CN'):'尚未保存；先固定原审查，再按行反馈。')+' 这里是本轮文本审查，包含未执行提案；命令和外部操作请看原回执。';
       q('[data-coding-change-save]').disabled=Boolean(result.reference);
       const output=q('[data-coding-change-output]'),selected=result.reference && result.output?.artifact_id===result.reference.artifact_id && result.output?.version===result.reference.version;
@@ -41,12 +41,12 @@ export const CODING_CHANGESET_CLIENT_FACTORY_SCRIPT = `(ports) => {
   };
   root.addEventListener('click',async(event)=>{
     const target=event.target.closest('button');if(!target)return;
-    if(target.hasAttribute('data-coding-change-open')){await open(target.dataset.codingChangeOpen);return;}
-    if(target.hasAttribute('data-coding-change-close')){close();return;}
-    if(target.hasAttribute('data-coding-change-save') && runId){await open(runId,true,index);return;}
+    if(target.hasAttribute('data-coding-change-open')){ports.onRunOpen?.();await open(target.dataset.codingChangeOpen);return;}
+    if(target.hasAttribute('data-coding-change-close')){close();ports.returnToTask?.();return;}
+    if(target.hasAttribute('data-coding-change-save') && runId){await open(runId,true,index,fixed);return;}
     if(target.hasAttribute('data-coding-change-output') && value?.reference){
       const id=ports.current(),run=runId,token=ticket;target.disabled=true;
-      try{await api('/sessions/'+encodeURIComponent(id)+'/runs/'+encodeURIComponent(run)+'/changeset/output','POST',{expected_reference:value.output});if(id===ports.current() && token===ticket)await open(run,false,index);}
+      try{await api('/sessions/'+encodeURIComponent(id)+'/runs/'+encodeURIComponent(run)+'/changeset/output','POST',{expected_reference:value.output});if(id===ports.current() && token===ticket)await open(run,false,index,fixed);}
       catch(error){if(token===ticket){message.textContent=error.message;target.disabled=false;}}return;
     }
     if(target.hasAttribute('data-coding-line') && value?.reference){
@@ -65,7 +65,7 @@ export const CODING_CHANGESET_CLIENT_FACTORY_SCRIPT = `(ports) => {
       }catch(error){if(ticket===token){message.textContent=error.message;target.disabled=false;}}
     }
   });
-  return {close,active:()=>Boolean(runId),render:(runs)=>{
+  return {close,openFixed:(run)=>open(run,false,0,true),active:()=>Boolean(runId),render:(runs)=>{
     const list=q('[data-coding-changes-list]'),ended=runs.filter(run=>['completed','failed','stopped','cancelled'].includes(run.phase));
     q('[data-coding-changes]').hidden=!ended.length;
     for(const run of ended){let button=[...list.children].find(node=>node.dataset.codingChangeOpen===run.ref.run_id);if(!button){button=document.createElement('button');button.type='button';button.className='mw-btn';button.dataset.codingChangeOpen=run.ref.run_id;list.append(button);}button.textContent='第 '+(runs.indexOf(run)+1)+' 轮 · 查看固定变更';}

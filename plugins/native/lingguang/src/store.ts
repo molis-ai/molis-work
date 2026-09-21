@@ -50,7 +50,7 @@ export class LingguangStore {
   list(projectId: string): LingguangSpark[] {
     const project_id = normalizeProjectId(projectId);
     const rows = this.db.prepare(
-      "SELECT * FROM sparks WHERE project_id = ? AND status = 'inbox' ORDER BY datetime(created_at) DESC, id DESC",
+      "SELECT * FROM sparks WHERE project_id = ? AND status = 'inbox' ORDER BY created_at DESC, rowid DESC",
     ).all(project_id) as unknown as SparkRow[];
     return rows.map(fromSparkRow);
   }
@@ -69,7 +69,6 @@ export class LingguangStore {
     const project_id = normalizeProjectId(input.project_id);
     const body = normalizeBody(input.body ?? "");
     const title = normalizeTitle(input.title ?? "", body);
-    if (!title && !body.trim()) throw new LingguangError("lingguang.invalid", "先写下标题或正文");
     const record: LingguangSpark = {
       id: crypto.randomUUID(),
       project_id,

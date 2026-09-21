@@ -130,13 +130,19 @@ test("工作台挂上灵光空态、确认框和快记区", () => {
   assert.match(html, /data-lingguang-brainstorm/);
   assert.match(html, /这次不会写入 Inbox 或 Goal/);
   assert.doesNotMatch(html, /window\.confirm/);
+  const lingguang = html.slice(html.indexOf('data-lingguang="workbench"'), html.indexOf("data-lingguang-confirm"));
+  assert.match(lingguang, /plugin-stage-list feed-stage-list feed-stage-tree/);
+  assert.match(lingguang, /tree-create/);
+  assert.match(lingguang, /class="mw-empty"/);
+  assert.doesNotMatch(lingguang, /lingguang-field/);
 });
 
 test("工作台客户端脚本挂上灵光后仍能解析，保存不重绘编辑器，确认不用 window.confirm", () => {
   const script = renderMolisWorkWorkbenchClientScript();
   assert.doesNotThrow(() => new Function(script));
-  assert.match(script, /\["shelf","lingguang","functions","form","dataset","ppt"\]/);
+  assert.match(script, /\["shelf","lingguang","functions","pages","form","dataset","ppt"\]/);
   assert.doesNotMatch(saveFunctionSource(LINGGUANG_CLIENT_FACTORY_SCRIPT), /fillEditor/);
+  assert.match(LINGGUANG_CLIENT_FACTORY_SCRIPT, /feed-stage-entry directory-list-row/);
   assert.doesNotMatch(LINGGUANG_CLIENT_FACTORY_SCRIPT, /window\.confirm/);
   assert.doesNotMatch(LINGGUANG_CLIENT_FACTORY_SCRIPT, /openai|anthropic|api\.openai/i);
   assert.match(LINGGUANG_CLIENT_FACTORY_SCRIPT, /showNote/);

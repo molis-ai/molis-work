@@ -10,7 +10,12 @@ import { listFeedSourceCatalog } from "./feed-source-service.js";
 import { createLocalFeedConnectorService } from "./feed-connector-service.js";
 import { scheduleServiceFor, scheduleViewFingerprint } from "./schedule-runtime.js";
 import { createScheduleRouteHandlerPorts } from "@molis-ai/molis-work-plugin-schedule";
-import { createFunctionsJudgmentPort, readFunctionScenesView } from "./functions-host.js";
+import { readFunctionScenesView, withFunctionsService } from "./functions-host.js";
+import {
+  FEED_CAPTURE_SCENE_ID,
+  HOME_DOCK_SCENE_ID,
+  INBOX_NEXT_SCENE_ID,
+} from "@molis-ai/molis-work-contracts/modules/functions";
 
 export interface WebViewOptions {
   databasePath: string; boardId: string; demo?: boolean; projectRoot?: string;
@@ -28,20 +33,37 @@ export type MolisWorkWebViewCache = Map<string, MolisWorkWebViewCacheEntry>;
 
 function feedDirectorySnapshot(feed: FeedApplication, boardId: string, homeDirectory?: string): FeedSnapshot {
   const snapshot = feed.snapshot(boardId);
-  const judgments = homeDirectory ? createFunctionsJudgmentPort(homeDirectory) : null;
-  return {
-    ...snapshot,
-    inbox_entries: snapshot.inbox_entries.map((entry) => ({
-      ...entry,
-      suggested_behavior_ids: judgments?.latest("inbox_entry", entry.entry_id, boardId)?.suggested_behavior_ids ?? [],
-    })),
-    feed_items: snapshot.feed_items.map((item) => ({
-      ...item,
-      body: null,
-      suggested_behavior_ids: judgments?.latest("feed_item", item.item_id, boardId)?.suggested_behavior_ids ?? [],
-      materials: item.materials.map((material) => ({ ...material, content: undefined })),
-    })),
-  };
+  const hideBodies = (item: FeedSnapshot["feed_items"][number]) => ({
+    ...item,
+    body: null,
+    materials: item.materials.map((material) => ({ ...material, content: undefined })),
+  });
+  if (!homeDirectory) {
+    return {
+      ...snapshot,
+      feed_items: snapshot.feed_items.map(hideBodies),
+    };
+  }
+  return withFunctionsService(homeDirectory, (service) => {
+    const suggested = (
+      kind: "inbox_entry" | "feed_item",
+      id: string,
+      sceneId: string,
+    ) => service.latestJudgment(kind, id, boardId, sceneId)?.suggested_behavior_ids ?? [];
+    return {
+      ...snapshot,
+      inbox_entries: snapshot.inbox_entries.map((entry) => ({
+        ...entry,
+        suggested_behavior_ids: suggested("inbox_entry", entry.entry_id, INBOX_NEXT_SCENE_ID),
+        home_dock_suggested_behavior_ids: suggested("inbox_entry", entry.entry_id, HOME_DOCK_SCENE_ID),
+      })),
+      feed_items: snapshot.feed_items.map((item) => ({
+        ...hideBodies(item),
+        suggested_behavior_ids: suggested("feed_item", item.item_id, FEED_CAPTURE_SCENE_ID),
+        home_dock_suggested_behavior_ids: suggested("feed_item", item.item_id, HOME_DOCK_SCENE_ID),
+      })),
+    };
+  });
 }
 
 function scheduleProjection(db: LocalProjectDatabase["db"]): Pick<MolisWorkWebView, "schedule_jobs" | "schedule_tasks"> {

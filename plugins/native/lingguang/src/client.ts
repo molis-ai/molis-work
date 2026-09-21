@@ -1,4 +1,4 @@
-/** Lingguang workbench client: capture, stream, edit, discard, local brainstorm. */
+/** Lingguang workbench client: capture, list, edit, discard, local brainstorm. */
 export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
   const { translate: L } = host;
   const workbench = document.querySelector("[data-lingguang=workbench]");
@@ -6,11 +6,12 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
   const list = workbench.querySelector("[data-lingguang=directory]");
   const rowsEl = workbench.querySelector("[data-lingguang-rows]");
   const empty = workbench.querySelector("[data-lingguang-empty]");
-  const countEl = workbench.querySelector("[data-lingguang-count]");
   const workspace = workbench.querySelector("[data-lingguang-stage-workspace]");
-  const captureTitle = workbench.querySelector("[data-lingguang-capture-title]");
-  const captureBody = workbench.querySelector("[data-lingguang-capture-body]");
-  const composer = workbench.querySelector("[data-lingguang-composer]");
+  const titleEl = workbench.querySelector("[data-lingguang-editor-title]");
+  const titleInput = workbench.querySelector("[data-lingguang-title]");
+  const bodyInput = workbench.querySelector("[data-lingguang-body]");
+  const editorPane = workbench.querySelector("[data-lingguang-pane=editor]");
+  const chatPane = workbench.querySelector("[data-lingguang-pane=chat]");
   const selectionBar = workbench.querySelector("[data-lingguang-selection]");
   const selectedCountEl = workbench.querySelector("[data-lingguang-selected-count]");
   const note = workbench.querySelector("[data-lingguang-note]");
@@ -22,9 +23,23 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
   const chatInput = workbench.querySelector("[data-lingguang-chat-input]");
   let records = [];
   let selectedIds = new Set();
-  let expandedId = null;
+  let selected = null;
   let conversation = null;
   let saveTimer = 0;
+  const kindChip = (kind, label) => {
+    const node = document.createElement("span");
+    node.className = "mw-status plugin-stage-kind";
+    node.dataset.kind = kind;
+    node.textContent = label;
+    return node;
+  };
+  const textCell = (className, text) => {
+    const node = document.createElement("span");
+    node.className = className;
+    node.title = text;
+    node.textContent = text;
+    return node;
+  };
 
   const projectId = () => (typeof host.projectId === "function" ? host.projectId() : host.projectId) || "";
   const headers = () => typeof molisWorkControlHeaders === "function"
@@ -66,13 +81,26 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
   });
   const previewOf = (record) => {
     const line = (record.body || "").trim().split(/\\r?\\n/)[0] || "";
-    return line && line !== record.title ? line : "";
+    return line && line !== record.title ? line : L("还没有正文");
+  };
+  const whenOf = (iso) => {
+    if (!iso) return "";
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return "";
+    const now = new Date();
+    const sameDay = date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth() && date.getDate() === now.getDate();
+    if (sameDay) return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+    return (date.getMonth() + 1) + "/" + date.getDate();
   };
   const selectedRecords = () => records.filter((item) => selectedIds.has(item.id));
   const syncSelectionBar = () => {
     const count = selectedIds.size;
-    selectionBar.hidden = count === 0;
-    selectedCountEl.textContent = count ? L("已选") + " " + count : "";
+    selectionBar.hidden = count < 2;
+    selectedCountEl.textContent = count >= 2 ? L("已选") + " " + count : "";
+  };
+  const showChat = (on) => {
+    editorPane.hidden = on;
+    chatPane.hidden = !on;
   };
   const patchPreview = (record) => {
     const row = rowsEl.querySelector('[data-lingguang-id="' + record.id + '"]');
@@ -83,73 +111,63 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (preview) preview.textContent = previewOf(record);
   };
   const fillEditor = (record) => {
-    expandedId = record.id;
-    const row = rowsEl.querySelector('[data-lingguang-id="' + record.id + '"]');
-    if (!row) return;
-    const titleInput = row.querySelector("[data-lingguang-title]");
-    const bodyInput = row.querySelector("[data-lingguang-body]");
-    if (titleInput) titleInput.value = record.title;
-    if (bodyInput) bodyInput.value = record.body || "";
+    selected = record;
+    conversation = null;
+    workbench.setAttribute("data-expanded", "true");
+    workspace.hidden = false;
+    showChat(false);
+    titleEl.textContent = record.title;
+    titleInput.value = record.title;
+    bodyInput.value = record.body || "";
+    markSelected(record.id);
+  };
+  const closeWorkspace = () => {
+    clearTimeout(saveTimer);
+    selected = null;
+    conversation = null;
+    selectedIds = new Set();
+    workbench.setAttribute("data-expanded", "false");
+    workspace.hidden = true;
+    showChat(false);
+    markSelected("");
+    syncSelectionBar();
+  };
+  const markSelected = (id) => {
+    rowsEl.querySelectorAll("[data-lingguang-id]").forEach((row) => {
+      const on = selectedIds.has(row.dataset.lingguangId) || row.dataset.lingguangId === id;
+      row.classList.toggle("is-selected", on);
+      row.setAttribute("aria-selected", String(on));
+    });
   };
   const renderRow = (record) => {
-    const expanded = record.id === expandedId;
-    const row = document.createElement("article");
-    row.className = "lingguang-row" + (expanded ? " is-expanded" : "");
+    const item = document.createElement("article");
+    item.className = "feed-stage-item";
+    const row = document.createElement("button");
+    row.type = "button";
+    const on = selectedIds.has(record.id) || selected?.id === record.id;
+    row.className = "feed-stage-entry directory-list-row" + (on ? " is-selected" : "");
     row.dataset.lingguangId = record.id;
-    const check = document.createElement("input");
-    check.type = "checkbox";
-    check.className = "lingguang-row__check";
-    check.dataset.lingguangCheck = "true";
-    check.checked = selectedIds.has(record.id);
-    const main = document.createElement("div");
-    main.className = "lingguang-row__main";
-    const open = document.createElement("button");
-    open.type = "button";
-    open.className = "lingguang-row__open";
-    open.dataset.lingguangOpen = "true";
+    row.setAttribute("aria-selected", String(on));
+    const leading = document.createElement("span");
+    leading.className = "feed-stage-leading";
     const title = document.createElement("strong");
     title.dataset.lingguangPreview = "true";
+    title.title = record.title;
     title.textContent = record.title;
-    const snippet = document.createElement("small");
+    leading.append(title);
+    const snippet = textCell("plugin-stage-fact", previewOf(record));
     snippet.dataset.lingguangSnippet = "true";
-    snippet.textContent = previewOf(record);
-    open.append(title, snippet);
-    main.append(open);
-    if (expanded) {
-      const editor = document.createElement("div");
-      editor.className = "lingguang-editor";
-      const titleField = document.createElement("label");
-      titleField.className = "lingguang-field";
-      titleField.append(L("标题"));
-      const titleInput = document.createElement("input");
-      titleInput.className = "mw-input";
-      titleInput.dataset.lingguangTitle = "true";
-      titleInput.autocomplete = "off";
-      titleInput.value = record.title;
-      titleField.append(titleInput);
-      const bodyField = document.createElement("label");
-      bodyField.className = "lingguang-field";
-      bodyField.append(L("正文"));
-      const bodyInput = document.createElement("textarea");
-      bodyInput.className = "mw-textarea";
-      bodyInput.dataset.lingguangBody = "true";
-      bodyInput.rows = 4;
-      bodyInput.value = record.body || "";
-      bodyField.append(bodyInput);
-      editor.append(titleField, bodyField);
-      main.append(editor);
-    }
-    const discard = document.createElement("button");
-    discard.type = "button";
-    discard.className = "mw-btn mw-btn--ghost";
-    discard.dataset.lingguangDiscardOne = "true";
-    discard.textContent = L("丢掉");
-    row.append(check, main, discard);
-    return row;
+    row.append(
+      leading,
+      kindChip("lingguang", L("灵光")),
+      snippet,
+      textCell("plugin-stage-meta", whenOf(record.created_at)),
+    );
+    item.append(row);
+    return item;
   };
   const renderList = () => {
     empty.hidden = records.length > 0;
-    countEl.textContent = records.length + " " + L("条");
     rowsEl.replaceChildren();
     records.forEach((record) => rowsEl.append(renderRow(record)));
     syncSelectionBar();
@@ -158,21 +176,22 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     const index = records.findIndex((item) => item.id === record.id);
     if (index >= 0) records[index] = record;
     else records.unshift(record);
+    if (selected?.id === record.id) {
+      selected = record;
+      titleEl.textContent = record.title;
+    }
+    renderList();
     patchPreview(record);
-    countEl.textContent = records.length + " " + L("条");
-    empty.hidden = records.length > 0;
   };
   const save = async () => {
-    if (!expandedId) return null;
-    const row = rowsEl.querySelector('[data-lingguang-id="' + expandedId + '"]');
-    if (!row) return null;
-    const titleInput = row.querySelector("[data-lingguang-title]");
-    const bodyInput = row.querySelector("[data-lingguang-body]");
-    const payload = await request("POST", "/api/lingguang/" + encodeURIComponent(expandedId), {
-      title: titleInput?.value || "",
-      body: bodyInput?.value || "",
+    if (!selected) return null;
+    const payload = await request("POST", "/api/lingguang/" + encodeURIComponent(selected.id), {
+      title: titleInput.value,
+      body: bodyInput.value,
     });
     remember(payload.spark);
+    if (document.activeElement !== titleInput) titleInput.value = payload.spark.title;
+    if (document.activeElement !== bodyInput) bodyInput.value = payload.spark.body || "";
     return payload.spark;
   };
   const queueSave = () => {
@@ -183,8 +202,15 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     const payload = await request("GET", "/api/lingguang");
     records = payload.sparks || [];
     selectedIds = new Set([...selectedIds].filter((id) => records.some((item) => item.id === id)));
-    if (expandedId && !records.some((item) => item.id === expandedId)) expandedId = null;
-    renderList();
+    if (selected && !records.some((item) => item.id === selected.id)) closeWorkspace();
+    else renderList();
+    if (selected) {
+      const next = records.find((item) => item.id === selected.id);
+      if (next) {
+        selected = next;
+        markSelected(next.id);
+      }
+    }
   };
   const discardIds = async (ids) => {
     if (!ids.length) return;
@@ -193,8 +219,8 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     await request("POST", "/api/lingguang/discard", { ids });
     records = records.filter((item) => !ids.includes(item.id));
     ids.forEach((id) => selectedIds.delete(id));
-    if (ids.includes(expandedId)) expandedId = null;
-    renderList();
+    if (selected && ids.includes(selected.id)) closeWorkspace();
+    else renderList();
   };
   const renderMessages = (messages) => {
     messagesEl.replaceChildren();
@@ -222,25 +248,22 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     });
   };
   const openBrainstorm = async () => {
-    const ids = [...selectedIds];
+    const ids = selectedIds.size ? [...selectedIds] : (selected ? [selected.id] : []);
     if (!ids.length) throw new Error(L("先选至少一条"));
     await save().catch(() => {});
     const payload = await request("POST", "/api/lingguang/conversations", { spark_ids: ids });
     conversation = payload.conversation;
-    renderContext(payload.sparks || []);
-    renderMessages(payload.messages || []);
     workbench.setAttribute("data-expanded", "true");
     workspace.hidden = false;
+    showChat(true);
+    titleEl.textContent = L("头脑风暴");
+    renderContext(payload.sparks || []);
+    renderMessages(payload.messages || []);
     chatInput.value = "";
     chatInput.focus();
   };
-  const closeBrainstorm = () => {
-    conversation = null;
-    workbench.setAttribute("data-expanded", "false");
-    workspace.hidden = true;
-  };
   const copyDispatch = async () => {
-    const items = selectedRecords();
+    const items = selectedRecords().length ? selectedRecords() : (selected ? [selected] : []);
     if (!items.length) throw new Error(L("先选至少一条"));
     if (!dispatchDialog) return;
     dispatchDialog.returnValue = "cancel";
@@ -262,72 +285,67 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     }
   };
 
-  list.addEventListener("click", async (event) => {
+  workbench.addEventListener("click", async (event) => {
     try {
-      const check = event.target.closest("[data-lingguang-check]");
-      if (check) {
-        const id = check.closest("[data-lingguang-id]").dataset.lingguangId;
-        if (check.checked) selectedIds.add(id);
-        else selectedIds.delete(id);
-        syncSelectionBar();
+      if (event.target.closest("[data-lingguang-capture]")) {
+        const payload = await request("POST", "/api/lingguang", {});
+        selectedIds = new Set([payload.spark.id]);
+        remember(payload.spark);
+        fillEditor(payload.spark);
+        titleInput.focus();
+        titleInput.select();
         return;
       }
       if (event.target.closest("[data-lingguang-clear-selection]")) {
-        selectedIds.clear();
-        rowsEl.querySelectorAll("[data-lingguang-check]").forEach((check) => { check.checked = false; });
-        syncSelectionBar();
+        selectedIds = selected ? new Set([selected.id]) : new Set();
+        renderList();
         return;
       }
-      const discardOne = event.target.closest("[data-lingguang-discard-one]");
-      if (discardOne) {
-        await discardIds([discardOne.closest("[data-lingguang-id]").dataset.lingguangId]);
+      if (event.target.closest("[data-lingguang-discard-current]")) {
+        if (selected) await discardIds([selected.id]);
         return;
       }
       if (event.target.closest("[data-lingguang-discard]")) {
-        await discardIds([...selectedIds]);
+        await discardIds(selectedIds.size ? [...selectedIds] : (selected ? [selected.id] : []));
         return;
       }
-      if (event.target.closest("[data-lingguang-brainstorm]")) {
+      if (event.target.closest("[data-lingguang-brainstorm], [data-lingguang-brainstorm-current]")) {
         await openBrainstorm();
         return;
       }
-      if (event.target.closest("[data-lingguang-dispatch]")) {
+      if (event.target.closest("[data-lingguang-dispatch], [data-lingguang-dispatch-current]")) {
         await copyDispatch();
         return;
       }
-      const open = event.target.closest("[data-lingguang-open]");
-      if (open) {
-        const id = open.closest("[data-lingguang-id]").dataset.lingguangId;
-        if (expandedId) await save().catch((error) => showNote(error.message, true));
-        expandedId = expandedId === id ? null : id;
+      if (event.target.closest("[data-lingguang-back]")) {
+        await save().catch((error) => showNote(error.message, true));
+        closeWorkspace();
+        return;
+      }
+      const row = event.target.closest("[data-lingguang-id]");
+      if (row && list.contains(row)) {
+        const id = row.dataset.lingguangId;
+        if (event.metaKey || event.ctrlKey) {
+          if (selectedIds.has(id)) selectedIds.delete(id);
+          else selectedIds.add(id);
+          row.classList.toggle("is-selected", selectedIds.has(id));
+          row.setAttribute("aria-selected", String(selectedIds.has(id)));
+          syncSelectionBar();
+          return;
+        }
+        if (selected && selected.id !== id) await save().catch((error) => showNote(error.message, true));
+        const record = records.find((item) => item.id === id);
+        if (!record) return;
+        selectedIds = new Set([id]);
+        fillEditor(record);
         renderList();
-        if (expandedId) fillEditor(records.find((item) => item.id === expandedId));
       }
     } catch (error) {
       showNote(error.message || L("灵光请求失败"), true);
     }
   });
-  list.addEventListener("input", (event) => {
+  workspace.addEventListener("input", (event) => {
     if (event.target.closest("[data-lingguang-title], [data-lingguang-body]")) queueSave();
-  });
-  composer.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    try {
-      const payload = await request("POST", "/api/lingguang", {
-        title: captureTitle.value,
-        body: captureBody.value,
-      });
-      captureTitle.value = "";
-      captureBody.value = "";
-      records.unshift(payload.spark);
-      renderList();
-      showNote("", false);
-    } catch (error) {
-      showNote(error.message || L("灵光请求失败"), true);
-    }
-  });
-  workbench.addEventListener("click", (event) => {
-    if (event.target.closest("[data-lingguang-back]")) closeBrainstorm();
   });
   chatForm.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -342,6 +360,12 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
       chatInput.value = "";
     } catch (error) {
       showNote(error.message || L("灵光请求失败"), true);
+    }
+  });
+  chatForm.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+      event.preventDefault();
+      chatForm.requestSubmit();
     }
   });
   void loadList().catch((error) => showNote(error.message, true));

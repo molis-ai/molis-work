@@ -59,6 +59,12 @@ import {
   type FunctionsSettingsUiModel,
 } from "@molis-ai/molis-work-plugin-functions";
 import {
+  PAGES_UI_CONTRIBUTION_ID,
+  pagesUiContribution,
+  type PagesUiModel,
+  type PagesUiSurface,
+} from "@molis-ai/molis-work-plugin-pages";
+import {
   FORM_UI_CONTRIBUTION_ID,
   formUiContribution,
   type FormUiModel,
@@ -125,6 +131,11 @@ const SHELF_SURFACE_SLOTS: Readonly<Record<ShelfUiSurface, UiSlotDescriptor>> = 
 };
 
 const FUNCTIONS_SURFACE_SLOTS: Readonly<Record<FunctionsUiSurface, UiSlotDescriptor>> = {
+  directory: WORKBENCH_UI_SLOTS.directory,
+  workbench: WORKBENCH_UI_SLOTS.main,
+};
+
+const PAGES_SURFACE_SLOTS: Readonly<Record<PagesUiSurface, UiSlotDescriptor>> = {
   directory: WORKBENCH_UI_SLOTS.directory,
   workbench: WORKBENCH_UI_SLOTS.main,
 };
@@ -214,6 +225,7 @@ export function createWorkbenchUiHost(): UiHost {
   host.register(shelfSettingsUiContribution);
   host.register(functionsUiContribution);
   host.register(functionsSettingsUiContribution);
+  host.register(pagesUiContribution);
   host.register(formUiContribution);
   host.register(datasetUiContribution);
   host.register(pptUiContribution);
@@ -350,6 +362,20 @@ export function renderFunctionsContribution(
     slot: FUNCTIONS_SURFACE_SLOTS[surface],
     contribution: {
       contribution_id: FUNCTIONS_UI_CONTRIBUTION_ID,
+      surface,
+      model,
+    },
+  }).html;
+}
+
+export function renderPagesContribution(
+  surface: PagesUiSurface,
+  model: PagesUiModel,
+): string {
+  return workbenchUiHost.mount({
+    slot: PAGES_SURFACE_SLOTS[surface],
+    contribution: {
+      contribution_id: PAGES_UI_CONTRIBUTION_ID,
       surface,
       model,
     },

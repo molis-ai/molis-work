@@ -20,7 +20,7 @@ export const formManifest: PluginManifest = {
   ui: {
     contributions: [FORM_UI_CONTRIBUTION_ID],
     views: [
-      { view_id: "directory", slot: "navigator", title: "Forms", contribution_id: FORM_UI_CONTRIBUTION_ID, icon: "clipboard", order: 56 },
+      { view_id: "directory", slot: "navigator", title: "Forms", contribution_id: FORM_UI_CONTRIBUTION_ID, icon: "clipboard", order: 57 },
     ],
   },
   mcp_exports: [...FORM_MCP_EXPORTS],

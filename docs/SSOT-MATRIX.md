@@ -84,7 +84,7 @@
 | `modules/execution` | 历史 Claim、Run、lease、attempt | 保留查询、schema 和升级；供历史阅读与项目删除的现有活动保护使用；旧执行写入退役 | `partial` | EX1/EX4 历史迁移；事件工作流收敛 |
 | `modules/artifacts` | Artifact、版本、类型、内容引用与 provenance | AR1 已建立唯一正式事实；旧代码仅有各 owner 的字符串引用，没有第二套 Artifact Store | `partial` | AR1 已迁 Core；AR3 切换现有结果入口 |
 | `modules/shelf` | 个人置物架材料、副本任务、Hash 与本机抽字结果 | Home 下 `shelf/` 副本与 Jobs 沙箱；不写项目 Goal / Artifact | `partial` | Shelf 工作台切片；轮盘/热键仍待 Desktop |
-| `modules/functions` | 已发布判断函数与一次判断记录 | 函数库、场景绑定、判断落库；TypeSafe 由 Host 注入 | `partial` | `specs/functions-system-capability/spec.md` |
+| `modules/functions` | 已发布判断函数与一次判断记录 | 函数库、来源/去向、场景绑定、判断落库；TypeSafe 由 Host 注入 | `partial` | `specs/functions-system-capability/spec.md`；`specs/functions-product-authoring/spec.md` |
 | `modules/evidence-verification` | 历史 Evidence、Correction、验收引用与文件来源 | 保留历史查询、文件读取、schema 和升级；当前报告与完成判断归 Goals 事件；旧写入退役 | `partial` | EX2/EX4 历史迁移；事件工作流收敛 |
 | `modules/governance-collaboration` | 当前用户决定、有限树提案／决定、provenance 与协作历史 | 当前可信用户来源、具体变更授权和决定事务；旧 Review/Clarification/Contract/Candidate/Rewire 仅保留历史职责 | `partial` | EX3/EX4/AR2/DD1/DD2/Cutover；事件工作流收敛 |
 | `modules/automation` | Trigger、Rule、Automation Run 与产生的 Action Request | 占位包已删除；未来功能 | `absent` | F2；未来独立功能 Spec |
@@ -112,7 +112,8 @@ Horizontal Service 只保存可恢复的技术状态，不拥有 Goal、Signal�
 | `plugins/native/inbox` | Inbox 一级入口与 Attention 处置 UI | 目录/详情只读 Attention；完成/忽略走 setStatus；现场绑 `inbox.next`；Host 注入展示信息与 HTTP | `partial` | Inbox/Feed 拆插件切片 2–3；`specs/functions-system-capability/spec.md` |
 | `plugins/native/schedule` | Schedule 一级入口：对话任务与闹钟列表 | 人手创建日历日对话任务；其他插件 job 仍只展示与暂停 | `partial` | `specs/schedule-conversation-tasks/spec.md` |
 | `plugins/native/shelf` | Shelf 一级入口：材料/结果/剪贴板与本机抽字 | DropAgent 表面挂进目录与工作面；Host 注入 `/api/shelf` 与 Store | `partial` | 工作台进货→抽字切片；轮盘/抓页/CLI Recipe 待 Desktop |
-| `plugins/native/functions` | Functions 一级入口：写、试跑、发布、配 Key | UI/HTTP/MCP；库和判断记录在 Module | `partial` | `specs/functions-system-capability/spec.md` |
+| `plugins/native/functions` | Functions 一级入口：写、试跑、发布、配 Key | 来源/事件去向/动作总表可配；UI/HTTP/MCP；库和判断记录在 Module | `partial` | `specs/functions-system-capability/spec.md`；`specs/functions-product-authoring/spec.md` |
+| `plugins/native/pages` | Pages 一级入口：本机文档 | 库、ProseMirror 内核、块、评论、卡、AI stub、挂 Goal 与 Promote；对外 MCP 默认关 | `partial` | `specs/pages-plugin/spec.md`；`specs/plugin-outbound-mcp/spec.md` |
 | `plugins/native/form` | Forms 一级入口：本机问卷 | 建题、预览填写、提交与结果；出题为本地 stub；对外 MCP 默认关 | `partial` | `specs/creative-tools-plugins/spec.md`；`specs/plugin-outbound-mcp/spec.md` |
 | `plugins/native/dataset` | Dataset 一级入口：本机数据表 | 行列编辑、CSV 导入导出、版本回滚；加列为本地 stub；对外 MCP 默认关 | `partial` | `specs/creative-tools-plugins/spec.md`；`specs/plugin-outbound-mcp/spec.md` |
 | `plugins/native/ppt` | PPT 一级入口：本机演示稿 | 多页大纲、主题色、预览与 JSON 导出；不做 PPTX；对外 MCP 默认关 | `partial` | `specs/creative-tools-plugins/spec.md`；`specs/plugin-outbound-mcp/spec.md` |

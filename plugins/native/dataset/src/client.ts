@@ -1,5 +1,8 @@
 /** Dataset workbench client: columns, rows, CSV, versions. */
+import { mergeDatasetDraftRows } from "./row-merge.js";
+
 export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
+  const mergeDatasetDraftRows = ${mergeDatasetDraftRows.toString()};
   const { translate: L } = host;
   const workbench = document.querySelector("[data-dataset=workbench]");
   if (!workbench) return;
@@ -13,6 +16,7 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
   const descriptionInput = workbench.querySelector("[data-dataset-description]");
   const tableEl = workbench.querySelector("[data-dataset-table]");
   const tableEmpty = workbench.querySelector("[data-dataset-table-empty]");
+  const filterEmpty = workbench.querySelector("[data-dataset-filter-empty]");
   const filterInput = workbench.querySelector("[data-dataset-filter]");
   const columnName = workbench.querySelector("[data-dataset-column-name]");
   const columnType = workbench.querySelector("[data-dataset-column-type]");
@@ -25,6 +29,27 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
   let records = [];
   let selected = null;
   let saveTimer = 0;
+  let saveSeq = 0;
+  let editorSeq = 0;
+  let renderedFilter = "";
+  const firstLine = (value) => {
+    const line = String(value || "").trim().split("\\n")[0].trim();
+    return line || L("还没有说明");
+  };
+  const kindChip = (kind, label) => {
+    const node = document.createElement("span");
+    node.className = "mw-status plugin-stage-kind";
+    node.dataset.kind = kind;
+    node.textContent = label;
+    return node;
+  };
+  const textCell = (className, text) => {
+    const node = document.createElement("span");
+    node.className = className;
+    node.title = text;
+    node.textContent = text;
+    return node;
+  };
 
   const projectId = () => (typeof host.projectId === "function" ? host.projectId() : host.projectId) || "";
   const headers = () => typeof molisWorkControlHeaders === "function"
@@ -51,6 +76,18 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
     note.hidden = !text;
     note.textContent = text || "";
     note.classList.toggle("is-error", Boolean(isError && text));
+  };
+  const arrive = (node) => {
+    if (!node) return node;
+    node.classList.remove("is-arriving");
+    void node.offsetWidth;
+    node.classList.add("is-arriving");
+    return node;
+  };
+  const paintStatus = (record) => {
+    const ready = record.status === "ready";
+    statusEl.className = "mw-status mw-status--" + (ready ? "done" : "quiet");
+    statusEl.textContent = ready ? L("已就绪") : L("草稿");
   };
   const ask = (message, okLabel) => new Promise((resolve) => {
     if (!confirmDialog) { resolve(false); return; }
@@ -89,6 +126,8 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
       tableEl.replaceChildren();
       tableEl.hidden = true;
       if (tableEmpty) tableEmpty.hidden = false;
+      if (filterEmpty) filterEmpty.hidden = true;
+      renderedFilter = filterInput.value;
       return;
     }
     tableEl.hidden = false;
@@ -136,6 +175,10 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
       tbody.append(tr);
     });
     tableEl.replaceChildren(thead, tbody);
+    const noMatch = Boolean(query && !tbody.childElementCount);
+    tableEl.hidden = noMatch;
+    if (filterEmpty) filterEmpty.hidden = !noMatch;
+    renderedFilter = filterInput.value;
   };
   const renderVersions = (versions) => {
     versionsEl.replaceChildren();
@@ -155,7 +198,7 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
     });
   };
   const markSelected = (id) => {
-    list.querySelectorAll(".dataset-row").forEach((row) => {
+    list.querySelectorAll("[data-dataset-id]").forEach((row) => {
       const on = row.dataset.datasetId === id;
       row.classList.toggle("is-selected", on);
       row.setAttribute("aria-selected", String(on));
@@ -168,7 +211,7 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
     else records.unshift(record);
     renderList();
     titleEl.textContent = record.title;
-    statusEl.textContent = record.status === "ready" ? L("已就绪") : L("草稿");
+    paintStatus(record);
     markSelected(record.id);
     if (redraw) {
       if (document.activeElement !== titleInput) titleInput.value = record.title;
@@ -178,16 +221,23 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const fillEditor = async (record) => {
     clearTimeout(saveTimer);
+    saveSeq += 1;
+    const seq = ++editorSeq;
+    const opening = workspace.hidden;
     workbench.setAttribute("data-expanded", "true");
     workspace.hidden = false;
+    if (opening) arrive(workspace);
     titleInput.value = record.title;
     descriptionInput.value = record.description || "";
     remember(record, true);
     const payload = await request("GET", "/api/dataset/" + encodeURIComponent(record.id) + "/versions");
+    if (seq !== editorSeq) return;
     renderVersions(payload.versions || []);
   };
   const closeEditor = () => {
     clearTimeout(saveTimer);
+    saveSeq += 1;
+    editorSeq += 1;
     selected = null;
     workbench.setAttribute("data-expanded", "false");
     workspace.hidden = true;
@@ -196,16 +246,32 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
     empty.hidden = records.length > 0;
     rowsEl.replaceChildren();
     records.forEach((record) => {
+      const item = document.createElement("article");
+      item.className = "feed-stage-item";
       const row = document.createElement("button");
       row.type = "button";
-      row.className = "dataset-row" + (selected?.id === record.id ? " is-selected" : "");
+      row.className = "feed-stage-entry directory-list-row" + (selected?.id === record.id ? " is-selected" : "");
       row.dataset.datasetId = record.id;
+      row.setAttribute("aria-selected", String(selected?.id === record.id));
+      const leading = document.createElement("span");
+      leading.className = "feed-stage-leading";
       const title = document.createElement("strong");
+      title.title = record.title;
       title.textContent = record.title;
-      const meta = document.createElement("small");
-      meta.textContent = (record.columns || []).length + " × " + (record.rows || []).length;
-      row.append(title, meta);
-      rowsEl.append(row);
+      leading.append(title);
+      const ready = record.status === "ready";
+      const status = document.createElement("span");
+      status.className = "mw-status mw-status--" + (ready ? "done" : "quiet") + " feed-entry-status";
+      status.textContent = ready ? L("已就绪") : L("草稿");
+      row.append(
+        leading,
+        kindChip("dataset", L("数据表")),
+        textCell("plugin-stage-fact", (record.columns || []).length + " × " + (record.rows || []).length),
+        textCell("plugin-stage-meta", firstLine(record.description)),
+        status,
+      );
+      item.append(row);
+      rowsEl.append(item);
     });
   };
   const loadList = async () => {
@@ -220,21 +286,14 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const draftFromDom = () => {
     const columns = columnsFromDom();
-    const visible = new Map(rowsFromDom().map((row) => [row.id, row]));
-    const rows = [];
-    const seen = new Set();
-    (selected?.rows || []).forEach((row) => {
-      seen.add(row.id);
-      rows.push(visible.get(row.id) || row);
-    });
-    visible.forEach((row, id) => {
-      if (!seen.has(id)) rows.push(row);
-    });
+    const rows = mergeDatasetDraftRows(selected?.rows || [], rowsFromDom(), columns, renderedFilter);
     return { title: titleInput.value, description: descriptionInput.value, columns, rows };
   };
   const save = async () => {
     if (!selected) return selected;
+    const seq = ++saveSeq;
     const payload = await request("POST", "/api/dataset/" + encodeURIComponent(selected.id), draftFromDom());
+    if (seq !== saveSeq) return selected;
     remember(payload.dataset, false);
     return selected;
   };
@@ -251,7 +310,7 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
         await fillEditor(payload.dataset);
         return;
       }
-      const row = event.target.closest(".dataset-row");
+      const row = event.target.closest("[data-dataset-id]");
       if (row) {
         const record = records.find((item) => item.id === row.dataset.datasetId);
         if (record) await fillEditor(record);
@@ -269,6 +328,8 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
         columnName.value = "";
         selected = { ...selected, ...draft };
         renderTable(selected);
+        const columns = tableEl.querySelectorAll("[data-dataset-column]");
+        arrive(columns[columns.length - 1]);
         queueSave();
         return;
       }
@@ -277,6 +338,7 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
         draft.rows.push({ id: "row-" + Date.now(), cells: Object.fromEntries(draft.columns.map((column) => [column.id, ""])) });
         selected = { ...selected, ...draft };
         renderTable(selected);
+        arrive(tableEl.querySelector("[data-dataset-row]:last-child"));
         queueSave();
         return;
       }
@@ -289,7 +351,24 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
         return;
       }
       if (event.target.closest("[data-row-remove]") && selected) {
-        event.target.closest("[data-dataset-row]").remove();
+        const row = event.target.closest("[data-dataset-row]");
+        const id = row.dataset.rowId;
+        row.remove();
+        selected = {
+          ...selected,
+          rows: mergeDatasetDraftRows(
+            (selected.rows || []).filter((item) => item.id !== id),
+            rowsFromDom(),
+            columnsFromDom(),
+            renderedFilter,
+          ),
+        };
+        if (filterEmpty) {
+          const query = (filterInput.value || "").trim();
+          const noMatch = Boolean(query && !tableEl.querySelector("[data-dataset-row]"));
+          filterEmpty.hidden = !noMatch;
+          tableEl.hidden = noMatch;
+        }
         queueSave();
         return;
       }
@@ -360,8 +439,19 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
       renderTable(selected);
       return;
     }
-    if (event.target.closest("[data-dataset-csv], [data-dataset-ai-prompt], [data-dataset-version-note], [data-dataset-column-name], [data-dataset-filter]")) return;
+    if (event.target.closest("[data-dataset-csv], [data-dataset-ai-prompt], [data-dataset-version-note], [data-dataset-filter]")) return;
     if (event.target.closest(".dataset-workspace")) queueSave();
+  });
+  workbench.addEventListener("change", (event) => {
+    if (!selected || !event.target.closest("[data-column-type]")) return;
+    const select = event.target.closest("[data-column-type]");
+    const columnId = select.closest("[data-dataset-column]").dataset.columnId;
+    const type = select.value;
+    tableEl.querySelectorAll('[data-cell][data-column-id="' + columnId + '"]').forEach((input) => {
+      input.type = type === "number" ? "number" : type === "date" ? "date" : "text";
+    });
+    selected = { ...selected, ...draftFromDom() };
+    queueSave();
   });
   void loadList().catch((error) => showNote(error.message, true));
 }

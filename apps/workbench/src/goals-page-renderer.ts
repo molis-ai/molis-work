@@ -73,6 +73,7 @@ export interface WorkbenchGoalsPageOwners<TItem extends GoalCollectionItem, TVie
   renderScheduleNativePluginSurface(view: TView, surface: "directory" | "workbench"): string;
   renderShelfNativePluginSurface(surface: "directory" | "workbench"): string;
   renderFunctionsNativePluginSurface(surface: "directory" | "workbench"): string;
+  renderPagesNativePluginSurface(surface: "directory" | "workbench"): string;
   renderFormNativePluginSurface(surface: "directory" | "workbench"): string;
   renderDatasetNativePluginSurface(surface: "directory" | "workbench"): string;
   renderPptNativePluginSurface(surface: "directory" | "workbench"): string;
@@ -89,7 +90,7 @@ export function createWorkbenchGoalsPageRenderer<TItem extends GoalCollectionIte
     renderGoalDocument, renderTrashGoalDocument, goalsDocumentRenderer, goalsTreeRenderer,
     renderCreateDialog, renderGoalTrashDialog, renderMomentumPlaceholder, renderGoalKanban, renderTuiPane,
     renderProjectOperations, renderDesktopProjectChrome,
-    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderShelfNativePluginSurface, renderFunctionsNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderLingguangNativePluginSurface } = owners;
+    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderShelfNativePluginSurface, renderFunctionsNativePluginSurface, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderLingguangNativePluginSurface } = owners;
 
 function renderMolisWorkRefreshFragment(
   view: TView,
@@ -229,6 +230,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
           shelf: "",
           lingguang: "",
           functions: "",
+          pages: "",
           form: "",
           dataset: "",
           ppt: "",
@@ -253,6 +255,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
             ${renderScheduleNativePluginSurface(view, "workbench")}
             ${renderShelfNativePluginSurface("workbench")}
             ${renderFunctionsNativePluginSurface("workbench")}
+            ${renderPagesNativePluginSurface("workbench")}
             ${renderFormNativePluginSurface("workbench")}
             ${renderDatasetNativePluginSurface("workbench")}
             ${renderPptNativePluginSurface("workbench")}
@@ -276,6 +279,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
   <div class="toast" data-toast data-settings-toast role="status" aria-live="polite"></div>
   <script id="molis-work-data" type="application/json">${dataJson(view)}</script>
   <script>${clientI18nScript()}</script>
+  <script src="/assets/molis-work-pages-editor.js"></script>
   <script src="/assets/molis-work-workbench.js"></script>
   ${showTui ? '<script src="/desktop/pty-client.js"></script>' : ""}`,
   });

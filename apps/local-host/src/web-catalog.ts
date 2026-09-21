@@ -11,6 +11,7 @@ import { findPluginSettingsNavItem, renderMolisWorkPrimitiveCatalog, renderPlugi
 import { handleShelfNativePluginHttp, shelfRuntimeProbe } from "./shelf-native-plugin-http.js";
 import { handleFunctionsNativePluginHttp } from "./functions-native-plugin-http.js";
 import { handleFormNativePluginHttp } from "./form-native-plugin-http.js";
+import { handlePagesNativePluginHttp } from "./pages-native-plugin-http.js";
 import { handleDatasetNativePluginHttp } from "./dataset-native-plugin-http.js";
 import { handlePptNativePluginHttp } from "./ppt-native-plugin-http.js";
 import { handleLingguangNativePluginHttp } from "./lingguang-native-plugin-http.js";
@@ -37,6 +38,7 @@ export async function handleLocalCatalogWebRequest(
   const { settingsProjects } = projectSettings;
   if (serverOptions.homeDirectory && await handleShelfNativePluginHttp(request, response, url, serverOptions.homeDirectory)) return;
   if (serverOptions.homeDirectory && await handleFunctionsNativePluginHttp(request, response, url, serverOptions.homeDirectory)) return;
+  if (serverOptions.homeDirectory && await handlePagesNativePluginHttp(request, response, url, serverOptions.homeDirectory)) return;
   if (serverOptions.homeDirectory && await handleFormNativePluginHttp(request, response, url, serverOptions.homeDirectory)) return;
   if (serverOptions.homeDirectory && await handleDatasetNativePluginHttp(request, response, url, serverOptions.homeDirectory)) return;
   if (serverOptions.homeDirectory && await handlePptNativePluginHttp(request, response, url, serverOptions.homeDirectory)) return;

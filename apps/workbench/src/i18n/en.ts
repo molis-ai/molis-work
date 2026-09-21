@@ -4,6 +4,7 @@ import { ARTIFACT_EN } from "@molis-ai/molis-work-plugin-artifacts";
 import { SHELF_EN } from "@molis-ai/molis-work-plugin-shelf";
 import { FUNCTIONS_EN } from "@molis-ai/molis-work-plugin-functions";
 import { FORM_EN } from "@molis-ai/molis-work-plugin-form";
+import { PAGES_EN } from "@molis-ai/molis-work-plugin-pages";
 import { DATASET_EN } from "@molis-ai/molis-work-plugin-dataset";
 import { PPT_EN } from "@molis-ai/molis-work-plugin-ppt";
 import { LINGGUANG_EN } from "@molis-ai/molis-work-plugin-lingguang";
@@ -244,6 +245,7 @@ export const EN: Record<string, string> = {
   ...ARTIFACT_EN,
   ...SHELF_EN,
   ...FUNCTIONS_EN,
+  ...PAGES_EN,
   ...FORM_EN,
   ...DATASET_EN,
   ...PPT_EN,
@@ -2986,6 +2988,8 @@ Object.assign(EN, {
   "到 Goals 完成判断，Inbox 不内嵌决定表单。": "Finish the decision in Goals. Inbox does not embed the form.",
   "出 Artifact 失败，原消息仍在 Feed。可重试同步或完成这条注意力。": "Artifact capture failed. The original message stays in Feed. Retry the sync or complete this attention item.",
   "捕捉规则": "Capture rules",
+  "捕捉判断": "Capture judgment",
+  "不判断，用默认分流": "No judgment, keep the default routing",
   "判断函数 key": "Judgment function key",
   "判断 {key}": "Judgment {key}",
   "被用在哪": "Used in",

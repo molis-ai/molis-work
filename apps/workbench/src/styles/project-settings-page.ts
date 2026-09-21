@@ -49,7 +49,7 @@ export const PROJECT_SETTINGS_PAGE_STYLES = `
   :is(.project-preferences-page, .settings-stage) textarea { width: 100%; resize: vertical; line-height: 1.65; }
   :is(.project-preferences-page, .settings-stage) button { font-size: 12px; font-weight: 400; }
   :is(.project-preferences-page, .settings-stage) :is(button, a, input, select, textarea, summary) { transition: background-color var(--motion-fast, 120ms) ease, border-color var(--motion-fast, 120ms) ease, color var(--motion-fast, 120ms) ease; }
-  :is(.project-preferences-page, .settings-stage) :is(button, a, input, select, textarea, summary):focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
+  :is(.project-preferences-page, .settings-stage) :is(button, a, input, select, textarea, summary):focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
   .settings-data-disclosure, .settings-advanced { border-bottom: 1px solid var(--line); }
   :is(.project-preferences-page, .settings-stage) :is(.settings-data-disclosure, .settings-advanced) > summary { list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 0; padding: 10px 0; cursor: pointer; }
   :is(.project-preferences-page, .settings-stage) summary::-webkit-details-marker { display: none; }

@@ -23,7 +23,7 @@
 5. 默认：现有平台工具默认开，可关。Functions 三项迁过来后仍默认开。之后新的插件贡献默认关。
 6. 第一刀把 Functions 三项从静态目录迁到 `mcp_exports` + 插件 handler。Goals / 事件 / context 仍留在 `apps/mcp`。
 7. 连接在 `initialize` 时冻结启用集合；不发 `tools/list_changed`。改开关只影响之后的新连接。`initialize` 若宿主已有稳定 Session 且该 Session 已绑定项目，先恢复连接再冻结，这样重连后项目作用域贡献能进 list；未绑仍不进。
-8. 随后把已有、可独立调用的 native 个人插件挂上同一套登记：Forms / Dataset / PPT。默认关。数据按绑定 `project_id` 分区；`project_id` 由 Host 从连接注入，不进 schema。
+8. 随后把已有、可独立调用的 native 个人插件挂上同一套登记：Pages / Forms / Dataset / PPT。默认关。数据按绑定 `project_id` 分区；`project_id` 由 Host 从连接注入，不进 schema。
 
 ## 非目标
 
@@ -39,7 +39,7 @@
 1. Functions Manifest 登记 `list` / `describe` / `invoke`。默认开。Runtime `tools/list` 仍能看到这三个名字，调用仍走现有判断库，不另起进程。
 2. 用户在设置 → MCP 关掉 `functions_invoke`。已打开的 MCP 连接清单不变；新开连接后 list 没有它，点名 call 返回权限拒绝，不是 handler 内部错误。
 3. 未在 Manifest 登记的 `tool_id` 即使 handler 里有实现，也到不了。
-4. 项目作用域插件未在当前绑定项目启用时，其贡献对该连接不可用。Functions 是个人插件且 `scope=home`，不要求绑项目。Forms / Dataset / PPT 也是个人插件，但 `scope=project`：不要求出现在项目启用名单，必须已绑项目，内容按该项目分区。
+4. 项目作用域插件未在当前绑定项目启用时，其贡献对该连接不可用。Functions 是个人插件且 `scope=home`，不要求绑项目。Pages / Forms / Dataset / PPT 也是个人插件，但 `scope=project`：不要求出现在项目启用名单，必须已绑项目，内容按该项目分区。
 5. Goals / 事件 / context 工具仍在；关掉某一平台方法后新连接看不见。`agent.mcp` 行为不变。
 6. 设置 → MCP 打开 `form_list` 后，新连接且已绑项目时能列出当前项目问卷；另一个绑定项目看不到这份记录。
 
@@ -138,14 +138,14 @@ molis-work-mcp
 4. 未登记的 `tool_id` 到不了 handler。未在项目启用的项目作用域插件，其贡献在该项目绑定下不可用。
 5. 现有 Goals/事件/context 工具默认仍可用；Runtime 点名 `event_decide` 仍是 `mcp.authority_denied`，不是 unknown。`agent.mcp` 行为不变。
 6. 定向测试：登记校验、合成目录、开关过滤、拒绝点名、Functions 迁入后 list/describe/invoke、设置页属于 Host 全局设置且不在插件 settings-page 列表。Host 按 `plugin_id`/`tool_id` 分发，不在 `callTool` 里点名 Functions 公开名。
-7. Forms / Dataset / PPT Manifest 登记与 HTTP 对等的 `tool_id`；默认关；打开后需绑项目才进 list/call；同一 home 下项目 A 的记录不出现在项目 B。
+7. Pages / Forms / Dataset / PPT Manifest 登记与 HTTP 对等的 `tool_id`；默认关；打开后需绑项目才进 list/call；同一 home 下项目 A 的记录不出现在项目 B。
 8. 已绑定稳定 Session 的**新连接**在 `initialize` 时恢复该绑定后再冻结目录，已开的项目作用域贡献直接进 list；未绑仍不进。同一连接改开关仍不热刷新。
 
 ## 验证命令
 
 ```bash
-pnpm --filter @molis-ai/molis-work-contracts --filter @molis-ai/molis-work-plugin-runtime --filter @molis-ai/molis-work-plugin-sdk --filter @molis-ai/molis-work-plugin-functions --filter @molis-ai/molis-work-plugin-form --filter @molis-ai/molis-work-plugin-dataset --filter @molis-ai/molis-work-plugin-ppt --filter @molis-ai/molis-work-app-mcp --filter @molis-ai/molis-work-app-workbench --filter @molis-ai/molis-work-app-local-host build
-node --import tsx --test --test-concurrency=1 tests/plugin-manifest-v2.test.ts tests/plugin-outbound-mcp.test.ts tests/functions-plugin.test.ts tests/plugin-global-settings.test.ts tests/mcp.test.ts tests/creative-tools-plugins.test.ts
+pnpm --filter @molis-ai/molis-work-contracts --filter @molis-ai/molis-work-plugin-runtime --filter @molis-ai/molis-work-plugin-sdk --filter @molis-ai/molis-work-plugin-functions --filter @molis-ai/molis-work-plugin-pages --filter @molis-ai/molis-work-plugin-form --filter @molis-ai/molis-work-plugin-dataset --filter @molis-ai/molis-work-plugin-ppt --filter @molis-ai/molis-work-app-mcp --filter @molis-ai/molis-work-app-workbench --filter @molis-ai/molis-work-app-local-host build
+node --import tsx --test --test-concurrency=1 tests/plugin-manifest-v2.test.ts tests/plugin-outbound-mcp.test.ts tests/functions-plugin.test.ts tests/plugin-global-settings.test.ts tests/mcp.test.ts tests/creative-tools-plugins.test.ts tests/pages-plugin.test.ts
 ```
 
 设置页用本地 Web 打开 `/settings/mcp` 看分组和开关。

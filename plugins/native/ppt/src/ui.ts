@@ -48,9 +48,9 @@ export const pptUiContribution: UiContribution<PptUiModel> = {
 export function renderPptWorkbench(model: PptUiModel): string {
   const { primitives: p } = model;
   return `<section class="desktop-work-surface plugin-stage-shell" data-work-surface="ppt" data-work-surface-label="PPT" hidden data-ppt="workbench" data-ppt-stage-shell data-expanded="false">
-    <div class="plugin-stage-list" data-ppt="directory">
+    <div class="plugin-stage-list feed-stage-list feed-stage-tree" data-ppt="directory">
       <header class="plugin-stage-chrome ppt-stage-chrome">
-        <button class="mw-btn mw-btn--secondary" type="button" data-ppt-new>${p.text("新建演示稿")}</button>
+        <button class="mw-btn mw-btn--ghost tree-create" type="button" data-ppt-new>${icon("plus")}<span>${p.text("新建演示稿")}</span></button>
       </header>
       <div class="mw-empty" data-ppt-empty>
         <strong>${p.text("还没有演示稿")}</strong>
@@ -63,16 +63,19 @@ export function renderPptWorkbench(model: PptUiModel): string {
       <div class="plugin-stage-detail-bar">
         <button class="plugin-stage-back" type="button" data-ppt-back aria-label="${p.text("返回演示稿列表")}" title="${p.text("返回演示稿列表")}">${icon("arrow")}</button>
         <h1 data-ppt-editor-title>${p.text("演示稿")}</h1>
+        <span data-ppt-editor-status></span>
         <button class="mw-btn mw-btn--ghost" type="button" data-ppt-export>${p.text("导出 JSON")}</button>
         <button class="mw-btn mw-btn--ghost" type="button" data-ppt-delete>${p.text("删除")}</button>
       </div>
       <div class="ppt-workspace">
-        <label class="ppt-field">${p.text("标题")}<input class="mw-input" data-ppt-title autocomplete="off"></label>
-        <label class="ppt-field">${p.text("说明")}<textarea class="mw-textarea" data-ppt-description rows="1"></textarea></label>
-        <div class="ppt-colors">
-          <label>${p.text("主题色")}<input type="color" data-ppt-color-primary></label>
-          <label>${p.text("背景")}<input type="color" data-ppt-color-background></label>
-          <label>${p.text("文字")}<input type="color" data-ppt-color-text></label>
+        <div class="ppt-meta">
+          <label class="ppt-field">${p.text("标题")}<input class="mw-input" data-ppt-title autocomplete="off"></label>
+          <label class="ppt-field">${p.text("说明")}<input class="mw-input" data-ppt-description autocomplete="off" placeholder="${p.text("可选")}"></label>
+          <div class="ppt-colors">
+            <label>${p.text("主题色")}<input type="color" data-ppt-color-primary></label>
+            <label>${p.text("背景")}<input type="color" data-ppt-color-background></label>
+            <label>${p.text("文字")}<input type="color" data-ppt-color-text></label>
+          </div>
         </div>
         <div class="ppt-split">
           <div class="ppt-slides">
@@ -84,7 +87,7 @@ export function renderPptWorkbench(model: PptUiModel): string {
             <div class="ppt-slide-editor">
               <label class="ppt-field">${p.text("页标题")}<input class="mw-input" data-ppt-slide-title autocomplete="off"></label>
               <label class="ppt-field">${p.text("要点")}<textarea class="mw-textarea" data-ppt-slide-bullets rows="6" placeholder="${p.text("每行一条")}"></textarea></label>
-              <label class="ppt-field">${p.text("备注")}<textarea class="mw-textarea" data-ppt-slide-notes rows="3"></textarea></label>
+              <label class="ppt-field">${p.text("备注")}<textarea class="mw-textarea" data-ppt-slide-notes rows="2" placeholder="${p.text("讲者备注")}"></textarea></label>
             </div>
           </div>
           <div class="ppt-preview" data-ppt-preview></div>

@@ -8,6 +8,7 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
   const empty = workbench.querySelector("[data-ppt-empty]");
   const workspace = workbench.querySelector("[data-ppt-stage-workspace]");
   const titleEl = workbench.querySelector("[data-ppt-editor-title]");
+  const statusEl = workbench.querySelector("[data-ppt-editor-status]");
   const titleInput = workbench.querySelector("[data-ppt-title]");
   const descriptionInput = workbench.querySelector("[data-ppt-description]");
   const colorPrimary = workbench.querySelector("[data-ppt-color-primary]");
@@ -24,6 +25,25 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
   let selected = null;
   let currentSlideId = "";
   let saveTimer = 0;
+  let saveSeq = 0;
+  const firstLine = (value) => {
+    const line = String(value || "").trim().split("\\n")[0].trim();
+    return line || L("还没有说明");
+  };
+  const kindChip = (kind, label) => {
+    const node = document.createElement("span");
+    node.className = "mw-status plugin-stage-kind";
+    node.dataset.kind = kind;
+    node.textContent = label;
+    return node;
+  };
+  const textCell = (className, text) => {
+    const node = document.createElement("span");
+    node.className = className;
+    node.title = text;
+    node.textContent = text;
+    return node;
+  };
 
   const projectId = () => (typeof host.projectId === "function" ? host.projectId() : host.projectId) || "";
   const headers = () => typeof molisWorkControlHeaders === "function"
@@ -50,6 +70,18 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
     note.hidden = !text;
     note.textContent = text || "";
     note.classList.toggle("is-error", Boolean(isError && text));
+  };
+  const arrive = (node) => {
+    if (!node) return node;
+    node.classList.remove("is-arriving");
+    void node.offsetWidth;
+    node.classList.add("is-arriving");
+    return node;
+  };
+  const paintPages = (record) => {
+    if (!statusEl) return;
+    statusEl.className = "mw-status mw-status--quiet";
+    statusEl.textContent = (record.slides || []).length + " " + L("页");
   };
   const ask = (message, okLabel) => new Promise((resolve) => {
     if (!confirmDialog) { resolve(false); return; }
@@ -105,8 +137,24 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
         li.textContent = item;
         bullets.append(li);
       });
-      card.append(kicker, heading, bullets);
-      previewEl.append(card);
+      if (!bullets.childElementCount) {
+        const emptySlide = document.createElement("p");
+        emptySlide.className = "ppt-card-empty";
+        emptySlide.textContent = L("还没有要点");
+        card.append(kicker, heading, emptySlide);
+      } else {
+        card.append(kicker, heading, bullets);
+      }
+      const item = document.createElement("div");
+      item.className = "ppt-preview-item";
+      item.append(card);
+      if (slide.notes) {
+        const notes = document.createElement("p");
+        notes.className = "ppt-card-notes";
+        notes.textContent = slide.notes;
+        item.append(notes);
+      }
+      previewEl.append(item);
     });
   };
   const renderSlideList = (record) => {
@@ -118,7 +166,13 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
       const button = document.createElement("button");
       button.type = "button";
       button.dataset.slideSelect = "true";
-      button.textContent = (index + 1) + ". " + (slide.title || L("未命名一页"));
+      const indexMark = document.createElement("span");
+      indexMark.className = "ppt-slide-index";
+      indexMark.textContent = String(index + 1);
+      const label = document.createElement("span");
+      label.className = "ppt-slide-title";
+      label.textContent = slide.title || L("未命名一页");
+      button.append(indexMark, label);
       const up = document.createElement("button");
       up.type = "button";
       up.className = "mw-btn mw-btn--ghost";
@@ -142,7 +196,10 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
     const button = slideList.querySelector('[data-slide-id="' + currentSlideId + '"] [data-slide-select]');
     if (!button) return;
     const index = (selected?.slides || []).findIndex((slide) => slide.id === currentSlideId);
-    button.textContent = (index + 1) + ". " + (slideTitle.value.trim() || L("未命名一页"));
+    const indexMark = button.querySelector(".ppt-slide-index");
+    const label = button.querySelector(".ppt-slide-title");
+    if (indexMark) indexMark.textContent = String(index + 1);
+    if (label) label.textContent = slideTitle.value.trim() || L("未命名一页");
   };
   const fillSlideFields = (slide) => {
     currentSlideId = slide?.id || "";
@@ -151,7 +208,7 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
     slideNotes.value = slide?.notes || "";
   };
   const markSelected = (id) => {
-    list.querySelectorAll(".ppt-row").forEach((row) => {
+    list.querySelectorAll("[data-ppt-id]").forEach((row) => {
       const on = row.dataset.pptId === id;
       row.classList.toggle("is-selected", on);
       row.setAttribute("aria-selected", String(on));
@@ -165,17 +222,22 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
     else records.unshift(record);
     renderList();
     titleEl.textContent = record.title;
+    paintPages(record);
     markSelected(record.id);
     if (redraw) fillEditor(record);
     else renderPreview(liveRecord());
   };
   const fillEditor = (record) => {
     clearTimeout(saveTimer);
+    saveSeq += 1;
     selected = record;
     if (!record.slides.some((slide) => slide.id === currentSlideId)) currentSlideId = record.slides[0]?.id || "";
+    const opening = workspace.hidden;
     workbench.setAttribute("data-expanded", "true");
     workspace.hidden = false;
+    if (opening) arrive(workspace);
     titleEl.textContent = record.title;
+    paintPages(record);
     titleInput.value = record.title;
     descriptionInput.value = record.description || "";
     colorPrimary.value = record.color_primary;
@@ -188,6 +250,7 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const closeEditor = () => {
     clearTimeout(saveTimer);
+    saveSeq += 1;
     selected = null;
     currentSlideId = "";
     workbench.setAttribute("data-expanded", "false");
@@ -197,16 +260,31 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
     empty.hidden = records.length > 0;
     rowsEl.replaceChildren();
     records.forEach((record) => {
+      const item = document.createElement("article");
+      item.className = "feed-stage-item";
       const row = document.createElement("button");
       row.type = "button";
-      row.className = "ppt-row" + (selected?.id === record.id ? " is-selected" : "");
+      row.className = "feed-stage-entry directory-list-row" + (selected?.id === record.id ? " is-selected" : "");
       row.dataset.pptId = record.id;
+      row.setAttribute("aria-selected", String(selected?.id === record.id));
+      const leading = document.createElement("span");
+      leading.className = "feed-stage-leading";
       const title = document.createElement("strong");
+      title.title = record.title;
       title.textContent = record.title;
-      const meta = document.createElement("small");
-      meta.textContent = (record.slides || []).length + " " + L("页");
-      row.append(title, meta);
-      rowsEl.append(row);
+      leading.append(title);
+      const status = document.createElement("span");
+      status.className = "feed-entry-status";
+      status.setAttribute("aria-hidden", "true");
+      row.append(
+        leading,
+        kindChip("ppt", L("演示稿")),
+        textCell("plugin-stage-fact", (record.slides || []).length + " " + L("页")),
+        textCell("plugin-stage-meta", firstLine(record.description)),
+        status,
+      );
+      item.append(row);
+      rowsEl.append(item);
     });
   };
   const loadList = async () => {
@@ -221,7 +299,9 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const save = async () => {
     if (!selected) return selected;
+    const seq = ++saveSeq;
     const payload = await request("POST", "/api/ppt/" + encodeURIComponent(selected.id), liveRecord());
+    if (seq !== saveSeq) return selected;
     remember(payload.presentation, false);
     return selected;
   };
@@ -240,7 +320,7 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
         remember(payload.presentation, false);
         return;
       }
-      const row = event.target.closest(".ppt-row");
+      const row = event.target.closest("[data-ppt-id]");
       if (row) {
         const record = records.find((item) => item.id === row.dataset.pptId);
         if (record) fillEditor(record);
@@ -254,6 +334,9 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
         fillSlideFields(slides.at(-1));
         renderSlideList(selected);
         renderPreview(selected);
+        arrive(slideList.lastElementChild);
+        arrive(previewEl.lastElementChild);
+        paintPages(selected);
         queueSave();
         return;
       }
@@ -294,6 +377,7 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
         fillSlideFields(currentSlide());
         renderSlideList(selected);
         renderPreview(selected);
+        paintPages(selected);
         queueSave();
         return;
       }
@@ -306,6 +390,7 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
         link.download = (selected.title || "ppt") + ".json";
         link.click();
         URL.revokeObjectURL(url);
+        showNote(L("已导出"), false);
         return;
       }
       if (event.target.closest("[data-ppt-delete]") && selected) {

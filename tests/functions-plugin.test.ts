@@ -12,6 +12,7 @@ import {
   FUNCTIONS_CREDENTIAL_REF,
   SYSTEM_HOME_DOCK_FUNCTION_KEY,
   SYSTEM_INBOX_ADMIT_FUNCTION_KEY,
+  SYSTEM_INBOX_NEXT_FUNCTION_KEY,
 } from "@molis-ai/molis-work-contracts/modules/functions";
 import {
   FunctionsError,
@@ -132,8 +133,12 @@ test("a draft Choice can be saved with empty instructions, then published only a
         { key: "billing", description: "钱、发票、退款" },
         { key: "other", description: "其他" },
       ],
+      scene_id: "agent.mcp",
+      subject_kinds: ["mcp_invoke"],
     });
     assert.equal(updated.instructions, "这是账单吗？");
+    assert.equal(updated.scene_id, "agent.mcp");
+    assert.deepEqual([...updated.subject_kinds], ["mcp_invoke"]);
     assert.equal(updated.last_preview, null);
     assert.throws(() => store.publish(created.id), (error: unknown) => (
       error instanceof FunctionsError && error.code === "functions.preview_required"
@@ -326,9 +331,15 @@ test("workbench client script with the Functions factory is valid JavaScript", (
 
 test("Functions client clears leftover preview text when switching records and hides Noul section chrome", () => {
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /const switching = selected\?\.id !== record\.id/);
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /\/api\/functions\/catalog/);
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /data-functions-destination/);
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /data-functions-source/);
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /agent\.mcp/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /if \(switching\) previewInput\.value = record\.last_preview\?\.input \|\| ""/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /criteriaHead\.hidden = kind === "noul"/);
   assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /selected = record;\s*records = records\.some/);
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /item\.textContent = destTitle\(row\.scene_id\)/);
+  assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /row\.board_id \? " · " \+ row\.board_id/);
 });
 
 test("Functions workbench and settings contributions mount on the declared slots", () => {
@@ -345,10 +356,26 @@ test("Functions workbench and settings contributions mount on the declared slots
   }).html;
   assert.match(stage, /data-functions="workbench"/);
   assert.match(stage, /data-functions-new/);
-  assert.match(stage, /functions-define/);
+  assert.match(stage, /plugin-stage-list feed-stage-list feed-stage-tree" data-functions="directory"/);
+  assert.match(stage, /class="mw-btn mw-btn--ghost tree-create"[^>]*data-functions-new/);
+  assert.doesNotMatch(stage, /mw-btn--secondary"[^>]*data-functions-new/);
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /feed-stage-entry directory-list-row/);
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /plugin-stage-kind/);
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /kindChip\(record\.primitive \|\| "choice"/);
+  assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /kind \+ " · " \+ record\.function_key/);
+  assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /mw-status--plain feed-entry-status/);
+  assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /className = "functions-row/);
+  assert.match(stage, /data-functions-destinations/);
+  assert.match(stage, /data-functions-sources/);
+  assert.match(stage, /functions-lede/);
   assert.match(stage, /data-functions-criteria-head/);
   assert.match(stage, /data-functions-create-dialog/);
   assert.match(renderFunctionsWorkbench({ functions: [], primitives }), /还没有判断函数/);
+  assert.match(renderFunctionsWorkbench({ functions: [], primitives }), /写一道题：看哪类内容/);
+  assert.match(renderFunctionsWorkbench({ functions: [], primitives }), /给 Agent 调用/);
+  assert.match(renderFunctionsWorkbench({ functions: [], primitives }), /molis_work_v1_functions_invoke/);
+  assert.doesNotMatch(renderFunctionsWorkbench({ functions: [], primitives }), /functions-define/);
+  assert.doesNotMatch(renderFunctionsWorkbench({ functions: [], primitives }), /发布给 Agent 调用/);
   const settings = host.mount({
     slot: WORKBENCH_UI_SLOTS.settings,
     contribution: {
@@ -422,11 +449,31 @@ test("catalog HTTP saves a TypeSafe key without echoing it and keeps Functions o
   assert.equal(body.api_key, undefined);
   resetSecretStoreCache();
   assert.equal(createFileSecretStore().get(FUNCTIONS_CREDENTIAL_REF), "sk-live-secret");
-  const listed = await (await fetch(`${origin}/api/functions`)).json() as { functions: Array<{ function_key: string }> };
+  const listed = await (await fetch(`${origin}/api/functions`)).json() as { functions: Array<{ function_key: string; scene_id: string | null }> };
   assert.deepEqual(
     listed.functions.map((row) => row.function_key).sort(),
-    [SYSTEM_INBOX_ADMIT_FUNCTION_KEY, SYSTEM_HOME_DOCK_FUNCTION_KEY].sort(),
+    [SYSTEM_INBOX_ADMIT_FUNCTION_KEY, SYSTEM_HOME_DOCK_FUNCTION_KEY, SYSTEM_INBOX_NEXT_FUNCTION_KEY].sort(),
   );
+  assert.equal(listed.functions.find((row) => row.function_key === SYSTEM_HOME_DOCK_FUNCTION_KEY)?.scene_id, "home.dock");
+  const catalog = await (await fetch(`${origin}/api/functions/catalog`)).json() as {
+    catalog: {
+      destinations: Array<{ destination_id: string; configure_at: string; kind: string }>;
+      behaviors: Array<{ behavior_id: string; source: string; effect: string }>;
+    };
+  };
+  const destIds = catalog.catalog.destinations.map((row) => row.destination_id);
+  assert.ok(destIds.includes("home.dock"));
+  assert.ok(destIds.includes("inbox.next"));
+  assert.ok(destIds.includes("feed.capture"));
+  assert.ok(destIds.includes("agent.mcp"));
+  assert.equal(catalog.catalog.destinations.find((row) => row.destination_id === "home.dock")?.kind, "event");
+  assert.match(catalog.catalog.destinations.find((row) => row.destination_id === "home.dock")?.configure_at ?? "", /卡底判断/);
+  const behaviorIds = catalog.catalog.behaviors.map((row) => row.behavior_id);
+  assert.ok(behaviorIds.includes("home.continue"));
+  assert.ok(behaviorIds.includes("molis_work_v1_functions_invoke"));
+  assert.ok(behaviorIds.includes("molis_work_v1_form_create"));
+  assert.equal(catalog.catalog.behaviors.find((row) => row.behavior_id === "molis_work_v1_form_create")?.source, "mcp");
+  assert.equal(catalog.catalog.behaviors.find((row) => row.behavior_id === "molis_work_v1_form_create")?.effect, "write");
   const created = await fetch(`${origin}/api/functions`, {
     method: "POST",
     headers: headers(),

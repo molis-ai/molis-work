@@ -1,0 +1,54 @@
+{
+  "name": "@molis-ai/molis-work-plugin-pages",
+  "version": "0.0.0",
+  "private": true,
+  "description": "First-party Pages workbench: local documents with a ProseMirror kernel.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=24"
+  },
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./editor": "./dist/pages-editor.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "tsc -p tsconfig.json && ../../../node_modules/.bin/esbuild src/editor-browser.ts --bundle --format=iife --platform=browser --global-name=MolisWorkPagesEditor --outfile=dist/pages-editor.js",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@molis-ai/molis-work-contracts": "workspace:*",
+    "@molis-ai/molis-work-design-system": "workspace:*",
+    "prosemirror-commands": "^1.7.1",
+    "prosemirror-history": "^1.5.0",
+    "prosemirror-inputrules": "^1.5.1",
+    "prosemirror-keymap": "^1.2.3",
+    "prosemirror-model": "^1.25.4",
+    "prosemirror-schema-list": "^1.5.1",
+    "prosemirror-state": "^1.4.4",
+    "prosemirror-view": "^1.41.4"
+  },
+  "molis-work": {
+    "path": "plugins/native/pages",
+    "kind": "native-plugin",
+    "maturity": "partial",
+    "contract": "@molis-ai/molis-work-contracts/platform/plugin",
+    "migrationGoals": [
+      "goal-reorg-f2"
+    ],
+    "ssot": "docs/SSOT-MATRIX.md",
+    "capabilities": [
+      "pages.ui-contribution.v1",
+      "pages.http-routes.v1"
+    ]
+  }
+}

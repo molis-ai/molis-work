@@ -25,6 +25,26 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
   let selected = null;
   let tab = "editor";
   let saveTimer = 0;
+  let saveSeq = 0;
+  let resultsSeq = 0;
+  const firstLine = (value) => {
+    const line = String(value || "").trim().split("\\n")[0].trim();
+    return line || L("还没有说明");
+  };
+  const kindChip = (kind, label) => {
+    const node = document.createElement("span");
+    node.className = "mw-status plugin-stage-kind";
+    node.dataset.kind = kind;
+    node.textContent = label;
+    return node;
+  };
+  const textCell = (className, text) => {
+    const node = document.createElement("span");
+    node.className = className;
+    node.title = text;
+    node.textContent = text;
+    return node;
+  };
 
   const projectId = () => (typeof host.projectId === "function" ? host.projectId() : host.projectId) || "";
   const headers = () => typeof molisWorkControlHeaders === "function"
@@ -51,6 +71,18 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
     note.hidden = !text;
     note.textContent = text || "";
     note.classList.toggle("is-error", Boolean(isError && text));
+  };
+  const arrive = (node) => {
+    if (!node) return node;
+    node.classList.remove("is-arriving");
+    void node.offsetWidth;
+    node.classList.add("is-arriving");
+    return node;
+  };
+  const paintStatus = (record) => {
+    const published = record.status === "published";
+    statusEl.className = "mw-status mw-status--" + (published ? "done" : "quiet");
+    statusEl.textContent = published ? L("已发布") : L("草稿");
   };
   const ask = (message, okLabel) => new Promise((resolve) => {
     if (!confirmDialog) { resolve(false); return; }
@@ -129,7 +161,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
       + '<option value="rating">' + L("评分") + '</option>'
       + '<option value="date">' + L("日期") + '</option>'
       + '</select>'
-      + '<label><input type="checkbox" data-question-required> ' + L("必填") + '</label>'
+      + '<label class="mw-check-row"><input class="mw-check" type="checkbox" data-question-required><span>' + L("必填") + '</span></label>'
       + '<span class="form-question-move">'
       + '<button class="mw-btn mw-btn--ghost" type="button" data-question-move="-1" aria-label="' + L("上移") + '">↑</button>'
       + '<button class="mw-btn mw-btn--ghost" type="button" data-question-move="1" aria-label="' + L("下移") + '">↓</button>'
@@ -149,8 +181,11 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const setTab = (next) => {
     tab = next;
+    showNote("", false);
     workbench.querySelectorAll("[data-form-tab]").forEach((button) => {
-      button.classList.toggle("is-current", button.dataset.formTab === next);
+      const on = button.dataset.formTab === next;
+      button.classList.toggle("is-current", on);
+      button.setAttribute("aria-selected", String(on));
     });
     workbench.querySelectorAll("[data-form-pane]").forEach((pane) => {
       pane.hidden = pane.dataset.formPane !== next;
@@ -158,6 +193,8 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const renderPreview = (record) => {
     previewEl.replaceChildren();
+    const submitBtn = previewForm.querySelector("[data-form-submit]");
+    if (submitBtn) submitBtn.hidden = !(record.questions || []).length;
     if (!(record.questions || []).length) {
       const emptyPreview = document.createElement("p");
       emptyPreview.className = "form-preview-empty";
@@ -181,6 +218,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
           label.className = "form-preview-option";
           const input = document.createElement("input");
           input.type = question.type === "multiChoice" ? "checkbox" : "radio";
+          input.className = question.type === "multiChoice" ? "mw-check" : "mw-radio";
           input.name = "q-" + question.id;
           input.value = option.label;
           label.append(input, document.createTextNode(option.label));
@@ -194,19 +232,29 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
         input.append(new Option("", ""));
         (question.options || []).forEach((option) => input.append(new Option(option.label, option.label)));
         field.append(input);
+      } else if (question.type === "rating") {
+        const box = document.createElement("div");
+        box.className = "form-preview-options form-preview-rating";
+        box.dataset.answerId = question.id;
+        box.dataset.answerKind = "single";
+        for (let score = 1; score <= 5; score += 1) {
+          const label = document.createElement("label");
+          label.className = "form-preview-option";
+          const input = document.createElement("input");
+          input.type = "radio";
+          input.className = "mw-radio";
+          input.name = "q-" + question.id;
+          input.value = String(score);
+          label.append(input, document.createTextNode(String(score)));
+          box.append(label);
+        }
+        field.append(box);
       } else {
         const input = document.createElement("input");
         input.className = "mw-input";
         input.dataset.answerId = question.id;
-        input.type = question.type === "date" ? "date" : question.type === "rating" ? "number" : "text";
-        if (question.type === "rating") { input.min = "1"; input.max = "5"; }
+        input.type = question.type === "date" ? "date" : "text";
         field.append(input);
-        if (question.type === "rating") {
-          const hint = document.createElement("span");
-          hint.className = "form-preview-hint";
-          hint.textContent = L("1 到 5");
-          field.append(hint);
-        }
       }
       previewEl.append(field);
     });
@@ -228,7 +276,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
     return answers;
   };
   const markSelected = (id) => {
-    list.querySelectorAll(".form-row").forEach((row) => {
+    list.querySelectorAll("[data-form-id]").forEach((row) => {
       const on = row.dataset.formId === id;
       row.classList.toggle("is-selected", on);
       row.setAttribute("aria-selected", String(on));
@@ -241,17 +289,21 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
     else records.unshift(record);
     renderList();
     titleEl.textContent = record.title;
-    statusEl.textContent = record.status === "published" ? L("已发布") : L("草稿");
+    paintStatus(record);
     markSelected(record.id);
     if (redraw) fillEditor(record);
   };
   const fillEditor = (record) => {
     clearTimeout(saveTimer);
+    saveSeq += 1;
+    resultsSeq += 1;
     selected = record;
+    const opening = workspace.hidden;
     workbench.setAttribute("data-expanded", "true");
     workspace.hidden = false;
+    if (opening) arrive(workspace);
     titleEl.textContent = record.title;
-    statusEl.textContent = record.status === "published" ? L("已发布") : L("草稿");
+    paintStatus(record);
     titleInput.value = record.title;
     descriptionInput.value = record.description || "";
     renderQuestions(record.questions);
@@ -260,6 +312,8 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const closeEditor = () => {
     clearTimeout(saveTimer);
+    saveSeq += 1;
+    resultsSeq += 1;
     selected = null;
     workbench.setAttribute("data-expanded", "false");
     workspace.hidden = true;
@@ -268,16 +322,32 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
     empty.hidden = records.length > 0;
     rowsEl.replaceChildren();
     records.forEach((record) => {
+      const item = document.createElement("article");
+      item.className = "feed-stage-item";
       const row = document.createElement("button");
       row.type = "button";
-      row.className = "form-row" + (selected?.id === record.id ? " is-selected" : "");
+      row.className = "feed-stage-entry directory-list-row" + (selected?.id === record.id ? " is-selected" : "");
       row.dataset.formId = record.id;
+      row.setAttribute("aria-selected", String(selected?.id === record.id));
+      const leading = document.createElement("span");
+      leading.className = "feed-stage-leading";
       const title = document.createElement("strong");
+      title.title = record.title;
       title.textContent = record.title;
-      const meta = document.createElement("small");
-      meta.textContent = (record.questions || []).length + " · " + (record.status === "published" ? L("已发布") : L("草稿"));
-      row.append(title, meta);
-      rowsEl.append(row);
+      leading.append(title);
+      const published = record.status === "published";
+      const status = document.createElement("span");
+      status.className = "mw-status mw-status--" + (published ? "done" : "quiet") + " feed-entry-status";
+      status.textContent = published ? L("已发布") : L("草稿");
+      row.append(
+        leading,
+        kindChip("form", L("问卷")),
+        textCell("plugin-stage-fact", (record.questions || []).length + " " + L("题")),
+        textCell("plugin-stage-meta", firstLine(record.description)),
+        status,
+      );
+      item.append(row);
+      rowsEl.append(item);
     });
   };
   const loadList = async () => {
@@ -292,11 +362,13 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const save = async () => {
     if (!selected) return selected;
+    const seq = ++saveSeq;
     const payload = await request("POST", "/api/form/" + encodeURIComponent(selected.id), {
       title: titleInput.value,
       description: descriptionInput.value,
       questions: questionsFromDom(),
     });
+    if (seq !== saveSeq) return selected;
     remember(payload.form, false);
     if (document.activeElement !== titleInput) titleInput.value = payload.form.title;
     return selected;
@@ -316,7 +388,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
         remember(payload.form, false);
         return;
       }
-      const row = event.target.closest(".form-row");
+      const row = event.target.closest("[data-form-id]");
       if (row) {
         const record = records.find((item) => item.id === row.dataset.formId);
         if (record) { setTab("editor"); fillEditor(record); }
@@ -332,19 +404,22 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
         return;
       }
       if (event.target.closest("[data-form-add-question]") && selected) {
-        questionsEl.append(renderQuestion({
+        const row = renderQuestion({
           id: "q-" + Date.now(),
           type: typeSelect.value,
           title: "",
           required: false,
           options: usesOptions(typeSelect.value) ? [{ label: "" }, { label: "" }] : undefined,
-        }));
+        });
+        questionsEl.append(row);
+        arrive(row);
         queueSave();
         return;
       }
       if (event.target.closest("[data-option-add]")) {
         const listEl = event.target.closest("[data-form-question]").querySelector("[data-question-options] > div");
         addOptionRow(listEl, { label: "" });
+        arrive(listEl.lastElementChild);
         queueSave();
         return;
       }
@@ -415,7 +490,13 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
   });
   const loadResults = async () => {
     if (!selected) return;
-    const payload = await request("GET", "/api/form/" + encodeURIComponent(selected.id) + "/results");
+    const id = selected.id;
+    const seq = ++resultsSeq;
+    summaryEl.textContent = L("载入中…");
+    resultListEl.replaceChildren();
+    exportEl.textContent = "";
+    const payload = await request("GET", "/api/form/" + encodeURIComponent(id) + "/results");
+    if (seq !== resultsSeq || selected?.id !== id) return;
     const count = payload.analysis?.submission_count || 0;
     summaryEl.textContent = count ? count + " " + L("份答卷") : L("还没有答卷");
     const questions = questionsFromDom().length ? questionsFromDom() : (selected.questions || []);
@@ -424,7 +505,8 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
       const card = document.createElement("article");
       card.className = "form-result";
       const head = document.createElement("strong");
-      head.textContent = L("答卷") + " " + (index + 1);
+      const when = submission.submitted_at ? new Date(submission.submitted_at).toLocaleString() : "";
+      head.textContent = L("答卷") + " " + (index + 1) + (when ? " · " + when : "");
       card.append(head);
       questions.forEach((question) => {
         const row = document.createElement("p");
@@ -444,7 +526,16 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
     event.preventDefault();
     if (!selected) return;
     try {
-      await request("POST", "/api/form/" + encodeURIComponent(selected.id) + "/submit", { answers: collectAnswers() });
+      const questions = questionsFromDom().length ? questionsFromDom() : (selected.questions || []);
+      const answers = collectAnswers();
+      const missing = questions.find((question) => question.required && !String(answers[question.id] || "").trim());
+      if (missing) {
+        showNote(L("还有必填题没填"), true);
+        const node = previewEl.querySelector('[data-answer-id="' + missing.id + '"]');
+        (node && node.matches("input, select") ? node : node?.querySelector("input"))?.focus();
+        return;
+      }
+      await request("POST", "/api/form/" + encodeURIComponent(selected.id) + "/submit", { answers });
       await loadResults();
       setTab("results");
       showNote(L("已提交"), false);

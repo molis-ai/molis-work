@@ -113,6 +113,7 @@ export { handleScheduleNativePluginHttp, type ScheduleNativePluginHttpOptions } 
 export { handleShelfNativePluginHttp } from "./shelf-native-plugin-http.js";
 export { handleFunctionsNativePluginHttp } from "./functions-native-plugin-http.js";
 export { handleFormNativePluginHttp } from "./form-native-plugin-http.js";
+export { handlePagesNativePluginHttp } from "./pages-native-plugin-http.js";
 export { handleDatasetNativePluginHttp } from "./dataset-native-plugin-http.js";
 export { handlePptNativePluginHttp } from "./ppt-native-plugin-http.js";
 export { handleLingguangNativePluginHttp } from "./lingguang-native-plugin-http.js";

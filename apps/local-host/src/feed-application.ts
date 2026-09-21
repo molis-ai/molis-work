@@ -38,12 +38,13 @@ import { FeedApplication, FeedOutRuleStore, type FeedApplicationPorts, type Feed
 import { ArtifactsModule, type ArtifactsSqliteDatabase } from "@molis-ai/molis-work-module-artifacts";
 import type { JudgmentPort } from "@molis-ai/molis-work-contracts/modules/functions";
 import { createFunctionsJudgmentPort } from "./functions-host.js";
-import { hostAllowedBehaviorIds } from "./behavior-catalog.js";
+import { hostAllowedBehaviorIds, hostOfferedBehaviorsForScene } from "./behavior-catalog.js";
 
 export interface LocalFeedApplicationOptions {
   artifacts?: FeedArtifactProducer;
   judgments?: JudgmentPort;
   offered_behavior_ids?: readonly string[];
+  offeredBehaviorsForScene?: (sceneId: string, subjects: readonly string[]) => readonly string[];
 }
 
 export function withLocalFeedJudgments(homeDirectory?: string): LocalFeedApplicationOptions {
@@ -51,6 +52,7 @@ export function withLocalFeedJudgments(homeDirectory?: string): LocalFeedApplica
   return {
     judgments: createFunctionsJudgmentPort(homeDirectory),
     offered_behavior_ids: hostAllowedBehaviorIds(),
+    offeredBehaviorsForScene: hostOfferedBehaviorsForScene,
   };
 }
 
@@ -134,6 +136,7 @@ export function createLocalFeedApplication(
     },
     judgments: options.judgments,
     offered_behavior_ids: options.offered_behavior_ids,
+    offeredBehaviorsForScene: options.offeredBehaviorsForScene ?? hostOfferedBehaviorsForScene,
     transaction: (operation) => db.transaction(operation).immediate(),
     listener: {
       listRuns: (boardId) => listListenerRuns(db, boardId),

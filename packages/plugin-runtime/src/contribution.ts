@@ -113,12 +113,23 @@ function assertMcp(manifest: PluginManifest, contribution: PluginAppContribution
 }
 
 function assertBehaviors(manifest: PluginManifest, contribution: PluginAppContribution): string[] {
-  if (!contribution.behaviors) return [];
   const problems: string[] = [];
   const declared = new Set((manifest.behaviors ?? []).map((entry) => entry.behavior_id));
-  for (const binding of contribution.behaviors) {
+  const delivered = new Set<string>();
+  for (const binding of contribution.behaviors ?? []) {
     if (!declared.has(binding.behavior_id)) {
       problems.push(`行为 ${binding.behavior_id} 没有在 Manifest 里声明`);
+      continue;
+    }
+    if (delivered.has(binding.behavior_id)) {
+      problems.push(`行为 ${binding.behavior_id} 重复提供`);
+      continue;
+    }
+    delivered.add(binding.behavior_id);
+  }
+  if (manifest.kind === "app") {
+    for (const behaviorId of declared) {
+      if (!delivered.has(behaviorId)) problems.push(`声明的行为 ${behaviorId} 没有兑现`);
     }
   }
   return problems;

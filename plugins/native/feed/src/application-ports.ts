@@ -14,6 +14,7 @@ export interface FeedApplicationPorts {
   readonly artifacts?: FeedArtifactProducer;
   readonly judgments?: JudgmentPort;
   readonly offered_behavior_ids?: readonly string[];
+  readonly offeredBehaviorsForScene?: (sceneId: string, subjects: readonly string[]) => readonly string[];
   readonly receipts: {
     listContractMigrations(): FeedContractMigrationReceiptRecord[];
   };

@@ -23,6 +23,20 @@ const FOCAL_STATUS = ":is(.tui-owner-actions, .goal-node-toolbar, .reader-header
 export const MICRO_INTERACTION_STYLES = `
   :root, body { --ease-settle: cubic-bezier(.32, 1.22, .52, 1); }
 
+  /* Contained focus sits last in the design-system tail so leftover outer rings cannot win. */
+  body.immersive-workbench :focus-visible,
+  body.settings-page :focus-visible,
+  body.project-index-page :focus-visible,
+  body.project-preferences-page :focus-visible {
+    outline: var(--focus-stroke, 2px solid var(--focus));
+    outline-offset: var(--focus-stroke-inset, -2px);
+  }
+  body.immersive-workbench :is(a:not([class]), .mw-btn--link):focus-visible,
+  body.settings-page :is(a:not([class]), .mw-btn--link):focus-visible,
+  body.project-index-page :is(a:not([class]), .mw-btn--link):focus-visible {
+    outline-offset: 2px;
+  }
+
   /* Rubber Segment: one thumb travels between slots instead of a chip blinking on and off. */
   body ${SEGMENTED}[data-seg-thumb] { position: relative; }
   body ${SEGMENTED}[data-seg-thumb]::before {
@@ -81,6 +95,7 @@ export const MICRO_INTERACTION_STYLES = `
 
 
   /* A writing surface opts out of the field ring: it answers focus with tone, not a box. */
+  body.immersive-workbench [data-plain-field]:focus-visible,
   body [data-plain-field]:focus-visible, body [data-plain-field]:focus {
     outline: none;
     border-color: transparent;

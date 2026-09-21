@@ -48,9 +48,9 @@ export const datasetUiContribution: UiContribution<DatasetUiModel> = {
 export function renderDatasetWorkbench(model: DatasetUiModel): string {
   const { primitives: p } = model;
   return `<section class="desktop-work-surface plugin-stage-shell" data-work-surface="dataset" data-work-surface-label="Dataset" hidden data-dataset="workbench" data-dataset-stage-shell data-expanded="false">
-    <div class="plugin-stage-list" data-dataset="directory">
+    <div class="plugin-stage-list feed-stage-list feed-stage-tree" data-dataset="directory">
       <header class="plugin-stage-chrome dataset-stage-chrome">
-        <button class="mw-btn mw-btn--secondary" type="button" data-dataset-new>${p.text("新建数据表")}</button>
+        <button class="mw-btn mw-btn--ghost tree-create" type="button" data-dataset-new>${icon("plus")}<span>${p.text("新建数据表")}</span></button>
       </header>
       <div class="mw-empty" data-dataset-empty>
         <strong>${p.text("还没有数据表")}</strong>
@@ -69,8 +69,10 @@ export function renderDatasetWorkbench(model: DatasetUiModel): string {
         <button class="mw-btn mw-btn--ghost" type="button" data-dataset-delete>${p.text("删除")}</button>
       </div>
       <div class="dataset-workspace">
-        <label class="dataset-field">${p.text("标题")}<input class="mw-input" data-dataset-title autocomplete="off"></label>
-        <label class="dataset-field">${p.text("说明")}<textarea class="mw-textarea" data-dataset-description rows="1"></textarea></label>
+        <div class="dataset-identity">
+          <label class="dataset-field">${p.text("标题")}<input class="mw-input" data-dataset-title autocomplete="off"></label>
+          <label class="dataset-field">${p.text("说明")}<input class="mw-input" data-dataset-description autocomplete="off" placeholder="${p.text("可选")}"></label>
+        </div>
         <div class="dataset-toolbar">
           <input class="mw-input" data-dataset-filter autocomplete="off" placeholder="${p.text("筛选格子")}">
           <select class="mw-select" data-dataset-column-type>
@@ -88,6 +90,7 @@ export function renderDatasetWorkbench(model: DatasetUiModel): string {
         </div>
         <div class="dataset-table-wrap">
           <p class="dataset-table-empty" data-dataset-table-empty hidden>${p.text("还没有列。先加一列，或打开下面粘贴 CSV。")}</p>
+          <p class="dataset-table-empty" data-dataset-filter-empty hidden>${p.text("没有匹配的格子")}</p>
           <table class="mw-table" data-dataset-table hidden></table>
         </div>
         <details class="dataset-panel">

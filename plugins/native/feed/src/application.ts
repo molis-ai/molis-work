@@ -307,6 +307,8 @@ export class FeedApplication {
       return;
     }
     const offered = this.ports.offered_behavior_ids ?? [];
+    const sceneOffered = (sceneId: string, subjects: readonly string[]) =>
+      this.ports.offeredBehaviorsForScene?.(sceneId, subjects) ?? offered;
     const feedItems = this.pendingFeedJudgments.splice(0);
     const inboxEntries = this.pendingInboxJudgments.splice(0);
     for (const item of feedItems) {
@@ -314,13 +316,14 @@ export class FeedApplication {
         Boolean(rule.function_key) && feedOutRuleMatches(rule, item),
       );
       const input = [item.title, item.summary, item.body ?? ""].filter(Boolean).join("\n");
+      const captureOffered = sceneOffered(FEED_CAPTURE_SCENE_ID, ["feed_item"]);
       for (const rule of rules) {
         const judgment = await judgments.judge({
           function_key: rule.function_key!,
           input,
           subject: { kind: "feed_item", id: item.item_id, board_id: item.board_id },
           scene_id: FEED_CAPTURE_SCENE_ID,
-          offered_behavior_ids: offered,
+          offered_behavior_ids: captureOffered,
         });
         this.ports.appendEvent(
           item.board_id,
@@ -336,7 +339,7 @@ export class FeedApplication {
         kind: "feed_item",
         id: item.item_id,
         board_id: item.board_id,
-      }, input, offered);
+      }, input, sceneOffered(HOME_DOCK_SCENE_ID, ["feed_item"]));
     }
     for (const entry of inboxEntries) {
       const input = [entry.reason, entry.subject_id].join("\n");
@@ -344,12 +347,12 @@ export class FeedApplication {
         kind: "inbox_entry",
         id: entry.entry_id,
         board_id: entry.board_id,
-      }, input, offered);
+      }, input, sceneOffered(INBOX_NEXT_SCENE_ID, ["inbox_entry"]));
       await this.judgeScene(judgments, HOME_DOCK_SCENE_ID, entry.board_id, {
         kind: "inbox_entry",
         id: entry.entry_id,
         board_id: entry.board_id,
-      }, input, offered);
+      }, input, sceneOffered(HOME_DOCK_SCENE_ID, homeDockSubjectsForInbox(entry)));
     }
   }
 
@@ -359,17 +362,22 @@ export class FeedApplication {
 
   createOutRule(boardId: string, input: FeedOutRuleWrite): FeedOutRuleRecord {
     const rule = this.requireOutRules().create(boardId, input);
-    if (rule.function_key) {
+    if (!rule.function_key) return rule;
+    try {
       this.ports.judgments?.bindScene(FEED_CAPTURE_SCENE_ID, rule.function_key, boardId, rule.rule_id);
+      return rule;
+    } catch (error) {
+      this.requireOutRules().delete(boardId, rule.rule_id);
+      throw error;
     }
-    return rule;
   }
 
   updateOutRule(boardId: string, ruleId: string, patch: Partial<FeedOutRuleWrite>): FeedOutRuleRecord {
+    if (patch.function_key) {
+      this.ports.judgments?.bindScene(FEED_CAPTURE_SCENE_ID, patch.function_key, boardId, ruleId);
+    }
     const rule = this.requireOutRules().update(boardId, ruleId, patch);
-    if (rule.function_key) {
-      this.ports.judgments?.bindScene(FEED_CAPTURE_SCENE_ID, rule.function_key, boardId, rule.rule_id);
-    } else {
+    if (!rule.function_key) {
       this.ports.judgments?.unbindScene(FEED_CAPTURE_SCENE_ID, boardId, rule.rule_id);
     }
     return rule;
@@ -569,4 +577,10 @@ function errorCode(error: unknown): string {
     return error.code;
   }
   return "feed_artifact_register_failed";
+}
+
+function homeDockSubjectsForInbox(entry: InboxEntryRecord): string[] {
+  if (entry.subject_type === "feed_item") return ["inbox_entry", "feed_item"];
+  if (entry.subject_type === "source_fault") return ["inbox_entry", "source"];
+  return ["inbox_entry"];
 }

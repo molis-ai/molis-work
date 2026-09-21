@@ -30,10 +30,17 @@ export interface MolisWorkWebView {
   feed_connector_auth?: FeedUiModel["connector_auth"];
   schedule_jobs?: readonly ScheduleJobRecord[];
   schedule_tasks?: readonly ScheduleConversationTaskView[];
-  /** Board-level scene bindings and published function choices for Inbox / home dock selectors. */
+  /** Board-level scene bindings and scene-filtered published function choices. */
   function_scenes?: {
-    readonly published: readonly { readonly function_key: string; readonly name: string }[];
     readonly inbox_next: string | null;
     readonly home_dock: string | null;
+    readonly inbox_next_functions: readonly { readonly function_key: string; readonly name: string }[];
+    readonly home_dock_functions: readonly { readonly function_key: string; readonly name: string }[];
+    readonly feed_capture_functions: readonly { readonly function_key: string; readonly name: string }[];
+    readonly dock_behaviors?: readonly {
+      readonly behavior_id: string;
+      readonly title: string;
+      readonly subject_kinds: readonly string[];
+    }[];
   };
 }

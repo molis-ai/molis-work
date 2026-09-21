@@ -11,19 +11,22 @@ import {
   railEntries,
 } from "@molis-ai/molis-work-app-workbench";
 import {
-  FORM_CLIENT_FACTORY_SCRIPT,
-  FormPluginRouteTable,
-  createFormRouteHandlers,
-  openFormStore,
-} from "@molis-ai/molis-work-plugin-form";
-import {
   DATASET_CLIENT_FACTORY_SCRIPT,
   DatasetPluginRouteTable,
   createDatasetRouteHandlers,
+  mergeDatasetDraftRows,
   openDatasetStore,
   parseCsv,
   toCsv,
 } from "@molis-ai/molis-work-plugin-dataset";
+import {
+  FORM_CLIENT_FACTORY_SCRIPT,
+  FORM_EN,
+  FORM_STYLES,
+  FormPluginRouteTable,
+  createFormRouteHandlers,
+  openFormStore,
+} from "@molis-ai/molis-work-plugin-form";
 import {
   PPT_CLIENT_FACTORY_SCRIPT,
   PptPluginRouteTable,
@@ -33,6 +36,7 @@ import {
 import {
   renderMolisWorkWeb,
   renderMolisWorkWorkbenchClientScript,
+  renderMolisWorkWorkbenchStylesheet,
   type MolisWorkWebView,
 } from "./workbench-renderer-fixture.js";
 
@@ -123,7 +127,7 @@ async function withHome<T>(run: (home: string) => Promise<T>): Promise<T> {
 }
 
 test("Forms / Dataset / PPT 是个人插件，不进项目启用名单", () => {
-  assert.deepEqual([...PERSONAL_PLUGIN_IDS], ["shelf", "lingguang", "functions", "form", "dataset", "ppt"]);
+  assert.deepEqual([...PERSONAL_PLUGIN_IDS], ["shelf", "lingguang", "functions", "pages", "form", "dataset", "ppt"]);
   for (const id of ["form", "dataset", "ppt"]) {
     assert.equal(PROJECT_SCOPED_PLUGIN_IDS.includes(id), false, `${id} 不该要项目添加`);
   }
@@ -153,6 +157,10 @@ test("工作台 HTML 挂上三个创作入口，确认与工具条不在 label �
   assert.match(html, /class="mw-textarea"/);
   assert.match(html, /class="mw-select"/);
   assert.match(html, /还没有列。先加一列，或打开下面粘贴 CSV。/);
+  assert.match(html, /data-dataset-filter-empty/);
+  assert.match(html, /没有匹配的格子/);
+  assert.match(html, /placeholder="可选"/);
+  assert.match(html, /讲者备注/);
   assert.match(html, /class="form-prompt"/);
   assert.match(html, /class="dataset-prompt"/);
   assert.match(html, /粘贴 CSV 会覆盖当前表/);
@@ -160,22 +168,134 @@ test("工作台 HTML 挂上三个创作入口，确认与工具条不在 label �
   assert.match(html, /<div class="dataset-prompt">[\s\S]*data-dataset-ai-prompt[\s\S]*<\/label>[\s\S]*data-dataset-generate/);
   assert.doesNotMatch(html, /data-form-ai-prompt"[^>]*>\s*<button[^>]*data-form-generate/);
   assert.doesNotMatch(html, /data-dataset-ai-prompt"[^>]*>\s*<button[^>]*data-dataset-generate/);
+  assert.match(html, /plugin-stage-list feed-stage-list feed-stage-tree" data-form="directory"/);
+  assert.match(html, /plugin-stage-list feed-stage-list feed-stage-tree" data-dataset="directory"/);
+  assert.match(html, /plugin-stage-list feed-stage-list feed-stage-tree" data-ppt="directory"/);
+  assert.match(html, /class="mw-btn mw-btn--ghost tree-create"[^>]*data-form-new/);
+  assert.match(html, /class="mw-btn mw-btn--ghost tree-create"[^>]*data-dataset-new/);
+  assert.match(html, /class="mw-btn mw-btn--ghost tree-create"[^>]*data-ppt-new/);
+  assert.doesNotMatch(html, /mw-btn--secondary"[^>]*data-form-new/);
+  assert.doesNotMatch(html, /mw-btn--secondary"[^>]*data-dataset-new/);
+  assert.doesNotMatch(html, /mw-btn--secondary"[^>]*data-ppt-new/);
+  assert.match(html, /class="form-identity"/);
+  assert.match(html, /class="dataset-identity"/);
+  assert.match(html, /class="ppt-meta"/);
+  assert.match(html, /role="tab"/);
+  assert.match(html, /data-ppt-editor-status/);
+  assert.match(renderMolisWorkWorkbenchStylesheet(), /--tab-tone: var\(--plugin-form/);
+  assert.match(renderMolisWorkWorkbenchStylesheet(), /creative-arrive/);
+  assert.match(renderMolisWorkWorkbenchStylesheet(), /creative-pane/);
+  assert.match(FORM_STYLES, /\[data-form-pane\]:not\(\[hidden\]\) \{ animation: creative-pane/);
+  assert.doesNotMatch(FORM_STYLES, /\[data-form-pane\]:not\(\[hidden\]\) \{ animation: creative-arrive/);
+  assert.ok(!Object.hasOwn(FORM_EN, "1 到 5"));
 });
 
 test("工作台客户端脚本在挂上三个创作插件后仍能解析", () => {
   const script = renderMolisWorkWorkbenchClientScript();
   assert.doesNotThrow(() => new Function(script));
-  assert.match(script, /\["shelf","lingguang","functions","form","dataset","ppt"\]/);
+  assert.match(script, /\["shelf","lingguang","functions","pages","form","dataset","ppt"\]/);
   assert.doesNotMatch(saveFunctionSource(FORM_CLIENT_FACTORY_SCRIPT), /fillEditor/);
   assert.doesNotMatch(saveFunctionSource(DATASET_CLIENT_FACTORY_SCRIPT), /fillEditor/);
   assert.doesNotMatch(saveFunctionSource(PPT_CLIENT_FACTORY_SCRIPT), /fillEditor/);
+  assert.match(saveFunctionSource(FORM_CLIENT_FACTORY_SCRIPT), /seq !== saveSeq/);
+  assert.match(saveFunctionSource(DATASET_CLIENT_FACTORY_SCRIPT), /seq !== saveSeq/);
+  assert.match(saveFunctionSource(PPT_CLIENT_FACTORY_SCRIPT), /seq !== saveSeq/);
+  assert.match(FORM_CLIENT_FACTORY_SCRIPT, /seq !== resultsSeq \|\| selected\?\.id !== id/);
   assert.match(fillEditorSource(FORM_CLIENT_FACTORY_SCRIPT), /clearTimeout\(saveTimer\)/);
   assert.match(fillEditorSource(DATASET_CLIENT_FACTORY_SCRIPT), /clearTimeout\(saveTimer\)/);
   assert.match(fillEditorSource(PPT_CLIENT_FACTORY_SCRIPT), /clearTimeout\(saveTimer\)/);
+  assert.match(DATASET_CLIENT_FACTORY_SCRIPT, /closest\("\[data-column-type\]"\)/);
   assert.match(FORM_CLIENT_FACTORY_SCRIPT, /data-question-move/);
-  assert.match(FORM_CLIENT_FACTORY_SCRIPT, /checkbox/);
+  assert.match(FORM_CLIENT_FACTORY_SCRIPT, /mw-check/);
+  assert.match(FORM_CLIENT_FACTORY_SCRIPT, /form-preview-rating/);
   assert.match(FORM_CLIENT_FACTORY_SCRIPT, /data-option-remove/);
   assert.match(FORM_CLIENT_FACTORY_SCRIPT, /data-form-result-list/);
+  assert.match(FORM_CLIENT_FACTORY_SCRIPT, /还有必填题没填/);
+  assert.match(FORM_CLIENT_FACTORY_SCRIPT, /载入中/);
+  assert.match(PPT_CLIENT_FACTORY_SCRIPT, /ppt-card-notes/);
+  assert.match(PPT_CLIENT_FACTORY_SCRIPT, /ppt-card-empty/);
+  assert.match(FORM_CLIENT_FACTORY_SCRIPT, /feed-stage-entry directory-list-row/);
+  assert.match(DATASET_CLIENT_FACTORY_SCRIPT, /feed-stage-entry directory-list-row/);
+  assert.match(PPT_CLIENT_FACTORY_SCRIPT, /feed-stage-entry directory-list-row/);
+  assert.match(FORM_CLIENT_FACTORY_SCRIPT, /plugin-stage-kind/);
+  assert.match(DATASET_CLIENT_FACTORY_SCRIPT, /plugin-stage-kind/);
+  assert.match(PPT_CLIENT_FACTORY_SCRIPT, /plugin-stage-kind/);
+  assert.match(FORM_CLIENT_FACTORY_SCRIPT, /kindChip\("form"/);
+  assert.match(DATASET_CLIENT_FACTORY_SCRIPT, /kindChip\("dataset"/);
+  assert.match(PPT_CLIENT_FACTORY_SCRIPT, /kindChip\("ppt"/);
+  assert.doesNotMatch(FORM_CLIENT_FACTORY_SCRIPT, /mw-status--plain feed-entry-status/);
+  assert.match(FORM_CLIENT_FACTORY_SCRIPT, /is-arriving/);
+  assert.match(DATASET_CLIENT_FACTORY_SCRIPT, /is-arriving/);
+  assert.match(PPT_CLIENT_FACTORY_SCRIPT, /is-arriving/);
+  assert.match(FORM_CLIENT_FACTORY_SCRIPT, /mw-status mw-status--" \+ \(published/);
+  assert.match(PPT_CLIENT_FACTORY_SCRIPT, /ppt-slide-index/);
+  assert.match(PPT_CLIENT_FACTORY_SCRIPT, /className = "feed-entry-status"/);
+  assert.doesNotMatch(PPT_CLIENT_FACTORY_SCRIPT, /mw-status--quiet feed-entry-status/);
+  assert.doesNotMatch(PPT_CLIENT_FACTORY_SCRIPT, /L\("草稿"\)/);
+  assert.doesNotMatch(FORM_CLIENT_FACTORY_SCRIPT, /className = "form-row/);
+  assert.doesNotMatch(DATASET_CLIENT_FACTORY_SCRIPT, /className = "dataset-row/);
+  assert.doesNotMatch(PPT_CLIENT_FACTORY_SCRIPT, /className = "ppt-row/);
+});
+
+test("Dataset：删行丢掉，筛选藏着的行留下；工作台内联同一合并函数", () => {
+  const columns = [{ id: "name" }];
+  const deleted = mergeDatasetDraftRows(
+    [
+      { id: "keep-hidden", cells: { name: "苹果" } },
+      { id: "deleted", cells: { name: "香蕉" } },
+      { id: "visible", cells: { name: "香蕉派" } },
+    ],
+    [{ id: "visible", cells: { name: "香蕉派改" } }],
+    columns,
+    "香蕉",
+  );
+  assert.deepEqual(deleted.map((row) => row.id), ["keep-hidden", "visible"]);
+  assert.equal(deleted.find((row) => row.id === "visible")?.cells?.name, "香蕉派改");
+  assert.equal(deleted.find((row) => row.id === "keep-hidden")?.cells?.name, "苹果");
+
+  const filtered = mergeDatasetDraftRows(
+    [
+      { id: "hidden", cells: { name: "苹果" } },
+      { id: "shown", cells: { name: "香蕉" } },
+    ],
+    [{ id: "shown", cells: { name: "香蕉" } }],
+    columns,
+    "香蕉",
+  );
+  assert.deepEqual(filtered.map((row) => row.id), ["hidden", "shown"]);
+
+  const appended = mergeDatasetDraftRows(
+    [{ id: "old", cells: { name: "一" } }],
+    [
+      { id: "old", cells: { name: "一" } },
+      { id: "new", cells: { name: "二" } },
+    ],
+    columns,
+    "",
+  );
+  assert.deepEqual(appended.map((row) => row.id), ["old", "new"]);
+
+  const clearedFilterTooSoon = mergeDatasetDraftRows(
+    [
+      { id: "hidden", cells: { name: "苹果" } },
+      { id: "shown", cells: { name: "香蕉" } },
+    ],
+    [{ id: "shown", cells: { name: "香蕉" } }],
+    columns,
+    "",
+  );
+  assert.deepEqual(clearedFilterTooSoon.map((row) => row.id), ["shown"], "空筛选只能描述当前 DOM；隐藏行要用画出 DOM 时的旧筛选提交");
+
+  assert.ok(DATASET_CLIENT_FACTORY_SCRIPT.includes(mergeDatasetDraftRows.toString()));
+  assert.match(DATASET_CLIENT_FACTORY_SCRIPT, /mergeDatasetDraftRows\(selected\?\.rows \|\| \[\], rowsFromDom\(\), columns, renderedFilter\)/);
+  assert.match(DATASET_CLIENT_FACTORY_SCRIPT, /let renderedFilter = ""/);
+  const changeStart = DATASET_CLIENT_FACTORY_SCRIPT.indexOf('addEventListener("change"');
+  const changeEnd = DATASET_CLIENT_FACTORY_SCRIPT.indexOf("void loadList", changeStart);
+  assert.ok(changeStart >= 0 && changeEnd > changeStart);
+  const changeHandler = DATASET_CLIENT_FACTORY_SCRIPT.slice(changeStart, changeEnd);
+  assert.match(changeHandler, /input\.type = type === "number"/);
+  assert.doesNotMatch(changeHandler, /renderTable/);
+  assert.match(DATASET_CLIENT_FACTORY_SCRIPT, /filter\(\(item\) => item\.id !== id\)/);
 });
 
 test("Forms：建题、预览提交、结果计数，重开还在；出题是本地 stub", async () => {
@@ -203,6 +323,15 @@ test("Forms：建题、预览提交、结果计数，重开还在；出题是本
     assert.equal(generatedForm.questions.at(-1)?.title, "你最常用的工具是什么");
     assert.equal(generatedForm.questions.at(-1)?.type, "text");
     await routes.handle({ method: "POST", pathname: `/api/form/${id}/publish`, query: projectQuery(), body: projectBody() });
+    await assert.rejects(
+      () => routes.handle({
+        method: "POST",
+        pathname: `/api/form/${id}/submit`,
+        query: projectQuery(),
+        body: projectBody({ answers: {} }),
+      }),
+      (error: Error) => error.message.includes("请回答"),
+    );
     await routes.handle({
       method: "POST",
       pathname: `/api/form/${id}/submit`,

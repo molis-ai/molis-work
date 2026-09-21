@@ -2,8 +2,10 @@ import { chmodSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import {
+  AGENT_MCP_DESTINATION_ID,
   FUNCTIONS_DEFAULT_MODEL,
   FUNCTIONS_MAX_SAMPLES,
+  isFunctionDestinationId,
   type ChoiceCriterion,
   type FunctionCriteria,
   type FunctionDraftPatch,
@@ -30,6 +32,8 @@ interface FunctionRow {
   model: string;
   instructions: string;
   criteria_json: string;
+  scene_id: string | null;
+  subject_kinds_json: string | null;
   config_hash: string;
   last_preview_json: string | null;
   samples_json: string | null;
@@ -88,6 +92,8 @@ export class FunctionsStore {
       model: FUNCTIONS_DEFAULT_MODEL,
       instructions: "",
       criteria,
+      scene_id: primitive === "choice" ? null : AGENT_MCP_DESTINATION_ID,
+      subject_kinds: primitive === "choice" ? [] : ["mcp_invoke"],
       last_preview: null,
       samples: [],
       published_at: null,
@@ -122,12 +128,26 @@ export class FunctionsStore {
       model: current.model,
     });
     const last_preview = current.last_preview?.config_hash === config_hash ? current.last_preview : null;
+    const scene_id = patch.scene_id === undefined ? current.scene_id : normalizeSceneId(patch.scene_id, current.primitive);
+    const subject_kinds = patch.subject_kinds === undefined ? current.subject_kinds : normalizeSubjectKinds(patch.subject_kinds);
     const now = new Date().toISOString();
     this.db.prepare(`
       UPDATE functions
-      SET name = ?, function_key = ?, instructions = ?, criteria_json = ?, config_hash = ?, last_preview_json = ?, updated_at = ?
+      SET name = ?, function_key = ?, instructions = ?, criteria_json = ?, scene_id = ?, subject_kinds_json = ?,
+          config_hash = ?, last_preview_json = ?, updated_at = ?
       WHERE id = ?
-    `).run(name, function_key, instructions, JSON.stringify(criteria), config_hash, last_preview ? JSON.stringify(last_preview) : null, now, id);
+    `).run(
+      name,
+      function_key,
+      instructions,
+      JSON.stringify(criteria),
+      scene_id,
+      JSON.stringify(subject_kinds),
+      config_hash,
+      last_preview ? JSON.stringify(last_preview) : null,
+      now,
+      id,
+    );
     return this.require(id);
   }
 
@@ -292,13 +312,21 @@ export class FunctionsStore {
     return rows.map(mapJudgment);
   }
 
-  latestJudgment(kind: JudgmentSubject["kind"], id: string, boardId?: string): JudgmentRecord | null {
-    const row = this.db.prepare(`
-      SELECT * FROM function_judgments
-      WHERE subject_kind = ? AND subject_id = ? AND (? = '' OR board_id = ?)
-      ORDER BY datetime(created_at) DESC, judgment_id DESC
-      LIMIT 1
-    `).get(kind, id, boardId ?? "", boardId ?? "") as Record<string, unknown> | undefined;
+  latestJudgment(kind: JudgmentSubject["kind"], id: string, boardId?: string, sceneId?: string | null): JudgmentRecord | null {
+    const board = boardId ?? "";
+    const row = sceneId
+      ? this.db.prepare(`
+          SELECT * FROM function_judgments
+          WHERE subject_kind = ? AND subject_id = ? AND (? = '' OR board_id = ?) AND scene_id = ?
+          ORDER BY datetime(created_at) DESC, judgment_id DESC
+          LIMIT 1
+        `).get(kind, id, board, board, sceneId) as Record<string, unknown> | undefined
+      : this.db.prepare(`
+          SELECT * FROM function_judgments
+          WHERE subject_kind = ? AND subject_id = ? AND (? = '' OR board_id = ?)
+          ORDER BY datetime(created_at) DESC, judgment_id DESC
+          LIMIT 1
+        `).get(kind, id, board, board) as Record<string, unknown> | undefined;
     return row ? mapJudgment(row) : null;
   }
 
@@ -342,6 +370,12 @@ export function openFunctionsStore(homeDirectory: string): FunctionsStore {
   const columns = db.prepare("PRAGMA table_info(functions)").all() as Array<{ name: string }>;
   if (!columns.some((column) => column.name === "samples_json")) {
     db.exec("ALTER TABLE functions ADD COLUMN samples_json TEXT NOT NULL DEFAULT '[]'");
+  }
+  if (!columns.some((column) => column.name === "scene_id")) {
+    db.exec("ALTER TABLE functions ADD COLUMN scene_id TEXT");
+  }
+  if (!columns.some((column) => column.name === "subject_kinds_json")) {
+    db.exec("ALTER TABLE functions ADD COLUMN subject_kinds_json TEXT NOT NULL DEFAULT '[]'");
   }
   db.exec(`
     CREATE TABLE IF NOT EXISTS function_judgments (
@@ -427,8 +461,8 @@ function insert(db: DatabaseSync, record: FunctionRecord): void {
   db.prepare(`
     INSERT INTO functions (
       id, name, function_key, primitive, status, version, model, instructions, criteria_json,
-      config_hash, last_preview_json, samples_json, published_at, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      scene_id, subject_kinds_json, config_hash, last_preview_json, samples_json, published_at, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     record.id,
     record.name,
@@ -439,6 +473,8 @@ function insert(db: DatabaseSync, record: FunctionRecord): void {
     record.model,
     record.instructions,
     JSON.stringify(record.criteria),
+    record.scene_id,
+    JSON.stringify(record.subject_kinds),
     record.config_hash,
     record.last_preview ? JSON.stringify(record.last_preview) : null,
     JSON.stringify(record.samples),
@@ -459,6 +495,8 @@ function fromRow(row: FunctionRow): FunctionRecord {
     status: row.status === "published" ? "published" : "draft",
     version: row.version,
     model: row.model,
+    scene_id: parseSceneId(row.scene_id),
+    subject_kinds: parseSubjectKinds(row.subject_kinds_json),
     instructions: row.instructions,
     criteria,
     last_preview: parsePreview(row.last_preview_json, primitive),
@@ -479,6 +517,8 @@ function buildRecord(input: {
   model: string;
   instructions: string;
   criteria: FunctionCriteria;
+  scene_id: string | null;
+  subject_kinds: readonly string[];
   last_preview: FunctionsPreviewRecord | null;
   samples: readonly FunctionSample[];
   published_at: string | null;
@@ -493,6 +533,8 @@ function buildRecord(input: {
     version: input.version,
     model: input.model,
     instructions: input.instructions,
+    scene_id: input.scene_id,
+    subject_kinds: input.subject_kinds,
     config_hash: hashFunctionConfig({
       primitive: input.primitive,
       instructions: input.instructions,
@@ -610,6 +652,47 @@ function parseSamples(raw: string | null): FunctionSample[] {
   } catch {
     return [];
   }
+}
+
+function parseSceneId(value: string | null | undefined): string | null {
+  if (!value || !isFunctionDestinationId(value)) return null;
+  return value;
+}
+
+function parseSubjectKinds(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  try {
+    return normalizeSubjectKinds(JSON.parse(raw) as unknown);
+  } catch {
+    return [];
+  }
+}
+
+function normalizeSceneId(value: string | null, primitive: FunctionsPrimitive): string | null {
+  if (value == null || value === "") {
+    return primitive === "choice" ? null : AGENT_MCP_DESTINATION_ID;
+  }
+  if (!isFunctionDestinationId(value)) {
+    throw new FunctionsError("functions.invalid", "去向不在已登记的事件或 Agent 调用里");
+  }
+  if (primitive !== "choice" && value !== AGENT_MCP_DESTINATION_ID) {
+    throw new FunctionsError("functions.invalid", "现场判断要用 Choice。Noul 和 Score 只给 Agent 用");
+  }
+  return value;
+}
+
+function normalizeSubjectKinds(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const kinds: string[] = [];
+  for (const item of value) {
+    if (typeof item !== "string") continue;
+    const kind = item.trim();
+    if (!kind || seen.has(kind)) continue;
+    seen.add(kind);
+    kinds.push(kind);
+  }
+  return kinds;
 }
 
 function normalizeName(value: string): string {

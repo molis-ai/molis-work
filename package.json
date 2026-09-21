@@ -105,6 +105,7 @@
     "@molis-ai/molis-work-plugin-functions": "workspace:*",
     "@molis-ai/molis-work-plugin-files": "workspace:*",
     "@molis-ai/molis-work-plugin-form": "workspace:*",
+    "@molis-ai/molis-work-plugin-pages": "workspace:*",
     "@molis-ai/molis-work-plugin-git": "workspace:*",
     "@molis-ai/molis-work-plugin-goals": "workspace:*",
     "@molis-ai/molis-work-plugin-inbox": "workspace:*",

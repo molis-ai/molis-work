@@ -15,6 +15,10 @@ import {
   formManifest,
 } from "@molis-ai/molis-work-plugin-form";
 import {
+  PAGES_PROJECT_PLUGIN_ID,
+  pagesManifest,
+} from "@molis-ai/molis-work-plugin-pages";
+import {
   DATASET_PROJECT_PLUGIN_ID,
   datasetManifest,
 } from "@molis-ai/molis-work-plugin-dataset";
@@ -26,6 +30,7 @@ import { createFunctionsMcpAdapter } from "./mcp-functions-tools.js";
 import {
   createDatasetMcpAdapter,
   createFormMcpAdapter,
+  createPagesMcpAdapter,
   createPptMcpAdapter,
 } from "./mcp-store-plugin-adapter.js";
 
@@ -81,6 +86,17 @@ export const NATIVE_MCP_PLUGIN_REGISTRATIONS: readonly NativeMcpPluginRegistrati
     },
     default_enabled: true,
     createAdapter: createFunctionsMcpAdapter,
+  },
+  {
+    source: {
+      plugin_id: pagesManifest.plugin_id,
+      project_plugin_id: PAGES_PROJECT_PLUGIN_ID,
+      name: pagesManifest.name,
+      personal: true,
+      exports: pagesManifest.mcp_exports ?? [],
+    },
+    default_enabled: false,
+    createAdapter: createPagesMcpAdapter,
   },
   {
     source: {

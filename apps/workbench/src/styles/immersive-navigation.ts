@@ -158,7 +158,7 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench .tree-search input { font: inherit; font-size: 13px; padding: 0; border: 0; outline: none; background: transparent; color: var(--ink); flex: 1; min-width: 0; }
   body.immersive-workbench .tree-search svg { position: static; flex: none; width: 14px; height: 14px; color: var(--muted); }
   body.immersive-workbench .tree-search kbd { position: static; flex: none; font-family: inherit; font-size: 9px; line-height: 1.5; color: var(--muted); border: 0; padding: 0; background: transparent; }
-  body.immersive-workbench .tree-search:focus-within { outline: 2px solid var(--blue); outline-offset: 0; }
+  body.immersive-workbench .tree-search:focus-within { outline: 2px solid var(--focus); outline-offset: -2px; }
   body.immersive-workbench .tree-tools,
   body.immersive-workbench[data-desktop-shell="true"] .tree-pane .tree-tools { gap: 4px; padding: 0; margin: 0; border: 0; display: flex; flex-wrap: nowrap; align-items: center; justify-content: flex-start; width: 100%; min-width: 0; }
   body.immersive-workbench .tree-create { flex: 1; min-width: 0; height: var(--control-h, 28px); min-height: var(--control-h, 28px); padding: 0 var(--control-pad-x, 12px); border: 1px solid var(--line); border-radius: var(--radius-control, 8px); background: var(--paper); color: var(--ink); display: inline-flex; align-items: center; justify-content: center; gap: 6px; font: inherit; font-size: 12px; font-weight: 400; cursor: pointer; }
@@ -293,7 +293,7 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench .plugin-market-project-trigger[aria-expanded="true"] svg,
   body.immersive-workbench .plugin-market-destination:has([data-market-project-popover]:popover-open) .plugin-market-project-trigger svg { transform: rotate(180deg); }
   body.immersive-workbench .plugin-market-project-trigger:hover:not(:disabled) { background: var(--nav-hover); }
-  body.immersive-workbench .plugin-market-project-trigger:focus-visible { outline: 0; border-color: var(--blue); box-shadow: 0 0 0 2px var(--blue-soft); }
+  body.immersive-workbench .plugin-market-project-trigger:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; box-shadow: none; }
   body.immersive-workbench .plugin-market-project-popover {
     position: fixed; inset: unset; margin: 0; padding: 6px; overflow: auto;
     max-height: min(280px, 50vh); border: 0; border-radius: 12px; background: var(--paper); color: var(--ink);
@@ -308,7 +308,7 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   }
   body.immersive-workbench .plugin-market-project-option:hover,
   body.immersive-workbench .plugin-market-project-option.is-current { background: var(--nav-hover); }
-  body.immersive-workbench .plugin-market-project-option:focus-visible { outline: 0; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--blue) 62%, transparent); }
+  body.immersive-workbench .plugin-market-project-option:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; box-shadow: none; }
   body.immersive-workbench .plugin-market-project-option strong { min-width: 0; overflow: hidden; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
   body.immersive-workbench .plugin-market-project-option svg { width: 14px; height: 14px; flex: none; color: var(--muted); }
   body.immersive-workbench .plugin-market-search { margin-top: 22px; min-height: 40px; width: 100%; box-sizing: border-box; }
@@ -402,7 +402,7 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench .global-search-empty { margin: 18px 10px; font-size: 13px; color: var(--muted); }
   html[data-resolved-theme="dark"] body.immersive-workbench .global-search-dialog { box-shadow: 0 18px 52px #00000066, 0 2px 8px #00000040; }
   html[data-resolved-theme="dark"] body.immersive-workbench .global-search-dialog::backdrop { background: #00000073; }
-  body.immersive-workbench :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+  body.immersive-workbench :focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
   body.immersive-workbench :is(.immersive-titlebar button, .navigator-native-row button, .immersive-plugin-link, .navigator-project-search):focus-visible { outline-offset: -2px; }
   body.immersive-workbench ::selection { color: var(--ink); background: var(--blue-soft); }
   body.immersive-workbench :is(input, textarea) { caret-color: var(--blue); }

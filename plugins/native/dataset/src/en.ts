@@ -12,6 +12,7 @@ export const DATASET_EN: Record<string, string> = {
   "确定": "Confirm",
   "标题": "Title",
   "说明": "Description",
+  "可选": "Optional",
   "筛选格子": "Filter cells",
   "文字": "Text",
   "数字": "Number",
@@ -42,5 +43,7 @@ export const DATASET_EN: Record<string, string> = {
   "删除这张表？版本记录也会一起删掉。": "Delete this table? Version history will be removed too.",
   "导入会覆盖当前表格的列和行。确定吗？": "Importing replaces the current columns and rows. Continue?",
   "还没有列。先加一列，或打开下面粘贴 CSV。": "No columns yet. Add one, or paste CSV below.",
+  "没有匹配的格子": "No matching cells",
   "删列": "Remove column",
+  "还没有说明": "No description yet",
 };

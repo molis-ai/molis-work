@@ -49,13 +49,13 @@ Molis Work 对外只有一个 MCP 进程：`molis-work-mcp`。插件不要自己
 3. 公开名由 Host 盖：`molis_work_v1_<短名>_<tool_id>`。短名是项目插件 id（Functions 是 `functions`），不是你在 Manifest 里拼出来的。
 4. Handler 只认 `{ tool_id, arguments }`。未在 Manifest 登记的 `tool_id` 即使代码里有实现也到不了。
 5. 新贡献默认关。人在设置里打开后，**之后新开的** MCP 连接才看得到；已打开的连接不会热刷新。不要把开关做进插件自己的 `settings-page`。
-6. 个人、不绑项目也能用的方法标 `scope: "home"`（Functions 三项就是这样）。项目能力保持默认 `scope: "project"`。个人插件但内容按当前项目分区的（Forms / Dataset / PPT）不要标 home；Host 从绑定连接注入 `project_id`，schema 里不要出现它。未绑项目时这些方法不进 list/call。
+6. 个人、不绑项目也能用的方法标 `scope: "home"`（Functions 三项就是这样）。项目能力保持默认 `scope: "project"`。个人插件但内容按当前项目分区的（Pages / Forms / Dataset / PPT）不要标 home；Host 从绑定连接注入 `project_id`，schema 里不要出现它。未绑项目时这些方法不进 list/call。
 
 对照：[`plugins/native/functions/src/mcp.ts`](../../plugins/native/functions/src/mcp.ts)（`scope: home`）和 [`plugins/native/form/src/mcp.ts`](../../plugins/native/form/src/mcp.ts)（个人插件、项目分区）。类型从 `@molis-ai/molis-work-plugin-sdk` 再导出。
 
 ### 两种兑现方式
 
-**Native（现在的 Functions / Forms / Dataset / PPT）**：构建期装配。除了 Manifest 和按 `tool_id` 的 handler，还要在 [`apps/local-host/src/mcp-native-plugins.ts`](../../apps/local-host/src/mcp-native-plugins.ts) 加一条：来源从 Manifest 读，`createAdapter` 接到插件包，`default_enabled` 默认 `false`（只有从旧静态目录迁过来的 Functions 三项是 `true`）。
+**Native（现在的 Functions / Pages / Forms / Dataset / PPT）**：构建期装配。除了 Manifest 和按 `tool_id` 的 handler，还要在 [`apps/local-host/src/mcp-native-plugins.ts`](../../apps/local-host/src/mcp-native-plugins.ts) 加一条：来源从 Manifest 读，`createAdapter` 接到插件包，`default_enabled` 默认 `false`（只有从旧静态目录迁过来的 Functions 三项是 `true`）。
 
 **运行时托管 app 插件**：`start()` 返回 `contribution.mcp`，`tool_id` 必须和 Manifest 一一对应。Plugin Runtime 启动时会校验，缺一条或多一条都是启动失败。生产 `tools/call` 还没有把这类插件接到 Runtime；在 Host 接上之前，不要给 Coding 等产品插件填 `mcp_exports`。
 

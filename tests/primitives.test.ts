@@ -254,7 +254,8 @@ test("primitive controls keep authored states instead of a class dump", () => {
   assert.match(PRIMITIVE_STYLES, /\.mw-btn--primary:disabled,[\s\S]*background: var\(--action\)/);
   assert.match(PRIMITIVE_STYLES, /\.mw-spinner \{[\s\S]*currentColor/);
   assert.doesNotMatch(PRIMITIVE_STYLES, /\.mw-catalog \.mw-btn \{ min-height: 44px/);
-  assert.match(PRIMITIVE_STYLES, /0 0 0 3\.5px color-mix\(in srgb, var\(--focus\) 15%, transparent\)/);
+  assert.match(PRIMITIVE_STYLES, /\.mw-input:focus-visible, \.mw-textarea:focus-visible, \.mw-select:focus-visible \{[\s\S]*outline-offset: -2px/);
+  assert.doesNotMatch(PRIMITIVE_STYLES, /0 0 0 3\.5px/);
   assert.match(PRIMITIVE_STYLES, /\.mw-check, \.mw-radio \{[\s\S]*appearance: none/);
   assert.match(PRIMITIVE_STYLES, /input\.mw-slider \{[^}]*background: transparent/);
   assert.match(PRIMITIVE_STYLES, /input\.mw-slider::-webkit-slider-thumb \{[^}]*background: var\(--paper\)/);

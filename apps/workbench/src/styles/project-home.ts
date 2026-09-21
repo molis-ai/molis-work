@@ -276,7 +276,7 @@ export const PROJECT_HOME_STYLES = `
   .immersive-home .home-shortcut-edit svg { width: 14px; height: 14px; }
   .immersive-home .home-shortcut:hover .home-shortcut-edit, .immersive-home .home-shortcut-edit:focus-visible { opacity: 1; }
   .immersive-home .home-shortcut-error { font-size: 11px; color: var(--red); text-align: center; line-height: 1.6; margin: 12px 0 0; }
-  .immersive-home :is(button, a, input, textarea):focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+  .immersive-home :is(button, a, input, textarea):focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
   body.immersive-workbench .home-shortcut-dialog { width: min(360px, calc(100vw - 40px)); max-height: calc(100dvh - 40px); padding: 25px; border: 1px solid var(--control-border); border-radius: var(--radius-surface); background: var(--paper); color: var(--ink); box-shadow: var(--control-shadow); }
   body.immersive-workbench .home-shortcut-dialog::backdrop { background: #11121655; }
   body.immersive-workbench .home-shortcut-dialog header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 22px; }

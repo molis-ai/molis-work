@@ -877,8 +877,9 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
       font-weight: 400;
     }
     .mobile-switch button:focus-visible {
-      outline: 0;
-      box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--blue) 62%, transparent);
+      outline: 2px solid var(--focus);
+      outline-offset: -2px;
+      box-shadow: none;
     }
     .mobile-switch button::after {
       content: "";

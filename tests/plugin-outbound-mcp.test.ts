@@ -25,6 +25,13 @@ import {
   runFormMcpTool,
 } from "@molis-ai/molis-work-plugin-form";
 import {
+  PAGES_MCP_EXPORTS,
+  PAGES_PROJECT_PLUGIN_ID,
+  openPagesStore,
+  pagesManifest,
+  runPagesMcpTool,
+} from "@molis-ai/molis-work-plugin-pages";
+import {
   DATASET_MCP_EXPORTS,
   DATASET_PROJECT_PLUGIN_ID,
   datasetManifest,
@@ -63,6 +70,7 @@ const LIST = mcpPublicToolName(FUNCTIONS_PROJECT_PLUGIN_ID, "list");
 const DESCRIBE = mcpPublicToolName(FUNCTIONS_PROJECT_PLUGIN_ID, "describe");
 const FORM_LIST = mcpPublicToolName(FORM_PROJECT_PLUGIN_ID, "list");
 const FORM_CREATE = mcpPublicToolName(FORM_PROJECT_PLUGIN_ID, "create");
+const PAGES_LIST = mcpPublicToolName(PAGES_PROJECT_PLUGIN_ID, "list");
 const DATASET_LIST = mcpPublicToolName(DATASET_PROJECT_PLUGIN_ID, "list");
 const PPT_LIST = mcpPublicToolName(PPT_PROJECT_PLUGIN_ID, "list");
 
@@ -141,6 +149,7 @@ test("assembleMcpCatalog defaults Functions on, new plugin contributions off, an
   assert.ok(names(runtime).includes("molis_work_v1_goal_list"));
   assert.equal(names(runtime).includes("molis_work_v1_coding_search"), false);
   assert.equal(names(runtime).includes(FORM_LIST), false);
+  assert.equal(names(runtime).includes(PAGES_LIST), false);
   assert.equal(names(runtime).includes(DATASET_LIST), false);
   assert.equal(names(runtime).includes(PPT_LIST), false);
 
@@ -445,8 +454,9 @@ test("built-in plugin MCP sources all have Host adapters and callTool does not b
   assert.equal(serverSource.includes("dispatchNativeMcpPluginTool"), true);
 });
 
-test("Forms Dataset PPT Manifests register store tools without identity fields", () => {
+test("Pages Forms Dataset PPT Manifests register store tools without identity fields", () => {
   for (const [manifest, exports, slug] of [
+    [pagesManifest, PAGES_MCP_EXPORTS, "pages"],
     [formManifest, FORM_MCP_EXPORTS, "form"],
     [datasetManifest, DATASET_MCP_EXPORTS, "dataset"],
     [pptManifest, PPT_MCP_EXPORTS, "ppt"],
@@ -489,15 +499,38 @@ test("personal project-scoped tools stay off by default, need a bound project, a
     enabled_project_plugins: ["form"],
   });
   assert.equal(names(stillOff).includes(FORM_LIST), false);
+  assert.equal(names(stillOff).includes(PAGES_LIST), false);
   assert.equal(names(stillOff).includes(DATASET_LIST), false);
   assert.equal(names(stillOff).includes(PPT_LIST), false);
 });
 
-test("Form Dataset PPT MCP handlers partition records by injected project_id", async (t) => {
+test("Pages Form Dataset PPT MCP handlers partition records by injected project_id", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "molis-work-creative-mcp-"));
   t.after(() => rm(home, { recursive: true, force: true }));
   const alpha = "project-alpha";
   const beta = "project-beta";
+
+  const pages = openPagesStore(home);
+  try {
+    const created = JSON.parse(runPagesMcpTool(pages, { tool_id: "create", arguments: { title: "项目文档" } }, alpha)) as {
+      document: { id: string; project_id: string };
+    };
+    assert.equal(created.document.project_id, alpha);
+    const listedAlpha = JSON.parse(runPagesMcpTool(pages, { tool_id: "list", arguments: {} }, alpha)) as {
+      documents: Array<{ id: string }>;
+    };
+    const listedBeta = JSON.parse(runPagesMcpTool(pages, { tool_id: "list", arguments: {} }, beta)) as {
+      documents: Array<{ id: string }>;
+    };
+    assert.deepEqual(listedAlpha.documents.map((item) => item.id), [created.document.id]);
+    assert.deepEqual(listedBeta.documents, []);
+    assert.throws(
+      () => runPagesMcpTool(pages, { tool_id: "secret", arguments: {} }, alpha),
+      /未登记的 Pages MCP/,
+    );
+  } finally {
+    pages.close();
+  }
 
   const forms = openFormStore(home);
   try {
@@ -591,6 +624,7 @@ test("settings MCP page lists Forms Dataset PPT groups off by default", async (t
     await rm(homeDirectory, { recursive: true, force: true });
   });
   const page = await (await fetch(`${origin}/settings/mcp`)).text();
+  assert.match(page, /data-mcp-group="pages"/);
   assert.match(page, /data-mcp-group="form"/);
   assert.match(page, /data-mcp-group="dataset"/);
   assert.match(page, /data-mcp-group="ppt"/);

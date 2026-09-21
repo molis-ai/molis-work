@@ -11,7 +11,7 @@ import {
   type FunctionsSecretPort,
   type TypeSafeProvider,
 } from "@molis-ai/molis-work-plugin-functions";
-import { hostAllowedBehaviorIds } from "./behavior-catalog.js";
+import { hostAllowedBehaviorIds, hostFunctionAuthoringCatalog } from "./behavior-catalog.js";
 
 export interface FunctionsNativePluginHttpOptions {
   readonly secrets?: FunctionsSecretPort;
@@ -39,7 +39,9 @@ export async function handleFunctionsNativePluginHttp(
       provider: options.provider ?? createHttpTypeSafeProvider(),
       allowed_behavior_ids: hostAllowedBehaviorIds(),
     });
-    const routes = new FunctionsPluginRouteTable(createFunctionsRouteHandlers(service));
+    const routes = new FunctionsPluginRouteTable(createFunctionsRouteHandlers(service, {
+      catalog: () => hostFunctionAuthoringCatalog(),
+    }));
     const result = await routes.handle({
       method: method as "GET" | "POST",
       pathname: url.pathname,

@@ -36,6 +36,7 @@ export interface FunctionsPluginRouteBinding extends FunctionsPluginRouteDefinit
 export const FUNCTIONS_NATIVE_PLUGIN_ROUTES = [
   route("functions.list", "GET", /^\/api\/functions$/u),
   route("functions.create", "POST", /^\/api\/functions$/u),
+  route("functions.catalog", "GET", /^\/api\/functions\/catalog$/u),
   route("functions.settings.read", "GET", /^\/api\/functions\/settings$/u),
   route("functions.settings.write", "POST", /^\/api\/functions\/settings$/u),
   route("functions.published", "GET", /^\/api\/functions\/published$/u),

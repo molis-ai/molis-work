@@ -40,13 +40,16 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
     days = homeFlow.buildHomeDays(now, locale);
     events = homeFlow.buildHomeEvents({
       now, locale,
-      inbox: feed.inbox_entries || [],
+      inbox: (feed.inbox_entries || []).map((entry) => ({
+        ...entry,
+        suggested_behavior_ids: entry.home_dock_suggested_behavior_ids || [],
+      })),
       feedItems: (feed.feed_items || []).map((item) => ({
         item_id: item.item_id, title: item.title, summary: item.summary || null, body: item.body || null,
         source_id: item.source_id, source_kind: item.source_kind, source_label: item.source_label,
         imported_at: item.imported_at, source_created_at: item.source_created_at,
         author: item.author || null, url: item.url || null, linked_goal_id: item.linked_goal_id || null,
-        suggested_behavior_ids: item.suggested_behavior_ids || [],
+        suggested_behavior_ids: item.home_dock_suggested_behavior_ids || [],
       })),
       sources: (feed.sources || []).map((source) => ({
         source_id: source.source_id, name: source.name, kind: source.kind, status: source.status,
@@ -192,13 +195,38 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
     const defaults = event.act === "reauth"
       ? ["feed.reauth", "home.ask"]
       : (canDone ? ["home.continue", "inbox.done"] : ["home.continue"]);
-    const suggested = (event.suggested_behavior_ids || []).filter((id) => defaults.includes(id) && id !== "home.talk");
-    const shown = suggested.length ? suggested : defaults;
+    const subjects = [];
+    if (event.inbox) subjects.push("inbox_entry");
+    if (event.act === "reauth") subjects.push("source");
+    else if (event.plugin === "feed" || (event.open && event.open.plugin === "feed")) subjects.push("feed_item");
+    if (event.plugin === "sessions") subjects.push("session");
+    const catalog = getState().function_scenes?.dock_behaviors || [];
+    const offered = catalog.length
+      ? catalog.filter((row) => (row.subject_kinds || []).some((kind) => subjects.includes(kind)))
+        .map((row) => row.behavior_id)
+      : defaults;
+    const kept = (event.suggested_behavior_ids || []).filter((id) => offered.includes(id) && id !== "home.talk");
+    const picked = kept.length ? kept : defaults;
+    const shown = picked.filter((id) => !(id === "feed.open" && picked.includes("home.continue")));
+    const titleOf = (id) => {
+      const row = catalog.find((item) => item.behavior_id === id);
+      return L(row?.title || ({
+        "feed.reauth": "重新授权",
+        "home.ask": "问问怎么回事",
+        "inbox.done": "做完了",
+        "inbox.dismiss": "忽略",
+        "feed.open": "打开",
+        "home.continue": "接着做",
+      })[id] || id);
+    };
     const button = (id) => {
-      if (id === "feed.reauth") return '<button class="mw-btn mw-btn--primary" type="button" data-home-reauth>' + ico("link") + L("重新授权") + "</button>";
-      if (id === "home.ask") return '<button class="mw-btn mw-btn--secondary" type="button" data-home-ask>' + L("问问怎么回事") + "</button>";
-      if (id === "inbox.done") return '<button class="mw-btn mw-btn--secondary" type="button" data-home-done>' + ico("check") + L("做完了") + "</button>";
-      return '<button class="mw-btn mw-btn--primary" type="button" data-home-continue>' + ico("arrow") + L("接着做") + "</button>";
+      const label = titleOf(id);
+      if (id === "feed.reauth") return '<button class="mw-btn mw-btn--primary" type="button" data-home-behavior="feed.reauth" data-home-reauth>' + ico("link") + label + "</button>";
+      if (id === "home.ask") return '<button class="mw-btn mw-btn--secondary" type="button" data-home-behavior="home.ask" data-home-ask>' + label + "</button>";
+      if (id === "inbox.done") return '<button class="mw-btn mw-btn--secondary" type="button" data-home-behavior="inbox.done" data-home-done>' + ico("check") + label + "</button>";
+      if (id === "inbox.dismiss") return '<button class="mw-btn mw-btn--ghost" type="button" data-home-behavior="inbox.dismiss" data-home-dismiss>' + label + "</button>";
+      if (id === "feed.open") return '<button class="mw-btn mw-btn--primary" type="button" data-home-behavior="feed.open" data-home-continue>' + ico("arrow") + label + "</button>";
+      return '<button class="mw-btn mw-btn--primary" type="button" data-home-behavior="home.continue" data-home-continue>' + ico("arrow") + label + "</button>";
     };
     const left = shown.map(button).join("");
     $("[data-home-detail-act]").innerHTML =
@@ -213,7 +241,7 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
     if (!scenes) return "";
     const selected = scenes.home_dock || "";
     const options = ['<option value="">' + L("不判断，用默认按钮") + "</option>"].concat(
-      (scenes.published || []).map((fn) =>
+      (scenes.home_dock_functions || []).map((fn) =>
         '<option value="' + esc(fn.function_key) + '"' + (fn.function_key === selected ? " selected" : "") + ">" +
         esc(fn.name) + "</option>",
       ),
@@ -275,19 +303,21 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
       continueEvent(current());
       return;
     }
-    if (event.target.closest("[data-home-done]")) {
+    const inboxAct = event.target.closest("[data-home-done], [data-home-dismiss]");
+    if (inboxAct) {
       const currentEvent = current();
       if (!currentEvent?.inbox || !feedApi) return;
-      const button = event.target.closest("[data-home-done]");
+      const button = inboxAct;
       button.disabled = true;
+      const status = inboxAct.matches("[data-home-dismiss]") ? "dismissed" : "done";
       try {
         const result = await feedApi("/api/inbox/entries/" + encodeURIComponent(currentEvent.inbox.entry_id) + "/status", "POST", {
-          status: "done",
+          status,
           expected_revision: currentEvent.inbox.revision,
         });
         const entries = feedState.inbox_entries;
         const index = entries?.findIndex((entry) => entry.entry_id === currentEvent.inbox.entry_id);
-        if (entries && index >= 0) entries[index] = { ...entries[index], ...(result.entry || {}), status: "done" };
+        if (entries && index >= 0) entries[index] = { ...entries[index], ...(result.entry || {}), status };
         collect();
         const remaining = listOf().filter((row) => row.id !== currentEvent.id);
         if (remaining[0]) openEvent(remaining[0].id);

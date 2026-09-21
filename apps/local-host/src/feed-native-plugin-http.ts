@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { FeedPluginRouteTable, createFeedRouteHandlers, feedRouteErrorResponse, type FeedPluginRouteResponse } from "@molis-ai/molis-work-plugin-feed";
+import { FeedPluginRouteTable, createFeedRouteHandlers, feedRouteErrorResponse, type FeedApplication, type FeedItemRecord, type FeedPluginRouteResponse } from "@molis-ai/molis-work-plugin-feed";
 import type { MolisWorkWebView, WorkbenchRenderer } from "@molis-ai/molis-work-app-workbench";
 import type { GoalProjectApplication } from "./goal-project-application.js";
 import type { LocalProjectDatabase } from "./project-database.js";
@@ -8,7 +8,8 @@ import { createLocalFeedConnectorService } from "./feed-connector-service.js";
 import { createLocalFeedSourceService, listFeedSourceCatalog } from "./feed-source-service.js";
 import { createLocalFeedGoalPromotion } from "./feed-goal-promotion.js";
 import { hydrateFeedItemContent, hydrateFeedSnapshotContent } from "./feed-content.js";
-import type { FeedApplication } from "@molis-ai/molis-work-plugin-feed";
+import { createFunctionsJudgmentPort } from "./functions-host.js";
+import { FEED_CAPTURE_SCENE_ID } from "@molis-ai/molis-work-contracts/modules/functions";
 
 export interface FeedNativePluginHttpOptions {
   readonly renderer: Pick<WorkbenchRenderer, "renderFeedWorkbenchFragment" | "renderPersistedFeedItemDetail">;
@@ -63,7 +64,12 @@ function createHandlers(options: FeedNativePluginHttpOptions): { handlers: Retur
       sources: () => createLocalFeedSourceService(options.store.db, options.boardId, undefined, undefined, options.homeDirectory),
       connectors: () => createLocalFeedConnectorService(options.store.db, options.boardId, undefined, options.homeDirectory),
       changed: () => options.invalidateWebView(),
-      hydrateItem: hydrateFeedItemContent, hydrateSnapshot: hydrateFeedSnapshotContent,
+      hydrateItem: (item) => attachFeedItemSuggestions(
+        hydrateFeedItemContent(item),
+        options.homeDirectory,
+        options.boardId,
+      ),
+      hydrateSnapshot: hydrateFeedSnapshotContent,
       sourceCatalog: listFeedSourceCatalog,
       renderWorkbench: () => options.renderer.renderFeedWorkbenchFragment(options.readWebView()),
       renderDetail: (item, detail) => options.renderer.renderPersistedFeedItemDetail(item, options.routePrefix, detail),
@@ -109,4 +115,17 @@ function readBody(request: IncomingMessage): Promise<Record<string, unknown>> {
 function readOptionalBody(request: IncomingMessage): Promise<Record<string, unknown>> {
   const contentLength = Number(request.headers["content-length"] ?? 0);
   return contentLength > 0 ? readBody(request) : Promise.resolve({});
+}
+
+function attachFeedItemSuggestions(
+  item: FeedItemRecord,
+  homeDirectory: string | undefined,
+  boardId: string,
+): FeedItemRecord {
+  if (!homeDirectory) return item;
+  return {
+    ...item,
+    suggested_behavior_ids: createFunctionsJudgmentPort(homeDirectory)
+      .latest("feed_item", item.item_id, boardId, FEED_CAPTURE_SCENE_ID)?.suggested_behavior_ids ?? [],
+  };
 }

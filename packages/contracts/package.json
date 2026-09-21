@@ -58,6 +58,10 @@
       "types": "./dist/modules/functions.d.ts",
       "import": "./dist/modules/functions.js"
     },
+    "./modules/pages": {
+      "types": "./dist/modules/pages.d.ts",
+      "import": "./dist/modules/pages.js"
+    },
     "./modules/ppt": {
       "types": "./dist/modules/ppt.d.ts",
       "import": "./dist/modules/ppt.js"

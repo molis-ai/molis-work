@@ -48,9 +48,9 @@ export const formUiContribution: UiContribution<FormUiModel> = {
 export function renderFormWorkbench(model: FormUiModel): string {
   const { primitives: p } = model;
   return `<section class="desktop-work-surface plugin-stage-shell" data-work-surface="form" data-work-surface-label="Forms" hidden data-form="workbench" data-form-stage-shell data-expanded="false">
-    <div class="plugin-stage-list" data-form="directory">
+    <div class="plugin-stage-list feed-stage-list feed-stage-tree" data-form="directory">
       <header class="plugin-stage-chrome form-stage-chrome">
-        <button class="mw-btn mw-btn--secondary" type="button" data-form-new>${p.text("新建问卷")}</button>
+        <button class="mw-btn mw-btn--ghost tree-create" type="button" data-form-new>${icon("plus")}<span>${p.text("新建问卷")}</span></button>
       </header>
       <div class="mw-empty" data-form-empty>
         <strong>${p.text("还没有问卷")}</strong>
@@ -65,15 +65,17 @@ export function renderFormWorkbench(model: FormUiModel): string {
         <h1 data-form-editor-title>${p.text("问卷")}</h1>
         <span data-form-editor-status></span>
         <div class="form-tabs" role="tablist">
-          <button class="mw-btn mw-btn--ghost is-current" type="button" data-form-tab="editor">${p.text("编辑")}</button>
-          <button class="mw-btn mw-btn--ghost" type="button" data-form-tab="preview">${p.text("预览")}</button>
-          <button class="mw-btn mw-btn--ghost" type="button" data-form-tab="results">${p.text("结果")}</button>
+          <button class="mw-btn mw-btn--ghost is-current" type="button" role="tab" aria-selected="true" data-form-tab="editor">${p.text("编辑")}</button>
+          <button class="mw-btn mw-btn--ghost" type="button" role="tab" aria-selected="false" data-form-tab="preview">${p.text("预览")}</button>
+          <button class="mw-btn mw-btn--ghost" type="button" role="tab" aria-selected="false" data-form-tab="results">${p.text("结果")}</button>
         </div>
         <button class="mw-btn mw-btn--ghost" type="button" data-form-delete>${p.text("删除")}</button>
       </div>
       <div class="form-workspace" data-form-pane="editor">
-        <label class="form-field">${p.text("标题")}<input class="mw-input" data-form-title autocomplete="off"></label>
-        <label class="form-field">${p.text("说明")}<textarea class="mw-textarea" data-form-description rows="1"></textarea></label>
+        <div class="form-identity">
+          <label class="form-field">${p.text("标题")}<input class="mw-input" data-form-title autocomplete="off"></label>
+          <label class="form-field">${p.text("说明")}<input class="mw-input" data-form-description autocomplete="off" placeholder="${p.text("可选")}"></label>
+        </div>
         <div class="form-toolbar">
           <strong>${p.text("题目")}</strong>
           <select class="mw-select" data-form-question-type>

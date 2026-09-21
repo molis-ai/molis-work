@@ -1,6 +1,7 @@
 import {
   FUNCTIONS_CREDENTIAL_REF,
   filterSuggestedBehaviorIds,
+  functionFitsScene,
   type FunctionDescribe,
   type FunctionDraftPatch,
   type FunctionInvokeResult,
@@ -180,7 +181,10 @@ export class FunctionsService {
   }
 
   bindScene(sceneId: string, functionKey: string, boardId?: string | null, ref?: string | null): FunctionSceneBinding {
-    this.store.requirePublishedByKey(functionKey);
+    const current = this.store.requirePublishedByKey(functionKey);
+    if (!functionFitsScene(current, sceneId)) {
+      throw new FunctionsError("functions.scene_mismatch", "这个函数的选项对不上这个场景");
+    }
     return this.store.bindScene(sceneId, functionKey, boardId ?? null, ref ?? null);
   }
 
@@ -196,8 +200,8 @@ export class FunctionsService {
     return this.store.listJudgments();
   }
 
-  latestJudgment(kind: JudgmentRecord["subject"]["kind"], id: string, boardId?: string): JudgmentRecord | null {
-    return this.store.latestJudgment(kind, id, boardId);
+  latestJudgment(kind: JudgmentRecord["subject"]["kind"], id: string, boardId?: string, sceneId?: string | null): JudgmentRecord | null {
+    return this.store.latestJudgment(kind, id, boardId, sceneId);
   }
 
   async judge(input: JudgeFunctionInput): Promise<JudgmentRecord> {

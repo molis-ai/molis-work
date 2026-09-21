@@ -456,6 +456,10 @@ test("plugin list titles yield at the squeeze edge", () => {
   assert.doesNotMatch(workbench, /\.feed-stage-leading strong[\s\S]*mask-image:/);
   assert.match(workbench, /\.mw-dir-row-wrap\.is-yield:is\(:hover, :has\(\.is-selected\), :has\(\[aria-current="page"\]\)\) \.mw-dir-row \{[\s\S]*padding-right: var\(--dir-yield, 72px\)/);
   assert.match(workbench, /\.feed-stage-entry \{[\s\S]*grid-template-columns: minmax\(0, 1fr\) minmax\(7rem, 12rem\) max-content max-content/);
+  assert.match(workbench, /\.plugin-stage-list \.feed-stage-entry:has\(\.plugin-stage-kind\) \{[\s\S]*grid-template-columns: minmax\(10rem, 1\.2fr\) 4.75rem minmax\(8rem, 0\.9fr\) minmax\(10rem, 1\.1fr\) 4.5rem/);
+  assert.match(workbench, /\.plugin-stage-kind\[data-kind="choice"\] \{ --status-tone: var\(--hue-indigo\)/);
+  assert.match(workbench, /\.plugin-stage-kind\[data-kind="score"\] \{ --status-tone: var\(--hue-orange\)/);
+  assert.match(workbench, /\.plugin-stage-kind\[data-kind="noul"\] \{ --status-tone: var\(--hue-cyan\)/);
   assert.match(workbench, /\.feed-stage-entry \.feed-entry-status \{[\s\S]*overflow: visible/);
   assert.match(workbench, /\.feed-stage-leading strong \{ flex: 1;/);
   assert.match(workbench, /goal-board-switch, \.settings-segmented, \.locale-switch, \.mw-toggle-group/);

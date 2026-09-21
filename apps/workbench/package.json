@@ -35,6 +35,7 @@
     "@molis-ai/molis-work-plugin-dataset": "workspace:*",
     "@molis-ai/molis-work-plugin-feed": "workspace:*",
     "@molis-ai/molis-work-plugin-functions": "workspace:*",
+    "@molis-ai/molis-work-plugin-pages": "workspace:*",
     "@molis-ai/molis-work-plugin-files": "workspace:*",
     "@molis-ai/molis-work-plugin-form": "workspace:*",
     "@molis-ai/molis-work-plugin-git": "workspace:*",

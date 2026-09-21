@@ -19,4 +19,6 @@ export { createDatasetRouteHandlers, datasetRouteErrorResponse } from "./route-h
 export { DATASET_PLUGIN_ID, DATASET_PROJECT_PLUGIN_ID, datasetManifest } from "./manifest.js";
 export { DATASET_MCP_EXPORTS, runDatasetMcpTool } from "./mcp.js";
 export { openDatasetStore, DatasetStore, parseCsv, toCsv } from "./store.js";
+export { mergeDatasetDraftRows } from "./row-merge.js";
+export type { DatasetDraftColumn, DatasetDraftRow } from "./row-merge.js";
 export { DatasetError } from "./error.js";

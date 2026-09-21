@@ -20,7 +20,7 @@ export const datasetManifest: PluginManifest = {
   ui: {
     contributions: [DATASET_UI_CONTRIBUTION_ID],
     views: [
-      { view_id: "directory", slot: "navigator", title: "Dataset", contribution_id: DATASET_UI_CONTRIBUTION_ID, icon: "database", order: 57 },
+      { view_id: "directory", slot: "navigator", title: "Dataset", contribution_id: DATASET_UI_CONTRIBUTION_ID, icon: "database", order: 58 },
     ],
   },
   mcp_exports: [...DATASET_MCP_EXPORTS],

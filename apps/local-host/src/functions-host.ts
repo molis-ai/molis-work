@@ -1,7 +1,9 @@
 import { createFileSecretStore } from "@molis-ai/molis-work-storage";
 import {
+  FEED_CAPTURE_SCENE_ID,
   HOME_DOCK_SCENE_ID,
   INBOX_NEXT_SCENE_ID,
+  functionFitsScene,
   type JudgmentPort,
 } from "@molis-ai/molis-work-contracts/modules/functions";
 import {
@@ -11,7 +13,7 @@ import {
   type FunctionsSecretPort,
   type TypeSafeProvider,
 } from "@molis-ai/molis-work-plugin-functions";
-import { hostAllowedBehaviorIds } from "./behavior-catalog.js";
+import { hostAllowedBehaviorIds, hostHomeDockBehaviors } from "./behavior-catalog.js";
 
 export interface FunctionSceneChoice {
   readonly function_key: string;
@@ -19,9 +21,16 @@ export interface FunctionSceneChoice {
 }
 
 export interface FunctionScenesView {
-  readonly published: readonly FunctionSceneChoice[];
   readonly inbox_next: string | null;
   readonly home_dock: string | null;
+  readonly inbox_next_functions: readonly FunctionSceneChoice[];
+  readonly home_dock_functions: readonly FunctionSceneChoice[];
+  readonly feed_capture_functions: readonly FunctionSceneChoice[];
+  readonly dock_behaviors: readonly {
+    readonly behavior_id: string;
+    readonly title: string;
+    readonly subject_kinds: readonly string[];
+  }[];
 }
 
 export interface FunctionSceneHttpBody {
@@ -86,8 +95,8 @@ export function createFunctionsJudgmentPort(
       withFunctionsService(homeDirectory, (service) => service.unbindScene(sceneId, boardId, ref), options),
     sceneBinding: (sceneId, boardId, ref) =>
       withFunctionsService(homeDirectory, (service) => service.sceneBinding(sceneId, boardId, ref), options),
-    latest: (kind, id, boardId) =>
-      withFunctionsService(homeDirectory, (service) => service.latestJudgment(kind, id, boardId), options),
+    latest: (kind, id, boardId, sceneId) =>
+      withFunctionsService(homeDirectory, (service) => service.latestJudgment(kind, id, boardId, sceneId), options),
   };
 }
 
@@ -97,12 +106,12 @@ export function readFunctionScenesView(
   options: FunctionsHostOptions = {},
 ): FunctionScenesView {
   return withFunctionsService(homeDirectory, (service) => ({
-    published: service.listPublished().map((row) => ({
-      function_key: row.function_key,
-      name: row.name,
-    })),
     inbox_next: service.sceneBinding(INBOX_NEXT_SCENE_ID, boardId)?.function_key ?? null,
     home_dock: service.sceneBinding(HOME_DOCK_SCENE_ID, boardId)?.function_key ?? null,
+    inbox_next_functions: publishedChoicesForScene(service, INBOX_NEXT_SCENE_ID),
+    home_dock_functions: publishedChoicesForScene(service, HOME_DOCK_SCENE_ID),
+    feed_capture_functions: publishedChoicesForScene(service, FEED_CAPTURE_SCENE_ID),
+    dock_behaviors: hostHomeDockBehaviors(),
   }), options);
 }
 
@@ -115,8 +124,20 @@ export function functionSceneHttpBody(
   const view = readFunctionScenesView(homeDirectory, boardId, options);
   return {
     function_key: sceneId === INBOX_NEXT_SCENE_ID ? view.inbox_next : view.home_dock,
-    functions: view.published,
+    functions: sceneId === INBOX_NEXT_SCENE_ID ? view.inbox_next_functions : view.home_dock_functions,
   };
+}
+
+function publishedChoicesForScene(
+  service: ReturnType<typeof createFunctionsService>,
+  sceneId: string,
+): FunctionSceneChoice[] {
+  return service.list()
+    .filter((row) => row.status === "published" && row.version != null && functionFitsScene(row, sceneId))
+    .map((row) => ({
+      function_key: row.function_key,
+      name: row.name,
+    }));
 }
 
 export function bindBoardFunctionScene(

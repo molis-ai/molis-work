@@ -24,6 +24,16 @@ test("generic focus rings do not cover mw-* primitive halos", () => {
   assert.match(COSS_CONTROL_STYLES, /button:focus-visible:not\(\[class\^="mw-"\]\)/);
 });
 
+test("keyboard focus sits inside the control instead of an outer halo", () => {
+  const workbench = renderMolisWorkWorkbenchStylesheet();
+  assert.match(PRIMITIVE_STYLES, /\.mw-input:focus-visible, \.mw-textarea:focus-visible, \.mw-select:focus-visible \{[\s\S]*outline-offset: -2px/);
+  assert.doesNotMatch(PRIMITIVE_STYLES, /0 0 0 3\.5px/);
+  assert.match(workbench, /body\.immersive-workbench :focus-visible \{[\s\S]*outline-offset: -2px/);
+  assert.match(workbench, /dialog\[data-feed-sources-dialog\] :is\(input, select, textarea\):focus-visible \{ outline: 2px solid var\(--focus\); outline-offset: -2px/);
+  assert.equal(workbench.includes("inset 0 0 0 1.5px color-mix(in srgb, var(--blue)"), false);
+  assert.equal(workbench.includes("outline: 2px solid var(--blue)"), false);
+});
+
 test("legacy input cosmetics leave mw-* fields to the primitive layer", () => {
   assert.match(PRIMITIVE_STYLES, /\.mw-input-group \.mw-input,[\s\S]*?background: transparent/);
   assert.match(PRIMITIVE_STYLES, /\.mw-input-group \.mw-input:is\(:hover, :focus, :focus-visible, \[aria-invalid="true"\]\)/);

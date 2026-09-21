@@ -29,6 +29,7 @@ export interface FeedSourceRunRecord extends Omit<ListenerRunRecord, "project_id
 export interface InboxEntryRecord extends Omit<AttentionEntryRecord, "project_id"> {
   board_id: string;
   suggested_behavior_ids?: readonly string[];
+  home_dock_suggested_behavior_ids?: readonly string[];
 }
 export interface FeedMaterialRecord extends Omit<CanonicalFeedMaterial, "project_id"> {
   board_id: string;
@@ -40,6 +41,7 @@ export interface FeedItemRecord extends Omit<CanonicalFeedItem, "project_id" | "
   item_type: FeedItemType;
   materials: FeedMaterialRecord[];
   suggested_behavior_ids?: readonly string[];
+  home_dock_suggested_behavior_ids?: readonly string[];
 }
 
 export interface FeedOutRuleMatch {

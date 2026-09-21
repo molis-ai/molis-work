@@ -14,6 +14,12 @@ import {
   runFormMcpTool,
 } from "@molis-ai/molis-work-plugin-form";
 import {
+  PagesError,
+  openPagesStore,
+  pagesManifest,
+  runPagesMcpTool,
+} from "@molis-ai/molis-work-plugin-pages";
+import {
   PptError,
   openPptStore,
   pptManifest,
@@ -26,6 +32,17 @@ import type { NativeMcpAdapterPorts, NativeMcpPluginAdapter } from "./mcp-native
  * partitioned by the bound project. Host injects project_id; adapters do not
  * read it from tool arguments.
  */
+export function createPagesMcpAdapter(ports: NativeMcpAdapterPorts): NativeMcpPluginAdapter {
+  return createBoundProjectStoreAdapter({
+    plugin_id: pagesManifest.plugin_id,
+    missingHome: "MCP 宿主没有提供本机目录，无法读取文档",
+    openStore: openPagesStore,
+    run: runPagesMcpTool,
+    mapError: (error) => error instanceof PagesError ? new MolisWorkV1Error(error.code, error.message) : error,
+    ports,
+  });
+}
+
 export function createFormMcpAdapter(ports: NativeMcpAdapterPorts): NativeMcpPluginAdapter {
   return createBoundProjectStoreAdapter({
     plugin_id: formManifest.plugin_id,

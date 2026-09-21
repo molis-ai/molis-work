@@ -20,7 +20,7 @@ export const pptManifest: PluginManifest = {
   ui: {
     contributions: [PPT_UI_CONTRIBUTION_ID],
     views: [
-      { view_id: "directory", slot: "navigator", title: "PPT", contribution_id: PPT_UI_CONTRIBUTION_ID, icon: "image", order: 58 },
+      { view_id: "directory", slot: "navigator", title: "PPT", contribution_id: PPT_UI_CONTRIBUTION_ID, icon: "image", order: 59 },
     ],
   },
   mcp_exports: [...PPT_MCP_EXPORTS],

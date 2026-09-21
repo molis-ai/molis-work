@@ -21,7 +21,7 @@ createMolisWorkLocalHost 为项目创建运行实例与 Host Client；同一项�
 | [src/mcp-server.ts](src/mcp-server.ts) | 唯一对外 MCP 进程装配；按目录条目分发 |
 | [src/mcp-catalog.ts](src/mcp-catalog.ts) | 平台 schema + 插件 `mcp_exports` 合成目录 |
 | [src/mcp-native-plugins.ts](src/mcp-native-plugins.ts) | Native 插件 MCP 适配表；新产品加一条 |
-| [src/mcp-store-plugin-adapter.ts](src/mcp-store-plugin-adapter.ts) | Forms / Dataset / PPT：打开本机 store，注入绑定项目 |
+| [src/mcp-store-plugin-adapter.ts](src/mcp-store-plugin-adapter.ts) | Pages / Forms / Dataset / PPT：打开本机 store，注入绑定项目 |
 | [src/goal-project-application.ts](src/goal-project-application.ts) | 跨 Module 应用组合 |
 
 可对照现有调用方 [apps/desktop/src/web-host.ts](../desktop/src/web-host.ts) 阅读装配方式。

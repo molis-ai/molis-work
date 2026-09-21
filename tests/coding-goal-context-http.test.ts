@@ -89,12 +89,18 @@ test("Coding freezes the selected real Goal, rejects changed/foreign/unavailable
     assert.equal((await pick(next)).status, 200);
     assert.equal((await request(`${sessionPath}/runs/run-1/report/progress`)).status, 400, "unsaved preview cannot write Goal progress");
     assert.equal((await request(`${sessionPath}/runs/run-1/report?fixed=1`)).status, 400, "a missing fixed source must not turn into a newly assembled preview");
+    assert.equal((await request(`${sessionPath}/runs/run-1/report/output`, "POST", { expected_reference: null })).status, 400, "an unsaved preview cannot become a fixed output");
     const report = await request(`${sessionPath}/runs/run-1/report`, "POST");
     assert.equal(report.status, 200, JSON.stringify(report.body));
     assert.equal(report.body.report.goal.goal_id, "original");
     assert.deepEqual(report.body.report.goal.reference, original.reference);
     assert.equal(report.body.report.goal.agreement_version, 1, "historical ownership uses the frozen agreement, not current agreement 2");
     assert.match(report.body.report.body_markdown, /工作约定 v1 · 目标合同修订 r1/);
+    const outputPath = `${sessionPath}/runs/run-1/report/output`;
+    assert.equal((await request(outputPath)).body.current, null);
+    const firstOutput = await request(outputPath, "POST", { expected_reference: null, reference: { artifact_id: "forged", version: 99 } });
+    assert.equal(firstOutput.status, 200, JSON.stringify(firstOutput.body));
+    assert.deepEqual(firstOutput.body.current, report.body.reference, "output source is the saved report, never the browser payload");
     const progressPath = `${sessionPath}/runs/run-1/report/progress`;
     const progressPreview = (await request(progressPath)).body;
     assert.equal(progressPreview.current.goal.goal_id, "original");
@@ -166,6 +172,15 @@ test("Coding freezes the selected real Goal, rejects changed/foreign/unavailable
     assert.equal(revisedReport.report.goal.agreement_version, 2);
     assert.equal(revisedReport.report.goal.contract_revision, 1);
     assert.deepEqual(revisedReport.report.goal.reference, latest.reference);
+    const countBeforeOutput = await host.withProject(ref, ({ coordinator }) => coordinator.artifacts.query.listArtifacts(DEMO_BOARD_ID).length);
+    const revisedOutputPath = `${sessionPath}/runs/run-5/report/output`;
+    assert.equal((await request(revisedOutputPath, "POST", { expected_reference: null })).status, 400, "stale output confirmation cannot overwrite another choice");
+    assert.equal((await request(revisedOutputPath, "POST", { expected_reference: report.body.reference })).status, 200);
+    assert.equal((await request(revisedOutputPath, "POST", { expected_reference: report.body.reference })).status, 200, "retry reuses the same selection");
+    assert.equal((await request(outputPath, "POST", { expected_reference: null })).status, 400);
+    await host.closeProject(ref);
+    assert.deepEqual((await request(revisedOutputPath)).body.current, revisedReport.reference, "output selection survives project restart");
+    assert.equal(await host.withProject(ref, ({ coordinator }) => coordinator.artifacts.query.listArtifacts(DEMO_BOARD_ID).length), countBeforeOutput, "no duplicate report Artifact or version");
     assert.deepEqual((await request(`${sessionPath}/runs/run-1/report`)).body, report.body);
   } finally {
     await new Promise<void>(resolve => server.close(() => resolve())); await host.close(); rmSync(root, { recursive: true, force: true });

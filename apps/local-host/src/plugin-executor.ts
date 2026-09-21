@@ -73,7 +73,9 @@ export class PluginHostExecutor implements PluginExecutor {
     const declaresCapabilities = manifest.capabilities.consumes.length > 0;
     const wiringInput = wiring === undefined
       ? undefined
-      : { manifest, graph: wiring, artifacts, scopeKey: this.options.scopeKey ?? null };
+      : { manifest, graph: wiring, artifacts, scopeKey: this.options.scopeKey ?? null,
+          requireGrant: (permission: string) => context.requireGrant(permission),
+          latestVersion: (artifactId: string) => this.options.artifacts.query.latestArtifactVersion(this.options.board_id, artifactId)?.version ?? 0 };
 
     const hostedContext: PluginStartContext = Object.freeze({ ...context,
       board_id: this.options.board_id,

@@ -201,6 +201,10 @@ export interface PluginOutputPublishInput {
 
 export interface PluginOutputsClient {
   publish(input: PluginOutputPublishInput): ArtifactVersionResult;
+  /** Expose an existing, owned fixed version without copying its content. */
+  select(input: { port: string; reference: ArtifactReference; expected_reference: ArtifactReference | null }): ArtifactReference;
+  /** Current output selection; null when absent or withdrawn. */
+  reference(port: string): ArtifactReference | null;
   /** Withdraw the current version of one output with a user-safe reason. */
   invalidate(port: string, safe_reason: string): void;
   /** Keep a published reference readable after the producing session ends. */

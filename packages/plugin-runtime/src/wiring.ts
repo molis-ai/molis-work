@@ -213,6 +213,12 @@ export class PluginInputGraph implements PluginWiringApi {
     return this.#repository.getOutput(this.#boardId, pluginId, port)?.version ?? 0;
   }
 
+  outputReference(pluginId: string, port: string): ArtifactReference | null {
+    const value = this.#repository.getOutput(this.#boardId, pluginId, port);
+    return value && value.invalidated_reason === null && value.artifact_id !== null && value.version !== null
+      ? { artifact_id: value.artifact_id, version: value.version } : null;
+  }
+
   /**
    * Keep a published reference readable after the producing session ends.
    * Retention is a Host fact, so it is recorded rather than left to the Plugin.

@@ -29,6 +29,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const phases = { starting:'正在准备', running:'执行中', compacting:'正在整理上下文', pausing:'正在暂停', paused:'已暂停', 'awaiting-input':'等待回答', 'awaiting-review':'等待审查', completed:'本轮结束', failed:'执行失败', stopped:'已停止', cancelled:'已取消', 'reconcile-required':'需要核对结果' };
   let state = { sessions:[], models:[], runtimes:[] }, current = '', workspaceId = '', lastRun = null, generation = 0, sending = false, loading = false, pinned = true, recovery = false, checkpointBusy = false, checkpointLoading = false, checkpointKey = "", draftTimer, selectionTask, statusKey = '';
   let recoveryLoading = false, recoveryBusy = false, recoveryKey = '';
+  let reportOutput=null;
   let reportRun = '', reportTicket = 0, reportSaving = false, reportTrigger, dialogueOffset = 0;
   let progressView=null,progressTicket=0,progressSaving=false,reportItem='',itemTicket=0;
   let goalRows=[],goalCursor=null,goalChoice=null,goalTicket=0,goalReading=0,goalSaving=false;
@@ -432,12 +433,22 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     if(wasOpen) turns.scrollTop=dialogueOffset;
     if(restoreFocus && reportTrigger?.isConnected) reportTrigger.focus({preventScroll:true});
   };
+  const loadReportOutput = async (id,runId,ticket) => {
+    if(ticket!==reportTicket || id!==current)return;
+    const button=q('[data-coding-report-output]'),message=q('[data-coding-report-output-status]');button.disabled=true;reportOutput=null;
+    try {
+      const value=await api('/sessions/'+encodeURIComponent(id)+'/runs/'+encodeURIComponent(runId)+'/report/output');
+      if(ticket!==reportTicket || id!==current)return;
+      reportOutput=value;button.textContent=value.selected?'已作为报告输出':'设为报告输出';button.disabled=value.selected;
+      message.hidden=false;message.textContent=value.selected?'连接到 Coding 报告端口的插件可读取这一固定版本；报告正文、原目标与历史不变。':'选择后，连接到 Coding 报告端口的插件将读取这一固定版本；不会复制报告、运行模型或记录 Goal 进展。';
+    } catch(error) {if(ticket===reportTicket && id===current){message.hidden=false;message.textContent='无法读取当前报告输出：'+error.message;button.textContent='重试读取输出';button.disabled=false;}}
+  };
   const showReport = async (runId, save = false) => {
     const id=current,generationAtStart=generation,ticket=++reportTicket;
     if(!reportRun) dialogueOffset=turns.scrollTop;
     reportRun=runId;reportSaving=save;
     turns.hidden=true;q('[data-coding-report-reader]').hidden=false;q('[data-coding-latest]').hidden=true;
-    q('[data-coding-report-save]').disabled=true;q('[data-coding-report-progress]').hidden=true;
+    q('[data-coding-report-save]').disabled=true;q('[data-coding-report-progress]').hidden=true;reportOutput=null;q('[data-coding-report-output]').hidden=true;q('[data-coding-report-output-status]').hidden=true;
     q('[data-coding-report-status]').textContent=save?'正在保存固定报告…':'正在读取执行报告…';
     if(!save) q('[data-coding-report-body]').replaceChildren();
     try {
@@ -447,6 +458,8 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       q('[data-coding-report-status]').textContent=result.reference?'已保存固定版本 v'+result.reference.version+' · '+result.saved_at:'尚未保存；保存后保留这轮证据，不代表任务验收。';
       q('[data-coding-report-save]').disabled=Boolean(result.reference);
       q('[data-coding-report-progress]').hidden=!(result.reference && result.report.goal && !result.report.goal_source_error);
+      q('[data-coding-report-output]').hidden=!result.reference;
+      if(result.reference)void loadReportOutput(id,runId,ticket);
       if(!save) {q('[data-coding-report-reader]').scrollTop=0;q('[data-coding-report-close]').focus({preventScroll:true});}
     } catch(error) {
       if(current===id && ticket===reportTicket) {
@@ -663,6 +676,13 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         const ticket=goalTicket,reading=++goalReading;q('[data-coding-goal-save]').disabled=true;q('[data-coding-goal-error]').textContent='';
         try{const value=await api('/goals/'+encodeURIComponent(target.dataset.codingGoalId));if(ticket!==goalTicket || reading!==goalReading)return;goalChoice=value;renderGoalPreview();q('[data-coding-goal-save]').disabled=false;}
         catch(error){if(ticket===goalTicket && reading===goalReading)q('[data-coding-goal-error]').textContent=error.message;}
+      }
+      if(target.matches('[data-coding-report-output]') && reportRun && !target.disabled) {
+        const id=current,runId=reportRun,ticket=reportTicket;
+        if(!reportOutput) {await loadReportOutput(id,runId,ticket);return;}
+        target.disabled=true;
+        try {await api('/sessions/'+encodeURIComponent(id)+'/runs/'+encodeURIComponent(runId)+'/report/output','POST',{expected_reference:reportOutput.current});await loadReportOutput(id,runId,ticket);}
+        catch(error) {if(ticket===reportTicket && id===current){await loadReportOutput(id,runId,ticket);if(ticket===reportTicket)q('[data-coding-report-output-status]').textContent=error.message+'；已重新读取当前输出，请核对后再选择。';}}
       }
       if(target.matches('[data-coding-report-save]') && reportRun && !reportSaving) await showReport(reportRun,true);
       if(target.matches('[data-coding-recovery-refresh]')) await readRecovery();

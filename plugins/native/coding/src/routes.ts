@@ -148,6 +148,19 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       metadata: { title: report.title, session_id: record.session_id, run_id: runId } });
     return { report, reference, saved_at: result.artifact.created_at };
   });
+  const reportOutput = (write: boolean) => route(write ? "coding.select-report-output" : "coding.report-output", async (request, _api, execution) => {
+    const session = selected(request, execution);
+    const saved = readCodingExecutionReport(context.services!.artifacts, session.session_id, text(request.params.runId, "执行引用"));
+    if (!saved) throw new Error("请先保存固定报告，再选择报告输出");
+    const outputs = context.services!.outputs!;
+    if (write) {
+      const body = bodyOf(request);
+      const expected = body.expected_reference === null ? null : materialSelection([body.expected_reference])[0]!;
+      outputs.select({ port: "report", reference: saved.reference, expected_reference: expected });
+    }
+    const current = outputs.reference("report");
+    return { reference: saved.reference, current, selected: current?.artifact_id === saved.reference.artifact_id && current?.version === saved.reference.version };
+  });
   const reportProgress = (write: boolean) => route(write ? "coding.record-report-progress" : "coding.report-progress", async (request, api, execution) => {
     const session = selected(request, execution);
     const runId = text(request.params.runId, "执行引用");
@@ -180,7 +193,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
     });
   });
   return [
-    reportRoute(false), reportRoute(true), reportProgress(false), reportProgress(true),
+    reportRoute(false), reportRoute(true), reportOutput(false), reportOutput(true), reportProgress(false), reportProgress(true),
     route("coding.goals", async (request, api) => api!.invoke(goalContextCapabilities.list, {
       ...(request.query?.after_cursor ? { after_cursor: String(request.query.after_cursor) } : {}),
     })),

@@ -204,8 +204,8 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
         </header>
         <div class="coding-turns" data-coding-turns tabindex="0" aria-label="编码对话"><div class="mw-empty" data-coding-welcome><p>从一个具体问题开始</p><p>选择已授权工作区和模型后，讨论代码或开始任务。</p><button class="mw-btn" type="button" data-coding-new>新建编码会话</button></div></div>
         <section class="coding-turns" data-coding-report-reader aria-label="执行报告" tabindex="0" hidden>
-          <header><button class="mw-btn" type="button" data-coding-report-close>返回对话</button><button class="mw-btn" type="button" data-coding-report-save>保存固定报告</button><button class="mw-btn" type="button" data-coding-report-progress hidden>记录原目标进展</button></header>
-          <p data-coding-report-status role="status"></p><div data-coding-report-body></div>
+          <header><button class="mw-btn" type="button" data-coding-report-close>返回对话</button><button class="mw-btn" type="button" data-coding-report-save>保存固定报告</button><button class="mw-btn" type="button" data-coding-report-progress hidden>记录原目标进展</button><button class="mw-btn" type="button" data-coding-report-output hidden>设为报告输出</button></header>
+          <p data-coding-report-status role="status"></p><p data-coding-report-output-status role="status" hidden></p><div data-coding-report-body></div>
         </section>
         <button class="mw-btn coding-jump" type="button" data-coding-latest hidden>回到最新</button>
         <p class="coding-status" data-coding-status role="status" aria-live="polite"></p>

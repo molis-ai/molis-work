@@ -30,6 +30,9 @@ export const CODING_STYLES = `
 .coding-dialogue-head small { display:block; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px; }
 .coding-workspace svg { width:12px; height:12px; margin-right:4px; }
 .coding-turns { flex:1; min-height:0; overflow:auto; overscroll-behavior:contain; overflow-anchor:none; padding:24px clamp(16px,4vw,48px); }
+.coding-dialogue:has([data-coding-report-reader]:not([hidden])) > .coding-composer,
+.coding-dialogue:has([data-coding-report-reader]:not([hidden])) > .coding-status { display:none; }
+[data-coding-report-reader] > header { display:flex; flex-wrap:wrap; gap:8px; }
 .coding-report { max-width:76ch; margin:16px auto; overflow-wrap:anywhere; color:var(--ink); font-size:13px; line-height:1.7; }
 .coding-report h1,.coding-report h2,.coding-report h3 { font-weight:400; line-height:1.4; }
 .coding-report h1 { font-size:22px; }.coding-report h2 { font-size:18px; }

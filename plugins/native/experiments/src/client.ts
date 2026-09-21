@@ -1,0 +1,145 @@
+/** Personal experiments UI. Values from users and models are always text/escaped. */
+export const EXPERIMENTS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
+  const root=document.querySelector('[data-work-surface="experiments"]');if(!root)return;
+  const $=s=>root.querySelector(s), main=$('[data-exp-main]'), list=$('[data-exp-list]'), note=$('[data-exp-note]');
+  const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const request=async(method,path,body)=>{const r=await fetch('/api/experiments'+path,{method,headers:molisWorkControlHeaders(),body:body===undefined?undefined:JSON.stringify(body)});const j=await r.json();if(!r.ok)throw Error(j.error||'请求失败');return j;};
+  const say=s=>{note.textContent=s;note.hidden=!s;};
+  const status={ready:'待运行',running:'运行中',completed:'运行结束',cancelled:'已取消',interrupted:'已中断',pending:'等待',ok:'有效输出',failed:'失败'};
+  let models=[], modelStatus=[], records=[], selected=null, timer=0, generation=0, creating=false, functions=[], lastArms=null, currentSummary=[], filter='all', distributionFilter=null, activeCase=null, reviewDrafts=new Map();
+  const options=(criteria,selected,blank)=> (blank?'<option value="">未标注</option>':'')+criteria.map(c=>'<option value="'+esc(c.key)+'" '+(selected===c.key?'selected':'')+'>'+esc(c.description)+'</option>').join('');
+  const defaultCriteria=[{key:'supported',description:'材料足以支持该结论'},{key:'rejected',description:'材料直接反驳该结论'},{key:'insufficient',description:'证据不足，无法判断'}];
+  const criteriaFrom=()=> $('[data-exp-criteria]').value.split('\n').filter(s=>s.trim()).map(line=>{const index=line.indexOf('|');return{key:line.slice(0,index).trim(),description:line.slice(index+1).trim()};});
+  async function loadModels(){const j=await request('GET','/models');models=j.participants;modelStatus=j.status;}
+  async function refreshList(){records=(await request('GET','')).experiments;list.innerHTML=records.length?records.map(e=>'<button class="exp-list-item" title="'+esc(e.name)+'" data-exp-open="'+esc(e.id)+'" aria-current="'+(selected?.id===e.id)+'"><strong>'+esc(e.name)+'</strong><small>'+esc(status[e.status])+'<span class="exp-list-date"> · '+new Date(e.created_at).toLocaleDateString()+'</span></small></button>').join(''):'<div class="mw-empty"><strong>还没有实验</strong><p>新建判断任务，加入材料，比较各模型的答案。</p></div>';}
+
+  const templates={
+    evidence:{name:'证据判断',instructions:'仅根据提供的材料，判断材料是否支持其中的结论。缺少必要证据时选择证据不足。',criteria:defaultCriteria,positive:'supported',insufficient:'insufficient'},
+    content:{name:'内容筛选',instructions:'判断材料是否值得收录：优先选择有具体事实、可核查出处、对读者有实际帮助的内容；纯宣传或无实质信息不收录；缺少必要上下文则待补充。',criteria:[{key:'keep',description:'值得收录'},{key:'skip',description:'不收录'},{key:'uncertain',description:'待补充材料'}],positive:'keep',insufficient:'uncertain'}
+  };
+  function updateChoices(){
+    const cs=criteriaFrom(); $('[data-exp-choice-preview]').innerHTML=cs.map(c=>'<span class="exp-tag">'+esc(c.description)+'</span>').join('');
+    root.querySelectorAll('[data-s-reference]').forEach(s=>s.innerHTML=options(cs,s.value,true));
+  }
+  function applyTask(task){
+    $('[data-exp-instructions]').value=task.instructions;
+    $('[data-exp-criteria]').value=task.criteria.map(c=>c.key+' | '+c.description).join('\n');
+    $('[data-exp-positive]').value=task.positive||'';$('[data-exp-insufficient]').value=task.insufficient||'';updateChoices();
+  }
+  function addSample(sample={}){
+    if(root.querySelectorAll('[data-exp-sample]').length>=20)throw Error('每场最多 20 条材料');
+    const el=document.createElement('section');el.className='exp-sample';el.dataset.expSample=sample.id||crypto.randomUUID();
+    el.innerHTML='<div class="exp-sample-head"><label>材料名称<input class="mw-input" data-s-label maxlength="150" value="'+esc(sample.label||'')+'" placeholder="留空时从正文生成"></label><button type="button" class="mw-btn mw-btn--ghost" data-exp-remove-sample>移除</button></div><label>材料正文<textarea class="mw-input" data-s-input rows="4" maxlength="8000" required placeholder="粘贴要交给模型判断的原文">'+esc(sample.input||'')+'</textarea></label><details class="exp-sample-extra" '+(sample.reference?'open':'')+'><summary>出处与参考答案（可选，稍后也可复核）</summary><div class="exp-grid"><label>出处与阅读边界<input class="mw-input" data-s-source maxlength="2000" value="'+esc(sample.source||'')+'" placeholder="未填写时标为：手动输入，出处未补充"></label><label>参考答案<select class="mw-input" data-s-reference>'+options(criteriaFrom(),sample.reference,true)+'</select></label><label>答案来源<select class="mw-input" data-s-status><option value="agent">Agent 初标</option><option value="human">人工确认</option></select></label><label>参考依据<textarea class="mw-input" data-s-rationale rows="2" maxlength="2000">'+esc(sample.rationale||'')+'</textarea></label></div><p>参考答案和出处不发送给模型。</p></details>';
+    el.querySelector('[data-s-status]').value=sample.reference_status==='human'?'human':'agent';$('[data-exp-samples]').append(el);updateComposeCount();
+  }
+  function updateComposeCount(){
+    const n=root.querySelectorAll('[data-exp-sample]').length, arms=root.querySelectorAll('[data-exp-arm]:checked').length;
+    if($('[data-exp-compose-count]'))$('[data-exp-compose-count]').textContent=n+' 条材料 × '+arms+' 组模型，共 '+n*arms+' 次判断';
+  }
+  async function compose(copy){
+    generation++;clearTimeout(timer);creating=true;selected=null;await loadModels();functions=(await request('GET','/functions')).functions;
+    const chosen=copy?.participants.map(p=>p.id)||lastArms||models.filter(p=>['jev','laya','grok'].includes(p.id)&&modelStatus.find(s=>s.id===p.id)?.configured).map(p=>p.id);
+    expand();main.innerHTML='<header class="plugin-stage-detail-bar exp-toolbar">'+backButton+'<h1>新建实验</h1><span>选任务，放入材料</span></header><form class="exp-form" data-exp-form><section class="exp-section"><h3>你想验证什么？</h3><div class="exp-grid"><label>判断任务<select class="mw-input" data-exp-function><option value="">证据判断</option><option value="template:content">内容筛选</option><option value="template:custom">自定义任务</option>'+functions.map(f=>'<option value="'+esc(f.id)+'">Function · '+esc(f.name)+'</option>').join('')+'</select></label><label>判断标准<textarea class="mw-input" data-exp-instructions rows="4" required></textarea></label><div class="exp-actions" data-exp-choice-preview></div></div><details class="exp-advanced"><summary>调整选项与高级设置</summary><div class="exp-grid"><label>实验名称<input class="mw-input" data-exp-name maxlength="150" value="'+esc(copy?copy.name+' · 复跑':'')+'" placeholder="留空时自动命名"></label><label>选项，每行「标识 | 中文说明」<textarea class="mw-input" data-exp-criteria rows="4"></textarea></label><label>放行选项标识<input class="mw-input" data-exp-positive></label><label>证据不足选项标识<input class="mw-input" data-exp-insufficient></label></div></details></section><section class="exp-section"><h3>放入测试材料</h3><p>先看各模型怎样判断，参考答案可在结果页补充。</p><details class="exp-bulk"><summary>批量粘贴材料</summary><label>每条材料之间用单独一行 --- 分隔<textarea class="mw-input" data-exp-bulk rows="6" placeholder="第一条材料\n---\n第二条材料"></textarea></label><button type="button" class="mw-btn mw-btn--secondary" data-exp-parse>整理为材料列表</button></details><div data-exp-samples></div><div class="exp-actions"><button type="button" class="mw-btn mw-btn--secondary" data-exp-add-sample>添加一条</button><label class="mw-btn mw-btn--ghost exp-import">导入 JSON<input type="file" accept="application/json,.json" data-exp-import aria-label="导入材料 JSON"></label></div><p>最多 20 条，每条 8000 字。链接请同时附上需要判断的正文。</p></section><section class="exp-section"><h3>参与比较的模型</h3>'+models.map(p=>'<label class="exp-arm"><input type="checkbox" data-exp-arm="'+esc(p.id)+'" '+(chosen.includes(p.id)?'checked':'')+'><span>'+esc(p.name)+' <small>'+esc(p.model)+' · '+(modelStatus.find(s=>s.id===p.id)?.configured?'已配置':'未配置，运行将失败')+'</small></span></label>').join('')+'<p>每条材料独立判断一次。保存后确认运行，届时产生实际调用。</p></section><footer><button class="mw-btn mw-btn--primary" type="submit">保存并查看实验</button><span class="exp-muted" data-exp-compose-count></span></footer></form>';
+    if(copy){$('[data-exp-function]').value='template:custom';applyTask({...copy.task,positive:copy.task.positive_key,insufficient:copy.task.insufficient_key});}
+    else applyTask(templates.evidence);
+    (copy?.cases||[{}]).forEach(addSample);await refreshList();
+  }
+  const metric=(n,unit='')=>n==null?'未知':Math.round(n*100)/100+unit;
+  const backButton='<button class="plugin-stage-back" type="button" data-exp-back aria-label="返回实验列表" title="返回实验列表"><svg aria-hidden="true"><use href="#icon-arrow"></use></svg></button>';
+  const answerLabel=(task,key)=>task.criteria.find(c=>c.key===key)?.description||key;
+  function expand(){root.dataset.expanded='true';$('[data-exp-workspace]').hidden=false;}
+
+  const reviewFor=(e,id)=>[...e.reviews].reverse().find(r=>r.case_id===id);
+  const humanFor=(e,s)=>!!reviewFor(e,s.id)||s.reference_status==='human';
+  const cellsFor=(e,s)=>e.participants.map(p=>e.cells.find(c=>c.case_id===s.id&&c.participant_id===p.id));
+  const divided=(e,s)=>new Set(cellsFor(e,s).filter(c=>c?.status==='ok').map(c=>c.answer.choice)).size>1;
+  const colorFor=(e,key)=>['var(--blue)','var(--amber)','var(--muted)','var(--green)','var(--red)','var(--ink)','var(--faint)','var(--text)'][e.task.criteria.findIndex(c=>c.key===key)]||'var(--muted)';
+  function probabilityBars(e,a){
+    const entries=e.task.criteria.filter(c=>Number.isFinite(a?.probabilities?.[c.key]));
+    if(!entries.length)return '<p class="exp-muted">此模型未提供选项概率</p>';
+    return '<div class="exp-probabilities">'+entries.map(c=>{const n=a.probabilities[c.key]*100;return '<div class="exp-prob-row"><span>'+esc(c.description)+'</span><div class="exp-track" role="img" aria-label="'+esc(c.description)+' '+metric(n,'%')+'"><i style="width:'+n+'%;background:'+colorFor(e,c.key)+'"></i></div><span>'+metric(n,'%')+'</span></div>';}).join('')+'</div>';
+  }
+  function visibleCases(e){return e.cases.filter(s=>{
+    if(filter==='disagreement'&&!divided(e,s))return false;
+    if(filter==='unreviewed'&&humanFor(e,s))return false;
+    if(filter==='failed'&&!cellsFor(e,s).some(c=>c?.status==='failed'))return false;
+    return !distributionFilter||e.cells.some(c=>c.case_id===s.id&&c.participant_id===distributionFilter.model&&c.status==='ok'&&c.answer.choice===distributionFilter.key);
+  });}
+  function renderInspector(e,s){
+    if(!s)return '<div class="mw-empty"><strong>没有符合条件的材料</strong><p>切换筛选，或查看全部材料。</p></div>';
+    const review=reviewFor(e,s.id),reference=review?.reference??s.reference,human=humanFor(e,s),draft=reviewDrafts.get(e.id+'|'+s.id);
+    return '<div class="exp-inspector-head"><h3>'+esc(s.label)+'</h3><span class="exp-tag '+(divided(e,s)?'exp-tag--attention':'')+'">'+(divided(e,s)?'答案有分歧':cellsFor(e,s).filter(c=>c?.status==='ok').length<2?'尚不足以比较':'有效答案一致')+'</span></div><div class="exp-reading"><h4>原材料</h4><p class="exp-material">'+esc(s.input)+'</p><p class="exp-muted">'+esc(s.source)+'</p></div><div class="exp-judgments">'+cellsFor(e,s).map((c,i)=>'<section class="exp-judgment"><div class="exp-section-head"><h4>'+esc(e.participants[i].name)+'</h4><span class="exp-tag">'+esc(status[c.status])+'</span></div>'+(c.status==='ok'?'<strong>'+esc(answerLabel(e.task,c.answer.choice))+'</strong>'+probabilityBars(e,c.answer):'<p class="exp-muted">'+esc(c.error||'尚无有效答案')+'</p>')+'<details class="exp-runtime"><summary>耗时、费用与原始记录</summary><p>总耗时 '+metric(c.duration_ms==null?null:c.duration_ms/1000,' s')+' · 尝试 '+c.attempts+' 次</p>'+(c.answer?'<p>加载 '+metric(c.answer.startup_ms,' ms')+' · 推理 '+metric(c.answer.model_ms,' ms')+'</p><p>费用 '+(c.answer.reported_cost_usd==null?'未知':'$'+c.answer.reported_cost_usd.toFixed(6))+' · '+esc(c.answer.cost_basis)+'</p><pre class="exp-material">'+esc(JSON.stringify(c.answer,null,2))+'</pre>':'')+'</details></section>').join('')+'</div><section class="exp-review-area"><div class="exp-section-head"><h3>参考答案与复核</h3><span class="exp-tag">'+(human?'人工确认':reference?'Agent 初标':'尚未标注')+'</span></div><p>'+esc(reference?answerLabel(e.task,reference):'尚无参考答案，不评定正确率')+'</p>'+(review?.note||s.rationale?'<p class="exp-muted">'+esc(review?.note||s.rationale)+'</p>':'')+(!['ready','running'].includes(e.status)?'<form class="exp-review" data-exp-review="'+esc(s.id)+'"><label>你确认的答案<select class="mw-input" name="reference" required>'+options(e.task.criteria,draft?.reference??reference,true)+'</select></label><label>核对依据<input class="mw-input" name="note" required maxlength="2000" value="'+esc(draft?.note||'')+'" placeholder="说明你核对了什么"></label><div class="exp-actions"><button type="submit" class="mw-btn mw-btn--secondary">保存复核</button><button type="submit" class="mw-btn mw-btn--primary" data-exp-review-next>保存并看下一条</button></div></form>':'<p class="exp-muted">运行结束后，可在这里确认参考答案。</p>')+'</section>';
+  }
+  function renderResult(e,summary){
+    const same=selected?.id===e.id,scroll=main.scrollTop;
+    const opened=same?[...main.querySelectorAll('details[data-exp-detail]')].filter(d=>d.open).map(d=>d.dataset.expDetail):[];
+    if(!same){filter='all';distributionFilter=null;activeCase=null;}
+    creating=false;selected=e;currentSummary=summary;expand();
+    const shown=visibleCases(e);if(!shown.some(s=>s.id===activeCase))activeCase=shown[0]?.id;
+    const done=e.cells.filter(c=>['ok','failed','cancelled'].includes(c.status)).length;
+    const disagreements=e.cases.filter(s=>divided(e,s)).length,unreviewed=e.cases.filter(s=>!humanFor(e,s)).length;
+    const failures=e.cases.filter(s=>cellsFor(e,s).some(c=>c.status==='failed')).length;
+    const comparable=e.cases.filter(s=>cellsFor(e,s).filter(c=>c.status==='ok').length>=2).length;
+    const maxTime=Math.max(1,...summary.map(s=>s.duration_ms));
+    main.innerHTML='<article class="exp-detail"><header class="plugin-stage-detail-bar exp-toolbar">'+backButton+'<h1 title="'+esc(e.name)+'">'+esc(e.name)+'</h1><span>'+esc(status[e.status])+'</span><div class="exp-actions">'+(e.status==='ready'?'<button class="mw-btn mw-btn--primary" data-exp-run>运行 '+e.cells.length+' 次判断</button>':'')+(e.status==='running'?'<button class="mw-btn mw-btn--secondary" data-exp-cancel>取消运行</button>':'<button class="mw-btn mw-btn--ghost" data-exp-copy>复制实验</button>')+'<button class="mw-btn mw-btn--ghost" data-exp-export>导出结果</button></div></header><div class="exp-body"><div class="exp-meta"><span>'+e.cases.length+' 条材料 × '+e.participants.length+' 组模型</span><span>'+done+' / '+e.cells.length+' 次已结束</span><span>'+comparable+' 条可比较 · '+disagreements+' 条有分歧</span><span>'+unreviewed+' 条待人工复核</span></div>'+(e.status==='running'?'<progress class="exp-run-progress" max="'+e.cells.length+'" value="'+done+'" aria-label="实验运行进度"></progress>':'')+'<section class="exp-overview"><div><h3>各模型怎样判断</h3><div class="exp-legend">'+e.task.criteria.map(c=>'<span><i style="background:'+colorFor(e,c.key)+'"></i>'+esc(c.description)+'</span>').join('')+'<span><i class="exp-no-answer"></i>无有效答案</span></div>'+e.participants.map(p=>{const cells=e.cells.filter(c=>c.participant_id===p.id);return '<div class="exp-dist-row"><span>'+esc(p.name)+'</span><div class="exp-distribution">'+e.task.criteria.map(c=>{const n=cells.filter(v=>v.status==='ok'&&v.answer.choice===c.key).length;return n?'<button type="button" data-exp-distribution="'+esc(p.id)+'" data-exp-choice="'+esc(c.key)+'" style="flex:'+n+';background:color-mix(in srgb,'+colorFor(e,c.key)+' 25%,transparent)" aria-label="筛选 '+esc(p.name)+'：'+esc(c.description)+'，'+n+' 条" title="'+esc(c.description)+' '+n+' 条">'+n+'</button>':'';}).join('')+(cells.some(c=>c.status!=='ok')?'<span class="exp-no-answer" style="flex:'+cells.filter(c=>c.status!=='ok').length+'" title="尚无有效答案">'+cells.filter(c=>c.status!=='ok').length+'</span>':'')+'</div><small>'+cells.filter(c=>c.status==='ok').length+'/'+cells.length+' 有效</small></div>';}).join('')+'</div><div><h3>运行代价</h3>'+summary.map(s=>{const cells=e.cells.filter(c=>c.participant_id===s.participant_id),loads=cells.filter(c=>c.answer?.startup_ms!=null);return '<div class="exp-cost-row"><div><span>'+esc(e.participants.find(p=>p.id===s.participant_id).name)+'</span><strong>'+metric(s.duration_ms/1000,' s')+'</strong></div><div class="exp-track"><i style="width:'+s.duration_ms/maxTime*100+'%"></i></div><small>'+(s.reported_cost_usd==null?'费用未知':'报告费用 $'+s.reported_cost_usd.toFixed(6))+(loads.length?' · 已报告加载 '+metric(loads.reduce((n,c)=>n+c.answer.startup_ms,0)/1000,' s'):'')+'</small></div>';}).join('')+'<p class="exp-muted">总耗时含执行准备；报告费用依各模型计量，不代表实际扣款。</p></div></section><details class="exp-config" data-exp-detail="metrics"><summary>质量指标与实验配置</summary><div class="exp-table-wrap"><table class="exp-table"><thead><tr><th>模型</th><th>人工参考对照</th><th>Agent 初标一致</th><th>误放行 / 漏选</th><th>证据不足识别</th></tr></thead><tbody>'+summary.map(s=>'<tr><td>'+esc(e.participants.find(p=>p.id===s.participant_id).name)+'</td><td>'+(s.human_labeled?s.correct+' / '+s.human_labeled:'未评定')+'<small>其中 '+s.labeled_failures+' 条未取得有效答案</small></td><td>'+s.agent_agreement+' / '+s.agent_labeled+'</td><td>'+s.false_positive+' / '+s.missed_positive+'</td><td>'+s.insufficient_recognized+' / '+s.insufficient_total+'</td></tr>').join('')+'</tbody></table></div><p class="exp-muted">无参考答案时不评定正确率。模型一致不等于正确；选项概率不等于正确概率。分歧之外，也需要抽查一致样本。</p><p class="exp-material">'+esc(e.task.instructions)+'</p><pre class="exp-material">'+esc(JSON.stringify({criteria:e.task.criteria,function_snapshot:e.task.function_snapshot,participants:e.participants,sha256:e.hash},null,2))+'</pre></details><div class="exp-results-heading"><h3>逐条对照</h3><span class="exp-muted">点选材料，查看原文并复核</span></div><div class="exp-filters" role="group" aria-label="筛选实验材料">'+[['all','全部',e.cases.length],['disagreement','有分歧',disagreements],['unreviewed','未复核',unreviewed],['failed','调用失败',failures]].map(([key,label,n])=>'<button type="button" class="mw-btn mw-btn--ghost" data-exp-filter="'+key+'" aria-pressed="'+(filter===key)+'">'+label+' '+n+'</button>').join('')+(distributionFilter?'<button class="mw-btn mw-btn--secondary" type="button" data-exp-clear-distribution>清除：'+esc(e.participants.find(p=>p.id===distributionFilter.model)?.name)+' / '+esc(answerLabel(e.task,distributionFilter.key))+' ×</button>':'')+'</div><div class="exp-result-workspace"><div class="exp-matrix-wrap"><table class="exp-table exp-matrix"><thead><tr><th>材料 / 参考答案</th>'+e.participants.map(p=>'<th>'+esc(p.name)+'</th>').join('')+'</tr></thead><tbody>'+shown.map(s=>{const r=reviewFor(e,s.id),ref=r?.reference??s.reference;return '<tr data-active="'+(activeCase===s.id)+'"><td><button class="exp-material-button" type="button" data-exp-case="'+esc(s.id)+'" aria-pressed="'+(activeCase===s.id)+'">'+esc(s.label)+'</button><small>'+(humanFor(e,s)?'人工确认':ref?'Agent 初标':'未标注')+(ref?' · '+esc(answerLabel(e.task,ref)):'')+'</small>'+(divided(e,s)?'<span class="exp-tag exp-tag--attention">分歧</span>':'')+'</td>'+cellsFor(e,s).map(c=>'<td><button type="button" class="exp-cell" data-exp-case="'+esc(s.id)+'" style="--exp-answer-color:'+(c.status==='ok'?colorFor(e,c.answer.choice):'var(--faint)')+'"><span>'+esc(c.status==='ok'?answerLabel(e.task,c.answer.choice):status[c.status])+'</span><small>'+metric(c.duration_ms==null?null:c.duration_ms/1000,' s')+'</small></button></td>').join('')+'</tr>';}).join('')+'</tbody></table>'+(!shown.length?'<p class="exp-muted">没有符合条件的材料。</p>':'')+'</div><aside class="exp-inspector" aria-label="材料详情与人工复核">'+renderInspector(e,shown.find(s=>s.id===activeCase))+'</aside></div></div></article>';
+    main.querySelectorAll('details[data-exp-detail]').forEach(d=>d.open=opened.includes(d.dataset.expDetail));if(same)main.scrollTop=scroll;
+  }
+  async function open(id){const current=++generation;clearTimeout(timer);const j=await request('GET','/'+id);if(current!==generation)return;if(!selected||JSON.stringify(selected)!==JSON.stringify(j.experiment))renderResult(j.experiment,j.summary);await refreshList();if(current===generation&&j.experiment.status==='running')timer=setTimeout(()=>open(id).catch(e=>say(e.message)),1500);}
+  root.addEventListener('click',async event=>{const b=event.target.closest('button');if(!b)return;try{say('');
+    if(b.hasAttribute('data-exp-back')){generation++;clearTimeout(timer);selected=null;creating=false;root.dataset.expanded='false';$('[data-exp-workspace]').hidden=true;await refreshList();}
+    else if(b.hasAttribute('data-exp-new'))await compose();
+    else if(b.dataset.expOpen)await open(b.dataset.expOpen);
+    else if(b.hasAttribute('data-exp-add-sample'))addSample();
+    else if(b.hasAttribute('data-exp-remove-sample')){b.closest('[data-exp-sample]').remove();updateComposeCount();}
+
+    else if(b.hasAttribute('data-exp-parse')){
+      const parts=$('[data-exp-bulk]').value.split(/^\s*---\s*$/m).map(s=>s.trim()).filter(Boolean);
+      const existing=[...root.querySelectorAll('[data-exp-sample]')];
+      const empty=existing.filter(el=>[...el.querySelectorAll('input,textarea')].every(f=>!f.value.trim())&&!el.querySelector('[data-s-reference]').value);
+      if(!parts.length)throw Error('请先粘贴材料');
+      if(parts.some(s=>s.length>8000))throw Error('单条材料超过 8000 字，请拆分后再整理');
+      if(existing.length-empty.length+parts.length>20)throw Error('整理后超过 20 条，请减少材料');
+      empty.forEach(el=>el.remove());parts.forEach(input=>addSample({input}));$('[data-exp-bulk]').value='';$('[data-exp-bulk]').closest('details').open=false;say('已整理 '+parts.length+' 条，请检查材料边界。');
+    }
+    else if(b.dataset.expFilter){filter=b.dataset.expFilter;renderResult(selected,currentSummary);}
+    else if(b.dataset.expDistribution){distributionFilter={model:b.dataset.expDistribution,key:b.dataset.expChoice};filter='all';renderResult(selected,currentSummary);}
+    else if(b.hasAttribute('data-exp-clear-distribution')){distributionFilter=null;renderResult(selected,currentSummary);}
+    else if(b.dataset.expCase){activeCase=b.dataset.expCase;renderResult(selected,currentSummary);if(matchMedia('(max-width: 1100px)').matches)$('.exp-inspector').scrollIntoView({block:'start'});}
+    else if(b.hasAttribute('data-exp-copy'))await compose(selected);
+    else if(b.hasAttribute('data-exp-run')){b.disabled=true;await request('POST','/'+selected.id+'/run',{});await open(selected.id);}
+    else if(b.hasAttribute('data-exp-cancel')){b.disabled=true;await request('POST','/'+selected.id+'/cancel',{});say('取消请求已发送；等待当前进程结束。');}
+    else if(b.hasAttribute('data-exp-export')){const a=document.createElement('a');a.href='/api/experiments/'+encodeURIComponent(selected.id)+'/export';a.download='experiment-'+selected.id+'.json';a.click();say('已请求导出 JSON。文件包含冻结材料、配置、原始结果与复核记录。');}
+    else if(b.hasAttribute('data-exp-models')){await loadModels();$('[data-exp-model-fields]').innerHTML=models.map(p=>'<details class="exp-section exp-model-config" data-model="'+esc(p.id)+'" '+(!modelStatus.find(s=>s.id===p.id)?.configured?'open':'')+'><summary><span>'+esc(p.name)+'</span><span class="exp-tag">'+(modelStatus.find(s=>s.id===p.id)?.configured?'已配置':'未配置')+'</span></summary><p>'+esc(modelStatus.find(s=>s.id===p.id)?.note)+' · '+(modelStatus.find(s=>s.id===p.id)?.configured?'已配置':'未配置')+'</p><label>模型<input class="mw-input" data-m-model value="'+esc(p.model)+'" '+(p.kind!=='jev'?'readonly':'')+'></label>'+(p.kind!=='jev'?'<label>本地运行程序路径<input class="mw-input" data-m-executable value="'+esc(p.executable||'')+'"></label>':'')+(p.kind==='laya'?'<label>固定 revision 的 multilingual 目录<input class="mw-input" data-m-checkpoint value="'+esc(p.checkpoint||'')+'"></label><label>Revision<input class="mw-input" data-m-revision value="'+esc(p.revision||'')+'"></label>':'')+'</details>').join('');$('[data-exp-model-dialog]').showModal();}
+    else if(b.hasAttribute('data-exp-add-model')){const kind=$('[data-exp-new-kind]').value,name=$('[data-exp-new-model-name]').value.trim();if(!name)throw Error('请填写参试配置名称');const base=models.find(p=>p.kind===kind);await request('POST','/models',{...base,id:crypto.randomUUID(),name});$('[data-exp-model-dialog]').close();await loadModels();say('已添加参试配置。打开参试模型可编辑路径或版本，新建实验时选择。');}
+    else if(b.hasAttribute('data-exp-close-models'))$('[data-exp-model-dialog]').close();
+    else if(b.hasAttribute('data-exp-save-models')){b.disabled=true;try{for(const p of models){const field=[...root.querySelectorAll('[data-model]')].find(f=>f.dataset.model===p.id),value={...p,model:field.querySelector('[data-m-model]').value};for(const name of ['executable','checkpoint','revision']){const input=field.querySelector('[data-m-'+name+']');if(input)value[name]=input.value;}await request('POST','/models',value);}const key=$('[data-exp-key]');if(key.value.trim()){await request('POST','/credential',{key:key.value});key.value='';}await loadModels();$('[data-exp-model-note]').textContent='已保存。新建实验时可选择这些配置；缺少路径的模型仍显示未配置，既有快照不变。';}catch(e){$('[data-exp-model-note]').textContent=e.message;}finally{b.disabled=false;}}
+  }catch(e){b.disabled=false;say(e.message);}});
+  root.addEventListener('change',async event=>{try{
+
+    if(event.target.matches('[data-exp-function]')){
+      const value=event.target.value,f=functions.find(f=>f.id===value);
+      if(f)applyTask({instructions:f.instructions,criteria:f.criteria});
+      else if(value!=='template:custom')applyTask(value==='template:content'?templates.content:templates.evidence);
+      for(const name of ['instructions','criteria'])$('[data-exp-'+name+']').readOnly=!!f;
+      updateChoices();
+    }
+    if(event.target.matches('[data-exp-criteria]'))updateChoices();
+    if(event.target.matches('[data-exp-arm]'))updateComposeCount();
+    if(event.target.matches('[data-exp-import]')){
+      const file=event.target.files[0];if(!file)return;if(file.size>400000)throw Error('导入文件超过 400 KB');
+      const j=JSON.parse(await file.text()),cases=Array.isArray(j)?j:j.cases;
+      if(!Array.isArray(cases)||!cases.length||cases.length>20)throw Error('文件需包含 1–20 条材料');
+      if(cases.some(c=>c?.reference&&!criteriaFrom().some(k=>k.key===c.reference)))throw Error('导入的参考答案与当前任务选项不同，请先选择对应任务');
+      if(cases.some(c=>!c||typeof c.input!=='string'||!c.input.trim()||c.input.length>8000))throw Error('每条材料需要 1–8000 字的 input 正文');
+      const existing=[...root.querySelectorAll('[data-exp-sample]')],empty=existing.filter(el=>[...el.querySelectorAll('input,textarea')].every(f=>!f.value.trim())&&!el.querySelector('[data-s-reference]').value);
+      if(existing.length-empty.length+cases.length>20)throw Error('加入后超过 20 条，请先移除不需要的材料');
+      empty.forEach(el=>el.remove());cases.forEach(c=>addSample({...c,id:crypto.randomUUID()}));say('已加入 '+cases.length+' 条材料，原有内容已保留。');
+    }
+  }catch(e){say(e.message);}});
+  root.addEventListener('input',event=>{const form=event.target.closest('[data-exp-review]');if(form&&selected){const data=new FormData(form);reviewDrafts.set(selected.id+'|'+form.dataset.expReview,{reference:data.get('reference'),note:data.get('note')});}});
+  root.addEventListener('submit',async event=>{event.preventDefault();const form=event.target,button=event.submitter;if(button)button.disabled=true;try{say('');
+    if(form.matches('[data-exp-form]')){const participants=[...root.querySelectorAll('[data-exp-arm]:checked')].map(el=>models.find(p=>p.id===el.dataset.expArm));const cases=[...root.querySelectorAll('[data-exp-sample]')].map(el=>{const val=n=>el.querySelector('[data-s-'+n+']').value;return{id:el.dataset.expSample,label:val('label').trim()||val('input').trim().slice(0,32)||'材料',input:val('input'),source:val('source').trim()||'手动输入；出处未补充，仅判断所给正文',reference:val('reference')||null,reference_status:val('reference')?val('status'):'unlabeled',rationale:val('rationale')};});const task={instructions:$('[data-exp-instructions]').value,criteria:criteriaFrom(),positive_key:$('[data-exp-positive]').value||undefined,insufficient_key:$('[data-exp-insufficient]').value||undefined};const j=await request('POST','',{name:$('[data-exp-name]').value.trim()||$('[data-exp-instructions]').value.trim().slice(0,36)+' · '+new Date().toLocaleDateString(),task,cases,participants,function_id:functions.find(f=>f.id===$('[data-exp-function]').value)?.id});lastArms=participants.map(p=>p.id);await open(j.experiment.id);}
+    else if(form.dataset.expReview){const data=new FormData(form);const rows=visibleCases(selected),idx=rows.findIndex(s=>s.id===form.dataset.expReview),next=rows[idx+1]||rows.find(s=>s.id!==form.dataset.expReview&&!humanFor(selected,s));await request('POST','/'+selected.id+'/review',{case_id:form.dataset.expReview,reference:data.get('reference'),note:data.get('note')});reviewDrafts.delete(selected.id+'|'+form.dataset.expReview);if(button?.hasAttribute('data-exp-review-next'))activeCase=next?.id;await open(selected.id);say('复核已保存。');}
+  }catch(e){say(e.message);}finally{if(button)button.disabled=false;}});
+  refreshList().catch(e=>say(e.message));
+}`;

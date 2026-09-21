@@ -48,7 +48,8 @@
     "@molis-ai/molis-work-plugin-text-stats": "workspace:*",
     "@molis-ai/molis-work-plugin-work": "workspace:*",
     "@molis-ai/molis-work-plugin-workspace": "workspace:*",
-    "@molis-ai/molis-work-ui-host": "workspace:*"
+    "@molis-ai/molis-work-ui-host": "workspace:*",
+    "@molis-ai/molis-work-plugin-experiments": "workspace:*"
   },
   "molis-work": {
     "path": "apps/workbench",

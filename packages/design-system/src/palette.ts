@@ -93,6 +93,7 @@ export const MW_PLUGINS = [
   { id: "schedule", label: "Schedule", hue: "yellow" as const },
   { id: "shelf", label: "Shelf", hue: "slate" as const },
   { id: "lingguang", label: "灵光", hue: "yellow" as const },
+  { id: "experiments", label: "实验", hue: "purple" as const },
   { id: "functions", label: "Functions", hue: "indigo" as const },
   { id: "pages", label: "Pages", hue: "cyan" as const },
   { id: "form", label: "Forms", hue: "orange" as const },

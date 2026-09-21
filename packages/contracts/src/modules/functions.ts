@@ -229,6 +229,7 @@ export interface FunctionsSecretPort {
 }
 
 export interface TypeSafeEvaluateResult {
+  readonly usage?: { readonly input_tokens: number | null; readonly output_tokens: number | null };
   readonly primitive: FunctionsPrimitive;
   readonly choice: string | null;
   readonly noul: number | null;

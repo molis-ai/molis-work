@@ -1,3 +1,4 @@
+import { EXPERIMENTS_CLIENT_FACTORY_SCRIPT, EXPERIMENTS_STYLES, experimentsUiContribution } from "@molis-ai/molis-work-plugin-experiments";
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import { artifactReferenceUiContribution, artifactBrowserUiContribution } from "@molis-ai/molis-work-plugin-artifacts";
 import { feedUiContribution } from "@molis-ai/molis-work-plugin-feed";
@@ -58,6 +59,7 @@ export interface BuiltinPluginWorkbenchPack {
  * this table is the unique Workbench register for contributions, styles, factories.
  */
 export const BUILTIN_PLUGIN_WORKBENCH: readonly BuiltinPluginWorkbenchPack[] = [
+  { project_plugin_id: "experiments", contributions: [experimentsUiContribution], stylesheet: EXPERIMENTS_STYLES, clientFactory: EXPERIMENTS_CLIENT_FACTORY_SCRIPT },
   { project_plugin_id: "feed", contributions: [feedUiContribution] },
   { project_plugin_id: "inbox", contributions: [inboxUiContribution] },
   {

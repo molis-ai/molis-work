@@ -1,3 +1,4 @@
+import { SHELF_TEXT_MATERIAL_TYPE } from "@molis-ai/molis-work-contracts/modules/shelf";
 import { DIFF_CHANGESET_TYPE, GIT_RESULT_TYPE, FILE_SNAPSHOT_TYPE, FILE_TEXT_SELECTION_TYPE } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -28,20 +29,20 @@ export const CODING_PROJECT_PLUGIN_ID = "coding";
  *
  * The other six built-ins stay `native`: they are still composed at build time.
  *
- * Files and Git supply optional fixed source material. Shelf and Goal inputs
- * remain separate work; their absence never blocks an ordinary task.
+ * Files, Git, Shelf and Goal supply optional fixed source material.
+ * Their absence never blocks an ordinary task.
  */
 export const codingManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: CODING_PLUGIN_ID,
-  version: "1.16.0",
+  version: "1.17.0",
   name: "Coding",
   kind: "app",
   publisher: { publisher_id: "molis", signature: "official-coding-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
-    { permission: "artifact:read", required: true, reason: "读取本项目固定文件、差异、Git 结果与已保存的执行报告" },
+    { permission: "artifact:read", required: true, reason: "读取本项目固定文件、差异、Git 结果、Shelf 材料与已保存的执行报告" },
     { permission: "storage:private", required: true, reason: "保存编码会话的未发送草稿" },
     {
       permission: "artifact:write",
@@ -66,7 +67,7 @@ export const codingManifest: PluginManifest = {
       { artifact_type_id: CODING_REPORT_TYPE, schema_version: 1 },
       { artifact_type_id: CODING_DIAGRAM_TYPE, schema_version: 1 },
     ],
-    consumes: [CODING_GOAL_CONTEXT_TYPE, CODING_REPORT_TYPE, FILE_SNAPSHOT_TYPE, FILE_TEXT_SELECTION_TYPE, DIFF_CHANGESET_TYPE, GIT_RESULT_TYPE].map(artifact_type_id => ({ artifact_type_id, schema_version: 1 })),
+    consumes: [SHELF_TEXT_MATERIAL_TYPE, CODING_GOAL_CONTEXT_TYPE, CODING_REPORT_TYPE, FILE_SNAPSHOT_TYPE, FILE_TEXT_SELECTION_TYPE, DIFF_CHANGESET_TYPE, GIT_RESULT_TYPE].map(artifact_type_id => ({ artifact_type_id, schema_version: 1 })),
   },
   ports: {
     inputs: [

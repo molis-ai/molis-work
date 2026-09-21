@@ -8,12 +8,14 @@ import type {
   ShelfSettingsPatch,
   ShelfSnapshot,
 } from "@molis-ai/molis-work-contracts/modules/shelf";
+import { shelfTextMaterial } from "./material.js";
 import { parseSettingsWriteBody } from "@molis-ai/molis-work-module-shelf";
 import type { ShelfItemRecord, ShelfClipboardRecord, ShelfJobRecord } from "@molis-ai/molis-work-contracts/modules/shelf";
 import { shelfRouteErrorResponse } from "./route-error.js";
 import type { ShelfPluginRouteHandler } from "./routes.js";
 
 export interface ShelfRouteHandlerPorts {
+  projectMaterials?: { title: string; publish(payload: import("@molis-ai/molis-work-contracts/modules/shelf").ShelfTextMaterial): import("@molis-ai/molis-work-contracts/modules/artifacts").ArtifactReference };
   snapshot(): ShelfSnapshot;
   settings(): ShelfDeviceSettings;
   saveSettings(patch: ShelfSettingsPatch): ShelfDeviceSettings;
@@ -35,7 +37,17 @@ export interface ShelfRouteHandlerPorts {
 }
 
 export function createShelfRouteHandlers(options: ShelfRouteHandlerPorts): Record<string, ShelfPluginRouteHandler> {
+  const material = (itemId: string) => {
+    if (!options.projectMaterials) throw new Error("请在项目中打开 Shelf，再保存项目材料");
+    return shelfTextMaterial(options.readFile(itemId));
+  };
   return {
+    "shelf.material.preview": ({ params }) => ({ status: 200, body: { ...material(params.item_id!), project_title: options.projectMaterials!.title } }),
+    "shelf.material.save": ({ params, request }) => {
+      const current = material(params.item_id!);
+      if (request.body.expected_fingerprint !== current.fingerprint) return { status: 409, body: { error: "材料已变化，请重新预览后保存" } };
+      return { status: 200, body: { reference: options.projectMaterials!.publish(current.payload), title: current.payload.title } };
+    },
     "shelf.snapshot": () => ({ status: 200, body: options.snapshot() }),
     "shelf.settings.read": () => ({ status: 200, body: options.settings() }),
     "shelf.settings.write": ({ request }) => {

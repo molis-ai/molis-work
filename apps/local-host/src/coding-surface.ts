@@ -1,4 +1,5 @@
 import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
+import { SHELF_TEXT_MATERIAL_TYPE } from "@molis-ai/molis-work-contracts/modules/shelf";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { icon, escapeHtml } from "@molis-ai/molis-work-design-system";
 import {
@@ -156,6 +157,9 @@ async function startPlatform(ports: CodingSurfacePorts): Promise<Started> {
     const report = await platform.start([
       { definition: createCodingPlugin(ports.execution ? { execution: {
         ...ports.execution, sessions: new CodingSessionStore(ports.store.db), goalTitle: ports.goalTitle,
+        materialReferences: () => artifacts.query.listArtifacts(ports.boardId, { artifact_type_id: SHELF_TEXT_MATERIAL_TYPE, schema_version: 1 })
+          .filter(item => item.owner_actor_id === ports.actorId && item.producer_plugin_id === "io.molis.work.shelf" && item.lifecycle_state === "active" && item.availability === "available")
+          .map(({ artifact_id, version }) => ({ artifact_id, version })),
         reportReferences: () => artifacts.query.listArtifacts(ports.boardId, { artifact_type_id: CODING_REPORT_TYPE, schema_version: 1 })
           .filter(item => item.producer_plugin_id === CODING_PLUGIN_ID)
           .map(({ artifact_id, version }) => ({ artifact_id, version })),

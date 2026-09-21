@@ -12,6 +12,7 @@ import { currentGoalContext, savedGoalContext, saveGoalContext, resolveGoalConte
 export interface CodingModelChoice { provider_id: string; model_id: string; label: string }
 export interface CodingExecutionPorts {
   sessions: CodingSessionStore;
+  materialReferences?(): import("@molis-ai/molis-work-contracts/modules/artifacts").ArtifactReference[];
   reportReferences?(): import("@molis-ai/molis-work-contracts/modules/artifacts").ArtifactReference[];
   goalTitle(goalId: string): string | undefined;
   ready(): Promise<void>;
@@ -234,7 +235,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
     }),
     route("coding.materials", async (request, _api, execution) => {
       const record = selected(request, execution);
-      return { materials: materialChoices(context, savedMaterials(context, record.session_id)) };
+      return { materials: materialChoices(context, savedMaterials(context, record.session_id), execution.materialReferences?.()) };
     }),
     route("coding.state", async (_request, api, execution) => {
       const runtimes = await api!.invoke(agent.listRuntimes, []);

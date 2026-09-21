@@ -46,6 +46,8 @@ export const SHELF_NATIVE_PLUGIN_ROUTES = [
   route("shelf.hide", "POST", /^\/api\/shelf\/items\/([^/]+)\/hide$/u, ["item_id"]),
   route("shelf.delete", "POST", /^\/api\/shelf\/items\/([^/]+)\/delete$/u, ["item_id"]),
   route("shelf.useMaterial", "POST", /^\/api\/shelf\/items\/([^/]+)\/use-material$/u, ["item_id"]),
+  route("shelf.material.preview", "GET", /^\/api\/shelf\/items\/([^/]+)\/project-material$/u, ["item_id"]),
+  route("shelf.material.save", "POST", /^\/api\/shelf\/items\/([^/]+)\/project-material$/u, ["item_id"]),
   route("shelf.edit", "POST", /^\/api\/shelf\/items\/([^/]+)\/edit$/u, ["item_id"]),
   route("shelf.job", "POST", /^\/api\/shelf\/jobs$/u),
   route("shelf.job.cancel", "POST", /^\/api\/shelf\/jobs\/([^/]+)\/cancel$/u, ["job_id"]),

@@ -1,3 +1,4 @@
+import { SHELF_TEXT_MATERIAL_TYPE } from "@molis-ai/molis-work-contracts/modules/shelf";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { SHELF_UI_CONTRIBUTION_ID } from "./ui.js";
 import { SHELF_SETTINGS_UI_CONTRIBUTION_ID } from "./settings-ui.js";
@@ -17,14 +18,14 @@ export const shelfManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: SHELF_PLUGIN_ID,
-  version: "1.0.0",
+  version: "1.1.0",
   name: "Shelf",
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-shelf-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [],
   capabilities: { provides: [], consumes: [] },
-  artifacts: { produces: [], consumes: [] },
+  artifacts: { produces: [{ artifact_type_id: SHELF_TEXT_MATERIAL_TYPE, schema_version: 1 }], consumes: [] },
   ui: {
     contributions: [SHELF_UI_CONTRIBUTION_ID, SHELF_SETTINGS_UI_CONTRIBUTION_ID],
     views: [

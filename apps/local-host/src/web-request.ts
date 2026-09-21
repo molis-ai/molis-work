@@ -24,7 +24,7 @@ import { handleFeedNativePluginHttp } from "./feed-native-plugin-http.js";
 import { handleInboxNativePluginHttp } from "./inbox-native-plugin-http.js";
 import { handleHomeDockJudgmentHttp } from "./home-dock-http.js";
 import { handleScheduleNativePluginHttp } from "./schedule-native-plugin-http.js";
-import { handleShelfNativePluginHttp } from "./shelf-native-plugin-http.js";
+import { handleShelfNativePluginHttp, shelfProjectMaterials } from "./shelf-native-plugin-http.js";
 import { handleFunctionsNativePluginHttp } from "./functions-native-plugin-http.js";
 import { handleFormNativePluginHttp } from "./form-native-plugin-http.js";
 import { handlePagesNativePluginHttp } from "./pages-native-plugin-http.js";
@@ -223,7 +223,8 @@ export async function handleMolisWorkWebRequest(
           sendJson(response, 200, readWebView());
           return;
         }
-        if (serverOptions.homeDirectory && await handleShelfNativePluginHttp(request, response, url, serverOptions.homeDirectory)) return;
+        if (serverOptions.homeDirectory && await handleShelfNativePluginHttp(request, response, url, serverOptions.homeDirectory,
+          shelfProjectMaterials(coordinator.artifacts, options.boardId, "web-user", options.project?.display_name ?? options.boardId))) return;
         if (serverOptions.homeDirectory && await handleFunctionsNativePluginHttp(request, response, url, serverOptions.homeDirectory)) return;
         if (serverOptions.homeDirectory && await handlePagesNativePluginHttp(request, response, url, serverOptions.homeDirectory, {
           publishArtifact: (input) => {

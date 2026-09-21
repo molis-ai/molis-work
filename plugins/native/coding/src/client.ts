@@ -118,7 +118,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         else {const detail=document.createElement('details'),summary=document.createElement('summary'),body=document.createElement('pre');summary.textContent='查看固定正文 · '+item.text.length+' 字符';body.textContent=item.text;detail.append(summary,body);row.append(detail);}
         list.append(row);
       }
-      if(!materialRows.length)list.textContent='还没有固定材料。先在左侧「文件」保存快照或选区、打开 Git 差异，或在 Git 操作记录中保存固定结果，再回来选择。';
+      if(!materialRows.length)list.textContent='还没有固定材料。先在左侧「文件」保存快照或选区、打开 Git 差异，或在 Shelf 将文字保存到项目材料，再回来选择。';
       q('[data-coding-material-save]').disabled=false;
     } catch(error){if(current===id && ticket===materialTicket)q('[data-coding-material-error]').textContent=error.message;}
   };

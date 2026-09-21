@@ -1,5 +1,15 @@
 /** Shelf application copy; Workbench supplies the request locale. */
 export const SHELF_EN: Record<string, string> = {
+  "保存项目材料": "Save project material",
+  "保存到项目材料": "Save to project materials",
+  "保存下面的固定原文，之后可在 Coding 的「＋ 材料」中选择。编辑或移除 Shelf 副本不会改变已保存版本。": "Save this exact text, then select it in Coding under + Materials. Editing or removing the Shelf copy will not change saved versions.",
+  "重新读取": "Reload",
+  "保存固定版本": "Save fixed version",
+  "正在读取完整正文…": "Reading the full text…",
+  "材料读取失败": "Could not read the material",
+  "请核对原文后保存。": "Review the text before saving.",
+  "已保存到项目材料": "Saved to project materials",
+  "。到 Coding 的「＋ 材料」选择此版本即可使用。": ". Select this version in Coding under + Materials to use it.",
   "搜索材料": "Search materials",
   "返回材料列表": "Back to material list",
   "材料": "Materials",

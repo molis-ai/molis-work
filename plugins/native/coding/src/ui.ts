@@ -189,7 +189,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
     </form></dialog>
     <dialog class="mw-dialog mw-dialog--form" data-coding-material-dialog aria-label="选择固定材料"><form class="mw-form mw-dialog__shell" data-coding-material-form>
       <header class="mw-form__header"><h2>选择固定材料</h2>${renderButton({label:"取消",variant:"ghost",attrs:{"data-coding-material-close":""}})}</header>
-      <section class="mw-form__body"><p>选择下一轮使用的固定文件、差异或 Git 结果。保存不会发送；来源更新后，已选版本保持不变。</p><div data-coding-material-list></div><p data-coding-material-error role="alert"></p></section>
+      <section class="mw-form__body"><p>选择下一轮使用的固定文件、差异、Git 结果或 Shelf 材料。保存不会发送；来源更新后，已选版本保持不变。</p><div data-coding-material-list></div><p data-coding-material-error role="alert"></p></section>
       <footer class="mw-form__footer">${renderButton({label:"保存材料选择",type:"submit",attrs:{"data-coding-material-save":""}})}</footer>
     </form></dialog>
     <dialog class="mw-dialog mw-dialog--form" data-coding-method-dialog aria-label="选择方法"><form class="mw-form mw-dialog__shell" data-coding-method-form>

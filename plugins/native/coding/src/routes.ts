@@ -1,3 +1,4 @@
+import { materialChoices, materialSelection, resolveMaterials, savedMaterials } from "./materials.js";
 import type { PluginRouteBinding, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities as agent, isTerminalAgentPhase, type AgentRunControl, type AgentRunView, type AgentSkillRef, type AgentMcpToolRef, type AgentMcpSourceRef, type AgentMcpServerInput } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -5,6 +6,8 @@ import type { CodingSessionStore } from "./store.js";
 import type { CodingSessionState } from "./projection.js";
 import { CODING_REPORT_TYPE } from "./artifacts.js";
 import { codingReportReference, createCodingExecutionReport, readCodingExecutionReport } from "./report.js";
+import { goalContextCapabilities, goalProgressCapabilities } from "@molis-ai/molis-work-contracts/modules/goals";
+import { currentGoalContext, savedGoalContext, saveGoalContext, resolveGoalContext, runGoalContext } from "./goal-context.js";
 
 export interface CodingModelChoice { provider_id: string; model_id: string; label: string }
 export interface CodingExecutionPorts {
@@ -119,6 +122,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
     const artifacts = context.services!.artifacts;
     const existing = readCodingExecutionReport(artifacts, record.session_id, runId);
     if (existing) return existing;
+    if (request.query?.fixed === "1") throw new Error("原固定报告当前不可读，不能用执行中的新信息重新拼接替代");
     if (!record.runtime_session_id) throw new Error("这个会话尚未执行");
     const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
     const snapshot = await api!.invoke(agent.readSession, [session]);
@@ -132,7 +136,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         return { call_id: command.call_id, output };
       } catch { return { call_id: command.call_id, output: null }; }
     }));
-    const report = createCodingExecutionReport({ session_id: record.session_id, runtime_id: record.runtime_id, title: record.title, run, commands });
+    const report = createCodingExecutionReport({ session_id: record.session_id, runtime_id: record.runtime_id, title: record.title, run, commands, ...runGoalContext(context, run) });
     if (!save) return { report, reference: null, saved_at: null };
     // No asynchronous gap between recheck and publish: concurrent clicks share
     // the existing fixed version, even if their evidence reads finished later.
@@ -144,8 +148,70 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       metadata: { title: report.title, session_id: record.session_id, run_id: runId } });
     return { report, reference, saved_at: result.artifact.created_at };
   });
+  const reportProgress = (write: boolean) => route(write ? "coding.record-report-progress" : "coding.report-progress", async (request, api, execution) => {
+    const session = selected(request, execution);
+    const runId = text(request.params.runId, "执行引用");
+    const saved = readCodingExecutionReport(context.services!.artifacts, session.session_id, runId);
+    if (!saved) throw new Error("请先保存这轮固定报告，再记录 Goal 进展");
+    const { report, reference } = saved;
+    if (!report.goal || report.goal_source_error) throw new Error("这份报告没有可确认的原目标，不能改用会话后来选择的目标记录进展");
+    const goalId = report.goal.goal_id;
+    const idempotencyKey = `coding-report-progress:${reference.artifact_id}@${reference.version}`;
+    const actorId = request.actor_id;
+    if (!actorId) throw new Error("当前操作缺少用户身份");
+    if (!write) {
+      const receipt = await api!.invoke(goalProgressCapabilities.receipt, { goal_id: goalId, actor_id: actorId, idempotency_key: idempotencyKey });
+      if (receipt) return { report_goal: report.goal, reference, title: report.title, recorded: receipt, current: null };
+      const current = await api!.invoke(goalContextCapabilities.read, { goal_id: goalId });
+      return { report_goal: report.goal, reference, title: report.title, recorded: null, current };
+    }
+    const body = bodyOf(request);
+    const cursor = body.expected_goal_cursor, revision = body.expected_contract_revision;
+    if (typeof cursor !== "number" || !Number.isSafeInteger(cursor) || cursor < 0
+      || typeof revision !== "number" || !Number.isSafeInteger(revision) || revision < 1) throw new Error("请先查看原目标当前版本，再确认记录进展");
+    // The original Goal transaction checks replay first, then versions and write.
+    // Nothing is derived from a browser-supplied report, Goal id, or source body.
+    return api!.invoke(goalProgressCapabilities.record, {
+      goal_id: goalId, actor_id: actorId, actor_kind: "user", idempotency_key: idempotencyKey,
+      based_on_cursor: cursor, expected_goal_cursor: cursor, expected_contract_revision: revision,
+      summary: text(body.summary, "进展内容", 10000),
+      ...(body.next_step ? { next_step: text(body.next_step, "下一步", 10000) } : {}),
+      source: { ...reference, title: report.title, origin: { plugin_id: "coding", item_id: reference.artifact_id } },
+    });
+  });
   return [
-    reportRoute(false), reportRoute(true),
+    reportRoute(false), reportRoute(true), reportProgress(false), reportProgress(true),
+    route("coding.goals", async (request, api) => api!.invoke(goalContextCapabilities.list, {
+      ...(request.query?.after_cursor ? { after_cursor: String(request.query.after_cursor) } : {}),
+    })),
+    route("coding.goal-context", async (request) => {
+      const value = await currentGoalContext(context, text(request.params.goalId, "目标"));
+      return { ...value, text: value.material.text };
+    }),
+    route("coding.read-goal", async (request, _api, execution) => {
+      const record = selected(request, execution);
+      if (!record.goal_id) return { goal_id: null, selected: null };
+      try { return { goal_id: record.goal_id, selected: savedGoalContext(context, record.session_id) }; }
+      catch (error) { return { goal_id: record.goal_id, selected: null, error: error instanceof Error ? error.message : "固定目标不可读" }; }
+    }),
+    route("coding.select-goal", async (request, _api, execution) => {
+      const record = selected(request, execution), body = bodyOf(request);
+      if (busy.has(record.session_id)) throw new Error("正在提交任务，请稍后修改下一轮目标");
+      const goalId = body.goal_id === null ? null : text(body.goal_id, "目标");
+      if (goalId) {
+        const value = await currentGoalContext(context, goalId);
+        if (value.reference.artifact_id !== body.expected_artifact_id) throw new Error("目标内容已变化，请重新查看后确认");
+        if (busy.has(record.session_id)) throw new Error("正在提交任务，请稍后修改下一轮目标");
+        saveGoalContext(context, record.session_id, value);
+      }
+      const session = execution.sessions.setGoal(boardId, record.session_id, goalId, new Date().toISOString());
+      if (!goalId) context.services!.storage!.delete(`goal-context:${record.session_id}`);
+      return { session, selected: goalId ? savedGoalContext(context, record.session_id) : null };
+    }),
+    route("coding.materials", async (request, _api, execution) => {
+      const record = selected(request, execution);
+      return { materials: materialChoices(context, savedMaterials(context, record.session_id)) };
+    }),
     route("coding.state", async (_request, api, execution) => {
       const runtimes = await api!.invoke(agent.listRuntimes, []);
       const sessions = await Promise.all(execution.sessions.list(boardId).map(async record => {
@@ -221,11 +287,12 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       const mcp_tools = typeof savedMcp === "string" ? mcpSelection(JSON.parse(savedMcp)) : [];
       const savedSources = context.services?.storage?.get(`mcp-sources:${record.session_id}`);
       const mcp_sources = typeof savedSources === "string" ? mcpSources(JSON.parse(savedSources)) : [];
+      const materials = savedMaterials(context, record.session_id);
       const savedMethods = context.services?.storage?.get(`methods:${record.session_id}`);
       const methods = typeof savedMethods === "string" ? methodSelection(JSON.parse(savedMethods)) : [];
       const questionDrafts = context.services?.storage?.get(`question-drafts:${record.session_id}`);
       const question_drafts = typeof questionDrafts === "string" ? JSON.parse(questionDrafts) : {};
-      if (!record.runtime_session_id) return { session: record, runs: [], draft, question_drafts, methods, configuration, mcp_tools, mcp_sources };
+      if (!record.runtime_session_id) return { session: { ...record, goal_title: record.goal_id ? execution.goalTitle(record.goal_id) ?? null : null }, runs: [], draft, question_drafts, materials, methods, configuration, mcp_tools, mcp_sources };
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
       try {
         const snapshot = await api!.invoke(agent.readSession, [session]);
@@ -233,13 +300,13 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         const last = runs.at(-1);
         const state = snapshot.recovery ? "reconcile-required" : last ? sessionState(last) : "idle";
         const updated = state === record.state ? record : execution.sessions.setState(boardId, record.session_id, state, record.updated_at);
-        return { session: { ...updated, checkpoint_busy: snapshot.checkpoint_busy === true, goal_title: updated.goal_id ? execution.goalTitle(updated.goal_id) ?? null : null }, runs, draft, question_drafts, methods, configuration, mcp_tools, mcp_sources, checkpoint_busy: snapshot.checkpoint_busy === true,
+        return { session: { ...updated, checkpoint_busy: snapshot.checkpoint_busy === true, goal_title: updated.goal_id ? execution.goalTitle(updated.goal_id) ?? null : null }, runs, draft, question_drafts, materials, methods, configuration, mcp_tools, mcp_sources, checkpoint_busy: snapshot.checkpoint_busy === true,
           ...(snapshot.recovery ? { recovery_required: true, error: snapshot.recovery.reason } : {}) };
       } catch (error) {
         // Never replace a lost runtime reference with a new session: that would
         // silently lose history and could repeat effects after a restart.
         const session = execution.sessions.setState(boardId, record.session_id, "reconcile-required", record.updated_at);
-        return { session, runs: [], draft, question_drafts, methods, configuration, mcp_tools, mcp_sources, recovery_required: true,
+        return { session, runs: [], draft, question_drafts, materials, methods, configuration, mcp_tools, mcp_sources, recovery_required: true,
           error: (error as { code?: string }).code === "agent.session_unknown"
             ? "此会话的执行记录尚未恢复，不能把它当新任务重跑。原会话与草稿已保留。"
             : "此会话的执行记录暂时无法读取，不能将未知结果当作已完成。原会话与草稿已保留，请稍后重试。" };
@@ -283,6 +350,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
     route("coding.update-session", async (request, _api, execution) => {
       const record = selected(request, execution);
       const body = bodyOf(request);
+      const materials = body.materials === undefined ? undefined : materialSelection(body.materials);
       const configuration = body.configuration === undefined ? undefined : nextConfiguration(body.configuration);
       if (configuration) context.services!.storage!.set(`configuration:${record.session_id}`, JSON.stringify(configuration));
       if (body.mcp_sources !== undefined) context.services!.storage!.set(`mcp-sources:${record.session_id}`,JSON.stringify(mcpSources(body.mcp_sources)));
@@ -299,7 +367,9 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         if (typeof body.draft !== "string" || body.draft.length > 100_000) throw new Error("草稿格式无效或超过长度限制");
         context.services!.storage!.set(`draft:${record.session_id}`, body.draft);
       }
-      return { session: body.title === undefined ? record : execution.sessions.rename(boardId, record.session_id, text(body.title, "会话名称"), new Date().toISOString()) };
+      const title = body.title === undefined ? undefined : text(body.title, "会话名称");
+      if (materials) context.services!.storage!.set(`materials:${record.session_id}`, JSON.stringify(materials));
+      return { session: title === undefined ? record : execution.sessions.rename(boardId, record.session_id, title, new Date().toISOString()) };
     }),
     route("coding.start-run", async (request, api, execution) => {
       const record = selected(request, execution);
@@ -321,10 +391,14 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         const roles = await api!.invoke(agent.availableRoles, [record.runtime_id, context.plugin_id]);
         const availability = roles.find((entry) => entry.role_id === role);
         if (!availability?.available) throw new Error(availability?.reason ?? "这个执行方式尚未接通");
+        const goal = await resolveGoalContext(context, record.session_id, record.goal_id ?? null);
+        const text_materials = resolveMaterials(context, materialSelection(body.materials ?? savedMaterials(context, record.session_id)));
+        if (goal) text_materials.unshift(goal.material);
+        if (text_materials.length > 30) throw new Error("目标与材料合计每轮最多 30 份，请移除一份材料后重试");
         const session = record.runtime_session_id ? { runtime_id: record.runtime_id, session_id: record.runtime_session_id }
           : await api!.invoke(agent.createSession, [record.runtime_id, { ...identity, directory, title: record.title }]);
         if (!record.runtime_session_id) execution.sessions.setRuntimeSession(boardId, record.session_id, session.session_id, new Date().toISOString());
-        const run = await api!.invoke(agent.startRun, [record.runtime_id, { ...identity, session, directory, task, role_id: role,
+        const run = await api!.invoke(agent.startRun, [record.runtime_id, { ...identity, session, directory, task, role_id: role, text_materials,
           model_selection: { provider_id: model.provider_id, model_id: model.model_id }, skills: methodSelection(body.methods ?? []), mcp_tools: mcpSelection(body.mcp_tools ?? []), mcp_sources: mcpSources(body.mcp_sources ?? []) }]);
         context.services!.storage!.delete(`draft:${record.session_id}`);
         execution.sessions.setState(boardId, record.session_id, "running", new Date().toISOString());

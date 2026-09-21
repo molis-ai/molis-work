@@ -1,6 +1,9 @@
+import { DIFF_CHANGESET_TYPE, GIT_RESULT_TYPE, FILE_SNAPSHOT_TYPE, FILE_TEXT_SELECTION_TYPE } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { goalContextCapabilities, goalProgressCapabilities } from "@molis-ai/molis-work-contracts/modules/goals";
+import { CODING_GOAL_CONTEXT_TYPE } from "./artifacts.js";
 import {
   CODING_CHANGESET_TYPE,
   CODING_DIAGRAM_TYPE,
@@ -25,24 +28,20 @@ export const CODING_PROJECT_PLUGIN_ID = "coding";
  *
  * The other six built-ins stay `native`: they are still composed at build time.
  *
- * **No input ports yet.** Coding wants Shelf materials and Goal context, but
- * neither Shelf nor Goals produces an Artifact type today — every built-in
- * Plugin still declares `produces: []`. An input port for a type nothing can
- * publish would be a connection that can never be bound, so it is left out
- * until there is a producer. Goal facts reach Coding through the 16 already
- * registered Goals Capabilities in the meantime.
+ * Files and Git supply optional fixed source material. Shelf and Goal inputs
+ * remain separate work; their absence never blocks an ordinary task.
  */
 export const codingManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: CODING_PLUGIN_ID,
-  version: "1.10.0",
+  version: "1.14.1",
   name: "Coding",
   kind: "app",
   publisher: { publisher_id: "molis", signature: "official-coding-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
-    { permission: "artifact:read", required: true, reason: "重新打开本项目已保存的执行报告" },
+    { permission: "artifact:read", required: true, reason: "读取本项目固定文件、差异、Git 结果与已保存的执行报告" },
     { permission: "storage:private", required: true, reason: "保存编码会话的未发送草稿" },
     {
       permission: "artifact:write",
@@ -54,20 +53,29 @@ export const codingManifest: PluginManifest = {
     provides: [],
     consumes: [
       ...Object.values(agentHostCapabilities).map((entry) => entry.capability_id),
+      ...Object.values(goalContextCapabilities).map((entry) => entry.capability_id),
+      ...Object.values(goalProgressCapabilities).map((entry) => entry.capability_id),
       projectsCapabilities.readWorkspace.capability_id,
       projectsCapabilities.listWorkspaces.capability_id,
     ],
   },
   artifacts: {
     produces: [
+      { artifact_type_id: CODING_GOAL_CONTEXT_TYPE, schema_version: 1 },
       { artifact_type_id: CODING_CHANGESET_TYPE, schema_version: 1 },
       { artifact_type_id: CODING_REPORT_TYPE, schema_version: 1 },
       { artifact_type_id: CODING_DIAGRAM_TYPE, schema_version: 1 },
     ],
-    consumes: [{ artifact_type_id: CODING_REPORT_TYPE, schema_version: 1 }],
+    consumes: [CODING_GOAL_CONTEXT_TYPE, CODING_REPORT_TYPE, FILE_SNAPSHOT_TYPE, FILE_TEXT_SELECTION_TYPE, DIFF_CHANGESET_TYPE, GIT_RESULT_TYPE].map(artifact_type_id => ({ artifact_type_id, schema_version: 1 })),
   },
   ports: {
-    inputs: [],
+    inputs: [
+      { port: "git-changeset", artifact_type_id: DIFF_CHANGESET_TYPE, schema_version: 1, optional: true },
+      { port: "git-result", artifact_type_id: GIT_RESULT_TYPE, schema_version: 1, optional: true },
+      { port: "before", artifact_type_id: FILE_SNAPSHOT_TYPE, schema_version: 1, optional: true },
+      { port: "after", artifact_type_id: FILE_SNAPSHOT_TYPE, schema_version: 1, optional: true },
+      { port: "selection", artifact_type_id: FILE_TEXT_SELECTION_TYPE, schema_version: 1, optional: true },
+    ],
     outputs: [
       { port: "changeset", artifact_type_id: CODING_CHANGESET_TYPE, schema_version: 1 },
       { port: "report", artifact_type_id: CODING_REPORT_TYPE, schema_version: 1 },
@@ -86,8 +94,15 @@ export const codingManifest: PluginManifest = {
   },
   agent: codingAgentManifest,
   routes: [
+    { route_id: "coding.goals", method: "GET", path: "/goals" },
+    { route_id: "coding.goal-context", method: "GET", path: "/goals/:goalId" },
+    { route_id: "coding.read-goal", method: "GET", path: "/sessions/:sessionId/goal" },
+    { route_id: "coding.select-goal", method: "PUT", path: "/sessions/:sessionId/goal" },
+    { route_id: "coding.materials", method: "GET", path: "/sessions/:sessionId/materials" },
     { route_id: "coding.read-report", method: "GET", path: "/sessions/:sessionId/runs/:runId/report" },
     { route_id: "coding.save-report", method: "POST", path: "/sessions/:sessionId/runs/:runId/report" },
+    { route_id: "coding.report-progress", method: "GET", path: "/sessions/:sessionId/runs/:runId/report/progress" },
+    { route_id: "coding.record-report-progress", method: "POST", path: "/sessions/:sessionId/runs/:runId/report/progress" },
     { route_id: "coding.recovery", method: "GET", path: "/sessions/:sessionId/recovery" },
     { route_id: "coding.recover-run", method: "POST", path: "/sessions/:sessionId/runs/:runId/recover" },
     { route_id: "coding.checkpoints", method: "GET", path: "/sessions/:sessionId/checkpoints" },

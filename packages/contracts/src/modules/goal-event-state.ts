@@ -1,3 +1,4 @@
+import type { ArtifactReference } from "./artifacts.js";
 import type { GoalEventExtraRequirementInput } from "./goal-events.js";
 
 export const goalEventWorkStatuses = ["open", "completed", "cancelled"] as const;
@@ -74,7 +75,14 @@ export interface GoalEventScope {
   action: string | null;
 }
 
+/** Exact saved evidence; opening it navigates only, never executes work. */
+export interface GoalProgressArtifactSource extends ArtifactReference {
+  title: string;
+  origin: { plugin_id: string; item_id: string };
+}
+
 export interface GoalEventProgressSummaryView {
+  source?: GoalProgressArtifactSource;
   summary_id: string;
   event_id: string;
   summary: string;
@@ -242,6 +250,10 @@ export interface GoalEventUserConclusion {
 }
 
 export interface RecordGoalProgressSummaryInput {
+  source?: GoalProgressArtifactSource;
+  /** When supplied, compare inside the same transaction after idempotency replay. */
+  expected_goal_cursor?: number;
+  expected_contract_revision?: number;
   board_id: string;
   goal_id: string;
   actor_id: string;
@@ -389,6 +401,7 @@ export interface GoalEventResumeResult extends GoalEventMutationResult {
 export type GoalEventSystemPayload =
   | {
       operation: "progress_summary";
+      source?: GoalProgressArtifactSource;
       summary: string;
       based_on_cursor: number;
       next_step: string | null;

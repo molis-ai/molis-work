@@ -24,7 +24,7 @@ test("formal report routes freeze real Artifact versions, distinguish missing/fa
   const run: AgentRunView = {
     ref: { session_id: "sdk", run_id: "failed" }, phase: "failed", started_at: "2026-09-21T00:00:00Z", ended_at: null,
     frozen: { role_id: "builder", role_version: 3, execution: "workspace-write", model_id: "fixture-model", prompts: [], skills: [],
-      mcp_tools: [], host_tools: [], text_materials: [], budget: null, directory: { canonical_path: "/private/work", realpath_verified: true } },
+      mcp_tools: [], host_tools: [], text_materials: [{ material_id: "snapshot@1", title: "fixture / old.ts", source_artifact_id: "snapshot", source_version: 1 }], budget: null, directory: { canonical_path: "/private/work", realpath_verified: true } },
     turns: [{ turn_id: "task", kind: "user", text: "检查这个修改", at: null },
       { turn_id: "answer", kind: "assistant", text: "所有测试通过。<script>bad()</script>", at: null },
       { turn_id: "steer", kind: "user", text: "不要发布", at: null, steer: { id: "steer", state: "unconfirmed" } }],
@@ -73,6 +73,7 @@ test("formal report routes freeze real Artifact versions, distinguish missing/fa
     const preview = await request("app", "failed");
     assert.equal(preview.status, 200); assert.equal(preview.body.reference, null);
     assert.equal(api.query.listArtifacts(DEMO_BOARD_ID).length, 0, "reading doesn't save");
+    assert.match(preview.body.report.body_markdown, /fixture \/ old.ts v1 \(snapshot\)/);
     assert.match(preview.body.report.body_markdown, /退出码 1/);
     assert.match(preview.body.report.body_markdown, /回执无法读取，结果未知/);
     assert.match(preview.body.report.body_markdown, /未确认应用/);

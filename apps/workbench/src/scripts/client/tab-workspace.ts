@@ -1296,6 +1296,16 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     }
   });
   document.addEventListener("click", (event) => {
+    const sourceItem = event.target.closest("[data-workbench-item-plugin][data-workbench-item-id]");
+    if (sourceItem) {
+      event.preventDefault();
+      const plugin = sourceItem.dataset.workbenchItemPlugin, itemId = sourceItem.dataset.workbenchItemId;
+      if (!Object.hasOwn(PLUGIN_TAB_ICON, plugin) || !itemId) return;
+      const title = sourceItem.dataset.workbenchItemTitle;
+      if (embedded) notifyParent("workbench-pane-open", { plugin, itemId, title });
+      else openItem(plugin, itemId, title);
+      return;
+    }
     if (event.target.closest("[data-goal-collapse]")) {
       const tab = ops.activeTab(state);
       if (tab?.plugin === "goals" && tab.kind === "item") { delete tab.goalView; apply(); persist(); if (embedded) notifyParent("workbench-pane-goal-view", {view:"frame"}); }

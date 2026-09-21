@@ -68,6 +68,9 @@ export function createCodingPlugin(ports: CodingPluginPorts = {}): PluginDefinit
         kind: "app",
         views: [codingUiContribution, codingSettingsContribution],
         routes: codingRoutes(context, ports.execution),
+        // The picker reads current inputs on demand. Upstream changes must not
+        // replace private draft selections or any already-frozen Run material.
+        onUpstreamReady: () => {},
         /**
          * A command is offered only when it can actually do something. Opening
          * a change set needs a session; opening a report needs a report. An

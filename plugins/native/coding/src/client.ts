@@ -1,3 +1,4 @@
+import { codingGoalVersionLabel } from "./goal-versions.js";
 import { codingUsageSummary } from "./usage.js";
 import { atBottom, STICK_THRESHOLD_PX } from "./reading.js";
 
@@ -11,12 +12,14 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const prefix = root.dataset.codingPrefix + '/api/plugins/io.molis.work.coding';
   const STICK_THRESHOLD_PX = ${STICK_THRESHOLD_PX};
   const atBottom = ${atBottom.toString()};
+  const codingGoalVersionLabel = ${codingGoalVersionLabel.toString()};
   const codingUsageSummary = ${codingUsageSummary.toString()};
   const position = () => ({ offset: turns.scrollTop, viewport: turns.clientHeight, content: turns.scrollHeight });
   const renderedText = new WeakMap();
   const directoryRows = new Map(), directoryGroups = new Map();
   let directoryClaimed = false;
   const drafts = new Map(), offsets = new Map(), draftWrites = new Map();
+  const materialSelections = new Map();
   const questionDrafts = new Map(), methodSelections = new Map(), configurations = new Map(), mcpSelections = new Map(), mcpSourceSelections = new Map();
   let mcpChoices = [], mcpSourceChoices = [];
   let methodChoices = [], methodDocumentTicket = 0;
@@ -27,6 +30,8 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   let state = { sessions:[], models:[], runtimes:[] }, current = '', workspaceId = '', lastRun = null, generation = 0, sending = false, loading = false, pinned = true, recovery = false, checkpointBusy = false, checkpointLoading = false, checkpointKey = "", draftTimer, selectionTask, statusKey = '';
   let recoveryLoading = false, recoveryBusy = false, recoveryKey = '';
   let reportRun = '', reportTicket = 0, reportSaving = false, reportTrigger, dialogueOffset = 0;
+  let progressView=null,progressTicket=0,progressSaving=false,reportItem='',itemTicket=0;
+  let goalRows=[],goalCursor=null,goalChoice=null,goalTicket=0,goalReading=0,goalSaving=false;
   const status = (message, error = false) => { q('[data-coding-status]').textContent = message; q('[data-coding-status]').dataset.error = String(error); };
   const api = async (path, method = 'GET', body) => {
     const response = await fetch(prefix + path, { method, cache:'no-store',
@@ -40,19 +45,82 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     try { const value = sessionStorage.getItem(draftKey(id)); if (value !== null) return value; } catch {}
     return undefined;
   };
+  const renderGoalPreview = () => {
+    const region=q('[data-coding-goal-preview]');region.replaceChildren();
+    if(!goalChoice){region.textContent='下一轮不关联目标。';return;}
+    const goal=goalChoice.snapshot.goal,heading=document.createElement('h3'),body=document.createElement('p');
+    heading.textContent=goal.title;body.textContent=goalChoice.snapshot.state.agreement.outcome || goal.outcome;region.append(heading,body);
+    const versions=document.createElement('p');versions.textContent=codingGoalVersionLabel({contract_revision:goal.current_contract_revision,agreement_version:goalChoice.snapshot.state.agreement.version});region.append(versions);
+    const sections=[['为什么',goal.why],['业务逻辑',goal.business_logic],['范围',goal.in_scope.join('\\n')],['不包含',goal.out_of_scope.join('\\n')],['约束',goal.constraints.join('\\n')],['必需输入',goal.required_inputs.join('\\n')],['承诺产物',goal.promised_outputs.join('\\n')],['验收条件',goal.acceptance_criteria.map(item=>item.statement+'；通过条件：'+item.pass_condition+'；判断方式：'+item.decision_method).join('\\n')]];
+    for(const [title,value] of sections.filter(item=>item[1])){const label=document.createElement('strong'),content=document.createElement('p');label.textContent=title;content.textContent=value;content.style.whiteSpace='pre-wrap';region.append(label,content);}
+    const requirements=goalChoice.snapshot.state.requirements;
+    if(requirements.length){const label=document.createElement('strong'),list=document.createElement('ul');label.textContent='当前目标要求';for(const item of requirements){const row=document.createElement('li');row.textContent=item.statement+(item.human_decision_required?'（需要真人判断）':'');list.append(row);}region.append(label,list);}
+    const missing=sections.filter(item=>!item[1]).map(item=>item[0]);if(missing.length){const note=document.createElement('p');note.textContent='单独字段未填写：'+missing.join('、')+'。仍以目标原文与已有要求为准，不自行补造。';region.append(note);}
+    const details=document.createElement('details'),summary=document.createElement('summary'),raw=document.createElement('pre');
+    summary.textContent='完整固定上下文 · 目标事件 '+goalChoice.snapshot.state.goal_event_cursor;
+    raw.textContent=goalChoice.material.text;details.append(summary,raw);region.append(details);
+  };
+  const renderGoalRows = () => {
+    const list=q('[data-coding-goal-list]'),search=q('[data-coding-goal-search]').value.trim().toLowerCase();list.replaceChildren();
+    for(const row of goalRows.filter(item=>item.title.toLowerCase().includes(search))){const button=document.createElement('button');button.className='mw-btn mw-btn--ghost';button.type='button';button.dataset.codingGoalId=row.goal_id;button.textContent=row.title;list.append(button);}
+    if(!list.children.length)list.textContent=goalRows.length?'没有匹配的已加载目标。':'当前项目还没有目标。可在 Goals 创建，也可以不关联直接执行。';
+    q('[data-coding-goal-more]').hidden=!goalCursor;
+  };
+  const loadGoals = async (ticket) => {
+    const data=await api('/goals'+(goalCursor?'?after_cursor='+encodeURIComponent(goalCursor):''));
+    if(ticket!==goalTicket)return;
+    const known=new Set(goalRows.map(item=>item.goal_id));goalRows.push(...data.goals.filter(item=>!known.has(item.goal_id)));goalCursor=data.next_cursor;renderGoalRows();
+  };
+  const openGoals = async () => {
+    if(!current){status('请先选择或新建编码会话。');return;}
+    const id=current,ticket=++goalTicket;goalReading++;goalChoice=null;goalRows=[];goalCursor=null;
+    q('[data-coding-goal-dialog]').showModal();q('[data-coding-goal-save]').disabled=true;q('[data-coding-goal-error]').textContent='';q('[data-coding-goal-search]').value='';q('[data-coding-goal-list]').textContent='正在读取本项目目标…';q('[data-coding-goal-preview]').textContent='正在读取已选版本…';
+    try{const saved=await api('/sessions/'+encodeURIComponent(id)+'/goal');if(ticket!==goalTicket || current!==id)return;goalChoice=saved.selected;renderGoalPreview();
+      if(saved.error || saved.goal_id && !saved.selected)q('[data-coding-goal-error]').textContent=saved.error || '原关联尚未固定版本，请重新选择后确认。';
+      q('[data-coding-goal-save]').disabled=Boolean(saved.goal_id && !saved.selected);await loadGoals(ticket);
+    }catch(error){if(ticket===goalTicket)q('[data-coding-goal-error]').textContent=error.message;}
+  };
   const rememberDraft = (id, value) => {
     drafts.set(id, value);
     try { sessionStorage.setItem(draftKey(id), value); } catch {}
   };
-  const saveDraft = (id, value, selectedMethods = methodSelections.get(id)) => {
+  const saveDraft = (id, value, selectedMethods = methodSelections.get(id), selectedMaterials = materialSelections.get(id)) => {
     if (!id) return Promise.resolve();
     rememberDraft(id,value);
-    const body={draft:value, ...(mcpSourceSelections.has(id)?{mcp_sources:structuredClone(mcpSourceSelections.get(id))}:{}), ...(mcpSelections.has(id)?{mcp_tools:structuredClone(mcpSelections.get(id))}:{}), ...(configurations.get(id) ? {configuration:structuredClone(configurations.get(id))} : {}), ...(selectedMethods ? {methods:structuredClone(selectedMethods)} : {}), ...(questionDrafts.has(id) ? {question_drafts:structuredClone(questionDrafts.get(id))} : {})};
+    const body={draft:value, ...(selectedMaterials ? {materials:structuredClone(selectedMaterials)} : {}), ...(mcpSourceSelections.has(id)?{mcp_sources:structuredClone(mcpSourceSelections.get(id))}:{}), ...(mcpSelections.has(id)?{mcp_tools:structuredClone(mcpSelections.get(id))}:{}), ...(configurations.get(id) ? {configuration:structuredClone(configurations.get(id))} : {}), ...(selectedMethods ? {methods:structuredClone(selectedMethods)} : {}), ...(questionDrafts.has(id) ? {question_drafts:structuredClone(questionDrafts.get(id))} : {})};
     const next = (draftWrites.get(id) || Promise.resolve()).catch(() => {}).then(() => api('/sessions/' + encodeURIComponent(id),'PATCH',body));
     draftWrites.set(id,next);
     return next.then(() => { if (current === id && input.value === value) q('[data-coding-draft-status]').textContent = '草稿已保存；模型与方式用于下一轮。'; });
   };
   const flushDraft = () => { clearTimeout(draftTimer); return current ? saveDraft(current,input.value) : Promise.resolve(); };
+  const materialKey = ref => ref.artifact_id+'@'+ref.version;
+  let materialRows=[], materialTicket=0;
+  const openMaterials = async () => {
+    const id=current,ticket=++materialTicket;
+    q('[data-coding-material-error]').textContent='';
+    q('[data-coding-material-list]').textContent='正在读取固定材料…';
+    q('[data-coding-material-save]').disabled=true;
+    q('[data-coding-material-dialog]').showModal();
+    try {
+      await flushDraft();
+      const data=await api('/sessions/'+encodeURIComponent(id)+'/materials');
+      if(current!==id || ticket!==materialTicket) return;
+      materialRows=data.materials;
+      const selected=new Set((materialSelections.get(id) || []).map(materialKey));
+      const list=q('[data-coding-material-list]');list.replaceChildren();
+      for(const [index,item] of materialRows.entries()) {
+        const row=document.createElement('section'),label=document.createElement('label'),box=document.createElement('input'),name=document.createElement('span');
+        row.className='coding-material';label.className='mw-check-row';box.className='mw-check';box.type='checkbox';box.dataset.materialIndex=String(index);
+        box.checked=selected.has(materialKey(item.reference));box.disabled=Boolean(item.error && !box.checked);
+        name.textContent=item.title+' · v'+item.reference.version+' · '+item.source;label.append(box,name);row.append(label);
+        if(item.error){const error=document.createElement('p');error.textContent=item.error;row.append(error);}
+        else {const detail=document.createElement('details'),summary=document.createElement('summary'),body=document.createElement('pre');summary.textContent='查看固定正文 · '+item.text.length+' 字符';body.textContent=item.text;detail.append(summary,body);row.append(detail);}
+        list.append(row);
+      }
+      if(!materialRows.length)list.textContent='还没有固定材料。先在左侧「文件」保存快照或选区、打开 Git 差异，或在 Git 操作记录中保存固定结果，再回来选择。';
+      q('[data-coding-material-save]').disabled=false;
+    } catch(error){if(current===id && ticket===materialTicket)q('[data-coding-material-error]').textContent=error.message;}
+  };
   const controls = () => {
     const active = lastRun && !terminal(lastRun.phase);
     input.disabled = !current || sending;
@@ -63,6 +131,9 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     q('[data-coding-intent]').disabled = Boolean(active || sending);
     q('[data-coding-model]').disabled = Boolean(active || sending);
     q('[data-coding-rename]').hidden = !current;
+    q('[data-coding-goal-open]').disabled = !current || sending;
+    q('[data-coding-material-open]').disabled = !current || sending;
+    q('[data-coding-material-open]').textContent = '＋ 材料'+((materialSelections.get(current) || []).length ? ' · '+materialSelections.get(current).length : '');
     q('[data-coding-method-open]').disabled = !current || sending;
     q('[data-coding-mcp-open]').disabled=!current || sending;
     const mcpCount=(mcpSelections.get(current) || []).length+(mcpSourceSelections.get(current) || []).length; q('[data-coding-mcp-open]').textContent='MCP'+(mcpCount?' · '+mcpCount:'');
@@ -311,6 +382,49 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
     }
   };
+  const progressDraftKey = (id,runId) => draftKey(id)+':report-progress:'+runId;
+  const rememberProgressDraft = () => {
+    if(!progressView || progressView.preview?.recorded) return;
+    try{sessionStorage.setItem(progressDraftKey(progressView.id,progressView.runId),JSON.stringify({summary:q('[data-coding-progress-summary]').value,next_step:q('[data-coding-progress-next]').value}));}catch{}
+  };
+  const renderProgress = () => {
+    const value=progressView?.preview,recorded=value?.recorded,region=q('[data-coding-progress-facts]');region.replaceChildren();
+    const add=(tag,value)=>{const element=document.createElement(tag);element.textContent=value;region.append(element);};
+    if(value){
+      add('h3','原目标：'+value.report_goal.title);add('p','固定成果：'+value.title+' · v'+value.reference.version);
+      if(value.current){
+        const goal=value.current.goal,state=value.current.state;
+        if(goal.title!==value.report_goal.title)add('p','目标当前名称：'+goal.title);
+        add('p',state.agreement.outcome || goal.outcome || '当前目标没有结果说明。');
+        for(const [key,label] of [['why','为什么'],['business_logic','业务逻辑']])if(goal[key])add('p',label+'：'+goal[key]);
+        for(const [key,label] of [['in_scope','范围'],['out_of_scope','不做'],['constraints','约束'],['required_inputs','必需输入'],['promised_outputs','预期成果']]) if(goal[key]?.length)add('p',label+'：'+goal[key].join('；'));
+        for(const item of goal.acceptance_criteria)add('p','验收条件：'+item.statement+'；通过条件：'+item.pass_condition+'；判断方式：'+item.decision_method);
+        for(const requirement of state.requirements)add('p',requirement.statement+(requirement.human_decision_required?'（需要真人判断）':''));
+        if(state.progress_summary)add('p','已有进展：'+state.progress_summary.summary);
+        if(state.goal_event_cursor!==value.report_goal.goal_event_cursor || goal.current_contract_revision!==value.report_goal.contract_revision)add('p','原目标在本轮开始后已有更新。请按上方当前要求核对，再决定这份历史报告能够说明什么。');
+      }
+      q('[data-coding-progress-source]').textContent=value.reference.artifact_id+' v'+value.reference.version+'\\n原目标：'+value.report_goal.goal_id+'\\n报告依据：'+codingGoalVersionLabel(value.report_goal)+' / 事件 '+value.report_goal.goal_event_cursor+(value.current?'\\n此次确认：'+codingGoalVersionLabel({contract_revision:value.current.goal.current_contract_revision,agreement_version:value.current.state.agreement.version})+' / 事件 '+value.current.state.goal_event_cursor:'');
+    }
+    for(const selector of ['[data-coding-progress-summary]','[data-coding-progress-next]'])q(selector).readOnly=Boolean(recorded);
+    q('[data-coding-progress-save]').disabled=!value || Boolean(recorded) || progressSaving || !q('[data-coding-progress-summary]').value.trim();
+    q('[data-coding-progress-refresh]').disabled=progressSaving;
+    q('[data-coding-progress-close]').disabled=progressSaving;
+    q('[data-coding-progress-goal]').hidden=!value;q('[data-coding-progress-goal]').disabled=progressSaving;
+    if(recorded){q('[data-coding-progress-summary]').value=recorded.progress_summary.summary;q('[data-coding-progress-next]').value=recorded.progress_summary.next_step || '';q('[data-coding-progress-status]').textContent='已记录到原目标 · '+recorded.progress_summary.recorded_at+'。重复打开或重试不会再记一笔；这不是用户验收。';}
+  };
+  const openProgress = async () => {
+    if(!current || !reportRun || progressSaving)return;
+    rememberProgressDraft();
+    const view={id:current,runId:reportRun,preview:null,ticket:++progressTicket};progressView=view;
+    const dialog=q('[data-coding-progress-dialog]');if(!dialog.open)dialog.showModal();
+    let draft;try{draft=JSON.parse(sessionStorage.getItem(progressDraftKey(view.id,view.runId)) || 'null');}catch{}
+    q('[data-coding-progress-summary]').value=draft?.summary || '';q('[data-coding-progress-next]').value=draft?.next_step || '';
+    q('[data-coding-progress-source]').textContent='';q('[data-coding-progress-status]').textContent='正在读取原目标与记录回执…';renderProgress();
+    try{const preview=await api('/sessions/'+encodeURIComponent(view.id)+'/runs/'+encodeURIComponent(view.runId)+'/report/progress');
+      if(progressView!==view || view.ticket!==progressTicket)return;view.preview=preview;q('[data-coding-progress-status]').textContent='请核对原目标、固定成果和拟记录的内容。';renderProgress();
+    }catch(error){if(progressView===view)q('[data-coding-progress-status]').textContent=error.message;}
+  };
+  const closeProgress = () => {if(progressSaving)return;rememberProgressDraft();progressTicket++;progressView=null;q('[data-coding-progress-dialog]').close();};
   const closeReport = (restoreFocus = false) => {
     const wasOpen=Boolean(reportRun);
     reportTicket++;reportRun='';reportSaving=false;
@@ -323,15 +437,16 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     if(!reportRun) dialogueOffset=turns.scrollTop;
     reportRun=runId;reportSaving=save;
     turns.hidden=true;q('[data-coding-report-reader]').hidden=false;q('[data-coding-latest]').hidden=true;
-    q('[data-coding-report-save]').disabled=true;
+    q('[data-coding-report-save]').disabled=true;q('[data-coding-report-progress]').hidden=true;
     q('[data-coding-report-status]').textContent=save?'正在保存固定报告…':'正在读取执行报告…';
     if(!save) q('[data-coding-report-body]').replaceChildren();
     try {
-      const result=await api('/sessions/'+encodeURIComponent(id)+'/runs/'+encodeURIComponent(runId)+'/report',save?'POST':'GET');
+      const result=await api('/sessions/'+encodeURIComponent(id)+'/runs/'+encodeURIComponent(runId)+'/report'+(reportItem && !save?'?fixed=1':''),save?'POST':'GET');
       if(current!==id || generation!==generationAtStart || ticket!==reportTicket) return;
       q('[data-coding-report-body]').innerHTML=result.html;enrichCode(q('[data-coding-report-body]'));
       q('[data-coding-report-status]').textContent=result.reference?'已保存固定版本 v'+result.reference.version+' · '+result.saved_at:'尚未保存；保存后保留这轮证据，不代表任务验收。';
       q('[data-coding-report-save]').disabled=Boolean(result.reference);
+      q('[data-coding-report-progress]').hidden=!(result.reference && result.report.goal && !result.report.goal_source_error);
       if(!save) {q('[data-coding-report-reader]').scrollTop=0;q('[data-coding-report-close]').focus({preventScroll:true});}
     } catch(error) {
       if(current===id && ticket===reportTicket) {
@@ -415,6 +530,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     if(!lastRun) { result.textContent="本轮的成果、检查与执行记录会显示在这里。"; delete result.dataset.content; if(statusKey!=='idle'){statusKey='idle';status("输入任务后开始；本轮方式与模型在发送时固定。");} }
     if(lastRun) {
       const values=[['最新执行（第 '+runs.length+' 轮）',phases[lastRun.phase]||lastRun.phase],['模型',lastRun.frozen.model_id],['工作范围',lastRun.frozen.directory.canonical_path],['身份',lastRun.frozen.role_id+' · v'+lastRun.frozen.role_version],['本轮方法',lastRun.frozen.skills.length ? lastRun.frozen.skills.map(method=>method.name+' · v'+method.version).join('、') : '未使用方法'],['本轮 MCP',lastRun.frozen.mcp_tools?.length ? lastRun.frozen.mcp_tools.map(tool=>(tool.server_label || tool.server)+' / '+tool.tool+' · 配置 '+(tool.configuration_version ?? '未记录')+' · '+tool.version).join('、') : '未使用 MCP'],['本轮 MCP 资料',(lastRun.frozen.mcp_sources || []).length ? lastRun.frozen.mcp_sources.map(source=>(source.server_label || source.server)+' · 配置 '+source.configuration_version).join('、') : '未单独选择资料来源'],['用量',codingUsageSummary(lastRun.usage)]];
+      values.push(['本轮固定材料',lastRun.frozen.text_materials.length ? lastRun.frozen.text_materials.map(material=>(material.title || material.source_artifact_id)+' · v'+material.source_version).join('、') : '未选择材料']);
       if(lastRun.frozen.compaction) values.push(['上下文整理','自动 · 估计超过 '+lastRun.frozen.compaction.above_tokens+' tokens 时选择较早原文 · v'+lastRun.frozen.compaction.version]);
       if(!lastRun.usage.compaction && lastRun.activity.some(item=>item.name==='上下文整理')) values.push(['用量范围','以上仅主执行；上下文整理的额外模型请求尚未计入此小计。']);
       const key=JSON.stringify(values); if(result.dataset.content!==key) { const dl=document.createElement('dl'); values.forEach(([label,value])=>{const dt=document.createElement('dt');dt.textContent=label;const dd=document.createElement('dd');dd.textContent=value;dl.append(dt,dd);}); result.replaceChildren(dl);result.dataset.content=key; }
@@ -477,6 +593,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       q('[data-coding-recovery]').hidden=!recovery;
       if(recovery && recoveryKey!==id){recoveryKey=id;void readRecovery();}
       if(!q('[data-coding-title] input')) q('[data-coding-title]').textContent=data.session.title;
+      q('[data-coding-goal-label]').textContent=data.session.goal_id?'下一轮目标：'+(data.session.goal_title || data.session.goal_id):'下一轮未关联目标';
       state.sessions=state.sessions.map(record=>record.session_id===id ? data.session : record);
       if(!configurations.has(id)) configurations.set(id,data.configuration);
       if(fresh) {
@@ -489,6 +606,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
       if(!mcpSourceSelections.has(id))mcpSourceSelections.set(id,data.mcp_sources || []);
       if(!mcpSelections.has(id))mcpSelections.set(id,data.mcp_tools || []);
+      if(!materialSelections.has(id)) materialSelections.set(id,data.materials || []);
       if(!methodSelections.has(id)) methodSelections.set(id,data.methods || []);
       if(!questionDrafts.has(id)) {
         let saved;try{saved=JSON.parse(sessionStorage.getItem(draftKey(id)+':questions') || 'null');}catch{}
@@ -508,6 +626,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const select = async(id) => {
     if(id===current) return selectionTask;
+    materialTicket++;q('[data-coding-material-dialog]').close();
     closeReport();q('[data-coding-report-list]').replaceChildren();q('[data-coding-reports]').hidden=true;
     if(current) { offsets.set(current,turns.scrollTop); void flushDraft().catch(error=>status(error.message,true)); }
     void host.showReviews?.(q('[data-coding-host-reviews]'), []);
@@ -517,13 +636,34 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     q('[data-coding-commands]').replaceChildren();q('[data-coding-commands]').hidden=true;
     input.disabled=true; selectionTask=readCurrent(true);await selectionTask;
   };
-  document.addEventListener('molis-work:plugin-item-selected',(event)=>{ if(event.detail.plugin==='coding' && event.detail.itemId) void select(event.detail.itemId); });
+  const openCodingItem = async(itemId) => {
+    const ticket=++itemTicket;reportItem='';
+    if(!itemId.startsWith('coding-report:')){await select(itemId);if(ticket===itemTicket)closeReport();return;}
+    const parts=itemId.slice('coding-report:'.length).split(':');
+    if(parts.length!==2)throw new Error('固定报告引用无效');
+    const id=decodeURIComponent(parts[0]),runId=decodeURIComponent(parts[1]);
+    await select(id);if(ticket!==itemTicket || current!==id)return;
+    reportItem=itemId;await showReport(runId);
+  };
+  document.addEventListener('molis-work:plugin-item-selected',(event)=>{ if(event.detail.plugin==='coding' && event.detail.itemId) void openCodingItem(event.detail.itemId).catch(error=>status(error.message,true)); });
   const create = async() => { const result=await api('/sessions','POST',{title:'新编码会话'}); await refreshState(); host.openItem('coding',result.session.session_id,result.session.title); await select(result.session.session_id); input.focus(); };
   const click = async(event) => {
     const target=event.target.closest('button,a'); if(!target) return;
     try {
       if(target.matches('[data-coding-report-open]')) {reportTrigger=target;await showReport(target.dataset.codingReportOpen);}
-      if(target.matches('[data-coding-report-close]')) closeReport(true);
+      if(target.matches('[data-coding-report-close]')) {const fromArtifact=reportItem;reportItem='';closeReport(true);if(fromArtifact)host.openItem('coding',current,state.sessions.find(item=>item.session_id===current)?.title);}
+      if(target.matches('[data-coding-report-progress]') || target.matches('[data-coding-progress-refresh]'))await openProgress();
+      if(target.matches('[data-coding-progress-close]'))closeProgress();
+      if(target.matches('[data-coding-progress-goal]') && progressView?.preview && !progressSaving){const goal=progressView.preview.report_goal;closeProgress();host.openItem('goals',goal.goal_id,goal.title);}
+      if(target.matches('[data-coding-goal-open]')) await openGoals();
+      if(target.matches('[data-coding-goal-close]') && !goalSaving){goalTicket++;goalReading++;q('[data-coding-goal-dialog]').close();}
+      if(target.matches('[data-coding-goal-none]') && !goalSaving){goalReading++;goalChoice=null;renderGoalPreview();q('[data-coding-goal-save]').disabled=false;q('[data-coding-goal-error]').textContent='';}
+      if(target.matches('[data-coding-goal-more]')){target.disabled=true;try{await loadGoals(goalTicket);}finally{target.disabled=false;}}
+      if(target.matches('[data-coding-goal-id]') && !goalSaving){
+        const ticket=goalTicket,reading=++goalReading;q('[data-coding-goal-save]').disabled=true;q('[data-coding-goal-error]').textContent='';
+        try{const value=await api('/goals/'+encodeURIComponent(target.dataset.codingGoalId));if(ticket!==goalTicket || reading!==goalReading)return;goalChoice=value;renderGoalPreview();q('[data-coding-goal-save]').disabled=false;}
+        catch(error){if(ticket===goalTicket && reading===goalReading)q('[data-coding-goal-error]').textContent=error.message;}
+      }
       if(target.matches('[data-coding-report-save]') && reportRun && !reportSaving) await showReport(reportRun,true);
       if(target.matches('[data-coding-recovery-refresh]')) await readRecovery();
       if(target.matches('[data-coding-recover]')) {
@@ -548,6 +688,8 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(target.matches('[data-coding-mcp-open]')) {await refreshState();mcpChoices=structuredClone(mcpSelections.get(current) || []);mcpSourceChoices=structuredClone(mcpSourceSelections.get(current) || []);renderMcp();q('[data-coding-mcp-error]').textContent='';q('[data-coding-mcp-dialog]').showModal();}
       if(target.matches('[data-coding-mcp-settings-link]'))q('[data-coding-mcp-dialog]').close();
       if(target.matches('[data-coding-mcp-close]'))q('[data-coding-mcp-dialog]').close();
+      if(target.matches('[data-coding-material-open]')) await openMaterials();
+      if(target.matches('[data-coding-material-close]')) {materialTicket++;q('[data-coding-material-dialog]').close();input.focus();}
       if(target.matches('[data-coding-method-open]')) openMethods();
       if(target.matches('[data-coding-method-close]')) {methodDocumentTicket++;q('[data-coding-method-dialog]').close();input.focus();}
       if(target.matches('[data-coding-workspace-open]')) { q('[data-coding-workspace-dialog]').showModal(); }
@@ -561,7 +703,8 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
           directory.dataset.codingCurrentFace=face;
           directory.querySelectorAll('[data-coding-face]').forEach(button=>button.setAttribute('aria-selected',String(button===target)));
           directory.querySelector('.coding-directory-head h2').textContent=face==='files'?'文件':'会话';
-        } else status('这个导航面尚未装配，现阶段可使用会话和文件入口。');
+        } else if(face==='goals') await openGoals();
+        else status('这个导航面尚未装配，现阶段可使用会话、目标关联和文件入口。');
       }
       if(target.matches('[data-coding-latest]')) { pinned=true;turns.scrollTop=turns.scrollHeight;target.hidden=true; }
       if(target.matches('[data-coding-stop]') && lastRun) { target.disabled=true;await api('/sessions/'+encodeURIComponent(current)+'/control','POST',{run_id:lastRun.ref.run_id,kind:'stop'});status('停止请求已收到，正在确认执行结果。');await readCurrent(); }
@@ -582,6 +725,38 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     rememberConfiguration();controls();void flushDraft().catch(error=>status('配置暂未保存：'+error.message,true));
   });
   q('[data-coding-method-search]').addEventListener('input',renderMethods);
+  q('[data-coding-goal-search]').addEventListener('input',renderGoalRows);
+  q('[data-coding-goal-dialog]').addEventListener('cancel',event=>{if(goalSaving)event.preventDefault();else{goalTicket++;goalReading++;}});
+  q('[data-coding-goal-form]').addEventListener('submit',async event=>{
+    event.preventDefault();const button=q('[data-coding-goal-save]');if(button.disabled || goalSaving)return;
+    const id=current,ticket=goalTicket,choice=goalChoice;goalSaving=true;button.disabled=true;
+    try{await api('/sessions/'+encodeURIComponent(id)+'/goal','PUT',{goal_id:choice?.snapshot.goal.goal_id ?? null,expected_artifact_id:choice?.reference.artifact_id});
+      if(ticket===goalTicket && current===id){q('[data-coding-goal-dialog]').close();await readCurrent();status('下一轮目标已保存；已开始的任务和历史成果保持原目标。');}
+    }catch(error){if(ticket===goalTicket)q('[data-coding-goal-error]').textContent=error.message;}
+    finally{goalSaving=false;if(ticket===goalTicket)button.disabled=false;}
+  });
+  q('[data-coding-progress-dialog]').addEventListener('cancel',event=>{if(progressSaving){event.preventDefault();return;}rememberProgressDraft();progressTicket++;progressView=null;});
+  for(const selector of ['[data-coding-progress-summary]','[data-coding-progress-next]'])q(selector).addEventListener('input',()=>{rememberProgressDraft();q('[data-coding-progress-save]').disabled=!progressView?.preview?.current || progressSaving || !q('[data-coding-progress-summary]').value.trim();});
+  q('[data-coding-progress-form]').addEventListener('submit',async event=>{
+    event.preventDefault();const view=progressView;if(!view?.preview?.current || progressSaving || q('[data-coding-progress-save]').disabled)return;
+    rememberProgressDraft();const currentGoal=view.preview.current;
+    const body={summary:q('[data-coding-progress-summary]').value,next_step:q('[data-coding-progress-next]').value,expected_goal_cursor:currentGoal.state.goal_event_cursor,expected_contract_revision:currentGoal.goal.current_contract_revision};
+    progressSaving=true;renderProgress();q('[data-coding-progress-status]').textContent='正在记录到原目标…';
+    try{const recorded=await api('/sessions/'+encodeURIComponent(view.id)+'/runs/'+encodeURIComponent(view.runId)+'/report/progress','POST',body);
+      if(progressView===view){view.preview.recorded=recorded;view.preview.current=null;try{sessionStorage.removeItem(progressDraftKey(view.id,view.runId));}catch{}}
+    }catch(error){if(progressView===view)q('[data-coding-progress-status]').textContent=error.message+'。内容已保留；可重新读取目标和原回执后确认。';}
+    finally{progressSaving=false;if(progressView===view)renderProgress();}
+  });
+  q('[data-coding-material-form]').addEventListener('submit',async event=>{
+    event.preventDefault();const id=current,ticket=materialTicket,button=q('[data-coding-material-save]');button.disabled=true;
+    const selection=[...q('[data-coding-material-list]').querySelectorAll('input:checked')].map(box=>materialRows[Number(box.dataset.materialIndex)].reference);
+    try {
+      await saveDraft(id,input.value,undefined,selection);materialSelections.set(id,selection);
+      if(current===id && ticket===materialTicket){q('[data-coding-material-dialog]').close();controls();input.focus();status('固定材料已保存，仅用于下一轮；本轮执行与补充要求保持原材料。');}
+    } catch(error){if(current===id && ticket===materialTicket)q('[data-coding-material-error]').textContent=error.message;}
+    finally{if(ticket===materialTicket)button.disabled=false;}
+  });
+  q('[data-coding-material-dialog]').addEventListener('cancel',()=>{materialTicket++;});
   q('[data-coding-method-dialog]').addEventListener('cancel',()=>{methodDocumentTicket++;});
   q('[data-coding-mcp-form]').addEventListener('submit',async event=>{
     event.preventDefault();const button=event.currentTarget.querySelector('[type=submit]');if(button.disabled)return;button.disabled=true;
@@ -612,7 +787,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   input.addEventListener('keydown' ,event=>{if(event.key==='Enter' && (event.metaKey || event.ctrlKey) && !event.isComposing){event.preventDefault();q('[data-coding-composer]').requestSubmit();}});
   q('[data-coding-composer]').addEventListener('submit',async(event)=>{
     event.preventDefault();if(sending || recovery || checkpointBusy || !current || !input.value.trim()) return;
-    const id=current,task=input.value,mcp_sources=structuredClone(mcpSourceSelections.get(current) || []),mcp_tools=structuredClone(mcpSelections.get(current) || []),methods=structuredClone(methodSelections.get(current) || []),activeRun=lastRun,modelValue=q('[data-coding-model]').value,intent=q('[data-coding-intent]').value,workspace_id=workspaceId; sending=true;controls();
+    const id=current,task=input.value,materials=structuredClone(materialSelections.get(current) || []),mcp_sources=structuredClone(mcpSourceSelections.get(current) || []),mcp_tools=structuredClone(mcpSelections.get(current) || []),methods=structuredClone(methodSelections.get(current) || []),activeRun=lastRun,modelValue=q('[data-coding-model]').value,intent=q('[data-coding-intent]').value,workspace_id=workspaceId; sending=true;controls();
     try {
       rememberConfiguration();await flushDraft();
       if(activeRun && !terminal(activeRun.phase)) {
@@ -620,7 +795,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         status('补充要求已交给执行引擎，等待后续处理。');
       } else {
         const [provider_id,model_id]=JSON.parse(modelValue);
-        await api('/sessions/'+encodeURIComponent(id)+'/runs','POST',{task,intent,provider_id,model_id,workspace_id,methods,mcp_tools,mcp_sources});
+        await api('/sessions/'+encodeURIComponent(id)+'/runs','POST',{task,intent,provider_id,model_id,workspace_id,methods,mcp_tools,mcp_sources,materials});
       }
       if(current===id && input.value===task) input.value='';
       if(localDraft(id)===task) await saveDraft(id,''); await refreshState();await readCurrent();

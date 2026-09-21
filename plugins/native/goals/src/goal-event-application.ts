@@ -276,6 +276,10 @@ export class GoalEventApplication {
     return this.ports.events.isEventStateOwner(boardId, goalId);
   }
 
+  readProgressReceipt(boardId: string, goalId: string, actorId: string, key: string): GoalEventProgressResult | null {
+    return this.ports.events.readProgressReceipt(boardId, goalId, actorId, key);
+  }
+
   recordProgress(input: RecordGoalProgressSummaryInput): GoalEventProgressResult {
     return this.ports.events.recordProgress(input);
   }

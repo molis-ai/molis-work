@@ -55,6 +55,7 @@ export {
   CODING_CHANGESET_TYPE,
   CODING_DIAGRAM_TYPE,
   CODING_REPORT_TYPE,
+  CODING_GOAL_CONTEXT_TYPE,
   CodingDiagramError,
   inspectDiagram,
   type CodingArtifactType,

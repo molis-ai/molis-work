@@ -1,9 +1,10 @@
 /**
- * The three Artifact types Coding produces.
+ * Coding's output types and its immutable Goal input snapshot.
  *
- * Every one of them carries the run it came from, so a reader can always get
+ * Each result carries the run it came from, so a reader can always get
  * back to how it was made. They are typed payloads rather than opaque blobs:
- * a consumer reads fields, never parses a document.
+ * a consumer reads fields, never parses a document. The Goal input snapshot
+ * precedes a Run and preserves the source Goal's contract and event facts.
  */
 
 /**
@@ -25,11 +26,13 @@ import { CODING_CHANGESET_TYPE } from "@molis-ai/molis-work-contracts/modules/wo
 
 export const CODING_REPORT_TYPE = "coding.report.v1";
 export const CODING_DIAGRAM_TYPE = "coding.diagram.v1";
+export const CODING_GOAL_CONTEXT_TYPE = "coding.goal-context.v1";
 
 export const CODING_ARTIFACT_TYPES = [
   CODING_CHANGESET_TYPE,
   CODING_REPORT_TYPE,
   CODING_DIAGRAM_TYPE,
+  CODING_GOAL_CONTEXT_TYPE,
 ] as const;
 
 export type CodingArtifactType = (typeof CODING_ARTIFACT_TYPES)[number];

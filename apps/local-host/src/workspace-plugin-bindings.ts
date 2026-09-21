@@ -5,6 +5,11 @@ export function bindWorkspaceCompanions(platform: PluginPlatform, boardId: strin
   const prefix = "io.molis.work.";
   for (const [target, targetPort, source, sourcePort] of [
     ["files", "workspace", "workspace", "workspace"],
+    ["coding", "before", "files", "before"],
+    ["coding", "after", "files", "after"],
+    ["coding", "selection", "files", "selection"],
+    ["coding", "git-changeset", "git", "changeset"],
+    ["coding", "git-result", "git", "result"],
     ["git", "workspace", "workspace", "workspace"],
     ["diff", "git_changeset", "git", "changeset"],
     ["diff", "before", "files", "before"],

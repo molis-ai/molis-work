@@ -1,8 +1,10 @@
+import { parseGoalProgressSource } from "./event-system-payload.js";
 import { randomUUID } from "node:crypto";
 import type {
   ApplyGoalConcernInput,
   CiteGoalDecisionInput,
   GoalEventProgressResult,
+  GoalProgressArtifactSource,
   GoalEventScope,
   GoalEventSystemPayload,
   GoalEventTrustedDecisionRecord,
@@ -60,6 +62,9 @@ export class GoalEventState {
     const goal = this.context.requireGoal(boardId, goalId);
     const requirements = this.host.readCurrentRequirements(boardId, goalId);
     const progress = this.records.latestProgress(boardId, goalId);
+    const progressEvent = progress ? this.facts.getWorkEvent(boardId, goalId, progress.event_id) : null;
+    const progressPayload = progressEvent?.payload as GoalEventSystemPayload | undefined;
+    const source = progressPayload?.operation === "progress_summary" ? parseGoalProgressSource(progressPayload.source) : undefined;
     const laterCursor = progress
       ? this.facts.maxGoalCursor(boardId, goalId, progress.event_id)
       : this.facts.maxGoalCursor(boardId, goalId);
@@ -71,6 +76,7 @@ export class GoalEventState {
       progress_summary: progress
         ? {
             ...progress,
+            ...(source ? { source } : {}),
             stale: laterCursor > progress.based_on_cursor,
             stale_because_cursor: laterCursor > progress.based_on_cursor ? laterCursor : null,
           }
@@ -117,10 +123,11 @@ export class GoalEventState {
     goal: GoalRecord,
     actorId: string,
     actorKind: "user" | "runtime" | null,
-    input: { summary: string; based_on_cursor: number; next_step: string | null; next_actor: string | null },
+    input: { summary: string; based_on_cursor: number; next_step: string | null; next_actor: string | null; source?: GoalProgressArtifactSource },
   ): Omit<GoalEventProgressResult, "replayed"> {
     const event = this.insertSystem(goal, actorId, actorKind, "记录当前进展和下一步", {
       operation: "progress_summary",
+      ...(input.source ? { source: input.source } : {}),
       summary: input.summary,
       based_on_cursor: input.based_on_cursor,
       next_step: input.next_step,
@@ -144,6 +151,7 @@ export class GoalEventState {
       observed_event_cursor: event.journal_seq,
       recorded: true as const,
       progress_summary: {
+        ...(input.source ? { source: input.source } : {}),
         summary_id: summaryId,
         event_id: event.event_id,
         summary: input.summary,
@@ -158,6 +166,14 @@ export class GoalEventState {
     };
   }
 
+  readProgressReceipt(boardId: string, goalId: string, actorId: string, key: string): GoalEventProgressResult | null {
+    this.context.requireGoal(boardId, goalId);
+    const receipt = this.context.repository.getIdempotency(boardId, actorId, "record_goal_progress", key);
+    const result = receipt?.outcome as GoalEventProgressResult | undefined;
+    if (!result || !this.facts.getWorkEvent(boardId, goalId, result.event_id)) return null;
+    return { ...result, replayed: true };
+  }
+
   recordProgress(input: RecordGoalProgressSummaryInput): GoalEventProgressResult {
     const hash = requestHash({
       board_id: input.board_id,
@@ -166,6 +182,9 @@ export class GoalEventState {
       summary: input.summary,
       next_step: input.next_step ?? null,
       next_actor: input.next_actor ?? null,
+      ...(input.source ? { source: input.source } : {}),
+      ...(input.expected_goal_cursor === undefined ? {} : { expected_goal_cursor: input.expected_goal_cursor }),
+      ...(input.expected_contract_revision === undefined ? {} : { expected_contract_revision: input.expected_contract_revision }),
     });
     return this.mutate(input, "record_goal_progress", hash, (goal, actorKind) => {
       const summary = requiredText(this.error, input.summary, "event_progress.summary_required", "进展摘要需要原文");
@@ -173,6 +192,13 @@ export class GoalEventState {
         throw this.context.error("event_progress.invalid_cursor", "摘要必须依据当前 Goal 已存在的事件游标");
       }
       const maxCursor = this.facts.maxGoalCursor(goal.board_id, goal.goal_id);
+      if (input.expected_goal_cursor !== undefined && input.expected_goal_cursor !== maxCursor
+        || input.expected_contract_revision !== undefined && input.expected_contract_revision !== goal.current_contract_revision) {
+        throw this.context.error("event_progress.stale_goal", "原目标已变化，请重新查看目标和拟记录内容后再确认");
+      }
+      if (input.source && !parseGoalProgressSource(input.source)) {
+        throw this.context.error("event_progress.invalid_source", "成果必须引用一个明确的固定版本及其阅读入口");
+      }
       if (input.based_on_cursor > maxCursor) {
         throw this.context.error("event_progress.future_cursor", "不能引用尚未发生的事件游标");
       }
@@ -181,6 +207,7 @@ export class GoalEventState {
       }
       return this.writeProgress(goal, input.actor_id, actorKind, {
         summary,
+        ...(input.source ? { source: structuredClone(input.source) } : {}),
         based_on_cursor: input.based_on_cursor,
         next_step: input.next_step?.trim() || null,
         next_actor: input.next_actor?.trim() || null,

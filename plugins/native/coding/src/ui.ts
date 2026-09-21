@@ -159,6 +159,34 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
       <div data-coding-mcp-list></div><p role="alert" data-coding-mcp-error></p>
       <footer class="mw-dialog__footer">${renderButton({label:"保存 MCP 选择",type:"submit"})}</footer>
     </form></dialog>
+    <dialog class="mw-dialog mw-dialog--form" data-coding-goal-dialog aria-label="关联目标"><form class="mw-form mw-dialog__shell" data-coding-goal-form>
+      <header class="mw-form__header"><h2>下一轮关联目标</h2>${renderButton({label:"取消",variant:"ghost",attrs:{"data-coding-goal-close":""}})}</header>
+      <section class="mw-form__body"><p>先查看目标，再确认使用的版本。只影响下一轮；正在执行的任务和历史成果保留原目标。也可以不关联目标。</p>
+        ${renderButton({label:"不关联目标",variant:"secondary",attrs:{"data-coding-goal-none":""}})}
+        <label class="mw-form__field">搜索已加载目标<input class="mw-input" data-coding-goal-search type="search"></label>
+        <div data-coding-goal-list></div>${renderButton({label:"加载更多目标",variant:"ghost",attrs:{"data-coding-goal-more":"",hidden:""}})}
+        <section class="coding-material" data-coding-goal-preview></section><p data-coding-goal-error role="alert"></p>
+      </section><footer class="mw-form__footer">${renderButton({label:"确认目标版本",type:"submit",attrs:{"data-coding-goal-save":""}})}</footer>
+    </form></dialog>
+    <dialog class="mw-dialog mw-dialog--form" data-coding-progress-dialog aria-label="记录原目标进展"><form class="mw-form mw-dialog__shell" data-coding-progress-form>
+      <header class="mw-form__header"><h2>记录原目标进展</h2>${renderButton({label:"关闭",variant:"ghost",attrs:{"data-coding-progress-close":""}})}</header>
+      <section class="mw-form__body"><p>这份报告只写回本轮原目标。记录进展不会验收、完成或恢复目标，也不会执行新的任务。</p>
+        <section class="coding-material" data-coding-progress-facts></section>
+        <details class="coding-material"><summary>固定来源与目标版本</summary><pre data-coding-progress-source></pre></details>
+        <label class="mw-form__field">进展内容<textarea class="mw-textarea" data-coding-progress-summary maxlength="10000" rows="4" placeholder="已完成什么、还有什么未验证或需要决定？"></textarea></label>
+        <label class="mw-form__field">下一步（可选）<textarea class="mw-textarea" data-coding-progress-next maxlength="10000" rows="2"></textarea></label>
+        <p data-coding-progress-status role="status"></p>
+      </section><footer class="mw-form__footer">
+        ${renderButton({label:"重新读取目标",variant:"secondary",attrs:{"data-coding-progress-refresh":""}})}
+        ${renderButton({label:"打开原目标",variant:"secondary",attrs:{"data-coding-progress-goal":"",hidden:""}})}
+        ${renderButton({label:"确认记录进展",type:"submit",attrs:{"data-coding-progress-save":""}})}
+      </footer>
+    </form></dialog>
+    <dialog class="mw-dialog mw-dialog--form" data-coding-material-dialog aria-label="选择固定材料"><form class="mw-form mw-dialog__shell" data-coding-material-form>
+      <header class="mw-form__header"><h2>选择固定材料</h2>${renderButton({label:"取消",variant:"ghost",attrs:{"data-coding-material-close":""}})}</header>
+      <section class="mw-form__body"><p>选择下一轮使用的固定文件、差异或 Git 结果。保存不会发送；来源更新后，已选版本保持不变。</p><div data-coding-material-list></div><p data-coding-material-error role="alert"></p></section>
+      <footer class="mw-form__footer">${renderButton({label:"保存材料选择",type:"submit",attrs:{"data-coding-material-save":""}})}</footer>
+    </form></dialog>
     <dialog class="mw-dialog mw-dialog--form" data-coding-method-dialog aria-label="选择方法"><form class="mw-form mw-dialog__shell" data-coding-method-form>
       <header class="mw-form__header"><h2>选择方法</h2>${renderButton({label:"取消",variant:"secondary",attrs:{"data-coding-method-close":""}})}</header>
       <section class="mw-form__body"><label class="mw-field">搜索方法<input class="mw-input" data-coding-method-search placeholder="名称或说明"></label>
@@ -169,13 +197,14 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
     <div class="coding-stage" data-coding-stage>
       <div class="coding-dialogue" data-coding-dialogue>
         <header class="coding-dialogue-head" data-coding-dialogue-head>
-          <div><span data-coding-title>选择或新建编码会话</span><small data-coding-workspace-label>${renderWorkspaceLine(model.workspace_path, p)}</small></div>
+          <div><span data-coding-title>选择或新建编码会话</span><small data-coding-workspace-label>${renderWorkspaceLine(model.workspace_path, p)}</small><small data-coding-goal-label></small></div>
+          <button class="mw-btn" type="button" data-coding-goal-open disabled>关联目标</button>
           <button class="mw-btn" type="button" data-coding-workspace-open>工作区</button>
           <button class="mw-btn" type="button" data-coding-rename hidden>重命名</button><button class="mw-btn" type="button" data-coding-stop hidden>停止</button>
         </header>
         <div class="coding-turns" data-coding-turns tabindex="0" aria-label="编码对话"><div class="mw-empty" data-coding-welcome><p>从一个具体问题开始</p><p>选择已授权工作区和模型后，讨论代码或开始任务。</p><button class="mw-btn" type="button" data-coding-new>新建编码会话</button></div></div>
         <section class="coding-turns" data-coding-report-reader aria-label="执行报告" tabindex="0" hidden>
-          <header><button class="mw-btn" type="button" data-coding-report-close>返回对话</button><button class="mw-btn" type="button" data-coding-report-save>保存固定报告</button></header>
+          <header><button class="mw-btn" type="button" data-coding-report-close>返回对话</button><button class="mw-btn" type="button" data-coding-report-save>保存固定报告</button><button class="mw-btn" type="button" data-coding-report-progress hidden>记录原目标进展</button></header>
           <p data-coding-report-status role="status"></p><div data-coding-report-body></div>
         </section>
         <button class="mw-btn coding-jump" type="button" data-coding-latest hidden>回到最新</button>
@@ -183,7 +212,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
         <form class="coding-composer" data-coding-composer>
           <label class="coding-task-label" for="coding-task">任务或补充要求</label>
           <textarea class="mw-input" id="coding-task" data-coding-task rows="3" placeholder="描述要完成的任务…" disabled></textarea>
-          <div class="coding-composer-actions">${renderButton({label:"/ 方法",variant:"secondary",attrs:{"data-coding-method-open":"","aria-label":"选择方法"}})}${renderButton({label:"MCP",variant:"secondary",attrs:{"data-coding-mcp-open":"","aria-label":"选择 MCP 工具与资料"}})}<select class="mw-select" data-coding-intent aria-label="任务方式"><option value="discuss">讨论</option><option value="edit" disabled>修改文件（待接通审批）</option><option value="execute" disabled>执行（待接通审批）</option><option value="review">评审</option></select>
+          <div class="coding-composer-actions">${renderButton({label:"＋ 材料",variant:"secondary",attrs:{"data-coding-material-open":"","aria-label":"选择固定材料"}})}${renderButton({label:"/ 方法",variant:"secondary",attrs:{"data-coding-method-open":"","aria-label":"选择方法"}})}${renderButton({label:"MCP",variant:"secondary",attrs:{"data-coding-mcp-open":"","aria-label":"选择 MCP 工具与资料"}})}<select class="mw-select" data-coding-intent aria-label="任务方式"><option value="discuss">讨论</option><option value="edit" disabled>修改文件（待接通审批）</option><option value="execute" disabled>执行（待接通审批）</option><option value="review">评审</option></select>
           <select class="mw-select" data-coding-model aria-label="下一轮使用的模型"></select><button class="mw-btn mw-btn--primary" type="submit" data-coding-send disabled>发送</button></div>
           <small data-coding-draft-status>模型与方式的选择用于下一轮。</small>
         </form>

@@ -1,5 +1,7 @@
 /** Layout only; controls, colors, and focus behavior use the shared system. */
 export const CODING_STYLES = `
+.coding-material { min-width:0; padding:12px 0; border-bottom:1px solid var(--line); overflow-wrap:anywhere; }
+.coding-material pre { max-height:14rem; max-width:100%; overflow:auto; white-space:pre; font-size:12px; }
 [data-coding-workbench] { container: molis-coding / inline-size; }
 .coding-directory { height:100%; min-height:0; display:flex; flex-direction:column; }
 .coding-directory[data-coding-current-face=files] .coding-search,.coding-directory[data-coding-current-face=files] .coding-filters,.coding-directory[data-coding-current-face=files] [data-coding-sessions],.coding-directory[data-coding-current-face=files] [data-coding-new] { display:none; }

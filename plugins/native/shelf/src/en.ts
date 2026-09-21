@@ -1,5 +1,10 @@
 /** Shelf application copy; Workbench supplies the request locale. */
 export const SHELF_EN: Record<string, string> = {
+  "设为材料输出": "Use as material output",
+  "材料输出读取失败": "Could not read material output",
+  "已设为材料输出": "Material output selected",
+  "。设为材料输出后，可在 Coding 的「＋ 材料」中选择；已有任务不会自动换版。": ". Set it as the material output, then choose it in Coding. Existing tasks keep their version.",
+  "。在 Coding 的「＋ 材料」中选择，不会自动发送或替换已有选择。": ". Choose it in Coding's materials. This does not send a task or replace existing selections.",
   "保存项目材料": "Save project material",
   "保存到项目材料": "Save to project materials",
   "保存下面的固定原文，之后可在 Coding 的「＋ 材料」中选择。编辑或移除 Shelf 副本不会改变已保存版本。": "Save this exact text, then select it in Coding under + Materials. Editing or removing the Shelf copy will not change saved versions.",

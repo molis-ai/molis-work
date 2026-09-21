@@ -36,7 +36,7 @@ export const codingManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: CODING_PLUGIN_ID,
-  version: "1.17.0",
+  version: "1.18.0",
   name: "Coding",
   kind: "app",
   publisher: { publisher_id: "molis", signature: "official-coding-binding" },
@@ -71,6 +71,7 @@ export const codingManifest: PluginManifest = {
   },
   ports: {
     inputs: [
+      { port: "materials", artifact_type_id: SHELF_TEXT_MATERIAL_TYPE, schema_version: 1, optional: true },
       { port: "git-changeset", artifact_type_id: DIFF_CHANGESET_TYPE, schema_version: 1, optional: true },
       { port: "git-result", artifact_type_id: GIT_RESULT_TYPE, schema_version: 1, optional: true },
       { port: "before", artifact_type_id: FILE_SNAPSHOT_TYPE, schema_version: 1, optional: true },

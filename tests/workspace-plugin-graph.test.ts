@@ -18,6 +18,7 @@ import { DIFF_PLUGIN_ID, createDiffPlugin } from "@molis-ai/molis-work-plugin-di
 import { FILES_PLUGIN_ID, createFilesPlugin } from "@molis-ai/molis-work-plugin-files";
 import { GIT_PLUGIN_ID, createGitPlugin } from "@molis-ai/molis-work-plugin-git";
 import { TEXT_STATS_PLUGIN_ID, createTextStatsPlugin } from "@molis-ai/molis-work-plugin-text-stats";
+import { createShelfPlugin } from "@molis-ai/molis-work-plugin-shelf";
 import { WORKSPACE_PLUGIN_ID, createWorkspacePlugin } from "@molis-ai/molis-work-plugin-workspace";
 
 /**
@@ -198,6 +199,7 @@ test("Files 捕获的快照到得了 Text stats，数出来的是那一份", asy
 test("端口声明里的类型两两对得上，连线才可能是合法的", () => {
   const outputs = new Map<string, { type: string; version: number }>();
   const manifests = [
+    createShelfPlugin().manifest,
     createWorkspacePlugin().manifest,
     createFilesPlugin().manifest,
     createDiffPlugin().manifest,

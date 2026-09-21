@@ -25,7 +25,7 @@ Host 把架子快照交给 UI contribution；HTTP 路由表拥有 `/api/shelf` �
 
 ## 接入与边界
 
-不依赖 Goals / Artifacts 实现。项目 Artifact 写入由 Host 注入公开端口，全局 Shelf 未绑定项目时不能发布；仍为 native 插件，不假装已迁入 Plugin Runtime。Coding 声明消费该材料类型，经原授权读取精确版本。设计 D1 要求的 Shelf 输出端口 → Coding 输入连线仍待装配，当前项目材料发布不代表该项验收完成。样式不吃 Coss `interaction-texture`，新确认入口使用共享控件。
+不依赖 Goals / Artifacts 实现。项目 Artifact 写入由 Host 注入公开端口，全局 Shelf 未绑定项目时不能发布；个人副本与 UI 仍按 native 方式装配；项目材料输出由 `createShelfPlugin` 在正式 Runtime 中启动，使用原 grants 与持久连线服务。Coding 声明消费该材料类型，经原授权读取精确版本。保存固定版本后可明确「设为材料输出」，默认连到 Coding 的 materials 输入。保存不自动切换输出，输出切换不改已有会话选择；旧确认不能覆盖后来选择，跨项目、归档或非自身材料不能设为输出。样式不吃 Coss `interaction-texture`，新确认入口使用共享控件。
 
 工作区依赖：`@molis-ai/molis-work-contracts`。
 

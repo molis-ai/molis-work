@@ -22,8 +22,8 @@
 让模型直接吐 SVG 意味着模型输出变成应用自己 DOM 里的标记，中间只隔着一个消毒器——
 那种白名单是会被绕过的。现在标签一律作为文本节点进入，注入面不存在。
 
-**固定材料按精确版本进入本轮。** Coding 有五个可选输入：Files 的 before / after / selection，
-以及 Git 的 git-changeset / git-result。Shelf 项目材料从原 Artifact 目录读取，不另建输入账；设计 D1 要求的 Shelf 输出端口 → Coding 输入连线仍待装配，当前材料选择不代表该项验收完成。用户在 Shelf 确认保存完整文字，再在 Coding 材料选择器中选定本项目精确版本；宿主读取原文并冻结来源，
+**固定材料按精确版本进入本轮。** Coding 有六个可选输入：Files 的 before / after / selection，
+Git 的 git-changeset / git-result，以及 Shelf 的 materials。Shelf 明确选择的固定材料通过原持久连线进入 materials 输入；其他已保存版本仍可从原 Artifact 目录选用，不另建输入账。用户在 Shelf 确认保存完整文字，再在 Coding 材料选择器中选定本项目精确版本；宿主读取原文并冻结来源，
 生产者发布新版本不改写在跑任务和历史报告。无材料可以直接执行。
 
 **目标关联用于下一轮。** 会话可选择本项目 Goal，先看完整合同与进展再确认固定版本。发送前若目标变化，

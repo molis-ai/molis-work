@@ -11,6 +11,7 @@ import {
 } from "@molis-ai/molis-work-plugin-coding";
 import { parsePluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { filesManifest } from "@molis-ai/molis-work-plugin-files";
+import { shelfManifest } from "@molis-ai/molis-work-plugin-shelf";
 import { gitManifest } from "@molis-ai/molis-work-plugin-git";
 
 /** C2 的验收：三个 Artifact 类型的形状、声明一致性，以及图的结构校验。 */
@@ -27,14 +28,14 @@ test("Manifest 通过 v2 解析，且端口与产出类型逐项对应", () => {
   assert.deepEqual(outputs, produced.filter(type => type !== "coding.goal-context.v1"), "成果端口对应公开输出；目标输入快照只保留本轮来源");
 
   const inputs = parsed.ports?.inputs ?? [];
-  assert.deepEqual(inputs.map(input => input.port).sort(), ["after", "before", "git-changeset", "git-result", "selection"]);
+  assert.deepEqual(inputs.map(input => input.port).sort(), ["after", "before", "git-changeset", "git-result", "materials", "selection"]);
   for (const input of inputs) {
     assert.equal(input.optional, true, "没有材料也能直接执行任务");
-    const producer = input.port.startsWith("git-") ? gitManifest : filesManifest;
-    const sourcePort = input.port.replace(/^git-/, "");
+    const producer = input.port === "materials" ? shelfManifest : input.port.startsWith("git-") ? gitManifest : filesManifest;
+    const sourcePort = input.port === "materials" ? "material" : input.port.replace(/^git-/, "");
     assert.ok(producer.ports?.outputs?.some(output => output.port === sourcePort
       && output.artifact_type_id === input.artifact_type_id && output.schema_version === input.schema_version),
-    "每个材料输入必须有兼容的 Files 或 Git 生产端口");
+    "每个材料输入必须有兼容的 Files、Git 或 Shelf 生产端口");
   }
 });
 

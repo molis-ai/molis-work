@@ -1,3 +1,4 @@
+import { createShelfPlugin } from "@molis-ai/molis-work-plugin-shelf";
 import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
 import { SHELF_TEXT_MATERIAL_TYPE } from "@molis-ai/molis-work-contracts/modules/shelf";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
@@ -155,6 +156,7 @@ async function startPlatform(ports: CodingSurfacePorts): Promise<Started> {
      * Each still starts in isolation: one failing leaves its siblings running.
      */
     const report = await platform.start([
+      { definition: createShelfPlugin(), replace_version: true },
       { definition: createCodingPlugin(ports.execution ? { execution: {
         ...ports.execution, sessions: new CodingSessionStore(ports.store.db), goalTitle: ports.goalTitle,
         materialReferences: () => artifacts.query.listArtifacts(ports.boardId, { artifact_type_id: SHELF_TEXT_MATERIAL_TYPE, schema_version: 1 })
@@ -243,9 +245,10 @@ async function codingPanel(ports: CodingSurfacePorts, surface: "directory" | "wo
 
 /** Host dispatches only declared plugin routes, after the normal control guard. */
 export async function handleCodingPluginHttp(request: IncomingMessage, response: ServerResponse, url: URL, ports: CodingSurfacePorts): Promise<boolean> {
-  if (!/^\/api\/plugins\/io\.molis\.work\.(coding|workspace|files|git|diff|text-stats)\//.test(url.pathname)) return false;
+  if (!/^\/api\/plugins\/io\.molis\.work\.(coding|workspace|files|git|diff|text-stats|shelf)\//.test(url.pathname)) return false;
   const record = await ensureStarted(ports);
-  if (!record.running) { sendLocalWebJson(response, 503, { error: record.error ?? "Coding 插件未能启动" }); return true; }
+  const active = record.platform?.supervisor.state(url.pathname.split("/")[3]!);
+  if (active?.status !== "running") { sendLocalWebJson(response, 503, { error: active?.message ?? record.error ?? "插件未能启动" }); return true; }
   const result = await record.platform.router().dispatch({
     method: request.method ?? "GET", pathname: url.pathname, actor_id: ports.actorId,
     query: Object.fromEntries(url.searchParams),

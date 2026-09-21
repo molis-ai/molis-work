@@ -4,7 +4,7 @@ import { DIFF_CHANGESET_TYPE, GIT_RESULT_TYPE, FILE_SNAPSHOT_TYPE, FILE_TEXT_SEL
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentTextMaterialContent, type AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
 
-export const CODING_MATERIAL_PORTS = ["before", "after", "selection", "git-changeset", "git-result"] as const;
+export const CODING_MATERIAL_PORTS = ["materials", "before", "after", "selection", "git-changeset", "git-result"] as const;
 export function materialSelection(value: unknown): ArtifactReference[] {
   if (!Array.isArray(value) || value.length > 30) throw new Error("材料选择无效，每轮最多 30 份");
   const refs = value.map(item => {
@@ -72,9 +72,9 @@ export function materialChoices(context: PluginStartContext, selected: ArtifactR
   const candidates = new Map<string, { reference: ArtifactReference; source: string }>();
   for (const port of CODING_MATERIAL_PORTS) {
     const ref = context.services?.inputs?.reference(port);
-    if (ref) candidates.set(`${ref.artifact_id}@${ref.version}`, { reference: ref, source: { before: "对比前", after: "对比后", selection: "选区", "git-changeset": "Git 固定差异", "git-result": "Git 操作结果" }[port] });
+    if (ref) candidates.set(`${ref.artifact_id}@${ref.version}`, { reference: ref, source: { materials: "Shelf 材料输入", before: "对比前", after: "对比后", selection: "选区", "git-changeset": "Git 固定差异", "git-result": "Git 操作结果" }[port] });
   }
-  for (const ref of projectMaterials) candidates.set(`${ref.artifact_id}@${ref.version}`, { reference: ref, source: "Shelf 项目材料" });
+  for (const ref of projectMaterials) if (!candidates.has(`${ref.artifact_id}@${ref.version}`)) candidates.set(`${ref.artifact_id}@${ref.version}`, { reference: ref, source: "Shelf 项目材料" });
   for (const ref of selected) if (!candidates.has(`${ref.artifact_id}@${ref.version}`)) candidates.set(`${ref.artifact_id}@${ref.version}`, { reference: ref, source: "已选固定版本" });
   return [...candidates.values()].map(({ reference, source }) => {
     try {

@@ -35,6 +35,20 @@ test("Coding formal routes preserve drafts and isolate projects across server re
       assert.equal(created.status,201);
       projects.push(created.body.project.project_id);
     }
+    // Shelf is personal and always available; it is not a per-project opt-in.
+    const shelfOutput = `/projects/${projects[0]}/api/plugins/io.molis.work.shelf/material-output`;
+    assert.deepEqual((await request(shelfOutput)), { status: 200, body: { reference: null } });
+    assert.equal((await request(shelfOutput, 'POST', { reference: null, expected_reference: null }, false)).status, 403);
+    const shelfItem = await request('/api/shelf/items', 'POST', { filename: 'port.md', bytes_base64: Buffer.from('固定端口材料').toString('base64') });
+    assert.equal(shelfItem.status, 200);
+    const projectMaterial = `/projects/${projects[0]}/api/shelf/items/${shelfItem.body.item.item_id}/project-material`;
+    const materialPreview = await request(projectMaterial);
+    assert.equal(materialPreview.status, 200);
+    const fixedMaterial = await request(projectMaterial, 'POST', { expected_fingerprint: materialPreview.body.fingerprint });
+    assert.equal(fixedMaterial.status, 200);
+    assert.equal((await request(shelfOutput, 'POST', { reference: fixedMaterial.body.reference, expected_reference: null })).status, 200);
+    assert.deepEqual((await request(shelfOutput)).body.reference, fixedMaterial.body.reference);
+    assert.deepEqual((await request(`/projects/${projects[1]}/api/plugins/io.molis.work.shelf/material-output`)).body.reference, null);
     const plugin = (project: string) => `/projects/${project}/api/plugins/io.molis.work.coding`;
     assert.equal((await request(plugin(projects[0])+'/state')).status,404);
     for(const project of projects) assert.equal((await request(`/api/settings/projects/${project}/plugins`,'POST',{plugin_id:'coding'})).status,200);
@@ -44,6 +58,10 @@ test("Coding formal routes preserve drafts and isolate projects across server re
     assert.equal(created.status,200);
     const session=created.body.session.session_id;
     assert.equal(created.body.session.state,'idle');
+    const shelfChoices = await request(a+'/sessions/'+session+'/materials');
+    assert.equal(shelfChoices.status, 200);
+    assert.equal(shelfChoices.body.materials[0].source, 'Shelf 材料输入');
+    assert.deepEqual(shelfChoices.body.materials[0].reference, fixedMaterial.body.reference);
     const draft='保留需求、证据与未解决问题\n不要假装已经执行。';
     const configuration={intent:'execute',provider_id:'saved-provider',model_id:'saved-model',workspace_id:'saved-workspace'};
     const question_drafts={ '["run-1","question-1",1]': { answers: [{question:1,indexes:[2],other:'保留原输入'}] } };

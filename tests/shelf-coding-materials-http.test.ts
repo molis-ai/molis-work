@@ -49,6 +49,7 @@ test("Shelf project material confirms current full bytes, preserves original ver
     return { status: response.status, body: await response.json() };
   };
   const coding = "/api/plugins/io.molis.work.coding/sessions/app";
+  const output = "/api/plugins/io.molis.work.shelf/material-output";
   const start = (materials: unknown) => request(coding + "/runs", { task: "只读材料", intent: "discuss", workspace_id: "work", provider_id: "p", model_id: "m", materials });
   try {
     const original = "\ufeff旧版🌲\r\n" + "完整原文。".repeat(700) + "\n末尾不能被预览截断";
@@ -61,12 +62,20 @@ test("Shelf project material confirms current full bytes, preserves original ver
     assert.equal((await request(path + "?project=none")).status, 400);
     const save = await request(path, { expected_fingerprint: preview.body.fingerprint, text: "伪造正文" });
     assert.equal(save.status, 200); assert.equal(save.body.reference.version, 1);
+    const emptyOutput = await request(output);
+    assert.equal(emptyOutput.status, 200, JSON.stringify(emptyOutput.body));
+    assert.equal(emptyOutput.body.reference, null, "saving does not implicitly switch output");
+    assert.equal((await request(output, { reference: save.body.reference })).status, 400, "confirmation requires the observed output");
+    assert.equal((await request(output, { reference: save.body.reference, expected_reference: null })).status, 200);
+    assert.deepEqual((await request(output)).body.reference, save.body.reference);
+    assert.equal((await request(coding + "/materials")).body.materials[0].source, "Shelf 材料输入");
     assert.deepEqual((await request(path, { expected_fingerprint: preview.body.fingerprint })).body.reference, save.body.reference);
     const originalRecord = artifacts().query.getArtifactVersion(DEMO_BOARD_ID, save.body.reference);
     assert.equal((originalRecord!.payload as any).text, original);
     const other = await request(path + "?project=other", { expected_fingerprint: preview.body.fingerprint });
     assert.equal(other.status, 200); assert.notEqual(other.body.reference.artifact_id, save.body.reference.artifact_id);
     assert.equal((await start([other.body.reference])).status, 400);
+    assert.equal((await request(output, { reference: other.body.reference, expected_reference: save.body.reference })).status, 400);
     const changed = "新版🙂\n现在只允许核对文档，不做修改。";
     assert.equal((await request(`/api/shelf/items/${id}/edit`, { text: changed })).status, 200);
     assert.equal((await request(path, { expected_fingerprint: preview.body.fingerprint })).status, 409);
@@ -74,6 +83,11 @@ test("Shelf project material confirms current full bytes, preserves original ver
     assert.notEqual(second.body.payload.content_hash, admitted.body.item.origin_hash);
     const saved2 = await request(path, { expected_fingerprint: second.body.fingerprint });
     assert.equal(saved2.status, 200); assert.equal(saved2.body.reference.version, 2);
+    assert.deepEqual((await request(output)).body.reference, save.body.reference);
+    assert.equal((await request(output, { reference: saved2.body.reference, expected_reference: null })).status, 400, "stale confirmation cannot overwrite output");
+    assert.equal((await request(output, { reference: saved2.body.reference, expected_reference: save.body.reference })).status, 200);
+    assert.equal((await request(output, { reference: saved2.body.reference, expected_reference: save.body.reference })).status, 200, "retry reuses selected version");
+    assert.equal((await request(output, { reference: save.body.reference, expected_reference: save.body.reference })).status, 400);
     const choices = (await request(coding + "/materials")).body.materials;
     assert.equal(choices.length, 2); assert.deepEqual(new Set(choices.map((item: any) => item.text)), new Set([original, changed]));
     assert.equal((await start([{ ...save.body.reference, text: "伪造" }])).status, 200);
@@ -83,9 +97,14 @@ test("Shelf project material confirms current full bytes, preserves original ver
     assert.equal((await request(path)).status, 400);
     await releaseCodingSurface(store, DEMO_BOARD_ID); store.close(); store = new LocalProjectDatabase(dbPath);
     assert.deepEqual(artifacts().query.getArtifactVersion(DEMO_BOARD_ID, save.body.reference), originalRecord);
+    assert.deepEqual((await request(output)).body.reference, saved2.body.reference, "output is durable across host restart");
+    const restoredChoices = (await request(coding + "/materials")).body.materials;
+    assert.equal(restoredChoices.find((item: any) => item.reference.version === 2).source, "Shelf 材料输入");
     assert.equal((await start([save.body.reference])).status, 200); assert.equal(starts[2].text_materials?.[0]?.text, original);
     artifacts().commands.archiveVersion({ board_id: DEMO_BOARD_ID, actor_id: "web-user", ...save.body.reference });
     assert.equal((await start([save.body.reference])).status, 400); assert.equal(starts.length, 3);
+    assert.equal((await request(output, { reference: save.body.reference, expected_reference: saved2.body.reference })).status, 400);
+    assert.deepEqual((await request(output)).body.reference, saved2.body.reference);
     assert.equal((await request(coding + "/materials")).body.materials.filter((item: any) => !item.error).length, 1);
     for (const [filename, bytes] of [["binary.txt", Buffer.from([0xff, 0xfe, 1])], ["null.txt", Buffer.from("a\0b")], ["large.txt", Buffer.from("长".repeat(20_001))]] as const) {
       const item = (await request("/api/shelf/items", { filename, bytes_base64: bytes.toString("base64") })).body.item;

@@ -8,7 +8,7 @@ import { sendLocalWebJson as sendJson, readLocalWebBody as readBody, requestHead
 import { L } from "./web-locale.js";
 import fs from "node:fs";
 import { handleGoalsWebHttp } from "@molis-ai/molis-work-plugin-goals";
-import { createWorkbenchGoalsAdapter, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
+import { PERSONAL_PLUGIN_IDS, createWorkbenchGoalsAdapter, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host";
 import type { SessionRuntimeResources } from "./web-session.js";
 import { cachedMolisWorkWebView, type MolisWorkWebViewCache } from "./web-view.js";
@@ -109,10 +109,11 @@ export async function handleMolisWorkWebRequest(
             }),
           },
         };
-        if (/^\/api\/plugins\/io\.molis\.work\.(coding|workspace|files|git|diff|text-stats)\//.test(url.pathname)) {
-          const enabled = options.project && await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory },
-            (catalog) => catalog.listProjectPlugins(options.project!.project_id).includes("coding"));
-          if (!enabled) { sendJson(response, 404, { error: "这个项目未启用 Coding" }); return; }
+        if (/^\/api\/plugins\/io\.molis\.work\.(coding|workspace|files|git|diff|text-stats|shelf)\//.test(url.pathname)) {
+          const plugin = url.pathname.startsWith("/api/plugins/io.molis.work.shelf/") ? "shelf" : "coding";
+          const enabled = PERSONAL_PLUGIN_IDS.includes(plugin) || (options.project && await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory },
+            (catalog) => catalog.listProjectPlugins(options.project!.project_id).includes(plugin)));
+          if (!enabled) { sendJson(response, 404, { error: plugin === "shelf" ? "这个项目未启用 Shelf" : "这个项目未启用 Coding" }); return; }
           if (await handleCodingPluginHttp(request, response, url, { ...codingServices, store, boardId: options.boardId,
             actorId: "web-user", goalTitle: (id) => coordinator.goalQueries.getGoal(options.boardId, id)?.title,
             escapeHtml: (value) => String(value), translate: (value) => value })) return;

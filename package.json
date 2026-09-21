@@ -120,7 +120,8 @@
     "@molis-ai/molis-work-ui-host": "workspace:*",
     "better-sqlite3": "12.8.0",
     "node-pty": "^1.1.0",
-    "ws": "^8.21.3"
+    "ws": "^8.21.3",
+    "@molis-ai/molis-work-plugin-experiments": "workspace:*"
   },
   "devDependencies": {
     "@molis-ai/molis-work-test-kit": "workspace:*",

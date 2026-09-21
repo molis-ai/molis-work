@@ -1,3 +1,4 @@
+import { experimentsUiContribution, EXPERIMENTS_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-experiments";
 import { THEME_BOOTSTRAP_SCRIPT, icon, renderIconSprite } from "@molis-ai/molis-work-design-system";
 import type { GoalsApplicationApi } from "@molis-ai/molis-work-contracts/modules/goals";
 import type {
@@ -169,6 +170,7 @@ export function createWorkbenchUiHost(): UiHost {
   host.register(shelfUiContribution);
   host.register(shelfSettingsUiContribution);
   host.register(functionsUiContribution);
+  host.register(experimentsUiContribution);
   host.register(functionsSettingsUiContribution);
   host.register(workUiContribution);
   host.register(workTerminalUiContribution);
@@ -343,3 +345,5 @@ export function renderArtifactWorkbenchPage(
     backIconHtml: icon("arrow"), iconSpriteHtml: renderIconSprite(),
   });
 }
+
+export function renderExperimentsContribution(): string { return workbenchUiHost.mount({slot:WORKBENCH_UI_SLOTS.main,contribution:{contribution_id:EXPERIMENTS_UI_CONTRIBUTION_ID,surface:"workbench",model:{}}}).html; }

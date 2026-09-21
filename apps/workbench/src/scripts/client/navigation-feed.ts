@@ -23,7 +23,7 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
     };
 
     const syncMobilePluginLabels = (surface, directory) => {
-      const plugin = directory === "sources" || directory === "feed" || directory === "inbox" || directory === "sessions" || directory === "artifacts" || directory === "shelf" || directory === "functions"
+      const plugin = directory === "sources" || directory === "feed" || directory === "inbox" || directory === "sessions" || directory === "artifacts" || directory === "shelf" || directory === "functions" || directory === "experiments"
         ? directory
         : surface;
       if (mobileTreeTab) mobileTreeTab.textContent = plugin === "feed"
@@ -38,10 +38,12 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
               ? "Artifacts"
               : plugin === "shelf"
                 ? "Shelf"
+              : plugin === "experiments"
+                ? L("实验")
               : plugin === "functions"
                 ? "Functions"
               : defaultMobileTreeLabel;
-      if (mobileDocumentTab) mobileDocumentTab.textContent = plugin === "feed" || plugin === "sources" || plugin === "sessions" || plugin === "inbox" || plugin === "artifacts" || plugin === "shelf" || plugin === "functions"
+      if (mobileDocumentTab) mobileDocumentTab.textContent = ["feed", "sources", "sessions", "inbox", "artifacts", "shelf", "functions", "experiments"].includes(plugin)
         ? L("详情")
         : defaultMobileDocumentLabel;
     };
@@ -122,7 +124,7 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
       return openWorkbenchSurface(surface, itemId, title, directoryTabMode());
     };
 
-    const currentModuleDirectory = () => activeDesktopSurface === "feed" || activeDesktopSurface === "sources" || activeDesktopSurface === "sessions" || activeDesktopSurface === "artifacts" || activeDesktopSurface === "inbox" || activeDesktopSurface === "shelf" || activeDesktopSurface === "functions"
+    const currentModuleDirectory = () => activeDesktopSurface === "feed" || activeDesktopSurface === "sources" || activeDesktopSurface === "sessions" || activeDesktopSurface === "artifacts" || activeDesktopSurface === "inbox" || activeDesktopSurface === "shelf" || activeDesktopSurface === "functions" || activeDesktopSurface === "experiments"
       ? activeDesktopSurface
       : "goals";
 
@@ -147,7 +149,7 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
       });
     };
 
-    const LIST_PLUGIN_SECTIONS = ["goals", "sessions", "inbox", "schedule", "feed", "shelf", "functions", "artifacts"];
+    const LIST_PLUGIN_SECTIONS = ["goals", "sessions", "inbox", "schedule", "feed", "shelf", "functions", "experiments", "artifacts"];
 
     const syncPluginDirectory = (directory) => {
       const empty = directory === "root";

@@ -30,7 +30,7 @@ function pluginLink(
   plugin: { id: string; surface: string; label: string; glyph: MolisWorkIcon },
   extraClass = "",
 ): string {
-  const directory = plugin.id === "home" || plugin.id === "market" || plugin.id === "feed" || plugin.id === "goals" || plugin.id === "sessions" || plugin.id === "inbox" || plugin.id === "schedule" || plugin.id === "artifacts" || plugin.id === "shelf" || plugin.id === "functions" ? "" : ` data-directory-open="${plugin.id}"`;
+  const directory = plugin.id === "home" || plugin.id === "market" || plugin.id === "feed" || plugin.id === "goals" || plugin.id === "sessions" || plugin.id === "inbox" || plugin.id === "schedule" || plugin.id === "artifacts" || plugin.id === "shelf" || plugin.id === "functions" || plugin.id === "experiments" ? "" : ` data-directory-open="${plugin.id}"`;
   const feedPreset = plugin.id === "feed" ? ' data-feed-preset="feed"' : "";
   const aria = plugin.id === "home" || plugin.id === "market"
     ? ` aria-label="${plugin.label}"`
@@ -138,6 +138,7 @@ export function renderPluginMarket({ L, icon }: ImmersiveShellPrimitives): strin
     { id: "schedule", label: "Schedule", glyph: "timer" as const, copy: "到点跑自己的对话任务，也叫醒其他插件的闹钟。" },
     { id: "feed", label: "Feed", glyph: "rss" as const, copy: "查看来源消息和完整流水。" },
     { id: "shelf", label: "Shelf", glyph: "library" as const, copy: "把文件放到置物架，处理副本，原件不动。" },
+    { id: "experiments", label: "实验", glyph: "sparkles" as const, copy: "同一任务，独立比较模型的判断、耗时与成本。" },
     { id: "functions", label: "Functions", glyph: "sparkles" as const, copy: "把一段输入交给 Jev，得到一个有版本的判断。" },
     { id: "artifacts", label: "Artifacts", glyph: "package" as const, copy: "打开项目成果，查看保留下来的版本。" },
   ];

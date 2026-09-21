@@ -31,7 +31,7 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
     if (surface === "market") return "market";
     if (surface === "settings") return "settings";
     if (surface === "project-settings") return "project-settings";
-    if (surface === "sessions" || surface === "inbox" || surface === "schedule" || surface === "artifacts" || surface === "shelf" || surface === "functions") return surface;
+    if (surface === "sessions" || surface === "inbox" || surface === "schedule" || surface === "artifacts" || surface === "shelf" || surface === "functions" || surface === "experiments") return surface;
     return "";
   };
   const syncPresence = () => {

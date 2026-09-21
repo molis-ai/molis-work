@@ -1,3 +1,4 @@
+import { experimentsManifest } from "@molis-ai/molis-work-plugin-experiments";
 import type {
   ProjectPluginId,
   ProjectPluginRegistry,
@@ -35,6 +36,7 @@ export interface BuiltinPluginEntry {
 }
 
 export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
+  { project_plugin_id: "experiments", manifest: experimentsManifest, personal: true },
   { project_plugin_id: GOALS_PROJECT_PLUGIN_ID, manifest: goalsManifest },
   { project_plugin_id: WORK_PROJECT_PLUGIN_ID, manifest: workManifest },
   { project_plugin_id: INBOX_PROJECT_PLUGIN_ID, manifest: inboxManifest },

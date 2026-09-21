@@ -29,6 +29,7 @@ export function createTabWorkspaceOps() {
     feed: "Feed",
     shelf: "Shelf",
     functions: "Functions",
+    experiments: "实验",
     artifacts: "Artifacts",
   }[plugin] || plugin);
   const pluginOfSurface = (surface) => surface === "goal" ? "goals" : surface === "sources" ? "feed" : surface;

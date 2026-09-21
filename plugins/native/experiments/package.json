@@ -1,0 +1,44 @@
+{
+  "name": "@molis-ai/molis-work-plugin-experiments",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Personal offline experiments with immutable datasets and independent model arms.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=24"
+  },
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@molis-ai/molis-work-contracts": "workspace:*"
+  },
+  "molis-work": {
+    "path": "plugins/native/experiments",
+    "kind": "native-plugin",
+    "maturity": "partial",
+    "contract": "@molis-ai/molis-work-contracts/platform/plugin",
+    "migrationGoals": [
+      "goal-reorg-f2"
+    ],
+    "ssot": "docs/SSOT-MATRIX.md",
+    "capabilities": [
+      "experiments.ui-contribution.v1",
+      "experiments.offline-comparison.v1"
+    ]
+  }
+}

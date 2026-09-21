@@ -58,6 +58,7 @@ import {
   renderProjectOperations,
   renderShelfContribution,
   renderFunctionsContribution,
+  renderExperimentsContribution,
   renderWorkbenchDocument,
   renderWorkTerminal,
 } from "./ui-composition.js";
@@ -368,7 +369,7 @@ const { renderMolisWorkWeb, renderMolisWorkRefreshFragment } =
     renderCreateDialog, renderGoalTrashDialog, renderMomentumPlaceholder, renderGoalKanban, renderTuiPane,
     renderProjectOperations: (project, data) => renderProjectOperations(project, data, icon, L),
     renderDesktopProjectChrome, renderProjectSwitcher,
-    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderShelfNativePluginSurface, renderFunctionsNativePluginSurface,
+    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderShelfNativePluginSurface, renderFunctionsNativePluginSurface, renderExperimentsContribution,
   });
   return {
     renderMolisWorkProjectIndex,

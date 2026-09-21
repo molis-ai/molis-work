@@ -1,3 +1,4 @@
+import { handleExperimentsNativePluginHttp } from "./experiments-native-plugin-http.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import type { RuntimeIntegrationService } from "./installer/runtime-integration.js";
@@ -30,6 +31,7 @@ export async function handleLocalCatalogWebRequest(
   const { settingsProjects } = projectSettings;
   if (serverOptions.homeDirectory && await handleShelfNativePluginHttp(request, response, url, serverOptions.homeDirectory)) return;
   if (serverOptions.homeDirectory && await handleFunctionsNativePluginHttp(request, response, url, serverOptions.homeDirectory)) return;
+  if (serverOptions.homeDirectory && await handleExperimentsNativePluginHttp(request, response, url, serverOptions.homeDirectory)) return;
   if (await handleOnboarding(request, response, url, serverOptions.homeDirectory, projects.length, localHost, controlToken)) return;
   if (request.method === "GET" && url.pathname === "/desktop/capsule") {
     response.writeHead(200, {

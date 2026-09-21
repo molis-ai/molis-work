@@ -76,7 +76,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     market.querySelector("[data-market-installed]").hidden = installed.childElementCount === 0 || Boolean(query);
     let count = 0;
     market.querySelectorAll("[data-market-plugin]").forEach(card => {
-      const added = addedIds.includes(card.dataset.marketPlugin) || card.dataset.marketPlugin === "shelf" || card.dataset.marketPlugin === "functions";
+      const added = addedIds.includes(card.dataset.marketPlugin) || card.dataset.marketPlugin === "shelf" || card.dataset.marketPlugin === "functions" || card.dataset.marketPlugin === "experiments";
       card.hidden = (onlyAdded && !added) || !((card.querySelector("h2").textContent + " " + card.querySelector("p").textContent).toLocaleLowerCase().includes(query));
       if (!card.hidden) count++;
       const button = card.querySelector("[data-market-add]");

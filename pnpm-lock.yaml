@@ -101,6 +101,9 @@ importers:
       '@molis-ai/molis-work-plugin-diff':
         specifier: workspace:*
         version: link:plugins/native/diff
+      '@molis-ai/molis-work-plugin-experiments':
+        specifier: workspace:*
+        version: link:plugins/native/experiments
       '@molis-ai/molis-work-plugin-feed':
         specifier: workspace:*
         version: link:plugins/native/feed
@@ -306,6 +309,9 @@ importers:
       '@molis-ai/molis-work-plugin-diff':
         specifier: workspace:*
         version: link:../../plugins/native/diff
+      '@molis-ai/molis-work-plugin-experiments':
+        specifier: workspace:*
+        version: link:../../plugins/native/experiments
       '@molis-ai/molis-work-plugin-feed':
         specifier: workspace:*
         version: link:../../plugins/native/feed
@@ -403,6 +409,9 @@ importers:
       '@molis-ai/molis-work-plugin-diff':
         specifier: workspace:*
         version: link:../../plugins/native/diff
+      '@molis-ai/molis-work-plugin-experiments':
+        specifier: workspace:*
+        version: link:../../plugins/native/experiments
       '@molis-ai/molis-work-plugin-feed':
         specifier: workspace:*
         version: link:../../plugins/native/feed
@@ -639,6 +648,12 @@ importers:
         version: link:../../../packages/contracts
 
   plugins/native/diff:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../../packages/contracts
+
+  plugins/native/experiments:
     dependencies:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*

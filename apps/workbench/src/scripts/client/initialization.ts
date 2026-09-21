@@ -1,3 +1,4 @@
+import { EXPERIMENTS_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-experiments";
 import { PROJECT_HOME_FACTORY_SCRIPT } from "./project-home.js";
 import { PLUGIN_WORKBENCH_FACTORY_SCRIPT } from "./plugin-workbench.js";
 import { SHELF_CLIENT_FACTORY_SCRIPT, SHELF_SETTINGS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-shelf";
@@ -49,6 +50,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     });
     (${SHELF_CLIENT_FACTORY_SCRIPT})({ translate: L });
     (${FUNCTIONS_CLIENT_FACTORY_SCRIPT})({ translate: L });
+    (${EXPERIMENTS_CLIENT_FACTORY_SCRIPT})({ translate: L });
     (${SCHEDULE_CLIENT_FACTORY_SCRIPT})({ translate: L, route });
     ${SHELF_SETTINGS_CLIENT_SCRIPT}
     ${FUNCTIONS_SETTINGS_CLIENT_SCRIPT}

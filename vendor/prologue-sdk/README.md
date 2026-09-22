@@ -1,6 +1,20 @@
 # Prologue SDK 构建来源
 
-当前依赖为 `prologue-sdk-0.0.0-rc.1-subagent-report-pages.tgz`。在原默认指令修正和恢复能力上，为子任务的有界摘要补上完整最终结果分页。`await-subagents` 的 `reportOffset` 读取本轮原子任务的终态结果，按原 2000 字符页长给出总长与下一页；不灌入思考、工具输出或子聊天过程，不重新执行模型。
+当前依赖为 `prologue-sdk-0.0.0-rc.1-child-observe.tgz`。同步子任务先确认原分派回执，再由同一次工具调用等待原子结果；子执行与人工审批不再占用父分派工具期限或 Host 分派许可。子任务预算、审批、取消和拒绝保持，后台分派仍立即返回引用。
+
+- 源仓库：https://github.com/molis-ai/prologue
+- 来源分支：`codex/molis-coding-receipts`
+- 对应源码提交：`4d5f874d37287eb2cd87c10a5837013d922555f0`
+- 包名与版本：`@prologue/sdk@0.0.0-rc.1`
+- SHA-256：`26a0ef1fd3c862949ea0ccc77f26002c639b4971e834179cbfd28e57a5957bd8`
+
+500 个 dist 文件与 SDK 构建、实际安装一致。SDK build/typecheck 与 51 项定向通过；全量 3260 项为 3238 通过、20 跳过、两个原有 DNS 环境失败。Molis 27 项定向通过，包含真实 Node Host 65 秒待审后批准与原结果返回；最终全量 1554 项为 1492 通过、57 个既有失败、5 跳过，零新增失败。
+
+真实 MiniMax 两轮待审分别超过 103 秒、127 秒，拒绝内容错误的提案后父任务收到原子结果，没有超时、许可过期或重派。新 MiniMax 批准写入样本未通过，不能将这些证据解释为模型质量达标。最终八个会话与审查共十六份投影重启保持；详细记录见 Coding spec C13。同步 fork Skill、成果整合、TaskBoard 与完整 Goal 仍未完成；未发布 npm 或替换正式安装版。
+
+## 上一依赖：完整子报告分页
+
+上一依赖为 `prologue-sdk-0.0.0-rc.1-subagent-report-pages.tgz`。在原默认指令修正和恢复能力上，为子任务的有界摘要补上完整最终结果分页。`await-subagents` 的 `reportOffset` 读取本轮原子任务的终态结果，按原 2000 字符页长给出总长与下一页；不灌入思考、工具输出或子聊天过程，不重新执行模型。
 
 - 源仓库：https://github.com/molis-ai/prologue
 - 来源分支：`codex/molis-coding-receipts`

@@ -25,6 +25,28 @@
 
 正式产品重试：App `e1fba10c-971c-4b86-a0db-02426de7b568` 的原网络失败保留；后续 Run `3-4b91i` 成功请求 MiniMax，派出一个子任务、读取 README 并进入写入审查。拒绝不符合内容要求的提案后，子与父都继续得到模型答复；这证明备用解析进入真实消费链，不代表本轮编码质量通过。证据 `child-observe-live-rejected.json`。构建 `2026-09-22T07:12:47.144Z`、源码摘要 `dd960ef3cb92ee458342da9f8917d528991349c59d034cb1894cef17c4231b60`；build、boundary:check、workspace:typecheck 通过，全量 1554 项为 1492 通过、57 个既有失败、5 跳过，失败名称与上一轮完全一致（476531 ms，`dns-fallback-final-regression.json`）。77 张测试 PNG 恢复，670 张摘要一致。此任务独立提交；同步子任务生命周期修复另行提交，整个 Goal 和正式安装版仍未完成。
 
+### C13 同步子任务等待：父工具不再提前结束（2026-09-22，指定长等待路径已实操）
+
+原 MiniMax 同步分派实操已出现：子任务已启动并等待写入审批，父工具却在 30 秒后返回 TOOL_TIMEOUT，父任务误称未派出。真实 Node Host 的原消费包复现相同问题：保持子审查 31 秒未决定，文件未改，父 Provider 已被再次调用。该失败证据保留为 `molis-child-wait-before.log`。
+
+第一候选仅在关系提交后暂停父工具计时；SDK 51 项定向及全量 3260 项（3238 通过、20 跳过、原两项 DNS 失败）通过，Molis 27 项定向含真实 Node 31 秒待审也通过。新包已实际消费，500 个构建文件一致；构建 `2026-09-22T06:36:12.365Z`。但这些工程证据没有覆盖分派许可的 60 秒窗口，因此不计本块完成。
+
+**真实 MiniMax 失败证据**：App `250f5b78-1bf8-4ccf-893c-8a43a45e4b9d`，父 Session/Run `1-7nc1h` / `4-8tv5f`，子 `sub-a-8jg2y`。准确使用 background:false 和原任务正文；子读取 README 后请求新增 sync-review-note.md，在原审查等待超过 44 秒时父任务保持执行、无超时、文件不存在。批准后新增 46 字节文件并读回；子错误估算汉字数，违反“不执行命令”申请 wc -c，被拒绝后未重试，实际零命令。子终态 completed，但父分派收口报 CREDENTIAL_USE_TOKEN_EXPIRED，父答复错误否认已读取/写入，并把子结束通知误解为旧记录。文件与原回执均保留，证据 `child-wait-live-pending.json`、`child-wait-first-live-result.json`。不能声称协调质量达标。
+
+**根因与修正方向**：Node Host 的分派许可在 60 秒后不能 close，旧调用把等待子结果也包在分派副作用里。新实现让原子关系提交后先收口分派 Effect，再由同一 ToolInvoker 的 afterDispatch 回调收取原结果；模型同步等待语义保留。创建/提交/收口仍计时，子 Run 自身的预算、审批、拒绝/取消/未知继续生效；Host 许可不延长、不绕过、不重派。无新任务账、权限或配置。修正版 51 项定向通过，覆盖超过父工具和 Host 许可窗口时原 Effect/Host 已确认派出；构建、类型、SDK/Molis 全量与实际新包消费已完成，工程与产品复测边界见下文。同步 fork Skill 的相同边界仍需后续接通。
+
+第一候选全量另有一项 `Long content keeps actions and reading usable at 1024×400` 的 CDP Runtime.evaluate 超时：1551 项中 1488 通过、58 失败、5 跳过；不能计为零新增，最终版本需核对。77 张测试 PNG 已恢复，670 张摘要一致，见 `child-wait-first-regression.json`。
+
+修正版 `child-observe.tgz` 已安装，500 个构建文件与源码和实际依赖一致，SHA-256 `26a0ef1fd3c862949ea0ccc77f26002c639b4971e834179cbfd28e57a5957bd8`。build、boundary:check、workspace:typecheck 已通过，4198 已运行构建 `2026-09-22T06:48:41.097Z`、摘要 `f3d81bd68f5d6922de359055f0a03d05b2a1d916bc6739beb0acda31f53faa23`。SDK 修正版全量 3260 项：3238 通过、20 跳过、两项原有 DNS 环境失败，无类型错误。Molis 27 项定向全部通过，真实 Node Host 在子写入待审 65 秒时，父 Provider 未提前续跑、原分派回执已结算；原批准后继续，并覆盖拒绝、停止和重启。最终 Molis 全量 1551 项：1489 通过、57 个既有失败、5 跳过（483673 ms），失败名称与 `review-history-final-regression.json` 完全一致，零新增、零消除；上一候选的窄屏 CDP 超时本轮未复现，不将一次未复现解释为根因已修复。77 张测试 PNG 已恢复，670 张摘要一致，见 `child-observe-final-regression.json`。
+
+**产品复测与剩余**：App `e1fba10c-971c-4b86-a0db-02426de7b568` 的首轮 `4-1e9bu` 在首个模型请求前因公共 DNS 超时失败，零子任务、零修改，原记录 `child-observe-network-failure.json` 保留。连接问题由上节独立修复。随后原 App 的 Run `3-4b91i` 派出 `sub-9-9wmk7`，原分派回执已结算，子写入待审超过 103 秒时父调用仍等待；提案缺少末尾 LF（45 字节而非要求的 46），通过原页面拒绝并反馈后，父任务收到原子摘要并读取完整报告。没有提前超时、许可过期、重派或落盘。证据 `child-observe-live-pending.json`、`child-observe-live-rejected.json`。后续两轮只承诺执行而未调用工具，保留为模型质量反例，不计通过。
+
+新 App `0b070942-f078-4793-8483-b73f9dfebc5b`，Run `n-8de2g`、子 `sub-t-4lg4`，逐字传入含 JSON 换行说明的分工。子提案把包裹双引号与字面反斜杠 n 一并写入（49 字节），不符合解码后含末尾 LF 共 46 字节的要求。待审超过 127 秒时父调用仍等待，原分派已结算；页面拒绝并反馈后，子与父正常收取原结果，父读取完整报告，如实说明未落盘、未运行命令/测试、未整合。证据 `child-observe-second-pending.json`、`child-observe-second-rejected.json`。本次没有为获得批准样本放宽内容条件。**真实 Node Host 65 秒待审后批准路径已通过；真实 MiniMax 的两个超过 100 秒拒绝路径已通过；修正版新 MiniMax 批准写入样本未通过。** 模型仍存在计数误述、只承诺行动、内部角色引用外露等问题，不能称协调质量达标。
+
+第一次重启的十二份投影中十一份相同；第一候选的失败会话从 done 变为 reconcile-required，因为原分派许可未收口，正文、子结果和审查内容均未改。保留该状态并等待显式核对，不能伪报全部投影相同。此前修正版七个会话及审查十四份投影重启保持；最终包含上述新样本的八个会话及审查共十六份完整投影再次正常重启后逐项相同，见 `child-observe-product-{before,after}-restart.json`。三个工作目录的原十四份文件字节保持，`sync-review-note-2.md` 不存在；重新打开页面直接观察原结果和拒绝记录保持。
+
+最终实际运行构建为 `2026-09-22T07:12:47.144Z`、源码摘要 `dd960ef3cb92ee458342da9f8917d528991349c59d034cb1894cef17c4231b60`，最终复算一致。包含独立 DNS 修复的全量为 1554 项：1492 通过、57 个既有失败、5 跳过，失败名称无新增或消除；77 张测试 PNG 已恢复，670 张摘要一致。此块单独提交 SDK 和 Molis 实际依赖，仅确认同步等待及原结果返回修复；模型准确性、成果整合、TaskBoard、同步 fork Skill 和完整 Goal 保持未完成。中文 IME、主观手感与整体用户验收仍 UNVERIFIED。
+
 ### 审查历史：原请求与取消决定跨重启保留（2026-09-22，指定路径已实操）
 
 并行分工实操发现：原桥接仅保存 approved/rejected，cancelled 只在内存；恢复请求又用 Effect 准备时间代替首次展示时间，并丢失截止时间。现沿原加密会话索引的 `review_decisions` 补充原请求时间/截止时间，首次镜像与批准拒绝均保存；取消、过期的已观察回执沿同一记录保存，恢复时只展示原决定，不恢复任何可消费批准。快速批准与首次镜像交错时，较早 pending 快照不能覆盖已记录决定。已结束或失去等待方的旧审查再次被点击，只保存取消/过期，不重新投递原批准或拒绝反馈；身份核对先于保存。

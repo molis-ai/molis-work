@@ -515,8 +515,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/contracts
       '@prologue/sdk':
-        specifier: file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-subagent-report-pages.tgz
-        version: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-subagent-report-pages.tgz
+        specifier: file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-child-observe.tgz
+        version: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-child-observe.tgz
       '@tauri-apps/api':
         specifier: 2.11.1
         version: 2.11.1
@@ -1157,8 +1157,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-subagent-report-pages.tgz':
-    resolution: {integrity: sha512-hTMEvWf7JNZIu7qHdvxZseXp5C/5KV7/CAqp31i+RmgDlinHafjAEO7B/WXm5X8ZpZ9ev6T+tcns7ZC/dQdy/g==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-subagent-report-pages.tgz}
+  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-child-observe.tgz':
+    resolution: {integrity: sha512-sWgjz9HtrklmGbY/3kWTAl+fIVvFfx2OZxNpnWSgX1GVM71iLUTOpbMhuyT3ZeHbgAivrz7PCsi/HTl92hR8Ag==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-child-observe.tgz}
     version: 0.0.0-rc.1
 
   '@tauri-apps/api@2.11.1':
@@ -1648,7 +1648,7 @@ snapshots:
   '@esbuild/win32-x64@0.28.2':
     optional: true
 
-  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-subagent-report-pages.tgz':
+  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-child-observe.tgz':
     dependencies:
       '@tauri-apps/api': 2.11.1
 

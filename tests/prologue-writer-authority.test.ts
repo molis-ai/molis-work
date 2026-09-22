@@ -61,7 +61,7 @@ test("packed SDK read-only coordinator cannot invoke the write tools reserved fo
   } finally { await runtime.shutdown(); await rm(root, { recursive: true, force: true }); }
 });
 
-for (const decision of ["approve", "reject", "stop", "bridge-failure", "escape", "restart-pending", "command"] as const) test(`parallel child ${decision}: original Host review targets only its authorized directory and survives restart`, { timeout: 35_000 }, async t => {
+for (const decision of ["approve", "reject", "stop", "bridge-failure", "escape", "restart-pending", "command"] as const) test(`parallel child ${decision}: original Host review targets only its authorized directory and survives restart`, { timeout: 100_000 }, async t => {
   const root = await mkdtemp(join(tmpdir(), "molis-child-writer-"));
   const parent = join(root, "parent"), childPath = join(root, "child");
   await mkdir(parent); await mkdir(childPath);
@@ -117,7 +117,7 @@ for (const decision of ["approve", "reject", "stop", "bridge-failure", "escape",
     assert.equal(calls, 0);
     const handle = await host.start("prologue", request, { manifest, prompts: codingPrompts, authorizedDirectories: [parent, childPath] });
     let writeReview: string | undefined;
-    const decided = new Set<string>(), deadline = Date.now() + 20_000;
+    const decided = new Set<string>(), deadline = Date.now() + 90_000;
     polling: for (;;) {
       const view = await adapter.read(handle.ref);
       if (["completed", "failed", "cancelled", "stopped"].includes(view.phase)) { assert.equal(view.phase, "completed", JSON.stringify(view)); break; }
@@ -150,7 +150,20 @@ for (const decision of ["approve", "reject", "stop", "bridge-failure", "escape",
             await assert.rejects(queue.respond({ review_id: review.review_id, decision: "approve", actor_id: "user" }));
             break polling;
           } else if (decision === "stop") { const [child] = await adapter.subagents!.list(handle.ref); await adapter.subagents!.cancel(handle.ref, child!.subagent_id, "user"); }
-          else if (decision === "approve" || decision === "reject") { const result = await queue.respond({ review_id: review.review_id, decision, actor_id: "user" }); assert.equal(result.delivery_error, undefined); }
+          else if (decision === "approve" || decision === "reject") {
+            if (decision === "approve") {
+              await new Promise(resolve => setTimeout(resolve, 65_000));
+              assert.equal(parentCalls, 1, "a synchronous parent must still wait for the original child after both its own tool deadline and the Host dispatch permit window");
+              await queue.refresh("b");
+              const dispatch = queue.list("b").find(item => item.kind === "tool-operation" && item.run?.run_id === handle.ref.run_id)!;
+              assert.equal(queue.receipt(dispatch.review_id)?.effect_settled, true, "dispatch is already receipted while the original child waits");
+              assert.equal(queue.receipt(review.review_id)?.status, "pending");
+              assert.equal(await readFile(join(childPath, "sample.txt"), "utf8"), "CHILD ORIGINAL\n");
+              assert.equal((await adapter.subagents!.list(handle.ref)).length, 1);
+            }
+            const result = await queue.respond({ review_id: review.review_id, decision, actor_id: "user" });
+            assert.equal(result.delivery_error, undefined);
+          }
           else throw new Error("A rejected path or failed bridge must not create an actionable write review");
         }
       }

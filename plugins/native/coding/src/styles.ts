@@ -65,6 +65,7 @@ export const CODING_STYLES = `
 .coding-task-label { font-size:12px; color:var(--muted); }.coding-composer textarea { resize:vertical; width:100%; min-height:64px; max-height:220px; line-height:1.6; }
 .coding-composer-actions { display:flex; gap:6px; align-items:center; }.coding-composer-actions [data-coding-intent] { width:auto; flex:none; max-width:45%; }.coding-composer-actions [data-coding-model] { flex:1; min-width:0; }.coding-composer small { font-size:11px; color:var(--muted); }
 .coding-tools { overflow-y:auto; overscroll-behavior:contain; min-width:0; min-height:0; display:flex; flex-direction:column; border-left:1px solid var(--line); background:var(--paper); }
+.coding-tools > * { flex-shrink:0; }
 .coding-tool-tabs { min-height:34px; display:flex; align-items:center; gap:10px; padding:0 12px; border-bottom:1px solid var(--line); font-size:12px; }
 .coding-result { flex:none; overflow:visible; padding:16px; font-size:12px; color:var(--muted); overflow-wrap:anywhere; }.coding-result dt { margin-top:12px; }.coding-result dd { margin:3px 0; color:var(--ink); white-space:pre-wrap; }
 .coding-command { padding:8px 0; border-top:1px solid var(--line); }.coding-command summary { cursor:pointer; color:var(--ink); }.coding-command pre { max-height:320px; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; font-size:12px; background:var(--rail); padding:10px; }
@@ -79,7 +80,8 @@ export const CODING_STYLES = `
   .coding-tool-tabs { flex:none; }.coding-result { min-height:0; padding:8px 12px; }
   .coding-result dl { display:grid; grid-template-columns:auto minmax(0,1fr); column-gap:12px; margin:0; }
   .coding-result dt,.coding-result dd { margin:3px 0; }
-  .coding-turns { padding:16px; }.coding-composer-actions { flex-wrap:wrap; }
+  .coding-dialogue { overflow-y:auto; overscroll-behavior:contain; }
+  .coding-turns { flex:1 0 120px; padding:16px; }.coding-composer-actions { flex-wrap:wrap; }
   .coding-composer-actions [data-coding-model] { min-width:120px; }.coding-composer textarea { max-height:140px; }
 }
   .coding-method-heading { display:flex; align-items:center; justify-content:space-between; gap:var(--space-2); }

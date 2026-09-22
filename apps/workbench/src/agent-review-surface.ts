@@ -43,7 +43,8 @@ export const AGENT_REVIEW_STYLES = `
 .agent-review-doc { margin:10px 0; overflow-wrap:anywhere; }
 .agent-review-doc pre { max-height:360px; overflow:auto; white-space:pre; padding:8px; background:var(--rail); border-radius:var(--radius-control); font-size:12px; }
 .agent-review-target { color:var(--ink); }
-.agent-review-actions { display:flex; justify-content:flex-end; gap:8px; }
+.agent-review-actions { display:flex; justify-content:flex-end; flex-wrap:wrap; gap:8px; }
+.agent-review-feedback { margin-block:12px; }
 .agent-review-error { color:var(--ink); border-left:2px solid var(--muted); padding-left:8px; }
 `;
 
@@ -152,7 +153,7 @@ function renderRow(row: AgentReviewRow, p: AgentReviewPrimitives): string {
 function renderFooter(row: AgentReviewRow, decidable: boolean, p: AgentReviewPrimitives): string {
   if (decidable) {
     const reviewId = p.escape(row.request.review_id);
-    return `<footer class="agent-review-actions">
+    return `${row.request.run && row.request.document.kind === "text-edit" && row.request.plugin_id === "io.molis.work.coding" ? `<label class="mw-field agent-review-feedback"><span class="mw-field__label">修改意见（可选）</span><textarea class="mw-textarea" data-slot="textarea" data-agent-review-feedback aria-label="修改意见（可选）" maxlength="2000" rows="3" placeholder="指出这份提案需要改哪里…"></textarea><span class="mw-field__hint">填写后随拒绝交给原任务；新提案仍需重新审查。</span></label>` : ""}<footer class="agent-review-actions">
       <button class="mw-btn" type="button" data-agent-review-reject="${reviewId}">${p.escape("拒绝")}</button>
       <button class="mw-btn mw-btn--primary" type="button" data-agent-review-approve="${reviewId}">${p.escape("批准这一次")}</button>
     </footer>`;

@@ -144,6 +144,17 @@ test("a failure answering the execution owner is reported, not swallowed", async
   assert.equal(receipt.delivery_error, "连接执行主人失败");
 });
 
+test("failed durable rejection feedback does not wake the SDK or pretend the decision was delivered", async () => {
+  const ledger = pendingLedger(), queue = new AgentReviewQueue({ now: () => new Date("2026-09-19T00:00:00.000Z") });
+  const bridge = new PrologueApprovalBridge({ queue, pendings: ledger.port,
+    recordDecision: async (_pending, receipt) => { assert.equal(receipt.note, "修改第 2 行"); throw new Error("反馈保存失败"); } });
+  bridge.mirror({ pending: ledger.pending, run: RUN, owner: { board_id: BOARD, plugin_id: PLUGIN }, kind: "text-edit", document });
+  const receipt = await bridge.decide({ review_id: "prologue:pending-1", decision: "reject", actor_id: "user", note: "修改第 2 行" });
+  assert.equal(receipt.status, "rejected"); assert.equal(receipt.delivery_error, "反馈保存失败");
+  assert.equal(receipt.effect_settled, false); assert.deepEqual(ledger.answers, []);
+  await assert.rejects(bridge.decide({ review_id: "prologue:pending-1", decision: "approve", actor_id: "user" }));
+});
+
 test("a pending the execution owner already closed cannot be approved here", async () => {
   const ledger = pendingLedger();
   const { bridge } = bridgeFor(ledger.port);

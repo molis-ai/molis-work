@@ -1,6 +1,15 @@
 /** Host-owned review actions. Plugins receive a rendering hook, never a decision capability. */
 export const AGENT_REVIEW_CLIENT_FACTORY_SCRIPT = `(host) => {
-  const mounts=new WeakMap(), busy=new Set(), recoveryDrafts=new Map();
+  const mounts=new WeakMap(), busy=new Set(), recoveryDrafts=new Map(), feedbackDrafts=new Map();
+  const feedbackKey=id=>'molis-review-feedback:'+host.route('/api/agent/reviews')+':'+id;
+  const readFeedback=id=>{try{return sessionStorage.getItem(feedbackKey(id)) ?? feedbackDrafts.get(id) ?? '';}catch{return feedbackDrafts.get(id) ?? '';}};
+  const saveFeedback=(id,text)=>{feedbackDrafts.set(id,text);try{if(text)sessionStorage.setItem(feedbackKey(id),text);else sessionStorage.removeItem(feedbackKey(id));}catch{}};
+  const syncActions=row=>{
+    const id=row.dataset.agentReviewItem,hasFeedback=Boolean(row.querySelector('[data-agent-review-feedback]')?.value.trim());
+    row.querySelectorAll('[data-agent-review-approve],[data-agent-review-reject],[data-agent-review-inspect]').forEach(button=>{button.disabled=busy.has(id) || hasFeedback && button.hasAttribute('data-agent-review-approve');});
+    const reject=row.querySelector('[data-agent-review-reject]');if(reject)reject.textContent=hasFeedback?'拒绝并反馈':'拒绝';
+    const input=row.querySelector('[data-agent-review-feedback]');if(input)input.disabled=busy.has(id);
+  };
   const read=async(path,body) => {
     const response=await fetch(host.route(path),body ? {method:'POST',headers:host.headers(),body:JSON.stringify(body)} : {});
     const data=await response.json(); if(!response.ok) throw new Error(data.error || '审查暂不可用');return data;
@@ -11,6 +20,9 @@ export const AGENT_REVIEW_CLIENT_FACTORY_SCRIPT = `(host) => {
     if(!state) {
       state={key:'',ticket:0,refs:[]}; mounts.set(container,state);
       container.addEventListener('input',event=>{
+        if(event.target.matches('[data-agent-review-feedback]')){
+          const row=event.target.closest('[data-agent-review-item]');saveFeedback(row.dataset.agentReviewItem,event.target.value);syncActions(row);return;
+        }
         if(!event.target.matches('[data-review-recovery-reason],[data-review-recovery-confirm]'))return;
         const row=event.target.closest('[data-agent-review-item]');
         recoveryDrafts.set(row.dataset.agentReviewItem,{reason:row.querySelector('[data-review-recovery-reason]')?.value || '',confirmed:row.querySelector('[data-review-recovery-confirm]')?.checked===true});
@@ -59,16 +71,18 @@ export const AGENT_REVIEW_CLIENT_FACTORY_SCRIPT = `(host) => {
         if(!button || !container.contains(button)) return;
         const review_id=button.dataset.agentReviewApprove || button.dataset.agentReviewReject;
         if(busy.has(review_id)) return;
-        busy.add(review_id); button.disabled=true;
+        const row=button.closest('[data-agent-review-item]'),note=row.querySelector('[data-agent-review-feedback]')?.value.trim() || '';
+        if(button.dataset.agentReviewApprove && note)return;
+        busy.add(review_id); syncActions(row);
         const scope={workspaceId:state.workspaceId,sessionId:state.sessionId};let receipt=null,decisionError=null;
-        try { ({receipt}=await read('/api/agent/reviews/decide',{review_id,decision:button.dataset.agentReviewApprove ? 'approve' : 'reject'})); }
+        try { ({receipt}=await read('/api/agent/reviews/decide',{review_id,decision:button.dataset.agentReviewApprove ? 'approve' : 'reject',...(note?{note}: {})}));if(!receipt.delivery_error)saveFeedback(review_id,''); }
         catch(error) {
           decisionError=error.message;
           const row=button.closest('[data-agent-review-item]');
           let note=row.querySelector('[data-review-error]');
           if(!note){note=document.createElement('p');note.dataset.reviewError='';note.className='agent-review-error';note.setAttribute('role','alert');row.append(note);}
           note.textContent=error.message;
-        } finally {busy.delete(review_id);button.disabled=false;await host.onDecision?.({...scope,receipt,error:decisionError});void show(container,state.refs,state.sessionId,state.workspaceId);}
+        } finally {busy.delete(review_id);syncActions(row);await host.onDecision?.({...scope,receipt,error:decisionError});void show(container,state.refs,state.sessionId,state.workspaceId);}
       });
     }
     const key=JSON.stringify([refs,sessionId,workspaceId]); const ticket=++state.ticket;
@@ -85,6 +99,7 @@ export const AGENT_REVIEW_CLIENT_FACTORY_SCRIPT = `(host) => {
         const detailKey=item=>{const row=item.closest('[data-agent-review-item]');return JSON.stringify([row?.dataset.agentReviewItem,row?.dataset.agentReviewPhase,item.dataset.reviewDetail]);};
         const details=new Map([...container.querySelectorAll('details[data-review-detail]')].map(item=>[detailKey(item),item.open]));
         const panels=new Map([...container.querySelectorAll('[data-review-recovery-view]')].map(panel=>[panel.closest('[data-agent-review-item]').dataset.agentReviewItem,panel]));
+        const focused=container.contains(document.activeElement) && document.activeElement.matches('[data-agent-review-feedback]') ? {id:document.activeElement.closest('[data-agent-review-item]').dataset.agentReviewItem,start:document.activeElement.selectionStart,end:document.activeElement.selectionEnd}:null;
         let scroller=container.parentElement;while(scroller && scroller.scrollHeight<=scroller.clientHeight)scroller=scroller.parentElement;
         const visibleTop=scroller?.getBoundingClientRect().top || 0;
         const anchor=scroller?.scrollTop>0 ? [...container.querySelectorAll('[data-agent-review-item]')].find(row=>row.getBoundingClientRect().bottom>visibleTop) : null;
@@ -92,9 +107,13 @@ export const AGENT_REVIEW_CLIENT_FACTORY_SCRIPT = `(host) => {
         container.innerHTML=data.html;container.dataset.reviewHtml=data.html;
         container.querySelectorAll('[data-agent-review-item]').forEach(row=>{const holder=row.querySelector('[data-review-recovery]'),panel=panels.get(row.dataset.agentReviewItem);if(holder && panel)holder.append(panel);});
         container.querySelectorAll('details[data-review-detail]').forEach(item=>{const open=details.get(detailKey(item));if(open!==undefined)item.open=open;});
+        container.querySelectorAll('[data-agent-review-feedback]').forEach(input=>{
+          const id=input.closest('[data-agent-review-item]').dataset.agentReviewItem;input.value=readFeedback(id);
+          if(focused?.id===id){input.focus({preventScroll:true});input.setSelectionRange(focused.start,focused.end);}
+        });
         if(anchorId && scroller){const next=[...container.querySelectorAll('[data-agent-review-item]')].find(row=>row.dataset.agentReviewItem===anchorId);if(next)scroller.scrollTop+=next.getBoundingClientRect().top-anchorTop;}
       }
-      container.querySelectorAll('[data-agent-review-item]').forEach(row=>row.querySelectorAll('[data-agent-review-approve],[data-agent-review-reject],[data-agent-review-inspect]').forEach(button=>{button.disabled=busy.has(row.dataset.agentReviewItem);}));
+      container.querySelectorAll('[data-agent-review-item]').forEach(syncActions);
     } catch(error) {
       if(ticket!==state.ticket) return;
       container.hidden=false;

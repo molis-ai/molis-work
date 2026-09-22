@@ -113,7 +113,7 @@ export async function createPrologueNodeAdapter(
   const registeredMethods = new Map<string, Skill>();
   const sessions = new Map<string, ExactRef<"session">>();
   const runRoots = new Map<string, ExactRef<"authorized-root">>();
-  const activeRuns = new Map<string, () => boolean>();
+  const activeRuns = new Map<string, { live(): boolean; steer(text: string): Promise<void> }>();
   const reviewEffects = new Map<string, ExactRef<"effect">>();
   const deadlines = new Map<string, number>();
   type CommandEvent = Extract<ModelEvent, { type: "command-receipt" }>;
@@ -184,7 +184,7 @@ export async function createPrologueNodeAdapter(
         const effect = pending?.effectRef && runtime.effects.get(pending.effectRef);
         return pending?.state === "open" && effect?.state === "awaiting-approval"
           && effect.pending?.ref.id === ref.id && effect.pending.ref.revision === ref.revision
-          && Boolean(pending.origin?.run && activeRuns.get(pending.origin.run)?.());
+          && Boolean(pending.origin?.run && activeRuns.get(pending.origin.run)?.live());
       },
       async answer(ref, answer) { return runtime.effects.pendings.answer(ref, answer, await host.readClock()); },
       async document(pending) {
@@ -231,6 +231,16 @@ export async function createPrologueNodeAdapter(
         index.review_decisions ??= {};
         index.review_decisions[pending.ref.id] = { status: receipt.status, decided_by: receipt.decided_by, decided_at: receipt.decided_at, note: receipt.note };
       });
+      // Save the existing Host decision and durable steer before denying the
+      // pending: the next model boundary must not race ahead of the feedback.
+      // Failure keeps the original delivery_error path; never claim receipt.
+      if (receipt.status === "rejected" && receipt.note?.trim()) {
+        const active = pending.origin.run && activeRuns.get(pending.origin.run);
+        if (!active || !active.live()) throw new Error("原执行已结束，修改意见尚未交给 Agent");
+        const request = options.reviewQueue!.get(receipt.review_id)!;
+        const target = request.document.kind === "text-edit" ? request.document.target_path : request.kind;
+        await active.steer(`用户拒绝了这一次待审操作，并给出修改意见。原审查：${JSON.stringify(receipt.review_id)}；对象：${JSON.stringify(target)}。\n用户意见：\n${receipt.note}\n\n这条意见不批准任何写入，也不撤销已发生的其他操作。请结合当前任务核对并修改提案；新的操作仍须经过原宿主审查。`);
+      }
     },
   });
   const restoredReviewBoards = new Set<string>();
@@ -345,7 +355,7 @@ export async function createPrologueNodeAdapter(
   const questionUnavailable = (run: AgentRunRef, pending: Awaited<ReturnType<typeof readQuestion>>, now: number) =>
     pending.state !== "open" ? "这条问题已经结束，不能再次回答"
       : now >= pending.expiresAtMs ? "这条问题已过期，不能提交原答案"
-      : !activeRuns.get(run.run_id)?.() || !runtime.effects.pendings.hasLiveWaiter(pending.ref)
+      : !activeRuns.get(run.run_id)?.live() || !runtime.effects.pendings.hasLiveWaiter(pending.ref)
         ? "原执行者已经停止或离线，不能通过回答重新启动" : undefined;
   const inspectRecovery = async (sessionId: string): Promise<import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecoveryReport> => {
     const index = await readIndex(sessionId);
@@ -572,7 +582,8 @@ export async function createPrologueNodeAdapter(
       try { await updateIndex(input.session_id, index => { index.attempts[attemptIndex]!.run_id = started.run.ref.id; }); }
       catch (error) { started.control.stop("cancelled"); throw error; }
       let stopping: Promise<void> | undefined;
-      activeRuns.set(started.run.ref.id, () => started.run.state === "running" && stopping === undefined);
+      activeRuns.set(started.run.ref.id, { live: () => started.run.state === "running" && stopping === undefined,
+        steer: text => started.control.steer({ text }) });
       const control = started.control;
       return {
         run: {

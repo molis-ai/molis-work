@@ -88,6 +88,9 @@ export async function handleAgentReviewHttp(
       sendLocalWebJson(response, 400, { error: "请求缺少 review_id 或 decision" });
       return true;
     }
+    if (body.note !== undefined && (typeof body.note !== "string" || body.note.length > 2000)) {
+      sendLocalWebJson(response, 400, { error: "审查说明最多 2000 字符" }); return true;
+    }
     if (ports.agentHost.reviews.get(reviewId)?.board_id !== ports.boardId) {
       sendLocalWebJson(response, 404, { error: "找不到这条待审操作" });
       return true;

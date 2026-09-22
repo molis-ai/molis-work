@@ -91,6 +91,25 @@ test("同一条不能决定两次——换个入口重放也不行", async () =>
   }
 });
 
+test("review feedback is bounded, scoped to the actual decision and cannot replace the Host actor", async () => {
+  const item = await fixture();
+  try {
+    item.agentHost.reviews.request(pending("feedback"));
+    item.agentHost.reviews.registerDecisionHandler("feedback", async input => item.agentHost.reviews.decide(input));
+    const decide = (note: unknown) => fetch(`${item.base}/api/agent/reviews/decide`, { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ review_id: "feedback", decision: "reject", note, actor_id: "forged" }) });
+    for (const note of [42, "x".repeat(2001)]) assert.equal((await decide(note)).status, 400);
+    assert.equal(item.agentHost.reviews.receipt("feedback")?.status, "pending");
+    const result = await decide("第 2 行请保留原校验，不要删除。\n<script>原样反馈</script>");
+    assert.equal(result.status, 200);
+    const data = await result.json() as any;
+    assert.equal(data.receipt.note, "第 2 行请保留原校验，不要删除。\n<script>原样反馈</script>");
+    assert.equal(data.receipt.decided_by, "user");
+    const view = await (await fetch(`${item.base}/api/agent/reviews?run_id=run-1`)).json() as any;
+    assert.ok(view.html.includes("&lt;script&gt;")); assert.ok(!view.html.includes("<script>"));
+  } finally { item.server.close(); }
+});
+
 test("不存在的待审返回 404，而不是假装决定成功", async () => {
   const item = await fixture();
   try {

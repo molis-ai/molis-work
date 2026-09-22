@@ -25,6 +25,15 @@ export function safePagesImageSrc(value: unknown): string {
   }
 }
 
+/** A local picture whose data URL stays inside the image size limit. */
+export function acceptedImageFile(file: { type: string; size: number }): boolean {
+  const type = file.type.trim().toLowerCase();
+  if (!/^image\/(?:png|jpeg|gif|webp)$/u.test(type)) return false;
+  if (!Number.isFinite(file.size) || file.size <= 0) return false;
+  const encoded = `data:${type};base64,`.length + Math.ceil(file.size / 3) * 4;
+  return encoded <= MAX_DATA_URL;
+}
+
 /** Pixel width for an image block. Zero means the picture uses the full line. */
 export function safePagesImageWidth(value: unknown): number {
   const raw = typeof value === "number" ? value : Number(String(value ?? "").trim());

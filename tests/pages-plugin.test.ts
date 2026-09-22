@@ -103,6 +103,7 @@ import {
   setToggleOpen,
   toggleTaskChecked,
   linkClickOpens,
+  acceptedImageFile,
   safePagesHref,
   safePagesImageSrc,
   safePagesImageWidth,
@@ -321,6 +322,7 @@ test("编辑器内核是 IIFE，不是 tsc 的 ESM", () => {
   assert.match(PAGES_STYLES, /pages-image/);
   assert.match(source, /data-pages-image/);
   assert.match(source, /insertImage/);
+  assert.match(source, /acceptedImageFile/);
   assert.match(source, /readClipboardImage/);
   assert.match(source, /data-pages-columns/);
   assert.match(source, /addColumn/);
@@ -2051,6 +2053,21 @@ test("空行粘贴图片地址变成图片，普通网址仍是书签", () => {
   const dom = pagesSchema.nodes.image.spec.toDOM?.(dirty) as [string, Record<string, string>];
   assert.equal(dom[0], "div");
   assert.equal(dom[1].src, undefined);
+});
+
+test("本机图片只收 png jpeg gif webp，过大的文件不读", () => {
+  assert.equal(acceptedImageFile({ type: "image/png", size: 32 }), true);
+  assert.equal(acceptedImageFile({ type: "IMAGE/JPEG", size: 32 }), true);
+  assert.equal(acceptedImageFile({ type: "image/gif", size: 8 }), true);
+  assert.equal(acceptedImageFile({ type: "image/webp", size: 8 }), true);
+  assert.equal(acceptedImageFile({ type: "image/svg+xml", size: 32 }), false);
+  assert.equal(acceptedImageFile({ type: "image/png", size: 0 }), false);
+  assert.equal(acceptedImageFile({ type: "", size: 32 }), false);
+  const prefix = "data:image/png;base64,".length;
+  const groups = Math.floor((1_500_000 - prefix) / 4);
+  const maxBytes = groups * 3;
+  assert.equal(acceptedImageFile({ type: "image/png", size: maxBytes }), true);
+  assert.equal(acceptedImageFile({ type: "image/png", size: maxBytes + 1 }), false);
 });
 
 test("剪贴板图片能嵌进文档，脚本和超大图不会", () => {

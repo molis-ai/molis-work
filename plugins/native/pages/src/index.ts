@@ -28,7 +28,7 @@ export { convertedBlocks, convertedNodes } from "./convert.js";
 export { placeFloating, scrollChildIntoView } from "./floating.js";
 export { linkClickOpens, safePagesHref } from "./link.js";
 export { blocksFromMarkdown, pasteMarkdown, pasteUrl } from "./paste-markdown.js";
-export { bookmarkLabel, imageAlt, safePagesImageSrc, safePagesImageWidth } from "./link.js";
+export { acceptedImageFile, bookmarkLabel, imageAlt, safePagesImageSrc, safePagesImageWidth } from "./link.js";
 export { findHits, replaceAllFindHits, replaceFindHit, stepFindHit } from "./find.js";
 export { addTableColumn, addTableRow, atLastTableCell, deleteTableColumn, deleteTableRow, moveTableColumn, moveTableEdge, moveTableRow, setColumnWidth, tableEdgeTarget, toggleHeaderRow } from "./table-edit.js";
 export { PAGES_TONES, safePagesTone } from "./tone.js";

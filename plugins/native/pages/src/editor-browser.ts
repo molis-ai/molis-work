@@ -65,7 +65,7 @@ import {
   unwrapAtStart,
   unwrapColumns,
 } from "./commands.js";
-import { bookmarkLabel, imageAlt, linkClickOpens, safePagesHref, safePagesImageSrc, safePagesImageWidth } from "./link.js";
+import { acceptedImageFile, bookmarkLabel, imageAlt, linkClickOpens, safePagesHref, safePagesImageSrc, safePagesImageWidth } from "./link.js";
 import { calloutIconFor, PAGES_CALLOUT_ICONS, safePagesCalloutTone } from "./callout.js";
 import { highlightRanges } from "./code-highlight.js";
 import { PAGES_CODE_LANGUAGES, safePagesLanguage } from "./code-language.js";
@@ -248,6 +248,7 @@ function slashItems(translate: Translate | undefined) {
     { id: "table", icon: "grid", group: "basic", label: t(translate, "表"), hint: t(translate, "两列表") },
     { id: "columns", icon: "columns", group: "basic", label: t(translate, "分栏"), hint: t(translate, "并排") },
     { id: "toggle", icon: "chevron-right", group: "basic", label: t(translate, "Toggle"), hint: t(translate, "折叠") },
+    { id: "image", icon: "image", group: "basic", label: t(translate, "图片"), hint: t(translate, "上传") },
     { id: "horizontal_rule", icon: "minus", group: "basic", label: t(translate, "分隔线"), hint: t(translate, "横线") },
     { id: "toc", icon: "library", group: "basic", label: t(translate, "目录"), hint: t(translate, "按标题生成") },
     { id: "page_ref", icon: "link", group: "card", label: t(translate, "引用文档"), hint: "@" },
@@ -262,6 +263,11 @@ function replaceTopBlock(view: EditorView, node: Node): void {
   if (!tr) return;
   view.dispatch(tr.scrollIntoView());
   view.focus();
+}
+
+function readLocalImage(file: File, apply: (src: string) => void): void {
+  if (!acceptedImageFile(file)) return;
+  readClipboardImage(file, apply);
 }
 
 /** Run a block command against the view and hand focus back to the editor. */
@@ -337,6 +343,33 @@ function matchSlash(item: { id: string; label: string; hint: string }, query: st
 }
 
 function slashPlugin(translate: Translate | undefined) {
+  const picker = document.createElement("input");
+  picker.type = "file";
+  picker.accept = "image/png,image/jpeg,image/gif,image/webp";
+  picker.hidden = true;
+  const pickImage = (editor: EditorView) => {
+    const session = slashSession(editor.state);
+    const tr = session ? editor.state.tr.delete(session.from, session.to) : editor.state.tr;
+    editor.dispatch(tr.setMeta(slashKey, { open: false, pos: 0, query: "", index: 0 }));
+    picker.value = "";
+    picker.onchange = () => {
+      const file = picker.files?.[0];
+      if (!file) return;
+      readLocalImage(file, (src) => {
+        const placed = insertImage(editor.state, src);
+        if (placed) editor.dispatch(placed.scrollIntoView());
+        editor.focus();
+      });
+    };
+    picker.click();
+  };
+  const choose = (editor: EditorView, id: string) => {
+    if (id === "image") {
+      pickImage(editor);
+      return;
+    }
+    replaceTopBlock(editor, blockFor(id));
+  };
   return new Plugin({
     key: slashKey,
     state: {
@@ -376,7 +409,7 @@ function slashPlugin(translate: Translate | undefined) {
         }
         if (event.key === "Enter" && items[value.index]) {
           event.preventDefault();
-          replaceTopBlock(view, blockFor(items[value.index].id));
+          choose(view, items[value.index].id);
           return true;
         }
         return false;
@@ -386,7 +419,7 @@ function slashPlugin(translate: Translate | undefined) {
       const menu = document.createElement("div");
       menu.className = "pages-slash";
       menu.hidden = true;
-      overlayRoot().append(menu);
+      overlayRoot().append(menu, picker);
       return {
         update(view) {
           const value = slashKey.getState(view.state);
@@ -412,7 +445,7 @@ function slashPlugin(translate: Translate | undefined) {
             button.innerHTML = `<span class="pages-slash-icon">${dsIcon(item.icon)}</span><span class="pages-slash-copy"><strong>${escapeHtml(item.label)}</strong><em class="pages-slash-hint">${escapeHtml(item.hint)}</em></span>`;
             button.addEventListener("mousedown", (event) => {
               event.preventDefault();
-              replaceTopBlock(view, blockFor(item.id));
+              choose(view, item.id);
             });
             menu.append(button);
           });
@@ -425,7 +458,7 @@ function slashPlugin(translate: Translate | undefined) {
           placeOverlay(menu, coords, "below");
           keepSelectedVisible(menu);
         },
-        destroy() { menu.remove(); },
+        destroy() { menu.remove(); picker.remove(); },
       };
     },
   });
@@ -660,7 +693,7 @@ function provisionalField(translate: Translate | undefined): HTMLElement {
     const file = clipboardImage(event.clipboardData);
     if (file) {
       event.preventDefault();
-      readClipboardImage(file, (src) => {
+      readLocalImage(file, (src) => {
         const view = viewOf();
         const after = view ? chromeKey.getState(view.state)?.after ?? -1 : -1;
         if (!view || after < 0) return;
@@ -2901,7 +2934,7 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
       const file = clipboardImage(event.clipboardData);
       if (file) {
         event.preventDefault();
-        readClipboardImage(file, (src) => {
+        readLocalImage(file, (src) => {
           const tr = insertImage(current.state, src);
           if (tr) current.dispatch(tr.scrollIntoView());
         });
@@ -2920,7 +2953,34 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
       current.dispatch(pasted.scrollIntoView());
       return true;
     },
+    handleDrop(current, event) {
+      const file = clipboardImage(event.dataTransfer);
+      if (!file) return false;
+      event.preventDefault();
+      if (!acceptedImageFile(file)) return true;
+      const point = current.posAtCoords({ left: event.clientX, top: event.clientY });
+      if (point) {
+        const selection = TextSelection.near(current.state.doc.resolve(point.pos));
+        current.dispatch(current.state.tr.setSelection(selection));
+      }
+      readClipboardImage(file, (src) => {
+        const placed = insertImage(current.state, src);
+        if (placed) current.dispatch(placed.scrollIntoView());
+      });
+      return true;
+    },
     handleDOMEvents: {
+      dragover(_current, event) {
+        const data = event.dataTransfer;
+        if (!data) return false;
+        for (const item of data.items) {
+          if (item.kind === "file" && CLIP_IMAGE.test(item.type)) {
+            event.preventDefault();
+            return true;
+          }
+        }
+        return false;
+      },
       blur: () => {
         window.setTimeout(() => {
           if (!toolbar.contains(document.activeElement) && !linkPreview.contains(document.activeElement) && !commentPreview.contains(document.activeElement) && !pop.contains(document.activeElement) && document.activeElement !== view.dom) {

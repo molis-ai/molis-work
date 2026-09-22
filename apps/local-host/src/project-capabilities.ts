@@ -1,3 +1,4 @@
+import { registerCasebookCapabilities } from './casebook/integration.js';
 import { importV3Capability, projectResumeFactsCapability, trashedGoalsCapability, initializeBoardCapability, snapshotBoardCapability,
   goalsEntryCapabilities, goalEntryCompositionCapabilities,
   goalTreeCapabilities,
@@ -34,6 +35,7 @@ export function registerProjectCapabilities(
   host: LocalHost<MolisWorkProjectRuntime>,
   ports: ProjectCapabilityPorts = {},
 ): void {
+  registerCasebookCapabilities(host);
   const { workspaceFor } = ports;
   host.register(goalProgressCapabilities.record, (runtime, input) => runtime.coordinator.goalEvents.recordProgress({
     ...input, board_id: runtime.board_id,

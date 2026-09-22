@@ -1,3 +1,4 @@
+import { observedWebGoalEvents } from './casebook/web-observer.js';
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import type { RuntimeIntegrationService } from "./installer/runtime-integration.js";
@@ -93,7 +94,9 @@ export async function handleMolisWorkWebRequest(
         boardId: options.boardId,
         projectId: options.project?.project_id,
       });
-      await localHost.withProject(hostReference, async ({ store, coordinator }) => {
+      await localHost.withProject(hostReference, async (runtime) => {
+        const { store, coordinator } = runtime;
+        const goalEvents = observedWebGoalEvents(runtime, hostReference);
         const codingServices: Pick<CodingSurfacePorts, "capabilities" | "execution" | "homeDirectory"> = {
           homeDirectory: serverOptions.homeDirectory,
           capabilities: localHost.client(hostReference),
@@ -277,7 +280,7 @@ export async function handleMolisWorkWebRequest(
             sendJson(response, 400, { error: L("请先选择一个 Molis Work 项目") });
             return;
           }
-          const directory = coordinator.goalEvents.listGoals({
+          const directory = goalEvents.listGoals({
             board_id: options.boardId,
             limit: 100,
           });
@@ -308,7 +311,7 @@ export async function handleMolisWorkWebRequest(
           query: coordinator.goalQueries,
           setActiveGoal: (...args) => coordinator.setActiveGoal(...args),
           goalTreeWebInput: coordinator.goalTreeWebInput, goalTreeDecision: coordinator.goalTreeDecision,
-          goalEvents: coordinator.goalEvents,
+          goalEvents,
           journalEvents: () => store.readEventsDescending(options.boardId),
         })) return;
         if (handleArtifactNativePluginHttp(request, response, url.pathname, {

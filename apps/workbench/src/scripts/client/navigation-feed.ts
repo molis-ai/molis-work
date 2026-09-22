@@ -112,7 +112,7 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
       return openWorkbenchSurface(surface, itemId, title, directoryTabMode());
     };
 
-    const currentModuleDirectory = () => activeDesktopSurface === "feed" || activeDesktopSurface === "sources" || activeDesktopSurface === "sessions" || activeDesktopSurface === "artifacts" || activeDesktopSurface === "inbox" || activeDesktopSurface === "shelf" || activeDesktopSurface === "functions" || activeDesktopSurface === "pages" || activeDesktopSurface === "form" || activeDesktopSurface === "dataset" || activeDesktopSurface === "ppt" || activeDesktopSurface === "lingguang"
+    const currentModuleDirectory = () => activeDesktopSurface === "feed" || activeDesktopSurface === "sources" || activeDesktopSurface === "sessions" || activeDesktopSurface === "artifacts" || activeDesktopSurface === "inbox" || activeDesktopSurface === "shelf" || activeDesktopSurface === "characters" || activeDesktopSurface === "functions" || activeDesktopSurface === "pages" || activeDesktopSurface === "form" || activeDesktopSurface === "dataset" || activeDesktopSurface === "ppt" || activeDesktopSurface === "lingguang"
       ? activeDesktopSurface
       : "goals";
 

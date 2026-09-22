@@ -192,6 +192,11 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
       <section class="mw-form__body"><p>选择下一轮使用的固定文件、差异、Git 结果或 Shelf 材料。保存不会发送；来源更新后，已选版本保持不变。</p><div data-coding-material-list></div><p data-coding-material-error role="alert"></p></section>
       <footer class="mw-form__footer">${renderButton({label:"保存材料选择",type:"submit",attrs:{"data-coding-material-save":""}})}</footer>
     </form></dialog>
+    <dialog class="mw-dialog mw-dialog--form" data-coding-character-dialog aria-label="选择角色"><form class="mw-form mw-dialog__shell" data-coding-character-form>
+      <header class="mw-form__header"><h2>选择角色</h2>${renderButton({label:"取消",variant:"ghost",attrs:{"data-coding-character-close":""}})}</header>
+      <section class="mw-form__body"><p>选择下一轮使用的已发布版本，也可以不使用角色。保存不会发送；后续编辑或发布不改变已选版本，在跑任务保留原内容。</p><div data-coding-character-list></div><p data-coding-character-error role="alert"></p></section>
+      <footer class="mw-form__footer">${renderButton({label:"保存角色选择",type:"submit",attrs:{"data-coding-character-save":""}})}</footer>
+    </form></dialog>
     <dialog class="mw-dialog mw-dialog--form" data-coding-method-dialog aria-label="选择方法"><form class="mw-form mw-dialog__shell" data-coding-method-form>
       <header class="mw-form__header"><h2>选择方法</h2>${renderButton({label:"取消",variant:"secondary",attrs:{"data-coding-method-close":""}})}</header>
       <section class="mw-form__body"><label class="mw-field">搜索方法<input class="mw-input" data-coding-method-search placeholder="名称或说明"></label>
@@ -217,7 +222,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
         <form class="coding-composer" data-coding-composer>
           <label class="coding-task-label" for="coding-task">任务或补充要求</label>
           <textarea class="mw-input" id="coding-task" data-coding-task rows="3" placeholder="描述要完成的任务…" disabled></textarea>
-          <div class="coding-composer-actions">${renderButton({label:"＋ 材料",variant:"secondary",attrs:{"data-coding-material-open":"","aria-label":"选择固定材料"}})}${renderButton({label:"/ 方法",variant:"secondary",attrs:{"data-coding-method-open":"","aria-label":"选择方法"}})}${renderButton({label:"MCP",variant:"secondary",attrs:{"data-coding-mcp-open":"","aria-label":"选择 MCP 工具与资料"}})}<select class="mw-select" data-coding-intent aria-label="任务方式"><option value="discuss">讨论</option><option value="edit" disabled>修改文件（待接通审批）</option><option value="execute" disabled>执行（待接通审批）</option><option value="review">评审</option></select>
+          <div class="coding-composer-actions">${renderButton({label:"＋ 材料",variant:"secondary",attrs:{"data-coding-material-open":"","aria-label":"选择固定材料"}})}${renderButton({label:"角色",variant:"secondary",attrs:{"data-coding-character-open":"","aria-label":"选择角色"}})}${renderButton({label:"/ 方法",variant:"secondary",attrs:{"data-coding-method-open":"","aria-label":"选择方法"}})}${renderButton({label:"MCP",variant:"secondary",attrs:{"data-coding-mcp-open":"","aria-label":"选择 MCP 工具与资料"}})}<select class="mw-select" data-coding-intent aria-label="任务方式"><option value="discuss">讨论</option><option value="edit" disabled>修改文件（待接通审批）</option><option value="execute" disabled>执行（待接通审批）</option><option value="review">评审</option></select>
           <select class="mw-select" data-coding-model aria-label="下一轮使用的模型"></select><button class="mw-btn mw-btn--primary" type="submit" data-coding-send disabled>发送</button></div>
           <small data-coding-draft-status>模型与方式的选择用于下一轮。</small>
         </form>

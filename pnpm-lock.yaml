@@ -56,6 +56,9 @@ importers:
       '@molis-ai/molis-work-module-attention-resumption':
         specifier: workspace:*
         version: link:modules/attention-resumption
+      '@molis-ai/molis-work-module-characters':
+        specifier: workspace:*
+        version: link:modules/characters
       '@molis-ai/molis-work-module-context-ledger':
         specifier: workspace:*
         version: link:modules/context-ledger
@@ -95,6 +98,9 @@ importers:
       '@molis-ai/molis-work-plugin-artifacts':
         specifier: workspace:*
         version: link:plugins/native/artifacts
+      '@molis-ai/molis-work-plugin-characters':
+        specifier: workspace:*
+        version: link:plugins/native/characters
       '@molis-ai/molis-work-plugin-cli':
         specifier: workspace:*
         version: link:tooling/plugin-cli
@@ -285,6 +291,9 @@ importers:
       '@molis-ai/molis-work-module-attention-resumption':
         specifier: workspace:*
         version: link:../../modules/attention-resumption
+      '@molis-ai/molis-work-module-characters':
+        specifier: workspace:*
+        version: link:../../modules/characters
       '@molis-ai/molis-work-module-context-ledger':
         specifier: workspace:*
         version: link:../../modules/context-ledger
@@ -324,6 +333,9 @@ importers:
       '@molis-ai/molis-work-plugin-artifacts':
         specifier: workspace:*
         version: link:../../plugins/native/artifacts
+      '@molis-ai/molis-work-plugin-characters':
+        specifier: workspace:*
+        version: link:../../plugins/native/characters
       '@molis-ai/molis-work-plugin-coding':
         specifier: workspace:*
         version: link:../../plugins/native/coding
@@ -436,6 +448,9 @@ importers:
       '@molis-ai/molis-work-plugin-artifacts':
         specifier: workspace:*
         version: link:../../plugins/native/artifacts
+      '@molis-ai/molis-work-plugin-characters':
+        specifier: workspace:*
+        version: link:../../plugins/native/characters
       '@molis-ai/molis-work-plugin-coding':
         specifier: workspace:*
         version: link:../../plugins/native/coding
@@ -540,6 +555,12 @@ importers:
         version: link:../../packages/contracts
 
   modules/attention-resumption:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+
+  modules/characters:
     dependencies:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
@@ -684,6 +705,15 @@ importers:
         version: link:../contracts
 
   plugins/native/artifacts:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../../packages/contracts
+      '@molis-ai/molis-work-design-system':
+        specifier: workspace:*
+        version: link:../../../packages/design-system
+
+  plugins/native/characters:
     dependencies:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*

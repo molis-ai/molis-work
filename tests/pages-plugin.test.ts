@@ -186,7 +186,7 @@ test("阅读面没有粗左边线和后台表单顶栏", () => {
 test("工作台客户端保存不重挂内核", () => {
   const script = renderMolisWorkWorkbenchClientScript();
   assert.doesNotThrow(() => new Function(script));
-  assert.match(script, /\["shelf","lingguang","functions","pages","form","dataset","ppt"\]/);
+  assert.match(script, /\["shelf","lingguang","functions","characters","pages","form","dataset","ppt"\]/);
   assert.doesNotMatch(saveFunctionSource(PAGES_CLIENT_FACTORY_SCRIPT), /fillEditor/);
   assert.doesNotMatch(saveFunctionSource(PAGES_CLIENT_FACTORY_SCRIPT), /setDoc/);
   assert.match(fillEditorSource(PAGES_CLIENT_FACTORY_SCRIPT), /clearTimeout\(saveTimer\)/);

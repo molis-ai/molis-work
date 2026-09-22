@@ -13,6 +13,7 @@ import { escapeHtml } from "@molis-ai/molis-work-design-system";
 import {
   codingDirectoryPanel,
   codingWorkbenchPanel,
+  charactersWorkbenchPanel,
   type CodingSurfacePorts,
   diffStagePanel,
   filesDirectoryPanel,
@@ -147,9 +148,11 @@ export function createLocalGoalsReadHttp(ports: {
             if (surface) panels[surface.plugin_id] = surface.panel;
           }
           if (Object.keys(panels).length > 0) view = { ...view, plugin_panels: panels };
+          const characterStage = await charactersWorkbenchPanel(surfacePorts);
+          view = { ...view, plugin_stages: [characterStage.panel] };
           if (projectConfiguration.plugins.includes("coding")) {
             const stage = await codingWorkbenchPanel(surfacePorts);
-            if (stage) view = { ...view, plugin_stages: [stage.panel] };
+            if (stage) view = { ...view, plugin_stages: [...(view.plugin_stages ?? []), stage.panel] };
           }
         }
         const operations = options.project

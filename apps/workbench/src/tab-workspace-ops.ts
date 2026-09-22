@@ -29,6 +29,7 @@ export function createTabWorkspaceOps() {
     feed: "Feed",
     shelf: "Shelf",
     functions: "Functions",
+    characters: "Characters",
     form: "Forms",
     dataset: "Dataset",
     ppt: "PPT",

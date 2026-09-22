@@ -7,6 +7,8 @@ import type {
 } from "../platform/plugin-agent.js";
 import type { HostCapabilityDefinition } from "../platform/app-host.js";
 import type { ContractDescriptor } from "../platform/package.js";
+import type { ArtifactReference, ArtifactProducerIdentity } from "../modules/artifacts.js";
+import type { CharacterContent } from "../modules/characters.js";
 
 export const servicesAgentHostContract = {
   contractId: "io.molis.work.service.agent-host.v1",
@@ -163,7 +165,17 @@ export interface AgentRunBudget {
  * Exactly what the Host froze for one Run. Later settings changes never alter a
  * started Run; the product shows this, not the next-run selection.
  */
+export interface AgentFrozenCharacter extends CharacterContent {
+  reference: ArtifactReference;
+  board_id: string;
+  content_digest: string;
+  producer: ArtifactProducerIdentity;
+  published_at: string;
+}
+
 export interface AgentFrozenStart {
+  /** Authoritative fixed Character content and source at start, never looked up for history. */
+  character?: AgentFrozenCharacter;
   role_id: string;
   role_version: number;
   execution: AgentRoleExecution;
@@ -204,6 +216,7 @@ export interface AgentCreateSessionInput {
  * the only place allowed to decide what a Run is permitted to do.
  */
 export interface AgentFrozenRole {
+  character?: AgentFrozenCharacter;
   role_id: string;
   version: number;
   execution: AgentRoleExecution;
@@ -218,6 +231,8 @@ export interface AgentFrozenRole {
 }
 
 export interface AgentStartRequest {
+  /** Only a reference is accepted from the caller; the Host resolves its immutable content. */
+  character?: ArtifactReference | null;
   session: AgentSessionRef;
   board_id: string;
   plugin_id: string;

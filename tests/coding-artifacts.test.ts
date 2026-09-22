@@ -13,6 +13,7 @@ import { parsePluginManifest } from "@molis-ai/molis-work-contracts/platform/plu
 import { filesManifest } from "@molis-ai/molis-work-plugin-files";
 import { shelfManifest } from "@molis-ai/molis-work-plugin-shelf";
 import { gitManifest } from "@molis-ai/molis-work-plugin-git";
+import { CHARACTER_ARTIFACT_TYPE } from "@molis-ai/molis-work-contracts/modules/characters";
 
 /** C2 的验收：三个 Artifact 类型的形状、声明一致性，以及图的结构校验。 */
 
@@ -20,6 +21,8 @@ test("Manifest 通过 v2 解析，且端口与产出类型逐项对应", () => {
   const parsed = parsePluginManifest(JSON.parse(JSON.stringify(codingManifest)));
   assert.equal(parsed.plugin_id, "io.molis.work.coding");
   assert.equal(parsed.schema_version, 2);
+  assert.ok(parsed.artifacts.consumes.some(entry => entry.artifact_type_id === CHARACTER_ARTIFACT_TYPE && entry.schema_version === 1));
+  assert.deepEqual(parsed.agent?.characters, { selection: "optional-exact-artifact", scope: "project-owner", role_ids: ["reader", "reviewer", "writer", "builder"] });
 
   const produced = parsed.artifacts.produces.map((entry) => entry.artifact_type_id).sort();
   assert.deepEqual(produced, [...CODING_ARTIFACT_TYPES].sort());

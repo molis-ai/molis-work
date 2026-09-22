@@ -399,6 +399,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     const at = this.#now().toISOString();
     const state = emptyPrologueStreamState();
     const frozen = {
+      ...(role.character ? { character: structuredClone(role.character) } : {}),
       role_id: role.role_id,
       role_version: role.version,
       execution: role.execution,

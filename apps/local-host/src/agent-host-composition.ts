@@ -7,7 +7,9 @@ import {
   type AgentStartAuthority,
   type PrologueNodeAdapterOptions,
 } from "@molis-ai/molis-work-service-agent-host";
-import { BUILTIN_PLUGIN_AGENTS } from "@molis-ai/molis-work-app-workbench";
+import { BUILTIN_PLUGIN_AGENTS, BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
+import { CHARACTER_ARTIFACT_TYPE } from "@molis-ai/molis-work-contracts/modules/characters";
+import { freezeProjectCharacter } from "./characters-host.js";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { AgentPromptText } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
@@ -29,6 +31,7 @@ import { prepareGitIndex } from "./workspace-git-index.js";
 
 export interface AgentHostCompositionOptions {
   localHost: MolisWorkLocalHost;
+  homeDirectory?: string;
   /** Resolves the workspace a project is bound to, for directory authority. */
   workspacesFor?(projectId: string): readonly ProjectWorkspaceRef[] | Promise<readonly ProjectWorkspaceRef[]>;
   workspaceFor(projectId: string): ProjectWorkspaceRef | null | Promise<ProjectWorkspaceRef | null>;
@@ -85,7 +88,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     },
     {
       agentHost: () => agentHost,
-      authority: (runtime, pluginId) => startAuthority(runtime, pluginId, options.workspaceFor, options.workspacesFor),
+      authority: (runtime, pluginId) => startAuthority(runtime, pluginId, options.workspaceFor, options.workspacesFor, options.homeDirectory),
       boardId: (runtime) => runtime.board_id,
     },
   );
@@ -151,8 +154,11 @@ async function startAuthority(
   pluginId: string,
   workspaceFor: AgentHostCompositionOptions["workspaceFor"],
   workspacesFor?: AgentHostCompositionOptions["workspacesFor"],
+  homeDirectory?: string,
 ): Promise<AgentStartAuthority> {
   const declared = BUILTIN_PLUGIN_AGENTS.get(pluginId);
+  const manifest = BUILTIN_PLUGIN_CATALOG.find(entry => entry.manifest.plugin_id === pluginId)?.manifest;
+  const consumesCharacters = manifest?.artifacts?.consumes?.some(type => type.artifact_type_id === CHARACTER_ARTIFACT_TYPE && type.schema_version === 1);
   const workspace = await workspaceFor(runtime.project_id);
   const workspaces = workspacesFor ? await workspacesFor(runtime.project_id) : workspace ? [workspace] : [];
   return {
@@ -161,6 +167,7 @@ async function startAuthority(
     prompts: declared?.prompts ?? [],
     skills: declared?.skills ?? [],
     method_owner: { board_id: runtime.board_id, plugin_id: pluginId },
+    ...(consumesCharacters ? { resolveCharacter: (reference, actorId) => freezeProjectCharacter(homeDirectory, actorId, runtime.board_id, runtime.coordinator.artifacts.query, reference) } : {}),
     project_prompts: projectPrompts(runtime),
   };
 }

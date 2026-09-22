@@ -198,6 +198,7 @@ export class CliAgentAdapter implements AgentRuntimeAdapter {
     // The Plugin's role prompts are what make a role mean anything on a CLI
     // runtime. Refusing here is better than running an unshaped agent.
     const role = request.role;
+    if (role?.character) throw new CliAgentError("agent.capability_unavailable", "此 CLI 尚未验证 Character 的工具限制，请使用 Prologue 或明确移除角色后执行");
     if (role === undefined) {
       throw new CliAgentError(
         "agent.runtime_missing",

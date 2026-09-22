@@ -49,6 +49,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     // Runtime storage and credentials belong to this explicit Home.
     const agents = composeAgentHost({
       localHost,
+      homeDirectory: storageHome,
       workspacesFor: (projectId) => platform.withCatalog({ homeDirectory: storageHome }, catalog => catalog.listWorkspaceDirectory(projectId)),
       workspaceFor: (projectId) => platform.withCatalog(
         { homeDirectory: serverOptions.homeDirectory },

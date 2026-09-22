@@ -19,7 +19,9 @@ import type {
   AgentSkillRef,
   AgentSkillOwner,
   AgentWorkingDirectory,
+  AgentFrozenCharacter,
 } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 
 import { AgentReviewQueue } from "./reviews.js";
 
@@ -153,6 +155,7 @@ const EXECUTION_CAPABILITIES: Readonly<Record<AgentRoleExecution, AgentRuntimeCa
 function composeRolePrompts(
   role: AgentRoleDeclaration,
   authority: AgentStartAuthority,
+  character?: AgentFrozenCharacter,
 ): AgentPromptText[] {
   const available = authority.prompts ?? [];
   const named = role.prompts;
@@ -171,7 +174,9 @@ function composeRolePrompts(
     // arrives on the project channel is the project layer.
     layer: "project" as const,
   }));
-  return orderPromptsByLayer([...own, ...project]);
+  const characterPrompt: AgentPromptText[] = character ? [{ prompt_id: `character-${character.character_id}`, version: character.reference.version,
+    layer: "role", body: character.instructions }] : [];
+  return orderPromptsByLayer([...own, ...characterPrompt, ...project]);
 }
 
 /** Omitting `execution` means read-only. Callers must not reimplement this default. */
@@ -180,6 +185,8 @@ function roleExecution(role: AgentRoleDeclaration): AgentRoleExecution {
 }
 
 export interface AgentStartAuthority {
+  /** Host-bound source resolver; browser/plugin-supplied bodies are never authority. */
+  resolveCharacter?(reference: ArtifactReference, actorId: string): AgentFrozenCharacter;
   /** The Plugin's own Agent block. A role outside it can never start. */
   manifest: AgentManifest;
   /** Directories the Host authorized for this Plugin, already realpath-verified. */
@@ -344,6 +351,28 @@ export class AgentHost implements AgentHostApi {
       );
     }
 
+    let character: AgentFrozenCharacter | undefined;
+    let hostTools = [...(role.host_tools ?? [])];
+    if (request.character !== undefined && request.character !== null) {
+      const declared = authority.manifest.characters;
+      if (!declared || declared.selection !== "optional-exact-artifact" || declared.scope !== "project-owner"
+        || !declared.role_ids.includes(role.role_id) || !authority.resolveCharacter) {
+        throw new AgentHostError("agent.capability_unavailable", "当前调用方或执行方式未开放 Character 选择");
+      }
+      const ref = request.character;
+      if (typeof ref.artifact_id !== "string" || !ref.artifact_id.trim() || ref.artifact_id.length > 200
+        || !Number.isSafeInteger(ref.version) || ref.version < 1) throw new AgentHostError("agent.capability_unavailable", "Character 精确版本引用无效");
+      character = structuredClone(authority.resolveCharacter({ artifact_id: ref.artifact_id, version: ref.version }, request.actor_id));
+      if (character.reference.artifact_id !== ref.artifact_id || character.reference.version !== ref.version
+        || character.board_id !== request.board_id || character.source.owner_actor_id !== request.actor_id) {
+        throw new AgentHostError("agent.capability_unavailable", "Character 来源与本轮项目、所有者或版本不一致");
+      }
+      if (character.host_tools !== null) {
+        if (character.host_tools.some(tool => !hostTools.includes(tool))) throw new AgentHostError("agent.role_execution_exceeded", "所选 Character 包含当前执行方式未开放的内置工具，请更换角色或执行方式");
+        hostTools = [...character.host_tools];
+      }
+    }
+
     // Freeze the role here, from the Plugin's own declarations, so the adapter
     // receives exactly what it is allowed to run instead of resolving it itself.
     const selected = request.skills ?? [];
@@ -351,7 +380,7 @@ export class AgentHost implements AgentHostApi {
       throw new AgentHostError("agent.capability_unavailable", "方法选择重复或超过数量限制");
     }
     const skills = await Promise.all(selected.map(ref => this.readSkill(runtimeId, authority, ref)));
-    for (const skill of skills) if (skill.tools.some(tool => !role.host_tools?.includes(tool))) {
+    for (const skill of skills) if (skill.tools.some(tool => !hostTools.includes(tool))) {
       throw new AgentHostError("agent.role_execution_exceeded", `方法“${skill.name}”需要当前执行方式未开放的工具，请更换方式或取消选择`);
     }
     let mcp = request.mcp_tools ?? [];
@@ -364,6 +393,7 @@ export class AgentHost implements AgentHostApi {
     let sources = request.mcp_sources ?? [];
     if (!Array.isArray(sources) || sources.length > 100 || new Set(sources.map(ref=>ref.server)).size !== sources.length) throw new AgentHostError("agent.capability_unavailable", "MCP 资料来源重复或超过数量限制");
     if(sources.length) {
+      if (character && !hostTools.includes("read-mcp-resource")) throw new AgentHostError("agent.role_execution_exceeded", "所选 Character 未开放读取 MCP 资料的工具，请调整角色或取消资料选择");
       const {library,owner}=this.mcpLibrary(runtimeId,authority);
       sources=await library.validateSources(owner,sources);
     }
@@ -377,7 +407,7 @@ export class AgentHost implements AgentHostApi {
       }
       compaction = { prompt: { ...prompt }, above_tokens: declaredCompaction.above_tokens };
     }
-    const prompts = composeRolePrompts(role, authority);
+    const prompts = composeRolePrompts(role, authority, character);
     const handle = await adapter.start({
       ...request,
       mcp_tools: mcp,
@@ -386,15 +416,18 @@ export class AgentHost implements AgentHostApi {
         role_id: role.role_id,
         version: role.version,
         execution,
+        ...(character ? { character } : {}),
         prompts: prompts.map((prompt) => ({ ...prompt })),
         skills,
         ...(compaction ? { compaction } : {}),
-        host_tools: [...(role.host_tools ?? [])],
+        host_tools: hostTools,
       },
     });
     // The Runtime cannot widen what the Manifest froze. A mismatch is the
     // adapter's fault, and the run does not continue on a wider authority.
-    if (JSON.stringify(handle.frozen.mcp_sources ?? []) !== JSON.stringify(sources)
+    if (JSON.stringify(handle.frozen.character) !== JSON.stringify(character)
+      || character && JSON.stringify(handle.frozen.host_tools) !== JSON.stringify(hostTools)
+      || JSON.stringify(handle.frozen.mcp_sources ?? []) !== JSON.stringify(sources)
       || JSON.stringify(handle.frozen.mcp_tools) !== JSON.stringify(mcp)
       || JSON.stringify(handle.frozen.compaction) !== JSON.stringify(compaction && { prompt_id: compaction.prompt.prompt_id, version: compaction.prompt.version, above_tokens: compaction.above_tokens })
       || handle.frozen.role_id !== role.role_id

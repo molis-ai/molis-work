@@ -33,6 +33,7 @@ export const CODING_ROLE_IDS = [
 export type CodingRoleId = (typeof CODING_ROLE_IDS)[number];
 
 export const codingAgentManifest: AgentManifest = {
+  characters: { selection: "optional-exact-artifact", scope: "project-owner", role_ids: ["reader", "reviewer", "writer", "builder"] },
   mcp: true,
   compaction: { prompt_id: "coding-compaction", above_tokens: 12_000 },
   skills: codingMethods.map(({ body: _body, ...declaration }) => declaration),

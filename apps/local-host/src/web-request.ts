@@ -110,8 +110,8 @@ export async function handleMolisWorkWebRequest(
             }),
           },
         };
-        if (/^\/api\/plugins\/io\.molis\.work\.(coding|workspace|files|git|diff|text-stats|shelf)\//.test(url.pathname)) {
-          const plugin = url.pathname.startsWith("/api/plugins/io.molis.work.shelf/") ? "shelf" : "coding";
+        if (/^\/api\/plugins\/io\.molis\.work\.(coding|workspace|files|git|diff|text-stats|shelf|characters)\//.test(url.pathname)) {
+          const plugin = url.pathname.startsWith("/api/plugins/io.molis.work.characters/") ? "characters" : url.pathname.startsWith("/api/plugins/io.molis.work.shelf/") ? "shelf" : "coding";
           const enabled = PERSONAL_PLUGIN_IDS.includes(plugin) || (options.project && await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory },
             (catalog) => catalog.listProjectPlugins(options.project!.project_id).includes(plugin)));
           if (!enabled) { sendJson(response, 404, { error: plugin === "shelf" ? "这个项目未启用 Shelf" : "这个项目未启用 Coding" }); return; }

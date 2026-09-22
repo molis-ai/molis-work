@@ -1,3 +1,4 @@
+import { CODING_CHARACTERS_CLIENT_FACTORY_SCRIPT } from "./characters-client.js";
 import { codingGoalVersionLabel } from "./goal-versions.js";
 import { CODING_CHANGESET_CLIENT_FACTORY_SCRIPT } from "./changeset-client.js";
 import { codingUsageSummary } from "./usage.js";
@@ -20,7 +21,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const directoryRows = new Map(), directoryGroups = new Map();
   let directoryClaimed = false;
   const drafts = new Map(), offsets = new Map(), draftWrites = new Map();
-  const materialSelections = new Map();
+  const materialSelections = new Map(), characterSelections = new Map(), characterTitles = new Map();
   const questionDrafts = new Map(), methodSelections = new Map(), configurations = new Map(), mcpSelections = new Map(), mcpSourceSelections = new Map();
   let mcpChoices = [], mcpSourceChoices = [];
   let methodChoices = [], methodDocumentTicket = 0;
@@ -89,7 +90,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const saveDraft = (id, value, selectedMethods = methodSelections.get(id), selectedMaterials = materialSelections.get(id)) => {
     if (!id) return Promise.resolve();
     rememberDraft(id,value);
-    const body={draft:value, ...(selectedMaterials ? {materials:structuredClone(selectedMaterials)} : {}), ...(mcpSourceSelections.has(id)?{mcp_sources:structuredClone(mcpSourceSelections.get(id))}:{}), ...(mcpSelections.has(id)?{mcp_tools:structuredClone(mcpSelections.get(id))}:{}), ...(configurations.get(id) ? {configuration:structuredClone(configurations.get(id))} : {}), ...(selectedMethods ? {methods:structuredClone(selectedMethods)} : {}), ...(questionDrafts.has(id) ? {question_drafts:structuredClone(questionDrafts.get(id))} : {})};
+    const body={draft:value, ...(characterSelections.has(id)?{character:structuredClone(characterSelections.get(id))}:{}), ...(selectedMaterials ? {materials:structuredClone(selectedMaterials)} : {}), ...(mcpSourceSelections.has(id)?{mcp_sources:structuredClone(mcpSourceSelections.get(id))}:{}), ...(mcpSelections.has(id)?{mcp_tools:structuredClone(mcpSelections.get(id))}:{}), ...(configurations.get(id) ? {configuration:structuredClone(configurations.get(id))} : {}), ...(selectedMethods ? {methods:structuredClone(selectedMethods)} : {}), ...(questionDrafts.has(id) ? {question_drafts:structuredClone(questionDrafts.get(id))} : {})};
     const next = (draftWrites.get(id) || Promise.resolve()).catch(() => {}).then(() => api('/sessions/' + encodeURIComponent(id),'PATCH',body));
     draftWrites.set(id,next);
     return next.then(() => { if (current === id && input.value === value) q('[data-coding-draft-status]').textContent = '草稿已保存；模型与方式用于下一轮。'; });
@@ -141,6 +142,9 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     q('[data-coding-goal-open]').disabled = !current || sending;
     q('[data-coding-material-open]').disabled = !current || sending;
     q('[data-coding-material-open]').textContent = '＋ 材料'+((materialSelections.get(current) || []).length ? ' · '+materialSelections.get(current).length : '');
+    const character=characterSelections.get(current),characterButton=q('[data-coding-character-open]');
+    characterButton.disabled=!current || sending;characterButton.textContent=character?'角色 · v'+character.version:'角色';
+    characterButton.title=character?'下一轮：'+(characterTitles.get(current) || character.artifact_id)+' · v'+character.version:'下一轮不使用 Character';
     q('[data-coding-method-open]').disabled = !current || sending;
     q('[data-coding-mcp-open]').disabled=!current || sending;
     const mcpCount=(mcpSelections.get(current) || []).length+(mcpSourceSelections.get(current) || []).length; q('[data-coding-mcp-open]').textContent='MCP'+(mcpCount?' · '+mcpCount:'');
@@ -153,6 +157,8 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     const count=(methodSelections.get(current) || []).length;
     q('[data-coding-method-open]').textContent='/ 方法'+(count?' · '+count:'');
   };
+  (${CODING_CHARACTERS_CLIENT_FACTORY_SCRIPT})({q,api,current:()=>current,selections:characterSelections,titles:characterTitles,
+    save:id=>saveDraft(id,id===current?input.value:localDraft(id) || ''),controls,status});
   const renderArtifacts = () => {
     const list=directory.querySelector('[data-coding-artifact-list]'),needle=directory.querySelector('[data-coding-artifact-search]').value.trim().toLocaleLowerCase();list.replaceChildren();
     for(const item of artifactRows.filter(item=>item.title.toLocaleLowerCase().includes(needle))) {
@@ -565,6 +571,8 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     if(!lastRun) { result.textContent="本轮的成果、检查与执行记录会显示在这里。"; delete result.dataset.content; if(statusKey!=='idle'){statusKey='idle';status("输入任务后开始；本轮方式与模型在发送时固定。");} }
     if(lastRun) {
       const values=[['最新执行（第 '+runs.length+' 轮）',phases[lastRun.phase]||lastRun.phase],['模型',lastRun.frozen.model_id],['工作范围',lastRun.frozen.directory.canonical_path],['身份',lastRun.frozen.role_id+' · v'+lastRun.frozen.role_version],['本轮方法',lastRun.frozen.skills.length ? lastRun.frozen.skills.map(method=>method.name+' · v'+method.version).join('、') : '未使用方法'],['本轮 MCP',lastRun.frozen.mcp_tools?.length ? lastRun.frozen.mcp_tools.map(tool=>(tool.server_label || tool.server)+' / '+tool.tool+' · 配置 '+(tool.configuration_version ?? '未记录')+' · '+tool.version).join('、') : '未使用 MCP'],['本轮 MCP 资料',(lastRun.frozen.mcp_sources || []).length ? lastRun.frozen.mcp_sources.map(source=>(source.server_label || source.server)+' · 配置 '+source.configuration_version).join('、') : '未单独选择资料来源'],['用量',codingUsageSummary(lastRun.usage)]];
+      const character=lastRun.frozen.character;values.push(['本轮 Character',character?character.title+' · v'+character.reference.version:'未使用 Character']);
+      if(character)values.push(['本轮内置工具',lastRun.frozen.host_tools?.join('、') || '不使用内置工具']);
       values.push(['本轮固定材料',lastRun.frozen.text_materials.length ? lastRun.frozen.text_materials.map(material=>(material.title || material.source_artifact_id)+' · v'+material.source_version).join('、') : '未选择材料']);
       if(lastRun.frozen.compaction) values.push(['上下文整理','自动 · 估计超过 '+lastRun.frozen.compaction.above_tokens+' tokens 时选择较早原文 · v'+lastRun.frozen.compaction.version]);
       if(!lastRun.usage.compaction && lastRun.activity.some(item=>item.name==='上下文整理')) values.push(['用量范围','以上仅主执行；上下文整理的额外模型请求尚未计入此小计。']);
@@ -642,6 +650,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(!mcpSourceSelections.has(id))mcpSourceSelections.set(id,data.mcp_sources || []);
       if(!mcpSelections.has(id))mcpSelections.set(id,data.mcp_tools || []);
       if(!materialSelections.has(id)) materialSelections.set(id,data.materials || []);
+      if(!characterSelections.has(id)){characterSelections.set(id,data.character ?? null);characterTitles.set(id,data.character_title || '');}
       if(!methodSelections.has(id)) methodSelections.set(id,data.methods || []);
       if(!questionDrafts.has(id)) {
         let saved;try{saved=JSON.parse(sessionStorage.getItem(draftKey(id)+':questions') || 'null');}catch{}
@@ -837,7 +846,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   input.addEventListener('keydown' ,event=>{if(event.key==='Enter' && (event.metaKey || event.ctrlKey) && !event.isComposing){event.preventDefault();q('[data-coding-composer]').requestSubmit();}});
   q('[data-coding-composer]').addEventListener('submit',async(event)=>{
     event.preventDefault();if(sending || recovery || checkpointBusy || !current || !input.value.trim()) return;
-    const id=current,task=input.value,materials=structuredClone(materialSelections.get(current) || []),mcp_sources=structuredClone(mcpSourceSelections.get(current) || []),mcp_tools=structuredClone(mcpSelections.get(current) || []),methods=structuredClone(methodSelections.get(current) || []),activeRun=lastRun,modelValue=q('[data-coding-model]').value,intent=q('[data-coding-intent]').value,workspace_id=workspaceId; sending=true;controls();
+    const id=current,task=input.value,character=structuredClone(characterSelections.get(current) ?? null),materials=structuredClone(materialSelections.get(current) || []),mcp_sources=structuredClone(mcpSourceSelections.get(current) || []),mcp_tools=structuredClone(mcpSelections.get(current) || []),methods=structuredClone(methodSelections.get(current) || []),activeRun=lastRun,modelValue=q('[data-coding-model]').value,intent=q('[data-coding-intent]').value,workspace_id=workspaceId; sending=true;controls();
     try {
       rememberConfiguration();await flushDraft();
       if(activeRun && !terminal(activeRun.phase)) {
@@ -845,7 +854,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         status('补充要求已交给执行引擎，等待后续处理。');
       } else {
         const [provider_id,model_id]=JSON.parse(modelValue);
-        await api('/sessions/'+encodeURIComponent(id)+'/runs','POST',{task,intent,provider_id,model_id,workspace_id,methods,mcp_tools,mcp_sources,materials});
+        await api('/sessions/'+encodeURIComponent(id)+'/runs','POST',{task,intent,provider_id,model_id,workspace_id,methods,mcp_tools,mcp_sources,materials,character});
       }
       if(current===id && input.value===task) input.value='';
       if(localDraft(id)===task) await saveDraft(id,''); await refreshState();await readCurrent();

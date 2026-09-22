@@ -185,6 +185,10 @@
     "./services/scheduler": {
       "types": "./dist/services/scheduler.d.ts",
       "import": "./dist/services/scheduler.js"
+    },
+    "./modules/characters": {
+      "types": "./dist/modules/characters.d.ts",
+      "import": "./dist/modules/characters.js"
     }
   },
   "files": [

@@ -1,4 +1,7 @@
 import { shelfRuntimeProbe } from "./shelf-native-plugin-http.js";
+import { createCharactersPlugin, CHARACTERS_UI_CONTRIBUTION_ID, type CharactersUiModel } from "@molis-ai/molis-work-plugin-characters";
+import { CHARACTER_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/characters";
+import { charactersPluginPorts, codingCharacterPorts } from "./characters-host.js";
 import { codingShelfMaterial } from "./coding-shelf-material.js";
 import { openShelfStore } from "@molis-ai/molis-work-module-shelf";
 import { createShelfPlugin } from "@molis-ai/molis-work-plugin-shelf";
@@ -161,6 +164,7 @@ async function startPlatform(ports: CodingSurfacePorts): Promise<Started> {
      * Each still starts in isolation: one failing leaves its siblings running.
      */
     const report = await platform.start([
+      { definition: createCharactersPlugin(charactersPluginPorts(ports.homeDirectory, ports.actorId, ports.boardId, artifacts.query)), replace_version: true },
       { definition: createShelfPlugin(ports.homeDirectory ? {
         references: () => artifacts.query.listArtifacts(ports.boardId).filter(item => item.producer_plugin_id === CODING_PLUGIN_ID
           && [CODING_REPORT_TYPE, "coding.changeset.v1"].includes(item.artifact_type_id)).map(({ artifact_id, version }) => ({ artifact_id, version })),
@@ -173,6 +177,7 @@ async function startPlatform(ports: CodingSurfacePorts): Promise<Started> {
       } : undefined), replace_version: true },
       { definition: createCodingPlugin(ports.execution ? { execution: {
         ...ports.execution, sessions: new CodingSessionStore(ports.store.db), goalTitle: ports.goalTitle,
+        characters: codingCharacterPorts(ports.homeDirectory, ports.actorId, ports.boardId, artifacts.query),
         materialReferences: () => artifacts.query.listArtifacts(ports.boardId, { artifact_type_id: SHELF_TEXT_MATERIAL_TYPE, schema_version: 1 })
           .filter(item => item.owner_actor_id === ports.actorId && item.producer_plugin_id === "io.molis.work.shelf" && item.lifecycle_state === "active" && item.availability === "available")
           .map(({ artifact_id, version }) => ({ artifact_id, version })),
@@ -260,9 +265,22 @@ async function codingPanel(ports: CodingSurfacePorts, surface: "directory" | "wo
   }
 }
 
+/** Independent personal Character manager rendered by its running Plugin. */
+export async function charactersWorkbenchPanel(ports: CodingSurfacePorts): Promise<{ panel: string; plugin_id: string }> {
+  const record = await ensureStarted(ports);
+  const active = record.platform?.supervisor.state(CHARACTER_PLUGIN_ID);
+  const contribution = record.platform?.supervisor.contribution(CHARACTER_PLUGIN_ID);
+  const views = (contribution as { views?: ReadonlyArray<{ descriptor: { contribution_id: string }; render(request: { surface: string; model: CharactersUiModel }): string }> } | null)?.views ?? [];
+  const view = views.find(item => item.descriptor.contribution_id === CHARACTERS_UI_CONTRIBUTION_ID);
+  if (active?.status !== "running" || !view) return { plugin_id: "characters", panel: `<section class="desktop-work-surface" data-work-surface="characters" data-work-surface-label="Characters" hidden><div class="mw-empty" role="alert"><p>${escapeHtml(active?.message ?? "角色插件未能启动，请重新打开项目。")}</p></div></section>` };
+  return { plugin_id: "characters", panel: view.render({ surface: "workbench", model: {
+    route_prefix: ports.routePrefix ?? "", primitives: { escape: value => escapeHtml(String(value)) },
+  } }) };
+}
+
 /** Host dispatches only declared plugin routes, after the normal control guard. */
 export async function handleCodingPluginHttp(request: IncomingMessage, response: ServerResponse, url: URL, ports: CodingSurfacePorts): Promise<boolean> {
-  if (!/^\/api\/plugins\/io\.molis\.work\.(coding|workspace|files|git|diff|text-stats|shelf)\//.test(url.pathname)) return false;
+  if (!/^\/api\/plugins\/io\.molis\.work\.(coding|workspace|files|git|diff|text-stats|shelf|characters)\//.test(url.pathname)) return false;
   const record = await ensureStarted(ports);
   const active = record.platform?.supervisor.state(url.pathname.split("/")[3]!);
   if (active?.status !== "running") { sendLocalWebJson(response, 503, { error: active?.message ?? record.error ?? "插件未能启动" }); return true; }

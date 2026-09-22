@@ -84,6 +84,8 @@
 | `modules/execution` | 历史 Claim、Run、lease、attempt | 保留查询、schema 和升级；供历史阅读与项目删除的现有活动保护使用；旧执行写入退役 | `partial` | EX1/EX4 历史迁移；事件工作流收敛 |
 | `modules/artifacts` | Artifact、版本、类型、内容引用与 provenance | AR1 已建立唯一正式事实；旧代码仅有各 owner 的字符串引用，没有第二套 Artifact Store | `partial` | AR1 已迁 Core；AR3 切换现有结果入口 |
 | `modules/shelf` | 个人置物架材料、副本任务、Hash 与本机抽字结果 | Home 下 `shelf/` 副本与 Jobs 沙箱；不写项目 Goal / Artifact | `partial` | Shelf 工作台切片；轮盘/热键仍待 Desktop |
+| `modules/characters` | 个人 Character 草稿、修订与启用状态 | 按本人隔离编辑，确认修订后交给 Artifact 发布；不拥有执行和权限 | `partial` | `specs/coding-plugin/spec.md` §0 C12（产品接入中） |
+| `plugins/native/characters` | 角色管理界面与发布操作 | 经 Host 使用本人草稿和当前项目 Artifact；不拥有执行与权限 | `partial` | `specs/coding-plugin/spec.md` §0 C12（产品接入中） |
 | `modules/functions` | 已发布判断函数与一次判断记录 | 函数库、来源/去向、场景绑定、判断落库；TypeSafe 由 Host 注入 | `partial` | `specs/functions-system-capability/spec.md`；`specs/functions-product-authoring/spec.md` |
 | `modules/evidence-verification` | 历史 Evidence、Correction、验收引用与文件来源 | 保留历史查询、文件读取、schema 和升级；当前报告与完成判断归 Goals 事件；旧写入退役 | `partial` | EX2/EX4 历史迁移；事件工作流收敛 |
 | `modules/governance-collaboration` | 当前用户决定、有限树提案／决定、provenance 与协作历史 | 当前可信用户来源、具体变更授权和决定事务；旧 Review/Clarification/Contract/Candidate/Rewire 仅保留历史职责 | `partial` | EX3/EX4/AR2/DD1/DD2/Cutover；事件工作流收敛 |

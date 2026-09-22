@@ -10,6 +10,10 @@
   },
   "sideEffects": false,
   "exports": {
+    "./plugin-pages": {
+      "types": "./dist/plugin-page-workspace.d.ts",
+      "import": "./dist/plugin-page-workspace.js"
+    },
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"

@@ -19,6 +19,10 @@ export { createPagesRouteHandlers, pagesRouteErrorResponse } from "./route-handl
 export { PAGES_PLUGIN_ID, PAGES_PROJECT_PLUGIN_ID, pagesManifest } from "./manifest.js";
 export { PAGES_MCP_EXPORTS, runPagesMcpTool } from "./mcp.js";
 export { openPagesStore, PagesStore } from "./store.js";
+export type { PagesImportDocumentsInput } from "./store.js";
+export { generatePagesFromMaterials } from "./generate.js";
+export { preparePagesImport } from "./import-files.js";
+export type { PagesImportFile, PreparedPagesImportDocument, PreparedPagesImport } from "./import-files.js";
 export { PagesError } from "./error.js";
 export { EMPTY_PAGES_BODY, parsePagesBody } from "./document.js";
 export { PAGES_TEMPLATES, pagesTemplateById, pagesTemplateSummaries } from "./templates.js";

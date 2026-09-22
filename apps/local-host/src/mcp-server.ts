@@ -110,7 +110,11 @@ export class LocalMcpServer {
         }
         const store = new LocalProjectDatabase(connection.databasePath);
         try {
-          return registerPagesArtifactVersion(new GoalProjectApplication(store), connection.boardId)(input);
+          return registerPagesArtifactVersion(
+            new GoalProjectApplication(store),
+            connection.boardId,
+            connection.projectId ?? connection.boardId,
+          )(input);
         } finally {
           store.close();
         }

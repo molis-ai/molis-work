@@ -87,7 +87,7 @@ export const BUILTIN_PLUGIN_WORKBENCH: readonly BuiltinPluginWorkbenchPack[] = [
     contributions: [pagesUiContribution],
     stylesheet: PAGES_STYLES,
     clientFactory: PAGES_CLIENT_FACTORY_SCRIPT,
-    searchRow: { selector: "[data-page-id]", idDataset: "pageId" },
+    searchRow: { selector: "button.feed-stage-entry[data-page-id]", idDataset: "pageId" },
   },
   {
     project_plugin_id: "form",

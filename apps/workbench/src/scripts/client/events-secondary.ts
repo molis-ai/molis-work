@@ -186,6 +186,7 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `        return;
           }
           saveUiState();
           await refreshFeedStage();
+          if (action === "inbox") await refreshInboxStage();
         } catch (error) {
           if (status) {
             status.textContent = error.message || L("Item 操作失败");

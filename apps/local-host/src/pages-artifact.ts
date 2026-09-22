@@ -2,14 +2,18 @@ import {
   PAGES_ARTIFACT_SCHEMA_VERSION,
   PAGES_ARTIFACT_TYPE_ID,
 } from "@molis-ai/molis-work-contracts/modules/pages";
-import { pagesManifest, type PagesPublishArtifactPort } from "@molis-ai/molis-work-plugin-pages";
+import { PagesError, pagesManifest, type PagesPublishArtifactPort } from "@molis-ai/molis-work-plugin-pages";
 import type { GoalProjectApplication } from "./goal-project-application.js";
 
 export function registerPagesArtifactVersion(
   coordinator: GoalProjectApplication,
   boardId: string,
+  expectedProjectId = boardId,
 ): PagesPublishArtifactPort {
   return (input) => {
+    if (input.project_id !== expectedProjectId) {
+      throw new PagesError("pages.invalid", "文档项目与当前项目不一致");
+    }
     const result = coordinator.artifacts.commands.registerVersion({
       board_id: boardId,
       actor_id: "web-user",

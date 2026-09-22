@@ -86,7 +86,9 @@ Host 侧改哪里、调用链怎么走，见 [CLI 与开发 · 对外 MCP](../cl
 
 ## 事件去向的动作名单
 
-Functions「用在哪」里，首页 / Inbox / Feed 是事件去向：判断只许建议人去点哪颗已有按钮，不许自己改数据，也不许在现场长出新按钮。Agent 去向才放「能调、但不长在这张卡片上」的动作（含 MCP 写工具）。
+Functions「用在哪」里，首页 / Inbox / Feed 是事件去向：判断本身不改数据，也不在现场长出新按钮。默认建议人点击已有处置。Feed 来源规则另有用户显式配置的 `admission: "inbox"`：Feed 用例消费判断后加入 Inbox（失败或不确定进入待复核），不改变 Functions 的只判断职责，也不授权其他自动动作。旧规则默认 `suggest`。Agent 去向才放「能调、但不长在这张卡片上」的动作（含 MCP 写工具）。
+
+Inbox → Pages 通过 Host 组合各插件公开能力，输入快照与幂等收据归 Pages，Attention 仍归 Inbox 对应 Module。Workbench 助手复用这些 HTTP 动作；未新增对外 MCP 或 Native 事件总线。标签对象恢复与调用约定见 [Host 接线](../../skills/molis-plugin-dev/host.md#信息整理的-host-组合)。
 
 **判断能选的动作，是人正盯着这个对象时、已经能点的下一步处置。不是插件所有能改数据的事。**
 

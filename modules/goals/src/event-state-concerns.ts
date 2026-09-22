@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type {
   ApplyGoalConcernInput,
+  GoalEventAppliedDecisionView,
   GoalEventConcernResult,
   GoalEventConcernStatus,
   GoalEventScope,
@@ -24,6 +25,7 @@ export class GoalEventConcerns {
     private readonly facts: GoalEventFactsRepository,
     private readonly records: GoalEventStateRepository,
     private readonly core: GoalEventStateCore,
+    private readonly reuseDecision: (goal: GoalRecord, decision: GoalEventAppliedDecisionView) => void,
   ) {}
 
   applyConcern(input: ApplyGoalConcernInput): GoalEventConcernResult {
@@ -154,6 +156,7 @@ export class GoalEventConcerns {
       if (!decisionHasEffect(cited, "accept_concerns") || !decisionCoversConcern(cited, concern)) {
         throw this.context.error("event_concern.accept_requires_user_decision", "接受风险必须引用明确接受该 Concern 的可信决定，拒绝不是授权");
       }
+      this.reuseDecision(goal, cited);
       return;
     }
     if (cited) {

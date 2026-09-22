@@ -231,10 +231,15 @@ export const MICRO_INTERACTION_CLIENT_SCRIPT = `
     if (event.key !== "Enter" || !(event.metaKey || event.ctrlKey)) return;
     const dialog = event.target instanceof Element && event.target.closest("dialog[open]");
     if (!dialog) return;
-    const form = event.target.closest("form") || dialog.querySelector("form");
-    if (!form || !form.querySelector('button[type="submit"]:not(:disabled)')) return;
+    const form = (event.target instanceof Element && event.target.closest("form")) || dialog.querySelector("form");
+    if (!form) return;
+    const enabledSubmit = (button) => button instanceof HTMLButtonElement && button.type === "submit" && !button.disabled && button.form === form;
+    const focused = [document.activeElement, event.target].find((button) => enabledSubmit(button));
+    const fallback = form.querySelector('button[type="submit"]:not(:disabled)');
+    if (!fallback || fallback.form !== form) return;
     event.preventDefault();
-    form.requestSubmit();
+    if (focused) form.requestSubmit(focused);
+    else form.requestSubmit();
   });
 
   addEventListener("click", scan, true);

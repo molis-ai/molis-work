@@ -116,6 +116,7 @@ export interface FeedUiPrimitives {
 }
 
 export interface FeedUiOutRule {
+  readonly admission?: "suggest" | "inbox";
   readonly rule_id: string;
   readonly name: string;
   readonly enabled: boolean;
@@ -236,7 +237,7 @@ export function renderFeedWorkbenchFragment(model: FeedUiModel): string {
   if (model.error) {
     return `<div class="feed-error-state" role="alert"><strong>${model.primitives.text("Feed 暂时无法载入")}</strong><p>${model.primitives.escape(model.error)}</p><button class="mw-btn mw-btn--secondary" type="button" data-retry-feed-detail>${model.primitives.text("重试")}</button></div>`;
   }
-  return renderFeedStageDirectory(model);
+  return renderFeedStageDirectory(model) + `<section data-feed-task-configs>${renderTaskConfigPanels(model)}</section>`;
 }
 
 function renderFeedStageDirectory(model: FeedUiModel): string {
@@ -441,20 +442,9 @@ function renderSourceRuns(source: FeedUiSource, p: FeedUiModel["primitives"]): s
   }).join("")}</ol>` : `<div class="source-panel-empty">${p.icon("waiting")}<strong>${p.text("还没有运行记录")}</strong></div>`;
 }
 
-export function renderFeedOverlays(model: FeedUiModel): string {
+function renderTaskConfigPanels(model: FeedUiModel): string {
   const p = model.primitives;
-  const catalogOptions = model.source_catalog.map((source) => `<option value="${p.escape(source.id)}">${p.escape(`${source.category_label} · ${source.name}`)}</option>`).join("");
-  const connectorLabel = (status: FeedUiConnectorStatus) => status.bound ? `${p.text("已连接")} ${p.escape(status.hint || "")}` : status.problem ? p.text("凭据不可读取") : p.text("未连接");
-  const choices = [
-    ["custom_rss", "rss", "RSS / Atom", "粘贴地址"],
-    ...(model.source_catalog.length ? [["rss", "list", "目录订阅", "选现成源"] as const] : []),
-    ["web_query", "search", "网页搜索", "按关键词"],
-    ["youtube_channel", "play", "YouTube", "频道 ID"],
-    ["github", "tree", "GitHub", "未读通知"],
-    ["gmail", "message", "Gmail", "按范围收信"],
-  ];
-  const sourceChoiceRows = choices.map(([kind, icon, title, hint]) => `<button type="button" class="feed-source-choice" data-feed-choose-kind="${kind}"><span class="feed-source-choice__mark" aria-hidden="true">${p.icon(icon)}</span><strong>${p.text(title)}</strong><small>${p.text(hint)}</small></button>`).join("");
-  const taskPanels = model.sources.map((source) => {
+  return model.sources.map((source) => {
     const id = p.escape(source.source_id);
     const interval = source.schedule.mode === "interval" ? source.schedule.interval_minutes : 60;
     const scope = typeof source.config.scope === "string" ? source.config.scope : source.scope_label;
@@ -471,12 +461,30 @@ export function renderFeedOverlays(model: FeedUiModel): string {
       <details class="feed-task-extra"><summary>${p.text("最近拉取")}</summary>${renderSourceRuns(source, p)}</details><details class="feed-task-extra"><summary>${p.text("移除任务")}</summary><p>${p.text("停止拉取，已收集的消息与历史仍会保留。")}</p><button class="mw-btn mw-btn--danger-outline" type="button" data-source-delete="retain_history" data-source-id="${id}"${source.prototype?' disabled':''}>${p.text("移除任务并保留历史")}</button></details><p data-source-action-status role="status" hidden></p>
     </section>`;
   }).join("");
+}
+
+export function renderFeedOverlays(model: FeedUiModel): string {
+  const p = model.primitives;
+  const catalogOptions = model.source_catalog.map((source) => `<option value="${p.escape(source.id)}">${p.escape(`${source.category_label} · ${source.name}`)}</option>`).join("");
+  const connectorLabel = (status: FeedUiConnectorStatus) => status.bound ? `${p.text("已连接")} ${p.escape(status.hint || "")}` : status.problem ? p.text("凭据不可读取") : p.text("未连接");
+  const choices = [
+    ["research_library", "book", "共享研究库", "已发布的研究成果"],
+    ["custom_rss", "rss", "RSS / Atom", "粘贴地址"],
+    ...(model.source_catalog.length ? [["rss", "list", "目录订阅", "选现成源"] as const] : []),
+    ["web_query", "search", "网页搜索", "按关键词"],
+    ["youtube_channel", "play", "YouTube", "频道 ID"],
+    ["github", "tree", "GitHub", "未读通知"],
+    ["gmail", "message", "Gmail", "按范围收信"],
+  ];
+  const sourceChoiceRows = choices.map(([kind, icon, title, hint]) => `<button type="button" class="feed-source-choice" data-feed-choose-kind="${kind}"><span class="feed-source-choice__mark" aria-hidden="true">${p.icon(icon)}</span><strong>${p.text(title)}</strong><small>${p.text(hint)}</small></button>`).join("");
+  const taskPanels = renderTaskConfigPanels(model);
   return `<dialog class="feed-source-dialog feed-task-dialog mw-dialog mw-dialog--form" data-feed-sources-dialog aria-labelledby="feed-source-dialog-title"><div class="feed-task-dialog-shell mw-form mw-dialog__shell">
     <header class="mw-form__header"><div><h2 id="feed-source-dialog-title">${p.text("添加任务")}</h2><p data-feed-setup-description>${p.text("选一种来源。")}</p></div><button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-feed-sources-close aria-label="${p.text("关闭")}">${p.icon("x")}</button></header>
     <div class="feed-task-dialog-body mw-form__body">
       <section data-feed-source-choices>${sourceChoiceRows}</section>
       <section data-feed-source-setup hidden><button class="mw-btn mw-btn--link feed-setup-back" type="button" data-feed-setup-back>${p.icon("back")}${p.text("选择其他来源")}</button>
         <form id="feed-add-task-form" data-feed-add-form hidden><label><span>${p.text("任务名称")} <small>${p.text("可选")}</small></span><input data-feed-add-name maxlength="80" placeholder="${p.text("例如：产品观察")}"></label>
+          <div data-feed-setup-kind="research_library" hidden><label><span>${p.text("GitHub 仓库")}</span><input data-feed-source-value="research_library" value="molis-ai/research-library" required></label><label><span>${p.text("研究来源 id")}</span><input data-feed-research-source value="twitter-ai-observation" required></label><small>${p.text("读取已发布研究，保留原始链接、版本和使用限制。私有仓库使用本机 Git 登录。")}</small></div>
           <label data-feed-setup-kind="custom_rss" hidden><span>${p.text("订阅地址")}</span><input data-feed-source-value="custom_rss" type="url" placeholder="https://example.com/feed.xml" required><small>${p.text("填写网站提供的 RSS 或 Atom 地址。")}</small></label>
           <label data-feed-setup-kind="rss" hidden><span>${p.text("选择订阅")}</span><select data-feed-rss-definition>${catalogOptions}</select></label>
           <label data-feed-setup-kind="web_query" hidden><span>${p.text("你想追踪什么？")}</span><input data-feed-source-value="web_query" placeholder="${p.text("例如：AI 产品设计")}" required></label>
@@ -495,7 +503,7 @@ export function renderFeedOverlays(model: FeedUiModel): string {
 
 function renderOutRuleDraft(model: FeedUiModel): string {
   const p = model.primitives;
-  return `<details class="feed-task-extra"><summary>${p.text("捕捉规则（可选）")}</summary><p>${p.text("命中后立刻出现在 Artifacts。也可稍后在任务配置里添加。")}</p><label><span>${p.text("规则名称")} <small>${p.text("可选")}</small></span><input data-feed-add-out-rule-name maxlength="80" placeholder="${p.text("例如：发布相关")}"></label><label><span>${p.text("标题、摘要、标签或正文包含")}</span><input data-feed-add-out-rule-contains maxlength="200" placeholder="launch"></label>${renderCaptureJudgmentSelect(model, "data-feed-add-out-rule-function-key")}</details>`;
+  return `<details class="feed-task-extra"><summary>${p.text("捕捉规则（可选）")}</summary><p>${p.text("匹配消息会保留精确版本；可另外选择筛选后自动放入 Inbox。")}</p><label><span>${p.text("规则名称")} <small>${p.text("可选")}</small></span><input data-feed-add-out-rule-name maxlength="80" placeholder="${p.text("例如：发布相关")}"></label><label><span>${p.text("标题、摘要、标签或正文包含")}</span><input data-feed-add-out-rule-contains maxlength="200" placeholder="launch"></label>${renderCaptureJudgmentSelect(model, "data-feed-add-out-rule-function-key")}${renderAdmissionSelect(model, "data-feed-add-out-rule-admission")}</details>`;
 }
 
 function renderOutRulesSection(model: FeedUiModel, source: FeedUiSource): string {
@@ -509,15 +517,21 @@ function renderOutRulesSection(model: FeedUiModel, source: FeedUiSource): string
       const filter = [
         rule.contains ? p.text("包含 “{contains}”", { contains: rule.contains }) : p.text("该任务的全部新消息"),
         rule.function_key ? (judgmentName ?? "") : "",
+        p.text(rule.admission === "inbox" ? "筛选后自动入 Inbox，待复核单独标明" : "仅建议"),
         rule.source_kind ? p.text("来源类型 {kind}", { kind: rule.source_kind }) : "",
       ].filter(Boolean).join(" · ");
       return `<article class="feed-source-row directory-list-row" data-feed-out-rule-row="${p.escape(rule.rule_id)}"><div class="feed-source-copy"><strong>${p.escape(rule.name)}</strong><p>${p.escape(filter)}</p><small>${rule.enabled ? p.text("已启用") : p.text("已停用")}</small></div><div class="feed-source-actions"><button class="mw-btn mw-btn--ghost" type="button" data-feed-out-rule-toggle="${p.escape(rule.rule_id)}" data-enabled="${rule.enabled ? "true" : "false"}"${source.prototype ? " disabled" : ""}>${rule.enabled ? p.text("停用") : p.text("启用")}</button><button class="mw-btn mw-btn--danger-outline" type="button" data-feed-out-rule-delete="${p.escape(rule.rule_id)}"${source.prototype ? " disabled" : ""}>${p.text("删除")}</button></div></article>`;
     }).join("")
-    : `<p class="feed-source-empty">${p.text("这个任务还没有捕捉规则。新消息命中后会立刻出现在 Artifacts。")}</p>`;
+    : `<p class="feed-source-empty">${p.text("这个任务还没有捕捉规则。可选择已发布的判断函数，并设置是否自动入 Inbox。")}</p>`;
   const form = source.prototype
     ? ""
-    : `<div class="feed-source-form"><label><span>${p.text("规则名称")}</span><input data-feed-out-rule-name maxlength="80" placeholder="${p.text("例如：发布相关")}"></label><label><span>${p.text("标题、摘要、标签或正文包含")}</span><input data-feed-out-rule-contains maxlength="200" placeholder="launch"></label>${renderCaptureJudgmentSelect(model, "data-feed-out-rule-function-key")}<button class="mw-btn mw-btn--primary" type="button" data-feed-out-rule-create>${p.text("添加规则")}</button></div>`;
-  return `<details class="feed-task-extra" data-feed-out-rules="${id}"><summary>${p.text("捕捉规则")}${rules.length ? `<small>${p.text("{count} 条规则", { count: rules.length })}</small>` : ""}</summary><p>${p.text("只对规则生效之后新写入或更新的消息求值；命中后立刻留下精确版本，失败才进 Inbox。")}</p><div class="feed-source-list">${rows}</div>${form}</details>`;
+    : `<div class="feed-source-form"><label><span>${p.text("规则名称")}</span><input data-feed-out-rule-name maxlength="80" placeholder="${p.text("例如：发布相关")}"></label><label><span>${p.text("标题、摘要、标签或正文包含")}</span><input data-feed-out-rule-contains maxlength="200" placeholder="launch"></label>${renderCaptureJudgmentSelect(model, "data-feed-out-rule-function-key")}${renderAdmissionSelect(model, "data-feed-out-rule-admission")}<button class="mw-btn mw-btn--primary" type="button" data-feed-out-rule-create>${p.text("添加规则")}</button></div>`;
+  return `<details class="feed-task-extra" data-feed-out-rules="${id}"><summary>${p.text("捕捉规则")}${rules.length ? `<small>${p.text("{count} 条规则", { count: rules.length })}</small>` : ""}</summary><p>${p.text("默认处理新写入或更新的消息。对已有消息，可显式运行当前规则；入箱不会将事项标记已处理。")}</p><div class="feed-source-list">${rows}</div>${form}<button class="mw-btn mw-btn--secondary" type="button" data-feed-out-rules-evaluate="${id}">${p.text("对最近 20 条消息运行当前规则")}</button></details>`;
+}
+
+function renderAdmissionSelect(model: FeedUiModel, attr: string): string {
+  const p = model.primitives;
+  return `<label><span>${p.text("处理方式")}</span><select ${attr}><option value="suggest">${p.text("仅建议，手动处理")}</option><option value="inbox">${p.text("筛选后自动入 Inbox")}</option></select></label>`;
 }
 
 function renderCaptureJudgmentSelect(model: FeedUiModel, attr: string, selected: string | null = null): string {
@@ -587,7 +601,9 @@ function renderItemActions(item: FeedUiItem, inboxActive: boolean, p: FeedUiPrim
   const shown = inboxActive
     ? [...FEED_CAPTURE_DISPOSITION_IDS]
     : visibleFeedDispositionIds(item.suggested_behavior_ids, true);
-  return shown.map((id, index) => dispositionButton(item, id, index === 0, inboxActive, p)).join("");
+  const manualAdmission = !inboxActive && !shown.includes(INBOX_ADMIT_BEHAVIOR_ID)
+    ? `<button class="mw-btn mw-btn--secondary" type="button" data-feed-action="inbox" data-feed-item-id="${p.escape(item.item_id)}" data-feed-revision="${item.revision}">${p.text("手动加入 Inbox")}</button>` : "";
+  return shown.map((id, index) => dispositionButton(item, id, index === 0, inboxActive, p)).join("") + manualAdmission;
 }
 
 function dispositionButton(

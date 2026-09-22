@@ -9,6 +9,11 @@ packages:
   - 'plugins/official-integrations/*'
   - 'tooling/plugin-cli'
 
+# readable-stream 2 pins safe-buffer 5.1.2 while newer string_decoder pins 5.2.1.
+# The installer flattens runtime dependencies by package name, and 5.2.1 keeps the 5.1 API.
+overrides:
+  safe-buffer: 5.2.1
+
 # Allow esbuild postinstall (required by tsx for pnpm molis-work / tests).
 allowBuilds:
   better-sqlite3: true

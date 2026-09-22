@@ -8,8 +8,9 @@ import {
 import { INBOX_NEXT_SCENE_ID } from "@molis-ai/molis-work-contracts/modules/functions";
 import type { MolisWorkWebView, WorkbenchRenderer } from "@molis-ai/molis-work-app-workbench";
 import type { LocalProjectDatabase } from "./project-database.js";
-import { createLocalFeedApplication } from "./feed-application.js";
+import { createLocalFeedApplication, withLocalFeedJudgments } from "./feed-application.js";
 import { bindBoardFunctionScene, functionSceneHttpBody } from "./functions-host.js";
+import { generateInboxPages, inboxPagesResults } from "./inbox-pages.js";
 
 export interface InboxNativePluginHttpOptions {
   readonly boardId: string;
@@ -32,9 +33,12 @@ export async function handleInboxNativePluginHttp(
   if (!method || !["GET", "POST"].includes(method)) return false;
   const body = method === "GET" ? await readOptionalBody(request) : await readBody(request);
   if (method === "GET") options.reconcileGoalDecisions?.();
-  const feed = createLocalFeedApplication(options.store.db);
+  const feed = createLocalFeedApplication(options.store.db, withLocalFeedJudgments(options.homeDirectory));
   const homeDirectory = options.homeDirectory;
   const routes = new InboxPluginRouteTable(createInboxRouteHandlers({
+    evaluateJudgment: homeDirectory ? ids => feed.evaluateInboxEntries(options.boardId, ids) : undefined,
+    pagesResults: homeDirectory ? () => inboxPagesResults(homeDirectory, options.boardId) : undefined,
+    generatePages: homeDirectory ? (input) => generateInboxPages({ home: homeDirectory, projectId: options.boardId, feed }, input) : undefined,
     listEntries: () => feed.listInboxEntries(options.boardId).map((entry) => ({
       ...entry,
       project_id: entry.board_id,

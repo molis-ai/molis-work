@@ -301,7 +301,7 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
       configSave.dataset.sourceId = value;
       configSave.disabled = feedSourcesDialog.querySelector('[data-feed-task-config="' + CSS.escape(value) + '"]')?.dataset.prototype === "true";
 
-      const headings = { custom_rss: "RSS / Atom", rss: "目录订阅", web_query: "网页搜索", youtube_channel: "YouTube", github: "GitHub", gmail: "Gmail" };
+      const headings = { research_library: "共享研究库", custom_rss: "RSS / Atom", rss: "目录订阅", web_query: "网页搜索", youtube_channel: "YouTube", github: "GitHub", gmail: "Gmail" };
       const title = stage === "config" ? "任务配置" : setup ? headings[value] : "添加任务";
       feedSourcesDialog.querySelector("h2").textContent = L(title);
       feedSourcesDialog.querySelector('footer [data-feed-sources-close]').textContent = L("取消");
@@ -332,7 +332,7 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
       const name = String(form.querySelector("[data-feed-add-out-rule-name]")?.value || "").trim();
       const functionKey = String(form.querySelector("[data-feed-add-out-rule-function-key]")?.value || "").trim();
       if (!contains && !name) return;
-      const result = await feedApi("/api/feed/out-rules", "POST", { name: name || contains, contains, source_id: sourceId, ...(functionKey ? { function_key: functionKey } : {}) });
+      const result = await feedApi("/api/feed/out-rules", "POST", { name: name || contains, contains, source_id: sourceId, admission: form.querySelector("[data-feed-add-out-rule-admission]")?.value || "suggest", ...(functionKey ? { function_key: functionKey } : {}) });
       form.dataset.createdOutRuleId = result.rule.rule_id;
     };
 
@@ -442,6 +442,22 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
         const nextWorkspace = template.content.querySelector("[data-feed-stage-workspace]");
         if (!list || !workspace || !empty || !nextList || !nextWorkspace) throw new Error(L("无法更新 Feed 列表"));
         list.replaceChildren(...nextList.childNodes);
+        const configs = feedSourcesDialog?.querySelector("[data-feed-task-configs]");
+        const nextConfigs = template.content.querySelector("[data-feed-task-configs]");
+        if (configs && nextConfigs) {
+          const visibleId = configs.querySelector("[data-feed-task-config]:not([hidden])")?.dataset.feedTaskConfig;
+          const openSections = [...configs.querySelectorAll('details[open]')].map(detail => [detail.closest('[data-feed-task-config]')?.dataset.feedTaskConfig, detail.querySelector('summary')?.textContent]);
+          const drafts = [...configs.querySelectorAll('input[data-source-config-field], textarea[data-source-config-field]')].filter(field => field.value !== field.defaultValue).map(field => ({ id: field.closest('[data-feed-task-config]')?.dataset.feedTaskConfig, name: field.dataset.sourceConfigField, value: field.value }));
+          configs.replaceChildren(...nextConfigs.childNodes);
+          configs.querySelectorAll('[data-feed-task-config]').forEach(config => {
+            config.hidden = config.dataset.feedTaskConfig !== visibleId;
+            config.querySelectorAll('details').forEach(detail => { detail.open = openSections.some(([id, label]) => id === config.dataset.feedTaskConfig && label === detail.querySelector('summary')?.textContent); });
+          });
+          for (const draft of drafts) {
+            const field = configs.querySelector('[data-feed-task-config="' + CSS.escape(draft.id) + '"] [data-source-config-field="' + CSS.escape(draft.name) + '"]');
+            if (field) field.value = draft.value;
+          }
+        }
         workspace.querySelectorAll("[data-feed-entry-detail], [data-feed-detail]").forEach((node) => {
           if (node !== empty) node.remove();
         });

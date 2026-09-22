@@ -20,6 +20,8 @@ export interface PersonalNativePluginHttpPorts {
   readonly publishDatasetArtifact?: DatasetRoutePorts["publishArtifact"];
   readonly publishPptArtifact?: PptRoutePorts["publishArtifact"];
   readonly completeText?: PagesRoutePorts["completeText"];
+  /** Catalog project resolved by the Host route. Pages rejects a different query or body project. */
+  readonly boundProjectId?: string;
 }
 
 export async function handlePersonalNativePluginHttp(
@@ -38,6 +40,7 @@ export async function handlePersonalNativePluginHttp(
     () => handlePagesNativePluginHttp(request, response, routed, homeDirectory, {
       publishArtifact: ports.publishArtifact,
       completeText,
+      boundProjectId: ports.boundProjectId,
     }),
     () => handleFormNativePluginHttp(request, response, routed, homeDirectory, {
       completeText,

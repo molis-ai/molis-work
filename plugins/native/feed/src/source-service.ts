@@ -14,13 +14,19 @@ export class FeedSourceService {
     this.publicSync = new PublicSourceSync(ports, boardId);
   }
   sync(sourceId: string, input: { idempotencyKey: string; signal?: AbortSignal }): Promise<FeedSourceSyncResult> {
-    return this.publicSync.sync(this.activeSource(sourceId), input);
+    const source = this.activeSource(sourceId);
+    if (source.kind === "research_library") {
+      if (!this.ports.syncRepository) throw new FeedDomainError("研究库适配器不可用", "feed_source_invalid_configuration");
+      return this.ports.syncRepository(source, input);
+    }
+    return this.publicSync.sync(source, input);
   }
   register(input: RegisterFeedSourceInput): { source: FeedSourceRecord; registered: boolean } {
     const normalized = normalizeRegistration(input, this.ports.providers);
+    const syncKind = "public_source";
     const existing = this.feed.findSource(
       this.boardId,
-      "public_source",
+      syncKind,
       normalized.definitionId,
       normalized.configFingerprint,
     );
@@ -39,7 +45,7 @@ export class FeedSourceService {
       source_id: stableId("feed-source", `${this.boardId}\u0000${normalized.kind}\u0000${normalized.configFingerprint}`),
       kind: normalized.kind,
       definition_id: normalized.definitionId,
-      sync_kind: "public_source",
+      sync_kind: syncKind,
       name: normalized.name,
       description: normalized.description,
       status: "active",

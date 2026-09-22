@@ -21,7 +21,9 @@ export type BoundaryViolationCode =
   | "contracts-root-import"
   | "cross-module-implementation"
   | "deep-import"
+  | "horizontal-reverse-dependency"
   | "legacy-root-import"
+  | "platform-reverse-dependency"
   | "plugin-implementation-import"
   | "production-test-kit-dependency"
   | "relative-cross-owner"
@@ -42,6 +44,8 @@ export interface BoundaryViolation {
   readonly message: string;
 }
 
+const CONTRACTS_PACKAGE_NAME = "@molis-ai/molis-work-contracts";
+
 const DATABASE_IMPLEMENTATIONS = new Set([
   "better-sqlite3",
   "bun:sqlite",
@@ -50,14 +54,39 @@ const DATABASE_IMPLEMENTATIONS = new Set([
   "sqlite3",
 ]);
 
-function importsDatabaseImplementation(specifier: string): boolean {
-  return [...DATABASE_IMPLEMENTATIONS].some(
+// Network clients forbidden for Contracts. Ordinary node builtins such as
+// node:fs stay legal; this is not a ban on every non-workspace import.
+const NETWORK_CLIENTS = new Set([
+  "http",
+  "http2",
+  "https",
+  "node:http",
+  "node:http2",
+  "node:https",
+  "undici",
+  "ws",
+]);
+
+function importsListedPackage(specifier: string, packageNames: ReadonlySet<string>): boolean {
+  return [...packageNames].some(
     (packageName) => specifier === packageName || specifier.startsWith(`${packageName}/`),
   );
 }
 
+function importsDatabaseImplementation(specifier: string): boolean {
+  return importsListedPackage(specifier, DATABASE_IMPLEMENTATIONS);
+}
+
+function importsNetworkClient(specifier: string): boolean {
+  return importsListedPackage(specifier, NETWORK_CLIENTS);
+}
+
 function isPlugin(kind: BoundaryPackageKind): boolean {
   return kind === "native-plugin" || kind === "integration-plugin";
+}
+
+function isAppModuleOrPlugin(target: BoundaryPackage): boolean {
+  return target.kind === "app" || target.kind === "module" || isPlugin(target.kind);
 }
 
 function exportedSubpath(specifier: string, target: BoundaryPackage): string | null {
@@ -107,7 +136,7 @@ export function evaluateImportBoundary(observation: ImportObservation): readonly
     );
   }
 
-  if (specifier === "@molis-ai/molis-work-contracts") {
+  if (specifier === CONTRACTS_PACKAGE_NAME) {
     violations.push(
       violation(
         "contracts-root-import",
@@ -123,6 +152,21 @@ export function evaluateImportBoundary(observation: ImportObservation): readonly
         "relative-cross-owner",
         observation,
         "A relative import crossed a package owner boundary; use the target package public entrypoint",
+      ),
+    );
+  }
+
+  // Database drivers and network clients are not workspace packages. Contracts
+  // forbids them by name; the workspace-target return below must not skip that.
+  if (
+    importer.name === CONTRACTS_PACKAGE_NAME
+    && (importsDatabaseImplementation(specifier) || importsNetworkClient(specifier))
+  ) {
+    violations.push(
+      violation(
+        "contracts-implementation-dependency",
+        observation,
+        `The Contracts package must not depend on database or network client ${specifier}`,
       ),
     );
   }
@@ -180,7 +224,11 @@ export function evaluateImportBoundary(observation: ImportObservation): readonly
     );
   }
 
-  if (importer.name === "@molis-ai/molis-work-contracts") {
+  if (
+    importer.name === CONTRACTS_PACKAGE_NAME
+    && !importsDatabaseImplementation(specifier)
+    && !importsNetworkClient(specifier)
+  ) {
     violations.push(
       violation(
         "contracts-implementation-dependency",
@@ -190,91 +238,183 @@ export function evaluateImportBoundary(observation: ImportObservation): readonly
     );
   }
 
+  if (importer.kind === "horizontal" && isAppModuleOrPlugin(target)) {
+    violations.push(
+      violation(
+        "horizontal-reverse-dependency",
+        observation,
+        `${importer.name} must not import ${target.name}; a Horizontal Service consumes public Contracts and colocated adapter ports, not an App, Module implementation, or Plugin implementation`,
+      ),
+    );
+  }
+
+  if (
+    importer.kind === "foundation"
+    && importer.name !== CONTRACTS_PACKAGE_NAME
+    && (isAppModuleOrPlugin(target) || target.kind === "horizontal")
+  ) {
+    violations.push(
+      violation(
+        "platform-reverse-dependency",
+        observation,
+        `${importer.name} must not import ${target.name}; a platform package does not depend upward on an App, Module, Horizontal Service, or Plugin implementation`,
+      ),
+    );
+  }
+
   return violations;
 }
 
-function maskComments(source: string): string {
-  // split("") preserves UTF-16 offsets, which are also used by RegExp match.index.
+interface CodeFrame { t: "code"; brace: number; close: "eof" | "interp" }
+interface LineFrame { t: "line" }
+interface BlockFrame { t: "block" }
+interface SingleQuoteFrame { t: "sq"; chunkStart: number }
+interface DoubleQuoteFrame { t: "dq"; chunkStart: number }
+interface TemplateFrame { t: "tpl"; chunkStart: number }
+type ScanFrame = CodeFrame | LineFrame | BlockFrame | SingleQuoteFrame | DoubleQuoteFrame | TemplateFrame;
+
+/**
+ * Blank comments and record string/template ranges without swallowing `${...}`
+ * code. Offsets stay UTF-16 so they match RegExp match.index.
+ */
+function scanImportSource(source: string): {
+  searchable: string;
+  literalRanges: readonly (readonly [number, number])[];
+} {
   const characters = source.split("");
-  let quote: "'" | '"' | "`" | null = null;
+  const ranges: Array<readonly [number, number]> = [];
+  const stack: ScanFrame[] = [{ t: "code", brace: 0, close: "eof" }];
+  const pushRange = (start: number, end: number): void => {
+    if (start >= 0 && start <= end) ranges.push([start, end]);
+  };
+
   for (let index = 0; index < characters.length; index += 1) {
-    const character = characters[index];
+    const context = stack[stack.length - 1];
+    if (!context) break;
+    const character = characters[index] ?? "";
     const next = characters[index + 1];
 
-    if (quote) {
+    if (context.t === "line") {
+      if (character === "\n") stack.pop();
+      else characters[index] = " ";
+      continue;
+    }
+    if (context.t === "block") {
+      if (character === "*" && next === "/") {
+        characters[index] = " ";
+        characters[index + 1] = " ";
+        index += 1;
+        stack.pop();
+      } else if (character !== "\n") characters[index] = " ";
+      continue;
+    }
+    if (context.t === "sq" || context.t === "dq") {
+      const quote = context.t === "sq" ? "'" : '"';
       if (character === "\\") index += 1;
-      else if (character === quote) quote = null;
+      else if (character === quote) {
+        pushRange(context.chunkStart, index);
+        stack.pop();
+      }
       continue;
     }
-    if (character === "'" || character === '"' || character === "`") {
-      quote = character;
+    if (context.t === "tpl") {
+      if (character === "\\") {
+        index += 1;
+        continue;
+      }
+      if (character === "`") {
+        pushRange(context.chunkStart, index);
+        stack.pop();
+        continue;
+      }
+      if (character === "$" && next === "{") {
+        pushRange(context.chunkStart, index + 1);
+        context.chunkStart = -1;
+        index += 1;
+        stack.push({ t: "code", brace: 0, close: "interp" });
+      }
       continue;
     }
+
     if (character === "/" && next === "/") {
       characters[index] = " ";
       characters[index + 1] = " ";
-      index += 2;
-      while (index < characters.length && characters[index] !== "\n") {
-        characters[index] = " ";
-        index += 1;
-      }
+      index += 1;
+      stack.push({ t: "line" });
       continue;
     }
     if (character === "/" && next === "*") {
       characters[index] = " ";
       characters[index + 1] = " ";
-      index += 2;
-      while (index < characters.length) {
-        if (characters[index] === "*" && characters[index + 1] === "/") {
-          characters[index] = " ";
-          characters[index + 1] = " ";
-          index += 1;
-          break;
-        }
-        if (characters[index] !== "\n") characters[index] = " ";
-        index += 1;
+      index += 1;
+      stack.push({ t: "block" });
+      continue;
+    }
+    if (character === "'") {
+      stack.push({ t: "sq", chunkStart: index });
+      continue;
+    }
+    if (character === '"') {
+      stack.push({ t: "dq", chunkStart: index });
+      continue;
+    }
+    if (character === "`") {
+      stack.push({ t: "tpl", chunkStart: index });
+      continue;
+    }
+    if (context.t !== "code") continue;
+    if (character === "{") {
+      context.brace += 1;
+      continue;
+    }
+    if (character === "}") {
+      if (context.brace > 0) context.brace -= 1;
+      else if (context.close === "interp") {
+        stack.pop();
+        const parent = stack[stack.length - 1];
+        if (parent && parent.t === "tpl") parent.chunkStart = index;
       }
     }
   }
-  return characters.join("");
+
+  for (const frame of stack) {
+    if ((frame.t === "sq" || frame.t === "dq" || frame.t === "tpl") && frame.chunkStart >= 0) {
+      pushRange(frame.chunkStart, characters.length);
+    }
+  }
+  return { searchable: characters.join(""), literalRanges: ranges };
 }
 
-function literalRanges(source: string): readonly (readonly [number, number])[] {
-  const ranges: Array<readonly [number, number]> = [];
-  for (let index = 0; index < source.length; index += 1) {
-    const quote = source[index];
-    if (quote !== "'" && quote !== '"' && quote !== "`") continue;
-    const start = index;
-    index += 1;
-    while (index < source.length) {
-      if (source[index] === "\\") index += 2;
-      else if (source[index] === quote) break;
-      else index += 1;
-    }
-    ranges.push([start, index]);
-  }
-  return ranges;
+function continuesImportArgument(source: string, index: number): boolean {
+  let cursor = index;
+  while (cursor < source.length && /\s/u.test(source[cursor] ?? "")) cursor += 1;
+  const next = source[cursor];
+  return next === "," || next === ")";
 }
 
 /** Extract static, dynamic, re-export, and CommonJS module specifiers. */
 export function extractImportSpecifiers(source: string): readonly string[] {
-  const searchableSource = maskComments(source);
-  const ignoredKeywordRanges = literalRanges(searchableSource);
-  const specifiers = new Set<string>();
+  const { searchable, literalRanges: ignoredKeywordRanges } = scanImportSource(source);
+  const found: Array<{ index: number; specifier: string }> = [];
   const patterns = [
-    /\b(?:import|export)\s+(?:type\s+)?(?:[^"'`;=]*?\s+from\s+)?["']([^"']+)["']/gu,
-    /\bimport\s*\(\s*["']([^"']+)["']\s*\)/gu,
-    /\brequire\s*\(\s*["']([^"']+)["']\s*\)/gu,
+    { expression: /\b(?:import|export)\s+(?:type\s+)?(?:[^"'`;=]*?\s+from\s+)?["']([^"']+)["']/gu, dynamicArgument: false },
+    { expression: /\bimport\s*\(\s*(?:["']([^"']+)["']|`([^`$]*)`)/gu, dynamicArgument: true },
+    { expression: /\brequire\s*\(\s*["']([^"']+)["']\s*\)/gu, dynamicArgument: false },
   ];
 
   for (const pattern of patterns) {
-    for (const match of searchableSource.matchAll(pattern)) {
+    for (const match of searchable.matchAll(pattern.expression)) {
       const matchIndex = match.index ?? -1;
       if (ignoredKeywordRanges.some(([start, end]) => matchIndex >= start && matchIndex <= end)) continue;
-      const specifier = match[1];
-      if (specifier) specifiers.add(specifier);
+      if (pattern.dynamicArgument && !continuesImportArgument(searchable, matchIndex + match[0].length)) continue;
+      const specifier = match[1] ?? match[2];
+      if (specifier) found.push({ index: matchIndex, specifier });
     }
   }
+
+  found.sort((left, right) => left.index - right.index);
+  const specifiers = new Set<string>();
+  for (const item of found) specifiers.add(item.specifier);
   return [...specifiers];
 }
 

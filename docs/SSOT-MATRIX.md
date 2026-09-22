@@ -110,20 +110,20 @@ Horizontal Service 只保存可恢复的技术状态，不拥有 Goal、Signal�
 | --- | --- | --- | --- | --- |
 | `plugins/native/goals` | Goals 一级入口与产品 UI | 当前事件意图、约定、报告、树决定和历史正文组合；目录直接读当前状态；旧执行／草稿／提案写应用退役；Workbench 注册并组合 UI，不另算完成 | `partial` | GW/DD/EX/Cutover；事件工作流收敛 |
 | `plugins/native/artifacts` | Artifacts 一级入口、浏览和嵌入 | 已迁结果链接/项目文件打开；正式版本列表、详情与本地导出已接入 Web；Goal 上下文按明确输入/产出关系嵌入精确版本 | `partial` | AR3 已完成迁移验收；不包含未来安装/Team 同步 |
-| `plugins/native/inbox` | Inbox 一级入口与 Attention 处置 UI | 目录/详情只读 Attention；完成/忽略走 setStatus；`inbox.next` HTTP 绑定由 Functions 编辑器调用；Host 注入展示信息与 HTTP | `partial` | Inbox/Feed 拆插件切片 2–3；`specs/functions-system-capability/spec.md` |
+| `plugins/native/inbox` | Inbox 一级入口与 Attention 处置 UI | 目录/详情只读 Attention；完成/忽略走 setStatus；`inbox.next` 沿用 Functions 绑定与显式重判，建议成稿/核查不自动执行；Host 将选中 Feed 材料交给 Pages，收据归 Pages，文稿可返回材料 | `partial` | Inbox/Feed 拆插件切片 2–3；`specs/functions-system-capability/spec.md`；`specs/feed-inbox-pages-loop/validation.md` |
 | `plugins/native/schedule` | Schedule 一级入口：对话任务与闹钟列表 | 人手创建日历日对话任务；其他插件 job 仍只展示与暂停 | `partial` | `specs/schedule-conversation-tasks/spec.md` |
 | `plugins/native/shelf` | Shelf 一级入口：材料/结果/剪贴板与本机抽字 | DropAgent 表面挂进目录与工作面；Host 注入 `/api/shelf` 与 Store | `partial` | 工作台进货→抽字切片；轮盘/抓页/CLI Recipe 待 Desktop |
 | `plugins/native/functions` | Functions 一级入口：写、试跑、发布、配 Key | 看什么/函数/用在哪三栏；选项和动作库随看来源与去向更新，自定义答案不覆盖；事件去向用映射；库和判断记录在 Module | `partial` | `specs/functions-system-capability/spec.md`；`specs/functions-product-authoring/spec.md`；`specs/functions-independent-authoring/spec.md` |
-| `plugins/native/pages` | Pages 一级入口：本机文档 | 库、ProseMirror 内核、块、评论、卡、AI stub、挂 Goal 与 Promote；对外 MCP 默认关 | `partial` | `specs/pages-plugin/spec.md`；`specs/plugin-outbound-mcp/spec.md` |
+| `plugins/native/pages` | Pages 一级入口：本机文档 | 库、ProseMirror 内核、块、评论、卡、挂 Goal 与 Promote；外部文件预览/批量导入与幂等收据；Host 注入真实写作模型，材料快照与幂等生成收据归 Pages；对外 MCP 默认关 | `partial` | `specs/pages-plugin/spec.md`；`specs/plugin-outbound-mcp/spec.md` |
 | `plugins/native/form` | Forms 一级入口：本机问卷 | 建题、预览填写、提交与结果；出题为本地 stub；对外 MCP 默认关 | `partial` | `specs/creative-tools-plugins/spec.md`；`specs/plugin-outbound-mcp/spec.md` |
 | `plugins/native/dataset` | Dataset 一级入口：本机数据表 | 行列编辑、CSV 导入导出、版本回滚；加列为本地 stub；对外 MCP 默认关 | `partial` | `specs/creative-tools-plugins/spec.md`；`specs/plugin-outbound-mcp/spec.md` |
 | `plugins/native/ppt` | PPT 一级入口：本机演示稿 | 多页大纲、主题色、预览与 JSON 导出；不做 PPTX；对外 MCP 默认关 | `partial` | `specs/creative-tools-plugins/spec.md`；`specs/plugin-outbound-mcp/spec.md` |
 | `plugins/native/lingguang` | 灵光一级入口：本机临时灵感池 | 快记、流式列表、丢掉确认、本机头脑风暴 stub；不写 Goal/Artifact；无对外 MCP | `partial` | `specs/lingguang-plugin/spec.md` |
-| `plugins/native/feed` | Feed 一级入口和处置 UI | Sources/Feed 流水、同步与 promotion 用例；不再投影 Inbox 面；加入 Inbox 仍走 Feed HTTP，只写 Attention；`feed.capture` 处置池含加入 Inbox / 保存 / 升格 / 忽略 | `partial` | FD/Cutover；Inbox/Feed 拆插件切片 3；`specs/function-scene-action-scope/spec.md` |
+| `plugins/native/feed` | Feed 一级入口和处置 UI | Sources/Feed 流水、同步与 promotion；支持研究库发布包接收；用户显式配置规则可自动加入 Inbox，需复核保留原因；仍只写 Attention | `partial` | FD/Cutover；Inbox/Feed 拆插件切片 3；`specs/function-scene-action-scope/spec.md` |
 | `plugins/native/actions` | Actions 一级入口 | 占位包已删除；未来功能 | `absent` | F2；未来独立功能 Spec |
 | `plugins/native/work` | Session、Runtime、resume、handoff 应用和 UI | WK3 已迁应用编排、Session/Terminal contribution、浏览器控制器、HTTP 用例和工作目录恢复。`GET/POST /api/goals/:id/panels`（无子路径，JSON）仍是 Runtime 终端面板，与已删除的 Goal 五 tab fragment 不同 | `partial` | WK3；边界与证据见 `specs/molis-work-architecture-reorganization/wk3-validation.md` |
 | `plugins/native/automation` | Automation 一级入口 | 占位包已删除；未来功能 | `absent` | F2；未来独立功能 Spec |
-| `plugins/official-integrations/github` | GitHub connector/listener/signal adapter | GitHub Provider、Device OAuth 与账号呈现；Host 注入 Secret/env | `partial` | FD3/Cutover；无旧 connector caller |
+| `plugins/official-integrations/github` | GitHub connector/listener/signal adapter | GitHub Provider、Device OAuth 与账号呈现；研究库固定提交解析和发布哈希校验，Host 提供 Git 快照；Host 注入 Secret/env | `partial` | FD3/Cutover；无旧 connector caller |
 | `plugins/official-integrations/gmail` | Gmail OAuth/connector/listener/signal adapter | Gmail OAuth/安装账号/scope/cursor/Provider；Host 注入安全存储 | `partial` | FD3/Cutover；无旧 connector caller |
 | `plugins/official-integrations/rss` | 官方目录与自定义 RSS provider adapter | 目录/custom RSS/正文分类/HTTP adapter；Host 提供运行上下文 | `partial` | FD3/Cutover；真实公开 RSS 拉取 |
 | `plugins/official-integrations/web-query` | Web Query provider adapter | Web Query Provider adapter；Host 注入 Intelligence client 与存储端口 | `partial` | FD3/Cutover |

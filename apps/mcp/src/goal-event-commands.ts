@@ -20,21 +20,6 @@ import { mcpWebUrl } from "./goal-presentation.js";
 import type { LocalHostProjectClient } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { McpPresentationErrorFactory } from "./query-presentation.js";
 
-const WRITE_TOOLS = new Set([
-  "molis_work_v1_goal_intent_create",
-  "molis_work_v1_event_configure",
-  "molis_work_v1_event_report",
-  "molis_work_v1_event_note",
-  "molis_work_v1_event_progress",
-  "molis_work_v1_event_concern",
-  "molis_work_v1_event_decision_request",
-  "molis_work_v1_event_cite_decision",
-  "molis_work_v1_event_agree",
-  "molis_work_v1_event_close",
-  "molis_work_v1_event_resume",
-  "molis_work_v1_event_decide",
-]);
-
 const ALLOWED_KEYS: Record<string, readonly string[]> = {
   molis_work_v1_goal_intent_create: [
     "database_path", "board_id", "actor_id", "actor_kind", "title", "outcome", "why", "business_logic",
@@ -358,12 +343,4 @@ export function createMcpGoalEventHandlers(
       return events.recordTrustedDecision(payload);
     },
   };
-}
-
-export function isGoalEventTool(name: string): boolean {
-  return Object.hasOwn(ALLOWED_KEYS, name);
-}
-
-export function isGoalEventWriteTool(name: string): boolean {
-  return WRITE_TOOLS.has(name);
 }

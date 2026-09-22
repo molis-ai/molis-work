@@ -56,6 +56,7 @@ function buildFeedNativePluginModel(
       gmail: view.feed_connector_auth?.gmail ?? { bound: false },
     },
     out_rules: (view.feed.out_rules ?? []).map((rule) => ({
+      admission: rule.admission ?? "suggest",
       rule_id: rule.rule_id,
       name: rule.name,
       enabled: rule.enabled,
@@ -245,7 +246,7 @@ function attentionModel(entry: InboxEntryRecord): AttentionEntryRecord {
 
 function sourceModel(source: FeedSourceRecord, view: MolisWorkWebView): FeedUiSource {
   const runs = view.feed.runs.filter((run) => run.source_id === source.source_id);
-  const uiKind = source.sync_kind === "github"
+  const uiKind = source.kind === "research_library" ? "other" : source.sync_kind === "github"
     ? "github"
     : source.sync_kind === "gmail"
       ? "gmail"
@@ -266,7 +267,7 @@ function sourceModel(source: FeedSourceRecord, view: MolisWorkWebView): FeedUiSo
     ? "gmail.googleapis.com · gmail.readonly"
     : uiKind === "github"
       ? "api.github.com · notifications"
-      : String(source.config.url ?? source.config.feed_url ?? catalogFeedUrl ?? source.config.query ?? source.account_label ?? source.kind);
+      : String(source.config.repository ?? source.config.url ?? source.config.feed_url ?? catalogFeedUrl ?? source.config.query ?? source.account_label ?? source.kind);
   const scope = typeof source.config.scope === "string" && source.config.scope
     ? source.config.scope
     : uiKind === "github" ? L("通知、PR 与 Review 请求") : uiKind === "gmail" ? L("指定标签与未读邮件") : uiKind === "connector" ? L("账号入站更新") : L("公开 Feed 更新");
@@ -293,7 +294,7 @@ function sourceModel(source: FeedSourceRecord, view: MolisWorkWebView): FeedUiSo
     prototype: false,
     item_count: source.item_count,
     ui_kind: uiKind,
-    type_label: uiKind === "github" ? "GitHub" : uiKind === "gmail" ? "Gmail" : uiKind === "rss" ? "RSS / Atom" : uiKind === "connector" ? source.name : L("其他来源"),
+    type_label: source.kind === "research_library" ? L("共享研究库") : uiKind === "github" ? "GitHub" : uiKind === "gmail" ? "Gmail" : uiKind === "rss" ? "RSS / Atom" : uiKind === "connector" ? source.name : L("其他来源"),
     status_kind: statusKind,
     status_label: running ? L("正在拉取") : sourceStatusLabel(source.status),
     last_fetch_label: source.last_sync_at ? feedUiPrimitives.formatDate(source.last_sync_at) : L("尚未拉取"),
@@ -307,7 +308,7 @@ function sourceModel(source: FeedSourceRecord, view: MolisWorkWebView): FeedUiSo
     schedule_label: source.schedule.mode === "manual"
       ? L("仅手动拉取")
       : source.schedule.enabled ? L("每 {count} 分钟", { count: source.schedule.interval_minutes }) : L("定时拉取已关闭"),
-    scope_label: L(scope),
+    scope_label: source.kind === "research_library" ? String(source.config.research_source ?? "") : L(scope),
     scope_options: uiKind === "gmail" ? GMAIL_SCOPE_PRESETS.map((preset) => ({ value: preset.value, label: L(preset.label) })) : [],
     configured_endpoint: configuredEndpoint,
     protocol_status: rssHttp

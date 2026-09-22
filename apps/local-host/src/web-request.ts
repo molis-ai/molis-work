@@ -22,6 +22,7 @@ import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { handleFeedNativePluginHttp } from "./feed-native-plugin-http.js";
 import { handleInboxNativePluginHttp } from "./inbox-native-plugin-http.js";
+import { handleInformationAssistantHttp } from "./assistant-http.js";
 import { handleHomeDockJudgmentHttp } from "./home-dock-http.js";
 import { handleScheduleNativePluginHttp } from "./schedule-native-plugin-http.js";
 import { handlePersonalNativePluginHttp } from "./personal-native-plugin-http.js";
@@ -195,12 +196,16 @@ export async function handleMolisWorkWebRequest(
           url,
           serverOptions.homeDirectory,
           {
-            publishArtifact: registerPagesArtifactVersion(coordinator, options.boardId),
+            publishArtifact: registerPagesArtifactVersion(coordinator, options.boardId, options.project?.project_id ?? options.boardId),
             publishFormArtifact: registerFormArtifactVersion(coordinator, options.boardId),
             publishDatasetArtifact: registerDatasetArtifactVersion(coordinator, options.boardId),
             publishPptArtifact: registerPptArtifactVersion(coordinator, options.boardId),
+            boundProjectId: options.project?.project_id ?? options.boardId,
           },
         )) return;
+        if (url.pathname.startsWith("/api/assistant/") && await handleInformationAssistantHttp(request, response, url, {
+          projectId: options.boardId, feed: createLocalFeedApplication(store.db),
+        })) return;
         if (await handleInboxNativePluginHttp(request, response, url, {
           boardId: options.boardId,
           store,

@@ -531,6 +531,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
           : scope?.querySelector('[data-feed-source-value="' + kind + '"]')?.value;
         const name = form?.querySelector("[data-feed-add-name]")?.value?.trim();
         const body = kind === "rss" ? { kind, definition_id: value }
+          : kind === "research_library" ? { kind, repository: value, research_source: scope?.querySelector("[data-feed-research-source]")?.value }
           : kind === "web_query" ? { kind, query: value }
           : kind === "youtube_channel" ? { kind, channel_id: value }
           : { kind, feed_url: value };
@@ -585,6 +586,21 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
         }
         return;
       }
+      const evaluateRules = target.closest("[data-feed-out-rules-evaluate]");
+      if (evaluateRules) {
+        evaluateRules.disabled = true;
+        setFeedSourceFeedback(L("正在按当前规则处理最近的消息…"));
+        try {
+          const snapshot = await feedApi("/api/feed", "GET");
+          const items = (snapshot.feed_items || snapshot.feed?.feed_items || []).filter(item => item.source_id === evaluateRules.dataset.feedOutRulesEvaluate).slice(0, 20);
+          if (!items.length) throw new Error(L("请先拉取来源内容"));
+          await feedApi("/api/feed/out-rules/evaluate", "POST", { item_ids: items.map(item => item.item_id) });
+          await refreshFeedStage(); await refreshInboxStage();
+          setFeedSourceFeedback(L("规则处理完成；请在 Inbox 查看筛选结果与待复核项。"));
+        } catch (error) { setFeedSourceFeedback(error.message, true); }
+        finally { evaluateRules.disabled = false; }
+        return;
+      }
       const createOutRule = target.closest("[data-feed-out-rule-create]");
       if (createOutRule) {
         const section = createOutRule.closest("[data-feed-out-rules]");
@@ -600,7 +616,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
         createOutRule.disabled = true;
         setFeedSourceFeedback(L("正在添加捕捉规则…"));
         try {
-          await feedApi("/api/feed/out-rules", "POST", { name: name || contains, contains, source_id: sourceId, ...(functionKey ? { function_key: functionKey } : {}) });
+          await feedApi("/api/feed/out-rules", "POST", { name: name || contains, contains, source_id: sourceId, admission: section?.querySelector("[data-feed-out-rule-admission]")?.value || "suggest", ...(functionKey ? { function_key: functionKey } : {}) });
           saveUiState();
           await refreshFeedStage();
           createOutRule.disabled = false;
@@ -653,6 +669,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
           saveUiState();
           await refreshFeedStage();
           sourceToggle.disabled = false;
+          setFeedSourceFeedback("");
         } catch (error) {
           setFeedSourceFeedback(error.message || L("来源状态更新失败"), true);
           sourceToggle.disabled = false;

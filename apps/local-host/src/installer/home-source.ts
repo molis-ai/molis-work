@@ -88,14 +88,16 @@ export async function computeSourceContentDigest(
     ...await releaseAssetPaths(sourceDirectory),
     ...(includesBundledNode ? ["runtime/node"] : []),
   ]);
-  const dependencies = [];
-  for (const dependency of runtimeDependencies) {
+  const dependencies: Array<{ name: string; version: string; digest: string }> = [];
+  const visit = async (dependency: RuntimeDependencyPackage): Promise<void> => {
     dependencies.push({
       name: dependency.name,
       version: dependency.version,
       digest: await digestPaths(dependency.directory, await runtimeDependencyReleaseEntries(dependency.directory)),
     });
-  }
+    for (const nested of dependency.nests ?? []) await visit(nested);
+  };
+  for (const dependency of runtimeDependencies) await visit(dependency);
   return createHash("sha256")
     .update(JSON.stringify({ root_digest: rootDigest, dependencies }))
     .digest("hex");

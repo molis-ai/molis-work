@@ -48,8 +48,23 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       },
     });
     ${pluginWorkbenchClientBootstrap()}
-    (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: L, showToast });
+    (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: L, showToast, feedApi,
+      openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title),
+      refresh: async () => { await refreshFeedStage(); await refreshInboxStage(); },
+      preparePages: draft => {
+        composeDraft = { ...draft, request_id: "" };
+        tabWorkspace?.openPlugin("inbox");
+        showInboxComposer();
+      },
+    });
     ${CONNECTORS_SETTINGS_CLIENT_SCRIPT}
+    requestAnimationFrame(() => {
+      const entryId = new URL(location.href).searchParams.get("inbox_entry");
+      if (!entryId) return;
+      const row = inboxList?.querySelector('[data-inbox-entry-id="' + CSS.escape(entryId) + '"]');
+      if (row) tabWorkspace?.openItem("inbox", entryId, row.querySelector("strong")?.textContent);
+      else showToast(L("原 Inbox 材料在当前项目中不可用"));
+    });
     const settingsDirectory = (${SETTINGS_DIRECTORY_FACTORY_SCRIPT})({
       translate: L,
       setDirectory: (...args) => setDesktopDirectory(...args),
@@ -248,7 +263,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       tabWorkspace.openItem("goals", selected);
     } else if (tabWorkspace && !directGoalRequested && !decisionView && !collectionView) {
       const navigationType = performance.getEntriesByType("navigation")[0]?.type;
-      if (navigationType !== "reload" && navigationType !== "back_forward") tabWorkspace.landAtProjectRoot();
+      if (navigationType !== "reload" && navigationType !== "back_forward" && !tabWorkspace.isEmbedded?.()) tabWorkspace.landAtProjectRoot();
     }
     if (restoredUi) {
       try {

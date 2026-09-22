@@ -19,7 +19,7 @@
 - 验证使用独立临时 home、SQLite 或代表性 fixture。并行预览可能依赖当前 `dist`；构建前核对运行方，必要时用包含当前未提交源码的隔离副本。只复制 HEAD 的 worktree 不包含这些改动。
 - [UI 修复交接](/Users/oreal/adeptify-home/repos/molis-work/docs/ui-audit-handoff-2026-09-22.md) 是另一份审计，编号与本文无关。修改 Pages/Workbench 前核对文件是否正在被该任务修改；不自动把那份任务并入本文。
 
-先读唯一事实源：[SSOT-MATRIX](/Users/oreal/adeptify-home/repos/molis-work/docs/SSOT-MATRIX.md)、[ARCHITECTURE](/Users/oreal/adeptify-home/repos/molis-work/docs/system/ARCHITECTURE.md)、[PACKAGE-BOUNDARIES](/Users/oreal/adeptify-home/repos/molis-work/docs/system/PACKAGE-BOUNDARIES.md)、[HUGE-CLASS-MIGRATION](/Users/oreal/adeptify-home/repos/molis-work/docs/system/HUGE-CLASS-MIGRATION.md)。随后按修复对象读 `specs/goal-event-workflow-cleanup/spec.md`、`specs/plugin-platform-v2/spec.md`、`specs/pages-plugin/spec.md`、`specs/schedule-plugin/spec.md`、`specs/coding-plugin/spec.md` 及对应当前 Contract。
+先读唯一事实源：[SSOT-MATRIX](/Users/oreal/adeptify-home/repos/molis-work/docs/SSOT-MATRIX.md)、[ARCHITECTURE](/Users/oreal/adeptify-home/repos/molis-work/docs/system/ARCHITECTURE.md)、[PACKAGE-BOUNDARIES](/Users/oreal/adeptify-home/repos/molis-work/docs/system/PACKAGE-BOUNDARIES.md)、[HUGE-CLASS-MIGRATION](/Users/oreal/adeptify-home/repos/molis-work/docs/system/HUGE-CLASS-MIGRATION.md)。随后按修复对象读 `specs/archive/goal-event-workflow-cleanup/spec.md`、`specs/plugin-platform-v2/spec.md`、`specs/pages-plugin/spec.md`、`specs/archive/schedule-plugin/spec.md`、`specs/coding-plugin/spec.md` 及对应当前 Contract。
 
 ## 修复顺序与责任
 

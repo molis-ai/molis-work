@@ -20,6 +20,9 @@ export const INBOX_DISMISS_BEHAVIOR_ID = "inbox.dismiss";
 export const INBOX_ADMIT_BEHAVIOR_ID = "inbox.admit";
 export const FEED_REAUTH_BEHAVIOR_ID = "feed.reauth";
 export const FEED_OPEN_BEHAVIOR_ID = "feed.open";
+export const FEED_SAVE_BEHAVIOR_ID = "feed.save";
+export const FEED_PROMOTE_BEHAVIOR_ID = "feed.promote";
+export const FEED_ARCHIVE_BEHAVIOR_ID = "feed.archive";
 export const SYSTEM_HOME_DOCK_FUNCTION_KEY = "system_pick_home_dock";
 export const SYSTEM_INBOX_ADMIT_FUNCTION_KEY = "system_admit_inbox";
 export const SYSTEM_INBOX_NEXT_FUNCTION_KEY = "system_pick_inbox_next";
@@ -346,8 +349,31 @@ export function defaultInboxNextBehaviorIds(active: boolean): string[] {
   return active ? [INBOX_DONE_BEHAVIOR_ID, INBOX_DISMISS_BEHAVIOR_ID] : [];
 }
 
+export const FEED_CAPTURE_DISPOSITION_IDS: readonly string[] = [
+  INBOX_ADMIT_BEHAVIOR_ID,
+  FEED_SAVE_BEHAVIOR_ID,
+  FEED_PROMOTE_BEHAVIOR_ID,
+  FEED_ARCHIVE_BEHAVIOR_ID,
+];
+
 export function defaultFeedCaptureBehaviorIds(canAdmit: boolean): string[] {
-  return canAdmit ? [INBOX_ADMIT_BEHAVIOR_ID, FEED_OPEN_BEHAVIOR_ID] : [];
+  return canAdmit ? [...FEED_CAPTURE_DISPOSITION_IDS, FEED_OPEN_BEHAVIOR_ID] : [];
+}
+
+/** Footer dispositions on a Feed item. `feed.open` maps to "stay in Feed" and is not a footer button. */
+export function visibleFeedDispositionIds(
+  suggested: readonly string[] | null | undefined,
+  canAdmit: boolean,
+): string[] {
+  if (!canAdmit) return [];
+  const offered = [...FEED_CAPTURE_DISPOSITION_IDS];
+  const suggestedIds = suggested ?? [];
+  const picked = offered.filter((id) => suggestedIds.includes(id));
+  if (picked.length > 0) return picked;
+  if (suggestedIds.includes(FEED_OPEN_BEHAVIOR_ID)) {
+    return offered.filter((id) => id !== INBOX_ADMIT_BEHAVIOR_ID);
+  }
+  return offered;
 }
 
 export function sceneBehaviorIds(sceneId: string): string[] {
@@ -407,9 +433,9 @@ export function functionAuthoringDestinations(): FunctionAuthoringDestination[] 
       destination_id: FEED_CAPTURE_SCENE_ID,
       kind: "event",
       title: "Feed",
-      when: "要不要出现「加入 Inbox」",
+      when: "这条消息该进 Inbox、存资料、升格还是忽略",
       configure_at: "去任务捕捉规则里选",
-      effect: "「加入 Inbox」出不出现",
+      effect: "亮哪条去向",
       subject_kinds: ["feed_item"],
       behavior_ids: sceneBehaviorIds(FEED_CAPTURE_SCENE_ID),
     },
@@ -466,6 +492,41 @@ export function assembleFunctionAuthoringCatalog(
     destinations,
     behaviors,
   };
+}
+
+export function suggestedAuthoringBehaviors(
+  catalog: FunctionAuthoringCatalog,
+  destinationId: string,
+  subjectKinds: readonly string[],
+): FunctionAuthoringBehavior[] {
+  const dest = catalog.destinations.find((row) => row.destination_id === destinationId) ?? null;
+  const kinds = subjectKinds.filter(Boolean);
+  const matches = (row: FunctionAuthoringBehavior) => (
+    kinds.length === 0 || row.subject_kinds.some((kind) => kinds.includes(kind))
+  );
+  if (!destinationId) {
+    return kinds.length === 0 ? [] : catalog.behaviors.filter(matches);
+  }
+  if (dest?.kind === "mcp" || destinationId === AGENT_MCP_DESTINATION_ID) {
+    return catalog.behaviors.filter(matches);
+  }
+  const byId = new Map(catalog.behaviors.map((row) => [row.behavior_id, row]));
+  const rows: FunctionAuthoringBehavior[] = [];
+  for (const id of dest?.behavior_ids ?? []) {
+    const row = byId.get(id);
+    if (row && matches(row)) rows.push(row);
+  }
+  return rows;
+}
+
+export function choiceCriteriaFollowContext(
+  keys: readonly string[],
+  catalogBehaviorIds: readonly string[],
+): boolean {
+  if (keys.length === 0) return true;
+  if (keys.length === 2 && keys[0] === "yes" && keys[1] === "no") return true;
+  const ids = new Set(catalogBehaviorIds);
+  return keys.every((key) => ids.has(key));
 }
 
 function pluginTitleFallback(pluginId: string): string {

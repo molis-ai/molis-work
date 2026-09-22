@@ -168,7 +168,10 @@ export const SELECT_MENU_CLIENT_SCRIPT = `
     const picker = document.createElement("div");
     picker.className = "mw-select-picker";
     picker.dataset.mwSelectPicker = "";
-    select.classList.forEach((name) => { if (name !== "mw-select") picker.classList.add(name); });
+    select.classList.forEach((name) => {
+      if (name === "mw-select" || name === "mw-input" || name === "mw-textarea") return;
+      picker.classList.add(name);
+    });
     const trigger = document.createElement("button");
     trigger.type = "button";
     trigger.className = select.classList.contains("mw-select") || !select.className.trim()

@@ -69,6 +69,7 @@ export function renderDatasetWorkbench(model: DatasetUiModel): string {
         <button class="plugin-stage-back" type="button" data-dataset-back aria-label="${p.text("返回数据表列表")}" title="${p.text("返回数据表列表")}">${icon("arrow")}</button>
         <h1 data-dataset-editor-title>${p.text("数据表")}</h1>
         <span data-dataset-editor-status></span>
+        <button class="mw-btn mw-btn--ghost" type="button" data-dataset-artifact="" data-dataset-artifact-bar>${p.text("存成 Artifact")}</button>
         <button class="mw-btn mw-btn--ghost" type="button" data-dataset-export-csv>${p.text("导出 CSV")}</button>
         <button class="mw-btn mw-btn--ghost" type="button" data-dataset-export-json>${p.text("导出 JSON")}</button>
         <button class="mw-btn mw-btn--ghost" type="button" data-dataset-delete>${p.text("删除")}</button>

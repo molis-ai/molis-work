@@ -17,6 +17,7 @@ export interface InboxRouteHandlerPorts {
   listEntries(): readonly unknown[];
   setStatus(entryId: string, status: AttentionStatus, expectedRevision: number): unknown;
   changed(): void;
+  renderWorkbench?(): string;
   readJudgment?(): InboxJudgmentState;
   writeJudgment?(functionKey: string | null): { function_key: string | null };
 }
@@ -27,6 +28,9 @@ export function createInboxRouteHandlers(options: InboxRouteHandlerPorts): Recor
       status: 200,
       body: { entries: options.listEntries() },
     }),
+    "inbox.workbench": () => options.renderWorkbench
+      ? { status: 200, html: options.renderWorkbench() }
+      : { status: 501, body: { error: "Inbox 工作区不可用" } },
     "inbox.judgment.read": () => ({
       status: 200,
       body: options.readJudgment?.() ?? { function_key: null, functions: [] },

@@ -7,12 +7,15 @@ import {
   type SchedulePluginRouteResponse,
   type ScheduleTaskDatabase,
 } from "@molis-ai/molis-work-plugin-schedule";
+import type { MolisWorkWebView, WorkbenchRenderer } from "@molis-ai/molis-work-app-workbench";
 import type { ScheduleService } from "@molis-ai/molis-work-service-scheduler";
 
 export interface ScheduleNativePluginHttpOptions {
   readonly db: ScheduleTaskDatabase;
   readonly schedule: ScheduleService;
   readonly invalidateWebView: () => void;
+  readonly renderer?: Pick<WorkbenchRenderer, "renderScheduleWorkbenchFragment">;
+  readonly readWebView?: () => MolisWorkWebView;
 }
 
 export async function handleScheduleNativePluginHttp(
@@ -32,6 +35,9 @@ export async function handleScheduleNativePluginHttp(
   const routes = new SchedulePluginRouteTable(createScheduleRouteHandlers({
     ...ports,
     changed: () => options.invalidateWebView(),
+    renderWorkbench: options.renderer && options.readWebView
+      ? () => options.renderer!.renderScheduleWorkbenchFragment(options.readWebView!())
+      : undefined,
   }));
   try {
     const result = await routes.handle({
@@ -50,6 +56,16 @@ export async function handleScheduleNativePluginHttp(
 }
 
 function writeResponse(response: ServerResponse, result: SchedulePluginRouteResponse): void {
+  if (result.html != null) {
+    response.writeHead(result.status, {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-store",
+      "x-content-type-options": "nosniff",
+      ...result.headers,
+    });
+    response.end(result.html);
+    return;
+  }
   response.writeHead(result.status, {
     "content-type": "application/json; charset=utf-8",
     "cache-control": "no-store",

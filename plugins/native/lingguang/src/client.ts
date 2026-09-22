@@ -26,6 +26,12 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
   let selected = null;
   let conversation = null;
   let saveTimer = 0;
+  let listSeq = 0;
+  const keepListScroll = (paint) => {
+    const top = list?.scrollTop || 0;
+    paint();
+    if (list) list.scrollTop = top;
+  };
   const kindChip = (kind, label) => {
     const node = document.createElement("span");
     node.className = "mw-status plugin-stage-kind";
@@ -167,6 +173,9 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     return item;
   };
   const renderList = () => {
+    keepListScroll(() => paintList());
+  };
+  const paintList = () => {
     empty.hidden = records.length > 0;
     rowsEl.replaceChildren();
     records.forEach((record) => rowsEl.append(renderRow(record)));
@@ -199,11 +208,13 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     saveTimer = setTimeout(() => { void save().catch((error) => showNote(error.message || L("保存失败"), true)); }, 400);
   };
   const loadList = async () => {
+    const seq = ++listSeq;
     const payload = await request("GET", "/api/plugins/lingguang");
+    if (seq !== listSeq) return;
     records = payload.sparks || [];
     selectedIds = new Set([...selectedIds].filter((id) => records.some((item) => item.id === id)));
     if (selected && !records.some((item) => item.id === selected.id)) closeWorkspace();
-    else renderList();
+    renderList();
     if (selected) {
       const next = records.find((item) => item.id === selected.id);
       if (next) {
@@ -217,10 +228,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     const many = ids.length > 1;
     if (!await ask(many ? L("丢掉这几条？它们会离开灵光池。") : L("丢掉这条？它会离开灵光池。"), L("丢掉"))) return;
     await request("POST", "/api/plugins/lingguang/discard", { ids });
-    records = records.filter((item) => !ids.includes(item.id));
-    ids.forEach((id) => selectedIds.delete(id));
-    if (selected && ids.includes(selected.id)) closeWorkspace();
-    else renderList();
+    await loadList();
   };
   const renderMessages = (messages) => {
     messagesEl.replaceChildren();
@@ -290,7 +298,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (event.target.closest("[data-lingguang-capture]")) {
         const payload = await request("POST", "/api/plugins/lingguang", {});
         selectedIds = new Set([payload.spark.id]);
-        remember(payload.spark);
+        await loadList();
         fillEditor(payload.spark);
         titleInput.focus();
         titleInput.select();
@@ -320,6 +328,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (event.target.closest("[data-lingguang-back]")) {
         await save().catch((error) => showNote(error.message, true));
         closeWorkspace();
+        await loadList();
         return;
       }
       const row = event.target.closest("[data-lingguang-id]");

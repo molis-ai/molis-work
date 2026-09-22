@@ -1,0 +1,4 @@
+interface:
+  display_name: "Molis Work Plugin Dev"
+  short_description: "完整写 Molis Work 插件：对象与时刻、Manifest、舞台或岛、HTTP、客户端、Host 装配、MCP、事件、端口、接入与 CLI"
+  default_prompt: "Use $molis-plugin-dev to design or implement this Molis Work plugin end to end."

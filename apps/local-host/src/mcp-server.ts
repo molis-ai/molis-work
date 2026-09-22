@@ -19,6 +19,11 @@ import { assertMcpToolAllowed, requireMcpRuntimeContextHost } from "./mcp-author
 import { injectRuntimeIdentity } from "./mcp-event-identity.js";
 import { assembleMcpCatalog, findAssembledMcpTool, type AssembledMcpCatalog } from "./mcp-catalog.js";
 import { createNativeMcpPluginAdapters, dispatchNativeMcpPluginTool } from "./mcp-native-plugins.js";
+import {
+  registerDatasetArtifactVersion,
+  registerFormArtifactVersion,
+  registerPptArtifactVersion,
+} from "./creative-artifacts.js";
 import { registerPagesArtifactVersion } from "./pages-artifact.js";
 import { LocalProjectDatabase } from "./project-database.js";
 import { GoalProjectApplication } from "./goal-project-application.js";
@@ -32,6 +37,24 @@ const createPresentationError: McpPresentationErrorFactory = (code, message, det
 const EMPTY_TOOL_CALL_CONTEXT: MolisWorkMcpToolCallContext = { runtimeSessionId: null, runtimeSessionIdSource: null };
 
 /** Sole outbound MCP process. Catalog assembly and gates stay in Host; apps/mcp owns platform schema and project-tool dispatch. */
+function publishCreativeArtifact<Input>(
+  connection: { databasePath: string; boardId: string } | null,
+  code: string,
+  register: (
+    coordinator: GoalProjectApplication,
+    boardId: string,
+  ) => (input: Input) => { artifact_id: string; version: number },
+  input: Input,
+): { artifact_id: string; version: number } {
+  if (!connection) throw new MolisWorkV1Error(code, "当前环境不能发出 Artifact");
+  const store = new LocalProjectDatabase(connection.databasePath);
+  try {
+    return register(new GoalProjectApplication(store), connection.boardId)(input);
+  } finally {
+    store.close();
+  }
+}
+
 export class LocalMcpServer {
   audience: MolisWorkMcpAudience;
   private readonly connectionState: RuntimeProjectConnection;
@@ -92,6 +115,9 @@ export class LocalMcpServer {
           store.close();
         }
       },
+      publishFormArtifact: (input) => publishCreativeArtifact(this.runtimeConnection, "form.unavailable", registerFormArtifactVersion, input),
+      publishDatasetArtifact: (input) => publishCreativeArtifact(this.runtimeConnection, "dataset.unavailable", registerDatasetArtifactVersion, input),
+      publishPptArtifact: (input) => publishCreativeArtifact(this.runtimeConnection, "ppt.unavailable", registerPptArtifactVersion, input),
     });
     this.runtimeContextHost =
       runtimeContextHost ?? (this.runtimeConnection ? null : runtimeContextHostFromEnvironment());

@@ -15,4 +15,4 @@ node --import tsx --test --test-concurrency=1 tests/functions-system-capability.
 - Status: `partial`
 - Contract: `@molis-ai/molis-work-contracts/modules/functions`
 - Migration: `goal-reorg-f2`
-- SSOT: `specs/functions-system-capability/spec.md`
+- SSOT: `specs/functions-system-capability/spec.md`；事件去向动作范围 `specs/function-scene-action-scope/spec.md`

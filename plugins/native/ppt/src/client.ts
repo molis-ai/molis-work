@@ -26,6 +26,12 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
   let currentSlideId = "";
   let saveTimer = 0;
   let saveSeq = 0;
+  let listSeq = 0;
+  const keepListScroll = (paint) => {
+    const top = list?.scrollTop || 0;
+    paint();
+    if (list) list.scrollTop = top;
+  };
   const firstLine = (value) => {
     const line = String(value || "").trim().split("\\n")[0].trim();
     return line || L("还没有说明");
@@ -265,11 +271,26 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
     workspace.hidden = true;
   };
   const renderList = () => {
+    keepListScroll(() => paintList());
+  };
+  const artifactLabel = (record) => record && record.artifact_version > 0 ? L("再存一版") : L("存成 Artifact");
+  const artifactControl = (record, key) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "creative-artifact-act";
+    button.dataset[key] = record.id;
+    const label = artifactLabel(record);
+    button.setAttribute("aria-label", label);
+    button.innerHTML = '<svg aria-hidden="true"><use href="#icon-upload"></use></svg><span></span>';
+    button.lastElementChild.textContent = label;
+    return button;
+  };
+  const paintList = () => {
     empty.hidden = records.length > 0;
     rowsEl.replaceChildren();
     records.forEach((record) => {
       const item = document.createElement("article");
-      item.className = "feed-stage-item";
+      item.className = "feed-stage-item creative-artifact-row";
       const row = document.createElement("button");
       row.type = "button";
       row.className = "feed-stage-entry directory-list-row" + (selected?.id === record.id ? " is-selected" : "");
@@ -291,12 +312,16 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
         textCell("plugin-stage-meta", firstLine(record.description)),
         status,
       );
-      item.append(row);
+      item.append(row, artifactControl(record, "pptArtifact"));
       rowsEl.append(item);
     });
+    const bar = workbench.querySelector("[data-ppt-artifact-bar]");
+    if (bar) bar.textContent = artifactLabel(selected);
   };
   const loadList = async () => {
+    const seq = ++listSeq;
     const payload = await request("GET", "/api/plugins/ppt");
+    if (seq !== listSeq) return;
     records = payload.presentations || [];
     renderList();
     if (selected) {
@@ -330,9 +355,22 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
       const create = event.target.closest("[data-ppt-new]");
       if (create) {
         const payload = await request("POST", "/api/plugins/ppt", {});
+        await loadList();
         currentSlideId = payload.presentation.slides[0]?.id || "";
         fillEditor(payload.presentation);
-        remember(payload.presentation, false);
+        return;
+      }
+      const artifact = event.target.closest("[data-ppt-artifact]");
+      if (artifact) {
+        const id = artifact.dataset.pptArtifact || (selected && selected.id);
+        if (!id) return;
+        if (selected && selected.id === id) {
+          await save().catch((error) => showNote(error.message || L("保存失败"), true));
+        }
+        const payload = await request("POST", "/api/plugins/ppt/" + encodeURIComponent(id) + "/promote", {});
+        showNote(L("已存成 Artifact"), false);
+        await loadList();
+        if (payload.presentation && selected && selected.id === payload.presentation.id) remember(payload.presentation, false);
         return;
       }
       const row = event.target.closest("[data-ppt-id]");
@@ -341,7 +379,12 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
         if (record) fillEditor(record);
         return;
       }
-      if (event.target.closest("[data-ppt-back]")) { closeEditor(); return; }
+      if (event.target.closest("[data-ppt-back]")) {
+        await save().catch((error) => showNote(error.message || L("保存失败"), true));
+        closeEditor();
+        await loadList();
+        return;
+      }
       if (event.target.closest("[data-ppt-add-slide]") && selected) {
         const slides = [...slidesFromEditor(), { id: "s-" + Date.now(), title: L("未命名一页"), bullets: [], notes: "", order: selected.slides.length + 1 }];
         selected = { ...selected, slides };
@@ -411,9 +454,8 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (event.target.closest("[data-ppt-delete]") && selected) {
         if (!await ask(L("删除这份演示稿？"), L("删除"))) return;
         await request("POST", "/api/plugins/ppt/" + encodeURIComponent(selected.id) + "/delete");
-        records = records.filter((item) => item.id !== selected.id);
         closeEditor();
-        renderList();
+        await loadList();
       }
     } catch (error) {
       showNote(error.message || L("演示稿请求失败"), true);

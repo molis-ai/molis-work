@@ -7,10 +7,10 @@ import {
 import type { McpToolCallContext } from "@molis-ai/molis-work-app-mcp";
 import { MolisWorkV1Error } from "@molis-ai/molis-work-contracts/platform/errors";
 import { FUNCTIONS_PROJECT_PLUGIN_ID, functionsManifest } from "@molis-ai/molis-work-plugin-functions";
-import { formManifest } from "@molis-ai/molis-work-plugin-form";
+import { datasetManifest, type DatasetPublishArtifactPort } from "@molis-ai/molis-work-plugin-dataset";
+import { formManifest, type FormPublishArtifactPort } from "@molis-ai/molis-work-plugin-form";
 import { pagesManifest, type PagesPublishArtifactPort } from "@molis-ai/molis-work-plugin-pages";
-import { datasetManifest } from "@molis-ai/molis-work-plugin-dataset";
-import { pptManifest } from "@molis-ai/molis-work-plugin-ppt";
+import { pptManifest, type PptPublishArtifactPort } from "@molis-ai/molis-work-plugin-ppt";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { createFunctionsMcpAdapter } from "./mcp-functions-tools.js";
 import {
@@ -41,6 +41,9 @@ export interface NativeMcpAdapterPorts {
   /** Bound project for personal stores partitioned by project_id. Omitted means unbound. */
   boundProjectId?(context: McpToolCallContext): string | null;
   publishPagesArtifact?: PagesPublishArtifactPort;
+  publishFormArtifact?: FormPublishArtifactPort;
+  publishDatasetArtifact?: DatasetPublishArtifactPort;
+  publishPptArtifact?: PptPublishArtifactPort;
 }
 
 export interface NativeMcpPluginAdapter {

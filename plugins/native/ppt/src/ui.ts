@@ -77,6 +77,7 @@ export function renderPptWorkbench(model: PptUiModel): string {
         <button class="plugin-stage-back" type="button" data-ppt-back aria-label="${p.text("返回演示稿列表")}" title="${p.text("返回演示稿列表")}">${icon("arrow")}</button>
         <h1 data-ppt-editor-title>${p.text("演示稿")}</h1>
         <span data-ppt-editor-status></span>
+        <button class="mw-btn mw-btn--ghost" type="button" data-ppt-artifact="" data-ppt-artifact-bar>${p.text("存成 Artifact")}</button>
         <button class="mw-btn mw-btn--ghost" type="button" data-ppt-export>${p.text("导出 JSON")}</button>
         <button class="mw-btn mw-btn--ghost" type="button" data-ppt-delete>${p.text("删除")}</button>
       </div>

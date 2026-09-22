@@ -278,7 +278,8 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
             feed_url: readField("feed_url") || undefined,
           });
           showPrototypeStatus(detail, L("任务配置已保存。"));
-          globalThis.setTimeout(() => location.reload(), 450);
+          await refreshFeedStage();
+          sourceConfigSave.disabled = false;
         } catch (error) {
           showPrototypeStatus(detail, error.message || L("来源配置保存失败，请检查后重试。"));
           sourceConfigSave.disabled = false;
@@ -339,7 +340,8 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
             : action === "pause" ? L("来源已暂停；消息与历史仍保留。")
               : action === "resume" ? L("来源已恢复。") : L("账号已断开，后续不会再拉取。")
           showPrototypeStatus(sourceRuntimeAction, message);
-          globalThis.setTimeout(() => location.reload(), 550);
+          await refreshFeedStage();
+          sourceRuntimeAction.disabled = false;
         } catch (error) {
           showPrototypeStatus(sourceRuntimeAction, error.message || L("来源操作失败，请按提示处理后重试。"));
           sourceRuntimeAction.disabled = false;
@@ -359,7 +361,8 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
         try {
           await feedApi("/api/feed/sources/" + encodeURIComponent(sourceId), "DELETE", { history_decision: historyDecision });
           showPrototypeStatus(sourceDelete, historyDecision === "delete_local_history" ? L("来源与本地历史已删除。") : L("来源已删除，历史已保留。"));
-          globalThis.setTimeout(() => location.reload(), 550);
+          feedSourcesDialog?.close();
+          await refreshFeedStage();
         } catch (error) {
           showPrototypeStatus(sourceDelete, error.message || L("删除来源失败，请重试。"));
           sourceDelete.disabled = false;
@@ -556,7 +559,8 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
           selectedFeedTask = sourceId;
           document.dispatchEvent(new CustomEvent("workbench-feed-task", { detail: { taskId: sourceId } }));
           saveUiState();
-          location.reload();
+          setFeedAddOpen(false);
+          await refreshFeedStage();
         } catch (error) {
           const retryCopy = phase === "out-rule"
             ? L("任务已创建，捕捉规则未保存。请重试，不会重复创建任务。")
@@ -598,7 +602,8 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
         try {
           await feedApi("/api/feed/out-rules", "POST", { name: name || contains, contains, source_id: sourceId, ...(functionKey ? { function_key: functionKey } : {}) });
           saveUiState();
-          location.reload();
+          await refreshFeedStage();
+          createOutRule.disabled = false;
         } catch (error) {
           setFeedSourceFeedback(error.message || L("添加捕捉规则失败"), true);
           createOutRule.disabled = false;
@@ -614,7 +619,8 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
         try {
           await feedApi("/api/feed/out-rules/" + encodeURIComponent(ruleId), "PATCH", { enabled });
           saveUiState();
-          location.reload();
+          await refreshFeedStage();
+          toggleOutRule.disabled = false;
         } catch (error) {
           setFeedSourceFeedback(error.message || L("更新捕捉规则失败"), true);
           toggleOutRule.disabled = false;
@@ -629,7 +635,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
         try {
           await feedApi("/api/feed/out-rules/" + encodeURIComponent(ruleId), "DELETE");
           saveUiState();
-          location.reload();
+          await refreshFeedStage();
         } catch (error) {
           setFeedSourceFeedback(error.message || L("删除捕捉规则失败"), true);
           deleteOutRule.disabled = false;
@@ -645,7 +651,8 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
         try {
           await feedApi("/api/feed/sources/" + encodeURIComponent(sourceId) + "/" + action, "POST", {});
           saveUiState();
-          location.reload();
+          await refreshFeedStage();
+          sourceToggle.disabled = false;
         } catch (error) {
           setFeedSourceFeedback(error.message || L("来源状态更新失败"), true);
           sourceToggle.disabled = false;
@@ -666,7 +673,8 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
               ? L("同步完成：源站未修改，没有新增 Item。")
               : L("同步完成：新增 {created}，去重 {deduped}", { created: result.created || 0, deduped: result.deduped || 0 }));
           saveUiState();
-          location.reload();
+          await refreshFeedStage();
+          sourceSync.disabled = false;
         } catch (error) {
           setFeedSourceFeedback(error.message || L("来源同步失败"), true);
           sourceSync.disabled = false;
@@ -682,7 +690,8 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
           await feedApi("/api/feed/connectors/" + kind + "/token", "POST", { token: input?.value || "" });
           if (input) input.value = "";
           saveUiState();
-          location.reload();
+          await refreshFeedStage();
+          connectorBind.disabled = false;
         } catch (error) {
           setFeedSourceFeedback(error.message || L("账号连接失败"), true);
           connectorBind.disabled = false;
@@ -696,7 +705,8 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
         try {
           await feedApi("/api/feed/connectors/" + kind + "/token", "DELETE");
           saveUiState();
-          location.reload();
+          await refreshFeedStage();
+          connectorUnbind.disabled = false;
         } catch (error) {
           setFeedSourceFeedback(error.message || L("断开账号失败"), true);
           connectorUnbind.disabled = false;
@@ -733,7 +743,8 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
           const result = await feedApi("/api/feed/connectors/github/device/poll", "POST", { device_code: status?.dataset.deviceCode || "", client_id: clientId });
           if (result.status === "authorized") {
             saveUiState();
-            location.reload();
+            await refreshFeedStage();
+            button.disabled = false;
           } else {
             if (status) status.textContent = result.message || L("GitHub 仍在等待授权。完成后再次检查。");
             button.disabled = false;

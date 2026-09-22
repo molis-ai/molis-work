@@ -1,4 +1,20 @@
 export const FORM_STYLES = `
+  .creative-artifact-row { display: flex; align-items: center; min-width: 0; }
+  body.immersive-workbench .creative-artifact-row > .feed-stage-entry { flex: 1 1 auto; min-width: 0; width: auto; }
+  .creative-artifact-act {
+    display: inline-flex; align-items: center; flex: none; height: 28px; max-width: 28px;
+    margin-right: 4px; padding: 0; overflow: hidden; border: 0; border-radius: 6px;
+    background: transparent; color: var(--muted); cursor: pointer;
+    transition: max-width var(--motion-fast, 130ms) var(--ease-out, cubic-bezier(.16, 1, .3, 1)),
+      background-color var(--motion-fast, 130ms) var(--ease-out, cubic-bezier(.16, 1, .3, 1)),
+      color var(--motion-fast, 130ms) var(--ease-out, cubic-bezier(.16, 1, .3, 1));
+  }
+  .creative-artifact-act svg { width: 14px; height: 14px; flex: none; margin: 0 7px; }
+  .creative-artifact-act span { overflow: hidden; white-space: nowrap; font-size: 12px; line-height: 28px; padding-right: 8px; }
+  .creative-artifact-act:hover, .creative-artifact-act:focus-visible {
+    max-width: 11rem; color: var(--ink); background: color-mix(in srgb, var(--ink) 8%, var(--paper));
+  }
+  @media (prefers-reduced-motion: reduce) { .creative-artifact-act { transition: none; } }
   .form-stage-chrome { pointer-events: auto; }
   [data-form=workbench] { --plugin-tint: var(--plugin-form); }
   .form-tabs { display: flex; gap: 4px; margin-left: auto; }

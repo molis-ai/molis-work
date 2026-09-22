@@ -10,6 +10,7 @@ export interface SchedulePluginRouteRequest {
 export interface SchedulePluginRouteResponse {
   readonly status: number;
   readonly body?: unknown;
+  readonly html?: string;
   readonly headers?: Readonly<Record<string, string>>;
 }
 
@@ -35,6 +36,7 @@ export interface SchedulePluginRouteBinding extends SchedulePluginRouteDefinitio
 
 export const SCHEDULE_NATIVE_PLUGIN_ROUTES = [
   route("schedule.list", "GET", /^\/api\/schedule$/u),
+  route("schedule.workbench", "GET", /^\/api\/schedule\/workbench$/u),
   route("schedule.task.create", "POST", /^\/api\/schedule\/tasks$/u),
   route("schedule.task.enabled", "POST", /^\/api\/schedule\/tasks\/([^/]+)\/enabled$/u, ["task_id"]),
   route("schedule.task.open", "POST", /^\/api\/schedule\/tasks\/([^/]+)\/open$/u, ["task_id"]),

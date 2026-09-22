@@ -3,6 +3,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   const { translate: L } = host;
   const workbench = document.querySelector("[data-pages=workbench]");
   if (!workbench) return;
+  const list = workbench.querySelector("[data-pages=directory]");
   const rowsEl = workbench.querySelector("[data-pages-rows]");
   const empty = workbench.querySelector("[data-pages-empty]");
   const searchEmpty = workbench.querySelector("[data-pages-search-empty]");
@@ -36,6 +37,12 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   let goals = [];
   let movingId = "";
   let suppressFoldToggleUntil = 0;
+  let listSeq = 0;
+  const keepListScroll = (paint) => {
+    const top = list?.scrollTop || 0;
+    paint();
+    if (list) list.scrollTop = top;
+  };
 
   const projectId = () => (typeof host.projectId === "function" ? host.projectId() : host.projectId) || "";
   const routePrefix = () => document.body.dataset.routePrefix || "";
@@ -208,6 +215,8 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       starEditor.title = selected.starred ? L("取消收藏") : L("收藏");
     }
     fillGoalSelect();
+    const artifactBar = workbench.querySelector("[data-pages-artifact-bar]");
+    if (artifactBar) artifactBar.textContent = selected.artifact_version > 0 ? L("再存一版") : L("存成 Artifact");
   };
   const markSelected = (id) => {
     rowsEl.querySelectorAll("[data-page-id]").forEach((row) => {
@@ -216,9 +225,20 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       row.setAttribute("aria-selected", String(on));
     });
   };
+  const artifactControl = (record, key) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "creative-artifact-act";
+    button.dataset[key] = record.id;
+    const label = record.artifact_version > 0 ? L("再存一版") : L("存成 Artifact");
+    button.setAttribute("aria-label", label);
+    button.innerHTML = ICON("upload") + "<span></span>";
+    button.lastElementChild.textContent = label;
+    return button;
+  };
   const renderRow = (record) => {
     const item = document.createElement("article");
-    item.className = "feed-stage-item pages-doc-row";
+    item.className = "feed-stage-item pages-doc-row creative-artifact-row";
     item.draggable = folders.length > 0;
     item.dataset.pageId = record.id;
     const row = document.createElement("button");
@@ -262,7 +282,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     star.setAttribute("aria-label", record.starred ? L("取消收藏") : L("收藏"));
     star.innerHTML = ICON("star");
     actions.append(star);
-    item.append(row, actions);
+    item.append(row, actions, artifactControl(record, "pagesArtifact"));
     return item;
   };
   const renderFold = (key, label, items, actions) => {
@@ -313,6 +333,9 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     return wrap;
   };
   const renderList = () => {
+    keepListScroll(() => paintList());
+  };
+  const paintList = () => {
     closeMove();
     const shown = visibleRecords();
     const searching = Boolean(query.trim());
@@ -402,10 +425,12 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     closeMore();
     closeCreate();
     closeMove();
-    workbench.querySelectorAll(".pages-format-bar, .pages-slash, .pages-pop, .pages-block-handle, .pages-block-menu").forEach((node) => { node.hidden = true; });
+    workbench.querySelectorAll(".pages-format-bar, .pages-slash, .pages-pop, .pages-block-handle, .pages-block-menu, .pages-block-ghost, .pages-drop-line").forEach((node) => { node.hidden = true; });
   };
   const loadList = async () => {
+    const seq = ++listSeq;
     const payload = await request("GET", "/api/plugins/pages");
+    if (seq !== listSeq) return;
     records = payload.documents || [];
     folders = payload.folders || [];
     renderList();
@@ -452,29 +477,20 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const createPage = async (body) => {
     const payload = await request("POST", "/api/plugins/pages", body || {});
+    await loadList();
     openCreated(payload.document);
   };
   const toggleStar = async (id) => {
     const record = records.find((item) => item.id === id);
     if (!record) return;
-    const payload = await request("POST", "/api/plugins/pages/" + encodeURIComponent(id), { starred: !record.starred });
-    if (selected?.id === id) remember(payload.document, false);
-    else {
-      const index = records.findIndex((item) => item.id === id);
-      if (index >= 0) records[index] = payload.document;
-      renderList();
-    }
+    await request("POST", "/api/plugins/pages/" + encodeURIComponent(id), { starred: !record.starred });
+    await loadList();
   };
   const movePage = async (id, folderId) => {
     const record = records.find((item) => item.id === id);
     if (!record || (record.folder_id || "") === folderId) return;
-    const payload = await request("POST", "/api/plugins/pages/" + encodeURIComponent(id), { folder_id: folderId });
-    if (selected?.id === id) remember(payload.document, false);
-    else {
-      const index = records.findIndex((item) => item.id === id);
-      if (index >= 0) records[index] = payload.document;
-      renderList();
-    }
+    await request("POST", "/api/plugins/pages/" + encodeURIComponent(id), { folder_id: folderId });
+    await loadList();
   };
   const clearDrop = () => {
     workbench.querySelectorAll("[data-pages-drop].is-drop").forEach((node) => node.classList.remove("is-drop"));
@@ -557,9 +573,8 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
         if (!folder) return;
         const title = await askName(L("文件夹名称"), folder.title);
         if (title == null) return;
-        const payload = await request("POST", "/api/plugins/pages/folders/" + encodeURIComponent(folder.id), { title });
-        folders = folders.map((item) => item.id === payload.folder.id ? payload.folder : item);
-        renderList();
+        await request("POST", "/api/plugins/pages/folders/" + encodeURIComponent(folder.id), { title });
+        await loadList();
         return;
       }
       const folderDelete = event.target.closest("[data-pages-folder-delete]");
@@ -570,10 +585,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
         if (!ok) return;
         const id = folderDelete.dataset.pagesFolderDelete;
         await request("POST", "/api/plugins/pages/folders/" + encodeURIComponent(id) + "/delete", {});
-        folders = folders.filter((item) => item.id !== id);
-        records = records.map((item) => item.folder_id === id ? { ...item, folder_id: "" } : item);
-        if (selected?.folder_id === id) selected = { ...selected, folder_id: "" };
-        renderList();
+        await loadList();
         return;
       }
       const template = event.target.closest("[data-pages-template]");
@@ -593,14 +605,33 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
         closeCreate();
         const title = await askName(L("文件夹名称"), "");
         if (title == null) return;
-        const payload = await request("POST", "/api/plugins/pages/folders", { title });
-        folders = [...folders, payload.folder].sort((a, b) => a.title.localeCompare(b.title, "zh"));
-        renderList();
+        await request("POST", "/api/plugins/pages/folders", { title });
+        await loadList();
         return;
       }
       if (event.target.closest("[data-pages-new]")) {
         closeCreate();
         await createPage({});
+        return;
+      }
+      const listedArtifact = event.target.closest("[data-pages-artifact]");
+      if (listedArtifact) {
+        const id = listedArtifact.dataset.pagesArtifact;
+        const record = records.find((item) => item.id === id);
+        if (!record) return;
+        if (selected && selected.id === id) {
+          await save().catch((error) => showNote(error.message || L("保存失败"), true));
+        }
+        const response = await fetch(route(withProject("/api/plugins/pages/" + encodeURIComponent(id) + "/promote")), {
+          method: "POST",
+          headers: headers(),
+          body: JSON.stringify({ project_id: projectId(), goal_id: record.goal_id || "" }),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload.error || L("文档请求失败"));
+        showNote(L("已存成 Artifact"), false);
+        await loadList();
+        if (payload.document && selected && selected.id === id) remember(payload.document, false);
         return;
       }
       const row = event.target.closest("button[data-page-id]");
@@ -616,6 +647,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (event.target.closest("[data-pages-back]")) {
         await save().catch((error) => showNote(error.message || L("保存失败"), true));
         closeEditor();
+        await loadList();
         return;
       }
       if (event.target.closest("[data-pages-extract]") && selected) {
@@ -637,7 +669,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
         const payload = await response.json().catch(() => ({}));
         if (payload.document) remember(payload.document, false);
         if (!response.ok) throw new Error(payload.error || L("文档请求失败"));
-        showNote(L("已保存"), false);
+        showNote(L("已存成 Artifact"), false);
         return;
       }
       if (event.target.closest("[data-pages-export]") && selected) {
@@ -651,16 +683,15 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
         if (!ok) return;
         const id = selected.id;
         await request("POST", "/api/plugins/pages/" + encodeURIComponent(id) + "/delete", {});
-        records = records.filter((item) => item.id !== id);
         closeEditor();
-        renderList();
+        await loadList();
       }
     } catch (error) {
       showNote(error.message || L("文档请求失败"), true);
     }
   });
   workbench.addEventListener("dragstart", (event) => {
-    if (event.target.closest(".pages-row-act, .pages-folder-actions")) {
+    if (event.target.closest(".pages-row-act, .pages-folder-actions, .creative-artifact-act")) {
       event.preventDefault();
       return;
     }

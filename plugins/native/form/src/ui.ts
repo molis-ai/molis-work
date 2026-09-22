@@ -74,6 +74,7 @@ export function renderFormWorkbench(model: FormUiModel): string {
           <button class="mw-btn mw-btn--ghost" type="button" role="tab" aria-selected="false" data-form-tab="preview">${p.text("预览")}</button>
           <button class="mw-btn mw-btn--ghost" type="button" role="tab" aria-selected="false" data-form-tab="results">${p.text("结果")}</button>
         </div>
+        <button class="mw-btn mw-btn--ghost" type="button" data-form-artifact="" data-form-artifact-bar>${p.text("存成 Artifact")}</button>
         <button class="mw-btn mw-btn--ghost" type="button" data-form-delete>${p.text("删除")}</button>
       </div>
       <div class="form-workspace" data-form-pane="editor">

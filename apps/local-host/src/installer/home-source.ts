@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import path from "node:path";
 import { computeBuildSourceDigest, digestPaths, type MolisWorkBuildManifest } from "./fingerprint.js";
-import { MolisWorkHomeInstallError } from "./home-contract.js";
+import { MolisWorkHomeInstallError, REQUIRED_RELEASE_SKILL_FILES } from "./home-contract.js";
 import type { InspectedSource, RuntimeDependencyPackage } from "./home-contract.js";
 import { pathState, readText, readJsonIfPresent } from "./home-files.js";
 import { collectRuntimeDependencies } from "./home-dependencies.js";
@@ -36,7 +36,7 @@ export async function inspectSource(
     "dist/cli/main.js",
     "dist/mcp/server.js",
     "dist/web/server.js",
-    "skills/goal-advance/SKILL.md",
+    ...REQUIRED_RELEASE_SKILL_FILES,
   ]) {
     const assetPath = path.join(sourceDirectory, asset);
     if (!(await pathState(assetPath))) {

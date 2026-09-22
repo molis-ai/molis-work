@@ -54,6 +54,35 @@ export const SCHEDULE_CLIENT_FACTORY_SCRIPT = `(host) => {
       }).catch(() => undefined);
     }
   };
+  const refreshStage = async (openId, kind = "task") => {
+    try {
+      const scrollTop = list.scrollTop;
+      const response = await fetch(route("/api/schedule/workbench"), { cache: "no-store" });
+      if (!response.ok) throw new Error(L("无法更新定时任务列表"));
+      const template = document.createElement("template");
+      template.innerHTML = (await response.text()).trim();
+      const nextList = template.content.querySelector("[data-schedule-list]");
+      const nextWorkspace = template.content.querySelector("[data-schedule-stage-workspace]");
+      const workspace = workbench.querySelector("[data-schedule-stage-workspace]");
+      if (!nextList || !nextWorkspace || !workspace) throw new Error(L("无法更新定时任务列表"));
+      const chrome = list.querySelector(".plugin-stage-chrome");
+      nextList.querySelector(".plugin-stage-chrome")?.remove();
+      const incoming = [...nextList.childNodes];
+      list.replaceChildren(...(chrome ? [chrome, ...incoming] : incoming));
+      const empty = workspace.querySelector("[data-schedule-detail-empty]");
+      workspace.querySelectorAll("[data-schedule-detail]").forEach((detail) => detail.remove());
+      [...nextWorkspace.querySelectorAll("[data-schedule-detail]")].forEach((detail) => {
+        if (empty) workspace.insertBefore(detail, empty);
+        else workspace.append(detail);
+      });
+      list.scrollTop = scrollTop;
+      if (openId) select(openId, kind);
+      return true;
+    } catch {
+      location.reload();
+      return false;
+    }
+  };
   const showError = (message) => {
     if (!errorEl) return;
     errorEl.hidden = !message;
@@ -86,8 +115,10 @@ export const SCHEDULE_CLIENT_FACTORY_SCRIPT = `(host) => {
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || L("无法创建定时任务"));
-      sessionStorage.setItem(OPEN_KEY, result.task.task_id);
-      location.reload();
+      dialog?.close();
+      form?.reset();
+      if (submit) submit.disabled = false;
+      await refreshStage(result.task.task_id, "task");
     } catch (error) {
       showError(error.message || L("无法创建定时任务"));
       if (submit) submit.disabled = false;
@@ -119,8 +150,7 @@ export const SCHEDULE_CLIENT_FACTORY_SCRIPT = `(host) => {
         });
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || L("无法更新定时任务"));
-        sessionStorage.setItem(OPEN_KEY, taskId);
-        location.reload();
+        await refreshStage(taskId, "task");
       } catch (error) {
         if (status) {
           status.hidden = false;
@@ -144,7 +174,7 @@ export const SCHEDULE_CLIENT_FACTORY_SCRIPT = `(host) => {
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || L("无法更新定时任务"));
-      location.reload();
+      await refreshStage(jobId, "job");
     } catch (error) {
       if (status) {
         status.hidden = false;

@@ -25,6 +25,11 @@ import { handleInboxNativePluginHttp } from "./inbox-native-plugin-http.js";
 import { handleHomeDockJudgmentHttp } from "./home-dock-http.js";
 import { handleScheduleNativePluginHttp } from "./schedule-native-plugin-http.js";
 import { handlePersonalNativePluginHttp } from "./personal-native-plugin-http.js";
+import {
+  registerDatasetArtifactVersion,
+  registerFormArtifactVersion,
+  registerPptArtifactVersion,
+} from "./creative-artifacts.js";
 import { registerPagesArtifactVersion } from "./pages-artifact.js";
 import { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
 import { serviceProcessId } from "./web-runtime-settings.js";
@@ -189,7 +194,12 @@ export async function handleMolisWorkWebRequest(
           response,
           url,
           serverOptions.homeDirectory,
-          { publishArtifact: registerPagesArtifactVersion(coordinator, options.boardId) },
+          {
+            publishArtifact: registerPagesArtifactVersion(coordinator, options.boardId),
+            publishFormArtifact: registerFormArtifactVersion(coordinator, options.boardId),
+            publishDatasetArtifact: registerDatasetArtifactVersion(coordinator, options.boardId),
+            publishPptArtifact: registerPptArtifactVersion(coordinator, options.boardId),
+          },
         )) return;
         if (await handleInboxNativePluginHttp(request, response, url, {
           boardId: options.boardId,
@@ -197,6 +207,8 @@ export async function handleMolisWorkWebRequest(
           invalidateWebView: () => webViewCache.delete(options.databasePath),
           reconcileGoalDecisions: () => coordinator.goalDecisionAttention.reconcile(options.boardId),
           homeDirectory: serverOptions.homeDirectory,
+          renderer: workbenchRenderer,
+          readWebView,
         })) return;
         if (await handleHomeDockJudgmentHttp(request, response, url, {
           boardId: options.boardId,
@@ -207,6 +219,8 @@ export async function handleMolisWorkWebRequest(
           db: store.db,
           schedule: feedSchedulers.get(options.databasePath)?.schedule ?? scheduleServiceFor(store.db),
           invalidateWebView: () => webViewCache.delete(options.databasePath),
+          renderer: workbenchRenderer,
+          readWebView,
         })) return;
         if (await handleFeedNativePluginHttp(request, response, url, {
           renderer: workbenchRenderer,

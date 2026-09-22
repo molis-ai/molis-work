@@ -1,6 +1,8 @@
 import type { DatasetColumn, DatasetRow } from "@molis-ai/molis-work-contracts/modules/dataset";
 import type { PluginMcpExportDeclaration, PluginMcpHandleRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { DatasetError } from "./error.js";
+import { promoteDataset, requireDatasetArtifactPort } from "./promote.js";
+import type { DatasetRoutePorts } from "./route-handlers.js";
 import { toCsv, type DatasetStore } from "./store.js";
 
 /** Declare `tool_id`s here and handle by `tool_id` only. Host stamps the public name and injects project_id. */
@@ -71,6 +73,16 @@ export const DATASET_MCP_EXPORTS: readonly PluginMcpExportDeclaration[] = [
     effect: "write",
   },
   {
+    tool_id: "promote",
+    description: "把当前数据表的列和行存成 Artifact。私人库里的表还在。本机回滚点不包含在这一版里。",
+    input_schema: {
+      type: "object",
+      properties: { id: { type: "string" } },
+      required: ["id"],
+    },
+    effect: "write",
+  },
+  {
     tool_id: "import",
     description: "用 CSV 文本覆盖当前表的列和行。第一行是表头。",
     input_schema: {
@@ -135,6 +147,7 @@ export function runDatasetMcpTool(
   store: DatasetStore,
   request: PluginMcpHandleRequest,
   projectId: string,
+  ports: DatasetRoutePorts = {},
 ): string {
   if (request.tool_id === "list") {
     return dump({ datasets: store.list(projectId) });
@@ -158,6 +171,10 @@ export function runDatasetMcpTool(
   if (request.tool_id === "delete") {
     store.delete(idOf(request), projectId);
     return dump({ ok: true });
+  }
+  if (request.tool_id === "promote") {
+    const promoted = promoteDataset(store, idOf(request), projectId, requireDatasetArtifactPort(ports.publishArtifact));
+    return dump({ dataset: promoted.dataset, artifact: promoted.artifact });
   }
   if (request.tool_id === "generate") {
     return dump({

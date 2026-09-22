@@ -6,6 +6,7 @@ import {
   type InboxPluginRouteResponse,
 } from "@molis-ai/molis-work-plugin-inbox";
 import { INBOX_NEXT_SCENE_ID } from "@molis-ai/molis-work-contracts/modules/functions";
+import type { MolisWorkWebView, WorkbenchRenderer } from "@molis-ai/molis-work-app-workbench";
 import type { LocalProjectDatabase } from "./project-database.js";
 import { createLocalFeedApplication } from "./feed-application.js";
 import { bindBoardFunctionScene, functionSceneHttpBody } from "./functions-host.js";
@@ -16,6 +17,8 @@ export interface InboxNativePluginHttpOptions {
   readonly invalidateWebView: () => void;
   readonly reconcileGoalDecisions?: () => void;
   readonly homeDirectory?: string;
+  readonly renderer?: Pick<WorkbenchRenderer, "renderInboxWorkbenchFragment">;
+  readonly readWebView?: () => MolisWorkWebView;
 }
 
 export async function handleInboxNativePluginHttp(
@@ -41,6 +44,9 @@ export async function handleInboxNativePluginHttp(
       return { ...entry, project_id: entry.board_id };
     },
     changed: () => options.invalidateWebView(),
+    renderWorkbench: options.renderer && options.readWebView
+      ? () => options.renderer!.renderInboxWorkbenchFragment(options.readWebView!())
+      : undefined,
     readJudgment: homeDirectory
       ? () => functionSceneHttpBody(homeDirectory, options.boardId, INBOX_NEXT_SCENE_ID)
       : undefined,
@@ -65,6 +71,16 @@ export async function handleInboxNativePluginHttp(
 }
 
 function writeResponse(response: ServerResponse, result: InboxPluginRouteResponse): void {
+  if (result.html != null) {
+    response.writeHead(result.status, {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-store",
+      "x-content-type-options": "nosniff",
+      ...result.headers,
+    });
+    response.end(result.html);
+    return;
+  }
   response.writeHead(result.status, {
     "content-type": "application/json; charset=utf-8",
     "cache-control": "no-store",

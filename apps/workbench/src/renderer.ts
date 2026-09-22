@@ -281,6 +281,14 @@ function renderFeedWorkbenchFragment(view: MolisWorkWebView): string {
   ), view.route_prefix);
 }
 
+function renderInboxWorkbenchFragment(view: MolisWorkWebView): string {
+  return prefixLocalLinks(renderInboxNativePluginSurface(view, "workbench"), view.route_prefix);
+}
+
+function renderScheduleWorkbenchFragment(view: MolisWorkWebView): string {
+  return prefixLocalLinks(renderScheduleNativePluginSurface(view, "workbench"), view.route_prefix);
+}
+
 const goalsFactorsRenderer = createWorkbenchGoalsFactorsRenderer({ translate: L, escapeHtml, icon, renderFocusSectionDeck });
 
 function renderGoalFactors(item: WebGoalView, view: MolisWorkWebView): string {
@@ -412,6 +420,8 @@ const { renderMolisWorkWeb, renderMolisWorkRefreshFragment } =
     renderDecisionCenter,
     renderPersistedFeedItemDetail,
     renderFeedWorkbenchFragment,
+    renderInboxWorkbenchFragment,
+    renderScheduleWorkbenchFragment,
     renderGoalDocumentFragment,
     renderMolisWorkMomentumFragment,
     renderMolisWorkOnboarding,

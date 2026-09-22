@@ -34,7 +34,13 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
   let records = [];
   let selected = null;
   let saveTimer = 0;
+  let listSeq = 0;
   let catalog = { subjects: [], destinations: [], behaviors: [] };
+  const keepListScroll = (paint) => {
+    const top = list?.scrollTop || 0;
+    paint();
+    if (list) list.scrollTop = top;
+  };
   const kindChip = (kind, label) => {
     const node = document.createElement("span");
     node.className = "mw-status plugin-stage-kind";
@@ -70,6 +76,104 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     const title = destOf(id)?.title;
     if (title) return L(title);
     return id === "home.dock" ? L("首页") : id === "inbox.next" ? L("Inbox") : id === "feed.capture" ? L("Feed") : id === "agent.mcp" ? L("Agent") : L("还没选");
+  };
+  const catalogBehaviorIds = () => new Set(catalog.behaviors.map((row) => row.behavior_id));
+  const matchesSubjects = (behavior, kinds) => {
+    if (!kinds.length) return true;
+    return (behavior.subject_kinds || []).some((kind) => kinds.includes(kind));
+  };
+  const suggestedBehaviors = (destId, kinds) => {
+    const dest = destOf(destId);
+    const match = (row) => matchesSubjects(row, kinds);
+    if (!destId) return kinds.length ? catalog.behaviors.filter(match) : [];
+    if (destId === "agent.mcp" || dest?.kind === "mcp") return catalog.behaviors.filter(match);
+    return (dest?.behavior_ids || []).map((id) => catalog.behaviors.find((row) => row.behavior_id === id)).filter((row) => row && match(row));
+  };
+  const defaultChoiceRows = () => [{ key: "yes", description: "" }, { key: "no", description: "" }];
+  const criteriaFollowContext = (keys) => {
+    if (!keys.length) return true;
+    if (keys.length === 2 && keys[0] === "yes" && keys[1] === "no") return true;
+    const ids = catalogBehaviorIds();
+    return keys.every((key) => ids.has(key));
+  };
+  const currentChoiceMap = () => {
+    const map = new Map();
+    criteriaEl.querySelectorAll("[data-choice-row]").forEach((row) => {
+      const key = ((row.querySelector("[data-choice-key]") || {}).value || "").trim();
+      if (!key) return;
+      map.set(key, ((row.querySelector("[data-choice-description]") || {}).value || "").trim());
+    });
+    return map;
+  };
+  const applyChoiceRows = (rows) => {
+    const prev = currentChoiceMap();
+    criteriaEl.replaceChildren();
+    rows.forEach((row) => {
+      addChoiceRow(row.key, prev.has(row.key) ? prev.get(row.key) : (row.description || ""));
+    });
+  };
+  const pruneSceneMap = (map, destId) => {
+    const dest = destOf(destId);
+    if (!destId || destId === "agent.mcp" || dest?.kind !== "event") return {};
+    const pool = new Set(dest.behavior_ids || []);
+    const keys = new Set(outputKeysFromForm());
+    const next = {};
+    Object.entries(map || {}).forEach(([key, value]) => {
+      if (keys.has(key) && pool.has(value)) next[key] = value;
+    });
+    return next;
+  };
+  const updateCriteriaHint = (destId, suggested) => {
+    if (!criteriaHint || primitiveOf(selected) !== "choice") return;
+    const dest = destOf(destId);
+    const follow = criteriaFollowContext(outputKeysFromForm());
+    if (dest && dest.kind === "event" && follow && suggested.length >= 2) {
+      criteriaHint.textContent = L("这些动作跟着「看什么」和「用在哪」更新。");
+    } else if (dest && dest.kind === "event" && follow) {
+      criteriaHint.textContent = L("勾选的对象在这里没有对应动作。");
+    } else {
+      criteriaHint.textContent = L("选项是这道判断的答案，不必等于现场按钮。");
+    }
+  };
+  const syncCriteriaPanel = () => {
+    if (!selected) return;
+    const destId = selectedDestId();
+    const kinds = subjectKindsFromForm();
+    const suggested = suggestedBehaviors(destId, kinds);
+    if (selected.status === "published" || primitiveOf(selected) !== "choice") {
+      selected = { ...selected, scene_id: destId || null, subject_kinds: kinds };
+      updateCriteriaHint(destId, suggested);
+      renderPalette(selected);
+      renderMap(selected);
+      return;
+    }
+    const keys = outputKeysFromForm();
+    const dest = destOf(destId);
+    const eventDest = Boolean(dest && dest.kind === "event");
+    const follow = criteriaFollowContext(keys);
+    const hasCatalogKeys = keys.some((key) => catalogBehaviorIds().has(key));
+    let nextMap = selected.scene_map || {};
+    if (follow && eventDest && suggested.length >= 2) {
+      applyChoiceRows(suggested.map((row) => ({ key: row.behavior_id, description: row.title || "" })));
+      nextMap = {};
+    } else if (follow && hasCatalogKeys) {
+      applyChoiceRows(defaultChoiceRows());
+      nextMap = {};
+    } else if (!eventDest) {
+      nextMap = {};
+    } else {
+      nextMap = pruneSceneMap(nextMap, destId);
+    }
+    selected = {
+      ...selected,
+      scene_id: destId || null,
+      subject_kinds: kinds,
+      scene_map: nextMap,
+      criteria: criteriaFromForm(),
+    };
+    updateCriteriaHint(destId, suggested);
+    renderPalette(selected);
+    renderMap(selected);
   };
   const functionMeta = (record) => {
     const bits = [];
@@ -244,18 +348,13 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
   const renderPalette = (record) => {
     paletteEl.replaceChildren();
     if (primitiveOf(record) !== "choice" || record.status === "published") return;
-    const destId = record.scene_id || selectedDestId();
-    const dest = destOf(destId);
+    const destId = selectedDestId() || record.scene_id || "";
+    const kinds = subjectKindsFromForm();
     const used = new Set(outputKeysFromForm());
+    const fresh = suggestedBehaviors(destId, kinds).filter((row) => row && !used.has(row.behavior_id));
+    if (!fresh.length) return;
     const head = document.createElement("strong");
     head.textContent = L("从动作库加入");
-    const items = [];
-    if (destId === "agent.mcp") items.push(...catalog.behaviors);
-    else if (dest?.behavior_ids?.length) {
-      dest.behavior_ids.forEach((id) => items.push(behaviorOf(id)));
-    }
-    const fresh = items.filter((row) => row && !used.has(row.behavior_id));
-    if (!fresh.length) return;
     paletteEl.append(head);
     if (destId === "agent.mcp") {
       const groups = new Map();
@@ -305,7 +404,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
       const title = document.createElement("strong");
       title.textContent = row.label;
       const select = document.createElement("select");
-      select.className = "mw-input";
+      select.className = "mw-select";
       select.dataset.mapKey = row.key;
       const empty = document.createElement("option");
       empty.value = "";
@@ -355,6 +454,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     addCriterionBtn.disabled = locked;
     renderPalette(record);
     renderMap(record);
+    updateCriteriaHint(record.scene_id || "", suggestedBehaviors(record.scene_id || "", subjectKindsFromForm()));
   };
   const renderRoute = (record) => {
     const kind = primitiveOf(record);
@@ -592,6 +692,9 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     });
   };
   const renderList = () => {
+    keepListScroll(() => paintList());
+  };
+  const paintList = () => {
     empty.hidden = records.length > 0;
     rowsEl.replaceChildren();
     records.forEach((record) => {
@@ -628,13 +731,22 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     const payload = await request("GET", "/api/plugins/functions/catalog");
     if (payload.catalog) catalog = payload.catalog;
   };
-  const loadList = async () => {
+  const loadList = async (opts = {}) => {
+    const seq = ++listSeq;
     const payload = await request("GET", "/api/plugins/functions");
+    if (seq !== listSeq) return;
     records = payload.functions || [];
     renderList();
     if (selected) {
       const next = records.find((item) => item.id === selected.id);
-      if (next) fillEditor(next);
+      if (next) {
+        if (opts.remount) fillEditor(next);
+        else {
+          selected = next;
+          titleEl.textContent = next.name;
+          markSelected(next.id);
+        }
+      }
       else closeEditor();
     }
   };
@@ -658,7 +770,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
       titleEl.textContent = selected.name;
       return selected;
     } catch (error) {
-      await loadList().catch(() => {});
+      await loadList({ remount: true }).catch(() => {});
       throw error;
     }
   };
@@ -697,12 +809,17 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     try {
       const payload = await request("POST", "/api/plugins/functions", { primitive });
       closeCreate();
+      await loadList();
       remember(payload.function);
     } catch (error) {
       showNote(error.message, true);
     }
   });
-  workbench.querySelector("[data-functions-back]").addEventListener("click", () => closeEditor());
+  workbench.querySelector("[data-functions-back]").addEventListener("click", async () => {
+    await saveDraft().catch((error) => showNote(error.message, true));
+    closeEditor();
+    await loadList().catch((error) => showNote(error.message, true));
+  });
   deleteBtn.addEventListener("click", async () => {
     if (!selected || selected.status === "published") return;
     if (!window.confirm(L("确定删除这个草稿？"))) return;
@@ -710,9 +827,8 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
       await request("POST", "/api/plugins/functions/" + encodeURIComponent(selected.id) + "/delete", {
         updated_at: selected.updated_at,
       });
-      records = records.filter((item) => item.id !== selected.id);
       closeEditor();
-      renderList();
+      await loadList();
     } catch (error) {
       showNote(error.message, true);
     }
@@ -749,14 +865,14 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
       showNote(L("Score 不能绑 Inbox、首页、Feed。"), true);
       return;
     }
+    if (destId === (selected.scene_id || "")) return;
     selected = {
       ...selected,
       scene_id: destId || null,
       scene_map: destId && destId !== "agent.mcp" ? (selected.scene_map || {}) : {},
     };
     renderRoute(selected);
-    renderPalette(selected);
-    renderMap(selected);
+    syncCriteriaPanel();
     void renderUsages(selected);
     queueSave();
   });
@@ -768,7 +884,11 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
   });
   form.addEventListener("change", (event) => {
     if (event.target.matches("[data-functions-source]")) {
-      if (selected) renderRoute({ ...selected, subject_kinds: subjectKindsFromForm() });
+      if (selected && selected.status !== "published") {
+        selected = { ...selected, subject_kinds: subjectKindsFromForm() };
+        renderRoute(selected);
+        syncCriteriaPanel();
+      }
     }
     if (event.target.matches("[data-map-key]") && selected) {
       void renderUsages({ ...selected, scene_map: sceneMapFromForm(), criteria: criteriaFromForm() });
@@ -871,6 +991,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
         updated_at: selected.updated_at,
       });
       remember(payload.function);
+      await loadList();
     } catch (error) {
       showNote(error.message, true);
     }

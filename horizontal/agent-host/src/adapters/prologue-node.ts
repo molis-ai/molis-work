@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { BUILT_IN_ADAPTERS, SYSTEM_TOOL_NAMES, createAdapterRegistry, createRuntime, prepareSkillIntent, fillSkillBody, type Skill, type ExactRef, type Runtime, type ModelEvent } from "@prologue/sdk";
 import { createNodeHost } from "@prologue/sdk/node";
+import path from "node:path";
 
 import {
   PrologueAgentAdapter,
@@ -12,7 +13,7 @@ import {
   type PrologueRunTiming,
 } from "./prologue.js";
 import type { PrologueEvent, PrologueUsageReceipt } from "./prologue-stream.js";
-import { createPrologueSubagents, verifySubagentStart, exactCharacterKey } from "./prologue-subagents.js";
+import { createPrologueSubagents, verifySubagentStart, exactCharacterKey, type PrologueSubagentRoot } from "./prologue-subagents.js";
 import { createPrologueMcpLibrary, mcpConnectionId } from "./prologue-mcp.js";
 import { createPrologueCheckpoints, type PrologueRewindIntent } from "./prologue-checkpoints.js";
 import { createPrologueGitReviews, type PrologueGitReviewPort } from "./prologue-git.js";
@@ -124,6 +125,7 @@ export async function createPrologueNodeAdapter(
   const deadlines = new Map<string, number>();
   type CommandEvent = Extract<ModelEvent, { type: "command-receipt" }>;
   const commandEvents = new Map<string, CommandEvent[]>();
+  const subagentBridgeErrors = new Map<string, Record<string, string>>();
   const readResource = async (ref: ExactRef<"resource">) => {
     const handle = runtime.resources.inspect(ref);
     if (!handle || handle.byteLength > 8 * 1024 * 1024) throw new Error("完整执行资源不可读取，不能使用截断内容");
@@ -206,7 +208,7 @@ export async function createPrologueNodeAdapter(
           const args = JSON.parse(subject.input);
           if (!args || typeof args !== "object" || Array.isArray(args)) throw new Error("子任务操作参数无效");
           reviewEffects.set(`prologue:${pending.ref.id}`, effect.ref);
-          return { kind: "tool-operation", tool: subject.name, summary: subject.name === "dispatch-subagent" ? "分派只读子任务；结果仍需核对" : "向原子任务补充要求",
+          return { kind: "tool-operation", tool: subject.name, summary: subject.name === "dispatch-subagent" ? (attempt.subagent_roots?.length ? "分派独立目录子任务；修改仍需审查，结果仍需核对" : "分派只读子任务；结果仍需核对") : "向原子任务补充要求",
             fields: [{ label: "本次完整参数", value: JSON.stringify(args, null, 2) }] };
         }
         if (subject.what === "tool" && subject.name.startsWith("mcp:")) {
@@ -224,18 +226,20 @@ export async function createPrologueNodeAdapter(
         const review = await readResource(ref);
         const root = pending.origin?.run && runRoots.get(pending.origin.run);
         if (!root || review.rootRef?.kind !== root.kind || review.rootRef?.id !== root.id || review.rootRef?.revision !== root.revision) throw new Error("审查工作区与本轮授权不一致");
+        const index = pending.origin?.session ? await readIndex(pending.origin.session) : undefined;
+        const childDirectory = index?.parent_run && index.attempts.find(attempt => attempt.run_id === pending.origin?.run)?.frozen.directory.canonical_path;
         if (review.kind === "workspace-command" && review.version === 1
           && typeof review.executable === "string" && Array.isArray(review.argv) && review.argv.every((arg: unknown) => typeof arg === "string")
           && typeof review.cwd === "string" && Number.isFinite(review.timeoutMs) && review.timeoutMs > 0
           && Array.isArray(review.envAllowlist) && review.envAllowlist.every((name: unknown) => typeof name === "string") && typeof review.escalate === "boolean") {
           reviewEffects.set(`prologue:${pending.ref.id}`, effect.ref);
-          return { kind: "command", command: review.executable, args: review.argv, cwd: review.cwd,
+          return { kind: "command", ...(childDirectory ? { workspace_path: childDirectory } : {}), command: review.executable, args: review.argv, cwd: review.cwd,
             timeout_ms: review.timeoutMs, env_allowlist: review.envAllowlist, escalate: review.escalate };
         }
         if (review.kind !== "workspace-patch" || review.version !== 1 || typeof review.path !== "string"
           || typeof review.baseExists !== "boolean" || typeof review.baseText !== "string" || typeof review.nextText !== "string") throw new Error("这类操作的完整审查尚未接通，不能批准");
         reviewEffects.set(`prologue:${pending.ref.id}`, effect.ref);
-        return { kind: "text-edit", target_path: review.path, exists: review.baseExists,
+        return { kind: "text-edit", ...(childDirectory ? { workspace_path: childDirectory } : {}), target_path: review.path, exists: review.baseExists,
           before_text: review.baseExists ? review.baseText : null, after_text: review.nextText };
       },
   };
@@ -405,11 +409,12 @@ export async function createPrologueNodeAdapter(
         return inspectRecovery(session.session_id);
       },
     },
-    ...(options.reviewQueue ? { subagents: createPrologueSubagents(runtime, async run => {
+    ...(options.reviewQueue ? { subagents: { workspaces: true as const, ...createPrologueSubagents(runtime, async run => {
       const index = await readIndex(run.session_id), attempt = index?.attempts.find(attempt => attempt.run_id === run.run_id);
       if (!attempt) throw new Error("原父任务归属不可读取");
-      return { path: attempt.frozen.directory.canonical_path, roles: attempt.subagent_roles ?? [] };
-    }) } : {}),
+      return { path: attempt.frozen.directory.canonical_path, roles: attempt.subagent_roles ?? [], roots: attempt.subagent_roots,
+        errors: { ...attempt.subagent_errors, ...subagentBridgeErrors.get(run.run_id) } };
+    }) } } : {}),
     inlineMethods: true,
     compaction: true,
     ...(checkpoints ? { checkpoints } : {}),
@@ -529,16 +534,28 @@ export async function createPrologueNodeAdapter(
         const ref = await stageTextResource(runtime, agentTextMaterialContent(material), "coding-material");
         textResources.push({ ref, as: "original" });
       }
+      const childRoots: PrologueSubagentRoot[] = [];
+      if (input.subagent_workspaces?.length && input.character.tools.some(tool => !["read-file", "search", "context-remaining", "dispatch-subagent", "await-subagents", "steer-subagent", "ask-user"].includes(tool))) throw new Error("独立目录协调者只能读取和分派，不能持有其他执行工具");
+      for (const grant of input.subagent_workspaces ?? []) {
+        const overlaps = (a: string, b: string) => { const relative = path.relative(a, b); return !relative || !relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative); };
+        if ([input.root_path, ...childRoots.map(root => root.path)].some(other => overlaps(other, grant.directory.canonical_path) || overlaps(grant.directory.canonical_path, other))) throw new Error("子任务目录必须与主目录及其他子目录互不包含");
+        const authorized = await runtime.workspace.authorize({ path: grant.directory.canonical_path });
+        childRoots.push({ id: grant.workspace_id, rootRef: authorized.ref, path: grant.directory.canonical_path });
+      }
       const childRoles = new Map<string, NonNullable<PrologueStartInput["subagents"]>[number]>();
       for (const role of input.subagents ?? []) {
-        if (role.execution !== "read-only" || role.host_tools.some(tool => !["read-file", "search", "context-remaining"].includes(tool) || !input.character.tools.includes(tool))) throw new Error("当前装配只接受声明的只读子角色");
+        const allowed = ["read-file", "search", "context-remaining", ...(childRoots.length && role.execution !== "read-only" ? ["write", "edit-file"] : []), ...(childRoots.length && role.execution === "workspace-write" ? ["run-command"] : [])];
+        if (!childRoots.length && role.execution !== "read-only" || role.host_tools.some(tool => !allowed.includes(tool) || !childRoots.length && !input.character.tools.includes(tool))) throw new Error("子角色超出本轮允许的工具与目录");
         const ref = await stageInstructions(runtime, role.prompts.map(prompt => prompt.body).join("\n\n"));
         const draft = runtime.characters.create({ id: `molis-child-${randomUUID()}`, version: role.version, name: role.name, role: role.role_id,
           ...(ref ? { instructionsRef: ref } : {}), tools: role.host_tools.map(prologueToolName) });
         const published = runtime.characters.publish(draft.ref);
         childRoles.set(exactCharacterKey(published.ref), role);
       }
-      const childInstructions = childRoles.size ? "本轮没有分配独立子目录，不得填写 workspace 参数；所有子任务沿用当前授权目录且只读。可分派的固定子角色：\n" + [...childRoles].map(([ref, role]) => `${ref}: ${role.name}; tools=${JSON.stringify(role.host_tools.map(prologueToolName))}`).join("\n") + "\n必须选择上述精确 character，并显式提供该角色列出的完整 tools 清单；不能遗漏角色需要的工具或增加其他工具。给子任务写清任务、必要上下文、依据路径与完成条件；不继承父聊天或材料。子任务仅只读，不能再次分派。需要用户信息时作为阻塞返回给父任务。" : "";
+      const childScope = childRoots.length
+        ? "每个子任务必须选择一个不同的 workspace 标识：" + JSON.stringify(childRoots.map(root => ({ id: root.id, path: root.path }))) + "。主任务只读，不能直接修改主工作区。子任务只在自己的目录里执行，修改仍经过宿主审查。"
+        : "本轮没有分配独立子目录，不得填写 workspace 参数；所有子任务沿用当前授权目录且只读。";
+      const childInstructions = childRoles.size ? childScope + "可分派的固定子角色：\n" + [...childRoles].map(([ref, role]) => `${ref}: ${role.name}; tools=${JSON.stringify(role.host_tools.map(prologueToolName))}`).join("\n") + "\n必须选择上述精确 character，并显式提供该角色列出的完整 tools 清单；不能遗漏角色需要的工具或增加其他工具。给子任务写清任务、必要上下文、依据路径与完成条件；不继承父聊天或材料。子任务只能使用所选角色的工具，不能再次分派。需要用户信息时作为阻塞返回给父任务。" : "";
       const instructions = await stageInstructions(runtime, [input.character.instructions, childInstructions, ...methods, await checkpoints?.context(input.session_id) ?? ""].join("\n\n"));
       const index = await readIndex(input.session_id);
       if (!index) throw new Error("执行归属不可读");
@@ -554,6 +571,7 @@ export async function createPrologueNodeAdapter(
         mcpTools.push(adopted[at]!);
       }
       const tools = [...input.character.tools.map(prologueToolName), ...mcpTools];
+      const runTools = [...new Set([...tools, ...[...childRoles.values()].flatMap(role => role.host_tools.map(prologueToolName))])];
       const created = runtime.characters.create({
         // This is a projection of the frozen role, not a user-managed Character.
         // A project prompt may change without changing the package role version.
@@ -569,7 +587,7 @@ export async function createPrologueNodeAdapter(
       // Exchange our reference for one Prologue can resolve, before the Run
       // is started rather than when it first calls out.
       const credentialRef = await credentials.prologueRefFor(input.model.credential_ref);
-      const attempt: SessionIndex["attempts"][number] = { ...input.provenance, task: input.task, root_ref: root.ref, ...(childRoles.size ? { subagent_roles: [...childRoles] } : {}) };
+      const attempt: SessionIndex["attempts"][number] = { ...input.provenance, task: input.task, root_ref: root.ref, ...(childRoles.size ? { subagent_roles: [...childRoles], subagent_roots: childRoots } : {}) };
       let attemptIndex = -1;
       // Persist the intent before the SDK can dispatch a model or tool. A crash
       // in this window remains visibly unresolved instead of silently retrying.
@@ -581,7 +599,51 @@ export async function createPrologueNodeAdapter(
         session,
         rootRef: root.ref,
         history: "session",
-        ...(childRoles.size ? { subagents: { onStarted: verifySubagentStart(runtime, childRoles) } } : {}),
+        ...(childRoles.size ? { subagents: {
+          ...(childRoots.length ? { workspaces: childRoots.map(({ id, rootRef }) => ({ id, rootRef })), requireWorkspace: true } : {}),
+          onStarted: async observed => {
+            verifySubagentStart(runtime, childRoles, childRoots)(observed);
+            if (!childRoots.length) return;
+            const registered = runtime.subagents.list().find(child => child.run.id === observed.run.ref.id && child.session.id === observed.childSession.ref.id)!;
+            const role = childRoles.get(exactCharacterKey(registered.character!))!;
+            const granted = childRoots.find(root => root.id === observed.workspace!.id)!;
+            const childRun = { session_id: observed.childSession.ref.id, run_id: observed.run.ref.id };
+            await saveIndex({ schema: 1, ref: observed.childSession.ref, title: role.name, owner: index.owner,
+              parent_run: { session_id: observed.parentSession.id, run_id: observed.parentRun.id },
+              attempts: [{ started_at: new Date().toISOString(), task: "", run_id: childRun.run_id, root_ref: granted.rootRef,
+                frozen: { ...input.provenance.frozen, role_id: role.role_id, role_version: role.version, execution: role.execution,
+                  subagent_workspaces: undefined, character: undefined, compaction: undefined, directory: { canonical_path: granted.path, realpath_verified: true },
+                  host_tools: [...role.host_tools], text_materials: [], skills: [], mcp_tools: [], mcp_sources: [], budget: null,
+                  prompts: role.prompts.map(prompt => ({ prompt_id: prompt.prompt_id, version: prompt.version, layer: prompt.layer ?? "role" })) } }] });
+            runRoots.set(childRun.run_id, granted.rootRef);
+            activeRuns.set(childRun.run_id, { live: () => observed.run.state === "running", steer: text => observed.control.steer({ text }) });
+            const bridgeFailed = async () => {
+              const reason = "子任务的宿主审查或归属记录失败，已停止执行；请核对原工具结果后继续";
+              const errors = subagentBridgeErrors.get(observed.parentRun.id) ?? {};
+              errors[childRun.run_id] = reason;
+              subagentBridgeErrors.set(observed.parentRun.id, errors);
+              observed.control.stop("cancelled");
+              try {
+                await updateIndex(observed.parentSession.id, saved => {
+                  const attempt = saved.attempts.find(attempt => attempt.run_id === observed.parentRun.id)!;
+                  attempt.subagent_errors = { ...attempt.subagent_errors, [childRun.run_id]: reason };
+                });
+              } catch { errors[childRun.run_id] = reason + "；失败原因未能持久保存，请保留当前记录"; }
+            };
+            observed.run.subscribe(event => {
+              if (event.type === "command-receipt") {
+                const events = commandEvents.get(childRun.run_id) ?? [];
+                if (!events.some(saved => sameRef(saved.receiptRef, event.receiptRef))) events.push(event);
+                commandEvents.set(childRun.run_id, events);
+              }
+              if (event.type === "prompt" && event.role === "user") void updateIndex(childRun.session_id, saved => {
+                if (!saved.attempts[0]!.task) saved.attempts[0]!.task = event.text;
+              }).catch(bridgeFailed);
+              if (event.type === "awaiting-approval") void approvals!.mirrorPending({ pendingRef: event.pendingRef, owner: index.owner, run: childRun })
+                .catch(bridgeFailed);
+            });
+          },
+        } } : {}),
         ...(input.compaction ? {
           context: { compactAboveTokens: input.compaction.above_tokens },
           compactor: createPrologueCompactor({ runtime, prompt: input.compaction.prompt, connection: {
@@ -604,7 +666,7 @@ export async function createPrologueNodeAdapter(
         agent: {
           idempotencyKey: `molis-work-${input.session_id}-${randomUUID()}`,
           mode: input.mode,
-          toolNames: tools,
+          toolNames: runTools,
           mcpConnections: [...new Set([...(input.mcp_tools ?? []),...(input.mcp_sources ?? [])].map(mcpConnectionId))],
           characterRef: character.ref,
           ...(textResources.length ? { mount: { textResources } } : {}),
@@ -693,11 +755,12 @@ function validRunTiming(value: unknown): value is PrologueRunTiming {
 
 interface SessionIndex {
   schema: 1;
+  parent_run?: AgentRunRef;
   ref: ExactRef<"session">;
   title: string;
   owner: PrologueRestoredSession["owner"];
   /** Frozen intent and display times only; streamed output stays in the SDK ledger. */
-  attempts: Array<PrologueStartInput["provenance"] & { task: string; subagent_roles?: Array<[string, NonNullable<PrologueStartInput["subagents"]>[number]]>; run_id?: string; stop_intent?: "stopped" | "cancelled"; root_ref?: ExactRef<"authorized-root">; timing?: PrologueRunTiming }>;
+  attempts: Array<PrologueStartInput["provenance"] & { task: string; subagent_errors?: Record<string, string>; subagent_roots?: PrologueSubagentRoot[]; subagent_roles?: Array<[string, NonNullable<PrologueStartInput["subagents"]>[number]]>; run_id?: string; stop_intent?: "stopped" | "cancelled"; root_ref?: ExactRef<"authorized-root">; timing?: PrologueRunTiming }>;
   rewinds?: PrologueRewindIntent[];
   review_decisions?: Record<string, Pick<AgentReviewReceipt, "status" | "decided_by" | "decided_at" | "note">>;
 }

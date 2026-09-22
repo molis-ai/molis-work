@@ -265,7 +265,7 @@ export class AgentHost implements AgentHostApi {
   }> {
     const capabilities = this.adapter(runtimeId).descriptor.capabilities;
     return manifest.roles.map((role) => {
-      if (role.subagent_workspaces || manifest.subagents?.parent_role_ids.includes(role.role_id) && capabilities.subagents === "unsupported") return { role_id: role.role_id, available: false, reason: "当前运行时尚未接通这个协作方式" };
+      if (role.subagent_workspaces && (!this.adapter(runtimeId).subagents?.workspaces || !manifest.subagents?.parent_role_ids.includes(role.role_id)) || manifest.subagents?.parent_role_ids.includes(role.role_id) && capabilities.subagents === "unsupported") return { role_id: role.role_id, available: false, reason: "当前运行时尚未接通这个协作方式" };
       const missing = EXECUTION_CAPABILITIES[roleExecution(role)]
         .filter((capability) => capabilities[capability] === "unsupported");
       return missing.length === 0
@@ -409,15 +409,31 @@ export class AgentHost implements AgentHostApi {
       compaction = { prompt: { ...prompt }, above_tokens: declaredCompaction.above_tokens };
     }
     let subagents: import("@molis-ai/molis-work-contracts/services/agent-host").AgentFrozenSubagentRole[] | undefined;
+    let childWorkspaces: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSubagentWorkspace[] | undefined;
+    if (role.subagent_workspaces === "required") {
+      if (execution !== "read-only" || !authority.manifest.subagents?.parent_role_ids.includes(role.role_id)) throw new AgentHostError("agent.role_execution_exceeded", "独立子目录必须由已声明的只读协调者分派");
+      if (!adapter.subagents?.workspaces || !request.subagent_workspaces?.length) throw new AgentHostError("agent.capability_unavailable", "请先为每个写入子任务选择独立的已授权目录");
+      const ids = new Set<string>(), paths = new Set<string>();
+      childWorkspaces = request.subagent_workspaces.map(grant => {
+        const path = grant.directory?.canonical_path;
+        if (!/^[A-Za-z0-9][A-Za-z0-9._~-]{0,63}$/.test(grant.workspace_id) || ids.has(grant.workspace_id)
+          || !grant.directory?.realpath_verified || !authority.authorizedDirectories.includes(path)
+          || path === request.directory.canonical_path || paths.has(path)) throw new AgentHostError("agent.directory_unauthorized", "子任务目录未授权、重复或指向主工作区");
+        ids.add(grant.workspace_id); paths.add(path); return structuredClone(grant);
+      });
+    } else if (request.subagent_workspaces?.length) throw new AgentHostError("agent.directory_unauthorized", "当前角色没有声明独立子目录");
     const declaration = authority.manifest.subagents;
     if (declaration?.parent_role_ids.includes(role.role_id)) {
-      if (!adapter.subagents || adapter.descriptor.capabilities.subagents === "unsupported" || role.subagent_workspaces) throw new AgentHostError("agent.capability_unavailable", "当前子代理装配只开放同根只读协作，独立写入目录尚未接通");
+      if (!adapter.subagents || adapter.descriptor.capabilities.subagents === "unsupported") throw new AgentHostError("agent.capability_unavailable", "当前运行时尚未接通子任务");
       subagents = declaration.roles.filter(child => !child.parent_role_ids || child.parent_role_ids.includes(role.role_id)).map(child => {
         const tools = child.host_tools ?? [];
-        if ((child.execution ?? "read-only") !== "read-only" || tools.some(tool => !["read-file", "search", "context-remaining"].includes(tool) || !hostTools.includes(tool))) throw new AgentHostError("agent.role_execution_exceeded", "只读子角色请求了当前父任务未开放的工具");
+        const childExecution = child.execution ?? "read-only";
+        const allowed = ["read-file", "search", "context-remaining", ...(childWorkspaces && childExecution !== "read-only" ? ["write", "edit-file"] : []), ...(childWorkspaces && childExecution === "workspace-write" ? ["run-command"] : [])];
+        if (!childWorkspaces && childExecution !== "read-only" || tools.some(tool => !allowed.includes(tool) || !childWorkspaces && !hostTools.includes(tool))) throw new AgentHostError("agent.role_execution_exceeded", "只读子角色请求了当前父任务未开放的工具");
+        if (EXECUTION_CAPABILITIES[childExecution].some(capability => adapter.descriptor.capabilities[capability] === "unsupported")) throw new AgentHostError("agent.capability_unavailable", "运行时不能执行声明的子角色操作");
         const prompt = authority.prompts?.find(prompt => prompt.prompt_id === child.role_id && prompt.version === child.version);
         if (!prompt) throw new AgentHostError("agent.role_not_declared", "子角色缺少声明版本的正文");
-        return { role_id: child.role_id, version: child.version, name: child.name, execution: "read-only" as const, host_tools: [...tools],
+        return { role_id: child.role_id, version: child.version, name: child.name, execution: childExecution, host_tools: [...tools],
           prompts: composeRolePrompts({ ...child, prompts: [...(role.prompts ?? []).filter(id => authority.prompts?.some(p => p.prompt_id === id && p.layer === "base")), child.role_id] }, authority) };
       });
       if (!subagents.length) throw new AgentHostError("agent.role_not_declared", "没有可分派的子角色");
@@ -432,6 +448,7 @@ export class AgentHost implements AgentHostApi {
         version: role.version,
         execution,
         ...(subagents ? { subagents } : {}),
+        ...(childWorkspaces ? { subagent_workspaces: childWorkspaces } : {}),
         ...(character ? { character } : {}),
         prompts: prompts.map((prompt) => ({ ...prompt })),
         skills,
@@ -442,6 +459,7 @@ export class AgentHost implements AgentHostApi {
     // The Runtime cannot widen what the Manifest froze. A mismatch is the
     // adapter's fault, and the run does not continue on a wider authority.
     if (JSON.stringify(handle.frozen.character) !== JSON.stringify(character)
+      || JSON.stringify(handle.frozen.subagent_workspaces) !== JSON.stringify(childWorkspaces)
       || character && JSON.stringify(handle.frozen.host_tools) !== JSON.stringify(hostTools)
       || JSON.stringify(handle.frozen.mcp_sources ?? []) !== JSON.stringify(sources)
       || JSON.stringify(handle.frozen.mcp_tools) !== JSON.stringify(mcp)

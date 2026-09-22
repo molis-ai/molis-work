@@ -174,6 +174,8 @@ export interface AgentFrozenCharacter extends CharacterContent {
 }
 
 export interface AgentFrozenStart {
+  /** Child directory grants frozen for this run; never a grant to write the parent. */
+  subagent_workspaces?: AgentSubagentWorkspace[];
   /** Authoritative fixed Character content and source at start, never looked up for history. */
   character?: AgentFrozenCharacter;
   role_id: string;
@@ -220,7 +222,13 @@ export interface AgentFrozenSubagentRole {
   prompts: AgentPromptText[]; host_tools: string[];
 }
 
+export interface AgentSubagentWorkspace {
+  workspace_id: string;
+  directory: AgentWorkingDirectory;
+}
+
 export interface AgentFrozenRole {
+  subagent_workspaces?: AgentSubagentWorkspace[];
   subagents?: AgentFrozenSubagentRole[];
   character?: AgentFrozenCharacter;
   role_id: string;
@@ -237,6 +245,8 @@ export interface AgentFrozenRole {
 }
 
 export interface AgentStartRequest {
+  /** Selected child roots; the Host must independently verify every directory grant. */
+  subagent_workspaces?: AgentSubagentWorkspace[];
   /** Only a reference is accepted from the caller; the Host resolves its immutable content. */
   character?: ArtifactReference | null;
   session: AgentSessionRef;
@@ -421,6 +431,8 @@ export type AgentReviewKind = "text-edit" | "command" | "tool-operation" | "mcp"
 
 export interface AgentTextReviewDocument {
   kind: "text-edit";
+  /** Actual child root, when this proposal comes from an isolated subtask. */
+  workspace_path?: string;
   target_path: string;
   exists: boolean;
   before_text: string | null;
@@ -429,6 +441,8 @@ export interface AgentTextReviewDocument {
 
 export interface AgentCommandReviewDocument {
   kind: "command";
+  /** Authorized root; cwd may be relative to it. */
+  workspace_path?: string;
   command: string;
   args: string[];
   cwd: string;
@@ -651,6 +665,8 @@ export interface AgentSubagentView {
 }
 
 export interface AgentSubagentsCapability {
+  /** Distinct child roots and their review/recovery bridge are actually wired. */
+  workspaces?: true;
   list(run: AgentRunRef): Promise<AgentSubagentView[]>;
   cancel(run: AgentRunRef, subagentId: string, actorId: string): Promise<void>;
 }

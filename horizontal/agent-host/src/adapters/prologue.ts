@@ -102,6 +102,7 @@ export interface PrologueControlPort {
 }
 
 export interface PrologueStartInput {
+  subagent_workspaces?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSubagentWorkspace[];
   subagents?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentFrozenSubagentRole[];
   /** Host provenance, persisted before execution; never credentials or event history. */
   provenance: { frozen: AgentRunView["frozen"]; started_at: string };
@@ -256,6 +257,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   constructor(options: PrologueAdapterOptions) {
     this.#runtime = options.runtime;
     if (options.runtime.subagents) this.subagents = {
+      ...(options.runtime.subagents.workspaces ? { workspaces: true as const } : {}),
       list: async run => { await this.read(run); return options.runtime.subagents!.list(run); },
       cancel: async (run, id, actor) => { await this.read(run); await options.runtime.subagents!.cancel(run, id, actor); },
     };
@@ -387,10 +389,10 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
         "宿主没有冻结角色定义，不能在没有角色 Prompt 的情况下起跑",
       );
     }
-    // Only the Host decides whether this Run may write. A role the Host froze
-    // as read-only plans; it never builds because the model asked to.
+    // Only Host-frozen workspace grants open the SDK write envelope for children.
+    // The coordinator's Character still restricts its own tools to read/dispatch.
     if (role.subagents?.length && !this.#runtime.subagents) throw new PrologueAdapterError("agent.capability_unavailable", "当前运行时未装配子代理观察和控制");
-    const mode = role.execution === "read-only" ? "plan" : "build";
+    const mode = role.execution === "read-only" && !role.subagent_workspaces?.length ? "plan" : "build";
     if (mode === "build" && this.descriptor.capabilities["text-edit"] === "unsupported") {
       throw new PrologueAdapterError(
         "agent.capability_unavailable",
@@ -408,6 +410,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     const at = this.#now().toISOString();
     const state = emptyPrologueStreamState();
     const frozen = {
+      ...(role.subagent_workspaces ? { subagent_workspaces: structuredClone(role.subagent_workspaces) } : {}),
       ...(role.character ? { character: structuredClone(role.character) } : {}),
       role_id: role.role_id,
       role_version: role.version,
@@ -448,6 +451,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       ...(role.compaction ? { compaction: { prompt: role.compaction.prompt.body, above_tokens: role.compaction.above_tokens } } : {}),
       task: request.task,
       ...(role.subagents ? { subagents: structuredClone(role.subagents) } : {}),
+      ...(role.subagent_workspaces ? { subagent_workspaces: structuredClone(role.subagent_workspaces) } : {}),
       text_materials: textMaterials,
       skills: role.skills ?? [],
       mcp_tools: request.mcp_tools ?? [],

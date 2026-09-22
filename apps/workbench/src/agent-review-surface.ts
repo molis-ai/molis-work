@@ -85,8 +85,10 @@ function readable(document: AgentReviewDocument): boolean {
         && (file.before_text === null ? file.before_mode === null : typeof file.before_text === "string" && ["100644", "100755"].includes(file.before_mode ?? ""))
         && (file.after_text === null ? file.after_mode === null : typeof file.after_text === "string" && ["100644", "100755"].includes(file.after_mode ?? "")));
     case "text-edit": return typeof document.target_path === "string" && typeof document.after_text === "string"
+      && (document.workspace_path === undefined || typeof document.workspace_path === "string")
       && (document.exists ? typeof document.before_text === "string" : document.before_text === null);
     case "command": return typeof document.command === "string" && Array.isArray(document.args)
+      && (document.workspace_path === undefined || typeof document.workspace_path === "string")
       && document.args.every(arg => typeof arg === "string") && typeof document.cwd === "string" && Number.isFinite(document.timeout_ms)
       && (document.env_allowlist === undefined || Array.isArray(document.env_allowlist) && document.env_allowlist.every(name => typeof name === "string"))
       && (document.escalate === undefined || typeof document.escalate === "boolean");
@@ -201,12 +203,14 @@ function renderDocument(document: AgentReviewDocument, p: AgentReviewPrimitives)
     case "text-edit":
       return `<div class="agent-review-doc" data-agent-review-kind="text-edit">
         <p class="agent-review-target">${p.escape(document.target_path)}${document.exists ? "" : ` · ${p.escape("新建文件")}`}</p>
+        ${document.workspace_path ? `<p class="agent-review-target">${p.escape(document.workspace_path)}</p>` : ""}
         <details class="agent-review-before" data-review-detail="before"><summary>${p.escape("修改前")}</summary><pre>${p.escape(document.before_text ?? "文件尚不存在")}</pre></details>
         <p>${p.escape("修改后")}</p>
         <pre class="agent-review-after">${p.escape(document.after_text)}</pre>
       </div>`;
     case "command":
       return `<div class="agent-review-doc" data-agent-review-kind="command">
+        ${document.workspace_path ? `<p>${p.escape("所属工作区：" + document.workspace_path)}</p>` : ""}
         <p>${p.escape("程序")}</p><pre class="agent-review-command">${p.escape(document.command)}</pre>
         <p>${p.escape("参数（逐项）")}</p><pre>${p.escape(JSON.stringify(document.args, null, 2))}</pre>
         <p>${p.escape("工作目录：" + document.cwd)}</p><p>${p.escape("超时：" + document.timeout_ms + " ms")}</p>

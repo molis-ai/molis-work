@@ -681,7 +681,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       plans.update(id,data.plan ?? null,data.runs);
       subagents.update(id,data.subagents ?? []);
       if(checkpointBusy){statusKey='checkpoint';status('回退操作尚未结束，请查看右侧审查或核对结果。');}
-      void host.showReviews?.(q('[data-coding-host-reviews]'), data.runs.map(run=>run.ref), data.session.runtime_session_id);
+      void host.showReviews?.(q('[data-coding-host-reviews]'), [...data.runs.map(run=>run.ref), ...(data.subagents || []).flatMap(group=>(group.children || []).flatMap(child=>child.child_run ? [child.child_run] : []))], data.session.runtime_session_id);
       const nextCheckpointKey=JSON.stringify([id,data.runs.at(-1)?.ref.run_id,data.runs.at(-1)?.ended_at,checkpointBusy]);
       if(fresh || checkpointKey!==nextCheckpointKey){checkpointKey=nextCheckpointKey;void readCheckpoints();}
       if(data.error) status(data.error,true);

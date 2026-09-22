@@ -14,6 +14,7 @@ import {
   goalsProposalUiContribution,
   goalsRelationUiContribution,
   goalsSafetyUiContribution,
+  goalsSettingsUiContribution,
   goalsStatusUiContribution,
   goalsTreeUiContribution,
 } from "@molis-ai/molis-work-plugin-goals";
@@ -135,6 +136,7 @@ export const BUILTIN_PLUGIN_WORKBENCH: readonly BuiltinPluginWorkbenchPack[] = [
       goalsStatusUiContribution,
       goalsFactorsUiContribution,
       goalsDialogsUiContribution,
+      goalsSettingsUiContribution,
     ],
   },
 ];

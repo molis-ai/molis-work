@@ -1,5 +1,6 @@
+import type { ProjectPluginId } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { UiContributionDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
-import { PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, settingsEntries } from "./plugin-catalog.js";
+import { PERSONAL_PLUGIN_IDS, settingsEntries } from "./plugin-catalog.js";
 import { listWorkbenchUiContributions, WORKBENCH_UI_SLOTS } from "./ui-composition.js";
 
 export interface PluginSettingsNavItem {
@@ -7,12 +8,13 @@ export interface PluginSettingsNavItem {
   readonly contribution_id: string;
   readonly plugin_id: string;
   readonly label: string;
-  readonly icon: "library" | "sparkles" | "settings";
+  readonly icon: "library" | "sparkles" | "settings" | "workflow";
 }
 
 const PLUGIN_SETTINGS_ICONS: Readonly<Record<string, PluginSettingsNavItem["icon"]>> = {
   shelf: "library",
   functions: "sparkles",
+  planning: "workflow",
 };
 
 export function pluginSettingsNavItemsFrom(
@@ -36,17 +38,18 @@ export function pluginSettingsNavItemsFrom(
     .filter((item) => !isHostGlobalSettingsSection(item.section_id));
 }
 
-export function listPluginSettingsNavItems(): PluginSettingsNavItem[] {
-  const items = pluginSettingsNavItemsFrom(listWorkbenchUiContributions());
-  const order = new Map(
-    settingsEntries([...PERSONAL_PLUGIN_IDS, ...PROJECT_SCOPED_PLUGIN_IDS])
-      .map((entry, index) => [entry.contribution_id, index]),
-  );
-  return [...items].sort((left, right) => {
-    const leftOrder = order.get(left.contribution_id) ?? Number.MAX_SAFE_INTEGER;
-    const rightOrder = order.get(right.contribution_id) ?? Number.MAX_SAFE_INTEGER;
-    return leftOrder - rightOrder || left.section_id.localeCompare(right.section_id);
-  });
+/** Personal plugins are always installed. Project plugins appear only when `enabled` includes them. */
+export function listPluginSettingsNavItems(enabled?: readonly string[]): PluginSettingsNavItem[] {
+  const scope = [...new Set([
+    ...PERSONAL_PLUGIN_IDS,
+    ...(enabled ?? []),
+  ])] as ProjectPluginId[];
+  const placed = settingsEntries(scope);
+  const allowed = new Set(placed.map((entry) => entry.contribution_id));
+  const order = new Map(placed.map((entry, index) => [entry.contribution_id, index]));
+  return pluginSettingsNavItemsFrom(listWorkbenchUiContributions())
+    .filter((item) => allowed.has(item.contribution_id))
+    .sort((left, right) => (order.get(left.contribution_id) ?? Number.MAX_SAFE_INTEGER) - (order.get(right.contribution_id) ?? Number.MAX_SAFE_INTEGER));
 }
 
 export function findPluginSettingsNavItem(sectionId: string): PluginSettingsNavItem | null {
@@ -59,6 +62,5 @@ export function isHostGlobalSettingsSection(section: string): boolean {
     || section === "mcp"
     || section === "connectors"
     || section === "projects"
-    || section === "diagnostics"
-    || section === "planning";
+    || section === "diagnostics";
 }

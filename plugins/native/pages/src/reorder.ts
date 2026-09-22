@@ -26,12 +26,20 @@ export interface DragRow {
   indent: number;
   topIndex: number;
   canHaveChildren: boolean;
+  /** Dragging one step to the right of this row wraps it and the dragged block into columns. */
+  columnWrap: boolean;
+  /** Dragging one step to the right of this row adds a column after the column that holds it. */
+  columnSplit: boolean;
 }
 
 export interface DropSlot {
   parentPos: number | null;
   index: number;
   wrapList?: ListKind;
+  /** Put the dragged block in a new column to the right of the row at `index`. */
+  wrapColumns?: boolean;
+  /** Insert a new column to the right of the column at `parentPos`. */
+  splitColumn?: boolean;
 }
 
 type ListKind = "bullet_list" | "ordered_list" | "task_list";
@@ -63,6 +71,7 @@ function walk(
   topIndex: number,
   indent: number,
   rows: DragRow[],
+  columnSplit = false,
 ): void {
   if (LIST.has(node.type.name)) {
     let childPos = pos + 1;
@@ -72,8 +81,25 @@ function walk(
     });
     return;
   }
+  if (node.type.name === "column_list") {
+    rows.push({ pos, parentPos, index, indent, topIndex, canHaveChildren: true, columnWrap: false, columnSplit: false });
+    let columnPos = pos + 1;
+    node.forEach((column) => {
+      let inner = columnPos + 1;
+      column.forEach((block, _offset, blockIndex) => {
+        if (block.isBlock) walk(block, inner, columnPos, blockIndex, topIndex, indent + 1, rows, true);
+        inner += block.nodeSize;
+      });
+      columnPos += column.nodeSize;
+    });
+    return;
+  }
   const canHaveChildren = ITEM.has(node.type.name) || CONTAINER.has(node.type.name);
-  rows.push({ pos, parentPos, index, indent, topIndex, canHaveChildren });
+  const columnWrap = parentPos == null && !canHaveChildren && node.isBlock && node.type.name !== "column_list";
+  rows.push({
+    pos, parentPos, index, indent, topIndex, canHaveChildren, columnWrap,
+    columnSplit: columnSplit && !canHaveChildren,
+  });
   if (!canHaveChildren) return;
   let childPos = pos + 1;
   node.forEach((child, _offset, childIndex) => {
@@ -91,7 +117,7 @@ function walk(
 export function dropLevelRange(rows: readonly DragRow[], gap: number): { min: number; max: number } {
   const prev = gap > 0 ? rows[gap - 1] : undefined;
   const next = gap < rows.length ? rows[gap] : undefined;
-  if (prev) return { min: 0, max: prev.indent + (prev.canHaveChildren ? 1 : 0) };
+  if (prev) return { min: 0, max: prev.indent + (prev.canHaveChildren || prev.columnWrap || prev.columnSplit ? 1 : 0) };
   return { min: 0, max: next ? next.indent : 0 };
 }
 
@@ -125,6 +151,12 @@ function nestInto(doc: Node, prev: DragRow, dragged: Node): DropSlot | null {
     }
     return { parentPos: prev.pos, index: node.childCount, wrapList: kind };
   }
+  if (node.type.name === "column_list") {
+    const last = node.lastChild;
+    if (!last || last.type.name !== "column") return null;
+    const lastPos = prev.pos + node.nodeSize - 1 - last.nodeSize;
+    return { parentPos: lastPos, index: last.childCount };
+  }
   if (node.type.name === "list_item" || node.type.name === "task_item" || CONTAINER.has(node.type.name)) {
     return { parentPos: prev.pos, index: node.childCount };
   }
@@ -146,6 +178,12 @@ export function dropSlot(doc: Node, rows: readonly DragRow[], gap: number, level
   if (want === 0) {
     if (next && next.indent === 0) return { parentPos: null, index: next.topIndex };
     return { parentPos: null, index: prev.topIndex + 1 };
+  }
+  if (want > prev.indent && prev.columnWrap && !prev.canHaveChildren) {
+    return { parentPos: prev.parentPos, index: prev.index, wrapColumns: true };
+  }
+  if (want > prev.indent && prev.columnSplit) {
+    return { parentPos: prev.parentPos, index: prev.index, splitColumn: true };
   }
   if (want > prev.indent && prev.canHaveChildren) {
     if (next && next.indent === want && contains(doc, prev, next)) {
@@ -218,6 +256,7 @@ function fragmentFor(parent: Node, dragged: Node, wrapList?: ListKind): Fragment
   if (parent.type === s.doc && (dragged.type === s.list_item || dragged.type === s.task_item)) {
     return dragged.content;
   }
+  if (parent.type === s.column && (dragged.type === s.column || dragged.type === s.column_list)) return null;
   const block = toBlock(dragged);
   return block ? Fragment.from(block) : null;
 }
@@ -251,7 +290,7 @@ function removalPlan(doc: Node, pos: number): Removal | null {
     const parentPos = $pos.before($pos.depth);
     return { from: parentPos, to: parentPos + parent.nodeSize, replacement: Fragment.empty };
   }
-  if (parent.type === s.callout && parent.childCount === 1) {
+  if ((parent.type === s.callout || parent.type === s.column) && parent.childCount === 1) {
     return { from: pos, to: pos + node.nodeSize, replacement: Fragment.from(emptyParagraph()) };
   }
   if (parent.type === s.doc && parent.childCount === 1) {
@@ -273,11 +312,86 @@ function replace(doc: Node, from: number, to: number, fragment: Fragment): Node 
   return doc.replace(from, to, new Slice(fragment, 0, 0));
 }
 
+function wrapBeside(doc: Node, fromPos: number, slot: DropSlot, dragged: Node): Node | null {
+  const hostPos = childPosition(doc, slot.parentPos, slot.index);
+  if (hostPos == null) return null;
+  const host = doc.nodeAt(hostPos);
+  const s = pagesSchema.nodes;
+  if (!host || host.type === s.column || host.type === s.column_list) return null;
+  if (fromPos >= hostPos && fromPos < hostPos + host.nodeSize) return null;
+  const probe = s.column.create(null, s.paragraph.create());
+  const right = fragmentFor(probe, dragged);
+  if (!right?.firstChild) return null;
+  const columns = s.column_list.create(null, [
+    s.column.create(null, host),
+    s.column.create(null, right),
+  ]);
+  const parent = slot.parentPos == null ? doc : doc.nodeAt(slot.parentPos);
+  if (!parent?.canReplace(slot.index, slot.index + 1, Fragment.from(columns))) return null;
+  const removal = removalPlan(doc, fromPos);
+  if (!removal) return null;
+  if (hostPos >= removal.from && hostPos < removal.to) return null;
+  const columnsFrag = Fragment.from(columns);
+  const hostTo = hostPos + host.nodeSize;
+  const next = removal.from >= hostTo
+    ? replace(
+      replace(doc, hostPos, hostTo, columnsFrag),
+      removal.from + columns.nodeSize - (hostTo - hostPos),
+      removal.to + columns.nodeSize - (hostTo - hostPos),
+      removal.replacement,
+    )
+    : replace(
+      replace(doc, removal.from, removal.to, removal.replacement),
+      hostPos + removal.replacement.size - (removal.to - removal.from),
+      hostTo + removal.replacement.size - (removal.to - removal.from),
+      columnsFrag,
+    );
+  return next.eq(doc) ? null : next;
+}
+
+/** Insert a new column to the right of the column that holds the previous row. */
+function splitColumn(doc: Node, fromPos: number, slot: DropSlot, dragged: Node): Node | null {
+  const columnPos = slot.parentPos;
+  if (columnPos == null) return null;
+  const column = doc.nodeAt(columnPos);
+  const s = pagesSchema.nodes;
+  if (!column || column.type !== s.column) return null;
+  if (fromPos >= columnPos && fromPos < columnPos + column.nodeSize) return null;
+  const $col = doc.resolve(columnPos);
+  if ($col.parent.type !== s.column_list) return null;
+  const probe = s.column.create(null, s.paragraph.create());
+  const right = fragmentFor(probe, dragged);
+  if (!right?.firstChild) return null;
+  const added = s.column.create(null, right);
+  if (!$col.parent.canReplace($col.index() + 1, $col.index() + 1, Fragment.from(added))) return null;
+  const insertAt = columnPos + column.nodeSize;
+  const removal = removalPlan(doc, fromPos);
+  if (!removal) return null;
+  if (insertAt > removal.from && insertAt < removal.to) return null;
+  const addedFrag = Fragment.from(added);
+  const next = insertAt <= removal.from
+    ? replace(
+      replace(doc, insertAt, insertAt, addedFrag),
+      removal.from + added.nodeSize,
+      removal.to + added.nodeSize,
+      removal.replacement,
+    )
+    : replace(
+      replace(doc, removal.from, removal.to, removal.replacement),
+      insertAt + removal.replacement.size - (removal.to - removal.from),
+      insertAt + removal.replacement.size - (removal.to - removal.from),
+      addedFrag,
+    );
+  return next.eq(doc) ? null : next;
+}
+
 /** Move the node at `fromPos` into `slot`. `null` means the drop is illegal or a no-op. */
 export function moveToSlot(doc: Node, fromPos: number, slot: DropSlot): Node | null {
   try {
     const dragged = doc.nodeAt(fromPos);
     if (!dragged) return null;
+    if (slot.wrapColumns) return wrapBeside(doc, fromPos, slot, dragged);
+    if (slot.splitColumn) return splitColumn(doc, fromPos, slot, dragged);
     if (slot.parentPos != null && slot.parentPos >= fromPos && slot.parentPos < fromPos + dragged.nodeSize) return null;
     const parent = slot.parentPos == null ? doc : doc.nodeAt(slot.parentPos);
     if (!parent) return null;
@@ -309,6 +423,17 @@ export function moveToSlot(doc: Node, fromPos: number, slot: DropSlot): Node | n
   } catch {
     return null;
   }
+}
+
+/** The block that would gain a column on its right, or null when this drop is an ordinary move. */
+export function columnDropAnchor(doc: Node, fromPos: number, gap: number, level: number): number | null {
+  const dragged = doc.nodeAt(fromPos);
+  const preview = previewDrop(doc, fromPos, gap, level);
+  if (!dragged || !preview) return null;
+  const slot = dropSlot(doc, dragRows(doc), gap, preview.level, dragged);
+  if (slot?.wrapColumns) return childPosition(doc, slot.parentPos, slot.index);
+  if (slot?.splitColumn) return slot.parentPos;
+  return null;
 }
 
 export function previewDrop(doc: Node, fromPos: number, gap: number, level: number): { level: number; doc: Node } | null {
@@ -416,6 +541,7 @@ function groupNoOp(doc: Node, roots: readonly DragRow[], slot: DropSlot, fragmen
 }
 
 function moveRootsToSlot(doc: Node, roots: readonly DragRow[], slot: DropSlot): Node | null {
+  if (slot.wrapColumns || slot.splitColumn) return null;
   const parent = slot.parentPos == null ? doc : doc.nodeAt(slot.parentPos);
   if (!parent) return null;
   const nodes: Node[] = [];

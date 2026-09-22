@@ -1,4 +1,4 @@
-Current workbench direction (2026-09-12): see `.impeccable/surfaces/immersive-workbench.md` and `specs/immersive-workbench-implementation/spec.md`. The older shell/Goal layout below is historical; retained feature ownership remains applicable.
+Current workbench direction (2026-09-12): see `.impeccable/surfaces/immersive-workbench.md` and `specs/archive/immersive-workbench-implementation/spec.md`. The older shell/Goal layout below is historical; retained feature ownership remains applicable.
 
 Scope and mode: Molis Work V1 local Web application, Operate mode. Goal canvas workspace, updated 2026-09-12.
 
@@ -16,7 +16,7 @@ Readers and forms temporarily cover the left Runtime area with 返回工作区. 
 
 Work retains separate Goal terminals. Opening, switching, expanding, or collapsing a Goal never starts a Runtime, sends input, destroys its process, or rebinds another Goal's terminal. Only explicit user actions open/start a terminal. An unopened Terminal shows its honest empty state.
 
-Proof/content: real Goal state and existing APIs; no second completion calculation or domain state. The current canvas delivery is Level 3, functional locally. Independent visual review disposition: ship after the intermediate-width Terminal and covered-panel focus fixes. Installation, packaging, and release were not validated. Acceptance and test evidence remain in `specs/goal-canvas-workspace/spec.md`.
+Proof/content: real Goal state and existing APIs; no second completion calculation or domain state. The current canvas delivery is Level 3, functional locally. Independent visual review disposition: ship after the intermediate-width Terminal and covered-panel focus fixes. Installation, packaging, and release were not validated. Acceptance and test evidence remain in `specs/archive/goal-canvas-workspace/spec.md`.
 
 Visual evidence: `.impeccable/review/desktop.png`, `desktop-dark.png`, `mobile.png`, `canvas-overview.png`, `user-1024.png`, `user-1024-reader.png`, and `mobile-reader.png`. These are review screenshots, not shipped raster assets. Source authority is `apps/workbench/src/goals-page-renderer.ts`, `apps/workbench/src/styles/goal-canvas.ts`, and the Goals event-document / momentum UI and clients. Existing Feed, Settings, Sessions, and native-chrome directions remain unchanged.
 

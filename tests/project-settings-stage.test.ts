@@ -66,10 +66,21 @@ test("user settings left nav is grouped single-line categories", () => {
   assert.match(html, /class="settings-navigation settings-navigation--codex"/);
   assert.match(html, />外观</);
   assert.match(html, />AI 与执行工具</);
-  assert.match(html, />规划方法</);
+  assert.doesNotMatch(html, />规划方法</);
   assert.match(html, />诊断</);
   assert.match(html, /href="\/settings\/shelf"[^>]*>[\s\S]*Shelf/);
-  assert.doesNotMatch(html, /Gmail|Inbox/);
+  const navigation = html.slice(html.indexOf('class="settings-navigation'), html.indexOf("</nav>"));
+  assert.doesNotMatch(navigation, /Gmail|Inbox|规划方法/);
+  const withGoals = renderMolisWorkSettings({
+    section: "appearance",
+    enabled_plugins: ["goals"],
+    runtimes: [],
+    projects: [],
+    web_service: webService,
+    diagnostics,
+  });
+  assert.match(withGoals, /href="\/settings\/planning"/);
+  assert.match(withGoals, />Goals</);
   assert.match(html, /settings-navigation--codex[\s\S]*#icon-sun/);
   assert.doesNotMatch(html, /界面与语言<\/strong>/);
   assert.doesNotMatch(html, /只影响当前设备<\/small>/);

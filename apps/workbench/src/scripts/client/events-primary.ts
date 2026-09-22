@@ -164,6 +164,76 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
       }
     });
 
+    const closeGoalOverlay = () => {
+      const shell = document.querySelector("[data-goal-canvas-shell]");
+      if (!shell) return;
+      shell.removeAttribute("data-goal-planning");
+      shell.removeAttribute("data-goal-rules");
+      shell.querySelectorAll("[data-open-work-planning], [data-open-work-rules]").forEach((row) => {
+        row.classList.remove("is-selected");
+        row.setAttribute("aria-pressed", "false");
+        row.removeAttribute("aria-current");
+      });
+    };
+    const fillGoalOverlay = async (pane, path, bind) => {
+      pane.textContent = L("正在加载设置");
+      const response = await fetch(path, { headers: { Accept: "text/html" } });
+      if (!response.ok) throw new Error(L("无法加载设置"));
+      const html = await response.text();
+      const parsed = new DOMParser().parseFromString(html, "text/html");
+      const content = parsed.querySelector(".work-planning, .planning-detail, .planning-edit, .project-rules-document, .settings-document") || parsed.querySelector(".settings-content") || parsed.body;
+      const node = content.classList?.contains("settings-content") ? (content.firstElementChild || content) : content;
+      pane.replaceChildren(document.importNode(node, true));
+      bind?.(pane);
+    };
+    const openGoalWorkPlanning = async (pathname) => {
+      const shell = document.querySelector("[data-goal-canvas-shell]");
+      const pane = shell?.querySelector("[data-goal-work-planning]");
+      if (!shell || !pane) return;
+      if (!pathname && shell.dataset.goalPlanning === "open") {
+        closeGoalOverlay();
+        return;
+      }
+      closeGoalOverlay();
+      shell.dataset.boardView = "list";
+      shell.dataset.goalPlanning = "open";
+      shell.querySelector("[data-open-work-planning]")?.setAttribute("aria-pressed", "true");
+      const prefix = document.body.dataset.routePrefix || "";
+      const path = pathname || (prefix + "/settings/planning?embed=1");
+      try {
+        await fillGoalOverlay(pane, path, (root) => {
+          globalThis.molisWorkBindPlanningSettings?.(root);
+          globalThis.molisWorkBindPlanningAdoption?.(root);
+        });
+      } catch (error) {
+        pane.textContent = error?.message || L("无法加载设置");
+      }
+    };
+    const openGoalWorkRules = async () => {
+      const shell = document.querySelector("[data-goal-canvas-shell]");
+      const pane = shell?.querySelector("[data-goal-work-rules]");
+      if (!shell || !pane) return;
+      if (shell.dataset.goalRules === "open") {
+        closeGoalOverlay();
+        return;
+      }
+      closeGoalOverlay();
+      shell.dataset.boardView = "list";
+      shell.dataset.goalRules = "open";
+      shell.querySelector("[data-open-work-rules]")?.setAttribute("aria-pressed", "true");
+      const prefix = document.body.dataset.routePrefix || "";
+      try {
+        await fillGoalOverlay(pane, prefix + "/settings/rules?embed=1", (root) => {
+          globalThis.molisWorkBindProjectRules?.(root);
+        });
+      } catch (error) {
+        pane.textContent = error?.message || L("无法加载设置");
+      }
+    };
+    globalThis.molisWorkOpenGoalWorkPlanning = () => openGoalWorkPlanning();
+    globalThis.molisWorkOpenGoalWorkRules = () => openGoalWorkRules();
+    document.addEventListener("molis-work:goal-changed", closeGoalOverlay);
+
     document.addEventListener("click", async (event) => {
       const target = event.target instanceof Element ? event.target : null;
       if (!target) return;

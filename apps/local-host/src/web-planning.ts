@@ -20,16 +20,20 @@ export function createLocalPlanningHttp(ports: {
   async function personal(request: IncomingMessage, response: ServerResponse, url: URL, homeDirectory: string | undefined,
     projects: WebProjectNavigation[], controlToken: string, localHost: MolisWorkLocalHost, clearFeedSchedulers: () => void,
   ): Promise<boolean> {
+    const contextProjectId = url.searchParams.get("project");
+    const contextProject = contextProjectId
+      ? projects.find((project) => project.project_id === contextProjectId) ?? null : null;
+    const planningDocument = request.method === "GET" && url.pathname.startsWith("/settings/planning");
+    const enabledPlugins = planningDocument && contextProject && homeDirectory
+      ? await withMolisWorkProjectCatalog({ homeDirectory }, (catalog) => catalog.listProjectPlugins(contextProject.project_id))
+      : [];
     const globalPlanningPage = renderWorkbenchPlanningRequest(request.method, url.pathname, "personal", () => {
       const methods = resolvePlanningMethodPacks(readPersonalPlanningMethodPacks(homeDirectory));
-      const contextProjectId = url.searchParams.get("project");
-      const contextProject = contextProjectId
-        ? projects.find((project) => project.project_id === contextProjectId) ?? null : null;
       return {
         methods,
-        library: () => renderMolisWorkPlanningLibrary(methods, contextProject, controlToken, isDesktopShellRequest(request, url), projects),
+        library: () => renderMolisWorkPlanningLibrary(methods, contextProject, controlToken, isDesktopShellRequest(request, url), projects, enabledPlugins),
         method: (method, mode) => renderMolisWorkPlanningMethodPage(
-          method, mode, "personal", contextProject, controlToken, isDesktopShellRequest(request, url), projects),
+          method, mode, "personal", contextProject, controlToken, isDesktopShellRequest(request, url), projects, enabledPlugins),
       };
     }, L);
     if (globalPlanningPage) {

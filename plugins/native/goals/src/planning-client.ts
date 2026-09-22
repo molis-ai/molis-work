@@ -77,6 +77,7 @@ export const PLANNING_ADOPTION_CLIENT_SCRIPT = `
           const response=await fetch(button.dataset.adoptEndpoint,{method:"POST",headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({method_id:button.dataset.adoptPlanningMethod,user_confirmed:true})});
           const payload=await response.json();
           if(!response.ok)throw new Error(payload.error||L("加入失败"));
+          if(button.closest("[data-goal-work-planning]") && globalThis.molisWorkOpenGoalWorkPlanning){globalThis.molisWorkOpenGoalWorkPlanning();return}
           location.reload();
         }catch(reason){
           if(errorBox){errorBox.textContent=reason instanceof Error?reason.message:String(reason);errorBox.hidden=false}

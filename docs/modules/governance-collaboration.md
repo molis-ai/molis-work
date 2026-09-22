@@ -22,4 +22,4 @@ Governance 保存当前可信用户决定、有限 Goal Tree 提案／条目／�
 
 Governance 通过公开 Contract 协作。Host 验证项目与身份；Native Goals 组合具体用例；Goals 修改约定、要求、关系及当前状态；Artifacts 保存结果内容。跨 owner 写入使用实际决定事务，不让 UI 或 MCP 另写一套批准／完成规则。
 
-当前调用路径见 [MCP](../mcp.md) 与 [Goals](goals.md)。[事件工作流需求书](../../specs/goal-event-workflow-cleanup/spec.md)说明本轮受保护决定与退役范围；早期 EX/DD 报告只描述当时的迁移事实。
+当前调用路径见 [MCP](../mcp.md) 与 [Goals](goals.md)。[事件工作流需求书](../../specs/archive/goal-event-workflow-cleanup/spec.md)说明本轮受保护决定与退役范围；早期 EX/DD 报告只描述当时的迁移事实。

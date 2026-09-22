@@ -128,7 +128,7 @@ test("settings serve complete category pages; the project gear opens them in the
   assert.ok(Math.abs(globalPage.offset) <= 24, "global settings column is centered, offset " + globalPage.offset);
 });
 
-test("leaving planning puts the general heading back at the top of the settings pane", { timeout: 60_000 }, async t => {
+test("work planning opens from the Goal list and is absent from project settings", { timeout: 60_000 }, async t => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { origin, projectId, command, sessionId, evaluate, navigate, click, waitFor } = browser;
@@ -138,23 +138,11 @@ test("leaving planning puts the general heading back at the top of the settings 
   await waitFor("Boolean(document.body.dataset.desktopSurface) && document.body.classList.contains('immersive-workbench')");
   await click(".navigator-project-settings");
   await waitFor("!document.body.classList.contains('settings-page') && document.querySelector('[data-tab-workspace]')?.dataset.exclusive==='project-settings' && !!document.querySelector('[data-work-surface=project-settings] [data-project-rename]')");
-  await click('[data-directory-panel=project-settings] [data-settings-section="planning"]');
-  await waitFor("!!document.querySelector('[data-work-surface=project-settings] [data-planning-search]')");
-  const planningScroll = await evaluate<number>(`(() => {
-    const pane = document.querySelector("[data-work-surface=project-settings] [data-settings-stage-body]");
-    pane.scrollTop = 8000;
-    pane.querySelectorAll(".settings-body").forEach((el) => { el.scrollTop = 8000; });
-    return pane.scrollTop;
-  })()`);
-  assert.ok(planningScroll > 0, "planning pane must be tall enough to keep a scroll offset, got " + planningScroll);
-  await click('[data-directory-panel=project-settings] [data-settings-section="general"]');
-  await waitFor(`(() => {
-    const pane = document.querySelector("[data-work-surface=project-settings] [data-settings-stage-body]");
-    const heading = pane?.querySelector("[data-settings-panel=general]:not([hidden]) h1");
-    if (!pane || !heading || pane.scrollTop !== 0) return false;
-    const pad = pane.getBoundingClientRect().top + parseFloat(getComputedStyle(pane).paddingTop);
-    return Math.abs(heading.getBoundingClientRect().top - pad) <= 8;
-  })()`);
+  assert.equal(await evaluate("document.querySelector('[data-directory-panel=project-settings] [data-settings-section=\"planning\"]') == null"), true);
+  await click('[data-plugin-id="goals"]');
+  await waitFor("!!document.querySelector('[data-open-work-planning]')");
+  await click("[data-open-work-planning]");
+  await waitFor("document.querySelector('[data-goal-canvas-shell]')?.dataset.goalPlanning === 'open' && !!document.querySelector('[data-goal-work-planning] .work-planning')");
 });
 
 test("project settings preserve edits on failed saves, record guidance versions, and combine planning search with filters", { timeout: 60_000 }, async t => {
@@ -190,7 +178,7 @@ test("project settings preserve edits on failed saves, record guidance versions,
   assert.equal(edited.revisions.length, 2);
   await reloadPage();
   assert.match(await evaluate<string>("document.querySelector('.guidance-entry').textContent"), /用户数据和备份只保存在本机/);
-  await navigate(() => click('.settings-nav-body a[href$="/rules"]'));
+  await navigate(() => command("Page.navigate", { url: origin + prefix + "/settings/rules" }, sessionId));
   const beforeRules = browser.store.snapshot(DEMO_BOARD_ID).cursor;
   await fill('[name=reason]', "不应保存的草稿");
   await fill('[name=goal_mode]', "required");
@@ -212,7 +200,7 @@ test("project settings preserve edits on failed saves, record guidance versions,
   await reloadPage();
   assert.equal(await evaluate("document.querySelector('[name=goal_mode]').value"), "required");
   assert.match(await evaluate<string>("document.querySelector('.settings-last-change').textContent"), /验证项目统一工作标准/);
-  await navigate(() => click('.settings-nav-body a[href$="/planning"]'));
+  await navigate(() => command("Page.navigate", { url: origin + prefix + "/settings/planning" }, sessionId));
   await fill('[data-planning-search]', "软件");
   assert.ok(await evaluate<number>("document.querySelectorAll('[data-planning-method]:not([hidden])').length") > 0);
   await click('[data-planning-filter="work_type"]');

@@ -23,10 +23,15 @@ function blockLines(node: Node): Fragment[] {
   return lines.length ? lines : [Fragment.empty];
 }
 
-/** Rebuild `source` as block type `id`, carrying its text across. Null when the id is not convertible. */
-export function convertedBlocks(id: string, source: Node): Node[] | null {
+const CARRY = new Set([
+  "paragraph", "heading", "code_block",
+  "list_item", "task_item",
+  "bullet_list", "ordered_list", "task_list",
+  "callout", "toggle", "blockquote",
+]);
+
+function blocksFromLines(id: string, lines: Fragment[], plain: string): Node[] | null {
   const s = pagesSchema;
-  const lines = blockLines(source);
   const para = (content: Fragment) => s.nodes.paragraph.create(null, content);
   if (id === "paragraph") return lines.map(para);
   if (id === "heading1" || id === "heading2" || id === "heading3") {
@@ -46,8 +51,25 @@ export function convertedBlocks(id: string, source: Node): Node[] | null {
   if (id === "blockquote") return [s.nodes.blockquote.create(null, lines.map(para))];
   if (id === "toggle") return [s.nodes.toggle.create({ open: true }, lines.map(para))];
   if (id === "code_block") {
-    const text = source.textContent;
-    return [text ? s.nodes.code_block.create(null, s.text(text)) : s.nodes.code_block.create()];
+    return [plain ? s.nodes.code_block.create(null, s.text(plain)) : s.nodes.code_block.create()];
   }
   return null;
+}
+
+/** Rebuild `source` as block type `id`, carrying its text across. Null when the id is not convertible. */
+export function convertedBlocks(id: string, source: Node): Node[] | null {
+  return blocksFromLines(id, blockLines(source), source.textContent);
+}
+
+/**
+ * Rebuild several sibling blocks as one conversion. A list or callout absorbs
+ * every line; headings stay one block per line. A table in the group refuses.
+ */
+export function convertedNodes(id: string, sources: readonly Node[]): Node[] | null {
+  if (!sources.length) return null;
+  if (sources.length === 1) return convertedBlocks(id, sources[0]);
+  if (sources.some((node) => !CARRY.has(node.type.name))) return null;
+  const lines = sources.flatMap((node) => blockLines(node));
+  const plain = sources.map((node) => node.textContent).filter((part) => part.length > 0).join("\n");
+  return blocksFromLines(id, lines, plain);
 }

@@ -62,6 +62,10 @@ export async function handleLocalCatalogWebRequest(
     response.end();
     return;
   }
+  const enabledPlugins = async (projectId: string | null): Promise<readonly string[] | undefined> => {
+    if (!projectId || !serverOptions.homeDirectory) return undefined;
+    return composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, (catalog) => catalog.listProjectPlugins(projectId));
+  };
   if (await planningHttp.personal(request, response, url, serverOptions.homeDirectory, projects, controlToken, localHost, () => feedSchedulers.clear())) return;
   const settingsPageMatch = url.pathname.match(/^\/settings\/(appearance|runtimes|mcp|connectors|projects|diagnostics)$/);
   if (request.method === "GET" && settingsPageMatch) {
@@ -90,6 +94,7 @@ export async function handleLocalCatalogWebRequest(
     response.end(renderMolisWorkSettings({
       section,
       context_project: contextProject,
+      enabled_plugins: await enabledPlugins(contextProject?.project_id ?? null),
       runtimes,
       mcp_tools,
       connectors: section === "connectors" ? listConnectorSettingsCards() : [],
@@ -121,6 +126,7 @@ export async function handleLocalCatalogWebRequest(
       section: pluginSettings.section_id,
       plugin_settings_html,
       context_project: contextProject,
+      enabled_plugins: await enabledPlugins(contextProject?.project_id ?? null),
       runtimes: [],
       projects,
       web_service: await webService.detect(),

@@ -13,7 +13,7 @@ export const GOALS_PLANNING_EN: Record<string, string> = {
     "提醒 Runtime 避免什么": "What the Runtime should avoid",
     "0 到 1；不确定时保持 0.8。": "From 0 to 1; keep 0.8 if you are unsure.",
     "{steps} 个规划阶段 · {checks} 个必答问题": "{steps} planning stages · {checks} required questions",
-    "这里维护 Runtime 拆分 Goal、判断依赖和检查完成证据时使用的方法。方法本身不属于某个项目；项目如何使用它，请到项目的“工作规划”中设置。": "Maintain the methods runtimes use to decompose Goals, decide dependencies, and check completion evidence. Methods do not belong to a project; configure project use under Work planning.",
+    "这里维护 Runtime 拆分 Goal、判断依赖和检查完成证据时使用的方法。方法本身不属于某个项目；项目如何使用它，请到 Goals 列表的「工作规划」中设置。": "Maintain the methods runtimes use to decompose Goals, decide dependencies, and check completion evidence. Methods do not belong to a project; set project use from Work planning in the Goals list.",
     "先选方法，再决定是否调整": "Choose a method before adapting it",
     "点击卡片查看完整规划路径。系统模板不会被直接修改；需要调整时会创建你的个人版本。": "Open a card to see the full planning path. System templates are never edited directly; adapting one creates your personal version.",
     "这个分类里还没有方法。": "There are no methods in this category yet.",

@@ -1,7 +1,7 @@
 import { Fragment, Node } from "prosemirror-model";
-import { EditorState, TextSelection } from "prosemirror-state";
+import { EditorState, NodeSelection, TextSelection } from "prosemirror-state";
 import { safePagesLanguage } from "./code-language.js";
-import { safePagesHref } from "./link.js";
+import { bookmarkLabel, imageAlt, safePagesHref, safePagesImageSrc } from "./link.js";
 import { pagesSchema } from "./schema.js";
 
 const FENCE_OPEN = /^```([A-Za-z0-9_+#-]*)$/u;
@@ -198,4 +198,40 @@ export function pasteMarkdown(state: EditorState, text: string) {
   const tr = state.tr.replaceWith($from.before(), $from.after(), fragment);
   const caret = Math.min($from.before() + 1, tr.doc.content.size);
   return tr.setSelection(TextSelection.near(tr.doc.resolve(caret), 1));
+}
+
+/**
+ * A lone safe URL becomes a bookmark when it replaces an empty paragraph.
+ * Over a selection it links those words. Inside a sentence it inserts a link.
+ * Code blocks and script URLs stay untouched.
+ */
+export function pasteUrl(state: EditorState, raw: string) {
+  const trimmed = raw.trim();
+  if (!trimmed || /\s/u.test(trimmed)) return null;
+  const href = safePagesHref(trimmed);
+  if (!href) return null;
+  const { from, to, empty, $from } = state.selection;
+  if ($from.parent.type.spec.code) return null;
+  const mark = pagesSchema.marks.link.create({ href });
+  if (!empty) {
+    if (!$from.sameParent(state.selection.$to)) return null;
+    const tr = state.tr.removeMark(from, to, pagesSchema.marks.link);
+    tr.addMark(from, to, mark);
+    return tr;
+  }
+  if (!$from.parent.isTextblock) return null;
+  if ($from.parent.content.size === 0 && $from.parent.type === pagesSchema.nodes.paragraph && $from.depth >= 1) {
+    const image = safePagesImageSrc(href);
+    const card = image
+      ? pagesSchema.nodes.image.create({ src: image, alt: imageAlt(image) })
+      : pagesSchema.nodes.bookmark.create({ href, title: bookmarkLabel(href) });
+    const at = $from.before();
+    const $at = state.doc.resolve(at);
+    if ($at.parent.canReplace($at.index(), $at.index() + 1, Fragment.from(card))) {
+      const tr = state.tr.replaceWith(at, $from.after(), card);
+      return tr.setSelection(NodeSelection.create(tr.doc, at));
+    }
+  }
+  const tr = state.tr.replaceWith(from, from, pagesSchema.text(href, [mark]));
+  return tr.setSelection(TextSelection.create(tr.doc, from + href.length));
 }

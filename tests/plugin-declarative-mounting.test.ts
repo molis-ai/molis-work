@@ -318,7 +318,7 @@ test("the bundled catalog reproduces the shell's navigation exactly", async () =
 
   assert.deepEqual(
     settingsEntries(everything).map((entry) => entry.plugin_id),
-    ["io.molis.work.shelf", "io.molis.work.functions"],
+    ["io.molis.work.shelf", "io.molis.work.functions", "io.molis.work.goals"],
     "设置目录同样由 Manifest 决定",
   );
 

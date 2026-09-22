@@ -45,7 +45,7 @@ renderPluginStageShell({
 - 详情底栏放下一步处置；打开原文 / 返回是导航，不是判断池里的动作。
 - 不要自动选中第一条。
 
-对照：`plugins/native/feed/src/ui.ts`、`inbox/src/ui.ts`、`pages/src/ui.ts`。合同：`specs/plugin-stage-master-detail/spec.md`。
+对照：`plugins/native/feed/src/ui.ts`、`inbox/src/ui.ts`、`pages/src/ui.ts`。合同：`specs/archive/plugin-stage-master-detail/spec.md`。
 
 ## 浏览器客户端
 
@@ -59,7 +59,7 @@ Feed / Inbox：没有这条 factory。列表、详情、来源对话框在 `apps
 
 确认用 `dialog.mw-dialog`，不要 `window.confirm` / `alert` / `prompt`。异步失败 `showNote`。
 
-自动保存不得重挂正在编辑的 DOM、不得丢掉光标。`save()` 不要调用 `fillEditor`。增删改查成功后重新 GET 列表、保住滚动和当前选中（对照 `specs/list-silent-refresh/spec.md`）。不要 `location.reload()`。
+自动保存不得重挂正在编辑的 DOM、不得丢掉光标。`save()` 不要调用 `fillEditor`。增删改查成功后重新 GET 列表、保住滚动和当前选中（对照 `specs/archive/list-silent-refresh/spec.md`）。不要 `location.reload()`。
 
 重编辑器（Pages 的 ProseMirror）打成浏览器 IIFE，不要塞进 factory 字符串。还要在 `apps/local-host/src/web-assets.ts` 挂 `/assets/…`，HTML 再 `<script src="…">`。
 

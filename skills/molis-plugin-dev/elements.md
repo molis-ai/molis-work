@@ -95,7 +95,7 @@ Native：构建期装配，Host 注入 HTML primitives。
 
 `agent.mcp` 是反方向：插件里的 Agent 能不能调**外面**的 MCP。
 
-SSOT：`specs/plugin-outbound-mcp/spec.md`。
+SSOT：`specs/archive/plugin-outbound-mcp/spec.md`。
 
 ## Artifacts / ports
 

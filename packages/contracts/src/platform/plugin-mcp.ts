@@ -5,7 +5,7 @@ export const platformPluginMcpContract = {
   kind: "platform",
   schemaVersion: 1,
   maturity: "partial",
-  ssot: "specs/plugin-outbound-mcp/spec.md",
+  ssot: "specs/archive/plugin-outbound-mcp/spec.md",
 } as const satisfies ContractDescriptor;
 
 /** Tool arguments that only the Host may fill. A Plugin schema must not list them. */

@@ -56,7 +56,7 @@
 
 - 输入：现有函数记录、行为总表、现场按钮池。
 - 输出：带可选去向与映射的草稿；三栏编辑器；判断时的映射后行为 id。
-- 依赖：`specs/functions-system-capability/spec.md`、`specs/functions-product-authoring/spec.md`（来源/去向/总表仍有效；选项与去向的耦合以本文件为准）。
+- 依赖：`specs/archive/functions-system-capability/spec.md`、`specs/archive/functions-product-authoring/spec.md`（来源/去向/总表仍有效；选项与去向的耦合以本文件为准）。
 
 ## 文件 / 模块边界
 

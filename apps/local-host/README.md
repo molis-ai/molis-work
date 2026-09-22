@@ -67,3 +67,10 @@ node --import tsx --test --test-concurrency=1 tests/local-host.test.ts tests/web
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-ap2`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
+
+
+## 并行写入的 Git 工作树端口
+
+`createGitWorktreePort` 目前是尚待产品接线的底层端口，不代表并行写入入口已可用。它只从授权仓库根创建工作树，目录位于仓库同级的 `.molis-work-writers/<来源标识>/<slot>`；子目录权限不自动扩大到全仓库。主工作区有未提交或未跟踪内容时拒绝从旧 HEAD 分叉，须先确定完整起点。Git 原登记拥有目录与分支，分支配置 `molisWorkOrigin` 固定创建工作区和原基线；缺失或不匹配时拒绝接管，不根据当前 HEAD 猜测旧基线。
+
+`changes` 对照原基线读取净变化，同时包含未忽略的新文件，并保留特殊路径。`remove` 只移除已核对来源的干净工作目录，拒绝未提交、未跟踪和忽略内容，保留分支及来源以免丢失未整合提交。清理不代表整合或验收，已移除目录的 slot 不自动复用。真实 Git 验证见 `tests/git-worktrees.test.ts`；后续须接 SDK 子目录授权、原审查和成果整合。

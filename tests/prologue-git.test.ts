@@ -5,6 +5,24 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 
+test("worktree creation with a missing dispatch receipt remains unknown after restart and cannot be retried as an index operation", async () => {
+  const root=await mkdtemp(path.join(tmpdir(),"worktree-uncertain-"));let queue=new AgentReviewQueue(),calls=0;
+  const make=()=>createPrologueNodeAdapter({app:{appId:"molis.worktree.unknown",appVersion:"1.0.0"},storageRoot:path.join(root,"sdk"),reviewQueue:queue,modelConfiguration:async()=>{throw new Error("no model for directory preparation");}});
+  let adapter=await make();
+  const intent={board_id:"b",workspace_id:"w",operation_id:"worktree-unknown",operation_kind:"git-worktree" as const,document:{kind:"tool-operation" as const,tool:"git-worktree-create",summary:"prepare",fields:[{label:"directory",value:root}]}};
+  const execution={check:async()=>{},execute:async()=>{calls++;await writeFile(path.join(root,"created"),"created once");throw Object.assign(new Error("lost receipt"),{code:"EFFECT_RECONCILE_REQUIRED"});}};
+  try {
+    const request=await adapter.gitReviews!.prepare(intent,execution);
+    await queue.respond({review_id:request.review_id,decision:"approve",actor_id:"test"});
+    assert.equal(queue.receipt(request.review_id)?.effect_settled,false);assert.ok(queue.receipt(request.review_id)?.effect_uncertain);
+    await adapter.close();queue=new AgentReviewQueue();adapter=await make();await queue.refresh("b");
+    assert.equal(queue.get(request.review_id)?.operation?.kind,"git-worktree");assert.ok(queue.receipt(request.review_id)?.effect_uncertain);
+    await assert.rejects(adapter.gitReviews!.prepare({...intent,operation_id:"worktree-next"},execution),/结果未知/);
+    await assert.rejects(queue.respond({review_id:request.review_id,decision:"approve",actor_id:"test"}));
+    assert.equal(calls,1);assert.equal(await readFile(path.join(root,"created"),"utf8"),"created once");
+  } finally {await adapter.close();await rm(root,{recursive:true,force:true});}
+});
+
 test("Git uses the SDK's durable effect receipt and blocks redispatch after an uncertain result across restart", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "git-effect-")), target = path.join(root, "effect-count");
   let queue: AgentReviewQueue, adapter: Awaited<ReturnType<typeof createPrologueNodeAdapter>>, calls = 0;

@@ -1,6 +1,7 @@
 import { CODING_CHARACTERS_CLIENT_FACTORY_SCRIPT } from "./characters-client.js";
 import { CODING_SUBAGENTS_CLIENT_FACTORY_SCRIPT } from "./subagents-client.js";
 import { CODING_PLANS_CLIENT_FACTORY_SCRIPT } from "./plans-client.js";
+import { CODING_WRITER_DIRECTORIES_CLIENT_FACTORY_SCRIPT } from "./writers-client.js";
 import { codingGoalVersionLabel } from "./goal-versions.js";
 import { CODING_CHANGESET_CLIENT_FACTORY_SCRIPT } from "./changeset-client.js";
 import { codingUsageSummary } from "./usage.js";
@@ -50,6 +51,10 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     const instruction='请针对原子任务 '+child.subagent_id+'（父执行 '+runId+'）安排新的只读返工，保留原结果和评价。原任务：'+child.task+'\\n返工原因：'+notes+'\\n请独立复核新结果；不要把运行结束当成用户验收。';
     const value=input.value.trim()?input.value+'\\n\\n'+instruction:instruction;
     input.value=value;rememberDraft(id,value);await saveDraft(id,value);
+  }});
+  const writerDirectories = (${CODING_WRITER_DIRECTORIES_CLIENT_FACTORY_SCRIPT})({q,api,host,current:()=>current,workspace:()=>workspaceId,workspaceLabel:()=>state.workspaces?.find(item=>item.workspace_id===workspaceId)?.canonical_path || workspaceId,status,select:async(owner,id)=>{
+    if(owner!==current)throw new Error('会话已改变，请重新打开独立工作树');
+    workspaceId=id;rememberConfiguration();await flushDraft();await refreshState();status('下一轮将使用所选独立目录；原任务与主工作区保持原状态。');
   }});
   const plans = (${CODING_PLANS_CLIENT_FACTORY_SCRIPT})({q,api,current:()=>current,status,execute:async revision=>{
     if(sending || recovery || checkpointBusy || !current)throw new Error('请先完成当前操作或核对中断结果');
@@ -885,5 +890,5 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   });
   void refreshState().catch(error=>status(error.message,true));
   let pollingTicks=0;
-  const poll=setInterval(()=>{if(!root.isConnected){clearInterval(poll);return;}if(current) void readCurrent();if(++pollingTicks%5===0) void refreshState().catch(error=>status(error.message,true));},1000);
+  const poll=setInterval(()=>{if(!root.isConnected){clearInterval(poll);return;}if(current) void readCurrent();void writerDirectories.refresh();if(++pollingTicks%5===0) void refreshState().catch(error=>status(error.message,true));},1000);
 }`;

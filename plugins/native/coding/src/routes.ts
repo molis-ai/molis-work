@@ -14,6 +14,7 @@ import { CODING_CHANGESET_TYPE } from "./artifacts.js";
 import { characterSelection, characterTitle, savedCharacter, type CodingCharacterPorts } from "./characters.js";
 import { confirmedPlan, parseCodingPlan, planFromRun, planMaterial, planReference } from "./plans.js";
 import { CODING_PLAN_TYPE } from "./artifacts.js";
+import { writerDirectoryCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 
 export interface CodingModelChoice { provider_id: string; model_id: string; label: string }
 export interface CodingExecutionPorts {
@@ -203,6 +204,8 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
     });
   });
   return [
+    route("coding.writer-directories", async (request, api) => ({ directories: await api!.invoke(writerDirectoryCapabilities.list, { workspace_id: text(request.params.workspaceId, "主工作区") }) })),
+    route("coding.prepare-writer-directory", async (request, api) => api!.invoke(writerDirectoryCapabilities.prepare, { workspace_id: text(request.params.workspaceId, "主工作区"), operation_id: text(bodyOf(request).operation_id, "操作标识", 80) })),
     ...[false, true].map(save => route(save ? "coding.save-changeset" : "coding.read-changeset", async (request, api, execution) => {
       const record = selected(request, execution), runId = text(request.params.runId, "执行引用");
       const artifacts = context.services!.artifacts;

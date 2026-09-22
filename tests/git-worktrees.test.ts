@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdtemp, rm, writeFile, mkdir, symlink, readdir } from "node:fs/promises";
+import { mkdtemp, rm, writeFile, mkdir, symlink, readdir, chmod, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -9,6 +9,30 @@ import { promisify } from "node:util";
 import { createGitWorktreePort } from "@molis-ai/molis-work-app-local-host";
 
 const run = promisify(execFile);
+
+test("准备独立工作树不执行 hooks、fsmonitor 或内容过滤器，批准的提交起点不能改变", async () => {
+  const repo = await repository();
+  try {
+    const marker = join(repo.home, "unexpected-calls"), probe = join(repo.home, "probe.sh");
+    await writeFile(probe, `#!/bin/sh\nprintf called >> '${marker}'\ncat\n`); await chmod(probe, 0o755);
+    await mkdir(join(repo.home, "hooks"));
+    await writeFile(join(repo.home, "hooks/post-checkout"), `#!/bin/sh\nprintf hook >> '${marker}'\n`); await chmod(join(repo.home, "hooks/post-checkout"), 0o755);
+    await repo.git(["config", "core.hooksPath", join(repo.home, "hooks")]);
+    await repo.git(["config", "core.fsmonitor", probe]);
+    await repo.git(["config", "filter.unused.smudge", probe]);
+    const port = createGitWorktreePort(repo.directory), preview = await port.preview("safe");
+    assert.equal((await port.list()).length, 0, "preview does not create a directory");
+    const created = await port.create("safe", preview.base_commit);
+    assert.equal(await readFile(join(repo.directory, created.directory, "connect.ts"), "utf8"), "const retries = 0;\n");
+    await assert.rejects(readFile(marker), { code: "ENOENT" });
+    await writeFile(join(repo.directory, ".gitattributes"), "connect.ts filter=unused\n");
+    await writeFile(join(repo.directory, "connect.ts"), "dirty filter input\n");
+    await repo.git(["config", "filter.unused.clean", probe]);
+    await assert.rejects(port.preview("filtered"), /内容过滤器/);
+    await assert.rejects(readFile(marker), { code: "ENOENT" });
+    await assert.rejects(port.create("other", "0".repeat(40)), /内容过滤器|提交已改变/);
+  } finally { await rm(repo.home, { recursive: true, force: true }); }
+});
 
 /** 对着真实 git 仓库验证——工作树是并行写入的地基。 */
 

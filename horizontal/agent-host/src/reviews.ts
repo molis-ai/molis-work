@@ -107,7 +107,8 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
   request(request: AgentReviewRequest): AgentReviewRequest {
     const operation = request.operation;
     const manual = operation?.operation_id && (operation.kind === "checkpoint-rewind" && operation.session_id && request.kind === "rewind"
-      || operation.kind === "git-index" && operation.workspace_id && request.kind === "git-index" && request.document.kind === "git-index" && request.plugin_id === "io.molis.work.git");
+      || operation.kind === "git-index" && operation.workspace_id && request.kind === "git-index" && request.document.kind === "git-index" && request.plugin_id === "io.molis.work.git"
+      || operation.kind === "git-worktree" && operation.workspace_id && request.kind === "tool-operation" && request.document.kind === "tool-operation" && request.document.tool === "git-worktree-create" && request.plugin_id === "io.molis.work.coding");
     if ((request.run === null) !== Boolean(operation) || operation && !manual) {
       throw new AgentReviewError("agent.review_unknown", "审查必须属于实际轮次或明确的宿主操作");
     }

@@ -149,6 +149,13 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
   const tools = model.tools.map((tool) => renderToolTab(tool, p)).join("");
   const panels = model.tools.map((tool) => renderToolPanel(tool, p)).join("");
   return `<section class="desktop-work-surface plugin-stage-shell" data-work-surface="coding" data-work-surface-label="Coding" hidden data-coding-workbench data-coding-prefix="${p.escape(model.route_prefix)}">
+    <dialog class="mw-dialog mw-dialog--form" data-coding-writer-directories-dialog aria-label="独立工作树"><div class="mw-form mw-dialog__shell">
+      <header class="mw-form__header"><h2>独立工作树</h2>${renderButton({label:"关闭",variant:"ghost",attrs:{"data-coding-writer-directories-close":""}})}</header>
+      <section class="mw-form__body"><div><p data-coding-writer-parent></p><p>从主仓库当前提交创建独立目录和本地分支。创建与项目授权需先审查；已有未提交内容时不会分叉，避免遗漏当前修改。</p>
+      <p>准备后可选作下一轮工作区。自动并行分派与成果合并尚未开放。</p></div>
+      <div data-coding-writer-directories-list></div><p data-coding-writer-directories-status role="status"></p><div data-coding-writer-directory-reviews></div></section>
+      <footer class="mw-form__footer">${renderButton({label:"刷新目录",variant:"secondary",attrs:{"data-coding-writer-directories-refresh":""}})}${renderButton({label:"准备新工作树",attrs:{"data-coding-writer-directories-create":""}})}</footer>
+    </div></dialog>
     <dialog class="mw-dialog mw-dialog--form" data-coding-workspace-dialog aria-label="选择工作区"><form class="mw-form mw-dialog__shell" data-coding-workspace-form>
       <header class="mw-form__header"><h2>选择工作区</h2><button class="mw-btn" type="button" data-coding-workspace-close>关闭</button></header>
       <section class="mw-form__body"><label class="mw-field">已关联的目录<select class="mw-select" data-coding-workspace-choice></select></label>
@@ -215,6 +222,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
           <div><span data-coding-title>选择或新建编码会话</span><small data-coding-workspace-label>${renderWorkspaceLine(model.workspace_path, p)}</small><small data-coding-goal-label></small></div>
           <button class="mw-btn" type="button" data-coding-goal-open disabled>关联目标</button>
           <button class="mw-btn" type="button" data-coding-workspace-open>工作区</button>
+          ${renderButton({label:"独立工作树",variant:"secondary",attrs:{"data-coding-writer-directories-open":""}})}
           <button class="mw-btn" type="button" data-coding-rename hidden>重命名</button><button class="mw-btn" type="button" data-coding-stop hidden>停止</button>
         </header>
         <div class="coding-turns" data-coding-turns tabindex="0" aria-label="编码对话"><div class="mw-empty" data-coding-welcome><p>从一个具体问题开始</p><p>选择已授权工作区和模型后，讨论代码或开始任务。</p><button class="mw-btn" type="button" data-coding-new>新建编码会话</button></div></div>

@@ -38,6 +38,19 @@ export const prepareGitIndexCapability = {
   capability_id: "projects.workspace.git.prepare-index.v1", version: 1, operation: "command",
 } as HostCapabilityDefinition<{ workspace_id: string; path: readonly string[]; action: "stage" | "unstage"; revision: string; operation_id: string }, { review_id: string }>;
 
+export interface PreparedWriterDirectory {
+  worktree_id: string;
+  branch: string;
+  base_commit: string;
+  canonical_path: string;
+  /** Present only after the Host recorded the project authorization. */
+  workspace_id: string | null;
+}
+export const writerDirectoryCapabilities = {
+  list: { capability_id: "projects.workspace.writers.list.v1", version: 1, operation: "query" } as HostCapabilityDefinition<{ workspace_id: string }, PreparedWriterDirectory[]>,
+  prepare: { capability_id: "projects.workspace.writers.prepare.v1", version: 1, operation: "command" } as HostCapabilityDefinition<{ workspace_id: string; operation_id: string }, { review_id: string; directory: PreparedWriterDirectory }>,
+} as const;
+
 /** Read-only, project-scoped projections of terminal SDK-backed Git reviews. */
 export const readGitResultsCapability = {
   capability_id: "projects.workspace.git.results.v1", version: 1, operation: "query",

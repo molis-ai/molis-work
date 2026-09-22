@@ -18,6 +18,10 @@ import type { MolisWorkLocalHost, MolisWorkProjectRuntime } from "./project-host
 import type { ModelProviderStore } from "./model-provider-store.js";
 import { prepareGitIndexCapability, readGitResultsCapability, type GitReviewedResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { prepareGitIndex } from "./workspace-git-index.js";
+import { createGitWorktreePort } from "./git-worktrees.js";
+import { writerDirectoryCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { createHash } from "node:crypto";
+import path from "node:path";
 
 /**
  * Wires the Agent Host into a running Host.
@@ -30,6 +34,8 @@ import { prepareGitIndex } from "./workspace-git-index.js";
  */
 
 export interface AgentHostCompositionOptions {
+  /** Called only inside the approved worktree-creation Effect. */
+  authorizeWriterDirectory?(projectId: string, canonicalPath: string): Promise<void>;
   localHost: MolisWorkLocalHost;
   homeDirectory?: string;
   /** Resolves the workspace a project is bound to, for directory authority. */
@@ -132,10 +138,52 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     return results.reverse();
   });
 
+  const writerParent = async (projectId: string, workspaceId: string) => {
+    const grants = options.workspacesFor ? await options.workspacesFor(projectId)
+      : [await options.workspaceFor(projectId)].filter((item): item is ProjectWorkspaceRef => item !== null);
+    const parent = grants.find(item => item.workspace_id === workspaceId && item.realpath_verified);
+    if (!parent) throw new Error("主工作区已取消授权，不能准备或读取子目录");
+    return { grants, parent, port: createGitWorktreePort(parent.canonical_path) };
+  };
+  const unregisterWriters = options.localHost.registerCapability(writerDirectoryCapabilities.list, async (project, input) => {
+    const { grants, parent, port } = await writerParent(project.project_id, input.workspace_id);
+    return (await port.list()).map(tree => {
+      const canonical_path = path.resolve(parent.canonical_path, tree.directory);
+      return { worktree_id: tree.worktree_id, branch: tree.branch, base_commit: tree.base_commit, canonical_path,
+        workspace_id: grants.find(grant => grant.realpath_verified && grant.canonical_path === canonical_path)?.workspace_id ?? null };
+    });
+  });
+  const unregisterPrepareWriter = options.localHost.registerCapability(writerDirectoryCapabilities.prepare, async (project, input) => {
+    await initialize();
+    if (!prologue?.gitReviews || !options.authorizeWriterDirectory) throw new Error("独立工作树的宿主审查与目录授权尚未装配");
+    if (!/^[a-zA-Z0-9-]{8,80}$/.test(input.operation_id)) throw new Error("工作树操作标识无效");
+    const { parent, port } = await writerParent(project.project_id, input.workspace_id);
+    const id = "writer-" + createHash("sha256").update(input.operation_id).digest("hex").slice(0, 24);
+    const preview = await port.preview(id), target = path.resolve(parent.canonical_path, preview.directory);
+    const check = async () => {
+      const current = await writerParent(project.project_id, input.workspace_id);
+      if (current.parent.canonical_path !== parent.canonical_path || JSON.stringify(await current.port.preview(id)) !== JSON.stringify(preview)) throw new Error("主仓库或授权已改变，请重新预览独立目录");
+    };
+    const request = await prologue.gitReviews.prepare({ board_id: project.board_id, workspace_id: input.workspace_id, operation_id: input.operation_id,
+      operation_kind: "git-worktree", document: { kind: "tool-operation", tool: "git-worktree-create", summary: "创建独立工作树，并授权本项目在该目录执行任务",
+        fields: [{ label: "主工作区", value: parent.canonical_path }, { label: "新目录", value: target }, { label: "新分支", value: preview.branch },
+          { label: "起点提交", value: preview.base_commit }, { label: "执行范围", value: "仅创建独立目录和本地分支，关联到当前项目；不发送模型任务、不修改主工作区、不推送远端。禁用 Git hooks。" }] } },
+      { check, async execute() {
+        await check();
+        await port.create(id, preview.base_commit);
+        // A failure keeps the real directory and branch for inspection; never deletes user work.
+        try { await options.authorizeWriterDirectory!(project.project_id, target); }
+        catch { throw new Error("工作树已创建，但项目目录授权未完成；已保留目录与分支，请通过工作区入口关联该目录，不要重复创建"); }
+      } });
+    return { review_id: request.review_id, directory: { worktree_id: id, branch: preview.branch, base_commit: preview.base_commit, canonical_path: target, workspace_id: null } };
+  });
+
   return { agentHost, get ready() { return initialize(); }, async dispose() {
     unregister();
     unregisterGit();
     unregisterGitResults();
+    unregisterWriters();
+    unregisterPrepareWriter();
     await ready?.catch(() => undefined);
     await prologue?.close();
   } };

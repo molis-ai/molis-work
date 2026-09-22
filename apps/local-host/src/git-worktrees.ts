@@ -1,12 +1,10 @@
-import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { lstat, mkdir, realpath } from "node:fs/promises";
 import path from "node:path";
-import { promisify } from "node:util";
+import { runWorkspaceGit } from "./workspace-git.js";
 
 import type { WriterFileTarget, WriterWorktree } from "@molis-ai/molis-work-plugin-coding";
 
-const run = promisify(execFile);
 const SAFE_NAME = /^[a-z0-9][a-z0-9-]{0,63}$/u;
 const BRANCH_PREFIX = "molis-work/writer/";
 
@@ -22,7 +20,8 @@ export class GitWorktreeError extends Error {
 
 export interface GitWorktreePort {
   supported(): Promise<boolean>;
-  create(slotId: string): Promise<WriterWorktree>;
+  preview(slotId: string): Promise<WriterWorktree>;
+  create(slotId: string, expectedBase?: string): Promise<WriterWorktree>;
   list(): Promise<WriterWorktree[]>;
   changes(worktree: WriterWorktree): Promise<Array<{ path: string[]; target: WriterFileTarget }>>;
   /** Remove only a clean, owned directory. Its branch and original provenance remain. */
@@ -31,8 +30,9 @@ export interface GitWorktreePort {
 
 async function git(cwd: string, args: readonly string[]): Promise<string> {
   try {
-    const { stdout } = await run("git", [...args], { cwd, maxBuffer: 8 * 1024 * 1024 });
-    return stdout;
+    // The shared runner clears inherited Git redirects and disables fsmonitor.
+    // Creating a working directory must not execute checkout hooks.
+    return (await runWorkspaceGit(cwd, ["-c", "core.hooksPath=/dev/null", ...args])).toString();
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     throw new GitWorktreeError(/ENOENT/u.test(reason) ? "git.unavailable" : "git.failed", reason);
@@ -54,6 +54,19 @@ function registeredWorktrees(output: string): RegisteredWorktree[] {
 
 /** Git owns the worktree registry; branch metadata holds only immutable creation provenance. */
 export function createGitWorktreePort(workspacePath: string): GitWorktreePort {
+  async function noFilters(root: string) {
+    let keys = "";
+    try { keys = (await runWorkspaceGit(root, ["config", "--null", "--name-only", "--get-regexp", "^filter\\..*\\.(clean|smudge|process)$"])).toString(); }
+    catch (error) { if ((error as { code?: number }).code !== 1) throw error; }
+    if (!keys.trim()) return;
+    const drivers = new Set(keys.split("\0").map(key => /^filter\.(.+)\.(?:clean|smudge|process)$/i.exec(key)?.[1]).filter(Boolean));
+    const files = await git(root, ["ls-files", "--cached", "--others", "--exclude-standard", "-z"]);
+    for (const source of [[], ["--cached"]]) {
+      const attrs = (await runWorkspaceGit(root, ["check-attr", ...source, "-z", "--stdin", "filter"], undefined, { input: files })).toString().split("\0");
+      // Do not silently check out raw filter pointers as working source files.
+      if (attrs.some((value, index) => index % 3 === 2 && drivers.has(value))) throw new GitWorktreeError("git.failed", "仓库文件使用 Git 内容过滤器；工作树准备尚未接通这些命令的审查，未创建目录");
+    }
+  }
   async function context() {
     const root = await realpath(path.resolve(workspacePath));
     const top = await realpath((await git(root, ["rev-parse", "--show-toplevel"])).trimEnd());
@@ -72,6 +85,16 @@ export function createGitWorktreePort(workspacePath: string): GitWorktreePort {
   }
 
   const metadataKey = (branch: string) => `branch.${branch}.molisWorkOrigin`;
+
+  async function preview(slotId: string) {
+    if (!SAFE_NAME.test(slotId)) throw new GitWorktreeError("git.failed", `写入者 id 不合法：${slotId}`);
+    const ctx = await context();
+    await noFilters(ctx.root);
+    if (await git(ctx.root, ["status", "--porcelain=v1", "-z", "--untracked-files=all"])) {
+      throw new GitWorktreeError("git.worktree_dirty", "主工作区有未提交内容，不能仅从 HEAD 分叉而遗漏当前工作；请先确定可用的提交起点");
+    }
+    return { worktree_id: slotId, branch: BRANCH_PREFIX + slotId, base_commit: ctx.head, directory: path.relative(ctx.root, path.join(ctx.directory, slotId)) };
+  }
 
   async function readOwned(ctx: Awaited<ReturnType<typeof context>>, row: RegisteredWorktree): Promise<WriterWorktree> {
     const id = row.branch?.slice(BRANCH_PREFIX.length) ?? "";
@@ -110,15 +133,15 @@ export function createGitWorktreePort(workspacePath: string): GitWorktreePort {
   }
 
   return {
+    preview,
     async supported() {
       try { await context(); return true; } catch { return false; }
     },
-    async create(slotId) {
-      if (!SAFE_NAME.test(slotId)) throw new GitWorktreeError("git.failed", `写入者 id 不合法：${slotId}`);
+    async create(slotId, expectedBase) {
+      const proposed = await preview(slotId);
+      if (expectedBase && expectedBase !== proposed.base_commit) throw new GitWorktreeError("git.failed", "审查后主仓库提交已改变，请重新准备工作树");
       const ctx = await context(), branch = BRANCH_PREFIX + slotId, directory = path.join(ctx.directory, slotId);
-      if (await git(ctx.root, ["status", "--porcelain=v1", "-z", "--untracked-files=all"])) {
-        throw new GitWorktreeError("git.worktree_dirty", "主工作区有未提交内容，不能仅从 HEAD 分叉而遗漏当前工作；请先确定可用的提交起点");
-      }
+      if (ctx.head !== proposed.base_commit) throw new GitWorktreeError("git.failed", "准备期间仓库提交已改变，请重新预览");
       await ensureDirectory(ctx.container);
       await ensureDirectory(ctx.directory);
       await git(ctx.root, ["worktree", "add", "-b", branch, directory, ctx.head]);
@@ -137,6 +160,7 @@ export function createGitWorktreePort(workspacePath: string): GitWorktreePort {
     },
     async changes(worktree) {
       const { directory } = await owned(worktree);
+      await noFilters(directory);
       const fields = (await git(directory, ["diff", "--name-status", "-z", "--no-renames", worktree.base_commit, "--"])).split("\0");
       const changes = new Map<string, WriterFileTarget>();
       for (let i = 0; i + 1 < fields.length; i += 2) {
@@ -152,6 +176,7 @@ export function createGitWorktreePort(workspacePath: string): GitWorktreePort {
     },
     async remove(worktree) {
       const { ctx, directory } = await owned(worktree);
+      await noFilters(directory);
       if (await git(directory, ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--ignored=matching"])) {
         throw new GitWorktreeError("git.worktree_dirty", "工作树仍有未提交或未跟踪内容，已保留目录；请先保存成果");
       }

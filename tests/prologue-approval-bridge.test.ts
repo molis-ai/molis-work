@@ -284,3 +284,54 @@ test("approval must be durably recorded before SDK answer; a storage failure nev
     }
   }
 });
+
+test("withdrawn and expired reviews retain their original receipt without restoring approval authority", async () => {
+  for (const state of ["closed", "no-waiter", "expired"] as const) {
+    const ledger = pendingLedger();
+    let now = new Date("2026-09-19T00:00:00.000Z");
+    const queue = new AgentReviewQueue({ now: () => now });
+    const recorded: any[] = [];
+    const bridge = new PrologueApprovalBridge({ queue, pendings: ledger.port, now: () => now,
+      recordRequest: async (_pending, request) => { recorded.push({ request }); },
+      recordDecision: async (_pending, receipt) => { recorded.push({ receipt }); },
+    });
+    const request = await bridge.mirrorPending({ pendingRef: ledger.pending.ref, owner: { board_id: BOARD, plugin_id: PLUGIN }, run: RUN });
+    assert.deepEqual(recorded, [{ request }]);
+    now = new Date(state === "expired" ? "2026-09-19T02:00:00.000Z" : "2026-09-19T00:10:00.000Z");
+    if (state === "no-waiter") ledger.port.canAnswer = async () => false;
+    else ledger.pending.state = state === "expired" ? "expired" : "cancelled";
+    await assert.rejects(bridge.decide({ review_id: request.review_id, decision: "approve", actor_id: "tester" }));
+    assert.deepEqual(ledger.answers, [], "withdrawal never answers or dispatches the old effect");
+    const receipt = queue.receipt(request.review_id)!;
+    assert.equal(receipt.status, state === "expired" ? "expired" : "cancelled");
+    assert.deepEqual(recorded[1], { receipt });
+    const restored = new AgentReviewQueue({ now: () => new Date("2026-09-20T00:00:00.000Z") });
+    restored.restoreDecision(request, receipt);
+    assert.deepEqual(restored.get(request.review_id), request);
+    assert.deepEqual(restored.receipt(request.review_id), receipt);
+    assert.throws(() => restored.consumeApproval(request.review_id));
+    await assert.rejects(restored.respond({ review_id: request.review_id, decision: "approve", actor_id: "tester" }));
+  }
+});
+
+test("a repeated decision on an ended pending never redelivers prior approval or rejection feedback", async () => {
+  for (const decision of ["approve", "reject"] as const) {
+    for (const closed of [true, false]) {
+      const ledger = pendingLedger();
+      const queue = new AgentReviewQueue({ now: () => new Date("2026-09-19T00:00:00.000Z") });
+      const deliveries: string[] = [];
+      const bridge = new PrologueApprovalBridge({ queue, pendings: ledger.port,
+        recordDecision: async (_pending, receipt) => { deliveries.push(receipt.status); },
+        now: () => new Date("2026-09-19T00:00:00.000Z") });
+      const request = bridge.mirror({ pending: ledger.pending, run: RUN, owner: { board_id: BOARD, plugin_id: PLUGIN }, kind: "text-edit", document });
+      await bridge.decide({ review_id: request.review_id, decision, actor_id: "tester", note: "This feedback is delivered exactly once." });
+      const receipt = queue.receipt(request.review_id);
+      if (closed) ledger.pending.state = "settled";
+      else ledger.port.canAnswer = async () => false;
+      await assert.rejects(bridge.decide({ review_id: request.review_id, decision, actor_id: "tester" }));
+      assert.deepEqual(deliveries, [decision === "approve" ? "approved" : "rejected"]);
+      assert.equal(ledger.answers.length, 1);
+      assert.deepEqual(queue.receipt(request.review_id), receipt);
+    }
+  }
+});

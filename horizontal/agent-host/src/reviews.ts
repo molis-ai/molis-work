@@ -93,7 +93,7 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
 
   /** Restore only the Host decision. Runtime receipts are independently queried afterwards. */
   restoreDecision(request: AgentReviewRequest, decision: Pick<AgentReviewReceipt, "status" | "decided_by" | "decided_at" | "note">): void {
-    if (decision.status !== "approved" && decision.status !== "rejected") throw new Error("无效的历史审查决定");
+    if (!["approved", "rejected", "cancelled", "expired"].includes(decision.status)) throw new Error("无效的历史审查决定");
     if (this.#rows.has(request.review_id)) return;
     this.request(request);
     const row = this.#rows.get(request.review_id)!;

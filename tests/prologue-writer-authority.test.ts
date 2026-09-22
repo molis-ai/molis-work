@@ -169,8 +169,21 @@ for (const decision of ["approve", "reject", "stop", "bridge-failure", "escape",
     if (decision === "approve" || decision === "command") assert.equal(queue.receipt(writeReview!)?.effect_settled, true);
     const commandResult = decision === "command" ? await adapter.readCommandOutput({ runtime_id: "prologue", session_id: before[0]!.child_run.session_id }, { run_id: before[0]!.child_run.run_id, call_id: "fixture-run-command" }) : undefined;
     if (commandResult) assert.ok(JSON.stringify(commandResult).includes(childPath), "command result identifies the actual child cwd");
+    const originalReviews = queue.list("b").map(request => ({ request, receipt: queue.receipt(request.review_id) }));
     const count = calls; await adapter.close(); queue = new AgentReviewQueue(); adapter = await make();
     assert.deepEqual(await adapter.subagents!.list(handle.ref), before); await queue.refresh("b");
+    const restoredReviews = queue.list("b").map(request => ({ request, receipt: queue.receipt(request.review_id) }));
+    assert.deepEqual(restoredReviews.filter(row => originalReviews.some(old => old.request.review_id === row.request.review_id)), originalReviews,
+      "parent and child original requests and every terminal review decision survive restart exactly");
+    const newlyRecovered = restoredReviews.filter(row => !originalReviews.some(old => old.request.review_id === row.request.review_id));
+    assert.equal(newlyRecovered.length, decision === "bridge-failure" ? 1 : 0,
+      "a proposal never mirrored by the failed bridge is recovered from the SDK without inventing a Host decision");
+    if (newlyRecovered.length) {
+      assert.equal(newlyRecovered[0]!.receipt?.status, "cancelled");
+      assert.equal(newlyRecovered[0]!.receipt?.decided_at, null, "the unknown cancellation time is not the restart time");
+      await adapter.close(); queue = new AgentReviewQueue(); adapter = await make(); await queue.refresh("b");
+      assert.deepEqual(queue.list("b").map(request => ({ request, receipt: queue.receipt(request.review_id) })), restoredReviews);
+    }
     assert.equal(calls, count, "restoring children never replays model or file operations");
     if (writeReview) assert.equal(queue.get(writeReview)?.document.kind, decision === "command" ? "command" : "text-edit");
     if (decision === "approve" || decision === "command") assert.equal(queue.receipt(writeReview!)?.effect_settled, true);

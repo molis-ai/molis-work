@@ -51,7 +51,9 @@ test('packed SDK: rejected review feedback reaches the next model request before
     assert.equal(await readFile(join(project,'a.ts'),'utf8'),'revised\n');assert.equal(requests.length,4);
     const steer=completed.turns.find(turn=>turn.kind==='user' && turn.steer?.state==='applied' && turn.text.includes(note));assert.ok(steer,'SDK keeps the original durable feedback event: '+JSON.stringify(completed.turns));
     await queue.refresh('board');const before=[queue.receipt(first.review_id),queue.receipt(second.review_id)];
+    const originalRequests=queue.list('board');
     await adapter.close();queue=new AgentReviewQueue();adapter=await make();const restored=await adapter.readSession(session);await queue.refresh('board');
+    assert.deepEqual(queue.list('board'),originalRequests,'the original request timestamps, deadlines and proposal survive restart');
     assert.deepEqual([queue.receipt(first.review_id),queue.receipt(second.review_id)],before);assert.deepEqual(restored.latest_run?.turns,completed.turns);assert.equal(requests.length,4,'restoration cannot send feedback or execute again');
     assert.equal(await readFile(join(project,'a.ts'),'utf8'),'revised\n');
   }finally{await adapter.close();await rm(root,{recursive:true,force:true});}

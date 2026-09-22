@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 import { BUILT_IN_ADAPTERS, SYSTEM_TOOL_NAMES, createAdapterRegistry, createRuntime, prepareSkillIntent, fillSkillBody, type Skill, type ExactRef, type Runtime, type ModelEvent } from "@prologue/sdk";
 import { createNodeHost } from "@prologue/sdk/node";
 import path from "node:path";
@@ -245,12 +246,12 @@ export async function createPrologueNodeAdapter(
   };
   const approvals = options.reviewQueue && new PrologueApprovalBridge({
     queue: options.reviewQueue, pendings: pendingPort,
+    async recordRequest(pending, request) {
+      await rememberReview(pending.origin!.session!, pending.ref.id, options.reviewQueue!.receipt(request.review_id)!);
+    },
     async recordDecision(pending, receipt) {
       if (!pending.origin?.session) throw new Error("审查缺少会话归属，不能保存决定");
-      await updateIndex(pending.origin.session, index => {
-        index.review_decisions ??= {};
-        index.review_decisions[pending.ref.id] = { status: receipt.status, decided_by: receipt.decided_by, decided_at: receipt.decided_at, note: receipt.note };
-      });
+      await rememberReview(pending.origin.session, pending.ref.id, receipt);
       // Save the existing Host decision and durable steer before denying the
       // pending: the next model boundary must not race ahead of the feedback.
       // Failure keeps the original delivery_error path; never claim receipt.
@@ -279,12 +280,20 @@ export async function createPrologueNodeAdapter(
         const restored = await pendingPort.read(pending.ref);
         if (!restored) throw new Error("审查历史的待批引用不可读");
         const document = await pendingPort.document(restored);
+        const decision = index.review_decisions?.[pending.ref.id];
         const request = { review_id: `prologue:${pending.ref.id}`, run: { session_id: pending.origin.session, run_id: pending.origin.run },
           board_id: boardId, plugin_id: index.owner.plugin_id, kind: document.kind, document,
-          requested_at: new Date(effect.preparedAtMs).toISOString(), expires_at: null };
-        const decision = index.review_decisions?.[pending.ref.id];
-        if (decision) options.reviewQueue!.restoreDecision(request, decision);
-        else { options.reviewQueue!.request(request); options.reviewQueue!.cancel(request.review_id, "历史操作没有可恢复的批准；保留原提案供核对，不会重新执行"); }
+          requested_at: decision?.requested_at ?? new Date(effect.preparedAtMs).toISOString(), expires_at: decision?.expires_at ?? null };
+        if (decision && decision.status !== "pending") {
+          const { status, decided_by, decided_at, note } = decision;
+          options.reviewQueue!.restoreDecision(request, { status, decided_by, decided_at, note });
+        } else {
+          // No durable cancellation time exists in older records. Never turn
+          // the time of opening history into a fictional execution event.
+          options.reviewQueue!.restoreDecision(request, { status: "cancelled", decided_by: null, decided_at: null,
+            note: "历史操作没有可恢复的批准；保留原提案供核对，不会重新执行" });
+          await rememberReview(pending.origin.session, pending.ref.id, options.reviewQueue!.receipt(request.review_id)!);
+        }
       }
       restoredReviewBoards.add(boardId);
     }
@@ -303,6 +312,10 @@ export async function createPrologueNodeAdapter(
         } else if (["failed", "denied", "cancelled"].includes(effect.state) && dispatched.state !== "unknown") {
           options.reviewQueue!.settle(request.review_id, { ok: false, error: "执行未完成，请查看本轮工具结果；不会自动重试" });
         }
+      }
+      const latest = options.reviewQueue!.receipt(request.review_id);
+      if (latest && ["cancelled", "expired"].includes(latest.status) && effect.pending?.origin?.session) {
+        await rememberReview(effect.pending.origin.session, effect.pending.ref.id, latest);
       }
     }
   });
@@ -353,6 +366,20 @@ export async function createPrologueNodeAdapter(
     indexUpdates.set(id, next);
     try { await next; }
     finally { if (indexUpdates.get(id) === next) indexUpdates.delete(id); }
+  };
+  const rememberReview = async (sessionId: string, pendingId: string, receipt: AgentReviewReceipt): Promise<void> => {
+    const request = options.reviewQueue!.get(receipt.review_id);
+    if (!request) throw new Error("原审查请求不可读取，不能保存决定");
+    const saved = { status: receipt.status, decided_by: receipt.decided_by, decided_at: receipt.decided_at, note: receipt.note,
+      requested_at: request.requested_at, expires_at: request.expires_at };
+    if (isDeepStrictEqual((await readIndex(sessionId))?.review_decisions?.[pendingId], saved)) return;
+    await updateIndex(sessionId, index => {
+      const previous = index.review_decisions?.[pendingId];
+      // The initial mirror may finish after a fast user decision. It must not
+      // replace that decision with its earlier pending snapshot.
+      if (saved.status === "pending" && previous && previous.status !== "pending") return;
+      (index.review_decisions ??= {})[pendingId] = saved;
+    });
   };
   const checkpoints = options.reviewQueue ? createPrologueCheckpoints({ runtime, queue: options.reviewQueue, readIndex, readResource,
     remember: (id, intent) => updateIndex(id, index => { (index.rewinds ??= []).push(intent); }),
@@ -762,7 +789,7 @@ interface SessionIndex {
   /** Frozen intent and display times only; streamed output stays in the SDK ledger. */
   attempts: Array<PrologueStartInput["provenance"] & { task: string; subagent_errors?: Record<string, string>; subagent_roots?: PrologueSubagentRoot[]; subagent_roles?: Array<[string, NonNullable<PrologueStartInput["subagents"]>[number]]>; run_id?: string; stop_intent?: "stopped" | "cancelled"; root_ref?: ExactRef<"authorized-root">; timing?: PrologueRunTiming }>;
   rewinds?: PrologueRewindIntent[];
-  review_decisions?: Record<string, Pick<AgentReviewReceipt, "status" | "decided_by" | "decided_at" | "note">>;
+  review_decisions?: Record<string, Pick<AgentReviewReceipt, "status" | "decided_by" | "decided_at" | "note"> & { requested_at?: string; expires_at?: string | null }>;
 }
 
 /** Prologue's own credential store, as much of it as this bridge needs. */

@@ -66,6 +66,8 @@ export interface PrologueApprovalBridgeOptions {
   now?: () => Date;
   /** Persist the Host's decision before waking SDK execution; not an effect receipt. */
   recordDecision?(pending: ProloguePending, receipt: AgentReviewReceipt): Promise<void>;
+  /** Preserve the original presentation before a later restart projects it. */
+  recordRequest?(pending: ProloguePending, request: AgentReviewRequest): Promise<void>;
 }
 
 export interface MirrorPendingInput {
@@ -81,6 +83,7 @@ export class PrologueApprovalBridge {
   readonly #pendings: ProloguePendingPort;
   readonly #now: () => Date;
   readonly #recordDecision: PrologueApprovalBridgeOptions["recordDecision"];
+  readonly #recordRequest: PrologueApprovalBridgeOptions["recordRequest"];
   readonly #pendingByReview = new Map<string, ProloguePendingRef>();
   readonly #answered = new Set<(run: AgentRunRef, pendingId: string) => void>();
 
@@ -95,6 +98,7 @@ export class PrologueApprovalBridge {
     this.#pendings = options.pendings;
     this.#now = options.now ?? (() => new Date());
     this.#recordDecision = options.recordDecision;
+    this.#recordRequest = options.recordRequest;
   }
 
   /**
@@ -153,13 +157,15 @@ export class PrologueApprovalBridge {
       throw new PrologueApprovalError("agent.pending_unknown", "执行主人那边找不到这笔待批");
     }
     const document = await this.#pendings.document(pending);
-    return this.mirror({
+    const request = this.mirror({
       pending,
       owner: input.owner,
       run: input.run,
       kind: document.kind,
       document,
     });
+    await this.#recordRequest?.(pending, request);
+    return request;
   }
 
   /**
@@ -184,23 +190,27 @@ export class PrologueApprovalBridge {
     if (!pending) {
       throw new PrologueApprovalError("agent.pending_unknown", "执行主人那边找不到这笔待批");
     }
-    if (pending.state !== "open") {
-      // The execution owner already closed it. Our queue must not pretend the
-      // user can still decide, and must not invent an approval.
-      this.#queue.cancel(input.review_id, "执行主人已经结束了这笔待批");
-      throw new PrologueApprovalError(
-        "agent.pending_not_open",
-        "这笔待批已经结束，请刷新后按当前状态处理",
-      );
-    }
 
     const request = this.#queue.get(input.review_id);
     if (!request || !request.run || pending.ref.kind !== pendingRef.kind || pending.ref.revision !== pendingRef.revision || pending.ref.id !== pendingRef.id
       || pending.kind !== "effect-approval" || pending.origin?.session !== request?.run.session_id || pending.origin?.run !== request?.run.run_id) {
       throw new PrologueApprovalError("agent.pending_unknown", "执行方返回的待批与原审查不一致");
     }
+    if (pending.state !== "open") {
+      // The execution owner already closed it. Our queue must not pretend the
+      // user can still decide, and must not invent an approval.
+      this.#queue.cancel(input.review_id, "执行主人已经结束了这笔待批");
+      const receipt = this.#queue.receipt(input.review_id)!;
+      if (receipt.status === "cancelled" || receipt.status === "expired") await this.#recordDecision?.(pending, receipt);
+      throw new PrologueApprovalError(
+        "agent.pending_not_open",
+        "这笔待批已经结束，请刷新后按当前状态处理",
+      );
+    }
     if (!await this.#pendings.canAnswer(pendingRef)) {
       this.#queue.cancel(input.review_id, "执行已中断，原待批没有活动等待方；需核对后继续");
+      const receipt = this.#queue.receipt(input.review_id)!;
+      if (receipt.status === "cancelled" || receipt.status === "expired") await this.#recordDecision?.(pending, receipt);
       throw new PrologueApprovalError("agent.pending_not_open", "原执行已中断，不能通过批准旧待批恢复它");
     }
     const receipt = this.#queue.decide({

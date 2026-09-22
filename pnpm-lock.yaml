@@ -11,9 +11,6 @@ importers:
 
   .:
     dependencies:
-      '@molis-ai/molis-work-plugin-jelly':
-        specifier: workspace:*
-        version: link:plugins/native/jelly
       '@adeptify/intelligence-client':
         specifier: file:vendor/intelligence-client/adeptify-intelligence-client-0.2.2.tgz
         version: file:vendor/intelligence-client/adeptify-intelligence-client-0.2.2.tgz(@adeptify/search-evidence-layer@file:vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz)
@@ -149,6 +146,9 @@ importers:
       '@molis-ai/molis-work-plugin-inbox':
         specifier: workspace:*
         version: link:plugins/native/inbox
+      '@molis-ai/molis-work-plugin-jelly':
+        specifier: workspace:*
+        version: link:plugins/native/jelly
       '@molis-ai/molis-work-plugin-lingguang':
         specifier: workspace:*
         version: link:plugins/native/lingguang
@@ -270,9 +270,6 @@ importers:
 
   apps/local-host:
     dependencies:
-      '@molis-ai/molis-work-plugin-jelly':
-        specifier: workspace:*
-        version: link:../../plugins/native/jelly
       '@adeptify/intelligence-client':
         specifier: file:../../vendor/intelligence-client/adeptify-intelligence-client-0.2.2.tgz
         version: file:vendor/intelligence-client/adeptify-intelligence-client-0.2.2.tgz(@adeptify/search-evidence-layer@file:vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz)
@@ -399,6 +396,9 @@ importers:
       '@molis-ai/molis-work-plugin-inbox':
         specifier: workspace:*
         version: link:../../plugins/native/inbox
+      '@molis-ai/molis-work-plugin-jelly':
+        specifier: workspace:*
+        version: link:../../plugins/native/jelly
       '@molis-ai/molis-work-plugin-lingguang':
         specifier: workspace:*
         version: link:../../plugins/native/lingguang
@@ -466,9 +466,6 @@ importers:
 
   apps/workbench:
     dependencies:
-      '@molis-ai/molis-work-plugin-jelly':
-        specifier: workspace:*
-        version: link:../../plugins/native/jelly
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
@@ -523,6 +520,9 @@ importers:
       '@molis-ai/molis-work-plugin-inbox':
         specifier: workspace:*
         version: link:../../plugins/native/inbox
+      '@molis-ai/molis-work-plugin-jelly':
+        specifier: workspace:*
+        version: link:../../plugins/native/jelly
       '@molis-ai/molis-work-plugin-lingguang':
         specifier: workspace:*
         version: link:../../plugins/native/lingguang
@@ -557,8 +557,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/contracts
       '@prologue/sdk':
-        specifier: file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-child-observe.tgz
-        version: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-child-observe.tgz
+        specifier: file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-compaction-growth.tgz
+        version: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-compaction-growth.tgz
       '@tauri-apps/api':
         specifier: 2.11.1
         version: 2.11.1
@@ -1280,8 +1280,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-child-observe.tgz':
-    resolution: {integrity: sha512-sWgjz9HtrklmGbY/3kWTAl+fIVvFfx2OZxNpnWSgX1GVM71iLUTOpbMhuyT3ZeHbgAivrz7PCsi/HTl92hR8Ag==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-child-observe.tgz}
+  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-compaction-growth.tgz':
+    resolution: {integrity: sha512-MAmDhdwQixiwJouKsrJ02CRKmTXKNa+t3Z49faZa5ztxOiDMMMbiujvMM9nm4zQBcecaMp3+awGAeQ65PdXD7w==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-compaction-growth.tgz}
     version: 0.0.0-rc.1
 
   '@tauri-apps/api@2.11.1':
@@ -1871,7 +1871,7 @@ snapshots:
   '@esbuild/win32-x64@0.28.2':
     optional: true
 
-  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-child-observe.tgz':
+  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-compaction-growth.tgz':
     dependencies:
       '@tauri-apps/api': 2.11.1
 

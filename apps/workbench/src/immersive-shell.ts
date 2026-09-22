@@ -107,7 +107,7 @@ export function renderDirectoryPluginSections(
     const panel = panels[plugin.id] || "";
     if (!panel) return [];
     const visible = plugin.id === current;
-    return [`<section class="plugin-section is-expanded" data-plugin-section="${plugin.id}" data-plugin-expanded="true"${visible ? "" : " hidden"}>${pluginLink(primitives, plugin)}<div class="plugin-section-body" id="plugin-section-body-${plugin.id}">${panel}</div></section>`];
+    return [`<section class="plugin-section is-expanded" data-plugin-section="${plugin.id}"${panel.includes('data-directory-panel=') ? "" : ` data-directory-panel="${plugin.id}"`} data-plugin-expanded="true"${visible ? "" : " hidden"}>${pluginLink(primitives, plugin)}<div class="plugin-section-body" id="plugin-section-body-${plugin.id}">${panel}</div></section>`];
   }).join("");
   return `${plugins}${settingsSection}`;
 }

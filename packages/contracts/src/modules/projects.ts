@@ -181,6 +181,11 @@ export interface ProjectsApplicationApi {
  * null rather than a guessed path.
  */
 export const projectsCapabilities = {
+  listWorkspaces: {
+    capability_id: "projects.workspaces.list.v1",
+    version: 1,
+    operation: "query",
+  } as HostCapabilityDefinition<[], readonly ProjectWorkspaceRef[]>,
   readWorkspace: {
     capability_id: "projects.workspace.read.v1",
     version: 1,

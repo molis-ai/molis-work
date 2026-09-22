@@ -348,6 +348,8 @@ export interface PluginRuntimeApi {
     deployment: PluginDeployment;
     grants?: string[];
     retain_private_data?: boolean;
+    /** Host-authorized replacement of an inactive version; identity and private data remain. */
+    replace_version?: boolean;
   }): PluginLifecycleReceipt;
   grant(installId: string, permissions: string[]): PluginLifecycleReceipt;
   start(installId: string): Promise<PluginLifecycleReceipt>;

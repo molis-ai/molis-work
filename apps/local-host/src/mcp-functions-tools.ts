@@ -1,4 +1,4 @@
-import { createFileSecretStore } from "@molis-ai/molis-work-storage";
+import { createLazyFileSecretStore } from "@molis-ai/molis-work-storage";
 import { MolisWorkV1Error } from "@molis-ai/molis-work-contracts/platform/errors";
 import {
   FunctionsError,
@@ -38,7 +38,7 @@ export function createFunctionsMcpAdapter(ports: McpFunctionsPorts) {
     try {
       const service = createFunctionsService({
         store,
-        secrets: ports.secrets ?? createFileSecretStore(),
+        secrets: ports.secrets ?? createLazyFileSecretStore(host.homeDirectory),
         env: ports.env ?? process.env,
         provider: ports.provider ?? createHttpTypeSafeProvider(),
         allowed_behavior_ids: liveHostAllowedBehaviorIds(),

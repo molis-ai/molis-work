@@ -169,14 +169,15 @@ test("settings catalog lists registered settings-pages and ignores Feed, Inbox, 
   ]);
   assert.deepEqual(listed.map((item) => item.section_id), ["shelf", "example"]);
   const live = listPluginSettingsNavItems();
-  assert.deepEqual(live.map((item) => item.section_id), ["shelf", "functions"]);
-  assert.deepEqual(listPluginSettingsNavItems(["goals"]).map((item) => item.section_id), ["shelf", "functions", "planning"]);
+  assert.deepEqual(live.map((item) => item.section_id), ["coding-settings", "shelf", "functions"]);
+  assert.equal(live[0]?.plugin_id, "io.molis.work.coding");
+  assert.equal(live[1]?.contribution_id, SHELF_SETTINGS_UI_CONTRIBUTION_ID);
+  assert.equal(live[1]?.label, "Shelf");
+  assert.deepEqual(listPluginSettingsNavItems(["goals"]).map((item) => item.section_id), ["coding-settings", "shelf", "functions", "planning"]);
   assert.equal(listPluginSettingsNavItems(["goals"]).find((item) => item.section_id === "planning")?.label, "Goals");
   assert.equal(live.some((item) => item.section_id === "mcp"), false);
-  assert.equal(live[0]?.contribution_id, SHELF_SETTINGS_UI_CONTRIBUTION_ID);
-  assert.equal(live[0]?.label, "Shelf");
-  assert.equal(live[1]?.section_id, "functions");
-  assert.equal(live[1]?.label, "Functions");
+  assert.equal(live[2]?.section_id, "functions");
+  assert.equal(live[2]?.label, "Functions");
 });
 
 test("Shelf settings page has the drop wheel and Molis appearance does not", () => {

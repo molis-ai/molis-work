@@ -29,6 +29,8 @@ export interface PluginSupervisorEntry {
   deployment?: PluginDeployment;
   /** Defaults to every required permission the Manifest declares. */
   grants?: string[];
+  /** Only a trusted Host composition opts into replacing an inactive bundled version. */
+  replace_version?: boolean;
 }
 
 export type PluginSupervisorStatus = "running" | "failed" | "blocked";
@@ -340,6 +342,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
           definition: entry.definition,
           deployment: entry.deployment ?? "local",
           grants,
+          replace_version: entry.replace_version,
         });
         installId = installed.install.install_id;
         if (this.#revoked.has(pluginId) || (this.#epochs.get(pluginId) ?? 0) !== epoch) {

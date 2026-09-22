@@ -3,9 +3,12 @@ import type {
   AgentPromptText,
   AgentRoleExecution,
   AgentSkillDeclaration,
+  AgentSkillDefinition,
 } from "../platform/plugin-agent.js";
 import type { HostCapabilityDefinition } from "../platform/app-host.js";
 import type { ContractDescriptor } from "../platform/package.js";
+import type { ArtifactReference, ArtifactProducerIdentity } from "../modules/artifacts.js";
+import type { CharacterContent } from "../modules/characters.js";
 
 export const servicesAgentHostContract = {
   contractId: "io.molis.work.service.agent-host.v1",
@@ -119,6 +122,21 @@ export interface AgentTextMaterial {
   source_version: number;
 }
 
+/** Metadata and verbatim body share one data resource, never a role/system prompt. */
+export function agentTextMaterialContent(material: AgentTextMaterial): string {
+  if (!material || typeof material.title !== "string" || material.title.length > 2000
+    || typeof material.material_id !== "string" || !material.material_id || material.material_id.length > 240
+    || typeof material.source_artifact_id !== "string" || !material.source_artifact_id || material.source_artifact_id.length > 200
+    || !Number.isSafeInteger(material.source_version) || material.source_version < 1 || typeof material.text !== "string") {
+    throw new Error("固定材料的标题、来源或版本无效");
+  }
+  const header = JSON.stringify({ title: material.title, artifact_id: material.source_artifact_id, version: material.source_version });
+  const content = `${header}\n\n${material.text}`;
+  // Prologue's required text resources reject more than 20,000 UTF-16 units.
+  if (content.length > 20_000) throw new Error("材料连同来源超过 20,000 字符，请在文件中选择较小片段后重新保存");
+  return content;
+}
+
 export interface AgentSkillRef {
   skill_id: string;
   version: number;
@@ -127,7 +145,15 @@ export interface AgentSkillRef {
 export interface AgentMcpToolRef {
   server: string;
   tool: string;
+  /** Required for execution; older unversioned selections must be reselected. */
+  version?: string;
+  server_label?: string;
+  /** Pins the endpoint, credentials and launch configuration, independently of tool schema. */
+  configuration_version?: number;
 }
+
+/** Explicit access to the documents of a configured MCP service, without its external tools. */
+export type AgentMcpSourceRef = Pick<AgentMcpToolRef, "server" | "configuration_version" | "server_label">;
 
 export interface AgentRunBudget {
   max_output_tokens?: number;
@@ -139,11 +165,25 @@ export interface AgentRunBudget {
  * Exactly what the Host froze for one Run. Later settings changes never alter a
  * started Run; the product shows this, not the next-run selection.
  */
+export interface AgentFrozenCharacter extends CharacterContent {
+  reference: ArtifactReference;
+  board_id: string;
+  content_digest: string;
+  producer: ArtifactProducerIdentity;
+  published_at: string;
+}
+
 export interface AgentFrozenStart {
+  /** Child directory grants frozen for this run; never a grant to write the parent. */
+  subagent_workspaces?: AgentSubagentWorkspace[];
+  /** Authoritative fixed Character content and source at start, never looked up for history. */
+  character?: AgentFrozenCharacter;
   role_id: string;
   role_version: number;
   execution: AgentRoleExecution;
   model_id: string;
+  /** Host-frozen context selection policy, absent when not wired for this runtime. */
+  compaction?: { prompt_id: string; version: number; above_tokens: number };
   /**
    * Exactly the prompts this Run was frozen with, layer included.
    *
@@ -154,8 +194,9 @@ export interface AgentFrozenStart {
   prompts: Array<{ prompt_id: string; version: number; layer: AgentPromptLayer }>;
   skills: AgentSkillDeclaration[];
   mcp_tools: AgentMcpToolRef[];
+  mcp_sources?: AgentMcpSourceRef[];
   host_tools: string[];
-  text_materials: Array<{ material_id: string; source_artifact_id: string; source_version: number }>;
+  text_materials: Array<{ material_id: string; title?: string; source_artifact_id: string; source_version: number }>;
   budget: AgentRunBudget | null;
   directory: AgentWorkingDirectory;
 }
@@ -176,17 +217,38 @@ export interface AgentCreateSessionInput {
  * execution level: prompt bodies belong to the Plugin package, and the Host is
  * the only place allowed to decide what a Run is permitted to do.
  */
+export interface AgentFrozenSubagentRole {
+  role_id: string; version: number; name: string; execution: AgentRoleExecution;
+  prompts: AgentPromptText[]; host_tools: string[];
+}
+
+export interface AgentSubagentWorkspace {
+  workspace_id: string;
+  directory: AgentWorkingDirectory;
+}
+
 export interface AgentFrozenRole {
+  subagent_workspaces?: AgentSubagentWorkspace[];
+  subagents?: AgentFrozenSubagentRole[];
+  character?: AgentFrozenCharacter;
   role_id: string;
   version: number;
   execution: AgentRoleExecution;
+  /** Separate selection prompt: never composed into the executing role. */
+  compaction?: { prompt: AgentPromptText; above_tokens: number };
   /** Prompt bodies in composition order. */
   prompts: AgentPromptText[];
+  /** Exact method bodies resolved by the Host, never accepted from the request. */
+  skills?: AgentSkillDefinition[];
   /** Host tool names this role may call. */
   host_tools: string[];
 }
 
 export interface AgentStartRequest {
+  /** Selected child roots; the Host must independently verify every directory grant. */
+  subagent_workspaces?: AgentSubagentWorkspace[];
+  /** Only a reference is accepted from the caller; the Host resolves its immutable content. */
+  character?: ArtifactReference | null;
   session: AgentSessionRef;
   board_id: string;
   plugin_id: string;
@@ -195,6 +257,8 @@ export interface AgentStartRequest {
   /** The user's instruction for this Run. */
   task: string;
   role_id: string;
+  /** A configured provider/model selected for this run, resolved by the Host. */
+  model_selection?: { provider_id: string; model_id: string };
   /**
    * Filled in by the Host before the adapter is called. Absent only on a direct
    * adapter call, which an adapter must refuse rather than guess around.
@@ -204,6 +268,7 @@ export interface AgentStartRequest {
   text_materials?: AgentTextMaterial[];
   skills?: AgentSkillRef[];
   mcp_tools?: AgentMcpToolRef[];
+  mcp_sources?: AgentMcpSourceRef[];
   budget?: AgentRunBudget;
 }
 
@@ -226,18 +291,24 @@ export type AgentRunControl =
    * question and closes it. Sending it as a free instruction would leave the
    * question open while the Run reads the text as unrelated guidance.
    */
-  | { kind: "answer"; pending_id: string; text: string };
+  | { kind: "answer"; pending_id: string; pending_revision?: number; text?: string;
+      answers?: ReadonlyArray<{ question: number; indexes: readonly number[]; other?: string }> };
 
-export type AgentTurnKind = "user" | "assistant" | "system";
+export type AgentTurnKind = "user" | "assistant" | "system" | "notice";
 
 export interface AgentTurnView {
   turn_id: string;
   kind: AgentTurnKind;
   text: string;
-  at: string;
+  /** Observation time; null when the original replay has no recorded time. */
+  at: string | null;
+  /** Relative presentation order within this Run, reconstructed from its events. */
+  sequence?: number;
+  /** Run-owned supplemental input; applied means context inclusion, not compliance. */
+  steer?: { id: string; state: "received" | "applied" | "unconfirmed" };
 }
 
-export type AgentToolActivityState = "started" | "completed" | "failed";
+export type AgentToolActivityState = "started" | "completed" | "failed" | "unknown";
 
 export interface AgentToolActivity {
   call_id: string;
@@ -246,25 +317,41 @@ export interface AgentToolActivity {
   target: string;
   state: AgentToolActivityState;
   summary: string;
-  at: string;
+  /** Bounded execution evidence, shown only when the user expands the activity. */
+  output?: string;
+  output_truncated?: boolean;
+  /** Last observation time; null when absent from the original replay. */
+  at: string | null;
+  /** Position of the original call; a result updates it without moving it. */
+  sequence?: number;
 }
 
 export interface AgentTokenCount {
   input: number;
   output: number;
   cached_input?: number;
+  cache_creation?: number;
   reasoning?: number;
 }
 
+/** Partial values are known subtotals; estimated values are not provider bills. */
+export type AgentUsageCoverage = "unknown" | "reported" | "estimated" | "partial" | "partial-estimated";
+
 export interface AgentRunUsage {
+  /** These totals include attributed calls; incomplete operations may lack final receipts. */
+  compaction?: { recorded_calls: number; incomplete: boolean };
   tokens: AgentTokenCount;
   cost_usd?: number;
-  /** Set when the Runtime did not report usage. The product shows unavailable, never zero. */
+  /** Per-field provenance; absent on legacy runtimes. Unknown numeric placeholders must not be displayed. */
+  coverage?: Record<"input" | "output" | "cached_input" | "cache_creation" | "cost_usd", AgentUsageCoverage>;
+  /** Missing, interrupted or estimated scope; known subtotals remain readable with this warning. */
   unavailable_reason?: string;
 }
 
 export interface AgentCommandOutputRef {
   call_id: string;
+  /** Required for unambiguous product links; legacy callers may omit it. */
+  run_id?: string;
 }
 
 export interface AgentCommandOutput {
@@ -274,6 +361,9 @@ export interface AgentCommandOutput {
   stdout: string;
   stderr: string;
   truncated: boolean;
+  timed_out?: boolean;
+  cancelled?: boolean;
+  stop_reason?: "cancelled" | "timed-out";
 }
 
 /**
@@ -285,6 +375,9 @@ export interface AgentCommandOutput {
  */
 export interface AgentPendingQuestion {
   pending_id: string;
+  pending_revision?: number;
+  /** Position of the original waiting event among this Run's visible entries. */
+  sequence?: number;
   /** The Runtime's own category, e.g. a plan choice or a clarification. */
   kind: string;
   /** The question as the Runtime phrased it. Shown as-is. */
@@ -292,6 +385,11 @@ export interface AgentPendingQuestion {
   options: ReadonlyArray<{ value: string; label: string }>;
   /** Whether a written answer is accepted alongside, or instead of, the options. */
   allows_free_text: boolean;
+  /** Frozen questionnaire read from its execution owner, never reconstructed from prose. */
+  questions?: ReadonlyArray<{ index: number; prompt: string;
+    options: ReadonlyArray<{ index: number; label: string }>; multiple: boolean; allow_other: boolean }>;
+  answerable?: boolean;
+  unavailable_reason?: string;
 }
 
 export interface AgentRunView {
@@ -300,6 +398,8 @@ export interface AgentRunView {
   frozen: AgentFrozenStart;
   turns: AgentTurnView[];
   activity: AgentToolActivity[];
+  /** References to durable command facts, not inferred from assistant text. */
+  command_outputs?: AgentCommandOutputRef[];
   usage: AgentRunUsage;
   /**
    * Questions this Run is stopped on. Empty while it is running.
@@ -316,16 +416,23 @@ export interface AgentRunView {
 }
 
 export interface AgentSessionView {
+  /** A manual rewind is in progress or has an unresolved execution outcome. */
+  checkpoint_busy?: boolean;
+  /** Persisted work exists but is not safe to continue automatically. */
+  recovery?: { required: true; reason: string };
+  owner: Pick<AgentCreateSessionInput, "board_id" | "plugin_id" | "install_id">;
   session: AgentSessionRef;
   title: string;
   runs: AgentRunRef[];
   latest_run: AgentRunView | null;
 }
 
-export type AgentReviewKind = "text-edit" | "command" | "tool-operation" | "mcp" | "rewind";
+export type AgentReviewKind = "text-edit" | "command" | "tool-operation" | "mcp" | "rewind" | "git-index" | "git-integration";
 
 export interface AgentTextReviewDocument {
   kind: "text-edit";
+  /** Actual child root, when this proposal comes from an isolated subtask. */
+  workspace_path?: string;
   target_path: string;
   exists: boolean;
   before_text: string | null;
@@ -334,10 +441,14 @@ export interface AgentTextReviewDocument {
 
 export interface AgentCommandReviewDocument {
   kind: "command";
+  /** Authorized root; cwd may be relative to it. */
+  workspace_path?: string;
   command: string;
   args: string[];
   cwd: string;
   timeout_ms: number;
+  env_allowlist?: string[];
+  escalate?: boolean;
 }
 
 export interface AgentToolOperationReviewDocument {
@@ -357,7 +468,20 @@ export interface AgentMcpReviewDocument {
 export interface AgentRewindReviewDocument {
   kind: "rewind";
   checkpoint_id: string;
-  files: Array<{ path: string; change: "restore" | "delete" | "create" }>;
+  files: Array<{ path: string; change: "restore" | "delete" | "create"; before_text: string | null; after_text: string | null }>;
+}
+export interface AgentGitIndexReviewDocument {
+  kind: "git-index";
+  action: "stage" | "unstage";
+  workspace_name: string;
+  files: Array<{ path: string; before_text: string | null; after_text: string | null; before_mode: "100644" | "100755" | null; after_mode: "100644" | "100755" | null }>;
+}
+
+export interface AgentGitIntegrationReviewDocument {
+  kind: "git-integration";
+  source: { session_id: string; run_id: string; subagent_id: string; branch: string; base_commit: string; directory: string };
+  target_directory: string;
+  files: AgentGitIndexReviewDocument["files"];
 }
 
 export type AgentReviewDocument =
@@ -365,13 +489,18 @@ export type AgentReviewDocument =
   | AgentCommandReviewDocument
   | AgentToolOperationReviewDocument
   | AgentMcpReviewDocument
+  | AgentGitIndexReviewDocument
+  | AgentGitIntegrationReviewDocument
   | AgentRewindReviewDocument;
 
 export type AgentReviewStatus = "pending" | "approved" | "rejected" | "cancelled" | "expired";
 
 export interface AgentReviewRequest {
   review_id: string;
-  run: AgentRunRef;
+  /** Null for a manual operation; never fabricate an Agent Run. */
+  run: AgentRunRef | null;
+  operation?: { operation_id: string; session_id: string; kind: "checkpoint-rewind"; workspace_id?: never }
+    | { operation_id: string; workspace_id: string; kind: "git-index" | "git-worktree" | "git-integration"; session_id?: never };
   board_id: string;
   plugin_id: string;
   kind: AgentReviewKind;
@@ -396,6 +525,36 @@ export interface AgentReviewReceipt {
   /** True once the approved effect really happened and the Runtime returned a receipt. */
   effect_settled: boolean;
   effect_error: string | null;
+  /** The effect owner cannot yet determine what happened; never safe to retry automatically. */
+  effect_uncertain?: string;
+  /** Host recorded a decision, but the execution owner did not confirm receiving it. */
+  delivery_error?: string;
+  /** Human evidence, projected only after the execution owner has settled the original effect. */
+  reconciliation?: { actor_id: string; at: string; reason: string };
+}
+
+export interface AgentGitIndexObservation {
+  revision: string;
+  observed_at: string;
+  files: Array<{ path: string; text: string | null; mode: "100644" | "100755" | null }>;
+  matches_before: boolean;
+  matches_after: boolean;
+}
+
+export interface AgentReviewRecoveryView {
+  review_id: string;
+  receipt: AgentReviewReceipt;
+  observation: AgentGitIndexObservation | null;
+  can_confirm_not_happened: boolean;
+  message: string;
+}
+
+export interface AgentReviewRecoveryInput {
+  review_id: string;
+  action: "refresh" | "not-happened";
+  actor_id: string;
+  revision?: string;
+  reason?: string;
 }
 
 /**
@@ -412,12 +571,16 @@ export interface AgentReviewQueueApi {
 
 export interface AgentCheckpoint {
   checkpoint_id: string;
+  origin_run_id?: string;
+  paths?: string[];
+  directory?: AgentWorkingDirectory;
   session_id: string;
   label: string;
   created_at: string;
 }
 
 export interface AgentCheckpointsCapability {
+  busy?(session: AgentSessionRef): boolean;
   list(session: AgentSessionRef): Promise<AgentCheckpoint[]>;
   prepareRewind(session: AgentSessionRef, checkpointId: string): Promise<AgentReviewRequest>;
 }
@@ -425,6 +588,22 @@ export interface AgentCheckpointsCapability {
 export interface AgentSkillCatalogEntry extends AgentSkillDeclaration {
   source: "builtin" | "installed";
   enabled: boolean;
+}
+
+export interface AgentSkillOwner { board_id: string; plugin_id: string }
+export interface AgentSkillCandidate {
+  candidate_id: string;
+  name: string;
+  summary: string;
+  source_label: string;
+  files: string[];
+  body: string;
+}
+export interface AgentSkillLibrary {
+  list(owner: AgentSkillOwner): Promise<AgentSkillCatalogEntry[]>;
+  read(owner: AgentSkillOwner, ref: AgentSkillRef): Promise<AgentSkillDefinition>;
+  discover(owner: AgentSkillOwner, directory: AgentWorkingDirectory, path: string): Promise<AgentSkillCandidate[]>;
+  install(owner: AgentSkillOwner, candidateId: string): Promise<AgentSkillCatalogEntry>;
 }
 
 export interface AgentSkillsCapability {
@@ -436,6 +615,37 @@ export interface AgentMcpServerHealth {
   status: "ready" | "failed" | "unknown";
 }
 
+export interface AgentMcpServerInput {
+  id?: string;
+  expected_version: number;
+  label: string;
+  enabled: boolean;
+  timeout_ms: number;
+  transport: "stdio" | "http";
+  directory?: AgentWorkingDirectory;
+  executable?: string;
+  argv?: string[];
+  endpoint?: string;
+  auth?: { kind: "none" | "keep-existing" | "replace-secret"; secret?: string };
+}
+export interface AgentMcpServerView {
+  id: string; version: number; label: string; enabled: boolean;
+  transport: "stdio" | "http"; timeout_ms: number;
+  directory?: AgentWorkingDirectory; executable?: string; argv?: string[]; endpoint?: string;
+  credential: "none" | "present";
+  health: "connected" | "disconnected" | "unavailable" | "not-reattached";
+  busy?: string; error?: string;
+  tools: Array<AgentMcpToolRef & { description: string }>;
+  resources: string[];
+}
+export interface AgentMcpLibrary {
+  list(owner: AgentSkillOwner): Promise<AgentMcpServerView[]>;
+  save(owner: AgentSkillOwner, input: AgentMcpServerInput): Promise<AgentMcpServerView>;
+  control(owner: AgentSkillOwner, id: string, action: "connect" | "disconnect" | "cancel" | "remove"): Promise<void>;
+  validateSources(owner: AgentSkillOwner, selected: readonly AgentMcpSourceRef[]): Promise<AgentMcpSourceRef[]>;
+  validate(owner: AgentSkillOwner, selected: readonly AgentMcpToolRef[]): Promise<AgentMcpToolRef[]>;
+}
+
 export interface AgentMcpCapability {
   catalog(session: AgentSessionRef): Promise<{
     servers: AgentMcpServerHealth[];
@@ -443,12 +653,19 @@ export interface AgentMcpCapability {
   }>;
 }
 
-export type AgentSubagentState = "running" | "completed" | "failed" | "cancelled";
+export type AgentSubagentState = "running" | "completed" | "failed" | "cancelled" | "reconcile-required";
 
 export interface AgentSubagentView {
+  child_run?: AgentRunRef;
+  activity?: AgentToolActivity[];
+  usage?: AgentRunUsage;
+  host_tools?: string[];
+  error?: string;
   subagent_id: string;
   parent_run: AgentRunRef;
   role_id: string;
+  /** Name frozen at dispatch, unaffected by later role edits. */
+  role_name?: string;
   task: string;
   state: AgentSubagentState;
   result: string | null;
@@ -456,15 +673,38 @@ export interface AgentSubagentView {
 }
 
 export interface AgentSubagentsCapability {
+  /** Distinct child roots and their review/recovery bridge are actually wired. */
+  workspaces?: true;
   list(run: AgentRunRef): Promise<AgentSubagentView[]>;
-  cancel(subagentId: string, actorId: string): Promise<void>;
+  cancel(run: AgentRunRef, subagentId: string, actorId: string): Promise<void>;
 }
 
 /**
  * One Agent Runtime. An adapter reports facts and executes approved work; it
  * never owns approval, business meaning or durable product state.
  */
+export interface AgentRecoveryReport {
+  session_id: string;
+  blockers: string[];
+  runs: Array<{
+    run_id: string;
+    version: number;
+    live: boolean;
+    waiting: number;
+    can_close: boolean;
+    blockers: string[];
+    operations: Array<{ effect_id: string; kind: string; summary: string; outcome: "completed" | "failed" | "not-dispatched" | "unknown" }>;
+  }>;
+}
+
+/** Inspect authoritative receipts; closing records an interruption and never replays work. */
+export interface AgentRecoveryCapability {
+  inspect(session: AgentSessionRef): Promise<AgentRecoveryReport>;
+  close(session: AgentSessionRef, runId: string, expectedVersion: number): Promise<AgentRecoveryReport>;
+}
+
 export interface AgentRuntimeAdapter {
+  readonly recovery?: AgentRecoveryCapability;
   readonly descriptor: AgentRuntimeDescriptor;
   health(): Promise<AgentRuntimeHealth>;
   createSession(input: AgentCreateSessionInput): Promise<AgentSessionRef>;
@@ -479,6 +719,8 @@ export interface AgentRuntimeAdapter {
   ): Promise<AgentCommandOutput>;
   readonly checkpoints?: AgentCheckpointsCapability;
   readonly skills?: AgentSkillsCapability;
+  readonly skillLibrary?: AgentSkillLibrary;
+  readonly mcpLibrary?: AgentMcpLibrary;
   readonly mcp?: AgentMcpCapability;
   readonly subagents?: AgentSubagentsCapability;
 }
@@ -505,6 +747,7 @@ export type AgentHostErrorCode =
   | "agent.model_not_configured"
   // Session and run lookup
   | "agent.session_unknown"
+  | "agent.session_busy"
   | "agent.run_unknown"
   // Host-owned review queue
   | "agent.review_unknown"
@@ -558,11 +801,38 @@ export const agentHostCapabilities = {
     [runtimeId: string, input: AgentCreateSessionInput],
     AgentSessionRef
   >,
+  listSubagents: {
+    capability_id: "agent.subagents.list.v1", version: 1, operation: "query",
+  } as HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef], AgentSubagentView[]>,
+  cancelSubagent: {
+    capability_id: "agent.subagents.cancel.v1", version: 1, operation: "command",
+  } as HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef, subagentId: string, actorId: string], void>,
   readSession: {
     capability_id: "agent.session.read.v1",
     version: 1,
     operation: "query",
   } as HostCapabilityDefinition<[session: AgentSessionRef], AgentSessionView>,
+  listSkills: {
+    capability_id: "agent.skills.list.v1", version: 1, operation: "query",
+  } as HostCapabilityDefinition<[runtimeId: string, pluginId: string], AgentSkillCatalogEntry[]>,
+  readSkill: {
+    capability_id: "agent.skills.read.v1", version: 1, operation: "query",
+  } as HostCapabilityDefinition<[runtimeId: string, pluginId: string, ref: AgentSkillRef], AgentSkillDefinition>,
+  discoverSkills: {
+    capability_id: "agent.skills.discover.v1", version: 1, operation: "query",
+  } as HostCapabilityDefinition<[runtimeId: string, pluginId: string, directory: AgentWorkingDirectory, path: string], AgentSkillCandidate[]>,
+  installSkill: {
+    capability_id: "agent.skills.install.v1", version: 1, operation: "command",
+  } as HostCapabilityDefinition<[runtimeId: string, pluginId: string, candidateId: string], AgentSkillCatalogEntry>,
+  listMcp: {
+    capability_id: "agent.mcp.list.v1", version: 1, operation: "query",
+  } as HostCapabilityDefinition<[runtimeId: string, pluginId: string], AgentMcpServerView[]>,
+  saveMcp: {
+    capability_id: "agent.mcp.save.v1", version: 1, operation: "command",
+  } as HostCapabilityDefinition<[runtimeId: string, pluginId: string, input: AgentMcpServerInput], AgentMcpServerView>,
+  controlMcp: {
+    capability_id: "agent.mcp.control.v1", version: 1, operation: "command",
+  } as HostCapabilityDefinition<[runtimeId: string, pluginId: string, id: string, action: "connect" | "disconnect" | "cancel" | "remove"], void>,
   /** Start a Run. The Host checks role, capability and directory before the Runtime is asked. */
   startRun: {
     capability_id: "agent.run.start.v1",
@@ -602,7 +872,22 @@ export const agentHostCapabilities = {
     [session: AgentSessionRef, ref: AgentCommandOutputRef],
     AgentCommandOutput
   >,
+  inspectRecovery: {
+    capability_id: "agent.session.recovery.v1", version: 1, operation: "query",
+  } as HostCapabilityDefinition<[session: AgentSessionRef], AgentRecoveryReport>,
+  recoverRun: {
+    capability_id: "agent.session.recover.v1", version: 1, operation: "command",
+  } as HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef, expectedVersion: number], AgentRecoveryReport>,
+  listCheckpoints: {
+    capability_id: "agent.checkpoints.list.v1", version: 1, operation: "query",
+  } as HostCapabilityDefinition<[session: AgentSessionRef], AgentCheckpoint[]>,
+  prepareRewind: {
+    capability_id: "agent.checkpoints.prepare-rewind.v1", version: 1, operation: "command",
+  } as HostCapabilityDefinition<[session: AgentSessionRef, checkpointId: string, roleId: string], AgentReviewRequest>,
   /** Read the approval queue. Deciding is a user action and is not exposed to Plugins. */
+  readRunReviews: {
+    capability_id: "agent.run.reviews.v1", version: 1, operation: "query",
+  } as HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef], Array<{ request: AgentReviewRequest; receipt: AgentReviewReceipt | null }>>,
   listReviews: {
     capability_id: "agent.reviews.list.v1",
     version: 1,

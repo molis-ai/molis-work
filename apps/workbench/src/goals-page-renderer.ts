@@ -23,6 +23,7 @@ export interface WorkbenchGoalsPageView<TItem extends GoalCollectionItem> extend
    * The HTML is trusted product output, same as the other panel sources.
    */
   plugin_panels?: Readonly<Record<string, string>>;
+  plugin_stages?: readonly string[];
   project: ProjectOperationsProject | null;
   projects: ProjectOperationsProject[];
   route_prefix: string;
@@ -273,6 +274,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
             <section class="desktop-work-surface immersive-artifact-surface plugin-stage-shell" data-work-surface="artifacts" data-work-surface-label="Artifacts" data-artifact-stage-shell data-expanded="false" hidden><div class="plugin-stage-list feed-stage-tree" data-artifact-directory></div><div class="plugin-stage-workspace" data-artifact-stage-workspace hidden><div data-artifact-detail></div></div></section>
             <section class="desktop-work-surface immersive-market" data-work-surface="market" data-work-surface-label="${L("插件市场")}" hidden>${renderPluginMarket(primitives)}</section>
             ${settingsSurfaces}
+            ${(view.plugin_stages ?? []).join("")}
           </div>
         </div>
       </div>
@@ -306,4 +308,3 @@ function withPersonalPlugins(enabled: readonly string[]): string[] {
   }
   return next;
 }
-

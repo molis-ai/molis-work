@@ -29,7 +29,8 @@ test("titlebar tabs hug short titles and share width when they overflow the stri
   assert.ok(compact.widths.some((width) => width < 140), "short titles must hug below the old 172px capsule: " + JSON.stringify(compact));
   assert.ok(compact.lastRight <= compact.addLeft + 1, "tabs stay left of the plus control: " + JSON.stringify(compact));
 
-  await command("Emulation.setDeviceMetricsOverride", { width: 480, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
+  // Narrow enough that the actual two titles exceed the available strip.
+  await command("Emulation.setDeviceMetricsOverride", { width: 340, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
   await waitFor(`(() => {
     const tabs = [...document.querySelectorAll('[data-titlebar-tabs] [data-tab-scroll] .tab-item:not([data-pinned])')];
     if (tabs.length < 2) return false;
@@ -39,6 +40,9 @@ test("titlebar tabs hug short titles and share width when they overflow the stri
     return Math.max(...widths) - Math.min(...widths) <= 2 && right <= scroll.right + 1 && widths.every((width) => width < 172);
   })()`);
 
+  // Verify after responsive layout and subsequent observer callbacks settle,
+  // not at the first transient frame with coincidentally equal widths.
+  await evaluate(`new Promise(resolve => { let frames=0; const next=()=>{if(++frames===10)resolve(true);else requestAnimationFrame(next);};requestAnimationFrame(next); })`);
   const packed = await evaluate<{ widths: number[]; tabRight: number; scrollRight: number; count: number }>(`(() => {
     const scroll = document.querySelector('[data-titlebar-tabs] [data-tab-scroll]');
     const tabs = [...scroll.querySelectorAll('.tab-item:not([data-pinned])')];

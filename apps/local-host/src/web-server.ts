@@ -6,6 +6,7 @@ import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host";
+import { prologueModelConfiguration } from "@molis-ai/molis-work-service-agent-host";
 import { composeAgentHost, workspaceRefFor } from "./agent-host-composition.js";
 import { createMolisWorkLocalHost } from "./project-host.js";
 import { RuntimeIntegrationService } from "./installer/runtime-integration.js";
@@ -44,19 +45,36 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     });
     const localHost = serverOptions.localHost ?? createMolisWorkLocalHost({
       planningMethods: () => readPersonalPlanningMethodPacks(serverOptions.homeDirectory),
+      workspacesFor: (projectId) => platform.withCatalog({ homeDirectory: storageHome }, catalog => catalog.listWorkspaceDirectory(projectId)),
+      workspaceFor: (projectId) => platform.withCatalog({ homeDirectory: storageHome }, (catalog) => workspaceRefFor(catalog, projectId)),
     });
     const ownsLocalHost = !serverOptions.localHost;
-    // The Agent Host is constructed here, where the catalog is reachable, so a
-    // Plugin that declared it can actually reach it. Only read-only CLI
-    // Runtimes are registered: everything that writes still needs the approval
-    // bridge, and registering it without one would list a Runtime that cannot
-    // honestly run a writing role.
+    // Runtime storage and credentials belong to this explicit Home.
     const agents = composeAgentHost({
       localHost,
+      authorizeWriterDirectory: async (projectId, canonicalPath) => {
+        await platform.withCatalog({ homeDirectory: storageHome }, catalog => catalog.addWorkspaceProject({ canonical_path: canonicalPath, project_id: projectId, actor_id: "web-user", user_confirmed: true }));
+      },
+      homeDirectory: storageHome,
+      workspacesFor: (projectId) => platform.withCatalog({ homeDirectory: storageHome }, catalog => catalog.listWorkspaceDirectory(projectId)),
       workspaceFor: (projectId) => platform.withCatalog(
         { homeDirectory: serverOptions.homeDirectory },
         (catalog) => workspaceRefFor(catalog, projectId),
       ),
+      prologue: {
+        storageRoot: path.join(storageHome, "agent-runtime"),
+        modelConfiguration: (selection) => platform.withCatalog(
+          { homeDirectory: storageHome },
+          (catalog) => prologueModelConfiguration(catalog.models.resolveConfiguration(selection)),
+        ),
+        resolveCredential: (ref) => platform.withCatalog(
+          { homeDirectory: storageHome },
+          (catalog) => {
+            const provider = catalog.models.list().find((entry) => entry.credential_ref === ref);
+            return provider ? catalog.models.resolveConfiguration({ provider_id: provider.provider_id })?.api_key ?? null : null;
+          },
+        ),
+      },
     });
     const controlToken = resolveWebControlToken(serverOptions);
     serverOptions.casebook ??= loadCasebookConfiguration(storageHome,serverOptions.casebookConfigPath,[controlToken]);
@@ -121,6 +139,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
             localHost,
             composition,
             agents.agentHost,
+            () => agents.ready,
             (projectId) => platform.withCatalog(
               { homeDirectory: serverOptions.homeDirectory },
               (catalog) => workspaceRefFor(catalog, projectId),
@@ -162,6 +181,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       void closeExperiments(storageHome);
       clearInterval(schedulerTimer);
       feedSchedulers.clear();
+      void agents.dispose().catch(() => undefined);
       if (ownsLocalHost) void localHost.close();
       void sessionResources
         .then((resources) => {

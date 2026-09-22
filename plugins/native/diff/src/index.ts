@@ -75,3 +75,5 @@ export {
   type DiffUiPrimitives,
 } from "./ui.js";
 export { createDiffPlugin, type DiffPluginPorts } from "./plugin.js";
+
+export { DIFF_STYLES } from "./styles.js";

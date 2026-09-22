@@ -107,13 +107,13 @@ test("六个角色都在 Manifest 里，并且各自的 Prompt 都声明过", as
   }
 });
 
-test("协调者与并行写入都是只读父角色，并要求子代理各自独立目录", async () => {
+test("只读协调可共享目录，并行写入仍要求子代理各自独立目录", async () => {
   const { codingAgentManifest } = await import("@molis-ai/molis-work-plugin-coding");
   for (const roleId of ["coordinator", "writers"]) {
     const role = codingAgentManifest.roles.find((entry) => entry.role_id === roleId);
     assert.equal(role?.execution, "read-only", `${roleId} 自己不该能改文件`);
-    assert.equal(role?.subagent_workspaces, "required",
-      `${roleId} 必须给每个子代理各自的目录`);
+    assert.equal(role?.subagent_workspaces, roleId === "writers" ? "required" : undefined,
+      `${roleId} 的目录要求必须与子代理的写入权限一致`);
   }
 });
 

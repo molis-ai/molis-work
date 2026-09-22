@@ -1,10 +1,15 @@
-import type { GoalEventScope, GoalEventSystemPayload, GoalWorkEventRecord } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalProgressArtifactSource, GoalEventScope, GoalEventSystemPayload, GoalWorkEventRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { ExecutionRunRecord } from "@molis-ai/molis-work-contracts/modules/execution";
 import type { EvidenceRecord } from "@molis-ai/molis-work-contracts/modules/evidence-verification";
 import type { ReviewRecord } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import type { GoalsDecisionEvent } from "./decision-view.js";
 import type { GoalsDocumentUiPrimitives } from "./document-ui-model.js";
 import { RUN_STATE_LABELS, EVIDENCE_RESULT_LABELS, EVIDENCE_LIFECYCLE_LABELS, EVIDENCE_KIND_LABELS, JOURNAL_TYPE_LABELS, SYSTEM_TYPE_LABELS, reviewVerdictLabel, type GoalHistoryIndexItem } from "./event-history-map.js";
+
+export function renderProgressSource(source: GoalProgressArtifactSource | undefined, escapeHtml: GoalsDocumentUiPrimitives["escapeHtml"]): string {
+  if (!source) return "";
+  return `<p>${escapeHtml(source.title)} · v${source.version}</p><p><button type="button" class="mw-btn mw-btn--secondary" aria-label="打开固定成果：${escapeHtml(source.title)} · v${source.version}" data-workbench-item-plugin="${escapeHtml(source.origin.plugin_id)}" data-workbench-item-id="${escapeHtml(source.origin.item_id)}" data-workbench-item-title="${escapeHtml(source.title)}">打开固定成果 · v${source.version}</button></p>`;
+}
 
 export interface GoalHistoryBodyLookups {
   workEvent?: GoalWorkEventRecord | null;
@@ -86,7 +91,7 @@ function renderSystemPayload(
   const heading = `<article class="event"><h2>${escapeHtml(title)}</h2><p class="event-meta">${escapeHtml(meta)}</p>`;
   switch (payload.operation) {
     case "progress_summary":
-      return `${heading}<p>${escapeHtml(payload.summary)}</p>${payload.next_step ? `<p>${L("下一步")}：${escapeHtml(payload.next_step)}</p>` : ""}${payload.next_actor ? `<p>${L("谁来做")}：${escapeHtml(payload.next_actor)}</p>` : ""}</article>`;
+      return `${heading}${renderProgressSource(payload.source, escapeHtml)}<p>${escapeHtml(payload.summary)}</p>${payload.next_step ? `<p>${L("下一步")}：${escapeHtml(payload.next_step)}</p>` : ""}${payload.next_actor ? `<p>${L("谁来做")}：${escapeHtml(payload.next_actor)}</p>` : ""}</article>`;
     case "concern_opened":
       return `${heading}<p>${escapeHtml(payload.statement)}</p>${renderScope(payload.scope, L, escapeHtml, requirementNames)}${payload.blocks_closure ? `<p>${L("会挡住完成")}</p>` : ""}</article>`;
     case "concern_resolved":

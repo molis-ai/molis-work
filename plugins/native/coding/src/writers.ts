@@ -172,3 +172,17 @@ export function projectWriterChanges(input: ChangesProjectionInput): WriterChang
       : { blocked_reason: "写入者还在跑，改动清单可能还会变" }),
   };
 }
+
+
+/** User-owned next-run draft. Directory authority is resolved again when sending. */
+export interface CodingWriterAssignment { workspace_id: string; task: string }
+export function codingWriterAssignments(value: unknown, requireTasks = false): CodingWriterAssignment[] {
+  if (!Array.isArray(value) || value.length > 4 || requireTasks && !value.length) throw new Error("请为 1–4 个独立工作树填写分工");
+  const rows = value.map(row => {
+    if (!row || typeof row !== "object" || typeof row.workspace_id !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._~-]{0,63}$/.test(row.workspace_id)
+      || typeof row.task !== "string" || row.task.length > 8000 || requireTasks && !row.task.trim()) throw new Error("分工必须包含原工作区引用与任务，任务最多 8000 字符");
+    return { workspace_id: row.workspace_id, task: row.task };
+  });
+  if (new Set(rows.map(row => row.workspace_id)).size !== rows.length) throw new Error("同一个工作树不能重复分配");
+  return rows;
+}

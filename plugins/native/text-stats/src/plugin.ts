@@ -6,6 +6,8 @@ import type {
 
 import { textStatsManifest } from "./manifest.js";
 import { textStatsUiContribution } from "./ui.js";
+import { parseFileSnapshot } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { projectTextStats, waitingStats, unavailableStats } from "./core.js";
 
 export interface TextStatsPluginPorts {
   /** Called with the bound snapshot, or null when the input went away. */
@@ -23,6 +25,13 @@ export function createTextStatsPlugin(ports: TextStatsPluginPorts = {}): PluginD
       return {
         kind: "app",
         views: [textStatsUiContribution],
+        routes: [{ route_id: "text-stats.state", handle: () => {
+          const record = context.services?.inputs?.read("text");
+          if (!record) return { status: 200, body: { view: waitingStats() } };
+          try { return { status: 200, body: { view: projectTextStats({ snapshot: parseFileSnapshot(record.payload),
+            source_plugin_id: record.producer_plugin_id, content_version: record.version }) } }; }
+          catch { return { status: 200, body: { view: unavailableStats() } }; }
+        } }],
         onUpstreamReady: (inputs) => {
           const record = inputs.text;
           // An Artifact the Host could not make available is not an input.

@@ -347,3 +347,22 @@ test("the Host freezes the role from the Plugin's own declarations", async () =>
   assert.ok(handle instanceof Error);
   assert.match((handle as Error).message, /找不到这条会话/u);
 });
+
+test("CLI command receipts with reused call ids require a run and never cross sessions", async () => {
+  const fake = fakeProcess();
+  const adapter = adapterFor(fake.port);
+  const { session, handle } = await startRun(adapter);
+  const receipt = (value: string) => {
+    fake.line({ type: "assistant", message: { content: [{ type: "tool_use", id: "same-call", name: "Bash", input: { command: "check" } }] } });
+    fake.line({ type: "user", message: { content: [{ type: "tool_result", tool_use_id: "same-call", content: value }] } });
+    fake.line({ type: "result", subtype: "success", is_error: false, result: "done" });
+  };
+  receipt("first output");
+  const next = await adapter.start({ session, plugin_id: PLUGIN, task: "next", role_id: "reader", directory: { canonical_path: DIRECTORY, realpath_verified: true },
+    role: { role_id: "reader", version: 1, execution: "read-only", prompts: [], host_tools: [] } });
+  receipt("second output");
+  await assert.rejects(adapter.readCommandOutput(session, { call_id: "same-call" }), /多次执行/);
+  assert.equal((await adapter.readCommandOutput(session, { call_id: "same-call", run_id: handle.ref.run_id })).stdout, "first output");
+  assert.equal((await adapter.readCommandOutput(session, { call_id: "same-call", run_id: next.ref.run_id })).stdout, "second output");
+  await assert.rejects(adapter.readCommandOutput({ ...session, session_id: "foreign" }, { call_id: "same-call", run_id: handle.ref.run_id }), /没有/);
+});

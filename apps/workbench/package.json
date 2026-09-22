@@ -34,6 +34,7 @@
     "@molis-ai/molis-work-integration-gmail": "workspace:*",
     "@molis-ai/molis-work-integration-rss": "workspace:*",
     "@molis-ai/molis-work-plugin-artifacts": "workspace:*",
+    "@molis-ai/molis-work-plugin-characters": "workspace:*",
     "@molis-ai/molis-work-plugin-coding": "workspace:*",
     "@molis-ai/molis-work-plugin-diff": "workspace:*",
     "@molis-ai/molis-work-plugin-dataset": "workspace:*",

@@ -117,7 +117,7 @@ export const TAB_WORKSPACE_STYLES = `
   body.immersive-workbench :is(.tab-split-button, .tab-add-button) { flex: none; align-self: center; display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 6px; color: var(--muted); background: transparent; cursor: pointer; }
   body.immersive-workbench .tab-strip .tab-strip-spacer { flex: 0 1 0; min-width: 0; align-self: stretch; }
   body.immersive-workbench [data-titlebar-tabs] .tab-scroll { flex: 0 1 auto; width: max-content; min-width: 0; }
-  body.immersive-workbench [data-titlebar-tabs] .tab-strip-spacer { flex: 1 1 48px; min-width: 0; }
+  body.immersive-workbench [data-titlebar-tabs] .tab-strip-spacer { flex: 1 1 0; min-width: 0; }
   html[data-native-desktop="true"] body.immersive-workbench [data-titlebar-tabs] .tab-scroll,
   body.immersive-workbench[data-native-desktop="true"] [data-titlebar-tabs] .tab-scroll { flex: 0 1 auto; width: max-content; min-width: 0; }
   html[data-native-desktop="true"] body.immersive-workbench .tab-strip .tab-strip-spacer,

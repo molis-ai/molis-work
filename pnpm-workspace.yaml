@@ -19,3 +19,10 @@ allowBuilds:
   better-sqlite3: true
   esbuild: true
   node-pty: true
+
+# These exact versions are reviewed local file: archives, not registry releases.
+# pnpm cannot check registry publication age for these private vendored packages.
+minimumReleaseAgeExclude:
+  - '@adeptify/intelligence-client@0.2.2'
+  - '@adeptify/search-evidence-layer@0.4.1'
+  - '@prologue/sdk@0.0.0-rc.1'

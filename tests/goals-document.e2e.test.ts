@@ -109,7 +109,7 @@ test("public document clients isolate requests and keep Host callbacks, failure 
     const sibling = aPane.firstElementChild;
     const calls = [], errors = [], caches = [];
     const ports = (name, documentPane) => ({
-      documentPane, documentCollection: 'current', route: path => path, translate: text => text,
+      documentPane, documentCollection: 'current', route: path => path + (path.includes('?') ? '&' : '?') + 'document-client-test=' + name, translate: text => text,
       isAbortError: error => error instanceof DOMException && error.name === 'AbortError',
       showError: message => errors.push(message),
       beforeReplace: () => calls.push(name + ':before:' + documentPane.querySelector('[data-goal-view]').dataset.goalView),
@@ -121,7 +121,11 @@ test("public document clients isolate requests and keep Host callbacks, failure 
     const captured = new Promise(resolve => { bodyRead = resolve; });
     const gate = new Promise(resolve => { releaseBody = resolve; });
     globalThis.fetch = async (input, options) => {
-      const path = new URL(String(input), location.href).pathname;
+      const url = new URL(String(input), location.href);
+      // The page also refreshes its own document/panels. Only these two
+      // explicit clients belong to this isolation/cache contract.
+      if (!url.searchParams.has('document-client-test')) return originalFetch(input, options);
+      const path = url.pathname;
       caches.push(options.cache);
       if (path === '/api/goals/V1/document') bSignal = options.signal;
       const response = await originalFetch(input, options);

@@ -1,20 +1,35 @@
+import { shelfRuntimeProbe } from "./shelf-native-plugin-http.js";
+import { createCharactersPlugin, CHARACTERS_UI_CONTRIBUTION_ID, type CharactersUiModel } from "@molis-ai/molis-work-plugin-characters";
+import { CHARACTER_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/characters";
+import { charactersPluginPorts, codingCharacterPorts } from "./characters-host.js";
+import { codingShelfMaterial } from "./coding-shelf-material.js";
+import { openShelfStore } from "@molis-ai/molis-work-module-shelf";
+import { createShelfPlugin } from "@molis-ai/molis-work-plugin-shelf";
 import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
+import { SHELF_TEXT_MATERIAL_TYPE } from "@molis-ai/molis-work-contracts/modules/shelf";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
-import { icon } from "@molis-ai/molis-work-design-system";
+import { icon, escapeHtml } from "@molis-ai/molis-work-design-system";
 import {
   CODING_PLUGIN_ID,
+  CODING_REPORT_TYPE,
   CODING_PROJECT_PLUGIN_ID,
   CODING_UI_CONTRIBUTION_ID,
   CodingSessionStore,
   createCodingPlugin,
   toDirectoryEntries,
+  renderPendingQuestionCard,
+  renderCodingReport,
   type CodingUiModel,
+  type CodingExecutionPorts,
 } from "@molis-ai/molis-work-plugin-coding";
 import {
   DIFF_PLUGIN_ID,
   DIFF_PROJECT_PLUGIN_ID,
   DIFF_UI_CONTRIBUTION_ID,
   createDiffPlugin,
+  renderDiff,
+  compareRunChangeSet,
+  type DiffView,
   emptyDiff,
   type DiffUiModel,
 } from "@molis-ai/molis-work-plugin-diff";
@@ -23,6 +38,8 @@ import {
   FILES_PROJECT_PLUGIN_ID,
   FILES_UI_CONTRIBUTION_ID,
   createFilesPlugin,
+  renderFilesBrowserDirectory,
+  renderFilesBrowserResult,
   pathKey,
   projectFileTree,
   type DirectoryListing,
@@ -34,11 +51,14 @@ import {
   GIT_UI_CONTRIBUTION_ID,
   createGitPlugin,
   projectGit,
+  parsePorcelainStatus,
+  renderGitBrowserDirectory,
+  renderGitBrowserResult,
   type GitUiModel,
 } from "@molis-ai/molis-work-plugin-git";
 import { listWorkspaceDirectory } from "./workspace-files.js";
-import { readGitStatus } from "./git-status.js";
-import { createTextStatsPlugin } from "@molis-ai/molis-work-plugin-text-stats";
+import { readWorkspaceGit } from "./workspace-git.js";
+import { createTextStatsPlugin, renderTextStats, type TextStatsView } from "@molis-ai/molis-work-plugin-text-stats";
 import {
   WORKSPACE_PLUGIN_ID,
   WORKSPACE_PROJECT_PLUGIN_ID,
@@ -48,9 +68,15 @@ import {
   type WorkspaceUiModel,
 } from "@molis-ai/molis-work-plugin-workspace";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
+import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 import { createPluginPlatform, type PluginPlatform } from "./plugin-platform.js";
 import type { LocalProjectDatabase } from "./project-database.js";
+import { SqlitePluginPrivateStorage, type PluginCapabilityPort } from "@molis-ai/molis-work-plugin-runtime";
+import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
+import type { IncomingMessage, ServerResponse } from "node:http";
+import { renderFeedRichText } from "@molis-ai/molis-work-plugin-feed";
+import { bindWorkspaceCompanions } from "./workspace-plugin-bindings.js";
 
 /**
  * Coding's directory panel, rendered by the Plugin the Host is running.
@@ -72,36 +98,59 @@ export interface CodingSurfacePorts {
   translate(value: string): string;
   /** Directories bound to this project. Empty means none is bound yet. */
   workspaces?: readonly ProjectWorkspaceRef[];
+  capabilities?: PluginCapabilityPort;
+  execution?: Omit<CodingExecutionPorts, "sessions" | "goalTitle">;
+  routePrefix?: string;
+  homeDirectory?: string;
 }
 
 interface Started {
   platform: PluginPlatform;
   running: boolean;
   workspaceRunning: boolean;
+  error?: string;
 }
 
-const started = new Map<string, Started>();
+const started = new WeakMap<LocalProjectDatabase, Map<string, Promise<Started>>>();
 
 /** Drops a project's platform, so a closed project does not keep one alive. */
-export function releaseCodingSurface(boardId: string): void {
-  started.delete(boardId);
+export async function releaseCodingSurface(store: LocalProjectDatabase, boardId: string): Promise<void> {
+  const boards = started.get(store);
+  const opening = boards?.get(boardId);
+  if (!opening) return;
+  boards!.delete(boardId);
+  const record = await opening;
+  if (!record.platform) return;
+  for (const pluginId of record.platform.supervisor.enabledPluginIds()) {
+    const active = record.platform.supervisor.state(pluginId);
+    record.platform.supervisor.revoke(pluginId);
+    if (active?.status === "running" && active.install_id) await record.platform.runtime.stop(active.install_id);
+  }
 }
 
 async function ensureStarted(ports: CodingSurfacePorts): Promise<Started> {
-  const existing = started.get(ports.boardId);
+  let boards = started.get(ports.store);
+  if (!boards) { boards = new Map(); started.set(ports.store, boards); }
+  const existing = boards.get(ports.boardId);
   if (existing) return existing;
+  const opening = startPlatform(ports);
+  boards.set(ports.boardId, opening);
+  return opening;
+}
+
+async function startPlatform(ports: CodingSurfacePorts): Promise<Started> {
   const record: Started = { platform: null as unknown as PluginPlatform, running: false, workspaceRunning: false };
   try {
+    const storage = new SqlitePluginPrivateStorage(ports.store.db);
+    const artifacts = new ArtifactsModule({ db: ports.store.db, appendEvent: event => ports.store.appendEvent(event) });
     const platform = createPluginPlatform({
       board_id: ports.boardId,
       actor_id: ports.actorId,
       db: ports.store.db,
-      artifacts: new ArtifactsModule({
-        db: ports.store.db,
-        appendEvent: (event) => ports.store.appendEvent(event),
-      }),
+      artifacts,
       ui: new UiHost(),
-      privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
+      privateStorageFor: (context, manifest) => storage.forPlugin(context, manifest),
+      ...(ports.capabilities ? { capabilities: ports.capabilities } : {}),
     });
     /**
      * The whole workspace family starts together.
@@ -115,29 +164,68 @@ async function ensureStarted(ports: CodingSurfacePorts): Promise<Started> {
      * Each still starts in isolation: one failing leaves its siblings running.
      */
     const report = await platform.start([
-      { definition: createCodingPlugin() },
-      { definition: createWorkspacePlugin({ currentWorkspaceId: () => currentWorkspaceId(ports) }) },
-      { definition: createFilesPlugin({ readable: () => currentWorkspaceId(ports) !== null }) },
-      { definition: createDiffPlugin() },
-      { definition: createGitPlugin({ ready: () => currentWorkspaceId(ports) !== null }) },
-      { definition: createTextStatsPlugin() },
+      { definition: createCharactersPlugin(charactersPluginPorts(ports.homeDirectory, ports.actorId, ports.boardId, artifacts.query)), replace_version: true },
+      { definition: createShelfPlugin(ports.homeDirectory ? {
+        references: () => artifacts.query.listArtifacts(ports.boardId).filter(item => item.producer_plugin_id === CODING_PLUGIN_ID
+          && [CODING_REPORT_TYPE, "coding.changeset.v1"].includes(item.artifact_type_id)).map(({ artifact_id, version }) => ({ artifact_id, version })),
+        preview: record => codingShelfMaterial(record, ports.boardId, ports.routePrefix ?? ""),
+        receive: preview => {
+          const shelf = openShelfStore(ports.homeDirectory!, shelfRuntimeProbe());
+          const item = shelf.admit({ filename: preview.title + ".md", mime: "text/markdown", bytes: Buffer.from(preview.text, "utf8"), artifact_source: preview.source });
+          return { item, snapshot: shelf.snapshot() };
+        },
+      } : undefined), replace_version: true },
+      { definition: createCodingPlugin(ports.execution ? { execution: {
+        ...ports.execution, sessions: new CodingSessionStore(ports.store.db), goalTitle: ports.goalTitle,
+        characters: codingCharacterPorts(ports.homeDirectory, ports.actorId, ports.boardId, artifacts.query),
+        materialReferences: () => artifacts.query.listArtifacts(ports.boardId, { artifact_type_id: SHELF_TEXT_MATERIAL_TYPE, schema_version: 1 })
+          .filter(item => item.owner_actor_id === ports.actorId && item.producer_plugin_id === "io.molis.work.shelf" && item.lifecycle_state === "active" && item.availability === "available")
+          .map(({ artifact_id, version }) => ({ artifact_id, version })),
+        reportReferences: () => artifacts.query.listArtifacts(ports.boardId, { artifact_type_id: CODING_REPORT_TYPE, schema_version: 1 })
+          .filter(item => item.producer_plugin_id === CODING_PLUGIN_ID)
+          .map(({ artifact_id, version }) => ({ artifact_id, version })),
+        changeSetReferences: () => artifacts.query.listArtifacts(ports.boardId, { artifact_type_id: "coding.changeset.v1", schema_version: 1 })
+          .filter(item => item.producer_plugin_id === CODING_PLUGIN_ID)
+          .map(({ artifact_id, version }) => ({ artifact_id, version })),
+      } } : {}), replace_version: true },
+      { definition: createWorkspacePlugin({ currentWorkspaceId: () => currentWorkspaceId(ports) }), replace_version: true },
+      { definition: createFilesPlugin({ readable: () => currentWorkspaceId(ports) !== null }), replace_version: true },
+      { definition: createDiffPlugin(), replace_version: true },
+      { definition: createGitPlugin(), replace_version: true },
+      { definition: createTextStatsPlugin(), replace_version: true },
     ]);
+    bindWorkspaceCompanions(platform, ports.boardId, ports.actorId);
     record.platform = platform;
     record.running = report.running.includes(CODING_PLUGIN_ID);
+    record.error = [...report.failed, ...report.blocked].find(entry => entry.plugin_id === CODING_PLUGIN_ID)?.message ?? undefined;
     record.workspaceRunning = report.running.includes(WORKSPACE_PLUGIN_ID);
-  } catch {
+  } catch (error) {
+    record.error = error instanceof Error ? error.message : "Coding 启动失败";
     record.running = false;
     record.workspaceRunning = false;
   }
-  started.set(ports.boardId, record);
   return record;
 }
 
 export async function codingDirectoryPanel(
   ports: CodingSurfacePorts,
 ): Promise<{ panel: string; plugin_id: string } | null> {
+  return codingPanel(ports, "directory");
+}
+
+export async function codingWorkbenchPanel(ports: CodingSurfacePorts) {
+  return codingPanel(ports, "workbench");
+}
+
+async function codingPanel(ports: CodingSurfacePorts, surface: "directory" | "workbench") {
   const record = await ensureStarted(ports);
-  if (!record.running) return null;
+  if (!record.running) {
+    const message = ports.escapeHtml(record.error ?? "Coding 插件未能启动");
+    const panel = surface === "directory"
+      ? `<section class="mw-empty" role="alert"><p>${message}</p></section>`
+      : `<section class="desktop-work-surface" data-work-surface="coding" data-work-surface-label="Coding" hidden><div class="mw-empty" role="alert"><p>${message}</p><p>请检查插件状态后重新打开。</p></div></section>`;
+    return { panel, plugin_id: CODING_PROJECT_PLUGIN_ID };
+  }
   const contribution = record.platform.supervisor.contribution(CODING_PLUGIN_ID);
   const views = (contribution as { views?: ReadonlyArray<{
     descriptor: { contribution_id: string };
@@ -152,12 +240,14 @@ export async function codingDirectoryPanel(
       ports.goalTitle,
     );
     const model: CodingUiModel = {
-      route_prefix: "",
+      route_prefix: ports.routePrefix ?? "",
       face: "sessions",
       filter: "all",
       sessions,
       tools: [],
       workspace_path: null,
+      companion_directory: renderFilesBrowserDirectory() + renderGitBrowserDirectory(),
+      companion_result: renderFilesBrowserResult() + renderGitBrowserResult(),
       primitives: {
         escape: ports.escapeHtml,
         icon: (name) => icon(name as Parameters<typeof icon>[0]),
@@ -166,13 +256,85 @@ export async function codingDirectoryPanel(
       },
     };
     return {
-      panel: view.render({ surface: "directory", model }),
+      panel: view.render({ surface, model }),
       plugin_id: CODING_PROJECT_PLUGIN_ID,
     };
   } catch {
     // A Plugin that throws while rendering does not take the page with it.
     return null;
   }
+}
+
+/** Independent personal Character manager rendered by its running Plugin. */
+export async function charactersWorkbenchPanel(ports: CodingSurfacePorts): Promise<{ panel: string; plugin_id: string }> {
+  const record = await ensureStarted(ports);
+  const active = record.platform?.supervisor.state(CHARACTER_PLUGIN_ID);
+  const contribution = record.platform?.supervisor.contribution(CHARACTER_PLUGIN_ID);
+  const views = (contribution as { views?: ReadonlyArray<{ descriptor: { contribution_id: string }; render(request: { surface: string; model: CharactersUiModel }): string }> } | null)?.views ?? [];
+  const view = views.find(item => item.descriptor.contribution_id === CHARACTERS_UI_CONTRIBUTION_ID);
+  if (active?.status !== "running" || !view) return { plugin_id: "characters", panel: `<section class="desktop-work-surface" data-work-surface="characters" data-work-surface-label="Characters" hidden><div class="mw-empty" role="alert"><p>${escapeHtml(active?.message ?? "角色插件未能启动，请重新打开项目。")}</p></div></section>` };
+  return { plugin_id: "characters", panel: view.render({ surface: "workbench", model: {
+    route_prefix: ports.routePrefix ?? "", primitives: { escape: value => escapeHtml(String(value)) },
+  } }) };
+}
+
+/** Host dispatches only declared plugin routes, after the normal control guard. */
+export async function handleCodingPluginHttp(request: IncomingMessage, response: ServerResponse, url: URL, ports: CodingSurfacePorts): Promise<boolean> {
+  if (!/^\/api\/plugins\/io\.molis\.work\.(coding|workspace|files|git|diff|text-stats|shelf|characters)\//.test(url.pathname)) return false;
+  const record = await ensureStarted(ports);
+  const active = record.platform?.supervisor.state(url.pathname.split("/")[3]!);
+  if (active?.status !== "running") { sendLocalWebJson(response, 503, { error: active?.message ?? record.error ?? "插件未能启动" }); return true; }
+  const result = await record.platform.router().dispatch({
+    method: request.method ?? "GET", pathname: url.pathname, actor_id: ports.actorId,
+    query: Object.fromEntries(url.searchParams),
+    ...(["GET", "HEAD"].includes(request.method ?? "GET") ? {} : { body: await readLocalWebBody(request) }),
+  });
+  if (!result) return false;
+  await record.platform.wiring.drain();
+  if (result.status === 200 && url.pathname.endsWith("/state")) {
+    const content = result.body as { view?: unknown; html?: string };
+    if (content?.view && url.pathname.includes("/io.molis.work.diff/")) content.html = renderDiff({
+      route_prefix: ports.routePrefix ?? "", view: content.view as DiffView,
+      primitives: { escape: value => escapeHtml(String(value)), icon: name => icon(name as Parameters<typeof icon>[0]) },
+    });
+    if (content?.view && url.pathname.includes("/io.molis.work.text-stats/")) content.html = renderTextStats({
+      view: content.view as TextStatsView, primitives: { escape: value => escapeHtml(String(value)) },
+    });
+  }
+  // The existing sanitized rich-text renderer is supplied by the composition;
+  // Coding neither imports another plugin nor trusts model-produced HTML.
+  const body = result.body as { runs?: Array<{ turns: Array<{ text: string; kind: string }>; awaiting_input: AgentPendingQuestion[] }> } | undefined;
+  if (body?.runs) for (const run of body.runs) {
+    // Recovery reports also list runs, but carry receipt facts rather than turns.
+    if (!Array.isArray(run.turns) || !Array.isArray(run.awaiting_input)) continue;
+    for (const turn of run.turns) Object.assign(turn, { html: renderFeedRichText(turn.text) });
+    for (const question of run.awaiting_input) Object.assign(question, { html: renderPendingQuestionCard({
+      questions: [question], primitives: { escape: value => escapeHtml(String(value)), icon: name => icon(name as Parameters<typeof icon>[0]),
+        text: value => value, formatDate: value => value },
+    }) });
+  }
+  const childBody = result.body as { subagents?: Array<{ children: Array<{ result: string | null }> }> } | undefined;
+  if (childBody?.subagents) for (const group of childBody.subagents) for (const child of group.children) {
+    if (child.result) Object.assign(child, { result_html: renderFeedRichText(child.result) });
+  }
+  const reportBody = result.body as { report?: { title: string; body_markdown: string; run_id: string } } | undefined;
+  const changeBody = result.body as { change?: import("@molis-ai/molis-work-contracts/modules/workspace-artifacts").CodingChangeSet; reference?: { version: number }; html?: string } | undefined;
+  if (result.status === 200 && changeBody?.change) {
+    const changeIndex = Number(url.searchParams.get("change_index") ?? 0);
+    const view = compareRunChangeSet({ content: changeBody.change, source_plugin_id: CODING_PLUGIN_ID, content_version: changeBody.reference?.version ?? 1 }, undefined,
+      Number.isSafeInteger(changeIndex) && changeIndex >= 0 ? changeIndex : -1);
+    changeBody.html = renderDiff({ view, route_prefix: ports.routePrefix ?? "", line_feedback: Boolean(changeBody.reference),
+      primitives: { escape: value => escapeHtml(String(value)), icon: name => icon(name as Parameters<typeof icon>[0]) } });
+  }
+  if (result.status === 200 && reportBody?.report) {
+    const report = reportBody.report;
+    Object.assign(reportBody, { html: renderCodingReport({ title: report.title, run_id: report.run_id,
+      body_html: renderFeedRichText(report.body_markdown), primitives: { escape: value => escapeHtml(String(value)),
+        icon: name => icon(name as Parameters<typeof icon>[0]), text: value => value, formatDate: value => value },
+    }) });
+  }
+  sendLocalWebJson(response, result.status, result.body);
+  return true;
 }
 
 /**
@@ -317,9 +479,12 @@ export async function gitDirectoryPanel(
   if (view === null) return null;
   const root = workspaceRoot(ports);
   try {
-    const result = root === null
-      ? { phase: "waiting" as const, status: null }
-      : await readGitStatus(root);
+    const read = root === null ? null : await readWorkspaceGit({ kind: "status", workspace_id: ports.workspaces![0]!.workspace_id }, ports.workspaces!);
+    const result = read === null ? { phase: "waiting" as const, status: null }
+      : read.outcome === "status" ? { phase: "ready" as const, status: parsePorcelainStatus({ stdout: read.porcelain }) }
+      : { phase: read.outcome === "not-a-repository" ? "not-a-repository" as const : "error" as const, status: null,
+          message: "message" in read ? read.message : "Git 状态不可读" };
+    if (result.status && result.status.head.kind !== "unborn" && read?.outcome === "status" && read.head_commit) result.status.head = { ...result.status.head, commit: read.head_commit };
     const model: GitUiModel = {
       route_prefix: "",
       view: projectGit({

@@ -170,7 +170,7 @@ export const PLUGIN_STAGE_STYLES = `
       display: flex; flex-direction: column; overflow: hidden;
       grid-column: 2; grid-row: 1;
     }
-    .plugin-stage-shell[data-expanded="true"] .plugin-stage-chrome { visibility: visible; }
+    .plugin-stage-shell[data-expanded="true"] .plugin-stage-chrome { visibility: inherit; }
     .plugin-stage-shell[data-expanded="true"] .feed-stage-search,
     .plugin-stage-shell[data-expanded="true"] .feed-stage-count { display: none; }
     body.immersive-workbench .plugin-stage-shell[data-expanded="true"] .feed-stage-entry {

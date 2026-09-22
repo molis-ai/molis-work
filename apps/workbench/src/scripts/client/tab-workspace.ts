@@ -111,6 +111,23 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
         persist();
       }
     } catch {}
+    // A standalone settings page returns to the previously focused workspace,
+    // rather than restoring the persisted exclusive settings surface again.
+    if (paneParams.get("returnToWorkbench") === "1") {
+      ops.setExclusive(state, null);
+      setDirectory("root", true, false);
+      const returnedUrl = new URL(location.href);
+      returnedUrl.searchParams.delete("returnToWorkbench");
+      history.replaceState(history.state, "", returnedUrl);
+    }
+    const requestedPlugin = paneParams.get("openPlugin"), requestedItem = paneParams.get("openItem");
+    if (requestedPlugin && Object.hasOwn(PLUGIN_TAB_ICON, requestedPlugin) && requestedItem) {
+      ops.setExclusive(state, null);
+      ops.openItem(state, requestedPlugin, requestedItem, paneParams.get("openTitle") || undefined);
+      const returnedUrl = new URL(location.href);
+      returnedUrl.searchParams.delete("openPlugin"); returnedUrl.searchParams.delete("openItem"); returnedUrl.searchParams.delete("openTitle");
+      history.replaceState(history.state, "", returnedUrl);
+    }
     rewriteRetiredTaskTabs();
     apply();
     persist();
@@ -294,6 +311,10 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     if (!scroll) return;
     const strip = scroll.parentElement;
     if (!strip || strip.clientWidth < 1) return;
+    // Scroll padding aligns a clipped active tab; it is not reserved content
+    // for the next layout. Reusing it can alternate between sharing and hug.
+    const scrollPad = scroll.querySelector("[data-tab-scroll-pad]");
+    if (scrollPad) scrollPad.style.width = "0px";
     const flexTabs = [...scroll.querySelectorAll(".tab-item:not([data-pinned]):not(.is-tab-drag-source)")].filter((tab) => !tab.closest('.tab-group[data-collapsed="true"]'));
     const slot = scroll.querySelector("[data-tab-reorder-slot]");
     const flexNodes = slot ? flexTabs.concat(slot) : flexTabs;
@@ -335,7 +356,9 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       }
       siblingChrome += child.getBoundingClientRect().width;
     }
-    const allotted = tabScrollAllotment(strip.clientWidth, siblingChrome, gapOf(strip), stripKids.length);
+    const stripStyle = getComputedStyle(strip);
+    const innerWidth = strip.clientWidth - (Number.parseFloat(stripStyle.paddingLeft) || 0) - (Number.parseFloat(stripStyle.paddingRight) || 0);
+    const allotted = tabScrollAllotment(innerWidth, siblingChrome, gapOf(strip), stripKids.length);
     const share = tabShareWidth(allotted - reserved, flexNodes.map(tabHugWidth), tabShareMin(window.matchMedia("(max-width: 760px), (pointer: coarse)").matches));
     if (share == null) {
       if (!(scroll.style.getPropertyValue("--tab-share-width") || scroll.style.width)) return;
@@ -1030,7 +1053,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     if (tab) {
       const pane = state.panes.find((candidate) => candidate.id === paneId);
       const alreadyActive = pane?.activeTabId === tab.dataset.tabId && state.focusedPaneId === paneId;
-      if (!alreadyActive) {
+      if (!alreadyActive || state.exclusive) {
         activate(paneId, tab.dataset.tabId);
       }
       focusActiveTab();
@@ -1319,6 +1342,16 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     }
   });
   document.addEventListener("click", (event) => {
+    const sourceItem = event.target.closest("[data-workbench-item-plugin][data-workbench-item-id]");
+    if (sourceItem) {
+      event.preventDefault();
+      const plugin = sourceItem.dataset.workbenchItemPlugin, itemId = sourceItem.dataset.workbenchItemId;
+      if (!Object.hasOwn(PLUGIN_TAB_ICON, plugin) || !itemId) return;
+      const title = sourceItem.dataset.workbenchItemTitle;
+      if (embedded) notifyParent("workbench-pane-open", { plugin, itemId, title });
+      else openItem(plugin, itemId, title);
+      return;
+    }
     if (event.target.closest("[data-goal-collapse]")) {
       const tab = ops.activeTab(state);
       if (tab?.plugin === "goals" && tab.kind === "item") { delete tab.goalView; apply(); persist(); if (embedded) notifyParent("workbench-pane-goal-view", {view:"frame"}); }

@@ -12,6 +12,7 @@ import {
   GIT_FILE_CHANGED_EVENT,
   WORKSPACE_REF_SCHEMA_VERSION,
   WORKSPACE_REF_TYPE,
+  readWorkspaceFileCapability,
 } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { FILES_UI_CONTRIBUTION_ID } from "./ui.js";
 
@@ -42,7 +43,7 @@ export const filesManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: FILES_PLUGIN_ID,
-  version: "1.0.0",
+  version: "1.1.0",
   name: "Files",
   kind: "app",
   publisher: { publisher_id: "molis", signature: "official-files-binding" },
@@ -50,11 +51,11 @@ export const filesManifest: PluginManifest = {
   permissions: [
     { permission: "artifact:read", required: true, reason: "读取绑定的工作目录引用" },
     { permission: "artifact:write", required: true, reason: "发布文件集合、文本快照与选区" },
-    { permission: "storage:private", required: false, reason: "记住上次读到哪个文件" },
+    { permission: "storage:private", required: true, reason: "记住上次读到哪个文件及快照所属工作区" },
   ],
   capabilities: {
     provides: [],
-    consumes: [projectsCapabilities.readWorkspace.capability_id],
+    consumes: [projectsCapabilities.readWorkspace.capability_id, readWorkspaceFileCapability.capability_id],
   },
   artifacts: {
     produces: [
@@ -115,6 +116,12 @@ export const filesManifest: PluginManifest = {
       },
     ],
   },
+  routes: [
+    { route_id: "files.state", method: "GET", path: "/state" },
+    { route_id: "files.directory", method: "GET", path: "/directory" },
+    { route_id: "files.open", method: "POST", path: "/open" },
+    { route_id: "files.capture", method: "POST", path: "/capture" },
+  ],
   ui: {
     contributions: [FILES_UI_CONTRIBUTION_ID],
     commands: [

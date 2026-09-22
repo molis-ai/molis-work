@@ -1,5 +1,6 @@
 import { EXPERIMENTS_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-experiments";
 import { THEME_BOOTSTRAP_SCRIPT, icon, renderIconSprite } from "@molis-ai/molis-work-design-system";
+import { codingSettingsContribution } from "@molis-ai/molis-work-plugin-coding";
 import type { GoalsApplicationApi } from "@molis-ai/molis-work-contracts/modules/goals";
 import type {
   UiRenderRequest,
@@ -160,6 +161,7 @@ export function createWorkbenchUiHost(): UiHost {
   for (const pack of BUILTIN_PLUGIN_WORKBENCH) {
     for (const contribution of pack.contributions) host.register(contribution);
   }
+  host.register(codingSettingsContribution);
   return host;
 }
 

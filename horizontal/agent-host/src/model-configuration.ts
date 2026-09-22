@@ -1,3 +1,4 @@
+import { modelRequestShape } from "@molis-ai/molis-work-contracts/modules/model-providers";
 import type {
   ModelApiFormat,
   ModelProviderRecord,
@@ -61,12 +62,8 @@ export interface ModelSelectionPort {
  * receives a secret, and the execution owner resolves the reference through its
  * own secrets service.
  *
- * **This is the seam that is not closed yet.** The reference names an entry in
- * *Molis Work's* secret store, and Prologue resolves references against its
- * own. Until one of the two is taught about the other, a Run started this way
- * reaches Prologue with a reference it cannot resolve. Everything up to that
- * point — settings, storage, selection — is real; that last hop is not, and
- * calling it done would be the thing this codebase keeps refusing to do.
+ * The Node adapter exchanges this reference with Prologue's credential store.
+ * This mapper never puts key material in an execution record.
  */
 export function prologueModelConfiguration(
   selection: ResolvedModelSelection | null,
@@ -74,7 +71,7 @@ export function prologueModelConfiguration(
   if (selection === null) return null;
   return {
     protocol: prologueProtocolFor(selection.provider.api_format),
-    endpoint: selection.provider.base_url,
+    endpoint: modelRequestShape(selection.provider, "").url,
     model: selection.model.model_id,
     credential_ref: selection.provider.credential_ref,
     // Left out when off, so nothing downstream has to special-case it.

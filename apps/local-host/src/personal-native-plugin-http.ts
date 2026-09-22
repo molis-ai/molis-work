@@ -22,6 +22,7 @@ export interface PersonalNativePluginHttpPorts {
   readonly completeText?: PagesRoutePorts["completeText"];
   /** Catalog project resolved by the Host route. Pages rejects a different query or body project. */
   readonly boundProjectId?: string;
+  readonly projectMaterials?: Parameters<typeof handleShelfNativePluginHttp>[4];
 }
 
 export async function handlePersonalNativePluginHttp(
@@ -35,7 +36,7 @@ export async function handlePersonalNativePluginHttp(
   const completeText = ports.completeText ?? hostCompleteText();
   for (const handle of [
     () => handleExperimentsNativePluginHttp(request, response, routed, homeDirectory),
-    () => handleShelfNativePluginHttp(request, response, routed, homeDirectory),
+    () => handleShelfNativePluginHttp(request, response, routed, homeDirectory, ports.projectMaterials),
     () => handleFunctionsNativePluginHttp(request, response, routed, homeDirectory),
     () => handlePagesNativePluginHttp(request, response, routed, homeDirectory, {
       publishArtifact: ports.publishArtifact,

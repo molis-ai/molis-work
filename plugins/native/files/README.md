@@ -10,9 +10,20 @@ to. Every interesting case — a directory that failed to list, one that was
 truncated, a file that is binary, too large, missing or unreadable — is its own
 state with its own sentence, so the user can tell which problem they have.
 
-It subscribes to Coding and Git because both change files behind the user's
-back. A tree that keeps showing a file a Run deleted is worse than one that
-reloads.
+The declared event subscriptions describe the intended Coding/Git refresh
+connection; automatic refresh is not yet wired end to end. The current product
+uses explicit refresh and rejects snapshot capture when the displayed file's
+fingerprint no longer matches the Host read.
+
+The formal routes expose bound-workspace state, directory reads, file opening
+and capture into the existing `before`, `after` and `selection` outputs. The
+Host rechecks project membership on every read, rejects symlinks and traversal,
+and bounds a directory to 1000 entries and a UTF-8 file to 256 KiB. Reading
+position survives restart. Switching workspaces invalidates current outputs
+while keeping historical Artifacts. The Workbench mounts the Files directory
+and reader through public exports; default bindings feed snapshot Diff and
+Text Stats. Generic command availability, standalone plugin entry, Coding
+material consumption and automatic refresh remain incomplete.
 
 - Status: `partial`
 - Migration Goals: `goal-reorg-f2`, `goal-plugin-platform-v2`.

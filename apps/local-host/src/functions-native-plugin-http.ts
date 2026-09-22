@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { createFileSecretStore } from "@molis-ai/molis-work-storage";
+import { createLazyFileSecretStore } from "@molis-ai/molis-work-storage";
 import {
   FunctionsPluginRouteTable,
   createFunctionsRouteHandlers,
@@ -35,7 +35,7 @@ export async function handleFunctionsNativePluginHttp(
       try {
         const service = createFunctionsService({
           store,
-          secrets: options.secrets ?? createFileSecretStore(),
+          secrets: options.secrets ?? createLazyFileSecretStore(homeDirectory),
           env: options.env ?? process.env,
           provider: options.provider ?? createHttpTypeSafeProvider(),
           allowed_behavior_ids: liveHostAllowedBehaviorIds(),

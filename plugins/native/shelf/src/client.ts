@@ -1,3 +1,4 @@
+import { SHELF_RESULT_CLIENT_FACTORY_SCRIPT } from "./result-client.js";
 /** Shelf workbench client: select, extract, ingest, DropAgent command bar. */
 export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
   const { translate: L } = host;
@@ -30,6 +31,9 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
   let arranging = false;
   let lastBarKind = "empty";
   let stickyHint = "";
+  const projectPrefix = document.body.dataset.routePrefix || "";
+  let materialPreview = null, materialTicket = 0, materialSaved = null, materialExpectedOutput = null;
+  let editWrites = Promise.resolve();
   const fileUrl = (id) => "/api/shelf/items/" + encodeURIComponent(id) + "/file";
   const TEXT_EDIT = { txt:1, md:1, markdown:1, json:1, swift:1, py:1, js:1, ts:1, mjs:1, css:1, yaml:1, yml:1, xml:1, toml:1, ini:1, rs:1, go:1, rb:1, sh:1, zsh:1, c:1, h:1, cc:1, cpp:1, m:1, mm:1, csv:1, log:1 };
   const isEditable = (item) => {
@@ -285,6 +289,10 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     const useBtn = workbench.querySelector("[data-shelf-use-material]");
     if (copyBtn) copyBtn.hidden = !hasFile(selected) || Boolean(selectedClip);
     if (useBtn) useBtn.hidden = !(selected?.group === "result" && hasFile(selected)) || Boolean(selectedClip);
+    const materialBtn = workbench.querySelector("[data-shelf-project-material]");
+    if (materialBtn) materialBtn.hidden = !projectPrefix || !selected || Boolean(selectedClip) || !hasFile(selected) || !isEditable(selected) || busy;
+    const original=workbench.querySelector('[data-shelf-original-artifact]'),source=selected?.artifact_source;
+    if(original){original.hidden=!source || Boolean(selectedClip);if(source)original.href=source.project_path+'/artifacts/'+encodeURIComponent(source.reference.artifact_id)+'/versions/'+source.reference.version;}
     if (editBtn) {
       const allow = Boolean(selected && !selectedClip && hasFile(selected) && isEditable(selected) && !busy);
       editBtn.hidden = !allow;
@@ -369,9 +377,12 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const saveCopy = async (text) => {
     if (!selected) return;
-    const payload = await post("/api/shelf/items/" + encodeURIComponent(selected.item_id) + "/edit", { text });
+    const id = selected.item_id;
+    const next = editWrites.catch(() => {}).then(() => post("/api/shelf/items/" + encodeURIComponent(id) + "/edit", { text }));
+    editWrites = next;
+    const payload = await next;
     snapshot = payload.snapshot;
-    selected = items().find((item) => item.item_id === selected.item_id) || payload.item || selected;
+    if (selected?.item_id === id) selected = items().find((item) => item.item_id === id) || payload.item || selected;
   };
   const flushEdit = async () => {
     if (editTimer) { clearTimeout(editTimer); editTimer = 0; }
@@ -1171,6 +1182,65 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (!selected) return;
     const payload = await post("/api/shelf/items/" + encodeURIComponent(selected.item_id) + "/use-material");
     applySnapshot(payload.snapshot, payload.item.item_id);
+  });
+  (${SHELF_RESULT_CLIENT_FACTORY_SCRIPT})({workbench,projectPrefix,post,L,applySnapshot,flushEdit});
+  const materialDialog = workbench.querySelector("[data-shelf-material-dialog]");
+  const materialStatus = workbench.querySelector("[data-shelf-material-status]");
+  const materialSave = workbench.querySelector("[data-shelf-material-save]");
+  const materialOutput = workbench.querySelector("[data-shelf-material-output]");
+  const materialOutputUrl = projectPrefix + "/api/plugins/io.molis.work.shelf/material-output";
+  materialDialog?.addEventListener("close", () => { materialTicket++; materialPreview = null; });
+  workbench.querySelector("[data-shelf-material-close]")?.addEventListener("click", () => materialDialog.close());
+  const openProjectMaterial = async () => {
+    if (!selected || !projectPrefix) return;
+    const id = selected.item_id, ticket = ++materialTicket;
+    materialPreview = null; materialSaved = null; materialSave.disabled = true; materialOutput.hidden = true;
+    materialStatus.textContent = L("正在读取完整正文…");
+    workbench.querySelector("[data-shelf-material-body]").textContent = "";
+    workbench.querySelector("[data-shelf-material-destination]").textContent = "";
+    if (!materialDialog.open) materialDialog.showModal();
+    try {
+      await flushEdit(); await editWrites;
+      const response = await fetch(projectPrefix + "/api/shelf/items/" + encodeURIComponent(id) + "/project-material", { cache: "no-store" });
+      const data = await response.json();
+      if (ticket !== materialTicket) return;
+      if (!response.ok) throw new Error(data.error || L("材料读取失败"));
+      const outputResponse = await fetch(materialOutputUrl, { cache: "no-store" });
+      const output = await outputResponse.json();
+      if (ticket !== materialTicket) return;
+      if (!outputResponse.ok) throw new Error(output.error || L("材料输出读取失败"));
+      materialExpectedOutput = output.reference;
+      materialPreview = { id, fingerprint: data.fingerprint };
+      workbench.querySelector("[data-shelf-material-destination]").textContent = data.project_title + " / " + data.payload.title;
+      workbench.querySelector("[data-shelf-material-body]").textContent = data.payload.text;
+      materialStatus.textContent = L("请核对原文后保存。"); materialSave.disabled = false;
+    } catch (error) { if (ticket === materialTicket) materialStatus.textContent = error.message; }
+  };
+  workbench.querySelector("[data-shelf-project-material]")?.addEventListener("click", openProjectMaterial);
+  workbench.querySelector("[data-shelf-material-refresh]")?.addEventListener("click", openProjectMaterial);
+  workbench.querySelector("[data-shelf-material-form]")?.addEventListener("submit", async event => {
+    event.preventDefault();
+    if (!materialPreview || materialSave.disabled) return;
+    const current = materialPreview, ticket = materialTicket;
+    materialSave.disabled = true; materialStatus.textContent = L("正在保存…");
+    try {
+      const result = await post(projectPrefix + "/api/shelf/items/" + encodeURIComponent(current.id) + "/project-material", { expected_fingerprint: current.fingerprint });
+      if (ticket !== materialTicket) return;
+      materialSaved = result.reference;
+      materialOutput.hidden = false; materialOutput.disabled = false;
+      materialStatus.textContent = L("已保存到项目材料") + " · v" + result.reference.version + L("。设为材料输出后，可在 Coding 的「＋ 材料」中选择；已有任务不会自动换版。");
+    } catch (error) { if (ticket === materialTicket) { materialStatus.textContent = error.message; materialSave.disabled = false; } }
+  });
+  materialOutput?.addEventListener("click", async () => {
+    if (!materialSaved || materialOutput.disabled) return;
+    const ticket = materialTicket, reference = materialSaved;
+    materialOutput.disabled = true;
+    try {
+      const result = await post(materialOutputUrl, { reference, expected_reference: materialExpectedOutput });
+      if (ticket !== materialTicket) return;
+      materialExpectedOutput = result.reference;
+      materialStatus.textContent = L("已设为材料输出") + " · v" + result.reference.version + L("。在 Coding 的「＋ 材料」中选择，不会自动发送或替换已有选择。");
+    } catch (error) { if (ticket === materialTicket) { materialStatus.textContent = error.message; materialOutput.disabled = false; } }
   });
   fileInput?.addEventListener("change", async () => {
     const files = [...(fileInput.files || [])];

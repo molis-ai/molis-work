@@ -151,6 +151,8 @@ export class PluginRuntime implements PluginRuntimeApi {
     deployment: PluginDeployment;
     grants?: string[];
     retain_private_data?: boolean;
+    /** Host-authorized replacement of an inactive version; identity and private data remain. */
+    replace_version?: boolean;
   }): PluginLifecycleReceipt {
     this.register(input.definition);
     const manifest = input.definition.manifest;
@@ -162,13 +164,17 @@ export class PluginRuntime implements PluginRuntimeApi {
     const installId = installIdentity(manifest);
     const current = this.repository.get(installId);
     const digest = manifestDigest(manifest);
-    if (current && current.manifest_digest !== digest) {
+    const replacing = Boolean(current && current.version !== manifest.version && input.replace_version === true);
+    if (replacing && (this.contexts.has(installId) || this.contributions.has(installId))) {
+      throw new PluginRuntimeError("plugin_state_invalid", "请先停止当前 Plugin，再更换版本");
+    }
+    if (current && current.manifest_digest !== digest && !replacing) {
       throw new PluginRuntimeError(
         "plugin_definition_conflict",
         "同一 Plugin ID、Version 和签名不能对应不同 Manifest；请递增版本",
       );
     }
-    if (current && current.state !== "uninstalled") {
+    if (current && current.state !== "uninstalled" && !replacing) {
       if (
         current.version === manifest.version
         && current.deployment === input.deployment

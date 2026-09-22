@@ -95,7 +95,11 @@ export {
   filesUiDescriptor,
   renderFilesReader,
   renderFilesTree,
+  renderFilesBrowserDirectory,
+  renderFilesBrowserResult,
   type FilesUiModel,
   type FilesUiPrimitives,
 } from "./ui.js";
 export { createFilesPlugin, type FilesPluginPorts } from "./plugin.js";
+export { FILES_CLIENT_FACTORY_SCRIPT } from "./client.js";
+export { FILES_STYLES } from "./styles.js";

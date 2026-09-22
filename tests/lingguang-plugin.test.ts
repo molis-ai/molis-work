@@ -160,7 +160,7 @@ test("工作台挂上灵光空态、确认框和快记区", () => {
 test("工作台客户端脚本挂上灵光后仍能解析，保存不重绘编辑器，确认不用 window.confirm", () => {
   const script = renderMolisWorkWorkbenchClientScript();
   assert.doesNotThrow(() => new Function(script));
-  assert.match(script, /\["shelf","lingguang","functions","pages","form","dataset","ppt"\]/);
+  assert.match(script, /\["shelf","lingguang","functions","characters","pages","form","dataset","ppt"\]/);
   assert.match(script, /data-assistant-composer/);
   assert.match(script, /offsetHeight \|\| 32/);
   assert.match(script, /rect\.height - height/);

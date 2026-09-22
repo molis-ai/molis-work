@@ -1,4 +1,5 @@
 import type { CodingSessionEntry, CodingSessionState } from "./projection.js";
+import type { CodingPlanDraft } from "./plans.js";
 
 /**
  * Coding's own table in the project database.
@@ -64,6 +65,14 @@ export function migrateCodingSessions(db: CodingSqliteDatabase): void {
     );
     CREATE INDEX IF NOT EXISTS coding_sessions_board_updated_idx
       ON coding_sessions(board_id, updated_at DESC, session_id);
+    CREATE TABLE IF NOT EXISTS coding_plan_drafts (
+      board_id TEXT NOT NULL,
+      session_id TEXT NOT NULL,
+      revision INTEGER NOT NULL,
+      draft_json TEXT NOT NULL,
+      PRIMARY KEY (board_id, session_id),
+      FOREIGN KEY (board_id, session_id) REFERENCES coding_sessions(board_id, session_id) ON DELETE CASCADE
+    );
   `);
 }
 
@@ -90,6 +99,31 @@ export class CodingSessionStore {
     migrateCodingSessions(db);
   }
 
+  plan(boardId: string, sessionId: string): CodingPlanDraft | null {
+    this.get(boardId, sessionId);
+    const row = this.db.prepare("SELECT draft_json FROM coding_plan_drafts WHERE board_id = ? AND session_id = ?").get(boardId, sessionId) as Row | undefined;
+    return row ? JSON.parse(String(row.draft_json)) as CodingPlanDraft : null;
+  }
+
+  savePlan(boardId: string, sessionId: string, expected: number, draft: CodingPlanDraft): CodingPlanDraft {
+    this.get(boardId, sessionId);
+    if (!Number.isSafeInteger(expected) || expected < 0 || draft.revision !== expected + 1) throw new Error("计划修订无效");
+    const result = expected === 0
+      ? this.db.prepare("INSERT OR IGNORE INTO coding_plan_drafts (board_id, session_id, revision, draft_json) VALUES (?, ?, ?, ?)")
+        .run(boardId, sessionId, draft.revision, JSON.stringify(draft))
+      : this.db.prepare("UPDATE coding_plan_drafts SET revision = ?, draft_json = ? WHERE board_id = ? AND session_id = ? AND revision = ?")
+        .run(draft.revision, JSON.stringify(draft), boardId, sessionId, expected);
+    if ((result as { changes: number }).changes !== 1) throw new Error("计划已被另一页面修改，请重新打开后合并修改");
+    return this.plan(boardId, sessionId)!;
+  }
+
+  confirmPlan(boardId: string, sessionId: string, draft: CodingPlanDraft): CodingPlanDraft {
+    const result = this.db.prepare("UPDATE coding_plan_drafts SET draft_json = ? WHERE board_id = ? AND session_id = ? AND revision = ?")
+      .run(JSON.stringify(draft), boardId, sessionId, draft.revision);
+    if ((result as { changes: number }).changes !== 1) throw new Error("计划已变化，请重新查看并确认当前修订");
+    return this.plan(boardId, sessionId)!;
+  }
+
   create(input: CreateCodingSessionInput): CodingSessionRecord {
     const existing = this.db.prepare(
       "SELECT session_id FROM coding_sessions WHERE board_id = ? AND session_id = ?",
@@ -100,7 +134,7 @@ export class CodingSessionStore {
     this.db.prepare(`
       INSERT INTO coding_sessions
         (board_id, session_id, title, state, goal_id, runtime_id, runtime_session_id, created_at, updated_at)
-      VALUES (?, ?, ?, 'running', ?, ?, NULL, ?, ?)
+      VALUES (?, ?, ?, 'idle', ?, ?, NULL, ?, ?)
     `).run(
       input.board_id,
       input.session_id,
@@ -133,6 +167,13 @@ export class CodingSessionStore {
     this.db.prepare(
       "UPDATE coding_sessions SET state = ?, updated_at = ? WHERE board_id = ? AND session_id = ?",
     ).run(state, at, boardId, sessionId);
+    return this.get(boardId, sessionId);
+  }
+
+  rename(boardId: string, sessionId: string, title: string, at: string): CodingSessionRecord {
+    this.get(boardId, sessionId);
+    this.db.prepare("UPDATE coding_sessions SET title = ?, updated_at = ? WHERE board_id = ? AND session_id = ?")
+      .run(title, at, boardId, sessionId);
     return this.get(boardId, sessionId);
   }
 

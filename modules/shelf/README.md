@@ -22,6 +22,8 @@ Host 打开用户 Home 下的 `shelf/`；`admit` 写入材料副本，`runJob("e
 
 不写项目数据库，不发布 Artifact。原路径只用于事后 Hash 校验，不进入 Prompt 或 API 展示。
 
+Host 明确接收固定成果时，可随 `admit` 提供 `artifact_source`；该来源保存在原 Shelf 目录记录中。相同项目、成果及版本再次接收返回已有副本，保留用户编辑；隐藏副本恢复显示，内容指纹冲突或副本文件缺失明确报错，不覆盖已有内容。来源本身不授予执行或项目写入权限。
+
 工作区依赖：`@molis-ai/molis-work-contracts`。
 
 ## 本地开发

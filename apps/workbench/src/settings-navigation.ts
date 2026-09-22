@@ -9,7 +9,7 @@ export interface WebProjectNavigation {
 }
 
 
-export type WebSettingsSection = "appearance" | "runtimes" | "mcp" | "connectors" | "projects" | "diagnostics";
+export type WebSettingsSection = "appearance" | "models" | "runtimes" | "mcp" | "connectors" | "projects" | "diagnostics";
 type SettingsNavigationActive = string;
 type ProjectSettingsNavigationActive = "general" | "guidance" | "rules" | "planning";
 
@@ -88,6 +88,7 @@ function renderSettingsNavigation(
       <div class="settings-nav-group-label">${L("本机")}</div>
       <a href="${href("/settings/appearance")}"${current("appearance")}>${icon("sun")}${L("外观")}</a>
       <div class="settings-nav-group-label">${L("工具")}</div>
+      <a href="${href("/settings/models")}"${current("models")}>${icon("settings")}${L("模型设置")}</a>
       <a href="${href("/settings/runtimes")}"${current("runtimes")}>${icon("terminal")}${L("AI 与执行工具")}</a>
       <a href="${href("/settings/mcp")}"${current("mcp")}>${icon("settings")}${L("MCP")}</a>
       <a href="${href("/settings/connectors")}"${current("connectors")}>${icon("link")}${L("Connectors")}</a>

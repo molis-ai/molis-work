@@ -67,7 +67,7 @@ export interface CodingMcpView extends SelectionFrame {
 }
 
 const skillKey = (ref: AgentSkillRef) => `${ref.skill_id}@${ref.version}`;
-const toolKey = (ref: AgentMcpToolRef) => `${ref.server}/${ref.tool}`;
+const toolKey = (ref: AgentMcpToolRef) => `${ref.server}@${ref.configuration_version ?? "unversioned"}/${ref.tool}@${ref.version ?? "unversioned"}`;
 
 function sameSet(left: readonly string[], right: readonly string[]): boolean {
   if (left.length !== right.length) return false;

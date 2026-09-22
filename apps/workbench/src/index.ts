@@ -134,6 +134,7 @@ export type { BuiltinPluginEntry, PluginMarketCard, RailEntry } from "./plugin-c
 export {
   isDecidable,
   renderAgentReviewSurface,
+  renderAgentReviewRecovery,
   reviewPhase,
   type AgentReviewPhase,
   type AgentReviewPrimitives,

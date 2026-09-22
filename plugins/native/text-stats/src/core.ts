@@ -34,7 +34,7 @@ export interface TextStatsView {
   lines?: number;
 }
 
-export const TEXT_STATS_WAITING = "在 Files 里捕获 before 或 after，再把它连到这里";
+export const TEXT_STATS_WAITING = "固定一份文件快照后，这里会显示该版本的文本统计";
 export const TEXT_STATS_UNAVAILABLE = "捕获的快照已经不在了";
 export const TEXT_STATS_RECOVERY = "重新捕获一次，或者在 Sources 里换一个输入";
 

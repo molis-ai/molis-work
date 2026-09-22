@@ -16,7 +16,7 @@ export const artifactsManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: ARTIFACTS_PLUGIN_ID,
-  version: "1.0.0",
+  version: "1.1.0",
   name: "Artifacts",
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-artifacts-binding" },

@@ -125,6 +125,7 @@ function manifestFor(input: {
 }
 
 interface Harness {
+  artifacts: ArtifactsModule;
   supervisor: PluginSupervisor;
   wiring: PluginInputGraph;
   events: PluginEventBus;
@@ -182,6 +183,7 @@ function harness(definitions: (register: Harness) => PluginDefinition[]): Harnes
   });
 
   const rig: Harness = {
+    artifacts,
     supervisor,
     wiring,
     events,
@@ -380,4 +382,45 @@ test("a published event reaches a subscriber through the real Host services", as
   } finally {
     rig.close();
   }
+});
+
+
+test("selecting an owned fixed output keeps exact identity, guards stale choices and preserves generated version history", async () => {
+  const rig = harness(() => []);
+  try {
+    const producer = manifestFor({ id: PRODUCER, outputs: ["payload"] });
+    producer.permissions.push({ permission: "artifact:read", required: true, reason: "读取自己的固定成果" });
+    producer.artifacts.consumes.push({ artifact_type_id: TYPE, schema_version: 1 }, { artifact_type_id: "other.type", schema_version: 1 });
+    producer.artifacts.produces.push({ artifact_type_id: "other.type", schema_version: 1 });
+    await rig.supervisor.start([
+      { definition: definitionFor(rig, producer) },
+      { definition: definitionFor(rig, manifestFor({ id: CONSUMER, inputs: ["payload"], outputs: ["other"] })) },
+    ]);
+    rig.wiring.bind({ board_id: DEMO_BOARD_ID, target_plugin_id: CONSUMER, target_port: "payload", source_plugin_id: PRODUCER, source_port: "payload", origin: "user", actor_id: "tester" });
+    const services = rig.services[PRODUCER]!, outputs = services.outputs!;
+    const fixed = { artifact_id: "fixed-report-one", version: 1 };
+    const original = services.artifacts.publish({ ...fixed, artifact_type_id: TYPE, schema_version: 1, content: { kind: "inline", payload: { note: "不可改写的原报告" } } });
+    const count = rig.artifacts.query.listArtifacts(DEMO_BOARD_ID).length;
+    assert.deepEqual(outputs.select({ port: "payload", reference: fixed, expected_reference: null }), fixed);
+    await rig.wiring.drain();
+    assert.deepEqual(rig.services[CONSUMER]!.inputs!.reference("payload"), fixed);
+    assert.deepEqual(rig.services[CONSUMER]!.inputs!.read("payload"), original.artifact);
+    assert.equal(rig.artifacts.query.listArtifacts(DEMO_BOARD_ID).length, count, "selection does not copy the report");
+    assert.deepEqual(outputs.select({ port: "payload", reference: fixed, expected_reference: null }), fixed, "lost-response retry is harmless");
+    const first = outputs.publish({ port: "payload", content: { kind: "inline", payload: { note: "端口新版本" } } }).artifact;
+    assert.equal(first.version, 1, "fixed report version is not the generated output sequence");
+    assert.throws(() => outputs.select({ port: "payload", reference: fixed, expected_reference: null }), /已变化/);
+    outputs.select({ port: "payload", reference: fixed, expected_reference: first });
+    const second = outputs.publish({ port: "payload", content: { kind: "inline", payload: { note: "下一版" } } }).artifact;
+    assert.equal(second.version, 2);
+    outputs.select({ port: "payload", reference: first, expected_reference: second });
+    assert.equal(outputs.publish({ port: "payload", content: { kind: "inline", payload: { note: "第三版" } } }).artifact.version, 3, "selecting an old version must not rewind generation");
+    const foreign = rig.services[CONSUMER]!.outputs!.publish({ port: "other", content: { kind: "inline", payload: { note: "另一个生产者" } } }).artifact;
+    assert.throws(() => outputs.select({ port: "payload", reference: foreign, expected_reference: outputs.reference("payload") }), /自己的/);
+    const wrong = services.artifacts.publish({ artifact_id: "other-kind", version: 1, artifact_type_id: "other.type", schema_version: 1, content: { kind: "inline", payload: {} } }).artifact;
+    assert.throws(() => outputs.select({ port: "payload", reference: wrong, expected_reference: outputs.reference("payload") }), /类型/);
+    rig.artifacts.commands.archiveVersion({ board_id: DEMO_BOARD_ID, actor_id: "tester", ...fixed });
+    assert.throws(() => outputs.select({ port: "payload", reference: fixed, expected_reference: outputs.reference("payload") }), /artifact_archived/);
+    assert.throws(() => outputs.select({ port: "undeclared", reference: first, expected_reference: null }), /没有输出/);
+  } finally { rig.close(); }
 });

@@ -1,0 +1,32 @@
+{
+  "description": "真实研究材料的有界摘录，Agent 初标；不是人工金标，也不是实测结果。",
+  "cases": [
+    {
+      "id": "supply-unknown",
+      "label": "正文缺失不能证明市场空白",
+      "input": "待审查结论：市场上没有回答 Agent 部署、并行管理或审查问题的内容。\n材料摘录：补证后，6 条供给材料中已有 3 条保留完整正文，另外 3 条 Reddit 材料仍只有标题和媒介类型。新增正文是一篇 6 个月 vibe coding 复盘，它直接回答了初学过程、多 Agent/worktree 管理和编排问题；但它没有回答 Agent 部署负担，也没有提供终端无 IDE 审查步骤。",
+      "source": "/Users/oreal/.codex/worktrees/cgs-topic-product/Content Growth Studio/docs/product/g2/cases/g2e-agent-workflow-supply-mapping-2026-08-30.md，结论与供给表；二次研究摘录，不是重新读取原帖。",
+      "reference": "rejected",
+      "reference_status": "agent",
+      "rationale": "已有正文直接回答部分问题，反驳完全没有供给；部署/纯终端审查仍未知。Agent 初标，待人工复核。"
+    },
+    {
+      "id": "supply-present",
+      "label": "有限样本可支持供给不为空",
+      "input": "待审查结论：本次有界样本中存在多 Agent 工作流方法供给。\n材料摘录：11,371 字 RSS 正文及同帖讨论：从简单项目开始；复杂后停止直接改 main、先规划、用 worktree 隔离多 Agent、集中编排依赖/测试/review/merge，并定期清理 AI slop。是个人 6 个月复盘，不是普适效果验证。",
+      "source": "/Users/oreal/.codex/worktrees/cgs-topic-product/Content Growth Studio/docs/product/g2/cases/g2e-agent-workflow-supply-mapping-2026-08-30.md，材料 material:564ae6d5aa0408c96e59a8b9 的供给映射行；二次研究摘录。",
+      "reference": "supported",
+      "reference_status": "agent",
+      "rationale": "存在性结论与材料覆盖范围一致，不推断普适效果。Agent 初标，待人工复核。"
+    },
+    {
+      "id": "algorithm-causality",
+      "label": "点赞快照不能证明算法因果",
+      "input": "待审查结论：平台算法奖励职场微步骤，因而让这些内容获得更多点赞。\n材料摘录：怼怼两条 WPS/Word 帖赞到三千～五千级；徐老师 AI 动态 PPT 三百+；林粒粒豆包办公实测一百+。方法限制：晨扫 40 账号为主，非全量 50；标题与相对时间为主，未逐条看完视频正文；赞数为详情页快照，不作完整统计。",
+      "source": "/Users/oreal/adeptify-home/repos/kol-daily/daily/2026-09-16/douyin.md，摘要第 3 点与方法限制；二次研究摘录，仅标题和指标快照。",
+      "reference": "insufficient",
+      "reference_status": "agent",
+      "rationale": "观察性快照不能排除账号、曝光和内容等因素，不能确定算法因果。Agent 初标，待人工复核。"
+    }
+  ]
+}

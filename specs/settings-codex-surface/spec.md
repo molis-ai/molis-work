@@ -2,7 +2,7 @@
 
 状态：已落地，正在按 Codex 纠正卡片底色与密度。完成等级 **3：功能可用**。隔离 Chrome 量到：h1≈28px、白卡片 12px 圆角、行距约 10px、分类行≈36px 带图标、无选中竖条、控件在文案右侧。不宣称可发布。不改用户真实库、不提交、不发布。
 
-本文件是这次设置视觉变更的唯一需求书。壳模型仍以 `specs/project-settings-directory-panel/spec.md` 与 `specs/settings-directory-panel/spec.md` 为准：目录只放分类，正文在右边主体。四个分类的字段与保存仍以 `specs/project-settings-redesign/spec.md` 为准。Linear 工具密度继续管工作台目录/标签/列表，不再压设置文档。
+本文件是这次设置视觉变更的唯一需求书。壳模型仍以 `specs/archive/project-settings-directory-panel/spec.md` 与 `specs/archive/settings-directory-panel/spec.md` 为准：目录只放分类，正文在右边主体。四个分类的字段与保存仍以 `specs/project-settings-redesign/spec.md` 为准。Linear 工具密度继续管工作台目录/标签/列表，不再压设置文档。
 
 ## 背景与目标
 

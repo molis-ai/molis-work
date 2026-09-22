@@ -9,7 +9,7 @@ Mode: Operate. Slice only; do not change production `renderProjectHome`.
 
 Audience: sitting down, seeing what already arrived today, and what can still be added.
 
-Direction: the scheme in `specs/home-flow-stream/spec.md` v5. Two columns: today's stream, and one solid task panel. Talk is not a left column. It is a small 说一句 button on each event and each task — an action on that item. Click opens a lightweight popover next to the button, already scoped to that row. ⌘K opens it for the current event.
+Direction: the scheme in `specs/archive/home-flow-stream/spec.md` v5. Two columns: today's stream, and one solid task panel. Talk is not a left column. It is a small 说一句 button on each event and each task — an action on that item. Click opens a lightweight popover next to the button, already scoped to that row. ⌘K opens it for the current event.
 
 Today's events live in a single recessed track — `--control-fill` with a `--hairline` boundary — and the current event is a raised `--nav-raised` chip carrying `--surface-shadow` plus the dark-mode top highlight. This is the existing segmented-control language, not a new pattern. Everything else in the column is plain paper cards: greeting, connect-calendar, source status, what's doable now. Paper cards take the hairline and no shadow; the raised event takes the shadow and no border. Nested content inside a card is fills and rows, never a second card.
 

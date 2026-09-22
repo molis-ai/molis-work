@@ -1,6 +1,6 @@
 # 项目首页：Onboarding 房间的一屏落地
 
-状态：高保真切片迭代中。完成等级 **2**。不改生产首页布局。名人名言已从切片和生产一并去掉，见 `specs/home-remove-quotes/spec.md`。
+状态：高保真切片迭代中。完成等级 **2**。不改生产首页布局。名人名言已从切片和生产一并去掉，见 `specs/archive/home-remove-quotes/spec.md`。
 
 ## 背景目标
 

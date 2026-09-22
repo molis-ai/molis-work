@@ -123,7 +123,7 @@ Frame 不是 Goals 的一个页面，也不是壳上的通用画布。以后若�
 | 卡片原展开 / 双击节点 | 打开现有 Goal 工作框，仍停在 Goal 画布 Tab |
 | 卡片 Frame 按钮 | 打开或聚焦该 Goal 的 Frame Tab |
 | 点目录非 Goal（当前是 Frame） | 可加到当前 Frame；切片里点击与拖入等价 |
-| 点目录非 Goal（当前是 Goal 画布） | 打开该插件工作面并选中该条；不 toast。拖到画布仍拒绝。详见 `specs/plugin-surfaces-with-goal-canvas/spec.md` |
+| 点目录非 Goal（当前是 Goal 画布） | 打开该插件工作面并选中该条；不 toast。拖到画布仍拒绝。详见 `specs/archive/plugin-surfaces-with-goal-canvas/spec.md` |
 | 点 Frame 上的 Block | 展开该块并载入详情；点另一块换展开。收起走关闭钮；切片里再点标题条也可收起。已展开正文可滚动、选字，不启动拖拽。 |
 
 ### 拖拽
@@ -263,7 +263,7 @@ python3 -m http.server 64521 --bind 127.0.0.1 --directory docs/design/workbench-
 
 ## 与既有 spec 的关系
 
-- `specs/immersive-workbench-implementation/spec.md`：保留左目录、项目首页、插件按项目添加。主区从「插件整页」改为 Container（Goal 画布 Tab + 按 Goal 的 Frame）；原 Goal 工作框仍由 maximize 打开。
-- `specs/goal-canvas-workspace/spec.md` 与 Goals 依赖图：工作台 Goal 画布 Tab **就是**这份表面，不另做一套卡片画布。Frame 不是它，也不替换原工作框。
+- `specs/archive/immersive-workbench-implementation/spec.md`：保留左目录、项目首页、插件按项目添加。主区从「插件整页」改为 Container（Goal 画布 Tab + 按 Goal 的 Frame）；原 Goal 工作框仍由 maximize 打开。
+- `specs/archive/goal-canvas-workspace/spec.md` 与 Goals 依赖图：工作台 Goal 画布 Tab **就是**这份表面，不另做一套卡片画布。Frame 不是它，也不替换原工作框。
 - `specs/goalboard-personal-workbench-shell/spec.md` 中的项目级 Goal 标签：不复活旧的「只有 Goal 的顶部 tabs」。新模型是 **Goal 画布 Tab + 各 Goal 的 Frame Tab**。
 - `docs/platform/UI-PLATFORM.md`：Frame 经 Slot/Contribution 挂载 Block，不直接传 Store；资产插件不改宿主导航。

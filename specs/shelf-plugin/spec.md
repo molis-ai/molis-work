@@ -38,7 +38,7 @@
 
 Molis 只规定：它挂在工作台插件槽和桌面壳上。不重写 DropAgent 的选择、拖放、确认、结果、剪贴板、轮盘、快捷键、设置语义，也不把 Shelf 预览 / 底栏 / 轮盘重涂成 Coss 强调色。DropAgent 写过「不做」的，这里也不做。
 
-工作台信息架构以 `specs/plugin-stage-master-detail/spec.md` 为准：Shelf 不占第二栏，材料 / 生成结果 / 剪贴板三个 fold 在舞台列表里；默认全宽，点一行才展开预览。页脚「副本工作区 / ⌘V 粘贴当前」钉在目录栏底，展开后仍在 213pt 左栏底。本文管 DropAgent 功能、预览质感和 `--da-*`。舞台列表底色跟其它插件用 `--paper`（见 `specs/shelf-list-paper/spec.md`）；文件名跟其它插件目录行用 `--ink`、13px（见 `specs/shelf-row-ink/spec.md`）；类型图标、时间戳、预览、底栏、轮盘仍走 DropAgent。
+工作台信息架构以 `specs/archive/plugin-stage-master-detail/spec.md` 为准：Shelf 不占第二栏，材料 / 生成结果 / 剪贴板三个 fold 在舞台列表里；默认全宽，点一行才展开预览。页脚「副本工作区 / ⌘V 粘贴当前」钉在目录栏底，展开后仍在 213pt 左栏底。本文管 DropAgent 功能、预览质感和 `--da-*`。舞台列表底色跟其它插件用 `--paper`（见 `specs/archive/shelf-list-paper/spec.md`）；文件名跟其它插件目录行用 `--ink`、13px（见 `specs/archive/shelf-row-ink/spec.md`）；类型图标、时间戳、预览、底栏、轮盘仍走 DropAgent。
 
 ## 背景与目标
 
@@ -160,7 +160,7 @@ Shelf 的目录段、工作面、确认条、空态、设置页、拖入罩、�
 
 ### 挂到 Molis 的唯一映射
 
-- 工作台里 Shelf 列表走 Goals 舞台主从（见 `specs/plugin-stage-master-detail/spec.md`），不再占第二栏。预览 + 对照 + 底栏指令 + 对话仍是 DropAgent 工作面。
+- 工作台里 Shelf 列表走 Goals 舞台主从（见 `specs/archive/plugin-stage-master-detail/spec.md`），不再占第二栏。预览 + 对照 + 底栏指令 + 对话仍是 DropAgent 工作面。
 - 架子数据是个人的，不进项目 Goal 账本，不是 Artifact。每个项目都能看到同一架子。结果只有用户再拖进 Frame 才进当前项目工作。
 - 全局 ⌃⌥D：置前主窗口并打开 Shelf 工作面；若已在 Shelf 且窗口在前，则按 DropAgent 关面板语义隐藏主窗口。不另做第二套 1160×640 菜单栏浮窗。
 - 菜单栏单击仍打开现有 Goal 胶囊。拖到图标 / 轮盘才是 Shelf 进货。两者不得互相抢走手势。

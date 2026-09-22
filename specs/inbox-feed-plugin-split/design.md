@@ -230,4 +230,4 @@ node --import tsx --test --test-name-pattern "Inbox Message save and start" test
 
 浏览器走查（2026-09-15，临时项目「拆插件验收」，`?desktop=1`）：根目录分别进入 Inbox / Feed / Artifacts；插件条为 Goals · Inbox · Feed · Artifacts（该项目未加 Sessions）。Inbox 待处理只有「授权即将过期 / 来源规则命中」，没有成功捕捉的 launch 条目；行上有 `data-inbox-reason=source_rule` 与关联 `feed_item`。Feed 内视图只有 Feed | 来源，三条事实都在流水里。来源从 Feed 进入，网页查询「launch coverage」已连接、已拉取 3 条。Artifacts 目录有 `v1 · io.molis.work.feed.capture`（Product launch checklist）。库里对应 `producer_plugin_id=io.molis.work.native.feed`。
 
-未作为本切片回归：`tests/desktop-tui.test.ts`「Web and Desktop share one project workbench」仍卡在旧 `class="workspace is-desktop-tui"`，与本切片无关。迁移 fixture 与 `modules/feed` CHECK 仍含 `inbox_message`，那是历史数据契约，不是产品路径。点 Inbox / Feed / Artifacts 打开工作面见 `specs/plugin-surfaces-with-goal-canvas/spec.md`。
+未作为本切片回归：`tests/desktop-tui.test.ts`「Web and Desktop share one project workbench」仍卡在旧 `class="workspace is-desktop-tui"`，与本切片无关。迁移 fixture 与 `modules/feed` CHECK 仍含 `inbox_message`，那是历史数据契约，不是产品路径。点 Inbox / Feed / Artifacts 打开工作面见 `specs/archive/plugin-surfaces-with-goal-canvas/spec.md`。

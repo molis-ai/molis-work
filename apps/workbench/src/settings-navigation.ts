@@ -77,6 +77,7 @@ function renderSettingsNavigation(
   project: WebProjectNavigation | null,
   desktopShell = false,
   _projects: readonly WebProjectNavigation[] = [],
+  enabledPlugins?: readonly string[],
 ): string {
   const href = (path: string) => settingsContextHref(path, project, desktopShell);
   const current = (section: SettingsNavigationActive) => active === section ? ' aria-current="page"' : "";
@@ -90,10 +91,9 @@ function renderSettingsNavigation(
       <a href="${href("/settings/runtimes")}"${current("runtimes")}>${icon("terminal")}${L("AI 与执行工具")}</a>
       <a href="${href("/settings/mcp")}"${current("mcp")}>${icon("settings")}${L("MCP")}</a>
       <a href="${href("/settings/connectors")}"${current("connectors")}>${icon("link")}${L("Connectors")}</a>
-      <a href="${href("/settings/planning")}"${current("planning")}>${icon("workflow")}${L("规划方法")}</a>
       <div class="settings-nav-group-label">${L("系统")}</div>
       <a href="${href("/settings/diagnostics")}"${current("diagnostics")}>${icon("bug")}${L("诊断")}</a>
-      ${listPluginSettingsNavItems().map((page) => `<a href="${href(`/settings/${page.section_id}`)}"${current(page.section_id)}>${icon(page.icon)}${escapeHtml(L(page.label))}</a>`).join("")}
+      ${listPluginSettingsNavItems(enabledPlugins).map((page) => `<a href="${href(`/settings/${page.section_id}`)}"${current(page.section_id)}>${icon(page.icon)}${escapeHtml(L(page.label))}</a>`).join("")}
     </div>
   </nav>`;
 }
@@ -113,8 +113,6 @@ function renderProjectSettingsNavigation(
     <div class="settings-nav-body">
       <a href="${href(`${routePrefix}/settings`)}"${current("general")}>${icon("tune")}${L("常规")}</a>
       <a href="${href(`${routePrefix}/settings/guidance`)}"${current("guidance")}>${icon("book")}${L("项目说明")}</a>
-      <a href="${href(`${routePrefix}/settings/rules`)}"${current("rules")}>${icon("shield")}${L("工作规则")}</a>
-      <a href="${href(`${routePrefix}/settings/planning`)}"${current("planning")}>${icon("workflow")}${L("工作规划")}</a>
     </div>
   </nav>`;
 }

@@ -43,7 +43,7 @@ test("project manager right pane only edits identity and deletion", () => {
   assert.match(html, /class="project-settings-identity"/);
   assert.match(html, /data-settings-fold="general"/);
   assert.match(html, /打开工作台/);
-  assert.match(html, /项目说明、工作规则和工作规划在项目设置中维护。/);
+  assert.match(html, /项目说明在项目设置中维护。工作规划和工作规则在 Goals 顶栏。/);
   assert.match(html, /data-project-delete-dialog/);
   assert.doesNotMatch(html, /class="project-settings-fold"/);
   assert.doesNotMatch(html, /data-settings-embed=/);

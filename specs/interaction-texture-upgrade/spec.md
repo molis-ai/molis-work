@@ -71,7 +71,7 @@ node --import tsx --test --test-concurrency=1 tests/visual-foundation.test.ts te
 - **升起面与遮罩没真正生效。** `.global-search-dialog`、`.navigator-project-menu-popover` 等在 `immersive-navigation.ts` 里自带 `body.immersive-workbench …`（深色再加 `html[data-resolved-theme]`）的投影与遮罩，特异度高于本层的 `body :is(…)`，所以发丝边、`--control-shadow` 和 `--scrim` 都被压住了——实测全局搜索遮罩仍是 `#0809104d`。本层把这两条规则按工作台与深色两级特异度各写一遍，并接管窄屏抽屉的 `.immersive-sidebar-scrim`。
 - **分段控件两种极性。** 画布/看板是"白底轨 + 深色当前片"，设置与语言切换是"灰底轨 + 白色当前片"，正好相反。统一为一种：`--control-fill` 凹轨 + `--hairline` 边 + 9px 圆角，当前片是 `--nav-raised` 抬起片，带发丝边、共享投影与深色顶部高光。目录内嵌的那只保留自己的紧凑尺寸，只共享色调。
 - **目录空态六种写法。** `.feed-list-empty`、`.source-list-empty`、`.project-record-empty`、`.artifact-empty`、`.goal-collection-empty`、`.tree-filter-empty` 各有各的内边距、对齐与底色（其中一个还是浅灰块）。统一成一块左对齐的安静区块。
-- **首页最响的是次要动作。** 「添加快捷方式」是整页唯一的靛紫实心圆。改为空槽：`--line-strong` 发丝圆环 + `--muted` 图标，hover 才填色。首页"从上往下排、空在下面"的构图是 [首页从上往下排](../home-top-stack/spec.md) 的既有决定，本轮不动。
+- **首页最响的是次要动作。** 「添加快捷方式」是整页唯一的靛紫实心圆。改为空槽：`--line-strong` 发丝圆环 + `--muted` 图标，hover 才填色。首页"从上往下排、空在下面"的构图是 [首页从上往下排](../archive/home-top-stack/spec.md) 的既有决定，本轮不动。
 - **空列提示看不见。** 看板空列的 `1px dashed var(--line)` 在深色下几乎不可见，改用 `--line-strong` 与 `--faint`。
 
 另外补上排版层的两处：标题 `text-wrap: balance`、正文 `text-wrap: pretty`、无类名链接的下划线偏移。以及修正 DESIGN.md frontmatter——它声明"列出实际取值"，但第一轮改了 token 却没同步，属于本轮引入的文档欠账。

@@ -2,14 +2,14 @@
 
 状态：开发中。完成等级 **4：内部完整**。不宣称可发布。不改用户真实库、不发布、不安装新 App。
 
-**标签打开与分组：** 单击添加、不替代以 `specs/additive-tabs/spec.md` 为准；插件默认页不开标签以 `specs/plugin-default-no-tab/spec.md` 为准；用户手动分组以 `specs/chrome-tabs-preview-groups/spec.md` 为准。本文件仍管分栏、首页默认、市场/设置独占。
+**标签打开与分组：** 单击添加、不替代以 `specs/archive/additive-tabs/spec.md` 为准；插件默认页不开标签以 `specs/archive/plugin-default-no-tab/spec.md` 为准；用户手动分组以 `specs/chrome-tabs-preview-groups/spec.md` 为准。本文件仍管分栏、首页默认、市场/设置独占。
 
 本文件是这次主屏分栏行为的需求书。它取代：
 
 - `specs/directory-plugin-switcher/spec.md` 里「点插件 = 把右边整页换成该插件」；
 - `specs/workbench-frame-container/spec.md` 里「Goal 画布钉住为默认主表面、点插件离开 Frame」。
 
-左边插件分段目录以 `specs/directory-plugin-sections/spec.md` 为准。Goal 关系画布、原 `.goal-canvas-open` 工作框、各插件列表与领域事实不另做一套。
+左边插件分段目录以 `specs/archive/directory-plugin-sections/spec.md` 为准。Goal 关系画布、原 `.goal-canvas-open` 工作框、各插件列表与领域事实不另做一套。
 
 ## 背景目标
 
@@ -63,7 +63,7 @@
 | 对象 | 含义 |
 | --- | --- |
 | 组 | 一个已打开的插件。颜色固定。组名是色条加彩色字，点一下折叠组里的页标签；它不是一张页。 |
-| 插件默认面 | 点左边插件切到的工作面，**不占标签**。Goals 是画布；其它插件是铺满列表。画布与看板用页面右上角开关切换，不进标签条。见 `specs/plugin-default-no-tab/spec.md`。 |
+| 插件默认面 | 点左边插件切到的工作面，**不占标签**。Goals 是画布；其它插件是铺满列表。画布与看板用页面右上角开关切换，不进标签条。见 `specs/archive/plugin-default-no-tab/spec.md`。 |
 | 工作区标签 | 单栏放在 titlebar。分栏后每栏自己一条标签，不再把焦点栏抬到整条 titlebar。 |
 | 标题栏 Container Tab | 只在 Goal Frame 打开时出现（画布 / 看板 / 已开 Frame）。此时工作区标签让位。 |
 | Item 标签 | 一条插件内容。Goal / Session / Feed / Inbox / Artifact 各用现有主表面。 |
@@ -91,7 +91,7 @@
 ## 验收
 
 1. 打开项目只见首页标签，不是画布。
-2. 点插件打开该插件主表面，不新增母标签。不一样的 item 才新增、一样的只激活、分屏允许重复，见 `specs/additive-tabs/spec.md` 与 `specs/plugin-default-no-tab/spec.md`。单栏时工作区标签在 titlebar；分栏后每栏自己一条。画布/看板在 Goals 默认面右上角切换。标题栏不叠 Goal 画布/看板。
+2. 点插件打开该插件主表面，不新增母标签。不一样的 item 才新增、一样的只激活、分屏允许重复，见 `specs/archive/additive-tabs/spec.md` 与 `specs/archive/plugin-default-no-tab/spec.md`。单栏时工作区标签在 titlebar；分栏后每栏自己一条。画布/看板在 Goals 默认面右上角切换。标题栏不叠 Goal 画布/看板。
 3. 条上可同时停着首页和已打开的 item；用户组由手动创建，切 Tab 不拆掉其他标签。
 4. 可拆栏、可留空栏、可关栏；同一 Goal 能同时在两栏打开。关到只剩一栏时铺满主区，不留下半屏空白。
 5. 关 item 不拆其它标签；关光最后一张且没有插件默认面时首页自动出现。

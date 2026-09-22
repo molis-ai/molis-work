@@ -98,7 +98,7 @@ function renderProjectDetail(project: WebSettingsProject, selected: boolean, des
   const safe = escapeHtml(id);
   const href = `/projects/${encodeURIComponent(id)}`;
   return `<article class="project-manager-detail" data-project-pane="${safe}" data-route-prefix="${href}"${selected ? "" : " hidden"} aria-labelledby="project-pane-title-${safe}">
-    ${folds.renderProjectSettingsHero(project, { headingTag: "h2", showOpenTree: true, hint: renderHint({ id: `settings-hint-project-${project.project_id}`, label: L("如何生效"), text: L("项目说明、工作规则和工作规划在项目设置中维护。") }) })}
+    ${folds.renderProjectSettingsHero(project, { headingTag: "h2", showOpenTree: true, hint: renderHint({ id: `settings-hint-project-${project.project_id}`, label: L("如何生效"), text: L("项目说明在项目设置中维护。工作规划和工作规则在 Goals 顶栏。") }) })}
     ${folds.renderGeneralBody(project)}
     ${folds.renderDanger(project)}
     ${folds.renderProjectDeleteDialog(project, desktopShell)}
@@ -240,7 +240,7 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
   ${renderIconSprite()}
   <header class="project-preferences-chrome"${desktopShell ? ' data-tauri-drag-region="deep"' : ""}><span>${projectManager ? L("项目管理") : L("全局设置")}</span><a href="${returnHref}" aria-label="${L("关闭全局设置")}">${icon("x")}</a></header>
   <main class="settings-shell${projectManager ? " settings-shell--standalone" : ""}">
-    ${projectManager ? "" : renderSettingsNavigation(view.section, contextProject, desktopShell, view.projects)}
+    ${projectManager ? "" : renderSettingsNavigation(view.section, contextProject, desktopShell, view.projects, view.enabled_plugins)}
     <div class="settings-content">${content}</div>
   </main>
   ${renderRuntimePlanDialog({ L, icon })}

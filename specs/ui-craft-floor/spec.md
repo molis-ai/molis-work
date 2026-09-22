@@ -9,7 +9,7 @@
 ## 当前行为与问题证据
 
 - Catalog 对照写成「建议」，前端切片可以不看板就交。
-- 选择框关闭态能画成纸面，打开仍可能是系统菜单；[mw-select-custom-menu](../mw-select-custom-menu/spec.md) 已做增强，规范要写成禁令，避免新页面再露出系统列表。
+- 选择框关闭态能画成纸面，打开仍可能是系统菜单；[mw-select-custom-menu](../archive/mw-select-custom-menu/spec.md) 已做增强，规范要写成禁令，避免新页面再露出系统列表。
 - 仍有系统色盘（PPT 主题色）、系统时间控件（Schedule）、`window.confirm`（设置删除、Functions 草稿）。这些是已知欠账，新代码不得再加。
 - 动效和图标色写在 DESIGN.md 里，开发清单却只验功能。
 
@@ -33,7 +33,7 @@ UI 切片的完成条件包括工艺，不只功能：
 1. **不准把操作系统默认控件当成产品 UI。** 禁止可见的系统下拉、系统颜色选择器、系统日期/时间弹出、系统 `alert` / `confirm` / `prompt`、未换肤的 `range`。选择的打开列表必须是 `mw-menu`；原生 `<select>` 可以隐藏当表单值。文件选择可以隐藏原生 `input[type=file]`，按钮必须是 `mw-btn`。原生 `<dialog>` 只保留 Escape 和焦点圈，外观走 `mw-*`。勾选/单选/开关用已换肤的 `mw-check` / `mw-radio` / `mw-switch`。
 2. **图标与色彩成套。** 动作图标只从 Lucide 库取。插件身份用 `--plugin-tint`（轨、目录、空态标记、当前舞台）。状态用 status family，不是再发明一套。靛只给链接、选区、进行中。不要第二套 emoji/Unicode 图标，不要灰图标配随便一个强调色。
 3. **动效成套，而且要做。** 只用 `--motion-*` / `--ease-*` 和已有位移：分段滑块、插件轨、目录 yield、`creative-arrive`。状态变了要看得出走过去或到达，不要硬切。hover / press 是色阶，不是浮起。不为动而动。`prefers-reduced-motion` 去掉位移和到达。
-4. **焦点**继续内侧 1px `--ink`（[neutral-focus-stroke](../neutral-focus-stroke/spec.md)）。
+4. **焦点**继续内侧 1px `--ink`（[neutral-focus-stroke](../archive/neutral-focus-stroke/spec.md)）。
 5. **对照 Catalog。** 改共享控件、状态、微动效先看 `/__ui/catalog`；达标的要补标本。一次性草稿可以先写在业务里，进产品主链前换成 `mw-*`，不得带着系统控件进主链。
 
 编译、类型和测试通过不等于视觉通过。改了用户能看见的界面，要在真实页面看过焦点、hover、打开、到达和空态。
@@ -44,7 +44,7 @@ UI 切片的完成条件包括工艺，不只功能：
 
 ## 文件 / 模块边界
 
-允许：本 spec、`DESIGN.md`、`docs/cli-and-development.md`、`docs/platform/UI-PLATFORM.md`、`packages/design-system/README.md`、`specs/mw-select-custom-menu/spec.md`、`specs/coss-primitive-library/spec.md`。
+允许：本 spec、`DESIGN.md`、`docs/cli-and-development.md`、`docs/platform/UI-PLATFORM.md`、`packages/design-system/README.md`、`specs/archive/mw-select-custom-menu/spec.md`、`specs/coss-primitive-library/spec.md`。
 
 禁止：借本规范改 Goal 事实、MCP、凭据。
 

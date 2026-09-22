@@ -147,6 +147,34 @@ export const PAGES_STYLES = `
     background: color-mix(in srgb, var(--plugin-pages, var(--ink)) 8%, transparent);
     border-radius: 3px;
   }
+  .pages-editor-host .ProseMirror a.pages-bookmark {
+    display: flex; flex-direction: column; gap: 2px; align-items: flex-start;
+    margin: 0.45em 0; padding: 10px 12px; max-width: 100%;
+    border-radius: 8px; text-decoration: none;
+    background: var(--content-field, color-mix(in srgb, var(--ink) 3.5%, var(--paper)));
+    color: var(--ink);
+  }
+  .pages-editor-host .ProseMirror a.pages-bookmark strong { font-size: 14px; font-weight: 600; }
+  .pages-editor-host .ProseMirror a.pages-bookmark span {
+    max-width: 100%; font-size: 12px; color: var(--faint);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .pages-editor-host .ProseMirror a.pages-bookmark:hover {
+    text-decoration: none;
+    background: var(--content-hover, color-mix(in srgb, var(--ink) 6%, var(--paper)));
+  }
+  .pages-editor-host .ProseMirror .pages-image {
+    display: block; max-width: 100%; height: auto; margin: 0.6em 0; border-radius: 8px;
+  }
+  .pages-editor-host .ProseMirror .pages-image.is-broken {
+    padding: 12px; color: var(--muted);
+    background: var(--content-field, color-mix(in srgb, var(--ink) 3.5%, var(--paper)));
+  }
+  .pages-editor-host .ProseMirror .pages-columns {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+    gap: 16px; margin: 0.35em 0;
+  }
+  .pages-editor-host .ProseMirror .pages-column { min-width: 0; padding-left: 48px; }
   .pages-editor-host .ProseMirror mark[data-pages-wash] {
     color: inherit; border-radius: 3px;
     padding: 0.05em 0.16em; margin: 0 -0.04em;
@@ -401,8 +429,11 @@ export const PAGES_STYLES = `
     background: var(--plugin-pages, var(--ink));
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--plugin-pages, var(--ink)) 18%, transparent);
     transition: left 70ms var(--ease-out, cubic-bezier(.16, 1, .3, 1)),
-      width 70ms var(--ease-out, cubic-bezier(.16, 1, .3, 1));
+      top 70ms var(--ease-out, cubic-bezier(.16, 1, .3, 1)),
+      width 70ms var(--ease-out, cubic-bezier(.16, 1, .3, 1)),
+      height 70ms var(--ease-out, cubic-bezier(.16, 1, .3, 1));
   }
+  .pages-drop-line.is-column { width: 3px; }
   .pages-drop-line::before {
     content: ""; position: absolute; left: -3px; top: -3px; width: 8px; height: 8px;
     border-radius: 50%; background: var(--plugin-pages, var(--ink));
@@ -418,6 +449,23 @@ export const PAGES_STYLES = `
     transition: opacity 80ms var(--ease-out, cubic-bezier(.16, 1, .3, 1));
   }
   .pages-insert-line:hover::after { opacity: 1; }
+  .pages-provisional {
+    display: block; min-height: 1.7em; margin: 0.15em 0; padding: 1px 0;
+    outline: none; caret-color: var(--content-ink, var(--ink)); color: var(--ink);
+  }
+  .pages-provisional:empty::before {
+    content: attr(data-placeholder); color: var(--faint); pointer-events: none;
+  }
+  .pages-find {
+    position: fixed; z-index: 45; top: 72px; right: 16px;
+    display: flex; gap: 8px; align-items: center;
+    padding: 6px 8px; border-radius: 10px;
+    background: var(--paper); box-shadow: var(--shadow-raised); color: var(--ink);
+  }
+  .pages-find input { width: 180px; }
+  .pages-find-count { min-width: 2.5em; font-size: 12px; color: var(--faint); text-align: right; }
+  .pages-find-hit { background: var(--hue-yellow-soft, var(--content-hover)); border-radius: 2px; }
+  .pages-find-hit.is-current { background: color-mix(in srgb, var(--plugin-pages, var(--ink)) 28%, transparent); }
   .pages-slash, .pages-pop {
     position: fixed; z-index: 50; min-width: 280px; max-width: min(320px, calc(100vw - 24px)); max-height: 380px; overflow: auto;
     padding: 6px; border-radius: 10px;
@@ -576,6 +624,11 @@ export const PAGES_STYLES = `
   .pages-toc li { margin: 0.2em 0; color: var(--ink-soft, var(--ink)); }
   .pages-toc li[data-level="2"] { margin-left: 1em; }
   .pages-toc li[data-level="3"] { margin-left: 2em; }
+  .pages-toc-jump {
+    appearance: none; border: 0; background: transparent; padding: 0;
+    color: inherit; font: inherit; text-align: left; cursor: pointer;
+  }
+  .pages-toc-jump:hover { color: var(--plugin-pages); }
   .pages-card {
     display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; align-items: start;
     margin: 0.35em 0; padding: 8px 10px;
@@ -611,6 +664,7 @@ export const PAGES_STYLES = `
     .pages-editor-host { --pages-gutter: 36px; }
     .pages-block-handle { width: 28px; }
     .pages-block-handle [data-pages-grip] { display: none; }
+    .pages-editor-host .ProseMirror .pages-columns { grid-template-columns: 1fr; }
   }
   @media (prefers-reduced-motion: reduce) {
     [data-pages="workbench"] *,

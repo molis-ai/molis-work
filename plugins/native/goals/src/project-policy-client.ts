@@ -115,6 +115,10 @@ export const PROJECT_RULES_CLIENT_SCRIPT = `
             human: values.has("human_approval") ? L("需要") : L("不需要"),
           }),
         }));
+        if (form.closest("[data-goal-work-rules]") && globalThis.molisWorkOpenGoalWorkRules) {
+          globalThis.molisWorkOpenGoalWorkRules();
+          return;
+        }
         location.reload();
       } catch (error) {
         errorBox.textContent = error instanceof TypeError ? L("无法连接本地服务，输入已保留，请重试。") : error.message || L("项目默认工作规则保存失败，请检查输入后重试");

@@ -333,5 +333,5 @@ test("old plugin collapsed maps are discarded and not restored as user groups", 
 
 test("fresh project-root navigation lands leftover plugin views on home", () => {
   const source = readFileSync(new URL("../apps/workbench/src/scripts/client/initialization.ts", import.meta.url), "utf8");
-  assert.match(source, /navigationType !== "reload" && navigationType !== "back_forward"\) tabWorkspace\.landAtProjectRoot\(\)/);
+  assert.match(source, /navigationType !== "reload" && navigationType !== "back_forward" && !tabWorkspace\.isEmbedded\?\.\(\)\) tabWorkspace\.landAtProjectRoot\(\)/);
 });

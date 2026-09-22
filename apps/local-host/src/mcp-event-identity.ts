@@ -101,13 +101,6 @@ export function assertRuntimeOrdinaryToolInput(
   }
 }
 
-export function assertRuntimeGoalEventToolInput(
-  name: string,
-  arguments_: Record<string, unknown>,
-): void {
-  assertRuntimeOrdinaryToolInput(name, arguments_);
-}
-
 export function runtimeEventActor(
   host: MolisWorkRuntimeContextHost | null,
   callContext: McpToolCallContext,

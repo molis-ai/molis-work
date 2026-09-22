@@ -167,6 +167,7 @@ export function createTabWorkspaceOps(titles) {
   const openInPane = (state, pane, tab) => {
     state.exclusive = null;
     const existing = pane.tabs.find((candidate) => tabKey(candidate) === tabKey(tab));
+    if (existing && tab.kind === "item" && tab.title && tab.title !== tab.itemId) existing.title = tab.title;
     if (existing) return activateInPane(pane, existing);
     return insertNew(pane, tab);
   };

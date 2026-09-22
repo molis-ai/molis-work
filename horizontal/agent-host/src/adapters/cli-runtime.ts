@@ -97,6 +97,16 @@ function composePrompt(
 const DEFAULT_READ_TOOLS = ["Read", "Grep", "Glob"] as const;
 const DEFAULT_DENIED_TOOLS = ["Write", "Edit", "MultiEdit", "NotebookEdit", "Bash"] as const;
 
+/**
+ * A provider session id the CLI actually reported.
+ * Empty or unusable values are not a resume; the Host session id is never substituted.
+ */
+function usableProviderSessionId(value: string | undefined): string | undefined {
+  if (value === undefined || value.length === 0 || value.length > 256) return undefined;
+  if (/[\0\r\n]/.test(value)) return undefined;
+  return value;
+}
+
 function capabilities(): AgentRuntimeCapabilityMatrix {
   const matrix = emptyCapabilityMatrix();
   matrix["session.create"] = "supported";
@@ -113,6 +123,14 @@ function capabilities(): AgentRuntimeCapabilityMatrix {
   return matrix;
 }
 
+interface HostSessionRecord {
+  title: string;
+  cwd: string;
+  runs: AgentRunRef[];
+  /** Set from the CLI stream. Absent means this Host session has nothing to resume. */
+  providerSessionId?: string;
+}
+
 interface RunRecord {
   view: AgentRunView;
   state: CliStreamState;
@@ -125,7 +143,7 @@ export class CliAgentAdapter implements AgentRuntimeAdapter {
   readonly descriptor: AgentRuntimeDescriptor;
   readonly #options: CliAgentAdapterOptions;
   readonly #now: () => Date;
-  readonly #sessions = new Map<string, { title: string; cwd: string; runs: AgentRunRef[] }>();
+  readonly #sessions = new Map<string, HostSessionRecord>();
   readonly #runs = new Map<string, RunRecord>();
 
   constructor(options: CliAgentAdapterOptions) {
@@ -241,7 +259,7 @@ export class CliAgentAdapter implements AgentRuntimeAdapter {
     this.#runs.set(ref.run_id, record);
     session.runs.push(ref);
 
-    const resumeId = session.runs.length > 1 ? state.sessionId : undefined;
+    const resumeId = usableProviderSessionId(session.providerSessionId);
     const handle = this.#options.process.spawn({
       command: this.#options.command,
       args: this.#arguments(model, composePrompt(role.prompts, request.task), resumeId),
@@ -334,6 +352,7 @@ export class CliAgentAdapter implements AgentRuntimeAdapter {
 
     if (event.kind === "line") {
       if (!applyCliStreamLine(record.state, event.line, at)) return;
+      this.#rememberProviderSession(record);
       this.#update(runId, {
         turns: [...record.state.turns],
         activity: [...record.state.activity],
@@ -364,6 +383,17 @@ export class CliAgentAdapter implements AgentRuntimeAdapter {
     record.view = { ...record.view, ...patch };
     const snapshot = structuredClone(record.view);
     for (const listener of record.listeners) listener(structuredClone(snapshot));
+  }
+
+  #rememberProviderSession(record: RunRecord): void {
+    const providerSessionId = usableProviderSessionId(record.state.sessionId);
+    if (!providerSessionId) return;
+    const session = this.#sessions.get(record.view.ref.session_id);
+    if (!session) return;
+    const latest = session.runs.at(-1);
+    // A late line from an older run must not replace the id a newer run owns.
+    if (latest && latest.run_id !== record.view.ref.run_id) return;
+    session.providerSessionId = providerSessionId;
   }
 
   #requireSession(sessionId: string) {

@@ -1,6 +1,8 @@
+import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { promisify } from "node:util";
 import {
   MolisWorkHomeInstallError,
   SCHEMA_VERSION,
@@ -8,7 +10,7 @@ import {
   REQUIRED_RELEASE_SKILL_FILES,
   isOwnedInstaller,
 } from "./home-contract.js";
-import type { InspectedSource, ReleaseManifest, PromotedRelease } from "./home-contract.js";
+import type { InspectedSource, ReleaseManifest, PromotedRelease, RuntimeDependencyPackage } from "./home-contract.js";
 import { pathState, writeAtomic, readJsonIfPresent } from "./home-files.js";
 import { copyReleaseEntries, runtimeDependencyReleaseEntries } from "./package-release-files.js";
 import { releaseAssetPaths } from "./release-assets.js";
@@ -52,16 +54,24 @@ export async function createRelease(
       : []),
   ]);
   if (source.bundledNodePath) {
-    await fs.chmod(path.join(stagingDirectory, "runtime", "node"), 0o755);
+    const bundledNode = path.join(stagingDirectory, "runtime", "node");
+    await fs.chmod(bundledNode, 0o755);
+    await copyLoaderLibraries(source.bundledNodePath, bundledNode);
   }
-  for (const dependency of source.runtimeDependencies) {
-    const target = path.join(embeddedNodeModules, dependency.name);
+  const copyRuntimeDependency = async (dependency: RuntimeDependencyPackage, target: string): Promise<void> => {
     // Workspace packages keep their declared files. Registry packages stay
-    // complete except package-manager node_modules, which are flattened.
+    // complete except package-manager node_modules. A second major version is
+    // copied under the parent that requires it.
     const entries = await runtimeDependencyReleaseEntries(dependency.directory);
     await assertContainedDependencyLinks(dependency.directory, { onlyEntries: entries });
     await fs.mkdir(path.dirname(target), { recursive: true });
     await copyReleaseEntries(dependency.directory, target, entries);
+    for (const nested of dependency.nests ?? []) {
+      await copyRuntimeDependency(nested, path.join(target, "node_modules", ...nested.name.split("/")));
+    }
+  };
+  for (const dependency of source.runtimeDependencies) {
+    await copyRuntimeDependency(dependency, path.join(embeddedNodeModules, ...dependency.name.split("/")));
   }
   const planningMethodsDirectory = path.join(
     embeddedNodeModules,
@@ -111,6 +121,38 @@ export async function createRelease(
       2,
     )}\n`,
   );
+}
+
+const execFileAsync = promisify(execFile);
+
+/** Homebrew Node links libnode with @loader_path. A copied binary cannot start without that library. */
+async function copyLoaderLibraries(binary: string, destinationBinary: string): Promise<void> {
+  let listing = "";
+  try {
+    listing = String((await execFileAsync("otool", ["-L", binary])).stdout);
+  } catch {
+    return;
+  }
+  const origin = path.dirname(binary);
+  const destination = path.dirname(destinationBinary);
+  const seen = new Set<string>();
+  for (const line of listing.split("\n").slice(1)) {
+    const spec = line.trim().split(/\s+/u)[0] ?? "";
+    if (!spec.startsWith("@rpath/") && !spec.startsWith("@loader_path/")) continue;
+    const base = path.basename(spec);
+    if (seen.has(base)) continue;
+    seen.add(base);
+    const candidates = [
+      path.join(origin, base),
+      path.resolve(origin, "../lib", base),
+      spec.replace("@loader_path", origin).replace("@rpath", path.resolve(origin, "../lib")),
+    ];
+    for (const candidate of candidates) {
+      if (!(await pathState(candidate))?.isFile()) continue;
+      await fs.copyFile(candidate, path.join(destination, base));
+      break;
+    }
+  }
 }
 
 export async function assertContainedDependencyLinks(

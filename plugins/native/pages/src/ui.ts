@@ -69,6 +69,7 @@ export function renderPagesWorkbench(model: PagesUiModel): string {
             <button class="mw-menu__item" type="button" data-pages-new-folder>${icon("folder")}${p.text("新建文件夹")}</button>
           </div>
         </div>
+        <button class="mw-btn mw-btn--ghost pages-import-trigger" type="button" data-pages-import>${icon("upload")}<span>${p.text("导入")}</span></button>
       </header>
       <label class="pages-search mw-input-group">
         ${icon("search")}
@@ -80,6 +81,7 @@ export function renderPagesWorkbench(model: PagesUiModel): string {
         <p>${p.text("先建一篇，在纸面上写。刷新之后还在。")}</p>
         <p>${p.text("内容属于当前项目，保存在这台电脑。")}</p>
         <button class="mw-btn mw-btn--ghost" type="button" data-pages-templates>${p.text("从模板新建")}</button>
+        <button class="mw-btn mw-btn--ghost" type="button" data-pages-import>${p.text("导入已有文档")}</button>
       </div>
       <p class="pages-search-empty" data-pages-search-empty hidden>${p.text("没有匹配的文档")}</p>
       <div data-pages-rows></div>
@@ -132,6 +134,40 @@ export function renderPagesWorkbench(model: PagesUiModel): string {
       </form>
     </dialog>
     <div class="mw-menu pages-move-menu" data-pages-move-menu hidden role="menu"></div>
+    <dialog class="mw-dialog pages-import-dialog" data-pages-import-dialog aria-labelledby="pages-import-title">
+      <div class="pages-import-content">
+        <header><h2 id="pages-import-title">${p.text("导入文档")}</h2><p>${p.text("把已有文档带进 Pages，导入后可继续编辑。")}</p></header>
+        <label class="pages-import-field">${p.text("文档来自")}
+          <select class="mw-select" data-pages-import-source>
+            <option value="notion">Notion</option>
+            <option value="feishu">${p.text("飞书 / Lark")}</option>
+            <option value="other">${p.text("Word、语雀及其他工具")}</option>
+          </select>
+        </label>
+        <p class="pages-import-help" data-pages-import-help></p>
+        <label class="pages-import-drop" data-pages-import-drop>
+          ${icon("upload")}<strong>${p.text("选择文件，或拖到这里")}</strong>
+          <span>ZIP · DOCX · Markdown · HTML · TXT · CSV</span>
+          <small>${p.text("支持多选，总计不超过 10 MB；每次最多 100 篇。")}</small>
+          <input type="file" data-pages-import-files multiple accept=".zip,.docx,.md,.markdown,.html,.htm,.txt,.csv" aria-label="${p.text("选择要导入的文件")}">
+        </label>
+        <p class="pages-import-limit">${p.text("图片和附件会转为链接或文字说明；评论、权限和历史版本不导入。")}</p>
+        <p class="pages-import-status" data-pages-import-status role="status" aria-live="polite"></p>
+        <div data-pages-import-preview hidden>
+          <div class="pages-import-options">
+            <label><input type="checkbox" data-pages-import-all checked> ${p.text("全选")}</label>
+            <label class="pages-import-field">${p.text("导入到")}<select class="mw-select" data-pages-import-folder aria-label="${p.text("导入到")}"></select></label>
+          </div>
+          <ul class="pages-import-warnings" data-pages-import-warnings></ul>
+          <div class="pages-import-documents" data-pages-import-documents></div>
+        </div>
+        <footer class="creative-confirm-actions">
+          <button class="mw-btn mw-btn--ghost" type="button" data-pages-import-close>${p.text("取消")}</button>
+          <button class="mw-btn mw-btn--primary" type="button" data-pages-import-submit disabled>${p.text("导入所选文档")}</button>
+          <button class="mw-btn mw-btn--primary" type="button" data-pages-import-open hidden>${p.text("打开文档")}</button>
+        </footer>
+      </div>
+    </dialog>
     <dialog class="mw-dialog pages-template-dialog" data-pages-template-dialog>
       <form class="creative-confirm-form" method="dialog">
         <p>${p.text("从模板新建")}</p>

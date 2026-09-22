@@ -1,3 +1,5 @@
+import { PAGES_IMPORT_CLIENT_SCRIPT } from "./import-client.js";
+
 /** Pages workbench client: library, autosave, ProseMirror host. */
 export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   const { translate: L } = host;
@@ -38,6 +40,11 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   let movingId = "";
   let suppressFoldToggleUntil = 0;
   let listSeq = 0;
+  let selectionSeq = 0;
+  let openingId = null;
+  let editVersion = 0;
+  let dirty = false;
+  let saveQueue = Promise.resolve();
   const keepListScroll = (paint) => {
     const top = list?.scrollTop || 0;
     paint();
@@ -384,7 +391,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       pages: () => records.map((item) => ({ id: item.id, title: item.title })),
       onOpenPage: (id) => {
         const record = records.find((item) => item.id === id);
-        if (record) fillEditor(record);
+        if (record) void openDocument(record).catch((error) => showNote(error.message || L("保存失败"), true));
       },
       runAi: async (input) => {
         if (!selected) throw new Error(L("文档请求失败"));
@@ -400,8 +407,61 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       },
     });
   };
+  const draftOf = () => {
+    if (!selected) return null;
+    return {
+      id: selected.id,
+      title: titleInput.value,
+      body: editor && Editor ? Editor.getDoc(editor) : selected.body,
+      version: editVersion,
+    };
+  };
+  const storeDocument = (document) => {
+    const index = records.findIndex((item) => item.id === document.id);
+    if (index >= 0) records[index] = document;
+    else records.unshift(document);
+    renderList();
+  };
+  const adoptSaved = (draft, document) => {
+    storeDocument(document);
+    if (!selected || selected.id !== draft.id) return document;
+    if (editVersion !== draft.version || saveTimer) {
+      selected = {
+        ...selected,
+        goal_id: document.goal_id,
+        artifact_id: document.artifact_id,
+        artifact_version: document.artifact_version,
+        version: document.version,
+        updated_at: document.updated_at,
+      };
+      return document;
+    }
+    selected = document;
+    titleEl.textContent = document.title;
+    statusEl.textContent = L("已保存");
+    markSelected(document.id);
+    syncEditorChrome();
+    if (document.activeElement !== titleInput) titleInput.value = document.title;
+    return document;
+  };
+  const enqueueSave = (draft, patch) => {
+    const run = saveQueue.then(async () => {
+      const payload = await request("POST", "/api/plugins/pages/" + encodeURIComponent(draft.id), patch || {
+        title: draft.title,
+        body: draft.body,
+      });
+      if (!payload.document || payload.document.id !== draft.id) throw new Error(L("文档请求失败"));
+      return adoptSaved(draft, payload.document);
+    });
+    saveQueue = run.then(() => undefined, () => undefined);
+    return run;
+  };
   const fillEditor = (record) => {
+    const switching = Boolean(selected && record && selected.id !== record.id);
+    const leaving = switching ? draftOf() : null;
+    const pending = Boolean(switching && (saveTimer || dirty));
     clearTimeout(saveTimer);
+    saveTimer = 0;
     filling = true;
     selected = record;
     workbench.setAttribute("data-expanded", "true");
@@ -416,6 +476,9 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     }
     markSelected(record.id);
     syncEditorChrome();
+    if (pending && leaving) {
+      void enqueueSave(leaving).catch((error) => showNote(error.message || L("保存失败"), true));
+    }
   };
   const closeEditor = () => {
     clearTimeout(saveTimer);
@@ -436,25 +499,70 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     renderList();
     if (selected) {
       const next = records.find((item) => item.id === selected.id);
-      if (next) remember(next, false);
-      else closeEditor();
+      if (!next) closeEditor();
+      else if (!saveTimer && !dirty) remember(next, false);
     }
   };
   const save = async () => {
-    if (!selected) return selected;
-    const body = editor && Editor ? Editor.getDoc(editor) : selected.body;
-    const payload = await request("POST", "/api/plugins/pages/" + encodeURIComponent(selected.id), {
-      title: titleInput.value,
-      body,
-    });
-    remember(payload.document, false);
-    if (document.activeElement !== titleInput) titleInput.value = payload.document.title;
-    return selected;
+    clearTimeout(saveTimer);
+    saveTimer = 0;
+    const draft = draftOf();
+    if (!draft) return null;
+    try {
+      const saved = await enqueueSave(draft);
+      if (editVersion === draft.version && !saveTimer) dirty = false;
+      return saved;
+    } catch (error) {
+      dirty = true;
+      throw error;
+    }
   };
   const queueSave = () => {
+    editVersion += 1;
+    dirty = true;
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => { void save().catch((error) => showNote(error.message || L("保存失败"), true)); }, 400);
   };
+  const persistCurrent = async () => {
+    if (!selected) return;
+    do { await save(); } while (selected && (saveTimer || dirty));
+  };
+  const revealEditor = () => {
+    workbench.setAttribute("data-expanded", "true");
+    workspace.hidden = false;
+  };
+  const openDocument = async (record) => {
+    if (!record) return;
+    if (selected && selected.id === record.id) {
+      revealEditor();
+      return;
+    }
+    if (selected && (saveTimer || dirty)) await persistCurrent();
+    fillEditor(record);
+    dirty = false;
+    editVersion += 1;
+  };
+  workbench.addEventListener("molis-work:select-item", (event) => {
+    const id = event.detail?.itemId;
+    if (!id) { selectionSeq++; openingId = null; return; }
+    if (selected?.id === id) {
+      revealEditor();
+      return;
+    }
+    if (openingId === id) return;
+    openingId = id;
+    const seq = ++selectionSeq;
+    void (async () => {
+      if (selected && (saveTimer || dirty)) await persistCurrent();
+      const payload = await request("GET", "/api/plugins/pages/" + encodeURIComponent(id));
+      if (seq !== selectionSeq) return;
+      fillEditor(payload.document);
+      dirty = false;
+      editVersion += 1;
+      showNote("", false);
+    })().catch((error) => { if (seq === selectionSeq) showNote(error.message || L("保存失败"), true); })
+      .finally(() => { if (seq === selectionSeq) openingId = null; });
+  });
   const exportHtml = () => {
     if (!selected || !Editor) return;
     const body = editor ? Editor.getDoc(editor) : selected.body;
@@ -476,9 +584,12 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     fillEditor(record);
   };
   const createPage = async (body) => {
+    if (selected && (saveTimer || dirty)) await persistCurrent();
     const payload = await request("POST", "/api/plugins/pages", body || {});
     await loadList();
     openCreated(payload.document);
+    dirty = false;
+    editVersion += 1;
   };
   const toggleStar = async (id) => {
     const record = records.find((item) => item.id === id);
@@ -496,6 +607,8 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     workbench.querySelectorAll("[data-pages-drop].is-drop").forEach((node) => node.classList.remove("is-drop"));
   };
 
+  ${PAGES_IMPORT_CLIENT_SCRIPT}
+
   titleInput.addEventListener("input", () => {
     if (titleEl) titleEl.textContent = titleInput.value || L("文档");
     queueSave();
@@ -506,9 +619,14 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   });
   goalSelect?.addEventListener("change", () => {
     if (!selected) return;
-    void request("POST", "/api/plugins/pages/" + encodeURIComponent(selected.id), { goal_id: goalSelect.value })
-      .then((payload) => remember(payload.document, false))
-      .catch((error) => showNote(error.message || L("保存失败"), true));
+    const draft = draftOf();
+    if (!draft) return;
+    selected = { ...selected, goal_id: goalSelect.value };
+    void enqueueSave(draft, { goal_id: goalSelect.value })
+      .catch((error) => {
+        dirty = true;
+        showNote(error.message || L("保存失败"), true);
+      });
   });
   workbench.addEventListener("click", async (event) => {
     try {
@@ -619,9 +737,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
         const id = listedArtifact.dataset.pagesArtifact;
         const record = records.find((item) => item.id === id);
         if (!record) return;
-        if (selected && selected.id === id) {
-          await save().catch((error) => showNote(error.message || L("保存失败"), true));
-        }
+        if (selected && selected.id === id) await persistCurrent();
         const response = await fetch(route(withProject("/api/plugins/pages/" + encodeURIComponent(id) + "/promote")), {
           method: "POST",
           headers: headers(),
@@ -631,13 +747,14 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
         if (!response.ok) throw new Error(payload.error || L("文档请求失败"));
         showNote(L("已存成 Artifact"), false);
         await loadList();
-        if (payload.document && selected && selected.id === id) remember(payload.document, false);
+        if (payload.document && selected && selected.id === id && !saveTimer && !dirty) remember(payload.document, false);
+        else if (payload.document) storeDocument(payload.document);
         return;
       }
       const row = event.target.closest("button[data-page-id]");
       if (row) {
         const record = records.find((item) => item.id === row.dataset.pageId);
-        if (record) fillEditor(record);
+        if (record) await openDocument(record);
         return;
       }
       if (event.target.closest("[data-pages-star-editor]") && selected) {
@@ -645,29 +762,37 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
         return;
       }
       if (event.target.closest("[data-pages-back]")) {
-        await save().catch((error) => showNote(error.message || L("保存失败"), true));
+        await persistCurrent();
+        dirty = false;
         closeEditor();
         await loadList();
         return;
       }
       if (event.target.closest("[data-pages-extract]") && selected) {
         closeMore();
-        await save().catch((error) => showNote(error.message || L("保存失败"), true));
-        const payload = await request("POST", "/api/plugins/pages/" + encodeURIComponent(selected.id) + "/extract", {});
+        const id = selected.id;
+        await persistCurrent();
+        const payload = await request("POST", "/api/plugins/pages/" + encodeURIComponent(id) + "/extract", {});
         await loadList();
-        remember(payload.document, true);
+        if (selected && selected.id === id) {
+          dirty = false;
+          remember(payload.document, true);
+        }
         return;
       }
       if (event.target.closest("[data-pages-promote]") && selected) {
         closeMore();
-        await save().catch((error) => showNote(error.message || L("保存失败"), true));
-        const response = await fetch(route(withProject("/api/plugins/pages/" + encodeURIComponent(selected.id) + "/promote")), {
+        const id = selected.id;
+        const goalId = goalSelect ? goalSelect.value : selected.goal_id;
+        await persistCurrent();
+        const response = await fetch(route(withProject("/api/plugins/pages/" + encodeURIComponent(id) + "/promote")), {
           method: "POST",
           headers: headers(),
-          body: JSON.stringify({ project_id: projectId(), goal_id: goalSelect ? goalSelect.value : selected.goal_id }),
+          body: JSON.stringify({ project_id: projectId(), goal_id: goalId }),
         });
         const payload = await response.json().catch(() => ({}));
-        if (payload.document) remember(payload.document, false);
+        if (payload.document && selected && selected.id === id && !saveTimer && !dirty) remember(payload.document, false);
+        else if (payload.document) storeDocument(payload.document);
         if (!response.ok) throw new Error(payload.error || L("文档请求失败"));
         showNote(L("已存成 Artifact"), false);
         return;
@@ -740,14 +865,22 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   });
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
+    if (document.querySelector("dialog[open]")) return;
+    let handled = false;
+    if (moreMenu && !moreMenu.hidden) {
+      closeMore();
+      moreButton?.focus();
+      handled = true;
+    }
     if (moveMenu && !moveMenu.hidden) {
-      event.preventDefault();
       closeMove();
+      handled = true;
     }
     if (createMenu && !createMenu.hidden) {
-      event.preventDefault();
       closeCreate();
+      handled = true;
     }
+    if (handled) event.preventDefault();
   });
   void loadList().catch((error) => showNote(error.message || L("文档请求失败"), true));
   void loadGoals();

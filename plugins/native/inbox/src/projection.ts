@@ -4,6 +4,7 @@ import type {
   AttentionStatus,
   AttentionSubjectType,
 } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
+import type { JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 
 export type InboxUiFilter = "active" | "history";
 
@@ -20,6 +21,7 @@ export interface InboxSubjectRef {
 }
 
 export interface InboxUiEntry {
+  readonly next_judgment?: JudgmentRecord | null;
   readonly entry_id: string;
   readonly revision: number;
   readonly subject_type: AttentionSubjectType;
@@ -81,6 +83,7 @@ export function inboxKindLabel(
 }
 
 export type InboxEntryProjectionRecord = AttentionEntryRecord & {
+  next_judgment?: JudgmentRecord | null;
   suggested_behavior_ids?: readonly string[];
 };
 
@@ -103,7 +106,9 @@ export function buildInboxUiEntries(
         kind_label: inboxKindLabel(entry.subject_type, entry.reason, text),
         source_label: subject.source_label,
         title: subject.title,
-        reason_label: inboxReasonLabel(entry.reason, text),
+        reason_label: entry.reason === "source_rule" && typeof entry.detail.rule_name === "string"
+          ? text(entry.detail.needs_review ? "规则「{rule}」需要人工复核" : "规则「{rule}」筛选进入", { rule: entry.detail.rule_name })
+          : inboxReasonLabel(entry.reason, text),
         relation_label: subject.source_label,
         next_action: nextAction(entry, text),
         status_label: inboxStatusLabel(entry.status, text),
@@ -118,6 +123,7 @@ export function buildInboxUiEntries(
             : 2
           : 1,
         suggested_behavior_ids: [...(entry.suggested_behavior_ids ?? [])],
+        next_judgment: entry.next_judgment,
       };
     })
     .sort((left, right) => right.attention_rank - left.attention_rank || right.updated_at.localeCompare(left.updated_at));

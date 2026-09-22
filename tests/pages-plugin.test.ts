@@ -317,12 +317,16 @@ test("阅读面没有粗左边线和后台表单顶栏", () => {
   assert.match(PAGES_STYLES, /outline:\s*none !important/);
   assert.doesNotMatch(PAGES_STYLES, /pages-handle-tray/);
   assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /data-pages-more/);
+  assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /dialog\[open\]/);
+  assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /closeMore\(\);\s*moreButton\?\.focus\(\)/);
+  assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /if \(moveMenu && !moveMenu\.hidden\)/);
+  assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /if \(createMenu && !createMenu\.hidden\)/);
 });
 
 test("工作台客户端保存不重挂内核", () => {
   const script = renderMolisWorkWorkbenchClientScript();
   assert.doesNotThrow(() => new Function(script));
-  assert.match(script, /\["experiments","shelf","lingguang","functions","pages","form","dataset","ppt"\]/);
+  assert.ok(script.includes(JSON.stringify(PERSONAL_PLUGIN_IDS)));
   assert.doesNotMatch(saveFunctionSource(PAGES_CLIENT_FACTORY_SCRIPT), /fillEditor/);
   assert.doesNotMatch(saveFunctionSource(PAGES_CLIENT_FACTORY_SCRIPT), /setDoc/);
   assert.match(fillEditorSource(PAGES_CLIENT_FACTORY_SCRIPT), /clearTimeout\(saveTimer\)/);

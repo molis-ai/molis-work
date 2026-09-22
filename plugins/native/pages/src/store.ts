@@ -1,6 +1,6 @@
 import { ensureSqliteColumn, openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
-import type { PagesBody, PagesFolder, PagesRecord } from "@molis-ai/molis-work-contracts/modules/pages";
+import type { PagesBody, PagesFolder, PagesRecord, PagesGenerationRecord } from "@molis-ai/molis-work-contracts/modules/pages";
 import { EMPTY_PAGES_BODY, parsePagesBody } from "./document.js";
 import { PagesError } from "./error.js";
 import { pagesTemplateById } from "./templates.js";
@@ -28,11 +28,71 @@ interface FolderRow {
   updated_at: string;
 }
 
+export interface PagesImportDocumentsInput {
+  readonly project_id: string;
+  readonly request_id: string;
+  readonly request_hash: string;
+  readonly folder_id?: string;
+  readonly documents: readonly { readonly title: string; readonly body: PagesBody }[];
+}
+
 export class PagesStore {
   constructor(private readonly db: DatabaseSync) {}
 
   close(): void {
     this.db.close();
+  }
+
+  generation(projectId: string, requestId: string): PagesGenerationRecord | null {
+    const row = this.db.prepare("SELECT record_json FROM page_generations WHERE project_id = ? AND request_id = ?")
+      .get(projectId, requestId) as { record_json: string } | undefined;
+    return row ? JSON.parse(row.record_json) as PagesGenerationRecord : null;
+  }
+
+  generations(projectId: string): PagesGenerationRecord[] {
+    return (this.db.prepare("SELECT record_json FROM page_generations WHERE project_id = ? ORDER BY updated_at DESC")
+      .all(projectId) as Array<{ record_json: string }>).map((row) => JSON.parse(row.record_json) as PagesGenerationRecord);
+  }
+
+  beginGeneration(record: PagesGenerationRecord): PagesGenerationRecord {
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      const prior = this.generation(record.project_id, record.request_id);
+      if (prior?.request_hash && prior.request_hash !== record.request_hash) throw new PagesError("pages.invalid", "同一个请求的材料或要求已改变，请重新生成");
+      if (prior?.status === "completed") { this.db.exec("COMMIT"); return prior; }
+      if (prior?.status === "running" && Date.now() - Date.parse(prior.updated_at) < 180_000) throw new PagesError("pages.unavailable", "这份文稿仍在生成，请稍后查看结果");
+      const next = { ...(prior ?? record), status: "running" as const, error: null, updated_at: new Date().toISOString() };
+      this.saveGeneration(next);
+      this.db.exec("COMMIT");
+      return next;
+    } catch (error) { this.db.exec("ROLLBACK"); throw error; }
+  }
+
+  completeGeneration(record: PagesGenerationRecord, body: PagesBody): PagesRecord {
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      const prior = this.generation(record.project_id, record.request_id);
+      if (prior?.status === "completed" && prior.document_id) {
+        const document = this.get(prior.document_id, record.project_id);
+        this.db.exec("COMMIT"); return document;
+      }
+      if (!prior || prior.status !== "running" || prior.updated_at !== record.updated_at) throw new PagesError("pages.unavailable", "此请求已由另一次处理接续，请查看最新结果");
+      const document = this.create({ project_id: record.project_id, title: record.title, body });
+      this.saveGeneration({ ...record, status: "completed", document_id: document.id, error: null, updated_at: new Date().toISOString() });
+      this.db.exec("COMMIT");
+      return document;
+    } catch (error) { this.db.exec("ROLLBACK"); throw error; }
+  }
+
+  failGeneration(record: PagesGenerationRecord, message: string): void {
+    const current = this.generation(record.project_id, record.request_id);
+    if (current?.status !== "running" || current.updated_at !== record.updated_at) return;
+    this.saveGeneration({ ...record, status: "failed", error: message.slice(0, 500), updated_at: new Date().toISOString() });
+  }
+
+  private saveGeneration(record: PagesGenerationRecord): void {
+    this.db.prepare("INSERT INTO page_generations (project_id, request_id, updated_at, record_json) VALUES (?, ?, ?, ?) ON CONFLICT(project_id, request_id) DO UPDATE SET updated_at = excluded.updated_at, record_json = excluded.record_json")
+      .run(record.project_id, record.request_id, record.updated_at, JSON.stringify(record));
   }
 
   list(projectId: string): PagesRecord[] {
@@ -97,6 +157,48 @@ export class PagesStore {
       record.created_at, record.updated_at, record.version,
     );
     return record;
+  }
+
+  /** Create a selected batch once; a retry returns current records without overwriting edits. */
+  importDocuments(input: PagesImportDocumentsInput): PagesRecord[] {
+    const project_id = normalizeProjectId(input.project_id);
+    if (!input.documents.length || input.documents.length > 100) throw new PagesError("pages.invalid", "请选择 1 到 100 篇文档");
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      const prior = this.db.prepare("SELECT request_hash, document_ids_json FROM page_imports WHERE project_id = ? AND request_id = ?")
+        .get(project_id, input.request_id) as { request_hash: string; document_ids_json: string } | undefined;
+      if (prior) {
+        if (prior.request_hash !== input.request_hash) {
+          throw new PagesError("pages.unavailable", "这次导入的文件、选择或文件夹已改变，请重新预览后导入");
+        }
+        const ids = JSON.parse(prior.document_ids_json) as string[];
+        const documents = ids.map((id) => {
+          try { return this.get(id, project_id); }
+          catch (error) {
+            if (error instanceof PagesError && error.code === "pages.not_found") {
+              throw new PagesError("pages.unavailable", "这批导入已完成，但部分文档已删除；不会重新创建");
+            }
+            throw error;
+          }
+        });
+        this.db.exec("COMMIT");
+        return documents;
+      }
+      const folder_id = normalizeFolderId(input.folder_id, this, project_id);
+      const documents = input.documents.map((document) => this.create({
+        project_id,
+        folder_id,
+        title: document.title,
+        body: document.body,
+      }));
+      this.db.prepare("INSERT INTO page_imports (project_id, request_id, request_hash, document_ids_json, created_at) VALUES (?, ?, ?, ?, ?)")
+        .run(project_id, input.request_id, input.request_hash, JSON.stringify(documents.map((document) => document.id)), new Date().toISOString());
+      this.db.exec("COMMIT");
+      return documents;
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
   }
 
   update(id: string, patch: {
@@ -210,6 +312,8 @@ export function openPagesStore(homeDirectory: string): PagesStore {
   ensureSqliteColumn(db, "pages", "goal_id", "TEXT NOT NULL DEFAULT ''");
   ensureSqliteColumn(db, "pages", "artifact_id", "TEXT NOT NULL DEFAULT ''");
   ensureSqliteColumn(db, "pages", "artifact_version", "INTEGER NOT NULL DEFAULT 0");
+  db.exec("CREATE TABLE IF NOT EXISTS page_generations (project_id TEXT NOT NULL, request_id TEXT NOT NULL, updated_at TEXT NOT NULL, record_json TEXT NOT NULL, PRIMARY KEY(project_id, request_id))");
+  db.exec("CREATE TABLE IF NOT EXISTS page_imports (project_id TEXT NOT NULL, request_id TEXT NOT NULL, request_hash TEXT NOT NULL, document_ids_json TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(project_id, request_id))");
   return new PagesStore(db);
 }
 

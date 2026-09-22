@@ -59,12 +59,12 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench :is(.plugin-rail, .assistant-island) .plugin-rail-item svg { width: 18px; height: 18px; }
   body.immersive-workbench .assistant-composer {
     --control-h: 28px;
-    box-sizing: border-box; width: min(300px, calc(100vw - 88px));
-    height: 32px; min-height: 32px; max-height: 32px;
-    padding: 2px 2px 2px 10px; border: 0; border-radius: 16px;
+    box-sizing: border-box; width: min(480px, calc(100vw - 88px));
+    height: auto; min-height: 140px; max-height: min(620px, 85vh); overflow: auto;
+    padding: 16px; border: 0; border-radius: 16px;
     background: var(--paper); color: var(--ink);
     box-shadow: var(--control-shadow), inset 0 0 0 1px var(--hairline, var(--line));
-    flex-direction: row; align-items: center; gap: 4px;
+    flex-direction: row; flex-wrap: wrap; align-items: center; gap: 12px;
   }
   body.immersive-workbench .assistant-composer:popover-open { display: flex; inset: auto; margin: 0; }
   body.immersive-workbench .assistant-composer-input {
@@ -88,6 +88,11 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench .assistant-composer .mw-btn {
     flex: none; width: 28px; min-width: 28px; height: 28px; min-height: 28px;
   }
+  body.immersive-workbench .assistant-plan { width: 100%; font-size: 14px; line-height: 1.6; }
+  body.immersive-workbench .assistant-plan p { margin: 6px 0 12px; }
+  body.immersive-workbench .assistant-plan blockquote { margin: 12px 0; padding: 12px; background: var(--wash); border-left: 2px solid var(--line); white-space: pre-wrap; }
+  body.immersive-workbench .assistant-plan pre { max-height: 180px; overflow: auto; font-size: 12px; }
+  body.immersive-workbench .assistant-plan .mw-btn { width: auto; height: auto; min-height: 32px; padding: 6px 10px; margin: 4px 6px 4px 0; white-space: normal; }
   body.immersive-workbench .plugin-rail .personal-sidebar-footer {
     flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; margin: 0; min-height: 0;
   }

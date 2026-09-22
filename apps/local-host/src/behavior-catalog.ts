@@ -15,7 +15,7 @@ import {
   INBOX_NEXT_SCENE_ID,
   assembleFunctionAuthoringCatalog,
   defaultFeedCaptureBehaviorIds,
-  defaultInboxNextBehaviorIds,
+  sceneBehaviorIds,
   offeredHomeDockBehaviorIds,
 } from "@molis-ai/molis-work-contracts/modules/functions";
 import {
@@ -184,7 +184,7 @@ export function hostOfferedBehaviorsForScene(
   subjects: readonly string[],
   catalog: readonly RegisteredBehavior[] = assembleHostBehaviorCatalog(),
 ): string[] {
-  if (sceneId === INBOX_NEXT_SCENE_ID) return defaultInboxNextBehaviorIds(true);
+  if (sceneId === INBOX_NEXT_SCENE_ID) return sceneBehaviorIds(sceneId);
   if (sceneId === FEED_CAPTURE_SCENE_ID) return defaultFeedCaptureBehaviorIds(true);
   if (sceneId === HOME_DOCK_SCENE_ID) return offeredHomeDockBehaviorIds(catalog, subjects);
   return hostAllowedBehaviorIds(catalog);

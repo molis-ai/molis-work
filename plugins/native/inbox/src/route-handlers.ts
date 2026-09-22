@@ -18,12 +18,32 @@ export interface InboxRouteHandlerPorts {
   setStatus(entryId: string, status: AttentionStatus, expectedRevision: number): unknown;
   changed(): void;
   renderWorkbench?(): string;
+  pagesResults?(): unknown;
+  generatePages?(input: Readonly<Record<string, unknown>>): Promise<unknown>;
   readJudgment?(): InboxJudgmentState;
   writeJudgment?(functionKey: string | null): { function_key: string | null };
+  evaluateJudgment?(entryIds: readonly string[]): Promise<unknown>;
 }
 
 export function createInboxRouteHandlers(options: InboxRouteHandlerPorts): Record<string, InboxPluginRouteHandler> {
   return {
+    "inbox.judgment.evaluate": async ({ request }) => {
+      const ids = request.body.entry_ids;
+      if (!Array.isArray(ids) || ids.length < 1 || ids.length > 20 || ids.some(id => typeof id !== "string" || !id)) {
+        return { status: 400, body: { error: "请选择 1–20 条待处理事项" } };
+      }
+      if (!options.evaluateJudgment) return { status: 501, body: { error: "判断能力不可用" } };
+      const result = await options.evaluateJudgment(ids);
+      options.changed();
+      return { status: 200, body: result };
+    },
+    "inbox.pages.results": () => ({ status: 200, body: { results: options.pagesResults?.() ?? [] } }),
+    "inbox.pages.generate": async ({ request }) => {
+      if (!options.generatePages) return { status: 501, body: { error: "文稿处理尚未接入" } };
+      const result = await options.generatePages(request.body);
+      options.changed();
+      return { status: 200, body: result };
+    },
     "inbox.list": () => ({
       status: 200,
       body: { entries: options.listEntries() },

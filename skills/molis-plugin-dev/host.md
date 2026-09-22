@@ -47,7 +47,7 @@ Manifest 写完不等于侧栏有入口。一等插件还要改 Host。第三方
 3. `apps/local-host/src/behavior-catalog.ts` 的 `NATIVE_BEHAVIOR_MANIFESTS` 加上本插件 Manifest。
 4. **不要指望新 `scene_id` 出现在「用在哪」。** 去向表是 `functionAuthoringDestinations()` / `sceneBehaviorIds()` 写死的：`home.dock`、`inbox.next`、`feed.capture`。新去向要改合同、绑定 HTTP（对照 `/api/inbox/judgment`、`/api/home/dock-judgment`、Feed 捕捉规则）、`functions-host.ts` 的 `FunctionScenesView`、现场吃建议的 UI。那是平台任务。
 5. 对象到来时调用 `JudgmentPort`（Host 用 `createFunctionsJudgmentPort` 注入；Feed 在 `judgeScene`）。
-6. 画面读 `suggested_behavior_ids`（Feed：`visibleFeedDispositionIds`；首页：`dock_behaviors`）。判断不自动写。
+6. 画面读 `suggested_behavior_ids`（Feed：`visibleFeedDispositionIds`；首页：`dock_behaviors`）。Functions 判断本身不写业务状态。Feed 来源规则可由用户明确设置 `admission: "inbox"`：Feed 用例消费 `inbox.admit` 或 `needs_review` 后写 Attention，记录规则与判断版本；旧规则默认 `suggest`，保持原有行为。它不授权 Functions 执行其他动作。
 
 `home.dock` 属于 Host 首页，不是某个插件的 scene。系统行为（`inbox.done`、`feed.save`…）与插件 `behaviors` 撞号时系统项保留。MCP 工具进 Agent 去向，不进这三处卡底。
 
@@ -70,6 +70,14 @@ Manifest 写完不等于侧栏有入口。一等插件还要改 Host。第三方
 2. `start()` 返回 `onEvent`。
 
 Native（Feed/Inbox/Pages/…）今天没有这条总线。不要为了「完整」给它们加 `events:`。Integration 的进来走 Signal，不是这条总线。Functions「事件去向」也不是。
+
+Workbench 标签选中是另一种纯 UI 通知：Host 在当前插件根节点派发 `molis-work:select-item`，`detail.itemId` 为对象 ID，回到插件列表时为 `null`。Pages / Functions 通过自己的公开 HTTP 读取对象并恢复编辑器；切换时要保存未落盘输入，忽略过期读取。这个 DOM 通知不承担跨插件业务写入，也不是 Plugin Runtime 事件合同。
+
+## 信息整理的 Host 组合
+
+Inbox 的 `GET/POST /api/inbox/pages` 由 Host 注入当前项目。POST 接收 `request_id`、`entry_ids`、`title`、`instructions`；Host 从 Attention 解析 Feed 正文，再调用 Pages 包的 `generatePagesFromMaterials`。Pages 自己保存输入快照、生成收据和文档，同一请求不能替换要求或覆盖后续编辑。失败可恢复，生成成功不自动完成 Inbox。
+
+`POST /api/assistant/plan` 只产生规则或写作方案。Workbench 确认按钮调用既有 Functions / Feed / Inbox HTTP；不是外部 MCP，也没有第二份规则或文稿状态。真实写作模型由 `hostCompleteText` 提供；缺配置或网络失败明确报错，不能返回占位文稿。具体配置、实操与边界见 [闭环规格](../../specs/feed-inbox-pages-loop/spec.md)。
 
 ## app 一等（Coding 族）
 

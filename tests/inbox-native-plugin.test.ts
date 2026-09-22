@@ -152,6 +152,9 @@ test("Inbox directory lists Attention reason, related object, and next step with
   assert.match(rendered.workbench, /href="#icon-check"|data-icon="check"/);
   assert.match(rendered.workbench, /data-inbox-detail="entry-open"[^>]*hidden|data-inbox-detail="entry-open" hidden/);
   assert.match(rendered.workbench, /data-inbox-row[^>]*data-inbox-entry-id="entry-open"/);
+  assert.doesNotMatch(rendered.workbench, /data-inbox-row[^>]*tabindex="-1"/);
+  assert.doesNotMatch(rendered.workbench, /role="option"/);
+  assert.match(rendered.workbench, /role="listitem"/);
   assert.doesNotMatch(rendered.workbench, /feed-list-item/);
   assert.match(rendered.workbench, /data-inbox-subject-type="goal_decision"[^>]*data-inbox-subject-id="goal-1"/);
   assert.match(rendered.workbench, /你手工加入/);
@@ -177,7 +180,7 @@ test("Inbox directory lists Attention reason, related object, and next step with
   assert.doesNotMatch(rendered.workbench, /data-feed-workbench|data-feed-detail=/);
 });
 
-test("Inbox detail keeps default write actions until a legal next-step suggestion arrives", () => {
+test("Inbox recommends an action while preserving the person's other choices", () => {
   const host = new UiHost();
   host.register(inboxUiContribution);
   const open = entry();
@@ -204,7 +207,7 @@ test("Inbox detail keeps default write actions until a legal next-step suggestio
     model: model({ entries: [suggested] }),
   });
   assert.match(judged, /data-inbox-detail="entry-suggested"[\s\S]*data-inbox-action="done"/);
-  assert.doesNotMatch(judged, /data-inbox-detail="entry-suggested"[\s\S]*data-inbox-action="dismissed"/);
+  assert.match(judged, /data-inbox-detail="entry-suggested"[\s\S]*data-inbox-action="dismissed"/);
   assert.match(judged, /data-inbox-open-feed="item-1"/);
 
   const fallback = host.render({
@@ -214,6 +217,21 @@ test("Inbox detail keeps default write actions until a legal next-step suggestio
   });
   assert.match(fallback, /data-inbox-detail="entry-illegal"[\s\S]*data-inbox-action="done"/);
   assert.match(fallback, /data-inbox-detail="entry-illegal"[\s\S]*data-inbox-action="dismissed"/);
+});
+
+test("Inbox separates preparation, verification and uncertain judgment without completing items", () => {
+  const render = (outcome: "ok" | "needs_review") => inboxUiContribution.render({ surface: "workbench", model: model({
+    entries: [entry({ suggested_behavior_ids: outcome === "ok" ? ["inbox.verify"] : [], next_judgment: {
+      judgment_id: "j1", function_key: "next", function_version: 1, outcome, suggested_behavior_ids: outcome === "ok" ? ["inbox.verify"] : [],
+      subject: { kind: "inbox_entry", id: "entry-open", board_id: "p" }, scene_id: "inbox.next", error_code: null, created_at: "2026-09-22T08:00:00Z",
+    } })],
+  }) } as Parameters<typeof inboxUiContribution.render>[0]);
+  const html = render("ok");
+  assert.match(html, /建议：先核查，由你确认执行/);
+  assert.match(html, /data-inbox-compose-mode="verify"/);
+  assert.match(html, /data-inbox-compose-mode="compose"/);
+  assert.match(html, /data-inbox-action="dismissed"/);
+  assert.match(render("needs_review"), /判断未完成，请人工复核或重试/);
 });
 
 test("Inbox list does not paint a board-level judgment binder", () => {

@@ -12,6 +12,13 @@ export function createFeedOutRuleRouteHandlers(options: FeedRouteHandlerPorts): 
   const feed = () => options.feed();
   const changed = () => options.changed();
   return {
+    "feed.out-rules.evaluate": async ({ request }) => {
+      const ids = request.body.item_ids;
+      if (!Array.isArray(ids) || !ids.every((id) => typeof id === "string")) throw new FeedStoreError("feed_invalid_transition", "请选择消息试跑规则");
+      const result = await feed().evaluateItems(options.boardId, ids);
+      changed();
+      return { status: 200, body: result };
+    },
     "feed.out-rules.list": () => ({
       status: 200,
       body: { rules: feed().listOutRules(options.boardId) },

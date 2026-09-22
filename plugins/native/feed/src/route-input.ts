@@ -3,6 +3,7 @@ import { FeedStoreError } from "./application-errors.js";
 import type { RegisterFeedSourceInput } from "./source-ports.js";
 
 export function sourceRegistrationInput(body: Readonly<Record<string, unknown>>): RegisterFeedSourceInput | null {
+  if (body.kind === "research_library" && typeof body.repository === "string" && typeof body.research_source === "string") return { kind: "research_library", repository: body.repository, research_source: body.research_source, ...(typeof body.name === "string" ? { name: body.name } : {}) };
   if (body.kind === "rss" && typeof body.definition_id === "string") return { kind: "rss", definition_id: body.definition_id };
   if (body.kind === "web_query" && typeof body.query === "string") return { kind: "web_query", query: body.query, ...(typeof body.name === "string" ? { name: body.name } : {}) };
   if (body.kind === "youtube_channel" && typeof body.channel_id === "string") return { kind: "youtube_channel", channel_id: body.channel_id, ...(typeof body.name === "string" ? { name: body.name } : {}) };

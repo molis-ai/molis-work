@@ -54,11 +54,14 @@ function feedDirectorySnapshot(feed: FeedApplication, boardId: string, homeDirec
     ) => service.latestJudgment(kind, id, boardId, sceneId)?.suggested_behavior_ids ?? [];
     return {
       ...snapshot,
-      inbox_entries: snapshot.inbox_entries.map((entry) => ({
-        ...entry,
-        suggested_behavior_ids: suggested("inbox_entry", entry.entry_id, INBOX_NEXT_SCENE_ID),
-        home_dock_suggested_behavior_ids: suggested("inbox_entry", entry.entry_id, HOME_DOCK_SCENE_ID),
-      })),
+      inbox_entries: snapshot.inbox_entries.map((entry) => {
+        const binding = service.sceneBinding(INBOX_NEXT_SCENE_ID, boardId);
+        const latest = service.latestJudgment("inbox_entry", entry.entry_id, boardId, INBOX_NEXT_SCENE_ID);
+        const judgment = binding && latest?.function_key === binding.function_key ? latest : null;
+        return { ...entry, next_judgment: judgment,
+          suggested_behavior_ids: judgment?.outcome === "ok" ? judgment.suggested_behavior_ids : [],
+          home_dock_suggested_behavior_ids: suggested("inbox_entry", entry.entry_id, HOME_DOCK_SCENE_ID) };
+      }),
       feed_items: snapshot.feed_items.map((item) => ({
         ...hideBodies(item),
         suggested_behavior_ids: suggested("feed_item", item.item_id, FEED_CAPTURE_SCENE_ID),

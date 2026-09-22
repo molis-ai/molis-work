@@ -12,6 +12,7 @@ export async function collectRuntimeDependencies(
   },
 ): Promise<RuntimeDependencyPackage[]> {
   const packages = new Map<string, RuntimeDependencyPackage>();
+  const byDirectory = new Map<string, RuntimeDependencyPackage>();
   const pending: Array<{ name: string; fromPackageJson: string; optional: boolean }> = [];
   const enqueue = (
     metadata: { dependencies?: Record<string, unknown>; optionalDependencies?: Record<string, unknown> },
@@ -62,21 +63,37 @@ export async function collectRuntimeDependencies(
         `运行时依赖身份无效: ${candidate.name} (${resolvedPackageJson})`,
       );
     }
+    const directory = path.dirname(resolvedPackageJson);
     const existing = packages.get(name);
     if (existing) {
       if (existing.version !== version) {
-        throw new MolisWorkHomeInstallError(
-          "source.invalid",
-          `运行时依赖存在无法平铺的版本冲突: ${name}@${existing.version} / ${name}@${version}`,
-        );
+        const parent = byDirectory.get(path.dirname(candidate.fromPackageJson));
+        if (!parent) {
+          throw new MolisWorkHomeInstallError(
+            "source.invalid",
+            `运行时依赖存在无法平铺的版本冲突: ${name}@${existing.version} / ${name}@${version}`,
+          );
+        }
+        const nests = parent.nests ?? [];
+        if (!nests.some((item) => item.name === name && item.version === version)) {
+          const shared = byDirectory.get(directory) ?? {
+            name,
+            version,
+            directory,
+            nests: [],
+          };
+          parent.nests = [...nests, shared];
+          if (!byDirectory.has(directory)) {
+            byDirectory.set(directory, shared);
+            enqueue(metadata, resolvedPackageJson);
+          }
+        }
       }
       continue;
     }
-    packages.set(name, {
-      name,
-      version,
-      directory: path.dirname(resolvedPackageJson),
-    });
+    const record = { name, version, directory, nests: [] as RuntimeDependencyPackage[] };
+    packages.set(name, record);
+    byDirectory.set(directory, record);
     enqueue(metadata, resolvedPackageJson);
   }
 
@@ -86,7 +103,7 @@ export async function collectRuntimeDependencies(
 export async function resolveDependencyPackageJson(name: string, fromPackageJson: string): Promise<string> {
   const resolver = createRequire(fromPackageJson);
   try {
-    return resolver.resolve(`${name}/package.json`);
+    return await fs.realpath(resolver.resolve(`${name}/package.json`));
   } catch (packageJsonError) {
     // A package may deliberately omit `./package.json` and a CommonJS
     // condition from `exports` while still being a valid ESM runtime
@@ -106,7 +123,7 @@ export async function resolveDependencyPackageJson(name: string, fromPackageJson
       const candidate = path.join(directory, "package.json");
       try {
         const metadata = JSON.parse(await fs.readFile(candidate, "utf8")) as { name?: unknown };
-        if (metadata.name === name) return candidate;
+        if (metadata.name === name) return await fs.realpath(candidate);
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== "ENOENT" && !(error instanceof SyntaxError)) throw error;
       }
@@ -125,7 +142,7 @@ export async function findDependencyPackageJson(name: string, fromPackageJson: s
     const candidate = path.join(directory, "node_modules", ...packageSegments, "package.json");
     try {
       const metadata = JSON.parse(await fs.readFile(candidate, "utf8")) as { name?: unknown };
-      if (metadata.name === name) return candidate;
+      if (metadata.name === name) return await fs.realpath(candidate);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT" && !(error instanceof SyntaxError)) throw error;
     }

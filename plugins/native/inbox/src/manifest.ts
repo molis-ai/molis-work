@@ -31,6 +31,8 @@ export const inboxManifest: PluginManifest = {
     reason: "Inbox 下一步可绑一个判断函数，落地时给出建议",
   }],
   behaviors: [
+    { behavior_id: "compose", title: "整理成文稿", effect: "read", subject_kinds: ["inbox_entry"] },
+    { behavior_id: "verify", title: "先核查", effect: "read", subject_kinds: ["inbox_entry"] },
     { behavior_id: "done", title: "做完了", effect: "write", subject_kinds: ["inbox_entry"] },
     { behavior_id: "dismiss", title: "忽略", effect: "write", subject_kinds: ["inbox_entry"] },
   ],

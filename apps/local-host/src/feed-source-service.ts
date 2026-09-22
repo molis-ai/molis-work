@@ -7,6 +7,8 @@ import { GMAIL_DEFAULT_SCOPE, parseGmailScope } from "@molis-ai/molis-work-integ
 import type { FeedSourceRecord } from "@molis-ai/molis-work-plugin-feed";
 import { createLocalFeedApplication, withLocalFeedJudgments } from "./feed-application.js";
 import { createFeedSourceRuntime, type FeedSourceRuntime } from "./feed-source-runtime.js";
+import { syncResearchLibrarySource } from "./research-library-source.js";
+import { resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
 export function listFeedSourceCatalog(): FeedSourceCatalogView[] {
   return listRegisterableFeeds().filter((source) => source.enabled).map((source) => ({
     id: source.sourceId,
@@ -29,8 +31,10 @@ export function createLocalFeedSourceService(
   homeDirectory?: string,
 ): FeedSourceService {
   const journal = new LocalSqliteJournal(db);
+  const feed = createLocalFeedApplication(db, withLocalFeedJudgments(homeDirectory));
   return new FeedSourceService({
-    feed: createLocalFeedApplication(db, withLocalFeedJudgments(homeDirectory)),
+    feed,
+    syncRepository: (source, input) => syncResearchLibrarySource(homeDirectory ?? resolveMolisWorkHome(), feed, source, input),
     providers: {
       listCatalog: listRegisterableFeeds,
       customRss: { definitionId: CUSTOM_RSS_DEFINITION_ID, normalizeUrl: normalizeCustomRssFeedUrl, host: customRssFeedHost },

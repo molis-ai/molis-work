@@ -41,7 +41,7 @@
 ## 方案与关键决策
 
 - 去向 id：`home.dock` / `inbox.next` / `feed.capture` 仍是现场绑定键；`agent.mcp` 只表示给 Agent 用，不写入 `function_scene_bindings`。
-- 事件去向的动作池 = 该现场已兑现点击路径（与现场景池一致）。MCP 出现在 Agent 去向，标「写」。
+- 事件去向的动作池 = 该现场已接线、且对应该对象的下一步处置（四问见 [Plugin 开发 · 事件去向的动作名单](../../docs/platform/PLUGIN-DEVELOPMENT.md#事件去向的动作名单)）。MCP 出现在 Agent 去向，标「写」。
 - 插件已登记但与系统 id 相同的动作不重复列出；未接线的插件动作进 Agent 去向。
 - Choice 不再手填 key；从目录勾选。选项说明可改。
 - `scene_id` / `subject_kinds` 不进入 `config_hash`。

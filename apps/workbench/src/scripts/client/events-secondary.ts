@@ -130,7 +130,8 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `        return;
             expected_revision: expectedRevision,
           });
           saveUiState();
-          location.reload();
+          if (decisionView) await refreshBoard(true);
+          else await refreshInboxStage();
         } catch (error) {
           if (status) {
             status.textContent = error.message || L("Inbox 操作失败");
@@ -184,7 +185,7 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `        return;
             return;
           }
           saveUiState();
-          location.reload();
+          await refreshFeedStage();
         } catch (error) {
           if (status) {
             status.textContent = error.message || L("Item 操作失败");

@@ -1,6 +1,9 @@
 import { handleExperimentsNativePluginHttp } from "./experiments-native-plugin-http.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import type { DatasetRoutePorts } from "@molis-ai/molis-work-plugin-dataset";
+import type { FormRoutePorts } from "@molis-ai/molis-work-plugin-form";
 import type { PagesRoutePorts } from "@molis-ai/molis-work-plugin-pages";
+import type { PptRoutePorts } from "@molis-ai/molis-work-plugin-ppt";
 import { handleShelfNativePluginHttp } from "./shelf-native-plugin-http.js";
 import { handleFunctionsNativePluginHttp } from "./functions-native-plugin-http.js";
 import { handlePagesNativePluginHttp } from "./pages-native-plugin-http.js";
@@ -13,6 +16,9 @@ import { hostCompleteText } from "./host-complete-text.js";
 
 export interface PersonalNativePluginHttpPorts {
   readonly publishArtifact?: PagesRoutePorts["publishArtifact"];
+  readonly publishFormArtifact?: FormRoutePorts["publishArtifact"];
+  readonly publishDatasetArtifact?: DatasetRoutePorts["publishArtifact"];
+  readonly publishPptArtifact?: PptRoutePorts["publishArtifact"];
   readonly completeText?: PagesRoutePorts["completeText"];
 }
 
@@ -33,9 +39,17 @@ export async function handlePersonalNativePluginHttp(
       publishArtifact: ports.publishArtifact,
       completeText,
     }),
-    () => handleFormNativePluginHttp(request, response, routed, homeDirectory, { completeText }),
-    () => handleDatasetNativePluginHttp(request, response, routed, homeDirectory, { completeText }),
-    () => handlePptNativePluginHttp(request, response, routed, homeDirectory),
+    () => handleFormNativePluginHttp(request, response, routed, homeDirectory, {
+      completeText,
+      publishArtifact: ports.publishFormArtifact,
+    }),
+    () => handleDatasetNativePluginHttp(request, response, routed, homeDirectory, {
+      completeText,
+      publishArtifact: ports.publishDatasetArtifact,
+    }),
+    () => handlePptNativePluginHttp(request, response, routed, homeDirectory, {
+      publishArtifact: ports.publishPptArtifact,
+    }),
     () => handleLingguangNativePluginHttp(request, response, routed, homeDirectory, { completeText }),
   ]) {
     if (await handle()) return true;

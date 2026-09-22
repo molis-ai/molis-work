@@ -17,6 +17,8 @@ export { FORM_NATIVE_PLUGIN_ROUTES, FormPluginRouteTable } from "./routes.js";
 export type { FormPluginRouteHandler, FormPluginRouteRequest, FormPluginRouteResponse } from "./routes.js";
 export { createFormRouteHandlers, formRouteErrorResponse } from "./route-handlers.js";
 export type { FormRoutePorts } from "./route-handlers.js";
+export { promoteForm, requireFormArtifactPort } from "./promote.js";
+export type { FormPublishArtifactPort } from "./promote.js";
 export { FORM_PLUGIN_ID, FORM_PROJECT_PLUGIN_ID, formManifest } from "./manifest.js";
 export { FORM_MCP_EXPORTS, runFormMcpTool } from "./mcp.js";
 export { openFormStore, FormStore } from "./store.js";

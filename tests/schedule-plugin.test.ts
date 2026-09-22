@@ -180,7 +180,7 @@ test("Schedule HTTP 能列出任务并暂停", async () => {
   });
   assert.equal(paused?.status, 200);
   assert.equal((paused?.body as { job: ScheduleJobRecord }).job.enabled, false);
-  assert.equal(SCHEDULE_NATIVE_PLUGIN_ROUTES.length, 5);
+  assert.equal(SCHEDULE_NATIVE_PLUGIN_ROUTES.length, 6);
 });
 
 test("启用 Schedule 后导航出现且没有第二列目录", () => {

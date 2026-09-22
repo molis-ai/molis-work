@@ -34,6 +34,7 @@ export const FORM_NATIVE_PLUGIN_ROUTES = [
   route("form.get", "GET", /^\/api\/form\/([^/]+)$/u, ["id"]),
   route("form.update", "POST", /^\/api\/form\/([^/]+)$/u, ["id"]),
   route("form.publish", "POST", /^\/api\/form\/([^/]+)\/publish$/u, ["id"]),
+  route("form.promote", "POST", /^\/api\/form\/([^/]+)\/promote$/u, ["id"]),
   route("form.delete", "POST", /^\/api\/form\/([^/]+)\/delete$/u, ["id"]),
   route("form.generate", "POST", /^\/api\/form\/([^/]+)\/generate-questions$/u, ["id"]),
   route("form.submit", "POST", /^\/api\/form\/([^/]+)\/submit$/u, ["id"]),

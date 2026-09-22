@@ -334,6 +334,7 @@ test("visible single-choice selects open an mw-menu instead of the OS picker", (
   assert.match(SELECT_MENU_CLIENT_SCRIPT, /select\.hidden/);
   assert.match(SELECT_MENU_CLIENT_SCRIPT, /aria-hidden"\) === "true"/);
   assert.match(SELECT_MENU_CLIENT_SCRIPT, /className = "mw-menu mw-select-picker__menu"/);
+  assert.match(SELECT_MENU_CLIENT_SCRIPT, /name === "mw-select" \|\| name === "mw-input" \|\| name === "mw-textarea"/);
   assert.match(SELECT_MENU_CLIENT_SCRIPT, /dispatchEvent\(new Event\("change"/);
   assert.match(SELECT_MENU_CLIENT_SCRIPT, /HTMLSelectElement\.prototype/);
   assert.match(SELECT_MENU_CLIENT_SCRIPT, /addEventListener\("DOMContentLoaded", start\)/);

@@ -19,6 +19,7 @@
 | 16 个业务事实 owner | [`docs/modules/`](modules/README.md) |
 | 5 个横向运行服务 | [`docs/horizontal/`](horizontal/README.md) |
 | Plugin、存储、交换、UI 等平台机制 | [`docs/platform/`](platform/README.md) |
+| 新插件先写什么、怎么接到产品 | [`skills/molis-plugin-dev/SKILL.md`](../skills/molis-plugin-dev/SKILL.md)（Host/CLI/接入分文件）；命令与录取四问仍是 [`docs/platform/PLUGIN-DEVELOPMENT.md`](platform/PLUGIN-DEVELOPMENT.md) |
 | 某次实现具体改什么、如何验收 | 对应 `specs/<task>/spec.md` 或已接受 Goal Contract |
 | 可执行类型、Schema 和兼容测试 | `packages/contracts` 的 public subpath；F3 自动门禁与 `packages/test-kit` 边界测试 |
 
@@ -84,7 +85,7 @@
 | `modules/execution` | 历史 Claim、Run、lease、attempt | 保留查询、schema 和升级；供历史阅读与项目删除的现有活动保护使用；旧执行写入退役 | `partial` | EX1/EX4 历史迁移；事件工作流收敛 |
 | `modules/artifacts` | Artifact、版本、类型、内容引用与 provenance | AR1 已建立唯一正式事实；旧代码仅有各 owner 的字符串引用，没有第二套 Artifact Store | `partial` | AR1 已迁 Core；AR3 切换现有结果入口 |
 | `modules/shelf` | 个人置物架材料、副本任务、Hash 与本机抽字结果 | Home 下 `shelf/` 副本与 Jobs 沙箱；不写项目 Goal / Artifact | `partial` | Shelf 工作台切片；轮盘/热键仍待 Desktop |
-| `modules/functions` | 已发布判断函数与一次判断记录 | 函数库、来源/去向/映射、场景绑定、判断落库；TypeSafe 由 Host 注入 | `partial` | `specs/functions-system-capability/spec.md`；`specs/functions-product-authoring/spec.md`；`specs/functions-independent-authoring/spec.md` |
+| `modules/functions` | 已发布判断函数与一次判断记录 | 函数库、来源/去向/映射、场景绑定、判断落库；TypeSafe 由 Host 注入 | `partial` | `specs/functions-system-capability/spec.md`；`specs/functions-product-authoring/spec.md`；`specs/functions-independent-authoring/spec.md`；事件去向动作范围 `specs/function-scene-action-scope/spec.md` |
 | `modules/evidence-verification` | 历史 Evidence、Correction、验收引用与文件来源 | 保留历史查询、文件读取、schema 和升级；当前报告与完成判断归 Goals 事件；旧写入退役 | `partial` | EX2/EX4 历史迁移；事件工作流收敛 |
 | `modules/governance-collaboration` | 当前用户决定、有限树提案／决定、provenance 与协作历史 | 当前可信用户来源、具体变更授权和决定事务；旧 Review/Clarification/Contract/Candidate/Rewire 仅保留历史职责 | `partial` | EX3/EX4/AR2/DD1/DD2/Cutover；事件工作流收敛 |
 | `modules/automation` | Trigger、Rule、Automation Run 与产生的 Action Request | 占位包已删除；未来功能 | `absent` | F2；未来独立功能 Spec |
@@ -112,13 +113,13 @@ Horizontal Service 只保存可恢复的技术状态，不拥有 Goal、Signal�
 | `plugins/native/inbox` | Inbox 一级入口与 Attention 处置 UI | 目录/详情只读 Attention；完成/忽略走 setStatus；`inbox.next` HTTP 绑定由 Functions 编辑器调用；Host 注入展示信息与 HTTP | `partial` | Inbox/Feed 拆插件切片 2–3；`specs/functions-system-capability/spec.md` |
 | `plugins/native/schedule` | Schedule 一级入口：对话任务与闹钟列表 | 人手创建日历日对话任务；其他插件 job 仍只展示与暂停 | `partial` | `specs/schedule-conversation-tasks/spec.md` |
 | `plugins/native/shelf` | Shelf 一级入口：材料/结果/剪贴板与本机抽字 | DropAgent 表面挂进目录与工作面；Host 注入 `/api/shelf` 与 Store | `partial` | 工作台进货→抽字切片；轮盘/抓页/CLI Recipe 待 Desktop |
-| `plugins/native/functions` | Functions 一级入口：写、试跑、发布、配 Key | 看什么/函数/用在哪三栏；动作库可加入选项；事件去向用映射；库和判断记录在 Module | `partial` | `specs/functions-system-capability/spec.md`；`specs/functions-product-authoring/spec.md`；`specs/functions-independent-authoring/spec.md` |
+| `plugins/native/functions` | Functions 一级入口：写、试跑、发布、配 Key | 看什么/函数/用在哪三栏；选项和动作库随看来源与去向更新，自定义答案不覆盖；事件去向用映射；库和判断记录在 Module | `partial` | `specs/functions-system-capability/spec.md`；`specs/functions-product-authoring/spec.md`；`specs/functions-independent-authoring/spec.md` |
 | `plugins/native/pages` | Pages 一级入口：本机文档 | 库、ProseMirror 内核、块、评论、卡、AI stub、挂 Goal 与 Promote；对外 MCP 默认关 | `partial` | `specs/pages-plugin/spec.md`；`specs/plugin-outbound-mcp/spec.md` |
 | `plugins/native/form` | Forms 一级入口：本机问卷 | 建题、预览填写、提交与结果；出题为本地 stub；对外 MCP 默认关 | `partial` | `specs/creative-tools-plugins/spec.md`；`specs/plugin-outbound-mcp/spec.md` |
 | `plugins/native/dataset` | Dataset 一级入口：本机数据表 | 行列编辑、CSV 导入导出、版本回滚；加列为本地 stub；对外 MCP 默认关 | `partial` | `specs/creative-tools-plugins/spec.md`；`specs/plugin-outbound-mcp/spec.md` |
 | `plugins/native/ppt` | PPT 一级入口：本机演示稿 | 多页大纲、主题色、预览与 JSON 导出；不做 PPTX；对外 MCP 默认关 | `partial` | `specs/creative-tools-plugins/spec.md`；`specs/plugin-outbound-mcp/spec.md` |
 | `plugins/native/lingguang` | 灵光一级入口：本机临时灵感池 | 快记、流式列表、丢掉确认、本机头脑风暴 stub；不写 Goal/Artifact；无对外 MCP | `partial` | `specs/lingguang-plugin/spec.md` |
-| `plugins/native/feed` | Feed 一级入口和处置 UI | Sources/Feed 流水、同步与 promotion 用例；不再投影 Inbox 面；加入 Inbox 仍走 Feed HTTP，只写 Attention | `partial` | FD/Cutover；Inbox/Feed 拆插件切片 3 |
+| `plugins/native/feed` | Feed 一级入口和处置 UI | Sources/Feed 流水、同步与 promotion 用例；不再投影 Inbox 面；加入 Inbox 仍走 Feed HTTP，只写 Attention；`feed.capture` 处置池含加入 Inbox / 保存 / 升格 / 忽略 | `partial` | FD/Cutover；Inbox/Feed 拆插件切片 3；`specs/function-scene-action-scope/spec.md` |
 | `plugins/native/actions` | Actions 一级入口 | 占位包已删除；未来功能 | `absent` | F2；未来独立功能 Spec |
 | `plugins/native/work` | Session、Runtime、resume、handoff 应用和 UI | WK3 已迁应用编排、Session/Terminal contribution、浏览器控制器、HTTP 用例和工作目录恢复。`GET/POST /api/goals/:id/panels`（无子路径，JSON）仍是 Runtime 终端面板，与已删除的 Goal 五 tab fragment 不同 | `partial` | WK3；边界与证据见 `specs/molis-work-architecture-reorganization/wk3-validation.md` |
 | `plugins/native/automation` | Automation 一级入口 | 占位包已删除；未来功能 | `absent` | F2；未来独立功能 Spec |
@@ -144,6 +145,7 @@ Goals 与 Artifacts 是官方签名保护的一等 Plugin。Plugin 之间不依�
 | CLI / MCP / Web bins | apps/desktop/launchers/cli/main.ts、apps/desktop/launchers/mcp/server.ts、apps/desktop/launchers/web/server.ts | 只保留启动环境/stdio/资源路径与公开 App 入口；无业务 SQL 或状态机 |
 | Desktop / Tauri | apps/desktop + apps/desktop/src-tauri | App/DMG/zip、bundle、ad-hoc codesign、本地安装/恢复；Developer ID、公证和公开发布不在本期验收承诺内 |
 | Runtime Skill | skills/goal-advance | 仅消费正式公开 Contract 与入口，不读取内部 Store |
+| Plugin 开发 Skill | skills/molis-plugin-dev | 随 npm / Home 发布；不自动挂 Runtime 接入；本仓库 `.cursor/skills` 只是符号链接 |
 | CI / vendor | .github/workflows、vendor；App-owned 发布工具 | 仅手动 CI；来源、版本、许可证、SBOM 与原发布供应链完整性保留 |
 | 文档 | 本索引与对应 owner 文档 | 当前位置以此表和 MIGRATION 为准；阶段性验收保留历史，不代表未来能力落地 |
 

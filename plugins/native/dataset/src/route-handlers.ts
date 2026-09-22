@@ -1,10 +1,12 @@
 import type { DatasetColumn, DatasetRow } from "@molis-ai/molis-work-contracts/modules/dataset";
 import { DatasetError } from "./error.js";
 import type { DatasetPluginRouteHandler, DatasetPluginRouteRequest, DatasetPluginRouteResponse } from "./routes.js";
+import { promoteDataset, requireDatasetArtifactPort, type DatasetPublishArtifactPort } from "./promote.js";
 import { toCsv, type DatasetStore } from "./store.js";
 
 export interface DatasetRoutePorts {
   completeText?: (prompt: string) => Promise<string>;
+  publishArtifact?: DatasetPublishArtifactPort;
 }
 
 export function createDatasetRouteHandlers(
@@ -33,6 +35,16 @@ export function createDatasetRouteHandlers(
     "dataset.delete": ({ params, request }) => {
       store.delete(params.id ?? "", projectIdOf(request));
       return { status: 200, body: { ok: true } };
+    },
+    "dataset.promote": ({ params, request }) => {
+      const projectId = projectIdOf(request);
+      const promoted = promoteDataset(
+        store,
+        params.id ?? "",
+        projectId,
+        requireDatasetArtifactPort(ports.publishArtifact),
+      );
+      return { status: 200, body: { dataset: promoted.dataset, artifact: promoted.artifact } };
     },
     "dataset.generate": async ({ params, request }) => {
       const prompt = stringField(request.body.prompt) ?? "";

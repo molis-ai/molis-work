@@ -16,9 +16,12 @@ import type {
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
 import {
+  FEED_ARCHIVE_BEHAVIOR_ID,
+  FEED_CAPTURE_DISPOSITION_IDS,
+  FEED_PROMOTE_BEHAVIOR_ID,
+  FEED_SAVE_BEHAVIOR_ID,
   INBOX_ADMIT_BEHAVIOR_ID,
-  defaultFeedCaptureBehaviorIds,
-  visibleDockBehaviorIds,
+  visibleFeedDispositionIds,
 } from "@molis-ai/molis-work-contracts/modules/functions";
 
 export const FEED_UI_CONTRIBUTION_ID = "io.molis.work.native.feed.ui.v1";
@@ -581,11 +584,37 @@ function renderItemActions(item: FeedUiItem, inboxActive: boolean, p: FeedUiPrim
   if (item.disposition === "archived") {
     return `<button class="mw-btn mw-btn--secondary" type="button" data-feed-action="restore" data-feed-restore-target="feed" data-feed-item-id="${p.escape(item.item_id)}" data-feed-revision="${item.revision}">${p.text("恢复到 Feed")}</button>`;
   }
-  const admit = `<button class="mw-btn mw-btn--primary" type="button" data-feed-action="inbox" data-feed-item-id="${p.escape(item.item_id)}" data-feed-revision="${item.revision}"${inboxActive ? " disabled" : ""}>${p.icon("inbox")}${inboxActive ? p.text("已加入 Inbox") : p.text("加入 Inbox")}</button>`;
-  const rest = `<button class="mw-btn mw-btn--secondary" type="button" data-feed-action="save" data-feed-item-id="${p.escape(item.item_id)}" data-feed-revision="${item.revision}"${item.disposition === "saved" ? " disabled" : ""}>${item.disposition === "saved" ? p.text("已保存为资料") : p.text("保存为资料")}</button><button class="mw-btn mw-btn--secondary" type="button" data-feed-action="promote" data-feed-item-id="${p.escape(item.item_id)}" data-feed-revision="${item.revision}">${p.icon("target")}${item.linked_goal_id ? p.text("查看 Goal") : p.text("升格为 Goal")}</button><button class="mw-btn mw-btn--ghost feed-action-subtle" type="button" data-feed-action="archive" data-feed-item-id="${p.escape(item.item_id)}" data-feed-revision="${item.revision}">${p.text("忽略")}</button>`;
-  if (inboxActive) return `${admit}${rest}`;
-  const shown = visibleDockBehaviorIds(item.suggested_behavior_ids, defaultFeedCaptureBehaviorIds(true));
-  return `${shown.includes(INBOX_ADMIT_BEHAVIOR_ID) ? admit : ""}${rest}`;
+  const shown = inboxActive
+    ? [...FEED_CAPTURE_DISPOSITION_IDS]
+    : visibleFeedDispositionIds(item.suggested_behavior_ids, true);
+  return shown.map((id, index) => dispositionButton(item, id, index === 0, inboxActive, p)).join("");
+}
+
+function dispositionButton(
+  item: FeedUiItem,
+  behaviorId: string,
+  primary: boolean,
+  inboxActive: boolean,
+  p: FeedUiPrimitives,
+): string {
+  const itemId = p.escape(item.item_id);
+  const revision = item.revision;
+  if (behaviorId === INBOX_ADMIT_BEHAVIOR_ID) {
+    const cls = primary ? "mw-btn mw-btn--primary" : "mw-btn mw-btn--secondary";
+    return `<button class="${cls}" type="button" data-feed-action="inbox" data-feed-item-id="${itemId}" data-feed-revision="${revision}"${inboxActive ? " disabled" : ""}>${p.icon("inbox")}${inboxActive ? p.text("已加入 Inbox") : p.text("加入 Inbox")}</button>`;
+  }
+  if (behaviorId === FEED_SAVE_BEHAVIOR_ID) {
+    const saved = item.disposition === "saved";
+    const cls = primary ? "mw-btn mw-btn--primary" : "mw-btn mw-btn--secondary";
+    return `<button class="${cls}" type="button" data-feed-action="save" data-feed-item-id="${itemId}" data-feed-revision="${revision}"${saved ? " disabled" : ""}>${saved ? p.text("已保存为资料") : p.text("保存为资料")}</button>`;
+  }
+  if (behaviorId === FEED_PROMOTE_BEHAVIOR_ID) {
+    const cls = primary ? "mw-btn mw-btn--primary" : "mw-btn mw-btn--secondary";
+    return `<button class="${cls}" type="button" data-feed-action="promote" data-feed-item-id="${itemId}" data-feed-revision="${revision}">${p.icon("target")}${item.linked_goal_id ? p.text("查看 Goal") : p.text("升格为 Goal")}</button>`;
+  }
+  if (behaviorId !== FEED_ARCHIVE_BEHAVIOR_ID) return "";
+  const cls = primary ? "mw-btn mw-btn--primary" : "mw-btn mw-btn--ghost feed-action-subtle";
+  return `<button class="${cls}" type="button" data-feed-action="archive" data-feed-item-id="${itemId}" data-feed-revision="${revision}">${p.text("忽略")}</button>`;
 }
 
 function dispositionLabel(value: string, p: FeedUiPrimitives): string {

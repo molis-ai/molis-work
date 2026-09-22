@@ -5,9 +5,12 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import {
+  FEED_ARCHIVE_BEHAVIOR_ID,
   FEED_CAPTURE_SCENE_ID,
   FEED_OPEN_BEHAVIOR_ID,
+  FEED_PROMOTE_BEHAVIOR_ID,
   FEED_REAUTH_BEHAVIOR_ID,
+  FEED_SAVE_BEHAVIOR_ID,
   HOME_ASK_BEHAVIOR_ID,
   HOME_CONTINUE_BEHAVIOR_ID,
   HOME_DOCK_SCENE_ID,
@@ -28,6 +31,8 @@ import {
   defaultFeedCaptureBehaviorIds,
   offeredHomeDockBehaviorIds,
   homeDockSubjectKinds,
+  suggestedAuthoringBehaviors,
+  visibleFeedDispositionIds,
 } from "@molis-ai/molis-work-contracts/modules/functions";
 import { mcpPublicToolName } from "@molis-ai/molis-work-contracts/platform/plugin";
 import {
@@ -142,12 +147,36 @@ test("visibleDockBehaviorIds fall back to defaults when suggestions are empty or
     visibleDockBehaviorIds([INBOX_DONE_BEHAVIOR_ID], defaultInboxNextBehaviorIds(true)),
     [INBOX_DONE_BEHAVIOR_ID],
   );
-  assert.deepEqual(defaultFeedCaptureBehaviorIds(true), [INBOX_ADMIT_BEHAVIOR_ID, FEED_OPEN_BEHAVIOR_ID]);
+  assert.deepEqual(defaultFeedCaptureBehaviorIds(true), [
+    INBOX_ADMIT_BEHAVIOR_ID,
+    FEED_SAVE_BEHAVIOR_ID,
+    FEED_PROMOTE_BEHAVIOR_ID,
+    FEED_ARCHIVE_BEHAVIOR_ID,
+    FEED_OPEN_BEHAVIOR_ID,
+  ]);
   assert.deepEqual(defaultFeedCaptureBehaviorIds(false), []);
   assert.deepEqual(
     visibleDockBehaviorIds([FEED_OPEN_BEHAVIOR_ID], defaultFeedCaptureBehaviorIds(true)),
     [FEED_OPEN_BEHAVIOR_ID],
   );
+  assert.deepEqual(visibleFeedDispositionIds([], true), [
+    INBOX_ADMIT_BEHAVIOR_ID,
+    FEED_SAVE_BEHAVIOR_ID,
+    FEED_PROMOTE_BEHAVIOR_ID,
+    FEED_ARCHIVE_BEHAVIOR_ID,
+  ]);
+  assert.deepEqual(visibleFeedDispositionIds([FEED_OPEN_BEHAVIOR_ID], true), [
+    FEED_SAVE_BEHAVIOR_ID,
+    FEED_PROMOTE_BEHAVIOR_ID,
+    FEED_ARCHIVE_BEHAVIOR_ID,
+  ]);
+  assert.deepEqual(visibleFeedDispositionIds([FEED_PROMOTE_BEHAVIOR_ID], true), [FEED_PROMOTE_BEHAVIOR_ID]);
+  assert.deepEqual(visibleFeedDispositionIds(["invented.behavior"], true), [
+    INBOX_ADMIT_BEHAVIOR_ID,
+    FEED_SAVE_BEHAVIOR_ID,
+    FEED_PROMOTE_BEHAVIOR_ID,
+    FEED_ARCHIVE_BEHAVIOR_ID,
+  ]);
 });
 
 test("Module persists a judgment and latest query returns it", async () => {
@@ -395,6 +424,9 @@ test("Host behavior catalog includes Functions MCP tools and home/Inbox dock act
   assert.ok(ids.includes(HOME_ASK_BEHAVIOR_ID));
   assert.ok(ids.includes(INBOX_ADMIT_BEHAVIOR_ID));
   assert.ok(ids.includes(FEED_OPEN_BEHAVIOR_ID));
+  assert.ok(ids.includes(FEED_SAVE_BEHAVIOR_ID));
+  assert.ok(ids.includes(FEED_PROMOTE_BEHAVIOR_ID));
+  assert.ok(ids.includes(FEED_ARCHIVE_BEHAVIOR_ID));
   assert.equal(ids.includes(HOME_TALK_BEHAVIOR_ID), false);
   assert.equal(ids.includes("github.whoami"), false);
 });
@@ -406,11 +438,18 @@ test("authoring catalog exposes event destinations, MCP tools, and plugin action
   assert.match(dest["home.dock"]?.when ?? "", /亮哪些按钮/);
   assert.match(dest["home.dock"]?.configure_at ?? "", /发布后打开/);
   assert.match(dest["home.dock"]?.effect ?? "", /亮哪些按钮/);
+  assert.match(dest["feed.capture"]?.when ?? "", /升格还是忽略/);
+  assert.ok(dest["feed.capture"]?.behavior_ids.includes(FEED_SAVE_BEHAVIOR_ID));
+  assert.ok(dest["feed.capture"]?.behavior_ids.includes(FEED_PROMOTE_BEHAVIOR_ID));
+  assert.ok(dest["feed.capture"]?.behavior_ids.includes(FEED_ARCHIVE_BEHAVIOR_ID));
   assert.equal(dest["agent.mcp"]?.kind, "mcp");
   assert.ok(catalog.subjects.some((row) => row.subject_kind === "home_event"));
   const byId = Object.fromEntries(catalog.behaviors.map((row) => [row.behavior_id, row]));
   assert.equal(byId[HOME_CONTINUE_BEHAVIOR_ID]?.source, "system");
   assert.equal(byId[HOME_CONTINUE_BEHAVIOR_ID]?.clickable, true);
+  assert.equal(byId[FEED_SAVE_BEHAVIOR_ID]?.clickable, true);
+  assert.equal(byId[FEED_PROMOTE_BEHAVIOR_ID]?.clickable, true);
+  assert.equal(byId[FEED_ARCHIVE_BEHAVIOR_ID]?.clickable, true);
   assert.equal(byId[INVOKE]?.source, "mcp");
   assert.equal(byId[INVOKE]?.clickable, false);
   assert.equal(byId[mcpPublicToolName("form", "create")]?.source, "mcp");
@@ -675,6 +714,39 @@ test("agent.mcp functions cannot bind to a site scene", async () => {
   });
 });
 
+test("authoring suggestions follow destination and subject kinds", () => {
+  const catalog = hostFunctionAuthoringCatalog();
+  assert.deepEqual(
+    suggestedAuthoringBehaviors(catalog, INBOX_NEXT_SCENE_ID, []).map((row) => row.behavior_id),
+    [INBOX_DONE_BEHAVIOR_ID, INBOX_DISMISS_BEHAVIOR_ID],
+  );
+  assert.deepEqual(
+    suggestedAuthoringBehaviors(catalog, FEED_CAPTURE_SCENE_ID, []).map((row) => row.behavior_id),
+    [
+      INBOX_ADMIT_BEHAVIOR_ID,
+      FEED_SAVE_BEHAVIOR_ID,
+      FEED_PROMOTE_BEHAVIOR_ID,
+      FEED_ARCHIVE_BEHAVIOR_ID,
+      FEED_OPEN_BEHAVIOR_ID,
+    ],
+  );
+  assert.deepEqual(suggestedAuthoringBehaviors(catalog, INBOX_NEXT_SCENE_ID, ["feed_item"]), []);
+  const homeInbox = suggestedAuthoringBehaviors(catalog, HOME_DOCK_SCENE_ID, ["inbox_entry"]).map((row) => row.behavior_id);
+  assert.ok(homeInbox.includes(INBOX_DONE_BEHAVIOR_ID));
+  assert.ok(homeInbox.includes(HOME_CONTINUE_BEHAVIOR_ID));
+  assert.equal(homeInbox.includes(INBOX_ADMIT_BEHAVIOR_ID), false);
+  const homeFeed = suggestedAuthoringBehaviors(catalog, HOME_DOCK_SCENE_ID, ["feed_item"]).map((row) => row.behavior_id);
+  assert.ok(homeFeed.includes(FEED_OPEN_BEHAVIOR_ID));
+  assert.ok(homeFeed.includes(HOME_CONTINUE_BEHAVIOR_ID));
+  assert.equal(homeFeed.includes(INBOX_DONE_BEHAVIOR_ID), false);
+  assert.equal(homeFeed.includes(FEED_SAVE_BEHAVIOR_ID), false);
+  assert.equal(homeFeed.includes(FEED_PROMOTE_BEHAVIOR_ID), false);
+  assert.deepEqual(suggestedAuthoringBehaviors(catalog, "", []), []);
+  assert.ok(
+    suggestedAuthoringBehaviors(catalog, "", ["inbox_entry"]).some((row) => row.behavior_id === INBOX_DONE_BEHAVIOR_ID),
+  );
+});
+
 test("home dock offered set is collected from catalog subjects, not the unbound default pair", () => {
   const catalog = assembleHostBehaviorCatalog();
   assert.deepEqual(
@@ -687,6 +759,9 @@ test("home dock offered set is collected from catalog subjects, not the unbound 
   assert.ok(offered.includes(HOME_CONTINUE_BEHAVIOR_ID));
   assert.ok(offered.includes(FEED_OPEN_BEHAVIOR_ID));
   assert.equal(offered.includes(INBOX_ADMIT_BEHAVIOR_ID), false);
+  assert.equal(offered.includes(FEED_SAVE_BEHAVIOR_ID), false);
+  assert.equal(offered.includes(FEED_PROMOTE_BEHAVIOR_ID), false);
+  assert.equal(offered.includes(FEED_ARCHIVE_BEHAVIOR_ID), false);
   assert.equal(offered.includes(LIST), false);
   const defaults = defaultHomeDockBehaviorIds("continue", true);
   assert.deepEqual(defaults, [HOME_CONTINUE_BEHAVIOR_ID, INBOX_DONE_BEHAVIOR_ID]);
@@ -700,6 +775,9 @@ test("home dock offered set is collected from catalog subjects, not the unbound 
 test("Feed and Inbox declare scenes without naming the Functions plugin implementation", () => {
   assert.equal(feedManifest.function_scenes?.[0]?.scene_id, FEED_CAPTURE_SCENE_ID);
   assert.ok(feedManifest.requires?.some((row) => row.capability_id === "functions.evaluate"));
+  assert.ok(feedManifest.behaviors?.some((row) => row.behavior_id === "save"));
+  assert.ok(feedManifest.behaviors?.some((row) => row.behavior_id === "promote"));
+  assert.ok(feedManifest.behaviors?.some((row) => row.behavior_id === "archive"));
   assert.equal(inboxManifest.function_scenes?.[0]?.scene_id, "inbox.next");
   assert.equal(inboxManifest.plugin_id.includes("functions"), false);
 });

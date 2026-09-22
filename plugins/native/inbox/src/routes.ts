@@ -10,6 +10,7 @@ export interface InboxPluginRouteRequest {
 export interface InboxPluginRouteResponse {
   readonly status: number;
   readonly body?: unknown;
+  readonly html?: string;
   readonly headers?: Readonly<Record<string, string>>;
 }
 
@@ -35,6 +36,7 @@ export interface InboxPluginRouteBinding extends InboxPluginRouteDefinition {
 
 export const INBOX_NATIVE_PLUGIN_ROUTES = [
   route("inbox.list", "GET", /^\/api\/inbox$/u),
+  route("inbox.workbench", "GET", /^\/api\/inbox\/workbench$/u),
   route("inbox.judgment.read", "GET", /^\/api\/inbox\/judgment$/u),
   route("inbox.judgment.write", "POST", /^\/api\/inbox\/judgment$/u),
   route("inbox.entry.status", "POST", /^\/api\/inbox\/entries\/([^/]+)\/status$/u, ["entry_id"]),

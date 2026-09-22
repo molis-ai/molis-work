@@ -421,6 +421,47 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
       return feedWorkbenchRequest;
     };
 
+    let feedStageRefreshSeq = 0;
+    const refreshFeedStage = async () => {
+      const seq = ++feedStageRefreshSeq;
+      const list = document.querySelector("[data-feed-list]") || feedList;
+      const workspace = document.querySelector("[data-feed-stage-workspace]");
+      const empty = workspace?.querySelector("[data-feed-detail-empty]") || feedDetailEmpty;
+      try {
+        const scrollTop = list?.scrollTop || 0;
+        const selectedId = selectedFeedItem;
+        const response = await fetch(
+          route("/api/feed/workbench?preset=" + encodeURIComponent(activeFeedPreset)),
+          { cache: "no-store" },
+        );
+        if (!response.ok) throw new Error(L("无法更新 Feed 列表"));
+        const template = document.createElement("template");
+        template.innerHTML = (await response.text()).trim();
+        if (seq !== feedStageRefreshSeq) return false;
+        const nextList = template.content.querySelector("[data-feed-list]");
+        const nextWorkspace = template.content.querySelector("[data-feed-stage-workspace]");
+        if (!list || !workspace || !empty || !nextList || !nextWorkspace) throw new Error(L("无法更新 Feed 列表"));
+        list.replaceChildren(...nextList.childNodes);
+        workspace.querySelectorAll("[data-feed-entry-detail], [data-feed-detail]").forEach((node) => {
+          if (node !== empty) node.remove();
+        });
+        [...nextWorkspace.querySelectorAll("[data-feed-entry-detail]")].forEach((node) => {
+          workspace.insertBefore(node, empty);
+        });
+        if (feedWorkbench) {
+          feedWorkbench.dataset.loaded = "true";
+          feedWorkbench.dataset.loadedPreset = activeFeedPreset;
+        }
+        filterFeedItems(true, false);
+        if (selectedId) selectFeedItem(selectedId, false, false, false);
+        list.scrollTop = scrollTop;
+        return true;
+      } catch {
+        if (seq === feedStageRefreshSeq) location.reload();
+        return false;
+      }
+    };
+
     const loadFeedItemDetail = async (row, entryId) => {
       if (!feedWorkbench || !row || row.dataset.feedEntryPersisted !== "true") return;
       const pane = document.querySelector('[data-feed-entry-detail="' + CSS.escape(entryId) + '"]');

@@ -53,7 +53,7 @@ Manifest 内部的一致性由解析器保证，而不是留到运行时才炸�
 
 ## 5. Native 与 Integration Plugin
 
-Native Plugin 是一级产品入口，组合 Module API 和 UI；它不吸收 Module implementation。Goals、Artifacts 是官方保护的一等 Plugin。本机偏好用 `settings-page` 挂到 `workbench.settings`，由全局设置目录列出；Feed/Inbox 里的来源和账号仍是插件内容功能，不进全局设置。
+Native Plugin 是一级产品入口，组合 Module API 和 UI；它不吸收 Module implementation。Goals、Artifacts 是官方保护的一等 Plugin。本机偏好用 `settings-page` 挂到 `workbench.settings`，由全局设置目录列出；Feed/Inbox 里的来源和账号仍是插件内容功能，不进全局设置。Functions 事件去向只收录该对象画面上已接线的下一步处置，录取标准与判例见 [Plugin 开发 · 事件去向的动作名单](PLUGIN-DEVELOPMENT.md#事件去向的动作名单)。完整写插件（含 Host 装配、CLI、接入）： [molis-plugin-dev Skill](../../skills/molis-plugin-dev/SKILL.md)。
 
 Integration Plugin 把 Provider 的 Manifest、Local/Server entry、设置 UI、Connector/Listener/Signal/Action Adapter 放在一起。Host 只看 Contract 和 Receipt，不包含 GitHub/Gmail 等 provider 条件分支。
 

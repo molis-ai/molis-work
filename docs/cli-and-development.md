@@ -86,6 +86,7 @@ desktop/                     macOS App 的 Cargo/Tauri 发布配置；源码位�
 examples/seed-demo.mts       调用产品 demo 生命周期的开发脚本
 docs/screenshots/            README 产品截图
 skills/goal-advance/         Runtime 工作协议
+skills/molis-plugin-dev/     插件开发 Skill（随安装发布，不自动挂 Runtime）
 tests/goal-events-state.test.ts
                              当前要求、决定、完成与继续的状态转换
 tests/goal-event-migration.test.ts
@@ -124,7 +125,7 @@ specs/molis-work-architecture-reorganization/spec.md
 
 ## 对外 MCP
 
-对外只有 `molis-work-mcp`。插件登记、人开闸、Host 合成目录。插件作者步骤见 [Plugin 开发 · 对外 MCP](platform/PLUGIN-DEVELOPMENT.md#对外-mcp)。Runtime Skill 协议见 [MCP 接入](mcp.md)。
+对外只有 `molis-work-mcp`。插件登记、人开闸、Host 合成目录。写插件的顺序和要素取舍见 [molis-plugin-dev Skill](../skills/molis-plugin-dev/SKILL.md)。作者步骤见 [Plugin 开发 · 对外 MCP](platform/PLUGIN-DEVELOPMENT.md#对外-mcp)。Runtime Skill 协议见 [MCP 接入](mcp.md)。
 
 ### 调用链
 

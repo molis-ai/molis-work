@@ -57,4 +57,46 @@ export const CLIENT_NAVIGATION_INBOX_SCRIPT = `
       if (persist) queueSave();
     };
 
+    let inboxStageRefreshSeq = 0;
+    const refreshInboxStage = async () => {
+      const seq = ++inboxStageRefreshSeq;
+      const list = document.querySelector("[data-inbox-list]") || inboxList;
+      const workspace = document.querySelector("[data-inbox-stage-workspace]");
+      const empty = workspace?.querySelector("[data-inbox-detail-empty]");
+      try {
+        const scrollTop = list?.scrollTop || 0;
+        const selectedId = list?.querySelector("[data-inbox-row].is-selected")?.dataset.inboxEntryId || "";
+        const filter = inboxDirectory?.dataset.inboxCurrentFilter || "active";
+        const response = await fetch(route("/api/inbox/workbench"), { cache: "no-store" });
+        if (!response.ok) throw new Error(L("无法更新 Inbox 列表"));
+        const template = document.createElement("template");
+        template.innerHTML = (await response.text()).trim();
+        if (seq !== inboxStageRefreshSeq) return false;
+        const nextList = template.content.querySelector("[data-inbox-list]");
+        const nextWorkspace = template.content.querySelector("[data-inbox-stage-workspace]");
+        const nextEmpty = nextWorkspace?.querySelector("[data-inbox-detail-empty]");
+        if (!list || !workspace || !empty || !nextList || !nextWorkspace || !nextEmpty) {
+          throw new Error(L("无法更新 Inbox 列表"));
+        }
+        list.replaceChildren(...nextList.childNodes);
+        workspace.querySelectorAll("[data-inbox-detail]").forEach((detail) => detail.remove());
+        [...nextWorkspace.querySelectorAll("[data-inbox-detail]")].forEach((detail) => {
+          workspace.insertBefore(detail, empty);
+        });
+        empty.innerHTML = nextEmpty.innerHTML;
+        empty.hidden = nextEmpty.hidden;
+        setInboxFilter(filter, false);
+        if (selectedId && list.querySelector('[data-inbox-entry-id="' + CSS.escape(selectedId) + '"]')) {
+          selectInboxEntry(selectedId, false);
+        } else {
+          collapseInboxStage();
+        }
+        list.scrollTop = scrollTop;
+        return true;
+      } catch {
+        if (seq === inboxStageRefreshSeq) location.reload();
+        return false;
+      }
+    };
+
 `;

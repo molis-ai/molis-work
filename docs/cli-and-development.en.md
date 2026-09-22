@@ -86,6 +86,7 @@ desktop/                     macOS Cargo/Tauri distribution config; source lives
 examples/seed-demo.mts       Dev script calling the product demo lifecycle
 docs/screenshots/            README product screenshots
 skills/goal-advance/         Runtime working protocol
+skills/molis-plugin-dev/     Plugin authoring skill (ships with install; not auto-linked to Runtimes)
 tests/goal-events-state.test.ts
                              Current requirements, decisions, completion, and resume transitions
 tests/goal-event-migration.test.ts

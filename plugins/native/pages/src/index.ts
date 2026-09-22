@@ -23,6 +23,45 @@ export { PagesError } from "./error.js";
 export { EMPTY_PAGES_BODY, parsePagesBody } from "./document.js";
 export { PAGES_TEMPLATES, pagesTemplateById, pagesTemplateSummaries } from "./templates.js";
 export { emptyDoc, nodeFromUnknown, pagesSchema } from "./schema.js";
+export { dragRows, nudgeSpan, previewDrop, previewSpan, reorderTopLevel, spanRoots } from "./reorder.js";
+export { convertedBlocks } from "./convert.js";
+export { safePagesHref } from "./link.js";
+export { blocksFromMarkdown, pasteMarkdown } from "./paste-markdown.js";
+export { addTableColumn, addTableRow, atLastTableCell, deleteTableColumn, deleteTableRow } from "./table-edit.js";
+export { PAGES_TONES, safePagesTone } from "./tone.js";
+export { blockPlaceholder } from "./placeholder.js";
+export { PAGES_CODE_LANGUAGES, safePagesLanguage } from "./code-language.js";
+export { PAGES_CALLOUT_ICONS, calloutIconFor, safePagesCalloutIcon, safePagesCalloutTone } from "./callout.js";
+export {
+  deleteBlock,
+  deleteRow,
+  deleteSpan,
+  duplicateBlock,
+  duplicateRow,
+  duplicateEnclosingRow,
+  duplicateSpan,
+  exitWrappedBlock,
+  indentListItem,
+  leaveCodeDown,
+  leaveCodeUp,
+  linkAt,
+  markdownBlock,
+  moveBlock,
+  moveRow,
+  moveSpan,
+  outdentListItem,
+  replaceEnclosingRow,
+  selectBlockThenAll,
+  selectEnclosingBlock,
+  setBlockTone,
+  setCalloutStyle,
+  setLink,
+  setTone,
+  toneAt,
+  turnBlockInto,
+  turnRowInto,
+  unwrapAtStart,
+} from "./commands.js";
 export { extractFromPagesBody } from "./extract.js";
 export { PAGES_AI_COMMANDS, runPagesAi, stubPagesAi } from "./ai.js";
 export type { PagesRoutePorts } from "./route-handlers.js";

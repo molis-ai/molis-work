@@ -1,6 +1,8 @@
 import type { FormQuestion } from "@molis-ai/molis-work-contracts/modules/form";
 import type { PluginMcpExportDeclaration, PluginMcpHandleRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { FormError } from "./error.js";
+import { promoteForm, requireFormArtifactPort } from "./promote.js";
+import type { FormRoutePorts } from "./route-handlers.js";
 import type { FormStore } from "./store.js";
 
 /** Declare `tool_id`s here and handle by `tool_id` only. Host stamps the public name and injects project_id. */
@@ -49,6 +51,16 @@ export const FORM_MCP_EXPORTS: readonly PluginMcpExportDeclaration[] = [
   {
     tool_id: "publish",
     description: "把草稿问卷标为已发布，并生成 share_id。",
+    input_schema: {
+      type: "object",
+      properties: { id: { type: "string" } },
+      required: ["id"],
+    },
+    effect: "write",
+  },
+  {
+    tool_id: "promote",
+    description: "把当前问卷存成 Artifact。私人库里的稿子还在，可以继续改。答卷不包含在这一版里。",
     input_schema: {
       type: "object",
       properties: { id: { type: "string" } },
@@ -108,6 +120,7 @@ export function runFormMcpTool(
   store: FormStore,
   request: PluginMcpHandleRequest,
   projectId: string,
+  ports: FormRoutePorts = {},
 ): string {
   if (request.tool_id === "list") {
     return dump({ forms: store.list(projectId) });
@@ -129,6 +142,10 @@ export function runFormMcpTool(
   }
   if (request.tool_id === "publish") {
     return dump({ form: store.publish(idOf(request), projectId) });
+  }
+  if (request.tool_id === "promote") {
+    const promoted = promoteForm(store, idOf(request), projectId, requireFormArtifactPort(ports.publishArtifact));
+    return dump({ form: promoted.form, artifact: promoted.artifact });
   }
   if (request.tool_id === "delete") {
     store.delete(idOf(request), projectId);

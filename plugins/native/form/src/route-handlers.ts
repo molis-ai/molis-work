@@ -1,10 +1,12 @@
 import type { FormQuestion } from "@molis-ai/molis-work-contracts/modules/form";
 import { FormError } from "./error.js";
 import type { FormPluginRouteHandler, FormPluginRouteRequest, FormPluginRouteResponse } from "./routes.js";
+import { promoteForm, requireFormArtifactPort, type FormPublishArtifactPort } from "./promote.js";
 import type { FormStore } from "./store.js";
 
 export interface FormRoutePorts {
   completeText?: (prompt: string) => Promise<string>;
+  publishArtifact?: FormPublishArtifactPort;
 }
 
 export function createFormRouteHandlers(
@@ -33,6 +35,16 @@ export function createFormRouteHandlers(
       status: 200,
       body: { form: store.publish(params.id ?? "", projectIdOf(request)) },
     }),
+    "form.promote": ({ params, request }) => {
+      const projectId = projectIdOf(request);
+      const promoted = promoteForm(
+        store,
+        params.id ?? "",
+        projectId,
+        requireFormArtifactPort(ports.publishArtifact),
+      );
+      return { status: 200, body: { form: promoted.form, artifact: promoted.artifact } };
+    },
     "form.delete": ({ params, request }) => {
       store.delete(params.id ?? "", projectIdOf(request));
       return { status: 200, body: { ok: true } };

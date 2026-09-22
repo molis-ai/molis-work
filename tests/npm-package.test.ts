@@ -26,6 +26,14 @@ test("npm staging packs workspace assets without host binaries or modifying the 
     assert.ok(files.has("node_modules/@molis-ai/molis-work-module-goals/methods/industries/industry-developer-tools.md"));
     assert.ok(files.has("node_modules/@molis-ai/molis-work-plugin-cli/bin/molis-work-plugin.mjs"));
     assert.ok(files.has("dist/cli/main.js"));
+    assert.ok(files.has("skills/goal-advance/SKILL.md"));
+    assert.ok(files.has("skills/molis-plugin-dev/SKILL.md"));
+    assert.ok(files.has("skills/molis-plugin-dev/elements.md"));
+    assert.ok(files.has("skills/molis-plugin-dev/ui.md"));
+    assert.ok(files.has("skills/molis-plugin-dev/examples.md"));
+    assert.ok(files.has("skills/molis-plugin-dev/host.md"));
+    assert.ok(files.has("skills/molis-plugin-dev/authoring.md"));
+    assert.ok(files.has("skills/molis-plugin-dev/integrations.md"));
     assert.ok(files.has("vendor/search-evidence-layer/sbom.cdx.json"));
     const desktopPrefix = "node_modules/@molis-ai/molis-work-app-desktop/";
     assert.ok(files.has(`${desktopPrefix}dist/index.js`));

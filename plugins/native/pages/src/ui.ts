@@ -90,6 +90,7 @@ export function renderPagesWorkbench(model: PagesUiModel): string {
         <h1 data-pages-editor-title>${p.text("文档")}</h1>
         <span data-pages-editor-status></span>
         <div class="pages-editor-tools">
+          <button class="mw-btn mw-btn--ghost" type="button" data-pages-promote data-pages-artifact-bar>${p.text("存成 Artifact")}</button>
           <button class="mw-btn mw-btn--ghost pages-chrome-icon" type="button" data-pages-star-editor aria-label="${p.text("收藏")}" title="${p.text("收藏")}">${icon("star")}</button>
           <button class="mw-btn mw-btn--ghost pages-chrome-icon" type="button" data-pages-more aria-expanded="false" aria-haspopup="true" aria-label="${p.text("更多")}" title="${p.text("更多")}">${icon("more")}</button>
           <div class="mw-menu pages-more-menu" data-pages-more-menu hidden>
@@ -98,7 +99,7 @@ export function renderPagesWorkbench(model: PagesUiModel): string {
             </label>
             <hr>
             <button class="mw-menu__item" type="button" data-pages-extract>${icon("sparkles")}${p.text("抽取")}</button>
-            <button class="mw-menu__item" type="button" data-pages-promote>${icon("upload")}${p.text("Promote")}</button>
+            <button class="mw-menu__item" type="button" data-pages-promote>${icon("upload")}${p.text("存成 Artifact")}</button>
             <button class="mw-menu__item" type="button" data-pages-export>${icon("download")}${p.text("导出 HTML")}</button>
             <hr>
             <button class="mw-menu__item mw-menu__item--danger" type="button" data-pages-delete>${icon("trash")}${p.text("删除")}</button>

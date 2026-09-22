@@ -1,7 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { MolisWorkHomeInstallError, SCHEMA_VERSION, INSTALLER_ID, isOwnedInstaller } from "./home-contract.js";
+import {
+  MolisWorkHomeInstallError,
+  SCHEMA_VERSION,
+  INSTALLER_ID,
+  REQUIRED_RELEASE_SKILL_FILES,
+  isOwnedInstaller,
+} from "./home-contract.js";
 import type { InspectedSource, ReleaseManifest, PromotedRelease } from "./home-contract.js";
 import { pathState, writeAtomic, readJsonIfPresent } from "./home-files.js";
 import { copyReleaseEntries, runtimeDependencyReleaseEntries } from "./package-release-files.js";
@@ -178,14 +184,14 @@ export async function inspectRelease(
     "dist/cli/main.js",
     "dist/mcp/server.js",
     "dist/web/server.js",
-    "skills/goal-advance/SKILL.md",
+    ...REQUIRED_RELEASE_SKILL_FILES,
     "node_modules",
     "package.json",
     ...(expectsBundledNode ? ["runtime/node"] : []),
   ];
   const states = await Promise.all(required.map((item) => pathState(path.join(releaseDirectory, item))));
   if (!states.every(Boolean)) return "repairable";
-  const nodeModulesState = states[4];
+  const nodeModulesState = states[required.indexOf("node_modules")];
   if (!nodeModulesState?.isDirectory() || nodeModulesState.isSymbolicLink()) return "repairable";
   if (expectsBundledNode && !states.at(-1)?.isFile()) return "repairable";
   return manifest.content_digest === expectedContentDigest ? "valid" : "refreshable";

@@ -63,6 +63,7 @@ test("real workspace payload installs offline from an unrelated directory and pr
     const methodPath = "industries/industry-developer-tools.md";
     assert.deepEqual(await readFile(join(installed.skill_directory, "goal-advance", "methods", methodPath)),
       await readFile(join(process.cwd(), "modules", "goals", "methods", methodPath)));
+    assert.ok((await stat(join(installed.skill_directory, "molis-plugin-dev", "SKILL.md"))).isFile());
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
 
@@ -93,6 +94,7 @@ async function fixtureScopedRuntimeSource(root: string, version: string): Promis
     mkdir(join(source, "dist", "mcp"), { recursive: true }),
     mkdir(join(source, "dist", "web"), { recursive: true }),
     mkdir(join(source, "skills", "goal-advance"), { recursive: true }),
+    mkdir(join(source, "skills", "molis-plugin-dev"), { recursive: true }),
     mkdir(dependencyDirectory, { recursive: true }),
     mkdir(join(workspacePackage, "dist"), { recursive: true }),
     mkdir(join(workspacePackage, "methods"), { recursive: true }),
@@ -122,6 +124,7 @@ async function fixtureScopedRuntimeSource(root: string, version: string): Promis
     writeFile(join(source, "dist", "mcp", "server.js"), fixtureEntry("mcp")),
     writeFile(join(source, "dist", "web", "server.js"), fixtureEntry("web")),
     writeFile(join(source, "skills", "goal-advance", "SKILL.md"), "# Fixture Skill\n"),
+    writeFile(join(source, "skills", "molis-plugin-dev", "SKILL.md"), "# Fixture Plugin Dev Skill\n"),
     writeFile(
       join(dependencyDirectory, "package.json"),
       JSON.stringify({ name: "fixture-dependency", version: "1.0.0", type: "module", exports: "./index.js" }),

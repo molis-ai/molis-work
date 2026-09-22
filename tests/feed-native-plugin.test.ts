@@ -364,6 +364,17 @@ test("Feed detail keeps Add to Inbox until a legal stay-in-Feed suggestion arriv
     model: persistedDetail({ suggested_behavior_ids: ["invented.behavior", "home.talk"] }),
   });
   assert.match(illegal, /data-feed-action="inbox"/);
+
+  const promote = host.render({
+    contribution_id: FEED_UI_CONTRIBUTION_ID,
+    surface: "persisted-detail",
+    model: persistedDetail({ suggested_behavior_ids: ["feed.promote"] }),
+  });
+  assert.match(promote, /data-feed-action="promote"/);
+  assert.doesNotMatch(promote, /data-feed-action="inbox"/);
+  assert.doesNotMatch(promote, /data-feed-action="save"/);
+  assert.doesNotMatch(promote, /data-feed-action="archive"/);
+  assert.match(promote, /打开原文/);
 });
 
 test("Feed stage list groups items by source task", () => {

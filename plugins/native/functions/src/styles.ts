@@ -93,7 +93,7 @@ export const FUNCTIONS_STYLES = `
     display: block; font-size: 11px; color: var(--muted);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
-  .functions-map-row select.mw-input { min-width: 0; }
+  .functions-map-row :is(.mw-select, .mw-select-picker) { min-width: 0; }
   .functions-effect {
     flex: none; font-size: 11px; color: var(--muted);
   }

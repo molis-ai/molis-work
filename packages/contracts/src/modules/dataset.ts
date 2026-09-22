@@ -10,6 +10,8 @@ export const modulesDatasetContract = {
 
 export const DATASET_PLUGIN_ID = "io.molis.work.dataset";
 export const DATASET_PROJECT_PLUGIN_ID = "dataset";
+export const DATASET_ARTIFACT_TYPE_ID = "io.molis.work.dataset.table";
+export const DATASET_ARTIFACT_SCHEMA_VERSION = 1;
 
 export type DatasetColumnType = "text" | "number" | "date";
 export type DatasetStatus = "draft" | "ready";
@@ -37,6 +39,8 @@ export interface DatasetRecord {
   readonly created_at: string;
   readonly updated_at: string;
   readonly version: number;
+  readonly artifact_id: string;
+  readonly artifact_version: number;
 }
 
 export interface DatasetVersionRecord {

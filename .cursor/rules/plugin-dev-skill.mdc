@@ -1,0 +1,16 @@
+---
+description: 改插件平台时同步更新 molis-plugin-dev Skill 与 Plugin 开发手册
+globs: plugins/**/*.{ts,md},packages/contracts/src/platform/plugin*.ts,packages/plugin-sdk/**/*.ts,packages/plugin-runtime/**/*.ts,docs/platform/PLUGIN*.md,docs/platform/UI-PLATFORM.md,specs/plugin-*/**,specs/function-scene-action-scope/**,specs/plugin-stage-master-detail/**,apps/local-host/src/behavior-catalog.ts,apps/local-host/src/mcp-native-plugins.ts,apps/workbench/src/plugin-catalog.ts,apps/workbench/src/plugin-workbench.ts,packages/design-system/src/plugin-stage-shell.ts,skills/molis-plugin-dev/**
+alwaysApply: false
+---
+
+# 插件平台文档与 Skill
+
+写或改插件、Manifest、MCP、behaviors、function_scenes、插件事件、plugin-stage、Design System 插件壳、Host catalog/HTTP 时，先读 `skills/molis-plugin-dev/SKILL.md`，再按任务读 `elements.md` / `ui.md` / `host.md` / `authoring.md` / `integrations.md` / `examples.md`。本仓库 `.cursor/skills/molis-plugin-dev` 只是指向该目录的符号链接。
+
+合同或装配边界变了（新 Manifest 字段、MCP 闸门、动作录取、Slot、kind 语义、Host 接线位置），同一任务内更新：
+
+1. `skills/molis-plugin-dev/`（SKILL.md 或对应 reference）
+2. `docs/platform/PLUGIN-DEVELOPMENT.md`
+
+只改插件内部实现、公开合同没变：不必改 Skill。合同变了只改代码：任务没完。

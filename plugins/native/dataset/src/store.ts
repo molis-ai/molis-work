@@ -20,6 +20,8 @@ interface DatasetRowDb {
   created_at: string;
   updated_at: string;
   version: number;
+  artifact_id?: string;
+  artifact_version?: number;
 }
 
 const COLUMN_TYPES: readonly DatasetColumnType[] = ["text", "number", "date"];
@@ -61,6 +63,8 @@ export class DatasetStore {
       created_at: now,
       updated_at: now,
       version: 1,
+      artifact_id: "",
+      artifact_version: 0,
     };
     this.write(record, true);
     return record;
@@ -87,6 +91,15 @@ export class DatasetStore {
     };
     this.write(next, false);
     return next;
+  }
+
+  rememberArtifact(id: string, artifactId: string, artifactVersion: number, projectId?: string): DatasetRecord {
+    const current = this.get(id, projectId);
+    const updated_at = new Date().toISOString();
+    this.db.prepare(
+      "UPDATE datasets SET artifact_id = ?, artifact_version = ?, updated_at = ?, version = ? WHERE id = ?",
+    ).run(artifactId, artifactVersion, updated_at, current.version + 1, id);
+    return this.get(id, projectId);
   }
 
   delete(id: string, projectId?: string): void {
@@ -189,7 +202,9 @@ export function openDatasetStore(homeDirectory: string): DatasetStore {
       rows_json TEXT NOT NULL,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
-      version INTEGER NOT NULL
+      version INTEGER NOT NULL,
+      artifact_id TEXT NOT NULL DEFAULT '',
+      artifact_version INTEGER NOT NULL DEFAULT 0
     );
     CREATE TABLE IF NOT EXISTS dataset_versions (
       id TEXT PRIMARY KEY,
@@ -200,6 +215,8 @@ export function openDatasetStore(homeDirectory: string): DatasetStore {
     );
   `);
   ensureSqliteColumn(db, "datasets", "project_id", "TEXT NOT NULL DEFAULT ''");
+  ensureSqliteColumn(db, "datasets", "artifact_id", "TEXT NOT NULL DEFAULT ''");
+  ensureSqliteColumn(db, "datasets", "artifact_version", "INTEGER NOT NULL DEFAULT 0");
   return new DatasetStore(db);
 }
 
@@ -288,6 +305,8 @@ function fromRow(row: DatasetRowDb): DatasetRecord {
     created_at: row.created_at,
     updated_at: row.updated_at,
     version: row.version,
+    artifact_id: row.artifact_id ?? "",
+    artifact_version: Number(row.artifact_version) || 0,
   };
 }
 

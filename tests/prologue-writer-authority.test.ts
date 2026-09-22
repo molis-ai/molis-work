@@ -11,10 +11,10 @@ const requireSdk = createRequire(new URL("../horizontal/agent-host/package.json"
 const { createRuntime } = await import(requireSdk.resolve("@prologue/sdk"));
 const { createNodeHost } = await import(requireSdk.resolve("@prologue/sdk/node"));
 
-function toolResponse(name?: string, input?: unknown) {
+function toolResponse(name?: string, input?: unknown, suffix = "") {
   const frames = [
     { type: "message_start", message: { id: "fixture", type: "message", role: "assistant", model: "fixture", content: [], usage: { input_tokens: 20, output_tokens: 0 } } },
-    ...(name ? [{ type: "content_block_start", index: 0, content_block: { type: "tool_use", id: `fixture-${name}`, name, input } }]
+    ...(name ? [{ type: "content_block_start", index: 0, content_block: { type: "tool_use", id: `fixture-${name}${suffix}`, name, input } }]
       : [{ type: "content_block_start", index: 0, content_block: { type: "text", text: "" } },
         { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "Fixture run ended; inspect actual operation receipts." } }]),
     { type: "content_block_stop", index: 0 },
@@ -176,5 +176,82 @@ for (const decision of ["approve", "reject", "stop", "bridge-failure", "escape",
     if (decision === "approve" || decision === "command") assert.equal(queue.receipt(writeReview!)?.effect_settled, true);
     if (commandResult) assert.deepEqual(await adapter.readCommandOutput({ runtime_id: "prologue", session_id: before[0]!.child_run.session_id }, { run_id: before[0]!.child_run.run_id, call_id: "fixture-run-command" }), commandResult);
     if (writeReview) await assert.rejects(queue.respond({ review_id: writeReview, decision: "approve", actor_id: "user" }));
+  } finally { await adapter.close(); await rm(root, { recursive: true, force: true }); }
+});
+
+test("production writers role runs two isolated children concurrently with independent decisions and durable original results", { timeout: 35_000 }, async t => {
+  const root = await mkdtemp(join(tmpdir(), "molis-production-writers-"));
+  const parent = join(root, "parent"), childPaths = [join(root, "a"), join(root, "b")];
+  for (const directory of [parent, ...childPaths]) { await mkdir(directory); await writeFile(join(directory, "sample.txt"), "ORIGINAL\n"); }
+  let calls = 0, parentCalls = 0; const childCalls = [0, 0];
+  t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
+    calls++; const body = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
+    const task = body.messages.filter((message: any) => message.role === "user").map((message: any) => typeof message.content === "string" ? message.content : message.content.filter((block: any) => block.type === "text").map((block: any) => block.text).join("\n")).join("\n");
+    const child = task.match(/PRODUCTION_CHILD_([01])/);
+    if (child) {
+      const index = Number(child[1]); childCalls[index]++;
+      assert.ok(body.tools.some((tool: any) => tool.name === "write"));
+      if (childCalls[index] === 1) return toolResponse("read", { path: "sample.txt" });
+      if (childCalls[index] === 2) return toolResponse("write", { path: "sample.txt", text: `CHILD ${index}\n` });
+      return toolResponse();
+    }
+    assert.ok(!body.tools.some((tool: any) => ["write", "edit", "run-command"].includes(tool.name)), "production parent is read-only");
+    parentCalls++;
+    if (parentCalls <= 2) {
+      const character = JSON.stringify(body.system).match(/molis-child-[a-z0-9-]+@4/)?.[0]; assert.ok(character);
+      const index = parentCalls - 1;
+      return toolResponse("dispatch-subagent", { instruction: `PRODUCTION_CHILD_${index}: read and then replace sample.txt in your own root; report the actual receipt.`, tools: ["read", "search", "context-remaining", "write", "edit", "run-command"], character, workspace: `writer-${index}`, idempotencyKey: `writer-${index}`, background: true, maxTurns: 3 }, String(index));
+    }
+    if (parentCalls === 3) {
+      const refs = [...new Set<string>(JSON.stringify(body.messages).match(/sub-[a-z0-9-]+/g) ?? [])]; assert.equal(refs.length, 2);
+      return toolResponse("await-subagents", { refs, mode: "all", timeoutMs: 10_000 });
+    }
+    return toolResponse();
+  });
+  let queue = new AgentReviewQueue();
+  const make = () => createPrologueNodeAdapter({ app: { appId: "io.molis.work.production-writers", appVersion: "1.0.0" }, storageRoot: join(root, "runtime"), reviewQueue: queue,
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "test-only" });
+  let adapter = await make();
+  try {
+    const host = new AgentHost({ reviews: queue }); host.register(adapter);
+    const owner = { board_id: "b", plugin_id: "io.molis.work.coding", install_id: "i", actor_id: "user" }, directory = { canonical_path: parent, realpath_verified: true };
+    const session = await adapter.createSession({ ...owner, directory, title: "Two parallel changes" });
+    const handle = await host.start("prologue", { ...owner, session, directory, role_id: "writers", task: "Implement the two specified assignments independently.",
+      subagent_workspaces: childPaths.map((canonical_path, index) => ({ workspace_id: `writer-${index}`, directory: { canonical_path, realpath_verified: true } })) },
+      { manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: [parent, ...childPaths] });
+    const decided = new Set<string>(); let concurrent = false; const deadline = Date.now() + 20_000;
+    for (;;) {
+      const view = await adapter.read(handle.ref);
+      if (["completed", "failed", "stopped"].includes(view.phase)) { assert.equal(view.phase, "completed", JSON.stringify(view)); break; }
+      if (Date.now() > deadline) throw new Error("Timed out: " + JSON.stringify({ view, reviews: queue.list("b"), childCalls, parentCalls }));
+      const pending = queue.list("b", "pending").filter(review => !decided.has(review.review_id));
+      for (const review of pending.filter(review => review.kind === "tool-operation")) {
+        decided.add(review.review_id); await queue.respond({ review_id: review.review_id, decision: "approve", actor_id: "user" });
+      }
+      const writes = pending.filter(review => review.document.kind === "text-edit");
+      if (writes.length === 2) {
+        concurrent = true;
+        for (const path of [parent, ...childPaths]) assert.equal(await readFile(join(path, "sample.txt"), "utf8"), "ORIGINAL\n");
+        for (const review of writes) {
+          if (review.document.kind !== "text-edit") throw new Error("wrong review");
+          assert.ok(childPaths.includes(review.document.workspace_path));
+          decided.add(review.review_id);
+          const response = await queue.respond({ review_id: review.review_id, decision: review.document.workspace_path === childPaths[0] ? "approve" : "reject", actor_id: "user" });
+          assert.equal(response.delivery_error, undefined);
+        }
+      }
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    assert.equal(concurrent, true, "both children must reach pending writes before either is approved");
+    assert.equal(await readFile(join(parent, "sample.txt"), "utf8"), "ORIGINAL\n");
+    assert.equal(await readFile(join(childPaths[0]!, "sample.txt"), "utf8"), "CHILD 0\n");
+    assert.equal(await readFile(join(childPaths[1]!, "sample.txt"), "utf8"), "ORIGINAL\n");
+    const before = await adapter.subagents!.list(handle.ref); assert.equal(before.length, 2);
+    assert.ok(before.every(child => child.state === "completed" && child.role_id === "coding-builder"));
+    assert.deepEqual(before.map(child => child.workspace_path).sort(), [...childPaths].sort());
+    const count = calls; await adapter.close(); queue = new AgentReviewQueue(); adapter = await make();
+    assert.deepEqual(await adapter.subagents!.list(handle.ref), before); await queue.refresh("b"); assert.equal(calls, count);
+    assert.equal(queue.list("b").filter(review => review.kind === "text-edit").length, 2);
+    for (const review of queue.list("b").filter(review => review.kind === "text-edit")) assert.equal(queue.receipt(review.review_id)?.effect_settled, review.document.kind === "text-edit" && review.document.workspace_path === childPaths[0]);
   } finally { await adapter.close(); await rm(root, { recursive: true, force: true }); }
 });

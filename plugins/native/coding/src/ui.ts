@@ -152,9 +152,9 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
     <dialog class="mw-dialog mw-dialog--form" data-coding-writer-directories-dialog aria-label="独立工作树"><div class="mw-form mw-dialog__shell">
       <header class="mw-form__header"><h2>独立工作树</h2>${renderButton({label:"关闭",variant:"ghost",attrs:{"data-coding-writer-directories-close":""}})}</header>
       <section class="mw-form__body"><div><p data-coding-writer-parent></p><p>从主仓库当前提交创建独立目录和本地分支。创建与项目授权需先审查；已有未提交内容时不会分叉，避免遗漏当前修改。</p>
-      <p>准备后可选作下一轮工作区。自动并行分派与成果合并尚未开放。</p></div>
+      <p>可选作下一轮工作区，或勾选目录并填写并行分工。保存分工后选择「并行写入」再发送；每项修改和命令仍需审查。主工作区成果整合尚未开放。</p></div>
       <div data-coding-writer-directories-list></div><p data-coding-writer-directories-status role="status"></p><div data-coding-writer-directory-reviews></div></section>
-      <footer class="mw-form__footer">${renderButton({label:"刷新目录",variant:"secondary",attrs:{"data-coding-writer-directories-refresh":""}})}${renderButton({label:"准备新工作树",attrs:{"data-coding-writer-directories-create":""}})}</footer>
+      <footer class="mw-form__footer">${renderButton({label:"刷新目录",variant:"secondary",attrs:{"data-coding-writer-directories-refresh":""}})}${renderButton({label:"保存分工",variant:"secondary",attrs:{"data-coding-writer-assignments-save":""}})}${renderButton({label:"准备新工作树",attrs:{"data-coding-writer-directories-create":""}})}</footer>
     </div></dialog>
     <dialog class="mw-dialog mw-dialog--form" data-coding-workspace-dialog aria-label="选择工作区"><form class="mw-form mw-dialog__shell" data-coding-workspace-form>
       <header class="mw-form__header"><h2>选择工作区</h2><button class="mw-btn" type="button" data-coding-workspace-close>关闭</button></header>
@@ -235,7 +235,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
         <form class="coding-composer" data-coding-composer>
           <label class="coding-task-label" for="coding-task">任务或补充要求</label>
           <textarea class="mw-input" id="coding-task" data-coding-task rows="3" placeholder="描述要完成的任务…" disabled></textarea>
-          <div class="coding-composer-actions">${renderButton({label:"＋ 材料",variant:"secondary",attrs:{"data-coding-material-open":"","aria-label":"选择固定材料"}})}${renderButton({label:"角色",variant:"secondary",attrs:{"data-coding-character-open":"","aria-label":"选择角色"}})}${renderButton({label:"/ 方法",variant:"secondary",attrs:{"data-coding-method-open":"","aria-label":"选择方法"}})}${renderButton({label:"MCP",variant:"secondary",attrs:{"data-coding-mcp-open":"","aria-label":"选择 MCP 工具与资料"}})}<select class="mw-select" data-coding-intent aria-label="任务方式"><option value="discuss">讨论</option><option value="plan">规划</option><option value="collaborate">只读协作</option><option value="edit" disabled>修改文件（待接通审批）</option><option value="execute" disabled>执行（待接通审批）</option><option value="review">评审</option></select>
+          <div class="coding-composer-actions">${renderButton({label:"＋ 材料",variant:"secondary",attrs:{"data-coding-material-open":"","aria-label":"选择固定材料"}})}${renderButton({label:"角色",variant:"secondary",attrs:{"data-coding-character-open":"","aria-label":"选择角色"}})}${renderButton({label:"/ 方法",variant:"secondary",attrs:{"data-coding-method-open":"","aria-label":"选择方法"}})}${renderButton({label:"MCP",variant:"secondary",attrs:{"data-coding-mcp-open":"","aria-label":"选择 MCP 工具与资料"}})}<select class="mw-select" data-coding-intent aria-label="任务方式"><option value="discuss">讨论</option><option value="plan">规划</option><option value="collaborate">只读协作</option><option value="parallel" disabled>并行写入</option><option value="edit" disabled>修改文件（待接通审批）</option><option value="execute" disabled>执行（待接通审批）</option><option value="review">评审</option></select>
           <select class="mw-select" data-coding-model aria-label="下一轮使用的模型"></select><button class="mw-btn mw-btn--primary" type="submit" data-coding-send disabled>发送</button></div>
           <small data-coding-draft-status>模型与方式的选择用于下一轮。</small>
         </form>
@@ -345,7 +345,7 @@ export const codingSettingsDescriptor: UiContributionDescriptor = {
  */
 export function renderCodingSettings(model: CodingSettingsModel): string {
   const { primitives: p } = model;
-  const roles = model.roles.map((role) => `<div class="settings-setting-row"><div class="setting-copy"><strong>${p.escape(role.name)}</strong><span>${p.escape(role.role_id === "coordinator" || role.role_id === "writers" ? "计划协作尚未接通" : executionLabel(role.execution))}</span></div></div>`).join("");
+  const roles = model.roles.map((role) => `<div class="settings-setting-row"><div class="setting-copy"><strong>${p.escape(role.name)}</strong><span>${p.escape(role.role_id === "writers" ? "主任务只读；已分配子目录逐笔审查写入" : role.role_id === "coordinator" ? "只读子任务协作" : executionLabel(role.execution))}</span></div></div>`).join("");
   const runtimes = model.runtimes.length === 0
     ? `<p class="model-field-hint">${p.escape("宿主还没有注册任何运行时")}</p>`
     : model.runtimes.map((runtime) => `<div class="settings-setting-row"><div class="setting-copy"><strong>${p.escape(runtime.display_name)}</strong><span>${p.escape(runtime.can_write ? runtime.can_command ? "可读取、修改文件和运行命令；写入与命令经过宿主审查。" : "可读取和修改文件；写入经过宿主审查。" : "只读：写入未接宿主审批")}</span><span>${p.escape(runtime.methods === "partial" ? "方法：支持安装和显式选择，执行冻结正文；自动选择尚未接通。" : runtime.methods === "supported" ? "方法：运行时已接通" : "方法：当前运行时不可用")}</span></div></div>`).join("");

@@ -48,22 +48,29 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const subagents = (${CODING_SUBAGENTS_CLIENT_FACTORY_SCRIPT})({q,api,current:()=>current,status,usageSummary:codingUsageSummary,refresh:()=>readCurrent(),prepareRework:async(id,runId,child,notes)=>{
     if(current!==id)return;
-    const instruction='请针对原子任务 '+child.subagent_id+'（父执行 '+runId+'）安排新的只读返工，保留原结果和评价。原任务：'+child.task+'\\n返工原因：'+notes+'\\n请独立复核新结果；不要把运行结束当成用户验收。';
+    const instruction='请针对原子任务 '+child.subagent_id+'（父执行 '+runId+'）准备返工，保留原结果和评价。原目录：'+child.workspace_path+'。需要写入时请先明确选择该独立工作树与并行写入方式。原任务：'+child.task+'\\n返工原因：'+notes+'\\n请独立复核新结果；不要把运行结束当成用户验收。';
     const value=input.value.trim()?input.value+'\\n\\n'+instruction:instruction;
     input.value=value;rememberDraft(id,value);await saveDraft(id,value);
   }});
-  const writerDirectories = (${CODING_WRITER_DIRECTORIES_CLIENT_FACTORY_SCRIPT})({q,api,host,current:()=>current,workspace:()=>workspaceId,workspaceLabel:()=>state.workspaces?.find(item=>item.workspace_id===workspaceId)?.canonical_path || workspaceId,status,select:async(owner,id)=>{
+  const writerDirectories = (${CODING_WRITER_DIRECTORIES_CLIENT_FACTORY_SCRIPT})({q,api,host,current:()=>current,workspace:()=>workspaceId,workspaceLabel:()=>state.workspaces?.find(item=>item.workspace_id===workspaceId)?.canonical_path || workspaceId,status,assignments:()=>configurations.get(current)?.writer_assignments || [],saveAssignments:async(owner,parent,assignments)=>{
+    if(owner!==current || parent!==workspaceId)throw new Error('会话或主工作区已改变，请重新打开分工');
+    rememberConfiguration();const previous=configurations.get(current);configurations.set(current,{...previous,writer_assignments:assignments});
+    try{await flushDraft();status('分工已保存；选择并行写入并发送任务后才开始。');}catch(error){configurations.set(owner,previous);throw error;}
+  },select:async(owner,id)=>{
     if(owner!==current)throw new Error('会话已改变，请重新打开独立工作树');
     workspaceId=id;rememberConfiguration();await flushDraft();await refreshState();status('下一轮将使用所选独立目录；原任务与主工作区保持原状态。');
   }});
   const plans = (${CODING_PLANS_CLIENT_FACTORY_SCRIPT})({q,api,current:()=>current,status,execute:async revision=>{
     if(sending || recovery || checkpointBusy || !current)throw new Error('请先完成当前操作或核对中断结果');
-    const id=current; sending=true;controls();
+    const id=current,[provider_id,model_id]=JSON.parse(q('[data-coding-model]').value),intent=q('[data-coding-intent]').value==='parallel'?'parallel':'execute';
+    const request={plan_revision:revision,intent,provider_id,model_id,workspace_id:workspaceId,
+      ...(intent==='parallel'?{writer_assignments:structuredClone(configurations.get(id)?.writer_assignments || [])}:{}),
+      methods:structuredClone(methodSelections.get(id)||[]),materials:structuredClone(materialSelections.get(id)||[]),character:structuredClone(characterSelections.get(id)??null),
+      mcp_tools:structuredClone(mcpSelections.get(id)||[]),mcp_sources:structuredClone(mcpSourceSelections.get(id)||[])};
+    sending=true;controls();
     try{
-      await flushDraft();const [provider_id,model_id]=JSON.parse(q('[data-coding-model]').value);
-      await api('/sessions/'+encodeURIComponent(id)+'/runs','POST',{plan_revision:revision,intent:'execute',provider_id,model_id,workspace_id:workspaceId,
-        methods:structuredClone(methodSelections.get(id)||[]),materials:structuredClone(materialSelections.get(id)||[]),character:structuredClone(characterSelections.get(id)??null),
-        mcp_tools:structuredClone(mcpSelections.get(id)||[]),mcp_sources:structuredClone(mcpSourceSelections.get(id)||[])});
+      await flushDraft();
+      await api('/sessions/'+encodeURIComponent(id)+'/runs','POST',request);
       await refreshState();if(id===current)await readCurrent();
     }finally{sending=false;controls();}
   }});
@@ -257,7 +264,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const rememberConfiguration = () => {
     if(!current)return;
     const [provider_id,model_id]=JSON.parse(q('[data-coding-model]').value || '[]');
-    configurations.set(current,{intent:q('[data-coding-intent]').value,provider_id:provider_id || '',model_id:model_id || '',workspace_id:workspaceId});
+    configurations.set(current,{intent:q('[data-coding-intent]').value,provider_id:provider_id || '',model_id:model_id || '',workspace_id:workspaceId,...(configurations.get(current)?.writer_assignments ? {writer_assignments:configurations.get(current).writer_assignments} : {})});
   };
   const refreshState = async () => {
     const result=await api('/state'); state=result;
@@ -274,6 +281,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     if(workspaceChoice.dataset.options!==workspaceKey) {workspaceChoice.replaceChildren(...result.workspaces.map(item=>{const option=document.createElement('option');option.value=item.workspace_id;option.textContent=item.canonical_path;return option;}));workspaceChoice.dataset.options=workspaceKey;workspaceChoice.value=workspaceId;}
     if(!q('[data-coding-workspace-dialog]').open) workspaceChoice.value=workspaceId;
     const roles=result.runtimes.find(runtime=>runtime.runtime_id==='prologue')?.roles || [];
+    q('[data-coding-intent] option[value=parallel]').disabled=!roles.find(role=>role.role_id==='writers')?.available;
     const collaborate=q('[data-coding-intent] option[value=collaborate]');collaborate.disabled=!roles.find(role=>role.role_id==='coordinator')?.available;
     const execute=q('[data-coding-intent] option[value=execute]'); const available=roles.find(role=>role.role_id==='builder');
     execute.disabled=!available?.available; execute.textContent=available?.available ? '执行' : '执行（待接通审批）';
@@ -547,7 +555,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
           if(!node) { node=document.createElement('article'); node.className='coding-turn'; node.dataset.turn=turn.turn_id; node.dataset.kind=turn.kind; }
           const renderKey=turn.text+'|'+(turn.steer?.state || '')+(run.frozen.role_id==='planner'?'|'+run.phase:'');
           if(renderedText.get(node)!==renderKey) {
-            if(!plans.renderTurn(node,run,turn)){node.innerHTML=turn.html || ''; if(!turn.html) node.textContent=turn.text;}
+            if(!plans.renderTurn(node,run,turn) && !writerDirectories.renderTurn(node,run,turn)){node.innerHTML=turn.html || ''; if(!turn.html) node.textContent=turn.text;}
             if(turn.steer) {
               const receipt=document.createElement('small'); receipt.className='coding-turn-receipt';
               receipt.textContent=turn.steer.state==='applied'?'已加入后续模型上下文':turn.steer.state==='unconfirmed'?'已保存，未确认应用':'已收到，等待后续处理';
@@ -595,7 +603,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     const result=q('[data-coding-result]');
     if(!lastRun) { result.textContent="本轮的成果、检查与执行记录会显示在这里。"; delete result.dataset.content; if(statusKey!=='idle'){statusKey='idle';status("输入任务后开始；本轮方式与模型在发送时固定。");} }
     if(lastRun) {
-      const values=[['最新执行（第 '+runs.length+' 轮）',phases[lastRun.phase]||lastRun.phase],['模型',lastRun.frozen.model_id],['工作范围',lastRun.frozen.directory.canonical_path],['身份',lastRun.frozen.role_id+' · v'+lastRun.frozen.role_version],['本轮方法',lastRun.frozen.skills.length ? lastRun.frozen.skills.map(method=>method.name+' · v'+method.version).join('、') : '未使用方法'],['本轮 MCP',lastRun.frozen.mcp_tools?.length ? lastRun.frozen.mcp_tools.map(tool=>(tool.server_label || tool.server)+' / '+tool.tool+' · 配置 '+(tool.configuration_version ?? '未记录')+' · '+tool.version).join('、') : '未使用 MCP'],['本轮 MCP 资料',(lastRun.frozen.mcp_sources || []).length ? lastRun.frozen.mcp_sources.map(source=>(source.server_label || source.server)+' · 配置 '+source.configuration_version).join('、') : '未单独选择资料来源'],['用量',codingUsageSummary(lastRun.usage)]];
+      const values=[['最新执行（第 '+runs.length+' 轮）',phases[lastRun.phase]||lastRun.phase],['模型',lastRun.frozen.model_id],['工作范围',lastRun.frozen.directory.canonical_path],...(lastRun.frozen.subagent_workspaces?.length ? [['本轮独立目录',lastRun.frozen.subagent_workspaces.map(item=>item.directory.canonical_path).join('；')]] : []),['身份',lastRun.frozen.role_id+' · v'+lastRun.frozen.role_version],['本轮方法',lastRun.frozen.skills.length ? lastRun.frozen.skills.map(method=>method.name+' · v'+method.version).join('、') : '未使用方法'],['本轮 MCP',lastRun.frozen.mcp_tools?.length ? lastRun.frozen.mcp_tools.map(tool=>(tool.server_label || tool.server)+' / '+tool.tool+' · 配置 '+(tool.configuration_version ?? '未记录')+' · '+tool.version).join('、') : '未使用 MCP'],['本轮 MCP 资料',(lastRun.frozen.mcp_sources || []).length ? lastRun.frozen.mcp_sources.map(source=>(source.server_label || source.server)+' · 配置 '+source.configuration_version).join('、') : '未单独选择资料来源'],['用量',codingUsageSummary(lastRun.usage)]];
       const character=lastRun.frozen.character;values.push(['本轮 Character',character?character.title+' · v'+character.reference.version:'未使用 Character']);
       if(character)values.push(['本轮内置工具',lastRun.frozen.host_tools?.join('、') || '不使用内置工具']);
       values.push(['本轮固定材料',lastRun.frozen.text_materials.length ? lastRun.frozen.text_materials.map(material=>(material.title || material.source_artifact_id)+' · v'+material.source_version).join('、') : '未选择材料']);
@@ -873,7 +881,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   input.addEventListener('keydown' ,event=>{if(event.key==='Enter' && (event.metaKey || event.ctrlKey) && !event.isComposing){event.preventDefault();q('[data-coding-composer]').requestSubmit();}});
   q('[data-coding-composer]').addEventListener('submit',async(event)=>{
     event.preventDefault();if(sending || recovery || checkpointBusy || !current || !input.value.trim()) return;
-    const id=current,task=input.value,character=structuredClone(characterSelections.get(current) ?? null),materials=structuredClone(materialSelections.get(current) || []),mcp_sources=structuredClone(mcpSourceSelections.get(current) || []),mcp_tools=structuredClone(mcpSelections.get(current) || []),methods=structuredClone(methodSelections.get(current) || []),activeRun=lastRun,modelValue=q('[data-coding-model]').value,intent=q('[data-coding-intent]').value,workspace_id=workspaceId; sending=true;controls();
+    const id=current,task=input.value,character=structuredClone(characterSelections.get(current) ?? null),materials=structuredClone(materialSelections.get(current) || []),mcp_sources=structuredClone(mcpSourceSelections.get(current) || []),mcp_tools=structuredClone(mcpSelections.get(current) || []),methods=structuredClone(methodSelections.get(current) || []),activeRun=lastRun,modelValue=q('[data-coding-model]').value,intent=q('[data-coding-intent]').value,workspace_id=workspaceId,writer_assignments=structuredClone(configurations.get(id)?.writer_assignments || []); sending=true;controls();
     try {
       rememberConfiguration();await flushDraft();
       if(activeRun && !terminal(activeRun.phase)) {
@@ -881,7 +889,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         status('补充要求已交给执行引擎，等待后续处理。');
       } else {
         const [provider_id,model_id]=JSON.parse(modelValue);
-        await api('/sessions/'+encodeURIComponent(id)+'/runs','POST',{task,intent,provider_id,model_id,workspace_id,methods,mcp_tools,mcp_sources,materials,character});
+        await api('/sessions/'+encodeURIComponent(id)+'/runs','POST',{task,intent,provider_id,model_id,workspace_id,methods,mcp_tools,mcp_sources,materials,character,...(intent==='parallel'?{writer_assignments}:{})});
       }
       if(current===id && input.value===task) input.value='';
       if(localDraft(id)===task) await saveDraft(id,''); await refreshState();await readCurrent();

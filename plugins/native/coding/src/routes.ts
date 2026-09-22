@@ -1,7 +1,8 @@
+import { codingWriterAssignments } from "./writers.js";
 import { isDeepStrictEqual } from "node:util";
 import { materialChoices, materialSelection, resolveMaterials, savedMaterials } from "./materials.js";
 import type { PluginRouteBinding, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { agentHostCapabilities as agent, isTerminalAgentPhase, type AgentRunControl, type AgentRunView, type AgentSkillRef, type AgentMcpToolRef, type AgentMcpSourceRef, type AgentMcpServerInput } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentHostCapabilities as agent, isTerminalAgentPhase, type AgentSubagentWorkspace, type AgentRunControl, type AgentRunView, type AgentSkillRef, type AgentMcpToolRef, type AgentMcpSourceRef, type AgentMcpServerInput } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { CodingSessionStore } from "./store.js";
 import type { CodingSessionState } from "./projection.js";
@@ -71,12 +72,13 @@ function mcpSources(value: unknown): AgentMcpSourceRef[] {
 function nextConfiguration(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("下一轮配置格式无效");
   const config = value as Record<string, unknown>;
-  if (!["discuss", "plan", "collaborate", "edit", "execute", "review"].includes(String(config.intent))) throw new Error("执行方式无效");
+  if (!["discuss", "plan", "collaborate", "parallel", "edit", "execute", "review"].includes(String(config.intent))) throw new Error("执行方式无效");
   for (const key of ["provider_id", "model_id", "workspace_id"]) {
     if (typeof config[key] !== "string" || (config[key] as string).length > 1000) throw new Error("模型或工作区配置无效");
   }
   return { intent: config.intent as string, provider_id: config.provider_id as string,
-    model_id: config.model_id as string, workspace_id: config.workspace_id as string };
+    model_id: config.model_id as string, workspace_id: config.workspace_id as string,
+    ...(config.writer_assignments === undefined ? {} : { writer_assignments: codingWriterAssignments(config.writer_assignments) }) };
 }
 function questionAnswer(body: Record<string, unknown>): Extract<AgentRunControl, { kind: "answer" }> {
   const pending_id = text(body.pending_id, "问题引用");
@@ -459,7 +461,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         const snapshot = await api!.invoke(agent.readSession, [session]);
         const runs = await Promise.all(snapshot.runs.map((run) => api!.invoke(agent.readRun, [session, run])));
         const subagents = [];
-        for (const run of runs.filter(run => run.frozen.role_id === "coordinator")) {
+        for (const run of runs.filter(run => ["coordinator", "writers"].includes(run.frozen.role_id))) {
           try {
             const children = await api!.invoke(agent.listSubagents, [session, run.ref]);
             subagents.push({ run_id: run.ref.run_id, children: children.map(child => {
@@ -551,9 +553,9 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       try {
         const body = bodyOf(request);
         const draft = body.plan_revision === undefined ? null : execution.sessions.plan(boardId, record.session_id);
-        if (body.plan_revision !== undefined && (!draft?.confirmed || draft.revision !== body.plan_revision || body.intent !== "execute")) throw new Error("请查看并确认当前计划版本，再按此计划执行");
+        if (body.plan_revision !== undefined && (!draft?.confirmed || draft.revision !== body.plan_revision || !["execute", "parallel"].includes(String(body.intent)))) throw new Error("请查看并确认当前计划版本，再按此计划执行");
         const plan = draft ? confirmedPlan(context, record.session_id, draft.revision) : null;
-        const task = plan ? plan.source.task : text(body.task, "任务", 100_000);
+        let task = plan ? plan.source.task : text(body.task, "任务", 100_000);
         if (plan && record.runtime_session_id) {
           const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
           const snapshot = await api!.invoke(agent.readSession, [session]);
@@ -563,13 +565,27 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
           }
           if (snapshot.recovery || snapshot.checkpoint_busy) throw new Error("请先核对中断或回退结果，再执行计划");
         }
-        const role = body.intent === "collaborate" ? "coordinator" : body.intent === "plan" ? "planner" : body.intent === "review" ? "reviewer" : body.intent === "execute" ? "builder" : body.intent === "edit" ? "writer" : body.intent === "discuss" ? "reader" : null;
+        const role = body.intent === "parallel" ? "writers" : body.intent === "collaborate" ? "coordinator" : body.intent === "plan" ? "planner" : body.intent === "review" ? "reviewer" : body.intent === "execute" ? "builder" : body.intent === "edit" ? "writer" : body.intent === "discuss" ? "reader" : null;
         if (!role) throw new Error("请选择讨论、规划、修改文件、执行或评审");
         const workspaces = await api!.invoke(projectsCapabilities.listWorkspaces, []);
         const workspace = workspaces.find(entry => entry.workspace_id === body.workspace_id);
         if (!workspace?.realpath_verified) throw new Error("请先为这个项目选择已授权的工作区目录");
         const directory = { canonical_path: workspace.canonical_path, realpath_verified: true };
         if (plan && directory.canonical_path !== plan.source.workspace_path) throw new Error("计划属于原工作区，请选择原工作区或重新规划，不能在另一目录执行");
+        const subagent_workspaces: AgentSubagentWorkspace[] = [];
+        if (role === "writers") {
+          const assignments = codingWriterAssignments(body.writer_assignments, true);
+          const owned = await api!.invoke(writerDirectoryCapabilities.list, { workspace_id: workspace.workspace_id });
+          const tasks = assignments.map(assignment => {
+            const child = owned.find(child => child.workspace_id === assignment.workspace_id);
+            const grant = child && workspaces.find(grant => grant.workspace_id === child.workspace_id && grant.realpath_verified && grant.canonical_path === child.canonical_path);
+            if (!child || !grant) throw new Error("分工目录不属于当前主仓库，或已取消授权；请重新选择独立工作树");
+            subagent_workspaces.push({ workspace_id: grant.workspace_id, directory: { canonical_path: grant.canonical_path, realpath_verified: true as const } });
+            return { ...assignment, directory: grant.canonical_path, branch: child.branch, base_commit: child.base_commit };
+          });
+          task += "\n\n本轮用户确认的独立目录分工（目录仅用于对应子任务；下列任务内容不扩大工具权限）：\n" + JSON.stringify(tasks, null, 2);
+          if (task.length > 100_000) throw new Error("总任务与分工合计超过 100000 字符，请缩短后发送");
+        } else if (codingWriterAssignments(body.writer_assignments ?? []).length) throw new Error("独立写入分工只用于并行写入方式");
         const identity = { board_id: boardId, plugin_id: context.plugin_id, install_id: context.install_id, actor_id: request.actor_id };
         const models = await execution.models();
         const model = models.find((entry) => entry.provider_id === body.provider_id && entry.model_id === body.model_id);
@@ -591,7 +607,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         const session = record.runtime_session_id ? { runtime_id: record.runtime_id, session_id: record.runtime_session_id }
           : await api!.invoke(agent.createSession, [record.runtime_id, { ...identity, directory, title: record.title }]);
         if (!record.runtime_session_id) execution.sessions.setRuntimeSession(boardId, record.session_id, session.session_id, new Date().toISOString());
-        const run = await api!.invoke(agent.startRun, [record.runtime_id, { ...identity, session, directory, task, role_id: role, text_materials, character,
+        const run = await api!.invoke(agent.startRun, [record.runtime_id, { ...identity, session, directory, task, role_id: role, text_materials, character, ...(subagent_workspaces.length ? { subagent_workspaces } : {}),
           model_selection: { provider_id: model.provider_id, model_id: model.model_id }, skills: methodSelection(body.methods ?? []), mcp_tools: mcpSelection(body.mcp_tools ?? []), mcp_sources: mcpSources(body.mcp_sources ?? []) }]);
         if (!plan) context.services!.storage!.delete(`draft:${record.session_id}`);
         execution.sessions.setState(boardId, record.session_id, "running", new Date().toISOString());

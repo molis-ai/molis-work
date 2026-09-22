@@ -23,11 +23,7 @@ export async function resolveModelHostname(hostname: string, ports: ModelDnsPort
   const hasProxy = ports.hasProxy();
   if (!hasProxy || !addresses.some(isSyntheticProxyAddress)) return addresses;
   const resolved = await Promise.all([1, 28].map(async (type) => {
-    const url = new URL("https://dns.google/resolve");
-    url.searchParams.set("name", hostname);
-    url.searchParams.set("type", String(type));
-    const response = await ports.fetch(url, { signal: AbortSignal.timeout(8_000), redirect: "error" });
-    if (!response.ok) throw new Error("代理 DNS 查询失败");
+    const response = await queryPublicDns(hostname, type, ports.fetch);
     const result = await response.json() as { Status?: number; Answer?: Array<{ type: number; data: string }> };
     if (result.Status !== 0) throw new Error("代理 DNS 没有返回可验证的地址");
     return (result.Answer ?? []).filter((answer) => (answer.type === 1 || answer.type === 28) && isIP(answer.data))
@@ -40,6 +36,28 @@ export async function resolveModelHostname(hostname: string, ports: ModelDnsPort
   const retained = addresses.filter((address) => !isSyntheticProxyAddress(address)
     && !address.toLowerCase().startsWith("fdfe:dcba:9876:"));
   return [...new Set([...publicLookup, ...retained])];
+}
+
+// Remember only which transport answered, never DNS answers or permissions.
+// This avoids paying the same failed endpoint's 8-second timeout for each tool.
+const reachableDns = new WeakMap<typeof fetch, string>();
+async function queryPublicDns(hostname: string, type: number, fetchDns: typeof fetch): Promise<Response> {
+  // Only transport/HTTP availability can choose another resolver. A received
+  // DNS answer (including NXDOMAIN, malformed or private data) is never retried
+  // against another source to obtain a more permissive result.
+  const endpoints = ["https://dns.google/resolve", "https://dns.alidns.com/resolve"];
+  const preferred = reachableDns.get(fetchDns);
+  if (preferred === endpoints[1]) endpoints.reverse();
+  for (const endpoint of endpoints) {
+    const url = new URL(endpoint);
+    url.searchParams.set("name", hostname);
+    url.searchParams.set("type", String(type));
+    try {
+      const response = await fetchDns(url, { signal: AbortSignal.timeout(8_000), redirect: "error" });
+      if (response.ok) { reachableDns.set(fetchDns, endpoint); return response; }
+    } catch { /* Try the second HTTPS resolver; never send credentials. */ }
+  }
+  throw new Error("公共 DNS 查询不可用，请检查代理连接后重试；没有发送模型请求");
 }
 
 function isSyntheticProxyAddress(address: string): boolean {

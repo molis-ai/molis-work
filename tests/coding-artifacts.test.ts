@@ -22,13 +22,13 @@ test("Manifest 通过 v2 解析，且端口与产出类型逐项对应", () => {
   assert.equal(parsed.plugin_id, "io.molis.work.coding");
   assert.equal(parsed.schema_version, 2);
   assert.ok(parsed.artifacts.consumes.some(entry => entry.artifact_type_id === CHARACTER_ARTIFACT_TYPE && entry.schema_version === 1));
-  assert.deepEqual(parsed.agent?.characters, { selection: "optional-exact-artifact", scope: "project-owner", role_ids: ["reader", "reviewer", "writer", "builder"] });
+  assert.deepEqual(parsed.agent?.characters, { selection: "optional-exact-artifact", scope: "project-owner", role_ids: ["reader", "planner", "reviewer", "writer", "builder"] });
 
   const produced = parsed.artifacts.produces.map((entry) => entry.artifact_type_id).sort();
   assert.deepEqual(produced, [...CODING_ARTIFACT_TYPES].sort());
 
   const outputs = (parsed.ports?.outputs ?? []).map((port) => port.artifact_type_id).sort();
-  assert.deepEqual(outputs, produced.filter(type => type !== "coding.goal-context.v1"), "成果端口对应公开输出；目标输入快照只保留本轮来源");
+  assert.deepEqual(outputs, produced.filter(type => type !== "coding.goal-context.v1" && type !== "coding.plan.v1"), "成果端口对应公开输出；目标输入快照只保留本轮来源");
 
   const inputs = parsed.ports?.inputs ?? [];
   assert.deepEqual(inputs.map(input => input.port).sort(), ["after", "before", "git-changeset", "git-result", "materials", "selection"]);

@@ -204,6 +204,11 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
       <div data-coding-method-list></div><article data-coding-method-document hidden></article><p data-coding-method-error role="alert"></p></section>
       <footer class="mw-form__footer">${renderButton({label:"保存选择",variant:"primary",type:"submit"})}</footer>
     </form></dialog>
+    <dialog class="mw-dialog mw-dialog--form" data-coding-plan-dialog aria-label="调整计划"><form class="mw-form mw-dialog__shell" data-coding-plan-form>
+      <header class="mw-form__header"><h2>调整计划</h2>${renderButton({label:"关闭",variant:"secondary",attrs:{"data-coding-plan-close":""}})}</header>
+      <section class="mw-form__body"><p data-coding-plan-help>按依赖顺序安排步骤，每步写清完成条件。保存修改后需要重新确认；正在执行的任务继续使用原固定版本。</p><div data-coding-plan-fields></div><p role="alert" data-coding-plan-error></p></section>
+      <footer class="mw-form__footer">${renderButton({label:"保存计划修改",variant:"primary",type:"submit",attrs:{"data-coding-plan-save":""}})}</footer>
+    </form></dialog>
     <div class="coding-stage" data-coding-stage>
       <div class="coding-dialogue" data-coding-dialogue>
         <header class="coding-dialogue-head" data-coding-dialogue-head>
@@ -222,7 +227,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
         <form class="coding-composer" data-coding-composer>
           <label class="coding-task-label" for="coding-task">任务或补充要求</label>
           <textarea class="mw-input" id="coding-task" data-coding-task rows="3" placeholder="描述要完成的任务…" disabled></textarea>
-          <div class="coding-composer-actions">${renderButton({label:"＋ 材料",variant:"secondary",attrs:{"data-coding-material-open":"","aria-label":"选择固定材料"}})}${renderButton({label:"角色",variant:"secondary",attrs:{"data-coding-character-open":"","aria-label":"选择角色"}})}${renderButton({label:"/ 方法",variant:"secondary",attrs:{"data-coding-method-open":"","aria-label":"选择方法"}})}${renderButton({label:"MCP",variant:"secondary",attrs:{"data-coding-mcp-open":"","aria-label":"选择 MCP 工具与资料"}})}<select class="mw-select" data-coding-intent aria-label="任务方式"><option value="discuss">讨论</option><option value="edit" disabled>修改文件（待接通审批）</option><option value="execute" disabled>执行（待接通审批）</option><option value="review">评审</option></select>
+          <div class="coding-composer-actions">${renderButton({label:"＋ 材料",variant:"secondary",attrs:{"data-coding-material-open":"","aria-label":"选择固定材料"}})}${renderButton({label:"角色",variant:"secondary",attrs:{"data-coding-character-open":"","aria-label":"选择角色"}})}${renderButton({label:"/ 方法",variant:"secondary",attrs:{"data-coding-method-open":"","aria-label":"选择方法"}})}${renderButton({label:"MCP",variant:"secondary",attrs:{"data-coding-mcp-open":"","aria-label":"选择 MCP 工具与资料"}})}<select class="mw-select" data-coding-intent aria-label="任务方式"><option value="discuss">讨论</option><option value="plan">规划</option><option value="edit" disabled>修改文件（待接通审批）</option><option value="execute" disabled>执行（待接通审批）</option><option value="review">评审</option></select>
           <select class="mw-select" data-coding-model aria-label="下一轮使用的模型"></select><button class="mw-btn mw-btn--primary" type="submit" data-coding-send disabled>发送</button></div>
           <small data-coding-draft-status>模型与方式的选择用于下一轮。</small>
         </form>
@@ -230,6 +235,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
       <aside class="coding-tools" data-coding-tools>
         <nav class="coding-tool-tabs" aria-label="${p.escape("结果与工具")}">${tools || '<span>结果</span>'}</nav>
         ${model.companion_result ?? ""}
+        <section class="coding-result" data-coding-plan aria-label="计划" hidden></section>
         <section class="coding-result" data-coding-recovery hidden aria-label="中断恢复">
           <h3>核对中断结果</h3>
           <p>先核对已发生的操作，再结束中断轮次。不会自动重跑任务或撤销操作；未保存的过程和用量无法补回。</p>

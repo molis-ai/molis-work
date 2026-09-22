@@ -27,12 +27,14 @@ import { CODING_CHANGESET_TYPE } from "@molis-ai/molis-work-contracts/modules/wo
 export const CODING_REPORT_TYPE = "coding.report.v1";
 export const CODING_DIAGRAM_TYPE = "coding.diagram.v1";
 export const CODING_GOAL_CONTEXT_TYPE = "coding.goal-context.v1";
+export const CODING_PLAN_TYPE = "coding.plan.v1";
 
 export const CODING_ARTIFACT_TYPES = [
   CODING_CHANGESET_TYPE,
   CODING_REPORT_TYPE,
   CODING_DIAGRAM_TYPE,
   CODING_GOAL_CONTEXT_TYPE,
+  CODING_PLAN_TYPE,
 ] as const;
 
 export type CodingArtifactType = (typeof CODING_ARTIFACT_TYPES)[number];

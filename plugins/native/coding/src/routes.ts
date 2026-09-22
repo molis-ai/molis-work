@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from "node:util";
 import { materialChoices, materialSelection, resolveMaterials, savedMaterials } from "./materials.js";
 import type { PluginRouteBinding, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities as agent, isTerminalAgentPhase, type AgentRunControl, type AgentRunView, type AgentSkillRef, type AgentMcpToolRef, type AgentMcpSourceRef, type AgentMcpServerInput } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -11,6 +12,8 @@ import { currentGoalContext, savedGoalContext, saveGoalContext, resolveGoalConte
 import { codingChangeSetReference, codingChangeSetPreview, readCodingChangeSet, createCodingChangeSet, codingChangeFeedback } from "./changeset.js";
 import { CODING_CHANGESET_TYPE } from "./artifacts.js";
 import { characterSelection, characterTitle, savedCharacter, type CodingCharacterPorts } from "./characters.js";
+import { confirmedPlan, parseCodingPlan, planFromRun, planMaterial, planReference } from "./plans.js";
+import { CODING_PLAN_TYPE } from "./artifacts.js";
 
 export interface CodingModelChoice { provider_id: string; model_id: string; label: string }
 export interface CodingExecutionPorts {
@@ -67,7 +70,7 @@ function mcpSources(value: unknown): AgentMcpSourceRef[] {
 function nextConfiguration(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("下一轮配置格式无效");
   const config = value as Record<string, unknown>;
-  if (!["discuss", "edit", "execute", "review"].includes(String(config.intent))) throw new Error("执行方式无效");
+  if (!["discuss", "plan", "edit", "execute", "review"].includes(String(config.intent))) throw new Error("执行方式无效");
   for (const key of ["provider_id", "model_id", "workspace_id"]) {
     if (typeof config[key] !== "string" || (config[key] as string).length > 1000) throw new Error("模型或工作区配置无效");
   }
@@ -355,6 +358,57 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         title: text(body.title ?? "新编码会话", "会话名称"), runtime_id: "prologue", at: new Date().toISOString() });
       return { session: record };
     }),
+    route("coding.read-plan", async (request, _api, execution) => {
+      const record = selected(request, execution);
+      if (request.query?.revision !== undefined) {
+        const revision = Number(request.query.revision);
+        if (!Number.isSafeInteger(revision) || revision < 1) throw new Error("固定计划修订无效");
+        return { plan: confirmedPlan(context, record.session_id, revision), fixed: true };
+      }
+      return { plan: execution.sessions.plan(boardId, record.session_id) };
+    }),
+    route("coding.save-plan", async (request, api, execution) => {
+      const record = selected(request, execution), body = bodyOf(request);
+      if (busy.has(record.session_id)) throw new Error("正在开始执行，请稍后调整下一版计划");
+      const expected = body.expected_revision;
+      if (!Number.isSafeInteger(expected) || Number(expected) < 0) throw new Error("请先读取计划修订");
+      const current = execution.sessions.plan(boardId, record.session_id);
+      if ((current?.revision ?? 0) !== expected) throw new Error("计划已变化，请重新打开后合并修改");
+      let proposal;
+      if (body.run_id !== undefined) {
+        if (!record.runtime_session_id) throw new Error("没有可读取的规划轮次");
+        const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
+        const snapshot = await api!.invoke(agent.readSession, [session]);
+        const ref = snapshot.runs.find(run => run.run_id === body.run_id);
+        if (!ref) throw new Error("规划轮次不属于当前会话");
+        proposal = planFromRun(record.session_id, await api!.invoke(agent.readRun, [session, ref]));
+      } else {
+        if (!current) throw new Error("请先从规划轮次形成计划");
+        proposal = { source: current.source, content: parseCodingPlan(body.content) };
+      }
+      if (current?.confirmed && !proposal.content.change_reason) throw new Error("调整已确认计划时，请说明变更理由");
+      if (busy.has(record.session_id)) throw new Error("正在开始执行，请稍后调整下一版计划");
+      const plan = execution.sessions.savePlan(boardId, record.session_id, Number(expected), {
+        ...proposal, revision: Number(expected) + 1, confirmed: null,
+      });
+      return { plan };
+    }),
+    route("coding.confirm-plan", async (request, _api, execution) => {
+      const record = selected(request, execution), draft = execution.sessions.plan(boardId, record.session_id);
+      if (busy.has(record.session_id)) throw new Error("正在开始执行，请稍后确认下一版计划");
+      if (!draft || draft.revision !== bodyOf(request).expected_revision) throw new Error("计划已变化，请重新查看当前修订");
+      if (draft.content.blockers) throw new Error("计划仍有未解决阻塞，请先调整计划");
+      if (draft.confirmed) return { plan: draft };
+      const reference = planReference(record.session_id, draft.revision), fixed = { ...draft, confirmed: reference };
+      planMaterial(fixed);
+      const artifacts = context.services!.artifacts;
+      if (!artifacts.read(reference)) artifacts.publish({ ...reference, artifact_type_id: CODING_PLAN_TYPE, schema_version: 1,
+        content: { kind: "inline", payload: JSON.parse(JSON.stringify(fixed)) },
+        metadata: { title: fixed.content.title, session_id: record.session_id, run_id: fixed.source.run_id } });
+      const saved = confirmedPlan(context, record.session_id, draft.revision);
+      if (!isDeepStrictEqual(saved, fixed)) throw new Error("固定计划与当前草稿不一致，不能确认");
+      return { plan: execution.sessions.confirmPlan(boardId, record.session_id, fixed) };
+    }),
     route("coding.characters", async (request, _api, execution) => {
       const record = selected(request, execution);
       return { characters: execution.characters?.list() ?? [], selected: savedCharacter(context, record.session_id), runtime_id: record.runtime_id };
@@ -362,6 +416,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
     route("coding.read-session", async (request, api, execution) => {
       const record = selected(request, execution);
       const character = savedCharacter(context, record.session_id), character_title = characterTitle(context, character);
+      const plan = execution.sessions.plan(boardId, record.session_id);
       const draft = context.services?.storage?.get(`draft:${record.session_id}`) ?? "";
       const savedConfiguration = context.services?.storage?.get(`configuration:${record.session_id}`);
       const configuration = typeof savedConfiguration === "string" ? nextConfiguration(JSON.parse(savedConfiguration)) : null;
@@ -374,7 +429,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       const methods = typeof savedMethods === "string" ? methodSelection(JSON.parse(savedMethods)) : [];
       const questionDrafts = context.services?.storage?.get(`question-drafts:${record.session_id}`);
       const question_drafts = typeof questionDrafts === "string" ? JSON.parse(questionDrafts) : {};
-      if (!record.runtime_session_id) return { session: { ...record, goal_title: record.goal_id ? execution.goalTitle(record.goal_id) ?? null : null }, runs: [], draft, question_drafts, materials, methods, configuration, mcp_tools, mcp_sources, character, character_title };
+      if (!record.runtime_session_id) return { session: { ...record, goal_title: record.goal_id ? execution.goalTitle(record.goal_id) ?? null : null }, runs: [], draft, question_drafts, materials, methods, configuration, mcp_tools, mcp_sources, character, character_title, plan };
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
       try {
         const snapshot = await api!.invoke(agent.readSession, [session]);
@@ -382,13 +437,13 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         const last = runs.at(-1);
         const state = snapshot.recovery ? "reconcile-required" : last ? sessionState(last) : "idle";
         const updated = state === record.state ? record : execution.sessions.setState(boardId, record.session_id, state, record.updated_at);
-        return { session: { ...updated, checkpoint_busy: snapshot.checkpoint_busy === true, goal_title: updated.goal_id ? execution.goalTitle(updated.goal_id) ?? null : null }, runs, draft, question_drafts, materials, methods, configuration, mcp_tools, mcp_sources, character, character_title, checkpoint_busy: snapshot.checkpoint_busy === true,
+        return { session: { ...updated, checkpoint_busy: snapshot.checkpoint_busy === true, goal_title: updated.goal_id ? execution.goalTitle(updated.goal_id) ?? null : null }, runs, draft, question_drafts, materials, methods, configuration, mcp_tools, mcp_sources, character, character_title, plan, checkpoint_busy: snapshot.checkpoint_busy === true,
           ...(snapshot.recovery ? { recovery_required: true, error: snapshot.recovery.reason } : {}) };
       } catch (error) {
         // Never replace a lost runtime reference with a new session: that would
         // silently lose history and could repeat effects after a restart.
         const session = execution.sessions.setState(boardId, record.session_id, "reconcile-required", record.updated_at);
-        return { session, runs: [], draft, question_drafts, materials, methods, configuration, mcp_tools, mcp_sources, character, character_title, recovery_required: true,
+        return { session, runs: [], draft, question_drafts, materials, methods, configuration, mcp_tools, mcp_sources, character, character_title, plan, recovery_required: true,
           error: (error as { code?: string }).code === "agent.session_unknown"
             ? "此会话的执行记录尚未恢复，不能把它当新任务重跑。原会话与草稿已保留。"
             : "此会话的执行记录暂时无法读取，不能将未知结果当作已完成。原会话与草稿已保留，请稍后重试。" };
@@ -461,13 +516,26 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       busy.add(record.session_id);
       try {
         const body = bodyOf(request);
-        const task = text(body.task, "任务", 100_000);
-        const role = body.intent === "review" ? "reviewer" : body.intent === "execute" ? "builder" : body.intent === "edit" ? "writer" : body.intent === "discuss" ? "reader" : null;
-        if (!role) throw new Error("请选择讨论、修改文件、执行或评审；计划协作尚未接通");
+        const draft = body.plan_revision === undefined ? null : execution.sessions.plan(boardId, record.session_id);
+        if (body.plan_revision !== undefined && (!draft?.confirmed || draft.revision !== body.plan_revision || body.intent !== "execute")) throw new Error("请查看并确认当前计划版本，再按此计划执行");
+        const plan = draft ? confirmedPlan(context, record.session_id, draft.revision) : null;
+        const task = plan ? plan.source.task : text(body.task, "任务", 100_000);
+        if (plan && record.runtime_session_id) {
+          const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
+          const snapshot = await api!.invoke(agent.readSession, [session]);
+          for (const ref of snapshot.runs) {
+            const existing = await api!.invoke(agent.readRun, [session, ref]);
+            if (existing.frozen.text_materials.some(item => item.source_artifact_id === plan.confirmed!.artifact_id && item.source_version === plan.confirmed!.version)) return { run: { ref: existing.ref, frozen: existing.frozen }, existing: true };
+          }
+          if (snapshot.recovery || snapshot.checkpoint_busy) throw new Error("请先核对中断或回退结果，再执行计划");
+        }
+        const role = body.intent === "plan" ? "planner" : body.intent === "review" ? "reviewer" : body.intent === "execute" ? "builder" : body.intent === "edit" ? "writer" : body.intent === "discuss" ? "reader" : null;
+        if (!role) throw new Error("请选择讨论、规划、修改文件、执行或评审");
         const workspaces = await api!.invoke(projectsCapabilities.listWorkspaces, []);
         const workspace = workspaces.find(entry => entry.workspace_id === body.workspace_id);
         if (!workspace?.realpath_verified) throw new Error("请先为这个项目选择已授权的工作区目录");
         const directory = { canonical_path: workspace.canonical_path, realpath_verified: true };
+        if (plan && directory.canonical_path !== plan.source.workspace_path) throw new Error("计划属于原工作区，请选择原工作区或重新规划，不能在另一目录执行");
         const identity = { board_id: boardId, plugin_id: context.plugin_id, install_id: context.install_id, actor_id: request.actor_id };
         const models = await execution.models();
         const model = models.find((entry) => entry.provider_id === body.provider_id && entry.model_id === body.model_id);
@@ -484,13 +552,14 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         const goal = await resolveGoalContext(context, record.session_id, record.goal_id ?? null);
         const text_materials = resolveMaterials(context, materialSelection(body.materials ?? savedMaterials(context, record.session_id)));
         if (goal) text_materials.unshift(goal.material);
-        if (text_materials.length > 30) throw new Error("目标与材料合计每轮最多 30 份，请移除一份材料后重试");
+        if (plan) text_materials.unshift(planMaterial(plan));
+        if (text_materials.length > 30) throw new Error("计划、目标与材料合计每轮最多 30 份，请移除一份材料后重试");
         const session = record.runtime_session_id ? { runtime_id: record.runtime_id, session_id: record.runtime_session_id }
           : await api!.invoke(agent.createSession, [record.runtime_id, { ...identity, directory, title: record.title }]);
         if (!record.runtime_session_id) execution.sessions.setRuntimeSession(boardId, record.session_id, session.session_id, new Date().toISOString());
         const run = await api!.invoke(agent.startRun, [record.runtime_id, { ...identity, session, directory, task, role_id: role, text_materials, character,
           model_selection: { provider_id: model.provider_id, model_id: model.model_id }, skills: methodSelection(body.methods ?? []), mcp_tools: mcpSelection(body.mcp_tools ?? []), mcp_sources: mcpSources(body.mcp_sources ?? []) }]);
-        context.services!.storage!.delete(`draft:${record.session_id}`);
+        if (!plan) context.services!.storage!.delete(`draft:${record.session_id}`);
         execution.sessions.setState(boardId, record.session_id, "running", new Date().toISOString());
         return { run };
       } finally { busy.delete(record.session_id); }

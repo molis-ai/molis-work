@@ -14,6 +14,7 @@ import { codingMethods } from "./methods.js";
  */
 
 export const CODING_READER_ROLE = "reader";
+export const CODING_PLANNER_ROLE = "planner";
 export const CODING_REVIEWER_ROLE = "reviewer";
 export const CODING_WRITER_ROLE = "writer";
 export const CODING_BUILDER_ROLE = "builder";
@@ -23,6 +24,7 @@ export const CODING_WRITERS_ROLE = "writers";
 /** Every role this Plugin offers. The user picks one per session. */
 export const CODING_ROLE_IDS = [
   CODING_READER_ROLE,
+  CODING_PLANNER_ROLE,
   CODING_REVIEWER_ROLE,
   CODING_WRITER_ROLE,
   CODING_BUILDER_ROLE,
@@ -33,11 +35,16 @@ export const CODING_ROLE_IDS = [
 export type CodingRoleId = (typeof CODING_ROLE_IDS)[number];
 
 export const codingAgentManifest: AgentManifest = {
-  characters: { selection: "optional-exact-artifact", scope: "project-owner", role_ids: ["reader", "reviewer", "writer", "builder"] },
+  characters: { selection: "optional-exact-artifact", scope: "project-owner", role_ids: ["reader", "planner", "reviewer", "writer", "builder"] },
   mcp: true,
   compaction: { prompt_id: "coding-compaction", above_tokens: 12_000 },
   skills: codingMethods.map(({ body: _body, ...declaration }) => declaration),
   roles: [
+    {
+      role_id: CODING_PLANNER_ROLE, version: 1, name: "规划者", execution: "read-only",
+      prompts: ["coding-base", "coding-planner"],
+      host_tools: ["context-remaining", "find-tools", "list-mcp-resources", "read-mcp-resource", "ask-user", "read-file", "search"],
+    },
     {
       role_id: CODING_READER_ROLE,
       version: 7,
@@ -99,6 +106,7 @@ export const codingAgentManifest: AgentManifest = {
     },
   ],
   prompts: [
+    { prompt_id: "coding-planner", version: 1 },
     { prompt_id: "coding-compaction", version: 2 },
     // The product's own constraints, shared by every role. Its own layer so a
     // role's wording cannot quietly replace it.
@@ -114,6 +122,15 @@ export const codingAgentManifest: AgentManifest = {
 
 /** The prompt bodies this package ships. The Host composes a role from these. */
 export const codingPrompts: readonly AgentPromptText[] = [
+  {
+    prompt_id: "coding-planner", version: 1,
+    body: [
+      "本轮形成供用户查看、调整和确认的计划，不能执行修改或命令。先根据用户任务读取必要的实际文件，不能凭文件名猜实现；已有事实足够就不要重复查询。",
+      "按依赖顺序给出最小完整步骤，每步包含具体动作、依据路径及可核对的完成条件。不要为普通任务强拆子代理；未解决条件写 blockers，不能假装已解决。",
+      "需要关键信息时先用 ask-user；计划确认由产品的确认按钮完成，不用 ask-user 代替，也不调用 leave-plan。模型输出只是提案，不是确认或执行回执。",
+      '最终只返回一个 JSON 对象（不加 Markdown 围栏）：{"title":"计划标题","steps":[{"title":"具体动作与相关文件","acceptance":"怎样核对完成"}],"blockers":"未解决问题；没有则空字符串","change_reason":"调整既有计划的理由；首次可空"}。1–20 步，正文总量小于 12,000 字符。',
+    ].join("\n"),
+  },
   {
     prompt_id: "coding-compaction", version: 2,
     body: [

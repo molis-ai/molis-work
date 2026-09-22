@@ -1,4 +1,5 @@
 import { CODING_CHARACTERS_CLIENT_FACTORY_SCRIPT } from "./characters-client.js";
+import { CODING_PLANS_CLIENT_FACTORY_SCRIPT } from "./plans-client.js";
 import { codingGoalVersionLabel } from "./goal-versions.js";
 import { CODING_CHANGESET_CLIENT_FACTORY_SCRIPT } from "./changeset-client.js";
 import { codingUsageSummary } from "./usage.js";
@@ -43,6 +44,17 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (!response.ok) throw new Error(result.error || '无法完成 Coding 操作');
     return result;
   };
+  const plans = (${CODING_PLANS_CLIENT_FACTORY_SCRIPT})({q,api,current:()=>current,status,execute:async revision=>{
+    if(sending || recovery || checkpointBusy || !current)throw new Error('请先完成当前操作或核对中断结果');
+    const id=current; sending=true;controls();
+    try{
+      await flushDraft();const [provider_id,model_id]=JSON.parse(q('[data-coding-model]').value);
+      await api('/sessions/'+encodeURIComponent(id)+'/runs','POST',{plan_revision:revision,intent:'execute',provider_id,model_id,workspace_id:workspaceId,
+        methods:structuredClone(methodSelections.get(id)||[]),materials:structuredClone(materialSelections.get(id)||[]),character:structuredClone(characterSelections.get(id)??null),
+        mcp_tools:structuredClone(mcpSelections.get(id)||[]),mcp_sources:structuredClone(mcpSourceSelections.get(id)||[])});
+      await refreshState();if(id===current)await readCurrent();
+    }finally{sending=false;controls();}
+  }});
   const localDraft = (id) => {
     if (drafts.has(id)) return drafts.get(id);
     try { const value = sessionStorage.getItem(draftKey(id)); if (value !== null) return value; } catch {}
@@ -520,9 +532,9 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
           const turn=entry.value;
           let node=[...block.children].find(node=>node.dataset.turn===turn.turn_id);
           if(!node) { node=document.createElement('article'); node.className='coding-turn'; node.dataset.turn=turn.turn_id; node.dataset.kind=turn.kind; }
-          const renderKey=turn.text+'|'+(turn.steer?.state || '');
+          const renderKey=turn.text+'|'+(turn.steer?.state || '')+(run.frozen.role_id==='planner'?'|'+run.phase:'');
           if(renderedText.get(node)!==renderKey) {
-            node.innerHTML=turn.html || ''; if(!turn.html) node.textContent=turn.text;
+            if(!plans.renderTurn(node,run,turn)){node.innerHTML=turn.html || ''; if(!turn.html) node.textContent=turn.text;}
             if(turn.steer) {
               const receipt=document.createElement('small'); receipt.className='coding-turn-receipt';
               receipt.textContent=turn.steer.state==='applied'?'已加入后续模型上下文':turn.steer.state==='unconfirmed'?'已保存，未确认应用':'已收到，等待后续处理';
@@ -658,6 +670,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
       if(fresh) { input.value=localDraft(id) ?? data.draft ?? ''; rememberDraft(id,input.value); q('[data-coding-draft-status]').textContent='草稿已恢复；模型与方式用于下一轮。'; turns.replaceChildren(); pinned=!offsets.has(id); }
       renderRuns(data.runs);
+      plans.update(id,data.plan ?? null,data.runs);
       if(checkpointBusy){statusKey='checkpoint';status('回退操作尚未结束，请查看右侧审查或核对结果。');}
       void host.showReviews?.(q('[data-coding-host-reviews]'), data.runs.map(run=>run.ref), data.session.runtime_session_id);
       const nextCheckpointKey=JSON.stringify([id,data.runs.at(-1)?.ref.run_id,data.runs.at(-1)?.ended_at,checkpointBusy]);

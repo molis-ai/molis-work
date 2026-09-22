@@ -5,7 +5,7 @@ import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plu
 import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { goalContextCapabilities, goalProgressCapabilities } from "@molis-ai/molis-work-contracts/modules/goals";
-import { CODING_GOAL_CONTEXT_TYPE } from "./artifacts.js";
+import { CODING_GOAL_CONTEXT_TYPE, CODING_PLAN_TYPE } from "./artifacts.js";
 import {
   CODING_CHANGESET_TYPE,
   CODING_DIAGRAM_TYPE,
@@ -37,7 +37,7 @@ export const codingManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: CODING_PLUGIN_ID,
-  version: "1.22.0",
+  version: "1.23.0",
   name: "Coding",
   kind: "app",
   publisher: { publisher_id: "molis", signature: "official-coding-binding" },
@@ -63,12 +63,13 @@ export const codingManifest: PluginManifest = {
   },
   artifacts: {
     produces: [
+      { artifact_type_id: CODING_PLAN_TYPE, schema_version: 1 },
       { artifact_type_id: CODING_GOAL_CONTEXT_TYPE, schema_version: 1 },
       { artifact_type_id: CODING_CHANGESET_TYPE, schema_version: 1 },
       { artifact_type_id: CODING_REPORT_TYPE, schema_version: 1 },
       { artifact_type_id: CODING_DIAGRAM_TYPE, schema_version: 1 },
     ],
-    consumes: [CHARACTER_ARTIFACT_TYPE, SHELF_TEXT_MATERIAL_TYPE, CODING_GOAL_CONTEXT_TYPE, CODING_REPORT_TYPE, CODING_CHANGESET_TYPE, FILE_SNAPSHOT_TYPE, FILE_TEXT_SELECTION_TYPE, DIFF_CHANGESET_TYPE, GIT_RESULT_TYPE].map(artifact_type_id => ({ artifact_type_id, schema_version: 1 })),
+    consumes: [CODING_PLAN_TYPE, CHARACTER_ARTIFACT_TYPE, SHELF_TEXT_MATERIAL_TYPE, CODING_GOAL_CONTEXT_TYPE, CODING_REPORT_TYPE, CODING_CHANGESET_TYPE, FILE_SNAPSHOT_TYPE, FILE_TEXT_SELECTION_TYPE, DIFF_CHANGESET_TYPE, GIT_RESULT_TYPE].map(artifact_type_id => ({ artifact_type_id, schema_version: 1 })),
   },
   ports: {
     inputs: [
@@ -97,6 +98,9 @@ export const codingManifest: PluginManifest = {
   },
   agent: codingAgentManifest,
   routes: [
+    { route_id: "coding.read-plan", method: "GET", path: "/sessions/:sessionId/plan" },
+    { route_id: "coding.save-plan", method: "POST", path: "/sessions/:sessionId/plan" },
+    { route_id: "coding.confirm-plan", method: "POST", path: "/sessions/:sessionId/plan/confirm" },
     { route_id: "coding.characters", method: "GET", path: "/sessions/:sessionId/characters" },
     { route_id: "coding.read-changeset", method: "GET", path: "/sessions/:sessionId/runs/:runId/changeset" },
     { route_id: "coding.save-changeset", method: "POST", path: "/sessions/:sessionId/runs/:runId/changeset" },

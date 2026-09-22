@@ -359,7 +359,7 @@ Files 的正式路由经宿主逐次校验当前项目目录，读取目录与 U
 | C10 五个伴随插件 | Workspace / Files / Diff / Git / Text Stats | 已接正式工作区选择、目录/正文阅读、before/after/selection 固定 Artifact、默认输入图、快照 Diff 和固定正文统计；指定 UI 路径与重启已实操；Files 固定材料已进入 Coding 并由 MiniMax 实际读取；Git 真实状态、已暂存/未暂存固定差异及重启恢复已接通；普通文本暂存/取消暂存经宿主审查与 SDK Effect 实际执行；未知结果支持重新核对与有依据的未发生收口；Git 固定差异和结果已进入 Coding 本轮材料与报告 | Shelf/Goal 材料、Coding 差异及行级反馈、Git 内容转换及其余写操作、已发生但缺失回执的恢复、成果/变更事件刷新与独立插件入口仍待接通 |
 | C11 四层提示 | Plugin declaration → Host freeze → SDK | Host 分层存在；Node adapter 已按实际 tgz 的 SDK 类型接通 Resource 写入发布、精确引用、工具名和 Session history；独立两轮测试与正式 Coding 读取/续聊已实操；base Prompt 已去掉错误的全局只读约束；角色交接说明已修正并在新任务验证实际写入/检查状态；长会话只回复计划等质量反例仍保留 | 用实际打包 SDK 类型修正，验证模型确实收到各层；历史与下一轮分开 |
 | C12 Character | 独立 Character 插件 → Artifact → 消费插件声明 → Host freeze | 管理、精确发布、选择冻结、停用与历史报告指定路径已实操，见 §0 | 复杂任务的行为收益、减少人工负担、长内容体验与用户验收 |
-| C13 Plan → SubAgent → TaskBoard | Coding 计划意图 + SDK 执行事实 + 左栏投影 | 尚未实现，顺序不变 | 计划编辑确认、执行关联、必要变更、子任务交接与验收；不另建竞争任务账 |
+| C13 Plan → SubAgent → TaskBoard | Coding 草稿与固定 Artifact + SDK 执行事实 + 左栏投影 | Plan 形成、调整、确认、原工作区执行与历史版本指定路径已实操，见 C13 节；SubAgent/TaskBoard 未接 | 步骤级执行与验收、实际阻塞/变更回流、子任务交接与并行写入；不另建竞争任务账 |
 | C14 Cache | 模型配置 → SDK → 用量 | 配置和 protocol 映射已走正式 Prologue；已有 MiniMax 原回执的非零缓存读取量，产品已显示；未开启/未命中对照与缓存写入尚未实操 | 配置生效、未开启/未命中/命中区分、真实调用证据 |
 | Goal / Shelf / Artifact 闭环 | 各插件端口与 Goals 事件协议 | Coding 的三个 Files 和两个 Git 输入及 Goal 固定上下文已进入模型与报告；正式会话 Goal 关联、变更后重新确认、换绑保留旧成果归属和重启已接通 | Shelf 材料、固定成果回写原 Goal、来源不可读时保留输出、从目标或成果反向继续；模型完成不替代 Goal 验收 |
 
@@ -778,7 +778,7 @@ Goal 材料成果闭环、独立 Character（C12）、Plan→SubAgent→TaskBoar
 | C10 | 复现 FlyLeaf 的另外五个插件 | **基础实现存在，产品闭环见 §0**：`workspace` / `files` / `diff` / `git` / `text-stats` 五个包，Manifest v2 端口与输入组、纯投影层、UI 贡献，全部在真平台上一起启动并能连线。跨插件的载荷契约收进 `contracts/modules/workspace-artifacts`（插件之间不许互相 import）。`workspace-plugin` 7、`files-plugin` 13、`diff-plugin` 16、`git-plugin` 18、`text-stats-plugin` 7、`workspace-plugin-graph` 5、`plugin-catalog-companions` 7 |
 | C11 | 提示分层：划清 ReAct 里属于我们的那一层 | **基础实现存在，产品闭环见 §0**：四层契约、宿主按层组合、项目层接上项目指引、只读的「这一轮的身份」面。`agent-prompt-layers` 11 项 |
 | C12 | Character 管理（角色变成用户可管的数据） | **部分实现并实操**，管理与固定消费见 §0；行为质量与体验验收未完成 |
-| C13 | Plan → SubAgent 接通 → TaskBoard | **计划中**，见 §7；三者按这个顺序，倒过来会做出没有内容的板子 |
+| C13 | Plan → SubAgent 接通 → TaskBoard | **进行中**：Plan 指定链路已实操，步骤回报、SubAgent 与 TaskBoard 待做，见 §7 |
 | C14 | Prompt Cache（开，不只是读数） | **基础实现存在，产品闭环见 §0**：供应商记录带 `prompt_cache`，落库（目录库 schema 18）、设置页、透传到 `startAgentRun`。`model-prompt-cache` 7 项 |
 | C15 | 修 protocol 名字对不上 | **已修**：`prologueProtocolFor()` 做显式翻译，断言钉在 Prologue 自己的适配器表上。`model-protocol-mapping` 5 项 |
 
@@ -1016,7 +1016,7 @@ TaskBoard/SubAgent/Plan/协同、Prompt Cache）。每条先写**今天是什么
    缺一节读起来像「这里没东西可看」，写一句「这个项目还没确认过指引」才是能动手的信息。
    **面上没有任何控件**（有硬断言守着）：能改就等于绕过冻结；要改是改角色，在下一轮之前。
 
-### C12 Character 管理：接线有了，管理没有
+### C12 初始审计：接线与管理缺口（历史，当前实现见 §0）
 
 **今天是什么。** 要分两半，不能一句「没实现」带过：
 
@@ -1042,13 +1042,32 @@ TaskBoard/SubAgent/Plan/协同、Prompt Cache）。每条先写**今天是什么
 
 ### C13 TaskBoard / SubAgent / Plan / Agent 协同
 
+#### 本轮 Plan 对象与责任（2026-09-22，指定链路已实操，C13 整体未完成）
+
+- Coding 拥有用户可编辑的计划草稿：来源规划 Run、原任务、授权工作区、有序步骤、每步完成条件、阻塞和变更说明。草稿按修订做 CAS，更新不覆盖另一页面的修改。
+- 用户查看并确认具体修订后，通过现有 Artifact 发布不可变 `coding.plan.v1`。确认计划只确认做什么，不批准命令、文件修改或 Goal 验收；有未解决阻塞的草稿不能确认。
+- 规划角色只读，先读实际代码再形成结构化提案；格式不合法时保留原回答并显示无法形成计划，不静默补造步骤。普通任务仍能直接执行。
+- “按此计划执行”只能读取属于当前会话的当前确认版本，绑定原工作区，以现有固定材料入口送入模型。历史执行保留精确 Artifact 引用，后续编辑产生新修订，不能修改正在执行的计划。重复点击/丢失响应重试返回已有执行，不重跑已发生的工作。
+- 草稿不保存执行状态。进度、等待审查、失败和中断继续由 Agent Host 的 Run 事实提供；模型结束不推断步骤通过。SDK TaskBoard 已提供依赖图、CAS 和节点回报，但不是用户确认草稿，后续 SubAgent/TaskBoard 接入这些原执行事实，不再建立第二套状态账。
+- 当前先完成可实际操作的 Plan 闭环；子代理分派、步骤回报、并行工作区及 TaskBoard 仍属 C13 必做，不因这次切片延期而移出目标。
+
+**指定产品实操**：会话 `1fc6c88b-9d32-46f9-a853-855c9d744149`，MiniMax-M3，SDK Session `1-8lurt`。规划 Run `3-5su0` 读取 README、两个实现文件与测试，共 4 次只读工具调用；未执行修改或命令。首次回答包含说明加单一 JSON 围栏，已兼容这种无歧义提案，同时拒绝多个竞争 JSON 块和不完整结构，不靠重新请求模型掩盖格式问题。
+
+原提案错误要求折后 0 分免运费；通过正式计划编辑入口改为运费/合计 500 分。实操阻塞字段使确认按钮禁用，消除阻塞并确认修订 4 后才点击执行。Run `3-dbqe` 固定消费 `coding-plan:1fc6c88b-9d32-46f9-a853-855c9d744149:4` v1，实际采用纠正的条件，三个文件修改和一次测试命令分别经过宿主审查。真实 `node --test checkout.test.mjs` 回执为退出码 0、8 通过/0 失败；README 未变化。独立未发送任务草稿在执行前后保留。
+
+完整会话、两轮执行与固定计划在最终构建重启前后投影相同。随后将当前草稿改为修订 5 并留待处理阻塞，旧修订 4 仍可从「查看第 2 轮使用的计划」只读打开，原 Run 不变、未再起执行。编辑关闭重开保留未保存输入；实际 955×597 CSS 视口中编辑正文可滚动、关闭与保存操作仍在视口内，默认视口已恢复。证据 `plan-product.json`、`plan-{before,after}-restart.json` 与 `plan-after-edit.json`。
+
+**工程验证**：最终构建 `2026-09-22T02:34:16.847Z`，源码摘要 `3e1e2a0dcd754319cc1d05c18cdb95b0ef855b682b650012cc4ce51ca7d3db36`，已用于上述重启实操。`pnpm build`、`pnpm boundary:check`、`pnpm workspace:typecheck` 通过；隔离入口 `pnpm test:run` 共 1523 项，1461 通过、57 失败、5 跳过，与上轮基线逐项比较失败名称零新增、零消失，不宣称全绿。670 张受保护 PNG 中被测试改写的 77 张已按运行前备份逐字节恢复。正式 HTTP 回归覆盖修订冲突、归属、阻塞、固定历史、重复执行与重启，以及保留独立草稿和普通直接任务。证据 `plan-regression.json`；本轮未修改 SDK。
+
+**证据边界**：这是隔离的小型跨文件任务；模型原计划条件错误，结束答复又将测试通过称为验收、误报行号，均保留为质量反例。产品没有据此验收步骤或 Goal。中文 IME、浅色本切片、主观手感和用户验收仍为 UNVERIFIED；不代表复杂仓库、长任务、C12 行为收益或整个 C13 完成。下一步仍为 SubAgent、真实步骤回报/阻塞/返工及 TaskBoard 投影。
+
 四件事进度差得很远，必须分开说。
 
 | | 今天是什么 |
 | --- | --- |
 | **TaskBoard** | **只有一个页签常量**（`ui.ts` 里 `{ face: "taskboard", label: "TaskBoard", icon: "grid" }`）。没有数据、没有投影、没有渲染 |
 | **SubAgent** | **投影做了，Runtime 不支持**。`delegation.ts` 有 `projectSubagents`（验收 accepted / needs-work、「跑完 ≠ 验收通过」）+ 8 项测试；契约有 `AgentSubagentsCapability` 与 `subagent_workspaces: "required"`；roles 里有 coordinator / writers。**但**：`codingAgentManifest` 没声明 `subagents` 块，两个 adapter 的能力矩阵里 `subagents` 都是 `unsupported`（`emptyCapabilityMatrix()` 的默认，谁都没改），`horizontal/agent-host/` 里没有任何 subagents 端口实现 |
-| **Plan** | **没有**。唯一沾边的是 `prologue.ts` 把执行档位映射成 Prologue 的 `mode: "plan" \| "build"`。没有计划对象、没有计划批准、没有 plan → execute 的转换 |
+| **Plan** | **指定链路已接通**。输入方式「规划」使用只读 planner；右栏查看/调整/确认固定计划，按原工作区执行；当前草稿与历史确认版本分开显示。步骤级回报和验收仍待接通 |
 | **协同** | 同 SubAgent：`writers.ts` 的并行写入投影 + 真实 git 工作树（`git-worktrees.ts`）都在宿主侧做好了，但**没有 Runtime 能起子代理**，所以今天跑不起来 |
 
 **要做什么，按依赖顺序。**

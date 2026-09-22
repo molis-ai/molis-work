@@ -1,8 +1,31 @@
 /** Inbox keeps title and actions at the top; only the context body scrolls. */
 export const DETAIL_READING_STYLES = `
+  .inbox-compose-toolbar { padding: 12px 16px; }
+  .inbox-next-config { margin-top: 12px; font-size: 13px; }
+  .inbox-next-config summary { cursor: pointer; color: var(--muted); }
+  .inbox-next-config p { overflow-wrap: anywhere; }
+  .inbox-next-config button { margin: 4px 4px 0 0; white-space: normal; }
+  .inbox-next-suggestion { margin: 4px 0 12px; font-size: 13px; line-height: 1.6; }
+  .inbox-next-suggestion small { color: var(--muted); }
+  .inbox-compose-dialog { width: min(640px, calc(100vw - 32px)); max-height: 85vh; overflow: auto; padding: 24px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); color: var(--ink); }
+  .inbox-compose-dialog::backdrop { background: #0006; }
+  .inbox-compose-dialog form { display: grid; gap: 16px; }
+  .inbox-compose-dialog header, .inbox-compose-dialog footer, .inbox-compose-result { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .inbox-compose-dialog h2, .inbox-compose-dialog p { margin: 0; }
+  .inbox-compose-dialog h2 { font-size: 20px; }
+  .inbox-compose-dialog form > label { display: grid; gap: 8px; }
+  .inbox-compose-dialog input:not([type=checkbox]), .inbox-compose-dialog textarea { width: 100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: inherit; font: inherit; }
+  .inbox-compose-dialog fieldset { max-height: 230px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+  .inbox-compose-dialog fieldset label { display: flex; gap: 10px; padding: 8px 0; line-height: 1.5; }
+  .inbox-compose-dialog fieldset input { flex: none; align-self: start; margin-top: 5px; }
+  .inbox-compose-dialog [role=status] { color: var(--muted); font-size: 13px; }
+  .inbox-compose-result { padding: 12px 0; border-top: 1px solid var(--line); font-size: 13px; flex-wrap: wrap; }
+  .inbox-compose-result button { flex: none; }
   body.immersive-workbench .tab-pane-body > :is([data-inbox-workbench], .immersive-artifact-surface, .project-operation-surface) { overflow: hidden; padding: 0; }
   body.immersive-workbench .inbox-reference-detail { height: 100%; min-height: 0; max-width: 920px; padding: 0; display: flex; flex-direction: column; border-radius: 0; box-shadow: none; }
   body.immersive-workbench .inbox-reference-detail > .feed-detail-header { flex: none; padding: 8px 20px 8px; }
+  body.immersive-workbench [data-inbox-workbench] .inbox-reference-detail > .feed-detail-header { width: 100%; max-width: none; }
+  body.immersive-workbench [data-inbox-workbench] .inbox-reference-detail > .feed-detail-header h1 { width: 100%; max-width: none; }
   body.immersive-workbench .inbox-reference-body { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 16px 20px; }
   body.immersive-workbench .inbox-reference-detail h1 { margin: 0; font-size: 20px; line-height: 1.4; letter-spacing: -.02em; overflow-wrap: anywhere; }
   body.immersive-workbench .inbox-reference-footer { flex: none; padding: 4px 20px 12px; border: 0; border-bottom: 1px solid var(--line); background: var(--paper); }

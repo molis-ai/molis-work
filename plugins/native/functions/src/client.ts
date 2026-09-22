@@ -33,6 +33,8 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
   const choiceOnlyHint = workbench.querySelector("[data-functions-choice-only]");
   let records = [];
   let selected = null;
+  let selectionSeq = 0;
+  let openingId = null;
   let saveTimer = 0;
   let listSeq = 0;
   let catalog = { subjects: [], destinations: [], behaviors: [] };
@@ -737,18 +739,20 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (seq !== listSeq) return;
     records = payload.functions || [];
     renderList();
-    if (selected) {
-      const next = records.find((item) => item.id === selected.id);
-      if (next) {
-        if (opts.remount) fillEditor(next);
-        else {
-          selected = next;
-          titleEl.textContent = next.name;
-          markSelected(next.id);
-        }
-      }
-      else closeEditor();
+    if (!selected) return;
+    const next = records.find((item) => item.id === selected.id);
+    if (opts.preserveForm) {
+      if (!next) closeEditor();
+      return;
     }
+    if (next) {
+      if (opts.remount) fillEditor(next);
+      else {
+        selected = next;
+        titleEl.textContent = next.name;
+      }
+    }
+    else closeEditor();
   };
   const draftBody = () => ({
     name: nameInput.value,
@@ -762,22 +766,37 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
   });
   const saveDraft = async () => {
     if (!selected || selected.status === "published") return selected;
+    const savingId = selected.id;
+    const body = draftBody();
     try {
-      const payload = await request("POST", "/api/plugins/functions/" + encodeURIComponent(selected.id), draftBody());
-      selected = payload.function;
-      records = records.map((item) => item.id === selected.id ? selected : item);
+      const payload = await request("POST", "/api/plugins/functions/" + encodeURIComponent(savingId), body);
+      const saved = payload.function;
+      records = records.some((item) => item.id === saved.id)
+        ? records.map((item) => item.id === saved.id ? saved : item)
+        : [saved, ...records];
+      if (selected?.id !== savingId) {
+        renderList();
+        return saved;
+      }
+      selected = saved;
       renderList();
       titleEl.textContent = selected.name;
+      showNote("", false);
       return selected;
     } catch (error) {
-      await loadList({ remount: true }).catch(() => {});
+      if (selected?.id === savingId) await loadList({ preserveForm: true }).catch(() => {});
       throw error;
     }
   };
   const queueSave = () => {
     if (!selected || selected.status === "published") return;
+    const savingId = selected.id;
     clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => { void saveDraft().catch((error) => showNote(error.message, true)); }, 280);
+    saveTimer = setTimeout(() => {
+      void saveDraft().catch((error) => {
+        if (selected?.id === savingId) showNote(error.message, true);
+      });
+    }, 280);
   };
   const remember = (record) => {
     records = records.some((item) => item.id === record.id)
@@ -786,6 +805,23 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     renderList();
     fillEditor(record);
   };
+  workbench.addEventListener("molis-work:select-item", (event) => {
+    const id = event.detail?.itemId;
+    if (!id) { selectionSeq++; openingId = null; return; }
+    if (selected?.id === id) {
+      workbench.setAttribute("data-expanded", "true"); workspace.hidden = false; return;
+    }
+    if (openingId === id) return;
+    openingId = id;
+    const seq = ++selectionSeq;
+    void (async () => {
+      if (selected && saveTimer) { clearTimeout(saveTimer); saveTimer = 0; await saveDraft(); }
+      await loadCatalog();
+      const payload = await request("GET", "/api/plugins/functions/" + encodeURIComponent(id));
+      if (seq === selectionSeq) remember(payload.function);
+    })().catch((error) => { if (seq === selectionSeq) showNote(error.message, true); })
+      .finally(() => { if (seq === selectionSeq) openingId = null; });
+  });
   const openCreate = () => {
     if (typeof createDialog.showModal === "function") createDialog.showModal();
     else createDialog.setAttribute("open", "");
@@ -968,18 +1004,28 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     const record = records.find((item) => item.id === row.dataset.functionId);
     if (record) fillEditor(record);
   });
-  workbench.querySelector("[data-functions-preview]").addEventListener("click", async () => {
-    if (!selected) return;
+  let previewing = false;
+  const previewBtn = workbench.querySelector("[data-functions-preview]");
+  previewBtn.addEventListener("click", async () => {
+    if (!selected || previewing) return;
+    const previewId = selected.id;
+    previewing = true;
+    previewBtn.disabled = true;
     showNote(L("可能计费。"), false);
     try {
       await saveDraft();
-      const payload = await request("POST", "/api/plugins/functions/" + encodeURIComponent(selected.id) + "/preview", {
+      if (selected?.id !== previewId) return;
+      const payload = await request("POST", "/api/plugins/functions/" + encodeURIComponent(previewId) + "/preview", {
         input: previewInput.value,
         updated_at: selected.updated_at,
       });
+      if (selected?.id !== previewId) return;
       remember(payload.function);
     } catch (error) {
-      showNote(error.message, true);
+      if (selected?.id === previewId) showNote(error.message, true);
+    } finally {
+      previewing = false;
+      previewBtn.disabled = false;
     }
   });
   publishBtn.addEventListener("click", async () => {

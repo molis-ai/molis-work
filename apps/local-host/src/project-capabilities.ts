@@ -1,3 +1,4 @@
+import { registerCasebookCapabilities } from './casebook/integration.js';
 import { importV3Capability, projectResumeFactsCapability, trashedGoalsCapability, initializeBoardCapability, snapshotBoardCapability,
   goalsEntryCapabilities, goalEntryCompositionCapabilities,
   goalTreeCapabilities,
@@ -11,7 +12,11 @@ import { importV3Capability, projectResumeFactsCapability, trashedGoalsCapabilit
   recordGoalNoteCapability } from "@molis-ai/molis-work-plugin-goals";
 import { pluginDevelopmentCapability } from "@molis-ai/molis-work-contracts/platform/tooling";
 import { projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { goalContextCapabilities, goalProgressCapabilities } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
+import { readWorkspaceFileCapability, readWorkspaceGitCapability } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { readWorkspaceGit } from "./workspace-git.js";
+import { readWorkspaceFile } from "./workspace-files.js";
 import { SqlitePluginRuntimeRepository, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { runPluginDevelopment } from "./plugin-development.js";
@@ -22,6 +27,7 @@ import { registerHostScheduleCapabilities } from "./schedule-runtime.js";
 
 export interface ProjectCapabilityPorts {
   /** Resolves the workspace a project is bound to. See `MolisWorkLocalHostOptions`. */
+  workspacesFor?: (projectId: string) => readonly ProjectWorkspaceRef[] | Promise<readonly ProjectWorkspaceRef[]>;
   workspaceFor?: (projectId: string) => ProjectWorkspaceRef | null | Promise<ProjectWorkspaceRef | null>;
 }
 
@@ -29,7 +35,35 @@ export function registerProjectCapabilities(
   host: LocalHost<MolisWorkProjectRuntime>,
   ports: ProjectCapabilityPorts = {},
 ): void {
+  registerCasebookCapabilities(host);
   const { workspaceFor } = ports;
+  host.register(goalProgressCapabilities.record, (runtime, input) => runtime.coordinator.goalEvents.recordProgress({
+    ...input, board_id: runtime.board_id,
+  }));
+  host.register(goalProgressCapabilities.receipt, (runtime, input) => runtime.coordinator.goalEvents.readProgressReceipt(
+    runtime.board_id, input.goal_id, input.actor_id, input.idempotency_key,
+  ));
+  host.register(goalContextCapabilities.list, (runtime, input) => runtime.coordinator.goalEvents.listGoals({
+    board_id: runtime.board_id, limit: 100, ...(input.after_cursor ? { after_cursor: input.after_cursor } : {}),
+  }));
+  host.register(goalContextCapabilities.read, (runtime, input) => {
+    const goal = runtime.coordinator.goalQueries.getGoal(runtime.board_id, input.goal_id);
+    if (!goal || goal.trashed_at || goal.archived_at) throw new Error("这个目标已归档、删除或不属于当前项目，请重新选择");
+    const { observed_event_cursor: _cursor, ...state } = runtime.coordinator.goalEvents.readState(runtime.board_id, goal.goal_id);
+    return { goal, state };
+  });
+  if (ports.workspacesFor || workspaceFor) host.register(readWorkspaceGitCapability, async (runtime, query) => {
+    const current = async () => ports.workspacesFor ? await ports.workspacesFor(runtime.project_id) : [await workspaceFor!(runtime.project_id)].filter((item): item is ProjectWorkspaceRef => item !== null);
+    const granted = await current(), result = await readWorkspaceGit(query, granted);
+    const accepted = granted.find(item => item.workspace_id === query.workspace_id);
+    if (!(await current()).some(item => item.workspace_id === query.workspace_id && item.realpath_verified && item.canonical_path === accepted?.canonical_path)) return { outcome: "denied", message: "工作区授权已变化，请重新读取" };
+    return result;
+  });
+  if (ports.workspacesFor || workspaceFor) host.register(readWorkspaceFileCapability, async (runtime, query) => {
+    const selected = ports.workspacesFor ? await ports.workspacesFor(runtime.project_id) : [await workspaceFor!(runtime.project_id)].filter((item): item is ProjectWorkspaceRef => item !== null);
+    return readWorkspaceFile(query, selected);
+  });
+  if (ports.workspacesFor) host.register(projectsCapabilities.listWorkspaces, runtime => ports.workspacesFor!(runtime.project_id));
   if (workspaceFor !== undefined) {
     // Scoped to the runtime's own project: the Capability takes no project id,
     // so a Plugin cannot ask about another project. The answer carries the

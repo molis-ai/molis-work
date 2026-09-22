@@ -1,0 +1,35 @@
+import { build } from 'esbuild';
+import { execFileSync } from 'node:child_process';
+import { mkdir,writeFile,readFile,mkdtemp,rm,copyFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { resolve,join } from 'node:path';
+import { createHash } from 'node:crypto';
+const root=resolve(import.meta.dirname,'..');
+const sourceCommit=execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim();
+const dirty=!!execFileSync('git',['status','--porcelain','--untracked-files=normal'],{cwd:root,encoding:'utf8'}).trim();
+const version=`2.1.0-dev.${sourceCommit.slice(0,12)}${dirty?'.dirty':''}`;
+const output=resolve(process.argv[2]??join(root,'release','casebook'));
+const stage=await mkdtemp(join(tmpdir(),'goalboard-casebook-package-'));
+try {
+ await mkdir(output,{recursive:true});
+ await build({entryPoints:[join(root,'apps/local-host/src/casebook/client.ts')],outfile:join(stage,'client.js'),bundle:true,format:'esm',platform:'node',target:'node24'});
+ await build({entryPoints:[join(root,'apps/local-host/src/casebook/schema.ts')],outfile:join(stage,'schema.js'),bundle:true,format:'esm',platform:'node',target:'node24'});
+ const {operationReceiptsSchema,connectionDiagnosticsSchema}=await import(`file://${join(stage,'client.js')}`);
+ await writeFile(join(stage,'operation-receipts.schema.json'),JSON.stringify(operationReceiptsSchema,null,2)+'\n');
+ await writeFile(join(stage,'connection-diagnostics.schema.json'),JSON.stringify(connectionDiagnosticsSchema,null,2)+'\n');
+ const {interactionFactsSchema,goalContextSchema,authorizationSchema,authorizationActionSchema,projectDiscoverySchema}=await import(`file://${join(stage,'schema.js')}`);
+ await writeFile(join(stage,'interaction-facts.schema.json'),JSON.stringify(interactionFactsSchema,null,2)+'\n');
+ await writeFile(join(stage,'goal-context.schema.json'),JSON.stringify(goalContextSchema,null,2)+'\n');
+ await writeFile(join(stage,'projects.schema.json'),JSON.stringify(projectDiscoverySchema,null,2)+'\n');
+ await writeFile(join(stage,'authorization.schema.json'),JSON.stringify(authorizationSchema,null,2)+'\n');
+ await writeFile(join(stage,'authorization-action.schema.json'),JSON.stringify(authorizationActionSchema,null,2)+'\n');
+ await writeFile(join(stage,'package.json'),JSON.stringify({name:'@molis-ai/molis-work-casebook-client',version,type:'module',engines:{node:'>=24'},exports:{'.':'./client.js','./schema':'./interaction-facts.schema.json','./projects-schema':'./projects.schema.json','./goal-context-schema':'./goal-context.schema.json','./operation-receipts-schema':'./operation-receipts.schema.json','./connection-diagnostics-schema':'./connection-diagnostics.schema.json'},files:['operation-receipts.schema.json','connection-diagnostics.schema.json','projects.schema.json','client.js','interaction-facts.schema.json','goal-context.schema.json','authorization.schema.json','authorization-action.schema.json','provenance.json','README.md'],license:'MIT'},null,2)+'\n');
+ await writeFile(join(stage,'provenance.json'),JSON.stringify({sourceCommit,dirty,contract:'goalboard.casebook.interaction-facts@2.0.0',additionalContracts:['goalboard.casebook.operation-receipts@1.0.0','goalboard.casebook.connection-diagnostics@1.0.0'],source:'apps/local-host/src/casebook/client.ts',build:'node scripts/build-casebook-client.mjs',hostRequirement:'Molis Work Web with scoped Casebook configuration and owned project runtime (already open or explicitly allowlisted for lazy recovery); diagnostics need no opened project; no consumer database access'},null,2)+'\n');
+ await copyFile(join(root,'docs/Casebook交互事实接口-接入与边界.md'),join(stage,'README.md'));
+ const [packed]=JSON.parse(execFileSync('npm',['pack','--ignore-scripts','--json','--cache',join(stage,'cache'),'--pack-destination',output],{cwd:stage,encoding:'utf8'}));
+ const archive=join(output,packed.filename);
+ const sha256=createHash('sha256').update(await readFile(archive)).digest('hex');
+ const provenance={archive,version,sourceCommit,dirty,sha256};
+ await writeFile(join(output,`${packed.filename}.provenance.json`),JSON.stringify(provenance,null,2)+'\n');
+ console.log(JSON.stringify(provenance,null,2));
+} finally {await rm(stage,{recursive:true,force:true});}

@@ -1,4 +1,46 @@
+import type { ArtifactReference } from "./artifacts.js";
 import type { ContractDescriptor } from "../platform/package.js";
+
+/** Provenance of an explicitly imported personal copy, never an execution authority. */
+export interface ShelfArtifactSource {
+  board_id: string;
+  project_path: string;
+  reference: ArtifactReference;
+  producer_plugin_id: string;
+  content_hash: string;
+}
+export interface ShelfArtifactPreview {
+  title: string;
+  text: string;
+  source: ShelfArtifactSource;
+  fingerprint: string;
+}
+
+/** Explicitly saved project material; the personal Shelf copy may change independently. */
+export const SHELF_TEXT_MATERIAL_TYPE = "shelf.text-material.v1";
+export interface ShelfTextMaterial {
+  title: string;
+  text: string;
+  content_hash: string;
+  source: { item_id: string; kind: ShelfItemKind; group: ShelfItemGroup; source_item_ids: string[]; job_id: string | null; artifact?: ShelfArtifactSource };
+}
+export function parseShelfTextMaterial(value: unknown): ShelfTextMaterial {
+  const item = value as Partial<ShelfTextMaterial> | null;
+  if (!item || typeof item.title !== "string" || !item.title || typeof item.text !== "string"
+    || typeof item.content_hash !== "string" || !/^[a-f0-9]{64}$/.test(item.content_hash)
+    || !item.source || typeof item.source.item_id !== "string" || !item.source.item_id
+    || !["text", "markdown", "file"].includes(item.source.kind)
+    || !["material", "result"].includes(item.source.group)
+    || !Array.isArray(item.source.source_item_ids) || !item.source.source_item_ids.every(id => typeof id === "string")
+    || (item.source.job_id !== null && typeof item.source.job_id !== "string")) throw new Error("Shelf 固定材料格式无效");
+  if (item.source.artifact) {
+    const source = item.source.artifact;
+    if (typeof source.board_id !== "string" || !source.board_id || typeof source.project_path !== "string"
+      || typeof source.producer_plugin_id !== "string" || typeof source.content_hash !== "string" || !/^[a-f0-9]{64}$/.test(source.content_hash)
+      || typeof source.reference?.artifact_id !== "string" || !source.reference.artifact_id || !Number.isSafeInteger(source.reference.version) || source.reference.version < 1) throw new Error("Shelf 材料来源格式无效");
+  }
+  return item as ShelfTextMaterial;
+}
 
 export const modulesShelfContract = {
   contractId: "io.molis.work.module.shelf.v1",
@@ -43,6 +85,7 @@ export interface ShelfFolderChild {
 
 export interface ShelfItemRecord {
   readonly item_id: string;
+  readonly artifact_source?: ShelfArtifactSource;
   readonly group: ShelfItemGroup;
   readonly kind: ShelfItemKind;
   readonly name: string;
@@ -238,6 +281,7 @@ export interface ShelfAdmitFolderInput {
 }
 
 export interface ShelfAdmitInput {
+  readonly artifact_source?: ShelfArtifactSource;
   readonly filename: string;
   readonly bytes: Uint8Array;
   readonly mime?: string;

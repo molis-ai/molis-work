@@ -29,7 +29,9 @@ export function createTabWorkspaceOps(titles) {
     feed: "Feed",
     shelf: "Shelf",
     functions: "Functions",
+    characters: "Characters",
     experiments: "实验",
+    images: "图片",
     pages: "Pages",
     form: "Forms",
     dataset: "Dataset",
@@ -167,6 +169,7 @@ export function createTabWorkspaceOps(titles) {
   const openInPane = (state, pane, tab) => {
     state.exclusive = null;
     const existing = pane.tabs.find((candidate) => tabKey(candidate) === tabKey(tab));
+    if (existing && tab.kind === "item" && tab.title && tab.title !== tab.itemId) existing.title = tab.title;
     if (existing) return activateInPane(pane, existing);
     return insertNew(pane, tab);
   };

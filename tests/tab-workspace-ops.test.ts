@@ -193,8 +193,9 @@ test("opening another plugin or item adds a tab without replacing existing ones"
   assert.equal(goal.kind, "item");
   assert.equal("preview" in goal, false);
   assert.equal(ops.focused(state).tabs.some((tab) => tab.kind === "mother"), false);
-  const again = ops.openItem(state, "goals", "goal-1", "发布");
+  const again = ops.openItem(state, "goals", "goal-1", "发布（已改名）");
   assert.equal(again.id, goal.id);
+  assert.equal(again.title, "发布（已改名）");
   const other = ops.openItem(state, "goals", "goal-2", "下一个");
   assert.notEqual(other.id, goal.id);
   assert.equal(ops.focused(state).tabs.filter((tab) => tab.plugin === "goals").length, 2);
@@ -333,5 +334,5 @@ test("old plugin collapsed maps are discarded and not restored as user groups", 
 
 test("fresh project-root navigation lands leftover plugin views on home", () => {
   const source = readFileSync(new URL("../apps/workbench/src/scripts/client/initialization.ts", import.meta.url), "utf8");
-  assert.match(source, /navigationType !== "reload" && navigationType !== "back_forward"\) tabWorkspace\.landAtProjectRoot\(\)/);
+  assert.match(source, /navigationType !== "reload" && navigationType !== "back_forward" && !tabWorkspace\.isEmbedded\?\.\(\)\) tabWorkspace\.landAtProjectRoot\(\)/);
 });

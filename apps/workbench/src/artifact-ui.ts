@@ -1,5 +1,5 @@
 import type { UiHostApi, UiSlotDescriptor, WorkbenchDocumentRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
-import { ARTIFACT_BROWSER_UI_CONTRIBUTION_ID, artifactDisplayTitle, type ArtifactBrowserUiModel, type GoalArtifactEmbed } from "@molis-ai/molis-work-plugin-artifacts";
+import { ARTIFACT_BROWSER_UI_CONTRIBUTION_ID, ARTIFACT_IMPORT_CLIENT_SCRIPT, ARTIFACT_IMPORT_STYLES, artifactDisplayTitle, renderArtifactImportSurface, type ArtifactBrowserUiModel, type ArtifactImportUiModel, type GoalArtifactEmbed } from "@molis-ai/molis-work-plugin-artifacts";
 
 export const ARTIFACT_EMBED_STYLES = `
   .artifact-embed { padding:20px 0; overflow-wrap:anywhere; }
@@ -25,6 +25,13 @@ export interface ArtifactWorkbenchRequest extends ArtifactBrowserUiModel {
   readonly iconSpriteHtml: string;
 }
 
+export interface ArtifactImportWorkbenchRequest extends ArtifactImportUiModel {
+  readonly lang: string;
+  readonly desktopShell: boolean;
+  readonly headHtml: string;
+  readonly iconSpriteHtml: string;
+}
+
 export const ARTIFACT_WORKBENCH_STYLES = `
   html:has(> body.artifact-page) { height:100dvh; overflow:hidden; }
   .artifact-page { height:100dvh; overflow:hidden; margin:0; background:var(--page); color:var(--ink); font:13px/1.52 var(--font); }
@@ -37,6 +44,9 @@ export const ARTIFACT_WORKBENCH_STYLES = `
   .artifact-back { display:inline-flex; align-items:center; gap:8px; min-height:38px; text-decoration:none; }
   .artifact-back svg { width:16px; height:16px; transform:rotate(180deg); }
   .artifact-version-list { display:flex; flex-direction:column; gap:2px; }
+  .artifact-import-entry { display:flex; flex:none; align-items:center; gap:8px; min-height:44px; margin-bottom:12px; padding:8px 10px; color:var(--blue-dark); text-decoration:none; border:1px solid var(--line); border-radius:7px; }
+  .artifact-import-entry svg { width:16px; height:16px; }
+  .artifact-import-entry:hover { background:var(--blue-soft); }
   .artifact-version-list .mw-dir-row,
   .artifact-version-list .feed-stage-entry { width:100%; }
   .artifact-stage { min-width:0; padding:24px clamp(20px,4vw,56px); background:var(--paper); }
@@ -44,6 +54,13 @@ export const ARTIFACT_WORKBENCH_STYLES = `
   .artifact-detail header:not(.plugin-stage-detail-bar) { display:flex; gap:16px; align-items:baseline; margin:20px 0; }
   .artifact-detail h1 { font-size:clamp(22px,2.25vw,28px); margin:0; line-height:1.25; }
   .artifact-detail h2 { font-size:15px; margin:24px 0 8px; }
+  .artifact-document-preview { margin:20px 0 28px; min-width:0; }
+  .artifact-document-preview h2 { font-size:15px; margin:20px 0 10px; }
+  .artifact-document-body { white-space:pre-wrap; overflow-wrap:anywhere; font:inherit; line-height:1.75; }
+  .artifact-document-source a { color:var(--blue-dark); text-underline-offset:3px; }
+  .artifact-document-warnings { padding:12px 16px; border:1px solid var(--line); border-radius:7px; color:var(--muted); }
+  .artifact-document-warnings h2 { margin:0 0 8px; }
+  .artifact-document-warnings ul { margin:0; padding-left:20px; }
   .artifact-notice { color:var(--muted); margin:0 0 24px; }
   .artifact-facts { display:grid; gap:12px; margin:24px 0; }
   .artifact-facts div { display:grid; grid-template-columns:100px minmax(0,1fr); gap:12px; }
@@ -54,6 +71,9 @@ export const ARTIFACT_WORKBENCH_STYLES = `
   .artifact-export { padding:10px 14px; border-radius:8px; background:var(--blue-soft); text-decoration:none; }
   .artifact-reference-label { display:grid; gap:8px; }
   .artifact-page input { box-sizing:border-box; width:100%; padding:10px; font:inherit; color:var(--ink); background:var(--paper); border:1px solid var(--line); border-radius:8px; }
+  .artifact-business-preview { max-width:80ch; min-width:0; overflow-wrap:anywhere; }
+  .artifact-business-preview pre { overflow:auto; max-width:100%; }
+  .artifact-business-preview table { display:block; overflow:auto; max-width:100%; }
   .artifact-raw { margin-top:24px; }
   .artifact-raw summary { cursor:pointer; padding:8px 0; }
   .artifact-raw pre { max-height:min(45dvh,400px); overflow:auto; overscroll-behavior:contain; padding:16px; background:var(--rail); border-radius:8px; white-space:pre-wrap; overflow-wrap:anywhere; font-size:12px; }
@@ -75,6 +95,7 @@ export const ARTIFACT_WORKBENCH_STYLES = `
     .artifact-page[data-artifact-selected] .artifact-directory { display:none; }
     .artifact-page:not([data-artifact-selected]) .artifact-stage { display:none; }
     .artifact-directory, .artifact-stage { min-height:100dvh; box-sizing:border-box; padding:16px; }
+    .artifact-detail-content > p > .mw-btn { min-height:44px; }
     .artifact-back, .artifact-export { min-height:44px; box-sizing:border-box; }
     .artifact-page input { font-size:16px; }
     .artifact-facts div { grid-template-columns:84px minmax(0,1fr); }
@@ -96,6 +117,13 @@ export function createArtifactWorkbenchRenderer(
     embed: (model: ArtifactBrowserUiModel): string => mount("embed", model),
     goalContext: (items: readonly GoalArtifactEmbed[], model: Omit<ArtifactBrowserUiModel, "view" | "relationship">): string =>
       items.map((item) => mount("embed", { ...model, view: item.view, relationship: item.relationship })).join(""),
+    importPage: (request: ArtifactImportWorkbenchRequest): string => document({
+      lang: request.lang,
+      title: `${request.primitives.text("导入文档")} · ${request.projectTitle} · Molis Work`,
+      head_html: `${request.headHtml}<meta name="molis-work-control-token" content="${request.primitives.escape(request.controlToken)}"><style>${ARTIFACT_IMPORT_STYLES}</style>`,
+      body_attributes: { class: "artifact-import-page", "data-native-desktop": request.desktopShell },
+      body_html: `${request.iconSpriteHtml}${renderArtifactImportSurface(request)}<script>${ARTIFACT_IMPORT_CLIENT_SCRIPT}</script>`,
+    }),
     page: (request: ArtifactWorkbenchRequest): string => {
       const p = request.primitives;
       return document({

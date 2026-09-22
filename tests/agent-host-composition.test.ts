@@ -118,3 +118,33 @@ test("插件不能拿一个宿主没授权的目录起跑", async () => {
     await rm(real, { recursive: true, force: true });
   }
 });
+
+test('Git result projection excludes active, uncertain, undelivered and foreign reviews without turning approval into success', async () => {
+  const { readGitResultsCapability } = await import('@molis-ai/molis-work-contracts/modules/workspace-artifacts');
+  const item = await fixture({ workspace_id: 'w', canonical_path: '/unused', realpath_verified: true } as ProjectWorkspaceRef);
+  try {
+    const queue = item.composition.agentHost.reviews;
+    for (const id of ['pending', 'approved', 'unknown', 'undelivered', 'done', 'failed', 'denied', 'other-workspace', 'other-project']) {
+      queue.request({ review_id: id, board_id: id === 'other-project' ? 'board-b' : 'board-a', run: null, plugin_id: 'io.molis.work.git', kind: 'git-index',
+        operation: { kind: 'git-index', operation_id: id, workspace_id: id === 'other-workspace' ? 'other' : 'w' },
+        document: { kind: 'git-index', action: 'stage', workspace_name: 'fixture', files: [{ path: 'note', before_text: 'old', after_text: 'new', before_mode: '100644', after_mode: '100644' }] },
+        requested_at: '2026-09-22T00:00:00Z', expires_at: null });
+      if (id === 'pending') continue;
+      queue.decide({ review_id: id, decision: id === 'denied' ? 'reject' : 'approve', actor_id: 'reviewer' });
+      if (id === 'denied') continue;
+      queue.consumeApproval(id);
+      if (id === 'unknown') queue.uncertain(id, 'missing receipt');
+      else if (id === 'undelivered') queue.deliveryFailed(id, 'lost delivery');
+      else if (id === 'failed') queue.settle(id, { ok: false, error: 'refused changed version' });
+      else if (id !== 'approved') queue.settle(id, { ok: true });
+    }
+    const reconciliation = { actor_id: 'reconciler', at: '2026-09-22T00:05:00Z', reason: 'original process ended before dispatch' };
+    queue.recordReconciliation('failed', reconciliation);
+    const result = await item.client.invoke(readGitResultsCapability, { workspace_id: 'w' });
+    assert.deepEqual(result.map(one => [one.operation_id, one.outcome]).sort(), [['denied', 'denied'], ['done', 'succeeded'], ['failed', 'failed']]);
+    assert.ok(result.every(one => one.review.decided_by === 'reviewer'));
+    assert.deepEqual(result.find(one => one.operation_id === 'failed')?.review.reconciliation, reconciliation);
+    assert.equal(result.find(one => one.operation_id === 'failed')?.review.failure_reason, 'refused changed version');
+    await assert.rejects(item.client.invoke(readGitResultsCapability, { workspace_id: 'unlinked' }), /授权/);
+  } finally { await close(item); }
+});

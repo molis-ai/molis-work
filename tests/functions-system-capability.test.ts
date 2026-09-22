@@ -718,7 +718,7 @@ test("authoring suggestions follow destination and subject kinds", () => {
   const catalog = hostFunctionAuthoringCatalog();
   assert.deepEqual(
     suggestedAuthoringBehaviors(catalog, INBOX_NEXT_SCENE_ID, []).map((row) => row.behavior_id),
-    [INBOX_DONE_BEHAVIOR_ID, INBOX_DISMISS_BEHAVIOR_ID],
+    ["inbox.compose", "inbox.verify", INBOX_DONE_BEHAVIOR_ID, INBOX_DISMISS_BEHAVIOR_ID],
   );
   assert.deepEqual(
     suggestedAuthoringBehaviors(catalog, FEED_CAPTURE_SCENE_ID, []).map((row) => row.behavior_id),
@@ -814,7 +814,7 @@ test("Feed, Inbox and home do not import the Functions plugin implementation", a
     );
   }
   const webView = await readFile(join(ROOT, "..", "apps/local-host/src/web-view.ts"), "utf8");
-  assert.match(webView, /entry\.entry_id, INBOX_NEXT_SCENE_ID/);
+  assert.match(webView, /latestJudgment\("inbox_entry", entry\.entry_id, boardId, INBOX_NEXT_SCENE_ID\)/);
   assert.match(webView, /item\.item_id, FEED_CAPTURE_SCENE_ID/);
   assert.match(webView, /home_dock_suggested_behavior_ids/);
 });

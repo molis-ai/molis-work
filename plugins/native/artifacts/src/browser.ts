@@ -46,9 +46,9 @@ export type ArtifactBrowserRoute =
 const DISPLAY_TITLE_KEYS = ["title", "name", "text"] as const;
 
 /** Directory and reading-card title. Exact identity stays on artifact_id. */
-export function artifactDisplayTitle(artifact: Pick<ArtifactVersionRecord, "artifact_id" | "payload">): string {
+export function artifactDisplayTitle(artifact: Pick<ArtifactVersionRecord, "artifact_id" | "payload"> & Partial<Pick<ArtifactVersionRecord, "metadata">>): string {
   const line = payloadDisplayLine(artifact.payload);
-  return line || artifact.artifact_id;
+  return line || payloadDisplayLine({ title: artifact.metadata?.title ?? null }) || artifact.artifact_id;
 }
 
 function payloadDisplayLine(payload: ArtifactJsonValue | null): string {

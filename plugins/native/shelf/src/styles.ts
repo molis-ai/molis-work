@@ -1,5 +1,10 @@
 /** DropAgent reading surface. Tokens come from the shared content family; this island only aliases `--da-*`. */
 export const SHELF_STYLES = `
+  [data-shelf-material-dialog] { width: min(720px, calc(100vw - 32px)); }
+  .shelf-material-body { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 45vh; overflow: auto; color: var(--ink); }
+  [data-shelf-material-status] { white-space: pre-wrap; overflow-wrap: anywhere; }
+  [data-shelf-chrome] { flex-wrap: wrap; height: auto; min-height: 44px; }
+
   [data-shelf],
   [data-plugin-section="shelf"],
   body.immersive-workbench [data-work-surface="shelf"],

@@ -68,7 +68,7 @@ export class PublicSourceSync {
         request,
         input.signal ? { signal: input.signal } : undefined,
       );
-      return this.commitPublicResult(source, running, result, runtime);
+      return await this.commitPublicResult(source, running, result, runtime);
     } catch (error) {
       const current = this.feed.getSourceRunByOperationId(this.boardId, operationId);
       if (current?.phase === "terminal") {

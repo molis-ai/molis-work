@@ -89,7 +89,7 @@ test("跑起来的贡献，恰好兑现 Manifest 声明的那两个视图", asyn
 
     const rendered = (contribution as { views?: ReadonlyArray<{ descriptor: { contribution_id: string } }> })
       .views?.map((view) => view.descriptor.contribution_id).sort() ?? [];
-    const declared = [...(codingManifest.ui.views ?? [])].map((view) => view.contribution_id).sort();
+    const declared = [...new Set((codingManifest.ui.views ?? []).map((view) => view.contribution_id))].sort();
     assert.deepEqual(rendered, declared,
       "声明了几个视图就要兑现几个——平台会因为少一个而拒绝激活");
     store.close();

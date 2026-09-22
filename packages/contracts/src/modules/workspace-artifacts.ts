@@ -1,4 +1,102 @@
 import type { ContractDescriptor } from "../platform/package.js";
+import type { HostCapabilityDefinition } from "../platform/app-host.js";
+
+/** Host reads are always scoped to a currently linked workspace, never an absolute path. */
+export interface WorkspaceFileQuery {
+  workspace_id: string;
+  path: readonly string[];
+  kind: "directory" | "text";
+}
+export type WorkspaceFileResult =
+  | { outcome: "directory"; entries: readonly { name: string; path: readonly string[]; kind: "file" | "directory" | "other" }[]; truncated: boolean }
+  | { outcome: "text"; text: string; fingerprint: string; mode?: GitFileMode }
+  | { outcome: "too-large"; bytes: number; limit: number }
+  | { outcome: "binary" | "unsupported" | "missing" | "denied" | "changed" };
+
+export const readWorkspaceFileCapability = {
+  capability_id: "projects.workspace.file.read.v1", version: 1, operation: "query",
+} as HostCapabilityDefinition<WorkspaceFileQuery, WorkspaceFileResult>;
+
+/** Git reads are scoped by the current project grant, never by a caller path. */
+export type GitFileMode = "100644" | "100755";
+export type WorkspaceGitQuery = { workspace_id: string } & (
+  | { kind: "status" }
+  | { kind: "diff"; path: readonly string[]; side: "index" | "worktree" }
+);
+export type WorkspaceGitResult =
+  | { outcome: "status"; porcelain: string; head_commit: string | null }
+  | { outcome: "diff"; path: readonly string[]; previous_path?: readonly string[]; side: "index" | "worktree";
+      before_exists: boolean; after_exists: boolean; before: string; after: string;
+      before_mode: GitFileMode | null; after_mode: GitFileMode | null; revision: string }
+  | { outcome: "denied" | "not-a-repository" | "unavailable" | "changed" | "unsupported" | "binary" | "too-large" | "conflict" | "missing" | "error"; message: string };
+export const readWorkspaceGitCapability = {
+  capability_id: "projects.workspace.git.read.v1", version: 1, operation: "query",
+} as HostCapabilityDefinition<WorkspaceGitQuery, WorkspaceGitResult>;
+
+/** Preparing returns a Host review identity, never permission to execute. */
+export const prepareGitIndexCapability = {
+  capability_id: "projects.workspace.git.prepare-index.v1", version: 1, operation: "command",
+} as HostCapabilityDefinition<{ workspace_id: string; path: readonly string[]; action: "stage" | "unstage"; revision: string; operation_id: string }, { review_id: string }>;
+
+export interface PreparedWriterDirectory {
+  worktree_id: string;
+  branch: string;
+  base_commit: string;
+  canonical_path: string;
+  /** Present only after the Host recorded the project authorization. */
+  workspace_id: string | null;
+}
+export interface WriterIntegrationFile {
+  path: readonly string[];
+  target: "added" | "modified" | "deleted";
+  selectable: boolean;
+  reason?: string;
+  revision?: string;
+  before_text?: string | null;
+  after_text?: string | null;
+  before_mode?: GitFileMode | null;
+  after_mode?: GitFileMode | null;
+}
+export interface WriterIntegrationView {
+  workspace_id: string;
+  writer_workspace_id: string;
+  source_path: string;
+  target_path: string;
+  branch: string;
+  base_commit: string;
+  files: WriterIntegrationFile[];
+}
+
+export interface WriterIntegrationSource { session_id: string; run_id: string; subagent_id: string }
+export const writerIntegrationCapabilities = {
+  read: { capability_id: "projects.workspace.writers.integration.read.v1", version: 1, operation: "query" } as HostCapabilityDefinition<WriterIntegrationSource, WriterIntegrationView>,
+  prepare: { capability_id: "projects.workspace.writers.integration.prepare.v1", version: 1, operation: "command" } as HostCapabilityDefinition<WriterIntegrationSource & { operation_id: string; files: readonly { path: readonly string[]; revision: string }[] }, { review_id: string }>,
+} as const;
+
+export const writerDirectoryCapabilities = {
+  list: { capability_id: "projects.workspace.writers.list.v1", version: 1, operation: "query" } as HostCapabilityDefinition<{ workspace_id: string }, PreparedWriterDirectory[]>,
+  prepare: { capability_id: "projects.workspace.writers.prepare.v1", version: 1, operation: "command" } as HostCapabilityDefinition<{ workspace_id: string; operation_id: string }, { review_id: string; directory: PreparedWriterDirectory }>,
+} as const;
+
+/** Read-only, project-scoped projections of terminal SDK-backed Git reviews. */
+export const readGitResultsCapability = {
+  capability_id: "projects.workspace.git.results.v1", version: 1, operation: "query",
+} as HostCapabilityDefinition<{ workspace_id: string }, readonly GitReviewedResult[]>;
+
+export interface GitReviewedResult extends GitOperationResult {
+  review: {
+    review_id: string;
+    action: "stage" | "unstage";
+    paths: readonly string[];
+    requested_at: string;
+    decided_by: string | null;
+    decided_at: string | null;
+    failure_reason?: string;
+    reconciliation?: { actor_id: string; at: string; reason: string };
+    /** Older fixed results may only have the reason; never invent their actor or time. */
+    reconciliation_reason?: string;
+  };
+}
 
 /**
  * What Plugins working on one workspace exchange.
@@ -361,6 +459,8 @@ export interface ChangeSet {
   before: string;
   after: string;
   source: ChangeSetSource;
+  /** Optional for older/text-only producers; absent means metadata is unknown. */
+  git?: { before_mode: GitFileMode | null; after_mode: GitFileMode | null; previous_path?: readonly string[] };
 }
 
 export function parseChangeSet(content: unknown): ChangeSet {
@@ -391,7 +491,21 @@ export function parseChangeSet(content: unknown): ChangeSet {
     before: content.before_exists ? content.before : "",
     after: content.after_exists ? content.after : "",
     source: parseChangeSetSource(content.source),
+    ...(content.git === undefined ? {} : { git: parseGitMetadata(content.git, content.before_exists, content.after_exists) }),
   };
+}
+
+function parseGitMetadata(value: unknown, beforeExists: boolean, afterExists: boolean): NonNullable<ChangeSet["git"]> {
+  if (!isRecord(value)) throw new WorkspaceArtifactError("workspace.invalid_payload", "Git 元数据无效");
+  const mode = (input: unknown, exists: boolean): GitFileMode | null => {
+    if (exists ? input === "100644" || input === "100755" : input === null) return input as GitFileMode | null;
+    throw new WorkspaceArtifactError("workspace.invalid_payload", "文件权限与存在状态不一致");
+  };
+  if (value.previous_path !== undefined && (!beforeExists || !afterExists)) {
+    throw new WorkspaceArtifactError("workspace.invalid_payload", "重命名必须保留两侧文件");
+  }
+  return { before_mode: mode(value.before_mode, beforeExists), after_mode: mode(value.after_mode, afterExists),
+    ...(value.previous_path === undefined ? {} : { previous_path: parseFilePath(value.previous_path) }) };
 }
 
 function parseChangeSetSource(value: unknown): ChangeSetSource {
@@ -503,6 +617,14 @@ export interface CodingFileChange {
   removed_lines: number;
   /** Unified diff for this file alone. */
   diff: string;
+  /** Original immutable review text. Multiple edits to one path stay separate. */
+  review?: {
+    review_id: string;
+    before_text: string | null;
+    after_text: string;
+    decision: "pending" | "approved" | "rejected" | "cancelled" | "expired";
+    execution: "applied" | "failed" | "unknown" | "not-applied";
+  };
 }
 
 export interface CodingChangeSet {
@@ -517,4 +639,34 @@ export interface CodingChangeSet {
    * approval is not the same event as the write.
    */
   applied: boolean;
+  origin?: { session_id: string; runtime_session_id: string; workspace_id: string; workspace_name: string };
+  /** This set covers original text reviews; command/external effects are separate receipts. */
+  coverage?: "text-reviews";
+}
+
+export { DIFF_STEP_BUDGET, splitLines, joinLines, reconstructSides, compareTexts, textDiffRow, alignSplitRows } from "./workspace-text-diff.js";
+export type { DiffLine, DiffOp, TextDiff, TextDiffRow, SplitPair } from "./workspace-text-diff.js";
+
+export function parseCodingChangeSet(value: unknown): CodingChangeSet {
+  if (!isRecord(value) || !["run-frozen", "workspace-current"].includes(String(value.scope))
+    || typeof value.run_id !== "string" || !value.run_id || typeof value.applied !== "boolean"
+    || !Array.isArray(value.files) || value.files.length > 1000) throw new Error("固定变更格式无效");
+  const files = value.files.map((file): CodingFileChange => {
+    if (!isRecord(file) || typeof file.path !== "string" || !["added", "modified", "deleted"].includes(String(file.kind))
+      || !Number.isSafeInteger(file.added_lines) || Number(file.added_lines) < 0
+      || !Number.isSafeInteger(file.removed_lines) || Number(file.removed_lines) < 0 || typeof file.diff !== "string") throw new Error("固定文件变更格式无效");
+    parseFilePath(file.path.split("/"));
+    if (file.review !== undefined) {
+      const review = file.review;
+      if (!isRecord(review) || typeof review.review_id !== "string" || !review.review_id
+        || !(review.before_text === null || typeof review.before_text === "string") || typeof review.after_text !== "string"
+        || !["pending", "approved", "rejected", "cancelled", "expired"].includes(String(review.decision))
+        || !["applied", "failed", "unknown", "not-applied"].includes(String(review.execution))) throw new Error("原审查内容无效");
+    }
+    return structuredClone(file) as unknown as CodingFileChange;
+  });
+  const origin = value.origin;
+  if (origin !== undefined && (!isRecord(origin) || !["session_id", "runtime_session_id", "workspace_id", "workspace_name"].every(key => typeof origin[key] === "string" && origin[key]))) throw new Error("固定变更来源无效");
+  if (value.coverage !== undefined && value.coverage !== "text-reviews") throw new Error("变更覆盖范围无效");
+  return { ...structuredClone(value), files } as unknown as CodingChangeSet;
 }

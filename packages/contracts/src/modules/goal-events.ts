@@ -545,6 +545,7 @@ export interface GoalEventFactsApi {
   }): void;
   recordNote(input: RecordGoalNoteInput): GoalEventMutationResult;
   recordProgress(input: RecordGoalProgressSummaryInput): GoalEventProgressResult;
+  readProgressReceipt(boardId: string, goalId: string, actorId: string, key: string): GoalEventProgressResult | null;
   applyConcern(input: ApplyGoalConcernInput): GoalEventConcernResult;
   requestDecision(input: RequestGoalDecisionInput): GoalEventDecisionRequestResult;
   citeDecision(input: CiteGoalDecisionInput): GoalEventDecisionResult;

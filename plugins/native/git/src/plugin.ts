@@ -8,6 +8,7 @@ import type {
 import { gitEventTypes } from "./events.js";
 import { gitManifest } from "./manifest.js";
 import { gitUiContribution } from "./ui.js";
+import { gitRoutes } from "./routes.js";
 
 /**
  * Git as Plugin Runtime starts it.
@@ -42,15 +43,17 @@ export function createGitPlugin(ports: GitPluginPorts = {}): PluginDefinition {
     manifest: gitManifest,
     event_types: gitEventTypes,
     async start(context: PluginStartContext): Promise<PluginAppContribution> {
+      let repositoryReady = false;
       for (const permission of gitManifest.permissions) {
         if (permission.required) context.requireGrant(permission.permission);
       }
       return {
         kind: "app",
         views: [gitUiContribution],
+        routes: gitRoutes(context, ready => { repositoryReady = ready; }),
         commandAvailability: (commandId) => {
           if (commandId === "git.open-change") {
-            return ports.ready?.() === true
+            return repositoryReady || ports.ready?.() === true
               ? { available: true }
               : { available: false, reason: "还没有可读的 Git 工作区" };
           }
@@ -73,6 +76,7 @@ export function createGitPlugin(ports: GitPluginPorts = {}): PluginDefinition {
           await ports.onWorkingTreeChanged?.("upstream");
         },
         onUpstreamUnavailable: async () => {
+          repositoryReady = false;
           await ports.onWorkingTreeChanged?.("unavailable");
         },
         onEvent: async () => {
@@ -86,9 +90,7 @@ export function createGitPlugin(ports: GitPluginPorts = {}): PluginDefinition {
       await ports.onStop?.(context);
     },
     async health(): Promise<{ ok: boolean; message: string }> {
-      return ports.ready === undefined
-        ? { ok: false, message: "宿主没有提供 Git 入口" }
-        : { ok: true, message: "就绪" };
+      return { ok: true, message: "插件已启动；仓库状态按当前授权读取" };
     },
   };
 }

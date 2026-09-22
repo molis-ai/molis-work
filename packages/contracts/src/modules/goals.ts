@@ -1,5 +1,28 @@
+import type { RecordGoalProgressSummaryInput, GoalEventProgressResult } from "./goal-event-state.js";
 import type { ContractDescriptor } from "../platform/package.js";
 import type { StoredModuleEvent } from "../platform/storage.js";
+import type { HostCapabilityDefinition } from "../platform/app-host.js";
+import type { GoalEventDirectoryPage, GoalEventStateView } from "./goal-events.js";
+
+/** Read-only, scoped by the Host's project. Consumers cannot supply another board. */
+export interface GoalContextSnapshot {
+  goal: GoalRecord;
+  /** Only this Goal's cursor belongs in its context; unrelated project events do not. */
+  state: Omit<GoalEventStateView, "observed_event_cursor">;
+}
+export const goalContextCapabilities = {
+  list: { capability_id: "goals.context.list.v1", version: 1, operation: "query" } as HostCapabilityDefinition<
+    { after_cursor?: string }, GoalEventDirectoryPage>,
+  read: { capability_id: "goals.context.read.v1", version: 1, operation: "query" } as HostCapabilityDefinition<
+    { goal_id: string }, GoalContextSnapshot>,
+};
+/** Project-scoped access to the original Goal progress transaction and receipt. */
+export const goalProgressCapabilities = {
+  record: { capability_id: "goals.progress.record.v1", version: 1, operation: "command" } as HostCapabilityDefinition<
+    Omit<RecordGoalProgressSummaryInput, "board_id">, GoalEventProgressResult>,
+  receipt: { capability_id: "goals.progress.receipt.v1", version: 1, operation: "query" } as HostCapabilityDefinition<
+    { goal_id: string; actor_id: string; idempotency_key: string }, GoalEventProgressResult | null>,
+};
 import type {
   GoalEventAdoptedPlanningRequest,
   GoalEventTypeDefinitionInput,
@@ -784,6 +807,7 @@ export type {
   GoalEventPlanningMethodRef,
   GoalEventProgressResult,
   GoalEventProgressSummaryView,
+  GoalProgressArtifactSource,
   GoalEventDirectoryItem,
   GoalEventDirectoryPage,
   GoalEventDirectoryQuery,

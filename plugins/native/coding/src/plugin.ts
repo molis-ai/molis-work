@@ -7,8 +7,10 @@ import type {
 
 import { codingEventTypes } from "./events.js";
 import { codingManifest } from "./manifest.js";
+import { codingMethods } from "./methods.js";
 import { codingPrompts } from "./roles.js";
 import { codingSettingsContribution, codingUiContribution } from "./ui.js";
+import { codingRoutes, type CodingExecutionPorts } from "./routes.js";
 
 /**
  * Coding as something Plugin Runtime starts, isolated, rather than something
@@ -40,6 +42,7 @@ function commandTitle(commandId: string): string {
 }
 
 export interface CodingPluginPorts {
+  execution?: CodingExecutionPorts;
   /** Called on stop so the Plugin can release what it opened. */
   onStop?(context: PluginStartContext): void | Promise<void>;
   /**
@@ -56,6 +59,7 @@ export function createCodingPlugin(ports: CodingPluginPorts = {}): PluginDefinit
     manifest: codingManifest,
     event_types: codingEventTypes,
     agent_prompts: codingPrompts,
+    agent_skills: codingMethods,
     async start(context: PluginStartContext): Promise<PluginAppContribution> {
       for (const permission of codingManifest.permissions) {
         if (permission.required) context.requireGrant(permission.permission);
@@ -63,6 +67,10 @@ export function createCodingPlugin(ports: CodingPluginPorts = {}): PluginDefinit
       return {
         kind: "app",
         views: [codingUiContribution, codingSettingsContribution],
+        routes: codingRoutes(context, ports.execution),
+        // The picker reads current inputs on demand. Upstream changes must not
+        // replace private draft selections or any already-frozen Run material.
+        onUpstreamReady: () => {},
         /**
          * A command is offered only when it can actually do something. Opening
          * a change set needs a session; opening a report needs a report. An

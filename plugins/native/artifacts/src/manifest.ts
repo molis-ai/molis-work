@@ -16,14 +16,17 @@ export const artifactsManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: ARTIFACTS_PLUGIN_ID,
-  version: "1.0.0",
+  version: "1.1.0",
   name: "Artifacts",
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-artifacts-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [],
   capabilities: { provides: [], consumes: [] },
-  artifacts: { produces: [], consumes: [] },
+  artifacts: {
+    produces: [{ artifact_type_id: "io.molis.work.document", schema_version: 1 }],
+    consumes: [{ artifact_type_id: "io.molis.work.document", schema_version: 1 }],
+  },
   ui: {
     contributions: [ARTIFACT_BROWSER_UI_CONTRIBUTION_ID],
     views: [

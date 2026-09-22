@@ -23,6 +23,7 @@ export interface FeedSourceProviders {
   };
 }
 export interface FeedSourcePorts {
+  syncRepository?(source: FeedSourceRecord, input: { idempotencyKey: string; signal?: AbortSignal }): Promise<FeedSourceSyncResult>;
   feed: FeedApplication;
   providers: FeedSourceProviders;
   createRuntime(source: FeedSourceRecord): PublicFeedRuntime;
@@ -30,6 +31,7 @@ export interface FeedSourcePorts {
   appendEvent(boardId: string, sourceId: string, type: string, reason: string, payload?: Record<string, unknown>): void;
 }
 export type RegisterFeedSourceInput =
+  | { kind: "research_library"; repository: string; research_source: string; name?: string }
   | { kind: "rss"; definition_id: string }
   | { kind: "web_query"; query: string; name?: string }
   | { kind: "youtube_channel"; channel_id: string; name?: string }

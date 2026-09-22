@@ -30,3 +30,6 @@ export { createShelfRouteHandlers } from "./route-handlers.js";
 export type { ShelfRouteHandlerPorts } from "./route-handlers.js";
 export { shelfRouteErrorResponse } from "./route-error.js";
 export { SHELF_PLUGIN_ID, SHELF_PROJECT_PLUGIN_ID, shelfManifest } from "./manifest.js";
+
+export type { ShelfResultPorts } from "./plugin.js";
+export { createShelfPlugin } from "./plugin.js";

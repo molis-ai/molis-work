@@ -1,0 +1,65 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { createServer } from "node:http";
+import { openGoalBrowser } from "./fixtures/goal-browser.js";
+
+const PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=";
+
+test("图片完整HTTP链路：配置、本地生成、刷新、下载、失败后复用、窄屏", {timeout: 90_000}, async (t) => {
+  let calls = 0;
+  const provider = createServer(async (request, response) => {
+    let raw = "";
+    for await (const chunk of request) raw += chunk.toString();
+    calls++;
+    assert.equal(request.url, "/v1/images/generations");
+    const body = JSON.parse(raw);
+    response.writeHead(body.prompt === "故障验证" ? 429 : 200, {"content-type":"application/json"});
+    response.end(JSON.stringify(body.prompt === "故障验证" ? {error:{message:"fixture"}} : {data:[{b64_json:PNG}]}));
+  });
+  await new Promise<void>((r) => provider.listen(0,"127.0.0.1",r));
+  t.after(() => new Promise<void>((r) => provider.close(() => r())));
+  const address = provider.address();assert.ok(address && typeof address === "object");
+  const browser = await openGoalBrowser(t, true);
+  if (!browser) return;
+  const {command,sessionId,evaluate,waitFor,navigate,click,reloadPage,origin,projectId} = browser;
+  await command("Emulation.setDeviceMetricsOverride", {width:1360,height:960,deviceScaleFactor:1,mobile:false},sessionId);
+  await navigate(() => command("Page.navigate", {url:`${origin}/projects/${projectId}/`},sessionId,20_000));
+  await waitFor("document.querySelector('[data-plugin-strip] [data-plugin-id=images]')");
+  await click('[data-plugin-strip] [data-plugin-id="images"]');
+  await waitFor("document.body.dataset.desktopSurface === 'images'");
+  await click('[data-images-new]');
+  await click('[data-images-connections]');
+  await waitFor("document.querySelector('[data-images-dialog]').open");
+  await click('[data-images-preset="custom"]');
+  await evaluate(`(() => {
+    document.querySelector('[data-images-connection-name]').value='本地链路验证';
+    document.querySelector('[data-images-connection-url]').value='http://127.0.0.1:${address.port}/v1';
+    document.querySelector('[data-images-connection-model]').value='fixture-image';
+  })()`);
+  await click('[data-images-save-connection]');
+  await waitFor("(document.querySelector('[data-images-saved-connections]')?.textContent || '').includes('本地链路验证')");
+  await waitFor("!document.querySelector('[data-images-dialog]').open");
+  const prompt = async (value: string) => evaluate(`(() => {const e=document.querySelector('[data-images-prompt]');e.value=${JSON.stringify(value)};e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+  await prompt("一张用于验证保存和下载的图片");
+  await click('[data-images-generate]');
+  await waitFor("document.querySelector('[data-images-result] img')?.complete && document.querySelector('[data-images-result] img')?.naturalWidth > 0",12_000);
+  assert.equal(calls,1);
+  const url = await evaluate<string>("document.querySelector('[data-images-result] img').src");
+  const bytes = Buffer.from(await (await fetch(url+"?download=1")).arrayBuffer());
+  assert.deepEqual(bytes,Buffer.from(PNG,"base64"));
+  await reloadPage();
+  if(await evaluate("document.body.dataset.desktopSurface") !== "images") await click('[data-plugin-strip] [data-plugin-id="images"]');
+  await waitFor("document.querySelectorAll('[data-images-job]').length > 0 || document.querySelectorAll('[data-images-id]').length > 0 || document.querySelectorAll('.images-history-row').length > 0");
+  await click('.images-history-row');
+  await waitFor("document.querySelector('[data-images-result] img')?.naturalWidth > 0");
+  assert.equal(calls,1,"刷新或重新打开不会调用厂商");
+  await click('[data-images-new]');
+  await prompt("故障验证");
+  await click('[data-images-generate]');
+  await waitFor("(document.querySelector('[data-images-result]')?.textContent || '').includes('429')",12_000);
+  assert.equal(calls,2);
+  await command("Emulation.setDeviceMetricsOverride", {width:390,height:844,deviceScaleFactor:1,mobile:true},sessionId);
+  assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"),true);
+  await click('[data-images-back]');
+  await waitFor("document.querySelector('[data-images=workbench]').dataset.expanded !== 'true'");
+});

@@ -25,7 +25,7 @@ import type { PluginInputGraph } from "./wiring.js";
  * alone what a Plugin is able to touch.
  */
 
-/** A port's value is one Artifact identity whose versions are that port's history. */
+/** Generated publications use one identity; selected fixed references keep theirs. */
 export function portArtifactId(pluginId: string, port: string): string {
   return `${pluginId}:${port}`;
 }
@@ -34,6 +34,9 @@ export interface PluginWiringServicesInput {
   manifest: PluginManifest;
   graph: PluginInputGraph;
   artifacts: PluginArtifactClient;
+  /** Host reads the canonical publication history, independently of selected references. */
+  latestVersion(artifactId: string): number;
+  requireGrant(permission: string): void;
   /**
    * Opaque scope key attached to everything this Plugin publishes, so the Host
    * can tell two inputs belong together without reading business fields.
@@ -81,7 +84,7 @@ export function createPluginOutputsClient(input: PluginWiringServicesInput): Plu
         throw new PluginWiringError("port_unknown", `${pluginId} 没有输出端口 ${request.port}`);
       }
       const artifactId = portArtifactId(pluginId, request.port);
-      const previous = graph.currentVersion(pluginId, request.port);
+      const previous = input.latestVersion(artifactId);
       const version = previous + 1;
       const result = artifacts.publish({
         artifact_id: artifactId,
@@ -100,6 +103,32 @@ export function createPluginOutputsClient(input: PluginWiringServicesInput): Plu
       });
       graph.evaluateAll();
       return result;
+    },
+    reference(port: string) {
+      if (!outputs.some(item => item.port === port)) throw new PluginWiringError("port_unknown", `${pluginId} 没有输出端口 ${port}`);
+      return graph.outputReference(pluginId, port);
+    },
+    select(request) {
+      const declared = outputs.find(item => item.port === request.port);
+      if (!declared) throw new PluginWiringError("port_unknown", `${pluginId} 没有输出端口 ${request.port}`);
+      if (!manifest.permissions.some(item => item.permission === "artifact:write")) throw new PluginWiringError("port_binding_invalid", "未声明发布成果权限");
+      input.requireGrant("artifact:write");
+      const artifact = artifacts.read(request.reference);
+      if (!artifact || artifact.availability !== "available" || artifact.lifecycle_state !== "active"
+        || artifact.producer_plugin_id !== pluginId || artifact.producer_binding_signature !== manifest.publisher.signature) {
+        throw new PluginWiringError("port_binding_invalid", "只能选择当前插件自己的可用固定成果");
+      }
+      if (artifact.artifact_type_id !== declared.artifact_type_id || artifact.schema_version !== declared.schema_version) {
+        throw new PluginWiringError("port_type_mismatch", "固定成果与输出端口类型不一致");
+      }
+      const same = (a: ArtifactReference | null, b: ArtifactReference | null) => a?.artifact_id === b?.artifact_id && a?.version === b?.version;
+      const current = graph.outputReference(pluginId, request.port);
+      const reference = { artifact_id: artifact.artifact_id, version: artifact.version };
+      if (same(current, reference)) return reference;
+      if (!same(current, request.expected_reference)) throw new PluginWiringError("port_binding_invalid", "当前输出已变化，请重新查看后选择");
+      graph.publish({ plugin_id: pluginId, port: request.port, reference, scope_key: input.scopeKey ?? null });
+      graph.evaluateAll();
+      return reference;
     },
     invalidate(port: string, safeReason: string) {
       if (!outputs.some((declared) => declared.port === port)) {

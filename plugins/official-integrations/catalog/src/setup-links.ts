@@ -44,6 +44,7 @@ export const CONNECTOR_SETUP_LINKS = {
   teams: MICROSOFT_GRAPH,
   discord: [link("打开 Discord Developer Portal", "https://discord.com/developers/applications")],
   feishu: [link("打开飞书开放平台", "https://open.feishu.cn/app")],
+  lark: [link("打开 Lark 开放平台", "https://open.larksuite.com/app")],
   wechat: [
     link("打开企业微信管理后台", "https://work.weixin.qq.com/wework_admin/frame#apps"),
     link("查看企业微信开发文档", "https://developer.work.weixin.qq.com/document/path/90665"),

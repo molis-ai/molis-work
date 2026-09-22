@@ -19,6 +19,21 @@ import {
 
 const WS = { workspace_id: "ws-1", name: "项目" };
 
+test("Git permission-only changes and renames remain visible in fixed comparisons", () => {
+  const content = { workspace: WS, path: ["new.sh"], before_exists: true, after_exists: true, before: "echo hello\n", after: "echo hello\n",
+    source: { kind: "comparison", comparison_id: "fixed" }, git: { before_mode: "100644", after_mode: "100755", previous_path: ["old.sh"] } };
+  const input = { content, source_plugin_id: "io.molis.work.git", content_version: 2 };
+  const view = compareChangeSet(input);
+  assert.equal(view.identical, false); assert.equal(view.before?.path, "old.sh"); assert.equal(view.after?.path, "new.sh");
+  assert.deepEqual(view.metadata_changes, ["重命名：old.sh → new.sh", "文件权限：新增执行权限（100644 → 100755）", "正文未改变"]);
+  assert.ok(view.rows.every(row => row.kind === "equal"));
+  const textOnly = { ...content }; delete (textOnly as { git?: unknown }).git;
+  assert.equal(compareChangeSet({ ...input, content: textOnly }).identical, true, "older artifacts remain readable without invented mode facts");
+  for (const git of [{ ...content.git, before_mode: null }, { ...content.git, after_mode: "120000" }, { ...content.git, previous_path: ["..", "escape"] }]) {
+    assert.equal(compareChangeSet({ ...input, content: { ...content, git } }).phase, "unavailable");
+  }
+});
+
 function snapshotInput(text: string, workspace = WS, path = ["a.ts"]) {
   return { content: { workspace, path, text }, source_plugin_id: "io.molis.work.files", content_version: 1 };
 }
@@ -97,7 +112,7 @@ test("读不了的快照报 unavailable，并给出下一步", () => {
     snapshotInput("a\n"),
   ]);
   assert.equal(view.phase, "unavailable");
-  assert.match(view.recovery ?? "", /重新捕获/);
+  assert.match(view.recovery ?? "", /重新固定对比前和对比后/);
 });
 
 test("新建与删除各自标出来，缺的一侧文本被当成空", () => {

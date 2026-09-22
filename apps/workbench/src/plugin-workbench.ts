@@ -1,3 +1,5 @@
+import { imagesUiContribution, IMAGES_STYLES, IMAGES_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-images";
+import { JELLY_CLIENT_FACTORY_SCRIPT, JELLY_STYLES, jellyUiContribution } from "@molis-ai/molis-work-plugin-jelly";
 import { EXPERIMENTS_CLIENT_FACTORY_SCRIPT, EXPERIMENTS_STYLES, experimentsUiContribution } from "@molis-ai/molis-work-plugin-experiments";
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import { artifactReferenceUiContribution, artifactBrowserUiContribution } from "@molis-ai/molis-work-plugin-artifacts";
@@ -60,6 +62,8 @@ export interface BuiltinPluginWorkbenchPack {
  * this table is the unique Workbench register for contributions, styles, factories.
  */
 export const BUILTIN_PLUGIN_WORKBENCH: readonly BuiltinPluginWorkbenchPack[] = [
+  { project_plugin_id: "images", contributions: [imagesUiContribution], stylesheet: IMAGES_STYLES, clientFactory: IMAGES_CLIENT_FACTORY_SCRIPT },
+  { project_plugin_id: "jelly", contributions: [jellyUiContribution], stylesheet: JELLY_STYLES, clientFactory: JELLY_CLIENT_FACTORY_SCRIPT, searchRow: { selector: "[data-jelly-id]", idDataset: "jellyId" } },
   { project_plugin_id: "experiments", contributions: [experimentsUiContribution], stylesheet: EXPERIMENTS_STYLES, clientFactory: EXPERIMENTS_CLIENT_FACTORY_SCRIPT },
   { project_plugin_id: "feed", contributions: [feedUiContribution] },
   { project_plugin_id: "inbox", contributions: [inboxUiContribution] },
@@ -88,7 +92,7 @@ export const BUILTIN_PLUGIN_WORKBENCH: readonly BuiltinPluginWorkbenchPack[] = [
     contributions: [pagesUiContribution],
     stylesheet: PAGES_STYLES,
     clientFactory: PAGES_CLIENT_FACTORY_SCRIPT,
-    searchRow: { selector: "[data-page-id]", idDataset: "pageId" },
+    searchRow: { selector: "button.feed-stage-entry[data-page-id]", idDataset: "pageId" },
   },
   {
     project_plugin_id: "form",

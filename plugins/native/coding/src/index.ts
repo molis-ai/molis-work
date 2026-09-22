@@ -1,3 +1,6 @@
+export { codingReportPreview } from "./report.js";
+export { codingChangeSetPreview } from "./changeset.js";
+
 export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-plugin-coding",
   packagePath: "plugins/native/coding",
@@ -55,6 +58,8 @@ export {
   CODING_CHANGESET_TYPE,
   CODING_DIAGRAM_TYPE,
   CODING_REPORT_TYPE,
+  CODING_GOAL_CONTEXT_TYPE,
+  CODING_PLAN_TYPE,
   CodingDiagramError,
   inspectDiagram,
   type CodingArtifactType,
@@ -93,6 +98,7 @@ export {
   CODING_BUILDER_ROLE,
   CODING_COORDINATOR_ROLE,
   CODING_READER_ROLE,
+  CODING_PLANNER_ROLE,
   CODING_REVIEWER_ROLE,
   CODING_ROLE_IDS,
   CODING_WRITERS_ROLE,
@@ -102,6 +108,7 @@ export {
   type CodingRoleId,
 } from "./roles.js";
 export { createCodingPlugin, type CodingPluginPorts } from "./plugin.js";
+export type { CodingExecutionPorts, CodingModelChoice } from "./routes.js";
 export {
   projectMcp,
   projectSkills,
@@ -167,3 +174,11 @@ export {
   type ScrollPosition,
   type StickDecision,
 } from "./reading.js";
+
+export { CODING_STYLES } from "./styles.js";
+export { CODING_CLIENT_FACTORY_SCRIPT } from "./client.js";
+export type { CodingCharacterChoice, CodingCharacterPorts } from "./characters.js";
+
+export { codingMethods } from "./methods.js";
+
+export { CODING_SETTINGS_CLIENT_SCRIPT } from "./settings-client.js";

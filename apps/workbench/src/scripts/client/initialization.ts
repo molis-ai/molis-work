@@ -1,5 +1,11 @@
+import { GIT_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-git";
+import { CODING_CLIENT_FACTORY_SCRIPT, CODING_SETTINGS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-coding";
+import { FILES_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-files";
+import { icon } from "@molis-ai/molis-work-design-system";
+import { AGENT_REVIEW_CLIENT_FACTORY_SCRIPT } from "./agent-review.js";
 import { PROJECT_HOME_FACTORY_SCRIPT } from "./project-home.js";
 import { PLUGIN_WORKBENCH_FACTORY_SCRIPT } from "./plugin-workbench.js";
+import { CHARACTERS_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-characters";
 import { IMMERSIVE_NAVIGATION_FACTORY_SCRIPT } from "./immersive-navigation.js";
 import { GLOBAL_SEARCH_FACTORY_SCRIPT } from "./global-search.js";
 import { SETTINGS_DIRECTORY_FACTORY_SCRIPT } from "./settings-directory.js";
@@ -47,9 +53,59 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
         setMobileView("document");
       },
     });
+    const companionRequest = async (plugin, path, method = "GET", body) => {
+        const response = await fetch(route('/api/plugins/io.molis.work.' + plugin + path), {method,cache:'no-store',
+          ...(method==='GET'?{}:{headers:molisWorkControlHeaders(),body:JSON.stringify(body ?? {})})});
+        const result = await response.json();
+        if(!response.ok)throw new Error(result.error || '无法读取文件工作区');
+        return result;
+      };
+    const openCompanionResult = (name) => {
+      document.querySelector('[data-coding-tools]')?.setAttribute('data-companion-open','true');
+      for(const kind of ['files','git']) { const panel=document.querySelector('[data-'+kind+'-results]'); if(panel)panel.hidden=kind!==name; }
+    };
+    const closeCompanionResult = () => document.querySelector('[data-coding-tools]')?.removeAttribute('data-companion-open');
+    const gitBrowser = (${GIT_CLIENT_FACTORY_SCRIPT})({request:companionRequest,openResult:()=>openCompanionResult('git'),closeResult:closeCompanionResult,
+      showReviews: (${AGENT_REVIEW_CLIENT_FACTORY_SCRIPT})({route,headers:()=>molisWorkControlHeaders(),onDecision:outcome=>gitBrowser?.afterDecision(outcome)})});
+    const filesBrowser = (${FILES_CLIENT_FACTORY_SCRIPT})({
+      icons: ${JSON.stringify({ folder: icon("folder"), file: icon("file") })},
+      request: companionRequest,
+      onWorkspaceSelected: () => { void gitBrowser?.refresh(); },
+      openResult: () => openCompanionResult('files'),
+      closeResult: closeCompanionResult,
+    });
+    (${CODING_CLIENT_FACTORY_SCRIPT})({
+      revealTask: () => { if(matchMedia("(max-width: 600px)").matches) immersiveNavigation?.hideDirectory(); closeCompanionResult(); },
+      onDirectoryFace: face => { const handled=filesBrowser?.show(face) ?? false; gitBrowser?.show(face); return handled; },
+      showReviews: (${AGENT_REVIEW_CLIENT_FACTORY_SCRIPT})({route,headers:()=>molisWorkControlHeaders()}),
+      addWorkspace: async (workspace_path) => {
+        const response = await fetch(route("/api/workspaces"), { method:"POST", headers:molisWorkControlHeaders(), body:JSON.stringify({workspace_path,user_confirmed:true}) });
+        const result = await response.json();
+        if(!response.ok) throw new Error(result.error || "无法关联工作区");
+        return result.workspace;
+      },
+      openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title),
+    });
+    (${CHARACTERS_CLIENT_FACTORY_SCRIPT})();
     ${pluginWorkbenchClientBootstrap()}
-    (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: L, showToast });
+    ${CODING_SETTINGS_CLIENT_SCRIPT}
+    (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: L, showToast, feedApi,
+      openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title),
+      refresh: async () => { await refreshFeedStage(); await refreshInboxStage(); },
+      preparePages: draft => {
+        composeDraft = { ...draft, request_id: "" };
+        tabWorkspace?.openPlugin("inbox");
+        showInboxComposer();
+      },
+    });
     ${CONNECTORS_SETTINGS_CLIENT_SCRIPT}
+    requestAnimationFrame(() => {
+      const entryId = new URL(location.href).searchParams.get("inbox_entry");
+      if (!entryId) return;
+      const row = inboxList?.querySelector('[data-inbox-entry-id="' + CSS.escape(entryId) + '"]');
+      if (row) tabWorkspace?.openItem("inbox", entryId, row.querySelector("strong")?.textContent);
+      else showToast(L("原 Inbox 材料在当前项目中不可用"));
+    });
     const settingsDirectory = (${SETTINGS_DIRECTORY_FACTORY_SCRIPT})({
       translate: L,
       setDirectory: (...args) => setDesktopDirectory(...args),
@@ -248,7 +304,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       tabWorkspace.openItem("goals", selected);
     } else if (tabWorkspace && !directGoalRequested && !decisionView && !collectionView) {
       const navigationType = performance.getEntriesByType("navigation")[0]?.type;
-      if (navigationType !== "reload" && navigationType !== "back_forward") tabWorkspace.landAtProjectRoot();
+      if (navigationType !== "reload" && navigationType !== "back_forward" && !tabWorkspace.isEmbedded?.()) tabWorkspace.landAtProjectRoot();
     }
     if (restoredUi) {
       try {

@@ -1,23 +1,16 @@
-import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
+import { lstat, mkdir, realpath } from "node:fs/promises";
 import path from "node:path";
-import { promisify } from "node:util";
+import { runWorkspaceGit } from "./workspace-git.js";
 
 import type { WriterFileTarget, WriterWorktree } from "@molis-ai/molis-work-plugin-coding";
 
-const run = promisify(execFile);
-
-/**
- * Git worktrees for parallel writers.
- *
- * Every git call goes through `execFile` with an argument array, never a
- * shell string: a branch name is user-influenced, and a shell would make it
- * executable. Nothing here writes to the main working tree — a writer only
- * ever touches its own worktree.
- */
+const SAFE_NAME = /^[a-z0-9][a-z0-9-]{0,63}$/u;
+const BRANCH_PREFIX = "molis-work/writer/";
 
 export class GitWorktreeError extends Error {
   constructor(
-    readonly code: "git.unavailable" | "git.not_a_repository" | "git.failed",
+    readonly code: "git.unavailable" | "git.not_a_repository" | "git.failed" | "git.worktree_not_owned" | "git.worktree_dirty",
     message: string,
   ) {
     super(message);
@@ -25,116 +18,170 @@ export class GitWorktreeError extends Error {
   }
 }
 
-/** Branch and directory names are ours to choose, so they stay in a safe alphabet. */
-const SAFE_NAME = /^[a-z0-9][a-z0-9-]{0,63}$/u;
-
 export interface GitWorktreePort {
-  /** Whether this workspace can host worktrees at all. */
   supported(): Promise<boolean>;
-  /** The slot's task lives with the slot; a worktree only needs its id. */
-  create(slotId: string): Promise<WriterWorktree>;
+  preview(slotId: string): Promise<WriterWorktree>;
+  create(slotId: string, expectedBase?: string): Promise<WriterWorktree>;
   list(): Promise<WriterWorktree[]>;
   changes(worktree: WriterWorktree): Promise<Array<{ path: string[]; target: WriterFileTarget }>>;
+  /** Remove only a clean, owned directory. Its branch and original provenance remain. */
   remove(worktree: WriterWorktree): Promise<void>;
 }
 
 async function git(cwd: string, args: readonly string[]): Promise<string> {
   try {
-    const { stdout } = await run("git", [...args], { cwd, maxBuffer: 8 * 1024 * 1024 });
-    return stdout;
+    // The shared runner clears inherited Git redirects and disables fsmonitor.
+    // Creating a working directory must not execute checkout hooks.
+    return (await runWorkspaceGit(cwd, ["-c", "core.hooksPath=/dev/null", ...args])).toString();
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
-    if (/ENOENT/u.test(reason)) {
-      throw new GitWorktreeError("git.unavailable", "这台机器上找不到 git");
-    }
-    throw new GitWorktreeError("git.failed", reason);
+    throw new GitWorktreeError(/ENOENT/u.test(reason) ? "git.unavailable" : "git.failed", reason);
   }
 }
 
-/** Where worktrees live, beside the repository rather than inside it. */
-const WORKTREE_ROOT = ".molis-work-writers";
+interface RegisteredWorktree { directory: string; branch?: string }
+function registeredWorktrees(output: string): RegisteredWorktree[] {
+  const rows: RegisteredWorktree[] = [];
+  let row: RegisteredWorktree | undefined;
+  for (const field of output.split("\0")) {
+    if (field.startsWith("worktree ")) {
+      row = { directory: field.slice(9) };
+      rows.push(row);
+    } else if (field.startsWith("branch refs/heads/") && row) row.branch = field.slice(18);
+  }
+  return rows;
+}
 
+/** Git owns the worktree registry; branch metadata holds only immutable creation provenance. */
 export function createGitWorktreePort(workspacePath: string): GitWorktreePort {
-  const root = path.resolve(workspacePath);
+  async function noFilters(root: string) {
+    let keys = "";
+    try { keys = (await runWorkspaceGit(root, ["config", "--null", "--name-only", "--get-regexp", "^filter\\..*\\.(clean|smudge|process)$"])).toString(); }
+    catch (error) { if ((error as { code?: number }).code !== 1) throw error; }
+    if (!keys.trim()) return;
+    const drivers = new Set(keys.split("\0").map(key => /^filter\.(.+)\.(?:clean|smudge|process)$/i.exec(key)?.[1]).filter(Boolean));
+    const files = await git(root, ["ls-files", "--cached", "--others", "--exclude-standard", "-z"]);
+    for (const source of [[], ["--cached"]]) {
+      const attrs = (await runWorkspaceGit(root, ["check-attr", ...source, "-z", "--stdin", "filter"], undefined, { input: files })).toString().split("\0");
+      // Do not silently check out raw filter pointers as working source files.
+      if (attrs.some((value, index) => index % 3 === 2 && drivers.has(value))) throw new GitWorktreeError("git.failed", "仓库文件使用 Git 内容过滤器；工作树准备尚未接通这些命令的审查，未创建目录");
+    }
+  }
+  async function context() {
+    const root = await realpath(path.resolve(workspacePath));
+    const top = await realpath((await git(root, ["rev-parse", "--show-toplevel"])).trimEnd());
+    if (top !== root) throw new GitWorktreeError("git.not_a_repository", "并行写入需要授权仓库根，不能把子目录权限扩大到整个仓库");
+    const head = (await git(root, ["rev-parse", "--verify", "HEAD^{commit}"])).trim();
+    const ownerKey = createHash("sha256").update(root).digest("hex").slice(0, 16);
+    const container = path.join(path.dirname(root), ".molis-work-writers");
+    return { root, head, container, directory: path.join(container, ownerKey) };
+  }
 
-  async function head(): Promise<string> {
-    return (await git(root, ["rev-parse", "HEAD"])).trim();
+  async function ensureDirectory(directory: string) {
+    await mkdir(directory).catch(error => { if (error.code !== "EEXIST") throw error; });
+    if (!(await lstat(directory)).isDirectory() || await realpath(directory) !== directory) {
+      throw new GitWorktreeError("git.worktree_not_owned", "写入者目录来源不明确，不能跟随替换目录或符号链接");
+    }
+  }
+
+  const metadataKey = (branch: string) => `branch.${branch}.molisWorkOrigin`;
+
+  async function preview(slotId: string) {
+    if (!SAFE_NAME.test(slotId)) throw new GitWorktreeError("git.failed", `写入者 id 不合法：${slotId}`);
+    const ctx = await context();
+    await noFilters(ctx.root);
+    if (await git(ctx.root, ["status", "--porcelain=v1", "-z", "--untracked-files=all"])) {
+      throw new GitWorktreeError("git.worktree_dirty", "主工作区有未提交内容，不能仅从 HEAD 分叉而遗漏当前工作；请先确定可用的提交起点");
+    }
+    return { worktree_id: slotId, branch: BRANCH_PREFIX + slotId, base_commit: ctx.head, directory: path.relative(ctx.root, path.join(ctx.directory, slotId)) };
+  }
+
+  async function readOwned(ctx: Awaited<ReturnType<typeof context>>, row: RegisteredWorktree): Promise<WriterWorktree> {
+    const id = row.branch?.slice(BRANCH_PREFIX.length) ?? "";
+    if (!row.branch?.startsWith(BRANCH_PREFIX) || !SAFE_NAME.test(id)
+      || row.directory !== path.join(ctx.directory, id)) {
+      throw new GitWorktreeError("git.worktree_not_owned", "工作树目录或分支不属于这个写入者");
+    }
+    let origin: { version: number; owner: string; base: string };
+    try { origin = JSON.parse(await git(ctx.root, ["config", "--local", "--get", metadataKey(row.branch)])); }
+    catch { throw new GitWorktreeError("git.worktree_not_owned", "工作树缺少原始来源，不能猜测基线或接管"); }
+    if (origin?.version !== 1 || origin.owner !== ctx.root || !/^[0-9a-f]{40,64}$/u.test(origin.base)) {
+      throw new GitWorktreeError("git.worktree_not_owned", "工作树原始来源不属于当前工作区");
+    }
+    if (!(await lstat(row.directory)).isDirectory() || await realpath(row.directory) !== row.directory
+      || (await git(row.directory, ["rev-parse", "--show-toplevel"])).trimEnd() !== row.directory) {
+      throw new GitWorktreeError("git.worktree_not_owned", "工作树目录已变化，需要核对原目录");
+    }
+    await git(row.directory, ["cat-file", "-e", `${origin.base}^{commit}`]);
+    return { worktree_id: id, branch: row.branch, base_commit: origin.base, directory: path.relative(ctx.root, row.directory) };
+  }
+
+  async function owned(worktree: WriterWorktree) {
+    const ctx = await context();
+    const expected = path.join(ctx.directory, worktree.worktree_id);
+    if (!SAFE_NAME.test(worktree.worktree_id) || path.resolve(ctx.root, worktree.directory) !== expected) {
+      throw new GitWorktreeError("git.worktree_not_owned", "请求的目录不属于当前写入者");
+    }
+    const rows = registeredWorktrees(await git(ctx.root, ["worktree", "list", "--porcelain", "-z"]));
+    const row = rows.find(entry => entry.directory === expected);
+    if (!row) throw new GitWorktreeError("git.worktree_not_owned", "原工作树已不在 Git 登记中");
+    const actual = await readOwned(ctx, row);
+    if (actual.branch !== worktree.branch || actual.base_commit !== worktree.base_commit) {
+      throw new GitWorktreeError("git.worktree_not_owned", "工作树分支或原基线与请求不符");
+    }
+    return { ctx, directory: expected };
   }
 
   return {
-    async supported(): Promise<boolean> {
-      try {
-        const inside = (await git(root, ["rev-parse", "--is-inside-work-tree"])).trim();
-        if (inside !== "true") return false;
-        // A repository with no commit has no base to branch from, and saying
-        // "supported" there would fail at the first create instead of here.
-        await head();
-        return true;
-      } catch {
-        return false;
-      }
+    preview,
+    async supported() {
+      try { await context(); return true; } catch { return false; }
     },
-
-    async create(slotId: string): Promise<WriterWorktree> {
-      if (!SAFE_NAME.test(slotId)) {
-        throw new GitWorktreeError("git.failed", `写入者 id 不合法：${slotId}`);
-      }
-      const branch = `molis-work/writer/${slotId}`;
-      const directory = path.join(WORKTREE_ROOT, slotId);
-      const base = await head();
-      await git(root, ["worktree", "add", "-b", branch, directory, base]);
-      return { worktree_id: slotId, branch, base_commit: base, directory };
+    async create(slotId, expectedBase) {
+      const proposed = await preview(slotId);
+      if (expectedBase && expectedBase !== proposed.base_commit) throw new GitWorktreeError("git.failed", "审查后主仓库提交已改变，请重新准备工作树");
+      const ctx = await context(), branch = BRANCH_PREFIX + slotId, directory = path.join(ctx.directory, slotId);
+      if (ctx.head !== proposed.base_commit) throw new GitWorktreeError("git.failed", "准备期间仓库提交已改变，请重新预览");
+      await ensureDirectory(ctx.container);
+      await ensureDirectory(ctx.directory);
+      await git(ctx.root, ["worktree", "add", "-b", branch, directory, ctx.head]);
+      // A metadata failure leaves the real worktree intact for reconciliation, never force-deletes it.
+      await git(ctx.root, ["config", "--local", metadataKey(branch), JSON.stringify({ version: 1, owner: ctx.root, base: ctx.head })]);
+      return { worktree_id: slotId, branch, base_commit: ctx.head, directory: path.relative(ctx.root, directory) };
     },
-
-    async list(): Promise<WriterWorktree[]> {
-      const output = await git(root, ["worktree", "list", "--porcelain"]);
-      const entries: WriterWorktree[] = [];
-      let current: { directory?: string; branch?: string; commit?: string } = {};
-      const flush = () => {
-        const { directory, branch, commit } = current;
-        if (directory !== undefined && branch !== undefined && commit !== undefined
-          && branch.startsWith("molis-work/writer/")) {
-          entries.push({
-            worktree_id: path.basename(directory),
-            branch,
-            base_commit: commit,
-            directory: path.relative(root, directory),
-          });
-        }
-        current = {};
-      };
-      for (const line of output.split("\n")) {
-        if (line.startsWith("worktree ")) { flush(); current.directory = line.slice(9).trim(); }
-        else if (line.startsWith("HEAD ")) current.commit = line.slice(5).trim();
-        else if (line.startsWith("branch ")) current.branch = line.slice(7).trim().replace(/^refs\/heads\//u, "");
+    async list() {
+      const ctx = await context();
+      const rows = registeredWorktrees(await git(ctx.root, ["worktree", "list", "--porcelain", "-z"]));
+      const result: WriterWorktree[] = [];
+      for (const row of rows) {
+        if (path.dirname(row.directory) === ctx.directory) result.push(await readOwned(ctx, row));
       }
-      flush();
-      return entries;
+      return result;
     },
-
-    async changes(worktree: WriterWorktree) {
-      const cwd = path.resolve(root, worktree.directory);
-      // Against the branch point, not the main tree: what this writer did is
-      // what it changed since it branched.
-      const output = await git(cwd, [
-        "diff", "--name-status", "--no-renames", `${worktree.base_commit}`,
-      ]);
-      const changes: Array<{ path: string[]; target: WriterFileTarget }> = [];
-      for (const line of output.split("\n")) {
-        const [status, file] = line.split("\t");
+    async changes(worktree) {
+      const { directory } = await owned(worktree);
+      await noFilters(directory);
+      const fields = (await git(directory, ["diff", "--name-status", "-z", "--no-renames", worktree.base_commit, "--"])).split("\0");
+      const changes = new Map<string, WriterFileTarget>();
+      for (let i = 0; i + 1 < fields.length; i += 2) {
+        const status = fields[i]!, file = fields[i + 1]!;
         if (!status || !file) continue;
-        const target: WriterFileTarget = status.startsWith("A") ? "added"
-          : status.startsWith("D") ? "deleted" : "modified";
-        changes.push({ path: file.split("/"), target });
+        changes.set(file, status.startsWith("A") ? "added" : status.startsWith("D") ? "deleted" : "modified");
       }
-      return changes;
+      for (const file of (await git(directory, ["ls-files", "--others", "--exclude-standard", "-z"])).split("\0")) {
+        if (file) changes.set(file, "added");
+      }
+      return [...changes].sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
+        .map(([file, target]) => ({ path: file.split("/"), target }));
     },
-
-    async remove(worktree: WriterWorktree): Promise<void> {
-      await git(root, ["worktree", "remove", "--force", worktree.directory]);
-      // The branch goes too: leaving it behind would collide with the next
-      // writer that takes the same slot id.
-      await git(root, ["branch", "-D", worktree.branch]).catch(() => "");
+    async remove(worktree) {
+      const { ctx, directory } = await owned(worktree);
+      await noFilters(directory);
+      if (await git(directory, ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--ignored=matching"])) {
+        throw new GitWorktreeError("git.worktree_dirty", "工作树仍有未提交或未跟踪内容，已保留目录；请先保存成果");
+      }
+      await git(ctx.root, ["worktree", "remove", "--", directory]);
+      // Retain the branch and its base metadata: clean commits may not have been integrated yet.
     },
   };
 }

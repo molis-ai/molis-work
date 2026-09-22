@@ -22,7 +22,7 @@ import {
  * 提示缓存是一个**选择**，不是我们替用户做的优化。
  *
  * 三件事在这里立住：没选过就是关着（行为和「没有缓存这回事」一样）；
- * 打不开断点的格式上给不了「必须命中」，而且在**保存的时候**就说清楚；
+ * 打不开断点的格式上给不了「要求缓存支持」，而且在**保存的时候**就说清楚；
  * 关着的时候一个字段都不往外发。
  */
 
@@ -78,7 +78,7 @@ test("没选过就是关着，而不是替用户开一个他没要的东西", ()
   }
 });
 
-test("打不开断点的格式上，「必须命中」在保存时就被拒", () => {
+test("打不开断点的格式上，「要求缓存支持」在保存时就被拒", () => {
   const item = fixture();
   try {
     assert.throws(
@@ -87,12 +87,12 @@ test("打不开断点的格式上，「必须命中」在保存时就被拒", ()
         base_url: "https://api.openai.com/v1", api_format: "openai-chat-completions",
         prompt_cache: "required",
       }),
-      /必须命中/,
+      /要求缓存支持/,
       "等到某次 Run 才失败，用户已经离开那个字段很久了",
     );
     assert.equal(item.store.get("openai"), null, "被拒的配置不能留下半条记录");
 
-    // 「尽量命中」在两种格式上都是合法选择——对面自己做前缀缓存不等于不能选。
+    // 「尽量使用缓存」在两种格式上都是合法选择——对面自己做前缀缓存不等于不能选。
     const best = item.store.upsert({
       provider_id: "openai", display_name: "openai",
       base_url: "https://api.openai.com/v1", api_format: "openai-chat-completions",
@@ -117,7 +117,7 @@ test("换了格式之后，原来合法的档位会重新判一次", () => {
         provider_id: "p", display_name: "p", base_url: "https://x.test",
         api_format: "openai-chat-completions",
       }),
-      /必须命中/,
+      /要求缓存支持/,
       "改格式不该让一个已经存着的档位偷偷变成做不到的承诺",
     );
   } finally {
@@ -177,7 +177,7 @@ test("关着的时候，启动配置里一个缓存字段都没有", () => {
   assert.equal(on?.prompt_cache, "best-effort");
 });
 
-test("设置页在给不了「必须命中」的格式上不摆这个选项", () => {
+test("设置页在给不了「要求缓存支持」的格式上不摆这个选项", () => {
   const openai = record({
     provider_id: "openai", api_format: "openai-chat-completions", base_url: "https://api.openai.com/v1",
   });
@@ -202,7 +202,7 @@ test("能不能打开断点是按格式判的，不是按供应商名字", () =>
   assert.equal(inspectPromptCacheChoice({ api_format: "openai-chat-completions", prompt_cache: "off" }), null);
   assert.match(
     inspectPromptCacheChoice({ api_format: "openai-chat-completions", prompt_cache: "required" }) ?? "",
-    /必须命中/,
+    /要求缓存支持/,
   );
   // 这一行只是确认上面那个渲染测试用的辅助还在，不是这条的重点。
   assert.equal(typeof formatContext, "function");

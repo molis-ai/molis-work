@@ -53,11 +53,11 @@ function receipt(overrides: Partial<AgentReviewRow["receipt"] & object> = {}) {
   };
 }
 
-test("批准之后、真实回执之前，是「已批准，尚未发生」，不是「已完成」", () => {
+test("批准之后、真实回执之前，是「已批准，执行结果待确认」，不是「已完成」", () => {
   const approved = row({ receipt: receipt() });
   assert.equal(reviewPhase(approved), "approved");
   const html = renderAgentReviewSurface({ rows: [approved], primitives: p });
-  assert.match(html, /已批准，尚未发生/);
+  assert.match(html, /已批准，执行结果待确认/);
   assert.doesNotMatch(html, /已完成/);
 });
 
@@ -71,7 +71,7 @@ test("批准了但执行失败，如实显示失败而不是成功", () => {
   const failed = row({ receipt: receipt({ effect_error: "磁盘只读" }) });
   assert.equal(reviewPhase(failed), "failed");
   const html = renderAgentReviewSurface({ rows: [failed], primitives: p });
-  assert.match(html, /已批准，但执行失败/);
+  assert.match(html, /已批准，但执行未完成/);
   assert.match(html, /磁盘只读/);
 });
 
@@ -109,9 +109,65 @@ test("展不开的操作类型照样列出来，不会被悄悄丢掉", () => {
   unknown.request.document = { kind: "rewind" } as never;
   const html = renderAgentReviewSurface({ rows: [unknown], primitives: p });
   assert.match(html, /data-agent-review-kind="rewind"/);
-  assert.match(html, /批准前请先确认/);
+  assert.match(html, /暂不能批准/);
+  assert.doesNotMatch(html, /data-agent-review-approve/);
 });
 
 test("没有待决定的操作时给出干净的空状态", () => {
   assert.match(renderAgentReviewSurface({ rows: [], primitives: p }), /没有待决定的操作/);
+});
+
+
+test("review renders both file versions and exact command arguments, never only the executable", () => {
+  const edit = row();
+  const html = renderAgentReviewSurface({ rows: [edit], primitives: p });
+  assert.match(html, /修改前/); assert.match(html, /old/); assert.match(html, /new/);
+  const command = row();
+  command.request.document = { kind: "command", command: "node", args: ["--test", "a b.test.js"], cwd: "src", timeout_ms: 15000 };
+  const commandHtml = renderAgentReviewSurface({ rows: [command], primitives: p });
+  assert.match(commandHtml, /--test/); assert.match(commandHtml, /a b.test.js/);
+  assert.match(commandHtml, /src/); assert.match(commandHtml, /15000/);
+  const unknownDelivery = row({ receipt: receipt({ delivery_error: "连接中断" }) });
+  const deliveryHtml = renderAgentReviewSurface({ rows: [unknownDelivery], primitives: p });
+  assert.match(deliveryHtml, /执行方尚未确认收到/);
+  assert.doesNotMatch(deliveryHtml, /尚未发生|执行未完成/);
+});
+
+test("manual rewind shows both full versions, distinguishes empty/deleted files and refuses incomplete previews", () => {
+  const item=row();item.request.run=null;item.request.operation={operation_id:'op',session_id:'s',kind:'checkpoint-rewind'};
+  item.request.kind='rewind';item.request.document={kind:'rewind',checkpoint_id:'cp',files:[
+    {path:'a.ts',change:'restore',before_text:'<old>',after_text:'<new>'},
+    {path:'empty',change:'delete',before_text:'',after_text:null},
+  ]};
+  const html=renderAgentReviewSurface({rows:[item],primitives:p});
+  assert.match(html,/&lt;old&gt;/);assert.match(html,/&lt;new&gt;/);assert.match(html,/（空文件）/);assert.match(html,/文件将不存在/);assert.match(html,/不撤销命令/);assert.equal(isDecidable(item),true);
+  item.receipt=receipt({effect_uncertain:'执行回执暂不可读'});assert.equal(reviewPhase(item),'reconcile');assert.equal(isDecidable(item),false);
+  assert.match(renderAgentReviewSurface({rows:[item],primitives:p}),/执行回执暂不可读/);
+  item.receipt=undefined;delete (item.request.document.files[0] as any).before_text;assert.equal(isDecidable(item),false);
+});
+
+test('current decisions precede collapsed history without hiding execution failures', () => {
+  const done=row({receipt:receipt({effect_settled:true})});done.request.review_id='older';
+  const pending=row();pending.request.review_id='action';
+  const failed=row({receipt:receipt({effect_error:'changed after preview'})});failed.request.review_id='conflict';
+  const html=renderAgentReviewSurface({rows:[done,failed,pending],primitives:p});
+  assert.ok(html.indexOf('data-agent-review-item="action"')<html.indexOf('data-agent-review-item="conflict"'));
+  assert.ok(html.indexOf('data-agent-review-item="conflict"')<html.indexOf('data-agent-review-item="older"'));
+  assert.match(html,/<details data-review-detail="history"><summary>/);assert.doesNotMatch(html,/<details data-review-detail="history" open/);
+  assert.match(html,/changed after preview/);
+});
+
+test('Git unknown results show a separate recovery entry, and content equality never reads as successful execution', async () => {
+  const { renderAgentReviewRecovery } = await import('@molis-ai/molis-work-app-workbench');
+  const item = row({ receipt: receipt({ effect_uncertain: '回执不可读' }) });
+  item.request.kind = 'git-index'; item.request.run = null;
+  item.request.operation = { kind: 'git-index', operation_id: 'op', workspace_id: 'w' };
+  item.request.document = { kind: 'git-index', action: 'stage', workspace_name: 'workspace', files: [{ path: 'note', before_text: 'before', after_text: 'after', before_mode: '100644', after_mode: '100644' }] };
+  const html = renderAgentReviewSurface({ rows: [item], primitives: p });
+  assert.match(html, /data-agent-review-inspect/); assert.doesNotMatch(html, /data-agent-review-approve/);
+  const recovery = renderAgentReviewRecovery({ review_id: 'r1', receipt: item.receipt!, observation: { revision: 'v1', observed_at: 'now', matches_before: false, matches_after: true, files: [{ path: '<note>', text: '<img src=x>', mode: '100644' }] }, can_confirm_not_happened: false, message: '仍需原执行回执' }, p.escape);
+  assert.match(recovery, /data-review-confirm-not disabled/); assert.match(recovery, /&lt;img src=x&gt;/); assert.doesNotMatch(recovery, /<img src=x>/);
+  item.receipt = receipt({ effect_error: '原操作未发生', reconciliation: { actor_id: 'user', at: '2026-09-22', reason: '<evidence>' } });
+  const settled = renderAgentReviewSurface({ rows: [item], primitives: p });
+  assert.match(settled, /已核对：原操作未发生/); assert.match(settled, /&lt;evidence&gt;/); assert.doesNotMatch(settled, /data-agent-review-inspect|已完成/);
 });

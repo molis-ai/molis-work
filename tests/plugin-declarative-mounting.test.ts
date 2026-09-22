@@ -285,13 +285,14 @@ test("the bundled catalog reproduces the shell's navigation exactly", async () =
   const { railEntries, islandEntries, settingsEntries, PROJECT_SCOPED_PLUGIN_IDS, BUILTIN_PLUGIN_REGISTRY } =
     await import("@molis-ai/molis-work-app-workbench");
 
-  const everything = ["goals", "sessions", "inbox", "feed", "shelf", "lingguang", "functions", "pages", "form", "dataset", "ppt", "artifacts"];
+  const everything = ["jelly", "goals", "sessions", "inbox", "feed", "shelf", "lingguang", "functions", "pages", "form", "dataset", "ppt", "artifacts"];
   assert.deepEqual(
     railEntries(everything).map((entry) => [entry.id, entry.label, entry.glyph]),
     [
       ["goals", "Goals", "target"],
       ["sessions", "Sessions", "terminal"],
       ["inbox", "Inbox", "inbox"],
+      ["jelly", "Jelly", "calendar"],
       ["feed", "Feed", "rss"],
       ["shelf", "Shelf", "library"],
       ["functions", "Functions", "sparkles"],

@@ -1,10 +1,12 @@
+import { IMAGES_UI_CONTRIBUTION_ID, type ImagesUiModel } from "@molis-ai/molis-work-plugin-images";
+import { JELLY_UI_CONTRIBUTION_ID, type JellyUiModel, type JellyUiSurface } from "@molis-ai/molis-work-plugin-jelly";
 import { EXPERIMENTS_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-experiments";
 import { THEME_BOOTSTRAP_SCRIPT, icon, renderIconSprite } from "@molis-ai/molis-work-design-system";
+import { codingSettingsContribution } from "@molis-ai/molis-work-plugin-coding";
 import type { GoalsApplicationApi } from "@molis-ai/molis-work-contracts/modules/goals";
 import type {
   UiRenderRequest,
   UiSlotDescriptor,
-  WorkbenchDocumentRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
 import { ARTIFACT_REFERENCE_UI_CONTRIBUTION_ID, type ArtifactReferenceUiPrimitives } from "@molis-ai/molis-work-plugin-artifacts";
 import {
@@ -65,7 +67,7 @@ import {
 import { WORK_TERMINAL_UI_CONTRIBUTION_ID, type WorkTerminalUiModel } from "@molis-ai/molis-work-plugin-work";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { BUILTIN_PLUGIN_WORKBENCH } from "./plugin-workbench.js";
-import { createArtifactWorkbenchRenderer, type ArtifactWorkbenchRequest } from "./artifact-ui.js";
+import { createArtifactWorkbenchRenderer, type ArtifactImportWorkbenchRequest, type ArtifactWorkbenchRequest } from "./artifact-ui.js";
 import { createGoalsContextWorkbenchRenderer } from "./goals-context-ui.js";
 import { createGoalsDecisionResultsWorkbenchRenderer } from "./goals-decision-results-ui.js";
 import { createGoalsDialogsWorkbenchRenderer } from "./goals-dialogs-ui.js";
@@ -82,13 +84,9 @@ import { createGoalsTreeWorkbenchRenderer } from "./goals-tree-ui.js";
 import { createWorkSessionRenderer } from "./work-ui.js";
 
 export type WorkbenchGoalsAdapter = GoalsApplicationApi;
+export { WORKBENCH_UI_SLOTS, renderWorkbenchDocument } from "./document-shell.js";
+import { WORKBENCH_UI_SLOTS, renderWorkbenchDocument } from "./document-shell.js";
 
-export const WORKBENCH_UI_SLOTS = {
-  directory: { slot_id: "workbench.directory", version: 1, accepts: ["declarative-html"] },
-  main: { slot_id: "workbench.main", version: 1, accepts: ["declarative-html"] },
-  overlay: { slot_id: "workbench.overlay", version: 1, accepts: ["declarative-html"] },
-  settings: { slot_id: "workbench.settings", version: 1, accepts: ["declarative-html"] },
-} as const satisfies Record<string, UiSlotDescriptor>;
 
 const INBOX_SURFACE_SLOTS: Readonly<Record<InboxUiSurface, UiSlotDescriptor>> = {
   directory: WORKBENCH_UI_SLOTS.directory,
@@ -146,37 +144,6 @@ const FEED_SURFACE_SLOTS: Readonly<Record<FeedUiSurface, UiSlotDescriptor>> = {
   "frame-block": WORKBENCH_UI_SLOTS.main,
 };
 
-function escapeHtml(value: string): string {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
-}
-
-function renderAttributes(attributes: WorkbenchDocumentRenderRequest["body_attributes"]): string {
-  return Object.entries(attributes ?? {})
-    .filter((entry): entry is [string, string | boolean] => entry[1] !== null && entry[1] !== undefined && entry[1] !== false)
-    .map(([name, value]) => value === true ? ` ${name}` : ` ${name}="${escapeHtml(String(value))}"`)
-    .join("");
-}
-
-/** Own the stable HTML document shell while product Plugins own their rendered surfaces. */
-export function renderWorkbenchDocument(request: WorkbenchDocumentRenderRequest): string {
-  return `${request.preamble_html ?? ""}<!doctype html>
-<html lang="${escapeHtml(request.lang)}">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  ${request.head_before_title_html ?? ""}
-  <title>${escapeHtml(request.title)}</title>
-  ${request.head_html ?? ""}
-</head>
-  <body${renderAttributes(request.body_attributes)}>
-${request.body_html}
-</body>
-</html>`;
-}
 
 /** Bind Workbench routes to the public Goals Contract without copying Module rules. */
 export function createWorkbenchGoalsAdapter(
@@ -196,6 +163,7 @@ export function createWorkbenchUiHost(): UiHost {
   for (const pack of BUILTIN_PLUGIN_WORKBENCH) {
     for (const contribution of pack.contributions) host.register(contribution);
   }
+  host.register(codingSettingsContribution);
   return host;
 }
 
@@ -423,4 +391,22 @@ export function renderArtifactWorkbenchPage(
   });
 }
 
+export function renderArtifactImportPage(
+  request: Omit<ArtifactImportWorkbenchRequest, "headHtml" | "iconSpriteHtml"> & { nativeDesktopBootstrapScript: string },
+): string {
+  return artifactWorkbench.importPage({
+    ...request,
+    headHtml: `<script>${THEME_BOOTSTRAP_SCRIPT}${request.nativeDesktopBootstrapScript}</script><link rel="stylesheet" href="/assets/molis-work-workbench.css">`,
+    iconSpriteHtml: renderIconSprite(),
+  });
+}
+
 export function renderExperimentsContribution(): string { return workbenchUiHost.mount({slot:WORKBENCH_UI_SLOTS.main,contribution:{contribution_id:EXPERIMENTS_UI_CONTRIBUTION_ID,surface:"workbench",model:{}}}).html; }
+
+export function renderImagesContribution(model: ImagesUiModel): string {
+  return workbenchUiHost.mount({ slot: WORKBENCH_UI_SLOTS.main, contribution: { contribution_id: IMAGES_UI_CONTRIBUTION_ID, surface: "workbench", model } }).html;
+}
+
+export function renderJellyContribution(surface: JellyUiSurface, model: JellyUiModel): string {
+  return workbenchUiHost.mount({ slot: surface === "directory" ? WORKBENCH_UI_SLOTS.directory : WORKBENCH_UI_SLOTS.main, contribution: { contribution_id: JELLY_UI_CONTRIBUTION_ID, surface, model } }).html;
+}

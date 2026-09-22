@@ -36,7 +36,7 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
     if (surface === "settings") return "settings";
     if (surface === "project-settings") return "project-settings";
     if (OWN_DIRECTORY_SURFACES.includes(surface)) return surface === "sources" ? "feed" : surface;
-    return "";
+    return [...(pluginRail?.querySelectorAll("[data-plugin-id]") || [])].some(button => button.dataset.pluginId === surface) ? surface : "";
   };
   const syncPresence = () => {
     const drawerOpen = narrow() && workspace.dataset.mobileView === "tree";

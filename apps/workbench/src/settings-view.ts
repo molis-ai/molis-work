@@ -1,3 +1,4 @@
+import type { ModelSettingsModel } from "./settings-models.js";
 import type { ConnectorAccountState, ConnectorAuthKind, ConnectorDirectoryAvailability, ConnectorDirectoryGroupId, ConnectorSetupLink } from "@molis-ai/molis-work-contracts/services/connector-host";
 import type { RuntimeIntegrationDetection, MolisWorkWebServiceDetection } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { WebProjectNavigation, WebSettingsSection } from "./settings-navigation.js";
@@ -24,6 +25,7 @@ export interface WebInstallationDiagnostics {
 export interface MolisWorkSettingsView {
   section: WebSettingsSection | string;
   plugin_settings_html?: string;
+  model_settings?: Omit<ModelSettingsModel, "primitives">;
   context_project?: WebProjectNavigation | null;
   /** Project plugins enabled for the settings context. Personal plugins are always listed. */
   enabled_plugins?: readonly string[];

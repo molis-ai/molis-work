@@ -28,6 +28,7 @@ export interface FeedSourceRunRecord extends Omit<ListenerRunRecord, "project_id
 }
 export interface InboxEntryRecord extends Omit<AttentionEntryRecord, "project_id"> {
   board_id: string;
+  next_judgment?: import("@molis-ai/molis-work-contracts/modules/functions").JudgmentRecord | null;
   suggested_behavior_ids?: readonly string[];
   home_dock_suggested_behavior_ids?: readonly string[];
 }
@@ -57,6 +58,7 @@ export interface FeedOutRuleRecord {
   enabled: boolean;
   match: FeedOutRuleMatch;
   function_key: string | null;
+  admission?: "suggest" | "inbox";
   created_at: string;
   updated_at: string;
 }
@@ -73,6 +75,7 @@ export interface FeedSnapshot {
 }
 
 const FEED_SOURCE_KINDS = new Set([
+  "research_library",
   "rss",
   "web_query",
   "youtube_channel",

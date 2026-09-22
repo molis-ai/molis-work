@@ -1,3 +1,6 @@
+import { randomUUID } from "node:crypto";
+import { handleModelSettingsHttp } from "./web-model-settings.js";
+import type { ModelProviderRecord } from "@molis-ai/molis-work-contracts/modules/model-providers";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import type { RuntimeIntegrationService } from "./installer/runtime-integration.js";
@@ -10,9 +13,11 @@ import type { WebProjectNavigation, WebSettingsSection } from "@molis-ai/molis-w
 import { findPluginSettingsNavItem, renderMolisWorkPrimitiveCatalog, renderPluginSettingsContribution } from "@molis-ai/molis-work-app-workbench";
 import { handlePersonalNativePluginHttp } from "./personal-native-plugin-http.js";
 import { SHELF_SETTINGS_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-shelf";
+import { CODING_SETTINGS_UI_CONTRIBUTION_ID, codingAgentManifest } from "@molis-ai/molis-work-plugin-coding";
+import type { AgentRuntimeDescriptor } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { FUNCTIONS_SETTINGS_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-functions";
 import { createFunctionsService, openFunctionsStore } from "@molis-ai/molis-work-module-functions";
-import { createFileSecretStore } from "@molis-ai/molis-work-storage";
+import { createLazyFileSecretStore } from "@molis-ai/molis-work-storage";
 import { openShelfStore } from "@molis-ai/molis-work-module-shelf";
 import { shelfRuntimeProbe } from "./shelf-native-plugin-http.js";
 import { handleLocalRuntimeSettingsHttp, serviceProcessId } from "./web-runtime-settings.js";
@@ -30,6 +35,7 @@ export async function handleLocalCatalogWebRequest(
   runtimeIntegrations: RuntimeIntegrationService, webService: MolisWorkWebServiceManager, controlToken: string,
   feedSchedulers: Map<string, FeedSchedulerRuntime>, localHost: MolisWorkLocalHost, projects: WebProjectNavigation[], composition: LocalWebComposition,
   deletionPorts: ProjectDeletionWebPorts,
+  codingRuntimes: () => Promise<readonly AgentRuntimeDescriptor[]> = async () => [],
 ): Promise<void> {
   const { PAGE_CSP, handleOnboarding, renderCapsuleShell, isDesktopShellRequest, planningHttp, projectSettings, servePtyClient } = composition;
   const { renderMolisWorkSettings, renderMolisWorkProjectIndex } = composition.workbenchRenderer;
@@ -67,7 +73,8 @@ export async function handleLocalCatalogWebRequest(
     return composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, (catalog) => catalog.listProjectPlugins(projectId));
   };
   if (await planningHttp.personal(request, response, url, serverOptions.homeDirectory, projects, controlToken, localHost, () => feedSchedulers.clear())) return;
-  const settingsPageMatch = url.pathname.match(/^\/settings\/(appearance|runtimes|mcp|connectors|projects|diagnostics)$/);
+  if (await handleModelSettingsHttp(request, response, url, composition.withCatalog, serverOptions.homeDirectory)) return;
+  const settingsPageMatch = url.pathname.match(/^\/settings\/(appearance|models|runtimes|mcp|connectors|projects|diagnostics)$/);
   if (request.method === "GET" && settingsPageMatch) {
     const section = settingsPageMatch[1] as WebSettingsSection;
     const projects = await settingsProjects(serverOptions.homeDirectory);
@@ -76,6 +83,14 @@ export async function handleLocalCatalogWebRequest(
       ? projects.find((project) => project.project_id === contextProjectId) ?? null
       : null;
     const runtimes = section === "runtimes" ? await runtimeIntegrations.detectAll() : [];
+    const model_settings = section === "models" ? await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, (catalog) => ({
+      providers: catalog.models.list(), health: catalog.models.health(),
+      selected_provider_id: url.searchParams.get("provider"),
+      ...(url.searchParams.get("new") === "1" ? { draft_provider: {
+        provider_id: `custom-${randomUUID()}`, display_name: "新供应商", base_url: "",
+        api_format: "anthropic-messages", credential_ref: "", enabled: true, prompt_cache: "off", models: [], created_at: "", updated_at: "",
+      } satisfies ModelProviderRecord } : {}),
+    })) : undefined;
     const mcp_tools = section === "mcp" && serverOptions.homeDirectory
       ? listMcpSettingsEntries(await readMcpToolPreference(serverOptions.homeDirectory)).map((row) => ({
         name: row.definition.name,
@@ -93,6 +108,7 @@ export async function handleLocalCatalogWebRequest(
     });
     response.end(renderMolisWorkSettings({
       section,
+      ...(model_settings === undefined ? {} : { model_settings }),
       context_project: contextProject,
       enabled_plugins: await enabledPlugins(contextProject?.project_id ?? null),
       runtimes,
@@ -107,8 +123,8 @@ export async function handleLocalCatalogWebRequest(
   const pluginSettingsSlug = url.pathname.match(/^\/settings\/([^/]+)$/)?.[1];
   const pluginSettings = pluginSettingsSlug ? findPluginSettingsNavItem(pluginSettingsSlug) : null;
   if (request.method === "GET" && pluginSettings && serverOptions.homeDirectory) {
-    const plugin_settings_html = renderCatalogPluginSettings(pluginSettings.contribution_id, serverOptions.homeDirectory);
-    if (!plugin_settings_html) {
+    let plugin_settings_html = renderCatalogPluginSettings(pluginSettings.contribution_id, serverOptions.homeDirectory);
+    if (!plugin_settings_html && pluginSettings.contribution_id !== CODING_SETTINGS_UI_CONTRIBUTION_ID) {
       sendJson(response, 404, { error: L("页面不存在") });
       return;
     }
@@ -117,6 +133,23 @@ export async function handleLocalCatalogWebRequest(
     const contextProject = contextProjectId
       ? projects.find((project) => project.project_id === contextProjectId) ?? null
       : null;
+    if (pluginSettings.contribution_id === CODING_SETTINGS_UI_CONTRIBUTION_ID) {
+      const runtimes = await codingRuntimes();
+      const model = {
+        roles: codingAgentManifest.roles.map(role => ({ ...role, execution: role.execution ?? "read-only" })),
+        runtimes: runtimes.map(runtime => ({ ...runtime,
+          can_write: runtime.capabilities["text-edit"] !== "unsupported",
+          can_command: runtime.capabilities.command !== "unsupported",
+          methods: runtime.capabilities.skills,
+        })),
+        methods: codingAgentManifest.skills ?? [],
+        projects: projects.map(project => ({ project_id: project.project_id, name: project.display_name })),
+        project_name: contextProject?.display_name,
+        project_href: contextProject ? `/projects/${encodeURIComponent(contextProject.project_id)}/` : null,
+        primitives: { escape: escapeSettingsHtml, text: L },
+      };
+      plugin_settings_html = renderPluginSettingsContribution(pluginSettings.contribution_id, model);
+    }
     response.writeHead(200, {
       "content-type": "text/html; charset=utf-8",
       "cache-control": "no-store",
@@ -124,7 +157,7 @@ export async function handleLocalCatalogWebRequest(
     });
     response.end(renderMolisWorkSettings({
       section: pluginSettings.section_id,
-      plugin_settings_html,
+      plugin_settings_html: plugin_settings_html ?? undefined,
       context_project: contextProject,
       enabled_plugins: await enabledPlugins(contextProject?.project_id ?? null),
       runtimes: [],
@@ -213,7 +246,7 @@ function renderCatalogPluginSettings(contributionId: string, homeDirectory: stri
     try {
       const service = createFunctionsService({
         store,
-        secrets: createFileSecretStore(),
+        secrets: createLazyFileSecretStore(homeDirectory),
         env: process.env,
       });
       return renderPluginSettingsContribution(contributionId, {

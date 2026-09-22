@@ -1,9 +1,13 @@
+import { closeImages } from "./images-native-plugin-http.js";
 import { closeExperiments } from "./experiments-native-plugin-http.js";
+import { loadCasebookConfiguration } from "./casebook/config.js";
+import { handleCasebookHttp } from "./casebook/http.js";
 import { resolveMolisWorkHome, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host";
+import { prologueModelConfiguration } from "@molis-ai/molis-work-service-agent-host";
 import { composeAgentHost, workspaceRefFor } from "./agent-host-composition.js";
 import { createMolisWorkLocalHost } from "./project-host.js";
 import { RuntimeIntegrationService } from "./installer/runtime-integration.js";
@@ -16,7 +20,7 @@ import { openSessionRuntimeResources } from "./web-session.js";
 import { seedDemoBoard } from "./demo-seed.js";
 import { attachMolisWorkPtySocket } from "./pty-socket.js";
 import { isWebLocale, localeSetCookie, resolveWebLocale, runWithLocale, safeNextPath } from "./web-locale.js";
-import { fixtureWebBoardOptions } from "./web-routing.js";
+import { fixtureWebBoardOptions, resolveWebRequest } from "./web-routing.js";
 import { createLocalWebComposition, type LocalWebPlatform } from "./web-composition.js";
 import type { WebServerOptions, FeedSchedulerRuntime } from "./web-types.js";
 import { handleMolisWorkWebRequest } from "./web-request.js";
@@ -42,21 +46,42 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     });
     const localHost = serverOptions.localHost ?? createMolisWorkLocalHost({
       planningMethods: () => readPersonalPlanningMethodPacks(serverOptions.homeDirectory),
+      workspacesFor: (projectId) => platform.withCatalog({ homeDirectory: storageHome }, catalog => catalog.listWorkspaceDirectory(projectId)),
+      workspaceFor: (projectId) => platform.withCatalog({ homeDirectory: storageHome }, (catalog) => workspaceRefFor(catalog, projectId)),
     });
     const ownsLocalHost = !serverOptions.localHost;
-    // The Agent Host is constructed here, where the catalog is reachable, so a
-    // Plugin that declared it can actually reach it. Only read-only CLI
-    // Runtimes are registered: everything that writes still needs the approval
-    // bridge, and registering it without one would list a Runtime that cannot
-    // honestly run a writing role.
+    // Runtime storage and credentials belong to this explicit Home.
     const agents = composeAgentHost({
       localHost,
+      authorizeWriterDirectory: async (projectId, canonicalPath) => {
+        await platform.withCatalog({ homeDirectory: storageHome }, catalog => catalog.addWorkspaceProject({ canonical_path: canonicalPath, project_id: projectId, actor_id: "web-user", user_confirmed: true }));
+      },
+      homeDirectory: storageHome,
+      workspacesFor: (projectId) => platform.withCatalog({ homeDirectory: storageHome }, catalog => catalog.listWorkspaceDirectory(projectId)),
       workspaceFor: (projectId) => platform.withCatalog(
         { homeDirectory: serverOptions.homeDirectory },
         (catalog) => workspaceRefFor(catalog, projectId),
       ),
+      prologue: {
+        storageRoot: path.join(storageHome, "agent-runtime"),
+        modelConfiguration: (selection) => platform.withCatalog(
+          { homeDirectory: storageHome },
+          (catalog) => prologueModelConfiguration(catalog.models.resolveConfiguration(selection)),
+        ),
+        resolveCredential: (ref) => platform.withCatalog(
+          { homeDirectory: storageHome },
+          (catalog) => {
+            const provider = catalog.models.list().find((entry) => entry.credential_ref === ref);
+            return provider ? catalog.models.resolveConfiguration({ provider_id: provider.provider_id })?.api_key ?? null : null;
+          },
+        ),
+      },
     });
     const controlToken = resolveWebControlToken(serverOptions);
+    serverOptions.casebook ??= loadCasebookConfiguration(storageHome,serverOptions.casebookConfigPath,[controlToken]);
+    if ([...(serverOptions.casebook?.grants ?? []), ...(serverOptions.casebook?.catalogConnections ?? [])].some(g => g.token === controlToken || g.token.length < 32)) {
+      throw new Error('Casebook requires a separate server-only credential');
+    }
     const mutationKeys = new Map<string, LocalMutationState>();
     const webViewCache: MolisWorkWebViewCache = new Map();
     const feedSchedulers = new Map<string, FeedSchedulerRuntime>();
@@ -90,6 +115,12 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
           ? capsuleLocale
           : resolveWebLocale(request.headers.cookie, request.headers["accept-language"]);
         await runWithLocale(locale, async () => {
+          if (url.pathname.startsWith('/casebook/v1/')) {
+            const requestHost = new URL(`http://${request.headers.host ?? ''}`);
+            if (!['127.0.0.1','localhost','[::1]'].includes(requestHost.hostname)) { sendJson(response,403,{code:'not_authorized'}); return; }
+            if (await handleCasebookHttp(request,response,url,serverOptions.casebook,localHost,
+              pathname => resolveWebRequest(serverOptions,pathname,composition.withCatalog))) return;
+          }
           if (!authorizeLocalWebRequest(request, response, url, controlToken, mutationKeys)) return;
           if (serveWorkbenchAsset(request, response, url.pathname)) return;
           if (!pty.host) throw new Error("终端宿主尚未就绪");
@@ -109,6 +140,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
             localHost,
             composition,
             agents.agentHost,
+            () => agents.ready,
             (projectId) => platform.withCatalog(
               { homeDirectory: serverOptions.homeDirectory },
               (catalog) => workspaceRefFor(catalog, projectId),
@@ -148,8 +180,10 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     schedulerTimer.unref();
     server.once("close", () => {
       void closeExperiments(storageHome);
+      void closeImages(storageHome);
       clearInterval(schedulerTimer);
       feedSchedulers.clear();
+      void agents.dispose().catch(() => undefined);
       if (ownsLocalHost) void localHost.close();
       void sessionResources
         .then((resources) => {

@@ -10,6 +10,32 @@ import type { GitListItem, GitView } from "./projection.js";
 
 export const GIT_UI_CONTRIBUTION_ID = "io.molis.work.native.git.ui.v1";
 
+/** Composed beside Files; the existing directory/result shell remains the owner. */
+export function renderGitBrowserDirectory(): string {
+  return `<section class="git-browser" data-git-browser hidden><details open><summary>Git 改动</summary>
+    <button class="mw-btn" type="button" data-git-refresh>刷新 Git</button>
+    <button class="mw-btn mw-btn--ghost" type="button" data-git-history disabled>Git 操作记录</button>
+    <button class="mw-btn mw-btn--ghost" type="button" data-git-reopen hidden>上次查看的固定差异</button>
+    <p data-git-status role="status"></p><div data-git-list></div>
+  </details></section>`;
+}
+export function renderGitBrowserResult(): string {
+  return `<section class="git-results" data-git-results hidden aria-label="Git 固定差异">
+    <header><h3 data-git-title>Git 差异</h3><button class="mw-btn" type="button" data-git-close>返回执行结果</button></header>
+    <p data-git-scope></p><p data-git-notice role="status"></p>
+    <button class="mw-btn" type="button" data-git-index-action hidden></button>
+    <section data-git-saved-results hidden aria-label="固定操作结果">
+      <label class="mw-field"><span class="mw-field__label">保存操作结果</span><select class="mw-select" data-git-result-choice aria-label="选择已结束的 Git 操作"></select></label>
+      <p>把这次结论保存为固定版本。保存不会执行 Git，也不代表 Goal 已验收。</p>
+      <p data-git-result-summary></p><p data-git-result-paths></p><p data-git-result-provenance></p>
+      <button class="mw-btn" type="button" data-git-result-save disabled>保存固定结果</button>
+      <p data-git-result-status role="status"></p>
+    </section>
+    <section data-git-reviews aria-label="Git 操作审查" hidden></section>
+    <div data-git-diff></div>
+  </section>`;
+}
+
 export interface GitUiPrimitives {
   escape(value: unknown): string;
   icon(name: string): string;

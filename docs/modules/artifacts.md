@@ -18,4 +18,6 @@
 
 **当前实现：** AR1 已建立 public Contract、`artifacts` / `artifact_versions` Repository、migration 31、版本/owner/producer binding/digest/scope 校验和 root composition。旧代码没有正式 Artifact 表，Run/Evidence/Feed/Session 的现有字符串引用不会被猜测回填；其浏览、下载和明确转换归 AR3。
 
+**文档导入：** Native Artifacts Plugin 可将 Notion、飞书/Lark docx、Google Docs 或本地 Markdown/TXT/HTML 转成 `io.molis.work.document` v1 的个人正文快照。读取外部 API 由官方 catalog integration 负责，凭据与 HTTP 由 Local Host 注入；本 Module 继续只保存通用 Artifact 事实，不理解文档供应商、不抓取外部内容、不承担同步。使用入口、版本规则和格式限制见 [Artifact Plugin README](../../plugins/native/artifacts/README.md#从文档工具导入)。
+
 **当前来源与 Goal：** Coordinator/Store 的输出引用与 `src/evidence/` 文件辅助；AR1 迁 Core，AR3 迁 UI 和旧结果入口。

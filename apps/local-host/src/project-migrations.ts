@@ -1,3 +1,4 @@
+import { PROJECT_RECOVERY_COLUMNS, type ProjectRecoveryDetails } from './project-recovery-details.js';
 import {
   type LocalSqliteStorage,
   LOCAL_JOURNAL_SCHEMA_SQL,
@@ -81,6 +82,37 @@ import {
   migrateFeedTables,
   migrateInfoflowContractV2,
 } from "./feed-migrations.js";
+
+/** Recovery validates the supported Goal schema without performing owner migrations. */
+export class ProjectRecoveryError extends Error {
+  constructor(readonly code: string, readonly details?: ProjectRecoveryDetails) { super(code); }
+}
+export function assertProjectRecoverySchema(storage: LocalSqliteStorage): void {
+  const schema = new SqliteSchema(storage.db);
+  const hasMigrations = schema.hasTable('schema_migrations');
+  const rows = hasMigrations ? storage.db.prepare('SELECT migration_id FROM schema_migrations').all() as {migration_id:number}[] : [];
+  // Retiring Task in migration 38 does not erase an already-applied migration 37.
+  // New projects skip 37; upgraded projects may legitimately retain both entries.
+  if (rows.some(row => !Number.isInteger(row.migration_id) || row.migration_id < 1 || row.migration_id > 38))
+    throw new ProjectRecoveryError('project_recovery_unsupported_schema');
+  // The current owner also has idempotent column/table upgrades outside numbered migrations.
+  const details: ProjectRecoveryDetails = {
+    missing_migration_ids: Array.from({length: 36}, (_, i) => i + 1).filter(id => !rows.some(row => row.migration_id === id)),
+    missing_tables: hasMigrations ? [] : ['schema_migrations'],
+    missing_columns: {},
+  };
+  for(const [table,names] of Object.entries(PROJECT_RECOVERY_COLUMNS)){
+    if (!schema.hasTable(table)) { details.missing_tables.push(table); continue; }
+    const present=new Set(schema.columns(table).map(c=>c.name));
+    const missing = names.filter(name => !present.has(name));
+    if (missing.length) details.missing_columns[table] = missing;
+  }
+  if (rows.filter(row => row.migration_id <= 36).length !== 36 || details.missing_tables.length || Object.keys(details.missing_columns).length)
+    throw new ProjectRecoveryError('project_recovery_requires_migration', details);
+  // Migrations 37/38 create/retire Task, which this Goal-based consumer never
+  // reads. Do not force Task deletion merely to recover compatible Goal facts.
+  // Normal owner opening still owns retirement; recovery leaves Task data intact.
+}
 
 /** Preserve the installed Project migration order while each Module owns its DDL. */
 export function migrateLocalProjectDatabase(storage: LocalSqliteStorage): void {

@@ -21,12 +21,13 @@ export const workspaceManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: WORKSPACE_PLUGIN_ID,
-  version: "1.0.0",
+  version: "1.1.0",
   name: "Workspace",
   kind: "app",
   publisher: { publisher_id: "molis", signature: "official-workspace-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
+    { permission: "storage:private", required: true, reason: "记住用户选择的浏览工作区" },
     {
       permission: "artifact:write",
       required: true,
@@ -35,7 +36,7 @@ export const workspaceManifest: PluginManifest = {
   ],
   capabilities: {
     provides: [],
-    consumes: [projectsCapabilities.readWorkspace.capability_id],
+    consumes: [projectsCapabilities.readWorkspace.capability_id, projectsCapabilities.listWorkspaces.capability_id],
   },
   artifacts: {
     produces: [{ artifact_type_id: WORKSPACE_REF_TYPE, schema_version: WORKSPACE_REF_SCHEMA_VERSION }],
@@ -55,6 +56,10 @@ export const workspaceManifest: PluginManifest = {
     publishes: [{ event_type_id: WORKSPACE_SELECTED_EVENT, type_version: 1 }],
     subscribes: [],
   },
+  routes: [
+    { route_id: "workspace.state", method: "GET", path: "/state" },
+    { route_id: "workspace.select", method: "POST", path: "/select" },
+  ],
   ui: {
     contributions: [WORKSPACE_UI_CONTRIBUTION_ID],
     commands: [

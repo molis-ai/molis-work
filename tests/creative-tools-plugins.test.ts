@@ -127,7 +127,8 @@ async function withHome<T>(run: (home: string) => Promise<T>): Promise<T> {
 }
 
 test("Forms / Dataset / PPT 是个人插件，不进项目启用名单", () => {
-  assert.deepEqual([...PERSONAL_PLUGIN_IDS], ["shelf", "lingguang", "functions", "pages", "form", "dataset", "ppt"]);
+  assert.deepEqual([...PERSONAL_PLUGIN_IDS], ["images", "jelly", "experiments", "shelf", "lingguang", "functions", "characters", "pages", "form", "dataset", "ppt"]);
+  assert.equal(PROJECT_SCOPED_PLUGIN_IDS.includes("characters"), false, "角色库由本人管理，不依赖项目安装");
   for (const id of ["form", "dataset", "ppt"]) {
     assert.equal(PROJECT_SCOPED_PLUGIN_IDS.includes(id), false, `${id} 不该要项目添加`);
   }
@@ -195,7 +196,7 @@ test("工作台 HTML 挂上三个创作入口，确认与工具条不在 label �
 test("工作台客户端脚本在挂上三个创作插件后仍能解析", () => {
   const script = renderMolisWorkWorkbenchClientScript();
   assert.doesNotThrow(() => new Function(script));
-  assert.match(script, /\["shelf","lingguang","functions","pages","form","dataset","ppt"\]/);
+  assert.match(script, /\["images","jelly","experiments","shelf","lingguang","functions","characters","pages","form","dataset","ppt"\]/);
   assert.doesNotMatch(saveFunctionSource(FORM_CLIENT_FACTORY_SCRIPT), /fillEditor/);
   assert.doesNotMatch(saveFunctionSource(DATASET_CLIENT_FACTORY_SCRIPT), /fillEditor/);
   assert.doesNotMatch(saveFunctionSource(PPT_CLIENT_FACTORY_SCRIPT), /fillEditor/);

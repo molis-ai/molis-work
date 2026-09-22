@@ -85,6 +85,8 @@
 | `modules/execution` | 历史 Claim、Run、lease、attempt | 保留查询、schema 和升级；供历史阅读与项目删除的现有活动保护使用；旧执行写入退役 | `partial` | EX1/EX4 历史迁移；事件工作流收敛 |
 | `modules/artifacts` | Artifact、版本、类型、内容引用与 provenance | AR1 已建立唯一正式事实；旧代码仅有各 owner 的字符串引用，没有第二套 Artifact Store | `partial` | AR1 已迁 Core；AR3 切换现有结果入口 |
 | `modules/shelf` | 个人置物架材料、副本任务、Hash 与本机抽字结果 | Home 下 `shelf/` 副本与 Jobs 沙箱；不写项目 Goal / Artifact | `partial` | Shelf 工作台切片；轮盘/热键仍待 Desktop |
+| `modules/characters` | 个人 Character 草稿、修订与启用状态 | 按本人隔离编辑，确认修订后交给 Artifact 发布；不拥有执行和权限 | `partial` | `specs/coding-plugin/spec.md` §0 C12（产品接入中） |
+| `plugins/native/characters` | 角色管理界面与发布操作 | 经 Host 使用本人草稿和当前项目 Artifact；不拥有执行与权限 | `partial` | `specs/coding-plugin/spec.md` §0 C12（产品接入中） |
 | `modules/functions` | 已发布判断函数与一次判断记录 | 函数库、来源/去向/映射、场景绑定、判断落库；TypeSafe 由 Host 注入 | `partial` | `specs/archive/functions-system-capability/spec.md`；`specs/archive/functions-product-authoring/spec.md`；`specs/functions-independent-authoring/spec.md`；事件去向动作范围 `specs/archive/function-scene-action-scope/spec.md` |
 | `modules/evidence-verification` | 历史 Evidence、Correction、验收引用与文件来源 | 保留历史查询、文件读取、schema 和升级；当前报告与完成判断归 Goals 事件；旧写入退役 | `partial` | EX2/EX4 历史迁移；事件工作流收敛 |
 | `modules/governance-collaboration` | 当前用户决定、有限树提案／决定、provenance 与协作历史 | 当前可信用户来源、具体变更授权和决定事务；旧 Review/Clarification/Contract/Candidate/Rewire 仅保留历史职责 | `partial` | EX3/EX4/AR2/DD1/DD2/Cutover；事件工作流收敛 |
@@ -109,21 +111,21 @@ Horizontal Service 只保存可恢复的技术状态，不拥有 Goal、Signal�
 | 目标 package | 产品能力 | 当前来源 | 包成熟度 | 迁移 / 实现 Goal |
 | --- | --- | --- | --- | --- |
 | `plugins/native/goals` | Goals 一级入口与产品 UI | 当前事件意图、约定、报告、树决定和历史正文组合；目录直接读当前状态；旧执行／草稿／提案写应用退役；Workbench 注册并组合 UI，不另算完成 | `partial` | GW/DD/EX/Cutover；事件工作流收敛 |
-| `plugins/native/artifacts` | Artifacts 一级入口、浏览和嵌入 | 已迁结果链接/项目文件打开；正式版本列表、详情与本地导出已接入 Web；Goal 上下文按明确输入/产出关系嵌入精确版本 | `partial` | AR3 已完成迁移验收；不包含未来安装/Team 同步 |
-| `plugins/native/inbox` | Inbox 一级入口与 Attention 处置 UI | 目录/详情只读 Attention；完成/忽略走 setStatus；`inbox.next` HTTP 绑定由 Functions 编辑器调用；Host 注入展示信息与 HTTP | `partial` | Inbox/Feed 拆插件切片 2–3；`specs/archive/functions-system-capability/spec.md` |
+| `plugins/native/artifacts` | Artifacts 一级入口、浏览、嵌入和文档导入 | 正式版本列表、正文快照、详情与本地导出；Notion、飞书/Lark、Google Docs 和 Markdown/TXT/HTML 显式导入；Goal 上下文嵌入精确版本 | `partial` | AR3 已完成迁移验收；文档导入不含全空间迁移、自动同步或附件复制；真实账号联调待验 |
+| `plugins/native/inbox` | Inbox 一级入口与 Attention 处置 UI | 目录/详情只读 Attention；完成/忽略走 setStatus；`inbox.next` 沿用 Functions 绑定与显式重判，建议成稿/核查不自动执行；Host 将选中 Feed 材料交给 Pages，收据归 Pages，文稿可返回材料 | `partial` | Inbox/Feed 拆插件切片 2–3；`specs/archive/functions-system-capability/spec.md`；`specs/feed-inbox-pages-loop/validation.md` |
 | `plugins/native/schedule` | Schedule 一级入口：对话任务与闹钟列表 | 人手创建日历日对话任务；其他插件 job 仍只展示与暂停 | `partial` | `specs/archive/schedule-conversation-tasks/spec.md` |
 | `plugins/native/shelf` | Shelf 一级入口：材料/结果/剪贴板与本机抽字 | DropAgent 表面挂进目录与工作面；Host 注入 `/api/shelf` 与 Store | `partial` | 工作台进货→抽字切片；轮盘/抓页/CLI Recipe 待 Desktop |
 | `plugins/native/functions` | Functions 一级入口：写、试跑、发布、配 Key | 看什么/函数/用在哪三栏；选项和动作库随看来源与去向更新，自定义答案不覆盖；事件去向用映射；库和判断记录在 Module | `partial` | `specs/archive/functions-system-capability/spec.md`；`specs/archive/functions-product-authoring/spec.md`；`specs/functions-independent-authoring/spec.md` |
-| `plugins/native/pages` | Pages 一级入口：本机文档 | 库、ProseMirror 内核、块、评论、卡、AI stub、挂 Goal 与 Promote；对外 MCP 默认关 | `partial` | `specs/pages-plugin/spec.md`；`specs/archive/plugin-outbound-mcp/spec.md` |
+| `plugins/native/pages` | Pages 一级入口：本机文档 | 库、ProseMirror 内核、块、评论、卡、挂 Goal 与 Promote；外部文件预览/批量导入与幂等收据；Host 注入真实写作模型，材料快照与幂等生成收据归 Pages；对外 MCP 默认关 | `partial` | `specs/pages-plugin/spec.md`；`specs/archive/plugin-outbound-mcp/spec.md` |
 | `plugins/native/form` | Forms 一级入口：本机问卷 | 建题、预览填写、提交与结果；出题为本地 stub；对外 MCP 默认关 | `partial` | `specs/archive/creative-tools-plugins/spec.md`；`specs/archive/plugin-outbound-mcp/spec.md` |
 | `plugins/native/dataset` | Dataset 一级入口：本机数据表 | 行列编辑、CSV 导入导出、版本回滚；加列为本地 stub；对外 MCP 默认关 | `partial` | `specs/archive/creative-tools-plugins/spec.md`；`specs/archive/plugin-outbound-mcp/spec.md` |
 | `plugins/native/ppt` | PPT 一级入口：本机演示稿 | 多页大纲、主题色、预览与 JSON 导出；不做 PPTX；对外 MCP 默认关 | `partial` | `specs/archive/creative-tools-plugins/spec.md`；`specs/archive/plugin-outbound-mcp/spec.md` |
 | `plugins/native/lingguang` | 灵光一级入口：本机临时灵感池 | 快记、流式列表、丢掉确认、本机头脑风暴 stub；不写 Goal/Artifact；无对外 MCP | `partial` | `specs/archive/lingguang-plugin/spec.md` |
-| `plugins/native/feed` | Feed 一级入口和处置 UI | Sources/Feed 流水、同步与 promotion 用例；不再投影 Inbox 面；加入 Inbox 仍走 Feed HTTP，只写 Attention；`feed.capture` 处置池含加入 Inbox / 保存 / 升格 / 忽略 | `partial` | FD/Cutover；Inbox/Feed 拆插件切片 3；`specs/archive/function-scene-action-scope/spec.md` |
+| `plugins/native/feed` | Feed 一级入口和处置 UI | Sources/Feed 流水、同步与 promotion；支持研究库发布包接收；用户显式配置规则可自动加入 Inbox，需复核保留原因；仍只写 Attention | `partial` | FD/Cutover；Inbox/Feed 拆插件切片 3；`specs/archive/function-scene-action-scope/spec.md` |
 | `plugins/native/actions` | Actions 一级入口 | 占位包已删除；未来功能 | `absent` | F2；未来独立功能 Spec |
 | `plugins/native/work` | Session、Runtime、resume、handoff 应用和 UI | WK3 已迁应用编排、Session/Terminal contribution、浏览器控制器、HTTP 用例和工作目录恢复。`GET/POST /api/goals/:id/panels`（无子路径，JSON）仍是 Runtime 终端面板，与已删除的 Goal 五 tab fragment 不同 | `partial` | WK3；边界与证据见 `specs/molis-work-architecture-reorganization/wk3-validation.md` |
 | `plugins/native/automation` | Automation 一级入口 | 占位包已删除；未来功能 | `absent` | F2；未来独立功能 Spec |
-| `plugins/official-integrations/github` | GitHub connector/listener/signal adapter | GitHub Provider、Device OAuth 与账号呈现；Host 注入 Secret/env | `partial` | FD3/Cutover；无旧 connector caller |
+| `plugins/official-integrations/github` | GitHub connector/listener/signal adapter | GitHub Provider、Device OAuth 与账号呈现；研究库固定提交解析和发布哈希校验，Host 提供 Git 快照；Host 注入 Secret/env | `partial` | FD3/Cutover；无旧 connector caller |
 | `plugins/official-integrations/gmail` | Gmail OAuth/connector/listener/signal adapter | Gmail OAuth/安装账号/scope/cursor/Provider；Host 注入安全存储 | `partial` | FD3/Cutover；无旧 connector caller |
 | `plugins/official-integrations/rss` | 官方目录与自定义 RSS provider adapter | 目录/custom RSS/正文分类/HTTP adapter；Host 提供运行上下文 | `partial` | FD3/Cutover；真实公开 RSS 拉取 |
 | `plugins/official-integrations/web-query` | Web Query provider adapter | Web Query Provider adapter；Host 注入 Intelligence client 与存储端口 | `partial` | FD3/Cutover |
@@ -156,3 +158,16 @@ Goals 与 Artifacts 是官方签名保护的一等 Plugin。Plugin 之间不依�
 3. 每个迁移 Goal 同时更新：目标 package README、对应 Module/Service 文档、本矩阵的状态和 [`MIGRATION.md`](system/MIGRATION.md)。
 4. `contract-only` 不得被 UI、CLI、MCP 或 Plugin Runtime 宣称为可用功能。
 5. 旧 owner 只有在 caller 清零、行为兼容、数据迁移和回滚证据齐全后才能标为 `retired`。
+
+## 图片生成插件
+
+| 责任 | Owner | 唯一事实源 |
+| --- | --- | --- |
+| 本机生图连接、项目任务、生成图片 | `plugins/native/images` | `{home}/images/images.db` 与 `assets/`；合同 `packages/contracts/src/modules/images.ts` |
+| API Key 加密、项目路由、HTTP 生命周期 | Local Host / Storage | 宿主 SecretStore 与解析后的项目上下文 |
+
+协议、范围与验证边界：`specs/images-plugin/spec.md`；不改变文字模型设置，不自动重试或声明 Artifact 发布。
+
+## Jelly 私人工作区
+
+`plugins/native/jelly` 拥有个人日历、每周重复实例、分类、笔记块、灵感、关联和撤销历史；唯一写入库 `{home}/jelly/jelly.db`。Host 只接 HTTP、MCP 和素材/模型端口，Workbench 只装配插件界面。原 Jelly App 的数据文件不参与写入。合同：`packages/contracts/src/modules/jelly.ts`；完整复刻范围与未验收项：`specs/jelly-plugin/`。

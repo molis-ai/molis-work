@@ -255,7 +255,7 @@ export const PRIMITIVE_STYLES = `
   .mw-check:focus-visible, .mw-radio:focus-visible { ${CONTAINED_FOCUS}; }
   .mw-check:disabled, .mw-radio:disabled { opacity: .42; }
   .mw-switch { position: relative; display: inline-grid; width: 32px; height: 18px; flex: none; }
-  .mw-switch input { appearance: none; position: absolute; inset: 0; margin: 0; cursor: pointer; }
+  .mw-switch input { appearance: none; position: absolute; inset: 0; margin: 0; opacity: 0; z-index: 1; cursor: pointer; }
   .mw-switch__track {
     display: block; width: 32px; height: 18px; border-radius: 99px;
     background: var(--control-fill); border: 1px solid var(--control-border);

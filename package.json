@@ -49,7 +49,8 @@
     "build:pty-client": "esbuild apps/workbench/src/terminal-client.ts --bundle --format=iife --platform=browser --outfile=dist/web/pty-client.js --loader:.css=text",
     "typecheck": "pnpm build:migrated-packages && tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.sdk.json",
     "typecheck:all": "pnpm typecheck && pnpm boundary:check && pnpm workspace:typecheck",
-    "test": "pnpm build && node --import tsx --test --test-concurrency=1 tests/*.test.ts",
+    "test": "pnpm build && pnpm test:run",
+    "test:run": "node scripts/run-tests.mjs",
     "workspace:build": "pnpm workspace:clean && pnpm -r --filter './apps/**' --filter './packages/**' --filter './modules/**' --filter './horizontal/**' --filter './plugins/**' --filter './tooling/plugin-cli' run build",
     "workspace:check": "node scripts/workspace-packages.mjs",
     "workspace:clean": "pnpm -r --filter './apps/**' --filter './packages/**' --filter './modules/**' --filter './horizontal/**' --filter './plugins/**' --filter './tooling/plugin-cli' run clean",
@@ -85,6 +86,7 @@
     "@molis-ai/molis-work-kernel": "workspace:*",
     "@molis-ai/molis-work-module-artifacts": "workspace:*",
     "@molis-ai/molis-work-module-attention-resumption": "workspace:*",
+    "@molis-ai/molis-work-module-characters": "workspace:*",
     "@molis-ai/molis-work-module-context-ledger": "workspace:*",
     "@molis-ai/molis-work-module-evidence-verification": "workspace:*",
     "@molis-ai/molis-work-module-execution": "workspace:*",
@@ -99,6 +101,7 @@
     "@molis-ai/molis-work-module-sources": "workspace:*",
     "@molis-ai/molis-work-plugin-artifacts": "workspace:*",
     "@molis-ai/molis-work-plugin-cli": "workspace:*",
+    "@molis-ai/molis-work-plugin-characters": "workspace:*",
     "@molis-ai/molis-work-plugin-coding": "workspace:*",
     "@molis-ai/molis-work-plugin-dataset": "workspace:*",
     "@molis-ai/molis-work-plugin-diff": "workspace:*",
@@ -128,7 +131,9 @@
     "better-sqlite3": "12.8.0",
     "node-pty": "^1.1.0",
     "ws": "^8.21.3",
-    "@molis-ai/molis-work-plugin-experiments": "workspace:*"
+    "@molis-ai/molis-work-plugin-experiments": "workspace:*",
+    "@molis-ai/molis-work-plugin-images": "workspace:*",
+    "@molis-ai/molis-work-plugin-jelly": "workspace:*"
   },
   "devDependencies": {
     "@molis-ai/molis-work-test-kit": "workspace:*",

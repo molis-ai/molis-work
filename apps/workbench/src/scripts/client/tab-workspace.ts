@@ -5,6 +5,31 @@ import { tabIdsAfterMove, TAB_REORDER_EASE, TAB_REORDER_MS } from "../../tab-reo
 import { tabShareWidth, tabShareMin, tabScrollAllotment, TAB_SHARE_MAX, TAB_SHARE_MIN, TAB_SHARE_MIN_TOUCH } from "../../tab-strip-share.js";
 import { clampSplitRatio, focusedPaneBoxAfterDrop, layoutPaneBoxes, splitDropEdge, TAB_SASH_HALF, TAB_SASH_INSET, TAB_SPLIT_EDGE_X, TAB_SPLIT_EDGE_Y, TAB_SPLIT_RATIO } from "../../tab-split-drop.js";
 
+/** Keep a popover inside the viewport. Tall menus scroll instead of clipping past the top.
+ *  Stringified into the browser factory. Type annotations are erased before that string is sent. */
+export function placeLayoutMenu(
+  anchor: { top: number; bottom: number; right: number },
+  menu: { width: number; height: number },
+  viewport: { width: number; height: number },
+  margin = 8,
+) {
+  const availableHeight = Math.max(0, viewport.height - margin * 2);
+  const maxHeight = menu.height > availableHeight ? availableHeight : null;
+  const height = maxHeight == null ? menu.height : maxHeight;
+  const width = menu.width;
+  let top = anchor.bottom + 6;
+  if (top + height > viewport.height - margin) {
+    const above = anchor.top - 6 - height;
+    top = above >= margin ? above : margin;
+  }
+  if (top < margin) top = margin;
+  let left = anchor.right - width;
+  const maxLeft = viewport.width - width - margin;
+  if (left > maxLeft) left = maxLeft;
+  if (left < margin) left = margin;
+  return { top, left, maxHeight };
+}
+
 /** Cross-plugin tabs and split panes. Goals canvas/kanban/Frame chrome stays in frame-container. */
 export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   const { showGoalFrame, setFeedAddOpen, setFeedTask, translate: L, getSurface, setWorkSurface, setDirectory, setWorkspaceMode, setMobileView,
@@ -86,6 +111,23 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
         persist();
       }
     } catch {}
+    // A standalone settings page returns to the previously focused workspace,
+    // rather than restoring the persisted exclusive settings surface again.
+    if (paneParams.get("returnToWorkbench") === "1") {
+      ops.setExclusive(state, null);
+      setDirectory("root", true, false);
+      const returnedUrl = new URL(location.href);
+      returnedUrl.searchParams.delete("returnToWorkbench");
+      history.replaceState(history.state, "", returnedUrl);
+    }
+    const requestedPlugin = paneParams.get("openPlugin"), requestedItem = paneParams.get("openItem");
+    if (requestedPlugin && Object.hasOwn(PLUGIN_TAB_ICON, requestedPlugin) && requestedItem) {
+      ops.setExclusive(state, null);
+      ops.openItem(state, requestedPlugin, requestedItem, paneParams.get("openTitle") || undefined);
+      const returnedUrl = new URL(location.href);
+      returnedUrl.searchParams.delete("openPlugin"); returnedUrl.searchParams.delete("openItem"); returnedUrl.searchParams.delete("openTitle");
+      history.replaceState(history.state, "", returnedUrl);
+    }
     rewriteRetiredTaskTabs();
     apply();
     persist();
@@ -120,7 +162,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     ? document.querySelector("[data-goal-frame-surface]") : tab ? topLevelSurface(tab.plugin) : null;
   const titleForItem = (plugin, itemId, fallback) => {
     if (plugin === "goals") return visibleGoals()?.find((item) => item.goal.goal_id === itemId)?.goal.title || fallback || itemId;
-    const row = document.querySelector('[data-operation-select="' + CSS.escape(itemId) + '"], [data-feed-entry-id="' + CSS.escape(itemId) + '"], [data-inbox-row="' + CSS.escape(itemId) + '"], [data-artifact-select="' + CSS.escape(itemId) + '"]');
+    const row = document.querySelector('[data-operation-select="' + CSS.escape(itemId) + '"], [data-feed-entry-id="' + CSS.escape(itemId) + '"], [data-inbox-row][data-inbox-entry-id="' + CSS.escape(itemId) + '"], [data-artifact-select="' + CSS.escape(itemId) + '"]');
     return row?.getAttribute("data-frame-asset-title") || row?.querySelector("strong")?.textContent?.trim() || fallback || itemId;
   };
   let loadingGoalId = null;
@@ -147,6 +189,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   };
   const applyTabContent = (tab, keepFrame) => {
     if (!tab) return;
+    topLevelSurface(tab.plugin)?.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { itemId: tab.kind === "item" ? tab.itemId : null } }));
     if (tab.plugin === "goals" && tab.kind === "item" && tab.itemId) {
       if (supportsGoalFrames() && tab.goalView !== "work") { applySelection?.(tab.itemId); showGoalFrame?.(tab.itemId); return; }
       releaseFrame?.();
@@ -268,6 +311,10 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     if (!scroll) return;
     const strip = scroll.parentElement;
     if (!strip || strip.clientWidth < 1) return;
+    // Scroll padding aligns a clipped active tab; it is not reserved content
+    // for the next layout. Reusing it can alternate between sharing and hug.
+    const scrollPad = scroll.querySelector("[data-tab-scroll-pad]");
+    if (scrollPad) scrollPad.style.width = "0px";
     const flexTabs = [...scroll.querySelectorAll(".tab-item:not([data-pinned]):not(.is-tab-drag-source)")].filter((tab) => !tab.closest('.tab-group[data-collapsed="true"]'));
     const slot = scroll.querySelector("[data-tab-reorder-slot]");
     const flexNodes = slot ? flexTabs.concat(slot) : flexTabs;
@@ -309,7 +356,9 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       }
       siblingChrome += child.getBoundingClientRect().width;
     }
-    const allotted = tabScrollAllotment(strip.clientWidth, siblingChrome, gapOf(strip), stripKids.length);
+    const stripStyle = getComputedStyle(strip);
+    const innerWidth = strip.clientWidth - (Number.parseFloat(stripStyle.paddingLeft) || 0) - (Number.parseFloat(stripStyle.paddingRight) || 0);
+    const allotted = tabScrollAllotment(innerWidth, siblingChrome, gapOf(strip), stripKids.length);
     const share = tabShareWidth(allotted - reserved, flexNodes.map(tabHugWidth), tabShareMin(window.matchMedia("(max-width: 760px), (pointer: coarse)").matches));
     if (share == null) {
       if (!(scroll.style.getPropertyValue("--tab-share-width") || scroll.style.width)) return;
@@ -921,6 +970,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     tabMenu.style.top = Math.max(8, Math.min(rect.bottom + 6, innerHeight - tabMenu.offsetHeight - 8)) + "px";
     name.focus();
   };
+  const placeLayoutMenu = ${placeLayoutMenu.toString()};
   const layoutMenu = document.createElement("div");
   layoutMenu.className = "workspace-layout-menu mw-menu"; layoutMenu.setAttribute("popover", "auto"); layoutMenu.dataset.workspaceLayout = "";
   layoutMenu.setAttribute("aria-label", L("布局与分屏")); document.body.append(layoutMenu);
@@ -929,7 +979,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     const buttons = [...layoutMenu.querySelectorAll("button:not(:disabled)")];
     const index = buttons.indexOf(document.activeElement);
     const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : (index + (event.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length;
-    event.preventDefault(); buttons[next]?.focus();
+    event.preventDefault(); buttons[next]?.focus(); buttons[next]?.scrollIntoView({ block: "nearest" });
   });
   let layoutPane = null;
   const openLayoutMenu = (paneId, trigger) => {
@@ -950,9 +1000,17 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     add(L("关闭当前窗口"),"layoutAction","close").disabled = state.panes.length < 2;
     if (state.panes.length > 1) { layoutMenu.append(document.createElement("hr")); state.panes.forEach((pane,index) => add(String(index+1)+" · "+(pane.tabs.find(t=>t.id===pane.activeTabId)?.title || (pane.viewPlugin ? ops.pluginTitle(pane.viewPlugin) : L("项目首页"))),"focusPane",pane.id,pane.id===state.focusedPaneId)); }
     const rect = trigger.getBoundingClientRect();
-    layoutMenu.style.top = Math.min(rect.bottom + 6, innerHeight - 360) + "px";
-    layoutMenu.style.left = Math.max(8, Math.min(rect.right - 260, innerWidth - 268)) + "px";
-    layoutMenu.showPopover(); layoutMenu.querySelector("button:not(:disabled)")?.focus();
+    layoutMenu.style.maxHeight = "";
+    layoutMenu.style.overflowY = "";
+    layoutMenu.showPopover();
+    const placed = placeLayoutMenu(rect, { width: layoutMenu.offsetWidth, height: layoutMenu.offsetHeight }, { width: innerWidth, height: innerHeight });
+    if (placed.maxHeight != null) {
+      layoutMenu.style.maxHeight = placed.maxHeight + "px";
+      layoutMenu.style.overflowY = "auto";
+    }
+    layoutMenu.style.top = placed.top + "px";
+    layoutMenu.style.left = placed.left + "px";
+    layoutMenu.querySelector("button:not(:disabled)")?.focus();
   };
   layoutMenu.addEventListener("click", (event) => {
     const button = event.target.closest("button"); if (!button) return;
@@ -995,7 +1053,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     if (tab) {
       const pane = state.panes.find((candidate) => candidate.id === paneId);
       const alreadyActive = pane?.activeTabId === tab.dataset.tabId && state.focusedPaneId === paneId;
-      if (!alreadyActive) {
+      if (!alreadyActive || state.exclusive) {
         activate(paneId, tab.dataset.tabId);
       }
       focusActiveTab();
@@ -1284,6 +1342,16 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     }
   });
   document.addEventListener("click", (event) => {
+    const sourceItem = event.target.closest("[data-workbench-item-plugin][data-workbench-item-id]");
+    if (sourceItem) {
+      event.preventDefault();
+      const plugin = sourceItem.dataset.workbenchItemPlugin, itemId = sourceItem.dataset.workbenchItemId;
+      if (!Object.hasOwn(PLUGIN_TAB_ICON, plugin) || !itemId) return;
+      const title = sourceItem.dataset.workbenchItemTitle;
+      if (embedded) notifyParent("workbench-pane-open", { plugin, itemId, title });
+      else openItem(plugin, itemId, title);
+      return;
+    }
     if (event.target.closest("[data-goal-collapse]")) {
       const tab = ops.activeTab(state);
       if (tab?.plugin === "goals" && tab.kind === "item") { delete tab.goalView; apply(); persist(); if (embedded) notifyParent("workbench-pane-goal-view", {view:"frame"}); }

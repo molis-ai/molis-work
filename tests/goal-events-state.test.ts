@@ -1651,3 +1651,400 @@ test("stale agreement_change approval is rejected after related commitment chang
     close(data);
   }
 });
+
+function eventCount(app: GoalProjectApplication, goalId: string): number {
+  return app.goalEvents.listEvents(BOARD, goalId, { limit: 100 }).events.length;
+}
+
+function operationCount(app: GoalProjectApplication, goalId: string, operation: string): number {
+  return app.goalEvents.listEvents(BOARD, goalId, { limit: 100 }).events.filter((event) =>
+    event.kind === "system" && event.payload.operation === operation
+  ).length;
+}
+
+function appliedClosureFlags(store: LocalProjectDatabase, goalId: string): Array<[number, number]> {
+  const rows = store.db.prepare(`
+    SELECT c.completion_applied AS completion_applied, c.superseded AS superseded
+    FROM goal_event_closures c
+    JOIN goal_work_events e ON e.event_id = c.event_id AND e.board_id = c.board_id AND e.goal_id = c.goal_id
+    WHERE c.board_id = ? AND c.goal_id = ?
+    ORDER BY e.journal_seq ASC
+  `).all(BOARD, goalId) as Array<{ completion_applied: number; superseded: number }>;
+  return rows.map((row) => [Number(row.completion_applied), Number(row.superseded)]);
+}
+
+function readyGoal(app: GoalProjectApplication, goalId: string, requirementId: string) {
+  app.goalEvents.createIntent({
+    board_id: BOARD, goal_id: goalId, title: goalId, outcome: "可检查的具体结果",
+    actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: `intent-${goalId}`,
+  });
+  configure(app, goalId, `cfg-${goalId}`, {
+    new_requirements: [{ requirement_id: requirementId, statement: "结果可以检查" }],
+  });
+  reportSupport(app, goalId, `rep-${goalId}`, requirementId);
+}
+
+function openBlockingConcern(
+  app: GoalProjectApplication,
+  goalId: string,
+  key: string,
+  scope: { requirement_ids?: string[]; action?: string },
+) {
+  return app.goalEvents.applyConcern({
+    board_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: key,
+    action: "open", title: "完成风险", statement: "完成前需要可信接受",
+    scope, blocks_closure: true,
+  });
+}
+
+function concernDecision(
+  app: GoalProjectApplication,
+  goalId: string,
+  key: string,
+  concernId: string,
+  effect: "accept_concerns" | "reject_concerns",
+  scope: { requirement_ids?: string[]; concern_ids: string[] },
+) {
+  return app.goalEvents.recordTrustedDecision({
+    board_id: BOARD, goal_id: goalId, idempotency_key: key,
+    authority: hostEventDecisionAuthority("web", BOARD, "web-user", key),
+    conclusion: effect === "accept_concerns" ? "接受这个风险" : "撤回接受，不能再按旧批准解除阻塞",
+    effects: [{ kind: effect }],
+    scope,
+  });
+}
+
+test("revoked concern acceptance cannot unblock, while a current matching approval can", () => {
+  const data = fixture();
+  try {
+    readyGoal(data.app, "valid-concern", "valid-req");
+    const opened = openBlockingConcern(data.app, "valid-concern", "open-valid-concern", { action: "complete" });
+    const blocked = data.app.goalEvents.submitClosure({
+      board_id: BOARD, goal_id: "valid-concern", actor_id: "runtime-1", actor_kind: "runtime",
+      idempotency_key: "close-valid-blocked", kind: "complete", result: "可检查的具体结果",
+      reason: "风险还没接受", ...versions(data.app, "valid-concern"),
+    });
+    assert.equal(blocked.completion_applied, false);
+    assert.ok(blocked.unmet_reasons.some((reason) => reason.code === "event_closure.blocking_concern"));
+    const decided = concernDecision(
+      data.app, "valid-concern", "dec-valid-concern", opened.concern.concern_id, "accept_concerns",
+      { concern_ids: [opened.concern.concern_id] },
+    );
+    const accepted = data.app.goalEvents.applyConcern({
+      board_id: BOARD, goal_id: "valid-concern", actor_id: "runtime-1", actor_kind: "runtime",
+      idempotency_key: "accept-valid-concern", action: "accept", concern_id: opened.concern.concern_id,
+      reason: "用户批准仍然有效", cited_decision_id: decided.decision.decision_id,
+    });
+    assert.equal(accepted.replayed, false);
+    assert.equal(accepted.concern.status, "accepted");
+    const afterAccept = eventCount(data.app, "valid-concern");
+    const replayed = data.app.goalEvents.applyConcern({
+      board_id: BOARD, goal_id: "valid-concern", actor_id: "runtime-1", actor_kind: "runtime",
+      idempotency_key: "accept-valid-concern", action: "accept", concern_id: opened.concern.concern_id,
+      reason: "用户批准仍然有效", cited_decision_id: decided.decision.decision_id,
+    });
+    assert.equal(replayed.replayed, true);
+    assert.equal(replayed.event_id, accepted.event_id);
+    assert.equal(replayed.concern.status, "accepted");
+    assert.equal(eventCount(data.app, "valid-concern"), afterAccept);
+    assert.equal(operationCount(data.app, "valid-concern", "concern_accepted"), 1);
+    const closed = data.app.goalEvents.submitClosure({
+      board_id: BOARD, goal_id: "valid-concern", actor_id: "runtime-1", actor_kind: "runtime",
+      idempotency_key: "close-valid-concern", kind: "complete", result: "可检查的具体结果",
+      reason: "风险已接受", ...versions(data.app, "valid-concern"),
+    });
+    assert.equal(closed.completion_applied, true);
+    const validState = data.app.goalEvents.readState(BOARD, "valid-concern");
+    assert.equal(validState.work_status, "completed");
+    assert.equal(validState.completion_effect, true);
+    assert.equal(validState.concerns.find((item) => item.concern_id === opened.concern.concern_id)?.status, "accepted");
+    assert.equal(fulfillment(data.app, "valid-concern"), "satisfied");
+
+    readyGoal(data.app, "revoked-concern", "revoked-req");
+    const risk = openBlockingConcern(data.app, "revoked-concern", "open-revoked-concern", { action: "complete" });
+    const approved = concernDecision(
+      data.app, "revoked-concern", "dec-revoked-accept", risk.concern.concern_id, "accept_concerns",
+      { concern_ids: [risk.concern.concern_id] },
+    );
+    concernDecision(
+      data.app, "revoked-concern", "dec-revoked-reject", risk.concern.concern_id, "reject_concerns",
+      { concern_ids: [risk.concern.concern_id] },
+    );
+    const cited = attempt(() => data.app.goalEvents.citeDecision({
+      board_id: BOARD, goal_id: "revoked-concern", actor_id: "runtime-1", actor_kind: "runtime",
+      idempotency_key: "cite-revoked-concern", decision_id: approved.decision.decision_id,
+    }));
+    assert.equal(cited.accepted, false);
+    assert.equal((cited as { code: string }).code, "event_decision.superseded");
+    const beforeReuse = eventCount(data.app, "revoked-concern");
+    const reused = attempt(() => data.app.goalEvents.applyConcern({
+      board_id: BOARD, goal_id: "revoked-concern", actor_id: "runtime-1", actor_kind: "runtime",
+      idempotency_key: "accept-revoked-concern", action: "accept", concern_id: risk.concern.concern_id,
+      reason: "沿用已经被撤回的批准", cited_decision_id: approved.decision.decision_id,
+    }));
+    assert.equal(reused.accepted, false);
+    assert.equal((reused as { code: string }).code, "event_decision.superseded");
+    const repeated = attempt(() => data.app.goalEvents.applyConcern({
+      board_id: BOARD, goal_id: "revoked-concern", actor_id: "runtime-1", actor_kind: "runtime",
+      idempotency_key: "accept-revoked-concern", action: "accept", concern_id: risk.concern.concern_id,
+      reason: "沿用已经被撤回的批准", cited_decision_id: approved.decision.decision_id,
+    }));
+    assert.equal(repeated.accepted, false);
+    assert.equal((repeated as { code: string }).code, "event_decision.superseded");
+    assert.equal(eventCount(data.app, "revoked-concern"), beforeReuse);
+    assert.equal(operationCount(data.app, "revoked-concern", "concern_accepted"), 0);
+    const stillBlocked = data.app.goalEvents.submitClosure({
+      board_id: BOARD, goal_id: "revoked-concern", actor_id: "runtime-1", actor_kind: "runtime",
+      idempotency_key: "close-revoked-concern", kind: "complete", result: "可检查的具体结果",
+      reason: "旧批准不能解除阻塞", ...versions(data.app, "revoked-concern"),
+    });
+    assert.equal(stillBlocked.completion_applied, false);
+    assert.ok(stillBlocked.unmet_reasons.some((reason) => reason.code === "event_closure.blocking_concern"));
+    const revokedState = data.app.goalEvents.readState(BOARD, "revoked-concern");
+    const concern = revokedState.concerns.find((item) => item.concern_id === risk.concern.concern_id);
+    assert.equal(concern?.status, "open");
+    assert.equal(concern?.cited_decision_id, null);
+    assert.equal(revokedState.work_status, "open");
+    assert.equal(revokedState.completion_effect, false);
+    assert.equal(revokedState.applied_decisions.length, 2);
+    assert.equal(revokedState.current_decisions.length, 1);
+    assert.equal(revokedState.current_decisions[0]?.effects.some((effect) => effect.kind === "reject_concerns"), true);
+    assert.ok(revokedState.applied_decisions.some((item) => item.decision_id === approved.decision.decision_id));
+    assert.equal(fulfillment(data.app, "revoked-concern"), "unmet");
+  } finally {
+    close(data);
+  }
+});
+
+test("changed commitment or uncovered scope cannot reuse a concern approval", () => {
+  const data = fixture();
+  try {
+    readyGoal(data.app, "stale-concern", "promise-req");
+    const opened = openBlockingConcern(data.app, "stale-concern", "open-stale-concern", {
+      requirement_ids: ["promise-req"],
+    });
+    const decided = concernDecision(
+      data.app, "stale-concern", "dec-stale-concern", opened.concern.concern_id, "accept_concerns",
+      { requirement_ids: ["promise-req"], concern_ids: [opened.concern.concern_id] },
+    );
+    const cited = data.app.goalEvents.citeDecision({
+      board_id: BOARD, goal_id: "stale-concern", actor_id: "runtime-1", actor_kind: "runtime",
+      idempotency_key: "cite-stale-fresh", decision_id: decided.decision.decision_id,
+      scope: { requirement_ids: ["promise-req"], concern_ids: [opened.concern.concern_id] },
+    });
+    assert.equal(cited.decision.decision_id, decided.decision.decision_id);
+    data.app.goalEvents.setAgreement({
+      board_id: BOARD, goal_id: "stale-concern", actor_id: "web-user", actor_kind: "user",
+      idempotency_key: "revise-stale-concern", ...versions(data.app, "stale-concern"),
+      revise_requirements: [{ requirement_id: "promise-req", statement: "变化后的承诺" }],
+    });
+    const staleCite = attempt(() => data.app.goalEvents.citeDecision({
+      board_id: BOARD, goal_id: "stale-concern", actor_id: "runtime-1", actor_kind: "runtime",
+      idempotency_key: "cite-stale-concern", decision_id: decided.decision.decision_id,
+      scope: { requirement_ids: ["promise-req"], concern_ids: [opened.concern.concern_id] },
+    }));
+    assert.equal(staleCite.accepted, false);
+    assert.equal((staleCite as { code: string }).code, "event_decision.stale_commitment");
+    const beforeAccept = eventCount(data.app, "stale-concern");
+    const staleAccept = attempt(() => data.app.goalEvents.applyConcern({
+      board_id: BOARD, goal_id: "stale-concern", actor_id: "runtime-1", actor_kind: "runtime",
+      idempotency_key: "accept-stale-concern", action: "accept", concern_id: opened.concern.concern_id,
+      reason: "旧承诺上的批准", cited_decision_id: decided.decision.decision_id,
+    }));
+    assert.equal(staleAccept.accepted, false);
+    assert.equal((staleAccept as { code: string }).code, "event_decision.stale_commitment");
+    assert.equal(eventCount(data.app, "stale-concern"), beforeAccept);
+    assert.equal(operationCount(data.app, "stale-concern", "concern_accepted"), 0);
+    const staleState = data.app.goalEvents.readState(BOARD, "stale-concern");
+    assert.equal(staleState.concerns.find((item) => item.concern_id === opened.concern.concern_id)?.status, "open");
+    assert.equal(staleState.requirements.find((item) => item.requirement_id === "promise-req")?.statement, "变化后的承诺");
+    const stillBlocked = data.app.goalEvents.submitClosure({
+      board_id: BOARD, goal_id: "stale-concern", actor_id: "runtime-1", actor_kind: "runtime",
+      idempotency_key: "close-stale-concern", kind: "complete", result: "可检查的具体结果",
+      reason: "承诺变化后的旧批准不能解除阻塞", ...versions(data.app, "stale-concern"),
+    });
+    assert.equal(stillBlocked.completion_applied, false);
+    assert.ok(stillBlocked.unmet_reasons.some((reason) => reason.code === "event_closure.blocking_concern"));
+
+    readyGoal(data.app, "scope-concern", "scope-req");
+    const covered = openBlockingConcern(data.app, "scope-concern", "open-scope-covered", {
+      requirement_ids: ["scope-req"],
+    });
+    const uncovered = openBlockingConcern(data.app, "scope-concern", "open-scope-other", { action: "complete" });
+    const scoped = concernDecision(
+      data.app, "scope-concern", "dec-scope-concern", covered.concern.concern_id, "accept_concerns",
+      { concern_ids: [covered.concern.concern_id] },
+    );
+    const beforeScope = eventCount(data.app, "scope-concern");
+    const mismatched = attempt(() => data.app.goalEvents.applyConcern({
+      board_id: BOARD, goal_id: "scope-concern", actor_id: "runtime-1", actor_kind: "runtime",
+      idempotency_key: "accept-scope-other", action: "accept", concern_id: uncovered.concern.concern_id,
+      reason: "把别的 Concern 的批准拿来用", cited_decision_id: scoped.decision.decision_id,
+    }));
+    assert.equal(mismatched.accepted, false);
+    assert.equal((mismatched as { code: string }).code, "event_concern.accept_requires_user_decision");
+    const widened = attempt(() => data.app.goalEvents.citeDecision({
+      board_id: BOARD, goal_id: "scope-concern", actor_id: "runtime-1", actor_kind: "runtime",
+      idempotency_key: "cite-scope-widened", decision_id: scoped.decision.decision_id,
+      scope: { requirement_ids: ["scope-req"], concern_ids: [covered.concern.concern_id, uncovered.concern.concern_id], action: "complete" },
+    }));
+    assert.equal(widened.accepted, false);
+    assert.equal((widened as { code: string }).code, "event_decision.scope_expanded");
+    assert.equal(eventCount(data.app, "scope-concern"), beforeScope);
+    const matched = data.app.goalEvents.applyConcern({
+      board_id: BOARD, goal_id: "scope-concern", actor_id: "runtime-1", actor_kind: "runtime",
+      idempotency_key: "accept-scope-covered", action: "accept", concern_id: covered.concern.concern_id,
+      reason: "批准正好覆盖这个 Concern", cited_decision_id: scoped.decision.decision_id,
+    });
+    assert.equal(matched.concern.status, "accepted");
+    assert.equal(operationCount(data.app, "scope-concern", "concern_accepted"), 1);
+    const scopeState = data.app.goalEvents.readState(BOARD, "scope-concern");
+    assert.equal(scopeState.concerns.find((item) => item.concern_id === uncovered.concern.concern_id)?.status, "open");
+    const scopeBlocked = data.app.goalEvents.submitClosure({
+      board_id: BOARD, goal_id: "scope-concern", actor_id: "runtime-1", actor_kind: "runtime",
+      idempotency_key: "close-scope-concern", kind: "complete", result: "可检查的具体结果",
+      reason: "未覆盖的 Concern 仍阻塞", ...versions(data.app, "scope-concern"),
+    });
+    assert.equal(scopeBlocked.completion_applied, false);
+    assert.ok(scopeBlocked.unmet_reasons.some((reason) => reason.code === "event_closure.blocking_concern"));
+  } finally {
+    close(data);
+  }
+});
+
+test("unapplied closures do not hide the current completion from counter-evidence", () => {
+  const data = fixture();
+  try {
+    readyGoal(data.app, "masked-reopen", "masked-req");
+    const closed = data.app.goalEvents.submitClosure({
+      board_id: BOARD, goal_id: "masked-reopen", actor_id: "runtime-1", actor_kind: "runtime",
+      idempotency_key: "close-masked", kind: "complete", result: "可检查的具体结果",
+      reason: "要求已有支持", ...versions(data.app, "masked-reopen"),
+    });
+    assert.equal(closed.completion_applied, true);
+    assert.equal(fulfillment(data.app, "masked-reopen"), "satisfied");
+    for (const key of ["close-masked-gap", "close-masked-gap-2"]) {
+      const missed = data.app.goalEvents.submitClosure({
+        board_id: BOARD, goal_id: "masked-reopen", actor_id: "runtime-1", actor_kind: "runtime",
+        idempotency_key: key, kind: "complete", reason: "没有结果的再次收尾",
+        ...versions(data.app, "masked-reopen"),
+      });
+      assert.equal(missed.recorded, true);
+      assert.equal(missed.completion_applied, false);
+    }
+    const masked = data.app.goalEvents.readState(BOARD, "masked-reopen");
+    assert.equal(masked.work_status, "completed");
+    assert.equal(masked.completion_effect, true);
+    assert.equal(masked.requirements[0]?.currently_satisfied, true);
+    assert.equal(masked.closure?.completion_applied, false);
+    assert.equal(fulfillment(data.app, "masked-reopen"), "satisfied");
+    const contradicted = reportSupport(data.app, "masked-reopen", "rep-masked-contra", "masked-req", "contradicts");
+    assert.equal(contradicted.replayed, false);
+    assert.equal(contradicted.work_status, "open");
+    assert.equal(contradicted.completion_effect, false);
+    const beforeReplay = eventCount(data.app, "masked-reopen");
+    const replayed = reportSupport(data.app, "masked-reopen", "rep-masked-contra", "masked-req", "contradicts");
+    assert.equal(replayed.replayed, true);
+    assert.equal(replayed.work_status, "open");
+    assert.equal(eventCount(data.app, "masked-reopen"), beforeReplay);
+    assert.equal(operationCount(data.app, "masked-reopen", "completion_reopened"), 1);
+    const reopened = data.app.goalEvents.readState(BOARD, "masked-reopen");
+    assert.equal(reopened.work_status, "open");
+    assert.equal(reopened.completion_effect, false);
+    assert.equal(reopened.requirements[0]?.currently_satisfied, false);
+    assert.equal(reopened.closure?.completion_applied, false);
+    assert.equal(fulfillment(data.app, "masked-reopen"), "unmet");
+    assert.deepEqual(appliedClosureFlags(data.store, "masked-reopen"), [[1, 1], [0, 0], [0, 0]]);
+  } finally {
+    close(data);
+  }
+});
+
+test("an earlier superseded completion is not revived over the later effective one", () => {
+  const data = fixture();
+  try {
+    readyGoal(data.app, "superseded-completion", "round-req");
+    const first = data.app.goalEvents.submitClosure({
+      board_id: BOARD, goal_id: "superseded-completion", actor_id: "runtime-1", actor_kind: "runtime",
+      idempotency_key: "close-round-1", kind: "complete", result: "可检查的具体结果",
+      reason: "第一轮完成", ...versions(data.app, "superseded-completion"),
+    });
+    assert.equal(first.completion_applied, true);
+    data.app.goalEvents.resumeWork({
+      board_id: BOARD, goal_id: "superseded-completion", actor_id: "runtime-1", actor_kind: "runtime",
+      idempotency_key: "resume-round-1", reason: "明确开启新一轮",
+    });
+    const resumed = data.app.goalEvents.readState(BOARD, "superseded-completion");
+    assert.equal(resumed.work_status, "open");
+    assert.equal(resumed.completion_effect, false);
+    assert.equal(resumed.closure?.superseded, true);
+    assert.equal(fulfillment(data.app, "superseded-completion"), "unmet");
+    assert.deepEqual(appliedClosureFlags(data.store, "superseded-completion"), [[1, 1]]);
+    reportSupport(data.app, "superseded-completion", "rep-round-again", "round-req");
+    const stillOpen = data.app.goalEvents.readState(BOARD, "superseded-completion");
+    assert.equal(stillOpen.work_status, "open");
+    assert.equal(stillOpen.completion_effect, false);
+    assert.equal(fulfillment(data.app, "superseded-completion"), "unmet");
+    assert.deepEqual(appliedClosureFlags(data.store, "superseded-completion"), [[1, 1]]);
+    const second = data.app.goalEvents.submitClosure({
+      board_id: BOARD, goal_id: "superseded-completion", actor_id: "runtime-1", actor_kind: "runtime",
+      idempotency_key: "close-round-2", kind: "complete", result: "可检查的具体结果",
+      reason: "第二轮完成", ...versions(data.app, "superseded-completion"),
+    });
+    assert.equal(second.completion_applied, true);
+    assert.equal(data.app.goalEvents.readState(BOARD, "superseded-completion").work_status, "completed");
+    assert.equal(fulfillment(data.app, "superseded-completion"), "satisfied");
+    assert.deepEqual(appliedClosureFlags(data.store, "superseded-completion"), [[1, 1], [1, 0]]);
+    for (const key of ["close-round-gap", "close-round-gap-2"]) {
+      const missed = data.app.goalEvents.submitClosure({
+        board_id: BOARD, goal_id: "superseded-completion", actor_id: "runtime-1", actor_kind: "runtime",
+        idempotency_key: key, kind: "complete", reason: "没有结果的再次收尾",
+        ...versions(data.app, "superseded-completion"),
+      });
+      assert.equal(missed.completion_applied, false);
+    }
+    assert.equal(data.app.goalEvents.readState(BOARD, "superseded-completion").work_status, "completed");
+    assert.equal(data.app.goalEvents.readState(BOARD, "superseded-completion").closure?.completion_applied, false);
+    const contradicted = reportSupport(data.app, "superseded-completion", "rep-round-contra", "round-req", "contradicts");
+    assert.equal(contradicted.work_status, "open");
+    assert.equal(contradicted.completion_effect, false);
+    const beforeReplay = eventCount(data.app, "superseded-completion");
+    const replayed = reportSupport(data.app, "superseded-completion", "rep-round-contra", "round-req", "contradicts");
+    assert.equal(replayed.replayed, true);
+    assert.equal(eventCount(data.app, "superseded-completion"), beforeReplay);
+    assert.equal(operationCount(data.app, "superseded-completion", "completion_reopened"), 2);
+    assert.equal(fulfillment(data.app, "superseded-completion"), "unmet");
+    assert.deepEqual(appliedClosureFlags(data.store, "superseded-completion"), [[1, 1], [1, 1], [0, 0], [0, 0]]);
+    reportSupport(data.app, "superseded-completion", "rep-round-restored", "round-req");
+    const restored = data.app.goalEvents.readState(BOARD, "superseded-completion");
+    assert.equal(restored.work_status, "open");
+    assert.equal(restored.completion_effect, false);
+    assert.equal(restored.requirements[0]?.currently_satisfied, true);
+    assert.equal(fulfillment(data.app, "superseded-completion"), "unmet");
+    assert.equal(operationCount(data.app, "superseded-completion", "completion_reopened"), 2);
+    assert.deepEqual(appliedClosureFlags(data.store, "superseded-completion"), [[1, 1], [1, 1], [0, 0], [0, 0]]);
+    const cancelled = data.app.goalEvents.submitClosure({
+      board_id: BOARD, goal_id: "superseded-completion", actor_id: "runtime-1", actor_kind: "runtime",
+      idempotency_key: "cancel-round", kind: "cancel", reason: "明确取消",
+      ...versions(data.app, "superseded-completion"),
+    });
+    assert.equal(cancelled.work_status, "cancelled");
+    assert.equal(cancelled.completion_applied, false);
+    assert.equal(fulfillment(data.app, "superseded-completion"), "unmet");
+    reportSupport(data.app, "superseded-completion", "rep-after-cancel", "round-req", "contradicts");
+    assert.equal(data.app.goalEvents.readState(BOARD, "superseded-completion").work_status, "cancelled");
+    assert.equal(data.app.goalEvents.readState(BOARD, "superseded-completion").completion_effect, false);
+    const continued = data.app.goalEvents.resumeWork({
+      board_id: BOARD, goal_id: "superseded-completion", actor_id: "runtime-1", actor_kind: "runtime",
+      idempotency_key: "resume-after-cancel", reason: "取消后明确继续",
+    });
+    assert.equal(continued.work_status, "open");
+    assert.equal(fulfillment(data.app, "superseded-completion"), "unmet");
+    assert.deepEqual(
+      appliedClosureFlags(data.store, "superseded-completion").filter((row) => row[0] === 1),
+      [[1, 1], [1, 1]],
+    );
+  } finally {
+    close(data);
+  }
+});

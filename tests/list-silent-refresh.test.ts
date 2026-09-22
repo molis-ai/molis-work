@@ -59,12 +59,16 @@ test("个人插件列表在创建、删除、返回后重新 GET，并保住滚�
   assert.match(LINGGUANG_CLIENT_FACTORY_SCRIPT, /data-lingguang-back[\s\S]{0,400}await loadList\(\)/);
 });
 
-test("Functions 静默刷新当前草稿时不重挂编辑器", () => {
+test("Functions 静默刷新当前草稿时不重挂编辑器，保存失败保留表单", () => {
   const loadList = sliceFn(FUNCTIONS_CLIENT_FACTORY_SCRIPT, "const loadList = async (opts = {}) => {", "const draftBody");
-  assert.match(loadList, /if \(opts\.remount\) fillEditor\(next\)/);
+  const saveDraft = sliceFn(FUNCTIONS_CLIENT_FACTORY_SCRIPT, "const saveDraft = async () => {", "const queueSave");
+  assert.match(loadList, /if \(opts\.preserveForm\)/);
   assert.match(loadList, /titleEl\.textContent = next\.name/);
   assert.equal([...loadList.matchAll(/fillEditor\(/g)].length, 1);
-  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /await loadList\(\{ remount: true \}\)/);
+  assert.match(saveDraft, /preserveForm: true/);
+  assert.match(saveDraft, /selected\?\.id !== savingId/);
+  assert.doesNotMatch(saveDraft, /remount:\s*true/);
+  assert.doesNotMatch(saveDraft, /fillEditor/);
 });
 
 test("Feed / Inbox 成功路径改走舞台刷新，工作台脚本含 refresh helpers", () => {

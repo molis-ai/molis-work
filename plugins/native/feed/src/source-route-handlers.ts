@@ -78,7 +78,7 @@ export function createFeedSourceRouteHandlers(options: FeedRouteHandlerPorts): R
         ? request.body.idempotency_key
         : "";
       const result = current.sync_kind === "public_source"
-        ? await sources().sync(sourceId, { idempotencyKey, signal: AbortSignal.timeout(45_000) })
+        ? await sources().sync(sourceId, { idempotencyKey, signal: AbortSignal.timeout(current.kind === "research_library" ? 180_000 : 45_000) })
         : isAccountConnectorSyncKind(current.sync_kind)
           ? await connectors().sync(sourceId, {
               idempotencyKey,

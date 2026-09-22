@@ -2,6 +2,27 @@
 import { PERSONAL_PLUGIN_IDS, pluginTabTitles } from "../../plugin-catalog.js";
 import { pluginSearchRows } from "../../plugin-workbench.js";
 
+/** Drop repeated plugin records before the result cap, so a second copy cannot crowd out a different record.
+ *  Stringified into the browser factory. Type annotations are erased before that string is sent. */
+export function takeSearchHits(
+  items: readonly { plugin?: string; kind?: string; id?: string; search?: string }[],
+  query: string,
+  limit: number,
+) {
+  const q = String(query || "").trim().toLowerCase();
+  const seen = new Set();
+  const matched = [];
+  for (const item of items) {
+    if (q && !String(item.search || "").includes(q)) continue;
+    const id = item.id == null ? "" : String(item.id);
+    const key = String(item.plugin || item.kind || "") + "\0" + id;
+    if (id && seen.has(key)) continue;
+    if (id) seen.add(key);
+    matched.push(item);
+  }
+  return matched.slice(0, limit);
+}
+
 export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
   const { translate: L, setDirectory, setWorkSurface, selectGoal, setMobileView, noteSearchActivity, openTabItem, expandDirectory } = host;
   const dialog = document.querySelector("[data-global-search-dialog]");
@@ -23,10 +44,11 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
   const PERSONAL_PLUGIN_IDS = ${JSON.stringify([...PERSONAL_PLUGIN_IDS])};
   const PLUGIN_TAB_TITLES = ${JSON.stringify(pluginTabTitles())};
   const PERSONAL_SEARCH_ROWS = ${JSON.stringify(pluginSearchRows())};
+  const takeSearchHits = ${takeSearchHits.toString()};
   const collect = (query) => {
     const q = query.trim().toLowerCase();
     const limit = q ? 12 : 8;
-    const take = (items) => (q ? items.filter((item) => item.search.includes(q)) : items).slice(0, limit);
+    const take = (items) => takeSearchHits(items, q, limit);
     const groups = [];
     if (pluginEnabled("goals")) {
       const items = take([...document.querySelectorAll("[data-tree-item]")].map((item) => ({

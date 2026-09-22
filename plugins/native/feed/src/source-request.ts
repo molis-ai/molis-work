@@ -15,6 +15,16 @@ export function normalizeRegistration(input: RegisterFeedSourceInput, providers:
   name: string;
   description: string;
 } {
+  if (input.kind === "research_library") {
+    const repository = input.repository.trim().replace(/^https:\/\/github.com\//u, "").replace(/\/$/u, "");
+    const researchSource = input.research_source.trim();
+    if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository) || !/^[a-z0-9][a-z0-9_-]{0,79}$/.test(researchSource)) {
+      throw new FeedDomainError("请填写 GitHub 仓库和研究来源 id", "feed_source_invalid_configuration");
+    }
+    return { kind: "research_library", definitionId: "research-library", config: { repository, research_source: researchSource },
+      configFingerprint: sha256(`${repository}\n${researchSource}`), name: bounded(input.name || `研究库：${researchSource}`, 80),
+      description: "读取 GitHub 研究库已发布成果，保留证据与限制；使用本机 Git 凭据。" };
+  }
   if (input.kind === "rss") {
     const definitionId = input.definition_id?.trim();
     const catalog = providers.listCatalog().find((source) => source.sourceId === definitionId && source.enabled);

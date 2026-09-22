@@ -1,3 +1,5 @@
+import { imagesManifest } from "@molis-ai/molis-work-plugin-images";
+import { jellyManifest } from "@molis-ai/molis-work-plugin-jelly";
 import { experimentsManifest } from "@molis-ai/molis-work-plugin-experiments";
 import type {
   ProjectPluginId,
@@ -7,19 +9,20 @@ import { PROJECT_PLUGIN_COMPANIONS } from "@molis-ai/molis-work-contracts/module
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { UiViewRegistry, type UiPlacedView } from "@molis-ai/molis-work-ui-host";
 import { ARTIFACTS_PROJECT_PLUGIN_ID, artifactsManifest } from "@molis-ai/molis-work-plugin-artifacts";
-import { CODING_PROJECT_PLUGIN_ID, codingManifest, codingPrompts } from "@molis-ai/molis-work-plugin-coding";
+import { CODING_PROJECT_PLUGIN_ID, codingManifest, codingPrompts, codingMethods } from "@molis-ai/molis-work-plugin-coding";
 import { DIFF_PROJECT_PLUGIN_ID, diffManifest } from "@molis-ai/molis-work-plugin-diff";
 import { FILES_PROJECT_PLUGIN_ID, filesManifest } from "@molis-ai/molis-work-plugin-files";
 import { GIT_PROJECT_PLUGIN_ID, gitManifest } from "@molis-ai/molis-work-plugin-git";
 import { TEXT_STATS_PROJECT_PLUGIN_ID, textStatsManifest } from "@molis-ai/molis-work-plugin-text-stats";
 import { WORKSPACE_PROJECT_PLUGIN_ID, workspaceManifest } from "@molis-ai/molis-work-plugin-workspace";
-import type { AgentManifest, AgentPromptText } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
+import type { AgentManifest, AgentPromptText, AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { FEED_PROJECT_PLUGIN_ID, feedManifest } from "@molis-ai/molis-work-plugin-feed";
 import { GOALS_PROJECT_PLUGIN_ID, goalsManifest } from "@molis-ai/molis-work-plugin-goals";
 import { INBOX_PROJECT_PLUGIN_ID, inboxManifest } from "@molis-ai/molis-work-plugin-inbox";
 import { SCHEDULE_PROJECT_PLUGIN_ID, scheduleManifest, schedulePrompts } from "@molis-ai/molis-work-plugin-schedule";
 import { SHELF_PROJECT_PLUGIN_ID, shelfManifest } from "@molis-ai/molis-work-plugin-shelf";
 import { FUNCTIONS_PROJECT_PLUGIN_ID, functionsManifest } from "@molis-ai/molis-work-plugin-functions";
+import { CHARACTERS_PROJECT_PLUGIN_ID, charactersManifest } from "@molis-ai/molis-work-plugin-characters";
 import { PAGES_PROJECT_PLUGIN_ID, pagesManifest } from "@molis-ai/molis-work-plugin-pages";
 import { FORM_PROJECT_PLUGIN_ID, formManifest } from "@molis-ai/molis-work-plugin-form";
 import { DATASET_PROJECT_PLUGIN_ID, datasetManifest } from "@molis-ai/molis-work-plugin-dataset";
@@ -51,6 +54,8 @@ export interface PluginMarketCard {
 }
 
 export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
+  { project_plugin_id: "images", manifest: imagesManifest, personal: true, summary: "连接生图服务，描述图片，预览并保存生成结果。" },
+  { project_plugin_id: "jelly", manifest: jellyManifest, personal: true, summary: "安排事项、写笔记、收集灵感，把想法放进每天。" },
   { project_plugin_id: "experiments", manifest: experimentsManifest, personal: true, summary: "同一任务，独立比较模型的判断、耗时与成本。" },
   { project_plugin_id: GOALS_PROJECT_PLUGIN_ID, manifest: goalsManifest, summary: "确定目标，推进工作，留下结果。" },
   { project_plugin_id: WORK_PROJECT_PLUGIN_ID, manifest: workManifest, summary: "回到你的会话，继续正在做的事。" },
@@ -60,17 +65,18 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
   { project_plugin_id: SHELF_PROJECT_PLUGIN_ID, manifest: shelfManifest, personal: true, summary: "把文件放到置物架，处理副本，原件不动。" },
   { project_plugin_id: LINGGUANG_PROJECT_PLUGIN_ID, manifest: lingguangManifest, personal: true, summary: "先记下还没想清楚的想法，再决定留下或丢掉。" },
   { project_plugin_id: FUNCTIONS_PROJECT_PLUGIN_ID, manifest: functionsManifest, personal: true, summary: "Inbox、首页、Feed 显示哪个按钮。" },
+  { project_plugin_id: CHARACTERS_PROJECT_PLUGIN_ID, manifest: charactersManifest, personal: true, summary: "编辑角色的做事方式，发布固定版本供 AI 任务选择。" },
   { project_plugin_id: PAGES_PROJECT_PLUGIN_ID, manifest: pagesManifest, personal: true, summary: "写文档，用块和格式，保存在这台电脑。" },
   { project_plugin_id: FORM_PROJECT_PLUGIN_ID, manifest: formManifest, personal: true, summary: "建问卷，预览填写，看结果。" },
   { project_plugin_id: DATASET_PROJECT_PLUGIN_ID, manifest: datasetManifest, personal: true, summary: "改表格，导入 CSV，留下版本。" },
   { project_plugin_id: PPT_PROJECT_PLUGIN_ID, manifest: pptManifest, personal: true, summary: "写幻灯片大纲，预览并导出 JSON。" },
   { project_plugin_id: ARTIFACTS_PROJECT_PLUGIN_ID, manifest: artifactsManifest, summary: "打开项目成果，查看保留下来的版本。" },
-  { project_plugin_id: CODING_PROJECT_PLUGIN_ID, manifest: codingManifest },
-  { project_plugin_id: WORKSPACE_PROJECT_PLUGIN_ID, manifest: workspaceManifest },
-  { project_plugin_id: FILES_PROJECT_PLUGIN_ID, manifest: filesManifest },
-  { project_plugin_id: GIT_PROJECT_PLUGIN_ID, manifest: gitManifest },
-  { project_plugin_id: DIFF_PROJECT_PLUGIN_ID, manifest: diffManifest },
-  { project_plugin_id: TEXT_STATS_PROJECT_PLUGIN_ID, manifest: textStatsManifest },
+  { project_plugin_id: CODING_PROJECT_PLUGIN_ID, manifest: codingManifest, summary: "围绕代码讨论、执行和审查，保留连续的任务记录。" },
+  { project_plugin_id: WORKSPACE_PROJECT_PLUGIN_ID, manifest: workspaceManifest, summary: "查看当前项目的工作区。" },
+  { project_plugin_id: FILES_PROJECT_PLUGIN_ID, manifest: filesManifest, summary: "查看工作区文件与保留的内容。" },
+  { project_plugin_id: GIT_PROJECT_PLUGIN_ID, manifest: gitManifest, summary: "查看工作区的版本与变更。" },
+  { project_plugin_id: DIFF_PROJECT_PLUGIN_ID, manifest: diffManifest, summary: "比较固定版本，逐项阅读差异。" },
+  { project_plugin_id: TEXT_STATS_PROJECT_PLUGIN_ID, manifest: textStatsManifest, summary: "查看材料与成果的文本统计。" },
 ];
 
 /** Plugins a project can enable. Personal Plugins are always on and not listed. */
@@ -251,6 +257,7 @@ export function pluginTabTitles(): Record<string, string> {
 export const BUILTIN_PLUGIN_AGENTS: ReadonlyMap<string, {
   readonly manifest: AgentManifest;
   readonly prompts: readonly AgentPromptText[];
+  readonly skills: readonly AgentSkillDefinition[];
 }> = new Map(
   BUILTIN_PLUGIN_CATALOG.flatMap((entry) => {
     const agent = entry.manifest.agent;
@@ -260,6 +267,7 @@ export const BUILTIN_PLUGIN_AGENTS: ReadonlyMap<string, {
       : entry.project_plugin_id === SCHEDULE_PROJECT_PLUGIN_ID
         ? schedulePrompts
         : [];
-    return [[entry.manifest.plugin_id, { manifest: agent, prompts }] as const];
+    const skills = entry.project_plugin_id === CODING_PROJECT_PLUGIN_ID ? codingMethods : [];
+    return [[entry.manifest.plugin_id, { manifest: agent, prompts, skills }] as const];
   }),
 );

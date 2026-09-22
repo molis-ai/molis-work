@@ -80,6 +80,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       if (!body) return;
       if (!fetchPath && caches.has(section)) {
         showNode(caches.get(section));
+        bindEmbed(caches.get(section));
         active = section;
         markNav(section);
         return;
@@ -230,6 +231,12 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     }
     const inSettingsShell = link.closest("[data-work-surface=settings], [data-work-surface=project-settings], [data-directory-panel=settings], [data-directory-panel=project-settings]");
     if (!inSettingsShell) return;
+    if (link.hasAttribute("data-settings-return-workbench") && url.pathname === projectPrefix + "/") {
+      event.preventDefault();
+      setDirectory?.("root", true, false);
+      setExclusive?.(null);
+      return;
+    }
     if (openGlobalSettingsFromUrl(link.href)) event.preventDefault();
   });
   return {

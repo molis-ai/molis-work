@@ -13,6 +13,7 @@ export interface SettingsDirectoryPrimitives {
 
 const SETTINGS_SECTIONS = [
   { id: "appearance", label: "外观", icon: "sun" },
+  { id: "models", label: "模型设置", icon: "settings" },
   { id: "runtimes", label: "AI 与执行工具", icon: "terminal" },
   { id: "mcp", label: "MCP", icon: "settings" },
   { id: "connectors", label: "Connectors", icon: "link" },

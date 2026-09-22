@@ -59,7 +59,9 @@ export class GoalEventStateEffects {
     private readonly host: GoalEventStateHost,
     private readonly core: GoalEventStateCore,
   ) {
-    this.concerns = new GoalEventConcerns(context, facts, records, core);
+    this.concerns = new GoalEventConcerns(context, facts, records, core, (goal, cited) => {
+      this.assertReusable(goal, cited, cited.scope);
+    });
     this.agreement = new GoalEventStateAgreement(context, records, host, core);
   }
 
@@ -503,7 +505,7 @@ export class GoalEventStateEffects {
   reassessAfterReports(goal: GoalRecord, actorId: string, actorKind: "user" | "runtime" | null, judgedIds: string[]): void {
     if (!this.records.isOwner(goal.board_id, goal.goal_id)) return;
     if (this.records.workStatus(goal.board_id, goal.goal_id) !== "completed") return;
-    const closure = this.records.latestClosure(goal.board_id, goal.goal_id);
+    const closure = this.records.currentAppliedClosure(goal.board_id, goal.goal_id);
     if (!closure || !closure.completion_applied || closure.superseded) return;
     if (judgedIds.length === 0) return;
     const current = this.host.readCurrentRequirements(goal.board_id, goal.goal_id);

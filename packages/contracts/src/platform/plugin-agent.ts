@@ -34,6 +34,8 @@ export interface AgentRoleDeclaration {
 }
 
 export interface AgentSubagentRoleDeclaration {
+  /** Explicit child tools; omission grants none. */
+  host_tools?: string[];
   role_id: string;
   version: number;
   name: string;
@@ -144,6 +146,8 @@ export interface AgentManifest {
   compaction?: AgentCompactionDeclaration;
   skills?: AgentSkillDeclaration[];
   mcp?: boolean;
+  /** Absent means Character input is not accepted. Selection always names a fixed Artifact. */
+  characters?: { selection: "optional-exact-artifact"; scope: "project-owner"; role_ids: string[] };
   subagents?: AgentSubagentsDeclaration;
 }
 
@@ -237,6 +241,14 @@ export function inspectAgentDeclaration(
       }
       workspaceParents.add(role.role_id);
     }
+  }
+
+  if (agent.characters) {
+    const selection = agent.characters;
+    if (selection.selection !== "optional-exact-artifact" || selection.scope !== "project-owner"
+      || !Array.isArray(selection.role_ids) || !selection.role_ids.length
+      || new Set(selection.role_ids).size !== selection.role_ids.length
+      || selection.role_ids.some(id => !roles.has(id))) problems.push("Agent Character 必须声明本项目本人范围、精确版本选择和已声明的角色");
   }
 
   if (agent.compaction) {

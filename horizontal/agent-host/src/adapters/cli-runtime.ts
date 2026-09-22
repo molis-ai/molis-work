@@ -97,6 +97,16 @@ function composePrompt(
 const DEFAULT_READ_TOOLS = ["Read", "Grep", "Glob"] as const;
 const DEFAULT_DENIED_TOOLS = ["Write", "Edit", "MultiEdit", "NotebookEdit", "Bash"] as const;
 
+/**
+ * A provider session id the CLI actually reported.
+ * Empty or unusable values are not a resume; the Host session id is never substituted.
+ */
+function usableProviderSessionId(value: string | undefined): string | undefined {
+  if (value === undefined || value.length === 0 || value.length > 256) return undefined;
+  if (/[\0\r\n]/.test(value)) return undefined;
+  return value;
+}
+
 function capabilities(): AgentRuntimeCapabilityMatrix {
   const matrix = emptyCapabilityMatrix();
   matrix["session.create"] = "supported";
@@ -113,6 +123,15 @@ function capabilities(): AgentRuntimeCapabilityMatrix {
   return matrix;
 }
 
+interface HostSessionRecord {
+  title: string;
+  cwd: string;
+  runs: AgentRunRef[];
+  owner: AgentSessionView["owner"];
+  /** Set from the CLI stream. Absent means this Host session has nothing to resume. */
+  providerSessionId?: string;
+}
+
 interface RunRecord {
   view: AgentRunView;
   state: CliStreamState;
@@ -125,7 +144,7 @@ export class CliAgentAdapter implements AgentRuntimeAdapter {
   readonly descriptor: AgentRuntimeDescriptor;
   readonly #options: CliAgentAdapterOptions;
   readonly #now: () => Date;
-  readonly #sessions = new Map<string, { title: string; cwd: string; runs: AgentRunRef[] }>();
+  readonly #sessions = new Map<string, HostSessionRecord>();
   readonly #runs = new Map<string, RunRecord>();
 
   constructor(options: CliAgentAdapterOptions) {
@@ -164,6 +183,7 @@ export class CliAgentAdapter implements AgentRuntimeAdapter {
     const sessionId = randomUUID();
     this.#sessions.set(sessionId, {
       title: input.title,
+      owner: { board_id: input.board_id, plugin_id: input.plugin_id, install_id: input.install_id },
       cwd: input.directory.canonical_path,
       runs: [],
     });
@@ -175,6 +195,7 @@ export class CliAgentAdapter implements AgentRuntimeAdapter {
     const latest = record.runs.at(-1);
     return {
       session: { ...session },
+      owner: { ...record.owner },
       title: record.title,
       runs: record.runs.map((ref) => ({ ...ref })),
       latest_run: latest ? structuredClone(this.#requireRun(latest.run_id).view) : null,
@@ -182,6 +203,8 @@ export class CliAgentAdapter implements AgentRuntimeAdapter {
   }
 
   async start(request: AgentStartRequest): Promise<AgentRunHandle> {
+    if (request.execution_plan) throw new CliAgentError("agent.capability_unavailable", "此 CLI 运行时尚未接通计划步骤回报，请使用 Prologue");
+    if (request.text_materials?.length) throw new CliAgentError("agent.capability_unavailable", "此 CLI 运行时尚未接通固定材料消费，请使用 Prologue 或移除材料");
     const session = this.#requireSession(request.session.session_id);
     const model = await this.#options.model();
     if (model === null) {
@@ -195,6 +218,7 @@ export class CliAgentAdapter implements AgentRuntimeAdapter {
     // The Plugin's role prompts are what make a role mean anything on a CLI
     // runtime. Refusing here is better than running an unshaped agent.
     const role = request.role;
+    if (role?.character) throw new CliAgentError("agent.capability_unavailable", "此 CLI 尚未验证 Character 的工具限制，请使用 Prologue 或明确移除角色后执行");
     if (role === undefined) {
       throw new CliAgentError(
         "agent.runtime_missing",
@@ -241,7 +265,7 @@ export class CliAgentAdapter implements AgentRuntimeAdapter {
     this.#runs.set(ref.run_id, record);
     session.runs.push(ref);
 
-    const resumeId = session.runs.length > 1 ? state.sessionId : undefined;
+    const resumeId = usableProviderSessionId(session.providerSessionId);
     const handle = this.#options.process.spawn({
       command: this.#options.command,
       args: this.#arguments(model, composePrompt(role.prompts, request.task), resumeId),
@@ -295,11 +319,15 @@ export class CliAgentAdapter implements AgentRuntimeAdapter {
     session: AgentSessionRef,
     ref: AgentCommandOutputRef,
   ): Promise<AgentCommandOutput> {
+    const matches: AgentCommandOutput[] = [];
     for (const record of this.#runs.values()) {
-      if (record.view.ref.session_id !== session.session_id) continue;
-      const receipt = record.state.receipts.find((entry) => entry.ref.call_id === ref.call_id);
-      if (receipt) return structuredClone(receipt);
+      if (record.view.ref.session_id !== session.session_id || ref.run_id && ref.run_id !== record.view.ref.run_id) continue;
+      for (const receipt of record.state.receipts) if (receipt.ref.call_id === ref.call_id) {
+        matches.push({ ...structuredClone(receipt), ref: { ...receipt.ref, run_id: record.view.ref.run_id } });
+      }
     }
+    if (matches.length === 1) return matches[0]!;
+    if (matches.length > 1) throw new CliAgentError("agent.run_unknown", "命令引用对应多次执行，请指定轮次");
     throw new CliAgentError(
       "agent.run_unknown",
       `这条会话里没有 ${ref.call_id} 这次命令的回执`,
@@ -334,6 +362,7 @@ export class CliAgentAdapter implements AgentRuntimeAdapter {
 
     if (event.kind === "line") {
       if (!applyCliStreamLine(record.state, event.line, at)) return;
+      this.#rememberProviderSession(record);
       this.#update(runId, {
         turns: [...record.state.turns],
         activity: [...record.state.activity],
@@ -364,6 +393,17 @@ export class CliAgentAdapter implements AgentRuntimeAdapter {
     record.view = { ...record.view, ...patch };
     const snapshot = structuredClone(record.view);
     for (const listener of record.listeners) listener(structuredClone(snapshot));
+  }
+
+  #rememberProviderSession(record: RunRecord): void {
+    const providerSessionId = usableProviderSessionId(record.state.sessionId);
+    if (!providerSessionId) return;
+    const session = this.#sessions.get(record.view.ref.session_id);
+    if (!session) return;
+    const latest = session.runs.at(-1);
+    // A late line from an older run must not replace the id a newer run owns.
+    if (latest && latest.run_id !== record.view.ref.run_id) return;
+    session.providerSessionId = providerSessionId;
   }
 
   #requireSession(sessionId: string) {

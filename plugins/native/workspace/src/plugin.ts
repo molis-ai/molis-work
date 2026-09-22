@@ -7,6 +7,7 @@ import type {
 import { workspaceEventTypes } from "./events.js";
 import { workspaceManifest } from "./manifest.js";
 import { workspaceUiContribution } from "./ui.js";
+import { workspaceRoutes } from "./routes.js";
 
 export interface WorkspacePluginPorts {
   /**
@@ -30,6 +31,7 @@ export function createWorkspacePlugin(ports: WorkspacePluginPorts = {}): PluginD
       return {
         kind: "app",
         views: [workspaceUiContribution],
+        routes: workspaceRoutes(context),
         commandAvailability: (commandId) => {
           if (commandId !== "workspace.reveal") {
             return { available: false, reason: `未知命令：${commandId}` };

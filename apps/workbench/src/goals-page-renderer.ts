@@ -23,6 +23,7 @@ export interface WorkbenchGoalsPageView<TItem extends GoalCollectionItem> extend
    * The HTML is trusted product output, same as the other panel sources.
    */
   plugin_panels?: Readonly<Record<string, string>>;
+  plugin_stages?: readonly string[];
   project: ProjectOperationsProject | null;
   projects: ProjectOperationsProject[];
   route_prefix: string;
@@ -73,11 +74,13 @@ export interface WorkbenchGoalsPageOwners<TItem extends GoalCollectionItem, TVie
   renderScheduleNativePluginSurface(view: TView, surface: "directory" | "workbench"): string;
   renderShelfNativePluginSurface(surface: "directory" | "workbench"): string;
   renderExperimentsContribution(): string;
+  renderImagesNativePluginSurface(): string;
   renderFunctionsNativePluginSurface(surface: "directory" | "workbench"): string;
   renderPagesNativePluginSurface(surface: "directory" | "workbench"): string;
   renderFormNativePluginSurface(surface: "directory" | "workbench"): string;
   renderDatasetNativePluginSurface(surface: "directory" | "workbench"): string;
   renderPptNativePluginSurface(surface: "directory" | "workbench"): string;
+  renderJellyNativePluginSurface(surface: "directory" | "workbench"): string;
   renderLingguangNativePluginSurface(surface: "directory" | "workbench"): string;
 }
 
@@ -91,7 +94,7 @@ export function createWorkbenchGoalsPageRenderer<TItem extends GoalCollectionIte
     renderGoalDocument, renderTrashGoalDocument, goalsDocumentRenderer, goalsTreeRenderer,
     renderCreateDialog, renderGoalTrashDialog, renderMomentumPlaceholder, renderGoalKanban, renderTuiPane,
     renderProjectOperations, renderDesktopProjectChrome,
-    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderShelfNativePluginSurface, renderFunctionsNativePluginSurface, renderExperimentsContribution, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderLingguangNativePluginSurface } = owners;
+    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderShelfNativePluginSurface, renderFunctionsNativePluginSurface, renderExperimentsContribution, renderImagesNativePluginSurface, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderLingguangNativePluginSurface, renderJellyNativePluginSurface } = owners;
 
 function renderMolisWorkRefreshFragment(
   view: TView,
@@ -263,16 +266,19 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
             ${renderShelfNativePluginSurface("workbench")}
             ${renderFunctionsNativePluginSurface("workbench")}
             ${renderExperimentsContribution()}
+            ${renderImagesNativePluginSurface()}
             ${renderPagesNativePluginSurface("workbench")}
             ${renderFormNativePluginSurface("workbench")}
             ${renderDatasetNativePluginSurface("workbench")}
             ${renderPptNativePluginSurface("workbench")}
             ${renderLingguangNativePluginSurface("workbench")}
+            ${renderJellyNativePluginSurface("workbench")}
             ${renderFeedNativePluginSurface(view, "workbench", initialFeedPreset, [], false)}
             ${renderFeedNativePluginSurface(view, "source-workbench", initialFeedPreset)}
             <section class="desktop-work-surface immersive-artifact-surface plugin-stage-shell" data-work-surface="artifacts" data-work-surface-label="Artifacts" data-artifact-stage-shell data-expanded="false" hidden><div class="plugin-stage-list feed-stage-tree" data-artifact-directory></div><div class="plugin-stage-workspace" data-artifact-stage-workspace hidden><div data-artifact-detail></div></div></section>
             <section class="desktop-work-surface immersive-market" data-work-surface="market" data-work-surface-label="${L("插件市场")}" hidden>${renderPluginMarket(primitives)}</section>
             ${settingsSurfaces}
+            ${(view.plugin_stages ?? []).join("")}
           </div>
         </div>
       </div>
@@ -306,4 +312,3 @@ function withPersonalPlugins(enabled: readonly string[]): string[] {
   }
   return next;
 }
-

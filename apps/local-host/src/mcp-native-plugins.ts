@@ -1,3 +1,5 @@
+import { jellyManifest } from "@molis-ai/molis-work-plugin-jelly";
+import { createJellyMcpAdapter } from "./mcp-jelly-tools.js";
 import type { MolisWorkRuntimeContextHost } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
   mcpPublicToolName,
@@ -67,6 +69,7 @@ export interface NativeMcpDispatchEntry {
 
 const NATIVE_MCP_ADAPTERS: Readonly<Record<string, NativeMcpPluginRegistration["createAdapter"]>> = {
   [functionsManifest.plugin_id]: createFunctionsMcpAdapter,
+  [jellyManifest.plugin_id]: createJellyMcpAdapter,
   [pagesManifest.plugin_id]: createPagesMcpAdapter,
   [formManifest.plugin_id]: createFormMcpAdapter,
   [datasetManifest.plugin_id]: createDatasetMcpAdapter,

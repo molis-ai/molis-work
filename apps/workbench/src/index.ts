@@ -1,9 +1,10 @@
 export { createWorkbenchDecisionCenterRenderer, type WorkbenchDecisionGroup } from "./decision-center.js";
+export { renderPluginPageWorkspace } from './plugin-page-workspace.js';
 export { createWorkbenchGoalsPageRenderer } from "./goals-page-renderer.js";
 export { renderWorkbenchPlanningRequest } from "./goals-planning-request.js";
 export type { WorkbenchPlanningPageOwners } from "./goals-planning-request.js";
 export type { WorkbenchGoalsPageView, WorkbenchGoalsPageOwners } from "./goals-page-renderer.js";
-export type { ArtifactWorkbenchRequest } from "./artifact-ui.js";
+export type { ArtifactWorkbenchRequest, ArtifactImportWorkbenchRequest } from "./artifact-ui.js";
 export { ARTIFACT_EMBED_STYLES } from "./artifact-ui.js";
 export type { ArtifactBrowserUiModel } from "@molis-ai/molis-work-plugin-artifacts";
 export { isProjectReference } from "@molis-ai/molis-work-plugin-artifacts";
@@ -133,6 +134,7 @@ export type { BuiltinPluginEntry, PluginMarketCard, RailEntry } from "./plugin-c
 export {
   isDecidable,
   renderAgentReviewSurface,
+  renderAgentReviewRecovery,
   reviewPhase,
   type AgentReviewPhase,
   type AgentReviewPrimitives,

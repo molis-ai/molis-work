@@ -79,7 +79,7 @@ export function inspectPromptCacheChoice(
 ): string | null {
   if ((provider.prompt_cache ?? "off") !== "required") return null;
   if (promptCacheIsClientControlled(provider.api_format)) return null;
-  return "这个 API 格式没有可以由我们打开的缓存断点，选不了「必须命中」";
+  return "这个 API 格式没有可以由我们打开的缓存断点，选不了「要求缓存支持」";
 }
 
 /**
@@ -88,11 +88,12 @@ export function inspectPromptCacheChoice(
  * `needs-credential` and `disabled` are different situations and the settings
  * page shows them differently: one is unfinished setup, the other is a choice.
  */
-export type ModelProviderStatus = "ready" | "needs-credential" | "no-models" | "disabled";
+export type ModelProviderStatus = "ready" | "needs-credential" | "credential-unavailable" | "no-models" | "disabled";
 
 export interface ModelProviderHealth {
   provider_id: string;
   status: ModelProviderStatus;
+  credential_status?: "present" | "missing" | "unavailable";
   /** Shown next to the provider. Empty when ready. */
   detail: string;
 }

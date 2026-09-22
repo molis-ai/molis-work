@@ -115,7 +115,7 @@ const CATALOG: CatalogConnectorDraft[] = [
   spec("google-drive", "Google Drive", "files", "Drive、Docs、Sheets、Slides。", "项目资料可读 Drive 文件", {
     token_label: "Google 访问令牌（drive.readonly）",
     token_placeholder: "ya29.…",
-    auth_help: "使用带 drive.readonly 或 drive.metadata.readonly 的 Google 访问令牌。",
+    auth_help: "查看列表可使用 drive.metadata.readonly；导入 Google Docs 正文需要 drive.readonly 或 drive.file。",
     permission_host: "googleapis.com",
     identity: {
       request: (ctx) => get("https://www.googleapis.com/drive/v3/about?fields=user", googleBearer(ctx)),
@@ -301,7 +301,7 @@ const CATALOG: CatalogConnectorDraft[] = [
   spec("feishu", "飞书", "chat", "消息、文档与日历。", "Feed 拉消息、文档与日历", {
     token_label: "飞书应用凭证",
     token_placeholder: "cli_…:app_secret",
-    auth_help: "企业自建应用，格式 app_id:app_secret。先换 tenant_access_token 证明能连；拉会话还需要 im 权限。没开机器人也能连上账号。",
+    auth_help: "企业自建应用，格式 app_id:app_secret。导入正文需文档只读权限，并将文档共享给应用；知识库链接还需知识库读取权限。Feed 拉会话另需 im 权限。",
     permission_host: "open.feishu.cn",
     parseToken: (raw) => splitParts(raw, ":", 2, ["app_id", "app_secret"]),
     async prepare(ctx, http) {
@@ -325,6 +325,37 @@ const CATALOG: CatalogConnectorDraft[] = [
       read: (json) => mapList(nestedTextList(asRecord(json), ["data", "items"]), "feishu", (row) => item({
         externalId: `feishu-${text(row.chat_id)}`,
         title: text(row.name) || "飞书会话",
+        kind: "message",
+      })),
+    },
+  }),
+  spec("lark", "Lark", "chat", "国际版 Lark 的消息与文档。", "Feed 拉会话；Artifact 导入文档", {
+    token_label: "Lark 应用凭证",
+    token_placeholder: "cli_…:app_secret",
+    auth_help: "Lark 国际版自建应用，格式 app_id:app_secret，与飞书凭据分开保存。导入正文需文档只读权限及文档共享，知识库链接还需知识库读取权限。Feed 拉会话另需 im 权限。",
+    permission_host: "open.larksuite.com",
+    parseToken: (raw) => splitParts(raw, ":", 2, ["app_id", "app_secret"]),
+    async prepare(ctx, http) {
+      const result = await http.json(post("https://open.larksuite.com/open-apis/auth/v3/tenant_access_token/internal", { "content-type": "application/json" }, {
+        app_id: ctx.extra.app_id,
+        app_secret: ctx.extra.app_secret,
+      }));
+      const token = text(asRecord(result.json)?.tenant_access_token);
+      if (!token) throw new CatalogLiveError("configuration", undefined, "Lark app_id:app_secret 无法换到 tenant_access_token");
+      return { ...ctx, accessToken: token };
+    },
+    identity: {
+      request: (ctx) => post("https://open.larksuite.com/open-apis/auth/v3/tenant_access_token/internal", { "content-type": "application/json" }, {
+        app_id: ctx.extra.app_id,
+        app_secret: ctx.extra.app_secret,
+      }),
+      read: (json, ctx) => text(asRecord(json)?.tenant_access_token) ? (text(ctx.extra.app_id) || "Lark") : "",
+    },
+    feed: {
+      request: (ctx) => get("https://open.larksuite.com/open-apis/im/v1/chats?page_size=20", bearer(ctx)),
+      read: (json) => mapList(nestedTextList(asRecord(json), ["data", "items"]), "lark", (row) => item({
+        externalId: `lark-${text(row.chat_id)}`,
+        title: text(row.name) || "Lark 会话",
         kind: "message",
       })),
     },

@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from "node:util";
 import type {
   AgentHostErrorCode,
   AgentReviewDecisionInput,
@@ -5,6 +6,9 @@ import type {
   AgentReviewReceipt,
   AgentReviewRequest,
   AgentReviewStatus,
+  AgentGitIndexObservation,
+  AgentReviewRecoveryInput,
+  AgentReviewRecoveryView,
 } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 export class AgentReviewError extends Error {
@@ -13,7 +17,8 @@ export class AgentReviewError extends Error {
       | "agent.review_unknown"
       | "agent.review_already_decided"
       | "agent.review_expired"
-      | "agent.review_not_approved">,
+      | "agent.review_not_approved"
+      | "agent.capability_unavailable">,
     message: string,
   ) {
     super(message);
@@ -24,6 +29,12 @@ export class AgentReviewError extends Error {
 interface ReviewRow {
   request: AgentReviewRequest;
   receipt: AgentReviewReceipt;
+}
+
+type RecoveryObserver = (request: AgentReviewRequest) => Promise<AgentGitIndexObservation>;
+interface RecoveryHandler {
+  inspect(observe: () => Promise<AgentGitIndexObservation>): Promise<AgentReviewRecoveryView>;
+  resolve(input: AgentReviewRecoveryInput, observe: () => Promise<AgentGitIndexObservation>): Promise<AgentReviewRecoveryView>;
 }
 
 /**
@@ -38,14 +49,77 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
   readonly #rows = new Map<string, ReviewRow>();
   readonly #consumed = new Set<string>();
   readonly #listeners = new Set<(request: AgentReviewRequest) => void>();
+  readonly #deciders = new Map<string, (input: AgentReviewDecisionInput) => Promise<AgentReviewReceipt>>();
+  readonly #refreshers = new Set<(boardId: string) => Promise<void>>();
+  readonly #recoverers = new Map<string, RecoveryHandler>();
   readonly #now: () => Date;
 
   constructor(options: { now?: () => Date } = {}) {
     this.#now = options.now ?? (() => new Date());
   }
 
+  /** Query execution owners before presenting receipts; this never dispatches work. */
+  registerRefresh(handler: (boardId: string) => Promise<void>): () => void {
+    this.#refreshers.add(handler);
+    return () => { this.#refreshers.delete(handler); };
+  }
+
+  async refresh(boardId: string): Promise<void> {
+    await Promise.all([...this.#refreshers].map(handler => handler(boardId)));
+  }
+
+  /** Only a Host caller supplies current facts; Plugins receive no recovery capability. */
+  registerRecoveryHandler(reviewId: string, handler: RecoveryHandler): void {
+    this.#recoverers.set(reviewId, handler);
+  }
+
+  async inspectRecovery(reviewId: string, observe: RecoveryObserver): Promise<AgentReviewRecoveryView> {
+    const request = this.get(reviewId), handler = this.#recoverers.get(reviewId);
+    if (!request || !handler) throw new AgentReviewError("agent.capability_unavailable", "此操作的核对入口尚不可用");
+    return handler.inspect(() => observe(request));
+  }
+
+  async recover(input: AgentReviewRecoveryInput, observe: RecoveryObserver): Promise<AgentReviewRecoveryView> {
+    const request = this.get(input.review_id), handler = this.#recoverers.get(input.review_id);
+    if (!request || !handler) throw new AgentReviewError("agent.capability_unavailable", "此操作的核对入口尚不可用");
+    return handler.resolve(input, () => observe(request));
+  }
+
+  recordReconciliation(reviewId: string, value: NonNullable<AgentReviewReceipt["reconciliation"]>): void {
+    const row = this.#rows.get(reviewId);
+    if (!row || row.receipt.effect_uncertain || !row.receipt.effect_error) return;
+    row.receipt.reconciliation = structuredClone(value);
+  }
+
+  /** Restore only the Host decision. Runtime receipts are independently queried afterwards. */
+  restoreDecision(request: AgentReviewRequest, decision: Pick<AgentReviewReceipt, "status" | "decided_by" | "decided_at" | "note">): void {
+    if (!["approved", "rejected", "cancelled", "expired"].includes(decision.status)) throw new Error("无效的历史审查决定");
+    if (this.#rows.has(request.review_id)) return;
+    this.request(request);
+    const row = this.#rows.get(request.review_id)!;
+    row.receipt = { ...row.receipt, ...structuredClone(decision) };
+    // This authority has already been handed to the execution owner. Restoring
+    // it only permits receipt projection, never consuming or dispatching again.
+    if (decision.status === "approved") this.#consumed.add(request.review_id);
+  }
+
   /** An adapter asks for permission. This never grants anything by itself. */
   request(request: AgentReviewRequest): AgentReviewRequest {
+    const operation = request.operation;
+    const manual = operation?.operation_id && (operation.kind === "checkpoint-rewind" && operation.session_id && request.kind === "rewind"
+      || operation.kind === "git-index" && operation.workspace_id && request.kind === "git-index" && request.document.kind === "git-index" && request.plugin_id === "io.molis.work.git"
+      || operation.kind === "git-integration" && operation.workspace_id && request.kind === "git-integration" && request.document.kind === "git-integration" && request.plugin_id === "io.molis.work.coding"
+      || operation.kind === "git-worktree" && operation.workspace_id && request.kind === "tool-operation" && request.document.kind === "tool-operation" && request.document.tool === "git-worktree-create" && request.plugin_id === "io.molis.work.coding");
+    if ((request.run === null) !== Boolean(operation) || operation && !manual) {
+      throw new AgentReviewError("agent.review_unknown", "审查必须属于实际轮次或明确的宿主操作");
+    }
+    const existing = this.#rows.get(request.review_id);
+    if (existing) {
+      if (!isDeepStrictEqual(existing.request, request)) {
+        throw new AgentReviewError("agent.review_already_decided", "审查引用已绑定另一份内容，不能替换用户看到的操作");
+      }
+      return structuredClone(existing.request);
+    }
     const stored = structuredClone(request);
     this.#rows.set(stored.review_id, {
       request: stored,
@@ -61,6 +135,33 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
     });
     for (const listener of this.#listeners) listener(structuredClone(stored));
     return structuredClone(stored);
+  }
+
+  /** Host-only dispatch to the execution owner; never exposed as a Plugin capability. */
+  registerDecisionHandler(reviewId: string, handler: (input: AgentReviewDecisionInput) => Promise<AgentReviewReceipt>): void {
+    if (!this.#rows.has(reviewId)) throw new AgentReviewError("agent.review_unknown", "找不到这条待审操作");
+    if (this.#deciders.has(reviewId)) throw new AgentReviewError("agent.review_already_decided", "审查已有执行所有者，不能替换");
+    this.#deciders.set(reviewId, handler);
+  }
+
+  async respond(input: AgentReviewDecisionInput): Promise<AgentReviewReceipt> {
+    const handler = this.#deciders.get(input.review_id);
+    if (!handler) throw new AgentReviewError("agent.capability_unavailable", "执行方未接通或已中断，不能只在页面记录一次假批准");
+    return handler(input);
+  }
+
+  deliveryFailed(reviewId: string, message: string): AgentReviewReceipt {
+    const row = this.#rows.get(reviewId);
+    if (!row) throw new AgentReviewError("agent.review_unknown", "找不到这条待审操作");
+    row.receipt.delivery_error = message;
+    return structuredClone(row.receipt);
+  }
+
+  /** One stale pending must not withdraw unrelated operations in the same run. */
+  cancel(reviewId: string, reason: string): void {
+    const row = this.#rows.get(reviewId);
+    if (!row || this.#status(row) !== "pending") return;
+    row.receipt = { ...row.receipt, status: "cancelled", decided_at: this.#now().toISOString(), note: reason };
   }
 
   list(boardId: string, status?: AgentReviewStatus): AgentReviewRequest[] {
@@ -142,19 +243,34 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
         "没有消费过批准的操作不能记录执行结果",
       );
     }
+    const effectError = outcome.ok ? null : outcome.error ?? "执行失败";
+    if (row.receipt.effect_settled || row.receipt.effect_error !== null) {
+      if (row.receipt.effect_settled !== outcome.ok || row.receipt.effect_error !== effectError) {
+        throw new AgentReviewError("agent.review_already_decided", "实际执行回执已经落定，不能用另一结果覆盖");
+      }
+      return structuredClone(row.receipt);
+    }
+    delete row.receipt.delivery_error;
+    delete row.receipt.effect_uncertain;
     row.receipt = {
       ...row.receipt,
       effect_settled: outcome.ok,
-      effect_error: outcome.ok ? null : outcome.error ?? "执行失败",
+      effect_error: effectError,
     };
     return structuredClone(row.receipt);
+  }
+
+  uncertain(reviewId: string, reason: string): void {
+    const row = this.#rows.get(reviewId);
+    if (!row || row.receipt.effect_settled || row.receipt.effect_error !== null) return;
+    row.receipt.effect_uncertain = reason;
   }
 
   /** Withdraw everything still pending for one run, e.g. when the user stops it. */
   cancelPending(runId: string, reason = "已取消"): number {
     let cancelled = 0;
     for (const row of this.#rows.values()) {
-      if (row.request.run.run_id !== runId || this.#status(row) !== "pending") continue;
+      if (row.request.run?.run_id !== runId || this.#status(row) !== "pending") continue;
       row.receipt = {
         ...row.receipt,
         status: "cancelled",

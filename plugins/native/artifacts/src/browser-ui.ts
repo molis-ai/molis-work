@@ -3,8 +3,11 @@ import { icon } from "@molis-ai/molis-work-design-system";
 import { artifactDisplayTitle, artifactVersionPath, type ArtifactBrowserView } from "./browser.js";
 
 const ARTIFACT_TYPE_LABELS: Record<string, string> = {
+  "coding.changeset.v1": "Coding 固定变更",
+  "coding.report.v1": "Coding 执行报告",
   "io.molis.work.goal.delivery": "Goal 交付",
   "io.molis.work.feed.capture": "Feed 捕获",
+  "io.molis.work.document": "导入文档",
 };
 
 function artifactTypeFoldLabel(typeId: string, p: ArtifactBrowserUiModel["primitives"]): string {
@@ -19,6 +22,8 @@ export const ARTIFACT_BROWSER_UI_CONTRIBUTION_ID = "io.molis.work.native.artifac
 export interface ArtifactBrowserUiModel {
   readonly view: ArtifactBrowserView;
   readonly routePrefix: string;
+  /** Sanitized business content supplied by Host composition, never raw Artifact HTML. */
+  readonly presentation?: { readonly notice?: string; readonly body_html: string; readonly source_href: string; readonly source_label: string; readonly plugin_id: string; readonly item_id: string };
   readonly relationship?: "input" | "output";
   readonly primitives: {
     escape(value: string): string;
@@ -28,7 +33,9 @@ export interface ArtifactBrowserUiModel {
 }
 
 function directory({ view, routePrefix, primitives: p }: ArtifactBrowserUiModel): string {
-  if (!view.versions.length) return `<p class="artifact-empty mw-empty">${p.text("还没有 Artifact")}</p>`;
+  // An explicit target keeps the Workbench's exact-version fragment navigation from intercepting this full page.
+  const importLink = `<a class="artifact-import-entry" href="${p.escape(routePrefix + "/artifacts/import")}" target="_self">${icon("plus")}${p.text("导入文档")}</a>`;
+  if (!view.versions.length) return `${importLink}<p class="artifact-empty mw-empty">${p.text("还没有 Artifact")}</p>`;
   const groups = new Map<string, Array<(typeof view.versions)[number]>>();
   for (const artifact of view.versions) {
     const list = groups.get(artifact.artifact_type_id);
@@ -70,7 +77,29 @@ function directory({ view, routePrefix, primitives: p }: ArtifactBrowserUiModel)
       <div class="artifact-stage-group-body" role="list">${rows}</div>
     </details>`;
   }).join("");
-  return `<nav aria-label="${p.text("Artifact 版本")}" class="mw-dir__list artifact-version-list">${folds}</nav>`;
+  return `${importLink}<nav aria-label="${p.text("Artifact 版本")}" class="mw-dir__list artifact-version-list">${folds}</nav>`;
+}
+
+function documentPreview(artifact: NonNullable<ArtifactBrowserView["selected"]>, p: ArtifactBrowserUiModel["primitives"]): string {
+  if (artifact.artifact_type_id !== "io.molis.work.document" || artifact.schema_version !== 1
+    || artifact.availability !== "available" || artifact.content_kind !== "inline") return "";
+  const payload = artifact.payload;
+  if (!payload || typeof payload !== "object" || Array.isArray(payload) || typeof payload.content !== "string") return "";
+  let sourceLink = "";
+  if (typeof payload.source_url === "string" && payload.source_url) {
+    try {
+      const url = new URL(payload.source_url);
+      if (url.protocol === "http:" || url.protocol === "https:") {
+        sourceLink = `<a href="${p.escape(url.href)}" target="_blank" rel="noopener noreferrer">${p.text("打开来源文档")}</a>`;
+      }
+    } catch { /* Imported metadata must never become an executable link. */ }
+  }
+  const warnings = Array.isArray(payload.warnings) ? payload.warnings.filter((warning): warning is string => typeof warning === "string") : [];
+  return `<section class="artifact-document-preview" aria-label="${p.text("文档正文")}">
+    ${sourceLink ? `<p class="artifact-document-source">${sourceLink}</p>` : ""}
+    ${warnings.length ? `<aside class="artifact-document-warnings"><h2>${p.text("导入说明")}</h2><ul>${warnings.map(warning => `<li>${p.text(warning)}</li>`).join("")}</ul></aside>` : ""}
+    <h2>${p.text("文档正文")}</h2><div class="artifact-document-body">${p.escape(payload.content)}</div>
+  </section>`;
 }
 
 function detail(model: ArtifactBrowserUiModel, embedded: boolean): string {
@@ -81,19 +110,22 @@ function detail(model: ArtifactBrowserUiModel, embedded: boolean): string {
     <p>${p.text("关联的版本不可用或不存在。引用仍然保留，不会替换成最新版本。")}</p></article>`;
   if (!artifact) return `<section class="artifact-empty"${view.requested ? ' role="status"' : ""}>
     <h1>${p.text(view.requested ? "找不到这个 Artifact 版本" : view.versions.length ? "选择一个结果版本" : "还没有项目成果")}</h1>
-    ${!view.requested && !view.versions.length ? `<p>${p.text("项目发布的成果版本会保存在这里。先推进一项 Goal，提交成果后即可在这里查看。")}</p>` : ""}
+    ${!view.requested && !view.versions.length ? `<p>${p.text("项目成果与导入的文档会保存在这里。可以先导入文档，或推进 Goal 后提交成果。")}</p>` : ""}
     ${view.requested ? `<p>${p.text("它可能属于其他项目，或这个版本尚未发布。请返回列表选择；不会自动替换成最新版本。")}</p><a href="${p.escape(routePrefix + "/artifacts")}">${p.text("返回 Artifact 列表")}</a>` : ""}</section>`;
   const href = routePrefix + artifactVersionPath(artifact);
   const title = artifactDisplayTitle(artifact);
-  const notice = view.compatibility?.reason === "artifact_unavailable"
+  const preview = documentPreview(artifact, p);
+  const notice = model.presentation && artifact.lifecycle_state !== "archived" ? model.presentation.notice ?? "这是保存时的固定报告。阅读不会重新执行任务，也不代表目标验收。" : view.compatibility?.reason === "artifact_unavailable"
     ? "这个版本的内容不可用；引用和来源信息仍然保留。"
     : view.compatibility?.reason === "artifact_archived"
       ? "这个版本已归档，保留历史信息，不作为可消费的新结果。"
-      : view.compatibility?.reason === "consumer_missing"
-        ? artifact.content_kind === "inline"
-          ? "没有兼容插件。当前可查看版本信息和原始 JSON，或导出本地副本。"
-          : "没有兼容插件。当前可查看版本信息和内容引用，或导出本地副本。"
-        : "已有兼容的类型声明；具体操作由消费插件提供。";
+      : preview
+        ? "这是导入时保存的文档版本；原文后续修改不会自动同步。"
+        : view.compatibility?.reason === "consumer_missing"
+          ? artifact.content_kind === "inline"
+            ? "没有兼容插件。当前可查看版本信息和原始 JSON，或导出本地副本。"
+            : "没有兼容插件。当前可查看版本信息和内容引用，或导出本地副本。"
+          : "已有兼容的类型声明；具体操作由消费插件提供。";
   const reference = JSON.stringify({ artifact_id: artifact.artifact_id, version: artifact.version });
   const versionLabel = `v${artifact.version}${model.relationship ? ` · ${p.text(model.relationship === "input" ? "输入结果" : "产出结果")}` : ""}`;
   const heading = embedded
@@ -101,8 +133,10 @@ function detail(model: ArtifactBrowserUiModel, embedded: boolean): string {
     : `<header class="plugin-stage-detail-bar"><button class="plugin-stage-back" type="button" data-artifact-collapse aria-label="${p.text("返回 Artifact 列表")}" title="${p.text("返回 Artifact 列表")}">${icon("chevron-right")}</button><h1>${p.escape(title)}</h1><span>${versionLabel}</span></header>`;
   return `<article class="artifact-detail${embedded ? " artifact-embed" : ""}" data-artifact-id="${p.escape(artifact.artifact_id)}" data-artifact-version="${artifact.version}">
     ${heading}
-    ${embedded ? "" : `<div class="artifact-detail-content">`}<p class="artifact-notice">${p.text(embedded && view.compatibility?.reason === "consumer_missing" ? "没有兼容插件。可打开这个版本查看信息或导出本地副本。" : notice)}</p>
+    ${embedded ? "" : `<div class="artifact-detail-content">`}<p class="artifact-notice">${p.text(embedded && !preview && view.compatibility?.reason === "consumer_missing" ? "没有兼容插件。可打开这个版本查看信息或导出本地副本。" : notice)}</p>
     ${artifact.unavailable_reason ? `<p>${p.escape(artifact.unavailable_reason)}</p>` : ""}
+    ${!embedded && model.presentation ? `<p><a class="mw-btn" href="${p.escape(model.presentation.source_href)}" data-workbench-item-plugin="${p.escape(model.presentation.plugin_id)}" data-workbench-item-id="${p.escape(model.presentation.item_id)}" data-workbench-item-title="${p.escape(title)}">${p.text(model.presentation.source_label)}</a></p><section class="artifact-business-preview mw-prose" data-artifact-business-preview>${model.presentation.body_html}</section>` : ""}
+    ${preview}
     <dl class="artifact-facts">
       <div><dt>${p.text("结果类型")}</dt><dd>${p.escape(artifact.artifact_type_id)} · Schema ${artifact.schema_version}</dd></div>
       <div><dt>${p.text("来源插件")}</dt><dd>${p.escape(artifact.producer_plugin_id)} · ${p.escape(artifact.producer_plugin_version)}</dd></div>
@@ -125,6 +159,7 @@ export function renderArtifactFrameBlock({ view, primitives: p }: ArtifactBrowse
   }
   return `<article class="frame-reading" data-frame-reading="artifact" data-artifact-id="${p.escape(artifact.artifact_id)}" data-artifact-version="${artifact.version}">
     <p class="frame-reading-meta">v${artifact.version} · ${p.escape(artifact.artifact_type_id)}</p>
+    ${documentPreview(artifact, p)}
     <div class="artifact-facts">
       <p>${p.escape(artifact.artifact_type_id)} · Schema ${artifact.schema_version} · ${p.escape(artifact.producer_plugin_id)} ${p.escape(artifact.producer_plugin_version)} · ${p.escape(p.formatDate(artifact.created_at))}</p>
     </div>

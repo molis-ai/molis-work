@@ -87,10 +87,8 @@ export function renderAssistantIsland(
       <button class="immersive-plugin-link plugin-rail-item" type="button" data-assistant-toggle popovertarget="assistant-composer" aria-expanded="false" aria-controls="assistant-composer" aria-haspopup="dialog" aria-label="${L("打开对话")}" title="${L("对话")}">${icon("message")}<span>${L("对话")}</span></button>
     </div>
     <form class="assistant-composer" id="assistant-composer" data-assistant-composer popover="auto" aria-label="Molis Work Assistant">
+      <div class="assistant-plan" data-assistant-plan aria-live="polite"><strong>${L("当前项目的信息处理")}</strong><p>${L("可以帮你起草 Feed 筛选规则，或把 Inbox 材料整理到 Pages。")}</p></div>
       <input class="assistant-composer-input" data-assistant-input type="text" autocomplete="off" placeholder="${L("发给 Assistant")}" aria-label="${L("发给 Assistant")}">
-      <select class="mw-select" data-assistant-model aria-label="${L("模型")}" disabled>
-        <option value="">${L("还没有可用模型")}</option>
-      </select>
       <button class="mw-btn mw-btn--primary mw-btn--icon-only mw-btn--sm" type="submit" data-assistant-send aria-label="${L("发送")}" title="${L("发送")}" disabled>${icon("send")}</button>
     </form>
   </nav>`;
@@ -109,7 +107,7 @@ export function renderDirectoryPluginSections(
     const panel = panels[plugin.id] || "";
     if (!panel) return [];
     const visible = plugin.id === current;
-    return [`<section class="plugin-section is-expanded" data-plugin-section="${plugin.id}" data-plugin-expanded="true"${visible ? "" : " hidden"}>${pluginLink(primitives, plugin)}<div class="plugin-section-body" id="plugin-section-body-${plugin.id}">${panel}</div></section>`];
+    return [`<section class="plugin-section is-expanded" data-plugin-section="${plugin.id}"${panel.includes('data-directory-panel=') ? "" : ` data-directory-panel="${plugin.id}"`} data-plugin-expanded="true"${visible ? "" : " hidden"}>${pluginLink(primitives, plugin)}<div class="plugin-section-body" id="plugin-section-body-${plugin.id}">${panel}</div></section>`];
   }).join("");
   return `${plugins}${settingsSection}`;
 }

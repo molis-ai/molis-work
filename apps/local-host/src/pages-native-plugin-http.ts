@@ -6,7 +6,7 @@ import {
   openPagesStore,
   type PagesRoutePorts,
 } from "@molis-ai/molis-work-plugin-pages";
-import { dispatchNativePluginJsonHttp } from "./native-plugin-http.js";
+import { dispatchNativePluginJsonHttp, writeNativePluginJsonResponse } from "./native-plugin-http.js";
 
 export async function handlePagesNativePluginHttp(
   request: IncomingMessage,
@@ -17,6 +17,9 @@ export async function handlePagesNativePluginHttp(
 ): Promise<boolean> {
   return dispatchNativePluginJsonHttp(request, response, url, {
     prefix: "/api/pages",
+    maxBodyBytes: request.method === "POST" && (url.pathname === "/api/pages/import" || url.pathname === "/api/pages/import/preview")
+      ? 15_000_000
+      : undefined,
     async handle(input) {
       const store = openPagesStore(homeDirectory);
       try {
@@ -26,5 +29,8 @@ export async function handlePagesNativePluginHttp(
       }
     },
     mapError: pagesRouteErrorResponse,
+  }).catch((error: unknown) => {
+    writeNativePluginJsonResponse(response, pagesRouteErrorResponse(error));
+    return true;
   });
 }

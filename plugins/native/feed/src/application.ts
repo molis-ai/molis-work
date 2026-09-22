@@ -8,6 +8,7 @@ import {
   FEED_CAPTURE_SCENE_ID,
   HOME_DOCK_SCENE_ID,
   INBOX_NEXT_SCENE_ID,
+  type JudgmentRecord,
 } from "@molis-ai/molis-work-contracts/modules/functions";
 import { FeedStoreError, assertSourceHistoryDecision } from "./application-errors.js";
 import { toLegacyAttentionEntry, toLegacyFeedItem, compatibleRun } from "./application-projection.js";
@@ -299,6 +300,39 @@ export class FeedApplication {
     return { item, created: result.created, updated: result.updated };
   }
 
+  async evaluateItems(boardId: string, itemIds: readonly string[]): Promise<{ evaluated: number }> {
+    if (!itemIds.length || itemIds.length > 20) throw new FeedStoreError("feed_invalid_transition", "请选择 1–20 条消息试跑规则");
+    const items = [...new Set(itemIds)].map((id) => this.getFeedItem(boardId, id));
+    for (const item of items) this.captureAfterIngest(item);
+    this.pendingFeedJudgments.push(...items);
+    await this.flushPendingJudgments();
+    return { evaluated: items.length };
+  }
+
+  async evaluateInboxEntries(boardId: string, entryIds: readonly string[]): Promise<{ judgments: JudgmentRecord[] }> {
+    const port = this.ports.judgments;
+    const binding = port?.sceneBinding(INBOX_NEXT_SCENE_ID, boardId);
+    if (!port || !binding) throw new FeedStoreError("feed_invalid_transition", "请先在 Functions 发布规则并用在 Inbox");
+    if (!entryIds.length || entryIds.length > 20) throw new FeedStoreError("feed_invalid_transition", "请选择 1–20 条待处理事项");
+    // Resolve the entire selection before calling the provider, including project ownership.
+    const entries = [...new Set(entryIds)].map(id => this.getInboxEntry(boardId, id));
+    if (entries.some(entry => entry.status !== "open" && entry.status !== "in_progress")) {
+      throw new FeedStoreError("feed_invalid_transition", "已完成或已忽略的事项请先重新打开");
+    }
+    const judgments: JudgmentRecord[] = [];
+    for (const entry of entries) {
+      const subject = entry.subject_type === "feed_item" ? this.getFeedItem(boardId, entry.subject_id) : null;
+      const input = [entry.reason, subject?.title, subject?.summary, subject?.body, JSON.stringify(entry.detail)].filter(Boolean).join("\n");
+      const judgment = await port.judge({ function_key: binding.function_key, input,
+        subject: { kind: "inbox_entry", id: entry.entry_id, board_id: boardId }, scene_id: INBOX_NEXT_SCENE_ID,
+        offered_behavior_ids: this.ports.offeredBehaviorsForScene?.(INBOX_NEXT_SCENE_ID, ["inbox_entry"]) ?? this.ports.offered_behavior_ids ?? [] });
+      judgments.push(judgment);
+      this.ports.appendEvent(boardId, "judgment", judgment.judgment_id, "judgment_completed", judgment.outcome,
+        { judgment_id: judgment.judgment_id }, judgment.created_at);
+    }
+    return { judgments };
+  }
+
   async flushPendingJudgments(): Promise<void> {
     const judgments = this.ports.judgments;
     if (!judgments) {
@@ -310,7 +344,6 @@ export class FeedApplication {
     const sceneOffered = (sceneId: string, subjects: readonly string[]) =>
       this.ports.offeredBehaviorsForScene?.(sceneId, subjects) ?? offered;
     const feedItems = this.pendingFeedJudgments.splice(0);
-    const inboxEntries = this.pendingInboxJudgments.splice(0);
     for (const item of feedItems) {
       const rules = (this.ports.outRules?.list(item.board_id) ?? []).filter((rule) =>
         Boolean(rule.function_key) && feedOutRuleMatches(rule, item),
@@ -325,6 +358,13 @@ export class FeedApplication {
           scene_id: FEED_CAPTURE_SCENE_ID,
           offered_behavior_ids: captureOffered,
         });
+        if (rule.admission === "inbox" && (judgment.outcome === "needs_review" || judgment.suggested_behavior_ids.includes("inbox.admit"))) {
+          this.ensureInboxEntryForFeedItem(item.board_id, item.item_id, "source_rule", {
+            rule_id: rule.rule_id, rule_name: rule.name, judgment_id: judgment.judgment_id,
+            function_key: rule.function_key, function_version: judgment.function_version,
+            needs_review: judgment.outcome === "needs_review",
+          });
+        }
         this.ports.appendEvent(
           item.board_id,
           "judgment",
@@ -341,8 +381,9 @@ export class FeedApplication {
         board_id: item.board_id,
       }, input, sceneOffered(HOME_DOCK_SCENE_ID, ["feed_item"]));
     }
-    for (const entry of inboxEntries) {
-      const input = [entry.reason, entry.subject_id].join("\n");
+    for (const entry of this.pendingInboxJudgments.splice(0)) {
+      const subject = entry.subject_type === "feed_item" ? this.getFeedItem(entry.board_id, entry.subject_id) : null;
+      const input = [entry.reason, subject?.title, subject?.summary, subject?.body, JSON.stringify(entry.detail)].filter(Boolean).join("\n");
       await this.judgeScene(judgments, INBOX_NEXT_SCENE_ID, entry.board_id, {
         kind: "inbox_entry",
         id: entry.entry_id,
@@ -436,6 +477,11 @@ export class FeedApplication {
     const rules = this.ports.outRules?.list(item.board_id) ?? [];
     const matched = rules.filter((rule) => feedOutRuleMatches(rule, item));
     if (matched.length === 0) return;
+    for (const rule of matched) {
+      if (rule.admission === "inbox" && !rule.function_key) {
+        this.ensureInboxEntryForFeedItem(item.board_id, item.item_id, "source_rule", { rule_id: rule.rule_id, rule_name: rule.name });
+      }
+    }
     if (!this.ports.artifacts) {
       this.recordArtifactOutFailure(item, matched.map((rule) => rule.rule_id), ["feed_artifact_producer_missing"]);
       return;

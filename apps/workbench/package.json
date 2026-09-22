@@ -10,6 +10,10 @@
   },
   "sideEffects": false,
   "exports": {
+    "./plugin-pages": {
+      "types": "./dist/plugin-page-workspace.d.ts",
+      "import": "./dist/plugin-page-workspace.js"
+    },
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
@@ -30,6 +34,7 @@
     "@molis-ai/molis-work-integration-gmail": "workspace:*",
     "@molis-ai/molis-work-integration-rss": "workspace:*",
     "@molis-ai/molis-work-plugin-artifacts": "workspace:*",
+    "@molis-ai/molis-work-plugin-characters": "workspace:*",
     "@molis-ai/molis-work-plugin-coding": "workspace:*",
     "@molis-ai/molis-work-plugin-diff": "workspace:*",
     "@molis-ai/molis-work-plugin-dataset": "workspace:*",
@@ -49,7 +54,9 @@
     "@molis-ai/molis-work-plugin-work": "workspace:*",
     "@molis-ai/molis-work-plugin-workspace": "workspace:*",
     "@molis-ai/molis-work-ui-host": "workspace:*",
-    "@molis-ai/molis-work-plugin-experiments": "workspace:*"
+    "@molis-ai/molis-work-plugin-experiments": "workspace:*",
+    "@molis-ai/molis-work-plugin-images": "workspace:*",
+    "@molis-ai/molis-work-plugin-jelly": "workspace:*"
   },
   "molis-work": {
     "path": "apps/workbench",

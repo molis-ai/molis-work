@@ -17,6 +17,8 @@ export const HOME_CONTINUE_BEHAVIOR_ID = "home.continue";
 export const HOME_ASK_BEHAVIOR_ID = "home.ask";
 export const INBOX_DONE_BEHAVIOR_ID = "inbox.done";
 export const INBOX_DISMISS_BEHAVIOR_ID = "inbox.dismiss";
+export const INBOX_COMPOSE_BEHAVIOR_ID = "inbox.compose";
+export const INBOX_VERIFY_BEHAVIOR_ID = "inbox.verify";
 export const INBOX_ADMIT_BEHAVIOR_ID = "inbox.admit";
 export const FEED_REAUTH_BEHAVIOR_ID = "feed.reauth";
 export const FEED_OPEN_BEHAVIOR_ID = "feed.open";
@@ -379,7 +381,7 @@ export function visibleFeedDispositionIds(
 
 export function sceneBehaviorIds(sceneId: string): string[] {
   if (sceneId === HOME_DOCK_SCENE_ID) return [...HOME_DOCK_ACTION_IDS];
-  if (sceneId === INBOX_NEXT_SCENE_ID) return defaultInboxNextBehaviorIds(true);
+  if (sceneId === INBOX_NEXT_SCENE_ID) return [INBOX_COMPOSE_BEHAVIOR_ID, INBOX_VERIFY_BEHAVIOR_ID, ...defaultInboxNextBehaviorIds(true)];
   if (sceneId === FEED_CAPTURE_SCENE_ID) return defaultFeedCaptureBehaviorIds(true);
   return [];
 }
@@ -424,9 +426,9 @@ export function functionAuthoringDestinations(): FunctionAuthoringDestination[] 
       destination_id: INBOX_NEXT_SCENE_ID,
       kind: "event",
       title: "Inbox",
-      when: "新事项来时，显示「做完了」还是「忽略」",
+      when: "新事项来时，建议整理成稿、先核查或处理状态",
       configure_at: "发布后打开",
-      effect: "显示「做完了」还是「忽略」",
+      effect: "建议下一步，由人点击执行",
       subject_kinds: ["inbox_entry"],
       behavior_ids: sceneBehaviorIds(INBOX_NEXT_SCENE_ID),
     },

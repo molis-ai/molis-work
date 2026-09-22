@@ -51,6 +51,12 @@ Manifest 内部的一致性由解析器保证，而不是留到运行时才炸�
 `apps/local-host` 的 `createPluginPlatform` 拥有这个顺序，并用 executor 的 `attach` 接缝收口；
 调用方不需要重新发现它。
 
+### 固定成果作为端口输出
+
+`outputs.publish` 为端口生成新 Artifact 版本；`outputs.select({ port, reference, expected_reference })` 则将已有固定成果的精确引用设为端口当前值，不复制正文或改写历史。选择只接受当前项目、当前用户可读、当前插件及相同发布者签名生产的可用版本，类型与 schema 必须符合输出声明；仍需原 `artifact:read` / `artifact:write` grant。
+
+`expected_reference` 比较预览时的原输出，避免旧确认覆盖其他选择；当前已经是目标引用时重试直接返回。连线层持久保存当前引用，沿原输入图投递给声明兼容类型的消费者。生成新版本始终读取端口原 Artifact 身份的最新版本，选择另一成果或旧版本不会回退生成序号。它不替代消费插件的界面、处理流程或业务验收，也不赋予消费者执行权限。
+
 ## 5. Native 与 Integration Plugin
 
 Native Plugin 是一级产品入口，组合 Module API 和 UI；它不吸收 Module implementation。Goals、Artifacts 是官方保护的一等 Plugin。本机偏好用 `settings-page` 挂到 `workbench.settings`，由全局设置目录列出；Feed/Inbox 里的来源和账号仍是插件内容功能，不进全局设置。Functions 事件去向只收录该对象画面上已接线的下一步处置，录取标准与判例见 [Plugin 开发 · 事件去向的动作名单](PLUGIN-DEVELOPMENT.md#事件去向的动作名单)。完整写插件（含 Host 装配、CLI、接入）： [molis-plugin-dev Skill](../../skills/molis-plugin-dev/SKILL.md)。
@@ -63,13 +69,10 @@ Plugin 只能在 Manifest 上限和用户实际 grant 的交集内调用；Secre
 
 ## 7. 当前实现边界
 
-v2 的机制已实现并有定向测试，但**尚未在运行中的产品里组装**：`createPluginPlatform` 存在且经过
-真实 SQLite 的重启验证，生产装配根还没有调用它。六个内置插件已各自拥有 v2 Manifest 并驱动导航，
-但 `kind` 仍是 `native`——它们由构建期组合装配，没有跑在 Plugin Runtime 的隔离与生命周期里。
-把它们改成运行时托管，前提是先把各自依赖的 Module 能力注册进 Kernel Capability Registry；
-这条链路由 Coding 插件作为第一个完整运行时托管的 app 插件打通。
-
-在那之前，把它们标成 `app` 会让 Manifest 说谎。
+v2 已在 Coding 及 Workspace、Files、Diff、Git、Text Stats 的正式宿主装配中运行，
+复用 `createPluginPlatform` 的生命周期、Artifact、连线、事件及能力合同；真实 SQLite 重启路径有工程验证。
+其他仍标为 `native` 的插件继续由构建期组合装配，不能据 Coding 的接通宣称所有内置插件已迁移。
+每个插件的具体产品完成度以自身需求书和正式运行证据为准。
 
 ## 8. FD3 历史实现边界
 

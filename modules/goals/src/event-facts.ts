@@ -536,6 +536,10 @@ export class GoalEventFacts implements GoalEventFactsApi {
     this.intent.recordArtifacts(input);
   }
 
+  readProgressReceipt(boardId: string, goalId: string, actorId: string, key: string) {
+    return this.state.readProgressReceipt(boardId, goalId, actorId, key);
+  }
+
   recordProgress(input: RecordGoalProgressSummaryInput) {
     return this.state.recordProgress(input);
   }

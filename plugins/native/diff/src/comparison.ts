@@ -58,6 +58,7 @@ export interface DiffView {
   /** The LCS budget was exceeded, so the middle is a whole delete plus insert. */
   coarse: boolean;
   identical: boolean;
+  metadata_changes?: readonly string[];
   empty: boolean;
   created: boolean;
   removed: boolean;
@@ -86,14 +87,14 @@ export function waitingMessage(group: DiffInputGroup | null): string {
   if (group === null) return "先选一组输入：两份快照、Coding 准备的变更，或 Git 的工作区改动";
   if (group === "git-change-set") return "在 Git 里选一处改动，这里就会显示";
   if (group === "change-set") return "Coding 准备好一轮变更后，这里会显示";
-  return "在 Files 里设定 before 和 after，这里就会显示对比";
+  return "先在文件阅读区固定“对比前”和“对比后”，这里会显示两份快照的差异";
 }
 
 export function recoveryMessage(group: DiffInputGroup | null): string {
   if (group === null) return "在 Sources 里选一组输入";
   if (group === "git-change-set") return "回到 Git 重新选一处改动";
   if (group === "change-set") return "让 Coding 再跑一轮";
-  return "回到 Files 重新捕获 before 和 after";
+  return "回到文件阅读区，重新固定对比前和对比后";
 }
 
 export function emptyDiff(
@@ -165,15 +166,22 @@ export function compareChangeSet(input: DiffInputSnapshot, group: DiffInputGroup
     source_plugin_id: input.source_plugin_id,
     content_version: input.content_version,
   };
-  return renderComparison(
+  const view = renderComparison(
     group,
-    side,
+    change.git?.previous_path ? { ...side, path: pathLabel(change.git.previous_path) } : side,
     { ...side },
     change.before,
     change.after,
     !change.before_exists,
     !change.after_exists,
   );
+  const metadata: string[] = [];
+  if (change.git?.previous_path && pathLabel(change.git.previous_path) !== pathLabel(change.path)) metadata.push(`重命名：${pathLabel(change.git.previous_path)} → ${pathLabel(change.path)}`);
+  if (change.git?.before_mode && change.git.after_mode && change.git.before_mode !== change.git.after_mode) {
+    metadata.push(change.git.after_mode === "100755" ? "文件权限：新增执行权限（100644 → 100755）" : "文件权限：移除执行权限（100755 → 100644）");
+  }
+  if (metadata.length) return { ...view, identical: false, metadata_changes: [...metadata, ...(view.identical ? ["正文未改变"] : [])] };
+  return view;
 }
 
 /**
@@ -186,6 +194,7 @@ export function compareChangeSet(input: DiffInputSnapshot, group: DiffInputGroup
 export function compareRunChangeSet(
   input: DiffInputSnapshot & { content: CodingChangeSet },
   path?: string,
+  changeIndex?: number,
 ): DiffView {
   const group: DiffInputGroup = "change-set";
   const change = input.content;
@@ -196,13 +205,19 @@ export function compareRunChangeSet(
     removed_lines: file.removed_lines,
   }));
   if (files.length === 0) {
-    return emptyDiff(group, "这一轮没有改动任何文件", "ready", recoveryMessage(group));
+    return emptyDiff(group, change.coverage === "text-reviews" ? "这一轮没有可读取的文本审查；命令及外部操作请查看原回执" : "这一轮没有改动任何文件", "ready", recoveryMessage(group));
   }
-  const chosen = path === undefined
+  const chosen = changeIndex !== undefined ? change.files[changeIndex] : path === undefined
     ? change.files[0]!
     : change.files.find((file) => file.path === path);
   if (chosen === undefined) {
     return { ...emptyDiff(group, `这一轮没有改动 ${path}`, "unavailable", recoveryMessage(group)), files };
+  }
+  if (chosen.review) {
+    const side: DiffSide = { workspace_id: change.origin?.workspace_id ?? change.run_id, workspace_name: change.origin?.workspace_name ?? change.run_id,
+      path: chosen.path, source_plugin_id: input.source_plugin_id, content_version: input.content_version };
+    return { ...renderComparison(group, side, { ...side }, chosen.review.before_text ?? "", chosen.review.after_text,
+      chosen.review.before_text === null, false), files: [] };
   }
   let rows: readonly TextDiffRow[];
   try {

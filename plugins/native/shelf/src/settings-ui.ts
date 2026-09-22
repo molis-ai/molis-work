@@ -39,7 +39,7 @@ export interface ShelfSettingsUiModel {
 
 export const shelfSettingsUiDescriptor: UiContributionDescriptor = {
   contribution_id: SHELF_SETTINGS_UI_CONTRIBUTION_ID,
-  plugin_id: "io.molis.work.native.shelf",
+  plugin_id: "io.molis.work.shelf",
   kind: "settings-page",
   navigation_id: "shelf",
   label: "Shelf",

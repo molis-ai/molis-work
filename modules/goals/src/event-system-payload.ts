@@ -2,6 +2,7 @@ import {
   goalEventDecisionPurposes,
   goalEventSystemOperations,
   type GoalEventAgreementChange,
+  type GoalProgressArtifactSource,
   type GoalEventConcernStatus,
   type GoalEventDecisionEffect,
   type GoalEventDecisionOption,
@@ -21,6 +22,7 @@ export function parseGoalEventSystemPayload(raw: Record<string, unknown>): GoalE
     case "progress_summary":
       return {
         operation,
+        ...(parseGoalProgressSource(raw.source) ? { source: parseGoalProgressSource(raw.source)! } : {}),
         summary: text(raw.summary),
         based_on_cursor: Number(raw.based_on_cursor) || 0,
         next_step: nullable(raw.next_step),
@@ -208,4 +210,16 @@ function asSourceKind(value: unknown): "web" | "onboarding" | "feed" | "runtime"
     return value;
   }
   return "web";
+}
+
+/** Old events have no source; malformed legacy data must not create navigation. */
+export function parseGoalProgressSource(raw: unknown): GoalProgressArtifactSource | undefined {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const source = raw as Partial<GoalProgressArtifactSource>;
+  if (typeof source.artifact_id !== "string" || !source.artifact_id.trim() || source.artifact_id.length > 1000
+    || !Number.isInteger(source.version) || source.version! < 1 || typeof source.title !== "string" || !source.title.trim() || source.title.length > 1000
+    || !source.origin || typeof source.origin.plugin_id !== "string" || !/^[a-z][a-z0-9.-]{0,99}$/.test(source.origin.plugin_id)
+    || typeof source.origin.item_id !== "string" || !source.origin.item_id.trim() || source.origin.item_id.length > 1000) return undefined;
+  return { artifact_id: source.artifact_id, version: source.version!, title: source.title,
+    origin: { plugin_id: source.origin.plugin_id, item_id: source.origin.item_id } };
 }

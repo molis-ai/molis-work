@@ -20,6 +20,8 @@ import {
  * One Plugin's failure never stops its siblings, never aborts the run, and
  * never leaves the product without a reason to show. Restart is explicit and
  * idempotent under concurrency: two callers racing produce one new instance.
+ * `revoke` drops enablement until `enable`. A start already in flight cannot
+ * publish that Plugin as a running instance afterwards.
  */
 
 export interface PluginSupervisorEntry {
@@ -27,6 +29,8 @@ export interface PluginSupervisorEntry {
   deployment?: PluginDeployment;
   /** Defaults to every required permission the Manifest declares. */
   grants?: string[];
+  /** Only a trusted Host composition opts into replacing an inactive bundled version. */
+  replace_version?: boolean;
 }
 
 export type PluginSupervisorStatus = "running" | "failed" | "blocked";
@@ -70,6 +74,13 @@ export class PluginSupervisor implements PluginHostLifecycle {
   readonly #inFlight = new Map<string, Promise<PluginSupervisorState>>();
   readonly #contracts = new Map<string, PluginEventContract>();
   readonly #generations = new Map<string, number>();
+  readonly #revoked = new Set<string>();
+  /** Identity of the instance `ensureStarted` last handed out. `revoke` drops it. */
+  readonly #tokens = new Map<string, symbol>();
+  /** Bumped on revoke so an in-flight start can see that it must not commit. */
+  readonly #epochs = new Map<string, number>();
+  readonly #pending = new Map<string, number>();
+  readonly #gates = new Map<string, Promise<void>>();
   readonly #activationListeners = new Set<(pluginId: string) => void>();
   #generation = 0;
 
@@ -113,7 +124,10 @@ export class PluginSupervisor implements PluginHostLifecycle {
     }
 
     for (const pluginId of resolution.order) {
-      await this.#activate(pluginId);
+      this.#begin(pluginId);
+      const activation = this.#activate(pluginId);
+      this.#finish(pluginId, activation);
+      await activation;
     }
 
     return this.#report(resolution.diagnostics);
@@ -126,11 +140,15 @@ export class PluginSupervisor implements PluginHostLifecycle {
   async restart(pluginId: string): Promise<PluginSupervisorState> {
     const pending = this.#inFlight.get(pluginId);
     if (pending) return await pending;
-    const attempt = this.#restart(pluginId).finally(() => {
-      this.#inFlight.delete(pluginId);
-    });
+    this.#begin(pluginId);
+    const attempt = this.#restart(pluginId);
+    this.#finish(pluginId, attempt);
     this.#inFlight.set(pluginId, attempt);
-    return await attempt;
+    try {
+      return await attempt;
+    } finally {
+      if (this.#inFlight.get(pluginId) === attempt) this.#inFlight.delete(pluginId);
+    }
   }
 
   state(pluginId: string): PluginSupervisorState | null {
@@ -145,6 +163,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
   }
 
   contribution(pluginId: string): PluginContribution | null {
+    if (!this.#isEnabled(pluginId)) return null;
     const state = this.#states.get(pluginId);
     if (!state || state.status !== "running" || state.install_id === null) return null;
     return this.#runtime.contribution(state.install_id);
@@ -164,13 +183,12 @@ export class PluginSupervisor implements PluginHostLifecycle {
 
   /**
    * The Plugin's enablement epoch, not its start count. It stays stable across a
-   * restart so work already queued for an enabled Plugin survives one, and only
-   * `revoke` invalidates it. Defined for any enabled Plugin, running or not,
-   * because delivery activates it lazily.
+   * restart so work already queued for an enabled Plugin survives one. `revoke`
+   * drops it, and later reads stay `undefined` until `enable` assigns a new one.
+   * Defined for any enabled Plugin, running or not, because delivery activates it lazily.
    */
   generation(pluginId: string): number | undefined {
-    if (!this.#entries.has(pluginId)) return undefined;
-    if (this.#states.get(pluginId)?.status === "blocked") return undefined;
+    if (!this.#isEnabled(pluginId)) return undefined;
     const current = this.#generations.get(pluginId);
     if (current !== undefined) return current;
     this.#generation += 1;
@@ -179,17 +197,71 @@ export class PluginSupervisor implements PluginHostLifecycle {
   }
 
   /**
-   * Withdraw a Plugin's current enablement. Anything still queued for the old
-   * epoch is dropped rather than delivered to a Plugin the user turned off.
+   * Withdraw a Plugin's current enablement. Queued work for the old epoch is
+   * dropped. Repeated reads do not enable it again, and the instance that was
+   * already handed out is no longer active. `start` does not undo this.
    */
   revoke(pluginId: string): void {
+    if (!this.#entries.has(pluginId)) return;
+    const busy = (this.#pending.get(pluginId) ?? 0) > 0;
+    this.#revoked.add(pluginId);
     this.#generations.delete(pluginId);
     this.#generation += 1;
+    this.#tokens.delete(pluginId);
+    this.#epochs.set(pluginId, (this.#epochs.get(pluginId) ?? 0) + 1);
+    const existing = this.#states.get(pluginId);
+    if (existing && existing.status !== "blocked") {
+      this.#states.set(pluginId, {
+        ...existing,
+        status: "failed",
+        code: "plugin_revoked",
+        message: "插件已撤销启用",
+      });
+    }
+    const installId = existing?.install_id ?? null;
+    if (busy || installId === null || existing?.status === "blocked") return;
+    let runtimeState: string | null = null;
+    try {
+      runtimeState = this.#runtime.get(installId).state;
+    } catch {
+      runtimeState = null;
+    }
+    if (runtimeState !== "running") return;
+    this.#begin(pluginId);
+    const stopping = this.#runtime.stop(installId).then(() => undefined, () => undefined);
+    this.#finish(pluginId, stopping);
+  }
+
+  /**
+   * Enable a Plugin again after `revoke`. Already-enabled Plugins keep their
+   * generation and are not restarted. Blocked Plugins stay blocked.
+   */
+  async enable(pluginId: string): Promise<PluginSupervisorState> {
+    for (;;) {
+      const gate = this.#gates.get(pluginId);
+      if (!gate) break;
+      await gate;
+      if (this.#gates.get(pluginId) === gate) break;
+    }
+    const entry = this.#entries.get(pluginId);
+    if (!entry) {
+      return this.#fail(pluginId, null, "plugin_unknown", `没有登记过插件 ${pluginId}`);
+    }
+    const state = this.#states.get(pluginId);
+    if (state?.status === "blocked") return { ...state };
+    this.#revoked.delete(pluginId);
+    if (!this.#generations.has(pluginId)) {
+      this.#generation += 1;
+      this.#generations.set(pluginId, this.#generation);
+    }
+    const current = this.#states.get(pluginId);
+    if (current?.status === "running") return { ...current };
+    return await this.restart(pluginId);
   }
 
   enabledPluginIds(): readonly string[] {
     return [...this.#entries.keys()]
-      .filter((pluginId) => this.#states.get(pluginId)?.status !== "blocked")
+      .filter((pluginId) => this.#isEnabled(pluginId))
       .sort();
   }
 
@@ -198,15 +270,22 @@ export class PluginSupervisor implements PluginHostLifecycle {
   }
 
   async ensureStarted(pluginId: string): Promise<PluginActiveInstance | undefined> {
-    const state = this.#states.get(pluginId)?.status === "running"
-      ? this.#states.get(pluginId)!
+    if (!this.#isEnabled(pluginId)) return undefined;
+    const epoch = this.#epochs.get(pluginId) ?? 0;
+    const current = this.#states.get(pluginId);
+    const state = current?.status === "running"
+      ? current
       : await this.restart(pluginId);
+    if (!this.#isEnabled(pluginId) || (this.#epochs.get(pluginId) ?? 0) !== epoch) return undefined;
     if (state.status !== "running" || state.install_id === null) return undefined;
     const contribution = this.#runtime.contribution(state.install_id);
     if (!contribution || contribution.kind !== "app") return undefined;
+    const token = this.#liveToken(pluginId);
     return {
       install_id: state.install_id,
-      active: () => this.#states.get(pluginId)?.status === "running",
+      active: () => this.#tokens.get(pluginId) === token
+        && this.#isEnabled(pluginId)
+        && this.#states.get(pluginId)?.status === "running",
       contribution,
     };
   }
@@ -218,17 +297,27 @@ export class PluginSupervisor implements PluginHostLifecycle {
     }
     const state = this.#states.get(pluginId);
     if (state?.status === "blocked") return { ...state };
+    if (this.#revoked.has(pluginId)) return this.#revokedState(pluginId);
 
+    const epoch = this.#epochs.get(pluginId) ?? 0;
     const installId = state?.install_id ?? null;
     if (installId !== null) {
       const record = this.#runtime.get(installId);
       try {
         if (record.state === "running") await this.#runtime.stop(installId);
+        if (this.#revoked.has(pluginId) || (this.#epochs.get(pluginId) ?? 0) !== epoch) {
+          return this.#revokedState(pluginId, installId);
+        }
         if (record.state === "crashed") {
           const receipt = await this.#runtime.recover(installId);
+          if (this.#revoked.has(pluginId) || (this.#epochs.get(pluginId) ?? 0) !== epoch) {
+            await this.#rollback(receipt.install.install_id);
+            return this.#revokedState(pluginId, receipt.install.install_id);
+          }
           return this.#running(pluginId, receipt.install.install_id);
         }
       } catch (error) {
+        if (this.#revoked.has(pluginId)) return this.#revokedState(pluginId, installId);
         return this.#fail(pluginId, installId, safeCode(error), safeMessage(error));
       }
     }
@@ -236,10 +325,12 @@ export class PluginSupervisor implements PluginHostLifecycle {
   }
 
   async #activate(pluginId: string): Promise<PluginSupervisorState> {
+    if (this.#revoked.has(pluginId)) return this.#revokedState(pluginId);
     const entry = this.#entries.get(pluginId);
     if (!entry) {
       return this.#fail(pluginId, null, "plugin_unknown", `没有登记过插件 ${pluginId}`);
     }
+    const epoch = this.#epochs.get(pluginId) ?? 0;
     const manifest = entry.definition.manifest;
     let installId: string | null = this.#states.get(pluginId)?.install_id ?? null;
     try {
@@ -251,17 +342,88 @@ export class PluginSupervisor implements PluginHostLifecycle {
           definition: entry.definition,
           deployment: entry.deployment ?? "local",
           grants,
+          replace_version: entry.replace_version,
         });
         installId = installed.install.install_id;
+        if (this.#revoked.has(pluginId) || (this.#epochs.get(pluginId) ?? 0) !== epoch) {
+          return this.#revokedState(pluginId, installId);
+        }
       }
       const receipt = await this.#runtime.start(installId);
+      if (this.#revoked.has(pluginId) || (this.#epochs.get(pluginId) ?? 0) !== epoch) {
+        await this.#rollback(receipt.install.install_id);
+        return this.#revokedState(pluginId, receipt.install.install_id);
+      }
       return this.#running(pluginId, receipt.install.install_id);
     } catch (error) {
+      if (this.#revoked.has(pluginId)) return this.#revokedState(pluginId, installId);
       return this.#fail(pluginId, installId, safeCode(error), safeMessage(error));
     }
   }
 
+  #isEnabled(pluginId: string): boolean {
+    if (this.#revoked.has(pluginId) || !this.#entries.has(pluginId)) return false;
+    return this.#states.get(pluginId)?.status !== "blocked";
+  }
+
+  #liveToken(pluginId: string): symbol {
+    const existing = this.#tokens.get(pluginId);
+    if (existing !== undefined) return existing;
+    const created = Symbol(pluginId);
+    this.#tokens.set(pluginId, created);
+    return created;
+  }
+
+  #begin(pluginId: string): void {
+    this.#pending.set(pluginId, (this.#pending.get(pluginId) ?? 0) + 1);
+  }
+
+  #finish(pluginId: string, operation: Promise<unknown>): void {
+    const settled = operation.finally(() => {
+      const left = (this.#pending.get(pluginId) ?? 1) - 1;
+      if (left <= 0) this.#pending.delete(pluginId);
+      else this.#pending.set(pluginId, left);
+    });
+    const previous = this.#gates.get(pluginId) ?? Promise.resolve();
+    this.#gates.set(pluginId, previous.then(() => settled.then(() => undefined, () => undefined)));
+  }
+
+  async #rollback(installId: string): Promise<void> {
+    try {
+      if (this.#runtime.get(installId).state === "running") await this.#runtime.stop(installId);
+    } catch {
+      // A failed stop revokes grants and records crashed. Either way it is not active.
+    }
+  }
+
+  #revokedState(pluginId: string, installId?: string | null): PluginSupervisorState {
+    const existing = this.#states.get(pluginId);
+    if (existing?.status === "blocked") return { ...existing };
+    const resolvedId = installId === undefined ? existing?.install_id ?? null : installId;
+    if (!this.#revoked.has(pluginId)) {
+      if (existing) return { ...existing };
+      return {
+        plugin_id: pluginId,
+        status: "failed",
+        install_id: resolvedId,
+        code: "plugin_revoked",
+        message: "插件已撤销启用",
+      };
+    }
+    const state: PluginSupervisorState = {
+      plugin_id: pluginId,
+      status: "failed",
+      install_id: resolvedId,
+      code: "plugin_revoked",
+      message: "插件已撤销启用",
+    };
+    this.#states.set(pluginId, state);
+    this.#tokens.delete(pluginId);
+    return { ...state };
+  }
+
   #running(pluginId: string, installId: string): PluginSupervisorState {
+    if (this.#revoked.has(pluginId)) return this.#revokedState(pluginId, installId);
     const state: PluginSupervisorState = {
       plugin_id: pluginId,
       status: "running",

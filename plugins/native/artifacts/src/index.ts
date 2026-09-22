@@ -7,6 +7,11 @@ export type { ArtifactBrowserView, ArtifactBrowserRoute } from "./browser.js";
 export { artifactBrowserUiContribution, ARTIFACT_BROWSER_UI_CONTRIBUTION_ID } from "./browser-ui.js";
 export type { ArtifactBrowserUiModel } from "./browser-ui.js";
 export { ARTIFACT_EN } from "./en.js";
+export { importArtifactDocument, ArtifactImportError, DOCUMENT_ARTIFACT_TYPE, DOCUMENT_IMPORT_MAX_BYTES, EXTERNAL_DOCUMENT_SOURCES } from "./document-import.js";
+export type { ArtifactDocumentImportPorts, ImportedArtifactDocument, ExternalDocumentSource } from "./document-import.js";
+export { renderArtifactImportSurface, ARTIFACT_IMPORT_STYLES } from "./import-ui.js";
+export type { ArtifactImportUiModel } from "./import-ui.js";
+export { ARTIFACT_IMPORT_CLIENT_SCRIPT } from "./import-client.js";
 export { createPluginArtifactClient, PluginArtifactAccessError } from "./plugin-client.js";
 export { readGoalArtifactEmbeds, type GoalArtifactEmbed } from "./goal-context.js";
 

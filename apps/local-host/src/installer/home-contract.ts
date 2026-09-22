@@ -104,6 +104,8 @@ export interface RuntimeDependencyPackage {
   name: string;
   version: string;
   directory: string;
+  /** Copies required when another parent already keeps a different version at the top level. */
+  nests?: RuntimeDependencyPackage[];
 }
 
 export interface InspectedSource {

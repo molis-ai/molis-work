@@ -11,6 +11,9 @@ import {
   GIT_RESULT_TYPE,
   WORKSPACE_REF_SCHEMA_VERSION,
   WORKSPACE_REF_TYPE,
+  readWorkspaceGitCapability,
+  prepareGitIndexCapability,
+  readGitResultsCapability,
 } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { GIT_UI_CONTRIBUTION_ID } from "./ui.js";
 
@@ -41,7 +44,7 @@ export const gitManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: GIT_PLUGIN_ID,
-  version: "1.0.0",
+  version: "1.3.0",
   name: "Git",
   kind: "app",
   publisher: { publisher_id: "molis", signature: "official-git-binding" },
@@ -49,11 +52,11 @@ export const gitManifest: PluginManifest = {
   permissions: [
     { permission: "artifact:read", required: true, reason: "读取工作目录引用与待接受的变更" },
     { permission: "artifact:write", required: true, reason: "发布工作区改动与操作回执" },
-    { permission: "storage:private", required: false, reason: "保留还没提交的提交信息与冲突草稿" },
+    { permission: "storage:private", required: true, reason: "保留固定差异选择、提交信息与冲突草稿" },
   ],
   capabilities: {
     provides: [],
-    consumes: [projectsCapabilities.readWorkspace.capability_id],
+    consumes: [projectsCapabilities.readWorkspace.capability_id, readWorkspaceGitCapability.capability_id, prepareGitIndexCapability.capability_id, readGitResultsCapability.capability_id],
   },
   artifacts: {
     produces: [
@@ -61,6 +64,7 @@ export const gitManifest: PluginManifest = {
       { artifact_type_id: GIT_RESULT_TYPE, schema_version: GIT_RESULT_SCHEMA_VERSION },
     ],
     consumes: [
+      { artifact_type_id: GIT_RESULT_TYPE, schema_version: GIT_RESULT_SCHEMA_VERSION },
       { artifact_type_id: WORKSPACE_REF_TYPE, schema_version: WORKSPACE_REF_SCHEMA_VERSION },
       { artifact_type_id: CODING_CHANGESET_TYPE, schema_version: 1 },
     ],
@@ -107,6 +111,13 @@ export const gitManifest: PluginManifest = {
       },
     ],
   },
+  routes: [
+    { route_id: "git.results", method: "GET", path: "/results" },
+    { route_id: "git.save-result", method: "POST", path: "/results" },
+    { route_id: "git.state", method: "GET", path: "/state" },
+    { route_id: "git.select-diff", method: "POST", path: "/diff" },
+    { route_id: "git.prepare-index", method: "POST", path: "/prepare-index" },
+  ],
   ui: {
     contributions: [GIT_UI_CONTRIBUTION_ID],
     commands: [

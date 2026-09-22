@@ -41,3 +41,29 @@ export interface PagesRecord {
   readonly updated_at: string;
   readonly version: number;
 }
+
+/** Exact material adopted for one local draft; source truth remains with its owner. */
+export interface PagesInputSnapshot {
+  readonly entry_id: string;
+  readonly item_id: string;
+  readonly revision: number;
+  readonly title: string;
+  readonly body: string;
+  readonly url: string | null;
+  readonly source_label: string;
+  readonly captured_at: string;
+  readonly provenance: readonly Record<string, unknown>[];
+}
+
+export interface PagesGenerationRecord {
+  readonly request_id: string;
+  readonly project_id: string;
+  readonly request_hash: string;
+  readonly status: "running" | "failed" | "completed";
+  readonly document_id: string | null;
+  readonly inputs: readonly PagesInputSnapshot[];
+  readonly instructions: string;
+  readonly title: string;
+  readonly error: string | null;
+  readonly updated_at: string;
+}

@@ -23,7 +23,10 @@ export const artifactsManifest: PluginManifest = {
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [],
   capabilities: { provides: [], consumes: [] },
-  artifacts: { produces: [], consumes: [] },
+  artifacts: {
+    produces: [{ artifact_type_id: "io.molis.work.document", schema_version: 1 }],
+    consumes: [{ artifact_type_id: "io.molis.work.document", schema_version: 1 }],
+  },
   ui: {
     contributions: [ARTIFACT_BROWSER_UI_CONTRIBUTION_ID],
     views: [

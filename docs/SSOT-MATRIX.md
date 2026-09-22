@@ -111,7 +111,7 @@ Horizontal Service 只保存可恢复的技术状态，不拥有 Goal、Signal�
 | 目标 package | 产品能力 | 当前来源 | 包成熟度 | 迁移 / 实现 Goal |
 | --- | --- | --- | --- | --- |
 | `plugins/native/goals` | Goals 一级入口与产品 UI | 当前事件意图、约定、报告、树决定和历史正文组合；目录直接读当前状态；旧执行／草稿／提案写应用退役；Workbench 注册并组合 UI，不另算完成 | `partial` | GW/DD/EX/Cutover；事件工作流收敛 |
-| `plugins/native/artifacts` | Artifacts 一级入口、浏览和嵌入 | 已迁结果链接/项目文件打开；正式版本列表、详情与本地导出已接入 Web；Goal 上下文按明确输入/产出关系嵌入精确版本 | `partial` | AR3 已完成迁移验收；不包含未来安装/Team 同步 |
+| `plugins/native/artifacts` | Artifacts 一级入口、浏览、嵌入和文档导入 | 正式版本列表、正文快照、详情与本地导出；Notion、飞书/Lark、Google Docs 和 Markdown/TXT/HTML 显式导入；Goal 上下文嵌入精确版本 | `partial` | AR3 已完成迁移验收；文档导入不含全空间迁移、自动同步或附件复制；真实账号联调待验 |
 | `plugins/native/inbox` | Inbox 一级入口与 Attention 处置 UI | 目录/详情只读 Attention；完成/忽略走 setStatus；`inbox.next` 沿用 Functions 绑定与显式重判，建议成稿/核查不自动执行；Host 将选中 Feed 材料交给 Pages，收据归 Pages，文稿可返回材料 | `partial` | Inbox/Feed 拆插件切片 2–3；`specs/archive/functions-system-capability/spec.md`；`specs/feed-inbox-pages-loop/validation.md` |
 | `plugins/native/schedule` | Schedule 一级入口：对话任务与闹钟列表 | 人手创建日历日对话任务；其他插件 job 仍只展示与暂停 | `partial` | `specs/archive/schedule-conversation-tasks/spec.md` |
 | `plugins/native/shelf` | Shelf 一级入口：材料/结果/剪贴板与本机抽字 | DropAgent 表面挂进目录与工作面；Host 注入 `/api/shelf` 与 Store | `partial` | 工作台进货→抽字切片；轮盘/抓页/CLI Recipe 待 Desktop |

@@ -1,22 +1,26 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { ArtifactsQueryApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import type { ArtifactsQueryApi, ArtifactsCommandApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import {
-  ArtifactBrowserError, exportArtifactVersion, matchArtifactBrowserRoute, readArtifactBrowser, readGoalArtifactEmbeds,
+  ArtifactBrowserError, ArtifactImportError, DOCUMENT_ARTIFACT_TYPE, exportArtifactVersion, matchArtifactBrowserRoute, readArtifactBrowser, readGoalArtifactEmbeds,
 } from "@molis-ai/molis-work-plugin-artifacts";
-import { artifactWorkbench, renderArtifactWorkbenchPage } from "@molis-ai/molis-work-app-workbench";
+import { ExternalDocumentImportError } from "@molis-ai/molis-work-integration-catalog";
+import { artifactWorkbench, renderArtifactWorkbenchPage, renderArtifactImportPage } from "@molis-ai/molis-work-app-workbench";
 import { codingChangeSetPreview, codingReportPreview } from "@molis-ai/molis-work-plugin-coding";
 import { compareRunChangeSet, renderDiff } from "@molis-ai/molis-work-plugin-diff";
 import { icon } from "@molis-ai/molis-work-design-system";
 import { renderFeedRichText } from "@molis-ai/molis-work-plugin-feed";
 import { dateTimeLocale, htmlLang, L } from "./web-locale.js";
-import { requestHeader } from "./web-http.js";
+import { requestHeader, sendLocalWebJson } from "./web-http.js";
+import { documentImportConnectionStatus, importLocalArtifactDocument, readArtifactImportBody } from "./artifact-document-import.js";
 
 export interface ArtifactHttpContext {
   readonly boardId: string;
   readonly routePrefix: string;
   readonly projectTitle: string;
   readonly query: ArtifactsQueryApi;
+  readonly commands: ArtifactsCommandApi;
+  readonly controlToken: string;
   readonly desktopShell: boolean;
   readonly pageCsp: string;
 }
@@ -36,11 +40,28 @@ export function renderGoalArtifactContext(input: {
 
 /** HTTP composition only: Artifact application owns routing and exact-version reads. */
 export function createLocalArtifactHttp(ports: { nativeDesktopBootstrapScript: string }) {
-  return function handleArtifactNativePluginHttp(
+  return async function handleArtifactNativePluginHttp(
     request: IncomingMessage, response: ServerResponse, pathname: string, context: ArtifactHttpContext,
-  ): boolean {
-    if (request.method !== "GET") return false;
+  ): Promise<boolean> {
     try {
+      if (pathname === "/api/artifacts/import" && request.method === "POST") {
+        const result = await importLocalArtifactDocument(await readArtifactImportBody(request), {
+          boardId: context.boardId, actorId: "web-user", routePrefix: context.routePrefix,
+          artifacts: { query: context.query, commands: context.commands },
+        });
+        sendLocalWebJson(response, result.reused ? 200 : 201, { ...result, warnings: result.warnings.map(warning => L(warning)) });
+        return true;
+      }
+      if (request.method !== "GET") return false;
+      if (pathname === "/artifacts/import") {
+        const html = renderArtifactImportPage({
+          ...context, connectionStatus: documentImportConnectionStatus(),
+          lang: htmlLang(), nativeDesktopBootstrapScript: ports.nativeDesktopBootstrapScript, primitives,
+        });
+        response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": context.pageCsp });
+        response.end(html);
+        return true;
+      }
       const route = matchArtifactBrowserRoute(pathname);
       if (!route) return false;
       if (route.kind === "export") {
@@ -53,7 +74,8 @@ export function createLocalArtifactHttp(ports: { nativeDesktopBootstrapScript: s
         response.end(content);
         return true;
       }
-      const view = readArtifactBrowser(context.query, context.boardId, route.reference);
+      const view = readArtifactBrowser(context.query, context.boardId, route.reference,
+        [{ artifact_type_id: DOCUMENT_ARTIFACT_TYPE, schema_version: 1 }]);
       const report = codingReportPreview(view.selected), changes = codingChangeSetPreview(view.selected);
       const changesHtml = changes?.change.files.map((file, index) => {
         const comparison = compareRunChangeSet({ content: changes.change, source_plugin_id: "io.molis.work.coding", content_version: changes.reference.version }, undefined, index);
@@ -93,6 +115,10 @@ export function createLocalArtifactHttp(ports: { nativeDesktopBootstrapScript: s
       response.end(html);
       return true;
     } catch (error) {
+      if (error instanceof ArtifactImportError || error instanceof ExternalDocumentImportError) {
+        sendLocalWebJson(response, error.status, { error: L(error.message), code: error.code });
+        return true;
+      }
       if (!(error instanceof ArtifactBrowserError)) throw error;
       response.writeHead(error.status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
       response.end(JSON.stringify({ error: L(error.message) }));

@@ -79,3 +79,5 @@ export { setupLinksFor } from "./setup-links.js";
 export { catalogAccountPresentation, catalogWhoami, createCatalogProvider, type CatalogWhoamiResult } from "./provider.js";
 export { CatalogLiveError } from "./http.js";
 export type { CatalogFetch } from "./types.js";
+export { readExternalDocument, ExternalDocumentImportError } from "./document-import.js";
+export type { ExternalDocument, ExternalDocumentSource, ExternalDocumentImportErrorCode } from "./document-import.js";

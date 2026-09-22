@@ -65,7 +65,7 @@ import {
 import { WORK_TERMINAL_UI_CONTRIBUTION_ID, type WorkTerminalUiModel } from "@molis-ai/molis-work-plugin-work";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { BUILTIN_PLUGIN_WORKBENCH } from "./plugin-workbench.js";
-import { createArtifactWorkbenchRenderer, type ArtifactWorkbenchRequest } from "./artifact-ui.js";
+import { createArtifactWorkbenchRenderer, type ArtifactImportWorkbenchRequest, type ArtifactWorkbenchRequest } from "./artifact-ui.js";
 import { createGoalsContextWorkbenchRenderer } from "./goals-context-ui.js";
 import { createGoalsDecisionResultsWorkbenchRenderer } from "./goals-decision-results-ui.js";
 import { createGoalsDialogsWorkbenchRenderer } from "./goals-dialogs-ui.js";
@@ -386,6 +386,16 @@ export function renderArtifactWorkbenchPage(
     ...request,
     headHtml: `<script>${THEME_BOOTSTRAP_SCRIPT}${request.nativeDesktopBootstrapScript}</script><link rel="stylesheet" href="/assets/molis-work-workbench.css">`,
     backIconHtml: icon("arrow"), iconSpriteHtml: renderIconSprite(),
+  });
+}
+
+export function renderArtifactImportPage(
+  request: Omit<ArtifactImportWorkbenchRequest, "headHtml" | "iconSpriteHtml"> & { nativeDesktopBootstrapScript: string },
+): string {
+  return artifactWorkbench.importPage({
+    ...request,
+    headHtml: `<script>${THEME_BOOTSTRAP_SCRIPT}${request.nativeDesktopBootstrapScript}</script><link rel="stylesheet" href="/assets/molis-work-workbench.css">`,
+    iconSpriteHtml: renderIconSprite(),
   });
 }
 

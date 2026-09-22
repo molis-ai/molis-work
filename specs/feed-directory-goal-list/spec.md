@@ -1,4 +1,4 @@
-状态：部分被 `specs/feed-directory-drop-all/spec.md` 覆盖（去掉「全部」、来源行恢复行首图标、不再 nested）。完成等级 **3：功能可用**。不宣称可发布。不改用户真实库、不提交、不发布。
+状态：部分被 `specs/archive/feed-directory-drop-all/spec.md` 覆盖（去掉「全部」、来源行恢复行首图标、不再 nested）。完成等级 **3：功能可用**。不宣称可发布。不改用户真实库、不提交、不发布。
 
 # Feed 目录对齐 Goal 列表
 
@@ -23,7 +23,7 @@
 ## 方案
 
 1. Feed 目录改用 compact 28px 单行，去掉行首图标和副标题。
-2. 「全部」承担 Goal「当前」那种集合行职责；具体 fold 交互与样式见 `specs/feed-directory-all-fold/spec.md`。
+2. 「全部」承担 Goal「当前」那种集合行职责；具体 fold 交互与样式见 `specs/archive/feed-directory-all-fold/spec.md`。
 3. 去掉「拉取任务」h2；来源任务作为子项缩进，行尾只留健康标和配置。
 4. 上次拉取只留在任务配置里。
 5. 「添加任务」回到 28px 全宽添加控件，不再覆盖成 36px。
@@ -32,7 +32,7 @@
 ## 验收
 
 1. Feed directory 行是 `mw-dir-row--compact`，没有 `mw-dir-row--meta`、没有 `mw-dir-row__icon`、没有 directory-heading。
-2. 「全部」有 caret / 计数；来源行带 `mw-dir-row--nested` 和状态标，点行/配置合同不变。fold 细节见 `specs/feed-directory-all-fold/spec.md`。
+2. 「全部」有 caret / 计数；来源行带 `mw-dir-row--nested` 和状态标，点行/配置合同不变。fold 细节见 `specs/archive/feed-directory-all-fold/spec.md`。
 3. 浏览器：Feed 目录行高约 28px，来源相对「全部」缩进；选中只有一条灰底，没有里外两层。
 
 ## 验证

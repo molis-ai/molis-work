@@ -6,7 +6,7 @@ export const platformPluginBehaviorContract = {
   kind: "platform",
   schemaVersion: 1,
   maturity: "partial",
-  ssot: "specs/functions-system-capability/spec.md",
+  ssot: "specs/archive/functions-system-capability/spec.md",
 } as const satisfies ContractDescriptor;
 
 const ID = /^[a-z0-9][a-z0-9-]*$/u;

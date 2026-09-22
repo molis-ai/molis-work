@@ -2,13 +2,13 @@
 
 状态：部分被取代。完成等级 **3：功能可用**。不宣称可发布。不改用户真实库、不发布、不安装新 App。
 
-**标签打开：** 单击添加、不替代、不再使用预览页，以 `specs/additive-tabs/spec.md` 为准。本文件仍管用户手动分组。
+**标签打开：** 单击添加、不替代、不再使用预览页，以 `specs/archive/additive-tabs/spec.md` 为准。本文件仍管用户手动分组。
 
 本文件曾是标签打开与分组行为的需求书。分组部分仍有效。打开部分已被 additive-tabs 取代。它取代：
 
 - `specs/workbench-tab-workspace/spec.md` 里「点 item 就开标签、插件自动成组」；
-- `specs/chrome-tab-group-underline/spec.md` 里按插件画的彩色底线；
-- `specs/directory-plugin-sections/spec.md` 里「点 item 打开/激活标签」；
+- `specs/archive/chrome-tab-group-underline/spec.md` 里按插件画的彩色底线；
+- `specs/archive/directory-plugin-sections/spec.md` 里「点 item 打开/激活标签」；
 - `specs/compact-icon-tabs/spec.md` 里「折叠时露出当前标签、颜色来自插件」。
 
 分栏几何、固定、市场/设置独占仍以 `specs/workbench-tab-workspace/spec.md` 和 `specs/pane-local-split-tabs/spec.md` 为准。

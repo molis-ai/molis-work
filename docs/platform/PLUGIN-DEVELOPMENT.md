@@ -123,7 +123,7 @@ Functions「用在哪」里，首页 / Inbox / Feed 是事件去向：判断只�
 - **Goals 采用/退回方案、灵光丢掉/分发**是对象上的处置，但今天没有 Functions 事件场景（判断何时跑、建议如何亮按钮都未接线）。先不要新开去向行；要进 Functions 时另写场景和接线，不塞进 Feed / Inbox。
 - **标已读、目录筛选、保存演示配置**不是下一步处置。
 
-插件作者改 Manifest 时：先给现场接好点击路径，再声明 `behaviors`，最后才把 id 放进某个 `function_scenes` 的池。只声明能写、现场没有按钮，函数页会建议一颗点不了的动作。现场池的合同入口是 `packages/contracts` 的 `sceneBehaviorIds` / `defaultFeedCaptureBehaviorIds`；Host 合成总表见 `apps/local-host` 的 `behavior-catalog.ts`。新去向不会从 Manifest 自动出现在 Functions「用在哪」，完整接线见 Skill [host.md · 接到 Functions](../../skills/molis-plugin-dev/host.md)。需求书：[事件去向的动作范围](../../specs/function-scene-action-scope/spec.md)。整插件怎么排顺序、MCP/事件/UI 怎么一起考量： [molis-plugin-dev Skill](../../skills/molis-plugin-dev/SKILL.md)。
+插件作者改 Manifest 时：先给现场接好点击路径，再声明 `behaviors`，最后才把 id 放进某个 `function_scenes` 的池。只声明能写、现场没有按钮，函数页会建议一颗点不了的动作。现场池的合同入口是 `packages/contracts` 的 `sceneBehaviorIds` / `defaultFeedCaptureBehaviorIds`；Host 合成总表见 `apps/local-host` 的 `behavior-catalog.ts`。新去向不会从 Manifest 自动出现在 Functions「用在哪」，完整接线见 Skill [host.md · 接到 Functions](../../skills/molis-plugin-dev/host.md)。需求书：[事件去向的动作范围](../../specs/archive/function-scene-action-scope/spec.md)。整插件怎么排顺序、MCP/事件/UI 怎么一起考量： [molis-plugin-dev Skill](../../skills/molis-plugin-dev/SKILL.md)。
 
 ## 打包与签名
 

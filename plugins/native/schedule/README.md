@@ -47,8 +47,8 @@ node --import tsx --test tests/schedule-plugin.test.ts tests/schedule-conversati
 ## 进一步阅读
 
 - [架构与当前实现索引](../../../docs/SSOT-MATRIX.md)
-- [对话态定时任务需求](../../../specs/schedule-conversation-tasks/spec.md)
-- [闹钟层需求](../../../specs/schedule-plugin/spec.md)
+- [对话态定时任务需求](../../../specs/archive/schedule-conversation-tasks/spec.md)
+- [闹钟层需求](../../../specs/archive/schedule-plugin/spec.md)
 
 - Status: `partial`
 - SSOT: `docs/SSOT-MATRIX.md`

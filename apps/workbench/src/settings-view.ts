@@ -25,6 +25,8 @@ export interface MolisWorkSettingsView {
   section: WebSettingsSection | string;
   plugin_settings_html?: string;
   context_project?: WebProjectNavigation | null;
+  /** Project plugins enabled for the settings context. Personal plugins are always listed. */
+  enabled_plugins?: readonly string[];
   runtimes: RuntimeIntegrationDetection[];
   mcp_tools?: readonly McpSettingsToolView[];
   connectors?: readonly ConnectorSettingsCardView[];

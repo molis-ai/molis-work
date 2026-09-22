@@ -1,6 +1,6 @@
 ---
 description: 改插件平台时同步更新 molis-plugin-dev Skill 与 Plugin 开发手册
-globs: plugins/**/*.{ts,md},packages/contracts/src/platform/plugin*.ts,packages/plugin-sdk/**/*.ts,packages/plugin-runtime/**/*.ts,docs/platform/PLUGIN*.md,docs/platform/UI-PLATFORM.md,specs/plugin-*/**,specs/function-scene-action-scope/**,specs/plugin-stage-master-detail/**,apps/local-host/src/behavior-catalog.ts,apps/local-host/src/mcp-native-plugins.ts,apps/workbench/src/plugin-catalog.ts,apps/workbench/src/plugin-workbench.ts,packages/design-system/src/plugin-stage-shell.ts,skills/molis-plugin-dev/**
+globs: plugins/**/*.{ts,md},packages/contracts/src/platform/plugin*.ts,packages/plugin-sdk/**/*.ts,packages/plugin-runtime/**/*.ts,docs/platform/PLUGIN*.md,docs/platform/UI-PLATFORM.md,specs/plugin-*/**,specs/archive/function-scene-action-scope/**,specs/archive/plugin-stage-master-detail/**,apps/local-host/src/behavior-catalog.ts,apps/local-host/src/mcp-native-plugins.ts,apps/workbench/src/plugin-catalog.ts,apps/workbench/src/plugin-workbench.ts,packages/design-system/src/plugin-stage-shell.ts,skills/molis-plugin-dev/**
 alwaysApply: false
 ---
 

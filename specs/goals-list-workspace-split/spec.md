@@ -2,7 +2,7 @@
 
 状态：执行中（浏览器已验证单击工作区、双击 Frame）。完成等级 **3：功能可用**。不宣称可发布。不改用户真实库、不提交、不发布。
 
-本文件改写 `specs/goals-parallel-views/spec.md` 里「三种视图单击都打开 Frame、列表铺满舞台」的合同。行内四列仍见 `specs/goals-stage-list-row/spec.md`，只在列表已展开工作区时收成窄栏。
+本文件改写 `specs/goals-parallel-views/spec.md` 里「三种视图单击都打开 Frame、列表铺满舞台」的合同。行内四列仍见 `specs/archive/goals-stage-list-row/spec.md`，只在列表已展开工作区时收成窄栏。
 
 ## 背景目标
 

@@ -298,6 +298,30 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `        return;
       }
       if (handleMomentumSelectionClick(target, event)) return;
       if (handleMomentumZoomClick(target)) return;
+      if (target.closest("[data-close-work-planning]")) {
+        closeGoalOverlay();
+        document.querySelector("[data-goal-canvas-shell]")?.setAttribute("data-expanded", "false");
+        return;
+      }
+      const planningLink = target.closest("[data-goal-work-planning] a[href]");
+      if (planningLink && !(event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button === 1)) {
+        const url = new URL(planningLink.href, location.origin);
+        const prefix = document.body.dataset.routePrefix || "";
+        if (url.origin === location.origin && url.pathname.startsWith(prefix + "/settings/planning")) {
+          event.preventDefault();
+          const nested = url.pathname !== prefix + "/settings/planning";
+          void openGoalWorkPlanning(nested ? url.pathname + url.search : prefix + "/settings/planning?embed=1");
+          return;
+        }
+      }
+      if (target.closest("[data-open-work-planning]")) {
+        void openGoalWorkPlanning();
+        return;
+      }
+      if (target.closest("[data-open-work-rules]")) {
+        void openGoalWorkRules();
+        return;
+      }
       const goalLink = target.closest("[data-select-goal]");
       if (goalLink) {
         if (goalLink.closest("[data-goal-stage-list]")) {

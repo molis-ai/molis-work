@@ -8,4 +8,4 @@
 
 **不拥有：** cron 表达式、Automation rule、Source schedule intent、Action parameters 或 Attention 内容。
 
-**当前来源与 Goal：** `horizontal/scheduler` + `plugins/native/schedule`；Web timer 与 Feed timer 并行。Feed 自有调度仍独立，迁入是 later。日历日对话任务由 Schedule 产品层在叫醒后重新登记 once job。见 `specs/schedule-plugin/spec.md` 与 `specs/schedule-conversation-tasks/spec.md`。
+**当前来源与 Goal：** `horizontal/scheduler` + `plugins/native/schedule`；Web timer 与 Feed timer 并行。Feed 自有调度仍独立，迁入是 later。日历日对话任务由 Schedule 产品层在叫醒后重新登记 once job。见 `specs/archive/schedule-plugin/spec.md` 与 `specs/archive/schedule-conversation-tasks/spec.md`。

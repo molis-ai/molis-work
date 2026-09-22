@@ -43,7 +43,7 @@ node --import tsx --test --test-concurrency=1 tests/scheduler.test.ts tests/sche
 
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 - [Scheduler 服务说明](../../docs/horizontal/scheduler.md)
-- [定时任务插件需求](../../specs/schedule-plugin/spec.md)
+- [定时任务插件需求](../../specs/archive/schedule-plugin/spec.md)
 
 - Status: `partial`
 - SSOT: `docs/SSOT-MATRIX.md`

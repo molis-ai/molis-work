@@ -337,6 +337,9 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
   };
   const showBoard = (view) => {
     if (!containerEnabled() || !isBoardTab(view)) return;
+    shell.removeAttribute("data-goal-planning");
+    shell.removeAttribute("data-goal-rules");
+    shell.querySelectorAll("[data-open-work-planning], [data-open-work-rules]").forEach((row) => row.setAttribute("aria-pressed", "false"));
     const already = activeTab === view && getSurface() === "goal";
     lastBoardView = view;
     activeTab = view;

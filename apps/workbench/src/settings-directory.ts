@@ -16,14 +16,13 @@ const SETTINGS_SECTIONS = [
   { id: "runtimes", label: "AI 与执行工具", icon: "terminal" },
   { id: "mcp", label: "MCP", icon: "settings" },
   { id: "connectors", label: "Connectors", icon: "link" },
-  { id: "planning", label: "规划方法", icon: "workflow" },
   { id: "diagnostics", label: "诊断", icon: "bug" },
 ] as const satisfies readonly { id: string; label: string; icon: MolisWorkIcon }[];
 
-function globalSettingsSections(): readonly { id: string; label: string; icon: MolisWorkIcon }[] {
+function globalSettingsSections(enabled?: readonly string[]): readonly { id: string; label: string; icon: MolisWorkIcon }[] {
   return [
     ...SETTINGS_SECTIONS,
-    ...listPluginSettingsNavItems().map((item) => ({
+    ...listPluginSettingsNavItems(enabled).map((item) => ({
       id: item.section_id,
       label: item.label,
       icon: item.icon,
@@ -34,8 +33,6 @@ function globalSettingsSections(): readonly { id: string; label: string; icon: M
 const PROJECT_SETTINGS_SECTIONS = [
   { id: "general", label: "常规", icon: "tune" },
   { id: "guidance", label: "项目说明", icon: "book" },
-  { id: "rules", label: "工作规则", icon: "shield" },
-  { id: "planning", label: "工作规划", icon: "workflow" },
 ] as const satisfies readonly { id: string; label: string; icon: MolisWorkIcon }[];
 
 function localeSwitchHref(locale: "zh" | "en", nextPath: string): string {
@@ -77,12 +74,12 @@ function renderSettingsNav(
   });
 }
 
-export function renderSettingsDirectorySection(primitives: SettingsDirectoryPrimitives): string {
+export function renderSettingsDirectorySection(primitives: SettingsDirectoryPrimitives, enabled?: readonly string[]): string {
   const { L, icon } = primitives;
   return `<section class="plugin-section is-expanded" data-plugin-section="settings" data-plugin-expanded="true" hidden>
     <div class="immersive-plugin-link" aria-hidden="true">${icon("settings")}<span>${L("设置")}</span></div>
     <div class="plugin-section-body">
-      ${renderSettingsNav(primitives, globalSettingsSections(), "appearance", "系统设置", "settings")}
+      ${renderSettingsNav(primitives, globalSettingsSections(enabled), "appearance", "系统设置", "settings")}
     </div>
   </section>`;
 }

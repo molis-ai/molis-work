@@ -2,7 +2,7 @@ import { MarkSpec, Node, NodeSpec, Schema } from "prosemirror-model";
 import { EMPTY_PAGES_BODY } from "./document.js";
 import { calloutIconFor, safePagesCalloutIcon, safePagesCalloutTone } from "./callout.js";
 import { safePagesLanguage } from "./code-language.js";
-import { safePagesHref } from "./link.js";
+import { bookmarkLabel, imageAlt, safePagesHref, safePagesImageSrc } from "./link.js";
 import { safePagesTone } from "./tone.js";
 
 const NOTE = { note: { default: "" } };
@@ -139,6 +139,66 @@ const nodes = {
     attrs: noted(),
     parseDOM: [{ tag: "hr" }],
     toDOM: (node) => ["hr", domAttrs(node, { class: "pages-hr" })],
+  } satisfies NodeSpec,
+  column: {
+    content: "block+",
+    isolating: true,
+    parseDOM: [{ tag: "div[data-pages-column]" }],
+    toDOM: () => ["div", { class: "pages-column", "data-pages-column": "1" }, 0],
+  } satisfies NodeSpec,
+  column_list: {
+    group: "block",
+    content: "column column+",
+    parseDOM: [{ tag: "div[data-pages-columns]" }],
+    toDOM: (node) => ["div", domAttrs(node, { class: "pages-columns", "data-pages-columns": "1" }), 0],
+  } satisfies NodeSpec,
+  image: {
+    group: "block",
+    atom: true,
+    selectable: true,
+    attrs: noted({ src: { default: "" }, alt: { default: "" } }),
+    parseDOM: [{
+      tag: "img[data-pages-image]",
+      priority: 60,
+      getAttrs: (dom) => {
+        const el = dom as HTMLElement;
+        const src = safePagesImageSrc(el.getAttribute("src"));
+        return { src, alt: el.getAttribute("alt") || imageAlt(src) };
+      },
+    }],
+    toDOM: (node) => {
+      const src = safePagesImageSrc(node.attrs.src);
+      const alt = String(node.attrs.alt || imageAlt(src) || "图片");
+      if (!src) return ["div", domAttrs(node, { class: "pages-image is-broken" }), alt];
+      return ["img", domAttrs(node, { class: "pages-image", src, alt, "data-pages-image": "1" })];
+    },
+  } satisfies NodeSpec,
+  bookmark: {
+    group: "block",
+    atom: true,
+    selectable: true,
+    attrs: noted({ href: { default: "" }, title: { default: "" } }),
+    parseDOM: [{
+      tag: "a[data-pages-bookmark]",
+      priority: 60,
+      getAttrs: (dom) => {
+        const el = dom as HTMLElement;
+        const href = safePagesHref(el.getAttribute("href"));
+        return { href, title: el.querySelector("strong")?.textContent || bookmarkLabel(href) };
+      },
+    }],
+    toDOM: (node) => {
+      const href = safePagesHref(node.attrs.href);
+      const title = String(node.attrs.title || bookmarkLabel(href) || "链接");
+      if (!href) return ["div", domAttrs(node, { class: "pages-bookmark" }), title];
+      return ["a", domAttrs(node, {
+        class: "pages-bookmark",
+        href,
+        "data-pages-bookmark": "1",
+        rel: "noreferrer noopener",
+        target: "_blank",
+      }), ["strong", title], ["span", href]];
+    },
   } satisfies NodeSpec,
   toc: {
     group: "block",

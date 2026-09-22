@@ -1,4 +1,5 @@
 export { createWorkbenchDecisionCenterRenderer, type WorkbenchDecisionGroup } from "./decision-center.js";
+export { renderPluginPageWorkspace } from './plugin-page-workspace.js';
 export { createWorkbenchGoalsPageRenderer } from "./goals-page-renderer.js";
 export { renderWorkbenchPlanningRequest } from "./goals-planning-request.js";
 export type { WorkbenchPlanningPageOwners } from "./goals-planning-request.js";

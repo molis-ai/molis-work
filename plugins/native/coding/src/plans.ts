@@ -36,7 +36,11 @@ export function parseCodingPlanAnswer(answer: string): CodingPlanContent {
   // unambiguous; two competing blocks must never silently choose one.
   const blocks = [...answer.matchAll(/^```(?:json)?[^\S\n]*\n([\s\S]*?)\n```[^\S\n]*$/gim)];
   if (blocks.length > 1) throw new Error("回答包含多个计划版本，请明确保留一个提案");
-  const raw = blocks.length === 1 ? blocks[0]![1]! : answer.trim();
+  // A single complete JSON object on its own final lines may follow prose.
+  // No braces are permitted in the prefix, and JSON.parse still rejects a
+  // second object or trailing commentary rather than selecting one silently.
+  const trimmed = answer.trim();
+  const raw = blocks.length === 1 ? blocks[0]![1]! : trimmed.match(/^[^{}]*\n(\{[\s\S]*\})$/)?.[1] ?? trimmed;
   let parsed: unknown;
   try { parsed = JSON.parse(raw); } catch { throw new Error("模型没有返回有效计划，原回答仍保留。请补充要求让它重新规划。"); }
   return parseCodingPlan(parsed);

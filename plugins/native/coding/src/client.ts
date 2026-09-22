@@ -1,5 +1,6 @@
 import { CODING_WRITER_INTEGRATION_CLIENT_FACTORY_SCRIPT } from "./writer-integration-client.js";
 import { CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT } from "./taskboard-client.js";
+import { CODING_STEPS_CLIENT_FACTORY_SCRIPT } from "./steps-client.js";
 import { CODING_CHARACTERS_CLIENT_FACTORY_SCRIPT } from "./characters-client.js";
 import { CODING_SUBAGENTS_CLIENT_FACTORY_SCRIPT } from "./subagents-client.js";
 import { CODING_PLANS_CLIENT_FACTORY_SCRIPT } from "./plans-client.js";
@@ -49,11 +50,13 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     return result;
   };
   const integrations = (${CODING_WRITER_INTEGRATION_CLIENT_FACTORY_SCRIPT})({q,api,host,status});
+  const stepReports = (${CODING_STEPS_CLIENT_FACTORY_SCRIPT})({q,api,current:()=>current,status,refresh:()=>readCurrent(),prepareRework:reason=>plans.prepareStepRework(reason)});
   const taskboard = (${CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT})({directory,current:()=>current,status,navigate:async(id,target)=>{
     const record=state.sessions.find(item=>item.session_id===id);if(!record)throw new Error('原会话暂不可读，请刷新后重试。');
     host.openItem('coding',id,record.title);await openCodingItem(id);if(current!==id)return;
     host.revealTask?.();
     if(target.kind==='session')return;
+    if(target.kind==='step'){await stepReports.open(id,target.run_id,target.step_id);return;}
     if(target.kind==='fixed-plan'){await plans.openFixed(target.revision);return;}
     const node=target.kind==='plan'?q('[data-coding-plan]'):target.kind==='recovery'?q('[data-coding-recovery]'):target.kind==='reviews'?q('[data-coding-host-reviews]'):
       target.kind==='child'?[...q('[data-coding-subagents]').querySelectorAll('details[data-child]')].find(node=>node.dataset.child===target.child_id):[...turns.children].find(node=>node.dataset.run===target.run_id);
@@ -709,6 +712,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       plans.update(id,data.plan ?? null,data.runs);
       subagents.update(id,data.subagents ?? []);
       taskboard.update(id,data);
+      stepReports.sync(id);
       if(checkpointBusy){statusKey='checkpoint';status('回退操作尚未结束，请查看右侧审查或核对结果。');}
       void host.showReviews?.(q('[data-coding-host-reviews]'), [...data.runs.map(run=>run.ref), ...(data.subagents || []).flatMap(group=>(group.children || []).flatMap(child=>child.child_run ? [child.child_run] : []))], data.session.runtime_session_id);
       const nextCheckpointKey=JSON.stringify([id,data.runs.at(-1)?.ref.run_id,data.runs.at(-1)?.ended_at,checkpointBusy]);

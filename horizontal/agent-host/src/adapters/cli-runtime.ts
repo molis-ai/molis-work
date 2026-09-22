@@ -203,6 +203,7 @@ export class CliAgentAdapter implements AgentRuntimeAdapter {
   }
 
   async start(request: AgentStartRequest): Promise<AgentRunHandle> {
+    if (request.execution_plan) throw new CliAgentError("agent.capability_unavailable", "此 CLI 运行时尚未接通计划步骤回报，请使用 Prologue");
     if (request.text_materials?.length) throw new CliAgentError("agent.capability_unavailable", "此 CLI 运行时尚未接通固定材料消费，请使用 Prologue 或移除材料");
     const session = this.#requireSession(request.session.session_id);
     const model = await this.#options.model();

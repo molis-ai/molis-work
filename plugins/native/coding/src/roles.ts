@@ -78,24 +78,24 @@ export const codingAgentManifest: AgentManifest = {
     },
     {
       role_id: CODING_WRITERS_ROLE,
-      version: 9,
+      version: 10,
       name: "并行写入",
       // Parallel writers work in their own worktrees; the parent itself only
       // reads and reports; integration is a separate reviewed Host operation.
       execution: "read-only",
       subagent_workspaces: "required",
       prompts: ["coding-base", "coding-writers"],
-      host_tools: ["context-remaining", "ask-user", "read-file", "search", "dispatch-subagent", "await-subagents", "steer-subagent"],
+      host_tools: ["context-remaining", "ask-user", "read-file", "search", "dispatch-subagent", "await-subagents", "steer-subagent", "board-read", "board-report"],
     },
     {
       role_id: CODING_BUILDER_ROLE,
-      version: 9,
+      version: 10,
       name: "构建者",
       // Edits and runs commands. Needs a Runtime that supports both under Host
       // approval, so it stays unavailable until one does.
       execution: "workspace-write",
       prompts: ["coding-base", "coding-builder"],
-      host_tools: ["context-remaining", "find-tools", "list-mcp-resources", "read-mcp-resource", "ask-user", "read-file", "search", "write", "edit-file", "run-command"],
+      host_tools: ["context-remaining", "find-tools", "list-mcp-resources", "read-mcp-resource", "ask-user", "read-file", "search", "write", "edit-file", "run-command", "board-read", "board-report"],
     },
     {
       role_id: CODING_WRITER_ROLE,

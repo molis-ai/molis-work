@@ -23,7 +23,8 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
     frozen: { role_id: role, role_version: 1, execution: role === "planner" ? "read-only" : "workspace-write", model_id: "m", prompts: [], skills: [], mcp_tools: [], host_tools: ["read-file"], text_materials: [], budget: null, directory: { canonical_path: home, realpath_verified: true } },
     usage: { input_tokens: 0, output_tokens: 0, cached_input_tokens: 0, cost_usd: null },
   } as unknown as AgentRunView);
-  const runs = [makeRun("proposal", "planner", "已核对文件，计划如下：\n```json\n" + JSON.stringify(content) + "\n```"), makeRun("ambiguous", "planner", "```json\n" + JSON.stringify(content) + "\n```\n```json\n" + JSON.stringify(content) + "\n```"), makeRun("malformed", "planner", "我会改代码"), makeRun("ordinary", "reader")];
+  const runs = [makeRun("proposal", "planner", "已核对文件，计划如下：\n" + JSON.stringify(content)), makeRun("ambiguous", "planner", "```json\n" + JSON.stringify(content) + "\n```\n```json\n" + JSON.stringify(content) + "\n```"), makeRun("malformed", "planner", "我会改代码"), makeRun("ordinary", "reader")];
+  runs.push(makeRun("ambiguous-prose", "planner", "说明\n" + JSON.stringify(content) + "\n" + JSON.stringify(content)), makeRun("trailing", "planner", "说明\n" + JSON.stringify(content) + "\n不是唯一正文"));
   const starts: AgentStartRequest[] = [];
   const host = () => ({ store, homeDirectory: home, boardId: DEMO_BOARD_ID, actorId: "web-user", goalTitle: () => undefined,
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
@@ -38,6 +39,8 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
       if (definition.capability_id === agent.listSubagents.capability_id) return [{subagent_id:"child",role_id:"writer",role_name:"运费子任务",state:"completed",task:"补边界测试",result:"写入已返回，尚未检查",workspace_path:home+"-other"}] as Output;
       if (definition.capability_id === agent.startRun.capability_id) {
         starts.push(structuredClone(input[1]));const run=makeRun(`execute-${starts.length}`,input[1].role_id,"已收到");
+        run.frozen.execution_plan=structuredClone(input[1].execution_plan);
+        if(input[1].execution_plan)run.step_board={board_id:`board-${starts.length}`,version:3,terminal:true,nodes:input[1].execution_plan.steps.map((step:any)=>({id:step.id,state:"succeeded",reports:[{note:"原步骤证据",at_ms:10}]}))};
         run.frozen.text_materials=input[1].text_materials.map((material: any)=>({material_id:material.material_id,title:material.title,source_artifact_id:material.source_artifact_id,source_version:material.source_version}));runs.push(run);
         return {ref:run.ref,frozen:run.frozen} as Output;
       }
@@ -55,7 +58,7 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
   try {
     assert.equal((await request("/plan")).body.plan, null);
     assert.equal((await start()).status, 400);
-    for (const run_id of ["malformed", "ordinary", "foreign", "ambiguous"]) assert.equal((await request("/plan", "POST", { run_id, expected_revision: 0 })).status, 400);
+    for (const run_id of ["malformed", "ordinary", "foreign", "ambiguous", "ambiguous-prose", "trailing"]) assert.equal((await request("/plan", "POST", { run_id, expected_revision: 0 })).status, 400);
     assert.equal((await request("/plan", "POST", { run_id: "proposal", expected_revision: 0 }, "other")).status, 400);
     let response = await request("/plan", "POST", { run_id: "proposal", expected_revision: 0, content: { title: "伪造" } });
     assert.equal(response.status, 200, JSON.stringify(response.body));assert.deepEqual(response.body.plan.content, content);
@@ -116,6 +119,28 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
     assert.equal((await request("", "GET", undefined, "other")).body.taskboard_plans.length,0);
     assert.equal(starts[0].text_materials![0].source_artifact_id, fixed.confirmed.artifact_id);
     assert.notEqual(starts[1].text_materials![0].source_artifact_id, fixed.confirmed.artifact_id);
+    const firstRun=runs.find(run=>run.ref.run_id==="execute-1")!;
+    const stepPath="/runs/execute-1/steps/step-1",evaluation={action:"accepted",notes:"已独立核对",board_id:"board-1",board_version:3,expected_revision:0};
+    assert.equal((await request(stepPath,"POST",evaluation,"other")).status,400,"another app session cannot accept this run");
+    assert.equal((await request("/runs/proposal/steps/step-1","POST",evaluation)).status,400,"no graph cannot be accepted");
+    assert.equal((await request("/runs/execute-1/steps/step-9","POST",evaluation)).status,400);
+    firstRun.phase="running";assert.equal((await request(stepPath,"POST",evaluation)).status,400);firstRun.phase="completed";
+    assert.equal((await request(stepPath,"POST",{...evaluation,board_version:2})).status,400);
+    assert.equal((await request(stepPath,"POST",{...evaluation,board_id:"foreign"})).status,400);
+    const originalBoard=structuredClone(firstRun.step_board);
+    response=await request(stepPath,"POST",evaluation);assert.equal(response.status,200,JSON.stringify(response.body));assert.equal(response.body.verdict.revision,1);
+    assert.equal((await request(stepPath,"POST",evaluation)).status,400,"stale assessment never overwrites the original");
+    assert.equal((await request(stepPath,"POST",{...evaluation,action:"needs-work",notes:"",expected_revision:1})).status,400);
+    response=await request(stepPath,"POST",{...evaluation,action:"needs-work",notes:"还需核对负数输入",expected_revision:1});assert.equal(response.status,200,JSON.stringify(response.body));
+    assert.deepEqual(firstRun.step_board,originalBoard,"human rework never rewrites SDK success or report history");
+    const verdict=response.body.verdict;
+    await releaseCodingSurface(store,DEMO_BOARD_ID);store.close();store=new LocalProjectDatabase(dbPath);
+    const assessed=(await request()).body.taskboard_plans.find((entry:any)=>entry.run_id==="execute-1");
+    assert.deepEqual(assessed.verdicts["step-1"],verdict);assert.equal(assessed.plan.revision,1);assert.equal((await request()).body.plan.revision,4);
+    firstRun.step_board!.nodes[0].state="blocked";firstRun.step_board!.version++;
+    assert.equal((await request(stepPath,"POST",{...evaluation,expected_revision:2,board_version:4})).status,400,"blocked is not accepted as success");
+    firstRun.step_board=originalBoard;
+    assert.deepEqual(starts[0].execution_plan?.steps,[{id:"step-1",...content.steps[0]}]);
     assert.equal((await start({plan_revision:undefined,intent:"discuss"})).status, 200, "ordinary direct work does not require planning");
     assert.equal(starts[2].text_materials!.length, 0);
   } finally {

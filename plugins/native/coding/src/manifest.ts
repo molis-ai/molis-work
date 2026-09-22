@@ -37,7 +37,7 @@ export const codingManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: CODING_PLUGIN_ID,
-  version: "1.29.0",
+  version: "1.30.0",
   name: "Coding",
   kind: "app",
   publisher: { publisher_id: "molis", signature: "official-coding-binding" },
@@ -100,6 +100,7 @@ export const codingManifest: PluginManifest = {
   },
   agent: codingAgentManifest,
   routes: [
+    { route_id: "coding.evaluate-step", method: "POST", path: "/sessions/:sessionId/runs/:runId/steps/:stepId" },
     { route_id: "coding.writer-directories", method: "GET", path: "/workspaces/:workspaceId/writers" },
     { route_id: "coding.prepare-writer-directory", method: "POST", path: "/workspaces/:workspaceId/writers" },
     { route_id: "coding.read-integration", method: "GET", path: "/sessions/:sessionId/runs/:runId/subagents/:childId/integration" },

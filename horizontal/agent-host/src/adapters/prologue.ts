@@ -25,6 +25,7 @@ import type {
 } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 import { emptyCapabilityMatrix } from "../capabilities.js";
+import { freezeExecutionPlan, STEP_TOOLS } from "../execution-plan.js";
 import type { PrologueApprovalBridge } from "./prologue-approvals.js";
 import {
   applyPrologueEvent,
@@ -137,6 +138,7 @@ export interface PrologueRunTiming {
 }
 
 export interface PrologueRuntimePort {
+  readStepBoard?(run: AgentRunRef): Promise<AgentRunView["step_board"]>;
   subagents?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSubagentsCapability;
   recovery?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecoveryCapability;
   checkpoints?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentCheckpointsCapability;
@@ -356,7 +358,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   }
 
   async start(request: AgentStartRequest): Promise<AgentRunHandle> {
-    request = { ...request, text_materials: structuredClone(request.text_materials ?? []) };
+    request = { ...request, execution_plan: freezeExecutionPlan(request), text_materials: structuredClone(request.text_materials ?? []) };
     const session = await this.#loadSession(request.session.session_id);
     if (session.recovery) throw new PrologueAdapterError("agent.session_busy", session.recovery.reason);
     const latest = session.runs.at(-1);
@@ -378,6 +380,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     const textMaterials = request.text_materials ?? [];
     if (textMaterials.length > 30 || new Set(textMaterials.map(item => item.material_id)).size !== textMaterials.length) throw new Error("材料过多或选择重复");
     textMaterials.forEach(agentTextMaterialContent);
+    if (request.budget?.max_turns !== undefined && (!Number.isSafeInteger(request.budget.max_turns) || request.budget.max_turns < 1 || request.budget.max_turns > 100)) throw new Error("执行轮次预算必须为 1–100 的整数");
     const model = await this.#ports.modelConfiguration(request.model_selection);
     if (model === null) {
       throw new PrologueAdapterError("agent.model_not_configured", "还没有配置可用的模型");
@@ -388,6 +391,9 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
         "agent.role_not_frozen",
         "宿主没有冻结角色定义，不能在没有角色 Prompt 的情况下起跑",
       );
+    }
+    if (request.execution_plan && (!this.#runtime.readStepBoard || STEP_TOOLS.some(tool => !role.host_tools.includes(tool)))) {
+      throw new PrologueAdapterError("agent.capability_unavailable", "当前运行时或角色尚未接通计划步骤回报");
     }
     // Only Host-frozen workspace grants open the SDK write envelope for children.
     // The coordinator's Character still restricts its own tools to read/dispatch.
@@ -432,7 +438,8 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
         source_artifact_id: material.source_artifact_id,
         source_version: material.source_version,
       })),
-      budget: request.budget ?? null,
+      ...(request.execution_plan ? { execution_plan: request.execution_plan } : {}),
+      budget: request.execution_plan ? { ...request.budget, max_turns: request.budget?.max_turns ?? 8 + request.execution_plan.steps.length * 3 } : request.budget ?? null,
       directory: request.directory,
     };
 
@@ -511,6 +518,12 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     if (!session.runs.some(item => item.run_id === run.run_id)) throw new PrologueAdapterError("agent.run_unknown", "这次执行不属于此会话");
     const record = this.#requireRun(run.run_id);
     const view = structuredClone(record.view);
+    if (view.frozen.execution_plan) {
+      try {
+        view.step_board = await this.#runtime.readStepBoard?.(run);
+        if (!view.step_board) throw new Error("原步骤图不可读取");
+      } catch { view.step_board_error = "原步骤回报暂不可读；不能据此判断完成情况。"; }
+    }
     if (this.#runtime.readPendingQuestion) {
       view.awaiting_input = (await Promise.all(view.awaiting_input.map(async (question): Promise<AgentPendingQuestion | null> => {
         try {

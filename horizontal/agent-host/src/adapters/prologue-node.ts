@@ -20,6 +20,7 @@ import { createPrologueCheckpoints, type PrologueRewindIntent } from "./prologue
 import { createPrologueGitReviews, type PrologueGitReviewPort } from "./prologue-git.js";
 import { createPrologueCompactor } from "./prologue-compaction.js";
 import { createPrologueSkillLibrary } from "./prologue-methods.js";
+import { createPrologueTaskBoards, codingExecutionRules } from "./prologue-taskboard.js";
 import { resolveModelHostname } from "./node-model-dns.js";
 import { agentTextMaterialContent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentReviewReceipt, AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -113,7 +114,7 @@ export async function createPrologueNodeAdapter(
     posture: options.reviewQueue
       ? { sandbox: "workspace-write", approval: "untrusted" }
       : { sandbox: "read-only", approval: "on-request" },
-    ...(options.reviewQueue ? { permissionMode: { mode: "ask-always" as const } } : {}),
+    ...(options.reviewQueue ? { permissionMode: { mode: "auto-allow" as const, allow: [{ what: "tool" as const, name: "board-report" }] }, rules: codingExecutionRules } : {}),
     require: ["secrets", "network", "clock", "workspace.read", "storage"],
   });
 
@@ -367,6 +368,7 @@ export async function createPrologueNodeAdapter(
     try { await next; }
     finally { if (indexUpdates.get(id) === next) indexUpdates.delete(id); }
   };
+  const stepBoards = createPrologueTaskBoards(runtime, async run => (await readIndex(run.session_id))?.attempts.find(attempt => attempt.run_id === run.run_id));
   const rememberReview = async (sessionId: string, pendingId: string, receipt: AgentReviewReceipt): Promise<void> => {
     const request = options.reviewQueue!.get(receipt.review_id);
     if (!request) throw new Error("原审查请求不可读取，不能保存决定");
@@ -425,6 +427,7 @@ export async function createPrologueNodeAdapter(
     }) };
   };
   const port: PrologueRuntimePort = {
+    readStepBoard: run => stepBoards.read(run),
     recovery: {
       inspect: session => inspectRecovery(session.session_id),
       close: async (session, runId, expectedVersion) => {
@@ -562,7 +565,7 @@ export async function createPrologueNodeAdapter(
         textResources.push({ ref, as: "original" });
       }
       const childRoots: PrologueSubagentRoot[] = [];
-      if (input.subagent_workspaces?.length && input.character.tools.some(tool => !["read-file", "search", "context-remaining", "dispatch-subagent", "await-subagents", "steer-subagent", "ask-user"].includes(tool))) throw new Error("独立目录协调者只能读取和分派，不能持有其他执行工具");
+      if (input.subagent_workspaces?.length && input.character.tools.some(tool => !["read-file", "search", "context-remaining", "dispatch-subagent", "await-subagents", "steer-subagent", "ask-user", "board-read", "board-report"].includes(tool))) throw new Error("独立目录协调者只能读取和分派，不能持有其他执行工具");
       for (const grant of input.subagent_workspaces ?? []) {
         const overlaps = (a: string, b: string) => { const relative = path.relative(a, b); return !relative || !relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative); };
         if ([input.root_path, ...childRoots.map(root => root.path)].some(other => overlaps(other, grant.directory.canonical_path) || overlaps(grant.directory.canonical_path, other))) throw new Error("子任务目录必须与主目录及其他子目录互不包含");
@@ -583,7 +586,10 @@ export async function createPrologueNodeAdapter(
         ? "每个子任务必须选择一个不同的 workspace 标识：" + JSON.stringify(childRoots.map(root => ({ id: root.id, path: root.path }))) + "。主任务只读，不能直接修改主工作区。子任务只在自己的目录里执行，修改仍经过宿主审查。"
         : "本轮没有分配独立子目录，不得填写 workspace 参数；所有子任务沿用当前授权目录且只读。";
       const childInstructions = childRoles.size ? childScope + "可分派的固定子角色：\n" + [...childRoles].map(([ref, role]) => `${ref}: ${role.name}; tools=${JSON.stringify(role.host_tools.map(prologueToolName))}`).join("\n") + "\n必须选择上述精确 character，并显式提供该角色列出的完整 tools 清单；不能遗漏角色需要的工具或增加其他工具。给子任务写清任务、必要上下文、依据路径与完成条件；不继承父聊天或材料。子任务只能使用所选角色的工具，不能再次分派。需要用户信息时作为阻塞返回给父任务。" : "";
-      const instructions = await stageInstructions(runtime, [input.character.instructions, childInstructions, ...methods, await checkpoints?.context(input.session_id) ?? ""].join("\n\n"));
+      const plan = input.provenance.frozen.execution_plan;
+      const stepBoard = plan ? await stepBoards.admit(plan) : undefined;
+      const instructions = await stageInstructions(runtime, [input.character.instructions, childInstructions, ...methods,
+        ...(plan && stepBoard ? [stepBoards.instructions(stepBoard.ref.id, plan)] : []), await checkpoints?.context(input.session_id) ?? ""].join("\n\n"));
       const index = await readIndex(input.session_id);
       if (!index) throw new Error("执行归属不可读");
       await mcpLibrary.validate(index.owner, input.mcp_tools ?? []);
@@ -614,7 +620,8 @@ export async function createPrologueNodeAdapter(
       // Exchange our reference for one Prologue can resolve, before the Run
       // is started rather than when it first calls out.
       const credentialRef = await credentials.prologueRefFor(input.model.credential_ref);
-      const attempt: SessionIndex["attempts"][number] = { ...input.provenance, task: input.task, root_ref: root.ref, ...(childRoles.size ? { subagent_roles: [...childRoles], subagent_roots: childRoots } : {}) };
+      const attempt: SessionIndex["attempts"][number] = { ...input.provenance, task: input.task, root_ref: root.ref,
+        ...(stepBoard ? { step_board: stepBoard.ref } : {}), ...(childRoles.size ? { subagent_roles: [...childRoles], subagent_roots: childRoots } : {}) };
       let attemptIndex = -1;
       // Persist the intent before the SDK can dispatch a model or tool. A crash
       // in this window remains visibly unresolved instead of silently retrying.
@@ -639,7 +646,7 @@ export async function createPrologueNodeAdapter(
               parent_run: { session_id: observed.parentSession.id, run_id: observed.parentRun.id },
               attempts: [{ started_at: new Date().toISOString(), task: "", run_id: childRun.run_id, root_ref: granted.rootRef,
                 frozen: { ...input.provenance.frozen, role_id: role.role_id, role_version: role.version, execution: role.execution,
-                  subagent_workspaces: undefined, character: undefined, compaction: undefined, directory: { canonical_path: granted.path, realpath_verified: true },
+                  subagent_workspaces: undefined, character: undefined, compaction: undefined, execution_plan: undefined, directory: { canonical_path: granted.path, realpath_verified: true },
                   host_tools: [...role.host_tools], text_materials: [], skills: [], mcp_tools: [], mcp_sources: [], budget: null,
                   prompts: role.prompts.map(prompt => ({ prompt_id: prompt.prompt_id, version: prompt.version, layer: prompt.layer ?? "role" })) } }] });
             runRoots.set(childRun.run_id, granted.rootRef);
@@ -691,6 +698,7 @@ export async function createPrologueNodeAdapter(
             : { promptCache: input.model.prompt_cache }),
         },
         agent: {
+          ...(input.provenance.frozen.budget?.max_turns === undefined ? {} : { budget: { maxTurns: input.provenance.frozen.budget.max_turns } }),
           idempotencyKey: `molis-work-${input.session_id}-${randomUUID()}`,
           mode: input.mode,
           toolNames: runTools,
@@ -739,7 +747,7 @@ export async function createPrologueNodeAdapter(
         },
       };
     },
-    shutdown: async () => { detachReviews?.(); await checkpoints?.close(); await gitReviews?.close(); return runtime.shutdown(); },
+    shutdown: async () => { stepBoards.close(); detachReviews?.(); await checkpoints?.close(); await gitReviews?.close(); return runtime.shutdown(); },
   };
 
   return Object.assign(new PrologueAgentAdapter({
@@ -798,7 +806,7 @@ interface SessionIndex {
   title: string;
   owner: PrologueRestoredSession["owner"];
   /** Frozen intent and display times only; streamed output stays in the SDK ledger. */
-  attempts: Array<PrologueStartInput["provenance"] & { task: string; subagent_errors?: Record<string, string>; subagent_roots?: PrologueSubagentRoot[]; subagent_roles?: Array<[string, NonNullable<PrologueStartInput["subagents"]>[number]]>; run_id?: string; stop_intent?: "stopped" | "cancelled"; root_ref?: ExactRef<"authorized-root">; timing?: PrologueRunTiming }>;
+  attempts: Array<PrologueStartInput["provenance"] & { step_board?: ExactRef<"task-board">; task: string; subagent_errors?: Record<string, string>; subagent_roots?: PrologueSubagentRoot[]; subagent_roles?: Array<[string, NonNullable<PrologueStartInput["subagents"]>[number]]>; run_id?: string; stop_intent?: "stopped" | "cancelled"; root_ref?: ExactRef<"authorized-root">; timing?: PrologueRunTiming }>;
   rewinds?: PrologueRewindIntent[];
   review_decisions?: Record<string, Pick<AgentReviewReceipt, "status" | "decided_by" | "decided_at" | "note"> & { requested_at?: string; expires_at?: string | null }>;
 }

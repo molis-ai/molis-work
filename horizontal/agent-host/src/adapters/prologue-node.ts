@@ -82,6 +82,11 @@ export interface PrologueNodeAdapterOptions extends PrologueAdapterPorts {
   resolveCredential?: (credentialRef: string) => string | null | Promise<string | null>;
 }
 
+// This resource combines base/role/Character/project instructions, selected
+// methods and recovery context. The SDK default is for one instruction file;
+// it must not silently cut a valid 20,000-character published Character.
+const MAX_COMPOSED_INSTRUCTION_CHARS = 64_000;
+
 /**
  * Build the Prologue Runtime on the Node host.
  *
@@ -100,7 +105,7 @@ export async function createPrologueNodeAdapter(
     app: options.app,
     host,
     preset: "local-agent",
-    config: { tool: { deferToolSchemasBeyond: 20 } },
+    config: { tool: { deferToolSchemasBeyond: 20 }, context: { maxInstructionChars: MAX_COMPOSED_INSTRUCTION_CHARS } },
     network: { model: true, mcp: true, loopback: true },
     posture: options.reviewQueue
       ? { sandbox: "workspace-write", approval: "untrusted" }
@@ -741,6 +746,9 @@ async function stageInstructions(
   sdk: Pick<Runtime, "resources">,
   instructions: string,
 ): Promise<ExactRef<"resource"> | undefined> {
+  if (instructions.length > MAX_COMPOSED_INSTRUCTION_CHARS) {
+    throw new PrologueAdapterError("agent.capability_unavailable", "本轮角色、项目说明、方法与恢复上下文合计超过 64000 字符，未启动执行。请缩短指令或减少本轮选择的方法后重试；不会截断指令。");
+  }
   if (instructions.trim() === "") return undefined;
   return stageTextResource(sdk, instructions, "role-instructions");
 }

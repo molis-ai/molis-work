@@ -39,6 +39,10 @@
 
 **界面与工程进度**：深浅主题、597 × 746 CSS 窄窗口实际观察；选择器可显示不可用旧引用、明确取消选择，按钮可达且对话框无横向溢出。窄屏编辑需滚动查看下方操作，已实际打开确认框。修复确认框未复用共享表单留白、展开角色后切设置仍露出「新建角色」两处问题；后者根因为共享 stage toolbar 强制可见，改为继承后实际确认隐藏。已恢复深色、默认视口。中文 IME、长内容持续使用、主观手感和用户验收仍为 UNVERIFIED。最终 build、boundary、workspace:typecheck 通过，48 项定向测试通过；首轮全量新增六个失败涉及旧个人插件名单断言和多余输入端口声明，已修正。最终全量 1521 项：1459 通过、57 个既有失败、5 跳过；含父 suite 的 58 个失败名称与原基线完全一致，零新增、零消除，并非全绿。77 张 PNG 已恢复运行前字节，670 张受保护 PNG 摘要一致，证据 `characters-final-regression.json`。4198 构建 `2026-09-22T01:24:51.127Z`，源码摘要复算 `dbd298b4be9b9c35674787cb7e8e6102b1ee26c2161b3a6ab66dbddbbb576e27` 一致。管理发布与固定消费功能块按既定规则单独提交；完整 Goal、C12 行为质量、C10/C13 与正式钥匙串修复交付继续保留。
 
+**指令送达诊断与长角色修复（2026-09-22）**：以实际 Coding base/builder 正文、同一 SDK 会话连续运行「无角色 → 原 v1 正文 → 原 v3 正文 → 20,000 字符角色 → 无角色」，在已安装 SDK 的 Anthropic 请求边界核对完整正文、当前版本、工具范围与清除选择。短角色完整送达且没有沿用旧指令；这不能回溯证明原 MiniMax 请求的每个字节，也不能把模型未遵循的问题归因于缓存或截断。边界测试另复现：角色库允许 20,000 字符，叠加基础/内置角色后超过 SDK 默认单份指令上限，末尾实际被截断。现沿用 SDK 配置，将组合指令上限定为 64,000 字符；包括方法/恢复上下文在内的组合超限时，在启动意图和模型请求前明确拒绝，不隐去正文。未修改 SDK、工具权限或审批策略。
+
+正式界面新建并发布「长角色 · 20000 字符送达验证」v1，在新会话 `14c4c821-1403-4412-ad3e-df3871385728` 中选择，MiniMax-M3 的 `3-65joe`（SDK Session `1-1reot`）执行完成，回答含只放在角色末尾的「长角色末尾已读。」。冻结正文 20,000 字符，输入 5185 / 输出 79 / 缓存读取 128；没有工具调用和文件变化。构建 `2026-09-22T01:46:15.712Z`，证据 `characters-long-instructions-product.json`。该样本使用重复参考文本专门检查长度边界，不作为复杂真实任务或减少人工负担的证据；模型答复仍泛述先列目录，C12 行为质量继续保留。另查到当前实际安装的 SDK 在 Agent 每轮前缀中无条件加入 `You inspect a local project with list, search, and read`，即使调用方未开放 list。这是下一步需要独立修正并用同条件任务复测的指令冲突候选；尚不能据此断定它是原 ls 行为的唯一原因。工程 build、boundary:check、workspace:typecheck 与两项真实 SDK 定向测试通过；全量 1522 项：1460 通过、57 个既有失败、5 跳过，含父 suite 的 58 个失败名称与原基线完全相同，零新增、零消除。77 张测试 PNG 已恢复运行前字节，670 张受保护 PNG 全部核对一致；证据 `characters-long-instructions-regression.json`。当前构建源码摘要复算为 `f1fd5455c926e892e07aba5ef92dda3278b03a18655bc04b2ebf25b57314a941`。本块不代表完整 C12、C13、Coding Goal 或用户验收完成。
+
 流程是「个人角色库编辑 → 查看本次内容并发布到当前项目 → Coding 选择已发布的精确版本 → 开跑时冻结 → 报告保留原引用」。个人库跨项目复用，项目内的 Artifact 保留各自明确发布的版本；不把项目 Artifact 改成跨项目任意可读，也不复制执行记录。
 
 - **当前必须**：Character Module 拥有个人草稿、修改修订、启用/停用/删除墓碑和并发检查；独立 Character 插件拥有编辑、发布与选择入口。Artifact Module 继续拥有发布内容、版本、来源与可用性，不另建已发布正文库。发布捕获已确认草稿，并通过原 Artifact 客户端写入；同一草稿重复发布复用原引用。未发布内容不进入模型。草稿修订和 Artifact 发布版本分开显示、不可混称。
@@ -350,7 +354,7 @@ Files 的正式路由经宿主逐次校验当前项目目录，读取目录与 U
 | C9 报告 / 用量 / 阅读 | 中栏报告、执行详情 | 正式工作台已有安全 Markdown、流式回答、折叠工具活动、用量和滚动保持；报告已接终态预览/固定 Artifact/重开，MiniMax 成功、部分失败、中断三类报告已保存并验证跨重启不变；工程零新增失败 | 报告输出端口、完整成果导航；已接已知/未知/估算字段并列与缓存写入投影；整理额外请求已汇总；仍待真实缓存写入回执与长内容集中体验验收 |
 | C10 五个伴随插件 | Workspace / Files / Diff / Git / Text Stats | 已接正式工作区选择、目录/正文阅读、before/after/selection 固定 Artifact、默认输入图、快照 Diff 和固定正文统计；指定 UI 路径与重启已实操；Files 固定材料已进入 Coding 并由 MiniMax 实际读取；Git 真实状态、已暂存/未暂存固定差异及重启恢复已接通；普通文本暂存/取消暂存经宿主审查与 SDK Effect 实际执行；未知结果支持重新核对与有依据的未发生收口；Git 固定差异和结果已进入 Coding 本轮材料与报告 | Shelf/Goal 材料、Coding 差异及行级反馈、Git 内容转换及其余写操作、已发生但缺失回执的恢复、成果/变更事件刷新与独立插件入口仍待接通 |
 | C11 四层提示 | Plugin declaration → Host freeze → SDK | Host 分层存在；Node adapter 已按实际 tgz 的 SDK 类型接通 Resource 写入发布、精确引用、工具名和 Session history；独立两轮测试与正式 Coding 读取/续聊已实操；base Prompt 已去掉错误的全局只读约束；角色交接说明已修正并在新任务验证实际写入/检查状态；长会话只回复计划等质量反例仍保留 | 用实际打包 SDK 类型修正，验证模型确实收到各层；历史与下一轮分开 |
-| C12 Character | 独立 Character 插件 → Artifact → 消费插件声明 → Host freeze | 尚未实现；旧 §7.1 的“目录库角色表”不足以满足本次发布/消费要求 | 管理草稿与精确发布版本、停用/墓碑、消费者范围、无角色路径、不扩权 |
+| C12 Character | 独立 Character 插件 → Artifact → 消费插件声明 → Host freeze | 管理、精确发布、选择冻结、停用与历史报告指定路径已实操，见 §0 | 复杂任务的行为收益、减少人工负担、长内容体验与用户验收 |
 | C13 Plan → SubAgent → TaskBoard | Coding 计划意图 + SDK 执行事实 + 左栏投影 | 尚未实现，顺序不变 | 计划编辑确认、执行关联、必要变更、子任务交接与验收；不另建竞争任务账 |
 | C14 Cache | 模型配置 → SDK → 用量 | 配置和 protocol 映射已走正式 Prologue；已有 MiniMax 原回执的非零缓存读取量，产品已显示；未开启/未命中对照与缓存写入尚未实操 | 配置生效、未开启/未命中/命中区分、真实调用证据 |
 | Goal / Shelf / Artifact 闭环 | 各插件端口与 Goals 事件协议 | Coding 的三个 Files 和两个 Git 输入及 Goal 固定上下文已进入模型与报告；正式会话 Goal 关联、变更后重新确认、换绑保留旧成果归属和重启已接通 | Shelf 材料、固定成果回写原 Goal、来源不可读时保留输出、从目标或成果反向继续；模型完成不替代 Goal 验收 |
@@ -769,7 +773,7 @@ Goal 材料成果闭环、独立 Character（C12）、Plan→SubAgent→TaskBoar
 | C7 | Coding 由 Plugin Runtime 托管 | **基础实现存在，产品闭环见 §0**：产品经 `coding-surface.ts` 起平台、启动 Coding、用它的 contribution 渲染目录；`kind` 已从 `native` 翻成 `app`。`coding-plugin-activation` 3 项、`coding-surface` 3 项、`plugin-panel-seam` 3 项 |
 | C10 | 复现 FlyLeaf 的另外五个插件 | **基础实现存在，产品闭环见 §0**：`workspace` / `files` / `diff` / `git` / `text-stats` 五个包，Manifest v2 端口与输入组、纯投影层、UI 贡献，全部在真平台上一起启动并能连线。跨插件的载荷契约收进 `contracts/modules/workspace-artifacts`（插件之间不许互相 import）。`workspace-plugin` 7、`files-plugin` 13、`diff-plugin` 16、`git-plugin` 18、`text-stats-plugin` 7、`workspace-plugin-graph` 5、`plugin-catalog-companions` 7 |
 | C11 | 提示分层：划清 ReAct 里属于我们的那一层 | **基础实现存在，产品闭环见 §0**：四层契约、宿主按层组合、项目层接上项目指引、只读的「这一轮的身份」面。`agent-prompt-layers` 11 项 |
-| C12 | Character 管理（角色变成用户可管的数据） | **计划中**，见 §7 |
+| C12 | Character 管理（角色变成用户可管的数据） | **部分实现并实操**，管理与固定消费见 §0；行为质量与体验验收未完成 |
 | C13 | Plan → SubAgent 接通 → TaskBoard | **计划中**，见 §7；三者按这个顺序，倒过来会做出没有内容的板子 |
 | C14 | Prompt Cache（开，不只是读数） | **基础实现存在，产品闭环见 §0**：供应商记录带 `prompt_cache`，落库（目录库 schema 18）、设置页、透传到 `startAgentRun`。`model-prompt-cache` 7 项 |
 | C15 | 修 protocol 名字对不上 | **已修**：`prologueProtocolFor()` 做显式翻译，断言钉在 Prologue 自己的适配器表上。`model-protocol-mapping` 5 项 |

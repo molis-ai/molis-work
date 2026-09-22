@@ -2,8 +2,43 @@ import { MarkSpec, Node, NodeSpec, Schema } from "prosemirror-model";
 import { EMPTY_PAGES_BODY } from "./document.js";
 import { calloutIconFor, safePagesCalloutIcon, safePagesCalloutTone } from "./callout.js";
 import { safePagesLanguage } from "./code-language.js";
-import { bookmarkLabel, imageAlt, safePagesHref, safePagesImageSrc } from "./link.js";
+import { bookmarkLabel, imageAlt, safePagesHref, safePagesImageSrc, safePagesImageWidth } from "./link.js";
 import { safePagesTone } from "./tone.js";
+
+const MIN_COLUMN_WIDTH = 80;
+const MAX_COLUMN_WIDTH = 640;
+const MIN_COLUMN_SHARE = 0.2;
+const MAX_COLUMN_SHARE = 8;
+
+/** Relative width of one column in a side-by-side layout. Missing values share the row equally. */
+export function safePagesColumnShare(value: unknown): number {
+  const raw = typeof value === "number" ? value : Number(String(value ?? "").trim());
+  if (!Number.isFinite(raw) || raw <= 0) return 1;
+  return Math.max(MIN_COLUMN_SHARE, Math.min(MAX_COLUMN_SHARE, Math.round(raw * 100) / 100));
+}
+
+function columnTracks(node: Node): string {
+  const tracks: string[] = [];
+  node.forEach((column) => tracks.push(`${safePagesColumnShare(column.attrs.width)}fr`));
+  return tracks.join(" ");
+}
+
+/** Pixel width for one table column. Zero lets the column share the row. */
+export function safePagesColumnWidth(value: unknown): number {
+  const raw = typeof value === "number" ? value : Number(String(value ?? "").trim());
+  if (!Number.isFinite(raw) || raw <= 0) return 0;
+  return Math.max(MIN_COLUMN_WIDTH, Math.min(MAX_COLUMN_WIDTH, Math.round(raw)));
+}
+
+function cellDom(tag: "td" | "th", node: Node): [string, Record<string, string>, number] {
+  const width = safePagesColumnWidth(node.attrs.colwidth);
+  const attrs: Record<string, string> = {};
+  if (width) {
+    attrs.style = `width: ${width}px`;
+    attrs["data-pages-colwidth"] = String(width);
+  }
+  return [tag, attrs, 0];
+}
 
 const NOTE = { note: { default: "" } };
 
@@ -143,34 +178,56 @@ const nodes = {
   column: {
     content: "block+",
     isolating: true,
-    parseDOM: [{ tag: "div[data-pages-column]" }],
-    toDOM: () => ["div", { class: "pages-column", "data-pages-column": "1" }, 0],
+    attrs: { width: { default: 1 } },
+    parseDOM: [{
+      tag: "div[data-pages-column]",
+      getAttrs: (dom) => ({ width: safePagesColumnShare((dom as HTMLElement).getAttribute("data-pages-column-share")) }),
+    }],
+    toDOM: (node) => ["div", {
+      class: "pages-column",
+      "data-pages-column": "1",
+      "data-pages-column-share": String(safePagesColumnShare(node.attrs.width)),
+    }, 0],
   } satisfies NodeSpec,
   column_list: {
     group: "block",
     content: "column column+",
     parseDOM: [{ tag: "div[data-pages-columns]" }],
-    toDOM: (node) => ["div", domAttrs(node, { class: "pages-columns", "data-pages-columns": "1" }), 0],
+    toDOM: (node) => ["div", domAttrs(node, {
+      class: "pages-columns",
+      "data-pages-columns": "1",
+      style: `grid-template-columns: ${columnTracks(node)}`,
+    }), 0],
   } satisfies NodeSpec,
   image: {
     group: "block",
     atom: true,
     selectable: true,
-    attrs: noted({ src: { default: "" }, alt: { default: "" } }),
+    attrs: noted({ src: { default: "" }, alt: { default: "" }, width: { default: 0 } }),
     parseDOM: [{
       tag: "img[data-pages-image]",
       priority: 60,
       getAttrs: (dom) => {
         const el = dom as HTMLElement;
         const src = safePagesImageSrc(el.getAttribute("src"));
-        return { src, alt: el.getAttribute("alt") || imageAlt(src) };
+        return {
+          src,
+          alt: el.getAttribute("alt") || imageAlt(src),
+          width: safePagesImageWidth(el.getAttribute("data-pages-width")),
+        };
       },
     }],
     toDOM: (node) => {
       const src = safePagesImageSrc(node.attrs.src);
       const alt = String(node.attrs.alt || imageAlt(src) || "图片");
-      if (!src) return ["div", domAttrs(node, { class: "pages-image is-broken" }), alt];
-      return ["img", domAttrs(node, { class: "pages-image", src, alt, "data-pages-image": "1" })];
+      const width = safePagesImageWidth(node.attrs.width);
+      const sized: Record<string, string> = { class: "pages-image" };
+      if (width) {
+        sized.style = `width: ${width}px`;
+        sized["data-pages-width"] = String(width);
+      }
+      if (!src) return ["div", domAttrs(node, { ...sized, class: "pages-image is-broken" }), alt];
+      return ["img", domAttrs(node, { ...sized, src, alt, "data-pages-image": "1" })];
     },
   } satisfies NodeSpec,
   bookmark: {
@@ -224,14 +281,16 @@ const nodes = {
   table_cell: {
     content: "paragraph+",
     isolating: true,
-    parseDOM: [{ tag: "td" }],
-    toDOM: () => ["td", 0],
+    attrs: { colwidth: { default: 0 } },
+    parseDOM: [{ tag: "td", getAttrs: (dom) => ({ colwidth: safePagesColumnWidth((dom as HTMLElement).getAttribute("data-pages-colwidth")) }) }],
+    toDOM: (node) => cellDom("td", node),
   } satisfies NodeSpec,
   table_header: {
     content: "paragraph+",
     isolating: true,
-    parseDOM: [{ tag: "th" }],
-    toDOM: () => ["th", 0],
+    attrs: { colwidth: { default: 0 } },
+    parseDOM: [{ tag: "th", getAttrs: (dom) => ({ colwidth: safePagesColumnWidth((dom as HTMLElement).getAttribute("data-pages-colwidth")) }) }],
+    toDOM: (node) => cellDom("th", node),
   } satisfies NodeSpec,
   page_ref: {
     group: "block",

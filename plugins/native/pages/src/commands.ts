@@ -5,10 +5,10 @@ import { Command, EditorState, NodeSelection, TextSelection, Transaction } from 
 import { safePagesCalloutIcon, safePagesCalloutTone } from "./callout.js";
 import { safePagesLanguage } from "./code-language.js";
 import { convertedBlocks, convertedNodes } from "./convert.js";
-import { bookmarkLabel, imageAlt, safePagesHref, safePagesImageSrc } from "./link.js";
+import { bookmarkLabel, imageAlt, safePagesHref, safePagesImageSrc, safePagesImageWidth } from "./link.js";
 import { blocksFromMarkdown } from "./paste-markdown.js";
 import { deleteAtPos, deleteSpan as deleteSpanDoc, dragRows, duplicateAtPos, duplicateSpan as duplicateSpanDoc, placeDragged, placeSpan, reorderTopLevel, spanRoots } from "./reorder.js";
-import { pagesSchema } from "./schema.js";
+import { pagesSchema, safePagesColumnShare } from "./schema.js";
 import { safePagesTone } from "./tone.js";
 
 export function blockPos(doc: Node, index: number): number {
@@ -327,6 +327,26 @@ function emptyColumn(): Node {
   return pagesSchema.nodes.column.create(null, pagesSchema.nodes.paragraph.create());
 }
 
+/** Move width from the next column into this one. The pair keeps the same total. */
+export function nudgeColumnShare(state: EditorState, listPos: number, index: number, delta: number) {
+  const list = listPos >= 0 && listPos <= state.doc.content.size ? state.doc.nodeAt(listPos) : null;
+  if (!list || list.type !== pagesSchema.nodes.column_list) return null;
+  if (!Number.isFinite(delta) || index < 0 || index >= list.childCount - 1) return null;
+  const left = list.child(index);
+  const right = list.child(index + 1);
+  const leftShare = safePagesColumnShare(left.attrs.width);
+  const rightShare = safePagesColumnShare(right.attrs.width);
+  const sum = leftShare + rightShare;
+  const nextLeft = Math.max(0.2, Math.min(sum - 0.2, Math.round((leftShare + delta) * 100) / 100));
+  const nextRight = Math.round((sum - nextLeft) * 100) / 100;
+  if (nextLeft === leftShare && nextRight === rightShare) return null;
+  let leftPos = listPos + 1;
+  for (let i = 0; i < index; i += 1) leftPos += list.child(i).nodeSize;
+  const tr = state.tr.setNodeMarkup(leftPos, undefined, { ...left.attrs, width: nextLeft });
+  tr.setNodeMarkup(leftPos + left.nodeSize, undefined, { ...right.attrs, width: nextRight });
+  return tr;
+}
+
 /** Append one column to a column list and put the caret in its empty paragraph. */
 export function addColumn(state: EditorState, pos: number) {
   const node = pos >= 0 && pos <= state.doc.content.size ? state.doc.nodeAt(pos) : null;
@@ -347,6 +367,15 @@ export function unwrapColumns(state: EditorState, pos: number) {
   if (!$pos.parent.canReplace($pos.index(), $pos.index() + 1, Fragment.from(blocks))) return null;
   const tr = state.tr.replaceWith(pos, pos + node.nodeSize, blocks);
   return tr.setSelection(TextSelection.near(tr.doc.resolve(Math.min(pos + 1, tr.doc.content.size))));
+}
+
+/** Set an image's pixel width. Zero restores the full line. Other blocks are left alone. */
+export function setImageWidth(state: EditorState, pos: number, width: number) {
+  const node = pos >= 0 && pos <= state.doc.content.size ? state.doc.nodeAt(pos) : null;
+  if (node?.type !== pagesSchema.nodes.image) return null;
+  const next = safePagesImageWidth(width);
+  if (next === safePagesImageWidth(node.attrs.width)) return null;
+  return state.tr.setNodeMarkup(pos, undefined, { ...node.attrs, width: next });
 }
 
 /** Put a checked image where the caret is. An empty paragraph is replaced; otherwise the image follows that row. */
@@ -529,6 +558,42 @@ export function turnRowInto(state: EditorState, id: string) {
   const tr = state.tr.replaceWith(rowPos, rowPos + row.nodeSize, next);
   return tr.setSelection(TextSelection.near(tr.doc.resolve(Math.min(rowPos + 1, tr.doc.content.size))));
 }
+
+/**
+ * Backspace in a column whose only block is empty removes that column.
+ * With two columns left, the frame goes away and the other column's blocks stay.
+ */
+export const collapseEmptyColumn: Command = (state, dispatch) => {
+  const { $from, empty } = state.selection;
+  if (!empty || !$from.parent.isTextblock || $from.parent.content.size !== 0 || $from.parentOffset !== 0) return false;
+  const frame = columnContext($from);
+  if (!frame || $from.depth !== frame.columnDepth + 1) return false;
+  const column = $from.node(frame.columnDepth);
+  if (column.childCount !== 1) return false;
+  const list = $from.node(frame.listDepth);
+  if (list.childCount < 2) return false;
+  const columnIndex = $from.index(frame.listDepth);
+  if (!dispatch) return true;
+  if (list.childCount === 2) {
+    const other = list.child(columnIndex === 0 ? 1 : 0);
+    const blocks: Node[] = [];
+    other.forEach((child) => blocks.push(child));
+    const listFrom = $from.before(frame.listDepth);
+    const $list = state.doc.resolve(listFrom);
+    if (!$list.parent.canReplace($list.index(), $list.index() + 1, Fragment.from(blocks))) return false;
+    const tr = state.tr.replaceWith(listFrom, $from.after(frame.listDepth), blocks);
+    const size = blocks.reduce((total, block) => total + block.nodeSize, 0);
+    const pos = columnIndex === 0 ? listFrom + 1 : Math.min(listFrom + size, tr.doc.content.size);
+    const bias = columnIndex === 0 ? 1 : -1;
+    dispatch(tr.setSelection(TextSelection.near(tr.doc.resolve(pos), bias)).scrollIntoView());
+    return true;
+  }
+  const from = $from.before(frame.columnDepth);
+  const tr = state.tr.delete(from, $from.after(frame.columnDepth));
+  const bias = columnIndex === 0 ? 1 : -1;
+  dispatch(tr.setSelection(TextSelection.near(tr.doc.resolve(Math.min(from, tr.doc.content.size)), bias)).scrollIntoView());
+  return true;
+};
 
 /** Backspace at the very start of a block peels one layer of formatting instead of merging text. */
 export const unwrapAtStart: Command = (state, dispatch) => {
@@ -724,6 +789,40 @@ export const selectEnclosingBlock: Command = (state, dispatch) => {
   return true;
 };
 
+/** Comment range under the caret, or the current selection when it is not inside one yet. */
+export function commentAt(doc: Node, selection: { from: number; to: number; $from: ResolvedPos }):
+  { from: number; to: number; text: string; id: string } | null {
+  const mark = pagesSchema.marks.comment;
+  const { from, to, $from } = selection;
+  const found = $from.marks().find((item) => item.type === mark);
+  if (found) {
+    let start = from;
+    let end = to;
+    doc.nodesBetween(Math.max(0, from - 1), Math.min(doc.content.size, to + 1), (node, pos) => {
+      if (!node.isText || !found.isInSet(node.marks)) return;
+      start = Math.min(start, pos);
+      end = Math.max(end, pos + node.nodeSize);
+    });
+    return { from: start, to: end, text: String(found.attrs.text || ""), id: String(found.attrs.id || "") };
+  }
+  if (from === to) return null;
+  return { from, to, text: "", id: "" };
+}
+
+/** Add, replace, or clear a comment on [from, to). Blank text removes it. The words stay. */
+export function setComment(from: number, to: number, text: string, id = ""): Command {
+  return (state, dispatch) => {
+    if (from >= to) return false;
+    if (!dispatch) return true;
+    const mark = pagesSchema.marks.comment;
+    const tr = state.tr.removeMark(from, to, mark);
+    const body = text.trim();
+    if (body) tr.addMark(from, to, mark.create({ id, text: body }));
+    dispatch(tr);
+    return true;
+  };
+}
+
 /** Link range under the selection: the selected text, or the whole link the caret sits in. */
 export function linkAt(doc: Node, selection: { from: number; to: number; empty: boolean; $from: ResolvedPos }):
   { from: number; to: number; href: string } | null {
@@ -744,6 +843,34 @@ export function linkAt(doc: Node, selection: { from: number; to: number; empty: 
   if (empty) return null;
   return { from, to, href: "" };
 }
+
+const INLINE_MARKS = ["strong", "em", "underline", "strike", "code", "font_color", "highlight", "link", "comment"] as const;
+
+/** Drop inline styles on the selection. With only a caret, the next characters are plain. */
+export const clearInlineMarks: Command = (state, dispatch) => {
+  const types = INLINE_MARKS.map((name) => pagesSchema.marks[name]);
+  const { from, to, empty, $from } = state.selection;
+  if (empty) {
+    const stored = state.storedMarks ?? $from.marks();
+    const active = types.filter((type) => type.isInSet(stored));
+    if (!active.length) return false;
+    if (!dispatch) return true;
+    const tr = state.tr;
+    active.forEach((type) => tr.removeStoredMark(type));
+    dispatch(tr);
+    return true;
+  }
+  let found = false;
+  state.doc.nodesBetween(from, to, (node) => {
+    if (node.isText && types.some((type) => type.isInSet(node.marks))) found = true;
+  });
+  if (!found) return false;
+  if (!dispatch) return true;
+  const tr = state.tr;
+  types.forEach((type) => tr.removeMark(from, to, type));
+  dispatch(tr);
+  return true;
+};
 
 /** Paint or clear a writing tone over the current selection; an empty or unknown tone clears it. */
 export function setTone(kind: "font_color" | "highlight", tone: string): Command {

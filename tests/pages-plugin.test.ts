@@ -28,8 +28,13 @@ import {
   duplicateRow,
   activeList,
   addColumn,
+  nudgeColumnShare,
   applyList,
   applySlash,
+  clearInlineMarks,
+  collapseEmptyColumn,
+  commentAt,
+  setComment,
   columnEdgeTarget,
   commitGap,
   duplicateEnclosingRow,
@@ -38,6 +43,8 @@ import {
   exitWrappedBlock,
   extractFromPagesBody,
   findHits,
+  replaceAllFindHits,
+  replaceFindHit,
   indentListItem,
   insertHardBreak,
   insertCodeIndent,
@@ -56,6 +63,12 @@ import {
   nudgeSpan,
   openPagesStore,
   addTableColumn,
+  moveTableColumn,
+  moveTableEdge,
+  moveTableRow,
+  setColumnWidth,
+  toggleHeaderRow,
+  tableEdgeTarget,
   addTableRow,
   atLastTableCell,
   deleteTableColumn,
@@ -77,22 +90,28 @@ import {
   runPagesAi,
   PAGES_CODE_LANGUAGES,
   PAGES_TONES,
+  bookmarkLabel,
   blockPlaceholder,
   calloutIconFor,
   safePagesCalloutIcon,
   safePagesCalloutTone,
+  safePagesColumnShare,
+  safePagesColumnWidth,
   setCalloutStyle,
   slashSession,
   splitTaskItem,
   setToggleOpen,
   toggleTaskChecked,
+  linkClickOpens,
   safePagesHref,
   safePagesImageSrc,
+  safePagesImageWidth,
   safePagesLanguage,
   safePagesTone,
   selectBlockThenAll,
   selectEnclosingBlock,
   setBlockTone,
+  setImageWidth,
   setRowsTone,
   setLink,
   setTone,
@@ -105,6 +124,7 @@ import {
   unwrapColumns,
 } from "@molis-ai/molis-work-plugin-pages";
 import { highlightRanges } from "@molis-ai/molis-work-plugin-pages/code-highlight";
+import { Fragment, Slice } from "prosemirror-model";
 import { EditorState, NodeSelection, TextSelection, type Command } from "prosemirror-state";
 import {
   renderMolisWorkWeb,
@@ -270,6 +290,31 @@ test("编辑器内核是 IIFE，不是 tsc 的 ESM", () => {
   assert.match(source, /Mod-x/);
   assert.match(source, /commitGap/);
   assert.match(source, /findHits/);
+  assert.match(source, /replaceFindHit/);
+  assert.match(source, /replaceAllFindHits/);
+  assert.match(source, /setImageWidth/);
+  assert.match(source, /pages-image-resize/);
+  assert.match(PAGES_STYLES, /pages-image-resize/);
+  assert.match(source, /setColumnWidth/);
+  assert.match(source, /moveTableEdge/);
+  assert.match(source, /moveTableEdge\("left"\), collapseEmptyColumn/);
+  assert.match(source, /toggleHeaderRow/);
+  assert.match(source, /moveTableRow/);
+  assert.match(source, /moveTableColumn/);
+  assert.match(source, /clearInlineMarks/);
+  assert.match(source, /Mod-Alt-ArrowLeft/);
+  assert.match(source, /linkClickOpens/);
+  assert.match(source, /pages-link-preview/);
+  assert.match(PAGES_STYLES, /pages-link-preview/);
+  assert.match(source, /setComment/);
+  assert.match(source, /pages-comment-preview/);
+  assert.match(PAGES_STYLES, /pages-comment-preview/);
+  assert.match(source, /nudgeColumnShare/);
+  assert.match(source, /pages-column-resize/);
+  assert.match(PAGES_STYLES, /pages-column-resize/);
+  assert.match(source, /pages-col-resize/);
+  assert.match(PAGES_STYLES, /pages-col-resize/);
+  assert.match(PAGES_STYLES, /pages-find button/);
   assert.match(source, /Mod-f/);
   assert.match(source, /insertHardBreak/);
   assert.match(PAGES_STYLES, /pages-find-hit/);
@@ -281,10 +326,11 @@ test("编辑器内核是 IIFE，不是 tsc 的 ESM", () => {
   assert.match(source, /addColumn/);
   assert.match(source, /moveColumnEdge/);
   assert.match(PAGES_STYLES, /pages-columns/);
-  assert.match(PAGES_STYLES, /pages-column \{ min-width: 0; padding-left: 48px/);
+  assert.match(PAGES_STYLES, /pages-column \{ position: relative; min-width: 0; padding-left: 48px/);
   assert.match(source, /closest\("\.pages-column"\)/);
   assert.match(source, /columnDropAnchor/);
   assert.match(source, /splitColumn/);
+  assert.match(source, /collapseEmptyColumn/);
   assert.match(PAGES_STYLES, /pages-drop-line.is-column/);
   assert.match(source, /pages-provisional/);
   assert.match(PAGES_STYLES, /pages-provisional/);
@@ -1902,6 +1948,44 @@ test("页内查找能对上原文并绕回，Shift-Enter 在段内换行", () =>
   assert.equal(newline.state.doc.child(0).attrs.language, "typescript");
 });
 
+test("查找能替换当前一处或全部，加粗留在新字上", () => {
+  const strong = pagesSchema.marks.strong.create();
+  const para = (value: string, marks: ReturnType<typeof pagesSchema.marks.strong.create>[] = []) => (
+    pagesSchema.node("paragraph", null, [pagesSchema.text(value, marks)])
+  );
+  const doc = pagesSchema.node("doc", null, [para("甲乙甲", [strong]), para("甲乙")]);
+  const one = replaceFindHit(doc, "甲", 0, "丙");
+  assert.ok(one?.text);
+  const replaced = doc.replace(one.from, one.to, new Slice(Fragment.from(one.text), 0, 0));
+  assert.equal(replaced.textContent, "丙乙甲甲乙");
+  assert.ok(replaced.child(0).firstChild?.marks.some((mark) => mark.type === pagesSchema.marks.strong));
+  assert.equal(replaceFindHit(doc, "甲", 0, "甲"), null);
+  assert.equal(replaceFindHit(doc, "   ", 0, "丙"), null);
+
+  const all = replaceAllFindHits(doc, "甲", "丙");
+  assert.equal(all?.textContent, "丙乙丙丙乙");
+  assert.ok(all?.child(0).firstChild?.marks.some((mark) => mark.type === pagesSchema.marks.strong));
+  assert.equal(replaceAllFindHits(doc, "甲", "甲"), null);
+
+  const doubled = replaceAllFindHits(para("aa"), "a", "ba");
+  assert.equal(doubled?.textContent, "baba");
+  const cleared = replaceAllFindHits(doc, "甲", "");
+  assert.equal(cleared?.textContent, "乙乙");
+
+  const folded = pagesSchema.node("doc", null, [para("AbC")]);
+  const foldedPlan = replaceFindHit(folded, "abc", 0, "甲");
+  assert.ok(foldedPlan?.text);
+  assert.equal(folded.replace(foldedPlan.from, foldedPlan.to, new Slice(Fragment.from(foldedPlan.text), 0, 0)).textContent, "甲");
+
+  const code = pagesSchema.node("doc", null, [
+    pagesSchema.node("code_block", { language: "typescript" }, [pagesSchema.text("ab")]),
+  ]);
+  const coded = replaceAllFindHits(code, "a", "甲");
+  assert.equal(coded?.textContent, "甲b");
+  assert.equal(coded?.child(0).attrs.language, "typescript");
+  assert.equal(coded?.child(0).firstChild?.marks.length, 0);
+});
+
 test("空行粘贴图片地址变成图片，普通网址仍是书签", () => {
   const empty = () => EditorState.create({
     schema: pagesSchema,
@@ -2029,6 +2113,269 @@ test("剪贴板图片能嵌进文档，脚本和超大图不会", () => {
   assert.equal(dom[1].src, undefined);
 });
 
+test("图片宽度只收像素，拉到整行就恢复满宽", () => {
+  assert.equal(safePagesImageWidth(" 480 "), 480);
+  assert.equal(safePagesImageWidth(40), 120);
+  assert.equal(safePagesImageWidth(9000), 1600);
+  assert.equal(safePagesImageWidth("12px; background:url(x)"), 0);
+  assert.equal(safePagesImageWidth(""), 0);
+
+  const png = "data:image/png;base64,iVBORw0KGgo=";
+  const image = pagesSchema.nodes.image.create({ src: png, alt: "封面" });
+  const doc = pagesSchema.node("doc", null, [image]);
+  const state = EditorState.create({ schema: pagesSchema, doc });
+  const sized = state.apply(setImageWidth(state, 0, 480)!);
+  assert.equal(sized.doc.child(0).attrs.width, 480);
+  assert.equal(sized.doc.child(0).attrs.src, png);
+  assert.equal(sized.doc.child(0).attrs.alt, "封面");
+  assert.equal(setImageWidth(sized, 0, 480), null);
+  const clamped = sized.apply(setImageWidth(sized, 0, 40)!);
+  assert.equal(clamped.doc.child(0).attrs.width, 120);
+  const full = sized.apply(setImageWidth(sized, 0, 0)!);
+  assert.equal(full.doc.child(0).attrs.width, 0);
+  assert.equal(setImageWidth(state, 2, 480), null);
+
+  const wide = pagesSchema.nodes.image.create({ src: png, alt: "封面", width: 480 });
+  const rendered = pagesSchema.nodes.image.spec.toDOM?.(wide) as [string, Record<string, string>];
+  assert.equal(rendered[1].style, "width: 480px");
+  assert.equal(rendered[1]["data-pages-width"], "480");
+  const plain = pagesSchema.nodes.image.spec.toDOM?.(image) as [string, Record<string, string>];
+  assert.equal(plain[1].style, undefined);
+  const dirtyWidth = pagesSchema.nodes.image.create({ src: png, alt: "封面", width: "12px; background:url(x)" });
+  const guarded = pagesSchema.nodes.image.spec.toDOM?.(dirtyWidth) as [string, Record<string, string>];
+  assert.equal(guarded[1].style, undefined);
+});
+
+test("表格列宽只收像素，同一列的表头和正文一起变", () => {
+  assert.equal(safePagesColumnWidth(200), 200);
+  assert.equal(safePagesColumnWidth(20), 80);
+  assert.equal(safePagesColumnWidth(9000), 640);
+  assert.equal(safePagesColumnWidth("12px; color:red"), 0);
+
+  const cell = (text: string, header = false) => pagesSchema.node(header ? "table_header" : "table_cell", null, [
+    pagesSchema.node("paragraph", null, [pagesSchema.text(text)]),
+  ]);
+  const table = pagesSchema.node("table", null, [
+    pagesSchema.node("table_row", null, [cell("甲", true), cell("乙", true)]),
+    pagesSchema.node("table_row", null, [cell("1"), cell("2")]),
+  ]);
+  const state = EditorState.create({ schema: pagesSchema, doc: pagesSchema.node("doc", null, [table]) });
+  const sized = state.apply(setColumnWidth(state, 0, 0, 200)!);
+  const next = sized.doc.child(0);
+  assert.equal(next.child(0).child(0).attrs.colwidth, 200);
+  assert.equal(next.child(1).child(0).attrs.colwidth, 200);
+  assert.equal(next.child(0).child(1).attrs.colwidth, 0);
+  assert.equal(next.child(0).child(0).textContent, "甲");
+  assert.equal(setColumnWidth(sized, 0, 0, 200), null);
+  const narrow = sized.apply(setColumnWidth(sized, 0, 0, 10)!);
+  assert.equal(narrow.doc.child(0).child(0).child(0).attrs.colwidth, 80);
+  const cleared = sized.apply(setColumnWidth(sized, 0, 0, 0)!);
+  assert.equal(cleared.doc.child(0).child(0).child(0).attrs.colwidth, 0);
+  assert.equal(setColumnWidth(state, 0, 4, 200), null);
+  assert.equal(setColumnWidth(state, 2, 0, 200), null);
+
+  const header = sized.doc.child(0).child(0).child(0);
+  const dom = pagesSchema.nodes.table_header.spec.toDOM?.(header) as [string, Record<string, string>, number];
+  assert.equal(dom[0], "th");
+  assert.equal(dom[1].style, "width: 200px");
+  assert.equal(dom[1]["data-pages-colwidth"], "200");
+  const plain = pagesSchema.nodes.table_cell.spec.toDOM?.(sized.doc.child(0).child(0).child(1)) as [string, Record<string, string>];
+  assert.equal(plain[1].style, undefined);
+  const dirty = pagesSchema.nodes.table_cell.create(
+    { colwidth: "12px; color:red" },
+    pagesSchema.nodes.paragraph.create(),
+  );
+  const guarded = pagesSchema.nodes.table_cell.spec.toDOM?.(dirty) as [string, Record<string, string>];
+  assert.equal(guarded[1].style, undefined);
+});
+
+test("表头行可以收成普通格，再点一次又变回表头", () => {
+  const strong = pagesSchema.marks.strong.create();
+  const header = (text: string, marks: ReturnType<typeof pagesSchema.marks.strong.create>[] = []) => (
+    pagesSchema.node("table_header", { colwidth: text === "甲" ? 200 : 0 }, [
+      pagesSchema.node("paragraph", null, [pagesSchema.text(text, marks)]),
+    ])
+  );
+  const cell = (text: string) => pagesSchema.node("table_cell", null, [
+    pagesSchema.node("paragraph", null, [pagesSchema.text(text)]),
+  ]);
+  const table = pagesSchema.node("table", null, [
+    pagesSchema.node("table_row", null, [header("甲", [strong]), header("乙")]),
+    pagesSchema.node("table_row", null, [cell("1"), cell("2")]),
+  ]);
+  const state = EditorState.create({ schema: pagesSchema, doc: pagesSchema.node("doc", null, [table]) });
+  const plain = state.apply(toggleHeaderRow(state, 0)!);
+  const first = plain.doc.child(0).child(0);
+  assert.equal(first.child(0).type.name, "table_cell");
+  assert.equal(first.child(1).type.name, "table_cell");
+  assert.equal(first.child(0).attrs.colwidth, 200);
+  assert.equal(first.child(0).textContent, "甲");
+  assert.ok(first.child(0).firstChild?.firstChild?.marks.some((mark) => mark.type === pagesSchema.marks.strong));
+  assert.equal(plain.doc.child(0).child(1).textContent, "12");
+  const again = plain.apply(toggleHeaderRow(plain, 0)!);
+  assert.equal(again.doc.child(0).child(0).child(0).type.name, "table_header");
+  assert.equal(again.doc.child(0).child(0).child(0).attrs.colwidth, 200);
+  assert.equal(again.doc.child(0).child(1).child(0).type.name, "table_cell");
+  const outer = pagesSchema.node("doc", null, [pagesSchema.node("paragraph", null, [pagesSchema.text("外")]), table]);
+  const outside = EditorState.create({ schema: pagesSchema, doc: outer, selection: TextSelection.create(outer, 1) });
+  assert.equal(outside.selection.$from.parent.textContent, "外");
+  assert.ok(toggleHeaderRow(outside, 99) === null);
+});
+
+test("表格里的行能上下换位，到头就停，字和列宽跟着走", () => {
+  const strong = pagesSchema.marks.strong.create();
+  const cell = (text: string, header = false, width = 0, marks: ReturnType<typeof pagesSchema.marks.strong.create>[] = []) => (
+    pagesSchema.node(header ? "table_header" : "table_cell", { colwidth: width }, [
+      pagesSchema.node("paragraph", null, [pagesSchema.text(text, marks)]),
+    ])
+  );
+  const table = pagesSchema.node("table", null, [
+    pagesSchema.node("table_row", null, [cell("甲", true, 200, [strong]), cell("乙", true)]),
+    pagesSchema.node("table_row", null, [cell("丙"), cell("丁")]),
+    pagesSchema.node("table_row", null, [cell("戊"), cell("己")]),
+  ]);
+  const doc = pagesSchema.node("doc", null, [table]);
+  let atBing = -1;
+  doc.descendants((node, position) => {
+    if (atBing < 0 && node.isText && node.text === "丙") atBing = position + 1;
+  });
+  const state = EditorState.create({ schema: pagesSchema, doc, selection: TextSelection.create(doc, atBing) });
+  assert.equal(moveTableRow(state, -1) === null, false);
+  const up = state.apply(moveTableRow(state, -1)!);
+  assert.deepEqual(up.doc.child(0).content.content.map((row) => row.textContent), ["丙丁", "甲乙", "戊己"]);
+  assert.equal(up.doc.child(0).child(1).child(0).type.name, "table_header");
+  assert.equal(up.doc.child(0).child(1).child(0).attrs.colwidth, 200);
+  assert.ok(up.doc.child(0).child(1).child(0).firstChild?.firstChild?.marks.some((mark) => mark.type === pagesSchema.marks.strong));
+  assert.equal(up.selection.$from.parent.textContent, "丙");
+  assert.ok(moveTableRow(up, -1) === null);
+  const down = up.apply(moveTableRow(up, 1)!);
+  assert.equal(down.doc.child(0).child(0).textContent, "甲乙");
+  assert.equal(down.doc.child(0).child(1).textContent, "丙丁");
+  const outside = EditorState.create({
+    schema: pagesSchema,
+    doc: pagesSchema.node("doc", null, [pagesSchema.node("paragraph", null, [pagesSchema.text("外")])]),
+  });
+  assert.equal(moveTableRow(outside, 1), null);
+});
+
+test("表格里的列能左右对调，到头就停，字和列宽跟着走", () => {
+  const strong = pagesSchema.marks.strong.create();
+  const cell = (text: string, header = false, width = 0, marks: ReturnType<typeof pagesSchema.marks.strong.create>[] = []) => (
+    pagesSchema.node(header ? "table_header" : "table_cell", { colwidth: width }, [
+      pagesSchema.node("paragraph", null, [pagesSchema.text(text, marks)]),
+    ])
+  );
+  const table = pagesSchema.node("table", null, [
+    pagesSchema.node("table_row", null, [cell("甲", true, 200, [strong]), cell("乙", true), cell("丙", true)]),
+    pagesSchema.node("table_row", null, [cell("1"), cell("2"), cell("3")]),
+  ]);
+  const doc = pagesSchema.node("doc", null, [table]);
+  let atYi = -1;
+  doc.descendants((node, position) => {
+    if (atYi < 0 && node.isText && node.text === "乙") atYi = position + 1;
+  });
+  const state = EditorState.create({ schema: pagesSchema, doc, selection: TextSelection.create(doc, atYi) });
+  const left = state.apply(moveTableColumn(state, -1)!);
+  assert.equal(left.doc.child(0).child(0).textContent, "乙甲丙");
+  assert.equal(left.doc.child(0).child(1).textContent, "213");
+  assert.equal(left.doc.child(0).child(0).child(0).type.name, "table_header");
+  assert.equal(left.doc.child(0).child(0).child(0).textContent, "乙");
+  assert.equal(left.doc.child(0).child(0).child(1).attrs.colwidth, 200);
+  assert.ok(left.doc.child(0).child(0).child(1).firstChild?.firstChild?.marks.some((mark) => mark.type === pagesSchema.marks.strong));
+  assert.equal(left.selection.$from.parent.textContent, "乙");
+  assert.ok(moveTableColumn(left, -1) === null);
+  const right = left.apply(moveTableColumn(left, 1)!);
+  assert.equal(right.doc.child(0).child(0).textContent, "甲乙丙");
+  assert.equal(right.doc.child(0).child(1).textContent, "123");
+  const outside = EditorState.create({
+    schema: pagesSchema,
+    doc: pagesSchema.node("doc", null, [pagesSchema.node("paragraph", null, [pagesSchema.text("外")])]),
+  });
+  assert.equal(moveTableColumn(outside, 1), null);
+});
+
+test("格子开头退格走到左边那格末尾，这一格的字还在", () => {
+  const cell = (text: string, header = false) => pagesSchema.node(header ? "table_header" : "table_cell", null, [
+    pagesSchema.node("paragraph", null, [pagesSchema.text(text)]),
+  ]);
+  const table = pagesSchema.node("table", null, [
+    pagesSchema.node("table_row", null, [cell("甲", true), cell("乙丙", true)]),
+  ]);
+  const doc = pagesSchema.node("doc", null, [table]);
+  let at = -1;
+  doc.descendants((node, position) => {
+    if (at < 0 && node.isText && node.text === "乙丙") at = position;
+  });
+  const state = EditorState.create({ schema: pagesSchema, doc, selection: TextSelection.create(doc, at) });
+  const moved = run(state, moveTableEdge("left"));
+  assert.equal(moved.ok, true);
+  assert.equal(moved.state.selection.$from.parent.textContent, "甲");
+  assert.equal(moved.state.selection.$from.parentOffset, 1);
+  assert.equal(moved.state.doc.child(0).textContent, "甲乙丙");
+  const middle = EditorState.create({ schema: pagesSchema, doc, selection: TextSelection.create(doc, at + 1) });
+  assert.ok(moveTableEdge("left")(middle, undefined) === false);
+  assert.ok(moveTableEdge("right")(state, undefined) === false);
+});
+
+test("方向键在表格格子边上换格，格子中间仍留在原处", () => {
+  const cell = (text: string, header = false) => pagesSchema.node(header ? "table_header" : "table_cell", null, [
+    pagesSchema.node("paragraph", null, [pagesSchema.text(text)]),
+  ]);
+  const table = pagesSchema.node("table", null, [
+    pagesSchema.node("table_row", null, [cell("甲", true), cell("乙丙", true)]),
+    pagesSchema.node("table_row", null, [cell("丁"), cell("戊")]),
+  ]);
+  const doc = pagesSchema.node("doc", null, [
+    pagesSchema.node("paragraph", null, [pagesSchema.text("上")]),
+    table,
+    pagesSchema.node("paragraph", null, [pagesSchema.text("下")]),
+  ]);
+  const at = (text: string, end: boolean, offset = end ? text.length : 0) => {
+    let pos = -1;
+    doc.descendants((node, position) => {
+      if (pos < 0 && node.isText && node.text === text) pos = position + offset;
+    });
+    assert.ok(pos > 0, text);
+    return EditorState.create({ schema: pagesSchema, doc, selection: TextSelection.create(doc, pos) });
+  };
+  const land = (state: EditorState, edge: "left" | "right" | "up" | "down") => {
+    const moved = run(state, moveTableEdge(edge));
+    assert.equal(moved.ok, true, edge);
+    return moved.state.selection.$from;
+  };
+
+  const fromYi = land(at("乙丙", false), "left");
+  assert.equal(fromYi.parent.textContent, "甲");
+  assert.equal(fromYi.parentOffset, 1);
+  const fromJia = land(at("甲", true), "right");
+  assert.equal(fromJia.parent.textContent, "乙丙");
+  assert.equal(fromJia.parentOffset, 0);
+  const above = land(at("丁", false), "up");
+  assert.equal(above.parent.textContent, "甲");
+  assert.equal(above.parentOffset, 1);
+  const below = land(at("甲", true), "down");
+  assert.equal(below.parent.textContent, "丁");
+  assert.equal(below.parentOffset, 0);
+  const wrapped = land(at("丁", false), "left");
+  assert.equal(wrapped.parent.textContent, "乙丙");
+  assert.equal(wrapped.parentOffset, 2);
+  const outUp = land(at("甲", false), "up");
+  assert.equal(outUp.parent.textContent, "上");
+  const outDown = land(at("戊", true), "down");
+  assert.equal(outDown.parent.textContent, "下");
+
+  assert.equal(tableEdgeTarget(at("乙丙", false, 1), "left"), null);
+  assert.equal(tableEdgeTarget(at("上", true), "right"), null);
+  const only = pagesSchema.node("doc", null, [table]);
+  let start = -1;
+  only.descendants((node, position) => {
+    if (start < 0 && node.isText && node.text === "甲") start = position;
+  });
+  const trapped = EditorState.create({ schema: pagesSchema, doc: only, selection: TextSelection.create(only, start) });
+  assert.equal(tableEdgeTarget(trapped, "up"), null);
+  assert.equal(run(trapped, moveTableEdge("up")).ok, false);
+});
+
 test("分栏并排两栏，可以再加一栏，取消后正文按顺序留下", () => {
   const paragraph = pagesSchema.nodes.paragraph.create();
   const columns = pagesSchema.nodes.column_list.create(null, [
@@ -2066,6 +2413,34 @@ test("分栏并排两栏，可以再加一栏，取消后正文按顺序留下",
   const dom = pagesSchema.nodes.column_list.spec.toDOM?.(filled) as [string, Record<string, string>];
   assert.equal(dom[0], "div");
   assert.equal(dom[1].class, "pages-columns");
+});
+
+test("拖两栏之间的缝，一边变宽另一边变窄，总宽不变", () => {
+  assert.equal(safePagesColumnShare(1.5), 1.5);
+  assert.equal(safePagesColumnShare(0.05), 0.2);
+  assert.equal(safePagesColumnShare(20), 8);
+  assert.equal(safePagesColumnShare("2fr; color:red"), 1);
+  assert.equal(safePagesColumnShare(""), 1);
+
+  const column = (text: string) => pagesSchema.nodes.column.create(null, [
+    pagesSchema.node("paragraph", null, [pagesSchema.text(text)]),
+  ]);
+  const laid = pagesSchema.nodes.column_list.create(null, [column("甲"), column("乙")]);
+  const state = EditorState.create({ schema: pagesSchema, doc: pagesSchema.node("doc", null, [laid]) });
+  const nudged = state.apply(nudgeColumnShare(state, 0, 0, 0.5)!);
+  assert.equal(nudged.doc.child(0).child(0).attrs.width, 1.5);
+  assert.equal(nudged.doc.child(0).child(1).attrs.width, 0.5);
+  assert.equal(nudged.doc.child(0).child(0).textContent, "甲");
+  assert.equal(nudged.doc.child(0).child(1).textContent, "乙");
+  assert.equal(nudgeColumnShare(nudged, 0, 0, 0), null);
+  const pinned = nudged.apply(nudgeColumnShare(nudged, 0, 0, 5)!);
+  assert.equal(pinned.doc.child(0).child(0).attrs.width, 1.8);
+  assert.equal(pinned.doc.child(0).child(1).attrs.width, 0.2);
+  assert.equal(nudgeColumnShare(state, 0, 1, 0.2), null);
+  assert.equal(nudgeColumnShare(state, 2, 0, 0.2), null);
+
+  const dom = pagesSchema.nodes.column_list.spec.toDOM?.(nudged.doc.child(0)) as [string, Record<string, string>];
+  assert.equal(dom[1].style, "grid-template-columns: 1.5fr 0.5fr");
 });
 
 test("方向键在栏边换栏，上下则离开整组分栏", () => {
@@ -2240,7 +2615,59 @@ test("往右拖到一栏旁边会再加一栏，对齐栏内则掉进这一栏",
     [0, 1, 2].map((index) => between.doc.child(0).child(index).textContent),
     ["甲", "丙", "乙"],
   );
-  assert.equal(previewDrop(doc, yi.pos, gap, yi.indent + 1), null);
+  const lifted = previewDrop(doc, yi.pos, gap, yi.indent + 1);
+  assert.equal(lifted?.level, 0);
+  assert.equal(lifted?.doc.child(0).childCount, 2);
+  assert.equal(lifted?.doc.child(0).child(1).textContent, "");
+  assert.equal(lifted?.doc.child(1).textContent, "乙");
+  assert.equal(lifted?.doc.child(2).textContent, "丙");
+  assert.equal(columnDropAnchor(doc, yi.pos, gap, yi.indent + 1), null);
+});
+
+test("空栏按退格会收掉这一栏，只剩两栏时分栏也拆开", () => {
+  const para = (text: string) => pagesSchema.node("paragraph", null, text ? [pagesSchema.text(text)] : []);
+  const column = (...blocks: ReturnType<typeof para>[]) => pagesSchema.nodes.column.create(null, blocks);
+  const columns = (...cols: ReturnType<typeof column>[]) => pagesSchema.nodes.column_list.create(null, cols);
+  const inEmpty = (doc: ReturnType<typeof pagesSchema.node>) => {
+    let pos = -1;
+    doc.descendants((node, position) => {
+      if (pos < 0 && node.type.name === "paragraph" && node.content.size === 0) pos = position + 1;
+    });
+    assert.ok(pos > 0);
+    return EditorState.create({ schema: pagesSchema, doc, selection: TextSelection.create(doc, pos) });
+  };
+
+  const three = pagesSchema.node("doc", null, [columns(column(para("甲")), column(para("")), column(para("丙")))]);
+  const dropped = run(inEmpty(three), collapseEmptyColumn);
+  assert.equal(dropped.ok, true);
+  assert.equal(dropped.state.doc.child(0).type.name, "column_list");
+  assert.deepEqual([0, 1].map((index) => dropped.state.doc.child(0).child(index).textContent), ["甲", "丙"]);
+  assert.equal(dropped.state.selection.$from.parent.textContent, "甲");
+  assert.equal(dropped.state.selection.$from.parentOffset, 1);
+
+  const right = pagesSchema.node("doc", null, [para("上"), columns(column(para("甲")), column(para("")))]);
+  const unwrapped = run(inEmpty(right), collapseEmptyColumn);
+  assert.equal(unwrapped.ok, true);
+  assert.deepEqual(unwrapped.state.doc.content.content.map((node) => [node.type.name, node.textContent]), [
+    ["paragraph", "上"],
+    ["paragraph", "甲"],
+  ]);
+  assert.equal(unwrapped.state.selection.$from.parent.textContent, "甲");
+  assert.equal(unwrapped.state.selection.$from.parentOffset, 1);
+
+  const left = pagesSchema.node("doc", null, [columns(column(para("")), column(para("乙")))]);
+  const kept = run(inEmpty(left), collapseEmptyColumn);
+  assert.equal(kept.ok, true);
+  assert.equal(kept.state.doc.childCount, 1);
+  assert.equal(kept.state.doc.child(0).textContent, "乙");
+  assert.equal(kept.state.selection.$from.parentOffset, 0);
+
+  const paired = pagesSchema.node("doc", null, [columns(column(para("甲"), para("")), column(para("乙")))]);
+  assert.equal(run(inEmpty(paired), collapseEmptyColumn).ok, false);
+  const busy = pagesSchema.node("doc", null, [columns(column(para("甲")), column(para("乙")))]);
+  const inJia = EditorState.create({ schema: pagesSchema, doc: busy, selection: TextSelection.create(busy, 3) });
+  assert.equal(inJia.selection.$from.parent.textContent, "甲");
+  assert.equal(run(inJia, collapseEmptyColumn).ok, false);
 });
 
 test("块命令：复制插在原块之后，删除到最后一块退化成空段落", () => {
@@ -2359,6 +2786,78 @@ test("链接命令：加链、改链、移除，脏地址等于移除", () => {
     { from: 1, to: 3, href: "" },
   );
   assert.equal(run(state, setLink(2, 2, "https://molis.ai")).ok, false);
+});
+
+test("普通点击留在链接里，按住 Command 或 Control 才打开", () => {
+  const click = { button: 0, metaKey: false, ctrlKey: false, shiftKey: false, altKey: false };
+  assert.equal(linkClickOpens(click), false);
+  assert.equal(linkClickOpens({ ...click, metaKey: true }), true);
+  assert.equal(linkClickOpens({ ...click, ctrlKey: true }), true);
+  assert.equal(linkClickOpens({ ...click, metaKey: true, shiftKey: true }), false);
+  assert.equal(linkClickOpens({ ...click, metaKey: true, altKey: true }), false);
+  assert.equal(linkClickOpens({ ...click, metaKey: true, button: 1 }), false);
+
+  const link = pagesSchema.marks.link.create({ href: "https://www.molis.ai/docs" });
+  const doc = pagesSchema.node("doc", null, [
+    pagesSchema.node("paragraph", null, [pagesSchema.text("文档", [link])]),
+  ]);
+  const inside = EditorState.create({ schema: pagesSchema, doc, selection: TextSelection.create(doc, 2) });
+  assert.deepEqual(linkAt(inside.doc, inside.selection), { from: 1, to: 3, href: "https://www.molis.ai/docs" });
+  assert.equal(bookmarkLabel("https://www.molis.ai/docs"), "molis.ai");
+});
+
+test("评论盖在选区上，光标停在里面能读到全文，留空就去掉", () => {
+  const doc = pagesSchema.node("doc", null, [
+    pagesSchema.node("paragraph", null, [pagesSchema.text("核对文档")]),
+  ]);
+  const state = EditorState.create({ schema: pagesSchema, doc, selection: TextSelection.create(doc, 1, 3) });
+  assert.equal(state.selection.$from.parent.textBetween(0, 2), "核对");
+  const noted = state.apply(state.tr);
+  const saved = run(noted, setComment(1, 3, "  明天再看  ", "c1"));
+  assert.equal(saved.ok, true);
+  assert.equal(saved.state.doc.textContent, "核对文档");
+  const mark = saved.state.doc.child(0).firstChild?.marks.find((item) => item.type === pagesSchema.marks.comment);
+  assert.equal(mark?.attrs.text, "明天再看");
+  assert.equal(mark?.attrs.id, "c1");
+  const inside = EditorState.create({
+    schema: pagesSchema,
+    doc: saved.state.doc,
+    selection: TextSelection.create(saved.state.doc, 2),
+  });
+  assert.deepEqual(commentAt(inside.doc, inside.selection), { from: 1, to: 3, text: "明天再看", id: "c1" });
+  const cleared = run(inside, setComment(1, 3, "   "));
+  assert.equal(cleared.ok, true);
+  assert.equal(cleared.state.doc.textContent, "核对文档");
+  assert.equal(cleared.state.doc.child(0).firstChild?.marks.some((item) => item.type === pagesSchema.marks.comment), false);
+  assert.equal(commentAt(cleared.state.doc, TextSelection.create(cleared.state.doc, 2)), null);
+  assert.equal(run(state, setComment(2, 2, "无")).ok, false);
+});
+
+test("清除格式去掉选区上的行内样式，旁边的字不动", () => {
+  const strong = pagesSchema.marks.strong.create();
+  const link = pagesSchema.marks.link.create({ href: "https://molis.ai" });
+  const ink = pagesSchema.marks.font_color.create({ tone: "red" });
+  const doc = pagesSchema.node("doc", null, [
+    pagesSchema.node("paragraph", null, [
+      pagesSchema.text("甲", [strong, link, ink]),
+      pagesSchema.text("乙", [strong]),
+    ]),
+  ]);
+  const state = EditorState.create({ schema: pagesSchema, doc, selection: TextSelection.create(doc, 1, 2) });
+  const cleared = run(state, clearInlineMarks);
+  assert.equal(cleared.ok, true);
+  assert.equal(cleared.state.doc.textContent, "甲乙");
+  assert.equal(cleared.state.doc.child(0).child(0)?.marks.length, 0);
+  assert.ok(cleared.state.doc.child(0).child(1)?.marks.some((mark) => mark.type === pagesSchema.marks.strong));
+  const plainDoc = pagesSchema.node("doc", null, [pagesSchema.node("paragraph", null, [pagesSchema.text("丙")])]);
+  const plain = EditorState.create({ schema: pagesSchema, doc: plainDoc, selection: TextSelection.create(plainDoc, 1, 2) });
+  assert.ok(clearInlineMarks(plain, undefined) === false);
+
+  const caret = EditorState.create({ schema: pagesSchema, doc, selection: TextSelection.create(doc, 1) });
+  const stored = caret.apply(caret.tr.addStoredMark(strong));
+  const next = run(stored, clearInlineMarks);
+  assert.equal(next.ok, true);
+  assert.equal(next.state.storedMarks?.some((mark) => mark.type === pagesSchema.marks.strong) ?? false, false);
 });
 
 test("链接只收可导航地址，脚本伪协议被丢掉", () => {

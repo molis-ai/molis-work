@@ -5,6 +5,8 @@ const BARE_DOMAIN = /^[\w-]+(\.[\w-]+)+([/?#].*)?$/u;
 const IMAGE_EXT = /\.(?:png|jpe?g|gif|webp|svg|avif)(?:$|[?#])/iu;
 const DATA_IMAGE = /^data:image\/(png|jpeg|gif|webp);base64,[a-z0-9+/]+={0,2}$/iu;
 const MAX_DATA_URL = 1_500_000;
+const MIN_IMAGE_WIDTH = 120;
+const MAX_IMAGE_WIDTH = 1600;
 
 /** An https image address, or a small png/jpeg/gif/webp data URL. Scripts and svg data stay empty. */
 export function safePagesImageSrc(value: unknown): string {
@@ -23,6 +25,13 @@ export function safePagesImageSrc(value: unknown): string {
   }
 }
 
+/** Pixel width for an image block. Zero means the picture uses the full line. */
+export function safePagesImageWidth(value: unknown): number {
+  const raw = typeof value === "number" ? value : Number(String(value ?? "").trim());
+  if (!Number.isFinite(raw) || raw <= 0) return 0;
+  return Math.max(MIN_IMAGE_WIDTH, Math.min(MAX_IMAGE_WIDTH, Math.round(raw)));
+}
+
 /** File name shown when an image has no separate caption. */
 export function imageAlt(src: string): string {
   try {
@@ -31,6 +40,12 @@ export function imageAlt(src: string): string {
   } catch {
     return src;
   }
+}
+
+/** Plain click stays in the editor. Command-click or Control-click opens the link. */
+export function linkClickOpens(event: { button: number; metaKey: boolean; ctrlKey: boolean; shiftKey: boolean; altKey: boolean }): boolean {
+  if (event.button !== 0 || event.shiftKey || event.altKey) return false;
+  return event.metaKey || event.ctrlKey;
 }
 
 /** Short label for a bookmark card: the site, or the address of a mailto link. */

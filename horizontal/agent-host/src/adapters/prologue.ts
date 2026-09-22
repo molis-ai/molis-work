@@ -102,6 +102,7 @@ export interface PrologueControlPort {
 }
 
 export interface PrologueStartInput {
+  subagents?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentFrozenSubagentRole[];
   /** Host provenance, persisted before execution; never credentials or event history. */
   provenance: { frozen: AgentRunView["frozen"]; started_at: string };
   session_id: string;
@@ -135,6 +136,7 @@ export interface PrologueRunTiming {
 }
 
 export interface PrologueRuntimePort {
+  subagents?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSubagentsCapability;
   recovery?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecoveryCapability;
   checkpoints?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentCheckpointsCapability;
   skillLibrary?: AgentSkillLibrary;
@@ -234,6 +236,7 @@ interface RunRecord {
 }
 
 export class PrologueAgentAdapter implements AgentRuntimeAdapter {
+  readonly subagents?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSubagentsCapability;
   readonly descriptor: AgentRuntimeDescriptor;
   readonly skillLibrary?: AgentSkillLibrary;
   readonly mcpLibrary?: AgentMcpLibrary;
@@ -252,6 +255,10 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
 
   constructor(options: PrologueAdapterOptions) {
     this.#runtime = options.runtime;
+    if (options.runtime.subagents) this.subagents = {
+      list: async run => { await this.read(run); return options.runtime.subagents!.list(run); },
+      cancel: async (run, id, actor) => { await this.read(run); await options.runtime.subagents!.cancel(run, id, actor); },
+    };
     if (options.runtime.recovery) this.recovery = {
       inspect: async session => { await this.#loadSession(session.session_id); return options.runtime.recovery!.inspect(session); },
       close: async (session, runId, expectedVersion) => {
@@ -298,6 +305,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     if (options.runtime.checkpoints) capabilities.checkpoint = "supported";
     if (options.runtime.compaction) capabilities.compaction = "supported";
     if (options.runtime.inlineMethods) capabilities.skills = "partial";
+    if (options.runtime.subagents) capabilities.subagents = "partial";
     if (options.runtime.sessions.restore) capabilities["session.resume"] = "partial";
     const rank = { unsupported: 0, partial: 1, supported: 2 };
     for (const key of Object.keys(options.capabilities ?? {}) as Array<keyof AgentRuntimeCapabilityMatrix>) {
@@ -381,6 +389,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     }
     // Only the Host decides whether this Run may write. A role the Host froze
     // as read-only plans; it never builds because the model asked to.
+    if (role.subagents?.length && !this.#runtime.subagents) throw new PrologueAdapterError("agent.capability_unavailable", "当前运行时未装配子代理观察和控制");
     const mode = role.execution === "read-only" ? "plan" : "build";
     if (mode === "build" && this.descriptor.capabilities["text-edit"] === "unsupported") {
       throw new PrologueAdapterError(
@@ -438,6 +447,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       },
       ...(role.compaction ? { compaction: { prompt: role.compaction.prompt.body, above_tokens: role.compaction.above_tokens } } : {}),
       task: request.task,
+      ...(role.subagents ? { subagents: structuredClone(role.subagents) } : {}),
       text_materials: textMaterials,
       skills: role.skills ?? [],
       mcp_tools: request.mcp_tools ?? [],

@@ -125,6 +125,18 @@ export function registerAgentHostCapabilities<Context>(
       return ports.agentHost(context).adapter(session.runtime_id).read(run);
     }),
 
+    registrar.register(agentHostCapabilities.listSubagents, async (context, [session, run]) => {
+      await requireRun(context, session, run);
+      const port = ports.agentHost(context).adapter(session.runtime_id).subagents;
+      if (!port) throw new AgentHostError("agent.capability_unavailable", "当前运行时未接通子代理");
+      return port.list(run);
+    }),
+    registrar.register(agentHostCapabilities.cancelSubagent, async (context, [session, run, childId, actorId]) => {
+      await requireRun(context, session, run);
+      const port = ports.agentHost(context).adapter(session.runtime_id).subagents;
+      if (!port) throw new AgentHostError("agent.capability_unavailable", "当前运行时未接通子代理");
+      await port.cancel(run, childId, actorId);
+    }),
     registrar.register(agentHostCapabilities.controlRun, async (context, [session, run, control]) => {
       await requireRun(context, session, run);
       await ports.agentHost(context).adapter(session.runtime_id).control(run, control);

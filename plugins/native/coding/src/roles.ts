@@ -36,6 +36,10 @@ export type CodingRoleId = (typeof CODING_ROLE_IDS)[number];
 
 export const codingAgentManifest: AgentManifest = {
   characters: { selection: "optional-exact-artifact", scope: "project-owner", role_ids: ["reader", "planner", "reviewer", "writer", "builder"] },
+  subagents: { parent_role_ids: ["coordinator"], roles: [
+    { role_id: "coding-reader", version: 2, name: "代码调查", execution: "read-only", host_tools: ["read-file", "search", "context-remaining"] },
+    { role_id: "coding-reviewer", version: 2, name: "独立评审", execution: "read-only", host_tools: ["read-file", "search", "context-remaining"] },
+  ] },
   mcp: true,
   compaction: { prompt_id: "coding-compaction", above_tokens: 12_000 },
   skills: codingMethods.map(({ body: _body, ...declaration }) => declaration),
@@ -65,14 +69,11 @@ export const codingAgentManifest: AgentManifest = {
     },
     {
       role_id: CODING_COORDINATOR_ROLE,
-      version: 7,
-      name: "协调者",
-      // A read-only parent that dispatches children, each into its own
-      // directory. The Host enforces that; a writable parent could not.
+      version: 8,
+      name: "只读协作",
       execution: "read-only",
-      subagent_workspaces: "required",
       prompts: ["coding-base", "coding-coordinator"],
-      host_tools: ["context-remaining", "find-tools", "list-mcp-resources", "read-mcp-resource", "ask-user", "read-file", "search"],
+      host_tools: ["context-remaining", "find-tools", "ask-user", "read-file", "search", "dispatch-subagent", "await-subagents", "steer-subagent"],
     },
     {
       role_id: CODING_WRITERS_ROLE,
@@ -115,7 +116,7 @@ export const codingAgentManifest: AgentManifest = {
     { prompt_id: "coding-writer", version: 3 },
     { prompt_id: "coding-reviewer", version: 2 },
     { prompt_id: "coding-builder", version: 4 },
-    { prompt_id: "coding-coordinator", version: 2 },
+    { prompt_id: "coding-coordinator", version: 3 },
     { prompt_id: "coding-writers", version: 2 },
   ],
 };
@@ -196,13 +197,8 @@ export const codingPrompts: readonly AgentPromptText[] = [
     ].join("\n"),
   },
   {
-    prompt_id: "coding-coordinator",
-    version: 2,
-    body: [
-      "这一轮你自己不改文件，只拆任务、派给子代理、再汇总。",
-      "每个子任务要能独立验收：说清做完之后怎么判断它做对了。",
-      "子代理的结论不等于验收通过，最终由用户判断。",
-    ].join("\n"),
+    prompt_id: "coding-coordinator", version: 3,
+    body: "你协调有明确边界的只读子任务。先根据实际任务决定可独立核对的部分，不强拆简单任务。通过 dispatch-subagent 选择宿主提供的精确子角色、显式工具和独立幂等键，指令包含任务、相关文件、必要上下文、完成条件和遇到缺失信息返回阻塞。可后台分派后用 await-subagents 收取结果；超时不是失败。用 steer-subagent 对仍运行的原任务补充要求；已结束任务需要返工时派新任务，保留旧结果。父任务负责独立核对关键结论、指出分歧和未知，不把子任务自述当事实或用户验收。父与子均不得修改文件或执行命令；需要修改时交代依据，由用户另开执行轮次。",
   },
   {
     prompt_id: "coding-writers",

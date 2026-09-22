@@ -1,6 +1,18 @@
 # Prologue SDK 构建来源
 
-当前依赖为 `prologue-sdk-0.0.0-rc.1-neutral-agent-prompt.tgz`。在原中断恢复、过程/补充要求持久化、整理用量基础上，移除 SDK Agent 循环强加的本地项目检查人格和固定 `list/search/read` 流程。任务方式仍由 App 与已选 Character 提供，工具权限与审批不变。
+当前依赖为 `prologue-sdk-0.0.0-rc.1-subagent-report-pages.tgz`。在原默认指令修正和恢复能力上，为子任务的有界摘要补上完整最终结果分页。`await-subagents` 的 `reportOffset` 读取本轮原子任务的终态结果，按原 2000 字符页长给出总长与下一页；不灌入思考、工具输出或子聊天过程，不重新执行模型。
+
+- 源仓库：https://github.com/molis-ai/prologue
+- 来源分支：`codex/molis-coding-receipts`
+- 对应源码提交：`07ad08a11e3b4a01b9fe877dedff1efba6f4833c`
+- 包名与版本：`@prologue/sdk@0.0.0-rc.1`
+- SHA-256：`fb62c2951b4d72c53e45d25390c27cdd786eb04610bca9caedd5362ef4ccd2d0`
+
+包内 500 个 dist 文件与 SDK 构建、实际安装逐字节一致。SDK build/typecheck、57 项定向通过；全量 3257 项为 3235 通过、20 跳过、两个原有 DNS 环境失败，零新增。Molis MiniMax 实际读完新子任务的 2500 字符结果（偏移 0、2000），详细证据见 Coding spec C13 与 `subagents-sdk-consumer.json`。未发布 npm 或替换正式安装版。
+
+## 上一依赖
+
+上一依赖为 `prologue-sdk-0.0.0-rc.1-neutral-agent-prompt.tgz`。在原中断恢复、过程/补充要求持久化、整理用量基础上，移除 SDK Agent 循环强加的本地项目检查人格和固定 `list/search/read` 流程。任务方式仍由 App 与已选 Character 提供，工具权限与审批不变。
 
 - 源仓库：https://github.com/molis-ai/prologue
 - 来源分支：`codex/molis-coding-receipts`

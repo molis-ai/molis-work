@@ -70,7 +70,7 @@ function mcpSources(value: unknown): AgentMcpSourceRef[] {
 function nextConfiguration(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("下一轮配置格式无效");
   const config = value as Record<string, unknown>;
-  if (!["discuss", "plan", "edit", "execute", "review"].includes(String(config.intent))) throw new Error("执行方式无效");
+  if (!["discuss", "plan", "collaborate", "edit", "execute", "review"].includes(String(config.intent))) throw new Error("执行方式无效");
   for (const key of ["provider_id", "model_id", "workspace_id"]) {
     if (typeof config[key] !== "string" || (config[key] as string).length > 1000) throw new Error("模型或工作区配置无效");
   }
@@ -409,6 +409,27 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       if (!isDeepStrictEqual(saved, fixed)) throw new Error("固定计划与当前草稿不一致，不能确认");
       return { plan: execution.sessions.confirmPlan(boardId, record.session_id, fixed) };
     }),
+    route("coding.control-subagent", async (request, api, execution) => {
+      const record = selected(request, execution), body = bodyOf(request);
+      if (!record.runtime_session_id) throw new Error("此会话没有执行记录");
+      const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
+      const run = { session_id: record.runtime_session_id, run_id: text(request.params.runId, "原执行") };
+      const children = await api!.invoke(agent.listSubagents, [session, run]);
+      const child = children.find(child => child.subagent_id === request.params.childId);
+      if (!child) throw new Error("子任务不属于这轮执行");
+      if (body.action === "stop") await api!.invoke(agent.cancelSubagent, [session, run, child.subagent_id, request.actor_id]);
+      else {
+        if (!["accepted", "needs-work"].includes(String(body.action)) || child.state !== "completed") throw new Error("只有已结束的成功执行可以评价结果，失败或中断需先核对");
+        const notes = typeof body.notes === "string" ? body.notes.trim() : "";
+        if (notes.length > 4000 || body.action === "needs-work" && !notes) throw new Error("返工需写明原因，说明最多 4000 字符");
+        const key = `subagent-verdict:${record.session_id}:${run.run_id}:${child.subagent_id}`;
+        const previous = context.services!.storage!.get(key);
+        const revision = typeof previous === "string" ? JSON.parse(previous).revision : 0;
+        if (body.expected_revision !== revision) throw new Error("评价已变化，请重新查看后提交");
+        context.services!.storage!.set(key, JSON.stringify({ revision: revision + 1, status: body.action, notes, actor: request.actor_id, at: new Date().toISOString() }));
+      }
+      return { ok: true };
+    }),
     route("coding.characters", async (request, _api, execution) => {
       const record = selected(request, execution);
       return { characters: execution.characters?.list() ?? [], selected: savedCharacter(context, record.session_id), runtime_id: record.runtime_id };
@@ -434,10 +455,20 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       try {
         const snapshot = await api!.invoke(agent.readSession, [session]);
         const runs = await Promise.all(snapshot.runs.map((run) => api!.invoke(agent.readRun, [session, run])));
+        const subagents = [];
+        for (const run of runs.filter(run => run.frozen.role_id === "coordinator")) {
+          try {
+            const children = await api!.invoke(agent.listSubagents, [session, run.ref]);
+            subagents.push({ run_id: run.ref.run_id, children: children.map(child => {
+              const saved = context.services!.storage!.get(`subagent-verdict:${record.session_id}:${run.ref.run_id}:${child.subagent_id}`);
+              return { ...child, verdict: typeof saved === "string" ? JSON.parse(saved) : null };
+            }) });
+          } catch (error) { subagents.push({ run_id: run.ref.run_id, children: [], error: error instanceof Error ? error.message : "子任务状态不可读取" }); }
+        }
         const last = runs.at(-1);
         const state = snapshot.recovery ? "reconcile-required" : last ? sessionState(last) : "idle";
         const updated = state === record.state ? record : execution.sessions.setState(boardId, record.session_id, state, record.updated_at);
-        return { session: { ...updated, checkpoint_busy: snapshot.checkpoint_busy === true, goal_title: updated.goal_id ? execution.goalTitle(updated.goal_id) ?? null : null }, runs, draft, question_drafts, materials, methods, configuration, mcp_tools, mcp_sources, character, character_title, plan, checkpoint_busy: snapshot.checkpoint_busy === true,
+        return { session: { ...updated, checkpoint_busy: snapshot.checkpoint_busy === true, goal_title: updated.goal_id ? execution.goalTitle(updated.goal_id) ?? null : null }, runs, subagents, draft, question_drafts, materials, methods, configuration, mcp_tools, mcp_sources, character, character_title, plan, checkpoint_busy: snapshot.checkpoint_busy === true,
           ...(snapshot.recovery ? { recovery_required: true, error: snapshot.recovery.reason } : {}) };
       } catch (error) {
         // Never replace a lost runtime reference with a new session: that would
@@ -529,7 +560,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
           }
           if (snapshot.recovery || snapshot.checkpoint_busy) throw new Error("请先核对中断或回退结果，再执行计划");
         }
-        const role = body.intent === "plan" ? "planner" : body.intent === "review" ? "reviewer" : body.intent === "execute" ? "builder" : body.intent === "edit" ? "writer" : body.intent === "discuss" ? "reader" : null;
+        const role = body.intent === "collaborate" ? "coordinator" : body.intent === "plan" ? "planner" : body.intent === "review" ? "reviewer" : body.intent === "execute" ? "builder" : body.intent === "edit" ? "writer" : body.intent === "discuss" ? "reader" : null;
         if (!role) throw new Error("请选择讨论、规划、修改文件、执行或评审");
         const workspaces = await api!.invoke(projectsCapabilities.listWorkspaces, []);
         const workspace = workspaces.find(entry => entry.workspace_id === body.workspace_id);

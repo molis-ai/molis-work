@@ -1,4 +1,5 @@
 import { CODING_CHARACTERS_CLIENT_FACTORY_SCRIPT } from "./characters-client.js";
+import { CODING_SUBAGENTS_CLIENT_FACTORY_SCRIPT } from "./subagents-client.js";
 import { CODING_PLANS_CLIENT_FACTORY_SCRIPT } from "./plans-client.js";
 import { codingGoalVersionLabel } from "./goal-versions.js";
 import { CODING_CHANGESET_CLIENT_FACTORY_SCRIPT } from "./changeset-client.js";
@@ -44,6 +45,12 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (!response.ok) throw new Error(result.error || '无法完成 Coding 操作');
     return result;
   };
+  const subagents = (${CODING_SUBAGENTS_CLIENT_FACTORY_SCRIPT})({q,api,current:()=>current,status,usageSummary:codingUsageSummary,refresh:()=>readCurrent(),prepareRework:async(id,runId,child,notes)=>{
+    if(current!==id)return;
+    const instruction='请针对原子任务 '+child.subagent_id+'（父执行 '+runId+'）安排新的只读返工，保留原结果和评价。原任务：'+child.task+'\\n返工原因：'+notes+'\\n请独立复核新结果；不要把运行结束当成用户验收。';
+    const value=input.value.trim()?input.value+'\\n\\n'+instruction:instruction;
+    input.value=value;rememberDraft(id,value);await saveDraft(id,value);
+  }});
   const plans = (${CODING_PLANS_CLIENT_FACTORY_SCRIPT})({q,api,current:()=>current,status,execute:async revision=>{
     if(sending || recovery || checkpointBusy || !current)throw new Error('请先完成当前操作或核对中断结果');
     const id=current; sending=true;controls();
@@ -262,6 +269,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     if(workspaceChoice.dataset.options!==workspaceKey) {workspaceChoice.replaceChildren(...result.workspaces.map(item=>{const option=document.createElement('option');option.value=item.workspace_id;option.textContent=item.canonical_path;return option;}));workspaceChoice.dataset.options=workspaceKey;workspaceChoice.value=workspaceId;}
     if(!q('[data-coding-workspace-dialog]').open) workspaceChoice.value=workspaceId;
     const roles=result.runtimes.find(runtime=>runtime.runtime_id==='prologue')?.roles || [];
+    const collaborate=q('[data-coding-intent] option[value=collaborate]');collaborate.disabled=!roles.find(role=>role.role_id==='coordinator')?.available;
     const execute=q('[data-coding-intent] option[value=execute]'); const available=roles.find(role=>role.role_id==='builder');
     execute.disabled=!available?.available; execute.textContent=available?.available ? '执行' : '执行（待接通审批）';
     const edit=q('[data-coding-intent] option[value=edit]'); const writable=roles.find(role=>role.role_id==='writer')?.available;
@@ -671,6 +679,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(fresh) { input.value=localDraft(id) ?? data.draft ?? ''; rememberDraft(id,input.value); q('[data-coding-draft-status]').textContent='草稿已恢复；模型与方式用于下一轮。'; turns.replaceChildren(); pinned=!offsets.has(id); }
       renderRuns(data.runs);
       plans.update(id,data.plan ?? null,data.runs);
+      subagents.update(id,data.subagents ?? []);
       if(checkpointBusy){statusKey='checkpoint';status('回退操作尚未结束，请查看右侧审查或核对结果。');}
       void host.showReviews?.(q('[data-coding-host-reviews]'), data.runs.map(run=>run.ref), data.session.runtime_session_id);
       const nextCheckpointKey=JSON.stringify([id,data.runs.at(-1)?.ref.run_id,data.runs.at(-1)?.ended_at,checkpointBusy]);

@@ -215,7 +215,13 @@ export interface AgentCreateSessionInput {
  * execution level: prompt bodies belong to the Plugin package, and the Host is
  * the only place allowed to decide what a Run is permitted to do.
  */
+export interface AgentFrozenSubagentRole {
+  role_id: string; version: number; name: string; execution: AgentRoleExecution;
+  prompts: AgentPromptText[]; host_tools: string[];
+}
+
 export interface AgentFrozenRole {
+  subagents?: AgentFrozenSubagentRole[];
   character?: AgentFrozenCharacter;
   role_id: string;
   version: number;
@@ -625,12 +631,19 @@ export interface AgentMcpCapability {
   }>;
 }
 
-export type AgentSubagentState = "running" | "completed" | "failed" | "cancelled";
+export type AgentSubagentState = "running" | "completed" | "failed" | "cancelled" | "reconcile-required";
 
 export interface AgentSubagentView {
+  child_run?: AgentRunRef;
+  activity?: AgentToolActivity[];
+  usage?: AgentRunUsage;
+  host_tools?: string[];
+  error?: string;
   subagent_id: string;
   parent_run: AgentRunRef;
   role_id: string;
+  /** Name frozen at dispatch, unaffected by later role edits. */
+  role_name?: string;
   task: string;
   state: AgentSubagentState;
   result: string | null;
@@ -639,7 +652,7 @@ export interface AgentSubagentView {
 
 export interface AgentSubagentsCapability {
   list(run: AgentRunRef): Promise<AgentSubagentView[]>;
-  cancel(subagentId: string, actorId: string): Promise<void>;
+  cancel(run: AgentRunRef, subagentId: string, actorId: string): Promise<void>;
 }
 
 /**
@@ -764,6 +777,12 @@ export const agentHostCapabilities = {
     [runtimeId: string, input: AgentCreateSessionInput],
     AgentSessionRef
   >,
+  listSubagents: {
+    capability_id: "agent.subagents.list.v1", version: 1, operation: "query",
+  } as HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef], AgentSubagentView[]>,
+  cancelSubagent: {
+    capability_id: "agent.subagents.cancel.v1", version: 1, operation: "command",
+  } as HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef, subagentId: string, actorId: string], void>,
   readSession: {
     capability_id: "agent.session.read.v1",
     version: 1,

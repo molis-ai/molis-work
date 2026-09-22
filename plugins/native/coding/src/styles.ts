@@ -1,6 +1,11 @@
 /** Layout only; controls, colors, and focus behavior use the shared system. */
 export const CODING_STYLES = `
 .coding-material { min-width:0; padding:12px 0; border-bottom:1px solid var(--line); overflow-wrap:anywhere; }
+[data-coding-subagents] > details { padding:8px 0; border-top:1px solid var(--line); }
+[data-coding-subagents] summary { cursor:pointer; color:var(--ink); }
+[data-coding-subagents] .coding-turn { font-size:13px; margin-top:12px; color:var(--ink); }
+[data-coding-subagents] .mw-field { display:grid; gap:4px; margin:12px 0 8px; }
+[data-coding-subagents] textarea { width:100%; resize:vertical; }
 .coding-material pre { max-height:14rem; max-width:100%; overflow:auto; white-space:pre; font-size:12px; }
 [data-coding-workbench] { container: molis-coding / inline-size; }
 .coding-directory { height:100%; min-height:0; display:flex; flex-direction:column; }

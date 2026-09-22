@@ -265,6 +265,7 @@ export class AgentHost implements AgentHostApi {
   }> {
     const capabilities = this.adapter(runtimeId).descriptor.capabilities;
     return manifest.roles.map((role) => {
+      if (role.subagent_workspaces || manifest.subagents?.parent_role_ids.includes(role.role_id) && capabilities.subagents === "unsupported") return { role_id: role.role_id, available: false, reason: "当前运行时尚未接通这个协作方式" };
       const missing = EXECUTION_CAPABILITIES[roleExecution(role)]
         .filter((capability) => capabilities[capability] === "unsupported");
       return missing.length === 0
@@ -407,6 +408,20 @@ export class AgentHost implements AgentHostApi {
       }
       compaction = { prompt: { ...prompt }, above_tokens: declaredCompaction.above_tokens };
     }
+    let subagents: import("@molis-ai/molis-work-contracts/services/agent-host").AgentFrozenSubagentRole[] | undefined;
+    const declaration = authority.manifest.subagents;
+    if (declaration?.parent_role_ids.includes(role.role_id)) {
+      if (!adapter.subagents || adapter.descriptor.capabilities.subagents === "unsupported" || role.subagent_workspaces) throw new AgentHostError("agent.capability_unavailable", "当前子代理装配只开放同根只读协作，独立写入目录尚未接通");
+      subagents = declaration.roles.filter(child => !child.parent_role_ids || child.parent_role_ids.includes(role.role_id)).map(child => {
+        const tools = child.host_tools ?? [];
+        if ((child.execution ?? "read-only") !== "read-only" || tools.some(tool => !["read-file", "search", "context-remaining"].includes(tool) || !hostTools.includes(tool))) throw new AgentHostError("agent.role_execution_exceeded", "只读子角色请求了当前父任务未开放的工具");
+        const prompt = authority.prompts?.find(prompt => prompt.prompt_id === child.role_id && prompt.version === child.version);
+        if (!prompt) throw new AgentHostError("agent.role_not_declared", "子角色缺少声明版本的正文");
+        return { role_id: child.role_id, version: child.version, name: child.name, execution: "read-only" as const, host_tools: [...tools],
+          prompts: composeRolePrompts({ ...child, prompts: [...(role.prompts ?? []).filter(id => authority.prompts?.some(p => p.prompt_id === id && p.layer === "base")), child.role_id] }, authority) };
+      });
+      if (!subagents.length) throw new AgentHostError("agent.role_not_declared", "没有可分派的子角色");
+    } else if (hostTools.some(tool => ["dispatch-subagent", "await-subagents", "steer-subagent"].includes(tool))) throw new AgentHostError("agent.role_not_declared", "没有声明子角色的执行方式不能分派子任务");
     const prompts = composeRolePrompts(role, authority, character);
     const handle = await adapter.start({
       ...request,
@@ -416,6 +431,7 @@ export class AgentHost implements AgentHostApi {
         role_id: role.role_id,
         version: role.version,
         execution,
+        ...(subagents ? { subagents } : {}),
         ...(character ? { character } : {}),
         prompts: prompts.map((prompt) => ({ ...prompt })),
         skills,

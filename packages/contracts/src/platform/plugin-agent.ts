@@ -34,6 +34,8 @@ export interface AgentRoleDeclaration {
 }
 
 export interface AgentSubagentRoleDeclaration {
+  /** Explicit child tools; omission grants none. */
+  host_tools?: string[];
   role_id: string;
   version: number;
   name: string;

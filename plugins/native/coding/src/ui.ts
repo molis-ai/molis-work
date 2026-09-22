@@ -227,7 +227,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
         <form class="coding-composer" data-coding-composer>
           <label class="coding-task-label" for="coding-task">任务或补充要求</label>
           <textarea class="mw-input" id="coding-task" data-coding-task rows="3" placeholder="描述要完成的任务…" disabled></textarea>
-          <div class="coding-composer-actions">${renderButton({label:"＋ 材料",variant:"secondary",attrs:{"data-coding-material-open":"","aria-label":"选择固定材料"}})}${renderButton({label:"角色",variant:"secondary",attrs:{"data-coding-character-open":"","aria-label":"选择角色"}})}${renderButton({label:"/ 方法",variant:"secondary",attrs:{"data-coding-method-open":"","aria-label":"选择方法"}})}${renderButton({label:"MCP",variant:"secondary",attrs:{"data-coding-mcp-open":"","aria-label":"选择 MCP 工具与资料"}})}<select class="mw-select" data-coding-intent aria-label="任务方式"><option value="discuss">讨论</option><option value="plan">规划</option><option value="edit" disabled>修改文件（待接通审批）</option><option value="execute" disabled>执行（待接通审批）</option><option value="review">评审</option></select>
+          <div class="coding-composer-actions">${renderButton({label:"＋ 材料",variant:"secondary",attrs:{"data-coding-material-open":"","aria-label":"选择固定材料"}})}${renderButton({label:"角色",variant:"secondary",attrs:{"data-coding-character-open":"","aria-label":"选择角色"}})}${renderButton({label:"/ 方法",variant:"secondary",attrs:{"data-coding-method-open":"","aria-label":"选择方法"}})}${renderButton({label:"MCP",variant:"secondary",attrs:{"data-coding-mcp-open":"","aria-label":"选择 MCP 工具与资料"}})}<select class="mw-select" data-coding-intent aria-label="任务方式"><option value="discuss">讨论</option><option value="plan">规划</option><option value="collaborate">只读协作</option><option value="edit" disabled>修改文件（待接通审批）</option><option value="execute" disabled>执行（待接通审批）</option><option value="review">评审</option></select>
           <select class="mw-select" data-coding-model aria-label="下一轮使用的模型"></select><button class="mw-btn mw-btn--primary" type="submit" data-coding-send disabled>发送</button></div>
           <small data-coding-draft-status>模型与方式的选择用于下一轮。</small>
         </form>
@@ -235,6 +235,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
       <aside class="coding-tools" data-coding-tools>
         <nav class="coding-tool-tabs" aria-label="${p.escape("结果与工具")}">${tools || '<span>结果</span>'}</nav>
         ${model.companion_result ?? ""}
+        <section class="coding-result" data-coding-subagents aria-label="子任务" hidden></section>
         <section class="coding-result" data-coding-plan aria-label="计划" hidden></section>
         <section class="coding-result" data-coding-recovery hidden aria-label="中断恢复">
           <h3>核对中断结果</h3>

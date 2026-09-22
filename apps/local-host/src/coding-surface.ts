@@ -313,6 +313,10 @@ export async function handleCodingPluginHttp(request: IncomingMessage, response:
         text: value => value, formatDate: value => value },
     }) });
   }
+  const childBody = result.body as { subagents?: Array<{ children: Array<{ result: string | null }> }> } | undefined;
+  if (childBody?.subagents) for (const group of childBody.subagents) for (const child of group.children) {
+    if (child.result) Object.assign(child, { result_html: renderFeedRichText(child.result) });
+  }
   const reportBody = result.body as { report?: { title: string; body_markdown: string; run_id: string } } | undefined;
   const changeBody = result.body as { change?: import("@molis-ai/molis-work-contracts/modules/workspace-artifacts").CodingChangeSet; reference?: { version: number }; html?: string } | undefined;
   if (result.status === 200 && changeBody?.change) {

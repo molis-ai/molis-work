@@ -354,12 +354,12 @@ Files 的正式路由经宿主逐次校验当前项目目录，读取目录与 U
 | C9 方法 / MCP | Coding 设置与输入选择 → SDK | 四个内置方法与项目安装方法接通发现/查看/安装/选择/本轮冻结；下一轮配置按会话保存。MCP 已接正式 stdio/HTTP 配置、连接、版本选择与宿主审查；短/长资料可在讨论方式选择与读取，本轮范围固定，长资料以当前轮固定快照分页 | 长资料指定路径已通过 MiniMax 实操；按需 schema 已装配但真实大目录任务未验证；模型自动选方法及质量改善仍待证明 |
 | C9 上下文整理 | 插件 `agent.compaction` → Host 冻结 → Prologue compactor | 已接独立选择 Prompt v2、12,000 估计 token 触发、原文片段、取消及活动回放；MiniMax 实际整理后继续读文件，完整历史跨重启不变 | 已接未声明工具整批拒绝后一次有界纠正；新 MiniMax 完整任务保留案例数但仍有重复读取和错误解释，真实模型尚未再触发纠正分支，不能称长任务质量验收通过。整理请求已按原回执汇入父 Run 小计；旧记录与缺失部分仍明确未知 |
 | C9 检查点 / 恢复 | 右侧文件检查点 → Host Review → SDK | 已接本会话/授权根列表、完整预览、单次批准/拒绝、指纹冲突保护、Run/回退互斥和持久回执恢复。MiniMax 实际编辑后经正式 UI 回退；终态历史与草稿重启保留 | 中断原 Run 显式核对/结束/继续、过程持久化和补充接收/应用已接；MiniMax 强杀/正常重启后正文、工具结果、问题与草稿保留，续聊正确区分已应用和未确认要求。未知操作仍阻塞，未保存尾部不能补造；不能将文件回退当命令/MCP 撤销或完整 C9 完成 |
-| C9 子代理 / 并行写入 | C13 → SDK / Host git-worktrees | 有投影和 git 工作树辅助实现；无运行时子代理路径 | 明确分工与权限、失败/停止/返工、隔离写入和整合 |
+| C9 子代理 / 并行写入 | C13 → SDK / Host git-worktrees | 只读子代理已接 SDK 并实操；并行写入仍只有投影和 git 工作树辅助实现 | 明确分工与权限、失败/停止/返工、隔离写入和整合 |
 | C9 报告 / 用量 / 阅读 | 中栏报告、执行详情 | 正式工作台已有安全 Markdown、流式回答、折叠工具活动、用量和滚动保持；报告已接终态预览/固定 Artifact/重开，MiniMax 成功、部分失败、中断三类报告已保存并验证跨重启不变；工程零新增失败 | 报告输出端口、完整成果导航；已接已知/未知/估算字段并列与缓存写入投影；整理额外请求已汇总；仍待真实缓存写入回执与长内容集中体验验收 |
 | C10 五个伴随插件 | Workspace / Files / Diff / Git / Text Stats | 已接正式工作区选择、目录/正文阅读、before/after/selection 固定 Artifact、默认输入图、快照 Diff 和固定正文统计；指定 UI 路径与重启已实操；Files 固定材料已进入 Coding 并由 MiniMax 实际读取；Git 真实状态、已暂存/未暂存固定差异及重启恢复已接通；普通文本暂存/取消暂存经宿主审查与 SDK Effect 实际执行；未知结果支持重新核对与有依据的未发生收口；Git 固定差异和结果已进入 Coding 本轮材料与报告 | Shelf/Goal 材料、Coding 差异及行级反馈、Git 内容转换及其余写操作、已发生但缺失回执的恢复、成果/变更事件刷新与独立插件入口仍待接通 |
 | C11 四层提示 | Plugin declaration → Host freeze → SDK | Host 分层存在；Node adapter 已按实际 tgz 的 SDK 类型接通 Resource 写入发布、精确引用、工具名和 Session history；独立两轮测试与正式 Coding 读取/续聊已实操；base Prompt 已去掉错误的全局只读约束；角色交接说明已修正并在新任务验证实际写入/检查状态；长会话只回复计划等质量反例仍保留 | 用实际打包 SDK 类型修正，验证模型确实收到各层；历史与下一轮分开 |
 | C12 Character | 独立 Character 插件 → Artifact → 消费插件声明 → Host freeze | 管理、精确发布、选择冻结、停用与历史报告指定路径已实操，见 §0 | 复杂任务的行为收益、减少人工负担、长内容体验与用户验收 |
-| C13 Plan → SubAgent → TaskBoard | Coding 草稿与固定 Artifact + SDK 执行事实 + 左栏投影 | Plan 形成、调整、确认、原工作区执行与历史版本指定路径已实操，见 C13 节；SubAgent/TaskBoard 未接 | 步骤级执行与验收、实际阻塞/变更回流、子任务交接与并行写入；不另建竞争任务账 |
+| C13 Plan → SubAgent → TaskBoard | Coding 草稿与固定 Artifact + SDK 执行事实 + 左栏投影 | Plan 形成、调整、确认、原工作区执行与历史版本指定路径已实操，见 C13 节；只读 SubAgent 已实操，TaskBoard 未接 | 步骤级执行与验收、实际阻塞/变更回流、子任务交接与并行写入；不另建竞争任务账 |
 | C14 Cache | 模型配置 → SDK → 用量 | 配置和 protocol 映射已走正式 Prologue；已有 MiniMax 原回执的非零缓存读取量，产品已显示；未开启/未命中对照与缓存写入尚未实操 | 配置生效、未开启/未命中/命中区分、真实调用证据 |
 | Goal / Shelf / Artifact 闭环 | 各插件端口与 Goals 事件协议 | Coding 的三个 Files 和两个 Git 输入及 Goal 固定上下文已进入模型与报告；正式会话 Goal 关联、变更后重新确认、换绑保留旧成果归属和重启已接通 | Shelf 材料、固定成果回写原 Goal、来源不可读时保留输出、从目标或成果反向继续；模型完成不替代 Goal 验收 |
 
@@ -778,7 +778,7 @@ Goal 材料成果闭环、独立 Character（C12）、Plan→SubAgent→TaskBoar
 | C10 | 复现 FlyLeaf 的另外五个插件 | **基础实现存在，产品闭环见 §0**：`workspace` / `files` / `diff` / `git` / `text-stats` 五个包，Manifest v2 端口与输入组、纯投影层、UI 贡献，全部在真平台上一起启动并能连线。跨插件的载荷契约收进 `contracts/modules/workspace-artifacts`（插件之间不许互相 import）。`workspace-plugin` 7、`files-plugin` 13、`diff-plugin` 16、`git-plugin` 18、`text-stats-plugin` 7、`workspace-plugin-graph` 5、`plugin-catalog-companions` 7 |
 | C11 | 提示分层：划清 ReAct 里属于我们的那一层 | **基础实现存在，产品闭环见 §0**：四层契约、宿主按层组合、项目层接上项目指引、只读的「这一轮的身份」面。`agent-prompt-layers` 11 项 |
 | C12 | Character 管理（角色变成用户可管的数据） | **部分实现并实操**，管理与固定消费见 §0；行为质量与体验验收未完成 |
-| C13 | Plan → SubAgent 接通 → TaskBoard | **进行中**：Plan 指定链路已实操，步骤回报、SubAgent 与 TaskBoard 待做，见 §7 |
+| C13 | Plan → SubAgent 接通 → TaskBoard | **进行中**：Plan 与只读 SubAgent 指定链路已实操，步骤回报、并行写入与 TaskBoard 待做，见 §7 |
 | C14 | Prompt Cache（开，不只是读数） | **基础实现存在，产品闭环见 §0**：供应商记录带 `prompt_cache`，落库（目录库 schema 18）、设置页、透传到 `startAgentRun`。`model-prompt-cache` 7 项 |
 | C15 | 修 protocol 名字对不上 | **已修**：`prologueProtocolFor()` 做显式翻译，断言钉在 Prologue 自己的适配器表上。`model-protocol-mapping` 5 项 |
 
@@ -1061,14 +1061,36 @@ TaskBoard/SubAgent/Plan/协同、Prompt Cache）。每条先写**今天是什么
 
 **证据边界**：这是隔离的小型跨文件任务；模型原计划条件错误，结束答复又将测试通过称为验收、误报行号，均保留为质量反例。产品没有据此验收步骤或 Goal。中文 IME、浅色本切片、主观手感和用户验收仍为 UNVERIFIED；不代表复杂仓库、长任务、C12 行为收益或整个 C13 完成。下一步仍为 SubAgent、真实步骤回报/阻塞/返工及 TaskBoard 投影。
 
+#### 子代理接通合同（2026-09-22，只读协作指定路径已实操）
+
+先接只读协作，沿用原协调者入口和 SDK `dispatch-subagent` / `await-subagents` / `steer-subagent`，不另起模型循环。Host 从插件 Manifest 冻结子角色正文与工具上限；SDK 在父开始前发布内部角色投影，在子首个模型请求前核对角色属于本轮。子任务不隐式继承父聊天、材料或权限，父任务必须明确交付任务、必要上下文、完成条件；只读子角色不开放修改、命令、MCP、再分派或用户提问工具。分派仍通过原 Host Review 审查，批准分派不批准任何文件操作。
+
+SDK 原父子关系、Session 和 Run 事件拥有任务、状态、结果及用量。Host 只投影并按精确父 Session/Run 校验列表和停止，不新建子任务状态表；未知/中断明确显示待核对，不能映射成成功或自动重跑。Coding 拥有用户对结果的「接受 / 需返工」评价与理由，评价不改变运行状态；返工通过父任务的新要求和新子执行完成，保留旧结果。
+
+当前必须先证明真实只读子任务及独立停止、拒绝、失败、跨项目拒绝、关闭重启无重放，并展示父与子用量各自的小计。并行写入的独立授权目录、修改审查、结果选择/整合及 TaskBoard 继续必做；只读协作不代替它们。原未装配的协调者/并行写入声明存在父只读与子写入不兼容，不能靠放宽 SDK 父子权限求交解决。此切片允许修改既有 Host/Contracts、Coding、对应测试和说明；不动正式安装、生产凭据或 SDK 安全边界。build、boundary、typecheck、隔离全量回归及真实 MiniMax 产品入口分别验收。
+
+**只读协作实操与限制**：在隔离运费/结算工作区、MiniMax-M3、协调者 v8 的正式 Coding 入口分派代码调查和独立评审。每次分派通过原工具审查；子角色固定为只读、仅 read/search/context-remaining，父与子用量分别展示。首个无效引用样本保留（App `bb18669e-a758-483d-960f-1e8ce18dc834`），错误 Character 引用没有成为真实子任务；随后修正内部引用的精确 ID 装配，不放宽 SDK 权限。
+
+- **原结果与返工**：App `b70d36d5-a673-4362-8aa4-5c8f4918deef` / SDK `1-2zr4n`，原 Run `5-3ko22` 的两个子任务都完成；调查者误把内容搜索无匹配当文件不存在，评审报告完整可读。评价「需返工」及理由保存在原插件存储，修订冲突被拒；按钮准备包含原任务/父子引用/理由的新任务草稿，刷新保留，明确发送才执行。新 Run `4-7uav8` / 子 `sub-g-svb7` 直接读文件，旧结果与评价未改。模型曾误用旧父子和旧角色引用，被原归属检查拒绝后才纠正；不能据此宣称低人工负担和复杂任务质量达标。
+- **完整报告**：原评审长报告超过摘要上限，父任务曾误判为子任务未完成。SDK 现沿用 `await-subagents` 增加 `reportOffset`，读取原终态报告，明确 nextReportOffset/reportComplete；默认输出标为摘要，不将分页完成解释为验收。只读原父 Run、仅一个子引用、非负安全整数偏移，每页沿用 2000 字符上限；不重跑模型。真实返工报告 2500 字符，父任务实际按 0/2000 两页读完；另一轮 5808 字符报告也读取全部页。父任务仍有行号和独立复核质量缺口，保留为反例。
+- **接受与停止**：App `6fb88aaa-9384-405a-9f4a-b7757008fee1` / SDK `h-3jv50` 的 Run `l-63yrk` 完成两个独立子任务。直接核对 shipping.mjs 后，为 `sub-r-1s8rg` 记录仅限阈值/运费结论的接受评价；这是验证操作，不是用户验收整个产品。第二个子任务在点击停止前已结束，不能计入停止验证。随后 Run `11-8b9yv` 新派 `sub-17-8xjwz`，UI 一次点击单独停止，SDK 状态 cancelled；已读四文件与中途输出保留，父任务收到停止结果并结束，没有重派、替代分析或命令/写入。原轮结果与评价继续保留。
+- **真实拒绝分派**：同一控制会话第 3 轮 `4-96dlu` 因任务只说「提议」而未调用工具，未计入拒绝证据。第 4 轮 `8-2xom7` 明确要求实际调用后进入原 Host 审查；UI 拒绝一次，唯一工具结果为 `EFFECT_NOT_AUTHORIZED`，零子任务、零文件读取或写入，父模型如实结束而未重试。再重启后的四轮完整投影与三份子结果、原评价完全一致，见 `subagents-rejection-{before,after}-restart.json`。
+- **SDK 实际消费**：源码 `07ad08a11e3b4a01b9fe877dedff1efba6f4833c` 已推送 `codex/molis-coding-receipts`；Molis 安装 `subagent-report-pages.tgz`，SHA256 `fb62c2951b4d72c53e45d25390c27cdd786eb04610bca9caedd5362ef4ccd2d0`，500 个 dist 文件与源码构建及安装目录逐字节相同。SDK build/typecheck 与 57 项定向通过；全量 3257 项，3235 通过、20 跳过、原有 2 个网络 DNS 失败，零新增。Molis 的真实 SDK 测试另覆盖报告分页、拒绝、取消、失败、未知角色与 Host 来源；正式 HTTP 覆盖父子归属、评价修订及重开持久性。
+
+**界面与恢复**：最终构建 `2026-09-22T03:36:12.859Z`，源码摘要 `122cb976b2f6e130cba9b15f75ba0619ee444edfdccaefead481c24b868a0fb5`，运行于隔离 4198。重启前后两会话完整 API 投影逐项相同（`subagents-final-{controls,rework}-{before,after}-restart.json`），四份工作区文件摘要未改。真实深色/浅色正文、展开任务/权限、评价状态已观察；实际 CSS 597 × 746 窗口中评价可输入、按钮可触达，刷新恢复未提交草稿。接受或返工后的折叠标题独立显示评价，避免仍称待核对。测试草稿已清除，恢复原深色与默认视口。中文 IME、主观手感、持续多任务滚动和用户验收仍为 UNVERIFIED。
+
+**最终工程验证**：`pnpm build`、`pnpm boundary:check`、`pnpm workspace:typecheck` 通过；18 项定向检查通过。隔离串行全量 1529 项：1467 通过、57 个既有失败、5 跳过，含父 suite 的失败名称与 Plan 基线逐项一致，零新增、零消除，不宣称全绿。测试改写的 77 张 PNG 已恢复，670 张受保护 PNG 全部逐字节复核一致。证据 `subagents-serial-final-regression.json`。此前一次与构建并发的回归因清理 dist 产生模块缺失，该次结果无效，保留记录但不计作回归通过。
+
+本切片仍不包含并行写入、工作树整合、TaskBoard 或完整 C13 验收；不能关闭 C10/C12/复杂任务与整体体验的剩余项。正式安装版钥匙串问题也未随隔离预览交付。
+
 四件事进度差得很远，必须分开说。
 
 | | 今天是什么 |
 | --- | --- |
 | **TaskBoard** | **只有一个页签常量**（`ui.ts` 里 `{ face: "taskboard", label: "TaskBoard", icon: "grid" }`）。没有数据、没有投影、没有渲染 |
-| **SubAgent** | **投影做了，Runtime 不支持**。`delegation.ts` 有 `projectSubagents`（验收 accepted / needs-work、「跑完 ≠ 验收通过」）+ 8 项测试；契约有 `AgentSubagentsCapability` 与 `subagent_workspaces: "required"`；roles 里有 coordinator / writers。**但**：`codingAgentManifest` 没声明 `subagents` 块，两个 adapter 的能力矩阵里 `subagents` 都是 `unsupported`（`emptyCapabilityMatrix()` 的默认，谁都没改），`horizontal/agent-host/` 里没有任何 subagents 端口实现 |
+| **SubAgent** | **同目录只读协作已接通**。Manifest 冻结子角色与工具上限，Node adapter 调用 SDK 原分派、等待、停止和事件投影；Coding 展示完整报告、独立用量及结果评价。CLI 不冒充支持，独立写入目录仍待接通 |
 | **Plan** | **指定链路已接通**。输入方式「规划」使用只读 planner；右栏查看/调整/确认固定计划，按原工作区执行；当前草稿与历史确认版本分开显示。步骤级回报和验收仍待接通 |
-| **协同** | 同 SubAgent：`writers.ts` 的并行写入投影 + 真实 git 工作树（`git-worktrees.ts`）都在宿主侧做好了，但**没有 Runtime 能起子代理**，所以今天跑不起来 |
+| **协同** | 只读调查/独立评审可以分派；并行写入仍待把 `writers.ts` 与 Host `git-worktrees.ts` 接入真实 SDK 工作区、授权、差异审查和整合。不能将同目录只读验证称为并行写入完成 |
 
 **要做什么，按依赖顺序。**
 

@@ -24,6 +24,7 @@ import {
   leaveCodeUp,
   linkAt,
   markdownBlock,
+  markdownWrapMark,
   moveSpan,
   outdentListItem,
   replaceEnclosingRow,
@@ -2084,6 +2085,13 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
         textblockTypeInputRule(/^##\s$/u, pagesSchema.nodes.heading, { level: 2 }),
         textblockTypeInputRule(/^###\s$/u, pagesSchema.nodes.heading, { level: 3 }),
         new InputRule(/^(?:---|___|\*\*\*|```[A-Za-z0-9_+#-]*|>\s)$/u, (state, _match, start) => markdownBlock(state, start)),
+        new InputRule(/\*\*([^*]+)\*\*$/u, (state, _match, start, end) => markdownWrapMark(state, start, end, "**", "**", "strong")),
+        new InputRule(/(?:^|[^*])\*([^*]+)\*$/u, (state, match, start, end) => {
+          const lead = match[0].startsWith("*") ? 0 : 1;
+          return markdownWrapMark(state, start + lead, end, "*", "*", "em");
+        }),
+        new InputRule(/~~([^~]+)~~$/u, (state, _match, start, end) => markdownWrapMark(state, start, end, "~~", "~~", "strike")),
+        new InputRule(/`([^`]+)`$/u, (state, _match, start, end) => markdownWrapMark(state, start, end, "`", "`", "code")),
         new InputRule(/^\[\]\s$/u, (state, _match, start) => {
           const $start = state.doc.resolve(start);
           if ($start.parent.type !== pagesSchema.nodes.paragraph) return null;

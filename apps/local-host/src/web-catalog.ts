@@ -22,7 +22,7 @@ import { SHELF_SETTINGS_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-s
 import { CODING_SETTINGS_UI_CONTRIBUTION_ID, codingAgentManifest } from "@molis-ai/molis-work-plugin-coding";
 import type { AgentRuntimeDescriptor } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { FUNCTIONS_SETTINGS_UI_CONTRIBUTION_ID, createFunctionsService, openFunctionsStore } from "@molis-ai/molis-work-plugin-functions";
-import { createFileSecretStore } from "@molis-ai/molis-work-storage";
+import { createLazyFileSecretStore } from "@molis-ai/molis-work-storage";
 import { openShelfStore } from "@molis-ai/molis-work-module-shelf";
 import { handleLocalRuntimeSettingsHttp, serviceProcessId } from "./web-runtime-settings.js";
 import { handleLocalMcpSettingsHttp } from "./web-mcp-settings.js";
@@ -250,7 +250,7 @@ function renderCatalogPluginSettings(contributionId: string, homeDirectory: stri
     try {
       const service = createFunctionsService({
         store,
-        secrets: createFileSecretStore(),
+        secrets: createLazyFileSecretStore(homeDirectory),
         env: process.env,
       });
       return renderPluginSettingsContribution(contributionId, {

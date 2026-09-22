@@ -29,6 +29,6 @@ export {
   PROJECT_DATABASE_FILENAME,
 } from "./adapters/local-security-paths.js";
 
-export { type SecretStore, type SecretStoreBackendKind, type SecretStoreBackendInfo, type SecretStoreMigrationResult, KeychainUnavailableError, holdSecretsLockForTest, isLegacyEnvelope, sealLegacyForTest, assertNotReversibleBase64Only, safeEqualString, createFileSecretStore, resetSecretStoreCache, peekSealedEntry, readSecretsFileMeta } from "./adapters/file-secret-store.js";
+export { type SecretStore, type SecretStoreBackendKind, type SecretStoreBackendInfo, type SecretStoreMigrationResult, KeychainUnavailableError, holdSecretsLockForTest, isLegacyEnvelope, sealLegacyForTest, assertNotReversibleBase64Only, safeEqualString, createFileSecretStore, createLazyFileSecretStore, resetSecretStoreCache, peekSealedEntry, readSecretsFileMeta } from "./adapters/file-secret-store.js";
 
 export * from "./adapters/search-storage.js";

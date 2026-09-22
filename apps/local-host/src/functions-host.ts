@@ -1,4 +1,4 @@
-import { createFileSecretStore } from "@molis-ai/molis-work-storage";
+import { createLazyFileSecretStore } from "@molis-ai/molis-work-storage";
 import {
   FEED_CAPTURE_SCENE_ID,
   HOME_DOCK_SCENE_ID,
@@ -54,7 +54,7 @@ export function withFunctionsService<T>(
   try {
     return run(createFunctionsService({
       store,
-      secrets: options.secrets ?? createFileSecretStore(),
+      secrets: options.secrets ?? createLazyFileSecretStore(homeDirectory),
       env: options.env ?? process.env,
       provider: options.provider ?? createHttpTypeSafeProvider(),
       allowed_behavior_ids: options.allowed_behavior_ids ?? liveHostAllowedBehaviorIds(),
@@ -73,7 +73,7 @@ export async function withFunctionsServiceAsync<T>(
   try {
     return await run(createFunctionsService({
       store,
-      secrets: options.secrets ?? createFileSecretStore(),
+      secrets: options.secrets ?? createLazyFileSecretStore(homeDirectory),
       env: options.env ?? process.env,
       provider: options.provider ?? createHttpTypeSafeProvider(),
       allowed_behavior_ids: options.allowed_behavior_ids ?? liveHostAllowedBehaviorIds(),

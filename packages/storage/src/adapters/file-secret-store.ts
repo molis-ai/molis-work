@@ -618,6 +618,26 @@ function buildStore(master: ResolvedMaster): SecretStore {
   };
 }
 
+/**
+ * Bind the Home now, but unlock credentials only when an operation needs them.
+ * Listing local configuration must not request Keychain access merely because
+ * its service also supports authenticated operations.
+ */
+export function createLazyFileSecretStore(homeDirectory = resolveMolisWorkHome()): SecretStore {
+  const home = path.resolve(homeDirectory);
+  const open = () => runWithMolisWorkHome(home, createFileSecretStore);
+  return {
+    put: (ref, value) => open().put(ref, value),
+    get: (ref) => runWithMolisWorkHome(home, () =>
+      peekSealedEntry(ref) === null ? null : createFileSecretStore().get(ref)),
+    delete: (ref) => open().delete(ref),
+    createIfAbsent: (ref, value) => open().createIfAbsent(ref, value),
+    deleteIfPresent: (ref) => open().deleteIfPresent(ref),
+    backend: () => open().backend(),
+    migrateIfNeeded: () => open().migrateIfNeeded(),
+  };
+}
+
 export function createFileSecretStore(): SecretStore {
   const key = cacheKey();
   const hit = storeCache.get(key);

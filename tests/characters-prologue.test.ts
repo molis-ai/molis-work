@@ -51,6 +51,7 @@ test("packed SDK consumes the Host-frozen Character instructions and narrowed to
     assert.equal(view.phase, "completed", view.stop_reason); assert.equal(requests.length, 1);
     const system = JSON.stringify(requests[0].system);
     assert.ok(system.includes(expected.instructions), system); assert.ok(!system.includes("LATER_UNPUBLISHED_EDIT"));
+    assert.ok(!/\b(list|search)\b/.test(system), "SDK must not prescribe tools outside this frozen read-only scope");
     assert.ok(system.indexOf("BASE_MARKER") < system.indexOf("ROLE_MARKER"));
     assert.ok(system.indexOf("ROLE_MARKER") < system.indexOf(expected.instructions));
     assert.ok(system.indexOf(expected.instructions) < system.indexOf("PROJECT_MARKER"));

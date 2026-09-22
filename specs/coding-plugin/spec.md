@@ -43,6 +43,10 @@
 
 正式界面新建并发布「长角色 · 20000 字符送达验证」v1，在新会话 `14c4c821-1403-4412-ad3e-df3871385728` 中选择，MiniMax-M3 的 `3-65joe`（SDK Session `1-1reot`）执行完成，回答含只放在角色末尾的「长角色末尾已读。」。冻结正文 20,000 字符，输入 5185 / 输出 79 / 缓存读取 128；没有工具调用和文件变化。构建 `2026-09-22T01:46:15.712Z`，证据 `characters-long-instructions-product.json`。该样本使用重复参考文本专门检查长度边界，不作为复杂真实任务或减少人工负担的证据；模型答复仍泛述先列目录，C12 行为质量继续保留。另查到当前实际安装的 SDK 在 Agent 每轮前缀中无条件加入 `You inspect a local project with list, search, and read`，即使调用方未开放 list。这是下一步需要独立修正并用同条件任务复测的指令冲突候选；尚不能据此断定它是原 ls 行为的唯一原因。工程 build、boundary:check、workspace:typecheck 与两项真实 SDK 定向测试通过；全量 1522 项：1460 通过、57 个既有失败、5 跳过，含父 suite 的 58 个失败名称与原基线完全相同，零新增、零消除。77 张测试 PNG 已恢复运行前字节，670 张受保护 PNG 全部核对一致；证据 `characters-long-instructions-regression.json`。当前构建源码摘要复算为 `f1fd5455c926e892e07aba5ef92dda3278b03a18655bc04b2ebf25b57314a941`。本块不代表完整 C12、C13、Coding Goal 或用户验收完成。
 
+**SDK 默认流程修正（2026-09-22，接线已实操，行为收益未证实）**：SDK 原循环即使在无工具或未开放 list 的情况下也无条件要求检查本地项目并使用 `list/search/read`。已移除该隐形人格，沿用原 App/Character/项目指令与实际工具规格；没有新增 Prompt 注册表或弱化权限/审批。Prologue 源码提交 `52c49cf5095e67cd62f4db9e9c1d515afa68ddd8`，Molis 实际消费 `neutral-agent-prompt.tgz`，500 个构建文件与 tarball、安装目录一致。SDK 构建/类型与 61 项定向通过，全量 3256 项：3234 通过、20 跳过、原有两个 DNS 失败，无新增。
+
+正式会话 `96cb3821-af44-420b-a78c-b7088f40cf70` / SDK `1-5j4s6`、Run `3-341ad` 使用原 v3 的完全相同冻结配置和任务。仍先 `ls -la`、再读取 README/实现/测试、运行测试，仍需两次审批，零文件变化；输入 3236 / 输出 907 / 缓存读取 7986，其他用量未知。结论区分了未做的其他检查，但将实际第 6 行 return 写成第 5 行。**移除默认流程没有证明减少人工介入，也不能解释原反例为唯一根因。** 证据 `characters-neutral-prompt-product.json`；旧样本保持。构建 `2026-09-22T02:00:00.260Z`，Molis build、boundary:check、workspace:typecheck 通过；全量 1522 项为 1460 通过、57 个既有失败、5 跳过，58 个失败名称（含父 suite）与原基线一致，零新增。77 张测试 PNG 恢复运行前字节，670 张受保护 PNG 全部核对一致。五个角色验证会话重启前后的完整投影相同，旧样本也与原记录一致；证据 `characters-neutral-prompt-{regression,before-restart,after-restart}.json`。本块保留 C12 复杂任务质量、C13、C10、正式钥匙串交付与整体体验/用户验收的全部未完成范围。
+
 流程是「个人角色库编辑 → 查看本次内容并发布到当前项目 → Coding 选择已发布的精确版本 → 开跑时冻结 → 报告保留原引用」。个人库跨项目复用，项目内的 Artifact 保留各自明确发布的版本；不把项目 Artifact 改成跨项目任意可读，也不复制执行记录。
 
 - **当前必须**：Character Module 拥有个人草稿、修改修订、启用/停用/删除墓碑和并发检查；独立 Character 插件拥有编辑、发布与选择入口。Artifact Module 继续拥有发布内容、版本、来源与可用性，不另建已发布正文库。发布捕获已确认草稿，并通过原 Artifact 客户端写入；同一草稿重复发布复用原引用。未发布内容不进入模型。草稿修订和 Artifact 发布版本分开显示、不可混称。
@@ -154,8 +158,8 @@
 - FlyLeaf：`a0267d39d5860575efd0ab080fb0f6887234759b`，初始 `main` 干净，始终只读。
 - Prologue：`3077386c5b7bb86637dfd72b3405d3c629a5a066`，初始 `main` 干净。
   初始依赖 `vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1.tgz` 没有来源提交记录，不能视为该 checkout 同一构建。
-  当前依赖 `prologue-sdk-0.0.0-rc.1-compaction-usage.tgz`：对应 Prologue 分支 `codex/molis-coding-receipts` 的源码提交 `a8ac8e1eb7362a2189973cbe7aaa4f4624649ee0`，包含中断核对、过程持久化、补充要求及整理用量改动。SHA256 `a6dcf44718152403d5194fde7df0af0cad34b8d280e9a455bb744b0b3d147322`；包内 500 个构建文件与 SDK dist 及 Molis 实际安装目录逐字节一致（`c10-sdk-consumer.json`），声明、inventory 与锁文件配套，未发布 npm 包。旧包保留用于回溯。
-- 当前本机验证入口：4198，Coding 1.18.0 / Shelf 1.2.0 构建 `2026-09-21T22:01:11.736Z`，源码摘要 `e2732d9592a74c313288125a442c5e826bf95ab66cafd99c2c87a83bc2d755be`。当前范围和验证见上方“Shelf → Coding 固定材料端口”；下文历史切片不能当作新版本验收。
+  当前依赖 `prologue-sdk-0.0.0-rc.1-neutral-agent-prompt.tgz`：对应 Prologue 分支 `codex/molis-coding-receipts` 的源码提交 `52c49cf5095e67cd62f4db9e9c1d515afa68ddd8`，保留中断核对、过程持久化、补充要求和整理用量，并移除循环默认的文件检查人格。SHA256 `cd2bf974c609fe5277313e876857a61b2b03cc79ee5be6b12a37a5f3cb1b6000`；500 个构建文件与 SDK dist 及实际安装一致（`characters-neutral-prompt-sdk-consumer.json`），声明、inventory 与锁文件配套，未发布 npm 包。旧包保留用于回溯。
+- 当前本机验证入口：4198，Coding 1.22.0 / Characters 1.0.0，构建 `2026-09-22T02:00:00.260Z`，源码摘要 `6a9989e132c94424bf71d6ddc4c10ac2950fbf452ce0db51a7d8a51e18fd032f`。当前范围和验证见上方 C12；下文历史切片不能当作新版本验收。
 - 模型验证使用 appkey `minimax` 注入 `MINIMAX_API_KEY`，国内 Anthropic 兼容端点，默认 `MiniMax-M3`。
   凭据不写项目文件。实操使用独立产品 Home 与有代表性的授权测试仓库，避免改用户正在使用的数据。
 - 本轮最初不含提交或推送；2026-09-20 用户追加授权，将已完成部分拆分提交并推送到上述两条功能分支，不合并主分支、不对外发布产品，也不重写壳层或另建执行核。回滚单位是功能块的明确文件差异；

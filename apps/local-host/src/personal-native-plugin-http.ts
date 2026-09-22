@@ -1,3 +1,4 @@
+import { handleExperimentsNativePluginHttp } from "./experiments-native-plugin-http.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { DatasetRoutePorts } from "@molis-ai/molis-work-plugin-dataset";
 import type { FormRoutePorts } from "@molis-ai/molis-work-plugin-form";
@@ -31,6 +32,7 @@ export async function handlePersonalNativePluginHttp(
   const routed = withRewrittenPluginApi(url);
   const completeText = ports.completeText ?? hostCompleteText();
   for (const handle of [
+    () => handleExperimentsNativePluginHttp(request, response, routed, homeDirectory),
     () => handleShelfNativePluginHttp(request, response, routed, homeDirectory),
     () => handleFunctionsNativePluginHttp(request, response, routed, homeDirectory),
     () => handlePagesNativePluginHttp(request, response, routed, homeDirectory, {

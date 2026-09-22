@@ -67,6 +67,10 @@ export function readAnswer(
   const answers = isRecord(payload.answers) ? payload.answers[record.function_key] : undefined;
   const answer = isRecord(answers) ? answers : {};
   const model = typeof payload.model === "string" ? payload.model : "";
+  const usage = isRecord(payload.usage) ? { usage: {
+    input_tokens: typeof payload.usage.input_tokens === "number" ? payload.usage.input_tokens : null,
+    output_tokens: typeof payload.usage.output_tokens === "number" ? payload.usage.output_tokens : null,
+  } } : {};
   const probabilities = isRecord(answer.probabilities)
     ? Object.fromEntries(Object.entries(answer.probabilities).filter((entry): entry is [string, number] => typeof entry[1] === "number"))
     : {};
@@ -75,6 +79,7 @@ export function readAnswer(
       throw new FunctionsError("functions.provider_failed", "TypeSafe 没有返回成立概率");
     }
     return {
+      ...usage,
       primitive: "noul",
       choice: null,
       noul: answer.noul,
@@ -93,6 +98,7 @@ export function readAnswer(
       ? record.criteria as readonly string[]
       : [];
     return {
+      ...usage,
       primitive: "score",
       choice: null,
       noul: null,
@@ -105,6 +111,7 @@ export function readAnswer(
   }
   const choice = typeof answer.choice === "string" && answer.choice ? answer.choice : null;
   return {
+    ...usage,
     primitive: "choice",
     choice,
     noul: null,

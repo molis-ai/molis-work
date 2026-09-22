@@ -44,9 +44,14 @@ jobs:
   verify:
     name: Verify
     needs: architecture-boundaries
+    if: ${{ always() }}
     # Keep this job name while `Verify` is required by main branch protection.
     # The full legacy product suite remains paused; package boundaries are active.
     runs-on: ubuntu-latest
     steps:
       - name: Required package gate passed
-        run: echo "Package boundary, Contract, typecheck, and build verification passed."
+        env:
+          PACKAGE_BOUNDARIES_RESULT: ${{ needs.architecture-boundaries.result }}
+        run: |
+          test "$PACKAGE_BOUNDARIES_RESULT" = "success"
+          echo "Package boundary, Contract, typecheck, and build verification passed."

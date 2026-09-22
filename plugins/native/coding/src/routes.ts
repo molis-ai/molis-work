@@ -1,5 +1,6 @@
 import { parseFilePath } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { codingWriterAssignments } from "./writers.js";
+import { codingTaskBoardPlans } from "./taskboard.js";
 import { isDeepStrictEqual } from "node:util";
 import { materialChoices, materialSelection, resolveMaterials, savedMaterials } from "./materials.js";
 import type { PluginRouteBinding, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -484,7 +485,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         const last = runs.at(-1);
         const state = snapshot.recovery ? "reconcile-required" : last ? sessionState(last) : "idle";
         const updated = state === record.state ? record : execution.sessions.setState(boardId, record.session_id, state, record.updated_at);
-        return { session: { ...updated, checkpoint_busy: snapshot.checkpoint_busy === true, goal_title: updated.goal_id ? execution.goalTitle(updated.goal_id) ?? null : null }, runs, subagents, draft, question_drafts, materials, methods, configuration, mcp_tools, mcp_sources, character, character_title, plan, checkpoint_busy: snapshot.checkpoint_busy === true,
+        return { session: { ...updated, checkpoint_busy: snapshot.checkpoint_busy === true, goal_title: updated.goal_id ? execution.goalTitle(updated.goal_id) ?? null : null }, runs, subagents, taskboard_plans: codingTaskBoardPlans(context, record.session_id, runs), draft, question_drafts, materials, methods, configuration, mcp_tools, mcp_sources, character, character_title, plan, checkpoint_busy: snapshot.checkpoint_busy === true,
           ...(snapshot.recovery ? { recovery_required: true, error: snapshot.recovery.reason } : {}) };
       } catch (error) {
         // Never replace a lost runtime reference with a new session: that would

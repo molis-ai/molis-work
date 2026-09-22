@@ -35,6 +35,7 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
       if (definition.capability_id === agent.availableRoles.capability_id) return ["planner", "builder", "reader", "writers"].map(role_id => ({ role_id, available: true })) as Output;
       if (definition.capability_id === agent.readSession.capability_id) return { runs: input[0].session_id === "sdk-app" ? runs.map(run => run.ref) : [] } as Output;
       if (definition.capability_id === agent.readRun.capability_id) return structuredClone(runs.find(run => run.ref.run_id === input[1].run_id)) as Output;
+      if (definition.capability_id === agent.listSubagents.capability_id) return [{subagent_id:"child",role_id:"writer",role_name:"运费子任务",state:"completed",task:"补边界测试",result:"写入已返回，尚未检查",workspace_path:home+"-other"}] as Output;
       if (definition.capability_id === agent.startRun.capability_id) {
         starts.push(structuredClone(input[1]));const run=makeRun(`execute-${starts.length}`,input[1].role_id,"已收到");
         run.frozen.text_materials=input[1].text_materials.map((material: any)=>({material_id:material.material_id,title:material.title,source_artifact_id:material.source_artifact_id,source_version:material.source_version}));runs.push(run);
@@ -91,6 +92,28 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
     assert.deepEqual((await request("/plan?revision=1")).body.plan, fixed, "fixed execution plan remains readable after edits");
     assert.equal((await request("/plan?revision=1", "GET", undefined, "other")).status, 400);
     assert.equal((await request("/plan?revision=2")).status, 400, "unconfirmed revisions are not fixed plans");
+    const board = (await request()).body;
+    assert.equal(board.taskboard_plans.length, 2);
+    assert.deepEqual(board.taskboard_plans[0].plan, fixed, "TaskBoard resolves the original confirmed plan instead of the new draft");
+    assert.equal(board.taskboard_plans[1].plan.revision, 3);
+    assert.equal(board.taskboard_plans[1].run_id, runs.at(-1)!.ref.run_id);
+    assert.equal((await request("/plan", "POST", {expected_revision:3,content:{...adjusted,blockers:"等待产品确认"}})).status, 200);
+    const childRun=runs.at(-1)!;childRun.phase="failed";
+    assert.equal((await request("/runs/"+childRun.ref.run_id+"/subagents/child", "POST", {action:"needs-work",notes:"需要补充负数用例",expected_revision:0})).status,200);
+    const changed=(await request()).body;
+    assert.equal(changed.plan.revision,4);assert.equal(changed.plan.content.blockers,"等待产品确认");
+    assert.deepEqual(changed.taskboard_plans,board.taskboard_plans,"a blocked next draft and failed parent never rewrite the executed plans");
+    assert.equal(changed.runs.at(-1).phase,"failed");
+    assert.equal(changed.subagents.at(-1).children[0].verdict.status,"needs-work");
+    assert.equal(changed.subagents.at(-1).children[0].state,"completed","user rework is distinct from original execution state");
+    await releaseCodingSurface(store, DEMO_BOARD_ID);store.close();store = new LocalProjectDatabase(dbPath);
+    const reopened=(await request()).body;
+    assert.deepEqual(reopened.taskboard_plans,changed.taskboard_plans);assert.deepEqual(reopened.subagents,changed.subagents);
+    const unreadable=makeRun("lost-plan","builder");unreadable.frozen.text_materials=[{material_id:"lost",title:"lost",source_artifact_id:"coding-plan:app:999",source_version:1},{material_id:"foreign",title:"foreign",source_artifact_id:"coding-plan:other:1",source_version:1}];runs.push(unreadable);
+    const lost=(await request()).body.taskboard_plans.at(-1);
+    assert.equal(lost.run_id,"lost-plan");assert.equal(lost.revision,999);assert.equal(lost.plan,null);assert.match(lost.error,/不能替代/);
+    assert.equal((await request()).body.taskboard_plans.length,3,"foreign plan references do not expose another session's plan");
+    assert.equal((await request("", "GET", undefined, "other")).body.taskboard_plans.length,0);
     assert.equal(starts[0].text_materials![0].source_artifact_id, fixed.confirmed.artifact_id);
     assert.notEqual(starts[1].text_materials![0].source_artifact_id, fixed.confirmed.artifact_id);
     assert.equal((await start({plan_revision:undefined,intent:"discuss"})).status, 200, "ordinary direct work does not require planning");

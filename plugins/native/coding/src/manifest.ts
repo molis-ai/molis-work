@@ -37,7 +37,7 @@ export const codingManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: CODING_PLUGIN_ID,
-  version: "1.28.0",
+  version: "1.29.0",
   name: "Coding",
   kind: "app",
   publisher: { publisher_id: "molis", signature: "official-coding-binding" },

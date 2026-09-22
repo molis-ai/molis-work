@@ -1,4 +1,5 @@
 import { CODING_WRITER_INTEGRATION_CLIENT_FACTORY_SCRIPT } from "./writer-integration-client.js";
+import { CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT } from "./taskboard-client.js";
 import { CODING_CHARACTERS_CLIENT_FACTORY_SCRIPT } from "./characters-client.js";
 import { CODING_SUBAGENTS_CLIENT_FACTORY_SCRIPT } from "./subagents-client.js";
 import { CODING_PLANS_CLIENT_FACTORY_SCRIPT } from "./plans-client.js";
@@ -48,6 +49,18 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     return result;
   };
   const integrations = (${CODING_WRITER_INTEGRATION_CLIENT_FACTORY_SCRIPT})({q,api,host,status});
+  const taskboard = (${CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT})({directory,current:()=>current,status,navigate:async(id,target)=>{
+    const record=state.sessions.find(item=>item.session_id===id);if(!record)throw new Error('原会话暂不可读，请刷新后重试。');
+    host.openItem('coding',id,record.title);await openCodingItem(id);if(current!==id)return;
+    host.revealTask?.();
+    if(target.kind==='session')return;
+    if(target.kind==='fixed-plan'){await plans.openFixed(target.revision);return;}
+    const node=target.kind==='plan'?q('[data-coding-plan]'):target.kind==='recovery'?q('[data-coding-recovery]'):target.kind==='reviews'?q('[data-coding-host-reviews]'):
+      target.kind==='child'?[...q('[data-coding-subagents]').querySelectorAll('details[data-child]')].find(node=>node.dataset.child===target.child_id):[...turns.children].find(node=>node.dataset.run===target.run_id);
+    if(!node || node.hidden)throw new Error('原内容暂不可读，请等待任务刷新后重试。');
+    if(target.kind==='child')node.open=true;
+    node.scrollIntoView({block:'nearest'});node.tabIndex=-1;node.focus({preventScroll:true});
+  }});
   const subagents = (${CODING_SUBAGENTS_CLIENT_FACTORY_SCRIPT})({q,api,current:()=>current,status,openIntegration:integrations.open,usageSummary:codingUsageSummary,refresh:()=>readCurrent(),prepareRework:async(id,runId,child,notes)=>{
     if(current!==id)return;
     const instruction='请针对原子任务 '+child.subagent_id+'（父执行 '+runId+'）准备返工，保留原结果和评价。原目录：'+child.workspace_path+'。需要写入时请先明确选择该独立工作树与并行写入方式。原任务：'+child.task+'\\n返工原因：'+notes+'\\n请独立复核新结果；不要把运行结束当成用户验收。';
@@ -289,7 +302,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     execute.disabled=!available?.available; execute.textContent=available?.available ? '执行' : '执行（待接通审批）';
     const edit=q('[data-coding-intent] option[value=edit]'); const writable=roles.find(role=>role.role_id==='writer')?.available;
     edit.disabled=!writable; edit.textContent=writable ? '修改文件' : '修改文件（待接通审批）';
-    applyConfiguration();renderDirectory(); controls();
+    applyConfiguration();renderDirectory();taskboard.sessions(state.sessions); controls();
   };
   const renderMcp = () => {
     const list=q('[data-coding-mcp-list]');list.replaceChildren();const catalog=(state.mcp || []).flatMap(server=>server.tools.map(tool=>({...tool,label:server.label,available:server.enabled && server.health==='connected'})));
@@ -695,6 +708,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       renderRuns(data.runs);
       plans.update(id,data.plan ?? null,data.runs);
       subagents.update(id,data.subagents ?? []);
+      taskboard.update(id,data);
       if(checkpointBusy){statusKey='checkpoint';status('回退操作尚未结束，请查看右侧审查或核对结果。');}
       void host.showReviews?.(q('[data-coding-host-reviews]'), [...data.runs.map(run=>run.ref), ...(data.subagents || []).flatMap(group=>(group.children || []).flatMap(child=>child.child_run ? [child.child_run] : []))], data.session.runtime_session_id);
       const nextCheckpointKey=JSON.stringify([id,data.runs.at(-1)?.ref.run_id,data.runs.at(-1)?.ended_at,checkpointBusy]);
@@ -702,7 +716,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(data.error) status(data.error,true);
       if(fresh && offsets.has(id)) { turns.scrollTop=offsets.get(id); pinned=atBottom(position()); }
       renderDirectory(); controls();
-    } catch(error) { if(current===id && ticket===generation) status(error.message,true); }
+    } catch(error) { if(current===id && ticket===generation){status(error.message,true);taskboard.fail(id,error.message);} }
     finally { if(ticket===generation) loading=false; }
   };
   const select = async(id) => {
@@ -714,6 +728,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     void host.showReviews?.(q('[data-coding-host-reviews]'), []);
     recoveryLoading=false;recoveryBusy=false;recoveryKey='';q('[data-coding-recovery-list]').replaceChildren();q('[data-coding-recovery]').hidden=true;
     current=id; generation++; loading=false; lastRun=null; recovery=false;checkpointBusy=false;checkpointLoading=false;checkpointKey='';statusKey='';
+    taskboard.loading(id);
     q('[data-coding-checkpoints-list]').replaceChildren();q('[data-coding-checkpoints-status]').textContent='正在读取检查点…';
     q('[data-coding-commands]').replaceChildren();q('[data-coding-commands]').hidden=true;
     input.disabled=true; selectionTask=readCurrent(true);await selectionTask;
@@ -791,12 +806,14 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(target.matches('[data-coding-filter]')) { directory.querySelectorAll('[data-coding-filter]').forEach(item=>item.setAttribute('aria-selected',String(item===target))); renderDirectory(); }
       if(target.matches('[data-coding-face]')) {
         const face=target.dataset.codingFace;
-        if(face==='artifacts' || host.onDirectoryFace?.(face) || face==='sessions') {
-          if(face==='artifacts')host.onDirectoryFace?.('sessions');
+        if(face==='taskboard' || face==='artifacts' || host.onDirectoryFace?.(face) || face==='sessions') {
+          if(face==='artifacts'||face==='taskboard')host.onDirectoryFace?.('sessions');
           directory.dataset.codingCurrentFace=face;
           directory.querySelector('[data-coding-artifact-directory]').hidden=face!=='artifacts';
+          directory.querySelector('[data-coding-taskboard]').hidden=face!=='taskboard';
           directory.querySelectorAll('[data-coding-face]').forEach(button=>button.setAttribute('aria-selected',String(button===target)));
-          directory.querySelector('.coding-directory-head h2').textContent=face==='artifacts'?'产物':face==='files'?'文件':'会话';
+          directory.querySelector('.coding-directory-head h2').textContent=face==='taskboard'?'TaskBoard':face==='artifacts'?'产物':face==='files'?'文件':'会话';
+          if(face==='taskboard'){taskboard.sessions(state.sessions);taskboard.show();if(current)await readCurrent();}
           if(face==='artifacts')await loadArtifacts();
         } else if(face==='goals') await openGoals();
         else status('这个导航面尚未装配，现阶段可使用会话、目标关联和文件入口。');

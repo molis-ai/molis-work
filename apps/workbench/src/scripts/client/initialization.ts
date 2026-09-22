@@ -82,6 +82,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       closeResult: closeCompanionResult,
     });
     (${CODING_CLIENT_FACTORY_SCRIPT})({
+      revealTask: () => { if(matchMedia("(max-width: 600px)").matches) immersiveNavigation?.hideDirectory(); closeCompanionResult(); },
       onDirectoryFace: face => { const handled=filesBrowser?.show(face) ?? false; gitBrowser?.show(face); return handled; },
       showReviews: (${AGENT_REVIEW_CLIENT_FACTORY_SCRIPT})({route,headers:()=>molisWorkControlHeaders()}),
       addWorkspace: async (workspace_path) => {

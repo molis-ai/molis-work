@@ -109,6 +109,11 @@ export function renderCodingDirectory(model: CodingUiModel): string {
     <label class="coding-search"><span>搜索标题</span><input class="mw-input" data-coding-search aria-label="搜索会话标题" placeholder="搜索会话标题"></label>
     <div class="coding-filters" role="group" aria-label="${p.escape("会话筛选")}">${filters}</div>
     <div class="coding-session-list" data-coding-sessions>${groups || renderEmpty(p)}</div>
+    <section data-coding-taskboard hidden aria-label="计划与执行看板">
+      <label class="mw-field"><span>当前任务</span><select class="mw-select" data-coding-taskboard-session aria-label="选择看板任务"></select></label>
+      <p data-coding-taskboard-status role="status">选择会话后查看计划与实际执行。</p>
+      <div data-coding-taskboard-tree></div>
+    </section>
     <section data-coding-artifact-directory hidden aria-label="已保存的 Coding 成果">
       <label class="coding-search"><span>搜索成果</span><input class="mw-input" data-coding-artifact-search aria-label="搜索固定成果" placeholder="搜索固定成果"></label>
       <button class="mw-btn mw-btn--ghost" type="button" data-coding-artifact-refresh>刷新成果</button>

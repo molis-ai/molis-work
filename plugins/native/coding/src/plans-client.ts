@@ -95,6 +95,7 @@ export const CODING_PLANS_CLIENT_FACTORY_SCRIPT = `(ports) => {
     finally{busy=false;q('[data-coding-plan-save]').disabled=false;renderKey='';render();}
   });
   return {
+    openFixed:fixed,
     update(id,value,nextRuns){if(owner!==id){remember();dialog.close();editor=null;renderKey='';plan=null;}owner=id;if(!plan || value?.revision>plan.revision || value?.revision===plan.revision && (!plan.confirmed || value.confirmed))plan=value;runs=nextRuns;render();},
     renderTurn(node,run,turn){
       if(run.frozen.role_id!=='planner' || turn.kind!=='assistant' || !(/^\\s*\\{/.test(turn.text) || turn.text.includes('\x60\x60\x60')))return false;

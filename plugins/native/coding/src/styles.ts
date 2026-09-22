@@ -13,6 +13,18 @@ export const CODING_STYLES = `
 [data-coding-tools][data-companion-open=true]>:not([data-files-results]):not([data-git-results]):not(.coding-tool-tabs) { display:none; }
 .coding-directory[data-coding-current-face=artifacts] > .coding-search,.coding-directory[data-coding-current-face=artifacts] > .coding-filters,.coding-directory[data-coding-current-face=artifacts] [data-coding-sessions],.coding-directory[data-coding-current-face=artifacts] [data-coding-new] { display:none; }
 [data-coding-artifact-directory] { min-height:0; overflow:auto; }
+.coding-directory[data-coding-current-face=taskboard] > .coding-search,.coding-directory[data-coding-current-face=taskboard] > .coding-filters,.coding-directory[data-coding-current-face=taskboard] [data-coding-sessions],.coding-directory[data-coding-current-face=taskboard] [data-coding-new] { display:none; }
+[data-coding-taskboard] { min-height:0; overflow:auto; padding:4px 8px; font-size:12px; }
+[data-coding-taskboard] .mw-field { display:grid; gap:4px; }
+[data-coding-taskboard-status],.coding-board-meta { color:var(--muted); font-size:11px; overflow-wrap:anywhere; }
+.coding-board-branch { border-bottom:1px solid var(--line); padding:8px 0; }
+.coding-board-branch summary { cursor:pointer; overflow-wrap:anywhere; color:var(--ink); }
+.coding-board-branch ol { margin:8px 0; padding-left:22px; }
+.coding-board-branch li { padding:4px 0; overflow-wrap:anywhere; }
+[data-coding-taskboard] .coding-board-node { display:flex; flex-direction:column; align-items:flex-start; justify-content:flex-start; height:auto; min-height:28px; width:100%; white-space:normal; text-align:left; overflow-wrap:anywhere; gap:4px; }
+[data-coding-taskboard] .coding-board-node > span { max-width:100%; white-space:normal; }
+.coding-board-node .mw-status { white-space:normal; font-size:11px; }
+.coding-board-children { margin:8px 0 0 8px; padding-left:8px; border-left:1px solid var(--line); }
 [data-coding-artifact-list] .coding-session-row { display:flex; flex-direction:column; align-items:flex-start; gap:4px; width:100%; height:auto; text-align:left; white-space:normal; overflow-wrap:anywhere; }
 [data-coding-artifact-list] strong { font-weight:400; }
 [data-coding-artifact-list] .coding-session-row > span { color:var(--muted); font-size:11px; }

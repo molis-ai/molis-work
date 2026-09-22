@@ -193,6 +193,10 @@
     "./modules/characters": {
       "types": "./dist/modules/characters.d.ts",
       "import": "./dist/modules/characters.js"
+    },
+    "./modules/images": {
+      "types": "./dist/modules/images.d.ts",
+      "import": "./dist/modules/images.js"
     }
   },
   "files": [

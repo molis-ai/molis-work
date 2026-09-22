@@ -1,0 +1,71 @@
+import type { IncomingMessage, ServerResponse } from "node:http";
+import { resolve } from "node:path";
+import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { ImagesService, ImagesError, handleImagesRoute } from "@molis-ai/molis-work-plugin-images";
+
+const services = new Map<string, ImagesService>();
+export function openImages(homeDirectory: string): ImagesService {
+  const home = resolve(homeDirectory);
+  let service = services.get(home);
+  if (!service) {
+    // The bound SecretStore retains this home even after the request context ends.
+    const secretStore = () => runWithMolisWorkHome(home, () => createFileSecretStore());
+    service = new ImagesService({ homeDirectory: home, secrets: {
+      get: (ref) => secretStore().get(ref),
+      put: (ref, key) => secretStore().put(ref, key),
+      delete: (ref) => secretStore().delete(ref),
+    } });
+    services.set(home, service);
+  }
+  return service;
+}
+export async function closeImages(homeDirectory: string): Promise<void> {
+  const home = resolve(homeDirectory), service = services.get(home);
+  if (service) {
+    try { await service.close(); } finally { services.delete(home); }
+  }
+}
+
+export async function handleImagesNativePluginHttp(
+  request: IncomingMessage, response: ServerResponse, url: URL, homeDirectory: string,
+  projectId = "",
+): Promise<boolean> {
+  if (url.pathname !== "/api/images" && !url.pathname.startsWith("/api/images/")) return false;
+  const json = (status: number, body: unknown) => {
+    response.writeHead(status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+    response.end(JSON.stringify(body));
+  };
+  try {
+    const body = request.method === "POST" ? await readBody(request) : {};
+    const result = handleImagesRoute(openImages(homeDirectory), { method: request.method ?? "GET", pathname: url.pathname, body, projectId });
+    if (result.image) {
+      response.writeHead(result.status, {
+        "content-type": result.image.mime,
+        "content-length": String(result.image.bytes.byteLength),
+        "content-disposition": `${url.searchParams.get("download") === "1" ? "attachment" : "inline"}; filename="${result.image.filename}"`,
+        "cache-control": "no-store", "x-content-type-options": "nosniff",
+      });
+      response.end(result.image.bytes);
+    } else json(result.status, result.body);
+  } catch (error) {
+    if (error instanceof ImagesError) json(error.status, { error: error.message, code: error.code });
+    else json(500, { error: "图片操作失败，请稍后重试", code: "images.internal" });
+  }
+  return true;
+}
+
+async function readBody(request: IncomingMessage): Promise<Record<string, unknown>> {
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of request) {
+    const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    size += bytes.byteLength;
+    if (size > 160_000) throw new ImagesError("images.invalid", "请求内容过大", 413);
+    chunks.push(bytes);
+  }
+  try {
+    const value: unknown = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+    if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error();
+    return value as Record<string, unknown>;
+  } catch { throw new ImagesError("images.invalid", "请求必须是 JSON 对象", 400); }
+}

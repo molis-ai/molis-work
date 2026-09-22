@@ -232,6 +232,7 @@ export async function handleMolisWorkWebRequest(
           url,
           serverOptions.homeDirectory,
           {
+            projectId: options.project?.project_id ?? "",
             publishArtifact: registerPagesArtifactVersion(coordinator, options.boardId, options.project?.project_id ?? options.boardId),
             publishFormArtifact: registerFormArtifactVersion(coordinator, options.boardId),
             publishDatasetArtifact: registerDatasetArtifactVersion(coordinator, options.boardId),

@@ -140,6 +140,9 @@ importers:
       '@molis-ai/molis-work-plugin-goals':
         specifier: workspace:*
         version: link:plugins/native/goals
+      '@molis-ai/molis-work-plugin-images':
+        specifier: workspace:*
+        version: link:plugins/native/images
       '@molis-ai/molis-work-plugin-inbox':
         specifier: workspace:*
         version: link:plugins/native/inbox
@@ -384,6 +387,9 @@ importers:
       '@molis-ai/molis-work-plugin-goals':
         specifier: workspace:*
         version: link:../../plugins/native/goals
+      '@molis-ai/molis-work-plugin-images':
+        specifier: workspace:*
+        version: link:../../plugins/native/images
       '@molis-ai/molis-work-plugin-inbox':
         specifier: workspace:*
         version: link:../../plugins/native/inbox
@@ -502,6 +508,9 @@ importers:
       '@molis-ai/molis-work-plugin-goals':
         specifier: workspace:*
         version: link:../../plugins/native/goals
+      '@molis-ai/molis-work-plugin-images':
+        specifier: workspace:*
+        version: link:../../plugins/native/images
       '@molis-ai/molis-work-plugin-inbox':
         specifier: workspace:*
         version: link:../../plugins/native/inbox
@@ -857,6 +866,18 @@ importers:
       '@molis-ai/molis-work-module-goals':
         specifier: workspace:*
         version: link:../../../modules/goals
+
+  plugins/native/images:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../../packages/contracts
+      '@molis-ai/molis-work-design-system':
+        specifier: workspace:*
+        version: link:../../../packages/design-system
+      '@molis-ai/molis-work-storage':
+        specifier: workspace:*
+        version: link:../../../packages/storage
 
   plugins/native/inbox:
     dependencies:

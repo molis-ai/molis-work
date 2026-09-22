@@ -4,6 +4,7 @@ import { DatabaseSync } from "node:sqlite";
 
 /** Home directories that hold a personal `{name}/{name}.db`. Uninstall --purge must cover these. */
 export const PERSONAL_HOME_SQLITE_STORES = [
+  "images",
   "pages",
   "form",
   "dataset",

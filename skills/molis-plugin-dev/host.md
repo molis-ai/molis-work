@@ -15,6 +15,7 @@ Manifest 写完不等于侧栏有入口。一等插件还要改 Host。第三方
 3. **`scripts/workspace-packages.mjs`**：加一条 `entry(...)`，并在 workbench、local-host 的 `extraWorkspaceDependencies` 里加上这个包名。然后 `node scripts/workspace-packages.mjs` 核对。
 4. **`apps/workbench/src/plugin-catalog.ts`**：`BUILTIN_PLUGIN_CATALOG` 加一条。`project_plugin_id`、`manifest`、可选 `personal`、`summary`（有 summary 才进内建市场）。
 5. **`apps/workbench/src/plugin-workbench.ts`**：`BUILTIN_PLUGIN_WORKBENCH` 登记 `contributions`、`stylesheet`、`clientFactory`、可选 `settingsClient`、`searchRow`。Pages 族照 Pages；Feed/Inbox **没有**插件包里的 factory，客户端在 `apps/workbench/src/scripts/client/navigation-feed.ts` / `navigation-inbox.ts`。
+   工作面还须在 `ui-composition.ts` 通过 UiHost mount，`renderer.ts` 注入 primitives，再由 `goals-page-renderer.ts` 渲染到主页面；只登记 pack 不会产生页面 DOM。对照图片插件 `renderImagesContribution`。
 6. **HTTP**：个人插件（Pages 族、Functions、Shelf、灵光）实现 `apps/local-host/src/<id>-native-plugin-http.ts`，再挂进 `personal-native-plugin-http.ts` 的 handler 列表。项目插件（Feed、Inbox、Schedule）挂进 `web-request.ts`。`project_id` 由 Host 从当前项目注入，不要从请求 body 或 MCP schema 收。
 7. **英文**：插件 `src/en.ts` 导出 `X_EN`，还要在 `apps/workbench/src/i18n/en.ts` `import` 并 `...X_EN`。只写插件文件，英文界面仍是中文 key。
 8. **构建**：`pnpm --filter @molis-ai/molis-work-plugin-<id> build`。根目录 `pnpm build` 含 workspace。

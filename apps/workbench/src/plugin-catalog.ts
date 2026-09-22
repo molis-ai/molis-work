@@ -1,3 +1,4 @@
+import { imagesManifest } from "@molis-ai/molis-work-plugin-images";
 import { experimentsManifest } from "@molis-ai/molis-work-plugin-experiments";
 import type {
   ProjectPluginId,
@@ -52,6 +53,7 @@ export interface PluginMarketCard {
 }
 
 export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
+  { project_plugin_id: "images", manifest: imagesManifest, personal: true, summary: "连接生图服务，描述图片，预览并保存生成结果。" },
   { project_plugin_id: "experiments", manifest: experimentsManifest, personal: true, summary: "同一任务，独立比较模型的判断、耗时与成本。" },
   { project_plugin_id: GOALS_PROJECT_PLUGIN_ID, manifest: goalsManifest, summary: "确定目标，推进工作，留下结果。" },
   { project_plugin_id: WORK_PROJECT_PLUGIN_ID, manifest: workManifest, summary: "回到你的会话，继续正在做的事。" },

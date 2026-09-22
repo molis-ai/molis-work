@@ -158,3 +158,12 @@ Goals 与 Artifacts 是官方签名保护的一等 Plugin。Plugin 之间不依�
 3. 每个迁移 Goal 同时更新：目标 package README、对应 Module/Service 文档、本矩阵的状态和 [`MIGRATION.md`](system/MIGRATION.md)。
 4. `contract-only` 不得被 UI、CLI、MCP 或 Plugin Runtime 宣称为可用功能。
 5. 旧 owner 只有在 caller 清零、行为兼容、数据迁移和回滚证据齐全后才能标为 `retired`。
+
+## 图片生成插件
+
+| 责任 | Owner | 唯一事实源 |
+| --- | --- | --- |
+| 本机生图连接、项目任务、生成图片 | `plugins/native/images` | `{home}/images/images.db` 与 `assets/`；合同 `packages/contracts/src/modules/images.ts` |
+| API Key 加密、项目路由、HTTP 生命周期 | Local Host / Storage | 宿主 SecretStore 与解析后的项目上下文 |
+
+协议、范围与验证边界：`specs/images-plugin/spec.md`；不改变文字模型设置，不自动重试或声明 Artifact 发布。

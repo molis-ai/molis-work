@@ -131,7 +131,8 @@
     "better-sqlite3": "12.8.0",
     "node-pty": "^1.1.0",
     "ws": "^8.21.3",
-    "@molis-ai/molis-work-plugin-experiments": "workspace:*"
+    "@molis-ai/molis-work-plugin-experiments": "workspace:*",
+    "@molis-ai/molis-work-plugin-images": "workspace:*"
   },
   "devDependencies": {
     "@molis-ai/molis-work-test-kit": "workspace:*",

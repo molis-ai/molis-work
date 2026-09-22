@@ -1,3 +1,4 @@
+import { IMAGES_EN } from "@molis-ai/molis-work-plugin-images";
 import { GOALS_PROPOSAL_EN } from "@molis-ai/molis-work-plugin-goals";
 import { WORK_EN } from "@molis-ai/molis-work-plugin-work";
 import { ARTIFACT_EN } from "@molis-ai/molis-work-plugin-artifacts";
@@ -72,6 +73,7 @@ export const EN: Record<string, string> = {
   "原成果操作仍在处理，请稍后重新打开": "The previous integration operation is still being processed. Open it again shortly.",
 
   ...INFORMATION_LOOP_EN,
+  ...IMAGES_EN,
   "待解决：{text}": "To resolve: {text}",
   "待你验收：{text}": "Awaiting your review: {text}",
   "尚待完成：{text}": "Still to complete: {text}",

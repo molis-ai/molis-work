@@ -74,6 +74,7 @@ export interface WorkbenchGoalsPageOwners<TItem extends GoalCollectionItem, TVie
   renderScheduleNativePluginSurface(view: TView, surface: "directory" | "workbench"): string;
   renderShelfNativePluginSurface(surface: "directory" | "workbench"): string;
   renderExperimentsContribution(): string;
+  renderImagesNativePluginSurface(): string;
   renderFunctionsNativePluginSurface(surface: "directory" | "workbench"): string;
   renderPagesNativePluginSurface(surface: "directory" | "workbench"): string;
   renderFormNativePluginSurface(surface: "directory" | "workbench"): string;
@@ -92,7 +93,7 @@ export function createWorkbenchGoalsPageRenderer<TItem extends GoalCollectionIte
     renderGoalDocument, renderTrashGoalDocument, goalsDocumentRenderer, goalsTreeRenderer,
     renderCreateDialog, renderGoalTrashDialog, renderMomentumPlaceholder, renderGoalKanban, renderTuiPane,
     renderProjectOperations, renderDesktopProjectChrome,
-    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderShelfNativePluginSurface, renderFunctionsNativePluginSurface, renderExperimentsContribution, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderLingguangNativePluginSurface } = owners;
+    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderShelfNativePluginSurface, renderFunctionsNativePluginSurface, renderExperimentsContribution, renderImagesNativePluginSurface, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderLingguangNativePluginSurface } = owners;
 
 function renderMolisWorkRefreshFragment(
   view: TView,
@@ -264,6 +265,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
             ${renderShelfNativePluginSurface("workbench")}
             ${renderFunctionsNativePluginSurface("workbench")}
             ${renderExperimentsContribution()}
+            ${renderImagesNativePluginSurface()}
             ${renderPagesNativePluginSurface("workbench")}
             ${renderFormNativePluginSurface("workbench")}
             ${renderDatasetNativePluginSurface("workbench")}

@@ -33,7 +33,9 @@ export async function collectRuntimeDependencies(
     const candidate = pending.shift()!;
     let resolvedPackageJson: string;
     try {
-      resolvedPackageJson = await resolveDependencyPackageJson(candidate.name, candidate.fromPackageJson);
+      // ESM-only package metadata may be found through a workspace symlink.
+      // Resolve it before traversing children so pnpm's sibling dependencies remain reachable.
+      resolvedPackageJson = await fs.realpath(await resolveDependencyPackageJson(candidate.name, candidate.fromPackageJson));
     } catch (error) {
       if (candidate.optional) continue;
       throw new MolisWorkHomeInstallError(
@@ -151,4 +153,3 @@ export async function findDependencyPackageJson(name: string, fromPackageJson: s
     directory = parent;
   }
 }
-

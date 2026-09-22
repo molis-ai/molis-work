@@ -84,7 +84,8 @@
     "@molis-ai/molis-work-ui-host": "workspace:*",
     "ws": "^8.21.3",
     "@molis-ai/molis-work-plugin-experiments": "workspace:*",
-    "@molis-ai/molis-work-plugin-images": "workspace:*"
+    "@molis-ai/molis-work-plugin-images": "workspace:*",
+    "@molis-ai/molis-work-plugin-jelly": "workspace:*"
   },
   "molis-work": {
     "path": "apps/local-host",

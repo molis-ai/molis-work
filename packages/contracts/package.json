@@ -197,6 +197,10 @@
     "./modules/images": {
       "types": "./dist/modules/images.d.ts",
       "import": "./dist/modules/images.js"
+    },
+    "./modules/jelly": {
+      "types": "./dist/modules/jelly.d.ts",
+      "import": "./dist/modules/jelly.js"
     }
   },
   "files": [

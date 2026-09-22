@@ -65,6 +65,7 @@ import {
   renderDatasetContribution,
   renderPptContribution,
   renderLingguangContribution,
+  renderJellyContribution,
   renderWorkbenchDocument,
   renderWorkTerminal,
 } from "./ui-composition.js";
@@ -139,6 +140,10 @@ function renderPptNativePluginSurface(surface: "directory" | "workbench"): strin
   return renderPptContribution(surface, {
     primitives: { escape: escapeHtml, text: L },
   });
+}
+
+function renderJellyNativePluginSurface(surface: "directory" | "workbench"): string {
+  return renderJellyContribution(surface, { primitives: { escape: escapeHtml, text: L } });
 }
 
 function renderLingguangNativePluginSurface(surface: "directory" | "workbench"): string {
@@ -418,7 +423,7 @@ const { renderMolisWorkWeb, renderMolisWorkRefreshFragment } =
     renderCreateDialog, renderGoalTrashDialog, renderMomentumPlaceholder, renderGoalKanban, renderTuiPane,
     renderProjectOperations: (project, data) => renderProjectOperations(project, data, icon, L),
     renderDesktopProjectChrome, renderProjectSwitcher,
-    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderShelfNativePluginSurface, renderFunctionsNativePluginSurface, renderExperimentsContribution, renderImagesNativePluginSurface, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderLingguangNativePluginSurface,
+    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderShelfNativePluginSurface, renderFunctionsNativePluginSurface, renderExperimentsContribution, renderImagesNativePluginSurface, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderLingguangNativePluginSurface, renderJellyNativePluginSurface,
   });
   return {
     renderMolisWorkProjectIndex,

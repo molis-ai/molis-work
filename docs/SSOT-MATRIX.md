@@ -167,3 +167,7 @@ Goals 与 Artifacts 是官方签名保护的一等 Plugin。Plugin 之间不依�
 | API Key 加密、项目路由、HTTP 生命周期 | Local Host / Storage | 宿主 SecretStore 与解析后的项目上下文 |
 
 协议、范围与验证边界：`specs/images-plugin/spec.md`；不改变文字模型设置，不自动重试或声明 Artifact 发布。
+
+## Jelly 私人工作区
+
+`plugins/native/jelly` 拥有个人日历、每周重复实例、分类、笔记块、灵感、关联和撤销历史；唯一写入库 `{home}/jelly/jelly.db`。Host 只接 HTTP、MCP 和素材/模型端口，Workbench 只装配插件界面。原 Jelly App 的数据文件不参与写入。合同：`packages/contracts/src/modules/jelly.ts`；完整复刻范围与未验收项：`specs/jelly-plugin/`。

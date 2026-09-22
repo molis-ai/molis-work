@@ -1,8 +1,6 @@
 import { createFileSecretStore } from "@molis-ai/molis-work-storage";
-
 /** One Host completion adapter shared by Pages and the bounded workbench assistant. */
-export type HostCompleteText = (prompt: string) => Promise<string>;
-
+export type HostCompleteText = (prompt: string, options?: { signal?: AbortSignal }) => Promise<string>;
 export function hostCompleteText(options: { fetch?: typeof fetch; env?: NodeJS.ProcessEnv } = {}): HostCompleteText | undefined {
   const env = (name: string) => (options.env ?? process.env)[name]?.trim();
   const minimax = env("MINIMAX_API_KEY");
@@ -16,12 +14,12 @@ export function hostCompleteText(options: { fetch?: typeof fetch; env?: NodeJS.P
   if (url.protocol !== "https:" && !(url.protocol === "http:" && ["127.0.0.1", "localhost", "[::1]"].includes(url.hostname))) {
     throw new Error("模型地址必须使用 HTTPS");
   }
-  return async (prompt) => {
+  return async (prompt, completionOptions) => {
     if (!prompt.trim() || prompt.length > 180_000) throw new Error("写作输入为空或过长，请减少材料后重试");
     let response: Response;
     try {
       response = await (options.fetch ?? fetch)(url, {
-        method: "POST", redirect: "error", signal: AbortSignal.timeout(120_000),
+        method: "POST", redirect: "error", signal: completionOptions?.signal ? AbortSignal.any([completionOptions.signal, AbortSignal.timeout(120_000)]) : AbortSignal.timeout(120_000),
         headers: { "content-type": "application/json", authorization: `Bearer ${key}`,
           ...(format === "anthropic-messages" ? { "x-api-key": key, "anthropic-version": "2023-06-01" } : {}) },
         body: JSON.stringify({ model, max_tokens: 5000, messages: [{ role: "user", content: prompt }] }),

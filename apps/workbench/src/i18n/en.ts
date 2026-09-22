@@ -1,4 +1,5 @@
 import { IMAGES_EN } from "@molis-ai/molis-work-plugin-images";
+import { JELLY_EN } from "@molis-ai/molis-work-plugin-jelly";
 import { GOALS_PROPOSAL_EN } from "@molis-ai/molis-work-plugin-goals";
 import { WORK_EN } from "@molis-ai/molis-work-plugin-work";
 import { ARTIFACT_EN } from "@molis-ai/molis-work-plugin-artifacts";
@@ -307,6 +308,7 @@ export const EN: Record<string, string> = {
   ...DATASET_EN,
   ...PPT_EN,
   ...LINGGUANG_EN,
+  ...JELLY_EN,
   ...SCHEDULE_EN,
   ...GOALS_POLICY_EN,
   ...GOALS_SAFETY_EN,

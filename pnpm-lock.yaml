@@ -11,6 +11,9 @@ importers:
 
   .:
     dependencies:
+      '@molis-ai/molis-work-plugin-jelly':
+        specifier: workspace:*
+        version: link:plugins/native/jelly
       '@adeptify/intelligence-client':
         specifier: file:vendor/intelligence-client/adeptify-intelligence-client-0.2.2.tgz
         version: file:vendor/intelligence-client/adeptify-intelligence-client-0.2.2.tgz(@adeptify/search-evidence-layer@file:vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz)
@@ -267,6 +270,9 @@ importers:
 
   apps/local-host:
     dependencies:
+      '@molis-ai/molis-work-plugin-jelly':
+        specifier: workspace:*
+        version: link:../../plugins/native/jelly
       '@adeptify/intelligence-client':
         specifier: file:../../vendor/intelligence-client/adeptify-intelligence-client-0.2.2.tgz
         version: file:vendor/intelligence-client/adeptify-intelligence-client-0.2.2.tgz(@adeptify/search-evidence-layer@file:vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz)
@@ -460,6 +466,9 @@ importers:
 
   apps/workbench:
     dependencies:
+      '@molis-ai/molis-work-plugin-jelly':
+        specifier: workspace:*
+        version: link:../../plugins/native/jelly
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
@@ -884,6 +893,18 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
+
+  plugins/native/jelly:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../../packages/contracts
+      '@molis-ai/molis-work-design-system':
+        specifier: workspace:*
+        version: link:../../../packages/design-system
+      '@molis-ai/molis-work-storage':
+        specifier: workspace:*
+        version: link:../../../packages/storage
 
   plugins/native/lingguang:
     dependencies:

@@ -1,0 +1,51 @@
+{
+  "name": "@molis-ai/molis-work-plugin-jelly",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Jelly 日历、笔记与灵感的 Molis Work 插件。",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=24"
+  },
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "native/bin",
+    "native/THIRD-PARTY-NOTICES.md",
+    "native/licenses"
+  ],
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "tsc -p tsconfig.json && node native/build.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "native:build": "bash native/build.sh",
+    "native:build:whisper": "bash native/build-whisper.sh"
+  },
+  "dependencies": {
+    "@molis-ai/molis-work-contracts": "workspace:*",
+    "@molis-ai/molis-work-design-system": "workspace:*",
+    "@molis-ai/molis-work-storage": "workspace:*"
+  },
+  "molis-work": {
+    "path": "plugins/native/jelly",
+    "kind": "native-plugin",
+    "maturity": "partial",
+    "contract": "@molis-ai/molis-work-contracts/platform/plugin",
+    "migrationGoals": [
+      "goal-reorg-f2"
+    ],
+    "ssot": "docs/SSOT-MATRIX.md",
+    "capabilities": [
+      "jelly.ui-contribution.v1",
+      "jelly.workspace.v1"
+    ]
+  }
+}

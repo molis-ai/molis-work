@@ -1,6 +1,6 @@
 import { parseFilePath } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { codingWriterAssignments } from "./writers.js";
-import { codingTaskBoardPlans } from "./taskboard.js";
+import { codingTaskBoardPlans, stepVerdictKey } from "./taskboard.js";
 import { isDeepStrictEqual } from "node:util";
 import { materialChoices, materialSelection, resolveMaterials, savedMaterials } from "./materials.js";
 import type { PluginRouteBinding, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -426,6 +426,29 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       const files = body.files.map(file => ({ path: parseFilePath(file.path), revision: text(file.revision, "审查版本") }));
       return api!.invoke(writerIntegrationCapabilities.prepare, { ...source, operation_id: text(body.operation_id, "操作标识", 80), files });
     })),
+    route("coding.evaluate-step", async (request, api, execution) => {
+      const record = selected(request, execution), body = bodyOf(request);
+      if (!record.runtime_session_id) throw new Error("此会话没有执行记录");
+      const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
+      const snapshot = await api!.invoke(agent.readSession, [session]);
+      const ref = snapshot.runs.find(run => run.run_id === request.params.runId);
+      if (!ref || snapshot.recovery || snapshot.checkpoint_busy) throw new Error("请先核对原执行及中断结果");
+      const run = await api!.invoke(agent.readRun, [session, ref]);
+      if (!isTerminalAgentPhase(run.phase)) throw new Error("请等待本轮结束并核对原步骤回报后评价");
+      const entry = codingTaskBoardPlans(context, record.session_id, [run]).find(entry => entry.board);
+      const board = entry?.board, node = board?.nodes.find(node => node.id === request.params.stepId);
+      if (!board || !node || entry?.board_error || !node.reports.length) throw new Error("原步骤尚无可评价的回报");
+      if (body.board_id !== board.board_id || body.board_version !== board.version) throw new Error("步骤回报已变化，请重新读取后评价");
+      if (!["accepted", "needs-work"].includes(String(body.action)) || body.action === "accepted" && node.state !== "succeeded") throw new Error("只有模型报告成功的步骤可以验收通过；其他结果可要求返工");
+      const notes = typeof body.notes === "string" ? body.notes.trim() : "";
+      if (notes.length > 4000 || body.action === "needs-work" && !notes) throw new Error("返工需写明原因，说明最多 4000 字符");
+      const key = stepVerdictKey(record.session_id, ref.run_id, node.id), saved = context.services!.storage!.get(key);
+      const revision = typeof saved === "string" ? JSON.parse(saved).revision : 0;
+      if (body.expected_revision !== revision) throw new Error("评价已变化，请重新查看后提交");
+      const verdict = { revision: revision + 1, status: body.action, notes, board_id: board.board_id, board_version: board.version, actor: request.actor_id, at: new Date().toISOString() };
+      context.services!.storage!.set(key, JSON.stringify(verdict));
+      return { verdict };
+    }),
     route("coding.control-subagent", async (request, api, execution) => {
       const record = selected(request, execution), body = bodyOf(request);
       if (!record.runtime_session_id) throw new Error("此会话没有执行记录");
@@ -620,6 +643,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
           : await api!.invoke(agent.createSession, [record.runtime_id, { ...identity, directory, title: record.title }]);
         if (!record.runtime_session_id) execution.sessions.setRuntimeSession(boardId, record.session_id, session.session_id, new Date().toISOString());
         const run = await api!.invoke(agent.startRun, [record.runtime_id, { ...identity, session, directory, task, role_id: role, text_materials, character, ...(subagent_workspaces.length ? { subagent_workspaces } : {}),
+          ...(plan ? { execution_plan: { source: plan.confirmed!, title: plan.content.title, steps: plan.content.steps.map((step, index) => ({ id: `step-${index + 1}`, ...step })) } } : {}),
           model_selection: { provider_id: model.provider_id, model_id: model.model_id }, skills: methodSelection(body.methods ?? []), mcp_tools: mcpSelection(body.mcp_tools ?? []), mcp_sources: mcpSources(body.mcp_sources ?? []) }]);
         if (!plan) context.services!.storage!.delete(`draft:${record.session_id}`);
         execution.sessions.setState(boardId, record.session_id, "running", new Date().toISOString());

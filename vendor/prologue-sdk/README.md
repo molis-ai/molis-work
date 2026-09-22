@@ -1,6 +1,29 @@
 # Prologue SDK 构建来源
 
-当前依赖为 `prologue-sdk-0.0.0-rc.1-child-observe.tgz`。同步子任务先确认原分派回执，再由同一次工具调用等待原子结果；子执行与人工审批不再占用父分派工具期限或 Host 分派许可。子任务预算、审批、取消和拒绝保持，后台分派仍立即返回引用。
+当前依赖为 `prologue-sdk-0.0.0-rc.1-compaction-growth.tgz`。包含下方步骤回报修复，并让一次实际上下文整理后按新增内容达到原阈值再软触发；窗口硬检查和 Provider 明确溢出仍优先。保护内容持续超过软阈值不会逐工具往返重复整理，未缩短的整理也等待新增量；不放宽原文选择校验或丢弃历史。
+
+- 来源分支：`codex/molis-coding-receipts`
+- 对应源码提交：`a7e785b8c76149961d25b2f918aeec55554d8420`（已推送）
+- 包名与版本：`@prologue/sdk@0.0.0-rc.1`
+- SHA-256：`a00d705a28b94894682a5dea78887ac295e78dfc21fd08e8555307a3400cf61f`
+
+500 个 dist 文件与 SDK 构建、实际安装逐字节一致。SDK 59 项定向、构建、类型通过；全量 3271 项为 3249 通过、20 跳过、原两项 DNS 环境失败，无新增。Molis 构建/边界/类型通过，实际 Node Host 六次读取仅整理一次，原文件与重启后的完整运行投影不变；其余步骤回报与 Character 消费检查通过。MiniMax 返工 completed 且仅一次整理，但读过文件的归属和默认参数覆盖判断仍错误，两步均保存返工评价；完整结果见 Coding spec。Molis 全量仍待复验；未发布 npm 或替换正式安装版。
+
+## 上一依赖：步骤回报
+
+`prologue-sdk-0.0.0-rc.1-step-reports-v2.tgz` 中，`board-report` 允许原 blocked 节点在当前版本解除阻塞到 ready；safe-read 同样经过公开 tool-before hook，使消费 App 的原 Session/Run 归属限制在读取前生效。普通读取不新增 Effect；hook 的拒绝、失败、延后或要求审批均不能偷读。副作用仍走原审批链。
+
+- 源仓库：https://github.com/molis-ai/prologue
+- 来源分支：`codex/molis-coding-receipts`
+- 对应源码提交：`d2f5a05df6459440a253787e94ee6520f12d754d`
+- 包名与版本：`@prologue/sdk@0.0.0-rc.1`
+- SHA-256：`353ea0bc7c6d6d4e32dda43a597b15f60e82aec5c7e3728b35c2ed8326a89f3f`
+
+500 个 dist 文件与 SDK 构建、实际安装一致。SDK build/typecheck、66 项定向通过；全量 3266 项为 3244 通过、20 跳过、两个原有 DNS 环境失败。Molis 真实 Node Host 覆盖原图读取隔离、版本/顺序依赖、blocked 恢复、失败中断与重启零重放。MiniMax 已从正式确认计划按序回报，原评价和返工由 Coding 独立保存；模型准确性与持续整理仍有实际失败，见 Coding spec 本块完整结果，不宣称整个 Goal 完成。未发布 npm 或替换正式安装版。
+
+## 上一依赖：同步子任务等待
+
+上一依赖为 `prologue-sdk-0.0.0-rc.1-child-observe.tgz`。同步子任务先确认原分派回执，再由同一次工具调用等待原子结果；子执行与人工审批不再占用父分派工具期限或 Host 分派许可。子任务预算、审批、取消和拒绝保持，后台分派仍立即返回引用。
 
 - 源仓库：https://github.com/molis-ai/prologue
 - 来源分支：`codex/molis-coding-receipts`

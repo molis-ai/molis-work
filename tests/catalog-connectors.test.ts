@@ -9,7 +9,7 @@ import {
 } from "@molis-ai/molis-work-integration-catalog";
 
 test("every catalog connector has a valid Integration Manifest and identity URL", () => {
-  assert.equal(CATALOG_CONNECTORS.length, 38);
+  assert.equal(CATALOG_CONNECTORS.length, 39);
   const ids = new Set<string>();
   for (const spec of CATALOG_CONNECTORS) {
     assert.equal(ids.has(spec.id), false, spec.id);

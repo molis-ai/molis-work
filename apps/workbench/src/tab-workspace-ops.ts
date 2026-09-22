@@ -31,6 +31,7 @@ export function createTabWorkspaceOps(titles) {
     functions: "Functions",
     characters: "Characters",
     experiments: "实验",
+    images: "图片",
     pages: "Pages",
     form: "Forms",
     dataset: "Dataset",

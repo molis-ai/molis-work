@@ -232,6 +232,7 @@ export async function handleMolisWorkWebRequest(
           url,
           serverOptions.homeDirectory,
           {
+            projectId: options.project?.project_id ?? "",
             publishArtifact: registerPagesArtifactVersion(coordinator, options.boardId, options.project?.project_id ?? options.boardId),
             publishFormArtifact: registerFormArtifactVersion(coordinator, options.boardId),
             publishDatasetArtifact: registerDatasetArtifactVersion(coordinator, options.boardId),
@@ -314,10 +315,11 @@ export async function handleMolisWorkWebRequest(
           goalEvents,
           journalEvents: () => store.readEventsDescending(options.boardId),
         })) return;
-        if (handleArtifactNativePluginHttp(request, response, url.pathname, {
+        if (await handleArtifactNativePluginHttp(request, response, url.pathname, {
           boardId: options.boardId, routePrefix: options.routePrefix ?? "",
           projectTitle: options.project?.display_name ?? "Molis Work",
-          query: coordinator.artifacts.query, desktopShell: isDesktopShellRequest(request, url), pageCsp: PAGE_CSP,
+          query: coordinator.artifacts.query, commands: coordinator.artifacts.commands, controlToken,
+          desktopShell: isDesktopShellRequest(request, url), pageCsp: PAGE_CSP,
         })) return;
         if (await goalsReadHttp.page(request, response, url, options, serverOptions.homeDirectory, readWebView, sessionResources, controlToken, coordinator, store, codingServices)) return;
         sendJson(response, 404, { error: L("页面或接口不存在") });

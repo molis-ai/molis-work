@@ -154,6 +154,12 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
   const tools = model.tools.map((tool) => renderToolTab(tool, p)).join("");
   const panels = model.tools.map((tool) => renderToolPanel(tool, p)).join("");
   return `<section class="desktop-work-surface plugin-stage-shell" data-work-surface="coding" data-work-surface-label="Coding" hidden data-coding-workbench data-coding-prefix="${p.escape(model.route_prefix)}">
+    <dialog class="mw-dialog mw-dialog--form" data-coding-step-dialog aria-label="步骤回报与验收"><div class="mw-form mw-dialog__shell">
+      <header class="mw-form__header"><h2>步骤回报与验收</h2>${renderButton({label:"关闭",variant:"ghost",attrs:{"data-coding-step-close":""}})}</header>
+      <section class="mw-form__body"><div data-coding-step-detail></div><p>模型报告成功不代表用户验收通过。请核对原轮次的实际操作和结果后评价。</p>
+      <label class="mw-field"><span>评价与返工说明</span><textarea class="mw-input" rows="4" maxlength="4000" data-coding-step-notes></textarea></label><p data-coding-step-status role="status"></p></section>
+      <footer class="mw-form__footer">${renderButton({label:"重新读取回报",variant:"secondary",attrs:{"data-coding-step-refresh":""}})}${renderButton({label:"验收通过",attrs:{"data-coding-step-accept":""}})}${renderButton({label:"要求返工",variant:"secondary",attrs:{"data-coding-step-reject":""}})}${renderButton({label:"据此调整计划",variant:"secondary",attrs:{"data-coding-step-rework":""}})}</footer>
+    </div></dialog>
     <dialog class="mw-dialog mw-dialog--form" data-coding-integration-dialog aria-label="整合子任务成果"><div class="mw-form mw-dialog__shell">
       <header class="mw-form__header"><h2>整合子任务成果</h2>${renderButton({label:"关闭",variant:"ghost",attrs:{"data-coding-integration-close":""}})}</header>
       <section class="mw-form__body"><p data-coding-integration-source></p><p data-coding-integration-target></p>

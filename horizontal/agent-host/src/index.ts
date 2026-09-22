@@ -24,6 +24,7 @@ import type {
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 
 import { AgentReviewQueue } from "./reviews.js";
+import { freezeExecutionPlan, STEP_TOOLS } from "./execution-plan.js";
 
 export { AgentReviewQueue, AgentReviewError } from "./reviews.js";
 export { emptyCapabilityMatrix } from "./capabilities.js";
@@ -327,6 +328,7 @@ export class AgentHost implements AgentHostApi {
     request: AgentStartRequest,
     authority: AgentStartAuthority,
   ): Promise<AgentRunHandle> {
+    request = { ...request, execution_plan: freezeExecutionPlan(request) };
     const adapter = this.adapter(runtimeId);
     const role = authority.manifest.roles.find((item) => item.role_id === request.role_id);
     if (!role) {
@@ -373,6 +375,11 @@ export class AgentHost implements AgentHostApi {
         hostTools = [...character.host_tools];
       }
     }
+
+    if (request.execution_plan && STEP_TOOLS.some(tool => !hostTools.includes(tool))) {
+      throw new AgentHostError("agent.role_execution_exceeded", "当前角色未开放计划回报工具，请调整角色或取消角色选择后执行计划");
+    }
+    if (!request.execution_plan) hostTools = hostTools.filter(tool => !STEP_TOOLS.includes(tool));
 
     // Freeze the role here, from the Plugin's own declarations, so the adapter
     // receives exactly what it is allowed to run instead of resolving it itself.

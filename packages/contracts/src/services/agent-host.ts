@@ -156,9 +156,29 @@ export interface AgentMcpToolRef {
 export type AgentMcpSourceRef = Pick<AgentMcpToolRef, "server" | "configuration_version" | "server_label">;
 
 export interface AgentRunBudget {
+  max_turns?: number;
   max_output_tokens?: number;
   max_total_tokens?: number;
   max_duration_ms?: number;
+}
+
+/** Ordered steps supplied by the caller from its immutable confirmed Artifact. */
+export interface AgentExecutionPlan {
+  source: ArtifactReference;
+  title: string;
+  steps: Array<{ id: string; title: string; acceptance: string }>;
+}
+
+/** Original SDK facts. A reported success is never a user acceptance. */
+export interface AgentStepBoard {
+  board_id: string;
+  version: number;
+  terminal: boolean;
+  nodes: Array<{
+    id: string;
+    state: "not-started" | "ready" | "running" | "succeeded" | "failed" | "cancelled" | "blocked";
+    reports: Array<{ note: string; at_ms: number }>;
+  }>;
 }
 
 /**
@@ -174,6 +194,7 @@ export interface AgentFrozenCharacter extends CharacterContent {
 }
 
 export interface AgentFrozenStart {
+  execution_plan?: AgentExecutionPlan;
   /** Child directory grants frozen for this run; never a grant to write the parent. */
   subagent_workspaces?: AgentSubagentWorkspace[];
   /** Authoritative fixed Character content and source at start, never looked up for history. */
@@ -245,6 +266,7 @@ export interface AgentFrozenRole {
 }
 
 export interface AgentStartRequest {
+  execution_plan?: AgentExecutionPlan;
   /** Selected child roots; the Host must independently verify every directory grant. */
   subagent_workspaces?: AgentSubagentWorkspace[];
   /** Only a reference is accepted from the caller; the Host resolves its immutable content. */
@@ -393,6 +415,8 @@ export interface AgentPendingQuestion {
 }
 
 export interface AgentRunView {
+  step_board?: AgentStepBoard;
+  step_board_error?: string;
   ref: AgentRunRef;
   phase: AgentRunPhase;
   frozen: AgentFrozenStart;

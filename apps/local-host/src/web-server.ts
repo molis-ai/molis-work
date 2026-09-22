@@ -1,3 +1,4 @@
+import { closeImages } from "./images-native-plugin-http.js";
 import { closeExperiments } from "./experiments-native-plugin-http.js";
 import { loadCasebookConfiguration } from "./casebook/config.js";
 import { handleCasebookHttp } from "./casebook/http.js";
@@ -179,6 +180,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     schedulerTimer.unref();
     server.once("close", () => {
       void closeExperiments(storageHome);
+      void closeImages(storageHome);
       clearInterval(schedulerTimer);
       feedSchedulers.clear();
       void agents.dispose().catch(() => undefined);

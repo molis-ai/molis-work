@@ -112,7 +112,8 @@ test("packed SDK sends full Coding prompts and the current Character on consecut
       for (let i = 0; i < instructions.length; i++) assert.equal(system.includes(instructions[i]!), version === i + 1, `wrong Character body on run ${before + 1}`);
       assert.ok(!system.includes("[truncated:"));
       assert.equal(view.frozen.character?.reference.version ?? null, version);
-      assert.deepEqual(view.frozen.host_tools, codingAgentManifest.roles.find(role => role.role_id === "builder")!.host_tools);
+      assert.deepEqual(view.frozen.host_tools, codingAgentManifest.roles.find(role => role.role_id === "builder")!.host_tools.filter(tool => !["board-read", "board-report"].includes(tool)));
+      assert.ok(!requests.at(-1).tools.some((tool: { name: string }) => ["board-read", "board-report"].includes(tool.name)), "ordinary Character runs have no task graph tools");
     }
     const beforeRejected = requests.length;
     const runsBeforeRejected = await adapter.readSession(session);

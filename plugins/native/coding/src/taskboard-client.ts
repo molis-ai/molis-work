@@ -12,9 +12,17 @@ export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     node.addEventListener('click',()=>void navigate(owner,target).catch(error=>status(error.message,true)));return node;
   };
   const branch=(label,id,opened,initial=false)=>{const node=el('details',undefined,'coding-board-branch');node.dataset.boardBranch=id;node.open=opened.has(id)||!key&&initial;node.append(el('summary',label));return node;};
-  const steps=(parent,plan,target)=>{
-    const list=el('ol');for(const [index,step] of plan.content.steps.entries()){const item=el('li');item.append(action(step.title,{...target,step_index:index}));const criteria=el('details');criteria.append(el('summary','完成条件'),el('p',step.acceptance,'coding-board-meta'));criteria.dataset.boardBranch=JSON.stringify([target,index]);list.append(item);item.append(criteria);}parent.append(list);
-    parent.append(el('p','尚无步骤级回报；本轮结束不代表各步骤已通过。','coding-board-meta'));
+  const steps=(parent,plan,target,entry)=>{
+    const states={'not-started':'等待前置步骤',ready:'待执行',running:'模型报告执行中',succeeded:'模型报告成功，待核对',failed:'模型报告失败',cancelled:'模型报告取消',blocked:'模型报告阻塞'};
+    const list=el('ol');for(const [index,step] of plan.content.steps.entries()){
+      const item=el('li'),node=entry?.board?.nodes.find(node=>node.id==='step-'+(index+1)),verdict=node&&entry.verdicts?.[node.id];
+      const accepted=verdict?.board_id===entry?.board?.board_id&&verdict?.board_version===entry?.board?.version;
+      const mark=node?(accepted?(verdict.status==='accepted'?'用户验收通过':'用户要求返工'):states[node.state]):undefined;
+      item.append(action(step.title,node?{kind:'step',run_id:entry.run_id,step_id:node.id}:{...target,step_index:index},mark,node?.state==='blocked'?'awaiting-input':node?.state));
+      const criteria=el('details');criteria.append(el('summary','完成条件'),el('p',step.acceptance,'coding-board-meta'));criteria.dataset.boardBranch=JSON.stringify([target,index]);list.append(item);item.append(criteria);
+      if(node?.reports.length)item.append(el('p',node.reports.at(-1).note,'coding-board-meta'));
+    }parent.append(list);
+    parent.append(el('p',entry?.board_error|| (entry?.board?'步骤显示原模型回报；用户验收单独记录。':'尚无步骤级回报；本轮结束不代表各步骤已通过。'),'coding-board-meta'));
   };
   const render=()=>{
     if(region.hidden)return;
@@ -43,7 +51,7 @@ export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
       if(run.phase==='awaiting-review')row.append(action('处理本轮审查',{kind:'reviews',run_id:run.id}));
       for(const entry of (data.taskboard_plans||[]).filter(entry=>entry.run_id===run.id)){
         const label='本轮固定计划 · 修订 '+(entry.revision??'未知');
-        if(entry.plan){row.append(action(label,{kind:'fixed-plan',revision:entry.revision}));steps(row,entry.plan,{kind:'fixed-plan',revision:entry.revision});}
+        if(entry.plan){row.append(action(label,{kind:'fixed-plan',revision:entry.revision}));steps(row,entry.plan,{kind:'fixed-plan',revision:entry.revision},entry);}
         else row.append(el('p',label+'：'+entry.error,'coding-board-meta'));
       }
       const group=groups.find(group=>group.run_id===run.id);

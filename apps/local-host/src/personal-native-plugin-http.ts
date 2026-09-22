@@ -1,3 +1,5 @@
+import { handleImagesNativePluginHttp } from "./images-native-plugin-http.js";
+import { handleJellyNativePluginHttp } from "./jelly-native-plugin-http.js";
 import { handleExperimentsNativePluginHttp } from "./experiments-native-plugin-http.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { DatasetRoutePorts } from "@molis-ai/molis-work-plugin-dataset";
@@ -15,6 +17,7 @@ import { withRewrittenPluginApi } from "./native-plugin-api.js";
 import { hostCompleteText } from "./host-complete-text.js";
 
 export interface PersonalNativePluginHttpPorts {
+  readonly projectId?: string;
   readonly publishArtifact?: PagesRoutePorts["publishArtifact"];
   readonly publishFormArtifact?: FormRoutePorts["publishArtifact"];
   readonly publishDatasetArtifact?: DatasetRoutePorts["publishArtifact"];
@@ -35,6 +38,8 @@ export async function handlePersonalNativePluginHttp(
   const routed = withRewrittenPluginApi(url);
   const completeText = ports.completeText ?? hostCompleteText();
   for (const handle of [
+    () => handleImagesNativePluginHttp(request, response, routed, homeDirectory, ports.projectId),
+    () => handleJellyNativePluginHttp(request, response, routed, homeDirectory, { completeText: ports.completeText }),
     () => handleExperimentsNativePluginHttp(request, response, routed, homeDirectory),
     () => handleShelfNativePluginHttp(request, response, routed, homeDirectory, ports.projectMaterials),
     () => handleFunctionsNativePluginHttp(request, response, routed, homeDirectory),

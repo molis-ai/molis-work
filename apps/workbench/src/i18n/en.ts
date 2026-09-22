@@ -1,3 +1,5 @@
+import { IMAGES_EN } from "@molis-ai/molis-work-plugin-images";
+import { JELLY_EN } from "@molis-ai/molis-work-plugin-jelly";
 import { GOALS_PROPOSAL_EN } from "@molis-ai/molis-work-plugin-goals";
 import { WORK_EN } from "@molis-ai/molis-work-plugin-work";
 import { ARTIFACT_EN } from "@molis-ai/molis-work-plugin-artifacts";
@@ -24,6 +26,37 @@ import { INFORMATION_LOOP_EN } from "./information-loop-en.js";
 
 /** Existing Workbench English catalog, isolated from locale runtime state in AP3. */
 export const EN: Record<string, string> = {
+  "步骤回报与验收": "Step reports and acceptance",
+  "模型报告成功不代表用户验收通过。请核对原轮次的实际操作和结果后评价。": "A model report is not user acceptance. Review the actual actions and results in the original run before assessing.",
+  "评价与返工说明": "Assessment and rework notes",
+  "重新读取回报": "Reload reports",
+  "验收通过": "Accept result",
+  "要求返工": "Request rework",
+  "据此调整计划": "Revise plan from feedback",
+  "等待前置步骤": "Waiting for prerequisites",
+  "模型报告执行中": "Model reports work in progress",
+  "模型报告成功，待用户核对": "Model reports success; user review pending",
+  "模型报告成功，待核对": "Model reports success; review pending",
+  "模型报告失败": "Model reports failure",
+  "模型报告取消": "Model reports cancellation",
+  "模型报告阻塞": "Model reports a blocker",
+  "用户验收通过": "User accepted",
+  "步骤显示原模型回报；用户验收单独记录。": "Steps show original model reports; user acceptance is recorded separately.",
+  "正在读取原步骤回报…": "Reading original step reports…",
+  "原步骤回报暂不可读；不能判断完成情况。": "Original step reports are unavailable; completion is unknown.",
+  "尚无模型步骤回报。": "No model step reports yet.",
+  "用户已验收通过": "User accepted this result",
+  "用户尚未评价。": "No user assessment yet.",
+  "这条评价对应较早回报，请重新核对当前版本。": "This assessment refers to an older report. Review the current version.",
+  "原执行已经结束；步骤回报保留原状态，请分别核对。": "The run has ended. Step reports retain their original states; review them individually.",
+  "本轮仍在执行，结束后可以评价；可重新读取最新回报。": "This run is still active. Reload for updated reports; assess after it ends.",
+  "正在保存评价…": "Saving assessment…",
+  "已保存用户验收；原模型回报保持。": "User acceptance saved. Original model reports are preserved.",
+  "返工说明已保存；可据此调整下一版计划。": "Rework notes saved. Use them to revise the next plan.",
+  "原步骤请求仍在处理，请稍后重试。": "The previous step request is still in progress. Try again shortly.",
+  "已把原步骤返工说明带入变更理由。请调整步骤，保存并重新确认后执行；原评价不会被覆盖。": "Original rework notes were added to the change reason. Revise the steps, save and reconfirm before executing. The original assessment is preserved.",
+  "当前计划暂不可读": "The current plan is unavailable",
+  "原执行 {run} · 固定计划修订 {revision}": "Original run {run} · Frozen plan revision {revision}",
   "计划与执行看板": "Plan and execution board",
   "选择看板任务": "Select board task",
   "选择会话后查看计划与实际执行。": "Select a session to view its plan and execution.",
@@ -72,6 +105,7 @@ export const EN: Record<string, string> = {
   "原成果操作仍在处理，请稍后重新打开": "The previous integration operation is still being processed. Open it again shortly.",
 
   ...INFORMATION_LOOP_EN,
+  ...IMAGES_EN,
   "待解决：{text}": "To resolve: {text}",
   "待你验收：{text}": "Awaiting your review: {text}",
   "尚待完成：{text}": "Still to complete: {text}",
@@ -305,6 +339,7 @@ export const EN: Record<string, string> = {
   ...DATASET_EN,
   ...PPT_EN,
   ...LINGGUANG_EN,
+  ...JELLY_EN,
   ...SCHEDULE_EN,
   ...GOALS_POLICY_EN,
   ...GOALS_SAFETY_EN,

@@ -95,10 +95,11 @@ export const CODING_PLANS_CLIENT_FACTORY_SCRIPT = `(ports) => {
     finally{busy=false;q('[data-coding-plan-save]').disabled=false;renderKey='';render();}
   });
   return {
+    prepareStepRework(reason){if(!plan)throw new Error('当前计划暂不可读');edit();editor.reason.value=[editor.reason.value,reason].filter(Boolean).join('\\n');remember();q('[data-coding-plan-error]').textContent='已把原步骤返工说明带入变更理由。请调整步骤，保存并重新确认后执行；原评价不会被覆盖。';},
     openFixed:fixed,
     update(id,value,nextRuns){if(owner!==id){remember();dialog.close();editor=null;renderKey='';plan=null;}owner=id;if(!plan || value?.revision>plan.revision || value?.revision===plan.revision && (!plan.confirmed || value.confirmed))plan=value;runs=nextRuns;render();},
     renderTurn(node,run,turn){
-      if(run.frozen.role_id!=='planner' || turn.kind!=='assistant' || !(/^\\s*\\{/.test(turn.text) || turn.text.includes('\x60\x60\x60')))return false;
+      if(run.frozen.role_id!=='planner' || turn.kind!=='assistant' || !(/^\\s*\\{/.test(turn.text) || turn.text.includes('\\n{') || turn.text.includes('\x60\x60\x60')))return false;
       node.replaceChildren();
       try{const content=parseCodingPlanAnswer(turn.text);node.append(element('p','模型计划提案 · 确认版本请查看右侧计划'));describe(node,content);const detail=element('details');detail.append(element('summary','查看规划原回答'),element('pre',turn.text));node.append(detail);}
       catch{node.append(element('p',run.phase==='completed'?'提案格式未完成，请查看原回答后补充要求。':'正在形成计划…'));const detail=element('details'),summary=element('summary','查看原回答');detail.append(summary,element('pre',turn.text));node.append(detail);}

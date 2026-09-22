@@ -36,6 +36,7 @@ export interface FeedOutRuleWrite {
   match: FeedOutRuleMatch;
   enabled?: boolean;
   function_key?: string | null;
+  admission?: "suggest" | "inbox";
 }
 
 type Row = Record<string, unknown>;
@@ -58,6 +59,9 @@ export function migrateFeedOutRules(db: FeedPluginSqliteDatabase): void {
   const columns = db.prepare("PRAGMA table_info(feed_out_rules)").all() as Array<{ name: string }>;
   if (!columns.some((column) => column.name === "function_key")) {
     db.exec("ALTER TABLE feed_out_rules ADD COLUMN function_key TEXT");
+  }
+  if (!columns.some((column) => column.name === "admission")) {
+    db.exec("ALTER TABLE feed_out_rules ADD COLUMN admission TEXT NOT NULL DEFAULT 'suggest'");
   }
 }
 
@@ -93,13 +97,14 @@ export class FeedOutRuleStore {
       enabled: input.enabled !== false,
       match: normalizeMatch(input.match),
       function_key: normalizeFunctionKey(input.function_key),
+      admission: normalizeAdmission(input.admission),
       created_at: at,
       updated_at: at,
     };
     this.db.prepare(`
       INSERT INTO feed_out_rules (
-        board_id, rule_id, name, enabled, match_json, function_key, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        board_id, rule_id, name, enabled, match_json, function_key, created_at, updated_at, admission
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       record.board_id,
       record.rule_id,
@@ -109,6 +114,7 @@ export class FeedOutRuleStore {
       record.function_key,
       record.created_at,
       record.updated_at,
+      record.admission,
     );
     return record;
   }
@@ -121,11 +127,12 @@ export class FeedOutRuleStore {
       enabled: patch.enabled != null ? patch.enabled : current.enabled,
       match: patch.match != null ? normalizeMatch({ ...current.match, ...patch.match }) : current.match,
       function_key: patch.function_key !== undefined ? normalizeFunctionKey(patch.function_key) : current.function_key,
+      admission: patch.admission !== undefined ? normalizeAdmission(patch.admission) : current.admission,
       updated_at: new Date().toISOString(),
     };
     this.db.prepare(`
       UPDATE feed_out_rules
-      SET name = ?, enabled = ?, match_json = ?, function_key = ?, updated_at = ?
+      SET name = ?, enabled = ?, match_json = ?, function_key = ?, updated_at = ?, admission = ?
       WHERE board_id = ? AND rule_id = ?
     `).run(
       next.name,
@@ -133,6 +140,7 @@ export class FeedOutRuleStore {
       JSON.stringify(next.match),
       next.function_key,
       next.updated_at,
+      next.admission,
       boardId,
       ruleId,
     );
@@ -215,6 +223,7 @@ export function parseFeedOutRuleWrite(body: Readonly<Record<string, unknown>>): 
     ...(typeof body.name === "string" ? { name: body.name } : { name: "" }),
     enabled: typeof body.enabled === "boolean" ? body.enabled : undefined,
     function_key: typeof body.function_key === "string" || body.function_key === null ? body.function_key : undefined,
+    admission: normalizeAdmission(body.admission),
     match: {
       ...(typeof body.contains === "string" ? { contains: body.contains } : {}),
       ...(typeof body.source_id === "string" ? { source_id: body.source_id } : {}),
@@ -225,6 +234,7 @@ export function parseFeedOutRuleWrite(body: Readonly<Record<string, unknown>>): 
 
 export function parseFeedOutRulePatch(body: Readonly<Record<string, unknown>>): Partial<FeedOutRuleWrite> {
   const patch: Partial<FeedOutRuleWrite> = {};
+  if ("admission" in body) patch.admission = normalizeAdmission(body.admission);
   if (typeof body.name === "string") patch.name = body.name;
   if (typeof body.enabled === "boolean") patch.enabled = body.enabled;
   if (typeof body.function_key === "string" || body.function_key === null) patch.function_key = body.function_key;
@@ -249,6 +259,12 @@ export function parseFeedOutRulePatch(body: Readonly<Record<string, unknown>>): 
 function normalizeFunctionKey(value: string | null | undefined): string | null {
   const key = value?.trim() ?? "";
   return key || null;
+}
+
+function normalizeAdmission(value: unknown): "suggest" | "inbox" {
+  if (value === undefined || value === "suggest") return "suggest";
+  if (value === "inbox") return "inbox";
+  throw new FeedDomainError("请选择仅建议或自动加入 Inbox", "feed_out_rule_invalid");
 }
 
 function normalizeName(value: string): string {
@@ -284,6 +300,7 @@ function mapOutRule(row: Row): FeedOutRuleRecord {
     enabled: Number(row.enabled) === 1,
     match: parseMatch(row.match_json),
     function_key: typeof row.function_key === "string" && row.function_key.trim() ? row.function_key.trim() : null,
+    admission: row.admission === "inbox" ? "inbox" : "suggest",
     created_at: String(row.created_at ?? ""),
     updated_at: String(row.updated_at ?? ""),
   };

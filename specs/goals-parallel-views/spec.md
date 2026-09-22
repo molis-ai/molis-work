@@ -4,8 +4,8 @@
 
 本文件是这次内容区改挂的唯一需求书。它改写：
 
-- `specs/goal-kanban-view/spec.md` 里母页只有「画布 | 看板」、点卡片展开工作框；
-- `specs/goals-directory-collection-folds/spec.md` 里当前/归档/回收站百叶窗挂在目录。
+- `specs/archive/goal-kanban-view/spec.md` 里母页只有「画布 | 看板」、点卡片展开工作框；
+- `specs/archive/goals-directory-collection-folds/spec.md` 里当前/归档/回收站百叶窗挂在目录。
 
 双击 Goal 进 Frame 仍走现有 tab-workspace / Frame 合同。单击进 `.goal-node-workspace`，见 `specs/goals-list-workspace-split/spec.md`。
 
@@ -27,9 +27,9 @@ Goals 左目录是压缩 Goal 列表，内容区母页只有画布和看板。�
 做：
 
 - 内容区三种并行视图：列表、画布、看板，都铺满标签下面的舞台。切换条是左上 chrome 里的三个图标，紧挨筛选，不跟 titlebar 里已打开的 Frame 标签抢位置。
-- 列表：同一套目录树行拉满内容区宽度，露出编号、状态、标题、子进度、前置依赖。行内四列对齐与单行合同见 `specs/goals-stage-list-row/spec.md`。不编造负责人头像。当前/归档/回收站百叶窗跟着 Item 进内容区。
+- 列表：同一套目录树行拉满内容区宽度，露出编号、状态、标题、子进度、前置依赖。行内四列对齐与单行合同见 `specs/archive/goals-stage-list-row/spec.md`。不编造负责人头像。当前/归档/回收站百叶窗跟着 Item 进内容区。
 - 目录只留 Goals 名称、新建 Goal、筛选。不再渲染任何 Goal Item。
-  已改由 `specs/goals-stage-chrome/spec.md`：Goals 不占第二栏，筛选和新建在舞台左上。
+  已改由 `specs/archive/goals-stage-chrome/spec.md`：Goals 不占第二栏，筛选和新建在舞台左上。
 - 列表行、画布节点、看板卡片单击打开该 Goal 的工作区（Runtime 左、信息/时间线右），并同步选中；双击才开 Frame。画布空白处仍平移缩放。节点上旧「展开工作框」maximize 先不动。
 - `lastBoardView` 加上 `list`。第一次进 Goals 默认列表。打开 Frame 后关掉，回到刚才那个视图。刷新记住上次视图。
 - 删掉目录里隐藏的 `navigator-view-switch`。

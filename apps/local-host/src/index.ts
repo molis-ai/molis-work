@@ -96,6 +96,7 @@ export * from "./gmail-oauth.js";
 
 export { createGithubConnector } from "./github-connector.js";
 export { createGmailConnector } from "./gmail-connector.js";
+export { createCatalogConnector } from "./catalog-connector.js";
 export { OfficialIntegrationRegistry, type OfficialProviderFactory } from "./official-integrations.js";
 
 export { createLocalFeedConnectorSync } from "./feed-connector-sync.js";
@@ -127,6 +128,8 @@ export { createLocalHostCapsule } from "./capsule.js";
 export { attachMolisWorkPtySocket, type MolisWorkPtySocketHandlers } from "./pty-socket.js";
 
 export { buildMolisWorkWebView, cachedMolisWorkWebView, type MolisWorkWebViewCache, type WebViewOptions } from "./web-view.js";
+export { rewriteNativePluginApiPath, withRewrittenPluginApi } from "./native-plugin-api.js";
+export { hostCompleteText, type HostCompleteText } from "./host-complete-text.js";
 export { bindScheduledTaskRunner, scheduleServiceFor, scheduleViewFingerprint } from "./schedule-runtime.js";
 export { createHostScheduledTaskRunner } from "./schedule-task-runner.js";
 

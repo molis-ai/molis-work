@@ -32,6 +32,8 @@ export const PAGES_NATIVE_PLUGIN_ROUTES = [
   route("pages.list", "GET", /^\/api\/pages$/u),
   route("pages.templates", "GET", /^\/api\/pages\/templates$/u),
   route("pages.create", "POST", /^\/api\/pages$/u),
+  route("pages.import.preview", "POST", /^\/api\/pages\/import\/preview$/u),
+  route("pages.import", "POST", /^\/api\/pages\/import$/u),
   route("pages.folders.create", "POST", /^\/api\/pages\/folders$/u),
   route("pages.folders.update", "POST", /^\/api\/pages\/folders\/([^/]+)$/u, ["id"]),
   route("pages.folders.delete", "POST", /^\/api\/pages\/folders\/([^/]+)\/delete$/u, ["id"]),

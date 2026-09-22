@@ -34,7 +34,7 @@ python3 -m http.server 64520 --bind 127.0.0.1 --directory docs/design/immersive-
 - 市场卡片默认两列、间距 `16px`、圆角 `10px`；右侧插件内容区不超过 `680px` 时改为单列。安装面板宽 `420px`，受视口宽高约束。
 - Goal 节点宽 `274px`、最小高 `158px`、圆角 `12px`。工作框与遮罩限制在右侧画布内，主区承载对话或终端，右栏承载信息与时间线；窄内容区按需覆盖显示右栏。减少动画偏好下直接切换。
 
-这些选择只记录本次探索，不构成全产品设计规范。方向合同见 [index.html](index.html) 的首个 body 注释，行为范围以 [原型 spec](../../../specs/immersive-workbench-design/spec.md) 为准。`navigation.js` / `navigation.css` 管项目菜单、两层目录、市场和模拟安装；`workbench.js` / `workbench.css` 管画布、工作框和按项目分开的演示状态。
+这些选择只记录本次探索，不构成全产品设计规范。方向合同见 [index.html](index.html) 的首个 body 注释，行为范围以 [原型 spec](../../../specs/archive/immersive-workbench-design/spec.md) 为准。`navigation.js` / `navigation.css` 管项目菜单、两层目录、市场和模拟安装；`workbench.js` / `workbench.css` 管画布、工作框和按项目分开的演示状态。
 
 ## 验证与交接
 

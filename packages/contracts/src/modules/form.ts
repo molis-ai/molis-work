@@ -10,6 +10,8 @@ export const modulesFormContract = {
 
 export const FORM_PLUGIN_ID = "io.molis.work.form";
 export const FORM_PROJECT_PLUGIN_ID = "form";
+export const FORM_ARTIFACT_TYPE_ID = "io.molis.work.form.questionnaire";
+export const FORM_ARTIFACT_SCHEMA_VERSION = 1;
 
 export type FormQuestionType = "text" | "singleChoice" | "multiChoice" | "dropdown" | "rating" | "date";
 export type FormStatus = "draft" | "published";
@@ -39,6 +41,8 @@ export interface FormRecord {
   readonly created_at: string;
   readonly updated_at: string;
   readonly version: number;
+  readonly artifact_id: string;
+  readonly artifact_version: number;
 }
 
 export interface FormSubmissionRecord {

@@ -1,3 +1,4 @@
+import { isAccountConnectorSyncKind } from "@molis-ai/molis-work-contracts/modules/sources";
 import { FeedDomainError } from "@molis-ai/molis-work-contracts/modules/feed";
 import { ListenerHostError, type ListenerRunReceipt } from "@molis-ai/molis-work-contracts/services/listener-host";
 import type { FeedApplication } from "./application.js";
@@ -17,7 +18,7 @@ export class FeedConnectorSync {
     input: { idempotencyKey: string; mode?: ConnectorSyncMode },
   ): Promise<FeedSourceSyncResult> {
     const source = this.feed.getSource(this.boardId, sourceId);
-    if (source.sync_kind !== "github" && source.sync_kind !== "gmail") {
+    if (!isAccountConnectorSyncKind(source.sync_kind)) {
       throw new FeedDomainError("这个来源不是账号连接器", "connector_wrong_sync_kind");
     }
     if (source.status === "disconnected") {

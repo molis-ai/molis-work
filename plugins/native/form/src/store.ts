@@ -1,6 +1,5 @@
-import { chmodSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
+import { ensureSqliteColumn, openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import type { DatabaseSync } from "node:sqlite";
 import type {
   FormOption,
   FormQuestion,
@@ -22,6 +21,8 @@ interface FormRow {
   created_at: string;
   updated_at: string;
   version: number;
+  artifact_id?: string;
+  artifact_version?: number;
 }
 
 interface SubmissionRow {
@@ -72,6 +73,8 @@ export class FormStore {
       created_at: now,
       updated_at: now,
       version: 1,
+      artifact_id: "",
+      artifact_version: 0,
     };
     this.db.prepare(
       "INSERT INTO forms (id, project_id, title, description, status, share_id, questions_json, created_at, updated_at, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -116,6 +119,15 @@ export class FormStore {
       "UPDATE forms SET status = ?, share_id = ?, updated_at = ?, version = ? WHERE id = ?",
     ).run(next.status, next.share_id, next.updated_at, next.version, id);
     return next;
+  }
+
+  rememberArtifact(id: string, artifactId: string, artifactVersion: number, projectId?: string): FormRecord {
+    const current = this.get(id, projectId);
+    const updated_at = new Date().toISOString();
+    this.db.prepare(
+      "UPDATE forms SET artifact_id = ?, artifact_version = ?, updated_at = ?, version = ? WHERE id = ?",
+    ).run(artifactId, artifactVersion, updated_at, current.version + 1, id);
+    return this.get(id, projectId);
   }
 
   delete(id: string, projectId?: string): void {
@@ -176,15 +188,7 @@ export class FormStore {
 }
 
 export function openFormStore(homeDirectory: string): FormStore {
-  const dir = join(homeDirectory, "form");
-  mkdirSync(dir, { recursive: true, mode: 0o700 });
-  const dbPath = join(dir, "form.db");
-  const db = new DatabaseSync(dbPath);
-  try {
-    chmodSync(dbPath, 0o600);
-  } catch {
-    // best-effort
-  }
+  const db = openHomeSqliteDatabase(homeDirectory, "form");
   db.exec(`
     CREATE TABLE IF NOT EXISTS forms (
       id TEXT PRIMARY KEY,
@@ -196,7 +200,9 @@ export function openFormStore(homeDirectory: string): FormStore {
       questions_json TEXT NOT NULL,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
-      version INTEGER NOT NULL
+      version INTEGER NOT NULL,
+      artifact_id TEXT NOT NULL DEFAULT '',
+      artifact_version INTEGER NOT NULL DEFAULT 0
     );
     CREATE TABLE IF NOT EXISTS submissions (
       id TEXT PRIMARY KEY,
@@ -205,15 +211,10 @@ export function openFormStore(homeDirectory: string): FormStore {
       submitted_at TEXT NOT NULL
     );
   `);
-  ensureProjectIdColumn(db, "forms");
+  ensureSqliteColumn(db, "forms", "project_id", "TEXT NOT NULL DEFAULT ''");
+  ensureSqliteColumn(db, "forms", "artifact_id", "TEXT NOT NULL DEFAULT ''");
+  ensureSqliteColumn(db, "forms", "artifact_version", "INTEGER NOT NULL DEFAULT 0");
   return new FormStore(db);
-}
-
-function ensureProjectIdColumn(db: DatabaseSync, table: string): void {
-  const columns = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
-  if (!columns.some((column) => column.name === "project_id")) {
-    db.exec(`ALTER TABLE ${table} ADD COLUMN project_id TEXT NOT NULL DEFAULT ''`);
-  }
 }
 
 function fromRow(row: FormRow): FormRecord {
@@ -228,6 +229,8 @@ function fromRow(row: FormRow): FormRecord {
     created_at: row.created_at,
     updated_at: row.updated_at,
     version: row.version,
+    artifact_id: row.artifact_id ?? "",
+    artifact_version: Number(row.artifact_version) || 0,
   };
 }
 

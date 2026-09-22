@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { chmod, copyFile, lstat, mkdtemp, mkdir, readFile, realpath, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { chmod, copyFile, lstat, mkdtemp, mkdir, readFile, readlink, realpath, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -25,6 +25,7 @@ async function fixtureSource(root: string, version: string): Promise<string> {
     mkdir(join(source, "dist", "mcp"), { recursive: true }),
     mkdir(join(source, "dist", "web"), { recursive: true }),
     mkdir(join(source, "skills", "goal-advance"), { recursive: true }),
+    mkdir(join(source, "skills", "molis-plugin-dev"), { recursive: true }),
     mkdir(dependencyDirectory, { recursive: true }),
   ]);
   const fixtureEntry = (name: string) =>
@@ -43,6 +44,7 @@ async function fixtureSource(root: string, version: string): Promise<string> {
     writeFile(join(source, "dist", "mcp", "server.js"), fixtureEntry("mcp")),
     writeFile(join(source, "dist", "web", "server.js"), fixtureEntry("web")),
     writeFile(join(source, "skills", "goal-advance", "SKILL.md"), "# Fixture Skill\n"),
+    writeFile(join(source, "skills", "molis-plugin-dev", "SKILL.md"), "# Fixture Plugin Dev Skill\n"),
     writeFile(
       join(dependencyDirectory, "package.json"),
       JSON.stringify({ name: "fixture-dependency", version: "1.0.0", type: "module", exports: "./index.js" }),
@@ -210,6 +212,7 @@ test("home install is scoped, idempotent, and produces an owned release layout",
     assert.equal(await readFile(join(home, "notes.txt"), "utf8"), "user-owned");
     assert.ok((await stat(join(first.release_directory, "dist", "mcp", "server.js"))).isFile());
     assert.ok((await stat(join(first.skill_directory, "goal-advance", "SKILL.md"))).isFile());
+    assert.ok((await stat(join(first.skill_directory, "molis-plugin-dev", "SKILL.md"))).isFile());
     assert.ok((await stat(first.launchers.mcp)).isFile());
     await assert.rejects(stat(join(home, "bin", "goalboard")));
     await assert.rejects(stat(join(home, "bin", "goalboard-mcp")));
@@ -219,6 +222,30 @@ test("home install is scoped, idempotent, and produces an owned release layout",
     assert.equal(second.status, "unchanged");
     assert.deepEqual(second.written_paths, []);
   });
+});
+
+test("home install rejects a source missing the plugin-dev skill", async () => {
+  await withTemporaryDirectory(async (directory) => {
+    const source = await fixtureSource(directory, "1.0.0");
+    await rm(join(source, "skills", "molis-plugin-dev"), { recursive: true, force: true });
+    await assert.rejects(
+      () => installMolisWorkHome({ homeDirectory: join(directory, "home", ".molis-work"), sourceDirectory: source }),
+      (error: unknown) =>
+        error instanceof MolisWorkHomeInstallError &&
+        error.code === "source.asset_missing" &&
+        /skills\/molis-plugin-dev\/SKILL\.md/.test(error.message),
+    );
+  });
+});
+
+test("plugin-dev skill is published under skills and linked from Cursor", async () => {
+  const canonical = join(process.cwd(), "skills", "molis-plugin-dev");
+  const cursor = join(process.cwd(), ".cursor", "skills", "molis-plugin-dev");
+  for (const file of ["SKILL.md", "elements.md", "ui.md", "examples.md", "host.md", "authoring.md", "integrations.md"]) {
+    assert.ok((await stat(join(canonical, file))).isFile(), file);
+  }
+  assert.ok((await lstat(cursor)).isSymbolicLink());
+  assert.equal(await readlink(cursor), "../../skills/molis-plugin-dev");
 });
 
 test("same-version content changes refresh atomically and identical content stays unchanged", async () => {
@@ -535,6 +562,7 @@ test("home install resolves production dependencies from a standard ancestor nod
       mkdir(join(packageDirectory, "dist", "mcp"), { recursive: true }),
       mkdir(join(packageDirectory, "dist", "web"), { recursive: true }),
       mkdir(join(packageDirectory, "skills", "goal-advance"), { recursive: true }),
+      mkdir(join(packageDirectory, "skills", "molis-plugin-dev"), { recursive: true }),
       mkdir(dependencyDirectory, { recursive: true }),
     ]);
     const fixtureEntry = (name: string) =>
@@ -553,6 +581,7 @@ test("home install resolves production dependencies from a standard ancestor nod
       writeFile(join(packageDirectory, "dist", "mcp", "server.js"), fixtureEntry("mcp")),
       writeFile(join(packageDirectory, "dist", "web", "server.js"), fixtureEntry("web")),
       writeFile(join(packageDirectory, "skills", "goal-advance", "SKILL.md"), "# Fixture Skill\n"),
+      writeFile(join(packageDirectory, "skills", "molis-plugin-dev", "SKILL.md"), "# Fixture Plugin Dev Skill\n"),
       writeFile(
         join(dependencyDirectory, "package.json"),
         JSON.stringify({ name: "fixture-dependency", version: "1.0.0", type: "module", exports: "./index.js" }),

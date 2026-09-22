@@ -34,7 +34,7 @@ function view(pluginId: string, viewId: string): UiContribution {
 function manifestFor(input: {
   id: string;
   name: string;
-  views: Array<{ view_id: string; slot: "navigator" | "stage" | "settings"; title: string; icon?: string; order?: number }>;
+  views: Array<{ view_id: string; slot: "navigator" | "stage" | "settings" | "island"; title: string; icon?: string; order?: number }>;
   commands?: Array<{ command_id: string; title: string; input_kinds: Array<"current" | "object" | "agent-session" | "artifacts">; opens_view_id: string }>;
   routes?: Array<{ route_id: string; method: "GET" | "POST"; path: string; permission?: string }>;
   permissions?: string[];
@@ -282,7 +282,7 @@ test("route parameters reach the handler as declared", async () => {
 });
 
 test("the bundled catalog reproduces the shell's navigation exactly", async () => {
-  const { railEntries, settingsEntries, PROJECT_SCOPED_PLUGIN_IDS, BUILTIN_PLUGIN_REGISTRY } =
+  const { railEntries, islandEntries, settingsEntries, PROJECT_SCOPED_PLUGIN_IDS, BUILTIN_PLUGIN_REGISTRY } =
     await import("@molis-ai/molis-work-app-workbench");
 
   const everything = ["goals", "sessions", "inbox", "feed", "shelf", "lingguang", "functions", "pages", "form", "dataset", "ppt", "artifacts"];
@@ -294,7 +294,6 @@ test("the bundled catalog reproduces the shell's navigation exactly", async () =
       ["inbox", "Inbox", "inbox"],
       ["feed", "Feed", "rss"],
       ["shelf", "Shelf", "library"],
-      ["lingguang", "灵光", "idea"],
       ["functions", "Functions", "sparkles"],
       ["pages", "Pages", "note"],
       ["form", "Forms", "clipboard"],
@@ -302,7 +301,12 @@ test("the bundled catalog reproduces the shell's navigation exactly", async () =
       ["ppt", "PPT", "image"],
       ["artifacts", "Artifacts", "package"],
     ],
-    "从 Manifest 推导出的导航必须和原来写死的一模一样",
+    "侧栏轨只挂 Manifest 声明了 navigator 的插件；灵光在岛上",
+  );
+  assert.deepEqual(
+    islandEntries(everything).map((entry) => [entry.id, entry.label, entry.glyph]),
+    [["lingguang", "灵光", "idea"]],
+    "岛槽从 Manifest 推导，不手写 id 特例",
   );
 
   assert.deepEqual(
@@ -314,7 +318,7 @@ test("the bundled catalog reproduces the shell's navigation exactly", async () =
 
   assert.deepEqual(
     settingsEntries(everything).map((entry) => entry.plugin_id),
-    ["io.molis.work.shelf", "io.molis.work.functions"],
+    ["io.molis.work.shelf", "io.molis.work.functions", "io.molis.work.goals"],
     "设置目录同样由 Manifest 决定",
   );
 

@@ -14,7 +14,10 @@ export const pagesManifest: PluginManifest = {
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-pages-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
-  permissions: [],
+  permissions: [
+    { permission: "storage:private", required: true, reason: "本机文档库" },
+    { permission: "artifact:write", required: true, reason: "把文档发成 Artifact" },
+  ],
   capabilities: { provides: [], consumes: [] },
   artifacts: {
     produces: [{ artifact_type_id: PAGES_ARTIFACT_TYPE_ID, schema_version: PAGES_ARTIFACT_SCHEMA_VERSION }],

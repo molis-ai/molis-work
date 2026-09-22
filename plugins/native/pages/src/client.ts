@@ -1,8 +1,11 @@
+import { PAGES_IMPORT_CLIENT_SCRIPT } from "./import-client.js";
+
 /** Pages workbench client: library, autosave, ProseMirror host. */
 export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   const { translate: L } = host;
   const workbench = document.querySelector("[data-pages=workbench]");
   if (!workbench) return;
+  const list = workbench.querySelector("[data-pages=directory]");
   const rowsEl = workbench.querySelector("[data-pages-rows]");
   const empty = workbench.querySelector("[data-pages-empty]");
   const searchEmpty = workbench.querySelector("[data-pages-search-empty]");
@@ -36,6 +39,17 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   let goals = [];
   let movingId = "";
   let suppressFoldToggleUntil = 0;
+  let listSeq = 0;
+  let selectionSeq = 0;
+  let openingId = null;
+  let editVersion = 0;
+  let dirty = false;
+  let saveQueue = Promise.resolve();
+  const keepListScroll = (paint) => {
+    const top = list?.scrollTop || 0;
+    paint();
+    if (list) list.scrollTop = top;
+  };
 
   const projectId = () => (typeof host.projectId === "function" ? host.projectId() : host.projectId) || "";
   const routePrefix = () => document.body.dataset.routePrefix || "";
@@ -208,6 +222,8 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       starEditor.title = selected.starred ? L("取消收藏") : L("收藏");
     }
     fillGoalSelect();
+    const artifactBar = workbench.querySelector("[data-pages-artifact-bar]");
+    if (artifactBar) artifactBar.textContent = selected.artifact_version > 0 ? L("再存一版") : L("存成 Artifact");
   };
   const markSelected = (id) => {
     rowsEl.querySelectorAll("[data-page-id]").forEach((row) => {
@@ -216,9 +232,20 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       row.setAttribute("aria-selected", String(on));
     });
   };
+  const artifactControl = (record, key) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "creative-artifact-act";
+    button.dataset[key] = record.id;
+    const label = record.artifact_version > 0 ? L("再存一版") : L("存成 Artifact");
+    button.setAttribute("aria-label", label);
+    button.innerHTML = ICON("upload") + "<span></span>";
+    button.lastElementChild.textContent = label;
+    return button;
+  };
   const renderRow = (record) => {
     const item = document.createElement("article");
-    item.className = "feed-stage-item pages-doc-row";
+    item.className = "feed-stage-item pages-doc-row creative-artifact-row";
     item.draggable = folders.length > 0;
     item.dataset.pageId = record.id;
     const row = document.createElement("button");
@@ -262,7 +289,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     star.setAttribute("aria-label", record.starred ? L("取消收藏") : L("收藏"));
     star.innerHTML = ICON("star");
     actions.append(star);
-    item.append(row, actions);
+    item.append(row, actions, artifactControl(record, "pagesArtifact"));
     return item;
   };
   const renderFold = (key, label, items, actions) => {
@@ -313,6 +340,9 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     return wrap;
   };
   const renderList = () => {
+    keepListScroll(() => paintList());
+  };
+  const paintList = () => {
     closeMove();
     const shown = visibleRecords();
     const searching = Boolean(query.trim());
@@ -361,11 +391,11 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       pages: () => records.map((item) => ({ id: item.id, title: item.title })),
       onOpenPage: (id) => {
         const record = records.find((item) => item.id === id);
-        if (record) fillEditor(record);
+        if (record) void openDocument(record).catch((error) => showNote(error.message || L("保存失败"), true));
       },
       runAi: async (input) => {
         if (!selected) throw new Error(L("文档请求失败"));
-        return request("POST", "/api/pages/" + encodeURIComponent(selected.id) + "/ai", input);
+        return request("POST", "/api/plugins/pages/" + encodeURIComponent(selected.id) + "/ai", input);
       },
       onCreateFromAi: async (input) => {
         const content = String(input.text || "").split(/\\n{2,}/).map((part) => (
@@ -377,8 +407,61 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       },
     });
   };
+  const draftOf = () => {
+    if (!selected) return null;
+    return {
+      id: selected.id,
+      title: titleInput.value,
+      body: editor && Editor ? Editor.getDoc(editor) : selected.body,
+      version: editVersion,
+    };
+  };
+  const storeDocument = (document) => {
+    const index = records.findIndex((item) => item.id === document.id);
+    if (index >= 0) records[index] = document;
+    else records.unshift(document);
+    renderList();
+  };
+  const adoptSaved = (draft, document) => {
+    storeDocument(document);
+    if (!selected || selected.id !== draft.id) return document;
+    if (editVersion !== draft.version || saveTimer) {
+      selected = {
+        ...selected,
+        goal_id: document.goal_id,
+        artifact_id: document.artifact_id,
+        artifact_version: document.artifact_version,
+        version: document.version,
+        updated_at: document.updated_at,
+      };
+      return document;
+    }
+    selected = document;
+    titleEl.textContent = document.title;
+    statusEl.textContent = L("已保存");
+    markSelected(document.id);
+    syncEditorChrome();
+    if (document.activeElement !== titleInput) titleInput.value = document.title;
+    return document;
+  };
+  const enqueueSave = (draft, patch) => {
+    const run = saveQueue.then(async () => {
+      const payload = await request("POST", "/api/plugins/pages/" + encodeURIComponent(draft.id), patch || {
+        title: draft.title,
+        body: draft.body,
+      });
+      if (!payload.document || payload.document.id !== draft.id) throw new Error(L("文档请求失败"));
+      return adoptSaved(draft, payload.document);
+    });
+    saveQueue = run.then(() => undefined, () => undefined);
+    return run;
+  };
   const fillEditor = (record) => {
+    const switching = Boolean(selected && record && selected.id !== record.id);
+    const leaving = switching ? draftOf() : null;
+    const pending = Boolean(switching && (saveTimer || dirty));
     clearTimeout(saveTimer);
+    saveTimer = 0;
     filling = true;
     selected = record;
     workbench.setAttribute("data-expanded", "true");
@@ -393,6 +476,9 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     }
     markSelected(record.id);
     syncEditorChrome();
+    if (pending && leaving) {
+      void enqueueSave(leaving).catch((error) => showNote(error.message || L("保存失败"), true));
+    }
   };
   const closeEditor = () => {
     clearTimeout(saveTimer);
@@ -402,34 +488,81 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     closeMore();
     closeCreate();
     closeMove();
-    workbench.querySelectorAll(".pages-format-bar, .pages-slash, .pages-pop, .pages-block-handle, .pages-block-menu").forEach((node) => { node.hidden = true; });
+    workbench.querySelectorAll(".pages-format-bar, .pages-slash, .pages-pop, .pages-block-handle, .pages-block-menu, .pages-block-ghost, .pages-drop-line").forEach((node) => { node.hidden = true; });
   };
   const loadList = async () => {
-    const payload = await request("GET", "/api/pages");
+    const seq = ++listSeq;
+    const payload = await request("GET", "/api/plugins/pages");
+    if (seq !== listSeq) return;
     records = payload.documents || [];
     folders = payload.folders || [];
     renderList();
     if (selected) {
       const next = records.find((item) => item.id === selected.id);
-      if (next) remember(next, false);
-      else closeEditor();
+      if (!next) closeEditor();
+      else if (!saveTimer && !dirty) remember(next, false);
     }
   };
   const save = async () => {
-    if (!selected) return selected;
-    const body = editor && Editor ? Editor.getDoc(editor) : selected.body;
-    const payload = await request("POST", "/api/pages/" + encodeURIComponent(selected.id), {
-      title: titleInput.value,
-      body,
-    });
-    remember(payload.document, false);
-    if (document.activeElement !== titleInput) titleInput.value = payload.document.title;
-    return selected;
+    clearTimeout(saveTimer);
+    saveTimer = 0;
+    const draft = draftOf();
+    if (!draft) return null;
+    try {
+      const saved = await enqueueSave(draft);
+      if (editVersion === draft.version && !saveTimer) dirty = false;
+      return saved;
+    } catch (error) {
+      dirty = true;
+      throw error;
+    }
   };
   const queueSave = () => {
+    editVersion += 1;
+    dirty = true;
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => { void save().catch((error) => showNote(error.message || L("保存失败"), true)); }, 400);
   };
+  const persistCurrent = async () => {
+    if (!selected) return;
+    do { await save(); } while (selected && (saveTimer || dirty));
+  };
+  const revealEditor = () => {
+    workbench.setAttribute("data-expanded", "true");
+    workspace.hidden = false;
+  };
+  const openDocument = async (record) => {
+    if (!record) return;
+    if (selected && selected.id === record.id) {
+      revealEditor();
+      return;
+    }
+    if (selected && (saveTimer || dirty)) await persistCurrent();
+    fillEditor(record);
+    dirty = false;
+    editVersion += 1;
+  };
+  workbench.addEventListener("molis-work:select-item", (event) => {
+    const id = event.detail?.itemId;
+    if (!id) { selectionSeq++; openingId = null; return; }
+    if (selected?.id === id) {
+      revealEditor();
+      return;
+    }
+    if (openingId === id) return;
+    openingId = id;
+    const seq = ++selectionSeq;
+    void (async () => {
+      if (selected && (saveTimer || dirty)) await persistCurrent();
+      const payload = await request("GET", "/api/plugins/pages/" + encodeURIComponent(id));
+      if (seq !== selectionSeq) return;
+      fillEditor(payload.document);
+      dirty = false;
+      editVersion += 1;
+      showNote("", false);
+    })().catch((error) => { if (seq === selectionSeq) showNote(error.message || L("保存失败"), true); })
+      .finally(() => { if (seq === selectionSeq) openingId = null; });
+  });
   const exportHtml = () => {
     if (!selected || !Editor) return;
     const body = editor ? Editor.getDoc(editor) : selected.body;
@@ -451,34 +584,30 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     fillEditor(record);
   };
   const createPage = async (body) => {
-    const payload = await request("POST", "/api/pages", body || {});
+    if (selected && (saveTimer || dirty)) await persistCurrent();
+    const payload = await request("POST", "/api/plugins/pages", body || {});
+    await loadList();
     openCreated(payload.document);
+    dirty = false;
+    editVersion += 1;
   };
   const toggleStar = async (id) => {
     const record = records.find((item) => item.id === id);
     if (!record) return;
-    const payload = await request("POST", "/api/pages/" + encodeURIComponent(id), { starred: !record.starred });
-    if (selected?.id === id) remember(payload.document, false);
-    else {
-      const index = records.findIndex((item) => item.id === id);
-      if (index >= 0) records[index] = payload.document;
-      renderList();
-    }
+    await request("POST", "/api/plugins/pages/" + encodeURIComponent(id), { starred: !record.starred });
+    await loadList();
   };
   const movePage = async (id, folderId) => {
     const record = records.find((item) => item.id === id);
     if (!record || (record.folder_id || "") === folderId) return;
-    const payload = await request("POST", "/api/pages/" + encodeURIComponent(id), { folder_id: folderId });
-    if (selected?.id === id) remember(payload.document, false);
-    else {
-      const index = records.findIndex((item) => item.id === id);
-      if (index >= 0) records[index] = payload.document;
-      renderList();
-    }
+    await request("POST", "/api/plugins/pages/" + encodeURIComponent(id), { folder_id: folderId });
+    await loadList();
   };
   const clearDrop = () => {
     workbench.querySelectorAll("[data-pages-drop].is-drop").forEach((node) => node.classList.remove("is-drop"));
   };
+
+  ${PAGES_IMPORT_CLIENT_SCRIPT}
 
   titleInput.addEventListener("input", () => {
     if (titleEl) titleEl.textContent = titleInput.value || L("文档");
@@ -490,9 +619,14 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   });
   goalSelect?.addEventListener("change", () => {
     if (!selected) return;
-    void request("POST", "/api/pages/" + encodeURIComponent(selected.id), { goal_id: goalSelect.value })
-      .then((payload) => remember(payload.document, false))
-      .catch((error) => showNote(error.message || L("保存失败"), true));
+    const draft = draftOf();
+    if (!draft) return;
+    selected = { ...selected, goal_id: goalSelect.value };
+    void enqueueSave(draft, { goal_id: goalSelect.value })
+      .catch((error) => {
+        dirty = true;
+        showNote(error.message || L("保存失败"), true);
+      });
   });
   workbench.addEventListener("click", async (event) => {
     try {
@@ -557,9 +691,8 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
         if (!folder) return;
         const title = await askName(L("文件夹名称"), folder.title);
         if (title == null) return;
-        const payload = await request("POST", "/api/pages/folders/" + encodeURIComponent(folder.id), { title });
-        folders = folders.map((item) => item.id === payload.folder.id ? payload.folder : item);
-        renderList();
+        await request("POST", "/api/plugins/pages/folders/" + encodeURIComponent(folder.id), { title });
+        await loadList();
         return;
       }
       const folderDelete = event.target.closest("[data-pages-folder-delete]");
@@ -569,11 +702,8 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
         const ok = await ask(L("要删除这个文件夹吗？里面的文档会回到未分类。"), L("删除"));
         if (!ok) return;
         const id = folderDelete.dataset.pagesFolderDelete;
-        await request("POST", "/api/pages/folders/" + encodeURIComponent(id) + "/delete", {});
-        folders = folders.filter((item) => item.id !== id);
-        records = records.map((item) => item.folder_id === id ? { ...item, folder_id: "" } : item);
-        if (selected?.folder_id === id) selected = { ...selected, folder_id: "" };
-        renderList();
+        await request("POST", "/api/plugins/pages/folders/" + encodeURIComponent(id) + "/delete", {});
+        await loadList();
         return;
       }
       const template = event.target.closest("[data-pages-template]");
@@ -593,9 +723,8 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
         closeCreate();
         const title = await askName(L("文件夹名称"), "");
         if (title == null) return;
-        const payload = await request("POST", "/api/pages/folders", { title });
-        folders = [...folders, payload.folder].sort((a, b) => a.title.localeCompare(b.title, "zh"));
-        renderList();
+        await request("POST", "/api/plugins/pages/folders", { title });
+        await loadList();
         return;
       }
       if (event.target.closest("[data-pages-new]")) {
@@ -603,10 +732,29 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
         await createPage({});
         return;
       }
+      const listedArtifact = event.target.closest("[data-pages-artifact]");
+      if (listedArtifact) {
+        const id = listedArtifact.dataset.pagesArtifact;
+        const record = records.find((item) => item.id === id);
+        if (!record) return;
+        if (selected && selected.id === id) await persistCurrent();
+        const response = await fetch(route(withProject("/api/plugins/pages/" + encodeURIComponent(id) + "/promote")), {
+          method: "POST",
+          headers: headers(),
+          body: JSON.stringify({ project_id: projectId(), goal_id: record.goal_id || "" }),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload.error || L("文档请求失败"));
+        showNote(L("已存成 Artifact"), false);
+        await loadList();
+        if (payload.document && selected && selected.id === id && !saveTimer && !dirty) remember(payload.document, false);
+        else if (payload.document) storeDocument(payload.document);
+        return;
+      }
       const row = event.target.closest("button[data-page-id]");
       if (row) {
         const record = records.find((item) => item.id === row.dataset.pageId);
-        if (record) fillEditor(record);
+        if (record) await openDocument(record);
         return;
       }
       if (event.target.closest("[data-pages-star-editor]") && selected) {
@@ -614,30 +762,39 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
         return;
       }
       if (event.target.closest("[data-pages-back]")) {
-        await save().catch((error) => showNote(error.message || L("保存失败"), true));
+        await persistCurrent();
+        dirty = false;
         closeEditor();
+        await loadList();
         return;
       }
       if (event.target.closest("[data-pages-extract]") && selected) {
         closeMore();
-        await save().catch((error) => showNote(error.message || L("保存失败"), true));
-        const payload = await request("POST", "/api/pages/" + encodeURIComponent(selected.id) + "/extract", {});
+        const id = selected.id;
+        await persistCurrent();
+        const payload = await request("POST", "/api/plugins/pages/" + encodeURIComponent(id) + "/extract", {});
         await loadList();
-        remember(payload.document, true);
+        if (selected && selected.id === id) {
+          dirty = false;
+          remember(payload.document, true);
+        }
         return;
       }
       if (event.target.closest("[data-pages-promote]") && selected) {
         closeMore();
-        await save().catch((error) => showNote(error.message || L("保存失败"), true));
-        const response = await fetch(route(withProject("/api/pages/" + encodeURIComponent(selected.id) + "/promote")), {
+        const id = selected.id;
+        const goalId = goalSelect ? goalSelect.value : selected.goal_id;
+        await persistCurrent();
+        const response = await fetch(route(withProject("/api/plugins/pages/" + encodeURIComponent(id) + "/promote")), {
           method: "POST",
           headers: headers(),
-          body: JSON.stringify({ project_id: projectId(), goal_id: goalSelect ? goalSelect.value : selected.goal_id }),
+          body: JSON.stringify({ project_id: projectId(), goal_id: goalId }),
         });
         const payload = await response.json().catch(() => ({}));
-        if (payload.document) remember(payload.document, false);
+        if (payload.document && selected && selected.id === id && !saveTimer && !dirty) remember(payload.document, false);
+        else if (payload.document) storeDocument(payload.document);
         if (!response.ok) throw new Error(payload.error || L("文档请求失败"));
-        showNote(L("已保存"), false);
+        showNote(L("已存成 Artifact"), false);
         return;
       }
       if (event.target.closest("[data-pages-export]") && selected) {
@@ -650,17 +807,16 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
         const ok = await ask(L("要删除这篇文档吗？删除后无法恢复。"), L("删除"));
         if (!ok) return;
         const id = selected.id;
-        await request("POST", "/api/pages/" + encodeURIComponent(id) + "/delete", {});
-        records = records.filter((item) => item.id !== id);
+        await request("POST", "/api/plugins/pages/" + encodeURIComponent(id) + "/delete", {});
         closeEditor();
-        renderList();
+        await loadList();
       }
     } catch (error) {
       showNote(error.message || L("文档请求失败"), true);
     }
   });
   workbench.addEventListener("dragstart", (event) => {
-    if (event.target.closest(".pages-row-act, .pages-folder-actions")) {
+    if (event.target.closest(".pages-row-act, .pages-folder-actions, .creative-artifact-act")) {
       event.preventDefault();
       return;
     }
@@ -709,14 +865,22 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   });
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
+    if (document.querySelector("dialog[open]")) return;
+    let handled = false;
+    if (moreMenu && !moreMenu.hidden) {
+      closeMore();
+      moreButton?.focus();
+      handled = true;
+    }
     if (moveMenu && !moveMenu.hidden) {
-      event.preventDefault();
       closeMove();
+      handled = true;
     }
     if (createMenu && !createMenu.hidden) {
-      event.preventDefault();
       closeCreate();
+      handled = true;
     }
+    if (handled) event.preventDefault();
   });
   void loadList().catch((error) => showNote(error.message || L("文档请求失败"), true));
   void loadGoals();

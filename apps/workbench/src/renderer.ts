@@ -58,6 +58,7 @@ import {
   renderProjectOperations,
   renderShelfContribution,
   renderFunctionsContribution,
+  renderExperimentsContribution,
   renderPagesContribution,
   renderFormContribution,
   renderDatasetContribution,
@@ -281,6 +282,14 @@ function renderFeedWorkbenchFragment(view: MolisWorkWebView): string {
   ), view.route_prefix);
 }
 
+function renderInboxWorkbenchFragment(view: MolisWorkWebView): string {
+  return prefixLocalLinks(renderInboxNativePluginSurface(view, "workbench"), view.route_prefix);
+}
+
+function renderScheduleWorkbenchFragment(view: MolisWorkWebView): string {
+  return prefixLocalLinks(renderScheduleNativePluginSurface(view, "workbench"), view.route_prefix);
+}
+
 const goalsFactorsRenderer = createWorkbenchGoalsFactorsRenderer({ translate: L, escapeHtml, icon, renderFocusSectionDeck });
 
 function renderGoalFactors(item: WebGoalView, view: MolisWorkWebView): string {
@@ -404,7 +413,7 @@ const { renderMolisWorkWeb, renderMolisWorkRefreshFragment } =
     renderCreateDialog, renderGoalTrashDialog, renderMomentumPlaceholder, renderGoalKanban, renderTuiPane,
     renderProjectOperations: (project, data) => renderProjectOperations(project, data, icon, L),
     renderDesktopProjectChrome, renderProjectSwitcher,
-    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderShelfNativePluginSurface, renderFunctionsNativePluginSurface, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderLingguangNativePluginSurface,
+    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderShelfNativePluginSurface, renderFunctionsNativePluginSurface, renderExperimentsContribution, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderLingguangNativePluginSurface,
   });
   return {
     renderMolisWorkProjectIndex,
@@ -412,6 +421,8 @@ const { renderMolisWorkWeb, renderMolisWorkRefreshFragment } =
     renderDecisionCenter,
     renderPersistedFeedItemDetail,
     renderFeedWorkbenchFragment,
+    renderInboxWorkbenchFragment,
+    renderScheduleWorkbenchFragment,
     renderGoalDocumentFragment,
     renderMolisWorkMomentumFragment,
     renderMolisWorkOnboarding,

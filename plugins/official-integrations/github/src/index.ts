@@ -6,6 +6,7 @@ import type {
 import { definePollingIntegrationPlugin } from "@molis-ai/molis-work-plugin-sdk";
 
 export { createGithubProvider, githubWhoami, type GithubFetch, type GithubWhoamiResult } from "./provider.js";
+export { readResearchLibrary, type ResearchLibraryEntry } from "./research-library.js";
 
 export const GITHUB_WHOAMI_BEHAVIOR_ID = "whoami";
 export const GITHUB_WHOAMI_PUBLIC_BEHAVIOR_ID = "github.whoami";

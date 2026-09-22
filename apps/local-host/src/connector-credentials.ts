@@ -14,14 +14,20 @@ export function authRefFor(connectorId: string): string {
   return `connector:${connectorId}:token`;
 }
 
+export function resolveConnectorToken(connectorId: string): string | null {
+  const stored = createFileSecretStore().get(authRefFor(connectorId))?.trim();
+  if (stored) return stored;
+  if (connectorId === "github") return readProductEnv("GITHUB_TOKEN") || null;
+  if (connectorId === "gmail") return readProductEnv("GMAIL_ACCESS_TOKEN") || null;
+  return readProductEnv(`${connectorId.replaceAll("-", "_").toUpperCase()}_TOKEN`) || null;
+}
+
 export function resolveGithubToken(): string | null {
-  const stored = createFileSecretStore().get(GITHUB_AUTH_REF)?.trim();
-  return stored || readProductEnv("GITHUB_TOKEN") || null;
+  return resolveConnectorToken("github");
 }
 
 export function resolveGmailToken(): string | null {
-  const stored = createFileSecretStore().get(GMAIL_AUTH_REF)?.trim();
-  return stored || readProductEnv("GMAIL_ACCESS_TOKEN") || null;
+  return resolveConnectorToken("gmail");
 }
 
 export function bindConnectorToken(
@@ -61,7 +67,7 @@ export function connectorCredentialStatus(connectorId: string): ConnectorCredent
     ? readProductEnv("GITHUB_TOKEN")
     : connectorId === "gmail"
       ? readProductEnv("GMAIL_ACCESS_TOKEN")
-      : null;
+      : readProductEnv(`${connectorId.replaceAll("-", "_").toUpperCase()}_TOKEN`);
   return fromEnvironment
     ? { bound: true, source: "env", authRef, hint: `…${fromEnvironment.slice(-4)}` }
     : { bound: false, source: "none", authRef };

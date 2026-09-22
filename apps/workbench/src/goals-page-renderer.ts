@@ -73,6 +73,7 @@ export interface WorkbenchGoalsPageOwners<TItem extends GoalCollectionItem, TVie
   renderInboxNativePluginSurface(view: TView, surface: "directory" | "workbench"): string;
   renderScheduleNativePluginSurface(view: TView, surface: "directory" | "workbench"): string;
   renderShelfNativePluginSurface(surface: "directory" | "workbench"): string;
+  renderExperimentsContribution(): string;
   renderFunctionsNativePluginSurface(surface: "directory" | "workbench"): string;
   renderPagesNativePluginSurface(surface: "directory" | "workbench"): string;
   renderFormNativePluginSurface(surface: "directory" | "workbench"): string;
@@ -91,7 +92,7 @@ export function createWorkbenchGoalsPageRenderer<TItem extends GoalCollectionIte
     renderGoalDocument, renderTrashGoalDocument, goalsDocumentRenderer, goalsTreeRenderer,
     renderCreateDialog, renderGoalTrashDialog, renderMomentumPlaceholder, renderGoalKanban, renderTuiPane,
     renderProjectOperations, renderDesktopProjectChrome,
-    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderShelfNativePluginSurface, renderFunctionsNativePluginSurface, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderLingguangNativePluginSurface } = owners;
+    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderShelfNativePluginSurface, renderFunctionsNativePluginSurface, renderExperimentsContribution, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderLingguangNativePluginSurface } = owners;
 
 function renderMolisWorkRefreshFragment(
   view: TView,
@@ -139,7 +140,7 @@ function renderMolisWorkWeb(
     ? { project_id: view.project.project_id, display_name: view.project.display_name }
     : null, projectOperationsData);
   const desktopAccountFooter = renderPluginRailAccountFooter(primitives);
-  const settingsDirectory = `${renderSettingsDirectorySection(primitives)}${view.project ? renderProjectSettingsDirectorySection(primitives) : ""}`;
+  const settingsDirectory = `${renderSettingsDirectorySection(primitives, enabledPlugins)}${view.project ? renderProjectSettingsDirectorySection(primitives) : ""}`;
   const settingsSurfaces = `${renderSettingsWorkSurface(primitives, `${view.route_prefix || ""}/` || "/")}${view.project ? renderProjectSettingsWorkSurface(primitives, view.project, desktopShell) : ""}`;
   const pluginEnabled = (id: string) => enabledPlugins.includes(id);
   const projectTitlebarChrome = renderDesktopProjectChrome(view.project ?? null, projectOptions, desktopShell, view.project ? "__PROJECT_SETTINGS__" : null, { switcherClass: "desktop-project-switcher", manageHref: "__PROJECT_INDEX__", directoryToggle: true, globalSearch: true });
@@ -154,6 +155,8 @@ function renderMolisWorkWeb(
   const stageList = goalsTreeRenderer.renderGoalStageList(view, collection);
   const goalStage = showTui ? `<div class="goal-canvas-shell" data-goal-canvas-shell data-board-view="list">
     ${stageList}
+    <section class="goal-work-planning-pane" data-goal-work-planning aria-label="${L("工作规划")}"></section>
+    <section class="goal-work-rules-pane" data-goal-work-rules aria-label="${L("工作规则")}"></section>
     ${renderMomentumPlaceholder()}
     ${renderGoalKanban(view, selected?.goal.goal_id || "", view.goals)}
     <div class="goal-stage-chrome" data-goal-stage-chrome>${goalsTreeRenderer.renderTreeChrome(view)}
@@ -161,7 +164,9 @@ function renderMolisWorkWeb(
       <button class="mw-toggle is-current" type="button" data-board-view-tab="list" aria-pressed="true" aria-current="page" aria-label="${L("列表")}" title="${L("列表")}">${icon("rows")}</button>
       <button class="mw-toggle" type="button" data-board-view-tab="canvas" aria-pressed="false" aria-label="${L("画布")}" title="${L("画布")}">${icon("network")}</button>
       <button class="mw-toggle" type="button" data-board-view-tab="kanban" aria-pressed="false" aria-label="${L("看板")}" title="${L("看板")}">${icon("columns")}</button>
-    </div></div>
+    </div>
+    <button class="mw-btn mw-btn--ghost goal-work-planning-toggle" type="button" data-open-work-planning aria-pressed="false">${icon("workflow")}<span>${L("工作规划")}</span></button>
+    <button class="mw-btn mw-btn--ghost goal-work-planning-toggle" type="button" data-open-work-rules aria-pressed="false">${icon("shield")}<span>${L("工作规则")}</span></button></div>
     <section class="goal-node-workspace" data-goal-node-workspace aria-label="${L("Goal 工作区")}" hidden>
       ${renderImmersiveGoalHeader(selected?.goal.title || "", primitives)}
       <div class="goal-node-workbench" data-goal-node-workbench>
@@ -232,6 +237,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
           shelf: "",
           lingguang: "",
           functions: "",
+          experiments: "",
           pages: "",
           form: "",
           dataset: "",
@@ -257,6 +263,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
             ${renderScheduleNativePluginSurface(view, "workbench")}
             ${renderShelfNativePluginSurface("workbench")}
             ${renderFunctionsNativePluginSurface("workbench")}
+            ${renderExperimentsContribution()}
             ${renderPagesNativePluginSurface("workbench")}
             ${renderFormNativePluginSurface("workbench")}
             ${renderDatasetNativePluginSurface("workbench")}

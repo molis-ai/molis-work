@@ -128,6 +128,7 @@ test("settings catalog lists registered settings-pages and ignores Feed, Inbox, 
   assert.equal(isHostGlobalSettingsSection("connectors"), true);
   assert.equal(isHostGlobalSettingsSection("runtimes"), true);
   assert.equal(isHostGlobalSettingsSection("functions"), false);
+  assert.equal(isHostGlobalSettingsSection("planning"), false);
   assert.deepEqual(pluginSettingsNavItemsFrom([]), []);
   assert.deepEqual(
     pluginSettingsNavItemsFrom([feedUiContribution.descriptor, inboxUiContribution.descriptor]),
@@ -172,6 +173,8 @@ test("settings catalog lists registered settings-pages and ignores Feed, Inbox, 
   assert.equal(live[0]?.plugin_id, "io.molis.work.coding");
   assert.equal(live[1]?.contribution_id, SHELF_SETTINGS_UI_CONTRIBUTION_ID);
   assert.equal(live[1]?.label, "Shelf");
+  assert.deepEqual(listPluginSettingsNavItems(["goals"]).map((item) => item.section_id), ["coding-settings", "shelf", "functions", "planning"]);
+  assert.equal(listPluginSettingsNavItems(["goals"]).find((item) => item.section_id === "planning")?.label, "Goals");
   assert.equal(live.some((item) => item.section_id === "mcp"), false);
   assert.equal(live[2]?.section_id, "functions");
   assert.equal(live[2]?.label, "Functions");
@@ -267,10 +270,14 @@ test("workbench settings directory and standalone settings both show Shelf after
   assert.match(directory, /data-settings-section="runtimes"/);
   assert.match(directory, /data-settings-section="mcp"/);
   assert.match(directory, /data-settings-section="connectors"/);
-  assert.match(directory, /data-settings-section="planning"/);
+  assert.doesNotMatch(directory, /data-settings-section="planning"/);
   assert.match(directory, /data-settings-section="diagnostics"/);
   assert.match(directory, /data-settings-section="shelf"/);
   assert.match(directory, /data-settings-section="functions"/);
+  const withGoals = renderSettingsDirectorySection(directoryPrimitives, ["goals"]);
+  const sectionOrder = [...withGoals.matchAll(/data-settings-section="([^"]+)"/g)].map((match) => match[1]);
+  assert.deepEqual(sectionOrder, ["appearance", "runtimes", "mcp", "connectors", "diagnostics", "shelf", "functions", "planning"]);
+  assert.match(withGoals, />Goals</);
   assert.doesNotMatch(directory, /Gmail|Inbox/);
   const html = renderMolisWorkSettings({
     section: "shelf",

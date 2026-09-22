@@ -10,6 +10,8 @@ export const modulesPptContract = {
 
 export const PPT_PLUGIN_ID = "io.molis.work.ppt";
 export const PPT_PROJECT_PLUGIN_ID = "ppt";
+export const PPT_ARTIFACT_TYPE_ID = "io.molis.work.ppt.deck";
+export const PPT_ARTIFACT_SCHEMA_VERSION = 1;
 
 export interface PptSlide {
   readonly id: string;
@@ -31,4 +33,6 @@ export interface PptRecord {
   readonly created_at: string;
   readonly updated_at: string;
   readonly version: number;
+  readonly artifact_id: string;
+  readonly artifact_version: number;
 }

@@ -3,7 +3,7 @@ import type {
   UiContributionDescriptor,
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
-import { icon } from "@molis-ai/molis-work-design-system";
+import { icon, renderPluginStageShell } from "@molis-ai/molis-work-design-system";
 
 export const DATASET_UI_CONTRIBUTION_ID = "io.molis.work.native.dataset.ui.v1";
 
@@ -47,7 +47,11 @@ export const datasetUiContribution: UiContribution<DatasetUiModel> = {
 
 export function renderDatasetWorkbench(model: DatasetUiModel): string {
   const { primitives: p } = model;
-  return `<section class="desktop-work-surface plugin-stage-shell" data-work-surface="dataset" data-work-surface-label="Dataset" hidden data-dataset="workbench" data-dataset-stage-shell data-expanded="false">
+  return renderPluginStageShell({
+    surface: "dataset",
+    label: "Dataset",
+    dataset: "dataset",
+    body: `
     <div class="plugin-stage-list feed-stage-list feed-stage-tree" data-dataset="directory">
       <header class="plugin-stage-chrome dataset-stage-chrome">
         <button class="mw-btn mw-btn--ghost tree-create" type="button" data-dataset-new>${icon("plus")}<span>${p.text("新建数据表")}</span></button>
@@ -65,6 +69,7 @@ export function renderDatasetWorkbench(model: DatasetUiModel): string {
         <button class="plugin-stage-back" type="button" data-dataset-back aria-label="${p.text("返回数据表列表")}" title="${p.text("返回数据表列表")}">${icon("arrow")}</button>
         <h1 data-dataset-editor-title>${p.text("数据表")}</h1>
         <span data-dataset-editor-status></span>
+        <button class="mw-btn mw-btn--ghost" type="button" data-dataset-artifact="" data-dataset-artifact-bar>${p.text("存成 Artifact")}</button>
         <button class="mw-btn mw-btn--ghost" type="button" data-dataset-export-csv>${p.text("导出 CSV")}</button>
         <button class="mw-btn mw-btn--ghost" type="button" data-dataset-export-json>${p.text("导出 JSON")}</button>
         <button class="mw-btn mw-btn--ghost" type="button" data-dataset-delete>${p.text("删除")}</button>
@@ -119,5 +124,5 @@ export function renderDatasetWorkbench(model: DatasetUiModel): string {
         </div>
       </form>
     </dialog>
-  </section>`;
+  ` });
 }

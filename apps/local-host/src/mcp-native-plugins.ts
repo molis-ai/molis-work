@@ -5,27 +5,13 @@ import {
   type PluginMcpHandleRequest,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { McpToolCallContext } from "@molis-ai/molis-work-app-mcp";
-import { MolisWorkV1Error } from "@molis-ai/molis-work-plugin-goals";
-import {
-  FUNCTIONS_PROJECT_PLUGIN_ID,
-  functionsManifest,
-} from "@molis-ai/molis-work-plugin-functions";
-import {
-  FORM_PROJECT_PLUGIN_ID,
-  formManifest,
-} from "@molis-ai/molis-work-plugin-form";
-import {
-  PAGES_PROJECT_PLUGIN_ID,
-  pagesManifest,
-} from "@molis-ai/molis-work-plugin-pages";
-import {
-  DATASET_PROJECT_PLUGIN_ID,
-  datasetManifest,
-} from "@molis-ai/molis-work-plugin-dataset";
-import {
-  PPT_PROJECT_PLUGIN_ID,
-  pptManifest,
-} from "@molis-ai/molis-work-plugin-ppt";
+import { MolisWorkV1Error } from "@molis-ai/molis-work-contracts/platform/errors";
+import { FUNCTIONS_PROJECT_PLUGIN_ID, functionsManifest } from "@molis-ai/molis-work-plugin-functions";
+import { datasetManifest, type DatasetPublishArtifactPort } from "@molis-ai/molis-work-plugin-dataset";
+import { formManifest, type FormPublishArtifactPort } from "@molis-ai/molis-work-plugin-form";
+import { pagesManifest, type PagesPublishArtifactPort } from "@molis-ai/molis-work-plugin-pages";
+import { pptManifest, type PptPublishArtifactPort } from "@molis-ai/molis-work-plugin-ppt";
+import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { createFunctionsMcpAdapter } from "./mcp-functions-tools.js";
 import {
   createDatasetMcpAdapter,
@@ -54,6 +40,10 @@ export interface NativeMcpAdapterPorts {
   requireHost(context: McpToolCallContext): MolisWorkRuntimeContextHost;
   /** Bound project for personal stores partitioned by project_id. Omitted means unbound. */
   boundProjectId?(context: McpToolCallContext): string | null;
+  publishPagesArtifact?: PagesPublishArtifactPort;
+  publishFormArtifact?: FormPublishArtifactPort;
+  publishDatasetArtifact?: DatasetPublishArtifactPort;
+  publishPptArtifact?: PptPublishArtifactPort;
 }
 
 export interface NativeMcpPluginAdapter {
@@ -75,63 +65,33 @@ export interface NativeMcpDispatchEntry {
   readonly definition: { readonly name: string };
 }
 
-export const NATIVE_MCP_PLUGIN_REGISTRATIONS: readonly NativeMcpPluginRegistration[] = [
-  {
+const NATIVE_MCP_ADAPTERS: Readonly<Record<string, NativeMcpPluginRegistration["createAdapter"]>> = {
+  [functionsManifest.plugin_id]: createFunctionsMcpAdapter,
+  [pagesManifest.plugin_id]: createPagesMcpAdapter,
+  [formManifest.plugin_id]: createFormMcpAdapter,
+  [datasetManifest.plugin_id]: createDatasetMcpAdapter,
+  [pptManifest.plugin_id]: createPptMcpAdapter,
+};
+
+export const NATIVE_MCP_PLUGIN_REGISTRATIONS: readonly NativeMcpPluginRegistration[] = BUILTIN_PLUGIN_CATALOG.flatMap((entry) => {
+  const exports = entry.manifest.mcp_exports ?? [];
+  if (exports.length === 0) return [];
+  const createAdapter = NATIVE_MCP_ADAPTERS[entry.manifest.plugin_id];
+  if (!createAdapter) {
+    throw new Error(`Plugin ${entry.manifest.plugin_id} 声明了 MCP 导出，Host 没有适配器`);
+  }
+  return [{
     source: {
-      plugin_id: functionsManifest.plugin_id,
-      project_plugin_id: FUNCTIONS_PROJECT_PLUGIN_ID,
-      name: functionsManifest.name,
-      personal: true,
-      exports: functionsManifest.mcp_exports ?? [],
+      plugin_id: entry.manifest.plugin_id,
+      project_plugin_id: entry.project_plugin_id,
+      name: entry.manifest.name,
+      personal: entry.personal === true,
+      exports,
     },
-    default_enabled: true,
-    createAdapter: createFunctionsMcpAdapter,
-  },
-  {
-    source: {
-      plugin_id: pagesManifest.plugin_id,
-      project_plugin_id: PAGES_PROJECT_PLUGIN_ID,
-      name: pagesManifest.name,
-      personal: true,
-      exports: pagesManifest.mcp_exports ?? [],
-    },
-    default_enabled: false,
-    createAdapter: createPagesMcpAdapter,
-  },
-  {
-    source: {
-      plugin_id: formManifest.plugin_id,
-      project_plugin_id: FORM_PROJECT_PLUGIN_ID,
-      name: formManifest.name,
-      personal: true,
-      exports: formManifest.mcp_exports ?? [],
-    },
-    default_enabled: false,
-    createAdapter: createFormMcpAdapter,
-  },
-  {
-    source: {
-      plugin_id: datasetManifest.plugin_id,
-      project_plugin_id: DATASET_PROJECT_PLUGIN_ID,
-      name: datasetManifest.name,
-      personal: true,
-      exports: datasetManifest.mcp_exports ?? [],
-    },
-    default_enabled: false,
-    createAdapter: createDatasetMcpAdapter,
-  },
-  {
-    source: {
-      plugin_id: pptManifest.plugin_id,
-      project_plugin_id: PPT_PROJECT_PLUGIN_ID,
-      name: pptManifest.name,
-      personal: true,
-      exports: pptManifest.mcp_exports ?? [],
-    },
-    default_enabled: false,
-    createAdapter: createPptMcpAdapter,
-  },
-];
+    default_enabled: entry.project_plugin_id === FUNCTIONS_PROJECT_PLUGIN_ID,
+    createAdapter,
+  }];
+});
 
 export function nativeMcpPluginSources(): readonly McpPluginExportSource[] {
   return NATIVE_MCP_PLUGIN_REGISTRATIONS.map((item) => item.source);

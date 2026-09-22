@@ -98,6 +98,8 @@ interface JobRow {
   next_due_at: string;
   enabled: number;
   lease_until: string | null;
+  /** Identifies the execution that holds the lease. Null when nobody owns it. */
+  lease_token: string | null;
   last_wakeup_id: string | null;
   created_at: string;
   updated_at: string;
@@ -126,6 +128,7 @@ export function migrateScheduleService(db: ScheduleSqliteDatabase): void {
       next_due_at TEXT NOT NULL,
       enabled INTEGER NOT NULL CHECK (enabled IN (0, 1)),
       lease_until TEXT,
+      lease_token TEXT,
       last_wakeup_id TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
@@ -133,6 +136,12 @@ export function migrateScheduleService(db: ScheduleSqliteDatabase): void {
     );
     CREATE INDEX IF NOT EXISTS schedule_jobs_due_idx
       ON schedule_jobs(enabled, next_due_at);
+  `);
+  const columns = db.prepare("PRAGMA table_info(schedule_jobs)").all() as Array<{ name: string }>;
+  if (!columns.some((column) => column.name === "lease_token")) {
+    db.exec("ALTER TABLE schedule_jobs ADD COLUMN lease_token TEXT");
+  }
+  db.exec(`
     CREATE TABLE IF NOT EXISTS schedule_wakeups (
       wakeup_id TEXT PRIMARY KEY,
       job_id TEXT NOT NULL,
@@ -166,6 +175,10 @@ export function createScheduleService(db: ScheduleSqliteDatabase, options: Sched
   const wakeupIndex = options.wakeupIndex;
   const now = options.now ?? (() => new Date());
   const leaseMs = options.leaseMs ?? SCHEDULE_LEASE_MS;
+  // Tokens this process is still executing. A replacement service does not see
+  // them, so a crash (no more renewal) leaves only the sqlite lease, which can
+  // be taken over once it expires. This map is not the lock.
+  const executions = new Map<string, string>();
 
   function register(input: ScheduleRegisterInput): ScheduleJobRecord {
     const pluginId = normalizeIdentity(input.plugin_id, "插件身份");
@@ -213,8 +226,21 @@ export function createScheduleService(db: ScheduleSqliteDatabase, options: Sched
 
   function setEnabled(jobId: string, enabled: boolean, pluginId?: string): ScheduleJobRecord {
     const job = readOwned(jobId, pluginId);
-    db.prepare("UPDATE schedule_jobs SET enabled = ?, lease_until = NULL, updated_at = ? WHERE job_id = ?")
-      .run(enabled ? 1 : 0, iso(now()), job.job_id);
+    const clock = iso(now());
+    if (enabled) {
+      // Keep any live lease. Clearing it here would let a second tick claim
+      // the job while the handler that was paused is still running.
+      db.prepare("UPDATE schedule_jobs SET enabled = 1, updated_at = ? WHERE job_id = ?")
+        .run(clock, job.job_id);
+    } else {
+      // Drop the execution identity so a late finish cannot write this job
+      // back to enabled, and cannot clear a lease a later execution holds.
+      db.prepare(`
+        UPDATE schedule_jobs
+        SET enabled = 0, lease_until = NULL, lease_token = NULL, updated_at = ?
+        WHERE job_id = ?
+      `).run(clock, job.job_id);
+    }
     return mustRead(job.job_id);
   }
 
@@ -232,6 +258,7 @@ export function createScheduleService(db: ScheduleSqliteDatabase, options: Sched
   }
 
   async function tick(at = now()): Promise<ScheduleTickResult> {
+    renewExecutions(at);
     const result: ScheduleTickResult = { invoked: 0, failed: 0, skipped: 0 };
     const clock = iso(at);
     const due = db.prepare(
@@ -250,16 +277,37 @@ export function createScheduleService(db: ScheduleSqliteDatabase, options: Sched
     return result;
   }
 
+  function renewExecutions(at: Date): void {
+    const leaseUntil = iso(new Date(at.getTime() + leaseMs));
+    const clock = iso(at);
+    for (const [jobId, token] of executions) {
+      db.prepare(`
+        UPDATE schedule_jobs
+        SET lease_until = ?, updated_at = ?
+        WHERE job_id = ? AND lease_token = ?
+      `).run(leaseUntil, clock, jobId, token);
+    }
+  }
+
   function claim(jobId: string, at: Date): JobRow | null {
+    if (executions.has(jobId)) return null;
     const clock = iso(at);
     const leaseUntil = iso(new Date(at.getTime() + leaseMs));
+    const token = `lease_${randomUUID()}`;
     return db.transaction(() => {
       const row = db.prepare("SELECT * FROM schedule_jobs WHERE job_id = ?").get(jobId) as JobRow | undefined;
       if (!row || row.enabled !== 1 || row.next_due_at > clock) return null;
       if (row.lease_until && row.lease_until > clock) return null;
-      db.prepare("UPDATE schedule_jobs SET lease_until = ?, updated_at = ? WHERE job_id = ?")
-        .run(leaseUntil, clock, jobId);
-      return { ...row, lease_until: leaseUntil, updated_at: clock };
+      const updated = db.prepare(`
+        UPDATE schedule_jobs
+        SET lease_until = ?, lease_token = ?, updated_at = ?
+        WHERE job_id = ?
+          AND enabled = 1
+          AND next_due_at <= ?
+          AND (lease_until IS NULL OR lease_until <= ?)
+      `).run(leaseUntil, token, clock, jobId, clock, clock);
+      if (Number(updated.changes) !== 1) return null;
+      return { ...row, lease_until: leaseUntil, lease_token: token, updated_at: clock };
     }).immediate();
   }
 
@@ -267,53 +315,73 @@ export function createScheduleService(db: ScheduleSqliteDatabase, options: Sched
     const started = iso(at);
     const wakeupId = `wakeup_${randomUUID()}`;
     const dueAt = job.next_due_at;
-    const nextDue = nextDueAfter(job, at);
-    const stillEnabled = job.recurrence_kind === "interval" ? 1 : 0;
-    // Advance before invoke so a long handler cannot be claimed again after the 30s lease.
-    db.prepare(`
-      UPDATE schedule_jobs
-      SET next_due_at = ?, enabled = ?, updated_at = ?
-      WHERE job_id = ?
-    `).run(nextDue, stillEnabled, started, job.job_id);
-    const input: ScheduleWakeupInput = {
-      job_id: job.job_id,
-      plugin_id: job.plugin_id,
-      capability_id: job.capability_id,
-      object_ref: job.object_ref,
-      due_at: dueAt,
-    };
-    let status: ScheduleWakeupStatus = "ok";
-    let detail: string | null = null;
+    const token = job.lease_token;
+    if (token) executions.set(job.job_id, token);
     try {
-      if (!wakeupIndex.has(job.plugin_id, job.capability_id)) {
-        throw new ScheduleError("schedule_handler_missing", "叫醒对象还没有提供执行接口");
+      const nextDue = nextDueAfter(job, at);
+      const stillEnabled = job.recurrence_kind === "interval" ? 1 : 0;
+      // Keep the normal cadence. A long handler stays exclusive because its
+      // lease is renewed, not because this timestamp was pushed out.
+      if (token) {
+        db.prepare(`
+          UPDATE schedule_jobs
+          SET next_due_at = ?,
+              enabled = CASE WHEN enabled = 0 THEN 0 ELSE ? END,
+              updated_at = ?
+          WHERE job_id = ? AND lease_token = ?
+        `).run(nextDue, stillEnabled, started, job.job_id, token);
       }
-      const reply = await wakeupIndex.invoke(input);
-      detail = reply?.detail?.slice(0, 500) ?? null;
-    } catch (error) {
-      const code = error instanceof ScheduleError ? error.code : "";
-      status = code === "schedule_handler_missing" ? "plugin_unavailable" : "failed";
-      detail = (error instanceof Error ? error.message : String(error)).slice(0, 500);
+      const input: ScheduleWakeupInput = {
+        job_id: job.job_id,
+        plugin_id: job.plugin_id,
+        capability_id: job.capability_id,
+        object_ref: job.object_ref,
+        due_at: dueAt,
+      };
+      let status: ScheduleWakeupStatus = "ok";
+      let detail: string | null = null;
+      try {
+        if (!wakeupIndex.has(job.plugin_id, job.capability_id)) {
+          throw new ScheduleError("schedule_handler_missing", "叫醒对象还没有提供执行接口");
+        }
+        const reply = await wakeupIndex.invoke(input);
+        detail = reply?.detail?.slice(0, 500) ?? null;
+      } catch (error) {
+        const code = error instanceof ScheduleError ? error.code : "";
+        status = code === "schedule_handler_missing" ? "plugin_unavailable" : "failed";
+        detail = (error instanceof Error ? error.message : String(error)).slice(0, 500);
+      }
+      const finishedAt = iso(now());
+      if (token) {
+        db.transaction(() => {
+          const owned = db.prepare(
+            "SELECT lease_token FROM schedule_jobs WHERE job_id = ?",
+          ).get(job.job_id) as { lease_token: string | null } | undefined;
+          // Cancelled, stopped, or taken over by a newer execution: do not write.
+          if (!owned || owned.lease_token !== token) return;
+          db.prepare(`
+            INSERT INTO schedule_wakeups (wakeup_id, job_id, due_at, started_at, finished_at, status, detail)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+          `).run(wakeupId, job.job_id, dueAt, started, finishedAt, status, detail);
+          db.prepare(`
+            UPDATE schedule_jobs
+            SET lease_until = NULL, lease_token = NULL, last_wakeup_id = ?, updated_at = ?
+            WHERE job_id = ? AND lease_token = ?
+          `).run(wakeupId, finishedAt, job.job_id, token);
+        }).immediate();
+      }
+      return {
+        wakeup_id: wakeupId,
+        job_id: job.job_id,
+        due_at: job.next_due_at,
+        started_at: started,
+        finished_at: finishedAt,
+        status,
+        detail,
+      };
+    } finally {
+      if (token && executions.get(job.job_id) === token) executions.delete(job.job_id);
     }
-    const finishedAt = iso(now());
-    db.prepare(`
-      INSERT INTO schedule_wakeups (wakeup_id, job_id, due_at, started_at, finished_at, status, detail)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(wakeupId, job.job_id, dueAt, started, finishedAt, status, detail);
-    db.prepare(`
-      UPDATE schedule_jobs
-      SET lease_until = NULL, last_wakeup_id = ?, updated_at = ?
-      WHERE job_id = ?
-    `).run(wakeupId, finishedAt, job.job_id);
-    return {
-      wakeup_id: wakeupId,
-      job_id: job.job_id,
-      due_at: job.next_due_at,
-      started_at: started,
-      finished_at: finishedAt,
-      status,
-      detail,
-    };
   }
 
   function readOwned(jobId: string, pluginId?: string): JobRow {

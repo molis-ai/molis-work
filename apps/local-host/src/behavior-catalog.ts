@@ -1,7 +1,10 @@
 import {
   FEED_CAPTURE_SCENE_ID,
+  FEED_ARCHIVE_BEHAVIOR_ID,
   FEED_OPEN_BEHAVIOR_ID,
+  FEED_PROMOTE_BEHAVIOR_ID,
   FEED_REAUTH_BEHAVIOR_ID,
+  FEED_SAVE_BEHAVIOR_ID,
   HOME_ASK_BEHAVIOR_ID,
   HOME_CONTINUE_BEHAVIOR_ID,
   HOME_DOCK_ACTION_IDS,
@@ -12,14 +15,16 @@ import {
   INBOX_NEXT_SCENE_ID,
   assembleFunctionAuthoringCatalog,
   defaultFeedCaptureBehaviorIds,
-  defaultInboxNextBehaviorIds,
+  sceneBehaviorIds,
   offeredHomeDockBehaviorIds,
 } from "@molis-ai/molis-work-contracts/modules/functions";
 import {
   assembleRegisteredBehaviors,
+  type PluginManifest,
   type RegisteredBehavior,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { githubIntegrationManifest } from "@molis-ai/molis-work-integration-github";
+import { CATALOG_CONNECTORS, catalogIntegrationManifest } from "@molis-ai/molis-work-integration-catalog";
 import { feedManifest } from "@molis-ai/molis-work-plugin-feed";
 import { functionsManifest } from "@molis-ai/molis-work-plugin-functions";
 import { inboxManifest } from "@molis-ai/molis-work-plugin-inbox";
@@ -86,6 +91,30 @@ export const SYSTEM_BEHAVIORS: readonly RegisteredBehavior[] = [
     subject_kinds: ["feed_item", "source"],
     source: "system",
   },
+  {
+    behavior_id: FEED_SAVE_BEHAVIOR_ID,
+    plugin_id: "system",
+    title: "保存为资料",
+    effect: "write",
+    subject_kinds: ["feed_item"],
+    source: "system",
+  },
+  {
+    behavior_id: FEED_PROMOTE_BEHAVIOR_ID,
+    plugin_id: "system",
+    title: "升格为 Goal",
+    effect: "write",
+    subject_kinds: ["feed_item"],
+    source: "system",
+  },
+  {
+    behavior_id: FEED_ARCHIVE_BEHAVIOR_ID,
+    plugin_id: "system",
+    title: "忽略",
+    effect: "write",
+    subject_kinds: ["feed_item"],
+    source: "system",
+  },
 ];
 
 const NATIVE_BEHAVIOR_MANIFESTS = [
@@ -102,8 +131,12 @@ export function nativeBehaviorManifests() {
   return NATIVE_BEHAVIOR_MANIFESTS;
 }
 
-export function connectedIntegrationManifests() {
-  return connectorCredentialStatus("github").bound ? [githubIntegrationManifest] : [];
+export function connectedIntegrationManifests(): PluginManifest[] {
+  const manifests: PluginManifest[] = connectorCredentialStatus("github").bound ? [githubIntegrationManifest] : [];
+  for (const spec of CATALOG_CONNECTORS) {
+    if (connectorCredentialStatus(spec.id).bound) manifests.push(catalogIntegrationManifest(spec.id));
+  }
+  return manifests;
 }
 
 export function liveBehaviorManifests() {
@@ -151,7 +184,7 @@ export function hostOfferedBehaviorsForScene(
   subjects: readonly string[],
   catalog: readonly RegisteredBehavior[] = assembleHostBehaviorCatalog(),
 ): string[] {
-  if (sceneId === INBOX_NEXT_SCENE_ID) return defaultInboxNextBehaviorIds(true);
+  if (sceneId === INBOX_NEXT_SCENE_ID) return sceneBehaviorIds(sceneId);
   if (sceneId === FEED_CAPTURE_SCENE_ID) return defaultFeedCaptureBehaviorIds(true);
   if (sceneId === HOME_DOCK_SCENE_ID) return offeredHomeDockBehaviorIds(catalog, subjects);
   return hostAllowedBehaviorIds(catalog);

@@ -333,7 +333,7 @@ test("Feed task capture rules pick a published function instead of typing a key"
   assert.match(overlays, /不用判断/);
 });
 
-test("Feed detail keeps Add to Inbox until a legal stay-in-Feed suggestion arrives", () => {
+test("Feed suggestions retain an explicit manual Inbox override", () => {
   const host = new UiHost();
   host.register(feedUiContribution);
   const defaults = host.render({
@@ -352,7 +352,7 @@ test("Feed detail keeps Add to Inbox until a legal stay-in-Feed suggestion arriv
     surface: "persisted-detail",
     model: persistedDetail({ suggested_behavior_ids: ["feed.open"] }),
   });
-  assert.doesNotMatch(stay, /data-feed-action="inbox"/);
+  assert.match(stay, /data-feed-action="inbox"[^>]*>手动加入 Inbox/);
   assert.match(stay, /data-feed-action="save"/);
   assert.match(stay, /data-feed-action="promote"/);
   assert.match(stay, /data-feed-action="archive"/);
@@ -364,6 +364,17 @@ test("Feed detail keeps Add to Inbox until a legal stay-in-Feed suggestion arriv
     model: persistedDetail({ suggested_behavior_ids: ["invented.behavior", "home.talk"] }),
   });
   assert.match(illegal, /data-feed-action="inbox"/);
+
+  const promote = host.render({
+    contribution_id: FEED_UI_CONTRIBUTION_ID,
+    surface: "persisted-detail",
+    model: persistedDetail({ suggested_behavior_ids: ["feed.promote"] }),
+  });
+  assert.match(promote, /data-feed-action="promote"/);
+  assert.match(promote, /data-feed-action="inbox"[^>]*>手动加入 Inbox/);
+  assert.doesNotMatch(promote, /data-feed-action="save"/);
+  assert.doesNotMatch(promote, /data-feed-action="archive"/);
+  assert.match(promote, /打开原文/);
 });
 
 test("Feed stage list groups items by source task", () => {
@@ -536,6 +547,7 @@ test("Feed Plugin route table owns matching while the Host supplies handlers", a
     "feed.snapshot",
     "feed.workbench",
     "feed.out-rules.list",
+    "feed.out-rules.evaluate",
     "feed.out-rules.create",
     "feed.out-rules.update",
     "feed.out-rules.delete",

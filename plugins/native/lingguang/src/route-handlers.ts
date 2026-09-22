@@ -2,7 +2,14 @@ import { LingguangError } from "./error.js";
 import type { LingguangPluginRouteHandler, LingguangPluginRouteRequest, LingguangPluginRouteResponse } from "./routes.js";
 import type { LingguangStore } from "./store.js";
 
-export function createLingguangRouteHandlers(store: LingguangStore): Record<string, LingguangPluginRouteHandler> {
+export interface LingguangRoutePorts {
+  completeText?: (prompt: string) => Promise<string>;
+}
+
+export function createLingguangRouteHandlers(
+  store: LingguangStore,
+  ports: LingguangRoutePorts = {},
+): Record<string, LingguangPluginRouteHandler> {
   return {
     "lingguang.list": ({ request }) => ({ status: 200, body: { sparks: store.list(projectIdOf(request)) } }),
     "lingguang.create": ({ request }) => ({
@@ -40,10 +47,14 @@ export function createLingguangRouteHandlers(store: LingguangStore): Record<stri
       status: 200,
       body: store.openConversation(readIds(request.body.spark_ids), projectIdOf(request)),
     }),
-    "lingguang.conversation_message": ({ params, request }) => ({
-      status: 200,
-      body: store.addMessage(params.id ?? "", stringField(request.body.body) ?? "", projectIdOf(request)),
-    }),
+    "lingguang.conversation_message": async ({ params, request }) => {
+      const body = stringField(request.body.body) ?? "";
+      const reply = ports.completeText ? (await ports.completeText(body)).trim() : undefined;
+      return {
+        status: 200,
+        body: store.addMessage(params.id ?? "", body, projectIdOf(request), reply),
+      };
+    },
   };
 }
 

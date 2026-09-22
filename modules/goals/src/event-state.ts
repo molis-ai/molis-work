@@ -58,7 +58,6 @@ export class GoalEventState {
   }
 
   readWorkState(boardId: string, goalId: string): GoalEventWorkStateView {
-    this.context.requireGoal(boardId, goalId);
     const goal = this.context.requireGoal(boardId, goalId);
     const requirements = this.host.readCurrentRequirements(boardId, goalId);
     const progress = this.records.latestProgress(boardId, goalId);

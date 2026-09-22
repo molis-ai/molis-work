@@ -1,6 +1,5 @@
-import { chmodSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
+import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import type { DatabaseSync } from "node:sqlite";
 import type {
   LingguangConversation,
   LingguangMessage,
@@ -142,7 +141,7 @@ export class LingguangStore {
     };
   }
 
-  addMessage(conversationId: string, body: string, projectId: string): {
+  addMessage(conversationId: string, body: string, projectId: string, reply?: string): {
     conversation: LingguangConversation;
     sparks: LingguangSpark[];
     messages: LingguangMessage[];
@@ -155,7 +154,7 @@ export class LingguangStore {
     const text = normalizeChat(body);
     const now = new Date().toISOString();
     insertMessage(this.db, conversationId, "user", text, now);
-    insertMessage(this.db, conversationId, "stub", `${STUB_PREFIX}${text}`, now);
+    insertMessage(this.db, conversationId, "stub", reply ?? `${STUB_PREFIX}${text}`, now);
     this.db.prepare("UPDATE conversations SET updated_at = ? WHERE id = ?").run(now, conversationId);
     const conversation = fromConversationRow(
       this.db.prepare("SELECT * FROM conversations WHERE id = ?").get(conversationId) as unknown as ConversationRow,
@@ -182,15 +181,7 @@ export class LingguangStore {
 }
 
 export function openLingguangStore(homeDirectory: string): LingguangStore {
-  const dir = join(homeDirectory, "lingguang");
-  mkdirSync(dir, { recursive: true, mode: 0o700 });
-  const dbPath = join(dir, "lingguang.db");
-  const db = new DatabaseSync(dbPath);
-  try {
-    chmodSync(dbPath, 0o600);
-  } catch {
-    // best-effort
-  }
+  const db = openHomeSqliteDatabase(homeDirectory, "lingguang");
   db.exec(`
     CREATE TABLE IF NOT EXISTS sparks (
       id TEXT PRIMARY KEY,

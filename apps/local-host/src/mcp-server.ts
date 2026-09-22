@@ -1,5 +1,6 @@
 import type { MolisWorkRuntimeConnection, MolisWorkRuntimeContextHost } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { MolisWorkV1Error, projectResumeFactsCapability, readProjectGuidanceCapability } from "@molis-ai/molis-work-plugin-goals";
+import { projectResumeFactsCapability, readProjectGuidanceCapability } from "@molis-ai/molis-work-plugin-goals";
+import { MolisWorkV1Error } from "@molis-ai/molis-work-contracts/platform/errors";
 import { createMcpRuntimeContextHandlers, createMcpContextPresenter, dispatchMcpProjectTool, handleMcpMessage,
   mcpRuntimeSessionActivity, MCP_SERVER_INFO as SERVER_INFO,
   canonicalMcpToolName,
@@ -17,10 +18,15 @@ import { runtimeContextHostFromEnvironment } from "./runtime-context.js";
 import { assertMcpToolAllowed, requireMcpRuntimeContextHost } from "./mcp-authority.js";
 import { injectRuntimeIdentity } from "./mcp-event-identity.js";
 import { assembleMcpCatalog, findAssembledMcpTool, type AssembledMcpCatalog } from "./mcp-catalog.js";
+import { createNativeMcpPluginAdapters, dispatchNativeMcpPluginTool } from "./mcp-native-plugins.js";
 import {
-  createNativeMcpPluginAdapters,
-  dispatchNativeMcpPluginTool,
-} from "./mcp-native-plugins.js";
+  registerDatasetArtifactVersion,
+  registerFormArtifactVersion,
+  registerPptArtifactVersion,
+} from "./creative-artifacts.js";
+import { registerPagesArtifactVersion } from "./pages-artifact.js";
+import { LocalProjectDatabase } from "./project-database.js";
+import { GoalProjectApplication } from "./goal-project-application.js";
 import { readMcpToolPreference } from "./mcp-settings-store.js";
 import { readProductEnv } from "@molis-ai/molis-work-storage";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
@@ -31,6 +37,24 @@ const createPresentationError: McpPresentationErrorFactory = (code, message, det
 const EMPTY_TOOL_CALL_CONTEXT: MolisWorkMcpToolCallContext = { runtimeSessionId: null, runtimeSessionIdSource: null };
 
 /** Sole outbound MCP process. Catalog assembly and gates stay in Host; apps/mcp owns platform schema and project-tool dispatch. */
+function publishCreativeArtifact<Input>(
+  connection: { databasePath: string; boardId: string } | null,
+  code: string,
+  register: (
+    coordinator: GoalProjectApplication,
+    boardId: string,
+  ) => (input: Input) => { artifact_id: string; version: number },
+  input: Input,
+): { artifact_id: string; version: number } {
+  if (!connection) throw new MolisWorkV1Error(code, "当前环境不能发出 Artifact");
+  const store = new LocalProjectDatabase(connection.databasePath);
+  try {
+    return register(new GoalProjectApplication(store), connection.boardId)(input);
+  } finally {
+    store.close();
+  }
+}
+
 export class LocalMcpServer {
   audience: MolisWorkMcpAudience;
   private readonly connectionState: RuntimeProjectConnection;
@@ -79,6 +103,25 @@ export class LocalMcpServer {
     this.nativePlugins = createNativeMcpPluginAdapters({
       requireHost: (context) => this.requireRuntimeContextHost(context),
       boundProjectId: () => this.runtimeConnection?.projectId ?? null,
+      publishPagesArtifact: (input) => {
+        const connection = this.runtimeConnection;
+        if (!connection) {
+          throw new MolisWorkV1Error("pages.unavailable", "当前环境不能发出 Artifact");
+        }
+        const store = new LocalProjectDatabase(connection.databasePath);
+        try {
+          return registerPagesArtifactVersion(
+            new GoalProjectApplication(store),
+            connection.boardId,
+            connection.projectId ?? connection.boardId,
+          )(input);
+        } finally {
+          store.close();
+        }
+      },
+      publishFormArtifact: (input) => publishCreativeArtifact(this.runtimeConnection, "form.unavailable", registerFormArtifactVersion, input),
+      publishDatasetArtifact: (input) => publishCreativeArtifact(this.runtimeConnection, "dataset.unavailable", registerDatasetArtifactVersion, input),
+      publishPptArtifact: (input) => publishCreativeArtifact(this.runtimeConnection, "ppt.unavailable", registerPptArtifactVersion, input),
     });
     this.runtimeContextHost =
       runtimeContextHost ?? (this.runtimeConnection ? null : runtimeContextHostFromEnvironment());

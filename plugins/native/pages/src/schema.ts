@@ -1,5 +1,9 @@
 import { MarkSpec, Node, NodeSpec, Schema } from "prosemirror-model";
 import { EMPTY_PAGES_BODY } from "./document.js";
+import { calloutIconFor, safePagesCalloutIcon, safePagesCalloutTone } from "./callout.js";
+import { safePagesLanguage } from "./code-language.js";
+import { bookmarkLabel, imageAlt, safePagesHref, safePagesImageSrc } from "./link.js";
+import { safePagesTone } from "./tone.js";
 
 const NOTE = { note: { default: "" } };
 
@@ -75,7 +79,7 @@ const nodes = {
     }, 0],
   } satisfies NodeSpec,
   callout: {
-    attrs: noted({ tone: { default: "info" } }),
+    attrs: noted({ tone: { default: "info" }, icon: { default: "" } }),
     content: "block+",
     group: "block",
     defining: true,
@@ -83,12 +87,14 @@ const nodes = {
       tag: "aside[data-pages-callout]",
       getAttrs: (dom) => ({
         tone: (dom as HTMLElement).getAttribute("data-pages-callout") || "info",
+        icon: safePagesCalloutIcon((dom as HTMLElement).getAttribute("data-pages-icon")),
         note: (dom as HTMLElement).getAttribute("data-pages-note") || "",
       }),
     }],
     toDOM: (node) => ["aside", domAttrs(node, {
-      "data-pages-callout": String(node.attrs.tone),
-      class: "pages-callout pages-callout--" + node.attrs.tone,
+      "data-pages-callout": safePagesCalloutTone(node.attrs.tone),
+      "data-pages-icon": calloutIconFor(node.attrs.icon, node.attrs.tone),
+      class: "pages-callout",
     }), 0],
   } satisfies NodeSpec,
   code_block: {
@@ -101,9 +107,9 @@ const nodes = {
     parseDOM: [{
       tag: "pre",
       preserveWhitespace: "full",
-      getAttrs: (dom) => ({ language: (dom as HTMLElement).getAttribute("data-language") || "" }),
+      getAttrs: (dom) => ({ language: safePagesLanguage((dom as HTMLElement).getAttribute("data-language")) }),
     }],
-    toDOM: (node) => ["pre", domAttrs(node, { "data-language": String(node.attrs.language), class: "pages-code" }), ["code", 0]],
+    toDOM: (node) => ["pre", domAttrs(node, { "data-language": safePagesLanguage(node.attrs.language), class: "pages-code" }), ["code", 0]],
   } satisfies NodeSpec,
   toggle: {
     attrs: noted({ open: { default: true } }),
@@ -120,11 +126,79 @@ const nodes = {
       ...(node.attrs.open ? { open: "open" } : {}),
     }), 0],
   } satisfies NodeSpec,
+  blockquote: {
+    content: "block+",
+    group: "block",
+    defining: true,
+    attrs: noted(),
+    parseDOM: [{ tag: "blockquote" }],
+    toDOM: (node) => ["blockquote", domAttrs(node, { class: "pages-quote" }), 0],
+  } satisfies NodeSpec,
   horizontal_rule: {
     group: "block",
     attrs: noted(),
     parseDOM: [{ tag: "hr" }],
     toDOM: (node) => ["hr", domAttrs(node, { class: "pages-hr" })],
+  } satisfies NodeSpec,
+  column: {
+    content: "block+",
+    isolating: true,
+    parseDOM: [{ tag: "div[data-pages-column]" }],
+    toDOM: () => ["div", { class: "pages-column", "data-pages-column": "1" }, 0],
+  } satisfies NodeSpec,
+  column_list: {
+    group: "block",
+    content: "column column+",
+    parseDOM: [{ tag: "div[data-pages-columns]" }],
+    toDOM: (node) => ["div", domAttrs(node, { class: "pages-columns", "data-pages-columns": "1" }), 0],
+  } satisfies NodeSpec,
+  image: {
+    group: "block",
+    atom: true,
+    selectable: true,
+    attrs: noted({ src: { default: "" }, alt: { default: "" } }),
+    parseDOM: [{
+      tag: "img[data-pages-image]",
+      priority: 60,
+      getAttrs: (dom) => {
+        const el = dom as HTMLElement;
+        const src = safePagesImageSrc(el.getAttribute("src"));
+        return { src, alt: el.getAttribute("alt") || imageAlt(src) };
+      },
+    }],
+    toDOM: (node) => {
+      const src = safePagesImageSrc(node.attrs.src);
+      const alt = String(node.attrs.alt || imageAlt(src) || "图片");
+      if (!src) return ["div", domAttrs(node, { class: "pages-image is-broken" }), alt];
+      return ["img", domAttrs(node, { class: "pages-image", src, alt, "data-pages-image": "1" })];
+    },
+  } satisfies NodeSpec,
+  bookmark: {
+    group: "block",
+    atom: true,
+    selectable: true,
+    attrs: noted({ href: { default: "" }, title: { default: "" } }),
+    parseDOM: [{
+      tag: "a[data-pages-bookmark]",
+      priority: 60,
+      getAttrs: (dom) => {
+        const el = dom as HTMLElement;
+        const href = safePagesHref(el.getAttribute("href"));
+        return { href, title: el.querySelector("strong")?.textContent || bookmarkLabel(href) };
+      },
+    }],
+    toDOM: (node) => {
+      const href = safePagesHref(node.attrs.href);
+      const title = String(node.attrs.title || bookmarkLabel(href) || "链接");
+      if (!href) return ["div", domAttrs(node, { class: "pages-bookmark" }), title];
+      return ["a", domAttrs(node, {
+        class: "pages-bookmark",
+        href,
+        "data-pages-bookmark": "1",
+        rel: "noreferrer noopener",
+        target: "_blank",
+      }), ["strong", title], ["span", href]];
+    },
   } satisfies NodeSpec,
   toc: {
     group: "block",
@@ -269,6 +343,42 @@ const marks = {
   underline: { parseDOM: [{ tag: "u" }], toDOM: () => ["u", 0] } satisfies MarkSpec,
   strike: { parseDOM: [{ tag: "s" }, { tag: "del" }], toDOM: () => ["s", 0] } satisfies MarkSpec,
   code: { parseDOM: [{ tag: "code" }], toDOM: () => ["code", 0] } satisfies MarkSpec,
+  font_color: {
+    attrs: { tone: { default: "" } },
+    parseDOM: [{
+      tag: "span[data-pages-ink]",
+      getAttrs: (dom) => ({ tone: safePagesTone((dom as HTMLElement).getAttribute("data-pages-ink")) }),
+    }],
+    toDOM: (mark) => {
+      const tone = safePagesTone(mark.attrs.tone);
+      return tone ? ["span", { class: "pages-ink", "data-pages-ink": tone }, 0] : ["span", {}, 0];
+    },
+  } satisfies MarkSpec,
+  highlight: {
+    attrs: { tone: { default: "" } },
+    parseDOM: [{
+      tag: "mark[data-pages-wash]",
+      getAttrs: (dom) => ({ tone: safePagesTone((dom as HTMLElement).getAttribute("data-pages-wash")) }),
+    }],
+    toDOM: (mark) => {
+      const tone = safePagesTone(mark.attrs.tone);
+      return tone ? ["mark", { class: "pages-wash", "data-pages-wash": tone }, 0] : ["span", {}, 0];
+    },
+  } satisfies MarkSpec,
+  link: {
+    attrs: { href: { default: "" } },
+    inclusive: false,
+    parseDOM: [{
+      tag: "a[href]",
+      getAttrs: (dom) => ({ href: safePagesHref((dom as HTMLElement).getAttribute("href")) }),
+    }],
+    toDOM: (mark) => {
+      const href = safePagesHref(mark.attrs.href);
+      return href
+        ? ["a", { class: "pages-link", href, rel: "noreferrer noopener", target: "_blank" }, 0]
+        : ["span", { class: "pages-link" }, 0];
+    },
+  } satisfies MarkSpec,
   comment: {
     attrs: { id: { default: "" }, text: { default: "" } },
     inclusive: false,

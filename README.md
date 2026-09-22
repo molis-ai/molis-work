@@ -164,6 +164,7 @@ Each architecture ships separately because Molis Work's SQLite and PTY native ad
 - [MCP Integration](docs/mcp.en.md)
 - [CLI & Development](docs/cli-and-development.en.md)
 - [Runtime Skill](skills/goal-advance/SKILL.md)
+- [Plugin 开发 Skill](skills/molis-plugin-dev/SKILL.md)
 - [Molis Work Bug Card Ledger (Chinese)](docs/molis-work-bug-cards.md)
 
 ## License

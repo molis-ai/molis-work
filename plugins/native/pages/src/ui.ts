@@ -3,7 +3,7 @@ import type {
   UiContributionDescriptor,
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
-import { icon } from "@molis-ai/molis-work-design-system";
+import { icon, renderPluginStageShell } from "@molis-ai/molis-work-design-system";
 import { PAGES_TEMPLATES } from "./templates.js";
 
 export const PAGES_UI_CONTRIBUTION_ID = "io.molis.work.native.pages.ui.v1";
@@ -54,7 +54,11 @@ export function renderPagesWorkbench(model: PagesUiModel): string {
       <span><strong>${p.text(item.title)}</strong><em>${p.text(item.summary)}</em></span>
     </button>`
   )).join("");
-  return `<section class="desktop-work-surface plugin-stage-shell" data-work-surface="pages" data-work-surface-label="Pages" hidden data-pages="workbench" data-pages-stage-shell data-expanded="false">
+  return renderPluginStageShell({
+    surface: "pages",
+    label: "Pages",
+    dataset: "pages",
+    body: `
     <div class="plugin-stage-list feed-stage-list feed-stage-tree" data-pages="directory">
       <header class="plugin-stage-chrome pages-stage-chrome">
         <div class="pages-create">
@@ -65,6 +69,7 @@ export function renderPagesWorkbench(model: PagesUiModel): string {
             <button class="mw-menu__item" type="button" data-pages-new-folder>${icon("folder")}${p.text("新建文件夹")}</button>
           </div>
         </div>
+        <button class="mw-btn mw-btn--ghost pages-import-trigger" type="button" data-pages-import>${icon("upload")}<span>${p.text("导入")}</span></button>
       </header>
       <label class="pages-search mw-input-group">
         ${icon("search")}
@@ -76,6 +81,7 @@ export function renderPagesWorkbench(model: PagesUiModel): string {
         <p>${p.text("先建一篇，在纸面上写。刷新之后还在。")}</p>
         <p>${p.text("内容属于当前项目，保存在这台电脑。")}</p>
         <button class="mw-btn mw-btn--ghost" type="button" data-pages-templates>${p.text("从模板新建")}</button>
+        <button class="mw-btn mw-btn--ghost" type="button" data-pages-import>${p.text("导入已有文档")}</button>
       </div>
       <p class="pages-search-empty" data-pages-search-empty hidden>${p.text("没有匹配的文档")}</p>
       <div data-pages-rows></div>
@@ -86,6 +92,7 @@ export function renderPagesWorkbench(model: PagesUiModel): string {
         <h1 data-pages-editor-title>${p.text("文档")}</h1>
         <span data-pages-editor-status></span>
         <div class="pages-editor-tools">
+          <button class="mw-btn mw-btn--ghost" type="button" data-pages-promote data-pages-artifact-bar>${p.text("存成 Artifact")}</button>
           <button class="mw-btn mw-btn--ghost pages-chrome-icon" type="button" data-pages-star-editor aria-label="${p.text("收藏")}" title="${p.text("收藏")}">${icon("star")}</button>
           <button class="mw-btn mw-btn--ghost pages-chrome-icon" type="button" data-pages-more aria-expanded="false" aria-haspopup="true" aria-label="${p.text("更多")}" title="${p.text("更多")}">${icon("more")}</button>
           <div class="mw-menu pages-more-menu" data-pages-more-menu hidden>
@@ -94,7 +101,7 @@ export function renderPagesWorkbench(model: PagesUiModel): string {
             </label>
             <hr>
             <button class="mw-menu__item" type="button" data-pages-extract>${icon("sparkles")}${p.text("抽取")}</button>
-            <button class="mw-menu__item" type="button" data-pages-promote>${icon("upload")}${p.text("Promote")}</button>
+            <button class="mw-menu__item" type="button" data-pages-promote>${icon("upload")}${p.text("存成 Artifact")}</button>
             <button class="mw-menu__item" type="button" data-pages-export>${icon("download")}${p.text("导出 HTML")}</button>
             <hr>
             <button class="mw-menu__item mw-menu__item--danger" type="button" data-pages-delete>${icon("trash")}${p.text("删除")}</button>
@@ -127,6 +134,40 @@ export function renderPagesWorkbench(model: PagesUiModel): string {
       </form>
     </dialog>
     <div class="mw-menu pages-move-menu" data-pages-move-menu hidden role="menu"></div>
+    <dialog class="mw-dialog pages-import-dialog" data-pages-import-dialog aria-labelledby="pages-import-title">
+      <div class="pages-import-content">
+        <header><h2 id="pages-import-title">${p.text("导入文档")}</h2><p>${p.text("把已有文档带进 Pages，导入后可继续编辑。")}</p></header>
+        <label class="pages-import-field">${p.text("文档来自")}
+          <select class="mw-select" data-pages-import-source>
+            <option value="notion">Notion</option>
+            <option value="feishu">${p.text("飞书 / Lark")}</option>
+            <option value="other">${p.text("Word、语雀及其他工具")}</option>
+          </select>
+        </label>
+        <p class="pages-import-help" data-pages-import-help></p>
+        <label class="pages-import-drop" data-pages-import-drop>
+          ${icon("upload")}<strong>${p.text("选择文件，或拖到这里")}</strong>
+          <span>ZIP · DOCX · Markdown · HTML · TXT · CSV</span>
+          <small>${p.text("支持多选，总计不超过 10 MB；每次最多 100 篇。")}</small>
+          <input type="file" data-pages-import-files multiple accept=".zip,.docx,.md,.markdown,.html,.htm,.txt,.csv" aria-label="${p.text("选择要导入的文件")}">
+        </label>
+        <p class="pages-import-limit">${p.text("图片和附件会转为链接或文字说明；评论、权限和历史版本不导入。")}</p>
+        <p class="pages-import-status" data-pages-import-status role="status" aria-live="polite"></p>
+        <div data-pages-import-preview hidden>
+          <div class="pages-import-options">
+            <label><input type="checkbox" data-pages-import-all checked> ${p.text("全选")}</label>
+            <label class="pages-import-field">${p.text("导入到")}<select class="mw-select" data-pages-import-folder aria-label="${p.text("导入到")}"></select></label>
+          </div>
+          <ul class="pages-import-warnings" data-pages-import-warnings></ul>
+          <div class="pages-import-documents" data-pages-import-documents></div>
+        </div>
+        <footer class="creative-confirm-actions">
+          <button class="mw-btn mw-btn--ghost" type="button" data-pages-import-close>${p.text("取消")}</button>
+          <button class="mw-btn mw-btn--primary" type="button" data-pages-import-submit disabled>${p.text("导入所选文档")}</button>
+          <button class="mw-btn mw-btn--primary" type="button" data-pages-import-open hidden>${p.text("打开文档")}</button>
+        </footer>
+      </div>
+    </dialog>
     <dialog class="mw-dialog pages-template-dialog" data-pages-template-dialog>
       <form class="creative-confirm-form" method="dialog">
         <p>${p.text("从模板新建")}</p>
@@ -136,5 +177,5 @@ export function renderPagesWorkbench(model: PagesUiModel): string {
         </div>
       </form>
     </dialog>
-  </section>`;
+  ` });
 }

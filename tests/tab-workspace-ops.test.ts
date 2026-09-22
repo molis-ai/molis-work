@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import { createTabWorkspaceOps } from "../apps/workbench/src/tab-workspace-ops.js";
 
 const ops = createTabWorkspaceOps();
@@ -293,6 +294,32 @@ test("closing the last item returns to the plugin default instead of home", () =
   assert.equal(ops.focused(state).tabs.some((tab) => tab.kind === "home"), true);
 });
 
+test("activating the home tab clears a leftover plugin view", () => {
+  const state = ops.create();
+  const home = ops.activeTab(state);
+  ops.openPlugin(state, "functions");
+  assert.equal(ops.focused(state).viewPlugin, "functions");
+  ops.activate(state, state.focusedPaneId, home.id);
+  assert.equal(ops.activeTab(state)?.kind, "home");
+  assert.equal(ops.focused(state).viewPlugin, null);
+});
+
+test("project root landing returns a plugin-only pane to home", () => {
+  const state = ops.create();
+  ops.openPlugin(state, "functions");
+  ops.landAtProjectRoot(state);
+  assert.equal(ops.focused(state).viewPlugin, null);
+  assert.equal(ops.activeTab(state)?.kind, "home");
+});
+
+test("project root landing keeps item tabs", () => {
+  const state = ops.create();
+  ops.openItem(state, "goals", "CORE", "Core");
+  ops.landAtProjectRoot(state);
+  assert.equal(ops.activeTab(state)?.itemId, "CORE");
+  assert.equal(ops.focused(state).viewPlugin, "goals");
+});
+
 test("old plugin collapsed maps are discarded and not restored as user groups", () => {
   const state = ops.create();
   ops.openPlugin(state, "goals");
@@ -303,4 +330,9 @@ test("old plugin collapsed maps are discarded and not restored as user groups", 
   assert.equal("collapsed" in pane, false);
   assert.equal(pane.groups.length, 0);
   assert.equal(pane.tabs.some((tab) => tab.groupId), false);
+});
+
+test("fresh project-root navigation lands leftover plugin views on home", () => {
+  const source = readFileSync(new URL("../apps/workbench/src/scripts/client/initialization.ts", import.meta.url), "utf8");
+  assert.match(source, /navigationType !== "reload" && navigationType !== "back_forward" && !tabWorkspace\.isEmbedded\?\.\(\)\) tabWorkspace\.landAtProjectRoot\(\)/);
 });

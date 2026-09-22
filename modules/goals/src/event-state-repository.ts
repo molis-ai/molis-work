@@ -438,6 +438,17 @@ export class GoalEventStateRepository {
     return row ? mapClosure(row) : null;
   }
 
+  currentAppliedClosure(boardId: string, goalId: string): GoalEventClosureView | null {
+    const row = this.db.prepare(`
+      SELECT c.* FROM goal_event_closures c
+      JOIN goal_work_events e ON e.event_id = c.event_id AND e.board_id = c.board_id AND e.goal_id = c.goal_id
+      WHERE c.board_id = ? AND c.goal_id = ?
+        AND c.completion_applied = 1 AND c.superseded = 0
+      ORDER BY e.journal_seq DESC LIMIT 1
+    `).get(boardId, goalId) as Row | undefined;
+    return row ? mapClosure(row) : null;
+  }
+
   closureByEventId(boardId: string, goalId: string, eventId: string): GoalEventClosureView | null {
     const row = this.db.prepare(`
       SELECT * FROM goal_event_closures WHERE event_id = ? AND board_id = ? AND goal_id = ?

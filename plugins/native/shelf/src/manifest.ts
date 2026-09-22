@@ -25,6 +25,7 @@ export const shelfManifest: PluginManifest = {
   publisher: { publisher_id: "molis", signature: "official-shelf-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
+    { permission: "storage:private", required: true, reason: "本机置物架文件与摘录" },
     { permission: "artifact:read", required: true, reason: "读取本项目固定材料和明确选择接收的 Coding 成果" },
     { permission: "artifact:write", required: true, reason: "将明确选择的 Shelf 固定版本设为材料输出" },
   ],

@@ -125,6 +125,10 @@ export class PluginRuntime implements PluginRuntimeApi {
   private readonly definitions = new Map<string, PluginDefinition>();
   private readonly contributions = new Map<string, PluginContribution>();
   private readonly contexts = new Map<string, { context: PluginStartContext; revoke(): void }>();
+  /** Serializes lifecycle mutations for one install so start cannot overlap stop. */
+  private readonly operations = new Map<string, Promise<void>>();
+  /** Concurrent `start` calls share one attempt and therefore one registration. */
+  private readonly starting = new Map<string, Promise<PluginLifecycleReceipt>>();
 
   constructor(
     private readonly repository: PluginRuntimeRepository = new MemoryPluginRuntimeRepository(),
@@ -220,11 +224,44 @@ export class PluginRuntime implements PluginRuntimeApi {
     return this.receipt("grant", updated, false);
   }
 
-  async start(installId: string): Promise<PluginLifecycleReceipt> {
+  start(installId: string): Promise<PluginLifecycleReceipt> {
+    const pending = this.starting.get(installId);
+    if (pending) return pending;
+    const attempt = this.runLocked(installId, () => this.startOnce(installId));
+    this.starting.set(installId, attempt);
+    // Drop the shared attempt before callers resume, so a start that follows
+    // `await start()` is a new call and can report an honest replay.
+    const clear = () => {
+      if (this.starting.get(installId) === attempt) this.starting.delete(installId);
+    };
+    void attempt.then(clear, clear);
+    return attempt;
+  }
+
+  /** Deliberate stop. It keeps the install and its grants, and never spends the recovery budget. */
+  stop(installId: string): Promise<PluginLifecycleReceipt> {
+    return this.runLocked(installId, () => this.stopOnce(installId));
+  }
+
+  reportCrash(installId: string, errorCode = "plugin_process_crashed"): Promise<PluginLifecycleReceipt> {
+    return this.runLocked(installId, () => this.reportCrashOnce(installId, errorCode));
+  }
+
+  recover(installId: string): Promise<PluginLifecycleReceipt> {
+    return this.runLocked(installId, () => this.recoverOnce(installId));
+  }
+
+  /**
+   * Replay only when this process still holds the contribution and grant context
+   * that match the persisted `running` row. A previous process's `running` row
+   * is activated again. `crashed` and `quarantined` are never turned back into
+   * `running` here; recovery stays on `recover`.
+   */
+  private async startOnce(installId: string): Promise<PluginLifecycleReceipt> {
     const current = this.requireInstall(installId);
-    // A persisted running flag is not a live instance in this process. Rebuild
-    // its contribution after Host restart; only this process's handle can replay.
-    if (current.state === "running" && this.contributions.has(installId)) return this.receipt("start", current, true);
+    if (current.state === "running" && this.hasLiveInstance(installId)) {
+      return this.receipt("start", current, true);
+    }
     if (current.state !== "installed" && current.state !== "disabled" && current.state !== "running") {
       throw new PluginRuntimeError("plugin_state_invalid", `Plugin 当前状态 ${current.state} 不能直接启动`);
     }
@@ -233,7 +270,6 @@ export class PluginRuntime implements PluginRuntimeApi {
     try {
       const handle = await this.executor.start(definition, this.activateContext(current));
       await this.redeem(definition, current, handle.contribution);
-      this.contributions.set(installId, handle.contribution);
       const updated = {
         ...current,
         state: "running" as const,
@@ -241,9 +277,11 @@ export class PluginRuntime implements PluginRuntimeApi {
         updated_at: this.now(),
       };
       this.repository.save(updated);
+      this.contributions.set(installId, handle.contribution);
       return this.receipt("start", updated, false);
     } catch (error) {
       this.revokeContext(installId);
+      this.contributions.delete(installId);
       const updated = {
         ...current,
         state: "crashed" as const,
@@ -258,16 +296,29 @@ export class PluginRuntime implements PluginRuntimeApi {
     }
   }
 
-  /** Deliberate stop. It keeps the install and its grants, and never spends the recovery budget. */
-  async stop(installId: string): Promise<PluginLifecycleReceipt> {
+  private async stopOnce(installId: string): Promise<PluginLifecycleReceipt> {
     const current = this.requireInstall(installId);
     if (current.state === "disabled") return this.receipt("stop", current, true);
     if (current.state !== "running") {
       throw new PluginRuntimeError("plugin_state_invalid", `Plugin 当前状态 ${current.state} 不能停止`);
     }
+    // Nothing in this process was activated. Do not grant a context just to stop it.
+    if (!this.hasLiveInstance(installId)) {
+      this.revokeContext(installId);
+      this.contributions.delete(installId);
+      const updated = {
+        ...current,
+        state: "disabled" as const,
+        last_error_code: null,
+        updated_at: this.now(),
+      };
+      this.repository.save(updated);
+      return this.receipt("stop", updated, false);
+    }
     const definition = this.requireDefinition(current);
+    const live = this.liveContext(installId);
     try {
-      await this.executor.stop(definition, this.context(current));
+      if (live) await this.executor.stop(definition, live);
     } catch (error) {
       this.revokeContext(installId);
       this.contributions.delete(installId);
@@ -292,16 +343,22 @@ export class PluginRuntime implements PluginRuntimeApi {
     return this.receipt("stop", updated, false);
   }
 
-  async reportCrash(installId: string, errorCode = "plugin_process_crashed"): Promise<PluginLifecycleReceipt> {
+  private async reportCrashOnce(
+    installId: string,
+    errorCode: string,
+  ): Promise<PluginLifecycleReceipt> {
     const current = this.requireInstall(installId);
     if (current.state !== "running") {
       throw new PluginRuntimeError("plugin_state_invalid", "只有运行中的 Plugin 能报告 crash");
     }
-    const definition = this.requireDefinition(current);
-    try {
-      await this.executor.stop(definition, this.context(current));
-    } catch {
-      // A crashed executor may already be unavailable; lifecycle state is still authoritative.
+    if (this.hasLiveInstance(installId)) {
+      const definition = this.requireDefinition(current);
+      const live = this.liveContext(installId);
+      try {
+        if (live) await this.executor.stop(definition, live);
+      } catch {
+        // A crashed executor may already be unavailable; lifecycle state is still authoritative.
+      }
     }
     this.revokeContext(installId);
     this.contributions.delete(installId);
@@ -315,7 +372,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     return this.receipt("crash", updated, false);
   }
 
-  async recover(installId: string): Promise<PluginLifecycleReceipt> {
+  private async recoverOnce(installId: string): Promise<PluginLifecycleReceipt> {
     const current = this.requireInstall(installId);
     if (current.state !== "crashed") {
       throw new PluginRuntimeError("plugin_state_invalid", "只有 crashed Plugin 可以恢复");
@@ -336,7 +393,6 @@ export class PluginRuntime implements PluginRuntimeApi {
     try {
       const handle = await this.executor.start(definition, this.activateContext(current));
       await this.redeem(definition, current, handle.contribution);
-      this.contributions.set(installId, handle.contribution);
       const updated = {
         ...current,
         state: "running" as const,
@@ -345,9 +401,11 @@ export class PluginRuntime implements PluginRuntimeApi {
         updated_at: this.now(),
       };
       this.repository.save(updated);
+      this.contributions.set(installId, handle.contribution);
       return this.receipt("recover", updated, false);
     } catch (error) {
       this.revokeContext(installId);
+      this.contributions.delete(installId);
       const quarantined = recoveryCount >= maxAttempts;
       const updated = {
         ...current,
@@ -364,16 +422,24 @@ export class PluginRuntime implements PluginRuntimeApi {
     }
   }
 
-  async uninstall(
+  uninstall(
     installId: string,
     options: { retain_private_data?: boolean } = {},
+  ): Promise<PluginLifecycleReceipt> {
+    return this.runLocked(installId, () => this.uninstallOnce(installId, options));
+  }
+
+  private async uninstallOnce(
+    installId: string,
+    options: { retain_private_data?: boolean },
   ): Promise<PluginLifecycleReceipt> {
     const current = this.requireInstall(installId);
     if (current.state === "uninstalled") return this.receipt("uninstall", current, true);
     const definition = this.requireDefinition(current);
-    if (current.state === "running") {
+    if (current.state === "running" && this.hasLiveInstance(installId)) {
+      const live = this.liveContext(installId);
       try {
-        await this.executor.stop(definition, this.context(current));
+        if (live) await this.executor.stop(definition, live);
       } catch (error) {
         this.revokeContext(installId);
         this.contributions.delete(installId);
@@ -417,8 +483,9 @@ export class PluginRuntime implements PluginRuntimeApi {
     try {
       assertContributionMatchesManifest(definition.manifest, contribution);
     } catch (error) {
+      const live = this.liveContext(record.install_id);
       try {
-        await this.executor.stop(definition, this.context(record));
+        if (live) await this.executor.stop(definition, live);
       } catch {
         // The Plugin already failed its contract; lifecycle state stays authoritative.
       }
@@ -449,8 +516,23 @@ export class PluginRuntime implements PluginRuntimeApi {
     }
   }
 
-  private context(record: PluginInstanceRecord): PluginStartContext {
-    return this.contexts.get(record.install_id)?.context ?? this.activateContext(record);
+  private runLocked<T>(installId: string, operation: () => Promise<T>): Promise<T> {
+    const previous = this.operations.get(installId) ?? Promise.resolve();
+    const run = previous.then(operation, operation);
+    const tail = run.then(() => undefined, () => undefined);
+    this.operations.set(installId, tail);
+    void tail.finally(() => {
+      if (this.operations.get(installId) === tail) this.operations.delete(installId);
+    });
+    return run;
+  }
+
+  private hasLiveInstance(installId: string): boolean {
+    return this.contributions.has(installId) && this.contexts.has(installId);
+  }
+
+  private liveContext(installId: string): PluginStartContext | null {
+    return this.contexts.get(installId)?.context ?? null;
   }
 
   private revokeContext(installId: string): void {

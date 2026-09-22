@@ -86,6 +86,7 @@ desktop/                     macOS App 的 Cargo/Tauri 发布配置；源码位�
 examples/seed-demo.mts       调用产品 demo 生命周期的开发脚本
 docs/screenshots/            README 产品截图
 skills/goal-advance/         Runtime 工作协议
+skills/molis-plugin-dev/     插件开发 Skill（随安装发布，不自动挂 Runtime）
 tests/goal-events-state.test.ts
                              当前要求、决定、完成与继续的状态转换
 tests/goal-event-migration.test.ts
@@ -124,7 +125,7 @@ specs/molis-work-architecture-reorganization/spec.md
 
 ## 对外 MCP
 
-对外只有 `molis-work-mcp`。插件登记、人开闸、Host 合成目录。插件作者步骤见 [Plugin 开发 · 对外 MCP](platform/PLUGIN-DEVELOPMENT.md#对外-mcp)。Runtime Skill 协议见 [MCP 接入](mcp.md)。
+对外只有 `molis-work-mcp`。插件登记、人开闸、Host 合成目录。写插件的顺序和要素取舍见 [molis-plugin-dev Skill](../skills/molis-plugin-dev/SKILL.md)。作者步骤见 [Plugin 开发 · 对外 MCP](platform/PLUGIN-DEVELOPMENT.md#对外-mcp)。Runtime Skill 协议见 [MCP 接入](mcp.md)。
 
 ### 调用链
 
@@ -165,10 +166,10 @@ molis-work-mcp
 
 硬规则：
 
-- **不准把操作系统默认控件当成产品 UI。** 禁止系统下拉菜单、系统颜色选择器、系统日期/时间弹出、`alert` / `confirm` / `prompt`、未换肤的 `range`。选择打开后必须是 `mw-menu`，原生 `<select>` 只可隐藏当表单值。文件选择可隐藏原生 input，按钮必须是 `mw-btn`。原生 `<dialog>` 只留 Escape 和焦点圈，外观走 `mw-*`。详见 [mw-select-custom-menu](../specs/mw-select-custom-menu/spec.md)。
+- **不准把操作系统默认控件当成产品 UI。** 禁止系统下拉菜单、系统颜色选择器、系统日期/时间弹出、`alert` / `confirm` / `prompt`、未换肤的 `range`。选择打开后必须是 `mw-menu`，原生 `<select>` 只可隐藏当表单值。文件选择可隐藏原生 input，按钮必须是 `mw-btn`。原生 `<dialog>` 只留 Escape 和焦点圈，外观走 `mw-*`。详见 [mw-select-custom-menu](../specs/archive/mw-select-custom-menu/spec.md)。
 - **图标与色彩成套。** 动作图标从 Lucide 库取。插件身份走 `--plugin-tint`（轨、目录、空态、当前舞台）。状态走 status family。靛（`--blue` / `--focus`）只给链接、选区和进行中，不是焦点描边，也不是第二套按钮。不要第二套 emoji 图标，不要灰图标配随机强调色。
 - **动效成套，而且要做。** 只用 `--motion-*` / `--ease-*` 和已有位移（分段滑块、插件轨、目录 yield、`creative-arrive`）。状态变了要看得出走过去或到达，不要硬切。hover / press 是色阶，不是浮起。`prefers-reduced-motion` 去掉位移。不为动而动。
-- **键盘焦点**是内侧 1px `--ink`（`--focus-stroke`）。禁止 `outline: 2px solid var(--focus|blue)` 和 `0 0 0 2px var(--focus)`。详见 [neutral-focus-stroke](../specs/neutral-focus-stroke/spec.md)。
+- **键盘焦点**是内侧 1px `--ink`（`--focus-stroke`）。禁止 `outline: 2px solid var(--focus|blue)` 和 `0 0 0 2px var(--focus)`。详见 [neutral-focus-stroke](../specs/archive/neutral-focus-stroke/spec.md)。
 
 改共享控件、状态或微动效，先打开 `/__ui/catalog` 对照标本再动手。一次性草稿可以先写在业务里，**进产品主链前换成 `mw-*`，不得带着系统控件进去**。已经达到产品美学要求的共享控件、状态变体或微动效，**要**补进 `packages/design-system` 的 Catalog。产品专属编排不必做成标本。用法见 [design-system README](../packages/design-system/README.md)；平台分工见 [UI Platform](platform/UI-PLATFORM.md)。
 

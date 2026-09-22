@@ -5,7 +5,7 @@ export const modulesFunctionsContract = {
   kind: "module",
   schemaVersion: 1,
   maturity: "partial",
-  ssot: "specs/functions-system-capability/spec.md",
+  ssot: "specs/functions-independent-authoring/spec.md",
 } as const satisfies ContractDescriptor;
 
 export const FUNCTIONS_EVALUATE_CAPABILITY_ID = "functions.evaluate";
@@ -17,13 +17,21 @@ export const HOME_CONTINUE_BEHAVIOR_ID = "home.continue";
 export const HOME_ASK_BEHAVIOR_ID = "home.ask";
 export const INBOX_DONE_BEHAVIOR_ID = "inbox.done";
 export const INBOX_DISMISS_BEHAVIOR_ID = "inbox.dismiss";
+export const INBOX_COMPOSE_BEHAVIOR_ID = "inbox.compose";
+export const INBOX_VERIFY_BEHAVIOR_ID = "inbox.verify";
 export const INBOX_ADMIT_BEHAVIOR_ID = "inbox.admit";
 export const FEED_REAUTH_BEHAVIOR_ID = "feed.reauth";
 export const FEED_OPEN_BEHAVIOR_ID = "feed.open";
+export const FEED_SAVE_BEHAVIOR_ID = "feed.save";
+export const FEED_PROMOTE_BEHAVIOR_ID = "feed.promote";
+export const FEED_ARCHIVE_BEHAVIOR_ID = "feed.archive";
 export const SYSTEM_HOME_DOCK_FUNCTION_KEY = "system_pick_home_dock";
 export const SYSTEM_INBOX_ADMIT_FUNCTION_KEY = "system_admit_inbox";
 export const SYSTEM_INBOX_NEXT_FUNCTION_KEY = "system_pick_inbox_next";
 export const AGENT_MCP_DESTINATION_ID = "agent.mcp";
+export const NOUL_TRUE_MAP_KEY = "true";
+export const NOUL_FALSE_MAP_KEY = "false";
+export const NOUL_POSITIVE_THRESHOLD = 0.5;
 
 export const FUNCTIONS_PLUGIN_ID = "io.molis.work.functions";
 export const FUNCTIONS_PROJECT_PLUGIN_ID = "functions";
@@ -49,6 +57,8 @@ export interface NoulCriteria {
 export type ScoreCriteria = readonly string[];
 
 export type FunctionCriteria = readonly ChoiceCriterion[] | NoulCriteria | ScoreCriteria;
+
+export type FunctionSceneMap = Readonly<Record<string, string>>;
 
 export interface FunctionSample {
   readonly id: string;
@@ -81,6 +91,7 @@ interface FunctionRecordBase {
   readonly instructions: string;
   readonly scene_id: string | null;
   readonly subject_kinds: readonly string[];
+  readonly scene_map: FunctionSceneMap;
   readonly config_hash: string;
   readonly last_preview: FunctionsPreviewRecord | null;
   readonly samples: readonly FunctionSample[];
@@ -101,6 +112,7 @@ export interface FunctionDraftPatch {
   readonly criteria?: FunctionCriteria;
   readonly scene_id?: string | null;
   readonly subject_kinds?: readonly string[];
+  readonly scene_map?: FunctionSceneMap;
 }
 
 export type FunctionAuthoringDestinationKind = "event" | "mcp";
@@ -222,6 +234,7 @@ export interface FunctionsSecretPort {
 }
 
 export interface TypeSafeEvaluateResult {
+  readonly usage?: { readonly input_tokens: number | null; readonly output_tokens: number | null };
   readonly primitive: FunctionsPrimitive;
   readonly choice: string | null;
   readonly noul: number | null;
@@ -339,13 +352,36 @@ export function defaultInboxNextBehaviorIds(active: boolean): string[] {
   return active ? [INBOX_DONE_BEHAVIOR_ID, INBOX_DISMISS_BEHAVIOR_ID] : [];
 }
 
+export const FEED_CAPTURE_DISPOSITION_IDS: readonly string[] = [
+  INBOX_ADMIT_BEHAVIOR_ID,
+  FEED_SAVE_BEHAVIOR_ID,
+  FEED_PROMOTE_BEHAVIOR_ID,
+  FEED_ARCHIVE_BEHAVIOR_ID,
+];
+
 export function defaultFeedCaptureBehaviorIds(canAdmit: boolean): string[] {
-  return canAdmit ? [INBOX_ADMIT_BEHAVIOR_ID, FEED_OPEN_BEHAVIOR_ID] : [];
+  return canAdmit ? [...FEED_CAPTURE_DISPOSITION_IDS, FEED_OPEN_BEHAVIOR_ID] : [];
+}
+
+/** Footer dispositions on a Feed item. `feed.open` maps to "stay in Feed" and is not a footer button. */
+export function visibleFeedDispositionIds(
+  suggested: readonly string[] | null | undefined,
+  canAdmit: boolean,
+): string[] {
+  if (!canAdmit) return [];
+  const offered = [...FEED_CAPTURE_DISPOSITION_IDS];
+  const suggestedIds = suggested ?? [];
+  const picked = offered.filter((id) => suggestedIds.includes(id));
+  if (picked.length > 0) return picked;
+  if (suggestedIds.includes(FEED_OPEN_BEHAVIOR_ID)) {
+    return offered.filter((id) => id !== INBOX_ADMIT_BEHAVIOR_ID);
+  }
+  return offered;
 }
 
 export function sceneBehaviorIds(sceneId: string): string[] {
   if (sceneId === HOME_DOCK_SCENE_ID) return [...HOME_DOCK_ACTION_IDS];
-  if (sceneId === INBOX_NEXT_SCENE_ID) return defaultInboxNextBehaviorIds(true);
+  if (sceneId === INBOX_NEXT_SCENE_ID) return [INBOX_COMPOSE_BEHAVIOR_ID, INBOX_VERIFY_BEHAVIOR_ID, ...defaultInboxNextBehaviorIds(true)];
   if (sceneId === FEED_CAPTURE_SCENE_ID) return defaultFeedCaptureBehaviorIds(true);
   return [];
 }
@@ -390,9 +426,9 @@ export function functionAuthoringDestinations(): FunctionAuthoringDestination[] 
       destination_id: INBOX_NEXT_SCENE_ID,
       kind: "event",
       title: "Inbox",
-      when: "新事项来时，显示「做完了」还是「忽略」",
+      when: "新事项来时，建议整理成稿、先核查或处理状态",
       configure_at: "发布后打开",
-      effect: "显示「做完了」还是「忽略」",
+      effect: "建议下一步，由人点击执行",
       subject_kinds: ["inbox_entry"],
       behavior_ids: sceneBehaviorIds(INBOX_NEXT_SCENE_ID),
     },
@@ -400,9 +436,9 @@ export function functionAuthoringDestinations(): FunctionAuthoringDestination[] 
       destination_id: FEED_CAPTURE_SCENE_ID,
       kind: "event",
       title: "Feed",
-      when: "要不要出现「加入 Inbox」",
+      when: "这条消息该进 Inbox、存资料、升格还是忽略",
       configure_at: "去任务捕捉规则里选",
-      effect: "「加入 Inbox」出不出现",
+      effect: "亮哪条去向",
       subject_kinds: ["feed_item"],
       behavior_ids: sceneBehaviorIds(FEED_CAPTURE_SCENE_ID),
     },
@@ -461,6 +497,41 @@ export function assembleFunctionAuthoringCatalog(
   };
 }
 
+export function suggestedAuthoringBehaviors(
+  catalog: FunctionAuthoringCatalog,
+  destinationId: string,
+  subjectKinds: readonly string[],
+): FunctionAuthoringBehavior[] {
+  const dest = catalog.destinations.find((row) => row.destination_id === destinationId) ?? null;
+  const kinds = subjectKinds.filter(Boolean);
+  const matches = (row: FunctionAuthoringBehavior) => (
+    kinds.length === 0 || row.subject_kinds.some((kind) => kinds.includes(kind))
+  );
+  if (!destinationId) {
+    return kinds.length === 0 ? [] : catalog.behaviors.filter(matches);
+  }
+  if (dest?.kind === "mcp" || destinationId === AGENT_MCP_DESTINATION_ID) {
+    return catalog.behaviors.filter(matches);
+  }
+  const byId = new Map(catalog.behaviors.map((row) => [row.behavior_id, row]));
+  const rows: FunctionAuthoringBehavior[] = [];
+  for (const id of dest?.behavior_ids ?? []) {
+    const row = byId.get(id);
+    if (row && matches(row)) rows.push(row);
+  }
+  return rows;
+}
+
+export function choiceCriteriaFollowContext(
+  keys: readonly string[],
+  catalogBehaviorIds: readonly string[],
+): boolean {
+  if (keys.length === 0) return true;
+  if (keys.length === 2 && keys[0] === "yes" && keys[1] === "no") return true;
+  const ids = new Set(catalogBehaviorIds);
+  return keys.every((key) => ids.has(key));
+}
+
 function pluginTitleFallback(pluginId: string): string {
   const segment = pluginId.split(".").at(-1) ?? pluginId;
   return segment;
@@ -486,18 +557,55 @@ function mergeAuthoringSubjects(
   return [...byKind.values()];
 }
 
-function choiceKeys(
-  record: { readonly primitive: FunctionsPrimitive; readonly criteria: FunctionCriteria },
-): string[] | null {
-  if (record.primitive !== "choice" || !Array.isArray(record.criteria) || record.criteria.length === 0) return null;
+export function functionOutputKeys(record: {
+  readonly primitive: FunctionsPrimitive;
+  readonly criteria: FunctionCriteria;
+}): string[] {
+  if (record.primitive === "noul") return [NOUL_TRUE_MAP_KEY, NOUL_FALSE_MAP_KEY];
+  if (record.primitive !== "choice" || !Array.isArray(record.criteria)) return [];
   const keys: string[] = [];
   for (const row of record.criteria) {
-    if (!row || typeof row !== "object" || !("key" in row) || typeof (row as ChoiceCriterion).key !== "string") {
-      return null;
-    }
+    if (!row || typeof row !== "object" || !("key" in row) || typeof (row as ChoiceCriterion).key !== "string") continue;
     keys.push((row as ChoiceCriterion).key);
   }
   return keys;
+}
+
+export function resolvedSceneBehaviors(
+  record: {
+    readonly primitive: FunctionsPrimitive;
+    readonly criteria: FunctionCriteria;
+    readonly scene_map?: FunctionSceneMap | null;
+  },
+  pool: readonly string[],
+): string[] | null {
+  const keys = functionOutputKeys(record);
+  if (keys.length === 0) return null;
+  const map = record.scene_map ?? {};
+  const resolved: string[] = [];
+  for (const key of keys) {
+    const target = map[key] || (pool.includes(key) ? key : "");
+    if (!target || !pool.includes(target)) return null;
+    resolved.push(target);
+  }
+  return resolved;
+}
+
+export function mapJudgmentChoice(
+  record: {
+    readonly primitive: FunctionsPrimitive;
+    readonly criteria: FunctionCriteria;
+    readonly scene_map?: FunctionSceneMap | null;
+  },
+  result: { readonly choice?: string | null; readonly noul?: number | null },
+): string | null {
+  const map = record.scene_map ?? {};
+  if (record.primitive === "noul") {
+    const key = (result.noul ?? 0) >= NOUL_POSITIVE_THRESHOLD ? NOUL_TRUE_MAP_KEY : NOUL_FALSE_MAP_KEY;
+    return map[key] ?? null;
+  }
+  if (record.primitive !== "choice" || !result.choice) return null;
+  return map[result.choice] ?? result.choice;
 }
 
 export function functionFitsScene(
@@ -505,6 +613,7 @@ export function functionFitsScene(
     readonly primitive: FunctionsPrimitive;
     readonly criteria: FunctionCriteria;
     readonly scene_id?: string | null;
+    readonly scene_map?: FunctionSceneMap | null;
   },
   sceneId: string,
   pool: readonly string[] = sceneBehaviorIds(sceneId),
@@ -512,12 +621,14 @@ export function functionFitsScene(
   if (record.scene_id === AGENT_MCP_DESTINATION_ID) return sceneId === AGENT_MCP_DESTINATION_ID;
   if (record.scene_id && record.scene_id !== sceneId) return false;
   if (pool.length === 0) return true;
-  const keys = choiceKeys(record);
-  if (!keys) return false;
-  if (!keys.every((key) => pool.includes(key))) return false;
+  const resolved = resolvedSceneBehaviors(record, pool);
+  if (!resolved) return false;
   if (sceneId === HOME_DOCK_SCENE_ID) {
     const inboxPool = sceneBehaviorIds(INBOX_NEXT_SCENE_ID);
-    if (keys.every((key) => inboxPool.includes(key)) && !keys.some((key) => HOME_DOCK_PRIMARY_BEHAVIOR_IDS.includes(key))) {
+    if (
+      resolved.every((id) => inboxPool.includes(id))
+      && !resolved.some((id) => HOME_DOCK_PRIMARY_BEHAVIOR_IDS.includes(id))
+    ) {
       return false;
     }
   }

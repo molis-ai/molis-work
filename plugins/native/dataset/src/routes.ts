@@ -34,6 +34,7 @@ export const DATASET_NATIVE_PLUGIN_ROUTES = [
   route("dataset.get", "GET", /^\/api\/dataset\/([^/]+)$/u, ["id"]),
   route("dataset.update", "POST", /^\/api\/dataset\/([^/]+)$/u, ["id"]),
   route("dataset.delete", "POST", /^\/api\/dataset\/([^/]+)\/delete$/u, ["id"]),
+  route("dataset.promote", "POST", /^\/api\/dataset\/([^/]+)\/promote$/u, ["id"]),
   route("dataset.generate", "POST", /^\/api\/dataset\/([^/]+)\/generate-column$/u, ["id"]),
   route("dataset.import", "POST", /^\/api\/dataset\/([^/]+)\/import-csv$/u, ["id"]),
   route("dataset.export", "GET", /^\/api\/dataset\/([^/]+)\/export$/u, ["id"]),

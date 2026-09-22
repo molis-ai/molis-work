@@ -1,6 +1,11 @@
 import type { FeedSourceRecord } from "./projection.js";
 
 export type FeedConnectorKind = Extract<FeedSourceRecord["sync_kind"], "github" | "gmail">;
+export interface CatalogConnectorPort {
+  connector_id: string;
+  title: string;
+  description: string;
+}
 export interface ConnectorCredentialStatus {
   bound: boolean;
   source: "secret_store" | "env" | "none";
@@ -20,8 +25,9 @@ export interface FeedConnectorTokenRefs { access: string; refresh: string; expir
 export interface FeedGmailAuthorization { authRef: string; hasRefreshToken: boolean; email?: string }
 export interface FeedGmailAuthorizationStart { authorizationUrl: string; state: string; redirectUri: string; confidential: boolean }
 export interface FeedConnectorAccountPorts {
-  credentialRef(kind: FeedConnectorKind): string;
-  credentialStatus(kind: FeedConnectorKind): ConnectorCredentialStatus;
+  credentialRef(kind: string): string;
+  credentialStatus(kind: string): ConnectorCredentialStatus;
+  listCatalogConnectors(): readonly CatalogConnectorPort[];
   authStatus(): ConnectorAuthStatus;
   bindToken(kind: FeedConnectorKind, value: string): void;
   unbindToken(kind: FeedConnectorKind): void;

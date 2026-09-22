@@ -1,6 +1,8 @@
 import type { PptSlide } from "@molis-ai/molis-work-contracts/modules/ppt";
 import type { PluginMcpExportDeclaration, PluginMcpHandleRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PptError } from "./error.js";
+import { promotePpt, requirePptArtifactPort } from "./promote.js";
+import type { PptRoutePorts } from "./route-handlers.js";
 import type { PptStore } from "./store.js";
 
 /** Declare `tool_id`s here and handle by `tool_id` only. Host stamps the public name and injects project_id. */
@@ -59,12 +61,23 @@ export const PPT_MCP_EXPORTS: readonly PluginMcpExportDeclaration[] = [
     },
     effect: "write",
   },
+  {
+    tool_id: "promote",
+    description: "把当前演示稿的页和配色存成 Artifact。私人库里的稿子还在，可以继续改。",
+    input_schema: {
+      type: "object",
+      properties: { id: { type: "string" } },
+      required: ["id"],
+    },
+    effect: "write",
+  },
 ];
 
 export function runPptMcpTool(
   store: PptStore,
   request: PluginMcpHandleRequest,
   projectId: string,
+  ports: PptRoutePorts = {},
 ): string {
   if (request.tool_id === "list") {
     return dump({ presentations: store.list(projectId) });
@@ -90,6 +103,10 @@ export function runPptMcpTool(
   if (request.tool_id === "delete") {
     store.delete(idOf(request), projectId);
     return dump({ ok: true });
+  }
+  if (request.tool_id === "promote") {
+    const promoted = promotePpt(store, idOf(request), projectId, requirePptArtifactPort(ports.publishArtifact));
+    return dump({ presentation: promoted.presentation, artifact: promoted.artifact });
   }
   throw new Error(`未登记的 PPT MCP：${request.tool_id}`);
 }

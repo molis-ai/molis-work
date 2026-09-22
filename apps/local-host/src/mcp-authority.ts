@@ -1,5 +1,5 @@
 import { isRuntimeMcpTool, isRuntimeContextMcpTool, MCP_TOOLS, type McpToolCallContext } from "@molis-ai/molis-work-app-mcp";
-import { MolisWorkV1Error } from "@molis-ai/molis-work-plugin-goals";
+import { MolisWorkV1Error } from "@molis-ai/molis-work-contracts/platform/errors";
 import type { MolisWorkRuntimeConnection, MolisWorkRuntimeContextHost } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { RuntimeProjectConnection } from "./runtime-project-connection.js";
 import { assertRuntimeOrdinaryToolInput } from "./mcp-event-identity.js";

@@ -5,6 +5,8 @@ import type { MolisWorkWebView, WebProjectNavigation } from "@molis-ai/molis-wor
 import type { LocalProjectDatabase } from "./project-database.js";
 import type { GoalProjectApplication } from "./goal-project-application.js";
 import { currentLocale, L } from "./web-locale.js";
+import { homeSqlitePath } from "@molis-ai/molis-work-storage";
+import { statSync } from "node:fs";
 import { createLocalFeedApplication } from "./feed-application.js";
 import { listFeedSourceCatalog } from "./feed-source-service.js";
 import { createLocalFeedConnectorService } from "./feed-connector-service.js";
@@ -52,11 +54,14 @@ function feedDirectorySnapshot(feed: FeedApplication, boardId: string, homeDirec
     ) => service.latestJudgment(kind, id, boardId, sceneId)?.suggested_behavior_ids ?? [];
     return {
       ...snapshot,
-      inbox_entries: snapshot.inbox_entries.map((entry) => ({
-        ...entry,
-        suggested_behavior_ids: suggested("inbox_entry", entry.entry_id, INBOX_NEXT_SCENE_ID),
-        home_dock_suggested_behavior_ids: suggested("inbox_entry", entry.entry_id, HOME_DOCK_SCENE_ID),
-      })),
+      inbox_entries: snapshot.inbox_entries.map((entry) => {
+        const binding = service.sceneBinding(INBOX_NEXT_SCENE_ID, boardId);
+        const latest = service.latestJudgment("inbox_entry", entry.entry_id, boardId, INBOX_NEXT_SCENE_ID);
+        const judgment = binding && latest?.function_key === binding.function_key ? latest : null;
+        return { ...entry, next_judgment: judgment,
+          suggested_behavior_ids: judgment?.outcome === "ok" ? judgment.suggested_behavior_ids : [],
+          home_dock_suggested_behavior_ids: suggested("inbox_entry", entry.entry_id, HOME_DOCK_SCENE_ID) };
+      }),
       feed_items: snapshot.feed_items.map((item) => ({
         ...hideBodies(item),
         suggested_behavior_ids: suggested("feed_item", item.item_id, FEED_CAPTURE_SCENE_ID),
@@ -102,6 +107,16 @@ export function buildMolisWorkWebView(store: LocalProjectDatabase, coordinator: 
   };
 }
 
+function functionsViewFingerprint(homeDirectory?: string): string {
+  if (!homeDirectory) return "";
+  try {
+    const stat = statSync(homeSqlitePath(homeDirectory, "functions"));
+    return `${stat.mtimeMs}:${stat.size}`;
+  } catch {
+    return "missing";
+  }
+}
+
 export function cachedMolisWorkWebView(
   cache: MolisWorkWebViewCache,
   store: LocalProjectDatabase,
@@ -118,6 +133,7 @@ export function cachedMolisWorkWebView(
     projects: options.projects ?? [],
     route_prefix: options.routePrefix ?? "",
     schedule: scheduleViewFingerprint(store.db),
+    functions: functionsViewFingerprint(options.homeDirectory),
     home_directory: options.homeDirectory ?? "",
   });
   const cached = cache.get(options.databasePath);

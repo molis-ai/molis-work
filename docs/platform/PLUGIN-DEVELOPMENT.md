@@ -1,8 +1,24 @@
 # 本地 Plugin 开发
 
-这条路径用于开发者运行自己信任的源码，完成第一次真实的插件结果；不是官方市场安装，也不是不可信代码沙箱。当前样例是 polling Integration Plugin。它每次运行产生一个个人 Artifact 版本、读回该版本、保存私人计数，并返回 UI HTML。
+写一个插件时，先按 [molis-plugin-dev Skill](../../skills/molis-plugin-dev/SKILL.md) 走完整路径：对象与时刻 → Manifest → UI/客户端 → HTTP → 现场动作 → 判断场景 → MCP → Artifact / 事件 / ports → 按 kind 接到 Host 或 CLI。本文件是命令、MCP 登记、动作录取和打包的手册，不替代那份顺序。Host 装配见 Skill 的 `host.md`，SDK/CLI 见 `authoring.md`，接入见 `integrations.md`。
+
+平台合同变了（Manifest 字段、MCP、behaviors / function_scenes、事件、Slot、plugin-stage、kind 语义），同一任务内更新该 Skill 与本页，不要只改代码。
+
+## 安装 Skill
+
+正文在 `skills/molis-plugin-dev/`（`SKILL.md` 加 `elements.md` / `ui.md` / `host.md` / `authoring.md` / `integrations.md` / `examples.md`），随 npm 包和 `molis-work install` 的 Home release 一起发布。它**不会**在「设置 → AI 与执行工具」里自动挂到 Codex / Claude；那条链路只接 Runtime 工作协议 `goal-advance`。
+
+安装到自己的 Agent 后才能在别的仓库里用。把 `<release>` 换成 `~/.molis-work/config/installation.json` 的 `release_path`：
+
+```bash
+ln -snf "$HOME/.molis-work/<release>/skills/molis-plugin-dev" "$HOME/.cursor/skills/molis-plugin-dev"
+```
+
+Codex / Claude Code / OpenCode 把目标目录改成各自的 `skills/molis-plugin-dev`。npm 包路径是 `node_modules/@molis-ai/molis-work/skills/molis-plugin-dev`。本仓库里 `.cursor/skills/molis-plugin-dev` 已指向这份正文。
 
 ## 创建和运行
+
+这条路径用于开发者运行自己信任的源码，完成第一次真实的插件结果；不是官方市场安装，也不是不可信代码沙箱。当前样例是 polling Integration Plugin。它每次运行产生一个个人 Artifact 版本、读回该版本、保存私人计数，并返回 UI HTML。
 
 先构建仓库和 Plugin SDK、Contracts、Plugin Runtime、Plugin CLI、Local Host。根目录的 `pnpm build` 包含这些构建。当前工作区的 pnpm 依赖自动检查曾要求重建 node_modules，尚未执行该重建；本轮验证使用现有 TypeScript 构建产物，标准干净安装/发布链由 DV4 继续验收。
 
@@ -45,7 +61,7 @@ Molis Work 对外只有一个 MCP 进程：`molis-work-mcp`。插件不要自己
 ### 作者要做的
 
 1. Manifest schema 2 写 `mcp_exports`。每条只要：`tool_id`（插件内唯一，`[a-z0-9][a-z0-9-]*`）、`description`、`input_schema`（`type: "object"`）、`effect`（`read` 或 `write`）。可选 `audience`（省略 = `runtime`）、`scope`（省略 = 当前绑定项目必须启用本插件）。
-2. 不要写 `enabled`、不要写对外正式名、不要在 `input_schema` 里放 `board_id` / `database_path` / `web_base_url` / `actor_*` / `submitted_session_id`。身份由 Host 注入。
+2. 不要写 `enabled`、不要写对外正式名、不要在 `input_schema` 里放 `board_id` / `database_path` / `web_base_url` / `actor_id` / `actor_kind` / `runtime_actor_id` / `submitted_session_id`。身份由 Host 注入。`mcp_exports` 会自动进行为总表，`behavior_id` 就是公开工具名，`subject_kinds` 是 `mcp_invoke`；不要再为同一个工具写一条 `behaviors`。
 3. 公开名由 Host 盖：`molis_work_v1_<短名>_<tool_id>`。短名是项目插件 id（Functions 是 `functions`），不是你在 Manifest 里拼出来的。
 4. Handler 只认 `{ tool_id, arguments }`。未在 Manifest 登记的 `tool_id` 即使代码里有实现也到不了。
 5. 新贡献默认关。人在设置里打开后，**之后新开的** MCP 连接才看得到；已打开的连接不会热刷新。不要把开关做进插件自己的 `settings-page`。
@@ -67,6 +83,49 @@ Molis Work 对外只有一个 MCP 进程：`molis-work-mcp`。插件不要自己
 - 把 MCP 开关和「AI 与执行工具」做成一页。
 
 Host 侧改哪里、调用链怎么走，见 [CLI 与开发 · 对外 MCP](../cli-and-development.md#对外-mcp)。协议与 Runtime Skill 仍以 [MCP 接入](../mcp.md) 为准。
+
+## 事件去向的动作名单
+
+Functions「用在哪」里，首页 / Inbox / Feed 是事件去向：判断本身不改数据，也不在现场长出新按钮。默认建议人点击已有处置。Feed 来源规则另有用户显式配置的 `admission: "inbox"`：Feed 用例消费判断后加入 Inbox（失败或不确定进入待复核），不改变 Functions 的只判断职责，也不授权其他自动动作。旧规则默认 `suggest`。Agent 去向才放「能调、但不长在这张卡片上」的动作（含 MCP 写工具）。
+
+Inbox → Pages 通过 Host 组合各插件公开能力，输入快照与幂等收据归 Pages，Attention 仍归 Inbox 对应 Module。Workbench 助手复用这些 HTTP 动作；未新增对外 MCP 或 Native 事件总线。标签对象恢复与调用约定见 [Host 接线](../../skills/molis-plugin-dev/host.md#信息整理的-host-组合)。
+
+**判断能选的动作，是人正盯着这个对象时、已经能点的下一步处置。不是插件所有能改数据的事。**
+
+一个动作要出现在某个事件去向，四问都要过：
+
+1. **现在盯着的就是这个对象吗？** 看的是这封邮件，不是这个来源的设置页。
+2. **这颗按钮现在就在这个画面上，点了真会发生吗？** 没接线的写最多进 Agent，不进首页 / Inbox / Feed。
+3. **它是「这件事接下来怎么处理」里的选项吗？** 进 Inbox、存起来、变成 Goal、忽略、做完了——是。打开看看、说一句、重新打开、标已读——通常不是，那些常驻或留给别的时刻。
+4. **AI 选中它，只是建议人去点，不会自己写吗？** 自己执行的写放到 Agent。
+
+四问都过：写入该去向的 `function_scenes` 行为池，并在 Manifest `behaviors` 声明（公开名 `{插件短名}.{behavior_id}`，与系统已有 id 撞号时沿用系统项）。  
+1、2 过、3 不过：画面上留着，不给判断挑。  
+只有插件能写、这画面没有这颗按钮：最多给 Agent。  
+没有「对象到来 / 点开这件事、从几颗处置里挑一个」这种时刻：不要新开「用在哪」一行。
+
+现有事件去向：
+
+| 去向 | 何时 | 进池的处置 | 不进池 |
+| --- | --- | --- | --- |
+| `home.dock` | 点开首页事件 | 接着做、做完了、忽略、重新授权、问问怎么回事、打开 | 说一句（永远在）；MCP |
+| `inbox.next` | Inbox 新事项 | 做完了、忽略 | 查看原消息、重新打开 |
+| `feed.capture` | Feed 消息到来 / 详情处置 | 加入 Inbox、保存为资料、升格为 Goal、忽略；`feed.open` 只用于映射「留在 Feed」，不画成 footer 按钮 | 打开原文、标已读、恢复、来源设置 / token / 计划 |
+| `agent.mcp` | 给 Agent 调 | 行为总表（含 MCP） | 不画进首页 / Inbox / Feed 卡底 |
+
+### 判例
+
+- **Feed 详情四条去向**进 `feed.capture`。详情已经能点，且互为「这条消息接下来去哪」。
+- **打开原文、查看来源**不进池。人已经在看这条消息；那是导航，不是处置。
+- **说一句**不进首页池。规定永远在，判断不能把它藏掉。
+- **Inbox 重新打开、Feed 恢复**不进池。那是历史条目上的反向动作，不是新事项到来时的下一步。
+- **来源立刻拉取、改计划、存 token、重新授权出现在来源页时**不进 `feed.capture`。对象是来源，不是这条消息。`feed.reauth` 只因为首页事件卡上已经有这颗按钮，才进 `home.dock`。
+- **Pages / Forms / Dataset / PPT 的 create、update、promote** 走 MCP，进 Agent。它们的工作台是编辑工具，不是「一条外来消息该去哪」。
+- **GitHub `whoami`、Connectors 连接/断开**在设置页，进 Agent 或设置，不进 Feed / Inbox。
+- **Goals 采用/退回方案、灵光丢掉/分发**是对象上的处置，但今天没有 Functions 事件场景（判断何时跑、建议如何亮按钮都未接线）。先不要新开去向行；要进 Functions 时另写场景和接线，不塞进 Feed / Inbox。
+- **标已读、目录筛选、保存演示配置**不是下一步处置。
+
+插件作者改 Manifest 时：先给现场接好点击路径，再声明 `behaviors`，最后才把 id 放进某个 `function_scenes` 的池。只声明能写、现场没有按钮，函数页会建议一颗点不了的动作。现场池的合同入口是 `packages/contracts` 的 `sceneBehaviorIds` / `defaultFeedCaptureBehaviorIds`；Host 合成总表见 `apps/local-host` 的 `behavior-catalog.ts`。新去向不会从 Manifest 自动出现在 Functions「用在哪」，完整接线见 Skill [host.md · 接到 Functions](../../skills/molis-plugin-dev/host.md)。需求书：[事件去向的动作范围](../../specs/archive/function-scene-action-scope/spec.md)。整插件怎么排顺序、MCP/事件/UI 怎么一起考量： [molis-plugin-dev Skill](../../skills/molis-plugin-dev/SKILL.md)。
 
 ## 打包与签名
 

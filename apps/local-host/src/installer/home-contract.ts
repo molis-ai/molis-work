@@ -8,6 +8,12 @@ export function isOwnedInstaller(installer: unknown): boolean {
 
 export const SCHEMA_VERSION = 4;
 
+/** Skills that must exist in the install source and every owned release. */
+export const REQUIRED_RELEASE_SKILL_FILES = [
+  "skills/goal-advance/SKILL.md",
+  "skills/molis-plugin-dev/SKILL.md",
+] as const;
+
 export const LEGACY_LAUNCHER_HEADER = "#!/usr/bin/env node\n// molis-work-home-launcher-v1";
 
 export const BUNDLED_NODE_LAUNCHER_HEADER = "#!/bin/sh\n# molis-work-home-launcher-v2";
@@ -98,6 +104,8 @@ export interface RuntimeDependencyPackage {
   name: string;
   version: string;
   directory: string;
+  /** Copies required when another parent already keeps a different version at the top level. */
+  nests?: RuntimeDependencyPackage[];
 }
 
 export interface InspectedSource {

@@ -179,12 +179,12 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
     return renderMolisWorkProjectSettingsHub(view, guidance, methods, controlToken, desktopShell, "guidance");
   }
 
-  function renderMolisWorkPlanningLibrary(methods: readonly PlanningMethodPack[], contextProject: WebProjectNavigation | null = null, controlToken = "", desktopShell = false, projects: readonly WebProjectNavigation[] = []): string {
-    const navigation = renderSettingsNavigation("planning", contextProject, desktopShell, projects);
+  function renderMolisWorkPlanningLibrary(methods: readonly PlanningMethodPack[], contextProject: WebProjectNavigation | null = null, controlToken = "", desktopShell = false, projects: readonly WebProjectNavigation[] = [], enabledPlugins?: readonly string[]): string {
+    const navigation = renderSettingsNavigation("planning", contextProject, desktopShell, projects, enabledPlugins);
     return planningPageRenderer(controlToken, desktopShell, navigation).renderLibrary(methods, contextProject, desktopShell);
   }
-  function renderMolisWorkPlanningMethodPage(method: PlanningMethodPack | null, mode: "detail" | "edit" | "new", saveScope: "personal" | "project", project: WebProjectNavigation | null, controlToken = "", desktopShell = false, projects: readonly WebProjectNavigation[] = []): string {
-    const navigation = saveScope === "project" && project ? renderProjectSettingsNavigation("planning", project, desktopShell, projects) : renderSettingsNavigation("planning", project, desktopShell, projects);
+  function renderMolisWorkPlanningMethodPage(method: PlanningMethodPack | null, mode: "detail" | "edit" | "new", saveScope: "personal" | "project", project: WebProjectNavigation | null, controlToken = "", desktopShell = false, projects: readonly WebProjectNavigation[] = [], enabledPlugins?: readonly string[]): string {
+    const navigation = saveScope === "project" && project ? renderProjectSettingsNavigation("planning", project, desktopShell, projects) : renderSettingsNavigation("planning", project, desktopShell, projects, enabledPlugins);
     return planningPageRenderer(controlToken, desktopShell, navigation).renderMethod(method, mode, saveScope, project, desktopShell);
   }
   function renderMolisWorkPlanningSettings(view: MolisWorkWebView, methods: readonly PlanningMethodPack[], controlToken = "", desktopShell = false): string {

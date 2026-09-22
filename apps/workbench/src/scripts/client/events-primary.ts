@@ -164,6 +164,76 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
       }
     });
 
+    const closeGoalOverlay = () => {
+      const shell = document.querySelector("[data-goal-canvas-shell]");
+      if (!shell) return;
+      shell.removeAttribute("data-goal-planning");
+      shell.removeAttribute("data-goal-rules");
+      shell.querySelectorAll("[data-open-work-planning], [data-open-work-rules]").forEach((row) => {
+        row.classList.remove("is-selected");
+        row.setAttribute("aria-pressed", "false");
+        row.removeAttribute("aria-current");
+      });
+    };
+    const fillGoalOverlay = async (pane, path, bind) => {
+      pane.textContent = L("正在加载设置");
+      const response = await fetch(path, { headers: { Accept: "text/html" } });
+      if (!response.ok) throw new Error(L("无法加载设置"));
+      const html = await response.text();
+      const parsed = new DOMParser().parseFromString(html, "text/html");
+      const content = parsed.querySelector(".work-planning, .planning-detail, .planning-edit, .project-rules-document, .settings-document") || parsed.querySelector(".settings-content") || parsed.body;
+      const node = content.classList?.contains("settings-content") ? (content.firstElementChild || content) : content;
+      pane.replaceChildren(document.importNode(node, true));
+      bind?.(pane);
+    };
+    const openGoalWorkPlanning = async (pathname) => {
+      const shell = document.querySelector("[data-goal-canvas-shell]");
+      const pane = shell?.querySelector("[data-goal-work-planning]");
+      if (!shell || !pane) return;
+      if (!pathname && shell.dataset.goalPlanning === "open") {
+        closeGoalOverlay();
+        return;
+      }
+      closeGoalOverlay();
+      shell.dataset.boardView = "list";
+      shell.dataset.goalPlanning = "open";
+      shell.querySelector("[data-open-work-planning]")?.setAttribute("aria-pressed", "true");
+      const prefix = document.body.dataset.routePrefix || "";
+      const path = pathname || (prefix + "/settings/planning?embed=1");
+      try {
+        await fillGoalOverlay(pane, path, (root) => {
+          globalThis.molisWorkBindPlanningSettings?.(root);
+          globalThis.molisWorkBindPlanningAdoption?.(root);
+        });
+      } catch (error) {
+        pane.textContent = error?.message || L("无法加载设置");
+      }
+    };
+    const openGoalWorkRules = async () => {
+      const shell = document.querySelector("[data-goal-canvas-shell]");
+      const pane = shell?.querySelector("[data-goal-work-rules]");
+      if (!shell || !pane) return;
+      if (shell.dataset.goalRules === "open") {
+        closeGoalOverlay();
+        return;
+      }
+      closeGoalOverlay();
+      shell.dataset.boardView = "list";
+      shell.dataset.goalRules = "open";
+      shell.querySelector("[data-open-work-rules]")?.setAttribute("aria-pressed", "true");
+      const prefix = document.body.dataset.routePrefix || "";
+      try {
+        await fillGoalOverlay(pane, prefix + "/settings/rules?embed=1", (root) => {
+          globalThis.molisWorkBindProjectRules?.(root);
+        });
+      } catch (error) {
+        pane.textContent = error?.message || L("无法加载设置");
+      }
+    };
+    globalThis.molisWorkOpenGoalWorkPlanning = () => openGoalWorkPlanning();
+    globalThis.molisWorkOpenGoalWorkRules = () => openGoalWorkRules();
+    document.addEventListener("molis-work:goal-changed", closeGoalOverlay);
+
     document.addEventListener("click", async (event) => {
       const target = event.target instanceof Element ? event.target : null;
       if (!target) return;
@@ -278,7 +348,8 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
             feed_url: readField("feed_url") || undefined,
           });
           showPrototypeStatus(detail, L("任务配置已保存。"));
-          globalThis.setTimeout(() => location.reload(), 450);
+          await refreshFeedStage();
+          sourceConfigSave.disabled = false;
         } catch (error) {
           showPrototypeStatus(detail, error.message || L("来源配置保存失败，请检查后重试。"));
           sourceConfigSave.disabled = false;
@@ -339,7 +410,8 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
             : action === "pause" ? L("来源已暂停；消息与历史仍保留。")
               : action === "resume" ? L("来源已恢复。") : L("账号已断开，后续不会再拉取。")
           showPrototypeStatus(sourceRuntimeAction, message);
-          globalThis.setTimeout(() => location.reload(), 550);
+          await refreshFeedStage();
+          sourceRuntimeAction.disabled = false;
         } catch (error) {
           showPrototypeStatus(sourceRuntimeAction, error.message || L("来源操作失败，请按提示处理后重试。"));
           sourceRuntimeAction.disabled = false;
@@ -359,7 +431,8 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
         try {
           await feedApi("/api/feed/sources/" + encodeURIComponent(sourceId), "DELETE", { history_decision: historyDecision });
           showPrototypeStatus(sourceDelete, historyDecision === "delete_local_history" ? L("来源与本地历史已删除。") : L("来源已删除，历史已保留。"));
-          globalThis.setTimeout(() => location.reload(), 550);
+          feedSourcesDialog?.close();
+          await refreshFeedStage();
         } catch (error) {
           showPrototypeStatus(sourceDelete, error.message || L("删除来源失败，请重试。"));
           sourceDelete.disabled = false;
@@ -528,6 +601,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
           : scope?.querySelector('[data-feed-source-value="' + kind + '"]')?.value;
         const name = form?.querySelector("[data-feed-add-name]")?.value?.trim();
         const body = kind === "rss" ? { kind, definition_id: value }
+          : kind === "research_library" ? { kind, repository: value, research_source: scope?.querySelector("[data-feed-research-source]")?.value }
           : kind === "web_query" ? { kind, query: value }
           : kind === "youtube_channel" ? { kind, channel_id: value }
           : { kind, feed_url: value };
@@ -556,7 +630,8 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
           selectedFeedTask = sourceId;
           document.dispatchEvent(new CustomEvent("workbench-feed-task", { detail: { taskId: sourceId } }));
           saveUiState();
-          location.reload();
+          setFeedAddOpen(false);
+          await refreshFeedStage();
         } catch (error) {
           const retryCopy = phase === "out-rule"
             ? L("任务已创建，捕捉规则未保存。请重试，不会重复创建任务。")
@@ -581,6 +656,21 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
         }
         return;
       }
+      const evaluateRules = target.closest("[data-feed-out-rules-evaluate]");
+      if (evaluateRules) {
+        evaluateRules.disabled = true;
+        setFeedSourceFeedback(L("正在按当前规则处理最近的消息…"));
+        try {
+          const snapshot = await feedApi("/api/feed", "GET");
+          const items = (snapshot.feed_items || snapshot.feed?.feed_items || []).filter(item => item.source_id === evaluateRules.dataset.feedOutRulesEvaluate).slice(0, 20);
+          if (!items.length) throw new Error(L("请先拉取来源内容"));
+          await feedApi("/api/feed/out-rules/evaluate", "POST", { item_ids: items.map(item => item.item_id) });
+          await refreshFeedStage(); await refreshInboxStage();
+          setFeedSourceFeedback(L("规则处理完成；请在 Inbox 查看筛选结果与待复核项。"));
+        } catch (error) { setFeedSourceFeedback(error.message, true); }
+        finally { evaluateRules.disabled = false; }
+        return;
+      }
       const createOutRule = target.closest("[data-feed-out-rule-create]");
       if (createOutRule) {
         const section = createOutRule.closest("[data-feed-out-rules]");
@@ -596,9 +686,10 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
         createOutRule.disabled = true;
         setFeedSourceFeedback(L("正在添加捕捉规则…"));
         try {
-          await feedApi("/api/feed/out-rules", "POST", { name: name || contains, contains, source_id: sourceId, ...(functionKey ? { function_key: functionKey } : {}) });
+          await feedApi("/api/feed/out-rules", "POST", { name: name || contains, contains, source_id: sourceId, admission: section?.querySelector("[data-feed-out-rule-admission]")?.value || "suggest", ...(functionKey ? { function_key: functionKey } : {}) });
           saveUiState();
-          location.reload();
+          await refreshFeedStage();
+          createOutRule.disabled = false;
         } catch (error) {
           setFeedSourceFeedback(error.message || L("添加捕捉规则失败"), true);
           createOutRule.disabled = false;
@@ -614,7 +705,8 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
         try {
           await feedApi("/api/feed/out-rules/" + encodeURIComponent(ruleId), "PATCH", { enabled });
           saveUiState();
-          location.reload();
+          await refreshFeedStage();
+          toggleOutRule.disabled = false;
         } catch (error) {
           setFeedSourceFeedback(error.message || L("更新捕捉规则失败"), true);
           toggleOutRule.disabled = false;
@@ -629,7 +721,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
         try {
           await feedApi("/api/feed/out-rules/" + encodeURIComponent(ruleId), "DELETE");
           saveUiState();
-          location.reload();
+          await refreshFeedStage();
         } catch (error) {
           setFeedSourceFeedback(error.message || L("删除捕捉规则失败"), true);
           deleteOutRule.disabled = false;
@@ -645,7 +737,9 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
         try {
           await feedApi("/api/feed/sources/" + encodeURIComponent(sourceId) + "/" + action, "POST", {});
           saveUiState();
-          location.reload();
+          await refreshFeedStage();
+          sourceToggle.disabled = false;
+          setFeedSourceFeedback("");
         } catch (error) {
           setFeedSourceFeedback(error.message || L("来源状态更新失败"), true);
           sourceToggle.disabled = false;
@@ -666,7 +760,8 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
               ? L("同步完成：源站未修改，没有新增 Item。")
               : L("同步完成：新增 {created}，去重 {deduped}", { created: result.created || 0, deduped: result.deduped || 0 }));
           saveUiState();
-          location.reload();
+          await refreshFeedStage();
+          sourceSync.disabled = false;
         } catch (error) {
           setFeedSourceFeedback(error.message || L("来源同步失败"), true);
           sourceSync.disabled = false;
@@ -682,7 +777,8 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
           await feedApi("/api/feed/connectors/" + kind + "/token", "POST", { token: input?.value || "" });
           if (input) input.value = "";
           saveUiState();
-          location.reload();
+          await refreshFeedStage();
+          connectorBind.disabled = false;
         } catch (error) {
           setFeedSourceFeedback(error.message || L("账号连接失败"), true);
           connectorBind.disabled = false;
@@ -696,7 +792,8 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
         try {
           await feedApi("/api/feed/connectors/" + kind + "/token", "DELETE");
           saveUiState();
-          location.reload();
+          await refreshFeedStage();
+          connectorUnbind.disabled = false;
         } catch (error) {
           setFeedSourceFeedback(error.message || L("断开账号失败"), true);
           connectorUnbind.disabled = false;
@@ -733,7 +830,8 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
           const result = await feedApi("/api/feed/connectors/github/device/poll", "POST", { device_code: status?.dataset.deviceCode || "", client_id: clientId });
           if (result.status === "authorized") {
             saveUiState();
-            location.reload();
+            await refreshFeedStage();
+            button.disabled = false;
           } else {
             if (status) status.textContent = result.message || L("GitHub 仍在等待授权。完成后再次检查。");
             button.disabled = false;

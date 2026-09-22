@@ -1,9 +1,18 @@
 import type { DatasetColumn, DatasetRow } from "@molis-ai/molis-work-contracts/modules/dataset";
 import { DatasetError } from "./error.js";
 import type { DatasetPluginRouteHandler, DatasetPluginRouteRequest, DatasetPluginRouteResponse } from "./routes.js";
+import { promoteDataset, requireDatasetArtifactPort, type DatasetPublishArtifactPort } from "./promote.js";
 import { toCsv, type DatasetStore } from "./store.js";
 
-export function createDatasetRouteHandlers(store: DatasetStore): Record<string, DatasetPluginRouteHandler> {
+export interface DatasetRoutePorts {
+  completeText?: (prompt: string) => Promise<string>;
+  publishArtifact?: DatasetPublishArtifactPort;
+}
+
+export function createDatasetRouteHandlers(
+  store: DatasetStore,
+  ports: DatasetRoutePorts = {},
+): Record<string, DatasetPluginRouteHandler> {
   return {
     "dataset.list": ({ request }) => ({ status: 200, body: { datasets: store.list(projectIdOf(request)) } }),
     "dataset.create": ({ request }) => ({
@@ -27,10 +36,26 @@ export function createDatasetRouteHandlers(store: DatasetStore): Record<string, 
       store.delete(params.id ?? "", projectIdOf(request));
       return { status: 200, body: { ok: true } };
     },
-    "dataset.generate": ({ params, request }) => ({
-      status: 200,
-      body: { dataset: store.generateColumn(params.id ?? "", stringField(request.body.prompt) ?? "", projectIdOf(request)) },
-    }),
+    "dataset.promote": ({ params, request }) => {
+      const projectId = projectIdOf(request);
+      const promoted = promoteDataset(
+        store,
+        params.id ?? "",
+        projectId,
+        requireDatasetArtifactPort(ports.publishArtifact),
+      );
+      return { status: 200, body: { dataset: promoted.dataset, artifact: promoted.artifact } };
+    },
+    "dataset.generate": async ({ params, request }) => {
+      const prompt = stringField(request.body.prompt) ?? "";
+      const name = ports.completeText
+        ? ((await ports.completeText(prompt)).trim() || prompt)
+        : prompt;
+      return {
+        status: 200,
+        body: { dataset: store.generateColumn(params.id ?? "", name, projectIdOf(request)) },
+      };
+    },
     "dataset.import": ({ params, request }) => ({
       status: 200,
       body: { dataset: store.importCsv(params.id ?? "", stringField(request.body.csv) ?? "", projectIdOf(request)) },

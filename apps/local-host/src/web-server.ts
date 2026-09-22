@@ -1,3 +1,4 @@
+import { closeExperiments } from "./experiments-native-plugin-http.js";
 import { resolveMolisWorkHome, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import fs from "node:fs";
 import http from "node:http";
@@ -165,6 +166,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     }), 30_000);
     schedulerTimer.unref();
     server.once("close", () => {
+      void closeExperiments(storageHome);
       clearInterval(schedulerTimer);
       feedSchedulers.clear();
       void agents.dispose().catch(() => undefined);

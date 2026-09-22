@@ -17,7 +17,8 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "tooling/experiments"
   ],
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
@@ -34,6 +35,7 @@
     "@molis-ai/molis-work-design-system": "workspace:*",
     "@molis-ai/molis-work-integration-github": "workspace:*",
     "@molis-ai/molis-work-integration-gmail": "workspace:*",
+    "@molis-ai/molis-work-integration-catalog": "workspace:*",
     "@molis-ai/molis-work-integration-rss": "workspace:*",
     "@molis-ai/molis-work-integration-youtube": "workspace:*",
     "@molis-ai/molis-work-kernel": "workspace:*",
@@ -80,7 +82,8 @@
     "@molis-ai/molis-work-service-scheduler": "workspace:*",
     "@molis-ai/molis-work-storage": "workspace:*",
     "@molis-ai/molis-work-ui-host": "workspace:*",
-    "ws": "^8.21.3"
+    "ws": "^8.21.3",
+    "@molis-ai/molis-work-plugin-experiments": "workspace:*"
   },
   "molis-work": {
     "path": "apps/local-host",

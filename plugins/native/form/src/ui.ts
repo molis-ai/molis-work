@@ -3,7 +3,7 @@ import type {
   UiContributionDescriptor,
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
-import { icon } from "@molis-ai/molis-work-design-system";
+import { icon, renderPluginStageShell } from "@molis-ai/molis-work-design-system";
 
 export const FORM_UI_CONTRIBUTION_ID = "io.molis.work.native.form.ui.v1";
 
@@ -47,7 +47,11 @@ export const formUiContribution: UiContribution<FormUiModel> = {
 
 export function renderFormWorkbench(model: FormUiModel): string {
   const { primitives: p } = model;
-  return `<section class="desktop-work-surface plugin-stage-shell" data-work-surface="form" data-work-surface-label="Forms" hidden data-form="workbench" data-form-stage-shell data-expanded="false">
+  return renderPluginStageShell({
+    surface: "form",
+    label: "Forms",
+    dataset: "form",
+    body: `
     <div class="plugin-stage-list feed-stage-list feed-stage-tree" data-form="directory">
       <header class="plugin-stage-chrome form-stage-chrome">
         <button class="mw-btn mw-btn--ghost tree-create" type="button" data-form-new>${icon("plus")}<span>${p.text("新建问卷")}</span></button>
@@ -70,6 +74,7 @@ export function renderFormWorkbench(model: FormUiModel): string {
           <button class="mw-btn mw-btn--ghost" type="button" role="tab" aria-selected="false" data-form-tab="preview">${p.text("预览")}</button>
           <button class="mw-btn mw-btn--ghost" type="button" role="tab" aria-selected="false" data-form-tab="results">${p.text("结果")}</button>
         </div>
+        <button class="mw-btn mw-btn--ghost" type="button" data-form-artifact="" data-form-artifact-bar>${p.text("存成 Artifact")}</button>
         <button class="mw-btn mw-btn--ghost" type="button" data-form-delete>${p.text("删除")}</button>
       </div>
       <div class="form-workspace" data-form-pane="editor">
@@ -123,5 +128,5 @@ export function renderFormWorkbench(model: FormUiModel): string {
         </div>
       </form>
     </dialog>
-  </section>`;
+  ` });
 }

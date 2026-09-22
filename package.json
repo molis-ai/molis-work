@@ -1,7 +1,7 @@
 {
   "name": "@molis-ai/molis-work",
   "version": "0.2.0",
-  "description": "Molis Work V1\uff1a\u9762\u5411\u4eba\u548c AI Runtime \u7684\u672c\u5730 SQLite \u76ee\u6807\u771f\u76f8\u6e90",
+  "description": "Molis Work V1：面向人和 AI Runtime 的本地 SQLite 目标真相源",
   "type": "module",
   "license": "MIT",
   "repository": {
@@ -44,7 +44,7 @@
     "build": "pnpm build:migrated-packages && pnpm clean && tsc -p tsconfig.json && tsc -p tsconfig.sdk.json && pnpm build:pty-client && node apps/local-host/tooling/write-build-manifest.mjs .",
     "build:migrated-packages": "pnpm workspace:build",
     "boundary:check": "pnpm --filter @molis-ai/molis-work-test-kit build && node scripts/check-package-boundaries.mjs",
-    "boundary:test": "pnpm --filter @molis-ai/molis-work-test-kit test",
+    "boundary:test": "pnpm --filter @molis-ai/molis-work-test-kit test && node --test tests/workbench-registration-boundaries.test.mjs",
     "build:all": "pnpm build && pnpm boundary:check && pnpm workspace:build",
     "build:pty-client": "esbuild apps/workbench/src/terminal-client.ts --bundle --format=iife --platform=browser --outfile=dist/web/pty-client.js --loader:.css=text",
     "typecheck": "pnpm build:migrated-packages && tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.sdk.json",
@@ -78,6 +78,7 @@
     "@molis-ai/molis-work-app-workbench": "workspace:*",
     "@molis-ai/molis-work-contracts": "workspace:*",
     "@molis-ai/molis-work-design-system": "workspace:*",
+    "@molis-ai/molis-work-integration-catalog": "workspace:*",
     "@molis-ai/molis-work-integration-github": "workspace:*",
     "@molis-ai/molis-work-integration-gmail": "workspace:*",
     "@molis-ai/molis-work-integration-rss": "workspace:*",
@@ -102,17 +103,17 @@
     "@molis-ai/molis-work-plugin-cli": "workspace:*",
     "@molis-ai/molis-work-plugin-characters": "workspace:*",
     "@molis-ai/molis-work-plugin-coding": "workspace:*",
-    "@molis-ai/molis-work-plugin-diff": "workspace:*",
     "@molis-ai/molis-work-plugin-dataset": "workspace:*",
+    "@molis-ai/molis-work-plugin-diff": "workspace:*",
     "@molis-ai/molis-work-plugin-feed": "workspace:*",
-    "@molis-ai/molis-work-plugin-functions": "workspace:*",
     "@molis-ai/molis-work-plugin-files": "workspace:*",
     "@molis-ai/molis-work-plugin-form": "workspace:*",
-    "@molis-ai/molis-work-plugin-pages": "workspace:*",
+    "@molis-ai/molis-work-plugin-functions": "workspace:*",
     "@molis-ai/molis-work-plugin-git": "workspace:*",
     "@molis-ai/molis-work-plugin-goals": "workspace:*",
     "@molis-ai/molis-work-plugin-inbox": "workspace:*",
     "@molis-ai/molis-work-plugin-lingguang": "workspace:*",
+    "@molis-ai/molis-work-plugin-pages": "workspace:*",
     "@molis-ai/molis-work-plugin-ppt": "workspace:*",
     "@molis-ai/molis-work-plugin-runtime": "workspace:*",
     "@molis-ai/molis-work-plugin-schedule": "workspace:*",
@@ -129,7 +130,8 @@
     "@molis-ai/molis-work-ui-host": "workspace:*",
     "better-sqlite3": "12.8.0",
     "node-pty": "^1.1.0",
-    "ws": "^8.21.3"
+    "ws": "^8.21.3",
+    "@molis-ai/molis-work-plugin-experiments": "workspace:*"
   },
   "devDependencies": {
     "@molis-ai/molis-work-test-kit": "workspace:*",
@@ -138,6 +140,8 @@
     "@types/node": "^22.13.0",
     "@types/ws": "^8.18.1",
     "esbuild": "^0.28.2",
+    "prosemirror-model": "^1.25.11",
+    "prosemirror-state": "^1.4.4",
     "tsx": "^4.19.0",
     "typescript": "^5.8.0"
   }

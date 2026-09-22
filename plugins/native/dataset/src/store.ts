@@ -1,6 +1,5 @@
-import { chmodSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
+import { ensureSqliteColumn, openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import type { DatabaseSync } from "node:sqlite";
 import type {
   DatasetColumn,
   DatasetColumnType,
@@ -21,6 +20,8 @@ interface DatasetRowDb {
   created_at: string;
   updated_at: string;
   version: number;
+  artifact_id?: string;
+  artifact_version?: number;
 }
 
 const COLUMN_TYPES: readonly DatasetColumnType[] = ["text", "number", "date"];
@@ -62,6 +63,8 @@ export class DatasetStore {
       created_at: now,
       updated_at: now,
       version: 1,
+      artifact_id: "",
+      artifact_version: 0,
     };
     this.write(record, true);
     return record;
@@ -88,6 +91,15 @@ export class DatasetStore {
     };
     this.write(next, false);
     return next;
+  }
+
+  rememberArtifact(id: string, artifactId: string, artifactVersion: number, projectId?: string): DatasetRecord {
+    const current = this.get(id, projectId);
+    const updated_at = new Date().toISOString();
+    this.db.prepare(
+      "UPDATE datasets SET artifact_id = ?, artifact_version = ?, updated_at = ?, version = ? WHERE id = ?",
+    ).run(artifactId, artifactVersion, updated_at, current.version + 1, id);
+    return this.get(id, projectId);
   }
 
   delete(id: string, projectId?: string): void {
@@ -178,11 +190,7 @@ export class DatasetStore {
 }
 
 export function openDatasetStore(homeDirectory: string): DatasetStore {
-  const dir = join(homeDirectory, "dataset");
-  mkdirSync(dir, { recursive: true, mode: 0o700 });
-  const dbPath = join(dir, "dataset.db");
-  const db = new DatabaseSync(dbPath);
-  try { chmodSync(dbPath, 0o600); } catch { /* best-effort */ }
+  const db = openHomeSqliteDatabase(homeDirectory, "dataset");
   db.exec(`
     CREATE TABLE IF NOT EXISTS datasets (
       id TEXT PRIMARY KEY,
@@ -194,7 +202,9 @@ export function openDatasetStore(homeDirectory: string): DatasetStore {
       rows_json TEXT NOT NULL,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
-      version INTEGER NOT NULL
+      version INTEGER NOT NULL,
+      artifact_id TEXT NOT NULL DEFAULT '',
+      artifact_version INTEGER NOT NULL DEFAULT 0
     );
     CREATE TABLE IF NOT EXISTS dataset_versions (
       id TEXT PRIMARY KEY,
@@ -204,7 +214,9 @@ export function openDatasetStore(homeDirectory: string): DatasetStore {
       created_at TEXT NOT NULL
     );
   `);
-  ensureProjectIdColumn(db, "datasets");
+  ensureSqliteColumn(db, "datasets", "project_id", "TEXT NOT NULL DEFAULT ''");
+  ensureSqliteColumn(db, "datasets", "artifact_id", "TEXT NOT NULL DEFAULT ''");
+  ensureSqliteColumn(db, "datasets", "artifact_version", "INTEGER NOT NULL DEFAULT 0");
   return new DatasetStore(db);
 }
 
@@ -262,6 +274,11 @@ function splitCsvLine(line: string): string[] {
   for (let index = 0; index < line.length; index += 1) {
     const char = line[index];
     if (char === '"') {
+      if (quoted && line[index + 1] === '"') {
+        current += '"';
+        index += 1;
+        continue;
+      }
       quoted = !quoted;
       continue;
     }
@@ -276,13 +293,6 @@ function splitCsvLine(line: string): string[] {
   return cells;
 }
 
-function ensureProjectIdColumn(db: DatabaseSync, table: string): void {
-  const columns = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
-  if (!columns.some((column) => column.name === "project_id")) {
-    db.exec(`ALTER TABLE ${table} ADD COLUMN project_id TEXT NOT NULL DEFAULT ''`);
-  }
-}
-
 function fromRow(row: DatasetRowDb): DatasetRecord {
   return {
     id: row.id,
@@ -295,6 +305,8 @@ function fromRow(row: DatasetRowDb): DatasetRecord {
     created_at: row.created_at,
     updated_at: row.updated_at,
     version: row.version,
+    artifact_id: row.artifact_id ?? "",
+    artifact_version: Number(row.artifact_version) || 0,
   };
 }
 

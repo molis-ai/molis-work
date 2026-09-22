@@ -1,12 +1,75 @@
-import { baseKeymap, setBlockType, toggleMark } from "prosemirror-commands";
+import { baseKeymap, chainCommands, setBlockType, toggleMark } from "prosemirror-commands";
+import { dropCursor } from "prosemirror-dropcursor";
+import { gapCursor } from "prosemirror-gapcursor";
 import { history, redo, undo } from "prosemirror-history";
 import { InputRule, inputRules, wrappingInputRule, textblockTypeInputRule } from "prosemirror-inputrules";
 import { keymap } from "prosemirror-keymap";
 import { DOMSerializer, Fragment, Node } from "prosemirror-model";
-import { liftListItem, sinkListItem, splitListItem, wrapInList } from "prosemirror-schema-list";
-import { EditorState, NodeSelection, Plugin, PluginKey, TextSelection, Transaction } from "prosemirror-state";
-import { Decoration, DecorationSet, EditorView } from "prosemirror-view";
+import { splitListItem } from "prosemirror-schema-list";
+import { Command, EditorState, NodeSelection, Plugin, PluginKey, TextSelection, Transaction } from "prosemirror-state";
+import { Decoration, DecorationSet, EditorView, ViewMutationRecord } from "prosemirror-view";
 import { actionItemsFromText } from "./ai.js";
+import {
+  blockPos,
+  deleteBlock,
+  deleteRow,
+  deleteSpan,
+  duplicateBlock,
+  duplicateEnclosingRow,
+  enterHeading,
+  duplicateRow,
+  duplicateSpan,
+  exitWrappedBlock,
+  indentListItem,
+  insertCodeIndent,
+  insertHardBreak,
+  insertImage,
+  insertSlashBelow,
+  leaveCodeDown,
+  leaveEmptyCodeLine,
+  leaveCodeUp,
+  linkAt,
+  markdownBlock,
+  markdownLink,
+  markdownWrapMark,
+  moveColumnEdge,
+  moveSpan,
+  outdentListItem,
+  removeCodeIndent,
+  revealHeading,
+  activeList,
+  addColumn,
+  applyList,
+  applySlash,
+  commitGap,
+  selectBlockThenAll,
+  selectEnclosingBlock,
+  slashSession,
+  splitTaskItem,
+  setCalloutStyle,
+  setRowsTone,
+  setToggleOpen,
+  toggleTaskChecked,
+  setLink,
+  setTone,
+  toneAt,
+  turnBlockInto,
+  turnRowInto,
+  turnSpanInto,
+  unwrapAtStart,
+  unwrapColumns,
+} from "./commands.js";
+import { safePagesHref, safePagesImageSrc } from "./link.js";
+import { calloutIconFor, PAGES_CALLOUT_ICONS, safePagesCalloutTone } from "./callout.js";
+import { highlightRanges } from "./code-highlight.js";
+import { PAGES_CODE_LANGUAGES, safePagesLanguage } from "./code-language.js";
+import { findHits, stepFindHit } from "./find.js";
+import { placeFloating, scrollChildIntoView, type FloatingAnchor } from "./floating.js";
+import { pasteMarkdown, pasteUrl } from "./paste-markdown.js";
+import { addTableColumn, addTableRow, atLastTableCell, deleteTableColumn, deleteTableRow } from "./table-edit.js";
+import { blockPlaceholder } from "./placeholder.js";
+import { columnDropAnchor, dragRows, dropLevelRange, nudgeSpan, previewSpan, spanRoots, spanRows, type DragRow } from "./reorder.js";
+import { PAGES_TONES } from "./tone.js";
 import { emptyDoc, nodeFromUnknown, pagesSchema } from "./schema.js";
 
 export { emptyDoc, pagesSchema };
@@ -35,7 +98,12 @@ type Translate = (value: string) => string;
 
 const slashKey = new PluginKey<{ open: boolean; pos: number; query: string; index: number }>("pages-slash");
 const mentionKey = new PluginKey<{ open: boolean; from: number; query: string; index: number }>("pages-mention");
-const chromeKey = new PluginKey("pages-chrome");
+const chromeKey = new PluginKey<{ after: number }>("pages-chrome");
+const findKey = new PluginKey<{ open: boolean; query: string; index: number }>("pages-find");
+type PagesHover = { pos: number; dragging: boolean; anchor: number; head: number };
+const hoverKey = new PluginKey<PagesHover>("pages-hover");
+const EMPTY_HOVER: PagesHover = { pos: -1, dragging: false, anchor: -1, head: -1 };
+const codeHighlightKey = new PluginKey<DecorationSet>("pages-code-highlight");
 
 function commandToggle(markName: string) {
   const mark = pagesSchema.marks[markName];
@@ -62,10 +130,50 @@ function dsIcon(name: string): string {
   return `<svg aria-hidden="true"><use href="#icon-${name}"></use></svg>`;
 }
 
+const CLIP_IMAGE = /^image\/(png|jpeg|gif|webp)$/iu;
+
+function clipboardImage(data: DataTransfer | null): File | null {
+  if (!data) return null;
+  for (const item of data.items) {
+    if (item.kind === "file" && CLIP_IMAGE.test(item.type)) return item.getAsFile();
+  }
+  return null;
+}
+
+function readClipboardImage(file: File, apply: (src: string) => void): void {
+  const reader = new FileReader();
+  reader.onload = () => {
+    const src = typeof reader.result === "string" ? safePagesImageSrc(reader.result) : "";
+    if (src) apply(src);
+  };
+  reader.readAsDataURL(file);
+}
+
 function overlayRoot(): HTMLElement {
   return document.querySelector("[data-pages-stage-workspace]")
     ?? document.querySelector("[data-pages=workbench]")
     ?? document.body;
+}
+
+function placeOverlay(el: HTMLElement, anchor: FloatingAnchor, mode: "below" | "above" | "beside"): void {
+  const box = el.getBoundingClientRect();
+  const spot = placeFloating(
+    anchor,
+    { width: box.width, height: box.height },
+    { width: window.innerWidth, height: window.innerHeight },
+    mode,
+  );
+  el.style.left = spot.left + "px";
+  el.style.top = spot.top + "px";
+}
+
+function keepSelectedVisible(menu: HTMLElement): void {
+  const current = menu.querySelector(".is-on");
+  if (!(current instanceof HTMLElement)) return;
+  menu.scrollTop = scrollChildIntoView(
+    { scrollTop: menu.scrollTop, clientHeight: menu.clientHeight },
+    { offsetTop: current.offsetTop, offsetHeight: current.offsetHeight },
+  );
 }
 
 function paragraphNode(text = ""): Node {
@@ -83,6 +191,7 @@ function blockFor(id: string): Node {
   if (id === "ordered_list") return s.nodes.ordered_list.create({ order: 1 }, s.nodes.list_item.create(null, paragraphNode()));
   if (id === "task_list") return s.nodes.task_list.create(null, s.nodes.task_item.create({ checked: false }, paragraphNode()));
   if (id === "callout") return s.nodes.callout.create({ tone: "info" }, paragraphNode());
+  if (id === "blockquote") return s.nodes.blockquote.create(null, paragraphNode());
   if (id === "code_block") return s.nodes.code_block.create();
   if (id === "toggle") return s.nodes.toggle.create({ open: true }, [paragraphNode(), paragraphNode()]);
   if (id === "horizontal_rule") return s.nodes.horizontal_rule.create();
@@ -102,6 +211,12 @@ function blockFor(id: string): Node {
   if (id === "task_card") return s.nodes.task_card.create({ title: "", description: "", status: "todo", due: "" });
   if (id === "event_card") return s.nodes.event_card.create({ title: "", at: new Date().toISOString().slice(0, 10) });
   if (id === "calendar") return s.nodes.calendar.create();
+  if (id === "columns") {
+    return s.nodes.column_list.create(null, [
+      s.nodes.column.create(null, paragraphNode()),
+      s.nodes.column.create(null, paragraphNode()),
+    ]);
+  }
   return paragraphNode();
 }
 
@@ -115,8 +230,10 @@ function slashItems(translate: Translate | undefined) {
     { id: "ordered_list", icon: "list", group: "basic", label: t(translate, "有序列表"), hint: "1." },
     { id: "task_list", icon: "check", group: "basic", label: t(translate, "清单"), hint: t(translate, "待办") },
     { id: "callout", icon: "info", group: "basic", label: t(translate, "Callout"), hint: t(translate, "提示块") },
+    { id: "blockquote", icon: "message", group: "basic", label: t(translate, "引用"), hint: t(translate, "摘一句") },
     { id: "code_block", icon: "code", group: "basic", label: t(translate, "代码"), hint: t(translate, "等宽") },
     { id: "table", icon: "grid", group: "basic", label: t(translate, "表"), hint: t(translate, "两列表") },
+    { id: "columns", icon: "columns", group: "basic", label: t(translate, "分栏"), hint: t(translate, "并排") },
     { id: "toggle", icon: "chevron-right", group: "basic", label: t(translate, "Toggle"), hint: t(translate, "折叠") },
     { id: "horizontal_rule", icon: "minus", group: "basic", label: t(translate, "分隔线"), hint: t(translate, "横线") },
     { id: "toc", icon: "library", group: "basic", label: t(translate, "目录"), hint: t(translate, "按标题生成") },
@@ -127,42 +244,61 @@ function slashItems(translate: Translate | undefined) {
   ];
 }
 
-function topBlockRange($pos: { depth: number; before(depth: number): number; after(depth: number): number; index(depth: number): number; node(depth: number): Node }) {
-  if ($pos.depth < 1) return null;
-  return { from: $pos.before(1), to: $pos.after(1), index: $pos.index(0), node: $pos.node(1) };
-}
-
 function replaceTopBlock(view: EditorView, node: Node): void {
-  const range = topBlockRange(view.state.selection.$from);
-  if (!range) return;
-  const tr = view.state.tr.replaceWith(range.from, range.to, node);
-  const pos = Math.min(range.from + 1, tr.doc.content.size);
-  tr.setSelection(TextSelection.near(tr.doc.resolve(pos)));
+  const tr = applySlash(view.state, node);
+  if (!tr) return;
   view.dispatch(tr.scrollIntoView());
   view.focus();
 }
 
-function insertBlockAt(view: EditorView, pos: number, node: Node): void {
-  const tr = view.state.tr.insert(pos, node);
-  tr.setSelection(TextSelection.near(tr.doc.resolve(pos + 1)));
-  view.dispatch(tr.scrollIntoView());
+/** Run a block command against the view and hand focus back to the editor. */
+function runBlockCommand(view: EditorView, command: Command): void {
+  if (!command(view.state, view.dispatch.bind(view), view)) return;
   view.focus();
 }
 
-function moveTopBlock(view: EditorView, index: number, dir: -1 | 1): void {
-  const doc = view.state.doc;
-  const target = index + dir;
-  if (target < 0 || target >= doc.childCount) return;
-  const nodes: Node[] = [];
-  doc.forEach((child) => { nodes.push(child); });
-  const current = nodes[index];
-  const swap = nodes[target];
-  if (!current || !swap) return;
-  nodes[index] = swap;
-  nodes[target] = current;
-  const tr = view.state.tr.replaceWith(0, doc.content.size, Fragment.from(nodes));
-  view.dispatch(tr);
+function rowAtSelection(state: EditorState): number {
+  const pos = state.selection.from;
+  let hit = -1;
+  for (const row of dragRows(state.doc)) {
+    const node = state.doc.nodeAt(row.pos);
+    if (node && pos >= row.pos && pos < row.pos + node.nodeSize) hit = row.pos;
+  }
+  return hit;
+}
+
+/** Move the selected rows, or the row holding the caret, one slot among their siblings. */
+function nudgeEditor(view: EditorView, direction: -1 | 1): boolean {
+  const hover = hoverKey.getState(view.state) ?? EMPTY_HOVER;
+  const anchor = hover.anchor >= 0 ? hover.anchor : rowAtSelection(view.state);
+  const head = hover.anchor >= 0 ? hover.head : anchor;
+  if (anchor < 0 || head < 0) return false;
+  const moved = nudgeSpan(view.state.doc, anchor, head, direction);
+  if (!moved) return false;
+  const tr = view.state.tr.replaceWith(0, view.state.doc.content.size, moved.doc.content);
+  if (moved.anchor >= 0) {
+    try { tr.setSelection(NodeSelection.create(tr.doc, moved.anchor)); } catch { /* the caret stays where mapping put it */ }
+    tr.setMeta(hoverKey, { span: { anchor: moved.anchor, head: moved.head } });
+  }
+  view.dispatch(tr.scrollIntoView());
   view.focus();
+  return true;
+}
+
+function turnIntoItems(translate: Translate | undefined) {
+  return [
+    { id: "paragraph", icon: "rows", label: t(translate, "段落") },
+    { id: "heading1", icon: "hash", label: t(translate, "标题 1") },
+    { id: "heading2", icon: "hash", label: t(translate, "标题 2") },
+    { id: "heading3", icon: "hash", label: t(translate, "标题 3") },
+    { id: "bullet_list", icon: "rows", label: t(translate, "无序列表") },
+    { id: "ordered_list", icon: "list", label: t(translate, "有序列表") },
+    { id: "task_list", icon: "check", label: t(translate, "清单") },
+    { id: "callout", icon: "info", label: t(translate, "Callout") },
+    { id: "blockquote", icon: "message", label: t(translate, "引用") },
+    { id: "toggle", icon: "chevron-right", label: t(translate, "Toggle") },
+    { id: "code_block", icon: "code", label: t(translate, "代码") },
+  ];
 }
 
 function matchSlash(item: { id: string; label: string; hint: string }, query: string): boolean {
@@ -176,17 +312,17 @@ function slashPlugin(translate: Translate | undefined) {
     key: slashKey,
     state: {
       init: () => ({ open: false, pos: 0, query: "", index: 0 }),
-      apply(tr, value) {
+      apply(tr, value, _old, next) {
         const meta = tr.getMeta(slashKey);
         if (meta) return meta;
-        const $from = tr.selection.$from;
-        const parent = $from.parent;
-        const open = parent.type === pagesSchema.nodes.paragraph
-          && $from.depth === 1
-          && parent.textContent.startsWith("/");
-        if (!open) return { open: false, pos: 0, query: "", index: 0 };
-        const query = parent.textContent.slice(1);
-        return { open: true, pos: $from.before(1), query, index: query === value.query ? value.index : 0 };
+        const session = slashSession(next);
+        if (!session) return { open: false, pos: 0, query: "", index: 0 };
+        return {
+          open: true,
+          pos: session.rowPos,
+          query: session.query,
+          index: session.query === value.query ? value.index : 0,
+        };
       },
     },
     props: {
@@ -195,16 +331,10 @@ function slashPlugin(translate: Translate | undefined) {
         if (!value?.open) return false;
         const items = slashItems(translate).filter((item) => matchSlash(item, value.query));
         if (event.key === "Escape") {
-          const $from = view.state.selection.$from;
-          const parent = $from.parent;
-          if (parent.type === pagesSchema.nodes.paragraph && parent.textContent.startsWith("/")) {
-            const from = $from.start();
-            view.dispatch(view.state.tr
-              .delete(from, from + parent.content.size)
-              .setMeta(slashKey, { open: false, pos: 0, query: "", index: 0 }));
-            return true;
-          }
-          view.dispatch(view.state.tr.setMeta(slashKey, { open: false, pos: 0, query: "", index: 0 }));
+          const session = slashSession(view.state);
+          const closed = { open: false, pos: 0, query: "", index: 0 };
+          const tr = session ? view.state.tr.delete(session.from, session.to) : view.state.tr;
+          view.dispatch(tr.setMeta(slashKey, closed));
           return true;
         }
         if (event.key === "ArrowDown") {
@@ -263,8 +393,8 @@ function slashPlugin(translate: Translate | undefined) {
             menu.append(empty);
           }
           const coords = view.coordsAtPos(view.state.selection.from);
-          menu.style.left = Math.max(8, coords.left) + "px";
-          menu.style.top = (coords.bottom + 8) + "px";
+          placeOverlay(menu, coords, "below");
+          keepSelectedVisible(menu);
         },
         destroy() { menu.remove(); },
       };
@@ -278,10 +408,10 @@ function mentionPlugin(options: PagesEditorMountOptions) {
     key: mentionKey,
     state: {
       init: () => ({ open: false, from: 0, query: "", index: 0 }),
-      apply(tr, value) {
+      apply(tr, value, _old, next) {
         const meta = tr.getMeta(mentionKey);
         if (meta) return meta;
-        const slash = slashKey.getState(tr);
+        const slash = slashKey.getState(next);
         if (slash?.open) return { open: false, from: 0, query: "", index: 0 };
         const $from = tr.selection.$from;
         if (!$from.parent.isTextblock) return { open: false, from: 0, query: "", index: 0 };
@@ -350,8 +480,8 @@ function mentionPlugin(options: PagesEditorMountOptions) {
             menu.append(empty);
           }
           const coords = view.coordsAtPos(view.state.selection.from);
-          menu.style.left = Math.max(8, coords.left) + "px";
-          menu.style.top = (coords.bottom + 8) + "px";
+          placeOverlay(menu, coords, "below");
+          keepSelectedVisible(menu);
         },
         destroy() { menu.remove(); },
       };
@@ -374,22 +504,50 @@ function insertMention(view: EditorView, from: number, to: number, item: PagesLi
 function chromePlugin(translate: Translate | undefined) {
   return new Plugin({
     key: chromeKey,
+    state: {
+      init: () => ({ after: -1 }),
+      apply(tr, value) {
+        const meta = tr.getMeta(chromeKey) as { after?: number } | undefined;
+        if (meta && typeof meta.after === "number") return { after: meta.after };
+        if (tr.docChanged && value.after >= 0) return { after: -1 };
+        return value;
+      },
+    },
     props: {
       decorations(state) {
         const widgets: Decoration[] = [];
         const $from = state.selection.$from;
-        if ($from.parent.type === pagesSchema.nodes.paragraph && $from.parent.content.size === 0 && $from.depth === 1) {
-          widgets.push(Decoration.node($from.before(), $from.after(), {
+        const first = state.doc.firstChild;
+        const blank = state.doc.childCount === 1 && first?.type === pagesSchema.nodes.paragraph && first.content.size === 0;
+        if (blank) {
+          widgets.push(Decoration.node(0, first.nodeSize, {
             class: "is-empty",
             "data-placeholder": t(translate, "输入 / 插入块，或直接写"),
           }));
+        } else {
+          const hint = blockPlaceholder($from);
+          if (hint) {
+            widgets.push(Decoration.node($from.before(), $from.after(), {
+              class: "is-empty",
+              "data-placeholder": t(translate, hint),
+            }));
+          }
         }
+        const pending = chromeKey.getState(state)?.after ?? -1;
         state.doc.forEach((node, offset, index) => {
           if (index < state.doc.childCount - 1) {
             widgets.push(Decoration.widget(offset + node.nodeSize, () => gapWidget(index, translate), {
               side: -1,
               key: "gap-" + (offset + node.nodeSize),
               ignoreSelection: true,
+            }));
+          }
+          if (index === pending) {
+            widgets.push(Decoration.widget(offset + node.nodeSize, () => provisionalField(translate), {
+              side: 1,
+              key: "pages-provisional",
+              ignoreSelection: true,
+              stopEvent: () => true,
             }));
           }
         });
@@ -400,183 +558,796 @@ function chromePlugin(translate: Translate | undefined) {
           const gap = (event.target as HTMLElement).closest("[data-pages-gap]");
           if (!gap) return false;
           event.preventDefault();
-          insertBlockAt(view, blockPos(view.state.doc, Number(gap.getAttribute("data-after") || "0") + 1), paragraphNode());
+          const index = Number(gap.getAttribute("data-after") || "0");
+          view.dispatch(view.state.tr.setMeta(chromeKey, { after: index }));
           return true;
         },
       },
     },
+    view(editorView) {
+      provisionalView = editorView;
+      let shown = -1;
+      return {
+        update(view) {
+          provisionalView = view;
+          const after = chromeKey.getState(view.state)?.after ?? -1;
+          if (after >= 0 && after !== shown) {
+            provisionalField(translate).replaceChildren();
+            requestAnimationFrame(() => provisionalField(translate).focus());
+          }
+          shown = after;
+        },
+        destroy() {
+          provisionalView = null;
+          provisionalField(translate).remove();
+        },
+      };
+    },
   });
 }
 
-function selectTopBlock(view: EditorView, index: number): void {
-  const pos = blockPos(view.state.doc, index);
-  try {
-    view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, pos)));
-  } catch {
-    view.dispatch(view.state.tr.setSelection(TextSelection.near(view.state.doc.resolve(Math.min(pos + 1, view.state.doc.content.size)))));
-  }
-  view.focus();
+let provisional: HTMLElement | null = null;
+let provisionalView: EditorView | null = null;
+
+function provisionalField(translate: Translate | undefined): HTMLElement {
+  if (provisional) return provisional;
+  const field = document.createElement("div");
+  field.className = "pages-provisional";
+  field.contentEditable = "true";
+  field.dataset.pagesProvisional = "1";
+  field.dataset.placeholder = t(translate, "输入 / 插入块，或直接写");
+  field.setAttribute("role", "textbox");
+  field.setAttribute("aria-label", t(translate, "在此输入"));
+  let composing = false;
+  const viewOf = (): EditorView | null => provisionalView;
+  const clear = () => {
+    const view = viewOf();
+    if (!view || (chromeKey.getState(view.state)?.after ?? -1) < 0) return;
+    field.replaceChildren();
+    view.dispatch(view.state.tr.setMeta(chromeKey, { after: -1 }));
+    view.focus();
+  };
+  const commit = () => {
+    const view = viewOf();
+    const value = field.textContent ?? "";
+    if (!view || !value.trim()) return;
+    const after = chromeKey.getState(view.state)?.after ?? -1;
+    if (after < 0) return;
+    const tr = commitGap(view.state, after, value);
+    if (!tr) return;
+    field.replaceChildren();
+    view.dispatch(tr.setMeta(chromeKey, { after: -1 }).scrollIntoView());
+    view.focus();
+  };
+  field.addEventListener("compositionstart", () => { composing = true; });
+  field.addEventListener("compositionend", () => {
+    composing = false;
+    commit();
+  });
+  field.addEventListener("input", () => {
+    if (!composing) commit();
+  });
+  field.addEventListener("paste", (event) => {
+    const file = clipboardImage(event.clipboardData);
+    if (file) {
+      event.preventDefault();
+      readClipboardImage(file, (src) => {
+        const view = viewOf();
+        const after = view ? chromeKey.getState(view.state)?.after ?? -1 : -1;
+        if (!view || after < 0) return;
+        const tr = commitGap(view.state, after, src);
+        if (!tr) return;
+        field.replaceChildren();
+        view.dispatch(tr.setMeta(chromeKey, { after: -1 }).scrollIntoView());
+        view.focus();
+      });
+      return;
+    }
+    event.preventDefault();
+    const text = event.clipboardData?.getData("text/plain") ?? "";
+    if (!text.trim()) return;
+    field.textContent = text;
+    commit();
+  });
+  field.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" || (event.key === "Enter" && !(field.textContent ?? "").trim())) {
+      event.preventDefault();
+      event.stopPropagation();
+      clear();
+      return;
+    }
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z" && !event.shiftKey) {
+      event.preventDefault();
+      const view = viewOf();
+      clear();
+      if (view) undo(view.state, view.dispatch);
+    }
+  });
+  field.addEventListener("blur", () => {
+    window.setTimeout(() => {
+      if (composing) return;
+      const view = viewOf();
+      if (!view || (chromeKey.getState(view.state)?.after ?? -1) < 0) return;
+      if ((field.textContent ?? "").trim()) commit();
+      else clear();
+    }, 0);
+  });
+  provisional = field;
+  return field;
 }
 
-function insertSlashParagraph(view: EditorView, index: number): void {
-  const node = view.state.doc.child(index);
-  const pos = blockPos(view.state.doc, index);
-  if (node?.type === pagesSchema.nodes.paragraph && node.content.size === 0) {
-    const tr = view.state.tr.insertText("/", pos + 1);
-    tr.setSelection(TextSelection.near(tr.doc.resolve(pos + 2)));
-    view.dispatch(tr.scrollIntoView());
-    view.focus();
-    return;
-  }
-  const after = pos + (node?.nodeSize ?? 0);
-  insertBlockAt(view, after, paragraphNode("/"));
-}
 
 function hoverHandlePlugin(translate: Translate | undefined, onNote: (index: number) => void) {
   return new Plugin({
+    key: hoverKey,
+    state: {
+      init: () => EMPTY_HOVER,
+      apply(tr, value) {
+        const meta = tr.getMeta(hoverKey) as { pos?: number; dragging?: boolean; span?: { anchor: number; head: number } | null } | undefined;
+        let next = value;
+        if (meta) {
+          next = {
+            pos: typeof meta.pos === "number" ? meta.pos : value.pos,
+            dragging: typeof meta.dragging === "boolean" ? meta.dragging : value.dragging,
+            anchor: meta.span === undefined ? value.anchor : meta.span === null ? -1 : meta.span.anchor,
+            head: meta.span === undefined ? value.head : meta.span === null ? -1 : meta.span.head,
+          };
+        } else if (tr.selectionSet && tr.selection instanceof TextSelection) {
+          next = { ...next, anchor: -1, head: -1 };
+        } else if (tr.selectionSet && tr.selection instanceof NodeSelection) {
+          const at = tr.selection.from;
+          if (dragRows(tr.doc).some((row) => row.pos === at)) next = { ...next, anchor: at, head: at };
+        } else if (tr.docChanged) {
+          const anchor = next.anchor >= 0 ? tr.mapping.map(next.anchor) : -1;
+          const head = next.head >= 0 ? tr.mapping.map(next.head) : -1;
+          next = { ...next, pos: next.pos >= 0 ? tr.mapping.map(next.pos) : -1, anchor, head };
+        }
+        if (next.pos >= 0 && !tr.doc.nodeAt(next.pos)) next = { ...next, pos: -1 };
+        if (next.anchor >= 0 && (!tr.doc.nodeAt(next.anchor) || !tr.doc.nodeAt(next.head))) {
+          next = { ...next, anchor: -1, head: -1 };
+        }
+        return next;
+      },
+    },
+    props: {
+      handleKeyDown(view, event) {
+        const hover = hoverKey.getState(view.state);
+        if (!hover || hover.anchor < 0 || hover.head < 0) return false;
+        const rows = dragRows(view.state.doc);
+        const headIndex = rows.findIndex((row) => row.pos === hover.head);
+        if (headIndex < 0) return false;
+        if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+          event.preventDefault();
+          const next = rows[headIndex + (event.key === "ArrowDown" ? 1 : -1)];
+          if (!next) return true;
+          const anchor = event.shiftKey ? hover.anchor : next.pos;
+          const tr = view.state.tr.setMeta(hoverKey, { span: { anchor, head: next.pos } });
+          try { tr.setSelection(NodeSelection.create(tr.doc, next.pos)); } catch { /* atom-only nodes */ }
+          view.dispatch(tr.scrollIntoView());
+          return true;
+        }
+        if (event.key === "Backspace" || event.key === "Delete") {
+          event.preventDefault();
+          deleteSpan(hover.anchor, hover.head)(view.state, (tr) => {
+            view.dispatch(tr.setMeta(hoverKey, { span: null, pos: -1 }));
+          });
+          return true;
+        }
+        if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "d") {
+          event.preventDefault();
+          duplicateSpan(hover.anchor, hover.head)(view.state, (tr) => {
+            view.dispatch(tr.setMeta(hoverKey, { span: null }));
+          });
+          return true;
+        }
+        const printable = event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey;
+        if (printable && hover.anchor !== hover.head) {
+          event.preventDefault();
+          return true;
+        }
+        return false;
+      },
+      decorations(state) {
+        const hover = hoverKey.getState(state);
+        if (!hover) return DecorationSet.empty;
+        const marked = new Map<number, { size: number; classes: Set<string> }>();
+        const mark = (at: number, className: string) => {
+          const node = state.doc.nodeAt(at);
+          if (!node) return;
+          const current = marked.get(at) ?? { size: node.nodeSize, classes: new Set<string>() };
+          current.classes.add(className);
+          marked.set(at, current);
+        };
+        if (hover.anchor >= 0 && hover.head >= 0) {
+          for (const row of spanRows(state.doc, hover.anchor, hover.head)) {
+            mark(row.pos, "is-block-selected");
+            if (hover.dragging) mark(row.pos, "is-dragging");
+          }
+        }
+        if (hover.pos >= 0) {
+          mark(hover.pos, "is-block-hover");
+          if (hover.dragging && hover.anchor < 0) mark(hover.pos, "is-dragging");
+        }
+        const decorations = [...marked.entries()].map(([at, entry]) => (
+          Decoration.node(at, at + entry.size, { class: [...entry.classes].join(" ") })
+        ));
+        return decorations.length ? DecorationSet.create(state.doc, decorations) : DecorationSet.empty;
+      },
+    },
     view(editorView) {
       const handle = handleWidget(translate);
       handle.hidden = true;
-      overlayRoot().append(handle);
       const menu = document.createElement("div");
       menu.className = "mw-menu pages-block-menu";
       menu.hidden = true;
       menu.setAttribute("role", "menu");
-      overlayRoot().append(menu);
-      let index = 0;
+      const ghost = document.createElement("div");
+      ghost.className = "pages-block-ghost";
+      ghost.hidden = true;
+      ghost.setAttribute("aria-hidden", "true");
+      const drop = document.createElement("div");
+      drop.className = "pages-drop-line";
+      drop.hidden = true;
+      drop.setAttribute("aria-hidden", "true");
+      overlayRoot().append(handle, menu, ghost, drop);
+      const INDENT = 24;
+      let pos = -1;
+      let placed = -1;
+      let drag: { pointerId: number; from: number; anchor: number; head: number; gap: number; level: number; originX: number; originY: number; active: boolean } | null = null;
+      let suppressClick = false;
 
-      const clearHover = () => {
-        editorView.dom.querySelectorAll(".is-block-hover").forEach((node) => node.classList.remove("is-block-hover"));
-      };
       const closeMenu = () => {
         menu.hidden = true;
         menu.replaceChildren();
       };
-      const hideChrome = () => {
-        if (!menu.hidden) return;
+      const hideHandle = () => {
         handle.hidden = true;
-        clearHover();
+        placed = -1;
       };
-      const placeHandle = (blockIndex: number) => {
-        const node = editorView.state.doc.child(blockIndex);
-        const dom = editorView.nodeDOM(blockPos(editorView.state.doc, blockIndex));
+      const hoverState = () => hoverKey.getState(editorView.state) ?? EMPTY_HOVER;
+      const setHover = (nextPos: number, dragging = hoverState().dragging) => {
+        const current = hoverState();
+        if (current.pos === nextPos && current.dragging === dragging) return;
+        if (nextPos !== pos) closeMenu();
+        editorView.dispatch(editorView.state.tr.setMeta(hoverKey, { pos: nextPos, dragging }));
+      };
+      const depthOf = () => (pos < 0 ? 0 : editorView.state.doc.resolve(pos).depth);
+      const topIndex = () => (pos < 0 ? 0 : editorView.state.doc.resolve(pos).index(0));
+      const placeHandle = (rowPos: number, force = false) => {
+        const node = rowPos >= 0 ? editorView.state.doc.nodeAt(rowPos) : null;
+        const dom = node ? editorView.nodeDOM(rowPos) : null;
         if (!node || !(dom instanceof HTMLElement)) {
-          hideChrome();
+          hideHandle();
           return;
         }
-        handle.classList.toggle("has-note", Boolean(node.attrs.note));
-        clearHover();
-        dom.classList.add("is-block-hover");
         const rect = dom.getBoundingClientRect();
-        handle.style.top = Math.round(rect.top + 3) + "px";
-        handle.style.left = Math.round(rect.left + 2) + "px";
+        const pm = editorView.dom.getBoundingClientRect();
+        const gutter = Number.parseFloat(getComputedStyle(editorView.dom).paddingLeft) || 76;
+        const contentLeft = pm.left + gutter;
+        const handleWidth = handle.offsetWidth || 44;
+        const gap = dom.closest(".pages-column") ? 4 : 14;
+        const indent = Math.max(0, rect.left - contentLeft);
+        const minLeft = pm.left + 6;
+        const maxLeft = rect.left - handleWidth - gap;
+        const top = Math.round(rect.top + 2);
+        const left = Math.round(Math.min(Math.max(minLeft, minLeft + indent), maxLeft));
+        if (!force && placed === rowPos && handle.style.top === top + "px" && handle.style.left === left + "px") return;
+        handle.classList.toggle("has-note", Boolean(node.attrs.note));
+        handle.style.top = top + "px";
+        handle.style.left = left + "px";
         handle.hidden = false;
-        index = blockIndex;
+        pos = rowPos;
+        placed = rowPos;
       };
-      const blockIndexAt = (clientX: number, clientY: number): number | null => {
+      const contentBox = () => {
+        const pm = editorView.dom.getBoundingClientRect();
+        const pad = Number.parseFloat(getComputedStyle(editorView.dom).paddingLeft) || 52;
+        return { pm, left: pm.left + pad };
+      };
+      const rowLeft = (rowPos: number) => {
+        const el = editorView.nodeDOM(rowPos);
+        return el instanceof HTMLElement ? el.getBoundingClientRect().left : contentBox().left;
+      };
+      const gapAt = (clientY: number, rows: readonly DragRow[]) => {
+        for (let i = 0; i < rows.length; i += 1) {
+          const el = editorView.nodeDOM(rows[i].pos);
+          if (!(el instanceof HTMLElement)) continue;
+          const rect = el.getBoundingClientRect();
+          if (clientY < rect.top + rect.height / 2) return i;
+        }
+        return rows.length;
+      };
+      const levelAt = (clientX: number, rows: readonly DragRow[], gap: number) => {
+        const prev = gap > 0 ? rows[gap - 1] : undefined;
+        const range = dropLevelRange(rows, gap);
+        const baseLeft = prev ? rowLeft(prev.pos) : contentBox().left;
+        const baseLevel = prev ? prev.indent : 0;
+        const raw = baseLevel + Math.round((clientX - baseLeft) / INDENT);
+        return Math.max(range.min, Math.min(range.max, raw));
+      };
+      const placeDropLine = (gap: number, level: number, rows: readonly DragRow[]) => {
+        if (!drag) return;
+        const preview = previewSpan(editorView.state.doc, drag.anchor, drag.head, gap, level);
+        drag.gap = gap;
+        if (!preview) {
+          drag.level = level;
+          drop.classList.remove("is-column");
+          drop.hidden = true;
+          return;
+        }
+        drag.level = preview.level;
+        const beside = drag.anchor === drag.head
+          ? columnDropAnchor(editorView.state.doc, drag.from, gap, preview.level)
+          : null;
+        const besideEl = beside == null ? null : editorView.nodeDOM(beside);
+        if (besideEl instanceof HTMLElement) {
+          const rect = besideEl.getBoundingClientRect();
+          drop.classList.add("is-column");
+          drop.style.left = Math.round(rect.right - 2) + "px";
+          drop.style.top = Math.round(rect.top) + "px";
+          drop.style.width = "3px";
+          drop.style.height = Math.max(24, Math.round(rect.height)) + "px";
+          drop.hidden = false;
+          return;
+        }
+        drop.classList.remove("is-column");
+        drop.style.height = "3px";
+        const { pm, left } = contentBox();
+        const lineLeft = Math.round(left + preview.level * INDENT);
+        drop.style.left = lineLeft + "px";
+        drop.style.width = Math.max(48, Math.round(pm.right - 24 - lineLeft)) + "px";
+        const anchor = gap < rows.length ? editorView.nodeDOM(rows[gap].pos) : rows.length ? editorView.nodeDOM(rows[rows.length - 1].pos) : null;
+        const edge = anchor instanceof HTMLElement
+          ? (gap < rows.length ? anchor.getBoundingClientRect().top : anchor.getBoundingClientRect().bottom)
+          : (gap < rows.length ? pm.top : pm.bottom);
+        drop.style.top = Math.round(edge - 1) + "px";
+        drop.hidden = false;
+      };
+      const stopDrag = (commit: boolean) => {
+        if (!drag) return;
+        const from = drag.from;
+        const anchor = drag.anchor;
+        const head = drag.head;
+        const gap = drag.gap;
+        const level = drag.level;
+        const wasActive = drag.active;
+        drag = null;
+        if (wasActive) suppressClick = true;
+        ghost.hidden = true;
+        ghost.replaceChildren();
+        ghost.style.transform = "";
+        drop.hidden = true;
+        handle.classList.remove("is-dragging");
+        document.documentElement.classList.remove("is-pages-dragging");
+        if (commit && wasActive && previewSpan(editorView.state.doc, anchor, head, gap, level)) {
+          moveSpan(anchor, head, gap, level)(editorView.state, (tr) => {
+            editorView.dispatch(tr.setMeta(hoverKey, { span: null, pos: -1, dragging: false }));
+          });
+          editorView.focus();
+        } else {
+          setHover(from, false);
+        }
+      };
+      const rowPosAt = (clientX: number, clientY: number): number => {
         const found = editorView.posAtCoords({ left: clientX, top: clientY });
-        if (!found || editorView.state.doc.childCount === 0) return null;
-        const $pos = editorView.state.doc.resolve(Math.min(found.pos, editorView.state.doc.content.size));
-        if ($pos.depth >= 1) return $pos.index(0);
-        return Math.min($pos.index(0), editorView.state.doc.childCount - 1);
+        if (!found) return -1;
+        let hit = -1;
+        for (const row of dragRows(editorView.state.doc)) {
+          const node = editorView.state.doc.nodeAt(row.pos);
+          if (node && found.pos >= row.pos && found.pos < row.pos + node.nodeSize) hit = row.pos;
+        }
+        return hit;
+      };
+      const menuItem = (icon: string, label: string, run: () => void, danger = false) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = danger ? "mw-menu__item mw-menu__item--danger" : "mw-menu__item";
+        button.setAttribute("role", "menuitem");
+        button.innerHTML = `${dsIcon(icon)}<span>${escapeHtml(label)}</span>`;
+        button.addEventListener("mousedown", (event) => event.preventDefault());
+        button.addEventListener("click", (event) => {
+          event.preventDefault();
+          run();
+        });
+        return button;
+      };
+      const appendTableActions = () => {
+        const node = pos >= 0 ? editorView.state.doc.nodeAt(pos) : null;
+        if (node?.type.name !== "table") return;
+        const run = (make: typeof addTableRow) => {
+          const tr = make(editorView.state, pos);
+          if (tr) editorView.dispatch(tr.scrollIntoView());
+          closeMenu();
+          editorView.focus();
+        };
+        menu.append(
+          menuItem("plus", t(translate, "加一行"), () => run(addTableRow)),
+          menuItem("grid", t(translate, "加一列"), () => run(addTableColumn)),
+          menuItem("minus", t(translate, "删行"), () => run(deleteTableRow)),
+          menuItem("minus", t(translate, "删列"), () => run(deleteTableColumn)),
+        );
+      };
+      const activeSpan = () => {
+        const hover = hoverState();
+        if (hover.anchor < 0 || pos < 0) return null;
+        const doc = editorView.state.doc;
+        const rows = spanRows(doc, hover.anchor, hover.head);
+        if (!rows.some((row) => row.pos === pos)) return null;
+        return spanRoots(doc, hover.anchor, hover.head).length > 1
+          ? { anchor: hover.anchor, head: hover.head }
+          : null;
+      };
+      const tonePositions = (): number[] => {
+        const hover = hoverState();
+        if (hover.anchor >= 0 && pos >= 0) {
+          const doc = editorView.state.doc;
+          const rows = spanRows(doc, hover.anchor, hover.head);
+          if (rows.some((row) => row.pos === pos)) {
+            const roots = spanRoots(doc, hover.anchor, hover.head);
+            if (roots.length) return roots.map((row) => row.pos);
+          }
+        }
+        return pos >= 0 ? [pos] : [];
+      };
+      const renderMenu = (mode: "root" | "turn" | "tone") => {
+        menu.replaceChildren();
+        const block = topIndex();
+        const grouped = (() => {
+          const hover = hoverState();
+          if (mode !== "root" || hover.anchor < 0 || pos < 0) return null;
+          const rows = spanRows(editorView.state.doc, hover.anchor, hover.head);
+          if (!rows.some((row) => row.pos === pos)) return null;
+          return spanRoots(editorView.state.doc, hover.anchor, hover.head).length > 1 ? hover : null;
+        })();
+        if (grouped) {
+          appendTableActions();
+          const finish = (command: ReturnType<typeof deleteSpan>) => {
+            command(editorView.state, (tr) => {
+              editorView.dispatch(tr.setMeta(hoverKey, { span: null }));
+            });
+            closeMenu();
+          };
+          menu.append(
+            menuItem("chevron-up", t(translate, "上移"), () => {
+              nudgeEditor(editorView, -1);
+              closeMenu();
+            }),
+            menuItem("chevron-down", t(translate, "下移"), () => {
+              nudgeEditor(editorView, 1);
+              closeMenu();
+            }),
+            menuItem("tune", t(translate, "颜色"), () => renderMenu("tone")),
+            menuItem("refresh", t(translate, "转换为"), () => renderMenu("turn")),
+            menuItem("copy", t(translate, "复制"), () => finish(duplicateSpan(grouped.anchor, grouped.head))),
+            menuItem("trash", t(translate, "删除"), () => finish(deleteSpan(grouped.anchor, grouped.head)), true),
+          );
+          return;
+        }
+        if (mode === "root" && depthOf() > 0) {
+          appendTableActions();
+          menu.append(
+            menuItem("refresh", t(translate, "转换为"), () => renderMenu("turn")),
+            menuItem("tune", t(translate, "颜色"), () => renderMenu("tone")),
+            menuItem("chevron-up", t(translate, "上移"), () => {
+              nudgeEditor(editorView, -1);
+              closeMenu();
+            }),
+            menuItem("chevron-down", t(translate, "下移"), () => {
+              nudgeEditor(editorView, 1);
+              closeMenu();
+            }),
+            menuItem("copy", t(translate, "复制"), () => {
+              runBlockCommand(editorView, duplicateRow(pos));
+              closeMenu();
+            }),
+            menuItem("trash", t(translate, "删除"), () => {
+              runBlockCommand(editorView, deleteRow(pos));
+              closeMenu();
+            }, true),
+          );
+          return;
+        }
+        if (mode === "tone") {
+          menu.append(menuItem("arrow", t(translate, "返回"), () => renderMenu("root")));
+          ([
+            ["font_color", "文字颜色"],
+            ["highlight", "背景色"],
+          ] as const).forEach(([kind, labelText]) => {
+            const label = document.createElement("p");
+            label.className = "pages-menu-label";
+            label.textContent = t(translate, labelText);
+            const strip = document.createElement("div");
+            strip.className = "pages-tone-strip";
+            const swatch = (tone: string, name: string) => {
+              const button = document.createElement("button");
+              button.type = "button";
+              button.className = "pages-tone";
+              button.dataset.pagesTone = tone || "none";
+              button.setAttribute("aria-label", name);
+              button.title = name;
+              button.addEventListener("mousedown", (event) => event.preventDefault());
+              button.addEventListener("click", (event) => {
+                event.preventDefault();
+                const tr = setRowsTone(editorView.state, tonePositions(), kind, tone);
+                if (tr) editorView.dispatch(tr.scrollIntoView());
+                closeMenu();
+                editorView.focus();
+              });
+              strip.append(button);
+            };
+            swatch("", t(translate, "默认"));
+            PAGES_TONES.forEach((tone) => swatch(tone.id, t(translate, tone.label)));
+            menu.append(label, strip);
+          });
+          return;
+        }
+        if (mode === "turn") {
+          menu.append(menuItem("arrow", t(translate, "返回"), () => renderMenu("root")));
+          const label = document.createElement("p");
+          label.className = "pages-menu-label";
+          label.textContent = t(translate, "转换为");
+          menu.append(label);
+          turnIntoItems(translate).forEach((item) => {
+            menu.append(menuItem(item.icon, item.label, () => {
+              const span = activeSpan();
+              if (span) {
+                const tr = turnSpanInto(editorView.state, span.anchor, span.head, item.id);
+                if (tr) editorView.dispatch(tr.setMeta(hoverKey, { span: null }).scrollIntoView());
+              } else if (depthOf() > 0) {
+                const tr = turnRowInto(editorView.state, item.id);
+                if (tr) editorView.dispatch(tr.scrollIntoView());
+              } else {
+                runBlockCommand(editorView, turnBlockInto(block, item.id));
+              }
+              closeMenu();
+              editorView.focus();
+            }));
+          });
+          return;
+        }
+        appendTableActions();
+        const columnListAt = (() => {
+          if (pos < 0) return -1;
+          const direct = editorView.state.doc.nodeAt(pos);
+          if (direct?.type.name === "column_list") return pos;
+          const $at = editorView.state.doc.resolve(Math.min(pos + 1, editorView.state.doc.content.size));
+          for (let depth = $at.depth; depth > 0; depth -= 1) {
+            if ($at.node(depth).type.name === "column_list") return $at.before(depth);
+          }
+          return -1;
+        })();
+        if (columnListAt >= 0) {
+          menu.append(
+            menuItem("columns", t(translate, "加一栏"), () => {
+              const tr = addColumn(editorView.state, columnListAt);
+              if (tr) editorView.dispatch(tr.scrollIntoView());
+              closeMenu();
+              editorView.focus();
+            }),
+            menuItem("rows", t(translate, "取消分栏"), () => {
+              const tr = unwrapColumns(editorView.state, columnListAt);
+              if (tr) editorView.dispatch(tr.scrollIntoView());
+              closeMenu();
+              editorView.focus();
+            }),
+          );
+        }
+        menu.append(
+          menuItem("refresh", t(translate, "转换为"), () => renderMenu("turn")),
+          menuItem("tune", t(translate, "颜色"), () => renderMenu("tone")),
+          menuItem("copy", t(translate, "复制"), () => {
+            runBlockCommand(editorView, duplicateBlock(block));
+            closeMenu();
+          }),
+          menuItem("message", t(translate, "备注"), () => {
+            onNote(block);
+            closeMenu();
+          }),
+          menuItem("chevron-up", t(translate, "上移"), () => {
+            nudgeEditor(editorView, -1);
+            closeMenu();
+          }),
+          menuItem("chevron-down", t(translate, "下移"), () => {
+            nudgeEditor(editorView, 1);
+            closeMenu();
+          }),
+          menuItem("trash", t(translate, "删除"), () => {
+            runBlockCommand(editorView, deleteBlock(block));
+            closeMenu();
+          }, true),
+        );
       };
       const openMenu = () => {
         menu.hidden = false;
-        menu.replaceChildren();
-        ([
-          { id: "up", icon: "chevron-up", label: t(translate, "上移") },
-          { id: "down", icon: "chevron-down", label: t(translate, "下移") },
-          { id: "note", icon: "message", label: t(translate, "备注") },
-        ] as const).forEach((item) => {
-          const button = document.createElement("button");
-          button.type = "button";
-          button.className = "mw-menu__item";
-          button.setAttribute("role", "menuitem");
-          button.innerHTML = `${dsIcon(item.icon)}<span>${escapeHtml(item.label)}</span>`;
-          button.addEventListener("mousedown", (event) => {
-            event.preventDefault();
-            if (item.id === "up") moveTopBlock(editorView, index, -1);
-            else if (item.id === "down") moveTopBlock(editorView, index, 1);
-            else onNote(index);
-            closeMenu();
-          });
-          menu.append(button);
-        });
+        renderMenu("root");
         const rect = handle.getBoundingClientRect();
-        menu.style.left = Math.round(rect.right + 6) + "px";
-        menu.style.top = Math.round(rect.top) + "px";
+        placeOverlay(menu, rect, "beside");
       };
       const onMove = (event: MouseEvent) => {
+        if (event.buttons || drag) return;
         const target = event.target as HTMLElement | null;
         if (target?.closest(".pages-slash, .pages-format-bar, .pages-pop, .pages-more-menu, .pages-create-menu")) {
-          hideChrome();
+          if (menu.hidden) setHover(-1, false);
           return;
         }
-        if (target && (handle.contains(target) || menu.contains(target))) {
-          handle.hidden = false;
-          return;
-        }
+        if (target && (handle.contains(target) || menu.contains(target))) return;
         const host = editorView.dom.closest(".pages-editor-host") ?? editorView.dom;
         if (!host.contains(target)) {
-          hideChrome();
+          if (menu.hidden) setHover(-1, false);
           return;
         }
-        const next = blockIndexAt(event.clientX, event.clientY);
-        if (next == null) hideChrome();
-        else placeHandle(next);
+        setHover(rowPosAt(event.clientX, event.clientY), false);
       };
-      handle.addEventListener("mousedown", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
+      handle.addEventListener("pointerdown", (event) => {
         const target = event.target as HTMLElement;
         if (target.closest("[data-pages-plus]")) {
-          closeMenu();
-          insertSlashParagraph(editorView, index);
+          event.preventDefault();
+          event.stopPropagation();
           return;
         }
-        if (target.closest("[data-pages-grip]")) {
-          selectTopBlock(editorView, index);
-          openMenu();
+        if (!target.closest("[data-pages-grip]") || pos < 0) return;
+        event.preventDefault();
+        event.stopPropagation();
+        if (event.shiftKey) return;
+        closeMenu();
+        handle.setPointerCapture(event.pointerId);
+        const hover = hoverState();
+        const covered = hover.anchor >= 0
+          && spanRows(editorView.state.doc, hover.anchor, hover.head).some((row) => row.pos === pos);
+        drag = {
+          pointerId: event.pointerId,
+          from: pos,
+          anchor: covered ? hover.anchor : pos,
+          head: covered ? hover.head : pos,
+          gap: 0,
+          level: 0,
+          originX: event.clientX,
+          originY: event.clientY,
+          active: false,
+        };
+      });
+      handle.addEventListener("pointermove", (event) => {
+        if (!drag || event.pointerId !== drag.pointerId) return;
+        if (!drag.active) {
+          if (Math.hypot(event.clientX - drag.originX, event.clientY - drag.originY) < 5) return;
+          const dom = editorView.nodeDOM(drag.from);
+          if (!(dom instanceof HTMLElement)) {
+            stopDrag(false);
+            return;
+          }
+          drag.active = true;
+          const clone = dom.cloneNode(true) as HTMLElement;
+          clone.querySelectorAll("script").forEach((node) => node.remove());
+          ghost.replaceChildren(clone);
+          const count = spanRoots(editorView.state.doc, drag.anchor, drag.head).length;
+          if (count > 1) {
+            const badge = document.createElement("span");
+            badge.className = "pages-drag-count";
+            badge.textContent = String(count);
+            ghost.append(badge);
+          }
+          ghost.style.width = Math.round(dom.getBoundingClientRect().width) + "px";
+          ghost.hidden = false;
+          handle.classList.add("is-dragging");
+          document.documentElement.classList.add("is-pages-dragging");
+          editorView.dispatch(editorView.state.tr.setMeta(hoverKey, {
+            pos: drag.from,
+            dragging: true,
+            span: { anchor: drag.anchor, head: drag.head },
+          }));
         }
+        const ghostX = Math.round(event.clientX + 12);
+        const ghostY = Math.round(event.clientY - 12);
+        ghost.style.transform = `translate(${ghostX}px, ${ghostY}px)`;
+        const rows = dragRows(editorView.state.doc);
+        const gap = gapAt(event.clientY, rows);
+        placeDropLine(gap, levelAt(event.clientX, rows, gap), rows);
+      });
+      handle.addEventListener("pointerup", (event) => {
+        if (!drag || event.pointerId !== drag.pointerId) return;
+        if (!drag.active) {
+          drag = null;
+          return;
+        }
+        stopDrag(true);
+      });
+      // Menus open on click, not pointerup, so keyboard activation of the grip works too.
+      handle.addEventListener("click", (event) => {
+        const target = event.target as HTMLElement;
+        event.preventDefault();
+        event.stopPropagation();
+        if (suppressClick) {
+          suppressClick = false;
+          return;
+        }
+        if (target.closest("[data-pages-plus]")) {
+          closeMenu();
+          const tr = insertSlashBelow(editorView.state, pos);
+          if (tr) {
+            editorView.dispatch(tr.scrollIntoView());
+            editorView.focus();
+          }
+          return;
+        }
+        if (!target.closest("[data-pages-grip]") || drag || pos < 0) return;
+        const selectSpan = (anchor: number, head: number) => {
+          const tr = editorView.state.tr.setMeta(hoverKey, { span: { anchor, head }, pos });
+          try { tr.setSelection(NodeSelection.create(tr.doc, head)); } catch { /* leave the caret */ }
+          editorView.dispatch(tr);
+        };
+        if (event.shiftKey) {
+          const hover = hoverState();
+          selectSpan(hover.anchor >= 0 ? hover.anchor : pos, pos);
+          closeMenu();
+          return;
+        }
+        selectSpan(pos, pos);
+        if (menu.hidden) openMenu();
+        else closeMenu();
+      });
+      handle.addEventListener("pointercancel", (event) => {
+        if (!drag || event.pointerId !== drag.pointerId) return;
+        stopDrag(false);
       });
       const onPointerDown = (event: PointerEvent) => {
-        const target = event.target as Node | null;
+        const target = event.target as HTMLElement | null;
         if (target && (handle.contains(target) || menu.contains(target))) return;
         closeMenu();
       };
       const onKey = (event: KeyboardEvent) => {
-        if (event.key === "Escape") closeMenu();
-      };
-      const workspace = editorView.dom.closest(".pages-workspace");
-      const onScroll = () => {
+        if (event.key !== "Escape") return;
+        if (drag) stopDrag(false);
         closeMenu();
-        if (!handle.hidden) placeHandle(index);
       };
-      document.addEventListener("mousemove", onMove);
+      const hostEl = editorView.dom.closest<HTMLElement>(".pages-editor-host") ?? editorView.dom;
+      const workspace = editorView.dom.closest<HTMLElement>(".pages-workspace");
+      const onLeave = (event: MouseEvent) => {
+        if (drag) return;
+        const to = event.relatedTarget as HTMLElement | null;
+        if (to && (handle.contains(to) || menu.contains(to) || hostEl.contains(to))) return;
+        if (menu.hidden) setHover(-1, false);
+      };
+      const onScroll = () => {
+        if (drag?.active) {
+          placeHandle(drag.from, true);
+          const rows = dragRows(editorView.state.doc);
+          placeDropLine(drag.gap, drag.level, rows);
+          return;
+        }
+        closeMenu();
+        if (!handle.hidden) placeHandle(pos, true);
+      };
+      hostEl.addEventListener("mousemove", onMove);
+      handle.addEventListener("mousemove", onMove);
+      hostEl.addEventListener("mouseleave", onLeave);
+      handle.addEventListener("mouseleave", onLeave);
       document.addEventListener("pointerdown", onPointerDown, true);
       document.addEventListener("keydown", onKey);
       workspace?.addEventListener("scroll", onScroll, { passive: true });
       return {
         update() {
-          if (!handle.hidden && editorView.state.doc.childCount > index) placeHandle(index);
+          const hover = hoverState();
+          if (hover.pos < 0 || !editorView.state.doc.nodeAt(hover.pos)) hideHandle();
+          else placeHandle(hover.pos);
         },
         destroy() {
-          document.removeEventListener("mousemove", onMove);
+          drag = null;
+          document.documentElement.classList.remove("is-pages-dragging");
+          hostEl.removeEventListener("mousemove", onMove);
+          handle.removeEventListener("mousemove", onMove);
+          hostEl.removeEventListener("mouseleave", onLeave);
+          handle.removeEventListener("mouseleave", onLeave);
           document.removeEventListener("pointerdown", onPointerDown, true);
           document.removeEventListener("keydown", onKey);
           workspace?.removeEventListener("scroll", onScroll);
           handle.remove();
           menu.remove();
+          ghost.remove();
+          drop.remove();
         },
       };
     },
   });
-}
-
-function blockPos(doc: Node, index: number): number {
-  let pos = 0;
-  for (let i = 0; i < index; i += 1) pos += doc.child(i).nodeSize;
-  return pos;
 }
 
 function handleWidget(translate: Translate | undefined): HTMLElement {
@@ -584,16 +1355,16 @@ function handleWidget(translate: Translate | undefined): HTMLElement {
   wrap.className = "pages-block-handle";
   wrap.innerHTML = `
     <button type="button" data-pages-plus aria-label="${escapeHtml(t(translate, "插入块"))}">${dsIcon("plus")}</button>
-    <button type="button" data-pages-grip aria-label="${escapeHtml(t(translate, "块操作"))}">${dsIcon("grip")}</button>`;
+    <button type="button" data-pages-grip aria-label="${escapeHtml(t(translate, "拖动以排序或缩进"))}">${dsIcon("grip")}</button>`;
   return wrap;
 }
 
 function gapWidget(index: number, translate?: Translate): HTMLElement {
-  const line = document.createElement("button");
-  line.type = "button";
+  const line = document.createElement("span");
   line.className = "pages-insert-line";
   line.dataset.pagesGap = "1";
   line.dataset.after = String(index);
+  line.setAttribute("role", "button");
   line.setAttribute("aria-label", t(translate, "在此插入"));
   line.contentEditable = "false";
   return line;
@@ -617,6 +1388,7 @@ function taskNodeView(node: Node, view: EditorView, getPos: () => number | undef
   return {
     dom,
     contentDOM: content,
+    ignoreMutation: (mutation: ViewMutationRecord) => mutation.target !== content && !content.contains(mutation.target),
     update(next: Node) {
       if (next.type !== node.type) return false;
       box.checked = Boolean(next.attrs.checked);
@@ -634,11 +1406,12 @@ function toggleNodeView(node: Node, view: EditorView, getPos: () => number | und
   caret.type = "button";
   caret.className = "pages-toggle-caret";
   caret.innerHTML = dsIcon("chevron-right");
-  caret.addEventListener("mousedown", (event) => {
-    event.preventDefault();
+  caret.addEventListener("mousedown", (event) => event.preventDefault());
+  caret.addEventListener("click", () => {
     const pos = getPos();
     if (pos == null) return;
-    view.dispatch(view.state.tr.setNodeMarkup(pos, undefined, { ...node.attrs, open: !node.attrs.open }));
+    const tr = setToggleOpen(view.state, pos);
+    if (tr) view.dispatch(tr);
   });
   const body = document.createElement("div");
   body.className = "pages-toggle-body";
@@ -646,6 +1419,7 @@ function toggleNodeView(node: Node, view: EditorView, getPos: () => number | und
   return {
     dom,
     contentDOM: body,
+    ignoreMutation: (mutation: ViewMutationRecord) => mutation.target !== body && !body.contains(mutation.target),
     update(next: Node) {
       if (next.type !== node.type) return false;
       node = next;
@@ -655,31 +1429,40 @@ function toggleNodeView(node: Node, view: EditorView, getPos: () => number | und
   };
 }
 
-function calloutIcon(tone: string): string {
-  if (tone === "warn") return "alert";
-  if (tone === "success") return "check";
-  if (tone === "plain") return "idea";
-  return "info";
-}
-
-function calloutNodeView(node: Node) {
+function calloutNodeView(
+  node: Node,
+  getPos: () => number | undefined,
+  translate: Translate | undefined,
+  onPick: (pos: number, anchor: HTMLElement) => void,
+) {
   const dom = document.createElement("aside");
-  const mark = document.createElement("span");
+  const mark = document.createElement("button");
+  mark.type = "button";
   mark.className = "pages-callout-mark";
-  mark.setAttribute("aria-hidden", "true");
+  mark.dataset.pagesCalloutPick = "1";
+  const pickLabel = t(translate, "换图标或颜色");
+  mark.setAttribute("aria-label", pickLabel);
+  mark.title = pickLabel;
+  mark.addEventListener("mousedown", (event) => event.preventDefault());
+  mark.addEventListener("click", (event) => {
+    event.preventDefault();
+    const pos = getPos();
+    if (pos !== undefined) onPick(pos, mark);
+  });
   const body = document.createElement("div");
   body.className = "pages-callout-body";
   const paint = (current: Node) => {
     node = current;
-    const tone = String(current.attrs.tone || "info");
-    dom.className = "pages-callout pages-callout--" + tone;
-    mark.innerHTML = dsIcon(calloutIcon(tone));
+    dom.className = "pages-callout";
+    dom.dataset.pagesCallout = safePagesCalloutTone(current.attrs.tone);
+    mark.innerHTML = dsIcon(calloutIconFor(current.attrs.icon, current.attrs.tone));
   };
   paint(node);
   dom.append(mark, body);
   return {
     dom,
     contentDOM: body,
+    ignoreMutation: (mutation: ViewMutationRecord) => mutation.target !== body && !body.contains(mutation.target),
     update(next: Node) {
       if (next.type !== node.type) return false;
       paint(next);
@@ -698,10 +1481,12 @@ function mentionNodeView(node: Node, options: PagesEditorMountOptions) {
   });
   return {
     dom,
+    ignoreMutation: () => true,
     update(next: Node) {
       if (next.type !== node.type) return false;
       node = next;
-      dom.textContent = "@" + String(next.attrs.title || "");
+      const label = "@" + String(next.attrs.title || "");
+      if (dom.textContent !== label) dom.textContent = label;
       return true;
     },
   };
@@ -745,6 +1530,7 @@ function cardNodeView(kind: "ref" | "task" | "event", node: Node, view: EditorVi
   });
   return {
     dom,
+    ignoreMutation: () => true,
     update(next: Node) {
       if (next.type !== node.type) return false;
       paint(next);
@@ -788,9 +1574,7 @@ function pickPage(view: EditorView, pos: number, node: Node, options: PagesEdito
   cancel.addEventListener("click", () => pop.remove());
   pop.append(cancel);
   overlayRoot().append(pop);
-  const coords = view.coordsAtPos(pos);
-  pop.style.left = Math.max(8, coords.left) + "px";
-  pop.style.top = (coords.bottom + 8) + "px";
+  placeOverlay(pop, view.coordsAtPos(pos), "below");
 }
 
 function editCard(kind: "task" | "event", view: EditorView, pos: number, node: Node, options: PagesEditorMountOptions): void {
@@ -839,9 +1623,7 @@ function editCard(kind: "task" | "event", view: EditorView, pos: number, node: N
     }, () => pop.remove()));
   }
   overlayRoot().append(pop);
-  const coords = view.coordsAtPos(pos);
-  pop.style.left = Math.max(8, coords.left) + "px";
-  pop.style.top = (coords.bottom + 8) + "px";
+  placeOverlay(pop, view.coordsAtPos(pos), "below");
   title.input.focus();
 }
 
@@ -878,6 +1660,123 @@ function calendarNodeView() {
   dom.className = "pages-calendar";
   return {
     dom,
+    ignoreMutation: () => true,
+    update() {
+      return true;
+    },
+  };
+}
+
+function codeNodeView(node: Node, view: EditorView, getPos: () => number | undefined, translate: Translate | undefined) {
+  const dom = document.createElement("div");
+  dom.className = "pages-code-block";
+  const bar = document.createElement("div");
+  bar.className = "pages-code-bar";
+  bar.contentEditable = "false";
+
+  const select = document.createElement("select");
+  select.className = "pages-code-language";
+  select.setAttribute("aria-label", t(translate, "代码语言"));
+  PAGES_CODE_LANGUAGES.forEach((language) => {
+    const option = document.createElement("option");
+    option.value = language.id;
+    option.textContent = t(translate, language.label);
+    select.append(option);
+  });
+  select.value = safePagesLanguage(node.attrs.language);
+
+  const copy = document.createElement("button");
+  copy.type = "button";
+  copy.className = "pages-code-copy";
+  const copyLabel = t(translate, "复制代码");
+  copy.setAttribute("aria-label", copyLabel);
+  copy.title = copyLabel;
+  copy.innerHTML = dsIcon("copy");
+
+  bar.append(select, copy);
+  const pre = document.createElement("pre");
+  pre.className = "pages-code";
+  const code = document.createElement("code");
+  pre.append(code);
+  dom.append(bar, pre);
+
+  select.addEventListener("mousedown", (event) => event.stopPropagation());
+  select.addEventListener("change", () => {
+    const pos = getPos();
+    if (pos === undefined) return;
+    const current = view.state.doc.nodeAt(pos);
+    if (!current) return;
+    const language = safePagesLanguage(select.value);
+    view.dispatch(view.state.tr.setNodeMarkup(pos, undefined, { ...current.attrs, language }));
+    view.focus();
+  });
+  copy.addEventListener("mousedown", (event) => event.preventDefault());
+  copy.addEventListener("click", () => {
+    const pos = getPos();
+    const current = pos === undefined ? null : view.state.doc.nodeAt(pos);
+    void navigator.clipboard?.writeText(current?.textContent ?? "").then(() => {
+      copy.classList.add("is-done");
+      setTimeout(() => copy.classList.remove("is-done"), 1200);
+    }, () => undefined);
+  });
+
+  const sync = (next: Node) => {
+    const language = safePagesLanguage(next.attrs.language);
+    if (select.value !== language) select.value = language;
+    pre.dataset.language = language;
+    dom.dataset.language = language;
+  };
+  sync(node);
+
+  return {
+    dom,
+    contentDOM: code,
+    update(next: Node) {
+      if (next.type !== node.type) return false;
+      sync(next);
+      return true;
+    },
+    ignoreMutation(mutation: ViewMutationRecord) {
+      if (mutation.type === "selection") return false;
+      return !code.contains(mutation.target as globalThis.Node);
+    },
+  };
+}
+
+/** Recolour code blocks only when the document actually moved; highlighting every state is wasted work. */
+function codeHighlightPlugin() {
+  const build = (doc: Node): DecorationSet => {
+    const found: Decoration[] = [];
+    doc.descendants((node, pos) => {
+      if (node.type !== pagesSchema.nodes.code_block) return;
+      const base = pos + 1;
+      highlightRanges(node.textContent, node.attrs.language).forEach((range) => {
+        found.push(Decoration.inline(base + range.from, base + range.to, { class: range.className }));
+      });
+    });
+    return DecorationSet.create(doc, found);
+  };
+  return new Plugin({
+    key: codeHighlightKey,
+    state: {
+      init: (_config, state) => build(state.doc),
+      apply: (tr, value: DecorationSet, _old, next) => (tr.docChanged ? build(next.doc) : value),
+    },
+    props: {
+      decorations(state) {
+        return codeHighlightKey.getState(state);
+      },
+    },
+  });
+}
+
+function tocNodeView() {
+  const dom = document.createElement("nav");
+  dom.className = "pages-toc";
+  dom.setAttribute("data-pages-toc", "1");
+  return {
+    dom,
+    ignoreMutation: () => true,
     update() {
       return true;
     },
@@ -899,6 +1798,7 @@ function calendarPlugin() {
 }
 
 function renderCalendar(host: HTMLElement, doc: Node): void {
+  if (!host.isConnected) return;
   const events: Array<{ title: string; at: string; day: number }> = [];
   const now = new Date();
   const year = now.getFullYear();
@@ -936,6 +1836,7 @@ function refreshToc(view: EditorView, translate?: Translate): void {
     }
   });
   view.dom.querySelectorAll("[data-pages-toc]").forEach((nav) => {
+    if (!(nav instanceof HTMLElement) || !nav.isConnected) return;
     nav.replaceChildren();
     const lead = document.createElement("p");
     lead.className = "pages-toc-label";
@@ -948,10 +1849,21 @@ function refreshToc(view: EditorView, translate?: Translate): void {
       return;
     }
     const list = document.createElement("ol");
-    headings.forEach((item) => {
+    headings.forEach((item, index) => {
       const li = document.createElement("li");
       li.dataset.level = String(item.level);
-      li.textContent = item.text || t(translate, "无标题");
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "pages-toc-jump";
+      button.textContent = item.text || t(translate, "无标题");
+      button.addEventListener("mousedown", (event) => event.preventDefault());
+      button.addEventListener("click", () => {
+        const tr = revealHeading(view.state, index);
+        if (!tr) return;
+        view.dispatch(tr);
+        view.focus();
+      });
+      li.append(button);
       list.append(li);
     });
     nav.append(list);
@@ -969,6 +1881,12 @@ function tocPlugin(translate: Translate | undefined) {
 }
 
 function cellNav(view: EditorView, dir: 1 | -1): boolean {
+  if (dir > 0 && atLastTableCell(view.state)) {
+    const tr = addTableRow(view.state);
+    if (!tr) return false;
+    view.dispatch(tr.scrollIntoView());
+    return true;
+  }
   const $from = view.state.selection.$from;
   let depth = $from.depth;
   while (depth > 0 && $from.node(depth).type.name !== "table_cell" && $from.node(depth).type.name !== "table_header") {
@@ -1042,6 +1960,125 @@ function docPlainText(doc: Node): string {
   return lines.join("\n\n");
 }
 
+function findPlugin(translate: Translate | undefined) {
+  return new Plugin({
+    key: findKey,
+    state: {
+      init: () => ({ open: false, query: "", index: 0 }),
+      apply(tr, value) {
+        const meta = tr.getMeta(findKey) as { open: boolean; query: string; index: number } | undefined;
+        if (meta) return meta;
+        if (!value.open || !tr.docChanged) return value;
+        const hits = findHits(tr.doc, value.query);
+        return { ...value, index: hits.length ? Math.min(value.index, hits.length - 1) : 0 };
+      },
+    },
+    props: {
+      decorations(state) {
+        const value = findKey.getState(state);
+        if (!value?.open || !value.query.trim()) return null;
+        const hits = findHits(state.doc, value.query);
+        const marks = hits.map((hit, index) => Decoration.inline(hit.from, hit.to, {
+          class: index === value.index ? "pages-find-hit is-current" : "pages-find-hit",
+        }));
+        return marks.length ? DecorationSet.create(state.doc, marks) : null;
+      },
+    },
+    view() {
+      const bar = document.createElement("div");
+      bar.className = "pages-find";
+      bar.hidden = true;
+      const input = document.createElement("input");
+      input.className = "mw-input";
+      input.type = "search";
+      input.placeholder = t(translate, "在文中查找");
+      const count = document.createElement("span");
+      count.className = "pages-find-count";
+      bar.append(input, count);
+      overlayRoot().append(bar);
+      const showHit = (view: EditorView, query: string, index: number) => {
+        const hits = findHits(view.state.doc, query);
+        const hit = hits[index];
+        const tr = view.state.tr.setMeta(findKey, { open: true, query, index });
+        if (hit) tr.setSelection(TextSelection.create(tr.doc, hit.from, hit.to)).scrollIntoView();
+        view.dispatch(tr);
+      };
+      input.addEventListener("input", () => {
+        const view = findView;
+        if (!view) return;
+        const query = input.value;
+        const hits = findHits(view.state.doc, query);
+        const index = hits.findIndex((hit) => hit.from >= view.state.selection.from);
+        showHit(view, query, index >= 0 ? index : 0);
+      });
+      input.addEventListener("keydown", (event) => {
+        const view = findView;
+        if (!view) return;
+        if (event.key === "Escape") {
+          event.preventDefault();
+          view.dispatch(view.state.tr.setMeta(findKey, { open: false, query: input.value, index: 0 }));
+          view.focus();
+          return;
+        }
+        if (event.key !== "Enter") return;
+        event.preventDefault();
+        const value = findKey.getState(view.state);
+        const hits = findHits(view.state.doc, value?.query ?? input.value);
+        if (!hits.length || !value) return;
+        const index = stepFindHit(hits, view.state.selection.from, event.shiftKey ? -1 : 1);
+        showHit(view, value.query, index);
+      });
+      return {
+        update(view) {
+          findView = view;
+          const value = findKey.getState(view.state);
+          bar.hidden = !value?.open;
+          if (!value?.open) return;
+          if (document.activeElement !== input && input.value !== value.query) input.value = value.query;
+          const hits = findHits(view.state.doc, value.query);
+          count.textContent = hits.length ? `${Math.min(value.index, hits.length - 1) + 1}/${hits.length}` : "0";
+        },
+        destroy() {
+          findView = null;
+          bar.remove();
+        },
+      };
+    },
+  });
+}
+
+let findView: EditorView | null = null;
+
+function openFind(view: EditorView): void {
+  const { from, to, empty } = view.state.selection;
+  const current = findKey.getState(view.state);
+  let query = current?.query ?? "";
+  if (!empty && to - from <= 40) {
+    const selected = view.state.doc.textBetween(from, to, "\n");
+    if (selected && !selected.includes("\n")) query = selected;
+  }
+  const hits = findHits(view.state.doc, query);
+  const index = Math.max(0, hits.findIndex((hit) => hit.from >= from));
+  const tr = view.state.tr.setMeta(findKey, { open: true, query, index: hits.length ? index : 0 });
+  view.dispatch(tr);
+  requestAnimationFrame(() => {
+    const input = document.querySelector<HTMLInputElement>(".pages-find input");
+    input?.focus();
+    input?.select();
+  });
+}
+
+function dispatchList(
+  state: EditorState,
+  dispatch: ((tr: Transaction) => void) | undefined,
+  id: "bullet_list" | "ordered_list" | "task_list",
+): boolean {
+  const tr = applyList(state, id);
+  if (!tr) return false;
+  dispatch?.(tr);
+  return true;
+}
+
 export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}): PagesEditorHandle {
   host.replaceChildren();
   const toolbar = document.createElement("div");
@@ -1056,9 +2093,12 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
     { name: "h1", label: t(options.translate, "标题 1"), gap: true, run: headingCommand(1) },
     { name: "h2", label: t(options.translate, "标题 2"), run: headingCommand(2) },
     { name: "h3", label: t(options.translate, "标题 3"), run: headingCommand(3) },
-    { name: "ul", label: t(options.translate, "无序列表"), icon: "rows", gap: true, run: wrapInList(pagesSchema.nodes.bullet_list) },
-    { name: "ol", label: t(options.translate, "有序列表"), icon: "list", run: wrapInList(pagesSchema.nodes.ordered_list) },
-    { name: "comment", label: t(options.translate, "评论"), icon: "message", gap: true, action: "comment" },
+    { name: "ul", label: t(options.translate, "无序列表"), icon: "rows", gap: true, run: (state, dispatch) => dispatchList(state, dispatch, "bullet_list") },
+    { name: "ol", label: t(options.translate, "有序列表"), icon: "list", run: (state, dispatch) => dispatchList(state, dispatch, "ordered_list") },
+    { name: "task", label: t(options.translate, "清单"), icon: "check", run: (state, dispatch) => dispatchList(state, dispatch, "task_list") },
+    { name: "tone", label: t(options.translate, "颜色"), gap: true, action: "tone" },
+    { name: "link", label: t(options.translate, "链接"), icon: "link", action: "link" },
+    { name: "comment", label: t(options.translate, "评论"), icon: "message", action: "comment" },
     { name: "ai", label: "AI", icon: "sparkles", action: "ai" },
   ];
   const buttonEls = buttons.map((item) => {
@@ -1073,7 +2113,7 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
     button.setAttribute("aria-label", item.label);
     button.title = item.label;
     if (item.icon) button.innerHTML = dsIcon(item.icon);
-    else button.textContent = ({ strong: "B", em: "I", underline: "U", strike: "S", h1: "H1", h2: "H2", h3: "H3" } as Record<string, string>)[item.name] || item.label;
+    else button.textContent = ({ strong: "B", em: "I", underline: "U", strike: "S", h1: "H1", h2: "H2", h3: "H3", tone: "A" } as Record<string, string>)[item.name] || item.label;
     toolbar.append(button);
     return { item, button };
   });
@@ -1101,9 +2141,7 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
       view.dispatch(view.state.tr.setNodeMarkup(pos, undefined, { ...node.attrs, note: area.value.trim() }));
       hidePop();
     }, hidePop));
-    const coords = view.coordsAtPos(pos + 1);
-    pop.style.left = Math.max(8, coords.left) + "px";
-    pop.style.top = Math.max(8, coords.top - 8) + "px";
+    placeOverlay(pop, view.coordsAtPos(pos + 1), "above");
     area.focus();
   };
 
@@ -1122,10 +2160,142 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
       applyComment(view, found.from, found.to, area.value, found.id);
       hidePop();
     }, hidePop));
-    const coords = view.coordsAtPos(found.from);
-    pop.style.left = Math.max(8, coords.left) + "px";
-    pop.style.top = (coords.bottom + 8) + "px";
+    placeOverlay(pop, view.coordsAtPos(found.from), "below");
     area.focus();
+  };
+
+  const openTone = (view: EditorView) => {
+    pop.hidden = false;
+    pop.replaceChildren();
+    const rows: Array<{ kind: "font_color" | "highlight"; label: string }> = [
+      { kind: "font_color", label: t(options.translate, "文字颜色") },
+      { kind: "highlight", label: t(options.translate, "背景色") },
+    ];
+    rows.forEach(({ kind, label }) => {
+      const current = toneAt(view.state, kind);
+      const head = document.createElement("p");
+      head.className = "pages-menu-label";
+      head.textContent = label;
+      const strip = document.createElement("div");
+      strip.className = "pages-tone-strip";
+      const swatch = (tone: string, name: string) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "pages-tone" + (current === tone ? " is-on" : "");
+        button.dataset.pagesTone = tone || "none";
+        button.dataset.pagesToneKind = kind;
+        button.setAttribute("aria-label", name);
+        button.title = name;
+        strip.append(button);
+      };
+      swatch("", t(options.translate, "默认"));
+      PAGES_TONES.forEach((tone) => swatch(tone.id, t(options.translate, tone.label)));
+      strip.addEventListener("mousedown", (event) => event.preventDefault());
+      strip.addEventListener("click", (event) => {
+        const button = (event.target as HTMLElement).closest<HTMLElement>("[data-pages-tone]");
+        if (!button) return;
+        event.preventDefault();
+        const tone = button.dataset.pagesTone === "none" ? "" : String(button.dataset.pagesTone);
+        runBlockCommand(view, setTone(kind, tone));
+        hidePop();
+      });
+      pop.append(head, strip);
+    });
+    placeOverlay(pop, view.coordsAtPos(view.state.selection.from), "below");
+  };
+
+  const openCalloutStyle = (view: EditorView, pos: number, anchor: HTMLElement) => {
+    const node = view.state.doc.nodeAt(pos);
+    if (!node) return;
+    pop.hidden = false;
+    pop.replaceChildren();
+
+    const iconHead = document.createElement("p");
+    iconHead.className = "pages-menu-label";
+    iconHead.textContent = t(options.translate, "图标");
+    const grid = document.createElement("div");
+    grid.className = "pages-icon-grid";
+    const currentIcon = calloutIconFor(node.attrs.icon, node.attrs.tone);
+    PAGES_CALLOUT_ICONS.forEach((item) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "pages-icon-pick" + (currentIcon === item.id ? " is-on" : "");
+      button.innerHTML = dsIcon(item.id);
+      const label = t(options.translate, item.label);
+      button.setAttribute("aria-label", label);
+      button.title = label;
+      button.addEventListener("mousedown", (event) => event.preventDefault());
+      button.addEventListener("click", (event) => {
+        event.preventDefault();
+        runBlockCommand(view, setCalloutStyle(pos, { icon: item.id }));
+        hidePop();
+      });
+      grid.append(button);
+    });
+
+    const toneHead = document.createElement("p");
+    toneHead.className = "pages-menu-label";
+    toneHead.textContent = t(options.translate, "颜色");
+    const strip = document.createElement("div");
+    strip.className = "pages-tone-strip";
+    const currentTone = safePagesCalloutTone(node.attrs.tone);
+    PAGES_TONES.forEach((tone) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "pages-tone" + (currentTone === tone.id ? " is-on" : "");
+      button.dataset.pagesTone = tone.id;
+      const label = t(options.translate, tone.label);
+      button.setAttribute("aria-label", label);
+      button.title = label;
+      button.addEventListener("mousedown", (event) => event.preventDefault());
+      button.addEventListener("click", (event) => {
+        event.preventDefault();
+        runBlockCommand(view, setCalloutStyle(pos, { tone: tone.id }));
+        hidePop();
+      });
+      strip.append(button);
+    });
+
+    pop.append(iconHead, grid, toneHead, strip);
+    placeOverlay(pop, anchor.getBoundingClientRect(), "below");
+  };
+
+  const openLink = (view: EditorView) => {
+    const found = linkAt(view.state.doc, view.state.selection);
+    if (!found) return;
+    pop.hidden = false;
+    pop.replaceChildren();
+    const field = document.createElement("input");
+    field.className = "mw-input";
+    field.type = "url";
+    field.placeholder = "https://";
+    field.value = found.href;
+    const commit = () => {
+      runBlockCommand(view, setLink(found.from, found.to, field.value));
+      hidePop();
+    };
+    field.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      commit();
+    });
+    pop.append(field);
+    const row = actions(options.translate, commit, hidePop);
+    if (found.href) {
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "mw-btn mw-btn--ghost";
+      remove.textContent = t(options.translate, "移除链接");
+      remove.addEventListener("click", () => {
+        runBlockCommand(view, setLink(found.from, found.to, ""));
+        hidePop();
+      });
+      row.prepend(remove);
+    }
+    pop.append(row);
+    placeOverlay(pop, view.coordsAtPos(found.from), "below");
+    field.focus();
+    field.select();
   };
 
   const openAi = (view: EditorView) => {
@@ -1161,9 +2331,7 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
       button.addEventListener("click", () => { void runAiCommand(view, item.id, item.style); });
       pop.append(button);
     });
-    const coords = view.coordsAtPos(view.state.selection.from);
-    pop.style.left = Math.max(8, coords.left) + "px";
-    pop.style.top = Math.max(8, coords.top - 8) + "px";
+    placeOverlay(pop, view.coordsAtPos(view.state.selection.from), "below");
   };
 
   const showCandidate = (view: EditorView, command: string, result: { text: string; stub?: boolean }, source: string) => {
@@ -1189,9 +2357,7 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
       } else replaceSelectionText(view, area.value);
       hidePop();
     }, hidePop));
-    const coords = view.coordsAtPos(view.state.selection.from);
-    pop.style.left = Math.max(8, coords.left) + "px";
-    pop.style.top = (coords.bottom + 8) + "px";
+    placeOverlay(pop, view.coordsAtPos(view.state.selection.from), "below");
     void source;
   };
 
@@ -1211,30 +2377,79 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
   };
 
   const listItem = pagesSchema.nodes.list_item;
-  const taskItem = pagesSchema.nodes.task_item;
   let view!: EditorView;
+  const turnCurrent = (id: string) => {
+    const tr = turnRowInto(view.state, id);
+    if (!tr) return false;
+    view.dispatch(tr.scrollIntoView());
+    view.focus();
+    return true;
+  };
   const plugins = [
     history(),
     keymap({
       "Mod-z": undo,
       "Mod-y": redo,
       "Mod-Shift-z": redo,
+      "Mod-c": (state, _dispatch, editor) => {
+        if (state.selection.empty || !editor) return false;
+        return document.execCommand("copy");
+      },
+      "Mod-x": (state, _dispatch, editor) => {
+        if (state.selection.empty || !editor) return false;
+        return document.execCommand("cut");
+      },
       "Mod-b": commandToggle("strong"),
       "Mod-i": commandToggle("em"),
       "Mod-u": commandToggle("underline"),
       "Mod-e": commandToggle("code"),
       "Mod-Shift-x": commandToggle("strike"),
-      Enter: splitListItem(listItem),
+      "Mod-k": () => {
+        openLink(view);
+        return true;
+      },
+      "Mod-f": (_state, _dispatch, editor) => {
+        if (!editor) return false;
+        openFind(editor);
+        return true;
+      },
+      "Shift-Enter": insertHardBreak,
+      "Mod-d": () => {
+        const tr = duplicateEnclosingRow(view.state);
+        if (!tr) return false;
+        view.dispatch(tr.scrollIntoView());
+        view.focus();
+        return true;
+      },
+      "Mod-Enter": toggleTaskChecked,
+      "Mod-Alt-0": () => turnCurrent("paragraph"),
+      "Mod-Alt-1": () => turnCurrent("heading1"),
+      "Mod-Alt-2": () => turnCurrent("heading2"),
+      "Mod-Alt-3": () => turnCurrent("heading3"),
+      "Mod-Shift-8": () => turnCurrent("bullet_list"),
+      "Mod-Shift-7": () => turnCurrent("ordered_list"),
+      "Mod-Shift-9": () => turnCurrent("task_list"),
+      Enter: chainCommands(leaveEmptyCodeLine, exitWrappedBlock, splitListItem(listItem), enterHeading),
+      Backspace: chainCommands(unwrapAtStart, baseKeymap.Backspace),
+      "Mod-a": selectBlockThenAll,
+      "Mod-Shift-ArrowUp": () => nudgeEditor(view, -1),
+      "Mod-Shift-ArrowDown": () => nudgeEditor(view, 1),
+      ArrowLeft: moveColumnEdge("left"),
+      ArrowRight: moveColumnEdge("right"),
+      ArrowDown: (state, dispatch) => moveColumnEdge("down")(state, dispatch) || leaveCodeDown(state, dispatch),
+      ArrowUp: (state, dispatch) => moveColumnEdge("up")(state, dispatch) || leaveCodeUp(state, dispatch),
       Tab: (state, dispatch, current) => {
         if (current && cellNav(current, 1)) return true;
-        return sinkListItem(listItem)(state, dispatch);
+        if (insertCodeIndent(state, dispatch)) return true;
+        return indentListItem(state, dispatch);
       },
       "Shift-Tab": (state, dispatch, current) => {
         if (current && cellNav(current, -1)) return true;
-        return liftListItem(listItem)(state, dispatch);
+        if (removeCodeIndent(state, dispatch)) return true;
+        return outdentListItem(state, dispatch);
       },
     }),
-    keymap({ Enter: splitListItem(taskItem) }),
+    keymap({ Enter: splitTaskItem }),
     keymap(baseKeymap),
     inputRules({
       rules: [
@@ -1243,6 +2458,16 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
         textblockTypeInputRule(/^#\s$/u, pagesSchema.nodes.heading, { level: 1 }),
         textblockTypeInputRule(/^##\s$/u, pagesSchema.nodes.heading, { level: 2 }),
         textblockTypeInputRule(/^###\s$/u, pagesSchema.nodes.heading, { level: 3 }),
+        new InputRule(/^(?:---|___|\*\*\*|```[A-Za-z0-9_+#-]*|>\s)$/u, (state, _match, start) => markdownBlock(state, start)),
+        new InputRule(/\*\*([^*]+)\*\*$/u, (state, _match, start, end) => markdownWrapMark(state, start, end, "**", "**", "strong")),
+        new InputRule(/(?:^|[^*])\*([^*]+)\*$/u, (state, match, start, end) => {
+          const lead = match[0].startsWith("*") ? 0 : 1;
+          return markdownWrapMark(state, start + lead, end, "*", "*", "em");
+        }),
+        new InputRule(/~~([^~]+)~~$/u, (state, _match, start, end) => markdownWrapMark(state, start, end, "~~", "~~", "strike")),
+        new InputRule(/`([^`]+)`$/u, (state, _match, start, end) => markdownWrapMark(state, start, end, "`", "`", "code")),
+        new InputRule(/\[[^\]]+\]\([^)\s]+\)$/u, (state, _match, start, end) => markdownLink(state, start, end)),
+        new InputRule(/https?:\/\/\S+ $/u, (state, _match, start, end) => markdownLink(state, start, end)),
         new InputRule(/^\[\]\s$/u, (state, _match, start) => {
           const $start = state.doc.resolve(start);
           if ($start.parent.type !== pagesSchema.nodes.paragraph) return null;
@@ -1251,12 +2476,17 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
         }),
       ],
     }),
+    gapCursor(),
+    dropCursor({ width: 3, color: false, class: "pages-native-drop" }),
     slashPlugin(options.translate),
     mentionPlugin(options),
     chromePlugin(options.translate),
+    codeHighlightPlugin(),
     hoverHandlePlugin(options.translate, (index) => openNote(view, index)),
     tocPlugin(options.translate),
     calendarPlugin(),
+    findPlugin(options.translate),
+    keymap({ Escape: selectEnclosingBlock }),
   ];
 
   const placeToolbar = (current: EditorView) => {
@@ -1269,11 +2499,14 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
     const end = current.coordsAtPos(to);
     toolbar.hidden = false;
     const left = (start.left + end.left) / 2 - toolbar.offsetWidth / 2;
-    toolbar.style.left = Math.max(8, left) + "px";
-    toolbar.style.top = Math.max(8, start.top - 40) + "px";
+    placeOverlay(toolbar, { left, right: left + toolbar.offsetWidth, top: start.top, bottom: end.bottom }, "above");
+    const list = activeList(current.state);
     buttonEls.forEach(({ item, button }) => {
       const mark = pagesSchema.marks[item.name];
-      button.classList.toggle("is-on", Boolean(mark && current.state.doc.rangeHasMark(from, to, mark)));
+      const listOn = (item.name === "ul" && list === "bullet_list")
+        || (item.name === "ol" && list === "ordered_list")
+        || (item.name === "task" && list === "task_list");
+      button.classList.toggle("is-on", listOn || Boolean(mark && current.state.doc.rangeHasMark(from, to, mark)));
     });
   };
 
@@ -1285,18 +2518,53 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
     nodeViews: {
       task_item: (node, current, getPos) => taskNodeView(node, current, getPos),
       toggle: (node, current, getPos) => toggleNodeView(node, current, getPos),
-      callout: (node) => calloutNodeView(node),
+      callout: (node, current, getPos) => calloutNodeView(node, getPos, options.translate,
+        (pos, anchor) => openCalloutStyle(current, pos, anchor)),
       page_mention: (node) => mentionNodeView(node, options),
       page_ref: (node, current, getPos) => cardNodeView("ref", node, current, getPos, options),
       task_card: (node, current, getPos) => cardNodeView("task", node, current, getPos, options),
       event_card: (node, current, getPos) => cardNodeView("event", node, current, getPos, options),
       calendar: () => calendarNodeView(),
+      toc: () => tocNodeView(),
+      code_block: (node, current, getPos) => codeNodeView(node, current, getPos, options.translate),
     },
     dispatchTransaction(tr) {
       const next = view.state.apply(tr);
       view.updateState(next);
       placeToolbar(view);
       if (tr.docChanged) options.onChange?.();
+    },
+    handleClick(_current, _pos, event) {
+      const anchor = (event.target as HTMLElement | null)?.closest?.("a[href]");
+      if (!(anchor instanceof HTMLAnchorElement)) return false;
+      const href = safePagesHref(anchor.getAttribute("href"));
+      if (!href) return false;
+      event.preventDefault();
+      window.open(href, "_blank", "noopener,noreferrer");
+      return true;
+    },
+    handlePaste(current, event) {
+      const file = clipboardImage(event.clipboardData);
+      if (file) {
+        event.preventDefault();
+        readClipboardImage(file, (src) => {
+          const tr = insertImage(current.state, src);
+          if (tr) current.dispatch(tr.scrollIntoView());
+        });
+        return true;
+      }
+      const text = event.clipboardData?.getData("text/plain") ?? "";
+      const linked = pasteUrl(current.state, text);
+      if (linked) {
+        event.preventDefault();
+        current.dispatch(linked.scrollIntoView());
+        return true;
+      }
+      const pasted = pasteMarkdown(current.state, text);
+      if (!pasted) return false;
+      event.preventDefault();
+      current.dispatch(pasted.scrollIntoView());
+      return true;
     },
     handleDOMEvents: {
       blur: () => {
@@ -1310,11 +2578,20 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
     },
   });
 
-  toolbar.addEventListener("mousedown", (event) => {
+  toolbar.addEventListener("mousedown", (event) => event.preventDefault());
+  toolbar.addEventListener("click", (event) => {
     event.preventDefault();
     const target = (event.target as HTMLElement).closest("button");
     const found = buttonEls.find((entry) => entry.button === target);
     if (!found) return;
+    if (found.item.action === "tone") {
+      openTone(view);
+      return;
+    }
+    if (found.item.action === "link") {
+      openLink(view);
+      return;
+    }
     if (found.item.action === "comment") {
       openComment(view);
       return;

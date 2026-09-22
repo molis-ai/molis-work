@@ -1,9 +1,17 @@
 import type { PptSlide } from "@molis-ai/molis-work-contracts/modules/ppt";
 import { PptError } from "./error.js";
 import type { PptPluginRouteHandler, PptPluginRouteRequest, PptPluginRouteResponse } from "./routes.js";
+import { promotePpt, requirePptArtifactPort, type PptPublishArtifactPort } from "./promote.js";
 import type { PptStore } from "./store.js";
 
-export function createPptRouteHandlers(store: PptStore): Record<string, PptPluginRouteHandler> {
+export interface PptRoutePorts {
+  publishArtifact?: PptPublishArtifactPort;
+}
+
+export function createPptRouteHandlers(
+  store: PptStore,
+  ports: PptRoutePorts = {},
+): Record<string, PptPluginRouteHandler> {
   return {
     "ppt.list": ({ request }) => ({ status: 200, body: { presentations: store.list(projectIdOf(request)) } }),
     "ppt.create": ({ request }) => ({
@@ -28,6 +36,16 @@ export function createPptRouteHandlers(store: PptStore): Record<string, PptPlugi
     "ppt.delete": ({ params, request }) => {
       store.delete(params.id ?? "", projectIdOf(request));
       return { status: 200, body: { ok: true } };
+    },
+    "ppt.promote": ({ params, request }) => {
+      const projectId = projectIdOf(request);
+      const promoted = promotePpt(
+        store,
+        params.id ?? "",
+        projectId,
+        requirePptArtifactPort(ports.publishArtifact),
+      );
+      return { status: 200, body: { presentation: promoted.presentation, artifact: promoted.artifact } };
     },
   };
 }

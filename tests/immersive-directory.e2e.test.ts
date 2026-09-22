@@ -401,12 +401,12 @@ test("个人岛对话浮窗是发送壳", { timeout: 60_000 }, async t => {
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId, 20_000));
   await waitFor("document.querySelector('[data-assistant-toggle]')");
   await click("[data-assistant-toggle]");
-  await waitFor(`(()=>{const toggle=document.querySelector('[data-assistant-toggle]');const composer=document.querySelector('[data-assistant-composer]');if(!toggle||!composer||!composer.matches(':popover-open'))return false;const t=toggle.getBoundingClientRect(),c=composer.getBoundingClientRect();const mid=(a,b)=>(a.top+a.bottom)/2;return c.height<=40 && Math.abs(c.left-t.right-8)<12 && Math.abs(mid(c)-mid(t))<8;})()`);
+  await waitFor(`(()=>{const toggle=document.querySelector('[data-assistant-toggle]');const composer=document.querySelector('[data-assistant-composer]');if(!toggle||!composer||!composer.matches(':popover-open'))return false;const t=toggle.getBoundingClientRect(),c=composer.getBoundingClientRect();const mid=(a,b)=>(a.top+a.bottom)/2;return c.height>=140 && c.height<=innerHeight*0.85 && c.left>=0 && c.right<=innerWidth && c.top>=0 && c.bottom<=innerHeight;})()`);
   assert.equal(await evaluate("document.body.dataset.desktopSurface"), "home");
-  assert.equal(await evaluate("document.querySelector('[data-assistant-model]')?.disabled"), true);
+  assert.equal(await evaluate("Boolean(document.querySelector('[data-assistant-plan]'))"), true);
   await evaluate(`(()=>{const input=document.querySelector('[data-assistant-input]');input.value='hello';input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
   await click("[data-assistant-send]");
-  await waitFor("/对话尚未接入/.test(document.querySelector('[data-toast]')?.textContent || '')");
+  await waitFor("/尚未配置助手模型/.test(document.querySelector('[data-assistant-plan]')?.textContent || '')");
   assert.equal(await evaluate("document.querySelector('[data-assistant-input]')?.value"), "hello");
   await evaluate("document.querySelector('[data-assistant-composer]')?.hidePopover()");
   await waitFor("document.querySelector('[data-assistant-composer]')?.matches(':popover-open') !== true");

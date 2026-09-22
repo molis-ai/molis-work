@@ -1,4 +1,20 @@
 export const FORM_STYLES = `
+  .creative-artifact-row { display: flex; align-items: center; min-width: 0; }
+  body.immersive-workbench .creative-artifact-row > .feed-stage-entry { flex: 1 1 auto; min-width: 0; width: auto; }
+  .creative-artifact-act {
+    display: inline-flex; align-items: center; flex: none; height: 28px; max-width: 28px;
+    margin-right: 4px; padding: 0; overflow: hidden; border: 0; border-radius: 6px;
+    background: transparent; color: var(--muted); cursor: pointer;
+    transition: max-width var(--motion-fast, 130ms) var(--ease-out, cubic-bezier(.16, 1, .3, 1)),
+      background-color var(--motion-fast, 130ms) var(--ease-out, cubic-bezier(.16, 1, .3, 1)),
+      color var(--motion-fast, 130ms) var(--ease-out, cubic-bezier(.16, 1, .3, 1));
+  }
+  .creative-artifact-act svg { width: 14px; height: 14px; flex: none; margin: 0 7px; }
+  .creative-artifact-act span { overflow: hidden; white-space: nowrap; font-size: 12px; line-height: 28px; padding-right: 8px; }
+  .creative-artifact-act:hover, .creative-artifact-act:focus-visible {
+    max-width: 11rem; color: var(--ink); background: color-mix(in srgb, var(--ink) 8%, var(--paper));
+  }
+  @media (prefers-reduced-motion: reduce) { .creative-artifact-act { transition: none; } }
   .form-stage-chrome { pointer-events: auto; }
   [data-form=workbench] { --plugin-tint: var(--plugin-form); }
   .form-tabs { display: flex; gap: 4px; margin-left: auto; }
@@ -12,7 +28,7 @@ export const FORM_STYLES = `
   }
   .form-workspace {
     display: flex; flex-direction: column; gap: 16px;
-    flex: none; min-height: 0; max-width: 52rem; padding: 8px 20px 20px; overflow: visible;
+    flex: 1; min-height: 0; max-width: 52rem; padding: 8px 20px 20px; overflow: auto; overscroll-behavior: contain;
   }
   .form-identity {
     display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 12px 16px;
@@ -118,5 +134,5 @@ export const FORM_STYLES = `
   .creative-confirm-form { display: flex; flex-direction: column; gap: 16px; padding: 18px 20px 16px; }
   .creative-confirm-form p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--ink); }
   .creative-confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
-  body.immersive-workbench .plugin-stage-workspace > .form-workspace { flex: none; }
+  body.immersive-workbench .plugin-stage-workspace > .form-workspace { flex: 1; min-height: 0; }
 `;

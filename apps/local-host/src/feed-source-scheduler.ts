@@ -1,4 +1,5 @@
 import type { SqliteDatabase } from "@molis-ai/molis-work-storage";
+import { isAccountConnectorSyncKind } from "@molis-ai/molis-work-contracts/modules/sources";
 import { FeedSourceScheduler, type FeedSourceSchedulerDispatch } from "@molis-ai/molis-work-plugin-feed";
 import { createLocalFeedSourceService } from "./feed-source-service.js";
 import { createLocalFeedConnectorService } from "./feed-connector-service.js";
@@ -27,7 +28,7 @@ function defaultDispatch(
       return createLocalFeedSourceService(db, boardId, undefined, undefined, homeDirectory)
         .sync(source.source_id, { idempotencyKey });
     }
-    if (source.sync_kind === "github" || source.sync_kind === "gmail") {
+    if (isAccountConnectorSyncKind(source.sync_kind)) {
       return createLocalFeedConnectorService(db, boardId, undefined, homeDirectory)
         .sync(source.source_id, { idempotencyKey, mode: "normal" });
     }

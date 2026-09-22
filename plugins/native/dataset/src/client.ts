@@ -31,7 +31,13 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
   let saveTimer = 0;
   let saveSeq = 0;
   let editorSeq = 0;
+  let listSeq = 0;
   let renderedFilter = "";
+  const keepListScroll = (paint) => {
+    const top = list?.scrollTop || 0;
+    paint();
+    if (list) list.scrollTop = top;
+  };
   const firstLine = (value) => {
     const line = String(value || "").trim().split("\\n")[0].trim();
     return line || L("还没有说明");
@@ -230,7 +236,7 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
     titleInput.value = record.title;
     descriptionInput.value = record.description || "";
     remember(record, true);
-    const payload = await request("GET", "/api/dataset/" + encodeURIComponent(record.id) + "/versions");
+    const payload = await request("GET", "/api/plugins/dataset/" + encodeURIComponent(record.id) + "/versions");
     if (seq !== editorSeq) return;
     renderVersions(payload.versions || []);
   };
@@ -243,11 +249,26 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
     workspace.hidden = true;
   };
   const renderList = () => {
+    keepListScroll(() => paintList());
+  };
+  const artifactLabel = (record) => record && record.artifact_version > 0 ? L("再存一版") : L("存成 Artifact");
+  const artifactControl = (record, key) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "creative-artifact-act";
+    button.dataset[key] = record.id;
+    const label = artifactLabel(record);
+    button.setAttribute("aria-label", label);
+    button.innerHTML = '<svg aria-hidden="true"><use href="#icon-upload"></use></svg><span></span>';
+    button.lastElementChild.textContent = label;
+    return button;
+  };
+  const paintList = () => {
     empty.hidden = records.length > 0;
     rowsEl.replaceChildren();
     records.forEach((record) => {
       const item = document.createElement("article");
-      item.className = "feed-stage-item";
+      item.className = "feed-stage-item creative-artifact-row";
       const row = document.createElement("button");
       row.type = "button";
       row.className = "feed-stage-entry directory-list-row" + (selected?.id === record.id ? " is-selected" : "");
@@ -270,12 +291,16 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
         textCell("plugin-stage-meta", firstLine(record.description)),
         status,
       );
-      item.append(row);
+      item.append(row, artifactControl(record, "datasetArtifact"));
       rowsEl.append(item);
     });
+    const bar = workbench.querySelector("[data-dataset-artifact-bar]");
+    if (bar) bar.textContent = artifactLabel(selected);
   };
   const loadList = async () => {
-    const payload = await request("GET", "/api/dataset");
+    const seq = ++listSeq;
+    const payload = await request("GET", "/api/plugins/dataset");
+    if (seq !== listSeq) return;
     records = payload.datasets || [];
     renderList();
     if (selected) {
@@ -292,7 +317,7 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
   const save = async () => {
     if (!selected) return selected;
     const seq = ++saveSeq;
-    const payload = await request("POST", "/api/dataset/" + encodeURIComponent(selected.id), draftFromDom());
+    const payload = await request("POST", "/api/plugins/dataset/" + encodeURIComponent(selected.id), draftFromDom());
     if (seq !== saveSeq) return selected;
     remember(payload.dataset, false);
     return selected;
@@ -306,8 +331,22 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
     try {
       const create = event.target.closest("[data-dataset-new]");
       if (create) {
-        const payload = await request("POST", "/api/dataset", {});
+        const payload = await request("POST", "/api/plugins/dataset", {});
+        await loadList();
         await fillEditor(payload.dataset);
+        return;
+      }
+      const artifact = event.target.closest("[data-dataset-artifact]");
+      if (artifact) {
+        const id = artifact.dataset.datasetArtifact || (selected && selected.id);
+        if (!id) return;
+        if (selected && selected.id === id) {
+          await save().catch((error) => showNote(error.message || L("保存失败"), true));
+        }
+        const payload = await request("POST", "/api/plugins/dataset/" + encodeURIComponent(id) + "/promote", {});
+        showNote(L("已存成 Artifact"), false);
+        await loadList();
+        if (payload.dataset && selected && selected.id === payload.dataset.id) remember(payload.dataset, false);
         return;
       }
       const row = event.target.closest("[data-dataset-id]");
@@ -316,7 +355,12 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
         if (record) await fillEditor(record);
         return;
       }
-      if (event.target.closest("[data-dataset-back]")) { closeEditor(); return; }
+      if (event.target.closest("[data-dataset-back]")) {
+        await save().catch((error) => showNote(error.message || L("保存失败"), true));
+        closeEditor();
+        await loadList();
+        return;
+      }
       if (event.target.closest("[data-dataset-add-column]") && selected) {
         const draft = draftFromDom();
         draft.columns.push({
@@ -374,26 +418,28 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
       if (event.target.closest("[data-dataset-generate]") && selected) {
         await save();
-        const payload = await request("POST", "/api/dataset/" + encodeURIComponent(selected.id) + "/generate-column", {
+        const payload = await request("POST", "/api/plugins/dataset/" + encodeURIComponent(selected.id) + "/generate-column", {
           prompt: aiPrompt.value,
         });
         await fillEditor(payload.dataset);
         aiPrompt.value = "";
+        await loadList();
         return;
       }
       if (event.target.closest("[data-dataset-import]") && selected) {
         if (!await ask(L("导入会覆盖当前表格的列和行。确定吗？"), L("导入"))) return;
         await save();
-        const payload = await request("POST", "/api/dataset/" + encodeURIComponent(selected.id) + "/import-csv", {
+        const payload = await request("POST", "/api/plugins/dataset/" + encodeURIComponent(selected.id) + "/import-csv", {
           csv: csvInput.value,
         });
         await fillEditor(payload.dataset);
         csvInput.value = "";
+        await loadList();
         return;
       }
       if (event.target.closest("[data-dataset-export-csv]") && selected) {
         await save();
-        const payload = await request("GET", "/api/dataset/" + encodeURIComponent(selected.id) + "/export");
+        const payload = await request("GET", "/api/plugins/dataset/" + encodeURIComponent(selected.id) + "/export");
         download((selected.title || "dataset") + ".csv", payload.csv || "", "text/csv;charset=utf-8");
         return;
       }
@@ -404,30 +450,30 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
       if (event.target.closest("[data-dataset-snapshot]") && selected) {
         await save();
-        await request("POST", "/api/dataset/" + encodeURIComponent(selected.id) + "/versions", {
+        await request("POST", "/api/plugins/dataset/" + encodeURIComponent(selected.id) + "/versions", {
           note: versionNote.value,
         });
         versionNote.value = "";
-        const payload = await request("GET", "/api/dataset/" + encodeURIComponent(selected.id) + "/versions");
+        const payload = await request("GET", "/api/plugins/dataset/" + encodeURIComponent(selected.id) + "/versions");
         renderVersions(payload.versions || []);
         showNote(L("已保存版本"), false);
         return;
       }
       const rollback = event.target.closest("[data-dataset-rollback]");
       if (rollback && selected) {
-        const payload = await request("POST", "/api/dataset/" + encodeURIComponent(selected.id) + "/rollback", {
+        const payload = await request("POST", "/api/plugins/dataset/" + encodeURIComponent(selected.id) + "/rollback", {
           version_id: rollback.closest("[data-version-id]").dataset.versionId,
         });
         await fillEditor(payload.dataset);
         showNote(L("已回滚"), false);
+        await loadList();
         return;
       }
       if (event.target.closest("[data-dataset-delete]") && selected) {
         if (!await ask(L("删除这张表？版本记录也会一起删掉。"), L("删除"))) return;
-        await request("POST", "/api/dataset/" + encodeURIComponent(selected.id) + "/delete");
-        records = records.filter((item) => item.id !== selected.id);
+        await request("POST", "/api/plugins/dataset/" + encodeURIComponent(selected.id) + "/delete");
         closeEditor();
-        renderList();
+        await loadList();
       }
     } catch (error) {
       showNote(error.message || L("数据表请求失败"), true);

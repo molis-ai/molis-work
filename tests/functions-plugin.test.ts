@@ -10,9 +10,14 @@ import { renderMolisWorkSettings, renderMolisWorkWorkbenchClientScript } from ".
 import { renderSettingsDirectorySection } from "../apps/workbench/src/settings-directory.ts";
 import {
   FUNCTIONS_CREDENTIAL_REF,
+  INBOX_DISMISS_BEHAVIOR_ID,
+  INBOX_DONE_BEHAVIOR_ID,
+  INBOX_NEXT_SCENE_ID,
   SYSTEM_HOME_DOCK_FUNCTION_KEY,
   SYSTEM_INBOX_ADMIT_FUNCTION_KEY,
   SYSTEM_INBOX_NEXT_FUNCTION_KEY,
+  functionFitsScene,
+  choiceCriteriaFollowContext,
 } from "@molis-ai/molis-work-contracts/modules/functions";
 import {
   FunctionsError,
@@ -125,6 +130,8 @@ test("a draft Choice can be saved with empty instructions, then published only a
     const store = openFunctionsStore(home);
     const created = store.createChoice({ name: "账单分流" });
     assert.equal(created.status, "draft");
+    assert.equal(created.scene_id, null);
+    assert.deepEqual({ ...created.scene_map }, {});
     assert.equal(created.version, null);
     assert.match(created.function_key, /^fn_|[a-z]/);
     const updated = store.updateDraft(created.id, {
@@ -172,6 +179,49 @@ test("a draft Choice can be saved with empty instructions, then published only a
     } finally {
       reopenedStore.close();
     }
+  });
+});
+
+test("custom Choice options survive an Inbox destination and bind through a scene map", async () => {
+  await withHome(async (home) => {
+    const store = openFunctionsStore(home);
+    const created = store.createChoice({ name: "急不急" });
+    const drafted = store.updateDraft(created.id, {
+      instructions: "这封邮件急吗？",
+      criteria: [
+        { key: "urgent", description: "急" },
+        { key: "later", description: "不急" },
+      ],
+      subject_kinds: ["inbox_entry"],
+    });
+    const hash = drafted.config_hash;
+    const mapped = store.updateDraft(created.id, {
+      scene_id: INBOX_NEXT_SCENE_ID,
+      scene_map: {
+        urgent: INBOX_DONE_BEHAVIOR_ID,
+        later: INBOX_DISMISS_BEHAVIOR_ID,
+      },
+    });
+    assert.equal(mapped.scene_id, INBOX_NEXT_SCENE_ID);
+    assert.equal(mapped.config_hash, hash);
+    assert.deepEqual(mapped.criteria, drafted.criteria);
+    assert.deepEqual({ ...mapped.scene_map }, {
+      urgent: INBOX_DONE_BEHAVIOR_ID,
+      later: INBOX_DISMISS_BEHAVIOR_ID,
+    });
+    assert.equal(functionFitsScene(mapped, INBOX_NEXT_SCENE_ID), true);
+    const noul = store.create({ primitive: "noul", name: "材料够不够" });
+    assert.equal(noul.scene_id, null);
+    const noulMapped = store.updateDraft(noul.id, {
+      scene_id: INBOX_NEXT_SCENE_ID,
+      scene_map: { true: INBOX_DONE_BEHAVIOR_ID, false: INBOX_DISMISS_BEHAVIOR_ID },
+    });
+    assert.equal(noulMapped.scene_id, INBOX_NEXT_SCENE_ID);
+    const score = store.create({ primitive: "score", name: "相关程度" });
+    assert.throws(() => store.updateDraft(score.id, { scene_id: INBOX_NEXT_SCENE_ID }), (error: unknown) => (
+      error instanceof FunctionsError && error.code === "functions.invalid"
+    ));
+    store.close();
   });
 });
 
@@ -325,18 +375,35 @@ test("TypeSafe choice answers with a null pick are needs_review, not a thrown er
   assert.equal(result.model, "jev-1.13.0");
 });
 
-test("workbench client script with the Functions factory is valid JavaScript", () => {
-  assert.doesNotThrow(() => new Function(renderMolisWorkWorkbenchClientScript()));
+test("choice options follow destination context unless keys are custom", () => {
+  assert.equal(choiceCriteriaFollowContext([], ["inbox.done"]), true);
+  assert.equal(choiceCriteriaFollowContext(["yes", "no"], ["inbox.done", "inbox.dismiss"]), true);
+  assert.equal(choiceCriteriaFollowContext(["inbox.done", "inbox.dismiss"], ["inbox.done", "inbox.dismiss"]), true);
+  assert.equal(choiceCriteriaFollowContext(["urgent", "later"], ["inbox.done", "inbox.dismiss"]), false);
+  assert.equal(choiceCriteriaFollowContext(["inbox.done", "later"], ["inbox.done", "inbox.dismiss"]), false);
 });
 
 test("Functions client clears leftover preview text when switching records and hides Noul section chrome", () => {
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /const switching = selected\?\.id !== record\.id/);
-  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /\/api\/functions\/catalog/);
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /\/api\/plugins\/functions\/catalog/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /data-functions-destination/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /data-functions-source/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /agent\.mcp/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /if \(switching\) previewInput\.value = record\.last_preview\?\.input \|\| ""/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /criteriaHead\.hidden = kind === "noul"/);
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /addChoiceRow/);
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /scene_map/);
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /data-functions-map/);
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /select\.className = "mw-select"/);
+  assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /select\.className = "mw-input"/);
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /suggestedBehaviors/);
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /criteriaFollowContext/);
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /syncCriteriaPanel/);
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /matchesSubjects/);
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /if \(event\.target\.matches\("\[data-functions-source\]"\)\)/);
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /syncCriteriaPanel\(\);/);
+  assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /criteriaForDestination/);
+  assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /subject_kinds: dest\?\.subject_kinds/);
   assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /selected = record;\s*records = records\.some/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /item\.textContent = destTitle\(row\.scene_id\)/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /\/api\/inbox\/judgment/);
@@ -370,8 +437,17 @@ test("Functions workbench and settings contributions mount on the declared slots
   assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /mw-status--plain feed-entry-status/);
   assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /className = "functions-row/);
   assert.match(stage, /data-functions-destinations/);
+  assert.match(stage, /这条消息该进 Inbox、存资料、升格还是忽略/);
+  assert.doesNotMatch(stage, /要不要出现「加入 Inbox」/);
   assert.match(stage, /data-functions-sources/);
+  assert.match(stage, /data-functions-columns/);
+  assert.match(stage, /data-functions-col="look"/);
+  assert.match(stage, /data-functions-col="fn"/);
+  assert.match(stage, /data-functions-col="use"/);
+  assert.match(stage, /data-functions-map/);
   assert.match(stage, /data-functions-criteria-head/);
+  assert.match(stage, /先不落地/);
+  assert.match(stage, /对到现场按钮/);
   assert.match(stage, /data-functions-create-dialog/);
   assert.match(renderFunctionsWorkbench({ functions: [], primitives }), /还没有判断/);
   assert.match(renderFunctionsWorkbench({ functions: [], primitives }), /mw-empty__mark[\s\S]*#icon-zap/);
@@ -466,7 +542,7 @@ test("catalog HTTP saves a TypeSafe key without echoing it and keeps Functions o
   assert.equal(listed.functions.find((row) => row.function_key === SYSTEM_HOME_DOCK_FUNCTION_KEY)?.scene_id, "home.dock");
   const catalog = await (await fetch(`${origin}/api/functions/catalog`)).json() as {
     catalog: {
-      destinations: Array<{ destination_id: string; configure_at: string; kind: string }>;
+      destinations: Array<{ destination_id: string; configure_at: string; kind: string; when?: string; behavior_ids?: string[] }>;
       behaviors: Array<{ behavior_id: string; source: string; effect: string }>;
     };
   };
@@ -477,8 +553,16 @@ test("catalog HTTP saves a TypeSafe key without echoing it and keeps Functions o
   assert.ok(destIds.includes("agent.mcp"));
   assert.equal(catalog.catalog.destinations.find((row) => row.destination_id === "home.dock")?.kind, "event");
   assert.match(catalog.catalog.destinations.find((row) => row.destination_id === "home.dock")?.configure_at ?? "", /发布后打开/);
+  const feedDest = catalog.catalog.destinations.find((row) => row.destination_id === "feed.capture");
+  assert.match(feedDest?.when ?? "", /升格还是忽略/);
+  assert.ok(feedDest?.behavior_ids?.includes("feed.save"));
+  assert.ok(feedDest?.behavior_ids?.includes("feed.promote"));
+  assert.ok(feedDest?.behavior_ids?.includes("feed.archive"));
   const behaviorIds = catalog.catalog.behaviors.map((row) => row.behavior_id);
   assert.ok(behaviorIds.includes("home.continue"));
+  assert.ok(behaviorIds.includes("feed.save"));
+  assert.ok(behaviorIds.includes("feed.promote"));
+  assert.ok(behaviorIds.includes("feed.archive"));
   assert.ok(behaviorIds.includes("molis_work_v1_functions_invoke"));
   assert.ok(behaviorIds.includes("molis_work_v1_form_create"));
   assert.equal(catalog.catalog.behaviors.find((row) => row.behavior_id === "molis_work_v1_form_create")?.source, "mcp");

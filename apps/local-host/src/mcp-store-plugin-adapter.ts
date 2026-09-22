@@ -1,4 +1,4 @@
-import { MolisWorkV1Error } from "@molis-ai/molis-work-plugin-goals";
+import { MolisWorkV1Error } from "@molis-ai/molis-work-contracts/platform/errors";
 import type { PluginMcpHandleRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { McpToolCallContext } from "@molis-ai/molis-work-app-mcp";
 import {
@@ -37,7 +37,9 @@ export function createPagesMcpAdapter(ports: NativeMcpAdapterPorts): NativeMcpPl
     plugin_id: pagesManifest.plugin_id,
     missingHome: "MCP 宿主没有提供本机目录，无法读取文档",
     openStore: openPagesStore,
-    run: runPagesMcpTool,
+    run: (store, request, projectId) => runPagesMcpTool(store, request, projectId, {
+      publishArtifact: ports.publishPagesArtifact,
+    }),
     mapError: (error) => error instanceof PagesError ? new MolisWorkV1Error(error.code, error.message) : error,
     ports,
   });
@@ -48,7 +50,9 @@ export function createFormMcpAdapter(ports: NativeMcpAdapterPorts): NativeMcpPlu
     plugin_id: formManifest.plugin_id,
     missingHome: "MCP 宿主没有提供本机目录，无法读取问卷",
     openStore: openFormStore,
-    run: runFormMcpTool,
+    run: (store, request, projectId) => runFormMcpTool(store, request, projectId, {
+      publishArtifact: ports.publishFormArtifact,
+    }),
     mapError: (error) => error instanceof FormError ? new MolisWorkV1Error(error.code, error.message) : error,
     ports,
   });
@@ -59,7 +63,9 @@ export function createDatasetMcpAdapter(ports: NativeMcpAdapterPorts): NativeMcp
     plugin_id: datasetManifest.plugin_id,
     missingHome: "MCP 宿主没有提供本机目录，无法读取数据表",
     openStore: openDatasetStore,
-    run: runDatasetMcpTool,
+    run: (store, request, projectId) => runDatasetMcpTool(store, request, projectId, {
+      publishArtifact: ports.publishDatasetArtifact,
+    }),
     mapError: (error) => error instanceof DatasetError ? new MolisWorkV1Error(error.code, error.message) : error,
     ports,
   });
@@ -70,7 +76,9 @@ export function createPptMcpAdapter(ports: NativeMcpAdapterPorts): NativeMcpPlug
     plugin_id: pptManifest.plugin_id,
     missingHome: "MCP 宿主没有提供本机目录，无法读取演示稿",
     openStore: openPptStore,
-    run: runPptMcpTool,
+    run: (store, request, projectId) => runPptMcpTool(store, request, projectId, {
+      publishArtifact: ports.publishPptArtifact,
+    }),
     mapError: (error) => error instanceof PptError ? new MolisWorkV1Error(error.code, error.message) : error,
     ports,
   });

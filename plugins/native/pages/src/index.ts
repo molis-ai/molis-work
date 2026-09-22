@@ -19,10 +19,82 @@ export { createPagesRouteHandlers, pagesRouteErrorResponse } from "./route-handl
 export { PAGES_PLUGIN_ID, PAGES_PROJECT_PLUGIN_ID, pagesManifest } from "./manifest.js";
 export { PAGES_MCP_EXPORTS, runPagesMcpTool } from "./mcp.js";
 export { openPagesStore, PagesStore } from "./store.js";
+export type { PagesImportDocumentsInput } from "./store.js";
+export { generatePagesFromMaterials } from "./generate.js";
+export { preparePagesImport } from "./import-files.js";
+export type { PagesImportFile, PreparedPagesImportDocument, PreparedPagesImport } from "./import-files.js";
 export { PagesError } from "./error.js";
 export { EMPTY_PAGES_BODY, parsePagesBody } from "./document.js";
 export { PAGES_TEMPLATES, pagesTemplateById, pagesTemplateSummaries } from "./templates.js";
 export { emptyDoc, nodeFromUnknown, pagesSchema } from "./schema.js";
+export { columnDropAnchor, dragRows, nudgeSpan, previewDrop, previewSpan, reorderTopLevel, spanRoots } from "./reorder.js";
+export { convertedBlocks, convertedNodes } from "./convert.js";
+export { placeFloating, scrollChildIntoView } from "./floating.js";
+export { safePagesHref } from "./link.js";
+export { blocksFromMarkdown, pasteMarkdown, pasteUrl } from "./paste-markdown.js";
+export { bookmarkLabel, imageAlt, safePagesImageSrc } from "./link.js";
+export { findHits, stepFindHit } from "./find.js";
+export { addTableColumn, addTableRow, atLastTableCell, deleteTableColumn, deleteTableRow } from "./table-edit.js";
+export { PAGES_TONES, safePagesTone } from "./tone.js";
+export { blockPlaceholder } from "./placeholder.js";
+export { PAGES_CODE_LANGUAGES, safePagesLanguage } from "./code-language.js";
+export { PAGES_CALLOUT_ICONS, calloutIconFor, safePagesCalloutIcon, safePagesCalloutTone } from "./callout.js";
+export {
+  deleteBlock,
+  deleteRow,
+  deleteSpan,
+  duplicateBlock,
+  duplicateRow,
+  activeList,
+  addColumn,
+  applyList,
+  applySlash,
+  columnEdgeTarget,
+  commitGap,
+  duplicateEnclosingRow,
+  duplicateSpan,
+  enterHeading,
+  exitWrappedBlock,
+  indentListItem,
+  insertImage,
+  insertHardBreak,
+  insertSlashBelow,
+  insertCodeIndent,
+  leaveCodeDown,
+  leaveEmptyCodeLine,
+  leaveCodeUp,
+  linkAt,
+  markdownBlock,
+  markdownLink,
+  markdownWrapMark,
+  moveColumnEdge,
+  moveBlock,
+  moveRow,
+  moveSpan,
+  outdentListItem,
+  removeCodeIndent,
+  replaceEnclosingRow,
+  revealHeading,
+  selectBlockThenAll,
+  selectEnclosingBlock,
+  slashSession,
+  splitTaskItem,
+  setBlockTone,
+  setRowsTone,
+  setCalloutStyle,
+  setToggleOpen,
+  toggleTaskChecked,
+  setLink,
+  setTone,
+  toneAt,
+  turnBlockInto,
+  turnRowInto,
+  turnSpanInto,
+  unwrapAtStart,
+  unwrapColumns,
+} from "./commands.js";
 export { extractFromPagesBody } from "./extract.js";
 export { PAGES_AI_COMMANDS, runPagesAi, stubPagesAi } from "./ai.js";
 export type { PagesRoutePorts } from "./route-handlers.js";
+export { requirePromoteArtifactPort } from "./promote.js";
+export type { PagesPublishArtifactPort } from "./promote.js";

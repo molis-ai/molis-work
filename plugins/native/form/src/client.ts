@@ -27,6 +27,12 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
   let saveTimer = 0;
   let saveSeq = 0;
   let resultsSeq = 0;
+  let listSeq = 0;
+  const keepListScroll = (paint) => {
+    const top = list?.scrollTop || 0;
+    paint();
+    if (list) list.scrollTop = top;
+  };
   const firstLine = (value) => {
     const line = String(value || "").trim().split("\\n")[0].trim();
     return line || L("还没有说明");
@@ -319,11 +325,26 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
     workspace.hidden = true;
   };
   const renderList = () => {
+    keepListScroll(() => paintList());
+  };
+  const artifactLabel = (record) => record && record.artifact_version > 0 ? L("再存一版") : L("存成 Artifact");
+  const artifactControl = (record, key) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "creative-artifact-act";
+    button.dataset[key] = record.id;
+    const label = artifactLabel(record);
+    button.setAttribute("aria-label", label);
+    button.innerHTML = '<svg aria-hidden="true"><use href="#icon-upload"></use></svg><span></span>';
+    button.lastElementChild.textContent = label;
+    return button;
+  };
+  const paintList = () => {
     empty.hidden = records.length > 0;
     rowsEl.replaceChildren();
     records.forEach((record) => {
       const item = document.createElement("article");
-      item.className = "feed-stage-item";
+      item.className = "feed-stage-item creative-artifact-row";
       const row = document.createElement("button");
       row.type = "button";
       row.className = "feed-stage-entry directory-list-row" + (selected?.id === record.id ? " is-selected" : "");
@@ -346,12 +367,16 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
         textCell("plugin-stage-meta", firstLine(record.description)),
         status,
       );
-      item.append(row);
+      item.append(row, artifactControl(record, "formArtifact"));
       rowsEl.append(item);
     });
+    const bar = workbench.querySelector("[data-form-artifact-bar]");
+    if (bar) bar.textContent = artifactLabel(selected);
   };
   const loadList = async () => {
-    const payload = await request("GET", "/api/form");
+    const seq = ++listSeq;
+    const payload = await request("GET", "/api/plugins/form");
+    if (seq !== listSeq) return;
     records = payload.forms || [];
     renderList();
     if (selected) {
@@ -363,7 +388,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
   const save = async () => {
     if (!selected) return selected;
     const seq = ++saveSeq;
-    const payload = await request("POST", "/api/form/" + encodeURIComponent(selected.id), {
+    const payload = await request("POST", "/api/plugins/form/" + encodeURIComponent(selected.id), {
       title: titleInput.value,
       description: descriptionInput.value,
       questions: questionsFromDom(),
@@ -382,10 +407,23 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
     try {
       const create = event.target.closest("[data-form-new]");
       if (create) {
-        const payload = await request("POST", "/api/form", {});
+        const payload = await request("POST", "/api/plugins/form", {});
+        await loadList();
         setTab("editor");
         fillEditor(payload.form);
-        remember(payload.form, false);
+        return;
+      }
+      const artifact = event.target.closest("[data-form-artifact]");
+      if (artifact) {
+        const id = artifact.dataset.formArtifact || (selected && selected.id);
+        if (!id) return;
+        if (selected && selected.id === id) {
+          await save().catch((error) => showNote(error.message || L("保存失败"), true));
+        }
+        const payload = await request("POST", "/api/plugins/form/" + encodeURIComponent(id) + "/promote", {});
+        showNote(L("已存成 Artifact"), false);
+        await loadList();
+        if (payload.form && selected && selected.id === payload.form.id) remember(payload.form, false);
         return;
       }
       const row = event.target.closest("[data-form-id]");
@@ -394,7 +432,12 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
         if (record) { setTab("editor"); fillEditor(record); }
         return;
       }
-      if (event.target.closest("[data-form-back]")) { closeEditor(); return; }
+      if (event.target.closest("[data-form-back]")) {
+        await save().catch((error) => showNote(error.message || L("保存失败"), true));
+        closeEditor();
+        await loadList();
+        return;
+      }
       const tabButton = event.target.closest("[data-form-tab]");
       if (tabButton && selected) {
         await save();
@@ -448,26 +491,27 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
       if (event.target.closest("[data-form-generate]") && selected) {
         await save();
-        const payload = await request("POST", "/api/form/" + encodeURIComponent(selected.id) + "/generate-questions", {
+        const payload = await request("POST", "/api/plugins/form/" + encodeURIComponent(selected.id) + "/generate-questions", {
           prompt: aiPrompt.value,
         });
         fillEditor(payload.form);
         aiPrompt.value = "";
+        await loadList();
         return;
       }
       if (event.target.closest("[data-form-publish]") && selected) {
         await save();
-        const payload = await request("POST", "/api/form/" + encodeURIComponent(selected.id) + "/publish");
+        const payload = await request("POST", "/api/plugins/form/" + encodeURIComponent(selected.id) + "/publish");
         remember(payload.form, false);
+        await loadList();
         showNote(L("已发布"), false);
         return;
       }
       if (event.target.closest("[data-form-delete]") && selected) {
         if (!await ask(L("删除这份问卷？答卷也会一起删掉。"), L("删除"))) return;
-        await request("POST", "/api/form/" + encodeURIComponent(selected.id) + "/delete");
-        records = records.filter((item) => item.id !== selected.id);
+        await request("POST", "/api/plugins/form/" + encodeURIComponent(selected.id) + "/delete");
         closeEditor();
-        renderList();
+        await loadList();
       }
     } catch (error) {
       showNote(error.message || L("问卷请求失败"), true);
@@ -495,7 +539,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
     summaryEl.textContent = L("载入中…");
     resultListEl.replaceChildren();
     exportEl.textContent = "";
-    const payload = await request("GET", "/api/form/" + encodeURIComponent(id) + "/results");
+    const payload = await request("GET", "/api/plugins/form/" + encodeURIComponent(id) + "/results");
     if (seq !== resultsSeq || selected?.id !== id) return;
     const count = payload.analysis?.submission_count || 0;
     summaryEl.textContent = count ? count + " " + L("份答卷") : L("还没有答卷");
@@ -535,7 +579,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
         (node && node.matches("input, select") ? node : node?.querySelector("input"))?.focus();
         return;
       }
-      await request("POST", "/api/form/" + encodeURIComponent(selected.id) + "/submit", { answers });
+      await request("POST", "/api/plugins/form/" + encodeURIComponent(selected.id) + "/submit", { answers });
       await loadResults();
       setTab("results");
       showNote(L("已提交"), false);

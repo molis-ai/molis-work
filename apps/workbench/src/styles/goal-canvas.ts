@@ -61,6 +61,17 @@ export const GOAL_CANVAS_STYLES = `
   body.immersive-workbench [data-goal-stage-list] .tree-created-meta { display: inline-flex !important; }
   body.immersive-workbench [data-goal-stage-list] .tree-created-meta .tree-avatar { display: grid !important; }
   body.immersive-workbench [data-goal-stage-list] .tree-created-meta .tree-created { display: block !important; }
+  .goal-work-planning-toggle { display: inline-flex; align-items: center; gap: 6px; height: 28px; min-height: 28px; padding: 0 10px; border-radius: 6px; }
+  .goal-work-planning-toggle[aria-pressed="true"] { background: var(--nav-active); color: var(--ink); }
+  .goal-work-planning-pane,
+  .goal-work-rules-pane { display: none; min-width: 0; min-height: 0; overflow: auto; padding: 64px 40px 48px; background: var(--page); }
+  .goal-canvas-shell[data-goal-planning="open"] .goal-work-planning-pane,
+  .goal-canvas-shell[data-goal-rules="open"] .goal-work-rules-pane { display: block; position: absolute; inset: 0; z-index: 4; }
+  .goal-canvas-shell:is([data-goal-planning="open"], [data-goal-rules="open"]) [data-goal-stage-chrome] { visibility: visible; }
+  .goal-work-planning-pane :is(.work-planning, .planning-detail, .planning-edit),
+  .goal-work-rules-pane .project-rules-document { display: block; height: auto; overflow: visible; }
+  .goal-work-planning-pane .settings-body,
+  .goal-work-rules-pane .settings-body { display: block; height: auto; min-height: 0; overflow: visible; overscroll-behavior: auto; flex: none; padding-bottom: 48px; }
   .goal-stage-list .goal-collection-fold { margin: 0 0 10px; border: 0; }
   .goal-stage-list .goal-collection-fold > summary { display: flex; align-items: center; gap: 8px; height: 32px; min-height: 32px; padding: 0 8px; border-radius: 6px; color: var(--muted); list-style: none; cursor: pointer; }
   .goal-stage-list .goal-collection-fold > summary::-webkit-details-marker, .goal-stage-list .goal-collection-fold > summary::marker { display: none; }

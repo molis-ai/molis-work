@@ -1,4 +1,7 @@
+import { InteractionObserver } from './casebook/observer.js';
 import path from "node:path";
+import { existsSync } from "node:fs";
+import { ProjectRecoveryError } from "./project-migrations.js";
 import { LocalHost } from "./local-host.js";
 import { GoalProjectApplication } from "./goal-project-application.js";
 import { LocalProjectDatabase } from "./project-database.js";
@@ -14,6 +17,7 @@ export interface MolisWorkProjectRuntime {
   project_id: string;
   /** The board behind this project. Review queues and events are board scoped. */
   board_id: string;
+  interactionObserver?: InteractionObserver;
 }
 
 export interface MolisWorkLocalHostOptions {
@@ -52,14 +56,28 @@ export function molisWorkHostProjectReference(input: {
  */
 export class MolisWorkLocalHost {
   private readonly host: LocalHost<MolisWorkProjectRuntime>;
+  private readonly existingOnly = new Set<string>();
 
   constructor(options: MolisWorkLocalHostOptions = {}) {
     this.host = new LocalHost({
       instanceId: options.instanceId,
+      observation: {
+        before: (runtime, reference, capability, input) => {
+          runtime.interactionObserver ??= new InteractionObserver(runtime.store, runtime.coordinator, reference.board_id, reference.project_id);
+          return runtime.interactionObserver.before(capability, input);
+        },
+        after: (runtime, ticket, result, threw) => runtime.interactionObserver?.after(ticket, result, threw),
+      },
       runtimeFactory: {
         open: (reference) => {
           options.onRuntimeOpen?.(reference);
-          const store = new LocalProjectDatabase(reference.storage_key);
+          const recovering = this.existingOnly.has(reference.storage_key);
+          if (recovering && !existsSync(reference.storage_key)) throw new ProjectRecoveryError("project_recovery_missing");
+          const store = new LocalProjectDatabase(reference.storage_key, { existingOnly: recovering });
+          if (recovering && !store.goalsQuery.getBoard(reference.board_id)) {
+            store.close();
+            throw new ProjectRecoveryError("project_recovery_board_missing");
+          }
           const coordinator = new GoalProjectApplication(
             store,
             options.clock ?? (() => new Date()),
@@ -109,6 +127,13 @@ export class MolisWorkLocalHost {
     operation: (runtime: MolisWorkProjectRuntime) => Result | Promise<Result>,
   ): Promise<Result> {
     return this.host.withRuntime(reference, operation);
+  }
+
+  /** Only the configured owner calls this; never initialize, create or migrate a project. */
+  async restoreExistingProject(reference: LocalHostProjectReference): Promise<void> {
+    this.existingOnly.add(reference.storage_key);
+    try { await this.withProject(reference, () => undefined); }
+    finally { this.existingOnly.delete(reference.storage_key); }
   }
 
   closeProject(referenceOrStorageKey: LocalHostProjectReference | string): Promise<boolean> {

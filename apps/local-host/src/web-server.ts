@@ -1,4 +1,6 @@
 import { closeExperiments } from "./experiments-native-plugin-http.js";
+import { loadCasebookConfiguration } from "./casebook/config.js";
+import { handleCasebookHttp } from "./casebook/http.js";
 import { resolveMolisWorkHome, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import fs from "node:fs";
 import http from "node:http";
@@ -16,7 +18,7 @@ import { openSessionRuntimeResources } from "./web-session.js";
 import { seedDemoBoard } from "./demo-seed.js";
 import { attachMolisWorkPtySocket } from "./pty-socket.js";
 import { isWebLocale, localeSetCookie, resolveWebLocale, runWithLocale, safeNextPath } from "./web-locale.js";
-import { fixtureWebBoardOptions } from "./web-routing.js";
+import { fixtureWebBoardOptions, resolveWebRequest } from "./web-routing.js";
 import { createLocalWebComposition, type LocalWebPlatform } from "./web-composition.js";
 import type { WebServerOptions, FeedSchedulerRuntime } from "./web-types.js";
 import { handleMolisWorkWebRequest } from "./web-request.js";
@@ -57,6 +59,10 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       ),
     });
     const controlToken = resolveWebControlToken(serverOptions);
+    serverOptions.casebook ??= loadCasebookConfiguration(storageHome,serverOptions.casebookConfigPath,[controlToken]);
+    if ([...(serverOptions.casebook?.grants ?? []), ...(serverOptions.casebook?.catalogConnections ?? [])].some(g => g.token === controlToken || g.token.length < 32)) {
+      throw new Error('Casebook requires a separate server-only credential');
+    }
     const mutationKeys = new Map<string, LocalMutationState>();
     const webViewCache: MolisWorkWebViewCache = new Map();
     const feedSchedulers = new Map<string, FeedSchedulerRuntime>();
@@ -90,6 +96,12 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
           ? capsuleLocale
           : resolveWebLocale(request.headers.cookie, request.headers["accept-language"]);
         await runWithLocale(locale, async () => {
+          if (url.pathname.startsWith('/casebook/v1/')) {
+            const requestHost = new URL(`http://${request.headers.host ?? ''}`);
+            if (!['127.0.0.1','localhost','[::1]'].includes(requestHost.hostname)) { sendJson(response,403,{code:'not_authorized'}); return; }
+            if (await handleCasebookHttp(request,response,url,serverOptions.casebook,localHost,
+              pathname => resolveWebRequest(serverOptions,pathname,composition.withCatalog))) return;
+          }
           if (!authorizeLocalWebRequest(request, response, url, controlToken, mutationKeys)) return;
           if (serveWorkbenchAsset(request, response, url.pathname)) return;
           if (!pty.host) throw new Error("终端宿主尚未就绪");

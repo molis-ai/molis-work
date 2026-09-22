@@ -1,0 +1,31 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {mkdtempSync, rmSync, mkdirSync, writeFileSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {once} from 'node:events';
+import {openMolisWorkProjectCatalog} from '@molis-ai/molis-work-app-desktop';
+import {createMolisWorkWebServer} from '../apps/desktop/launchers/web/server.js';
+
+test('Molis Work serves the authorized Casebook catalog without granting project collection', async t => {
+  const home = mkdtempSync(join(tmpdir(), 'molis-casebook-web-'));
+  const catalog = await openMolisWorkProjectCatalog({homeDirectory: home});
+  const project = await catalog.createProject({display_name:'适配验证项目',actor_id:'fixture'});
+  catalog.close();
+  const token = 'isolated-casebook-service-token-0123456789abcdef';
+  mkdirSync(join(home,'config'),{recursive:true});
+  writeFileSync(join(home,'config','casebook.json'), JSON.stringify({version:1,grants:[],catalogConnections:[{token,actor_ref:'fixture-member'}],proof:{secret:'isolated-proof-secret-0123456789abcdef012345',audience:'isolated-casebook'}}),{mode:0o600});
+  const server = createMolisWorkWebServer({homeDirectory:home});
+  server.listen(0,'127.0.0.1'); await once(server,'listening');
+  t.after(async()=>{await new Promise<void>(resolve=>server.close(()=>resolve()));rmSync(home,{recursive:true,force:true});});
+  const addr=server.address();assert.ok(addr&&typeof addr!=='string');
+  const base=`http://127.0.0.1:${addr.port}/casebook/v1`;
+  const post=(path:string,body:unknown={},bearer=token)=>fetch(base+path,{method:'POST',headers:{authorization:`Bearer ${bearer}`,'content-type':'application/json'},body:JSON.stringify(body)});
+  const res=await post('/projects');
+  assert.equal(res.status,200,'Casebook project directory must be served by the actual Molis Work web entry');
+  assert.deepEqual((await res.json()).projects,[{project_ref:project.project_id,project_name:'适配验证项目'}]);
+  assert.equal((await post('/projects',{},'wrong')).status,403);
+  const auth=await post(`/${project.project_id}/authorization`,{project_ref:project.project_id,purpose:'casebook.interaction-review.v1'});
+  assert.equal(auth.status,200);
+  assert.equal((await auth.json()).state,'not_joined');
+});

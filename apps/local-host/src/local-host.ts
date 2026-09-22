@@ -15,6 +15,10 @@ export interface LocalHostRuntimeFactory<Runtime> {
 export interface LocalHostOptions<Runtime> {
   runtimeFactory: LocalHostRuntimeFactory<Runtime>;
   instanceId?: string;
+  observation?: {
+    before(runtime: Runtime, reference: LocalHostProjectReference, capability: HostCapabilityDefinition, input: unknown): unknown;
+    after(runtime: Runtime, ticket: unknown, result: unknown, threw: boolean): void;
+  };
 }
 
 export class LocalHostError extends Error {
@@ -99,7 +103,16 @@ export class LocalHost<Runtime> {
     const entry = this.ensureEntry(reference);
     const operation = entry.operationTail.then(async () => {
       const runtime = await entry.runtime;
-      return await this.capabilities.invoke(runtime, capability, input);
+      let ticket: unknown;
+      try { ticket = this.options.observation?.before(runtime, entry.reference, capability, input); } catch { /* auxiliary observer only */ }
+      let result: Output;
+      try { result = await this.capabilities.invoke<Input, Output>(runtime, capability, input); }
+      catch (error) {
+        try { this.options.observation?.after(runtime, ticket, error, true); } catch { /* preserve business error */ }
+        throw error;
+      }
+      try { this.options.observation?.after(runtime, ticket, result, false); } catch { /* preserve business result */ }
+      return result;
     });
     entry.operationTail = operation.then(() => undefined, () => undefined);
     return await operation;

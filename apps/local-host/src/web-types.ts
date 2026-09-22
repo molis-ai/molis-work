@@ -7,6 +7,9 @@ import type { MolisWorkWebServiceManager } from "./installer/web-service.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
 
 export interface WebServerOptions {
+  /** Owner-provisioned, server-only Casebook connection. Disabled without configuration. */
+  casebook?: import('./casebook/http.js').CasebookHttpOptions;
+  casebookConfigPath?: string;
   /**
    * In-process fixture input. The public Web command always starts from the
    * Molis Work project catalog and never accepts a database path.

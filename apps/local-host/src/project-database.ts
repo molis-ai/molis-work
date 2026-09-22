@@ -5,27 +5,36 @@ import { createEvidenceQueryApi } from "@molis-ai/molis-work-module-evidence-ver
 import { createGovernanceReadServices } from "@molis-ai/molis-work-module-governance-collaboration";
 import type { GoalsQueryApi } from "@molis-ai/molis-work-contracts/modules/goals";
 import { readMolisWorkSnapshot, type BoardSnapshot, type MolisWorkSnapshotPorts } from "@molis-ai/molis-work-plugin-goals";
-import { migrateLocalProjectDatabase } from "./project-migrations.js";
+import { migrateLocalProjectDatabase, assertProjectRecoverySchema } from "./project-migrations.js";
 
 /** One local connection, owner migrations and public read services for a Project. */
 export class LocalProjectDatabase extends LocalSqliteStorage {
   readonly goalsQuery: GoalsQueryApi;
   private readonly snapshotQueries: MolisWorkSnapshotPorts;
 
-  constructor(path: string) {
-    super(path);
-    migrateLocalProjectDatabase(this);
-    const goals = createGoalReadServices(this.db);
-    const governance = createGovernanceReadServices(this.db);
-    this.goalsQuery = goals.query;
-    this.snapshotQueries = {
-      goals: goals.query, impacts: goals.impacts,
-      execution: createExecutionQueryApi(this.db), evidence: createEvidenceQueryApi(this.db),
-      governance: governance.query, clarification: governance.clarification,
-    };
+  constructor(path: string, options: { existingOnly?: boolean } = {}) {
+    super(options.existingOnly ? inspectExistingDatabase(path) : path, { fileMustExist: options.existingOnly });
+    try {
+      if (options.existingOnly) assertProjectRecoverySchema(this);
+      else migrateLocalProjectDatabase(this);
+      const goals = createGoalReadServices(this.db);
+      const governance = createGovernanceReadServices(this.db);
+      this.goalsQuery = goals.query;
+      this.snapshotQueries = {
+        goals: goals.query, impacts: goals.impacts,
+        execution: createExecutionQueryApi(this.db), evidence: createEvidenceQueryApi(this.db),
+        governance: governance.query, clarification: governance.clarification,
+      };
+    } catch (error) { this.close(); throw error; }
   }
 
   snapshot(boardId: string): BoardSnapshot {
     return readMolisWorkSnapshot(this.snapshotQueries, boardId);
   }
+}
+
+function inspectExistingDatabase(path: string): string {
+  const inspection = new LocalSqliteStorage(path, { readonly: true });
+  try { assertProjectRecoverySchema(inspection); return path; }
+  finally { inspection.close(); }
 }

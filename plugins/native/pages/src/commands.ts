@@ -379,6 +379,31 @@ export function toneAt(state: EditorState, kind: "font_color" | "highlight"): st
   return mixed ? "" : found ?? "";
 }
 
+/** Turn `**text**`, `*text*`, `` `text` ``, or `~~text~~` into the matching mark and drop the markers. */
+export function markdownWrapMark(
+  state: EditorState,
+  start: number,
+  end: number,
+  open: string,
+  close: string,
+  markName: "strong" | "em" | "code" | "strike",
+) {
+  if (start >= end) return null;
+  const $start = state.doc.resolve(start);
+  if ($start.parent.type.spec.code || !$start.parent.isTextblock) return null;
+  const text = state.doc.textBetween(start, end);
+  if (!text.startsWith(open) || !text.endsWith(close)) return null;
+  if (text.length <= open.length + close.length) return null;
+  const inner = text.slice(open.length, text.length - close.length);
+  if (!inner.trim() || (open === "*" && (inner.startsWith("*") || inner.endsWith("*")))) return null;
+  const from = start + open.length;
+  const to = end - close.length;
+  const mark = pagesSchema.marks[markName].create();
+  const tr = state.tr.delete(to, end).delete(start, from);
+  tr.addMark(tr.mapping.map(from), tr.mapping.map(to), mark);
+  return tr;
+}
+
 const MARKDOWN_DIVIDER = /^(?:---|___|\*\*\*)$/u;
 const MARKDOWN_FENCE = /^```([A-Za-z0-9_+#-]*)?$/u;
 

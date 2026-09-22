@@ -46,6 +46,7 @@ export {
   leaveCodeUp,
   linkAt,
   markdownBlock,
+  markdownWrapMark,
   moveBlock,
   moveRow,
   moveSpan,

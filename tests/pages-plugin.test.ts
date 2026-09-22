@@ -35,6 +35,7 @@ import {
   leaveCodeUp,
   linkAt,
   markdownBlock,
+  markdownWrapMark,
   moveRow,
   moveSpan,
   nudgeSpan,
@@ -965,6 +966,42 @@ test("复制和转换也只动光标下这一行，列表项的文字会带过�
     ["heading", "乙"],
   ]);
   assert.equal(next.doc.child(1).attrs.level, 2);
+});
+
+test("打完 **甲**、*乙*、~~删~~、`码` 会变成对应的行内样式并去掉记号", () => {
+  const wrap = (text: string, open: string, close: string, markName: "strong" | "em" | "code" | "strike") => {
+    const doc = pagesSchema.node("doc", null, [
+      pagesSchema.node("paragraph", null, [pagesSchema.text(text)]),
+    ]);
+    const state = EditorState.create({ schema: pagesSchema, doc });
+    const tr = markdownWrapMark(state, 1, 1 + text.length, open, close, markName);
+    assert.ok(tr, text);
+    return state.apply(tr);
+  };
+  const bold = wrap("**甲**", "**", "**", "strong");
+  assert.equal(bold.doc.textContent, "甲");
+  assert.ok(bold.doc.child(0).firstChild?.marks.some((mark) => mark.type === pagesSchema.marks.strong));
+  const em = wrap("*乙*", "*", "*", "em");
+  assert.equal(em.doc.textContent, "乙");
+  assert.ok(em.doc.child(0).firstChild?.marks.some((mark) => mark.type === pagesSchema.marks.em));
+  const strike = wrap("~~删~~", "~~", "~~", "strike");
+  assert.equal(strike.doc.textContent, "删");
+  assert.ok(strike.doc.child(0).firstChild?.marks.some((mark) => mark.type === pagesSchema.marks.strike));
+  const code = wrap("`码`", "`", "`", "code");
+  assert.equal(code.doc.textContent, "码");
+  assert.ok(code.doc.child(0).firstChild?.marks.some((mark) => mark.type === pagesSchema.marks.code));
+
+  const doc = pagesSchema.node("doc", null, [
+    pagesSchema.node("paragraph", null, [pagesSchema.text("**甲**")]),
+  ]);
+  const state = EditorState.create({ schema: pagesSchema, doc });
+  assert.equal(markdownWrapMark(state, 1, 1 + "**甲**".length, "*", "*", "em"), null);
+
+  const fenced = pagesSchema.node("doc", null, [
+    pagesSchema.node("code_block", null, [pagesSchema.text("**甲**")]),
+  ]);
+  const inCode = EditorState.create({ schema: pagesSchema, doc: fenced });
+  assert.equal(markdownWrapMark(inCode, 1, 1 + "**甲**".length, "**", "**", "strong"), null);
 });
 
 test("转换为：按行拆开与合并，正文和行内 mark 都带过去", () => {

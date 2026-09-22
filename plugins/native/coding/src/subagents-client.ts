@@ -33,6 +33,7 @@ export const CODING_SUBAGENTS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
         };
         if(child.state==='running')row.append(button('停止此子任务',()=>act('stop'),pending.has(child.subagent_id)));
         if(child.state==='completed'){
+          if(child.integration_available)row.append(button('查看成果并整合',()=>ports.openIntegration(id,group.run_id,child),pending.has(child.subagent_id)));
           const label=el('label'),input=el('textarea');label.className='mw-field';label.append(el('span','结果评价或返工原因'));input.className='mw-input';input.rows=2;input.maxLength=4000;input.dataset.feedback=child.subagent_id;
           try{input.value=sessionStorage.getItem(draftKey(child.subagent_id)) ?? '';}catch{}
           input.addEventListener('input',()=>{try{sessionStorage.setItem(draftKey(child.subagent_id),input.value);}catch{}});label.append(input);row.append(label);

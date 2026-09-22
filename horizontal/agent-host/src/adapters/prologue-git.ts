@@ -1,10 +1,11 @@
 import { createHash } from "node:crypto";
 import type { Effect, ExactRef, Runtime } from "@prologue/sdk";
-import type { AgentGitIndexObservation, AgentGitIndexReviewDocument, AgentToolOperationReviewDocument, AgentReviewReceipt, AgentReviewRequest, AgentReviewRecoveryView } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentGitIntegrationReviewDocument, AgentGitIndexObservation, AgentGitIndexReviewDocument, AgentToolOperationReviewDocument, AgentReviewReceipt, AgentReviewRequest, AgentReviewRecoveryView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentReviewQueue } from "../reviews.js";
 
 type GitReviewIntent = { board_id: string; workspace_id: string; operation_id: string } & (
   | { operation_kind?: "git-index"; document: AgentGitIndexReviewDocument }
+  | { operation_kind: "git-integration"; document: AgentGitIntegrationReviewDocument }
   | { operation_kind: "git-worktree"; document: AgentToolOperationReviewDocument }
 );
 type StoredReview = GitReviewIntent & { kind: "molis-git-index-review"; requested_at: string };
@@ -38,14 +39,14 @@ export function createPrologueGitReviews(ports: Ports): PrologueGitReviewPort {
     if (!effect.pending) throw new Error("Git 操作缺少原审查等待");
     return { review_id: `prologue-git:${effect.pending.ref.id}`, run: null,
       operation: { kind: saved.operation_kind ?? "git-index", operation_id: saved.operation_id, workspace_id: saved.workspace_id },
-      board_id: saved.board_id, plugin_id: saved.operation_kind === "git-worktree" ? "io.molis.work.coding" : "io.molis.work.git", kind: saved.document.kind, document: saved.document,
+      board_id: saved.board_id, plugin_id: saved.operation_kind && saved.operation_kind !== "git-index" ? "io.molis.work.coding" : "io.molis.work.git", kind: saved.document.kind, document: saved.document,
       requested_at: saved.requested_at, expires_at: new Date(Date.parse(saved.requested_at) + APPROVAL_TTL).toISOString() };
   };
   const savedOf = async (effect: Effect): Promise<StoredReview | null> => {
     if (effect.proposal.subject.what !== "tool" || effect.proposal.subject.name !== SUBJECT || !effect.proposal.reviewRef) return null;
     const value = await ports.read(effect.proposal.reviewRef) as StoredReview;
     if (value?.kind !== "molis-git-index-review" || !value.board_id || !value.workspace_id || !value.operation_id
-      || (value.operation_kind === "git-worktree" ? value.document?.kind !== "tool-operation" || value.document.tool !== "git-worktree-create" : value.document?.kind !== "git-index")) throw new Error("Git 审查归属不可读，不能猜测执行结果");
+      || (value.operation_kind === "git-integration" ? value.document?.kind !== "git-integration" : value.operation_kind === "git-worktree" ? value.document?.kind !== "tool-operation" || value.document.tool !== "git-worktree-create" : value.document?.kind !== "git-index")) throw new Error("Git 审查归属不可读，不能猜测执行结果");
     return value;
   };
   const settle = async (effect: Effect, request: AgentReviewRequest, error?: unknown) => {
@@ -65,7 +66,7 @@ export function createPrologueGitReviews(ports: Ports): PrologueGitReviewPort {
   };
   const bindRecovery = (effect: Effect, request: AgentReviewRequest) => {
     // Index content reconciliation cannot establish whether a worktree was created.
-    if (request.operation?.kind === "git-worktree") return;
+    if (request.operation?.kind !== "git-index") return;
     const inspect = async (observe: () => Promise<AgentGitIndexObservation>): Promise<AgentReviewRecoveryView> => {
       const current = runtime.effects.get(effect.ref), dispatch = await runtime.effects.inspectDispatch(effect.ref);
       let observation: AgentGitIndexObservation | null = null;
@@ -163,7 +164,7 @@ export function createPrologueGitReviews(ports: Ports): PrologueGitReviewPort {
         const saved: StoredReview = { ...intent, kind: "molis-git-index-review", requested_at: new Date(now.wallTimeMs).toISOString() };
         const reviewRef = await ports.publish(saved);
         const effect = await runtime.effects.prepare({ kind: "mutate-local", subject: { what: "tool", name: SUBJECT, input: key },
-          summary: intent.document.kind === "tool-operation" ? intent.document.summary : intent.document.action === "stage" ? "暂存已审查的文件版本" : "取消所选文件的暂存", inputFingerprint: key, reviewRef, approvalTtlMs: APPROVAL_TTL }, now, "ask");
+          summary: intent.document.kind === "tool-operation" ? intent.document.summary : intent.document.kind === "git-integration" ? "将选定子任务成果整合到主工作区" : intent.document.action === "stage" ? "暂存已审查的文件版本" : "取消所选文件的暂存", inputFingerprint: key, reviewRef, approvalTtlMs: APPROVAL_TTL }, now, "ask");
         if (closed || effect.state !== "awaiting-approval" || !effect.pending) { await runtime.effects.cancel(effect.ref); throw new Error("Git 操作没有进入可批准状态，未执行"); }
         const request = requestOf(effect, saved); live.add(effect.ref.id); queue.request(request);
         bindRecovery(effect, request);

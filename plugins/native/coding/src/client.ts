@@ -1,3 +1,4 @@
+import { CODING_WRITER_INTEGRATION_CLIENT_FACTORY_SCRIPT } from "./writer-integration-client.js";
 import { CODING_CHARACTERS_CLIENT_FACTORY_SCRIPT } from "./characters-client.js";
 import { CODING_SUBAGENTS_CLIENT_FACTORY_SCRIPT } from "./subagents-client.js";
 import { CODING_PLANS_CLIENT_FACTORY_SCRIPT } from "./plans-client.js";
@@ -46,7 +47,8 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (!response.ok) throw new Error(result.error || '无法完成 Coding 操作');
     return result;
   };
-  const subagents = (${CODING_SUBAGENTS_CLIENT_FACTORY_SCRIPT})({q,api,current:()=>current,status,usageSummary:codingUsageSummary,refresh:()=>readCurrent(),prepareRework:async(id,runId,child,notes)=>{
+  const integrations = (${CODING_WRITER_INTEGRATION_CLIENT_FACTORY_SCRIPT})({q,api,host,status});
+  const subagents = (${CODING_SUBAGENTS_CLIENT_FACTORY_SCRIPT})({q,api,current:()=>current,status,openIntegration:integrations.open,usageSummary:codingUsageSummary,refresh:()=>readCurrent(),prepareRework:async(id,runId,child,notes)=>{
     if(current!==id)return;
     const instruction='请针对原子任务 '+child.subagent_id+'（父执行 '+runId+'）准备返工，保留原结果和评价。原目录：'+child.workspace_path+'。需要写入时请先明确选择该独立工作树与并行写入方式。原任务：'+child.task+'\\n返工原因：'+notes+'\\n请独立复核新结果；不要把运行结束当成用户验收。';
     const value=input.value.trim()?input.value+'\\n\\n'+instruction:instruction;
@@ -898,5 +900,5 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   });
   void refreshState().catch(error=>status(error.message,true));
   let pollingTicks=0;
-  const poll=setInterval(()=>{if(!root.isConnected){clearInterval(poll);return;}if(current) void readCurrent();void writerDirectories.refresh();if(++pollingTicks%5===0) void refreshState().catch(error=>status(error.message,true));},1000);
+  const poll=setInterval(()=>{if(!root.isConnected){clearInterval(poll);return;}if(current) void readCurrent();void writerDirectories.refresh();void integrations.refreshReviews();if(++pollingTicks%5===0) void refreshState().catch(error=>status(error.message,true));},1000);
 }`;

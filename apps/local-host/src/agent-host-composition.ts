@@ -18,8 +18,9 @@ import type { MolisWorkLocalHost, MolisWorkProjectRuntime } from "./project-host
 import type { ModelProviderStore } from "./model-provider-store.js";
 import { prepareGitIndexCapability, readGitResultsCapability, type GitReviewedResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { prepareGitIndex } from "./workspace-git-index.js";
+import { readWriterIntegration, prepareWriterIntegration } from "./git-writer-integration.js";
 import { createGitWorktreePort } from "./git-worktrees.js";
-import { writerDirectoryCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { writerDirectoryCapabilities, writerIntegrationCapabilities, type WriterIntegrationSource } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { createHash } from "node:crypto";
 import path from "node:path";
 
@@ -178,12 +179,51 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     return { review_id: request.review_id, directory: { worktree_id: id, branch: preview.branch, base_commit: preview.base_commit, canonical_path: target, workspace_id: null } };
   });
 
+  const integrationSource = async (project: MolisWorkProjectRuntime, source: WriterIntegrationSource) => {
+    await initialize();
+    if (!prologue?.gitReviews || !prologue.subagents) throw new Error("子任务成果整合执行方尚未接通");
+    const session = await prologue.readSession({ runtime_id: "prologue", session_id: source.session_id });
+    if (session.owner.board_id !== project.board_id || session.owner.plugin_id !== "io.molis.work.coding" || session.recovery) throw new Error("执行不属于本项目的 Coding 会话，或原结果仍需核对");
+    const ref = session.runs.find(run => run.run_id === source.run_id);
+    if (!ref) throw new Error("此轮执行不属于原会话");
+    const run = await prologue.read(ref);
+    if (!["completed", "failed", "cancelled", "stopped"].includes(run.phase) || run.frozen.role_id !== "writers" || session.latest_run && !["completed", "failed", "cancelled", "stopped"].includes(session.latest_run.phase)) throw new Error("父任务仍在执行或需核对，暂不能整合");
+    const children = await prologue.subagents.list(ref), child = children.find(c => c.subagent_id === source.subagent_id);
+    if (!child || child.state !== "completed" || children.some(c => ["running", "reconcile-required"].includes(c.state))) throw new Error("原子任务尚未结束或有结果待核对，暂不能整合");
+    const granted = options.workspacesFor ? await options.workspacesFor(project.project_id)
+      : [await options.workspaceFor(project.project_id)].filter((item): item is ProjectWorkspaceRef => item !== null);
+    const originalParent = granted.find(g => g.realpath_verified && g.canonical_path === run.frozen.directory.canonical_path);
+    if (!originalParent) throw new Error("原主工作区已取消授权");
+    const { grants, parent } = await writerParent(project.project_id, originalParent.workspace_id);
+    if (parent.canonical_path !== run.frozen.directory.canonical_path) throw new Error("原主工作区授权已改变");
+    const frozen = run.frozen.subagent_workspaces?.find(w => w.directory.canonical_path === child.workspace_path);
+    const writer = frozen && grants.find(g => g.workspace_id === frozen.workspace_id && g.realpath_verified && g.canonical_path === child.workspace_path);
+    if (!writer) throw new Error("原子任务目录没有本轮独立写入授权");
+    await prologue.assertDirectoriesIdle([parent.canonical_path, writer.canonical_path]);
+    return { workspace_id: parent.workspace_id, writer_workspace_id: writer.workspace_id, grants };
+  };
+  const unregisterReadIntegration = options.localHost.registerCapability(writerIntegrationCapabilities.read, async (project, input) => {
+    const source = await integrationSource(project, input);
+    return readWriterIntegration(source, async () => (await integrationSource(project, input)).grants);
+  });
+  const unregisterPrepareIntegration = options.localHost.registerCapability(writerIntegrationCapabilities.prepare, async (project, input) => {
+    const source = await integrationSource(project, input);
+    const prepared = await prepareWriterIntegration({ ...source, files: input.files }, async () => (await integrationSource(project, input)).grants);
+    const request = await prologue!.gitReviews!.prepare({ board_id: project.board_id, workspace_id: source.workspace_id, operation_id: input.operation_id,
+      operation_kind: "git-integration", document: { kind: "git-integration", target_directory: prepared.view.target_path,
+        source: { session_id: input.session_id, run_id: input.run_id, subagent_id: input.subagent_id, branch: prepared.view.branch, base_commit: prepared.view.base_commit, directory: prepared.view.source_path },
+        files: prepared.files.map(file => ({ path: file.path.join("/"), before_text: file.before_text!, after_text: file.after_text!, before_mode: file.before_mode!, after_mode: file.after_mode! })) } }, prepared);
+    return { review_id: request.review_id };
+  });
+
   return { agentHost, get ready() { return initialize(); }, async dispose() {
     unregister();
     unregisterGit();
     unregisterGitResults();
     unregisterWriters();
     unregisterPrepareWriter();
+    unregisterReadIntegration();
+    unregisterPrepareIntegration();
     await ready?.catch(() => undefined);
     await prologue?.close();
   } };

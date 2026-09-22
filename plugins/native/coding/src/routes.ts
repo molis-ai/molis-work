@@ -1,3 +1,4 @@
+import { parseFilePath } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { codingWriterAssignments } from "./writers.js";
 import { isDeepStrictEqual } from "node:util";
 import { materialChoices, materialSelection, resolveMaterials, savedMaterials } from "./materials.js";
@@ -15,7 +16,7 @@ import { CODING_CHANGESET_TYPE } from "./artifacts.js";
 import { characterSelection, characterTitle, savedCharacter, type CodingCharacterPorts } from "./characters.js";
 import { confirmedPlan, parseCodingPlan, planFromRun, planMaterial, planReference } from "./plans.js";
 import { CODING_PLAN_TYPE } from "./artifacts.js";
-import { writerDirectoryCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 
 export interface CodingModelChoice { provider_id: string; model_id: string; label: string }
 export interface CodingExecutionPorts {
@@ -414,6 +415,16 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       if (!isDeepStrictEqual(saved, fixed)) throw new Error("固定计划与当前草稿不一致，不能确认");
       return { plan: execution.sessions.confirmPlan(boardId, record.session_id, fixed) };
     }),
+    ...[false, true].map(prepare => route(prepare ? "coding.prepare-integration" : "coding.read-integration", async (request, api, execution) => {
+      const record = selected(request, execution);
+      if (!record.runtime_session_id || record.runtime_id !== "prologue") throw new Error("此会话没有可整合的原子任务");
+      const source = { session_id: record.runtime_session_id, run_id: text(request.params.runId, "原执行"), subagent_id: text(request.params.childId, "原子任务") };
+      if (!prepare) return api!.invoke(writerIntegrationCapabilities.read, source);
+      const body = bodyOf(request);
+      if (!Array.isArray(body.files)) throw new Error("请选择原成果文件");
+      const files = body.files.map(file => ({ path: parseFilePath(file.path), revision: text(file.revision, "审查版本") }));
+      return api!.invoke(writerIntegrationCapabilities.prepare, { ...source, operation_id: text(body.operation_id, "操作标识", 80), files });
+    })),
     route("coding.control-subagent", async (request, api, execution) => {
       const record = selected(request, execution), body = bodyOf(request);
       if (!record.runtime_session_id) throw new Error("此会话没有执行记录");
@@ -466,7 +477,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
             const children = await api!.invoke(agent.listSubagents, [session, run.ref]);
             subagents.push({ run_id: run.ref.run_id, children: children.map(child => {
               const saved = context.services!.storage!.get(`subagent-verdict:${record.session_id}:${run.ref.run_id}:${child.subagent_id}`);
-              return { ...child, verdict: typeof saved === "string" ? JSON.parse(saved) : null };
+              return { ...child, integration_available: run.frozen.role_id === "writers" && Boolean(run.frozen.subagent_workspaces?.some(workspace => workspace.directory.canonical_path === child.workspace_path)), verdict: typeof saved === "string" ? JSON.parse(saved) : null };
             }) });
           } catch (error) { subagents.push({ run_id: run.ref.run_id, children: [], error: error instanceof Error ? error.message : "子任务状态不可读取" }); }
         }

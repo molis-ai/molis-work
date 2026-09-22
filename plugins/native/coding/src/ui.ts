@@ -149,10 +149,17 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
   const tools = model.tools.map((tool) => renderToolTab(tool, p)).join("");
   const panels = model.tools.map((tool) => renderToolPanel(tool, p)).join("");
   return `<section class="desktop-work-surface plugin-stage-shell" data-work-surface="coding" data-work-surface-label="Coding" hidden data-coding-workbench data-coding-prefix="${p.escape(model.route_prefix)}">
+    <dialog class="mw-dialog mw-dialog--form" data-coding-integration-dialog aria-label="整合子任务成果"><div class="mw-form mw-dialog__shell">
+      <header class="mw-form__header"><h2>整合子任务成果</h2>${renderButton({label:"关闭",variant:"ghost",attrs:{"data-coding-integration-close":""}})}</header>
+      <section class="mw-form__body"><p data-coding-integration-source></p><p data-coding-integration-target></p>
+      <p>这里显示子工作树的当前内容。选择带回的文件，经宿主审查后只更新主工作区；保留其他修改、暂存区与子工作树。整合不代表测试通过或用户验收。</p>
+      <div data-coding-integration-files></div><p data-coding-integration-status role="status"></p><div data-coding-integration-reviews></div></section>
+      <footer class="mw-form__footer">${renderButton({label:"重新读取成果",variant:"secondary",attrs:{"data-coding-integration-refresh":""}})}${renderButton({label:"准备整合审查",attrs:{"data-coding-integration-prepare":"",disabled:true}})}</footer>
+    </div></dialog>
     <dialog class="mw-dialog mw-dialog--form" data-coding-writer-directories-dialog aria-label="独立工作树"><div class="mw-form mw-dialog__shell">
       <header class="mw-form__header"><h2>独立工作树</h2>${renderButton({label:"关闭",variant:"ghost",attrs:{"data-coding-writer-directories-close":""}})}</header>
       <section class="mw-form__body"><div><p data-coding-writer-parent></p><p>从主仓库当前提交创建独立目录和本地分支。创建与项目授权需先审查；已有未提交内容时不会分叉，避免遗漏当前修改。</p>
-      <p>可选作下一轮工作区，或勾选目录并填写并行分工。保存分工后选择「并行写入」再发送；每项修改和命令仍需审查。主工作区成果整合尚未开放。</p></div>
+      <p>可选作下一轮工作区，或勾选目录并填写并行分工。保存分工后选择「并行写入」再发送；每项修改和命令仍需审查。子任务结束后可从结果区查看并选择成果，另经审查带回主工作区。</p></div>
       <div data-coding-writer-directories-list></div><p data-coding-writer-directories-status role="status"></p><div data-coding-writer-directory-reviews></div></section>
       <footer class="mw-form__footer">${renderButton({label:"刷新目录",variant:"secondary",attrs:{"data-coding-writer-directories-refresh":""}})}${renderButton({label:"保存分工",variant:"secondary",attrs:{"data-coding-writer-assignments-save":""}})}${renderButton({label:"准备新工作树",attrs:{"data-coding-writer-directories-create":""}})}</footer>
     </div></dialog>

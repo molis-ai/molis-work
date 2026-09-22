@@ -1,6 +1,6 @@
 import { SHELF_TEXT_MATERIAL_TYPE } from "@molis-ai/molis-work-contracts/modules/shelf";
 import { CHARACTER_ARTIFACT_TYPE } from "@molis-ai/molis-work-contracts/modules/characters";
-import { DIFF_CHANGESET_TYPE, GIT_RESULT_TYPE, FILE_SNAPSHOT_TYPE, FILE_TEXT_SELECTION_TYPE, writerDirectoryCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { DIFF_CHANGESET_TYPE, GIT_RESULT_TYPE, FILE_SNAPSHOT_TYPE, FILE_TEXT_SELECTION_TYPE, writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -37,7 +37,7 @@ export const codingManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: CODING_PLUGIN_ID,
-  version: "1.27.0",
+  version: "1.28.0",
   name: "Coding",
   kind: "app",
   publisher: { publisher_id: "molis", signature: "official-coding-binding" },
@@ -60,6 +60,7 @@ export const codingManifest: PluginManifest = {
       projectsCapabilities.readWorkspace.capability_id,
       projectsCapabilities.listWorkspaces.capability_id,
       ...Object.values(writerDirectoryCapabilities).map(entry => entry.capability_id),
+      ...Object.values(writerIntegrationCapabilities).map(entry => entry.capability_id),
     ],
   },
   artifacts: {
@@ -101,6 +102,8 @@ export const codingManifest: PluginManifest = {
   routes: [
     { route_id: "coding.writer-directories", method: "GET", path: "/workspaces/:workspaceId/writers" },
     { route_id: "coding.prepare-writer-directory", method: "POST", path: "/workspaces/:workspaceId/writers" },
+    { route_id: "coding.read-integration", method: "GET", path: "/sessions/:sessionId/runs/:runId/subagents/:childId/integration" },
+    { route_id: "coding.prepare-integration", method: "POST", path: "/sessions/:sessionId/runs/:runId/subagents/:childId/integration" },
     { route_id: "coding.control-subagent", method: "POST", path: "/sessions/:sessionId/runs/:runId/subagents/:childId" },
     { route_id: "coding.read-plan", method: "GET", path: "/sessions/:sessionId/plan" },
     { route_id: "coding.save-plan", method: "POST", path: "/sessions/:sessionId/plan" },

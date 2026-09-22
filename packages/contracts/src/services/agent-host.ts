@@ -427,7 +427,7 @@ export interface AgentSessionView {
   latest_run: AgentRunView | null;
 }
 
-export type AgentReviewKind = "text-edit" | "command" | "tool-operation" | "mcp" | "rewind" | "git-index";
+export type AgentReviewKind = "text-edit" | "command" | "tool-operation" | "mcp" | "rewind" | "git-index" | "git-integration";
 
 export interface AgentTextReviewDocument {
   kind: "text-edit";
@@ -477,12 +477,20 @@ export interface AgentGitIndexReviewDocument {
   files: Array<{ path: string; before_text: string | null; after_text: string | null; before_mode: "100644" | "100755" | null; after_mode: "100644" | "100755" | null }>;
 }
 
+export interface AgentGitIntegrationReviewDocument {
+  kind: "git-integration";
+  source: { session_id: string; run_id: string; subagent_id: string; branch: string; base_commit: string; directory: string };
+  target_directory: string;
+  files: AgentGitIndexReviewDocument["files"];
+}
+
 export type AgentReviewDocument =
   | AgentTextReviewDocument
   | AgentCommandReviewDocument
   | AgentToolOperationReviewDocument
   | AgentMcpReviewDocument
   | AgentGitIndexReviewDocument
+  | AgentGitIntegrationReviewDocument
   | AgentRewindReviewDocument;
 
 export type AgentReviewStatus = "pending" | "approved" | "rejected" | "cancelled" | "expired";
@@ -492,7 +500,7 @@ export interface AgentReviewRequest {
   /** Null for a manual operation; never fabricate an Agent Run. */
   run: AgentRunRef | null;
   operation?: { operation_id: string; session_id: string; kind: "checkpoint-rewind"; workspace_id?: never }
-    | { operation_id: string; workspace_id: string; kind: "git-index" | "git-worktree"; session_id?: never };
+    | { operation_id: string; workspace_id: string; kind: "git-index" | "git-worktree" | "git-integration"; session_id?: never };
   board_id: string;
   plugin_id: string;
   kind: AgentReviewKind;

@@ -80,6 +80,8 @@ export function isDecidable(row: AgentReviewRow): boolean {
 
 function readable(document: AgentReviewDocument): boolean {
   switch (document.kind) {
+    case "git-integration": return typeof document.source?.directory === "string" && typeof document.target_directory === "string"
+      && typeof document.source?.base_commit === "string" && readable({ kind: "git-index", action: "stage", workspace_name: document.target_directory, files: document.files });
     case "git-index": return ["stage", "unstage"].includes(document.action) && typeof document.workspace_name === "string"
       && Array.isArray(document.files) && document.files.length > 0 && document.files.every(file => typeof file.path === "string"
         && (file.before_text === null ? file.before_mode === null : typeof file.before_text === "string" && ["100644", "100755"].includes(file.before_mode ?? ""))
@@ -140,6 +142,7 @@ function renderRow(row: AgentReviewRow, p: AgentReviewPrimitives): string {
   const history = ["done", "rejected", "cancelled", "expired"].includes(phase);
   const label = row.request.document.kind === "text-edit" ? row.request.document.target_path
     : row.request.document.kind === "git-index" ? (row.request.document.action === "stage" ? "暂存文件" : "取消暂存")
+    : row.request.document.kind === "git-integration" ? "整合子任务成果"
     : row.request.document.kind === "rewind" ? "文件回退" : row.request.kind === "command" ? "命令执行" : "工具操作";
   return `<article class="agent-review-row" data-agent-review-item="${p.escape(row.request.review_id)}" data-agent-review-phase="${phase}">
     ${history ? '<details data-review-detail="history"><summary>' : ""}<header class="agent-review-head">
@@ -194,6 +197,12 @@ export function renderAgentReviewRecovery(view: AgentReviewRecoveryView, escape:
 function renderDocument(document: AgentReviewDocument, p: AgentReviewPrimitives): string {
   if (!readable(document)) return `<div class="agent-review-doc" data-agent-review-kind="${p.escape(document.kind)}"><p>${p.escape("审查内容不完整，暂不能批准；原操作仍需核对。")}</p></div>`;
   switch (document.kind) {
+    case "git-integration": return `<div class="agent-review-doc" data-agent-review-kind="git-integration">
+      <p>整合选定成果到主工作区</p><dl><dt>来源目录</dt><dd>${p.escape(document.source.directory)}</dd><dt>目标目录</dt><dd>${p.escape(document.target_directory)}</dd><dt>来源分支与基线</dt><dd>${p.escape(document.source.branch)} · ${p.escape(document.source.base_commit)}</dd></dl>
+      <p>仅修改以下文件；不暂存、不提交、不推送，保留子工作树。批准后重新核对来源与目标，变化或冲突时拒绝执行。</p>
+      ${document.files.map(file => `<section><p class="agent-review-target">${p.escape(file.path)}</p><p>文件模式：${p.escape(file.before_mode ?? "不存在")} → ${p.escape(file.after_mode ?? "不存在")}</p>
+      <details data-review-detail="${p.escape("before:" + file.path)}"><summary>主工作区修改前</summary><pre>${p.escape(file.before_text ?? "文件尚不存在")}</pre></details>
+      <p>整合后的内容</p><pre>${p.escape(file.after_text === null ? "删除此文件" : file.after_text || "（空文件）")}</pre></section>`).join("")}</div>`;
     case "git-index": return `<div class="agent-review-doc" data-agent-review-kind="git-index">
       <p>${p.escape(document.workspace_name)} · ${document.action === "stage" ? "将以下固定内容放入暂存区" : "将以下暂存项恢复为 HEAD 版本"}</p><p>只更新暂存区，磁盘文件保持原样。批准后会重新核对预览版本；内容、分支或暂存区变化时拒绝执行。</p>
       ${document.files.map(file => `<section><p class="agent-review-target">${p.escape(file.path)}</p>

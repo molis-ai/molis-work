@@ -208,3 +208,5 @@ export {
   type CodingSurfacePorts,
 } from "./coding-surface.js";
 export { createGitWorktreePort, GitWorktreeError, type GitWorktreePort } from "./git-worktrees.js";
+
+export { readWriterIntegration, prepareWriterIntegration } from "./git-writer-integration.js";

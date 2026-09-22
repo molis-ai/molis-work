@@ -99,7 +99,7 @@ const MAX_COMPOSED_INSTRUCTION_CHARS = 64_000;
  */
 export async function createPrologueNodeAdapter(
   options: PrologueNodeAdapterOptions,
-): Promise<PrologueAgentAdapter & { gitReviews?: PrologueGitReviewPort }> {
+): Promise<PrologueAgentAdapter & { gitReviews?: PrologueGitReviewPort; assertDirectoriesIdle(paths: readonly string[]): Promise<void> }> {
   const host = createNodeHost({
     ...(options.storageRoot === undefined ? {} : { storageRoot: options.storageRoot }),
     resolveHost: resolveModelHostname,
@@ -762,7 +762,18 @@ export async function createPrologueNodeAdapter(
         await runtime.effects.pendings.answer(pending.ref, { kind: "questionnaire", answers: answer.answers }, now);
       }
     },
-  }), { gitReviews });
+  }), { gitReviews, async assertDirectoriesIdle(paths: readonly string[]) {
+    const open = await runtime.listOpenWork();
+    if (open.unavailable.length) throw new Error("未能查清未结束执行，暂不能整合工作区");
+    for (const item of open.items) {
+      if (!item.origin.session) continue; // Manual Git operations are guarded by the existing review queue.
+      const index = await readIndex(item.origin.session);
+      if (!index) throw new Error("未结束执行缺少目录归属，暂不能整合");
+      const attempts = index.attempts.filter(attempt => !item.origin.run || attempt.run_id === item.origin.run);
+      if (!attempts.length || attempts.some(attempt => attempt.frozen.execution !== "read-only" && paths.includes(attempt.frozen.directory.canonical_path)
+        || attempt.subagent_roots?.some(root => paths.includes(root.path)))) throw new Error(`“${index.title}”仍有涉及此目录的写入执行、待审或未知结果，请先核对原任务`);
+    }
+  } });
 }
 
 function validRunTiming(value: unknown): value is PrologueRunTiming {

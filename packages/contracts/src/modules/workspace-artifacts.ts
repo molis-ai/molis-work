@@ -46,6 +46,33 @@ export interface PreparedWriterDirectory {
   /** Present only after the Host recorded the project authorization. */
   workspace_id: string | null;
 }
+export interface WriterIntegrationFile {
+  path: readonly string[];
+  target: "added" | "modified" | "deleted";
+  selectable: boolean;
+  reason?: string;
+  revision?: string;
+  before_text?: string | null;
+  after_text?: string | null;
+  before_mode?: GitFileMode | null;
+  after_mode?: GitFileMode | null;
+}
+export interface WriterIntegrationView {
+  workspace_id: string;
+  writer_workspace_id: string;
+  source_path: string;
+  target_path: string;
+  branch: string;
+  base_commit: string;
+  files: WriterIntegrationFile[];
+}
+
+export interface WriterIntegrationSource { session_id: string; run_id: string; subagent_id: string }
+export const writerIntegrationCapabilities = {
+  read: { capability_id: "projects.workspace.writers.integration.read.v1", version: 1, operation: "query" } as HostCapabilityDefinition<WriterIntegrationSource, WriterIntegrationView>,
+  prepare: { capability_id: "projects.workspace.writers.integration.prepare.v1", version: 1, operation: "command" } as HostCapabilityDefinition<WriterIntegrationSource & { operation_id: string; files: readonly { path: readonly string[]; revision: string }[] }, { review_id: string }>,
+} as const;
+
 export const writerDirectoryCapabilities = {
   list: { capability_id: "projects.workspace.writers.list.v1", version: 1, operation: "query" } as HostCapabilityDefinition<{ workspace_id: string }, PreparedWriterDirectory[]>,
   prepare: { capability_id: "projects.workspace.writers.prepare.v1", version: 1, operation: "command" } as HostCapabilityDefinition<{ workspace_id: string; operation_id: string }, { review_id: string; directory: PreparedWriterDirectory }>,

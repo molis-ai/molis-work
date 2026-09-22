@@ -130,3 +130,25 @@ for (const applied of [false, true]) test(`Git recovery ${applied ? 'retains unc
     }
   } finally { await adapter!?.close(); await rm(root, { recursive: true, force: true }); }
 });
+
+
+test("integration with an uncertain write retains its original review and blocks replay after restart", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "integration-uncertain-"));
+  let queue = new AgentReviewQueue(), calls = 0;
+  const make = () => createPrologueNodeAdapter({ app: { appId: "molis.integration.unknown", appVersion: "1.0.0" }, storageRoot: path.join(root, "sdk"), reviewQueue: queue, modelConfiguration: async () => { throw new Error("manual operation"); } });
+  let adapter = await make();
+  const intent = { board_id: "b", workspace_id: "w", operation_id: "integration-original", operation_kind: "git-integration" as const,
+    document: { kind: "git-integration" as const, target_directory: root, source: { session_id: "s", run_id: "r", subagent_id: "child", branch: "branch", base_commit: "base", directory: root + "/child" },
+      files: [{ path: "created", before_text: null, after_text: "once", before_mode: null, after_mode: "100644" as const }] } };
+  const execution = { check: async () => {}, execute: async () => { calls++; await writeFile(path.join(root, "created"), "once"); throw Object.assign(new Error("write result uncertain"), { code: "EFFECT_RECONCILE_REQUIRED" }); } };
+  try {
+    const original = await adapter.gitReviews!.prepare(intent, execution);
+    await queue.respond({ review_id: original.review_id, decision: "approve", actor_id: "user" });
+    assert.ok(queue.receipt(original.review_id)?.effect_uncertain);
+    await adapter.close(); queue = new AgentReviewQueue(); adapter = await make(); await queue.refresh("b");
+    assert.deepEqual(queue.get(original.review_id)?.document, intent.document);
+    assert.ok(queue.receipt(original.review_id)?.effect_uncertain);
+    await assert.rejects(adapter.gitReviews!.prepare({ ...intent, operation_id: "integration-retry" }, execution), /结果未知/);
+    assert.equal(calls, 1); assert.equal(await readFile(path.join(root, "created"), "utf8"), "once");
+  } finally { await adapter.close(); await rm(root, { recursive: true, force: true }); }
+});

@@ -221,11 +221,13 @@ function machinePane(model: ShelfSettingsUiModel): string {
   const runtime = model.runtime;
   const line = !runtime || !runtime.runtime_key
     ? p.text("未发现终端 Agent。暂存、预览、拖出和本机文字提取仍然可用。")
+    : runtime.capability_pending
+      ? `${p.escape(runtime.title)} · ${p.text("执行时检查，登录尚未确认")}`
     : runtime.can_run_job
       ? `${p.escape(runtime.title)} · ${p.escape(runtime.isolation_fact)}`
       : `${p.escape(runtime.title)} · ${p.text("没有无界面执行入口，动作不能跑。")}`;
   const catalog = runtime?.catalog ?? [];
-  const options = [{ runtime_key: "auto", title: "自动", executable: "auto", can_run_job: true, install_url: "" }, ...catalog];
+  const options = [{ runtime_key: "auto", title: "自动", executable: "auto", can_run_job: true, capability_pending: false, install_url: "" }, ...catalog];
   const rows = options.map((entry) => {
     const on = settings.engine === entry.runtime_key;
     const missing = entry.runtime_key !== "auto" && !entry.executable;
@@ -233,6 +235,8 @@ function machinePane(model: ShelfSettingsUiModel): string {
       ? p.text("按安装顺序挑一个")
       : missing
         ? p.text("未装")
+        : entry.capability_pending
+          ? p.text("执行时检查")
         : entry.can_run_job
           ? p.text("可跑动作")
           : p.text("只能对话");

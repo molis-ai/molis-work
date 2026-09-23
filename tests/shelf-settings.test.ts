@@ -99,7 +99,8 @@ test("the engine choice picks the runtime, and a custom CLI can close a job", as
     clearShelfRuntimeCache();
     const runtime = store.runtime();
     assert.equal(runtime.runtime_key, "custom:house");
-    assert.equal(runtime.can_run_job, true);
+    assert.equal(runtime.can_run_job, false);
+    assert.equal(runtime.capability_pending, true);
     assert.equal(runtime.catalog.some((entry) => entry.runtime_key === "custom:house"), true);
     assert.equal(runtime.catalog.find((entry) => entry.runtime_key === "codex")?.executable, "");
 
@@ -263,5 +264,40 @@ test("a link is shelved as a captured page, and a dead link still lands with its
     } finally {
       await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     }
+  });
+});
+
+test("passive Shelf snapshots do not launch CLIs; a job probes only its chosen Agent", async () => {
+  await withHome(async home => {
+    const bin = join(home, "bin");
+    await mkdir(bin, { recursive: true });
+    const chosen = join(bin, "claude");
+    const other = join(bin, "gemini");
+    const marker = join(home, "chosen-starts");
+    const otherMarker = join(home, "other-starts");
+    await writeFile(chosen, `#!/bin/sh
+printf 'start\\n' >> '${marker}'
+if [ "$1" = "--help" ]; then
+  printf '%s\\n' '--print'
+else
+  printf '# Summary\\n' > summary.md
+fi
+`, { mode: 0o700 });
+    await writeFile(other, `#!/bin/sh\nprintf start > '${otherMarker}'\n`, { mode: 0o700 });
+    const store = openShelfStore(home, { pathEnvironment: bin, home, preferred: "claude" });
+    const item = store.admit({ filename: "note.md", bytes: Buffer.from("A local fixture"), mime: "text/markdown" });
+    for (let index = 0; index < 3; index++) {
+      const snapshot = store.snapshot();
+      assert.equal(snapshot.runtime.can_run_job, false);
+      assert.equal(snapshot.runtime.capability_pending, true);
+      assert.equal(snapshot.recipes.find(entry => entry.recipe === "summarize")?.available, true);
+      assert.ok(snapshot.runtime.catalog.filter(entry => entry.executable).every(entry => entry.capability_pending));
+    }
+    assert.throws(() => readFileSync(marker), { code: "ENOENT" });
+    assert.throws(() => readFileSync(otherMarker), { code: "ENOENT" });
+    const outcome = await store.runJob({ recipe: "summarize", item_id: item.item_id });
+    assert.equal(outcome.result?.name, "summary.md");
+    assert.equal(readFileSync(marker, "utf8"), "start\nstart\n");
+    assert.throws(() => readFileSync(otherMarker), { code: "ENOENT" });
   });
 });

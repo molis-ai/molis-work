@@ -743,8 +743,8 @@ function scriptedCli(command = "claude") {
         },
       };
     },
-    async version() {
-      return "2.1.0";
+    async available() {
+      return true;
     },
   };
   return { command, port, spawns };

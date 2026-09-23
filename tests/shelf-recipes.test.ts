@@ -99,10 +99,13 @@ test("a TUI without a headless entry can be found but still cannot run a recipe"
     const snapshot = store.snapshot();
     assert.equal(snapshot.runtime.runtime_key, "claude");
     assert.equal(snapshot.runtime.can_run_job, false);
-    assert.equal(snapshot.runtime.isolation, "tui");
+    assert.equal(snapshot.runtime.isolation, "unknown");
+    assert.equal(snapshot.runtime.capability_pending, true);
     const summarize = snapshot.recipes.find((entry) => entry.recipe === "summarize");
-    assert.equal(summarize?.available, false);
-    assert.equal(summarize?.reason, "Claude 没有无界面执行入口，动作不能跑。");
+    assert.equal(summarize?.available, true);
+    const itemId = admitText(store, "note.md", "Local fixture");
+    await assert.rejects(store.runJob({ recipe: "summarize", item_id: itemId }),
+      (error: ShelfError) => error.message === "Claude 没有无界面执行入口，动作不能跑。");
   }, HELP_TUI_ONLY);
 });
 
@@ -113,7 +116,8 @@ test("summarize runs the agent on the copy, keeps the original, and files the re
     const originHashBefore = sha256(origin);
 
     const snapshot = store.snapshot();
-    assert.equal(snapshot.runtime.can_run_job, true);
+    assert.equal(snapshot.runtime.can_run_job, false);
+    assert.equal(snapshot.runtime.capability_pending, true);
     assert.equal(snapshot.runtime.isolation, "unknown");
     assert.equal(snapshot.recipes.find((entry) => entry.recipe === "summarize")?.available, true);
 

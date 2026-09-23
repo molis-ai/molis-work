@@ -1,3 +1,4 @@
+import { codingReportSteps } from "./report-steps.js";
 import { parseFilePath } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { codingWriterAssignments } from "./writers.js";
 import { codingTaskBoardPlans, stepVerdictKey } from "./taskboard.js";
@@ -151,7 +152,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         return { call_id: command.call_id, output };
       } catch { return { call_id: command.call_id, output: null }; }
     }));
-    const report = createCodingExecutionReport({ session_id: record.session_id, runtime_id: record.runtime_id, title: record.title, run, commands, ...runGoalContext(context, run) });
+    const report = createCodingExecutionReport({ session_id: record.session_id, runtime_id: record.runtime_id, title: record.title, run, commands, steps: codingReportSteps(context, record.session_id, run), ...runGoalContext(context, run) });
     if (!save) return { report, reference: null, saved_at: null };
     // No asynchronous gap between recheck and publish: concurrent clicks share
     // the existing fixed version, even if their evidence reads finished later.

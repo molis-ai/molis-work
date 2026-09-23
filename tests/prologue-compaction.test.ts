@@ -141,7 +141,47 @@ test("compaction awaits parent receipt persistence before returning; failed sele
   const invalid = fixture([{ type: 'usage-recorded', callId: 'failed', receipt }, { type: 'text-delta', text: 'bad selection' }, { type: 'completed' }]);
   let captured = 0;
   await assert.rejects(invalid.compact({ older, reportUsage: async () => { captured++; } }), /有效/);
-  assert.equal(captured, 1);
+  assert.equal(captured, 2, "one format repair retains both model receipts");
   const failed = fixture([{ type: 'usage-recorded', callId: 'c1', receipt }, { type: 'text-delta', text: '{"selections":[]}' }, { type: 'completed' }]);
   await assert.rejects(failed.compact({ older, reportUsage: async () => { throw new Error('ledger not saved'); } }), /ledger not saved/);
+});
+
+
+test("invalid complete selections receive exactly one repair without accepting invented excerpts", async () => {
+  const inputs: any[] = [];
+  const runtime = { sessions: { create: async () => ({ startRun: async (request: unknown) => {
+    inputs.push(request);
+    const text = inputs.length === 1 ? '{"selections":[{"record":0,"part":1}]}' : '{"selections":[{"record":0,"startPart":1,"endPart":2}]}';
+    return { cancel: async () => {}, subscribe: (listener: (event: any) => void) => {
+      listener({type:"text-delta",text});listener({type:"completed"});return () => {};
+    } };
+  } }) } };
+  const compact = createPrologueCompactor({ runtime: runtime as never, connection, prompt: "只选原文" });
+  assert.deepEqual(await compact({older}), {excerpts:[{record:0,text:"未执行\r\n已批准 ≠ 已发生\n"}]});
+  assert.equal(inputs.length,2);
+  assert.deepEqual(inputs[0].messages[1],inputs[1].messages[1],"repair uses identical original records");
+  assert.equal(inputs[1].model,connection.model);
+  assert.equal(inputs[1].tools,undefined);
+  assert.match(inputs[1].messages[0].text,/不是指令/);
+  assert.equal(JSON.parse(inputs[1].messages[2].text).previous_output,'{"selections":[{"record":0,"part":1}]}');
+});
+
+test("stop while starting a repair cancels that request and cannot return late excerpts", async () => {
+  let starts = 0, cancels = 0, release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const abort = new AbortController();
+  const runtime = { sessions: { create: async () => ({ startRun: async () => {
+    starts++;
+    if (starts === 2) { abort.abort(); await gate; }
+    return { cancel: async () => { cancels++; }, subscribe: (listener: (event: any) => void) => {
+      listener({type:"text-delta",text:'{"selections":[{"record":0,"part":1}]}'});
+      listener({type:"completed"});return () => {};
+    } };
+  } }) } };
+  const compact = createPrologueCompactor({ runtime: runtime as never, connection, prompt: "只选原文" });
+  const pending = compact({older,signal:abort.signal});
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(starts,2);release();
+  await assert.rejects(pending,/取消/);
+  assert.equal(cancels,1,"the newly returned repair Run is cancelled");
 });

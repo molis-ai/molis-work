@@ -16,6 +16,11 @@ export const PLANNING_SETTINGS_CLIENT_SCRIPT = `
         item.hidden=!matches;
         if(matches)visible+=1;
       });
+      board.querySelectorAll("[data-planning-fold]").forEach((fold)=>{
+        const items=[...fold.querySelectorAll("[data-planning-method]")];
+        if(!items.length) return;
+        fold.hidden=items.every((item)=>item.hidden);
+      });
       const empty=board.querySelector("[data-planning-filter-empty]");
       if(empty)empty.hidden=visible!==0;
     };
@@ -24,6 +29,49 @@ export const PLANNING_SETTINGS_CLIENT_SCRIPT = `
       applyFilter();
     }));
     search?.addEventListener("input",applyFilter);
+    const detail=board.querySelector("[data-planning-detail]");
+    if(!detail || board.dataset.planningStageBound==="1") return;
+    board.dataset.planningStageBound="1";
+    const loadDetail=async(path)=>{
+      board.dataset.planningSplit="detail";
+      detail.textContent=L("正在加载设置");
+      try{
+        const response=await fetch(path,{headers:{Accept:"text/html"}});
+        const html=await response.text();
+        const parsed=new DOMParser().parseFromString(html,"text/html");
+        const content=parsed.querySelector(".planning-detail, .planning-edit");
+        if(!response.ok || !content) throw new Error(L("无法加载设置"));
+        detail.replaceChildren(document.importNode(content,true));
+        globalThis.molisWorkBindPlanningSettings?.(detail);
+      }catch(error){
+        detail.textContent=error?.message||L("无法加载设置");
+      }
+    };
+    const closeDetail=()=>{
+      board.dataset.planningSplit="hero";
+      detail.replaceChildren();
+      board.querySelectorAll("[data-planning-open][aria-current]").forEach((item)=>item.removeAttribute("aria-current"));
+    };
+    board.addEventListener("click",(event)=>{
+      if(event.target.closest("[data-adopt-planning-method]")) return;
+      const opener=event.target.closest("[data-planning-open]");
+      if(opener && board.contains(opener)){
+        event.preventDefault();
+        event.stopPropagation();
+        board.querySelectorAll("[data-planning-open][aria-current]").forEach((item)=>item.removeAttribute("aria-current"));
+        opener.setAttribute("aria-current","page");
+        void loadDetail(opener.dataset.planningDetailPath);
+        return;
+      }
+      const link=event.target.closest("[data-planning-detail] a[href]");
+      if(!link) return;
+      const url=new URL(link.href,location.origin);
+      if(url.origin!==location.origin || !url.pathname.includes("/settings/planning")) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if(/\\/settings\\/planning\\/?$/.test(url.pathname)){ closeDetail(); return; }
+      void loadDetail(url.pathname+url.search);
+    });
   };
   const bindEditForm = (root)=>{
     const scope = root && root.querySelector ? root : document;

@@ -155,8 +155,8 @@ export { renderProjectHome } from "./project-home.js";
 export function renderGlobalSearchOverlay({ L, icon }: ImmersiveShellPrimitives): string {
   return `<dialog class="global-search-dialog" data-global-search-dialog aria-label="${L("搜索项目内的内容")}">
     <form class="global-search-shell" data-global-search-form>
-      <label class="global-search-field">${icon("search")}<input class="global-search-query" type="search" data-global-search placeholder="${L("搜索")}" aria-label="${L("搜索项目内的内容")}" autocomplete="off" enterkeyhint="search"><kbd>⌘K</kbd></label>
-      <div class="global-search-body" data-global-search-results role="listbox" aria-label="${L("搜索结果")}"></div>
+      <div class="global-search-field">${icon("search")}<input class="global-search-query" type="search" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="global-search-results" data-global-search placeholder="${L("搜索")}" aria-label="${L("搜索项目内的内容")}" autocomplete="off" enterkeyhint="search"><kbd>⌘K</kbd><button type="button" class="mw-btn mw-btn--ghost mw-btn--icon-only" data-global-search-close aria-label="${L("关闭")}">${icon("x")}</button></div>
+      <div id="global-search-results" class="global-search-body" data-global-search-results role="listbox" aria-label="${L("搜索结果")}"></div>
     </form>
   </dialog>`;
 }

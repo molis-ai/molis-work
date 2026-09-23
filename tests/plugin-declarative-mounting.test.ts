@@ -285,7 +285,7 @@ test("the bundled catalog reproduces the shell's navigation exactly", async () =
   const { railEntries, islandEntries, settingsEntries, PROJECT_SCOPED_PLUGIN_IDS, BUILTIN_PLUGIN_REGISTRY } =
     await import("@molis-ai/molis-work-app-workbench");
 
-  const everything = ["jelly", "goals", "sessions", "inbox", "feed", "shelf", "lingguang", "functions", "pages", "form", "dataset", "ppt", "artifacts"];
+  const everything = ["jelly", "goals", "sessions", "inbox", "feed", "shelf", "lingguang", "functions", "pages", "form", "dataset", "ppt", "alchemist", "artifacts"];
   assert.deepEqual(
     railEntries(everything).map((entry) => [entry.id, entry.label, entry.glyph]),
     [
@@ -300,6 +300,7 @@ test("the bundled catalog reproduces the shell's navigation exactly", async () =
       ["form", "Forms", "clipboard"],
       ["dataset", "Dataset", "database"],
       ["ppt", "PPT", "image"],
+      ["alchemist", "炼金术士", "zap"],
       ["artifacts", "Artifacts", "package"],
     ],
     "侧栏轨只挂 Manifest 声明了 navigator 的插件；灵光在岛上",
@@ -343,5 +344,6 @@ test("the bundled catalog reproduces the shell's navigation exactly", async () =
   assert.equal(BUILTIN_PLUGIN_REGISTRY.has("dataset"), false, "个人插件不是项目可启用项");
   assert.equal(BUILTIN_PLUGIN_REGISTRY.has("ppt"), false, "个人插件不是项目可启用项");
   assert.equal(BUILTIN_PLUGIN_REGISTRY.has("lingguang"), false, "个人插件不是项目可启用项");
+  assert.equal(BUILTIN_PLUGIN_REGISTRY.has("alchemist"), false, "个人插件不是项目可启用项");
   assert.deepEqual(BUILTIN_PLUGIN_REGISTRY.companions("feed"), ["inbox"]);
 });

@@ -1,3 +1,4 @@
+import { handleBuilderHttp } from "./plugin-builder-surface.js";
 import { observedWebGoalEvents } from './casebook/web-observer.js';
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { MolisWorkLocalHost } from "./project-host.js";
@@ -41,6 +42,14 @@ import { handleLocalCatalogWebRequest } from "./web-catalog.js";
 import { handleAgentReviewHttp } from "./agent-review-http.js";
 import { inspectGitIndex } from "./workspace-git-index.js";
 import { handleCodingPluginHttp, type CodingSurfacePorts } from "./coding-surface.js";
+
+// Embedded readers use their declared plugin routes without requiring separate
+// navigation entries. Keep this closure limited to the surfaces they consume.
+const embeddedCodingCompanions: Readonly<Record<string, readonly string[]>> = {
+  coding: ["workspace", "files", "git", "diff", "text-stats"],
+  files: ["workspace", "diff", "text-stats"],
+  git: ["workspace", "diff"],
+};
 
 export async function handleMolisWorkWebRequest(
   request: IncomingMessage,
@@ -97,7 +106,9 @@ export async function handleMolisWorkWebRequest(
       await localHost.withProject(hostReference, async (runtime) => {
         const { store, coordinator } = runtime;
         const goalEvents = observedWebGoalEvents(runtime, hostReference);
-        const codingServices: Pick<CodingSurfacePorts, "capabilities" | "execution" | "homeDirectory"> = {
+        const codingServices: Pick<CodingSurfacePorts, "capabilities" | "execution" | "homeDirectory" | "characterWorkspaces" | "characterSpawn"> = {
+          characterSpawn: request => ptyHost.spawn(request),
+          characterWorkspaces: () => composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => options.project ? catalog.listWorkspaceDirectory(options.project.project_id) : []),
           homeDirectory: serverOptions.homeDirectory,
           capabilities: localHost.client(hostReference),
           execution: {
@@ -110,11 +121,17 @@ export async function handleMolisWorkWebRequest(
             }),
           },
         };
-        if (/^\/api\/plugins\/io\.molis\.work\.(coding|workspace|files|git|diff|text-stats|shelf|characters)\//.test(url.pathname)) {
-          const plugin = url.pathname.startsWith("/api/plugins/io.molis.work.characters/") ? "characters" : url.pathname.startsWith("/api/plugins/io.molis.work.shelf/") ? "shelf" : "coding";
-          const enabled = PERSONAL_PLUGIN_IDS.includes(plugin) || (options.project && await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory },
-            (catalog) => catalog.listProjectPlugins(options.project!.project_id).includes(plugin)));
-          if (!enabled) { sendJson(response, 404, { error: plugin === "shelf" ? "这个项目未启用 Shelf" : "这个项目未启用 Coding" }); return; }
+        if (await handleBuilderHttp(request, response, url, { ...codingServices, store, boardId: options.boardId,
+          routePrefix: options.project ? `/projects/${encodeURIComponent(options.project.project_id)}` : "",
+          actorId: "web-user", goalTitle: (id) => coordinator.goalQueries.getGoal(options.boardId, id)?.title,
+          escapeHtml: (value) => String(value), translate: (value) => value }, controlToken)) return;
+        const codingPluginRoute = /^\/api\/plugins\/io\.molis\.work\.(coding|workspace|files|git|diff|text-stats|shelf|characters)\//.exec(url.pathname);
+        if (codingPluginRoute) {
+          const plugin = codingPluginRoute[1]!;
+          const enabled = PERSONAL_PLUGIN_IDS.some(personal => personal === plugin) || (options.project && await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory },
+            (catalog) => catalog.listProjectPlugins(options.project!.project_id).some(enabledPlugin =>
+              enabledPlugin === plugin || embeddedCodingCompanions[enabledPlugin]?.includes(plugin))));
+          if (!enabled) { sendJson(response, 404, { error: `这个项目未启用 ${plugin === "text-stats" ? "Text Stats" : plugin[0]!.toUpperCase() + plugin.slice(1)}` }); return; }
           if (await handleCodingPluginHttp(request, response, url, { ...codingServices, store, boardId: options.boardId,
             routePrefix: options.project ? `/projects/${encodeURIComponent(options.project.project_id)}` : "",
             actorId: "web-user", goalTitle: (id) => coordinator.goalQueries.getGoal(options.boardId, id)?.title,
@@ -238,6 +255,8 @@ export async function handleMolisWorkWebRequest(
             publishDatasetArtifact: registerDatasetArtifactVersion(coordinator, options.boardId),
             publishPptArtifact: registerPptArtifactVersion(coordinator, options.boardId),
             boundProjectId: options.project?.project_id ?? options.boardId,
+            cognia: { withCatalog: composition.withCatalog },
+            alchemist: { projectId: options.project?.project_id ?? options.boardId, routePrefix: options.routePrefix ?? "", controlToken, withCatalog: composition.withCatalog },
             projectMaterials: shelfProjectMaterials(coordinator.artifacts, options.boardId, "web-user", options.project?.display_name ?? options.boardId),
           },
         )) return;

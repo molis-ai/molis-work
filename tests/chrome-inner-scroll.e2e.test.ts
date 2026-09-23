@@ -102,29 +102,28 @@ test("Window chrome stays put while project index, settings, Feed, Sessions and 
   assert.ok(trafficLightClearance.webTitlebarLeft <= 2, JSON.stringify(trafficLightClearance));
   assert.equal(await evaluate("document.querySelector('[data-directory-list-title]')"), null);
   assert.equal(await evaluate("document.querySelector('[data-plugin-section=goals]')"), null);
-  await expectContained(".immersive-titlebar", "[data-work-surface=home]");
-  await expectContained("[data-workspace-chrome]", "[data-work-surface=home]");
-  await expectContained(".plugin-rail", "[data-work-surface=home]");
+  await expectContained(".immersive-titlebar", "[data-work-surface=home] .home-tl");
+  await expectContained("[data-workspace-chrome]", "[data-work-surface=home] .home-tl");
+  await expectContained(".plugin-rail", "[data-work-surface=home] .home-tl");
 
   await click('[data-plugin-strip] [data-plugin-id="feed"]');
   await waitFor("document.body.dataset.desktopSurface === 'feed' && document.querySelector('[data-feed-stage-directory]') && document.querySelector('[data-work-surface=feed]:not([hidden])') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
-  const projectMenuHit = await evaluate<{ overAdd: boolean; islandZ: string; addAfterClose: boolean }>(`(() => {
+  await click('[data-project-menu] > summary');
+  const projectMenuHit = await evaluate<{ onTop: boolean; islandZ: string; inViewport: boolean }>(`(() => {
     const menu = document.querySelector("[data-project-menu]");
     const add = document.querySelector("[data-feed-add-toggle]");
     const island = document.querySelector("[data-project-island]");
-    if (!menu || !add || !island) return { overAdd: false, islandZ: "", addAfterClose: false };
-    menu.open = true;
-    const box = add.getBoundingClientRect();
-    const hit = document.elementFromPoint(box.left + Math.min(24, box.width / 2), box.top + box.height / 2);
-    const overAdd = Boolean(hit?.closest(".navigator-project-menu-popover"));
+    if (!menu || !add || !island) return { onTop: false, islandZ: "", inViewport: false };
+    const box = menu.querySelector('.navigator-project-menu-popover').getBoundingClientRect();
+    const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+    const onTop = Boolean(hit?.closest(".navigator-project-menu-popover"));
     const islandZ = getComputedStyle(island).zIndex;
-    menu.open = false;
-    const after = document.elementFromPoint(box.left + Math.min(24, box.width / 2), box.top + box.height / 2);
-    return { overAdd, islandZ, addAfterClose: Boolean(after?.closest("[data-feed-add-toggle]")) };
+    return { onTop, islandZ, inViewport: box.top >= 0 && box.left >= 0 && box.right <= innerWidth && box.bottom <= innerHeight };
   })()`);
   assert.equal(projectMenuHit.islandZ, "50");
-  assert.ok(projectMenuHit.overAdd, "Open project menu covers the Feed add-task control");
-  assert.ok(projectMenuHit.addAfterClose, "Closing the project menu restores the Feed add-task hit target");
+  assert.ok(projectMenuHit.onTop && projectMenuHit.inViewport, 'Open project menu is reachable above the work surface: ' + JSON.stringify(projectMenuHit));
+  await click('[data-project-menu] > summary');
+  assert.ok(await evaluate(`(() => { const add = document.querySelector('[data-feed-add-toggle]'); const box = add.getBoundingClientRect(); return add.contains(document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)); })()`), 'Closing the project menu restores the Feed add-task hit target');
   await expectContained(".immersive-titlebar", ".feed-stage-tree");
   await expectContained("[data-workspace-chrome]", ".feed-stage-tree");
   await expectContained(".plugin-rail", ".feed-stage-tree");
@@ -143,9 +142,9 @@ test("Window chrome stays put while project index, settings, Feed, Sessions and 
 
   await click('[data-plugin-strip] [data-plugin-id="shelf"]');
   await waitFor("document.body.dataset.desktopSurface === 'shelf' && document.querySelector('[data-shelf-stage-shell]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
-  await expectContained(".immersive-titlebar", "[data-shelf=directory]");
-  await expectContained("[data-workspace-chrome]", "[data-shelf=directory]");
-  await expectContained(".plugin-rail", "[data-shelf=directory]");
+  await expectContained(".immersive-titlebar", "[data-shelf=directory] .shelf-side-scroll");
+  await expectContained("[data-workspace-chrome]", "[data-shelf=directory] .shelf-side-scroll");
+  await expectContained(".plugin-rail", "[data-shelf=directory] .shelf-side-scroll");
 
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('[data-goal-stage-list]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");

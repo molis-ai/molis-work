@@ -9,7 +9,7 @@ export async function handleGoalPolicyGuidanceHttp(context: GoalsHttpContext): P
       if (body.scope !== "project_default" || body.goal_id != null) throw new Error("此入口只保存项目默认规则。");
       const result = context.commands.saveProjectPolicy({
         board_id: context.options.boardId, actor_id: "web-user",
-        reason: String(body.reason ?? ""), user_confirmed: body.user_confirmed === true,
+        user_confirmed: body.user_confirmed === true,
         policy: body.policy as Parameters<GoalsCommandApi["saveProjectPolicy"]>[0]["policy"],
         idempotency_key: String(body.idempotency_key ?? ""),
       });

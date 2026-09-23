@@ -286,10 +286,10 @@ test("primitive controls keep authored states instead of a class dump", () => {
   assert.match(PRIMITIVE_STYLES, /\.mw-catalog-shell \{[\s\S]*border-radius: var\(--radius-surface/);
   assert.match(PRIMITIVE_STYLES, /\.mw-catalog-shell \{[\s\S]*grid-template-columns: 48px 240px/);
   assert.match(PRIMITIVE_STYLES, /\.mw-catalog-shell \{[\s\S]*height: 440px/);
-  assert.match(PRIMITIVE_STYLES, /\.mw-catalog \.mw-sidebar--rail \{[^}]*border-right: 1px solid var\(--line\)/);
-  assert.match(PRIMITIVE_STYLES, /\.mw-catalog \.mw-sidebar--directory \{[^}]*border-right: 1px solid var\(--line\)/);
-  assert.match(PRIMITIVE_STYLES, /\.mw-catalog \.mw-sidebar--rail \.mw-btn \{[^}]*width: 36px/);
-  assert.match(PRIMITIVE_STYLES, /\.mw-catalog \.mw-frame__heading h2 \{[^}]*font-size: 16px/);
+  assert.match(PRIMITIVE_STYLES, /:is\(\.mw-catalog, \.mw-layout-primitives\) \.mw-sidebar--rail \{[^}]*border-right: 1px solid var\(--line\)/);
+  assert.match(PRIMITIVE_STYLES, /:is\(\.mw-catalog, \.mw-layout-primitives\) \.mw-sidebar--directory \{[^}]*border-right: 1px solid var\(--line\)/);
+  assert.match(PRIMITIVE_STYLES, /:is\(\.mw-catalog, \.mw-layout-primitives\) \.mw-sidebar--rail \.mw-btn \{[^}]*width: 36px/);
+  assert.match(PRIMITIVE_STYLES, /:is\(\.mw-catalog, \.mw-layout-primitives\) \.mw-frame__heading h2 \{[^}]*font-size: 16px/);
   assert.match(html, /添加已有内容/);
   assert.match(html, /mw-btn--link/);
   assert.doesNotMatch(PRIMITIVE_STYLES, /\.mw-catalog \.mw-frame__header \{[^}]*border-bottom/);
@@ -358,4 +358,12 @@ test("plugin rail reuses the segmented thumb and stages share creative-arrive", 
   assert.match(MICRO_INTERACTION_STYLES, /@keyframes creative-arrive/);
   assert.match(MICRO_INTERACTION_STYLES, /\.assistant-composer\):popover-open/);
   assert.match(MICRO_INTERACTION_STYLES, /prefers-reduced-motion: reduce[\s\S]*\.is-arriving[\s\S]*animation: none/);
+});
+
+
+test("embedded directory panels keep the component structure without joining host navigation", () => {
+  const html = renderDirectoryPanel({ pluginId: "coding", embedded: true, label: "会话", listLabel: "会话", body: "" });
+  assert.match(html, /data-slot="directory"/);
+  assert.match(html, /mw-dir__label/);
+  assert.doesNotMatch(html, /data-directory-panel=/);
 });

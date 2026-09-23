@@ -3,8 +3,11 @@ import { CHARACTER_ARTIFACT_TYPE, CHARACTER_PLUGIN_ID, CHARACTER_PUBLISHER_SIGNA
 import type { PluginDefinition, PluginRouteBinding, PluginRouteRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { charactersManifest } from "./manifest.js";
 import { charactersUiContribution } from "./ui.js";
+import type { CharactersImportPorts } from "./imports.js";
+import { characterBrowserPreview, characterSnapshotPreview, characterFilePreview } from "./import-preview.js";
 
 export interface CharactersPluginPorts {
+  imports?: CharactersImportPorts;
   actorId: string;
   drafts: CharactersQuery & CharactersCommand;
   /** Includes every publication version in the current project, including archived versions. */
@@ -31,28 +34,52 @@ export function createCharactersPlugin(ports: CharactersPluginPorts): PluginDefi
       if (!request.body || typeof request.body !== "object" || Array.isArray(request.body)) throw new Error("角色请求格式无效");
       return request.body as Record<string, unknown>;
     };
-    const route = (route_id: string, action: (request: PluginRouteRequest) => unknown): PluginRouteBinding => ({ route_id, handle(request) {
+    const route = (route_id: string, action: (request: PluginRouteRequest) => unknown): PluginRouteBinding => ({ route_id, async handle(request) {
       if (request.actor_id !== ports.actorId) return { status: 403, body: { error: "不能操作其他人的角色" } };
-      try { return { status: 200, body: action(request) }; }
+      try { return { status: 200, body: await action(request) }; }
       catch (error) {
         const code = (error as { code?: string }).code;
         return { status: code === "character.conflict" ? 409 : code === "character.not_found" ? 404 : 400,
           body: { error: error instanceof Error ? error.message : "角色操作失败", ...(code ? { code } : {}) } };
       }
     } });
+    const imports = () => { if (!ports.imports) throw new Error("本地 Agent 导入服务尚未接通"); return ports.imports; };
+    const publication = (request: PluginRouteRequest, requireActive = true) => {
+      const input = body(request), ref = input.reference as ArtifactReference | undefined;
+      const record = publications().find(item => item.artifact_id === ref?.artifact_id && item.version === ref.version);
+      if (!record || requireActive && (record.lifecycle_state !== "active" || record.availability !== "available")) throw new Error("请选择当前项目已发布的角色版本");
+      const content = parseCharacterContent(record.payload), draft = ports.drafts.get(content.character_id);
+      if (requireActive && (!draft || draft.state !== "active")) throw new Error("该角色已停用或删除");
+      return { content, reference: { artifact_id: record.artifact_id, version: record.version } };
+    };
     return { kind: "app", views: [charactersUiContribution], routes: [
-      route("characters.list", () => ({ drafts: ports.drafts.list(), publications: publications() })),
+      route("characters.discover", request => ({ candidates: imports().discover(body(request)).map(candidate => ({ ...candidate, snapshot: characterSnapshotPreview(candidate.snapshot) })) })),
+      route("characters.import-file", request => { const input = body(request); return imports().previewFile(input.candidate_id as string, input); }),
+      route("characters.draft-file", request => characterFilePreview(ports.drafts.get(request.params.id ?? "")?.import_snapshot, body(request))),
+      route("characters.publication-file", request => characterFilePreview(publication(request, false).content.import_snapshot, body(request))),
+      route("characters.import", request => {
+        const input = body(request);
+        const result = imports().import(input.candidate_id as string, input.selection as Parameters<CharactersImportPorts["import"]>[1], input.existing as Parameters<CharactersImportPorts["import"]>[2]);
+        return { ...result, draft: characterBrowserPreview(result.draft) };
+      }),
+      route("characters.execution", request => imports().execution(publication(request).content)),
+      route("characters.launch", request => { const selected = publication(request); return imports().launch(selected.content, selected.reference, body(request) as unknown as Parameters<CharactersImportPorts["launch"]>[2]); }),
+      route("characters.runs", request => {
+        if (!ports.drafts.get(request.params.id ?? "")) throw new Error("角色不存在");
+        return imports().runs(request.params.id ?? "").then(runs => ({ runs }));
+      }),
+      route("characters.list", () => ({ drafts: ports.drafts.list().map(characterBrowserPreview), publications: publications().map(record => ({ ...record, payload: characterBrowserPreview(parseCharacterContent(record.payload)) })) })),
       route("characters.create", () => ({ draft: ports.drafts.create() })),
       route("characters.update", request => {
         const input = body(request);
-        return { draft: ports.drafts.update(request.params.id ?? "", input.expected_revision as number, {
+        return { draft: characterBrowserPreview(ports.drafts.update(request.params.id ?? "", input.expected_revision as number, {
           title: input.title as string, instructions: input.instructions as string, host_tools: input.host_tools as string[] | null,
-        }) };
+        })) };
       }),
       route("characters.state", request => {
         const input = body(request);
-        return { draft: ports.drafts.setState(request.params.id ?? "", input.expected_revision as number,
-          input.state as "active" | "disabled" | "tombstoned") };
+        return { draft: characterBrowserPreview(ports.drafts.setState(request.params.id ?? "", input.expected_revision as number,
+          input.state as "active" | "disabled" | "tombstoned")) };
       }),
       route("characters.publish", request => {
         const input = body(request);
@@ -70,7 +97,7 @@ export function createCharactersPlugin(ports: CharactersPluginPorts): PluginDefi
             ...(previous ? { supersedes_version: previous.version } : {}),
           });
         });
-        return { reference: { artifact_id: result.artifact.artifact_id, version: result.artifact.version }, publication: result.artifact, replayed: result.replayed };
+        return { reference: { artifact_id: result.artifact.artifact_id, version: result.artifact.version }, publication: { ...result.artifact, payload: characterBrowserPreview(parseCharacterContent(result.artifact.payload)) }, replayed: result.replayed };
       }),
     ] };
   } };

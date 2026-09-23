@@ -10,6 +10,7 @@ import {
   createInboxRouteHandlers,
 } from "@molis-ai/molis-work-plugin-inbox";
 import { LINGGUANG_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-lingguang";
+import { ALCHEMIST_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-alchemist";
 import { PAGES_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-pages";
 import { PPT_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-ppt";
 import {
@@ -31,6 +32,7 @@ const csrClients = {
   functions: FUNCTIONS_CLIENT_FACTORY_SCRIPT,
   pages: PAGES_CLIENT_FACTORY_SCRIPT,
   lingguang: LINGGUANG_CLIENT_FACTORY_SCRIPT,
+  alchemist: ALCHEMIST_CLIENT_FACTORY_SCRIPT,
 } as const;
 
 function sliceFn(script: string, startToken: string, endToken: string): string {
@@ -57,6 +59,7 @@ test("个人插件列表在创建、删除、返回后重新 GET，并保住滚�
   assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /data-pages-back[\s\S]{0,400}await loadList\(\)/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /data-functions-back[\s\S]{0,400}await loadList\(\)/);
   assert.match(LINGGUANG_CLIENT_FACTORY_SCRIPT, /data-lingguang-back[\s\S]{0,400}await loadList\(\)/);
+  assert.match(ALCHEMIST_CLIENT_FACTORY_SCRIPT, /data-alchemist-back[\s\S]{0,400}await loadList\(\)/);
 });
 
 test("Functions 静默刷新当前草稿时不重挂编辑器，保存失败保留表单", () => {

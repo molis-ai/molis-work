@@ -1,5 +1,6 @@
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-export const IMAGES_PLUGIN_ID = "io.molis.work.images";
+import { IMAGES_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/images";
+
 export const IMAGES_UI_CONTRIBUTION_ID = "io.molis.work.native.images.ui.v1";
 export const imagesManifest: PluginManifest = {
   schema_version: 2,

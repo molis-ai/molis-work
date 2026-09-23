@@ -39,6 +39,8 @@ export interface DirectoryAddOptions {
 
 export interface DirectoryPanelOptions {
   pluginId: string;
+  /** A plugin-local list must not join the host navigation inventory. */
+  embedded?: boolean;
   listLabel: string;
   body: string;
   className?: string;
@@ -126,7 +128,7 @@ export function renderDirectoryPanel(options: DirectoryPanelOptions): string {
   const add = options.add ? renderDirectoryAdd(options.add) : "";
   const addBeforeList = options.addPlacement === "start" ? add : "";
   const addAfterList = options.addPlacement === "start" ? "" : add;
-  return `<section class="${cx("mw-dir", "desktop-directory-panel", options.className)}" data-slot="directory" data-directory-panel="${escapeHtml(options.pluginId)}"${renderAttrs(options.attrs)}>${tools}${addBeforeList}${list}${
+  return `<section class="${cx("mw-dir", "desktop-directory-panel", options.className)}" data-slot="directory" ${options.embedded ? "" : `data-directory-panel="${escapeHtml(options.pluginId)}"`}${renderAttrs(options.attrs)}>${tools}${addBeforeList}${list}${
     emptyInList ? "" : empty
   }${addAfterList}${footer}</section>`;
 }

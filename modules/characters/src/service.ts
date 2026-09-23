@@ -1,5 +1,5 @@
-import type { CharacterContent, CharacterDraft, CharacterDraftPatch, CharacterState, CharactersCommand, CharactersQuery } from "@molis-ai/molis-work-contracts/modules/characters";
-import { parseCharacterContent, parseCharacterTools } from "@molis-ai/molis-work-contracts/modules/characters";
+import type { CharacterImportSnapshot, CharacterImportSelection, CharacterContent, CharacterDraft, CharacterDraftPatch, CharacterState, CharactersCommand, CharactersQuery } from "@molis-ai/molis-work-contracts/modules/characters";
+import { parseCharacterContent, parseCharacterTools, selectCharacterImportSnapshot } from "@molis-ai/molis-work-contracts/modules/characters";
 import type { CharactersRepository } from "./repository.js";
 
 export class CharacterError extends Error {
@@ -21,6 +21,31 @@ export class CharactersService implements CharactersQuery, CharactersCommand {
       revision: 1, state: "active", title: "新角色", instructions: "", host_tools: null, created_at: at, updated_at: at };
     this.repository.insert(record);
     return record;
+  }
+
+  import(snapshot: CharacterImportSnapshot, selection: CharacterImportSelection,
+    existing?: { character_id: string; expected_revision: number }): { draft: CharacterDraft; replayed: boolean } {
+    let selected: CharacterImportSnapshot;
+    try { selected = selectCharacterImportSnapshot(snapshot, selection); }
+    catch (error) { throw new CharacterError("character.invalid", (error as Error).message); }
+    const sameSource = (source: CharacterImportSnapshot | undefined) => source && source.runtime_id === selected.runtime_id
+      && source.config_root === selected.config_root && source.project_root === selected.project_root;
+    return this.repository.immediate(() => {
+      if (existing) {
+        const current = this.confirmed(existing.character_id, existing.expected_revision);
+        if (!sameSource(current.import_snapshot)) throw new CharacterError("character.invalid", "更新来源与原角色不同，请创建新的导入角色");
+        // The explicit confirmed revision authorizes replacing the imported package, not personal edits.
+        return { draft: this.replace(current, { ...current, import_snapshot: selected }), replayed: false };
+      }
+      const previous = this.list().find(draft => draft.state !== "tombstoned" && sameSource(draft.import_snapshot));
+      if (previous) return { draft: previous, replayed: true };
+      const at = this.now(), labels = { codex: "Codex", "claude-code": "Claude Code", cursor: "Cursor", opencode: "OpenCode", "grok-build": "Grok Build" };
+      const draft: CharacterDraft = { character_id: crypto.randomUUID(), owner_actor_id: this.actorId, revision: 1, state: "active",
+        title: `${labels[selected.runtime_id]} 角色`, instructions: "遵循已导入规则的适用范围，按选定技能的方法完成任务。可在这里补充个人要求。",
+        host_tools: null, created_at: at, updated_at: at, import_snapshot: selected };
+      this.repository.insert(draft);
+      return { draft, replayed: false };
+    });
   }
 
   update(id: string, expectedRevision: number, patch: CharacterDraftPatch): CharacterDraft {
@@ -62,6 +87,7 @@ export class CharactersService implements CharactersQuery, CharactersCommand {
       let content: CharacterContent;
       try { content = parseCharacterContent({ character_id: current.character_id, title: current.title,
         instructions: current.instructions, host_tools: current.host_tools,
+        ...(current.import_snapshot ? { import_snapshot: current.import_snapshot } : {}),
         source: { owner_actor_id: current.owner_actor_id, draft_revision: current.revision } }); }
       catch (error) { throw new CharacterError("character.invalid", (error as Error).message); }
       const result = publisher(content);

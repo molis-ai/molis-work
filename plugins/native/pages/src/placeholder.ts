@@ -6,6 +6,7 @@ export function blockPlaceholder($pos: ResolvedPos): string {
   const s = pagesSchema;
   const node = $pos.parent;
   if (!node.isTextblock || node.content.size > 0) return "";
+  if (node.type === s.nodes.code_block) return "写代码";
   if (node.type === s.nodes.heading) return "标题 " + String(node.attrs.level);
   if (node.type !== s.nodes.paragraph) return "";
   const holder = $pos.depth > 0 ? $pos.node($pos.depth - 1) : null;

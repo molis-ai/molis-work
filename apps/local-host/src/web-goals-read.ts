@@ -1,3 +1,4 @@
+import { builderWorkbenchPanel } from "./plugin-builder-surface.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { renderWorkbenchGoalsReadRequest, renderWorkbenchGoalsPageRequest, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
@@ -11,14 +12,10 @@ import type { SessionRuntimeResources, createSessionProjectOperations } from "./
 import { sendLocalWebJson as sendJson } from "./web-http.js";
 import { escapeHtml } from "@molis-ai/molis-work-design-system";
 import {
-  codingDirectoryPanel,
+  codingCompanionStages,
   codingWorkbenchPanel,
   charactersWorkbenchPanel,
   type CodingSurfacePorts,
-  diffStagePanel,
-  filesDirectoryPanel,
-  gitDirectoryPanel,
-  workspaceDirectoryPanel,
 } from "./coding-surface.js";
 
 export function createLocalGoalsReadHttp(ports: {
@@ -102,7 +99,7 @@ export function createLocalGoalsReadHttp(ports: {
   async function page(request: IncomingMessage, response: ServerResponse, url: URL, options: WebViewOptions,
     homeDirectory: string | undefined, readWebView: () => MolisWorkWebView, sessionResources: Promise<SessionRuntimeResources>, controlToken: string,
     coordinator?: GoalProjectApplication, store?: LocalProjectDatabase,
-    codingServices?: Pick<CodingSurfacePorts, "capabilities" | "execution" | "homeDirectory">,
+    codingServices?: Pick<CodingSurfacePorts, "capabilities" | "execution" | "homeDirectory" | "characterWorkspaces" | "characterSpawn">,
   ): Promise<boolean> {
     const renderedGoalsPage = await renderWorkbenchGoalsPageRequest(
       request.method, url.pathname, readWebView,
@@ -128,28 +125,8 @@ export function createLocalGoalsReadHttp(ports: {
             workspaces: projectConfiguration.workspaces,
             routePrefix: view.route_prefix,
           };
-          // Each Plugin contributes its own panel, and only the ones this
-          // project enabled. A Plugin that is not running, or that fails,
-          // contributes nothing and the shell renders exactly as before.
-          const panels: Record<string, string> = {};
-          for (const [pluginId, surface] of [
-            ["coding", projectConfiguration.plugins.includes("coding")
-              ? await codingDirectoryPanel(surfacePorts) : null],
-            ["workspace", projectConfiguration.plugins.includes("workspace")
-              ? await workspaceDirectoryPanel(surfacePorts) : null],
-            ["files", projectConfiguration.plugins.includes("files")
-              ? await filesDirectoryPanel(surfacePorts) : null],
-            ["git", projectConfiguration.plugins.includes("git")
-              ? await gitDirectoryPanel(surfacePorts) : null],
-            ["diff", projectConfiguration.plugins.includes("diff")
-              ? await diffStagePanel(surfacePorts) : null],
-          ] as const) {
-            void pluginId;
-            if (surface) panels[surface.plugin_id] = surface.panel;
-          }
-          if (Object.keys(panels).length > 0) view = { ...view, plugin_panels: panels };
           const characterStage = await charactersWorkbenchPanel(surfacePorts);
-          view = { ...view, plugin_stages: [characterStage.panel] };
+          view = { ...view, plugin_stages: [characterStage.panel, await builderWorkbenchPanel(surfacePorts), ...await codingCompanionStages(surfacePorts, projectConfiguration.plugins)] };
           if (projectConfiguration.plugins.includes("coding")) {
             const stage = await codingWorkbenchPanel(surfacePorts);
             if (stage) view = { ...view, plugin_stages: [...(view.plugin_stages ?? []), stage.panel] };

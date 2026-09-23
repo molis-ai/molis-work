@@ -506,6 +506,18 @@ export function spanRoots(doc: Node, anchor: number, head: number): DragRow[] {
   });
 }
 
+/** Blocks a multi-row selection should copy. A single row stays with the normal clipboard. */
+export function nodesInSpan(doc: Node, anchor: number, head: number): Node[] | null {
+  const roots = spanRoots(doc, anchor, head);
+  if (roots.length < 2) return null;
+  const nodes: Node[] = [];
+  roots.forEach((row) => {
+    const node = doc.nodeAt(row.pos);
+    if (node) nodes.push(node);
+  });
+  return nodes.length > 1 ? nodes : null;
+}
+
 function groupFragment(parent: Node, nodes: readonly Node[], wrapList?: ListKind): Fragment | null {
   if (wrapList) {
     const items: Node[] = [];
@@ -608,6 +620,58 @@ export function previewSpan(doc: Node, anchor: number, head: number, gap: number
 
 export function placeSpan(doc: Node, anchor: number, head: number, gap: number, level: number): Node | null {
   return previewSpan(doc, anchor, head, gap, level)?.doc ?? null;
+}
+
+function copyRootsToSlot(doc: Node, roots: readonly DragRow[], slot: DropSlot): Node | null {
+  if (slot.wrapColumns || slot.splitColumn) return null;
+  const parent = slot.parentPos == null ? doc : doc.nodeAt(slot.parentPos);
+  if (!parent) return null;
+  const nodes: Node[] = [];
+  for (const root of roots) {
+    const node = doc.nodeAt(root.pos);
+    if (!node) return null;
+    if (slot.parentPos != null && slot.parentPos >= root.pos && slot.parentPos < root.pos + node.nodeSize) return null;
+    nodes.push(node.copy(node.content));
+  }
+  const fragment = groupFragment(parent, nodes, slot.wrapList);
+  if (!fragment?.size) return null;
+  if (slot.index < 0 || slot.index > parent.childCount) return null;
+  if (!parent.canReplace(slot.index, slot.index, fragment)) return null;
+  const insertPos = childPosition(doc, slot.parentPos, slot.index);
+  if (insertPos == null) return null;
+  for (const root of roots) {
+    const node = doc.nodeAt(root.pos);
+    if (node && insertPos > root.pos && insertPos < root.pos + node.nodeSize) return null;
+  }
+  const placed = replace(doc, insertPos, insertPos, fragment);
+  return placed.eq(doc) ? null : placed;
+}
+
+/** Drop a copy at the same slot a move would use. The original blocks stay. */
+export function previewCopySpan(doc: Node, anchor: number, head: number, gap: number, level: number): { level: number; doc: Node } | null {
+  try {
+    const roots = spanRoots(doc, anchor, head);
+    if (roots.length === 0) return null;
+    const first = doc.nodeAt(roots[0].pos);
+    if (!first) return null;
+    const rows = dragRows(doc);
+    if (gap < 0 || gap > rows.length) return null;
+    const range = dropLevelRange(rows, gap);
+    let cursor = Math.max(range.min, Math.min(level, range.max));
+    for (; cursor >= range.min; cursor -= 1) {
+      const slot = dropSlot(doc, rows, gap, cursor, first);
+      if (!slot) continue;
+      const next = copyRootsToSlot(doc, roots, slot);
+      if (next) return { level: cursor, doc: next };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export function placeCopySpan(doc: Node, anchor: number, head: number, gap: number, level: number): Node | null {
+  return previewCopySpan(doc, anchor, head, gap, level)?.doc ?? null;
 }
 
 export function deleteSpan(doc: Node, anchor: number, head: number): Node | null {

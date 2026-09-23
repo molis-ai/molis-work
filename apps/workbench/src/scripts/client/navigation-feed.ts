@@ -278,7 +278,10 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
 
     const resetFeedFields = (root) => {
       root?.querySelectorAll("input, textarea, select").forEach(field => {
-        if (field.tagName === "SELECT") [...field.options].forEach(option => option.selected = option.defaultSelected);
+        if (field.tagName === "SELECT") {
+          if (field.multiple) [...field.options].forEach(option => option.selected = option.defaultSelected);
+          else field.selectedIndex = Math.max(0, [...field.options].findLastIndex(option => option.defaultSelected));
+        }
         else if (field.type === "checkbox") field.checked = field.defaultChecked;
         else field.value = field.defaultValue;
       });
@@ -288,7 +291,24 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
       const config = feedSourcesDialog.querySelector("[data-feed-task-config]:not([hidden])");
       if (config) resetFeedFields(config);
     });
+    feedSourcesDialog?.addEventListener("cancel", (event) => {
+      if (feedSourcesDialog.getAttribute("aria-busy") === "true" || feedSourcesDialog.querySelector('[data-feed-add-form][aria-busy="true"]')) event.preventDefault();
+    });
+    const resetFeedAddDraft = () => {
+      const draft = feedSourcesDialog.querySelector("[data-feed-add-form]");
+      draft.reset();
+      delete draft.dataset.createdSourceId;
+      delete draft.dataset.createdOutRuleId;
+      draft.querySelectorAll("input, select, textarea").forEach(field => { field.disabled = false; });
+      draft.querySelectorAll("details").forEach(section => { section.open = false; });
+      draft.querySelector("[data-feed-add-error]").hidden = true;
+      const create = feedSourcesDialog.querySelector("[data-feed-source-register]");
+      create.disabled = false;
+      create.textContent = L("创建任务");
+      feedSourcesDialog.querySelector("[data-feed-setup-back]").hidden = false;
+    };
     const showFeedSetup = (stage = "choose", value = "") => {
+      if (feedSourcesDialog?.getAttribute("aria-busy") === "true") return;
       if (!feedSourcesDialog) return;
       if (stage === "config" && !feedSourcesDialog.querySelector('[data-feed-task-config="' + CSS.escape(value) + '"]')) {
         showToast(L("这个任务已不可用，请刷新后查看。")); return;

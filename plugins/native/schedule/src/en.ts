@@ -1,5 +1,6 @@
 /** Schedule application copy; Workbench supplies the request locale. */
 export const SCHEDULE_EN: Record<string, string> = {
+  "正在创建…": "Creating…",
   "还没有定时任务": "No scheduled tasks yet",
   "新建一条之后，到点会在它自己的对话里跑一轮只读 Agent。其他插件登记的闹钟也会出现在这里。": "Create one and a read-only agent will run in that task’s own chat when it is due. Alarms registered by other plugins also appear here.",
   "选择一条定时任务": "Select a scheduled task",

@@ -1,6 +1,7 @@
 import type { UiContribution, UiContributionDescriptor, UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import { icon, renderPluginStageShell } from "@molis-ai/molis-work-design-system";
-import { IMAGES_PLUGIN_ID, IMAGES_UI_CONTRIBUTION_ID } from "./manifest.js";
+import { IMAGES_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/images";
+import { IMAGES_UI_CONTRIBUTION_ID } from "./manifest.js";
 
 export interface ImagesUiModel {
   readonly primitives: {

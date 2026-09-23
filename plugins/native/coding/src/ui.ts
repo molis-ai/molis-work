@@ -4,7 +4,7 @@ import type {
   UiContributionDescriptor,
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
-import { renderButton, renderTextarea, renderStatusMark } from "@molis-ai/molis-work-design-system";
+import { renderButton, renderTextarea, renderStatusMark, renderDirectoryRow, renderDirectoryPanel, renderDirectoryHeading, renderSidebar, renderFrame } from "@molis-ai/molis-work-design-system";
 import type {
   AgentPendingQuestion,
   AgentRunUsage,
@@ -98,17 +98,17 @@ export const codingUiContribution: UiContribution<CodingUiModel> = {
 
 export function renderCodingDirectory(model: CodingUiModel): string {
   const { primitives: p } = model;
-  const faces = CODING_DIRECTORY_FACES.map((face) => `<button type="button" class="mw-toggle coding-face" data-coding-face="${face.face}"${face.face === model.face ? ' aria-selected="true"' : ""} aria-label="${p.escape(face.label)}">${p.icon(face.icon)}</button>`).join("");
-  const filters = (["all", "running", "needs-you"] as const).map((filter) => `<button type="button" class="mw-toggle coding-filter" data-coding-filter="${filter}"${filter === model.filter ? ' aria-selected="true"' : ""}>${p.escape(filterLabel(filter))}</button>`).join("");
+  const faces = CODING_DIRECTORY_FACES.map((face) => `<button type="button" class="mw-toggle coding-face" data-coding-face="${face.face}" aria-pressed="${face.face === model.face}" title="${p.escape(face.label)}" aria-label="${p.escape(face.label)}">${p.icon(face.icon)}</button>`).join("");
+  const filters = (["all", "running", "needs-you"] as const).map((filter) => `<button type="button" class="mw-toggle coding-filter" data-coding-filter="${filter}" aria-pressed="${filter === model.filter}">${p.escape(filterLabel(filter))}</button>`).join("");
   const groups = groupByGoal(filterSessions(model.sessions, model.filter))
     .map((group) => renderGroup(group.goal_id, group.title, group.entries, p))
     .join("");
-  return `<section class="coding-directory" data-coding-directory data-coding-current-face="${model.face}">
-    <nav class="coding-faces" aria-label="${p.escape("Coding 导航面")}">${faces}</nav>
-    <header class="coding-directory-head"><h2>${p.escape(faceLabel(model.face))}</h2><button type="button" class="mw-btn mw-btn--icon-only" data-coding-new aria-label="新建编码会话">${p.icon("plus")}</button></header>
-    <label class="coding-search"><span>搜索标题</span><input class="mw-input" data-coding-search aria-label="搜索会话标题" placeholder="搜索会话标题"></label>
-    <div class="coding-filters" role="group" aria-label="${p.escape("会话筛选")}">${filters}</div>
-    <div class="coding-session-list" data-coding-sessions>${groups || renderEmpty(p)}</div>
+  return renderSidebar({className:"coding-directory",attrs:{"data-coding-directory":"","data-coding-current-face":model.face},
+    body: renderDirectoryPanel({pluginId:"coding",embedded:true,label:faceLabel(model.face),listLabel:"编码会话",listRole:"none",
+      tools: renderButton({label:"搜索与筛选",icon:"search",iconOnly:true,variant:"ghost",attrs:{"data-coding-search-toggle":"","aria-expanded":false}}),
+      body: `<nav class="coding-faces" aria-label="Coding 导航面">${faces}</nav>
+      <div class="coding-query" data-coding-query hidden><label class="coding-search"><span class="mw-sr-only">搜索标题</span><input class="mw-input" data-coding-search aria-label="搜索会话标题" placeholder="搜索会话标题"></label><div class="coding-filters mw-toggle-group" role="group" aria-label="会话筛选">${filters}</div></div>
+      <div class="coding-session-list" data-coding-sessions>${groups || renderEmpty(p)}</div>
     <section data-coding-taskboard hidden aria-label="计划与执行看板">
       <label class="mw-field"><span>当前任务</span><select class="mw-select" data-coding-taskboard-session aria-label="选择看板任务"></select></label>
       <p data-coding-taskboard-status role="status">选择会话后查看计划与实际执行。</p>
@@ -119,8 +119,9 @@ export function renderCodingDirectory(model: CodingUiModel): string {
       <button class="mw-btn mw-btn--ghost" type="button" data-coding-artifact-refresh>刷新成果</button>
       <p data-coding-artifact-status role="status"></p><div data-coding-artifact-list></div>
     </section>
-    ${model.companion_directory ?? ""}
-  </section>`;
+    ${model.companion_directory ?? ""}`,
+      add:{label:"新建编码会话",attrs:{"data-coding-new":""}}
+    })});
 }
 
 function renderGroup(
@@ -131,20 +132,18 @@ function renderGroup(
 ): string {
   const rows = entries.map((entry) => {
     const mark = STATE_MARK[entry.state];
-    return `<a class="coding-session-row" href="#session-${p.escape(entry.session_id)}" data-coding-session="${p.escape(entry.session_id)}">
-      <span class="coding-session-title">${p.escape(entry.title)}</span>
-      <time class="coding-session-time">${p.escape(p.formatDate(entry.updated_at))}</time>
-      <span class="mw-status" data-tone="${mark.tone}">${p.icon(mark.icon)}${p.escape(mark.label)}</span>
-    </a>`;
+    return renderDirectoryRow({ title: entry.title, caption: mark.label, count: p.formatDate(entry.updated_at),
+      density: "meta", icon: "message", className: "coding-session-row", href: `#session-${entry.session_id}`,
+      attrs: { "data-coding-session": entry.session_id } });
   }).join("");
   return `<section class="coding-session-group"${goalId === null ? "" : ` data-coding-goal="${p.escape(goalId)}"`}>
-    <h3>${goalId === null ? "" : p.icon("target")}${p.escape(title)}</h3>
+    ${renderDirectoryHeading(title)}
     ${rows}
   </section>`;
 }
 
 function renderEmpty(p: CodingUiPrimitives): string {
-  return `<div class="mw-empty" data-coding-empty>${p.icon("code")}<p>${p.escape("还没有编码会话")}</p></div>`;
+  return `<div class="mw-empty" data-coding-empty>${p.icon("code")}<strong>从一个具体问题开始</strong><p>新建会话，讨论代码、整理计划或审查改动。</p><button class="mw-btn mw-btn--primary" type="button" data-coding-new>新建编码会话</button></div>`;
 }
 
 export function renderCodingWorkbench(model: CodingUiModel): string {
@@ -153,7 +152,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
   const settingsHref = "../".repeat(model.route_prefix.split("/").filter(Boolean).length) + "settings/coding-settings?project=" + encodeURIComponent(model.route_prefix.split("/").filter(Boolean).at(-1) ?? "");
   const tools = model.tools.map((tool) => renderToolTab(tool, p)).join("");
   const panels = model.tools.map((tool) => renderToolPanel(tool, p)).join("");
-  return `<section class="desktop-work-surface plugin-stage-shell" data-work-surface="coding" data-work-surface-label="Coding" hidden data-coding-workbench data-coding-prefix="${p.escape(model.route_prefix)}">
+  return `<section class="desktop-work-surface plugin-stage-shell mw-layout-primitives" data-work-surface="coding" data-work-surface-label="Coding" hidden data-coding-workbench data-coding-prefix="${p.escape(model.route_prefix)}">
     <dialog class="mw-dialog mw-dialog--form" data-coding-step-dialog aria-label="步骤回报与验收"><div class="mw-form mw-dialog__shell">
       <header class="mw-form__header"><h2>步骤回报与验收</h2>${renderButton({label:"关闭",variant:"ghost",attrs:{"data-coding-step-close":""}})}</header>
       <section class="mw-form__body"><div data-coding-step-detail></div><p>模型报告成功不代表用户验收通过。请核对原轮次的实际操作和结果后评价。</p>
@@ -234,32 +233,48 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
       <section class="mw-form__body"><p data-coding-plan-help>按依赖顺序安排步骤，每步写清完成条件。保存修改后需要重新确认；正在执行的任务继续使用原固定版本。</p><div data-coding-plan-fields></div><p role="alert" data-coding-plan-error></p></section>
       <footer class="mw-form__footer">${renderButton({label:"保存计划修改",variant:"primary",type:"submit",attrs:{"data-coding-plan-save":""}})}</footer>
     </form></dialog>
+    <div class="coding-layout">${renderCodingDirectory(model)}
     <div class="coding-stage" data-coding-stage>
-      <div class="coding-dialogue" data-coding-dialogue>
-        <header class="coding-dialogue-head" data-coding-dialogue-head>
-          <div><span data-coding-title>选择或新建编码会话</span><small data-coding-workspace-label>${renderWorkspaceLine(model.workspace_path, p)}</small><small data-coding-goal-label></small></div>
-          <button class="mw-btn" type="button" data-coding-goal-open disabled>关联目标</button>
-          <button class="mw-btn" type="button" data-coding-workspace-open>工作区</button>
-          ${renderButton({label:"独立工作树",variant:"secondary",attrs:{"data-coding-writer-directories-open":""}})}
-          <button class="mw-btn" type="button" data-coding-rename hidden>重命名</button><button class="mw-btn" type="button" data-coding-stop hidden>停止</button>
+      ${renderFrame({className:"coding-start",title:"Coding",description:"在工作目录中讨论代码、整理计划、审查改动。",panel:`<div class="mw-empty"><h2>从一个具体问题开始</h2><p>新建会话后选择工作区与模型；已有的会话可以从目录继续。</p>${renderButton({label:"新建编码会话",variant:"primary",icon:"plus",attrs:{"data-coding-new":""}})}</div>`})}
+      <div class="coding-dialogue mw-frame" data-slot="frame" data-coding-dialogue>
+        <header class="coding-dialogue-head mw-frame__header" data-coding-dialogue-head>
+          <div class="coding-identity"><button class="mw-btn mw-btn--ghost mw-btn--icon-only coding-directory-back" type="button" data-coding-directory-back aria-label="返回会话列表" title="会话列表">${p.icon("chevron-left")}</button><div class="coding-identity-copy mw-frame__heading"><h2 data-coding-title>选择或新建编码会话</h2><p data-coding-workspace-label>${renderWorkspaceLine(model.workspace_path, p)}</p></div></div>
         </header>
-        <div class="coding-turns" data-coding-turns tabindex="0" aria-label="编码对话"><div class="mw-empty" data-coding-welcome><p>从一个具体问题开始</p><p>选择已授权工作区和模型后，讨论代码或开始任务。</p><button class="mw-btn" type="button" data-coding-new>新建编码会话</button></div></div>
+        <template data-coding-welcome-template><div class="mw-empty coding-welcome" data-coding-welcome><h2>这次想完成什么？</h2><p>写下任务，或从下面的问题开始。</p><div class="coding-starters"><button class="mw-btn mw-btn--ghost" type="button" data-coding-prompt="帮我梳理这个项目的主要模块和调用链，先只读分析。">梳理项目结构 ${p.icon("arrow")}</button><button class="mw-btn mw-btn--ghost" type="button" data-coding-prompt="帮我审查当前改动，找出可能的 bug 和遗漏的边界。">审查当前改动 ${p.icon("arrow")}</button></div></div></template>
+        <div class="coding-turns mw-scroll mw-frame__panel" data-coding-turns tabindex="0" aria-label="编码对话"></div>
         <section class="coding-turns" data-coding-report-reader aria-label="执行报告" tabindex="0" hidden>
           <header><button class="mw-btn" type="button" data-coding-report-close>返回对话</button><button class="mw-btn" type="button" data-coding-report-save>保存固定报告</button><button class="mw-btn" type="button" data-coding-report-progress hidden>记录原目标进展</button><button class="mw-btn" type="button" data-coding-report-output hidden>设为报告输出</button></header>
           <p data-coding-report-status role="status"></p><p data-coding-report-output-status role="status" hidden></p><div data-coding-report-body></div>
         </section>
         <button class="mw-btn coding-jump" type="button" data-coding-latest hidden>回到最新</button>
         <p class="coding-status" data-coding-status role="status" aria-live="polite"></p>
-        <form class="coding-composer" data-coding-composer>
-          <label class="coding-task-label" for="coding-task">任务或补充要求</label>
-          <textarea class="mw-input" id="coding-task" data-coding-task rows="3" placeholder="描述要完成的任务…" disabled></textarea>
-          <div class="coding-composer-actions">${renderButton({label:"＋ 材料",variant:"secondary",attrs:{"data-coding-material-open":"","aria-label":"选择固定材料"}})}${renderButton({label:"角色",variant:"secondary",attrs:{"data-coding-character-open":"","aria-label":"选择角色"}})}${renderButton({label:"/ 方法",variant:"secondary",attrs:{"data-coding-method-open":"","aria-label":"选择方法"}})}${renderButton({label:"MCP",variant:"secondary",attrs:{"data-coding-mcp-open":"","aria-label":"选择 MCP 工具与资料"}})}<select class="mw-select" data-coding-intent aria-label="任务方式"><option value="discuss">讨论</option><option value="plan">规划</option><option value="collaborate">只读协作</option><option value="parallel" disabled>并行写入</option><option value="edit" disabled>修改文件（待接通审批）</option><option value="execute" disabled>执行（待接通审批）</option><option value="review">评审</option></select>
-          <select class="mw-select" data-coding-model aria-label="下一轮使用的模型"></select><button class="mw-btn mw-btn--primary" type="submit" data-coding-send disabled>发送</button></div>
-          <small data-coding-draft-status>模型与方式的选择用于下一轮。</small>
+        <form class="coding-composer mw-frame__footer" data-coding-composer>
+          <div class="coding-context mw-toolbar" data-coding-context hidden aria-label="会话上下文">
+          ${renderButton({label:"工作区",icon:"folder",variant:"ghost",attrs:{"data-coding-workspace-open":""}})}
+          ${renderButton({label:"关联目标",icon:"target",variant:"ghost",disabled:true,attrs:{"data-coding-goal-open":""}})}
+          ${renderButton({label:"独立工作树",icon:"git-branch",variant:"ghost",attrs:{"data-coding-writer-directories-open":""}})}${renderButton({label:"重命名",icon:"edit",iconOnly:true,variant:"ghost",attrs:{"data-coding-rename":"",hidden:true,title:"重命名会话"}})}<small data-coding-goal-label></small></div>
+          <div class="coding-composer-shell">
+            <label class="mw-sr-only" for="coding-task">任务或补充要求</label>
+            <textarea class="mw-textarea" id="coding-task" data-coding-task rows="3" placeholder="描述任务，或补充这一轮的要求…" disabled></textarea>
+            <div class="coding-composer-bar">
+              <div class="coding-composer-leading">
+                <select class="mw-select" data-coding-intent aria-label="任务方式"><option value="discuss">讨论</option><option value="plan">规划</option><option value="collaborate">只读协作</option><option value="parallel" disabled>并行写入</option><option value="edit" disabled>修改文件（待接通审批）</option><option value="execute" disabled>执行（待接通审批）</option><option value="review">评审</option></select>
+                <select class="mw-select" data-coding-model aria-label="下一轮使用的模型"></select>
+                <span class="coding-composer-sep" aria-hidden="true"></span>
+                <div class="coding-composer-context" aria-label="补充上下文">${renderButton({label:"材料",icon:"paperclip",variant:"ghost",attrs:{"data-coding-material-open":"","aria-label":"选择固定材料"}})}${renderButton({label:"角色",icon:"user",variant:"ghost",attrs:{"data-coding-character-open":"","aria-label":"选择角色"}})}${renderButton({label:"方法",icon:"list",variant:"ghost",attrs:{"data-coding-method-open":"","aria-label":"选择方法"}})}${renderButton({label:"MCP",icon:"network",variant:"ghost",attrs:{"data-coding-mcp-open":"","aria-label":"选择 MCP 工具与资料"}})}</div>
+                <span class="coding-composer-sep" aria-hidden="true"></span>
+                ${renderButton({label:"会话设置",icon:"tune",iconOnly:true,variant:"ghost",attrs:{"data-coding-context-toggle":"","aria-expanded":false,title:"工作区与目标"}})}
+                <button class="mw-btn mw-btn--ghost coding-results-toggle" type="button" data-coding-results-open aria-label="结果与审查">${p.icon("panel")}<span data-coding-results-label>结果与审查</span></button>
+                <button class="mw-btn mw-btn--danger-outline" type="button" data-coding-stop hidden>停止</button>
+              </div>
+              <button class="mw-btn mw-btn--primary" type="submit" data-coding-send disabled>发送</button>
+            </div>
+          </div>
+          <a class="mw-btn mw-btn--ghost coding-model-setup" data-coding-model-setup href="${p.escape(settingsHref.replace("coding-settings", "models"))}" hidden>配置模型后即可发送任务</a><div class="coding-composer-footnote"><small data-coding-draft-status>模型与方式的选择用于下一轮。</small><kbd class="mw-kbd" title="Command 或 Ctrl + Enter 发送">⌘ / Ctrl ↵</kbd></div>
         </form>
       </div>
       <aside class="coding-tools" data-coding-tools>
-        <nav class="coding-tool-tabs" aria-label="${p.escape("结果与工具")}">${tools || '<span>结果</span>'}</nav>
+        <nav class="coding-tool-tabs mw-toolbar" aria-label="${p.escape("结果与工具")}"><button class="mw-btn coding-results-toggle" type="button" data-coding-results-close aria-label="返回会话">${p.icon("chevron-left")}<span>返回会话</span></button>${tools}</nav>
         ${model.companion_result ?? ""}
         <section class="coding-result" data-coding-subagents aria-label="子任务" hidden></section>
         <section class="coding-result" data-coding-plan aria-label="计划" hidden></section>
@@ -284,7 +299,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
         </section>
         <section class="coding-result" data-coding-commands aria-label="命令与检查回执" hidden></section>${panels}
       </aside>
-    </div>
+    </div></div>
   </section>`;
 }
 

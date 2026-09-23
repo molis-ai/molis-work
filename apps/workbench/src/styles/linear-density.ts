@@ -129,7 +129,7 @@ export const LINEAR_DENSITY_STYLES = `
     overflow: hidden;
     padding: 0;
   }
-  body.immersive-workbench .plugin-stage-shell[data-expanded="true"] > .plugin-stage-workspace {
+  body.immersive-workbench .immersive-artifact-surface[data-expanded="true"] > .plugin-stage-workspace {
     overflow: hidden;
     height: 100%;
     min-height: 0;
@@ -295,9 +295,9 @@ export const LINEAR_DENSITY_STYLES = `
     overflow: hidden !important;
     padding: 0 !important;
   }
-  body.immersive-workbench .plugin-stage-shell[data-expanded="true"] > .plugin-stage-workspace,
-  body.immersive-workbench .plugin-stage-shell[data-expanded="true"] > .plugin-stage-workspace > [data-artifact-detail],
-  body.immersive-workbench .plugin-stage-shell[data-expanded="true"] > .plugin-stage-workspace .artifact-detail {
+  body.immersive-workbench .immersive-artifact-surface[data-expanded="true"] > .plugin-stage-workspace,
+  body.immersive-workbench .immersive-artifact-surface[data-expanded="true"] > .plugin-stage-workspace > [data-artifact-detail],
+  body.immersive-workbench .immersive-artifact-surface[data-expanded="true"] > .plugin-stage-workspace .artifact-detail {
     overflow: hidden !important;
     min-height: 0 !important;
     height: 100% !important;

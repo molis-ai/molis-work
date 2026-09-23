@@ -1,6 +1,6 @@
 /** Global and project settings: directory holds categories; exclusive work surfaces hold the document. */
 export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
-  const { translate: L, setDirectory, setExclusive } = host;
+  const { translate: L, setDirectory, setExclusive, hideDirectory } = host;
   const projectId = host.projectId || (() => {
     try { return JSON.parse(document.querySelector("#molis-work-data")?.textContent || "{}").project?.project_id || ""; }
     catch { return ""; }
@@ -79,6 +79,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     const loadSection = async (section, fetchPath) => {
       if (!body) return;
       if (!fetchPath && caches.has(section)) {
+        loading = null;
         showNode(caches.get(section));
         bindEmbed(caches.get(section));
         active = section;
@@ -86,8 +87,9 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
         return;
       }
       const requestKey = fetchPath || section;
-      if (loading === requestKey) return;
-      loading = requestKey;
+      if (loading?.key === requestKey) return;
+      const request = { key: requestKey };
+      loading = request;
       const status = document.createElement("p");
       status.dataset.settingsLoading = "1";
       status.textContent = L("正在加载设置");
@@ -97,12 +99,12 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
         const response = await fetch(path, { headers: { Accept: "text/html" } });
         if (!response.ok) throw new Error(L("无法加载设置"));
         const html = await response.text();
-        if (loading !== requestKey) return;
+        if (loading !== request) return;
         loadFromHtml(section, html);
       } catch (error) {
         status.textContent = error.message || L("无法加载设置");
       } finally {
-        if (loading === requestKey) loading = null;
+        if (loading === request) loading = null;
       }
     };
     nav?.addEventListener("click", (event) => {
@@ -110,6 +112,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       if (!button) return;
       event.preventDefault();
       void loadSection(button.dataset.settingsSection || options.preset);
+      if (matchMedia("(max-width: 600px)").matches) hideDirectory?.();
     });
     return { loadSection, loadFromHtml, getActive: () => active, caches };
   };
@@ -197,11 +200,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       return true;
     }
     globalSettings.caches.delete(section);
-    void (async () => {
-      const response = await fetch(url.pathname + url.search, { headers: { Accept: "text/html" } });
-      if (!response.ok) return;
-      globalSettings.loadFromHtml(section, await response.text());
-    })();
+    void globalSettings.loadSection(section, url.pathname + url.search);
     return true;
   };
   document.addEventListener("molis-work:open-settings-path", (event) => {

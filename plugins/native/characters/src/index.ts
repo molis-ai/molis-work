@@ -6,6 +6,7 @@ export const packageDescriptor = {
 export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 export { createCharactersPlugin } from "./plugin.js";
 export type { CharactersPluginPorts } from "./plugin.js";
+export type { CharactersImportPorts, CharacterNativeRun } from "./imports.js";
 export { charactersManifest, CHARACTERS_PROJECT_PLUGIN_ID } from "./manifest.js";
 export { charactersUiContribution, CHARACTERS_UI_CONTRIBUTION_ID, renderCharacters } from "./ui.js";
 export type { CharactersUiModel } from "./ui.js";

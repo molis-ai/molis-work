@@ -47,10 +47,15 @@ test("图片完整HTTP链路：配置、本地生成、刷新、下载、失败�
   const url = await evaluate<string>("document.querySelector('[data-images-result] img').src");
   const bytes = Buffer.from(await (await fetch(url+"?download=1")).arrayBuffer());
   assert.deepEqual(bytes,Buffer.from(PNG,"base64"));
+  await command('Network.enable', {}, sessionId);
+  await command('Network.setBlockedURLs', { urls: [url] }, sessionId);
   await reloadPage();
   if(await evaluate("document.body.dataset.desktopSurface") !== "images") await click('[data-plugin-strip] [data-plugin-id="images"]');
   await waitFor("document.querySelectorAll('[data-images-job]').length > 0 || document.querySelectorAll('[data-images-id]').length > 0 || document.querySelectorAll('.images-history-row').length > 0");
   await click('.images-history-row');
+  await waitFor("document.querySelector('[data-images-result]')?.textContent.includes('图片暂时无法读取')");
+  await command('Network.setBlockedURLs', { urls: [] }, sessionId);
+  await click('[data-images-refresh]');
   await waitFor("document.querySelector('[data-images-result] img')?.naturalWidth > 0");
   assert.equal(calls,1,"刷新或重新打开不会调用厂商");
   await click('[data-images-new]');

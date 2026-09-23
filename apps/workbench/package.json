@@ -47,6 +47,7 @@
     "@molis-ai/molis-work-plugin-goals": "workspace:*",
     "@molis-ai/molis-work-plugin-inbox": "workspace:*",
     "@molis-ai/molis-work-plugin-lingguang": "workspace:*",
+    "@molis-ai/molis-work-plugin-alchemist": "workspace:*",
     "@molis-ai/molis-work-plugin-ppt": "workspace:*",
     "@molis-ai/molis-work-plugin-schedule": "workspace:*",
     "@molis-ai/molis-work-plugin-shelf": "workspace:*",
@@ -56,7 +57,9 @@
     "@molis-ai/molis-work-ui-host": "workspace:*",
     "@molis-ai/molis-work-plugin-experiments": "workspace:*",
     "@molis-ai/molis-work-plugin-images": "workspace:*",
-    "@molis-ai/molis-work-plugin-jelly": "workspace:*"
+    "@molis-ai/molis-work-plugin-jelly": "workspace:*",
+    "@molis-ai/molis-work-plugin-builder": "workspace:*",
+    "@molis-ai/molis-work-plugin-cognia": "workspace:*"
   },
   "molis-work": {
     "path": "apps/workbench",

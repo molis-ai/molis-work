@@ -88,19 +88,31 @@ export const SCHEDULE_CLIENT_FACTORY_SCRIPT = `(host) => {
     errorEl.hidden = !message;
     errorEl.textContent = message || "";
   };
+  let creating = false;
+  const setCreating = (busy) => {
+    creating = busy;
+    form?.setAttribute("aria-busy", String(busy));
+    const fields = form?.querySelector(".mw-form__body");
+    if (fields) fields.inert = busy;
+    workbench.querySelectorAll("[data-schedule-new], [data-schedule-create-close]").forEach(button => { button.disabled = busy; });
+    const submit = form?.querySelector("[type=submit]");
+    if (submit) { submit.disabled = busy; submit.textContent = L(busy ? "正在创建…" : "创建"); }
+  };
   workbench.querySelector("[data-schedule-new]")?.addEventListener("click", () => {
+    if (creating) return;
     showError("");
     dialog?.showModal();
     form?.querySelector("[name=title]")?.focus();
   });
   workbench.querySelectorAll("[data-schedule-create-close]").forEach((button) => {
-    button.addEventListener("click", () => dialog?.close());
+    button.addEventListener("click", () => { if (!creating) dialog?.close(); });
   });
+  dialog?.addEventListener("cancel", event => { if (creating) event.preventDefault(); });
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (creating || !form.reportValidity()) return;
     const data = new FormData(form);
-    const submit = form.querySelector("[type=submit]");
-    if (submit) submit.disabled = true;
+    setCreating(true);
     showError("");
     try {
       const response = await fetch(route("/api/schedule/tasks"), {
@@ -117,11 +129,11 @@ export const SCHEDULE_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (!response.ok) throw new Error(result.error || L("无法创建定时任务"));
       dialog?.close();
       form?.reset();
-      if (submit) submit.disabled = false;
       await refreshStage(result.task.task_id, "task");
     } catch (error) {
       showError(error.message || L("无法创建定时任务"));
-      if (submit) submit.disabled = false;
+    } finally {
+      setCreating(false);
     }
   });
   list.addEventListener("click", (event) => {

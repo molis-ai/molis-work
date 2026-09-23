@@ -89,6 +89,7 @@ export const CLIENT_NAVIGATION_INBOX_SCRIPT = `
       try {
         const scrollTop = list?.scrollTop || 0;
         const selectedId = list?.querySelector("[data-inbox-row].is-selected")?.dataset.inboxEntryId || "";
+        const selectedGroup = list?.querySelector("[data-inbox-row].is-selected")?.closest("[data-inbox-stage-group]")?.dataset.inboxStageGroup;
         const filter = inboxDirectory?.dataset.inboxCurrentFilter || "active";
         const response = await fetch(route("/api/inbox/workbench"), { cache: "no-store" });
         if (!response.ok) throw new Error(L("无法更新 Inbox 列表"));
@@ -109,7 +110,8 @@ export const CLIENT_NAVIGATION_INBOX_SCRIPT = `
         empty.innerHTML = nextEmpty.innerHTML;
         empty.hidden = nextEmpty.hidden;
         setInboxFilter(filter, false);
-        if (selectedId && list.querySelector('[data-inbox-entry-id="' + CSS.escape(selectedId) + '"]')) {
+        const selectedRow = selectedId && list.querySelector('[data-inbox-entry-id="' + CSS.escape(selectedId) + '"]');
+        if (selectedRow && selectedRow.closest("[data-inbox-stage-group]")?.dataset.inboxStageGroup === selectedGroup) {
           selectInboxEntry(selectedId, false);
         } else {
           collapseInboxStage();

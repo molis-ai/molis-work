@@ -5,15 +5,36 @@ import type { AgentFrozenCharacter } from "@molis-ai/molis-work-contracts/servic
 import type { CharactersPluginPorts } from "@molis-ai/molis-work-plugin-characters";
 import type { CodingCharacterChoice, CodingCharacterPorts } from "@molis-ai/molis-work-plugin-coding";
 import { resolveConfiguredHome } from "./product-home.js";
+import { homedir } from "node:os";
+import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
+import { createCharacterDiscovery } from "./character-import-discovery.js";
+import { characterNativeExecution } from "./character-native-execution.js";
+import type { PtySpawnRequest, PtySpawnResult } from "@molis-ai/molis-work-contracts/services/runtime-host";
 
 /** Host composition binds personal ownership and project publication; Plugins never open databases. */
-export function charactersPluginPorts(homeDirectory: string | undefined, actorId: string, boardId: string, artifacts: ArtifactsQueryApi): CharactersPluginPorts {
+export function charactersPluginPorts(homeDirectory: string | undefined, actorId: string, boardId: string, artifacts: ArtifactsQueryApi,
+  workspaces: () => Promise<readonly ProjectWorkspaceRef[]> = async () => [], spawn: (request: PtySpawnRequest) => PtySpawnResult = () => { throw new Error("原生终端尚未接通"); }): CharactersPluginPorts {
   const home = resolveConfiguredHome(homeDirectory);
   const use = <T>(action: (service: CharactersService) => T): T => {
     const handle = openCharacters(home, actorId);
     try { return action(handle.service); } finally { handle.close(); }
   };
+  const discovery = createCharacterDiscovery({ userHome: homedir() });
   return { actorId,
+    imports: {
+      previewFile: (candidateId, input) => {
+        const file = discovery.get(candidateId)?.skills.find(skill => skill.id === input.skill_id)?.files.find(file => file.path === input.path);
+        if (!file) throw new Error("文件不在已预览的导入快照中，请重新扫描");
+        return file.encoding === "utf8" ? file : { path: file.path, encoding: file.encoding, bytes: Buffer.byteLength(file.content, "base64") };
+      },
+      discover: input => discovery.discover(input),
+      import: (candidateId, selection, existing) => {
+        const snapshot = discovery.get(candidateId);
+        if (!snapshot) throw new Error("预览已过期，请重新扫描本地 Agent");
+        return use(service => service.import(snapshot, selection, existing));
+      },
+      ...characterNativeExecution({ home, actorId, boardId, workspaces, spawn, executable: runtime => discovery.executable(runtime) }),
+    },
     drafts: {
       list: () => use(service => service.list()), get: id => use(service => service.get(id)),
       create: () => use(service => service.create()), update: (id, revision, patch) => use(service => service.update(id, revision, patch)),
@@ -53,7 +74,8 @@ export function codingCharacterPorts(homeDirectory: string | undefined, actorId:
       let content;
       try { content = parseCharacterContent(record.payload); } catch { return []; }
       if (content.source.owner_actor_id !== actorId || record.artifact_id !== `character:${boardId}:${content.character_id}`) return [];
-      const summary = { reference, title: content.title, instructions: content.instructions, host_tools: content.host_tools };
+      const summary = { reference, title: content.title, instructions: content.instructions, host_tools: content.host_tools,
+        ...(content.import_snapshot ? { imported_skills: content.import_snapshot.skills.map(({id,name,compatibility,reason})=>({id,name,compatibility,reason})) } : {}) };
       try { freezeProjectCharacter(homeDirectory, actorId, boardId, artifacts, reference); return [{ ...summary, available: true }]; }
       catch (error) { return [{ ...summary, available: false, reason: error instanceof Error ? error.message : "角色版本不可用" }]; }
     }),

@@ -36,18 +36,17 @@ for (const [width, height] of [[1024, 400], [390, 500]]) {
       assert.equal(await evaluate('document.scrollingElement.scrollHeight<=innerHeight+1 && document.scrollingElement.scrollTop===0'), true);
     };
     await navigate(() => command('Page.navigate', { url: prefix + '/settings/rules' }, sessionId));
-    await click('[data-rules-advanced] > summary');
     const cursor = b.store.snapshot(DEMO_BOARD_ID).cursor;
-    await fill('[name=reason]', '不应持久化的规则草稿');
+    const originalReviewers = await evaluate<string>("document.querySelector('[name=cross_reviewers]').value");
     await fill('[name=cross_reviewers]', '3');
     await click('[data-policy-cancel]');
-    assert.equal(await evaluate("document.querySelector('[name=reason]').value"), '');
+    assert.equal(await evaluate("document.querySelector('[name=cross_reviewers]').value"), originalReviewers);
     assert.equal(b.store.snapshot(DEMO_BOARD_ID).cursor, cursor);
+    await fill('[name=cross_reviewers]', '-1');
     await click('[data-policy-form] button[type=submit]');
-    assert.equal(await evaluate('document.activeElement.name'), 'reason');
-    await contained('[name=reason]');
+    assert.equal(await evaluate('document.activeElement.name'), 'cross_reviewers');
+    await contained('[name=cross_reviewers]');
     await capture('rules-validation');
-    await fill('[name=reason]', '验证低窗口里的规则保存。');
     await fill('[name=cross_reviewers]', '3');
     await command('Network.setBlockedURLs', { urls: [prefix + '/api/policy-bindings'] }, sessionId);
     await click('[data-policy-form] button[type=submit]');
@@ -56,12 +55,12 @@ for (const [width, height] of [[1024, 400], [390, 500]]) {
     assert.match(await evaluate<string>("document.querySelector('[data-policy-error]').textContent"), /输入已保留/);
     await evaluate("document.querySelector('.settings-save-footer').scrollIntoView({block:'nearest'})");
     await contained('.settings-save-footer');
-    assert.equal(await evaluate("document.querySelector('[name=reason]').value"), '验证低窗口里的规则保存。');
+    assert.equal(await evaluate("document.querySelector('[name=cross_reviewers]').value"), '3');
     await command('Network.setBlockedURLs', { urls: [] }, sessionId);
     await command('Network.emulateNetworkConditions', { offline: false, latency: 800, downloadThroughput: -1, uploadThroughput: -1 }, sessionId);
     await navigate(async () => {
       await click('[data-policy-form] button[type=submit]');
-      assert.equal(await evaluate("document.querySelector('[data-policy-cancel]').disabled && document.querySelector('[name=reason]').disabled"), true);
+      assert.equal(await evaluate("document.querySelector('[data-policy-cancel]').disabled && document.querySelector('[name=cross_reviewers]').disabled"), true);
     });
     await command('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 }, sessionId);
     assert.equal(await evaluate("document.querySelector('[name=cross_reviewers]').value"), '3');

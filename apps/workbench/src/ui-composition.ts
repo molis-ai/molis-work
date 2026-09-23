@@ -1,3 +1,4 @@
+import { COGNIA_UI_CONTRIBUTION_ID, type CogniaUiModel } from "@molis-ai/molis-work-plugin-cognia";
 import { IMAGES_UI_CONTRIBUTION_ID, type ImagesUiModel } from "@molis-ai/molis-work-plugin-images";
 import { JELLY_UI_CONTRIBUTION_ID, type JellyUiModel, type JellyUiSurface } from "@molis-ai/molis-work-plugin-jelly";
 import { EXPERIMENTS_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-experiments";
@@ -64,6 +65,11 @@ import {
   type LingguangUiModel,
   type LingguangUiSurface,
 } from "@molis-ai/molis-work-plugin-lingguang";
+import {
+  ALCHEMIST_UI_CONTRIBUTION_ID,
+  type AlchemistUiModel,
+  type AlchemistUiSurface,
+} from "@molis-ai/molis-work-plugin-alchemist";
 import { WORK_TERMINAL_UI_CONTRIBUTION_ID, type WorkTerminalUiModel } from "@molis-ai/molis-work-plugin-work";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { BUILTIN_PLUGIN_WORKBENCH } from "./plugin-workbench.js";
@@ -129,6 +135,11 @@ const PPT_SURFACE_SLOTS: Readonly<Record<PptUiSurface, UiSlotDescriptor>> = {
 };
 
 const LINGGUANG_SURFACE_SLOTS: Readonly<Record<LingguangUiSurface, UiSlotDescriptor>> = {
+  directory: WORKBENCH_UI_SLOTS.directory,
+  workbench: WORKBENCH_UI_SLOTS.main,
+};
+
+const ALCHEMIST_SURFACE_SLOTS: Readonly<Record<AlchemistUiSurface, UiSlotDescriptor>> = {
   directory: WORKBENCH_UI_SLOTS.directory,
   workbench: WORKBENCH_UI_SLOTS.main,
 };
@@ -341,6 +352,20 @@ export function renderPptContribution(
   }).html;
 }
 
+export function renderAlchemistContribution(
+  surface: AlchemistUiSurface,
+  model: AlchemistUiModel,
+): string {
+  return workbenchUiHost.mount({
+    slot: ALCHEMIST_SURFACE_SLOTS[surface],
+    contribution: {
+      contribution_id: ALCHEMIST_UI_CONTRIBUTION_ID,
+      surface,
+      model,
+    },
+  }).html;
+}
+
 export function renderLingguangContribution(
   surface: LingguangUiSurface,
   model: LingguangUiModel,
@@ -409,4 +434,8 @@ export function renderImagesContribution(model: ImagesUiModel): string {
 
 export function renderJellyContribution(surface: JellyUiSurface, model: JellyUiModel): string {
   return workbenchUiHost.mount({ slot: surface === "directory" ? WORKBENCH_UI_SLOTS.directory : WORKBENCH_UI_SLOTS.main, contribution: { contribution_id: JELLY_UI_CONTRIBUTION_ID, surface, model } }).html;
+}
+
+export function renderCogniaContribution(surface: "directory" | "workbench", model: CogniaUiModel): string {
+  return workbenchUiHost.mount({ slot: surface === "directory" ? WORKBENCH_UI_SLOTS.directory : WORKBENCH_UI_SLOTS.main, contribution: { contribution_id: COGNIA_UI_CONTRIBUTION_ID, surface, model } }).html;
 }

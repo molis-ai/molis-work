@@ -1,5 +1,7 @@
-import { imagesUiContribution, IMAGES_STYLES, IMAGES_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-images";
-import { JELLY_CLIENT_FACTORY_SCRIPT, JELLY_STYLES, jellyUiContribution } from "@molis-ai/molis-work-plugin-jelly";
+import { COGNIA_CLIENT_FACTORY_SCRIPT, COGNIA_STYLES, cogniaUiContribution } from "@molis-ai/molis-work-plugin-cognia";
+import { builderUiContribution, BUILDER_STYLES, BUILDER_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-builder";
+import { IMAGES_PROJECT_PLUGIN_ID, imagesUiContribution, IMAGES_STYLES, IMAGES_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-images";
+import { JELLY_PROJECT_PLUGIN_ID, JELLY_CLIENT_FACTORY_SCRIPT, JELLY_STYLES, jellyUiContribution } from "@molis-ai/molis-work-plugin-jelly";
 import { EXPERIMENTS_CLIENT_FACTORY_SCRIPT, EXPERIMENTS_STYLES, experimentsUiContribution } from "@molis-ai/molis-work-plugin-experiments";
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import { artifactReferenceUiContribution, artifactBrowserUiContribution } from "@molis-ai/molis-work-plugin-artifacts";
@@ -41,6 +43,7 @@ import { FORM_CLIENT_FACTORY_SCRIPT, FORM_STYLES, formUiContribution } from "@mo
 import { DATASET_CLIENT_FACTORY_SCRIPT, DATASET_STYLES, datasetUiContribution } from "@molis-ai/molis-work-plugin-dataset";
 import { PPT_CLIENT_FACTORY_SCRIPT, PPT_STYLES, pptUiContribution } from "@molis-ai/molis-work-plugin-ppt";
 import { LINGGUANG_CLIENT_FACTORY_SCRIPT, LINGGUANG_STYLES, lingguangUiContribution } from "@molis-ai/molis-work-plugin-lingguang";
+import { ALCHEMIST_CLIENT_FACTORY_SCRIPT, ALCHEMIST_STYLES, alchemistUiContribution } from "@molis-ai/molis-work-plugin-alchemist";
 import { workTerminalUiContribution, workUiContribution } from "@molis-ai/molis-work-plugin-work";
 
 export interface PluginSearchRow {
@@ -62,8 +65,10 @@ export interface BuiltinPluginWorkbenchPack {
  * this table is the unique Workbench register for contributions, styles, factories.
  */
 export const BUILTIN_PLUGIN_WORKBENCH: readonly BuiltinPluginWorkbenchPack[] = [
-  { project_plugin_id: "images", contributions: [imagesUiContribution], stylesheet: IMAGES_STYLES, clientFactory: IMAGES_CLIENT_FACTORY_SCRIPT },
-  { project_plugin_id: "jelly", contributions: [jellyUiContribution], stylesheet: JELLY_STYLES, clientFactory: JELLY_CLIENT_FACTORY_SCRIPT, searchRow: { selector: "[data-jelly-id]", idDataset: "jellyId" } },
+  { project_plugin_id: "cognia", contributions: [cogniaUiContribution], stylesheet: COGNIA_STYLES, clientFactory: COGNIA_CLIENT_FACTORY_SCRIPT, searchRow: { selector: "[data-cognia-id]", idDataset: "cogniaId" } },
+  { project_plugin_id: "plugin-builder", contributions: [builderUiContribution], stylesheet: BUILDER_STYLES, clientFactory: BUILDER_CLIENT_FACTORY_SCRIPT },
+  { project_plugin_id: IMAGES_PROJECT_PLUGIN_ID, contributions: [imagesUiContribution], stylesheet: IMAGES_STYLES, clientFactory: IMAGES_CLIENT_FACTORY_SCRIPT },
+  { project_plugin_id: JELLY_PROJECT_PLUGIN_ID, contributions: [jellyUiContribution], stylesheet: JELLY_STYLES, clientFactory: JELLY_CLIENT_FACTORY_SCRIPT, searchRow: { selector: "[data-jelly-id]", idDataset: "jellyId" } },
   { project_plugin_id: "experiments", contributions: [experimentsUiContribution], stylesheet: EXPERIMENTS_STYLES, clientFactory: EXPERIMENTS_CLIENT_FACTORY_SCRIPT },
   { project_plugin_id: "feed", contributions: [feedUiContribution] },
   { project_plugin_id: "inbox", contributions: [inboxUiContribution] },
@@ -121,6 +126,13 @@ export const BUILTIN_PLUGIN_WORKBENCH: readonly BuiltinPluginWorkbenchPack[] = [
     stylesheet: LINGGUANG_STYLES,
     clientFactory: LINGGUANG_CLIENT_FACTORY_SCRIPT,
     searchRow: { selector: "[data-lingguang-id]", idDataset: "lingguangId" },
+  },
+  {
+    project_plugin_id: "alchemist",
+    contributions: [alchemistUiContribution],
+    stylesheet: ALCHEMIST_STYLES,
+    clientFactory: ALCHEMIST_CLIENT_FACTORY_SCRIPT,
+    searchRow: { selector: "[data-alchemist-id]", idDataset: "alchemistId" },
   },
   { project_plugin_id: "sessions", contributions: [workUiContribution, workTerminalUiContribution] },
   { project_plugin_id: "artifacts", contributions: [artifactReferenceUiContribution, artifactBrowserUiContribution] },

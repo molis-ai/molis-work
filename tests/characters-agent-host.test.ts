@@ -22,7 +22,7 @@ function fixture() {
     async start(input) {
       captured.push(input); const role = input.role!;
       return { ref: { run_id: "r", session_id: "s" }, frozen: { role_id: role.role_id, role_version: role.version, execution: role.execution, model_id: "fixture",
-        ...(role.character ? { character: structuredClone(role.character) } : {}), prompts: role.prompts.map(p => ({ prompt_id: p.prompt_id, version: p.version, layer: promptLayerOf(p) })),
+        ...(role.character ? { character: structuredClone(role.character) } : {}), ...(role.character_skill_ids === undefined ? {} : {character_skill_ids: [...role.character_skill_ids]}), prompts: role.prompts.map(p => ({ prompt_id: p.prompt_id, version: p.version, layer: promptLayerOf(p) })),
         host_tools: widen ? ["read-file", "run-command"] : [...role.host_tools], skills: [], mcp_tools: [], mcp_sources: [], text_materials: [], budget: null, directory: input.directory } };
     }, async control() { cancelled++; },
   } as AgentRuntimeAdapter);
@@ -84,4 +84,44 @@ test("a selected method cannot restore a tool removed by the Character", async (
   f.request.skills = [{ skill_id: method.skill_id, version: 1 }];
   await assert.rejects(f.host.start("probe", f.request, f.authority), /未开放的工具/);
   assert.equal(f.captured.length, 0);
+});
+
+test("imported Character rules and text Skill attachments reach the adapter as frozen scoped instructions", async () => {
+  const f = fixture();
+  f.character.import_snapshot = { runtime_id: "codex", config_root: "/tmp/config", project_root: "/tmp/ws", captured_at: "2026-09-23T00:00:00Z",
+    rules: [{ path: "/tmp/ws/AGENTS.md", scope: "project", condition: "only *.ts", content: "RULE_CONTENT" }],
+    skills: [{ id: "skill", name: "Verifier", description: "Verify evidence", path: "/tmp/config/skills/verify", compatibility: "portable",
+      files: [{ path: "SKILL.md", encoding: "utf8", content: "Use references/check.md" }, { path: "references/check.md", encoding: "utf8", content: "ATTACHMENT_CONTENT" }] }] };
+  const result = await f.host.start("probe", f.request, f.authority);
+  const body = f.captured[0]!.role!.prompts.map(p => p.body).join("\n");
+  assert.match(body, /RULE_CONTENT/); assert.match(body, /only \*\.ts/); assert.match(body, /ATTACHMENT_CONTENT/);
+  assert.match(body, /references\/check.md/); assert.match(body, /Verify results/);
+  f.character.import_snapshot.skills[0]!.files[1]!.content = "LATER_EDIT";
+  assert.equal(result.frozen.character!.import_snapshot!.skills[0]!.files[1]!.content, "ATTACHMENT_CONTENT");
+});
+
+test("incompatible imported skills, oversize content and other project scopes fail before a Run starts", async () => {
+  for (const issue of ["native", "project", "size"]) {
+    const f = fixture();
+    f.character.import_snapshot = { runtime_id: "codex", config_root: "/tmp/config", project_root: issue === "project" ? "/tmp/ws-other" : "/tmp/ws", captured_at: "2026-09-23T00:00:00Z", rules: [],
+      skills: [{ id: "s", name: "special", description: "", path: "/tmp/config/s", compatibility: issue === "native" ? "native-only" : "portable",
+        files: [{ path: "SKILL.md", encoding: "utf8", content: issue === "size" ? "x".repeat(61_000) : "skill" }] }] };
+    await assert.rejects(f.host.start("probe", f.request, f.authority), /内置引擎|项目范围/);
+    assert.equal(f.captured.length, 0);
+  }
+});
+
+test("per-run Character Skill selection excludes unused native packages while preserving the published source", async () => {
+  const f = fixture();
+  f.character.import_snapshot = { runtime_id:"codex",config_root:"/tmp/config",captured_at:"2026-09-23T00:00:00Z",rules:[],skills:[
+    {id:"text",name:"Portable",description:"",path:"/tmp/config/text",compatibility:"portable",files:[{path:"SKILL.md",encoding:"utf8",content:"SELECTED_TEXT"}]},
+    {id:"native",name:"Native",description:"",path:"/tmp/config/native",compatibility:"native-only",files:[{path:"SKILL.md",encoding:"utf8",content:"DO_NOT_LOAD"}]},
+  ]};
+  f.request.character_skill_ids=["text"];
+  const result=await f.host.start("probe",f.request,f.authority);
+  assert.deepEqual(result.frozen.character_skill_ids,["text"]);
+  assert.deepEqual(result.frozen.character!.reference,f.character.reference);
+  assert.equal(result.frozen.character!.import_snapshot!.skills.length,1);
+  assert.equal(f.character.import_snapshot.skills.length,2);
+  const body=f.captured[0]!.role!.prompts.map(p=>p.body).join("\n");assert.match(body,/SELECTED_TEXT/);assert.doesNotMatch(body,/DO_NOT_LOAD/);
 });

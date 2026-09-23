@@ -1,4 +1,7 @@
 export const PAGES_EN: Record<string, string> = {
+  "此转换无法保留块中的内容": "This conversion cannot preserve the block contents",
+  "文档正文": "Document body",
+  "请输入有效链接，例如 https://example.com": "Enter a valid link, such as https://example.com",
   "导入": "Import",
   "关闭": "Close",
   "导入已有文档": "Import existing documents",
@@ -195,4 +198,7 @@ export const PAGES_EN: Record<string, string> = {
   "Callout": "Callout",
   "Toggle": "Toggle",
   "还没有标题": "No headings yet",
+  "说明": "Caption",
+  "名称": "Name",
+  "写代码": "Code",
 };

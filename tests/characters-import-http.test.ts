@@ -1,0 +1,36 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { randomUUID } from "node:crypto";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.ts";
+
+test("HTTP import previews lazily, rejects forged input and preserves old published resources across a confirmed source update", async t => {
+  const home=mkdtempSync(join(tmpdir(),"character-import-http-")),config=join(home,"codex"),skill=join(config,"skills","guide");
+  mkdirSync(skill,{recursive:true});writeFileSync(join(config,"AGENTS.md"),"RULE");writeFileSync(join(skill,"SKILL.md"),"---\nname: Guide\ndescription: Fixture\n---\nRead guide.txt");writeFileSync(join(skill,"guide.txt"),"OLD_ATTACHMENT");
+  const catalog=await openMolisWorkProjectCatalog({homeDirectory:home}),project=await catalog.createProject({display_name:"Import",actor_id:"web-user"});catalog.close();
+  const token="character-http-fixture-control-123456789",server=createMolisWorkWebServer({homeDirectory:home,controlToken:token});
+  await new Promise<void>(resolve=>server.listen(0,"127.0.0.1",resolve));const address=server.address() as {port:number},origin=`http://127.0.0.1:${address.port}`,prefix=`/projects/${project.project_id}/api/plugins/io.molis.work.characters`;
+  t.after(async()=>{await new Promise<void>(resolve=>server.close(()=>resolve()));rmSync(home,{recursive:true,force:true});});
+  const request=async(path:string,body?:unknown,authorized=true)=>{const response=await fetch(origin+prefix+path,{method:body===undefined?"GET":"POST",headers:{origin,"content-type":"application/json","x-molis-work-idempotency-key":randomUUID(),...(authorized?{"x-molis-work-control-token":token}:{})},...(body===undefined?{}:{body:JSON.stringify(body)})});return {status:response.status,body:await response.json()};};
+  assert.equal((await request("/imports/discover",{runtime_id:"codex",config_root:config},false)).status,403);
+  const scan=await request("/imports/discover",{runtime_id:"codex",config_root:config});assert.equal(scan.status,200);
+  const candidate=scan.body.candidates[0],s=candidate.snapshot.skills[0];assert.equal(s.files[0].content,undefined);assert.ok(s.files.every((f:any)=>typeof f.bytes==='number'));
+  const selection={rule_paths:candidate.snapshot.rules.map((r:any)=>r.path),skill_ids:[s.id]};
+  const preview=await request("/imports/file",{candidate_id:candidate.candidate_id,skill_id:s.id,path:"guide.txt"});assert.equal(preview.body.content,"OLD_ATTACHMENT");
+  assert.equal((await request("/imports/file",{candidate_id:candidate.candidate_id,skill_id:s.id,path:"../AGENTS.md"})).status,400);
+  assert.equal((await request("/imports",{candidate_id:"forged",snapshot:candidate.snapshot,selection})).status,400);
+  const imported=await request("/imports",{candidate_id:candidate.candidate_id,selection});assert.equal(imported.status,200);const id=imported.body.draft.character_id;
+  const repeated=await request("/imports",{candidate_id:candidate.candidate_id,selection});assert.equal(repeated.body.replayed,true);assert.equal(repeated.body.draft.character_id,id);
+  const original=await request(`/drafts/${id}/publish`,{expected_revision:1});assert.equal(original.status,200);
+  writeFileSync(join(skill,"guide.txt"),"NEW_ATTACHMENT");const rescanned=(await request("/imports/discover",{runtime_id:"codex",config_root:config})).body.candidates[0];
+  const updated=await request("/imports",{candidate_id:rescanned.candidate_id,selection,existing:{character_id:id,expected_revision:1}});assert.equal(updated.status,200);assert.equal(updated.body.draft.revision,2);
+  assert.equal((await request("/imports",{candidate_id:rescanned.candidate_id,selection,existing:{character_id:id,expected_revision:1}})).status,409);
+  assert.equal((await request(`/drafts/${id}/file`,{skill_id:s.id,path:"guide.txt"})).body.content,"NEW_ATTACHMENT");
+  assert.equal((await request("/publication/file",{reference:original.body.reference,skill_id:s.id,path:"guide.txt"})).body.content,"OLD_ATTACHMENT");
+  const list=await request("/drafts");assert.equal(list.body.drafts.length,1);assert.equal(list.body.drafts[0].import_snapshot.skills[0].files[0].content,undefined);
+  await request(`/drafts/${id}/state`,{expected_revision:2,state:"tombstoned"});
+  const fresh=await request("/imports",{candidate_id:rescanned.candidate_id,selection});assert.equal(fresh.status,200);assert.notEqual(fresh.body.draft.character_id,id);
+});

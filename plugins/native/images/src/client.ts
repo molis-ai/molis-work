@@ -177,6 +177,7 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       const img = document.createElement('img'); img.className = 'images-result-image';
       img.src = imageUrl(job, item); img.alt = job.prompt;
       img.addEventListener('error', () => {
+        if (resultSignature === signature) resultSignature = '';
         const failure = text('p', L('图片暂时无法读取，请刷新记录后重试。'), 'images-note is-error');
         img.replaceWith(failure);
       }, { once: true });

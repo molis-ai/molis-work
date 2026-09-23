@@ -39,7 +39,7 @@ test("project index, settings, and workbench keep titles pinned and scroll only 
   assert.ok(workbench.includes("tab-pane-body > .goal-canvas-shell"));
   assert.ok(workbench.includes("tab-workspace { position: absolute; inset: 0"));
   assert.ok(workbench.includes("[data-pane-embedded] .immersive-workspace > :is(.plugin-stack, .plugin-rail, .assistant-island, .tree-pane, .tree-resizer, .immersive-titlebar, .workspace-chrome, .mobile-tabs, .immersive-sidebar-scrim)"));
-  assert.ok(workbench.includes("immersive-plugin-stage > .immersive-market { overflow: hidden; display: flex; flex-direction: column;"));
+  assert.ok(workbench.includes(":is(.immersive-plugin-stage > .immersive-market, .tab-workspace-exclusive > .immersive-market, .tab-pane-body > .immersive-market) { overflow: hidden; display: flex; flex-direction: column;"));
   assert.ok(workbench.includes("plugin-market-body { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain;"));
   assert.match(workbench, /\.plugin-market-search \{[\s\S]*min-height: 40px/);
   assert.doesNotMatch(workbench, /\.plugin-market-search input \{[^}]*border: 1px solid/);

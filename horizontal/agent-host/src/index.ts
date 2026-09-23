@@ -1,3 +1,4 @@
+import { importedCharacterInstructions } from "./character-import.js";
 import type {
   AgentManifest,
   AgentPromptText,
@@ -48,6 +49,7 @@ export type {
 } from "./capability-registration.js";
 export { PrologueAgentAdapter, PrologueAdapterError, PROLOGUE_RUNTIME_ID } from "./adapters/prologue.js";
 export { createPrologueNodeAdapter } from "./adapters/prologue-node.js";
+export { resolveModelHostname } from "./adapters/node-model-dns.js";
 export { PrologueApprovalBridge, PrologueApprovalError } from "./adapters/prologue-approvals.js";
 export {
   applyPrologueEvent,
@@ -157,6 +159,7 @@ function composeRolePrompts(
   role: AgentRoleDeclaration,
   authority: AgentStartAuthority,
   character?: AgentFrozenCharacter,
+  characterInstructions?: string,
 ): AgentPromptText[] {
   const available = authority.prompts ?? [];
   const named = role.prompts;
@@ -176,7 +179,7 @@ function composeRolePrompts(
     layer: "project" as const,
   }));
   const characterPrompt: AgentPromptText[] = character ? [{ prompt_id: `character-${character.character_id}`, version: character.reference.version,
-    layer: "role", body: character.instructions }] : [];
+    layer: "role", body: characterInstructions ?? character.instructions }] : [];
   return orderPromptsByLayer([...own, ...characterPrompt, ...project]);
 }
 
@@ -376,6 +379,12 @@ export class AgentHost implements AgentHostApi {
       }
     }
 
+    if (character && request.character_skill_ids !== undefined) {
+      const ids = request.character_skill_ids;
+      if (!Array.isArray(ids) || ids.length > 200 || new Set(ids).size !== ids.length || ids.some(id => typeof id !== "string" || !character!.import_snapshot?.skills.some(skill => skill.id === id))) throw new Error("本轮选择的 Skill 不在 Character 固定版本中");
+      // Preserve the exact source reference; carry only this Run's selected resources into runtime history.
+      if (character.import_snapshot) character.import_snapshot.skills = character.import_snapshot.skills.filter(skill => ids.includes(skill.id));
+    }
     if (request.execution_plan && STEP_TOOLS.some(tool => !hostTools.includes(tool))) {
       throw new AgentHostError("agent.role_execution_exceeded", "当前角色未开放计划回报工具，请调整角色或取消角色选择后执行计划");
     }
@@ -445,7 +454,9 @@ export class AgentHost implements AgentHostApi {
       });
       if (!subagents.length) throw new AgentHostError("agent.role_not_declared", "没有可分派的子角色");
     } else if (hostTools.some(tool => ["dispatch-subagent", "await-subagents", "steer-subagent"].includes(tool))) throw new AgentHostError("agent.role_not_declared", "没有声明子角色的执行方式不能分派子任务");
-    const prompts = composeRolePrompts(role, authority, character);
+    const characterSkillIds = request.character_skill_ids === undefined ? undefined : [...request.character_skill_ids];
+    if (characterSkillIds && !character?.import_snapshot && characterSkillIds.length) throw new Error("请先选择包含导入 Skills 的 Character");
+    const prompts = composeRolePrompts(role, authority, character, character ? importedCharacterInstructions(character, request.directory.canonical_path, characterSkillIds) : undefined);
     const handle = await adapter.start({
       ...request,
       mcp_tools: mcp,
@@ -457,6 +468,7 @@ export class AgentHost implements AgentHostApi {
         ...(subagents ? { subagents } : {}),
         ...(childWorkspaces ? { subagent_workspaces: childWorkspaces } : {}),
         ...(character ? { character } : {}),
+        ...(characterSkillIds === undefined ? {} : { character_skill_ids: characterSkillIds }),
         prompts: prompts.map((prompt) => ({ ...prompt })),
         skills,
         ...(compaction ? { compaction } : {}),
@@ -466,6 +478,7 @@ export class AgentHost implements AgentHostApi {
     // The Runtime cannot widen what the Manifest froze. A mismatch is the
     // adapter's fault, and the run does not continue on a wider authority.
     if (JSON.stringify(handle.frozen.character) !== JSON.stringify(character)
+      || JSON.stringify(handle.frozen.character_skill_ids) !== JSON.stringify(characterSkillIds)
       || JSON.stringify(handle.frozen.subagent_workspaces) !== JSON.stringify(childWorkspaces)
       || character && JSON.stringify(handle.frozen.host_tools) !== JSON.stringify(hostTools)
       || JSON.stringify(handle.frozen.mcp_sources ?? []) !== JSON.stringify(sources)

@@ -15,7 +15,7 @@ export const GOAL_CANVAS_STYLES = `
     .goal-canvas-shell[data-board-view="list"][data-expanded="true"] {
       display: grid;
       grid-template-columns: var(--tree-width, var(--immersive-sidebar-width)) minmax(0, 1fr);
-      grid-template-rows: minmax(0, 1fr);
+      grid-template-rows: auto minmax(0, 1fr);
     }
     .goal-canvas-shell[data-board-view="list"][data-expanded="true"] .goal-stage-list {
       display: block !important;
@@ -28,9 +28,9 @@ export const GOAL_CANVAS_STYLES = `
       height: auto;
       overflow: auto;
       border-right: 1px solid var(--line);
-      padding: 52px 8px 20px;
+      padding: 8px 8px 20px;
       grid-column: 1;
-      grid-row: 1;
+      grid-row: 2;
     }
     .goal-canvas-shell[data-board-view="list"][data-expanded="true"] .goal-node-workspace {
       position: relative;
@@ -41,10 +41,15 @@ export const GOAL_CANVAS_STYLES = `
       width: auto;
       height: auto;
       grid-column: 2;
-      grid-row: 1;
+      grid-row: 1 / -1;
     }
     .goal-canvas-shell[data-board-view="list"][data-expanded="true"] [data-goal-stage-chrome],
     .goal-canvas-shell[data-board-view="list"][data-expanded="true"] .goal-board-switch { visibility: visible; }
+    .goal-canvas-shell[data-board-view="list"][data-expanded="true"] [data-goal-stage-chrome] {
+      position: relative; top: auto; left: auto; grid-column: 1; grid-row: 1;
+      margin: 16px 8px 8px; width: auto; max-width: none; flex-wrap: wrap; gap: 4px;
+    }
+    body.immersive-workbench .goal-canvas-shell[data-board-view="list"][data-expanded="true"] [data-goal-stage-chrome] :is(.tree-chrome, .tree-tools) { max-width: 100%; flex-wrap: wrap; }
     body.immersive-workbench .goal-canvas-shell[data-board-view="list"][data-expanded="true"] .tree-entry {
       grid-template-columns: minmax(0, 1fr) auto;
       column-gap: 8px;
@@ -65,11 +70,29 @@ export const GOAL_CANVAS_STYLES = `
   .goal-work-planning-toggle[aria-pressed="true"] { background: var(--nav-active); color: var(--ink); }
   .goal-work-planning-pane,
   .goal-work-rules-pane { display: none; min-width: 0; min-height: 0; overflow: auto; padding: 64px 40px 48px; background: var(--page); }
+  .goal-canvas-shell[data-goal-planning="open"] .goal-work-planning-pane { overflow: hidden; padding: 52px 0 0; }
   .goal-canvas-shell[data-goal-planning="open"] .goal-work-planning-pane,
   .goal-canvas-shell[data-goal-rules="open"] .goal-work-rules-pane { display: block; position: absolute; inset: 0; z-index: 4; }
   .goal-canvas-shell:is([data-goal-planning="open"], [data-goal-rules="open"]) [data-goal-stage-chrome] { visibility: visible; }
+  .goal-canvas-shell[data-goal-planning="open"] .goal-work-planning-pane { display: flex; flex-direction: column; overflow: hidden; }
+  .goal-canvas-shell[data-goal-planning="open"] .goal-work-planning-pane > .work-planning { flex: 1; min-height: 0; height: auto; overflow: hidden; }
+  .goal-canvas-shell[data-goal-planning="open"] .work-planning-layout,
+  .goal-canvas-shell[data-goal-planning="open"] .work-planning-directory,
+  .goal-canvas-shell[data-goal-planning="open"] .work-planning-stage { min-height: 0; }
+  .goal-canvas-shell[data-goal-planning="open"] .work-planning-directory { overflow: auto; overscroll-behavior: contain; }
+  .goal-canvas-shell[data-goal-planning="open"] .work-planning-detail { display: flex; flex-direction: column; overflow: hidden; padding: 0 32px; }
+  .goal-canvas-shell[data-goal-planning="open"] .work-planning-detail > :is(.planning-detail, .planning-edit) { display: flex; flex-direction: column; flex: 1; min-height: 0; width: 100%; max-width: none; height: auto; margin: 0; padding: 0; overflow: hidden; }
+  .goal-canvas-shell[data-goal-planning="open"] .planning-detail-scroll { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; }
+  .goal-canvas-shell[data-goal-planning="open"] .work-planning-detail :is(.mw-breadcrumb, .planning-back) { flex: none; margin: 0; padding: 12px 0 8px; background: var(--page); }
   .goal-work-planning-pane :is(.work-planning, .planning-detail, .planning-edit),
-  .goal-work-rules-pane .project-rules-document { display: block; height: auto; overflow: visible; }
+  .goal-work-rules-pane .project-rules-document,
+  html[data-resolved-theme="dark"] .goal-work-rules-pane .project-rules-document { display: block; height: auto; overflow: visible; background: transparent; }
+  .goal-work-rules-pane.settings-stage :is(.mw-input, .mw-select, .mw-textarea) { width: 240px; min-height: var(--control-h, 28px); padding: 0 10px; border: 1px solid var(--control-input); border-radius: var(--radius-control, 8px); background-color: var(--paper); color: var(--ink); box-shadow: none; font-size: 13px; appearance: none; }
+  .goal-work-rules-pane.settings-stage .mw-textarea { width: 100%; min-height: 72px; height: auto; padding: 8px 10px; resize: vertical; }
+  .goal-work-rules-pane.settings-stage .mw-select { padding-right: 28px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%2394949c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 8px center; background-size: 14px 14px; }
+  .goal-work-rules-pane.settings-stage .setting-number .mw-input { width: 90px; }
+  .goal-work-rules-pane .settings-setting-row > .mw-select-picker { width: 240px; flex: none; margin-left: auto; }
+  .goal-work-rules-pane .settings-setting-row > .mw-select-picker > .mw-select-picker__trigger { width: 100%; }
   .goal-work-planning-pane .settings-body,
   .goal-work-rules-pane .settings-body { display: block; height: auto; min-height: 0; overflow: visible; overscroll-behavior: auto; flex: none; padding-bottom: 48px; }
   .goal-stage-list .goal-collection-fold { margin: 0 0 10px; border: 0; }

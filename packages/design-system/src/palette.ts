@@ -86,6 +86,10 @@ export const MW_STATUS_TONES = [
 
 export const MW_PLUGINS = [
   { id: "home", label: "Home", hue: "gray" as const },
+  { id: "cognia", label: "Cognia", hue: "blue" as const },
+  { id: "plugin-builder", label: "Plugin Builder", hue: "indigo" as const },
+  { id: "images", label: "Images", hue: "pink" as const },
+  { id: "jelly", label: "Jelly", hue: "mint" as const },
   { id: "goals", label: "Goals", hue: "blue" as const },
   { id: "feed", label: "Feed", hue: "brown" as const },
   { id: "sessions", label: "Sessions", hue: "purple" as const },
@@ -95,12 +99,19 @@ export const MW_PLUGINS = [
   { id: "lingguang", label: "灵光", hue: "yellow" as const },
   { id: "experiments", label: "实验", hue: "purple" as const },
   { id: "functions", label: "Functions", hue: "indigo" as const },
+  { id: "characters", label: "Characters", hue: "purple" as const },
   { id: "pages", label: "Pages", hue: "cyan" as const },
   { id: "form", label: "Forms", hue: "orange" as const },
   { id: "dataset", label: "Dataset", hue: "green" as const },
   { id: "ppt", label: "PPT", hue: "red" as const },
+  { id: "alchemist", label: "炼金术士", hue: "purple" as const },
   { id: "artifacts", label: "Artifacts", hue: "pink" as const },
   { id: "coding", label: "Coding", hue: "cyan" as const },
+  { id: "workspace", label: "Workspace", hue: "slate" as const },
+  { id: "files", label: "Files", hue: "yellow" as const },
+  { id: "git", label: "Git", hue: "orange" as const },
+  { id: "diff", label: "Diff", hue: "cyan" as const },
+  { id: "text-stats", label: "Text Stats", hue: "brown" as const },
   { id: "settings", label: "Settings", hue: "steel" as const },
 ] as const;
 
@@ -252,7 +263,7 @@ export function renderPluginTintBindings(): string {
       ? `[data-work-surface="${plugin.id}"], [data-work-surface="goal"]`
       : `[data-work-surface="${plugin.id}"]`;
     return [
-      `body.immersive-workbench :is(.plugin-rail [data-plugin-id="${plugin.id}"], .assistant-island [data-plugin-id="${plugin.id}"], [data-plugin-section="${plugin.id}"], [data-directory-panel="${plugin.id}"], ${surfaces}, .tab-item[data-plugin="${plugin.id}"]${extras}) { --plugin-tint: var(--plugin-${plugin.id}); }`,
+      `body.immersive-workbench :is(.plugin-rail [data-plugin-id="${plugin.id}"], .assistant-island [data-plugin-id="${plugin.id}"], [data-plugin-section="${plugin.id}"], [data-directory-panel="${plugin.id}"], [data-market-plugin="${plugin.id}"], [data-market-focus="${plugin.id}"], ${surfaces}, .tab-item[data-plugin="${plugin.id}"]${extras}) { --plugin-tint: var(--plugin-${plugin.id}); }`,
       `.mw-catalog [data-plugin-id="${plugin.id}"] { --plugin-tint: var(--plugin-${plugin.id}); }`,
     ];
   }).join("\n  ");

@@ -53,7 +53,9 @@ export function listPluginSettingsNavItems(enabled?: readonly string[]): PluginS
 }
 
 export function findPluginSettingsNavItem(sectionId: string): PluginSettingsNavItem | null {
-  return listPluginSettingsNavItems().find((item) => item.section_id === sectionId) ?? null;
+  // Route discovery precedes project selection. Navigation filtering must not
+  // make a registered project's settings page unreachable by its own URL.
+  return pluginSettingsNavItemsFrom(listWorkbenchUiContributions()).find((item) => item.section_id === sectionId) ?? null;
 }
 
 export function isHostGlobalSettingsSection(section: string): boolean {

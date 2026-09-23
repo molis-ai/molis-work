@@ -26,10 +26,13 @@ export function createTextStatsPlugin(ports: TextStatsPluginPorts = {}): PluginD
         kind: "app",
         views: [textStatsUiContribution],
         routes: [{ route_id: "text-stats.state", handle: () => {
-          const record = context.services?.inputs?.read("text");
-          if (!record) return { status: 200, body: { view: waitingStats() } };
-          try { return { status: 200, body: { view: projectTextStats({ snapshot: parseFileSnapshot(record.payload),
-            source_plugin_id: record.producer_plugin_id, content_version: record.version }) } }; }
+          try {
+            const record = context.services?.inputs?.read("text");
+            if (!record) return { status: 200, body: { view: waitingStats() } };
+            if (record.availability !== "available" || record.lifecycle_state !== "active") return { status: 200, body: { view: unavailableStats() } };
+            return { status: 200, body: { view: projectTextStats({ snapshot: parseFileSnapshot(record.payload),
+              source_plugin_id: record.producer_plugin_id, content_version: record.version }) } };
+          }
           catch { return { status: 200, body: { view: unavailableStats() } }; }
         } }],
         onUpstreamReady: (inputs) => {
@@ -37,7 +40,7 @@ export function createTextStatsPlugin(ports: TextStatsPluginPorts = {}): PluginD
           // An Artifact the Host could not make available is not an input.
           // Counting its `payload` — which is null in that case — would report
           // zeros for a file nobody managed to read.
-          if (record === undefined || record.availability !== "available") {
+          if (record === undefined || record.availability !== "available" || record.lifecycle_state !== "active") {
             ports.onSnapshot?.(null);
             return;
           }

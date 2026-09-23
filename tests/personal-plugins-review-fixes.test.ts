@@ -90,7 +90,7 @@ async function listenDispatcher(
 }
 
 test("purge 名单覆盖全部个人 home 库", () => {
-  assert.deepEqual([...PERSONAL_HOME_SQLITE_STORES], ["pages", "form", "dataset", "ppt", "lingguang", "functions"]);
+  assert.deepEqual([...PERSONAL_HOME_SQLITE_STORES], ["images", "pages", "form", "dataset", "ppt", "lingguang", "jelly", "cognia", "alchemist", "functions"]);
 });
 
 test("uninstall --purge 会把已有的个人库目录列入删除并真正删掉", async () => {

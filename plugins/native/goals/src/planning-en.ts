@@ -3,8 +3,11 @@ export const GOALS_PLANNING_EN: Record<string, string> = {
   "搜索规划方法": "Search planning methods",
   "选择项目共同采用的方法。它们将用于拆分目标、检查依赖和确认完成依据。": "Choose shared methods for breaking down goals, checking dependencies, and verifying completion.",
   "这些方法共同生效。Runtime 还会根据具体 Goal 补充相关方法。": "These methods apply together. Runtime adds relevant methods for each Goal.",
-  "从下方添加项目长期采用的方法。尚未添加时，Runtime 仍会按每个 Goal 的具体工作选择相关方法。": "Add methods your project uses regularly below. Until then, Runtime selects relevant methods for each Goal.",
+  "从左侧列表点开方法，再加入这个项目。尚未添加时，Runtime 仍会按每个 Goal 的具体工作选择相关方法。": "Open a method from the list on the left, then add it to this project. Until then, Runtime selects relevant methods for each Goal.",
+  "方法正文": "Method",
   "没有匹配的方法，试试其他关键词或分类。": "No matching methods. Try another search or category.",
+  "方法目录": "Method directory",
+  "方法列表": "Method list",
 
     "完成前要看到的证据": "Evidence required before completion",
     "例如：SaaS 功能发布": "For example: SaaS feature release",

@@ -51,7 +51,8 @@ test("Feed task creation is a scoped dialog with validation and persistent sched
     document.querySelector('[data-feed-add-out-rule-name]').value='发布相关';
     document.querySelector('[data-feed-add-out-rule-contains]').value='launch';
   }`);
-  await navigate(() => click('[data-feed-source-register]'));
+  await click('[data-feed-source-register]');
+  await waitFor("!document.querySelector('[data-feed-sources-dialog]').open");
   await waitFor("[...document.querySelectorAll('[data-feed-task]')].some(x=>x.textContent.includes('设计观察'))");
   const sourceId = await evaluate<string>("[...document.querySelectorAll('[data-feed-task]')].find(x=>x.textContent.includes('设计观察')).dataset.feedTask");
   await click(`[data-feed-task-config-open="${sourceId}"]`);
@@ -104,10 +105,10 @@ test("Feed creation recovers a failed schedule without duplicating the task", { 
   await click('[data-feed-add-toggle]');
   assert.equal(await evaluate("document.querySelector('[data-feed-source-value=custom_rss]').value"), "https://example.com/retry.xml");
   assert.equal(await evaluate("document.querySelector('[data-feed-setup-back]').hidden"), true);
-  await evaluate("window.addEventListener('beforeunload',()=>sessionStorage.setItem('creationRequests',String(window.sourceCreationRequests)))");
-  await navigate(() => click('[data-feed-source-register]'));
+  await click('[data-feed-source-register]');
+  await waitFor("!document.querySelector('[data-feed-sources-dialog]').open");
   await waitFor(`document.querySelector('[data-feed-task="${sourceId}"] summary[aria-current=page]')`);
-  assert.equal(await evaluate("sessionStorage.getItem('creationRequests')"), "1");
+  assert.equal(await evaluate("window.sourceCreationRequests"), 1);
   const saved = createLocalFeedApplication(b.store.db).getSource(DEMO_BOARD_ID, sourceId);
   assert.equal(saved.schedule.mode, "interval");
   if (saved.schedule.mode === "interval") assert.equal(saved.schedule.interval_minutes, 60);
@@ -135,6 +136,7 @@ test("Feed configuration cancels drafts and saves its schedule independently", {
   await evaluate(`{const field=document.querySelector('${panel} [data-source-schedule-mode]');field.value='interval';field.dispatchEvent(new Event('change',{bubbles:true}));document.querySelector('${panel} [data-source-schedule-interval]').value='360';}`);
   await click(`${panel} [data-source-schedule-reset]`);
   assert.equal(await evaluate(`document.querySelector('${panel} [data-source-schedule-mode]').value`),"manual");
+  assert.equal(await evaluate(`document.querySelector('${panel} [data-source-schedule-mode] + [data-mw-select-trigger] [data-mw-select-label]').textContent`),"手动拉取");
   await evaluate(`{document.querySelector('${panel} [data-source-config-field=name]').value='保留中的名称';const field=document.querySelector('${panel} [data-source-schedule-mode]');field.value='interval';field.dispatchEvent(new Event('change',{bubbles:true}));document.querySelector('${panel} [data-source-schedule-interval]').value='360';}`);
   await click(`${panel} [data-source-schedule-save]`);
   await waitFor(`!document.querySelector('${panel} [data-source-schedule-save]').disabled`);
@@ -152,7 +154,28 @@ test("Feed configuration cancels drafts and saves its schedule independently", {
   await waitFor(`document.querySelector('${panel} [data-source-action-status]').textContent.includes('无法保存配置')`);
   assert.equal(await evaluate(`document.querySelector('${panel} [data-source-config-field=name]').value`),"保留中的名称");
   await evaluate('window.restoreConfigFetch()');
-  await navigate(()=>click('[data-feed-config-submit]'));
+  await evaluate(`{ const original = window.fetch; window.configRequests = 0; window.fetch = async (url, options) => {
+    const response = await original(url, options);
+    if (options?.method === 'PATCH') {
+      window.configRequests++;
+      window.configResponseReady = true;
+      await new Promise(resolve => { window.releaseConfigResponse = resolve; });
+    }
+    return response;
+  }; }`);
+  await click('[data-feed-config-submit]');
+  await waitFor('window.configResponseReady === true');
+  assert.equal(feed.getSource(DEMO_BOARD_ID,source.source_id).name,"保留中的名称");
+  await click('[data-feed-sources-dialog] footer [data-feed-sources-close]');
+  await command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }, sessionId);
+  await command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }, sessionId);
+  await click('[data-feed-config-submit]');
+  assert.equal(await evaluate("document.querySelector('[data-feed-sources-dialog]').open"), true);
+  assert.equal(await evaluate("document.querySelector('[data-feed-sources-dialog]').getAttribute('aria-busy')"), 'true');
+  assert.equal(await evaluate('window.configRequests'), 1);
+  await evaluate('window.releaseConfigResponse()');
+  await waitFor("!document.querySelector('[data-feed-sources-dialog]').open");
+  await waitFor(`document.querySelector('[data-feed-task="${source.source_id}"]')?.textContent.includes('保留中的名称')`);
   assert.equal(feed.getSource(DEMO_BOARD_ID,source.source_id).name,"保留中的名称");
   const plan=feed.getSource(DEMO_BOARD_ID,source.source_id).schedule;
   assert.equal(plan.mode,"interval"); if(plan.mode==='interval') assert.equal(plan.interval_minutes,360);
@@ -179,9 +202,9 @@ test("Feed reader keeps one title, tracks read state, collapses and retries a fa
   assert.notEqual(await evaluate(`getComputedStyle(document.querySelector('[data-feed-detail="${item.item_id}"] h1')).display`),'none');
   assert.match(await evaluate<string>(`document.querySelector('[data-feed-detail="${item.item_id}"] .feed-rich-content').textContent`),/阅读正文/);
   const headerTop=await evaluate<number>("document.querySelector('.feed-stage-toolbar').getBoundingClientRect().top");
-  const bodyPoint=await evaluate<{x:number;y:number}>("(()=>{const r=document.querySelector('[data-feed-stage-workspace]').getBoundingClientRect();return {x:r.x+30,y:r.y+40}})()");
+  const bodyPoint=await evaluate<{x:number;y:number}>(`(()=>{const r=document.querySelector('[data-feed-entry-detail="${item.item_id}"] .feed-stage-item-detail').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()`);
   await command('Input.dispatchMouseEvent',{type:'mouseWheel',...bodyPoint,deltaX:0,deltaY:300},sessionId);
-  await waitFor("document.querySelector('[data-feed-stage-workspace]').scrollTop>100");
+  await waitFor(`document.querySelector('[data-feed-entry-detail="${item.item_id}"] .feed-stage-item-detail').scrollTop>100`);
   assert.equal(await evaluate("document.querySelector('.feed-stage-toolbar').getBoundingClientRect().top"),headerTop,'reader scroll never moves the toolbar');
   assert.equal(await evaluate("document.scrollingElement.scrollTop"),0);
   await click(`[data-feed-entry-detail="${item.item_id}"]:not([hidden]) [data-feed-collapse]`);

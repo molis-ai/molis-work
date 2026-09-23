@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import type { JellyBlock, JellyCommand, JellyInspiration, JellyNote, JellyPlan, JellyRelation, JellyWorkspace } from "@molis-ai/molis-work-contracts/modules/jelly";
+import type { JellyBlock, JellyCommand, JellyInspiration, JellyItem, JellyNote, JellyPlan, JellyRelation, JellyWorkspace } from "@molis-ai/molis-work-contracts/modules/jelly";
 import { makeJellyItem, jellyOccurrences, jellySchedulesOverlap } from "./calendar.js";
 import { jellyAssert } from "./error.js";
 import { makeJellyMaterialSnapshot, validateJellyMaterialSnapshot, validateJellyStructuredDigest, renderJellyDigestMarkdown, type JellyMaterialExtraction } from "./material.js";
@@ -17,6 +17,11 @@ function inspirationById(state: JellyWorkspace, id: unknown): JellyInspiration {
 function record(value: unknown): Record<string, unknown> { jellyAssert(value && typeof value === "object" && !Array.isArray(value), "命令内容必须是对象"); return value as Record<string, unknown>; }
 function string(value: unknown, fallback = ""): string { if (value == null) return fallback; jellyAssert(typeof value === "string", "内容必须是文本"); return value; }
 function category(state: JellyWorkspace, id: unknown): string { const result = id === undefined ? "uncategorized" : string(id); jellyAssert(state.categories.some(c => c.id === result), "分类不存在"); return result; }
+function priorityOf(value: unknown, fallback: JellyItem["priority"] = "none"): JellyItem["priority"] {
+  if (value === undefined || value === null) return fallback;
+  if (value === "P0" || value === "P1" || value === "P2" || value === "none") return value;
+  jellyAssert(false, "优先级无效");
+}
 function touch(note: JellyNote, now: string): void { note.updated_at = now; note.revision++; }
 function blocks(value: unknown): JellyBlock[] {
   jellyAssert(Array.isArray(value), "区块必须是数组");
@@ -40,9 +45,9 @@ function scheduleTask(state: JellyWorkspace, command: JellyCommand, now: string)
   const link = state.task_links.find(l => l.note_id === note.id && l.block_id === block.id);
   if (link) {
     const item = state.items.find(i => i.id === link.item_id)!;
-    Object.assign(item, schedule, { title: block.text.trim(), category_id: category(state, command.category_id ?? item.category_id), priority: command.priority ?? item.priority, updated_at: now });
+    Object.assign(item, schedule, { title: block.text.trim(), category_id: category(state, command.category_id ?? item.category_id), priority: priorityOf(command.priority, item.priority), updated_at: now });
   } else {
-    const item = makeJellyItem({ ...schedule, title: block.text.trim(), category_id: category(state, command.category_id ?? note.category_id), priority: command.priority as any ?? "none", completed_at: block.completed_at, completion_description: block.completion_description }, now);
+    const item = makeJellyItem({ ...schedule, title: block.text.trim(), category_id: category(state, command.category_id ?? note.category_id), priority: priorityOf(command.priority), completed_at: block.completed_at, completion_description: block.completion_description }, now);
     state.items.push(item); state.task_links.push({ item_id: item.id, note_id: note.id, block_id: block.id }); state.relations.push({ owner_id: item.id, original_date: null, note_id: note.id, role: "primary" });
   }
 }

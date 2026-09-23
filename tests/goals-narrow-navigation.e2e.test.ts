@@ -113,11 +113,14 @@ test("narrow Goal drawer shows the list, restores the stored view, and keeps wor
   assert.equal(state.searchVisible, true);
 
   await click('[data-plugin-strip] [data-plugin-id="inbox"]');
-  await waitFor(`document.querySelector(".tree-pane").dataset.desktopDirectory === "inbox"`);
+  await waitFor(`document.body.dataset.desktopSurface === "inbox" && !document.querySelector("[data-workspace]").classList.contains("is-directory-drawer-open")`);
   state = await snap();
-  assert.equal(state.directory, "inbox");
-  assert.equal(state.drawer, true);
-  assert.equal(isShown(state.tree), true);
+  assert.equal(state.directory, "root");
+  assert.equal(state.drawer, false);
+  assert.equal(isHiddenFromUse(state.tree), true);
+  assert.ok(await evaluate("document.querySelector('[data-inbox-stage-shell]')?.getBoundingClientRect().height > 180"));
+  await click('[data-directory-show]');
+  await waitDrawer();
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor(`document.querySelector(".tree-pane").dataset.desktopDirectory === "root" && !document.querySelector("[data-workspace]").classList.contains("is-directory-drawer-open")`);
 
@@ -203,7 +206,7 @@ test("narrow list, graph return and desktop side-by-side keep usable geometry", 
   assert.equal(isShown(state.graph), true);
   assert.equal(isHiddenFromUse(state.tree), true);
   assert.equal(state.hit, "graph");
-  assert.equal(state.containerTab, "");
+  assert.equal(state.containerTab, "canvas");
 
   await click("[data-directory-show]");
   await waitFor(`document.querySelector("[data-workspace]").classList.contains("is-directory-drawer-open") && document.querySelector(".plugin-rail").getBoundingClientRect().width > 40`);

@@ -15,6 +15,7 @@ export const PROJECT_SETTINGS_PAGE_STYLES = `
   html[data-resolved-theme="dark"] :is(body.project-preferences-page, .settings-stage) .settings-content { box-shadow: none; }
   html[data-resolved-theme="dark"] :is(body.project-preferences-page, .settings-stage) .settings-content > :is(.settings-document, .appearance-document) { background: transparent; }
   :is(body.project-preferences-page, .settings-stage) .settings-content > :is(.project-settings-page, .settings-document, .guidance-document, .work-planning, .planning-catalog, .planning-detail, .planning-edit, [data-settings-panel], [data-settings-loading]) { display: block; width: 100%; max-width: 760px; height: auto; min-height: 0; overflow: visible; margin-inline: auto; padding: 0; background: transparent; border: 0; box-shadow: none; }
+  :is(body.project-preferences-page, .settings-stage) .settings-content > .work-planning { max-width: none; }
   :is(.project-preferences-page, .settings-stage) .settings-body { display: block; overflow: visible; min-height: 0; padding: 0; }
   :is(.project-preferences-page, .settings-stage) :is(.settings-page-heading, .settings-heading, .guidance-page-header, .planning-page-header, .planning-detail-header) { max-width: none; margin: 0 0 20px; padding: 0; border: 0; }
   :is(.project-preferences-page, .settings-stage) :is(.guidance-page-header, .planning-page-header) { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
@@ -69,11 +70,14 @@ export const PROJECT_SETTINGS_PAGE_STYLES = `
   :is(.project-preferences-page, .settings-stage) input.settings-switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--paper); box-shadow: 0 1px 2px #0002; transition: transform 160ms ease; }
   :is(.project-preferences-page, .settings-stage) input.settings-switch:checked { background: var(--ink); border-color: var(--ink); }
   :is(.project-preferences-page, .settings-stage) input.settings-switch:checked::after { transform: translateX(14px); }
-  :is(.project-preferences-page, .settings-stage) .settings-last-change > p { margin: 0 0 12px; color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
+  :is(.project-preferences-page, .settings-stage) .settings-last-change { display: grid; gap: 2px; margin: 0; color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
+  :is(.project-preferences-page, .settings-stage) .settings-last-change strong { color: var(--ink); font-size: 14px; font-weight: 400; }
   :is(.project-preferences-page, .settings-stage) .settings-rules-form { margin: 0; }
   :is(.project-preferences-page, .settings-stage) .settings-section .settings-data-disclosure .settings-setting-row:last-child { border: 0; }
   :is(.project-preferences-page, .settings-stage) .settings-section .settings-data-disclosure > :not(summary) { padding-bottom: 8px; }
   :is(.project-preferences-page, .settings-stage) .settings-setting-row > input:not([type=checkbox]) { width: 240px; }
+  :is(.project-preferences-page, .settings-stage) .settings-setting-row > .mw-select-picker { width: 240px; flex: none; margin-left: auto; }
+  :is(.project-preferences-page, .settings-stage) .settings-setting-row > .mw-select-picker > .mw-select-picker__trigger { width: 100%; }
   :is(.project-preferences-page, .settings-stage) .settings-setting-row input[type=number] { width: 90px; }
   :is(.project-preferences-page, .settings-stage) .settings-change-reason { display: grid; gap: 10px; padding-top: 12px; padding-bottom: 12px; }
   :is(.project-preferences-page, .settings-stage) .settings-change-reason .settings-save-footer { margin: 4px 0 0; }
@@ -247,7 +251,9 @@ export const PROJECT_SETTINGS_PAGE_STYLES = `
   :is(body.settings-page, .settings-stage) .settings-content > .planning-edit { display: flex; flex-direction: column; flex: 1; height: 100%; min-height: 0; overflow: hidden; padding-block: 0; }
   .planning-edit .planning-page-header { margin-bottom: 12px; }
   .planning-edit .planning-save-context { flex: none; margin-block: 0 12px; padding: 10px 0; border: 0; border-radius: 0; background: transparent; }
-  :is(body.settings-page, .settings-stage) .planning-edit > .settings-body { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; padding: 0; }
+  :is(body.settings-page, .settings-stage) .planning-edit > .planning-detail-scroll,
+  :is(body.settings-page, .settings-stage) .planning-edit > .settings-body,
+  :is(body.settings-page, .settings-stage) .planning-edit > .planning-detail-scroll > .settings-body { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; padding: 0; }
   .planning-edit .planning-edit-form { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
   .planning-edit-fields { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding: 2px 4px 16px; }
   .planning-edit .planning-edit-section { padding-block: 16px; }

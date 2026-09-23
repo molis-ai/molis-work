@@ -1,14 +1,14 @@
 /** Exact published selection for the next Run; never derives history from the current library. */
 export const CODING_CHARACTERS_CLIENT_FACTORY_SCRIPT = `(host) => {
-  const {q,api,current,selections,titles,save,controls,status}=host;
+  const {q,api,current,selections,titles,skillSelections,save,controls,status}=host;
   const dialog=q('[data-coding-character-dialog]'),list=q('[data-coding-character-list]'),error=q('[data-coding-character-error]'),submit=q('[data-coding-character-save]');
   const key=ref=>ref ? JSON.stringify([ref.artifact_id,ref.version]) : '';
-  let ticket=0,session='',rows=[],candidate=null,busy=false;
+  let ticket=0,session='',rows=[],candidate=null,busy=false,selectedSkills=[];
   const close=()=>{if(busy)return;ticket++;dialog.close();};
   const open=async()=>{
     if(!current() || busy)return;
     session=current();const id=session,request=++ticket;
-    candidate=structuredClone(selections.get(id) ?? null);rows=[];
+    candidate=structuredClone(selections.get(id) ?? null);selectedSkills=[...(skillSelections.get(id) || [])];rows=[];
     list.textContent='正在读取已发布角色…';error.textContent='';submit.disabled=true;dialog.showModal();
     try{
       const data=await api('/sessions/'+encodeURIComponent(id)+'/characters');
@@ -22,13 +22,18 @@ export const CODING_CHARACTERS_CLIENT_FACTORY_SCRIPT = `(host) => {
         row.className='coding-material';label.className='mw-check-row';radio.className='mw-radio';radio.type='radio';radio.name='coding-character-choice';radio.value=String(index);
         radio.checked=key(candidate)===key(item.reference);radio.disabled=!item.available;
         name.textContent=item.title+(item.reference?' · v'+item.reference.version:'');label.append(radio,name);row.append(label);
-        radio.addEventListener('change',()=>{if(busy)return;candidate=structuredClone(item.reference);submit.disabled=false;error.textContent='';});
+        radio.addEventListener('change',()=>{if(busy)return;candidate=structuredClone(item.reference);selectedSkills=[];list.querySelectorAll('[data-character-skill]').forEach(input=>{input.checked=false;input.disabled=input.dataset.owner!==key(candidate) || input.dataset.compatible!=='true';});submit.disabled=false;error.textContent='';});
         if(!item.available){const reason=document.createElement('p');reason.textContent=item.reason || '此版本不可用';row.append(reason);}
         if(item.reference && typeof item.instructions==='string'){
           const detail=document.createElement('details'),summary=document.createElement('summary'),body=document.createElement('pre'),scope=document.createElement('p');
           summary.textContent='查看固定内容';body.textContent=item.instructions;
           scope.textContent='内置工具：'+(item.host_tools===null?'沿用当前任务方式':item.host_tools.length?item.host_tools.join('、'):'不使用内置工具')+'。MCP 仍由调用方单独选择并审查。';
           detail.append(summary,body,scope);row.append(detail);
+        }
+        if(item.imported_skills?.length){
+          const skills=document.createElement('details'),summary=document.createElement('summary');summary.textContent='本轮使用的 Skills（未选择时只加载规则）';skills.append(summary);
+          for(const skill of item.imported_skills){const label=document.createElement('label'),check=document.createElement('input'),title=document.createElement('span');label.className='mw-check-row';check.type='checkbox';check.className='mw-check';check.dataset.characterSkill=skill.id;check.dataset.owner=key(item.reference);check.dataset.compatible=String(skill.compatibility==='portable');check.disabled=key(candidate)!==key(item.reference) || skill.compatibility!=='portable';check.checked=key(candidate)===key(item.reference) && selectedSkills.includes(skill.id);title.textContent=skill.name+(skill.compatibility!=='portable'?' · 需要原生 Agent':'');label.append(check,title);skills.append(label);check.onchange=()=>{selectedSkills=check.checked?[...selectedSkills,skill.id]:selectedSkills.filter(id=>id!==skill.id);};}
+          row.append(skills);
         }
         list.append(row);
       }
@@ -44,7 +49,7 @@ export const CODING_CHARACTERS_CLIENT_FACTORY_SCRIPT = `(host) => {
     if(current()!==session){error.textContent='会话已切换，请关闭后为当前会话重新选择。';return;}
     const id=session,selected=rows.find(item=>key(item.reference)===key(candidate));
     if(candidate && !selected?.available)return;
-    selections.set(id,structuredClone(candidate));titles.set(id,selected?.title || '');controls();
+    selections.set(id,structuredClone(candidate));skillSelections.set(id,candidate?selectedSkills:[]);titles.set(id,selected?.title || '');controls();
     busy=true;submit.disabled=true;q('[data-coding-character-close]').disabled=true;
     const enabled=[...list.querySelectorAll('input:not(:disabled)')];enabled.forEach(radio=>radio.disabled=true);
     try{await save(id);dialog.close();ticket++;status('角色选择已保存，仅用于下一轮；在跑任务保持原角色。');}

@@ -44,6 +44,7 @@ export {
 export {
   WORKSPACE_UI_CONTRIBUTION_ID,
   renderWorkspaceSource,
+  renderWorkspaceWorkbench,
   workspaceUiContribution,
   workspaceUiDescriptor,
   type WorkspaceUiModel,

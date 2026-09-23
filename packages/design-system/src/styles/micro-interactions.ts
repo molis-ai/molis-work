@@ -156,11 +156,29 @@ export const MICRO_INTERACTION_STYLES = `
   }
 `;
 
+/** The travelling thumb is positioned inside the scrollable track, so visible deltas are not enough. */
+export function segmentThumbOffsets(
+  slot: { left: number; top: number; width: number; height: number },
+  box: { left: number; top: number },
+  borderLeft: number,
+  borderTop: number,
+  scrollLeft: number,
+  scrollTop: number,
+) {
+  return {
+    x: slot.left - box.left - borderLeft + scrollLeft,
+    y: slot.top - box.top - borderTop + scrollTop,
+    w: slot.width,
+    h: slot.height,
+  };
+}
+
 /** Measures the three travelling marks. Absent, every surface keeps its static presentation. */
 export const MICRO_INTERACTION_CLIENT_SCRIPT = `
 (() => {
   const SEGMENTED = ${JSON.stringify(SEGMENTED)};
   const SEGMENT_CURRENT = ${JSON.stringify(SEGMENT_CURRENT)};
+  const segmentThumbOffsets = ${segmentThumbOffsets.toString()};
   const tracked = new WeakSet();
 
   const place = (host, values, readyFlag) => {
@@ -180,11 +198,12 @@ export const MICRO_INTERACTION_CLIENT_SCRIPT = `
     if (tint) track.style.setProperty("--seg-tint", tint);
     else track.style.removeProperty("--seg-tint");
     const style = getComputedStyle(track);
+    const offsets = segmentThumbOffsets(slot, box, parseFloat(style.borderLeftWidth) || 0, parseFloat(style.borderTopWidth) || 0, track.scrollLeft, track.scrollTop);
     place(track, {
-      "--seg-x": slot.left - box.left - parseFloat(style.borderLeftWidth),
-      "--seg-y": slot.top - box.top - parseFloat(style.borderTopWidth),
-      "--seg-w": slot.width,
-      "--seg-h": slot.height,
+      "--seg-x": offsets.x,
+      "--seg-y": offsets.y,
+      "--seg-w": offsets.w,
+      "--seg-h": offsets.h,
     }, "data-seg-ready");
     track.setAttribute("data-seg-thumb", "");
   };

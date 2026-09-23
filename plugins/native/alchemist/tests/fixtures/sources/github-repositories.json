@@ -1,0 +1,19 @@
+{
+  "total_count": 1,
+  "incomplete_results": false,
+  "items": [
+    {
+      "id": 1312158335,
+      "full_name": "VictorTaelin/OptMem",
+      "html_url": "https://github.com/VictorTaelin/OptMem",
+      "description": "Permanent memory for AI agents.",
+      "created_at": "2026-07-28T01:00:00Z",
+      "updated_at": "2026-07-31T03:00:00Z",
+      "stargazers_count": 1200,
+      "forks_count": 80,
+      "open_issues_count": 12,
+      "language": "Python",
+      "topics": ["ai-agents", "memory"]
+    }
+  ]
+}

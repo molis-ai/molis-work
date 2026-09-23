@@ -121,6 +121,7 @@ Horizontal Service 只保存可恢复的技术状态，不拥有 Goal、Signal�
 | `plugins/native/dataset` | Dataset 一级入口：本机数据表 | 行列编辑、CSV 导入导出、版本回滚；加列为本地 stub；对外 MCP 默认关 | `partial` | `specs/archive/creative-tools-plugins/spec.md`；`specs/archive/plugin-outbound-mcp/spec.md` |
 | `plugins/native/ppt` | PPT 一级入口：本机演示稿 | 多页大纲、主题色、预览与 JSON 导出；不做 PPTX；对外 MCP 默认关 | `partial` | `specs/archive/creative-tools-plugins/spec.md`；`specs/archive/plugin-outbound-mcp/spec.md` |
 | `plugins/native/lingguang` | 灵光一级入口：本机临时灵感池 | 快记、流式列表、丢掉确认、本机头脑风暴 stub；不写 Goal/Artifact；无对外 MCP | `partial` | `specs/archive/lingguang-plugin/spec.md` |
+| `plugins/native/alchemist` | 炼金术士：项目隔离的 Founder Lab | Direction / Idea / 双 Lens / 证据决策 / Pulse / Copilot / Memory；AI 经 Prologue，公开证据经 SEL；旧演示库只读；验收见 spec | `partial` | `specs/alchemist-plugin/spec.md` |
 | `plugins/native/feed` | Feed 一级入口和处置 UI | Sources/Feed 流水、同步与 promotion；支持研究库发布包接收；用户显式配置规则可自动加入 Inbox，需复核保留原因；仍只写 Attention | `partial` | FD/Cutover；Inbox/Feed 拆插件切片 3；`specs/archive/function-scene-action-scope/spec.md` |
 | `plugins/native/actions` | Actions 一级入口 | 占位包已删除；未来功能 | `absent` | F2；未来独立功能 Spec |
 | `plugins/native/work` | Session、Runtime、resume、handoff 应用和 UI | WK3 已迁应用编排、Session/Terminal contribution、浏览器控制器、HTTP 用例和工作目录恢复。`GET/POST /api/goals/:id/panels`（无子路径，JSON）仍是 Runtime 终端面板，与已删除的 Goal 五 tab fragment 不同 | `partial` | WK3；边界与证据见 `specs/molis-work-architecture-reorganization/wk3-validation.md` |
@@ -171,3 +172,11 @@ Goals 与 Artifacts 是官方签名保护的一等 Plugin。Plugin 之间不依�
 ## Jelly 私人工作区
 
 `plugins/native/jelly` 拥有个人日历、每周重复实例、分类、笔记块、灵感、关联和撤销历史；唯一写入库 `{home}/jelly/jelly.db`。Host 只接 HTTP、MCP 和素材/模型端口，Workbench 只装配插件界面。原 Jelly App 的数据文件不参与写入。合同：`packages/contracts/src/modules/jelly.ts`；完整复刻范围与未验收项：`specs/jelly-plugin/`。
+
+### 插件创作工作台
+
+`plugins/native/plugin-builder` 拥有设计草稿、Prologue 构建工作流、受控 UI 与行为、设计发布版本。`apps/local-host/src/plugin-builder-surface.ts` 装配 Manifest v2 插件及独立生成实例；AgentHost 拥有 Prologue 执行、Host 拥有模型凭据、PluginRuntime 拥有安装与私有存储权限。生成应用安装固定解释器，设计版本作为应用数据，不扩张运行权限。需求与验证见 `specs/plugin-builder/work-items/prologue-runtime/spec.md`。
+
+## Cognia 个人知识库
+
+`plugins/native/cognia` 拥有领域、来源、资料、不可变版本、导入预览/回执及待审阅知识草稿，唯一事实源 `{home}/cognia/cognia.db`。Local Host 只接安全目录读取、HTTP、默认关闭的只读 MCP 与 Prologue 模型端口；模型配置和凭据归现有 catalog/SecretStore，运行记录位于 `{home}/cognia/runtime/`。Workbench 沿既有 stage shell 装配界面，不修改原 vault，不引入云同步或第二运行时。范围与证据见 `specs/cognia-plugin/spec.md`，格式边界见 `specs/cognia-plugin/compatibility.md`。

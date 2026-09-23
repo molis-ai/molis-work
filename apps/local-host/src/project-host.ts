@@ -1,3 +1,4 @@
+import { releaseBuilderSurface } from "./plugin-builder-surface.js";
 import { InteractionObserver } from './casebook/observer.js';
 import path from "node:path";
 import { existsSync } from "node:fs";
@@ -94,6 +95,7 @@ export class MolisWorkLocalHost {
         },
         close: async (runtime, reference) => {
           await releaseCodingSurface(runtime.store, runtime.board_id);
+          await releaseBuilderSurface(runtime.store, runtime.board_id);
           runtime.store.close();
           options.onRuntimeClose?.(reference);
         },

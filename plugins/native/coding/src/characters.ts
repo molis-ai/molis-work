@@ -4,6 +4,7 @@ import { parseCharacterContent } from "@molis-ai/molis-work-contracts/modules/ch
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 export interface CodingCharacterChoice {
+  imported_skills?: Array<{ id: string; name: string; compatibility: "portable" | "native-only"; reason?: string }>;
   reference: ArtifactReference;
   title: string;
   instructions: string;
@@ -27,6 +28,14 @@ export function characterSelection(value: unknown): ArtifactReference | null {
 export function savedCharacter(context: PluginStartContext, sessionId: string): ArtifactReference | null {
   const stored = context.services?.storage?.get(`character:${sessionId}`);
   return typeof stored === "string" ? characterSelection(JSON.parse(stored)) : null;
+}
+export function characterSkillSelection(value: unknown): string[] {
+  if (!Array.isArray(value) || value.length > 200 || value.some(id => typeof id !== "string" || !id || id.length > 8192) || new Set(value).size !== value.length) throw new Error("角色 Skill 选择无效");
+  return [...value];
+}
+export function savedCharacterSkills(context: PluginStartContext, sessionId: string): string[] | undefined {
+  const stored = context.services?.storage?.get(`character-skills:${sessionId}`);
+  return typeof stored === "string" ? characterSkillSelection(JSON.parse(stored)) : undefined;
 }
 export function characterTitle(context: PluginStartContext, reference: ArtifactReference | null): string | null {
   if (!reference) return null;

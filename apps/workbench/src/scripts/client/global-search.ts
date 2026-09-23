@@ -155,7 +155,10 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     results.querySelectorAll("[data-global-search-hit]").forEach((button, index) => {
       button.setAttribute("aria-selected", String(index === selected));
     });
-    results.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
+    const active = results.querySelector('[aria-selected="true"]');
+    if (active) input.setAttribute("aria-activedescendant", active.id);
+    else input.removeAttribute("aria-activedescendant");
+    active?.scrollIntoView({ block: "nearest" });
   };
   const render = () => {
     const groups = collect(input.value);
@@ -163,18 +166,20 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     if (selected >= hits.length) selected = Math.max(0, hits.length - 1);
     if (!groups.length) {
       results.innerHTML = '<p class="global-search-empty">' + escapeHtml(L("没有匹配的内容")) + "</p>";
+      input.removeAttribute("aria-activedescendant");
       return;
     }
     let index = 0;
     results.innerHTML = groups.map((group) => {
       const rows = group.items.map((item) => {
         const shortcut = index < 9 ? "<kbd>⌘" + (index + 1) + "</kbd>" : "";
-        const html = '<button class="global-search-hit" type="button" role="option" data-global-search-hit="' + index + '" data-global-search-id="' + escapeHtml(item.id) + '" aria-selected="' + String(index === selected) + '"><span class="global-search-hit-title">' + escapeHtml(item.title) + '</span><span class="global-search-hit-plugin">' + escapeHtml(item.plugin) + "</span>" + shortcut + "</button>";
+        const html = '<button class="global-search-hit" type="button" role="option" tabindex="-1" id="global-search-hit-' + index + '" data-global-search-hit="' + index + '" data-global-search-id="' + escapeHtml(item.id) + '" aria-selected="' + String(index === selected) + '"><span class="global-search-hit-title">' + escapeHtml(item.title) + '</span><span class="global-search-hit-plugin">' + escapeHtml(item.plugin) + "</span>" + shortcut + "</button>";
         index += 1;
         return html;
       }).join("");
       return '<section class="global-search-group"><h3>' + escapeHtml(group.label) + "</h3>" + rows + "</section>";
     }).join("");
+    paintSelection();
   };
   const close = () => {
     if (dialog.open) dialog.close();
@@ -214,6 +219,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     selected = 0;
     render();
     if (!dialog.open) dialog.showModal();
+    input.setAttribute("aria-expanded", "true");
     input.focus();
     input.select();
     noteSearchActivity(500);
@@ -248,8 +254,11 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     activate(hits[Number(hit.dataset.globalSearchHit)]);
   });
   dialog.addEventListener("close", () => {
+    input.setAttribute("aria-expanded", "false");
+    input.removeAttribute("aria-activedescendant");
     if (lastTrigger instanceof HTMLElement) lastTrigger.focus();
   });
+  dialog.querySelector("[data-global-search-close]")?.addEventListener("click", close);
   document.addEventListener("click", (event) => {
     const trigger = event.target.closest("[data-global-search-open]");
     if (!trigger) return;

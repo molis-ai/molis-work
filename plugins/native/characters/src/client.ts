@@ -1,3 +1,4 @@
+import { CHARACTER_IMPORT_CLIENT_FACTORY } from "./import-client.js";
 /** Personal editing and exact project publication. No polling replaces an active editor. */
 export const CHARACTERS_CLIENT_FACTORY_SCRIPT = `() => {
   const root = document.querySelector('[data-characters]');
@@ -6,6 +7,7 @@ export const CHARACTERS_CLIENT_FACTORY_SCRIPT = `() => {
   const api = root.dataset.characterApi, key = 'molis.characters.drafts:' + api;
   const list = q('list'), form = q('editor'), dialog = q('dialog');
   let records = [], publications = [], selected = null, revision = null, busy = false, confirmation = null;
+  let importsView;
   let drafts = {};
   try {
     const stored = JSON.parse(sessionStorage.getItem(key) || '{}');
@@ -53,12 +55,12 @@ export const CHARACTERS_CLIENT_FACTORY_SCRIPT = `() => {
       const details = document.createElement('details'), summary = document.createElement('summary'), content = document.createElement('pre');
       summary.textContent = 'v' + record.version + ' · ' + record.payload.title + ' · ' + (record.lifecycle_state !== 'active' || record.availability !== 'available' ? '当前不可用' : '已发布') + ' · 草稿修订 ' + record.payload.source.draft_revision;
       content.textContent = record.payload.instructions + '\\n\\n内置工具：' + (record.payload.host_tools === null ? '沿用调用方' : record.payload.host_tools.join(', ') || '不用内置工具');
-      details.append(summary, content); target.append(details);
+      details.append(summary, content); importsView?.renderPublication(record, details); target.append(details);
     }
   };
   const renderEditor = () => {
     const record = current(); q('workspace').hidden = !record; root.dataset.expanded = record ? 'true' : 'false';
-    if (!record) return;
+    if (!record) { importsView?.render(null); return; }
     const local = drafts[selected], value = local || record;
     revision = local ? local.expected_revision : record.revision;
     q('title').value = value.title; q('instructions').value = value.instructions;
@@ -67,11 +69,11 @@ export const CHARACTERS_CLIENT_FACTORY_SCRIPT = `() => {
     q('status').textContent = record.state === 'disabled' ? '已停用' : record.state === 'tombstoned' ? '已删除' : '草稿修订 ' + record.revision;
     q('toggle').textContent = record.state === 'disabled' ? '启用' : '停用';
     q('draft-note').textContent = local ? (record.revision !== revision ? '其他窗口已更新；你的修改仍保留。请核对后重新读取，不能直接覆盖新修订。' : '已恢复此窗口未保存的修改。') : '已保存。发布会固定这份内容，已有执行保持原版本。';
-    renderVersions(); controls();
+    renderVersions(); importsView?.render(record); controls();
   };
   const controls = () => {
     const record = current();
-    root.querySelectorAll('button, input, textarea').forEach(element => { element.disabled = busy; });
+    root.querySelectorAll('button, input, textarea').forEach(element => { if(!element.closest('[data-character-import-dialog], [data-character-run-dialog]')) element.disabled = busy; });
     if (record?.state === 'tombstoned') form.querySelectorAll('button, input, textarea').forEach(element => { element.disabled = true; });
     if (record?.state !== 'active') q('preview').disabled = true;
   };
@@ -92,8 +94,9 @@ export const CHARACTERS_CLIENT_FACTORY_SCRIPT = `() => {
     confirmation = action; q('dialog-title').textContent = title; q('dialog-description').textContent = description;
     q('dialog-content').textContent = content; q('confirm').textContent = label; dialog.showModal();
   };
-  form.addEventListener('input', remember);
-  form.addEventListener('change', remember);
+  const editable = event => { if(event.target.matches('[data-character-title], [data-character-instructions], [data-character-inherit], [data-character-tools]')) remember(); };
+  form.addEventListener('input', editable);
+  form.addEventListener('change', editable);
   form.addEventListener('submit', event => { event.preventDefault(); void act(save); });
   q('new').addEventListener('click', () => void act(async () => { const result = await request('POST', '/drafts', {}); await load(); select(result.draft.character_id); }));
   q('back').addEventListener('click', () => { if (!busy) select(null); });
@@ -131,5 +134,6 @@ export const CHARACTERS_CLIENT_FACTORY_SCRIPT = `() => {
   });
   q('confirm').addEventListener('click', () => void act(async () => { if (confirmation) await confirmation(); }));
   dialog.addEventListener('close', () => { confirmation = null; });
+  importsView = (${CHARACTER_IMPORT_CLIENT_FACTORY})({root,q,request,current,load,select,act,save,dirty,note});
   void act(load);
 }`;

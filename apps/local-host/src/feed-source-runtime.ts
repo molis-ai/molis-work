@@ -10,6 +10,7 @@ import {
   type PortBackedNodeSearchHost,
   type SearchHostContentPort,
   type SearchTransportProfileInput,
+  type SearchHostTransportPort,
 } from "@adeptify/search-evidence-layer/host/node";
 import { createAnySearchProvider } from "@adeptify/search-evidence-layer/providers/anysearch";
 import { createRssProvider } from "@adeptify/search-evidence-layer/providers/rss";
@@ -57,6 +58,8 @@ export function createFeedSourceRuntime(options: {
   secretStore?: SecretStore;
   content?: FeedEvidenceContentStore;
   sourceCursor?: unknown;
+  /** Composition-owned query transport; the normal Feed path remains pinned by SEL. */
+  queryTransport?: SearchHostTransportPort;
 }): FeedSourceRuntime {
   const secretStore = options.secretStore ?? createFileSecretStore();
   const content = options.content ?? createFeedEvidenceContentStore({ secretStore });
@@ -79,7 +82,9 @@ export function createFeedSourceRuntime(options: {
     content: hostContent,
   });
   const rssRuntime = createRssRuntime(rssHost);
-  const queryHost = createNodePinnedSearchHost({
+  const queryHost = options.queryTransport ? createPortBackedNodeSearchHost({
+    appId: APP_ID, transport: options.queryTransport, content: hostContent,
+  }) : createNodePinnedSearchHost({
     appId: APP_ID,
     transportProfiles: [ANYSEARCH_PROFILE],
     content: hostContent,

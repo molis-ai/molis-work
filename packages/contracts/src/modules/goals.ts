@@ -700,7 +700,7 @@ export interface ConfirmedRelationBatch {
 export interface GoalsCommandApi {
   /** User-submitted project defaults. Replaces the active binding and preserves history. */
   saveProjectPolicy(input: {
-    board_id: string; actor_id: string; reason: string; user_confirmed: boolean;
+    board_id: string; actor_id: string; user_confirmed: boolean;
     policy: GoalPolicy; idempotency_key: string;
   }): { policy_binding_id: string; observed_event_cursor: number; replayed: boolean };
   /** Internal import port; caller retains the complete V3 import transaction and audit event. */

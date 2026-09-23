@@ -13,10 +13,12 @@ import { atBottom, STICK_THRESHOLD_PX } from "./reading.js";
 /** Host supplies navigation; this client only handles Coding's own surface. */
 export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const root = document.querySelector('[data-coding-workbench]');
-  const directory = document.querySelector('[data-coding-directory]');
+  const directory = root?.querySelector('[data-coding-directory]');
   if (!root || !directory) return;
   const q = (selector) => root.querySelector(selector);
   const turns = q('[data-coding-turns]'), input = q('[data-coding-task]');
+  const resultVisibility=()=>q('[data-coding-results-open]').setAttribute('aria-expanded',String(root.dataset.codingResults==='true'));
+  new MutationObserver(resultVisibility).observe(root,{attributes:true,attributeFilter:['data-coding-results']});resultVisibility();
   const prefix = root.dataset.codingPrefix + '/api/plugins/io.molis.work.coding';
   const STICK_THRESHOLD_PX = ${STICK_THRESHOLD_PX};
   const atBottom = ${atBottom.toString()};
@@ -27,7 +29,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const directoryRows = new Map(), directoryGroups = new Map();
   let directoryClaimed = false;
   const drafts = new Map(), offsets = new Map(), draftWrites = new Map();
-  const materialSelections = new Map(), characterSelections = new Map(), characterTitles = new Map();
+  const materialSelections = new Map(), characterSelections = new Map(), characterSkills = new Map(), characterTitles = new Map();
   const questionDrafts = new Map(), methodSelections = new Map(), configurations = new Map(), mcpSelections = new Map(), mcpSourceSelections = new Map();
   let mcpChoices = [], mcpSourceChoices = [];
   let methodChoices = [], methodDocumentTicket = 0;
@@ -83,7 +85,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     const id=current,[provider_id,model_id]=JSON.parse(q('[data-coding-model]').value),intent=q('[data-coding-intent]').value==='parallel'?'parallel':'execute';
     const request={plan_revision:revision,intent,provider_id,model_id,workspace_id:workspaceId,
       ...(intent==='parallel'?{writer_assignments:structuredClone(configurations.get(id)?.writer_assignments || [])}:{}),
-      methods:structuredClone(methodSelections.get(id)||[]),materials:structuredClone(materialSelections.get(id)||[]),character:structuredClone(characterSelections.get(id)??null),
+      methods:structuredClone(methodSelections.get(id)||[]),materials:structuredClone(materialSelections.get(id)||[]),character:structuredClone(characterSelections.get(id)??null),character_skill_ids:characterSkills.get(id),
       mcp_tools:structuredClone(mcpSelections.get(id)||[]),mcp_sources:structuredClone(mcpSourceSelections.get(id)||[])};
     sending=true;controls();
     try{
@@ -113,8 +115,38 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     raw.textContent=goalChoice.material.text;details.append(summary,raw);region.append(details);
   };
   const renderGoalRows = () => {
-    const list=q('[data-coding-goal-list]'),search=q('[data-coding-goal-search]').value.trim().toLowerCase();list.replaceChildren();
-    for(const row of goalRows.filter(item=>item.title.toLowerCase().includes(search))){const button=document.createElement('button');button.className='mw-btn mw-btn--ghost';button.type='button';button.dataset.codingGoalId=row.goal_id;button.textContent=row.title;list.append(button);}
+    const list=q('[data-coding-goal-list]'),search=q('[data-coding-goal-search]').value.trim().toLowerCase();
+    const selectedId=goalChoice?.snapshot?.goal?.goal_id || '';
+    list.replaceChildren();
+    for(const row of goalRows.filter(item=>item.title.toLowerCase().includes(search))){
+      const button=document.createElement('button');
+      button.type='button';
+      button.className='mw-dir-row mw-dir-row--compact directory-list-row';
+      button.dataset.codingGoalId=row.goal_id;
+      button.title=row.title;
+      const selected=row.goal_id===selectedId;
+      button.classList.toggle('is-selected', selected);
+      button.setAttribute('aria-pressed', String(selected));
+      const mark=document.createElement('span');
+      mark.className='mw-dir-row__icon';
+      mark.innerHTML='<svg aria-hidden="true"><use href="#icon-target"></use></svg>';
+      const copy=document.createElement('span');
+      copy.className='mw-dir-row__copy';
+      const headline=document.createElement('span');
+      headline.className='mw-dir-row__headline';
+      const title=document.createElement('strong');
+      title.textContent=row.title;
+      headline.append(title);
+      if(row.work_status==='completed' || row.work_status==='cancelled'){
+        const status=document.createElement('span');
+        status.className='mw-dir-row__status';
+        status.textContent=row.work_status==='completed'?'已完成':'已取消';
+        headline.append(status);
+      }
+      copy.append(headline);
+      button.append(mark, copy);
+      list.append(button);
+    }
     if(!list.children.length)list.textContent=goalRows.length?'没有匹配的已加载目标。':'当前项目还没有目标。可在 Goals 创建，也可以不关联直接执行。';
     q('[data-coding-goal-more]').hidden=!goalCursor;
   };
@@ -139,7 +171,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const saveDraft = (id, value, selectedMethods = methodSelections.get(id), selectedMaterials = materialSelections.get(id)) => {
     if (!id) return Promise.resolve();
     rememberDraft(id,value);
-    const body={draft:value, ...(characterSelections.has(id)?{character:structuredClone(characterSelections.get(id))}:{}), ...(selectedMaterials ? {materials:structuredClone(selectedMaterials)} : {}), ...(mcpSourceSelections.has(id)?{mcp_sources:structuredClone(mcpSourceSelections.get(id))}:{}), ...(mcpSelections.has(id)?{mcp_tools:structuredClone(mcpSelections.get(id))}:{}), ...(configurations.get(id) ? {configuration:structuredClone(configurations.get(id))} : {}), ...(selectedMethods ? {methods:structuredClone(selectedMethods)} : {}), ...(questionDrafts.has(id) ? {question_drafts:structuredClone(questionDrafts.get(id))} : {})};
+    const body={draft:value, ...(characterSkills.has(id)?{character_skill_ids:characterSkills.get(id)}:{}), ...(characterSelections.has(id)?{character:structuredClone(characterSelections.get(id))}:{}), ...(selectedMaterials ? {materials:structuredClone(selectedMaterials)} : {}), ...(mcpSourceSelections.has(id)?{mcp_sources:structuredClone(mcpSourceSelections.get(id))}:{}), ...(mcpSelections.has(id)?{mcp_tools:structuredClone(mcpSelections.get(id))}:{}), ...(configurations.get(id) ? {configuration:structuredClone(configurations.get(id))} : {}), ...(selectedMethods ? {methods:structuredClone(selectedMethods)} : {}), ...(questionDrafts.has(id) ? {question_drafts:structuredClone(questionDrafts.get(id))} : {})};
     const next = (draftWrites.get(id) || Promise.resolve()).catch(() => {}).then(() => api('/sessions/' + encodeURIComponent(id),'PATCH',body));
     draftWrites.set(id,next);
     return next.then(() => { if (current === id && input.value === value) q('[data-coding-draft-status]').textContent = '草稿已保存；模型与方式用于下一轮。'; });
@@ -178,6 +210,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       q('[data-coding-material-save]').disabled=false;
     } catch(error){if(current===id && ticket===materialTicket)q('[data-coding-material-error]').textContent=error.message;}
   };
+  const contextLabel=(selector,label,count=0)=>{const button=q(selector);button.querySelector('[data-slot=button-label]').textContent=label;button.title=label;button.dataset.count=count ? String(count) : '';button.setAttribute('aria-label',label);};
   const controls = () => {
     const active = lastRun && !terminal(lastRun.phase);
     input.disabled = !current || sending;
@@ -190,13 +223,13 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     q('[data-coding-rename]').hidden = !current;
     q('[data-coding-goal-open]').disabled = !current || sending;
     q('[data-coding-material-open]').disabled = !current || sending;
-    q('[data-coding-material-open]').textContent = '＋ 材料'+((materialSelections.get(current) || []).length ? ' · '+materialSelections.get(current).length : '');
+    const materialCount=(materialSelections.get(current) || []).length;contextLabel('[data-coding-material-open]','材料'+(materialCount?' · '+materialCount:''),materialCount);
     const character=characterSelections.get(current),characterButton=q('[data-coding-character-open]');
-    characterButton.disabled=!current || sending;characterButton.textContent=character?'角色 · v'+character.version:'角色';
+    characterButton.disabled=!current || sending;contextLabel('[data-coding-character-open]',character?'角色 · v'+character.version:'角色',character?1:0);
     characterButton.title=character?'下一轮：'+(characterTitles.get(current) || character.artifact_id)+' · v'+character.version:'下一轮不使用 Character';
     q('[data-coding-method-open]').disabled = !current || sending;
     q('[data-coding-mcp-open]').disabled=!current || sending;
-    const mcpCount=(mcpSelections.get(current) || []).length+(mcpSourceSelections.get(current) || []).length; q('[data-coding-mcp-open]').textContent='MCP'+(mcpCount?' · '+mcpCount:'');
+    const mcpCount=(mcpSelections.get(current) || []).length+(mcpSourceSelections.get(current) || []).length; contextLabel('[data-coding-mcp-open]','MCP'+(mcpCount?' · '+mcpCount:''),mcpCount);
     const writable=['edit','execute'].includes(q('[data-coding-intent]').value);
     q('[data-coding-checkpoints-refresh]').disabled=!current || checkpointLoading;
     q('[data-coding-checkpoints-list]').querySelectorAll('button').forEach(button=>{
@@ -204,9 +237,9 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       button.title=!writable?'请先选择修改文件或执行方式':active?'等待本轮结束':checkpointBusy?'回退尚未结束或结果待核对':'';
     });
     const count=(methodSelections.get(current) || []).length;
-    q('[data-coding-method-open]').textContent='/ 方法'+(count?' · '+count:'');
+    contextLabel('[data-coding-method-open]','方法'+(count?' · '+count:''),count);
   };
-  (${CODING_CHARACTERS_CLIENT_FACTORY_SCRIPT})({q,api,current:()=>current,selections:characterSelections,titles:characterTitles,
+  (${CODING_CHARACTERS_CLIENT_FACTORY_SCRIPT})({q,api,current:()=>current,selections:characterSelections,titles:characterTitles,skillSelections:characterSkills,
     save:id=>saveDraft(id,id===current?input.value:localDraft(id) || ''),controls,status});
   const renderArtifacts = () => {
     const list=directory.querySelector('[data-coding-artifact-list]'),needle=directory.querySelector('[data-coding-artifact-search]').value.trim().toLocaleLowerCase();list.replaceChildren();
@@ -223,7 +256,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     catch(error){if(ticket===artifactTicket)notice.textContent=error.message+'；可点击刷新重试。';}
   };
   const renderDirectory = () => {
-    const selectedFilter = directory.querySelector('[data-coding-filter][aria-selected=true]')?.dataset.codingFilter || 'all';
+    const selectedFilter = directory.querySelector('[data-coding-filter][aria-pressed=true]')?.dataset.codingFilter || 'all';
     const needle = directory.querySelector('[data-coding-search]').value.trim().toLocaleLowerCase();
     const list = directory.querySelector('[data-coding-sessions]');
     // Replace the server's first paint once, then preserve live pointer targets.
@@ -233,24 +266,27 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     const visibleIds=new Set(visible.map(session=>session.session_id));
     for(const [id,row] of directoryRows) if(!visibleIds.has(id)) {row.remove();directoryRows.delete(id);}
     list.querySelector('.mw-empty')?.remove();
-    if (!visible.length) { const empty = document.createElement('p'); empty.className='mw-empty'; empty.textContent=needle ? '没有匹配的会话' : '还没有编码会话'; list.append(empty); return; }
+    if (!visible.length) { const empty=document.createElement('div');empty.className='mw-empty';const label=document.createElement('p');label.textContent=needle ? '没有匹配的会话' : selectedFilter!=='all' ? '当前没有这类会话' : '还没有编码会话';empty.append(label);if(!needle && selectedFilter==='all'){const button=document.createElement('button');button.type='button';button.className='mw-btn mw-btn--primary';button.dataset.codingNew='';button.textContent='新建编码会话';empty.append(button);}list.append(empty); return; }
     const labels = { idle:'尚未执行', running:'执行中', 'waiting-answer':'等你回答', 'waiting-approval':'等你审查', failed:'失败待处理', stopped:'已停止', cancelled:'已取消', 'reconcile-required':'待核对结果', done:'本轮结束' };
     for (const session of visible) {
       let row=directoryRows.get(session.session_id);
       if(!row) {
-        row=document.createElement('a');row.className='coding-session-row';row.href='#session-'+encodeURIComponent(session.session_id);row.dataset.codingSession=session.session_id;
-        const title=document.createElement('span');title.className='coding-session-title';
-        const time=document.createElement('time');time.className='coding-session-time';
-        const mark=document.createElement('span');mark.className='mw-status mw-status--plain';
-        row.append(title,time,mark);directoryRows.set(session.session_id,row);
+        row=document.createElement('a');row.className='mw-dir-row mw-dir-row--meta coding-session-row';row.href='#session-'+encodeURIComponent(session.session_id);row.dataset.codingSession=session.session_id;
+        const icon=document.createElement('span');icon.className='mw-dir-row__icon';icon.innerHTML=root.querySelector('[data-coding-face=sessions] svg')?.outerHTML || '';
+        const copy=document.createElement('span');copy.className='mw-dir-row__copy';
+        const headline=document.createElement('span');headline.className='mw-dir-row__headline';
+        const title=document.createElement('strong');title.className='coding-session-title';
+        const time=document.createElement('time');time.className='mw-dir-row__count coding-session-time';
+        const mark=document.createElement('small');mark.className='coding-session-state';
+        headline.append(title,time);copy.append(headline,mark);row.append(icon,copy);directoryRows.set(session.session_id,row);
       }
-      row.setAttribute('aria-current',String(current===session.session_id));
-      const [title,time,mark]=row.children;
+      row.setAttribute('aria-current',String(current===session.session_id));row.classList.toggle('is-selected',current===session.session_id);
+      const title=row.querySelector('.coding-session-title'),time=row.querySelector('time'),mark=row.querySelector('.coding-session-state');
       if(title.textContent!==session.title) title.textContent=session.title;title.title=session.title;
       if(time.dateTime!==session.updated_at) {time.textContent=session.updated_at.slice(5,10);time.dateTime=session.updated_at;}
       const label=session.checkpoint_busy ? '回退待处理' : labels[session.state] || session.state;if(mark.textContent!==label) mark.textContent=label;
       const goalKey=session.goal_id || '';let group=directoryGroups.get(goalKey);
-      if(!group) {group=document.createElement('section');group.className='coding-session-group';group.append(document.createElement('h3'));directoryGroups.set(goalKey,group);}
+      if(!group) {group=document.createElement('section');group.className='coding-session-group';const heading=document.createElement('h2');heading.className='mw-dir__heading';group.append(heading);directoryGroups.set(goalKey,group);}
       const groupTitle=session.goal_title || (session.goal_id ? '关联 Goal 暂不可用' : '未关联 Goal');
       if(group.firstChild.textContent!==groupTitle) group.firstChild.textContent=groupTitle;
       if(!group.isConnected) list.append(group);
@@ -289,6 +325,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     const models=q('[data-coding-model]'); const previous=models.value;
     const options=result.models.map((model) => { const option=document.createElement('option'); option.value=JSON.stringify([model.provider_id,model.model_id]); option.textContent=model.label; return option; });
     if (!options.length) { const option=document.createElement('option'); option.textContent='先配置可用模型'; option.value=''; options.push(option); }
+    q('[data-coding-model-setup]').hidden=result.models.length>0;
     const modelKey=JSON.stringify(result.models);
     if(models.dataset.options!==modelKey) { models.replaceChildren(...options);models.dataset.options=modelKey;if(options.some(option=>option.value===previous)) models.value=previous; }
     const selectedWorkspace=result.workspaces.find(item=>item.workspace_id===workspaceId) || result.workspace || (result.workspaces.length===1 ? result.workspaces[0] : null);
@@ -548,7 +585,9 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const renderRuns = (runs) => {
     const follow = !reportRun && !changeReview.active() && pinned && atBottom(position());
-    q('[data-coding-welcome]')?.remove();
+    if(runs.length)q('[data-coding-welcome]')?.remove();
+    else if(!q('[data-coding-welcome]')) turns.append(q('[data-coding-welcome-template]').content.cloneNode(true));
+    turns.querySelectorAll('[data-coding-prompt]').forEach(button=>{button.disabled=Boolean(input.value.trim());});
     for (const run of runs) {
       let block=[...turns.children].find(node=>node.dataset.run===run.ref.run_id);
       if(!block) { block=document.createElement('section'); block.dataset.run=run.ref.run_id; turns.append(block); }
@@ -685,6 +724,9 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(current!==id || ticket!==generation) return;
       recovery=Boolean(data.recovery_required);checkpointBusy=Boolean(data.checkpoint_busy);
       q('[data-coding-recovery]').hidden=!recovery;
+      const resultsLabel=recovery || checkpointBusy || data.runs.some(run=>run.phase==='awaiting-review')?'结果 · 待审查':'结果与审查';
+      q('[data-coding-results-label]').textContent=resultsLabel;
+      q('[data-coding-results-open]').setAttribute('aria-label', resultsLabel);
       if(recovery && recoveryKey!==id){recoveryKey=id;void readRecovery();}
       if(!q('[data-coding-title] input')) q('[data-coding-title]').textContent=data.session.title;
       q('[data-coding-goal-label]').textContent=data.session.goal_id?'下一轮目标：'+(data.session.goal_title || data.session.goal_id):'下一轮未关联目标';
@@ -701,7 +743,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(!mcpSourceSelections.has(id))mcpSourceSelections.set(id,data.mcp_sources || []);
       if(!mcpSelections.has(id))mcpSelections.set(id,data.mcp_tools || []);
       if(!materialSelections.has(id)) materialSelections.set(id,data.materials || []);
-      if(!characterSelections.has(id)){characterSelections.set(id,data.character ?? null);characterTitles.set(id,data.character_title || '');}
+      if(!characterSelections.has(id)){characterSelections.set(id,data.character ?? null);characterTitles.set(id,data.character_title || '');if(data.character_skill_ids!==undefined)characterSkills.set(id,data.character_skill_ids);}
       if(!methodSelections.has(id)) methodSelections.set(id,data.methods || []);
       if(!questionDrafts.has(id)) {
         let saved;try{saved=JSON.parse(sessionStorage.getItem(draftKey(id)+':questions') || 'null');}catch{}
@@ -724,6 +766,9 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     finally { if(ticket===generation) loading=false; }
   };
   const select = async(id) => {
+    host.revealTask?.();
+    root.dataset.codingResults='false';
+    root.dataset.codingDetail='true';
     if(id===current) return selectionTask;
     if(changeReview.active())changeReview.close();q('[data-coding-changes-list]').replaceChildren();q('[data-coding-changes]').hidden=true;
     materialTicket++;q('[data-coding-material-dialog]').close();
@@ -747,8 +792,26 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     await select(id);if(ticket!==itemTicket || current!==id)return;
     if(prefix==='coding-changeset:'){changeItem=itemId;await changeReview.openFixed(runId);}else{reportItem=itemId;await showReport(runId);}if(ticket===itemTicket)renderArtifacts();
   };
-  document.addEventListener('molis-work:plugin-item-selected',(event)=>{ if(event.detail.plugin==='coding' && event.detail.itemId) void openCodingItem(event.detail.itemId).catch(error=>status(error.message,true)); });
+  root.addEventListener('molis-work:select-item',event=>{
+    root.dataset.codingDetail=String(Boolean(event.detail.itemId));
+    if(event.detail.itemId) void openCodingItem(event.detail.itemId).catch(error=>status(error.message,true));
+    else void flushDraft().catch(error=>status(error.message,true));
+  });
   const create = async() => { const result=await api('/sessions','POST',{title:'新编码会话'}); await refreshState(); host.openItem('coding',result.session.session_id,result.session.title); await select(result.session.session_id); input.focus(); };
+  let creatingCharacterSession=false;
+  window.addEventListener('molis-work:character-coding',event=>{
+    if(creatingCharacterSession)return;
+    const selected=event.detail;if(!selected?.reference)return;
+    creatingCharacterSession=true;
+    void (async()=>{
+      const result=await api('/sessions','POST',{title:selected.title});const id=result.session.session_id;
+      // Persist the exact publication and task before navigation; never start a paid run automatically.
+      await api('/sessions/'+encodeURIComponent(id),'PATCH',{draft:selected.task || '',character:selected.reference,character_skill_ids:selected.skill_ids || []});
+      await refreshState();host.openItem('coding',id,selected.title);await select(id);
+      if(selected.workspace_id){workspaceId=selected.workspace_id;rememberConfiguration();await flushDraft();await refreshState();}
+      input.focus();status('已带入角色固定版本。选择模型和执行方式后开始任务。');
+    })().catch(error=>{status(error.message,true);window.alert('创建 Character 编码会话失败：'+error.message);}).finally(()=>{creatingCharacterSession=false;});
+  });
   const click = async(event) => {
     const target=event.target.closest('button,a'); if(!target) return;
     try {
@@ -761,11 +824,11 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(target.matches('[data-coding-progress-goal]') && progressView?.preview && !progressSaving){const goal=progressView.preview.report_goal;closeProgress();host.openItem('goals',goal.goal_id,goal.title);}
       if(target.matches('[data-coding-goal-open]')) await openGoals();
       if(target.matches('[data-coding-goal-close]') && !goalSaving){goalTicket++;goalReading++;q('[data-coding-goal-dialog]').close();}
-      if(target.matches('[data-coding-goal-none]') && !goalSaving){goalReading++;goalChoice=null;renderGoalPreview();q('[data-coding-goal-save]').disabled=false;q('[data-coding-goal-error]').textContent='';}
+      if(target.matches('[data-coding-goal-none]') && !goalSaving){goalReading++;goalChoice=null;renderGoalPreview();q('[data-coding-goal-list]').querySelectorAll('[data-coding-goal-id]').forEach(node=>{node.classList.remove('is-selected');node.setAttribute('aria-pressed','false');});q('[data-coding-goal-save]').disabled=false;q('[data-coding-goal-error]').textContent='';}
       if(target.matches('[data-coding-goal-more]')){target.disabled=true;try{await loadGoals(goalTicket);}finally{target.disabled=false;}}
       if(target.matches('[data-coding-goal-id]') && !goalSaving){
         const ticket=goalTicket,reading=++goalReading;q('[data-coding-goal-save]').disabled=true;q('[data-coding-goal-error]').textContent='';
-        try{const value=await api('/goals/'+encodeURIComponent(target.dataset.codingGoalId));if(ticket!==goalTicket || reading!==goalReading)return;goalChoice=value;renderGoalPreview();q('[data-coding-goal-save]').disabled=false;}
+        try{const value=await api('/goals/'+encodeURIComponent(target.dataset.codingGoalId));if(ticket!==goalTicket || reading!==goalReading)return;goalChoice=value;renderGoalPreview();q('[data-coding-goal-list]').querySelectorAll('[data-coding-goal-id]').forEach(node=>{const on=node.dataset.codingGoalId===target.dataset.codingGoalId;node.classList.toggle('is-selected', on);node.setAttribute('aria-pressed', String(on));});q('[data-coding-goal-save]').disabled=false;}
         catch(error){if(ticket===goalTicket && reading===goalReading)q('[data-coding-goal-error]').textContent=error.message;}
       }
       if(target.matches('[data-coding-report-output]') && reportRun && !target.disabled) {
@@ -803,11 +866,17 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(target.matches('[data-coding-material-close]')) {materialTicket++;q('[data-coding-material-dialog]').close();input.focus();}
       if(target.matches('[data-coding-method-open]')) openMethods();
       if(target.matches('[data-coding-method-close]')) {methodDocumentTicket++;q('[data-coding-method-dialog]').close();input.focus();}
+      if(target.matches('[data-coding-search-toggle]')){const query=directory.querySelector('[data-coding-query]');query.hidden=!query.hidden;target.setAttribute('aria-expanded',String(!query.hidden));if(!query.hidden)directory.querySelector('[data-coding-search]').focus();}
+      if(target.matches('[data-coding-context-toggle]')){const context=q('[data-coding-context]');context.hidden=!context.hidden;target.setAttribute('aria-expanded',String(!context.hidden));}
       if(target.matches('[data-coding-workspace-open]')) { q('[data-coding-workspace-dialog]').showModal(); }
       if(target.matches('[data-coding-workspace-close]')) q('[data-coding-workspace-dialog]').close();
+      if(target.matches('[data-coding-results-open]')) {root.dataset.codingResults=root.dataset.codingResults==='true'?'false':'true';if(root.dataset.codingResults==='true')q('[data-coding-results-close]').focus({preventScroll:true});}
+      if(target.matches('[data-coding-results-close]')) {root.dataset.codingResults='false';q('[data-coding-results-open]').focus({preventScroll:true});}
+      if(target.matches('[data-coding-directory-back]')) {root.dataset.codingDetail='false';(directory.querySelector('[aria-current=true]') || directory.querySelector('[data-coding-new]'))?.focus({preventScroll:true});}
+      if(target.matches('[data-coding-prompt]') && !input.value.trim() && !input.disabled){input.value=target.dataset.codingPrompt;input.dispatchEvent(new Event('input',{bubbles:true}));input.focus();}
       if(target.matches('[data-coding-new]')) { event.preventDefault(); target.disabled=true; try { await create(); } finally { target.disabled=false; } }
       if(target.matches('[data-coding-session]')) { event.preventDefault(); const session=state.sessions.find(item=>item.session_id===target.dataset.codingSession);host.openItem('coding',session.session_id,session.title);await select(session.session_id); }
-      if(target.matches('[data-coding-filter]')) { directory.querySelectorAll('[data-coding-filter]').forEach(item=>item.setAttribute('aria-selected',String(item===target))); renderDirectory(); }
+      if(target.matches('[data-coding-filter]')) { directory.querySelectorAll('[data-coding-filter]').forEach(item=>{item.setAttribute('aria-pressed',String(item===target));}); renderDirectory(); }
       if(target.matches('[data-coding-face]')) {
         const face=target.dataset.codingFace;
         if(face==='taskboard' || face==='artifacts' || host.onDirectoryFace?.(face) || face==='sessions') {
@@ -815,8 +884,8 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
           directory.dataset.codingCurrentFace=face;
           directory.querySelector('[data-coding-artifact-directory]').hidden=face!=='artifacts';
           directory.querySelector('[data-coding-taskboard]').hidden=face!=='taskboard';
-          directory.querySelectorAll('[data-coding-face]').forEach(button=>button.setAttribute('aria-selected',String(button===target)));
-          directory.querySelector('.coding-directory-head h2').textContent=face==='taskboard'?'TaskBoard':face==='artifacts'?'产物':face==='files'?'文件':'会话';
+          directory.querySelectorAll('[data-coding-face]').forEach(button=>{button.setAttribute('aria-pressed',String(button===target));});
+          directory.querySelector('.mw-dir__label').textContent=face==='taskboard'?'TaskBoard':face==='artifacts'?'产物':face==='files'?'文件':'会话';
           if(face==='taskboard'){taskboard.sessions(state.sessions);taskboard.show();if(current)await readCurrent();}
           if(face==='artifacts')await loadArtifacts();
         } else if(face==='goals') await openGoals();
@@ -833,7 +902,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
     } catch(error) { status(error.message,true);controls(); }
   };
-  root.addEventListener('click',click);directory.addEventListener('click',click);
+  root.addEventListener('click',click);
   directory.querySelector('[data-coding-search]').addEventListener('input',renderDirectory);
   turns.addEventListener('scroll',()=>{if(reportRun || changeReview.active())return;pinned=atBottom(position());q('[data-coding-latest]').hidden=pinned;},{passive:true});
   input.addEventListener('input',()=>{rememberDraft(current,input.value);q('[data-coding-draft-status]').textContent='正在保存草稿…';clearTimeout(draftTimer);const id=current,value=input.value;draftTimer=setTimeout(()=>{void saveDraft(id,value).catch(error=>status('草稿暂未写入服务，当前窗口仍保留：'+error.message,true));},400);});
@@ -901,6 +970,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   });
   directory.querySelector('[data-coding-artifact-search]').addEventListener('input',renderArtifacts);
   input.addEventListener('keydown',event=>{if(event.key==='/' && !event.isComposing && !input.value.trim()){event.preventDefault();openMethods();}});
+  input.addEventListener('input',()=>turns.querySelectorAll('[data-coding-prompt]').forEach(button=>{button.disabled=Boolean(input.value.trim());}));
   input.addEventListener('keydown' ,event=>{if(event.key==='Enter' && (event.metaKey || event.ctrlKey) && !event.isComposing){event.preventDefault();q('[data-coding-composer]').requestSubmit();}});
   q('[data-coding-composer]').addEventListener('submit',async(event)=>{
     event.preventDefault();if(sending || recovery || checkpointBusy || !current || !input.value.trim()) return;
@@ -912,7 +982,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         status('补充要求已交给执行引擎，等待后续处理。');
       } else {
         const [provider_id,model_id]=JSON.parse(modelValue);
-        await api('/sessions/'+encodeURIComponent(id)+'/runs','POST',{task,intent,provider_id,model_id,workspace_id,methods,mcp_tools,mcp_sources,materials,character,...(intent==='parallel'?{writer_assignments}:{})});
+        await api('/sessions/'+encodeURIComponent(id)+'/runs','POST',{task,intent,provider_id,model_id,workspace_id,methods,mcp_tools,mcp_sources,materials,character,character_skill_ids:characterSkills.get(id),...(intent==='parallel'?{writer_assignments}:{})});
       }
       if(current===id && input.value===task) input.value='';
       if(localDraft(id)===task) await saveDraft(id,''); await refreshState();await readCurrent();

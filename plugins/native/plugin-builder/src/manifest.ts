@@ -20,5 +20,5 @@ export const builderManifest:PluginManifest={
   {route_id:'builder.preview',method:'GET',path:'/builds/:id/records'},
   {route_id:'builder.record',method:'POST',path:'/builds/:id/records'},
  ],
- ui:{contributions:[BUILDER_UI_ID],views:[{view_id:'directory',slot:'navigator',title:'插件创作工作台',contribution_id:BUILDER_UI_ID,icon:'grid',order:57}]},
+ ui:{contributions:[BUILDER_UI_ID],views:[{view_id:'directory',slot:'navigator',title:'插件创作工作台',contribution_id:BUILDER_UI_ID,icon:'wand',order:57}]},
 };

@@ -38,10 +38,11 @@ export function pluginSettingsNavItemsFrom(
     .filter((item) => !isHostGlobalSettingsSection(item.section_id));
 }
 
-/** Personal plugins are always installed. Project plugins appear only when `enabled` includes them. */
-export function listPluginSettingsNavItems(enabled?: readonly string[]): PluginSettingsNavItem[] {
+/** Personal plugins are installed until this project hides them. Project plugins appear only when `enabled` includes them. */
+export function listPluginSettingsNavItems(enabled?: readonly string[], hidden?: readonly string[]): PluginSettingsNavItem[] {
+  const excluded = new Set(hidden ?? []);
   const scope = [...new Set([
-    ...PERSONAL_PLUGIN_IDS,
+    ...PERSONAL_PLUGIN_IDS.filter((id) => !excluded.has(id)),
     ...(enabled ?? []),
   ])] as ProjectPluginId[];
   const placed = settingsEntries(scope);

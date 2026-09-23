@@ -36,6 +36,8 @@ test("plugin market destination menu factory has no nested template interpolatio
 test("plugin market client script stays valid JavaScript inside the workbench bundle", () => {
   const script = renderMolisWorkWorkbenchClientScript();
   assert.match(PLUGIN_WORKBENCH_FACTORY_SCRIPT, /hidePopover/);
+  assert.match(PLUGIN_WORKBENCH_FACTORY_SCRIPT, /marketMembership/);
+  assert.match(PLUGIN_WORKBENCH_FACTORY_SCRIPT, /移除/);
   assert.match(script, /data-market-scope/);
   assert.match(script, /plugin-market-installed-item/);
   assert.match(script, /grey: "var\(--hue-gray\)"/);

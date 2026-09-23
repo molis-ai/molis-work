@@ -54,6 +54,8 @@ export interface ProjectPluginRegistry {
   has(pluginId: ProjectPluginId): boolean;
   /** Plugins that must be enabled together with this one. */
   companions(pluginId: ProjectPluginId): readonly ProjectPluginId[];
+  /** Always-on plugins a project may hide. Absent means none are personal. */
+  isPersonal?(pluginId: ProjectPluginId): boolean;
 }
 
 /** The bundled registry: the ids this build ships with, and their companions. */
@@ -70,6 +72,17 @@ export interface AddProjectPluginInput {
   project_id: string;
   plugin_id: ProjectPluginId;
   actor_id: string;
+}
+
+export interface RemoveProjectPluginInput {
+  project_id: string;
+  plugin_id: ProjectPluginId;
+  actor_id: string;
+}
+
+export interface ProjectPluginMembership {
+  plugins: ProjectPluginId[];
+  hidden: ProjectPluginId[];
 }
 
 export interface ProjectWorkspaceRef {
@@ -147,6 +160,7 @@ export interface ProjectDeletionResult {
 
 export interface ProjectsQueryApi {
   listProjectPlugins(projectId: string): ProjectPluginId[];
+  listHiddenPlugins(projectId: string): ProjectPluginId[];
   listProjects(): ProjectRecord[];
   getProject(projectId: string): ProjectRecord;
   selections(): ProjectSelection[];
@@ -159,6 +173,7 @@ export interface ProjectsQueryApi {
 
 export interface ProjectsCommandApi {
   addProjectPlugin(input: AddProjectPluginInput): ProjectPluginId[];
+  removeProjectPlugin(input: RemoveProjectPluginInput): ProjectPluginMembership;
   renameProject(projectId: string, displayName: string, actorId: string): ProjectRecord;
   addWorkspaceProject(input: AddWorkspaceProjectInput): ProjectWorkspaceDirectoryRecord;
   repairWorkspaceProject(input: RepairWorkspaceProjectInput): ProjectWorkspaceDirectoryRecord;

@@ -11,6 +11,8 @@ type Translate = (text: string, values?: Record<string, string | number>) => str
 type FeedPageSurface = "workbench" | "source-workbench" | "directory" | "source-directory" | "overlays";
 export interface WorkbenchGoalsPageView<TItem extends GoalCollectionItem> extends GoalCollectionView<TItem> {
   enabled_plugins?: readonly string[];
+  /** Personal plugins this project has hidden. They stay installed; the rail omits them. */
+  hidden_plugins?: readonly string[];
   /**
    * Directory panels rendered by Plugins the Host is actually running, keyed by
    * project plugin id.
@@ -139,12 +141,12 @@ function renderMolisWorkWeb(
   const initialDesktopSurface = decisionView ? "inbox" : requestedGoalId || archiveView || trashView ? "goal" : "home";
   const projectOptions = view.projects.length ? view.projects : view.project ? [view.project] : [];
   const primitives = { L, escapeHtml, icon, htmlLang };
-  const enabledPlugins = withPersonalPlugins(view.enabled_plugins ?? ["goals", "sessions", "inbox", "feed", "artifacts"]);
+  const enabledPlugins = withPersonalPlugins(view.enabled_plugins ?? ["goals", "sessions", "inbox", "feed", "artifacts"], view.hidden_plugins ?? []);
   const projectOperations = renderProjectOperations(view.project
     ? { project_id: view.project.project_id, display_name: view.project.display_name }
     : null, projectOperationsData);
   const desktopAccountFooter = renderPluginRailAccountFooter(primitives);
-  const settingsDirectory = `${renderSettingsDirectorySection(primitives, enabledPlugins)}${view.project ? renderProjectSettingsDirectorySection(primitives) : ""}`;
+  const settingsDirectory = `${renderSettingsDirectorySection(primitives, enabledPlugins, view.hidden_plugins)}${view.project ? renderProjectSettingsDirectorySection(primitives) : ""}`;
   const settingsSurfaces = `${renderSettingsWorkSurface(primitives, `${view.route_prefix || ""}/` || "/")}${view.project ? renderProjectSettingsWorkSurface(primitives, view.project, desktopShell) : ""}`;
   const pluginEnabled = (id: string) => enabledPlugins.includes(id);
   const projectTitlebarChrome = renderDesktopProjectChrome(view.project ?? null, projectOptions, desktopShell, view.project ? "__PROJECT_SETTINGS__" : null, { switcherClass: "desktop-project-switcher", manageHref: "__PROJECT_INDEX__", directoryToggle: true, globalSearch: true });
@@ -307,10 +309,11 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
   return { renderMolisWorkWeb, renderMolisWorkRefreshFragment };
 }
 
-function withPersonalPlugins(enabled: readonly string[]): string[] {
+function withPersonalPlugins(enabled: readonly string[], hidden: readonly string[] = []): string[] {
+  const excluded = new Set(hidden);
   const next = [...enabled];
   for (const personal of PERSONAL_PLUGIN_IDS) {
-    if (next.includes(personal)) continue;
+    if (excluded.has(personal) || next.includes(personal)) continue;
     const artifactsAt = next.indexOf("artifacts");
     if (artifactsAt >= 0) next.splice(artifactsAt, 0, personal);
     else next.push(personal);

@@ -14,7 +14,7 @@ test("灵光主路径：记下、刷新还在、改字不丢光标、丢掉、�
   await waitFor("document.querySelector('[data-assistant-island] [data-plugin-id=lingguang]')");
 
   await click('[data-plugin-strip] [data-plugin-id="market"]');
-  await waitFor("[...document.querySelectorAll('[data-market-plugin=lingguang] [data-market-add]')].some((button) => button.textContent.trim() === '已添加')", 8_000);
+  await waitFor("[...document.querySelectorAll('[data-market-plugin=lingguang] [data-market-add]')].some((button) => button.textContent.trim() === '移除')", 8_000);
   assert.equal(await evaluate("document.querySelector('[data-market-plugin=lingguang] h2')?.textContent"), "灵光");
   assert.match(await evaluate("document.querySelector('[data-market-plugin=lingguang] p')?.textContent || ''"), /先记下还没想清楚的想法/);
 

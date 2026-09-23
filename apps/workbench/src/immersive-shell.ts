@@ -54,21 +54,38 @@ function islandPlugins(enabled: readonly string[]) {
   }));
 }
 
-/** Icon rail: home, enabled plugins, market. Account stays at the bottom. */
+/**
+ * Host chrome, not a view slot. Characters stays a navigator work surface.
+ * Plugin Builder leads the work rail. The bottom card is market, then
+ * Characters, settings, and the account.
+ */
+const IDENTITY_CARD_PLUGIN_IDS = new Set(["characters"]);
+const META_RAIL_PLUGIN_IDS = new Set(["plugin-builder"]);
+
+/** Icon rail: meta capability, then home and work plugins. Market and identity stay in the bottom card. */
 export function renderPluginRail(
   primitives: ImmersiveShellPrimitives,
   enabled: readonly string[],
   accountFooter: string,
 ): string {
   const { L } = primitives;
+  const entries = directoryPlugins(enabled);
+  const identity = entries.filter(plugin => IDENTITY_CARD_PLUGIN_IDS.has(plugin.id));
+  const meta = entries.filter(plugin => META_RAIL_PLUGIN_IDS.has(plugin.id));
+  const work = entries.filter(plugin => !IDENTITY_CARD_PLUGIN_IDS.has(plugin.id) && !META_RAIL_PLUGIN_IDS.has(plugin.id));
   const home = pluginLink(primitives, { id: "home", surface: "home", label: L("项目首页"), glyph: "home" }, "plugin-rail-item");
-  const plugins = directoryPlugins(enabled)
-    .map(plugin => pluginLink(primitives, plugin, "plugin-rail-item"))
-    .join("");
+  const metaButtons = meta.map(plugin => pluginLink(primitives, plugin, "plugin-rail-item")).join("");
+  const rule = metaButtons ? `<span class="plugin-rail-rule" aria-hidden="true"></span>` : "";
+  const plugins = work.map(plugin => pluginLink(primitives, plugin, "plugin-rail-item")).join("");
   const market = pluginLink(primitives, { id: "market", surface: "market", label: L("插件市场"), glyph: "grid" }, "plugin-rail-item");
+  const identityButtons = identity.map(plugin => pluginLink(primitives, plugin, "plugin-rail-item")).join("");
+  const opening = '<footer class="personal-sidebar-footer">';
+  const footer = accountFooter.includes(opening)
+    ? accountFooter.replace(opening, `${opening}${market}${identityButtons}`)
+    : accountFooter;
   return `<nav class="mw-sidebar mw-sidebar--rail plugin-rail immersive-plugin-strip" data-plugin-strip data-plugin-heading aria-label="${L("项目入口")}">
-    <div class="plugin-rail-items">${home}${plugins}${market}</div>
-    ${accountFooter}
+    <div class="plugin-rail-items">${metaButtons}${rule}${home}${plugins}</div>
+    ${footer}
   </nav>`;
 }
 

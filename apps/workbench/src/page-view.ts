@@ -5,6 +5,8 @@ import type { ScheduleConversationTaskView } from "@molis-ai/molis-work-plugin-s
 import type { WebProjectNavigation } from "./settings-navigation.js";
 export interface MolisWorkWebView {
   enabled_plugins?: import("@molis-ai/molis-work-contracts/modules/projects").ProjectPluginId[];
+  /** Personal plugins this project has hidden. They stay installed; the rail omits them. */
+  hidden_plugins?: import("@molis-ai/molis-work-contracts/modules/projects").ProjectPluginId[];
   /**
    * Directory panels supplied by Plugins the Host is running, keyed by project
    * plugin id. Absent means the shell renders what it always rendered.

@@ -143,6 +143,7 @@ export const BUILTIN_PLUGIN_REGISTRY: ProjectPluginRegistry = {
     ...(PROJECT_PLUGIN_COMPANIONS[pluginId as keyof typeof PROJECT_PLUGIN_COMPANIONS] ?? []),
     ...requiredCompanions(pluginId),
   ],
+  isPersonal: (pluginId) => PERSONAL_PLUGIN_IDS.includes(pluginId),
 };
 
 export interface RailEntry {

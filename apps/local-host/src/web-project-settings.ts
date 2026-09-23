@@ -21,7 +21,9 @@ export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: Loca
   async function handle(request: IncomingMessage, response: ServerResponse, url: URL, homeDirectory: string | undefined, projectCount: number, deletionPorts: ProjectDeletionWebPorts): Promise<boolean> {
     if (request.method === "GET" && url.pathname === "/api/settings/project-plugins") {
       const projects = await withMolisWorkProjectCatalog({ homeDirectory }, catalog => catalog.listProjects().map(project => ({
-        project_id: project.project_id, display_name: project.display_name, plugins: catalog.listProjectPlugins(project.project_id),
+        project_id: project.project_id, display_name: project.display_name,
+        plugins: catalog.listProjectPlugins(project.project_id),
+        hidden: catalog.listHiddenPlugins(project.project_id),
       })));
       sendJson(response, 200, { projects });
       return true;
@@ -38,10 +40,32 @@ export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: Loca
       }
       try {
         const projectId = decodeURIComponent(pluginMatch[1]);
-        const plugins = await withMolisWorkProjectCatalog({ homeDirectory }, catalog => catalog.addProjectPlugin({
+        const membership = await withMolisWorkProjectCatalog({ homeDirectory }, catalog => {
+          const plugins = catalog.addProjectPlugin({
+            project_id: projectId, plugin_id: pluginId, actor_id: "web-user",
+          });
+          return { plugins, hidden: catalog.listHiddenPlugins(projectId) };
+        });
+        sendJson(response, 200, { project_id: projectId, ...membership });
+      } catch (error) {
+        sendJson(response, error instanceof MolisWorkProjectCatalogError && error.code === "catalog.project_not_found" ? 404 : 400,
+          { error: error instanceof Error ? error.message : String(error) });
+      }
+      return true;
+    }
+    if (request.method === "DELETE" && pluginMatch) {
+      const body = await readBody(request);
+      const pluginId = typeof body.plugin_id === "string" ? body.plugin_id.trim() : "";
+      if (pluginId === "") {
+        sendJson(response, 400, { error: L("找不到这个内置插件") });
+        return true;
+      }
+      try {
+        const projectId = decodeURIComponent(pluginMatch[1]);
+        const membership = await withMolisWorkProjectCatalog({ homeDirectory }, catalog => catalog.removeProjectPlugin({
           project_id: projectId, plugin_id: pluginId, actor_id: "web-user",
         }));
-        sendJson(response, 200, { project_id: projectId, plugins });
+        sendJson(response, 200, { project_id: projectId, ...membership });
       } catch (error) {
         sendJson(response, error instanceof MolisWorkProjectCatalogError && error.code === "catalog.project_not_found" ? 404 : 400,
           { error: error instanceof Error ? error.message : String(error) });

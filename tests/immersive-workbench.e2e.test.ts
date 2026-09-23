@@ -96,8 +96,8 @@ test("Bundled market adds to the selected project and Artifact versions stay in 
   const prefix = "/projects/" + projectId;
   await navigate(() => command("Page.navigate", { url: origin + prefix + "/" }, sessionId));
   assert.equal(await evaluate("document.querySelector('[data-plugin-strip] [data-plugin-id=artifacts]')"), null);
-  assert.equal(await evaluate("[...document.querySelectorAll('.plugin-rail-items [data-plugin-id]')].at(-1)?.dataset.pluginId"), "market");
-  assert.equal(await evaluate("document.querySelector('.personal-sidebar-footer [data-work-surface-open=market]')"), null);
+  assert.equal(await evaluate("document.querySelector('.plugin-rail-items [data-plugin-id=market]')"), null);
+  assert.equal(await evaluate("document.querySelector('.personal-sidebar-footer [data-work-surface-open=market]')?.dataset.pluginId"), "market");
   const railColors = await evaluate<{ current: string; idle: string; market: string; idleId: string }>(`(() => {
     const items = [...document.querySelectorAll('.plugin-rail-items [data-plugin-id]')].map((node) => ({
       id: node.dataset.pluginId,
@@ -105,9 +105,9 @@ test("Bundled market adds to the selected project and Artifact versions stay in 
       color: getComputedStyle(node.querySelector('svg')).color,
     }));
     const current = items.find((item) => item.current);
-    const idle = items.find((item) => !item.current && item.id !== 'market');
-    const market = items.find((item) => item.id === 'market');
-    return { current: current?.color || '', idle: idle?.color || '', idleId: idle?.id || '', market: market?.color || '' };
+    const idle = items.find((item) => !item.current);
+    const marketNode = document.querySelector('.personal-sidebar-footer [data-plugin-id=market] svg');
+    return { current: current?.color || '', idle: idle?.color || '', idleId: idle?.id || '', market: marketNode ? getComputedStyle(marketNode).color : '' };
   })()`);
   assert.ok(railColors.idle && railColors.current && railColors.market, "rail has current, idle and market icons: " + JSON.stringify(railColors));
   assert.notEqual(railColors.idle, railColors.current, "idle " + railColors.idleId + " keeps a different identity colour from the current plugin");
@@ -117,8 +117,8 @@ test("Bundled market adds to the selected project and Artifact versions stay in 
   await waitFor("!document.querySelector('[data-market-project]').disabled");
   await evaluate(`(()=>{const s=document.querySelector('[data-market-project]');s.value=${JSON.stringify(otherId)};s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   await click('[data-market-add="feed"]');
-  await waitFor("document.querySelector('[data-market-add=feed]').textContent === '已添加'");
-  assert.equal(await evaluate("document.querySelector('[data-market-add=inbox]').textContent"), "已添加");
+  await waitFor("document.querySelector('[data-market-add=feed]').textContent === '移除'");
+  assert.equal(await evaluate("document.querySelector('[data-market-add=inbox]').textContent"), "移除");
   const list = await evaluate<{ project_id: string; plugins: string[] }[]>("fetch('/api/settings/project-plugins').then(r=>r.json()).then(r=>r.projects)");
   assert.deepEqual(list.find(item => item.project_id === projectId)!.plugins, ["goals"]);
   assert.deepEqual(list.find(item => item.project_id === otherId)!.plugins, ["feed", "goals", "inbox"]);

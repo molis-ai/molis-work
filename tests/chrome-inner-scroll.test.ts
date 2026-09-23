@@ -75,7 +75,7 @@ test("project index, settings, and workbench keep titles pinned and scroll only 
   assert.match(workbench, /\.plugin-rail \{\n    flex: 1;/);
   assert.match(workbench, /\.plugin-rail-items,[\s\S]*\.plugin-rail \.personal-sidebar-footer,[\s\S]*\.assistant-island-card \{[\s\S]*background: var\(--nav-raised\);/);
   assert.match(workbench, /\.plugin-rail-items \{[\s\S]*flex: 1;/);
-  assert.match(workbench, /\.plugin-rail-items \[data-plugin-id="market"\] \{ margin-top: auto; \}/);
+  assert.doesNotMatch(workbench, /\.plugin-rail-items \[data-plugin-id="market"\]/);
   assert.match(workbench, /:is\(\.plugin-rail, \.assistant-island\) \.immersive-plugin-link svg \{ color: var\(--plugin-tint, var\(--faint\)\)/);
   assert.doesNotMatch(workbench, /\.plugin-rail \.immersive-plugin-link:hover svg \{ color: var\(--ink\)/);
   assert.doesNotMatch(workbench, /\.plugin-rail \.immersive-plugin-link\[aria-current\] svg \{ color: var\(--ink\)/);

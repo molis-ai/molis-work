@@ -4,9 +4,11 @@ import type {
   AddProjectPluginInput,
   ProjectDeletionRecord,
   ProjectPluginId,
+  ProjectPluginMembership,
   ProjectPluginRegistry,
   ProjectRecord,
   ProjectSelection,
+  RemoveProjectPluginInput,
 } from "@molis-ai/molis-work-contracts/modules/projects";
 import { BUILTIN_PROJECT_PLUGIN_REGISTRY } from "@molis-ai/molis-work-contracts/modules/projects";
 
@@ -85,9 +87,21 @@ export class ProjectService {
     return this.repository.listProjectPlugins(this.get(projectId).project_id);
   }
 
+  listHidden(projectId: string): ProjectPluginId[] {
+    return this.repository.listHiddenPlugins(this.get(projectId).project_id);
+  }
+
   addPlugin(input: AddProjectPluginInput): ProjectPluginId[] {
     const project = this.get(input.project_id);
     const actor = this.requiredActorId(input.actor_id);
+    if (this.plugins.isPersonal?.(input.plugin_id) === true) {
+      return this.repository.transaction(() => {
+        if (this.repository.showProjectPlugin(project.project_id, input.plugin_id)) {
+          this.appendEvent(project.project_id, "project.plugin_added", actor, { plugin_id: input.plugin_id });
+        }
+        return this.listPlugins(project.project_id);
+      });
+    }
     if (!this.plugins.has(input.plugin_id)) {
       throw this.error("catalog.plugin_not_found", "找不到这个插件");
     }
@@ -99,6 +113,42 @@ export class ProjectService {
         }
       }
       return this.listPlugins(project.project_id);
+    });
+  }
+
+  removePlugin(input: RemoveProjectPluginInput): ProjectPluginMembership {
+    const project = this.get(input.project_id);
+    const actor = this.requiredActorId(input.actor_id);
+    const personal = this.plugins.isPersonal?.(input.plugin_id) === true;
+    if (!personal && !this.plugins.has(input.plugin_id)) {
+      throw this.error("catalog.plugin_not_found", "找不到这个插件");
+    }
+    return this.repository.transaction(() => {
+      const stored = this.listPlugins(project.project_id);
+      const removing = new Set<ProjectPluginId>([input.plugin_id]);
+      let changed = true;
+      while (changed) {
+        changed = false;
+        for (const id of stored) {
+          if (removing.has(id)) continue;
+          if (this.plugins.companions(id).some((companion) => removing.has(companion))) {
+            removing.add(id);
+            changed = true;
+          }
+        }
+      }
+      for (const id of removing) {
+        const deleted = this.repository.removeProjectPlugin(project.project_id, id);
+        const hidden = personal && id === input.plugin_id
+          && this.repository.hideProjectPlugin(project.project_id, id, this.now());
+        if (deleted || hidden) {
+          this.appendEvent(project.project_id, "project.plugin_removed", actor, { plugin_id: id });
+        }
+      }
+      return {
+        plugins: this.listPlugins(project.project_id),
+        hidden: this.repository.listHiddenPlugins(project.project_id),
+      };
     });
   }
 

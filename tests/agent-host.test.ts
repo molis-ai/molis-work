@@ -728,6 +728,8 @@ test("Host resolves compaction separately from role prompts and rejects missing 
   assert.deepEqual(observed?.role?.prompts.map(p => p.body), ["Read only"]);
   await assert.rejects(host.start("compact", request, { ...granted, prompts: granted.prompts.map(p => ({ ...p, version: 1 })) }), /对应版本/);
   lie = true; await assert.rejects(host.start("compact", request, granted), /已取消/);
+});
+
 function scriptedCli(command = "claude") {
   const spawns: Array<{ command: string; args: string[]; emit: (event: CliProcessEvent) => void; killed: boolean }> = [];
   const port: CliProcessPort = {

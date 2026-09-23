@@ -648,6 +648,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         if (!record.runtime_session_id) execution.sessions.setRuntimeSession(boardId, record.session_id, session.session_id, new Date().toISOString());
         const run = await api!.invoke(agent.startRun, [record.runtime_id, { ...identity, session, directory, task, role_id: role, text_materials, character, ...(character_skill_ids === undefined ? {} : {character_skill_ids}), ...(subagent_workspaces.length ? { subagent_workspaces } : {}),
           ...(plan ? { execution_plan: { source: plan.confirmed!, title: plan.content.title, steps: plan.content.steps.map((step, index) => ({ id: `step-${index + 1}`, ...step })) } } : {}),
+          budget: { max_turns: Math.max(60, plan ? 8 + plan.content.steps.length * 3 : 0) },
           model_selection: { provider_id: model.provider_id, model_id: model.model_id }, skills: methodSelection(body.methods ?? []), mcp_tools: mcpSelection(body.mcp_tools ?? []), mcp_sources: mcpSources(body.mcp_sources ?? []) }]);
         if (!plan) context.services!.storage!.delete(`draft:${record.session_id}`);
         execution.sessions.setState(boardId, record.session_id, "running", new Date().toISOString());

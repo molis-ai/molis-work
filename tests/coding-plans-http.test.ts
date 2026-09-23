@@ -73,7 +73,7 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
     assert.equal((await start({ intent: "discuss" })).status, 400);
     await request("", "PATCH", { draft: "未发送的独立要求" });
     response = await start();assert.equal(response.status, 200, JSON.stringify(response.body));assert.equal(starts.length, 1);
-    assert.equal(starts[0].task, "检查并修复边界");assert.equal(starts[0].role_id, "builder");
+    assert.deepEqual(starts[0].budget, {max_turns:60});assert.equal(starts[0].task, "检查并修复边界");assert.equal(starts[0].role_id, "builder");
     assert.match(starts[0].text_materials![0].text, /10000 分免运费/);assert.match(starts[0].text_materials![0].text, /不批准任何文件修改或命令/);
     assert.equal((await request()).body.draft, "未发送的独立要求");
     assert.equal((await start()).body.existing, true);assert.equal(starts.length, 1, "lost-response retry does not start a second Run");

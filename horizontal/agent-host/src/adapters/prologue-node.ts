@@ -109,7 +109,7 @@ export async function createPrologueNodeAdapter(
     app: options.app,
     host,
     preset: "local-agent",
-    config: { tool: { deferToolSchemasBeyond: 20 }, context: { maxInstructionChars: MAX_COMPOSED_INSTRUCTION_CHARS } },
+    config: { tool: { deferToolSchemasBeyond: 20, observation: { maxLines: 1000, maxBytes: 64 * 1024 } }, context: { maxInstructionChars: MAX_COMPOSED_INSTRUCTION_CHARS } },
     network: { model: true, mcp: true, loopback: true },
     posture: options.reviewQueue
       ? { sandbox: "workspace-write", approval: "untrusted" }

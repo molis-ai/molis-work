@@ -21,6 +21,7 @@ import {
   migrateProjectOpenPluginSchema,
   migrateProjectTaskPluginSchema,
   migrateProjectDropTaskPluginSchema,
+  migrateProjectPluginExclusionSchema,
   ProjectsRepository,
   type ProjectsSqliteDatabase,
   type StoredProjectDeletion,
@@ -102,6 +103,7 @@ export class ProjectsModule implements ProjectsApplicationApi {
     this.workspaces = new ProjectWorkspaceService(this.repository, options.errorFactory, now, id);
     this.query = {
       listProjectPlugins: (projectId) => this.records.listPlugins(projectId),
+      listHiddenPlugins: (projectId) => this.records.listHidden(projectId),
       listProjects: () => this.records.list(),
       getProject: (projectId) => this.records.get(projectId),
       selections: () => this.records.selections(),
@@ -113,6 +115,7 @@ export class ProjectsModule implements ProjectsApplicationApi {
     };
     this.commands = {
       addProjectPlugin: (input) => this.records.addPlugin(input),
+      removeProjectPlugin: (input) => this.records.removePlugin(input),
       renameProject: (projectId, displayName, actorId) => this.records.rename(projectId, displayName, actorId),
       addWorkspaceProject: (input) => this.workspaces.add(input),
       repairWorkspaceProject: (input) => this.workspaces.repair(input),
@@ -153,6 +156,7 @@ export {
   migrateProjectOpenPluginSchema,
   migrateProjectTaskPluginSchema,
   migrateProjectDropTaskPluginSchema,
+  migrateProjectPluginExclusionSchema,
   normalizeProjectWorkspace,
   ProjectService,
   ProjectsRepository,

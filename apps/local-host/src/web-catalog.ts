@@ -68,9 +68,12 @@ export async function handleLocalCatalogWebRequest(
     response.end();
     return;
   }
-  const enabledPlugins = async (projectId: string | null): Promise<readonly string[] | undefined> => {
-    if (!projectId || !serverOptions.homeDirectory) return undefined;
-    return composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, (catalog) => catalog.listProjectPlugins(projectId));
+  const pluginMembership = async (projectId: string | null): Promise<{ plugins: readonly string[] | undefined; hidden: readonly string[] | undefined }> => {
+    if (!projectId || !serverOptions.homeDirectory) return { plugins: undefined, hidden: undefined };
+    return composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, (catalog) => ({
+      plugins: catalog.listProjectPlugins(projectId),
+      hidden: catalog.listHiddenPlugins(projectId),
+    }));
   };
   if (await planningHttp.personal(request, response, url, serverOptions.homeDirectory, projects, controlToken, localHost, () => feedSchedulers.clear())) return;
   if (await handleModelSettingsHttp(request, response, url, composition.withCatalog, serverOptions.homeDirectory)) return;
@@ -101,6 +104,7 @@ export async function handleLocalCatalogWebRequest(
         effect: row.effect,
       }))
       : [];
+    const membership = await pluginMembership(contextProject?.project_id ?? null);
     response.writeHead(200, {
       "content-type": "text/html; charset=utf-8",
       "cache-control": "no-store",
@@ -110,7 +114,8 @@ export async function handleLocalCatalogWebRequest(
       section,
       ...(model_settings === undefined ? {} : { model_settings }),
       context_project: contextProject,
-      enabled_plugins: await enabledPlugins(contextProject?.project_id ?? null),
+      enabled_plugins: membership.plugins,
+      hidden_plugins: membership.hidden,
       runtimes,
       mcp_tools,
       connectors: section === "connectors" ? listConnectorSettingsCards() : [],
@@ -150,6 +155,7 @@ export async function handleLocalCatalogWebRequest(
       };
       plugin_settings_html = renderPluginSettingsContribution(pluginSettings.contribution_id, model);
     }
+    const membership = await pluginMembership(contextProject?.project_id ?? null);
     response.writeHead(200, {
       "content-type": "text/html; charset=utf-8",
       "cache-control": "no-store",
@@ -159,7 +165,8 @@ export async function handleLocalCatalogWebRequest(
       section: pluginSettings.section_id,
       plugin_settings_html: plugin_settings_html ?? undefined,
       context_project: contextProject,
-      enabled_plugins: await enabledPlugins(contextProject?.project_id ?? null),
+      enabled_plugins: membership.plugins,
+      hidden_plugins: membership.hidden,
       runtimes: [],
       projects,
       web_service: await webService.detect(),

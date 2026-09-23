@@ -599,7 +599,6 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
       assert.match(pluginStrip, new RegExp(`data-plugin-id="${plugin}"`));
     }
     assert.match(pluginStrip, /data-plugin-id="goals"[\s\S]*data-plugin-id="sessions"/);
-    assert.match(pluginStrip, /data-plugin-id="artifacts"[\s\S]*data-plugin-id="market"[^>]*data-work-surface-open="market"/);
     assert.doesNotMatch(pluginStrip, /data-plugin-id="lingguang"/);
     assert.match(browser, /data-assistant-island[\s\S]*data-plugin-id="lingguang"[\s\S]*data-assistant-toggle[\s\S]*data-assistant-composer/);
     assert.doesNotMatch(pluginStrip, /返回项目目录/);
@@ -611,8 +610,10 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     const accountFooter = browser.match(/<footer class="personal-sidebar-footer"[\s\S]*?<\/footer>/)?.[0];
     assert.ok(accountFooter);
     assert.match(pluginStrip, /class="personal-sidebar-footer"/);
-    assert.match(accountFooter, /data-plugin-id="settings"[\s\S]*class="personal-account"/);
-    assert.doesNotMatch(accountFooter, /data-work-surface-open="market"|immersive-market-entry/);
+    assert.match(accountFooter, /data-plugin-id="market"[^>]*data-work-surface-open="market"[\s\S]*data-plugin-id="characters"[\s\S]*data-plugin-id="settings"[\s\S]*class="personal-account"/);
+    const railItems = pluginStrip?.match(/<div class="plugin-rail-items">[\s\S]*?<\/div>/)?.[0] ?? "";
+    assert.doesNotMatch(railItems, /data-plugin-id="characters"|data-plugin-id="market"/);
+    assert.match(railItems, /data-plugin-id="plugin-builder"[\s\S]*class="plugin-rail-rule"[\s\S]*data-plugin-id="home"/);
     assert.doesNotMatch(browser, /data-directory-shortcuts|directory-shortcuts-title/);
     const homeStart = browser.indexOf('data-work-surface="home"');
     assert.ok(homeStart >= 0);

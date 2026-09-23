@@ -1,6 +1,6 @@
 import { LocalCatalogMetadata, type LocalSqliteStorage, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import type { ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
-import { createProjectsSchema, migrateProjectDataClassSchema, migrateProjectDropLegacyImportSchema, migrateProjectInboxPluginSchema, migrateProjectOpenPluginSchema, migrateProjectTaskPluginSchema, migrateProjectDropTaskPluginSchema } from "@molis-ai/molis-work-module-projects";
+import { createProjectsSchema, migrateProjectDataClassSchema, migrateProjectDropLegacyImportSchema, migrateProjectInboxPluginSchema, migrateProjectOpenPluginSchema, migrateProjectTaskPluginSchema, migrateProjectDropTaskPluginSchema, migrateProjectPluginExclusionSchema } from "@molis-ai/molis-work-module-projects";
 import { createPersonalPlanningMethodSchema } from "@molis-ai/molis-work-module-goals";
 import { createRuntimeContextBindingTables, createRuntimeContextSetupRequestTable, createRuntimeContextSuggestionRejectionTable, migrateRuntimeContextBindingEventsForUnbind, migrateRuntimeContextProjectReferences } from "@molis-ai/molis-work-module-private-work-context";
 import { addPromptCacheColumn, createModelProviderTables } from "./model-provider-store.js";
@@ -133,6 +133,11 @@ export function migrateCatalog(storage: LocalSqliteStorage, databasePath: string
       addPromptCacheColumn(db);
       metadata.setVersion(18);
       current = 18;
+    }
+    if (current === 18) {
+      migrateProjectPluginExclusionSchema(db);
+      metadata.setVersion(19);
+      current = 19;
     }
     if (current !== CATALOG_SCHEMA_VERSION) {
       throw new MolisWorkProjectCatalogError(

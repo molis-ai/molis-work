@@ -80,6 +80,26 @@ export class ProjectsRepository {
       .run(projectId, pluginId, at).changes) > 0;
   }
 
+  removeProjectPlugin(projectId: string, pluginId: ProjectPluginId): boolean {
+    return Number(this.db.prepare("DELETE FROM project_plugins WHERE project_id = ? AND plugin_id = ?")
+      .run(projectId, pluginId).changes) > 0;
+  }
+
+  listHiddenPlugins(projectId: string): ProjectPluginId[] {
+    return (this.db.prepare("SELECT plugin_id FROM project_plugin_exclusions WHERE project_id = ? ORDER BY plugin_id")
+      .all(projectId) as { plugin_id: ProjectPluginId }[]).map(row => row.plugin_id);
+  }
+
+  hideProjectPlugin(projectId: string, pluginId: ProjectPluginId, at: string): boolean {
+    return Number(this.db.prepare("INSERT INTO project_plugin_exclusions (project_id, plugin_id, removed_at) VALUES (?, ?, ?) ON CONFLICT DO NOTHING")
+      .run(projectId, pluginId, at).changes) > 0;
+  }
+
+  showProjectPlugin(projectId: string, pluginId: ProjectPluginId): boolean {
+    return Number(this.db.prepare("DELETE FROM project_plugin_exclusions WHERE project_id = ? AND plugin_id = ?")
+      .run(projectId, pluginId).changes) > 0;
+  }
+
   renameProject(projectId: string, displayName: string, updatedAt: string): void {
     this.db.prepare("UPDATE projects SET display_name = ?, updated_at = ? WHERE project_id = ?")
       .run(displayName, updatedAt, projectId);
@@ -321,6 +341,12 @@ export function createProjectsSchema(db: ProjectsSqliteDatabase): void {
       added_at TEXT NOT NULL,
       PRIMARY KEY (project_id, plugin_id)
     );
+    CREATE TABLE IF NOT EXISTS project_plugin_exclusions (
+      project_id TEXT NOT NULL REFERENCES projects(project_id) ON DELETE CASCADE,
+      plugin_id TEXT NOT NULL,
+      removed_at TEXT NOT NULL,
+      PRIMARY KEY (project_id, plugin_id)
+    );
     CREATE TABLE IF NOT EXISTS project_events (
       event_id TEXT PRIMARY KEY,
       project_id TEXT NOT NULL REFERENCES projects(project_id) ON DELETE CASCADE,
@@ -422,6 +448,18 @@ export function migrateProjectTaskPluginSchema(db: ProjectsSqliteDatabase): void
     ALTER TABLE project_plugins_task_next RENAME TO project_plugins;
     INSERT OR IGNORE INTO project_plugins (project_id, plugin_id, added_at)
     SELECT project_id, 'task', added_at FROM project_plugins WHERE plugin_id = 'goals';
+  `);
+}
+
+/** A project can hide an always-on plugin without deleting that plugin's own data. */
+export function migrateProjectPluginExclusionSchema(db: ProjectsSqliteDatabase): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS project_plugin_exclusions (
+      project_id TEXT NOT NULL REFERENCES projects(project_id) ON DELETE CASCADE,
+      plugin_id TEXT NOT NULL,
+      removed_at TEXT NOT NULL,
+      PRIMARY KEY (project_id, plugin_id)
+    );
   `);
 }
 

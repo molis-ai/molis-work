@@ -45,8 +45,10 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
     display: flex; flex: 1; flex-direction: column; align-items: center; gap: 2px; min-height: 0;
     overflow: auto; scrollbar-width: none;
   }
-  body.immersive-workbench .plugin-rail-items [data-plugin-id="market"] { margin-top: auto; }
   body.immersive-workbench .plugin-rail-items::-webkit-scrollbar { width: 0; height: 0; }
+  body.immersive-workbench .plugin-rail-rule {
+    flex: none; width: 16px; height: 1px; margin: 4px 0; border: 0; border-radius: 1px; background: var(--line);
+  }
   body.immersive-workbench .assistant-island-card {
     display: flex; flex: none; flex-direction: column; align-items: center; gap: 2px; min-height: 0;
   }

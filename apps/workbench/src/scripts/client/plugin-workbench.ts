@@ -13,7 +13,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
   const projectCheck = market.querySelector("[data-market-project-check]");
   const status = market.querySelector("[data-market-status]");
   const retry = market.querySelector("[data-market-retry]");
-  let projects = null, marketRequest = null, adding = false;
+  let projects = null, marketRequest = null, pending = false;
   const syncProjectMenu = () => {
     const current = selector.value;
     const currentText = selector.selectedOptions[0] ? selector.selectedOptions[0].text : "";
@@ -62,6 +62,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     const query = market.querySelector("[data-market-search]").value.trim().toLocaleLowerCase();
     const onlyAdded = market.querySelector('[data-market-scope][aria-pressed="true"]')?.dataset.marketScope === "added";
     const addedIds = current?.plugins ?? [];
+    const hiddenIds = current?.hidden ?? [];
     const installed = market.querySelector("[data-market-installed-row]");
     installed.replaceChildren(...addedIds.flatMap(id => {
       const card = market.querySelector('[data-market-plugin="' + id + '"]');
@@ -79,12 +80,13 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     market.querySelector("[data-market-installed]").hidden = installed.childElementCount === 0 || Boolean(query);
     let count = 0;
     market.querySelectorAll("[data-market-plugin]").forEach(card => {
-      const added = addedIds.includes(card.dataset.marketPlugin) || PERSONAL_PLUGIN_IDS.includes(card.dataset.marketPlugin);
+      const added = addedIds.includes(card.dataset.marketPlugin) || (PERSONAL_PLUGIN_IDS.includes(card.dataset.marketPlugin) && !hiddenIds.includes(card.dataset.marketPlugin));
       card.hidden = (onlyAdded && !added) || !((card.querySelector("h2").textContent + " " + card.querySelector("p").textContent).toLocaleLowerCase().includes(query));
       if (!card.hidden) count++;
       const button = card.querySelector("[data-market-add]");
-      button.disabled = !current || added || adding;
-      button.textContent = added ? L("已添加") : L("添加");
+      button.disabled = !current || pending;
+      button.dataset.marketMembership = added ? "added" : "available";
+      button.textContent = added ? L("移除") : L("添加");
     });
     market.querySelector("[data-market-empty]").hidden = count > 0;
     market.querySelector("[data-market-catalog]").hidden = count === 0;
@@ -153,23 +155,25 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
       return;
     }
     const button = event.target.closest("[data-market-add]");
-    if (!button || button.disabled || adding) return;
+    if (!button || button.disabled || pending) return;
     const targetProject = selector.value;
-    adding = true; selector.disabled = true; filter();
-    status.textContent = L("正在添加…");
+    const removing = button.dataset.marketMembership === "added";
+    pending = true; selector.disabled = true; filter();
+    status.textContent = removing ? L("正在移除…") : L("正在添加…");
     try {
       const response = await fetch("/api/settings/projects/" + encodeURIComponent(targetProject) + "/plugins", {
-        method: "POST", headers: globalThis.molisWorkControlHeaders(),
+        method: removing ? "DELETE" : "POST", headers: globalThis.molisWorkControlHeaders(),
         body: JSON.stringify({ plugin_id: button.dataset.marketAdd }),
       });
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || L("无法添加插件"));
+      if (!response.ok) throw new Error(result.error || (removing ? L("无法移除插件") : L("无法添加插件")));
       const project = projects.find(project => project.project_id === targetProject);
       project.plugins = result.plugins;
-      status.textContent = L("已添加到") + " " + project.display_name;
+      project.hidden = result.hidden || [];
+      status.textContent = (removing ? L("已移除自") : L("已添加到")) + " " + project.display_name;
       if (targetProject === projectId) { saveUiState(); location.reload(); }
     } catch (error) { status.textContent = error.message; }
-    finally { adding = false; selector.disabled = false; filter(); }
+    finally { pending = false; selector.disabled = false; filter(); }
   });
   const directory = document.querySelector("[data-artifact-directory]");
   const detail = document.querySelector("[data-artifact-detail]");

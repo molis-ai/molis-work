@@ -44,14 +44,17 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
   assert.equal(await evaluate("Math.round(document.querySelector('.plugin-rail-item').getBoundingClientRect().height)"), 32, "Plugin rail icons share a 32px hit target");
   assert.ok(await evaluate(`(()=>{
     const items=document.querySelector('.plugin-rail-items');
-    const market=items?.querySelector('[data-plugin-id=market]');
-    const plugins=[...items?.querySelectorAll('[data-plugin-id]')||[]].filter((node)=>node.dataset.pluginId!=='market');
-    const last=plugins.at(-1);
-    if(!items||!market||!last) return false;
-    const box=items.getBoundingClientRect(), hit=market.getBoundingClientRect(), prior=last.getBoundingClientRect();
+    const footer=document.querySelector('.plugin-rail .personal-sidebar-footer');
+    const market=footer?.querySelector('[data-plugin-id=market]');
+    const characters=footer?.querySelector('[data-plugin-id=characters]');
+    const last=[...items?.querySelectorAll('[data-plugin-id]')||[]].at(-1);
+    if(!items||!footer||!market||!characters||!last) return false;
+    const box=items.getBoundingClientRect(), hit=last.getBoundingClientRect();
     const pad=parseFloat(getComputedStyle(items).paddingBottom)||0;
-    return Math.abs(box.bottom-pad-hit.bottom)<2 && hit.top>prior.bottom+16;
-  })()`), "Plugin market sits at the bottom of the rail items chip");
+    return !items.querySelector('[data-plugin-id=market]')
+      && Math.abs(box.bottom-pad-hit.bottom)<2
+      && market.getBoundingClientRect().bottom<=characters.getBoundingClientRect().top+1;
+  })()`), "Plugin market sits in the bottom card, above Characters");
   assert.ok(await evaluate(`(()=>{
     const titlebar=document.querySelector('.immersive-titlebar').getBoundingClientRect();
     const island=document.querySelector('[data-assistant-island]').getBoundingClientRect();

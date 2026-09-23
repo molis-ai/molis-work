@@ -36,6 +36,8 @@ import {
 import type {
   AddProjectPluginInput,
   ProjectPluginId,
+  ProjectPluginMembership,
+  RemoveProjectPluginInput,
   AddWorkspaceProjectInput,
   ChangeWorkspaceProjectInput,
   DeleteProjectInput,
@@ -270,8 +272,16 @@ export class MolisWorkProjectCatalog {
     return this.projects.query.listProjectPlugins(projectId);
   }
 
+  listHiddenPlugins(projectId: string): ProjectPluginId[] {
+    return this.projects.query.listHiddenPlugins(projectId);
+  }
+
   addProjectPlugin(input: AddProjectPluginInput): ProjectPluginId[] {
     return this.projects.commands.addProjectPlugin(input);
+  }
+
+  removeProjectPlugin(input: RemoveProjectPluginInput): ProjectPluginMembership {
+    return this.projects.commands.removeProjectPlugin(input);
   }
 
   getProject(projectId: string): MolisWorkProjectRecord {

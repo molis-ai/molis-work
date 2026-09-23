@@ -107,9 +107,10 @@ export function createLocalGoalsReadHttp(ports: {
         const desktopShell = isDesktopShellRequest(request, url);
         const projectConfiguration = options.project ? await withMolisWorkProjectCatalog({ homeDirectory }, catalog => ({
           plugins: catalog.listProjectPlugins(options.project!.project_id),
+          hidden: catalog.listHiddenPlugins(options.project!.project_id),
           workspaces: catalog.listWorkspaceDirectory(options.project!.project_id),
         })) : null;
-        if (projectConfiguration) view = { ...view, enabled_plugins: projectConfiguration.plugins };
+        if (projectConfiguration) view = { ...view, enabled_plugins: projectConfiguration.plugins, hidden_plugins: projectConfiguration.hidden };
         // Ask the running Coding Plugin for its own directory panel. A Plugin
         // that is not running, or that fails, simply contributes nothing and the
         // shell renders exactly as before.

@@ -27,8 +27,9 @@ export interface MolisWorkSettingsView {
   plugin_settings_html?: string;
   model_settings?: Omit<ModelSettingsModel, "primitives">;
   context_project?: WebProjectNavigation | null;
-  /** Project plugins enabled for the settings context. Personal plugins are always listed. */
+  /** Project plugins enabled for the settings context. Personal plugins are listed unless hidden. */
   enabled_plugins?: readonly string[];
+  hidden_plugins?: readonly string[];
   runtimes: RuntimeIntegrationDetection[];
   mcp_tools?: readonly McpSettingsToolView[];
   connectors?: readonly ConnectorSettingsCardView[];

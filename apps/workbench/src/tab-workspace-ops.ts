@@ -37,6 +37,7 @@ export function createTabWorkspaceOps(titles) {
     dataset: "Dataset",
     ppt: "PPT",
     lingguang: "灵光",
+    alchemist: "炼金术士",
     artifacts: "Artifacts",
   }[plugin] || plugin);
   const pluginOfSurface = (surface) => surface === "goal" ? "goals" : surface === "sources" ? "feed" : surface;

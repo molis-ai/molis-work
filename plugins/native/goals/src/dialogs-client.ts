@@ -1,6 +1,6 @@
 /** Existing create/trash/restore interactions; host injects controls, navigation and shared refresh. */
 const GOALS_TRASH_DIALOG_SCRIPT = `    const openGoalTrashDialog = (trigger, trashed) => {
-      if (!trashDialog || !trashForm) return;
+      if (!trashDialog || !trashForm || trashPending) return;
       const goalId = String(trigger.dataset.goalId || "").trim();
       const goalTitle = String(trigger.dataset.goalTitle || goalId).trim();
       if (!goalId) return;
@@ -31,7 +31,7 @@ const GOALS_TRASH_DIALOG_SCRIPT = `    const openGoalTrashDialog = (trigger, tra
     };
 
     const closeGoalTrashDialog = () => {
-      if (!trashDialog?.open) return;
+      if (!trashDialog?.open || trashPending) return;
       trashDialog.close();
       trashIntent = null;
       refreshBoard();
@@ -50,7 +50,7 @@ const GOALS_TRASH_DIALOG_SCRIPT = `    const openGoalTrashDialog = (trigger, tra
     };
 
     const submitGoalTrashForm = async () => {
-      if (!trashIntent || !trashForm || !trashError || !trashSubmit) return;
+      if (!trashIntent || !trashForm || !trashError || !trashSubmit || trashPending) return;
       const reason = String(new FormData(trashForm).get("reason") || "").trim();
       if (!reason) {
         trashError.textContent = L("请说明本次操作原因。");
@@ -59,14 +59,15 @@ const GOALS_TRASH_DIALOG_SCRIPT = `    const openGoalTrashDialog = (trigger, tra
         return;
       }
       trashError.hidden = true;
-      trashSubmit.disabled = true;
+      const intent = { ...trashIntent };
+      setTrashPending(true);
       let redirecting = false;
       try {
-        const response = await fetch(route("/api/goals/" + encodeURIComponent(trashIntent.goalId) + "/trash"), {
+        const response = await fetch(route("/api/goals/" + encodeURIComponent(intent.goalId) + "/trash"), {
           method: "POST",
           headers: molisWorkControlHeaders(),
           body: JSON.stringify({
-            trashed: trashIntent.trashed,
+            trashed: intent.trashed,
             reason,
             user_confirmed: true,
           }),
@@ -78,19 +79,19 @@ const GOALS_TRASH_DIALOG_SCRIPT = `    const openGoalTrashDialog = (trigger, tra
           trashError.hidden = false;
           return;
         }
-        const expected = trashIntent.trashed
+        const expected = intent.trashed
           ? ["trashed", "already_trashed"]
           : ["restored", "already_active"];
         if (!expected.includes(result.status)) throw new Error(L("Molis Work 返回了无法识别的回收站状态"));
         redirecting = true;
         trashDialog.close();
         clearCollectionUiState();
-        navigate(route((trashIntent.trashed ? "/trash/goals/" : "/goals/") + encodeURIComponent(trashIntent.goalId)));
+        navigate(route((intent.trashed ? "/trash/goals/" : "/goals/") + encodeURIComponent(intent.goalId)));
       } catch (error) {
         trashError.textContent = error.message || L("操作失败，请检查后重试");
         trashError.hidden = false;
       } finally {
-        if (!redirecting) trashSubmit.disabled = false;
+        if (!redirecting) setTrashPending(false);
       }
     };
 
@@ -205,6 +206,19 @@ export const GOALS_DIALOGS_CLIENT_FACTORY_SCRIPT = `(host) => {
     const trashError = document.querySelector("[data-goal-trash-error]");
     const trashSubmit = document.querySelector("[data-goal-trash-submit]");
     let trashIntent = null;
+    let trashPending = false;
+    const setTrashPending = (pending) => {
+      trashPending = pending;
+      trashForm.setAttribute("aria-busy", String(pending));
+      trashSubmit.disabled = pending;
+      trashSubmit.textContent = pending ? L("正在保存…") : L(trashIntent.trashed ? "移入回收站" : "恢复到 Goal Tree");
+      trashForm.elements.reason.readOnly = pending;
+      trashDialog.querySelectorAll("[data-close-goal-trash]").forEach((button) => { button.disabled = pending; });
+    };
+    trashDialog?.addEventListener("cancel", (event) => {
+      event.preventDefault();
+      closeGoalTrashDialog();
+    });
 ${GOALS_TRASH_DIALOG_SCRIPT}
 ${GOALS_CREATE_COMPOSE_SCRIPT}
     const readCreateDraft = () => {

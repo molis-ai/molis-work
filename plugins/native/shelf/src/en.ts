@@ -1,5 +1,6 @@
 /** Shelf application copy; Workbench supplies the request locale. */
 export const SHELF_EN: Record<string, string> = {
+  "副本未保存，输入已保留。请重试完成编辑或返回。": "The copy was not saved. Your edits are retained. Try finishing the edit or going back again.",
   "接收项目成果": "Receive project results",
   "选择固定成果": "Choose a saved result",
   "接收并打开副本": "Receive and open copy",

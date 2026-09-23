@@ -1,5 +1,6 @@
 /** Existing Goal create/trash/restore copy. Shared chrome remains in Workbench. */
 export const GOALS_DIALOGS_EN: Record<string, string> = {
+  "正在保存…": "Saving…",
   "要得到的结果 ": "The result you want ",
   "它属于哪个更大的 Goal？ ": "Which larger Goal does it belong to? ",
   "开始前必须等哪些 Goal 完成？ ": "Which Goals must finish before this can start? ",

@@ -104,21 +104,33 @@ export function decodeJellyImport(source: unknown, now = new Date().toISOString(
   validateJellyWorkspace(workspace); validateJellyContent(workspace);
   return { workspace, warnings, source_hash };
 }
+function mergeById<T extends { id: string }>(current: T[], incoming: readonly T[], key: string, keepExistingUncategorized = false): void {
+  for (const value of incoming) {
+    const existing = current.find((item) => item.id === value.id);
+    if (existing) {
+      if (keepExistingUncategorized && value.id === "uncategorized") continue;
+      jellyAssert(JSON.stringify(existing) === JSON.stringify(value), `导入 ${key} 的 ID 与当前内容冲突：${value.id}。请使用空的插件库或消除冲突。`, "jelly.import_conflict", 409);
+    } else current.push(structuredClone(value));
+  }
+}
+function mergeRows<T>(current: T[] | undefined, incoming: readonly T[] | undefined): T[] {
+  const target = current ?? [];
+  for (const value of incoming ?? []) {
+    if (!target.some((item) => JSON.stringify(item) === JSON.stringify(value))) target.push(structuredClone(value));
+  }
+  return target;
+}
 /** Merge only: existing identities must be identical; no import may overwrite current content. */
 export function mergeJellyImport(current: JellyWorkspace, imported: JellyWorkspace): JellyWorkspace {
   const merged = structuredClone(current);
-  for (const key of ["categories", "items", "series", "notes", "inspirations"] as const) {
-    const target = merged[key] as { id: string }[];
-    for (const value of imported[key]) {
-      const existing = target.find(v => v.id === value.id);
-      if (existing) { if (key === "categories" && value.id === "uncategorized") continue; jellyAssert(JSON.stringify(existing) === JSON.stringify(value), `导入 ${key} 的 ID 与当前内容冲突：${value.id}。请使用空的插件库或消除冲突。`, "jelly.import_conflict", 409); }
-      else target.push(structuredClone(value));
-    }
-  }
-  for (const key of ["relations", "task_links", "relation_overrides"] as const) {
-    const target = (merged[key] ??= []) as any[];
-    for (const value of imported[key] ?? []) if (!target.some(v => JSON.stringify(v) === JSON.stringify(value))) target.push(structuredClone(value));
-  }
+  mergeById(merged.categories, imported.categories, "categories", true);
+  mergeById(merged.items, imported.items, "items");
+  mergeById(merged.series, imported.series, "series");
+  mergeById(merged.notes, imported.notes, "notes");
+  mergeById(merged.inspirations, imported.inspirations, "inspirations");
+  merged.relations = mergeRows(merged.relations, imported.relations);
+  merged.task_links = mergeRows(merged.task_links, imported.task_links);
+  merged.relation_overrides = mergeRows(merged.relation_overrides, imported.relation_overrides);
   merged.applied_plan_ids = [...new Set([...merged.applied_plan_ids, ...imported.applied_plan_ids])];
   for (const entry of imported.imported_sources ?? []) { merged.imported_sources ??= []; if (!merged.imported_sources.some(s => s.sha256 === entry.sha256)) merged.imported_sources.push(structuredClone(entry)); }
   validateJellyWorkspace(merged); validateJellyContent(merged); return merged;

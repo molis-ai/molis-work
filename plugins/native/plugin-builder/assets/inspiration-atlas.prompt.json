@@ -1,0 +1,23 @@
+{
+  "asset": "inspiration-atlas.png",
+  "tool": "image_gen.imagegen",
+  "mode": "built-in",
+  "requestedDimensions": {
+    "width": 2048,
+    "height": 2048
+  },
+  "actualDimensions": {
+    "width": 1254,
+    "height": 1254
+  },
+  "quadrants": {
+    "topLeft": "sunlit Japanese wood interior",
+    "topRight": "ivory linen book: LESS BUT BETTER",
+    "bottomLeft": "green branches with olive bokeh",
+    "bottomRight": "alpine lake at dusk"
+  },
+  "source": "/Users/oreal/.codex/generated_images/01a0c896-e65b-7b21-aa11-1b335dd3d145/exec-d6fd2966-a53a-4c86-9a37-8e1dd0e4795b.png",
+  "referenceComp": "/Users/oreal/.codex/generated_images/01a0c793-3a45-7342-9848-3c87cf9b9e69/exec-d548ab47-51c1-4fd3-b875-2a02ceb0bcae.png",
+  "provenance": "Original AI-generated illustrative photography, not sourced from a publication.",
+  "prompt": "Use case: photorealistic-natural.\nAsset type: one square photographic texture atlas for four editorial inspiration cards.\nCreate a brand-new high-resolution 2048 x 2048 pixel image composed of exactly four perfectly equal square quadrants arranged as a 2 x 2 grid. The dividing vertical and horizontal boundaries are exactly at 50% of the image. Images meet edge to edge with ZERO border, ZERO gutter, ZERO divider lines. Each quadrant is its own complete, independent editorial photograph filling its entire square.\n\nTOP LEFT: Warm sunlit minimalist Japanese interior. A light oak table and simple dark wood chair, a clear glass vase of delicate airy branches on the table, creamy plaster walls, natural wood panels. Beautiful late afternoon diagonal sunlight and soft branch shadows, architectural photography. Quiet, tactile, considered composition; clear furniture and vase visible in a square crop.\n\nTOP RIGHT: Close-up editorial still life of an ivory linen clothbound book on a warm pale neutral surface, softly directional natural sunlight, fine linen weave visible. Book cover lies slightly diagonally and fills most of the square. Elegant large black serif typography printed on the book cover, exact text across three lines: \"LESS\" / \"BUT\" / \"BETTER\". No author, no publisher, no other text. All three words fully visible and legible; timeless typography design.\n\nBOTTOM LEFT: Delicate fresh green branches and small translucent olive-green leaves photographed close up against a soft, sunlit olive and cream bokeh background. Organic stems gently cross the frame, shallow depth of field, realistic leaf veins, a few leaves crisp and the rest softly receding. Calm nature photography, no vase or interior objects.\n\nBOTTOM RIGHT: A calm alpine lake at dusk with layered distant mountains, warm pale peach sky, dark muted green trees on a low shoreline, and subtle reflections in still water. Spacious landscape photography, soft atmospheric depth, warm light, tranquil composition.\n\nUnified aesthetic: sophisticated quiet editorial photography, natural organic textures, understated warm cream, oak, muted olive and stone palette, gentle contrast, believable light, no oversaturation, no CGI. Original illustrative scenes, no claims of publication or sources. Each scene MUST stay completely inside its own quadrant. Full-bleed rectangular atlas: no rounded corners, no frames, no drop shadows, no watermarks, no UI, no labels or captions. Text appears ONLY on the physical book in the top-right quadrant, with exact spelling LESS BUT BETTER."
+}

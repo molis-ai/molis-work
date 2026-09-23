@@ -117,10 +117,10 @@ export const PLUGIN_STAGE_STYLES = `
   .plugin-stage-detail-bar > h1 + .mw-btn,
   .plugin-stage-detail-bar > span + .mw-btn { margin-left: auto; }
   .plugin-stage-detail-bar > .form-tabs + .mw-btn { margin-left: 0; }
-  .plugin-stage-detail-bar :is([data-dataset-delete], [data-form-delete], [data-pages-delete], [data-ppt-delete], [data-functions-delete], [data-lingguang-discard-current]) {
+  .plugin-stage-detail-bar :is([data-dataset-delete], [data-form-delete], [data-pages-delete], [data-ppt-delete], [data-functions-delete], [data-lingguang-discard-current], [data-alchemist-delete]) {
     color: var(--red);
   }
-  .plugin-stage-detail-bar :is([data-dataset-delete], [data-form-delete], [data-pages-delete], [data-ppt-delete], [data-functions-delete], [data-lingguang-discard-current]):hover {
+  .plugin-stage-detail-bar :is([data-dataset-delete], [data-form-delete], [data-pages-delete], [data-ppt-delete], [data-functions-delete], [data-lingguang-discard-current], [data-alchemist-delete]):hover {
     background: color-mix(in srgb, var(--red) 8%, transparent); color: var(--red);
   }
   .plugin-stage-list .mw-empty { max-width: 32ch; padding: 8px 8px 16px; }
@@ -185,6 +185,7 @@ export const PLUGIN_STAGE_STYLES = `
     body.immersive-workbench .plugin-stage-shell[data-expanded="true"] .plugin-stage-meta { display: none; }
   }
   body.immersive-workbench .plugin-stage-workspace .feed-stage-item-detail {
+    flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain;
     padding: 0 24px 24px; margin: 0; border-radius: 0; background: transparent; animation: none;
   }
   body.immersive-workbench .plugin-stage-shell .feed-filter-control { position: relative; overflow: visible; }

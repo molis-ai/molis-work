@@ -5,6 +5,28 @@ import { publicSessionRecord } from "./public-records.js";
 /** Workspace membership stays with Projects; Work owns the confirmed Session launch and recovery UI flow. */
 export async function handleWorkspaceHttp(context: WorkSessionHttpContext): Promise<boolean> {
   const options = context.projectOptions;
+  if (context.method === "POST" && context.pathname === "/api/workspaces/pick") {
+    if (!options.project) {
+      context.respond(400, { error: "请先选择 Project" });
+      return true;
+    }
+    try {
+      await context.readBody();
+    } catch (error) {
+      context.respond(400, { error: error instanceof Error ? error.message : "请求不是有效 JSON" });
+      return true;
+    }
+    try {
+      const picked = await context.pickDirectory();
+      if (picked.status === "picked") context.respond(200, { path: picked.path });
+      else if (picked.status === "cancelled") context.respond(200, { cancelled: true });
+      else if (picked.status === "busy") context.respond(409, { error: "目录选择窗口已经打开" });
+      else context.respond(503, { error: picked.message });
+    } catch (error) {
+      context.respond(503, { error: error instanceof Error ? error.message : "这台电脑打不开目录选择窗口" });
+    }
+    return true;
+  }
   if (context.method === "POST" && context.pathname === "/api/workspaces") {
     if (!options.project) {
       context.respond(400, { error: "请先选择 Project" });
@@ -13,7 +35,7 @@ export async function handleWorkspaceHttp(context: WorkSessionHttpContext): Prom
     const body = await context.readBody();
     const workspacePath = typeof body.workspace_path === "string" ? body.workspace_path.trim() : "";
     if (body.user_confirmed !== true || !workspacePath) {
-      context.respond(400, { error: "请输入绝对路径并确认关联当前 Project" });
+      context.respond(400, { error: "请选择目录并确认关联当前 Project" });
       return true;
     }
     try {

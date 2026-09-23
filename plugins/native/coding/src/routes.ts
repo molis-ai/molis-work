@@ -14,7 +14,7 @@ import { goalContextCapabilities, goalProgressCapabilities } from "@molis-ai/mol
 import { currentGoalContext, savedGoalContext, saveGoalContext, resolveGoalContext, runGoalContext } from "./goal-context.js";
 import { codingChangeSetReference, codingChangeSetPreview, readCodingChangeSet, createCodingChangeSet, codingChangeFeedback } from "./changeset.js";
 import { CODING_CHANGESET_TYPE } from "./artifacts.js";
-import { characterSelection, characterTitle, savedCharacter, type CodingCharacterPorts } from "./characters.js";
+import { characterSelection, characterTitle, savedCharacter, savedCharacterSkills, characterSkillSelection, type CodingCharacterPorts } from "./characters.js";
 import { confirmedPlan, parseCodingPlan, planFromRun, planMaterial, planReference } from "./plans.js";
 import { CODING_PLAN_TYPE } from "./artifacts.js";
 import { writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
@@ -472,7 +472,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
     }),
     route("coding.characters", async (request, _api, execution) => {
       const record = selected(request, execution);
-      return { characters: execution.characters?.list() ?? [], selected: savedCharacter(context, record.session_id), runtime_id: record.runtime_id };
+      return { characters: execution.characters?.list() ?? [], selected: savedCharacter(context, record.session_id), character_skill_ids: savedCharacterSkills(context, record.session_id), runtime_id: record.runtime_id };
     }),
     route("coding.read-session", async (request, api, execution) => {
       const record = selected(request, execution);
@@ -490,7 +490,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       const methods = typeof savedMethods === "string" ? methodSelection(JSON.parse(savedMethods)) : [];
       const questionDrafts = context.services?.storage?.get(`question-drafts:${record.session_id}`);
       const question_drafts = typeof questionDrafts === "string" ? JSON.parse(questionDrafts) : {};
-      if (!record.runtime_session_id) return { session: { ...record, goal_title: record.goal_id ? execution.goalTitle(record.goal_id) ?? null : null }, runs: [], draft, question_drafts, materials, methods, configuration, mcp_tools, mcp_sources, character, character_title, plan };
+      if (!record.runtime_session_id) return { session: { ...record, goal_title: record.goal_id ? execution.goalTitle(record.goal_id) ?? null : null }, runs: [], draft, question_drafts, materials, methods, configuration, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan };
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
       try {
         const snapshot = await api!.invoke(agent.readSession, [session]);
@@ -508,13 +508,13 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         const last = runs.at(-1);
         const state = snapshot.recovery ? "reconcile-required" : last ? sessionState(last) : "idle";
         const updated = state === record.state ? record : execution.sessions.setState(boardId, record.session_id, state, record.updated_at);
-        return { session: { ...updated, checkpoint_busy: snapshot.checkpoint_busy === true, goal_title: updated.goal_id ? execution.goalTitle(updated.goal_id) ?? null : null }, runs, subagents, taskboard_plans: codingTaskBoardPlans(context, record.session_id, runs), draft, question_drafts, materials, methods, configuration, mcp_tools, mcp_sources, character, character_title, plan, checkpoint_busy: snapshot.checkpoint_busy === true,
+        return { session: { ...updated, checkpoint_busy: snapshot.checkpoint_busy === true, goal_title: updated.goal_id ? execution.goalTitle(updated.goal_id) ?? null : null }, runs, subagents, taskboard_plans: codingTaskBoardPlans(context, record.session_id, runs), draft, question_drafts, materials, methods, configuration, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan, checkpoint_busy: snapshot.checkpoint_busy === true,
           ...(snapshot.recovery ? { recovery_required: true, error: snapshot.recovery.reason } : {}) };
       } catch (error) {
         // Never replace a lost runtime reference with a new session: that would
         // silently lose history and could repeat effects after a restart.
         const session = execution.sessions.setState(boardId, record.session_id, "reconcile-required", record.updated_at);
-        return { session, runs: [], draft, question_drafts, materials, methods, configuration, mcp_tools, mcp_sources, character, character_title, plan, recovery_required: true,
+        return { session, runs: [], draft, question_drafts, materials, methods, configuration, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan, recovery_required: true,
           error: (error as { code?: string }).code === "agent.session_unknown"
             ? "此会话的执行记录尚未恢复，不能把它当新任务重跑。原会话与草稿已保留。"
             : "此会话的执行记录暂时无法读取，不能将未知结果当作已完成。原会话与草稿已保留，请稍后重试。" };
@@ -561,11 +561,13 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       const materials = body.materials === undefined ? undefined : materialSelection(body.materials);
       const configuration = body.configuration === undefined ? undefined : nextConfiguration(body.configuration);
       const character = body.character === undefined ? undefined : characterSelection(body.character);
+      const characterSkills = body.character_skill_ids === undefined ? undefined : characterSkillSelection(body.character_skill_ids);
       if (configuration) context.services!.storage!.set(`configuration:${record.session_id}`, JSON.stringify(configuration));
       if (body.mcp_sources !== undefined) context.services!.storage!.set(`mcp-sources:${record.session_id}`,JSON.stringify(mcpSources(body.mcp_sources)));
       if (body.mcp_tools !== undefined) context.services!.storage!.set(`mcp:${record.session_id}`, JSON.stringify(mcpSelection(body.mcp_tools)));
       if (body.methods !== undefined) context.services!.storage!.set(`methods:${record.session_id}`, JSON.stringify(methodSelection(body.methods)));
       if (character !== undefined) context.services!.storage!.set(`character:${record.session_id}`, JSON.stringify(character));
+      if (characterSkills !== undefined) context.services!.storage!.set(`character-skills:${record.session_id}`, JSON.stringify(characterSkills));
       if (body.question_drafts !== undefined) {
         if (!body.question_drafts || typeof body.question_drafts !== "object" || Array.isArray(body.question_drafts)
           || Object.keys(body.question_drafts).length > 20) throw new Error("待答草稿格式无效");
@@ -629,6 +631,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         const availability = roles.find((entry) => entry.role_id === role);
         if (!availability?.available) throw new Error(availability?.reason ?? "这个执行方式尚未接通");
         const character = body.character === undefined ? savedCharacter(context, record.session_id) : characterSelection(body.character);
+        const character_skill_ids = body.character_skill_ids === undefined ? savedCharacterSkills(context, record.session_id) : characterSkillSelection(body.character_skill_ids);
         if (character) {
           if (!execution.characters) throw new Error("Character 消费尚未装配，请明确移除角色后执行");
           if (record.runtime_id !== "prologue") throw new Error("当前运行时尚未验证 Character 的工具限制，请使用 Prologue 或明确移除角色");
@@ -642,7 +645,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         const session = record.runtime_session_id ? { runtime_id: record.runtime_id, session_id: record.runtime_session_id }
           : await api!.invoke(agent.createSession, [record.runtime_id, { ...identity, directory, title: record.title }]);
         if (!record.runtime_session_id) execution.sessions.setRuntimeSession(boardId, record.session_id, session.session_id, new Date().toISOString());
-        const run = await api!.invoke(agent.startRun, [record.runtime_id, { ...identity, session, directory, task, role_id: role, text_materials, character, ...(subagent_workspaces.length ? { subagent_workspaces } : {}),
+        const run = await api!.invoke(agent.startRun, [record.runtime_id, { ...identity, session, directory, task, role_id: role, text_materials, character, ...(character_skill_ids === undefined ? {} : {character_skill_ids}), ...(subagent_workspaces.length ? { subagent_workspaces } : {}),
           ...(plan ? { execution_plan: { source: plan.confirmed!, title: plan.content.title, steps: plan.content.steps.map((step, index) => ({ id: `step-${index + 1}`, ...step })) } } : {}),
           model_selection: { provider_id: model.provider_id, model_id: model.model_id }, skills: methodSelection(body.methods ?? []), mcp_tools: mcpSelection(body.mcp_tools ?? []), mcp_sources: mcpSources(body.mcp_sources ?? []) }]);
         if (!plan) context.services!.storage!.delete(`draft:${record.session_id}`);

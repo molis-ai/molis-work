@@ -118,16 +118,26 @@ test("Planning details and editors preserve scope, instructions, blank rows and 
 test("project Planning presents the supplied composition and separates inactive and adoptable methods", () => {
   const active = { ...method, scope: "project" as const };
   const inactive = { ...active, method_id: "inactive", name: "Inactive", enabled: false };
+  const source = { ...method, scope: "built_in" as const };
   const available = { ...method, method_id: "available", scope: "personal" as const };
   // Independent read model: the UI must not recompute or silently replace Module output.
   const composition: PlanningMethodComposition = { method_pack_ids: [active.method_id], method_names: ["Module-composed name"],
     method_paths: [], required_coverage: [method.required_coverage[0]!], dependency_rules: [], evidence_requirements: [],
     completion_checks: ["One", "Two"], failure_modes: [] };
-  const html = renderer.renderProject({ project, route_prefix: "/projects/project%2Fa" }, [active, inactive, available], composition);
+  const html = renderer.renderProject({ project, route_prefix: "/projects/project%2Fa" }, [active, inactive, source, available], composition);
+  assert.match(html, /work-planning-layout/);
+  assert.match(html, /data-planning-fold="domain"/);
+  assert.match(html, /data-planning-fold="mine"/);
+  assert.match(html, /data-planning-open/);
+  assert.match(html, /data-planning-detail-path="\/settings\/planning\/method%2Fa\?project=/);
+  assert.doesNotMatch(html, /href="\/settings\/planning\/method/);
+  assert.match(html, /id="planning-composition-title">当前规划组合/);
   assert.match(html, /Module-composed name/);
   assert.match(html, /2 项完成检查/);
   assert.match(html, /0 条依赖规则/);
   assert.match(html, /planning-inactive-section/);
+  assert.match(html, /data-joined="true">已加入/);
+  assert.match(html, /data-joined="false">未加入/);
   assert.match(html, /data-adopt-planning-method="available"/);
   assert.doesNotMatch(html, /data-adopt-planning-method="inactive"/);
   assert.doesNotMatch(html, /data-adopt-planning-method="method\/a"/);

@@ -1,3 +1,4 @@
+import { closeAlchemist } from "./alchemist-native-plugin-http.js";
 import { closeImages } from "./images-native-plugin-http.js";
 import { closeExperiments } from "./experiments-native-plugin-http.js";
 import { loadCasebookConfiguration } from "./casebook/config.js";
@@ -181,6 +182,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     server.once("close", () => {
       void closeExperiments(storageHome);
       void closeImages(storageHome);
+      void closeAlchemist(storageHome).catch(() => undefined);
       clearInterval(schedulerTimer);
       feedSchedulers.clear();
       void agents.dispose().catch(() => undefined);

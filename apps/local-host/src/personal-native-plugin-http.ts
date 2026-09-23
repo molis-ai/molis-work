@@ -1,3 +1,4 @@
+import { handleCogniaNativePluginHttp, type CogniaHostPorts } from "./cognia-native-plugin-http.js";
 import { handleImagesNativePluginHttp } from "./images-native-plugin-http.js";
 import { handleJellyNativePluginHttp } from "./jelly-native-plugin-http.js";
 import { handleExperimentsNativePluginHttp } from "./experiments-native-plugin-http.js";
@@ -13,10 +14,13 @@ import { handleFormNativePluginHttp } from "./form-native-plugin-http.js";
 import { handleDatasetNativePluginHttp } from "./dataset-native-plugin-http.js";
 import { handlePptNativePluginHttp } from "./ppt-native-plugin-http.js";
 import { handleLingguangNativePluginHttp } from "./lingguang-native-plugin-http.js";
+import { handleAlchemistNativePluginHttp, type AlchemistHostPorts } from "./alchemist-native-plugin-http.js";
 import { withRewrittenPluginApi } from "./native-plugin-api.js";
 import { hostCompleteText } from "./host-complete-text.js";
 
 export interface PersonalNativePluginHttpPorts {
+  readonly cognia?: CogniaHostPorts;
+  readonly alchemist?: AlchemistHostPorts;
   readonly projectId?: string;
   readonly publishArtifact?: PagesRoutePorts["publishArtifact"];
   readonly publishFormArtifact?: FormRoutePorts["publishArtifact"];
@@ -38,6 +42,7 @@ export async function handlePersonalNativePluginHttp(
   const routed = withRewrittenPluginApi(url);
   const completeText = ports.completeText ?? hostCompleteText();
   for (const handle of [
+    () => handleCogniaNativePluginHttp(request, response, routed, homeDirectory, ports.cognia),
     () => handleImagesNativePluginHttp(request, response, routed, homeDirectory, ports.projectId),
     () => handleJellyNativePluginHttp(request, response, routed, homeDirectory, { completeText: ports.completeText }),
     () => handleExperimentsNativePluginHttp(request, response, routed, homeDirectory),
@@ -60,6 +65,7 @@ export async function handlePersonalNativePluginHttp(
       publishArtifact: ports.publishPptArtifact,
     }),
     () => handleLingguangNativePluginHttp(request, response, routed, homeDirectory, { completeText }),
+    () => ports.alchemist ? handleAlchemistNativePluginHttp(request, response, routed, homeDirectory, ports.alchemist) : false,
   ]) {
     if (await handle()) return true;
   }

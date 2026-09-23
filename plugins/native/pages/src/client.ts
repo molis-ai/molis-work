@@ -590,6 +590,8 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     openCreated(payload.document);
     dirty = false;
     editVersion += 1;
+    titleInput.focus();
+    titleInput.select();
   };
   const toggleStar = async (id) => {
     const record = records.find((item) => item.id === id);
@@ -612,6 +614,12 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   titleInput.addEventListener("input", () => {
     if (titleEl) titleEl.textContent = titleInput.value || L("文档");
     queueSave();
+  });
+  titleInput.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
+    if (!editor || !Editor.focusStart) return;
+    event.preventDefault();
+    Editor.focusStart(editor);
   });
   searchInput?.addEventListener("input", () => {
     query = searchInput.value || "";

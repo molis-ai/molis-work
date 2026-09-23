@@ -1,0 +1,14 @@
+export const packageDescriptor={packageName:'@molis-ai/molis-work-plugin-builder',packagePath:'plugins/native/plugin-builder',kind:'native-plugin',maturity: "partial",contract:'@molis-ai/molis-work-contracts/platform/plugin',ssot:'docs/SSOT-MATRIX.md',capabilities:["plugin-builder.ui.v1","plugin-builder.workflow.v1"]} as const;
+export * from './model.js';
+export * from './validation.js';
+export * from './store.js';
+export * from './records.js';
+export * from './workflow.js';
+export * from './manifest.js';
+export * from './roles.js';
+export * from './plugin.js';
+export * from './generated.js';
+export * from './ui.js';
+export * from './styles.js';
+export * from './client.js';
+export * from './record-client.js';

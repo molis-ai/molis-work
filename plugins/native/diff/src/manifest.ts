@@ -111,6 +111,7 @@ export const diffManifest: PluginManifest = {
       },
     ],
     views: [
+      { view_id: "browse", slot: "navigator", title: "Diff", contribution_id: DIFF_UI_CONTRIBUTION_ID, icon: "git-compare", order: 65 },
       {
         view_id: "comparison",
         slot: "stage",

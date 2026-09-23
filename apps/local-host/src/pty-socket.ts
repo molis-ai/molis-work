@@ -70,7 +70,23 @@ export function attachMolisWorkPtySocket(
 ): MolisWorkPtyHost {
   const sockets = new Set<WebSocket>();
   const panelSessionIds = new Map<string, string>();
-  const host = new MolisWorkPtyHost({
+  class RecordedPtyHost extends MolisWorkPtyHost {
+    override spawn(request: PtySpawnRequest) {
+      if (request.sessionId) panelSessionIds.set(request.panelId, request.sessionId);
+      return super.spawn(request);
+    }
+    override kill(panelId: string) {
+      const wasAlive = this.alive(panelId);
+      super.kill(panelId);
+      // Runtime Host suppresses the later process exit after an explicit kill.
+      if (wasAlive) {
+        const sessionId = panelSessionIds.get(panelId);
+        if (sessionId) handlers.onExit?.(panelId, sessionId, { exitCode: -1, signal: 15 });
+        for (const socket of sockets) send(socket, { type: "exit", panelId, exitCode: -1, signal: 15 });
+      }
+    }
+  }
+  const host = new RecordedPtyHost({
     onData: (panelId, data) => {
       const sessionId = panelSessionIds.get(panelId);
       if (sessionId) handlers.onData?.(panelId, sessionId, data);

@@ -304,7 +304,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
   const editorHtml = (item) => {
     const ext = String(item.name || "").split(".").pop()?.toLowerCase() || "";
     const code = ext !== "md" && ext !== "txt" && ext !== "markdown";
-    return '<div class="shelf-editor-wrap"><p class="shelf-edit-hint">' + escapeText(L("正在编辑副本。原文件保持不变。")) + '</p><textarea class="shelf-editor' + (code ? " is-code" : "") + '" data-shelf-editor spellcheck="false">' + escapeText(item.preview_text || "") + "</textarea></div>";
+    return '<div class="shelf-editor-wrap"><p class="shelf-edit-hint">' + escapeText(L("正在编辑副本。原文件保持不变。")) + '</p><p class="shelf-edit-hint" data-shelf-edit-status role="status" hidden></p><textarea class="shelf-editor' + (code ? " is-code" : "") + '" data-shelf-editor spellcheck="false">' + escapeText(item.preview_text || "") + "</textarea></div>";
   };
 
   const paintPreview = () => {
@@ -375,20 +375,34 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     const end = editor.value.length;
     editor.setSelectionRange(end, end);
   };
-  const saveCopy = async (text) => {
-    if (!selected) return;
-    const id = selected.item_id;
+  const saveCopy = async (id, text) => {
+    if (!id) return;
     const next = editWrites.catch(() => {}).then(() => post("/api/shelf/items/" + encodeURIComponent(id) + "/edit", { text }));
     editWrites = next;
-    const payload = await next;
-    snapshot = payload.snapshot;
-    if (selected?.item_id === id) selected = items().find((item) => item.item_id === id) || payload.item || selected;
+    try {
+      const payload = await next;
+      snapshot = payload.snapshot;
+      if (selected?.item_id === id) {
+        selected = items().find((item) => item.item_id === id) || payload.item || selected;
+        const status = preview.querySelector("[data-shelf-edit-status]");
+        if (status) status.hidden = true;
+      }
+    } catch (error) {
+      if (selected?.item_id === id) {
+        const status = preview.querySelector("[data-shelf-edit-status]");
+        if (status) {
+          status.hidden = false;
+          status.textContent = L("副本未保存，输入已保留。请重试完成编辑或返回。") + " " + error.message;
+        }
+      }
+      throw error;
+    }
   };
   const flushEdit = async () => {
     if (editTimer) { clearTimeout(editTimer); editTimer = 0; }
     if (!editing || !selected) return;
     const editor = preview.querySelector("[data-shelf-editor]");
-    if (editor) await saveCopy(editor.value);
+    if (editor) await saveCopy(selected.item_id, editor.value);
   };
   const stopEdit = async () => {
     await flushEdit();
@@ -931,6 +945,14 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
   workbench.addEventListener("click", async (event) => {
     if (event.target.closest("[data-shelf-collapse]")) {
       event.preventDefault();
+      const back = event.target.closest("[data-shelf-collapse]");
+      if (back.disabled) return;
+      const editor = preview.querySelector("[data-shelf-editor]");
+      back.disabled = true;
+      if (editor) editor.readOnly = true;
+      try { await flushEdit(); }
+      catch { editor?.focus(); return; }
+      finally { back.disabled = false; if (editor) editor.readOnly = false; }
       selected = null;
       selection = new Set();
       selectedClip = null;
@@ -1164,14 +1186,15 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     paintPreview();
   });
   workbench.querySelector("[data-shelf-edit]")?.addEventListener("click", async () => {
-    if (editing) await stopEdit();
+    if (editing) { try { await stopEdit(); } catch { focusEditor(); } }
     else startEdit();
   });
   preview.addEventListener("input", (event) => {
     if (!event.target.closest("[data-shelf-editor]") || !editing) return;
     const text = event.target.value;
+    const itemId = selected?.item_id;
     if (editTimer) clearTimeout(editTimer);
-    editTimer = setTimeout(() => { saveCopy(text).catch(() => {}); }, 400);
+    editTimer = setTimeout(() => { editTimer = 0; saveCopy(itemId, text).catch(() => {}); }, 400);
   });
   workbench.querySelector("[data-shelf-copy-file]")?.addEventListener("click", () => {
     if (!selected) return;

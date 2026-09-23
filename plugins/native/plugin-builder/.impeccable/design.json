@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-23",
+  "title": "Design System: Molis 插件创作工作台",
+  "extensions": {
+    "colorMeta": {
+      "ground": {"role": "neutral", "displayName": "暖灰地面"},
+      "panel": {"role": "neutral", "displayName": "近白对话面"},
+      "canvas": {"role": "neutral", "displayName": "白色作品面"},
+      "ui-blue": {"role": "primary", "displayName": "界面装配蓝"},
+      "function-green": {"role": "secondary", "displayName": "功能协作绿"}
+    },
+    "typographyMeta": {
+      "headline": {"displayName": "作品标题", "purpose": "单一作品的首要文字层级；按作品容器与视口缩小。"},
+      "conversation": {"displayName": "连续对话", "purpose": "用户需求、解释和当前协作，保留较松行距。"},
+      "caption": {"displayName": "辅助信息", "purpose": "标签、来源与记录辅助文字，不替代标题或关键操作。"}
+    },
+    "shadows": [
+      {"name": "artboard", "value": "0 8px 24px #1e24330b", "purpose": "白画布与暖灰地面的分离。"},
+      {"name": "shelf", "value": "0 8px 27px #2a304316", "purpose": "悬浮零件池。"},
+      {"name": "inspector", "value": "0 8px 38px #27344c20", "purpose": "局部检查器。"},
+      {"name": "settings", "value": "0 10px 48px #20263024", "purpose": "工作区、模型和运行记录面板。"},
+      {"name": "record-editor", "value": "-10px 0 45px #00000014", "purpose": "贴右边的原生 modal 录入抽屉；backdrop 为 #14141738，blur(2px)。"}
+    ],
+    "motion": [
+      {"name": "pointer-travel", "value": "transform 650ms cubic-bezier(.16,1,.3,1)", "purpose": "指针抵达真实 DOM 目标；同一 650ms 期间新节点占位并保持 inert、aria-busy。"},
+      {"name": "placement-reveal", "value": "320ms cubic-bezier(.16,1,.3,1); opacity: .7 → 1; filter: blur(.6px) → blur(0)", "purpose": "结束占位后的显现，不改变几何位置。"},
+      {"name": "selection-travel", "value": "transform 450ms cubic-bezier(.16,1,.3,1)", "purpose": "选择轮廓跟随真实目标，四周外扩 5px。"},
+      {"name": "pointer-click", "value": "700ms ease-out; scale(.35) → scale(1.8); opacity: .5 → 0", "purpose": "新修订或回放步骤的短暂指针环。"},
+      {"name": "connected", "value": "900ms cubic-bezier(.16,1,.3,1)", "purpose": "已连接新增控件的局部绿色光圈。"},
+      {"name": "reduced-motion", "value": "animation: none; transition: none; scroll-behavior: auto", "purpose": "跳过放置等待、立即可用，保留状态与步骤信息。"}
+    ],
+    "breakpoints": [
+      {"name": "viewport-compact", "value": "1100px"},
+      {"name": "viewport-single-panel", "value": "740px"},
+      {"name": "container-compact-type", "value": "800px"},
+      {"name": "container-two-columns", "value": "640px"},
+      {"name": "container-single-column", "value": "380px"}
+    ]
+  }
+}

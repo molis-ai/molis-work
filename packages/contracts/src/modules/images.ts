@@ -1,4 +1,6 @@
 /** Image generation is personal configuration with project-scoped local jobs. */
+export const IMAGES_PLUGIN_ID = "io.molis.work.images";
+export const IMAGES_PROJECT_PLUGIN_ID = "images";
 export type ImageApiFormat = "openai-images" | "gemini";
 export interface ImageConnection {
   id: string;

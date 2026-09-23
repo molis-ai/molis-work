@@ -8,7 +8,7 @@ import { createShelfPlugin } from "@molis-ai/molis-work-plugin-shelf";
 import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
 import { SHELF_TEXT_MATERIAL_TYPE } from "@molis-ai/molis-work-contracts/modules/shelf";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
-import { icon, escapeHtml } from "@molis-ai/molis-work-design-system";
+import { icon, escapeHtml, renderPluginStageShell, renderEmpty, renderSidebar } from "@molis-ai/molis-work-design-system";
 import {
   CODING_PLUGIN_ID,
   CODING_REPORT_TYPE,
@@ -65,6 +65,7 @@ import {
   WORKSPACE_UI_CONTRIBUTION_ID,
   createWorkspacePlugin,
   projectWorkspace,
+  renderWorkspaceWorkbench,
   type WorkspaceUiModel,
 } from "@molis-ai/molis-work-plugin-workspace";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -89,6 +90,8 @@ import { bindWorkspaceCompanions } from "./workspace-plugin-bindings.js";
  */
 
 export interface CodingSurfacePorts {
+  characterWorkspaces?: () => Promise<readonly ProjectWorkspaceRef[]>;
+  characterSpawn?: (request: import("@molis-ai/molis-work-contracts/services/runtime-host").PtySpawnRequest) => import("@molis-ai/molis-work-contracts/services/runtime-host").PtySpawnResult;
   store: LocalProjectDatabase;
   boardId: string;
   actorId: string;
@@ -164,7 +167,7 @@ async function startPlatform(ports: CodingSurfacePorts): Promise<Started> {
      * Each still starts in isolation: one failing leaves its siblings running.
      */
     const report = await platform.start([
-      { definition: createCharactersPlugin(charactersPluginPorts(ports.homeDirectory, ports.actorId, ports.boardId, artifacts.query)), replace_version: true },
+      { definition: createCharactersPlugin(charactersPluginPorts(ports.homeDirectory, ports.actorId, ports.boardId, artifacts.query, ports.characterWorkspaces ?? (async () => ports.workspaces ?? []), ports.characterSpawn)), replace_version: true },
       { definition: createShelfPlugin(ports.homeDirectory ? {
         references: () => artifacts.query.listArtifacts(ports.boardId).filter(item => item.producer_plugin_id === CODING_PLUGIN_ID
           && [CODING_REPORT_TYPE, "coding.changeset.v1"].includes(item.artifact_type_id)).map(({ artifact_id, version }) => ({ artifact_id, version })),
@@ -232,7 +235,7 @@ async function codingPanel(ports: CodingSurfacePorts, surface: "directory" | "wo
     render(request: { surface: string; model: CodingUiModel }): string;
   }> } | null)?.views ?? [];
   const view = views.find((entry) => entry.descriptor.contribution_id === CODING_UI_CONTRIBUTION_ID);
-  if (!view) return null;
+  if (!view) return { plugin_id: CODING_PROJECT_PLUGIN_ID, panel: failedStage("coding", "Coding 页面未注册") };
 
   try {
     const sessions = toDirectoryEntries(
@@ -259,9 +262,8 @@ async function codingPanel(ports: CodingSurfacePorts, surface: "directory" | "wo
       panel: view.render({ surface, model }),
       plugin_id: CODING_PROJECT_PLUGIN_ID,
     };
-  } catch {
-    // A Plugin that throws while rendering does not take the page with it.
-    return null;
+  } catch (error) {
+    return { plugin_id: CODING_PROJECT_PLUGIN_ID, panel: failedStage("coding", error instanceof Error ? error.message : "Coding 页面读取失败") };
   }
 }
 
@@ -526,4 +528,30 @@ export async function diffStagePanel(
   } catch {
     return null;
   }
+}
+
+
+function failedStage(plugin: string, message: string): string {
+  return renderPluginStageShell({ surface: plugin, label: plugin, dataset: plugin + "-error",
+    body: `<div class="mw-empty" role="alert"><p>${escapeHtml(message)}</p><a class="mw-btn" href="">重新打开页面</a></div>` });
+}
+
+/** Compose the running companions into the same main-stage contract as other apps. */
+export async function codingCompanionStages(ports: CodingSurfacePorts, enabled: readonly string[]): Promise<string[]> {
+  const record = await ensureStarted(ports);
+  return ["workspace", "files", "git", "diff", "text-stats"].filter(id => enabled.includes(id)).map(id => {
+    const active = record.platform?.supervisor.state("io.molis.work." + id);
+    if (active?.status !== "running") return failedStage(id, active?.message ?? "插件未能启动，请重新打开页面");
+    const openWorkspace = `<button class="mw-btn mw-btn--ghost companion-manage" type="button" data-companion-open="workspace">${icon("folder-tree")}<span>管理工作目录</span>${icon("chevron-right")}</button>`;
+    let body: string;
+    if (id === "workspace") body = renderWorkspaceWorkbench();
+    else if (id === "files" || id === "git") {
+      const directory = id === "files" ? renderFilesBrowserDirectory() : `<label class="mw-field"><span class="mw-field__label">浏览工作区</span><select class="mw-select" data-companion-workspace aria-label="Git 浏览工作区"></select></label>` + renderGitBrowserDirectory();
+      const result = id === "files" ? renderFilesBrowserResult() : renderGitBrowserResult();
+      body = `<div class="companion-layout">${renderSidebar({className:"companion-directory",header:openWorkspace,body:directory})}<div class="companion-result">${renderEmpty({className:"companion-empty",icon:id === "files" ? "file" : "git-branch",title:id === "files" ? "打开文件，开始阅读" : "查看工作区的改动",body:id === "files" ? "从目录选择文件，阅读内容、保存选区，或固定两份快照进行对比。" : "从目录选择一项改动，查看读取时的固定差异，再决定是否暂存。"})}${result}</div></div>`;
+    } else {
+      body = `<div class="companion-reader mw-frame" data-slot="frame"><header class="mw-frame__header"><div class="mw-frame__heading"><h2>${id === "diff" ? "Diff" : "文本统计"}</h2></div><button class="mw-btn mw-btn--ghost" type="button" data-companion-refresh><span class="mw-spinner" hidden></span>刷新</button><button class="mw-btn mw-btn--ghost" type="button" data-companion-open="${enabled.includes("files") ? "files" : "market"}">${enabled.includes("files") ? "打开 Files" : "到插件市场添加 Files"}</button></header><div class="mw-frame__panel"><p>${id === "diff" ? "在 Files 中分别固定对比前与对比后快照，查看两份内容的差异。" : "统计 Files 中固定为对比前的文本快照。重新固定后更新，磁盘变化不会改写已保存的内容。"}</p><p data-companion-status role="status"></p><div data-companion-content></div></div></div>`;
+    }
+    return renderPluginStageShell({ surface: id, label: id === "text-stats" ? "Text Stats" : id[0]!.toUpperCase() + id.slice(1), dataset: "coding-companion", extraAttrs: `data-companion="${id}"`, body: `<div class="companion-surface mw-layout-primitives">${body}</div>` });
+  });
 }

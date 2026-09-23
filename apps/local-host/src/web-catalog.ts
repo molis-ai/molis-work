@@ -40,7 +40,7 @@ export async function handleLocalCatalogWebRequest(
   const { PAGE_CSP, handleOnboarding, renderCapsuleShell, isDesktopShellRequest, planningHttp, projectSettings, servePtyClient } = composition;
   const { renderMolisWorkSettings, renderMolisWorkProjectIndex } = composition.workbenchRenderer;
   const { settingsProjects } = projectSettings;
-  if (serverOptions.homeDirectory && await handlePersonalNativePluginHttp(request, response, url, serverOptions.homeDirectory)) return;
+  if (serverOptions.homeDirectory && await handlePersonalNativePluginHttp(request, response, url, serverOptions.homeDirectory, { cognia: { withCatalog: composition.withCatalog } })) return;
   if (await handleOnboarding(request, response, url, serverOptions.homeDirectory, projects.length, localHost, controlToken)) return;
   if (request.method === "GET" && url.pathname === "/desktop/capsule") {
     response.writeHead(200, {

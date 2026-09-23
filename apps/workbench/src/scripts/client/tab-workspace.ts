@@ -179,6 +179,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   };
   const applyPluginDefault = (plugin) => {
     if (!plugin) return;
+    topLevelSurface(plugin)?.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { itemId: null } }));
     if (plugin === "goals") {
       document.querySelector("[data-goal-collapse]")?.setAttribute("aria-label", L("收起 Goal，返回关系画布"));
       (restoreBoard || showCanvas)?.();

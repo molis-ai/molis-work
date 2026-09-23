@@ -1,0 +1,54 @@
+{
+  "name": "@molis-ai/molis-work-plugin-alchemist",
+  "version": "0.0.0",
+  "private": true,
+  "description": "First-party Alchemist workbench: turn a direction into comparable idea cards and a decision.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=24"
+  },
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "tsc -p tsconfig.json && node tooling/build-studio.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@molis-ai/molis-work-contracts": "workspace:*",
+    "@molis-ai/molis-work-design-system": "workspace:*",
+    "@molis-ai/molis-work-storage": "workspace:*",
+    "better-sqlite3": "12.8.0",
+    "hono": "4.12.32",
+    "zod": "4.4.3"
+  },
+  "molis-work": {
+    "path": "plugins/native/alchemist",
+    "kind": "native-plugin",
+    "maturity": "partial",
+    "contract": "@molis-ai/molis-work-contracts/platform/plugin",
+    "migrationGoals": [
+      "goal-reorg-f2"
+    ],
+    "ssot": "docs/SSOT-MATRIX.md",
+    "capabilities": [
+      "alchemist.ui-contribution.v1",
+      "alchemist.http-routes.v1"
+    ]
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "vitest": "4.1.10"
+  }
+}

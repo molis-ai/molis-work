@@ -27,9 +27,14 @@ import {
   duplicateBlock,
   duplicateRow,
   activeList,
+  headingLevelAt,
+  listKindAt,
   addColumn,
   nudgeColumnShare,
   applyList,
+  applyListSelection,
+  applyHeading,
+  applyTurn,
   applySlash,
   clearInlineMarks,
   collapseEmptyColumn,
@@ -39,6 +44,7 @@ import {
   commitGap,
   duplicateEnclosingRow,
   enterHeading,
+  enterInToggle,
   duplicateSpan,
   exitWrappedBlock,
   extractFromPagesBody,
@@ -46,16 +52,22 @@ import {
   replaceAllFindHits,
   replaceFindHit,
   indentListItem,
+  indentUnderPrevious,
+  outdentFromContainer,
   insertHardBreak,
   insertCodeIndent,
   insertImage,
   insertSlashBelow,
   leaveCodeDown,
+  continuePastEnd,
+  continueBeforeStart,
+  selectNeighborAtom,
   leaveEmptyCodeLine,
   leaveCodeUp,
   linkAt,
   markdownBlock,
   markdownLink,
+  markdownTask,
   markdownWrapMark,
   moveColumnEdge,
   moveRow,
@@ -74,23 +86,36 @@ import {
   deleteTableColumn,
   deleteTableRow,
   pasteMarkdown,
+  nodesForSpanPaste,
+  pastePlain,
+  blocksFromMarkdown,
+  nodesToMarkdown,
+  markdownLooksStructured,
+  pasteHtml,
+  blocksFromPaste,
   pasteUrl,
   columnDropAnchor,
   previewDrop,
   previewSpan,
+  previewCopySpan,
+  placeCopySpan,
   spanRoots,
+  nodesInSpan,
   outdentListItem,
   removeCodeIndent,
   pagesSchema,
   placeFloating,
   scrollChildIntoView,
+  scrollShouldFollow,
   replaceEnclosingRow,
   revealHeading,
+  headingIndexAt,
   reorderTopLevel,
   runPagesAi,
   PAGES_CODE_LANGUAGES,
   PAGES_TONES,
   bookmarkLabel,
+  safePagesBookmarkTitle,
   blockPlaceholder,
   calloutIconFor,
   safePagesCalloutIcon,
@@ -98,29 +123,67 @@ import {
   safePagesColumnShare,
   safePagesColumnWidth,
   setCalloutStyle,
+  menuKey,
+  hoverMenuIndex,
+  blockMenuShortcut,
+  blockMenuTarget,
+  popEscape,
+  blockMenuKey,
+  handleAnchor,
+  hoverPosAfter,
+  blockSpanStep,
+  blockSpanFromSelection,
+  blockSpanFromRange,
+  blockSpanToRow,
+  spanIsGroup,
   slashSession,
+  dismissedMenuRange,
   splitTaskItem,
   setToggleOpen,
   toggleTaskChecked,
+  flipTaskAt,
+  focusBelowContent,
+  toggleTaskGroup,
   linkClickOpens,
   acceptedImageFile,
   safePagesHref,
   safePagesImageSrc,
+  safePagesImageCaption,
   safePagesImageWidth,
   safePagesLanguage,
   safePagesTone,
+  toneFromCssColor,
   selectBlockThenAll,
   selectEnclosingBlock,
+  replaceSelectedBlock,
+  replaceSpan,
+  replaceSpanWithNodes,
+  deleteSelectedBlock,
+  docStart,
+  tripleClickSelection,
+  moveSelectedBlock,
+  collapseSelectedBlock,
+  insertAfterSelectedBlock,
+  insertAfterSpan,
+  hardBreakAtSpanEnd,
   setBlockTone,
   setImageWidth,
+  setImageCaption,
+  setBookmarkTitle,
   setRowsTone,
   setLink,
   setTone,
+  toggleInlineMark,
+  toggleSpanMark,
+  markCovers,
+  toneCovers,
   stepFindHit,
   toneAt,
   turnBlockInto,
   turnRowInto,
   turnSpanInto,
+  turnGroup,
+  clearSpanMarks,
   unwrapAtStart,
   unwrapColumns,
 } from "@molis-ai/molis-work-plugin-pages";
@@ -219,6 +282,268 @@ async function withHome<T>(run: (home: string) => Promise<T>): Promise<T> {
   }
 }
 
+test("标题里按回车落到正文开头", () => {
+  const blank = pagesSchema.node("doc", null, [pagesSchema.node("paragraph")]);
+  assert.equal(docStart(blank), 1);
+  const written = pagesSchema.node("doc", null, [
+    pagesSchema.node("paragraph", null, [pagesSchema.text("甲")]),
+  ]);
+  assert.equal(docStart(written), 1);
+  const image = pagesSchema.node("doc", null, [
+    pagesSchema.node("image", { src: "https://molis.ai/a.png" }),
+    pagesSchema.node("paragraph", null, [pagesSchema.text("乙")]),
+  ]);
+  assert.equal(docStart(image), image.child(0).nodeSize + 1);
+  assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /Editor\.focusStart\(editor\)/);
+  assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /event\.isComposing/);
+});
+
+test("三击选中整块文字，图片则选中那一块", () => {
+  const broken = pagesSchema.node("doc", null, [
+    pagesSchema.node("paragraph", null, [
+      pagesSchema.text("甲"),
+      pagesSchema.nodes.hard_break.create(),
+      pagesSchema.text("乙"),
+    ]),
+  ]);
+  assert.deepEqual(tripleClickSelection(broken, 1), { from: 1, to: 4, atom: false });
+  assert.deepEqual(tripleClickSelection(broken, 3), { from: 1, to: 4, atom: false });
+
+  const image = pagesSchema.node("doc", null, [
+    pagesSchema.node("image", { src: "https://molis.ai/a.png" }),
+    pagesSchema.node("paragraph", null, [pagesSchema.text("乙")]),
+  ]);
+  assert.deepEqual(tripleClickSelection(image, 0), { from: 0, to: image.child(0).nodeSize, atom: true });
+  const textAt = image.child(0).nodeSize + 1;
+  assert.deepEqual(tripleClickSelection(image, textAt), { from: textAt, to: textAt + 1, atom: false });
+
+  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
+  assert.match(editor, /handleTripleClick\(current, pos\)/);
+  assert.match(editor, /tripleClickSelection\(current\.state\.doc, pos\)/);
+});
+
+test("按住 Alt 拖开会复制一块，原来的还在", () => {
+  const para = (text: string) => pagesSchema.node("paragraph", null, [pagesSchema.text(text)]);
+  const doc = pagesSchema.node("doc", null, [para("甲"), para("乙"), para("丙")]);
+  const copied = placeCopySpan(doc, 0, 0, 2, 0);
+  assert.ok(copied);
+  assert.deepEqual(copied!.content.content.map((node) => node.textContent), ["甲", "乙", "甲", "丙"]);
+  const moved = previewSpan(doc, 0, 0, 2, 0);
+  const live = previewCopySpan(doc, 0, 0, 2, 0);
+  assert.ok(moved && live);
+  assert.equal(live!.level, moved!.level);
+  assert.deepEqual(moved!.doc.content.content.map((node) => node.textContent), ["乙", "甲", "丙"]);
+  assert.deepEqual(live!.doc.content.content.map((node) => node.textContent), ["甲", "乙", "甲", "丙"]);
+  const pair = placeCopySpan(doc, 0, doc.child(0).nodeSize, 3, 0);
+  assert.ok(pair);
+  assert.deepEqual(pair!.content.content.map((node) => node.textContent), ["甲", "乙", "丙", "甲", "乙"]);
+  assert.equal(placeCopySpan(doc, 0, 0, 99, 0), null);
+
+  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
+  assert.match(editor, /commitDrag\(editorView, anchor, head, gap, level,\s*tr => tr\.setMeta\(hoverKey, \{ span: null, pos: -1, dragging: false \}\), alt\)/);
+  assert.match(editor, /drag\.alt = event\.altKey/);
+  assert.match(editor, /previewCopySpan\(motion\.layoutSource/);
+  assert.match(PAGES_STYLES, /pages-block-ghost\.is-copy::after/);
+});
+
+test("已经选中一块时，按住 Shift 再点另一块会扩到那一块", () => {
+  const para = (text: string) => pagesSchema.node("paragraph", null, [pagesSchema.text(text)]);
+  const doc = pagesSchema.node("doc", null, [para("甲"), para("乙"), para("丙")]);
+  const third = doc.child(0).nodeSize + doc.child(1).nodeSize;
+  assert.deepEqual(blockSpanToRow(doc, 0, third + 1), { anchor: 0, head: third });
+  assert.deepEqual(blockSpanToRow(doc, 0, 1), { anchor: 0, head: 0 });
+  assert.equal(blockSpanToRow(doc, 0, doc.content.size), null);
+  assert.equal(blockSpanToRow(doc, 1, third + 1), null);
+
+  const callout = pagesSchema.node("doc", null, [
+    para("甲"),
+    pagesSchema.node("callout", { tone: "info" }, [para("乙"), para("丙")]),
+    para("丁"),
+  ]);
+  let calloutPos = -1;
+  let yi = -1;
+  let inside = -1;
+  let bing = -1;
+  let outside = -1;
+  callout.descendants((node, pos) => {
+    if (node.type.name === "callout") calloutPos = pos;
+    if (node.type.name === "paragraph" && node.textContent === "乙") {
+      yi = pos;
+      inside = pos + 1;
+    }
+    if (node.type.name === "paragraph" && node.textContent === "丙") bing = pos;
+    if (node.type.name === "paragraph" && node.textContent === "丁") outside = pos + 1;
+  });
+  assert.deepEqual(blockSpanToRow(callout, 0, inside), { anchor: 0, head: calloutPos });
+  assert.deepEqual(blockSpanToRow(callout, bing, inside), { anchor: bing, head: yi });
+  assert.equal(blockSpanToRow(callout, yi, outside), null);
+
+  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
+  assert.match(editor, /blockSpanToRow\(current\.state\.doc, anchor, point\.pos\)/);
+});
+
+test("文末按下方向键会多出一个空段落", () => {
+  const text = (value: string) => pagesSchema.node("paragraph", null, [pagesSchema.text(value)]);
+  const doc = pagesSchema.node("doc", null, [text("甲乙")]);
+  const end = EditorState.create({ schema: pagesSchema, doc, selection: TextSelection.create(doc, 3) });
+  const opened = end.apply(continuePastEnd(end)!);
+  assert.equal(opened.doc.childCount, 2);
+  assert.equal(opened.doc.child(0).textContent, "甲乙");
+  assert.equal(opened.doc.child(1).textContent, "");
+  assert.equal(opened.selection.from, opened.doc.child(0).nodeSize + 1);
+
+  const mid = EditorState.create({ schema: pagesSchema, doc, selection: TextSelection.create(doc, 2) });
+  assert.equal(continuePastEnd(mid), null);
+  const two = pagesSchema.node("doc", null, [text("甲"), text("乙")]);
+  const firstEnd = EditorState.create({ schema: pagesSchema, doc: two, selection: TextSelection.create(two, 2) });
+  assert.equal(continuePastEnd(firstEnd), null);
+
+  const callout = pagesSchema.node("doc", null, [
+    pagesSchema.node("callout", { tone: "info" }, [text("甲")]),
+  ]);
+  const inside = EditorState.create({ schema: pagesSchema, doc: callout, selection: TextSelection.create(callout, 3) });
+  const after = inside.apply(continuePastEnd(inside)!);
+  assert.equal(after.doc.child(0).type.name, "callout");
+  assert.equal(after.doc.child(0).textContent, "甲");
+  assert.equal(after.doc.child(1).textContent, "");
+
+  const image = pagesSchema.node("doc", null, [pagesSchema.node("image", { src: "https://molis.ai/a.png" })]);
+  const picked = EditorState.create({ schema: pagesSchema, doc: image, selection: NodeSelection.create(image, 0) });
+  const below = picked.apply(continuePastEnd(picked)!);
+  assert.equal(below.doc.child(0).type.name, "image");
+  assert.equal(below.doc.child(1).textContent, "");
+});
+
+test("文首按上方向键会在上面多出一个空段落", () => {
+  const text = (value: string) => pagesSchema.node("paragraph", null, [pagesSchema.text(value)]);
+  const doc = pagesSchema.node("doc", null, [text("甲乙")]);
+  const start = EditorState.create({ schema: pagesSchema, doc, selection: TextSelection.create(doc, 1) });
+  const opened = start.apply(continueBeforeStart(start)!);
+  assert.equal(opened.doc.child(0).textContent, "");
+  assert.equal(opened.doc.child(1).textContent, "甲乙");
+  assert.equal(opened.selection.from, 1);
+
+  const mid = EditorState.create({ schema: pagesSchema, doc, selection: TextSelection.create(doc, 2) });
+  assert.equal(continueBeforeStart(mid), null);
+  const two = pagesSchema.node("doc", null, [text("甲"), text("乙")]);
+  const second = EditorState.create({ schema: pagesSchema, doc: two, selection: TextSelection.create(two, text("甲").nodeSize + 1) });
+  assert.equal(continueBeforeStart(second), null);
+
+  const callout = pagesSchema.node("doc", null, [
+    pagesSchema.node("callout", { tone: "info" }, [text("甲")]),
+  ]);
+  const inside = EditorState.create({ schema: pagesSchema, doc: callout, selection: TextSelection.create(callout, 2) });
+  const above = inside.apply(continueBeforeStart(inside)!);
+  assert.equal(above.doc.child(0).textContent, "");
+  assert.equal(above.doc.child(1).type.name, "callout");
+  assert.equal(above.doc.child(1).textContent, "甲");
+
+  const image = pagesSchema.node("doc", null, [pagesSchema.node("image", { src: "https://molis.ai/a.png" })]);
+  const picked = EditorState.create({ schema: pagesSchema, doc: image, selection: NodeSelection.create(image, 0) });
+  const over = picked.apply(continueBeforeStart(picked)!);
+  assert.equal(over.doc.child(0).textContent, "");
+  assert.equal(over.doc.child(1).type.name, "image");
+});
+
+test("方向键碰到图片或横线会先选中那一块", () => {
+  const text = (value: string) => pagesSchema.node("paragraph", null, [pagesSchema.text(value)]);
+  const image = pagesSchema.node("image", { src: "https://molis.ai/a.png" });
+  const after = pagesSchema.node("doc", null, [text("甲"), image]);
+  const atEnd = EditorState.create({ schema: pagesSchema, doc: after, selection: TextSelection.create(after, 2) });
+  const picked = atEnd.apply(selectNeighborAtom(atEnd, 1)!);
+  assert.ok(picked.selection instanceof NodeSelection);
+  assert.equal((picked.selection as NodeSelection).node.type.name, "image");
+  assert.equal(selectNeighborAtom(atEnd, -1), null);
+  const mid = EditorState.create({ schema: pagesSchema, doc: after, selection: TextSelection.create(after, 1) });
+  assert.equal(selectNeighborAtom(mid, 1), null);
+
+  const rule = pagesSchema.node("horizontal_rule");
+  const before = pagesSchema.node("doc", null, [rule, text("乙")]);
+  const atStart = EditorState.create({
+    schema: pagesSchema,
+    doc: before,
+    selection: TextSelection.create(before, rule.nodeSize + 1),
+  });
+  const ruled = atStart.apply(selectNeighborAtom(atStart, -1)!);
+  assert.equal((ruled.selection as NodeSelection).node.type.name, "horizontal_rule");
+  const pair = pagesSchema.node("doc", null, [text("甲"), text("乙")]);
+  const between = EditorState.create({ schema: pagesSchema, doc: pair, selection: TextSelection.create(pair, 2) });
+  assert.equal(selectNeighborAtom(between, 1), null);
+  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
+  const down = editor.indexOf("leaveCodeDown(state, dispatch)");
+  const up = editor.indexOf("leaveCodeUp(state, dispatch)");
+  assert.ok(editor.indexOf("selectNeighborAtom(state, 1)", down) > down);
+  assert.ok(editor.indexOf("selectNeighborAtom(state, -1)", up) > up);
+});
+
+test("点待办的勾选框会翻转这一条", () => {
+  const task = (checked: boolean, value: string) => pagesSchema.nodes.task_item.create(
+    { checked },
+    pagesSchema.nodes.paragraph.create(null, [pagesSchema.text(value)]),
+  );
+  const doc = pagesSchema.node("doc", null, [
+    pagesSchema.nodes.task_list.create(null, [task(true, "甲"), task(false, "乙")]),
+  ]);
+  let yi = -1;
+  doc.descendants((node, pos) => {
+    if (yi < 0 && node.type.name === "task_item" && node.textContent === "乙") yi = pos;
+  });
+  const state = EditorState.create({ schema: pagesSchema, doc });
+  const flipped = state.apply(flipTaskAt(state, yi)!);
+  assert.equal(flipped.doc.child(0).child(0).attrs.checked, true);
+  assert.equal(flipped.doc.child(0).child(1).attrs.checked, true);
+  assert.equal(flipped.doc.child(0).child(1).textContent, "乙");
+  const again = flipped.apply(flipTaskAt(flipped, yi)!);
+  assert.equal(again.doc.child(0).child(1).attrs.checked, false);
+  assert.equal(again.doc.child(0).child(1).textContent, "乙");
+  assert.ok(flipTaskAt(state, 0) === null);
+  const prose = EditorState.create({
+    schema: pagesSchema,
+    doc: pagesSchema.node("doc", null, [pagesSchema.node("paragraph", null, [pagesSchema.text("甲")])]),
+  });
+  assert.ok(flipTaskAt(prose, 0) === null);
+  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
+  const start = editor.indexOf("function taskNodeView");
+  const body = editor.slice(start, editor.indexOf("\nfunction ", start + 1));
+  assert.match(body, /flipTaskAt\(view\.state, pos\)/);
+  assert.equal(body.includes("addEventListener(\"change\""), false);
+});
+
+test("点到正文下面的空白会落到一个空段落", () => {
+  const text = (value: string) => pagesSchema.node("paragraph", null, [pagesSchema.text(value)]);
+  const doc = pagesSchema.node("doc", null, [text("甲乙")]);
+  const state = EditorState.create({ schema: pagesSchema, doc, selection: TextSelection.create(doc, 1) });
+  const opened = state.apply(focusBelowContent(state)!);
+  assert.equal(opened.doc.childCount, 2);
+  assert.equal(opened.doc.child(0).textContent, "甲乙");
+  assert.equal(opened.doc.child(1).textContent, "");
+  assert.equal(opened.selection.from, opened.doc.child(0).nodeSize + 1);
+  assert.ok(focusBelowContent(opened) === null);
+
+  const image = pagesSchema.node("doc", null, [pagesSchema.node("image", { src: "https://molis.ai/a.png" })]);
+  const picked = EditorState.create({ schema: pagesSchema, doc: image, selection: NodeSelection.create(image, 0) });
+  const below = picked.apply(focusBelowContent(picked)!);
+  assert.equal(below.doc.child(0).type.name, "image");
+  assert.equal(below.doc.child(1).type.name, "paragraph");
+  assert.equal(below.doc.child(1).textContent, "");
+
+  const callout = pagesSchema.node("doc", null, [
+    pagesSchema.node("callout", { tone: "info" }, [text("甲")]),
+  ]);
+  const inside = EditorState.create({ schema: pagesSchema, doc: callout });
+  const after = inside.apply(focusBelowContent(inside)!);
+  assert.equal(after.doc.childCount, 2);
+  assert.equal(after.doc.child(0).type.name, "callout");
+  assert.equal(after.doc.child(0).textContent, "甲");
+  assert.equal(after.doc.child(1).textContent, "");
+
+  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
+  const down = editor.indexOf("mousedown(current, event)");
+  const placed = editor.indexOf("focusBelowContent(current.state)", down);
+  assert.ok(editor.indexOf("coordsAtPos", down) > down);
+  assert.ok(placed > editor.indexOf("coordsAtPos", down));
+});
+
 test("Pages 是个人插件，不进项目启用名单", () => {
   assert.equal(PERSONAL_PLUGIN_IDS.includes(PAGES_PROJECT_PLUGIN_ID), true);
   assert.equal(PROJECT_SCOPED_PLUGIN_IDS.includes("pages"), false);
@@ -270,7 +595,6 @@ test("编辑器内核是 IIFE，不是 tsc 的 ESM", () => {
   assert.match(source, /Decoration\.node/);
   assert.match(source, /is-block-hover/);
   assert.match(source, /pages-block-ghost/);
-  assert.match(source, /pages-drop-line/);
   assert.match(source, /nudgeSpan/);
   assert.match(source, /Mod-Shift-ArrowUp/);
   assert.match(source, /leaveCodeDown/);
@@ -294,6 +618,8 @@ test("编辑器内核是 IIFE，不是 tsc 的 ESM", () => {
   assert.match(source, /replaceFindHit/);
   assert.match(source, /replaceAllFindHits/);
   assert.match(source, /setImageWidth/);
+  assert.match(source, /setImageCaption/);
+  assert.match(PAGES_STYLES, /pages-image-caption/);
   assert.match(source, /pages-image-resize/);
   assert.match(PAGES_STYLES, /pages-image-resize/);
   assert.match(source, /setColumnWidth/);
@@ -303,6 +629,24 @@ test("编辑器内核是 IIFE，不是 tsc 的 ESM", () => {
   assert.match(source, /moveTableRow/);
   assert.match(source, /moveTableColumn/);
   assert.match(source, /clearInlineMarks/);
+  assert.match(source, /replaceSelectedBlock/);
+  assert.match(source, /replaceSpan/);
+  assert.match(source, /moveSelectedBlock/);
+  assert.match(source, /pasteHtml/);
+  assert.match(source, /nodesInSpan/);
+  assert.match(source, /hasAttribute\("data-pages-task"\)/);
+  assert.match(source, /nodesToMarkdown/);
+  assert.match(source, /toneFromCssColor/);
+  assert.match(source, /toneCovers/);
+  assert.match(source, /toggleInlineMark/);
+  assert.match(source, /markCovers/);
+  assert.match(source, /indentItemGroup/);
+  assert.match(source, /applyHeading/);
+  assert.match(source, /headingLevelAt/);
+  assert.match(source, /listKindAt/);
+  assert.match(source, /\\u5199\\u4EE3\\u7801/);
+  assert.match(PAGES_STYLES, /:is\(p, h1, h2, h3, code, pre\.pages-code\)\.is-empty::before/);
+  assert.match(source, /data-pages-bookmark/);
   assert.match(source, /Mod-Alt-ArrowLeft/);
   assert.match(source, /linkClickOpens/);
   assert.match(source, /pages-link-preview/);
@@ -330,15 +674,16 @@ test("编辑器内核是 IIFE，不是 tsc 的 ESM", () => {
   assert.match(PAGES_STYLES, /pages-columns/);
   assert.match(PAGES_STYLES, /pages-column \{ position: relative; min-width: 0; padding-left: 48px/);
   assert.match(source, /closest\("\.pages-column"\)/);
-  assert.match(source, /columnDropAnchor/);
   assert.match(source, /splitColumn/);
   assert.match(source, /collapseEmptyColumn/);
-  assert.match(PAGES_STYLES, /pages-drop-line.is-column/);
   assert.match(source, /pages-provisional/);
   assert.match(PAGES_STYLES, /pages-provisional/);
   assert.match(source, /pasteUrl/);
-  assert.match(PAGES_STYLES, /pages-bookmark/);
+  assert.match(source, /setBookmarkTitle/);
+  assert.match(PAGES_STYLES, /pages-bookmark-title/);
   assert.match(PAGES_STYLES, /pages-toc-jump/);
+  assert.match(PAGES_STYLES, /pages-toc-jump.is-on/);
+  assert.match(source, /headingIndexAt/);
   assert.match(source, /setToggleOpen/);
   assert.doesNotMatch(source, /pages-block-glow/);
   assert.doesNotMatch(source, /classList\.add\("is-block-hover"\)/);
@@ -357,7 +702,6 @@ test("阅读面没有粗左边线和后台表单顶栏", () => {
   assert.match(PAGES_STYLES, /\.is-block-hover/);
   assert.match(PAGES_STYLES, /\.is-block-selected/);
   assert.match(PAGES_STYLES, /pages-block-ghost/);
-  assert.match(PAGES_STYLES, /pages-drop-line/);
   assert.match(PAGES_STYLES, /--pages-gutter/);
   assert.doesNotMatch(PAGES_STYLES, /margin-left:\s*-44px/);
   assert.doesNotMatch(PAGES_STYLES, /pages-block-glow/);
@@ -678,6 +1022,181 @@ test("多块选择一起移动、复制和删除，选中父块时不重复处�
   ]);
 });
 
+test("多块选中时复制带上每一块，只选一块仍走原来的复制", () => {
+  const para = (value: string) => pagesSchema.node("paragraph", null, [pagesSchema.text(value)]);
+  const doc = pagesSchema.node("doc", null, [para("甲"), para("乙"), para("丙")]);
+  const at = (text: string) => {
+    const found = dragRows(doc).find((entry) => doc.nodeAt(entry.pos)?.textContent === text);
+    assert.ok(found, text);
+    return found.pos;
+  };
+  const copied = nodesInSpan(doc, at("甲"), at("丙"));
+  assert.deepEqual(copied?.map((node) => node.textContent), ["甲", "乙", "丙"]);
+  const reversed = nodesInSpan(doc, at("丙"), at("甲"));
+  assert.deepEqual(reversed?.map((node) => node.textContent), ["甲", "乙", "丙"]);
+  const tail = nodesInSpan(doc, at("乙"), at("丙"));
+  assert.deepEqual(tail?.map((node) => node.textContent), ["乙", "丙"]);
+  assert.ok(nodesInSpan(doc, at("乙"), at("乙")) === null);
+
+  const list = pagesSchema.node("doc", null, [
+    pagesSchema.node("bullet_list", null, [
+      pagesSchema.node("list_item", null, [para("甲")]),
+      pagesSchema.node("list_item", null, [para("乙")]),
+    ]),
+  ]);
+  const rows = dragRows(list);
+  const items = nodesInSpan(list, rows[0].pos, rows[1].pos);
+  assert.deepEqual(items?.map((node) => [node.type.name, node.textContent]), [
+    ["list_item", "甲"],
+    ["list_item", "乙"],
+  ]);
+});
+
+test("贴回列表项仍是列表，待办的勾选还在", () => {
+  const li = (text: string, extra: { task?: boolean; checked?: boolean } = {}) => ({ tag: "li", children: [text], ...extra });
+  const plain = blocksFromPaste([li("甲"), li("乙")])!;
+  assert.equal(plain.length, 1);
+  assert.equal(plain[0].type.name, "bullet_list");
+  assert.deepEqual([...plain[0].content.content].map((node) => node.textContent), ["甲", "乙"]);
+
+  const tasks = blocksFromPaste([
+    li("甲", { task: true, checked: true }),
+    li("乙", { task: true, checked: false }),
+  ])!;
+  assert.equal(tasks[0].type.name, "task_list");
+  assert.equal(tasks[0].child(0).attrs.checked, true);
+  assert.equal(tasks[0].child(1).attrs.checked, false);
+  assert.equal(tasks[0].textContent, "甲乙");
+
+  const split = blocksFromPaste([
+    li("甲"),
+    { tag: "p", children: ["隔"] },
+    li("乙"),
+  ])!;
+  assert.equal(split.length, 3);
+  assert.equal(split[0].type.name, "bullet_list");
+  assert.equal(split[0].textContent, "甲");
+  assert.equal(split[1].textContent, "隔");
+  assert.equal(split[2].type.name, "bullet_list");
+  assert.equal(split[2].textContent, "乙");
+
+  const ordered = blocksFromPaste([{ tag: "ol", children: [li("甲"), li("乙")] }])!;
+  assert.equal(ordered[0].type.name, "ordered_list");
+  assert.equal(ordered[0].textContent, "甲乙");
+
+  const fromList = blocksFromPaste([{
+    tag: "ul",
+    tasks: true,
+    children: [li("甲", { task: true, checked: true })],
+  }])!;
+  assert.equal(fromList[0].type.name, "task_list");
+  assert.equal(fromList[0].child(0).attrs.checked, true);
+});
+
+test("复制出去的纯文本保留标题、待办和代码", () => {
+  const strong = pagesSchema.marks.strong.create();
+  const link = pagesSchema.marks.link.create({ href: "https://molis.ai/docs" });
+  const heading = pagesSchema.node("heading", { level: 2 }, [pagesSchema.text("标题")]);
+  const paragraph = pagesSchema.node("paragraph", null, [
+    pagesSchema.text("甲", [strong]),
+    pagesSchema.text("乙", [link]),
+  ]);
+  const tasks = pagesSchema.node("task_list", null, [
+    pagesSchema.node("task_item", { checked: true }, [pagesSchema.node("paragraph", null, [pagesSchema.text("完成")])]),
+    pagesSchema.node("task_item", { checked: false }, [pagesSchema.node("paragraph", null, [pagesSchema.text("待办")])]),
+  ]);
+  const code = pagesSchema.node("code_block", { language: "typescript" }, [pagesSchema.text("const n = 1")]);
+  const png = "data:image/png;base64,iVBORw0KGgo=";
+  const image = pagesSchema.node("image", { src: png, alt: "封面" });
+  const remote = pagesSchema.node("image", { src: "https://cdn.example/a.png", alt: "图" });
+  const markdown = nodesToMarkdown([heading, paragraph, tasks, code, image, remote]);
+  assert.match(markdown, /^## 标题/);
+  assert.match(markdown, /\*\*甲\*\*/);
+  assert.match(markdown, /\[乙\]\(https:\/\/molis\.ai\/docs\)/);
+  assert.match(markdown, /- \[x\] 完成/);
+  assert.match(markdown, /- \[ \] 待办/);
+  assert.match(markdown, /```typescript\nconst n = 1\n```/);
+  assert.match(markdown, /!\[封面\]/);
+  assert.doesNotMatch(markdown, /base64/);
+  assert.match(markdown, /!\[图\]\(https:\/\/cdn\.example\/a\.png\)/);
+
+  const empty = EditorState.create({
+    schema: pagesSchema,
+    doc: pagesSchema.node("doc", null, [pagesSchema.node("paragraph")]),
+  });
+  const pasted = empty.apply(pasteMarkdown(empty, "- [x] 完成\n- [ ] 待办")!);
+  assert.equal(pasted.doc.child(0).type.name, "task_list");
+  assert.equal(pasted.doc.child(0).child(0).attrs.checked, true);
+  assert.equal(pasted.doc.child(0).child(1).attrs.checked, false);
+  assert.equal(pasted.doc.child(0).textContent, "完成待办");
+});
+
+test("网页粘贴留下下划线、文字颜色和底色", () => {
+  assert.equal(toneFromCssColor("red"), "red");
+  assert.equal(toneFromCssColor(" grey "), "gray");
+  assert.equal(toneFromCssColor("rgb(255, 0, 0)"), "red");
+  assert.equal(toneFromCssColor("lime"), "");
+
+  const blocks = blocksFromPaste([{
+    tag: "p",
+    children: [
+      { tag: "u", children: ["甲"] },
+      { tag: "span", ink: "blue", children: ["乙"] },
+      { tag: "mark", children: ["丙"] },
+      { tag: "span", wash: "not-a-color", children: ["丁"] },
+    ],
+  }])!;
+  const para = blocks[0];
+  assert.equal(para.textContent, "甲乙丙丁");
+  assert.equal(para.child(0).marks[0]?.type.name, "underline");
+  assert.equal(para.child(1).marks[0]?.type.name, "font_color");
+  assert.equal(para.child(1).marks[0]?.attrs.tone, "blue");
+  assert.equal(para.child(2).marks[0]?.type.name, "highlight");
+  assert.equal(para.child(2).marks[0]?.attrs.tone, "yellow");
+  assert.equal(para.child(3).marks.length, 0);
+
+  const underlined = pagesSchema.node("paragraph", null, [
+    pagesSchema.text("甲", [pagesSchema.marks.underline.create()]),
+  ]);
+  assert.match(nodesToMarkdown([underlined]), /<u>甲<\/u>/);
+});
+
+test("贴回图片和书签仍是原来的块", () => {
+  const image = blocksFromMarkdown("![图](https://cdn.example/a.png)");
+  assert.equal(image?.[0].type.name, "image");
+  assert.equal(image?.[0].attrs.src, "https://cdn.example/a.png");
+  assert.equal(image?.[0].attrs.alt, "图");
+
+  const card = blocksFromMarkdown("[文档](https://molis.ai/docs)");
+  assert.equal(card?.[0].type.name, "bookmark");
+  assert.equal(card?.[0].attrs.title, "文档");
+  assert.equal(card?.[0].attrs.href, "https://molis.ai/docs");
+  assert.equal(blocksFromMarkdown("见 [文档](https://molis.ai/docs)"), null);
+
+  const dirty = blocksFromMarkdown("![图](javascript:alert)");
+  assert.equal(dirty?.[0].type.name, "paragraph");
+
+  const html = blocksFromPaste([{
+    tag: "a",
+    bookmark: true,
+    href: "https://www.molis.ai/docs",
+    children: ["  文档名  "],
+  }]);
+  assert.equal(html?.[0].type.name, "bookmark");
+  assert.equal(html?.[0].attrs.title, "文档名");
+  assert.equal(html?.[0].attrs.href, "https://www.molis.ai/docs");
+  assert.equal(blocksFromPaste([{ tag: "a", bookmark: true, href: "javascript:alert(1)", children: ["坏"] }]), null);
+
+  const round = blocksFromMarkdown(nodesToMarkdown([
+    pagesSchema.node("image", { src: "https://cdn.example/a.png", alt: "图" }),
+    pagesSchema.node("bookmark", { href: "https://molis.ai/docs", title: "文档" }),
+  ]));
+  assert.equal(round?.[0].type.name, "image");
+  assert.equal(round?.[0].attrs.alt, "图");
+  assert.equal(round?.[1].type.name, "bookmark");
+  assert.equal(round?.[1].attrs.title, "文档");
+});
+
 test("上移下移在同级兄弟之间换位，到头就停，选区跟着走", () => {
   const para = (value: string) => pagesSchema.node("paragraph", null, [pagesSchema.text(value)]);
   const item = (value: string, checked = false) => pagesSchema.node("task_item", { checked }, [para(value)]);
@@ -734,7 +1253,41 @@ test("敲 --- 或代码围栏会变成对应的块，代码块边缘的方向键
     assert.equal(next.doc.child(1).type.name, "paragraph");
     assert.equal(next.doc.child(1).content.size, 0);
     assert.equal(next.selection.$from.parent.type.name, "paragraph");
+    const kept = typed(marker + "甲");
+    const split = kept.apply(markdownBlock(kept, 1, 1 + marker.length)!);
+    assert.equal(split.doc.child(0).type.name, "horizontal_rule");
+    assert.equal(split.doc.child(1).textContent, "甲");
+    assert.equal(split.selection.$from.parent.textContent, "甲");
   }
+
+  const strong = pagesSchema.marks.strong.create();
+  const marked = pagesSchema.node("doc", null, [
+    pagesSchema.node("paragraph", null, [
+      pagesSchema.text("---"),
+      pagesSchema.text("甲", [strong]),
+    ]),
+  ]);
+  const styled = EditorState.create({ schema: pagesSchema, doc: marked });
+  const keptMark = styled.apply(markdownBlock(styled, 1, 4)!);
+  assert.equal(keptMark.doc.child(1).textContent, "甲");
+  assert.ok(keptMark.doc.child(1).firstChild?.marks.some((mark) => mark.type === pagesSchema.marks.strong));
+
+  const ruleMid = typed("甲---");
+  assert.ok(markdownBlock(ruleMid, 2, 5) === null);
+
+  const ruleCallout = pagesSchema.node("doc", null, [
+    pagesSchema.node("callout", { tone: "info" }, [
+      pagesSchema.node("paragraph", null, [pagesSchema.text("---甲")]),
+    ]),
+    pagesSchema.node("paragraph", null, [pagesSchema.text("丙")]),
+  ]);
+  const ruleInside = EditorState.create({ schema: pagesSchema, doc: ruleCallout });
+  const ruleNested = ruleInside.apply(markdownBlock(ruleInside, 2, 5)!);
+  assert.equal(ruleNested.doc.child(0).type.name, "callout");
+  assert.equal(ruleNested.doc.child(0).attrs.tone, "info");
+  assert.equal(ruleNested.doc.child(0).child(0).type.name, "horizontal_rule");
+  assert.equal(ruleNested.doc.child(0).child(1).textContent, "甲");
+  assert.equal(ruleNested.doc.child(1).textContent, "丙");
 
   const typescript = applied("```ts");
   assert.equal(typescript.doc.child(0).type.name, "code_block");
@@ -743,6 +1296,42 @@ test("敲 --- 或代码围栏会变成对应的块，代码块边缘的方向键
   assert.equal(applied("```nope").doc.child(0).attrs.language, "");
   assert.equal(markdownBlock(typed("hello"), 1), null);
 
+  const kept = typed("```ts甲");
+  const coded = kept.apply(markdownBlock(kept, 1, 6)!);
+  assert.equal(coded.doc.child(0).type.name, "code_block");
+  assert.equal(coded.doc.child(0).attrs.language, "typescript");
+  assert.equal(coded.doc.child(0).textContent, "甲");
+  assert.equal(coded.selection.from, 1);
+
+  const plain = typed("```甲");
+  const bare = plain.apply(markdownBlock(plain, 1, 4)!);
+  assert.equal(bare.doc.child(0).attrs.language, "");
+  assert.equal(bare.doc.child(0).textContent, "甲");
+
+  const insideWord = typed("甲```");
+  assert.ok(markdownBlock(insideWord, 2, 5) === null);
+
+  const callout = pagesSchema.node("doc", null, [
+    pagesSchema.node("callout", { tone: "info" }, [
+      pagesSchema.node("paragraph", null, [pagesSchema.text("```ts甲")]),
+    ]),
+  ]);
+  const inside = EditorState.create({ schema: pagesSchema, doc: callout });
+  const nested = inside.apply(markdownBlock(inside, 2, 7)!);
+  assert.equal(nested.doc.child(0).type.name, "callout");
+  assert.equal(nested.doc.child(0).attrs.tone, "info");
+  assert.equal(nested.doc.child(0).child(0).type.name, "code_block");
+  assert.equal(nested.doc.child(0).textContent, "甲");
+
+  const codeItem = pagesSchema.node("list_item", null, [
+    pagesSchema.node("paragraph", null, [pagesSchema.text("```ts")]),
+  ]);
+  const codeList = EditorState.create({
+    schema: pagesSchema,
+    doc: pagesSchema.node("doc", null, [pagesSchema.node("bullet_list", null, [codeItem])]),
+  });
+  assert.ok(markdownBlock(codeList, 3, 8) === null);
+
   const item = pagesSchema.node("list_item", null, [
     pagesSchema.node("paragraph", null, [pagesSchema.text("---")]),
   ]);
@@ -750,7 +1339,8 @@ test("敲 --- 或代码围栏会变成对应的块，代码块边缘的方向键
     schema: pagesSchema,
     doc: pagesSchema.node("doc", null, [pagesSchema.node("bullet_list", null, [item])]),
   });
-  assert.equal(markdownBlock(listed, 3), null);
+  assert.ok(markdownBlock(listed, 3) === null);
+  assert.ok(markdownBlock(listed, 3, 6) === null);
 
   const code = pagesSchema.node("code_block", { language: "" }, [pagesSchema.text("ab")]);
   const alone = EditorState.create({ schema: pagesSchema, doc: pagesSchema.node("doc", null, [code]) });
@@ -941,6 +1531,36 @@ test("敲 > 空格变成引用，连续的引用行粘在同一块里", () => {
   assert.equal(next.doc.child(0).child(0).content.size, 0);
   assert.equal(next.selection.$from.parent.type.name, "paragraph");
 
+  const kept = pagesSchema.node("doc", null, [
+    pagesSchema.node("paragraph", null, [
+      pagesSchema.text("> "),
+      pagesSchema.text("引用", [pagesSchema.marks.strong.create()]),
+    ]),
+  ]);
+  const withWords = EditorState.create({ schema: pagesSchema, doc: kept });
+  const quoted = withWords.apply(markdownBlock(withWords, 1, 3)!);
+  assert.equal(quoted.doc.child(0).type.name, "blockquote");
+  assert.equal(quoted.doc.textContent, "引用");
+  assert.equal(quoted.selection.from, 2);
+  assert.ok(quoted.doc.child(0).child(0).firstChild?.marks.some((mark) => mark.type === pagesSchema.marks.strong));
+
+  const mid = pagesSchema.node("doc", null, [
+    pagesSchema.node("paragraph", null, [pagesSchema.text("甲> ")]),
+  ]);
+  assert.ok(markdownBlock(EditorState.create({ schema: pagesSchema, doc: mid }), 2, 4) === null);
+
+  const callout = pagesSchema.node("doc", null, [
+    pagesSchema.node("callout", { tone: "info" }, [
+      pagesSchema.node("paragraph", null, [pagesSchema.text("> 甲")]),
+    ]),
+  ]);
+  const inside = EditorState.create({ schema: pagesSchema, doc: callout });
+  const nested = inside.apply(markdownBlock(inside, 2, 4)!);
+  assert.equal(nested.doc.child(0).type.name, "callout");
+  assert.equal(nested.doc.child(0).attrs.tone, "info");
+  assert.equal(nested.doc.child(0).child(0).type.name, "blockquote");
+  assert.equal(nested.doc.child(0).textContent, "甲");
+
   const item = pagesSchema.node("list_item", null, [
     pagesSchema.node("paragraph", null, [pagesSchema.text("> ")]),
   ]);
@@ -948,7 +1568,8 @@ test("敲 > 空格变成引用，连续的引用行粘在同一块里", () => {
     schema: pagesSchema,
     doc: pagesSchema.node("doc", null, [pagesSchema.node("bullet_list", null, [item])]),
   });
-  assert.equal(markdownBlock(listed, 3), null);
+  assert.ok(markdownBlock(listed, 3) === null);
+  assert.ok(markdownBlock(listed, 3, 5) === null);
 
   const empty = EditorState.create({
     schema: pagesSchema,
@@ -1022,6 +1643,340 @@ test("空行回车和行首退格能离开引用、Callout，不拆掉折叠块�
   const opened = run(caret(onlySummary, 2), exitWrappedBlock);
   assert.equal(opened.ok, true);
   assert.equal(opened.state.doc.child(0).type.name, "paragraph");
+});
+
+test("折叠块标题按回车，后半段进到里面，关着的会打开", () => {
+  const para = (value: string, strong = false) => pagesSchema.node("paragraph", null, value
+    ? [pagesSchema.text(value, strong ? [pagesSchema.marks.strong.create()] : [])]
+    : []);
+  const caret = (doc: ReturnType<typeof pagesSchema.node>, pos: number) => (
+    pagesState(doc).apply(pagesState(doc).tr.setSelection(TextSelection.create(doc, pos)))
+  );
+  const title = (open: boolean, ...children: ReturnType<typeof para>[]) => pagesSchema.node("doc", null, [
+    pagesSchema.node("toggle", { open }, children),
+  ]);
+
+  const end = run(caret(title(true, para("甲乙")), 4), enterInToggle);
+  assert.equal(end.ok, true);
+  assert.equal(end.state.doc.child(0).type.name, "toggle");
+  assert.equal(end.state.doc.child(0).attrs.open, true);
+  assert.equal(end.state.doc.child(0).child(0).textContent, "甲乙");
+  assert.equal(end.state.doc.child(0).child(1).textContent, "");
+  assert.equal(end.state.selection.$from.parent.textContent, "");
+
+  const closed = run(caret(title(false, para("甲乙")), 4), enterInToggle);
+  assert.equal(closed.ok, true);
+  assert.equal(closed.state.doc.child(0).attrs.open, true);
+  assert.equal(closed.state.doc.child(0).child(0).textContent, "甲乙");
+  assert.equal(closed.state.doc.child(0).childCount, 2);
+
+  const marked = pagesSchema.node("paragraph", null, [
+    pagesSchema.text("甲"),
+    pagesSchema.text("乙", [pagesSchema.marks.strong.create()]),
+  ]);
+  const mid = run(caret(title(false, marked), 3), enterInToggle);
+  assert.equal(mid.ok, true);
+  assert.equal(mid.state.doc.child(0).attrs.open, true);
+  assert.equal(mid.state.doc.child(0).child(0).textContent, "甲");
+  assert.equal(mid.state.doc.child(0).child(1).textContent, "乙");
+  assert.equal(mid.state.doc.child(0).child(1).firstChild?.marks[0]?.type.name, "strong");
+
+  const above = run(caret(title(false, para("甲乙"), para("丙")), 2), enterInToggle);
+  assert.equal(above.ok, true);
+  assert.equal(above.state.doc.child(0).type.name, "paragraph");
+  assert.equal(above.state.doc.child(0).textContent, "");
+  assert.equal(above.state.doc.child(1).type.name, "toggle");
+  assert.equal(above.state.doc.child(1).attrs.open, false);
+  assert.equal(above.state.doc.child(1).child(0).textContent, "甲乙");
+  assert.equal(above.state.doc.child(1).child(1).textContent, "丙");
+  assert.equal(above.state.selection.$from.parent.content.size, 0);
+
+  const empty = title(true, para(""));
+  assert.equal(run(caret(empty, 2), enterInToggle).ok, false);
+  const body = title(true, para("甲"), para("丙"));
+  let inside = 1;
+  body.descendants((node, pos) => {
+    if (node.isText && node.text === "丙") inside = pos;
+  });
+  assert.equal(run(caret(body, inside), enterInToggle).ok, false);
+
+  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
+  const enter = editor.indexOf("Enter: chainCommands");
+  const leave = editor.indexOf("exitWrappedBlock", enter);
+  assert.ok(editor.indexOf("enterInToggle", enter) > enter);
+  assert.ok(editor.indexOf("enterInToggle", enter) < leave);
+});
+
+test("斜杠菜单按回车或 Tab 选中当前项，没有匹配时不换行", () => {
+  assert.equal(menuKey("Enter", 4), "choose");
+  assert.equal(menuKey("Tab", 4), "choose");
+  assert.equal(menuKey("Enter", 0), "hold");
+  assert.equal(menuKey("Tab", 0), "hold");
+  assert.equal(menuKey("ArrowDown", 4), "next");
+  assert.equal(menuKey("ArrowUp", 4), "prev");
+  assert.equal(menuKey("ArrowDown", 0), "hold");
+  assert.equal(menuKey("Escape", 0), "close");
+  assert.equal(menuKey("a", 4), "pass");
+  assert.equal(popEscape(true, "Escape"), true);
+  assert.equal(popEscape(false, "Escape"), false);
+  assert.equal(popEscape(true, "Enter"), false);
+  const popEditor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
+  assert.match(popEditor, /addEventListener\("keydown", onPopEscape, true\)/);
+  assert.match(popEditor, /removeEventListener\("keydown", onPopEscape, true\)/);
+  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
+  const slashAt = editor.indexOf("slashPlugin(options.translate)");
+  const mentionAt = editor.indexOf("mentionPlugin(options)");
+  const typingAt = editor.indexOf("keymap(baseKeymap)");
+  assert.ok(slashAt > 0 && mentionAt > slashAt && typingAt > mentionAt);
+});
+
+test("点走斜杠或引用菜单会清掉没选中的记号", () => {
+  assert.equal(dismissedMenuRange(false, false, false, { from: 1, to: 3 }, 8, 8), null);
+  assert.equal(dismissedMenuRange(true, true, false, { from: 1, to: 3 }, 8, 8), null);
+  assert.equal(dismissedMenuRange(true, false, true, { from: 1, to: 3 }, 8, 8), null);
+  assert.equal(dismissedMenuRange(true, false, false, { from: 1, to: 3 }, 2, 2), null);
+  assert.equal(dismissedMenuRange(true, false, false, { from: 1, to: 1 }, 8, 8), null);
+  assert.deepEqual(dismissedMenuRange(true, false, false, { from: 1, to: 3 }, 8, 8), { from: 1, to: 3 });
+
+  const doc = pagesSchema.node("doc", null, [
+    pagesSchema.node("paragraph", null, [pagesSchema.text("/代码")]),
+    pagesSchema.node("paragraph", null, [pagesSchema.text("乙")]),
+  ]);
+  const end = 1 + "/代码".length;
+  const state = EditorState.create({ schema: pagesSchema, doc, selection: TextSelection.create(doc, end) });
+  const session = slashSession(state);
+  assert.ok(session);
+  const second = doc.child(0).nodeSize + 1;
+  const range = dismissedMenuRange(true, false, false, { from: session.from, to: session.to }, second, second);
+  assert.deepEqual(range, { from: session.from, to: session.to });
+  const cleared = state.apply(state.tr.delete(range!.from, range!.to));
+  assert.equal(cleared.doc.child(0).textContent, "");
+  assert.equal(cleared.doc.child(1).textContent, "乙");
+
+  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
+  const slash = editor.indexOf("function slashPlugin");
+  const mention = editor.indexOf("function mentionPlugin");
+  assert.ok(editor.indexOf("dismissedMenuRange(", slash) > slash);
+  assert.ok(editor.indexOf("dismissedMenuRange(", slash) < mention);
+  assert.ok(editor.indexOf("dismissedMenuRange(", mention) > mention);
+});
+
+test("块菜单开着时上下键移动高亮，回车才执行", () => {
+  assert.equal(blockMenuKey(0, 6, "ArrowDown"), 1);
+  assert.equal(blockMenuKey(5, 6, "ArrowDown"), 0);
+  assert.equal(blockMenuKey(0, 6, "ArrowUp"), 5);
+  assert.equal(blockMenuKey(-1, 6, "ArrowDown"), 0);
+  assert.equal(blockMenuKey(2, 6, "Enter"), "run");
+  assert.equal(blockMenuKey(2, 6, "Escape"), "close");
+  assert.equal(blockMenuKey(2, 0, "Enter"), null);
+  assert.equal(blockMenuKey(2, 6, "a"), null);
+  assert.equal(blockMenuKey(1, 6, "ArrowRight"), "stay");
+  assert.equal(blockMenuKey(1, 6, "ArrowRight", false, true), "run");
+  assert.equal(blockMenuKey(1, 6, "ArrowLeft"), "stay");
+  assert.equal(blockMenuKey(1, 6, "ArrowLeft", true), "back");
+  assert.match(PAGES_STYLES, /data-pages-menu-open/);
+  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
+  assert.match(editor, /addEventListener\("keydown", onKey, true\)/);
+  assert.match(PAGES_STYLES, /pages-block-menu \.mw-menu__item\.is-on/);
+});
+
+test("鼠标移到菜单项上，高亮跟着走", () => {
+  assert.equal(hoverMenuIndex(0, 2, 5), 2);
+  assert.equal(hoverMenuIndex(2, 2, 5), null);
+  assert.equal(hoverMenuIndex(0, -1, 5), null);
+  assert.equal(hoverMenuIndex(0, 5, 5), null);
+  assert.equal(hoverMenuIndex(0, 0, 0), null);
+  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
+  const slash = editor.indexOf("function slashPlugin");
+  const mention = editor.indexOf("function mentionPlugin");
+  const block = editor.indexOf("pages-block-menu");
+  assert.ok(editor.indexOf("hoverMenuIndex(current.index, index, items.length)", slash) > slash);
+  assert.ok(editor.indexOf("hoverMenuIndex(current.index, index, items.length)", slash) < mention);
+  assert.ok(editor.indexOf("hoverMenuIndex(current.index, index, items.length)", mention) > mention);
+  assert.ok(editor.indexOf("hoverMenuIndex(current, items.indexOf(button), items.length)", block) > block);
+});
+
+test("Cmd+/ 打开光标所在块的菜单，Tab 留在编辑器里", () => {
+  assert.equal(blockMenuShortcut("/", true, false, false), true);
+  assert.equal(blockMenuShortcut("/", false, false, false), false);
+  assert.equal(blockMenuShortcut("/", true, true, false), false);
+  assert.equal(blockMenuShortcut("/", true, false, true), false);
+  assert.equal(blockMenuShortcut("a", true, false, false), false);
+  const text = (value: string) => pagesSchema.node("paragraph", null, [pagesSchema.text(value)]);
+  const doc = pagesSchema.node("doc", null, [text("甲"), text("乙")]);
+  assert.equal(blockMenuTarget(doc, 1), 0);
+  const second = doc.child(0).nodeSize;
+  assert.equal(blockMenuTarget(doc, second + 1), second);
+  assert.equal(blockMenuTarget(doc, doc.content.size), null);
+  const callout = pagesSchema.node("doc", null, [
+    pagesSchema.node("callout", { tone: "info" }, [text("甲")]),
+  ]);
+  assert.equal(blockMenuTarget(callout, 2), 1);
+  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
+  const keys = editor.indexOf("blockMenuShortcut(event.key");
+  assert.ok(keys > 0);
+  assert.ok(editor.indexOf("openMenu: true", keys) > keys);
+  const tick = editor.indexOf("hover.menuTick !== menuTick");
+  assert.ok(editor.indexOf("openMenu()", tick) > tick);
+  const tab = editor.indexOf("Tab: (state, dispatch, current)");
+  const shift = editor.indexOf("\"Shift-Tab\":", tab);
+  assert.match(editor.slice(tab, shift), /indentListItem\(state, dispatch\)/);
+  assert.match(editor.slice(tab, shift), /indentUnderPrevious\(state,/);
+  assert.match(editor.slice(tab, shift), /return true/);
+  assert.match(editor.slice(shift, shift + 700), /outdentListItem\(state, dispatch\)/);
+  assert.match(editor.slice(shift, shift + 700), /outdentFromContainer\(state,/);
+});
+
+test("握把跟着光标，鼠标停在别的块上时才让开", () => {
+  const hovered = handleAnchor(8, 2);
+  assert.equal(hovered?.pos, 8);
+  assert.equal(hovered?.followingCaret, false);
+  const caret = handleAnchor(-1, 2);
+  assert.equal(caret?.pos, 2);
+  assert.equal(caret?.followingCaret, true);
+  assert.equal(handleAnchor(-1, -1), null);
+  assert.equal(hoverPosAfter(8, false, undefined), 8);
+  assert.equal(hoverPosAfter(8, true, undefined), -1);
+  assert.equal(hoverPosAfter(8, true, 4), 4);
+  assert.match(PAGES_STYLES, /pages-block-handle\.is-caret/);
+});
+
+test("整段选中后再按 Shift 加上下，会把旁边的块一起选上", () => {
+  const para = (text: string) => pagesSchema.node("paragraph", null, [pagesSchema.text(text)]);
+  const doc = pagesSchema.node("doc", null, [para("甲乙"), para("丙"), para("丁")]);
+  const down = blockSpanFromSelection(doc, 1, 3, 1);
+  assert.deepEqual(down, { anchor: 0, head: 4 });
+  assert.equal(blockSpanFromSelection(doc, 1, 2, 1), null);
+  assert.equal(blockSpanFromSelection(doc, 2, 2, 1), null);
+  const further = blockSpanStep(doc, down!.anchor, down!.head, 1, true);
+  assert.deepEqual(further, { anchor: 0, head: 4 + para("丙").nodeSize });
+  assert.deepEqual(blockSpanStep(doc, 0, further!.head, 1, true), further);
+  assert.deepEqual(blockSpanStep(doc, 0, 4, -1, false), { anchor: 0, head: 0 });
+});
+
+test("划过整块时按块选中，半句仍是文字", () => {
+  const para = (text: string) => pagesSchema.node("paragraph", null, [pagesSchema.text(text)]);
+  const doc = pagesSchema.node("doc", null, [para("甲"), para("乙"), para("丙")]);
+  const first = doc.child(0).nodeSize;
+  const second = doc.child(1).nodeSize;
+  assert.deepEqual(blockSpanFromRange(doc, 1, first + second - 1), { anchor: 0, head: first });
+  assert.equal(blockSpanFromRange(doc, 1, first - 1), null);
+  assert.equal(blockSpanFromRange(doc, 2, first + second - 1), null);
+  assert.equal(blockSpanFromRange(doc, 1, 1), null);
+
+  const items = pagesSchema.node("doc", null, [
+    pagesSchema.node("bullet_list", null, [
+      pagesSchema.node("list_item", null, [para("甲")]),
+      pagesSchema.node("list_item", null, [para("乙")]),
+    ]),
+  ]);
+  let firstText = -1;
+  let secondEnd = -1;
+  let itemA = -1;
+  let itemB = -1;
+  items.descendants((node, pos) => {
+    if (node.isText && node.text === "甲") firstText = pos;
+    if (node.isText && node.text === "乙") secondEnd = pos + node.nodeSize;
+    if (node.type.name === "list_item" && node.textContent === "甲") itemA = pos;
+    if (node.type.name === "list_item" && node.textContent === "乙") itemB = pos;
+  });
+  assert.deepEqual(blockSpanFromRange(items, firstText, secondEnd), { anchor: itemA, head: itemB });
+
+  const callout = pagesSchema.node("doc", null, [
+    pagesSchema.node("callout", { tone: "info" }, [para("甲"), para("乙")]),
+  ]);
+  let inside = -1;
+  let insideEnd = -1;
+  let paraA = -1;
+  let paraB = -1;
+  callout.descendants((node, pos) => {
+    if (node.isText && node.text === "甲") inside = pos;
+    if (node.isText && node.text === "乙") insideEnd = pos + node.nodeSize;
+    if (node.type.name === "paragraph" && node.textContent === "甲") paraA = pos;
+    if (node.type.name === "paragraph" && node.textContent === "乙") paraB = pos;
+  });
+  assert.deepEqual(blockSpanFromRange(callout, inside, insideEnd), { anchor: paraA, head: paraB });
+  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
+  assert.match(editor, /blockSpanFromRange\(tr\.doc, tr\.selection\.from, tr\.selection\.to\)/);
+});
+
+test("选中几块再删除或复制，动的是整组", () => {
+  const para = (text: string) => pagesSchema.node("paragraph", null, [pagesSchema.text(text)]);
+  const doc = pagesSchema.node("doc", null, [para("甲"), para("乙"), para("丙")]);
+  assert.equal(spanIsGroup(doc, 0, para("甲").nodeSize), true);
+  assert.equal(spanIsGroup(doc, 0, 0), false);
+  assert.equal(spanIsGroup(doc, -1, para("甲").nodeSize), false);
+  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
+  const backspace = editor.indexOf("dropHoveredGroup(editor)");
+  const single = editor.indexOf("dropSelectedBlock, moveTableEdge(\"left\")");
+  const duplicate = editor.indexOf("duplicateHoveredGroup(view)");
+  const oneRow = editor.indexOf("duplicateEnclosingRow(view.state)");
+  assert.ok(backspace > 0 && single > backspace);
+  assert.ok(duplicate > 0 && oneRow > duplicate);
+});
+
+test("选中几块再加粗，整组一起变，再按一次才去掉", () => {
+  const strong = pagesSchema.marks.strong.create();
+  const plain = (text: string) => pagesSchema.node("paragraph", null, [pagesSchema.text(text)]);
+  const doc = pagesSchema.node("doc", null, [plain("甲"), plain("乙"), plain("丙")]);
+  const state = pagesState(doc);
+  const head = doc.child(0).nodeSize;
+  assert.equal(toggleSpanMark(state, 0, 0, "strong"), null);
+  const filled = state.apply(toggleSpanMark(state, 0, head, "strong")!);
+  assert.equal(filled.doc.child(0).firstChild?.marks[0]?.type.name, "strong");
+  assert.equal(filled.doc.child(1).firstChild?.marks[0]?.type.name, "strong");
+  assert.equal(filled.doc.child(2).firstChild?.marks.length ?? 0, 0);
+  const cleared = filled.apply(toggleSpanMark(filled, 0, head, "strong")!);
+  assert.equal(cleared.doc.child(0).firstChild?.marks.length, 0);
+  assert.equal(cleared.doc.child(1).firstChild?.marks.length, 0);
+  const mixed = pagesState(pagesSchema.node("doc", null, [
+    pagesSchema.node("paragraph", null, [pagesSchema.text("甲", [strong])]),
+    plain("乙"),
+  ]));
+  const both = mixed.apply(toggleSpanMark(mixed, 0, mixed.doc.child(0).nodeSize, "strong")!);
+  assert.equal(both.doc.child(0).firstChild?.marks[0]?.type.name, "strong");
+  assert.equal(both.doc.child(1).firstChild?.marks[0]?.type.name, "strong");
+  assert.equal(both.doc.textContent, "甲乙");
+});
+
+test("选中几块再改标题或清除格式，整组一起变", () => {
+  const text = (value: string, marks: ReturnType<typeof pagesSchema.marks.strong.create>[] = []) =>
+    pagesSchema.node("paragraph", null, [pagesSchema.text(value, marks)]);
+  const doc = pagesSchema.node("doc", null, [text("甲"), text("乙"), text("丙")]);
+  const state = pagesState(doc);
+  const head = doc.child(0).nodeSize;
+  assert.equal(turnGroup(state, 0, 0, "heading2"), null);
+  const headed = state.apply(turnGroup(state, 0, head, "heading2")!);
+  assert.equal(headed.doc.child(0).type.name, "heading");
+  assert.equal(headed.doc.child(0).attrs.level, 2);
+  assert.equal(headed.doc.child(1).type.name, "heading");
+  assert.equal(headed.doc.child(2).type.name, "paragraph");
+  assert.equal(headed.doc.child(2).textContent, "丙");
+  const back = headed.apply(turnGroup(headed, 0, headed.doc.child(0).nodeSize, "heading2")!);
+  assert.equal(back.doc.child(0).type.name, "paragraph");
+  assert.equal(back.doc.child(1).type.name, "paragraph");
+
+  const listed = state.apply(turnGroup(state, 0, head, "bullet_list")!);
+  assert.equal(listed.doc.child(0).type.name, "bullet_list");
+  assert.deepEqual(
+    listed.doc.child(0).content.content.map((node) => node.textContent),
+    ["甲", "乙"],
+  );
+  assert.equal(listed.doc.child(1).textContent, "丙");
+
+  const strong = pagesSchema.marks.strong.create();
+  const link = pagesSchema.marks.link.create({ href: "https://molis.ai" });
+  const marked = pagesSchema.node("doc", null, [
+    text("甲", [strong, link]),
+    text("乙", [strong]),
+    text("丙", [strong]),
+  ]);
+  const styled = pagesState(marked);
+  const cleared = styled.apply(clearSpanMarks(styled, 0, marked.child(0).nodeSize)!);
+  assert.equal(cleared.doc.child(0).firstChild?.marks.length, 0);
+  assert.equal(cleared.doc.child(1).firstChild?.marks.length, 0);
+  assert.equal(cleared.doc.child(2).firstChild?.marks[0]?.type.name, "strong");
+  assert.equal(clearSpanMarks(styled, 0, 0), null);
 });
 
 test("斜杠换的是光标下这一行，列表里的其他项还在", () => {
@@ -1420,6 +2375,119 @@ test("打完 [文档](地址) 或网址加空格会变成链接，脚本地址�
   assert.equal(bare.doc.child(0).lastChild?.marks.length ?? 0, 0);
 });
 
+test("打完 [ ] 或 [x] 会变成待办，后面的字还在", () => {
+  const turn = (text: string, marker: string) => {
+    const doc = pagesSchema.node("doc", null, [
+      pagesSchema.node("paragraph", null, [pagesSchema.text(text)]),
+    ]);
+    const state = EditorState.create({ schema: pagesSchema, doc });
+    const tr = markdownTask(state, 1, 1 + marker.length);
+    assert.ok(tr, text);
+    return state.apply(tr);
+  };
+  const empty = turn("[] ", "[] ");
+  assert.equal(empty.doc.child(0).type.name, "task_list");
+  assert.equal(empty.doc.child(0).child(0).attrs.checked, false);
+  assert.equal(empty.doc.child(0).textContent, "");
+  assert.equal(empty.selection.from, 3);
+
+  const spaced = turn("[ ] ", "[ ] ");
+  assert.equal(spaced.doc.child(0).child(0).attrs.checked, false);
+  assert.equal(spaced.doc.textContent, "");
+
+  const done = turn("[x] 完成", "[x] ");
+  assert.equal(done.doc.child(0).child(0).attrs.checked, true);
+  assert.equal(done.doc.textContent, "完成");
+  assert.equal(done.selection.from, 3);
+
+  const upper = turn("[X] ", "[X] ");
+  assert.equal(upper.doc.child(0).child(0).attrs.checked, true);
+
+  const strong = pagesSchema.marks.strong.create();
+  const marked = pagesSchema.node("doc", null, [
+    pagesSchema.node("paragraph", null, [
+      pagesSchema.text("[ ] "),
+      pagesSchema.text("买菜", [strong]),
+    ]),
+  ]);
+  const kept = EditorState.create({ schema: pagesSchema, doc: marked }).apply(markdownTask(
+    EditorState.create({ schema: pagesSchema, doc: marked }),
+    1,
+    5,
+  )!);
+  const word = kept.doc.child(0).child(0).child(0).firstChild;
+  assert.equal(word?.text, "买菜");
+  assert.ok(word?.marks.some((mark) => mark.type === pagesSchema.marks.strong));
+
+  const prose = pagesSchema.node("doc", null, [
+    pagesSchema.node("paragraph", null, [pagesSchema.text("甲[ ] ")]),
+  ]);
+  assert.ok(markdownTask(EditorState.create({ schema: pagesSchema, doc: prose }), 2, 6) === null);
+
+  const listed = pagesSchema.node("doc", null, [
+    pagesSchema.node("bullet_list", null, [
+      pagesSchema.node("list_item", null, [
+        pagesSchema.node("paragraph", null, [pagesSchema.text("[] ")]),
+      ]),
+    ]),
+  ]);
+  assert.ok(markdownTask(EditorState.create({ schema: pagesSchema, doc: listed }), 3, 6) === null);
+
+  const callout = pagesSchema.node("doc", null, [
+    pagesSchema.node("callout", { tone: "info" }, [
+      pagesSchema.node("paragraph", null, [pagesSchema.text("[ ] 甲")]),
+    ]),
+  ]);
+  const inside = EditorState.create({ schema: pagesSchema, doc: callout });
+  const nested = inside.apply(markdownTask(inside, 2, 6)!);
+  assert.equal(nested.doc.child(0).type.name, "callout");
+  assert.equal(nested.doc.child(0).attrs.tone, "info");
+  assert.equal(nested.doc.child(0).child(0).type.name, "task_list");
+  assert.equal(nested.doc.child(0).textContent, "甲");
+
+});
+
+test("按住 Shift 粘贴只留下文字，标题记号和网址都不会变块", () => {
+  const strong = pagesSchema.marks.strong.create();
+  const blank = pagesSchema.node("doc", null, [pagesSchema.node("paragraph")]);
+  const empty = EditorState.create({
+    schema: pagesSchema,
+    doc: blank,
+    selection: TextSelection.create(blank, 1),
+  });
+  const literal = empty.apply(pastePlain(empty, "# 标题\nhttps://molis.ai")!);
+  assert.deepEqual(literal.doc.content.content.map((node) => node.type.name), ["paragraph", "paragraph"]);
+  assert.equal(literal.doc.child(0).textContent, "# 标题");
+  assert.equal(literal.doc.child(1).textContent, "https://molis.ai");
+  assert.equal(literal.doc.child(0).firstChild?.marks.length, 0);
+
+  const bold = pagesSchema.node("doc", null, [
+    pagesSchema.node("paragraph", null, [pagesSchema.text("甲乙", [strong])]),
+  ]);
+  const mid = EditorState.create({ schema: pagesSchema, doc: bold, selection: TextSelection.create(bold, 2) });
+  const split = mid.apply(pastePlain(mid, "1\n2")!);
+  assert.equal(split.doc.child(0).textContent, "甲1");
+  assert.equal(split.doc.child(0).child(0)?.marks[0]?.type.name, "strong");
+  assert.equal(split.doc.child(1).textContent, "2乙");
+  assert.equal(split.doc.child(1).child(0)?.text, "2");
+  assert.equal(split.doc.child(1).child(0)?.marks.length, 0);
+  assert.equal(split.doc.child(1).child(1)?.marks[0]?.type.name, "strong");
+
+  const codeDoc = pagesSchema.node("doc", null, [
+    pagesSchema.node("code_block", { language: "typescript" }, [pagesSchema.text("ab")]),
+  ]);
+  const inCode = EditorState.create({ schema: pagesSchema, doc: codeDoc, selection: TextSelection.create(codeDoc, 2) });
+  const coded = inCode.apply(pastePlain(inCode, "x\ny")!);
+  assert.equal(coded.doc.child(0).type.name, "code_block");
+  assert.equal(coded.doc.child(0).textContent, "ax\nyb");
+  assert.equal(pastePlain(empty, ""), null);
+  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
+  const gate = editor.indexOf("const plainPaste");
+  const plain = editor.indexOf("pastePlain(current.state, text)");
+  const url = editor.indexOf("pasteUrl(current.state, text)");
+  assert.ok(gate > 0 && plain > gate && url > plain);
+});
+
 test("代码块里 Tab 插入两个空格，Shift-Tab 只收回光标前的空格", () => {
   const code = (text: string, pos: number, head = pos) => {
     const state = EditorState.create({
@@ -1498,7 +2566,7 @@ test("转换为：按行拆开与合并，正文和行内 mark 都带过去", ()
 
   const code = convertedBlocks("code_block", list);
   assert.equal(code?.[0].type.name, "code_block");
-  assert.equal(code?.[0].textContent, "一二");
+  assert.equal(code?.[0].textContent, "一\n二");
   assert.equal(code?.[0].firstChild?.marks.length, 0);
 
   const back = convertedBlocks("paragraph", pagesSchema.node("callout", { tone: "info" }, [
@@ -1661,6 +2729,28 @@ test("目录按顺序跳到标题，关着的折叠块会先打开", () => {
   assert.equal(inside.selection.$from.parent.textContent, "重点");
 });
 
+test("目录标出光标所在的标题", () => {
+  const heading = (level: number, value: string) => pagesSchema.nodes.heading.create({ level }, [pagesSchema.text(value)]);
+  const para = (value: string) => pagesSchema.node("paragraph", null, [pagesSchema.text(value)]);
+  const doc = pagesSchema.node("doc", null, [heading(1, "甲"), para("乙"), heading(2, "丙"), para("丁")]);
+  let jia = -1;
+  let yi = -1;
+  let bing = -1;
+  let ding = -1;
+  doc.descendants((node, pos) => {
+    if (!node.isText) return;
+    if (node.text === "甲") jia = pos;
+    if (node.text === "乙") yi = pos;
+    if (node.text === "丙") bing = pos;
+    if (node.text === "丁") ding = pos;
+  });
+  assert.equal(headingIndexAt(doc, 0), -1);
+  assert.equal(headingIndexAt(doc, jia), 0);
+  assert.equal(headingIndexAt(doc, yi), 0);
+  assert.equal(headingIndexAt(doc, bing), 1);
+  assert.equal(headingIndexAt(doc, ding), 1);
+});
+
 test("浮层放不下就翻到另一边，菜单里的当前项滚进视野", () => {
   const anchor = { left: 40, right: 48, top: 700, bottom: 720 };
   const size = { width: 280, height: 380 };
@@ -1688,6 +2778,10 @@ test("浮层放不下就翻到另一边，菜单里的当前项滚进视野", ()
   assert.equal(scrollChildIntoView({ scrollTop: 0, clientHeight: 100 }, { offsetTop: 180, offsetHeight: 20 }), 100);
   assert.equal(scrollChildIntoView({ scrollTop: 50, clientHeight: 100 }, { offsetTop: 10, offsetHeight: 20 }), 10);
   assert.equal(scrollChildIntoView({ scrollTop: 30, clientHeight: 100 }, { offsetTop: 40, offsetHeight: 20 }), 30);
+  assert.equal(scrollShouldFollow(null, null), true);
+  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
+  assert.equal(editor.match(/followScroll\(menu/g)?.length, 3);
+  assert.match(editor, /followScroll\(toolbar/);
 });
 
 test("代码块空行回车走出去，快捷键只翻转当前待办", () => {
@@ -1753,6 +2847,49 @@ test("代码块空行回车走出去，快捷键只翻转当前待办", () => {
     doc: pagesSchema.node("doc", null, [pagesSchema.node("paragraph", null, [pagesSchema.text("甲")])]),
   });
   assert.equal(run(prose, toggleTaskChecked).ok, false);
+});
+
+test("选中待办再按空格是勾选，不是换成空格", () => {
+  const task = (checked: boolean, value: string) => pagesSchema.nodes.task_item.create(
+    { checked },
+    pagesSchema.nodes.paragraph.create(null, [pagesSchema.text(value)]),
+  );
+  const doc = pagesSchema.node("doc", null, [
+    pagesSchema.nodes.task_list.create(null, [task(true, "甲"), task(false, "乙"), task(false, "丙")]),
+  ]);
+  let jia = -1;
+  let yi = -1;
+  doc.descendants((node, pos) => {
+    if (node.type.name !== "task_item") return;
+    if (jia < 0 && node.textContent === "甲") jia = pos;
+    if (yi < 0 && node.textContent === "乙") yi = pos;
+  });
+  const selected = EditorState.create({ schema: pagesSchema, doc, selection: NodeSelection.create(doc, yi) });
+  const flipped = run(selected, toggleTaskChecked);
+  assert.equal(flipped.state.doc.child(0).child(1).attrs.checked, true);
+  assert.equal(flipped.state.doc.child(0).child(1).textContent, "乙");
+  assert.equal(flipped.state.doc.child(0).child(0).attrs.checked, true);
+
+  const state = pagesState(doc);
+  const group = state.apply(toggleTaskGroup(state, jia, yi)!);
+  assert.deepEqual(group.doc.child(0).content.content.map((node) => node.attrs.checked), [true, true, false]);
+  const cleared = group.apply(toggleTaskGroup(group, jia, yi)!);
+  assert.deepEqual(cleared.doc.child(0).content.content.map((node) => node.attrs.checked), [false, false, false]);
+  assert.equal(toggleTaskGroup(state, jia, jia), null);
+
+  const mixed = pagesSchema.node("doc", null, [
+    pagesSchema.node("paragraph", null, [pagesSchema.text("甲")]),
+    pagesSchema.nodes.task_list.create(null, [task(false, "乙")]),
+  ]);
+  let item = -1;
+  mixed.descendants((node, pos) => {
+    if (item < 0 && node.type.name === "task_item") item = pos;
+  });
+  assert.equal(toggleTaskGroup(pagesState(mixed), 0, item), null);
+  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
+  const space = editor.indexOf("toggleTaskGroup(current.state");
+  const replace = editor.indexOf("replaceSelectedBlock(current.state, text)");
+  assert.ok(space > 0 && replace > space);
 });
 
 test("空行粘贴网址变成书签，选中的字只加链接", () => {
@@ -1850,6 +2987,33 @@ test("空行粘贴网址变成书签，选中的字只加链接", () => {
   const dom = pagesSchema.nodes.bookmark.spec.toDOM?.(dirty) as [string, Record<string, string>];
   assert.equal(dom[0], "div");
   assert.equal(dom[1].href, undefined);
+});
+
+test("书签名称只留一行，地址不动", () => {
+  assert.equal(safePagesBookmarkTitle("  文档\n名  "), "文档 名");
+  assert.equal(safePagesBookmarkTitle(""), "");
+  assert.equal(safePagesBookmarkTitle("甲".repeat(140)).length, 120);
+
+  const href = "https://www.molis.ai/docs";
+  const bookmark = pagesSchema.nodes.bookmark.create({ href, title: "molis.ai" });
+  const doc = pagesSchema.node("doc", null, [bookmark]);
+  const state = EditorState.create({ schema: pagesSchema, doc });
+  const named = state.apply(setBookmarkTitle(state, 0, "  文档\n名  ")!);
+  assert.equal(named.doc.child(0).attrs.title, "文档 名");
+  assert.equal(named.doc.child(0).attrs.href, href);
+  assert.ok(setBookmarkTitle(named, 0, "文档 名") === null);
+  assert.ok(setBookmarkTitle(named, 2, "丙") === null);
+  const cleared = named.apply(setBookmarkTitle(named, 0, "   ")!);
+  assert.equal(cleared.doc.child(0).attrs.title, "");
+  assert.equal(cleared.doc.child(0).attrs.href, href);
+
+  const rendered = pagesSchema.nodes.bookmark.spec.toDOM?.(named.doc.child(0)) as [string, Record<string, string>, [string, string], [string, string]];
+  assert.equal(rendered[0], "a");
+  assert.equal(rendered[1].href, href);
+  assert.equal(rendered[2][0], "strong");
+  assert.equal(rendered[2][1], "文档 名");
+  const fallback = pagesSchema.nodes.bookmark.spec.toDOM?.(cleared.doc.child(0)) as [string, Record<string, string>, [string, string]];
+  assert.equal(fallback[2][1], "molis.ai");
 });
 
 test("提示线没输入就不插入，输入之后才落成一块", () => {
@@ -2165,6 +3329,54 @@ test("图片宽度只收像素，拉到整行就恢复满宽", () => {
   const dirtyWidth = pagesSchema.nodes.image.create({ src: png, alt: "封面", width: "12px; background:url(x)" });
   const guarded = pagesSchema.nodes.image.spec.toDOM?.(dirtyWidth) as [string, Record<string, string>];
   assert.equal(guarded[1].style, undefined);
+});
+
+test("图片说明只留一行，地址和宽度不动", () => {
+  assert.equal(safePagesImageCaption("  封面说明  "), "封面说明");
+  assert.equal(safePagesImageCaption("甲\n乙"), "甲 乙");
+  assert.equal(safePagesImageCaption(""), "");
+  assert.equal(safePagesImageCaption("甲".repeat(220)).length, 200);
+
+  const png = "data:image/png;base64,iVBORw0KGgo=";
+  const image = pagesSchema.nodes.image.create({ src: png, alt: "封面", width: 480 });
+  const doc = pagesSchema.node("doc", null, [image]);
+  const state = EditorState.create({ schema: pagesSchema, doc });
+  const noted = state.apply(setImageCaption(state, 0, "  甲\n乙  ")!);
+  assert.equal(noted.doc.child(0).attrs.caption, "甲 乙");
+  assert.equal(noted.doc.child(0).attrs.src, png);
+  assert.equal(noted.doc.child(0).attrs.alt, "封面");
+  assert.equal(noted.doc.child(0).attrs.width, 480);
+  assert.ok(setImageCaption(noted, 0, "甲 乙") === null);
+  assert.ok(setImageCaption(noted, 2, "丙") === null);
+
+  const rendered = pagesSchema.nodes.image.spec.toDOM?.(noted.doc.child(0)) as [string, Record<string, string>, [string, Record<string, string>], [string, Record<string, string>, string]];
+  assert.equal(rendered[0], "figure");
+  assert.equal(rendered[1]["data-pages-image"], "1");
+  assert.equal(rendered[2][0], "img");
+  assert.equal(rendered[2][1].style, "width: 480px");
+  assert.equal(rendered[3][0], "figcaption");
+  assert.equal(rendered[3][2], "甲 乙");
+
+  const rule = pagesSchema.nodes.image.spec.parseDOM?.find((item) => item.tag === "figure[data-pages-image]");
+  const parsed = rule?.getAttrs?.({
+    querySelector(selector: string) {
+      if (selector === "img") {
+        return {
+          getAttribute(name: string) {
+            if (name === "src") return png;
+            if (name === "alt") return "封面";
+            if (name === "data-pages-width") return "480";
+            return null;
+          },
+        };
+      }
+      if (selector === "figcaption") return { textContent: "  甲\n乙  " };
+      return null;
+    },
+  } as unknown as HTMLElement) as { caption: string; width: number; src: string };
+  assert.equal(parsed.caption, "甲 乙");
+  assert.equal(parsed.width, 480);
+  assert.equal(parsed.src, png);
 });
 
 test("表格列宽只收像素，同一列的表头和正文一起变", () => {
@@ -2777,6 +3989,332 @@ test("Esc 把光标提成整块选中，再按不重复选", () => {
   assert.equal(run(picked.state, selectEnclosingBlock).ok, false);
 });
 
+test("Esc 和 Mod-A 先选当前块，再选包着它的容器", () => {
+  const text = (value: string) => pagesSchema.node("paragraph", null, [pagesSchema.text(value)]);
+  const callout = pagesSchema.node("doc", null, [
+    pagesSchema.node("callout", { tone: "info" }, [text("甲"), text("乙")]),
+  ]);
+  const inCallout = pagesState(callout).apply(pagesState(callout).tr.setSelection(TextSelection.create(callout, 2)));
+  const calloutLine = run(inCallout, selectEnclosingBlock);
+  assert.equal((calloutLine.state.selection as NodeSelection).node.textContent, "甲");
+  const calloutBox = run(calloutLine.state, selectEnclosingBlock);
+  assert.equal((calloutBox.state.selection as NodeSelection).node.type.name, "callout");
+  assert.equal((calloutBox.state.selection as NodeSelection).node.textContent, "甲乙");
+  assert.equal(run(calloutBox.state, selectEnclosingBlock).ok, false);
+
+  const widened = run(inCallout, selectBlockThenAll);
+  assert.equal(widened.state.doc.textBetween(widened.state.selection.from, widened.state.selection.to), "甲");
+  const boxed = run(widened.state, selectBlockThenAll);
+  assert.equal((boxed.state.selection as NodeSelection).node.type.name, "callout");
+  const page = run(boxed.state, selectBlockThenAll);
+  assert.equal(page.state.selection.from, 0);
+  assert.equal(page.state.selection.to, callout.content.size);
+
+  const list = pagesSchema.node("doc", null, [pagesSchema.node("bullet_list", null, [
+    pagesSchema.node("list_item", null, [text("甲")]),
+    pagesSchema.node("list_item", null, [text("乙")]),
+  ])]);
+  const inItem = pagesState(list).apply(pagesState(list).tr.setSelection(TextSelection.create(list, 3)));
+  const item = run(inItem, selectEnclosingBlock);
+  assert.equal((item.state.selection as NodeSelection).node.type.name, "list_item");
+  assert.equal((item.state.selection as NodeSelection).node.textContent, "甲");
+  assert.equal(run(item.state, selectEnclosingBlock).ok, false);
+
+  const toggle = pagesSchema.node("doc", null, [pagesSchema.node("toggle", { open: true }, [
+    text("标题"),
+    text("里面"),
+  ])]);
+  const inSummary = pagesState(toggle).apply(pagesState(toggle).tr.setSelection(TextSelection.create(toggle, 2)));
+  const summary = run(inSummary, selectEnclosingBlock);
+  assert.equal((summary.state.selection as NodeSelection).node.type.name, "toggle");
+  const inBody = pagesState(toggle).apply(pagesState(toggle).tr.setSelection(TextSelection.create(toggle, 6)));
+  const body = run(inBody, selectEnclosingBlock);
+  assert.equal((body.state.selection as NodeSelection).node.textContent, "里面");
+  assert.equal((run(body.state, selectEnclosingBlock).state.selection as NodeSelection).node.type.name, "toggle");
+});
+
+test("选中整块后打字换成这一段，退格删掉这一块", () => {
+  const heading = pagesSchema.node("heading", { level: 1 }, [
+    pagesSchema.text("标题", [pagesSchema.marks.strong.create()]),
+  ]);
+  const rest = pagesSchema.node("paragraph", null, [pagesSchema.text("乙")]);
+  const doc = pagesSchema.node("doc", null, [heading, rest]);
+  const selected = EditorState.create({ schema: pagesSchema, doc, selection: NodeSelection.create(doc, 0) });
+  const typed = selected.apply(replaceSelectedBlock(selected, "甲")!);
+  assert.equal(typed.doc.child(0).type.name, "paragraph");
+  assert.equal(typed.doc.child(0).textContent, "甲");
+  assert.equal(typed.doc.child(0).firstChild?.marks.length, 0);
+  assert.equal(typed.doc.child(1).textContent, "乙");
+  assert.equal(typed.selection.$from.parentOffset, 1);
+
+  const caret = EditorState.create({ schema: pagesSchema, doc, selection: TextSelection.create(doc, 2) });
+  assert.ok(replaceSelectedBlock(caret, "甲") === null);
+  assert.ok(deleteSelectedBlock(caret) === null);
+
+  const only = EditorState.create({
+    schema: pagesSchema,
+    doc: pagesSchema.node("doc", null, [heading]),
+    selection: NodeSelection.create(pagesSchema.node("doc", null, [heading]), 0),
+  });
+  const blank = only.apply(deleteSelectedBlock(only)!);
+  assert.equal(blank.doc.childCount, 1);
+  assert.equal(blank.doc.child(0).type.name, "paragraph");
+  assert.equal(blank.doc.child(0).textContent, "");
+
+  const secondAt = doc.child(0).nodeSize;
+  const onSecond = EditorState.create({ schema: pagesSchema, doc, selection: NodeSelection.create(doc, secondAt) });
+  const removed = onSecond.apply(deleteSelectedBlock(onSecond)!);
+  assert.equal(removed.doc.childCount, 1);
+  assert.equal(removed.doc.child(0).textContent, "标题");
+  assert.equal(removed.selection.$from.parent.textContent, "标题");
+
+  const image = pagesSchema.node("image", { src: "https://cdn.example/a.png", alt: "图" });
+  const withImage = pagesSchema.node("doc", null, [image]);
+  const onImage = EditorState.create({ schema: pagesSchema, doc: withImage, selection: NodeSelection.create(withImage, 0) });
+  const replaced = onImage.apply(replaceSelectedBlock(onImage, "图")!);
+  assert.equal(replaced.doc.child(0).type.name, "paragraph");
+  assert.equal(replaced.doc.child(0).textContent, "图");
+});
+
+test("多块选中后打字收成一段，旁边的块不动", () => {
+  const strong = pagesSchema.marks.strong.create();
+  const doc = pagesSchema.node("doc", null, [
+    pagesSchema.node("paragraph", null, [pagesSchema.text("甲", [strong])]),
+    pagesSchema.node("paragraph", null, [pagesSchema.text("乙")]),
+    pagesSchema.node("paragraph", null, [pagesSchema.text("丙")]),
+    pagesSchema.node("paragraph", null, [pagesSchema.text("丁")]),
+  ]);
+  const at = (text: string) => {
+    const found = dragRows(doc).find((entry) => doc.nodeAt(entry.pos)?.textContent === text);
+    assert.ok(found, text);
+    return found.pos;
+  };
+  const state = EditorState.create({ schema: pagesSchema, doc });
+  const typed = state.apply(replaceSpan(state, at("甲"), at("丙"), "戊")!);
+  assert.deepEqual(typed.doc.content.content.map((node) => node.textContent), ["戊", "丁"]);
+  assert.equal(typed.doc.child(0).firstChild?.marks.length, 0);
+  assert.equal(typed.selection.$from.parentOffset, 1);
+  const reversed = state.apply(replaceSpan(state, at("丙"), at("甲"), "戊")!);
+  assert.deepEqual(reversed.doc.content.content.map((node) => node.textContent), ["戊", "丁"]);
+  assert.ok(replaceSpan(state, at("乙"), at("乙"), "戊") === null);
+});
+
+test("选中整块后方向键换块，回车在下面开一段", () => {
+  const para = (text: string) => pagesSchema.node("paragraph", null, [pagesSchema.text(text)]);
+  const doc = pagesSchema.node("doc", null, [para("甲"), para("乙"), para("丙")]);
+  const onSecond = EditorState.create({ schema: pagesSchema, doc, selection: NodeSelection.create(doc, doc.child(0).nodeSize) });
+  const down = onSecond.apply(moveSelectedBlock(onSecond, 1)!);
+  assert.equal((down.selection as NodeSelection).node.textContent, "丙");
+  const up = onSecond.apply(moveSelectedBlock(onSecond, -1)!);
+  assert.equal((up.selection as NodeSelection).node.textContent, "甲");
+  const onFirst = EditorState.create({ schema: pagesSchema, doc, selection: NodeSelection.create(doc, 0) });
+  const stayed = onFirst.apply(moveSelectedBlock(onFirst, -1)!);
+  assert.equal((stayed.selection as NodeSelection).node.textContent, "甲");
+  assert.equal(stayed.doc.textContent, "甲乙丙");
+
+  const into = onSecond.apply(collapseSelectedBlock(onSecond, "start")!);
+  assert.equal(into.selection.$from.parent.textContent, "乙");
+  assert.equal(into.selection.$from.parentOffset, 0);
+  const out = onSecond.apply(collapseSelectedBlock(onSecond, "end")!);
+  assert.equal(out.selection.$from.parentOffset, 1);
+
+  const opened = onSecond.apply(insertAfterSelectedBlock(onSecond)!);
+  assert.equal(opened.doc.childCount, 4);
+  assert.equal(opened.doc.child(1).textContent, "乙");
+  assert.equal(opened.doc.child(2).textContent, "");
+  assert.equal(opened.doc.child(3).textContent, "丙");
+  assert.equal(opened.selection.$from.parent.textContent, "");
+
+  const caret = EditorState.create({ schema: pagesSchema, doc, selection: TextSelection.create(doc, 2) });
+  assert.ok(moveSelectedBlock(caret, 1) === null);
+  assert.ok(collapseSelectedBlock(caret, "start") === null);
+  assert.ok(insertAfterSelectedBlock(caret) === null);
+
+  const list = pagesSchema.node("bullet_list", null, [
+    pagesSchema.node("list_item", null, [para("甲")]),
+  ]);
+  const listed = pagesSchema.node("doc", null, [list]);
+  const onList = EditorState.create({ schema: pagesSchema, doc: listed, selection: NodeSelection.create(listed, 0) });
+  const listStart = onList.apply(collapseSelectedBlock(onList, "start")!);
+  assert.equal(listStart.selection.$from.parent.textContent, "甲");
+  assert.equal(listStart.selection.$from.parentOffset, 0);
+
+  const image = pagesSchema.node("image", { src: "https://cdn.example/a.png", alt: "图" });
+  const around = pagesSchema.node("doc", null, [para("甲"), image, para("乙")]);
+  const imageAt = around.child(0).nodeSize;
+  const onImage = EditorState.create({ schema: pagesSchema, doc: around, selection: NodeSelection.create(around, imageAt) });
+  const before = onImage.apply(collapseSelectedBlock(onImage, "start")!);
+  assert.equal(before.selection.$from.parent.textContent, "甲");
+  assert.equal(before.selection.$from.parentOffset, 1);
+  const after = onImage.apply(collapseSelectedBlock(onImage, "end")!);
+  assert.equal(after.selection.$from.parent.textContent, "乙");
+  assert.equal(after.selection.$from.parentOffset, 0);
+});
+
+test("选中几块再按回车，空段落开在最后一块下面", () => {
+  const para = (text: string) => pagesSchema.node("paragraph", null, [pagesSchema.text(text)]);
+  const doc = pagesSchema.node("doc", null, [para("甲"), para("乙"), para("丙")]);
+  const first = doc.child(0).nodeSize;
+  const state = EditorState.create({ schema: pagesSchema, doc });
+  const opened = state.apply(insertAfterSpan(state, 0, first)!);
+  assert.equal(opened.doc.childCount, 4);
+  assert.deepEqual(opened.doc.content.content.map((node) => node.textContent), ["甲", "乙", "", "丙"]);
+  assert.equal(opened.selection.$from.parent.textContent, "");
+  assert.ok(insertAfterSpan(state, 0, 0) === null);
+
+  const callout = pagesSchema.node("doc", null, [
+    pagesSchema.node("callout", { tone: "info" }, [para("甲"), para("乙")]),
+    para("丙"),
+  ]);
+  let paraA = -1;
+  let paraB = -1;
+  callout.descendants((node, pos) => {
+    if (node.type.name === "paragraph" && node.textContent === "甲") paraA = pos;
+    if (node.type.name === "paragraph" && node.textContent === "乙") paraB = pos;
+  });
+  const inside = EditorState.create({ schema: pagesSchema, doc: callout });
+  const nested = inside.apply(insertAfterSpan(inside, paraA, paraB)!);
+  assert.equal(nested.doc.child(0).type.name, "callout");
+  assert.equal(nested.doc.child(0).attrs.tone, "info");
+  assert.equal(nested.doc.child(0).childCount, 3);
+  assert.equal(nested.doc.child(0).child(2).textContent, "");
+  assert.equal(nested.doc.child(1).textContent, "丙");
+
+  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
+  const enter = editor.indexOf("Enter: chainCommands(");
+  const selected = editor.indexOf("insertAfterSelectedBlock(state)", enter);
+  assert.ok(editor.indexOf("insertAfterSpan(state, group.anchor, group.head)", enter) > enter);
+  assert.ok(selected > editor.indexOf("insertAfterSpan(state, group.anchor, group.head)", enter));
+});
+
+test("选中几块再按 Shift 回车，在最后一块末尾换行", () => {
+  const para = (text: string) => pagesSchema.node("paragraph", null, [pagesSchema.text(text)]);
+  const doc = pagesSchema.node("doc", null, [para("甲"), para("乙"), para("丙")]);
+  const first = doc.child(0).nodeSize;
+  const state = EditorState.create({ schema: pagesSchema, doc });
+  const broken = state.apply(hardBreakAtSpanEnd(state, 0, first)!);
+  assert.equal(broken.doc.childCount, 3);
+  assert.equal(broken.doc.child(0).textContent, "甲");
+  assert.equal(broken.doc.child(1).textContent, "乙");
+  assert.equal(broken.doc.child(1).lastChild?.type.name, "hard_break");
+  assert.equal(broken.doc.child(2).textContent, "丙");
+  assert.equal(broken.selection.$from.parent.textContent, "乙");
+  assert.ok(hardBreakAtSpanEnd(state, 0, 0) === null);
+
+  const code = pagesSchema.node("code_block", { language: "typescript" }, [pagesSchema.text("甲")]);
+  const coded = pagesSchema.node("doc", null, [para("上"), code]);
+  const codeState = EditorState.create({ schema: pagesSchema, doc: coded });
+  const withLine = codeState.apply(hardBreakAtSpanEnd(codeState, 0, coded.child(0).nodeSize)!);
+  assert.equal(withLine.doc.child(1).type.name, "code_block");
+  assert.equal(withLine.doc.child(1).textContent, "甲\n");
+  assert.equal(withLine.doc.child(1).attrs.language, "typescript");
+
+  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
+  assert.match(editor, /hardBreakAtSpanEnd\(state, group\.anchor, group\.head\)/);
+  assert.ok(editor.indexOf("return insertHardBreak(state, dispatch)") > editor.indexOf("hardBreakAtSpanEnd(state, group.anchor, group.head)"));
+});
+
+test("选中几块再粘贴，换成贴进来的块", () => {
+  const para = (text: string) => pagesSchema.node("paragraph", null, [pagesSchema.text(text)]);
+  const doc = pagesSchema.node("doc", null, [para("甲"), para("乙"), para("丙")]);
+  const first = doc.child(0).nodeSize;
+  const state = EditorState.create({ schema: pagesSchema, doc });
+  const heading = pagesSchema.node("heading", { level: 2 }, [pagesSchema.text("标题")]);
+  const replaced = state.apply(replaceSpanWithNodes(state, 0, first, [heading, para("正文")])!);
+  assert.equal(replaced.doc.child(0).type.name, "heading");
+  assert.equal(replaced.doc.child(0).attrs.level, 2);
+  assert.equal(replaced.doc.child(0).textContent, "标题");
+  assert.equal(replaced.doc.child(1).textContent, "正文");
+  assert.equal(replaced.doc.child(2).textContent, "丙");
+  assert.ok(replaceSpanWithNodes(state, 0, 0, [para("甲")]) === null);
+
+  const callout = pagesSchema.node("doc", null, [
+    pagesSchema.node("callout", { tone: "info" }, [para("甲")]),
+    para("乙"),
+  ]);
+  let inside = -1;
+  let outside = -1;
+  callout.descendants((node, pos) => {
+    if (node.type.name === "paragraph" && node.textContent === "甲") inside = pos;
+    if (node.type.name === "paragraph" && node.textContent === "乙") outside = pos;
+  });
+  assert.ok(replaceSpanWithNodes(EditorState.create({ schema: pagesSchema, doc: callout }), inside, outside, [para("丁")]) === null);
+
+  const structured = nodesForSpanPaste("# 标题\n正文", false);
+  assert.equal(structured?.[0].type.name, "heading");
+  assert.equal(structured?.[0].textContent, "标题");
+  assert.equal(structured?.[1].textContent, "正文");
+  const literal = nodesForSpanPaste("# 标题", true);
+  assert.equal(literal?.[0].type.name, "paragraph");
+  assert.equal(literal?.[0].textContent, "# 标题");
+  assert.equal(nodesForSpanPaste("", false), null);
+
+  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
+  const paste = editor.indexOf("handlePaste(current, event)");
+  const markdown = editor.indexOf("pasteMarkdown(current.state, text)", paste);
+  assert.ok(editor.indexOf("replaceSpanWithNodes(current.state, group.anchor, group.head, nodes)", paste) > paste);
+  assert.ok(markdown > editor.indexOf("replaceSpanWithNodes(current.state, group.anchor, group.head, nodes)", paste));
+});
+
+test("网页粘贴留下加粗和链接，脚本和危险地址丢掉", () => {
+  assert.equal(markdownLooksStructured("## 标题"), true);
+  assert.equal(markdownLooksStructured("普通的一句话"), false);
+  const leaf = (tag: string, children: Array<{ tag: string; href?: string; children: Array<string | { tag: string; children: string[] }> } | string>, href?: string) => ({ tag, href, children });
+  const blocks = blocksFromPaste([
+    leaf("h2", ["标题"]),
+    leaf("p", ["甲", { tag: "strong", children: [{ tag: "em", children: ["乙"] }] }, "丙"]),
+    leaf("p", [{ tag: "a", href: "https://molis.ai/docs", children: ["文档"] }, { tag: "a", href: "javascript:alert(1)", children: ["点"] }]),
+    leaf("ul", [{ tag: "li", children: ["一行"] }]),
+    { tag: "script", children: ["alert(1)"] },
+  ])!;
+  assert.equal(blocks.length, 4);
+  assert.equal(blocks[0].type.name, "heading");
+  assert.equal(blocks[0].attrs.level, 2);
+  assert.equal(blocks[1].textContent, "甲乙丙");
+  const marked = blocks[1].child(1);
+  assert.equal(marked.text, "乙");
+  assert.ok(marked.marks.some((mark) => mark.type.name === "strong"));
+  assert.ok(marked.marks.some((mark) => mark.type.name === "em"));
+  assert.equal(blocks[2].textContent, "文档点");
+  assert.equal(blocks[2].child(0).marks[0]?.attrs.href, "https://molis.ai/docs");
+  assert.equal(blocks[2].child(1).marks.length, 0);
+  assert.equal(blocks[3].type.name, "bullet_list");
+  assert.equal(blocks[3].textContent, "一行");
+  assert.ok(blocksFromPaste([{ tag: "script", children: ["alert(1)"] }]) === null);
+
+  const table = blocksFromPaste([{
+    tag: "table",
+    children: [{
+      tag: "tr",
+      children: [{ tag: "th", children: ["甲"] }, { tag: "th", children: ["乙"] }],
+    }, {
+      tag: "tr",
+      children: [{ tag: "td", children: ["1"] }, { tag: "td", children: ["2"] }],
+    }],
+  }])!;
+  assert.equal(table[0].type.name, "table");
+  assert.equal(table[0].child(0).child(0).type.name, "table_header");
+  assert.equal(table[0].textContent, "甲乙12");
+
+  const empty = EditorState.create({
+    schema: pagesSchema,
+    doc: pagesSchema.node("doc", null, [pagesSchema.node("paragraph")]),
+  });
+  const placed = empty.apply(pasteHtml(empty, [leaf("p", [{ tag: "strong", children: ["甲"] }])])!);
+  assert.equal(placed.doc.child(0).textContent, "甲");
+  assert.equal(placed.doc.child(0).firstChild?.marks[0]?.type.name, "strong");
+
+  const sentence = pagesSchema.node("doc", null, [pagesSchema.node("paragraph", null, [pagesSchema.text("甲乙")])]);
+  const selected = EditorState.create({ schema: pagesSchema, doc: sentence, selection: TextSelection.create(sentence, 2, 3) });
+  const swapped = selected.apply(pasteHtml(selected, [leaf("p", [{ tag: "strong", children: ["丙"] }])])!);
+  assert.equal(swapped.doc.textContent, "甲丙");
+  assert.equal(swapped.doc.child(0).child(1).marks[0]?.type.name, "strong");
+
+  const code = pagesSchema.node("doc", null, [pagesSchema.node("code_block", null, [pagesSchema.text("x")])]);
+  const inCode = EditorState.create({ schema: pagesSchema, doc: code, selection: TextSelection.create(code, 1) });
+  assert.ok(pasteHtml(inCode, [leaf("p", ["甲"])]) === null);
+});
+
 test("链接命令：加链、改链、移除，脏地址等于移除", () => {
   const doc = pagesSchema.node("doc", null, [pagesSchema.node("paragraph", null, [pagesSchema.text("看这里")])]);
   const state = pagesState(doc);
@@ -2952,6 +4490,313 @@ test("Tab 嵌套对待办列表同样生效，Shift-Tab 能原路退回", () => 
   assert.equal(run(plain, indentListItem).ok, false, "段落不该被 Tab 缩进");
 });
 
+test("Tab 把这一块收进上一块，Shift+Tab 再提出来", () => {
+  const para = (text: string, strong = false) => pagesSchema.node("paragraph", null, [
+    pagesSchema.text(text, strong ? [pagesSchema.marks.strong.create()] : []),
+  ]);
+  const caretIn = (doc: Node, text: string) => {
+    let at = 1;
+    doc.descendants((node, pos) => {
+      if (node.isText && node.text === text) at = pos;
+    });
+    return EditorState.create({ schema: pagesSchema, doc, selection: TextSelection.create(doc, at) });
+  };
+  const start = caretIn(pagesSchema.node("doc", null, [para("甲"), para("乙", true)]), "乙");
+  const nested = indentUnderPrevious(start);
+  assert.ok(nested);
+  const toggle = nested!.doc.child(0);
+  assert.equal(toggle.type.name, "toggle");
+  assert.equal(toggle.attrs.open, true);
+  assert.equal(toggle.child(0).textContent, "甲");
+  assert.equal(toggle.child(1).textContent, "乙");
+  assert.equal(toggle.child(1).firstChild?.marks[0]?.type.name, "strong");
+  assert.equal(nested!.selection.$from.parent.textContent, "乙");
+
+  const lifted = outdentFromContainer(start.apply(nested!));
+  assert.ok(lifted);
+  assert.equal(lifted!.doc.childCount, 2);
+  assert.equal(lifted!.doc.child(0).type.name, "toggle");
+  assert.equal(lifted!.doc.child(0).textContent, "甲");
+  assert.equal(lifted!.doc.child(1).textContent, "乙");
+  assert.equal(lifted!.doc.child(1).firstChild?.marks[0]?.type.name, "strong");
+  const titled = EditorState.create({
+    schema: pagesSchema,
+    doc: lifted!.doc,
+    selection: TextSelection.create(lifted!.doc, 2),
+  });
+  const plain = outdentFromContainer(titled);
+  assert.ok(plain);
+  assert.deepEqual(plain!.doc.content.content.map((node) => node.type.name), ["paragraph", "paragraph"]);
+  assert.deepEqual(plain!.doc.content.content.map((node) => node.textContent), ["甲", "乙"]);
+
+  const closed = pagesSchema.node("doc", null, [
+    pagesSchema.node("toggle", { open: false }, [para("甲")]),
+    para("乙"),
+  ]);
+  const opened = indentUnderPrevious(caretIn(closed, "乙"));
+  assert.ok(opened);
+  assert.equal(opened!.doc.child(0).attrs.open, true);
+  assert.deepEqual(opened!.doc.child(0).content.content.map((node) => node.textContent), ["甲", "乙"]);
+
+  const callout = pagesSchema.node("doc", null, [
+    pagesSchema.node("callout", { tone: "orange", icon: "star" }, [para("甲")]),
+    para("乙"),
+  ]);
+  const into = indentUnderPrevious(caretIn(callout, "乙"));
+  assert.ok(into);
+  assert.equal(into!.doc.child(0).type.name, "callout");
+  assert.equal(into!.doc.child(0).attrs.tone, "orange");
+  assert.equal(into!.doc.child(0).attrs.icon, "star");
+  assert.deepEqual(into!.doc.child(0).content.content.map((node) => node.textContent), ["甲", "乙"]);
+
+  const inside = pagesSchema.node("doc", null, [
+    pagesSchema.node("callout", { tone: "orange", icon: "star" }, [para("甲"), para("乙")]),
+  ]);
+  const deeper = indentUnderPrevious(caretIn(inside, "乙"));
+  assert.ok(deeper);
+  assert.equal(deeper!.doc.child(0).attrs.tone, "orange");
+  assert.equal(deeper!.doc.child(0).child(0).type.name, "toggle");
+  assert.equal(deeper!.doc.child(0).child(0).child(1).textContent, "乙");
+
+  const three = pagesSchema.node("doc", null, [para("甲"), para("乙"), para("丙")]);
+  const second = three.child(0).nodeSize;
+  const third = second + three.child(1).nodeSize;
+  const group = indentUnderPrevious(caretIn(three, "甲"), second, third);
+  assert.ok(group);
+  assert.equal(group!.doc.child(0).type.name, "toggle");
+  assert.deepEqual(group!.doc.child(0).content.content.map((node) => node.textContent), ["甲", "乙", "丙"]);
+
+  assert.equal(indentUnderPrevious(caretIn(pagesSchema.node("doc", null, [para("甲")]), "甲")), null);
+  const heading = pagesSchema.node("doc", null, [
+    pagesSchema.node("heading", { level: 1 }, [pagesSchema.text("甲")]),
+    para("乙"),
+  ]);
+  assert.equal(indentUnderPrevious(caretIn(heading, "乙")), null);
+  const titleKept = pagesSchema.node("doc", null, [
+    pagesSchema.node("toggle", { open: true }, [para("甲"), para("乙")]),
+  ]);
+  assert.equal(outdentFromContainer(caretIn(titleKept, "甲")), null);
+
+  const only = pagesSchema.node("doc", null, [
+    pagesSchema.node("callout", { tone: "orange", icon: "star" }, [para("乙")]),
+  ]);
+  const unwrapped = outdentFromContainer(caretIn(only, "乙"));
+  assert.ok(unwrapped);
+  assert.equal(unwrapped!.doc.child(0).type.name, "paragraph");
+  assert.equal(unwrapped!.doc.child(0).textContent, "乙");
+});
+
+test("选中相邻几条再按 Tab，会一起嵌到上一条下面", () => {
+  const item = (text: string, checked = false) => pagesSchema.node("task_item", { checked }, [
+    pagesSchema.node("paragraph", null, [pagesSchema.text(text)]),
+  ]);
+  const doc = pagesSchema.node("doc", null, [
+    pagesSchema.node("task_list", null, [item("甲", true), item("乙", false), item("丙", true)]),
+  ]);
+  let yi = -1;
+  let bingEnd = -1;
+  doc.descendants((node, pos) => {
+    if (node.isText && node.text === "乙") yi = pos;
+    if (node.isText && node.text === "丙") bingEnd = pos + node.nodeSize;
+  });
+  const selected = EditorState.create({ schema: pagesSchema, doc, selection: TextSelection.create(doc, yi, bingEnd) });
+  const nested = run(selected, indentListItem);
+  assert.equal(nested.ok, true);
+  const root = nested.state.doc.child(0);
+  assert.equal(root.childCount, 1);
+  assert.equal(root.child(0).child(0).textContent, "甲");
+  assert.equal(root.child(0).child(1).type.name, "task_list");
+  assert.equal(root.child(0).child(1).textContent, "乙丙");
+  assert.equal(root.child(0).child(1).child(0).attrs.checked, false);
+  assert.equal(root.child(0).child(1).child(1).attrs.checked, true);
+
+  let nestedYi = -1;
+  let nestedBing = -1;
+  nested.state.doc.descendants((node, pos) => {
+    if (node.isText && node.text === "乙") nestedYi = pos;
+    if (node.isText && node.text === "丙") nestedBing = pos + node.nodeSize;
+  });
+  const inside = EditorState.create({
+    schema: pagesSchema,
+    doc: nested.state.doc,
+    selection: TextSelection.create(nested.state.doc, nestedYi, nestedBing),
+  });
+  const lifted = run(inside, outdentListItem);
+  assert.equal(lifted.ok, true);
+  assert.equal(lifted.state.doc.child(0).childCount, 3);
+  assert.deepEqual(
+    [0, 1, 2].map((index) => lifted.state.doc.child(0).child(index).textContent),
+    ["甲", "乙", "丙"],
+  );
+  assert.equal(lifted.state.doc.child(0).child(2).attrs.checked, true);
+
+  let jia = -1;
+  doc.descendants((node, pos) => {
+    if (node.isText && node.text === "甲") jia = pos;
+  });
+  const head = EditorState.create({ schema: pagesSchema, doc, selection: TextSelection.create(doc, jia, yi + 1) });
+  const stayed = run(head, indentListItem);
+  assert.equal(stayed.ok, true);
+  assert.equal(stayed.state.doc.child(0).childCount, 3);
+  assert.equal(stayed.state.doc.textContent, "甲乙丙");
+});
+
+test("选中连续几段再设标题或列表，会一起变", () => {
+  const strong = pagesSchema.marks.strong.create();
+  const doc = pagesSchema.node("doc", null, [
+    pagesSchema.node("paragraph", null, [pagesSchema.text("甲", [strong])]),
+    pagesSchema.node("paragraph", null, [pagesSchema.text("乙")]),
+    pagesSchema.node("paragraph", null, [pagesSchema.text("丙")]),
+  ]);
+  let jia = -1;
+  let yiEnd = -1;
+  doc.descendants((node, pos) => {
+    if (node.isText && node.text === "甲") jia = pos;
+    if (node.isText && node.text === "乙") yiEnd = pos + node.nodeSize;
+  });
+  const selected = EditorState.create({ schema: pagesSchema, doc, selection: TextSelection.create(doc, jia, yiEnd) });
+  const headed = selected.apply(applyHeading(selected, 2)!);
+  assert.equal(headed.doc.child(0).type.name, "heading");
+  assert.equal(headed.doc.child(0).attrs.level, 2);
+  assert.equal(headed.doc.child(1).type.name, "heading");
+  assert.equal(headed.doc.child(1).attrs.level, 2);
+  assert.equal(headed.doc.child(2).type.name, "paragraph");
+  assert.equal(headed.doc.child(2).textContent, "丙");
+  assert.equal(headed.doc.child(0).firstChild?.marks[0]?.type.name, "strong");
+
+  let headJia = -1;
+  let headYi = -1;
+  headed.doc.descendants((node, pos) => {
+    if (node.isText && node.text === "甲") headJia = pos;
+    if (node.isText && node.text === "乙") headYi = pos + node.nodeSize;
+  });
+  const again = EditorState.create({ schema: pagesSchema, doc: headed.doc, selection: TextSelection.create(headed.doc, headJia, headYi) });
+  const back = again.apply(applyHeading(again, 2)!);
+  assert.equal(back.doc.child(0).type.name, "paragraph");
+  assert.equal(back.doc.child(1).type.name, "paragraph");
+  assert.equal(back.doc.textContent, "甲乙丙");
+
+  const listed = selected.apply(applyListSelection(selected, "bullet_list")!);
+  assert.equal(listed.doc.child(0).type.name, "bullet_list");
+  assert.equal(listed.doc.child(0).textContent, "甲乙");
+  assert.equal(listed.doc.child(1).textContent, "丙");
+  assert.equal(listed.doc.child(0).child(0).firstChild?.firstChild?.marks[0]?.type.name, "strong");
+
+  let listJia = -1;
+  let listYi = -1;
+  listed.doc.descendants((node, pos) => {
+    if (node.isText && node.text === "甲") listJia = pos;
+    if (node.isText && node.text === "乙") listYi = pos + node.nodeSize;
+  });
+  const inList = EditorState.create({ schema: pagesSchema, doc: listed.doc, selection: TextSelection.create(listed.doc, listJia, listYi) });
+  const lifted = inList.apply(applyListSelection(inList, "bullet_list")!);
+  assert.equal(lifted.doc.child(0).type.name, "paragraph");
+  assert.equal(lifted.doc.child(1).type.name, "paragraph");
+  assert.equal(lifted.doc.child(2).textContent, "丙");
+  assert.ok(applyHeading(EditorState.create({ schema: pagesSchema, doc }), 1) === null);
+});
+
+test("选中连续几段再转换成引用或代码，会收成一块", () => {
+  const strong = pagesSchema.marks.strong.create();
+  const doc = pagesSchema.node("doc", null, [
+    pagesSchema.node("paragraph", null, [pagesSchema.text("甲", [strong])]),
+    pagesSchema.node("paragraph", null, [pagesSchema.text("乙")]),
+    pagesSchema.node("paragraph", null, [pagesSchema.text("丙")]),
+  ]);
+  let jia = -1;
+  let yiEnd = -1;
+  doc.descendants((node, pos) => {
+    if (node.isText && node.text === "甲") jia = pos;
+    if (node.isText && node.text === "乙") yiEnd = pos + node.nodeSize;
+  });
+  const selected = EditorState.create({ schema: pagesSchema, doc, selection: TextSelection.create(doc, jia, yiEnd) });
+  const quoted = selected.apply(applyTurn(selected, "blockquote")!);
+  assert.equal(quoted.doc.childCount, 2);
+  assert.equal(quoted.doc.child(0).type.name, "blockquote");
+  assert.equal(quoted.doc.child(0).textContent, "甲乙");
+  assert.equal(quoted.doc.child(0).child(0).firstChild?.marks[0]?.type.name, "strong");
+  assert.equal(quoted.doc.child(1).textContent, "丙");
+
+  const coded = selected.apply(applyTurn(selected, "code_block")!);
+  assert.equal(coded.doc.child(0).type.name, "code_block");
+  assert.equal(coded.doc.child(0).textContent, "甲\n乙");
+  assert.equal(coded.doc.child(1).textContent, "丙");
+
+  const folded = selected.apply(applyTurn(selected, "toggle")!);
+  assert.equal(folded.doc.child(0).type.name, "toggle");
+  assert.equal(folded.doc.child(0).attrs.open, true);
+  assert.equal(folded.doc.child(0).textContent, "甲乙");
+
+  const caret = EditorState.create({ schema: pagesSchema, doc });
+  assert.ok(applyTurn(caret, "blockquote") === null);
+  const table = pagesSchema.node("doc", null, [
+    pagesSchema.node("paragraph", null, [pagesSchema.text("甲")]),
+    pagesSchema.node("table", null, [
+      pagesSchema.node("table_row", null, [
+        pagesSchema.node("table_cell", null, [pagesSchema.node("paragraph", null, [pagesSchema.text("乙")])]),
+      ]),
+    ]),
+  ]);
+  let tableJia = -1;
+  let tableYi = -1;
+  table.descendants((node, pos) => {
+    if (node.isText && node.text === "甲") tableJia = pos;
+    if (node.isText && node.text === "乙") tableYi = pos + node.nodeSize;
+  });
+  const mixed = EditorState.create({ schema: pagesSchema, doc: table, selection: TextSelection.create(table, tableJia, tableYi) });
+  assert.ok(applyTurn(mixed, "blockquote") === null);
+});
+
+test("格式条只在整段都是同一级标题时亮起", () => {
+  const heading = (level: number, value: string) => pagesSchema.nodes.heading.create({ level }, [pagesSchema.text(value)]);
+  const para = (value: string) => pagesSchema.node("paragraph", null, [pagesSchema.text(value)]);
+  const doc = pagesSchema.node("doc", null, [heading(2, "甲"), heading(2, "乙"), para("丙")]);
+  let jia = -1;
+  let yiEnd = -1;
+  let bing = -1;
+  doc.descendants((node, pos) => {
+    if (!node.isText) return;
+    if (node.text === "甲") jia = pos;
+    if (node.text === "乙") yiEnd = pos + node.nodeSize;
+    if (node.text === "丙") bing = pos;
+  });
+  const inHeading = EditorState.create({ schema: pagesSchema, doc, selection: TextSelection.create(doc, jia) });
+  assert.equal(headingLevelAt(inHeading), 2);
+  const both = EditorState.create({ schema: pagesSchema, doc, selection: TextSelection.create(doc, jia, yiEnd) });
+  assert.equal(headingLevelAt(both), 2);
+  const mixed = EditorState.create({ schema: pagesSchema, doc, selection: TextSelection.create(doc, jia, bing + 1) });
+  assert.equal(headingLevelAt(mixed), null);
+  const plain = EditorState.create({ schema: pagesSchema, doc, selection: TextSelection.create(doc, bing) });
+  assert.equal(headingLevelAt(plain), null);
+});
+
+test("格式条只在整段都是同一种列表时亮起", () => {
+  const item = (text: string) => pagesSchema.node("list_item", null, [
+    pagesSchema.node("paragraph", null, [pagesSchema.text(text)]),
+  ]);
+  const doc = pagesSchema.node("doc", null, [
+    pagesSchema.node("bullet_list", null, [item("甲"), item("乙")]),
+    pagesSchema.node("paragraph", null, [pagesSchema.text("丙")]),
+  ]);
+  let jia = -1;
+  let yiEnd = -1;
+  let bing = -1;
+  doc.descendants((node, pos) => {
+    if (!node.isText) return;
+    if (node.text === "甲") jia = pos;
+    if (node.text === "乙") yiEnd = pos + node.nodeSize;
+    if (node.text === "丙") bing = pos;
+  });
+  const caret = EditorState.create({ schema: pagesSchema, doc, selection: TextSelection.create(doc, jia) });
+  assert.equal(listKindAt(caret), "bullet_list");
+  const both = EditorState.create({ schema: pagesSchema, doc, selection: TextSelection.create(doc, jia, yiEnd) });
+  assert.equal(listKindAt(both), "bullet_list");
+  const mixed = EditorState.create({ schema: pagesSchema, doc, selection: TextSelection.create(doc, jia, bing + 1) });
+  assert.equal(listKindAt(mixed), null);
+  const plain = EditorState.create({ schema: pagesSchema, doc, selection: TextSelection.create(doc, bing) });
+  assert.equal(listKindAt(plain), null);
+});
+
 test("Callout 的图标和颜色各自独立，四个旧色调渲染不变", () => {
   // The four tones every existing document and template was written with.
   const legacy: Array<[string, string, string]> = [
@@ -3057,7 +4902,7 @@ test("占位按块型和它的容器给词，写了字就不再提示", () => {
   const cases: Array<[string, ReturnType<typeof pagesSchema.node>, string]> = [
     ["顶层空段落", empty("paragraph"), "输入 / 插入块，或直接写"],
     ["空 H1", empty("heading", { level: 1 }), "标题 1"],
-    ["空 H3", empty("heading", { level: 3 }), "标题 3"],
+    ["空代码", empty("code_block"), "写代码"],
     ["列表项", pagesSchema.node("bullet_list", null, [wrap("list_item")]), "列表项"],
     ["待办项", pagesSchema.node("task_list", null, [wrap("task_item", empty("paragraph"), { checked: false })]), "待办事项"],
     ["Callout", wrap("callout", empty("paragraph"), { tone: "info" }), "想强调的话"],
@@ -3139,6 +4984,83 @@ test("文字颜色与背景色：同色再点是取消，换色是替换，选�
   const caret = run(base.apply(base.tr.setSelection(TextSelection.create(doc, 2))), setTone("font_color", "green"));
   assert.equal(caret.state.storedMarks?.[0]?.attrs.tone, "green");
   assert.equal(toneAt(caret.state, "font_color"), "green");
+});
+
+test("选区里只有一部分有颜色时，再点这个颜色会铺满", () => {
+  const red = pagesSchema.marks.font_color.create({ tone: "red" });
+  const doc = pagesSchema.node("doc", null, [pagesSchema.node("paragraph", null, [
+    pagesSchema.text("甲", [red]),
+    pagesSchema.text("乙"),
+  ])]);
+  const all = EditorState.create({ schema: pagesSchema, doc, selection: TextSelection.create(doc, 1, 3) });
+  assert.equal(toneCovers(doc, 1, 3, "font_color", "red"), false);
+  const filled = run(all, setTone("font_color", "red"));
+  assert.equal(filled.ok, true);
+  assert.equal(filled.state.doc.textContent, "甲乙");
+  assert.equal(filled.state.doc.child(0).childCount, 1);
+  assert.equal(filled.state.doc.child(0).firstChild?.marks[0]?.attrs.tone, "red");
+
+  const covered = EditorState.create({
+    schema: pagesSchema,
+    doc: filled.state.doc,
+    selection: TextSelection.create(filled.state.doc, 1, 3),
+  });
+  assert.equal(toneCovers(covered.doc, 1, 3, "font_color", "red"), true);
+  const cleared = run(covered, setTone("font_color", "red"));
+  assert.equal(cleared.state.doc.child(0).textContent, "甲乙");
+  assert.equal(cleared.state.doc.child(0).firstChild?.marks.length, 0);
+});
+
+test("选区里只有一部分加粗时，再按加粗会铺满", () => {
+  const strong = pagesSchema.marks.strong.create();
+  const doc = pagesSchema.node("doc", null, [pagesSchema.node("paragraph", null, [
+    pagesSchema.text("甲", [strong]),
+    pagesSchema.text("乙"),
+  ])]);
+  const all = EditorState.create({ schema: pagesSchema, doc, selection: TextSelection.create(doc, 1, 3) });
+  const filled = run(all, toggleInlineMark("strong"));
+  assert.equal(filled.ok, true);
+  assert.equal(filled.state.doc.textContent, "甲乙");
+  assert.equal(filled.state.doc.child(0).childCount, 1);
+  assert.equal(filled.state.doc.child(0).firstChild?.marks[0]?.type.name, "strong");
+
+  const covered = EditorState.create({
+    schema: pagesSchema,
+    doc: filled.state.doc,
+    selection: TextSelection.create(filled.state.doc, 1, 3),
+  });
+  const cleared = run(covered, toggleInlineMark("strong"));
+  assert.equal(cleared.state.doc.child(0).textContent, "甲乙");
+  assert.equal(cleared.state.doc.child(0).firstChild?.marks.length, 0);
+
+  const code = pagesSchema.node("doc", null, [pagesSchema.node("code_block", null, [pagesSchema.text("甲")])]);
+  const inCode = EditorState.create({ schema: pagesSchema, doc: code, selection: TextSelection.create(code, 1) });
+  assert.ok(toggleInlineMark("strong")(inCode, undefined) === false);
+
+  const italic = pagesSchema.node("doc", null, [pagesSchema.node("paragraph", null, [
+    pagesSchema.text("甲", [pagesSchema.marks.em.create()]),
+    pagesSchema.text("乙"),
+  ])]);
+  const slant = EditorState.create({ schema: pagesSchema, doc: italic, selection: TextSelection.create(italic, 1, 3) });
+  const both = run(slant, toggleInlineMark("em"));
+  assert.equal(both.state.doc.child(0).firstChild?.marks[0]?.type.name, "em");
+  assert.equal(both.state.doc.textContent, "甲乙");
+});
+
+test("格式条只在整段都有这个样式时亮起", () => {
+  const strong = pagesSchema.marks.strong.create();
+  const doc = pagesSchema.node("doc", null, [pagesSchema.node("paragraph", null, [
+    pagesSchema.text("甲", [strong]),
+    pagesSchema.text("乙"),
+  ])]);
+  assert.equal(markCovers(doc, 1, 2, "strong"), true);
+  assert.equal(markCovers(doc, 1, 3, "strong"), false);
+  assert.equal(markCovers(doc, 2, 3, "strong"), false);
+  const both = pagesSchema.node("doc", null, [pagesSchema.node("paragraph", null, [
+    pagesSchema.text("甲乙", [strong]),
+  ])]);
+  assert.equal(markCovers(both, 1, 3, "strong"), true);
+  assert.equal(markCovers(both, 1, 1, "strong"), false);
 });
 
 test("块菜单上色铺满整块，代码块不接 mark 也不会炸", () => {

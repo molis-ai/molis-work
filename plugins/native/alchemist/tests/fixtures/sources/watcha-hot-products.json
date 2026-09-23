@@ -1,0 +1,23 @@
+{
+  "statusCode": 200,
+  "data": {
+    "items": [
+      {
+        "id": 2685,
+        "name": "未言",
+        "slug": "wei-yan",
+        "slogan": "读懂照片氛围，生成社交文案与诗意海报。",
+        "categories": [{ "id": 1, "name": "通用助手" }, { "id": 3, "name": "图像生成" }],
+        "stats": {
+          "upvotes": 3,
+          "stars": 3,
+          "review_count": 4,
+          "hot_score": 0.0051,
+          "update_at": "2026-07-31T04:32:43.925Z"
+        },
+        "create_at": "2026-07-25T02:26:37.198Z",
+        "update_at": "2026-07-29T08:32:22.150Z"
+      }
+    ]
+  }
+}

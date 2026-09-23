@@ -61,6 +61,13 @@ export function createDiffPlugin(ports: DiffPluginPorts = {}): PluginDefinition 
               return { status: 200, body: { view: compareRunChangeSet({ content: parseCodingChangeSet(record.payload), source_plugin_id: record.producer_plugin_id, content_version: record.version }) } };
             } catch { return { status: 400, body: { error: "Coding 固定变更当前不可读，请保留原会话后重试" } }; }
           }
+          if (inputs?.selectedGroup() === "git-change-set") {
+            try {
+              const record = inputs.read("git_changeset");
+              if (!record || record.availability !== "available" || record.lifecycle_state !== "active") return { status: 200, body: { view: emptyDiff("git-change-set") } };
+              return { status: 200, body: { view: compareChangeSet({ content: record.payload, source_plugin_id: record.producer_plugin_id, content_version: record.version }) } };
+            } catch { return { status: 400, body: { error: "Git 固定变更当前不可读，请重新选择原变更" } }; }
+          }
           if (inputs?.selectedGroup() !== "snapshots") return { status: 200, body: { view: emptyDiff("snapshots", "请选择两份文件快照进行对比") } };
           const records = [inputs.read("before"), inputs.read("after")];
           const snapshots = records.filter(record => record?.availability === "available").map(record => ({

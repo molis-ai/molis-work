@@ -1,10 +1,13 @@
 /** Reads through declared plugin routes; no Git process or approval lives in the browser. */
 export const GIT_CLIENT_FACTORY_SCRIPT = `(host) => {
-  const directory=document.querySelector('[data-git-browser]'),result=document.querySelector('[data-git-results]');
+  const scope=host.root || document;
+  const directory=scope.querySelector('[data-git-browser]'),result=scope.querySelector('[data-git-results]');
   if(!directory || !result)return null;
   const q=selector=>result.querySelector(selector),list=directory.querySelector('[data-git-list]'),notice=directory.querySelector('[data-git-status]'),reopen=directory.querySelector('[data-git-reopen]'),history=directory.querySelector('[data-git-history]');
+  const refreshButton=directory.querySelector('[data-git-refresh]');let opener=null;
   let workspace='',generation=0,ticket=0,selected=null,displayed=null,preparing=false;
   const action=q('[data-git-index-action]'),reviews=q('[data-git-reviews]');
+  const reveal=(source)=>{opener=source;host.openResult();result.hidden=false;result.classList.add('is-arriving');result.setAttribute('aria-busy','false');q('[data-git-close]').focus({preventScroll:true});};
   const showReviews=()=>host.showReviews?.(reviews,[],null,workspace);
   let resultRows=[],resultsTicket=0,resultSaving=false;
   const resultPanel=q('[data-git-saved-results]'),resultChoice=q('[data-git-result-choice]'),resultSave=q('[data-git-result-save]'),resultStatus=q('[data-git-result-status]');
@@ -49,17 +52,19 @@ export const GIT_CLIENT_FACTORY_SCRIPT = `(host) => {
     title(item);q('[data-git-diff]').innerHTML=value.html || '';q('[data-git-notice]').textContent='读取时的固定差异 · v'+item.reference.version+'；磁盘或暂存区后续变化不会改写本次预览。';
     resultPanel.hidden=true;displayed=item;action.hidden=false;action.textContent=item.side==='index'?'取消暂存…':'暂存此版本…';await showReviews();
   }
-  async function open(path,side){
-    const serial=++ticket,epoch=generation,id=workspace;displayed=null;action.hidden=true;host.openResult();result.hidden=false;q('[data-git-title]').textContent=path.join('/');q('[data-git-scope]').textContent='';q('[data-git-diff]').replaceChildren();q('[data-git-notice]').textContent='正在读取差异…';
+  async function open(path,side,button){
+    opener=button || opener;list.querySelectorAll('[data-git-path]').forEach(row=>row.classList.toggle('is-selected',row.dataset.gitPath===JSON.stringify([path,side])));
+    const serial=++ticket,epoch=generation,id=workspace;displayed=null;action.hidden=true;reveal(button || opener);result.setAttribute('aria-busy','true');q('[data-git-title]').textContent=path.join('/');q('[data-git-scope]').textContent='';q('[data-git-diff]').replaceChildren();q('[data-git-notice]').textContent='正在读取差异…';
     try{
       const value=await request('/diff','POST',{workspace_id:id,path,side});
       if(serial!==ticket || epoch!==generation)return;
       if(value.result.outcome!=='diff'){q('[data-git-notice]').textContent=value.result.message;return;}
       selected=value.selected;reopen.hidden=false;await fixed(selected,serial,epoch);
     }catch(error){if(serial===ticket && epoch===generation)q('[data-git-notice]').textContent=error.message;}
+    finally{if(serial===ticket && epoch===generation)result.setAttribute('aria-busy','false');}
   }
   async function refresh(){
-    const epoch=++generation;ticket++;notice.textContent='正在读取 Git…';list.replaceChildren();reopen.hidden=true;history.disabled=true;
+    const epoch=++generation;ticket++;result.setAttribute('aria-busy','false');refreshButton.disabled=true;refreshButton.toggleAttribute('data-loading',true);refreshButton.querySelector('.mw-spinner').hidden=false;list.setAttribute('aria-busy','true');notice.textContent='正在读取 Git…';list.replaceChildren();reopen.hidden=true;history.disabled=true;
     try{
       const value=await request('/state');if(epoch!==generation)return;
       if(workspace!==value.workspace.workspace_id){resultsTicket++;resultRows=[];resultChoice.replaceChildren();renderResult();if(workspace && !result.hidden){result.hidden=true;host.closeResult();}}
@@ -68,12 +73,13 @@ export const GIT_CLIENT_FACTORY_SCRIPT = `(host) => {
       const view=value.view;notice.textContent=view.phase==='ready'?[view.head,view.tracking,view.message].filter(Boolean).join(' · '):view.message;
       for(const [label,items,side] of [['冲突',view.conflicts,'worktree'],['已暂存',view.staged,'index'],['未暂存',view.changes,'worktree']]){
         if(!items.length)continue;
-        const group=document.createElement('section'),heading=document.createElement('h4');heading.textContent=label;group.append(heading);
-        for(const item of items){const button=document.createElement('button');button.type='button';button.className='mw-btn mw-btn--ghost';button.textContent=item.label;button.title=label+' · '+item.label;button.setAttribute('aria-label',label+'：'+item.label);button.addEventListener('click',()=>void open(item.path,side));group.append(button);}
+        const group=document.createElement('section'),heading=document.createElement('h4');heading.textContent=label+' · '+items.length;group.append(heading);
+        for(const item of items){const button=document.createElement('button');button.type='button';button.className='mw-dir-row mw-dir-row--compact';button.dataset.gitPath=JSON.stringify([item.path,side]);button.classList.toggle('is-selected',Boolean(displayed && displayed.side===side && JSON.stringify(displayed.path)===JSON.stringify(item.path)));const copy=document.createElement('span');copy.className='mw-dir-row__copy';const headline=document.createElement('span');headline.className='mw-dir-row__headline';const name=document.createElement('strong');name.textContent=item.label;headline.append(name);copy.append(headline);button.append(copy);button.title=label+' · '+item.label;button.setAttribute('aria-label',label+'：'+item.label);button.addEventListener('click',()=>void open(item.path,side,button));group.append(button);}
         list.append(group);
       }
       history.disabled=false;
     }catch(error){if(epoch===generation){workspace='';selected=null;resultsTicket++;resultRows=[];resultChoice.replaceChildren();renderResult();history.disabled=true;notice.textContent=error.message;if(!result.hidden){q('[data-git-diff]').replaceChildren();q('[data-git-notice]').textContent=error.message;}}}
+    finally{if(epoch===generation){refreshButton.disabled=false;refreshButton.removeAttribute('data-loading');refreshButton.querySelector('.mw-spinner').hidden=true;list.setAttribute('aria-busy','false');}}
   }
   async function afterDecision(outcome){
     if(!outcome.workspaceId || outcome.workspaceId!==workspace)return;
@@ -90,7 +96,7 @@ export const GIT_CLIENT_FACTORY_SCRIPT = `(host) => {
     q('[data-git-notice]').textContent=message+' 再次操作请从左侧重新打开当前差异。';
     await refresh();if(!resultPanel.hidden)await loadResults();
   }
-  directory.querySelector('[data-git-refresh]').addEventListener('click',()=>void refresh());
+  directory.querySelector('[data-git-refresh]').addEventListener('click',()=>void (host.refreshWorkspace ? host.refreshWorkspace() : refresh()));
   action.addEventListener('click',async()=>{
     if(!displayed || preparing)return;
     const item=displayed,epoch=generation;preparing=true;action.disabled=true;q('[data-git-notice]').textContent='正在准备固定版本审查，暂存区尚未更新…';
@@ -101,8 +107,8 @@ export const GIT_CLIENT_FACTORY_SCRIPT = `(host) => {
     }catch(error){if(epoch===generation)q('[data-git-notice]').textContent=error.message;}
     finally{preparing=false;action.disabled=false;}
   });
-  history.addEventListener('click',async()=>{if(!workspace || history.disabled)return;ticket++;displayed=null;action.hidden=true;host.openResult();result.hidden=false;q('[data-git-title]').textContent='Git 操作记录';q('[data-git-scope]').textContent='当前工作区的宿主审查与执行结果';q('[data-git-diff]').replaceChildren();q('[data-git-notice]').textContent='';resultPanel.hidden=false;await showReviews();await loadResults();});
-  reopen.addEventListener('click',async()=>{if(!selected)return;host.openResult();result.hidden=false;const serial=++ticket,epoch=generation;try{await fixed(selected,serial,epoch);}catch(error){if(serial===ticket && epoch===generation)q('[data-git-notice]').textContent=error.message;}});
-  q('[data-git-close]').addEventListener('click',()=>{ticket++;result.hidden=true;host.closeResult();});
+  history.addEventListener('click',async()=>{if(!workspace || history.disabled)return;ticket++;displayed=null;action.hidden=true;reveal(history);q('[data-git-title]').textContent='Git 操作记录';q('[data-git-scope]').textContent='当前工作区的宿主审查与执行结果';q('[data-git-diff]').replaceChildren();q('[data-git-notice]').textContent='';resultPanel.hidden=false;await showReviews();await loadResults();});
+  reopen.addEventListener('click',async()=>{if(!selected)return;reveal(reopen);const serial=++ticket,epoch=generation;try{await fixed(selected,serial,epoch);}catch(error){if(serial===ticket && epoch===generation)q('[data-git-notice]').textContent=error.message;}});
+  q('[data-git-close]').addEventListener('click',()=>{ticket++;result.setAttribute('aria-busy','false');result.hidden=true;result.classList.remove('is-arriving');host.closeResult();if(opener?.isConnected)opener.focus({preventScroll:true});else (list.querySelector('.is-selected') || refreshButton).focus({preventScroll:true});});
   return {refresh,afterDecision,show(face){directory.hidden=face!=='files';if(face!=='files'){ticket++;result.hidden=true;}else void refresh();}};
 }`;

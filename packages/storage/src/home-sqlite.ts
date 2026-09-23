@@ -11,6 +11,8 @@ export const PERSONAL_HOME_SQLITE_STORES = [
   "ppt",
   "lingguang",
   "jelly",
+  "cognia",
+  "alchemist",
   "functions",
 ] as const;
 

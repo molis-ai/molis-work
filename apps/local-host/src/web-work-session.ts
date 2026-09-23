@@ -5,6 +5,7 @@ import type { MolisWorkWebView, WebProjectNavigation } from "@molis-ai/molis-wor
 import { normalizeRuntimeWorkContext } from "./project-catalog.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import type { SessionRuntimeResources, createSessionProjectOperations } from "./web-session.js";
+import { pickLocalDirectory } from "./directory-picker.js";
 import { sendLocalWebJson as sendJson, readLocalWebBody as readBody } from "./web-http.js";
 
 export function createLocalWorkSessionHttp(withMolisWorkProjectCatalog: LocalWebCatalogRunner, sessionProjectOperationsData: ReturnType<typeof createSessionProjectOperations>) {
@@ -66,6 +67,7 @@ export function createLocalWorkSessionHttp(withMolisWorkProjectCatalog: LocalWeb
         exists: (workspacePath) => fs.existsSync(workspacePath),
         isDirectory: (workspacePath) => fs.statSync(workspacePath).isDirectory(),
       },
+      pickDirectory: () => pickLocalDirectory(),
     });
   };
 }

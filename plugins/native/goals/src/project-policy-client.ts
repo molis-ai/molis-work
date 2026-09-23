@@ -53,11 +53,6 @@ export const PROJECT_RULES_CLIENT_SCRIPT = `
       event.preventDefault();
       if (saving) return;
       const values = new FormData(form);
-      const reason = String(values.get("reason") || "").trim();
-      if (!reason) {
-        fail(form.elements.reason, L("请说明为什么要调整项目默认规则。"));
-        return;
-      }
       const crossReviewers = Number(values.get("cross_reviewers"));
       const adversarialReviewers = Number(values.get("adversarial_reviewers"));
       const leaseSeconds = Number(values.get("max_lease_seconds"));
@@ -92,7 +87,6 @@ export const PROJECT_RULES_CLIENT_SCRIPT = `
             user_confirmed: true,
             idempotency_key: saveKey || (saveKey = crypto.randomUUID()),
             scope: "project_default",
-            reason,
             policy: {
               goal_mode: values.get("goal_mode"),
               self_verification: values.has("self_verification"),

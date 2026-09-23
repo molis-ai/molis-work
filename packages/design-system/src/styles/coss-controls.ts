@@ -199,7 +199,7 @@ export const COSS_CONTROL_STYLES = `
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+    *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: 0s !important; transition-delay: 0s !important; scroll-behavior: auto !important; }
   }
 
   /* Task configuration has one active path and a stable dialog shell. */
@@ -228,7 +228,8 @@ export const COSS_CONTROL_STYLES = `
   .feed-source-choice small { color: var(--faint); font-size: 12px; line-height: 1; white-space: nowrap; }
   .feed-task-dialog label { display: grid; gap: 7px; margin: 18px 0; font-size: 13px; }
   body[data-desktop-shell="true"] .feed-task-dialog label > span { font-size: 13px; font-weight: 400; color: var(--ink-soft); }
-  body[data-desktop-shell="true"] .feed-task-dialog :is(input:not([type=checkbox]),select,textarea) { width: 100%; min-width: 0; min-height: 38px; padding: 9px 11px; font: inherit; font-size: 14px; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: 6px; }
+  body[data-desktop-shell="true"] .feed-task-dialog :is(input:not([type=checkbox]),select,textarea,.mw-select-picker__trigger) { width: 100%; min-width: 0; min-height: 38px; padding: 9px 11px; font: inherit; font-size: 14px; color: var(--ink); background-color: var(--paper); border: 1px solid var(--control-input); border-radius: var(--radius-control); }
+  body[data-desktop-shell="true"] .feed-task-dialog .mw-select-picker__trigger { padding-right: 28px; }
   .feed-task-dialog label small, .feed-setup-hint { color: var(--muted); font-size: 12px; line-height: 1.6; }
   .feed-task-extra { border-top: 1px solid var(--line); margin-top: 20px; padding-top: 16px; }
   .feed-task-extra summary, .form-disclosure summary { cursor: pointer; color: var(--ink-soft); font-size: 13px; font-weight: 400; padding: 8px 0; }
@@ -295,6 +296,7 @@ export const COSS_CONTROL_STYLES = `
   :is(.form-actions, .event-form-actions, .feed-reader-footer, .project-operation-dialog) { --control-h: 36px; }
   @media (max-width: 760px) { :is(.form-actions, .event-form-actions, .feed-reader-footer, .project-operation-dialog, .project-operation-surface-empty) { --control-h: 44px; } }
   @media (max-width: 760px), (pointer: coarse) {
+    body[data-desktop-shell="true"] .feed-task-dialog :is(input:not([type=checkbox]),select,textarea,.mw-select-picker__trigger) { min-height: 44px; font-size: 16px; }
     :is(.frame-picker, .frame-goal-actions, .frame-empty) { --control-h: 44px; }
     .frame-goal-actions button, .frame-empty button, .frame-picker > header button { min-height: 44px; }
     .frame-picker > header button { min-width: 44px; }

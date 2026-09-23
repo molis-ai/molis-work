@@ -1,4 +1,4 @@
-import { Fragment, Node } from "prosemirror-model";
+import { Fragment, Node, Slice } from "prosemirror-model";
 import { EditorState, NodeSelection, TextSelection } from "prosemirror-state";
 import { safePagesLanguage } from "./code-language.js";
 import { bookmarkLabel, imageAlt, safePagesHref, safePagesImageSrc } from "./link.js";
@@ -10,8 +10,10 @@ const DIVIDER = /^(?:---|\*\*\*|___)$/u;
 const HEADING = /^(#{1,3})\s+(\S.*)$/u;
 const BULLET = /^[-*]\s+(\S.*)$/u;
 const ORDERED = /^\d+\.\s+(\S.*)$/u;
-const TASK = /^\[( ?|x|X)\]\s+(\S.*)$/u;
+const TASK = /^(?:[-*]\s+)?\[( ?|x|X)\]\s+(\S.*)$/u;
 const QUOTE = /^>(?:$|\s(.*))$/u;
+const IMAGE_LINE = /^!\[([^\]]*)\]\(([^)\s]+)\)$/u;
+const LINK_LINE = /^\[([^\]]+)\]\(([^)\s]+)\)$/u;
 const TABLE_ROW = /^\|(.+)\|$/u;
 const TABLE_SEP_CELL = /^:?-{3,}:?$/u;
 const INLINE = /(\*\*[^*]+\*\*|\*[^*]+\*|~~[^~]+~~|`[^`]+`|\[[^\]]+\]\([^)\s]+\))/gu;
@@ -94,6 +96,8 @@ function isStructural(line: string): boolean {
     || ORDERED.test(trimmed)
     || TASK.test(trimmed)
     || QUOTE.test(trimmed)
+    || IMAGE_LINE.test(trimmed)
+    || LINK_LINE.test(trimmed)
     || isTableRow(trimmed);
 }
 
@@ -167,6 +171,10 @@ export function blocksFromMarkdown(text: string): Node[] | null {
       if (items.length) blocks.push(wrap(items));
       return items.length > 0;
     };
+    if (take(TASK, (line) => {
+      const found = TASK.exec(line);
+      return found ? listItem(found[2], found[1].toLowerCase() === "x") : null;
+    }, (items) => pagesSchema.nodes.task_list.create(null, items))) continue;
     if (take(BULLET, (line) => {
       const found = BULLET.exec(line);
       return found ? listItem(found[1]) : null;
@@ -175,14 +183,51 @@ export function blocksFromMarkdown(text: string): Node[] | null {
       const found = ORDERED.exec(line);
       return found ? listItem(found[1]) : null;
     }, (items) => pagesSchema.nodes.ordered_list.create(null, items))) continue;
-    if (take(TASK, (line) => {
-      const found = TASK.exec(line);
-      return found ? listItem(found[2], found[1].toLowerCase() === "x") : null;
-    }, (items) => pagesSchema.nodes.task_list.create(null, items))) continue;
+    const image = IMAGE_LINE.exec(trimmed);
+    if (image) {
+      const src = safePagesImageSrc(image[2]);
+      if (src) {
+        blocks.push(pagesSchema.nodes.image.create({ src, alt: image[1] || imageAlt(src) }));
+        index += 1;
+        continue;
+      }
+    }
+    const linked = LINK_LINE.exec(trimmed);
+    if (linked) {
+      const href = safePagesHref(linked[2]);
+      if (href) {
+        blocks.push(pagesSchema.nodes.bookmark.create({ href, title: linked[1] }));
+        index += 1;
+        continue;
+      }
+    }
     blocks.push(paragraph(trimmed));
     index += 1;
   }
   return blocks.length ? blocks : null;
+}
+
+/** Blocks that should replace a multi-block selection. Plain text stays paragraphs, one per line. */
+export function nodesForSpanPaste(text: string, plain: boolean): Node[] | null {
+  if (!plain) {
+    const structured = blocksFromMarkdown(text);
+    if (structured) return structured;
+  }
+  const normalized = text.replace(/\r\n/gu, "\n");
+  if (!normalized) return null;
+  return normalized.split("\n").map((line) => (
+    line ? pagesSchema.nodes.paragraph.create(null, pagesSchema.text(line)) : pagesSchema.nodes.paragraph.create()
+  ));
+}
+
+/** True when plain text is already a heading, list, quote, table, fence, or divider. */
+export function markdownLooksStructured(text: string): boolean {
+  return text.replaceAll("\r\n", "\n").split("\n").some((line) => {
+    const trimmed = line.trim();
+    return HEADING.test(trimmed) || BULLET.test(trimmed) || ORDERED.test(trimmed) || TASK.test(trimmed)
+      || QUOTE.test(trimmed) || DIVIDER.test(trimmed) || FENCE_OPEN.test(trimmed) || IMAGE_LINE.test(trimmed)
+      || LINK_LINE.test(trimmed) || isTableRow(trimmed);
+  });
 }
 
 /** Replace the empty paragraph under the cursor. A non-empty line, or a parent that cannot hold the blocks, keeps the default paste. */
@@ -234,4 +279,21 @@ export function pasteUrl(state: EditorState, raw: string) {
   }
   const tr = state.tr.replaceWith(from, from, pagesSchema.text(href, [mark]));
   return tr.setSelection(TextSelection.create(tr.doc, from + href.length));
+}
+
+/** Paste the words only. Markdown and web formatting stay as characters. The first line keeps the style at the caret. */
+export function pastePlain(state: EditorState, raw: string) {
+  const text = raw.replace(/\r\n?/gu, "\n");
+  if (!text) return null;
+  const { from, to, $from, $to } = state.selection;
+  if (!$from.sameParent($to) || !$from.parent.isTextblock) return null;
+  if ($from.parent.type.spec.code) return state.tr.insertText(text, from, to);
+  const lines = text.split("\n");
+  const marks = $from.marks().filter((mark) => mark.type.name !== "link" && mark.type.name !== "comment");
+  const blocks = lines.map((line, index) => pagesSchema.nodes.paragraph.create(
+    null,
+    line ? pagesSchema.text(line, index === 0 ? marks : []) : null,
+  ));
+  const tr = state.tr.replaceSelection(new Slice(Fragment.from(blocks), 1, 1));
+  return tr.setStoredMarks(marks);
 }

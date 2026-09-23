@@ -4,7 +4,7 @@ import { CHARACTERS_UI_CONTRIBUTION_ID } from "./ui.js";
 
 export const CHARACTERS_PROJECT_PLUGIN_ID = "characters";
 export const charactersManifest: PluginManifest = {
-  schema_version: 2, host_api_version: 2, plugin_id: CHARACTER_PLUGIN_ID, version: "1.0.0", name: "Characters", kind: "app",
+  schema_version: 2, host_api_version: 2, plugin_id: CHARACTER_PLUGIN_ID, version: "1.2.0", name: "Characters", kind: "app",
   publisher: { publisher_id: "molis", signature: CHARACTER_PUBLISHER_SIGNATURE },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
@@ -14,6 +14,14 @@ export const charactersManifest: PluginManifest = {
   capabilities: { provides: [], consumes: [] },
   artifacts: { produces: [{ artifact_type_id: CHARACTER_ARTIFACT_TYPE, schema_version: 1 }], consumes: [{ artifact_type_id: CHARACTER_ARTIFACT_TYPE, schema_version: 1 }] },
   routes: [
+    { route_id: "characters.discover", method: "POST", path: "/imports/discover" },
+    { route_id: "characters.import", method: "POST", path: "/imports" },
+    { route_id: "characters.import-file", method: "POST", path: "/imports/file" },
+    { route_id: "characters.draft-file", method: "POST", path: "/drafts/:id/file" },
+    { route_id: "characters.publication-file", method: "POST", path: "/publication/file" },
+    { route_id: "characters.execution", method: "POST", path: "/execution" },
+    { route_id: "characters.launch", method: "POST", path: "/execution/native" },
+    { route_id: "characters.runs", method: "GET", path: "/drafts/:id/runs" },
     { route_id: "characters.list", method: "GET", path: "/drafts" },
     { route_id: "characters.create", method: "POST", path: "/drafts" },
     { route_id: "characters.update", method: "PUT", path: "/drafts/:id" },

@@ -1,0 +1,633 @@
+{
+  "verifiedAt": "2026-09-22T19:00:40.705Z",
+  "environment": "isolated local home; real host model configuration; production Prologue and source ports",
+  "model": "Minimax · MiniMax-M3",
+  "modelPolicy": "fixed",
+  "directions": [
+    {
+      "id": "direction_44cf42a1-33a0-4bb0-882b-ca24bfe28e3b",
+      "title": "从一个具体交付物反推最小产品"
+    },
+    {
+      "id": "direction_929f2288-bfaa-4b21-b808-adc13183d728",
+      "title": "给独立开发者做一个访谈原句与产品假设对照工具。导入访谈文…"
+    }
+  ],
+  "explorations": [
+    {
+      "id": "exploration_a7eedbaf-57b2-47d9-b545-f87856a59464",
+      "status": "completed",
+      "runtimeLabel": "Prologue · Minimax · MiniMax-M3",
+      "cards": []
+    },
+    {
+      "id": "exploration_d79025af-6d7f-4da5-9535-8277744e8410",
+      "status": "completed",
+      "runtimeLabel": "Prologue · Minimax · MiniMax-M3",
+      "cards": [
+        {
+          "id": "card_fff7ae83-1565-4e6c-94a5-cc3c80ffc1f8",
+          "title": "假设证据墙（Evidence Wall）",
+          "status": "kept"
+        },
+        {
+          "id": "card_1b194d18-7362-4143-ad46-2a294c54a3e7",
+          "title": "追问树（Question Tree）",
+          "status": "candidate"
+        },
+        {
+          "id": "card_a8707560-79d1-4648-a146-5813df24271d",
+          "title": "访谈时刻线（Interview Timeline）",
+          "status": "candidate"
+        }
+      ]
+    }
+  ],
+  "idea": {
+    "id": "idea_47a977a0-d767-41a7-9f07-aadd037ba50a",
+    "title": "假设证据墙（Evidence Wall）"
+  },
+  "research": {
+    "ideaId": "idea_47a977a0-d767-41a7-9f07-aadd037ba50a",
+    "ideaVersion": 1,
+    "models": [
+      {
+        "id": "custom-fb9964fe-0c70-4067-968a-8b6189e0dde5/MiniMax-M3",
+        "label": "Minimax · MiniMax-M3",
+        "runtimeLabel": "Prologue",
+        "costVisibility": "unobservable"
+      }
+    ],
+    "lenses": {
+      "market_space": {
+        "lens": "market_space",
+        "status": "completed",
+        "plan": {
+          "id": "research_plan_3d70071b-066f-4783-9557-85ab04d35d06",
+          "key": {
+            "ideaId": "idea_47a977a0-d767-41a7-9f07-aadd037ba50a",
+            "ideaVersion": 1,
+            "lens": "market_space"
+          },
+          "scopeSummary": "验证需求强度、付出意愿、竞争压力、切入缝隙与触达时机。",
+          "modelPolicy": "fixed",
+          "modelId": "custom-fb9964fe-0c70-4067-968a-8b6189e0dde5/MiniMax-M3",
+          "runtimeLabel": "Prologue",
+          "estimatedDuration": {
+            "minMinutes": 2,
+            "maxMinutes": 4
+          },
+          "budget": {
+            "kind": "calls",
+            "limit": 3
+          },
+          "appliedPlaybookRuleIds": [
+            "playbook_dfb9af8d-ac98-41b5-9ac8-8385279f06e3"
+          ],
+          "createdAt": "2026-09-22T18:57:33.756Z"
+        },
+        "run": {
+          "id": "lens_run_f51095fa-90ca-47c6-8519-231a3f8f72a7",
+          "planId": "research_plan_3d70071b-066f-4783-9557-85ab04d35d06",
+          "key": {
+            "ideaId": "idea_47a977a0-d767-41a7-9f07-aadd037ba50a",
+            "ideaVersion": 1,
+            "lens": "market_space"
+          },
+          "status": "completed",
+          "stage": "synthesizing",
+          "runtimeLabel": "Prologue",
+          "jobId": "job_ac54b67a-688f-4623-b2a5-e3d1a030e713",
+          "createdAt": "2026-09-22T18:57:36.853Z",
+          "updatedAt": "2026-09-22T18:58:23.795Z"
+        },
+        "report": {
+          "id": "lens_report_38df2c91-b2d9-47cd-931a-cebda4dc78d8",
+          "runId": "lens_run_f51095fa-90ca-47c6-8519-231a3f8f72a7",
+          "revision": 1,
+          "key": {
+            "ideaId": "idea_47a977a0-d767-41a7-9f07-aadd037ba50a",
+            "ideaVersion": 1,
+            "lens": "market_space"
+          },
+          "status": "completed",
+          "runtimeLabel": "Prologue · Minimax · MiniMax-M3",
+          "summary": "Lens 结论（条件性）：「假设证据墙」方向存在一条可识别的差异化缝隙，但需求强度、付出意愿、竞争格局与触达时机四项关键判断均处于 unknown 或仅有一条来源支撑的 tentative 状态，决策不能建立在「用户必然需要」之上。\n\n- 已支持（supported）：无。材料中没有任何一项判断达到 supported 级别。\n- 暂定（tentative）：切入缝隙——「本地优先 + 零 LLM + 可逐字追溯假设-证据映射」相对 Skimle 这类 AI 辅助云端平台呈现方向性差异，且该来源（index 0）明确把价值建立在 AI 分析与云端存储之上，与 MVP 形成互补而非重叠。但缝隙仅由单一来源支持，是否对独立开发者具备感知价值未被验证。\n- 有争议/未决（disputed 倾向但证据不足）：需求强度、付出意愿、竞争压力、触达与时机四项均为 unknown。理由如下：①独立开发者「几周后无法回溯假设与原句」的痛点仅有方向性间接证据（Skimle 描述的痛点针对的是产品团队/PM 场景），缺少目标用户的访谈原句、行为数据或频次统计；②手动粘贴-标注的摩擦容忍度无任何数据，而 Skimle 强调「让机器系统性承担负担」恰好与 MVP「纯手动」设计形成张力，虽用户群不同不能直接推断，但提示存在方向冲突；③除 Skimle 外是否存在 Obsidian/Logseq 插件、CLI 工具或 Notion/Tana 工作流已覆盖该场景，材料未覆盖；④独立开发者社区的讨论热度、搜索趋势、同类工具发布节奏均无证据。\n- 未知（unknowns 中的关键变量）：独立开发者做完 3–10 次访谈后是否真实出现记忆失效瓶颈；每条假设手动贴 1–2 句原句的耗时接受度；目标用户是否把「数据本地/零 AI」列为 top 3 决策因子；现有轻量工具是否已缓解该痛点。\n\n条件性建议：在补足以下任一证据前，不宜投入完整 MVP 开发：(1) 至少 3 段独立开发者用户访谈原句明确抱怨「假设-证据无法回溯」；(2) 1 次 5 人以上的可用性测试，确认「手动粘贴-标注」流程的预估耗时与放弃率；(3) 对 Obsidian 插件、Logseq 工作流、Notion 模板、GitHub 轻量工具的竞品扫描结论。若(1)(2) 满足且(3) 显示赛道空缺，可将切入缝隙从 tentative 升级为 supported 并启动 MVP；否则应优先用 Notion/Obsidian 模板做 2 周手动验证，再决定是否独立成工具。",
+          "judgments": [
+            {
+              "id": "claim_2cebc199-0e9a-4916-9484-ccf320a0397f",
+              "label": "需求强度",
+              "status": "unknown",
+              "conclusion": "独立开发者在访谈量积累后是否真正感受到「假设-证据无法回溯」的痛点，缺乏直接证据支撑。",
+              "rationale": "所提供材料中仅有一篇 Skimle 的产品介绍（index 0），它讨论的是大规模文本分析、跨项目复用定性研究的痛点，描述对象更接近产品团队/PM 的场景，而非「一周做 1–2 次访谈的独立开发者」。该来源说明「文本太多、时间太少、错过关键规律的风险太大」和「散落在各处等于不存在」与目标用户的痛点在方向上一致，但访谈频次、语料规模、协作需求差异显著，不能直接等价。缺少对独立开发者访谈后回溯痛点的访谈记录、行为数据或访谈频次统计。",
+              "supportingEvidenceIds": [],
+              "counterEvidenceIds": [],
+              "unknowns": [
+                "独立开发者做完 3–10 次访谈后是否真实出现「几周后无法回溯假设与原句」的问题",
+                "目标用户访谈量达到多大时，记忆失效成为真实瓶颈而非假设担忧",
+                "是否曾用 Notion/备忘录/标签等轻量方式缓解该痛点"
+              ],
+              "changeConditions": [
+                "如出现独立开发者用户访谈原句明确抱怨「忘了哪条假设被谁提过」「回溯要翻遍文档」，需求强度上调为 supported",
+                "如发现多数目标用户访谈频次低于每季度 1 次或用其他工具已解决，需求强度下调为 disputed"
+              ]
+            },
+            {
+              "id": "claim_3890b5f2-ffea-4713-aaea-9f21c5c0be24",
+              "label": "付出意愿",
+              "status": "unknown",
+              "conclusion": "目标用户是否愿意在事后花时间手动粘贴原句、标注支持/反对，缺乏直接证据。",
+              "rationale": "材料中没有关于独立开发者对「标注/粘贴动作摩擦」容忍度的数据。Skimle 的材料（index 0）强调的是「AI 辅助」与「让机器系统性承担」，即降低用户负担；这与当前 MVP「不做语义改写、纯手动粘贴-标注」的设计存在张力，但 Skimle 的目标用户不是本假设的目标用户，不能据此推断。付出意愿取决于工具替代方案（Notion 搜索、grep、回顾记忆）与粘贴摩擦的相对成本，材料未覆盖。",
+              "supportingEvidenceIds": [],
+              "counterEvidenceIds": [],
+              "unknowns": [
+                "独立开发者对「每条假设手动贴 1–2 句原句」的预估耗时接受度（5 分钟 vs 20 分钟）",
+                "现有 Notion/Obsidian/Markdown 流程下他们已经做的标注负担",
+                "是否会因为「不依赖 LLM、数据本地」而显著提升付出意愿"
+              ],
+              "changeConditions": [
+                "如有证据表明同类标注工具（如 Dovetail 轻量版、nb snippets）在同类用户群留存稳定，付出意愿上调为 tentative",
+                "如用户访谈显示「访谈后只想尽快关闭项目，不想再加工」，付出意愿下调为 disputed"
+              ]
+            },
+            {
+              "id": "claim_fce84136-7ba2-4897-8944-0ad730d7b21c",
+              "label": "竞争压力",
+              "status": "unknown",
+              "conclusion": "在「独立开发者+本地 Markdown+零 LLM+手动证据墙」这条细分赛道上的直接竞品和替代品强度未知。",
+              "rationale": "材料中仅有 Skimle（index 0）一条竞争参考，但其定位为「AI 辅助的大规模定性分析平台、欧盟 GDPR 存储」，与本 MVP 的「本地、轻量、零 AI、独立开发者用」显著不同，不构成同赛道直接竞争，也不能说明该赛道无竞争。是否存在 Obsidian 插件、VS Code 插件、Logseq 工作流、Snagit/QuoteDB 类轻量工具覆盖类似场景，材料未提供。不得从无关材料推测竞争压力。",
+              "supportingEvidenceIds": [],
+              "counterEvidenceIds": [],
+              "unknowns": [
+                "是否存在 Obsidian/Logseq 插件或 CLI 工具已实现「假设-原句映射」",
+                "Notion AI、Tana、Reflect 等是否已覆盖该工作流",
+                "GitHub 上同类轻量工具的活跃度与维护状态"
+              ],
+              "changeConditions": [
+                "如发现 1 个以上活跃维护的同功能工具，竞争压力上调为 supported",
+                "如确认该细分无任何活跃替代品，竞争压力下调为 tentative 并重评为机会"
+              ]
+            },
+            {
+              "id": "claim_2dcd6d82-48d4-4180-8527-c9a5f6c5b785",
+              "label": "切入缝隙",
+              "status": "tentative",
+              "conclusion": "「本地优先、零 LLM、可追溯假设-证据映射」在现有材料中呈现为一个未被覆盖的差异化角度，但证据单一。",
+              "rationale": "Skimle（index 0）明确把价值建立在「AI 辅助分析」和「欧盟云端存储」上，与本 MVP「零 LLM 依赖、完全本地、可逐字追溯」形成方向性差异——一个是把分析外包给 AI，一个是让用户用自己的眼睛和笔记做最小成本追溯。这是一条可识别的缝隙，因为它避开了 LLM 成本与数据隐私顾虑，同时把竞品的功能面（聚类、摘要）削减到只留存储检索。但仅凭一条来源无法判断该缝隙是否对目标用户具备感知价值。",
+              "supportingEvidenceIds": [
+                "evidence_55b785b3-11d0-46d5-9520-a232cc481889"
+              ],
+              "counterEvidenceIds": [],
+              "unknowns": [
+                "目标用户是否把「数据不出本机」「不调用 LLM」当作购买/使用决策的关键因子",
+                "「逐字原句+来源定位」相对「AI 摘要」是否被独立开发者视为优势还是劣势",
+                "缝隙的可持续性：一旦 Skimle 或同类工具推出本地版是否会被挤压"
+              ],
+              "changeConditions": [
+                "如用户访谈显示「数据本地/零 AI」是 top 3 决策因子，缝隙判断上调为 supported",
+                "如目标用户更看重「AI 自动聚类/标签」而非「手动原句」，缝隙判断下调为 disputed"
+              ]
+            },
+            {
+              "id": "claim_f3f500ff-3337-437a-b3ef-3d2c836f5fc4",
+              "label": "触达与时机",
+              "status": "unknown",
+              "conclusion": "目标用户聚集渠道、当前是否处于主动寻找此类工具的时机窗口，材料未提供证据。",
+              "rationale": "材料没有涉及独立开发者社区（Hacker News、Indie Hackers、X、Reddit r/SoloSaaS、产品独立开发者播客等）的讨论热度、关键词搜索量或同类工具发布节奏。Skimle 的材料（index 0）仅说明其自身定位，不构成触达与时机证据。无法判断现在是否是发布「假设证据墙」类工具的合适窗口。",
+              "supportingEvidenceIds": [],
+              "counterEvidenceIds": [],
+              "unknowns": [
+                "独立开发者社区中「用户访谈整理」相关讨论的近 6 个月热度",
+                "同类工具（Dovetail 个人版、Notion 模板、QuoteDB）的发布与传播节奏",
+                "目标用户当前最常用的痛点表达关键词与本工具定位的匹配度"
+              ],
+              "changeConditions": [
+                "如出现 HN/Indie Hackers 上「访谈回溯」相关讨论周峰值上升，触达时机上调为 tentative",
+                "如发现目标用户当前关注点已迁移到「AI 自动化访谈」或「产品验证」而非「手工整理」，时机下调为 disputed"
+              ]
+            }
+          ],
+          "createdAt": "2026-09-22T18:58:23.795Z"
+        },
+        "evidence": [
+          {
+            "id": "evidence_55b785b3-11d0-46d5-9520-a232cc481889",
+            "sourceId": "skimle.com",
+            "sourceType": "independent_analysis",
+            "title": "把客户信号转化为产品决策",
+            "url": "https://skimle.com/zh/use-cases/product-managers",
+            "excerpt": "无论您要处理 2,000 条 App Store 评价、500 条 NPS 开放式回答，还是 30 场深度客户探索访谈，分析上的难题都一样：文本太多、时间太少、错过关键规律的风险太大。Skimle 系统性地承担这些体量，让您专注于诠释。\n- 大规模分析 App Store 评价、NPS 开放式回答与支持工单\n- 开展 AI 辅助的客户探索访谈，无需受制于排期\n- 把用户访谈、成败复盘通话与相关方座谈的结论综合起来\n- 按用户类型、平台、评分、地区或任意元数据变量切分分析\n- 全程可追溯——每个主题都关联到那句确切的客户原话\n- 符合 GDPR 的欧盟存储，数据不会用于训练 AI 模型\n\n多数产品团队的定性研究都散落在各处——上季度的用户访谈、成败复盘通话、相关方座谈，各在一个文件夹里，对下一个项目而言等于不存在。Skimle 让您把这些全部汇入一个知识库，在完整语料上识别规律，并把组织知识沉淀在组织里，而不是留在某位研究者的脑子里。",
+            "capturedAt": "2026-09-22T18:57:36.993Z",
+            "contentHash": "sha256:d43c572ec0e2fb7cf4f8313a5bbea6db7a7c5136d0790020ad2ccf765e6a7fc2"
+          }
+        ]
+      },
+      "build_cost": {
+        "lens": "build_cost",
+        "status": "completed",
+        "plan": {
+          "id": "research_plan_7f49e7a7-c714-44cd-abec-a541b919a877",
+          "key": {
+            "ideaId": "idea_47a977a0-d767-41a7-9f07-aadd037ba50a",
+            "ideaVersion": 1,
+            "mvpScopeVersion": 1,
+            "lens": "build_cost"
+          },
+          "scopeSummary": "评估 本地 Markdown 或 JSON 文件存储、手动录入假设、从访谈文本手动粘贴原句片段并标注支持/反对、按假设检索原句、单假设详情页展示支持/反对分组 的实现路径、投入与持续负担。",
+          "modelPolicy": "fixed",
+          "modelId": "custom-fb9964fe-0c70-4067-968a-8b6189e0dde5/MiniMax-M3",
+          "runtimeLabel": "Prologue",
+          "estimatedDuration": {
+            "minMinutes": 1,
+            "maxMinutes": 3
+          },
+          "budget": {
+            "kind": "calls",
+            "limit": 3
+          },
+          "appliedPlaybookRuleIds": [],
+          "createdAt": "2026-09-22T18:57:51.326Z"
+        },
+        "run": {
+          "id": "lens_run_2ae6d3ae-87e9-418f-b28c-5ad72ef39413",
+          "planId": "research_plan_7f49e7a7-c714-44cd-abec-a541b919a877",
+          "key": {
+            "ideaId": "idea_47a977a0-d767-41a7-9f07-aadd037ba50a",
+            "ideaVersion": 1,
+            "mvpScopeVersion": 1,
+            "lens": "build_cost"
+          },
+          "status": "completed",
+          "stage": "synthesizing",
+          "runtimeLabel": "Prologue",
+          "jobId": "job_7d2a77cd-9ed6-490a-93cc-586d7f80d5e5",
+          "createdAt": "2026-09-22T18:57:54.526Z",
+          "updatedAt": "2026-09-22T18:58:46.098Z"
+        },
+        "report": {
+          "id": "lens_report_ce4bd43f-ad94-49cc-9049-42ddf4c99422",
+          "runId": "lens_run_2ae6d3ae-87e9-418f-b28c-5ad72ef39413",
+          "revision": 1,
+          "key": {
+            "ideaId": "idea_47a977a0-d767-41a7-9f07-aadd037ba50a",
+            "ideaVersion": 1,
+            "mvpScopeVersion": 1,
+            "lens": "build_cost"
+          },
+          "status": "completed",
+          "runtimeLabel": "Prologue · Minimax · MiniMax-M3",
+          "summary": "已支持：MVP 严格限定在本地 Markdown/JSON 存储、手动录入假设、手动粘贴原句并标注支持/反对、按假设检索、单假设详情页分组展示五项能力，与「不做语义改写、零 LLM 依赖」的核心机制一致。不引入任何机器学习或 LLM 模型，数据仅为用户手动录入的假设条目与访谈原句片段及其来源定位。最便宜验证是一周内用纯前端单页或本地 Markdown+静态站点生成器做出可粘贴假设与原句的原型，找 3–5 名独立开发者在真实访谈复盘场景中观察标注摩擦。\n暂定：MVP 形态更接近纯前端本地工具或本地 CLI+文件，后端工作可为零或仅做本地文件 I/O；持续成本极低，仅本地存储与用户时间成本；运维负担极低，敏感访谈内容不出端，合规风险主要落在用户自身设备安全上。\n未知：MVP 的集成对象与部署形态（桌面应用/CLI/Web 静态站点/编辑器插件）缺乏直接证据；标注摩擦最小可接受度、原句片段颗粒度是否足够、是否需要主题/标签组织或中性/待验证独立类别均待验证。\n有争议/反证：材料中证据[0]为 MinerU 输出格式文档，与本工具的边界划分、模型数据策略、运维合规及验证方式均无直接相关性，不能支持前后端判断、成本判断或验证设计。\n条件：若标注摩擦普遍偏高，需重设计录入流；若回溯检索命中率低，需调整颗粒度或加标签；若用户访谈频次提升或团队多人维护，需引入协作与权限；若需跨设备访问，可能产生同步层与合规再评估；若存储量增长影响检索性能，需引入本地索引而非 LLM。",
+          "judgments": [
+            {
+              "id": "claim_5ec1c249-a88b-4a27-9c3a-13c1ea08c8f2",
+              "label": "MVP 边界",
+              "status": "supported",
+              "conclusion": "MVP 应严格限定在本地 Markdown/JSON 存储、手动录入假设、手动粘贴原句片段并标注支持/反对、按假设检索、单假设详情页分组展示这五项能力。",
+              "rationale": "材料中 idea.mvp.inScope 已明确列出上述五项；outOfScope 明确排除自动转写、团队协作、LLM、跨设备同步、版本演变追踪。这与核心机制「只做原文片段+来源定位的存储与检索，不做语义改写」一致，构成最小可用边界。",
+              "supportingEvidenceIds": [
+                "evidence_454f3c3f-7b94-437c-8ef1-922792a8219d"
+              ],
+              "counterEvidenceIds": [],
+              "unknowns": [
+                "标注动作的最小摩擦能否被接受",
+                "是否需要按主题/标签组织证据墙",
+                "支持/反对之外是否需要中性/待验证独立类别"
+              ],
+              "changeConditions": [
+                "若用户访谈频次提升或团队多人共同维护，需加入协作与权限",
+                "若原句片段颗粒度不足以支撑决策，需重新评估粘贴标注的可用性"
+              ]
+            },
+            {
+              "id": "claim_6366955b-fedb-4c3a-b8a7-638a94d5135b",
+              "label": "前后端工作",
+              "status": "tentative",
+              "conclusion": "MVP 形态更接近纯前端本地工具或本地 CLI + 本地文件，后端工作可为零或仅做本地文件 I/O。",
+              "rationale": "idea 强调「不依赖 LLM」「数据可完全本地化」「存储与检索是本地最小成本结构」，未提任何服务端或云端需求。证据[0]是关于 MinerU 的输出文件格式，与本假设的工具无关，不能支持或反证前后端划分。",
+              "supportingEvidenceIds": [],
+              "counterEvidenceIds": [],
+              "unknowns": [
+                "MVP 是否需要 Web UI 还是仅 CLI/编辑器插件",
+                "是否需要搜索索引（如 SQLite FTS）以支持按假设检索",
+                "目标用户的运行环境偏好（桌面应用 vs 终端 vs 浏览器插件）"
+              ],
+              "changeConditions": [
+                "若用户偏好跨设备访问，需引入轻量后端或文件同步层",
+                "若按假设检索性能不足，需引入本地索引结构"
+              ]
+            },
+            {
+              "id": "claim_e64fc922-606b-45d7-868c-853495311dd2",
+              "label": "模型与数据",
+              "status": "supported",
+              "conclusion": "MVP 不引入任何机器学习/LLM 模型，数据仅来自用户手动录入的假设条目与粘贴的访谈原句片段及其来源定位。",
+              "rationale": "idea.coreMechanism 明确「不做语义改写」，whyItMayWork 明确「零 LLM 依赖意味着数据可完全本地化」。证据[0]讨论的是 MinerU 的文件输出格式，与本工具的模型/数据策略无直接关联。",
+              "supportingEvidenceIds": [
+                "evidence_454f3c3f-7b94-437c-8ef1-922792a8219d"
+              ],
+              "counterEvidenceIds": [],
+              "unknowns": [
+                "是否完全排除未来加入本地嵌入检索或规则式关键词高亮的可能",
+                "访谈文本的来源格式（Markdown/纯文本/Word 转写）是否需要预处理"
+              ],
+              "changeConditions": [
+                "若用户反馈原句片段过长难以定位，需加入基础切片或关键词高亮（非模型）",
+                "若需要跨假设聚合检索，可能引入本地轻量索引而非 LLM"
+              ]
+            },
+            {
+              "id": "claim_c68cb48b-6bc8-4101-a437-5d18bd667802",
+              "label": "集成与部署",
+              "status": "unknown",
+              "conclusion": "缺乏直接证据判断 MVP 的集成对象与部署形态。",
+              "rationale": "idea 中提及「导入访谈文本」「本地 Markdown 或 JSON 文件存储」，暗示 MVP 可独立运行、不依赖外部服务集成；但未说明是桌面应用、CLI、Web 静态站点还是编辑器插件，也未提及分发渠道。证据[0]为 MinerU 输出格式文档，与本工具的集成/部署无相关性。",
+              "supportingEvidenceIds": [],
+              "counterEvidenceIds": [],
+              "unknowns": [
+                "目标用户使用的操作系统与编辑器偏好",
+                "是否需要与具体访谈工具（如 Otter、飞书妙记）输出格式做格式兼容",
+                "分发方式：本地下载 vs 单文件 HTML vs 包管理器安装"
+              ],
+              "changeConditions": [
+                "若目标用户普遍使用特定编辑器（如 Obsidian、VS Code），需考虑对应插件形态",
+                "若需读取特定访谈工具的导出格式，需加入解析器"
+              ]
+            },
+            {
+              "id": "claim_ac9bcaff-409d-4a6f-ae19-952571934e48",
+              "label": "持续成本",
+              "status": "tentative",
+              "conclusion": "持续成本极低，仅为本地存储与用户时间成本，无持续性算力或服务费用。",
+              "rationale": "idea 强调「存储与检索是本地最小成本结构」「零 LLM 依赖」「数据可完全本地化」，意味着无 API 调用费、无服务器租金、无模型推理费用。证据[0]为 MinerU 文档，不构成对本工具持续成本的支持或反证。",
+              "supportingEvidenceIds": [],
+              "counterEvidenceIds": [],
+              "unknowns": [
+                "用户长期积累后的存储增长是否会成为问题（如上千条假设与万条原句）",
+                "是否需要付费的本地备份或同步服务"
+              ],
+              "changeConditions": [
+                "若存储量增长到影响检索性能，需引入索引或分页",
+                "若用户希望跨设备访问，可能产生同步服务费用"
+              ]
+            },
+            {
+              "id": "claim_138ed6a9-bcbf-490b-9f5e-fa39631b2761",
+              "label": "运维与合规",
+              "status": "tentative",
+              "conclusion": "运维负担极低，数据完全本地、敏感访谈内容不出端，合规风险主要落在用户自身的设备安全上。",
+              "rationale": "idea 强调「数据可完全本地化」「不依赖 LLM」，意味着无第三方数据处理、无云端留存，访谈内容（可能含用户隐私与未公开产品信息）不会外传。运维方面因无服务端组件，无服务器监控、扩容、备份等传统运维项。证据[0]不涉及本工具的运维或合规。",
+              "supportingEvidenceIds": [],
+              "counterEvidenceIds": [],
+              "unknowns": [
+                "是否需要加密本地存储以保护访谈原句",
+                "多用户共用设备时是否有访问控制需求",
+                "GDPR/个人信息保护法对访谈内容的本地处理是否有额外要求"
+              ],
+              "changeConditions": [
+                "若加入云同步或协作，需重新评估数据出境与第三方处理合规",
+                "若目标用户处理含个人信息的访谈，需增加加密与访问控制"
+              ]
+            },
+            {
+              "id": "claim_7eb78cd6-71b0-46e4-995f-36dca82b615a",
+              "label": "最便宜验证",
+              "status": "supported",
+              "conclusion": "最便宜验证是在一周内用纯前端单页或本地 Markdown+静态站点生成器做一个可粘贴假设与原句的原型，找 3–5 名独立开发者在真实访谈复盘场景中使用并观察标注摩擦。",
+              "rationale": "idea.targetUser 明确为「一周做 1–2 次用户访谈、习惯用 Markdown 或纯文本记笔记的独立开发者」，scenario 给出「做完 3 次访谈后」的具体使用节点；assumptions 中最关键的风险是「标注动作的最小摩擦能否被接受」，只能用真实用户的粘贴-标注行为验证。MVP inScope 范围足够小，单人或少量工程即可在数天内产出可点击原型。证据[0]与验证方式无直接关联。",
+              "supportingEvidenceIds": [],
+              "counterEvidenceIds": [],
+              "unknowns": [
+                "原型的最小可交互集合是否只需 inScope 五项中的前三项即可验证",
+                "验证周期是否需要覆盖「几周后回溯」以检验长期可用性",
+                "招募目标用户的渠道与成本"
+              ],
+              "changeConditions": [
+                "若标注摩擦普遍偏高，需重新设计录入流（如批量粘贴+快捷键标注）",
+                "若回溯检索命中率低，需调整原句片段颗粒度或加入标签"
+              ]
+            }
+          ],
+          "createdAt": "2026-09-22T18:58:46.098Z"
+        },
+        "evidence": [
+          {
+            "id": "evidence_454f3c3f-7b94-437c-8ef1-922792a8219d",
+            "sourceId": "opendatalab.github.io",
+            "sourceType": "independent_analysis",
+            "title": "输出文件格式- MinerU",
+            "url": "https://opendatalab.github.io/MinerU/zh/reference/output_files/",
+            "excerpt": "`mineru-kit parse --format zip`、V1 API ZIP 和 Gradio 的 Markdown/JSON/LaTeX 下载共用 DocVortex 图片物化与命名规则（需要`docvortex>=0.4.19,<1`）。ZIP 文件名和正文成员组织仍由各入口决定。\n\n`ParseResult.save(writer)`先在文档副本上物化图片，再写出`markdown.md`、`middle_json.json`、`structured_content.json`和`images/`素材；有原始模型结果时还写出`model_output.json`。自部署 V1 API ZIP 与`mineru-kit parse --format zip`共用这一保存入口。包内三种消费格式引用同一组素材，图片字节、源页号、块索引及旋转元数据保持不变。",
+            "capturedAt": "2026-09-22T18:58:27.780Z",
+            "contentHash": "sha256:b3e719414872ab8fd10d17a21066c8b91d869648f4ac0044b5480f50991eb901"
+          }
+        ]
+      }
+    }
+  },
+  "decision": {
+    "ideaId": "idea_47a977a0-d767-41a7-9f07-aadd037ba50a",
+    "ideaVersion": 1,
+    "currentVersion": 1,
+    "title": "假设证据墙（Evidence Wall）",
+    "lifecycle": "hold",
+    "gate": {
+      "ready": true
+    },
+    "materials": {
+      "market_space": {
+        "status": "completed",
+        "summary": "Lens 结论（条件性）：「假设证据墙」方向存在一条可识别的差异化缝隙，但需求强度、付出意愿、竞争格局与触达时机四项关键判断均处于 unknown 或仅有一条来源支撑的 tentative 状态，决策不能建立在「用户必然需要」之上。\n\n- 已支持（supported）：无。材料中没有任何一项判断达到 supported 级别。\n- 暂定（tentative）：切入缝隙——「本地优先 + 零 LLM + 可逐字追溯假设-证据映射」相对 Skimle 这类 AI 辅助云端平台呈现方向性差异，且该来源（index 0）明确把价值建立在 AI 分析与云端存储之上，与 MVP 形成互补而非重叠。但缝隙仅由单一来源支持，是否对独立开发者具备感知价值未被验证。\n- 有争议/未决（disputed 倾向但证据不足）：需求强度、付出意愿、竞争压力、触达与时机四项均为 unknown。理由如下：①独立开发者「几周后无法回溯假设与原句」的痛点仅有方向性间接证据（Skimle 描述的痛点针对的是产品团队/PM 场景），缺少目标用户的访谈原句、行为数据或频次统计；②手动粘贴-标注的摩擦容忍度无任何数据，而 Skimle 强调「让机器系统性承担负担」恰好与 MVP「纯手动」设计形成张力，虽用户群不同不能直接推断，但提示存在方向冲突；③除 Skimle 外是否存在 Obsidian/Logseq 插件、CLI 工具或 Notion/Tana 工作流已覆盖该场景，材料未覆盖；④独立开发者社区的讨论热度、搜索趋势、同类工具发布节奏均无证据。\n- 未知（unknowns 中的关键变量）：独立开发者做完 3–10 次访谈后是否真实出现记忆失效瓶颈；每条假设手动贴 1–2 句原句的耗时接受度；目标用户是否把「数据本地/零 AI」列为 top 3 决策因子；现有轻量工具是否已缓解该痛点。\n\n条件性建议：在补足以下任一证据前，不宜投入完整 MVP 开发：(1) 至少 3 段独立开发者用户访谈原句明确抱怨「假设-证据无法回溯」；(2) 1 次 5 人以上的可用性测试，确认「手动粘贴-标注」流程的预估耗时与放弃率；(3) 对 Obsidian 插件、Logseq 工作流、Notion 模板、GitHub 轻量工具的竞品扫描结论。若(1)(2) 满足且(3) 显示赛道空缺，可将切入缝隙从 tentative 升级为 supported 并启动 MVP；否则应优先用 Notion/Obsidian 模板做 2 周手动验证，再决定是否独立成工具。",
+        "reportId": "lens_report_38df2c91-b2d9-47cd-931a-cebda4dc78d8"
+      },
+      "build_cost": {
+        "status": "completed",
+        "summary": "已支持：MVP 严格限定在本地 Markdown/JSON 存储、手动录入假设、手动粘贴原句并标注支持/反对、按假设检索、单假设详情页分组展示五项能力，与「不做语义改写、零 LLM 依赖」的核心机制一致。不引入任何机器学习或 LLM 模型，数据仅为用户手动录入的假设条目与访谈原句片段及其来源定位。最便宜验证是一周内用纯前端单页或本地 Markdown+静态站点生成器做出可粘贴假设与原句的原型，找 3–5 名独立开发者在真实访谈复盘场景中观察标注摩擦。\n暂定：MVP 形态更接近纯前端本地工具或本地 CLI+文件，后端工作可为零或仅做本地文件 I/O；持续成本极低，仅本地存储与用户时间成本；运维负担极低，敏感访谈内容不出端，合规风险主要落在用户自身设备安全上。\n未知：MVP 的集成对象与部署形态（桌面应用/CLI/Web 静态站点/编辑器插件）缺乏直接证据；标注摩擦最小可接受度、原句片段颗粒度是否足够、是否需要主题/标签组织或中性/待验证独立类别均待验证。\n有争议/反证：材料中证据[0]为 MinerU 输出格式文档，与本工具的边界划分、模型数据策略、运维合规及验证方式均无直接相关性，不能支持前后端判断、成本判断或验证设计。\n条件：若标注摩擦普遍偏高，需重设计录入流；若回溯检索命中率低，需调整颗粒度或加标签；若用户访谈频次提升或团队多人维护，需引入协作与权限；若需跨设备访问，可能产生同步层与合规再评估；若存储量增长影响检索性能，需引入本地索引而非 LLM。",
+        "reportId": "lens_report_ce4bd43f-ad94-49cc-9049-42ddf4c99422"
+      }
+    },
+    "decision": {
+      "id": "decision_9de6efc1-e0bf-442a-9728-d8a476a6b281",
+      "outcome": "hold",
+      "reason": "本次为隔离验收：两份报告流程已完成，但目标用户的持续标注意愿与直接成本证据仍不足，暂缓投入开发。",
+      "revisitCondition": "观察 5 位目标用户用真实访谈材料完成假设标注和一周后回溯，再评估是否进入 MVP。",
+      "sourceKind": "direct",
+      "reportBindings": [
+        {
+          "reportId": "lens_report_38df2c91-b2d9-47cd-931a-cebda4dc78d8",
+          "revision": 1,
+          "lens": "market_space"
+        },
+        {
+          "reportId": "lens_report_ce4bd43f-ad94-49cc-9049-42ddf4c99422",
+          "revision": 1,
+          "lens": "build_cost"
+        }
+      ],
+      "createdAt": "2026-09-22T18:59:44.401Z"
+    }
+  },
+  "pulse": [
+    {
+      "id": "pulse_report_353669f3-b4d4-443b-b9d1-faf4293dbb35",
+      "status": "partial",
+      "runtimeLabel": "真实公开来源 · 规则综合",
+      "successfulSourceIds": [
+        "watcha",
+        "github"
+      ],
+      "failedSourceIds": [
+        "toolify"
+      ],
+      "signalCount": 40,
+      "opportunities": [
+        {
+          "id": "opportunity_200d83d7-f8b2-4a00-b935-6038ed72d02c",
+          "title": "从一个具体交付物反推最小产品",
+          "status": "converted_to_direction"
+        },
+        {
+          "id": "opportunity_7476affd-a030-4c55-818d-0542fe9eaedb",
+          "title": "把一个重复专业流程做成可核验的 Agent",
+          "status": "new"
+        },
+        {
+          "id": "opportunity_f245e874-fefe-4c01-9e54-6f0d70a93f46",
+          "title": "面向一个高频内容场景的成品工作台",
+          "status": "new"
+        },
+        {
+          "id": "opportunity_91959687-d743-4a21-9dbb-acec924abe1a",
+          "title": "为一个持续工作场景提供可控记忆层",
+          "status": "new"
+        }
+      ],
+      "sources": [
+        {
+          "url": "https://github.com/zai-org/ZCode",
+          "title": "zai-org/ZCode"
+        },
+        {
+          "url": "https://github.com/huangbai-AI/post-production-skill",
+          "title": "huangbai-AI/post-production-skill"
+        },
+        {
+          "url": "https://github.com/itsmostafa/typesafe-mcp",
+          "title": "itsmostafa/typesafe-mcp"
+        },
+        {
+          "url": "https://github.com/cobanov/awesome-jev",
+          "title": "cobanov/awesome-jev"
+        }
+      ]
+    }
+  ],
+  "copilot": [
+    {
+      "author": "user",
+      "responseState": "complete",
+      "context": {
+        "kind": "idea",
+        "label": "假设证据墙（Evidence Wall）",
+        "ideaId": "idea_47a977a0-d767-41a7-9f07-aadd037ba50a",
+        "version": 1,
+        "panel": "brief"
+      },
+      "body": "请引用当前 Brief 的具体机制，指出最值得先验证的一条用户行为假设，以及不用写代码的一天验证法。不要建议超出当前 MVP 的自动录音或团队功能。"
+    },
+    {
+      "author": "assistant",
+      "responseState": "complete",
+      "runtimeLabel": "Prologue · Minimax · MiniMax-M3",
+      "context": {
+        "kind": "idea",
+        "label": "假设证据墙（Evidence Wall）",
+        "ideaId": "idea_47a977a0-d767-41a7-9f07-aadd037ba50a",
+        "version": 1,
+        "panel": "brief"
+      },
+      "body": "先回应你的三个问题，然后指出当前 Brief 里我看到的一处可能需要回看的点。\n\n一、最值得先验证的一条行为假设\n当前 Brief 的核心机制可以拆成三段：①先手动录入假设；②在每条假设下手工粘贴支持/反对原句；③工具只做「原句片段 + 来源定位」的存储与检索。整条链路成立的前提是假设①、②成立——也就是说，用户愿意在「已经做完访谈」这个事后节点，花时间去把假设一条条敲进去，并从原文里挑出支持/反对的句子贴好。\n\n在 Brief 自列的三条 assumptions 里，我判断**「独立开发者愿意在事后花少量时间做粘贴-标注」** 是最值得先验证的一条。理由是另外两条的失败模式都比较温和：颗粒度不够，可以靠补标注补救；没有语义分析也能改善，可以靠量堆出来。而这条假设一旦失败，后面的存储、检索、可视化全部停在「用户根本不会录入」的零数据状态，是门而不是功能问题。\n\nunknowns 里的「标注动作的最小摩擦能否被接受」其实问的是同一件事，但更聚焦于摩擦大小，可以作为这次验证要看的具体指标。\n\n二、不写代码的一天验证法（严格不越出 MVP）\n不做任何工具，先用现有手段模拟一次「证据墙」流程，看用户实际会不会走到录入这一步：\n\n1. 准备：从你（或一位真实独立开发者）最近 1–2 周的访谈笔记里，挑出 3 次访谈文本，存成 3 个 Markdown 文件。\n2. 找一位目标用户（独立开发者，一周做 1–2 次访谈、习惯 Markdown/纯文本），把 3 个文件发给他，配一句简短指令：「请从中提炼你目前最想验证的 5 条假设，每条假设下，从原文里粘贴 1–3 条支持原句、0–1 条反对原句，注明出处（文件 + 行号或段落）。文件结构随便，可以用 Markdown 标题或纯文本。」不示范格式、不催促。\n3. 给 24 小时观察：\n   - 是否完成？完成到第几条放弃？\n   - 是否主动标注了「出处 / 来源定位」？还是只贴原句？\n   - 有没有出现「中性 / 待验证」这种你列在 unknowns 里的第三类标注？\n   - 完成后他是否会主动回看「这条假设值不值得继续追」？\n4. 信号判断（这是 Founder Taste，不是市场证据，仅作参考）：如果 24 小时内完成全部 5 条并带出处 → 摩擦假设暂时成立，可进入下一轮；如果做到第 2–3 条就停或漏出处 → 录入摩擦过高，机制需要重新设计（不是加功能，而是砍步骤）。\n\n整过程零代码、零 LLM、零自动录音、零协作功能，严格停在 Brief 的 MVP 范围里。\n\n三、需要你回看一眼的点\nBrief 的 valueProposition 里写了「不依赖 LLM 即可获得可追溯的假设-证据映射」，但同样在 unknowns 里挂了「是否需要按主题/标签组织证据墙」。这两条是有点张力的：纯靠假设作为唯一索引，3 次访谈之后假设数量上到 10+ 条时，没有标签/主题，用户很可能又退回到「靠记忆找」的旧习惯——也就是 coreProblem 描述的那个失败状态。\n\n我倾向于这不是 MVP 要立刻解决的，但建议你**在这一天验证法里额外观察一个问题**：用户在完成上述 5 条假设标注后，是否会自发地把多条假设归到同一主题下？如果会，说明「按主题组织」可能在 MVP 内是必要的；如果不会，说明假设维度本身已经够用，标签可以放到 MVP 之后。这条观察的结果，会影响 MVP 的 inScope 列表是否需要追加「按主题分组展示」。\n\n等你跑完一天验证法或对最值得验证的那条假设有替换想法，再来对。"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "annotation_bdfc1c59-f240-4e73-ae43-ae8e8e07e2f9",
+      "workspaceId": "workspace-local",
+      "actorId": "actor-local",
+      "target": {
+        "kind": "idea_brief",
+        "objectId": "idea_47a977a0-d767-41a7-9f07-aadd037ba50a",
+        "revision": 1,
+        "blockId": "core-problem"
+      },
+      "quotedSnapshot": "假设",
+      "comment": "先观察真实用户是否愿意做事后标注，不把主动完成一次任务当作持续使用证据。",
+      "status": "open",
+      "createdAt": "2026-09-22T18:20:51.892Z"
+    }
+  ],
+  "memory": {
+    "taste": [
+      {
+        "id": "taste_02b559de-d382-43a6-820a-59a0647167eb",
+        "workspaceId": "workspace-local",
+        "actorId": "actor-local",
+        "version": 1,
+        "title": "先验证重复行为",
+        "statement": "先看同一个用户会不会在下一次任务里主动回来，再决定扩充功能。",
+        "appliesTo": "独立开发者工具",
+        "exceptions": [
+          "一次性高价值任务"
+        ],
+        "source": {
+          "kind": "direct",
+          "id": "memory_settings"
+        },
+        "status": "disabled",
+        "createdAt": "2026-09-22T18:21:33.795Z",
+        "updatedAt": "2026-09-22T18:21:41.693Z"
+      }
+    ],
+    "playbook": [
+      {
+        "id": "playbook_dfb9af8d-ac98-41b5-9ac8-8385279f06e3",
+        "workspaceId": "workspace-local",
+        "actorId": "actor-local",
+        "version": 1,
+        "originalFeedback": "检索证据必须对应访谈资料整理与假设回溯，通用 AI 新闻不能支持用户需求强度。",
+        "methodChange": "判断需求和付出意愿前，先检查来源是否描述目标用户的实际访谈整理行为；不相关的 AI 新闻不作支持或反证。",
+        "positiveExamples": [
+          "用户访谈原话；用户研究工具的实际工作流与迁移成本。"
+        ],
+        "negativeExamples": [
+          "通用 AI 模型新闻；网页提取失败的错误消息。"
+        ],
+        "scope": {
+          "kind": "direction",
+          "directionId": "direction_929f2288-bfaa-4b21-b808-adc13183d728"
+        },
+        "source": {
+          "kind": "annotation",
+          "id": "annotation_ca524c86-eb08-4a41-8a6e-4e099f2d9359"
+        },
+        "status": "active",
+        "createdAt": "2026-09-22T18:53:01.247Z",
+        "updatedAt": "2026-09-22T18:53:01.247Z",
+        "applications": [
+          {
+            "planId": "research_plan_3d70071b-066f-4783-9557-85ab04d35d06"
+          }
+        ]
+      }
+    ]
+  },
+  "reportAnnotations": [
+    {
+      "reportId": "lens_report_38df2c91-b2d9-47cd-931a-cebda4dc78d8",
+      "annotations": []
+    },
+    {
+      "reportId": "lens_report_ce4bd43f-ad94-49cc-9049-42ddf4c99422",
+      "annotations": []
+    }
+  ]
+}

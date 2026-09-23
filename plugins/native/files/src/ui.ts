@@ -12,26 +12,24 @@ export const FILES_UI_CONTRIBUTION_ID = "io.molis.work.native.files.ui.v1";
 
 /** Host mounts these fragments in the existing directory and result slots. */
 export function renderFilesBrowserDirectory(): string {
-  return `<section data-files-browser hidden class="files-browser">
-    <label class="mw-field">浏览工作区<select class="mw-select" data-files-workspace aria-label="文件浏览工作区"></select></label>
-    <p class="files-notice">这里只切换文件浏览，不改变当前编码任务的工作区。</p>
-    <button class="mw-btn" type="button" data-files-refresh>刷新文件</button>
-    <p data-files-status role="status"></p><div data-files-tree></div>
+  return `<section data-files-browser hidden class="files-browser mw-dir">
+    <label class="mw-field"><span class="mw-field__label">浏览工作区</span><select class="mw-select" data-files-workspace aria-label="文件浏览工作区"></select></label>
+    <p class="files-notice">独立浏览，不改变会话的执行目录。</p>
+    <div class="mw-toolbar files-directory-toolbar"><span class="mw-dir__label">文件</span><button class="mw-btn mw-btn--ghost" type="button" data-files-refresh><span class="mw-spinner" hidden></span>刷新</button></div>
+    <p data-files-status role="status"></p><div class="mw-dir__list" data-files-tree></div>
   </section>`;
 }
 
 export function renderFilesBrowserResult(): string {
-  return `<section data-files-results hidden class="files-results" aria-label="文件阅读与快照">
-    <header><h3 data-files-title>选择一个文件</h3><button class="mw-btn" type="button" data-files-close>返回执行结果</button></header>
-    <p data-files-notice role="status">从左侧文件目录选择要读取的文件。</p>
-    <textarea readonly class="files-preview mw-input" data-files-text aria-label="文件正文（只读，可选择片段）" spellcheck="false" hidden></textarea>
-    <div class="files-actions"><button class="mw-btn" type="button" data-files-copy disabled>复制全文</button>
-      <button class="mw-btn" type="button" data-files-capture="before" disabled>固定为对比前</button>
-      <button class="mw-btn" type="button" data-files-capture="after" disabled>固定为对比后</button>
-      <button class="mw-btn" type="button" data-files-capture="selection" disabled>保存选区</button></div>
-    <p data-files-capture-status role="status"></p>
-    <details><summary>对比前快照的文本统计</summary><div data-files-stats></div></details>
-    <details open><summary>两份固定快照的差异</summary><p>固定后不会随磁盘文件改变；再次固定才更新这一侧。</p><div data-files-diff></div></details>
+  return `<section data-files-results hidden class="files-results mw-frame" data-slot="frame" aria-label="文件阅读与快照">
+    <header class="files-reader-head mw-frame__header"><button class="mw-btn mw-btn--ghost" type="button" data-files-close>返回执行结果</button><div class="mw-frame__heading"><h2 data-files-title>选择一个文件</h2><p>只读文件</p></div><div class="mw-group"><button class="mw-btn mw-btn--ghost" type="button" data-files-reload disabled aria-label="重新读取当前文件">重读</button><button class="mw-btn mw-btn--ghost" type="button" data-files-copy disabled>复制全文</button></div></header>
+    <div class="files-reader-body mw-scroll mw-frame__panel"><p data-files-notice role="status">从文件目录选择要读取的文件。</p>
+    <textarea readonly class="files-preview mw-textarea" data-files-text aria-label="文件正文（只读，可选择片段）" spellcheck="false" hidden></textarea>
+    <section class="files-snapshots" aria-label="固定快照"><div class="files-snapshot-heading"><h4>固定快照</h4><span data-files-selection-hint>在正文中选择片段后可保存选区</span></div>
+    <div class="files-actions"><div class="mw-group" aria-label="设置对比两侧"><button class="mw-btn mw-btn--secondary" type="button" data-files-capture="before" disabled>固定为对比前</button><button class="mw-btn mw-btn--secondary" type="button" data-files-capture="after" disabled>固定为对比后</button></div><button class="mw-btn mw-btn--ghost" type="button" data-files-capture="selection" disabled>保存选区</button></div>
+    <p data-files-capture-status role="status"></p></section>
+    <details class="mw-collapsible"><summary>对比前快照的文本统计</summary><div data-files-stats></div></details>
+    <details class="mw-collapsible" open><summary>两份固定快照的差异</summary><p>固定后不会随磁盘文件改变；再次固定才更新这一侧。</p><div data-files-diff></div></details></div>
   </section>`;
 }
 

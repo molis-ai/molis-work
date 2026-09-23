@@ -37,8 +37,8 @@ test("目录栏顶部有五个导航面，当前面被标记", () => {
   for (const face of ["sessions", "taskboard", "goals", "artifacts", "files"]) {
     assert.match(html, new RegExp(`data-coding-face="${face}"`));
   }
-  assert.match(html, /data-coding-face="taskboard" aria-selected="true"/);
-  assert.match(html, /<h2>TaskBoard<\/h2>/);
+  assert.match(html, /data-coding-face="taskboard" aria-pressed="true"/);
+  assert.match(html, /class="mw-dir__label">TaskBoard<\/span>/);
 });
 
 test("会话标题里的标记被转义，不会变成页面上的标签", () => {

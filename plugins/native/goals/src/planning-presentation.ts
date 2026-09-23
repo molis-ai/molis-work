@@ -37,11 +37,38 @@ export function createPlanningPresentation(primitives: GoalsPlanningPrimitives) 
         return methods.map((method) => { const path = `${basePath}/${encodeURIComponent(method.method_id)}`; const href = path.startsWith("/settings/") ? planningSettingsHref(path, project, desktop) : desktop ? withDesktopQuery(path) : path; return `<a class="planning-card" href="${href}" data-planning-method data-kind="${escapeHtml(method.kind)}" data-scope="${escapeHtml(method.scope)}"><div class="planning-card-top"><span class="planning-card-kind">${escapeHtml(planningMethodKindLabel(method.kind))}</span><span class="planning-card-scope planning-card-scope--${escapeHtml(method.scope)}">${escapeHtml(planningMethodScopeLabel(method.scope))}</span></div><div><h2>${escapeHtml(method.name)}</h2><p>${escapeHtml(method.summary)}</p></div>${method.applies_to.length ? `<div class="planning-card-tags">${method.applies_to.slice(0, 3).map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>` : ""}<div class="planning-card-footer"><span>${L("{steps} 个规划阶段 · {checks} 个必答问题", { steps: method.steps.length, checks: method.required_coverage.length })}</span>${icon("arrow")}</div></a>`; }).join("");
     }
     function renderPlanningCompositionRows(methods: readonly PlanningMethodPack[], basePath: string, desktop: boolean): string {
-        return methods.map((method) => { const path = `${basePath}/${encodeURIComponent(method.method_id)}`; const href = desktop ? withDesktopQuery(path) : path; return `<a class="planning-composition-row" href="${href}"><span class="planning-card-kind">${escapeHtml(planningMethodKindLabel(method.kind))}</span><span class="planning-composition-row-copy"><strong>${escapeHtml(method.name)}</strong><small>${escapeHtml(method.summary)}</small></span><span class="planning-composition-row-meta">${L("{steps} 个阶段 · {checks} 个问题", { steps: method.steps.length, checks: method.required_coverage.length })}${icon("arrow")}</span></a>`; }).join("");
+        return methods.map((method) => {
+            const path = `${basePath}/${encodeURIComponent(method.method_id)}`;
+            const detailPath = desktop ? withDesktopQuery(path) : path;
+            return `<button type="button" class="planning-composition-row" data-planning-open data-planning-detail-path="${detailPath}"><span class="planning-card-kind">${escapeHtml(planningMethodKindLabel(method.kind))}</span><span class="planning-composition-row-copy"><strong>${escapeHtml(method.name)}</strong><small>${escapeHtml(method.summary)}</small></span><span class="planning-composition-row-meta">${L("{steps} 个阶段 · {checks} 个问题", { steps: method.steps.length, checks: method.required_coverage.length })}${icon("arrow")}</span></button>`;
+        }).join("");
     }
-    function renderPlanningAdoptionCards(methods: readonly PlanningMethodPack[], project: GoalsPlanningProject, desktop: boolean): string {
+    function renderPlanningDirectory(methods: readonly PlanningMethodPack[], project: GoalsPlanningProject, adoptedIds: ReadonlySet<string>): string {
         const endpoint = `/projects/${encodeURIComponent(project.project_id)}/api/settings/planning-methods/apply`;
-        return methods.map((method) => { const detailHref = planningSettingsHref(`/settings/planning/${encodeURIComponent(method.method_id)}`, project, desktop); return `<article class="planning-adoption-card" data-planning-method data-kind="${escapeHtml(method.kind)}" data-scope="${escapeHtml(method.scope)}"><header><span class="planning-card-kind">${escapeHtml(planningMethodKindLabel(method.kind))}</span><span class="planning-card-scope planning-card-scope--${escapeHtml(method.scope)}">${escapeHtml(planningMethodScopeLabel(method.scope))}</span></header><div class="planning-adoption-copy"><h3><a href="${detailHref}">${escapeHtml(method.name)}</a></h3><p>${escapeHtml(method.summary)}</p></div><footer><span>${L("{steps} 个阶段 · {checks} 个问题", { steps: method.steps.length, checks: method.required_coverage.length })}</span><button type="button" data-adopt-planning-method="${escapeHtml(method.method_id)}" data-adopt-endpoint="${endpoint}">${L("加入组合")}</button></footer></article>`; }).join("");
+        const detailPath = (methodId: string) => `/settings/planning/${encodeURIComponent(methodId)}?project=${encodeURIComponent(project.project_id)}`;
+        const item = (method: PlanningMethodPack) => {
+            const joined = adoptedIds.has(method.method_id);
+            const action = joined ? "" : `<button type="button" data-adopt-planning-method="${escapeHtml(method.method_id)}" data-adopt-endpoint="${endpoint}">${L("加入组合")}</button>`;
+            return `<div class="planning-list-item" data-planning-method data-kind="${escapeHtml(method.kind)}" data-scope="${escapeHtml(method.scope)}"><button type="button" class="planning-list-item-open" data-planning-open data-planning-detail-path="${detailPath(method.method_id)}">${escapeHtml(method.name)}</button><span class="planning-membership" data-joined="${joined ? "true" : "false"}">${joined ? L("已加入") : L("未加入")}</span>${action}</div>`;
+        };
+        const fold = (id: string, title: string, group: readonly PlanningMethodPack[]) => {
+            const body = group.length
+                ? group.map(item).join("")
+                : `<p class="planning-fold-empty">${L("这个分类里还没有方法。")}</p>`;
+            return `<details class="planning-fold" data-planning-fold="${id}" open><summary><span class="planning-fold-caret" aria-hidden="true">${icon("chevron-down")}</span><strong>${L(title)}</strong><small>${group.length}</small></summary><div class="planning-fold-items">${body}</div></details>`;
+        };
+        const builtIn = methods.filter((method) => method.scope === "built_in");
+        const mine = methods.filter((method) => method.scope !== "built_in");
+        const kinds: Array<[PlanningMethodPack["kind"], string]> = [
+            ["work_type", "工作类型"],
+            ["domain", "专业领域"],
+            ["industry", "行业方法"],
+            ["overlay", "场景叠加层"],
+        ];
+        for (const method of builtIn) {
+            if (!kinds.some(([kind]) => kind === method.kind)) kinds.push([method.kind, planningMethodKindLabel(method.kind)]);
+        }
+        return `${kinds.map(([kind, title]) => fold(kind, title, builtIn.filter((method) => method.kind === kind))).join("")}${fold("mine", "我的方法", mine)}`;
     }
-    return { friendlyPlanningDependencyHint, friendlyPlanningDependencyStatement, planningMethodKindLabel, planningMethodScopeLabel, planningSettingsHref, renderPlanningMethodCards, renderPlanningCompositionRows, renderPlanningAdoptionCards };
+    return { friendlyPlanningDependencyHint, friendlyPlanningDependencyStatement, planningMethodKindLabel, planningMethodScopeLabel, planningSettingsHref, renderPlanningMethodCards, renderPlanningCompositionRows, renderPlanningDirectory };
 }

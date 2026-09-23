@@ -1137,8 +1137,8 @@ export const PERSONAL_WORKBENCH_V3_STYLES = `  /* Personal workbench v3: one dir
     body[data-desktop-shell="true"] .feed-source-row p { margin: 0; color: var(--muted); font-size: 9px; line-height: 1.45; }
     body[data-desktop-shell="true"] .feed-source-row small { color: var(--faint); font-size: 8px; }
     body[data-desktop-shell="true"] .feed-source-actions, body[data-desktop-shell="true"] .feed-connector-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
-    body[data-desktop-shell="true"] .feed-source-dialog button:not(.mw-btn):not(.feed-source-choice) { min-height: 28px; padding: 0 9px; border: 0; border-radius: 7px; color: var(--ink-soft); background: color-mix(in srgb, var(--rail) 72%, var(--paper)); font-size: 9px; font-weight: 400; cursor: pointer; }
-    body[data-desktop-shell="true"] .feed-source-dialog button:not(.mw-btn):not(.feed-source-choice):hover:not(:disabled) { color: var(--blue-dark); background: color-mix(in srgb, var(--blue) 10%, var(--paper)); }
+    body[data-desktop-shell="true"] .feed-source-dialog button:not(.mw-btn):not(.feed-source-choice):not(.mw-select-picker__trigger):not(.mw-menu__item) { min-height: 28px; padding: 0 9px; border: 0; border-radius: 7px; color: var(--ink-soft); background: color-mix(in srgb, var(--rail) 72%, var(--paper)); font-size: 9px; font-weight: 400; cursor: pointer; }
+    body[data-desktop-shell="true"] .feed-source-dialog button:not(.mw-btn):not(.feed-source-choice):not(.mw-select-picker__trigger):not(.mw-menu__item):hover:not(:disabled) { color: var(--blue-dark); background: color-mix(in srgb, var(--blue) 10%, var(--paper)); }
     body[data-desktop-shell="true"] .feed-source-dialog button:focus-visible, body[data-desktop-shell="true"] .feed-source-dialog summary:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
     body[data-desktop-shell="true"] .feed-source-dialog button:disabled { opacity: .45; cursor: default; }
     body[data-desktop-shell="true"] .feed-source-actions button:first-child svg { width: 10px; height: 10px; }
@@ -1170,7 +1170,7 @@ export const PERSONAL_WORKBENCH_V3_STYLES = `  /* Personal workbench v3: one dir
       body[data-desktop-shell="true"] .feed-source-dialog-scroll { padding-inline: 14px; }
       body[data-desktop-shell="true"] .feed-source-dialog-shell > header { padding-inline: 14px; }
       body[data-desktop-shell="true"] .feed-source-form-grid, body[data-desktop-shell="true"] .feed-connector-grid { grid-template-columns: 1fr; }
-      body[data-desktop-shell="true"] .feed-source-dialog button:not(.mw-btn):not(.feed-source-choice) { min-height: 36px; }
+      body[data-desktop-shell="true"] .feed-source-dialog button:not(.mw-btn):not(.feed-source-choice):not(.mw-select-picker__trigger):not(.mw-menu__item) { min-height: 36px; }
       body[data-desktop-shell="true"] .feed-source-row { grid-template-columns: 28px minmax(0, 1fr); }
       body[data-desktop-shell="true"] .feed-source-actions { grid-column: 2; }
     }

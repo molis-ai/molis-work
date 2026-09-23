@@ -34,6 +34,14 @@ export function acceptedImageFile(file: { type: string; size: number }): boolean
   return encoded <= MAX_DATA_URL;
 }
 
+const MAX_CAPTION = 200;
+
+/** A one-line picture caption. Line breaks become spaces, and anything past 200 characters is cut. */
+export function safePagesImageCaption(value: unknown): string {
+  const raw = String(value ?? "").replace(/[\r\n\t]+/gu, " ").replace(/ {2,}/gu, " ").trim();
+  return raw.slice(0, MAX_CAPTION);
+}
+
 /** Pixel width for an image block. Zero means the picture uses the full line. */
 export function safePagesImageWidth(value: unknown): number {
   const raw = typeof value === "number" ? value : Number(String(value ?? "").trim());
@@ -55,6 +63,12 @@ export function imageAlt(src: string): string {
 export function linkClickOpens(event: { button: number; metaKey: boolean; ctrlKey: boolean; shiftKey: boolean; altKey: boolean }): boolean {
   if (event.button !== 0 || event.shiftKey || event.altKey) return false;
   return event.metaKey || event.ctrlKey;
+}
+
+/** A one-line bookmark name. Line breaks become spaces, and anything past 120 characters is cut. */
+export function safePagesBookmarkTitle(value: unknown): string {
+  const raw = String(value ?? "").replace(/[\r\n\t]+/gu, " ").replace(/ {2,}/gu, " ").trim();
+  return raw.slice(0, 120);
 }
 
 /** Short label for a bookmark card: the site, or the address of a mailto link. */

@@ -1,3 +1,4 @@
+import { CODING_COMPANIONS_CLIENT_FACTORY_SCRIPT } from "./coding-companions.js";
 import { GIT_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-git";
 import { CODING_CLIENT_FACTORY_SCRIPT, CODING_SETTINGS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-coding";
 import { FILES_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-files";
@@ -60,20 +61,25 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
         if(!response.ok)throw new Error(result.error || '无法读取文件工作区');
         return result;
       };
+    const codingRoot = document.querySelector("[data-coding-workbench]");
     const openCompanionResult = (name) => {
-      document.querySelector('[data-coding-tools]')?.setAttribute('data-companion-open','true');
-      for(const kind of ['files','git']) { const panel=document.querySelector('[data-'+kind+'-results]'); if(panel)panel.hidden=kind!==name; }
+      if(codingRoot){codingRoot.dataset.codingDetail="true";codingRoot.dataset.codingResults="true";}
+      codingRoot?.querySelector('[data-coding-tools]')?.setAttribute('data-companion-open','true');
+      for(const kind of ['files','git']) { const panel=codingRoot?.querySelector('[data-'+kind+'-results]'); if(panel)panel.hidden=kind!==name; }
     };
-    const closeCompanionResult = () => document.querySelector('[data-coding-tools]')?.removeAttribute('data-companion-open');
-    const gitBrowser = (${GIT_CLIENT_FACTORY_SCRIPT})({request:companionRequest,openResult:()=>openCompanionResult('git'),closeResult:closeCompanionResult,
-      showReviews: (${AGENT_REVIEW_CLIENT_FACTORY_SCRIPT})({route,headers:()=>molisWorkControlHeaders(),onDecision:outcome=>gitBrowser?.afterDecision(outcome)})});
-    const filesBrowser = (${FILES_CLIENT_FACTORY_SCRIPT})({
+    const closeCompanionResult = () => {
+      codingRoot?.querySelector('[data-coding-tools]')?.removeAttribute('data-companion-open');
+      if(codingRoot){codingRoot.dataset.codingResults='false';if(!codingRoot.querySelector('[data-coding-session][aria-current="true"]'))codingRoot.dataset.codingDetail='false';}
+    };
+    const gitBrowser = codingRoot ? (${GIT_CLIENT_FACTORY_SCRIPT})({root:codingRoot,request:companionRequest,openResult:()=>openCompanionResult('git'),closeResult:closeCompanionResult,
+      showReviews: (${AGENT_REVIEW_CLIENT_FACTORY_SCRIPT})({route,headers:()=>molisWorkControlHeaders(),onDecision:outcome=>gitBrowser?.afterDecision(outcome)})}) : null;
+    const filesBrowser = codingRoot ? (${FILES_CLIENT_FACTORY_SCRIPT})({root:codingRoot,
       icons: ${JSON.stringify({ folder: icon("folder"), file: icon("file") })},
       request: companionRequest,
       onWorkspaceSelected: () => { void gitBrowser?.refresh(); },
       openResult: () => openCompanionResult('files'),
       closeResult: closeCompanionResult,
-    });
+    }) : null;
     (${CODING_CLIENT_FACTORY_SCRIPT})({
       revealTask: () => { if(matchMedia("(max-width: 600px)").matches) immersiveNavigation?.hideDirectory(); closeCompanionResult(); },
       onDirectoryFace: face => { const handled=filesBrowser?.show(face) ?? false; gitBrowser?.show(face); return handled; },
@@ -85,6 +91,12 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
         return result.workspace;
       },
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title),
+    });
+    (${CODING_COMPANIONS_CLIENT_FACTORY_SCRIPT})({
+      request: companionRequest, route, icons: ${JSON.stringify({ folder: icon("folder"), file: icon("file") })},
+      openPlugin: plugin => tabWorkspace?.openPlugin(plugin),
+      reviewFactory: ${AGENT_REVIEW_CLIENT_FACTORY_SCRIPT},
+      headers: () => molisWorkControlHeaders(),
     });
     (${CHARACTERS_CLIENT_FACTORY_SCRIPT})();
     ${pluginWorkbenchClientBootstrap()}
@@ -110,6 +122,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       translate: L,
       setDirectory: (...args) => setDesktopDirectory(...args),
       setExclusive: (surface) => tabWorkspace?.setExclusive(surface),
+      hideDirectory: () => immersiveNavigation?.hideDirectory(),
       projectId: state.project?.project_id || "",
     });
     bindGoalCreateEvents();
@@ -122,6 +135,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     addEventListener("hashchange", handleGoalHashChange);
     addEventListener("pagehide", saveUiState);
     addEventListener("keydown", (event) => {
+      if (event.defaultPrevented || event.isComposing) return;
       if (globalSearchPalette?.handleKeyboard(event)) return;
       const currentFocusSection = event.target?.closest?.("[data-focus-section-trigger]:not([data-goal-factor-tab])");
       if (currentFocusSection && ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) {

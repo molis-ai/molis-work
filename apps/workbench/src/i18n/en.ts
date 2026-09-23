@@ -1,3 +1,4 @@
+import { COGNIA_EN } from "@molis-ai/molis-work-plugin-cognia";
 import { IMAGES_EN } from "@molis-ai/molis-work-plugin-images";
 import { JELLY_EN } from "@molis-ai/molis-work-plugin-jelly";
 import { GOALS_PROPOSAL_EN } from "@molis-ai/molis-work-plugin-goals";
@@ -10,6 +11,7 @@ import { PAGES_EN } from "@molis-ai/molis-work-plugin-pages";
 import { DATASET_EN } from "@molis-ai/molis-work-plugin-dataset";
 import { PPT_EN } from "@molis-ai/molis-work-plugin-ppt";
 import { LINGGUANG_EN } from "@molis-ai/molis-work-plugin-lingguang";
+import { ALCHEMIST_EN } from "@molis-ai/molis-work-plugin-alchemist";
 import { SCHEDULE_EN } from "@molis-ai/molis-work-plugin-schedule";
 import { GOALS_POLICY_EN, GOALS_SAFETY_EN } from "@molis-ai/molis-work-plugin-goals";
 import { GOALS_RELATION_EN } from "@molis-ai/molis-work-plugin-goals";
@@ -340,6 +342,8 @@ export const EN: Record<string, string> = {
   ...PPT_EN,
   ...LINGGUANG_EN,
   ...JELLY_EN,
+  ...COGNIA_EN,
+  ...ALCHEMIST_EN,
   ...SCHEDULE_EN,
   ...GOALS_POLICY_EN,
   ...GOALS_SAFETY_EN,

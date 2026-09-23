@@ -5,7 +5,32 @@ import { openMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
 import { DEMO_BOARD_ID, GoalProjectApplication } from '@molis-ai/molis-work-app-local-host';
 import { openGoalBrowser } from './fixtures/goal-browser.js';
 
-for (const [width,height] of [[1440,900],[390,640]]) {
+test('Reduced motion updates Goal detail geometry together with its expanded state', async t => {
+  const b = await openGoalBrowser(t); if (!b) return;
+  const { command, sessionId, origin, navigate, click, evaluate } = b;
+  await command('Emulation.setDeviceMetricsOverride', { width: 1024, height: 400, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await command('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+  await navigate(() => command('Page.navigate', { url: origin + '/goals/CORE' }, sessionId));
+  await click('[data-frame-goal-work]');
+  const geometry = await evaluate<{ collapsed: number; expanded: number; content: number; recollapsed: number; hidden: boolean }>(`(() => {
+    const toggle = document.querySelector('[data-goal-details-toggle]');
+    const aside = document.querySelector('[data-goal-details-aside]');
+    const pane = aside.querySelector('[data-document-pane]');
+    if (toggle.getAttribute('aria-expanded') === 'true') toggle.click();
+    const collapsed = aside.getBoundingClientRect().width;
+    toggle.click();
+    const expanded = aside.getBoundingClientRect().width;
+    const content = pane.getBoundingClientRect().width;
+    toggle.click();
+    return { collapsed, expanded, content, recollapsed: aside.getBoundingClientRect().width, hidden: pane.hidden };
+  })()`);
+  assert.equal(geometry.collapsed, 32);
+  assert.ok(geometry.expanded > 200 && geometry.content > 200, 'Expanded content is immediately usable: ' + JSON.stringify(geometry));
+  assert.equal(geometry.recollapsed, 32);
+  assert.equal(geometry.hidden, true);
+});
+
+for (const [width,height] of [[1440,900],[1024,400],[390,640]]) {
   test(`Continuous workspace and edge editors at ${width}×${height}`, {timeout:60000}, async t=>{
     const b=await openGoalBrowser(t,true); if(!b)return;
     const {command,sessionId,navigate,origin,projectId,evaluate,click,waitFor}=b;
@@ -71,6 +96,8 @@ for (const [width,height] of [[1440,900],[390,640]]) {
     if (width >= 761) {
       assert.ok(Math.abs(fillsPane.gap[0]) < 1 && Math.abs(fillsPane.gap[1]) < 1 && Math.abs(fillsPane.gap[3]) < 1);
       assert.ok(Math.abs(fillsPane.gap[2] - fillsPane.listWidth) <= 2, "Workspace sits beside the list rail " + JSON.stringify(fillsPane));
+      const toolbar = await evaluate<{bottom:number;listTop:number;right:number;railRight:number}>("(() => { const t=document.querySelector('[data-goal-stage-chrome]').getBoundingClientRect(),l=document.querySelector('.goal-stage-list').getBoundingClientRect(); return {bottom:t.bottom,listTop:l.top,right:t.right,railRight:l.right}; })()");
+      assert.ok(toolbar.bottom <= toolbar.listTop && toolbar.right <= toolbar.railRight, 'Toolbar remains above its list and inside its rail: ' + JSON.stringify(toolbar));
     } else {
       assert.deepEqual(fillsPane.gap,[0,0,0,0]);
     }
@@ -100,7 +127,9 @@ for (const [width,height] of [[1440,900],[390,640]]) {
           await command('Input.dispatchKeyEvent',{type:'keyUp',key:'Tab',code:'Tab',windowsVirtualKeyCode:9},sessionId);
         }
         const focus=await evaluate<any>(`(()=>{const e=document.activeElement,s=getComputedStyle(e),bg=getComputedStyle(e.closest('dialog')).backgroundColor,c=document.createElement('canvas');c.width=c.height=1;const x=c.getContext('2d');x.fillStyle=bg;x.fillRect(0,0,1,1);const a=[...x.getImageData(0,0,1,1).data];x.fillStyle=s.outlineColor;x.fillRect(0,0,1,1);const b=[...x.getImageData(0,0,1,1).data];const lum=v=>v.slice(0,3).map(n=>n/255).map(n=>n<=.04045?n/12.92:((n+.055)/1.055)**2.4).reduce((t,n,i)=>t+n*[.2126,.7152,.0722][i],0),l=lum(a),m=lum(b);return {tag:e.tagName,visible:e.matches(':focus-visible'),outline:s.outline,shadow:s.boxShadow,contrast:(Math.max(l,m)+.05)/(Math.min(l,m)+.05)}})()`);
-        assert.equal(focus.tag,kind.toUpperCase());assert.equal(focus.visible,true);assert.match(focus.outline,/2px/);assert.equal(focus.shadow,'none');assert.ok(focus.contrast>=3,JSON.stringify(focus));focusEvidence.push({theme,kind,...focus});
+        assert.equal(focus.tag,kind==='select'?'BUTTON':'INPUT');assert.equal(focus.visible,true);assert.match(focus.outline,/solid 1px/);assert.equal(focus.shadow,'none');assert.ok(focus.contrast>=3,JSON.stringify(focus));
+        if(kind==='select') assert.equal(await evaluate("document.activeElement.matches('[data-mw-select-trigger]')"),true);
+        focusEvidence.push({theme,kind,...focus});
       }
       await evaluate("document.querySelector('[data-feed-source-value=custom_rss]').focus()");
       if(theme==='dark')await capture('feed-editor-dark');

@@ -29,6 +29,7 @@ import {
 } from "../apps/workbench/src/ui-composition.ts";
 import {
   listPluginSettingsNavItems,
+  findPluginSettingsNavItem,
   pluginSettingsNavItemsFrom,
   isHostGlobalSettingsSection,
 } from "../apps/workbench/src/plugin-settings-catalog.ts";
@@ -169,15 +170,18 @@ test("settings catalog lists registered settings-pages and ignores Feed, Inbox, 
   ]);
   assert.deepEqual(listed.map((item) => item.section_id), ["shelf", "example"]);
   const live = listPluginSettingsNavItems();
-  assert.deepEqual(live.map((item) => item.section_id), ["coding-settings", "shelf", "functions"]);
-  assert.equal(live[0]?.plugin_id, "io.molis.work.coding");
-  assert.equal(live[1]?.contribution_id, SHELF_SETTINGS_UI_CONTRIBUTION_ID);
-  assert.equal(live[1]?.label, "Shelf");
-  assert.deepEqual(listPluginSettingsNavItems(["goals"]).map((item) => item.section_id), ["coding-settings", "shelf", "functions", "planning"]);
+  assert.equal(findPluginSettingsNavItem("coding-settings")?.plugin_id, "io.molis.work.coding");
+  assert.equal(findPluginSettingsNavItem("unregistered-settings"), null);
+  assert.ok(listPluginSettingsNavItems(["coding"]).some(item => item.section_id === "coding-settings"));
+  assert.deepEqual(live.map((item) => item.section_id), ["shelf", "functions"]);
+  assert.equal(live[0]?.plugin_id, "io.molis.work.shelf");
+  assert.equal(live[0]?.contribution_id, SHELF_SETTINGS_UI_CONTRIBUTION_ID);
+  assert.equal(live[0]?.label, "Shelf");
+  assert.deepEqual(listPluginSettingsNavItems(["goals"]).map((item) => item.section_id), ["shelf", "functions", "planning"]);
   assert.equal(listPluginSettingsNavItems(["goals"]).find((item) => item.section_id === "planning")?.label, "Goals");
   assert.equal(live.some((item) => item.section_id === "mcp"), false);
-  assert.equal(live[2]?.section_id, "functions");
-  assert.equal(live[2]?.label, "Functions");
+  assert.equal(live[1]?.section_id, "functions");
+  assert.equal(live[1]?.label, "Functions");
 });
 
 test("Shelf settings page has the drop wheel and Molis appearance does not", () => {
@@ -276,7 +280,7 @@ test("workbench settings directory and standalone settings both show Shelf after
   assert.match(directory, /data-settings-section="functions"/);
   const withGoals = renderSettingsDirectorySection(directoryPrimitives, ["goals"]);
   const sectionOrder = [...withGoals.matchAll(/data-settings-section="([^"]+)"/g)].map((match) => match[1]);
-  assert.deepEqual(sectionOrder, ["appearance", "runtimes", "mcp", "connectors", "diagnostics", "shelf", "functions", "planning"]);
+  assert.deepEqual(sectionOrder, ["appearance", "models", "runtimes", "mcp", "connectors", "diagnostics", "shelf", "functions", "planning"]);
   assert.match(withGoals, />Goals</);
   assert.doesNotMatch(directory, /Gmail|Inbox/);
   const html = renderMolisWorkSettings({

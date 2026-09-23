@@ -2,7 +2,7 @@ import { MarkSpec, Node, NodeSpec, Schema } from "prosemirror-model";
 import { EMPTY_PAGES_BODY } from "./document.js";
 import { calloutIconFor, safePagesCalloutIcon, safePagesCalloutTone } from "./callout.js";
 import { safePagesLanguage } from "./code-language.js";
-import { bookmarkLabel, imageAlt, safePagesHref, safePagesImageSrc, safePagesImageWidth } from "./link.js";
+import { bookmarkLabel, imageAlt, safePagesBookmarkTitle, safePagesHref, safePagesImageCaption, safePagesImageSrc, safePagesImageWidth } from "./link.js";
 import { safePagesTone } from "./tone.js";
 
 const MIN_COLUMN_WIDTH = 80;
@@ -203,8 +203,22 @@ const nodes = {
     group: "block",
     atom: true,
     selectable: true,
-    attrs: noted({ src: { default: "" }, alt: { default: "" }, width: { default: 0 } }),
+    attrs: noted({ src: { default: "" }, alt: { default: "" }, width: { default: 0 }, caption: { default: "" } }),
     parseDOM: [{
+      tag: "figure[data-pages-image]",
+      priority: 70,
+      getAttrs: (dom) => {
+        const el = dom as HTMLElement;
+        const img = el.querySelector("img");
+        const src = safePagesImageSrc(img?.getAttribute("src"));
+        return {
+          src,
+          alt: img?.getAttribute("alt") || imageAlt(src),
+          width: safePagesImageWidth(img?.getAttribute("data-pages-width")),
+          caption: safePagesImageCaption(el.querySelector("figcaption")?.textContent),
+        };
+      },
+    }, {
       tag: "img[data-pages-image]",
       priority: 60,
       getAttrs: (dom) => {
@@ -214,6 +228,7 @@ const nodes = {
           src,
           alt: el.getAttribute("alt") || imageAlt(src),
           width: safePagesImageWidth(el.getAttribute("data-pages-width")),
+          caption: safePagesImageCaption(el.getAttribute("data-pages-caption")),
         };
       },
     }],
@@ -221,13 +236,18 @@ const nodes = {
       const src = safePagesImageSrc(node.attrs.src);
       const alt = String(node.attrs.alt || imageAlt(src) || "图片");
       const width = safePagesImageWidth(node.attrs.width);
+      const caption = safePagesImageCaption(node.attrs.caption);
       const sized: Record<string, string> = { class: "pages-image" };
       if (width) {
         sized.style = `width: ${width}px`;
         sized["data-pages-width"] = String(width);
       }
-      if (!src) return ["div", domAttrs(node, { ...sized, class: "pages-image is-broken" }), alt];
-      return ["img", domAttrs(node, { ...sized, src, alt, "data-pages-image": "1" })];
+      if (caption) sized["data-pages-caption"] = caption;
+      const media = !src
+        ? ["div", domAttrs(node, { ...sized, class: "pages-image is-broken" }), alt] as const
+        : ["img", domAttrs(node, { ...sized, src, alt, "data-pages-image": "1" })] as const;
+      if (!caption) return media;
+      return ["figure", domAttrs(node, { class: "pages-image-frame", "data-pages-image": "1" }), media, ["figcaption", { class: "pages-image-caption" }, caption]];
     },
   } satisfies NodeSpec,
   bookmark: {
@@ -241,12 +261,12 @@ const nodes = {
       getAttrs: (dom) => {
         const el = dom as HTMLElement;
         const href = safePagesHref(el.getAttribute("href"));
-        return { href, title: el.querySelector("strong")?.textContent || bookmarkLabel(href) };
+        return { href, title: safePagesBookmarkTitle(el.querySelector("strong")?.textContent) || bookmarkLabel(href) };
       },
     }],
     toDOM: (node) => {
       const href = safePagesHref(node.attrs.href);
-      const title = String(node.attrs.title || bookmarkLabel(href) || "链接");
+      const title = safePagesBookmarkTitle(node.attrs.title) || bookmarkLabel(href) || "链接";
       if (!href) return ["div", domAttrs(node, { class: "pages-bookmark" }), title];
       return ["a", domAttrs(node, {
         class: "pages-bookmark",
@@ -401,7 +421,7 @@ const marks = {
   em: { parseDOM: [{ tag: "em" }, { tag: "i" }], toDOM: () => ["em", 0] } satisfies MarkSpec,
   underline: { parseDOM: [{ tag: "u" }], toDOM: () => ["u", 0] } satisfies MarkSpec,
   strike: { parseDOM: [{ tag: "s" }, { tag: "del" }], toDOM: () => ["s", 0] } satisfies MarkSpec,
-  code: { parseDOM: [{ tag: "code" }], toDOM: () => ["code", 0] } satisfies MarkSpec,
+  code: { code: true, parseDOM: [{ tag: "code" }], toDOM: () => ["code", 0] } satisfies MarkSpec,
   font_color: {
     attrs: { tone: { default: "" } },
     parseDOM: [{

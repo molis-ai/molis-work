@@ -133,7 +133,31 @@ test("Goal dialogs create once after retry, cancel without writes, and trash/res
   assert.equal(await evaluate(dom(reason) + ".value"), "Package migration browser test");
   assert.deepEqual(goal(), saved);
   await command("Network.setBlockedURLs", { urls: [] }, sessionId);
-  await navigate(() => click(trashSubmit));
+  // The server may have saved while the browser is still waiting for its response.
+  await evaluate(`{
+    const original = window.fetch; window.trashRequests = 0;
+    window.fetch = async (url, options) => {
+      const response = await original(url, options);
+      if (String(url).endsWith('/trash') && options?.method === 'POST') {
+        window.trashRequests++;
+        window.trashResponseReady = true;
+        await new Promise(resolve => { window.releaseTrashResponse = resolve; });
+      }
+      return response;
+    };
+  }`);
+  await click(trashSubmit);
+  await waitFor("window.trashResponseReady === true");
+  assert.ok(goal().trashed_at, "the production endpoint has already saved the original Goal");
+  assert.equal(await evaluate("document.querySelector('[data-goal-trash-form]').getAttribute('aria-busy')"), "true");
+  await click('[data-goal-trash-dialog] footer [data-close-goal-trash]');
+  await command('Input.dispatchKeyEvent', {type:'keyDown', key:'Escape', code:'Escape', windowsVirtualKeyCode:27}, sessionId);
+  await command('Input.dispatchKeyEvent', {type:'keyUp', key:'Escape', code:'Escape', windowsVirtualKeyCode:27}, sessionId);
+  await evaluate("document.querySelector('[data-goal-trash-form]').requestSubmit()");
+  assert.equal(await evaluate("document.querySelector('[data-goal-trash-dialog]').open"), true);
+  assert.equal(await evaluate("window.trashRequests"), 1, "pending submit cannot issue a second mutation");
+  assert.equal(await evaluate("document.querySelector('[data-goal-trash-target-id]').textContent"), goalId);
+  await navigate(() => evaluate("window.releaseTrashResponse()"));
   await waitFor(dom("[data-open-goal-restore]"));
   assert.ok(goal().trashed_at);
   assert.equal(goal().title, saved.title);

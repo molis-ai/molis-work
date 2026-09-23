@@ -334,11 +334,17 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
       }
       const sourceConfigSave = target.closest("[data-source-config-save]");
       if (sourceConfigSave) {
+        if (sourceConfigSave.disabled) return;
         const detail = sourceConfigSave.closest("[data-source-detail]") || feedSourcesDialog?.querySelector("[data-feed-task-config]:not([hidden])");
+        if (!detail) return;
         const sourceId = sourceConfigSave.dataset.sourceId;
         const readField = (name) => detail?.querySelector('[data-source-config-field="' + name + '"]')?.value || "";
         if ([...detail.querySelectorAll('[data-source-config-field]')].some(input => !input.reportValidity())) return;
         sourceConfigSave.disabled = true;
+        const modal = sourceConfigSave.matches("[data-feed-config-submit]") ? feedSourcesDialog : null;
+        modal?.setAttribute("aria-busy", "true");
+        modal?.querySelectorAll("[data-feed-sources-close], [data-feed-setup-back]").forEach(button => { button.disabled = true; });
+        detail.inert = true;
         showPrototypeStatus(detail, L("正在保存来源配置…"));
         try {
           await feedApi("/api/feed/sources/" + encodeURIComponent(sourceId), "PATCH", {
@@ -348,10 +354,16 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
             feed_url: readField("feed_url") || undefined,
           });
           showPrototypeStatus(detail, L("任务配置已保存。"));
-          await refreshFeedStage();
-          sourceConfigSave.disabled = false;
+          if (await refreshFeedStage()) {
+            if (sourceConfigSave.matches("[data-feed-config-submit]")) feedSourcesDialog?.close();
+            showToast(L("任务配置已保存。"));
+          }
         } catch (error) {
           showPrototypeStatus(detail, error.message || L("来源配置保存失败，请检查后重试。"));
+        } finally {
+          modal?.removeAttribute("aria-busy");
+          modal?.querySelectorAll("[data-feed-sources-close], [data-feed-setup-back]").forEach(button => { button.disabled = false; });
+          detail.inert = false;
           sourceConfigSave.disabled = false;
         }
         return;
@@ -587,12 +599,14 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
       }
       if (target.closest("[data-feed-sources-open], [data-feed-setup-back]")) { showFeedSetup(); return; }
       if (target.closest("[data-feed-sources-close]")) {
+        if (feedSourcesDialog?.getAttribute("aria-busy") === "true" || feedSourcesDialog?.querySelector('[data-feed-add-form][aria-busy="true"]')) return;
         const config = feedSourcesDialog?.querySelector("[data-feed-task-config]:not([hidden])");
         if (config) resetFeedFields(config);
         feedSourcesDialog?.close(); return;
       }
       const sourceRegister = target.closest("[data-feed-source-register]");
       if (sourceRegister) {
+        if (sourceRegister.disabled) return;
         const form = sourceRegister.form || sourceRegister.closest("[data-feed-add-form]");
         const scope = form || feedSourcesDialog;
         const kind = sourceRegister.dataset.feedSourceRegister;
@@ -608,6 +622,9 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
         if (name) body.name = name;
         if (form && !form.reportValidity()) return;
         sourceRegister.disabled = true;
+        form?.setAttribute("aria-busy", "true");
+        if (form) form.inert = true;
+        feedSourcesDialog?.querySelectorAll("[data-feed-sources-close], [data-feed-setup-back]").forEach(button => { button.disabled = true; });
         const inlineError = form?.querySelector("[data-feed-add-error]");
         if (inlineError) {
           inlineError.hidden = true;
@@ -630,8 +647,9 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
           selectedFeedTask = sourceId;
           document.dispatchEvent(new CustomEvent("workbench-feed-task", { detail: { taskId: sourceId } }));
           saveUiState();
+          resetFeedAddDraft();
           setFeedAddOpen(false);
-          await refreshFeedStage();
+          if (await refreshFeedStage()) setFeedTask(sourceId);
         } catch (error) {
           const retryCopy = phase === "out-rule"
             ? L("任务已创建，捕捉规则未保存。请重试，不会重复创建任务。")
@@ -653,6 +671,10 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
           }
           setFeedSourceFeedback(message, true);
           sourceRegister.disabled = false;
+        } finally {
+          form?.removeAttribute("aria-busy");
+          if (form) form.inert = false;
+          feedSourcesDialog?.querySelectorAll("[data-feed-sources-close], [data-feed-setup-back]").forEach(button => { button.disabled = false; });
         }
         return;
       }

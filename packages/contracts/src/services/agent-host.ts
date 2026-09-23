@@ -194,6 +194,8 @@ export interface AgentFrozenCharacter extends CharacterContent {
 }
 
 export interface AgentFrozenStart {
+  /** Exact imported Skill ids used by this Run; the full Character snapshot remains immutable. */
+  character_skill_ids?: string[];
   execution_plan?: AgentExecutionPlan;
   /** Child directory grants frozen for this run; never a grant to write the parent. */
   subagent_workspaces?: AgentSubagentWorkspace[];
@@ -249,6 +251,7 @@ export interface AgentSubagentWorkspace {
 }
 
 export interface AgentFrozenRole {
+  character_skill_ids?: string[];
   subagent_workspaces?: AgentSubagentWorkspace[];
   subagents?: AgentFrozenSubagentRole[];
   character?: AgentFrozenCharacter;
@@ -266,6 +269,8 @@ export interface AgentFrozenRole {
 }
 
 export interface AgentStartRequest {
+  /** Explicit subset of the selected Character's imported Skills. Empty uses rules only. */
+  character_skill_ids?: string[];
   execution_plan?: AgentExecutionPlan;
   /** Selected child roots; the Host must independently verify every directory grant. */
   subagent_workspaces?: AgentSubagentWorkspace[];

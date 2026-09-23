@@ -74,6 +74,10 @@
       "types": "./dist/modules/lingguang.d.ts",
       "import": "./dist/modules/lingguang.js"
     },
+    "./modules/alchemist": {
+      "types": "./dist/modules/alchemist.d.ts",
+      "import": "./dist/modules/alchemist.js"
+    },
     "./modules/governance-collaboration": {
       "types": "./dist/modules/governance-collaboration.d.ts",
       "import": "./dist/modules/governance-collaboration.js"

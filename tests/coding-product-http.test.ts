@@ -91,7 +91,7 @@ test("Coding formal routes preserve drafts and isolate projects across server re
     assert.match(settingsHtml, /只读子任务协作/);
     assert.match(settingsHtml, /主任务只读；已分配子目录逐笔审查写入/);
     assert.ok(settingsHtml.includes('/projects/' + projects[0] + '/'));
-    const modelSettingsHtml = await (await fetch(origin + '/settings/models')).text();
+    const modelSettingsHtml = await (await fetch(origin + '/settings/models?project=' + projects[0])).text();
     assert.ok(modelSettingsHtml.includes('/settings/coding-settings'));
     const workspace = path.join(root,'method-source');await mkdir(path.join(workspace,'skills','source-review'),{recursive:true});
     await writeFile(path.join(workspace,'skills/source-review/SKILL.md'),'---\nname: source-review\ndescription: Check source evidence\n---\nRead the requested file before giving a conclusion.');

@@ -1,5 +1,7 @@
-import { imagesManifest } from "@molis-ai/molis-work-plugin-images";
-import { jellyManifest } from "@molis-ai/molis-work-plugin-jelly";
+import { COGNIA_PROJECT_PLUGIN_ID, cogniaManifest } from "@molis-ai/molis-work-plugin-cognia";
+import { builderManifest, builderPrompts } from "@molis-ai/molis-work-plugin-builder";
+import { IMAGES_PROJECT_PLUGIN_ID, imagesManifest } from "@molis-ai/molis-work-plugin-images";
+import { JELLY_PROJECT_PLUGIN_ID, jellyManifest } from "@molis-ai/molis-work-plugin-jelly";
 import { experimentsManifest } from "@molis-ai/molis-work-plugin-experiments";
 import type {
   ProjectPluginId,
@@ -28,6 +30,7 @@ import { FORM_PROJECT_PLUGIN_ID, formManifest } from "@molis-ai/molis-work-plugi
 import { DATASET_PROJECT_PLUGIN_ID, datasetManifest } from "@molis-ai/molis-work-plugin-dataset";
 import { PPT_PROJECT_PLUGIN_ID, pptManifest } from "@molis-ai/molis-work-plugin-ppt";
 import { LINGGUANG_PROJECT_PLUGIN_ID, lingguangManifest } from "@molis-ai/molis-work-plugin-lingguang";
+import { ALCHEMIST_PROJECT_PLUGIN_ID, alchemistManifest } from "@molis-ai/molis-work-plugin-alchemist";
 import { WORK_PROJECT_PLUGIN_ID, workManifest } from "@molis-ai/molis-work-plugin-work";
 
 /**
@@ -54,8 +57,10 @@ export interface PluginMarketCard {
 }
 
 export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
-  { project_plugin_id: "images", manifest: imagesManifest, personal: true, summary: "连接生图服务，描述图片，预览并保存生成结果。" },
-  { project_plugin_id: "jelly", manifest: jellyManifest, personal: true, summary: "安排事项、写笔记、收集灵感，把想法放进每天。" },
+  { project_plugin_id: COGNIA_PROJECT_PLUGIN_ID, manifest: cogniaManifest, personal: true, summary: "导入本地知识，保留来源，整理为可追溯的知识。" },
+  { project_plugin_id: "plugin-builder", manifest: builderManifest, personal: true, summary: "用自然语言设计、构建并使用自己的插件。" },
+  { project_plugin_id: IMAGES_PROJECT_PLUGIN_ID, manifest: imagesManifest, personal: true, summary: "连接生图服务，描述图片，预览并保存生成结果。" },
+  { project_plugin_id: JELLY_PROJECT_PLUGIN_ID, manifest: jellyManifest, personal: true, summary: "安排事项、写笔记、收集灵感，把想法放进每天。" },
   { project_plugin_id: "experiments", manifest: experimentsManifest, personal: true, summary: "同一任务，独立比较模型的判断、耗时与成本。" },
   { project_plugin_id: GOALS_PROJECT_PLUGIN_ID, manifest: goalsManifest, summary: "确定目标，推进工作，留下结果。" },
   { project_plugin_id: WORK_PROJECT_PLUGIN_ID, manifest: workManifest, summary: "回到你的会话，继续正在做的事。" },
@@ -70,6 +75,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
   { project_plugin_id: FORM_PROJECT_PLUGIN_ID, manifest: formManifest, personal: true, summary: "建问卷，预览填写，看结果。" },
   { project_plugin_id: DATASET_PROJECT_PLUGIN_ID, manifest: datasetManifest, personal: true, summary: "改表格，导入 CSV，留下版本。" },
   { project_plugin_id: PPT_PROJECT_PLUGIN_ID, manifest: pptManifest, personal: true, summary: "写幻灯片大纲，预览并导出 JSON。" },
+  { project_plugin_id: ALCHEMIST_PROJECT_PLUGIN_ID, manifest: alchemistManifest, personal: true, summary: "写下方向，炼成可比较的卡，再决定做不做。" },
   { project_plugin_id: ARTIFACTS_PROJECT_PLUGIN_ID, manifest: artifactsManifest, summary: "打开项目成果，查看保留下来的版本。" },
   { project_plugin_id: CODING_PROJECT_PLUGIN_ID, manifest: codingManifest, summary: "围绕代码讨论、执行和审查，保留连续的任务记录。" },
   { project_plugin_id: WORKSPACE_PROJECT_PLUGIN_ID, manifest: workspaceManifest, summary: "查看当前项目的工作区。" },
@@ -264,7 +270,7 @@ export const BUILTIN_PLUGIN_AGENTS: ReadonlyMap<string, {
     if (agent === undefined) return [];
     const prompts = entry.project_plugin_id === CODING_PROJECT_PLUGIN_ID
       ? codingPrompts
-      : entry.project_plugin_id === SCHEDULE_PROJECT_PLUGIN_ID
+      : entry.project_plugin_id === "plugin-builder" ? builderPrompts : entry.project_plugin_id === SCHEDULE_PROJECT_PLUGIN_ID
         ? schedulePrompts
         : [];
     const skills = entry.project_plugin_id === CODING_PROJECT_PLUGIN_ID ? codingMethods : [];

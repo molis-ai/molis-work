@@ -1,0 +1,85 @@
+import {builderIcons} from './visuals.js';
+/** The same real records renderer serves the editing canvas and installed applications. */
+export const RECORD_CLIENT_FACTORY_SCRIPT=String.raw`(host)=>{
+ const root=host.root,icons=${JSON.stringify(builderIcons)};
+ const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const display=value=>Array.isArray(value)?value.join(' · '):String(value??'');
+ let design=null,behavior=null,rows=[],allTags=[],selected=new Set(),editing=null,search='',tag='',schema='',binding='',serial=0,mode='building',sort='newest',layout=null,visibleCount=Infinity,recordsKey='';
+ const status=document.createElement('p');status.className='pb-record-status';status.setAttribute('role','status');
+ const show=(message,error=false)=>{status.textContent=message;status.setAttribute('role',error?'alert':'status');};
+ const fields=()=>[...design.fields,...(behavior?.calculations||design.calculations||[])];
+ const mapping=()=>({title:design.fields[0].id,...design.presentation});
+ const safeUrl=value=>{try{const u=new URL(String(value));return ['https:','http:'].includes(u.protocol)?u.href:'';}catch{return '';}};
+ const coverHtml=value=>{const url=safeUrl(value);if(!url)return '';const sample=/^https:\/\/molis\.example\/plugin-builder\/samples\/(architecture|book|nature|lake)$/.exec(url);return sample?'<div class="pb-cover '+sample[1]+'" role="img" aria-label="生成的示例封面"></div>':'<div class="pb-cover"><img src="'+esc(url)+'" alt="" loading="lazy" referrerpolicy="no-referrer"></div>';};
+ const counts=()=>{const count=root.querySelector('[data-selected-count]');if(count)count.textContent=selected.size?'已选择 '+selected.size+' 项':'';};
+ const updateFilters=()=>{const target=root.querySelector('[data-record-filters]');if(!target)return;target.innerHTML=['',...new Set([...allTags,...rows.flatMap(row=>Object.values(row.values).filter(Array.isArray).flat())])].slice(0,4).map(t=>'<button class="pb-filter '+(tag===t?'selected':'')+'" data-record-filter="'+esc(t)+'" aria-pressed="'+(tag===t)+'">'+esc(t||'全部')+'</button>').join('');};
+ const updateRecords=()=>{
+  const target=root.querySelector('[data-record-list]');if(!target||!design)return;const existingIds=new Set([...target.querySelectorAll('[data-record-id]')].map(el=>el.dataset.recordId));const m=mapping(),kind=layout||design.layout;
+  target.dataset.layout=kind;root.dataset.layout=kind;const visible=rows.slice(0,visibleCount);if(sort==='name')visible.sort((a,b)=>display(a.values[m.title]).localeCompare(display(b.values[m.title])));
+  const nextRecordsKey=JSON.stringify([kind,visible,m,fields(),[...selected],Boolean(search||tag)]);if(nextRecordsKey===recordsKey&&target.childElementCount){counts();return;}recordsKey=nextRecordsKey;
+  const select=r=>'<input type="checkbox" data-record-select="'+esc(r.id)+'" aria-label="选择 '+esc(display(r.values[m.title]))+'" '+(selected.has(r.id)?'checked':'')+'>';
+  const actions=r=>'<button class="pb-icon" data-record-edit="'+esc(r.id)+'" aria-label="编辑 '+esc(display(r.values[m.title]))+'">'+icons.more+'</button>';
+  if(!visible.length){target.className='pb-records';target.innerHTML='<div class="pb-record-empty">'+icons.bookmark+'<h2>'+(search||tag?'还没有找到匹配的内容':'留一个位置，给下一个好想法。')+'</h2><p>'+(search||tag?'换个词，或者回到全部内容。':'从右上角添加第一条记录。')+'</p></div>';counts();return;}
+  if(kind==='table'){target.className='pb-table-wrap';target.innerHTML='<table class="pb-table"><thead><tr><th></th>'+fields().filter(f=>f.id!==m.image).map(f=>'<th>'+esc(f.label)+'</th>').join('')+'<th></th></tr></thead><tbody>'+visible.map(r=>'<tr><td>'+select(r)+'</td>'+fields().filter(f=>f.id!==m.image).map(f=>'<td>'+esc(display(r.values[f.id]))+'</td>').join('')+'<td>'+actions(r)+'</td></tr>').join('')+'</tbody></table>';}
+  else{target.className='pb-records '+kind+(m.image?' visual':'');target.innerHTML=visible.map((r,index)=>{
+   const meta=m.metadata?display(r.values[m.metadata]):'';const link=m.link?safeUrl(r.values[m.link]):'';const tags=m.tags&&Array.isArray(r.values[m.tags])?r.values[m.tags]:[];
+   const extra=fields().filter(f=>![m.title,m.description,m.image,m.metadata,m.link,m.tags].includes(f.id));
+   return '<article class="pb-record '+(selected.has(r.id)?'is-selected':'')+'" data-record-id="'+esc(r.id)+'"><label class="pb-record-check">'+select(r)+'</label>'+coverHtml(r.values[m.image])+'<div class="pb-record-copy"><strong class="pb-record-title">'+esc(display(r.values[m.title]))+'</strong>'+(m.description?'<p>'+esc(display(r.values[m.description]))+'</p>':'')+(tags.length?'<div class="pb-card-tags">'+tags.map(t=>'<span># '+esc(t)+'</span>').join('')+'</div>':'')+(extra.length?'<dl>'+extra.map(f=>'<dt>'+esc(f.label)+'</dt><dd>'+esc(display(r.values[f.id]))+'</dd>').join('')+'</dl>':'')+'<footer><small>'+esc(meta)+'</small><div>'+(link?'<a class="pb-icon" href="'+esc(link)+'" target="_blank" rel="noopener noreferrer" aria-label="打开来源">'+icons.external+'</a>':'')+actions(r)+'</div></footer></div></article>';
+  }).join('')+(kind==='cards'?'<button class="pb-reserved" data-record-add>'+icons.plus+'<span>继续添加'+(design.presentation?.addLabel==='收集灵感'?'灵感':'内容')+'<small>让好想法不再丢失</small></span></button>':'');}
+  for(const el of target.querySelectorAll('[data-record-id]'))if(!existingIds.has(el.dataset.recordId))host.onPlace?.(el,'素材卡片');
+  counts();host.onChange?.();
+ };
+ const refresh=async()=>{if(!behavior)return;const id=++serial;try{const result=await host.request('GET',undefined,{search,tag});if(id!==serial)return;rows=result.rows;if(!search&&!tag)allTags=[...new Set(rows.flatMap(row=>Object.values(row.values).filter(Array.isArray).flat()))];updateRecords();updateFilters();const summary=root.querySelector('[data-record-totals]');if(summary)summary.innerHTML='<span>记录 <strong>'+result.summary.count+'</strong></span>'+Object.entries(result.summary.totals).map(([id,value])=>'<span>'+esc(fields().find(f=>f.id===id)?.label||id)+' <strong>'+esc(value)+'</strong></span>').join('');}catch(error){show(error.message,true);}};
+ const dialog=()=>root.querySelector('[data-record-editor]');
+ const clearEdit=()=>{editing=null;root.querySelector('[data-record-form]')?.reset();const remove=root.querySelector('[data-record-delete]');if(remove)remove.hidden=true;const submit=root.querySelector('[data-record-submit]');if(submit)submit.textContent='保存记录';};
+ const closeEditor=()=>{dialog()?.close();};
+ const openEditor=()=>{const el=dialog();if(!el){show('录入零件还在装配，请稍候。');return;}el.showModal();root.querySelector('[data-record-form] input')?.focus();};
+ root.addEventListener('submit',async event=>{const form=event.target.closest('[data-record-form]');if(!form)return;event.preventDefault();if(!behavior){const error=root.querySelector('[data-record-form-error]');error.textContent='保存尚未接通，输入内容已保留。';return;}const values={};for(const field of design.fields){const input=form.elements.namedItem(field.id);values[field.id]=field.type==='boolean'?input.checked:field.type==='number'?(input.value===''?'':Number(input.value)):field.type==='tags'?input.value.split(/[，,]/).map(x=>x.trim()).filter(Boolean):input.value;}
+  const button=form.querySelector('[data-record-submit]');button.disabled=true;try{await host.request('POST',{action:'save',values,...(editing?{id:editing.id,revision:editing.revision}:{})});clearEdit();closeEditor();show('已保存');await refresh();}catch(error){root.querySelector('[data-record-form-error]').textContent=error.message;}finally{button.disabled=false;}
+ });
+ root.addEventListener('click',async event=>{
+  const el=event.target.closest('button');if(!el){const node=event.target.closest('[data-node-id]');if(node&&mode==='building'&&!event.target.closest('input,a,textarea,select,dialog'))host.onInspect?.(node.dataset.nodeId);return;}
+  try{
+   if(el.matches('[data-record-add]')){clearEdit();root.querySelector('[data-record-form-error]').textContent='';openEditor();return;}
+   if(el.matches('[data-record-cancel]')){closeEditor();return;}
+   if(el.dataset.recordEdit){editing=rows.find(r=>r.id===el.dataset.recordEdit);if(!editing)return;openEditor();const form=root.querySelector('[data-record-form]');for(const field of design.fields){const input=form.elements.namedItem(field.id),value=editing.values[field.id];if(field.type==='boolean')input.checked=Boolean(value);else input.value=Array.isArray(value)?value.join(', '):String(value??'');}form.querySelector('[data-record-submit]').textContent='保存修改';root.querySelector('[data-record-delete]').hidden=false;return;}
+   if(el.matches('[data-record-delete]')){if(!editing||!confirm('删除这条记录？'))return;await host.request('POST',{action:'remove',id:editing.id,revision:editing.revision});selected.delete(editing.id);clearEdit();closeEditor();show('已删除');await refresh();return;}
+   if(el.matches('[data-record-export]')){if(!behavior){show('导出尚未接通，已有内容保留。');return;}const result=await host.request('POST',{action:'export',...(selected.size?{ids:[...selected]}:{})});const url=URL.createObjectURL(new Blob([result.csv],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=design.title+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);show(selected.size?'已导出选中的 '+selected.size+' 项':'已导出全部记录');return;}
+   if(el.matches('[data-record-import]')){root.querySelector('[data-record-file]')?.click();return;}
+   if(el.hasAttribute('data-record-filter')){tag=el.dataset.recordFilter;updateFilters();void refresh();return;}
+   if(el.dataset.recordLayout){layout=el.dataset.recordLayout;if(host.onLayout)await host.onLayout(layout);else updateRecords();return;}
+  }catch(error){show(error.message,true);}
+ });
+ root.addEventListener('change',async event=>{const el=event.target;if(el.dataset.recordSelect){el.checked?selected.add(el.dataset.recordSelect):selected.delete(el.dataset.recordSelect);el.closest('.pb-record')?.classList.toggle('is-selected',el.checked);counts();}
+  if(el.matches('[data-record-sort]')){sort=el.value;updateRecords();}
+  if(el.matches('[data-record-file]')&&el.files?.[0]){try{const file=el.files[0];if(file.size>2000000)throw new Error('CSV 不能超过 2MB');const result=await host.request('POST',{action:'import',csv:await file.text()});show('已导入 '+result.rows.length+' 条');await refresh();}catch(error){show(error.message,true);}finally{el.value='';}}
+ });
+ let searchTimer;root.addEventListener('input',event=>{if(!event.target.matches('[data-record-search]'))return;search=event.target.value;clearTimeout(searchTimer);searchTimer=setTimeout(refresh,180);});
+ const partHtml=node=>{
+  if(node.kind==='heading')return '<div class="pb-app-title">'+icons.bookmark+'<div><h1>'+esc(design.title)+'</h1><p>'+esc(design.description)+'</p></div></div>';
+  if(node.kind==='form')return '<button class="pb-add" data-record-add>'+icons.plus+'<span>'+esc(design.presentation?.addLabel||'添加记录')+'</span><i data-record-save-check>'+icons.check+'</i></button><small class="pb-save-state" data-record-save-state></small><dialog class="pb-record-editor" data-record-editor><form data-record-form><header><div><h2>'+esc(design.presentation?.addLabel||'添加记录')+'</h2><p>让内容留在这里，随时找回。</p></div><button type="button" class="pb-icon" data-record-cancel aria-label="关闭录入">'+icons.close+'</button></header><div class="pb-record-fields">'+design.fields.map(f=>'<label>'+esc(f.label)+(f.required?' <small>必填</small>':'')+'<input name="'+esc(f.id)+'" type="'+(f.type==='boolean'?'checkbox':f.type==='number'?'number':f.type==='url'?'url':'text')+'" '+(f.type==='number'?'step="any" ':'')+(f.required&&f.type!=='boolean'?'required ':'')+(f.type==='tags'?'placeholder="用逗号分隔" ':'')+'></label>').join('')+'<p class="pb-form-error" data-record-form-error role="alert"></p></div><footer><button type="button" class="pb-text-button" data-record-delete hidden>删除记录</button><button type="button" class="pb-button" data-record-cancel>取消</button><button class="pb-primary pb-button" data-record-submit type="submit">保存记录</button></footer></form></dialog>';
+  if(node.kind==='search')return '<label class="pb-search">'+icons.search+'<input data-record-search aria-label="搜索记录" placeholder="搜索'+esc(design.title)+'…"></label>';
+  if(node.kind==='filter')return '<div class="pb-filters" data-record-filters></div>';
+  if(node.kind==='collection')return '<div class="pb-view-tools"><select data-record-sort aria-label="排序"><option value="newest">收藏顺序</option><option value="name">按名称</option></select><button class="pb-icon" data-record-layout="'+((layout||design.layout)==='cards'?'list':'cards')+'" aria-label="切换卡片或列表">'+icons.list+'</button></div><div data-record-list></div>';
+  if(node.kind==='actions')return '<div class="pb-export"><button class="pb-text-button" data-record-export>'+icons.upload+'导出</button><span data-record-export-state>待连接</span><button class="pb-icon" data-record-import aria-label="导入 CSV">'+icons.download+'</button><input data-record-file type="file" accept=".csv,text/csv" hidden><small data-selected-count></small></div>';
+  if(node.kind==='summary')return '<div class="pb-totals" data-record-totals></div>';
+  return '';
+ };
+ const update=(nextDesign,nodes,nextBehavior)=>{
+  if(!nextDesign)return;const oldSchema=schema;schema=JSON.stringify(nextDesign.fields);const previousTitle=design?.title;design=nextDesign;layout=design.layout;
+  const behaviorChanged=binding!==JSON.stringify(nextBehavior);binding=JSON.stringify(nextBehavior);behavior=nextBehavior;
+  if(oldSchema&&oldSchema!==schema){dialog()?.close();root.replaceChildren();editing=null;selected.clear();}
+  if(!root.querySelector('.pb-app-head')){root.innerHTML='<div class="pb-app-head"></div><div class="pb-app-query"></div><div class="pb-app-body"></div>';}
+  for(const existing of root.querySelectorAll('[data-node-id]'))if(!nodes.some(n=>n.id===existing.dataset.nodeId))existing.remove();
+  const placed=[];nodes.forEach(node=>{let el=[...root.querySelectorAll('[data-node-id]')].find(e=>e.dataset.nodeId===node.id);if(!el){el=document.createElement('section');el.className='pb-node';el.dataset.nodeId=node.id;el.dataset.kind=node.kind;el.innerHTML=partHtml(node);placed.push({element:el,label:node.label});root.querySelector(['heading','form','actions'].includes(node.kind)?'.pb-app-head':['search','filter'].includes(node.kind)?'.pb-app-query':'.pb-app-body').append(el);el.querySelector('dialog')?.addEventListener('click',e=>{if(e.target===e.currentTarget)e.currentTarget.close();});}else if(node.kind==='heading'&&previousTitle!==design.title)el.innerHTML=partHtml(node);
+   el.setAttribute('aria-label',node.label);if(node.kind==='form'){el.querySelector('.pb-add>span').textContent=node.label;el.querySelector('h2').textContent=node.label;}if(node.kind==='search')el.querySelector('input').placeholder=node.label+'…';const was=el.dataset.connected;el.dataset.connected=String(Boolean(behavior)||node.kind==='heading');if(was==='false'&&behavior){el.classList.add('pb-just-connected');setTimeout(()=>el.classList.remove('pb-just-connected'),900);}
+  });
+  for(const selector of ['.pb-app-head','.pb-app-query','.pb-app-body']){const container=root.querySelector(selector),ordered=nodes.map(n=>container.querySelector('[data-node-id=\"'+CSS.escape(n.id)+'\"]')).filter(Boolean);ordered.forEach((el,index)=>{if(container.children[index]!==el)container.insertBefore(el,container.children[index]||null);});}
+  const save=root.querySelector('[data-record-save-state]');if(save)save.innerHTML=behavior?icons.check+'保存已接通':'保存待连接';const check=root.querySelector('[data-record-save-check]');if(check)check.hidden=!behavior;
+  const exportState=root.querySelector('[data-record-export-state]');if(exportState)exportState.hidden=Boolean(behavior);
+  for(const el of root.querySelectorAll('[data-record-export]'))el.hidden=!(behavior?.allowExport??design.allowExport);
+  for(const el of root.querySelectorAll('[data-record-import]')){el.hidden=!(behavior?.allowImport??design.allowImport);el.disabled=!behavior;}
+  root.dataset.connected=String(Boolean(behavior));root.append(status);updateRecords();updateFilters();if(behavior&&behaviorChanged)void refresh();for(const item of placed)host.onPlace?.(item.element,item.label);
+ };
+ return {update,refresh,setMode:next=>{mode=next;root.dataset.mode=next;},setVisibleCount:count=>{visibleCount=count;updateRecords();},clear:()=>{serial++;clearTimeout(searchTimer);dialog()?.close();design=null;behavior=null;schema='';binding='';rows=[];allTags=[];selected.clear();editing=null;search='';tag='';visibleCount=Infinity;recordsKey='';root.replaceChildren();}};
+}`;

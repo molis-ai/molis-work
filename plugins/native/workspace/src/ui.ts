@@ -8,6 +8,22 @@ import type { WorkspaceSelectionView } from "./selection.js";
 
 export const WORKSPACE_UI_CONTRIBUTION_ID = "io.molis.work.native.workspace.ui.v1";
 
+/** The current Workbench owns the outer stage; Workspace owns its content. */
+export function renderWorkspaceWorkbench(): string {
+  return `<div class="workspace-manager mw-frame" data-slot="frame" data-workspace-manager>
+    <header class="mw-frame__header"><div class="mw-frame__heading"><h2>工作目录</h2></div><button class="mw-btn mw-btn--ghost" type="button" data-workspace-refresh><span class="mw-spinner" hidden></span>刷新</button></header><div class="mw-frame__panel">
+    <p>选择 Files 和 Git 浏览的目录。Coding 会话的执行目录在会话内单独选择。</p>
+    <p data-workspace-status role="status" aria-live="polite">正在读取工作目录…</p>
+    <div class="mw-dir workspace-list" data-workspace-list></div>
+    <form class="mw-form" data-workspace-add><h2>关联这台电脑上的目录</h2>
+      <div class="mw-field"><span class="mw-field__label">目录路径</span><button class="mw-btn workspace-pick" type="button" data-workspace-pick>选择目录</button><p data-workspace-picked>尚未选择</p><input name="path" hidden></div>
+      <label class="mw-check-row"><input class="mw-check" type="checkbox" name="confirmed"><span>确认将此目录关联到当前项目</span></label>
+      <button class="mw-btn mw-btn--primary" type="submit">关联目录</button>
+      <p data-workspace-add-status role="status"></p>
+    </form></div>
+  </div>`;
+}
+
 export interface WorkspaceUiPrimitives {
   escape(value: unknown): string;
   icon(name: string): string;

@@ -55,7 +55,8 @@ for (const [width,height] of [[1440,900],[390,640]]) {
     await click('[data-feed-choose-kind=custom_rss]');
     await fill('[data-feed-add-name]','团队设计资料');
     await fill('[data-feed-source-value=custom_rss]','https://example.com/journey.xml');
-    await navigate(()=>click('[data-feed-source-register]'));
+    await click('[data-feed-source-register]');
+    await waitFor("!document.querySelector('[data-feed-sources-dialog]').open && [...document.querySelectorAll('[data-feed-task]')].some(e=>e.textContent.includes('团队设计资料'))");
     await directory();
     const sourceId=await evaluate<string>("[...document.querySelectorAll('[data-feed-task]')].find(e=>e.textContent.includes('团队设计资料')).dataset.feedTask");
     const feed=createLocalFeedApplication(b.store.db),source=feed.getSource(DEMO_BOARD_ID,sourceId);
@@ -66,7 +67,8 @@ for (const [width,height] of [[1440,900],[390,640]]) {
     await evaluate(`document.querySelector('[data-feed-entry-id="${item.item_id}"]')?.click()`);
     await waitFor(`document.querySelector('[data-feed-detail="${item.item_id}"] [data-feed-action=inbox]')`);
     assert.ok(feed.getItem(DEMO_BOARD_ID,item.item_id).read_at);
-    await navigate(()=>click(`[data-feed-detail="${item.item_id}"] [data-feed-action=inbox]`));
+    await click(`[data-feed-detail="${item.item_id}"] [data-feed-action=inbox]`);
+    await waitFor("[...document.querySelectorAll('[data-inbox-row]')].some(row=>row.textContent.includes('评审工作区的用户动线'))");
     await plugin('inbox');
     if(width<760&&await evaluate("document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')"))await click('[data-directory-toggle]');
     await evaluate("[...document.querySelectorAll('[data-inbox-row]')].find(row=>row.textContent.includes('评审工作区的用户动线'))?.click()");
@@ -80,7 +82,8 @@ for (const [width,height] of [[1440,900],[390,640]]) {
     if (width < 760 && await evaluate("document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')")) await click('[data-directory-toggle]');
     await evaluate("[...document.querySelectorAll('[data-inbox-row]')].find(row=>row.textContent.includes('评审工作区的用户动线'))?.click()");
     const entryId=await evaluate<string>("document.querySelector('[data-inbox-detail]:not([hidden])').dataset.inboxDetail");
-    await navigate(()=>click('[data-inbox-detail]:not([hidden]) [data-inbox-action=done]'));
+    await click('[data-inbox-detail]:not([hidden]) [data-inbox-action=done]');
+    await waitFor(`document.querySelector('[data-inbox-stage-group="history"] [data-inbox-entry-id="${entryId}"]') && !document.querySelector('[data-inbox-stage-group="active"] [data-inbox-entry-id="${entryId}"]') && document.querySelector('[data-inbox-stage-shell]').dataset.expanded === 'false'`);
     const history=await (await fetch(prefix+'/api/inbox?filter=history')).json();
     assert.equal(history.entries.find((e:{entry_id:string})=>e.entry_id===entryId)?.status,'done');
     assert.equal(feed.getItem(DEMO_BOARD_ID,item.item_id).body,item.body);

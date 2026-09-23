@@ -1,3 +1,5 @@
+import { cogniaManifest } from "@molis-ai/molis-work-plugin-cognia";
+import { createCogniaMcpAdapter } from "./mcp-cognia-tools.js";
 import { jellyManifest } from "@molis-ai/molis-work-plugin-jelly";
 import { createJellyMcpAdapter } from "./mcp-jelly-tools.js";
 import type { MolisWorkRuntimeContextHost } from "@molis-ai/molis-work-contracts/platform/app-host";
@@ -70,6 +72,7 @@ export interface NativeMcpDispatchEntry {
 const NATIVE_MCP_ADAPTERS: Readonly<Record<string, NativeMcpPluginRegistration["createAdapter"]>> = {
   [functionsManifest.plugin_id]: createFunctionsMcpAdapter,
   [jellyManifest.plugin_id]: createJellyMcpAdapter,
+  [cogniaManifest.plugin_id]: createCogniaMcpAdapter,
   [pagesManifest.plugin_id]: createPagesMcpAdapter,
   [formManifest.plugin_id]: createFormMcpAdapter,
   [datasetManifest.plugin_id]: createDatasetMcpAdapter,

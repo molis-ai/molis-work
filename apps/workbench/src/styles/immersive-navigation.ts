@@ -318,7 +318,7 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench .immersive-plugin-stage > .goal-canvas-shell, body.immersive-workbench .tab-pane-body > .goal-canvas-shell { overflow: hidden; background: var(--canvas); }
   body.immersive-workbench .immersive-plugin-stage > .goal-canvas-shell[data-board-view="list"], body.immersive-workbench .tab-pane-body > .goal-canvas-shell[data-board-view="list"] { background: var(--paper); }
   body.immersive-workbench .immersive-sidebar-scrim { display: none; }
-  body.immersive-workbench .immersive-plugin-stage > .immersive-market { overflow: hidden; display: flex; flex-direction: column; padding: 0; background: var(--paper); }
+  body.immersive-workbench :is(.immersive-plugin-stage > .immersive-market, .tab-workspace-exclusive > .immersive-market, .tab-pane-body > .immersive-market) { overflow: hidden; display: flex; flex-direction: column; padding: 0; background: var(--paper); }
   body.immersive-workbench .plugin-market-body { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; width: 100%; padding: 28px clamp(20px, 4%, 48px) 48px; }
   body.immersive-workbench .plugin-market-body > * { width: 100%; max-width: 720px; margin-left: auto; margin-right: auto; }
   body.immersive-workbench .plugin-market-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
@@ -380,7 +380,7 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench .plugin-market-list { display: grid; grid-template-columns: 1fr 1fr; column-gap: 28px; row-gap: 2px; }
   body.immersive-workbench .plugin-market-list article { display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 8px; border-radius: 10px; }
   body.immersive-workbench .plugin-market-list article:hover { background: var(--nav-hover); }
-  body.immersive-workbench .plugin-market-icon { width: 40px; height: 40px; flex: none; display: grid; place-items: center; border-radius: 10px; background: var(--nav-bg); color: var(--ink); }
+  body.immersive-workbench .plugin-market-icon { width: 40px; height: 40px; flex: none; display: grid; place-items: center; border-radius: 10px; background: var(--nav-bg); color: var(--plugin-tint, var(--ink)); }
   body.immersive-workbench .plugin-market-icon svg { width: 18px; height: 18px; }
   body.immersive-workbench .plugin-market-copy { min-width: 0; flex: 1; }
   body.immersive-workbench .plugin-market-list h2, body.immersive-workbench .plugin-market-list p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -452,7 +452,14 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench :is(.immersive-titlebar button, .navigator-native-row button, .immersive-plugin-link, .navigator-project-search):focus-visible { outline-offset: var(--focus-stroke-inset); }
   body.immersive-workbench ::selection { color: var(--ink); background: var(--blue-soft); }
   body.immersive-workbench :is(input, textarea) { caret-color: var(--blue); }
-  body.immersive-workbench * { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+  body.immersive-workbench * { scrollbar-width: thin; scrollbar-color: transparent transparent; }
+  body.immersive-workbench *:hover { scrollbar-color: color-mix(in srgb, var(--ink) 22%, transparent) transparent; }
+  body.immersive-workbench *::-webkit-scrollbar { width: 10px; height: 10px; }
+  body.immersive-workbench *::-webkit-scrollbar-track,
+  body.immersive-workbench *::-webkit-scrollbar-corner { background: transparent; }
+  body.immersive-workbench *::-webkit-scrollbar-thumb { border: 3px solid transparent; border-radius: 8px; background: transparent; background-clip: content-box; }
+  body.immersive-workbench *:hover::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--ink) 18%, transparent); background-clip: content-box; }
+  body.immersive-workbench *::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--ink) 32%, transparent); background-clip: content-box; }
   body.immersive-workbench button:disabled { cursor: default; opacity: .45; }
   @media (max-width: 1050px) { body.immersive-workbench { --immersive-sidebar-width: 220px; } }
   @media (max-width: 600px) {

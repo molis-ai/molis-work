@@ -27,15 +27,17 @@ export { PagesError } from "./error.js";
 export { EMPTY_PAGES_BODY, parsePagesBody } from "./document.js";
 export { PAGES_TEMPLATES, pagesTemplateById, pagesTemplateSummaries } from "./templates.js";
 export { emptyDoc, nodeFromUnknown, pagesSchema, safePagesColumnShare, safePagesColumnWidth } from "./schema.js";
-export { columnDropAnchor, dragRows, nudgeSpan, previewDrop, previewSpan, reorderTopLevel, spanRoots } from "./reorder.js";
+export { columnDropAnchor, dragRows, nodesInSpan, nudgeSpan, placeCopySpan, previewCopySpan, previewDrop, previewSpan, reorderTopLevel, spanRoots } from "./reorder.js";
 export { convertedBlocks, convertedNodes } from "./convert.js";
-export { placeFloating, scrollChildIntoView } from "./floating.js";
+export { placeFloating, scrollChildIntoView, scrollShouldFollow } from "./floating.js";
 export { linkClickOpens, safePagesHref } from "./link.js";
-export { blocksFromMarkdown, pasteMarkdown, pasteUrl } from "./paste-markdown.js";
-export { acceptedImageFile, bookmarkLabel, imageAlt, safePagesImageSrc, safePagesImageWidth } from "./link.js";
+export { blocksFromMarkdown, markdownLooksStructured, nodesForSpanPaste, pasteMarkdown, pastePlain, pasteUrl } from "./paste-markdown.js";
+export { nodesToMarkdown } from "./to-markdown.js";
+export { blocksFromPaste, pasteHtml } from "./paste-html.js";
+export { acceptedImageFile, bookmarkLabel, imageAlt, safePagesBookmarkTitle, safePagesImageCaption, safePagesImageSrc, safePagesImageWidth } from "./link.js";
 export { findHits, replaceAllFindHits, replaceFindHit, stepFindHit } from "./find.js";
 export { addTableColumn, addTableRow, atLastTableCell, deleteTableColumn, deleteTableRow, moveTableColumn, moveTableEdge, moveTableRow, setColumnWidth, tableEdgeTarget, toggleHeaderRow } from "./table-edit.js";
-export { PAGES_TONES, safePagesTone } from "./tone.js";
+export { PAGES_TONES, safePagesTone, toneFromCssColor } from "./tone.js";
 export { blockPlaceholder } from "./placeholder.js";
 export { PAGES_CODE_LANGUAGES, safePagesLanguage } from "./code-language.js";
 export { PAGES_CALLOUT_ICONS, calloutIconFor, safePagesCalloutIcon, safePagesCalloutTone } from "./callout.js";
@@ -46,9 +48,14 @@ export {
   duplicateBlock,
   duplicateRow,
   activeList,
+  listKindAt,
+  headingLevelAt,
   addColumn,
   nudgeColumnShare,
   applyList,
+  applyListSelection,
+  applyHeading,
+  applyTurn,
   applySlash,
   clearInlineMarks,
   collapseEmptyColumn,
@@ -59,43 +66,89 @@ export {
   duplicateEnclosingRow,
   duplicateSpan,
   enterHeading,
+  enterInToggle,
   exitWrappedBlock,
   indentListItem,
+  indentUnderPrevious,
+  indentItemGroup,
   insertImage,
   setImageWidth,
+  setImageCaption,
+  setBookmarkTitle,
   insertHardBreak,
   insertSlashBelow,
   insertCodeIndent,
   leaveCodeDown,
   leaveEmptyCodeLine,
   leaveCodeUp,
+  continuePastEnd,
+  continueBeforeStart,
+  selectNeighborAtom,
   linkAt,
   markdownBlock,
   markdownLink,
+  markdownTask,
   markdownWrapMark,
   moveColumnEdge,
   moveBlock,
   moveRow,
   moveSpan,
+  copyDragSpan,
   outdentListItem,
+  outdentFromContainer,
   removeCodeIndent,
   replaceEnclosingRow,
   revealHeading,
+  headingIndexAt,
+  replaceSelectedBlock,
+  replaceSpan,
+  replaceSpanWithNodes,
+  deleteSelectedBlock,
+  docStart,
+  tripleClickSelection,
+  moveSelectedBlock,
+  collapseSelectedBlock,
+  insertAfterSelectedBlock,
+  insertAfterSpan,
+  hardBreakAtSpanEnd,
   selectBlockThenAll,
   selectEnclosingBlock,
+  menuKey,
+  hoverMenuIndex,
+  blockMenuShortcut,
+  blockMenuTarget,
+  popEscape,
+  blockMenuKey,
+  handleAnchor,
+  hoverPosAfter,
+  blockSpanStep,
+  blockSpanFromSelection,
+  blockSpanFromRange,
+  blockSpanToRow,
+  spanIsGroup,
   slashSession,
+  dismissedMenuRange,
   splitTaskItem,
   setBlockTone,
   setRowsTone,
   setCalloutStyle,
   setToggleOpen,
   toggleTaskChecked,
+  flipTaskAt,
+  focusBelowContent,
+  toggleTaskGroup,
   setLink,
   setTone,
+  toggleInlineMark,
+  toggleSpanMark,
+  markCovers,
+  toneCovers,
   toneAt,
   turnBlockInto,
   turnRowInto,
   turnSpanInto,
+  turnGroup,
+  clearSpanMarks,
   unwrapAtStart,
   unwrapColumns,
 } from "./commands.js";

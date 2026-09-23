@@ -8,8 +8,8 @@ export class ProjectPolicyCommands {
 
   save(input: Parameters<GoalsCommandApi["saveProjectPolicy"]>[0]): ReturnType<GoalsCommandApi["saveProjectPolicy"]> {
     const p = input.policy;
-    if (input.user_confirmed !== true || !input.reason.trim() || !input.idempotency_key.trim()) {
-      throw this.context.error("policy.confirmation_required", "请确认项目规则并填写修改原因。");
+    if (input.user_confirmed !== true || !input.idempotency_key.trim()) {
+      throw this.context.error("policy.confirmation_required", "请确认项目规则。");
     }
     if (!p || !["disabled", "preferred", "required"].includes(p.goal_mode)
       || typeof p.self_verification !== "boolean" || typeof p.human_approval !== "boolean"
@@ -25,8 +25,7 @@ export class ProjectPolicyCommands {
       cross_reviewers: p.cross_reviewers, adversarial_reviewers: p.adversarial_reviewers,
       max_lease_seconds: p.max_lease_seconds,
     };
-    const reason = input.reason.trim();
-    const hash = requestHash({ policy, reason });
+    const hash = requestHash({ policy });
     const operation = "save_project_policy";
     return this.context.repository.immediate(() => {
       const replay = this.context.replay<Omit<ReturnType<GoalsCommandApi["saveProjectPolicy"]>, "replayed">>(
@@ -38,12 +37,12 @@ export class ProjectPolicyCommands {
       const bindingId = randomUUID();
       const replaced = this.context.repository.replacePolicyBinding({
         board_id: input.board_id, goal_id: null, policy_binding_id: bindingId,
-        policy, actor_id: input.actor_id, reason, at,
+        policy, actor_id: input.actor_id, reason: "", at,
       });
       const cursor = this.context.repository.appendEvent({
         eventId: randomUUID(), boardId: input.board_id, actorId: input.actor_id,
         type: "policy.project_defaults_saved", objectType: "policy_binding", objectId: bindingId,
-        reason, payload: { policy, replaced_policy_binding_ids: replaced }, at,
+        reason: "", payload: { policy, replaced_policy_binding_ids: replaced }, at,
       });
       const outcome = { policy_binding_id: bindingId, observed_event_cursor: cursor };
       this.context.remember(input.board_id, input.actor_id, operation, input.idempotency_key, hash, outcome, at);

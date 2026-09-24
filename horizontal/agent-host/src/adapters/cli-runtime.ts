@@ -53,7 +53,8 @@ export interface CliProcessPort {
     cwd: string;
     onEvent: (event: CliProcessEvent) => void;
   }): CliProcessHandle;
-  version(command: string): Promise<string | null>;
+  /** Filesystem discovery only; must not execute the command or inspect credentials. */
+  available(command: string): Promise<boolean>;
 }
 
 export class CliAgentError extends Error {
@@ -159,8 +160,8 @@ export class CliAgentAdapter implements AgentRuntimeAdapter {
   }
 
   async health(): Promise<AgentRuntimeHealth> {
-    const version = await this.#options.process.version(this.#options.command);
-    if (version === null) {
+    const available = await this.#options.process.available(this.#options.command);
+    if (!available) {
       return {
         ok: false,
         status: "unavailable",
@@ -176,7 +177,7 @@ export class CliAgentAdapter implements AgentRuntimeAdapter {
         action: "在全局设置里为这个运行时选择模型",
       };
     }
-    return { ok: true, status: "ready", message: `${this.#options.display_name} ${version}` };
+    return { ok: true, status: "ready", message: `${this.#options.display_name} 已检测到可执行程序；登录状态在执行时确认` };
   }
 
   async createSession(input: AgentCreateSessionInput): Promise<AgentSessionRef> {

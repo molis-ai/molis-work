@@ -60,7 +60,7 @@ test("Coding saves exact Character versions, blocks unavailable selection before
     assert.deepEqual((await request()).body.character, ref);assert.equal((await request()).body.character_title, "原角色");
     await releaseCodingSurface(store, DEMO_BOARD_ID);store.close();store = new LocalProjectDatabase(dbPath);
     assert.deepEqual((await request()).body.character, ref);assert.equal((await request()).body.draft, "不要丢失任务");
-    assert.equal((await start()).status, 200);assert.deepEqual(starts[0].character, ref, "only an exact reference reaches Agent Host, not browser text or the newer version");
+    assert.equal((await start()).status, 200);assert.deepEqual(starts[0].budget, {max_turns:60});assert.deepEqual(starts[0].character, ref, "only an exact reference reaches Agent Host, not browser text or the newer version");
     for (const character of [{ ...ref, version: 99 }, { ...ref, artifact_id: "foreign-project" }]) assert.equal((await start({ character }, "new")).status, 400);
     assert.equal(created, 1);
     personal.service.setState(draft.character_id, 3, "disabled");

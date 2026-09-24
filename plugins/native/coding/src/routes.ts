@@ -9,6 +9,7 @@ import { agentHostCapabilities as agent, isTerminalAgentPhase, type AgentSubagen
 import { projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { CodingSessionStore } from "./store.js";
 import type { CodingSessionState } from "./projection.js";
+import type { AgentStepAmendment, AgentStepBoard } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { CODING_REPORT_TYPE } from "./artifacts.js";
 import { codingReportPreview, codingReportReference, createCodingExecutionReport, readCodingExecutionReport } from "./report.js";
 import { goalContextCapabilities, goalProgressCapabilities } from "@molis-ai/molis-work-contracts/modules/goals";
@@ -112,6 +113,32 @@ function questionAnswer(body: Record<string, unknown>): Extract<AgentRunControl,
   });
   return { kind: "answer", pending_id, pending_revision, answers };
 }
+/** A person's plan change, checked before it reaches the Host. */
+function stepAmendment(value: unknown): AgentStepAmendment {
+  const entry = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  const id = (key: string) => { const found = entry[key]; if (typeof found !== "string" || !/^(step|user)-\d{1,3}$/.test(found)) throw new Error("步骤引用无效"); return found; };
+  const words = (key: string, label: string, max: number) => { const found = entry[key]; if (typeof found !== "string" || !found.trim() || found.length > max) throw new Error(`请填写${label}（不超过 ${max} 字）`); return found.trim(); };
+  switch (entry.kind) {
+    case "skip": return { kind: "skip", node: id("node"), reason: words("reason", "跳过原因", 300) };
+    case "insert": return { kind: "insert", after: id("after"), title: words("title", "新步骤", 120), acceptance: words("acceptance", "完成条件", 300) };
+    case "unblock": return { kind: "unblock", node: id("node"), note: words("note", "你的决定", 500) };
+    case "move": if (entry.direction !== "up" && entry.direction !== "down") throw new Error("移动方向无效"); return { kind: "move", node: id("node"), direction: entry.direction };
+    default: throw new Error("不支持的计划调整");
+  }
+}
+
+/** What the model is told, in the person's voice; the graph itself holds the authoritative record. */
+function amendmentNote(amendment: AgentStepAmendment, board: AgentStepBoard): string {
+  const name = (id: string) => `「${board.nodes.find(node => node.id === id)?.title ?? id}」`;
+  const tail = "请先用 board-read 读取最新版本，按新的顺序继续；不要重做已完成的步骤。";
+  switch (amendment.kind) {
+    case "skip": return `我调整了本轮计划：跳过${name(amendment.node)}，原因：${amendment.reason}。${tail}`;
+    case "insert": return `我调整了本轮计划：在${name(amendment.after)}之后插入新步骤「${amendment.title}」，完成条件：${amendment.acceptance}。新步骤在任务图里的编号以 board-read 为准（user- 开头），轮到它时照常报告 running 与结果。${tail}`;
+    case "unblock": return `关于受阻的${name(amendment.node)}，我的决定：${amendment.note}。请按这个决定继续。${tail}`;
+    case "move": return `我调整了本轮计划顺序：把${name(amendment.node)}${amendment.direction === "up" ? "提前" : "推后"}一步。${tail}`;
+  }
+}
+
 function sessionState(run: AgentRunView): CodingSessionState {
   if (run.phase === "completed") return "done";
   if (run.phase === "awaiting-input") return "waiting-answer";
@@ -536,6 +563,22 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       if (!record.runtime_session_id) throw new Error("这个会话尚无可核对的运行记录");
       return api!.invoke(agent.inspectRecovery, [{ runtime_id: record.runtime_id, session_id: record.runtime_session_id }]);
     }),
+    route("coding.plan-amendments", async (request, api, execution) => {
+      const record = selected(request, execution);
+      if (!record.runtime_session_id) throw new Error("这个会话尚未执行");
+      const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
+      const snapshot = await api!.invoke(agent.readSession, [session]);
+      const ref = snapshot.runs.find(entry => entry.run_id === request.params.runId);
+      if (!ref) throw new Error("这轮执行不属于当前会话");
+      const body = bodyOf(request), amendment = stepAmendment(body.amendment), version = body.expected_version;
+      if (typeof version !== "number" || !Number.isSafeInteger(version) || version < 1) throw new Error("计划图版本已失效，请刷新后再调整");
+      const before = (await api!.invoke(agent.readRun, [session, ref])).step_board;
+      const board = await api!.invoke(agent.amendStepBoard, [session, ref, amendment, version]);
+      // The live round learns of the change through the same supplemental channel a person already uses.
+      const note = amendmentNote(amendment, before ?? board);
+      try { await api!.invoke(agent.controlRun, [session, ref, { kind: "steer", text: note }]); return { board, steered: true }; }
+      catch (error) { return { board, steered: false, steer_error: error instanceof Error ? error.message : String(error) }; }
+    }),
     route("coding.continuation", async (request, api, execution) => {
       const record = selected(request, execution);
       if (!record.runtime_session_id) throw new Error("这个会话尚未执行");
@@ -552,7 +595,9 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         try { return { call_id: command.call_id, output: await api!.invoke(agent.readCommandOutput, [session, { run_id: ref.run_id, call_id: command.call_id }]) }; }
         catch { return { call_id: command.call_id, output: null }; }
       }));
-      return codingContinuation({ number: index + 1, run, reviews, commands });
+      const plan = run.step_board && !run.step_board.terminal ? codingTaskBoardPlans(context, record.session_id, [run]).find(entry => entry.board && entry.revision) : undefined;
+      const next = codingContinuation({ number: index + 1, run, reviews, commands, plan_unfinished: Boolean(plan) });
+      return plan ? { ...next, intent: "execute", plan_revision: plan.revision, continue_step_board_of: run.ref.run_id } : next;
     }),
     route("coding.recover-run", async (request, api, execution) => {
       const record = selected(request, execution);
@@ -618,11 +663,15 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       busy.add(record.session_id);
       try {
         const body = bodyOf(request);
-        const draft = body.plan_revision === undefined ? null : execution.sessions.plan(boardId, record.session_id);
-        if (body.plan_revision !== undefined && (!draft?.confirmed || draft.revision !== body.plan_revision || !["execute", "parallel"].includes(String(body.intent)))) throw new Error("请查看并确认当前计划版本，再按此计划执行");
-        const plan = draft ? confirmedPlan(context, record.session_id, draft.revision) : null;
-        let task = plan ? plan.source.task : text(body.task, "任务", 100_000);
-        if (plan && record.runtime_session_id) {
+        // Continuing an earlier round's unfinished graph uses that round's own confirmed revision, whatever the draft is now.
+        const continueOf = body.continue_step_board_of === undefined ? undefined : text(body.continue_step_board_of, "被继续的轮次", 200);
+        if (continueOf !== undefined && (typeof body.plan_revision !== "number" || !Number.isSafeInteger(body.plan_revision) || body.intent !== "execute")) throw new Error("继续计划需要原计划修订，并以执行方式开始");
+        const draft = body.plan_revision === undefined || continueOf !== undefined ? null : execution.sessions.plan(boardId, record.session_id);
+        if (continueOf === undefined && body.plan_revision !== undefined && (!draft?.confirmed || draft.revision !== body.plan_revision || !["execute", "parallel"].includes(String(body.intent)))) throw new Error("请查看并确认当前计划版本，再按此计划执行");
+        const plan = continueOf !== undefined ? confirmedPlan(context, record.session_id, body.plan_revision as number) : draft ? confirmedPlan(context, record.session_id, draft.revision) : null;
+        let task = plan && continueOf === undefined ? plan.source.task : text(body.task, "任务", 100_000);
+        // An explicit continuation is not a replay of the plan; the guard against starting the same plan twice stays for fresh starts.
+        if (plan && record.runtime_session_id && continueOf === undefined) {
           const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
           const snapshot = await api!.invoke(agent.readSession, [session]);
           for (const ref of snapshot.runs) {
@@ -676,6 +725,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         if (!record.runtime_session_id) execution.sessions.setRuntimeSession(boardId, record.session_id, session.session_id, new Date().toISOString());
         const run = await api!.invoke(agent.startRun, [record.runtime_id, { ...identity, session, directory, task, role_id: role, text_materials, character, ...(character_skill_ids === undefined ? {} : {character_skill_ids}), ...(subagent_workspaces.length ? { subagent_workspaces } : {}),
           ...(plan ? { execution_plan: { source: plan.confirmed!, title: plan.content.title, steps: plan.content.steps.map((step, index) => ({ id: `step-${index + 1}`, ...step })) } } : {}),
+          ...(continueOf !== undefined ? { continue_step_board_of: continueOf } : {}),
           budget: { max_turns: Math.max(60, plan ? 8 + plan.content.steps.length * 3 : 0) },
           model_selection: { provider_id: model.provider_id, model_id: model.model_id }, skills: methodSelection(body.methods ?? []), mcp_tools: mcpSelection(body.mcp_tools ?? []), mcp_sources: mcpSources(body.mcp_sources ?? []) }]);
         if (!plan) context.services!.storage!.delete(`draft:${record.session_id}`);

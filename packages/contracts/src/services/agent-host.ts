@@ -174,12 +174,28 @@ export interface AgentStepBoard {
   board_id: string;
   version: number;
   terminal: boolean;
+  /** In execution order: dependencies first, the original plan order breaking ties. */
   nodes: Array<{
     id: string;
     state: "not-started" | "ready" | "running" | "succeeded" | "failed" | "cancelled" | "blocked";
     reports: Array<{ note: string; at_ms: number }>;
+    /** The SDK node title; a person's inserted step carries its own. */
+    title?: string;
+    depends_on?: string[];
+    /** Added by a person during the run, not part of the confirmed plan. */
+    inserted?: boolean;
   }>;
 }
+
+/**
+ * A person's change to a running plan. Each one is an SDK board operation recorded as a report on the
+ * board itself; the confirmed plan Artifact is never rewritten.
+ */
+export type AgentStepAmendment =
+  | { kind: "skip"; node: string; reason: string }
+  | { kind: "insert"; after: string; title: string; acceptance: string }
+  | { kind: "unblock"; node: string; note: string }
+  | { kind: "move"; node: string; direction: "up" | "down" };
 
 /**
  * Exactly what the Host froze for one Run. Later settings changes never alter a
@@ -197,6 +213,8 @@ export interface AgentFrozenStart {
   /** Exact imported Skill ids used by this Run; the full Character snapshot remains immutable. */
   character_skill_ids?: string[];
   execution_plan?: AgentExecutionPlan;
+  /** The earlier round of this session whose unfinished step graph this Run continues, instead of a new graph. */
+  continues_step_board_of?: string;
   /** Child directory grants frozen for this run; never a grant to write the parent. */
   subagent_workspaces?: AgentSubagentWorkspace[];
   /** Authoritative fixed Character content and source at start, never looked up for history. */
@@ -272,6 +290,11 @@ export interface AgentStartRequest {
   /** Explicit subset of the selected Character's imported Skills. Empty uses rules only. */
   character_skill_ids?: string[];
   execution_plan?: AgentExecutionPlan;
+  /**
+   * Continue the unfinished step graph of this earlier round in the same session. The plan must be exactly the
+   * one that round was frozen with; a person's inserted and skipped steps carry over because the graph does.
+   */
+  continue_step_board_of?: string;
   /** Selected child roots; the Host must independently verify every directory grant. */
   subagent_workspaces?: AgentSubagentWorkspace[];
   /** Only a reference is accepted from the caller; the Host resolves its immutable content. */
@@ -759,6 +782,8 @@ export interface AgentRuntimeAdapter {
   readonly mcpLibrary?: AgentMcpLibrary;
   readonly mcp?: AgentMcpCapability;
   readonly subagents?: AgentSubagentsCapability;
+  /** Adjust a running plan's step graph on behalf of a person. Absent when the Runtime has no step graphs. */
+  amendStepBoard?(run: AgentRunRef, amendment: AgentStepAmendment, expectedVersion: number): Promise<AgentStepBoard>;
 }
 
 /**
@@ -843,6 +868,10 @@ export const agentHostCapabilities = {
   cancelSubagent: {
     capability_id: "agent.subagents.cancel.v1", version: 1, operation: "command",
   } as HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef, subagentId: string, actorId: string], void>,
+  /** A person adjusts the running plan's step graph; the version guards against a concurrent change. */
+  amendStepBoard: {
+    capability_id: "agent.run.step-board.amend.v1", version: 1, operation: "command",
+  } as HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef, amendment: AgentStepAmendment, expectedVersion: number], AgentStepBoard>,
   readSession: {
     capability_id: "agent.session.read.v1",
     version: 1,

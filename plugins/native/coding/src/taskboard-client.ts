@@ -12,12 +12,16 @@ export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     node.addEventListener('click',()=>void navigate(owner,target).catch(error=>status(error.message,true)));return node;
   };
   const branch=(label,id,opened,initial=false)=>{const node=el('details',undefined,'coding-board-branch');node.dataset.boardBranch=id;node.open=opened.has(id)||!key&&initial;node.append(el('summary',label));return node;};
+  const skippedByUser=(node)=>node.state==='cancelled'&&node.reports.some(report=>report.note.startsWith('用户跳过'));
+  const stepOf=(plan,node)=>node.inserted?{title:node.title||node.id,acceptance:(node.reports.find(report=>report.note.startsWith('用户插入'))?.note.split('完成条件：')[1])||'见插入说明'}:plan.content.steps[Number(node.id.replace('step-',''))-1]||{title:node.title||node.id,acceptance:''};
   const steps=(parent,plan,target,entry)=>{
     const states={'not-started':'等待前置步骤',ready:'待执行',running:'模型报告执行中',succeeded:'模型报告成功，待核对',failed:'模型报告失败',cancelled:'模型报告取消',blocked:'模型报告阻塞'};
-    const list=el('ol');for(const [index,step] of plan.content.steps.entries()){
-      const item=el('li'),node=entry?.board?.nodes.find(node=>node.id==='step-'+(index+1)),verdict=node&&entry.verdicts?.[node.id];
+    // The running graph's own order wins: a person may have inserted, skipped or moved steps since the plan was confirmed.
+    const rows=entry?.board ? entry.board.nodes.map(node=>({node,step:stepOf(plan,node),index:Number(node.id.replace('step-',''))-1})) : plan.content.steps.map((step,index)=>({node:undefined,step,index}));
+    const list=el('ol');for(const {node,step,index} of rows){
+      const item=el('li'),verdict=node&&entry.verdicts?.[node.id];if(node?.inserted)item.dataset.inserted='true';
       const accepted=verdict?.board_id===entry?.board?.board_id&&verdict?.board_version===entry?.board?.version;
-      const mark=node?(accepted?(verdict.status==='accepted'?'用户验收通过':'用户要求返工'):states[node.state]):undefined;
+      const mark=node?(accepted?(verdict.status==='accepted'?'用户验收通过':'用户要求返工'):skippedByUser(node)?'你跳过了':states[node.state]):undefined;
       item.append(action(step.title,node?{kind:'step',run_id:entry.run_id,step_id:node.id}:{...target,step_index:index},mark,node?.state==='blocked'?'awaiting-input':node?.state));
       const criteria=el('details');criteria.append(el('summary','完成条件'),el('p',step.acceptance,'coding-board-meta'));criteria.dataset.boardBranch=JSON.stringify([target,index]);list.append(item);item.append(criteria);
       if(node?.reports.length)item.append(el('p',node.reports.at(-1).note,'coding-board-meta'));

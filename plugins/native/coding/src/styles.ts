@@ -279,6 +279,7 @@ export const CODING_STYLES = `
 .coding-run-mark { display:inline-grid; place-items:center; width:20px; height:20px; border-radius:50%; background:var(--green-soft); color:var(--green); }
 .coding-run-card[data-tone=failed] .coding-run-mark { background:var(--red-soft); color:var(--red); }
 .coding-run-card[data-tone=stopped] .coding-run-mark { background:var(--rail); color:var(--muted); }
+.coding-run-card[data-tone=partial] .coding-run-mark { background:color-mix(in srgb,var(--amber) 14%,transparent); color:var(--amber); }
 .coding-run-round { margin-left:auto; font-size:11px; color:var(--faint); }
 .coding-run-facts { margin:6px 0 0 28px; font-size:12.5px; color:var(--muted); }
 .coding-run-reason { margin:6px 0 0 28px; font-size:12.5px; color:var(--ink); }
@@ -491,4 +492,45 @@ export const CODING_STYLES = `
 .coding-filter-count { display:inline-flex; align-items:center; justify-content:center; min-width:16px; height:16px; margin-left:4px; padding:0 4px; border-radius:999px; background:color-mix(in srgb,var(--ink) 8%,transparent); font-size:10.5px; font-variant-numeric:tabular-nums; }
 .coding-filter[data-coding-filter=needs-you] .coding-filter-count { background:color-mix(in srgb,var(--amber) 18%,transparent); color:var(--amber); }
 .coding-filter-count[hidden] { display:none; }
+
+/* Running plan: the round's own step graph under the task, with the person's controls while it runs. */
+.coding-plan-progress { max-width:76ch; margin:0 auto 20px; padding:12px 14px 10px; border:1px solid var(--line); border-radius:12px; background:var(--paper); font-size:13px; animation:coding-rise .18s ease-out; }
+.coding-plan-head { display:flex; align-items:center; gap:8px; margin-bottom:6px; color:var(--ink); }
+.coding-plan-head svg { width:14px; height:14px; color:var(--muted); flex:none; }
+.coding-plan-head strong { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600; }
+.coding-plan-count { flex:none; font-size:12px; color:var(--muted); font-variant-numeric:tabular-nums; }
+.coding-plan-revision { flex:none; font-size:11px; color:var(--faint); }
+.coding-plan-steps { margin:0; padding:0; list-style:none; display:grid; gap:1px; }
+.coding-plan-step { display:grid; grid-template-columns:20px minmax(0,1fr) auto auto; align-items:center; column-gap:8px; min-height:30px; padding:2px 4px; border-radius:6px; }
+.coding-plan-step:hover,.coding-plan-step:focus-within { background:var(--nav-hover); }
+.coding-plan-mark { display:inline-flex; align-items:center; justify-content:center; color:var(--faint); }
+.coding-plan-mark svg { width:14px; height:14px; }
+.coding-plan-step[data-state=succeeded] .coding-plan-mark { color:var(--green); }
+.coding-plan-step[data-state=running] .coding-plan-mark,.coding-plan-step[data-state=ready] .coding-plan-mark { color:var(--blue); }
+.coding-plan-step[data-state=blocked] .coding-plan-mark { color:var(--amber); }
+.coding-plan-step[data-state=failed] .coding-plan-mark { color:var(--red); }
+.coding-plan-title { all:unset; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--ink); cursor:pointer; border-radius:4px; }
+.coding-plan-title:hover { text-decoration:underline; text-underline-offset:3px; }
+.coding-plan-title:focus-visible { outline:2px solid var(--focus,var(--blue)); outline-offset:1px; }
+.coding-plan-step[data-state=running] .coding-plan-title { font-weight:600; }
+.coding-plan-step[data-state=skipped] .coding-plan-title,.coding-plan-step[data-state=cancelled] .coding-plan-title { color:var(--faint); text-decoration:line-through; }
+.coding-plan-step[data-inserted=true] .coding-plan-title::after { content:"你插入的"; margin-left:6px; padding:0 6px; border-radius:999px; background:color-mix(in srgb,var(--blue) 12%,transparent); color:var(--blue); font-size:10.5px; text-decoration:none; }
+.coding-plan-state { font-size:11.5px; color:var(--muted); white-space:nowrap; }
+.coding-plan-step[data-state=blocked] .coding-plan-state { color:var(--amber); }
+.coding-plan-step[data-state=failed] .coding-plan-state { color:var(--red); }
+.coding-plan-state[data-verdict=accepted] { color:var(--green); }
+.coding-plan-state[data-verdict=needs-work] { color:var(--amber); }
+.coding-plan-note { grid-column:2 / -1; margin:0 0 2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; color:var(--muted); }
+.coding-plan-tools { display:inline-flex; gap:2px; opacity:0; transition:opacity .12s ease; }
+.coding-plan-step:hover .coding-plan-tools,.coding-plan-step:focus-within .coding-plan-tools { opacity:1; }
+.coding-plan-tools .mw-btn { height:24px; min-height:24px; padding:0 6px; font-size:11.5px; color:var(--muted); }
+.coding-plan-tools .mw-btn svg { width:13px; height:13px; }
+.coding-plan-tools .mw-btn:hover { color:var(--ink); }
+.coding-plan-form { display:grid; gap:6px; margin:4px 0 6px 28px; padding:8px; border:1px solid var(--line); border-radius:8px; }
+.coding-plan-form .mw-input { height:30px; font-size:12.5px; }
+.coding-plan-form-actions { display:flex; justify-content:flex-end; gap:6px; }
+.coding-plan-form-actions .mw-btn { height:26px; min-height:26px; font-size:12px; }
+.coding-plan-foot { margin:6px 0 0; font-size:11.5px; color:var(--faint); }
+@media (hover:none) { .coding-plan-tools { opacity:1; } }
+@container molis-coding (max-width:760px) { .coding-plan-tools { opacity:1; } .coding-plan-step { grid-template-columns:20px minmax(0,1fr) auto; } .coding-plan-tools { grid-column:2 / -1; } }
 `;

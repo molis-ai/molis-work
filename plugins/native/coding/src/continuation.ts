@@ -27,6 +27,8 @@ export interface ContinuationInput {
   run: AgentRunView;
   reviews: ReadonlyArray<{ request: AgentReviewRequest; receipt: AgentReviewReceipt | null }>;
   commands: ReadonlyArray<{ call_id: string; output: AgentCommandOutput | null }>;
+  /** The round ran a confirmed plan whose graph still has steps to do; it continues on that same graph. */
+  plan_unfinished?: boolean;
 }
 
 const shell = (command: string, args: readonly string[]) => [command, ...args].join(" ");
@@ -42,7 +44,8 @@ export function originalTask(run: AgentRunView): string {
 
 export function codingContinuation(input: ContinuationInput): { task: string; intent: string } {
   const { run } = input;
-  if (!["failed", "stopped", "cancelled"].includes(run.phase)) {
+  const left = run.step_board?.nodes.filter(node => !["succeeded", "cancelled"].includes(node.state)).length ?? 0;
+  if (!(["failed", "stopped", "cancelled"].includes(run.phase) || run.phase === "completed" && input.plan_unfinished && left)) {
     throw new Error(run.phase === "completed" ? "这一轮已经完成；需要继续时请直接写下一步要求" : "这一轮还没有结束，不能从断点继续");
   }
   const intent = INTENT_BY_ROLE[run.frozen.role_id];
@@ -51,7 +54,7 @@ export function codingContinuation(input: ContinuationInput): { task: string; in
   if (!task) throw new Error("读不到这一轮的原任务，不能拼出继续说明");
 
   const reason = (run.stop_reason ?? "").trim().replace(/[。.]+$/, "");
-  const why = run.phase === "stopped" ? "你停止了这一轮" : run.phase === "cancelled" ? "这一轮被取消"
+  const why = run.phase === "completed" ? `这一轮结束了，但计划还有 ${left} 步没完成` : run.phase === "stopped" ? "你停止了这一轮" : run.phase === "cancelled" ? "这一轮被取消"
     : reason.startsWith("本轮因中断结束") ? "服务中断，中断前已发生的操作已核对"
     : reason ? `这一轮出错结束：${clip(reason, 400)}` : "这一轮出错结束";
 
@@ -86,7 +89,8 @@ export function codingContinuation(input: ContinuationInput): { task: string; in
   const reads = [...new Set(run.activity.filter(entry => ["read", "read-file"].includes(entry.name) && entry.state === "completed" && entry.target).map(entry => entry.target))];
   const unfinished = run.activity.filter(entry => entry.state === "started" || entry.state === "unknown")
     .map(entry => `${entry.name}${entry.target ? " " + clip(entry.target, 160) : ""}`);
-  const steps = run.step_board?.nodes.map((node, index) => `步骤 ${index + 1}：${{ "not-started": "未开始", ready: "可开始", running: "进行中", succeeded: "已回报完成", failed: "已回报失败", cancelled: "已取消", blocked: "受阻" }[node.state]}`) ?? [];
+  const steps = run.step_board?.nodes.map((node, index) => `${node.title ? `「${clip(node.title, 80)}」` : `步骤 ${index + 1}`}（${node.id}）：${{ "not-started": "未开始", ready: "可开始", running: "进行中", succeeded: "已回报完成", failed: "已回报失败", cancelled: "已取消", blocked: "受阻" }[node.state]}`) ?? [];
+  const planNote = input.plan_unfinished ? "\n\n这一轮沿用同一张任务图继续：先 board-read，从第一个没完成的步骤接着做，已完成的步骤不要重报。把剩下的步骤依次做完——只要还有可以开始的步骤，就不要结束这一轮；全部完成或遇到需要我决定的阻塞时，再说明做了什么。" : "";
 
   // Blank lines keep each section its own Markdown list when the turn is rendered.
   const section = (title: string, lines: readonly string[]) => lines.length
@@ -101,6 +105,6 @@ export function codingContinuation(input: ContinuationInput): { task: string; in
 
   return {
     intent,
-    task: `${CONTINUATION_MARKER}第 ${input.number} 轮没有完成：${why}。请从断点继续完成原任务。\n\n${ORIGINAL_HEAD}${task}${FACTS_HEAD}（以此为准，不要凭对话记忆推断）：${facts || "\n\n- 这一轮没有经过审查的写入或命令"}\n\n继续时：先读取相关文件的当前内容核对状态；已写入的内容和已运行的命令不要重复，确需重新验证时说明原因；被拒绝的修改按意见调整后再提出；结果未知的操作先核对再决定。完成后说明这一轮实际做了什么、还剩什么。`,
+    task: `${CONTINUATION_MARKER}第 ${input.number} 轮没有完成：${why}。请从断点继续完成原任务。\n\n${ORIGINAL_HEAD}${task}${FACTS_HEAD}（以此为准，不要凭对话记忆推断）：${facts || "\n\n- 这一轮没有经过审查的写入或命令"}\n\n继续时：先读取相关文件的当前内容核对状态；已写入的内容和已运行的命令不要重复，确需重新验证时说明原因；被拒绝的修改按意见调整后再提出；结果未知的操作先核对再决定。${input.plan_unfinished ? "" : "完成后说明这一轮实际做了什么、还剩什么。"}${planNote}`,
   };
 }

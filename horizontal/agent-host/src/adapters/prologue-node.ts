@@ -428,6 +428,7 @@ export async function createPrologueNodeAdapter(
   };
   const port: PrologueRuntimePort = {
     readStepBoard: run => stepBoards.read(run),
+    amendStepBoard: (run, amendment, expectedVersion) => stepBoards.amend(run, amendment, expectedVersion),
     recovery: {
       inspect: session => inspectRecovery(session.session_id),
       close: async (session, runId, expectedVersion) => {
@@ -587,7 +588,9 @@ export async function createPrologueNodeAdapter(
         : "本轮没有分配独立子目录，不得填写 workspace 参数；所有子任务沿用当前授权目录且只读。";
       const childInstructions = childRoles.size ? childScope + "可分派的固定子角色：\n" + [...childRoles].map(([ref, role]) => `${ref}: ${role.name}; tools=${JSON.stringify(role.host_tools.map(prologueToolName))}`).join("\n") + "\n必须选择上述精确 character，并显式提供该角色列出的完整 tools 清单；不能遗漏角色需要的工具或增加其他工具。给子任务写清任务、必要上下文、依据路径与完成条件；不继承父聊天或材料。子任务只能使用所选角色的工具，不能再次分派。需要用户信息时作为阻塞返回给父任务。" : "";
       const plan = input.provenance.frozen.execution_plan;
-      const stepBoard = plan ? await stepBoards.admit(plan) : undefined;
+      const continued = input.provenance.frozen.continues_step_board_of;
+      // A continued plan keeps its graph — with every step a person inserted, skipped or reordered — rather than starting over.
+      const stepBoard = plan ? continued ? await stepBoards.resume({ session_id: input.session_id, run_id: continued }) : await stepBoards.admit(plan) : undefined;
       const instructions = await stageInstructions(runtime, [input.character.instructions, childInstructions, ...methods,
         ...(plan && stepBoard ? [stepBoards.instructions(stepBoard.ref.id, plan)] : []), await checkpoints?.context(input.session_id) ?? ""].join("\n\n"));
       const index = await readIndex(input.session_id);

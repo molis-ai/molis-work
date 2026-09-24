@@ -137,6 +137,12 @@ export function registerAgentHostCapabilities<Context>(
       if (!port) throw new AgentHostError("agent.capability_unavailable", "当前运行时未接通子代理");
       await port.cancel(run, childId, actorId);
     }),
+    registrar.register(agentHostCapabilities.amendStepBoard, async (context, [session, run, amendment, expectedVersion]) => {
+      await requireRun(context, session, run);
+      const adapter = ports.agentHost(context).adapter(session.runtime_id);
+      if (!adapter.amendStepBoard) throw new AgentHostError("agent.capability_unavailable", "当前运行时不能调整计划图");
+      return adapter.amendStepBoard(run, amendment, expectedVersion);
+    }),
     registrar.register(agentHostCapabilities.controlRun, async (context, [session, run, control]) => {
       await requireRun(context, session, run);
       await ports.agentHost(context).adapter(session.runtime_id).control(run, control);

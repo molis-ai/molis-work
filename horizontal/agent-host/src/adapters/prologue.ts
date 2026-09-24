@@ -139,6 +139,7 @@ export interface PrologueRunTiming {
 
 export interface PrologueRuntimePort {
   readStepBoard?(run: AgentRunRef): Promise<AgentRunView["step_board"]>;
+  amendStepBoard?(run: AgentRunRef, amendment: import("@molis-ai/molis-work-contracts/services/agent-host").AgentStepAmendment, expectedVersion: number): Promise<NonNullable<AgentRunView["step_board"]>>;
   subagents?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSubagentsCapability;
   recovery?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecoveryCapability;
   checkpoints?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentCheckpointsCapability;
@@ -392,6 +393,14 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
         "宿主没有冻结角色定义，不能在没有角色 Prompt 的情况下起跑",
       );
     }
+    if (request.continue_step_board_of !== undefined) {
+      // Continuing a graph is only ever the same plan, in the same session, while that graph is unfinished.
+      if (!request.execution_plan) throw new PrologueAdapterError("agent.capability_unavailable", "继续计划需要原确认计划");
+      const earlier = await this.read({ session_id: request.session.session_id, run_id: request.continue_step_board_of });
+      if (!isEnded(earlier.phase)) throw new PrologueAdapterError("agent.session_busy", "被继续的那一轮还没有结束");
+      if (JSON.stringify(earlier.frozen.execution_plan) !== JSON.stringify(request.execution_plan)) throw new PrologueAdapterError("agent.capability_unavailable", "继续计划必须使用那一轮的同一版确认计划");
+      if (!earlier.step_board || earlier.step_board.terminal) throw new PrologueAdapterError("agent.capability_unavailable", "那一轮的计划图已经结束，请调整计划后重新开始");
+    }
     if (request.execution_plan && (!this.#runtime.readStepBoard || STEP_TOOLS.some(tool => !role.host_tools.includes(tool)))) {
       throw new PrologueAdapterError("agent.capability_unavailable", "当前运行时或角色尚未接通计划步骤回报");
     }
@@ -440,6 +449,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
         source_version: material.source_version,
       })),
       ...(request.execution_plan ? { execution_plan: request.execution_plan } : {}),
+      ...(request.continue_step_board_of ? { continues_step_board_of: request.continue_step_board_of } : {}),
       budget: request.execution_plan ? { ...request.budget, max_turns: request.budget?.max_turns ?? 8 + request.execution_plan.steps.length * 3 } : request.budget ?? null,
       directory: request.directory,
     };
@@ -546,6 +556,14 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     return () => {
       record.listeners.delete(listener);
     };
+  }
+
+  /** A person adjusts a live round's plan graph; an ended round keeps its graph as the record it was. */
+  async amendStepBoard(run: AgentRunRef, amendment: import("@molis-ai/molis-work-contracts/services/agent-host").AgentStepAmendment, expectedVersion: number) {
+    const current = await this.read(run);
+    if (isEnded(current.phase)) throw new PrologueAdapterError("agent.session_busy", "这一轮已经结束，计划图不再调整；请调整计划后开始新一轮");
+    if (!this.#runtime.amendStepBoard) throw new PrologueAdapterError("agent.capability_unavailable", "当前运行时不能调整计划图");
+    return this.#runtime.amendStepBoard(run, amendment, expectedVersion);
   }
 
   async control(run: AgentRunRef, control: AgentRunControl): Promise<void> {

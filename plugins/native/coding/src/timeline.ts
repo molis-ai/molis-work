@@ -26,6 +26,7 @@ export interface TimelineRun {
   activity: TimelineActivity[];
   usage?: { tokens?: { input?: number; output?: number } };
   stop_reason?: string | null;
+  step_board?: { terminal: boolean; nodes: Array<{ state: string }> };
 }
 
 export function createCodingTimeline() {
@@ -45,6 +46,8 @@ export function createCodingTimeline() {
     "list-directory": { verb: "查看目录", icon: "folder", noun: "目录", unit: "个" },
     "ask-user": { verb: "提问", icon: "question", noun: "问题", unit: "个" },
     reasoning: { verb: "思考", icon: "sparkles", noun: "", unit: "" },
+    "board-read": { verb: "查看任务图", icon: "list", noun: "", unit: "" },
+    "board-report": { verb: "回报步骤", icon: "list", noun: "步骤", unit: "次" },
     "上下文整理": { verb: "整理上下文", icon: "clock", noun: "", unit: "次" },
     "工具调用纠正": { verb: "纠正工具调用", icon: "circle-alert", noun: "", unit: "次" },
   };
@@ -183,8 +186,10 @@ export function createCodingTimeline() {
     const edited = new Set(run.activity.filter(item => ["edit", "write"].includes(item.name) && item.state === "completed" && item.target).map(item => item.target));
     const commands = run.activity.filter(item => item.name === "run-command" && item.state === "completed");
     const lastCommand = commands.at(-1), lastCode = lastCommand ? exitCode(lastCommand) : null;
-    const tone = run.phase === "completed" ? "done" : run.phase === "failed" || run.phase === "reconcile-required" ? "failed" : "stopped";
-    const title = { done: "这一轮完成", failed: run.phase === "reconcile-required" ? "这一轮需要核对结果" : "这一轮没有完成", stopped: "这一轮已停止" }[tone];
+    // A plan round is only done when its plan is: an ended round with steps left says so and offers to continue.
+    const left = run.step_board && !run.step_board.terminal ? run.step_board.nodes.filter(node => !["succeeded", "cancelled"].includes(node.state)).length : 0;
+    const tone = run.phase === "completed" ? left ? "partial" : "done" : run.phase === "failed" || run.phase === "reconcile-required" ? "failed" : "stopped";
+    const title = { done: "这一轮完成", partial: `这一轮结束，计划还剩 ${left} 步`, failed: run.phase === "reconcile-required" ? "这一轮需要核对结果" : "这一轮没有完成", stopped: "这一轮已停止" }[tone];
     const facts = [
       duration(run.started_at, run.ended_at) && `用时 ${duration(run.started_at, run.ended_at)}`,
       edited.size ? `修改 ${edited.size} 个文件` : "没有修改文件",
@@ -200,11 +205,11 @@ export function createCodingTimeline() {
     // Only the newest unfinished round can be picked up again; an interrupted one is checked first.
     const resume = !latest ? "" : run.phase === "reconcile-required"
       ? `<button class="mw-btn mw-btn--primary" type="button" data-coding-recover-continue="${escape(run.ref.run_id)}">${svg("play")}核对并继续</button>`
-      : ["failed", "stopped", "cancelled"].includes(run.phase)
-        ? `<button class="mw-btn mw-btn--primary" type="button" data-coding-continue="${escape(run.ref.run_id)}">${svg("play")}从断点继续</button>` : "";
+      : ["failed", "stopped", "cancelled"].includes(run.phase) || left
+        ? `<button class="mw-btn mw-btn--primary" type="button" data-coding-continue="${escape(run.ref.run_id)}">${svg("play")}${left ? "继续计划" : "从断点继续"}</button>` : "";
     const files = edited.size ? `<ul class="coding-run-files">${[...edited].slice(0, 8).map(path => `<li>${svg("edit")}<code>${escape(path)}</code></li>`).join("")}${edited.size > 8 ? `<li>另有 ${edited.size - 8} 个文件</li>` : ""}</ul>` : "";
     const html = `<div class="coding-run-card" data-tone="${tone}">
-      <header><span class="coding-run-mark">${svg(tone === "done" ? "check" : tone === "failed" ? "circle-alert" : "clock")}</span><strong>${escape(title)}</strong><span class="coding-run-round">第 ${index + 1} 轮</span></header>
+      <header><span class="coding-run-mark">${svg(tone === "done" ? "check" : tone === "failed" || tone === "partial" ? "circle-alert" : "clock")}</span><strong>${escape(title)}</strong><span class="coding-run-round">第 ${index + 1} 轮</span></header>
       <p class="coding-run-facts">${facts.map(escape).join(" · ")}</p>${reason}${files}
       <div class="coding-run-actions">${resume}${edited.size ? `<button class="mw-btn" type="button" data-coding-change-open="${escape(run.ref.run_id)}" data-coding-card-open>${svg("columns")}查看变更</button>` : ""}<button class="mw-btn mw-btn--ghost" type="button" data-coding-report-open="${escape(run.ref.run_id)}" data-coding-card-open>${svg("file")}执行报告</button></div>
     </div>`;

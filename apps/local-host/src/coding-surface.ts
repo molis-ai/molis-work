@@ -12,6 +12,7 @@ import { icon, escapeHtml, renderPluginStageShell, renderEmpty, renderSidebar } 
 import {
   CODING_PLUGIN_ID,
   CODING_REPORT_TYPE,
+  CODING_PLAN_TYPE,
   CODING_PROJECT_PLUGIN_ID,
   CODING_UI_CONTRIBUTION_ID,
   CodingSessionStore,
@@ -190,6 +191,9 @@ async function startPlatform(ports: CodingSurfacePorts): Promise<Started> {
           .filter(item => item.producer_plugin_id === CODING_PLUGIN_ID)
           .map(({ artifact_id, version }) => ({ artifact_id, version })),
         changeSetReferences: () => artifacts.query.listArtifacts(ports.boardId, { artifact_type_id: "coding.changeset.v1", schema_version: 1 })
+          .filter(item => item.producer_plugin_id === CODING_PLUGIN_ID)
+          .map(({ artifact_id, version }) => ({ artifact_id, version })),
+        planReferences: () => artifacts.query.listArtifacts(ports.boardId, { artifact_type_id: CODING_PLAN_TYPE, schema_version: 1 })
           .filter(item => item.producer_plugin_id === CODING_PLUGIN_ID)
           .map(({ artifact_id, version }) => ({ artifact_id, version })),
       } } : {}), replace_version: true },

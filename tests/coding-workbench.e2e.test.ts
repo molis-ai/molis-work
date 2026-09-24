@@ -156,7 +156,7 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await evaluate(`document.querySelector('${coding} [data-coding-send]').scrollIntoView({block:'nearest'})`);
   const sendBottom = await evaluate<number>(`document.querySelector('${coding} [data-coding-send]').getBoundingClientRect().bottom`);
   assert.ok(sendBottom <= 780, "send remains reachable on a narrow screen");
-  assert.equal(await evaluate(`document.querySelectorAll('${coding} .coding-composer-context .mw-btn svg').length`), 4, 'updating context labels preserves shared icons');
+  assert.equal(await evaluate(`document.querySelectorAll('${coding} .coding-composer-context .mw-btn svg').length`), 5, 'updating context labels preserves shared icons (materials, character, methods, MCP, delegate)');
   // Session settings and context sources live behind the composer's "+" so the bar stays about the task.
   assert.equal(await evaluate(`document.querySelector('${coding} [data-coding-attach-menu]').hidden`), true);
   await click(`${coding} [data-coding-attach-toggle]`);

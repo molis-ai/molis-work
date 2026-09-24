@@ -44,7 +44,8 @@ export const CODING_STYLES = `
 .coding-search { display:block; }.coding-search input { width:100%; }
 .coding-filters { display:flex; margin-top:8px; }
 .coding-filter { flex:1; min-width:0; }
-.coding-session-list { min-height:0; }
+/* The list scrolls inside the directory; left to overflow, older sessions painted over the new-session button. */
+.coding-session-list { flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; }
 .coding-session-row { margin-bottom:1px; }
 .coding-session-time { font-variant-numeric:tabular-nums; }
 .coding-stage { height:100%; min-height:0; display:grid; grid-template-columns:minmax(0,1fr); background:var(--paper); }
@@ -66,6 +67,35 @@ export const CODING_STYLES = `
 .coding-workspace svg { width:12px; height:12px; margin-right:4px; }
 .coding-turns { overflow-anchor:none; overscroll-behavior:contain; }
 /* Earlier rounds of a long session load as the reader scrolls up; the control is also a button for keyboard and screen readers. */
+/* Sessions working together: the receiving session's banner, and the asking session's cards in the results panel. */
+.coding-delegation-banner { display:grid; gap:6px; margin:0 auto 4px; width:min(100%,var(--coding-reading,760px)); padding:10px 14px; border:1px solid color-mix(in srgb,var(--accent,var(--ink)) 25%,var(--line)); border-radius:12px; background:color-mix(in srgb,var(--accent,var(--ink)) 4%,var(--paper)); font-size:13px; }
+.coding-coop-head { display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; }
+.coding-coop-line { display:flex; flex-wrap:wrap; align-items:center; gap:2px 4px; margin:0; min-width:0; overflow-wrap:anywhere; }
+.coding-coop-line .mw-btn { min-height:24px; height:auto; padding:2px 4px; max-width:100%; white-space:normal; text-align:left; overflow-wrap:anywhere; }
+.coding-coop-note { margin:0; font-size:12px; color:var(--muted); }
+.coding-coop-rejected { margin:0; font-size:12px; color:var(--amber); }
+.coding-coop-gone { color:var(--muted); font-style:italic; }
+.coding-coop-task > summary, .coding-coop-receipts > summary { cursor:pointer; font-size:12px; color:var(--muted); }
+.coding-coop-task p { margin:6px 0 0; white-space:pre-wrap; }
+.coding-coop-actions { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+.coding-coop-reason { display:grid; gap:6px; width:100%; }
+.coding-coop-deliver { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+.coding-coop-deliver .mw-select { width:auto; }
+.coding-coop-deliver .mw-input { flex:1 1 160px; min-width:0; }
+.coding-coop-receipts ol { display:grid; gap:4px; margin:6px 0 0; padding:0 0 0 18px; font-size:12px; }
+.coding-coop-receipts li { display:flex; flex-wrap:wrap; gap:2px 8px; }
+.coding-coop-receipts time { color:var(--muted); font-variant-numeric:tabular-nums; }
+.coding-coop-late { color:var(--amber); }
+.coding-cooperation { display:grid; grid-template-columns:minmax(0,1fr); gap:10px; min-width:0; }
+.coding-cooperation h3, .coding-cooperation h4 { margin:0; }
+.coding-coop-card { display:grid; grid-template-columns:minmax(0,1fr); gap:6px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; min-width:0; overflow-wrap:anywhere; }
+.coding-coop-card > .mw-btn { justify-self:start; }
+.coding-coop-delivery { display:grid; grid-template-columns:minmax(0,1fr); min-width:0; gap:6px; padding:8px 10px; border-radius:8px; background:color-mix(in srgb,var(--ink) 4%,transparent); }
+.coding-coop-delivery p { margin:0; font-size:12px; overflow-wrap:anywhere; }
+.coding-coop-related { display:grid; gap:4px; margin:0; padding:0; list-style:none; }
+.coding-coop-related li { display:flex; flex-wrap:wrap; align-items:center; gap:2px 8px; min-width:0; }
+.coding-coop-related .mw-btn { min-height:24px; height:auto; padding:2px 4px; max-width:100%; white-space:normal; text-align:left; overflow-wrap:anywhere; }
+.coding-delegate-outputs { display:grid; gap:4px; border:0; padding:0; margin:0; }
 .coding-earlier { display:block; margin:4px auto 20px; min-height:32px; padding:0 14px; border:1px solid var(--line); border-radius:999px; background:var(--paper); color:var(--muted); font:inherit; font-size:12px; cursor:pointer; }
 .coding-earlier:hover:not(:disabled) { color:var(--ink); border-color:color-mix(in srgb,var(--ink) 30%,var(--line)); }
 .coding-earlier:disabled { cursor:progress; }

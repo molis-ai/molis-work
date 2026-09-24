@@ -167,6 +167,15 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
       <div data-coding-integration-files></div><p data-coding-integration-status role="status"></p><div data-coding-integration-reviews></div></section>
       <footer class="mw-form__footer">${renderButton({label:"重新读取成果",variant:"secondary",attrs:{"data-coding-integration-refresh":""}})}${renderButton({label:"准备整合审查",attrs:{"data-coding-integration-prepare":"",disabled:true}})}</footer>
     </div></dialog>
+    <dialog class="mw-dialog mw-dialog--form" data-coding-delegate-dialog aria-label="委派给新会话"><form class="mw-form mw-dialog__shell">
+      <header class="mw-form__header"><h2>委派给新会话</h2></header>
+      <section class="mw-form__body"><p>会新建一个会话，任务放进它的输入框。对方接受并发送后才执行，不会自动运行；完成后可以把报告或固定变更交付回来，由你决定是否收下。</p>
+      <label class="mw-field"><span>标题（可选）</span><input class="mw-input" data-coding-delegate-title maxlength="80" placeholder="默认取任务的第一句"></label>
+      <label class="mw-field"><span>委派的任务</span><textarea class="mw-textarea" rows="5" maxlength="20000" data-coding-delegate-task required></textarea></label>
+      <fieldset class="mw-field coding-delegate-outputs"><legend>一起交给对方的固定成果（按固定版本，只读）</legend><div data-coding-delegate-outputs></div></fieldset>
+      <p data-coding-delegate-status role="status"></p></section>
+      <footer class="mw-form__footer">${renderButton({label:"取消",variant:"secondary",attrs:{"data-coding-delegate-cancel":""}})}<button class="mw-btn mw-btn--primary" type="submit" data-coding-delegate-create>创建委派</button></footer>
+    </form></dialog>
     <dialog class="mw-dialog mw-dialog--form" data-coding-writer-directories-dialog aria-label="独立工作树"><div class="mw-form mw-dialog__shell">
       <header class="mw-form__header"><h2>独立工作树</h2>${renderButton({label:"关闭",variant:"ghost",attrs:{"data-coding-writer-directories-close":""}})}</header>
       <section class="mw-form__body"><div><p data-coding-writer-parent></p><p>从主仓库当前提交创建独立目录和本地分支。创建与项目授权需先审查；已有未提交内容时不会分叉，避免遗漏当前修改。</p>
@@ -242,6 +251,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
           <div class="coding-identity"><button class="mw-btn mw-btn--ghost mw-btn--icon-only coding-directory-back" type="button" data-coding-directory-back aria-label="返回会话列表" title="会话列表">${p.icon("chevron-left")}</button><div class="coding-identity-copy mw-frame__heading"><h2 data-coding-title>选择或新建编码会话</h2><p class="coding-workspace-chip" data-coding-workspace-label>${renderWorkspaceLine(model.workspace_path, p)}</p></div></div>
           <div class="coding-head-actions"><span class="coding-phase" data-coding-phase hidden></span><button class="mw-btn mw-btn--ghost coding-results-toggle" type="button" data-coding-results-open aria-label="结果与审查">${p.icon("panel")}<span data-coding-results-label>结果与审查</span></button></div>
         </header>
+        <section class="coding-delegation-banner" data-coding-delegation-banner aria-label="来自其他会话的委派" hidden></section>
         <template data-coding-welcome-template><div class="coding-welcome" data-coding-welcome><p class="coding-welcome-kicker">${p.icon("folder")}<span data-coding-welcome-workspace>${p.escape(model.workspace_path ? model.workspace_path.split("/").filter(Boolean).at(-1) ?? model.workspace_path : "当前工作区")}</span></p><h2>这次想完成什么？</h2><p>描述目标即可，我会先读代码再动手；每一处写入和命令都会先经你审查。</p><div class="coding-starters">${[
           ["check","修好失败的测试","execute","运行测试，找出失败原因并修复，修完再跑一遍确认。"],
           ["folder-tree","梳理项目结构","discuss","帮我梳理这个项目的主要模块和调用链，先只读分析。"],
@@ -266,7 +276,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
             <div class="coding-composer-bar">
               <div class="coding-composer-leading">
                 <div class="coding-attach"><button class="mw-btn mw-btn--ghost mw-btn--icon-only coding-attach-toggle" type="button" data-coding-attach-toggle aria-expanded="false" aria-haspopup="menu" aria-label="添加上下文" title="材料、角色、方法、MCP 与会话设置">${p.icon("plus")}</button>
-                  <div class="coding-attach-menu" data-coding-attach-menu role="menu" hidden><div class="coding-composer-context" aria-label="补充上下文">${renderButton({label:"固定材料",icon:"paperclip",variant:"ghost",attrs:{"data-coding-material-open":"","aria-label":"选择固定材料",role:"menuitem"}})}${renderButton({label:"角色",icon:"user",variant:"ghost",attrs:{"data-coding-character-open":"","aria-label":"选择角色",role:"menuitem"}})}${renderButton({label:"方法",icon:"list",variant:"ghost",attrs:{"data-coding-method-open":"","aria-label":"选择方法",role:"menuitem"}})}${renderButton({label:"MCP 工具与资料",icon:"network",variant:"ghost",attrs:{"data-coding-mcp-open":"","aria-label":"选择 MCP 工具与资料",role:"menuitem"}})}</div>
+                  <div class="coding-attach-menu" data-coding-attach-menu role="menu" hidden><div class="coding-composer-context" aria-label="补充上下文">${renderButton({label:"固定材料",icon:"paperclip",variant:"ghost",attrs:{"data-coding-material-open":"","aria-label":"选择固定材料",role:"menuitem"}})}${renderButton({label:"角色",icon:"user",variant:"ghost",attrs:{"data-coding-character-open":"","aria-label":"选择角色",role:"menuitem"}})}${renderButton({label:"方法",icon:"list",variant:"ghost",attrs:{"data-coding-method-open":"","aria-label":"选择方法",role:"menuitem"}})}${renderButton({label:"MCP 工具与资料",icon:"network",variant:"ghost",attrs:{"data-coding-mcp-open":"","aria-label":"选择 MCP 工具与资料",role:"menuitem"}})}${renderButton({label:"委派给新会话",icon:"share",variant:"ghost",attrs:{"data-coding-delegate-open":"","aria-label":"把一部分任务委派给新会话",role:"menuitem"}})}</div>
                   ${renderButton({label:"工作区与目标",icon:"tune",variant:"ghost",attrs:{"data-coding-context-toggle":"","aria-expanded":false,title:"工作区与目标",role:"menuitem"}})}</div></div>
                 <select class="mw-select" data-coding-intent aria-label="任务方式"><option value="discuss">讨论</option><option value="plan">规划</option><option value="collaborate">只读协作</option><option value="parallel" disabled>并行写入</option><option value="edit" disabled>修改文件（待接通审批）</option><option value="execute" disabled>执行（待接通审批）</option><option value="review">评审</option></select>
                 <select class="mw-select" data-coding-model aria-label="下一轮使用的模型"></select>
@@ -286,6 +296,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
         <nav class="coding-tool-tabs mw-toolbar" aria-label="${p.escape("结果与工具")}"><h3 class="coding-tools-title">结果与审查</h3>${tools}<button class="mw-btn mw-btn--ghost coding-results-close" type="button" data-coding-results-close aria-label="返回会话" title="返回会话">${p.icon("x")}</button></nav>
         ${model.companion_result ?? ""}
         <section class="coding-result" data-coding-subagents aria-label="子任务" hidden></section>
+        <section class="coding-result coding-cooperation" data-coding-cooperation aria-label="协作与相关会话" hidden></section>
         <section class="coding-result" data-coding-plan aria-label="计划" hidden></section>
         <section class="coding-result" data-coding-recovery hidden aria-label="中断恢复">
           <h3>核对中断结果</h3>

@@ -12,6 +12,7 @@ import { atBottom, onContentAppended, onReaderScrolled, READER_INTENT_MS, STICK_
 import { CONTINUATION_MARKER, HISTORY_DIGEST_MARKER, HISTORY_DIGEST_TASK_HEAD, digestTask } from "./continuation.js";
 import { SESSION_PAGE, SESSION_WINDOW } from "./session-window.js";
 import { CODING_USAGE_METER_CLIENT_FACTORY_SCRIPT } from "./usage-meter-client.js";
+import { CODING_COOPERATION_CLIENT_FACTORY_SCRIPT } from "./cooperation-client.js";
 import { CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT } from "./plan-progress-client.js";
 import { CODING_SUBAGENT_CARDS_CLIENT_FACTORY_SCRIPT } from "./subagent-cards-client.js";
 import { createCodingTimeline } from "./timeline.js";
@@ -80,6 +81,12 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     parentLive:(run)=>!terminal(run.phase),prefill:(text)=>{const next=input.value.trim()?input.value+'\\n\\n'+text:text;input.value=next;input.dispatchEvent(new Event('input',{bubbles:true}));input.focus();},
     openInPanel:(childId)=>{root.dataset.codingResults='true';const row=q('[data-coding-subagents] details[data-child="'+CSS.escape(childId)+'"]');if(row){row.open=true;row.scrollIntoView({block:'center'});row.querySelector('textarea')?.focus({preventScroll:true});}}});
   const usageMeter = (${CODING_USAGE_METER_CLIENT_FACTORY_SCRIPT})({q,api,current:()=>current,status,refresh:()=>readCurrent()});
+  const cooperationUi = (${CODING_COOPERATION_CLIENT_FACTORY_SCRIPT})({q,api,current:()=>current,status,
+    openSession:(id,title)=>{host.openItem('coding',id,title || '');return select(id);},refreshSessions:()=>refreshState(),
+    rounds:()=>allRuns.map((run,index)=>({run_id:run.ref.run_id,number:index+1,phase:run.phase})),
+    prefill:(text)=>{if(input.value.trim()!==text.trim()){input.value=text;input.dispatchEvent(new Event('input',{bubbles:true}));}input.focus();},
+    // The Host attached a taken delivery to the session's materials; the page's selection follows, or the next send would drop it.
+    materialsChanged:async()=>{const id=current;const data=await api('/sessions/'+encodeURIComponent(id)+'?window=1');if(id===current){materialSelections.set(id,data.materials || []);controls();}}});
   const planProgress = (${CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT})({api,current:()=>current,status,refresh:()=>readCurrent(),openStep:(runId,stepId)=>stepReports.open(current,runId,stepId)});
   const taskboard = (${CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT})({directory,current:()=>current,status,ownTask,navigate:async(id,target)=>{
     const record=state.sessions.find(item=>item.session_id===id);if(!record)throw new Error('原会话暂不可读，请刷新后重试。');
@@ -911,7 +918,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         questionDrafts.set(id,saved && typeof saved==='object' && !Array.isArray(saved) ? saved : data.question_drafts || {});
       }
       if(fresh) { input.value=localDraft(id) ?? data.draft ?? ''; rememberDraft(id,input.value); q('[data-coding-draft-status]').textContent='草稿已恢复；模型与方式用于下一轮。'; turns.replaceChildren(); pinned=!offsets.has(id); }
-      runtimeSessionId=data.session.runtime_session_id;planEntries=[...olderPlanEntries,...(data.taskboard_plans || [])];subagentGroups=[...olderSubagents,...(data.subagents || [])];renderRuns(data.runs,allRuns);renderEarlier();usageMeter.render(data,lastRun);
+      runtimeSessionId=data.session.runtime_session_id;planEntries=[...olderPlanEntries,...(data.taskboard_plans || [])];subagentGroups=[...olderSubagents,...(data.subagents || [])];renderRuns(data.runs,allRuns);renderEarlier();usageMeter.render(data,lastRun);void cooperationUi.refresh();
       plans.update(id,data.plan ?? null,allRuns);
       subagents.update(id,data.subagents ?? []);
       taskboard.update(id,{...data,runs:allRuns});
@@ -939,7 +946,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     if(current) { offsets.set(current,turns.scrollTop); void flushDraft().catch(error=>status(error.message,true)); }
     void host.showReviews?.(q('[data-coding-host-reviews]'), []);
     recoveryLoading=false;recoveryBusy=false;recoveryKey='';q('[data-coding-recovery-list]').replaceChildren();q('[data-coding-recovery]').hidden=true;
-    resetWindow();current=id; generation++; loading=false; lastRun=null; recovery=false;checkpointBusy=false;checkpointLoading=false;checkpointKey='';statusKey='';
+    resetWindow();cooperationUi.reset();current=id; generation++; loading=false; lastRun=null; recovery=false;checkpointBusy=false;checkpointLoading=false;checkpointKey='';statusKey='';
     taskboard.loading(id);
     q('[data-coding-checkpoints-list]').replaceChildren();q('[data-coding-checkpoints-status]').textContent='正在读取检查点…';
     q('[data-coding-commands]').querySelectorAll(':scope > .coding-command').forEach(node=>node.remove());q('[data-coding-commands]').hidden=true;
@@ -1046,6 +1053,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(target.matches('[data-coding-mcp-settings-link]'))q('[data-coding-mcp-dialog]').close();
       if(target.matches('[data-coding-mcp-close]'))q('[data-coding-mcp-dialog]').close();
       if(target.matches('[data-coding-material-open]')) await openMaterials();
+      if(target.matches('[data-coding-delegate-open]')) await cooperationUi.openDialog();
       if(target.matches('[data-coding-material-close]')) {materialTicket++;q('[data-coding-material-dialog]').close();input.focus();}
       if(target.matches('[data-coding-method-open]')) openMethods();
       if(target.matches('[data-coding-method-close]')) {methodDocumentTicket++;q('[data-coding-method-dialog]').close();input.focus();}

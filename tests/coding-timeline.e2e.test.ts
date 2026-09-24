@@ -15,7 +15,7 @@ test("时间线在等审查时只让要审批的操作显示“等你批准”�
   try {
     const page = await browser.page();
     // The factory is injected into the page by toString in production, so it runs here the same way.
-    const result = await page.evaluate<Record<"waiting" | "running" | "done", Reading>>(`(()=>{
+    const result = await page.evaluate<Record<"waiting" | "running" | "done" | "stopped" | "failed", Reading>>(`(()=>{
       const timeline=(${createCodingTimeline.toString()})();
       const block=document.createElement('section'),detail=document.createElement('details');detail.dataset.codingActivity='r:0';block.append(detail);document.body.append(block);
       const items=[{call_id:'a',name:'run-command',target:'ls -la',state:'started'},{call_id:'b',name:'grep',target:'completionRate',state:'started'}];
@@ -26,6 +26,8 @@ test("时间线在等审查时只让要审批的操作显示“等你批准”�
         waiting:read({...base,phase:'awaiting-review'}),
         running:read({...base,phase:'running'}),
         done:read({...base,phase:'completed',ended_at:new Date().toISOString(),activity:[{...items[0],state:'completed',output:'exit 0\\nok'},{...items[1],state:'completed'}]}),
+        stopped:read({...base,phase:'stopped',stop_reason:'已停止',ended_at:new Date().toISOString(),activity:[]}),
+        failed:read({...base,phase:'failed',stop_reason:'模型请求超时',ended_at:new Date().toISOString(),activity:[]}),
       };
     })()`);
     assert.equal(result.waiting.summary, "等你批准：运行 ls -la", "等审查时概要指向真正要批准的命令");
@@ -37,6 +39,8 @@ test("时间线在等审查时只让要审批的操作显示“等你批准”�
     assert.deepEqual(result.done.rows, ["exit 0", ""], "退出码只来自命令回执，其他操作不虚标");
     assert.match(result.done.footer, /这一轮完成/);
     assert.match(result.done.footer, /最后一条 ls -la → exit 0/);
+    assert.doesNotMatch(result.stopped.footer, /已停止.*已停止/, "只复述标题的停止原因不再重复一遍");
+    assert.match(result.failed.footer, /模型请求超时/, "真正的失败原因保留");
     const thinking = await page.evaluate<{ live: string; done: string; rows: string[]; preview: string; body: string }>(`(()=>{
       const timeline=(${createCodingTimeline.toString()})();
       const detail=document.createElement('details');detail.dataset.codingActivity='t:0';document.body.append(detail);

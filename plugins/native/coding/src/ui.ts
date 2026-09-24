@@ -269,7 +269,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
                   ${renderButton({label:"工作区与目标",icon:"tune",variant:"ghost",attrs:{"data-coding-context-toggle":"","aria-expanded":false,title:"工作区与目标",role:"menuitem"}})}</div></div>
                 <select class="mw-select" data-coding-intent aria-label="任务方式"><option value="discuss">讨论</option><option value="plan">规划</option><option value="collaborate">只读协作</option><option value="parallel" disabled>并行写入</option><option value="edit" disabled>修改文件（待接通审批）</option><option value="execute" disabled>执行（待接通审批）</option><option value="review">评审</option></select>
                 <select class="mw-select" data-coding-model aria-label="下一轮使用的模型"></select>
-                <button class="mw-btn mw-btn--danger-outline" type="button" data-coding-stop hidden>停止</button>
+                <button class="mw-btn mw-btn--danger-outline" type="button" data-coding-stop title="停止这一轮（Esc）" aria-keyshortcuts="Escape" hidden>停止</button>
               </div>
               <button class="mw-btn mw-btn--primary" type="submit" data-coding-send disabled>发送</button>
             </div>

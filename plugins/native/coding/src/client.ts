@@ -292,8 +292,14 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       row.setAttribute('aria-current',String(current===session.session_id));row.classList.toggle('is-selected',current===session.session_id);
       const title=row.querySelector('.coding-session-title'),time=row.querySelector('time'),mark=row.querySelector('.coding-session-state');
       if(title.textContent!==session.title) title.textContent=session.title;title.title=session.title;
-      if(time.dateTime!==session.updated_at) {time.textContent=session.updated_at.slice(5,10);time.dateTime=session.updated_at;}
+      if(time.dateTime!==session.updated_at) {
+        // Local time: today reads as a clock time, earlier days as a date.
+        const at=new Date(session.updated_at),now=new Date(),pad=(n)=>String(n).padStart(2,'0');
+        time.textContent=Number.isNaN(at.getTime()) ? session.updated_at.slice(5,10) : at.toDateString()===now.toDateString() ? pad(at.getHours())+':'+pad(at.getMinutes()) : pad(at.getMonth()+1)+'-'+pad(at.getDate());
+        time.dateTime=session.updated_at;time.title=Number.isNaN(at.getTime()) ? session.updated_at : at.toLocaleString('zh-CN');
+      }
       const label=session.checkpoint_busy ? '回退待处理' : labels[session.state] || session.state;if(mark.textContent!==label) mark.textContent=label;
+      mark.dataset.state=session.checkpoint_busy ? 'waiting-approval' : session.state;
       const goalKey=session.goal_id || '';let group=directoryGroups.get(goalKey);
       if(!group) {group=document.createElement('section');group.className='coding-session-group';const heading=document.createElement('h2');heading.className='mw-dir__heading';group.append(heading);directoryGroups.set(goalKey,group);}
       const groupTitle=session.goal_title || (session.goal_id ? '关联 Goal 暂不可用' : '未关联 Goal');
@@ -966,6 +972,8 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   turns.addEventListener('scroll',()=>{if(reportRun)return;pinned=onReaderScrolled(position(),{pinned,by_reader:performance.now()-readerIntentAt<READER_INTENT_MS});q('[data-coding-latest]').hidden=pinned;},{passive:true});
   // Late growth (a review card loading, a group opening) keeps a following reader at the newest line.
   let followFrame=0;new MutationObserver(()=>{if(!pinned || reportRun || followFrame)return;followFrame=requestAnimationFrame(()=>{followFrame=0;if(pinned && !reportRun)turns.scrollTop=turns.scrollHeight;});}).observe(turns,{childList:true,subtree:true,characterData:true});
+  // Browsers without field-sizing still grow the field as the person writes.
+  if(!globalThis.CSS?.supports?.('field-sizing','content'))input.addEventListener('input',()=>{input.style.height='auto';input.style.height=Math.min(input.scrollHeight,Math.min(innerHeight*0.4,320))+'px';});
   input.addEventListener('input',()=>{rememberDraft(current,input.value);q('[data-coding-draft-status]').textContent='正在保存草稿…';clearTimeout(draftTimer);const id=current,value=input.value;draftTimer=setTimeout(()=>{void saveDraft(id,value).catch(error=>status('草稿暂未写入服务，当前窗口仍保留：'+error.message,true));},400);});
   for(const field of [q('[data-coding-intent]'),q('[data-coding-model]')])field.addEventListener('change',()=>{
     rememberConfiguration();controls();void flushDraft().catch(error=>status('配置暂未保存：'+error.message,true));
@@ -1031,6 +1039,8 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   });
   directory.querySelector('[data-coding-artifact-search]').addEventListener('input',renderArtifacts);
   input.addEventListener('keydown',event=>{if(event.key==='/' && !event.isComposing && !input.value.trim()){event.preventDefault();openMethods();}});
+  // Esc in the composer stops a live round, as in terminal agents — never mid-IME, never while the + menu is open.
+  input.addEventListener('keydown',event=>{if(event.key!=='Escape' || event.isComposing || event.keyCode===229 || !attachMenu.hidden)return;const stop=q('[data-coding-stop]');if(stop.hidden || stop.disabled)return;event.preventDefault();stop.click();});
   input.addEventListener('input',()=>turns.querySelectorAll('[data-coding-prompt]').forEach(button=>{button.disabled=Boolean(input.value.trim());}));
   input.addEventListener('keydown' ,event=>{if(event.key==='Enter' && (event.metaKey || event.ctrlKey) && !event.isComposing){event.preventDefault();q('[data-coding-composer]').requestSubmit();}});
   q('[data-coding-composer]').addEventListener('submit',async(event)=>{

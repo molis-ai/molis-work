@@ -109,8 +109,9 @@ export const CODING_STYLES = `
   border-color:var(--ink);
   outline:var(--focus-stroke, 1px solid var(--ink)); outline-offset:var(--focus-stroke-inset, -1px);
 }
+/* The field grows with what is written, up to a limit, instead of offering a resize grip. */
 .coding-composer-shell textarea {
-  resize:vertical; width:100%; min-height:72px; max-height:220px; line-height:1.65;
+  resize:none; field-sizing:content; width:100%; min-height:56px; max-height:min(40vh,320px); overflow-y:auto; line-height:1.65;
   margin:0; padding:10px 8px 4px; border:0; border-radius:8px; background:transparent; box-shadow:none;
   caret-color:var(--ink);
 }
@@ -453,4 +454,12 @@ export const CODING_STYLES = `
   .coding-tool-tabs .coding-results-close { width:44px; height:44px; }
   .coding-outcome .mw-btn,.coding-command > summary { min-height:44px; }
 }
+
+/* Session rows carry their state as a dot: live work pulses, anything waiting on the person is amber. */
+.coding-session-state { display:inline-flex; align-items:center; gap:5px; }
+.coding-session-state:is([data-state=running],[data-state=waiting-answer],[data-state=waiting-approval],[data-state=failed],[data-state=reconcile-required])::before { content:""; flex:none; width:6px; height:6px; border-radius:50%; background:currentColor; }
+.coding-session-state[data-state=running] { color:var(--blue); }
+.coding-session-state:is([data-state=waiting-answer],[data-state=waiting-approval]) { color:var(--amber); }
+.coding-session-state:is([data-state=failed],[data-state=reconcile-required]) { color:var(--red); }
+@media (prefers-reduced-motion:no-preference) { .coding-session-state[data-state=running]::before { animation:coding-pulse 1.4s ease-in-out infinite; } }
 `;

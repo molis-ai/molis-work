@@ -171,7 +171,9 @@ export function createCodingTimeline() {
       commands.length ? `运行 ${commands.length} 条命令` : "",
       lastCommand ? `最后一条 ${lastCommand.target || "命令"} → exit ${lastCode ?? "?"}` : "",
     ].filter(Boolean);
-    const reason = tone !== "done" && run.stop_reason ? `<p class="coding-run-reason">${escape(run.stop_reason)}</p>` : "";
+    // A reason that only restates the title ("已停止" under "这一轮已停止") adds nothing.
+    const stated = (run.stop_reason ?? "").trim(), restates = stated !== "" && title.includes(stated.replace(/^已/, ""));
+    const reason = tone !== "done" && stated && !restates ? `<p class="coding-run-reason">${escape(stated)}</p>` : "";
     const files = edited.size ? `<ul class="coding-run-files">${[...edited].slice(0, 8).map(path => `<li>${svg("edit")}<code>${escape(path)}</code></li>`).join("")}${edited.size > 8 ? `<li>另有 ${edited.size - 8} 个文件</li>` : ""}</ul>` : "";
     const html = `<div class="coding-run-card" data-tone="${tone}">
       <header><span class="coding-run-mark">${svg(tone === "done" ? "check" : tone === "failed" ? "circle-alert" : "clock")}</span><strong>${escape(title)}</strong><span class="coding-run-round">第 ${index + 1} 轮</span></header>

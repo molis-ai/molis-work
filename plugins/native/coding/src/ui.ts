@@ -278,7 +278,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
         </form>
       </div>
       <aside class="coding-tools" data-coding-tools>
-        <nav class="coding-tool-tabs mw-toolbar" aria-label="${p.escape("结果与工具")}"><button class="mw-btn coding-results-toggle" type="button" data-coding-results-close aria-label="返回会话">${p.icon("chevron-left")}<span>返回会话</span></button>${tools}</nav>
+        <nav class="coding-tool-tabs mw-toolbar" aria-label="${p.escape("结果与工具")}"><h3 class="coding-tools-title">结果与审查</h3>${tools}<button class="mw-btn mw-btn--ghost coding-results-close" type="button" data-coding-results-close aria-label="返回会话" title="返回会话">${p.icon("x")}</button></nav>
         ${model.companion_result ?? ""}
         <section class="coding-result" data-coding-subagents aria-label="子任务" hidden></section>
         <section class="coding-result" data-coding-plan aria-label="计划" hidden></section>
@@ -288,13 +288,8 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
           <button class="mw-btn" type="button" data-coding-recovery-refresh>重新核对</button>
           <p data-coding-recovery-status role="status"></p><div data-coding-recovery-list></div>
         </section>
-        <section class="coding-result" data-coding-checkpoints aria-label="文件检查点">
-          <details><summary>文件检查点</summary><p>回到所列文件的一次修改前；不会撤销命令和外部操作，也不会删除对话。</p>
-          <button class="mw-btn" type="button" data-coding-checkpoints-refresh>刷新检查点</button>
-          <p data-coding-checkpoints-status role="status">选择会话后查看。</p><div data-coding-checkpoints-list></div></details>
-        </section><div data-coding-host-reviews hidden></div><div class="coding-result" data-coding-result><p>任务成果与执行记录会留在这里，方便审查和继续。</p></div>
-        <section class="coding-result" data-coding-changes hidden aria-label="固定变更入口"><h3>本轮固定变更</h3><div data-coding-changes-list></div></section>
-        <section class="coding-result" data-coding-reports hidden aria-label="执行报告"><h3>执行报告</h3><p>选择已结束的一轮，查看证据并保存固定版本。</p><div data-coding-report-list></div></section>
+        <div data-coding-host-reviews hidden></div><div class="coding-result coding-facts" data-coding-result><p>任务成果与执行记录会留在这里，方便审查和继续。</p></div>
+        <section class="coding-result coding-outcomes" data-coding-outcomes hidden aria-labelledby="coding-outcomes-title"><h3 id="coding-outcomes-title">每轮成果</h3><div data-coding-outcome-list></div></section>
         <section class="coding-change" data-coding-change-reader aria-labelledby="coding-change-title" hidden>
           <header class="coding-change-head">
             <div class="coding-change-heading"><h3 id="coding-change-title">本轮变更</h3><p data-coding-change-summary></p></div>
@@ -316,7 +311,12 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
             <div class="coding-change-feedback-foot"><button class="mw-btn mw-btn--primary" type="button" data-coding-feedback-return disabled>加入原任务草稿</button></div>
           </section>
         </section>
-        <section class="coding-result" data-coding-commands aria-label="命令与检查回执" hidden></section>${panels}
+        <section class="coding-result coding-commands" data-coding-commands aria-labelledby="coding-commands-title" hidden><h3 id="coding-commands-title">命令回执</h3></section>
+        <section class="coding-result" data-coding-checkpoints aria-label="文件检查点">
+          <details class="coding-checkpoints"><summary>文件检查点</summary><p>回到所列文件的一次修改前；不会撤销命令和外部操作，也不会删除对话。</p>
+          <button class="mw-btn" type="button" data-coding-checkpoints-refresh>刷新检查点</button>
+          <p data-coding-checkpoints-status role="status">选择会话后查看。</p><div data-coding-checkpoints-list></div></details>
+        </section>${panels}
       </aside>
     </div></div>
   </section>`;

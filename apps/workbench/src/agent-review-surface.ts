@@ -39,8 +39,15 @@ export const AGENT_REVIEW_STYLES = `
 .agent-review-row[data-agent-review-phase=pending] { padding:12px 14px; border:1px solid var(--line); border-radius:10px; background:var(--paper, #fff); box-shadow:0 1px 2px rgb(0 0 0 / .04); }
 .agent-review-head { display:flex; flex-wrap:wrap; align-items:center; gap:4px 10px; color:var(--muted); }
 .agent-review-head svg { width:14px; height:14px; }
-.agent-review-row > details > summary { cursor:pointer; }
-.agent-review-row > details > summary .agent-review-head { display:inline-flex; vertical-align:top; }
+.agent-review-row:has(> details) { margin-bottom:2px; }
+.agent-review-row > details > summary { display:flex; align-items:center; gap:6px; min-height:30px; margin:0 -6px; padding:3px 6px; border-radius:6px; list-style:none; cursor:pointer; }
+.agent-review-row > details > summary::-webkit-details-marker { display:none; }
+.agent-review-row > details > summary::before { content:""; flex:none; width:5px; height:5px; margin:0 3px 0 1px; border-right:1.5px solid var(--faint, var(--muted)); border-bottom:1.5px solid var(--faint, var(--muted)); transform:rotate(-45deg); transition:transform .15s ease; }
+.agent-review-row > details[open] > summary::before { transform:rotate(45deg); }
+.agent-review-row > details > summary:hover { background:var(--nav-hover, var(--rail)); }
+.agent-review-row > details > summary .agent-review-head { flex:1 1 auto; min-width:0; flex-wrap:nowrap; }
+.agent-review-row > details > summary .agent-review-head .mw-status,.agent-review-row > details > summary .agent-review-head time { flex:none; }
+.agent-review-row > details[open] { padding-bottom:8px; }
 .agent-review-plugin { display:none; }
 .agent-review-title { min-width:0; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
 .agent-review-title--code { font:12px/1.6 var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); }

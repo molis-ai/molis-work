@@ -104,9 +104,5 @@ export const CODING_CHANGESET_CLIENT_FACTORY_SCRIPT = `(ports) => {
       }catch(error){if(ticket===token){message.textContent=error.message;target.disabled=false;}}
     }
   });
-  return {close,openFixed:(run)=>open(run,false,0,true),active:()=>Boolean(runId),render:(runs)=>{
-    const list=q('[data-coding-changes-list]'),ended=runs.filter(run=>['completed','failed','stopped','cancelled'].includes(run.phase));
-    q('[data-coding-changes]').hidden=!ended.length;
-    for(const run of ended){let button=[...list.children].find(node=>node.dataset.codingChangeOpen===run.ref.run_id);if(!button){button=document.createElement('button');button.type='button';button.className='mw-btn';button.dataset.codingChangeOpen=run.ref.run_id;list.append(button);}button.textContent='第 '+(runs.indexOf(run)+1)+' 轮 · 查看固定变更';}
-  }};
+  return {close,openFixed:(run)=>open(run,false,0,true),active:()=>Boolean(runId)};
 }`;

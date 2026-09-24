@@ -405,14 +405,17 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   });
   const renderCommands = (runs) => {
     const region=q('[data-coding-commands]');
-    const refs=runs.flatMap((run,index)=>(run.command_outputs || []).map(ref=>({ref,number:index+1})));
+    const refs=runs.flatMap((run,index)=>(run.command_outputs || []).map(ref=>({ref,number:index+1,target:run.activity.find(item=>item.call_id===ref.call_id)?.target || ''})));
     region.hidden=!refs.length;
-    for(const {ref,number} of refs) {
+    for(const {ref,number,target} of refs) {
       const key=JSON.stringify(ref);
       if([...region.children].some(node=>node.dataset.command===key)) continue;
       const detail=document.createElement('details');detail.className='coding-command';detail.dataset.command=key;
-      const summary=document.createElement('summary');summary.textContent='第 '+number+' 轮 · 查看命令回执';
-      const body=document.createElement('div');detail.append(summary,body);region.append(detail);
+      // The row names the command itself; its exit state is read from the durable receipt when opened.
+      const summary=document.createElement('summary'),line=document.createElement('code'),state=document.createElement('span'),round=document.createElement('span');
+      line.textContent=target ? '$ '+target : '命令回执';line.title=target;state.className='coding-command-state';round.className='coding-command-round';round.textContent='第 '+number+' 轮';
+      summary.append(line,state,round);
+      const body=document.createElement('div');detail.append(summary,body);region.insertBefore(detail,region.querySelector(':scope > h3')?.nextSibling || null);
       let loaded=false,busy=false;
       const load=async()=>{
         if(loaded || busy) return;busy=true;body.textContent='正在读取执行回执…';
@@ -422,8 +425,8 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
           if(id!==current || ticket!==generation) return;
           loaded=true;body.replaceChildren();
           const condition=receipt.stop_reason==='timed-out' || receipt.timed_out ? '超时' : receipt.stop_reason==='cancelled' || receipt.cancelled ? '已取消' : receipt.exit_code===null ? '退出码未知' : '退出码 '+receipt.exit_code;
-          summary.textContent='第 '+number+' 轮 · '+condition;
-          const command=document.createElement('pre');command.textContent=receipt.command;body.append(command);
+          state.textContent=condition.replace('退出码 ','exit ');state.dataset.tone=receipt.exit_code===0 && !receipt.timed_out && !receipt.cancelled ? 'done' : 'failed';if(!target){line.textContent='$ '+receipt.command;line.title=receipt.command;}
+          const command=document.createElement('p');command.className='coding-command-recorded';command.textContent='回执记录的命令：'+receipt.command;body.append(command);
           for(const [label,value] of [['标准输出',receipt.stdout],['标准错误',receipt.stderr]]) {
             const heading=document.createElement('p');heading.textContent=label;const output=document.createElement('pre');output.textContent=value || '（无输出）';body.append(heading,output);
           }
@@ -659,26 +662,49 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       timeline.renderFooter(block,run,runs.indexOf(run));
     }
     renderCommands(runs);
-    changeReview.render(runs);
-    const reportRuns=runs.filter(run=>['completed','failed','stopped','cancelled'].includes(run.phase));
-    q('[data-coding-reports]').hidden=!reportRuns.length;
-    const reportList=q('[data-coding-report-list]');
-    for(const run of reportRuns) {
-      let button=[...reportList.children].find(node=>node.dataset.codingReportOpen===run.ref.run_id);
-      if(!button) {button=document.createElement('button');button.type='button';button.className='mw-btn';button.dataset.codingReportOpen=run.ref.run_id;reportList.append(button);}
-      button.textContent='第 '+(runs.indexOf(run)+1)+' 轮 · '+(phases[run.phase] || run.phase)+' · 查看报告';
+    // One row per finished round: its changes and its report, newest first.
+    const ended=runs.filter(run=>['completed','failed','stopped','cancelled'].includes(run.phase)),outcomeList=q('[data-coding-outcome-list]');
+    q('[data-coding-outcomes]').hidden=!ended.length;
+    const outcomeIcon=(name)=>{const svg=document.createElementNS('http://www.w3.org/2000/svg','svg'),use=document.createElementNS('http://www.w3.org/2000/svg','use');svg.setAttribute('aria-hidden','true');use.setAttribute('href','#icon-'+name);svg.append(use);return svg;};
+    for(const run of ended) {
+      let row=[...outcomeList.children].find(node=>node.dataset.codingOutcome===run.ref.run_id);
+      if(!row) {
+        row=document.createElement('div');row.className='coding-outcome';row.dataset.codingOutcome=run.ref.run_id;
+        const name=document.createElement('span'),phase=document.createElement('span'),change=document.createElement('button'),report=document.createElement('button');
+        name.className='coding-outcome-name';phase.className='coding-outcome-phase';
+        change.type='button';change.className='mw-btn mw-btn--ghost';change.dataset.codingChangeOpen=run.ref.run_id;change.append(outcomeIcon('columns'),'变更');
+        report.type='button';report.className='mw-btn mw-btn--ghost';report.dataset.codingReportOpen=run.ref.run_id;report.append(outcomeIcon('file'),'报告');
+        row.append(name,phase,change,report);outcomeList.prepend(row);
+      }
+      row.querySelector('.coding-outcome-name').textContent='第 '+(runs.indexOf(run)+1)+' 轮';
+      const phase=row.querySelector('.coding-outcome-phase');phase.textContent=phases[run.phase] || run.phase;phase.dataset.tone=run.phase==='completed'?'done':run.phase==='failed'?'failed':'idle';
     }
     lastRun=runs.at(-1)||null;
     const result=q('[data-coding-result]');
     if(!lastRun) { result.textContent="本轮的成果、检查与执行记录会显示在这里。"; delete result.dataset.content; if(statusKey!=='idle'){statusKey='idle';status('');} }
     if(lastRun) {
-      const values=[['最新执行（第 '+runs.length+' 轮）',phases[lastRun.phase]||lastRun.phase],['模型',lastRun.frozen.model_id],['工作范围',lastRun.frozen.directory.canonical_path],...(lastRun.frozen.subagent_workspaces?.length ? [['本轮独立目录',lastRun.frozen.subagent_workspaces.map(item=>item.directory.canonical_path).join('；')]] : []),['身份',lastRun.frozen.role_id+' · v'+lastRun.frozen.role_version],['本轮方法',lastRun.frozen.skills.length ? lastRun.frozen.skills.map(method=>method.name+' · v'+method.version).join('、') : '未使用方法'],['本轮 MCP',lastRun.frozen.mcp_tools?.length ? lastRun.frozen.mcp_tools.map(tool=>(tool.server_label || tool.server)+' / '+tool.tool+' · 配置 '+(tool.configuration_version ?? '未记录')+' · '+tool.version).join('、') : '未使用 MCP'],['本轮 MCP 资料',(lastRun.frozen.mcp_sources || []).length ? lastRun.frozen.mcp_sources.map(source=>(source.server_label || source.server)+' · 配置 '+source.configuration_version).join('、') : '未单独选择资料来源'],['用量',codingUsageSummary(lastRun.usage)]];
-      const character=lastRun.frozen.character;values.push(['本轮 Character',character?character.title+' · v'+character.reference.version:'未使用 Character']);
-      if(character)values.push(['本轮内置工具',lastRun.frozen.host_tools?.join('、') || '不使用内置工具']);
-      values.push(['本轮固定材料',lastRun.frozen.text_materials.length ? lastRun.frozen.text_materials.map(material=>(material.title || material.source_artifact_id)+' · v'+material.source_version).join('、') : '未选择材料']);
-      if(lastRun.frozen.compaction) values.push(['上下文整理','自动 · 估计超过 '+lastRun.frozen.compaction.above_tokens+' tokens 时选择较早原文 · v'+lastRun.frozen.compaction.version]);
+      // Only what this round actually used is listed; what it did not use is named once, so nothing is silently omitted.
+      const f=lastRun.frozen,values=[['模型',f.model_id],['用量',codingUsageSummary(lastRun.usage)],['工作范围',f.directory.canonical_path]],unused=[];
+      if(f.subagent_workspaces?.length) values.push(['本轮独立目录',f.subagent_workspaces.map(item=>item.directory.canonical_path).join('；')]);
+      values.push(['身份',f.role_id+' · v'+f.role_version]);
+      if(f.skills.length) values.push(['本轮方法',f.skills.map(method=>method.name+' · v'+method.version).join('、')]); else unused.push('方法');
+      if(f.mcp_tools?.length) values.push(['本轮 MCP',f.mcp_tools.map(tool=>(tool.server_label || tool.server)+' / '+tool.tool+' · 配置 '+(tool.configuration_version ?? '未记录')+' · '+tool.version).join('、')]); else unused.push('MCP');
+      if((f.mcp_sources || []).length) values.push(['本轮 MCP 资料',f.mcp_sources.map(source=>(source.server_label || source.server)+' · 配置 '+source.configuration_version).join('、')]); else unused.push('MCP 资料来源');
+      const character=f.character;
+      if(character) values.push(['本轮 Character',character.title+' · v'+character.reference.version],['本轮内置工具',f.host_tools?.join('、') || '不使用内置工具']); else unused.push('Character');
+      if(f.text_materials.length) values.push(['本轮固定材料',f.text_materials.map(material=>(material.title || material.source_artifact_id)+' · v'+material.source_version).join('、')]); else unused.push('固定材料');
+      if(f.compaction) values.push(['上下文整理','自动 · 估计超过 '+f.compaction.above_tokens+' tokens 时选择较早原文 · v'+f.compaction.version]);
       if(!lastRun.usage.compaction && lastRun.activity.some(item=>item.name==='上下文整理')) values.push(['用量范围','以上仅主执行；上下文整理的额外模型请求尚未计入此小计。']);
-      const key=JSON.stringify(values); if(result.dataset.content!==key) { const dl=document.createElement('dl'); values.forEach(([label,value])=>{const dt=document.createElement('dt');dt.textContent=label;const dd=document.createElement('dd');dd.textContent=value;dl.append(dt,dd);}); result.replaceChildren(dl);result.dataset.content=key; }
+      const phaseLabel=phases[lastRun.phase]||lastRun.phase,tone=lastRun.phase==='completed'?'done':lastRun.phase==='failed'?'failed':terminal(lastRun.phase)?'idle':'live';
+      const key=JSON.stringify([runs.length,phaseLabel,values,unused]);
+      if(result.dataset.content!==key) {
+        const head=document.createElement('header'),title=document.createElement('h3'),phase=document.createElement('span'),round=document.createElement('span'),dl=document.createElement('dl');
+        head.className='coding-facts-head';title.textContent='本轮概况';phase.className='coding-facts-phase';phase.dataset.tone=tone;phase.textContent=phaseLabel;round.className='coding-facts-round';round.textContent='第 '+runs.length+' 轮';head.append(title,phase,round);
+        values.forEach(([label,value])=>{const dt=document.createElement('dt');dt.textContent=label;const dd=document.createElement('dd');dd.textContent=value;if(label==='工作范围'||label==='本轮独立目录')dd.className='is-path';dl.append(dt,dd);});
+        result.replaceChildren(head,dl);
+        if(unused.length){const note=document.createElement('p');note.className='coding-facts-unused';note.textContent='本轮未使用：'+unused.join('、');result.append(note);}
+        result.dataset.content=key;
+      }
       const nextStatus=lastRun.ref.run_id+':'+lastRun.phase+':'+lastRun.stop_reason;
       // The round's own footer shows its live state and outcome; this line only carries a failure worth reading twice.
       if(statusKey!==nextStatus){statusKey=nextStatus;status(lastRun.phase==='failed' ? (lastRun.stop_reason || phases.failed) : '',lastRun.phase==='failed');}
@@ -784,16 +810,16 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     root.dataset.codingResults='false';
     root.dataset.codingDetail='true';
     if(id===current) return selectionTask;
-    if(changeReview.active())changeReview.close();q('[data-coding-changes-list]').replaceChildren();q('[data-coding-changes]').hidden=true;
+    if(changeReview.active())changeReview.close();q('[data-coding-outcome-list]').replaceChildren();q('[data-coding-outcomes]').hidden=true;
     materialTicket++;q('[data-coding-material-dialog]').close();
-    closeReport();q('[data-coding-report-list]').replaceChildren();q('[data-coding-reports]').hidden=true;
+    closeReport();
     if(current) { offsets.set(current,turns.scrollTop); void flushDraft().catch(error=>status(error.message,true)); }
     void host.showReviews?.(q('[data-coding-host-reviews]'), []);
     recoveryLoading=false;recoveryBusy=false;recoveryKey='';q('[data-coding-recovery-list]').replaceChildren();q('[data-coding-recovery]').hidden=true;
     current=id; generation++; loading=false; lastRun=null; recovery=false;checkpointBusy=false;checkpointLoading=false;checkpointKey='';statusKey='';
     taskboard.loading(id);
     q('[data-coding-checkpoints-list]').replaceChildren();q('[data-coding-checkpoints-status]').textContent='正在读取检查点…';
-    q('[data-coding-commands]').replaceChildren();q('[data-coding-commands]').hidden=true;
+    q('[data-coding-commands]').querySelectorAll(':scope > .coding-command').forEach(node=>node.remove());q('[data-coding-commands]').hidden=true;
     input.disabled=true; selectionTask=readCurrent(true);await selectionTask;
   };
   const openCodingItem = async(itemId) => {

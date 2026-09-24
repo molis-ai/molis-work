@@ -32,7 +32,7 @@ export async function workspaceFileIndex(read: ReadFile, workspaceId: string): P
 
 /** Paths named with @ at the start of a word: "@src/a.ts" or "@README.md", never an email address. */
 export function mentionedPaths(task: string): string[] {
-  const found = [...task.matchAll(/(^|\s)@([\w.\-/]*[\w-])/g)].map(match => match[2]!.replace(/^\.\//, "")).filter(path => /[./]/.test(path) && !path.split("/").includes(".."));
+  const found = [...task.matchAll(/(^|\s)@([\w.\-/]*[\w-])/g)].map(match => match[2]!.replace(/^\.\//, "")).filter(path => !path.split("/").includes(".."));
   return [...new Set(found)].slice(0, MENTION_LIMIT);
 }
 
@@ -43,8 +43,10 @@ export async function attachMentions(read: ReadFile, workspaceId: string, task: 
   const parts: string[] = [], attached: string[] = [];
   let budget = TOTAL;
   for (const path of paths) {
+    const isBare = !path.includes(".") && !path.includes("/");
     const result = await read({ workspace_id: workspaceId, path: path.split("/").filter(Boolean), kind: "text" }).catch(() => ({ outcome: "missing" as const }));
     if (result.outcome !== "text") {
+      if (isBare) continue;
       const why = { missing: "工作区里没有这个文件", "too-large": "文件太大，没有附上", binary: "不是文本文件", denied: "不在授权的工作区内", unsupported: "不能作为文本读取", changed: "读取时文件正在变化", directory: "这是目录，不是文件" }[result.outcome] ?? "读取失败";
       parts.push(`### ${path}\n（没有附上：${why}。需要时请用读取工具查看。）`);
       continue;
@@ -56,6 +58,7 @@ export async function attachMentions(read: ReadFile, workspaceId: string, task: 
     const fence = body.includes("```") ? "~~~~" : "```";
     parts.push(`### ${path}${cut ? `（只附了前 ${body.split("\n").length} 行，共 ${result.text.split("\n").length} 行；其余请用读取工具查看）` : ""}\n${fence}\n${body}\n${fence}`);
   }
+  if (!parts.length) return { task, attached: [] };
   return { task: task + MENTIONS_MARKER + "以下是你在任务里用 @ 提到的文件，在发送这一刻的内容（只读；之后的改动以工作区为准）。\n\n" + parts.join("\n\n"), attached };
 }
 

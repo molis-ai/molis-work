@@ -68,10 +68,13 @@ function sanitizeRichHtml(value: string): string {
     allowedTags: [...ALLOWED_TAGS],
     allowedAttributes: {
       a: ["href", "title", "target", "rel"],
+      // A fenced block keeps the language it names, so it can be coloured; nothing else rides on class.
+      code: ["class"],
       details: ["open"],
       th: ["colspan", "rowspan", "align"],
       td: ["colspan", "rowspan", "align"],
     },
+    allowedClasses: { code: ["language-*"] },
     allowedSchemes: ["http", "https"],
     allowedSchemesAppliedToAttributes: ["href"],
     allowProtocolRelative: false,

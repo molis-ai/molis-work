@@ -932,6 +932,15 @@ export const agentHostCapabilities = {
     version: 1,
     operation: "query",
   } as HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef], AgentRunView>,
+  /**
+   * Resolves once the run's view differs from the version the caller holds, or at the timeout (at most 25 s).
+   * How a surface follows a live round as it happens instead of rereading it on a timer; nothing is replayed.
+   */
+  waitRun: {
+    capability_id: "agent.run.wait.v1",
+    version: 1,
+    operation: "query",
+  } as HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef, since: string | null, timeoutMs: number], { version: string; view: AgentRunView }>,
   controlRun: {
     capability_id: "agent.run.control.v1",
     version: 1,

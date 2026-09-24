@@ -1,5 +1,5 @@
 import type { HostCapabilityDefinition } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { agentHostCapabilities, type AgentSessionRef, type AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentHostCapabilities, type AgentSessionRef, type AgentRunRef, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 import { AgentHostError, type AgentHost, type AgentStartAuthority } from "./index.js";
 
@@ -34,6 +34,14 @@ export interface AgentCapabilityPorts<Context> {
   authority(context: Context, pluginId: string): AgentStartAuthority | Promise<AgentStartAuthority>;
   /** The board this context belongs to, used to scope the review queue. */
   boardId(context: Context): string;
+}
+
+/** A cheap, stable mark of what a surface would draw differently: phase, text growth, tool progress, questions, usage. */
+export function runViewVersion(view: AgentRunView): string {
+  const last = view.turns[view.turns.length - 1];
+  return [view.phase, view.turns.length, last?.text.length ?? 0, view.activity.length,
+    view.activity.map(item => item.state[0] + (item.output?.length ?? 0)).join(""), view.awaiting_input.length,
+    view.usage.tokens.input + view.usage.tokens.output, view.step_board?.version ?? 0].join(":");
 }
 
 export function registerAgentHostCapabilities<Context>(
@@ -125,6 +133,21 @@ export function registerAgentHostCapabilities<Context>(
       return ports.agentHost(context).adapter(session.runtime_id).read(run);
     }),
 
+    // Following a live round: wake on the first change, gather the deltas that arrive within 40 ms, answer with the latest.
+    registrar.register(agentHostCapabilities.waitRun, async (context, [session, run, since, timeoutMs]) => {
+      await requireRun(context, session, run);
+      const adapter = ports.agentHost(context).adapter(session.runtime_id);
+      const limit = Math.min(Math.max(Number(timeoutMs) || 0, 0), 25_000);
+      return new Promise<{ version: string; view: AgentRunView }>((resolve, reject) => {
+        let latest: AgentRunView | undefined, gather: ReturnType<typeof setTimeout> | undefined, stop: (() => void) | undefined, finished = false;
+        const finish = () => { if (finished) return; finished = true; clearTimeout(timer); clearTimeout(gather); stop?.(); resolve({ version: runViewVersion(latest!), view: latest! }); };
+        const timer = setTimeout(finish, limit);
+        try {
+          stop = adapter.observe(run, view => { latest = view; if (runViewVersion(view) !== since && !gather) gather = setTimeout(finish, 40); });
+          if (finished) stop();
+        } catch (error) { clearTimeout(timer); reject(error); }
+      });
+    }),
     registrar.register(agentHostCapabilities.listSubagents, async (context, [session, run]) => {
       await requireRun(context, session, run);
       const port = ports.agentHost(context).adapter(session.runtime_id).subagents;

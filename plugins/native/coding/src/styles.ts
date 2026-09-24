@@ -67,9 +67,48 @@ export const CODING_STYLES = `
 .coding-workspace svg { width:12px; height:12px; margin-right:4px; }
 .coding-turns { overflow-anchor:none; overscroll-behavior:contain; }
 /* Earlier rounds of a long session load as the reader scrolls up; the control is also a button for keyboard and screen readers. */
+/* The slash menu opens above the composer; the palette is a centred list. Both keep the keyboard in the field. */
+.coding-composer-shell { position:relative; }
+.coding-slash { position:absolute; left:8px; right:8px; bottom:calc(100% + 6px); z-index:25; max-height:min(50vh,320px); overflow:auto; padding:4px; border:1px solid var(--line); border-radius:12px; background:var(--paper); box-shadow:0 12px 32px color-mix(in srgb,var(--ink) 14%,transparent); }
+.coding-slash-item { display:grid; grid-template-columns:auto auto minmax(0,1fr); align-items:baseline; gap:8px; padding:6px 10px; border-radius:8px; cursor:pointer; font-size:13px; }
+.coding-slash-item[aria-selected=true] { background:color-mix(in srgb,var(--ink) 7%,transparent); }
+.coding-slash-item code { color:var(--muted); font-size:12px; }
+.coding-slash-item.is-file { grid-template-columns:auto minmax(0,1fr); }
+.coding-slash-empty { margin:0; padding:8px 10px; color:var(--muted); font-size:12px; }
+.coding-slash-hint { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--muted); font-size:12px; }
+.coding-composer-keys { display:inline-flex; gap:4px; flex-wrap:wrap; }
+@media (max-width:640px) { .coding-composer-keys .mw-kbd:not(:last-child) { display:none; } }
+dialog.coding-palette { position:fixed; inset:12vh auto auto 50%; translate:-50% 0; margin:0; width:min(560px,calc(100vw - 32px)); padding:0; border:1px solid var(--line); border-radius:14px; background:var(--paper); box-shadow:0 24px 64px color-mix(in srgb,var(--ink) 22%,transparent); }
+dialog.coding-palette::backdrop { background:color-mix(in srgb,var(--ink) 18%,transparent); }
+.coding-palette-shell { display:grid; gap:0; }
+.coding-palette-shell > .mw-input { border:0; border-bottom:1px solid var(--line); border-radius:14px 14px 0 0; padding:14px 16px; font-size:15px; box-shadow:none; }
+.coding-palette-list { max-height:min(52vh,420px); overflow:auto; margin:0; padding:6px; list-style:none; }
+.coding-palette-item { display:grid; grid-template-columns:auto minmax(0,1fr) auto auto; align-items:center; gap:10px; padding:8px 10px; border-radius:8px; cursor:pointer; font-size:13px; }
+.coding-palette-item[aria-selected=true] { background:color-mix(in srgb,var(--ink) 7%,transparent); }
+.coding-palette-kind { color:var(--faint); font-size:11px; }
+.coding-palette-label { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.coding-palette-detail { color:var(--muted); font-size:12px; }
+.coding-palette-empty { padding:14px; color:var(--muted); font-size:13px; }
+.coding-palette-foot { margin:0; padding:8px 16px; border-top:1px solid var(--line); color:var(--faint); font-size:11px; }
+/* Syntax colours, from the theme's own tokens so light and dark stay legible without a second palette. */
+.tok-comment { color:var(--faint); font-style:italic; }
+.tok-string { color:var(--green); }
+.tok-number { color:var(--amber); }
+.tok-keyword { color:var(--blue-dark,var(--blue)); font-weight:500; }
+.tok-type { color:color-mix(in srgb,var(--green) 55%,var(--blue)); }
+.tok-function { color:var(--blue); }
+.tok-property { color:color-mix(in srgb,var(--blue) 70%,var(--ink)); }
+.tok-operator { color:var(--muted); }
+.tok-tag { color:var(--blue-dark,var(--blue)); }
+.tok-attribute { color:var(--amber); }
+.tok-inserted { color:var(--green); }
+.tok-deleted { color:var(--red,#c0392b); }
+.tok-meta { color:var(--muted); }
 /* Sessions working together: the receiving session's banner, and the asking session's cards in the results panel. */
 .coding-delegation-banner { display:grid; gap:6px; margin:0 auto 4px; width:min(100%,var(--coding-reading,760px)); padding:10px 14px; border:1px solid color-mix(in srgb,var(--accent,var(--ink)) 25%,var(--line)); border-radius:12px; background:color-mix(in srgb,var(--accent,var(--ink)) 4%,var(--paper)); font-size:13px; }
 .coding-coop-head { display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; }
+.coding-delegation-banner.is-ended { padding:6px 12px; gap:2px; background:transparent; }
+.coding-delegation-banner.is-ended .coding-coop-head { font-size:12px; }
 .coding-coop-line { display:flex; flex-wrap:wrap; align-items:center; gap:2px 4px; margin:0; min-width:0; overflow-wrap:anywhere; }
 .coding-coop-line .mw-btn { min-height:24px; height:auto; padding:2px 4px; max-width:100%; white-space:normal; text-align:left; overflow-wrap:anywhere; }
 .coding-coop-note { margin:0; font-size:12px; color:var(--muted); }

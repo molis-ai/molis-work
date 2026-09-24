@@ -45,9 +45,18 @@ export function digestTask(text: string): string {
   return at < 0 ? text : text.slice(at + HISTORY_DIGEST_TASK_HEAD.length);
 }
 
+/** Files a person named with @ travel after their words, as they were when sent. */
+export const MENTIONS_MARKER = "\n\n【你提到的文件（发送时的内容）】\n";
+
+/** What the person wrote: without a digest ahead of it or the files attached after it. */
+export function requestText(text: string): string {
+  const own = digestTask(text), at = own.indexOf(MENTIONS_MARKER);
+  return at < 0 ? own : own.slice(0, at);
+}
+
 /** The user's own task, even when the round being continued was itself a continuation or carried a digest. */
 export function originalTask(run: AgentRunView): string {
-  const first = digestTask(run.turns.find(turn => turn.kind === "user")?.text ?? "");
+  const first = requestText(run.turns.find(turn => turn.kind === "user")?.text ?? "");
   if (!first.startsWith(CONTINUATION_MARKER)) return first;
   const start = first.indexOf(ORIGINAL_HEAD), end = first.indexOf(FACTS_HEAD);
   return start < 0 || end < start ? first : first.slice(start + ORIGINAL_HEAD.length, end);

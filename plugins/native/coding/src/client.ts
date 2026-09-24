@@ -9,10 +9,12 @@ import { codingGoalVersionLabel } from "./goal-versions.js";
 import { CODING_CHANGESET_CLIENT_FACTORY_SCRIPT } from "./changeset-client.js";
 import { codingUsageSummary } from "./usage.js";
 import { atBottom, onContentAppended, onReaderScrolled, READER_INTENT_MS, STICK_THRESHOLD_PX } from "./reading.js";
-import { CONTINUATION_MARKER, HISTORY_DIGEST_MARKER, HISTORY_DIGEST_TASK_HEAD, digestTask } from "./continuation.js";
+import { CONTINUATION_MARKER, HISTORY_DIGEST_MARKER, HISTORY_DIGEST_TASK_HEAD, MENTIONS_MARKER, digestTask } from "./continuation.js";
 import { SESSION_PAGE, SESSION_WINDOW } from "./session-window.js";
 import { CODING_USAGE_METER_CLIENT_FACTORY_SCRIPT } from "./usage-meter-client.js";
 import { CODING_COOPERATION_CLIENT_FACTORY_SCRIPT } from "./cooperation-client.js";
+import { codeLanguage, codeTokens } from "./highlight.js";
+import { CODING_COMMANDS_CLIENT_FACTORY_SCRIPT } from "./commands-client.js";
 import { CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT } from "./plan-progress-client.js";
 import { CODING_SUBAGENT_CARDS_CLIENT_FACTORY_SCRIPT } from "./subagent-cards-client.js";
 import { createCodingTimeline } from "./timeline.js";
@@ -33,8 +35,9 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const onReaderScrolled = ${onReaderScrolled.toString()};
   const CONTINUATION_MARKER = ${JSON.stringify(CONTINUATION_MARKER)};
   const SESSION_WINDOW = ${SESSION_WINDOW}, SESSION_PAGE = ${SESSION_PAGE};
-  const HISTORY_DIGEST_MARKER = ${JSON.stringify(HISTORY_DIGEST_MARKER)}, HISTORY_DIGEST_TASK_HEAD = ${JSON.stringify(HISTORY_DIGEST_TASK_HEAD)};
-  const ownTask = ${digestTask.toString()};
+  const HISTORY_DIGEST_MARKER = ${JSON.stringify(HISTORY_DIGEST_MARKER)}, HISTORY_DIGEST_TASK_HEAD = ${JSON.stringify(HISTORY_DIGEST_TASK_HEAD)}, MENTIONS_MARKER = ${JSON.stringify(MENTIONS_MARKER)};
+  const digestTask = ${digestTask.toString()};
+  const ownTask = (text) => { const own = digestTask(text), at = own.indexOf(MENTIONS_MARKER); return at < 0 ? own : own.slice(0, at); };
   const READER_INTENT_MS = ${READER_INTENT_MS};
   const codingGoalVersionLabel = ${codingGoalVersionLabel.toString()};
   const codingUsageSummary = ${codingUsageSummary.toString()};
@@ -74,6 +77,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const stepReports = (${CODING_STEPS_CLIENT_FACTORY_SCRIPT})({q,api,current:()=>current,status,refresh:()=>readCurrent(),prepareRework:reason=>plans.prepareStepRework(reason)});
   let planEntries=[],subagentGroups=[];
   // A long session is read as a window: the latest rounds in full, earlier ones as summaries until scrolled back to.
+  let lastData=null;
   let earlierRuns=[],earlierFingerprint='',olderViews=new Map(),olderPlanEntries=[],olderSubagents=[],windowRuns=[],allRuns=[],pageLoading=false;
   const resetWindow=()=>{earlierRuns=[];earlierFingerprint='';olderViews=new Map();olderPlanEntries=[];olderSubagents=[];windowRuns=[];allRuns=[];pageLoading=false;};
   const subagentCards = (${CODING_SUBAGENT_CARDS_CLIENT_FACTORY_SCRIPT})({api,current:()=>current,status,refresh:()=>readCurrent(),timeline,
@@ -440,7 +444,28 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     if(!current || sending)return;methodChoices=structuredClone(methodSelections.get(current) || []);methodDocumentTicket++;
     q('[data-coding-method-search]').value='';q('[data-coding-method-document]').hidden=true;q('[data-coding-method-error]').textContent='';renderMethods();q('[data-coding-method-dialog]').showModal();
   };
+  // Code reads as code: fenced blocks and diff lines are coloured from text pieces, never from model-written markup.
+  const codeLanguageOf = ${codeLanguage.toString()};
+  const tokensOf = ${codeTokens.toString()};
+  const paintInto = (target, text, language) => {
+    if(!language || text.length > 40000)return false;
+    const pieces=tokensOf(text,language);target.replaceChildren(...pieces.map(([kind,value])=>{if(!kind)return document.createTextNode(value);const span=document.createElement('span');span.className='tok-'+kind;span.textContent=value;return span;}));return true;
+  };
+  const paintBlock = (code) => {
+    if(code.dataset.painted)return;code.dataset.painted='true';
+    const named=[...code.classList].find(name=>name.startsWith('language-'))||'',text=code.textContent;
+    paintInto(code,text,codeLanguageOf(named) || (/^\s*[\[{]/.test(text) && /[\]}]\s*$/.test(text) ? 'json' : /^\s*\$ /.test(text) ? 'sh' : ''));
+  };
+  // Diff lines keep their sign; the rest of each line is coloured by the file's language, one line at a time.
+  const paintDiffs = (scope) => scope.querySelectorAll('[data-code-path] .diff-rows li:not([data-painted]) > code').forEach(code => {
+    const row=code.parentElement;row.dataset.painted='true';
+    const language=codeLanguageOf(code.closest('[data-code-path]').dataset.codePath || '');if(!language)return;
+    const sign=code.querySelector('.diff-sign'),text=[...code.childNodes].filter(node=>node!==sign).map(node=>node.textContent).join(''),holder=document.createElement('span');
+    if(paintInto(holder,text,language))code.replaceChildren(...(sign?[sign]:[]),...holder.childNodes);
+  });
+  let paintFrame=0;new MutationObserver(()=>{if(paintFrame)return;paintFrame=requestAnimationFrame(()=>{paintFrame=0;paintDiffs(root);});}).observe(root,{childList:true,subtree:true});
   const enrichCode = (node) => node.querySelectorAll('pre').forEach(pre => {
+    const code=pre.querySelector('code');if(code)paintBlock(code);
     const button=document.createElement('button'); button.type='button'; button.className='mw-btn coding-code-copy'; button.textContent='复制';
     button.addEventListener('click',async()=>{ try { await navigator.clipboard.writeText(pre.querySelector('code')?.textContent || pre.textContent); button.textContent='已复制'; } catch { button.textContent='复制失败，请手动选择'; } }); pre.append(button);
   });
@@ -690,6 +715,13 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
               text.className='coding-turn-own';text.textContent=own.startsWith(CONTINUATION_MARKER)?'从断点继续 · '+own.slice(CONTINUATION_MARKER.length).split('\\n')[0].replace(/请从断点继续完成原任务。?$/,'').trim():own;
               node.append(details,text);
             }
+            // Files named with @ were attached after the person's words; the words show, the attachments fold away.
+            else if(turn.kind==='user' && turn.text.includes(MENTIONS_MARKER) && !turn.text.startsWith(CONTINUATION_MARKER)){
+              const at=turn.text.indexOf(MENTIONS_MARKER),own=turn.text.slice(0,at),attached=turn.text.slice(at+MENTIONS_MARKER.length),count=(attached.match(/^### /gm)||[]).length;
+              node.replaceChildren();const text=document.createElement('div'),details=document.createElement('details'),summary=document.createElement('summary'),body=document.createElement('pre');
+              text.className='coding-turn-own';text.textContent=own;details.className='coding-digest';summary.innerHTML='<svg aria-hidden="true"><use href="#icon-paperclip"></use></svg>';summary.append(document.createTextNode('附带了 '+count+' 个文件（发送时的内容）'));
+              body.textContent=attached;details.append(summary,body);node.append(text,details);
+            }
             // A continuation the Host composed reads as one line; the facts it handed the model stay one click away.
             else if(turn.kind==='user' && turn.text.startsWith(CONTINUATION_MARKER)){
               const body=node.innerHTML,line=turn.text.slice(CONTINUATION_MARKER.length).split('\\n')[0].replace(/请从断点继续完成原任务。?$/,'').trim();
@@ -844,6 +876,23 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(current===id && generation===ticket){checkpointKey='';q('[data-coding-checkpoints-status]').textContent='检查点暂不可读：'+error.message;}
     } finally {if(generation===ticket){checkpointLoading=false;controls();}}
   };
+  // A live round is followed as it happens: the Host answers the moment it changes, so text arrives as it is written
+  // rather than on the next timer tick. The regular refresh keeps everything else current at a slower pace.
+  let liveRun='';
+  const followLive=async(id,runId)=>{
+    if(liveRun===runId)return;liveRun=runId;let since=null,failures=0;
+    while(current===id && liveRun===runId){
+      try{
+        const data=await api('/sessions/'+encodeURIComponent(id)+'/runs/'+encodeURIComponent(runId)+'/live?timeout=20000'+(since?'&since='+encodeURIComponent(since):''));
+        if(current!==id || liveRun!==runId)break;failures=0;since=data.version;
+        const run=data.runs[0],at=windowRuns.findIndex(held=>held.ref.run_id===runId);if(at<0)break;
+        windowRuns[at]=run;allRuns=allRuns.map(held=>held.ref.run_id===runId?run:held);
+        renderRuns([run],allRuns);usageMeter.render({...lastData,runs:windowRuns},lastRun);
+        if(terminal(run.phase)){void readCurrent();break;}
+      }catch{if(++failures>3)break;await new Promise(resolve=>setTimeout(resolve,1000));}
+    }
+    if(liveRun===runId)liveRun='';
+  };
   // Earlier rounds come back a page at a time as the reader scrolls up; what they were reading stays where it was.
   const loadEarlier=async()=>{
     const start=allRuns.findIndex(run=>!run.light);
@@ -918,7 +967,8 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         questionDrafts.set(id,saved && typeof saved==='object' && !Array.isArray(saved) ? saved : data.question_drafts || {});
       }
       if(fresh) { input.value=localDraft(id) ?? data.draft ?? ''; rememberDraft(id,input.value); q('[data-coding-draft-status]').textContent='草稿已恢复；模型与方式用于下一轮。'; turns.replaceChildren(); pinned=!offsets.has(id); }
-      runtimeSessionId=data.session.runtime_session_id;planEntries=[...olderPlanEntries,...(data.taskboard_plans || [])];subagentGroups=[...olderSubagents,...(data.subagents || [])];renderRuns(data.runs,allRuns);renderEarlier();usageMeter.render(data,lastRun);void cooperationUi.refresh();
+      runtimeSessionId=data.session.runtime_session_id;planEntries=[...olderPlanEntries,...(data.taskboard_plans || [])];subagentGroups=[...olderSubagents,...(data.subagents || [])];renderRuns(data.runs,allRuns);renderEarlier();lastData=data;usageMeter.render(data,lastRun);void cooperationUi.refresh();
+      if(lastRun && !terminal(lastRun.phase))void followLive(id,lastRun.ref.run_id);
       plans.update(id,data.plan ?? null,allRuns);
       subagents.update(id,data.subagents ?? []);
       taskboard.update(id,{...data,runs:allRuns});
@@ -1173,7 +1223,30 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     finally {submit.disabled=false;}
   });
   directory.querySelector('[data-coding-artifact-search]').addEventListener('input',renderArtifacts);
-  input.addEventListener('keydown',event=>{if(event.key==='/' && !event.isComposing && !input.value.trim()){event.preventDefault();openMethods();}});
+  // The same commands in the composer's slash menu, the palette and the shortcuts; each says when it is not available.
+  const SESSION_STATE={idle:'尚未执行',running:'执行中',paused:'已暂停','waiting-answer':'等你回答','waiting-approval':'等你审查',failed:'失败待处理',stopped:'已停止',cancelled:'已取消','reconcile-required':'待核对结果',done:'本轮结束'};
+  const codingCommands=()=>{
+    const intents=[...q('[data-coding-intent]').options].map(option=>({slash:option.value,label:'方式：'+option.textContent.replace(/（.*）/,''),hint:'下一轮用这个方式',keywords:['方式','intent'],enabled:!option.disabled && Boolean(current),
+      run:()=>{const select=q('[data-coding-intent]');select.value=option.value;select.dispatchEvent(new Event('change',{bubbles:true}));status('下一轮方式：'+option.textContent+'。');input.focus();}}));
+    return [...intents,
+      {slash:'compact',label:'下一轮整理上下文',hint:'把前面的对话整理成摘要带入',keywords:['摘要','整理','context'],enabled:Boolean(current && runtimeSessionId),
+        run:async()=>{const id=current;await api('/sessions/'+encodeURIComponent(id)+'/compact','POST',{on:true});status('下一轮会把前面的对话整理成摘要带入。');if(id===current)await readCurrent();}},
+      {slash:'usage',label:'上下文与用量',hint:'窗口占比、会话用量、预算',keywords:['cost','费用','预算','context'],enabled:!q('[data-coding-meter]').hidden,run:()=>q('[data-coding-meter-toggle]').click()},
+      {slash:'materials',label:'固定材料',hint:'引用文件、差异或其他会话的成果',keywords:['引用','材料','reference'],enabled:Boolean(current) && !sending,run:()=>openMaterials()},
+      {slash:'methods',label:'方法',hint:'选择这一轮使用的方法',keywords:['skill','技能'],enabled:Boolean(current) && !sending,run:()=>openMethods()},
+      {slash:'delegate',label:'委派给新会话',hint:'新会话接受并发送后才执行',keywords:['委派','delegate'],enabled:Boolean(current),run:()=>cooperationUi.openDialog()},
+      {slash:'model',label:'选择模型',hint:'下一轮使用的模型',keywords:['model'],enabled:Boolean(current),run:()=>{const select=q('[data-coding-model]'),trigger=select.closest('.mw-select-picker')?.querySelector('.mw-select-picker__trigger');if(trigger){trigger.focus();trigger.click();}else select.focus();}},
+      {slash:'workspace',label:'选择工作区',hint:'下一轮在哪个目录工作',keywords:['目录','folder'],enabled:Boolean(current),run:()=>q('[data-coding-workspace-dialog]').showModal()},
+      {slash:'new',label:'新建会话',keys:'Mod+Alt+N',keywords:['new','会话'],run:()=>q('[data-coding-new]').click()},
+      {slash:'stop',label:'停止这一轮',hint:'已开始的操作不会被撤销',keys:'',keywords:['stop','停止'],enabled:!q('[data-coding-stop]').hidden && !q('[data-coding-stop]').disabled,run:()=>q('[data-coding-stop]').click()},
+      {slash:'results',label:'结果与审查',keys:'Mod+Alt+R',keywords:['review','审查','结果'],run:()=>q('[data-coding-results-open]').click()},
+      {slash:'palette',label:'命令面板',keys:'Mod+Shift+P',keywords:['command','命令'],run:()=>commandsUi.openPalette()},
+    ];
+  };
+  const commandsUi=(${CODING_COMMANDS_CLIENT_FACTORY_SCRIPT})({q,input,status,commands:codingCommands,current:()=>current,
+    workspace:()=>workspaceId,files:(key)=>api('/sessions/'+encodeURIComponent(current)+'/files?workspace_id='+encodeURIComponent(key)),
+    sessions:()=>state.sessions.map(session=>({...session,state_label:SESSION_STATE[session.state] || ''})),
+    openSession:(id,title)=>{host.openItem('coding',id,title || '');return select(id);}});
   // Esc in the composer stops a live round, as in terminal agents — never mid-IME, never while the + menu is open.
   input.addEventListener('keydown',event=>{if(event.key!=='Escape' || event.isComposing || event.keyCode===229 || !attachMenu.hidden)return;const stop=q('[data-coding-stop]');if(stop.hidden || stop.disabled)return;event.preventDefault();stop.click();});
   input.addEventListener('input',()=>turns.querySelectorAll('[data-coding-prompt]').forEach(button=>{button.disabled=Boolean(input.value.trim());}));
@@ -1234,7 +1307,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const poll=setInterval(()=>{if(!root.isConnected){clearInterval(poll);return;}void writerDirectories.refresh();void integrations.refreshReviews();if(++pollingTicks%5===0) void refreshState().catch(error=>status(error.message,true));},1000);
   // The conversation refreshes as fast as the work moves: near-continuous while the model is producing,
   // slower while it waits on the person or rests, slowest in a background tab. readCurrent never overlaps itself.
-  const conversationDelay=()=>document.hidden ? 5000 : !lastRun ? 2500 : ['starting','running','compacting','pausing'].includes(lastRun.phase) ? 350 : terminal(lastRun.phase) ? 2500 : 1000;
+  const conversationDelay=()=>document.hidden ? 5000 : !lastRun ? 2500 : ['starting','running','compacting','pausing'].includes(lastRun.phase) ? (liveRun ? 1200 : 350) : terminal(lastRun.phase) ? 2500 : 1000;
   const followConversation=async()=>{if(!root.isConnected)return;if(current)await readCurrent().catch(()=>{});setTimeout(followConversation,conversationDelay());};
   setTimeout(followConversation,conversationDelay());
 }`;

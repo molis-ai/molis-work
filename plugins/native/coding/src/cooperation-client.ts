@@ -27,6 +27,9 @@ export const CODING_COOPERATION_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     banner.hidden=!incoming;banner.replaceChildren();if(!incoming)return;
     const head=el('div','coding-coop-head');head.append(el('strong','','来自其他会话的委派'),stateChip(incoming));
     const from=el('p','coding-coop-line');from.append(document.createTextNode('发起：'),sessionLink(incoming.from),document.createTextNode(' · '+incoming.title));
+    // An ended delegation stays as one line with its receipts; it no longer asks anything of this session.
+    const ended=['completed','rejected','cancelled','failed'].includes(incoming.state);banner.classList.toggle('is-ended',ended);
+    if(ended){head.append(from);banner.append(head,receipts(incoming));return;}
     const task=el('details','coding-coop-task');task.append(el('summary','','委派内容'),el('p','',incoming.task));
     banner.append(head,from,task);
     const row=el('div','coding-coop-actions'),path='/'+encodeURIComponent(incoming.delegation_id);

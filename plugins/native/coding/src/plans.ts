@@ -1,5 +1,5 @@
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import { digestTask } from "./continuation.js";
+import { requestText } from "./continuation.js";
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentTextMaterialContent, type AgentRunView, type AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { CODING_PLAN_TYPE } from "./artifacts.js";
@@ -49,7 +49,7 @@ export function parseCodingPlanAnswer(answer: string): CodingPlanContent {
 export function planFromRun(sessionId: string, run: AgentRunView): Omit<CodingPlanDraft, "revision" | "confirmed"> {
   if (run.phase !== "completed" || run.frozen.role_id !== "planner") throw new Error("请等待规划轮次完成，再查看提案");
   const answer = run.turns.filter(turn => turn.kind === "assistant").at(-1)?.text.trim() ?? "";
-  const task = run.turns.filter(turn => turn.kind === "user" && !turn.steer).map(turn => digestTask(turn.text)).join("\n\n");
+  const task = run.turns.filter(turn => turn.kind === "user" && !turn.steer).map(turn => requestText(turn.text)).join("\n\n");
   return { content: parseCodingPlanAnswer(answer), source: { session_id: sessionId, run_id: run.ref.run_id, task, workspace_path: run.frozen.directory.canonical_path } };
 }
 export function planReference(sessionId: string, revision: number): ArtifactReference {

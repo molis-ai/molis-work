@@ -42,7 +42,7 @@ export {
   type ModelSelectionPort,
   type ResolvedModelSelection,
 } from "./model-configuration.js";
-export { registerAgentHostCapabilities } from "./capability-registration.js";
+export { registerAgentHostCapabilities, runViewVersion } from "./capability-registration.js";
 export type {
   AgentCapabilityPorts,
   AgentCapabilityRegistrar,

@@ -1,6 +1,6 @@
 import { SHELF_TEXT_MATERIAL_TYPE } from "@molis-ai/molis-work-contracts/modules/shelf";
 import { CHARACTER_ARTIFACT_TYPE } from "@molis-ai/molis-work-contracts/modules/characters";
-import { DIFF_CHANGESET_TYPE, GIT_RESULT_TYPE, FILE_SNAPSHOT_TYPE, FILE_TEXT_SELECTION_TYPE, writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { DIFF_CHANGESET_TYPE, GIT_RESULT_TYPE, FILE_SNAPSHOT_TYPE, FILE_TEXT_SELECTION_TYPE, readWorkspaceFileCapability, writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -37,7 +37,7 @@ export const codingManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: CODING_PLUGIN_ID,
-  version: "1.38.0",
+  version: "1.40.0",
   name: "Coding",
   kind: "app",
   publisher: { publisher_id: "molis", signature: "official-coding-binding" },
@@ -58,6 +58,7 @@ export const codingManifest: PluginManifest = {
       ...Object.values(goalContextCapabilities).map((entry) => entry.capability_id),
       ...Object.values(goalProgressCapabilities).map((entry) => entry.capability_id),
       projectsCapabilities.readWorkspace.capability_id,
+      readWorkspaceFileCapability.capability_id,
       projectsCapabilities.listWorkspaces.capability_id,
       ...Object.values(writerDirectoryCapabilities).map(entry => entry.capability_id),
       ...Object.values(writerIntegrationCapabilities).map(entry => entry.capability_id),
@@ -142,6 +143,8 @@ export const codingManifest: PluginManifest = {
     { route_id: "coding.create-session", method: "POST", path: "/sessions" },
     { route_id: "coding.read-session", method: "GET", path: "/sessions/:sessionId" },
     { route_id: "coding.read-runs", method: "GET", path: "/sessions/:sessionId/runs" },
+    { route_id: "coding.live", method: "GET", path: "/sessions/:sessionId/runs/:runId/live" },
+    { route_id: "coding.files", method: "GET", path: "/sessions/:sessionId/files" },
     { route_id: "coding.compact-next", method: "POST", path: "/sessions/:sessionId/compact" },
     { route_id: "coding.delegations", method: "GET", path: "/sessions/:sessionId/delegations" },
     { route_id: "coding.delegate", method: "POST", path: "/sessions/:sessionId/delegations" },

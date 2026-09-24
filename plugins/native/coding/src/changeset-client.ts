@@ -70,7 +70,7 @@ export const CODING_CHANGESET_CLIENT_FACTORY_SCRIPT = `(ports) => {
     try{
       const result=await api('/sessions/'+encodeURIComponent(id)+'/runs/'+encodeURIComponent(nextRun)+'/changeset?change_index='+index+'&net='+mode+(requireFixed?'&fixed=1':''),save?'POST':'GET');
       if(ticket!==token || id!==ports.current())return;
-      value=result;net=result.view_mode==='net';netIndices=net?(result.net_groups || []).find(group=>group.indices.includes(index))?.indices || null:null;q('[data-coding-change-body]').innerHTML=result.html;
+      value=result;net=result.view_mode==='net';netIndices=net?(result.net_groups || []).find(group=>group.indices.includes(index))?.indices || null:null;q('[data-coding-change-body]').innerHTML=result.html;q('[data-coding-change-body]').dataset.codePath=result.change.files[index]?.path || '';
       renderFiles(result.change.files,nextRun);
       if(net){const body=q('[data-coding-change-body]'),whole=q('[data-coding-change-files] .is-net[aria-pressed=true]');
         whole?.append(counts({added_lines:body.querySelectorAll('.diff-rows li[data-kind=insert]').length,removed_lines:body.querySelectorAll('.diff-rows li[data-kind=delete]').length}));}

@@ -167,6 +167,11 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
       <div data-coding-integration-files></div><p data-coding-integration-status role="status"></p><div data-coding-integration-reviews></div></section>
       <footer class="mw-form__footer">${renderButton({label:"重新读取成果",variant:"secondary",attrs:{"data-coding-integration-refresh":""}})}${renderButton({label:"准备整合审查",attrs:{"data-coding-integration-prepare":"",disabled:true}})}</footer>
     </div></dialog>
+    <dialog class="mw-dialog coding-palette" data-coding-palette aria-label="命令面板"><div class="coding-palette-shell">
+      <input class="mw-input" data-coding-palette-input placeholder="输入命令或会话名…" role="combobox" aria-expanded="true" aria-controls="coding-palette-list" aria-autocomplete="list" aria-label="搜索命令或会话" autocomplete="off">
+      <ul class="coding-palette-list" id="coding-palette-list" data-coding-palette-list role="listbox" aria-label="命令与会话"></ul>
+      <p class="coding-palette-foot">↑↓ 选择 · ↵ 执行 · Esc 关闭 · ⌥⌘↑↓ 切换会话</p>
+    </div></dialog>
     <dialog class="mw-dialog mw-dialog--form" data-coding-delegate-dialog aria-label="委派给新会话"><form class="mw-form mw-dialog__shell">
       <header class="mw-form__header"><h2>委派给新会话</h2></header>
       <section class="mw-form__body"><p>会新建一个会话，任务放进它的输入框。对方接受并发送后才执行，不会自动运行；完成后可以把报告或固定变更交付回来，由你决定是否收下。</p>
@@ -272,7 +277,9 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
           ${renderButton({label:"独立工作树",icon:"git-branch",variant:"ghost",attrs:{"data-coding-writer-directories-open":""}})}${renderButton({label:"重命名",icon:"edit",iconOnly:true,variant:"ghost",attrs:{"data-coding-rename":"",hidden:true,title:"重命名会话"}})}<small data-coding-goal-label></small></div>
           <div class="coding-composer-shell">
             <label class="mw-sr-only" for="coding-task">任务或补充要求</label>
-            <textarea class="mw-textarea" id="coding-task" data-coding-task rows="3" placeholder="描述任务，或补充这一轮的要求…" disabled></textarea>
+            <textarea class="mw-textarea" id="coding-task" data-coding-task rows="3" placeholder="描述任务，或补充这一轮的要求…（输入 / 查看命令）" aria-describedby="coding-slash-help" disabled></textarea>
+            <span class="mw-sr-only" id="coding-slash-help">在空的输入框里输入斜杠打开命令列表，用上下方向键选择，回车执行。</span>
+            <div class="coding-slash" id="coding-slash-menu" data-coding-slash-menu role="listbox" aria-label="命令" hidden></div>
             <div class="coding-composer-bar">
               <div class="coding-composer-leading">
                 <div class="coding-attach"><button class="mw-btn mw-btn--ghost mw-btn--icon-only coding-attach-toggle" type="button" data-coding-attach-toggle aria-expanded="false" aria-haspopup="menu" aria-label="添加上下文" title="材料、角色、方法、MCP 与会话设置">${p.icon("plus")}</button>
@@ -289,7 +296,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
               <button class="mw-btn mw-btn--primary" type="submit" data-coding-send disabled>发送</button>
             </div>
           </div>
-          <a class="mw-btn mw-btn--ghost coding-model-setup" data-coding-model-setup href="${p.escape(settingsHref.replace("coding-settings", "models"))}" hidden>配置模型后即可发送任务</a><div class="coding-composer-footnote"><small data-coding-draft-status>模型与方式的选择用于下一轮。</small><kbd class="mw-kbd" title="Command 或 Ctrl + Enter 发送">⌘ / Ctrl ↵</kbd></div>
+          <a class="mw-btn mw-btn--ghost coding-model-setup" data-coding-model-setup href="${p.escape(settingsHref.replace("coding-settings", "models"))}" hidden>配置模型后即可发送任务</a><div class="coding-composer-footnote"><small data-coding-draft-status>模型与方式的选择用于下一轮。</small><span class="coding-composer-keys"><kbd class="mw-kbd" title="在空的输入框里输入 / 查看命令">/ 命令</kbd><kbd class="mw-kbd" title="Command 或 Ctrl + Shift + P 打开命令面板">⇧⌘P 面板</kbd><kbd class="mw-kbd" title="Command 或 Ctrl + Enter 发送">⌘ / Ctrl ↵</kbd></span></div>
         </form>
       </div>
       <aside class="coding-tools" data-coding-tools>

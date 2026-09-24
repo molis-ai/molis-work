@@ -1,6 +1,8 @@
 export { codingReportPreview } from "./report.js";
 export { codingChangeSetPreview, codingNetChange } from "./changeset.js";
-export { codingContinuation, originalTask, CONTINUATION_MARKER } from "./continuation.js";
+export { codingContinuation, originalTask, requestText, CONTINUATION_MARKER, MENTIONS_MARKER } from "./continuation.js";
+export { codeTokens, codeLanguage } from "./highlight.js";
+export { mentionedPaths, attachMentions, workspaceFileIndex } from "./mentions.js";
 export { codingHistoryDigest, nextHistoryMode, digestTask, HISTORY_DIGEST_MARKER, HISTORY_DIGEST_RATIO } from "./history-digest.js";
 export { CodingCooperationStore, MAX_DELEGATION_HOPS, DELEGATION_STATE_LABEL, type CodingDelegation, type CodingDelivery, type DelegationState } from "./cooperation.js";
 export { codingRunForDisplay, codingRunSummary, codingSessionUsage, summaryCache, summariesFingerprint, SESSION_WINDOW, SESSION_PAGE, type CodingRunSummary, type CodingSessionUsage } from "./session-window.js";

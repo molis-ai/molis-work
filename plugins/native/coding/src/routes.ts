@@ -17,6 +17,7 @@ import { currentGoalContext, savedGoalContext, saveGoalContext, resolveGoalConte
 import { codingContinuation } from "./continuation.js";
 import { codingHistoryDigest, nextHistoryMode } from "./history-digest.js";
 import { CodingCooperationStore, DELEGATION_STATE_LABEL, type CodingDelegation } from "./cooperation.js";
+import { attachMentions, readWorkspaceFileCapability, workspaceFileIndex } from "./mentions.js";
 import { codingRunForDisplay, codingSessionUsage, SESSION_PAGE, summariesFingerprint, summaryCache } from "./session-window.js";
 import { codingChangeSetReference, codingChangeSetPreview, readCodingChangeSet, createCodingChangeSet, codingChangeFeedback } from "./changeset.js";
 import { CODING_CHANGESET_TYPE } from "./artifacts.js";
@@ -158,6 +159,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
   const busy = new Set<string>();
   const summaries = summaryCache();
   const cooperation = () => new CodingCooperationStore(context.services!.storage!);
+  const fileIndexes = new Map<string, { at: number; value: Promise<{ files: string[]; truncated: boolean }> }>();
   const sessionTitle = (execution: CodingExecutionPorts) => (id: string) => { try { return execution.sessions.get(boardId, id).title; } catch { return undefined; } };
   /** Every fixed output of this project's Coding sessions, with the session it came from. */
   const sessionOutputs = (execution: CodingExecutionPorts) => [...execution.reportReferences?.() ?? [], ...execution.changeSetReferences?.() ?? [], ...execution.planReferences?.() ?? []]
@@ -602,6 +604,28 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
             : "此会话的执行记录暂时无法读取，不能将未知结果当作已完成。原会话与草稿已保留，请稍后重试。" };
       }
     }),
+    // The files a person can name with @: read through the Host's read-only capability, briefly remembered.
+    route("coding.files", async (request, api, execution) => {
+      selected(request, execution);
+      const workspaceId = text(request.query?.workspace_id, "工作区", 200);
+      const workspaces = await api!.invoke(projectsCapabilities.listWorkspaces, []);
+      if (!workspaces.some(entry => entry.workspace_id === workspaceId && entry.realpath_verified)) throw new Error("请先为这个项目选择已授权的工作区目录");
+      const held = fileIndexes.get(workspaceId);
+      if (held && Date.now() - held.at < 30_000) return await held.value;
+      const value = workspaceFileIndex(query => api!.invoke(readWorkspaceFileCapability, query), workspaceId);
+      fileIndexes.set(workspaceId, { at: Date.now(), value });
+      try { return await value; } catch (error) { fileIndexes.delete(workspaceId); throw error; }
+    }),
+    // A live round, as it happens: answers as soon as it changes from what the page holds (or after the wait).
+    route("coding.live", async (request, api, execution) => {
+      const record = selected(request, execution);
+      if (!record.runtime_session_id) throw new Error("这个会话尚未执行");
+      const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
+      const since = typeof request.query?.since === "string" && request.query.since ? request.query.since : null;
+      const wait = Math.min(Math.max(Number(request.query?.timeout ?? 20_000) || 0, 0), 25_000);
+      const result = await api!.invoke(agent.waitRun, [session, { session_id: session.session_id, run_id: text(request.params.runId, "执行引用", 200) }, since, wait]);
+      return { version: result.version, runs: [codingRunForDisplay(result.view)] };
+    }),
     // Scrolling back reads earlier rounds a page at a time, with what the timeline shows beside them.
     route("coding.read-runs", async (request, api, execution) => {
       const record = selected(request, execution);
@@ -854,6 +878,8 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         if (!workspace?.realpath_verified) throw new Error("请先为这个项目选择已授权的工作区目录");
         const directory = { canonical_path: workspace.canonical_path, realpath_verified: true };
         if (plan && directory.canonical_path !== plan.source.workspace_path) throw new Error("计划属于原工作区，请选择原工作区或重新规划，不能在另一目录执行");
+        // Files named with @ travel with the task, as they read at this moment.
+        task = (await attachMentions(query => api!.invoke(readWorkspaceFileCapability, query), workspace.workspace_id, task)).task;
         const subagent_workspaces: AgentSubagentWorkspace[] = [];
         if (role === "writers") {
           const assignments = codingWriterAssignments(body.writer_assignments, true);

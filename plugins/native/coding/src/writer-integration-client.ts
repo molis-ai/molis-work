@@ -27,7 +27,7 @@ export const CODING_WRITER_INTEGRATION_CLIENT_FACTORY_SCRIPT = `(ports)=>{
         label.append(check,el('span',key+' · '+({added:'新增',modified:'修改',deleted:'删除'}[file.target])));row.append(label);
         if(file.reason)row.append(el('p',file.reason));
         // What would change in the main workspace, as a folded diff; the full texts stay one level down.
-        if(file.diff_html){const diff=el('details');diff.className='coding-integration-diff';diff.open=data.files.length<=3;diff.append(el('summary','与主工作区的差异'));const body=el('div');body.innerHTML=file.diff_html;diff.append(body);row.append(diff);}
+        if(file.diff_html){const diff=el('details');diff.className='coding-integration-diff';diff.open=data.files.length<=3;diff.append(el('summary','与主工作区的差异'));const body=el('div');body.dataset.codePath=key;body.innerHTML=file.diff_html;diff.append(body);row.append(diff);}
         else{
           if(file.before_text!==undefined){const before=el('details');before.append(el('summary','主工作区当前内容'),el('pre',file.before_text===null?'文件尚不存在':file.before_text || '（空文件）'));row.append(before);}
           if(file.after_text!==undefined){const after=el('details');after.append(el('summary','子工作树当前内容'),el('pre',file.after_text===null?'删除此文件':file.after_text || '（空文件）'));row.append(after);}

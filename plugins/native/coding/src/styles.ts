@@ -68,12 +68,21 @@ export const CODING_STYLES = `
 .coding-start .mw-empty { padding:24px 0; }
 .coding-dialogue:has([data-coding-report-reader]:not([hidden])) > .coding-composer,
 .coding-dialogue:has([data-coding-report-reader]:not([hidden])) > .coding-status { display:none; }
-[data-coding-report-reader] > header { display:flex; flex-wrap:wrap; gap:8px; }
+/* The report reads like a document in the same column as the conversation, with its actions kept in reach. */
+[data-coding-report-reader] > header { position:sticky; top:0; z-index:2; display:flex; flex-wrap:wrap; align-items:center; gap:6px; max-width:76ch; margin:0 auto; padding:10px 0; border-bottom:1px solid var(--line); background:color-mix(in srgb,var(--paper) 94%,transparent); backdrop-filter:blur(8px); }
+[data-coding-report-reader] > header .mw-btn { height:28px; min-height:28px; padding-inline:10px; font-size:12px; }
+[data-coding-report-reader] > header [data-coding-report-close] { margin-right:auto; gap:4px; }
+[data-coding-report-reader] > header [data-coding-report-close] svg { width:14px; height:14px; }
+/* The reader is its own scroll area; without it a long report runs past the frame and cannot be reached. */
+[data-coding-report-reader] { flex:1 1 0; min-height:0; overflow-y:auto; overscroll-behavior:contain; padding:0 28px 32px; }
+/* 12px text measured in its own ch would sit narrower than the 13px column above and below it. */
+[data-coding-report-reader] > p { max-width:calc(76ch * 13 / 12); margin:8px auto 0; }
+[data-coding-report-reader] > p:empty,[data-coding-report-reader] > p[hidden] { display:none; }
 .coding-report { max-width:76ch; margin:16px auto; overflow-wrap:anywhere; color:var(--ink); font-size:13px; line-height:1.7; }
-.coding-report h1,.coding-report h2,.coding-report h3 { font-weight:400; line-height:1.4; }
-.coding-report h1 { font-size:22px; }.coding-report h2 { font-size:18px; }
-.coding-report pre { position:relative; overflow:auto; padding:40px 12px 12px; background:var(--rail); border:1px solid var(--line); border-radius:var(--radius-control); }
-.coding-report .coding-code-copy { position:absolute; top:4px; right:4px; }
+.coding-report h1,.coding-report h2,.coding-report h3 { margin:1.4em 0 .5em; font-weight:600; line-height:1.4; }.coding-report > :first-child { margin-top:0; }
+.coding-report h1 { font-size:19px; }.coding-report h2 { font-size:15px; }.coding-report h3 { font-size:14px; }.coding-report :not(pre) > code { padding:.12em .38em; border-radius:5px; background:color-mix(in srgb,var(--ink) 6%,transparent); font-size:.88em; }
+.coding-report pre { position:relative; overflow:auto; padding:12px 14px; background:var(--rail); border:1px solid var(--line); border-radius:var(--radius-control); }
+.coding-report .coding-code-copy { position:absolute; top:6px; right:6px; height:24px; min-height:24px; padding:0 8px; font-size:11.5px; opacity:0; transition:opacity .15s ease; }.coding-report pre:hover .coding-code-copy,.coding-report pre:focus-within .coding-code-copy,.coding-report .coding-code-copy:focus-visible { opacity:1; }@media (hover:none) { .coding-report .coding-code-copy { opacity:1; } }
 .coding-report-source,[data-coding-report-status] { font-size:12px; color:var(--muted); }
 .coding-turn { max-width:76ch; margin:0 auto 24px; font-size:14px; line-height:1.7; overflow-wrap:anywhere; }
 /* The person's own words sit as a bubble on the column's right edge; the Agent's reply reads as the page. */

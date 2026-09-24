@@ -581,7 +581,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     if(!reportRun) dialogueOffset=turns.scrollTop;
     reportRun=runId;reportSaving=save;
     turns.hidden=true;q('[data-coding-report-reader]').hidden=false;q('[data-coding-latest]').hidden=true;
-    q('[data-coding-report-save]').disabled=true;q('[data-coding-report-progress]').hidden=true;reportOutput=null;q('[data-coding-report-output]').hidden=true;q('[data-coding-report-output-status]').hidden=true;
+    q('[data-coding-report-save]').disabled=true;q('[data-coding-report-save]').hidden=false;q('[data-coding-report-progress]').hidden=true;reportOutput=null;q('[data-coding-report-output]').hidden=true;q('[data-coding-report-output-status]').hidden=true;
     q('[data-coding-report-status]').textContent=save?'正在保存固定报告…':'正在读取执行报告…';
     if(!save) q('[data-coding-report-body]').replaceChildren();
     try {
@@ -589,7 +589,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(current!==id || generation!==generationAtStart || ticket!==reportTicket) return;
       q('[data-coding-report-body]').innerHTML=result.html;enrichCode(q('[data-coding-report-body]'));
       q('[data-coding-report-status]').textContent=result.reference?'已保存固定版本 v'+result.reference.version+' · '+result.saved_at:'尚未保存；保存后保留这轮证据，不代表任务验收。';
-      q('[data-coding-report-save]').disabled=Boolean(result.reference);
+      q('[data-coding-report-save]').disabled=Boolean(result.reference);q('[data-coding-report-save]').hidden=Boolean(result.reference);
       q('[data-coding-report-progress]').hidden=!(result.reference && result.report.goal && !result.report.goal_source_error);
       q('[data-coding-report-output]').hidden=!result.reference;
       if(result.reference)void loadReportOutput(id,runId,ticket);

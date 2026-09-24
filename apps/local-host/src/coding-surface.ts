@@ -325,7 +325,7 @@ export async function handleCodingPluginHttp(request: IncomingMessage, response:
     const changeIndex = Number(url.searchParams.get("change_index") ?? 0);
     const view = compareRunChangeSet({ content: changeBody.change, source_plugin_id: CODING_PLUGIN_ID, content_version: changeBody.reference?.version ?? 1 }, undefined,
       Number.isSafeInteger(changeIndex) && changeIndex >= 0 ? changeIndex : -1);
-    changeBody.html = renderDiff({ view, route_prefix: ports.routePrefix ?? "", line_feedback: Boolean(changeBody.reference),
+    changeBody.html = renderDiff({ view, route_prefix: ports.routePrefix ?? "", line_feedback: Boolean(changeBody.reference), fold_context: 3, sides: false,
       primitives: { escape: value => escapeHtml(String(value)), icon: name => icon(name as Parameters<typeof icon>[0]) } });
   }
   if (result.status === 200 && reportBody?.report) {

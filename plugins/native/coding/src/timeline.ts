@@ -110,7 +110,7 @@ export function createCodingTimeline() {
     if (detail.dataset.signature !== signature) {
       detail.dataset.signature = signature;
       detail.dataset.rendering = "true";
-      const head = `<span class="coding-tools-summary${summary.live ? " is-live" : ""}">${summary.live ? '<span class="coding-spinner" aria-hidden="true"></span>' : svg("activity")}<span>${escape(summary.text)}</span></span><span class="coding-tools-count">${items.length}</span>`;
+      const head = `<span class="coding-tools-summary${summary.live ? " is-live" : ""}">${summary.live ? '<span class="coding-spinner" aria-hidden="true"></span>' : svg("activity")}<span>${escape(summary.text)}</span></span><span class="coding-tools-chevron" aria-hidden="true">${svg("chevron-right")}</span>`;
       const summaryNode = detail.querySelector("summary") ?? detail.appendChild(document.createElement("summary"));
       summaryNode.innerHTML = head;
       let list = detail.querySelector(".coding-tool-list");

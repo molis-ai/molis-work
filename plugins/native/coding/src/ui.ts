@@ -252,7 +252,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
           <header><button class="mw-btn" type="button" data-coding-report-close>返回对话</button><button class="mw-btn" type="button" data-coding-report-save>保存固定报告</button><button class="mw-btn" type="button" data-coding-report-progress hidden>记录原目标进展</button><button class="mw-btn" type="button" data-coding-report-output hidden>设为报告输出</button></header>
           <p data-coding-report-status role="status"></p><p data-coding-report-output-status role="status" hidden></p><div data-coding-report-body></div>
         </section>
-        <button class="mw-btn coding-jump" type="button" data-coding-latest hidden>回到最新</button>
+        <button class="mw-btn coding-jump" type="button" data-coding-latest hidden>${p.icon("chevron-down")}<span>回到最新</span></button>
         <p class="coding-status" data-coding-status role="status" aria-live="polite"></p>
         <form class="coding-composer mw-frame__footer" data-coding-composer>
           <div class="coding-context mw-toolbar" data-coding-context hidden aria-label="会话上下文">
@@ -295,11 +295,26 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
         </section><div data-coding-host-reviews hidden></div><div class="coding-result" data-coding-result><p>任务成果与执行记录会留在这里，方便审查和继续。</p></div>
         <section class="coding-result" data-coding-changes hidden aria-label="固定变更入口"><h3>本轮固定变更</h3><div data-coding-changes-list></div></section>
         <section class="coding-result" data-coding-reports hidden aria-label="执行报告"><h3>执行报告</h3><p>选择已结束的一轮，查看证据并保存固定版本。</p><div data-coding-report-list></div></section>
-        <section class="coding-result" data-coding-change-reader aria-label="本轮固定变更" hidden>
-          <header><button class="mw-btn" type="button" data-coding-change-close>收起变更</button><button class="mw-btn" type="button" data-coding-change-save>保存固定变更</button><button class="mw-btn" type="button" data-coding-change-output disabled>设为变更输出</button></header>
-          <p data-coding-change-status role="status"></p><nav data-coding-change-files aria-label="本轮文件修改"></nav><div data-coding-change-body></div>
-          <h3>行级意见</h3><p>保存后点击前后行号添加意见；加入原任务草稿后，由你选择方式并发送。意见不代表批准写入。</p>
-          <div data-coding-feedback-list></div><button class="mw-btn" type="button" data-coding-feedback-return disabled>加入原任务草稿</button>
+        <section class="coding-change" data-coding-change-reader aria-labelledby="coding-change-title" hidden>
+          <header class="coding-change-head">
+            <div class="coding-change-heading"><h3 id="coding-change-title">本轮变更</h3><p data-coding-change-summary></p></div>
+            <div class="coding-change-actions">
+              <span class="coding-change-fixed" data-coding-change-fixed hidden>${p.icon("lock")}<span></span></span>
+              <button class="mw-btn mw-btn--primary" type="button" data-coding-change-save>固定此版本</button>
+              <button class="mw-btn mw-btn--ghost" type="button" data-coding-change-output disabled>设为变更输出</button>
+              <button class="mw-btn mw-btn--ghost coding-change-close" type="button" data-coding-change-close aria-label="收起变更" title="收起变更">${p.icon("x")}</button>
+            </div>
+          </header>
+          <p class="coding-change-status" data-coding-change-status role="status"></p>
+          <nav class="coding-change-files" data-coding-change-files aria-label="本轮文件写入"></nav>
+          <div class="coding-change-body" data-coding-change-body></div>
+          <p class="coding-change-note">这里只有经过审查的文件写入，包括未执行的提案；命令与检查请看执行记录。</p>
+          <section class="coding-change-feedback" aria-labelledby="coding-feedback-title">
+            <header><h4 id="coding-feedback-title">行级意见</h4><span data-coding-feedback-count></span></header>
+            <p data-coding-feedback-hint>固定此版本后，点击行号即可留下意见。</p>
+            <div data-coding-feedback-list></div>
+            <div class="coding-change-feedback-foot"><button class="mw-btn mw-btn--primary" type="button" data-coding-feedback-return disabled>加入原任务草稿</button></div>
+          </section>
         </section>
         <section class="coding-result" data-coding-commands aria-label="命令与检查回执" hidden></section>${panels}
       </aside>

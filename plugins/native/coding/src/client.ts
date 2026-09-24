@@ -592,7 +592,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const renderRuns = (runs) => {
     // Following is the reader's choice, made by scrolling; content that grows after a render must not revoke it.
-    const follow = !reportRun && !changeReview.active() && onContentAppended({position:position(),pinned}).follow;
+    const follow = !reportRun && onContentAppended({position:position(),pinned}).follow;
     if(runs.length)q('[data-coding-welcome]')?.remove();
     else if(!q('[data-coding-welcome]')) {turns.append(q('[data-coding-welcome-template]').content.cloneNode(true));const name=root.dataset.codingWorkspaceName;if(name)turns.querySelectorAll('[data-coding-welcome-workspace]').forEach(node=>{node.textContent=name;});}
     turns.querySelectorAll('[data-coding-prompt]').forEach(button=>{button.disabled=Boolean(input.value.trim());});
@@ -924,9 +924,9 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   root.addEventListener('click',click);
   directory.querySelector('[data-coding-search]').addEventListener('input',renderDirectory);
-  turns.addEventListener('scroll',()=>{if(reportRun || changeReview.active())return;pinned=atBottom(position());q('[data-coding-latest]').hidden=pinned;},{passive:true});
+  turns.addEventListener('scroll',()=>{if(reportRun)return;pinned=atBottom(position());q('[data-coding-latest]').hidden=pinned;},{passive:true});
   // Late growth (a review card loading, a group opening) keeps a following reader at the newest line.
-  let followFrame=0;new MutationObserver(()=>{if(!pinned || reportRun || changeReview.active() || followFrame)return;followFrame=requestAnimationFrame(()=>{followFrame=0;if(pinned && !reportRun && !changeReview.active())turns.scrollTop=turns.scrollHeight;});}).observe(turns,{childList:true,subtree:true,characterData:true});
+  let followFrame=0;new MutationObserver(()=>{if(!pinned || reportRun || followFrame)return;followFrame=requestAnimationFrame(()=>{followFrame=0;if(pinned && !reportRun)turns.scrollTop=turns.scrollHeight;});}).observe(turns,{childList:true,subtree:true,characterData:true});
   input.addEventListener('input',()=>{rememberDraft(current,input.value);q('[data-coding-draft-status]').textContent='正在保存草稿…';clearTimeout(draftTimer);const id=current,value=input.value;draftTimer=setTimeout(()=>{void saveDraft(id,value).catch(error=>status('草稿暂未写入服务，当前窗口仍保留：'+error.message,true));},400);});
   for(const field of [q('[data-coding-intent]'),q('[data-coding-model]')])field.addEventListener('change',()=>{
     rememberConfiguration();controls();void flushDraft().catch(error=>status('配置暂未保存：'+error.message,true));

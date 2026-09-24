@@ -160,6 +160,7 @@ export function createCodingTimeline() {
     [/MODEL_CONTEXT_OVERFLOW|MODEL_REQUEST_TOO_LARGE|CONTEXT_BUDGET_EXCEEDED/i, "上下文超出模型上限", "从断点继续时会带上整理后的事实；也可以把任务拆小。"],
     [/CONTEXT_COMPACTION_INVALID/i, "上下文整理失败", "已完成的操作都保留着，从断点继续即可。"],
     [/AGENT_BUDGET_EXCEEDED|MODEL_BUDGET_EXCEEDED|RESOURCE_LIMIT_EXCEEDED/i, "达到这一轮的执行上限", "确认进度后从断点继续，会开启新的一轮额度。"],
+    [/too many tool turns/i, "用完了可用的执行轮次", "已完成的修改都保留着；重试时可以给更多轮次，或把任务拆小。"],
     [/MODEL_RESPONSE_INVALID|MODEL_STRUCTURED_INVALID|MODEL_TOOL_NOT_DECLARED/i, "模型的回复格式不对", "通常是偶发的，从断点继续即可。"],
     [/MODEL_REFUSED/i, "模型拒绝了这个请求", "换个说法或补充背景后再发。"],
   ];
@@ -226,5 +227,5 @@ export function createCodingTimeline() {
       node.textContent = duration(started);
     });
   };
-  return { renderGroup, renderFooter, tick };
+  return { renderGroup, renderFooter, tick, explainFailure };
 }

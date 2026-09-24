@@ -39,7 +39,10 @@ export const CODING_SUBAGENT_CARDS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     if(child.result){const body=result.querySelector('.coding-turn'),html=child.result_html||'';if(body.dataset.source!==child.result){body.dataset.source=child.result;if(html)body.innerHTML=html;else body.textContent=child.result;}}
     // Folded by default with a one-line preview: the parent's summary is where the reading happens.
     if(child.result){const preview=child.result.replace(/[#*\x60>|-]+/g,' ').replace(/\\s+/g,' ').trim();result.querySelector('summary').textContent='结论 · '+(preview.length>90?preview.slice(0,90)+'…':preview);}
-    if(child.error){let error=node.querySelector('.coding-child-error');if(!error){error=el('p','coding-child-error');node.querySelector('.coding-child-foot').before(error);}error.textContent=child.error;}
+    // A failure reads in plain words first; the original reason stays next to it.
+    if(child.error){let error=node.querySelector('.coding-child-error');if(!error){error=el('p','coding-child-error');node.querySelector('.coding-child-foot').before(error);}
+      const explained=timeline.explainFailure?.(child.error);error.replaceChildren();
+      if(explained){error.append(el('strong','',explained.title),document.createTextNode('：'+explained.hint),el('span','coding-child-error-code',child.error));}else error.textContent=child.error;}
     const foot=node.querySelector('.coding-child-foot'),key=JSON.stringify([child.state,verdict,child.integration_available]);
     if(foot.dataset.key!==key){
       foot.dataset.key=key;foot.replaceChildren();

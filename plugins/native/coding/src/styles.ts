@@ -571,4 +571,33 @@ export const CODING_STYLES = `
 .coding-child-foot:empty { display:none; }
 .coding-child-foot .mw-btn { height:26px; min-height:26px; padding:0 10px; font-size:12px; border:1px solid var(--line); }
 .coding-child-result > summary { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; width:auto; max-width:100%; }
+
+/* Integration: each child file as a folded diff; a conflict opens a three-way merge a person finishes. */
+/* Reading diffs and finishing a merge needs room: the integration dialog is wide, and nothing in it widens it further. */
+dialog.mw-dialog--form[data-coding-integration-dialog] { width:min(1040px,calc(100vw - 48px)); max-height:min(calc(100dvh - 48px),960px); }
+dialog.mw-dialog--form[data-coding-integration-dialog] > .mw-form { max-height:min(calc(100dvh - 48px),960px); }
+@media (max-width:760px), (pointer:coarse) {
+  dialog.mw-dialog--form[data-coding-integration-dialog] { width:calc(100vw - 24px); max-height:calc(100dvh - 32px); }
+  dialog.mw-dialog--form[data-coding-integration-dialog] > .mw-form { max-height:calc(100dvh - 32px); }
+}
+dialog[data-coding-integration-dialog] .mw-form__body { grid-template-columns:minmax(0,1fr); }
+[data-coding-integration-files] > .coding-material > * { min-width:0; max-width:100%; }
+.coding-integration-diff { margin-top:6px; }
+.coding-integration-diff > summary { cursor:pointer; font-size:12px; color:var(--muted); }
+.coding-integration-diff .diff .diff-rows { margin:6px 0 0; max-height:360px; font-size:12px; line-height:20px; }
+.coding-integration-diff .diff .diff-rows li { grid-template-columns:5ch 5ch minmax(max-content,1fr); gap:0; }
+.coding-integration-diff .diff .diff-rows li[hidden] { display:none; }
+.coding-integration-diff .diff .diff-rows li.diff-fold { display:block; }
+.coding-merge { display:grid; grid-template-columns:minmax(0,1fr); gap:6px; margin-top:8px; padding:10px; border:1px solid color-mix(in srgb,var(--amber) 40%,var(--line)); border-radius:10px; background:color-mix(in srgb,var(--amber) 5%,var(--paper)); }
+.coding-merge > p { margin:0; font-size:12px; color:var(--muted); }
+.coding-merge-editor { box-sizing:border-box; width:100%; max-width:100%; min-height:12rem; font:12px/1.6 var(--font-mono,ui-monospace,SFMono-Regular,Menlo,monospace); white-space:pre; overflow:auto; resize:vertical; }
+.coding-merge p[data-tone=attention] { color:var(--amber); }
+.coding-merge p[data-tone=done] { color:var(--green); }
+.coding-merge > .mw-btn { width:fit-content; }
+.coding-merge-picks { display:grid; gap:4px; }
+.coding-merge-pick { display:flex; flex-wrap:wrap; align-items:center; gap:4px 6px; min-width:0; }
+.coding-merge-pick > span { flex:1 1 180px; min-width:0; font-size:12px; color:var(--ink); }
+.coding-merge-pick > .mw-btn { min-height:28px; padding:0 10px; font-size:12px; }
+@media (max-width:760px) { .coding-merge-pick > span { flex-basis:100%; } }
+.coding-child-error-code { display:block; margin-top:2px; font:11px/1.5 var(--font-mono,ui-monospace,SFMono-Regular,Menlo,monospace); color:var(--muted); overflow-wrap:anywhere; }
 `;

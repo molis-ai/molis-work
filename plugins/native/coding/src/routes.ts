@@ -461,7 +461,8 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       if (!prepare) return api!.invoke(writerIntegrationCapabilities.read, source);
       const body = bodyOf(request);
       if (!Array.isArray(body.files)) throw new Error("请选择原成果文件");
-      const files = body.files.map(file => ({ path: parseFilePath(file.path), revision: text(file.revision, "审查版本") }));
+      const files = body.files.map(file => ({ path: parseFilePath(file.path), revision: text(file.revision, "审查版本"),
+        ...(typeof file.resolution === "string" ? { resolution: file.resolution.length <= 262_144 ? file.resolution : (() => { throw new Error("合并结果过长"); })() } : {}) }));
       return api!.invoke(writerIntegrationCapabilities.prepare, { ...source, operation_id: text(body.operation_id, "操作标识", 80), files });
     })),
     route("coding.evaluate-step", async (request, api, execution) => {

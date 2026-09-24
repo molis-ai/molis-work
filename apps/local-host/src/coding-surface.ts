@@ -339,6 +339,19 @@ export async function handleCodingPluginHttp(request: IncomingMessage, response:
     changeBody.html = renderDiff({ view, route_prefix: ports.routePrefix ?? "", line_feedback: Boolean(changeBody.reference), fold_context: 3, sides: false,
       primitives: { escape: value => escapeHtml(String(value)), icon: name => icon(name as Parameters<typeof icon>[0]) } });
   }
+  // A child's results read as diffs against the main workspace, folded like the change reader, not as two full copies.
+  const integrationBody = result.body as { files?: Array<{ path: string[]; before_text?: string | null; after_text?: string | null; diff_html?: string }> } | undefined;
+  if (result.status === 200 && (request.method ?? "GET") === "GET" && url.pathname.endsWith("/integration") && Array.isArray(integrationBody?.files)) {
+    for (const file of integrationBody.files) {
+      if (file.before_text === undefined || file.after_text === undefined) continue;
+      const view = compareRunChangeSet({ content: { scope: "run-frozen", run_id: "integration", applied: false, coverage: "text-reviews", files: [{ path: file.path.join("/"),
+        kind: file.before_text === null ? "added" : file.after_text === null ? "deleted" : "modified", added_lines: 0, removed_lines: 0, diff: "",
+        review: { review_id: "integration", before_text: file.before_text, after_text: file.after_text ?? "", decision: "approved", execution: "applied" } }] } as never,
+        source_plugin_id: CODING_PLUGIN_ID, content_version: 1 }, undefined, 0);
+      file.diff_html = renderDiff({ view, route_prefix: ports.routePrefix ?? "", fold_context: 3, sides: false,
+        primitives: { escape: value => escapeHtml(String(value)), icon: name => icon(name as Parameters<typeof icon>[0]) } });
+    }
+  }
   if (result.status === 200 && reportBody?.report) {
     const report = reportBody.report;
     Object.assign(reportBody, { html: renderCodingReport({ title: report.title, run_id: report.run_id,

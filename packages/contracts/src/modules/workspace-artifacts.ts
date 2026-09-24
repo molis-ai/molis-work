@@ -56,6 +56,8 @@ export interface WriterIntegrationFile {
   after_text?: string | null;
   before_mode?: GitFileMode | null;
   after_mode?: GitFileMode | null;
+  /** Both sides changed this path since the child started: the base and a three-way merge for a person to finish. */
+  conflict?: { base_text: string | null; merged_text: string; clean: boolean; markers: number };
 }
 export interface WriterIntegrationView {
   workspace_id: string;
@@ -70,7 +72,7 @@ export interface WriterIntegrationView {
 export interface WriterIntegrationSource { session_id: string; run_id: string; subagent_id: string }
 export const writerIntegrationCapabilities = {
   read: { capability_id: "projects.workspace.writers.integration.read.v1", version: 1, operation: "query" } as HostCapabilityDefinition<WriterIntegrationSource, WriterIntegrationView>,
-  prepare: { capability_id: "projects.workspace.writers.integration.prepare.v1", version: 1, operation: "command" } as HostCapabilityDefinition<WriterIntegrationSource & { operation_id: string; files: readonly { path: readonly string[]; revision: string }[] }, { review_id: string }>,
+  prepare: { capability_id: "projects.workspace.writers.integration.prepare.v1", version: 1, operation: "command" } as HostCapabilityDefinition<WriterIntegrationSource & { operation_id: string; files: readonly { path: readonly string[]; revision: string; resolution?: string }[] }, { review_id: string }>,
 } as const;
 
 export const writerDirectoryCapabilities = {

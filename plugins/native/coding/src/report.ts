@@ -80,7 +80,8 @@ export function createCodingExecutionReport(input: {
     const state = output.timed_out ? "超时" : output.cancelled ? "已取消" : output.exit_code === null ? "退出状态未知" : `退出码 ${output.exit_code}`;
     return `${state}${output.truncated ? "；输出已截断" : ""}\n${literal(output.command)}\n标准输出\n${literal(output.stdout)}\n标准错误\n${literal(output.stderr)}`;
   }).join("\n\n");
-  const activity = run.activity.map(item => `${item.name} · ${item.target} · ${
+  // Model reasoning is not evidence of anything done, so the report's activity lists only operations.
+  const activity = run.activity.filter(item => item.name !== "reasoning").map(item => `${item.name} · ${item.target} · ${
     item.state === "completed" ? "已返回（不等于任务通过）" : item.state === "failed" ? "失败" : "结果未知，未收到结束回执"
   }`).join("\n");
   const usage = codingUsageSummary(run.usage);

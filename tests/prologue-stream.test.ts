@@ -58,6 +58,30 @@ test("streamed text becomes one assistant turn, closed by the next structural ev
   assert.equal(state.streaming, "", "结构性事件到来时要把流式文本收成一轮");
 });
 
+test("推理作为活动出现，按原顺序与正文、工具调用分开，且不进入模型说过的话", () => {
+  const state = emptyPrologueStreamState();
+  apply(state,
+    { type: "prompt", role: "user", text: "修一下登录" },
+    { type: "reasoning-delta", text: "先确认登录入口，" },
+    { type: "reasoning-delta", text: "再看会话校验。" },
+  );
+  assert.deepEqual(state.activity.map(entry => [entry.name, entry.state, entry.output]), [["reasoning", "started", "先确认登录入口，再看会话校验。"]],
+    "推理进行中是一条正在进行的活动");
+  apply(state,
+    { type: "text-delta", text: "我先读登录文件。" },
+    { type: "reasoning-delta", text: "入口在 src/login.ts。" },
+    { type: "tool-call", call: { id: "call-1", name: "read", input: { path: "src/login.ts" } } },
+  );
+  assert.deepEqual(state.turns.map(turn => [turn.kind, turn.text]), [["user", "修一下登录"], ["assistant", "我先读登录文件。"]], "推理不拼进正文");
+  assert.deepEqual(state.activity.map(entry => [entry.name, entry.state]), [["reasoning", "completed"], ["reasoning", "completed"], ["read", "started"]]);
+  const order = [...state.turns.map(turn => [turn.sequence, turn.kind]), ...state.activity.map(entry => [entry.sequence, entry.name])]
+    .sort((a, b) => Number(a[0]) - Number(b[0])).map(entry => entry[1]);
+  assert.deepEqual(order, ["user", "reasoning", "assistant", "reasoning", "read"], "推理、正文和工具保持出现顺序");
+  apply(state, { type: "reasoning-delta", text: "x".repeat(20_000) }, { type: "completed" });
+  const long = state.activity.at(-1)!;
+  assert.equal(long.output!.length, 16_384); assert.equal(long.output_truncated, true); assert.equal(long.state, "completed", "结束时推理随之收尾");
+});
+
 test("a tool result completes exactly its own call", () => {
   const state = emptyPrologueStreamState();
   apply(

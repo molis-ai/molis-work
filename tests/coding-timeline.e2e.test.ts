@@ -37,5 +37,19 @@ test("时间线在等审查时只让要审批的操作显示“等你批准”�
     assert.deepEqual(result.done.rows, ["exit 0", ""], "退出码只来自命令回执，其他操作不虚标");
     assert.match(result.done.footer, /这一轮完成/);
     assert.match(result.done.footer, /最后一条 ls -la → exit 0/);
+    const thinking = await page.evaluate<{ live: string; done: string; rows: string[]; preview: string; body: string }>(`(()=>{
+      const timeline=(${createCodingTimeline.toString()})();
+      const detail=document.createElement('details');detail.dataset.codingActivity='t:0';document.body.append(detail);
+      const text=()=>detail.querySelector('summary').textContent.trim();
+      const thought={call_id:'reasoning-2',name:'reasoning',target:'',state:'started',output:'先确认入口在哪里。\\n然后看会话校验。'};
+      timeline.renderGroup(detail,[thought],{ref:{run_id:'t'},phase:'running',activity:[]},true);const live=text();
+      timeline.renderGroup(detail,[{...thought,state:'completed'},{call_id:'c',name:'read',target:'src/login.ts',state:'completed'}],{ref:{run_id:'t'},phase:'completed',activity:[]},true);
+      return {live,done:text(),rows:[...detail.querySelectorAll('.coding-tool-state')].map(node=>node.textContent.trim()),preview:detail.querySelector('[data-kind=reasoning] .coding-tool-preview')?.textContent,body:detail.querySelector('[data-kind=reasoning] .coding-tool-output')?.textContent};
+    })()`);
+    assert.equal(thinking.live, "正在思考");
+    assert.equal(thinking.done, "思考 · 读取 1 个文件", "思考不计成工具次数");
+    assert.equal(thinking.preview, "先确认入口在哪里。", "折叠时预览第一行");
+    assert.match(thinking.body, /然后看会话校验/);
+    assert.deepEqual(thinking.rows, ["", ""], "思考完成不打勾，读取也没有退出码");
   } finally { await browser.close(); rmSync(directory, { recursive: true, force: true }); }
 });

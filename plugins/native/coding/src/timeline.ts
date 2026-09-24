@@ -44,6 +44,7 @@ export function createCodingTimeline() {
     list: { verb: "查看目录", icon: "folder", noun: "目录", unit: "个" },
     "list-directory": { verb: "查看目录", icon: "folder", noun: "目录", unit: "个" },
     "ask-user": { verb: "提问", icon: "question", noun: "问题", unit: "个" },
+    reasoning: { verb: "思考", icon: "sparkles", noun: "", unit: "" },
     "上下文整理": { verb: "整理上下文", icon: "clock", noun: "", unit: "次" },
     "工具调用纠正": { verb: "纠正工具调用", icon: "circle-alert", noun: "", unit: "次" },
   };
@@ -61,27 +62,30 @@ export function createCodingTimeline() {
     if (item.state === "started") return ended ? { tone: "unknown", label: "结果未返回" }
       : waiting ? (APPROVABLE.has(item.name) ? { tone: "waiting", label: "等你批准" } : { tone: "held", label: "等待中" })
       : { tone: "running", label: "进行中" };
+    if (item.name === "reasoning" && item.state === "completed") return { tone: "quiet", label: "" };
     if (item.state === "failed") return { tone: "failed", label: "失败" };
     if (item.state === "unknown") return { tone: "unknown", label: "结果未知" };
     if (code !== null) return code === 0 ? { tone: "ok", label: "exit 0" } : { tone: "failed", label: `exit ${code}` };
     return { tone: "ok", label: "" };
   };
   const statusMark = (tone: string) => tone === "running" ? '<span class="coding-spinner" aria-hidden="true"></span>'
-    : tone === "waiting" ? svg("clock") : tone === "held" ? svg("dot") : tone === "ok" ? svg("check") : tone === "failed" ? svg("x") : svg("circle-alert");
+    : tone === "quiet" ? "" : tone === "waiting" ? svg("clock") : tone === "held" ? svg("dot") : tone === "ok" ? svg("check") : tone === "failed" ? svg("x") : svg("circle-alert");
   const lines = (text: string, limit: number) => {
     const all = text.replace(/\n$/, "").split("\n");
     return all.length <= limit ? { text: all.join("\n"), hidden: 0 } : { text: all.slice(0, limit).join("\n"), hidden: all.length - limit };
   };
   const rowHtml = (item: TimelineActivity, ended: boolean, waiting: boolean) => {
     const kind = kindOf(item), result = outcome(item, ended, waiting);
-    const what = item.target ? `<code>${escape(item.target)}</code>` : "";
+    // Reasoning is prose, so its row previews the first line as text rather than as a code target.
+    const firstLine = item.name === "reasoning" ? (item.output ?? "").trim().split("\n")[0]!.slice(0, 140) : "";
+    const what = item.target ? `<code>${escape(item.target)}</code>` : firstLine ? `<span class="coding-tool-preview">${escape(firstLine)}</span>` : "";
     const output = (item.output ?? "").trim();
-    const shown = output ? lines(output, 24) : null;
+    const shown = output ? lines(output, item.name === "reasoning" ? 120 : 24) : null;
     const body = shown ? `<pre class="coding-tool-output">${escape(shown.text)}${shown.hidden ? `\n… 另有 ${shown.hidden} 行` : ""}${item.output_truncated ? "\n（输出已截断）" : ""}</pre>` : "";
     const head = `<span class="coding-tool-icon">${svg(kind.icon)}</span><span class="coding-tool-verb">${escape(kind.verb)}</span>${what}<span class="coding-tool-state" data-tone="${result.tone}">${statusMark(result.tone)}${result.label ? `<span>${escape(result.label)}</span>` : ""}</span>`;
     return body
-      ? `<details class="coding-tool" data-tone="${result.tone}" data-tool="${escape(item.call_id)}"><summary>${head}</summary>${body}</details>`
-      : `<div class="coding-tool" data-tone="${result.tone}" data-tool="${escape(item.call_id)}"><div class="coding-tool-head">${head}</div></div>`;
+      ? `<details class="coding-tool" data-tone="${result.tone}" data-kind="${escape(item.name)}" data-tool="${escape(item.call_id)}"><summary>${head}</summary>${body}</details>`
+      : `<div class="coding-tool" data-tone="${result.tone}" data-kind="${escape(item.name)}" data-tool="${escape(item.call_id)}"><div class="coding-tool-head">${head}</div></div>`;
   };
   /** "读取 4 个文件 · 运行 3 条命令", or what is happening right now. */
   const summaryText = (items: TimelineActivity[], ended: boolean, waiting: boolean) => {
@@ -98,7 +102,8 @@ export function createCodingTimeline() {
       const entry = counts.get(key) ?? { kind, targets: new Set<string>(), calls: 0 };
       entry.calls += 1; if (item.target) entry.targets.add(item.target); counts.set(key, entry);
     }
-    const parts = [...counts.values()].map(({ kind, targets, calls }) => `${kind.verb} ${kind.noun === "文件" || kind.noun === "目录" ? targets.size || calls : calls} ${kind.unit}${kind.noun}`);
+    const parts = [...counts.values()].map(({ kind, targets, calls }) => kind.noun === "" && kind.unit === "" ? kind.verb
+      : `${kind.verb} ${kind.noun === "文件" || kind.noun === "目录" ? targets.size || calls : calls} ${kind.unit}${kind.noun}`);
     const failed = items.filter(item => outcome(item, ended).tone === "failed").length;
     return { live: false, waiting: false, text: parts.join(" · ") + (failed ? ` · ${failed} 项未成功` : "") };
   };

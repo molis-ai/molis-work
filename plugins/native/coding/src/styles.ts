@@ -230,6 +230,9 @@ export const CODING_STYLES = `
 .coding-tools-summary.is-waiting { color:var(--amber); }
 .coding-tool-state[data-tone=waiting] { color:var(--amber); }
 .coding-tool-state[data-tone=held] { color:var(--faint); }
+.coding-tool-preview { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--muted); }
+/* Reasoning reads as quoted prose under its row, never as tool output. */
+.coding-tool[data-kind=reasoning] .coding-tool-output { font-family:inherit; font-size:12.5px; line-height:1.7; white-space:pre-wrap; color:var(--muted); background:none; border:0; border-left:2px solid var(--line); border-radius:0; padding:2px 0 2px 12px; max-height:360px; }
 .coding-tools-chevron { display:inline-flex; color:var(--faint); opacity:0; transition:opacity .15s ease,transform .15s ease; }
 .coding-tools-chevron svg { width:12px; height:12px; }
 .coding-activity > summary:hover .coding-tools-chevron,.coding-activity > summary:focus-visible .coding-tools-chevron,.coding-activity[open] > summary .coding-tools-chevron { opacity:1; }

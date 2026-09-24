@@ -43,6 +43,7 @@ export type PrologueEvent =
   | { type: "prompt"; role: "system" | "user"; text: string; steerId?: string }
   | { type: "steer-applied"; steerId: string }
   | { type: "text-delta"; text: string }
+  | { type: "reasoning-delta"; text: string }
   | { type: "tool-call"; call: { id: string; name: string; input?: Record<string, unknown> } }
   | { type: "tool-result"; callId: string; name: string; text: string; outcome?: "returned" | "failed"; errorCode?: string }
   | { type: "awaiting-approval"; effectRef: { kind: "effect"; id: string; revision: number }; pendingRef: { kind: "pending"; id: string; revision: number }; why: string; character?: string }
@@ -94,6 +95,8 @@ export interface PrologueStreamState {
   streaming: string;
   streaming_at: string | null;
   streaming_sequence?: number;
+  /** Activity index of the reasoning being streamed; reasoning is shown as activity, never merged into what the model said. */
+  reasoning_index?: number;
 }
 
 export function emptyPrologueStreamState(): PrologueStreamState {
@@ -189,7 +192,19 @@ function mergeUsage(previous: PrologueUsageReceipt | undefined, next: PrologueUs
   };
 }
 
+const REASONING_LIMIT = 16_384;
+
+/** Reasoning ends when anything else begins: text, a tool call, a prompt, a stop. */
+function closeReasoning(state: PrologueStreamState): void {
+  const index = state.reasoning_index;
+  if (index === undefined) return;
+  delete state.reasoning_index;
+  const entry = state.activity[index];
+  if (entry?.state === "started") state.activity[index] = { ...entry, state: "completed" };
+}
+
 function closeStreaming(state: PrologueStreamState): void {
+  closeReasoning(state);
   if (state.streaming === "") return;
   state.turns.push({
     turn_id: `assistant-${state.turns.length + 1}`,
@@ -201,6 +216,14 @@ function closeStreaming(state: PrologueStreamState): void {
   state.streaming = "";
   state.streaming_at = null;
   delete state.streaming_sequence;
+}
+
+/** Close the open assistant text without touching reasoning, so text and reasoning keep their order. */
+function closeStreamingText(state: PrologueStreamState): void {
+  const reasoning = state.reasoning_index;
+  delete state.reasoning_index;
+  closeStreaming(state);
+  if (reasoning !== undefined) state.reasoning_index = reasoning;
 }
 
 /** A restored prefix is readable history, not a live stream or a tool receipt. */
@@ -253,9 +276,25 @@ export function applyPrologueEvent(
       return true;
     }
 
+    case "reasoning-delta": {
+      const delta = event as Extract<PrologueEvent, { type: "reasoning-delta" }>;
+      if (delta.text === "") return false;
+      closeStreamingText(state);
+      let index = state.reasoning_index;
+      if (index === undefined) {
+        index = state.activity.push({ call_id: `reasoning-${state.next_sequence}`, name: "reasoning", target: "", state: "started",
+          summary: "推理", output: "", at, sequence: state.next_sequence++ }) - 1;
+        state.reasoning_index = index;
+      }
+      const entry = state.activity[index]!, text = (entry.output ?? "") + delta.text;
+      state.activity[index] = { ...entry, output: text.slice(0, REASONING_LIMIT), output_truncated: text.length > REASONING_LIMIT, at };
+      return true;
+    }
+
     case "text-delta": {
       const delta = event as Extract<PrologueEvent, { type: "text-delta" }>;
       if (delta.text === "") return false;
+      closeReasoning(state);
       if (state.streaming === "") {
         state.streaming_at = at;
         state.streaming_sequence = state.next_sequence++;

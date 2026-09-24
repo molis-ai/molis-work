@@ -1062,5 +1062,10 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   });
   void refreshState().catch(error=>status(error.message,true));
   let pollingTicks=0;
-  const poll=setInterval(()=>{if(!root.isConnected){clearInterval(poll);return;}if(current) void readCurrent();void writerDirectories.refresh();void integrations.refreshReviews();if(++pollingTicks%5===0) void refreshState().catch(error=>status(error.message,true));},1000);
+  const poll=setInterval(()=>{if(!root.isConnected){clearInterval(poll);return;}void writerDirectories.refresh();void integrations.refreshReviews();if(++pollingTicks%5===0) void refreshState().catch(error=>status(error.message,true));},1000);
+  // The conversation refreshes as fast as the work moves: near-continuous while the model is producing,
+  // slower while it waits on the person or rests, slowest in a background tab. readCurrent never overlaps itself.
+  const conversationDelay=()=>document.hidden ? 5000 : !lastRun ? 2500 : ['starting','running','compacting','pausing'].includes(lastRun.phase) ? 350 : terminal(lastRun.phase) ? 2500 : 1000;
+  const followConversation=async()=>{if(!root.isConnected)return;if(current)await readCurrent().catch(()=>{});setTimeout(followConversation,conversationDelay());};
+  setTimeout(followConversation,conversationDelay());
 }`;

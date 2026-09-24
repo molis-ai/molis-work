@@ -662,6 +662,9 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
           if(form) ordered.push(form);
         }
       }
+      // While the model is still writing its latest reply, a caret marks the end of that text — and only that text.
+      const writing=run===runs.at(-1) && ['starting','running'].includes(run.phase) && groups.at(-1)?.kind==='turn' && groups.at(-1).value.kind==='assistant';
+      ordered.forEach((node,at)=>{if(node.classList?.contains('coding-turn'))node.classList.toggle('is-writing',writing && at===ordered.length-1);});
       for(const detail of block.querySelectorAll('[data-coding-activity]')) if(!ordered.includes(detail)) detail.remove();
       // Insert only missing/misplaced entries: polling keeps open tools and a
       // focused question form intact. Live and replay use the same ordering.

@@ -471,4 +471,11 @@ export const CODING_STYLES = `
 .coding-session-state:is([data-state=waiting-answer],[data-state=waiting-approval]) { color:var(--amber); }
 .coding-session-state:is([data-state=failed],[data-state=reconcile-required]) { color:var(--red); }
 @media (prefers-reduced-motion:no-preference) { .coding-session-state[data-state=running]::before { animation:coding-pulse 1.4s ease-in-out infinite; } }
+
+/* Streaming caret: sits after the last line the model has written so far. */
+.coding-turn.is-writing > :last-child::after,.coding-turn.is-writing:not(:has(> *))::after { content:""; display:inline-block; width:.45em; height:1.05em; margin-left:2px; vertical-align:-.15em; border-radius:1px; background:var(--ink); opacity:.55; }
+@media (prefers-reduced-motion:no-preference) { .coding-turn.is-writing > :last-child::after,.coding-turn.is-writing:not(:has(> *))::after,.coding-turn.is-writing > :is(ul,ol):last-child > li:last-child::after { animation:coding-caret 1s steps(2,start) infinite; } }
+@keyframes coding-caret { to { visibility:hidden; } }
+.coding-turn.is-writing > :is(ul,ol):last-child > li:last-child::after { content:""; display:inline-block; width:.45em; height:1.05em; margin-left:2px; vertical-align:-.15em; border-radius:1px; background:var(--ink); opacity:.55; }
+.coding-turn.is-writing > :is(ul,ol,pre,table):last-child::after { content:none; }
 `;

@@ -46,6 +46,9 @@ export function createCodingTimeline() {
     "list-directory": { verb: "查看目录", icon: "folder", noun: "目录", unit: "个" },
     "ask-user": { verb: "提问", icon: "question", noun: "问题", unit: "个" },
     reasoning: { verb: "思考", icon: "sparkles", noun: "", unit: "" },
+    "dispatch-subagent": { verb: "派出子任务", icon: "workflow", noun: "子任务", unit: "个" },
+    "await-subagents": { verb: "等待子任务", icon: "clock", noun: "", unit: "" },
+    "steer-subagent": { verb: "补充子任务要求", icon: "workflow", noun: "次", unit: "" },
     "board-read": { verb: "查看任务图", icon: "list", noun: "", unit: "" },
     "board-report": { verb: "回报步骤", icon: "list", noun: "步骤", unit: "次" },
     "上下文整理": { verb: "整理上下文", icon: "clock", noun: "", unit: "次" },
@@ -59,7 +62,7 @@ export function createCodingTimeline() {
     return match ? Number(match[1]) : null;
   };
   /** Only side effects go through review; a read started alongside one is merely held until the round resumes. */
-  const APPROVABLE = new Set(["edit", "write", "run-command"]);
+  const APPROVABLE = new Set(["edit", "write", "run-command", "dispatch-subagent", "steer-subagent"]);
   const outcome = (item: TimelineActivity, ended: boolean, waiting = false) => {
     const code = exitCode(item);
     if (item.state === "started") return ended ? { tone: "unknown", label: "结果未返回" }
@@ -193,6 +196,7 @@ export function createCodingTimeline() {
     const facts = [
       duration(run.started_at, run.ended_at) && `用时 ${duration(run.started_at, run.ended_at)}`,
       edited.size ? `修改 ${edited.size} 个文件` : "没有修改文件",
+      run.activity.some(item => item.name === "dispatch-subagent" && item.state === "completed") && `派出 ${run.activity.filter(item => item.name === "dispatch-subagent" && item.state === "completed").length} 个子任务`,
       commands.length ? `运行 ${commands.length} 条命令` : "",
       lastCommand ? `最后一条 ${lastCommand.target || "命令"} → exit ${lastCode ?? "?"}` : "",
     ].filter(Boolean);

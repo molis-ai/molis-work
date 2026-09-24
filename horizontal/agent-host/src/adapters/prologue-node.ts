@@ -210,8 +210,18 @@ export async function createPrologueNodeAdapter(
           const args = JSON.parse(subject.input);
           if (!args || typeof args !== "object" || Array.isArray(args)) throw new Error("子任务操作参数无效");
           reviewEffects.set(`prologue:${pending.ref.id}`, effect.ref);
+          // Readable first — who is sent, to do what, with which tools and where — with the exact arguments kept for audit.
+          const roleKey = typeof args.character === "string" ? args.character.split("@")[0] : "";
+          const role = attempt.subagent_roles?.find(([key]) => key === roleKey)?.[1];
+          const root = typeof args.workspace === "string" ? attempt.subagent_roots?.find(entry => entry.id === args.workspace) : undefined;
+          const readable = [
+            ...(role ? [{ label: "子任务角色", value: role.name }] : []),
+            ...(typeof args.instruction === "string" ? [{ label: subject.name === "dispatch-subagent" ? "分工" : "补充要求", value: args.instruction }] : typeof args.text === "string" ? [{ label: "补充要求", value: args.text }] : []),
+            ...(Array.isArray(args.tools) ? [{ label: "可用工具", value: args.tools.join("、") }] : []),
+            ...(root ? [{ label: "工作目录", value: root.path }] : []),
+          ];
           return { kind: "tool-operation", tool: subject.name, summary: subject.name === "dispatch-subagent" ? (attempt.subagent_roots?.length ? "分派独立目录子任务；修改仍需审查，结果仍需核对" : "分派只读子任务；结果仍需核对") : "向原子任务补充要求",
-            fields: [{ label: "本次完整参数", value: JSON.stringify(args, null, 2) }] };
+            fields: [...readable, { label: "本次完整参数", value: JSON.stringify(args, null, 2) }] };
         }
         if (subject.what === "tool" && subject.name.startsWith("mcp:")) {
           if (typeof subject.input !== "string") throw new Error("MCP 原始参数不可读，不能批准");

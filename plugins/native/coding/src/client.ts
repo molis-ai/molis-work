@@ -11,6 +11,7 @@ import { codingUsageSummary } from "./usage.js";
 import { atBottom, onContentAppended, onReaderScrolled, READER_INTENT_MS, STICK_THRESHOLD_PX } from "./reading.js";
 import { CONTINUATION_MARKER } from "./continuation.js";
 import { CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT } from "./plan-progress-client.js";
+import { CODING_SUBAGENT_CARDS_CLIENT_FACTORY_SCRIPT } from "./subagent-cards-client.js";
 import { createCodingTimeline } from "./timeline.js";
 
 /** Host supplies navigation; this client only handles Coding's own surface. */
@@ -65,7 +66,11 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const integrations = (${CODING_WRITER_INTEGRATION_CLIENT_FACTORY_SCRIPT})({q,api,host,status});
   const stepReports = (${CODING_STEPS_CLIENT_FACTORY_SCRIPT})({q,api,current:()=>current,status,refresh:()=>readCurrent(),prepareRework:reason=>plans.prepareStepRework(reason)});
-  let planEntries=[];
+  let planEntries=[],subagentGroups=[];
+  const subagentCards = (${CODING_SUBAGENT_CARDS_CLIENT_FACTORY_SCRIPT})({api,current:()=>current,status,refresh:()=>readCurrent(),timeline,
+    showReviews:(container,refs,sid)=>host.showReviews?.(container,refs,sid),sessionId:()=>runtimeSessionId,
+    parentLive:(run)=>!terminal(run.phase),prefill:(text)=>{const next=input.value.trim()?input.value+'\\n\\n'+text:text;input.value=next;input.dispatchEvent(new Event('input',{bubbles:true}));input.focus();},
+    openInPanel:(childId)=>{root.dataset.codingResults='true';const row=q('[data-coding-subagents] details[data-child="'+CSS.escape(childId)+'"]');if(row){row.open=true;row.scrollIntoView({block:'center'});row.querySelector('textarea')?.focus({preventScroll:true});}}});
   const planProgress = (${CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT})({api,current:()=>current,status,refresh:()=>readCurrent(),openStep:(runId,stepId)=>stepReports.open(current,runId,stepId)});
   const taskboard = (${CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT})({directory,current:()=>current,status,navigate:async(id,target)=>{
     const record=state.sessions.find(item=>item.session_id===id);if(!record)throw new Error('原会话暂不可读，请刷新后重试。');
@@ -689,10 +694,13 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(laterOnSameGraph)block.querySelector(':scope > .coding-plan-progress')?.remove();
       const planCard=laterOnSameGraph?null:planProgress.render(run,planEntry,run===runs.at(-1) && !terminal(run.phase));
       if(planCard){const at=ordered.findIndex(node=>node.dataset?.kind==='user');ordered.splice(at+1,0,planCard);}
+      // Children appear right after the step that sent them.
+      const children=subagentCards.render(run,subagentGroups.find(group=>group.run_id===run.ref.run_id));
+      if(children){const at=ordered.map(node=>Boolean(node.classList?.contains('coding-activity') && node.querySelector('[data-kind="dispatch-subagent"]'))).lastIndexOf(true);ordered.splice(at>=0?at+1:ordered.length,0,children);}
       // While the model is still writing its latest reply, a caret marks the end of that text — and only that text.
       const writing=run===runs.at(-1) && ['starting','running'].includes(run.phase) && groups.at(-1)?.kind==='turn' && groups.at(-1).value.kind==='assistant';
       ordered.forEach((node,at)=>{if(node.classList?.contains('coding-turn'))node.classList.toggle('is-writing',writing && at===ordered.length-1);});
-      for(const detail of block.querySelectorAll('[data-coding-activity]')) if(!ordered.includes(detail)) detail.remove();
+      for(const detail of block.querySelectorAll(':scope > [data-coding-activity]')) if(!ordered.includes(detail)) detail.remove();
       // Insert only missing/misplaced entries: polling keeps open tools and a
       // focused question form intact. Live and replay use the same ordering.
       let cursor=block.firstElementChild;
@@ -837,7 +845,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         questionDrafts.set(id,saved && typeof saved==='object' && !Array.isArray(saved) ? saved : data.question_drafts || {});
       }
       if(fresh) { input.value=localDraft(id) ?? data.draft ?? ''; rememberDraft(id,input.value); q('[data-coding-draft-status]').textContent='草稿已恢复；模型与方式用于下一轮。'; turns.replaceChildren(); pinned=!offsets.has(id); }
-      runtimeSessionId=data.session.runtime_session_id;planEntries=data.taskboard_plans || [];renderRuns(data.runs);
+      runtimeSessionId=data.session.runtime_session_id;planEntries=data.taskboard_plans || [];subagentGroups=data.subagents || [];renderRuns(data.runs);
       plans.update(id,data.plan ?? null,data.runs);
       subagents.update(id,data.subagents ?? []);
       taskboard.update(id,data);

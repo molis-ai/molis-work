@@ -59,6 +59,7 @@ export const AGENT_REVIEW_STYLES = `
 .agent-review-doc dl { display:grid; grid-template-columns:max-content minmax(0,1fr); gap:2px 12px; margin:6px 0 0; }
 .agent-review-doc dt { color:var(--muted); }
 .agent-review-doc dd { margin:0; }
+.agent-review-fields dd { white-space:pre-wrap; max-height:220px; overflow:auto; }
 .agent-review-target { color:var(--ink); }
 .agent-review-meta { color:var(--muted); margin:4px 0 0; }
 .agent-review-command { white-space:pre-wrap !important; word-break:break-word; font:12px/1.6 var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); color:var(--ink); }
@@ -191,7 +192,9 @@ function renderRow(row: AgentReviewRow, p: AgentReviewPrimitives): string {
     : document.kind === "command" && readable(document) ? [document.command, ...document.args].map(shellWord).join(" ")
     : document.kind === "git-index" ? (document.action === "stage" ? "暂存文件" : "取消暂存")
     : document.kind === "git-integration" ? "整合子任务成果"
-    : document.kind === "rewind" ? "文件回退" : row.request.kind === "command" ? "命令执行" : "工具操作";
+    : document.kind === "rewind" ? "文件回退" : row.request.kind === "command" ? "命令执行"
+    : document.kind === "tool-operation" && document.tool === "dispatch-subagent" ? "派出子任务" + (document.fields.find(field => field.label === "子任务角色") ? "：" + document.fields.find(field => field.label === "子任务角色")!.value : "")
+    : document.kind === "tool-operation" && document.tool === "steer-subagent" ? "给子任务补充要求" : "工具操作";
   const labelClass = document.kind === "command" || document.kind === "text-edit" ? "agent-review-title agent-review-title--code" : "agent-review-title";
   return `<article class="agent-review-row" data-agent-review-item="${p.escape(row.request.review_id)}" data-agent-review-phase="${phase}">
     ${history ? '<details data-review-detail="history"><summary>' : ""}<header class="agent-review-head">
@@ -281,7 +284,11 @@ function renderDocument(document: AgentReviewDocument, p: AgentReviewPrimitives)
           <dt>${p.escape("执行范围")}</dt><dd>${p.escape(document.escalate === undefined ? "运行时未提供" : document.escalate ? "请求在沙箱外执行；批准仅适用于这一次操作" : "按本轮宿主执行边界运行")}</dd>
         </dl></details>
       </div>`;
-    case "tool-operation": return `<div class="agent-review-doc" data-agent-review-kind="tool-operation"><p>${p.escape(document.tool)}</p><p>${p.escape(document.summary)}</p><dl>${document.fields.map(field => `<dt>${p.escape(field.label)}</dt><dd>${p.escape(field.value)}</dd>`).join("")}</dl></div>`;
+    case "tool-operation": {
+      // Exact arguments stay reviewable, folded under the readable fields rather than in front of them.
+      const exact = document.fields.filter(field => field.label === "本次完整参数"), readable = document.fields.filter(field => field.label !== "本次完整参数");
+      return `<div class="agent-review-doc" data-agent-review-kind="tool-operation"><p class="agent-review-meta">${p.escape(document.summary)}</p>${readable.length ? `<dl class="agent-review-fields">${readable.map(field => `<dt>${p.escape(field.label)}</dt><dd>${p.escape(field.value)}</dd>`).join("")}</dl>` : ""}${exact.map(field => `<details class="agent-review-bounds" data-review-detail="arguments"><summary>${p.escape("完整参数")}</summary><pre>${p.escape(field.value)}</pre></details>`).join("")}</div>`;
+    }
     case "mcp": return `<div class="agent-review-doc" data-agent-review-kind="mcp"><p>${p.escape(document.server + " · " + document.tool)}</p><pre>${p.escape(document.arguments_json)}</pre></div>`;
     case "rewind": return `<div class="agent-review-doc" data-agent-review-kind="rewind">
       <p>${p.escape("回到检查点记录的修改前 · " + document.checkpoint_id)}</p>

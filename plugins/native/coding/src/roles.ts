@@ -36,10 +36,12 @@ export type CodingRoleId = (typeof CODING_ROLE_IDS)[number];
 
 export const codingAgentManifest: AgentManifest = {
   characters: { selection: "optional-exact-artifact", scope: "project-owner", role_ids: ["reader", "planner", "reviewer", "writer", "builder"] },
+  // A child's Character tools must fit inside the tool list its parent passes at dispatch, so they are kept to what the
+  // child cannot work without: a parent that leaves out an optional tool must not make the whole dispatch fail.
   subagents: { parent_role_ids: ["coordinator", "writers"], roles: [
-    { role_id: "coding-reader", version: 2, name: "代码调查", parent_role_ids: ["coordinator"], execution: "read-only", host_tools: ["read-file", "search", "context-remaining"] },
-    { role_id: "coding-reviewer", version: 2, name: "独立评审", parent_role_ids: ["coordinator"], execution: "read-only", host_tools: ["read-file", "search", "context-remaining"] },
-    { role_id: "coding-builder", version: 4, name: "独立实现", parent_role_ids: ["writers"], execution: "workspace-write", host_tools: ["read-file", "search", "context-remaining", "write", "edit-file", "run-command"] },
+    { role_id: "coding-reader", version: 2, name: "代码调查", parent_role_ids: ["coordinator"], execution: "read-only", host_tools: ["read-file", "search"] },
+    { role_id: "coding-reviewer", version: 2, name: "独立评审", parent_role_ids: ["coordinator"], execution: "read-only", host_tools: ["read-file", "search"] },
+    { role_id: "coding-builder", version: 4, name: "独立实现", parent_role_ids: ["writers"], execution: "workspace-write", host_tools: ["read-file", "search", "write", "edit-file", "run-command"] },
   ] },
   mcp: true,
   compaction: { prompt_id: "coding-compaction", above_tokens: 12_000 },

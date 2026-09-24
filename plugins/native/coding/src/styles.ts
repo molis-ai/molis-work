@@ -533,4 +533,42 @@ export const CODING_STYLES = `
 .coding-plan-foot { margin:6px 0 0; font-size:11.5px; color:var(--faint); }
 @media (hover:none) { .coding-plan-tools { opacity:1; } }
 @container molis-coding (max-width:760px) { .coding-plan-tools { opacity:1; } .coding-plan-step { grid-template-columns:20px minmax(0,1fr) auto; } .coding-plan-tools { grid-column:2 / -1; } }
+
+/* Subagents under the step that sent them: one card each, with its own timeline, approvals and conclusion. */
+.coding-children { max-width:76ch; margin:-8px auto 20px; display:grid; grid-template-columns:minmax(0,1fr); gap:8px; }
+/* A long unwrapped preview must never widen a card past the reading column. */
+.coding-children > * { min-width:0; }
+.coding-child { min-width:0; overflow:hidden; }
+.coding-children-head { display:flex; align-items:center; gap:8px; margin:0; padding-left:2px; font-size:12px; color:var(--muted); }
+.coding-children-compare { all:unset; margin-left:auto; padding:2px 8px; border-radius:999px; font-size:11.5px; color:var(--muted); cursor:pointer; }
+.coding-children-compare:hover,.coding-children-compare[aria-pressed=true] { background:var(--nav-hover); color:var(--ink); }
+.coding-children-compare:focus-visible { outline:2px solid var(--focus,var(--blue)); }
+/* Side by side, the column widens past the reading measure so two agents' work sits next to each other. */
+.coding-children[data-layout=compare] { max-width:min(100%,1200px); grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); align-items:start; }
+.coding-children[data-layout=compare] > .coding-children-head { grid-column:1 / -1; }
+.coding-children[data-layout=compare] .coding-child-result > .coding-turn { max-height:420px; overflow:auto; }
+.coding-child { padding:10px 12px; border:1px solid var(--line); border-radius:12px; background:var(--paper); animation:coding-rise .18s ease-out; }
+.coding-child[data-state=running] { border-color:color-mix(in srgb,var(--blue) 35%,var(--line)); }
+.coding-child-head { display:flex; align-items:center; gap:8px; min-width:0; }
+.coding-child-mark { display:inline-flex; width:16px; justify-content:center; color:var(--faint); flex:none; }
+.coding-child-mark svg { width:14px; height:14px; }
+.coding-child[data-state=completed] .coding-child-mark { color:var(--green); }
+.coding-child[data-state=failed] .coding-child-mark { color:var(--red); }
+.coding-child-role { font-size:13px; font-weight:600; color:var(--ink); white-space:nowrap; }
+.coding-child-state { font-size:12px; color:var(--muted); white-space:nowrap; }
+.coding-child[data-state=running] .coding-child-state { color:var(--blue); }
+.coding-child-meta { margin-left:auto; font-size:11px; color:var(--faint); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.coding-child-task { margin:4px 0 2px 24px; font-size:12.5px; color:var(--ink-soft,var(--ink)); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.coding-child .coding-child-process { max-width:none; margin:4px 0 0 16px; }
+.coding-child-reviews { margin:6px 0 0 24px; }
+.coding-child-reviews[hidden] { display:none; }
+.coding-child-reviews .agent-review { padding:0; border:0; }
+.coding-child-result { margin:6px 0 0 24px; }
+.coding-child-result > summary { cursor:pointer; font-size:12px; color:var(--muted); width:fit-content; }
+.coding-child-result > .coding-turn { max-width:none; margin:6px 0 0; padding:10px 12px; border-left:2px solid var(--line); font-size:13px; }
+.coding-child-error { margin:6px 0 0 24px; font-size:12px; color:var(--red); }
+.coding-child-foot { display:flex; gap:6px; margin:8px 0 0 24px; }
+.coding-child-foot:empty { display:none; }
+.coding-child-foot .mw-btn { height:26px; min-height:26px; padding:0 10px; font-size:12px; border:1px solid var(--line); }
+.coding-child-result > summary { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; width:auto; max-width:100%; }
 `;

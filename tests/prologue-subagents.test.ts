@@ -31,7 +31,7 @@ test('packed SDK child dispatch uses Host review, frozen roles, actual reads and
     parentCalls++;
     if(parentCalls===1){
       const catalog=JSON.stringify(body.system);assert.doesNotMatch(catalog,/molis-child-[a-z0-9-]+@2@/);const character=catalog.match(/molis-child-[a-z0-9-]+@2/)?.[0];assert.ok(character,catalog);
-      return response('',{name:'dispatch-subagent',input:{instruction:'READ_CHILD_SAMPLE: read sample.txt and report exact contents; no writes.',tools:['read','search','context-remaining'],character,idempotencyKey:'read-child',maxTurns:3}});
+      return response('',{name:'dispatch-subagent',input:{instruction:'READ_CHILD_SAMPLE: read sample.txt and report exact contents; no writes.',tools:['read','search'] /* a parent may leave out optional tools; the child must still start */,character,idempotencyKey:'read-child',maxTurns:3}});
     }
     assert.ok(messages.includes('ACTUAL CHILD FILE'),messages);
     if(parentCalls===2 || parentCalls===3){

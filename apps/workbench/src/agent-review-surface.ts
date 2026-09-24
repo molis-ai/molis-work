@@ -5,6 +5,7 @@ import type {
   AgentReviewStatus,
   AgentReviewRecoveryView,
 } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { compareTexts, textDiffRow, type TextDiffRow } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 
 /**
  * The Host's review surface: where a user decides whether an Agent's side
@@ -34,15 +35,39 @@ export interface AgentReviewSurfaceModel {
 
 export const AGENT_REVIEW_STYLES = `
 .agent-review { min-width:0; padding:12px; border-top:1px solid var(--line); }
-.agent-review-row { min-width:0; margin-bottom:20px; font-size:12px; line-height:1.6; }
-.agent-review-head { display:flex; flex-wrap:wrap; gap:4px 10px; color:var(--muted); }
+.agent-review-row { min-width:0; margin-bottom:14px; font-size:12px; line-height:1.6; }
+.agent-review-row[data-agent-review-phase=pending] { padding:12px 14px; border:1px solid var(--line); border-radius:10px; background:var(--paper, #fff); box-shadow:0 1px 2px rgb(0 0 0 / .04); }
+.agent-review-head { display:flex; flex-wrap:wrap; align-items:center; gap:4px 10px; color:var(--muted); }
 .agent-review-head svg { width:14px; height:14px; }
 .agent-review-row > details > summary { cursor:pointer; }
 .agent-review-row > details > summary .agent-review-head { display:inline-flex; vertical-align:top; }
 .agent-review-plugin { display:none; }
 .agent-review-doc { margin:10px 0; overflow-wrap:anywhere; }
 .agent-review-doc pre { max-height:360px; overflow:auto; white-space:pre; padding:8px; background:var(--rail); border-radius:var(--radius-control); font-size:12px; }
+.agent-review-doc details { margin-top:6px; }
+.agent-review-doc details > summary { cursor:pointer; color:var(--muted); font-size:12px; }
+.agent-review-doc dl { display:grid; grid-template-columns:max-content minmax(0,1fr); gap:2px 12px; margin:6px 0 0; }
+.agent-review-doc dt { color:var(--muted); }
+.agent-review-doc dd { margin:0; }
 .agent-review-target { color:var(--ink); }
+.agent-review-meta { color:var(--muted); margin:4px 0 0; }
+.agent-review-command { white-space:pre-wrap !important; word-break:break-word; font:12px/1.6 var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); color:var(--ink); }
+.agent-review-prompt { color:var(--muted); user-select:none; }
+.agent-review-file { display:flex; flex-wrap:wrap; align-items:baseline; gap:6px; margin:0; font:12px/1.6 var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); }
+.agent-review-tag { font-family:inherit; font-size:11px; padding:0 6px; border-radius:999px; background:var(--rail); color:var(--muted); }
+.agent-review-count[data-added] { color:var(--green, #1a7f37); }
+.agent-review-count[data-removed] { color:var(--red, #cf222e); }
+.agent-review-diff-wrap { margin-top:8px; max-height:420px; overflow:auto; border:1px solid var(--line); border-radius:8px; }
+.agent-review-diff { width:100%; border-collapse:collapse; font:12px/1.55 var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); }
+.agent-review-diff td { padding:0 8px; vertical-align:top; white-space:pre; }
+.agent-review-ln { width:1%; min-width:28px; text-align:right; color:var(--muted); user-select:none; opacity:.7; }
+.agent-review-code { width:100%; }
+.agent-review-sign { display:inline-block; width:1.2em; color:var(--muted); user-select:none; }
+.agent-review-diff tr[data-diff=insert] { background:color-mix(in srgb, var(--green, #1a7f37) 11%, transparent); }
+.agent-review-diff tr[data-diff=delete] { background:color-mix(in srgb, var(--red, #cf222e) 10%, transparent); }
+.agent-review-diff tr[data-diff=insert] .agent-review-sign { color:var(--green, #1a7f37); }
+.agent-review-diff tr[data-diff=delete] .agent-review-sign { color:var(--red, #cf222e); }
+.agent-review-gap td { color:var(--muted); background:var(--rail); text-align:center; font-family:inherit; padding:2px 8px; }
 .agent-review-actions { display:flex; justify-content:flex-end; flex-wrap:wrap; gap:8px; }
 .agent-review-feedback { margin-block:12px; }
 .agent-review-error { color:var(--ink); border-left:2px solid var(--muted); padding-left:8px; }
@@ -209,22 +234,27 @@ function renderDocument(document: AgentReviewDocument, p: AgentReviewPrimitives)
         <p>文件模式：${p.escape(file.before_mode ?? "不存在")} → ${p.escape(file.after_mode ?? "不存在")}</p>
         <details data-review-detail="${p.escape("before:" + file.path)}"><summary>审查时的暂存内容</summary><pre>${p.escape(file.before_text ?? "暂存区中不存在")}</pre></details>
         <p>操作后的暂存内容</p><pre>${p.escape(file.after_text === null ? "从暂存区移除，磁盘文件保留" : file.after_text || "（空文件）")}</pre></section>`).join("")}</div>`;
-    case "text-edit":
+    case "text-edit": {
+      const diff = renderTextDiff(document.before_text, document.after_text, p);
       return `<div class="agent-review-doc" data-agent-review-kind="text-edit">
-        <p class="agent-review-target">${p.escape(document.target_path)}${document.exists ? "" : ` · ${p.escape("新建文件")}`}</p>
-        ${document.workspace_path ? `<p class="agent-review-target">${p.escape(document.workspace_path)}</p>` : ""}
-        <details class="agent-review-before" data-review-detail="before"><summary>${p.escape("修改前")}</summary><pre>${p.escape(document.before_text ?? "文件尚不存在")}</pre></details>
-        <p>${p.escape("修改后")}</p>
-        <pre class="agent-review-after">${p.escape(document.after_text)}</pre>
+        <p class="agent-review-file"><span class="agent-review-target">${p.escape(document.target_path)}</span>${document.exists ? "" : `<span class="agent-review-tag">${p.escape("新建文件")}</span>`}<span class="agent-review-count" data-added>+${diff.added}</span><span class="agent-review-count" data-removed>−${diff.removed}</span></p>
+        ${document.workspace_path ? `<p class="agent-review-meta">${p.escape(document.workspace_path)}</p>` : ""}
+        ${diff.html}
+        <details class="agent-review-before" data-review-detail="before"><summary>${p.escape("修改前的完整内容")}</summary><pre>${p.escape(document.before_text ?? "文件尚不存在")}</pre></details>
+        <details class="agent-review-after-full" data-review-detail="after"><summary>${p.escape("修改后的完整内容")}</summary><pre class="agent-review-after">${p.escape(document.after_text)}</pre></details>
       </div>`;
+    }
     case "command":
       return `<div class="agent-review-doc" data-agent-review-kind="command">
-        ${document.workspace_path ? `<p>${p.escape("所属工作区：" + document.workspace_path)}</p>` : ""}
-        <p>${p.escape("程序")}</p><pre class="agent-review-command">${p.escape(document.command)}</pre>
-        <p>${p.escape("参数（逐项）")}</p><pre>${p.escape(JSON.stringify(document.args, null, 2))}</pre>
-        <p>${p.escape("工作目录：" + document.cwd)}</p><p>${p.escape("超时：" + document.timeout_ms + " ms")}</p>
-        <p>${p.escape("继承的环境变量名称：" + (document.env_allowlist?.join(", ") ?? "运行时未提供"))}</p>
-        <p>${p.escape(document.escalate === undefined ? "执行范围：运行时未提供" : document.escalate ? "请求在沙箱外执行；批准仅适用于这一次操作" : "按本轮宿主执行边界运行")}</p>
+        <pre class="agent-review-command"><span class="agent-review-prompt" aria-hidden="true">$</span> ${p.escape([document.command, ...document.args].map(shellWord).join(" "))}</pre>
+        <p class="agent-review-meta">${p.escape(`在 ${document.cwd === "." ? "工作区根目录" : document.cwd} 运行 · ${document.escalate === undefined ? "执行范围未提供" : document.escalate ? "请求在沙箱外执行" : "在宿主执行边界内"}`)}</p>
+        <details class="agent-review-bounds" data-review-detail="bounds"><summary>${p.escape("执行边界")}</summary><dl>
+          ${document.workspace_path ? `<dt>${p.escape("所属工作区")}</dt><dd>${p.escape(document.workspace_path)}</dd>` : ""}
+          <dt>${p.escape("工作目录")}</dt><dd>${p.escape(document.cwd)}</dd>
+          <dt>${p.escape("超时")}</dt><dd>${p.escape(document.timeout_ms + " ms")}</dd>
+          <dt>${p.escape("继承的环境变量")}</dt><dd>${p.escape(document.env_allowlist?.join(", ") ?? "运行时未提供")}</dd>
+          <dt>${p.escape("执行范围")}</dt><dd>${p.escape(document.escalate === undefined ? "运行时未提供" : document.escalate ? "请求在沙箱外执行；批准仅适用于这一次操作" : "按本轮宿主执行边界运行")}</dd>
+        </dl></details>
       </div>`;
     case "tool-operation": return `<div class="agent-review-doc" data-agent-review-kind="tool-operation"><p>${p.escape(document.tool)}</p><p>${p.escape(document.summary)}</p><dl>${document.fields.map(field => `<dt>${p.escape(field.label)}</dt><dd>${p.escape(field.value)}</dd>`).join("")}</dl></div>`;
     case "mcp": return `<div class="agent-review-doc" data-agent-review-kind="mcp"><p>${p.escape(document.server + " · " + document.tool)}</p><pre>${p.escape(document.arguments_json)}</pre></div>`;
@@ -239,4 +269,35 @@ function renderDocument(document: AgentReviewDocument, p: AgentReviewPrimitives)
       // a user must not approve something the surface refused to describe.
       return "";
   }
+}
+
+/** Shell-style display of one argv word; the review still passes argv verbatim, this is only how it reads. */
+function shellWord(word: string): string {
+  return word !== "" && /^[A-Za-z0-9_@%+=:,./-]+$/.test(word) ? word : `'${word.replace(/'/g, "'\\''")}'`;
+}
+
+const DIFF_CONTEXT = 3;
+const DIFF_ROW_LIMIT = 600;
+/** A unified diff with context, so a reviewer reads what changes instead of two whole files. */
+function renderTextDiff(before: string | null, after: string, p: AgentReviewPrimitives): { html: string; added: number; removed: number } {
+  const diff = compareTexts(before ?? "", after);
+  const rows = diff.ops.map(textDiffRow);
+  const added = rows.filter(row => row.kind === "insert").length, removed = rows.filter(row => row.kind === "delete").length;
+  if (diff.identical) return { html: `<p class="agent-review-meta">${p.escape("内容没有变化")}</p>`, added, removed };
+  const keep = new Array<boolean>(rows.length).fill(false);
+  rows.forEach((row, index) => { if (row.kind !== "equal") for (let near = Math.max(0, index - DIFF_CONTEXT); near <= Math.min(rows.length - 1, index + DIFF_CONTEXT); near += 1) keep[near] = true; });
+  const body: string[] = [];
+  let skipped = 0, shown = 0;
+  const gap = () => { if (skipped) body.push(`<tr class="agent-review-gap"><td colspan="3">${p.escape(`⋯ ${skipped} 行未变`)}</td></tr>`); skipped = 0; };
+  rows.forEach((row: TextDiffRow, index) => {
+    if (!keep[index]) { skipped += 1; return; }
+    gap();
+    if (shown++ >= DIFF_ROW_LIMIT) return;
+    const sign = row.kind === "insert" ? "+" : row.kind === "delete" ? "−" : " ";
+    body.push(`<tr data-diff="${row.kind}"><td class="agent-review-ln">${row.before_number ?? ""}</td><td class="agent-review-ln">${row.after_number ?? ""}</td><td class="agent-review-code"><span class="agent-review-sign" aria-hidden="true">${sign}</span>${p.escape(row.text)}</td></tr>`);
+  });
+  gap();
+  const more = shown > DIFF_ROW_LIMIT ? `<p class="agent-review-meta">${p.escape(`差异较长，已显示前 ${DIFF_ROW_LIMIT} 行；完整内容见下方`)}</p>` : "";
+  const coarse = diff.coarse ? `<p class="agent-review-meta">${p.escape("改动范围很大，差异按整段删除与新增显示")}</p>` : "";
+  return { html: `<div class="agent-review-diff-wrap"><table class="agent-review-diff" aria-label="${p.escape("修改差异")}"><tbody>${body.join("")}</tbody></table></div>${more}${coarse}`, added, removed };
 }

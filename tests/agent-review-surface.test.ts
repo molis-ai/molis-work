@@ -171,3 +171,21 @@ test('Git unknown results show a separate recovery entry, and content equality n
   const settled = renderAgentReviewSurface({ rows: [item], primitives: p });
   assert.match(settled, /已核对：原操作未发生/); assert.match(settled, /&lt;evidence&gt;/); assert.doesNotMatch(settled, /data-agent-review-inspect|已完成/);
 });
+
+test("a text edit reads as a unified diff with context and counts; a command reads as one shell line", () => {
+  const edit = row();
+  const before = Array.from({ length: 20 }, (_, index) => `line ${index + 1}`).join("\n") + "\n";
+  const after = before.replace("line 10\n", "line ten\n").replace("line 18\n", "");
+  edit.request.document = { kind: "text-edit", target_path: "src/app.ts", exists: true, before_text: before, after_text: after };
+  const html = renderAgentReviewSurface({ rows: [edit], primitives: p });
+  assert.match(html, /<span class="agent-review-count" data-added>\+1<\/span><span class="agent-review-count" data-removed>−2<\/span>/);
+  assert.match(html, /<tr data-diff="delete"><td class="agent-review-ln">10<\/td><td class="agent-review-ln"><\/td>/);
+  assert.match(html, /<tr data-diff="insert"><td class="agent-review-ln"><\/td><td class="agent-review-ln">10<\/td>/);
+  assert.match(html, /⋯ 6 行未变/, "unchanged lines far from a change collapse into one gap row");
+  assert.doesNotMatch(html, />line 1<\/td>/, "context is limited to three lines around each change");
+  const command = row();
+  command.request.document = { kind: "command", command: "node", args: ["--test", "a b.test.js", "it's"], cwd: ".", timeout_ms: 15000 };
+  const commandHtml = renderAgentReviewSurface({ rows: [command], primitives: p });
+  assert.match(commandHtml, /\$<\/span> node --test (&#39;|')a b\.test\.js(&#39;|') (&#39;|')it(&#39;|')\\(&#39;|')(&#39;|')s(&#39;|')</);
+  assert.match(commandHtml, /在 工作区根目录 运行/);
+});

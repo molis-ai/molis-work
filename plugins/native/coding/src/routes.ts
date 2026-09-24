@@ -20,6 +20,14 @@ import { confirmedPlan, parseCodingPlan, planFromRun, planMaterial, planReferenc
 import { CODING_PLAN_TYPE } from "./artifacts.js";
 import { writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 
+export const DEFAULT_SESSION_TITLE = "新编码会话";
+/** First meaningful line of a task, without Markdown decoration, short enough for a list row. */
+export function codingSessionTitleFrom(task: string): string {
+  const line = task.split("\n").map(value => value.replace(/^[#>*\-\s`]+/, "").replace(/[`*_]/g, "").trim()).find(Boolean) ?? DEFAULT_SESSION_TITLE;
+  const chars = Array.from(line);
+  return chars.length <= 36 ? line : `${chars.slice(0, 35).join("")}…`;
+}
+
 export interface CodingModelChoice { provider_id: string; model_id: string; label: string }
 export interface CodingExecutionPorts {
   characters?: CodingCharacterPorts;
@@ -363,7 +371,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
     route("coding.create-session", async (request, _api, execution) => {
       const body = bodyOf(request);
       const record = execution.sessions.create({ board_id: boardId, session_id: crypto.randomUUID(),
-        title: text(body.title ?? "新编码会话", "会话名称"), runtime_id: "prologue", at: new Date().toISOString() });
+        title: text(body.title ?? DEFAULT_SESSION_TITLE, "会话名称"), runtime_id: "prologue", at: new Date().toISOString() });
       return { session: record };
     }),
     route("coding.read-plan", async (request, _api, execution) => {
@@ -651,6 +659,8 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
           budget: { max_turns: Math.max(60, plan ? 8 + plan.content.steps.length * 3 : 0) },
           model_selection: { provider_id: model.provider_id, model_id: model.model_id }, skills: methodSelection(body.methods ?? []), mcp_tools: mcpSelection(body.mcp_tools ?? []), mcp_sources: mcpSources(body.mcp_sources ?? []) }]);
         if (!plan) context.services!.storage!.delete(`draft:${record.session_id}`);
+        // A session named by default takes its name from the first task, the way a person would label it.
+        if (!record.runtime_session_id && record.title === DEFAULT_SESSION_TITLE) execution.sessions.rename(boardId, record.session_id, codingSessionTitleFrom(task), new Date().toISOString());
         execution.sessions.setState(boardId, record.session_id, "running", new Date().toISOString());
         return { run };
       } finally { busy.delete(record.session_id); }

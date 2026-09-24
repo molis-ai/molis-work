@@ -42,7 +42,9 @@ export function onContentAppended(input: {
   position: ScrollPosition;
   pinned: boolean;
 }): StickDecision {
-  const follow = input.pinned && atBottom(input.position);
+  // Only the reader un-pins. Content that grew below the fold since the last paint (a card loading,
+  // a section opening) did not move the reader, so it must not stop the follow either.
+  const follow = input.pinned;
   return { follow, show_jump_to_latest: !follow };
 }
 

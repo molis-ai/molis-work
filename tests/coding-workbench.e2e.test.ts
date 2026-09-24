@@ -101,8 +101,9 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await waitFor(`!document.querySelector('${coding} [data-coding-task]').disabled`);
   await waitFor(`document.querySelector('${coding} [data-coding-prompt]')`);
   await capture("coding-welcome-desktop");
-  await click(`${coding} [data-coding-prompt]`);
+  await click(`${coding} [data-coding-prompt][data-coding-prompt-intent="discuss"]`);
   await waitFor(`document.querySelector('${coding} [data-coding-task]').value.includes('主要模块')`);
+  assert.equal(await evaluate(`document.querySelector('${coding} [data-coding-intent]').value`), "discuss", "a starter also picks the way the round runs");
   assert.equal(await evaluate(`document.querySelector('${coding} [data-coding-prompt]').disabled`), true, "examples never overwrite an existing draft");
   await fill(`${coding} [data-coding-task]`, "first session draft");
   await click(`${coding} [data-coding-new]`);
@@ -147,8 +148,13 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   const sendBottom = await evaluate<number>(`document.querySelector('${coding} [data-coding-send]').getBoundingClientRect().bottom`);
   assert.ok(sendBottom <= 780, "send remains reachable on a narrow screen");
   assert.equal(await evaluate(`document.querySelectorAll('${coding} .coding-composer-context .mw-btn svg').length`), 4, 'updating context labels preserves shared icons');
+  // Session settings and context sources live behind the composer's "+" so the bar stays about the task.
+  assert.equal(await evaluate(`document.querySelector('${coding} [data-coding-attach-menu]').hidden`), true);
+  await click(`${coding} [data-coding-attach-toggle]`);
   await click(`${coding} [data-coding-context-toggle]`);
+  assert.equal(await evaluate(`document.querySelector('${coding} [data-coding-attach-menu]').hidden`), true, "choosing an item closes the menu");
   assert.equal(await evaluate(`document.querySelector('${coding} [data-coding-rename]').getBoundingClientRect().height > 0`), true, 'compact session settings retain rename');
+  await click(`${coding} [data-coding-attach-toggle]`);
   await click(`${coding} [data-coding-context-toggle]`);
   await capture("coding-mobile");
   await click(`${coding} [data-coding-results-open]`);

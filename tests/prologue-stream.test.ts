@@ -359,3 +359,13 @@ test("整理请求计入同一小计但不覆盖主调用快照，旧记录与�
   assert.deepEqual(legacy.usage.compaction, { recorded_calls: 0, incomplete: true });
   assert.match(legacy.usage.unavailable_reason!, /尚未报告/);
 });
+
+test("a command activity names the whole argv, quoted where a shell would need it", () => {
+  const state = emptyPrologueStreamState();
+  apply(
+    state,
+    { type: "tool-call", call: { id: "cmd-1", name: "run-command", input: { executable: "npm", argv: ["test"] } } },
+    { type: "tool-call", call: { id: "cmd-2", name: "run-command", input: { executable: "node", argv: ["-e", "console.log('x y')"] } } },
+  );
+  assert.deepEqual(state.activity.map((entry) => entry.target), ["npm test", "node -e 'console.log('\\''x y'\\'')'"]);
+});

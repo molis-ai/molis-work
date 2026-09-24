@@ -127,6 +127,13 @@ export function prologuePhaseOf(state: PrologueControlState): AgentRunPhase {
 
 function target(input: Record<string, unknown> | undefined): string {
   if (!input) return "";
+  // A command is its whole argv: "npm test" says what ran, "npm" alone does not.
+  if (typeof input.executable === "string" && input.executable !== "") {
+    const words = [input.executable, ...(Array.isArray(input.argv) ? input.argv.map(String) : [])]
+      .map(word => word !== "" && /^[A-Za-z0-9_@%+=:,./-]+$/.test(word) ? word : `'${word.replace(/'/g, "'\\''")}'`);
+    const line = words.join(" ");
+    return line.length <= 200 ? line : `${line.slice(0, 200)}…`;
+  }
   for (const key of ["path", "file_path", "command", "pattern", "query"]) {
     const value = input[key];
     if (typeof value !== "string" || value === "") continue;

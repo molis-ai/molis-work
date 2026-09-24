@@ -25,6 +25,11 @@ test("人往上翻之后，新内容不抢滚动，而是给一个回到最新�
   assert.equal(decision.show_jump_to_latest, true);
 });
 
+test("钉住时，内容在上次绘制后变长到视口以下，也继续跟随", () => {
+  const grownBelowFold = { offset: 900, viewport: 100, content: 1400 };
+  assert.equal(onContentAppended({ position: grownBelowFold, pinned: true }).follow, true, "晚到的审查卡片不能让对话停在半截");
+});
+
 test("就算位置在底部，只要钉住被解除也不自动跟随", () => {
   const decision = onContentAppended({ position: bottom, pinned: false });
   assert.equal(decision.follow, false, "钉住只能由读者自己回到底部来恢复");

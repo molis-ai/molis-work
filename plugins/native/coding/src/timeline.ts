@@ -29,6 +29,7 @@ export interface TimelineRun {
   usage?: { tokens?: { input?: number; output?: number } };
   stop_reason?: string | null;
   step_board?: { terminal: boolean; nodes: Array<{ state: string }> };
+  turns?: Array<{ kind: string; text: string }>;
 }
 
 export function createCodingTimeline() {
@@ -195,8 +196,12 @@ export function createCodingTimeline() {
     const lastCommand = commands.at(-1), lastCode = lastCommand ? exitCode(lastCommand) : null;
     // A plan round is only done when its plan is: an ended round with steps left says so and offers to continue.
     const left = run.step_board && !run.step_board.terminal ? run.step_board.nodes.filter(node => !["succeeded", "cancelled"].includes(node.state)).length : 0;
-    const tone = run.phase === "completed" ? left ? "partial" : "done" : run.phase === "failed" || run.phase === "reconcile-required" ? "failed" : "stopped";
-    const title = { done: "这一轮完成", partial: `这一轮结束，计划还剩 ${left} 步`, failed: run.phase === "reconcile-required" ? "这一轮需要核对结果" : "这一轮没有完成", stopped: "这一轮已停止" }[tone];
+    // A round that ended on an announcement ("我先读……") without calling a single tool did nothing; it says so plainly
+    // and offers to go on, rather than reading as done. Going on is the person's click, never automatic.
+    const said = [...(run.turns ?? [])].reverse().find(turn => turn.kind === "assistant")?.text.trim() ?? "";
+    const stalled = latest && run.phase === "completed" && !run.activity.length && said.length < 160 && /^(好的[，,]?\s*)?(我先|我来|我会|让我|现在开始|接下来我|首先我)/.test(said);
+    const tone = run.phase === "completed" ? left || stalled ? "partial" : "done" : run.phase === "failed" || run.phase === "reconcile-required" ? "failed" : "stopped";
+    const title = { done: "这一轮完成", partial: stalled ? "这一轮只说了下一步就结束了" : `这一轮结束，计划还剩 ${left} 步`, failed: run.phase === "reconcile-required" ? "这一轮需要核对结果" : "这一轮没有完成", stopped: "这一轮已停止" }[tone];
     const facts = [
       duration(run.started_at, run.ended_at) && `用时 ${duration(run.started_at, run.ended_at)}`,
       edited.size ? `修改 ${edited.size} 个文件` : "没有修改文件",
@@ -214,12 +219,13 @@ export function createCodingTimeline() {
     const resume = !latest ? "" : run.phase === "reconcile-required"
       ? `<button class="mw-btn mw-btn--primary" type="button" data-coding-recover-continue="${escape(run.ref.run_id)}">${svg("play")}核对并继续</button>`
       : ["failed", "stopped", "cancelled"].includes(run.phase) || left
-        ? `<button class="mw-btn mw-btn--primary" type="button" data-coding-continue="${escape(run.ref.run_id)}">${svg("play")}${left ? "继续计划" : "从断点继续"}</button>` : "";
+        ? `<button class="mw-btn mw-btn--primary" type="button" data-coding-continue="${escape(run.ref.run_id)}">${svg("play")}${left ? "继续计划" : "从断点继续"}</button>`
+      : stalled ? `<button class="mw-btn mw-btn--primary" type="button" data-coding-nudge="${escape(run.ref.run_id)}">${svg("play")}让它继续</button>` : "";
     const files = edited.size ? `<ul class="coding-run-files">${[...edited].slice(0, 8).map(path => `<li>${svg("edit")}<code>${escape(path)}</code></li>`).join("")}${edited.size > 8 ? `<li>另有 ${edited.size - 8} 个文件</li>` : ""}</ul>` : "";
     const html = `<div class="coding-run-card" data-tone="${tone}">
       <header><span class="coding-run-mark">${svg(tone === "done" ? "check" : tone === "failed" || tone === "partial" ? "circle-alert" : "clock")}</span><strong>${escape(title)}</strong><span class="coding-run-round">第 ${index + 1} 轮</span></header>
-      <p class="coding-run-facts">${facts.map(escape).join(" · ")}</p>${reason}${files}
-      <div class="coding-run-actions">${resume}${edited.size ? `<button class="mw-btn" type="button" data-coding-change-open="${escape(run.ref.run_id)}" data-coding-card-open>${svg("columns")}查看变更</button>` : ""}<button class="mw-btn mw-btn--ghost" type="button" data-coding-report-open="${escape(run.ref.run_id)}" data-coding-card-open>${svg("file")}执行报告</button></div>
+      <p class="coding-run-facts">${facts.map(escape).join(" · ")}</p>${stalled ? `<p class="coding-run-reason">模型说了要做什么，但没有调用任何工具就结束了，所以什么都还没做。</p>` : reason}${files}
+      <div class="coding-run-actions">${resume}${edited.size ? `<button class="mw-btn" type="button" data-coding-change-open="${escape(run.ref.run_id)}" data-coding-card-open>${svg("columns")}查看变更</button>` : ""}${edited.size && run.phase === "completed" ? `<button class="mw-btn mw-btn--ghost" type="button" data-coding-commit-round="${escape(run.ref.run_id)}">${svg("git-branch")}提交这些改动…</button>` : ""}<button class="mw-btn mw-btn--ghost" type="button" data-coding-report-open="${escape(run.ref.run_id)}" data-coding-card-open>${svg("file")}执行报告</button></div>
     </div>`;
     if (footer.dataset.html !== html) { footer.innerHTML = html; footer.dataset.html = html; footer.dataset.state = "ended"; }
   };

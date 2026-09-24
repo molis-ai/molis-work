@@ -95,7 +95,9 @@ export async function readWriterIntegration(selection: WriterIntegrationSelectio
       const index = (await git(parent.canonical_path, ["ls-files", "--stage", "-z", "--", name])).toString();
       const baseEntry = (await git(parent.canonical_path, ["ls-tree", "-z", tree.base_commit, "--", name])).toString().replace(/ blob ([a-f0-9]+)\t/, " $1 0\t");
       if (same(before, after)) throw new Error("主工作区已有相同内容，无需再次整合；这不证明旧操作曾经成功");
-      if (!same(before, base) || index !== baseEntry) {
+      // A staged edit is the person's work in progress: never merged into, never overwritten; they settle it first.
+      if (index !== baseEntry) throw new Error("主工作区的暂存区里这个文件已有改动，与子任务成果冲突；请先提交或取消暂存后再整合");
+      if (!same(before, base)) {
         // Both sides changed this path since the child started. Plain text gets a three-way merge a person can finish;
         // it is never selectable as-is, so the child's version can't silently overwrite the main workspace's change.
         if (before.text !== null && after.text !== null && before.mode === after.mode) {
@@ -104,7 +106,7 @@ export async function readWriterIntegration(selection: WriterIntegrationSelectio
           file.revision = fingerprint([tree, head, parentBranch, child.canonical_path, parent.canonical_path, segments, base, before, after, index, "three-way"]);
           throw new Error(merged.clean ? "主工作区在子任务开始后也改了这个文件；三方合并没有冲突，确认合并结果后可以整合" : `主工作区在子任务开始后也改了这个文件；三方合并有 ${merged.conflicts} 处冲突，请解决后再整合`);
         }
-        throw new Error("主工作区或暂存区的同一路径已偏离原基线，请先处理冲突");
+        throw new Error("主工作区的同一路径已偏离原基线（非文本或文件模式不同），请先处理冲突");
       }
       file.revision = fingerprint([tree, head, parentBranch, child.canonical_path, parent.canonical_path, segments, base, before, after, index]);
       file.selectable = true;

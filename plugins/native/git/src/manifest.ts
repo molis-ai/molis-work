@@ -13,7 +13,7 @@ import {
   WORKSPACE_REF_TYPE,
   readWorkspaceGitCapability,
   prepareGitIndexCapability,
-  readGitResultsCapability,
+  readGitResultsCapability, prepareGitOperationCapability, readGitOperationsCapability,
 } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { GIT_UI_CONTRIBUTION_ID } from "./ui.js";
 
@@ -44,7 +44,7 @@ export const gitManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: GIT_PLUGIN_ID,
-  version: "1.3.0",
+  version: "1.4.0",
   name: "Git",
   kind: "app",
   publisher: { publisher_id: "molis", signature: "official-git-binding" },
@@ -56,7 +56,8 @@ export const gitManifest: PluginManifest = {
   ],
   capabilities: {
     provides: [],
-    consumes: [projectsCapabilities.readWorkspace.capability_id, readWorkspaceGitCapability.capability_id, prepareGitIndexCapability.capability_id, readGitResultsCapability.capability_id],
+    consumes: [projectsCapabilities.readWorkspace.capability_id, readWorkspaceGitCapability.capability_id, prepareGitIndexCapability.capability_id, readGitResultsCapability.capability_id,
+      prepareGitOperationCapability.capability_id, readGitOperationsCapability.capability_id],
   },
   artifacts: {
     produces: [
@@ -117,6 +118,10 @@ export const gitManifest: PluginManifest = {
     { route_id: "git.state", method: "GET", path: "/state" },
     { route_id: "git.select-diff", method: "POST", path: "/diff" },
     { route_id: "git.prepare-index", method: "POST", path: "/prepare-index" },
+    { route_id: "git.summary", method: "GET", path: "/summary" },
+    { route_id: "git.pr-support", method: "GET", path: "/pr-support" },
+    { route_id: "git.operations", method: "GET", path: "/operations" },
+    { route_id: "git.prepare-operation", method: "POST", path: "/operations" },
   ],
   ui: {
     contributions: [GIT_UI_CONTRIBUTION_ID],

@@ -13,6 +13,30 @@ export const GIT_UI_CONTRIBUTION_ID = "io.molis.work.native.git.ui.v1";
 /** Composed beside Files; the existing directory/result shell remains the owner. */
 export function renderGitBrowserDirectory(): string {
   return `<section class="git-browser mw-dir" data-git-browser hidden><div class="mw-toolbar git-directory-toolbar"><span class="mw-dir__label">Git 改动</span><button class="mw-btn mw-btn--ghost" type="button" data-git-refresh><span class="mw-spinner" hidden></span>刷新</button></div>
+    <section class="git-sc" data-git-sc aria-label="提交与分支" hidden>
+      <div class="git-sc-branch"><strong data-git-branch></strong><span class="git-sc-sync" data-git-sync></span><button class="mw-btn mw-btn--ghost" type="button" data-git-branch-toggle aria-expanded="false">分支…</button></div>
+      <form class="git-sc-form" data-git-branch-form hidden>
+        <label class="mw-field"><span class="mw-field__label">切换到</span><select class="mw-select" data-git-branch-choice aria-label="切换到已有分支"></select></label>
+        <button class="mw-btn mw-btn--secondary" type="button" data-git-branch-switch>切换…</button>
+        <label class="mw-field"><span class="mw-field__label">新建分支</span><input class="mw-input" data-git-branch-name placeholder="例如 feature/checkin-count" autocomplete="off" spellcheck="false"></label>
+        <label class="mw-check-row"><input class="mw-check" type="checkbox" data-git-branch-checkout checked><span>建好后切换过去</span></label>
+        <button class="mw-btn mw-btn--secondary" type="button" data-git-branch-create>新建…</button>
+      </form>
+      <label class="mw-sr-only" for="git-commit-message">提交说明</label>
+      <textarea class="mw-textarea git-sc-message" id="git-commit-message" data-git-commit-message rows="3" placeholder="提交说明（第一行是标题）" spellcheck="false"></textarea>
+      <div class="git-sc-actions"><button class="mw-btn mw-btn--ghost" type="button" data-git-commit-draft>按暂存内容生成</button><button class="mw-btn mw-btn--primary" type="button" data-git-commit disabled>提交…</button></div>
+      <div class="git-sc-actions"><button class="mw-btn mw-btn--secondary" type="button" data-git-push disabled>推送…</button><button class="mw-btn mw-btn--ghost" type="button" data-git-pr-toggle aria-expanded="false">建 PR…</button></div>
+      <form class="git-sc-form" data-git-pr-form hidden>
+        <p class="git-sc-note" data-git-pr-support></p>
+        <label class="mw-field"><span class="mw-field__label">合并到</span><select class="mw-select" data-git-pr-base aria-label="PR 目标分支"></select></label>
+        <label class="mw-field"><span class="mw-field__label">标题</span><input class="mw-input" data-git-pr-title maxlength="256"></label>
+        <label class="mw-field"><span class="mw-field__label">描述</span><textarea class="mw-textarea" rows="4" data-git-pr-body></textarea></label>
+        <label class="mw-check-row"><input class="mw-check" type="checkbox" data-git-pr-draft><span>作为草稿</span></label>
+        <button class="mw-btn mw-btn--secondary" type="button" data-git-pr-create>建 PR…</button>
+      </form>
+      <p class="git-sc-note" data-git-sc-status role="status"></p>
+      <ol class="git-sc-log" data-git-operations aria-label="最近的 Git 操作"></ol>
+    </section>
     <button class="mw-btn mw-btn--ghost" type="button" data-git-history disabled>Git 操作记录</button>
     <button class="mw-btn mw-btn--ghost" type="button" data-git-reopen hidden>上次查看的固定差异</button>
     <p data-git-status role="status"></p><div class="mw-dir__list" data-git-list></div>
@@ -20,7 +44,7 @@ export function renderGitBrowserDirectory(): string {
 }
 export function renderGitBrowserResult(): string {
   return `<section class="git-results mw-frame" data-slot="frame" data-git-results hidden aria-label="Git 固定差异">
-    <header class="git-reader-head mw-frame__header"><button class="mw-btn mw-btn--ghost" type="button" data-git-close>返回执行结果</button><div class="mw-frame__heading"><h2 data-git-title>Git 差异</h2><p>固定差异</p></div></header><div class="mw-frame__panel">
+    <header class="git-reader-head mw-frame__header"><button class="mw-btn mw-btn--ghost" type="button" data-git-close>返回执行结果</button><div class="mw-frame__heading"><h2 data-git-title>Git 差异</h2><p data-git-kind>固定差异</p></div></header><div class="mw-frame__panel">
     <p data-git-scope></p><p data-git-notice role="status"></p>
     <button class="mw-btn mw-btn--secondary" type="button" data-git-index-action hidden></button>
     <section data-git-saved-results hidden aria-label="固定操作结果">

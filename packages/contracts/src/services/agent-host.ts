@@ -572,7 +572,7 @@ export interface AgentReviewRequest {
   /** Null for a manual operation; never fabricate an Agent Run. */
   run: AgentRunRef | null;
   operation?: { operation_id: string; session_id: string; kind: "checkpoint-rewind"; workspace_id?: never }
-    | { operation_id: string; workspace_id: string; kind: "git-index" | "git-worktree" | "git-integration"; session_id?: never };
+    | { operation_id: string; workspace_id: string; kind: "git-index" | "git-worktree" | "git-integration" | "git-operation"; session_id?: never };
   board_id: string;
   plugin_id: string;
   kind: AgentReviewKind;

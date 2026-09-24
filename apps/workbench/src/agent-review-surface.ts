@@ -16,6 +16,8 @@ import { compareTexts, textDiffRow, type TextDiffRow } from "@molis-ai/molis-wor
  * surface is the one place the decision exists.
  */
 
+const GIT_TOOL_TITLES: Record<string, string> = { "git-commit": "Git 提交", "git-branch-create": "新建分支", "git-branch-switch": "切换分支", "git-push": "推送", "git-pr-create": "建 PR" };
+
 export interface AgentReviewPrimitives {
   escape(value: unknown): string;
   icon(name: string): string;
@@ -194,7 +196,10 @@ function renderRow(row: AgentReviewRow, p: AgentReviewPrimitives): string {
     : document.kind === "git-integration" ? "整合子任务成果"
     : document.kind === "rewind" ? "文件回退" : row.request.kind === "command" ? "命令执行"
     : document.kind === "tool-operation" && document.tool === "dispatch-subagent" ? "派出子任务" + (document.fields.find(field => field.label === "子任务角色") ? "：" + document.fields.find(field => field.label === "子任务角色")!.value : "")
-    : document.kind === "tool-operation" && document.tool === "steer-subagent" ? "给子任务补充要求" : "工具操作";
+    : document.kind === "tool-operation" && document.tool === "steer-subagent" ? "给子任务补充要求"
+    // A Git operation is named by what it does, with its own summary (branch, remote, file count) beside it.
+    : document.kind === "tool-operation" && GIT_TOOL_TITLES[document.tool] ? GIT_TOOL_TITLES[document.tool] + "：" + document.summary
+    : document.kind === "tool-operation" && document.tool === "git-worktree-create" ? "创建独立工作树" : "工具操作";
   const labelClass = document.kind === "command" || document.kind === "text-edit" ? "agent-review-title agent-review-title--code" : "agent-review-title";
   return `<article class="agent-review-row" data-agent-review-item="${p.escape(row.request.review_id)}" data-agent-review-phase="${phase}">
     ${history ? '<details data-review-detail="history"><summary>' : ""}<header class="agent-review-head">

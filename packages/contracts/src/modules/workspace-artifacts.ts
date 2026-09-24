@@ -21,14 +21,67 @@ export const readWorkspaceFileCapability = {
 export type GitFileMode = "100644" | "100755";
 export type WorkspaceGitQuery = { workspace_id: string } & (
   | { kind: "status" }
+  /** Branch, upstream, remotes and what is staged: where committing, branching, pushing or a PR starts. */
+  | { kind: "summary" }
+  /** Whether a pull request can be opened from here (GitHub CLI installed and signed in). Reads only. */
+  | { kind: "pr-support" }
   | { kind: "diff"; path: readonly string[]; side: "index" | "worktree" }
 );
 export type WorkspaceGitResult =
   | { outcome: "status"; porcelain: string; head_commit: string | null }
+  | WorkspaceGitSummary
+  | { outcome: "pr-support"; tool: "ready" | "missing" | "unauthenticated" | "unsupported"; host: string | null; message: string }
   | { outcome: "diff"; path: readonly string[]; previous_path?: readonly string[]; side: "index" | "worktree";
       before_exists: boolean; after_exists: boolean; before: string; after: string;
       before_mode: GitFileMode | null; after_mode: GitFileMode | null; revision: string }
   | { outcome: "denied" | "not-a-repository" | "unavailable" | "changed" | "unsupported" | "binary" | "too-large" | "conflict" | "missing" | "error"; message: string };
+export interface WorkspaceGitSummary {
+  outcome: "summary";
+  /** Null on a detached HEAD. */
+  branch: string | null;
+  head_commit: string | null;
+  upstream: string | null;
+  ahead: number;
+  behind: number;
+  branches: readonly string[];
+  remotes: readonly { name: string; url: string }[];
+  staged: readonly { path: string; status: string }[];
+  /** Files changed but not staged, untracked ones included. */
+  unstaged: number;
+  conflicted: readonly string[];
+  merging: boolean;
+  /** HEAD, branch, upstream and staged content: an operation prepared against it is refused once it moves. */
+  revision: string;
+}
+
+/** One Git operation a person asks for; each goes through Host review and runs only as reviewed. */
+export type GitOperation =
+  | { action: "commit"; message: string }
+  | { action: "branch-create"; name: string; checkout: boolean }
+  | { action: "branch-switch"; name: string }
+  | { action: "push"; remote: string; set_upstream: boolean }
+  | { action: "pr-create"; base: string; title: string; body: string; draft: boolean };
+export const prepareGitOperationCapability = {
+  capability_id: "projects.workspace.git.operation.prepare.v1", version: 1, operation: "command",
+} as HostCapabilityDefinition<{ workspace_id: string; operation_id: string; revision: string; operation: GitOperation }, { review_id: string }>;
+/** What became of each Git operation in a workspace, from its Host review and what it produced. */
+export interface GitOperationRecord {
+  operation_id: string;
+  review_id: string;
+  tool: string;
+  summary: string;
+  outcome: "pending" | "running" | "succeeded" | "failed" | "denied" | "cancelled" | "expired" | "unknown";
+  /** What the operation produced (a commit, a push, a PR address), when it succeeded and this was recorded. */
+  detail?: string;
+  failure_reason?: string;
+  requested_at: string;
+  decided_by: string | null;
+  decided_at: string | null;
+}
+export const readGitOperationsCapability = {
+  capability_id: "projects.workspace.git.operations.v1", version: 1, operation: "query",
+} as HostCapabilityDefinition<{ workspace_id: string }, readonly GitOperationRecord[]>;
+
 export const readWorkspaceGitCapability = {
   capability_id: "projects.workspace.git.read.v1", version: 1, operation: "query",
 } as HostCapabilityDefinition<WorkspaceGitQuery, WorkspaceGitResult>;

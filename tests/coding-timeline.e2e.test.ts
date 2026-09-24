@@ -58,19 +58,23 @@ test("时间线在等审查时只让要审批的操作显示“等你批准”�
     const resume = await page.evaluate<Record<string, string>>(`(()=>{
       const timeline=(${createCodingTimeline.toString()})();
       const card=(run,latest)=>{const block=document.createElement('section');document.body.append(block);timeline.renderFooter(block,{ref:{run_id:run.id},started_at:null,ended_at:null,activity:[],...run},0,latest);
-        const b=block.querySelector('[data-coding-continue],[data-coding-recover-continue]');return (b?b.textContent.trim()+'|':'none|')+block.querySelector('.coding-run-reason')?.textContent.trim();};
+        const b=block.querySelector('[data-coding-continue],[data-coding-recover-continue],[data-coding-nudge]');return (b?b.textContent.trim()+'|':'none|')+block.querySelector('header strong')?.textContent.trim()+'|'+block.querySelector('.coding-run-reason')?.textContent.trim();};
       return {
         stopped:card({id:'a',phase:'stopped',stop_reason:'已停止'},true),
         older:card({id:'b',phase:'stopped',stop_reason:'已停止'},false),
         network:card({id:'c',phase:'failed',stop_reason:'MODEL_NETWORK_FAILED: fetch failed'},true),
         interrupted:card({id:'d',phase:'reconcile-required',stop_reason:'运行中断'},true),
         done:card({id:'e',phase:'completed'},true),
+        stalled:card({id:'f',phase:'completed',turns:[{kind:'user',text:'改 README'},{kind:'assistant',text:'我先读 README.md 确认小节位置。'}]},true),
+        answered:card({id:'g',phase:'completed',turns:[{kind:'user',text:'解释一下'},{kind:'assistant',text:'这个函数统计区间内的打卡次数。'}]},true),
       };
     })()`);
     assert.match(resume.stopped, /^从断点继续\|/, "最新一轮停下后可一键继续");
     assert.match(resume.older, /^none\|/, "更早的轮次不提供继续，避免从旧断点重来");
-    assert.match(resume.network, /^从断点继续\|连不上模型服务：检查网络或代理后，从断点继续即可。\s*MODEL_NETWORK_FAILED/, "失败原因翻成人话，原始错误码仍保留");
+    assert.match(resume.network, /^从断点继续\|这一轮没有完成\|连不上模型服务：检查网络或代理后，从断点继续即可。\s*MODEL_NETWORK_FAILED/, "失败原因翻成人话，原始错误码仍保留");
     assert.match(resume.interrupted, /^核对并继续\|/, "中断的轮次先核对再继续");
     assert.match(resume.done, /^none/, "完成的轮次没有继续按钮");
+    assert.match(resume.stalled, /^让它继续\|这一轮只说了下一步就结束了\|模型说了要做什么，但没有调用任何工具就结束了/, "只宣布下一步就结束的一轮不算完成，由你一键让它继续");
+    assert.match(resume.answered, /^none\|这一轮完成/, "直接作答的讨论不被误判");
   } finally { await browser.close(); rmSync(directory, { recursive: true, force: true }); }
 });

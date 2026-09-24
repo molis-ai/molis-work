@@ -1104,6 +1104,35 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(target.matches('[data-coding-mcp-close]'))q('[data-coding-mcp-dialog]').close();
       if(target.matches('[data-coding-material-open]')) await openMaterials();
       if(target.matches('[data-coding-delegate-open]')) await cooperationUi.openDialog();
+      // A round that only announced its next step goes on when the person asks, with the same way of working.
+      if(target.matches('[data-coding-nudge]') && !sending) {
+        const run=allRuns.find(item=>item.ref.run_id===target.dataset.codingNudge);if(!run || run.light)return;
+        const said=[...run.turns].reverse().find(turn=>turn.kind==='assistant')?.text.trim() || '',asked=ownTask(run.turns.find(turn=>turn.kind==='user')?.text || '');
+        const intent={builder:'execute',writer:'edit',reader:'discuss',reviewer:'review',planner:'plan',coordinator:'collaborate'}[run.frozen.role_id] || q('[data-coding-intent]').value;
+        const id=current,modelValue=q('[data-coding-model]').value;sending=true;controls();
+        try{await startRound(id,'上一轮你说「'+said+'」之后就结束了，没有调用任何工具，所以还什么都没做。请直接调用工具执行下一步，完成原任务：\\n'+asked,intent,modelValue,currentSelection(id));status('已请它接着做；新的写入和命令仍需你审查。');pinned=true;await refreshState();await readCurrent();}
+        catch(error){status(error.message,true);}finally{sending=false;controls();}
+      }
+      // Committing a round's changes happens in Git, under Host review; the round only drafts the message.
+      if(target.matches('[data-coding-commit-round]')) {
+        const run=allRuns.find(item=>item.ref.run_id===target.dataset.codingCommitRound);if(!run || run.light)return;
+        // The person's own request titles the commit, unwrapped from a "let it continue" or a continuation the product composed.
+        let request=ownTask(run.turns.find(turn=>turn.kind==='user')?.text || '');
+        const handed=request.indexOf('完成原任务：\\n');if(request.startsWith('上一轮你说「') && handed>=0)request=request.slice(handed+'完成原任务：\\n'.length);
+        if(request.startsWith(CONTINUATION_MARKER)){const from=request.indexOf('原任务：\\n'),to=request.indexOf('\\n\\n宿主核实的事实');if(from>=0)request=request.slice(from+'原任务：\\n'.length,to>from?to:undefined);}
+        const asked=request.trim().split('\\n')[0].replace(/^#+\\s*/,'');
+        const answer=[...run.turns].reverse().find(turn=>turn.kind==='assistant')?.text || '';
+        const points=answer.split('\\n').map(line=>line.replace(/^[#>*\\-\\s\\d.、]+/,'').replace(/[*\x60]/g,'').trim()).filter(line=>line.length>4).slice(0,5);
+        const files=[...new Set(run.activity.filter(item=>['edit','write'].includes(item.name) && item.state==='completed' && item.target).map(item=>item.target))];
+        const title=asked.length>72?asked.slice(0,70)+'…':asked;
+        const draft=[title,'',...points.map(point=>'- '+point),'','改动文件：',...files.map(file=>'- '+file)].join('\\n').trim();
+        // The Git view works on the workspace chosen for Files; point it at the round's own directory first.
+        const own=(state.workspaces || []).find(item=>item.canonical_path===run.frozen.directory?.canonical_path)?.workspace_id || workspaceId;
+        try{sessionStorage.setItem('molis-commit-draft:'+own,draft);}catch{}
+        try{await fetch((document.body.dataset.routePrefix || '')+'/api/plugins/io.molis.work.workspace/select',{method:'POST',headers:molisWorkControlHeaders(),body:JSON.stringify({workspace_id:own})});}catch{}
+        directory.querySelector('[data-coding-face=files]')?.click();
+        status('提交说明已放进 Git 面板：先暂存这些文件，确认说明后再提交，每一步都经过宿主审查。');
+      }
       if(target.matches('[data-coding-material-close]')) {materialTicket++;q('[data-coding-material-dialog]').close();input.focus();}
       if(target.matches('[data-coding-method-open]')) openMethods();
       if(target.matches('[data-coding-method-close]')) {methodDocumentTicket++;q('[data-coding-method-dialog]').close();input.focus();}

@@ -72,8 +72,9 @@ export const codingUiDescriptor: UiContributionDescriptor = {
 /** How a session's state reads. Status is an icon plus family-coloured text, never a pill. */
 const STATE_MARK: Record<CodingSessionState, { icon: string; tone: string; label: string }> = {
   "idle": { icon: "message", tone: "idle", label: "尚未执行" },
-  "running": { icon: "loader", tone: "progress", label: "执行中" },
-  "waiting-answer": { icon: "help-circle", tone: "attention", label: "等你回答" },
+  "running": { icon: "activity", tone: "progress", label: "执行中" },
+  "paused": { icon: "pause", tone: "attention", label: "已暂停" },
+  "waiting-answer": { icon: "question", tone: "attention", label: "等你回答" },
   "waiting-approval": { icon: "circle-alert", tone: "attention", label: "等你审查" },
   "failed": { icon: "alert", tone: "blocked", label: "失败待处理" },
   "stopped": { icon: "blocked", tone: "idle", label: "你停下的" },
@@ -269,7 +270,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
                   ${renderButton({label:"工作区与目标",icon:"tune",variant:"ghost",attrs:{"data-coding-context-toggle":"","aria-expanded":false,title:"工作区与目标",role:"menuitem"}})}</div></div>
                 <select class="mw-select" data-coding-intent aria-label="任务方式"><option value="discuss">讨论</option><option value="plan">规划</option><option value="collaborate">只读协作</option><option value="parallel" disabled>并行写入</option><option value="edit" disabled>修改文件（待接通审批）</option><option value="execute" disabled>执行（待接通审批）</option><option value="review">评审</option></select>
                 <select class="mw-select" data-coding-model aria-label="下一轮使用的模型"></select>
-                <button class="mw-btn mw-btn--danger-outline" type="button" data-coding-stop title="停止这一轮（Esc）" aria-keyshortcuts="Escape" hidden>停止</button>
+                <button class="mw-btn mw-btn--ghost" type="button" data-coding-pause title="当前这一步做完后暂停，可随时恢复" hidden>暂停</button><button class="mw-btn mw-btn--danger-outline" type="button" data-coding-stop title="停止这一轮（Esc）" aria-keyshortcuts="Escape" hidden>停止</button>
               </div>
               <button class="mw-btn mw-btn--primary" type="submit" data-coding-send disabled>发送</button>
             </div>

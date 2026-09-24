@@ -141,22 +141,42 @@ export function createCodingTimeline() {
     const seconds = Math.max(0, Math.round(((to ? Date.parse(to) : Date.now()) - Date.parse(from)) / 1000));
     return seconds < 60 ? `${seconds} 秒` : `${Math.floor(seconds / 60)} 分 ${seconds % 60} 秒`;
   };
+  /**
+   * A failure explained in the user's words, with what to do next. The original code stays visible so the
+   * explanation never replaces the fact it explains.
+   */
+  const FAILURES: Array<[RegExp, string, string]> = [
+    [/MODEL_NETWORK_FAILED|NETWORK_|ENOTFOUND|ECONN|ETIMEDOUT|DNS/i, "连不上模型服务", "检查网络或代理后，从断点继续即可。"],
+    [/TIMEOUT|超时/i, "请求超时", "稍后从断点继续；若反复超时，把任务拆小一些。"],
+    [/CREDENTIAL_/i, "模型凭据不可用或已过期", "到模型设置里重新检查凭据，再从断点继续。"],
+    [/MODEL_HTTP_ERROR.*(429|rate)|rate.?limit/i, "模型服务限流", "等一会儿再从断点继续。"],
+    [/MODEL_HTTP_ERROR|MODEL_NOT_FOUND|MODEL_PROTOCOL_UNSUPPORTED|MODEL_PARAM_UNSUPPORTED/i, "模型服务返回错误", "检查模型设置（地址、型号、协议）后再继续。"],
+    [/MODEL_CONTEXT_OVERFLOW|MODEL_REQUEST_TOO_LARGE|CONTEXT_BUDGET_EXCEEDED/i, "上下文超出模型上限", "从断点继续时会带上整理后的事实；也可以把任务拆小。"],
+    [/CONTEXT_COMPACTION_INVALID/i, "上下文整理失败", "已完成的操作都保留着，从断点继续即可。"],
+    [/AGENT_BUDGET_EXCEEDED|MODEL_BUDGET_EXCEEDED|RESOURCE_LIMIT_EXCEEDED/i, "达到这一轮的执行上限", "确认进度后从断点继续，会开启新的一轮额度。"],
+    [/MODEL_RESPONSE_INVALID|MODEL_STRUCTURED_INVALID|MODEL_TOOL_NOT_DECLARED/i, "模型的回复格式不对", "通常是偶发的，从断点继续即可。"],
+    [/MODEL_REFUSED/i, "模型拒绝了这个请求", "换个说法或补充背景后再发。"],
+  ];
+  const explainFailure = (reason: string) => {
+    const match = FAILURES.find(([pattern]) => pattern.test(reason));
+    return match ? { title: match[1], hint: match[2] } : null;
+  };
   const LIVE_TEXT: Record<string, string> = {
-    starting: "正在准备", running: "正在工作", compacting: "正在整理上下文", pausing: "正在暂停", paused: "已暂停",
+    starting: "正在准备", running: "正在工作", compacting: "正在整理上下文", pausing: "正在暂停：这一步做完后停下", paused: "已暂停，可随时恢复",
     "awaiting-input": "等你回答上面的问题", "awaiting-review": "等你决定上面这一步",
   };
   /** The live line at the bottom of an active round, or the closing card of a finished one. */
-  const renderFooter = (block: Element, run: TimelineRun, index: number) => {
+  const renderFooter = (block: Element, run: TimelineRun, index: number, latest = false) => {
     let footer = block.querySelector(":scope > .coding-run-footer") as Element | null;
     if (!footer) { footer = document.createElement("div"); footer.className = "coding-run-footer"; }
     // Re-inserting a node restarts its entrance animation, so it only moves when something follows it.
     if (block.lastElementChild !== footer) block.append(footer);
     const ended = TERMINAL.includes(run.phase);
     if (!ended) {
-      footer.dataset.state = run.phase === "awaiting-review" || run.phase === "awaiting-input" ? "waiting" : "live";
+      footer.dataset.state = ["awaiting-review", "awaiting-input", "paused"].includes(run.phase) ? "waiting" : "live";
       footer.dataset.started = run.started_at ?? "";
       const text = LIVE_TEXT[run.phase] ?? "正在工作";
-      const html = `<div class="coding-live">${footer.dataset.state === "waiting" ? svg("waiting") : '<span class="coding-pulse" aria-hidden="true"></span>'}<span class="coding-live-text">${escape(text)}</span><span class="coding-live-time" data-coding-elapsed>${escape(duration(run.started_at))}</span></div>`;
+      const html = `<div class="coding-live">${footer.dataset.state === "waiting" ? svg(run.phase === "paused" ? "pause" : "waiting") : '<span class="coding-pulse" aria-hidden="true"></span>'}<span class="coding-live-text">${escape(text)}</span><span class="coding-live-time" data-coding-elapsed>${escape(duration(run.started_at))}</span></div>`;
       if (footer.dataset.html !== text + footer.dataset.state) { footer.innerHTML = html; footer.dataset.html = text + footer.dataset.state; }
       return;
     }
@@ -173,12 +193,20 @@ export function createCodingTimeline() {
     ].filter(Boolean);
     // A reason that only restates the title ("已停止" under "这一轮已停止") adds nothing.
     const stated = (run.stop_reason ?? "").trim(), restates = stated !== "" && title.includes(stated.replace(/^已/, ""));
-    const reason = tone !== "done" && stated && !restates ? `<p class="coding-run-reason">${escape(stated)}</p>` : "";
+    const explained = run.phase === "failed" && stated ? explainFailure(stated) : null;
+    const reason = tone !== "done" && stated && !restates
+      ? explained ? `<p class="coding-run-reason"><strong>${escape(explained.title)}</strong>：${escape(explained.hint)}<br><small>${escape(stated)}</small></p>` : `<p class="coding-run-reason">${escape(stated)}</p>`
+      : "";
+    // Only the newest unfinished round can be picked up again; an interrupted one is checked first.
+    const resume = !latest ? "" : run.phase === "reconcile-required"
+      ? `<button class="mw-btn mw-btn--primary" type="button" data-coding-recover-continue="${escape(run.ref.run_id)}">${svg("play")}核对并继续</button>`
+      : ["failed", "stopped", "cancelled"].includes(run.phase)
+        ? `<button class="mw-btn mw-btn--primary" type="button" data-coding-continue="${escape(run.ref.run_id)}">${svg("play")}从断点继续</button>` : "";
     const files = edited.size ? `<ul class="coding-run-files">${[...edited].slice(0, 8).map(path => `<li>${svg("edit")}<code>${escape(path)}</code></li>`).join("")}${edited.size > 8 ? `<li>另有 ${edited.size - 8} 个文件</li>` : ""}</ul>` : "";
     const html = `<div class="coding-run-card" data-tone="${tone}">
       <header><span class="coding-run-mark">${svg(tone === "done" ? "check" : tone === "failed" ? "circle-alert" : "clock")}</span><strong>${escape(title)}</strong><span class="coding-run-round">第 ${index + 1} 轮</span></header>
       <p class="coding-run-facts">${facts.map(escape).join(" · ")}</p>${reason}${files}
-      <div class="coding-run-actions">${edited.size ? `<button class="mw-btn" type="button" data-coding-change-open="${escape(run.ref.run_id)}" data-coding-card-open>${svg("columns")}查看变更</button>` : ""}<button class="mw-btn mw-btn--ghost" type="button" data-coding-report-open="${escape(run.ref.run_id)}" data-coding-card-open>${svg("file")}执行报告</button></div>
+      <div class="coding-run-actions">${resume}${edited.size ? `<button class="mw-btn" type="button" data-coding-change-open="${escape(run.ref.run_id)}" data-coding-card-open>${svg("columns")}查看变更</button>` : ""}<button class="mw-btn mw-btn--ghost" type="button" data-coding-report-open="${escape(run.ref.run_id)}" data-coding-card-open>${svg("file")}执行报告</button></div>
     </div>`;
     if (footer.dataset.html !== html) { footer.innerHTML = html; footer.dataset.html = html; footer.dataset.state = "ended"; }
   };

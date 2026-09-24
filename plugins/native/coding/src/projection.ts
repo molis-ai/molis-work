@@ -11,6 +11,8 @@ import type { AgentRuntimeCapabilityMatrix } from "@molis-ai/molis-work-contract
 export type CodingSessionState =
   | "idle"
   | "running"
+  /** Held by the person at a step boundary; resumes with its context intact. */
+  | "paused"
   | "waiting-answer"
   | "waiting-approval"
   | "failed"

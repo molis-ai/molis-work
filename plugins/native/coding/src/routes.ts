@@ -13,6 +13,7 @@ import { CODING_REPORT_TYPE } from "./artifacts.js";
 import { codingReportPreview, codingReportReference, createCodingExecutionReport, readCodingExecutionReport } from "./report.js";
 import { goalContextCapabilities, goalProgressCapabilities } from "@molis-ai/molis-work-contracts/modules/goals";
 import { currentGoalContext, savedGoalContext, saveGoalContext, resolveGoalContext, runGoalContext } from "./goal-context.js";
+import { codingContinuation } from "./continuation.js";
 import { codingChangeSetReference, codingChangeSetPreview, readCodingChangeSet, createCodingChangeSet, codingChangeFeedback } from "./changeset.js";
 import { CODING_CHANGESET_TYPE } from "./artifacts.js";
 import { characterSelection, characterTitle, savedCharacter, savedCharacterSkills, characterSkillSelection, type CodingCharacterPorts } from "./characters.js";
@@ -115,6 +116,7 @@ function sessionState(run: AgentRunView): CodingSessionState {
   if (run.phase === "completed") return "done";
   if (run.phase === "awaiting-input") return "waiting-answer";
   if (run.phase === "awaiting-review") return "waiting-approval";
+  if (run.phase === "paused") return "paused";
   if (["failed", "stopped", "cancelled", "reconcile-required"].includes(run.phase)) return run.phase as CodingSessionState;
   return "running";
 }
@@ -533,6 +535,24 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       const record = selected(request, execution);
       if (!record.runtime_session_id) throw new Error("这个会话尚无可核对的运行记录");
       return api!.invoke(agent.inspectRecovery, [{ runtime_id: record.runtime_id, session_id: record.runtime_session_id }]);
+    }),
+    route("coding.continuation", async (request, api, execution) => {
+      const record = selected(request, execution);
+      if (!record.runtime_session_id) throw new Error("这个会话尚未执行");
+      const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
+      const snapshot = await api!.invoke(agent.readSession, [session]);
+      if (snapshot.recovery || snapshot.checkpoint_busy) throw new Error("请先核对中断或回退结果，再从断点继续");
+      const index = snapshot.runs.findIndex(ref => ref.run_id === request.params.runId);
+      if (index < 0) throw new Error("这轮执行不属于当前会话");
+      if (index !== snapshot.runs.length - 1) throw new Error("只能从最新一轮继续");
+      const ref = snapshot.runs[index]!, run = await api!.invoke(agent.readRun, [session, ref]);
+      const reviews = await api!.invoke(agent.readRunReviews, [session, ref]);
+      // A receipt that cannot be read is reported as such, never skipped: the continuation must not overstate what ran.
+      const commands = await Promise.all((run.command_outputs ?? []).map(async command => {
+        try { return { call_id: command.call_id, output: await api!.invoke(agent.readCommandOutput, [session, { run_id: ref.run_id, call_id: command.call_id }]) }; }
+        catch { return { call_id: command.call_id, output: null }; }
+      }));
+      return codingContinuation({ number: index + 1, run, reviews, commands });
     }),
     route("coding.recover-run", async (request, api, execution) => {
       const record = selected(request, execution);

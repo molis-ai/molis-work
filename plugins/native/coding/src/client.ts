@@ -9,6 +9,7 @@ import { codingGoalVersionLabel } from "./goal-versions.js";
 import { CODING_CHANGESET_CLIENT_FACTORY_SCRIPT } from "./changeset-client.js";
 import { codingUsageSummary } from "./usage.js";
 import { atBottom, onContentAppended, onReaderScrolled, READER_INTENT_MS, STICK_THRESHOLD_PX } from "./reading.js";
+import { CONTINUATION_MARKER } from "./continuation.js";
 import { createCodingTimeline } from "./timeline.js";
 
 /** Host supplies navigation; this client only handles Coding's own surface. */
@@ -25,6 +26,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const atBottom = ${atBottom.toString()};
   const onContentAppended = ${onContentAppended.toString()};
   const onReaderScrolled = ${onReaderScrolled.toString()};
+  const CONTINUATION_MARKER = ${JSON.stringify(CONTINUATION_MARKER)};
   const READER_INTENT_MS = ${READER_INTENT_MS};
   const codingGoalVersionLabel = ${codingGoalVersionLabel.toString()};
   const codingUsageSummary = ${codingUsageSummary.toString()};
@@ -227,6 +229,10 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     q('[data-coding-send]').textContent = sending ? '正在提交…' : active ? '补充要求' : '发送';
     q('[data-coding-stop]').hidden = !active;
     q('[data-coding-stop]').disabled = sending;
+    // Pausing lets the current step finish; a paused round resumes with its context intact.
+    const pause=q('[data-coding-pause]'),paused=lastRun && ['paused','pausing'].includes(lastRun.phase),pausable=lastRun && ['starting','running','compacting'].includes(lastRun.phase);
+    pause.hidden=!(paused || pausable);pause.dataset.action=paused?'resume':'pause';
+    pause.textContent=lastRun?.phase==='pausing'?'正在暂停…':paused?'恢复':'暂停';pause.disabled=sending || lastRun?.phase==='pausing';
     q('[data-coding-intent]').disabled = Boolean(active || sending);
     q('[data-coding-model]').disabled = Boolean(active || sending);
     q('[data-coding-rename]').hidden = !current;
@@ -266,17 +272,20 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const renderDirectory = () => {
     const selectedFilter = directory.querySelector('[data-coding-filter][aria-pressed=true]')?.dataset.codingFilter || 'all';
+    // The filters double as the background-task overview: how many rounds are working and how many wait on you.
+    const counts={running:state.sessions.filter(session=>session.state==='running').length,'needs-you':state.sessions.filter(session=>session.checkpoint_busy || ['paused','waiting-answer','waiting-approval','failed','reconcile-required'].includes(session.state)).length};
+    directory.querySelectorAll('[data-coding-filter]').forEach(button=>{const count=counts[button.dataset.codingFilter];if(count===undefined)return;let badge=button.querySelector('.coding-filter-count');if(!badge){badge=document.createElement('span');badge.className='coding-filter-count';button.append(badge);}badge.textContent=count?String(count):'';badge.hidden=!count;});
     const needle = directory.querySelector('[data-coding-search]').value.trim().toLocaleLowerCase();
     const list = directory.querySelector('[data-coding-sessions]');
     // Replace the server's first paint once, then preserve live pointer targets.
     if (!directoryClaimed) { list.replaceChildren(); directoryClaimed=true; }
     const visible = state.sessions.filter((session) => session.title.toLocaleLowerCase().includes(needle)
-      && (selectedFilter === 'all' || selectedFilter === 'running' && session.state === 'running' || selectedFilter === 'needs-you' && (session.checkpoint_busy || ['waiting-answer','waiting-approval','failed','reconcile-required'].includes(session.state))));
+      && (selectedFilter === 'all' || selectedFilter === 'running' && session.state === 'running' || selectedFilter === 'needs-you' && (session.checkpoint_busy || ['paused','waiting-answer','waiting-approval','failed','reconcile-required'].includes(session.state))));
     const visibleIds=new Set(visible.map(session=>session.session_id));
     for(const [id,row] of directoryRows) if(!visibleIds.has(id)) {row.remove();directoryRows.delete(id);}
     list.querySelector('.mw-empty')?.remove();
     if (!visible.length) { const empty=document.createElement('div');empty.className='mw-empty';const label=document.createElement('p');label.textContent=needle ? '没有匹配的会话' : selectedFilter!=='all' ? '当前没有这类会话' : '还没有编码会话';empty.append(label);list.append(empty); return; }
-    const labels = { idle:'尚未执行', running:'执行中', 'waiting-answer':'等你回答', 'waiting-approval':'等你审查', failed:'失败待处理', stopped:'已停止', cancelled:'已取消', 'reconcile-required':'待核对结果', done:'本轮结束' };
+    const labels = { idle:'尚未执行', running:'执行中', paused:'已暂停', 'waiting-answer':'等你回答', 'waiting-approval':'等你审查', failed:'失败待处理', stopped:'已停止', cancelled:'已取消', 'reconcile-required':'待核对结果', done:'本轮结束' };
     for (const session of visible) {
       let row=directoryRows.get(session.session_id);
       if(!row) {
@@ -641,6 +650,14 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
           const renderKey=turn.text+'|'+(turn.steer?.state || '')+(run.frozen.role_id==='planner'?'|'+run.phase:'');
           if(renderedText.get(node)!==renderKey) {
             if(!plans.renderTurn(node,run,turn) && !writerDirectories.renderTurn(node,run,turn)){node.innerHTML=turn.html || ''; if(!turn.html) node.textContent=turn.text;}
+            // A continuation the Host composed reads as one line; the facts it handed the model stay one click away.
+            if(turn.kind==='user' && turn.text.startsWith(CONTINUATION_MARKER)){
+              const body=node.innerHTML,line=turn.text.slice(CONTINUATION_MARKER.length).split('\\n')[0].replace(/请从断点继续完成原任务。?$/,'').trim();
+              node.classList.add('is-continuation');node.innerHTML='';
+              const details=document.createElement('details'),summary=document.createElement('summary'),facts=document.createElement('div');
+              summary.innerHTML='<svg aria-hidden="true"><use href="#icon-play"></use></svg>';summary.append(document.createTextNode('从断点继续 · '+line));
+              facts.className='coding-continuation-facts';facts.innerHTML=body;details.append(summary,facts);node.append(details);
+            }
             if(turn.steer) {
               const receipt=document.createElement('small'); receipt.className='coding-turn-receipt';
               receipt.textContent=turn.steer.state==='applied'?'已加入后续模型上下文':turn.steer.state==='unconfirmed'?'已保存，未确认应用':'已收到，等待后续处理';
@@ -679,7 +696,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         if(!inline){inline=document.createElement('div');inline.className='coding-inline-review';inline.dataset.codingInlineReview='';}
         const footer=block.querySelector(':scope > .coding-run-footer');if(inline.nextElementSibling!==footer || inline.parentElement!==block)block.insertBefore(inline,footer);void Promise.resolve(host.showReviews?.(inline,[run.ref],runtimeSessionId)).then(()=>offerApproval(inline));
       } else inline?.remove();
-      timeline.renderFooter(block,run,runs.indexOf(run));
+      timeline.renderFooter(block,run,runs.indexOf(run),run===runs.at(-1) && (run.phase==='reconcile-required' || !recovery && !checkpointBusy));
     }
     renderCommands(runs);
     // One row per finished round: its changes and its report, newest first.
@@ -972,6 +989,13 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         else status('这个导航面尚未装配，现阶段可使用会话、目标关联和文件入口。');
       }
       if(target.matches('[data-coding-latest]')) { pinned=true;turns.scrollTop=turns.scrollHeight;target.hidden=true; }
+      if(target.matches('[data-coding-continue]')) { target.disabled=true; await continueRound(target.dataset.codingContinue); target.disabled=false; }
+      if(target.matches('[data-coding-recover-continue]')) { target.disabled=true; await recoverAndContinue(target.dataset.codingRecoverContinue); target.disabled=false; }
+      if(target.matches('[data-coding-pause]') && lastRun) {
+        const action=target.dataset.action==='resume'?'resume':'pause';target.disabled=true;
+        try { await api('/sessions/'+encodeURIComponent(current)+'/control','POST',{run_id:lastRun.ref.run_id,kind:action});status(action==='pause'?'暂停请求已收到：当前这一步做完后停下，已开始的操作不会中断。':'已恢复，这一轮从暂停处接着执行。');await readCurrent(); }
+        catch(error) { status(error.message,true); } finally { controls(); }
+      }
       if(target.matches('[data-coding-stop]') && lastRun) { target.disabled=true;await api('/sessions/'+encodeURIComponent(current)+'/control','POST',{run_id:lastRun.ref.run_id,kind:'stop'});status('停止请求已收到，正在确认执行结果。');await readCurrent(); }
       if(target.matches('[data-coding-rename]') && current) {
         const title=q('[data-coding-title]'); if(title.querySelector('input')) return;
@@ -1060,6 +1084,42 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   input.addEventListener('keydown',event=>{if(event.key!=='Escape' || event.isComposing || event.keyCode===229 || !attachMenu.hidden)return;const stop=q('[data-coding-stop]');if(stop.hidden || stop.disabled)return;event.preventDefault();stop.click();});
   input.addEventListener('input',()=>turns.querySelectorAll('[data-coding-prompt]').forEach(button=>{button.disabled=Boolean(input.value.trim());}));
   input.addEventListener('keydown' ,event=>{if(event.key==='Enter' && (event.metaKey || event.ctrlKey) && !event.isComposing){event.preventDefault();q('[data-coding-composer]').requestSubmit();}});
+  // One way to start a round, shared by the composer and by continuing from a breakpoint.
+  const startRound = async (id,task,intent,modelValue,selection) => {
+    const [provider_id,model_id]=JSON.parse(modelValue);
+    await api('/sessions/'+encodeURIComponent(id)+'/runs','POST',{task,intent,provider_id,model_id,workspace_id:selection.workspace_id,methods:selection.methods,mcp_tools:selection.mcp_tools,mcp_sources:selection.mcp_sources,materials:selection.materials,character:selection.character,character_skill_ids:characterSkills.get(id),...(intent==='parallel'?{writer_assignments:selection.writer_assignments}:{})});
+  };
+  const currentSelection = (id) => ({workspace_id:workspaceId,methods:structuredClone(methodSelections.get(id) || []),mcp_tools:structuredClone(mcpSelections.get(id) || []),mcp_sources:structuredClone(mcpSourceSelections.get(id) || []),materials:structuredClone(materialSelections.get(id) || []),character:structuredClone(characterSelections.get(id) ?? null),writer_assignments:[]});
+  // Continue an unfinished round: the Host states what already happened, the composer draft stays untouched.
+  const continueRound = async (runId) => {
+    if(sending || !current)return;
+    const id=current,modelValue=q('[data-coding-model]').value;sending=true;controls();
+    try {
+      if(!state.models.some(model=>JSON.stringify([model.provider_id,model.model_id])===modelValue))throw new Error('请先选择可用的模型');
+      const next=await api('/sessions/'+encodeURIComponent(id)+'/runs/'+encodeURIComponent(runId)+'/continuation');
+      if(current!==id)return;
+      await startRound(id,next.task,next.intent,modelValue,currentSelection(id));
+      status('已从断点继续：宿主核实的已发生操作已附在这一轮任务里，新的写入和命令仍需你审查。');
+      pinned=true;await refreshState();await readCurrent();
+    } catch(error) {if(current===id)status(error.message,true);}
+    finally {sending=false;controls();}
+  };
+  // An interrupted round is checked first; only a round whose outcomes are all known is closed and continued.
+  const recoverAndContinue = async (runId) => {
+    if(sending || !current)return;
+    const id=current;
+    try {
+      const report=await api('/sessions/'+encodeURIComponent(id)+'/recovery');
+      const entry=report.runs.find(run=>run.run_id===runId);
+      if(!entry || !entry.can_close || report.blockers.length) {
+        root.dataset.codingResults='true';recoveryKey='';void readRecovery();
+        status((report.blockers.length?report.blockers.join('；'):entry?.blockers?.join('；') || '这一轮还有结果未知的操作')+'。请在右侧核对后再继续。',true);return;
+      }
+      await api('/sessions/'+encodeURIComponent(id)+'/runs/'+encodeURIComponent(runId)+'/recover','POST',{expected_version:entry.version});
+      if(current!==id)return;
+      await continueRound(runId);
+    } catch(error) {if(current===id)status(error.message,true);}
+  };
   q('[data-coding-composer]').addEventListener('submit',async(event)=>{
     event.preventDefault();if(sending || recovery || checkpointBusy || !current || !input.value.trim()) return;
     const id=current,task=input.value,character=structuredClone(characterSelections.get(current) ?? null),materials=structuredClone(materialSelections.get(current) || []),mcp_sources=structuredClone(mcpSourceSelections.get(current) || []),mcp_tools=structuredClone(mcpSelections.get(current) || []),methods=structuredClone(methodSelections.get(current) || []),activeRun=lastRun,modelValue=q('[data-coding-model]').value,intent=q('[data-coding-intent]').value,workspace_id=workspaceId,writer_assignments=structuredClone(configurations.get(id)?.writer_assignments || []); sending=true;controls();
@@ -1068,10 +1128,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(activeRun && !terminal(activeRun.phase)) {
         await api('/sessions/'+encodeURIComponent(id)+'/control','POST',{kind:'steer',run_id:activeRun.ref.run_id,text:task});
         status('补充要求已交给执行引擎，等待后续处理。');
-      } else {
-        const [provider_id,model_id]=JSON.parse(modelValue);
-        await api('/sessions/'+encodeURIComponent(id)+'/runs','POST',{task,intent,provider_id,model_id,workspace_id,methods,mcp_tools,mcp_sources,materials,character,character_skill_ids:characterSkills.get(id),...(intent==='parallel'?{writer_assignments}:{})});
-      }
+      } else await startRound(id,task,intent,modelValue,{workspace_id,methods,mcp_tools,mcp_sources,materials,character,writer_assignments});
       if(current===id && input.value===task) input.value='';
       if(localDraft(id)===task) await saveDraft(id,''); await refreshState();await readCurrent();
     } catch(error) { status(error.message,true); }

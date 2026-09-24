@@ -95,6 +95,8 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await waitFor(`document.querySelector('${coding} [data-files-tree] [title="note.txt"]')`);
   await click(`${coding} [data-files-tree] [title="note.txt"]`);
   await waitFor(`!document.querySelector('${coding} [data-files-text]').hidden && document.querySelector('${coding} [data-files-text]').value.startsWith('second')`);
+  // Layout can settle a frame after the text arrives under a loaded suite; a reader that never shows still fails here.
+  await waitFor(`document.querySelector('${coding} [data-files-text]').getBoundingClientRect().width > 100`);
   assert.equal(await evaluate(`document.querySelector('${coding} [data-files-text]').getBoundingClientRect().width > 100`), true, "embedded file reads are visible before a Coding session exists");
   await click(`${coding} [data-coding-face="sessions"]`);
   await click(`${coding} [data-coding-new]`);

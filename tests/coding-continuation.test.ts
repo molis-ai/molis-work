@@ -1,0 +1,65 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { codingContinuation, originalTask, CONTINUATION_MARKER } from "@molis-ai/molis-work-plugin-coding";
+import type { AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
+
+const run = (over: Partial<AgentRunView> & { task?: string } = {}) => ({
+  ref: { session_id: "s", run_id: "r" }, phase: "stopped", stop_reason: "已停止",
+  frozen: { role_id: "builder" }, turns: [{ turn_id: "u1", kind: "user", text: over.task ?? "修好 streaks 的边界", at: null }],
+  activity: [
+    { call_id: "c1", name: "read", target: "src/streaks.ts", state: "completed", summary: "", at: null },
+    { call_id: "c2", name: "run-command", target: "npm test", state: "completed", summary: "", at: null },
+    { call_id: "c3", name: "edit", target: "test/streaks.test.ts", state: "started", summary: "", at: null },
+  ],
+  command_outputs: [{ call_id: "c2", run_id: "r" }], usage: { tokens: { input: 0, output: 0 } }, awaiting_input: [],
+  ...over,
+}) as unknown as AgentRunView;
+const review = (id: string, document: object, receipt: object | null) => ({ request: { review_id: id, document } as never, receipt: receipt as never });
+
+test("从断点继续：用宿主核实的事实说明写入、命令与未结束的操作，不让模型凭记忆推断", () => {
+  const next = codingContinuation({
+    number: 2, run: run(),
+    reviews: [
+      review("w1", { kind: "text-edit", target_path: "src/streaks.ts" }, { status: "approved", effect_settled: true }),
+      review("w2", { kind: "text-edit", target_path: "src/report.ts" }, { status: "rejected", effect_settled: false, note: "别改导出名" }),
+      review("w3", { kind: "text-edit", target_path: "src/habits.ts" }, { status: "approved", effect_settled: false, effect_uncertain: "回执丢失" }),
+      review("x1", { kind: "command", command: "npm", args: ["test"] }, { status: "approved", effect_settled: true }),
+      review("x2", { kind: "command", command: "rm", args: ["-rf", "dist"] }, { status: "rejected", effect_settled: false }),
+    ],
+    commands: [{ call_id: "c2", output: { ref: { call_id: "c2" }, command: "npm test", exit_code: 1, stdout: "", stderr: "", truncated: false } }],
+  });
+  assert.equal(next.intent, "execute", "沿用原轮次的方式");
+  assert.ok(next.task.startsWith(CONTINUATION_MARKER + "第 2 轮没有完成：你停止了这一轮"));
+  assert.match(next.task, /原任务：\n修好 streaks 的边界/);
+  assert.match(next.task, /已写入：src\/streaks\.ts/);
+  assert.match(next.task, /被拒绝，未写入：src\/report\.ts（意见：别改导出名）/);
+  assert.match(next.task, /结果未知，请先核对：src\/habits\.ts/);
+  assert.match(next.task, /已运行：npm test → exit 1/);
+  assert.equal(next.task.match(/npm test/g)?.length, 1, "运行过的命令只按回执说一次");
+  assert.match(next.task, /被拒绝，未运行：rm -rf dist/);
+  assert.match(next.task, /没有结束的操作（不要当作已完成）：\n- edit test\/streaks\.test\.ts/);
+  assert.match(next.task, /已读取的文件：\n- src\/streaks\.ts/);
+});
+
+test("继续的继续仍指回用户的原任务，不层层嵌套", () => {
+  const first = codingContinuation({ number: 1, run: run(), reviews: [], commands: [] });
+  const second = run({ task: first.task, phase: "failed", stop_reason: "MODEL_NETWORK_FAILED: fetch failed" });
+  assert.equal(originalTask(second), "修好 streaks 的边界");
+  const next = codingContinuation({ number: 2, run: second, reviews: [], commands: [] });
+  assert.equal(next.task.split(CONTINUATION_MARKER).length, 2, "只有一个继续标记");
+  assert.match(next.task, /出错结束：MODEL_NETWORK_FAILED/);
+});
+
+test("未结束、已完成或带目录分工的轮次不能一键继续；读不到的回执如实说未知", () => {
+  assert.throws(() => codingContinuation({ number: 1, run: run({ phase: "running" }), reviews: [], commands: [] }), /还没有结束/);
+  assert.throws(() => codingContinuation({ number: 1, run: run({ phase: "completed" }), reviews: [], commands: [] }), /已经完成/);
+  assert.throws(() => codingContinuation({ number: 1, run: run({ frozen: { role_id: "writers" } as never }), reviews: [], commands: [] }), /分工/);
+  const unknown = codingContinuation({ number: 1, run: run(), reviews: [], commands: [{ call_id: "c2", output: null }] });
+  assert.match(unknown.task, /回执无法读取，结果未知：npm test/);
+});
+
+test("服务中断后继续时，说明是中断而不是模型出错", () => {
+  const next = codingContinuation({ number: 3, run: run({ phase: "failed", stop_reason: "本轮因中断结束。已核实的操作已保留，可输入新要求继续。" }), reviews: [], commands: [] });
+  assert.match(next.task, /第 3 轮没有完成：服务中断，中断前已发生的操作已核对。请从断点继续/);
+  assert.doesNotMatch(next.task, /。。/);
+});

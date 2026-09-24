@@ -282,6 +282,7 @@ export const CODING_STYLES = `
 .coding-run-round { margin-left:auto; font-size:11px; color:var(--faint); }
 .coding-run-facts { margin:6px 0 0 28px; font-size:12.5px; color:var(--muted); }
 .coding-run-reason { margin:6px 0 0 28px; font-size:12.5px; color:var(--ink); }
+.coding-run-reason small { display:inline-block; margin-top:2px; color:var(--faint); font:11px var(--font-mono,ui-monospace,SFMono-Regular,Menlo,monospace); overflow-wrap:anywhere; }
 .coding-run-files { list-style:none; margin:8px 0 0 28px; padding:0; display:grid; gap:2px; font-size:12px; }
 .coding-run-files li { display:flex; align-items:center; gap:6px; color:var(--muted); }
 .coding-run-files code { color:var(--ink); background:none; padding:0; }
@@ -466,9 +467,9 @@ export const CODING_STYLES = `
 
 /* Session rows carry their state as a dot: live work pulses, anything waiting on the person is amber. */
 .coding-session-state { display:inline-flex; align-items:center; gap:5px; }
-.coding-session-state:is([data-state=running],[data-state=waiting-answer],[data-state=waiting-approval],[data-state=failed],[data-state=reconcile-required])::before { content:""; flex:none; width:6px; height:6px; border-radius:50%; background:currentColor; }
+.coding-session-state:is([data-state=running],[data-state=paused],[data-state=waiting-answer],[data-state=waiting-approval],[data-state=failed],[data-state=reconcile-required])::before { content:""; flex:none; width:6px; height:6px; border-radius:50%; background:currentColor; }
 .coding-session-state[data-state=running] { color:var(--blue); }
-.coding-session-state:is([data-state=waiting-answer],[data-state=waiting-approval]) { color:var(--amber); }
+.coding-session-state:is([data-state=paused],[data-state=waiting-answer],[data-state=waiting-approval]) { color:var(--amber); }
 .coding-session-state:is([data-state=failed],[data-state=reconcile-required]) { color:var(--red); }
 @media (prefers-reduced-motion:no-preference) { .coding-session-state[data-state=running]::before { animation:coding-pulse 1.4s ease-in-out infinite; } }
 
@@ -478,4 +479,16 @@ export const CODING_STYLES = `
 @keyframes coding-caret { to { visibility:hidden; } }
 .coding-turn.is-writing > :is(ul,ol):last-child > li:last-child::after { content:""; display:inline-block; width:.45em; height:1.05em; margin-left:2px; vertical-align:-.15em; border-radius:1px; background:var(--ink); opacity:.55; }
 .coding-turn.is-writing > :is(ul,ol,pre,table):last-child::after { content:none; }
+
+/* A Host-composed continuation reads as a quiet marker in the conversation, not a wall of text from the person. */
+.coding-turn.is-continuation[data-kind=user] { width:auto; max-width:76ch; margin-inline:auto; padding:0; border-radius:0; background:none; }
+.coding-turn.is-continuation details > summary { list-style:none; display:flex; align-items:center; gap:8px; width:fit-content; max-width:100%; padding:5px 12px 5px 10px; border:1px dashed var(--line); border-radius:999px; color:var(--muted); font-size:12.5px; cursor:pointer; }
+.coding-turn.is-continuation details > summary::-webkit-details-marker { display:none; }
+.coding-turn.is-continuation details > summary:hover { color:var(--ink); background:var(--nav-hover); }
+.coding-turn.is-continuation summary svg { width:12px; height:12px; flex:none; }
+.coding-continuation-facts { margin:8px 0 0; padding:10px 14px; border-left:2px solid var(--line); color:var(--muted); font-size:12.5px; line-height:1.7; }
+
+.coding-filter-count { display:inline-flex; align-items:center; justify-content:center; min-width:16px; height:16px; margin-left:4px; padding:0 4px; border-radius:999px; background:color-mix(in srgb,var(--ink) 8%,transparent); font-size:10.5px; font-variant-numeric:tabular-nums; }
+.coding-filter[data-coding-filter=needs-you] .coding-filter-count { background:color-mix(in srgb,var(--amber) 18%,transparent); color:var(--amber); }
+.coding-filter-count[hidden] { display:none; }
 `;

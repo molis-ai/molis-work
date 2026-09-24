@@ -1,5 +1,5 @@
 export { codingReportPreview } from "./report.js";
-export { codingChangeSetPreview } from "./changeset.js";
+export { codingChangeSetPreview, codingNetChange } from "./changeset.js";
 
 export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-plugin-coding",

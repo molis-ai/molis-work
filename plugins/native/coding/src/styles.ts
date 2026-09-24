@@ -361,6 +361,8 @@ export const CODING_STYLES = `
 .coding-change-write:focus-visible { outline:2px solid var(--focus,var(--blue)); outline-offset:-2px; }
 .coding-change-write:not(.is-file) { padding-left:30px; color:var(--muted); font-size:12px; }
 .coding-change-write:not(.is-file)[aria-pressed=true] { color:var(--ink); }
+.coding-change-write.is-net { color:var(--ink); }
+.coding-change-write.is-net .coding-change-step::after { content:" · 第一次写入前 → 最后一次写入后"; color:var(--faint); font-size:11px; }
 .coding-change-icon { display:inline-flex; color:var(--muted); }
 .coding-change-icon svg { width:14px; height:14px; }
 .coding-change-path { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font:12px var(--font-mono,ui-monospace,SFMono-Regular,Menlo,monospace); }

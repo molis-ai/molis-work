@@ -74,11 +74,11 @@ const STATE_MARK: Record<CodingSessionState, { icon: string; tone: string; label
   "idle": { icon: "message", tone: "idle", label: "尚未执行" },
   "running": { icon: "loader", tone: "progress", label: "执行中" },
   "waiting-answer": { icon: "help-circle", tone: "attention", label: "等你回答" },
-  "waiting-approval": { icon: "alert-circle", tone: "attention", label: "等你审查" },
-  "failed": { icon: "alert-triangle", tone: "blocked", label: "失败待处理" },
-  "stopped": { icon: "slash", tone: "idle", label: "你停下的" },
+  "waiting-approval": { icon: "circle-alert", tone: "attention", label: "等你审查" },
+  "failed": { icon: "alert", tone: "blocked", label: "失败待处理" },
+  "stopped": { icon: "blocked", tone: "idle", label: "你停下的" },
   "cancelled": { icon: "x", tone: "idle", label: "已取消" },
-  "reconcile-required": { icon: "alert-circle", tone: "attention", label: "需要你核对结果" },
+  "reconcile-required": { icon: "circle-alert", tone: "attention", label: "需要你核对结果" },
   "done": { icon: "check", tone: "done", label: "本轮结束" },
 };
 
@@ -325,7 +325,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
 function renderWorkspaceLine(workspacePath: string | null, p: CodingUiPrimitives): string {
   // A project with no workspace bound says so; it never shows a guessed path.
   if (workspacePath === null) {
-    return `<span class="mw-status" data-tone="attention">${p.icon("alert-circle")}${p.escape("这个项目还没有绑定工作区目录")}</span>`;
+    return `<span class="mw-status" data-tone="attention">${p.icon("circle-alert")}${p.escape("这个项目还没有绑定工作区目录")}</span>`;
   }
   return `<span class="coding-workspace" data-coding-workspace>${p.icon("folder")}${p.escape(workspacePath)}</span>`;
 }
@@ -340,7 +340,7 @@ function renderToolTab(tool: CodingToolAvailability, p: CodingUiPrimitives): str
 function renderToolPanel(tool: CodingToolAvailability, p: CodingUiPrimitives): string {
   if (!tool.available) {
     return `<div class="coding-tool-panel is-unavailable" data-coding-tool-panel="${tool.page}" hidden>
-      <div class="mw-empty">${p.icon("slash")}<p>${p.escape(tool.reason ?? "这一页现在不可用")}</p></div>
+      <div class="mw-empty">${p.icon("blocked")}<p>${p.escape(tool.reason ?? "这一页现在不可用")}</p></div>
     </div>`;
   }
   return `<div class="coding-tool-panel" data-coding-tool-panel="${tool.page}" hidden></div>`;
@@ -514,7 +514,7 @@ export function renderPendingReviewCard(model: CodingReviewCardModel): string {
     ? `<li class="coding-review-more">${p.escape(`还有 ${model.pending.length - 3} 项`)}</li>`
     : "";
   return `<aside class="coding-review-card" data-coding-review-card>
-    <div class="mw-status" data-tone="attention">${p.icon("alert-circle")}${p.escape(`${model.pending.length} 项操作等你决定`)}</div>
+    <div class="mw-status" data-tone="attention">${p.icon("circle-alert")}${p.escape(`${model.pending.length} 项操作等你决定`)}</div>
     <ul class="coding-review-list">${items}${more}</ul>
     <a class="mw-button mw-button--primary" href="${p.escape(model.review_href)}" data-coding-review-open>${p.escape("查看并处理")}</a>
     <p class="coding-review-note">${p.escape("在你批准之前，这些操作不会发生。批准在宿主的审查面里做。")}</p>

@@ -54,22 +54,26 @@ export function createCodingTimeline() {
     const match = /^exit (-?\d+)/.exec(item.output ?? "");
     return match ? Number(match[1]) : null;
   };
-  const outcome = (item: TimelineActivity, ended: boolean) => {
+  /** Only side effects go through review; a read started alongside one is merely held until the round resumes. */
+  const APPROVABLE = new Set(["edit", "write", "run-command"]);
+  const outcome = (item: TimelineActivity, ended: boolean, waiting = false) => {
     const code = exitCode(item);
-    if (item.state === "started") return ended ? { tone: "unknown", label: "结果未返回" } : { tone: "running", label: "进行中" };
+    if (item.state === "started") return ended ? { tone: "unknown", label: "结果未返回" }
+      : waiting ? (APPROVABLE.has(item.name) ? { tone: "waiting", label: "等你批准" } : { tone: "held", label: "等待中" })
+      : { tone: "running", label: "进行中" };
     if (item.state === "failed") return { tone: "failed", label: "失败" };
     if (item.state === "unknown") return { tone: "unknown", label: "结果未知" };
     if (code !== null) return code === 0 ? { tone: "ok", label: "exit 0" } : { tone: "failed", label: `exit ${code}` };
     return { tone: "ok", label: "" };
   };
   const statusMark = (tone: string) => tone === "running" ? '<span class="coding-spinner" aria-hidden="true"></span>'
-    : tone === "ok" ? svg("check") : tone === "failed" ? svg("x") : svg("circle-alert");
+    : tone === "waiting" ? svg("clock") : tone === "held" ? svg("dot") : tone === "ok" ? svg("check") : tone === "failed" ? svg("x") : svg("circle-alert");
   const lines = (text: string, limit: number) => {
     const all = text.replace(/\n$/, "").split("\n");
     return all.length <= limit ? { text: all.join("\n"), hidden: 0 } : { text: all.slice(0, limit).join("\n"), hidden: all.length - limit };
   };
-  const rowHtml = (item: TimelineActivity, ended: boolean) => {
-    const kind = kindOf(item), result = outcome(item, ended);
+  const rowHtml = (item: TimelineActivity, ended: boolean, waiting: boolean) => {
+    const kind = kindOf(item), result = outcome(item, ended, waiting);
     const what = item.target ? `<code>${escape(item.target)}</code>` : "";
     const output = (item.output ?? "").trim();
     const shown = output ? lines(output, 24) : null;
@@ -80,11 +84,13 @@ export function createCodingTimeline() {
       : `<div class="coding-tool" data-tone="${result.tone}" data-tool="${escape(item.call_id)}"><div class="coding-tool-head">${head}</div></div>`;
   };
   /** "读取 4 个文件 · 运行 3 条命令", or what is happening right now. */
-  const summaryText = (items: TimelineActivity[], ended: boolean) => {
-    const running = ended ? undefined : [...items].reverse().find(item => item.state === "started");
+  const summaryText = (items: TimelineActivity[], ended: boolean, waiting: boolean) => {
+    const started = ended ? [] : [...items].reverse().filter(item => item.state === "started");
+    const running = (waiting ? started.find(item => APPROVABLE.has(item.name)) : undefined) ?? started[0];
     if (running) {
-      const kind = kindOf(running);
-      return { live: true, text: `正在${kind.verb}${running.target ? " " + running.target : ""}` };
+      const kind = kindOf(running), what = `${kind.verb}${running.target ? " " + running.target : ""}`;
+      return waiting ? (APPROVABLE.has(running.name) ? { live: false, waiting: true, text: `等你批准：${what}` } : { live: false, waiting: true, text: `暂停中：${what}` })
+        : { live: true, waiting: false, text: `正在${what}` };
     }
     const counts = new Map<string, { kind: ReturnType<typeof kindOf>; targets: Set<string>; calls: number }>();
     for (const item of items) {
@@ -94,29 +100,29 @@ export function createCodingTimeline() {
     }
     const parts = [...counts.values()].map(({ kind, targets, calls }) => `${kind.verb} ${kind.noun === "文件" || kind.noun === "目录" ? targets.size || calls : calls} ${kind.unit}${kind.noun}`);
     const failed = items.filter(item => outcome(item, ended).tone === "failed").length;
-    return { live: false, text: parts.join(" · ") + (failed ? ` · ${failed} 项未成功` : "") };
+    return { live: false, waiting: false, text: parts.join(" · ") + (failed ? ` · ${failed} 项未成功` : "") };
   };
   const opened = new Map<string, boolean>();
   /** Render a run of consecutive calls into `detail`, keeping the reader's open/closed choice across polls. */
   const renderGroup = (detail: Element, items: TimelineActivity[], run: TimelineRun, latest: boolean) => {
-    const ended = TERMINAL.includes(run.phase);
+    const ended = TERMINAL.includes(run.phase), waiting = latest && run.phase === "awaiting-review";
     const key = detail.dataset.codingActivity ?? "";
     if (!detail.dataset.bound) {
       detail.dataset.bound = "true";
       detail.addEventListener("toggle", () => { if (detail.dataset.rendering !== "true") opened.set(key, detail.open); });
     }
-    const summary = summaryText(items, ended);
-    const signature = JSON.stringify([run.phase, items.map(item => [item.call_id, item.state, item.target, (item.output ?? "").length])]);
+    const summary = summaryText(items, ended, waiting);
+    const signature = JSON.stringify([run.phase, latest, items.map(item => [item.call_id, item.state, item.target, (item.output ?? "").length])]);
     if (detail.dataset.signature !== signature) {
       detail.dataset.signature = signature;
       detail.dataset.rendering = "true";
-      const head = `<span class="coding-tools-summary${summary.live ? " is-live" : ""}">${summary.live ? '<span class="coding-spinner" aria-hidden="true"></span>' : svg("activity")}<span>${escape(summary.text)}</span></span><span class="coding-tools-chevron" aria-hidden="true">${svg("chevron-right")}</span>`;
+      const head = `<span class="coding-tools-summary${summary.live ? " is-live" : summary.waiting ? " is-waiting" : ""}">${summary.live ? '<span class="coding-spinner" aria-hidden="true"></span>' : svg(summary.waiting ? "clock" : "activity")}<span>${escape(summary.text)}</span></span><span class="coding-tools-chevron" aria-hidden="true">${svg("chevron-right")}</span>`;
       const summaryNode = detail.querySelector("summary") ?? detail.appendChild(document.createElement("summary"));
       summaryNode.innerHTML = head;
       let list = detail.querySelector(".coding-tool-list");
       if (!list) { list = document.createElement("div"); list.className = "coding-tool-list"; detail.append(list); }
       const openRows = new Set([...list.querySelectorAll("details.coding-tool[open]")].map((node: Element) => node.dataset.tool));
-      list.innerHTML = items.map(item => rowHtml(item, ended)).join("");
+      list.innerHTML = items.map(item => rowHtml(item, ended, waiting)).join("");
       list.querySelectorAll("details.coding-tool").forEach((node: Element) => { if (openRows.has(node.dataset.tool)) (node as Element).open = true; });
       detail.dataset.live = String(summary.live);
       const remembered = opened.get(key);
@@ -132,7 +138,7 @@ export function createCodingTimeline() {
   };
   const LIVE_TEXT: Record<string, string> = {
     starting: "正在准备", running: "正在工作", compacting: "正在整理上下文", pausing: "正在暂停", paused: "已暂停",
-    "awaiting-input": "等你回答上面的问题", "awaiting-review": "等你审查下面的操作",
+    "awaiting-input": "等你回答上面的问题", "awaiting-review": "等你决定上面这一步",
   };
   /** The live line at the bottom of an active round, or the closing card of a finished one. */
   const renderFooter = (block: Element, run: TimelineRun, index: number) => {

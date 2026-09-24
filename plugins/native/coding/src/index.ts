@@ -167,11 +167,13 @@ export {
   type WriterWorktree,
   type WritersProjectionInput,
 } from "./writers.js";
+export { createCodingTimeline, type TimelineActivity, type TimelineRun } from "./timeline.js";
 export {
   STICK_THRESHOLD_PX,
   atBottom,
   onContentAppended,
   onReaderScrolled,
+  READER_INTENT_MS,
   type ScrollPosition,
   type StickDecision,
 } from "./reading.js";

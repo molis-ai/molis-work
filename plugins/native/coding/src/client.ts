@@ -8,7 +8,7 @@ import { CODING_WRITER_DIRECTORIES_CLIENT_FACTORY_SCRIPT } from "./writers-clien
 import { codingGoalVersionLabel } from "./goal-versions.js";
 import { CODING_CHANGESET_CLIENT_FACTORY_SCRIPT } from "./changeset-client.js";
 import { codingUsageSummary } from "./usage.js";
-import { atBottom, onContentAppended, STICK_THRESHOLD_PX } from "./reading.js";
+import { atBottom, onContentAppended, onReaderScrolled, READER_INTENT_MS, STICK_THRESHOLD_PX } from "./reading.js";
 import { createCodingTimeline } from "./timeline.js";
 
 /** Host supplies navigation; this client only handles Coding's own surface. */
@@ -24,6 +24,8 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const STICK_THRESHOLD_PX = ${STICK_THRESHOLD_PX};
   const atBottom = ${atBottom.toString()};
   const onContentAppended = ${onContentAppended.toString()};
+  const onReaderScrolled = ${onReaderScrolled.toString()};
+  const READER_INTENT_MS = ${READER_INTENT_MS};
   const codingGoalVersionLabel = ${codingGoalVersionLabel.toString()};
   const codingUsageSummary = ${codingUsageSummary.toString()};
   const timeline = (${createCodingTimeline.toString()})();
@@ -593,6 +595,15 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
     } finally {if(ticket===reportTicket)reportSaving=false;}
   };
+  // A new decision takes keyboard focus once — Enter approves, Tab reaches reject — unless the person is typing.
+  const offeredApprovals=new Set();
+  const offerApproval = (inline) => {
+    const card=inline.querySelector('[data-agent-review-phase=pending]'),id=card?.dataset.agentReviewItem,approve=card?.querySelector('[data-agent-review-approve]');
+    if(!inline.isConnected || !id || !approve || approve.disabled || offeredApprovals.has(id))return;
+    offeredApprovals.add(id);
+    if(document.activeElement?.matches?.('input,textarea,select,[contenteditable=""],[contenteditable=true]') || document.querySelector('dialog[open]'))return;
+    approve.focus({preventScroll:true});
+  };
   const renderRuns = (runs) => {
     // Following is the reader's choice, made by scrolling; content that grows after a render must not revoke it.
     const follow = !reportRun && onContentAppended({position:position(),pinned}).follow;
@@ -657,7 +668,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       let inline=block.querySelector(':scope > [data-coding-inline-review]');
       if(run===runs.at(-1) && run.phase==='awaiting-review') {
         if(!inline){inline=document.createElement('div');inline.className='coding-inline-review';inline.dataset.codingInlineReview='';}
-        const footer=block.querySelector(':scope > .coding-run-footer');if(inline.nextElementSibling!==footer || inline.parentElement!==block)block.insertBefore(inline,footer);void host.showReviews?.(inline,[run.ref],runtimeSessionId);
+        const footer=block.querySelector(':scope > .coding-run-footer');if(inline.nextElementSibling!==footer || inline.parentElement!==block)block.insertBefore(inline,footer);void Promise.resolve(host.showReviews?.(inline,[run.ref],runtimeSessionId)).then(()=>offerApproval(inline));
       } else inline?.remove();
       timeline.renderFooter(block,run,runs.indexOf(run));
     }
@@ -950,7 +961,9 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   root.addEventListener('click',click);
   directory.querySelector('[data-coding-search]').addEventListener('input',renderDirectory);
-  turns.addEventListener('scroll',()=>{if(reportRun)return;pinned=atBottom(position());q('[data-coding-latest]').hidden=pinned;},{passive:true});
+  let readerIntentAt=-Infinity;const readerIntent=()=>{readerIntentAt=performance.now();};
+  for(const type of ['wheel','touchstart','touchmove','pointerdown','keydown'])turns.addEventListener(type,readerIntent,{passive:true});
+  turns.addEventListener('scroll',()=>{if(reportRun)return;pinned=onReaderScrolled(position(),{pinned,by_reader:performance.now()-readerIntentAt<READER_INTENT_MS});q('[data-coding-latest]').hidden=pinned;},{passive:true});
   // Late growth (a review card loading, a group opening) keeps a following reader at the newest line.
   let followFrame=0;new MutationObserver(()=>{if(!pinned || reportRun || followFrame)return;followFrame=requestAnimationFrame(()=>{followFrame=0;if(pinned && !reportRun)turns.scrollTop=turns.scrollHeight;});}).observe(turns,{childList:true,subtree:true,characterData:true});
   input.addEventListener('input',()=>{rememberDraft(current,input.value);q('[data-coding-draft-status]').textContent='正在保存草稿…';clearTimeout(draftTimer);const id=current,value=input.value;draftTimer=setTimeout(()=>{void saveDraft(id,value).catch(error=>status('草稿暂未写入服务，当前窗口仍保留：'+error.message,true));},400);});

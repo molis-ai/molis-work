@@ -45,6 +45,13 @@ test("读者滚回底部就重新钉住", () => {
   assert.equal(onReaderScrolled(bottom), true);
 });
 
+test("不是读者造成的滚动（卡片重排、面板保持锚点、内容收缩）不会取消跟随", () => {
+  assert.equal(onReaderScrolled(readingUp, { pinned: true, by_reader: false }), true, "卡片重排把视口推离底部时仍跟随");
+  assert.equal(onReaderScrolled(readingUp, { pinned: false, by_reader: false }), false, "读者已上翻时，程序滚动也不会替他钉回");
+  assert.equal(onReaderScrolled(readingUp, { pinned: true, by_reader: true }), false, "读者自己上翻才取消跟随");
+  assert.equal(onReaderScrolled(bottom, { pinned: false, by_reader: false }), true, "到底就重新钉住");
+});
+
 test("内容比视口还短时永远算在底部", () => {
   assert.equal(atBottom({ offset: 0, viewport: 500, content: 200 }), true);
 });

@@ -79,10 +79,17 @@ export const AGENT_REVIEW_STYLES = `
 .agent-review-diff tr[data-diff=delete] .agent-review-sign { color:var(--red, #cf222e); }
 .agent-review-gap td { color:var(--muted); background:var(--rail); text-align:center; font-family:inherit; padding:2px 8px; }
 .agent-review-actions { display:flex; justify-content:flex-end; align-items:center; flex-wrap:wrap; gap:8px; }
+.agent-review-actions [data-agent-review-approve]:focus::after { content:"↵"; margin-left:6px; font-size:11px; opacity:.72; }
 .agent-review-remember { display:inline-flex; align-items:center; gap:6px; margin-right:auto; color:var(--muted); font-size:12px; cursor:pointer; }
 .agent-review-remember input { margin:0; }
 .agent-review-rule { color:var(--muted); }
-.agent-review-feedback { margin-block:12px; }
+.agent-review-feedback { margin-block:10px; }
+.agent-review-feedback .mw-field__label { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+/* Optional feedback stays one line until someone starts writing, so approve stays within reach. */
+.agent-review-feedback textarea { min-height:36px; height:36px; resize:none; transition:height .16s ease; }
+.agent-review-feedback textarea:focus,.agent-review-feedback textarea:not(:placeholder-shown) { height:84px; resize:vertical; }
+.agent-review-feedback .mw-field__hint { display:none; }
+.agent-review-feedback:focus-within .mw-field__hint,.agent-review-feedback:has(textarea:not(:placeholder-shown)) .mw-field__hint { display:block; }
 .agent-review-error { color:var(--ink); border-left:2px solid var(--muted); padding-left:8px; }
 `;
 
@@ -145,13 +152,13 @@ function readable(document: AgentReviewDocument): boolean {
 }
 
 const PHASE_MARK: Record<AgentReviewPhase, { icon: string; tone: string; label: string }> = {
-  reconcile: { icon: "alert-triangle", tone: "blocked", label: "结果待核对，不能重复执行" },
-  pending: { icon: "alert-circle", tone: "attention", label: "等你决定" },
+  reconcile: { icon: "alert", tone: "blocked", label: "结果待核对，不能重复执行" },
+  pending: { icon: "circle-alert", tone: "attention", label: "等你决定" },
   approved: { icon: "clock", tone: "progress", label: "已批准，执行结果待确认" },
   done: { icon: "check", tone: "done", label: "已完成" },
-  failed: { icon: "alert-triangle", tone: "blocked", label: "已批准，但执行未完成" },
+  failed: { icon: "alert", tone: "blocked", label: "已批准，但执行未完成" },
   rejected: { icon: "x", tone: "blocked", label: "已拒绝" },
-  cancelled: { icon: "slash", tone: "idle", label: "已撤回" },
+  cancelled: { icon: "blocked", tone: "idle", label: "已撤回" },
   expired: { icon: "clock", tone: "idle", label: "已过期" },
 };
 
@@ -200,7 +207,7 @@ function renderRow(row: AgentReviewRow, p: AgentReviewPrimitives): string {
 function renderFooter(row: AgentReviewRow, decidable: boolean, p: AgentReviewPrimitives): string {
   if (decidable) {
     const reviewId = p.escape(row.request.review_id);
-    return `${row.request.run && row.request.document.kind === "text-edit" && row.request.plugin_id === "io.molis.work.coding" ? `<label class="mw-field agent-review-feedback"><span class="mw-field__label">修改意见（可选）</span><textarea class="mw-textarea" data-slot="textarea" data-agent-review-feedback aria-label="修改意见（可选）" maxlength="2000" rows="3" placeholder="指出这份提案需要改哪里…"></textarea><span class="mw-field__hint">填写后随拒绝交给原任务；新提案仍需重新审查。</span></label>` : ""}<footer class="agent-review-actions">
+    return `${row.request.run && row.request.document.kind === "text-edit" && row.request.plugin_id === "io.molis.work.coding" ? `<label class="mw-field agent-review-feedback"><span class="mw-field__label">修改意见（可选）</span><textarea class="mw-textarea" data-slot="textarea" data-agent-review-feedback aria-label="修改意见（可选）" maxlength="2000" rows="1" placeholder="要改哪里？写下意见后点拒绝，交回给 Agent…"></textarea><span class="mw-field__hint">填写后随拒绝交给原任务；新提案仍需重新审查。</span></label>` : ""}<footer class="agent-review-actions">
       ${row.request.document.kind === "command" && row.request.document.escalate === false && row.request.run ? `<label class="agent-review-remember"><input type="checkbox" data-agent-review-remember>${p.escape("本会话内同样的命令不再询问")}</label>` : ""}
       <button class="mw-btn" type="button" data-agent-review-reject="${reviewId}">${p.escape("拒绝")}</button>
       <button class="mw-btn mw-btn--primary" type="button" data-agent-review-approve="${reviewId}">${p.escape("批准这一次")}</button>

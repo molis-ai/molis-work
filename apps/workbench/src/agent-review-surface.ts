@@ -42,6 +42,9 @@ export const AGENT_REVIEW_STYLES = `
 .agent-review-row > details > summary { cursor:pointer; }
 .agent-review-row > details > summary .agent-review-head { display:inline-flex; vertical-align:top; }
 .agent-review-plugin { display:none; }
+.agent-review-title { min-width:0; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
+.agent-review-title--code { font:12px/1.6 var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); }
+.agent-review-head time { margin-left:auto; font-size:11px; }
 .agent-review-doc { margin:10px 0; overflow-wrap:anywhere; }
 .agent-review-doc pre { max-height:360px; overflow:auto; white-space:pre; padding:8px; background:var(--rail); border-radius:var(--radius-control); font-size:12px; }
 .agent-review-doc details { margin-top:6px; }
@@ -68,7 +71,10 @@ export const AGENT_REVIEW_STYLES = `
 .agent-review-diff tr[data-diff=insert] .agent-review-sign { color:var(--green, #1a7f37); }
 .agent-review-diff tr[data-diff=delete] .agent-review-sign { color:var(--red, #cf222e); }
 .agent-review-gap td { color:var(--muted); background:var(--rail); text-align:center; font-family:inherit; padding:2px 8px; }
-.agent-review-actions { display:flex; justify-content:flex-end; flex-wrap:wrap; gap:8px; }
+.agent-review-actions { display:flex; justify-content:flex-end; align-items:center; flex-wrap:wrap; gap:8px; }
+.agent-review-remember { display:inline-flex; align-items:center; gap:6px; margin-right:auto; color:var(--muted); font-size:12px; cursor:pointer; }
+.agent-review-remember input { margin:0; }
+.agent-review-rule { color:var(--muted); }
 .agent-review-feedback { margin-block:12px; }
 .agent-review-error { color:var(--ink); border-left:2px solid var(--muted); padding-left:8px; }
 `;
@@ -161,18 +167,22 @@ function reviewPriority(row: AgentReviewRow): number {
 function renderRow(row: AgentReviewRow, p: AgentReviewPrimitives): string {
   const phase = reviewPhase(row);
   const mark = phase === "done" && row.request.kind === "command"
-    ? { ...PHASE_MARK.done, label: "已执行，检查结果见命令回执" }
+    ? { ...PHASE_MARK.done, label: "已执行" }
     : phase === "failed" && row.receipt?.reconciliation ? { ...PHASE_MARK.failed, label: "已核对：原操作未发生" } : PHASE_MARK[phase];
   const decidable = isDecidable(row);
   const history = ["done", "rejected", "cancelled", "expired"].includes(phase);
-  const label = row.request.document.kind === "text-edit" ? row.request.document.target_path
-    : row.request.document.kind === "git-index" ? (row.request.document.action === "stage" ? "暂存文件" : "取消暂存")
-    : row.request.document.kind === "git-integration" ? "整合子任务成果"
-    : row.request.document.kind === "rewind" ? "文件回退" : row.request.kind === "command" ? "命令执行" : "工具操作";
+  const document = row.request.document;
+  // The heading names the thing itself, so a history list reads without opening every row.
+  const label = document.kind === "text-edit" ? document.target_path
+    : document.kind === "command" && readable(document) ? [document.command, ...document.args].map(shellWord).join(" ")
+    : document.kind === "git-index" ? (document.action === "stage" ? "暂存文件" : "取消暂存")
+    : document.kind === "git-integration" ? "整合子任务成果"
+    : document.kind === "rewind" ? "文件回退" : row.request.kind === "command" ? "命令执行" : "工具操作";
+  const labelClass = document.kind === "command" || document.kind === "text-edit" ? "agent-review-title agent-review-title--code" : "agent-review-title";
   return `<article class="agent-review-row" data-agent-review-item="${p.escape(row.request.review_id)}" data-agent-review-phase="${phase}">
     ${history ? '<details data-review-detail="history"><summary>' : ""}<header class="agent-review-head">
       <span class="mw-status" data-tone="${mark.tone}">${p.icon(mark.icon)}${p.escape(mark.label)}</span>
-      <span>${p.escape(label)}</span><span class="agent-review-plugin">${p.escape(row.request.plugin_id)}</span>
+      <span class="${labelClass}">${p.escape(label)}</span><span class="agent-review-plugin">${p.escape(row.request.plugin_id)}</span>
       <time>${p.escape(p.formatDate(row.request.requested_at))}</time>
     </header>${history ? "</summary>" : ""}
     ${renderDocument(row.request.document, p)}
@@ -184,6 +194,7 @@ function renderFooter(row: AgentReviewRow, decidable: boolean, p: AgentReviewPri
   if (decidable) {
     const reviewId = p.escape(row.request.review_id);
     return `${row.request.run && row.request.document.kind === "text-edit" && row.request.plugin_id === "io.molis.work.coding" ? `<label class="mw-field agent-review-feedback"><span class="mw-field__label">修改意见（可选）</span><textarea class="mw-textarea" data-slot="textarea" data-agent-review-feedback aria-label="修改意见（可选）" maxlength="2000" rows="3" placeholder="指出这份提案需要改哪里…"></textarea><span class="mw-field__hint">填写后随拒绝交给原任务；新提案仍需重新审查。</span></label>` : ""}<footer class="agent-review-actions">
+      ${row.request.document.kind === "command" && row.request.document.escalate === false && row.request.run ? `<label class="agent-review-remember"><input type="checkbox" data-agent-review-remember>${p.escape("本会话内同样的命令不再询问")}</label>` : ""}
       <button class="mw-btn" type="button" data-agent-review-reject="${reviewId}">${p.escape("拒绝")}</button>
       <button class="mw-btn mw-btn--primary" type="button" data-agent-review-approve="${reviewId}">${p.escape("批准这一次")}</button>
     </footer>`;
@@ -196,7 +207,7 @@ function renderFooter(row: AgentReviewRow, decidable: boolean, p: AgentReviewPri
     ${row.receipt?.decided_by === null || row.receipt?.decided_by === undefined
       ? ""
       : `<span>${p.escape(row.receipt.decided_by)}</span>`}
-    ${note === null || note === undefined ? "" : `<p>${p.escape(note)}</p>`}
+    ${row.receipt?.standing_rule ? `<p class="agent-review-rule">${p.escape(`按本会话规则批准 · ${row.receipt.standing_rule.set_by} 设定于 ${p.formatDate(row.receipt.standing_rule.set_at)}`)}</p>` : note === null || note === undefined ? "" : `<p>${p.escape(note)}</p>`}
     ${error === null || error === undefined ? "" : `<p class="agent-review-error">${p.escape(error)}</p>`}
     ${row.receipt?.effect_uncertain ? `<p class="agent-review-error">${p.escape(row.receipt.effect_uncertain)}</p>` : ""}
     ${row.receipt?.effect_uncertain && row.request.kind === "git-index" ? `<button class="mw-btn" type="button" data-agent-review-inspect="${p.escape(row.request.review_id)}">核对暂存区与回执</button><div data-review-recovery></div>` : ""}

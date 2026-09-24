@@ -189,3 +189,19 @@ test("a text edit reads as a unified diff with context and counts; a command rea
   assert.match(commandHtml, /\$<\/span> node --test (&#39;|')a b\.test\.js(&#39;|') (&#39;|')it(&#39;|')\\(&#39;|')(&#39;|')s(&#39;|')</);
   assert.match(commandHtml, /在 工作区根目录 运行/);
 });
+
+test("only an in-boundary command offers 'allow for this session', and a rule's approval says so", () => {
+  const inside = row();
+  inside.request.kind = "command";
+  inside.request.document = { kind: "command", command: "npm", args: ["test"], cwd: ".", timeout_ms: 30000, escalate: false };
+  assert.match(renderAgentReviewSurface({ rows: [inside], primitives: p }), /data-agent-review-remember/);
+  const outside = row();
+  outside.request.kind = "command";
+  outside.request.document = { kind: "command", command: "npm", args: ["publish"], cwd: ".", timeout_ms: 30000, escalate: true };
+  assert.doesNotMatch(renderAgentReviewSurface({ rows: [outside], primitives: p }), /data-agent-review-remember/);
+  assert.doesNotMatch(renderAgentReviewSurface({ rows: [row()], primitives: p }), /data-agent-review-remember/, "a file edit is always read");
+  const ruled = row({ receipt: receipt({ status: "approved", effect_settled: true, decided_by: "alice", standing_rule: { set_by: "alice", set_at: "2026-09-24T00:00:00.000Z" } }) });
+  ruled.request.kind = "command";
+  ruled.request.document = inside.request.document;
+  assert.match(renderAgentReviewSurface({ rows: [ruled], primitives: p }), /按本会话规则批准 · alice 设定于/);
+});

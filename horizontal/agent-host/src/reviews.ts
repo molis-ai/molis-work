@@ -26,6 +26,18 @@ export class AgentReviewError extends Error {
   }
 }
 
+/**
+ * The identity of a command for a standing rule: same session, same plugin, same argv, directory,
+ * environment and boundary. Anything outside the Host boundary, and anything that is not a command,
+ * never qualifies — a file edit's content differs every time and must be read.
+ */
+function standingKey(request: AgentReviewRequest): string | null {
+  const document = request.document;
+  if (request.kind !== "command" || document.kind !== "command" || !request.run || document.escalate !== false) return null;
+  return JSON.stringify([request.board_id, request.plugin_id, request.run.session_id, document.command, document.args,
+    document.cwd, document.workspace_path ?? null, document.env_allowlist ?? null, document.timeout_ms]);
+}
+
 interface ReviewRow {
   request: AgentReviewRequest;
   receipt: AgentReviewReceipt;
@@ -46,6 +58,9 @@ interface RecoveryHandler {
  * never be turned into permission by asking a second way.
  */
 export class AgentReviewQueue implements AgentReviewQueueApi {
+  /** "Allow this command for this session", keyed by the exact command and its session; in memory only. */
+  readonly #standing = new Map<string, { set_by: string; set_at: string }>();
+  readonly #automatic = new Map<string, { set_by: string; set_at: string }>();
   readonly #rows = new Map<string, ReviewRow>();
   readonly #consumed = new Set<string>();
   readonly #listeners = new Set<(request: AgentReviewRequest) => void>();
@@ -139,15 +154,35 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
 
   /** Host-only dispatch to the execution owner; never exposed as a Plugin capability. */
   registerDecisionHandler(reviewId: string, handler: (input: AgentReviewDecisionInput) => Promise<AgentReviewReceipt>): void {
-    if (!this.#rows.has(reviewId)) throw new AgentReviewError("agent.review_unknown", "找不到这条待审操作");
+    const row = this.#rows.get(reviewId);
+    if (!row) throw new AgentReviewError("agent.review_unknown", "找不到这条待审操作");
     if (this.#deciders.has(reviewId)) throw new AgentReviewError("agent.review_already_decided", "审查已有执行所有者，不能替换");
     this.#deciders.set(reviewId, handler);
+    // An exact repeat of a command a person allowed for this session goes through the same decision path,
+    // attributed to that person and marked as coming from their rule. If it cannot, it simply stays pending.
+    const key = standingKey(row.request), rule = key ? this.#standing.get(key) : undefined;
+    if (!rule || this.#status(row) !== "pending") return;
+    queueMicrotask(() => {
+      if (this.#status(row) !== "pending") return;
+      this.#automatic.set(reviewId, rule);
+      void this.respond({ review_id: reviewId, decision: "approve", actor_id: rule.set_by,
+        note: `按本会话规则批准：同一命令已由 ${rule.set_by} 于 ${rule.set_at} 允许本会话内不再询问` })
+        .catch(() => { /* left pending for a person to decide */ })
+        .finally(() => this.#automatic.delete(reviewId));
+    });
   }
 
   async respond(input: AgentReviewDecisionInput): Promise<AgentReviewReceipt> {
     const handler = this.#deciders.get(input.review_id);
     if (!handler) throw new AgentReviewError("agent.capability_unavailable", "执行方未接通或已中断，不能只在页面记录一次假批准");
-    return handler(input);
+    const row = this.#rows.get(input.review_id);
+    const key = input.remember === "session" && row ? standingKey(row.request) : null;
+    if (input.remember === "session" && (!key || input.decision !== "approve")) {
+      throw new AgentReviewError("agent.capability_unavailable", "只有在宿主执行边界内的命令可以设为本会话内不再询问");
+    }
+    const receipt = await handler(input);
+    if (key && row && this.#status(row) === "approved") this.#standing.set(key, { set_by: input.actor_id, set_at: row.receipt.decided_at ?? this.#now().toISOString() });
+    return key && row ? structuredClone({ ...receipt, ...this.receipt(input.review_id) }) : receipt;
   }
 
   deliveryFailed(reviewId: string, message: string): AgentReviewReceipt {
@@ -189,12 +224,14 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
     if (current !== "pending") {
       throw new AgentReviewError("agent.review_already_decided", "这条待审操作已经有结论了");
     }
+    const automatic = input.decision === "approve" ? this.#automatic.get(input.review_id) : undefined;
     row.receipt = {
       ...row.receipt,
       status: input.decision === "approve" ? "approved" : "rejected",
       decided_by: input.actor_id,
       decided_at: this.#now().toISOString(),
       note: input.note ?? null,
+      ...(automatic ? { standing_rule: { ...automatic } } : {}),
     };
     return structuredClone(row.receipt);
   }

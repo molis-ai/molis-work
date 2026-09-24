@@ -138,7 +138,8 @@ export function createCodingTimeline() {
   const renderFooter = (block: Element, run: TimelineRun, index: number) => {
     let footer = block.querySelector(":scope > .coding-run-footer") as Element | null;
     if (!footer) { footer = document.createElement("div"); footer.className = "coding-run-footer"; }
-    block.append(footer);
+    // Re-inserting a node restarts its entrance animation, so it only moves when something follows it.
+    if (block.lastElementChild !== footer) block.append(footer);
     const ended = TERMINAL.includes(run.phase);
     if (!ended) {
       footer.dataset.state = run.phase === "awaiting-review" || run.phase === "awaiting-input" ? "waiting" : "live";

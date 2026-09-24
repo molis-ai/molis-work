@@ -91,6 +91,9 @@ export async function handleAgentReviewHttp(
     if (body.note !== undefined && (typeof body.note !== "string" || body.note.length > 2000)) {
       sendLocalWebJson(response, 400, { error: "审查说明最多 2000 字符" }); return true;
     }
+    if (body.remember !== undefined && body.remember !== "session") {
+      sendLocalWebJson(response, 400, { error: "remember 只能是 session" }); return true;
+    }
     if (ports.agentHost.reviews.get(reviewId)?.board_id !== ports.boardId) {
       sendLocalWebJson(response, 404, { error: "找不到这条待审操作" });
       return true;
@@ -101,6 +104,7 @@ export async function handleAgentReviewHttp(
         decision,
         actor_id: ports.actorId,
         ...(typeof body.note === "string" && body.note !== "" ? { note: body.note } : {}),
+        ...(body.remember === "session" ? { remember: "session" as const } : {}),
       });
       // 200 carries the receipt, not a claim that the effect happened: that is
       // `effect_settled`, and it stays false until a real result comes back.

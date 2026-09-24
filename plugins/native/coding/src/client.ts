@@ -654,7 +654,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       let inline=block.querySelector(':scope > [data-coding-inline-review]');
       if(run===runs.at(-1) && run.phase==='awaiting-review') {
         if(!inline){inline=document.createElement('div');inline.className='coding-inline-review';inline.dataset.codingInlineReview='';}
-        block.append(inline);void host.showReviews?.(inline,[run.ref],runtimeSessionId);
+        const footer=block.querySelector(':scope > .coding-run-footer');if(inline.nextElementSibling!==footer || inline.parentElement!==block)block.insertBefore(inline,footer);void host.showReviews?.(inline,[run.ref],runtimeSessionId);
       } else inline?.remove();
       timeline.renderFooter(block,run,runs.indexOf(run));
     }

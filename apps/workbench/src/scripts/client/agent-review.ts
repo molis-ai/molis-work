@@ -75,7 +75,8 @@ export const AGENT_REVIEW_CLIENT_FACTORY_SCRIPT = `(host) => {
         if(button.dataset.agentReviewApprove && note)return;
         busy.add(review_id); syncActions(row);
         const scope={workspaceId:state.workspaceId,sessionId:state.sessionId};let receipt=null,decisionError=null;
-        try { ({receipt}=await read('/api/agent/reviews/decide',{review_id,decision:button.dataset.agentReviewApprove ? 'approve' : 'reject',...(note?{note}: {})}));if(!receipt.delivery_error)saveFeedback(review_id,''); }
+        const remember=Boolean(button.dataset.agentReviewApprove && row.querySelector('[data-agent-review-remember]')?.checked);
+        try { ({receipt}=await read('/api/agent/reviews/decide',{review_id,decision:button.dataset.agentReviewApprove ? 'approve' : 'reject',...(note?{note}: {}),...(remember?{remember:'session'}:{})}));if(!receipt.delivery_error)saveFeedback(review_id,''); }
         catch(error) {
           decisionError=error.message;
           const row=button.closest('[data-agent-review-item]');

@@ -543,6 +543,11 @@ export interface AgentReviewDecisionInput {
   decision: "approve" | "reject";
   actor_id: string;
   note?: string;
+  /**
+   * A person approving a command may also allow the same command for the rest of this Agent session.
+   * Only an in-boundary command qualifies; the Host records who set it and applies it to exact repeats.
+   */
+  remember?: "session";
 }
 
 export interface AgentReviewReceipt {
@@ -560,6 +565,8 @@ export interface AgentReviewReceipt {
   delivery_error?: string;
   /** Human evidence, projected only after the execution owner has settled the original effect. */
   reconciliation?: { actor_id: string; at: string; reason: string };
+  /** Approved by a person's earlier "allow this command for this session", not by a new click. */
+  standing_rule?: { set_by: string; set_at: string };
 }
 
 export interface AgentGitIndexObservation {
